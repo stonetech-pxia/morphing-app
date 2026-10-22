@@ -297,6 +297,24 @@ const strings = {
   localDone: { en: 'Done', zh: '完成' },
   localNext: { en: 'Next', zh: '下一张' },
   toolMissing: { en: 'This tool is not available.', zh: '这个工具不可用。' },
+  packsTitle: { en: 'Extension packs', zh: '扩展包' },
+  packsRowHint: { en: 'Downloaded packs and storage', zh: '已下载的扩展包和占用空间' },
+  packsHint: {
+    en: 'Some tools (scanner, text recognition, PDF preview) need a pack that is downloaded the first time you use them. They work offline afterwards.',
+    zh: '扫描、文字识别、PDF 预览等功能需要扩展包，第一次用时才会下载，之后不联网也能用。',
+  },
+  packsEmpty: { en: 'No packs downloaded yet.', zh: '还没有下载扩展包。' },
+  packsTotal: { en: 'Using {size}', zh: '共占用 {size}' },
+  packDelete: { en: 'Delete', zh: '删除' },
+  packDeleteTitle: { en: 'Delete “{name}”?', zh: '删除「{name}」？' },
+  packDeleteMessage: {
+    en: 'You can download it again the next time a tool needs it.',
+    zh: '下次用到时可以再下载。',
+  },
+  packDeleteWithLanguages: {
+    en: 'Its {count} language packs are deleted too. You can download them again the next time you need them.',
+    zh: '它的 {count} 个语言包也会一起删除。下次用到时可以再下载。',
+  },
 
   // 图片与链接
   imagePlaceholder: { en: 'Tap to choose a photo', zh: '点按选择一张照片' },

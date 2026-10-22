@@ -103,6 +103,17 @@ describe('runWorkflow', () => {
     expect(await promise).toEqual({ status: 'cancelled' });
   });
 
+  it('stops at once even when a step is stuck waiting (e.g. a picker that never appeared)', async () => {
+    const signal = { cancelled: false };
+    const { promise, records } = run(merge(), {
+      signal,
+      impls: { ...fakeImpls([]), 'in.files': () => new Promise<RunValue>(() => {}) },
+    });
+    void Promise.resolve().then(() => (signal.cancelled = true));
+    expect(await promise).toEqual({ status: 'cancelled' });
+    expect(records).toEqual([{ id: 7, status: 'cancelled' }]);
+  });
+
   it('reports which step failed, and records only the error code', async () => {
     const impls = fakeImpls([]);
     const { promise, records } = run(merge(), {

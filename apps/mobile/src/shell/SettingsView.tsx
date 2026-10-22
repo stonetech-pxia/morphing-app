@@ -55,6 +55,14 @@ export function SettingsView({ env }: { env: RenderEnv }) {
       />
       <ListRow
         palette={palette}
+        testID="settings-packs"
+        icon="archive"
+        label={t(locale, 'packsTitle')}
+        value={t(locale, 'packsRowHint')}
+        onPress={() => router.push('/packs')}
+      />
+      <ListRow
+        palette={palette}
         testID="settings-data"
         icon="inbox"
         label={t(locale, 'dataTitle')}

@@ -102,6 +102,8 @@ SQLite 表（`PRAGMA user_version` 管理数据库结构升级，见 `apps/mobil
 
 App 侧：`apps/mobile/src/runtime/runner.ts` 把执行器接上存储和平台；动作实现在 `runtime/actions/`，纯逻辑调用 `packages/tool-*`（tool-pdf、tool-image、tool-archive、tool-qr，Node + 真实文件测试）；平台能力（选照片 / 文件、临时文件、分享、存相册、打印）通过 `FilePlatform`（`runtime/platform.ts`）注入，App 中由 Expo 模块实现，测试中用内存实现。运行页面 `app/run/[workflowId].tsx` 显示每一步、本地操作界面（`run/local/`）和结果预览。中间结果是缓存目录 `runs/<runId>/` 里的临时文件，只有「保存」才成为用户文件（D-063）。
 
+扩展包（D-064、D-075）：清单在 `core/src/packs.ts`；下载、校验、删除在 `apps/mobile/src/packs/store.ts`（`documentDirectory/packs/<id>/<version>/`）；`PackHost` 按需挂载隐藏的 WebView，页面是随 App 发布的固定 HTML（`packs/pages/`），库文件经 `bridge.ts` 分块送进页面。用户在 `PackGate` 确认后才下载；「设置 → 扩展包」（`app/packs.tsx`）管理已下载的扩展包。
+
 ## 6. 外部能力接口（§14.2）
 
 - AI 来源由「设置 → AI」选择（`apps/mobile/src/ai/`）：内置规则 / Morph 服务器 / 用户自带 Claude API key。规划逻辑在 `packages/planner`，服务端和 App 共用。

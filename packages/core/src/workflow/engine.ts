@@ -134,6 +134,15 @@ export interface RunOptions<S> {
   };
 }
 
+/** 检查「停止」的间隔。 */
+const CANCEL_POLL_MS = 200;
+
+/** core 不依赖 DOM 或 Node 的类型，计时器从全局对象取（App 和测试环境都有）。 */
+const timers = globalThis as unknown as {
+  setInterval(fn: () => void, ms: number): unknown;
+  clearInterval(id: unknown): void;
+};
+
 export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
   const { workflow, registry } = opts;
   const runId = (await opts.record?.start()) ?? null;
@@ -161,6 +170,20 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
   const throwIfCancelled = () => {
     if (opts.signal?.cancelled) throw new RunCancelled();
   };
+  // 用户点「停止」时不再等待挂起的系统界面（例如没能弹出的文件选择器）：每一步都和取消信号赛跑。
+  let stopWatching = () => {};
+  const whenCancelled = new Promise<never>((_, reject) => {
+    if (!opts.signal) return;
+    const timer = timers.setInterval(() => {
+      if (opts.signal?.cancelled) {
+        timers.clearInterval(timer);
+        reject(new RunCancelled());
+      }
+    }, CANCEL_POLL_MS);
+    stopWatching = () => timers.clearInterval(timer);
+  });
+  whenCancelled.catch(() => undefined);
+  const orCancel = <T>(promise: Promise<T>) => Promise.race([promise, whenCancelled]);
   try {
     for (const [i, step] of workflow.steps.entries()) {
       index = i;
@@ -169,41 +192,47 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
       const action = registry.actions.get(step.action)!;
       const impl = opts.impls[step.action];
       if (!impl) throw new RunError('unsupportedAction', { action: step.action });
-      if (action.pack && opts.ensurePack && !(await opts.ensurePack(action.pack))) {
+      if (action.pack && opts.ensurePack && !(await orCancel(opts.ensurePack(action.pack)))) {
         throw new RunCancelled();
       }
       let params = action.params.parse(step.params);
       if (step.ask?.length && opts.askParams) {
-        const answered = await opts.askParams({
-          step,
-          action,
-          keys: step.ask,
-          params,
-          input: value,
-        });
+        const answered = await orCancel(
+          opts.askParams({
+            step,
+            action,
+            keys: step.ask,
+            params,
+            input: value,
+          }),
+        );
         if (answered === null) throw new RunCancelled();
         params = action.params.parse({ ...params, ...answered });
       }
       throwIfCancelled();
-      value = await impl(value, params, {
-        workflow,
-        step,
-        index: i,
-        action,
-        locale: opts.locale,
-        now: opts.now,
-        newId: opts.newId,
-        services: opts.services,
-        progress: (done, total) => opts.onEvent?.({ kind: 'progress', index: i, done, total }),
-        throwIfCancelled,
-        saved,
-      });
+      value = await orCancel(
+        impl(value, params, {
+          workflow,
+          step,
+          index: i,
+          action,
+          locale: opts.locale,
+          now: opts.now,
+          newId: opts.newId,
+          services: opts.services,
+          progress: (done, total) => opts.onEvent?.({ kind: 'progress', index: i, done, total }),
+          throwIfCancelled,
+          saved,
+        }),
+      );
     }
     return finish({ status: 'succeeded', value, saved });
   } catch (e) {
     if (e instanceof RunCancelled) return finish({ status: 'cancelled' });
     const error = e instanceof RunError ? e : new RunError('unexpected', { detail: String(e) });
     return finish({ status: 'failed', error, stepIndex: index });
+  } finally {
+    stopWatching();
   }
 }
 
