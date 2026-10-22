@@ -1,4 +1,4 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Text, View } from 'react-native';
 
 import { t } from '@/i18n';
@@ -12,6 +12,7 @@ export default function RunRoute() {
   const { locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
+  const router = useRouter();
   const workflow = config.workflows.find((w) => w.id === workflowId);
   if (!workflow) {
     return (
@@ -25,7 +26,10 @@ export default function RunRoute() {
   return (
     <>
       <Stack.Screen options={{ title: workflow.name }} />
-      <RunScreen workflow={workflow} />
+      <RunScreen
+        workflow={workflow}
+        onEdit={() => router.push({ pathname: '/workflow/[id]', params: { id: workflow.id } })}
+      />
     </>
   );
 }

@@ -3,6 +3,7 @@
 
 export * from './ai/eval-cases';
 export * from './ai/mock';
+export { stepIdFor } from './ai/workflow-phrases';
 export * from './ai/types';
 export * from './arrange';
 export * from './change';
@@ -27,4 +28,5 @@ export * from './workflow/contract';
 export * from './workflow/format';
 export * from './workflow/engine';
 export * from './workflow/redact';
+export * from './workflows/presets';
 export * from './packs';

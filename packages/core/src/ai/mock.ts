@@ -1,15 +1,28 @@
 import { checkNameTemplate } from '../naming';
 import { applyOps, topIndex, type Op } from '../ops';
+import { workflowProblems } from '../workflow/check';
+import { newWorkflowId, presetWorkflow } from '../workflows/presets';
+import {
+  findPreset,
+  findWorkflowByName,
+  parseStepPhrase,
+  splitStepPhrases,
+  stepIdFor,
+  stepsFrom,
+  type StepPhrase,
+} from './workflow-phrases';
 import type { ToolDefinition } from '../registry';
 import {
   HOME_PAGE_ID,
   IdSchema,
+  allComponents,
   pageTarget,
   type Component,
   type Locale,
   type Localized,
   type NavTarget,
   type Page,
+  type Workflow,
   type WorkspaceConfig,
 } from '../schema';
 import { isEmoji } from '../richtext';
@@ -57,6 +70,14 @@ interface State {
 }
 
 const say = (locale: Locale, zh: string, en: string) => (locale === 'zh' ? zh : en);
+
+/** 「新建一个工作流：选照片，压到 500KB，分享」：冒号后面的逗号是步骤之间的分隔，不拆成子句。 */
+function joinWorkflowSteps(input: string): string {
+  return input.replace(
+    /((?:工作流|流程|workflow)[:：])([^。！？!?\n]*)/gi,
+    (_m, head: string, rest: string) => head + rest.replace(/[，,；;]/g, '、'),
+  );
+}
 
 function splitClauses(input: string): string[] {
   return input
@@ -771,7 +792,337 @@ const titleRule: Rule = (clause, state) => {
   return ops;
 };
 
+// ---- 工作流（W1–W8，T7）：新建、从预设添加、改名、删除、放到首页、加一步、改大小、去掉一步 ----
+
+const Q = '"?';
+
+/** 句子里说的工作流：先按名字找，再按预设找（「签证照片」→ 从签证预设添加的那个）。 */
+function workflowNamed(rawName: string, state: State): Workflow | undefined {
+  const byName = findWorkflowByName(rawName, state.config);
+  if (byName) return byName;
+  const preset = findPreset(rawName);
+  return preset ? state.config.workflows.find((w) => w.presetId === preset.id) : undefined;
+}
+
+function requireWorkflow(rawName: string, state: State): Workflow {
+  const wf = workflowNamed(rawName, state);
+  if (wf) return wf;
+  throw new Rejection(
+    'unknown',
+    say(
+      state.ctx.locale,
+      `没有叫「${rawName.replace(/"/g, '').trim()}」的工作流。`,
+      `There is no workflow called “${rawName.replace(/"/g, '').trim()}”.`,
+    ),
+  );
+}
+
+function stepPhrases(text: string, state: State): StepPhrase[] {
+  return splitStepPhrases(text).map((p) => {
+    const step = parseStepPhrase(p, state.ctx.locale);
+    if (step) return step;
+    throw new Rejection(
+      'unknown',
+      say(state.ctx.locale, `不认识步骤「${p}」。`, `I don’t know the step “${p}”.`),
+    );
+  });
+}
+
+/** 步骤接不上（例如 PDF 之后存到相册）时整句拒绝，说明是哪一步。 */
+function requireWorkable(wf: Workflow, state: State): void {
+  const problem = workflowProblems(wf, state.ctx.registry)[0];
+  if (!problem) return;
+  const step = wf.steps.find((s) => s.id === problem.stepId);
+  const label = step
+    ? (state.ctx.registry.actions.get(step.action)?.label[state.ctx.locale] ?? step.action)
+    : '';
+  throw new Rejection(
+    'unknown',
+    say(
+      state.ctx.locale,
+      problem.code === 'source'
+        ? '工作流的第一步要选照片、选文件或拍照。'
+        : `「${label}」接不上前一步（类型不对或参数不完整）。`,
+      problem.code === 'source'
+        ? 'A workflow has to start by choosing photos or files, or taking photos.'
+        : `“${label}” doesn’t fit after the step before it.`,
+    ),
+  );
+}
+
+const addPresetRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/^(?:添加|加上|新增|加一个|添加一个)(?:预设)?(.+?)(?:预设|工作流|流程)$/) ??
+    clause.match(/^add (?:the )?(.+?) (?:preset|workflow)$/i);
+  if (!m) return null;
+  const preset = findPreset(m[1]!);
+  if (!preset) return null;
+  // 已经添加过就不再重复（整句没有修改时会提示「已经是这样了」）。
+  if (state.config.workflows.some((w) => w.presetId === preset.id)) return [];
+  const id = newWorkflowId(preset.id, state.config.workflows);
+  return [{ op: 'addWorkflow', workflow: presetWorkflow(preset, state.ctx.locale, id) }];
+};
+
+const newWorkflowRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/^(?:新建|创建|做|建)(?:一个)?(?:叫"?(.+?)"?的)?(?:工作流|流程)[:：]\s*(.+)$/) ??
+    clause.match(
+      /^(?:create|make|add|new) (?:a )?(?:new )?workflow(?: called "?(.+?)"?)?:\s*(.+)$/i,
+    );
+  if (!m) return null;
+  const steps = stepsFrom(stepPhrases(m[2]!, state));
+  let name = m[1]?.trim() || say(state.ctx.locale, '我的工作流', 'My workflow');
+  for (let i = 2; state.config.workflows.some((w) => w.name === name); i++) {
+    name = `${m[1]?.trim() || say(state.ctx.locale, '我的工作流', 'My workflow')} ${i}`;
+  }
+  const wf: Workflow = {
+    id: newWorkflowId(m[1] ?? 'my-workflow', state.config.workflows),
+    name,
+    steps,
+  };
+  if (!/^[a-z]/.test(wf.id) || wf.id === 'workflow') {
+    wf.id = newWorkflowId('my-workflow', state.config.workflows);
+  }
+  requireWorkable(wf, state);
+  return [{ op: 'addWorkflow', workflow: wf }];
+};
+
+const renameWorkflowRule: Rule = (clause, state) => {
+  const m =
+    clause.match(
+      new RegExp(
+        `^(?:把|将)${Q}(.+?)${Q}(?:工作流|流程)?(?:改名为|改名成|重命名为|改叫|改名叫)${Q}(.+?)${Q}$`,
+      ),
+    ) ?? clause.match(/^rename (?:the )?"?(.+?)"? workflow to "?(.+?)"?$/i);
+  if (!m) return null;
+  const wf = workflowNamed(m[1]!, state);
+  if (!wf) return null;
+  return [{ op: 'renameWorkflow', workflowId: wf.id, name: m[2]!.replace(/"/g, '').trim() }];
+};
+
+const removeWorkflowRule: Rule = (clause, state) => {
+  const m =
+    clause.match(new RegExp(`^(?:删除|删掉|去掉|移除)${Q}(.+?)${Q}(?:这个)?(?:工作流|流程)$`)) ??
+    clause.match(new RegExp(`^(?:把|将)${Q}(.+?)${Q}(?:工作流|流程)(?:删除|删掉|去掉|移除)$`)) ??
+    clause.match(/^(?:delete|remove) (?:the )?"?(.+?)"? workflow$/i);
+  if (!m) return null;
+  const wf = requireWorkflow(m[1]!, state);
+  if (wf.toolId) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        `「${wf.name}」是工具自带的，不能单独删除；可以去掉其中的步骤，或者卸载工具。`,
+        `“${wf.name}” comes with a tool and can’t be deleted on its own; remove its steps or uninstall the tool instead.`,
+      ),
+    );
+  }
+  return [{ op: 'removeWorkflow', workflowId: wf.id }];
+};
+
+const workflowToHomeRule: Rule = (clause, state) => {
+  const m =
+    clause.match(
+      new RegExp(
+        `^(?:把|将)${Q}(.+?)${Q}(?:工作流|流程)?(?:放到|加到|添加到|放在)(?:首页|主页)(?:上)?$`,
+      ),
+    ) ??
+    clause.match(
+      /^(?:put|add) (?:the )?"?(.+?)"?(?: workflow)? (?:on|to) (?:the )?home(?: page)?$/i,
+    );
+  if (!m) return null;
+  const ops: Op[] = [];
+  let wf = workflowNamed(m[1]!, state);
+  if (!wf) {
+    // 还没添加的预设：先添加再放到首页。
+    const preset = findPreset(m[1]!);
+    if (!preset) return null;
+    wf = presetWorkflow(preset, state.ctx.locale, newWorkflowId(preset.id, state.config.workflows));
+    ops.push({ op: 'addWorkflow', workflow: wf });
+  }
+  const home = page(state, HOME_PAGE_ID);
+  if (
+    allComponents(home).some((c) => c.type === 'workflowRunner' && c.props.workflowId === wf.id)
+  ) {
+    return ops;
+  }
+  ops.push({
+    op: 'addComponent',
+    pageId: HOME_PAGE_ID,
+    index: topIndex(home),
+    component: {
+      id: newComponentId(`run-${wf.id}`.slice(0, 40), home),
+      type: 'workflowRunner',
+      props: { workflowId: wf.id },
+    },
+  });
+  return ops;
+};
+
+const OUTPUT_ACTIONS = /^(out\.|file\.save$|file\.rename$)/;
+
+const addStepRule: Rule = (clause, state) => {
+  const m =
+    clause.match(
+      new RegExp(
+        `^(?:在|给)${Q}(.+?)${Q}(?:工作流|流程)?(?:里|中|最后|后面)*(?:加|添加|增加)(?:一步|一个步骤)[:：]?\\s*(.+)$`,
+      ),
+    ) ??
+    clause.match(/^add (?:a )?step to (?:the )?"?(.+?)"?(?: workflow)?:\s*(.+)$/i) ??
+    clause.match(/^in (?:the )?"?(.+?)"? workflow,? add (?:a step:? )?(.+)$/i);
+  if (!m) return null;
+  const wf = requireWorkflow(m[1]!, state);
+  const phrases = stepPhrases(m[2]!, state);
+  // 处理类的步骤插在结尾的命名 / 保存 / 分享之前；输出类的放在最后。
+  let index = wf.steps.length;
+  const ops: Op[] = [];
+  const steps = [...wf.steps];
+  for (const p of phrases) {
+    if (!OUTPUT_ACTIONS.test(p.action)) {
+      while (index > 1 && OUTPUT_ACTIONS.test(steps[index - 1]!.action)) index--;
+    } else index = steps.length;
+    const step = { id: stepIdFor(p.action, steps), action: p.action, params: p.params };
+    steps.splice(index, 0, step);
+    ops.push({ op: 'addWorkflowStep', workflowId: wf.id, step, index });
+    index++;
+  }
+  requireWorkable({ ...wf, steps }, state);
+  return ops;
+};
+
+const setSizeRule: Rule = (clause, state) => {
+  const m =
+    clause.match(
+      new RegExp(
+        `^(?:把)?${Q}(.+?)${Q}(?:工作流|流程)?(?:的)?(?:压缩|大小|文件大小)?(?:改成|改为|压到|不超过)\\s*(\\d+(?:\\.\\d+)?\\s*(?:kb|mb|k|m|兆))$`,
+        'i',
+      ),
+    ) ??
+    clause.match(
+      /^(?:make|set|compress) (?:the )?"?(.+?)"?(?: workflow)? (?:to|under|size to) (\d+(?:\.\d+)?\s*(?:kb|mb))$/i,
+    );
+  if (!m) return null;
+  const wf = workflowNamed(m[1]!, state);
+  if (!wf) return null;
+  const sizeMatch = /(\d+(?:\.\d+)?)\s*(kb|mb|k|m|兆)/i.exec(m[2]!)!;
+  const value = Number(sizeMatch[1]);
+  const isMB = /^(mb|m|兆)$/i.test(sizeMatch[2]!);
+  const ops: Op[] = [];
+  for (const step of wf.steps) {
+    if (step.action === 'image.compress' || step.action === 'image.idPhoto') {
+      const maxKB = Math.round(isMB ? value * 1024 : value);
+      ops.push({ op: 'setStepParams', workflowId: wf.id, stepId: step.id, params: { maxKB } });
+    } else if (step.action === 'pdf.fromImages') {
+      const maxMB = isMB ? value : Math.round((value / 1024) * 100) / 100;
+      ops.push({ op: 'setStepParams', workflowId: wf.id, stepId: step.id, params: { maxMB } });
+    }
+  }
+  if (ops.length === 0) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        `「${wf.name}」里没有控制大小的步骤，可以先加一步「压到 ${m[2]}」。`,
+        `“${wf.name}” has no size step; add one first, e.g. “compress to ${m[2]}”.`,
+      ),
+    );
+  }
+  return ops;
+};
+
+const removeStepRule: Rule = (clause, state) => {
+  const m =
+    clause.match(
+      new RegExp(
+        `^(?:把|将)?${Q}(.+?)${Q}(?:工作流|流程)?(?:的|里的|中的)${Q}(.+?)${Q}(?:这一步|这个步骤|步骤)?(?:去掉|删掉|删除|移除)$`,
+      ),
+    ) ?? clause.match(/^remove (?:the )?"?(.+?)"? step from (?:the )?"?(.+?)"?(?: workflow)?$/i);
+  if (!m) return null;
+  const english = /^remove/i.test(clause);
+  const [wfName, stepName] = english ? [m[2]!, m[1]!] : [m[1]!, m[2]!];
+  const wf = workflowNamed(wfName, state);
+  if (!wf) return null;
+  const wanted = stepName.replace(/"/g, '').trim().toLowerCase();
+  const phrase = parseStepPhrase(wanted, state.ctx.locale);
+  const step = wf.steps.find((s) => {
+    const a = state.ctx.registry.actions.get(s.action);
+    const labels = [a?.label.zh, a?.label.en].map((l) => (l ?? '').toLowerCase());
+    return (
+      labels.some((l) => l && (l === wanted || l.includes(wanted))) || phrase?.action === s.action
+    );
+  });
+  if (!step) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        `「${wf.name}」里没有「${stepName}」这一步。`,
+        `“${wf.name}” has no “${stepName}” step.`,
+      ),
+    );
+  }
+  const steps = wf.steps.filter((s) => s.id !== step.id);
+  if (steps.length === 0) return null;
+  requireWorkable({ ...wf, steps }, state);
+  return [{ op: 'removeWorkflowStep', workflowId: wf.id, stepId: step.id }];
+};
+
+const PERIOD_WORDS: [RegExp, string][] = [
+  [/本月|这个月|this month/i, 'thisMonth'],
+  [/今年|this year/i, 'thisYear'],
+  [/本周|这周|this week/i, 'thisWeek'],
+  [/今天|today/i, 'today'],
+  [/最近\s*7\s*天|last 7 days/i, 'last7days'],
+  [/最近\s*30\s*天|last 30 days/i, 'last30days'],
+];
+
+/** W9：用某张数据表的记录生成 PDF 报表（新建工作流；AI 不读记录，记录在本机填进模板）。 */
+const reportRule: Rule = (clause, state) => {
+  const m =
+    clause.match(
+      /^(?:把)?(.*?)的?(?:记录)?(?:做成|生成|导出成?)(?:一个|一份)?\s*pdf\s*(?:报表|清单|报告)?$/i,
+    ) ?? clause.match(/^(?:make|turn) (.+?) (?:into |as )?(?:a )?pdf(?: report| list)?$/i);
+  if (!m) return null;
+  const words = m[1]!.replace(/"/g, '');
+  const collection = state.config.collections.find(
+    (c) => words.includes(c.name) || words.toLowerCase().includes(c.name.toLowerCase()),
+  );
+  if (!collection) return null;
+  const period = PERIOD_WORDS.find(([re]) => re.test(words))?.[1] ?? 'all';
+  const hasMoney = collection.fields.some((f) => f.type === 'money');
+  const name = say(state.ctx.locale, `${collection.name}报表`, `${collection.name} report`);
+  const wf: Workflow = {
+    id: newWorkflowId(`${collection.id}-report`, state.config.workflows),
+    name,
+    steps: [
+      { id: 'read', action: 'in.records', params: { collectionId: collection.id, period } },
+      {
+        id: 'pdf',
+        action: 'print.records',
+        params: {
+          template: hasMoney ? 'receipt' : 'table',
+          title: name,
+          fields: [],
+          pageSize: say(state.ctx.locale, 'a4', 'letter'),
+        },
+      },
+    ],
+  };
+  requireWorkable(wf, state);
+  return [{ op: 'addWorkflow', workflow: wf }];
+};
+
 const RULES: Rule[] = [
+  reportRule,
+  // 工作流的句式先判断：它们都要求句子里有工作流的名字或「工作流」，不会抢走其他句式。
+  newWorkflowRule,
+  addPresetRule,
+  renameWorkflowRule,
+  removeWorkflowRule,
+  workflowToHomeRule,
+  addStepRule,
+  setSizeRule,
+  removeStepRule,
   navStyleRule,
   navRule,
   resetStyleRule,
@@ -894,7 +1245,7 @@ export function createMockAIProvider(): AIProvider {
   return {
     async plan(input, ctx) {
       const examples = EXAMPLES.map((e) => e[ctx.locale]);
-      const clauses = splitClauses(input);
+      const clauses = splitClauses(joinWorkflowSteps(input));
       if (clauses.length === 0) {
         return {
           kind: 'reject',

@@ -423,6 +423,8 @@ export const PDF_IMPLS: Record<string, Impl> = {
     return eachPdf(input, ctx, async (bytes, item) => {
       const fields = await listFormFields(bytes);
       if (fields.filter((f) => !f.readOnly && f.type !== 'other').length === 0) {
+        // 签回表格：有的 PDF 只需要签名，没有表单就原样交给下一步。
+        if (params.whenNoFields === 'skip') return bytes;
         throw new RunError('noFormFields', { name: fileName(item) });
       }
       const values = await ctx.services.ui.open('fillForm', { item, fields });

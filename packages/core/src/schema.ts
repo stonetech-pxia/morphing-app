@@ -450,6 +450,9 @@ export type WorkflowStep = z.infer<typeof WorkflowStepSchema>;
 /** 一个工作流最多的步骤数。 */
 export const MAX_WORKFLOW_STEPS = 12;
 
+/** 工作流总数上限：装满全部工具约 40 个单功能工作流，再加用户自己的。 */
+export const MAX_WORKFLOWS = 100;
+
 /**
  * 工作流：线性步骤序列，步骤之间传递一个有类型的值（§7C、D-060，非图灵完备）。
  * toolId：安装工具时创建，卸载时一起移除；presetId：从哪个预设复制来的（D-062）。
@@ -472,7 +475,7 @@ export const WorkspaceConfigSchema = z.strictObject({
   shell: ShellSchema,
   pages: z.array(PageSchema).min(1).max(20),
   tools: z.array(InstalledToolSchema),
-  workflows: z.array(WorkflowSchema).max(60),
+  workflows: z.array(WorkflowSchema).max(MAX_WORKFLOWS),
   /** 数据表结构。记录内容不在配置里，也从不发给 AI。 */
   collections: z.array(CollectionSchema).max(20),
 });

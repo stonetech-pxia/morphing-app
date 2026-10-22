@@ -15,6 +15,8 @@ import {
   PROTECTED_TARGETS,
   PageSchema,
   ThemeSchema,
+  WorkflowSchema,
+  WorkflowStepSchema,
   componentCollection,
   componentTarget,
   pageTarget,
@@ -24,6 +26,8 @@ import {
   type Locale,
   type NavTarget,
   type Page,
+  type Workflow,
+  type WorkflowStep,
   type WorkspaceConfig,
 } from './schema';
 import { DEFAULT_THEME } from './theme';
@@ -112,6 +116,36 @@ export const OpSchema = z.discriminatedUnion('op', [
     ask: z.array(z.string().min(1).max(40)).max(10).optional(),
   }),
   z.strictObject({ op: z.literal('removeWorkflowStep'), workflowId: IdSchema, stepId: IdSchema }),
+  /** 新建用户自己的工作流（从预设复制、复制已有的，或 AI 新建）。不能属于工具。 */
+  z.strictObject({ op: z.literal('addWorkflow'), workflow: WorkflowSchema.omit({ toolId: true }) }),
+  /** 删除用户自己的工作流，连同运行它的组件；工具自带的不能删。 */
+  z.strictObject({ op: z.literal('removeWorkflow'), workflowId: IdSchema }),
+  z.strictObject({
+    op: z.literal('renameWorkflow'),
+    workflowId: IdSchema,
+    name: z.string(),
+    icon: IconValueSchema.nullable().optional(),
+  }),
+  z.strictObject({
+    op: z.literal('addWorkflowStep'),
+    workflowId: IdSchema,
+    step: WorkflowStepSchema,
+    /** 插在第几步之前；省略 = 最后。 */
+    index: z.number().int().min(0).optional(),
+  }),
+  z.strictObject({
+    op: z.literal('moveWorkflowStep'),
+    workflowId: IdSchema,
+    stepId: IdSchema,
+    toIndex: z.number().int().min(0),
+  }),
+  /** 整体替换名称和步骤（工作流编辑页保存、恢复预设）。不改 toolId / presetId。 */
+  z.strictObject({
+    op: z.literal('updateWorkflow'),
+    workflowId: IdSchema,
+    name: z.string().optional(),
+    steps: z.array(WorkflowStepSchema).min(1).optional(),
+  }),
   // ---- 数据表结构（只改结构，从不碰记录内容）----
   z.strictObject({ op: z.literal('addCollection'), collection: CollectionSchema }),
   z.strictObject({
@@ -154,6 +188,7 @@ export type ApplyNote =
   | { kind: 'movedToFloating'; target: NavTarget }
   | { kind: 'removedLinks'; pageId: string; count: number }
   | { kind: 'removedDataComponents'; collectionId: string; count: number }
+  | { kind: 'removedRunners'; workflowId: string; count: number }
   | { kind: 'updatedTool'; toolId: string; workflowIds: string[] };
 
 /** 字段类型只能在这些类型之间互相转换，已有的值仍然能读出来。 */
@@ -460,6 +495,78 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
         throw new OpError(`step ${op.stepId} not found in ${op.workflowId}`);
       }
       wf.steps = wf.steps.filter((s) => s.id !== op.stepId);
+      return;
+    }
+    case 'addWorkflow': {
+      if (config.workflows.some((w) => w.id === op.workflow.id)) {
+        throw new OpError(`workflow ${op.workflow.id} already exists`);
+      }
+      config.workflows.push(JSON.parse(JSON.stringify(op.workflow)) as Workflow);
+      return;
+    }
+    case 'removeWorkflow': {
+      const wf = getWorkflow(config, op.workflowId);
+      if (wf.toolId !== undefined) {
+        throw new OpError(
+          `workflow ${op.workflowId} belongs to tool ${wf.toolId}; uninstall the tool or remove steps instead`,
+        );
+      }
+      config.workflows = config.workflows.filter((w) => w.id !== op.workflowId);
+      const count = removeEverywhere(
+        config,
+        (c) => c.type === 'workflowRunner' && c.props.workflowId === op.workflowId,
+      );
+      if (count > 0) notes.push({ kind: 'removedRunners', workflowId: op.workflowId, count });
+      return;
+    }
+    case 'renameWorkflow': {
+      const wf = getWorkflow(config, op.workflowId);
+      wf.name = op.name;
+      if (op.icon === null) delete wf.icon;
+      else if (op.icon !== undefined) wf.icon = op.icon;
+      return;
+    }
+    case 'addWorkflowStep': {
+      const wf = getWorkflow(config, op.workflowId);
+      if (wf.steps.some((s) => s.id === op.step.id)) {
+        throw new OpError(`step ${op.step.id} already exists in ${op.workflowId}`);
+      }
+      const at = Math.min(op.index ?? wf.steps.length, wf.steps.length);
+      wf.steps.splice(at, 0, JSON.parse(JSON.stringify(op.step)) as WorkflowStep);
+      return;
+    }
+    case 'moveWorkflowStep': {
+      const wf = getWorkflow(config, op.workflowId);
+      const from = wf.steps.findIndex((s) => s.id === op.stepId);
+      if (from < 0) throw new OpError(`step ${op.stepId} not found in ${op.workflowId}`);
+      const [step] = wf.steps.splice(from, 1);
+      wf.steps.splice(Math.min(op.toIndex, wf.steps.length), 0, step!);
+      return;
+    }
+    case 'updateWorkflow': {
+      const wf = getWorkflow(config, op.workflowId);
+      if (op.name !== undefined) wf.name = op.name;
+      if (op.steps !== undefined) {
+        const ids = new Set<string>();
+        for (const s of op.steps) {
+          if (ids.has(s.id)) throw new OpError(`step ${s.id} appears twice in ${op.workflowId}`);
+          ids.add(s.id);
+        }
+        // AI 看到的是占位符（D-065）：同一步原样写回占位符表示保留原来的文字。
+        const old = new Map(wf.steps.map((s) => [s.id, s]));
+        wf.steps = op.steps.map((s) => {
+          const kept = Object.fromEntries(
+            Object.entries(s.params).map(([k, v]) => [
+              k,
+              v === REDACTED_TEXT ? old.get(s.id)?.params[k] : v,
+            ]),
+          );
+          const params = Object.fromEntries(
+            Object.entries(kept).filter(([, v]) => v !== undefined),
+          );
+          return JSON.parse(JSON.stringify({ ...s, params })) as WorkflowStep;
+        });
+      }
       return;
     }
     case 'addCollection': {

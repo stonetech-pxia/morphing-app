@@ -203,6 +203,16 @@ export const IO_IMPLS: Record<string, Impl> = {
     return { ...input!, items: renamed } as typeof input & { items: RunItem[] };
   },
 
+  async 'file.order'(input, _params, ctx) {
+    const items = fileItems(input);
+    const order = await ctx.services.ui.open('reorder', { items });
+    if (!order) throw new RunCancelled();
+    if (order.length === 0) throw new RunError('tooFew', { min: 1, kind: 'file' });
+    return { ...input!, items: order.map((i) => items[i]!) } as typeof input & {
+      items: RunItem[];
+    };
+  },
+
   async 'file.save'(input, _params, ctx) {
     const items = await saveItems(ctx.services, fileItems(input), ctx);
     for (const item of items) if (item.assetId) ctx.saved.push(item.assetId);

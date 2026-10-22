@@ -311,6 +311,11 @@ const strings = {
   localDone: { en: 'Done', zh: '完成' },
   localNext: { en: 'Next', zh: '下一张' },
   toolMissing: { en: 'This tool is not available.', zh: '这个工具不可用。' },
+  workflowsTitle: { en: 'Workflows', zh: '工作流' },
+  workflowsRowHint: {
+    en: 'Presets and your own multi-step workflows',
+    zh: '预设和你自己的多步工作流',
+  },
   packsTitle: { en: 'Extension packs', zh: '扩展包' },
   packsRowHint: { en: 'Downloaded packs and storage', zh: '已下载的扩展包和占用空间' },
   packsHint: {

@@ -3,7 +3,13 @@ import { z } from 'zod';
 
 import { createDefaultWorkspace } from '../defaults';
 import { apply, registry, workspace } from '../test-helpers';
-import { defaultParams, insertableActions, typesAlong, workflowProblems } from './check';
+import {
+  defaultParams,
+  initialParams,
+  insertableActions,
+  typesAlong,
+  workflowProblems,
+} from './check';
 import { acceptsType } from './contract';
 
 const merge = () => workspace('zh', { withPdf: true }).workflows[0]!;
@@ -82,6 +88,20 @@ describe('types', () => {
 
   it('default parameters come from the first preset or an empty object', () => {
     expect(defaultParams(registry.actions.get('file.save')!)).toEqual({});
-    expect(defaultParams(registry.actions.get('in.files')!)).toBeNull();
+    expect(defaultParams(registry.actions.get('in.files')!)).toEqual({
+      accept: 'pdf',
+      min: 1,
+      max: 10,
+    });
+    expect(defaultParams(registry.actions.get('in.records')!)).toBeNull();
+  });
+
+  it('every action except reading records gets valid starting parameters', () => {
+    for (const action of registry.actions.values()) {
+      if (action.id === 'in.records') continue;
+      expect(action.params.safeParse(initialParams(action)).success, action.id).toBe(true);
+    }
+    // 读取记录要先选一张表：初始值让编辑页提示用户选。
+    expect(initialParams(registry.actions.get('in.records')!)).toMatchObject({ period: 'all' });
   });
 });

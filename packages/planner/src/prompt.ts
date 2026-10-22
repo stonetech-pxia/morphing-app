@@ -1,5 +1,6 @@
 import {
   ICON_NAMES,
+  WORKFLOW_PRESETS,
   type ActionDefinition,
   type Locale,
   type Registry,
@@ -11,12 +12,40 @@ import { z } from 'zod';
 // 每次请求变化的部分（当前配置、用户输入）放在用户消息里。
 // 只发送界面配置，不发送任何用户文件或文件名（§8：发给模型的内容尽量少）。
 
+type JsonSchema = {
+  type?: string;
+  enum?: unknown[];
+  const?: unknown;
+  anyOf?: JsonSchema[];
+  minimum?: number;
+  maximum?: number;
+  items?: JsonSchema;
+  properties?: Record<string, JsonSchema>;
+  required?: string[];
+};
+
+/** 参数的可选值和范围，让模型照抄（例如 format: "jpeg"|"png"|"webp"）。 */
+function describeValue(v: JsonSchema): string {
+  if (v.enum) return v.enum.map((x) => JSON.stringify(x)).join('|');
+  if (v.const !== undefined) return JSON.stringify(v.const);
+  if (v.anyOf) return v.anyOf.map(describeValue).join('|');
+  if (v.type === 'array') return `${describeValue(v.items ?? {})}[]`;
+  if (
+    (v.type === 'number' || v.type === 'integer') &&
+    (v.minimum !== undefined || v.maximum !== undefined)
+  ) {
+    return `${v.type} ${v.minimum ?? ''}..${v.maximum ?? ''}`;
+  }
+  return v.type ?? 'value';
+}
+
 function describeParams(schema: z.ZodType): string {
   try {
-    const json = z.toJSONSchema(schema) as { properties?: Record<string, { type?: string }> };
+    const json = z.toJSONSchema(schema) as JsonSchema;
     const props = Object.entries(json.properties ?? {});
     if (props.length === 0) return '{}';
-    return `{${props.map(([k, v]) => `${k}: ${v.type ?? 'value'}`).join(', ')}}`;
+    const required = new Set(json.required ?? []);
+    return `{${props.map(([k, v]) => `${k}${required.has(k) ? '' : '?'}: ${describeValue(v)}`).join(', ')}}`;
   } catch {
     return '{…}';
   }
@@ -51,6 +80,11 @@ export function buildSystemPrompt(registry: Registry): string {
     .map((a) => `- ${describeAction(a)}`)
     .join('\n');
 
+  const presets = WORKFLOW_PRESETS.map(
+    (p) =>
+      `- ${p.id} (“${p.name.en}”): ${p.description.en}\n  steps: ${JSON.stringify(p.steps('en'))}`,
+  ).join('\n');
+
   return `You are the change planner inside Morph, a mobile app that people reshape by describing what they want. The app's interface is a declarative JSON workspace config rendered by a fixed set of components. You never write code. For each request you return one plan: semantic operations against the current config, a restore of the previous version, or a rejection.
 
 ## Workspace config
@@ -74,7 +108,7 @@ export function buildSystemPrompt(registry: Registry): string {
 - shell.nav: 1-5 bottom-bar entries in order. shell.floating: up to 3 floating buttons. An entry is "tools", "ai", "history", "settings", or "page:<pageId>". A target is any of these.
 - theme: {primaryColor, mode: "light"|"dark"|"system", colors: {background?, surface?, text?, secondary?} (overrides of the default palette; all "#RRGGBB"), font: "clay"|"system"|"serif"|"mono", fontScale (0.85-1.3, 1 = normal), radius (0-28, card corner radius), density: "compact"|"comfortable"|"spacious", cardStyle: "shadow"|"outline"|"flat", navStyle: "iconLabel"|"label"|"icon"}.
   The default style is "Clay": sand background #F5EFE8, cream cards #FFFCF8, terracotta primary #C8623A, sage secondary #6B7F62, ink text #2A2420, Sora headings + Karla body ("clay" font), radius 22, soft shadows. Dark mode uses a warm dark version of the same palette.
-- tools[]: installed tools. workflows[]: {id, name, toolId?, presetId?, steps: [{id, action, params, ask?}]} — linear steps (max 12). Each step receives one typed value from the previous step: images, pdf, files (any files; also accepts images, pdf and zip), zip or text. The first step must be an input action (in.photos or in.files) and the next step's input must accept the previous step's output. ask lists parameter keys the user is asked for on every run (for file.rename: the user confirms the final file name). Workflows with toolId belong to an installed tool. Steps marked "local step" are done by the user on the device (cropping, ordering, choosing pages, signing, redacting…): you only decide where they go. You never see the user's files, file names, page contents or recognized text; parameters shown as "<user text>" are text the user wrote themselves — leave them unchanged.
+- tools[]: installed tools. workflows[]: {id, name, icon?, toolId?, presetId?, steps: [{id, action, params, ask?}]} — linear steps (max 12, max 100 workflows). Each step receives one typed value from the previous step: images, pdf, files (any files; also accepts images, pdf and zip), zip, text or records. The first step must be an input action (in.photos, in.files, in.text or in.records), input actions can only be first, and each next step's input must accept the previous step's output. Workflows with toolId come with an installed tool: you may change their steps and parameters but never delete them. Workflows without toolId are the user's own (added from a preset, copied, or created by you); they don't need any tool to be installed. ask lists parameter keys the user is asked for on every run (for file.rename: the user confirms the final file name). Steps marked "local step" are done by the user on the device (cropping, ordering, choosing pages, signing, redacting…): you only decide where they go. You never see the user's files, file names, page contents or recognized text; parameters shown as "<user text>" are text the user wrote themselves — leave them unchanged.
 - collections[]: the *structure* of the user's own data tables (max 20): {id, name, icon?, fields: Field[] (1-30)}. You only ever see this structure. The records the user enters live outside the config; you never see them and can't read, add, edit, delete, count or summarize them.
   Field = {id, name, required?, type, ...}:
   - text {default?} (≤200 chars) · note (long text) · number {decimals? 0-4, unit?, default?} · money {currency: ISO code like "CNY"/"USD", default?} · checkbox {default?} · date {default?: "today"} · choice {options: [{id, label}] (1-50), default?: optionId} · rating (1-5) {default?}
@@ -90,6 +124,7 @@ Reply with exactly one JSON object and nothing else (no prose, no code fences), 
 
 type Target = "tools" | "ai" | "history" | "settings" | \`page:\${string}\`;
 type Style = { align?: "start" | "center" | null; tone?: "default" | "primary" | "secondary" | "tertiary" | "muted" | null; size?: "small" | "medium" | "large" | null };
+type Step = { id: string; action: string; params: object; ask?: string[] };   // params must match the action's parameters exactly
 type Plan =
   | { kind: "ops"; ops: Op[] }
   | { kind: "restorePrevious" }
@@ -114,6 +149,12 @@ type Op =
   | { op: "updateTool"; toolId: string }                                     // an installed tool whose version is older than the catalog gets its new workflows and page entries
   | { op: "setStepParams"; workflowId: string; stepId: string; params?: object; ask?: string[] }   // params merge into existing params; ask replaces the asked list ([] = ask nothing)
   | { op: "removeWorkflowStep"; workflowId: string; stepId: string }
+  | { op: "addWorkflow"; workflow: { id: string; name: string; icon?: string; presetId?: string; steps: Step[] } }   // a new workflow of the user's own (no toolId)
+  | { op: "removeWorkflow"; workflowId: string }                                   // only the user's own workflows; also removes the cards that ran it
+  | { op: "renameWorkflow"; workflowId: string; name: string; icon?: string | null }
+  | { op: "addWorkflowStep"; workflowId: string; step: Step; index?: number }    // index = insert before that step; omit to append
+  | { op: "moveWorkflowStep"; workflowId: string; stepId: string; toIndex: number }
+  | { op: "updateWorkflow"; workflowId: string; name?: string; steps?: Step[] }  // replaces the whole step list; prefer the smaller ops above
   | { op: "addCollection"; collection: Collection }
   | { op: "updateCollection"; collectionId: string; name?: string; icon?: string | null }
   | { op: "addField"; collectionId: string; field: Field; index?: number }
@@ -126,7 +167,7 @@ type Op =
 1. Change only what was asked, and do every part of it: a request often lists several changes (separated by commas or "and"); each one must appear in your ops. If any part can't be done, reject the whole request instead of silently dropping it. Refer to pages, components, workflows and steps by the ids in the current config. New ids: lowercase letters, digits and -, starting with a letter, not already used.
 2. Only "settings" is protected: it must stay in the bottom bar or be a floating button, because the Settings page always contains the "AI" (change this app) and "History" (undo/restore) entries. "ai", "history" and "tools" may be removed from the bottom bar and floating buttons completely when the user asks; they stay reachable from Settings. If settings is left out of setNavItems, the system turns it into a floating button on its own. If the user asks to delete or hide Settings itself, reject with reason "protected".
 3. Never delete user files. A request to delete files is rejected with "deleteFiles". Removing a tool card, a page or uninstalling a tool is allowed; files are always kept.
-4. If the request needs a tool that is not installed, reject with "notInstalled" and say it can be installed from Tools. Install or uninstall tools only when explicitly asked.
+4. If the request is about a tool's page, card or tool workflows and that tool is not installed, reject with "notInstalled" and say it can be installed from Tools. Install or uninstall tools only when explicitly asked. Workflows of the user's own (addWorkflow, presets, reports) never need a tool to be installed: every action in the catalog below works in them, so build them directly.
 5. Undo, revert, or "go back to before the last change" → kind "restorePrevious", only when that is the whole request.
 6. If the config already looks the way the user wants → reject with "noChange". If the request isn't about changing this app, or the operations can't express it → reject with "unknown". Never guess.
 7. moveComponent.toIndex is the index in the target list after the moved component has been taken out. "Top" or "first" means right after the leading header components (index 1 on the default home page) unless the user explicitly wants it above the title.
@@ -142,6 +183,11 @@ type Op =
 17. You only change the app's interface and the structure of data tables. Any request about the content of the user's records — adding an entry ("log lunch $12", "记一笔"), editing, deleting or clearing records, marking items done, or asking about totals or history ("how much did I spend") — is rejected with reason "userData"; say the user can do that directly on the page.
 18. Data pages: create the collection first (addCollection), then a page whose components reference it, then give the page an entry (rule 12). A typical page: header, one or two stats (in a row group), a recordForm, and a recordList. Field and option ids are stable lowercase ids; labels and names are in the interface language. Use money with the currency of the interface language's usual region unless the user says otherwise (zh → CNY, en → USD).
 19. Removing a field: also update or remove every component that references it (form fieldIds, list fields, sort, filter, stat). Changing a field to an incompatible type: add a new field instead and remove the old one. Removing a whole data table: removeCollection (records are kept in Settings → Data).
+20. Building workflows: pick actions from the catalog below whose input accepts the previous step's output; start with an input action; use the user's numbers exactly (sizes in KB/MB, pixels, page sizes). Give every parameter the action lists (copy a preset's values when unsure). Local steps (crop, order, pages, corners, redact, sign, fill in form) only say where the user works by hand. When the user asks for something a preset already does ("visa photo", "scan a document"), add that preset with addWorkflow: copy its steps exactly and set presetId. "Put X on the home page" → addComponent of a workflowRunner {workflowId} on "home" (add the workflow first if it doesn't exist yet). Adding a processing step goes before the final naming / saving / sharing steps. Results always end on a result page with save, share and print buttons, so a final out.share or file.save is only needed when the user asks for it.
+21. Reports from records: a workflow in.records {collectionId, period} → print.records {template, title, fields, pageSize} turns the user's records into a PDF on the device. You choose only the table, the time period, the template ("table", "cards", or "receipt" = table with a total of the first money field), the title and field ids — you never see or quote the records. Questions about what the records contain are still rejected with "userData".
+
+## Workflow presets (add with addWorkflow, copying the steps and setting presetId)
+${presets}
 
 ## Built-in tool catalog
 ${tools}

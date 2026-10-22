@@ -79,6 +79,25 @@ export function insertableActions(
   });
 }
 
+/**
+ * 新插入一步时的参数：默认参数，否则按界面元数据给每个参数一个初始值（选项取第一个、数字取最小值、
+ * 开关为关、文字为空）。结果不一定能通过校验（例如必填的文字），编辑页会提示用户填写。
+ */
+export function initialParams(action: ActionDefinition): Record<string, unknown> {
+  const defaults = defaultParams(action);
+  if (defaults) return defaults;
+  const params: Record<string, unknown> = {};
+  for (const f of action.fields) {
+    if (f.showIf) continue;
+    if (f.kind === 'choice') params[f.key] = f.options?.[0]?.value;
+    else if (f.kind === 'number') params[f.key] = f.min ?? 0;
+    else if (f.kind === 'toggle') params[f.key] = false;
+    else if (f.kind === 'fields') params[f.key] = [];
+    else params[f.key] = '';
+  }
+  return params;
+}
+
 /** 动作的默认参数：第一个预设，否则参数结构接受空对象时为 {}。 */
 export function defaultParams(action: ActionDefinition): Record<string, unknown> | null {
   const preset = action.presets?.[0]?.values;

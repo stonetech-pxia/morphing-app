@@ -1,14 +1,16 @@
 import { HOME_PAGE_ID, allComponents, pageTarget, type Op } from '@morph/core';
+import { useRouter } from 'expo-router';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
 import type { RenderEnv } from '../renderer/components';
-import { Card, IconTile, PageTitle, Pill } from '../renderer/ui';
+import { Card, IconTile, ListRow, PageTitle, Pill } from '../renderer/ui';
 import { useWorkspace } from '../workspace/context';
 
 /** 工具目录（§3 旅程 B）：安装、打开、移除首页入口、卸载。所有操作都生成新版本，可撤销。 */
 export function ToolsView({ env }: { env: RenderEnv }) {
   const { config, palette, locale, registry } = env;
+  const router = useRouter();
   const proposeOps = useWorkspace((s) => s.proposeOps);
   const confirm = useWorkspace((s) => s.confirm);
   const cancel = useWorkspace((s) => s.cancel);
@@ -33,6 +35,14 @@ export function ToolsView({ env }: { env: RenderEnv }) {
     <ScrollView
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 160 }}>
       <PageTitle palette={palette}>{t(locale, 'toolsTitle')}</PageTitle>
+      <ListRow
+        palette={palette}
+        testID="tools-workflows"
+        icon="workflow"
+        label={t(locale, 'workflowsTitle')}
+        value={t(locale, 'workflowsRowHint')}
+        onPress={() => router.push('/workflows')}
+      />
       {[...registry.tools.values()].map((tool) => {
         const installed = config.tools.find((x) => x.toolId === tool.id);
         const card = allComponents(home).find(

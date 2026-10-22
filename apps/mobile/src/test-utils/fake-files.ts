@@ -185,8 +185,13 @@ export class FakeFiles implements FilePlatform {
   }[] = [];
   async imageSize(uri: string) {
     const size = this.imageSizes.get(uri);
-    if (!size) throw new Error('not an image');
-    return size;
+    if (size) return size;
+    // 动作直接写出的图片（例如无损去掉定位）：按真实的小 JPEG / PNG 处理。
+    const bytes = this.disk.get(uri);
+    if (bytes && ((bytes[0] === 0xff && bytes[1] === 0xd8) || bytes[0] === 0x89)) {
+      return { width: 60, height: 40 };
+    }
+    throw new Error('not an image');
   }
   /**
    * 假的编码器：按像素数和质量估算体积（JPEG 约 0.05–0.5 字节 / 像素，PNG 1.5），

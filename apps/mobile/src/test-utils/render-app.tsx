@@ -9,6 +9,8 @@ import ChangeRoute from '../app/change';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
 import RunRoute from '../app/run/[workflowId]';
+import WorkflowRoute from '../app/workflow/[id]';
+import WorkflowsRoute from '../app/workflows';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { WorkspaceProvider } from '../workspace/context';
 import { createWorkspaceStore } from '../workspace/store';
@@ -50,6 +52,8 @@ export async function renderToolsApp(repo = new MemoryWorkspaceRepo(), files = n
     change: ChangeRoute,
     'page/[pageId]': PageRoute,
     'run/[workflowId]': RunRoute,
+    workflows: WorkflowsRoute,
+    'workflow/[id]': WorkflowRoute,
   });
   return { repo, store, files };
 }

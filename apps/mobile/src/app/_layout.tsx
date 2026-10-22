@@ -93,6 +93,8 @@ function ThemedStack() {
         <Stack.Screen name="ai-settings" options={{ title: t(locale, 'aiSettingsTitle') }} />
         <Stack.Screen name="data" options={{ title: t(locale, 'dataTitle') }} />
         <Stack.Screen name="packs" options={{ title: t(locale, 'packsTitle') }} />
+        <Stack.Screen name="workflows" options={{ title: t(locale, 'workflowsTitle') }} />
+        <Stack.Screen name="workflow/[id]" />
         <Stack.Screen name="record/[collectionId]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="run/[workflowId]" options={{ presentation: 'modal' }} />
       </Stack>

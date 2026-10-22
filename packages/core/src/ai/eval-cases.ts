@@ -5,12 +5,13 @@ import { allComponents, type Locale, type WorkspaceConfig } from '../schema';
 import { parseRichText } from '../richtext';
 import { templateOps } from '../templates';
 import { contrast, isDark, resolveColors } from '../theme';
+import { presetById, presetWorkflow } from '../workflows/presets';
 import type { Plan, RejectReason } from './types';
 
 // AI 评测集（§7F、§14）：mock AI 与真实模型用同一组用例衡量。
 // ID 与 docs/MOCK_AI_PHRASES.md 对应；P* 是只有真实模型才需要理解的改写说法。
 
-export type EvalSetup = 'default' | 'pdf' | 'pdfBelowFiles' | 'budget';
+export type EvalSetup = 'default' | 'pdf' | 'pdfBelowFiles' | 'budget' | 'visa';
 
 export type EvalExpectation =
   | { kind: 'ops'; check: (after: WorkspaceConfig) => string | null }
@@ -29,7 +30,13 @@ export interface EvalCase {
 
 export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry): WorkspaceConfig {
   const ops: Op[] = [];
-  if (setup === 'budget') {
+  if (setup === 'visa') {
+    ops.push({ op: 'installTool', toolId: 'pdf' });
+    ops.push({
+      op: 'addWorkflow',
+      workflow: presetWorkflow(presetById('visa-photo')!, locale, 'visa-photo'),
+    });
+  } else if (setup === 'budget') {
     ops.push(...templateOps('budget', createDefaultWorkspace(locale), locale));
   } else if (setup !== 'default') ops.push({ op: 'installTool', toolId: 'pdf' });
   if (setup === 'pdfBelowFiles') {
@@ -57,6 +64,12 @@ const pdfFirst = (c: WorkspaceConfig) =>
   homeIds(c)[1] === 'card-pdf'
     ? null
     : `PDF card should be right after the header, got ${homeIds(c).join(',')}`;
+/** PDF 工具页上「合并 PDF」的卡片排在标题后面的第一个。 */
+const mergeRunnerFirst = (c: WorkspaceConfig) => {
+  const page = c.pages.find((p) => p.id === 'tool-pdf');
+  const first = page?.components.find((x) => x.type !== 'header');
+  return first?.id === 'pdf-runner';
+};
 const navHomeToolsSettings = (c: WorkspaceConfig) =>
   JSON.stringify(c.shell.nav) === JSON.stringify(['page:home', 'tools', 'settings'])
     ? null
@@ -139,7 +152,7 @@ const savesAs = (template: string) => (c: WorkspaceConfig) =>
     ? null
     : `the file.rename template should be ${template}, got ${String(renameStep(c)?.params.template)}`;
 
-export const EVAL_CASES: readonly EvalCase[] = [
+const BASE_EVAL_CASES: readonly EvalCase[] = [
   // 旅程 A
   {
     id: 'A1',
@@ -434,7 +447,11 @@ export const EVAL_CASES: readonly EvalCase[] = [
     locale: 'zh',
     setup: 'pdfBelowFiles',
     mock: false,
-    expect: { kind: 'ops', check: pdfFirst },
+    // T3 之后 PDF 工具页上也有「合并 PDF」的卡片：挪首页的 PDF 卡片，或者把工具页上的合并卡片挪到最前，都算理解对了。
+    expect: {
+      kind: 'ops',
+      check: (c) => (pdfFirst(c) === null || mergeRunnerFirst(c) ? null : pdfFirst(c)),
+    },
   },
   {
     id: 'P2',
@@ -664,6 +681,238 @@ export const EVAL_CASES: readonly EvalCase[] = [
     expect: { kind: 'ops', check: all(savesAs('merged-{date:YYYY-MM-DD}'), singlePdfTool) },
   },
 ];
+
+// ---- 工作流（T7）----
+
+/** 用户自己的工作流（不属于工具）。 */
+const userWorkflows = (c: WorkspaceConfig) => c.workflows.filter((w) => !w.toolId);
+const visa = (c: WorkspaceConfig) =>
+  c.workflows.find((w) => w.id === 'visa-photo' || w.presetId === 'visa-photo');
+/** 有一个用户工作流按顺序包含这些动作（中间可以有别的步骤），参数满足 check。 */
+const hasWorkflow =
+  (
+    actions: readonly string[],
+    check: (steps: { action: string; params: Record<string, unknown> }[]) => string | null = () =>
+      null,
+  ) =>
+  (c: WorkspaceConfig) => {
+    for (const wf of userWorkflows(c)) {
+      let i = 0;
+      for (const step of wf.steps) if (step.action === actions[i]) i++;
+      if (i === actions.length) return check(wf.steps);
+    }
+    return `expected a workflow with ${actions.join(' → ')}, got ${userWorkflows(c)
+      .map((w) => w.steps.map((s) => s.action).join(' → '))
+      .join(' | ')}`;
+  };
+const param =
+  (action: string, key: string, value: unknown) =>
+  (steps: { action: string; params: Record<string, unknown> }[]) => {
+    const got = steps.find((s) => s.action === action)?.params[key];
+    return got === value ? null : `${action}.${key} should be ${String(value)}, got ${String(got)}`;
+  };
+const visaActions = (c: WorkspaceConfig) => visa(c)?.steps.map((s) => s.action) ?? [];
+
+const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'W1',
+    input: '添加签证照片工作流',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: hasWorkflow(['in.photos', 'image.idPhoto']) },
+  },
+  {
+    id: 'W2',
+    input: '新建一个工作流：选照片，长边 1600，压到 500KB，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.photos', 'image.resize', 'image.compress', 'out.share'],
+        (steps) =>
+          param('image.compress', 'maxKB', 500)(steps) ?? param('image.resize', 'px', 1600)(steps),
+      ),
+    },
+  },
+  {
+    id: 'W2-en',
+    input: 'Create a workflow: choose photos, convert to JPG, remove location, zip, share',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow([
+        'in.photos',
+        'image.convert',
+        'image.stripMetadata',
+        'zip.create',
+        'out.share',
+      ]),
+    },
+  },
+  {
+    id: 'W3',
+    input: '把签证照片改名为美签照片',
+    locale: 'zh',
+    setup: 'visa',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) => (visa(c)?.name === '美签照片' ? null : `name is ${visa(c)?.name}`),
+    },
+  },
+  {
+    id: 'W4',
+    input: '删除签证照片工作流',
+    locale: 'zh',
+    setup: 'visa',
+    mock: true,
+    expect: { kind: 'ops', check: (c) => (visa(c) ? 'the visa workflow is still there' : null) },
+  },
+  {
+    id: 'W4-tool',
+    input: '删除合并 PDF 工作流',
+    locale: 'zh',
+    setup: 'pdf',
+    mock: true,
+    expect: { kind: 'reject' },
+  },
+  {
+    id: 'W5',
+    input: '把签证照片放到首页',
+    locale: 'zh',
+    setup: 'visa',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        allComponents(home(c)).some(
+          (x) => x.type === 'workflowRunner' && x.props.workflowId === visa(c)?.id,
+        )
+          ? null
+          : 'no runner for the visa workflow on the home page',
+    },
+  },
+  {
+    id: 'W6',
+    input: '在签证照片里加一步去掉定位',
+    locale: 'zh',
+    setup: 'visa',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        visaActions(c).includes('image.stripMetadata')
+          ? null
+          : `steps are ${visaActions(c).join(',')}`,
+    },
+  },
+  {
+    id: 'W7',
+    input: '把签证照片的大小改成 200KB',
+    locale: 'zh',
+    setup: 'visa',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const got = visa(c)?.steps.find((s) => s.action === 'image.idPhoto')?.params.maxKB;
+        return got === 200 ? null : `maxKB is ${String(got)}`;
+      },
+    },
+  },
+  {
+    id: 'W8',
+    input: '把签证照片的命名这一步去掉',
+    locale: 'zh',
+    setup: 'visa',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        visaActions(c).includes('file.rename') ? 'the naming step is still there' : null,
+    },
+  },
+  {
+    id: 'W9',
+    input: '把本月的账目做成 PDF 报表',
+    locale: 'zh',
+    setup: 'budget',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.records', 'print.records'], (steps) =>
+        param('in.records', 'period', 'thisMonth')(steps),
+      ),
+    },
+  },
+  {
+    id: 'PW1',
+    input: '帮我做个流程：拍收据，拉正，压缩到 300K，然后存起来',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.photos', 'scan.detect', 'image.compress', 'file.save'], (steps) =>
+        param('image.compress', 'maxKB', 300)(steps),
+      ),
+    },
+  },
+  {
+    id: 'PW2',
+    input: 'I want the visa photo workflow to also open the share sheet at the end',
+    locale: 'en',
+    setup: 'visa',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        visaActions(c).at(-1) === 'out.share' ? null : `steps are ${visaActions(c).join(',')}`,
+    },
+  },
+  {
+    id: 'PW3',
+    input: 'Make a monthly PDF of my expenses with the total at the bottom',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.records', 'print.records'],
+        (steps) =>
+          param('in.records', 'period', 'thisMonth')(steps) ??
+          param('print.records', 'template', 'receipt')(steps),
+      ),
+    },
+  },
+  {
+    id: 'PW4',
+    input: '我想把扫描文档这个预设加进来，再把它放在首页上',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const wf = userWorkflows(c).find((w) => w.steps.some((s) => s.action === 'scan.detect'));
+        if (!wf) return 'no scanning workflow';
+        return allComponents(home(c)).some(
+          (x) => x.type === 'workflowRunner' && x.props.workflowId === wf.id,
+        )
+          ? null
+          : 'the scanning workflow is not on the home page';
+      },
+    },
+  },
+];
+
+export const EVAL_CASES: readonly EvalCase[] = [...BASE_EVAL_CASES, ...WORKFLOW_EVAL_CASES];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };
 

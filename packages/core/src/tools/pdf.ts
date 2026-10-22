@@ -415,6 +415,34 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
       },
       ...ruleFields,
     ],
+    presets: [
+      {
+        id: 'copy',
+        label: { en: 'COPY', zh: 'COPY' },
+        values: {
+          text: 'COPY',
+          position: 'topRight',
+          fontSize: 18,
+          color: '#C92A2A',
+          opacity: 80,
+          angle: 0,
+          rule: 'all',
+        },
+      },
+      {
+        id: 'date',
+        label: { en: 'Date', zh: '日期' },
+        values: {
+          text: '{date}',
+          position: 'topRight',
+          fontSize: 12,
+          color: '#000000',
+          opacity: 100,
+          angle: 0,
+          rule: 'all',
+        },
+      },
+    ],
     requires: [],
   },
   {
@@ -480,9 +508,22 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
     },
     input: ['pdf'],
     output: 'pdf',
-    params: z.strictObject({ flatten: z.boolean() }),
+    params: z.strictObject({
+      flatten: z.boolean(),
+      /** 没有可填的字段时：stop 报错（默认），skip 原样交给下一步（签回表格时有的 PDF 只需要签名）。 */
+      whenNoFields: z.enum(['stop', 'skip']).optional(),
+    }),
     fields: [
       { key: 'flatten', label: { en: 'Flatten', zh: '拍平（填好后不能再改）' }, kind: 'toggle' },
+      {
+        key: 'whenNoFields',
+        label: { en: 'If the PDF has no form fields', zh: '没有表单字段时' },
+        kind: 'choice',
+        options: [
+          { value: 'stop', label: { en: 'Stop', zh: '停下提示' } },
+          { value: 'skip', label: { en: 'Skip this step', zh: '跳过这一步' } },
+        ],
+      },
     ],
     local: 'fillForm',
     requires: [],

@@ -186,11 +186,18 @@ export function describeChange(
     return c ? componentLabel(c, known, ctx) : id;
   };
   const toolName = (id: string) => ctx.registry.tools.get(id)?.name[ctx.locale] ?? id;
-  const wf = (id: string) => before.workflows.find((w) => w.id === id);
+  // 同一次修改里新建的工作流也要能找到名字（新建后接着加步骤）。
+  const addedWorkflows = ops.flatMap((o) => (o.op === 'addWorkflow' ? [o.workflow] : []));
+  const wf = (id: string) =>
+    before.workflows.find((w) => w.id === id) ?? addedWorkflows.find((w) => w.id === id);
+  const actionLabel = (action: string) =>
+    ctx.registry.actions.get(action)?.label[ctx.locale] ?? action;
   const stepLabel = (wfId: string, stepId: string) => {
     const action = wf(wfId)?.steps.find((s) => s.id === stepId)?.action;
-    return (action && ctx.registry.actions.get(action)?.label[ctx.locale]) ?? stepId;
+    return action ? actionLabel(action) : stepId;
   };
+  const stepChain = (steps: readonly { action: string }[]) =>
+    steps.map((st) => actionLabel(st.action)).join(' → ');
   const navList = (items: readonly NavTarget[]) =>
     items.map((t) => navTargetLabel(t, known, ctx.locale)).join(zh ? '、' : ', ');
   const modeLabel = {
@@ -527,6 +534,70 @@ export function describeChange(
         }
         break;
       }
+      case 'addWorkflow': {
+        const from = op.workflow.presetId ? (zh ? '（从预设添加）' : ' (from a preset)') : '';
+        lines.push(
+          zh
+            ? `新建工作流「${op.workflow.name}」${from}：${stepChain(op.workflow.steps)}`
+            : `New workflow “${op.workflow.name}”${from}: ${stepChain(op.workflow.steps)}`,
+        );
+        break;
+      }
+      case 'removeWorkflow': {
+        const name = wf(op.workflowId)?.name ?? op.workflowId;
+        lines.push(
+          zh
+            ? `删除工作流「${name}」（文件不受影响）`
+            : `Delete the workflow “${name}” (files are kept)`,
+        );
+        break;
+      }
+      case 'renameWorkflow': {
+        const name = wf(op.workflowId)?.name ?? op.workflowId;
+        lines.push(
+          zh
+            ? `工作流「${name}」改名为「${op.name}」`
+            : `Rename the workflow “${name}” to “${op.name}”`,
+        );
+        break;
+      }
+      case 'addWorkflowStep': {
+        const name = wf(op.workflowId)?.name ?? op.workflowId;
+        const action = ctx.registry.actions.get(op.step.action);
+        const params = action ? describeParams(action, op.step.params, ctx.locale, ctx.now) : '';
+        const label = actionLabel(op.step.action);
+        lines.push(
+          zh
+            ? `「${name}」加一步「${label}」${params ? `：${params}` : ''}`
+            : `Add the step “${label}” to “${name}”${params ? `: ${params}` : ''}`,
+        );
+        break;
+      }
+      case 'moveWorkflowStep': {
+        const name = wf(op.workflowId)?.name ?? op.workflowId;
+        lines.push(
+          zh
+            ? `「${name}」把「${stepLabel(op.workflowId, op.stepId)}」移到第 ${op.toIndex + 1} 步`
+            : `Move “${stepLabel(op.workflowId, op.stepId)}” to step ${op.toIndex + 1} in “${name}”`,
+        );
+        break;
+      }
+      case 'updateWorkflow': {
+        const name = wf(op.workflowId)?.name ?? op.workflowId;
+        if (op.name !== undefined && op.name !== name) {
+          lines.push(
+            zh ? `工作流「${name}」改名为「${op.name}」` : `Rename “${name}” to “${op.name}”`,
+          );
+        }
+        if (op.steps) {
+          lines.push(
+            zh
+              ? `「${op.name ?? name}」的步骤：${stepChain(op.steps)}`
+              : `Steps of “${op.name ?? name}”: ${stepChain(op.steps)}`,
+          );
+        }
+        break;
+      }
       case 'removeWorkflowStep': {
         const name = wf(op.workflowId)?.name ?? op.workflowId;
         lines.push(
@@ -562,6 +633,12 @@ export function describeChange(
           : zh
             ? `更新「${toolName(note.toolId)}」工具：新增 ${names.join('、')}；你改过的内容保留`
             : `Update the ${toolName(note.toolId)} tool: adds ${names.join(', ')}; your changes are kept`,
+      );
+    } else if (note.kind === 'removedRunners') {
+      lines.push(
+        zh
+          ? `同时移除 ${note.count} 个运行这个工作流的卡片`
+          : `Also removes ${note.count} card(s) that ran this workflow`,
       );
     } else if (note.kind === 'removedDataComponents') {
       lines.push(

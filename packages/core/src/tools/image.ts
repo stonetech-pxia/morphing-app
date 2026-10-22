@@ -539,6 +539,20 @@ export const IMAGE_COMPOSE_ACTIONS: readonly ActionDefinition[] = [
         ],
       },
     ],
+    presets: [
+      {
+        id: 'tile',
+        label: { en: 'Across the image', zh: '铺满' },
+        values: {
+          text: 'COPY',
+          mode: 'tile',
+          corner: 'bottomRight',
+          sizePercent: 30,
+          opacity: 35,
+          color: '#868E96',
+        },
+      },
+    ],
     requires: [],
   },
   {

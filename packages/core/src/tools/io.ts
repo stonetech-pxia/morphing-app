@@ -76,6 +76,18 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
       },
       ...countFields(MAX_PICK),
     ],
+    presets: [
+      {
+        id: 'library',
+        label: { en: 'Library, up to 30', zh: '相册，最多 30 张' },
+        values: { source: 'library', min: 1, max: 30 },
+      },
+      {
+        id: 'camera',
+        label: { en: 'Camera, up to 10', zh: '拍照，最多 10 张' },
+        values: { source: 'camera', min: 1, max: 10 },
+      },
+    ],
     requires: ['files.pick'],
   },
   {
@@ -108,6 +120,18 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
         ],
       },
       ...countFields(MAX_PICK),
+    ],
+    presets: [
+      {
+        id: 'pdf',
+        label: { en: 'PDFs, up to 10', zh: 'PDF，最多 10 个' },
+        values: { accept: 'pdf', min: 1, max: 10 },
+      },
+      {
+        id: 'mixed',
+        label: { en: 'PDFs and images, up to 30', zh: 'PDF 和图片，最多 30 个' },
+        values: { accept: 'pdfOrImages', min: 1, max: 30 },
+      },
     ],
     requires: ['files.pick'],
   },
@@ -172,6 +196,32 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     output: 'same',
     params: z.strictObject({ template: nameTemplateSchema }),
     fields: [{ key: 'template', label: { en: 'File name', zh: '文件名' }, kind: 'nameTemplate' }],
+    presets: [
+      {
+        id: 'source-date',
+        label: { en: 'Name + date', zh: '原名 + 日期' },
+        values: { template: '{sourceName}-{date}' },
+      },
+      {
+        id: 'source',
+        label: { en: 'Original name', zh: '原文件名' },
+        values: { template: '{sourceName}' },
+      },
+    ],
+    requires: [],
+  },
+  {
+    id: 'file.order',
+    label: { en: 'Put in order', zh: '排序' },
+    description: {
+      en: 'The user puts the files in order and can drop some, on the device.',
+      zh: '用户在手机上调整文件顺序，也可以去掉几个。',
+    },
+    input: ['files'],
+    output: 'same',
+    params: z.strictObject({}),
+    fields: [],
+    local: 'reorder',
     requires: [],
   },
   {
