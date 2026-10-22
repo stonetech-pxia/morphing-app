@@ -104,6 +104,8 @@ App 侧：`apps/mobile/src/runtime/runner.ts` 把执行器接上存储和平台�
 
 扩展包（D-064、D-075）：清单在 `core/src/packs.ts`；下载、校验、删除在 `apps/mobile/src/packs/store.ts`（`documentDirectory/packs/<id>/<version>/`）；`PackHost` 按需挂载隐藏的 WebView，页面是随 App 发布的固定 HTML（`packs/pages/`），库文件经 `bridge.ts` 分块送进页面。用户在 `PackGate` 确认后才下载；「设置 → 扩展包」（`app/packs.tsx`）管理已下载的扩展包。扩展包页面：`pdfview`（pdf.js）、`scan`（OpenCV.js + jscanify：找边、透视矫正）、`ocr`（tesseract.js：worker 是前置脚本 + 内嵌 wasm 的核心 + worker.min.js 拼成的 Blob，语言数据由页面送进 worker）。送进页面的图片先在 App 里重新编码成 JPG 并缩到 1677 万像素以内（`imageForPage`）；离开运行页面时关掉扫描和识别页面释放内存。动作的扩展包由参数决定时用 `packFor`（执行器先问参数再确认下载）。
 
+图片合成（拼长图、宫格、打码、水印、相纸）：排版在 `packages/tool-image`，`runtime/actions/compose.ts` 生成固定的几种绘制步骤（`DrawOp`），`runtime/skia.ts` 离屏执行。超过 GPU 画布上限会让 App 直接崩溃（不是 JS 错误），所以画布一律先经过 `surfaceScale`。文字转 PDF 和报表用 `core/src/html.ts` 的固定模板 + expo-print。
+
 ## 6. 外部能力接口（§14.2）
 
 - AI 来源由「设置 → AI」选择（`apps/mobile/src/ai/`）：内置规则 / Morph 服务器 / 用户自带 Claude API key。规划逻辑在 `packages/planner`，服务端和 App 共用。
