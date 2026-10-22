@@ -292,8 +292,9 @@ describe('prepareOps', () => {
         {
           op: 'setStepParams',
           workflowId: 'pdf-merge',
-          stepId: 'save',
-          params: { nameTemplate: '合并-{date:YYYY-MM-DD}' },
+          stepId: 'name',
+          params: { template: '合并-{date:YYYY-MM-DD}' },
+          ask: [],
         },
       ],
       ctx,
@@ -302,7 +303,8 @@ describe('prepareOps', () => {
     if (!result.ok) return;
     expect(result.lines).toEqual([
       '导航栏改为：首页、工具、设置（原来：首页、工具、AI 修改、历史、设置）',
-      '「合并 PDF」的「保存到工作空间」命名规则改为 合并-{date:YYYY-MM-DD}（例如 合并-2026-10-22.pdf）',
+      '「合并 PDF」的「命名」：文件名 合并-{date:YYYY-MM-DD}（例如 合并-2026-10-22）',
+      '「合并 PDF」的「命名」不再询问，直接使用设定值',
     ]);
   });
 

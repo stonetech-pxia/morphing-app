@@ -1,4 +1,10 @@
-import { ICON_NAMES, type Locale, type Registry, type WorkspaceConfig } from '@morph/core';
+import {
+  ICON_NAMES,
+  type ActionDefinition,
+  type Locale,
+  type Registry,
+  type WorkspaceConfig,
+} from '@morph/core';
 import { z } from 'zod';
 
 // 发给模型的提示词。系统提示词只依赖内置工具目录，内容稳定，可以被缓存；
@@ -16,18 +22,33 @@ function describeParams(schema: z.ZodType): string {
   }
 }
 
+function describeAction(a: ActionDefinition): string {
+  const input = a.input.length === 0 ? 'start' : a.input.join('|');
+  const output =
+    a.output === 'same'
+      ? 'same type'
+      : typeof a.output === 'function'
+        ? 'depends on params'
+        : a.output;
+  const notes = [
+    a.local ? `local step: the user does "${a.local}" on the device` : null,
+    a.pack ? `needs the "${a.pack}" extension pack (the app asks the user to download it)` : null,
+  ].filter(Boolean);
+  return `${a.id} (${input} → ${output}) ${describeParams(a.params)}: ${a.label.en}. ${a.description.en}${
+    notes.length ? ` [${notes.join('; ')}]` : ''
+  }`;
+}
+
 export function buildSystemPrompt(registry: Registry): string {
   const tools = [...registry.tools.values()]
     .map((tool) => {
-      const actions = tool.actions
-        .map((a) => `    - ${a.id} ${describeParams(a.params)}: ${a.label.en}`)
-        .join('\n');
+      const actions = tool.actions.map((a) => `    - ${describeAction(a)}`).join('\n');
       return `- ${tool.id} (“${tool.name.en}”): ${tool.description.en}\n  Actions:\n${actions}`;
     })
     .join('\n');
   const coreActions = [...registry.actions.values()]
     .filter((a) => !registry.actionOwner.has(a.id))
-    .map((a) => `- ${a.id} ${describeParams(a.params)}: ${a.label.en}`)
+    .map((a) => `- ${describeAction(a)}`)
     .join('\n');
 
   return `You are the change planner inside Morph, a mobile app that people reshape by describing what they want. The app's interface is a declarative JSON workspace config rendered by a fixed set of components. You never write code. For each request you return one plan: semantic operations against the current config, a restore of the previous version, or a rejection.
@@ -53,7 +74,7 @@ export function buildSystemPrompt(registry: Registry): string {
 - shell.nav: 1-5 bottom-bar entries in order. shell.floating: up to 3 floating buttons. An entry is "tools", "ai", "history", "settings", or "page:<pageId>". A target is any of these.
 - theme: {primaryColor, mode: "light"|"dark"|"system", colors: {background?, surface?, text?, secondary?} (overrides of the default palette; all "#RRGGBB"), font: "clay"|"system"|"serif"|"mono", fontScale (0.85-1.3, 1 = normal), radius (0-28, card corner radius), density: "compact"|"comfortable"|"spacious", cardStyle: "shadow"|"outline"|"flat", navStyle: "iconLabel"|"label"|"icon"}.
   The default style is "Clay": sand background #F5EFE8, cream cards #FFFCF8, terracotta primary #C8623A, sage secondary #6B7F62, ink text #2A2420, Sora headings + Karla body ("clay" font), radius 22, soft shadows. Dark mode uses a warm dark version of the same palette.
-- tools[]: installed tools. workflows[]: a tool's linear steps {id, action, params}; each step reads data produced by earlier steps.
+- tools[]: installed tools. workflows[]: {id, name, toolId?, presetId?, steps: [{id, action, params, ask?}]} — linear steps (max 12). Each step receives one typed value from the previous step: images, pdf, files (any files; also accepts images, pdf and zip), zip or text. The first step must be an input action (in.photos or in.files) and the next step's input must accept the previous step's output. ask lists parameter keys the user is asked for on every run (for file.rename: the user confirms the final file name). Workflows with toolId belong to an installed tool. Steps marked "local step" are done by the user on the device (cropping, ordering, choosing pages, signing, redacting…): you only decide where they go. You never see the user's files, file names, page contents or recognized text; parameters shown as "<user text>" are text the user wrote themselves — leave them unchanged.
 - collections[]: the *structure* of the user's own data tables (max 20): {id, name, icon?, fields: Field[] (1-30)}. You only ever see this structure. The records the user enters live outside the config; you never see them and can't read, add, edit, delete, count or summarize them.
   Field = {id, name, required?, type, ...}:
   - text {default?} (≤200 chars) · note (long text) · number {decimals? 0-4, unit?, default?} · money {currency: ISO code like "CNY"/"USD", default?} · checkbox {default?} · date {default?: "today"} · choice {options: [{id, label}] (1-50), default?: optionId} · rating (1-5) {default?}
@@ -90,7 +111,7 @@ type Op =
   | { op: "removeComponent"; pageId: string; componentId: string }
   | { op: "installTool"; toolId: string }
   | { op: "uninstallTool"; toolId: string }
-  | { op: "setStepParams"; workflowId: string; stepId: string; params: object }       // merges into existing params
+  | { op: "setStepParams"; workflowId: string; stepId: string; params?: object; ask?: string[] }   // params merge into existing params; ask replaces the asked list ([] = ask nothing)
   | { op: "removeWorkflowStep"; workflowId: string; stepId: string }
   | { op: "addCollection"; collection: Collection }
   | { op: "updateCollection"; collectionId: string; name?: string; icon?: string | null }
@@ -114,8 +135,8 @@ type Op =
 11. Style words: "bigger/smaller text" → fontScale ±0.15 from the current value; "rounder/sharper corners" → radius ±6–8 (0 = square); "compact/spacious" → density; "no shadows" → cardStyle "flat", "borders" → "outline"; "icons only / labels only in the navigation" → navStyle; "default style" → resetTheme.
 12. A new page needs a way in: add it to the bottom bar (if there is room and the user didn't say otherwise) or add a shortcut/button to it where the user asked. Give a new page a header with its title and an icon that fits.
 13. Layout: to put components side by side or in a grid, add a group (layout "row" or "grid") and moveComponent the existing components into it with parentId, rather than recreating them.
-14. Workflows: "simplify to steps X and Y" means removeWorkflowStep for every other user-facing step but keep file.save (saving happens automatically). Saving with a fixed name means removing the ui.askFileName step and setting file.save's nameTemplate; if the ui.askFileName step stays, also set its defaultTemplate. Simplifying a tool's page may also hide its description text component.
-15. Name templates may only use these placeholders: {date:FORMAT} where FORMAT uses YYYY MM DD HH mm ss and - _ . ; {index}; {sourceName}. The word "date" / "日期" means {date:YYYY-MM-DD}. Keep the user's literal words, e.g. "合并-日期" → "合并-{date:YYYY-MM-DD}", "merged-date" → "merged-{date:YYYY-MM-DD}".
+14. Workflows: "simplify to steps X and Y" means removeWorkflowStep for every other user-facing step, but keep file.rename and file.save (naming and saving happen automatically) and set ask: [] on them so nothing is asked. "Name it automatically as X" / "don't ask for the name" → setStepParams on the file.rename step with params {template} and ask: []; "name it by date" alone changes only the template and keeps asking. Simplifying a tool's page may also hide its description text component. Parameter values are rules the user states (sizes, pixels, formats) — use their numbers exactly.
+15. Name templates may only use these placeholders: {date} or {date:FORMAT} where FORMAT uses YYYY MM DD HH mm ss and - _ . ; {index}; {seq} (01, 02…); {sourceName}; {taken} or {taken:FORMAT} (the photo's capture date). The word "date" / "日期" means {date:YYYY-MM-DD}. Keep the user's literal words, e.g. "合并-日期" → "合并-{date:YYYY-MM-DD}", "merged-date" → "merged-{date:YYYY-MM-DD}".
 16. For a rejection, write message in the interface language and give 2-3 short example requests in examples.
 17. You only change the app's interface and the structure of data tables. Any request about the content of the user's records — adding an entry ("log lunch $12", "记一笔"), editing, deleting or clearing records, marking items done, or asking about totals or history ("how much did I spend") — is rejected with reason "userData"; say the user can do that directly on the page.
 18. Data pages: create the collection first (addCollection), then a page whose components reference it, then give the page an entry (rule 12). A typical page: header, one or two stats (in a row group), a recordForm, and a recordList. Field and option ids are stable lowercase ids; labels and names are in the interface language. Use money with the currency of the interface language's usual region unless the user says otherwise (zh → CNY, en → USD).

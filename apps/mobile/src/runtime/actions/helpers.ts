@@ -1,0 +1,91 @@
+import { FILE_LIMITS, RunError, sanitizeFileName, type RunItem, type RunValue } from '@morph/core';
+
+import type { WorkspaceRepo } from '../../storage/types';
+import type { FilePlatform } from '../platform';
+import type { LocalUi } from '../local';
+
+// 动作实现共用的工具函数和运行环境。
+
+/** 一次运行注入给动作实现的环境。 */
+export interface RunServices {
+  runId: string;
+  files: FilePlatform;
+  repo: WorkspaceRepo;
+  /** 保存的文件授权给谁：工具 ID，或用户自己的工作流 `workflow:<id>`（§7G）。 */
+  grantee: string;
+  ui: LocalUi;
+}
+
+export const MB = 1024 * 1024;
+
+const MIME_BY_EXT: Record<string, string> = {
+  pdf: 'application/pdf',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  gif: 'image/gif',
+  zip: 'application/zip',
+  txt: 'text/plain',
+};
+
+export const extOf = (name: string) => /\.([^./]+)$/.exec(name)?.[1]?.toLowerCase() ?? '';
+export const baseName = (name: string) => name.replace(/\.[^./]+$/, '');
+export const mimeOfExt = (ext: string) => MIME_BY_EXT[ext] ?? 'application/octet-stream';
+
+export function mimeOf(name: string, given: string | null): string {
+  if (given && given !== 'application/octet-stream') return given;
+  return mimeOfExt(extOf(name));
+}
+
+export const isImageMime = (mime: string) => mime.startsWith('image/');
+
+/** 输入一定是文件（校验器保证了类型）。 */
+export function fileItems(input: RunValue | null): RunItem[] {
+  if (!input || input.type === 'text') throw new RunError('unexpected', { detail: 'no files' });
+  return input.items;
+}
+
+let counter = 0;
+/**
+ * 临时文件的相对路径：每个中间结果放在自己的子目录里（不会覆盖前一步的输入），
+ * 文件名就是显示名，所以分享、存到「文件」时对方看到的是正确的名字。
+ */
+export const freshName = (name: string, ext: string) =>
+  `${++counter}/${sanitizeFileName(name)}.${ext}`;
+
+/** 把一段字节写成本次运行的临时文件。 */
+export async function writeItem(
+  services: RunServices,
+  bytes: Uint8Array,
+  item: Omit<RunItem, 'uri' | 'size'>,
+): Promise<RunItem> {
+  const stored = await services.files.writeRunFile(
+    services.runId,
+    freshName(item.name, item.ext),
+    bytes,
+  );
+  return { ...item, uri: stored.uri, size: stored.size };
+}
+
+/** 选择器给的文件：检查大小上限（P-006）。选择器不一定提供大小，复制后再检查一次。 */
+export function checkSizes(sizes: readonly { name: string; size: number | null }[]): void {
+  for (const f of sizes) {
+    if ((f.size ?? 0) > FILE_LIMITS.maxFileBytes) {
+      throw new RunError('tooLarge', { name: f.name, mb: FILE_LIMITS.maxFileBytes / MB });
+    }
+  }
+  if (sizes.reduce((sum, f) => sum + (f.size ?? 0), 0) > FILE_LIMITS.maxTotalBytes) {
+    throw new RunError('tooLargeTotal', { mb: FILE_LIMITS.maxTotalBytes / MB });
+  }
+}
+
+export async function readItem(services: RunServices, item: RunItem): Promise<Uint8Array> {
+  try {
+    return await services.files.readUri(item.uri);
+  } catch {
+    throw new RunError('accessDenied', { name: `${item.name}.${item.ext}` });
+  }
+}

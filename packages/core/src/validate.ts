@@ -1,4 +1,4 @@
-import type { Registry, Slot } from './registry';
+import type { Registry } from './registry';
 import {
   HOME_PAGE_ID,
   PROTECTED_TARGETS,
@@ -13,6 +13,7 @@ import {
   type WorkspaceConfig,
 } from './schema';
 import { contrastProblems } from './theme';
+import { workflowProblems } from './workflow/check';
 
 // 变更校验（§7D）：结构 → 引用 → 受保护元素 → 可读性 → 工具与权限 → 工作流数据流。
 // 任何配置在保存或渲染之前都必须通过这里。
@@ -138,43 +139,33 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
     }
   }
 
-  // ---- 工作流：动作登记、归属、参数、权限、数据槽（§7B、§7C）----
+  // ---- 工作流：动作登记、参数、权限、相邻两步的类型（§7B、§7C、D-060）----
   for (const wf of config.workflows) {
-    const toolDef = registry.tools.get(wf.toolId);
-    if (!installed.has(wf.toolId) || !toolDef) {
-      issue(
-        'unknown-tool',
-        `workflow ${wf.id} belongs to tool ${wf.toolId} which is not installed`,
-      );
-      continue;
+    let toolDef = undefined;
+    if (wf.toolId !== undefined) {
+      toolDef = registry.tools.get(wf.toolId);
+      if (!installed.has(wf.toolId) || !toolDef) {
+        issue(
+          'unknown-tool',
+          `workflow ${wf.id} belongs to tool ${wf.toolId} which is not installed`,
+        );
+        continue;
+      }
     }
     for (const id of duplicates(wf.steps.map((s) => s.id)))
       issue('duplicate', `step ${id} in ${wf.id}`);
-    const available = new Set<Slot>();
+    for (const problem of workflowProblems(wf, registry)) issue(problem.code, problem.message);
+    // 工具自带的工作流只能用该工具声明过的权限；用户自己的工作流由用户逐步确认。
+    if (!toolDef) continue;
     for (const step of wf.steps) {
-      const where = `${wf.id}/${step.id}`;
-      const action = registry.actions.get(step.action);
-      if (!action) {
-        issue('unknown-action', `${where}: action ${step.action} is not registered`);
-        continue;
-      }
-      const owner = registry.actionOwner.get(step.action);
-      if (owner !== undefined && owner !== wf.toolId) {
-        issue('foreign-action', `${where}: ${step.action} belongs to another tool`);
-      }
-      const params = action.params.safeParse(step.params);
-      if (!params.success) {
-        issue('params', `${where}: ${params.error.issues.map((i) => i.message).join('; ')}`);
-      }
-      for (const permission of action.requires) {
+      for (const permission of registry.actions.get(step.action)?.requires ?? []) {
         if (!toolDef.permissions.includes(permission)) {
-          issue('permission', `${where}: tool ${wf.toolId} did not declare ${permission}`);
+          issue(
+            'permission',
+            `${wf.id}/${step.id}: tool ${wf.toolId} did not declare ${permission}`,
+          );
         }
       }
-      for (const slot of action.reads) {
-        if (!available.has(slot)) issue('binding', `${where}: needs ${slot} from an earlier step`);
-      }
-      for (const slot of action.writes) available.add(slot);
     }
   }
 

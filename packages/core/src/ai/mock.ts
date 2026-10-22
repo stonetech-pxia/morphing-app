@@ -577,10 +577,10 @@ const pageIconRule: Rule = (clause, state) => {
   return [{ op: 'setPageIcon', pageId: target.id, icon }];
 };
 
-const STEP_KEYWORDS: [RegExp, string][] = [
-  [/上传|选择|选文件|select|choose|upload|pick/i, 'selectFiles'],
-  [/合并|merge/i, 'merge'],
-  [/命名|起名|改名|name/i, 'askFileName'],
+const STEP_KEYWORDS: [RegExp, string[]][] = [
+  [/上传|选择|选文件|select|choose|upload|pick/i, ['in.files', 'in.photos']],
+  [/合并|merge/i, ['pdf.merge']],
+  [/命名|起名|改名|name/i, ['file.rename']],
 ];
 
 function toolForWorkflowClause(clause: string, state: State): ToolDefinition {
@@ -606,14 +606,18 @@ function toolForWorkflowClause(clause: string, state: State): ToolDefinition {
 const simplifyRule: Rule = (clause, state) => {
   if (!/简化|步骤|simplify|steps?/i.test(clause)) return null;
   const tool = toolForWorkflowClause(clause, state);
-  const keep = new Set(STEP_KEYWORDS.filter(([re]) => re.test(clause)).map(([, suffix]) => suffix));
+  const keep = new Set(STEP_KEYWORDS.filter(([re]) => re.test(clause)).flatMap(([, ids]) => ids));
   if (keep.size === 0) return null;
   const ops: Op[] = [];
   for (const wf of state.config.workflows.filter((w) => w.toolId === tool.id)) {
     for (const step of wf.steps) {
-      const suffix = step.action.split('.')[1]!;
-      // 保存是自动完成的，不算用户可见的步骤。
-      if (step.action !== 'file.save' && !keep.has(suffix)) {
+      if (keep.has(step.action) || step.action === 'file.save') continue;
+      // 命名和保存是自动完成的，不算用户可见的步骤：命名保留，只是不再询问。
+      if (step.action === 'file.rename') {
+        if (step.ask?.length) {
+          ops.push({ op: 'setStepParams', workflowId: wf.id, stepId: step.id, ask: [] });
+        }
+      } else {
         ops.push({ op: 'removeWorkflowStep', workflowId: wf.id, stepId: step.id });
       }
     }
@@ -651,27 +655,17 @@ const namingRule: Rule = (clause, state) => {
   }
   const tool = toolForWorkflowClause(clause, state);
   const ops: Op[] = [];
+  const automatic = /自动|不用问|不要问|automatic|without asking/i.test(clause);
   for (const wf of state.config.workflows.filter((w) => w.toolId === tool.id)) {
     for (const step of wf.steps) {
-      if (step.action === 'file.save') {
-        ops.push({
-          op: 'setStepParams',
-          workflowId: wf.id,
-          stepId: step.id,
-          params: { nameTemplate: template },
-        });
-      } else if (step.action === 'ui.askFileName') {
-        ops.push(
-          /自动|automatic/i.test(clause)
-            ? { op: 'removeWorkflowStep', workflowId: wf.id, stepId: step.id }
-            : {
-                op: 'setStepParams',
-                workflowId: wf.id,
-                stepId: step.id,
-                params: { defaultTemplate: template },
-              },
-        );
-      }
+      if (step.action !== 'file.rename') continue;
+      ops.push({
+        op: 'setStepParams',
+        workflowId: wf.id,
+        stepId: step.id,
+        params: { template },
+        ...(automatic && step.ask?.length ? { ask: [] } : {}),
+      });
     }
   }
   return ops.length > 0 ? ops : null;

@@ -16,7 +16,8 @@
 │  schema · 修改操作（ops）· apply · validate · migrate ·            │
 │  修改说明（describe）· AIProvider 接口 · mock AI                   │
 ├───────────────────────────────────────────────────────────────┤
-│ packages/tool-pdf（M2）  pdf-lib 合并实现（清单在 core/src/tools）  │
+│ packages/tool-*  pdf（pdf-lib）· image · archive（fflate）· qr   │
+│                  纯逻辑，清单在 core/src/tools                    │
 ├───────────────────────────────────────────────────────────────┤
 │ apps/api（M3）  Hono 计划服务 + Claude（账号与云端数据见 CLOUD_DESIGN）│
 └───────────────────────────────────────────────────────────────┘
@@ -95,9 +96,11 @@ SQLite 表（`PRAGMA user_version` 管理数据库结构升级，见 `apps/mobil
 
 用户文件存放在 App 文档目录的 `assets/<id>/<文件名>`，与 revision 分开，回滚和卸载工具都不会触及。
 
-## 5.1 工作流执行（M2）
+## 5.1 工作流执行（TOOLS_DESIGN.md）
 
-`apps/mobile/src/runtime/runner.ts` 是唯一执行动作的地方：按顺序执行步骤，步骤之间通过固定数据槽（files → document → fileName → savedFile）传递数据。平台能力（选择文件、读写、分享）通过 `FilePlatform` 注入，App 中由 Expo 模块实现，测试中用内存实现 + 真实 PDF。
+执行器在 `packages/core/src/workflow/engine.ts`：按顺序执行步骤，步骤之间传递**一个有类型的值**（images / pdf / files / zip / text，D-060），执行前再检查一次类型链和参数，支持进度、取消、运行时询问参数和扩展包确认；`tool_runs` 只记录状态和错误代码。动作契约（输入输出类型、zod 参数、参数界面元数据）在 `core/src/workflow/contract.ts` 和各工具清单里。
+
+App 侧：`apps/mobile/src/runtime/runner.ts` 把执行器接上存储和平台；动作实现在 `runtime/actions/`，纯逻辑调用 `packages/tool-*`（tool-pdf、tool-image、tool-archive、tool-qr，Node + 真实文件测试）；平台能力（选照片 / 文件、临时文件、分享、存相册、打印）通过 `FilePlatform`（`runtime/platform.ts`）注入，App 中由 Expo 模块实现，测试中用内存实现。运行页面 `app/run/[workflowId].tsx` 显示每一步、本地操作界面（`run/local/`）和结果预览。中间结果是缓存目录 `runs/<runId>/` 里的临时文件，只有「保存」才成为用户文件（D-063）。
 
 ## 6. 外部能力接口（§14.2）
 

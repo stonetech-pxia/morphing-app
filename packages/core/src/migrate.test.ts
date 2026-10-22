@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { prepareSnapshot } from './change';
 import { migrateWorkspace, type Migration } from './migrate';
 import { registry, workspace } from './test-helpers';
+import { V4_CUSTOM_ASK, V4_DEFAULT_MERGE, V4_FIXED_NAME } from './fixtures/v4';
 import { DEFAULT_THEME } from './theme';
 
 /** schemaVersion 1 的真实快照：装了 PDF，导航栏已精简，AI 和历史是浮动按钮。 */
@@ -76,6 +77,65 @@ describe('migrateWorkspace', () => {
     };
     const full = prepareSnapshot(fullNav, registry);
     expect(full.ok && full.after.shell.floating).toEqual(['settings']);
+  });
+
+  it('turns the v1 merge workflow into typed steps with a fixed name', () => {
+    const result = prepareSnapshot(v1Snapshot, registry);
+    expect(result.ok && result.after.workflows[0]!.steps).toEqual([
+      { id: 'select', action: 'in.files', params: { accept: 'pdf', min: 2, max: 20 } },
+      { id: 'merge', action: 'pdf.merge', params: {} },
+      { id: 'name', action: 'file.rename', params: { template: '合并-{date:YYYY-MM-DD}' } },
+      { id: 'save', action: 'file.save', params: {} },
+    ]);
+  });
+
+  it('v4 → v5: the default merge asks for the file name at the rename step', () => {
+    const result = prepareSnapshot(V4_DEFAULT_MERGE, registry);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.after.workflows).toEqual([
+      {
+        id: 'pdf-merge',
+        toolId: 'pdf',
+        name: '合并 PDF',
+        steps: [
+          { id: 'select', action: 'in.files', params: { accept: 'pdf', min: 2, max: 20 } },
+          { id: 'merge', action: 'pdf.merge', params: {} },
+          {
+            id: 'name',
+            action: 'file.rename',
+            params: { template: '{sourceName}-合并' },
+            ask: ['template'],
+          },
+          { id: 'save', action: 'file.save', params: {} },
+        ],
+      },
+    ]);
+    // 页面和其他配置不变。
+    expect(result.after.pages).toEqual(V4_DEFAULT_MERGE.pages);
+  });
+
+  it('v4 → v5: a workflow that no longer asked keeps its fixed name template', () => {
+    const result = prepareSnapshot(V4_FIXED_NAME, registry);
+    expect(result.ok && result.after.workflows[0]!.steps.slice(2)).toEqual([
+      { id: 'name', action: 'file.rename', params: { template: '合并-{date:YYYY-MM-DD}' } },
+      { id: 'save', action: 'file.save', params: {} },
+    ]);
+  });
+
+  it('v4 → v5: the name the user was asked with wins over the save template', () => {
+    const result = prepareSnapshot(V4_CUSTOM_ASK, registry);
+    expect(result.ok && result.after.workflows[0]!.steps).toEqual([
+      { id: 'select', action: 'in.files', params: { accept: 'pdf', min: 3, max: 5 } },
+      { id: 'merge', action: 'pdf.merge', params: {} },
+      {
+        id: 'name',
+        action: 'file.rename',
+        params: { template: '材料-{date:YYYYMMDD}' },
+        ask: ['template'],
+      },
+      { id: 'save', action: 'file.save', params: {} },
+    ]);
   });
 
   it('refuses snapshots it cannot migrate', () => {

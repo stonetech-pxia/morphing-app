@@ -25,26 +25,16 @@ export const pdfTool: ToolDefinition = {
   permissions: ['files.pick', 'files.write'],
   actions: [
     {
-      id: 'pdf.selectFiles',
-      label: { en: 'Choose PDF files', zh: '选择 PDF 文件' },
-      params: z
-        .strictObject({
-          min: z.number().int().min(1).max(20),
-          max: z.number().int().min(1).max(20),
-        })
-        .refine((p) => p.min <= p.max, { message: 'min must not exceed max' }),
-      reads: [],
-      writes: ['files'],
-      interactive: true,
-      requires: ['files.pick'],
-    },
-    {
       id: 'pdf.merge',
       label: { en: 'Merge in order', zh: '按顺序合并' },
+      description: {
+        en: 'Merge the PDFs into one, in the order they were chosen.',
+        zh: '把多个 PDF 按选择顺序合并成一个。',
+      },
+      input: ['pdf'],
+      output: 'pdf',
       params: z.strictObject({}),
-      reads: ['files'],
-      writes: ['document'],
-      interactive: false,
+      fields: [],
       requires: [],
     },
   ],
@@ -88,18 +78,15 @@ export const pdfTool: ToolDefinition = {
       toolId: PDF_TOOL_ID,
       name: t(locale, 'Merge PDFs', '合并 PDF'),
       steps: [
-        { id: 'select', action: 'pdf.selectFiles', params: { min: 2, max: 20 } },
+        { id: 'select', action: 'in.files', params: { accept: 'pdf', min: 2, max: 20 } },
         { id: 'merge', action: 'pdf.merge', params: {} },
         {
           id: 'name',
-          action: 'ui.askFileName',
-          params: { defaultTemplate: t(locale, '{sourceName}-merged', '{sourceName}-合并') },
+          action: 'file.rename',
+          params: { template: t(locale, '{sourceName}-merged', '{sourceName}-合并') },
+          ask: ['template'],
         },
-        {
-          id: 'save',
-          action: 'file.save',
-          params: { nameTemplate: t(locale, '{sourceName}-merged', '{sourceName}-合并') },
-        },
+        { id: 'save', action: 'file.save', params: {} },
       ],
     },
   ],

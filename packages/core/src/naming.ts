@@ -1,11 +1,15 @@
 // 文件命名模板（§7C）：只允许白名单占位符，不支持任何表达式。
+//   {date}         = {date:YYYY-MM-DD}
 //   {date:FORMAT}  FORMAT 只能由 YYYY MM DD HH mm ss 和 - _ . 组成，使用设备本地时间
 //   {index}        同一次执行中的序号（从 1 开始）
-//   {sourceName}   第一个输入文件的文件名（不含扩展名）
+//   {seq}          两位序号：01、02…（超过 99 时照常增长）
+//   {sourceName}   这个文件原来的名字（不含扩展名）
+//   {taken} / {taken:FORMAT}  照片的拍摄日期；读不到时用当天
 
 const PLACEHOLDER = /\{([^{}]*)\}/g;
 const DATE_FORMAT = /^(YYYY|MM|DD|HH|mm|ss|[-_.])+$/;
 const MAX_NAME_LENGTH = 80;
+const SIMPLE = new Set(['index', 'seq', 'sourceName', 'date', 'taken']);
 
 export type TemplateCheck = { ok: true } | { ok: false; error: string };
 
@@ -15,8 +19,9 @@ export function checkNameTemplate(template: string): TemplateCheck {
   const stripped = template.replace(PLACEHOLDER, '');
   if (/[{}]/.test(stripped)) return { ok: false, error: 'unbalanced braces' };
   for (const [, body = ''] of template.matchAll(PLACEHOLDER)) {
-    if (body === 'index' || body === 'sourceName') continue;
-    if (body.startsWith('date:') && DATE_FORMAT.test(body.slice('date:'.length))) continue;
+    if (SIMPLE.has(body)) continue;
+    const format = /^(date|taken):(.*)$/.exec(body)?.[2];
+    if (format !== undefined && DATE_FORMAT.test(format)) continue;
     return { ok: false, error: `unsupported placeholder {${body}}` };
   }
   return { ok: true };
@@ -26,6 +31,8 @@ export interface NameContext {
   now: Date;
   index?: number;
   sourceName?: string;
+  /** 照片的拍摄时间（EXIF）。 */
+  takenAt?: Date;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -62,8 +69,10 @@ export function sanitizeFileName(name: string): string {
 export function renderNameTemplate(template: string, ctx: NameContext): string {
   const rendered = template.replace(PLACEHOLDER, (_, body: string) => {
     if (body === 'index') return String(ctx.index ?? 1);
+    if (body === 'seq') return String(ctx.index ?? 1).padStart(2, '0');
     if (body === 'sourceName') return ctx.sourceName ?? '';
-    return formatDate(body.slice('date:'.length), ctx.now);
+    const [kind, format = 'YYYY-MM-DD'] = body.split(':');
+    return formatDate(format, kind === 'taken' ? (ctx.takenAt ?? ctx.now) : ctx.now);
   });
   return sanitizeFileName(rendered);
 }

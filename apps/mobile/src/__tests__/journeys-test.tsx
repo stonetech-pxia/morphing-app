@@ -10,6 +10,7 @@ import AISettingsRoute from '../app/ai-settings';
 import ChangeRoute from '../app/change';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
+import RunRoute from '../app/run/[workflowId]';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, makePdf } from '../test-utils/fake-files';
 import { WorkspaceProvider } from '../workspace/context';
@@ -51,6 +52,7 @@ async function renderApp(repo = new MemoryWorkspaceRepo(), files = new FakeFiles
     change: ChangeRoute,
     'page/[pageId]': PageRoute,
     'ai-settings': AISettingsRoute,
+    'run/[workflowId]': RunRoute,
   });
   return { repo, store, files, aiSettings };
 }
@@ -157,10 +159,11 @@ describe('user journeys (UI)', () => {
       files.offer('附录.pdf', await makePdf(2)),
     ];
     await fireEvent.press(screen.getByTestId('run-pdf-merge'));
-    // “输入文件名”步骤：确认建议的名字。
+    // 运行页面打开即开始；「命名」步骤：确认建议的名字。
     expect(await screen.findByDisplayValue('报告-合并')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('prompt-ok'));
     expect(await screen.findByText('已保存「报告-合并.pdf」（3 页）')).toBeTruthy();
+    await testRouter.back();
     expect(await screen.findByTestId('file-报告-合并.pdf')).toBeTruthy();
 
     // 卸载工具：入口和页面消失，文件全部保留，授权被撤销。
@@ -172,11 +175,8 @@ describe('user journeys (UI)', () => {
     await fireEvent.press(await screen.findByTestId('nav-page:home'));
     expect(screen.queryByTestId('component-card-pdf')).toBeNull();
     expect(await screen.findByTestId('file-报告-合并.pdf')).toBeTruthy();
-    expect((await repo.listAssets()).map((a) => a.name)).toEqual([
-      '报告-合并.pdf',
-      '附录.pdf',
-      '报告.pdf',
-    ]);
+    // 只有合并结果成为用户文件（D-063）。
+    expect((await repo.listAssets()).map((a) => a.name)).toEqual(['报告-合并.pdf']);
     expect(await repo.hasGrant('pdf', merged.id)).toBe(false);
   });
 
@@ -194,12 +194,11 @@ describe('user journeys (UI)', () => {
       '把 PDF 工具首页简化成上传和合并两个步骤，完成后自动按照‘合并-日期’命名',
     );
     await fireEvent.press(screen.getByTestId('change-submit'));
-    expect(await screen.findByText(/去掉步骤「输入文件名」/)).toBeTruthy();
+    expect(await screen.findByText(/「命名」不再询问/)).toBeTruthy();
     await fireEvent.press(screen.getByTestId('change-apply'));
 
-    // 回到同一个工具页：命名步骤和说明文字消失，仍然只有一个工具实例。
+    // 回到同一个工具页：说明文字消失，命名不再询问，仍然只有一个工具实例。
     expect(await screen.findByTestId('step-select')).toBeTruthy();
-    expect(screen.queryByTestId('step-name')).toBeNull();
     expect(screen.queryByTestId('component-pdf-intro')).toBeNull();
     expect(store.getState().config!.tools).toHaveLength(1);
     expect(store.getState().config!.workflows).toHaveLength(1);
@@ -210,7 +209,7 @@ describe('user journeys (UI)', () => {
     ];
     await fireEvent.press(screen.getByTestId('run-pdf-merge'));
     expect(await screen.findByText(/^已保存「合并-\d{4}-\d{2}-\d{2}\.pdf」（2 页）$/)).toBeTruthy();
-    expect(screen.queryByTestId('prompt-input')).toBeNull();
+    expect(screen.queryByTestId('prompt-ok')).toBeNull();
   });
 
   it('AI can leave the navigation entirely; Settings still opens AI and History to undo', async () => {

@@ -86,6 +86,7 @@ function ThemedStack() {
         <Stack.Screen name="ai-settings" options={{ title: t(locale, 'aiSettingsTitle') }} />
         <Stack.Screen name="data" options={{ title: t(locale, 'dataTitle') }} />
         <Stack.Screen name="record/[collectionId]" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="run/[workflowId]" options={{ presentation: 'modal' }} />
       </Stack>
     </>
   );
@@ -121,6 +122,8 @@ export default function RootLayout() {
         now: () => new Date(),
       });
       await created.getState().boot();
+      // 上次运行没来得及删除的临时文件（D-063）。
+      await expoFilePlatform.removeAllRuns().catch(() => undefined);
       setRuntime({ store: created, repo });
     })().catch((e) => setError(String(e)));
   }, []);

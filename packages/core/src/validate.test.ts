@@ -164,12 +164,28 @@ describe('validateWorkspace', () => {
       issuesOf(mutate((c) => (c.workflows[0]!.steps[0]!.params = { min: 5, max: 2 }))),
     ).toContain('params');
     expect(
-      issuesOf(mutate((c) => (c.workflows[0]!.steps[3]!.params = { nameTemplate: '{eval:1+1}' }))),
+      issuesOf(mutate((c) => (c.workflows[0]!.steps[2]!.params = { template: '{eval:1+1}' }))),
     ).toContain('params');
   });
 
   it('rejects broken data flow between steps', () => {
-    // 去掉“选择文件”后，“合并”没有输入。
-    expect(issuesOf(mutate((c) => c.workflows[0]!.steps.splice(0, 1)))).toContain('binding');
+    // 去掉“选择文件”后，第一步不再是输入动作。
+    expect(issuesOf(mutate((c) => c.workflows[0]!.steps.splice(0, 1)))).toContain('source');
+    // 合并得到 PDF，「存到相册」只接受图片。
+    expect(
+      issuesOf(
+        mutate((c) =>
+          c.workflows[0]!.steps.splice(2, 0, {
+            id: 'photos',
+            action: 'out.saveToPhotos',
+            params: {},
+          }),
+        ),
+      ),
+    ).toContain('binding');
+    // 运行时询问的必须是这个动作的参数。
+    expect(issuesOf(mutate((c) => (c.workflows[0]!.steps[2]!.ask = ['nameTemplate'])))).toContain(
+      'ask',
+    );
   });
 });

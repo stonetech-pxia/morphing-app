@@ -68,22 +68,27 @@ const color = (hex: string) => (c: WorkspaceConfig) =>
     ? null
     : `color should be ${hex}, got ${c.theme.primaryColor}`;
 /** 文件名包含日期即可（“按日期命名”既可理解为只用日期，也可保留“合并”之类的前缀）。 */
+const renameStep = (c: WorkspaceConfig) => mergeSteps(c).find((s) => s.action === 'file.rename');
 const savesWithDate = (c: WorkspaceConfig) => {
-  const save = mergeSteps(c).find((s) => s.action === 'file.save');
-  const template = String(save?.params.nameTemplate);
-  return template.includes('{date:YYYY-MM-DD}')
+  const template = String(renameStep(c)?.params.template);
+  return /\{date(:YYYY-MM-DD)?\}/.test(template)
     ? null
-    : `nameTemplate should contain the date, got ${template}`;
+    : `the file.rename template should contain the date, got ${template}`;
 };
 const singlePdfTool = (c: WorkspaceConfig) =>
   c.tools.length === 1 && c.workflows.length === 1
     ? null
     : 'must keep exactly one PDF tool and workflow';
+/** 用户看得到的步骤只剩选文件和合并：命名、保存可以保留，但不再询问。 */
 const simplifiedMerge = (c: WorkspaceConfig) => {
-  const actions = mergeSteps(c).map((s) => s.action);
-  return JSON.stringify(actions) === JSON.stringify(['pdf.selectFiles', 'pdf.merge', 'file.save'])
-    ? null
-    : `steps should be select/merge/save, got ${actions.join(',')}`;
+  const steps = mergeSteps(c);
+  const visible = steps.filter((s) => s.action !== 'file.rename' && s.action !== 'file.save');
+  const actions = visible.map((s) => s.action);
+  if (JSON.stringify(actions) !== JSON.stringify(['in.files', 'pdf.merge'])) {
+    return `visible steps should be in.files/pdf.merge, got ${actions.join(',')}`;
+  }
+  if (!steps.some((s) => s.action === 'file.save')) return 'file.save must stay';
+  return steps.some((s) => s.ask?.length) ? 'no step should ask the user any more' : null;
 };
 /** 首页第 index 个组件是一个还没选照片的图片位（AI 不能替用户选照片）。 */
 const imageSlot = (c: WorkspaceConfig, index: number): string | null => {
@@ -127,12 +132,10 @@ const dataPage =
     if (!page) return `expected a page with a ${usage} for ${table.id}`;
     return reachablePage(page.title)(c);
   };
-const savesAs = (template: string) => (c: WorkspaceConfig) => {
-  const save = mergeSteps(c).find((s) => s.action === 'file.save');
-  return save?.params.nameTemplate === template
+const savesAs = (template: string) => (c: WorkspaceConfig) =>
+  renameStep(c)?.params.template === template
     ? null
-    : `nameTemplate should be ${template}, got ${String(save?.params.nameTemplate)}`;
-};
+    : `the file.rename template should be ${template}, got ${String(renameStep(c)?.params.template)}`;
 
 export const EVAL_CASES: readonly EvalCase[] = [
   // 旅程 A

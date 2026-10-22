@@ -1,8 +1,8 @@
 import { SYSTEM_TARGET_LABELS } from './defaults';
-import { renderNameTemplate } from './naming';
 import { plainText } from './richtext';
 import type { ApplyNote, Op } from './ops';
 import type { Registry } from './registry';
+import { describeParams } from './workflow/format';
 import {
   allComponents,
   pageIdOf,
@@ -493,19 +493,33 @@ export function describeChange(
         break;
       case 'setStepParams': {
         const name = wf(op.workflowId)?.name ?? op.workflowId;
-        const template = op.params.nameTemplate ?? op.params.defaultTemplate;
-        if (typeof template === 'string') {
-          const example = `${renderNameTemplate(template, { now: ctx.now, sourceName: 'report' })}.pdf`;
+        const step = stepLabel(op.workflowId, op.stepId);
+        const action = ctx.registry.actions.get(
+          wf(op.workflowId)?.steps.find((s) => s.id === op.stepId)?.action ?? '',
+        );
+        const params =
+          op.params && action ? describeParams(action, op.params, ctx.locale, ctx.now) : '';
+        if (params) {
+          lines.push(zh ? `「${name}」的「${step}」：${params}` : `“${name}” – ${step}: ${params}`);
+        } else if (op.params) {
+          lines.push(zh ? `调整「${name}」的「${step}」设置` : `Update “${name}” – ${step}`);
+        }
+        if (op.ask !== undefined) {
+          const asked =
+            action && op.ask.length > 0
+              ? action.fields
+                  .filter((f) => op.ask!.includes(f.key))
+                  .map((f) => f.label[ctx.locale])
+                  .join(zh ? '、' : ', ')
+              : '';
           lines.push(
-            zh
-              ? `「${name}」的「${stepLabel(op.workflowId, op.stepId)}」命名规则改为 ${template}（例如 ${example}）`
-              : `“${name}” – ${stepLabel(op.workflowId, op.stepId)}: file name → ${template} (e.g. ${example})`,
-          );
-        } else {
-          lines.push(
-            zh
-              ? `调整「${name}」的「${stepLabel(op.workflowId, op.stepId)}」设置`
-              : `Update “${name}” – ${stepLabel(op.workflowId, op.stepId)}`,
+            asked
+              ? zh
+                ? `「${name}」每次运行时询问：${asked}`
+                : `“${name}” asks for ${asked} on every run`
+              : zh
+                ? `「${name}」的「${step}」不再询问，直接使用设定值`
+                : `“${name}” – ${step} no longer asks; it uses the saved settings`,
           );
         }
         break;

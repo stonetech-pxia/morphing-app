@@ -38,7 +38,9 @@ describe('system prompt', () => {
       'protected',
       'pdf.merge',
       'file.save',
-      'ui.askFileName',
+      'file.rename',
+      'in.photos',
+      '(pdf → pdf)',
       '`page:${string}`',
     ]) {
       expect(prompt).toContain(word);

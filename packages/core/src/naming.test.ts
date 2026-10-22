@@ -25,6 +25,16 @@ describe('name templates', () => {
     ).toBe('report-3-090507');
   });
 
+  it('supports {date}, {seq} and the photo taken date', () => {
+    expect(checkNameTemplate('{taken:YYYYMMDD}-{seq}').ok).toBe(true);
+    expect(checkNameTemplate('{taken:eval}').ok).toBe(false);
+    const takenAt = new Date(2025, 0, 2, 3, 4, 5);
+    expect(renderNameTemplate('收据-{date}-{seq}', { now, index: 3 })).toBe('收据-2026-10-22-03');
+    expect(renderNameTemplate('{taken}_{taken:HHmm}', { now, takenAt })).toBe('2025-01-02_0304');
+    // 读不到拍摄日期时用当天。
+    expect(renderNameTemplate('{taken}', { now })).toBe('2026-10-22');
+  });
+
   it('strips characters that are not allowed in file names', () => {
     expect(renderNameTemplate('{sourceName}', { now, sourceName: 'a/b:c?' })).toBe('a-b-c-');
     expect(renderNameTemplate('{sourceName}', { now, sourceName: '' })).toBe('untitled');
