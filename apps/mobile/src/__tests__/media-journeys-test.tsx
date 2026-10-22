@@ -95,6 +95,9 @@ describe('pictures', () => {
       props: { assetId: asset!.id },
     });
     expect(store.getState().head).toMatchObject({ source: 'user', summary: '设置图片' });
+    // 文件列表只显示文档，不列出界面用的照片。
+    expect(screen.getByTestId('component-recent-files')).toBeTruthy();
+    expect(screen.queryByTestId('file-IMG_0001.jpg')).toBeNull();
 
     // 取消选择不做任何修改。
     files.nextImage = null;

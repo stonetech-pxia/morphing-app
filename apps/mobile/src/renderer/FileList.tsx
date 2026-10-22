@@ -34,7 +34,11 @@ export function FileList({
   useEffect(() => {
     let alive = true;
     void repo.listAssets().then((all) => {
-      if (alive) setAssets(all.filter((a) => !mimeType || a.mimeType === mimeType).slice(0, limit));
+      // 文件列表只显示文档；界面用的照片也是用户文件，但不在这里列出（D-051）。
+      const documents = all.filter((a) =>
+        mimeType ? a.mimeType === mimeType : !a.mimeType.startsWith('image/'),
+      );
+      if (alive) setAssets(documents.slice(0, limit));
     });
     return () => {
       alive = false;

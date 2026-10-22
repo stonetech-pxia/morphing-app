@@ -39,7 +39,7 @@ export function buildSystemPrompt(registry: Registry): string {
   - text {text}: rich text (see below), up to 1500 characters
   - toolCard {toolId}: entry to an installed tool's page
   - catalogLink {title}: entry to the tool catalog
-  - fileList {title, limit (1-50), mimeType?: "application/pdf"}: the user's files
+  - fileList {title, limit (1-50), mimeType?: "application/pdf"}: the user's documents (photos used in image components are not listed)
   - workflowRunner {workflowId}: runs a workflow
   - button {label, target, variant: "filled"|"outline"|"text"}: opens target
   - shortcut {title, subtitle?, icon, target}: a card with an icon that opens target
