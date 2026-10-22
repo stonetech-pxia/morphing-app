@@ -1,6 +1,9 @@
 import { CURRENT_SCHEMA_VERSION } from '@morph/core';
+import { MODELS } from '@morph/planner';
+import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useAISettings } from '../ai/context';
 import { t } from '../i18n';
 import type { RenderEnv } from '../renderer/components';
 import { useWorkspace } from '../workspace/context';
@@ -15,6 +18,13 @@ export function SettingsView({
 }) {
   const { palette, locale } = env;
   const headId = useWorkspace((s) => s.head!.id);
+  const router = useRouter();
+  const aiMode = useAISettings((s) => s.mode);
+  const aiModel = useAISettings((s) => s.model);
+  const aiValue =
+    aiMode === 'byok'
+      ? t(locale, 'aiEngineByok', { model: MODELS.find((m) => m.id === aiModel)?.name ?? aiModel })
+      : t(locale, aiMode === 'server' ? 'aiEngineRemote' : 'aiEngineMock');
   const row = (label: string, value?: string, onPress?: () => void) => (
     <Pressable
       onPress={onPress}
@@ -30,10 +40,7 @@ export function SettingsView({
       {row(t(locale, 'openHistory'), undefined, onOpenHistory)}
       <View style={styles.gap} />
       {row(t(locale, 'language'), t(locale, 'languageValue'))}
-      {row(
-        t(locale, 'aiEngine'),
-        t(locale, process.env.EXPO_PUBLIC_MORPH_API_URL ? 'aiEngineRemote' : 'aiEngineMock'),
-      )}
+      {row(t(locale, 'aiEngine'), aiValue, () => router.push('/ai-settings'))}
       {row(
         t(locale, 'about'),
         t(locale, 'aboutValue', { schema: CURRENT_SCHEMA_VERSION, revision: headId }),

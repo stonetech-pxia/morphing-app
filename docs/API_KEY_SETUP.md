@@ -1,5 +1,10 @@
 # 配置 Claude API key
 
+有两种用法：
+
+- **在 App 里直接使用（最简单）**：打开「设置 → AI」，选「我自己的 Claude API key」，粘贴 key，选择模型，点「测试连接」。key 只保存在这台手机的安全存储里。创建 key 和设置花费上限的步骤见下面第 1、2 节。
+- **给本机计划服务使用（开发者）**：按第 3 节写进仓库根目录的 `.env`。
+
 M3 接入真实 AI 时需要一个 Claude API key。**没有 key 时 App 照常工作**，使用 mock AI（规则解析器）。
 
 > 不能用 Claude Pro/Max 订阅代替 API key：官方明确不允许把 claude.ai 登录或订阅额度用于自己开发的产品（见 [Agent SDK 文档](https://code.claude.com/docs/en/agent-sdk/overview)）。API 按用量计费，开发阶段花费很低（见第 4 节）。

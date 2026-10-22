@@ -4,6 +4,9 @@ import { Stack } from 'expo-router';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
 
+import { AISettingsProvider } from '../ai/context';
+import { createAISettingsStore, type SecretStore } from '../ai/settings';
+import AISettingsRoute from '../app/ai-settings';
 import ChangeRoute from '../app/change';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
@@ -16,7 +19,18 @@ import { createWorkspaceStore } from '../workspace/store';
 
 const registry = createRegistry(BUILTIN_TOOLS);
 
+const memorySecrets = (): SecretStore => {
+  const data = new Map<string, string>();
+  return {
+    get: async (k) => data.get(k) ?? null,
+    set: async (k, v) => void data.set(k, v),
+    delete: async (k) => void data.delete(k),
+  };
+};
+
 async function renderApp(repo = new MemoryWorkspaceRepo(), files = new FakeFiles()) {
+  const aiSettings = createAISettingsStore({ secrets: memorySecrets(), serverAvailable: false });
+  await aiSettings.getState().load();
   const store = createWorkspaceStore({
     repo,
     provider: createMockAIProvider(),
@@ -27,15 +41,18 @@ async function renderApp(repo = new MemoryWorkspaceRepo(), files = new FakeFiles
   await store.getState().boot();
   await renderRouter({
     _layout: () => (
-      <WorkspaceProvider value={{ store, repo, files, registry, locale: 'zh' }}>
-        <Stack />
-      </WorkspaceProvider>
+      <AISettingsProvider store={aiSettings}>
+        <WorkspaceProvider value={{ store, repo, files, registry, locale: 'zh' }}>
+          <Stack />
+        </WorkspaceProvider>
+      </AISettingsProvider>
     ),
     index: HomeRoute,
     change: ChangeRoute,
     'page/[pageId]': PageRoute,
+    'ai-settings': AISettingsRoute,
   });
-  return { repo, store, files };
+  return { repo, store, files, aiSettings };
 }
 
 /** 工具目录里的操作用系统确认框；测试中直接点“应用更改”。 */
@@ -190,5 +207,29 @@ describe('user journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('run-pdf-merge'));
     expect(await screen.findByText(/^已保存「合并-\d{4}-\d{2}-\d{2}\.pdf」（2 页）$/)).toBeTruthy();
     expect(screen.queryByTestId('prompt-input')).toBeNull();
+  });
+
+  it('Settings → AI: switch to my own key; bad keys are refused, good keys are kept on device', async () => {
+    const { aiSettings } = await renderApp();
+    await fireEvent.press(screen.getByTestId('nav-settings'));
+    await fireEvent.press(await screen.findByText('内置规则（离线 mock）'));
+    await fireEvent.press(await screen.findByTestId('ai-mode-byok'));
+
+    await fireEvent.changeText(await screen.findByTestId('api-key-input'), 'not-a-key');
+    await fireEvent.press(screen.getByTestId('api-key-save'));
+    expect(await screen.findByText(/应以 sk-ant- 开头/)).toBeTruthy();
+
+    await fireEvent.changeText(
+      screen.getByTestId('api-key-input'),
+      `sk-ant-api03-${'k'.repeat(40)}9a1z`,
+    );
+    await fireEvent.press(screen.getByTestId('api-key-save'));
+    expect(await screen.findByText('已保存（末四位 9a1z）')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('model-claude-haiku-5-5'));
+    expect(aiSettings.getState()).toMatchObject({
+      mode: 'byok',
+      model: 'claude-haiku-5-5',
+      keyHint: '9a1z',
+    });
   });
 });

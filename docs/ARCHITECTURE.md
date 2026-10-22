@@ -86,9 +86,10 @@ SQLite 表（`PRAGMA user_version` 管理数据库结构升级，见 `apps/mobil
 
 ## 6. 外部能力接口（§14.2）
 
-- `AIProvider`（已实现三种）：
+- AI 来源由「设置 → AI」选择（`apps/mobile/src/ai/`）：内置规则 / Morph 服务器 / 用户自带 Claude API key。规划逻辑在 `packages/planner`，服务端和 App 共用。
+- `AIProvider`（已实现）：
   - mock：规则解析，离线可用（句式见 [MOCK_AI_PHRASES.md](MOCK_AI_PHRASES.md)）。
-  - Claude：`apps/api/src/claude-provider.ts`，只在服务端运行。模型以 JSON 回复 core 的 `Plan` 格式，服务端用 `PlanSchema` + `prepareOps` 校验，不合格时带着问题清单请求一次修正。
+  - Claude 规划器：`packages/planner/src/planner.ts`。服务端通过 SDK 调用（`apps/api`），自带 key 时 App 通过 `fetch` 直接调用 HTTP API（`packages/planner/src/http.ts`）。模型以 JSON 回复 core 的 `Plan` 格式，服务端用 `PlanSchema` + `prepareOps` 校验，不合格时带着问题清单请求一次修正。
   - remote：`apps/mobile/src/workspace/remote-ai.ts`，App 通过 `POST /v1/plan` 调用服务端；服务不可用时返回“没有做任何修改”的拒绝，不会静默退回 mock。
 - 无论来源，计划到达 App 后都会再经过 `PlanSchema` 与 `prepareOps`（§8：模型输出从不被直接信任）。
 - 评测：`packages/core/src/ai/eval-cases.ts` 是 mock 与真实模型共用的评测集；`npm run eval -- --model <id>` 用真实模型跑一遍（产生少量费用）。

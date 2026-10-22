@@ -98,6 +98,76 @@ const strings = {
   aiEngine: { en: 'AI', zh: 'AI' },
   aiEngineRemote: { en: 'Claude via the Morph server', zh: 'Claude（通过 Morph 服务器）' },
   aiEngineMock: { en: 'Built-in rules (offline mock)', zh: '内置规则（离线 mock）' },
+  aiEngineByok: { en: 'My own Claude API key ({model})', zh: '我自己的 Claude API key（{model}）' },
+
+  // AI 设置
+  aiSettingsTitle: { en: 'AI', zh: 'AI' },
+  aiModeQuestion: { en: 'Which AI changes this app', zh: '用哪种 AI 修改这个 App' },
+  aiModeMock: { en: 'Built-in rules', zh: '内置规则' },
+  aiModeMockNote: {
+    en: 'Offline and free. Understands a fixed set of phrases.',
+    zh: '离线、免费，只认识固定的几种说法。',
+  },
+  aiModeServer: { en: 'Morph server', zh: 'Morph 服务器' },
+  aiModeServerNote: { en: 'Claude through {url}.', zh: '通过 {url} 调用 Claude。' },
+  aiModeByok: { en: 'My own Claude API key', zh: '我自己的 Claude API key' },
+  aiModeByokNote: {
+    en: 'Calls Claude directly from this phone. Usage is billed to your Anthropic account.',
+    zh: '从这台手机直接调用 Claude，费用由你的 Anthropic 账号支付。',
+  },
+  apiKeyLabel: { en: 'API key', zh: 'API key' },
+  apiKeySaved: { en: 'Saved (ends with {hint})', zh: '已保存（末四位 {hint}）' },
+  apiKeyPlaceholder: { en: 'sk-ant-…', zh: 'sk-ant-…' },
+  saveKey: { en: 'Save key', zh: '保存 key' },
+  deleteKey: { en: 'Delete key', zh: '删除 key' },
+  keyFormatInvalid: {
+    en: 'That doesn’t look like a Claude API key (it starts with sk-ant-).',
+    zh: '这看起来不是 Claude API key（应以 sk-ant- 开头）。',
+  },
+  modelLabel: { en: 'Model', zh: '模型' },
+  perChange: { en: 'about ${cost} per change', zh: '每次修改约 ${cost}' },
+  testConnection: { en: 'Test connection', zh: '测试连接' },
+  testOk: {
+    en: 'Connected. The key works with this model.',
+    zh: '连接成功，这个 key 可以使用所选模型。',
+  },
+  keyPrivacyNote: {
+    en: 'The key is stored only in this phone’s secure storage (not synced or backed up to other devices) and is sent only to api.anthropic.com. Set a spend limit in the Claude Console.',
+    zh: 'key 只保存在这台手机的安全存储里（不会同步或备份到其他设备），只发送给 api.anthropic.com。建议在 Claude Console 设置花费上限。',
+  },
+
+  byokNoKey: {
+    en: 'Add your Claude API key in Settings → AI first.',
+    zh: '请先在「设置 → AI」里填写你的 Claude API key。',
+  },
+  byokInvalidKey: {
+    en: 'The API key is invalid or was deleted. Check it in Settings → AI.',
+    zh: 'API key 无效或已被删除，请在「设置 → AI」里检查。',
+  },
+  byokPermission: {
+    en: 'This API key isn’t allowed to use the selected model.',
+    zh: '这个 API key 没有使用所选模型的权限。',
+  },
+  byokSpendLimit: {
+    en: 'Your Claude Console spend limit has been reached. Nothing was changed.',
+    zh: '已达到你在 Claude Console 设置的花费上限，没有做任何修改。',
+  },
+  byokBusy: {
+    en: 'Claude is busy right now. Nothing was changed; please try again shortly.',
+    zh: 'Claude 服务暂时繁忙，没有做任何修改，请稍后再试。',
+  },
+  byokModelNotFound: {
+    en: 'The selected model wasn’t found. Choose another model in Settings → AI.',
+    zh: '找不到所选模型，请在「设置 → AI」里换一个模型。',
+  },
+  byokUnavailable: {
+    en: 'Couldn’t reach the Claude API. Nothing was changed; check the network and try again.',
+    zh: '连不上 Claude API，没有做任何修改，请检查网络后再试。',
+  },
+  aiBadOutput: {
+    en: 'The AI’s answer couldn’t be used. Nothing was changed; try saying it another way.',
+    zh: 'AI 返回的内容无法使用，没有做任何修改，请换个说法再试。',
+  },
   about: { en: 'About', zh: '关于' },
   aboutValue: {
     en: 'Morph prototype · AGPL-3.0 · schema v{schema} · version #{revision}',

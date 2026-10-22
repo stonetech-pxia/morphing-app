@@ -27,7 +27,9 @@ npm run api
 npm run ios:ai
 ```
 
-第一个启动本机计划服务，第二个启动 App 并让它通过计划服务调用 Claude。「设置」里会显示当前使用的 AI。不配置 key 或用 `npm run ios` 启动时，使用离线 mock。
+第一个启动本机计划服务，第二个启动 App 并让它通过计划服务调用 Claude。
+
+也可以不启动服务：在 App 的「设置 → AI」里选「我自己的 Claude API key」，粘贴 key 即可从手机直接调用 Claude。默认使用离线的内置规则。
 
 ## 启动本地 demo（不需要任何付费账号或 API key）
 
@@ -78,6 +80,7 @@ npm run ios -- --localhost
 ```
 apps/mobile/        Expo App（Expo Router，路由在 src/app/）
 apps/api/           计划服务：调用 Claude 生成修改计划（只在服务端持有 API key）
+packages/planner/   Claude 规划器：提示词、校验与修正；服务端与 App（自带 key）共用
 packages/core/      纯 TypeScript 内核：schema、修改操作、校验、迁移、mock AI、内置工具清单
 packages/tool-pdf/  PDF 合并（pdf-lib）
 scripts/            仓库脚本（许可证检查）

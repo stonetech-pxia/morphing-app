@@ -62,6 +62,14 @@ const color = (hex: string) => (c: WorkspaceConfig) =>
   c.theme.primaryColor.toLowerCase() === hex.toLowerCase()
     ? null
     : `color should be ${hex}, got ${c.theme.primaryColor}`;
+/** 文件名包含日期即可（“按日期命名”既可理解为只用日期，也可保留“合并”之类的前缀）。 */
+const savesWithDate = (c: WorkspaceConfig) => {
+  const save = mergeSteps(c).find((s) => s.action === 'file.save');
+  const template = String(save?.params.nameTemplate);
+  return template.includes('{date:YYYY-MM-DD}')
+    ? null
+    : `nameTemplate should contain the date, got ${template}`;
+};
 const singlePdfTool = (c: WorkspaceConfig) =>
   c.tools.length === 1 && c.workflows.length === 1
     ? null
@@ -192,7 +200,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
     locale: 'zh',
     setup: 'pdf',
     mock: true,
-    expect: { kind: 'ops', check: all(savesAs('{date:YYYY-MM-DD}'), singlePdfTool) },
+    expect: { kind: 'ops', check: all(savesWithDate, singlePdfTool) },
   },
   // 旅程 D
   {

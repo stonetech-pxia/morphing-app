@@ -39,7 +39,7 @@ export default function PageRoute() {
   };
   return (
     <>
-      <Stack.Screen options={{ title: page.title, headerBackButtonDisplayMode: 'minimal' }} />
+      <Stack.Screen options={{ title: page.title }} />
       <ErrorBoundary key={headId} onError={reportRenderError} fallback={<View />}>
         <PageView page={page} env={env} bottomInset={insets.bottom + 72} />
       </ErrorBoundary>

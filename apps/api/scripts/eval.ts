@@ -2,24 +2,20 @@ import { parseArgs } from 'node:util';
 
 import { EVAL_CASES, buildSetup, judgeEval, prepareOps } from '@morph/core';
 
-import type { Completion } from '../src/claude-provider';
-import { createAIRuntime, loadRootEnv } from '../src/config';
+import { MODELS, type Completion } from '@morph/planner';
+
+import { createAIRuntime, loadRootEnv, type Transport } from '../src/config';
 
 // 用评测集（packages/core/src/ai/eval-cases.ts）衡量真实模型。会产生 API 费用。
-// 用法：npm run eval --workspace @morph/api -- --model claude-haiku-5-5 [--cases A1,C1] [--effort low]
-
-// 估算用的价格（美元 / 百万 token），以官方定价页为准：https://platform.claude.com/docs/en/about-claude/pricing
-const PRICES: Record<string, { input: number; output: number; cacheRead: number }> = {
-  'claude-opus-5-5': { input: 4, output: 20, cacheRead: 0.2 },
-  'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.2 },
-  'claude-haiku-5-5': { input: 0.1, output: 0.5, cacheRead: 0.01 },
-};
+// 用法：npm run eval -- --model claude-haiku-5-5 [--cases A1,C1] [--effort low] [--transport http]
+//   --transport http：使用 App 内“自带 key”模式的 HTTP 传输层（默认 sdk，即服务端）。
 
 const { values } = parseArgs({
   options: {
     model: { type: 'string' },
     cases: { type: 'string' },
     effort: { type: 'string' },
+    transport: { type: 'string' },
   },
 });
 
@@ -29,7 +25,8 @@ if (values.model) env.MORPH_AI_MODEL = values.model;
 if (values.effort) env.MORPH_AI_EFFORT = values.effort;
 
 const completions: Completion[] = [];
-const runtime = createAIRuntime(env, (c) => completions.push(c));
+const transport: Transport = values.transport === 'http' ? 'http' : 'sdk';
+const runtime = createAIRuntime(env, (c) => completions.push(c), transport);
 if (runtime.providerName !== 'claude') {
   console.error('未配置 ANTHROPIC_API_KEY，无法评测真实模型。见 docs/API_KEY_SETUP.md。');
   process.exit(1);
@@ -42,7 +39,7 @@ let passed = 0;
 const failures: string[] = [];
 
 console.log(
-  `模型：${runtime.model}${env.MORPH_AI_EFFORT ? `（effort ${env.MORPH_AI_EFFORT}）` : ''}，用例数：${cases.length}\n`,
+  `模型：${runtime.model}${env.MORPH_AI_EFFORT ? `（effort ${env.MORPH_AI_EFFORT}）` : ''}，传输：${transport}，用例数：${cases.length}\n`,
 );
 
 for (const c of cases) {
@@ -85,7 +82,7 @@ const total = completions.reduce(
   }),
   { input: 0, output: 0, cacheRead: 0 },
 );
-const price = PRICES[runtime.model ?? ''];
+const price = MODELS.find((m) => m.id === runtime.model)?.price;
 const cost = price
   ? (total.input * price.input + total.output * price.output + total.cacheRead * price.cacheRead) /
     1_000_000

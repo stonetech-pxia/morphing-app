@@ -4,6 +4,10 @@ import { openDatabaseAsync } from 'expo-sqlite';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import { AISettingsProvider } from '@/ai/context';
+import { createAIRouter } from '@/ai/router';
+import { secureSecretStore } from '@/ai/secure-store';
+import { createAISettingsStore } from '@/ai/settings';
 import { getDeviceLocale, t } from '@/i18n';
 import { expoFilePlatform } from '@/runtime/expo-platform';
 import { usePalette } from '@/renderer/theme';
@@ -14,9 +18,19 @@ import { createWorkspaceStore, type WorkspaceStore } from '@/workspace/store';
 
 const locale = getDeviceLocale();
 const registry = createRegistry(BUILTIN_TOOLS);
-// 配置了 Morph API 服务地址时使用真实模型，否则使用离线 mock（见 README）。
+// AI 来源由「设置 → AI」决定：内置规则、Morph 服务器（需配置地址，见 README）或用户自带 key。
 const apiUrl = process.env.EXPO_PUBLIC_MORPH_API_URL;
-const provider = apiUrl ? createRemoteAIProvider({ baseUrl: apiUrl }) : createMockAIProvider();
+const aiSettings = createAISettingsStore({
+  secrets: secureSecretStore,
+  serverAvailable: Boolean(apiUrl),
+});
+const provider = createAIRouter({
+  settings: aiSettings,
+  mock: createMockAIProvider(),
+  remote: apiUrl ? createRemoteAIProvider({ baseUrl: apiUrl }) : null,
+  registry,
+  now: () => new Date(),
+});
 
 function Centered({ children }: { children: ReactNode }) {
   return <View style={styles.center}>{children}</View>;
@@ -48,6 +62,7 @@ function ThemedStack() {
       screenOptions={{
         headerStyle: { backgroundColor: palette.card },
         headerTintColor: palette.primary,
+        headerBackButtonDisplayMode: 'minimal',
         headerTitleStyle: { color: palette.text },
         contentStyle: { backgroundColor: palette.background },
       }}>
@@ -57,6 +72,7 @@ function ThemedStack() {
         options={{ presentation: 'modal', title: t(locale, 'changeTitle') }}
       />
       <Stack.Screen name="page/[pageId]" />
+      <Stack.Screen name="ai-settings" options={{ title: t(locale, 'aiSettingsTitle') }} />
     </Stack>
   );
 }
@@ -70,6 +86,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     (async () => {
+      await aiSettings.getState().load();
       const db = await openDatabaseAsync('morph.db');
       await migrateDatabase(db);
       const repo = new SQLiteWorkspaceRepo(db);
@@ -93,16 +110,18 @@ export default function RootLayout() {
     );
   }
   return (
-    <WorkspaceProvider
-      value={{
-        store: runtime.store,
-        repo: runtime.repo,
-        files: expoFilePlatform,
-        registry,
-        locale,
-      }}>
-      <RootStack />
-    </WorkspaceProvider>
+    <AISettingsProvider store={aiSettings}>
+      <WorkspaceProvider
+        value={{
+          store: runtime.store,
+          repo: runtime.repo,
+          files: expoFilePlatform,
+          registry,
+          locale,
+        }}>
+        <RootStack />
+      </WorkspaceProvider>
+    </AISettingsProvider>
   );
 }
 
