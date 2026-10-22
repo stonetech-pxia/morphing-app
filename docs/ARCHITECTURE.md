@@ -47,12 +47,14 @@ AI 可以修改的范围（schemaVersion 2，见 `packages/core/src/schema.ts`�
 - **数据表结构**（schemaVersion 3）：AI 可以新建数据表、增删改字段，并用记录列表、快速添加表单、统计三个组件展示（见 [DATA_DESIGN.md](DATA_DESIGN.md)）。
 - **不能改**：白名单之外的组件和属性、任意代码、系统页面（设置、工具目录、历史、数据、AI 修改页、记录编辑页）的内容、工具的代码和动作，以及**用户记录的内容**。
 
+直接编辑（D-052）：用户也可以不经过 AI，在页面上长按组件修改文字和外观、隐藏、删除、调整顺序（`apps/mobile/src/editing/`）。界面只负责把手势翻译成同一套修改操作（上移 / 下移 / 拖放的计算在 `core/src/arrange.ts`），能改的范围是上面列表的子集：只限导航栏页面和独立页面里的组件，不碰系统页面，也不改数据组件的文字和记录。
+
 用户记录（DATA_DESIGN.md）：存在本地数据库的 `records` 表，不在配置里、不随版本恢复，也从不发给 AI。增删改由用户在页面上直接完成（`apps/mobile/src/data/records.ts`），不生成版本。
 
 ## 3. 修改流程（§7D）
 
 ```
-用户输入
+用户输入                                       （直接编辑：长按 / 拖动 / 箭头直接得到 ops，跳过 AI，见下）
   → AIProvider.plan(输入, 当前配置的精简摘要)  → 修改操作列表 ops
   → core.apply(当前配置, ops)                   → 候选配置
   → core.validate(候选配置)                     结构 / 引用 / 权限 / 受保护元素
@@ -65,6 +67,8 @@ AI 可以修改的范围（schemaVersion 2，见 `packages/core/src/schema.ts`�
 ```
 
 撤销与恢复都是把旧配置作为**新 revision** 提交；历史只追加。
+
+界面上的修改（安装 / 卸载工具、选照片、直接编辑）调用 `store.proposeOps(ops, 摘要)`，经过同样的 apply + validate，记为 `source: 'user'` 的 revision，提示条同样可以撤销。安装 / 卸载工具先弹窗列出修改说明再确认；选照片和直接编辑直接确认（结果就在用户眼前），只有删除组件要先确认。
 
 ## 4. 启动流程
 
