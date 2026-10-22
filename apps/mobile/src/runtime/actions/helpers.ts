@@ -1,4 +1,5 @@
 import { FILE_LIMITS, RunError, sanitizeFileName, type RunItem, type RunValue } from '@morph/core';
+import { capPixels } from '@morph/tool-image';
 
 import type { WorkspaceRepo } from '../../storage/types';
 import type { FilePlatform } from '../platform';
@@ -92,3 +93,48 @@ export async function readItem(services: RunServices, item: RunItem): Promise<Ui
     throw new RunError('accessDenied', { name: `${item.name}.${item.ext}` });
   }
 }
+
+/** 本次运行的临时文件 → 文件名（报错时显示）。 */
+export const displayName = (item: RunItem) => `${item.name}.${item.ext}`;
+
+/**
+ * 送进扩展包页面（WebView）的图片：重新编码成 JPG（摆正方向、去掉元数据，WebView 不一定认识 HEIC），
+ * 缩到 iOS canvas 的 1677 万像素以内，长边不超过 maxSide。
+ */
+export async function imageForPage(
+  services: RunServices,
+  item: RunItem,
+  maxSide: number,
+): Promise<RunItem> {
+  let size = item.width && item.height ? { width: item.width, height: item.height } : null;
+  try {
+    size ??= await services.files.imageSize(item.uri);
+    const fit = capPixels(size);
+    const k = Math.min(1, maxSide / Math.max(size.width, size.height), fit.width / size.width);
+    const resize = {
+      width: Math.max(1, Math.round(size.width * k)),
+      height: Math.max(1, Math.round(size.height * k)),
+    };
+    const out = await services.files.transformImage(
+      item.uri,
+      k < 1 ? { resize } : {},
+      { format: 'jpeg', quality: 0.92 },
+      services.runId,
+      freshName(item.name, 'jpg'),
+    );
+    return {
+      ...item,
+      uri: out.uri,
+      ext: 'jpg',
+      mimeType: 'image/jpeg',
+      size: out.size,
+      width: out.width,
+      height: out.height,
+    };
+  } catch {
+    throw new RunError('unreadable', { name: displayName(item) });
+  }
+}
+
+/** 扩展包页面返回的 base64 → 字节。 */
+export const fromBase64 = (data: string) => Uint8Array.from(atob(data), (c) => c.charCodeAt(0));

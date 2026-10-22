@@ -231,6 +231,16 @@ export class FakeFiles implements FilePlatform {
     this.imageSizes.set(picked.uri, { width, height });
     return { ...picked, width, height };
   }
+  enhanced: string[] = [];
+  async enhanceImage(uri: string, mode: string, runId: string, relPath: string) {
+    if (!this.disk.has(uri)) throw new Error('missing');
+    const size = this.imageSizes.get(uri) ?? { width: 600, height: 800 };
+    const dest = `runs/${runId}/${relPath}`;
+    this.disk.set(dest, TINY_JPEG);
+    this.imageSizes.set(dest, size);
+    this.enhanced.push(mode);
+    return { uri: dest, ...size, size: TINY_JPEG.length };
+  }
   signatures: { uri: string; bytes: Uint8Array; aspect: number }[] = [];
   async loadSignatures() {
     return this.signatures;

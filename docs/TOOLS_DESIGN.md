@@ -137,8 +137,8 @@ interface StepContext {
 - **输入输出（内核）**：`in.photos`（相册多选或拍照）、`in.files`（PDF / 图片 / 任意文件）、`file.rename`（命名模板）、`file.save`（存到 Morph 文件）、`out.share`、`out.saveToPhotos`、`out.print`。（App：expo-image-picker、expo-document-picker、expo-sharing、expo-media-library、expo-print）
 - **图片**：`image.convert`、`image.resize`、`image.compress`（压到 ≤ N KB）、`image.crop`（本地框选）、`image.rotate`、`image.stripMetadata`、`image.idPhoto`、`image.stitch`、`image.grid`、`image.redact`（本地）、`image.watermark`、`image.printSheet`（证件照排到 4×6 相纸）。（算法：`packages/tool-image`；编码：expo-image-manipulator、Skia）
 - **PDF**：`pdf.fromImages`（A4 / Letter / 跟随图片，可设边距和 ≤ X MB）、`pdf.merge`（PDF 和图片混合）、`pdf.pages`（本地选页 / 删页 / 排序 / 旋转）、`pdf.selectPages`（按页码规则：全部 / 奇数 / 偶数 / 范围）、`pdf.rotate`、`pdf.split`、`pdf.pageNumbers`、`pdf.stamp`（文字戳 / 日期戳）、`pdf.sign`（本地）、`pdf.fillForm`（本地）+ 拍平、`pdf.toImages`、`pdf.extractText`。（`packages/tool-pdf`：pdf-lib；`toImages` / `extractText` / 缩略图需要 PDF 预览包）
-- **扫描**：`scan.detect`（自动找边 + 本地调四角 + 透视矫正）、`scan.enhance`（黑白 / 提亮）。（扫描包）
-- **文字识别**：`ocr.recognize`（images → text，按语言）。（文字识别包）
+- **扫描**（工具 `scan`）：`scan.detect`（扫描包找边 → 本地调四角，每张都要确认 → 扫描包透视矫正，长边 2400）、`scan.enhance`（提亮 / 灰度 / 黑白 / 原样；Skia 颜色矩阵，不需要扩展包）。
+- **文字识别**（工具 `ocr`）：`ocr.recognize`（images → text，参数 `lang` 选 12 种语言之一；`packFor` 按语言确保语言包，语言包连同识别包一起下载）。中日文字之间多出来的空格在本机去掉（`tidyOcrText`）。
 - **文字**：`text.copy`、`text.toFile`（.txt）、`text.toPdf`（expo-print，系统字体，中日韩都能显示）。
 - **打包**：`zip.create`、`zip.extract`。（`packages/tool-archive`：fflate，只用同步接口）
 - **二维码**：`qr.generate`（文字 → 图片）、`qr.read`（图片 → 文字）。（`packages/tool-qr`：lean-qr、jsQR）

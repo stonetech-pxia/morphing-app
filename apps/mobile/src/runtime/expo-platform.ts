@@ -14,7 +14,7 @@ import { printAsync } from 'expo-print';
 import { shareAsync } from 'expo-sharing';
 
 import type { FilePlatform, ImageFormat, PickedFile } from './platform';
-import { renderTextPng } from './skia';
+import { enhanceJpeg, renderTextPng } from './skia';
 
 // FilePlatform 的 Expo 实现。用户文件存放在 App 文档目录的 assets/<id>/<文件名>，
 // 数据库只保存相对路径，与配置版本完全分开（§7G）。
@@ -283,6 +283,14 @@ export const expoFilePlatform: FilePlatform = {
 
   async renderText(text, style) {
     return renderTextPng(text, style);
+  },
+
+  async enhanceImage(uri, mode, runId, relPath) {
+    const out = enhanceJpeg(await new File(uri).bytes(), mode);
+    const dest = runFile(runId, relPath);
+    dest.create();
+    dest.write(out.bytes);
+    return { uri: dest.uri, width: out.width, height: out.height, size: out.bytes.length };
   },
 
   async imageSize(uri) {

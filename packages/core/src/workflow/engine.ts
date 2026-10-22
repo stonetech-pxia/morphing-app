@@ -192,9 +192,6 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
       const action = registry.actions.get(step.action)!;
       const impl = opts.impls[step.action];
       if (!impl) throw new RunError('unsupportedAction', { action: step.action });
-      if (action.pack && opts.ensurePack && !(await orCancel(opts.ensurePack(action.pack)))) {
-        throw new RunCancelled();
-      }
       let params = action.params.parse(step.params);
       if (step.ask?.length && opts.askParams) {
         const answered = await orCancel(
@@ -208,6 +205,11 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
         );
         if (answered === null) throw new RunCancelled();
         params = action.params.parse({ ...params, ...answered });
+      }
+      // 先问参数再确认扩展包：文字识别的语言包由本次选的语言决定。
+      const pack = action.packFor?.(params) ?? action.pack;
+      if (pack && opts.ensurePack && !(await orCancel(opts.ensurePack(pack)))) {
+        throw new RunCancelled();
       }
       throwIfCancelled();
       value = await orCancel(

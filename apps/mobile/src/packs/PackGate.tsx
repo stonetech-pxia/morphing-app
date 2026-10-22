@@ -27,13 +27,16 @@ export function PackGate({
   const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [size, setSize] = useState<number | null>(null);
+  const [missing, setMissing] = useState<string[]>([]);
 
-  // 大小要扣掉已安装的依赖。
+  // 大小要扣掉已安装的依赖；还没装的依赖（语言包要先有文字识别包）一起说明。
   useEffect(() => {
-    void store
-      .installed()
-      .then((list) => setSize(packDownloadSize(packId, new Set(list.map((p) => p.id)))));
-  }, [store, packId]);
+    void store.installed().then((list) => {
+      const have = new Set(list.map((p) => p.id));
+      setSize(packDownloadSize(packId, have));
+      setMissing((pack.requires ?? []).filter((d) => !have.has(d)));
+    });
+  }, [store, packId, pack]);
 
   async function download() {
     setError(null);
@@ -75,6 +78,14 @@ export function PackGate({
           ]}>
           {text('title', zh ? `需要下载「${pack.name.zh}」` : `Download “${pack.name.en}”?`)}
           {text('body', pack.description[locale])}
+          {missing.length > 0
+            ? text(
+                'body',
+                zh
+                  ? `第一次还要一起下载：${missing.map((d) => packById(d)?.name.zh ?? d).join('、')}`
+                  : `Includes, the first time: ${missing.map((d) => packById(d)?.name.en ?? d).join(', ')}`,
+              )
+            : null}
           {text(
             'body',
             zh

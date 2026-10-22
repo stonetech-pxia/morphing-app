@@ -121,6 +121,9 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
     return () => {
       signal.current.cancelled = true;
       void run.current?.dispose();
+      // 扫描包和文字识别包的页面占几十 MB 内存，离开运行页面就关掉（下次用时再加载）。
+      packs?.bridge.close('scan');
+      packs?.bridge.close('ocr');
     };
     // 只在打开时运行一次。
     // eslint-disable-next-line react-hooks/exhaustive-deps

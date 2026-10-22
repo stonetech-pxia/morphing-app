@@ -14,6 +14,9 @@ export interface PickedFile {
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp';
 
+/** 扫描件增强（Skia 颜色矩阵）：提亮、灰度、黑白。 */
+export type EnhanceMode = 'auto' | 'gray' | 'bw';
+
 /** 一次图片处理：先裁剪（原图像素坐标），再缩放，再旋转 / 翻转。 */
 export interface ImageOps {
   crop?: { x: number; y: number; width: number; height: number };
@@ -97,6 +100,14 @@ export interface FilePlatform {
     uri: string,
     ops: ImageOps,
     save: { format: ImageFormat; quality: number },
+    runId: string,
+    relPath: string,
+  ): Promise<EncodedImage>;
+
+  /** 增强一张图片（扫描件），输出 JPG 临时文件。 */
+  enhanceImage(
+    uri: string,
+    mode: EnhanceMode,
     runId: string,
     relPath: string,
   ): Promise<EncodedImage>;

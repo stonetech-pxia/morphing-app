@@ -1,4 +1,5 @@
 import type { RunItem } from '@morph/core';
+import type { Quad } from '@morph/tool-image';
 
 // 本地操作步骤（TOOLS_DESIGN §4）：执行到这里时，运行页面打开对应的界面，用户的操作结果只在本次运行里使用。
 // 每种界面的输入和输出在这里登记；运行页面（app/run/[workflowId].tsx）负责显示。
@@ -48,6 +49,11 @@ export interface LocalSteps {
     };
     out: Record<string, string | boolean>;
   };
+  /**
+   * 扫描：逐张确认或拖动纸张的四个角（原图像素坐标）。quad 是扫描包找到的角，找不到时为 null。
+   * 返回每张图最终的四个角。
+   */
+  corners: { in: { items: { item: RunItem; quad: Quad | null }[] }; out: Quad[] };
   /** 排序、删除：返回保留下来的下标，按新顺序。 */
   reorder: { in: { items: RunItem[] }; out: number[] };
 }

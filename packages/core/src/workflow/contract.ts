@@ -75,6 +75,8 @@ export interface ActionDefinition {
   local?: LocalStepKind;
   /** 需要的扩展包（D-064）。 */
   pack?: string;
+  /** 扩展包取决于参数时（文字识别的语言包）：返回本次要确保安装的扩展包，它会连同依赖一起下载。 */
+  packFor?: (params: Record<string, unknown>) => string;
   requires: readonly Permission[];
 }
 

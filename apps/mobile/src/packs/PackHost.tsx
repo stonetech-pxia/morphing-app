@@ -4,12 +4,18 @@ import { WebView } from 'react-native-webview';
 
 import type { PackBridge, PackPageId } from './bridge';
 import { PACK_BASE_URL } from './pages/common';
+import { OCR_PAGE } from './pages/ocr';
 import { PDFVIEW_PAGE } from './pages/pdfview';
+import { SCAN_PAGE } from './pages/scan';
 import type { PackStore } from './store';
 
 // 扩展包运行环境：按需挂载隐藏的 WebView（每个扩展包一个页面），页面是我们随 App 发布的固定 HTML。
 
-const PAGES: Partial<Record<PackPageId, string>> = { pdfview: PDFVIEW_PAGE };
+const PAGES: Record<PackPageId, string> = {
+  pdfview: PDFVIEW_PAGE,
+  scan: SCAN_PAGE,
+  ocr: OCR_PAGE,
+};
 
 export interface Packs {
   store: PackStore;

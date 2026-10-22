@@ -26,6 +26,25 @@ const post = (m) => window.ReactNativeWebView.postMessage(JSON.stringify(m));
 const blobUrl = (parts, type = 'text/javascript') =>
   URL.createObjectURL(new Blob(Array.isArray(parts) ? parts : [parts], { type }));
 const b64ToBytes = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+/** 经典脚本（UMD，例如 opencv.js、tesseract.min.js）：从 blob: 地址插入 <script>。 */
+const loadClassic = (src) => new Promise((resolve, reject) => {
+  const el = document.createElement('script');
+  el.src = src;
+  el.onload = resolve;
+  el.onerror = () => reject(new Error('script failed to load'));
+  document.head.appendChild(el);
+});
+/** 把输入文件的字节解码成图片。 */
+const loadImage = (bytes, type = 'image/jpeg') => new Promise((resolve, reject) => {
+  const img = new Image();
+  img.onload = () => resolve(img);
+  img.onerror = () => reject(new Error('image could not be decoded'));
+  img.src = blobUrl([bytes], type);
+});
+const withTimeout = (promise, ms, what) => Promise.race([
+  promise,
+  new Promise((_, reject) => setTimeout(() => reject(new Error(what + ' timed out')), ms)),
+]);
 function bytesToB64(bytes) {
   let s = '';
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));

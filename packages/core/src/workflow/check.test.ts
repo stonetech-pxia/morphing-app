@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { registry, workspace } from '../test-helpers';
+import { createDefaultWorkspace } from '../defaults';
+import { apply, registry, workspace } from '../test-helpers';
 import { defaultParams, insertableActions, typesAlong, workflowProblems } from './check';
 import { acceptsType } from './contract';
 
@@ -22,6 +23,24 @@ describe('action contracts', () => {
         if (field.kind === 'choice') expect(field.options?.length).toBeGreaterThan(0);
       }
       expect(action.label.zh && action.label.en && action.description.zh).toBeTruthy();
+    },
+  );
+});
+
+describe('built-in tools', () => {
+  it.each([...registry.tools.keys()].map((id) => [id]))(
+    '%s installs in both languages and every workflow passes the static checks',
+    (toolId) => {
+      for (const locale of ['zh', 'en'] as const) {
+        const config = apply(
+          createDefaultWorkspace(locale),
+          [{ op: 'installTool', toolId }],
+          locale,
+        );
+        const own = config.workflows.filter((w) => w.toolId === toolId);
+        expect(own.length).toBeGreaterThan(0);
+        for (const wf of own) expect(workflowProblems(wf, registry)).toEqual([]);
+      }
     },
   );
 });

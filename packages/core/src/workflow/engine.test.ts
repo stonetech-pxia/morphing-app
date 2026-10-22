@@ -180,4 +180,30 @@ describe('runWorkflow', () => {
       delete (original as { pack?: string }).pack;
     }
   });
+
+  it('asks the parameters first, then ensures the pack they need (OCR language)', async () => {
+    const wf: Workflow = {
+      id: 'ocr',
+      name: 'OCR',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+        { id: 'read', action: 'ocr.recognize', params: { lang: 'eng' }, ask: ['lang'] },
+      ],
+    };
+    const order: string[] = [];
+    const { promise } = run(wf, {
+      impls: {
+        'in.photos': async () => ({ type: 'images', items: [pdfItem('scan')] }),
+        'ocr.recognize': async (_input, params) => ({
+          type: 'text',
+          text: String(params.lang),
+          name: 'scan',
+        }),
+      },
+      askParams: async () => (order.push('ask'), { lang: 'chi_sim' }),
+      ensurePack: async (id) => (order.push(id), true),
+    });
+    expect(await promise).toMatchObject({ value: { type: 'text', text: 'chi_sim' } });
+    expect(order).toEqual(['ask', 'ocr-chi-sim']);
+  });
 });

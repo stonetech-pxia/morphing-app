@@ -37,7 +37,14 @@ describe('extension packs', () => {
     await store.install('ocr-eng', (p) =>
       progress.push(`${p.packId} ${p.doneBytes}/${p.totalBytes}`),
     );
-    expect(progress).toEqual(['ocr 0/7', 'ocr 3/7', 'ocr 7/7', 'ocr-eng 0/7', 'ocr-eng 7/7']);
+    // 两个文件并行下载，先完成哪个不一定（3 或 4 字节）。
+    expect(progress).toEqual([
+      'ocr 0/7',
+      expect.stringMatching(/^ocr [34]\/7$/),
+      'ocr 7/7',
+      'ocr-eng 0/7',
+      'ocr-eng 7/7',
+    ]);
     expect(await store.isInstalled('ocr')).toBe(true);
     expect(await store.isInstalled('ocr-eng')).toBe(true);
     expect((await store.installed()).map((p) => p.id).sort()).toEqual(['ocr', 'ocr-eng']);
