@@ -135,9 +135,14 @@ const ACTIONS: Record<string, ActionImpl> = {
       throw new RunError('tooLargeTotal', { mb: FILE_LIMITS.maxTotalBytes / MB });
     }
     const assets: AssetRecord[] = [];
+    // 重复选择同一个文件会产生新的副本；显示名追加序号，避免列表中出现同名文件（D-019）。
+    const existing = (await ctx.repo.listAssets()).map((a) => a.name);
     for (const f of picked) {
       const id = ctx.newId();
-      const name = sanitizeFileName(f.name);
+      const clean = sanitizeFileName(f.name);
+      const ext = /\.([^.]+)$/.exec(clean)?.[1] ?? 'pdf';
+      const name = uniqueFileName(clean.replace(/\.[^.]+$/, ''), ext, existing);
+      existing.push(name);
       let stored;
       try {
         stored = await ctx.files.importFile(f, id, name);

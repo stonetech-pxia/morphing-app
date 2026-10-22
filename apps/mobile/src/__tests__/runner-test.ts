@@ -119,6 +119,24 @@ describe('PDF merge workflow', () => {
     });
   });
 
+  it('picking the same files again gives the copies distinct names', async () => {
+    const simplified = mergeWorkflow([
+      { op: 'removeWorkflowStep', workflowId: 'pdf-merge', stepId: 'name' },
+    ]);
+    const { repo, files, run } = setup(simplified);
+    const pick = async () => [
+      files.offer('a.pdf', await makePdf(1)),
+      files.offer('b.pdf', await makePdf(1)),
+    ];
+    files.nextPick = await pick();
+    await run();
+    files.nextPick = await pick();
+    await run();
+    const names = (await repo.listAssets()).map((a) => a.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names).toEqual(expect.arrayContaining(['a.pdf', 'b.pdf', 'a-2.pdf', 'b-2.pdf']));
+  });
+
   it('cancelling the picker or the name prompt is not an error', async () => {
     const a = setup(mergeWorkflow());
     a.files.nextPick = null;

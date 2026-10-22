@@ -49,6 +49,7 @@ describe('mock AI — journey A (home page)', () => {
     expect(after.shell.nav).toEqual(['page:home', 'tools', 'settings']);
     expect(after.shell.floating).toEqual(['ai', 'history']);
     expect(lines.some((l) => l.includes('浮动按钮'))).toBe(true);
+    expect(lines).toContain('修改标题「我的工作台」：标题改为「文件工作台」');
   });
 
   it('A2 “PDF 放第一个”', async () => {

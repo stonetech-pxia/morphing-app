@@ -113,9 +113,18 @@ export function describeChange(
         );
         break;
       case 'setComponentProps': {
+        const propNames: Record<string, Record<Locale, string>> = {
+          title: { zh: '标题', en: 'title' },
+          subtitle: { zh: '副标题', en: 'subtitle' },
+          text: { zh: '文字', en: 'text' },
+        };
         const changes = Object.entries(op.props)
-          .map(([k, v]) => `${k} = ${JSON.stringify(v)}`)
-          .join(', ');
+          .map(([k, v]) => {
+            const name = propNames[k]?.[ctx.locale] ?? k;
+            const value = typeof v === 'string' ? (zh ? `「${v}」` : `“${v}”`) : JSON.stringify(v);
+            return zh ? `${name}改为${value}` : `${name} → ${value}`;
+          })
+          .join(zh ? '，' : ', ');
         lines.push(
           zh
             ? `修改${comp(op.pageId, op.componentId)}：${changes}`
