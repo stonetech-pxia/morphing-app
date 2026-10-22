@@ -1,0 +1,497 @@
+import { checkNameTemplate } from '../naming';
+import { applyOps, topIndex, type Op } from '../ops';
+import type { ToolDefinition } from '../registry';
+import {
+  HOME_PAGE_ID,
+  pageTarget,
+  type Component,
+  type Locale,
+  type Localized,
+  type NavTarget,
+  type Page,
+  type WorkspaceConfig,
+} from '../schema';
+import type { AIProvider, Plan, PlanContext, RejectReason } from './types';
+
+// 基于规则的 mock AI（§7F）。不是语言模型：只认识 docs/MOCK_AI_PHRASES.md 中的句式。
+// 一句话按标点拆成若干子句；任何一个子句无法理解，整句都拒绝，绝不生成猜测性修改。
+
+const EXAMPLES: Localized[] = [
+  { zh: '把 PDF 放到最上面', en: 'Put PDF at the top' },
+  { zh: '导航只保留首页、工具、设置', en: 'Only keep Home, Tools and Settings in the navigation' },
+  { zh: '主题换成绿色', en: 'Change the theme color to green' },
+  { zh: '撤销刚才的修改', en: 'Undo the last change' },
+];
+
+const COLORS: [RegExp, string][] = [
+  [/绿|green/i, '#2F9E44'],
+  [/蓝|blue/i, '#1C7ED6'],
+  [/红|red/i, '#E03131'],
+  [/紫|purple/i, '#7048E8'],
+  [/橙|orange/i, '#F76707'],
+  [/粉|pink/i, '#D6336C'],
+  [/灰|黑|gr[ae]y|black/i, '#495057'],
+];
+
+class Rejection extends Error {
+  constructor(
+    readonly reason: RejectReason,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+interface State {
+  ctx: PlanContext;
+  /** 已应用前面子句后的工作副本。 */
+  config: WorkspaceConfig;
+  /** 整句话中提到的工具，供“完成后按日期命名”这类省略主语的子句使用。 */
+  mentionedTool: ToolDefinition | undefined;
+}
+
+const say = (locale: Locale, zh: string, en: string) => (locale === 'zh' ? zh : en);
+
+function splitClauses(input: string): string[] {
+  return input
+    .replace(/　/g, ' ')
+    .replace(/[“”「」『』‘’]/g, '"')
+    .split(/[，。；;！!？?\n]|\.\s+/)
+    .map((c) =>
+      c
+        .trim()
+        .replace(/^(请|麻烦|帮我|帮忙|能不能|可以|please|can you|could you)\s*/i, '')
+        .replace(/(吧|呢|\.)$/, '')
+        .trim(),
+    )
+    .filter((c) => c.length > 0);
+}
+
+function findTool(text: string, ctx: PlanContext): ToolDefinition | undefined {
+  const lower = text.toLowerCase();
+  for (const tool of ctx.registry.tools.values()) {
+    const names = [
+      ...tool.aliases,
+      tool.id,
+      tool.name.en.toLowerCase(),
+      tool.name.zh.toLowerCase(),
+    ];
+    if (names.some((n) => lower.includes(n))) return tool;
+  }
+  return undefined;
+}
+
+function requireInstalled(tool: ToolDefinition, state: State): void {
+  if (!state.config.tools.some((t) => t.toolId === tool.id)) {
+    throw new Rejection(
+      'notInstalled',
+      say(
+        state.ctx.locale,
+        `「${tool.name.zh}」工具还没有安装，请先在「工具」里安装。`,
+        `The ${tool.name.en} tool isn’t installed yet. Install it from Tools first.`,
+      ),
+    );
+  }
+}
+
+function page(state: State, id: string): Page {
+  return state.config.pages.find((p) => p.id === id)!;
+}
+
+function resolveComponent(rawName: string, target: Page, state: State): Component {
+  const name = rawName
+    .trim()
+    .replace(/^(the|把|将)\s*/i, '')
+    .replace(/^(首页|主页)(的|上的|里的)?/, '')
+    .replace(/\s*(卡片|入口|模块|区域|card|section)$/i, '')
+    .trim();
+  const tool = findTool(name, state.ctx);
+  const find = (pred: (c: Component) => boolean) => target.components.find(pred);
+  let found: Component | undefined;
+  if (tool) {
+    requireInstalled(tool, state);
+    found = find((c) => c.type === 'toolCard' && c.props.toolId === tool.id);
+  } else if (/欢迎|标题|welcome|header|title/i.test(name)) {
+    found = find((c) => c.type === 'header');
+  } else if (/工具目录|添加工具|catalog|add tools/i.test(name)) {
+    found = find((c) => c.type === 'catalogLink');
+  } else if (/文件|files?|recent/i.test(name)) {
+    found = find((c) => c.type === 'fileList');
+  } else if (/说明|介绍|intro|description/i.test(name)) {
+    found = find((c) => c.type === 'text');
+  }
+  if (!found) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        `在「${target.title}」上找不到「${name}」。`,
+        `Couldn’t find “${name}” on “${target.title}”.`,
+      ),
+    );
+  }
+  return found;
+}
+
+/** 把 componentId 移到 index 时，以“移出该组件后的列表”为参照。 */
+function withoutComponent(p: Page, componentId: string): Page {
+  return { ...p, components: p.components.filter((c) => c.id !== componentId) };
+}
+
+function resolveNavItem(rawName: string, state: State): NavTarget {
+  const name = rawName.trim().toLowerCase();
+  if (/^(首页|主页|home)$/.test(name)) return pageTarget(HOME_PAGE_ID);
+  if (/^(工具|工具目录|tools?)$/.test(name)) return 'tools';
+  if (/^(设置|settings?)$/.test(name)) return 'settings';
+  if (/^(历史|历史记录|history)$/.test(name)) return 'history';
+  if (/^(ai|ai\s*修改)$/.test(name)) return 'ai';
+  const p = state.config.pages.find((x) => x.title.toLowerCase() === name);
+  if (p) return pageTarget(p.id);
+  const tool = findTool(name, state.ctx);
+  const installed = tool && state.config.tools.find((t) => t.toolId === tool.id);
+  if (installed) return pageTarget(installed.pageId);
+  throw new Rejection(
+    'unknown',
+    say(
+      state.ctx.locale,
+      `导航里没有「${rawName.trim()}」这一项。`,
+      `There is no “${rawName.trim()}” to put in the navigation.`,
+    ),
+  );
+}
+
+type Rule = (clause: string, state: State) => Op[] | null;
+
+const navRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/导航(?:栏)?(?:里|中|上)?(?:只保留|只要|只留|保留|只显示|改成|改为)(.+)$/) ??
+    clause.match(/only keep (.+?) in the (?:nav|navigation)(?: bar)?$/i) ??
+    clause.match(/(?:nav|navigation)(?: bar)?:? only (.+)$/i);
+  if (!m) return null;
+  const items = m[1]!
+    .split(/、|，|,|和|与|以及|及|\band\b|&/i)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => resolveNavItem(s, state));
+  return [{ op: 'setNavItems', items }];
+};
+
+const STEP_KEYWORDS: [RegExp, string][] = [
+  [/上传|选择|选文件|select|choose|upload|pick/i, 'selectFiles'],
+  [/合并|merge/i, 'merge'],
+  [/命名|起名|改名|name/i, 'askFileName'],
+];
+
+function toolForWorkflowClause(clause: string, state: State): ToolDefinition {
+  const tool = findTool(clause, state.ctx) ?? state.mentionedTool;
+  if (tool) {
+    requireInstalled(tool, state);
+    return tool;
+  }
+  const withWorkflows = state.config.tools.filter((t) =>
+    state.config.workflows.some((w) => w.toolId === t.toolId),
+  );
+  if (withWorkflows.length === 1) return state.ctx.registry.tools.get(withWorkflows[0]!.toolId)!;
+  throw new Rejection(
+    'unknown',
+    say(
+      state.ctx.locale,
+      '请说明要修改哪个工具，例如「PDF 工具」。',
+      'Please say which tool to change, e.g. “the PDF tool”.',
+    ),
+  );
+}
+
+const simplifyRule: Rule = (clause, state) => {
+  if (!/简化|步骤|simplify|steps?/i.test(clause)) return null;
+  const tool = toolForWorkflowClause(clause, state);
+  const keep = new Set(STEP_KEYWORDS.filter(([re]) => re.test(clause)).map(([, suffix]) => suffix));
+  if (keep.size === 0) return null;
+  const ops: Op[] = [];
+  for (const wf of state.config.workflows.filter((w) => w.toolId === tool.id)) {
+    for (const step of wf.steps) {
+      const suffix = step.action.split('.')[1]!;
+      // 保存是自动完成的，不算用户可见的步骤。
+      if (step.action !== 'file.save' && !keep.has(suffix)) {
+        ops.push({ op: 'removeWorkflowStep', workflowId: wf.id, stepId: step.id });
+      }
+    }
+  }
+  const toolPage = state.config.pages.find((p) => p.toolId === tool.id);
+  for (const c of toolPage?.components ?? []) {
+    if (c.type === 'text' && !c.hidden) {
+      ops.push({ op: 'setComponentHidden', pageId: toolPage!.id, componentId: c.id, hidden: true });
+    }
+  }
+  return ops;
+};
+
+const namingRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/(?:按照|按|用|以)\s*"?([^"]+?)"?\s*(?:的?格式)?(?:来)?命名/) ??
+    clause.match(
+      /name (?:it|them|files?|the (?:file|result)s?)?\s*(?:as|by|after|like)\s+"?(.+?)"?$/i,
+    );
+  if (!m) return null;
+  const template = m[1]!
+    .trim()
+    .replace(/日期|\bdate\b/gi, '{date:YYYY-MM-DD}')
+    .replace(/时间|\btime\b/gi, '{date:HHmm}')
+    .replace(/原文件名|source name/gi, '{sourceName}');
+  if (!checkNameTemplate(template).ok) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        `无法使用命名规则「${m[1]}」。`,
+        `Can’t use “${m[1]}” as a file name pattern.`,
+      ),
+    );
+  }
+  const tool = toolForWorkflowClause(clause, state);
+  const ops: Op[] = [];
+  for (const wf of state.config.workflows.filter((w) => w.toolId === tool.id)) {
+    for (const step of wf.steps) {
+      if (step.action === 'file.save') {
+        ops.push({
+          op: 'setStepParams',
+          workflowId: wf.id,
+          stepId: step.id,
+          params: { nameTemplate: template },
+        });
+      } else if (step.action === 'ui.askFileName') {
+        ops.push(
+          /自动|automatic/i.test(clause)
+            ? { op: 'removeWorkflowStep', workflowId: wf.id, stepId: step.id }
+            : {
+                op: 'setStepParams',
+                workflowId: wf.id,
+                stepId: step.id,
+                params: { defaultTemplate: template },
+              },
+        );
+      }
+    }
+  }
+  return ops.length > 0 ? ops : null;
+};
+
+const modeRule: Rule = (clause) => {
+  if (!/模式|外观|mode|appearance/i.test(clause)) return null;
+  if (/深色|暗色|夜间|dark/i.test(clause)) return [{ op: 'setTheme', mode: 'dark' }];
+  if (/浅色|亮色|light/i.test(clause)) return [{ op: 'setTheme', mode: 'light' }];
+  if (/跟随系统|system/i.test(clause)) return [{ op: 'setTheme', mode: 'system' }];
+  return null;
+};
+
+const colorRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/主题(?:颜色|色)?\s*(?:换成|改成|改为|变成|设为|用)\s*(.+)$/) ??
+    clause.match(/(?:change|set|switch|make) (?:the )?theme(?: colou?r)? (?:to )?(.+)$/i);
+  if (!m) return null;
+  const color = COLORS.find(([re]) => re.test(m[1]!));
+  if (!color) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        `暂不支持颜色「${m[1]}」。可选：绿、蓝、红、紫、橙、粉、灰。`,
+        `“${m[1]}” isn’t supported. Try green, blue, red, purple, orange, pink or gray.`,
+      ),
+    );
+  }
+  return [{ op: 'setTheme', primaryColor: color[1] }];
+};
+
+const moveTopRule: Rule = (clause, state) => {
+  const m =
+    clause.match(
+      /^(?:把|将)?(.+?)(?:放到|放在|移到|移动到|挪到|置于)(?:最上面|最上方|最前面|顶部|第一个|第一位|最前)$/,
+    ) ??
+    clause.match(/^(.+?)放第一(?:个|位)?$/) ??
+    clause.match(/^(?:put|move) (.+?) (?:at|to) the top$/i);
+  if (!m) return null;
+  const home = page(state, HOME_PAGE_ID);
+  const c = resolveComponent(m[1]!, home, state);
+  const toIndex = c.type === 'header' ? 0 : topIndex(withoutComponent(home, c.id));
+  return [{ op: 'moveComponent', pageId: home.id, componentId: c.id, toIndex }];
+};
+
+const moveRelativeRule: Rule = (clause, state) => {
+  const zh = clause.match(
+    /^(?:把|将)(.+?)(?:放到|放在|移到|挪到)(.+?)(前面|之前|前|后面|之后|后)$/,
+  );
+  const en = clause.match(/^(?:put|move) (.+?) (before|after|above|below) (.+)$/i);
+  if (!zh && !en) return null;
+  const [subject, anchor, before] = zh
+    ? [zh[1]!, zh[2]!, /前/.test(zh[3]!)]
+    : [en![1]!, en![3]!, /before|above/i.test(en![2]!)];
+  const home = page(state, HOME_PAGE_ID);
+  const moving = resolveComponent(subject, home, state);
+  const rest = withoutComponent(home, moving.id);
+  const anchorIndex = rest.components.findIndex(
+    (c) => c.id === resolveComponent(anchor, home, state).id,
+  );
+  return [
+    {
+      op: 'moveComponent',
+      pageId: home.id,
+      componentId: moving.id,
+      toIndex: before ? anchorIndex : anchorIndex + 1,
+    },
+  ];
+};
+
+const visibilityRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/^(隐藏|显示|取消隐藏|不显示)(.+)$/) ?? clause.match(/^(hide|show|unhide) (.+)$/i);
+  if (!m) return null;
+  const home = page(state, HOME_PAGE_ID);
+  const c = resolveComponent(m[2]!, home, state);
+  const hidden = /^(隐藏|不显示|hide)$/i.test(m[1]!);
+  return [{ op: 'setComponentHidden', pageId: home.id, componentId: c.id, hidden }];
+};
+
+const titleRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/^(?:把|将)?(?:首页|主页)(?:改成|改为|变成|换成|改名为|叫)(.+)$/) ??
+    clause.match(/^(?:rename|change|turn) (?:the )?home(?: page)? (?:to|into) (.+)$/i);
+  if (!m) return null;
+  const title = m[1]!.replace(/"/g, '').trim();
+  const home = page(state, HOME_PAGE_ID);
+  const ops: Op[] = [{ op: 'setPageTitle', pageId: home.id, title }];
+  const header = home.components.find((c) => c.type === 'header');
+  if (header)
+    ops.push({
+      op: 'setComponentProps',
+      pageId: home.id,
+      componentId: header.id,
+      props: { title },
+    });
+  return ops;
+};
+
+const RULES: Rule[] = [
+  navRule,
+  simplifyRule,
+  namingRule,
+  modeRule,
+  colorRule,
+  moveTopRule,
+  moveRelativeRule,
+  visibilityRule,
+  titleRule,
+];
+
+const RESTORE = /^(恢复|还原)(到)?上一(次|个)|^撤销|^撤回|^undo\b|^revert\b|^go back/i;
+const DELETE_FILES = /(删除|删掉|清空|清除).*文件|\b(delete|remove|erase)\b.*\bfiles?\b/i;
+const PROTECTED_WORD = '(?:(?:^|[^a-z])ai(?:[^a-z]|$)|历史|\\bhistory\\b)';
+const REMOVE_WORD = '(?:删除|删掉|去掉|移除|隐藏|不要|\\bdelete\\b|\\bremove\\b|\\bhide\\b)';
+const REMOVE_PROTECTED = new RegExp(
+  `${REMOVE_WORD}.*${PROTECTED_WORD}|${PROTECTED_WORD}.*${REMOVE_WORD}`,
+  'i',
+);
+
+function planClauses(clauses: string[], ctx: PlanContext): Plan {
+  const state: State = { ctx, config: ctx.config, mentionedTool: findTool(clauses.join(' '), ctx) };
+  const ops: Op[] = [];
+  for (const clause of clauses) {
+    if (DELETE_FILES.test(clause)) {
+      throw new Rejection(
+        'deleteFiles',
+        say(
+          ctx.locale,
+          '修改界面不会删除文件。如需删除，请在文件列表中手动操作。',
+          'Changing the app never deletes files. To delete files, do it from a file list yourself.',
+        ),
+      );
+    }
+    if (REMOVE_PROTECTED.test(clause)) {
+      throw new Rejection(
+        'protected',
+        say(
+          ctx.locale,
+          '「AI 修改」和「历史」入口不能删除或隐藏，否则你将无法继续修改或撤销。可以把它们移到别处，例如从导航栏改为浮动按钮。',
+          'The AI and History entries can’t be removed or hidden, or you couldn’t change or undo anything. You can move them, e.g. out of the nav bar into floating buttons.',
+        ),
+      );
+    }
+    const clauseOps = RULES.reduce<Op[] | null>(
+      (found, rule) => found ?? rule(clause, state),
+      null,
+    );
+    if (clauseOps === null) {
+      throw new Rejection(
+        'unknown',
+        say(
+          ctx.locale,
+          `暂时无法理解「${clause}」。`,
+          `Sorry, I don’t understand “${clause}” yet.`,
+        ),
+      );
+    }
+    const applied = applyOps(state.config, clauseOps, {
+      registry: ctx.registry,
+      locale: ctx.locale,
+    });
+    if (!applied.ok) throw new Rejection('unknown', applied.error);
+    // 已经是目标状态的子句（例如 PDF 本来就在最上面）不产生修改。
+    if (JSON.stringify(applied.config) === JSON.stringify(state.config)) continue;
+    state.config = applied.config;
+    ops.push(...clauseOps);
+  }
+  if (ops.length === 0) {
+    return {
+      kind: 'reject',
+      reason: 'noChange',
+      message: say(
+        ctx.locale,
+        '当前界面已经是这样了，无需修改。',
+        'The app already looks like that.',
+      ),
+      examples: [],
+    };
+  }
+  return { kind: 'ops', ops };
+}
+
+export function createMockAIProvider(): AIProvider {
+  return {
+    async plan(input, ctx) {
+      const examples = EXAMPLES.map((e) => e[ctx.locale]);
+      const clauses = splitClauses(input);
+      if (clauses.length === 0) {
+        return {
+          kind: 'reject',
+          reason: 'unknown',
+          message: say(ctx.locale, '请输入你想怎么修改。', 'Tell me what to change.'),
+          examples,
+        };
+      }
+      if (clauses.some((c) => RESTORE.test(c))) {
+        if (clauses.length === 1) return { kind: 'restorePrevious' };
+        return {
+          kind: 'reject',
+          reason: 'unknown',
+          message: say(
+            ctx.locale,
+            '撤销请单独说，不要和其他修改放在一句话里。',
+            'Ask for undo on its own, not together with other changes.',
+          ),
+          examples,
+        };
+      }
+      try {
+        return planClauses(clauses, ctx);
+      } catch (e) {
+        if (!(e instanceof Rejection)) throw e;
+        return {
+          kind: 'reject',
+          reason: e.reason,
+          message: e.message,
+          examples: e.reason === 'unknown' ? examples : [],
+        };
+      }
+    },
+  };
+}

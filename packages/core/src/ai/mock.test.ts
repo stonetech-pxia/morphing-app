@@ -1,0 +1,204 @@
+import { describe, expect, it } from 'vitest';
+
+import { prepareOps } from '../change';
+import type { Locale, WorkspaceConfig } from '../schema';
+import { apply, registry, workspace } from '../test-helpers';
+import { createMockAIProvider } from './mock';
+import type { Plan } from './types';
+
+// 每个用例对应 docs/MOCK_AI_PHRASES.md 中的一个句式 ID。
+
+const ai = createMockAIProvider();
+const now = new Date(2026, 9, 22, 9, 0);
+
+async function plan(input: string, config: WorkspaceConfig, locale: Locale = 'zh'): Promise<Plan> {
+  return ai.plan(input, { config, registry, locale });
+}
+
+/** 让 mock 生成计划，并通过与 App 相同的 prepareOps 流程得到修改后的配置。 */
+async function change(input: string, config: WorkspaceConfig, locale: Locale = 'zh') {
+  const p = await plan(input, config, locale);
+  if (p.kind !== 'ops') throw new Error(`expected ops for “${input}”, got ${JSON.stringify(p)}`);
+  const prepared = prepareOps(config, p.ops, { registry, locale, now });
+  if (!prepared.ok) throw new Error(`invalid change for “${input}”: ${prepared.issues.join('; ')}`);
+  return prepared;
+}
+
+const home = (c: WorkspaceConfig) => c.pages.find((p) => p.id === 'home')!;
+const homeIds = (c: WorkspaceConfig) => home(c).components.map((x) => x.id);
+const mergeSteps = (c: WorkspaceConfig) => c.workflows.find((w) => w.id === 'pdf-merge')!.steps;
+
+// PDF 不在最上面的首页，这样“放到最上面”是一次真实的修改。
+const pdfBelowFiles = () =>
+  apply(workspace('zh', { withPdf: true }), [
+    { op: 'moveComponent', pageId: 'home', componentId: 'card-pdf', toIndex: 3 },
+  ]);
+
+describe('mock AI — journey A (home page)', () => {
+  it('A1 full sentence: title, PDF on top, nav trimmed, protected entries floating', async () => {
+    const { after, lines } = await change(
+      '把首页改成文件工作台，把 PDF 放到最上面，导航栏只保留首页、工具、设置。',
+      pdfBelowFiles(),
+    );
+    expect(home(after).title).toBe('文件工作台');
+    expect(home(after).components[0]).toMatchObject({
+      type: 'header',
+      props: { title: '文件工作台' },
+    });
+    expect(homeIds(after)).toEqual(['welcome', 'card-pdf', 'catalog', 'recent-files']);
+    expect(after.shell.nav).toEqual(['page:home', 'tools', 'settings']);
+    expect(after.shell.floating).toEqual(['ai', 'history']);
+    expect(lines.some((l) => l.includes('浮动按钮'))).toBe(true);
+  });
+
+  it('A2 “PDF 放第一个”', async () => {
+    expect(homeIds((await change('PDF 放第一个', pdfBelowFiles())).after)[1]).toBe('card-pdf');
+  });
+
+  it('A3 “导航只要首页、工具和设置”', async () => {
+    const { after } = await change('导航只要首页、工具和设置', workspace());
+    expect(after.shell.nav).toEqual(['page:home', 'tools', 'settings']);
+  });
+
+  it('A4 “首页改成文件工作台”', async () => {
+    expect(home((await change('首页改成文件工作台', workspace())).after).title).toBe('文件工作台');
+  });
+
+  it('A5 “Put PDF at the top”', async () => {
+    expect(homeIds((await change('Put PDF at the top', pdfBelowFiles(), 'en')).after)[1]).toBe(
+      'card-pdf',
+    );
+  });
+
+  it('A6 “Only keep Home, Tools and Settings in the navigation”', async () => {
+    const { after } = await change(
+      'Only keep Home, Tools and Settings in the navigation',
+      workspace('en'),
+      'en',
+    );
+    expect(after.shell.nav).toEqual(['page:home', 'tools', 'settings']);
+    expect(after.shell.floating).toEqual(['ai', 'history']);
+  });
+
+  it('PDF already on top is not a change', async () => {
+    expect(await plan('把 PDF 放到最上面', workspace('zh', { withPdf: true }))).toMatchObject({
+      kind: 'reject',
+      reason: 'noChange',
+    });
+  });
+
+  it('mentions of an uninstalled tool are rejected with a hint', async () => {
+    expect(await plan('把 PDF 放到最上面', workspace())).toMatchObject({
+      kind: 'reject',
+      reason: 'notInstalled',
+    });
+  });
+});
+
+describe('mock AI — single changes', () => {
+  it('B1 theme color', async () => {
+    expect((await change('主题换成绿色', workspace())).after.theme.primaryColor).toBe('#2F9E44');
+    expect((await change('主题色改成蓝色', workspace())).after.theme.primaryColor).toBe('#1C7ED6');
+  });
+
+  it('B2 dark mode', async () => {
+    expect((await change('切换到深色模式', workspace())).after.theme.mode).toBe('dark');
+  });
+
+  it('B3 hide and show the welcome card', async () => {
+    const hidden = (await change('隐藏欢迎卡片', workspace())).after;
+    expect(home(hidden).components[0]!.hidden).toBe(true);
+    expect(
+      home((await change('显示欢迎卡片', hidden)).after).components[0]!.hidden,
+    ).toBeUndefined();
+  });
+
+  it('B4 “把最近文件放到 PDF 前面”', async () => {
+    const { after } = await change('把最近文件放到 PDF 前面', workspace('zh', { withPdf: true }));
+    expect(homeIds(after)).toEqual(['welcome', 'recent-files', 'card-pdf', 'catalog']);
+  });
+});
+
+describe('mock AI — journey C (PDF tool)', () => {
+  it('C1 simplifies to pick + merge, saves automatically as 合并-日期', async () => {
+    const { after, lines } = await change(
+      '把 PDF 工具首页简化成上传和合并两个步骤，完成后自动按照‘合并-日期’命名',
+      workspace('zh', { withPdf: true }),
+    );
+    expect(mergeSteps(after).map((s) => s.action)).toEqual([
+      'pdf.selectFiles',
+      'pdf.merge',
+      'file.save',
+    ]);
+    expect(mergeSteps(after)[2]!.params).toEqual({ nameTemplate: '合并-{date:YYYY-MM-DD}' });
+    expect(
+      after.pages.find((p) => p.id === 'tool-pdf')!.components.find((c) => c.type === 'text')!
+        .hidden,
+    ).toBe(true);
+    // 仍然是同一个工具实例。
+    expect(after.tools).toHaveLength(1);
+    expect(after.workflows).toHaveLength(1);
+    expect(lines.some((l) => l.includes('合并-2026-10-22.pdf'))).toBe(true);
+  });
+
+  it('C2 “合并后的文件按日期命名” changes the naming only', async () => {
+    const { after } = await change('合并后的文件按日期命名', workspace('zh', { withPdf: true }));
+    expect(mergeSteps(after).map((s) => s.id)).toEqual(['select', 'merge', 'name', 'save']);
+    expect(mergeSteps(after)[3]!.params).toEqual({ nameTemplate: '{date:YYYY-MM-DD}' });
+    expect(mergeSteps(after)[2]!.params).toEqual({ defaultTemplate: '{date:YYYY-MM-DD}' });
+  });
+});
+
+describe('mock AI — journey D (undo / restore)', () => {
+  it.each(['恢复上一次修改前的界面', '撤销刚才的修改', 'Undo the last change'])(
+    '%s',
+    async (input) => {
+      expect(await plan(input, workspace())).toEqual({ kind: 'restorePrevious' });
+    },
+  );
+
+  it('undo mixed with other changes is rejected', async () => {
+    expect(await plan('撤销刚才的修改，主题换成绿色', workspace())).toMatchObject({
+      kind: 'reject',
+    });
+  });
+});
+
+describe('mock AI — must refuse', () => {
+  it('X1 unrelated request: “I don’t understand” with examples, no guessing', async () => {
+    const p = await plan('帮我订一张机票', workspace());
+    expect(p).toMatchObject({ kind: 'reject', reason: 'unknown' });
+    if (p.kind === 'reject') expect(p.examples.length).toBeGreaterThan(0);
+  });
+
+  it('X2 removing the AI entry is refused as protected', async () => {
+    expect(await plan('把 AI 入口删掉', workspace())).toMatchObject({
+      kind: 'reject',
+      reason: 'protected',
+    });
+    expect(await plan('hide history', workspace('en'), 'en')).toMatchObject({
+      kind: 'reject',
+      reason: 'protected',
+    });
+  });
+
+  it('X3 deleting files is refused', async () => {
+    expect(await plan('删除我所有的 PDF 文件', workspace('zh', { withPdf: true }))).toMatchObject({
+      kind: 'reject',
+      reason: 'deleteFiles',
+    });
+  });
+
+  it('one unknown clause rejects the whole sentence', async () => {
+    expect(await plan('主题换成绿色，顺便帮我写首诗', workspace())).toMatchObject({
+      kind: 'reject',
+      reason: 'unknown',
+    });
+  });
+
+  it('words that merely contain “ai” are not treated as the AI entry', async () => {
+    expect(await plan('remove the email', workspace('en'), 'en')).toMatchObject({
+      reason: 'unknown',
+    });
+  });
+});

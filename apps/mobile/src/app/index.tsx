@@ -1,24 +1,16 @@
-import { CURRENT_SCHEMA_VERSION } from '@morph/core';
-import { StyleSheet, Text, View } from 'react-native';
+import { View } from 'react-native';
 
-// M0 占位首页：证明 App 能启动并读取 @morph/core。M1 将替换为按 WorkspaceConfig 渲染的页面。
-export default function HomeScreen() {
+import { ErrorBoundary } from '@/renderer/ErrorBoundary';
+import { Shell } from '@/shell/Shell';
+import { useWorkspace } from '@/workspace/context';
+
+export default function HomeRoute() {
+  const headId = useWorkspace((s) => s.head!.id);
+  const reportRenderError = useWorkspace((s) => s.reportRenderError);
+  // key 随版本变化：回退到新版本后重新挂载整个外壳。
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Morph</Text>
-      <Text style={styles.body}>M0 骨架已运行 · schema v{CURRENT_SCHEMA_VERSION}</Text>
-    </View>
+    <ErrorBoundary key={headId} onError={reportRenderError} fallback={<View />}>
+      <Shell />
+    </ErrorBoundary>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#FFFFFF',
-  },
-  title: { fontSize: 28, fontWeight: '600', color: '#111111' },
-  body: { fontSize: 16, color: '#444444' },
-});

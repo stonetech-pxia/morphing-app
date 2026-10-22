@@ -1,0 +1,106 @@
+import {
+  RevisionConflictError,
+  type ChangeRequestRecord,
+  type CommitInput,
+  type RevisionRecord,
+  type WorkspaceRepo,
+} from './types';
+
+// 内存实现：用于测试，语义与 SQLite 实现一致。数据以 JSON 字符串保存，模拟“写入后重新读取”。
+
+export class MemoryWorkspaceRepo implements WorkspaceRepo {
+  private revisions: (Omit<RevisionRecord, 'config'> & { configJson: string })[] = [];
+  private headId: number | null = null;
+  private changeRequests: ChangeRequestRecord[] = [];
+  private clock = 0;
+
+  private now() {
+    return ++this.clock;
+  }
+
+  private toRecord(r: Omit<RevisionRecord, 'config'> & { configJson: string }): RevisionRecord {
+    const { configJson, ...rest } = r;
+    return { ...rest, config: JSON.parse(configJson) };
+  }
+
+  /** 测试用：直接写入任意（可能损坏的）快照并设为 head。 */
+  forceHead(config: unknown, parentId: number | null = this.headId): number {
+    const id = this.revisions.length + 1;
+    this.revisions.push({
+      id,
+      parentId,
+      schemaVersion: (config as { schemaVersion?: number })?.schemaVersion ?? -1,
+      configJson: JSON.stringify(config),
+      source: 'ai',
+      summary: 'forced',
+      createdAt: this.now(),
+    });
+    this.headId = id;
+    return id;
+  }
+
+  async getHead() {
+    return this.headId === null ? null : this.getRevision(this.headId);
+  }
+
+  async getRevision(id: number) {
+    const r = this.revisions.find((x) => x.id === id);
+    return r ? this.toRecord(r) : null;
+  }
+
+  async listRevisions(limit: number) {
+    return [...this.revisions]
+      .reverse()
+      .slice(0, limit)
+      .map((r) => this.toRecord(r));
+  }
+
+  async commitRevision(input: CommitInput) {
+    if (this.headId !== input.baseId) throw new RevisionConflictError(input.baseId, this.headId);
+    const record = {
+      id: this.revisions.length + 1,
+      parentId: input.baseId,
+      schemaVersion: input.config.schemaVersion,
+      configJson: JSON.stringify(input.config),
+      source: input.source,
+      summary: input.summary,
+      createdAt: this.now(),
+    };
+    this.revisions.push(record);
+    this.headId = record.id;
+    return this.toRecord(record);
+  }
+
+  async createChangeRequest(input: Parameters<WorkspaceRepo['createChangeRequest']>[0]) {
+    const at = this.now();
+    const id = this.changeRequests.length + 1;
+    this.changeRequests.push({
+      id,
+      input: input.input,
+      plan: input.plan,
+      status: input.status,
+      baseRevisionId: input.baseRevisionId,
+      resultRevisionId: null,
+      error: input.error ?? null,
+      createdAt: at,
+      updatedAt: at,
+    });
+    return id;
+  }
+
+  async updateChangeRequest(
+    id: number,
+    patch: Parameters<WorkspaceRepo['updateChangeRequest']>[1],
+  ) {
+    const cr = this.changeRequests.find((x) => x.id === id);
+    if (!cr) throw new Error(`change request ${id} not found`);
+    cr.status = patch.status;
+    if (patch.resultRevisionId !== undefined) cr.resultRevisionId = patch.resultRevisionId;
+    if (patch.error !== undefined) cr.error = patch.error;
+    cr.updatedAt = this.now();
+  }
+
+  async getChangeRequest(id: number) {
+    return this.changeRequests.find((x) => x.id === id) ?? null;
+  }
+}

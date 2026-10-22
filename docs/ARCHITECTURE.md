@@ -16,7 +16,7 @@
 │  schema · 修改操作（ops）· apply · validate · migrate ·            │
 │  修改说明（describe）· AIProvider 接口 · mock AI                   │
 ├───────────────────────────────────────────────────────────────┤
-│ packages/tool-pdf（M2 创建）  PDF 工具 manifest + pdf-lib 动作     │
+│ packages/tool-pdf（M2）  pdf-lib 合并实现（清单在 core/src/tools）  │
 ├───────────────────────────────────────────────────────────────┤
 │ apps/api（M3 创建）  Hono + 真实 AIProvider + Supabase              │
 └───────────────────────────────────────────────────────────────┘
@@ -67,11 +67,11 @@
 
 ## 5. 本地存储（M1/M2 唯一权威来源）
 
-计划中的 SQLite 表（M1 定稿）：
+SQLite 表（`PRAGMA user_version` 管理数据库结构升级，见 `apps/mobile/src/storage/sqlite.ts`）。M1 已实现 `workspace_head`、`revisions`、`change_requests`；其余在 M2 加入：
 
 | 表                | 内容                                                              |
 | ----------------- | ----------------------------------------------------------------- |
-| `workspace`       | 当前 head revision ID                                             |
+| `workspace_head`  | 当前 head revision ID                                             |
 | `revisions`       | 不可变快照：ID、父 ID、schemaVersion、配置 JSON、来源、摘要、时间 |
 | `change_requests` | 原始输入、ops、状态、关联 revision、错误                          |
 | `assets`          | 用户文件元数据与本地路径（归属 workspace）                        |
