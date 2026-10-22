@@ -1,3 +1,4 @@
+import type { DataRecord } from '../data';
 import type { Registry } from '../registry';
 import type { Locale, Workflow, WorkflowStep } from '../schema';
 import type { ActionDefinition, ValueType } from './contract';
@@ -28,7 +29,14 @@ export interface RunItem {
 export type RunValue =
   | { type: FileValueType; items: RunItem[] }
   /** 文字只留在本机（OCR、二维码识别）：复制、存成文件，绝不发给 AI。 */
-  | { type: 'text'; text: string; name: string };
+  | { type: 'text'; text: string; name: string }
+  /** 一张数据表里的记录（D-042）：只在本机生成 PDF / 打印，绝不发给 AI。 */
+  | { type: 'records'; collectionId: string; records: DataRecord[]; name: string };
+
+export type FileValue = Extract<RunValue, { items: RunItem[] }>;
+
+export const isFileValue = (value: RunValue | null): value is FileValue =>
+  value !== null && 'items' in value;
 
 export type RunErrorCode =
   | 'tooFew'
@@ -51,6 +59,10 @@ export type RunErrorCode =
   | 'noFormFields'
   | 'badField'
   | 'notFound'
+  | 'emptyText'
+  | 'textTooLong'
+  | 'doesNotFit'
+  | 'noRecords'
   | 'unexpected';
 
 export class RunError extends Error {
@@ -240,4 +252,4 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
 
 /** 一个值里所有文件的总大小。 */
 export const totalSize = (value: RunValue | null) =>
-  value && value.type !== 'text' ? value.items.reduce((sum, item) => sum + item.size, 0) : 0;
+  isFileValue(value) ? value.items.reduce((sum, item) => sum + item.size, 0) : 0;

@@ -161,3 +161,4 @@ export function decodeQr({ data, width, height }: RgbaImage): string | null {
   const pixels = new Uint8ClampedArray(data.buffer, data.byteOffset, data.byteLength);
   return jsQR(pixels, width, height, { inversionAttempts: 'attemptBoth' })?.data ?? null;
 }
+export { encodePng } from './png';

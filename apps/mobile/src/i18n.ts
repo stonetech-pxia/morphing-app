@@ -239,6 +239,19 @@ const strings = {
     en: 'What was filled in for “{name}” doesn’t fit this field.',
     zh: '「{name}」这一项填写的内容不符合要求。',
   },
+  runError_emptyText: { en: 'There is no text to use.', zh: '没有可以用的文字。' },
+  runError_textTooLong: {
+    en: 'The text is too long (at most {max} characters).',
+    zh: '文字太长了（最多 {max} 个字）。',
+  },
+  runError_noRecords: {
+    en: 'There are no records in “{name}” for this time.',
+    zh: '「{name}」里这段时间没有记录。',
+  },
+  runError_doesNotFit: {
+    en: '“{name}” does not fit on this paper. Cut it to an ID photo size first.',
+    zh: '「{name}」放不进这张相纸。请先用「证件照」步骤裁成规格尺寸。',
+  },
   runError_notFound: { en: 'Nothing was found in “{name}”.', zh: '在「{name}」里没有找到内容。' },
   runError_tooLarge: {
     en: '“{name}” is larger than {mb} MB, which is not supported yet.',
@@ -294,6 +307,7 @@ const strings = {
   },
   resultPages: { en: '{n} pages', zh: '{n} 页' },
   resultCount: { en: '{n} files', zh: '{n} 个文件' },
+  resultRecords: { en: '{n} records', zh: '{n} 条记录' },
   localDone: { en: 'Done', zh: '完成' },
   localNext: { en: 'Next', zh: '下一张' },
   toolMissing: { en: 'This tool is not available.', zh: '这个工具不可用。' },

@@ -38,7 +38,8 @@ describe('built-in tools', () => {
           locale,
         );
         const own = config.workflows.filter((w) => w.toolId === toolId);
-        expect(own.length).toBeGreaterThan(0);
+        // 报表工具没有自带的工作流（要先有数据表）。
+        if (toolId !== 'print') expect(own.length).toBeGreaterThan(0);
         for (const wf of own) expect(workflowProblems(wf, registry)).toEqual([]);
       }
     },
@@ -71,7 +72,12 @@ describe('types', () => {
     expect(ids(1)).not.toContain('out.saveToPhotos');
     expect(ids(1)).not.toContain('in.photos');
     expect(ids(4)).toContain('out.share');
-    expect(insertableActions([], 0, registry).map((a) => a.id)).toEqual(['in.photos', 'in.files']);
+    expect(insertableActions([], 0, registry).map((a) => a.id)).toEqual([
+      'in.photos',
+      'in.files',
+      'in.text',
+      'in.records',
+    ]);
   });
 
   it('default parameters come from the first preset or an empty object', () => {

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { checkNameTemplate } from '../naming';
+import { IdSchema, PERIODS } from '../schema';
 import type { ActionDefinition, ValueType } from '../workflow/contract';
 
 // 内核的输入输出动作：不属于任何工具，所有工作流都可以使用（TOOLS_DESIGN §5）。
@@ -34,8 +35,15 @@ export const FILE_ACCEPT: Record<string, ValueType> = {
   pdf: 'pdf',
   images: 'images',
   pdfOrImages: 'files',
+  zip: 'zip',
   any: 'files',
 };
+
+/** 用户自己输入的文字最长多少字（文字转 PDF、二维码）。 */
+export const MAX_INPUT_TEXT = 5000;
+
+/** 读取记录的时间范围：表里第一个日期字段（没有就用创建时间）落在这段时间里。 */
+export const RECORD_PERIODS = ['all', ...PERIODS] as const;
 
 export const MAX_PICK = 50;
 
@@ -81,7 +89,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     output: (p) => FILE_ACCEPT[String(p.accept)] ?? 'files',
     params: z
       .strictObject({
-        accept: z.enum(['pdf', 'images', 'pdfOrImages', 'any']),
+        accept: z.enum(['pdf', 'images', 'pdfOrImages', 'zip', 'any']),
         min: z.number().int().min(1).max(MAX_PICK),
         max: z.number().int().min(1).max(MAX_PICK),
       })
@@ -95,12 +103,63 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
           { value: 'pdf', label: { en: 'PDF', zh: 'PDF' } },
           { value: 'images', label: { en: 'Images', zh: '图片' } },
           { value: 'pdfOrImages', label: { en: 'PDFs and images', zh: 'PDF 和图片' } },
+          { value: 'zip', label: { en: 'ZIP archive', zh: 'ZIP 压缩包' } },
           { value: 'any', label: { en: 'Any file', zh: '任意文件' } },
         ],
       },
       ...countFields(MAX_PICK),
     ],
     requires: ['files.pick'],
+  },
+  {
+    id: 'in.text',
+    label: { en: 'Type or paste text', zh: '输入文字' },
+    description: {
+      en: 'The user types or pastes text (for a QR code or a text PDF). The text stays on this device.',
+      zh: '用户输入或粘贴一段文字（用来生成二维码或文字 PDF）。文字只留在本机。',
+    },
+    input: [],
+    output: 'text',
+    params: z.strictObject({ text: z.string().max(MAX_INPUT_TEXT) }),
+    fields: [
+      {
+        key: 'text',
+        label: { en: 'Text', zh: '文字' },
+        kind: 'text',
+        multiline: true,
+        private: true,
+      },
+    ],
+    requires: [],
+  },
+  {
+    id: 'in.records',
+    label: { en: 'Use records', zh: '读取记录' },
+    description: {
+      en: 'Take the records of one data table (optionally only a time period, by its first date field). Records stay on this device.',
+      zh: '读取一张数据表的记录（可以只取某段时间，按表里第一个日期字段）。记录只留在本机。',
+    },
+    input: [],
+    output: 'records',
+    params: z.strictObject({ collectionId: IdSchema, period: z.enum(RECORD_PERIODS) }),
+    fields: [
+      { key: 'collectionId', label: { en: 'Data table', zh: '数据表' }, kind: 'collection' },
+      {
+        key: 'period',
+        label: { en: 'Time', zh: '时间' },
+        kind: 'choice',
+        options: [
+          { value: 'all', label: { en: 'All', zh: '全部' } },
+          { value: 'today', label: { en: 'Today', zh: '今天' } },
+          { value: 'thisWeek', label: { en: 'This week', zh: '本周' } },
+          { value: 'thisMonth', label: { en: 'This month', zh: '本月' } },
+          { value: 'thisYear', label: { en: 'This year', zh: '今年' } },
+          { value: 'last7days', label: { en: 'Last 7 days', zh: '最近 7 天' } },
+          { value: 'last30days', label: { en: 'Last 30 days', zh: '最近 30 天' } },
+        ],
+      },
+    ],
+    requires: [],
   },
   {
     id: 'file.rename',

@@ -54,6 +54,8 @@ export interface LocalSteps {
    * 返回每张图最终的四个角。
    */
   corners: { in: { items: { item: RunItem; quad: Quad | null }[] }; out: Quad[] };
+  /** 打码：在每张图上框出要遮住的区域（原图像素）。返回每张图的框，可以没有。 */
+  redact: { in: { items: RunItem[] }; out: Rect[][] };
   /** 排序、删除：返回保留下来的下标，按新顺序。 */
   reorder: { in: { items: RunItem[] }; out: number[] };
 }

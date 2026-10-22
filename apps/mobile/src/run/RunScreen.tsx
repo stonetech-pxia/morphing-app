@@ -1,4 +1,4 @@
-import { RunError, type AskRequest, type RunResult, type Workflow } from '@morph/core';
+import { RunError, isFileValue, type AskRequest, type RunResult, type Workflow } from '@morph/core';
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -35,9 +35,13 @@ type LocalPending = {
   [K in LocalKind]: { kind: K; input: LocalSteps[K]['in'] } & Pending<LocalSteps[K]['out'] | null>;
 }[LocalKind];
 
+/** 运行页面弹出动画的时长（iOS 模态约 350 毫秒）。 */
+const START_DELAY_MS = 450;
+
 export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: () => void }) {
   const { repo, files, registry, locale } = useWorkspaceContext();
   const theme = useWorkspace((s) => s.config!.theme);
+  const collections = useWorkspace((s) => s.config!.collections);
   const revisionId = useWorkspace((s) => s.head!.id);
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const palette = usePalette(theme);
@@ -94,6 +98,7 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
       now: () => new Date(),
       newId: newAssetId,
       ui,
+      collections,
       packs: packs
         ? { runtime: packs.bridge, isInstalled: (id) => packs.store.isInstalled(id) }
         : null,
@@ -117,8 +122,10 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
   }
 
   useEffect(() => {
-    void execute();
+    // 等运行页面弹出的动画结束再开始：动画进行中系统不会弹出照片 / 文件选择器（会一直停在第 1 步）。
+    const timer = setTimeout(() => void execute(), START_DELAY_MS);
     return () => {
+      clearTimeout(timer);
       signal.current.cancelled = true;
       void run.current?.dispose();
       // 扫描包和文字识别包的页面占几十 MB 内存，离开运行页面就关掉（下次用时再加载）。
@@ -134,7 +141,7 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
   const value = outcome?.status === 'succeeded' ? outcome.value : null;
 
   async function saveResult() {
-    if (!value || value.type === 'text' || !run.current) return;
+    if (!isFileValue(value) || !run.current) return;
     const items = await saveItems({ files, repo, grantee: granteeOf(workflow) }, value.items, {
       now: () => new Date(),
       newId: newAssetId,
@@ -250,13 +257,13 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
           actions={{
             save: saveResult,
             share: async () => {
-              if (value.type !== 'text') await files.shareUris(value.items);
+              if (isFileValue(value)) await files.shareUris(value.items);
             },
             saveToPhotos: async () => {
-              if (value.type !== 'text') await files.saveToPhotos(value.items.map((i) => i.uri));
+              if (isFileValue(value)) await files.saveToPhotos(value.items.map((i) => i.uri));
             },
             print: async () => {
-              if (value.type !== 'text') for (const item of value.items) await files.print(item);
+              if (isFileValue(value)) for (const item of value.items) await files.print(item);
             },
             copy: async () => {
               if (value.type === 'text') await files.copyText(value.text);

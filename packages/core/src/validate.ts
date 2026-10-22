@@ -155,6 +155,7 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
     for (const id of duplicates(wf.steps.map((s) => s.id)))
       issue('duplicate', `step ${id} in ${wf.id}`);
     for (const problem of workflowProblems(wf, registry)) issue(problem.code, problem.message);
+    for (const message of recordStepProblems(wf, config)) issue('data', message);
     // 工具自带的工作流只能用该工具声明过的权限；用户自己的工作流由用户逐步确认。
     if (!toolDef) continue;
     for (const step of wf.steps) {
@@ -170,6 +171,34 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
   }
 
   return issues.length > 0 ? { ok: false, issues } : { ok: true, config };
+}
+
+/** 读取记录的步骤要指向存在的数据表；生成 PDF 的字段要是这张表的字段（D-042）。 */
+function recordStepProblems(
+  wf: WorkspaceConfig['workflows'][number],
+  config: WorkspaceConfig,
+): string[] {
+  const problems: string[] = [];
+  let collection: WorkspaceConfig['collections'][number] | undefined;
+  for (const step of wf.steps) {
+    if (step.action === 'in.records') {
+      collection = config.collections.find((c) => c.id === step.params.collectionId);
+      if (!collection) {
+        problems.push(
+          `${wf.id}/${step.id}: data table ${String(step.params.collectionId)} does not exist`,
+        );
+      }
+    }
+    if (step.action === 'print.records' && collection && Array.isArray(step.params.fields)) {
+      for (const ref of step.params.fields as unknown[]) {
+        const ok =
+          ref === 'createdAt' || ref === 'updatedAt' || collection.fields.some((f) => f.id === ref);
+        if (!ok)
+          problems.push(`${wf.id}/${step.id}: ${String(ref)} is not a field of ${collection.id}`);
+      }
+    }
+  }
+  return problems;
 }
 
 const NUMERIC = ['number', 'money', 'rating'];

@@ -130,6 +130,17 @@ export function ResultView({
     );
   }
 
+  if (value.type === 'records') {
+    // 记录只用来生成 PDF；工作流停在这里时只显示条数。
+    return (
+      <Card palette={palette} testID="run-result">
+        <Text style={[palette.font('body', 15), { color: palette.text }]}>
+          {t(locale, 'resultRecords', { n: value.records.length })}
+        </Text>
+      </Card>
+    );
+  }
+
   const items = value.items;
   const allSaved = items.every((i) => i.assetId);
   const images = items.every((i) => i.mimeType.startsWith('image/'));

@@ -147,3 +147,20 @@ export function capPixels(size: Size, maxPixels = 16_777_216): Size {
   height = Math.max(1, Math.min(height, Math.floor(maxPixels / width)));
   return { width, height };
 }
+
+/** GPU 离屏画布单边上限：iOS 模拟器的 Metal 纹理是 8192（真机 16384），按小的算。 */
+export const MAX_SURFACE_SIDE = 8192;
+
+/**
+ * 离屏画布放不下时整体缩小的比例（≤ 1）：单边不超过 MAX_SURFACE_SIDE，总像素不超过 1677 万。
+ * 超过 Metal 上限会让 App 直接崩溃，所以每次离屏绘制前都要先算。
+ */
+export function surfaceScale(size: Size, maxPixels = 16_777_216): number {
+  assertPositive(size.width, size.height, maxPixels);
+  return Math.min(
+    1,
+    MAX_SURFACE_SIDE / size.width,
+    MAX_SURFACE_SIDE / size.height,
+    Math.sqrt(maxPixels / (size.width * size.height)),
+  );
+}

@@ -8,6 +8,7 @@ import {
   clampCrop,
   cropToOutput,
   resizeDimensions,
+  surfaceScale,
 } from './geometry';
 
 const photo: Size = { width: 4032, height: 3024 };
@@ -186,5 +187,15 @@ describe('capPixels', () => {
     const long = capPixels({ width: 1080, height: 60_000 }, 4_000_000);
     expect(long.width * long.height).toBeLessThanOrEqual(4_000_000);
     expect(capPixels({ width: 100_000, height: 1 }, 1000)).toEqual({ width: 1000, height: 1 });
+  });
+});
+
+describe('surfaceScale', () => {
+  it('keeps small canvases and shrinks ones the GPU cannot hold', () => {
+    expect(surfaceScale({ width: 1290, height: 8000 })).toBe(1);
+    expect(surfaceScale({ width: 1290, height: 16384 })).toBe(0.5);
+    // 4800 万像素的照片缩到 1677 万像素以内。
+    const k = surfaceScale({ width: 8000, height: 6000 });
+    expect(Math.floor(8000 * k) * Math.floor(6000 * k)).toBeLessThanOrEqual(16_777_216);
   });
 });

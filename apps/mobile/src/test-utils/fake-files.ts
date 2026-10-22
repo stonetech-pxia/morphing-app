@@ -2,7 +2,7 @@ import { RunError } from '@morph/core';
 import { zlibSync } from 'fflate';
 import { PDFDocument } from 'pdf-lib';
 
-import type { FilePlatform, ImageFormat, ImageOps, PickedFile } from '../runtime/platform';
+import type { DrawOp, FilePlatform, ImageFormat, ImageOps, PickedFile } from '../runtime/platform';
 
 // 测试用工具：内存文件平台和真实 PDF 生成。
 
@@ -231,6 +231,44 @@ export class FakeFiles implements FilePlatform {
     this.imageSizes.set(picked.uri, { width, height });
     return { ...picked, width, height };
   }
+  /** 合成过的画布和绘制步骤（拼图、打码、水印、相纸）。 */
+  composed: { canvas: { width: number; height: number; background: string }; ops: DrawOp[] }[] = [];
+  async composeImage(
+    canvas: { width: number; height: number; background: string },
+    ops: readonly DrawOp[],
+    save: { format: 'jpeg' | 'png'; quality: number },
+    runId: string,
+    relPath: string,
+  ) {
+    this.composed.push({ canvas, ops: [...ops] });
+    const head = save.format === 'png' ? makePng(4, 4) : TINY_JPEG;
+    const dest = `runs/${runId}/${relPath}`;
+    this.disk.set(dest, head);
+    this.imageSizes.set(dest, { width: canvas.width, height: canvas.height });
+    return { uri: dest, width: canvas.width, height: canvas.height, size: head.length };
+  }
+  /** imagePixels 返回的像素（按 uri）；没有时返回一张白图。 */
+  pixels = new Map<string, { width: number; height: number; data: Uint8Array }>();
+  async imagePixels(uri: string) {
+    if (!this.disk.has(uri)) throw new Error('missing');
+    return this.pixels.get(uri) ?? { width: 2, height: 2, data: new Uint8Array(16).fill(255) };
+  }
+  /** 生成过的 HTML（文字转 PDF、报表）。PDF 用 pdf-lib 生成一页真实的 PDF。 */
+  printedHtml: string[] = [];
+  async htmlToPdf(
+    html: string,
+    page: { width: number; height: number },
+    runId: string,
+    relPath: string,
+  ) {
+    this.printedHtml.push(html);
+    const doc = await PDFDocument.create();
+    doc.addPage([page.width, page.height]);
+    const bytes = await doc.save();
+    const dest = `runs/${runId}/${relPath}`;
+    this.disk.set(dest, bytes);
+    return { uri: dest, size: bytes.length, pageCount: 1 };
+  }
   enhanced: string[] = [];
   async enhanceImage(uri: string, mode: string, runId: string, relPath: string) {
     if (!this.disk.has(uri)) throw new Error('missing');
@@ -253,7 +291,7 @@ export class FakeFiles implements FilePlatform {
   /** 用真实的 PNG 代替 Skia 画出的文字（每个字 10 像素宽）。 */
   async renderText(text: string, style: { fontSize: number }) {
     this.renderedTexts.push(text);
-    const width = [...text].length * 10;
+    const width = [...text].length * Math.round(style.fontSize * 0.6);
     const height = Math.round(style.fontSize);
     return { bytes: makePng(width, height), width, height };
   }

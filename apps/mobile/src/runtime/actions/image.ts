@@ -34,7 +34,7 @@ export const formatBytes = (bytes: number) =>
     ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
     : `${Math.round(bytes / 1024)} KB`;
 
-async function sizeOf(ctx: Ctx, item: RunItem) {
+export async function sizeOf(ctx: Ctx, item: RunItem) {
   if (item.width && item.height) return { width: item.width, height: item.height };
   try {
     return await ctx.services.files.imageSize(item.uri);
@@ -44,7 +44,7 @@ async function sizeOf(ctx: Ctx, item: RunItem) {
 }
 
 /** 处理一张图片，输出本次运行里的新临时文件。 */
-async function encode(
+export async function encode(
   ctx: Ctx,
   item: RunItem,
   ops: ImageOps,
@@ -77,7 +77,7 @@ async function encode(
 }
 
 /** 逐张处理，带进度和取消。 */
-async function eachImage(
+export async function eachImage(
   input: Parameters<Impl>[0],
   ctx: Ctx,
   fn: (item: RunItem) => Promise<RunItem>,

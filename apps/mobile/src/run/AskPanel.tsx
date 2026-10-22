@@ -4,6 +4,7 @@ import {
   type AskRequest,
   type Locale,
   type RunValue,
+  isFileValue,
 } from '@morph/core';
 import { useState } from 'react';
 import {
@@ -23,7 +24,7 @@ import { ParamForm } from './ParamForm';
 // 运行时询问参数（工作流步骤的 ask）。文件名模板显示成渲染好的名字，用户改的是最终的名字。
 
 function suggestedName(template: string, input: RunValue | null, now: Date): string {
-  const first = input && input.type !== 'text' ? input.items[0] : undefined;
+  const first = isFileValue(input) ? input.items[0] : undefined;
   return renderNameTemplate(template, {
     now,
     index: 1,

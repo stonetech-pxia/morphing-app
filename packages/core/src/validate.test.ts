@@ -189,3 +189,40 @@ describe('validateWorkspace', () => {
     );
   });
 });
+
+describe('record workflows', () => {
+  const withTable = mutate((c) => {
+    c.collections.push({
+      id: 'expenses',
+      name: '报销',
+      fields: [
+        { id: 'item', name: '项目', type: 'text' },
+        { id: 'amount', name: '金额', type: 'money', currency: 'CNY' },
+      ],
+    });
+  });
+  const report = (collectionId: string, fields: string[]) =>
+    mutate((c) => {
+      c.workflows.push({
+        id: 'report',
+        name: '报销单',
+        steps: [
+          { id: 'read', action: 'in.records', params: { collectionId, period: 'thisMonth' } },
+          {
+            id: 'pdf',
+            action: 'print.records',
+            params: { template: 'receipt', title: '', fields, pageSize: 'a4' },
+          },
+        ],
+      });
+    }, withTable);
+
+  it('accepts a report on an existing table and its fields', () => {
+    expect(issuesOf(report('expenses', ['item', 'amount', 'createdAt']))).toEqual([]);
+  });
+
+  it('rejects a missing table or a field the table does not have', () => {
+    expect(issuesOf(report('trips', []))).toEqual(['data']);
+    expect(issuesOf(report('expenses', ['item', 'price']))).toEqual(['data']);
+  });
+});

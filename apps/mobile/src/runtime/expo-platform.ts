@@ -10,11 +10,11 @@ import {
   type ImagePickerAsset,
 } from 'expo-image-picker';
 import { Asset, requestPermissionsAsync } from 'expo-media-library';
-import { printAsync } from 'expo-print';
+import { printAsync, printToFileAsync } from 'expo-print';
 import { shareAsync } from 'expo-sharing';
 
 import type { FilePlatform, ImageFormat, PickedFile } from './platform';
-import { enhanceJpeg, renderTextPng } from './skia';
+import { composeOnSurface, enhanceJpeg, pixelsOf, renderTextPng } from './skia';
 
 // FilePlatform 的 Expo 实现。用户文件存放在 App 文档目录的 assets/<id>/<文件名>，
 // 数据库只保存相对路径，与配置版本完全分开（§7G）。
@@ -291,6 +291,31 @@ export const expoFilePlatform: FilePlatform = {
     dest.create();
     dest.write(out.bytes);
     return { uri: dest.uri, width: out.width, height: out.height, size: out.bytes.length };
+  },
+
+  async composeImage(canvas, ops, save, runId, relPath) {
+    const out = await composeOnSurface(canvas, ops, save, (uri) => new File(uri).bytes());
+    const dest = runFile(runId, relPath);
+    dest.create();
+    dest.write(out.bytes);
+    return { uri: dest.uri, width: out.width, height: out.height, size: out.bytes.length };
+  },
+
+  async imagePixels(uri, maxSide) {
+    return pixelsOf(await new File(uri).bytes(), maxSide);
+  },
+
+  async htmlToPdf(html, page, runId, relPath) {
+    // iOS 的打印排版不认 CSS 的 @page 边距，要在这里给（单位是点）。
+    const printed = await printToFileAsync({
+      html,
+      width: page.width,
+      height: page.height,
+      margins: { left: 44, right: 44, top: 40, bottom: 40 },
+    });
+    const dest = runFile(runId, relPath);
+    await new File(printed.uri).move(dest);
+    return { uri: dest.uri, size: new File(dest.uri).size, pageCount: printed.numberOfPages };
   },
 
   async imageSize(uri) {

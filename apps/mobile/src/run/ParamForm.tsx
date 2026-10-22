@@ -1,7 +1,8 @@
-import type { ActionDefinition, Locale, ParamField } from '@morph/core';
+import type { ActionDefinition, Collection, Locale, ParamField } from '@morph/core';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import type { Palette } from '../renderer/theme';
+import { useWorkspace } from '../workspace/context';
 
 // 根据动作的参数界面元数据自动生成表单（TOOLS_DESIGN §2）。运行时询问和工作流编辑页共用。
 
@@ -26,6 +27,7 @@ export function ParamForm({
   only,
   testPrefix = 'param',
   hideLabels = false,
+  collection,
 }: {
   action: ActionDefinition;
   values: Record<string, unknown>;
@@ -36,6 +38,8 @@ export function ParamForm({
   testPrefix?: string;
   /** 只有一个参数、标题已经说明时不再重复显示标签。 */
   hideLabels?: boolean;
+  /** 「字段」参数从这张表里选（工作流里前面「读取记录」步骤的表）。 */
+  collection?: Collection | undefined;
 }) {
   const set = (key: string, value: unknown) => onChange({ ...values, [key]: value });
   // 运行时询问时也给常用规格，只填被问到的参数。
@@ -46,11 +50,17 @@ export function ParamForm({
         ? Object.fromEntries(Object.entries(p.values).filter(([k]) => only.includes(k)))
         : p.values,
     }))
-    .filter(
-      (p, i, all) =>
-        Object.keys(p.values).length > 0 &&
-        all.findIndex((q) => JSON.stringify(q.values) === JSON.stringify(p.values)) === i,
-    );
+    .filter((p, i, all) => {
+      const keys = Object.keys(p.values);
+      // 只剩一个选项参数时，按钮和下面的选项重复，不显示。
+      const sameAsChoice =
+        keys.length === 1 && action.fields.find((f) => f.key === keys[0])?.kind === 'choice';
+      return (
+        keys.length > 0 &&
+        !sameAsChoice &&
+        all.findIndex((q) => JSON.stringify(q.values) === JSON.stringify(p.values)) === i
+      );
+    });
   return (
     <View style={styles.form}>
       {presets.length > 0 ? (
@@ -81,6 +91,7 @@ export function ParamForm({
             palette={palette}
             locale={locale}
             testID={`${testPrefix}-${field.key}`}
+            collection={collection}
           />
         </View>
       ))}
@@ -95,6 +106,7 @@ function FieldInput({
   palette,
   locale,
   testID,
+  collection,
 }: {
   field: ParamField;
   value: unknown;
@@ -102,6 +114,7 @@ function FieldInput({
   palette: Palette;
   locale: Locale;
   testID: string;
+  collection?: Collection | undefined;
 }) {
   const input = [
     styles.input,
@@ -161,11 +174,44 @@ function FieldInput({
           ) : null}
         </View>
       );
+    case 'collection':
+      return (
+        <CollectionInput value={value} onChange={onChange} palette={palette} testID={testID} />
+      );
+    case 'fields': {
+      const chosen = Array.isArray(value) ? (value as string[]) : [];
+      if (!collection) {
+        return (
+          <Text style={[palette.font('body', 14), { color: palette.muted }]}>
+            {locale === 'zh' ? '先选数据表' : 'Choose a data table first'}
+          </Text>
+        );
+      }
+      return (
+        <View style={styles.wrap}>
+          {collection.fields.map((f) => (
+            <Chip
+              key={f.id}
+              palette={palette}
+              testID={`${testID}-${f.id}`}
+              label={f.name}
+              selected={chosen.includes(f.id)}
+              onPress={() =>
+                onChange(
+                  chosen.includes(f.id) ? chosen.filter((x) => x !== f.id) : [...chosen, f.id],
+                )
+              }
+            />
+          ))}
+        </View>
+      );
+    }
     default:
       return (
         <TextInput
           testID={testID}
-          style={input}
+          multiline={field.multiline}
+          style={[input, field.multiline ? styles.multiline : null]}
           value={value === undefined || value === null ? '' : String(value)}
           onChangeText={onChange}
           autoCapitalize="none"
@@ -173,6 +219,35 @@ function FieldInput({
         />
       );
   }
+}
+
+/** 选一张数据表（选项来自当前配置）。 */
+function CollectionInput({
+  value,
+  onChange,
+  palette,
+  testID,
+}: {
+  value: unknown;
+  onChange: (value: unknown) => void;
+  palette: Palette;
+  testID: string;
+}) {
+  const collections = useWorkspace((s) => s.config?.collections ?? []);
+  return (
+    <View style={styles.wrap}>
+      {collections.map((c) => (
+        <Chip
+          key={c.id}
+          palette={palette}
+          testID={`${testID}-${c.id}`}
+          label={c.name}
+          selected={value === c.id}
+          onPress={() => onChange(c.id)}
+        />
+      ))}
+    </View>
+  );
 }
 
 export function Chip({
@@ -219,5 +294,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   input: { borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 12 },
   number: { minWidth: 110 },
+  multiline: { minHeight: 120, textAlignVertical: 'top' },
   chip: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
 });

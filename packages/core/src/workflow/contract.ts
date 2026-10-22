@@ -37,7 +37,13 @@ export type ParamUnit = 'px' | 'KB' | 'MB' | '%' | '°' | 'mm' | 'pt' | 'in';
 export interface ParamField {
   key: string;
   label: Localized;
-  kind: 'number' | 'choice' | 'toggle' | 'text' | 'nameTemplate' | 'color';
+  /**
+   * collection：选一张数据表（选项来自配置）；fields：选这张表的几个字段（编辑页按前面「读取记录」步骤的表列出）。
+   */
+  kind:
+    'number' | 'choice' | 'toggle' | 'text' | 'nameTemplate' | 'color' | 'collection' | 'fields';
+  /** 多行文字（文字转 PDF、二维码内容）。 */
+  multiline?: boolean;
   unit?: ParamUnit;
   min?: number;
   max?: number;

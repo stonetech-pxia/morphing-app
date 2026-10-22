@@ -32,6 +32,34 @@ export interface EncodedImage {
   size: number;
 }
 
+export interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * 离屏合成的一步（拼图、打码、水印、相纸排版）。只有固定的几种绘制，不执行任何配置里的代码。
+ * 图片来源是本次运行的临时文件或刚画好的字节（文字水印）。
+ */
+export type DrawOp =
+  | {
+      kind: 'image';
+      source: { uri: string } | { bytes: Uint8Array };
+      /** 取源图的哪一部分（像素）；默认整张。 */
+      src?: Box;
+      dst: Box;
+      /** 绕 dst 中心旋转（度）。 */
+      angleDeg?: number;
+      /** 0–1。 */
+      opacity?: number;
+    }
+  | { kind: 'rect'; rect: Box; color: string }
+  /** 把画布上这块区域模糊（打码）。 */
+  | { kind: 'blur'; rect: Box; sigma: number }
+  | { kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number };
+
 /** 用户存好的签名（documentDirectory/signatures/，不进配置和版本，不发给 AI）。 */
 export interface SavedSignature {
   uri: string;
@@ -111,6 +139,27 @@ export interface FilePlatform {
     runId: string,
     relPath: string,
   ): Promise<EncodedImage>;
+
+  /** 离屏合成一张图，编码成本次运行的临时文件。 */
+  composeImage(
+    canvas: { width: number; height: number; background: string },
+    ops: readonly DrawOp[],
+    save: { format: 'jpeg' | 'png'; quality: number },
+    runId: string,
+    relPath: string,
+  ): Promise<EncodedImage>;
+  /** 读出图片的 RGBA 像素（长边缩到 maxSide 以内），识别二维码用。 */
+  imagePixels(
+    uri: string,
+    maxSide: number,
+  ): Promise<{ width: number; height: number; data: Uint8Array }>;
+  /** 用系统的打印排版把 HTML 变成 PDF（expo-print），存成本次运行的临时文件。 */
+  htmlToPdf(
+    html: string,
+    page: { width: number; height: number },
+    runId: string,
+    relPath: string,
+  ): Promise<{ uri: string; size: number; pageCount: number }>;
 
   // ---- 签名 ----
   loadSignatures(): Promise<SavedSignature[]>;

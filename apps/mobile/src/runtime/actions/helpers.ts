@@ -1,4 +1,12 @@
-import { FILE_LIMITS, RunError, sanitizeFileName, type RunItem, type RunValue } from '@morph/core';
+import {
+  FILE_LIMITS,
+  RunError,
+  isFileValue,
+  sanitizeFileName,
+  type Collection,
+  type RunItem,
+  type RunValue,
+} from '@morph/core';
 import { capPixels } from '@morph/tool-image';
 
 import type { WorkspaceRepo } from '../../storage/types';
@@ -16,6 +24,8 @@ export interface RunServices {
   /** 保存的文件授权给谁：工具 ID，或用户自己的工作流 `workflow:<id>`（§7G）。 */
   grantee: string;
   ui: LocalUi;
+  /** 当前配置里的数据表（读取记录、生成报表用）。 */
+  collections: readonly Collection[];
   /** 扩展包（WebView 里的 pdf.js、OpenCV、tesseract）；没有时为 null。 */
   packs: { runtime: PackRuntime; isInstalled(id: string): Promise<boolean> } | null;
 }
@@ -48,7 +58,7 @@ export const isImageMime = (mime: string) => mime.startsWith('image/');
 
 /** 输入一定是文件（校验器保证了类型）。 */
 export function fileItems(input: RunValue | null): RunItem[] {
-  if (!input || input.type === 'text') throw new RunError('unexpected', { detail: 'no files' });
+  if (!isFileValue(input)) throw new RunError('unexpected', { detail: 'no files' });
   return input.items;
 }
 

@@ -29,6 +29,8 @@ export interface RunContext {
   now: () => Date;
   newId: () => string;
   ui: LocalUi;
+  /** 当前配置里的数据表（读取记录用）。 */
+  collections?: RunServices['collections'];
   packs?: RunServices['packs'];
   askParams?: (request: AskRequest) => Promise<Record<string, unknown> | null>;
   ensurePack?: (packId: string) => Promise<boolean>;
@@ -58,6 +60,7 @@ export async function startRun(ctx: RunContext): Promise<Run> {
       repo: ctx.repo,
       grantee: granteeOf(ctx.workflow),
       ui: ctx.ui,
+      collections: ctx.collections ?? [],
       packs: ctx.packs ?? null,
     },
     locale: ctx.locale,
