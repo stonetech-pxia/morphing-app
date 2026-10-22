@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
+import { THEME_PRESETS, type ThemePresetId } from '../presets';
 import type { Locale, WorkspaceConfig } from '../schema';
 import { apply, registry, workspace } from '../test-helpers';
 import { createMockAIProvider } from './mock';
@@ -153,6 +154,28 @@ describe('mock AI — style', () => {
     expect((await change('卡片改成毛玻璃', workspace())).after.theme.cardStyle).toBe('glass');
     expect((await change('卡片改成霓虹发光', workspace())).after.theme.cardStyle).toBe('glow');
     expect((await change('卡片换成金属质感', workspace())).after.theme.cardStyle).toBe('chrome');
+  });
+
+  it('B12b style presets by name', async () => {
+    const cases: [string, string][] = [
+      ['换成 iOS 风格', 'ios'],
+      ['换成杂志风', 'editorial'],
+      ['风格改成马卡龙', 'pastel'],
+      ['用赛博朋克风格', 'neon'],
+      ['换成新粗野风格', 'brutalist'],
+      ['切换到新拟物风格', 'neumorphism'],
+      ['换成黏土风', 'claymorphism'],
+    ];
+    for (const [input, preset] of cases) {
+      const { after } = await change(input, workspace());
+      expect(after.theme).toEqual(THEME_PRESETS[preset as ThemePresetId].theme);
+    }
+    expect((await change('Switch to terminal style', workspace('en'), 'en')).after.theme).toEqual(
+      THEME_PRESETS.terminal.theme,
+    );
+    // 只改卡片、只改颜色的说法不受影响。
+    expect((await change('卡片改成新粗野风格', workspace())).after.theme.colors).toEqual({});
+    expect((await change('主题换成绿色', workspace())).after.theme.cardStyle).toBe('shadow');
   });
 
   it('B9d page backdrop', async () => {

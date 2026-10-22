@@ -4,6 +4,7 @@ import type { Registry } from '../registry';
 import { allComponents, type Locale, type WorkspaceConfig } from '../schema';
 import { parseRichText } from '../richtext';
 import { templateOps } from '../templates';
+import { THEME_PRESETS } from '../presets';
 import { CLAY, contrast, isDark, resolveColors } from '../theme';
 import type { Plan, RejectReason } from './types';
 
@@ -291,6 +292,38 @@ export const EVAL_CASES: readonly EvalCase[] = [
         c.theme.backdrop === 'aurora' && c.theme.cardStyle === 'glass'
           ? null
           : `expected aurora + glass, got ${c.theme.backdrop} + ${c.theme.cardStyle}`,
+    },
+  },
+  {
+    id: 'B12b',
+    input: '换成杂志风',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        JSON.stringify(c.theme) === JSON.stringify(THEME_PRESETS.editorial.theme)
+          ? null
+          : `theme should be the editorial preset, got ${JSON.stringify(c.theme)}`,
+    },
+  },
+  {
+    id: 'B12c',
+    input: '换成霓虹风格，主色改成粉色',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        if (c.theme.cardStyle !== 'glow')
+          return `expected the neon preset, got ${c.theme.cardStyle}`;
+        const [r, g, b] = [1, 3, 5].map((i) => parseInt(c.theme.primaryColor.slice(i, i + 2), 16));
+        return r! > 180 && r! > g! + 40 && b! > g!
+          ? null
+          : `primary should be pink, got ${c.theme.primaryColor}`;
+      },
     },
   },
   {

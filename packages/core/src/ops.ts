@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { THEME_PRESETS, THEME_PRESET_IDS } from './presets';
 import type { Registry } from './registry';
 import {
   CollectionSchema,
@@ -61,6 +62,7 @@ export const OpSchema = z.discriminatedUnion('op', [
     backdrop: ThemeSchema.shape.backdrop,
   }),
   z.strictObject({ op: z.literal('resetTheme') }),
+  z.strictObject({ op: z.literal('applyThemePreset'), preset: z.enum(THEME_PRESET_IDS) }),
   z.strictObject({ op: z.literal('setNavItems'), items: z.array(NavTargetSchema).min(1).max(5) }),
   z.strictObject({ op: z.literal('setFloatingItems'), items: z.array(NavTargetSchema).max(3) }),
   z.strictObject({ op: z.literal('setPageTitle'), pageId, title: z.string() }),
@@ -279,6 +281,10 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
     }
     case 'resetTheme': {
       config.theme = JSON.parse(JSON.stringify(DEFAULT_THEME));
+      return;
+    }
+    case 'applyThemePreset': {
+      config.theme = JSON.parse(JSON.stringify(THEME_PRESETS[op.preset].theme));
       return;
     }
     case 'setNavItems': {

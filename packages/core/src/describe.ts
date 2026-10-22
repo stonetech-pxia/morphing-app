@@ -2,6 +2,7 @@ import { SYSTEM_TARGET_LABELS } from './defaults';
 import { renderNameTemplate } from './naming';
 import { plainText } from './richtext';
 import type { ApplyNote, Op } from './ops';
+import { THEME_PRESETS } from './presets';
 import type { Registry } from './registry';
 import {
   allComponents,
@@ -341,6 +342,15 @@ export function describeChange(
         ] as const) {
           if (op[key] !== undefined) lines.push(describeToken(key, op[key], zh));
         }
+        break;
+      }
+      case 'applyThemePreset': {
+        const name = THEME_PRESETS[op.preset].name[zh ? 'zh' : 'en'];
+        lines.push(
+          zh
+            ? `样式换成「${name}」风格（颜色、字体、圆角、卡片和背景）`
+            : `Switch the style to “${name}” (colors, fonts, corners, cards and background)`,
+        );
         break;
       }
       case 'resetTheme':

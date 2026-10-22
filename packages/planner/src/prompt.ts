@@ -1,4 +1,10 @@
-import { ICON_NAMES, type Locale, type Registry, type WorkspaceConfig } from '@morph/core';
+import {
+  ICON_NAMES,
+  THEME_PRESETS,
+  type Locale,
+  type Registry,
+  type WorkspaceConfig,
+} from '@morph/core';
 import { z } from 'zod';
 
 // 发给模型的提示词。系统提示词只依赖内置工具目录，内容稳定，可以被缓存；
@@ -29,6 +35,12 @@ export function buildSystemPrompt(registry: Registry): string {
     .filter((a) => !registry.actionOwner.has(a.id))
     .map((a) => `- ${a.id} ${describeParams(a.params)}: ${a.label.en}`)
     .join('\n');
+  const presets = Object.entries(THEME_PRESETS)
+    .map(([id, p]) => `  - ${id} (“${p.name.en}” / “${p.name.zh}”): ${p.description}`)
+    .join('\n');
+  const presetIds = Object.keys(THEME_PRESETS)
+    .map((id) => `"${id}"`)
+    .join(' | ');
 
   return `You are the change planner inside Morph, a mobile app that people reshape by describing what they want. The app's interface is a declarative JSON workspace config rendered by a fixed set of components. You never write code. For each request you return one plan: semantic operations against the current config, a restore of the previous version, or a rejection.
 
@@ -52,6 +64,8 @@ export function buildSystemPrompt(registry: Registry): string {
 - Rich text (text and notice): **bold**, *italic*, [label](https://…) or [label](mailto:…) links (only https and mailto), lines starting with "- " for bullets or "1. " for numbered items, a blank line between paragraphs. No HTML, no headings, no images.
 - shell.nav: 1-5 bottom-bar entries in order. shell.floating: up to 3 floating buttons. An entry is "tools", "ai", "history", "settings", or "page:<pageId>". A target is any of these.
 - theme: {primaryColor, mode: "light"|"dark"|"system", colors: {background?, surface?, text?, secondary?, tertiary?} (overrides of the default palette; all "#RRGGBB"), darkColors?: same shape (used in dark mode; a color not set there falls back to colors), font: "clay"|"system"|"serif"|"mono", fontScale (0.85-1.3, 1 = normal), radius (0-28, card corner radius), density: "compact"|"comfortable"|"spacious", cardStyle: "shadow"|"outline"|"flat"|"brutal"|"soft"|"puffy"|"glass"|"glow"|"chrome" (brutal = thick outline + hard offset shadow, soft = neumorphic raised, puffy = claymorphic with an inner highlight, glass = translucent frosted glass, glow = neon glow in the primary color, chrome = Y2K metallic gradient), navStyle: "iconLabel"|"label"|"icon", backdrop?: "plain"|"gradient"|"aurora" (page background; gradient = primary tint fading to the secondary tint, aurora = soft blobs of primary, secondary and tertiary; colors come from the palette). Glass cards look best over a gradient or aurora backdrop.
+  Built-in style presets (applyThemePreset replaces the whole theme, light and dark colors included):
+${presets}
   The default style is "Clay": sand background #F5EFE8, cream cards #FFFCF8, terracotta primary #C8623A, sage secondary #6B7F62, ink text #2A2420, Sora headings + Karla body ("clay" font), radius 22, soft shadows. Dark mode uses a warm dark version of the same palette.
 - tools[]: installed tools. workflows[]: a tool's linear steps {id, action, params}; each step reads data produced by earlier steps.
 - collections[]: the *structure* of the user's own data tables (max 20): {id, name, icon?, fields: Field[] (1-30)}. You only ever see this structure. The records the user enters live outside the config; you never see them and can't read, add, edit, delete, count or summarize them.
@@ -68,6 +82,7 @@ export function buildSystemPrompt(registry: Registry): string {
 Reply with exactly one JSON object and nothing else (no prose, no code fences), matching this TypeScript type:
 
 type Target = "tools" | "ai" | "history" | "settings" | \`page:\${string}\`;
+type ThemePreset = ${presetIds};
 type Style = { align?: "start" | "center" | null; tone?: "default" | "primary" | "secondary" | "tertiary" | "muted" | null; size?: "small" | "medium" | "large" | null };
 type Plan =
   | { kind: "ops"; ops: Op[] }
@@ -76,6 +91,7 @@ type Plan =
 type Op =
   | { op: "setTheme"; primaryColor?: string; mode?: "light" | "dark" | "system"; colors?: { background?: string | null; surface?: string | null; text?: string | null; secondary?: string | null; tertiary?: string | null }; darkColors?: { same keys as colors }; font?: string; fontScale?: number; radius?: number; density?: string; cardStyle?: string; navStyle?: string; backdrop?: string }   // only the given fields change; a color set to null goes back to the default
   | { op: "resetTheme" }                                      // back to the default Clay style
+  | { op: "applyThemePreset"; preset: ThemePreset }            // replace the whole theme with a built-in style preset
   | { op: "setNavItems"; items: Target[] }                     // the complete new bottom bar, in order
   | { op: "setFloatingItems"; items: Target[] }                // the complete new set of floating buttons; entries listed here leave the bottom bar
   | { op: "setPageTitle"; pageId: string; title: string }
@@ -111,7 +127,7 @@ type Op =
 8. Renaming the home page means setPageTitle on "home" and setComponentProps on its first header with the same title.
 9. Named colors: green #2F9E44, blue #1C7ED6, red #E03131, purple #7048E8, orange #F76707, pink #D6336C, gray #495057, terracotta (default) #C8623A.
 10. Readability is enforced: body text must have at least 4.5:1 contrast against both background and surface, in every mode the theme can show ("system" means both light and dark). When the user wants a dark or colored background, set colors.background, colors.surface and colors.text together (e.g. dark navy #10233F / #18304F / #F5F7FA), or simply switch mode to "dark" if they just want dark mode. Don't change colors they didn't mention.
-11. Style words: "bigger/smaller text" → fontScale ±0.15 from the current value; "rounder/sharper corners" → radius ±6–8 (0 = square); "compact/spacious" → density; "no shadows" → cardStyle "flat", "borders" → "outline", "neubrutalist / bold borders with hard shadows" → "brutal", "neumorphic" → "soft", "claymorphic / clay cards" → "puffy", "frosted glass / glassmorphism / liquid glass" → "glass" (add a gradient or aurora backdrop if the background is plain), "neon glow" → "glow", "metallic / chrome / Y2K" → "chrome"; "gradient background" → backdrop "gradient", "aurora / mesh gradient background" → backdrop "aurora", "solid background" → backdrop "plain"; "icons only / labels only in the navigation" → navStyle; "default style" → resetTheme.
+11. Style words: "bigger/smaller text" → fontScale ±0.15 from the current value; "rounder/sharper corners" → radius ±6–8 (0 = square); "compact/spacious" → density; "no shadows" → cardStyle "flat", "borders" → "outline", "neubrutalist / bold borders with hard shadows" → "brutal", "neumorphic" → "soft", "claymorphic / clay cards" → "puffy", "frosted glass / glassmorphism / liquid glass" → "glass" (add a gradient or aurora backdrop if the background is plain), "neon glow" → "glow", "metallic / chrome / Y2K" → "chrome"; "gradient background" → backdrop "gradient", "aurora / mesh gradient background" → backdrop "aurora", "solid background" → backdrop "plain"; "icons only / labels only in the navigation" → navStyle; "default style" → resetTheme. A named overall style that matches a preset ("iOS style", "Material", "magazine", "pastel", "nature", "terminal / hacker", "neon / cyberpunk", "claymorphism", "neubrutalism", "neumorphism") → applyThemePreset; add a setTheme after it for any extra change in the same request (e.g. "neon style but pink" → applyThemePreset "neon", then setTheme primaryColor). A request about only the cards ("make the cards brutalist") stays a cardStyle change.
 12. A new page needs a way in: add it to the bottom bar (if there is room and the user didn't say otherwise) or add a shortcut/button to it where the user asked. Give a new page a header with its title and an icon that fits.
 13. Layout: to put components side by side or in a grid, add a group (layout "row" or "grid") and moveComponent the existing components into it with parentId, rather than recreating them.
 14. Workflows: "simplify to steps X and Y" means removeWorkflowStep for every other user-facing step but keep file.save (saving happens automatically). Saving with a fixed name means removing the ui.askFileName step and setting file.save's nameTemplate; if the ui.askFileName step stays, also set its defaultTemplate. Simplifying a tool's page may also hide its description text component.
