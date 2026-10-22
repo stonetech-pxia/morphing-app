@@ -1,5 +1,6 @@
 import { SYSTEM_TARGET_LABELS } from './defaults';
 import { renderNameTemplate } from './naming';
+import { plainText } from './richtext';
 import type { ApplyNote, Op } from './ops';
 import type { Registry } from './registry';
 import {
@@ -60,6 +61,14 @@ export function componentLabel(
       return zh ? `快捷入口「${c.props.title}」` : `shortcut “${c.props.title}”`;
     case 'notice':
       return zh ? '提示框' : 'notice';
+    case 'image':
+      return c.props.caption
+        ? zh
+          ? `图片「${c.props.caption}」`
+          : `image “${c.props.caption}”`
+        : zh
+          ? '图片'
+          : 'image';
     case 'divider':
       return zh ? '分隔线' : 'divider';
     case 'spacer':
@@ -85,6 +94,8 @@ export function componentLabel(
     }
   }
 }
+
+const truncate = (s: string, max = 40) => (s.length > max ? `${s.slice(0, max)}…` : s);
 
 function collectionName(id: string, config: WorkspaceConfig): string {
   return config.collections.find((c) => c.id === id)?.name ?? id;
@@ -382,11 +393,25 @@ export function describeChange(
           icon: { zh: '图标', en: 'icon' },
           target: { zh: '打开的页面', en: 'target' },
           variant: { zh: '样式', en: 'variant' },
+          aspect: { zh: '比例', en: 'aspect' },
+          fit: { zh: '填充方式', en: 'fit' },
+          caption: { zh: '说明', en: 'caption' },
+          placeholder: { zh: '提示', en: 'placeholder' },
         };
         const changes = Object.entries(op.props)
           .map(([k, v]) => {
+            if (k === 'assetId') {
+              return v ? (zh ? '更换图片' : 'new picture') : zh ? '移除图片' : 'picture removed';
+            }
             const name = propNames[k]?.[ctx.locale] ?? k;
-            const value = typeof v === 'string' ? (zh ? `「${v}」` : `“${v}”`) : JSON.stringify(v);
+            // 富文本显示成纯文字，太长时截断。
+            const shown = typeof v === 'string' && k === 'text' ? truncate(plainText(v)) : v;
+            const value =
+              typeof shown === 'string'
+                ? zh
+                  ? `「${shown}」`
+                  : `“${shown}”`
+                : JSON.stringify(shown);
             return zh ? `${name}改为${value}` : `${name} → ${value}`;
           })
           .join(zh ? '，' : ', ');

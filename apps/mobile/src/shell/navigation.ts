@@ -2,7 +2,7 @@ import {
   SYSTEM_TARGET_ICONS,
   navTargetLabel,
   pageIdOf,
-  type IconName,
+  type IconValue,
   type Locale,
   type NavTarget,
   type WorkspaceConfig,
@@ -37,7 +37,7 @@ export function useNavigate(): (target: NavTarget) => void {
   };
 }
 
-export function targetIcon(target: NavTarget, config: WorkspaceConfig): IconName {
+export function targetIcon(target: NavTarget, config: WorkspaceConfig): IconValue {
   const pageId = pageIdOf(target);
   if (pageId === null) return SYSTEM_TARGET_ICONS[target as keyof typeof SYSTEM_TARGET_ICONS];
   return config.pages.find((p) => p.id === pageId)?.icon ?? 'bookmark';

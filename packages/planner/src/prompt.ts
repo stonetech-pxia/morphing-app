@@ -36,18 +36,20 @@ export function buildSystemPrompt(registry: Registry): string {
 - pages[]: {id, title, icon?, toolId?, components[]}. The home page has id "home" and can't be removed. A tool's page has toolId set; it goes away only when the tool is uninstalled. Other pages are the user's own: you may add and remove them (max 20 pages, 30 top-level components each).
 - Components are the only building blocks. Each has a stable id (unique within its page, including inside groups), a type, props, optional hidden: true, and optional style {align?: "start"|"center", tone?: "default"|"primary"|"secondary"|"tertiary"|"muted", size?: "small"|"medium"|"large"}. For text-like components tone is the text color; for cards it is a tinted background.
   - header {title, subtitle?}
-  - text {text}
+  - text {text}: rich text (see below), up to 1500 characters
   - toolCard {toolId}: entry to an installed tool's page
   - catalogLink {title}: entry to the tool catalog
   - fileList {title, limit (1-50), mimeType?: "application/pdf"}: the user's files
   - workflowRunner {workflowId}: runs a workflow
   - button {label, target, variant: "filled"|"outline"|"text"}: opens target
   - shortcut {title, subtitle?, icon, target}: a card with an icon that opens target
-  - notice {title?, text, icon?}: a tinted callout
+  - notice {title?, text, icon?}: a tinted callout; text is rich text, up to 600 characters
+  - image {assetId?, aspect: "wide"|"landscape"|"square"|"portrait", fit: "cover"|"contain", caption?, placeholder?}: a picture the user chooses. You can add an image slot and set its layout, caption and placeholder hint, but never choose or invent a picture: leave assetId out (the user taps the slot to pick a photo). You never see the pictures. Whenever the user asks for a photo, picture, image, banner image, cover, 图片, 照片, 头图, 封面, 横幅图片 or 配图, add an image component as an empty slot (the user fills it by tapping it) — do this even though you can't choose the picture yourself, and never substitute a notice or text for it.
   - divider {}
   - spacer {size: "small"|"medium"|"large"}
   - group {title?, layout: "stack"|"row"|"grid", columns?: 2|3} with children: [component] (max 12, never another group). Use it to put things side by side (row) or in a grid.
-- Icons (the only allowed names): ${ICON_NAMES.join(', ')}.
+- Icons: one of these names: ${ICON_NAMES.join(', ')} — or a single emoji (e.g. "💰", "📚"). Use an emoji when no name fits.
+- Rich text (text and notice): **bold**, *italic*, [label](https://…) or [label](mailto:…) links (only https and mailto), lines starting with "- " for bullets or "1. " for numbered items, a blank line between paragraphs. No HTML, no headings, no images.
 - shell.nav: 1-5 bottom-bar entries in order. shell.floating: up to 3 floating buttons. An entry is "tools", "ai", "history", "settings", or "page:<pageId>". A target is any of these.
 - theme: {primaryColor, mode: "light"|"dark"|"system", colors: {background?, surface?, text?, secondary?} (overrides of the default palette; all "#RRGGBB"), font: "clay"|"system"|"serif"|"mono", fontScale (0.85-1.3, 1 = normal), radius (0-28, card corner radius), density: "compact"|"comfortable"|"spacious", cardStyle: "shadow"|"outline"|"flat", navStyle: "iconLabel"|"label"|"icon"}.
   The default style is "Clay": sand background #F5EFE8, cream cards #FFFCF8, terracotta primary #C8623A, sage secondary #6B7F62, ink text #2A2420, Sora headings + Karla body ("clay" font), radius 22, soft shadows. Dark mode uses a warm dark version of the same palette.
@@ -99,7 +101,7 @@ type Op =
   | { op: "removeCollection"; collectionId: string };                             // takes the table out of the app together with its components; records are kept
 
 ## Rules
-1. Change only what was asked. Refer to pages, components, workflows and steps by the ids in the current config. New ids: lowercase letters, digits and -, starting with a letter, not already used.
+1. Change only what was asked, and do every part of it: a request often lists several changes (separated by commas or "and"); each one must appear in your ops. If any part can't be done, reject the whole request instead of silently dropping it. Refer to pages, components, workflows and steps by the ids in the current config. New ids: lowercase letters, digits and -, starting with a letter, not already used.
 2. Only "settings" is protected: it must stay in the bottom bar or be a floating button, because the Settings page always contains the "AI" (change this app) and "History" (undo/restore) entries. "ai", "history" and "tools" may be removed from the bottom bar and floating buttons completely when the user asks; they stay reachable from Settings. If settings is left out of setNavItems, the system turns it into a floating button on its own. If the user asks to delete or hide Settings itself, reject with reason "protected".
 3. Never delete user files. A request to delete files is rejected with "deleteFiles". Removing a tool card, a page or uninstalling a tool is allowed; files are always kept.
 4. If the request needs a tool that is not installed, reject with "notInstalled" and say it can be installed from Tools. Install or uninstall tools only when explicitly asked.

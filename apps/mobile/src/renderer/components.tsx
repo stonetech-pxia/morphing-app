@@ -14,6 +14,8 @@ import { ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native
 import { t } from '../i18n';
 import { RecordForm, RecordList, Stat } from './data';
 import { FileList } from './FileList';
+import { ImageView } from './ImageView';
+import { RichText } from './RichText';
 import type { Palette } from './theme';
 import { Button, Card, IconTile } from './ui';
 import { WorkflowRunner } from './WorkflowRunner';
@@ -32,6 +34,8 @@ export interface RenderEnv {
   navigate: (target: NavTarget) => void;
   /** 在横排或网格的格子里：卡片改为图标在上、文字在下。 */
   inCell?: boolean;
+  /** 正在渲染的页面（图片组件更换照片时要用）。 */
+  pageId?: string;
 }
 
 type Tone = NonNullable<ComponentStyle['tone']>;
@@ -250,17 +254,13 @@ export function ComponentView({ component, env }: { component: Component; env: R
       );
     case 'text':
       return (
-        <Text
-          style={[
-            palette.font('body', 15 * scale),
-            {
-              color: textColor(palette, style?.tone, palette.muted),
-              lineHeight: Math.round(22 * scale * palette.theme.fontScale),
-            },
-            align,
-          ]}>
-          {component.props.text}
-        </Text>
+        <RichText
+          source={component.props.text}
+          env={env}
+          color={textColor(palette, style?.tone, palette.muted)}
+          size={15 * scale}
+          align={align}
+        />
       );
     case 'toolCard':
       return <ToolCard toolId={component.props.toolId} style={style} env={env} />;
@@ -322,14 +322,27 @@ export function ComponentView({ component, env }: { component: Component; env: R
                   {component.props.title}
                 </Text>
               ) : null}
-              <Text style={[palette.font('body', 14 * scale), { color: fg }, align]}>
-                {component.props.text}
-              </Text>
+              <RichText
+                source={component.props.text}
+                env={env}
+                color={fg}
+                size={14 * scale}
+                align={align}
+              />
             </View>
           </View>
         </Card>
       );
     }
+    case 'image':
+      return (
+        <ImageView
+          props={component.props}
+          env={env}
+          componentId={component.id}
+          center={style?.align === 'center'}
+        />
+      );
     case 'divider':
       return <View style={[styles.divider, { backgroundColor: palette.border }]} />;
     case 'spacer':
@@ -366,6 +379,7 @@ export function PageView({
   bottomInset?: number;
 }) {
   const { palette } = env;
+  const pageEnv = { ...env, pageId: page.id };
   return (
     <ScrollView
       style={{ backgroundColor: palette.background }}
@@ -381,7 +395,7 @@ export function PageView({
         .filter((c) => !c.hidden)
         .map((c) => (
           <View key={c.id} testID={`component-${c.id}`}>
-            <ComponentView component={c} env={env} />
+            <ComponentView component={c} env={pageEnv} />
           </View>
         ))}
     </ScrollView>

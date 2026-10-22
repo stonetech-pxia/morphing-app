@@ -2,6 +2,7 @@ import { createDefaultWorkspace } from '../defaults';
 import { applyOps, type Op } from '../ops';
 import type { Registry } from '../registry';
 import { allComponents, type Locale, type WorkspaceConfig } from '../schema';
+import { parseRichText } from '../richtext';
 import { templateOps } from '../templates';
 import { contrast, isDark, resolveColors } from '../theme';
 import type { Plan, RejectReason } from './types';
@@ -83,6 +84,12 @@ const simplifiedMerge = (c: WorkspaceConfig) => {
   return JSON.stringify(actions) === JSON.stringify(['pdf.selectFiles', 'pdf.merge', 'file.save'])
     ? null
     : `steps should be select/merge/save, got ${actions.join(',')}`;
+};
+/** 首页第 index 个组件是一个还没选照片的图片位（AI 不能替用户选照片）。 */
+const imageSlot = (c: WorkspaceConfig, index: number): string | null => {
+  const img = home(c).components[index];
+  if (img?.type !== 'image') return `expected an image at position ${index}, got ${img?.type}`;
+  return img.props.assetId ? 'the AI must not pick a photo' : null;
 };
 /** 有这个标题的页面，且能从导航栏、浮动按钮或首页的按钮 / 快捷入口打开。 */
 const reachablePage = (title: string) => (c: WorkspaceConfig) => {
@@ -322,6 +329,29 @@ export const EVAL_CASES: readonly EvalCase[] = [
     mock: true,
     expect: { kind: 'reject', reason: 'userData' },
   },
+  // 图片、emoji 图标、富文本
+  {
+    id: 'G1',
+    input: '在首页顶部加一张横幅',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: (c) => imageSlot(c, 1) },
+  },
+  {
+    id: 'G2',
+    input: '把记账页面的图标换成💰',
+    locale: 'zh',
+    setup: 'budget',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.pages.find((p) => p.id === 'budget')?.icon === '💰'
+          ? null
+          : 'budget page icon should be 💰',
+    },
+  },
   // 旅程 C
   {
     id: 'C1',
@@ -537,6 +567,87 @@ export const EVAL_CASES: readonly EvalCase[] = [
         [...c.shell.nav, ...c.shell.floating].includes('page:budget')
           ? 'the budget page should be gone or unreachable'
           : null,
+    },
+  },
+  {
+    id: 'P14',
+    input: '首页标题下面加一段介绍：用粗体强调「全部在本机处理」，再用列表写三个要点',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const t = allComponents(home(c)).find(
+          (x) => (x.type === 'text' || x.type === 'notice') && /\*\*[^*]+\*\*/.test(x.props.text),
+        );
+        if (!t || (t.type !== 'text' && t.type !== 'notice')) return 'expected text with **bold**';
+        const blocks = parseRichText(t.props.text);
+        const list = blocks.find((b) => b.type === 'list');
+        return list && list.type === 'list' && list.items.length >= 3
+          ? null
+          : 'expected a list with three points';
+      },
+    },
+  },
+  {
+    id: 'P15',
+    input: 'Put a big photo at the top of the home page with the caption “Our family”',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const problem = imageSlot(c, 1);
+        if (problem) return problem;
+        const img = home(c).components[1]!;
+        return img.type === 'image' && img.props.caption === 'Our family'
+          ? null
+          : 'caption should be “Our family”';
+      },
+    },
+  },
+  {
+    id: 'P16',
+    input: '在首页加一个链接到 https://example.com/help 的帮助说明',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        allComponents(home(c)).some(
+          (x) =>
+            (x.type === 'text' || x.type === 'notice') &&
+            parseRichText(x.props.text).some(
+              (b) =>
+                b.type === 'paragraph' && b.spans.some((s) => s.url === 'https://example.com/help'),
+            ),
+        )
+          ? null
+          : 'expected a text with a link to https://example.com/help',
+    },
+  },
+  {
+    id: 'P17',
+    input:
+      '在首页顶部加一张横幅，标题下面加一段介绍：用粗体强调「全部在本机处理」，再用列表写三个要点，首页图标换成🏡',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    // 多项修改一项都不能漏。只说「横幅」时模型可能理解为文字横幅（提示框），所以这里明确说「横幅图片」。
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        if (!home(c).components.some((x) => x.type === 'image' && !x.props.assetId))
+          return 'expected an empty image slot on the home page';
+        if (home(c).icon !== '🏡') return `home icon should be 🏡, got ${home(c).icon}`;
+        const t = allComponents(home(c)).find(
+          (x) => (x.type === 'text' || x.type === 'notice') && /\*\*[^*]+\*\*/.test(x.props.text),
+        );
+        return t ? null : 'expected an intro with **bold**';
+      },
     },
   },
   {

@@ -1,4 +1,5 @@
 import { Karla_400Regular } from '@expo-google-fonts/karla/400Regular';
+import { Karla_400Regular_Italic } from '@expo-google-fonts/karla/400Regular_Italic';
 import { Karla_500Medium } from '@expo-google-fonts/karla/500Medium';
 import { Karla_700Bold } from '@expo-google-fonts/karla/700Bold';
 import { Sora_600SemiBold } from '@expo-google-fonts/sora/600SemiBold';
@@ -101,6 +102,7 @@ export default function RootLayout() {
     [CLAY_FONTS.heading]: Sora_700Bold,
     [CLAY_FONTS.title]: Sora_600SemiBold,
     [CLAY_FONTS.body]: Karla_400Regular,
+    Karla_400Regular_Italic,
     [CLAY_FONTS.bodyMedium]: Karla_500Medium,
     [CLAY_FONTS.bodyBold]: Karla_700Bold,
   });

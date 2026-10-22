@@ -9,7 +9,7 @@ import {
   FONT_CHOICES,
   HOME_PAGE_ID,
   HexColorSchema,
-  IconSchema,
+  IconValueSchema,
   IdSchema,
   NavTargetSchema,
   PROTECTED_TARGETS,
@@ -60,7 +60,7 @@ export const OpSchema = z.discriminatedUnion('op', [
   z.strictObject({ op: z.literal('setNavItems'), items: z.array(NavTargetSchema).min(1).max(5) }),
   z.strictObject({ op: z.literal('setFloatingItems'), items: z.array(NavTargetSchema).max(3) }),
   z.strictObject({ op: z.literal('setPageTitle'), pageId, title: z.string() }),
-  z.strictObject({ op: z.literal('setPageIcon'), pageId, icon: IconSchema.nullable() }),
+  z.strictObject({ op: z.literal('setPageIcon'), pageId, icon: IconValueSchema.nullable() }),
   z.strictObject({ op: z.literal('addPage'), page: PageSchema.omit({ toolId: true }) }),
   z.strictObject({ op: z.literal('removePage'), pageId }),
   z.strictObject({
@@ -112,7 +112,7 @@ export const OpSchema = z.discriminatedUnion('op', [
     op: z.literal('updateCollection'),
     collectionId: IdSchema,
     name: z.string().optional(),
-    icon: IconSchema.nullable().optional(),
+    icon: IconValueSchema.nullable().optional(),
   }),
   z.strictObject({
     op: z.literal('addField'),

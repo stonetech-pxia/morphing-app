@@ -54,6 +54,7 @@ describe('system prompt', () => {
     for (const icon of ICON_NAMES) expect(prompt).toContain(icon);
     for (const type of FieldSchema.options) expect(prompt).toContain(type.shape.type.value);
     expect(prompt).toContain('"userData"');
+    expect(prompt).toContain('mailto');
   });
 });
 

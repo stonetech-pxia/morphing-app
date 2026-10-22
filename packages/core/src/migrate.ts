@@ -50,10 +50,14 @@ export const migrateV2toV3: Migration = (config) => ({
   collections: [],
 });
 
+/** v3 → v4：新增图片组件、emoji 图标和富文本；已有数据不需要改动，只提升版本号。 */
+export const migrateV3toV4: Migration = (config) => ({ ...config, schemaVersion: 4 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
   2: migrateV2toV3,
+  3: migrateV3toV4,
 };
 
 export type MigrateResult =

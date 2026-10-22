@@ -12,6 +12,8 @@ import {
   type Page,
   type WorkspaceConfig,
 } from '../schema';
+import { isEmoji } from '../richtext';
+import { ICON_NAMES } from '../schema';
 import { entryOps, templateOps, type DataTemplate } from '../templates';
 import type { AIProvider, Plan, PlanContext, RejectReason } from './types';
 
@@ -501,6 +503,80 @@ const addFieldRule: Rule = (clause, state) => {
   ];
 };
 
+function findPage(rawName: string, state: State): Page | undefined {
+  const name = rawName
+    .trim()
+    .replace(/^(?:把|将|the)\s*/i, '')
+    .trim()
+    .toLowerCase();
+  if (/^(?:首页|主页|home)(?: ?page)?$/.test(name)) return page(state, HOME_PAGE_ID);
+  const title = name.replace(/\s*(?:页面|页|page)$/i, '').trim();
+  return state.config.pages.find((p) => [name, title].includes(p.title.toLowerCase()));
+}
+
+function newComponentId(prefix: string, p: Page): string {
+  const ids = new Set(
+    p.components.flatMap((c) =>
+      c.type === 'group' ? [c.id, ...c.children.map((x) => x.id)] : [c.id],
+    ),
+  );
+  for (let n = 1; ; n++) if (!ids.has(`${prefix}-${n}`)) return `${prefix}-${n}`;
+}
+
+/** 「在首页顶部加一张图片」：放一个图片位，照片由用户自己选（D-045）。 */
+const imageRule: Rule = (clause, state) => {
+  const zh = clause.match(
+    /^(?:在|给)?(.+?)(?:的)?(顶部|最上面|开头|上面|底部|最下面|下面)?(?:加|添加|放|增加)(?:一张|一个|张|个)?(?:大)?(图片|照片|横幅|头图|封面|配图)$/,
+  );
+  const en = clause.match(
+    /^add (?:an? )?(?:image|photo|picture|banner)(?: (?:at the (top|bottom) of|to) (?:the )?(.+?))?$/i,
+  );
+  if (!zh && !en) return null;
+  const target = zh ? findPage(zh[1]!, state) : findPage(en![2] ?? 'home', state);
+  if (!target) return null;
+  const where = zh ? zh[2] : en![1];
+  const top = where !== undefined && /顶部|最上面|开头|上面|top/i.test(where);
+  const wide = zh ? /横幅|头图|封面/.test(zh[3]!) : /banner/i.test(clause);
+  return [
+    {
+      op: 'addComponent',
+      pageId: target.id,
+      index: top ? topIndex(target) : target.components.length,
+      component: {
+        id: newComponentId('image', target),
+        type: 'image',
+        props: {
+          aspect: wide || top ? 'wide' : 'landscape',
+          fit: 'cover',
+          placeholder: say(state.ctx.locale, '点按选择一张照片', 'Tap to choose a photo'),
+        },
+      },
+    },
+  ];
+};
+
+/** 「把记账页面的图标换成💰」 */
+const pageIconRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/^(?:把|将)?(.+?)的图标(?:换成|改成|改为|设为|用)(.+)$/) ??
+    clause.match(/^(?:change|set) the icon of (.+?) to (.+)$/i);
+  if (!m) return null;
+  const target = findPage(m[1]!, state);
+  if (!target) return null;
+  const icon = m[2]!.trim();
+  if (!isEmoji(icon) && !(ICON_NAMES as readonly string[]).includes(icon)) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        `图标只能用一个 emoji 或内置图标，「${icon}」不行。`,
+        `An icon must be a single emoji or a built-in icon; “${icon}” isn’t one.`,
+      ),
+    );
+  }
+  return [{ op: 'setPageIcon', pageId: target.id, icon }];
+};
+
 const STEP_KEYWORDS: [RegExp, string][] = [
   [/上传|选择|选文件|select|choose|upload|pick/i, 'selectFiles'],
   [/合并|merge/i, 'merge'],
@@ -705,6 +781,8 @@ const RULES: Rule[] = [
   radiusRule,
   densityRule,
   cardStyleRule,
+  imageRule,
+  pageIconRule,
   templateRule,
   addFieldRule,
   addPageRule,

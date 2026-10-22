@@ -1,9 +1,11 @@
 import { z } from 'zod';
 
+import { isEmoji, unsafeLinks } from './richtext';
+
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 修改本文件中会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export type Locale = 'en' | 'zh';
 export type Localized = Record<Locale, string>;
@@ -44,6 +46,22 @@ export const ICON_NAMES = [
 ] as const;
 export const IconSchema = z.enum(ICON_NAMES);
 export type IconName = z.infer<typeof IconSchema>;
+
+/** 图标：白名单里的名字，或者一个 emoji（D-046）。 */
+export const IconValueSchema = z.union([
+  IconSchema,
+  z.string().refine(isEmoji, { message: 'icon must be a listed icon name or a single emoji' }),
+]);
+export type IconValue = IconName | (string & {});
+
+/** 用户文件的 ID（图片组件引用用户选择的照片）。 */
+export const AssetIdSchema = z.string().regex(/^[a-z0-9]{6,40}$/, 'invalid asset id');
+
+/** 富文本（richtext.ts）：链接只能是 https 或 mailto。 */
+const richText = (max: number) =>
+  text(1, max).refine((s) => unsafeLinks(s).length === 0, {
+    message: 'links must be https:// or mailto: addresses',
+  });
 
 // ---- 主题：白名单样式 token ----
 
@@ -119,7 +137,7 @@ export type FieldType = Field['type'];
 export const CollectionSchema = z.strictObject({
   id: IdSchema,
   name: text(1, 40),
-  icon: IconSchema.optional(),
+  icon: IconValueSchema.optional(),
   fields: z.array(FieldSchema).min(1).max(30),
 });
 export type Collection = z.infer<typeof CollectionSchema>;
@@ -209,7 +227,8 @@ export const HeaderComponentSchema = z.strictObject({
 export const TextComponentSchema = z.strictObject({
   ...componentBase,
   type: z.literal('text'),
-  props: z.strictObject({ text: text(1, 500) }),
+  /** 支持粗体、斜体、链接和列表（richtext.ts）。 */
+  props: z.strictObject({ text: richText(1500) }),
 });
 
 export const ToolCardComponentSchema = z.strictObject({
@@ -258,7 +277,7 @@ export const ShortcutComponentSchema = z.strictObject({
   props: z.strictObject({
     title: text(1, 40),
     subtitle: text(1, 80).optional(),
-    icon: IconSchema,
+    icon: IconValueSchema,
     target: NavTargetSchema,
   }),
 });
@@ -269,8 +288,25 @@ export const NoticeComponentSchema = z.strictObject({
   type: z.literal('notice'),
   props: z.strictObject({
     title: text(1, 60).optional(),
-    text: text(1, 300),
-    icon: IconSchema.optional(),
+    text: richText(600),
+    icon: IconValueSchema.optional(),
+  }),
+});
+
+/**
+ * 图片：AI 只能放一个图片位并设置版式；用哪张照片由用户在页面上选择（D-045）。
+ * assetId 指向用户文件，AI 看不到图片内容和文件名。
+ */
+export const ImageComponentSchema = z.strictObject({
+  ...componentBase,
+  type: z.literal('image'),
+  props: z.strictObject({
+    assetId: AssetIdSchema.nullable().optional(),
+    aspect: z.enum(['wide', 'landscape', 'square', 'portrait']),
+    fit: z.enum(['cover', 'contain']),
+    caption: text(1, 120).optional(),
+    /** 还没选照片时显示的提示。 */
+    placeholder: text(1, 60).optional(),
   }),
 });
 
@@ -340,6 +376,7 @@ const LeafComponentSchema = z.discriminatedUnion('type', [
   ButtonComponentSchema,
   ShortcutComponentSchema,
   NoticeComponentSchema,
+  ImageComponentSchema,
   DividerComponentSchema,
   SpacerComponentSchema,
   RecordListComponentSchema,
@@ -374,7 +411,7 @@ export const PageSchema = z.strictObject({
   id: IdSchema,
   title: text(1, 40),
   /** 导航栏里显示的图标。 */
-  icon: IconSchema.optional(),
+  icon: IconValueSchema.optional(),
   /** 由某个工具创建的页面；卸载该工具时一并移除。 */
   toolId: IdSchema.optional(),
   components: z.array(ComponentSchema).max(30),

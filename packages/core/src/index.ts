@@ -13,6 +13,7 @@ export * from './migrate';
 export * from './naming';
 export * from './ops';
 export * from './registry';
+export * from './richtext';
 export * from './schema';
 export * from './templates';
 export * from './theme';

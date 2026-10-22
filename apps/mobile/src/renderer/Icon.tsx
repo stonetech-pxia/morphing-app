@@ -1,4 +1,4 @@
-import type { IconName } from '@morph/core';
+import type { IconName, IconValue } from '@morph/core';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { Text } from 'react-native';
 
@@ -31,10 +31,33 @@ const SYMBOLS: Record<IconName, SymbolName> = {
   search: { ios: 'magnifyingglass', android: 'search' },
 };
 
-export function Icon({ name, size = 22, color }: { name: IconName; size?: number; color: string }) {
+export function Icon({
+  name,
+  size = 22,
+  color,
+}: {
+  name: IconValue;
+  size?: number;
+  color: string;
+}) {
+  // 不是内置图标名的就是 emoji（schema 已校验），按原样显示。
+  if (!(name in SYMBOLS)) {
+    return (
+      <Text
+        allowFontScaling={false}
+        style={{
+          fontSize: Math.round(size * 0.92),
+          lineHeight: Math.round(size * 1.15),
+          textAlign: 'center',
+          minWidth: size,
+        }}>
+        {name}
+      </Text>
+    );
+  }
   return (
     <SymbolView
-      name={SYMBOLS[name]}
+      name={SYMBOLS[name as IconName]}
       size={size}
       tintColor={color}
       // 平台不支持系统图标时（例如 Web），用一个圆点占位，保证布局不变。

@@ -1,4 +1,4 @@
-import type { IconName } from '@morph/core';
+import type { IconValue } from '@morph/core';
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -61,7 +61,7 @@ export function IconTile({
   size = 46,
 }: {
   palette: Palette;
-  icon: IconName;
+  icon: IconValue;
   background: string;
   color: string;
   size?: number;
@@ -218,7 +218,7 @@ export function ListRow({
   testID,
 }: {
   palette: Palette;
-  icon?: IconName;
+  icon?: IconValue;
   label: string;
   value?: string;
   onPress?: () => void;

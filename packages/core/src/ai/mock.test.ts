@@ -248,6 +248,30 @@ describe('mock AI — data pages (structure only)', () => {
   });
 });
 
+describe('mock AI — images and icons', () => {
+  it('G1 adds an empty image slot; the user picks the photo later', async () => {
+    const { after, lines } = await change('在首页顶部加一张横幅', workspace());
+    expect(home(after).components[1]).toEqual({
+      id: 'image-1',
+      type: 'image',
+      props: { aspect: 'wide', fit: 'cover', placeholder: '点按选择一张照片' },
+    });
+    expect(lines).toEqual(['在「首页」添加图片']);
+    const en = await change('Add a photo to the home page', workspace('en'), 'en');
+    expect(home(en.after).components.at(-1)).toMatchObject({
+      type: 'image',
+      props: { aspect: 'landscape' },
+    });
+  });
+
+  it('G2 sets an emoji as a page icon', async () => {
+    const budget = (await change('新建一个记账页面', workspace())).after;
+    const { after } = await change('把记账页面的图标换成💰', budget);
+    expect(after.pages.find((p) => p.title === '记账')!.icon).toBe('💰');
+    expect(await plan('把记账页面的图标换成钱', budget)).toMatchObject({ kind: 'reject' });
+  });
+});
+
 describe('mock AI — journey C (PDF tool)', () => {
   it('C1 simplifies to pick + merge, saves automatically as 合并-日期', async () => {
     const { after, lines } = await change(

@@ -25,6 +25,10 @@ export interface PickedFile {
 export interface FilePlatform {
   /** 用户取消时返回 null。 */
   pickPdfs(): Promise<PickedFile[] | null>;
+  /** 从相册选一张照片；用户取消时返回 null。 */
+  pickImage(): Promise<PickedFile | null>;
+  /** 某个用户文件可以直接显示的地址（图片组件用）。 */
+  fileUri(path: string): string;
   importFile(
     file: PickedFile,
     assetId: string,

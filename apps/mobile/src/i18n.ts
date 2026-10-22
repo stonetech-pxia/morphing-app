@@ -232,6 +232,25 @@ const strings = {
   runError_unexpected: { en: 'Something went wrong: {detail}', zh: '出现错误：{detail}' },
   toolMissing: { en: 'This tool is not available.', zh: '这个工具不可用。' },
 
+  // 图片与链接
+  imagePlaceholder: { en: 'Tap to choose a photo', zh: '点按选择一张照片' },
+  imageTitle: { en: 'Picture', zh: '图片' },
+  imageMissing: {
+    en: 'This picture is not on this device. Tap to choose another.',
+    zh: '这张图片不在这台设备上，点按换一张。',
+  },
+  chooseImage: { en: 'Choose another photo', zh: '更换照片' },
+  removeImage: { en: 'Remove photo', zh: '移除照片' },
+  setImageSummary: { en: 'Set a picture', zh: '设置图片' },
+  removeImageSummary: { en: 'Remove a picture', zh: '移除图片' },
+  imageTooLarge: {
+    en: 'This photo is larger than {mb} MB.',
+    zh: '这张照片超过 {mb} MB。',
+  },
+  openLinkTitle: { en: 'Open link?', zh: '打开链接？' },
+  openLinkMessage: { en: 'This opens {target} outside the app.', zh: '将在 App 外打开 {target}。' },
+  openLink: { en: 'Open', zh: '打开' },
+
   // 用户数据
   noRecords: { en: 'Nothing here yet', zh: '还没有记录' },
   today: { en: 'Today', zh: '今天' },

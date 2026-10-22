@@ -18,6 +18,13 @@ export class FakeFiles implements FilePlatform {
   async pickPdfs() {
     return this.nextPick;
   }
+  nextImage: PickedFile | null = null;
+  async pickImage() {
+    return this.nextImage;
+  }
+  fileUri(path: string) {
+    return `file:///fake/${path}`;
+  }
   async importFile(file: PickedFile, assetId: string, name: string) {
     const bytes = this.disk.get(file.uri);
     if (!bytes) throw new Error('permission denied');
