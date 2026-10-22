@@ -165,6 +165,8 @@ describe('mock AI — style', () => {
       ['换成新粗野风格', 'brutalist'],
       ['切换到新拟物风格', 'neumorphism'],
       ['换成黏土风', 'claymorphism'],
+      ['换成毛玻璃风格', 'glass'],
+      ['换成 Y2K 风格', 'y2k'],
     ];
     for (const [input, preset] of cases) {
       const { after } = await change(input, workspace());

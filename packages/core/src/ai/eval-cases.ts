@@ -8,6 +8,17 @@ import { THEME_PRESETS } from '../presets';
 import { CLAY, contrast, isDark, resolveColors } from '../theme';
 import type { Plan, RejectReason } from './types';
 
+/** 结构相同即可（校验后对象的键顺序可能变）。 */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return a === b;
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  return (
+    ka.length === kb.length &&
+    ka.every((k) => sameValue((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]))
+  );
+}
+
 // AI 评测集（§7F、§14）：mock AI 与真实模型用同一组用例衡量。
 // ID 与 docs/MOCK_AI_PHRASES.md 对应；P* 是只有真实模型才需要理解的改写说法。
 
@@ -306,9 +317,23 @@ export const EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        JSON.stringify(c.theme) === JSON.stringify(THEME_PRESETS.editorial.theme)
+        sameValue(c.theme, THEME_PRESETS.editorial.theme)
           ? null
           : `theme should be the editorial preset, got ${JSON.stringify(c.theme)}`,
+    },
+  },
+  {
+    id: 'B12d',
+    input: '换成毛玻璃风格',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        sameValue(c.theme, THEME_PRESETS.glass.theme)
+          ? null
+          : `theme should be the glass preset, got ${JSON.stringify(c.theme)}`,
     },
   },
   {

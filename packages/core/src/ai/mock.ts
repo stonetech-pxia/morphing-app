@@ -351,6 +351,8 @@ const PRESET_ALIASES: Record<ThemePresetId, string[]> = {
   claymorphism: ['黏土', '粘土', 'claymorphism', 'claymorphic'],
   brutalist: ['新粗野', '粗野', '野兽派', 'brutalist', 'neubrutalism', 'neubrutalist'],
   neumorphism: ['新拟物', '拟物', 'neumorphism', 'neumorphic', 'soft ui'],
+  glass: ['毛玻璃', '玻璃', '液态玻璃', 'liquid glass', 'glass', 'glassmorphism', 'frosted glass'],
+  y2k: ['y2k', 'y2k 千禧', '千禧', '千禧年', '金属', 'chrome'],
 };
 
 const presetRule: Rule = (clause) => {

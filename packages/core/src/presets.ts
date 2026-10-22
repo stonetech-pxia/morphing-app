@@ -14,6 +14,8 @@ export const THEME_PRESET_IDS = [
   'claymorphism',
   'brutalist',
   'neumorphism',
+  'glass',
+  'y2k',
 ] as const;
 export type ThemePresetId = (typeof THEME_PRESET_IDS)[number];
 
@@ -292,6 +294,66 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
       density: 'spacious',
       cardStyle: 'soft',
       navStyle: 'iconLabel',
+    },
+  },
+  glass: {
+    name: { zh: '液态玻璃', en: 'Liquid Glass' },
+    description:
+      'Glassmorphism / Liquid Glass: aurora background behind translucent frosted-glass cards',
+    theme: {
+      primaryColor: '#6366F1',
+      mode: 'system',
+      colors: {
+        background: '#F5F3FF',
+        surface: '#FFFFFF',
+        text: '#1E1B4B',
+        secondary: '#EC4899',
+        tertiary: '#06B6D4',
+      },
+      darkColors: {
+        background: '#0B0B1A',
+        surface: '#1E1B3A',
+        text: '#EEF2FF',
+        secondary: '#F472B6',
+        tertiary: '#22D3EE',
+      },
+      font: 'system',
+      fontScale: 1,
+      radius: 24,
+      density: 'comfortable',
+      cardStyle: 'glass',
+      navStyle: 'iconLabel',
+      backdrop: 'aurora',
+    },
+  },
+  y2k: {
+    name: { zh: 'Y2K 千禧', en: 'Y2K' },
+    description:
+      'Y2K chrome: pink-to-blue gradient background, glossy metallic cards, hot pink accent',
+    theme: {
+      primaryColor: '#FF3EA5',
+      mode: 'system',
+      colors: {
+        background: '#EEF2FF',
+        surface: '#D9DEE5',
+        text: '#111827',
+        secondary: '#3B82F6',
+        tertiary: '#A855F7',
+      },
+      darkColors: {
+        background: '#0F1020',
+        surface: '#3A3F4B',
+        text: '#F1F5F9',
+        secondary: '#60A5FA',
+        tertiary: '#C084FC',
+      },
+      font: 'system',
+      fontScale: 1,
+      radius: 14,
+      density: 'comfortable',
+      cardStyle: 'chrome',
+      navStyle: 'iconLabel',
+      backdrop: 'gradient',
     },
   },
 };
