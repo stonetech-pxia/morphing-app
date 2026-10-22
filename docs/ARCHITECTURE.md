@@ -98,9 +98,11 @@ SQLite 表（`PRAGMA user_version` 管理数据库结构升级，见 `apps/mobil
 
 ## 5.1 工作流执行（TOOLS_DESIGN.md）
 
-执行器在 `packages/core/src/workflow/engine.ts`：按顺序执行步骤，步骤之间传递**一个有类型的值**（images / pdf / files / zip / text，D-060），执行前再检查一次类型链和参数，支持进度、取消、运行时询问参数和扩展包确认；`tool_runs` 只记录状态和错误代码。动作契约（输入输出类型、zod 参数、参数界面元数据）在 `core/src/workflow/contract.ts` 和各工具清单里。
+执行器在 `packages/core/src/workflow/engine.ts`：按顺序执行步骤，步骤之间传递**一个有类型的值**（images / pdf / files / zip / text / records，D-060），执行前再检查一次类型链和参数，支持进度、取消、运行时询问参数和扩展包确认；`tool_runs` 只记录状态和错误代码。动作契约（输入输出类型、zod 参数、参数界面元数据）在 `core/src/workflow/contract.ts` 和各工具清单里。
 
 App 侧：`apps/mobile/src/runtime/runner.ts` 把执行器接上存储和平台；动作实现在 `runtime/actions/`，纯逻辑调用 `packages/tool-*`（tool-pdf、tool-image、tool-archive、tool-qr，Node + 真实文件测试）；平台能力（选照片 / 文件、临时文件、分享、存相册、打印）通过 `FilePlatform`（`runtime/platform.ts`）注入，App 中由 Expo 模块实现，测试中用内存实现。运行页面 `app/run/[workflowId].tsx` 显示每一步、本地操作界面（`run/local/`）和结果预览。中间结果是缓存目录 `runs/<runId>/` 里的临时文件，只有「保存」才成为用户文件（D-063）。
+
+工作流的管理（D-081、D-082）：预设写在 `core/src/workflows/presets.ts`，添加时用 `presetWorkflow()` 复制进配置；增删改都是修改操作（`addWorkflow`、`updateWorkflow` 等，在 `core/src/ops.ts`），和 AI 一样经过校验、生成版本、可撤销。「工作流」页 `app/workflows.tsx`（`shell/WorkflowsScreen.tsx`）列出我的工作流、预设库和工具自带的；编辑页 `app/workflow/[id].tsx`（`run/WorkflowEditor.tsx`）按动作的 `fields` 生成表单（`run/ParamForm.tsx`），只列出类型接得上的动作（`insertableActions`），保存走 `run/workflow-change.ts`（proposeOps → confirm，不再弹预览）。这两个页面由内核提供，AI 不能修改。Mock AI 的工作流句式在 `core/src/ai/workflow-phrases.ts`。
 
 扩展包（D-064、D-075）：清单在 `core/src/packs.ts`；下载、校验、删除在 `apps/mobile/src/packs/store.ts`（`documentDirectory/packs/<id>/<version>/`）；`PackHost` 按需挂载隐藏的 WebView，页面是随 App 发布的固定 HTML（`packs/pages/`），库文件经 `bridge.ts` 分块送进页面。用户在 `PackGate` 确认后才下载；「设置 → 扩展包」（`app/packs.tsx`）管理已下载的扩展包。扩展包页面：`pdfview`（pdf.js）、`scan`（OpenCV.js + jscanify：找边、透视矫正）、`ocr`（tesseract.js：worker 是前置脚本 + 内嵌 wasm 的核心 + worker.min.js 拼成的 Blob，语言数据由页面送进 worker）。送进页面的图片先在 App 里重新编码成 JPG 并缩到 1677 万像素以内（`imageForPage`）；离开运行页面时关掉扫描和识别页面释放内存。动作的扩展包由参数决定时用 `packFor`（执行器先问参数再确认下载）。
 

@@ -59,6 +59,9 @@ describe('workflow journeys (UI)', () => {
     await fireEvent.press(await screen.findByText('撤销'));
     expect(visa(store)!.name).toBe('签证 / 证件照');
     expect(visa(store)!.steps).toHaveLength(3);
+    // 编辑页跟着回到撤销后的样子，不留下「未保存的改动」。
+    expect(screen.getByTestId('workflow-name').props.value).toBe('签证 / 证件照');
+    expect(screen.queryByTestId('workflow-discard')).toBeNull();
   });
 
   it('keeps steps that do not fit from being saved, and can put the workflow on Home', async () => {

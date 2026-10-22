@@ -52,6 +52,12 @@ export function WorkflowEditor({
   const change = useWorkflowChange();
   const saved: Draft = { name: workflow.name, steps: workflow.steps };
   const [draft, setDraft] = useState<Draft>(saved);
+  // 工作流在别处被改了（提示条上的「撤销」、AI）：草稿没有未保存的改动时跟着更新。
+  const [base, setBase] = useState<Draft>(saved);
+  if (!same(base, saved)) {
+    setBase(saved);
+    if (same(draft, base)) setDraft(saved);
+  }
   // 插入步骤的选择框：在第几步之前插入。
   const [inserting, setInserting] = useState<number | null>(null);
   const dirty = !same(draft, saved);

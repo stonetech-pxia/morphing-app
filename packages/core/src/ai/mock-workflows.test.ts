@@ -37,6 +37,9 @@ describe('mock AI — workflows', () => {
     expect(lines[0]).toContain('新建工作流「签证 / 证件照」（从预设添加）');
     const en = await change('Add the scan a document preset', workspace('en'), 'en');
     expect(en.after.workflows.at(-1)!.presetId).toBe('scan-document');
+    // AI 修改页「可以试试」里的英文例句。
+    const example = await change('Add the visa photo workflow', workspace('en'), 'en');
+    expect(example.after.workflows.at(-1)!.presetId).toBe('visa-photo');
     expect(await plan('添加签证照片工作流', withVisa())).toMatchObject({
       kind: 'reject',
       reason: 'noChange',

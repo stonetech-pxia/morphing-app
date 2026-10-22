@@ -39,6 +39,7 @@ const EXAMPLES: Localized[] = [
   { zh: '主题换成绿色', en: 'Change the theme color to green' },
   { zh: '字体大一点', en: 'Bigger text' },
   { zh: '新建一个叫「记账」的页面', en: 'Add a page called Budget' },
+  { zh: '添加签证照片工作流', en: 'Add the visa photo workflow' },
   { zh: '撤销刚才的修改', en: 'Undo the last change' },
 ];
 

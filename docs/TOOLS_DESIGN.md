@@ -169,11 +169,49 @@ interface StepContext {
 
 ## 7. 预设工作流和编辑
 
-10 个预设写在 `core/src/workflows/presets.ts`，不随版本：用户在「工作流」页点「添加」时复制进配置（一个可撤销的版本），之后就和用户自己的工作流一样，可以改参数、改步骤、复制、放到页面上、删除。
+10 个预设写在 `core/src/workflows/presets.ts`，不随版本：用户在「工作流」页点「添加」（或对 AI 说「添加签证照片工作流」）时用 `presetWorkflow()` 复制进配置（一个可撤销的版本，带 `presetId` 和图标，没有 `toolId`），之后就和用户自己的工作流一样，可以改参数、改步骤、复制、放到页面上、删除。预设是用户工作流，**不要求先安装任何工具**；需要扩展包的预设在第一次运行到那一步时才请用户确认下载（§6）。
 
-编辑页根据 `fields` 自动生成表单；只能插入类型接得上的动作；每次「保存」生成一个版本（摘要「修改工作流「X」」），提示条可撤销，历史里可恢复。
+| id                   | 名称                | 步骤                                                                       | 扩展包  |
+| -------------------- | ------------------- | -------------------------------------------------------------------------- | ------- |
+| `visa-photo`         | 签证 / 证件照       | 选照片 → 证件照（美签 600×600，≤ 240 KB）→ 命名                            |         |
+| `document-packet`    | 材料包              | 选照片 / 拍照 → 裁剪 → 排顺序（`file.order`）→ A4 PDF ≤ 4 MB → 命名 → 分享 |         |
+| `email-photos`       | 照片发邮件 / 传网站 | 选照片 → 长边 1600 → 压到 500 KB → 分享                                    |         |
+| `sign-return`        | 签回表格            | 选 PDF → 填表（没有字段时跳过）→ 签名 → 分享                               | pdfview |
+| `scan-document`      | 扫描文档            | 拍照 → 找边 → 变清楚 → PDF → 命名 → 分享                                   | scan    |
+| `combine-documents`  | 多份材料合一        | 选 PDF 和图片 → 合并 → 选页 / 排序 / 旋转 → 命名 → 分享                    |         |
+| `receipt-archive`    | 收据归档            | 拍收据 → 拉正 → 压到 500 KB → 按日期命名 → 存到文件                        | scan    |
+| `redact-screenshots` | 截图打码分享        | 选截图 → 拼长图 → 打码 → 分享                                              |         |
+| `send-photos`        | 批量发照片          | 选照片 → 转 JPG → 去掉定位 → 长边 2048 → ZIP → 分享                        |         |
+| `print-id-photos`    | 证件照打印          | 选照片 → 证件照 → 排到 6 寸相纸（裁切线）→ 打印或保存                      |         |
 
-AI 的修改操作：`addWorkflow`、`removeWorkflow`、`renameWorkflow`、`addWorkflowStep`、`removeWorkflowStep`、`moveWorkflowStep`、`setStepParams`（含 `ask`）；「放到页面上」就是 `addComponent` 一个 `workflowRunner`。planner 的提示词包含动作目录（id、输入输出类型、参数结构、需要的扩展包）。
+**「工作流」页**（`app/workflows.tsx`，入口在设置页和工具页）：我的工作流（运行 / 编辑）、预设库（添加；已添加的显示「已添加」，可以再添加一个）、工具自带的（默认收起）。这个页面由内核提供，AI 不能修改它。
+
+**编辑页**（`app/workflow/[id].tsx`，`run/WorkflowEditor.tsx`）：
+
+- 名字（1–40 字）；每一步按 `fields` 自动生成表单（`ParamForm`，含 `presets` 快捷按钮），「每次运行时问」逐个参数勾选。
+- 「在这里加一步」只列出类型接得上的动作（`insertableActions`），新步骤的参数用 `initialParams(action)`；上移 / 下移 / 删除，接不上的步骤标红，不能保存。
+- 改动先放在草稿里；「保存」用一个 `updateWorkflow` 生成一个版本（摘要「修改工作流「X」」），提示条可撤销，历史里可恢复。工作流在别处被改了（撤销、AI）而草稿没有未保存的改动时，草稿跟着更新。
+- 「复制」「放到首页」（`addComponent` 一个 `workflowRunner`）、「恢复预设」（有 `presetId` 时）、「删除」（确认一次，文件不受影响；工具自带的不能删）。从运行页的结果区也可以进入编辑。
+
+**新动作和参数**：
+
+- `file.order`（本地 `reorder`）：用户排顺序、可去掉几项，任意类型的 `files` / `images` 都能接。
+- `pdf.fillForm.whenNoFields`：`'stop'`（默认，报错）或 `'skip'`（原样交给下一步，「签回表格」用它处理扫描件）。
+- 输入和常用动作补了 `presets`（「相册，最多 30 张」「PDF，最多 10 个」「240 KB / 500 KB / 1 MB / 2 MB」等）。
+
+**修改操作**（`core/src/ops.ts`，说明在 `describe.ts`；编辑页和 AI 走同一个协议）：
+
+| op                                               | 说明                                                                                  |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `addWorkflow {workflow}`                         | 不能带 `toolId`；最多 100 个工作流                                                    |
+| `removeWorkflow {workflowId}`                    | 工具自带的不能删；同时移除运行它的 `workflowRunner`（说明里写「同时移除 N 个卡片」）  |
+| `renameWorkflow {workflowId, name}`              |                                                                                       |
+| `addWorkflowStep {workflowId, step, index?}`     | 不给 `index` 加在最后                                                                 |
+| `moveWorkflowStep {workflowId, stepId, toIndex}` |                                                                                       |
+| `removeWorkflowStep`、`setStepParams`            | 原有（`setStepParams` 含 `ask`）                                                      |
+| `updateWorkflow {workflowId, name?, steps?}`     | 编辑页一次保存；AI 看到的私有参数是 `<user text>` 占位符，原样传回时保留旧值（D-082） |
+
+所有修改之后照常跑 `validateWorkspace`（§2），接不上的工作流不会被提交。planner 的提示词包含动作目录（id、输入输出类型、参数结构及枚举和范围、需要的扩展包）、预设清单和规则 20（建工作流）、21（记录做成报表）。
 
 ## 8. 迁移（schemaVersion 4 → 5）
 
