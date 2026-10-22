@@ -144,6 +144,12 @@ describe('mock AI — style', () => {
   it('B9 card style', async () => {
     expect((await change('去掉阴影', workspace())).after.theme.cardStyle).toBe('flat');
     expect((await change('卡片加边框', workspace())).after.theme.cardStyle).toBe('outline');
+    expect((await change('卡片改成新粗野风格', workspace())).after.theme.cardStyle).toBe('brutal');
+    expect((await change('卡片换成新拟物', workspace())).after.theme.cardStyle).toBe('soft');
+    expect((await change('卡片用黏土质感', workspace())).after.theme.cardStyle).toBe('puffy');
+    expect((await change('Neumorphic cards', workspace('en'), 'en')).after.theme.cardStyle).toBe(
+      'soft',
+    );
   });
 
   it('B10 navigation bar style', async () => {

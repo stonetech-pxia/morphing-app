@@ -4,7 +4,7 @@ import type { Registry } from '../registry';
 import { allComponents, type Locale, type WorkspaceConfig } from '../schema';
 import { parseRichText } from '../richtext';
 import { templateOps } from '../templates';
-import { contrast, isDark, resolveColors } from '../theme';
+import { CLAY, contrast, isDark, resolveColors } from '../theme';
 import type { Plan, RejectReason } from './types';
 
 // AI 评测集（§7F、§14）：mock AI 与真实模型用同一组用例衡量。
@@ -265,6 +265,36 @@ export const EVAL_CASES: readonly EvalCase[] = [
         c.theme.cardStyle !== 'shadow'
           ? null
           : `cards should lose their shadow, got ${c.theme.cardStyle}`,
+    },
+  },
+  {
+    id: 'B9b',
+    input: '卡片改成新粗野风格',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.theme.cardStyle === 'brutal' ? null : `cards should be brutal, got ${c.theme.cardStyle}`,
+    },
+  },
+  {
+    id: 'B9c',
+    input: '深色模式下用纯黑背景，浅色模式不变',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const light = resolveColors(c.theme, false).background;
+        const dark = resolveColors(c.theme, true).background;
+        if (light !== CLAY.light.background) return `light background changed to ${light}`;
+        return contrast(dark, '#000000') < 1.2
+          ? null
+          : `dark background should be black, got ${dark}`;
+      },
     },
   },
   // 导航与页面

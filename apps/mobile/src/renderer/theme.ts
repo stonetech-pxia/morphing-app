@@ -1,5 +1,6 @@
 import {
   isDark,
+  mix,
   resolveColors,
   type ComponentStyle,
   type ResolvedColors,
@@ -29,6 +30,11 @@ const WEIGHTS: Record<FontRole, TextStyle['fontWeight']> = {
   body: '400',
   bodyMedium: '500',
   bodyBold: '700',
+};
+
+const rgba = (hex: string, alpha: number) => {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
 };
 
 const SERIF = Platform.select({ ios: 'Georgia', default: 'serif' });
@@ -86,6 +92,32 @@ export function makePalette(theme: Theme, systemDark: boolean): Palette {
       if (theme.cardStyle === 'outline')
         return { ...base, borderWidth: 1, borderColor: colors.border };
       if (theme.cardStyle === 'flat') return base;
+      // 下面三种用 boxShadow（新架构自带）：旧的 shadow* 属性做不出硬阴影、多层阴影和内阴影。
+      if (theme.cardStyle === 'brutal') {
+        return {
+          ...base,
+          borderWidth: 2,
+          borderColor: colors.text,
+          boxShadow: `4px 4px 0px ${colors.text}`,
+        };
+      }
+      if (theme.cardStyle === 'soft') {
+        // 新拟物：左上亮、右下暗，卡片和背景同色时最像。
+        const light = colors.dark ? rgba('#FFFFFF', 0.06) : mix(colors.background, '#FFFFFF', 0.8);
+        const dark = rgba(colors.dark ? '#000000' : colors.shadow, colors.dark ? 0.6 : 0.16);
+        return { ...base, boxShadow: `-5px -5px 12px ${light}, 6px 6px 14px ${dark}` };
+      }
+      if (theme.cardStyle === 'puffy') {
+        // 黏土：外面一层柔和阴影，里面上亮下暗的内阴影让卡片像鼓起来。
+        return {
+          ...base,
+          boxShadow: [
+            `0px 12px 24px ${rgba(colors.shadow, colors.dark ? 0.45 : 0.16)}`,
+            `inset 0px 6px 10px ${rgba('#FFFFFF', colors.dark ? 0.08 : 0.7)}`,
+            `inset 0px -6px 12px ${rgba('#000000', colors.dark ? 0.3 : 0.08)}`,
+          ].join(', '),
+        };
+      }
       return {
         ...base,
         shadowColor: colors.shadow,

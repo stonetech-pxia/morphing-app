@@ -112,13 +112,16 @@ export function isDark(theme: Theme, systemDark: boolean): boolean {
 
 export function resolveColors(theme: Theme, dark: boolean): ResolvedColors {
   const base = dark ? CLAY.dark : CLAY.light;
-  const o = theme.colors;
+  // 深色模式：darkColors 优先，没设置的颜色沿用 colors（旧主题只有 colors，行为不变）。
+  const o = dark ? { ...theme.colors, ...theme.darkColors } : theme.colors;
   const background = o.background ?? base.background;
   const surface = o.surface ?? base.surface;
   const text = o.text ?? base.text;
   const secondary = o.secondary ?? base.secondary;
+  const tertiary = o.tertiary ?? base.tertiary;
   const primary = theme.primaryColor;
   const tintAmount = dark ? 0.78 : 0.82;
+  const custom = Boolean(o.text || o.surface || o.background);
   return {
     dark,
     background,
@@ -134,11 +137,12 @@ export function resolveColors(theme: Theme, dark: boolean): ResolvedColors {
     secondary,
     secondaryTint: mix(secondary, surface, tintAmount),
     onSecondaryTint: readable(secondary, mix(secondary, surface, tintAmount), text, 4.5),
-    tertiary: base.tertiary,
-    tertiaryTint: mix(base.tertiary, surface, tintAmount),
-    onTertiaryTint: readable(base.tertiary, mix(base.tertiary, surface, tintAmount), text, 4.5),
+    tertiary,
+    tertiaryTint: mix(tertiary, surface, tintAmount),
+    onTertiaryTint: readable(tertiary, mix(tertiary, surface, tintAmount), text, 4.5),
     danger: base.danger,
-    shadow: base.shadow,
+    // 浅色模式下 Clay 的暖棕阴影只适合 Clay 配色；换了配色时阴影用正文色，色相跟着主题走。
+    shadow: custom && !dark ? text : base.shadow,
   };
 }
 

@@ -24,6 +24,7 @@ import {
   type Locale,
   type NavTarget,
   type Page,
+  type ThemeColors,
   type WorkspaceConfig,
 } from './schema';
 import { DEFAULT_THEME } from './theme';
@@ -36,19 +37,21 @@ const componentId = IdSchema;
 /** null 表示恢复默认值。 */
 const resettable = <T extends z.ZodType>(schema: T) => schema.nullable().optional();
 
+const ColorOverridesSchema = z.strictObject({
+  background: resettable(HexColorSchema),
+  surface: resettable(HexColorSchema),
+  text: resettable(HexColorSchema),
+  secondary: resettable(HexColorSchema),
+  tertiary: resettable(HexColorSchema),
+});
+
 export const OpSchema = z.discriminatedUnion('op', [
   z.strictObject({
     op: z.literal('setTheme'),
     primaryColor: HexColorSchema.optional(),
     mode: ThemeSchema.shape.mode.optional(),
-    colors: z
-      .strictObject({
-        background: resettable(HexColorSchema),
-        surface: resettable(HexColorSchema),
-        text: resettable(HexColorSchema),
-        secondary: resettable(HexColorSchema),
-      })
-      .optional(),
+    colors: ColorOverridesSchema.optional(),
+    darkColors: ColorOverridesSchema.optional(),
     font: z.enum(FONT_CHOICES).optional(),
     fontScale: ThemeSchema.shape.fontScale.optional(),
     radius: ThemeSchema.shape.radius.optional(),
@@ -254,14 +257,22 @@ function keepProtectedReachable(config: WorkspaceConfig, notes: ApplyNote[]): vo
 function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: ApplyNote[]): void {
   switch (op.op) {
     case 'setTheme': {
-      const { op: _, colors, ...tokens } = op;
+      const { op: _, colors, darkColors, ...tokens } = op;
       for (const [key, value] of Object.entries(tokens)) {
         if (value !== undefined) (config.theme as Record<string, unknown>)[key] = value;
       }
-      for (const [key, value] of Object.entries(colors ?? {})) {
-        const k = key as keyof typeof config.theme.colors;
-        if (value === null) delete config.theme.colors[k];
-        else if (value !== undefined) config.theme.colors[k] = value;
+      const setColors = (target: ThemeColors, changes: typeof colors) => {
+        for (const [key, value] of Object.entries(changes ?? {})) {
+          const k = key as keyof ThemeColors;
+          if (value === null) delete target[k];
+          else if (value !== undefined) target[k] = value;
+        }
+      };
+      setColors(config.theme.colors, colors);
+      if (darkColors) {
+        const dark = (config.theme.darkColors ??= {});
+        setColors(dark, darkColors);
+        if (Object.keys(dark).length === 0) delete config.theme.darkColors;
       }
       return;
     }

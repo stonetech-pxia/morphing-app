@@ -78,6 +78,13 @@ describe('migrateWorkspace', () => {
     expect(full.ok && full.after.shell.floating).toEqual(['settings']);
   });
 
+  it('upgrades a v4 snapshot by only bumping the version', () => {
+    const v4 = { ...workspace(), schemaVersion: 4 };
+    const result = prepareSnapshot(v4, registry);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.after).toEqual(workspace());
+  });
+
   it('refuses snapshots it cannot migrate', () => {
     const v0 = { ...v1Snapshot, schemaVersion: 0 };
     expect(migrateWorkspace(v0)).toEqual({ ok: false, error: 'no migration from schemaVersion 0' });

@@ -112,7 +112,7 @@ const FIELD_TYPE_NAMES: Record<string, [string, string]> = {
   rating: ['评分', 'rating'],
 };
 
-type ThemeTokenKey = Exclude<keyof Theme, 'primaryColor' | 'mode' | 'colors'>;
+type ThemeTokenKey = Exclude<keyof Theme, 'primaryColor' | 'mode' | 'colors' | 'darkColors'>;
 
 /** 主题 token 的名字和取值说明。 */
 function describeToken(key: ThemeTokenKey, value: unknown, zh: boolean): string {
@@ -132,6 +132,9 @@ function describeToken(key: ThemeTokenKey, value: unknown, zh: boolean): string 
       shadow: ['阴影', 'shadow'],
       outline: ['描边', 'outline'],
       flat: ['无阴影无描边', 'flat'],
+      brutal: ['粗边框 + 硬阴影（新粗野）', 'bold outline with a hard shadow (neubrutalist)'],
+      soft: ['柔和浮雕（新拟物）', 'soft embossed (neumorphic)'],
+      puffy: ['鼓起的黏土质感', 'puffy clay'],
     },
     navStyle: {
       iconLabel: ['图标 + 文字', 'icons and labels'],
@@ -204,6 +207,7 @@ export function describeChange(
     surface: zh ? '卡片颜色' : 'Card color',
     text: zh ? '文字颜色' : 'Text color',
     secondary: zh ? '辅助色' : 'Secondary color',
+    tertiary: zh ? '第三色' : 'Tertiary color',
   };
   const where = (pageId: string, parentId: string | undefined) => {
     if (parentId === undefined) return zh ? `「${pageName(pageId)}」` : `“${pageName(pageId)}”`;
@@ -297,9 +301,16 @@ export function describeChange(
           lines.push(zh ? `主题色改为 ${op.primaryColor}` : `Theme color → ${op.primaryColor}`);
         if (op.mode)
           lines.push(zh ? `外观改为${modeLabel[op.mode]}` : `Appearance → ${modeLabel[op.mode]}`);
-        for (const [key, value] of Object.entries(op.colors ?? {})) {
+        const colorChanges = [
+          ...Object.entries(op.colors ?? {}).map(([k, v]) => [k, v, ''] as const),
+          ...Object.entries(op.darkColors ?? {}).map(
+            ([k, v]) => [k, v, zh ? '深色模式的' : 'Dark mode '] as const,
+          ),
+        ];
+        for (const [key, value, prefix] of colorChanges) {
           if (value === undefined) continue;
-          const name = colorNames[key as keyof typeof colorNames];
+          const label = colorNames[key as keyof typeof colorNames];
+          const name = prefix && !zh ? prefix + label.toLowerCase() : prefix + label;
           lines.push(
             value === null
               ? zh

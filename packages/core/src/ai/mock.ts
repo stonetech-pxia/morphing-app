@@ -300,6 +300,18 @@ const cardStyleRule: Rule = (clause) => {
   if (/^(?:卡片)?(?:加上|恢复)阴影$|^(?:add )?(?:card )?shadows$/i.test(clause)) {
     return [{ op: 'setTheme', cardStyle: 'shadow' }];
   }
+  const m =
+    clause.match(
+      /^卡片(?:改成|改为|换成|用)(新粗野|粗野|新拟物|拟物|浮雕|黏土|粘土)(?:风格|样式|风|质感)?$/,
+    ) ?? clause.match(/^(neubrutalist|brutalist|neumorphic|claymorphic|clay|puffy) cards$/i);
+  if (m) {
+    const cardStyle = /粗野|brutal/i.test(m[1]!)
+      ? 'brutal'
+      : /拟物|浮雕|neumorphic/i.test(m[1]!)
+        ? 'soft'
+        : 'puffy';
+    return [{ op: 'setTheme', cardStyle }];
+  }
   return null;
 };
 
