@@ -1,4 +1,4 @@
-import { PlanSchema, prepareOps, type AIProvider, type Registry } from '@morph/core';
+import { PlanSchema, prepareOps, redactForAI, type AIProvider, type Registry } from '@morph/core';
 
 import { buildRepairMessage, buildUserMessage } from './prompt';
 
@@ -66,7 +66,10 @@ export function createClaudePlanner(options: PlannerOptions): AIProvider {
   return {
     async plan(input, ctx) {
       const messages: PlannerMessage[] = [
-        { role: 'user', content: buildUserMessage(ctx.config, input, ctx.locale) },
+        {
+          role: 'user',
+          content: buildUserMessage(redactForAI(ctx.config, ctx.registry), input, ctx.locale),
+        },
       ];
       for (let attempt = 0; ; attempt++) {
         const completion = await options.complete(messages);

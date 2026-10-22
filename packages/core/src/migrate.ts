@@ -53,8 +53,60 @@ export const migrateV2toV3: Migration = (config) => ({
 /** v3 → v4：新增图片组件、emoji 图标和富文本；已有数据不需要改动，只提升版本号。 */
 export const migrateV3toV4: Migration = (config) => ({ ...config, schemaVersion: 4 });
 
-/** v4 → v5：主题新增第三色、深色模式颜色、页面背景和六种卡片样式；已有数据不需要改动，只提升版本号。 */
-export const migrateV4toV5: Migration = (config) => ({ ...config, schemaVersion: 5 });
+interface V4Step {
+  id: string;
+  action: string;
+  params: Record<string, unknown>;
+}
+
+/**
+ * v4 → v5：工作流步骤之间改为传递有类型的值（D-060，TOOLS_DESIGN §8）。
+ * - pdf.selectFiles {min, max} → in.files {accept: 'pdf', min, max}
+ * - ui.askFileName {defaultTemplate} + file.save {nameTemplate} → file.rename（每次运行时问）+ file.save {}
+ * - 只有 file.save {nameTemplate}（已去掉询问）→ file.rename {template} + file.save {}
+ */
+export const migrateV4toV5: Migration = (config) => {
+  const workflows = (config.workflows as { steps: V4Step[] }[]).map((wf) => {
+    const ask = wf.steps.find((s) => s.action === 'ui.askFileName');
+    const steps: Record<string, unknown>[] = [];
+    for (const step of wf.steps) {
+      switch (step.action) {
+        case 'pdf.selectFiles':
+          steps.push({
+            id: step.id,
+            action: 'in.files',
+            params: { accept: 'pdf', min: step.params.min, max: step.params.max },
+          });
+          break;
+        case 'ui.askFileName':
+          steps.push({
+            id: step.id,
+            action: 'file.rename',
+            params: { template: step.params.defaultTemplate },
+            ask: ['template'],
+          });
+          break;
+        case 'file.save':
+          if (!ask) {
+            steps.push({
+              id: steps.some((s) => s.id === 'name') ? `${step.id}-name` : 'name',
+              action: 'file.rename',
+              params: { template: step.params.nameTemplate },
+            });
+          }
+          steps.push({ id: step.id, action: 'file.save', params: {} });
+          break;
+        default:
+          steps.push({ ...step });
+      }
+    }
+    return { ...wf, steps };
+  });
+  return { ...config, schemaVersion: 5, workflows };
+};
+
+/** v5 → v6：主题新增第三色、深色模式颜色、页面背景和六种卡片样式；已有数据不需要改动，只提升版本号。 */
+export const migrateV5toV6: Migration = (config) => ({ ...config, schemaVersion: 6 });
 
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
@@ -62,6 +114,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   2: migrateV2toV3,
   3: migrateV3toV4,
   4: migrateV4toV5,
+  5: migrateV5toV6,
 };
 
 export type MigrateResult =

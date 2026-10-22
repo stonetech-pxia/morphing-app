@@ -16,7 +16,8 @@
 │  schema · 修改操作（ops）· apply · validate · migrate ·            │
 │  修改说明（describe）· AIProvider 接口 · mock AI                   │
 ├───────────────────────────────────────────────────────────────┤
-│ packages/tool-pdf（M2）  pdf-lib 合并实现（清单在 core/src/tools）  │
+│ packages/tool-*  pdf（pdf-lib）· image · archive（fflate）· qr   │
+│                  纯逻辑，清单在 core/src/tools                    │
 ├───────────────────────────────────────────────────────────────┤
 │ apps/api（M3）  Hono 计划服务 + Claude（账号与云端数据见 CLOUD_DESIGN）│
 └───────────────────────────────────────────────────────────────┘
@@ -40,7 +41,7 @@
 
 AI 可以修改的范围（schemaVersion 2，见 `packages/core/src/schema.ts`）：
 
-- **样式**：主色、深浅模式、背景 / 卡片 / 文字 / 辅助色 / 第三色（深色模式可单独配色，schemaVersion 5）、字体（Clay / 系统 / 衬线 / 等宽）、字号比例、圆角、疏密、卡片样式（阴影 / 描边 / 平面 / 新粗野 / 新拟物 / 黏土 / 毛玻璃 / 霓虹发光 / 金属）、页面背景（纯色 / 渐变 / 极光）、导航栏样式（图标 + 文字 / 只有文字 / 只有图标）。正文对比度低于 4.5:1 的主题会被校验器拒绝。
+- **样式**：主色、深浅模式、背景 / 卡片 / 文字 / 辅助色 / 第三色（深色模式可单独配色，schemaVersion 6）、字体（Clay / 系统 / 衬线 / 等宽）、字号比例、圆角、疏密、卡片样式（阴影 / 描边 / 平面 / 新粗野 / 新拟物 / 黏土 / 毛玻璃 / 霓虹发光 / 金属）、页面背景（纯色 / 渐变 / 极光）、导航栏样式（图标 + 文字 / 只有文字 / 只有图标）。正文对比度低于 4.5:1 的主题会被校验器拒绝。
 - **组件**：标题、文字、工具卡片、添加工具入口、文件列表、流程执行器、按钮、快捷入口卡片、提示框、分隔线、间距，以及分组（竖排 / 横排 / 2–3 列网格，不能嵌套）；每个组件可设对齐、色调、大小，可隐藏。
 - **页面**：新建、删除（首页和工具页除外）、改名、改图标；导航栏 1–5 项、浮动按钮最多 3 个，可以指向任何页面或系统入口。
 - **图片与富文本**（schemaVersion 4）：图片位（照片由用户自己选）、文字和提示框里的粗体 / 斜体 / 链接 / 列表、emoji 图标（D-044–D-048）。
@@ -95,9 +96,11 @@ SQLite 表（`PRAGMA user_version` 管理数据库结构升级，见 `apps/mobil
 
 用户文件存放在 App 文档目录的 `assets/<id>/<文件名>`，与 revision 分开，回滚和卸载工具都不会触及。
 
-## 5.1 工作流执行（M2）
+## 5.1 工作流执行（TOOLS_DESIGN.md）
 
-`apps/mobile/src/runtime/runner.ts` 是唯一执行动作的地方：按顺序执行步骤，步骤之间通过固定数据槽（files → document → fileName → savedFile）传递数据。平台能力（选择文件、读写、分享）通过 `FilePlatform` 注入，App 中由 Expo 模块实现，测试中用内存实现 + 真实 PDF。
+执行器在 `packages/core/src/workflow/engine.ts`：按顺序执行步骤，步骤之间传递**一个有类型的值**（images / pdf / files / zip / text，D-060），执行前再检查一次类型链和参数，支持进度、取消、运行时询问参数和扩展包确认；`tool_runs` 只记录状态和错误代码。动作契约（输入输出类型、zod 参数、参数界面元数据）在 `core/src/workflow/contract.ts` 和各工具清单里。
+
+App 侧：`apps/mobile/src/runtime/runner.ts` 把执行器接上存储和平台；动作实现在 `runtime/actions/`，纯逻辑调用 `packages/tool-*`（tool-pdf、tool-image、tool-archive、tool-qr，Node + 真实文件测试）；平台能力（选照片 / 文件、临时文件、分享、存相册、打印）通过 `FilePlatform`（`runtime/platform.ts`）注入，App 中由 Expo 模块实现，测试中用内存实现。运行页面 `app/run/[workflowId].tsx` 显示每一步、本地操作界面（`run/local/`）和结果预览。中间结果是缓存目录 `runs/<runId>/` 里的临时文件，只有「保存」才成为用户文件（D-063）。
 
 ## 6. 外部能力接口（§14.2）
 

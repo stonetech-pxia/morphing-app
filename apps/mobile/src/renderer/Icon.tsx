@@ -29,6 +29,14 @@ const SYMBOLS: Record<IconName, SymbolName> = {
   person: { ios: 'person.fill', android: 'person' },
   plus: { ios: 'plus', android: 'add' },
   search: { ios: 'magnifyingglass', android: 'search' },
+  photo: { ios: 'photo.fill', android: 'image' },
+  scan: { ios: 'doc.viewfinder', android: 'document_scanner' },
+  text: { ios: 'text.viewfinder', android: 'text_fields' },
+  qrcode: { ios: 'qrcode', android: 'qr_code' },
+  archive: { ios: 'archivebox.fill', android: 'archive' },
+  printer: { ios: 'printer.fill', android: 'print' },
+  signature: { ios: 'signature', android: 'draw' },
+  workflow: { ios: 'arrow.triangle.branch', android: 'account_tree' },
 };
 
 export function Icon({

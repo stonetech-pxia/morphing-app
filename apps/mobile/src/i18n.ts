@@ -197,9 +197,45 @@ const strings = {
   runCancelled: { en: 'Cancelled', zh: '已取消' },
   share: { en: 'Share / export', zh: '分享 / 导出' },
   ok: { en: 'OK', zh: '确定' },
-  runError_tooFew: { en: 'Choose at least {min} PDF files.', zh: '请至少选择 {min} 个 PDF 文件。' },
+  runError_tooFew: { en: 'Choose at least {min} files.', zh: '请至少选择 {min} 个文件。' },
   runError_tooMany: { en: 'Choose at most {max} files.', zh: '最多选择 {max} 个文件。' },
-  runError_notPdf: { en: '“{name}” is not a PDF.', zh: '「{name}」不是 PDF 文件。' },
+  runError_wrongType: {
+    en: '“{name}” is not a {kind} file.',
+    zh: '「{name}」不是 {kind} 文件。',
+  },
+  runError_invalidWorkflow: {
+    en: 'This workflow has a step that doesn’t fit. Edit the workflow and try again.',
+    zh: '这个工作流里有接不上的步骤，请先修改工作流再试。',
+  },
+  runError_cameraUnavailable: {
+    en: 'The camera is not available on this device.',
+    zh: '这台设备上不能使用相机。',
+  },
+  runError_permissionDenied: {
+    en: 'Morph needs permission for this ({what}). You can allow it in the system Settings.',
+    zh: '需要权限才能继续（{what}），可以在系统「设置」里允许。',
+  },
+  runError_packFailed: {
+    en: 'The extension pack could not be prepared: {detail}',
+    zh: '扩展包没有准备好：{detail}',
+  },
+  runError_targetNotMet: {
+    en: 'Could not get “{name}” under {target} (smallest was {got}).',
+    zh: '「{name}」无法压到 {target} 以内（最小只能到 {got}）。',
+  },
+  runError_unsupportedText: {
+    en: 'This text can’t be written into the PDF yet: {name}',
+    zh: '这段文字暂时不能写进 PDF：{name}',
+  },
+  runError_badRange: {
+    en: 'Those pages don’t exist in “{name}”.',
+    zh: '「{name}」里没有这些页。',
+  },
+  runError_noFormFields: {
+    en: '“{name}” has no form fields to fill.',
+    zh: '「{name}」里没有可以填写的表单。',
+  },
+  runError_notFound: { en: 'Nothing was found in “{name}”.', zh: '在「{name}」里没有找到内容。' },
   runError_tooLarge: {
     en: '“{name}” is larger than {mb} MB, which is not supported yet.',
     zh: '「{name}」超过 {mb} MB，暂不支持。',
@@ -220,16 +256,39 @@ const strings = {
     en: '“{name}” could not be accessed. Check permissions and try again.',
     zh: '无法访问「{name}」，请检查权限后重试。',
   },
-  runError_noGrant: {
-    en: 'This tool is not allowed to read “{name}”.',
-    zh: '这个工具无权读取「{name}」。',
-  },
   runError_saveFailed: { en: 'Saving failed: {detail}', zh: '保存失败：{detail}' },
   runError_unsupportedAction: {
     en: 'This step is not supported: {action}',
     zh: '不支持这个步骤：{action}',
   },
   runError_unexpected: { en: 'Something went wrong: {detail}', zh: '出现错误：{detail}' },
+
+  // 运行页面
+  runTitle: { en: 'Run', zh: '运行' },
+  runCancel: { en: 'Stop', zh: '停止' },
+  runProgress: { en: '{done} of {total}', zh: '{done}/{total}' },
+  runFailedAt: { en: 'Stopped at step {n}', zh: '在第 {n} 步停下' },
+  runSucceeded: { en: 'Done', zh: '完成' },
+  runEdit: { en: 'Edit workflow', zh: '编辑工作流' },
+  askTitle: { en: 'Before this step', zh: '这一步之前' },
+  askName: { en: 'File name', zh: '文件名' },
+  askInvalid: { en: 'Please check: {detail}', zh: '请检查：{detail}' },
+  resultSave: { en: 'Save to files', zh: '存到文件' },
+  resultSaved: { en: 'Saved', zh: '已保存' },
+  resultShare: { en: 'Share', zh: '分享' },
+  resultPhotos: { en: 'Save to Photos', zh: '存到相册' },
+  resultPhotosDone: { en: 'Saved to Photos', zh: '已存到相册' },
+  resultPrint: { en: 'Print', zh: '打印' },
+  resultCopy: { en: 'Copy', zh: '复制' },
+  resultCopied: { en: 'Copied', zh: '已复制' },
+  resultTextNote: {
+    en: 'This text stays on this device.',
+    zh: '这段文字只留在这台设备上。',
+  },
+  resultPages: { en: '{n} pages', zh: '{n} 页' },
+  resultCount: { en: '{n} files', zh: '{n} 个文件' },
+  localDone: { en: 'Done', zh: '完成' },
+  localNext: { en: 'Next', zh: '下一张' },
   toolMissing: { en: 'This tool is not available.', zh: '这个工具不可用。' },
 
   // 图片与链接
@@ -379,6 +438,24 @@ const strings = {
 } satisfies Record<string, Record<Locale, string>>;
 
 export type StringKey = keyof typeof strings;
+
+const PERMISSION_NAMES: Record<string, Record<Locale, string>> = {
+  photos: { en: 'Photos', zh: '相册' },
+  camera: { en: 'Camera', zh: '相机' },
+};
+
+/** 运行错误的提示（detail 里的权限名等内部词换成用户看得懂的说法）。 */
+export function runErrorText(
+  locale: Locale,
+  code: string,
+  detail: Record<string, string | number> = {},
+): string {
+  const what =
+    typeof detail.what === 'string' ? PERMISSION_NAMES[detail.what]?.[locale] : undefined;
+  const key = `runError_${code}` as StringKey;
+  if (!(key in strings)) return t(locale, 'runError_unexpected', { detail: code });
+  return t(locale, key, { ...detail, ...(what ? { what } : {}) });
+}
 
 export function t(
   locale: Locale,

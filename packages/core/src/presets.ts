@@ -1,6 +1,6 @@
 import type { Localized, Theme } from './schema';
 
-// 内置风格预设（D-066）：每个都是一份完整的主题，AI 用 applyThemePreset 整套套用，之后还可以再微调。
+// 内置风格预设（D-079）：每个都是一份完整的主题，AI 用 applyThemePreset 整套套用，之后还可以再微调。
 // 除了固定深色的终端和霓虹，都同时给了浅色和深色配色，跟随系统切换；全部通过对比度检查（测试覆盖）。
 
 export const THEME_PRESET_IDS = [

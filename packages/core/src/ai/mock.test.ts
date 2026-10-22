@@ -319,11 +319,17 @@ describe('mock AI — journey C (PDF tool)', () => {
       workspace('zh', { withPdf: true }),
     );
     expect(mergeSteps(after).map((s) => s.action)).toEqual([
-      'pdf.selectFiles',
+      'in.files',
       'pdf.merge',
+      'file.rename',
       'file.save',
     ]);
-    expect(mergeSteps(after)[2]!.params).toEqual({ nameTemplate: '合并-{date:YYYY-MM-DD}' });
+    // 命名保留但不再询问。
+    expect(mergeSteps(after)[2]).toEqual({
+      id: 'name',
+      action: 'file.rename',
+      params: { template: '合并-{date:YYYY-MM-DD}' },
+    });
     expect(
       after.pages.find((p) => p.id === 'tool-pdf')!.components.find((c) => c.type === 'text')!
         .hidden,
@@ -331,14 +337,18 @@ describe('mock AI — journey C (PDF tool)', () => {
     // 仍然是同一个工具实例。
     expect(after.tools).toHaveLength(1);
     expect(after.workflows).toHaveLength(1);
-    expect(lines.some((l) => l.includes('合并-2026-10-22.pdf'))).toBe(true);
+    expect(lines.some((l) => l.includes('合并-2026-10-22'))).toBe(true);
   });
 
   it('C2 “合并后的文件按日期命名” changes the naming only', async () => {
     const { after } = await change('合并后的文件按日期命名', workspace('zh', { withPdf: true }));
     expect(mergeSteps(after).map((s) => s.id)).toEqual(['select', 'merge', 'name', 'save']);
-    expect(mergeSteps(after)[3]!.params).toEqual({ nameTemplate: '{date:YYYY-MM-DD}' });
-    expect(mergeSteps(after)[2]!.params).toEqual({ defaultTemplate: '{date:YYYY-MM-DD}' });
+    expect(mergeSteps(after)[2]).toEqual({
+      id: 'name',
+      action: 'file.rename',
+      params: { template: '{date:YYYY-MM-DD}' },
+      ask: ['template'],
+    });
   });
 });
 

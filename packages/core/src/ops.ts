@@ -29,6 +29,7 @@ import {
   type WorkspaceConfig,
 } from './schema';
 import { DEFAULT_THEME } from './theme';
+import { REDACTED_TEXT } from './workflow/redact';
 
 // 语义化修改操作（§7D）。AI 只能输出这些操作；applyOps 是纯函数，不修改输入。
 // apply 只负责执行和引用检查，完整合法性由 validateWorkspace 判定。
@@ -109,7 +110,10 @@ export const OpSchema = z.discriminatedUnion('op', [
     op: z.literal('setStepParams'),
     workflowId: IdSchema,
     stepId: IdSchema,
-    params: z.record(z.string(), z.unknown()),
+    /** 合并进已有参数。 */
+    params: z.record(z.string(), z.unknown()).optional(),
+    /** 每次运行时问的参数（完整列表，[] 表示都不问）。 */
+    ask: z.array(z.string().min(1).max(40)).max(10).optional(),
   }),
   z.strictObject({ op: z.literal('removeWorkflowStep'), workflowId: IdSchema, stepId: IdSchema }),
   // ---- 数据表结构（只改结构，从不碰记录内容）----
@@ -429,7 +433,13 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
     case 'setStepParams': {
       const step = getWorkflow(config, op.workflowId).steps.find((s) => s.id === op.stepId);
       if (!step) throw new OpError(`step ${op.stepId} not found in ${op.workflowId}`);
-      step.params = { ...step.params, ...op.params };
+      // AI 看到的是占位符（D-065）：原样写回占位符表示不改这个参数。
+      const params = Object.entries(op.params ?? {}).filter(([, v]) => v !== REDACTED_TEXT);
+      step.params = { ...step.params, ...Object.fromEntries(params) };
+      if (op.ask !== undefined) {
+        if (op.ask.length === 0) delete step.ask;
+        else step.ask = [...new Set(op.ask)];
+      }
       return;
     }
     case 'removeWorkflowStep': {

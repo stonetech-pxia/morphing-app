@@ -1,0 +1,211 @@
+import type { Registry } from '../registry';
+import type { Locale, Workflow, WorkflowStep } from '../schema';
+import type { ActionDefinition, ValueType } from './contract';
+import { workflowProblems } from './check';
+
+// 工作流执行器（TOOLS_DESIGN §3）：唯一按顺序执行动作的地方。配置里只有动作 ID 和参数，没有任何代码。
+// 动作的实现（ActionImpl）和平台能力（services）由 App 注入，因此这里可以在 Node 中测试。
+
+export type FileValueType = Exclude<ValueType, 'text' | 'records'>;
+
+/** 运行中的一个文件：缓存目录里的临时文件，保存之前不是用户文件（D-063）。 */
+export interface RunItem {
+  uri: string;
+  /** 不含扩展名的显示名。 */
+  name: string;
+  ext: string;
+  mimeType: string;
+  size: number;
+  width?: number;
+  height?: number;
+  pageCount?: number;
+  /** 照片的拍摄时间（毫秒）。 */
+  takenAt?: number;
+  /** 已经存成用户文件时的文件 ID。 */
+  assetId?: string;
+}
+
+export type RunValue =
+  | { type: FileValueType; items: RunItem[] }
+  /** 文字只留在本机（OCR、二维码识别）：复制、存成文件，绝不发给 AI。 */
+  | { type: 'text'; text: string; name: string };
+
+export type RunErrorCode =
+  | 'tooFew'
+  | 'tooMany'
+  | 'wrongType'
+  | 'tooLarge'
+  | 'tooLargeTotal'
+  | 'unreadable'
+  | 'encrypted'
+  | 'accessDenied'
+  | 'saveFailed'
+  | 'unsupportedAction'
+  | 'invalidWorkflow'
+  | 'cameraUnavailable'
+  | 'permissionDenied'
+  | 'packFailed'
+  | 'targetNotMet'
+  | 'unsupportedText'
+  | 'badRange'
+  | 'noFormFields'
+  | 'notFound'
+  | 'unexpected';
+
+export class RunError extends Error {
+  constructor(
+    readonly code: RunErrorCode,
+    /** 只含规格数字和文件显示名，给用户看；不写进执行记录。 */
+    readonly detail: Record<string, string | number> = {},
+  ) {
+    super(`${code} ${JSON.stringify(detail)}`);
+  }
+}
+
+/** 用户取消（选择器、本地操作界面、运行时询问、扩展包下载确认）。 */
+export class RunCancelled extends Error {}
+
+export interface StepContext<S> {
+  workflow: Workflow;
+  step: WorkflowStep;
+  index: number;
+  action: ActionDefinition;
+  locale: Locale;
+  now(): Date;
+  newId(): string;
+  services: S;
+  /** 步内进度，例如第 3/10 张。 */
+  progress(done: number, total: number): void;
+  throwIfCancelled(): void;
+  /** 本次运行保存成用户文件的 ID（file.save 填写）。 */
+  saved: string[];
+}
+
+export type ActionImpl<S> = (
+  input: RunValue | null,
+  params: Record<string, unknown>,
+  ctx: StepContext<S>,
+) => Promise<RunValue>;
+
+export type RunEvent =
+  | { kind: 'step'; index: number }
+  | { kind: 'progress'; index: number; done: number; total: number };
+
+export interface AskRequest {
+  step: WorkflowStep;
+  action: ActionDefinition;
+  keys: readonly string[];
+  params: Record<string, unknown>;
+  input: RunValue | null;
+}
+
+export type RunResult =
+  | { status: 'succeeded'; value: RunValue | null; saved: string[] }
+  | { status: 'cancelled' }
+  | { status: 'failed'; error: RunError; stepIndex: number | null };
+
+export interface RunOptions<S> {
+  workflow: Workflow;
+  registry: Registry;
+  impls: Readonly<Record<string, ActionImpl<S>>>;
+  services: S;
+  locale: Locale;
+  now: () => Date;
+  newId: () => string;
+  /** 运行时询问参数；返回本次使用的参数，null 表示用户取消。不写回配置。 */
+  askParams?: (request: AskRequest) => Promise<Record<string, unknown> | null>;
+  /** 步骤需要扩展包时调用：已安装或用户确认下载并完成后返回 true；用户拒绝返回 false（D-064）。 */
+  ensurePack?: (packId: string) => Promise<boolean>;
+  /** 界面把 cancelled 设为 true 即可取消。 */
+  signal?: { cancelled: boolean };
+  onEvent?: (event: RunEvent) => void;
+  /** 执行记录（tool_runs）：只记录元数据，不记录内容和文件名。 */
+  record?: {
+    start(): Promise<number>;
+    finish(
+      id: number,
+      result: {
+        status: 'succeeded' | 'failed' | 'cancelled';
+        error?: string;
+        outputAssetId?: string;
+      },
+    ): Promise<void>;
+  };
+}
+
+export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
+  const { workflow, registry } = opts;
+  const runId = (await opts.record?.start()) ?? null;
+  const finish = async (result: RunResult) => {
+    if (runId !== null && opts.record) {
+      await opts.record.finish(runId, {
+        status: result.status,
+        ...(result.status === 'failed' ? { error: result.error.code } : {}),
+        ...(result.status === 'succeeded' && result.saved[0]
+          ? { outputAssetId: result.saved[0] }
+          : {}),
+      });
+    }
+    return result;
+  };
+
+  // 配置保存前已经校验过；执行前再检查一次（D-020 纵深防御）。
+  if (workflowProblems(workflow, registry).length > 0) {
+    return finish({ status: 'failed', error: new RunError('invalidWorkflow'), stepIndex: null });
+  }
+
+  const saved: string[] = [];
+  let value: RunValue | null = null;
+  let index = 0;
+  const throwIfCancelled = () => {
+    if (opts.signal?.cancelled) throw new RunCancelled();
+  };
+  try {
+    for (const [i, step] of workflow.steps.entries()) {
+      index = i;
+      throwIfCancelled();
+      opts.onEvent?.({ kind: 'step', index: i });
+      const action = registry.actions.get(step.action)!;
+      const impl = opts.impls[step.action];
+      if (!impl) throw new RunError('unsupportedAction', { action: step.action });
+      if (action.pack && opts.ensurePack && !(await opts.ensurePack(action.pack))) {
+        throw new RunCancelled();
+      }
+      let params = action.params.parse(step.params);
+      if (step.ask?.length && opts.askParams) {
+        const answered = await opts.askParams({
+          step,
+          action,
+          keys: step.ask,
+          params,
+          input: value,
+        });
+        if (answered === null) throw new RunCancelled();
+        params = action.params.parse({ ...params, ...answered });
+      }
+      throwIfCancelled();
+      value = await impl(value, params, {
+        workflow,
+        step,
+        index: i,
+        action,
+        locale: opts.locale,
+        now: opts.now,
+        newId: opts.newId,
+        services: opts.services,
+        progress: (done, total) => opts.onEvent?.({ kind: 'progress', index: i, done, total }),
+        throwIfCancelled,
+        saved,
+      });
+    }
+    return finish({ status: 'succeeded', value, saved });
+  } catch (e) {
+    if (e instanceof RunCancelled) return finish({ status: 'cancelled' });
+    const error = e instanceof RunError ? e : new RunError('unexpected', { detail: String(e) });
+    return finish({ status: 'failed', error, stepIndex: index });
+  }
+}
+
+/** 一个值里所有文件的总大小。 */
+export const totalSize = (value: RunValue | null) =>
+  value && value.type !== 'text' ? value.items.reduce((sum, item) => sum + item.size, 0) : 0;
