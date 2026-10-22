@@ -1,0 +1,31 @@
+{
+  "name": "morph",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": "^22.12.0 || ^24.0.0"
+  },
+  "scripts": {
+    "start": "npm run start --workspace @morph/mobile --",
+    "ios": "npm run ios --workspace @morph/mobile --",
+    "android": "npm run android --workspace @morph/mobile --",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "check:licenses": "node scripts/check-licenses.mjs",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run check:licenses"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~58.0.4",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.10",
+    "typescript": "~6.0.3"
+  }
+}

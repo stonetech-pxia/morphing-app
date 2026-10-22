@@ -1,0 +1,7 @@
+node_modules
+dist
+coverage
+.expo
+package-lock.json
+LICENSE
+PRODUCT_HANDOFF_CLAUDE_CODE.md
