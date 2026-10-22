@@ -13,6 +13,18 @@ export interface Rect {
 export interface LocalSteps {
   /** 逐张框选裁剪区域（原图像素）。aspect 为 null 时自由比例。 */
   crop: { in: { items: RunItem[]; aspect: number | null }; out: Rect[] };
+  /**
+   * 整理 PDF 页面：选页、删页、排序、旋转。返回保留的页（0 起的原页码），按新顺序，
+   * rotate 是在原来基础上再顺时针转的角度。thumbnails 有 PDF 预览包时才有。
+   */
+  pages: {
+    in: {
+      item: RunItem;
+      pages: { width: number; height: number; rotation: number }[];
+      thumbnails?: string[];
+    };
+    out: { index: number; rotate: 0 | 90 | 180 | 270 }[];
+  };
   /** 排序、删除：返回保留下来的下标，按新顺序。 */
   reorder: { in: { items: RunItem[] }; out: number[] };
 }

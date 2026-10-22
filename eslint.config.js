@@ -15,6 +15,7 @@ module.exports = defineConfig([
     },
   },
   {
-    ignores: ['**/node_modules/**', '**/dist/**', '**/.expo/**', '**/coverage/**'],
+    // .claude/worktrees 是其他会话的工作目录，不属于这个检出。
+    ignores: ['**/node_modules/**', '**/dist/**', '**/.expo/**', '**/coverage/**', '.claude/**'],
   },
 ]);

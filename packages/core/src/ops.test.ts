@@ -229,7 +229,13 @@ describe('applyOps', () => {
     const config = workspace('zh', { withPdf: true });
     expect(config.tools.map((t) => t.toolId)).toEqual(['pdf']);
     expect(config.pages.map((p) => p.id)).toEqual(['home', 'tool-pdf']);
-    expect(config.workflows.map((w) => w.id)).toEqual(['pdf-merge']);
+    expect(config.workflows.map((w) => w.id)).toEqual(
+      registry.tools
+        .get('pdf')!
+        .createWorkflows('zh')
+        .map((w) => w.id),
+    );
+    expect(config.workflows[0]!.id).toBe('pdf-merge');
     expect(config.pages[0]!.components.map((c) => c.id)).toEqual([
       'welcome',
       'card-pdf',
@@ -241,6 +247,29 @@ describe('applyOps', () => {
       locale: 'zh',
     });
     expect(again).toEqual({ ok: false, error: 'tool pdf is already installed' });
+  });
+
+  it('updates an old PDF tool: adds the new workflows and entries, keeps user changes', async () => {
+    const { V4_FIXED_NAME } = await import('./fixtures/v4');
+    const { prepareSnapshot } = await import('./change');
+    const old = prepareSnapshot(V4_FIXED_NAME, registry);
+    if (!old.ok) throw new Error('fixture');
+    expect(old.after.tools[0]!.version).toBe('1.0.0');
+    const result = prepareOps(old.after, [{ op: 'updateTool', toolId: 'pdf' }], ctx);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const after = result.after;
+    expect(after.tools[0]!.version).toBe(registry.tools.get('pdf')!.version);
+    // 用户改过的合并流程（固定文件名）不变。
+    expect(after.workflows[0]).toEqual(old.after.workflows[0]);
+    expect(after.workflows.map((w) => w.id)).toContain('pdf-split');
+    const page = after.pages.find((p) => p.id === 'tool-pdf')!;
+    expect(page.components.at(-1)!.type).toBe('fileList');
+    expect(page.components.filter((c) => c.type === 'workflowRunner')).toHaveLength(
+      after.workflows.length,
+    );
+    expect(result.lines[0]).toMatch(/^更新「PDF」工具：新增 PDF 和图片合成一个、图片转 PDF/);
+    expect(prepareOps(after, [{ op: 'updateTool', toolId: 'pdf' }], ctx).ok).toBe(false);
   });
 
   it('uninstalls a tool completely and leaves a valid workspace', () => {

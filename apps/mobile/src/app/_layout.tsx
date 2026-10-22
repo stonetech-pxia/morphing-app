@@ -17,6 +17,10 @@ import { createAIRouter } from '@/ai/router';
 import { secureSecretStore } from '@/ai/secure-store';
 import { createAISettingsStore } from '@/ai/settings';
 import { getDeviceLocale, t } from '@/i18n';
+import { PackBridge } from '@/packs/bridge';
+import { expoBridgeFiles, expoPackFs, expoSha256 } from '@/packs/expo-pack-fs';
+import { PackHostProvider } from '@/packs/PackHost';
+import { PackStore } from '@/packs/store';
 import { expoFilePlatform } from '@/runtime/expo-platform';
 import { CLAY_FONTS, usePalette } from '@/renderer/theme';
 import { SQLiteWorkspaceRepo, migrateDatabase } from '@/storage/sqlite';
@@ -25,6 +29,9 @@ import { createRemoteAIProvider } from '@/workspace/remote-ai';
 import { createWorkspaceStore, type WorkspaceStore } from '@/workspace/store';
 
 const locale = getDeviceLocale();
+// 扩展包：只在用户确认后下载，存在 documentDirectory/packs（D-064）。
+const packStore = new PackStore(expoPackFs, expoSha256);
+const packs = { store: packStore, bridge: new PackBridge(expoBridgeFiles(packStore)) };
 const registry = createRegistry(BUILTIN_TOOLS);
 // AI 来源由「设置 → AI」决定：内置规则、Morph 服务器（需配置地址，见 README）或用户自带 key。
 const apiUrl = process.env.EXPO_PUBLIC_MORPH_API_URL;
@@ -145,7 +152,9 @@ export default function RootLayout() {
           registry,
           locale,
         }}>
-        <RootStack />
+        <PackHostProvider value={packs}>
+          <RootStack />
+        </PackHostProvider>
       </WorkspaceProvider>
     </AISettingsProvider>
   );

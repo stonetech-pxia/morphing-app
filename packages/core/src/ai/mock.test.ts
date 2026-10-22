@@ -296,7 +296,7 @@ describe('mock AI — journey C (PDF tool)', () => {
     ).toBe(true);
     // 仍然是同一个工具实例。
     expect(after.tools).toHaveLength(1);
-    expect(after.workflows).toHaveLength(1);
+    expect(after.workflows.filter((w) => w.id === 'pdf-merge')).toHaveLength(1);
     expect(lines.some((l) => l.includes('合并-2026-10-22'))).toBe(true);
   });
 

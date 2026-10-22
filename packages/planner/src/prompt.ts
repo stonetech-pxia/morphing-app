@@ -111,6 +111,7 @@ type Op =
   | { op: "removeComponent"; pageId: string; componentId: string }
   | { op: "installTool"; toolId: string }
   | { op: "uninstallTool"; toolId: string }
+  | { op: "updateTool"; toolId: string }                                     // an installed tool whose version is older than the catalog gets its new workflows and page entries
   | { op: "setStepParams"; workflowId: string; stepId: string; params?: object; ask?: string[] }   // params merge into existing params; ask replaces the asked list ([] = ask nothing)
   | { op: "removeWorkflowStep"; workflowId: string; stepId: string }
   | { op: "addCollection"; collection: Collection }

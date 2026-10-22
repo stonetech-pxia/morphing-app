@@ -76,9 +76,11 @@ const savesWithDate = (c: WorkspaceConfig) => {
     : `the file.rename template should contain the date, got ${template}`;
 };
 const singlePdfTool = (c: WorkspaceConfig) =>
-  c.tools.length === 1 && c.workflows.length === 1
+  c.tools.length === 1 &&
+  c.workflows.filter((w) => w.id === 'pdf-merge').length === 1 &&
+  new Set(c.workflows.map((w) => w.id)).size === c.workflows.length
     ? null
-    : 'must keep exactly one PDF tool and workflow';
+    : 'must keep exactly one PDF tool and one merge workflow';
 /** 用户看得到的步骤只剩选文件和合并：命名、保存可以保留，但不再询问。 */
 const simplifiedMerge = (c: WorkspaceConfig) => {
   const steps = mergeSteps(c);

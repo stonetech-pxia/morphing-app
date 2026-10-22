@@ -2,6 +2,7 @@ import { FILE_LIMITS, RunError, sanitizeFileName, type RunItem, type RunValue } 
 
 import type { WorkspaceRepo } from '../../storage/types';
 import type { FilePlatform } from '../platform';
+import type { PackRuntime } from '../../packs/bridge';
 import type { LocalUi } from '../local';
 
 // 动作实现共用的工具函数和运行环境。
@@ -14,6 +15,8 @@ export interface RunServices {
   /** 保存的文件授权给谁：工具 ID，或用户自己的工作流 `workflow:<id>`（§7G）。 */
   grantee: string;
   ui: LocalUi;
+  /** 扩展包（WebView 里的 pdf.js、OpenCV、tesseract）；没有时为 null。 */
+  packs: { runtime: PackRuntime; isInstalled(id: string): Promise<boolean> } | null;
 }
 
 export const MB = 1024 * 1024;

@@ -201,7 +201,7 @@ describe('user journeys (UI)', () => {
     expect(await screen.findByTestId('step-select')).toBeTruthy();
     expect(screen.queryByTestId('component-pdf-intro')).toBeNull();
     expect(store.getState().config!.tools).toHaveLength(1);
-    expect(store.getState().config!.workflows).toHaveLength(1);
+    expect(store.getState().config!.workflows.filter((w) => w.id === 'pdf-merge')).toHaveLength(1);
 
     files.nextPick = [
       files.offer('a.pdf', await makePdf(1)),

@@ -37,8 +37,8 @@ describe('types', () => {
   it('follows the value type through the steps', () => {
     expect(typesAlong(merge().steps, registry)).toEqual(['pdf', 'pdf', 'pdf', 'pdf']);
     const wf = merge();
-    wf.steps[0]!.params = { accept: 'pdfOrImages', min: 1, max: 5 };
-    expect(typesAlong(wf.steps, registry)).toEqual(['files', null, null, null]);
+    wf.steps.splice(1, 0, { id: 'photos', action: 'out.saveToPhotos', params: {} });
+    expect(typesAlong(wf.steps, registry)).toEqual(['pdf', null, null, null, null]);
     expect(workflowProblems(wf, registry).map((p) => p.code)).toEqual(['binding']);
   });
 

@@ -263,6 +263,9 @@ const strings = {
   },
   runError_unexpected: { en: 'Something went wrong: {detail}', zh: '出现错误：{detail}' },
 
+  updateTool: { en: 'Update', zh: '更新' },
+  updateSummary: { en: 'Update {name}', zh: '更新 {name}' },
+
   // 运行页面
   runTitle: { en: 'Run', zh: '运行' },
   runCancel: { en: 'Stop', zh: '停止' },

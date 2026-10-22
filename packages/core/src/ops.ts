@@ -100,6 +100,8 @@ export const OpSchema = z.discriminatedUnion('op', [
   z.strictObject({ op: z.literal('removeComponent'), pageId, componentId }),
   z.strictObject({ op: z.literal('installTool'), toolId: IdSchema }),
   z.strictObject({ op: z.literal('uninstallTool'), toolId: IdSchema }),
+  /** 已安装的工具升级到当前版本：补上新的工作流和工具页上的入口，保留用户的修改。 */
+  z.strictObject({ op: z.literal('updateTool'), toolId: IdSchema }),
   z.strictObject({
     op: z.literal('setStepParams'),
     workflowId: IdSchema,
@@ -151,7 +153,8 @@ export const OpListSchema = z.array(OpSchema).min(1).max(MAX_OPS_PER_CHANGE);
 export type ApplyNote =
   | { kind: 'movedToFloating'; target: NavTarget }
   | { kind: 'removedLinks'; pageId: string; count: number }
-  | { kind: 'removedDataComponents'; collectionId: string; count: number };
+  | { kind: 'removedDataComponents'; collectionId: string; count: number }
+  | { kind: 'updatedTool'; toolId: string; workflowIds: string[] };
 
 /** 字段类型只能在这些类型之间互相转换，已有的值仍然能读出来。 */
 export const COMPATIBLE_FIELD_TYPES: readonly (readonly string[])[] = [
@@ -410,6 +413,33 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       config.shell.nav = config.shell.nav.filter((t) => t !== target);
       config.shell.floating = config.shell.floating.filter((t) => t !== target);
       if (config.shell.nav.length === 0) config.shell.nav = [pageTarget(HOME_PAGE_ID)];
+      return;
+    }
+    case 'updateTool': {
+      const tool = config.tools.find((t) => t.toolId === op.toolId);
+      if (!tool) throw new OpError(`tool ${op.toolId} is not installed`);
+      const def = ctx.registry.tools.get(op.toolId);
+      if (!def) throw new OpError(`tool ${op.toolId} is not in the catalog`);
+      if (tool.version === def.version) throw new OpError(`tool ${op.toolId} is up to date`);
+      const page = getPage(config, tool.pageId);
+      const added = def
+        .createWorkflows(ctx.locale)
+        .filter((wf) => !config.workflows.some((w) => w.id === wf.id));
+      config.workflows.push(...added);
+      // 新入口放在文件列表之前（没有文件列表时放在最后）。
+      const fileList = page.components.findIndex((c) => c.type === 'fileList');
+      let at = fileList >= 0 ? fileList : page.components.length;
+      for (const wf of added) {
+        let id = `${wf.id}-runner`;
+        for (let i = 2; findComponent(page, id); i++) id = `${wf.id}-runner-${i}`;
+        page.components.splice(at++, 0, {
+          id,
+          type: 'workflowRunner',
+          props: { workflowId: wf.id },
+        });
+      }
+      tool.version = def.version;
+      notes.push({ kind: 'updatedTool', toolId: op.toolId, workflowIds: added.map((w) => w.id) });
       return;
     }
     case 'setStepParams': {

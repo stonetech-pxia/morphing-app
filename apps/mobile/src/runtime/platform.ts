@@ -93,4 +93,11 @@ export interface FilePlatform {
     runId: string,
     relPath: string,
   ): Promise<EncodedImage>;
+
+  // ---- Skia ----
+  /** 用系统字体（含中日韩文字和 emoji）把一行字画成透明背景的 PNG。 */
+  renderText(
+    text: string,
+    style: { fontSize: number; color: string; opacity: number },
+  ): Promise<{ bytes: Uint8Array; width: number; height: number }>;
 }

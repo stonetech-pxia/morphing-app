@@ -85,6 +85,17 @@ export function ToolsView({ env }: { env: RenderEnv }) {
                       () => env.navigate(pageTarget(installed.pageId)),
                       `open-${tool.id}`,
                     ),
+                    installed.version !== tool.version
+                      ? button(
+                          t(locale, 'updateTool'),
+                          () =>
+                            change(
+                              [{ op: 'updateTool', toolId: tool.id }],
+                              t(locale, 'updateSummary', { name }),
+                            ),
+                          `update-${tool.id}`,
+                        )
+                      : null,
                     card
                       ? button(
                           t(locale, 'removeFromHome'),

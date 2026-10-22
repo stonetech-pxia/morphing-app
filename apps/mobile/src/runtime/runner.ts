@@ -9,6 +9,7 @@ import {
 } from '@morph/core';
 
 import type { WorkspaceRepo } from '../storage/types';
+import type { RunServices } from './actions/helpers';
 import { ACTION_IMPLS } from './actions';
 import type { LocalUi } from './local';
 import type { FilePlatform } from './platform';
@@ -28,6 +29,7 @@ export interface RunContext {
   now: () => Date;
   newId: () => string;
   ui: LocalUi;
+  packs?: RunServices['packs'];
   askParams?: (request: AskRequest) => Promise<Record<string, unknown> | null>;
   ensurePack?: (packId: string) => Promise<boolean>;
   signal?: { cancelled: boolean };
@@ -56,6 +58,7 @@ export async function startRun(ctx: RunContext): Promise<Run> {
       repo: ctx.repo,
       grantee: granteeOf(ctx.workflow),
       ui: ctx.ui,
+      packs: ctx.packs ?? null,
     },
     locale: ctx.locale,
     now: ctx.now,

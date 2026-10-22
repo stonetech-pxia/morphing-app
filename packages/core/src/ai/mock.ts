@@ -609,7 +609,12 @@ const simplifyRule: Rule = (clause, state) => {
   const keep = new Set(STEP_KEYWORDS.filter(([re]) => re.test(clause)).flatMap(([, ids]) => ids));
   if (keep.size === 0) return null;
   const ops: Op[] = [];
-  for (const wf of state.config.workflows.filter((w) => w.toolId === tool.id)) {
+  // 只改含有这些步骤的工作流（例如「上传和合并」只改合并流程，不动拆分、加页码等单功能工作流）。
+  const core = [...keep].filter((id) => !id.startsWith('in.') && id !== 'file.rename');
+  const targets = state.config.workflows.filter(
+    (w) => w.toolId === tool.id && core.every((id) => w.steps.some((s) => s.action === id)),
+  );
+  for (const wf of targets) {
     for (const step of wf.steps) {
       if (keep.has(step.action) || step.action === 'file.save') continue;
       // 命名和保存是自动完成的，不算用户可见的步骤：命名保留，只是不再询问。

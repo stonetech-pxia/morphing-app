@@ -484,6 +484,9 @@ export function describeChange(
             : `Install the ${toolName(op.toolId)} tool: adds its page and a home card`,
         );
         break;
+      case 'updateTool':
+        // 说明在 notes 里（列出新增的功能）。
+        break;
       case 'uninstallTool':
         lines.push(
           zh
@@ -542,6 +545,19 @@ export function describeChange(
         zh
           ? `「${label}」不能移除（AI 修改和历史入口都在里面），已改为浮动按钮`
           : `“${label}” can’t be removed (it holds the AI and History entries), so it becomes a floating button`,
+      );
+    } else if (note.kind === 'updatedTool') {
+      const def = ctx.registry.tools.get(note.toolId);
+      const names = def
+        ? def
+            .createWorkflows(ctx.locale)
+            .filter((w) => note.workflowIds.includes(w.id))
+            .map((w) => w.name)
+        : note.workflowIds;
+      lines.push(
+        zh
+          ? `更新「${toolName(note.toolId)}」工具：新增 ${names.join('、')}；你改过的内容保留`
+          : `Update the ${toolName(note.toolId)} tool: adds ${names.join(', ')}; your changes are kept`,
       );
     } else if (note.kind === 'removedDataComponents') {
       lines.push(

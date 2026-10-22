@@ -1,4 +1,4 @@
-import type { AskRequest, RunResult, Workflow } from '@morph/core';
+import { RunError, type AskRequest, type RunResult, type Workflow } from '@morph/core';
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -9,6 +9,8 @@ import { Button, Card } from '../renderer/ui';
 import { saveItems } from '../runtime/actions/io';
 import type { LocalKind, LocalSteps, LocalUi } from '../runtime/local';
 import { granteeOf, newAssetId, startRun, type Run } from '../runtime/runner';
+import { PackGate } from '../packs/PackGate';
+import { usePacks } from '../packs/PackHost';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { AskPanel } from './AskPanel';
 import { LOCAL_SCREENS } from './local';
@@ -48,6 +50,8 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
     null,
   );
   const [local, setLocal] = useState<LocalPending | null>(null);
+  const packs = usePacks();
+  const [packAsk, setPackAsk] = useState<({ packId: string } & Pending<boolean>) | null>(null);
   const signal = useRef({ cancelled: false });
   const run = useRef<Run | null>(null);
   const label = (action: string) => registry.actions.get(action)?.label[locale] ?? action;
@@ -90,6 +94,15 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
       now: () => new Date(),
       newId: newAssetId,
       ui,
+      packs: packs
+        ? { runtime: packs.bridge, isInstalled: (id) => packs.store.isInstalled(id) }
+        : null,
+      // 需要扩展包时先问用户（D-064）；已安装就直接继续。
+      ensurePack: async (packId) => {
+        if (!packs) throw new RunError('packFailed', { detail: packId });
+        if (await packs.store.isInstalled(packId)) return true;
+        return new Promise((resolve) => setPackAsk({ packId, resolve }));
+      },
       signal: signal.current,
       askParams: (request) => new Promise((resolve) => setAsk({ ...request, resolve })),
       onEvent: (e) =>
@@ -280,6 +293,18 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
           onAnswer={(answer) => {
             ask.resolve(answer);
             setAsk(null);
+          }}
+        />
+      ) : null}
+      {packAsk && packs ? (
+        <PackGate
+          packId={packAsk.packId}
+          store={packs.store}
+          palette={palette}
+          locale={locale}
+          onDone={(installed) => {
+            packAsk.resolve(installed);
+            setPackAsk(null);
           }}
         />
       ) : null}

@@ -5,3 +5,4 @@ coverage
 package-lock.json
 LICENSE
 PRODUCT_HANDOFF_CLAUDE_CODE.md
+.claude
