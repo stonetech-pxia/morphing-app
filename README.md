@@ -15,6 +15,8 @@
 
 AI 能听懂的句式见 [docs/MOCK_AI_PHRASES.md](docs/MOCK_AI_PHRASES.md)（mock AI 是规则解析器，不是语言模型）。
 
+接入真实 AI（M3）需要 Claude API key，配置方法见 [docs/API_KEY_SETUP.md](docs/API_KEY_SETUP.md)。不配置 key 时使用 mock AI。
+
 ## 启动本地 demo（不需要任何付费账号或 API key）
 
 ### 1. 准备环境
