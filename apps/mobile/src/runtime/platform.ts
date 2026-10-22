@@ -29,6 +29,13 @@ export interface EncodedImage {
   size: number;
 }
 
+/** 用户存好的签名（documentDirectory/signatures/，不进配置和版本，不发给 AI）。 */
+export interface SavedSignature {
+  uri: string;
+  bytes: Uint8Array;
+  aspect: number;
+}
+
 export interface FilePlatform {
   // ---- 用户文件（assets/<id>/<文件名>，D-019）----
   /** 从相册选一张照片（图片组件用）；用户取消时返回 null。 */
@@ -93,6 +100,10 @@ export interface FilePlatform {
     runId: string,
     relPath: string,
   ): Promise<EncodedImage>;
+
+  // ---- 签名 ----
+  loadSignatures(): Promise<SavedSignature[]>;
+  saveSignature(png: Uint8Array, aspect: number): Promise<void>;
 
   // ---- Skia ----
   /** 用系统字体（含中日韩文字和 emoji）把一行字画成透明背景的 PNG。 */

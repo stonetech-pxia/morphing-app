@@ -231,6 +231,13 @@ export class FakeFiles implements FilePlatform {
     this.imageSizes.set(picked.uri, { width, height });
     return { ...picked, width, height };
   }
+  signatures: { uri: string; bytes: Uint8Array; aspect: number }[] = [];
+  async loadSignatures() {
+    return this.signatures;
+  }
+  async saveSignature(png: Uint8Array, aspect: number) {
+    this.signatures.unshift({ uri: `sig://${this.signatures.length}`, bytes: png, aspect });
+  }
   /** 画过的文字（断言用）。 */
   renderedTexts: string[] = [];
   /** 用真实的 PNG 代替 Skia 画出的文字（每个字 10 像素宽）。 */

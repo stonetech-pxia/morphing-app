@@ -250,6 +250,37 @@ export const expoFilePlatform: FilePlatform = {
     await setStringAsync(text);
   },
 
+  async loadSignatures() {
+    const dir = new Directory(Paths.document, 'signatures');
+    if (!dir.exists) return [];
+    const files = dir
+      .list()
+      .filter((e): e is File => e instanceof File && e.name.endsWith('.png'))
+      .sort((a, b) => (b.modificationTime ?? 0) - (a.modificationTime ?? 0))
+      .slice(0, 3);
+    return Promise.all(
+      files.map(async (f) => ({
+        uri: f.uri,
+        bytes: await f.bytes(),
+        aspect: Number(/_(\d+(?:\.\d+)?)\.png$/.exec(f.name)?.[1] ?? 3),
+      })),
+    );
+  },
+
+  async saveSignature(png, aspect) {
+    const dir = new Directory(Paths.document, 'signatures');
+    dir.create({ idempotent: true, intermediates: true });
+    // 最多保留 3 个：最旧的删掉。
+    const old = dir
+      .list()
+      .filter((e): e is File => e instanceof File)
+      .sort((a, b) => (b.modificationTime ?? 0) - (a.modificationTime ?? 0));
+    for (const f of old.slice(2)) f.delete();
+    const file = new File(dir, `${Date.now()}_${aspect.toFixed(3)}.png`);
+    file.create();
+    file.write(png);
+  },
+
   async renderText(text, style) {
     return renderTextPng(text, style);
   },

@@ -235,6 +235,10 @@ const strings = {
     en: '“{name}” has no form fields to fill.',
     zh: '「{name}」里没有可以填写的表单。',
   },
+  runError_badField: {
+    en: 'What was filled in for “{name}” doesn’t fit this field.',
+    zh: '「{name}」这一项填写的内容不符合要求。',
+  },
   runError_notFound: { en: 'Nothing was found in “{name}”.', zh: '在「{name}」里没有找到内容。' },
   runError_tooLarge: {
     en: '“{name}” is larger than {mb} MB, which is not supported yet.',

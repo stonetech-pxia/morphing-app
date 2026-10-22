@@ -25,6 +25,29 @@ export interface LocalSteps {
     };
     out: { index: number; rotate: 0 | 90 | 180 | 270 }[];
   };
+  /**
+   * 签名：选一个存好的签名或现画一个，放到某一页上。pages 是页面预览图（PDF 预览包渲染）。
+   * 返回签名 PNG 和位置（页面比例坐标，左上角为原点）。
+   */
+  sign: {
+    in: { item: RunItem; pages: { uri: string; width: number; height: number }[] };
+    out: { png: Uint8Array; pageIndex: number; x: number; y: number; width: number };
+  };
+  /** 填表：字段由 pdf-lib 读出，用户在本地填写。返回字段名 → 值。 */
+  fillForm: {
+    in: {
+      item: RunItem;
+      fields: {
+        name: string;
+        type: string;
+        value?: string | boolean;
+        options?: string[];
+        multiline?: boolean;
+        readOnly?: boolean;
+      }[];
+    };
+    out: Record<string, string | boolean>;
+  };
   /** 排序、删除：返回保留下来的下标，按新顺序。 */
   reorder: { in: { items: RunItem[] }; out: number[] };
 }

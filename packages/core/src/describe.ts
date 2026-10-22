@@ -555,9 +555,13 @@ export function describeChange(
             .map((w) => w.name)
         : note.workflowIds;
       lines.push(
-        zh
-          ? `更新「${toolName(note.toolId)}」工具：新增 ${names.join('、')}；你改过的内容保留`
-          : `Update the ${toolName(note.toolId)} tool: adds ${names.join(', ')}; your changes are kept`,
+        names.length === 0
+          ? zh
+            ? `更新「${toolName(note.toolId)}」工具到最新版本；你改过的内容保留`
+            : `Update the ${toolName(note.toolId)} tool to the latest version; your changes are kept`
+          : zh
+            ? `更新「${toolName(note.toolId)}」工具：新增 ${names.join('、')}；你改过的内容保留`
+            : `Update the ${toolName(note.toolId)} tool: adds ${names.join(', ')}; your changes are kept`,
       );
     } else if (note.kind === 'removedDataComponents') {
       lines.push(

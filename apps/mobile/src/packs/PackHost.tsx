@@ -35,12 +35,18 @@ export function PackHostProvider({ value, children }: { value: Packs; children: 
               key={page}
               ref={(w) => value.bridge.attach(page, w)}
               source={{ html: PAGES[page]!, baseUrl: PACK_BASE_URL }}
-              originWhitelist={[PACK_BASE_URL, 'about:blank']}
-              // 页面不能跳转到任何别的地址。
+              // 白名单设为全部，所有加载都交给下面的判断：只允许我们自己的页面，其他地址一律拒绝。
+              // （不在白名单里的地址 react-native-webview 会交给系统打开，例如 Safari，所以不能靠白名单拦。）
+              originWhitelist={['*']}
               onShouldStartLoadWithRequest={(r) =>
-                r.url.startsWith(PACK_BASE_URL) || r.url === 'about:blank'
+                r.url.startsWith(PACK_BASE_URL) ||
+                r.url === 'about:blank' ||
+                r.url.startsWith('blob:')
               }
               onMessage={(e) => void value.bridge.onMessage(page, e.nativeEvent.data)}
+              onError={(e) => {
+                if (__DEV__) console.warn(`[pack:${page}] load error`, e.nativeEvent.description);
+              }}
               javaScriptEnabled
               allowFileAccess={false}
               setSupportMultipleWindows={false}

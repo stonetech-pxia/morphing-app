@@ -49,6 +49,7 @@ export type RunErrorCode =
   | 'unsupportedText'
   | 'badRange'
   | 'noFormFields'
+  | 'badField'
   | 'notFound'
   | 'unexpected';
 

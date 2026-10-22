@@ -417,6 +417,76 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
     ],
     requires: [],
   },
+  {
+    id: 'pdf.toImages',
+    label: { en: 'PDF to images', zh: 'PDF 转图片' },
+    description: {
+      en: 'Turn every page into a JPG image (long side in pixels).',
+      zh: '把每一页变成一张 JPG 图片（按长边像素）。',
+    },
+    input: ['pdf'],
+    output: 'images',
+    params: z.strictObject({ maxSide: z.number().int().min(400).max(4000) }),
+    fields: [
+      {
+        key: 'maxSide',
+        label: { en: 'Long side', zh: '长边' },
+        kind: 'choice',
+        options: [
+          { value: 1200, label: { en: '1200 px (screen)', zh: '1200 像素（屏幕）' } },
+          { value: 2000, label: { en: '2000 px (sharp)', zh: '2000 像素（清晰）' } },
+          { value: 3300, label: { en: '3300 px (print)', zh: '3300 像素（打印）' } },
+        ],
+      },
+    ],
+    pack: 'pdfview',
+    requires: [],
+  },
+  {
+    id: 'pdf.extractText',
+    label: { en: 'Get text from PDF', zh: '提取 PDF 文字' },
+    description: {
+      en: 'Read the text of a PDF that has a text layer. Scanned PDFs have no text — use text recognition instead. The text stays on this device.',
+      zh: '读出 PDF 里的文字（有文字层的 PDF）。扫描件没有文字，需要用文字识别。文字只留在本机。',
+    },
+    input: ['pdf'],
+    output: 'text',
+    params: z.strictObject({}),
+    fields: [],
+    pack: 'pdfview',
+    requires: [],
+  },
+  {
+    id: 'pdf.sign',
+    label: { en: 'Sign', zh: '签名' },
+    description: {
+      en: 'The user draws or picks a saved signature and places it on a page.',
+      zh: '用户画一个签名（或用存好的签名），放到页面上的位置。',
+    },
+    input: ['pdf'],
+    output: 'pdf',
+    params: z.strictObject({}),
+    fields: [],
+    local: 'sign',
+    pack: 'pdfview',
+    requires: [],
+  },
+  {
+    id: 'pdf.fillForm',
+    label: { en: 'Fill in form', zh: '填写表单' },
+    description: {
+      en: 'The user fills in the PDF form fields on the device; flatten makes them uneditable.',
+      zh: '用户在手机上填写 PDF 表单；拍平后不能再改。',
+    },
+    input: ['pdf'],
+    output: 'pdf',
+    params: z.strictObject({ flatten: z.boolean() }),
+    fields: [
+      { key: 'flatten', label: { en: 'Flatten', zh: '拍平（填好后不能再改）' }, kind: 'toggle' },
+    ],
+    local: 'fillForm',
+    requires: [],
+  },
 ];
 
 const pickPdf = (min: number, max: number) => ({
@@ -533,6 +603,29 @@ export function pdfWorkflows(locale: Locale): Workflow[] {
       ],
     ),
     wf(
+      'pdf-fill',
+      ['Fill in a form', '填表'],
+      [pickPdf(1, 1), { id: 'run', action: 'pdf.fillForm', params: { flatten: true } }],
+    ),
+    wf(
+      'pdf-sign',
+      ['Sign a PDF', '签名'],
+      [pickPdf(1, 1), { id: 'run', action: 'pdf.sign', params: {} }],
+    ),
+    wf(
+      'pdf-toimages',
+      ['PDF to images', 'PDF 转图片'],
+      [
+        pickPdf(1, 5),
+        { id: 'run', action: 'pdf.toImages', params: { maxSide: 2000 }, ask: ['maxSide'] },
+      ],
+    ),
+    wf(
+      'pdf-text',
+      ['Get text', '提取文字'],
+      [pickPdf(1, 1), { id: 'run', action: 'pdf.extractText', params: {} }],
+    ),
+    wf(
       'pdf-stamp',
       ['Text stamp', '文字戳'],
       [
@@ -558,11 +651,11 @@ export function pdfWorkflows(locale: Locale): Workflow[] {
 
 export const pdfTool: ToolDefinition = {
   id: PDF_TOOL_ID,
-  version: '2.0.0',
+  version: '2.1.0',
   name: { en: 'PDF', zh: 'PDF' },
   description: {
-    en: 'Merge, convert images, arrange, split, number and stamp PDFs on this device.',
-    zh: '在本机合并 PDF、图片转 PDF、整理和拆分页面、加页码和文字戳。',
+    en: 'Merge, convert, arrange, split, number, stamp, sign and fill in PDFs on this device.',
+    zh: '在本机合并 PDF、图片转 PDF、整理和拆分页面、加页码和文字戳、签名、填表。',
   },
   icon: 'document',
   aliases: ['pdf', 'pdf tool', 'pdf 工具'],

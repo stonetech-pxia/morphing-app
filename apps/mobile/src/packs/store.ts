@@ -45,6 +45,9 @@ export interface PackProgress {
 
 const dirOf = (pack: PackManifest) => `${pack.id}/${pack.version}`;
 
+/** 同时下载的文件数。 */
+const PARALLEL = 6;
+
 export class PackStore {
   constructor(
     private readonly fs: PackFs,
@@ -92,18 +95,23 @@ export class PackStore {
     let done = 0;
     onProgress?.({ packId: id, doneBytes: 0, totalBytes: total });
     try {
-      for (const file of pack.files) {
-        let bytes: Uint8Array;
-        try {
-          bytes = await this.fs.download(file.url, `${dir}/${file.path}`);
-        } catch {
-          throw new PackError('download', file.path);
+      // 同时下载几个文件（pdf.js 有一百多个小 cmap 文件，一个一个下太慢）。
+      const queue = [...pack.files];
+      const worker = async () => {
+        for (let file = queue.shift(); file; file = queue.shift()) {
+          let bytes: Uint8Array;
+          try {
+            bytes = await this.fs.download(file.url, `${dir}/${file.path}`);
+          } catch {
+            throw new PackError('download', file.path);
+          }
+          if (bytes.length !== file.size) throw new PackError('size', file.path);
+          if ((await this.sha256(bytes)) !== file.sha256) throw new PackError('hash', file.path);
+          done += file.size;
+          onProgress?.({ packId: id, doneBytes: done, totalBytes: total });
         }
-        if (bytes.length !== file.size) throw new PackError('size', file.path);
-        if ((await this.sha256(bytes)) !== file.sha256) throw new PackError('hash', file.path);
-        done += file.size;
-        onProgress?.({ packId: id, doneBytes: done, totalBytes: total });
-      }
+      };
+      await Promise.all(Array.from({ length: Math.min(PARALLEL, pack.files.length) }, worker));
     } catch (e) {
       await this.fs.remove(pack.id);
       throw e;

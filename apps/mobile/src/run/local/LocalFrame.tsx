@@ -39,17 +39,29 @@ export function LocalFrame({
           style={[palette.font('title', 17), styles.title, { color: palette.text }]}>
           {title}
         </Text>
-        <Pressable testID="local-done" onPress={onDone} disabled={doneDisabled} hitSlop={10}>
-          <Text
-            style={[
-              palette.font('bodyBold', 16),
-              { color: doneDisabled ? palette.caption : palette.primaryText },
-            ]}>
+        {/* 与「取消」对称占位，让标题居中。 */}
+        <View style={styles.side} />
+      </View>
+      <View style={styles.body}>{children}</View>
+      {/* 「完成」放在底部：单手好按，也不会被系统或开发菜单的按钮挡住。 */}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
+        <Pressable
+          testID="local-done"
+          onPress={onDone}
+          disabled={doneDisabled}
+          style={({ pressed }) => [
+            styles.done,
+            {
+              backgroundColor: doneDisabled ? palette.border : palette.primary,
+              borderRadius: palette.controlRadius,
+              opacity: pressed ? 0.8 : 1,
+            },
+          ]}>
+          <Text style={[palette.font('bodyBold', 17), { color: palette.onPrimary }]}>
             {doneLabel}
           </Text>
         </Pressable>
       </View>
-      <View style={[styles.body, { paddingBottom: insets.bottom }]}>{children}</View>
     </View>
   );
 }
@@ -65,5 +77,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   title: { flex: 1, textAlign: 'center' },
+  side: { width: 40 },
   body: { flex: 1 },
+  footer: { paddingHorizontal: 20, paddingTop: 10 },
+  done: { minHeight: 52, alignItems: 'center', justifyContent: 'center' },
 });

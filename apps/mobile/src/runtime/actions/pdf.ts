@@ -4,6 +4,8 @@ import {
   PdfError,
   addPageNumbers,
   canEncodeStandardText,
+  fillForm,
+  listFormFields,
   imagesToPdf,
   mergeDocuments,
   mergePdfs,
@@ -47,6 +49,8 @@ export function pdfError(e: unknown, name = ''): never {
       throw new RunError(e.code, {
         name: e.code === 'unsupportedText' ? (e.fieldName ?? file) : file,
       });
+    case 'badField':
+      throw new RunError('badField', { name: e.fieldName ?? '' });
     case 'badImage':
       throw new RunError('unreadable', { name: file });
     default:
@@ -170,6 +174,41 @@ function stampBox(
 const today = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+/** 用 PDF 预览包把页面渲染成 JPEG（App 里的 WebView + pdf.js）。返回本次运行的临时图片。 */
+async function renderPages(
+  ctx: Ctx,
+  item: RunItem,
+  opts: { maxSide: number; quality: number; pages?: number[] },
+): Promise<RunItem[]> {
+  const packs = ctx.services.packs;
+  if (!packs) throw new RunError('packFailed', { detail: 'pdfview' });
+  let pages: { index: number; width: number; height: number; data: string }[];
+  try {
+    pages = await packs.runtime.call(
+      'pdfview',
+      'render',
+      { file: 'input', ...opts },
+      { input: item.uri },
+    );
+  } catch (e) {
+    throw new RunError('unreadable', { name: fileName(item), detail: String(e) });
+  }
+  const out: RunItem[] = [];
+  for (const page of pages) {
+    const bytes = Uint8Array.from(atob(page.data), (c) => c.charCodeAt(0));
+    out.push(
+      await writeItem(ctx.services, bytes, {
+        name: `${item.name}-${page.index + 1}`,
+        ext: 'jpg',
+        mimeType: 'image/jpeg',
+        width: page.width,
+        height: page.height,
+      }),
+    );
+  }
+  return out;
+}
+
 export const PDF_IMPLS: Record<string, Impl> = {
   async 'pdf.merge'(input, params, ctx) {
     const items = fileItems(input);
@@ -241,7 +280,22 @@ export const PDF_IMPLS: Record<string, Impl> = {
   async 'pdf.pages'(input, _params, ctx) {
     return eachPdf(input, ctx, async (bytes, item) => {
       const pages = await pageInfo(bytes);
-      const chosen = await ctx.services.ui.open('pages', { item, pages });
+      // 装了 PDF 预览包就显示缩略图；没装也能按页码整理（不会为此弹出下载）。
+      let thumbnails: string[] | undefined;
+      if (ctx.services.packs && (await ctx.services.packs.isInstalled('pdfview'))) {
+        try {
+          thumbnails = (await renderPages(ctx, item, { maxSide: 240, quality: 0.7 })).map(
+            (p) => p.uri,
+          );
+        } catch {
+          thumbnails = undefined;
+        }
+      }
+      const chosen = await ctx.services.ui.open('pages', {
+        item,
+        pages,
+        ...(thumbnails ? { thumbnails } : {}),
+      });
       if (!chosen) throw new RunCancelled();
       let out = bytes;
       for (const angle of [90, 180, 270] as const) {
@@ -316,6 +370,64 @@ export const PDF_IMPLS: Record<string, Impl> = {
         marginPt: 24,
         ...(pages ? { pages } : {}),
       });
+    });
+  },
+
+  async 'pdf.toImages'(input, params, ctx) {
+    const out: RunItem[] = [];
+    for (const item of fileItems(input)) {
+      ctx.throwIfCancelled();
+      out.push(
+        ...(await renderPages(ctx, item, { maxSide: Number(params.maxSide), quality: 0.88 })),
+      );
+    }
+    return { type: 'images', items: out };
+  },
+
+  async 'pdf.extractText'(input, _params, ctx) {
+    const [item] = fileItems(input);
+    const packs = ctx.services.packs;
+    if (!item || !packs) throw new RunError('packFailed', { detail: 'pdfview' });
+    let result: { pages: string[] };
+    try {
+      result = await packs.runtime.call('pdfview', 'text', { file: 'input' }, { input: item.uri });
+    } catch (e) {
+      throw new RunError('unreadable', { name: fileName(item), detail: String(e) });
+    }
+    const text = result.pages.join('\n\n').trim();
+    // 扫描件没有文字层。
+    if (!text) throw new RunError('notFound', { name: fileName(item) });
+    // 文字只留在本机，绝不发给 AI（D-036）。
+    return { type: 'text', text, name: item.name };
+  },
+
+  async 'pdf.sign'(input, _params, ctx) {
+    return eachPdf(input, ctx, async (bytes, item) => {
+      const previews = await renderPages(ctx, item, { maxSide: 1000, quality: 0.8 });
+      const placed = await ctx.services.ui.open('sign', {
+        item,
+        pages: previews.map((p) => ({ uri: p.uri, width: p.width!, height: p.height! })),
+      });
+      if (!placed) throw new RunCancelled();
+      return stampImage(bytes, {
+        image: { bytes: placed.png, kind: 'png' },
+        pageIndex: placed.pageIndex,
+        x: placed.x,
+        y: placed.y,
+        width: placed.width,
+      });
+    });
+  },
+
+  async 'pdf.fillForm'(input, params, ctx) {
+    return eachPdf(input, ctx, async (bytes, item) => {
+      const fields = await listFormFields(bytes);
+      if (fields.filter((f) => !f.readOnly && f.type !== 'other').length === 0) {
+        throw new RunError('noFormFields', { name: fileName(item) });
+      }
+      const values = await ctx.services.ui.open('fillForm', { item, fields });
+      if (!values) throw new RunCancelled();
+      return fillForm(bytes, values, { flatten: Boolean(params.flatten) });
     });
   },
 

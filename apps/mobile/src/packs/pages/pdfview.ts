@@ -27,7 +27,7 @@ class PackBinaryDataFactory {
 async function open(file) {
   const p = await lib();
   const data = await need({ file }, 'bytes');
-  return p.getDocument({
+  const task = p.getDocument({
     data,
     BinaryDataFactory: PackBinaryDataFactory,
     useWorkerFetch: false,
@@ -35,7 +35,11 @@ async function open(file) {
     enableXfa: false,
     stopAtErrors: false,
     verbosity: 0,
-  }).promise;
+  });
+  const doc = await task.promise;
+  // 关闭文档并结束 worker（6.x 里关闭在加载任务上）。
+  doc.close = () => task.destroy().catch(() => undefined);
+  return doc;
 }
 // iOS WebView 的 canvas 上限约 1677 万像素。
 const MAX_PIXELS = 16000000;
@@ -70,7 +74,7 @@ handlers.render = async ({ file, pages, maxSide, quality }) => {
     }
     return out;
   } finally {
-    await doc.destroy();
+    await doc.close();
   }
 };
 handlers.text = async ({ file }) => {
@@ -92,7 +96,7 @@ handlers.text = async ({ file }) => {
     }
     return { pages };
   } finally {
-    await doc.destroy();
+    await doc.close();
   }
 };
 handlers.ping = async () => ({ ok: true });

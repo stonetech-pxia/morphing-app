@@ -60,6 +60,7 @@ async function onMessage(e) {
     return;
   }
   if (m.t === 'call') {
+    post({ t: 'log', message: 'call ' + m.method });
     const fn = handlers[m.method];
     try {
       if (!fn) throw new Error('unknown method ' + m.method);
@@ -72,6 +73,7 @@ async function onMessage(e) {
 window.addEventListener('message', onMessage);
 document.addEventListener('message', onMessage);
 window.onerror = (msg) => post({ t: 'log', message: String(msg) });
+window.addEventListener('unhandledrejection', (e) => post({ t: 'log', message: 'unhandled: ' + String(e.reason && e.reason.message || e.reason) }));
 `;
 
 /** 生成一个扩展包页面：公共通道 + 这个扩展包自己的处理函数（写进 handlers）。 */

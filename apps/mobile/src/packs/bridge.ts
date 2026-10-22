@@ -77,7 +77,13 @@ export class PackBridge implements PackRuntime {
     } catch {
       return;
     }
+    if (m.t === 'log') {
+      // 页面里的错误只写进开发日志（内容是我们自己的页面代码报的错，不含文件内容）。
+      if (__DEV__) console.warn(`[pack:${page}]`, (m as { message?: string }).message);
+      return;
+    }
     if (m.t === 'ready') {
+      if (__DEV__) console.log(`[pack:${page}] ready`);
       this.readyPages.add(page);
       for (const w of this.readyWaiters.get(page) ?? []) w.resolve(undefined);
       this.readyWaiters.delete(page);
@@ -85,7 +91,10 @@ export class PackBridge implements PackRuntime {
       const p = this.pending.get(m.id);
       this.pending.delete(m.id);
       if (m.ok) p?.resolve(m.value);
-      else p?.reject(new Error(m.error ?? 'failed'));
+      else {
+        if (__DEV__) console.warn(`[pack:${page}] call failed`, m.error);
+        p?.reject(new Error(m.error ?? 'failed'));
+      }
     } else if (m.t === 'need' && typeof m.id === 'number' && m.ref) {
       await this.serve(page, m.id, m.ref, m.as === 'bytes' ? 'bytes' : 'text');
     }
@@ -138,6 +147,7 @@ export class PackBridge implements PackRuntime {
   }
 
   private async serve(page: PackPageId, id: number, ref: Ref, as: 'text' | 'bytes') {
+    if (__DEV__) console.log(`[pack:${page}] need`, 'pack' in ref ? ref.path : 'input file');
     try {
       let data: string;
       if ('pack' in ref) {
@@ -156,6 +166,7 @@ export class PackBridge implements PackRuntime {
         this.post(page, { t: 'chunk', id, i, n, data: data.slice(i * CHUNK, (i + 1) * CHUNK) });
       }
     } catch (e) {
+      if (__DEV__) console.warn(`[pack:${page}] serve failed`, String(e));
       this.post(page, { t: 'chunk', id, error: String(e instanceof Error ? e.message : e) });
     }
   }
