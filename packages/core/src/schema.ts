@@ -89,8 +89,23 @@ export const ThemeSchema = z.strictObject({
   /** 卡片圆角（pt）；按钮等控件的圆角随之缩放。 */
   radius: z.number().int().min(0).max(28),
   density: z.enum(['compact', 'comfortable', 'spacious']),
-  /** brutal = 粗边 + 硬阴影（新粗野），soft = 双向柔和阴影（新拟物），puffy = 内高光 + 柔和阴影（黏土）。 */
-  cardStyle: z.enum(['shadow', 'outline', 'flat', 'brutal', 'soft', 'puffy']),
+  /**
+   * brutal = 粗边 + 硬阴影（新粗野），soft = 双向柔和阴影（新拟物），puffy = 内高光 + 柔和阴影（黏土），
+   * glass = 半透明毛玻璃，glow = 主色外发光（霓虹），chrome = 金属渐变 + 高光（Y2K）。
+   */
+  cardStyle: z.enum([
+    'shadow',
+    'outline',
+    'flat',
+    'brutal',
+    'soft',
+    'puffy',
+    'glass',
+    'glow',
+    'chrome',
+  ]),
+  /** 页面背景：纯色（默认）、主色到辅助色的渐变、三色极光。颜色都从主题配色算出，深色模式自动跟着变。 */
+  backdrop: z.enum(['plain', 'gradient', 'aurora']).optional(),
   navStyle: z.enum(['iconLabel', 'label', 'icon']),
 });
 export type Theme = z.infer<typeof ThemeSchema>;

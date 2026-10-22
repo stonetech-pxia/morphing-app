@@ -58,6 +58,7 @@ export const OpSchema = z.discriminatedUnion('op', [
     density: ThemeSchema.shape.density.optional(),
     cardStyle: ThemeSchema.shape.cardStyle.optional(),
     navStyle: ThemeSchema.shape.navStyle.optional(),
+    backdrop: ThemeSchema.shape.backdrop,
   }),
   z.strictObject({ op: z.literal('resetTheme') }),
   z.strictObject({ op: z.literal('setNavItems'), items: z.array(NavTargetSchema).min(1).max(5) }),

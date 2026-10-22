@@ -135,6 +135,14 @@ function describeToken(key: ThemeTokenKey, value: unknown, zh: boolean): string 
       brutal: ['粗边框 + 硬阴影（新粗野）', 'bold outline with a hard shadow (neubrutalist)'],
       soft: ['柔和浮雕（新拟物）', 'soft embossed (neumorphic)'],
       puffy: ['鼓起的黏土质感', 'puffy clay'],
+      glass: ['毛玻璃', 'frosted glass'],
+      glow: ['霓虹发光', 'neon glow'],
+      chrome: ['金属质感（Y2K）', 'chrome (Y2K)'],
+    },
+    backdrop: {
+      plain: ['纯色', 'a solid color'],
+      gradient: ['渐变', 'a gradient'],
+      aurora: ['极光', 'aurora'],
     },
     navStyle: {
       iconLabel: ['图标 + 文字', 'icons and labels'],
@@ -149,6 +157,7 @@ function describeToken(key: ThemeTokenKey, value: unknown, zh: boolean): string 
     density: ['间距', 'Spacing'],
     cardStyle: ['卡片样式', 'Card style'],
     navStyle: ['导航栏样式', 'Navigation bar'],
+    backdrop: ['页面背景', 'Page background'],
   };
   const pick = ([a, b]: [string, string]) => (zh ? a : b);
   let shown: string;
@@ -328,6 +337,7 @@ export function describeChange(
           'density',
           'cardStyle',
           'navStyle',
+          'backdrop',
         ] as const) {
           if (op[key] !== undefined) lines.push(describeToken(key, op[key], zh));
         }

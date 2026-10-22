@@ -302,17 +302,40 @@ const cardStyleRule: Rule = (clause) => {
   }
   const m =
     clause.match(
-      /^卡片(?:改成|改为|换成|用)(新粗野|粗野|新拟物|拟物|浮雕|黏土|粘土)(?:风格|样式|风|质感)?$/,
-    ) ?? clause.match(/^(neubrutalist|brutalist|neumorphic|claymorphic|clay|puffy) cards$/i);
+      /^卡片(?:改成|改为|换成|用)(新粗野|粗野|新拟物|拟物|浮雕|黏土|粘土|毛玻璃|玻璃|霓虹发光|霓虹|发光|金属|Y2K)(?:风格|样式|风|质感|效果)?$/i,
+    ) ??
+    clause.match(
+      /^(neubrutalist|brutalist|neumorphic|claymorphic|clay|puffy|glass|frosted glass|neon|glowing|chrome|metallic) cards$/i,
+    );
   if (m) {
-    const cardStyle = /粗野|brutal/i.test(m[1]!)
+    const word = m[1]!;
+    const cardStyle = /粗野|brutal/i.test(word)
       ? 'brutal'
-      : /拟物|浮雕|neumorphic/i.test(m[1]!)
+      : /拟物|浮雕|neumorphic/i.test(word)
         ? 'soft'
-        : 'puffy';
+        : /玻璃|glass/i.test(word)
+          ? 'glass'
+          : /霓虹|发光|neon|glow/i.test(word)
+            ? 'glow'
+            : /金属|Y2K|chrome|metallic/i.test(word)
+              ? 'chrome'
+              : 'puffy';
     return [{ op: 'setTheme', cardStyle }];
   }
   return null;
+};
+
+const backdropRule: Rule = (clause) => {
+  const m =
+    clause.match(/^(?:页面)?背景(?:改成|改为|换成|用)(渐变|极光|纯色)(?:色|背景|效果)?$/) ??
+    clause.match(/^(?:use (?:a |an )?)?(gradient|aurora|solid) (?:page )?background$/i);
+  if (!m) return null;
+  const backdrop = /渐变|gradient/i.test(m[1]!)
+    ? 'gradient'
+    : /极光|aurora/i.test(m[1]!)
+      ? 'aurora'
+      : 'plain';
+  return [{ op: 'setTheme', backdrop }];
 };
 
 const resetStyleRule: Rule = (clause) =>
@@ -793,6 +816,7 @@ const RULES: Rule[] = [
   radiusRule,
   densityRule,
   cardStyleRule,
+  backdropRule,
   imageRule,
   pageIconRule,
   templateRule,

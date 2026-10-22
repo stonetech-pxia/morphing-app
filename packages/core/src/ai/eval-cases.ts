@@ -280,6 +280,20 @@ export const EVAL_CASES: readonly EvalCase[] = [
     },
   },
   {
+    id: 'B9d',
+    input: '背景改成极光，卡片改成毛玻璃',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.theme.backdrop === 'aurora' && c.theme.cardStyle === 'glass'
+          ? null
+          : `expected aurora + glass, got ${c.theme.backdrop} + ${c.theme.cardStyle}`,
+    },
+  },
+  {
     id: 'B9c',
     input: '深色模式下用纯黑背景，浅色模式不变',
     locale: 'zh',

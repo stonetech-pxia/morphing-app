@@ -100,6 +100,13 @@ describe('applyOps', () => {
     expect(apply(styled, [{ op: 'resetTheme' }]).theme).toEqual(workspace().theme);
   });
 
+  it('sets a page backdrop and glass cards; resetting the theme removes the backdrop', () => {
+    const styled = apply(workspace(), [{ op: 'setTheme', backdrop: 'aurora', cardStyle: 'glass' }]);
+    expect(styled.theme).toMatchObject({ backdrop: 'aurora', cardStyle: 'glass' });
+    expect(validateWorkspace(styled, registry).ok).toBe(true);
+    expect(apply(styled, [{ op: 'resetTheme' }]).theme).not.toHaveProperty('backdrop');
+  });
+
   it('adds a page with its own components, and removes it together with links to it', () => {
     const added = apply(workspace(), [
       {
@@ -394,6 +401,12 @@ describe('prepareOps', () => {
       '深色模式的背景色改为 #111111',
       '卡片样式改为柔和浮雕（新拟物）',
     ]);
+    const glass = prepareOps(
+      workspace(),
+      [{ op: 'setTheme', cardStyle: 'glass', backdrop: 'aurora' }],
+      ctx,
+    );
+    expect(glass.ok && glass.lines).toEqual(['卡片样式改为毛玻璃', '页面背景改为极光']);
     const en = prepareOps(workspace('en'), [op], { ...ctx, locale: 'en' });
     expect(en.ok && en.lines).toEqual([
       'Tertiary color → #3B82F6',

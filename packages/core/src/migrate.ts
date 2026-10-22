@@ -53,7 +53,7 @@ export const migrateV2toV3: Migration = (config) => ({
 /** v3 → v4：新增图片组件、emoji 图标和富文本；已有数据不需要改动，只提升版本号。 */
 export const migrateV3toV4: Migration = (config) => ({ ...config, schemaVersion: 4 });
 
-/** v4 → v5：主题新增第三色、深色模式颜色和三种卡片样式；已有数据不需要改动，只提升版本号。 */
+/** v4 → v5：主题新增第三色、深色模式颜色、页面背景和六种卡片样式；已有数据不需要改动，只提升版本号。 */
 export const migrateV4toV5: Migration = (config) => ({ ...config, schemaVersion: 5 });
 
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */

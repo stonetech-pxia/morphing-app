@@ -150,6 +150,17 @@ describe('mock AI — style', () => {
     expect((await change('Neumorphic cards', workspace('en'), 'en')).after.theme.cardStyle).toBe(
       'soft',
     );
+    expect((await change('卡片改成毛玻璃', workspace())).after.theme.cardStyle).toBe('glass');
+    expect((await change('卡片改成霓虹发光', workspace())).after.theme.cardStyle).toBe('glow');
+    expect((await change('卡片换成金属质感', workspace())).after.theme.cardStyle).toBe('chrome');
+  });
+
+  it('B9d page backdrop', async () => {
+    expect((await change('背景改成极光', workspace())).after.theme.backdrop).toBe('aurora');
+    expect((await change('页面背景换成渐变', workspace())).after.theme.backdrop).toBe('gradient');
+    expect((await change('Aurora background', workspace('en'), 'en')).after.theme.backdrop).toBe(
+      'aurora',
+    );
   });
 
   it('B10 navigation bar style', async () => {
