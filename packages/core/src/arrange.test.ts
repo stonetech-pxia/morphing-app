@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { dropOp, dropSlots, moveStepOp } from './arrange';
+import { coalesceOps, dropOp, dropSlots, moveStepOp } from './arrange';
 import type { Op } from './ops';
 import type { Page, WorkspaceConfig } from './schema';
 import { apply, registry, workspace } from './test-helpers';
@@ -145,5 +145,64 @@ describe('setComponentProps', () => {
     ]);
     expect(home(c).components[0]!.props).toEqual({ title: '新标题' });
     expect(validateWorkspace(c, registry).ok).toBe(true);
+  });
+});
+
+describe('coalesceOps', () => {
+  it('merges consecutive changes of one component without changing the result', () => {
+    let c = arranged();
+    const ops: Op[] = [];
+    const step = (op: Op | null) => {
+      ops.push(op!);
+      c = run(c, op);
+    };
+    step(moveStepOp(home(c), 'catalog', 'up'));
+    step(moveStepOp(home(c), 'catalog', 'up'));
+    step(moveStepOp(home(c), 'catalog', 'up'));
+    step({
+      op: 'setComponentStyle',
+      pageId: 'home',
+      componentId: 'catalog',
+      style: { tone: 'primary' },
+    });
+    step({
+      op: 'setComponentStyle',
+      pageId: 'home',
+      componentId: 'catalog',
+      style: { size: 'large' },
+    });
+    step({
+      op: 'setComponentStyle',
+      pageId: 'home',
+      componentId: 'catalog',
+      style: { tone: null },
+    });
+    step({
+      op: 'setComponentProps',
+      pageId: 'home',
+      componentId: 'welcome',
+      props: { title: 'A' },
+    });
+    step({
+      op: 'setComponentProps',
+      pageId: 'home',
+      componentId: 'welcome',
+      props: { subtitle: null },
+    });
+    step({ op: 'setComponentHidden', pageId: 'home', componentId: 'a', hidden: true });
+    step({ op: 'setComponentHidden', pageId: 'home', componentId: 'a', hidden: false });
+    step(moveStepOp(home(c), 'b', 'down'));
+    step(moveStepOp(home(c), 'recent-files', 'up'));
+
+    const merged = coalesceOps(ops);
+    expect(merged.map((o) => o.op)).toEqual([
+      'moveComponent',
+      'setComponentStyle',
+      'setComponentProps',
+      'setComponentHidden',
+      'moveComponent',
+      'moveComponent',
+    ]);
+    expect(apply(arranged(), merged)).toEqual(c);
   });
 });

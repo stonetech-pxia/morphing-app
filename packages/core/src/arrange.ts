@@ -89,3 +89,37 @@ export function dropOp(page: Page, componentId: string, slot: DropSlot): Op | nu
   if (toIndex === at.index) return null;
   return move(page.id, componentId, toIndex, slot.parentId);
 }
+
+const sameTarget = (a: Op, b: Op) =>
+  'componentId' in a &&
+  'componentId' in b &&
+  a.pageId === b.pageId &&
+  a.componentId === b.componentId;
+
+/**
+ * 编辑模式结束时把一串操作合并成一个版本之前，先合并相邻的同类操作（D-054）：
+ * 连续移动同一个组件只保留最后一次（其他组件的相对顺序不变，结果相同），
+ * 连续修改同一个组件的属性、外观或隐藏合并成一个。结果与按顺序执行原列表完全一样。
+ */
+export function coalesceOps(ops: readonly Op[]): Op[] {
+  const out: Op[] = [];
+  for (const op of ops) {
+    const last = out.at(-1);
+    if (last && last.op === op.op && sameTarget(last, op)) {
+      if (op.op === 'setComponentProps' && last.op === 'setComponentProps') {
+        out[out.length - 1] = { ...op, props: { ...last.props, ...op.props } };
+        continue;
+      }
+      if (op.op === 'setComponentStyle' && last.op === 'setComponentStyle') {
+        out[out.length - 1] = { ...op, style: { ...last.style, ...op.style } };
+        continue;
+      }
+      if (op.op === 'moveComponent' || op.op === 'setComponentHidden') {
+        out[out.length - 1] = op;
+        continue;
+      }
+    }
+    out.push(op);
+  }
+  return out;
+}

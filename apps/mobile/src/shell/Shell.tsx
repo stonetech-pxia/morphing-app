@@ -32,7 +32,8 @@ function canShow(target: NavTarget | null, config: WorkspaceConfig): target is N
   return pageId === null || config.pages.some((p) => p.id === pageId);
 }
 
-function Banner({ palette }: { palette: Palette }) {
+/** 版本提示条：已应用 / 已回退，带「撤销」。外壳和独立页面都显示。 */
+export function Banner({ palette }: { palette: Palette }) {
   const { locale } = useWorkspaceContext();
   const banner = useWorkspace((s) => s.banner);
   const undo = useWorkspace((s) => s.undo);
@@ -72,6 +73,8 @@ export function Shell() {
   const headId = useWorkspace((s) => s.head!.id);
   const tab = useWorkspace((s) => s.tab);
   const markRendered = useWorkspace((s) => s.markRendered);
+  const editing = useWorkspace((s) => s.editing !== null);
+  const startEditing = useWorkspace((s) => s.startEditing);
   const palette = usePalette(config.theme);
   const navigate = useNavigate();
   const insets = useSafeAreaInsets();
@@ -84,13 +87,14 @@ export function Shell() {
   const active = canShow(tab, config) ? tab : firstTab(config);
   const env: RenderEnv = { config, palette, locale, registry, interactive: true, navigate };
   const navStyle = config.theme.navStyle;
-  const barSpace = BAR_HEIGHT[navStyle] + insets.bottom;
+  // 编辑模式下隐藏导航栏和浮动按钮：先「完成」或「取消」，草稿不会在切换页面时丢失（D-054）。
+  const barSpace = editing ? insets.bottom : BAR_HEIGHT[navStyle] + insets.bottom;
 
   let content;
   const pageId = pageIdOf(active);
   if (pageId !== null) {
     const page = config.pages.find((p) => p.id === pageId)!;
-    content = <EditablePage page={page} env={env} bottomInset={barSpace + 64} />;
+    content = <EditablePage page={page} env={env} bottomInset={barSpace + (editing ? 0 : 64)} />;
   } else if (active === 'tools') {
     content = <ToolsView env={env} />;
   } else if (active === 'history') {
@@ -104,7 +108,29 @@ export function Shell() {
       <Banner palette={palette} />
       <View style={styles.content}>{content}</View>
 
-      {config.shell.floating.length > 0 ? (
+      {/* 编辑模式的开关（D-053）：导航栏里的页面没有标题栏，放在左下角；编辑模式下隐藏。 */}
+      {pageId !== null ? (
+        <Pressable
+          testID={editing ? undefined : 'page-edit'}
+          accessibilityRole="button"
+          accessibilityElementsHidden={editing}
+          pointerEvents={editing ? 'none' : 'auto'}
+          onPress={() => startEditing(pageId)}
+          style={({ pressed }) => [
+            styles.fab,
+            styles.editButton,
+            palette.cardStyle(palette.surface),
+            { bottom: barSpace + 16, borderRadius: 999 },
+            pressed && { transform: [{ scale: 0.96 }] },
+            editing && styles.invisible,
+          ]}>
+          <Text style={[palette.font('title', 14), { color: palette.primaryText }]}>
+            {t(locale, 'edit')}
+          </Text>
+        </Pressable>
+      ) : null}
+
+      {config.shell.floating.length > 0 && !editing ? (
         <View style={[styles.floating, { bottom: barSpace + 16 }]}>
           {config.shell.floating.map((target) => {
             const accent = target === 'ai';
@@ -135,6 +161,7 @@ export function Shell() {
       <View
         style={[
           styles.bar,
+          editing && styles.hidden,
           {
             height: barSpace,
             paddingBottom: insets.bottom,
@@ -201,6 +228,9 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   bar: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6 },
+  hidden: { display: 'none' },
+  invisible: { opacity: 0 },
+  editButton: { position: 'absolute', left: 16, minHeight: 40, paddingHorizontal: 16 },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3 },
   tabIcon: {
     width: 52,

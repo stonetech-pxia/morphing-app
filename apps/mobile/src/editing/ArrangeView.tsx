@@ -7,7 +7,7 @@ import {
   type Page,
   type DropSlot,
 } from '@morph/core';
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
   PanResponder,
@@ -17,6 +17,7 @@ import {
   Text,
   View,
   type HostInstance,
+  type ScrollViewInstance,
   type ScrollViewProps,
 } from 'react-native';
 
@@ -24,8 +25,9 @@ import { t } from '../i18n';
 import { ComponentView, type RenderEnv } from '../renderer/components';
 import { Pill } from '../renderer/ui';
 
-// 「调整顺序」模式（D-052）：每个组件带拖动把手和 ↑ ↓ 按钮，隐藏的组件也显示出来。
-// 拖动只在界面上移动；松手时翻译成一个 moveComponent 操作提交，和箭头按钮一样生成可撤销的新版本。
+// 编辑模式（D-052–D-054）：每个组件带拖动把手和 ↑ ↓ 按钮，隐藏的组件也显示出来，点组件打开操作面板。
+// 拖动只在界面上移动；松手时翻译成一个 moveComponent 加入编辑草稿，「完成」时整份草稿合成一个版本。
+// 拖到页面上下边缘时自动滚动（D-059）。
 
 interface Line {
   slot: DropSlot;
@@ -39,6 +41,17 @@ interface Drag {
 
 const sameSlot = (a: DropSlot | null, b: DropSlot) =>
   a !== null && a.parentId === b.parentId && a.index === b.index;
+
+/** 手指离可见区域上下边缘多近时开始自动滚动，以及最快每帧滚动多少（pt）。 */
+const EDGE = 80;
+const MAX_SPEED = 14;
+
+/** 拖动时的自动滚动速度：越靠近边缘越快；负数向上。 */
+export function edgeSpeed(pageY: number, top: number, bottom: number): number {
+  if (pageY < top + EDGE) return -MAX_SPEED * Math.min(1, (top + EDGE - pageY) / EDGE);
+  if (pageY > bottom - EDGE) return MAX_SPEED * Math.min(1, (pageY - (bottom - EDGE)) / EDGE);
+  return 0;
+}
 
 function measure(view: HostInstance | undefined): Promise<{ y: number; height: number } | null> {
   return new Promise((resolve) => {
@@ -72,7 +85,7 @@ function Row({
   lineAfter: boolean;
   onEdit: (id: string) => void;
   onStep: (op: Op, id: string) => void;
-  onDragStart: (id: string) => void;
+  onDragStart: (id: string, pageY: number) => void;
   onDragMove: (dy: number, pageY: number) => void;
   onDragEnd: (commit: boolean) => void;
   register: (id: string, view: HostInstance | null) => void;
@@ -87,7 +100,7 @@ function Row({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: () => onDragStart(id),
+      onPanResponderGrant: (_e, g) => onDragStart(id, g.y0),
       onPanResponderMove: (_e, g) => onDragMove(g.dy, g.moveY),
       onPanResponderRelease: () => onDragEnd(true),
       onPanResponderTerminate: () => onDragEnd(false),
@@ -181,14 +194,16 @@ export function ArrangeView({
   onEdit,
   onMove,
   onDone,
+  onCancel,
 }: {
   page: Page;
   env: RenderEnv;
   bottomInset?: number;
   scroll?: ScrollViewProps;
   onEdit: (componentId: string) => void;
-  onMove: (op: Op, componentId: string) => void;
+  onMove: (op: Op) => void;
   onDone: () => void;
+  onCancel: () => void;
 }) {
   const { palette, locale } = env;
   // 编辑行里的组件只展示，不响应点按。
@@ -198,6 +213,19 @@ export function ArrangeView({
   const [translateY] = useState(() => new Animated.Value(0));
   const [drag, setDrag] = useState<Drag | null>(null);
   const dragRef = useRef<Drag | null>(null);
+  // 编辑草稿变化时页面不会重新挂载，拖动回调要用最新的页面。
+  const latest = useRef({ page, onMove });
+  useEffect(() => {
+    latest.current = { page, onMove };
+  });
+  // 自动滚动：可见区域、内容高度、当前滚动位置，以及拖动开始和测量时的滚动位置。
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const viewport = useRef<HostInstance>(null);
+  const bounds = useRef({ top: 0, bottom: 0, content: 0, height: 0 });
+  const scrollY = useRef(scroll?.contentOffset?.y ?? 0);
+  const scrolledAt = useRef({ grant: 0, lines: 0 });
+  const finger = useRef({ dy: 0, pageY: 0 });
+  const frame = useRef<number | null>(null);
 
   const register = (id: string, view: HostInstance | null) => {
     if (view) views.current.set(id, view);
@@ -209,15 +237,24 @@ export function ArrangeView({
     setDrag(next);
   }
 
-  async function startDrag(id: string) {
+  async function startDrag(id: string, pageY: number) {
+    const { page } = latest.current;
     translateY.setValue(0);
     lines.current = [];
+    finger.current = { dy: 0, pageY };
+    scrolledAt.current.grant = scrollY.current;
     update({ id, slot: null });
-    // 记下每个可放下位置在屏幕上的高度（拖动期间页面不滚动）。
+    const area = await measure(viewport.current ?? undefined);
+    if (area) {
+      bounds.current.top = area.y;
+      bounds.current.bottom = area.y + area.height;
+    }
+    // 记下每个可放下位置在屏幕上的高度；之后页面滚动多少，就把它们平移多少。
     const boxes = new Map<string, { y: number; height: number } | null>();
     await Promise.all(
       [...views.current].map(async ([key, view]) => boxes.set(key, await measure(view))),
     );
+    scrolledAt.current.lines = scrollY.current;
     const edge = (list: Component[], i: number, fallbackId: string): number | null => {
       const before = list[i] && boxes.get(list[i]!.id);
       if (before) return before.y;
@@ -240,24 +277,49 @@ export function ArrangeView({
     if (dragRef.current?.id === id) lines.current = result;
   }
 
-  function moveDrag(dy: number, pageY: number) {
+  /** 根据手指位置和页面滚动的距离，更新被拖组件的位置和插入位置。 */
+  function follow() {
     const current = dragRef.current;
     if (!current) return;
-    translateY.setValue(dy);
+    const { dy, pageY } = finger.current;
+    translateY.setValue(dy + scrollY.current - scrolledAt.current.grant);
+    const shift = scrollY.current - scrolledAt.current.lines;
     let best: Line | null = null;
     for (const line of lines.current) {
-      if (!best || Math.abs(line.y - pageY) < Math.abs(best.y - pageY)) best = line;
+      if (!best || Math.abs(line.y - shift - pageY) < Math.abs(best.y - shift - pageY)) best = line;
     }
     if (best && !sameSlot(current.slot, best.slot)) update({ ...current, slot: best.slot });
   }
 
+  /** 手指停在边缘区域时每帧滚动一次；离开边缘、滚到头或松手时停止。 */
+  function autoScroll() {
+    frame.current = null;
+    if (!dragRef.current) return;
+    const { top, bottom, content, height } = bounds.current;
+    const speed = bottom > top ? edgeSpeed(finger.current.pageY, top, bottom) : 0;
+    const next = Math.max(0, Math.min(content - height, scrollY.current + speed));
+    if (next === scrollY.current) return;
+    scrollY.current = next;
+    scrollRef.current?.scrollTo({ y: next, animated: false });
+    follow();
+    frame.current = requestAnimationFrame(autoScroll);
+  }
+
+  function moveDrag(dy: number, pageY: number) {
+    finger.current = { dy, pageY };
+    follow();
+    if (frame.current === null) autoScroll();
+  }
+
   function endDrag(commit: boolean) {
     const current = dragRef.current;
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = null;
     update(null);
     translateY.setValue(0);
     if (!commit || !current?.slot) return;
-    const op = dropOp(page, current.id, current.slot);
-    if (op) onMove(op, current.id);
+    const op = dropOp(latest.current.page, current.id, current.slot);
+    if (op) latest.current.onMove(op);
   }
 
   const rows = (list: Component[], parentId?: string) =>
@@ -275,7 +337,7 @@ export function ArrangeView({
         }
         onEdit={onEdit}
         onStep={onMove}
-        onDragStart={(id) => void startDrag(id)}
+        onDragStart={(id, y) => void startDrag(id, y)}
         onDragMove={moveDrag}
         onDragEnd={endDrag}
         register={register}>
@@ -307,25 +369,47 @@ export function ArrangeView({
         style={[styles.bar, { backgroundColor: palette.surface, borderColor: palette.border }]}>
         <View style={styles.barText}>
           <Text style={[palette.font('title', 16), { color: palette.text }]}>
-            {t(locale, 'arrange')}
+            {t(locale, 'editPage')}
           </Text>
           <Text style={[palette.font('body', 13), { color: palette.muted }]}>
-            {t(locale, 'arrangeHint')}
+            {t(locale, 'editHint')}
           </Text>
         </View>
-        <Pill palette={palette} testID="arrange-done" label={t(locale, 'done')} onPress={onDone} />
+        <View style={styles.barActions}>
+          <Pill
+            palette={palette}
+            testID="arrange-cancel"
+            label={t(locale, 'cancel')}
+            onPress={onCancel}
+          />
+          <Pill
+            palette={palette}
+            testID="arrange-done"
+            label={t(locale, 'done')}
+            onPress={onDone}
+          />
+        </View>
       </View>
-      <ScrollView
-        {...scroll}
-        scrollEnabled={drag === null}
-        style={{ backgroundColor: palette.background }}
-        contentContainerStyle={{
-          padding: palette.pad,
-          gap: palette.gap,
-          paddingBottom: 24 + bottomInset,
-        }}>
-        {rows(page.components)}
-      </ScrollView>
+      <View ref={viewport} style={styles.root}>
+        <ScrollView
+          {...scroll}
+          ref={scrollRef}
+          scrollEnabled={drag === null}
+          onScroll={(e) => {
+            if (!dragRef.current) scrollY.current = e.nativeEvent.contentOffset.y;
+            scroll?.onScroll?.(e);
+          }}
+          onLayout={(e) => void (bounds.current.height = e.nativeEvent.layout.height)}
+          onContentSizeChange={(_w, h) => void (bounds.current.content = h)}
+          style={{ backgroundColor: palette.background }}
+          contentContainerStyle={{
+            padding: palette.pad,
+            gap: palette.gap,
+            paddingBottom: 24 + bottomInset,
+          }}>
+          {rows(page.components)}
+        </ScrollView>
+      </View>
     </View>
   );
 }
@@ -341,9 +425,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   barText: { flex: 1, gap: 2 },
+  barActions: { gap: 8 },
   row: { borderWidth: 1.5, borderStyle: 'dashed', padding: 10 },
   dragging: {
-    zIndex: 10,
     borderStyle: 'solid',
     shadowColor: '#000000',
     shadowOpacity: 0.15,

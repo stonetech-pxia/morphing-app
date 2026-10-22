@@ -1,4 +1,4 @@
-import type { Op, Page } from '@morph/core';
+import type { Page } from '@morph/core';
 import { useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent, ScrollViewProps } from 'react-native';
 
@@ -9,9 +9,10 @@ import { ArrangeView } from './ArrangeView';
 import { EditSheet } from './EditSheet';
 
 // 可以直接编辑的页面（D-052）：外壳和独立页面用它代替 PageView。
-// 长按组件打开操作面板；「调整顺序」时换成带把手和箭头的编辑视图。预览和系统页面不用它。
+// 平时长按组件进入编辑模式并打开它的操作面板；编辑模式下显示草稿，换成带把手和箭头的编辑视图，
+// 「完成」时整份草稿合成一个版本（D-054）。预览和系统页面不用它。
 
-/** 每次修改都会生成新版本并重新挂载页面；记住滚动位置，改完仍停在原处。 */
+/** 保存版本后页面会重新挂载；记住滚动位置，改完仍停在原处。 */
 const scrollOffsets = new Map<string, number>();
 
 function rememberScroll(key: string): ScrollViewProps {
@@ -32,31 +33,33 @@ export function EditablePage({
   env: RenderEnv;
   bottomInset?: number;
 }) {
-  const arranging = useWorkspace((s) => s.arranging === page.id);
-  const setArranging = useWorkspace((s) => s.setArranging);
-  const { run } = useEditActions(page);
+  const draft = useWorkspace((s) => (s.editing?.pageId === page.id ? s.editing.config : null));
+  const startEditing = useWorkspace((s) => s.startEditing);
+  const shown = draft?.pages.find((p) => p.id === page.id) ?? page;
+  const { edit, finish, cancel } = useEditActions(shown);
   const [selected, setSelected] = useState<string | null>(null);
 
   const sheet = (
     <EditSheet
-      page={page}
+      page={shown}
       componentId={selected}
       palette={env.palette}
       onClose={() => setSelected(null)}
     />
   );
 
-  if (arranging) {
+  if (draft) {
     return (
       <>
         <ArrangeView
-          page={page}
-          env={env}
+          page={shown}
+          env={{ ...env, config: draft }}
           bottomInset={bottomInset}
-          scroll={rememberScroll(`${page.id}:arrange`)}
+          scroll={rememberScroll(`${page.id}:edit`)}
           onEdit={setSelected}
-          onMove={(op: Op, id: string) => void run([op], 'moveSummary', id)}
-          onDone={() => setArranging(null)}
+          onMove={(op) => edit([op])}
+          onDone={() => void finish()}
+          onCancel={cancel}
         />
         {sheet}
       </>
@@ -66,7 +69,13 @@ export function EditablePage({
     <>
       <PageView
         page={page}
-        env={{ ...env, edit: setSelected }}
+        env={{
+          ...env,
+          edit: (id) => {
+            startEditing(page.id);
+            setSelected(id);
+          },
+        }}
         bottomInset={bottomInset}
         scroll={rememberScroll(page.id)}
       />

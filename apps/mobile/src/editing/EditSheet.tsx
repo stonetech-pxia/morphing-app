@@ -24,7 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t, type StringKey } from '../i18n';
 import type { Palette } from '../renderer/theme';
 import { Button, SectionLabel } from '../renderer/ui';
-import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { useWorkspaceContext } from '../workspace/context';
 import { useEditActions } from './actions';
 import { CAPABILITIES, type StyleKey, type TextField } from './capabilities';
 
@@ -159,6 +159,7 @@ function TextForm({
       <View style={styles.formActions}>
         <Button
           palette={palette}
+          testID="edit-text-cancel"
           variant="outline"
           label={t(locale, 'cancel')}
           onPress={onCancel}
@@ -188,9 +189,7 @@ export function EditSheet({
   onClose: () => void;
 }) {
   const { locale } = useWorkspaceContext();
-  const arranging = useWorkspace((s) => s.arranging === page.id);
-  const setArranging = useWorkspace((s) => s.setArranging);
-  const { run, label } = useEditActions(page);
+  const { edit, label } = useEditActions(page);
   const insets = useSafeAreaInsets();
   const [editingText, setEditingText] = useState(false);
   const component = componentId ? allComponents(page).find((c) => c.id === componentId) : undefined;
@@ -205,19 +204,18 @@ export function EditSheet({
   const caps = CAPABILITIES[component.type];
   const target = { pageId: page.id, componentId: id };
 
-  function apply(ops: Op[], summary: StringKey) {
-    close();
-    void run(ops, summary, id);
+  /** 加入编辑草稿。改外观时面板保持打开，方便多试几种。 */
+  function apply(ops: Op[], { keepOpen = false } = {}) {
+    if (edit(ops) && !keepOpen) close();
   }
 
   function setStyle(key: StyleKey, value: string) {
     const current = component!.style?.[key] ?? DEFAULTS[key];
     if (current === value) return;
     const style: Record<string, string | null> = { [key]: value === DEFAULTS[key] ? null : value };
-    apply(
-      [{ op: 'setComponentStyle', ...target, style: style as ComponentStyle }],
-      'editStyleSummary',
-    );
+    apply([{ op: 'setComponentStyle', ...target, style: style as ComponentStyle }], {
+      keepOpen: true,
+    });
   }
 
   function confirmDelete() {
@@ -232,7 +230,7 @@ export function EditSheet({
       {
         text: t(locale, 'delete'),
         style: 'destructive',
-        onPress: () => apply([{ op: 'removeComponent', ...target }], 'deleteSummary'),
+        onPress: () => apply([{ op: 'removeComponent', ...target }]),
       },
     ]);
   }
@@ -273,7 +271,7 @@ export function EditSheet({
                 onCancel={() => setEditingText(false)}
                 onSave={(props) => {
                   if (Object.keys(props).length === 0) close();
-                  else apply([{ op: 'setComponentProps', ...target, props }], 'editTextSummary');
+                  else apply([{ op: 'setComponentProps', ...target, props }]);
                 }}
               />
             ) : (
@@ -310,26 +308,15 @@ export function EditSheet({
                     testID="edit-up"
                     label={`↑ ${t(locale, 'moveUp')}`}
                     disabled={!up}
-                    onPress={() => up && apply([up], 'moveSummary')}
+                    onPress={() => up && apply([up])}
                   />
                   <Chip
                     palette={palette}
                     testID="edit-down"
                     label={`↓ ${t(locale, 'moveDown')}`}
                     disabled={!down}
-                    onPress={() => down && apply([down], 'moveSummary')}
+                    onPress={() => down && apply([down])}
                   />
-                  {arranging ? null : (
-                    <Chip
-                      palette={palette}
-                      testID="edit-arrange"
-                      label={`≡ ${t(locale, 'arrange')}`}
-                      onPress={() => {
-                        close();
-                        setArranging(page.id);
-                      }}
-                    />
-                  )}
                 </View>
                 <View style={styles.chips}>
                   <Chip
@@ -337,10 +324,7 @@ export function EditSheet({
                     testID="edit-hide"
                     label={t(locale, component.hidden ? 'show' : 'hide')}
                     onPress={() =>
-                      apply(
-                        [{ op: 'setComponentHidden', ...target, hidden: !component.hidden }],
-                        component.hidden ? 'showSummary' : 'hideSummary',
-                      )
+                      apply([{ op: 'setComponentHidden', ...target, hidden: !component.hidden }])
                     }
                   />
                   <Chip

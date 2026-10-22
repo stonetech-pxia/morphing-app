@@ -21,8 +21,9 @@ import { FakeFiles } from '../test-utils/fake-files';
 import { WorkspaceProvider } from '../workspace/context';
 import { createWorkspaceStore, type WorkspaceStore } from '../workspace/store';
 
-// 直接编辑（D-052）：长按组件修改文字、颜色、隐藏、删除、调整顺序。每个操作都经过校验，
-// 生成 source 为 user 的新版本，提示条上可以撤销；预览里长按无效。
+// 直接编辑（D-052–D-054）：长按组件或点「编辑」进入编辑模式，修改文字、颜色、隐藏、删除、顺序。
+// 每个操作都先经过校验进入草稿，点「完成」时合成一个 source 为 user 的版本，提示条上可以撤销；
+// 点「取消」全部放弃；预览里长按无效。
 
 const registry = createRegistry(BUILTIN_TOOLS);
 
@@ -76,10 +77,28 @@ async function commit(store: WorkspaceStore, ops: Op[], summary: string) {
   expect(await screen.findByText(`已应用：${summary}`)).toBeTruthy();
 }
 
+/** 长按：进入编辑模式并打开组件的操作面板。 */
 async function longPress(testID: string) {
   await fireEvent(await screen.findByTestId(testID), 'longPress');
   expect(await screen.findByTestId('edit-sheet')).toBeTruthy();
+  expect(screen.getByTestId('arrange-bar')).toBeTruthy();
 }
+
+/** 编辑模式里点组件打开它的操作面板。 */
+async function tapInEditor(id: string) {
+  await fireEvent.press(await screen.findByTestId(`arrange-edit-${id}`));
+  expect(await screen.findByTestId('edit-sheet')).toBeTruthy();
+}
+
+/** 「完成」：草稿保存为一个版本。 */
+async function done(store: WorkspaceStore, summary: string) {
+  await fireEvent.press(screen.getByTestId('arrange-done'));
+  expect(await screen.findByText(`已应用：${summary}`)).toBeTruthy();
+  expect(store.getState().editing).toBeNull();
+  expect(store.getState().head).toMatchObject({ source: 'user', summary });
+}
+
+const draftHome = (store: WorkspaceStore) => store.getState().editing!.config.pages[0]!;
 
 /** 撤销最近一次修改（提示条上的「撤销」）。 */
 async function undo(store: WorkspaceStore) {
@@ -96,31 +115,42 @@ function pressInNextAlert(label: string) {
 describe('editing the page directly', () => {
   afterEach(() => jest.restoreAllMocks());
 
-  it('long-press → edit the title and subtitle; undo restores them', async () => {
+  it('long-press enters edit mode; edits stay a draft until Done saves one version', async () => {
     const { store, repo } = await renderApp();
+    const headId = store.getState().head!.id;
     await longPress('component-welcome');
     await fireEvent.press(screen.getByTestId('edit-text'));
     await fireEvent.changeText(screen.getByTestId('edit-field-title'), '  家庭账本 ');
     await fireEvent.changeText(screen.getByTestId('edit-field-subtitle'), '');
     await fireEvent.press(screen.getByTestId('edit-save'));
-
     expect(await screen.findByText('家庭账本')).toBeTruthy();
     expect(screen.queryByTestId('edit-sheet')).toBeNull();
+    expect(draftHome(store).components[0]!.props).toEqual({ title: '家庭账本' });
+
+    // 外观：面板保持打开，可以连续试。
+    await tapInEditor('catalog');
+    await fireEvent.press(screen.getByTestId('edit-tone-primary'));
+    expect(screen.getByTestId('edit-tone-primary')).toBeSelected();
+    await fireEvent.press(screen.getByTestId('edit-close'));
+
+    // 还没保存：没有新版本。
+    expect(store.getState().head!.id).toBe(headId);
+    expect(home(store).components[0]!.props).toMatchObject({ title: '我的工作台' });
+
+    await done(store, '编辑「首页」（2 处修改）');
+    expect(store.getState().head!.id).toBe(headId + 1);
     expect(home(store).components[0]!.props).toEqual({ title: '家庭账本' });
-    expect(store.getState().head).toMatchObject({
-      source: 'user',
-      summary: '修改标题「我的工作台」的文字',
-    });
-    expect(screen.getByTestId('banner')).toHaveTextContent(/已应用：修改标题「我的工作台」的文字/);
-    // 和 AI 的修改一样记录了修改请求。
+    expect(home(store).components[1]!.style).toEqual({ tone: 'primary' });
+    expect(await screen.findByTestId('component-welcome')).toBeTruthy();
     expect(await repo.getChangeRequest(1)).toMatchObject({ status: 'committed' });
 
+    // 一次撤销回到编辑之前。
     await undo(store);
     expect(await screen.findByText('我的工作台')).toBeTruthy();
-    expect(home(store).components[0]!.props).toMatchObject({ subtitle: expect.any(String) });
+    expect(home(store).components[1]!.style).toBeUndefined();
   });
 
-  it('a required text cannot be emptied; cancelling changes nothing', async () => {
+  it('a required text cannot be emptied; Cancel without changes just leaves edit mode', async () => {
     const { store } = await renderApp();
     const headId = store.getState().head!.id;
     await longPress('component-welcome');
@@ -128,91 +158,75 @@ describe('editing the page directly', () => {
     await fireEvent.changeText(screen.getByTestId('edit-field-title'), '   ');
     await fireEvent.press(screen.getByTestId('edit-save'));
     expect(screen.getByText('不能为空')).toBeTruthy();
-    await fireEvent.press(screen.getByText('取消'));
+    await fireEvent.press(screen.getByTestId('edit-text-cancel'));
     await fireEvent.press(screen.getByTestId('edit-close'));
     expect(screen.queryByTestId('edit-sheet')).toBeNull();
+    await fireEvent.press(screen.getByTestId('arrange-cancel'));
+    expect(screen.queryByTestId('arrange-bar')).toBeNull();
     expect(store.getState().head!.id).toBe(headId);
   });
 
-  it('changes color, alignment and size; choosing the default clears the setting', async () => {
+  it('several look changes on one part become a single change', async () => {
     const { store } = await renderApp();
     await longPress('component-catalog');
     await fireEvent.press(screen.getByTestId('edit-tone-primary'));
-    expect(home(store).components[1]!.style).toEqual({ tone: 'primary' });
-    expect(store.getState().head).toMatchObject({
-      source: 'user',
-      summary: '调整「添加工具」入口的外观',
-    });
-
-    await longPress('component-catalog');
-    expect(screen.getByTestId('edit-tone-primary')).toBeSelected();
     await fireEvent.press(screen.getByTestId('edit-align-center'));
-    await longPress('component-catalog');
     await fireEvent.press(screen.getByTestId('edit-size-large'));
-    expect(home(store).components[1]!.style).toEqual({
-      tone: 'primary',
-      align: 'center',
-      size: 'large',
-    });
-
-    await longPress('component-catalog');
     await fireEvent.press(screen.getByTestId('edit-tone-default'));
+    expect(screen.getByTestId('edit-tone-default')).toBeSelected();
+    await fireEvent.press(screen.getByTestId('edit-close'));
+    expect(store.getState().editing!.ops).toHaveLength(1);
+    await done(store, '编辑「首页」（1 处修改）');
     expect(home(store).components[1]!.style).toEqual({ align: 'center', size: 'large' });
-
-    await undo(store);
-    expect(home(store).components[1]!.style).toEqual({
-      tone: 'primary',
-      align: 'center',
-      size: 'large',
-    });
   });
 
-  it('hides a component and shows it again from the reorder view', async () => {
+  it('hides a part; it stays visible in edit mode and can be shown again', async () => {
     const { store } = await renderApp();
     await longPress('component-catalog');
     await fireEvent.press(screen.getByTestId('edit-hide'));
-    expect(screen.queryByTestId('component-catalog')).toBeNull();
-    expect(store.getState().head).toMatchObject({
-      source: 'user',
-      summary: '隐藏「添加工具」入口',
-    });
-
-    // 隐藏的组件在「调整顺序」里仍然看得到，可以重新显示。
-    await longPress('component-welcome');
-    await fireEvent.press(screen.getByTestId('edit-arrange'));
-    expect(await screen.findByTestId('arrange-catalog')).toBeTruthy();
+    expect(screen.getByTestId('arrange-catalog')).toBeTruthy();
     expect(screen.getByText('已隐藏')).toBeTruthy();
-    await fireEvent.press(screen.getByTestId('arrange-edit-catalog'));
-    await fireEvent.press(await screen.findByTestId('edit-hide'));
-    expect(home(store).components[1]!.hidden).toBeUndefined();
-    await fireEvent.press(await screen.findByTestId('arrange-done'));
+    await done(store, '编辑「首页」（1 处修改）');
+    expect(screen.queryByTestId('component-catalog')).toBeNull();
+
+    // 「编辑」开关进入编辑模式，重新显示。
+    await fireEvent.press(screen.getByTestId('page-edit'));
+    await tapInEditor('catalog');
+    await fireEvent.press(screen.getByTestId('edit-hide'));
+    await done(store, '编辑「首页」（1 处修改）');
     expect(await screen.findByTestId('component-catalog')).toBeTruthy();
   });
 
-  it('deletes a component only after confirming; undo brings it back', async () => {
+  it('deletes only after confirming; Cancel discards the whole draft', async () => {
     const { store } = await renderApp();
     const headId = store.getState().head!.id;
     pressInNextAlert('取消');
     await longPress('component-recent-files');
     await fireEvent.press(screen.getByTestId('edit-delete'));
+    expect(screen.getByTestId('arrange-recent-files')).toBeTruthy();
+
+    pressInNextAlert('删除');
+    await fireEvent.press(screen.getByTestId('edit-delete'));
+    expect(screen.queryByTestId('arrange-recent-files')).toBeNull();
     expect(store.getState().head!.id).toBe(headId);
-    expect(screen.getByTestId('component-recent-files')).toBeTruthy();
+
+    // 取消编辑：确认后放弃草稿，什么都没改。
+    pressInNextAlert('放弃');
+    await fireEvent.press(screen.getByTestId('arrange-cancel'));
+    expect(await screen.findByTestId('component-recent-files')).toBeTruthy();
+    expect(store.getState().editing).toBeNull();
+    expect(store.getState().head!.id).toBe(headId);
 
     pressInNextAlert('删除');
     await longPress('component-recent-files');
     await fireEvent.press(screen.getByTestId('edit-delete'));
-    expect(screen.queryByTestId('component-recent-files')).toBeNull();
-    expect(store.getState().head).toMatchObject({
-      source: 'user',
-      summary: '删除文件列表「最近文件」',
-    });
+    await done(store, '编辑「首页」（1 处修改）');
     expect(order(store)).toEqual(['welcome', 'catalog']);
-
     await undo(store);
     expect(await screen.findByTestId('component-recent-files')).toBeTruthy();
   });
 
-  it('reorders with the arrows, into and out of a group, one undoable version per move', async () => {
+  it('reorders with the arrows, into and out of a group, saved as one version', async () => {
     const { store } = await renderApp();
     await commit(
       store,
@@ -231,50 +245,47 @@ describe('editing the page directly', () => {
       ],
       '分组',
     );
-    expect(order(store)).toEqual(['welcome', 'row[go]', 'catalog', 'recent-files']);
-
-    await longPress('component-catalog');
-    await fireEvent.press(screen.getByTestId('edit-arrange'));
+    const headId = store.getState().head!.id;
+    await fireEvent.press(screen.getByTestId('page-edit'));
     expect(await screen.findByTestId('arrange-bar')).toBeTruthy();
     expect(screen.getByTestId('arrange-up-welcome')).toBeDisabled();
+    // 编辑模式下导航栏和浮动按钮隐藏，不会切走丢掉草稿。
+    expect(screen.queryByTestId('nav-ai')).toBeNull();
+    expect(screen.queryByTestId('page-edit')).toBeNull();
 
-    const versions: number[] = [];
+    const draftOrder = () =>
+      draftHome(store).components.map((c) =>
+        c.type === 'group' ? `${c.id}[${c.children.map((x) => x.id).join(',')}]` : c.id,
+      );
     const step = async (testID: string, expected: string[]) => {
       await fireEvent.press(await screen.findByTestId(testID));
-      expect(order(store)).toEqual(expected);
-      expect(store.getState().head).toMatchObject({ source: 'user' });
-      versions.push(store.getState().head!.id);
+      expect(draftOrder()).toEqual(expected);
     };
     await step('arrange-up-catalog', ['welcome', 'row[go,catalog]', 'recent-files']);
     await step('arrange-up-catalog', ['welcome', 'row[catalog,go]', 'recent-files']);
     await step('arrange-up-catalog', ['welcome', 'catalog', 'row[go]', 'recent-files']);
     await step('arrange-down-go', ['welcome', 'catalog', 'row[]', 'go', 'recent-files']);
-    expect(new Set(versions).size).toBe(4);
-    expect(store.getState().head).toMatchObject({ summary: '移动分隔线' });
-    // 每次修改都会重新挂载外壳，「调整顺序」模式保持不变。
-    expect(screen.getByTestId('arrange-bar')).toBeTruthy();
+    expect(store.getState().head!.id).toBe(headId);
+    // 连续移动同一个组件只算一处修改。
+    await done(store, '编辑「首页」（2 处修改）');
+    expect(store.getState().head!.id).toBe(headId + 1);
+    expect(order(store)).toEqual(['welcome', 'catalog', 'row[]', 'go', 'recent-files']);
+    expect(screen.getByTestId('nav-ai')).toBeTruthy();
 
     await undo(store);
-    expect(order(store)).toEqual(['welcome', 'catalog', 'row[go]', 'recent-files']);
-
-    await fireEvent.press(screen.getByTestId('arrange-done'));
-    expect(screen.queryByTestId('arrange-bar')).toBeNull();
-    expect(screen.getByTestId('component-catalog')).toBeTruthy();
+    expect(order(store)).toEqual(['welcome', 'row[go]', 'catalog', 'recent-files']);
   });
 
-  it('the long-press menu also moves a component up and down', async () => {
+  it('the long-press menu also moves a part up and down', async () => {
     const { store } = await renderApp();
     await longPress('component-recent-files');
     expect(screen.getByTestId('edit-down')).toBeDisabled();
     await fireEvent.press(screen.getByTestId('edit-up'));
+    await done(store, '编辑「首页」（1 处修改）');
     expect(order(store)).toEqual(['welcome', 'recent-files', 'catalog']);
-    expect(store.getState().head).toMatchObject({
-      source: 'user',
-      summary: '移动文件列表「最近文件」',
-    });
   });
 
-  it('data components: no text editing; color, hiding and deleting keep the records', async () => {
+  it('data components: no text editing; color and deleting keep the records', async () => {
     const { store, repo } = await renderApp();
     await commit(store, templateOps('todo', store.getState().config!, 'zh'), '添加待办');
     const page = store.getState().config!.pages.find((p) => p.id !== 'home')!;
@@ -293,22 +304,19 @@ describe('editing the page directly', () => {
     expect(screen.queryByTestId('edit-text')).toBeNull();
     expect(screen.queryByTestId('edit-align-center')).toBeNull();
     await fireEvent.press(screen.getByTestId('edit-tone-secondary'));
-    const styled = store.getState().config!.pages.find((p) => p.id === page.id)!;
-    expect(styled.components.find((c) => c.id === list.id)!.style).toEqual({ tone: 'secondary' });
-
     pressInNextAlert('删除');
-    await longPress(`component-${list.id}`);
     await fireEvent.press(screen.getByTestId('edit-delete'));
     expect(Alert.alert).toHaveBeenCalledWith(
       expect.stringContaining('记录列表'),
       expect.stringContaining('记录不会被删除'),
       expect.anything(),
     );
+    await done(store, `编辑「${page.title}」（2 处修改）`);
     expect(screen.queryByTestId(`component-${list.id}`)).toBeNull();
     expect(await repo.listRecords(collectionId)).toHaveLength(1);
   });
 
-  it('separate pages: the header Edit button toggles reordering', async () => {
+  it('separate pages: the header Edit button; Back is hidden while editing', async () => {
     const { store } = await renderApp();
     await commit(
       store,
@@ -338,18 +346,17 @@ describe('editing the page directly', () => {
     );
     await fireEvent.press(await screen.findByText('打开笔记'));
     await fireEvent.press(await screen.findByTestId('page-edit'));
+    expect(screen.queryByTestId('page-edit')).toBeNull();
     await fireEvent.press(await screen.findByTestId('arrange-down-a'));
-    expect(store.getState().config!.pages[1]!.components.map((c) => c.id)).toEqual(['b', 'a']);
-    expect(screen.getByTestId('page-edit')).toHaveTextContent('完成');
-    await fireEvent.press(screen.getByTestId('page-edit'));
-    expect(screen.queryByTestId('arrange-bar')).toBeNull();
-
-    // 长按按钮打开操作面板，而不是打开按钮指向的页面。
-    await longPress('component-b');
+    await tapInEditor('b');
     await fireEvent.press(screen.getByTestId('edit-text'));
     await fireEvent.changeText(screen.getByTestId('edit-field-text'), '**改好了**');
     await fireEvent.press(screen.getByTestId('edit-save'));
+    await done(store, '编辑「笔记」（2 处修改）');
+    const notes = store.getState().config!.pages.find((p) => p.id === 'notes')!;
+    expect(notes.components.map((c) => c.id)).toEqual(['b', 'a']);
     expect(await screen.findByText('改好了')).toBeTruthy();
+    expect(screen.getByTestId('page-edit')).toBeTruthy();
   });
 
   it('long-pressing a button opens the menu instead of following the button', async () => {
@@ -375,7 +382,30 @@ describe('editing the page directly', () => {
     await fireEvent.press(screen.getByTestId('edit-text'));
     await fireEvent.changeText(screen.getByTestId('edit-field-label'), '打开工具');
     await fireEvent.press(screen.getByTestId('edit-save'));
+    await done(store, '编辑「首页」（1 处修改）');
     expect(await screen.findByText('打开工具')).toBeTruthy();
+  });
+
+  it('a draft is limited to one change request; invalid edits are refused', async () => {
+    const { store } = await renderApp();
+    store.getState().startEditing('home');
+    expect(
+      store
+        .getState()
+        .editOps([
+          { op: 'setComponentProps', pageId: 'home', componentId: 'welcome', props: { title: '' } },
+        ]),
+    ).toMatchObject({ ok: false, issues: expect.any(Array) });
+    expect(store.getState().editing!.ops).toHaveLength(0);
+    const toggle = (componentId: string, hidden: boolean) =>
+      store.getState().editOps([{ op: 'setComponentHidden', pageId: 'home', componentId, hidden }]);
+    for (let i = 0; i < 15; i++) {
+      expect(toggle('welcome', i % 2 === 0)).toEqual({ ok: true });
+      expect(toggle('catalog', i % 2 === 0)).toEqual({ ok: true });
+    }
+    expect(store.getState().editing!.ops).toHaveLength(30);
+    expect(toggle('welcome', true)).toEqual({ ok: false, full: true });
+    expect(store.getState().editing!.ops).toHaveLength(30);
   });
 
   it('long-press does nothing in the preview', async () => {
@@ -387,6 +417,7 @@ describe('editing the page directly', () => {
     const headId = store.getState().head!.id;
     await fireEvent(within(preview).getByTestId('component-welcome'), 'longPress');
     expect(screen.queryByTestId('edit-sheet')).toBeNull();
+    expect(store.getState().editing).toBeNull();
     expect(store.getState().head!.id).toBe(headId);
   });
 });

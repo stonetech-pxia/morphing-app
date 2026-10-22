@@ -139,7 +139,9 @@ export const OpSchema = z.discriminatedUnion('op', [
   z.strictObject({ op: z.literal('removeCollection'), collectionId: IdSchema }),
 ]);
 export type Op = z.infer<typeof OpSchema>;
-export const OpListSchema = z.array(OpSchema).min(1).max(30);
+/** 一次修改（一个版本）最多包含的操作数。 */
+export const MAX_OPS_PER_CHANGE = 30;
+export const OpListSchema = z.array(OpSchema).min(1).max(MAX_OPS_PER_CHANGE);
 
 /** apply 过程中系统自动做出的调整，需要在预览中告知用户。 */
 export type ApplyNote =

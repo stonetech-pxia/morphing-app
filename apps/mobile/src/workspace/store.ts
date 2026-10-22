@@ -1,6 +1,8 @@
 import {
+  MAX_OPS_PER_CHANGE,
   PlanSchema,
   RECORD_LIMITS,
+  coalesceOps,
   createDefaultWorkspace,
   describeRestore,
   prepareOps,
@@ -58,6 +60,17 @@ export interface Banner {
   undoTo?: number;
 }
 
+/** 编辑模式的草稿（D-054）：操作先累积在这里，点「完成」时作为一个版本提交。 */
+export interface EditDraft {
+  pageId: string;
+  /** 已合并相邻同类操作。 */
+  ops: Op[];
+  /** 应用 ops 后、已通过校验的配置；编辑模式下页面显示它。 */
+  config: WorkspaceConfig;
+}
+
+export type EditResult = { ok: true } | { ok: false; issues: string[] } | { ok: false; full: true };
+
 export interface WorkspaceState {
   status: 'loading' | 'ready' | 'error';
   error: string | null;
@@ -74,8 +87,8 @@ export interface WorkspaceState {
   recordsVersion: number;
   /** 记录操作后的提示（例如删除后可以撤销）。与版本提示条分开：记录不属于任何版本。 */
   toast: { message: string; restoreRecordId?: string } | null;
-  /** 正在「调整顺序」的页面（直接编辑，D-052）；每次修改都会重新挂载外壳，所以保存在这里。 */
-  arranging: string | null;
+  /** 编辑模式（直接编辑，D-052–D-054）；为 null 时不在编辑模式。 */
+  editing: EditDraft | null;
 
   boot(): Promise<void>;
   propose(input: string): Promise<ProposeResult>;
@@ -89,7 +102,13 @@ export interface WorkspaceState {
   reportRenderError(error: unknown): Promise<void>;
   dismissBanner(): void;
   selectTab(target: NavTarget): void;
-  setArranging(pageId: string | null): void;
+  startEditing(pageId: string): void;
+  /** 把操作加入草稿：先校验，不通过时草稿不变。 */
+  editOps(ops: Op[]): EditResult;
+  /** 「完成」：草稿作为一个 source 为 user 的版本提交；没有实际变化时直接退出。 */
+  finishEditing(summary: string): Promise<EditResult>;
+  /** 「取消」：放弃草稿。 */
+  cancelEditing(): void;
   bumpRecords(): void;
   showToast(toast: { message: string; restoreRecordId?: string }): void;
   dismissToast(): void;
@@ -240,7 +259,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       tab: null,
       recordsVersion: 0,
       toast: null,
-      arranging: null,
+      editing: null,
 
       async boot() {
         try {
@@ -435,8 +454,44 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       },
 
       dismissBanner: () => set({ banner: null }),
-      selectTab: (target) => set({ tab: target, arranging: null }),
-      setArranging: (pageId) => set({ arranging: pageId }),
+      selectTab: (target) => set({ tab: target, editing: null }),
+
+      startEditing(pageId) {
+        const { config, editing } = get();
+        if (!config || editing?.pageId === pageId) return;
+        set({ editing: { pageId, ops: [], config } });
+      },
+
+      editOps(ops) {
+        const { config, editing } = get();
+        if (!config || !editing) throw new Error('not editing');
+        const merged = coalesceOps([...editing.ops, ...ops]);
+        if (merged.length > MAX_OPS_PER_CHANGE) return { ok: false, full: true };
+        const prepared = prepareOps(config, merged, { registry, locale, now: deps.now() });
+        if (!prepared.ok) return { ok: false, issues: prepared.issues };
+        set({ editing: { ...editing, ops: merged, config: prepared.after } });
+        return { ok: true };
+      },
+
+      async finishEditing(summary) {
+        const { config, editing } = get();
+        if (!editing) return { ok: true };
+        if (JSON.stringify(editing.config) === JSON.stringify(config)) {
+          set({ editing: null });
+          return { ok: true };
+        }
+        const result = await opsProposal(summary, editing.ops, 'user', summary);
+        if (result.kind !== 'preview')
+          return {
+            ok: false,
+            issues: result.kind === 'invalid' ? result.issues : [result.message],
+          };
+        set({ editing: null });
+        await get().confirm();
+        return { ok: true };
+      },
+
+      cancelEditing: () => set({ editing: null }),
       bumpRecords: () => set((s) => ({ recordsVersion: s.recordsVersion + 1 })),
       showToast: (toast) => set({ toast }),
       dismissToast: () => set({ toast: null }),

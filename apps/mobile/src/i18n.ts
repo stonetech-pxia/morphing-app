@@ -330,9 +330,25 @@ const strings = {
   hiddenTag: { en: 'Hidden', zh: '已隐藏' },
   done: { en: 'Done', zh: '完成' },
   edit: { en: 'Edit', zh: '编辑' },
-  arrangeHint: {
-    en: 'Hold ≡ and drag, or use ↑ ↓. Tap a part to change or delete it.',
-    zh: '按住 ≡ 拖动，或点 ↑ ↓ 移动。点组件可以修改或删除。',
+  editPage: { en: 'Edit page', zh: '编辑页面' },
+  editHint: {
+    en: 'Tap a part to change it. Hold ≡ and drag, or use ↑ ↓. Done saves everything as one version.',
+    zh: '点组件修改；按住 ≡ 拖动或点 ↑ ↓ 移动。点「完成」保存为一个版本。',
+  },
+  discardEditTitle: { en: 'Discard your changes?', zh: '放弃这次的修改？' },
+  discardEditMessage: {
+    en: 'None of the changes made in edit mode will be kept.',
+    zh: '这次编辑里的修改都不会保存。',
+  },
+  keepEditing: { en: 'Keep editing', zh: '继续编辑' },
+  discard: { en: 'Discard', zh: '放弃' },
+  tooManyEdits: {
+    en: 'That’s a lot of changes at once. Tap Done to save them, then keep editing.',
+    zh: '这次改动太多了。请先点「完成」保存，再继续编辑。',
+  },
+  editPageSummary: {
+    en: 'Edit “{page}” ({count} changes)',
+    zh: '编辑「{page}」（{count} 处修改）',
   },
   groupLabel: { en: 'Group', zh: '分组' },
   field_title: { en: 'Title', zh: '标题' },
@@ -349,23 +365,17 @@ const strings = {
   textRequired: { en: 'This can’t be empty', zh: '不能为空' },
   deleteComponentTitle: { en: 'Delete {label}?', zh: '删除{label}？' },
   deleteComponentMessage: {
-    en: 'You can undo this from the banner or History.',
-    zh: '可以在提示条或「历史版本」里撤销。',
+    en: 'Cancel discards the whole edit; after saving you can still undo it.',
+    zh: '点「取消」可以放弃这次编辑，保存后也能撤销。',
   },
   deleteGroupMessage: {
-    en: 'The {count} parts inside it are deleted too. You can undo this from the banner or History.',
-    zh: '里面的 {count} 个组件也会一起删除。可以在提示条或「历史版本」里撤销。',
+    en: 'The {count} parts inside it are deleted too. Cancel discards the whole edit; after saving you can still undo it.',
+    zh: '里面的 {count} 个组件也会一起删除。点「取消」可以放弃这次编辑，保存后也能撤销。',
   },
   deleteDataMessage: {
-    en: 'Your entries are kept (Settings → Data). You can undo this from the banner or History.',
-    zh: '记录不会被删除（在「设置 → 数据」里）。可以在提示条或「历史版本」里撤销。',
+    en: 'Your entries are kept (Settings → Data). Cancel discards the whole edit; after saving you can still undo it.',
+    zh: '记录不会被删除（在「设置 → 数据」里）。点「取消」可以放弃这次编辑，保存后也能撤销。',
   },
-  editTextSummary: { en: 'Edit the text of {label}', zh: '修改{label}的文字' },
-  editStyleSummary: { en: 'Change the look of {label}', zh: '调整{label}的外观' },
-  hideSummary: { en: 'Hide {label}', zh: '隐藏{label}' },
-  showSummary: { en: 'Show {label}', zh: '显示{label}' },
-  deleteSummary: { en: 'Delete {label}', zh: '删除{label}' },
-  moveSummary: { en: 'Move {label}', zh: '移动{label}' },
 } satisfies Record<string, Record<Locale, string>>;
 
 export type StringKey = keyof typeof strings;
