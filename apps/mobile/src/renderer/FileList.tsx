@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { t } from '../i18n';
 import type { AssetRecord } from '../storage/types';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { RenderEnv } from './components';
+import { Icon } from './Icon';
+import { Card } from './ui';
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -40,32 +42,40 @@ export function FileList({
   }, [repo, version, limit, mimeType]);
 
   return (
-    <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-      <Text style={[styles.title, { color: palette.text }]}>{title}</Text>
+    <Card palette={palette}>
+      <Text style={[palette.font('title', 16), { color: palette.text }]}>{title}</Text>
       {assets.length === 0 ? (
-        <Text style={{ color: palette.subtext }}>{t(locale, 'noFiles')}</Text>
+        <Text style={[palette.font('body', 14), { color: palette.caption }]}>
+          {t(locale, 'noFiles')}
+        </Text>
       ) : (
-        assets.map((a) => (
+        assets.map((a, i) => (
           <Pressable
             key={a.id}
             testID={`file-${a.name}`}
             disabled={!env.interactive}
             onPress={() => files.share(a.path, a.mimeType)}
-            style={styles.row}>
-            <Text numberOfLines={1} style={[styles.name, { color: palette.text }]}>
+            style={[
+              styles.row,
+              i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
+            ]}>
+            <Icon name="document" size={18} color={palette.secondary} />
+            <Text
+              numberOfLines={1}
+              style={[styles.name, palette.font('bodyMedium', 15), { color: palette.text }]}>
               {a.name}
             </Text>
-            <Text style={{ color: palette.subtext }}>{formatSize(a.size)}</Text>
+            <Text style={[palette.font('body', 13), { color: palette.caption }]}>
+              {formatSize(a.size)}
+            </Text>
           </Pressable>
         ))
       )}
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 8 },
-  title: { fontSize: 17, fontWeight: '600' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
   name: { flex: 1 },
 });

@@ -1,5 +1,12 @@
+import { Karla_400Regular } from '@expo-google-fonts/karla/400Regular';
+import { Karla_500Medium } from '@expo-google-fonts/karla/500Medium';
+import { Karla_700Bold } from '@expo-google-fonts/karla/700Bold';
+import { Sora_600SemiBold } from '@expo-google-fonts/sora/600SemiBold';
+import { Sora_700Bold } from '@expo-google-fonts/sora/700Bold';
 import { BUILTIN_TOOLS, createMockAIProvider, createRegistry } from '@morph/core';
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
@@ -10,7 +17,7 @@ import { secureSecretStore } from '@/ai/secure-store';
 import { createAISettingsStore } from '@/ai/settings';
 import { getDeviceLocale, t } from '@/i18n';
 import { expoFilePlatform } from '@/runtime/expo-platform';
-import { usePalette } from '@/renderer/theme';
+import { CLAY_FONTS, usePalette } from '@/renderer/theme';
 import { SQLiteWorkspaceRepo, migrateDatabase } from '@/storage/sqlite';
 import { WorkspaceProvider, useWorkspace } from '@/workspace/context';
 import { createRemoteAIProvider } from '@/workspace/remote-ai';
@@ -58,22 +65,26 @@ function ThemedStack() {
   const theme = useWorkspace((s) => s.config!.theme);
   const palette = usePalette(theme);
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: palette.card },
-        headerTintColor: palette.primary,
-        headerBackButtonDisplayMode: 'minimal',
-        headerTitleStyle: { color: palette.text },
-        contentStyle: { backgroundColor: palette.background },
-      }}>
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="change"
-        options={{ presentation: 'modal', title: t(locale, 'changeTitle') }}
-      />
-      <Stack.Screen name="page/[pageId]" />
-      <Stack.Screen name="ai-settings" options={{ title: t(locale, 'aiSettingsTitle') }} />
-    </Stack>
+    <>
+      <StatusBar style={palette.dark ? 'light' : 'dark'} />
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: palette.background },
+          headerShadowVisible: false,
+          headerTintColor: palette.text,
+          headerBackButtonDisplayMode: 'minimal',
+          headerTitleStyle: { ...palette.font('title', 17), color: palette.text } as never,
+          contentStyle: { backgroundColor: palette.background },
+        }}>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="change"
+          options={{ presentation: 'modal', title: t(locale, 'changeTitle') }}
+        />
+        <Stack.Screen name="page/[pageId]" />
+        <Stack.Screen name="ai-settings" options={{ title: t(locale, 'aiSettingsTitle') }} />
+      </Stack>
+    </>
   );
 }
 
@@ -83,6 +94,14 @@ export default function RootLayout() {
     repo: SQLiteWorkspaceRepo;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 默认风格 Clay 的字体（Sora 标题、Karla 正文）。加载失败时退回系统字体，不阻塞启动。
+  const [fontsLoaded, fontError] = useFonts({
+    [CLAY_FONTS.heading]: Sora_700Bold,
+    [CLAY_FONTS.title]: Sora_600SemiBold,
+    [CLAY_FONTS.body]: Karla_400Regular,
+    [CLAY_FONTS.bodyMedium]: Karla_500Medium,
+    [CLAY_FONTS.bodyBold]: Karla_700Bold,
+  });
 
   useEffect(() => {
     (async () => {
@@ -102,7 +121,7 @@ export default function RootLayout() {
     })().catch((e) => setError(String(e)));
   }, []);
 
-  if (!runtime) {
+  if (!runtime || (!fontsLoaded && !fontError)) {
     return (
       <Centered>
         {error ? <Text>{`${t(locale, 'bootFailed')}\n${error}`}</Text> : <ActivityIndicator />}

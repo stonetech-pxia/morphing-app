@@ -19,7 +19,10 @@ const strings = {
     en: 'Describe what to change. You will see a preview before anything is applied.',
     zh: '用一句话描述想怎么改。应用之前会先给你看预览。',
   },
-  changePlaceholder: { en: 'e.g. Put PDF at the top', zh: '例如：把 PDF 放到最上面' },
+  changePlaceholder: {
+    en: 'e.g. Bigger text and no shadows',
+    zh: '例如：字体大一点，去掉阴影',
+  },
   examples: { en: 'Try:', zh: '可以试试：' },
   preview: { en: 'Preview', zh: '预览' },
   thinking: { en: 'Working on it…', zh: '正在生成修改…' },
@@ -92,6 +95,17 @@ const strings = {
 
   // 设置
   settingsTitle: { en: 'Settings', zh: '设置' },
+  thisApp: { en: 'This app', zh: '这个 App' },
+  general: { en: 'General', zh: '通用' },
+  changeRowHint: {
+    en: 'Describe how the app should change',
+    zh: '用一句话描述想怎么改',
+  },
+  historyRowHint: {
+    en: 'Undo changes or go back to any earlier version',
+    zh: '撤销修改，或回到之前的任何版本',
+  },
+  toolsRowHint: { en: 'Install, open or remove tools', zh: '安装、打开或卸载工具' },
   openHistory: { en: 'Version history', zh: '历史版本' },
   language: { en: 'Language', zh: '语言' },
   languageValue: { en: 'English (follows system)', zh: '简体中文（跟随系统）' },

@@ -2,11 +2,13 @@ import {
   CURRENT_SCHEMA_VERSION,
   HOME_PAGE_ID,
   pageTarget,
+  type IconName,
   type Locale,
   type Localized,
   type SystemTarget,
   type WorkspaceConfig,
 } from './schema';
+import { DEFAULT_THEME } from './theme';
 
 export const SYSTEM_TARGET_LABELS: Record<SystemTarget, Localized> = {
   tools: { en: 'Tools', zh: '工具' },
@@ -15,12 +17,19 @@ export const SYSTEM_TARGET_LABELS: Record<SystemTarget, Localized> = {
   settings: { en: 'Settings', zh: '设置' },
 };
 
+export const SYSTEM_TARGET_ICONS: Record<SystemTarget, IconName> = {
+  tools: 'apps',
+  ai: 'sparkles',
+  history: 'history',
+  settings: 'settings',
+};
+
 /** 首次启动时写入的默认工作空间（revision 1）。 */
 export function createDefaultWorkspace(locale: Locale): WorkspaceConfig {
   const zh = locale === 'zh';
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
-    theme: { primaryColor: '#3B5BDB', mode: 'system' },
+    theme: JSON.parse(JSON.stringify(DEFAULT_THEME)) as WorkspaceConfig['theme'],
     shell: {
       nav: [pageTarget(HOME_PAGE_ID), 'tools', 'ai', 'history', 'settings'],
       floating: [],
@@ -29,6 +38,7 @@ export function createDefaultWorkspace(locale: Locale): WorkspaceConfig {
       {
         id: HOME_PAGE_ID,
         title: zh ? '首页' : 'Home',
+        icon: 'home',
         components: [
           {
             id: 'welcome',

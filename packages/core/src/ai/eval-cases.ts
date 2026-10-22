@@ -1,7 +1,8 @@
 import { createDefaultWorkspace } from '../defaults';
 import { applyOps, type Op } from '../ops';
 import type { Registry } from '../registry';
-import type { Locale, WorkspaceConfig } from '../schema';
+import { allComponents, type Locale, type WorkspaceConfig } from '../schema';
+import { contrast, isDark, resolveColors } from '../theme';
 import type { Plan, RejectReason } from './types';
 
 // AI 评测集（§7F、§14）：mock AI 与真实模型用同一组用例衡量。
@@ -79,6 +80,24 @@ const simplifiedMerge = (c: WorkspaceConfig) => {
   return JSON.stringify(actions) === JSON.stringify(['pdf.selectFiles', 'pdf.merge', 'file.save'])
     ? null
     : `steps should be select/merge/save, got ${actions.join(',')}`;
+};
+/** 有这个标题的页面，且能从导航栏、浮动按钮或首页的按钮 / 快捷入口打开。 */
+const reachablePage = (title: string) => (c: WorkspaceConfig) => {
+  const page = c.pages.find((p) => p.title === title);
+  if (!page) return `expected a page titled ${title}`;
+  const target = `page:${page.id}`;
+  const linked =
+    [...c.shell.nav, ...c.shell.floating].includes(target as never) ||
+    allComponents(home(c)).some(
+      (x) => (x.type === 'shortcut' || x.type === 'button') && x.props.target === target,
+    );
+  return linked ? null : `page ${title} should be reachable`;
+};
+const darkBackground = (c: WorkspaceConfig) => {
+  const colors = resolveColors(c.theme, isDark(c.theme, false));
+  return contrast(colors.background, '#000000') < 3
+    ? null
+    : `background should be dark, got ${colors.background}`;
 };
 const savesAs = (template: string) => (c: WorkspaceConfig) => {
   const save = mergeSteps(c).find((s) => s.action === 'file.save');
@@ -182,6 +201,67 @@ export const EVAL_CASES: readonly EvalCase[] = [
           : `recent files should come before PDF, got ${homeIds(c).join(',')}`,
     },
   },
+  // 样式
+  {
+    id: 'B5',
+    input: '字体大一点',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.theme.fontScale > 1 ? null : `fontScale should grow, got ${c.theme.fontScale}`,
+    },
+  },
+  {
+    id: 'B7',
+    input: '卡片圆角小一点',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) => (c.theme.radius < 22 ? null : `radius should shrink, got ${c.theme.radius}`),
+    },
+  },
+  {
+    id: 'B9',
+    input: '去掉阴影',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.theme.cardStyle !== 'shadow'
+          ? null
+          : `cards should lose their shadow, got ${c.theme.cardStyle}`,
+    },
+  },
+  // 导航与页面
+  {
+    id: 'B13',
+    input: '把 AI 入口删掉',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        !c.shell.nav.includes('ai') && !c.shell.floating.includes('ai')
+          ? null
+          : `AI should be gone from nav and floating, got ${c.shell.nav.join(',')} / ${c.shell.floating.join(',')}`,
+    },
+  },
+  {
+    id: 'E1',
+    input: '新建一个叫「记账」的页面',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: reachablePage('记账') },
+  },
   // 旅程 C
   {
     id: 'C1',
@@ -238,7 +318,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   },
   {
     id: 'X2',
-    input: '把 AI 入口删掉',
+    input: '把设置删掉',
     locale: 'zh',
     setup: 'default',
     mock: true,
@@ -276,6 +356,71 @@ export const EVAL_CASES: readonly EvalCase[] = [
     setup: 'default',
     mock: false,
     expect: { kind: 'ops', check: color('#2F9E44') },
+  },
+  {
+    id: 'P5',
+    input: '把首页的工具入口和添加工具排成两列的网格',
+    locale: 'zh',
+    setup: 'pdf',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const group = home(c).components.find((x) => x.type === 'group');
+        if (!group || group.type !== 'group') return 'expected a group on the home page';
+        if (group.props.layout !== 'grid')
+          return `group layout should be grid, got ${group.props.layout}`;
+        const ids = group.children.map((x) => x.id);
+        return ids.includes('card-pdf') && ids.includes('catalog')
+          ? null
+          : `grid should hold card-pdf and catalog, got ${ids.join(',')}`;
+      },
+    },
+  },
+  {
+    id: 'P6',
+    input: '我想要深色背景、白色文字的界面',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    // 可读性由校验器保证；这里只检查最终显示的背景确实是深色。
+    expect: { kind: 'ops', check: darkBackground },
+  },
+  {
+    id: 'P7',
+    input: '把 AI 修改和历史都从底部去掉，设置做成右下角的浮动按钮',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const entries = [...c.shell.nav, ...c.shell.floating];
+        if (entries.includes('ai') || entries.includes('history'))
+          return `AI and History should be gone, got ${entries.join(',')}`;
+        return c.shell.floating.includes('settings') ? null : 'settings should be floating';
+      },
+    },
+  },
+  {
+    id: 'P8',
+    input: 'Add a Notes page with a short intro text, and a shortcut to it on the home page',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const page = c.pages.find((p) => /notes/i.test(p.title));
+        if (!page) return 'expected a Notes page';
+        if (!page.components.some((x) => x.type === 'text')) return 'Notes page should have text';
+        const shortcut = allComponents(home(c)).find(
+          (x) =>
+            (x.type === 'shortcut' || x.type === 'button') && x.props.target === `page:${page.id}`,
+        );
+        return shortcut ? null : 'home should link to the Notes page';
+      },
+    },
   },
   {
     id: 'P4',

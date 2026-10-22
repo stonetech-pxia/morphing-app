@@ -20,6 +20,7 @@ export const pdfTool: ToolDefinition = {
     en: 'Merge PDF files on this device.',
     zh: '在本机合并 PDF 文件。',
   },
+  icon: 'document',
   aliases: ['pdf', 'pdf tool', 'pdf 工具'],
   permissions: ['files.pick', 'files.write'],
   actions: [
@@ -50,6 +51,7 @@ export const pdfTool: ToolDefinition = {
   createPage: (locale) => ({
     id: PDF_PAGE_ID,
     title: 'PDF',
+    icon: 'document',
     toolId: PDF_TOOL_ID,
     components: [
       {

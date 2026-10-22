@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,16 +13,26 @@ import {
 
 import { t } from '../i18n';
 import { usePalette } from '../renderer/theme';
+import { Button, Card, SectionLabel } from '../renderer/ui';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { ProposeResult } from '../workspace/store';
 import { Preview } from './Preview';
 
 const EXAMPLES = {
-  zh: ['把 PDF 放到最上面', '导航栏只保留首页、工具、设置', '主题换成绿色', '撤销刚才的修改'],
+  zh: [
+    '主题换成绿色',
+    '字体大一点',
+    '去掉阴影',
+    '新建一个叫「记账」的页面',
+    '导航栏只保留首页、工具、设置',
+    '撤销刚才的修改',
+  ],
   en: [
-    'Put PDF at the top',
-    'Only keep Home, Tools and Settings in the navigation',
     'Change the theme color to green',
+    'Bigger text',
+    'Remove shadows',
+    'Add a page called Budget',
+    'Only keep Home, Tools and Settings in the navigation',
     'Undo the last change',
   ],
 };
@@ -81,57 +90,50 @@ export function ChangeScreen() {
     router.back();
   }
 
-  const text = { color: palette.text };
-  const sub = { color: palette.subtext };
+  const text = [palette.font('body', 15), { color: palette.text }];
+  const sub = [palette.font('body', 15), { color: palette.muted }];
 
   return (
     <KeyboardAvoidingView
       style={[styles.root, { backgroundColor: palette.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={[styles.page, { padding: palette.pad, gap: palette.gap - 2 }]}
+        keyboardShouldPersistTaps="handled">
         {!proposal ? (
           <>
-            <Text style={[styles.hint, sub]}>{t(locale, 'changeHint')}</Text>
+            <Text style={sub}>{t(locale, 'changeHint')}</Text>
             <TextInput
               testID="change-input"
               value={input}
               onChangeText={setInput}
               placeholder={t(locale, 'changePlaceholder')}
-              placeholderTextColor={palette.subtext}
+              placeholderTextColor={palette.caption}
               multiline
               style={[
                 styles.input,
-                text,
-                { backgroundColor: palette.card, borderColor: palette.border },
+                palette.font('body', 16),
+                {
+                  color: palette.text,
+                  backgroundColor: palette.surface,
+                  borderColor: palette.border,
+                  borderRadius: palette.controlRadius,
+                },
               ]}
             />
-            <Pressable
+            <Button
+              palette={palette}
               testID="change-submit"
               onPress={() => submit(input)}
-              disabled={busy}
-              style={[
-                styles.primary,
-                { backgroundColor: palette.primary, opacity: busy ? 0.6 : 1 },
-              ]}>
-              {busy ? (
-                <ActivityIndicator color={palette.onPrimary} />
-              ) : (
-                <Text style={[styles.primaryText, { color: palette.onPrimary }]}>
-                  {t(locale, 'preview')}
-                </Text>
-              )}
-            </Pressable>
+              loading={busy}
+              label={t(locale, 'preview')}
+            />
 
             {feedback ? (
-              <View
-                testID="change-feedback"
-                style={[
-                  styles.card,
-                  { backgroundColor: palette.card, borderColor: palette.border },
-                ]}>
+              <Card palette={palette} testID="change-feedback">
                 {feedback.kind === 'invalid' ? (
                   <>
-                    <Text style={[styles.bold, { color: palette.danger }]}>
+                    <Text style={[palette.font('bodyBold', 15), { color: palette.danger }]}>
                       {t(locale, 'invalidPlan')}
                     </Text>
                     {feedback.issues.map((issue) => (
@@ -143,51 +145,61 @@ export function ChangeScreen() {
                 ) : (
                   <Text style={text}>{feedback.message}</Text>
                 )}
-              </View>
+              </Card>
             ) : null}
 
-            <Text style={[styles.section, sub]}>{t(locale, 'examples')}</Text>
+            <SectionLabel palette={palette}>{t(locale, 'examples')}</SectionLabel>
             <View style={styles.chips}>
               {EXAMPLES[locale].map((example) => (
                 <Pressable
                   key={example}
                   onPress={() => setInput(example)}
-                  style={[
+                  style={({ pressed }) => [
                     styles.chip,
-                    { borderColor: palette.border, backgroundColor: palette.card },
+                    {
+                      borderColor: palette.border,
+                      backgroundColor: palette.surface,
+                      opacity: pressed ? 0.6 : 1,
+                    },
                   ]}>
-                  <Text style={text}>{example}</Text>
+                  <Text style={[palette.font('bodyBold', 13), { color: palette.text }]}>
+                    {example}
+                  </Text>
                 </Pressable>
               ))}
             </View>
           </>
         ) : (
           <>
-            <Text testID="proposal-summary" style={[styles.goal, text]}>
+            <Text
+              testID="proposal-summary"
+              style={[palette.font('heading', 22), { color: palette.text, letterSpacing: -0.4 }]}>
               {proposal.summary}
             </Text>
-            <View
-              style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-              <Text style={[styles.bold, text]}>{t(locale, 'planTitle')}</Text>
+            <Card palette={palette}>
+              <Text style={[palette.font('title', 15), { color: palette.text }]}>
+                {t(locale, 'planTitle')}
+              </Text>
               {proposal.lines.map((line, i) => (
                 <Text key={i} testID={`plan-line-${i}`} style={text}>
                   • {line}
                 </Text>
               ))}
-            </View>
+            </Card>
 
-            <View style={[styles.segment, { borderColor: palette.border }]}>
+            {/* 两段式切换（Docudis 的 ClaySegmented）。 */}
+            <View style={[styles.segment, { backgroundColor: palette.border }]}>
               {(['before', 'after'] as const).map((s) => (
                 <Pressable
                   key={s}
                   testID={`preview-${s}`}
                   onPress={() => setSide(s)}
-                  style={[styles.segmentItem, side === s && { backgroundColor: palette.primary }]}>
+                  style={[styles.segmentItem, side === s && { backgroundColor: palette.surface }]}>
                   <Text
-                    style={{
-                      color: side === s ? palette.onPrimary : palette.text,
-                      fontWeight: '600',
-                    }}>
+                    style={[
+                      palette.font('title', 14),
+                      { color: side === s ? palette.text : palette.caption },
+                    ]}>
                     {t(locale, s)}
                   </Text>
                 </Pressable>
@@ -201,25 +213,21 @@ export function ChangeScreen() {
             />
 
             <View style={styles.actions}>
-              <Pressable
+              <Button
+                palette={palette}
                 testID="change-cancel"
+                variant="outline"
                 onPress={discard}
-                style={[styles.secondary, { borderColor: palette.border }]}>
-                <Text style={[styles.primaryText, text]}>{t(locale, 'cancel')}</Text>
-              </Pressable>
-              <Pressable
+                label={t(locale, 'cancel')}
+              />
+              <Button
+                palette={palette}
                 testID="change-apply"
                 onPress={apply}
                 disabled={busy || previewBroken}
-                style={[
-                  styles.primary,
-                  styles.flex,
-                  { backgroundColor: palette.primary, opacity: busy || previewBroken ? 0.5 : 1 },
-                ]}>
-                <Text style={[styles.primaryText, { color: palette.onPrimary }]}>
-                  {t(locale, 'apply')}
-                </Text>
-              </Pressable>
+                label={t(locale, 'apply')}
+                style={styles.flex}
+              />
             </View>
           </>
         )}
@@ -230,33 +238,24 @@ export function ChangeScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  page: { padding: 16, gap: 12, paddingBottom: 48 },
-  hint: { fontSize: 15 },
-  input: {
-    minHeight: 96,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
-    textAlignVertical: 'top',
-  },
-  primary: { borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
-  primaryText: { fontSize: 16, fontWeight: '600' },
-  secondary: {
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  card: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, padding: 14, gap: 6 },
-  bold: { fontWeight: '700', fontSize: 15 },
-  section: { marginTop: 8, fontSize: 13 },
+  page: { paddingBottom: 48 },
+  input: { minHeight: 110, borderWidth: 1, padding: 14, textAlignVertical: 'top' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
-  goal: { fontSize: 20, fontWeight: '700' },
-  segment: { flexDirection: 'row', borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
-  segmentItem: { flex: 1, alignItems: 'center', paddingVertical: 8 },
+  chip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    minHeight: 34,
+    justifyContent: 'center',
+  },
+  segment: { flexDirection: 'row', borderRadius: 14, padding: 4 },
+  segmentItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 36,
+    borderRadius: 11,
+  },
   actions: { flexDirection: 'row', gap: 12, marginTop: 4 },
   flex: { flex: 1 },
 });

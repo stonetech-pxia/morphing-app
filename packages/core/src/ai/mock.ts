@@ -3,6 +3,7 @@ import { applyOps, topIndex, type Op } from '../ops';
 import type { ToolDefinition } from '../registry';
 import {
   HOME_PAGE_ID,
+  IdSchema,
   pageTarget,
   type Component,
   type Locale,
@@ -20,6 +21,8 @@ const EXAMPLES: Localized[] = [
   { zh: '把 PDF 放到最上面', en: 'Put PDF at the top' },
   { zh: '导航只保留首页、工具、设置', en: 'Only keep Home, Tools and Settings in the navigation' },
   { zh: '主题换成绿色', en: 'Change the theme color to green' },
+  { zh: '字体大一点', en: 'Bigger text' },
+  { zh: '新建一个叫「记账」的页面', en: 'Add a page called Budget' },
   { zh: '撤销刚才的修改', en: 'Undo the last change' },
 ];
 
@@ -138,6 +141,23 @@ function withoutComponent(p: Page, componentId: string): Page {
   return { ...p, components: p.components.filter((c) => c.id !== componentId) };
 }
 
+function findNavItem(rawName: string, state: State): NavTarget | null {
+  const name = rawName
+    .trim()
+    .toLowerCase()
+    .replace(/^(the|把|将)\s*/i, '')
+    .replace(/\s*(入口|按钮|页面|页|tab|entry|button|page)$/i, '')
+    .trim();
+  if (/^(首页|主页|home)$/.test(name)) return pageTarget(HOME_PAGE_ID);
+  if (/^(工具|工具目录|tools?)$/.test(name)) return 'tools';
+  if (/^(设置|settings?)$/.test(name)) return 'settings';
+  if (/^(历史|历史记录|历史版本|history)$/.test(name)) return 'history';
+  if (/^(ai|ai\s*修改)$/.test(name)) return 'ai';
+  const p = state.config.pages.find((x) => x.title.toLowerCase() === name);
+  if (p) return pageTarget(p.id);
+  return null;
+}
+
 function resolveNavItem(rawName: string, state: State): NavTarget {
   const name = rawName.trim().toLowerCase();
   if (/^(首页|主页|home)$/.test(name)) return pageTarget(HOME_PAGE_ID);
@@ -174,6 +194,274 @@ const navRule: Rule = (clause, state) => {
     .filter(Boolean)
     .map((s) => resolveNavItem(s, state));
   return [{ op: 'setNavItems', items }];
+};
+
+const navStyleRule: Rule = (clause) => {
+  const zh = clause.match(
+    /导航(?:栏)?(?:里|中|上)?(?:只显示|只要|只留|只保留|改成|改为)(?:显示)?(图标|文字)$/,
+  );
+  const en =
+    clause.match(/^(?:nav|navigation)(?: bar)?:? (icons|labels) only$/i) ??
+    clause.match(/^only (?:show )?(icons|labels) in the (?:nav|navigation)(?: bar)?$/i);
+  if (zh) return [{ op: 'setTheme', navStyle: zh[1] === '图标' ? 'icon' : 'label' }];
+  if (en) return [{ op: 'setTheme', navStyle: /icon/i.test(en[1]!) ? 'icon' : 'label' }];
+  if (
+    /导航(?:栏)?(?:显示|加上|恢复)图标和文字|(?:icons and labels) in the (?:nav|navigation)/i.test(
+      clause,
+    )
+  ) {
+    return [{ op: 'setTheme', navStyle: 'iconLabel' }];
+  }
+  return null;
+};
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+const fontSizeRule: Rule = (clause, state) => {
+  const bigger =
+    /^(?:字体|文字|字号|字)(?:再)?大一?(?:点|些)$|^(?:放大|调大)(?:字体|文字|字号)$/.test(clause) ||
+    /^(?:make (?:the )?)?(?:text|font)s? (?:bigger|larger)$|^(?:bigger|larger) (?:text|font)s?$/i.test(
+      clause,
+    );
+  const smaller =
+    /^(?:字体|文字|字号|字)(?:再)?小一?(?:点|些)$|^(?:缩小|调小)(?:字体|文字|字号)$/.test(clause) ||
+    /^(?:make (?:the )?)?(?:text|font)s? smaller$|^smaller (?:text|font)s?$/i.test(clause);
+  if (!bigger && !smaller) return null;
+  const scale = state.config.theme.fontScale;
+  return [
+    {
+      op: 'setTheme',
+      fontScale: bigger ? Math.min(1.3, round2(scale + 0.15)) : Math.max(0.85, round2(scale - 0.1)),
+    },
+  ];
+};
+
+const fontFamilyRule: Rule = (clause) => {
+  const m =
+    clause.match(/^(?:把)?字体(?:换成|改成|改为|用)(系统|衬线|等宽|默认)(?:字体)?$/) ??
+    clause.match(/^(?:use|switch to) (?:the |a )?(system|serif|mono(?:spaced?)?|default) font$/i);
+  if (!m) return null;
+  const font = /系统|system/i.test(m[1]!)
+    ? 'system'
+    : /衬线|serif/i.test(m[1]!)
+      ? 'serif'
+      : /等宽|mono/i.test(m[1]!)
+        ? 'mono'
+        : 'clay';
+  return [{ op: 'setTheme', font }];
+};
+
+const radiusRule: Rule = (clause, state) => {
+  const r = state.config.theme.radius;
+  if (/^(?:去掉圆角|不要圆角|直角|方角)(?:卡片)?$|^(?:square|sharp) corners$/i.test(clause)) {
+    return [{ op: 'setTheme', radius: 0 }];
+  }
+  if (/^(?:卡片)?圆角(?:再)?小一?(?:点|些)$|^(?:less rounded|sharper) corners$/i.test(clause)) {
+    return [{ op: 'setTheme', radius: Math.max(0, r - 8) }];
+  }
+  if (/^(?:卡片)?圆角(?:再)?大一?(?:点|些)$|^(?:more rounded|rounder) corners$/i.test(clause)) {
+    return [{ op: 'setTheme', radius: Math.min(28, r + 6) }];
+  }
+  return null;
+};
+
+const densityRule: Rule = (clause) => {
+  if (
+    /^(?:布局|界面|间距)?(?:更)?(?:紧凑|密集)(?:一点|一些|些)?(?:的布局)?$|^(?:more )?compact(?: layout)?$/i.test(
+      clause,
+    )
+  ) {
+    return [{ op: 'setTheme', density: 'compact' }];
+  }
+  if (
+    /^(?:布局|界面|间距)?(?:更)?(?:宽松|疏朗)(?:一点|一些|些)?(?:的布局)?$|^(?:more )?spacious(?: layout)?$|^roomier(?: layout)?$/i.test(
+      clause,
+    )
+  ) {
+    return [{ op: 'setTheme', density: 'spacious' }];
+  }
+  return null;
+};
+
+const cardStyleRule: Rule = (clause) => {
+  if (/^(?:去掉|不要|取消)(?:卡片)?(?:的)?阴影$|^(?:remove|no) (?:card )?shadows?$/i.test(clause)) {
+    return [{ op: 'setTheme', cardStyle: 'flat' }];
+  }
+  if (
+    /^(?:卡片)?(?:加|加上|用|改成|改为)(?:边框|描边)$|^(?:outlined? cards|card (?:borders|outlines))$/i.test(
+      clause,
+    )
+  ) {
+    return [{ op: 'setTheme', cardStyle: 'outline' }];
+  }
+  if (/^(?:卡片)?(?:加上|恢复)阴影$|^(?:add )?(?:card )?shadows$/i.test(clause)) {
+    return [{ op: 'setTheme', cardStyle: 'shadow' }];
+  }
+  return null;
+};
+
+const resetStyleRule: Rule = (clause) =>
+  /^(?:恢复|还原)(?:成|到|为)?默认(?:的)?(?:样式|风格|主题|外观)$|^(?:样式|风格|主题)(?:恢复|还原)(?:成|到|为)?默认$|^reset (?:the )?(?:style|theme|look)$/i.test(
+    clause,
+  )
+    ? [{ op: 'resetTheme' }]
+    : null;
+
+const PROTECTED_MESSAGE = (locale: Locale) =>
+  say(
+    locale,
+    '「设置」不能移除：「AI 修改」和「历史」入口都在设置里，去掉它就无法继续修改或撤销了。可以把它改为浮动按钮。',
+    'Settings can’t be removed: it holds the AI and History entries, so without it you couldn’t change or undo anything. You can make it a floating button instead.',
+  );
+
+/** 从导航栏和浮动按钮里去掉一个入口（AI 修改、历史和工具都可以去掉，设置页里仍有入口）。 */
+const removeEntryRule: Rule = (clause, state) => {
+  const m =
+    clause.match(
+      /^(?:把|将)?(.+?)(?:从(?:底部)?导航(?:栏)?(?:里|中|上)?)?(?:删掉|删除|去掉|移除|拿掉|隐藏)$/,
+    ) ??
+    clause.match(/^(?:删掉|删除|去掉|移除|拿掉|隐藏)(.+?)(?:入口|按钮)?$/) ??
+    clause.match(
+      /^(?:remove|hide|delete) (?:the )?(.+?)(?: from the (?:nav|navigation)(?: bar)?)?$/i,
+    );
+  if (!m) return null;
+  const target = findNavItem(m[1]!, state);
+  if (target === null) return null;
+  if (target === 'settings') throw new Rejection('protected', PROTECTED_MESSAGE(state.ctx.locale));
+  const { nav, floating } = state.config.shell;
+  const ops: Op[] = [];
+  if (nav.includes(target)) {
+    const items = nav.filter((t) => t !== target);
+    if (items.length === 0) {
+      throw new Rejection(
+        'unknown',
+        say(
+          state.ctx.locale,
+          '导航栏至少要保留一项。',
+          'The navigation bar needs at least one entry.',
+        ),
+      );
+    }
+    ops.push({ op: 'setNavItems', items });
+  }
+  if (floating.includes(target)) {
+    ops.push({ op: 'setFloatingItems', items: floating.filter((t) => t !== target) });
+  }
+  return ops;
+};
+
+const floatingRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/^(?:把|将)?(.+?)(?:做成|改成|改为|变成|放到|放在|放进)浮动(?:按钮|入口)$/) ??
+    clause.match(/^(?:make|turn) (?:the )?(.+?) (?:into )?a floating button$/i);
+  if (!m) return null;
+  const target = findNavItem(m[1]!, state);
+  if (target === null) return null;
+  const { floating } = state.config.shell;
+  if (floating.includes(target)) return [];
+  if (floating.length >= 3) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        '最多只能有 3 个浮动按钮。',
+        'There can be at most 3 floating buttons.',
+      ),
+    );
+  }
+  return [{ op: 'setFloatingItems', items: [...floating, target] }];
+};
+
+function newPageId(state: State): string {
+  for (let n = 1; ; n++) {
+    const id = `page-${n}`;
+    if (!state.config.pages.some((p) => p.id === id)) return id;
+  }
+}
+
+const addPageRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/^(?:新建|添加|加|增加|创建)(?:一个|个)?(?:叫|名为|名叫)"?(.+?)"?(?:的)?页面$/) ??
+    clause.match(/^(?:新建|添加|加|增加|创建)(?:一个|个)?页面(?:叫|名为|名叫)"?(.+?)"?$/) ??
+    clause.match(/^(?:新建|添加|加|增加|创建)(?:一个|个)?"(.+?)"页面$/) ??
+    clause.match(/^(?:add|create) (?:a )?(?:new )?page (?:called|named) "?(.+?)"?$/i);
+  if (!m) return null;
+  const title = m[1]!.trim();
+  if (title.length === 0 || title.length > 40) return null;
+  if (state.config.pages.some((p) => p.title === title)) {
+    throw new Rejection(
+      'noChange',
+      say(
+        state.ctx.locale,
+        `已经有「${title}」页面了。`,
+        `There is already a page called “${title}”.`,
+      ),
+    );
+  }
+  const id = newPageId(state);
+  IdSchema.parse(id);
+  const ops: Op[] = [
+    {
+      op: 'addPage',
+      page: {
+        id,
+        title,
+        icon: 'star',
+        components: [{ id: 'header', type: 'header', props: { title } }],
+      },
+    },
+  ];
+  // 新页面需要一个入口：导航栏有空位就放进导航栏（设置之前），否则在首页加一个快捷入口。
+  const nav = state.config.shell.nav;
+  if (nav.length < 5) {
+    const at = nav.indexOf('settings');
+    const items = [...nav];
+    items.splice(at < 0 ? items.length : at, 0, pageTarget(id));
+    ops.push({ op: 'setNavItems', items });
+  } else {
+    ops.push({
+      op: 'addComponent',
+      pageId: HOME_PAGE_ID,
+      component: {
+        id: `shortcut-${id}`,
+        type: 'shortcut',
+        props: { title, icon: 'star', target: pageTarget(id) },
+      },
+    });
+  }
+  return ops;
+};
+
+const removePageRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/^(?:删除|删掉|去掉|移除)(?:「|")?(.+?)(?:」|")?(?:这个)?页面$/) ??
+    clause.match(/^(?:把|将)?(?:「|")?(.+?)(?:」|")?页面(?:删除|删掉|去掉|移除)$/) ??
+    clause.match(/^(?:delete|remove) (?:the )?(.+?) page$/i);
+  if (!m) return null;
+  const name = m[1]!.replace(/"/g, '').trim().toLowerCase();
+  const target = state.config.pages.find((p) => p.title.toLowerCase() === name);
+  if (!target) return null;
+  if (target.id === HOME_PAGE_ID) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        '首页不能删除，可以改名或调整内容。',
+        'The home page can’t be removed, but you can rename or change it.',
+      ),
+    );
+  }
+  if (target.toolId !== undefined) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        '这是工具的页面，请在「工具」里卸载该工具。',
+        'This page belongs to a tool. Uninstall the tool from Tools instead.',
+      ),
+    );
+  }
+  return [{ op: 'removePage', pageId: target.id }];
 };
 
 const STEP_KEYWORDS: [RegExp, string][] = [
@@ -372,7 +660,18 @@ const titleRule: Rule = (clause, state) => {
 };
 
 const RULES: Rule[] = [
+  navStyleRule,
   navRule,
+  resetStyleRule,
+  fontSizeRule,
+  fontFamilyRule,
+  radiusRule,
+  densityRule,
+  cardStyleRule,
+  addPageRule,
+  removePageRule,
+  floatingRule,
+  removeEntryRule,
   simplifyRule,
   namingRule,
   modeRule,
@@ -385,7 +684,7 @@ const RULES: Rule[] = [
 
 const RESTORE = /^(恢复|还原)(到)?上一(次|个)|^撤销|^撤回|^undo\b|^revert\b|^go back/i;
 const DELETE_FILES = /(删除|删掉|清空|清除).*文件|\b(delete|remove|erase)\b.*\bfiles?\b/i;
-const PROTECTED_WORD = '(?:(?:^|[^a-z])ai(?:[^a-z]|$)|历史|\\bhistory\\b)';
+const PROTECTED_WORD = '(?:设置|\\bsettings?\\b)';
 const REMOVE_WORD = '(?:删除|删掉|去掉|移除|隐藏|不要|\\bdelete\\b|\\bremove\\b|\\bhide\\b)';
 const REMOVE_PROTECTED = new RegExp(
   `${REMOVE_WORD}.*${PROTECTED_WORD}|${PROTECTED_WORD}.*${REMOVE_WORD}`,
@@ -406,16 +705,8 @@ function planClauses(clauses: string[], ctx: PlanContext): Plan {
         ),
       );
     }
-    if (REMOVE_PROTECTED.test(clause)) {
-      throw new Rejection(
-        'protected',
-        say(
-          ctx.locale,
-          '「AI 修改」和「历史」入口不能删除或隐藏，否则你将无法继续修改或撤销。可以把它们移到别处，例如从导航栏改为浮动按钮。',
-          'The AI and History entries can’t be removed or hidden, or you couldn’t change or undo anything. You can move them, e.g. out of the nav bar into floating buttons.',
-        ),
-      );
-    }
+    if (REMOVE_PROTECTED.test(clause))
+      throw new Rejection('protected', PROTECTED_MESSAGE(ctx.locale));
     const clauseOps = RULES.reduce<Op[] | null>(
       (found, rule) => found ?? rule(clause, state),
       null,

@@ -6,6 +6,7 @@ import {
   prepareSnapshot,
   type AIProvider,
   type Locale,
+  type NavTarget,
   type Op,
   type Registry,
   type WorkspaceConfig,
@@ -66,6 +67,8 @@ export interface WorkspaceState {
   busy: boolean;
   /** 文件列表的刷新信号：工作流保存文件后递增。 */
   assetsVersion: number;
+  /** 外壳当前显示的导航项；版本变化时外壳会重新挂载，所以保存在这里。 */
+  tab: NavTarget | null;
 
   boot(): Promise<void>;
   propose(input: string): Promise<ProposeResult>;
@@ -78,6 +81,7 @@ export interface WorkspaceState {
   markRendered(revisionId: number): Promise<void>;
   reportRenderError(error: unknown): Promise<void>;
   dismissBanner(): void;
+  selectTab(target: NavTarget): void;
   listRevisions(limit?: number): Promise<RevisionRecord[]>;
   bumpAssets(): void;
 }
@@ -222,6 +226,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       banner: null,
       busy: false,
       assetsVersion: 0,
+      tab: null,
 
       async boot() {
         try {
@@ -412,6 +417,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       },
 
       dismissBanner: () => set({ banner: null }),
+      selectTab: (target) => set({ tab: target }),
 
       listRevisions: (limit = 50) => repo.listRevisions(limit),
 

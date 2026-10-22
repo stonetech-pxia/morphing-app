@@ -38,20 +38,95 @@ describe('validateWorkspace', () => {
     expect(issuesOf(mutate((c) => Object.assign(c, { schemaVersion: 99 })))).toContain('schema');
   });
 
-  it('requires protected entries to stay reachable', () => {
+  it('requires Settings to stay in the nav bar or a floating button', () => {
     const config = mutate((c) => {
-      c.shell.nav = ['page:home', 'tools', 'settings'];
-      c.shell.floating = ['ai'];
+      c.shell.nav = ['page:home', 'tools', 'ai'];
+      c.shell.floating = ['history'];
     });
     expect(issuesOf(config)).toEqual(['protected']);
+    expect(
+      issuesOf(
+        mutate((c) => {
+          c.shell.nav = ['page:home'];
+          c.shell.floating = ['settings'];
+        }),
+      ),
+    ).toEqual([]);
   });
 
-  it('accepts protected entries as floating buttons', () => {
+  it('allows AI, History and Tools to be left out of the nav entirely', () => {
     const config = mutate((c) => {
-      c.shell.nav = ['page:home', 'tools', 'settings'];
-      c.shell.floating = ['ai', 'history'];
+      c.shell.nav = ['page:home', 'settings'];
+      c.shell.floating = [];
     });
     expect(issuesOf(config)).toEqual([]);
+  });
+
+  it('rejects themes whose text would be hard to read', () => {
+    expect(issuesOf(mutate((c) => (c.theme.colors = { text: '#D0D0D0' })))).toContain('contrast');
+    // 浅色模式下合格的深色背景配深色文字，在“跟随系统”时两种外观都要检查。
+    expect(
+      issuesOf(
+        mutate((c) => {
+          c.theme.mode = 'dark';
+          c.theme.colors = { background: '#FFFFFF' };
+        }),
+      ),
+    ).toContain('contrast');
+    expect(
+      issuesOf(
+        mutate((c) => {
+          c.theme.mode = 'light';
+          c.theme.colors = { background: '#10233F', surface: '#18304F', text: '#F5F7FA' };
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it('rejects buttons and shortcuts that open missing pages, and duplicate ids inside groups', () => {
+    expect(
+      issuesOf(
+        mutate((c) =>
+          c.pages[0]!.components.push({
+            id: 'go',
+            type: 'button',
+            props: { label: 'Go', target: 'page:nope', variant: 'filled' },
+          }),
+        ),
+      ),
+    ).toContain('unknown-page');
+    expect(
+      issuesOf(
+        mutate((c) =>
+          c.pages[0]!.components.push({
+            id: 'g',
+            type: 'group',
+            props: { layout: 'row' },
+            children: [{ id: 'welcome', type: 'divider', props: {} }],
+          }),
+        ),
+      ),
+    ).toContain('duplicate');
+  });
+
+  it('rejects unknown icons and groups nested in groups', () => {
+    expect(issuesOf(mutate((c) => Object.assign(c.pages[0]!, { icon: 'skull' })))).toContain(
+      'schema',
+    );
+    expect(
+      issuesOf(
+        mutate((c) =>
+          c.pages[0]!.components.push({
+            id: 'g',
+            type: 'group',
+            props: { layout: 'row' },
+            children: [
+              { id: 'inner', type: 'group', props: { layout: 'row' }, children: [] } as never,
+            ],
+          }),
+        ),
+      ),
+    ).toContain('schema');
   });
 
   it('rejects nav entries for missing pages and duplicate ids', () => {

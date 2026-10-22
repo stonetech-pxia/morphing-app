@@ -1,19 +1,12 @@
 import { MODELS } from '@morph/planner';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useAISettings } from '../ai/context';
 import type { AIMode, ConnectionResult } from '../ai/settings';
 import { t, type StringKey } from '../i18n';
 import { usePalette, type Palette } from '../renderer/theme';
+import { Button, Card, SectionLabel } from '../renderer/ui';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 
 const RESULT_MESSAGES: Record<Exclude<ConnectionResult, { ok: true }>['kind'], StringKey> = {
@@ -51,14 +44,15 @@ function Option({
       onPress={onPress}
       style={[
         styles.option,
-        { backgroundColor: palette.card, borderColor: selected ? palette.primary : palette.border },
+        palette.cardStyle(selected ? palette.primaryTint : palette.surface),
+        { borderColor: selected ? palette.primary : 'transparent' },
       ]}>
       <View style={[styles.radio, { borderColor: selected ? palette.primary : palette.border }]}>
         {selected ? <View style={[styles.radioDot, { backgroundColor: palette.primary }]} /> : null}
       </View>
       <View style={styles.flex}>
-        <Text style={[styles.optionTitle, { color: palette.text }]}>{title}</Text>
-        <Text style={{ color: palette.subtext }}>{note}</Text>
+        <Text style={[palette.font('title', 16), { color: palette.text }]}>{title}</Text>
+        <Text style={[palette.font('body', 14), { color: palette.muted }]}>{note}</Text>
       </View>
     </Pressable>
   );
@@ -105,14 +99,14 @@ export function AISettingsScreen() {
     );
   }
 
-  const text = { color: palette.text };
-  const sub = { color: palette.subtext };
+  const text = [palette.font('body', 15), { color: palette.text }];
+  const sub = [palette.font('body', 13), { color: palette.muted }];
   return (
     <ScrollView
       style={{ backgroundColor: palette.background }}
-      contentContainerStyle={styles.page}
+      contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 48 }}
       keyboardShouldPersistTaps="handled">
-      <Text style={[styles.section, sub]}>{t(locale, 'aiModeQuestion')}</Text>
+      <SectionLabel palette={palette}>{t(locale, 'aiModeQuestion')}</SectionLabel>
       <Option
         testID="ai-mode-mock"
         selected={mode === 'mock'}
@@ -142,16 +136,15 @@ export function AISettingsScreen() {
 
       {mode === 'byok' ? (
         <>
-          <Text style={[styles.section, sub]}>{t(locale, 'apiKeyLabel')}</Text>
-          <View
-            style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          <SectionLabel palette={palette}>{t(locale, 'apiKeyLabel')}</SectionLabel>
+          <Card palette={palette}>
             {keyHint ? (
               <View style={styles.row}>
                 <Text testID="api-key-saved" style={[styles.flex, text]}>
                   {t(locale, 'apiKeySaved', { hint: keyHint })}
                 </Text>
                 <Pressable testID="api-key-delete" onPress={() => void clearKey()} hitSlop={8}>
-                  <Text style={{ color: palette.danger, fontWeight: '600' }}>
+                  <Text style={[palette.font('bodyBold', 15), { color: palette.danger }]}>
                     {t(locale, 'deleteKey')}
                   </Text>
                 </Pressable>
@@ -168,26 +161,25 @@ export function AISettingsScreen() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   textContentType="password"
-                  style={[styles.input, text, { borderColor: palette.border }]}
+                  style={[
+                    styles.input,
+                    text,
+                    { borderColor: palette.border, borderRadius: palette.controlRadius },
+                  ]}
                 />
-                <Pressable
+                <Button
+                  palette={palette}
                   testID="api-key-save"
                   onPress={onSave}
                   disabled={!draft.trim()}
-                  style={[
-                    styles.button,
-                    { backgroundColor: palette.primary, opacity: draft.trim() ? 1 : 0.5 },
-                  ]}>
-                  <Text style={[styles.buttonText, { color: palette.onPrimary }]}>
-                    {t(locale, 'saveKey')}
-                  </Text>
-                </Pressable>
+                  label={t(locale, 'saveKey')}
+                />
               </>
             )}
             <Text style={[styles.note, sub]}>{t(locale, 'keyPrivacyNote')}</Text>
-          </View>
+          </Card>
 
-          <Text style={[styles.section, sub]}>{t(locale, 'modelLabel')}</Text>
+          <SectionLabel palette={palette}>{t(locale, 'modelLabel')}</SectionLabel>
           {MODELS.map((m) => (
             <Option
               key={m.id}
@@ -203,26 +195,25 @@ export function AISettingsScreen() {
             />
           ))}
 
-          <Pressable
+          <Button
+            palette={palette}
             testID="ai-test-connection"
+            variant="outline"
             onPress={onTest}
-            disabled={testing}
-            style={[styles.button, styles.secondary, { borderColor: palette.primary }]}>
-            {testing ? (
-              <ActivityIndicator color={palette.primary} />
-            ) : (
-              <Text style={[styles.buttonText, { color: palette.primary }]}>
-                {t(locale, 'testConnection')}
-              </Text>
-            )}
-          </Pressable>
+            loading={testing}
+            label={t(locale, 'testConnection')}
+            style={styles.secondary}
+          />
         </>
       ) : null}
 
       {message ? (
         <Text
           testID="ai-settings-message"
-          style={{ color: message.ok ? palette.primary : palette.danger }}>
+          style={[
+            palette.font('bodyMedium', 14),
+            { color: message.ok ? palette.secondary : palette.danger },
+          ]}>
           {message.text}
         </Text>
       ) : null}
@@ -231,17 +222,13 @@ export function AISettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 16, gap: 10, paddingBottom: 48 },
-  section: { fontSize: 13, marginTop: 8 },
   option: {
     flexDirection: 'row',
     gap: 12,
     alignItems: 'center',
-    borderRadius: 14,
     borderWidth: 1.5,
-    padding: 14,
+    padding: 16,
   },
-  optionTitle: { fontSize: 16, fontWeight: '600' },
   radio: {
     width: 20,
     height: 20,
@@ -252,11 +239,8 @@ const styles = StyleSheet.create({
   },
   radioDot: { width: 10, height: 10, borderRadius: 5 },
   flex: { flex: 1, gap: 2 },
-  card: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, padding: 14, gap: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16 },
-  button: { borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-  secondary: { borderWidth: 1.5, marginTop: 4 },
-  buttonText: { fontSize: 16, fontWeight: '600' },
-  note: { fontSize: 13, lineHeight: 18 },
+  input: { borderWidth: 1, padding: 14 },
+  secondary: { marginTop: 4 },
+  note: { lineHeight: 18 },
 });

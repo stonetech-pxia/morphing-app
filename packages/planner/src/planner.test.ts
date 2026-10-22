@@ -1,4 +1,11 @@
-import { BUILTIN_TOOLS, createDefaultWorkspace, createRegistry } from '@morph/core';
+import {
+  BUILTIN_TOOLS,
+  ComponentSchema,
+  ICON_NAMES,
+  OpSchema,
+  createDefaultWorkspace,
+  createRegistry,
+} from '@morph/core';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ClaudeHttpError, checkModelAccess, createHttpCompleter } from './http';
@@ -35,6 +42,15 @@ describe('system prompt', () => {
     ]) {
       expect(prompt).toContain(word);
     }
+  });
+
+  it('lists every op, component type and icon the validator accepts', () => {
+    const prompt = buildSystemPrompt(registry);
+    for (const option of OpSchema.options) expect(prompt).toContain(`"${option.shape.op.value}"`);
+    for (const option of ComponentSchema.options) {
+      expect(prompt).toContain(`- ${option.shape.type.value} `);
+    }
+    for (const icon of ICON_NAMES) expect(prompt).toContain(icon);
   });
 });
 

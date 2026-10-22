@@ -13,5 +13,6 @@ export * from './naming';
 export * from './ops';
 export * from './registry';
 export * from './schema';
+export * from './theme';
 export * from './tools';
 export * from './validate';
