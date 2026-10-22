@@ -1,9 +1,12 @@
+import type { DataRecord } from '@morph/core';
+
 import {
   RevisionConflictError,
   type AssetRecord,
   type ChangeRequestRecord,
   type CommitInput,
   type RevisionRecord,
+  type StoredRecord,
   type ToolRunRecord,
   type WorkspaceRepo,
 } from './types';
@@ -17,6 +20,8 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
   private assets: AssetRecord[] = [];
   private grants = new Set<string>();
   private toolRuns: ToolRunRecord[] = [];
+  /** 记录以 JSON 保存，模拟数据库的写入与读取。 */
+  private records = new Map<string, string>();
   private clock = 0;
 
   private now() {
@@ -158,5 +163,73 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
 
   async listToolRuns(limit: number) {
     return [...this.toolRuns].reverse().slice(0, limit);
+  }
+
+  private readRecord(id: string): StoredRecord | null {
+    const json = this.records.get(id);
+    return json ? (JSON.parse(json) as StoredRecord) : null;
+  }
+
+  private writeRecord(record: StoredRecord) {
+    this.records.set(record.id, JSON.stringify(record));
+  }
+
+  private allRecords(): StoredRecord[] {
+    return [...this.records.keys()].map((id) => this.readRecord(id)!);
+  }
+
+  async listRecords(collectionId: string) {
+    return this.allRecords()
+      .filter((r) => r.collectionId === collectionId && r.deletedAt === null)
+      .map(({ deletedAt: _, ...rest }) => rest);
+  }
+
+  async getRecord(id: string) {
+    return this.readRecord(id);
+  }
+
+  async insertRecord(record: DataRecord) {
+    if (this.records.has(record.id)) throw new Error(`record ${record.id} exists`);
+    this.writeRecord({ ...record, deletedAt: null });
+  }
+
+  async updateRecord(id: string, values: Record<string, unknown>, updatedAt: number) {
+    const r = this.readRecord(id);
+    if (r) this.writeRecord({ ...r, values, updatedAt });
+  }
+
+  async deleteRecord(id: string, deletedAt: number) {
+    const r = this.readRecord(id);
+    if (r) this.writeRecord({ ...r, deletedAt });
+  }
+
+  async restoreRecord(id: string) {
+    const r = this.readRecord(id);
+    if (r) this.writeRecord({ ...r, deletedAt: null });
+  }
+
+  async listDeletedRecords() {
+    return this.allRecords()
+      .filter((r) => r.deletedAt !== null)
+      .sort((a, b) => b.deletedAt! - a.deletedAt!);
+  }
+
+  async purgeDeletedRecords(before: number) {
+    const old = this.allRecords().filter((r) => r.deletedAt !== null && r.deletedAt < before);
+    for (const r of old) this.records.delete(r.id);
+    return old.length;
+  }
+
+  async countRecords() {
+    const counts = new Map<string, number>();
+    for (const r of this.allRecords()) {
+      if (r.deletedAt === null) counts.set(r.collectionId, (counts.get(r.collectionId) ?? 0) + 1);
+    }
+    return [...counts].map(([collectionId, count]) => ({ collectionId, count }));
+  }
+
+  async purgeCollection(collectionId: string) {
+    for (const r of this.allRecords())
+      if (r.collectionId === collectionId) this.records.delete(r.id);
   }
 }

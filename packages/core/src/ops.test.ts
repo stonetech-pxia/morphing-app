@@ -15,26 +15,214 @@ describe('applyOps', () => {
     expect(JSON.stringify(before)).toBe(snapshot);
   });
 
-  it('moves protected targets to floating buttons when removed from nav', () => {
+  it('removes AI and History from the nav entirely; they stay reachable from Settings', () => {
     const result = applyOps(
       workspace(),
       [{ op: 'setNavItems', items: ['page:home', 'tools', 'settings'] }],
-      {
-        registry,
-        locale: 'zh',
-      },
+      { registry, locale: 'zh' },
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.config.shell.floating).toEqual(['ai', 'history']);
-    expect(result.notes.map((n) => n.target)).toEqual(['ai', 'history']);
+    expect(result.config.shell.floating).toEqual([]);
+    expect(result.notes).toEqual([]);
     expect(validateWorkspace(result.config, registry).ok).toBe(true);
   });
 
-  it('takes a protected target back out of floating when it returns to the nav', () => {
-    const moved = apply(workspace(), [{ op: 'setNavItems', items: ['page:home', 'settings'] }]);
-    const back = apply(moved, [{ op: 'setNavItems', items: ['page:home', 'ai', 'settings'] }]);
-    expect(back.shell.floating).toEqual(['history']);
+  it('turns Settings into a floating button when it is removed from the nav', () => {
+    const result = applyOps(workspace(), [{ op: 'setNavItems', items: ['page:home', 'ai'] }], {
+      registry,
+      locale: 'zh',
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.shell.floating).toEqual(['settings']);
+    expect(result.notes).toEqual([{ kind: 'movedToFloating', target: 'settings' }]);
+    const back = apply(result.config, [{ op: 'setNavItems', items: ['page:home', 'settings'] }]);
+    expect(back.shell.floating).toEqual([]);
+  });
+
+  it('setFloatingItems takes entries out of the nav', () => {
+    const config = apply(workspace(), [{ op: 'setFloatingItems', items: ['ai'] }]);
+    expect(config.shell.nav).toEqual(['page:home', 'tools', 'history', 'settings']);
+    expect(config.shell.floating).toEqual(['ai']);
+    expect(validateWorkspace(config, registry).ok).toBe(true);
+  });
+
+  it('sets and resets theme tokens and color overrides', () => {
+    const styled = apply(workspace(), [
+      {
+        op: 'setTheme',
+        fontScale: 1.15,
+        radius: 8,
+        density: 'compact',
+        cardStyle: 'outline',
+        navStyle: 'icon',
+        font: 'serif',
+        colors: { background: '#FFFFFF' },
+      },
+    ]);
+    expect(styled.theme).toMatchObject({
+      fontScale: 1.15,
+      radius: 8,
+      density: 'compact',
+      cardStyle: 'outline',
+      navStyle: 'icon',
+      font: 'serif',
+      colors: { background: '#FFFFFF' },
+    });
+    expect(validateWorkspace(styled, registry).ok).toBe(true);
+    const cleared = apply(styled, [{ op: 'setTheme', colors: { background: null } }]);
+    expect(cleared.theme.colors).toEqual({});
+    expect(apply(styled, [{ op: 'resetTheme' }]).theme).toEqual(workspace().theme);
+  });
+
+  it('adds a page with its own components, and removes it together with links to it', () => {
+    const added = apply(workspace(), [
+      {
+        op: 'addPage',
+        page: {
+          id: 'budget',
+          title: '记账',
+          icon: 'chart',
+          components: [{ id: 'title', type: 'header', props: { title: '记账' } }],
+        },
+      },
+      {
+        op: 'addComponent',
+        pageId: 'home',
+        component: {
+          id: 'go-budget',
+          type: 'shortcut',
+          props: { title: '记账', icon: 'chart', target: 'page:budget' },
+        },
+      },
+      { op: 'setFloatingItems', items: ['page:budget'] },
+    ]);
+    expect(validateWorkspace(added, registry).ok).toBe(true);
+
+    const result = applyOps(added, [{ op: 'removePage', pageId: 'budget' }], {
+      registry,
+      locale: 'zh',
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.pages.map((p) => p.id)).toEqual(['home']);
+    expect(result.config.shell.floating).toEqual([]);
+    expect(result.config.pages[0]!.components.some((c) => c.id === 'go-budget')).toBe(false);
+    expect(result.notes).toEqual([{ kind: 'removedLinks', pageId: 'budget', count: 1 }]);
+    expect(validateWorkspace(result.config, registry).ok).toBe(true);
+  });
+
+  it('refuses to remove the home page or a tool page', () => {
+    const config = workspace('zh', { withPdf: true });
+    for (const pageId of ['home', 'tool-pdf']) {
+      expect(applyOps(config, [{ op: 'removePage', pageId }], { registry, locale: 'zh' }).ok).toBe(
+        false,
+      );
+    }
+  });
+
+  it('lays components out in groups: add into, move in and out, no nesting', () => {
+    const grouped = apply(workspace('zh', { withPdf: true }), [
+      {
+        op: 'addComponent',
+        pageId: 'home',
+        index: 1,
+        component: {
+          id: 'tools-grid',
+          type: 'group',
+          props: { layout: 'grid', columns: 2 },
+          children: [],
+        },
+      },
+      {
+        op: 'moveComponent',
+        pageId: 'home',
+        componentId: 'card-pdf',
+        parentId: 'tools-grid',
+        toIndex: 0,
+      },
+      {
+        op: 'moveComponent',
+        pageId: 'home',
+        componentId: 'catalog',
+        parentId: 'tools-grid',
+        toIndex: 1,
+      },
+    ]);
+    const home = grouped.pages[0]!;
+    expect(home.components.map((c) => c.id)).toEqual(['welcome', 'tools-grid', 'recent-files']);
+    const group = home.components[1]!;
+    expect(group.type === 'group' && group.children.map((c) => c.id)).toEqual([
+      'card-pdf',
+      'catalog',
+    ]);
+    expect(validateWorkspace(grouped, registry).ok).toBe(true);
+
+    // 组件可以从分组里移出、修改样式、删除。
+    const out = apply(grouped, [
+      { op: 'moveComponent', pageId: 'home', componentId: 'catalog', toIndex: 3 },
+      {
+        op: 'setComponentStyle',
+        pageId: 'home',
+        componentId: 'card-pdf',
+        style: { tone: 'secondary' },
+      },
+      { op: 'setComponentHidden', pageId: 'home', componentId: 'card-pdf', hidden: true },
+    ]);
+    expect(out.pages[0]!.components.map((c) => c.id)).toEqual([
+      'welcome',
+      'tools-grid',
+      'recent-files',
+      'catalog',
+    ]);
+    const card = (
+      out.pages[0]!.components[1] as { children: { style?: unknown; hidden?: boolean }[] }
+    ).children[0]!;
+    expect(card).toMatchObject({ style: { tone: 'secondary' }, hidden: true });
+
+    const nested = applyOps(
+      grouped,
+      [
+        {
+          op: 'addComponent',
+          pageId: 'home',
+          parentId: 'tools-grid',
+          component: { id: 'inner', type: 'group', props: { layout: 'row' }, children: [] },
+        },
+      ],
+      { registry, locale: 'zh' },
+    );
+    expect(nested).toEqual({ ok: false, error: 'a group cannot be placed inside another group' });
+  });
+
+  it('uninstalling a tool also removes its card inside a group', () => {
+    const grouped = apply(workspace('zh', { withPdf: true }), [
+      {
+        op: 'addComponent',
+        pageId: 'home',
+        component: { id: 'g', type: 'group', props: { layout: 'row' }, children: [] },
+      },
+      { op: 'moveComponent', pageId: 'home', componentId: 'card-pdf', parentId: 'g', toIndex: 0 },
+    ]);
+    const removed = apply(grouped, [{ op: 'uninstallTool', toolId: 'pdf' }]);
+    expect(validateWorkspace(removed, registry).ok).toBe(true);
+  });
+
+  it('style changes can be reset with null', () => {
+    const styled = apply(workspace(), [
+      {
+        op: 'setComponentStyle',
+        pageId: 'home',
+        componentId: 'welcome',
+        style: { align: 'center' },
+      },
+    ]);
+    expect(styled.pages[0]!.components[0]!.style).toEqual({ align: 'center' });
+    const reset = apply(styled, [
+      { op: 'setComponentStyle', pageId: 'home', componentId: 'welcome', style: { align: null } },
+    ]);
+    expect(reset.pages[0]!.components[0]!.style).toBeUndefined();
   });
 
   it('installs a tool once: page, workflow and a home card before the catalog link', () => {
@@ -115,8 +303,57 @@ describe('prepareOps', () => {
     expect(result.lines).toEqual([
       '导航栏改为：首页、工具、设置（原来：首页、工具、AI 修改、历史、设置）',
       '「合并 PDF」的「保存到工作空间」命名规则改为 合并-{date:YYYY-MM-DD}（例如 合并-2026-10-22.pdf）',
-      '「AI 修改」不能删除，已改为浮动按钮',
-      '「历史」不能删除，已改为浮动按钮',
+    ]);
+  });
+
+  it('names a group created in the same change', () => {
+    const result = prepareOps(
+      workspace('zh', { withPdf: true }),
+      [
+        {
+          op: 'addComponent',
+          pageId: 'home',
+          index: 1,
+          component: { id: 'grid', type: 'group', props: { layout: 'grid' }, children: [] },
+        },
+        {
+          op: 'moveComponent',
+          pageId: 'home',
+          componentId: 'card-pdf',
+          parentId: 'grid',
+          toIndex: 0,
+        },
+      ],
+      ctx,
+    );
+    expect(result.ok && result.lines).toEqual([
+      '在「首页」添加网格分组',
+      '把「PDF」工具入口移到「首页」的网格分组第 1 位',
+    ]);
+  });
+
+  it('describes style and page changes', () => {
+    const result = prepareOps(
+      workspace(),
+      [
+        { op: 'setTheme', fontScale: 1.15, radius: 8, cardStyle: 'flat' },
+        { op: 'setNavItems', items: ['page:home', 'ai'] },
+        {
+          op: 'addPage',
+          page: { id: 'notes', title: '笔记', components: [] },
+        },
+      ],
+      ctx,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.lines).toEqual([
+      '字号改为115%',
+      '圆角改为8',
+      '卡片样式改为无阴影无描边',
+      '导航栏改为：首页、AI 修改（原来：首页、工具、AI 修改、历史、设置）',
+      '新建页面「笔记」（0 个组件）',
+      '「设置」不能移除（AI 修改和历史入口都在里面），已改为浮动按钮',
     ]);
   });
 });

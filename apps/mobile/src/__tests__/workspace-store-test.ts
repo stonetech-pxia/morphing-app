@@ -66,7 +66,7 @@ describe('workspace store', () => {
     await store.getState().confirm();
     await store.getState().markRendered(store.getState().head!.id);
     expect(nav(store)).toEqual(['page:home', 'tools', 'settings']);
-    expect(store.getState().config!.shell.floating).toEqual(['ai', 'history']);
+    expect(store.getState().config!.shell.floating).toEqual([]);
     expect(store.getState().banner).toMatchObject({ kind: 'applied', undoTo: 1 });
     expect(await repo.getChangeRequest(1)).toMatchObject({
       status: 'committed',
@@ -83,14 +83,14 @@ describe('workspace store', () => {
     await store.getState().propose('主题换成绿色');
     await store.getState().cancel();
     expect(store.getState().proposal).toBeNull();
-    expect(store.getState().config!.theme.primaryColor).toBe('#3B5BDB');
+    expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
     expect((await repo.listRevisions(10)).length).toBe(1);
     expect(await repo.getChangeRequest(1)).toMatchObject({ status: 'cancelled' });
   });
 
   it('rejected and unknown requests never create a revision', async () => {
     const { repo, store } = await booted();
-    expect(await store.getState().propose('把 AI 入口删掉')).toMatchObject({ kind: 'rejected' });
+    expect(await store.getState().propose('把设置删掉')).toMatchObject({ kind: 'rejected' });
     expect(await store.getState().propose('帮我订机票')).toMatchObject({ kind: 'rejected' });
     expect((await repo.listRevisions(10)).length).toBe(1);
     expect(await repo.getChangeRequest(1)).toMatchObject({ status: 'rejected' });
@@ -168,7 +168,7 @@ describe('workspace store', () => {
     await applyText(store, '主题换成绿色');
     await store.getState().undo();
     await store.getState().markRendered(store.getState().head!.id);
-    expect(store.getState().config!.theme.primaryColor).toBe('#3B5BDB');
+    expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
     expect(store.getState().head).toMatchObject({ source: 'restore', parentId: 2 });
   });
 
@@ -179,7 +179,7 @@ describe('workspace store', () => {
     await store.getState().confirm();
     await store.getState().reportRenderError(new Error('boom'));
 
-    expect(store.getState().config!.theme.primaryColor).toBe('#3B5BDB');
+    expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
     expect(store.getState().banner).toMatchObject({ kind: 'rolledBack' });
     expect(store.getState().head).toMatchObject({ source: 'rollback' });
     expect(await repo.getChangeRequest(1)).toMatchObject({ status: 'rolled_back' });

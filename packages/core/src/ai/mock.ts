@@ -3,6 +3,7 @@ import { applyOps, topIndex, type Op } from '../ops';
 import type { ToolDefinition } from '../registry';
 import {
   HOME_PAGE_ID,
+  IdSchema,
   pageTarget,
   type Component,
   type Locale,
@@ -11,6 +12,9 @@ import {
   type Page,
   type WorkspaceConfig,
 } from '../schema';
+import { isEmoji } from '../richtext';
+import { ICON_NAMES } from '../schema';
+import { entryOps, templateOps, type DataTemplate } from '../templates';
 import type { AIProvider, Plan, PlanContext, RejectReason } from './types';
 
 // 基于规则的 mock AI（§7F）。不是语言模型：只认识 docs/MOCK_AI_PHRASES.md 中的句式。
@@ -20,6 +24,8 @@ const EXAMPLES: Localized[] = [
   { zh: '把 PDF 放到最上面', en: 'Put PDF at the top' },
   { zh: '导航只保留首页、工具、设置', en: 'Only keep Home, Tools and Settings in the navigation' },
   { zh: '主题换成绿色', en: 'Change the theme color to green' },
+  { zh: '字体大一点', en: 'Bigger text' },
+  { zh: '新建一个叫「记账」的页面', en: 'Add a page called Budget' },
   { zh: '撤销刚才的修改', en: 'Undo the last change' },
 ];
 
@@ -138,6 +144,23 @@ function withoutComponent(p: Page, componentId: string): Page {
   return { ...p, components: p.components.filter((c) => c.id !== componentId) };
 }
 
+function findNavItem(rawName: string, state: State): NavTarget | null {
+  const name = rawName
+    .trim()
+    .toLowerCase()
+    .replace(/^(the|把|将)\s*/i, '')
+    .replace(/\s*(入口|按钮|页面|页|tab|entry|button|page)$/i, '')
+    .trim();
+  if (/^(首页|主页|home)$/.test(name)) return pageTarget(HOME_PAGE_ID);
+  if (/^(工具|工具目录|tools?)$/.test(name)) return 'tools';
+  if (/^(设置|settings?)$/.test(name)) return 'settings';
+  if (/^(历史|历史记录|历史版本|history)$/.test(name)) return 'history';
+  if (/^(ai|ai\s*修改)$/.test(name)) return 'ai';
+  const p = state.config.pages.find((x) => x.title.toLowerCase() === name);
+  if (p) return pageTarget(p.id);
+  return null;
+}
+
 function resolveNavItem(rawName: string, state: State): NavTarget {
   const name = rawName.trim().toLowerCase();
   if (/^(首页|主页|home)$/.test(name)) return pageTarget(HOME_PAGE_ID);
@@ -174,6 +197,384 @@ const navRule: Rule = (clause, state) => {
     .filter(Boolean)
     .map((s) => resolveNavItem(s, state));
   return [{ op: 'setNavItems', items }];
+};
+
+const navStyleRule: Rule = (clause) => {
+  const zh = clause.match(
+    /导航(?:栏)?(?:里|中|上)?(?:只显示|只要|只留|只保留|改成|改为)(?:显示)?(图标|文字)$/,
+  );
+  const en =
+    clause.match(/^(?:nav|navigation)(?: bar)?:? (icons|labels) only$/i) ??
+    clause.match(/^only (?:show )?(icons|labels) in the (?:nav|navigation)(?: bar)?$/i);
+  if (zh) return [{ op: 'setTheme', navStyle: zh[1] === '图标' ? 'icon' : 'label' }];
+  if (en) return [{ op: 'setTheme', navStyle: /icon/i.test(en[1]!) ? 'icon' : 'label' }];
+  if (
+    /导航(?:栏)?(?:显示|加上|恢复)图标和文字|(?:icons and labels) in the (?:nav|navigation)/i.test(
+      clause,
+    )
+  ) {
+    return [{ op: 'setTheme', navStyle: 'iconLabel' }];
+  }
+  return null;
+};
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+const fontSizeRule: Rule = (clause, state) => {
+  const bigger =
+    /^(?:字体|文字|字号|字)(?:再)?大一?(?:点|些)$|^(?:放大|调大)(?:字体|文字|字号)$/.test(clause) ||
+    /^(?:make (?:the )?)?(?:text|font)s? (?:bigger|larger)$|^(?:bigger|larger) (?:text|font)s?$/i.test(
+      clause,
+    );
+  const smaller =
+    /^(?:字体|文字|字号|字)(?:再)?小一?(?:点|些)$|^(?:缩小|调小)(?:字体|文字|字号)$/.test(clause) ||
+    /^(?:make (?:the )?)?(?:text|font)s? smaller$|^smaller (?:text|font)s?$/i.test(clause);
+  if (!bigger && !smaller) return null;
+  const scale = state.config.theme.fontScale;
+  return [
+    {
+      op: 'setTheme',
+      fontScale: bigger ? Math.min(1.3, round2(scale + 0.15)) : Math.max(0.85, round2(scale - 0.1)),
+    },
+  ];
+};
+
+const fontFamilyRule: Rule = (clause) => {
+  const m =
+    clause.match(/^(?:把)?字体(?:换成|改成|改为|用)(系统|衬线|等宽|默认)(?:字体)?$/) ??
+    clause.match(/^(?:use|switch to) (?:the |a )?(system|serif|mono(?:spaced?)?|default) font$/i);
+  if (!m) return null;
+  const font = /系统|system/i.test(m[1]!)
+    ? 'system'
+    : /衬线|serif/i.test(m[1]!)
+      ? 'serif'
+      : /等宽|mono/i.test(m[1]!)
+        ? 'mono'
+        : 'clay';
+  return [{ op: 'setTheme', font }];
+};
+
+const radiusRule: Rule = (clause, state) => {
+  const r = state.config.theme.radius;
+  if (/^(?:去掉圆角|不要圆角|直角|方角)(?:卡片)?$|^(?:square|sharp) corners$/i.test(clause)) {
+    return [{ op: 'setTheme', radius: 0 }];
+  }
+  if (/^(?:卡片)?圆角(?:再)?小一?(?:点|些)$|^(?:less rounded|sharper) corners$/i.test(clause)) {
+    return [{ op: 'setTheme', radius: Math.max(0, r - 8) }];
+  }
+  if (/^(?:卡片)?圆角(?:再)?大一?(?:点|些)$|^(?:more rounded|rounder) corners$/i.test(clause)) {
+    return [{ op: 'setTheme', radius: Math.min(28, r + 6) }];
+  }
+  return null;
+};
+
+const densityRule: Rule = (clause) => {
+  if (
+    /^(?:布局|界面|间距)?(?:更)?(?:紧凑|密集)(?:一点|一些|些)?(?:的布局)?$|^(?:more )?compact(?: layout)?$/i.test(
+      clause,
+    )
+  ) {
+    return [{ op: 'setTheme', density: 'compact' }];
+  }
+  if (
+    /^(?:布局|界面|间距)?(?:更)?(?:宽松|疏朗)(?:一点|一些|些)?(?:的布局)?$|^(?:more )?spacious(?: layout)?$|^roomier(?: layout)?$/i.test(
+      clause,
+    )
+  ) {
+    return [{ op: 'setTheme', density: 'spacious' }];
+  }
+  return null;
+};
+
+const cardStyleRule: Rule = (clause) => {
+  if (/^(?:去掉|不要|取消)(?:卡片)?(?:的)?阴影$|^(?:remove|no) (?:card )?shadows?$/i.test(clause)) {
+    return [{ op: 'setTheme', cardStyle: 'flat' }];
+  }
+  if (
+    /^(?:卡片)?(?:加|加上|用|改成|改为)(?:边框|描边)$|^(?:outlined? cards|card (?:borders|outlines))$/i.test(
+      clause,
+    )
+  ) {
+    return [{ op: 'setTheme', cardStyle: 'outline' }];
+  }
+  if (/^(?:卡片)?(?:加上|恢复)阴影$|^(?:add )?(?:card )?shadows$/i.test(clause)) {
+    return [{ op: 'setTheme', cardStyle: 'shadow' }];
+  }
+  return null;
+};
+
+const resetStyleRule: Rule = (clause) =>
+  /^(?:恢复|还原)(?:成|到|为)?默认(?:的)?(?:样式|风格|主题|外观)$|^(?:样式|风格|主题)(?:恢复|还原)(?:成|到|为)?默认$|^reset (?:the )?(?:style|theme|look)$/i.test(
+    clause,
+  )
+    ? [{ op: 'resetTheme' }]
+    : null;
+
+const PROTECTED_MESSAGE = (locale: Locale) =>
+  say(
+    locale,
+    '「设置」不能移除：「AI 修改」和「历史」入口都在设置里，去掉它就无法继续修改或撤销了。可以把它改为浮动按钮。',
+    'Settings can’t be removed: it holds the AI and History entries, so without it you couldn’t change or undo anything. You can make it a floating button instead.',
+  );
+
+/** 从导航栏和浮动按钮里去掉一个入口（AI 修改、历史和工具都可以去掉，设置页里仍有入口）。 */
+const removeEntryRule: Rule = (clause, state) => {
+  const m =
+    clause.match(
+      /^(?:把|将)?(.+?)(?:从(?:底部)?导航(?:栏)?(?:里|中|上)?)?(?:删掉|删除|去掉|移除|拿掉|隐藏)$/,
+    ) ??
+    clause.match(/^(?:删掉|删除|去掉|移除|拿掉|隐藏)(.+?)(?:入口|按钮)?$/) ??
+    clause.match(
+      /^(?:remove|hide|delete) (?:the )?(.+?)(?: from the (?:nav|navigation)(?: bar)?)?$/i,
+    );
+  if (!m) return null;
+  const target = findNavItem(m[1]!, state);
+  if (target === null) return null;
+  if (target === 'settings') throw new Rejection('protected', PROTECTED_MESSAGE(state.ctx.locale));
+  const { nav, floating } = state.config.shell;
+  const ops: Op[] = [];
+  if (nav.includes(target)) {
+    const items = nav.filter((t) => t !== target);
+    if (items.length === 0) {
+      throw new Rejection(
+        'unknown',
+        say(
+          state.ctx.locale,
+          '导航栏至少要保留一项。',
+          'The navigation bar needs at least one entry.',
+        ),
+      );
+    }
+    ops.push({ op: 'setNavItems', items });
+  }
+  if (floating.includes(target)) {
+    ops.push({ op: 'setFloatingItems', items: floating.filter((t) => t !== target) });
+  }
+  return ops;
+};
+
+const floatingRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/^(?:把|将)?(.+?)(?:做成|改成|改为|变成|放到|放在|放进)浮动(?:按钮|入口)$/) ??
+    clause.match(/^(?:make|turn) (?:the )?(.+?) (?:into )?a floating button$/i);
+  if (!m) return null;
+  const target = findNavItem(m[1]!, state);
+  if (target === null) return null;
+  const { floating } = state.config.shell;
+  if (floating.includes(target)) return [];
+  if (floating.length >= 3) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        '最多只能有 3 个浮动按钮。',
+        'There can be at most 3 floating buttons.',
+      ),
+    );
+  }
+  return [{ op: 'setFloatingItems', items: [...floating, target] }];
+};
+
+function newPageId(state: State): string {
+  for (let n = 1; ; n++) {
+    const id = `page-${n}`;
+    if (!state.config.pages.some((p) => p.id === id)) return id;
+  }
+}
+
+const addPageRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/^(?:新建|添加|加|增加|创建)(?:一个|个)?(?:叫|名为|名叫)"?(.+?)"?(?:的)?页面$/) ??
+    clause.match(/^(?:新建|添加|加|增加|创建)(?:一个|个)?页面(?:叫|名为|名叫)"?(.+?)"?$/) ??
+    clause.match(/^(?:新建|添加|加|增加|创建)(?:一个|个)?"(.+?)"页面$/) ??
+    clause.match(/^(?:add|create) (?:a )?(?:new )?page (?:called|named) "?(.+?)"?$/i);
+  if (!m) return null;
+  const title = m[1]!.trim();
+  if (title.length === 0 || title.length > 40) return null;
+  if (state.config.pages.some((p) => p.title === title)) {
+    throw new Rejection(
+      'noChange',
+      say(
+        state.ctx.locale,
+        `已经有「${title}」页面了。`,
+        `There is already a page called “${title}”.`,
+      ),
+    );
+  }
+  const id = newPageId(state);
+  IdSchema.parse(id);
+  const ops: Op[] = [
+    {
+      op: 'addPage',
+      page: {
+        id,
+        title,
+        icon: 'star',
+        components: [{ id: 'header', type: 'header', props: { title } }],
+      },
+    },
+  ];
+  ops.push(...entryOps(state.config, id, title, 'star'));
+  return ops;
+};
+
+const removePageRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/^(?:删除|删掉|去掉|移除)(?:「|")?(.+?)(?:」|")?(?:这个)?页面$/) ??
+    clause.match(/^(?:把|将)?(?:「|")?(.+?)(?:」|")?页面(?:删除|删掉|去掉|移除)$/) ??
+    clause.match(/^(?:delete|remove) (?:the )?(.+?) page$/i);
+  if (!m) return null;
+  const name = m[1]!.replace(/"/g, '').trim().toLowerCase();
+  const target = state.config.pages.find((p) => p.title.toLowerCase() === name);
+  if (!target) return null;
+  if (target.id === HOME_PAGE_ID) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        '首页不能删除，可以改名或调整内容。',
+        'The home page can’t be removed, but you can rename or change it.',
+      ),
+    );
+  }
+  if (target.toolId !== undefined) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        '这是工具的页面，请在「工具」里卸载该工具。',
+        'This page belongs to a tool. Uninstall the tool from Tools instead.',
+      ),
+    );
+  }
+  return [{ op: 'removePage', pageId: target.id }];
+};
+
+const TEMPLATE_WORDS: [RegExp, DataTemplate][] = [
+  [/^(?:记账|账本|记账本|budget|expenses?|expense tracker)$/i, 'budget'],
+  [/^(?:待办|待办清单|待办事项|to-?do|to-?do list|tasks?)$/i, 'todo'],
+  [/^(?:读书清单|书单|阅读清单|reading list|books?)$/i, 'reading'],
+  [/^(?:笔记|笔记本|notes?)$/i, 'notes'],
+];
+
+/** 内置数据页面模板：「新建一个记账页面」「Create a to-do list」。 */
+const templateRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/^(?:新建|添加|加|增加|创建|做|建)(?:一个|个)?(.+?)(?:页面|页)?$/) ??
+    clause.match(/^(?:add|create|make)(?: me)? (?:a |an )?(.+?)(?: page)?$/i);
+  if (!m) return null;
+  const word = m[1]!.trim();
+  const template = TEMPLATE_WORDS.find(([re]) => re.test(word))?.[1];
+  if (!template) return null;
+  return templateOps(template, state.config, state.ctx.locale);
+};
+
+function newFieldId(fields: readonly { id: string }[]): string {
+  for (let n = 1; ; n++) if (!fields.some((f) => f.id === `field-${n}`)) return `field-${n}`;
+}
+
+/** 「给账目加一个「支付方式」字段」：加一个文字字段。 */
+const addFieldRule: Rule = (clause, state) => {
+  const m =
+    clause.match(
+      /^(?:给|在)"?(.+?)"?(?:里|中|表)?(?:加|添加|增加)(?:一个|个)?"(.+?)"(?:字段|栏|项)$/,
+    ) ?? clause.match(/^add (?:a )?"?(.+?)"? field to (?:the )?"?(.+?)"?$/i);
+  if (!m) return null;
+  const [table, name] = /^add/i.test(clause) ? [m[2]!, m[1]!] : [m[1]!, m[2]!];
+  const collection = state.config.collections.find(
+    (c) => c.name.toLowerCase() === table.trim().toLowerCase(),
+  );
+  if (!collection) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        `找不到数据表「${table}」。`,
+        `There is no data table called “${table}”.`,
+      ),
+    );
+  }
+  return [
+    {
+      op: 'addField',
+      collectionId: collection.id,
+      field: { id: newFieldId(collection.fields), name: name.trim(), type: 'text' },
+    },
+  ];
+};
+
+function findPage(rawName: string, state: State): Page | undefined {
+  const name = rawName
+    .trim()
+    .replace(/^(?:把|将|the)\s*/i, '')
+    .trim()
+    .toLowerCase();
+  if (/^(?:首页|主页|home)(?: ?page)?$/.test(name)) return page(state, HOME_PAGE_ID);
+  const title = name.replace(/\s*(?:页面|页|page)$/i, '').trim();
+  return state.config.pages.find((p) => [name, title].includes(p.title.toLowerCase()));
+}
+
+function newComponentId(prefix: string, p: Page): string {
+  const ids = new Set(
+    p.components.flatMap((c) =>
+      c.type === 'group' ? [c.id, ...c.children.map((x) => x.id)] : [c.id],
+    ),
+  );
+  for (let n = 1; ; n++) if (!ids.has(`${prefix}-${n}`)) return `${prefix}-${n}`;
+}
+
+/** 「在首页顶部加一张图片」：放一个图片位，照片由用户自己选（D-045）。 */
+const imageRule: Rule = (clause, state) => {
+  const zh = clause.match(
+    /^(?:在|给)?(.+?)(?:的)?(顶部|最上面|开头|上面|底部|最下面|下面)?(?:加|添加|放|增加)(?:一张|一个|张|个)?(?:大)?(图片|照片|横幅|头图|封面|配图)$/,
+  );
+  const en = clause.match(
+    /^add (?:an? )?(?:image|photo|picture|banner)(?: (?:at the (top|bottom) of|to) (?:the )?(.+?))?$/i,
+  );
+  if (!zh && !en) return null;
+  const target = zh ? findPage(zh[1]!, state) : findPage(en![2] ?? 'home', state);
+  if (!target) return null;
+  const where = zh ? zh[2] : en![1];
+  const top = where !== undefined && /顶部|最上面|开头|上面|top/i.test(where);
+  const wide = zh ? /横幅|头图|封面/.test(zh[3]!) : /banner/i.test(clause);
+  return [
+    {
+      op: 'addComponent',
+      pageId: target.id,
+      index: top ? topIndex(target) : target.components.length,
+      component: {
+        id: newComponentId('image', target),
+        type: 'image',
+        props: {
+          aspect: wide || top ? 'wide' : 'landscape',
+          fit: 'cover',
+          placeholder: say(state.ctx.locale, '点按选择一张照片', 'Tap to choose a photo'),
+        },
+      },
+    },
+  ];
+};
+
+/** 「把记账页面的图标换成💰」 */
+const pageIconRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/^(?:把|将)?(.+?)的图标(?:换成|改成|改为|设为|用)(.+)$/) ??
+    clause.match(/^(?:change|set) the icon of (.+?) to (.+)$/i);
+  if (!m) return null;
+  const target = findPage(m[1]!, state);
+  if (!target) return null;
+  const icon = m[2]!.trim();
+  if (!isEmoji(icon) && !(ICON_NAMES as readonly string[]).includes(icon)) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        `图标只能用一个 emoji 或内置图标，「${icon}」不行。`,
+        `An icon must be a single emoji or a built-in icon; “${icon}” isn’t one.`,
+      ),
+    );
+  }
+  return [{ op: 'setPageIcon', pageId: target.id, icon }];
 };
 
 const STEP_KEYWORDS: [RegExp, string][] = [
@@ -372,7 +773,22 @@ const titleRule: Rule = (clause, state) => {
 };
 
 const RULES: Rule[] = [
+  navStyleRule,
   navRule,
+  resetStyleRule,
+  fontSizeRule,
+  fontFamilyRule,
+  radiusRule,
+  densityRule,
+  cardStyleRule,
+  imageRule,
+  pageIconRule,
+  templateRule,
+  addFieldRule,
+  addPageRule,
+  removePageRule,
+  floatingRule,
+  removeEntryRule,
   simplifyRule,
   namingRule,
   modeRule,
@@ -383,9 +799,27 @@ const RULES: Rule[] = [
   titleRule,
 ];
 
+/** 读、写、删、统计用户记录的请求（AI 只改界面，从不接触记录内容）。 */
+const USER_DATA = new RegExp(
+  [
+    '^记(?:一笔|一下|个账)',
+    '帮我记',
+    '(?:标成|标记为|设为|改成)(?:已)?完成',
+    '(?:删掉|删除|清空|清除)(?:所有|全部|上个月|这个月|今天|昨天|这些)?的?(?:账|账目|记录|待办|笔记|数据)$',
+    '(?:账|账目|记录|待办|笔记|数据)(?:都|全)?(?:删掉|删除|清空|清除)$',
+    '(?:花了|支出|收入|赚了)多少',
+    '(?:算|统计|看看|查查|告诉我|总结)(?:一下)?我的',
+    '^(?:log|record|add) (?:an? )?(?:expense|entry)\\b',
+    '\\b(?:delete|clear|remove) (?:all )?(?:my )?(?:records|entries|expenses|notes|tasks)\\b',
+    '\\bmark (?:all )?.*\\b(?:done|complete)\\b',
+    '\\bhow much did i\\b',
+  ].join('|'),
+  'i',
+);
+
 const RESTORE = /^(恢复|还原)(到)?上一(次|个)|^撤销|^撤回|^undo\b|^revert\b|^go back/i;
 const DELETE_FILES = /(删除|删掉|清空|清除).*文件|\b(delete|remove|erase)\b.*\bfiles?\b/i;
-const PROTECTED_WORD = '(?:(?:^|[^a-z])ai(?:[^a-z]|$)|历史|\\bhistory\\b)';
+const PROTECTED_WORD = '(?:设置|\\bsettings?\\b)';
 const REMOVE_WORD = '(?:删除|删掉|去掉|移除|隐藏|不要|\\bdelete\\b|\\bremove\\b|\\bhide\\b)';
 const REMOVE_PROTECTED = new RegExp(
   `${REMOVE_WORD}.*${PROTECTED_WORD}|${PROTECTED_WORD}.*${REMOVE_WORD}`,
@@ -406,16 +840,18 @@ function planClauses(clauses: string[], ctx: PlanContext): Plan {
         ),
       );
     }
-    if (REMOVE_PROTECTED.test(clause)) {
+    if (USER_DATA.test(clause)) {
       throw new Rejection(
-        'protected',
+        'userData',
         say(
           ctx.locale,
-          '「AI 修改」和「历史」入口不能删除或隐藏，否则你将无法继续修改或撤销。可以把它们移到别处，例如从导航栏改为浮动按钮。',
-          'The AI and History entries can’t be removed or hidden, or you couldn’t change or undo anything. You can move them, e.g. out of the nav bar into floating buttons.',
+          'AI 只修改界面，不会读取或改动你记录的数据。请直接在页面上添加、修改或删除。',
+          'The AI only changes the app’s interface; it never reads or changes the data you record. Add, edit or delete entries on the page itself.',
         ),
       );
     }
+    if (REMOVE_PROTECTED.test(clause))
+      throw new Rejection('protected', PROTECTED_MESSAGE(ctx.locale));
     const clauseOps = RULES.reduce<Op[] | null>(
       (found, rule) => found ?? rule(clause, state),
       null,

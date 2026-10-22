@@ -21,6 +21,7 @@ const ALLOWED = new Set([
   'AGPL-3.0-only',
   'MIT AND Apache-2.0',
   '(MIT AND Zlib)', // pako（pdf-lib 的依赖）：Zlib 为宽松许可证，与 GPL 兼容
+  'MIT AND OFL-1.1', // @expo-google-fonts/sora、karla：代码 MIT，字体文件 OFL-1.1（字体可随任何软件分发）
   '(MIT OR Apache-2.0)',
   '(MIT OR CC0-1.0)',
   '(BSD-2-Clause OR MIT OR Apache-2.0)',

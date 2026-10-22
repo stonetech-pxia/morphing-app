@@ -1,15 +1,20 @@
-import { navTargetLabel } from '@morph/core';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EditablePage } from '@/editing/EditablePage';
 import { t } from '@/i18n';
 import { ErrorBoundary } from '@/renderer/ErrorBoundary';
-import { PageView, type RenderEnv } from '@/renderer/components';
+import { Icon } from '@/renderer/Icon';
+import type { RenderEnv } from '@/renderer/components';
 import { usePalette } from '@/renderer/theme';
+import { useNavigate } from '@/shell/navigation';
+import { Banner } from '@/shell/Shell';
+import { Toast } from '@/shell/Toast';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
-/** 工具页面：同一个渲染器，渲染工作空间配置中的某一页。 */
+/** 不在导航栏里的页面（工具页、用户新建的页面）：同一个渲染器，渲染工作空间配置中的某一页。 */
 export default function PageRoute() {
   const { pageId } = useLocalSearchParams<{ pageId: string }>();
   const { registry, locale } = useWorkspaceContext();
@@ -18,56 +23,65 @@ export default function PageRoute() {
   const config = useWorkspace((s) => s.config)!;
   const headId = useWorkspace((s) => s.head!.id);
   const reportRenderError = useWorkspace((s) => s.reportRenderError);
+  const editing = useWorkspace((s) => s.editing?.pageId === pageId);
+  const startEditing = useWorkspace((s) => s.startEditing);
+  const cancelEditing = useWorkspace((s) => s.cancelEditing);
   const palette = usePalette(config.theme);
+  const navigate = useNavigate();
   const page = config.pages.find((p) => p.id === pageId);
+
+  // 页面被关闭（例如它被删除）时放弃未保存的编辑。
+  useEffect(() => () => cancelEditing(), [cancelEditing]);
 
   if (!page) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: palette.subtext }}>{t(locale, 'pageMissing')}</Text>
+        <Text style={[palette.font('body', 15), { color: palette.muted }]}>
+          {t(locale, 'pageMissing')}
+        </Text>
       </View>
     );
   }
 
-  const env: RenderEnv = {
-    config,
-    palette,
-    locale,
-    registry,
-    interactive: true,
-    onOpenTools: () => router.back(),
-  };
+  const env: RenderEnv = { config, palette, locale, registry, interactive: true, navigate };
   return (
     <>
-      <Stack.Screen options={{ title: page.title }} />
+      <Stack.Screen
+        options={{
+          title: page.title,
+          // 在当前页面直接发起修改，预览会聚焦这一页。
+          // 编辑模式下不能返回：先在页面顶部点「完成」或「取消」，草稿不会丢失（D-054）。
+          headerBackVisible: !editing,
+          gestureEnabled: !editing,
+          // 「编辑」进入编辑模式（D-053）；也可以长按页面上的组件。
+          headerRight: () =>
+            editing ? null : (
+              <View style={styles.headerActions}>
+                <Pressable testID="page-edit" onPress={() => startEditing(page.id)} hitSlop={10}>
+                  <Text style={[palette.font('bodyBold', 16), { color: palette.primaryText }]}>
+                    {t(locale, 'edit')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  testID="page-ai"
+                  accessibilityLabel={t(locale, 'changeTitle')}
+                  onPress={() => router.push('/change')}
+                  hitSlop={10}>
+                  <Icon name="sparkles" size={22} color={palette.primaryText} />
+                </Pressable>
+              </View>
+            ),
+        }}
+      />
+      <Banner palette={palette} />
       <ErrorBoundary key={headId} onError={reportRenderError} fallback={<View />}>
-        <PageView page={page} env={env} bottomInset={insets.bottom + 72} />
+        <EditablePage page={page} env={env} bottomInset={insets.bottom} />
       </ErrorBoundary>
-      {/* AI 修改入口在工具页同样可达（受保护元素，§5.1）。 */}
-      <Pressable
-        testID="page-ai"
-        onPress={() => router.push('/change')}
-        style={[styles.fab, { backgroundColor: palette.primary, bottom: insets.bottom + 16 }]}>
-        <Text style={[styles.fabText, { color: palette.onPrimary }]}>
-          {navTargetLabel('ai', config, locale)}
-        </Text>
-      </Pressable>
+      <Toast palette={palette} bottom={insets.bottom + 16} />
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  fab: {
-    position: 'absolute',
-    right: 16,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
-  },
-  fabText: { fontWeight: '600' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
 });

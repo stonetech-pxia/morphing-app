@@ -7,7 +7,9 @@ import type { Locale, WorkspaceConfig } from '../schema';
 // AIProvider（§5.4、§14.2）：输入用户的一句话和当前配置，输出结构化计划。
 // mock 与真实模型实现同一个接口；计划在使用前一律经过 PlanSchema 和 validateWorkspace。
 
-export type RejectReason = 'unknown' | 'protected' | 'deleteFiles' | 'notInstalled' | 'noChange';
+/** userData：请求涉及用户记录的内容（读、写、删、统计）。AI 只修改界面，从不接触记录。 */
+export type RejectReason =
+  'unknown' | 'protected' | 'deleteFiles' | 'userData' | 'notInstalled' | 'noChange';
 
 export type Plan =
   | { kind: 'ops'; ops: Op[] }
@@ -19,7 +21,7 @@ export const PlanSchema: z.ZodType<Plan> = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('restorePrevious') }),
   z.strictObject({
     kind: z.literal('reject'),
-    reason: z.enum(['unknown', 'protected', 'deleteFiles', 'notInstalled', 'noChange']),
+    reason: z.enum(['unknown', 'protected', 'deleteFiles', 'userData', 'notInstalled', 'noChange']),
     message: z.string(),
     examples: z.array(z.string()),
   }),

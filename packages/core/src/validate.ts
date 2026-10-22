@@ -3,11 +3,18 @@ import {
   HOME_PAGE_ID,
   PROTECTED_TARGETS,
   WorkspaceConfigSchema,
+  PERIODS,
+  allComponents,
+  componentTarget,
   pageIdOf,
+  type Collection,
+  type Component,
+  type Condition,
   type WorkspaceConfig,
 } from './schema';
+import { contrastProblems } from './theme';
 
-// 变更校验（§7D）：结构 → 引用 → 受保护元素 → 工具与权限 → 工作流数据流。
+// 变更校验（§7D）：结构 → 引用 → 受保护元素 → 可读性 → 工具与权限 → 工作流数据流。
 // 任何配置在保存或渲染之前都必须通过这里。
 
 export interface ValidationIssue {
@@ -44,7 +51,7 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
   const pageIds = new Set(config.pages.map((p) => p.id));
   for (const id of duplicates(config.pages.map((p) => p.id))) issue('duplicate', `page ${id}`);
   for (const page of config.pages) {
-    for (const id of duplicates(page.components.map((c) => c.id))) {
+    for (const id of duplicates(allComponents(page).map((c) => c.id))) {
       issue('duplicate', `component ${id} on page ${page.id}`);
     }
   }
@@ -62,9 +69,15 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
   }
   for (const target of PROTECTED_TARGETS) {
     if (!entries.includes(target)) {
-      issue('protected', `${target} must stay reachable from the nav bar or a floating button`);
+      issue(
+        'protected',
+        `${target} must stay in the nav bar or a floating button (it holds the AI and History entries)`,
+      );
     }
   }
+
+  // ---- 可读性：主题改坏之后用户必须仍能找到设置（§5.1）----
+  for (const problem of contrastProblems(config.theme)) issue('contrast', `theme: ${problem}`);
 
   // ---- 工具 ----
   const installed = new Map(config.tools.map((t) => [t.toolId, t]));
@@ -84,7 +97,12 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
   // ---- 组件引用 ----
   const workflowIds = new Set(config.workflows.map((w) => w.id));
   for (const page of config.pages) {
-    for (const c of page.components) {
+    for (const c of allComponents(page)) {
+      const target = componentTarget(c);
+      const targetPage = target === null ? null : pageIdOf(target);
+      if (targetPage !== null && !pageIds.has(targetPage)) {
+        issue('unknown-page', `component ${c.id} on page ${page.id} opens missing ${target}`);
+      }
       if (c.type === 'toolCard' && !installed.has(c.props.toolId)) {
         issue(
           'unknown-tool',
@@ -94,6 +112,29 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
       if (c.type === 'workflowRunner' && !workflowIds.has(c.props.workflowId)) {
         issue('unknown-workflow', `component ${c.id} runs missing workflow ${c.props.workflowId}`);
       }
+    }
+  }
+
+  // ---- 数据表结构与数据组件（docs/DATA_DESIGN.md）----
+  for (const id of duplicates(config.collections.map((c) => c.id)))
+    issue('duplicate', `collection ${id}`);
+  for (const collection of config.collections) {
+    for (const id of duplicates(collection.fields.map((f) => f.id))) {
+      issue('duplicate', `field ${id} in ${collection.id}`);
+    }
+    for (const field of collection.fields) {
+      if (field.type !== 'choice') continue;
+      for (const id of duplicates(field.options.map((o) => o.id))) {
+        issue('duplicate', `option ${id} in ${collection.id}.${field.id}`);
+      }
+      if (field.default !== undefined && !field.options.some((o) => o.id === field.default)) {
+        issue('data', `${collection.id}.${field.id}: default ${field.default} is not an option`);
+      }
+    }
+  }
+  for (const page of config.pages) {
+    for (const c of allComponents(page)) {
+      for (const problem of dataComponentProblems(c, config)) issue('data', `${c.id}: ${problem}`);
     }
   }
 
@@ -138,4 +179,109 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
   }
 
   return issues.length > 0 ? { ok: false, issues } : { ok: true, config };
+}
+
+const NUMERIC = ['number', 'money', 'rating'];
+
+/** 数据组件引用的表、字段和筛选条件是否合法。 */
+function dataComponentProblems(c: Component, config: WorkspaceConfig): string[] {
+  if (c.type !== 'recordList' && c.type !== 'recordForm' && c.type !== 'stat') return [];
+  const collection = config.collections.find((x) => x.id === c.props.collectionId);
+  if (!collection) return [`data table ${c.props.collectionId} does not exist`];
+  const problems: string[] = [];
+  const field = (id: string) => collection.fields.find((f) => f.id === id);
+  const ref = (id: string, role: string) => {
+    if (id !== 'createdAt' && id !== 'updatedAt' && !field(id)) {
+      problems.push(`${role} ${id} is not a field of ${collection.id}`);
+    }
+  };
+  switch (c.type) {
+    case 'recordList': {
+      ref(c.props.titleField, 'titleField');
+      for (const f of c.props.subtitleFields ?? []) ref(f, 'subtitleField');
+      if (c.props.trailingField) ref(c.props.trailingField, 'trailingField');
+      if (c.props.display === 'checklist') {
+        const check = c.props.checkField ? field(c.props.checkField) : undefined;
+        if (check?.type !== 'checkbox')
+          problems.push('a checklist needs checkField set to a checkbox field');
+      } else if (c.props.checkField !== undefined) {
+        ref(c.props.checkField, 'checkField');
+      }
+      if (c.props.sort) ref(c.props.sort.field, 'sort field');
+      problems.push(...conditionProblems(c.props.filter, collection));
+      break;
+    }
+    case 'recordForm':
+      for (const id of c.props.fieldIds)
+        if (!field(id)) problems.push(`form field ${id} does not exist`);
+      for (const id of duplicates(c.props.fieldIds))
+        problems.push(`form field ${id} is listed twice`);
+      break;
+    case 'stat': {
+      if (c.props.aggregate !== 'count') {
+        const f = c.props.fieldId ? field(c.props.fieldId) : undefined;
+        if (!f || !NUMERIC.includes(f.type)) {
+          problems.push(
+            `${c.props.aggregate} needs fieldId set to a number, money or rating field`,
+          );
+        }
+      }
+      problems.push(...conditionProblems(c.props.filter, collection));
+      break;
+    }
+  }
+  return problems;
+}
+
+function conditionProblems(conditions: Condition[] | undefined, collection: Collection): string[] {
+  const problems: string[] = [];
+  for (const cond of conditions ?? []) {
+    const system = cond.field === 'createdAt' || cond.field === 'updatedAt';
+    const f = collection.fields.find((x) => x.id === cond.field);
+    if (!system && !f) {
+      problems.push(`filter field ${cond.field} is not a field of ${collection.id}`);
+      continue;
+    }
+    const type = system ? 'date' : f!.type;
+    const v = cond.value;
+    const where = `filter on ${cond.field}`;
+    switch (cond.op) {
+      case 'isEmpty':
+      case 'isNotEmpty':
+        break;
+      case 'inPeriod':
+        if (type !== 'date') problems.push(`${where}: inPeriod needs a date field`);
+        else if (!(PERIODS as readonly unknown[]).includes(v)) {
+          problems.push(`${where}: period must be one of ${PERIODS.join(', ')}`);
+        }
+        break;
+      case 'contains':
+        if (type !== 'text' && type !== 'note')
+          problems.push(`${where}: contains needs a text field`);
+        else if (typeof v !== 'string') problems.push(`${where}: value must be text`);
+        break;
+      case 'gt':
+      case 'lt':
+        if (
+          NUMERIC.includes(type) ? typeof v !== 'number' : type !== 'date' || typeof v !== 'string'
+        ) {
+          problems.push(`${where}: ${cond.op} needs a number or date field and a matching value`);
+        }
+        break;
+      case 'is':
+      case 'isNot': {
+        const ok =
+          f?.type === 'choice'
+            ? f.options.some((o) => o.id === v)
+            : type === 'checkbox'
+              ? typeof v === 'boolean'
+              : NUMERIC.includes(type)
+                ? typeof v === 'number'
+                : typeof v === 'string';
+        if (!ok) problems.push(`${where}: value does not match the field type`);
+        break;
+      }
+    }
+  }
+  return problems;
 }

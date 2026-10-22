@@ -18,6 +18,13 @@ export class FakeFiles implements FilePlatform {
   async pickPdfs() {
     return this.nextPick;
   }
+  nextImage: PickedFile | null = null;
+  async pickImage() {
+    return this.nextImage;
+  }
+  fileUri(path: string) {
+    return `file:///fake/${path}`;
+  }
   async importFile(file: PickedFile, assetId: string, name: string) {
     const bytes = this.disk.get(file.uri);
     if (!bytes) throw new Error('permission denied');
@@ -37,6 +44,11 @@ export class FakeFiles implements FilePlatform {
   }
   async share(path: string) {
     this.shared.push(path);
+  }
+  /** 导出的文字文件：文件名 → 内容。 */
+  sharedTexts = new Map<string, string>();
+  async shareText(fileName: string, text: string) {
+    this.sharedTexts.set(fileName, text);
   }
   /** 放一个“用户可选择的”文件。 */
   offer(name: string, bytes: Uint8Array, mimeType = 'application/pdf'): PickedFile {

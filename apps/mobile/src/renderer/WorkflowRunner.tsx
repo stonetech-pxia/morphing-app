@@ -1,18 +1,11 @@
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { t, type StringKey } from '../i18n';
 import { newAssetId, runWorkflow, type RunResult } from '../runtime/runner';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { RenderEnv } from './components';
+import { Button, Card } from './ui';
 
 interface Prompt {
   label: string;
@@ -63,57 +56,72 @@ export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: R
     setPrompt(null);
   }
 
-  const card = [styles.card, { backgroundColor: palette.card, borderColor: palette.border }];
   return (
-    <View style={card}>
-      <Text style={[styles.title, { color: palette.text }]}>{workflow.name}</Text>
+    <Card palette={palette}>
+      <Text style={[palette.font('title', 17), { color: palette.text }]}>{workflow.name}</Text>
       {workflow.steps.map((s, i) => (
-        <Text
-          key={s.id}
-          testID={`step-${s.id}`}
-          style={{
-            color: step === i ? palette.primary : palette.subtext,
-            fontWeight: step === i ? '700' : '400',
-          }}>
-          {i + 1}. {label(s.action)}
-        </Text>
+        <View key={s.id} style={styles.step}>
+          <View
+            style={[
+              styles.stepNumber,
+              { backgroundColor: step === i ? palette.primary : palette.primaryTint },
+            ]}>
+            <Text
+              style={[
+                palette.font('bodyBold', 12),
+                { color: step === i ? palette.onPrimary : palette.primaryText },
+              ]}>
+              {i + 1}
+            </Text>
+          </View>
+          <Text
+            testID={`step-${s.id}`}
+            style={[
+              palette.font(step === i ? 'bodyBold' : 'body', 15),
+              { color: step === i ? palette.text : palette.muted },
+            ]}>
+            {label(s.action)}
+          </Text>
+        </View>
       ))}
 
-      <Pressable
+      <Button
+        palette={palette}
         testID={`run-${workflow.id}`}
+        label={t(locale, result ? 'runAgain' : 'run')}
         onPress={() => void start()}
-        disabled={running}
-        style={[styles.button, { backgroundColor: palette.primary, opacity: running ? 0.6 : 1 }]}>
-        {running ? (
-          <ActivityIndicator color={palette.onPrimary} />
-        ) : (
-          <Text style={[styles.buttonText, { color: palette.onPrimary }]}>
-            {t(locale, result ? 'runAgain' : 'run')}
-          </Text>
-        )}
-      </Pressable>
+        onLongPress={env.onLongPress}
+        loading={running}
+        style={styles.run}
+      />
       {running ? (
-        <Text style={{ color: palette.subtext }}>
+        <Text style={[palette.font('body', 14), { color: palette.muted }]}>
           {t(locale, 'running', { n: step + 1, step: label(workflow.steps[step]!.action) })}
         </Text>
       ) : null}
 
       {result?.status === 'succeeded' && result.savedFile ? (
         <View testID="run-result" style={styles.result}>
-          <Text style={{ color: palette.text }}>
+          <Text style={[palette.font('bodyMedium', 15), { color: palette.text }]}>
             {t(locale, 'runDone', { name: result.savedFile.name, pages: result.pageCount ?? '?' })}
           </Text>
           <Pressable
             onPress={() => files.share(result.savedFile!.path, result.savedFile!.mimeType)}>
-            <Text style={{ color: palette.primary, fontWeight: '600' }}>{t(locale, 'share')}</Text>
+            <Text style={[palette.font('bodyBold', 15), { color: palette.primaryText }]}>
+              {t(locale, 'share')}
+            </Text>
           </Pressable>
         </View>
       ) : null}
       {result?.status === 'cancelled' ? (
-        <Text style={{ color: palette.subtext }}>{t(locale, 'runCancelled')}</Text>
+        <Text style={[palette.font('body', 14), { color: palette.muted }]}>
+          {t(locale, 'runCancelled')}
+        </Text>
       ) : null}
       {result?.status === 'failed' ? (
-        <Text testID="run-error" style={{ color: palette.danger }}>
+        <Text
+          testID="run-error"
+          style={[palette.font('bodyMedium', 14), { color: palette.danger }]}>
           {t(locale, `runError_${result.error.code}` as StringKey, result.error.detail)}
         </Text>
       ) : null}
@@ -124,21 +132,41 @@ export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: R
         animationType="fade"
         onRequestClose={() => answer(null)}>
         <View style={styles.backdrop}>
-          <View style={[styles.dialog, { backgroundColor: palette.card }]}>
-            <Text style={[styles.title, { color: palette.text }]}>{prompt?.label}</Text>
+          <View
+            style={[
+              styles.dialog,
+              { backgroundColor: palette.surface, borderRadius: palette.radius },
+            ]}>
+            <Text style={[palette.font('title', 18), { color: palette.text }]}>
+              {prompt?.label}
+            </Text>
             <TextInput
               testID="prompt-input"
               value={prompt?.value ?? ''}
               onChangeText={(value) => prompt && setPrompt({ ...prompt, value })}
               autoFocus
-              style={[styles.input, { color: palette.text, borderColor: palette.border }]}
+              style={[
+                styles.input,
+                palette.font('body', 16),
+                {
+                  color: palette.text,
+                  borderColor: palette.primary,
+                  borderRadius: palette.controlRadius,
+                  backgroundColor: palette.surface,
+                },
+              ]}
             />
             <View style={styles.dialogActions}>
-              <Pressable testID="prompt-cancel" onPress={() => answer(null)}>
-                <Text style={{ color: palette.subtext, fontSize: 16 }}>{t(locale, 'cancel')}</Text>
+              <Pressable testID="prompt-cancel" onPress={() => answer(null)} hitSlop={8}>
+                <Text style={[palette.font('bodyBold', 16), { color: palette.muted }]}>
+                  {t(locale, 'cancel')}
+                </Text>
               </Pressable>
-              <Pressable testID="prompt-ok" onPress={() => answer(prompt?.value.trim() || null)}>
-                <Text style={{ color: palette.primary, fontSize: 16, fontWeight: '700' }}>
+              <Pressable
+                testID="prompt-ok"
+                onPress={() => answer(prompt?.value.trim() || null)}
+                hitSlop={8}>
+                <Text style={[palette.font('bodyBold', 16), { color: palette.primaryText }]}>
                   {t(locale, 'ok')}
                 </Text>
               </Pressable>
@@ -146,18 +174,23 @@ export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: R
           </View>
         </View>
       </Modal>
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 8 },
-  title: { fontSize: 17, fontWeight: '600' },
-  button: { borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
-  buttonText: { fontSize: 16, fontWeight: '600' },
+  step: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stepNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  run: { marginTop: 6 },
   result: { gap: 4 },
-  backdrop: { flex: 1, backgroundColor: '#0008', justifyContent: 'center', padding: 24 },
-  dialog: { borderRadius: 16, padding: 20, gap: 14 },
-  input: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 16 },
+  backdrop: { flex: 1, backgroundColor: '#2A242080', justifyContent: 'center', padding: 24 },
+  dialog: { padding: 22, gap: 16 },
+  input: { borderWidth: 1.5, padding: 14 },
   dialogActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 24 },
 });

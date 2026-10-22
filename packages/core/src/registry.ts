@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { checkNameTemplate } from './naming';
-import type { Locale, Localized, Page, Workflow } from './schema';
+import type { IconName, Locale, Localized, Page, Workflow } from './schema';
 
 // 动作与工具的登记表（§6 ActionDefinition / ToolDefinition，§7B Tool Manifest）。
 // 只有登记过的动作才能出现在工作流里；动作的实现由 App 运行时提供，这里只描述契约。
@@ -30,6 +30,7 @@ export interface ToolDefinition {
   version: string;
   name: Localized;
   description: Localized;
+  icon: IconName;
   /** 供自然语言解析匹配的别名（小写）。 */
   aliases: readonly string[];
   permissions: readonly Permission[];

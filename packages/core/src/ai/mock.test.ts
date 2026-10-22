@@ -35,7 +35,7 @@ const pdfBelowFiles = () =>
   ]);
 
 describe('mock AI — journey A (home page)', () => {
-  it('A1 full sentence: title, PDF on top, nav trimmed, protected entries floating', async () => {
+  it('A1 full sentence: title, PDF on top, nav trimmed (AI and History stay in Settings)', async () => {
     const { after, lines } = await change(
       '把首页改成文件工作台，把 PDF 放到最上面，导航栏只保留首页、工具、设置。',
       pdfBelowFiles(),
@@ -47,8 +47,7 @@ describe('mock AI — journey A (home page)', () => {
     });
     expect(homeIds(after)).toEqual(['welcome', 'card-pdf', 'catalog', 'recent-files']);
     expect(after.shell.nav).toEqual(['page:home', 'tools', 'settings']);
-    expect(after.shell.floating).toEqual(['ai', 'history']);
-    expect(lines.some((l) => l.includes('浮动按钮'))).toBe(true);
+    expect(after.shell.floating).toEqual([]);
     expect(lines).toContain('修改标题「我的工作台」：标题改为「文件工作台」');
   });
 
@@ -78,7 +77,7 @@ describe('mock AI — journey A (home page)', () => {
       'en',
     );
     expect(after.shell.nav).toEqual(['page:home', 'tools', 'settings']);
-    expect(after.shell.floating).toEqual(['ai', 'history']);
+    expect(after.shell.floating).toEqual([]);
   });
 
   it('PDF already on top is not a change', async () => {
@@ -117,6 +116,159 @@ describe('mock AI — single changes', () => {
   it('B4 “把最近文件放到 PDF 前面”', async () => {
     const { after } = await change('把最近文件放到 PDF 前面', workspace('zh', { withPdf: true }));
     expect(homeIds(after)).toEqual(['welcome', 'recent-files', 'card-pdf', 'catalog']);
+  });
+});
+
+describe('mock AI — style', () => {
+  it('B5/B6 text size', async () => {
+    const bigger = (await change('字体大一点', workspace())).after;
+    expect(bigger.theme.fontScale).toBe(1.15);
+    expect((await change('Bigger text', workspace('en'), 'en')).after.theme.fontScale).toBe(1.15);
+    expect((await change('字小一点', workspace())).after.theme.fontScale).toBe(0.9);
+    // 已到上限时不再修改。
+    const max = apply(workspace(), [{ op: 'setTheme', fontScale: 1.3 }]);
+    expect(await plan('字体大一点', max)).toMatchObject({ kind: 'reject', reason: 'noChange' });
+  });
+
+  it('B7 corners', async () => {
+    expect((await change('圆角小一点', workspace())).after.theme.radius).toBe(14);
+    expect((await change('去掉圆角', workspace())).after.theme.radius).toBe(0);
+    expect((await change('圆角大一点', workspace())).after.theme.radius).toBe(28);
+  });
+
+  it('B8 density', async () => {
+    expect((await change('紧凑一点', workspace())).after.theme.density).toBe('compact');
+    expect((await change('宽松一点', workspace())).after.theme.density).toBe('spacious');
+  });
+
+  it('B9 card style', async () => {
+    expect((await change('去掉阴影', workspace())).after.theme.cardStyle).toBe('flat');
+    expect((await change('卡片加边框', workspace())).after.theme.cardStyle).toBe('outline');
+  });
+
+  it('B10 navigation bar style', async () => {
+    expect((await change('导航栏只显示图标', workspace())).after.theme.navStyle).toBe('icon');
+    expect((await change('导航栏只显示文字', workspace())).after.theme.navStyle).toBe('label');
+  });
+
+  it('B11 font', async () => {
+    expect((await change('字体换成系统字体', workspace())).after.theme.font).toBe('system');
+    expect((await change('字体改成衬线', workspace())).after.theme.font).toBe('serif');
+  });
+
+  it('B12 reset the style', async () => {
+    const styled = apply(workspace(), [
+      { op: 'setTheme', primaryColor: '#2F9E44', radius: 0, density: 'compact' },
+    ]);
+    expect((await change('恢复默认样式', styled)).after.theme).toEqual(workspace().theme);
+  });
+});
+
+describe('mock AI — navigation and pages', () => {
+  it('B13 AI, History and Tools can be removed; Settings still has AI and History', async () => {
+    const { after } = await change('把 AI 入口删掉', workspace());
+    expect(after.shell.nav).toEqual(['page:home', 'tools', 'history', 'settings']);
+    expect(after.shell.floating).toEqual([]);
+    const noHistory = (await change('把历史从导航栏移除', after)).after;
+    expect(noHistory.shell.nav).toEqual(['page:home', 'tools', 'settings']);
+    expect((await change('remove tools', workspace('en'), 'en')).after.shell.nav).toEqual([
+      'page:home',
+      'ai',
+      'history',
+      'settings',
+    ]);
+  });
+
+  it('B14 make an entry a floating button', async () => {
+    const { after } = await change('把 AI 做成浮动按钮', workspace());
+    expect(after.shell.floating).toEqual(['ai']);
+    expect(after.shell.nav).not.toContain('ai');
+  });
+
+  it('E1 adds a page with an entry in the nav bar, or on the home page when the bar is full', async () => {
+    const trimmed = apply(workspace(), [{ op: 'setNavItems', items: ['page:home', 'settings'] }]);
+    const { after } = await change('新建一个叫「记账」的页面', trimmed);
+    const page = after.pages.find((p) => p.title === '记账')!;
+    expect(page).toMatchObject({ id: 'page-1', components: [{ type: 'header' }] });
+    expect(after.shell.nav).toEqual(['page:home', 'page:page-1', 'settings']);
+
+    const full = (await change('Add a page called Budget', workspace('en'), 'en')).after;
+    expect(full.shell.nav).toHaveLength(5);
+    expect(home(full).components.at(-1)).toMatchObject({
+      type: 'shortcut',
+      props: { target: 'page:page-1' },
+    });
+  });
+
+  it('E2 removes a page the user added', async () => {
+    const added = (await change('新建一个叫「记账」的页面', workspace())).after;
+    const { after } = await change('删除记账页面', added);
+    expect(after.pages.map((p) => p.id)).toEqual(['home']);
+    expect(home(after).components.some((c) => c.type === 'shortcut')).toBe(false);
+    expect(await plan('删除首页页面', workspace())).toMatchObject({ kind: 'reject' });
+  });
+});
+
+describe('mock AI — data pages (structure only)', () => {
+  it.each([
+    ['新建一个记账页面', 'zh', '账目'],
+    ['新建待办清单', 'zh', '待办'],
+    ['做一个读书清单', 'zh', '书单'],
+    ['新建笔记页面', 'zh', '笔记'],
+    ['Create a to-do list', 'en', 'To-dos'],
+  ] as const)('F1 “%s” builds a data table and page', async (input, locale, table) => {
+    const { after } = await change(input, workspace(locale), locale);
+    expect(after.collections.map((c) => c.name)).toEqual([table]);
+    expect(after.pages).toHaveLength(2);
+  });
+
+  it('F2 adds a field to a table', async () => {
+    const budget = (await change('新建一个记账页面', workspace())).after;
+    const { after, lines } = await change('给账目加一个「支付方式」字段', budget);
+    expect(after.collections[0]!.fields.at(-1)).toEqual({
+      id: 'field-1',
+      name: '支付方式',
+      type: 'text',
+    });
+    expect(lines).toEqual(['给「账目」加字段「支付方式」（文字）']);
+  });
+
+  it.each([
+    '记一笔午饭 35',
+    '把上个月的账都删掉',
+    '把待办都标成完成',
+    '我这个月花了多少',
+    'delete all my expenses',
+  ])('X4 “%s” touches recorded data and is refused', async (input) => {
+    const budget = (await change('新建一个记账页面', workspace())).after;
+    expect(await plan(input, budget, /[a-z]/.test(input) ? 'en' : 'zh')).toMatchObject({
+      kind: 'reject',
+      reason: 'userData',
+    });
+  });
+});
+
+describe('mock AI — images and icons', () => {
+  it('G1 adds an empty image slot; the user picks the photo later', async () => {
+    const { after, lines } = await change('在首页顶部加一张横幅', workspace());
+    expect(home(after).components[1]).toEqual({
+      id: 'image-1',
+      type: 'image',
+      props: { aspect: 'wide', fit: 'cover', placeholder: '点按选择一张照片' },
+    });
+    expect(lines).toEqual(['在「首页」添加图片']);
+    const en = await change('Add a photo to the home page', workspace('en'), 'en');
+    expect(home(en.after).components.at(-1)).toMatchObject({
+      type: 'image',
+      props: { aspect: 'landscape' },
+    });
+  });
+
+  it('G2 sets an emoji as a page icon', async () => {
+    const budget = (await change('新建一个记账页面', workspace())).after;
+    const { after } = await change('把记账页面的图标换成💰', budget);
+    expect(after.pages.find((p) => p.title === '记账')!.icon).toBe('💰');
+    expect(await plan('把记账页面的图标换成钱', budget)).toMatchObject({ kind: 'reject' });
   });
 });
 
@@ -172,12 +324,12 @@ describe('mock AI — must refuse', () => {
     if (p.kind === 'reject') expect(p.examples.length).toBeGreaterThan(0);
   });
 
-  it('X2 removing the AI entry is refused as protected', async () => {
-    expect(await plan('把 AI 入口删掉', workspace())).toMatchObject({
+  it('X2 removing Settings is refused as protected', async () => {
+    expect(await plan('把设置删掉', workspace())).toMatchObject({
       kind: 'reject',
       reason: 'protected',
     });
-    expect(await plan('hide history', workspace('en'), 'en')).toMatchObject({
+    expect(await plan('hide settings', workspace('en'), 'en')).toMatchObject({
       kind: 'reject',
       reason: 'protected',
     });
