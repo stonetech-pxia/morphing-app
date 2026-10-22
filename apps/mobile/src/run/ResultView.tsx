@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { t, type StringKey } from '../i18n';
+import { runErrorText, t, type StringKey } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import type { Palette } from '../renderer/theme';
 import { Card, Pill } from '../renderer/ui';
@@ -89,11 +89,7 @@ export function ResultView({
       const code = (e as { code?: string }).code;
       setError(
         code
-          ? t(
-              locale,
-              `runError_${code}` as StringKey,
-              (e as { detail?: Record<string, string> }).detail,
-            )
+          ? runErrorText(locale, code, (e as { detail?: Record<string, string> }).detail)
           : String(e),
       );
     }

@@ -1,3 +1,4 @@
+import { describeParams } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -12,6 +13,16 @@ export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: R
   const workflow = env.config.workflows.find((w) => w.id === workflowId);
   if (!workflow) return null;
   const label = (action: string) => registry.actions.get(action)?.label[locale] ?? action;
+  // 关键设置（例如「不超过 500 KB」）；每次运行时询问的参数不列出。
+  const settings = workflow.steps
+    .flatMap((s) => {
+      const action = registry.actions.get(s.action);
+      if (!action || action.input.length === 0) return [];
+      const fixed = action.fields.map((f) => f.key).filter((k) => !s.ask?.includes(k));
+      const text = describeParams(action, s.params, locale, new Date(), fixed);
+      return text ? [text] : [];
+    })
+    .join(locale === 'zh' ? '；' : '; ');
 
   return (
     <Card palette={palette} onLongPress={env.onLongPress}>
@@ -26,6 +37,9 @@ export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: R
           </Text>
         ))}
       </View>
+      {settings ? (
+        <Text style={[palette.font('body', 13), { color: palette.caption }]}>{settings}</Text>
+      ) : null}
       <Button
         palette={palette}
         testID={`run-${workflow.id}`}

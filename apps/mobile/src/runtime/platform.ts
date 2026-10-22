@@ -12,6 +12,23 @@ export interface PickedFile {
   takenAt?: number;
 }
 
+export type ImageFormat = 'jpeg' | 'png' | 'webp';
+
+/** 一次图片处理：先裁剪（原图像素坐标），再缩放，再旋转 / 翻转。 */
+export interface ImageOps {
+  crop?: { x: number; y: number; width: number; height: number };
+  resize?: { width: number; height: number };
+  rotate?: 0 | 90 | 180 | 270;
+  flip?: 'horizontal' | 'vertical';
+}
+
+export interface EncodedImage {
+  uri: string;
+  width: number;
+  height: number;
+  size: number;
+}
+
 export interface FilePlatform {
   // ---- 用户文件（assets/<id>/<文件名>，D-019）----
   /** 从相册选一张照片（图片组件用）；用户取消时返回 null。 */
@@ -64,4 +81,16 @@ export interface FilePlatform {
   saveToPhotos(uris: readonly string[]): Promise<void>;
   print(item: { uri: string; mimeType: string }): Promise<void>;
   copyText(text: string): Promise<void>;
+
+  // ---- 图片（expo-image-manipulator）----
+  /** 图片尺寸（已按拍摄方向摆正）。 */
+  imageSize(uri: string): Promise<{ width: number; height: number }>;
+  /** 处理并编码成本次运行的临时文件；quality 0–1，PNG 忽略。重新编码会去掉 EXIF（包括位置）。 */
+  transformImage(
+    uri: string,
+    ops: ImageOps,
+    save: { format: ImageFormat; quality: number },
+    runId: string,
+    relPath: string,
+  ): Promise<EncodedImage>;
 }

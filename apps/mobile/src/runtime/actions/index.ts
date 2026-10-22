@@ -1,6 +1,7 @@
 import type { ActionImpl } from '@morph/core';
 
 import type { RunServices } from './helpers';
+import { IMAGE_IMPLS } from './image';
 import { IO_IMPLS } from './io';
 import { PDF_IMPLS } from './pdf';
 
@@ -8,6 +9,7 @@ import { PDF_IMPLS } from './pdf';
 export const ACTION_IMPLS: Readonly<Record<string, ActionImpl<RunServices>>> = {
   ...IO_IMPLS,
   ...PDF_IMPLS,
+  ...IMAGE_IMPLS,
 };
 
 export type { RunServices } from './helpers';

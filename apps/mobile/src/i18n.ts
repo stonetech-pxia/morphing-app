@@ -439,6 +439,24 @@ const strings = {
 
 export type StringKey = keyof typeof strings;
 
+const PERMISSION_NAMES: Record<string, Record<Locale, string>> = {
+  photos: { en: 'Photos', zh: '相册' },
+  camera: { en: 'Camera', zh: '相机' },
+};
+
+/** 运行错误的提示（detail 里的权限名等内部词换成用户看得懂的说法）。 */
+export function runErrorText(
+  locale: Locale,
+  code: string,
+  detail: Record<string, string | number> = {},
+): string {
+  const what =
+    typeof detail.what === 'string' ? PERMISSION_NAMES[detail.what]?.[locale] : undefined;
+  const key = `runError_${code}` as StringKey;
+  if (!(key in strings)) return t(locale, 'runError_unexpected', { detail: code });
+  return t(locale, key, { ...detail, ...(what ? { what } : {}) });
+}
+
 export function t(
   locale: Locale,
   key: StringKey,

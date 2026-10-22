@@ -2,7 +2,7 @@ import { RunError } from '@morph/core';
 import { setStringAsync } from 'expo-clipboard';
 import { getDocumentAsync } from 'expo-document-picker';
 import { Directory, File, Paths } from 'expo-file-system';
-import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import { FlipType, ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import {
   launchCameraAsync,
   launchImageLibraryAsync,
@@ -13,7 +13,7 @@ import { Asset, requestPermissionsAsync } from 'expo-media-library';
 import { printAsync } from 'expo-print';
 import { shareAsync } from 'expo-sharing';
 
-import type { FilePlatform, PickedFile } from './platform';
+import type { FilePlatform, ImageFormat, PickedFile } from './platform';
 
 // FilePlatform 的 Expo 实现。用户文件存放在 App 文档目录的 assets/<id>/<文件名>，
 // 数据库只保存相对路径，与配置版本完全分开（§7G）。
@@ -62,6 +62,12 @@ function pickedPhoto(a: ImagePickerAsset): PickedFile {
     ...(takenAt !== undefined ? { takenAt } : {}),
   };
 }
+
+const SAVE_FORMATS: Record<ImageFormat, SaveFormat> = {
+  jpeg: SaveFormat.JPEG,
+  png: SaveFormat.PNG,
+  webp: SaveFormat.WEBP,
+};
 
 const UTI: Record<string, string> = {
   'application/pdf': 'com.adobe.pdf',
@@ -241,5 +247,38 @@ export const expoFilePlatform: FilePlatform = {
 
   async copyText(text) {
     await setStringAsync(text);
+  },
+
+  async imageSize(uri) {
+    const image = await ImageManipulator.manipulate(uri).renderAsync();
+    return { width: image.width, height: image.height };
+  },
+
+  async transformImage(uri, ops, save, runId, relPath) {
+    const context = ImageManipulator.manipulate(uri);
+    if (ops.crop) {
+      context.crop({
+        originX: Math.round(ops.crop.x),
+        originY: Math.round(ops.crop.y),
+        width: Math.round(ops.crop.width),
+        height: Math.round(ops.crop.height),
+      });
+    }
+    if (ops.resize) context.resize({ width: ops.resize.width, height: ops.resize.height });
+    if (ops.rotate) context.rotate(ops.rotate);
+    if (ops.flip) context.flip(ops.flip === 'horizontal' ? FlipType.Horizontal : FlipType.Vertical);
+    const image = await context.renderAsync();
+    const saved = await image.saveAsync({
+      compress: save.quality,
+      format: SAVE_FORMATS[save.format],
+    });
+    const dest = runFile(runId, relPath);
+    await new File(saved.uri).move(dest);
+    return {
+      uri: dest.uri,
+      width: saved.width,
+      height: saved.height,
+      size: new File(dest.uri).size,
+    };
   },
 };

@@ -38,7 +38,19 @@ export function ParamForm({
   hideLabels?: boolean;
 }) {
   const set = (key: string, value: unknown) => onChange({ ...values, [key]: value });
-  const presets = only ? [] : (action.presets ?? []);
+  // 运行时询问时也给常用规格，只填被问到的参数。
+  const presets = (action.presets ?? [])
+    .map((p) => ({
+      ...p,
+      values: only
+        ? Object.fromEntries(Object.entries(p.values).filter(([k]) => only.includes(k)))
+        : p.values,
+    }))
+    .filter(
+      (p, i, all) =>
+        Object.keys(p.values).length > 0 &&
+        all.findIndex((q) => JSON.stringify(q.values) === JSON.stringify(p.values)) === i,
+    );
   return (
     <View style={styles.form}>
       {presets.length > 0 ? (

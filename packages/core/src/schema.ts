@@ -43,6 +43,14 @@ export const ICON_NAMES = [
   'person',
   'plus',
   'search',
+  'photo',
+  'scan',
+  'text',
+  'qrcode',
+  'archive',
+  'printer',
+  'signature',
+  'workflow',
 ] as const;
 export const IconSchema = z.enum(ICON_NAMES);
 export type IconName = z.infer<typeof IconSchema>;

@@ -2,7 +2,7 @@ import type { AskRequest, RunResult, Workflow } from '@morph/core';
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { t, type StringKey } from '../i18n';
+import { runErrorText, t } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import { usePalette, type Palette } from '../renderer/theme';
 import { Button, Card } from '../renderer/ui';
@@ -222,7 +222,7 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
           <Text
             testID="run-error"
             style={[palette.font('bodyMedium', 15), { color: palette.danger }]}>
-            {t(locale, `runError_${outcome.error.code}` as StringKey, outcome.error.detail)}
+            {runErrorText(locale, outcome.error.code, outcome.error.detail)}
           </Text>
         </Card>
       ) : null}
