@@ -49,6 +49,18 @@ const strings = {
     zh: '最新版本已损坏，已自动恢复到最后一个可用版本。',
   },
   noPrevious: { en: 'There is no earlier version to go back to.', zh: '没有更早的版本可以恢复。' },
+  aiUnavailable: {
+    en: 'The AI service could not be reached. Nothing was changed; please try again later.',
+    zh: '暂时连不上 AI 服务，没有做任何修改，请稍后再试。',
+  },
+  aiRateLimited: {
+    en: 'Too many requests in a short time. Please wait a minute and try again.',
+    zh: '请求太频繁了，请等一分钟再试。',
+  },
+  aiDailyLimit: {
+    en: 'Today’s AI request limit has been reached. Try again tomorrow.',
+    zh: '今天的 AI 请求次数已用完，请明天再试。',
+  },
   undoSummary: { en: 'Undo', zh: '撤销' },
 
   // 历史
@@ -83,6 +95,9 @@ const strings = {
   openHistory: { en: 'Version history', zh: '历史版本' },
   language: { en: 'Language', zh: '语言' },
   languageValue: { en: 'English (follows system)', zh: '简体中文（跟随系统）' },
+  aiEngine: { en: 'AI', zh: 'AI' },
+  aiEngineRemote: { en: 'Claude via the Morph server', zh: 'Claude（通过 Morph 服务器）' },
+  aiEngineMock: { en: 'Built-in rules (offline mock)', zh: '内置规则（离线 mock）' },
   about: { en: 'About', zh: '关于' },
   aboutValue: {
     en: 'Morph prototype · AGPL-3.0 · schema v{schema} · version #{revision}',

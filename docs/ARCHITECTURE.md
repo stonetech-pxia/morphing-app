@@ -18,7 +18,7 @@
 ├───────────────────────────────────────────────────────────────┤
 │ packages/tool-pdf（M2）  pdf-lib 合并实现（清单在 core/src/tools）  │
 ├───────────────────────────────────────────────────────────────┤
-│ apps/api（M3 创建）  Hono + 真实 AIProvider + Supabase              │
+│ apps/api（M3）  Hono 计划服务 + Claude（账号与云端数据见 CLOUD_DESIGN）│
 └───────────────────────────────────────────────────────────────┘
 ```
 
@@ -86,8 +86,25 @@ SQLite 表（`PRAGMA user_version` 管理数据库结构升级，见 `apps/mobil
 
 ## 6. 外部能力接口（§14.2）
 
-- `AIProvider`：M1 实现 mock 版本（规则解析，句式见 [MOCK_AI_PHRASES.md](MOCK_AI_PHRASES.md)）。M3 增加服务端的真实模型版本，输出同样经过 `core` 校验。
-- 以下只约定形状，不写代码：`SyncProvider`（跨设备同步）、`StorageProvider`（云端文件）、`ExecutionProvider`（动作在本地还是云端执行）。
+- `AIProvider`（已实现三种）：
+  - mock：规则解析，离线可用（句式见 [MOCK_AI_PHRASES.md](MOCK_AI_PHRASES.md)）。
+  - Claude：`apps/api/src/claude-provider.ts`，只在服务端运行。模型以 JSON 回复 core 的 `Plan` 格式，服务端用 `PlanSchema` + `prepareOps` 校验，不合格时带着问题清单请求一次修正。
+  - remote：`apps/mobile/src/workspace/remote-ai.ts`，App 通过 `POST /v1/plan` 调用服务端；服务不可用时返回“没有做任何修改”的拒绝，不会静默退回 mock。
+- 无论来源，计划到达 App 后都会再经过 `PlanSchema` 与 `prepareOps`（§8：模型输出从不被直接信任）。
+- 评测：`packages/core/src/ai/eval-cases.ts` 是 mock 与真实模型共用的评测集；`npm run eval -- --model <id>` 用真实模型跑一遍（产生少量费用）。
+- 以下只约定形状，不写代码：`SyncProvider`（跨设备同步）、`StorageProvider`（云端文件）、`ExecutionProvider`（动作在本地还是云端执行）。账号与同步的设计见 [CLOUD_DESIGN.md](CLOUD_DESIGN.md)。
+
+## 7. 计划服务（apps/api）
+
+```
+App ──POST /v1/plan {input, locale, config}──► Hono
+        校验请求（≤64KB，输入 ≤500 字）→ validateWorkspace(config) → 每分钟 / 每天限额
+        → Claude（系统提示词可缓存；拒答时服务端回退）→ PlanSchema + prepareOps → 必要时修正一次
+        ◄── {plan} 或 {error: bad_request | invalid_config | rate_limited | daily_limit | ai_unavailable}
+```
+
+- 没有配置 `ANTHROPIC_API_KEY` 时，服务使用 mock，接口不变。
+- 只监听 `127.0.0.1`，日志只记录元数据（结果类型、输入长度、耗时），不记录用户输入和配置。
 
 ## 7. 最大的 5 项工程风险
 

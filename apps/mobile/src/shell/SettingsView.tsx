@@ -31,6 +31,10 @@ export function SettingsView({
       <View style={styles.gap} />
       {row(t(locale, 'language'), t(locale, 'languageValue'))}
       {row(
+        t(locale, 'aiEngine'),
+        t(locale, process.env.EXPO_PUBLIC_MORPH_API_URL ? 'aiEngineRemote' : 'aiEngineMock'),
+      )}
+      {row(
         t(locale, 'about'),
         t(locale, 'aboutValue', { schema: CURRENT_SCHEMA_VERSION, revision: headId }),
       )}

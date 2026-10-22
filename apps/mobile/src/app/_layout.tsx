@@ -9,10 +9,14 @@ import { expoFilePlatform } from '@/runtime/expo-platform';
 import { usePalette } from '@/renderer/theme';
 import { SQLiteWorkspaceRepo, migrateDatabase } from '@/storage/sqlite';
 import { WorkspaceProvider, useWorkspace } from '@/workspace/context';
+import { createRemoteAIProvider } from '@/workspace/remote-ai';
 import { createWorkspaceStore, type WorkspaceStore } from '@/workspace/store';
 
 const locale = getDeviceLocale();
 const registry = createRegistry(BUILTIN_TOOLS);
+// 配置了 Morph API 服务地址时使用真实模型，否则使用离线 mock（见 README）。
+const apiUrl = process.env.EXPO_PUBLIC_MORPH_API_URL;
+const provider = apiUrl ? createRemoteAIProvider({ baseUrl: apiUrl }) : createMockAIProvider();
 
 function Centered({ children }: { children: ReactNode }) {
   return <View style={styles.center}>{children}</View>;
@@ -71,7 +75,7 @@ export default function RootLayout() {
       const repo = new SQLiteWorkspaceRepo(db);
       const created = createWorkspaceStore({
         repo,
-        provider: createMockAIProvider(),
+        provider,
         registry,
         locale,
         now: () => new Date(),

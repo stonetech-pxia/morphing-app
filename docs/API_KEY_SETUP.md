@@ -46,19 +46,39 @@ grep -q '^ANTHROPIC_API_KEY=sk-ant-' .env && echo "已填好" || echo "还没填
 git check-ignore -q .env && echo "安全：不会被提交" || echo "危险：会被提交，先别提交"
 ```
 
-## 4. 大概会花多少钱
+## 4. 使用与切换模型
 
-一次“修改 App”的请求，约 3,000–5,000 个输入 token 加几百个输出 token：
+启动计划服务后，终端会显示当前使用的模型：
+
+```bash
+npm run api
+```
+
+默认模型是 `claude-opus-5-5`。要换模型，在 `.env` 里加一行（三个模型在评测中都是 22/22 通过）：
+
+```
+MORPH_AI_MODEL=claude-haiku-5-5
+```
+
+用评测集测一个模型（会产生少量费用，Haiku 一轮约 $0.004）：
+
+```bash
+npm run eval -- --model claude-haiku-5-5
+```
+
+## 5. 大概会花多少钱
+
+以下是 2026-10-22 用 22 个评测用例实测的平均值（系统提示词已缓存）：
 
 | 模型              | 输入 / 输出（每百万 token） | 每次修改约 | 1000 次约 |
 | ----------------- | --------------------------- | ---------- | --------- |
-| Claude Haiku 5.5  | $0.10 / $0.50               | $0.001     | $1        |
-| Claude Sonnet 5.5 | $2 / $10                    | $0.02–0.03 | $20–30    |
-| Claude Opus 5.5   | $4 / $20                    | $0.03–0.06 | $30–60    |
+| Claude Haiku 5.5  | $0.10 / $0.50               | $0.0002    | $0.2      |
+| Claude Sonnet 5.5 | $2 / $10                    | $0.003     | $3        |
+| Claude Opus 5.5   | $4 / $20                    | $0.005     | $5        |
 
 价格以 [官方定价](https://platform.claude.com/docs/en/about-claude/pricing) 为准。最终用哪个模型，用句式测试集实测后再定（DECISIONS P-010）。实际用量可以在 Console 的 [Usage 页面](https://platform.claude.com/usage) 查看。
 
-## 5. 安全规则
+## 6. 安全规则
 
 - **key 只放在根目录的 `.env` 里**，只由服务端读取（M3 的 `apps/api`）。
 - **绝不能**写进手机 App 的代码，也不能放进以 `EXPO_PUBLIC_` 开头的变量：这类变量会被打包进 App，任何人都能取出。

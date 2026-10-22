@@ -3,7 +3,7 @@
 一个只需安装一次、之后通过自然语言持续修改**同一个 App** 的界面与功能的个人软件空间。
 产品需求与边界见 [PRODUCT_HANDOFF_CLAUDE_CODE.md](PRODUCT_HANDOFF_CLAUDE_CODE.md)。
 
-> 当前状态：**M0–M2 已完成**（本地原型，使用 mock AI）。进度与已知限制见 [docs/MVP_SCOPE.md](docs/MVP_SCOPE.md)。
+> 当前状态：**M0–M2 已完成，M3 的真实 AI 已完成**（账号与云端数据只有设计）。进度与已知限制见 [docs/MVP_SCOPE.md](docs/MVP_SCOPE.md)。
 
 ## 试一试
 
@@ -15,7 +15,19 @@
 
 AI 能听懂的句式见 [docs/MOCK_AI_PHRASES.md](docs/MOCK_AI_PHRASES.md)（mock AI 是规则解析器，不是语言模型）。
 
-接入真实 AI（M3）需要 Claude API key，配置方法见 [docs/API_KEY_SETUP.md](docs/API_KEY_SETUP.md)。不配置 key 时使用 mock AI。
+### 使用真实 AI（可选）
+
+先按 [docs/API_KEY_SETUP.md](docs/API_KEY_SETUP.md) 配置 Claude API key，然后开两个终端：
+
+```bash
+npm run api
+```
+
+```bash
+npm run ios:ai
+```
+
+第一个启动本机计划服务，第二个启动 App 并让它通过计划服务调用 Claude。「设置」里会显示当前使用的 AI。不配置 key 或用 `npm run ios` 启动时，使用离线 mock。
 
 ## 启动本地 demo（不需要任何付费账号或 API key）
 
@@ -51,19 +63,21 @@ npm run ios -- --localhost
 
 ## 常用命令
 
-| 命令                     | 作用                                            |
-| ------------------------ | ----------------------------------------------- |
-| `npm run check`          | 依次运行下面全部检查                            |
-| `npm run lint`           | ESLint                                          |
-| `npm run format:check`   | Prettier 格式检查（`npm run format` 自动修复）  |
-| `npm run typecheck`      | 所有工作区的 TypeScript 检查                    |
-| `npm test`               | 所有工作区的测试（core 用 Vitest，App 用 Jest） |
-| `npm run check:licenses` | 检查依赖许可证是否与 AGPL-3.0 兼容              |
+| 命令                                       | 作用                                            |
+| ------------------------------------------ | ----------------------------------------------- |
+| `npm run check`                            | 依次运行下面全部检查                            |
+| `npm run lint`                             | ESLint                                          |
+| `npm run format:check`                     | Prettier 格式检查（`npm run format` 自动修复）  |
+| `npm run typecheck`                        | 所有工作区的 TypeScript 检查                    |
+| `npm test`                                 | 所有工作区的测试（core 用 Vitest，App 用 Jest） |
+| `npm run check:licenses`                   | 检查依赖许可证是否与 AGPL-3.0 兼容              |
+| `npm run eval -- --model claude-haiku-5-5` | 用评测集测试真实模型（产生少量 API 费用）       |
 
 ## 目录结构
 
 ```
 apps/mobile/        Expo App（Expo Router，路由在 src/app/）
+apps/api/           计划服务：调用 Claude 生成修改计划（只在服务端持有 API key）
 packages/core/      纯 TypeScript 内核：schema、修改操作、校验、迁移、mock AI、内置工具清单
 packages/tool-pdf/  PDF 合并（pdf-lib）
 scripts/            仓库脚本（许可证检查）
