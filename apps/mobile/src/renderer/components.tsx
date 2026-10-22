@@ -9,14 +9,24 @@ import {
   type WorkspaceConfig,
 } from '@morph/core';
 import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type ScrollViewProps,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
 
 import { t } from '../i18n';
 import { RecordForm, RecordList, Stat } from './data';
 import { FileList } from './FileList';
 import { ImageView } from './ImageView';
 import { RichText } from './RichText';
-import type { Palette } from './theme';
+import { cardColors, type Palette } from './theme';
 import { Button, Card, IconTile } from './ui';
 import { WorkflowRunner } from './WorkflowRunner';
 
@@ -36,7 +46,14 @@ export interface RenderEnv {
   inCell?: boolean;
   /** 正在渲染的页面（图片组件更换照片时要用）。 */
   pageId?: string;
+  /** 可以直接编辑的页面：长按组件时打开它的操作面板（D-052）。预览和系统页面没有。 */
+  edit?: (componentId: string) => void;
+  /** 当前组件的长按操作：组件里可点按的部分（卡片、按钮、列表行）也要响应长按。 */
+  onLongPress?: () => void;
 }
+
+/** 长按多久打开组件的操作面板。 */
+export const LONG_PRESS_MS = 450;
 
 type Tone = NonNullable<ComponentStyle['tone']>;
 
@@ -53,22 +70,6 @@ function textColor(palette: Palette, tone: Tone | undefined, fallback: string): 
       return palette.caption;
     default:
       return fallback;
-  }
-}
-
-/** 卡片类组件的 tone 是底色；图标块使用同一色系的强调色。 */
-function cardColors(palette: Palette, tone: Tone | undefined) {
-  switch (tone) {
-    case 'primary':
-      return { background: palette.primaryTint, accent: palette.primary, on: palette.onPrimary };
-    case 'secondary':
-      return { background: palette.secondaryTint, accent: palette.secondary, on: '#FFFFFF' };
-    case 'tertiary':
-      return { background: palette.tertiaryTint, accent: palette.tertiary, on: '#FFFFFF' };
-    case 'muted':
-      return { background: palette.background, accent: palette.caption, on: palette.surface };
-    default:
-      return { background: palette.surface, accent: palette.primary, on: palette.onPrimary };
   }
 }
 
@@ -101,6 +102,7 @@ function Tile({
       palette={palette}
       background={colors.background}
       onPress={env.interactive ? onPress : undefined}
+      onLongPress={env.onLongPress}
       style={styles.fill}>
       <View style={center ? styles.tileCenter : stacked ? styles.tileStacked : styles.tileRow}>
         <IconTile
@@ -179,12 +181,12 @@ function Group({
   const children = component.children.filter((c) => !c.hidden);
   const { layout, title } = component.props;
   const item = (c: Component) => (
-    <View
+    <Item
       key={c.id}
-      testID={`component-${c.id}`}
-      style={layout === 'stack' ? undefined : styles.cell}>
-      <ComponentView component={c} env={layout === 'stack' ? env : { ...env, inCell: true }} />
-    </View>
+      component={c}
+      env={layout === 'stack' ? env : { ...env, inCell: true }}
+      style={layout === 'stack' ? undefined : styles.cell}
+    />
   );
   let body: ReactNode;
   if (layout === 'stack') {
@@ -293,6 +295,7 @@ export function ComponentView({ component, env }: { component: Component; env: R
           label={component.props.label}
           variant={component.props.variant}
           onPress={env.interactive ? () => env.navigate(component.props.target) : undefined}
+          onLongPress={env.onLongPress}
           style={style?.align === 'center' ? styles.centerSelf : undefined}
         />
       );
@@ -350,11 +353,18 @@ export function ComponentView({ component, env }: { component: Component; env: R
     case 'group':
       return <Group component={component} env={env} />;
     case 'recordList':
-      return <RecordList props={component.props} env={env} />;
+      return <RecordList props={component.props} env={env} tone={style?.tone} />;
     case 'recordForm':
-      return <RecordForm props={component.props} env={env} componentId={component.id} />;
+      return (
+        <RecordForm
+          props={component.props}
+          env={env}
+          componentId={component.id}
+          tone={style?.tone}
+        />
+      );
     case 'stat':
-      return <Stat props={component.props} env={env} />;
+      return <Stat props={component.props} env={env} tone={style?.tone} />;
     case 'fileList':
       return (
         <FileList
@@ -369,19 +379,57 @@ export function ComponentView({ component, env }: { component: Component; env: R
   }
 }
 
+/**
+ * 页面上的一个组件。可编辑的页面里，长按打开它的操作面板（D-052）；
+ * 组件内部可点按的部分通过 env.onLongPress 同样响应长按，松手时不会再触发点按。
+ */
+function Item({
+  component,
+  env,
+  style,
+}: {
+  component: Component;
+  env: RenderEnv;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const edit = env.interactive ? env.edit : undefined;
+  if (!edit) {
+    return (
+      <View testID={`component-${component.id}`} style={style}>
+        <ComponentView component={component} env={env} />
+      </View>
+    );
+  }
+  const open = () => edit(component.id);
+  return (
+    <Pressable
+      testID={`component-${component.id}`}
+      style={style}
+      accessible={false}
+      onLongPress={open}
+      delayLongPress={LONG_PRESS_MS}>
+      <ComponentView component={component} env={{ ...env, onLongPress: open }} />
+    </Pressable>
+  );
+}
+
 export function PageView({
   page,
   env,
   bottomInset = 0,
+  scroll,
 }: {
   page: Page;
   env: RenderEnv;
   bottomInset?: number;
+  /** 额外的滚动设置（编辑后重新挂载时恢复滚动位置）。 */
+  scroll?: ScrollViewProps;
 }) {
   const { palette } = env;
   const pageEnv = { ...env, pageId: page.id };
   return (
     <ScrollView
+      {...scroll}
       style={{ backgroundColor: palette.background }}
       // 数据表单：键盘弹出时可以直接点选项和按钮，并自动把输入框滚到键盘上方。
       keyboardShouldPersistTaps="handled"
@@ -394,9 +442,7 @@ export function PageView({
       {page.components
         .filter((c) => !c.hidden)
         .map((c) => (
-          <View key={c.id} testID={`component-${c.id}`}>
-            <ComponentView component={c} env={pageEnv} />
-          </View>
+          <Item key={c.id} component={c} env={pageEnv} />
         ))}
     </ScrollView>
   );

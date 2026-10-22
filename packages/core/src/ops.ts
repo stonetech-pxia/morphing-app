@@ -323,8 +323,13 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
     }
     case 'setComponentProps': {
       const { component } = getComponent(getPage(config, op.pageId), op.componentId);
-      // 只合并属性；类型不能通过此操作改变，合法性由 validateWorkspace 检查。
-      (component as { props: Record<string, unknown> }).props = { ...component.props, ...op.props };
+      // 只合并属性，null 表示去掉该属性；类型不能通过此操作改变，合法性由 validateWorkspace 检查。
+      const props: Record<string, unknown> = { ...component.props };
+      for (const [key, value] of Object.entries(op.props)) {
+        if (value === null) delete props[key];
+        else props[key] = value;
+      }
+      (component as { props: Record<string, unknown> }).props = props;
       return;
     }
     case 'setComponentStyle': {

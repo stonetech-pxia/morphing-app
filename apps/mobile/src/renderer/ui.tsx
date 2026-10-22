@@ -20,6 +20,7 @@ export function Card({
   palette,
   children,
   onPress,
+  onLongPress,
   disabled,
   background,
   style,
@@ -28,6 +29,8 @@ export function Card({
   palette: Palette;
   children: ReactNode;
   onPress?: () => void;
+  /** 页面编辑：长按打开组件的操作面板（D-052）。 */
+  onLongPress?: () => void;
   disabled?: boolean;
   background?: string;
   style?: StyleProp<ViewStyle>;
@@ -45,6 +48,7 @@ export function Card({
     <Pressable
       testID={testID}
       onPress={onPress}
+      onLongPress={onLongPress}
       disabled={disabled}
       style={({ pressed }) => [base, pressed && { transform: [{ scale: 0.97 }] }]}>
       {children}
@@ -91,6 +95,7 @@ export function Button({
   palette,
   label,
   onPress,
+  onLongPress,
   variant = 'filled',
   disabled,
   loading,
@@ -101,6 +106,7 @@ export function Button({
   palette: Palette;
   label: string;
   onPress?: () => void;
+  onLongPress?: () => void;
   variant?: 'filled' | 'outline' | 'text';
   disabled?: boolean;
   loading?: boolean;
@@ -115,6 +121,7 @@ export function Button({
     <Pressable
       testID={testID}
       onPress={onPress}
+      onLongPress={onLongPress}
       disabled={disabled || loading}
       style={({ pressed }) => [
         {

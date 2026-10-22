@@ -1,4 +1,10 @@
-import { isDark, resolveColors, type ResolvedColors, type Theme } from '@morph/core';
+import {
+  isDark,
+  resolveColors,
+  type ComponentStyle,
+  type ResolvedColors,
+  type Theme,
+} from '@morph/core';
 import { Platform, useColorScheme, type TextStyle, type ViewStyle } from 'react-native';
 
 // 主题 token → 渲染用的颜色、字体和尺寸。颜色的计算在 core（校验器也要用）；这里只加上平台相关的部分。
@@ -94,4 +100,20 @@ export function makePalette(theme: Theme, systemDark: boolean): Palette {
 
 export function usePalette(theme: Theme): Palette {
   return makePalette(theme, useColorScheme() === 'dark');
+}
+
+/** 卡片类组件的 tone 是底色；图标块使用同一色系的强调色。 */
+export function cardColors(palette: Palette, tone: ComponentStyle['tone']) {
+  switch (tone) {
+    case 'primary':
+      return { background: palette.primaryTint, accent: palette.primary, on: palette.onPrimary };
+    case 'secondary':
+      return { background: palette.secondaryTint, accent: palette.secondary, on: '#FFFFFF' };
+    case 'tertiary':
+      return { background: palette.tertiaryTint, accent: palette.tertiary, on: '#FFFFFF' };
+    case 'muted':
+      return { background: palette.background, accent: palette.caption, on: palette.surface };
+    default:
+      return { background: palette.surface, accent: palette.primary, on: palette.onPrimary };
+  }
 }

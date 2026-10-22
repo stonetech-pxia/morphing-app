@@ -74,6 +74,8 @@ export interface WorkspaceState {
   recordsVersion: number;
   /** 记录操作后的提示（例如删除后可以撤销）。与版本提示条分开：记录不属于任何版本。 */
   toast: { message: string; restoreRecordId?: string } | null;
+  /** 正在「调整顺序」的页面（直接编辑，D-052）；每次修改都会重新挂载外壳，所以保存在这里。 */
+  arranging: string | null;
 
   boot(): Promise<void>;
   propose(input: string): Promise<ProposeResult>;
@@ -87,6 +89,7 @@ export interface WorkspaceState {
   reportRenderError(error: unknown): Promise<void>;
   dismissBanner(): void;
   selectTab(target: NavTarget): void;
+  setArranging(pageId: string | null): void;
   bumpRecords(): void;
   showToast(toast: { message: string; restoreRecordId?: string }): void;
   dismissToast(): void;
@@ -237,6 +240,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       tab: null,
       recordsVersion: 0,
       toast: null,
+      arranging: null,
 
       async boot() {
         try {
@@ -431,7 +435,8 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       },
 
       dismissBanner: () => set({ banner: null }),
-      selectTab: (target) => set({ tab: target }),
+      selectTab: (target) => set({ tab: target, arranging: null }),
+      setArranging: (pageId) => set({ arranging: pageId }),
       bumpRecords: () => set((s) => ({ recordsVersion: s.recordsVersion + 1 })),
       showToast: (toast) => set({ toast }),
       dismissToast: () => set({ toast: null }),

@@ -38,6 +38,7 @@ export function Preview({
         <Text style={{ color: palette.danger, padding: 16 }}>{t(locale, 'previewFailed')}</Text>
       }>
       <View
+        testID="preview"
         pointerEvents="none"
         style={[
           styles.frame,

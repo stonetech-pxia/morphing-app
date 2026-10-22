@@ -9,6 +9,7 @@ import {
   sortRecords,
   type Collection,
   type Component,
+  type ComponentStyle,
   type DataRecord,
   type Field,
   type FieldIssue,
@@ -21,7 +22,7 @@ import { useRecordActions, useRecords } from '../data/records';
 import { t } from '../i18n';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
-import type { Palette } from './theme';
+import { cardColors, type Palette } from './theme';
 import { Button, Card } from './ui';
 
 // 数据组件（docs/DATA_DESIGN.md）：记录列表、快速添加表单、统计。
@@ -260,8 +261,19 @@ function openEditor(router: ReturnType<typeof useRouter>, collectionId: string, 
 
 type RecordListProps = Extract<Component, { type: 'recordList' }>['props'];
 
-export function RecordList({ props, env }: { props: RecordListProps; env: RenderEnv }) {
+type Tone = ComponentStyle['tone'];
+
+export function RecordList({
+  props,
+  env,
+  tone,
+}: {
+  props: RecordListProps;
+  env: RenderEnv;
+  tone?: Tone;
+}) {
   const { palette, locale } = env;
+  const background = cardColors(palette, tone).background;
   const router = useRouter();
   const collection = useCollection(env, props.collectionId);
   const records = useRecords(props.collectionId);
@@ -275,7 +287,7 @@ export function RecordList({ props, env }: { props: RecordListProps; env: Render
 
   if (records !== null && shown.length === 0) {
     return (
-      <Card palette={palette}>
+      <Card palette={palette} background={background}>
         <Text style={[palette.font('body', 14), { color: palette.caption }]}>
           {props.emptyText ?? t(locale, 'noRecords')}
         </Text>
@@ -303,6 +315,7 @@ export function RecordList({ props, env }: { props: RecordListProps; env: Render
             disabled={!env.interactive}
             hitSlop={8}
             onPress={() => void actions.update(collection, r, { [props.checkField!]: !checked })}
+            onLongPress={env.onLongPress}
             style={[
               styles.check,
               {
@@ -339,7 +352,13 @@ export function RecordList({ props, env }: { props: RecordListProps; env: Render
     const open = env.interactive ? () => openEditor(router, collection.id, r.id) : undefined;
     if (props.display === 'cards') {
       return (
-        <Card key={r.id} palette={palette} onPress={open} testID={`record-${r.id}`}>
+        <Card
+          key={r.id}
+          palette={palette}
+          background={background}
+          onPress={open}
+          onLongPress={env.onLongPress}
+          testID={`record-${r.id}`}>
           {body}
         </Card>
       );
@@ -349,6 +368,7 @@ export function RecordList({ props, env }: { props: RecordListProps; env: Render
         key={r.id}
         testID={`record-${r.id}`}
         onPress={open}
+        onLongPress={env.onLongPress}
         disabled={!open}
         style={[
           styles.listRow,
@@ -362,7 +382,7 @@ export function RecordList({ props, env }: { props: RecordListProps; env: Render
   if (props.display === 'cards')
     return <View style={{ gap: palette.gap - 4 }}>{shown.map(row)}</View>;
   return (
-    <Card palette={palette} style={styles.listCard}>
+    <Card palette={palette} background={background} style={styles.listCard}>
       {shown.map(row)}
     </Card>
   );
@@ -374,10 +394,12 @@ export function RecordForm({
   props,
   env,
   componentId,
+  tone,
 }: {
   props: RecordFormProps;
   env: RenderEnv;
   componentId: string;
+  tone?: Tone;
 }) {
   const { palette, locale } = env;
   const router = useRouter();
@@ -395,6 +417,7 @@ export function RecordForm({
         testID={`form-${componentId}`}
         label={props.submitLabel}
         onPress={env.interactive ? () => openEditor(router, collection.id) : undefined}
+        onLongPress={env.onLongPress}
       />
     );
   }
@@ -418,7 +441,7 @@ export function RecordForm({
   }
 
   return (
-    <Card palette={palette}>
+    <Card palette={palette} background={cardColors(palette, tone).background}>
       <FieldsForm
         collection={collection}
         fieldIds={props.fieldIds}
@@ -439,6 +462,7 @@ export function RecordForm({
         testID={`form-${componentId}-submit`}
         label={props.submitLabel}
         onPress={() => void submit()}
+        onLongPress={env.onLongPress}
         disabled={!env.interactive}
       />
     </Card>
@@ -447,7 +471,7 @@ export function RecordForm({
 
 type StatProps = Extract<Component, { type: 'stat' }>['props'];
 
-export function Stat({ props, env }: { props: StatProps; env: RenderEnv }) {
+export function Stat({ props, env, tone }: { props: StatProps; env: RenderEnv; tone?: Tone }) {
   const { palette } = env;
   const collection = useCollection(env, props.collectionId);
   const records = useRecords(props.collectionId);
@@ -465,7 +489,10 @@ export function Stat({ props, env }: { props: StatProps; env: RenderEnv }) {
     else shown = formatNumber(value);
   }
   return (
-    <Card palette={palette} background={palette.primaryTint} style={styles.fillCard}>
+    <Card
+      palette={palette}
+      background={tone ? cardColors(palette, tone).background : palette.primaryTint}
+      style={styles.fillCard}>
       <Text
         style={[palette.font('bodyBold', 12), { color: palette.primaryText, letterSpacing: 0.5 }]}>
         {props.label.toUpperCase()}

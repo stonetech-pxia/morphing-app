@@ -4,6 +4,7 @@
 export * from './ai/eval-cases';
 export * from './ai/mock';
 export * from './ai/types';
+export * from './arrange';
 export * from './change';
 export * from './data';
 export * from './defaults';

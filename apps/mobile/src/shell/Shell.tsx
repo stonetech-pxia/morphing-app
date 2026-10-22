@@ -4,7 +4,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { t } from '../i18n';
-import { PageView, type RenderEnv } from '../renderer/components';
+import { EditablePage } from '../editing/EditablePage';
+import type { RenderEnv } from '../renderer/components';
 import { Icon } from '../renderer/Icon';
 import { usePalette, type Palette } from '../renderer/theme';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
@@ -89,7 +90,7 @@ export function Shell() {
   const pageId = pageIdOf(active);
   if (pageId !== null) {
     const page = config.pages.find((p) => p.id === pageId)!;
-    content = <PageView page={page} env={env} bottomInset={barSpace + 64} />;
+    content = <EditablePage page={page} env={env} bottomInset={barSpace + 64} />;
   } else if (active === 'tools') {
     content = <ToolsView env={env} />;
   } else if (active === 'history') {

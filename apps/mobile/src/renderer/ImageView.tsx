@@ -133,6 +133,7 @@ export function ImageView({
         testID={`image-slot-${componentId}`}
         disabled={!env.interactive || uri === undefined}
         onPress={uri ? options : () => void choose()}
+        onLongPress={env.onLongPress}
         accessibilityRole="imagebutton"
         accessibilityLabel={props.caption ?? props.placeholder ?? t(locale, 'imagePlaceholder')}>
         {body}

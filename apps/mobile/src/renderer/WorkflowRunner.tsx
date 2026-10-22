@@ -90,6 +90,7 @@ export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: R
         testID={`run-${workflow.id}`}
         label={t(locale, result ? 'runAgain' : 'run')}
         onPress={() => void start()}
+        onLongPress={env.onLongPress}
         loading={running}
         style={styles.run}
       />

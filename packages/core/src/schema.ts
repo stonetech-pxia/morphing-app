@@ -385,6 +385,9 @@ const LeafComponentSchema = z.discriminatedUnion('type', [
 ]);
 export type LeafComponent = z.infer<typeof LeafComponentSchema>;
 
+/** 分组最多容纳的子组件数。 */
+export const GROUP_MAX_CHILDREN = 12;
+
 /** 分组：把若干组件排成竖排、横排或网格。分组不能再嵌套分组。 */
 export const GroupComponentSchema = z.strictObject({
   ...componentBase,
@@ -394,7 +397,7 @@ export const GroupComponentSchema = z.strictObject({
     layout: z.enum(['stack', 'row', 'grid']),
     columns: z.union([z.literal(2), z.literal(3)]).optional(),
   }),
-  children: z.array(LeafComponentSchema).max(12),
+  children: z.array(LeafComponentSchema).max(GROUP_MAX_CHILDREN),
 });
 export type GroupComponent = z.infer<typeof GroupComponentSchema>;
 

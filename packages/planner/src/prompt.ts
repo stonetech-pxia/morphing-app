@@ -83,7 +83,7 @@ type Op =
   | { op: "addPage"; page: { id: string; title: string; icon?: string; components: Component[] } }
   | { op: "removePage"; pageId: string }                       // also removes its nav entries and buttons/shortcuts that opened it
   | { op: "moveComponent"; pageId: string; componentId: string; toIndex: number; parentId?: string }   // parentId = a group to move into; omit for the page's top level
-  | { op: "setComponentProps"; pageId: string; componentId: string; props: object }   // merges into existing props
+  | { op: "setComponentProps"; pageId: string; componentId: string; props: object }   // merges into existing props; null removes an optional prop
   | { op: "setComponentStyle"; pageId: string; componentId: string; style: Style }     // merges; null clears a field
   | { op: "setComponentHidden"; pageId: string; componentId: string; hidden: boolean }
   | { op: "addComponent"; pageId: string; component: Component; index?: number; parentId?: string }

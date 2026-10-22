@@ -404,6 +404,7 @@ export function describeChange(
               return v ? (zh ? '更换图片' : 'new picture') : zh ? '移除图片' : 'picture removed';
             }
             const name = propNames[k]?.[ctx.locale] ?? k;
+            if (v === null) return zh ? `去掉${name}` : `${name} removed`;
             // 富文本显示成纯文字，太长时截断。
             const shown = typeof v === 'string' && k === 'text' ? truncate(plainText(v)) : v;
             const value =

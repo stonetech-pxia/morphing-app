@@ -59,6 +59,7 @@ export function FileList({
             testID={`file-${a.name}`}
             disabled={!env.interactive}
             onPress={() => files.share(a.path, a.mimeType)}
+            onLongPress={env.onLongPress}
             style={[
               styles.row,
               i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
