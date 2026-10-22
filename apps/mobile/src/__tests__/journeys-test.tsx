@@ -1,13 +1,14 @@
 import { BUILTIN_TOOLS, createMockAIProvider, createRegistry } from '@morph/core';
 import { fireEvent } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
-import { renderRouter, screen } from 'expo-router/testing-library';
+import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
 
 import ChangeRoute from '../app/change';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
 import { MemoryWorkspaceRepo } from '../storage/memory';
+import { FakeFiles, makePdf } from '../test-utils/fake-files';
 import { WorkspaceProvider } from '../workspace/context';
 import { createWorkspaceStore } from '../workspace/store';
 
@@ -15,7 +16,7 @@ import { createWorkspaceStore } from '../workspace/store';
 
 const registry = createRegistry(BUILTIN_TOOLS);
 
-async function renderApp(repo = new MemoryWorkspaceRepo()) {
+async function renderApp(repo = new MemoryWorkspaceRepo(), files = new FakeFiles()) {
   const store = createWorkspaceStore({
     repo,
     provider: createMockAIProvider(),
@@ -26,7 +27,7 @@ async function renderApp(repo = new MemoryWorkspaceRepo()) {
   await store.getState().boot();
   await renderRouter({
     _layout: () => (
-      <WorkspaceProvider value={{ store, registry, locale: 'zh' }}>
+      <WorkspaceProvider value={{ store, repo, files, registry, locale: 'zh' }}>
         <Stack />
       </WorkspaceProvider>
     ),
@@ -34,7 +35,7 @@ async function renderApp(repo = new MemoryWorkspaceRepo()) {
     change: ChangeRoute,
     'page/[pageId]': PageRoute,
   });
-  return { repo, store };
+  return { repo, store, files };
 }
 
 /** 工具目录里的操作用系统确认框；测试中直接点“应用更改”。 */
@@ -117,5 +118,77 @@ describe('user journeys (UI)', () => {
 
     expect(await screen.findByTestId('nav-ai')).toBeTruthy();
     expect(store.getState().head).toMatchObject({ id: 3, source: 'restore' });
+  });
+
+  it('B: install PDF, merge two real PDFs, uninstall — the files stay', async () => {
+    const { repo, files } = await renderApp();
+    await fireEvent.press(screen.getByTestId('nav-tools'));
+    acceptNextAlert();
+    await fireEvent.press(await screen.findByTestId('install-pdf'));
+
+    // 从首页的工具入口打开同一个 App 里的 PDF 工具页。
+    await fireEvent.press(await screen.findByTestId('nav-page:home'));
+    await fireEvent.press((await screen.findAllByText('PDF'))[0]!);
+    expect(await screen.findByTestId('step-name')).toBeTruthy();
+
+    files.nextPick = [
+      files.offer('报告.pdf', await makePdf(1)),
+      files.offer('附录.pdf', await makePdf(2)),
+    ];
+    await fireEvent.press(screen.getByTestId('run-pdf-merge'));
+    // “输入文件名”步骤：确认建议的名字。
+    expect(await screen.findByDisplayValue('报告-合并')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('prompt-ok'));
+    expect(await screen.findByText('已保存「报告-合并.pdf」（3 页）')).toBeTruthy();
+    expect(await screen.findByTestId('file-报告-合并.pdf')).toBeTruthy();
+
+    // 卸载工具：入口和页面消失，文件全部保留，授权被撤销。
+    const merged = (await repo.listAssets())[0]!;
+    await testRouter.back();
+    await fireEvent.press(await screen.findByTestId('nav-tools'));
+    acceptNextAlert();
+    await fireEvent.press(await screen.findByTestId('uninstall-pdf'));
+    await fireEvent.press(await screen.findByTestId('nav-page:home'));
+    expect(screen.queryByTestId('component-card-pdf')).toBeNull();
+    expect(await screen.findByTestId('file-报告-合并.pdf')).toBeTruthy();
+    expect((await repo.listAssets()).map((a) => a.name)).toEqual([
+      '报告-合并.pdf',
+      '附录.pdf',
+      '报告.pdf',
+    ]);
+    expect(await repo.hasGrant('pdf', merged.id)).toBe(false);
+  });
+
+  it('C: reshape the installed PDF tool through AI from its own page; the new flow runs', async () => {
+    const { store, files } = await renderApp();
+    await fireEvent.press(screen.getByTestId('nav-tools'));
+    acceptNextAlert();
+    await fireEvent.press(await screen.findByTestId('install-pdf'));
+    await fireEvent.press(await screen.findByTestId('open-pdf'));
+    expect(await screen.findByTestId('step-name')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('page-ai'));
+    await fireEvent.changeText(
+      await screen.findByTestId('change-input'),
+      '把 PDF 工具首页简化成上传和合并两个步骤，完成后自动按照‘合并-日期’命名',
+    );
+    await fireEvent.press(screen.getByTestId('change-submit'));
+    expect(await screen.findByText(/去掉步骤「输入文件名」/)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('change-apply'));
+
+    // 回到同一个工具页：命名步骤和说明文字消失，仍然只有一个工具实例。
+    expect(await screen.findByTestId('step-select')).toBeTruthy();
+    expect(screen.queryByTestId('step-name')).toBeNull();
+    expect(screen.queryByTestId('component-pdf-intro')).toBeNull();
+    expect(store.getState().config!.tools).toHaveLength(1);
+    expect(store.getState().config!.workflows).toHaveLength(1);
+
+    files.nextPick = [
+      files.offer('a.pdf', await makePdf(1)),
+      files.offer('b.pdf', await makePdf(1)),
+    ];
+    await fireEvent.press(screen.getByTestId('run-pdf-merge'));
+    expect(await screen.findByText(/^已保存「合并-\d{4}-\d{2}-\d{2}\.pdf」（2 页）$/)).toBeTruthy();
+    expect(screen.queryByTestId('prompt-input')).toBeNull();
   });
 });

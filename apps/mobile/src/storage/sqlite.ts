@@ -2,9 +2,11 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import {
   RevisionConflictError,
+  type AssetRecord,
   type ChangeRequestRecord,
   type CommitInput,
   type RevisionRecord,
+  type ToolRunRecord,
   type WorkspaceRepo,
 } from './types';
 
@@ -34,6 +36,32 @@ const DB_MIGRATIONS: string[] = [
      error TEXT,
      created_at INTEGER NOT NULL,
      updated_at INTEGER NOT NULL
+   );`,
+  `CREATE TABLE assets (
+     id TEXT PRIMARY KEY,
+     name TEXT NOT NULL,
+     mime_type TEXT NOT NULL,
+     size INTEGER NOT NULL,
+     path TEXT NOT NULL,
+     source TEXT NOT NULL,
+     created_at INTEGER NOT NULL
+   );
+   CREATE TABLE asset_grants (
+     tool_id TEXT NOT NULL,
+     asset_id TEXT NOT NULL REFERENCES assets(id),
+     created_at INTEGER NOT NULL,
+     PRIMARY KEY (tool_id, asset_id)
+   );
+   CREATE TABLE tool_runs (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     tool_id TEXT NOT NULL,
+     workflow_id TEXT NOT NULL,
+     revision_id INTEGER NOT NULL,
+     status TEXT NOT NULL,
+     error TEXT,
+     output_asset_id TEXT,
+     started_at INTEGER NOT NULL,
+     finished_at INTEGER
    );`,
 ];
 
@@ -196,4 +224,125 @@ export class SQLiteWorkspaceRepo implements WorkspaceRepo {
       updatedAt: row.updated_at,
     };
   }
+
+  async addAsset(asset: AssetRecord) {
+    await this.db.runAsync(
+      'INSERT INTO assets (id, name, mime_type, size, path, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      asset.id,
+      asset.name,
+      asset.mimeType,
+      asset.size,
+      asset.path,
+      asset.source,
+      asset.createdAt,
+    );
+  }
+
+  async getAsset(id: string) {
+    const row = await this.db.getFirstAsync<AssetRow>('SELECT * FROM assets WHERE id = ?', id);
+    return row ? toAsset(row) : null;
+  }
+
+  async listAssets() {
+    const rows = await this.db.getAllAsync<AssetRow>(
+      'SELECT * FROM assets ORDER BY created_at DESC, rowid DESC',
+    );
+    return rows.map(toAsset);
+  }
+
+  async grantAsset(toolId: string, assetId: string) {
+    await this.db.runAsync(
+      'INSERT OR IGNORE INTO asset_grants (tool_id, asset_id, created_at) VALUES (?, ?, ?)',
+      toolId,
+      assetId,
+      Date.now(),
+    );
+  }
+
+  async hasGrant(toolId: string, assetId: string) {
+    const row = await this.db.getFirstAsync<{ n: number }>(
+      'SELECT COUNT(*) AS n FROM asset_grants WHERE tool_id = ? AND asset_id = ?',
+      toolId,
+      assetId,
+    );
+    return (row?.n ?? 0) > 0;
+  }
+
+  async revokeToolGrants(toolId: string) {
+    await this.db.runAsync('DELETE FROM asset_grants WHERE tool_id = ?', toolId);
+  }
+
+  async startToolRun(input: { toolId: string; workflowId: string; revisionId: number }) {
+    const result = await this.db.runAsync(
+      "INSERT INTO tool_runs (tool_id, workflow_id, revision_id, status, started_at) VALUES (?, ?, ?, 'running', ?)",
+      input.toolId,
+      input.workflowId,
+      input.revisionId,
+      Date.now(),
+    );
+    return result.lastInsertRowId;
+  }
+
+  async finishToolRun(id: number, result: Parameters<WorkspaceRepo['finishToolRun']>[1]) {
+    await this.db.runAsync(
+      'UPDATE tool_runs SET status = ?, error = ?, output_asset_id = ?, finished_at = ? WHERE id = ?',
+      result.status,
+      result.error ?? null,
+      result.outputAssetId ?? null,
+      Date.now(),
+      id,
+    );
+  }
+
+  async listToolRuns(limit: number) {
+    const rows = await this.db.getAllAsync<ToolRunRow>(
+      'SELECT * FROM tool_runs ORDER BY id DESC LIMIT ?',
+      limit,
+    );
+    return rows.map((r): ToolRunRecord => ({
+      id: r.id,
+      toolId: r.tool_id,
+      workflowId: r.workflow_id,
+      revisionId: r.revision_id,
+      status: r.status,
+      error: r.error,
+      outputAssetId: r.output_asset_id,
+      startedAt: r.started_at,
+      finishedAt: r.finished_at,
+    }));
+  }
+}
+
+interface AssetRow {
+  id: string;
+  name: string;
+  mime_type: string;
+  size: number;
+  path: string;
+  source: AssetRecord['source'];
+  created_at: number;
+}
+
+function toAsset(row: AssetRow): AssetRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    mimeType: row.mime_type,
+    size: row.size,
+    path: row.path,
+    source: row.source,
+    createdAt: row.created_at,
+  };
+}
+
+interface ToolRunRow {
+  id: number;
+  tool_id: string;
+  workflow_id: string;
+  revision_id: number;
+  status: ToolRunRecord['status'];
+  error: string | null;
+  output_asset_id: string | null;
+  started_at: number;
+  finished_at: number | null;
 }

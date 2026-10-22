@@ -11,15 +11,16 @@
 5. 把文件内容发给第三方 AI 前必须告知并取得授权；发给模型的 workspace 摘要尽量少，文件名默认脱敏。
 6. 执行记录（`tool_runs`）和日志中不写入文件内容。
 
-## 当前状态（M0）
+## 当前状态（M2）
 
-- 没有任何密钥、网络请求或用户数据处理。`.env*` 已加入 `.gitignore`（`.env.example` 除外）。
+- 没有任何密钥，也没有任何网络请求；所有处理（含 PDF 合并）都在本机完成。
+- 修改流程：模型（目前是 mock）输出先经过 `PlanSchema` 解析，再经过 `prepareOps`（结构、引用、受保护元素、权限、数据流校验），通过后才能预览和保存。测试见 `packages/core/src/*.test.ts`。
+- 文件访问：工具只能读取 `AssetGrant` 授权给它的文件；卸载工具时撤销授权，文件保留。执行记录只保存状态和错误代码，不保存文件内容。
+- 文件大小上限：单个 50 MB，单次合计 100 MB（`FILE_LIMITS`）。`.env*` 已加入 `.gitignore`（`.env.example` 除外）。
 - **npm audit**：报告约 40 个 moderate/high 漏洞，全部来自 Expo CLI 等开发与构建工具的间接依赖（例如 `braces`、`node-forge`、`sprintf-js`），不会打包进 App。`npm audit fix --force` 会降级或破坏 Expo 依赖，因此不执行；每次升级 Expo SDK 后重新检查。
 - **安装脚本**：npm 默认未执行 `fsevents`、`unrs-resolver`、`@parcel/watcher` 的安装脚本（npm 的 allowScripts 机制）。目前 lint、测试和打包都不受影响；如果以后出现相关问题，先审查脚本内容再批准。
 - **许可证**：`npm run check:licenses` 确认全部依赖与 AGPL-3.0 兼容。
 
 ## 待办
 
-- M1：校验器拒绝不合法或越权的修改操作，并有测试覆盖；渲染失败自动回退。
-- M2：`AssetGrant` 授权检查；文件大小上限；权限被拒时有明确提示。
 - M3：服务端鉴权、Supabase RLS、用户隔离测试、超时与配额、隐私政策（GDPR / CCPA）、App 内删除账号。

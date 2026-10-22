@@ -91,6 +91,46 @@ const strings = {
 
   // 页面组件
   noFiles: { en: 'No files yet', zh: '还没有文件' },
+  run: { en: 'Start', zh: '开始' },
+  runAgain: { en: 'Run again', zh: '再来一次' },
+  running: { en: 'Step {n}: {step}', zh: '第 {n} 步：{step}' },
+  runDone: { en: 'Saved “{name}” ({pages} pages)', zh: '已保存「{name}」（{pages} 页）' },
+  runCancelled: { en: 'Cancelled', zh: '已取消' },
+  share: { en: 'Share / export', zh: '分享 / 导出' },
+  ok: { en: 'OK', zh: '确定' },
+  runError_tooFew: { en: 'Choose at least {min} PDF files.', zh: '请至少选择 {min} 个 PDF 文件。' },
+  runError_tooMany: { en: 'Choose at most {max} files.', zh: '最多选择 {max} 个文件。' },
+  runError_notPdf: { en: '“{name}” is not a PDF.', zh: '「{name}」不是 PDF 文件。' },
+  runError_tooLarge: {
+    en: '“{name}” is larger than {mb} MB, which is not supported yet.',
+    zh: '「{name}」超过 {mb} MB，暂不支持。',
+  },
+  runError_tooLargeTotal: {
+    en: 'The selected files add up to more than {mb} MB.',
+    zh: '所选文件合计超过 {mb} MB。',
+  },
+  runError_unreadable: {
+    en: '“{name}” could not be read. It may be damaged.',
+    zh: '无法读取「{name}」，文件可能已损坏。',
+  },
+  runError_encrypted: {
+    en: '“{name}” is password-protected, which is not supported yet.',
+    zh: '「{name}」有密码保护，暂不支持。',
+  },
+  runError_accessDenied: {
+    en: '“{name}” could not be accessed. Check permissions and try again.',
+    zh: '无法访问「{name}」，请检查权限后重试。',
+  },
+  runError_noGrant: {
+    en: 'This tool is not allowed to read “{name}”.',
+    zh: '这个工具无权读取「{name}」。',
+  },
+  runError_saveFailed: { en: 'Saving failed: {detail}', zh: '保存失败：{detail}' },
+  runError_unsupportedAction: {
+    en: 'This step is not supported: {action}',
+    zh: '不支持这个步骤：{action}',
+  },
+  runError_unexpected: { en: 'Something went wrong: {detail}', zh: '出现错误：{detail}' },
   toolMissing: { en: 'This tool is not available.', zh: '这个工具不可用。' },
   pageMissing: { en: 'This page no longer exists.', zh: '这个页面已不存在。' },
 } satisfies Record<string, Record<Locale, string>>;

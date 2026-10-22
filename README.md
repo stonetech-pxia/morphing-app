@@ -3,7 +3,17 @@
 一个只需安装一次、之后通过自然语言持续修改**同一个 App** 的界面与功能的个人软件空间。
 产品需求与边界见 [PRODUCT_HANDOFF_CLAUDE_CODE.md](PRODUCT_HANDOFF_CLAUDE_CODE.md)。
 
-> 当前状态：**M0（仓库骨架）已完成**。App 目前只显示一个占位首页；动态界面、修改流程和 PDF 工具分别在 M1、M2 实现。进度见 [docs/MVP_SCOPE.md](docs/MVP_SCOPE.md)。
+> 当前状态：**M0–M2 已完成**（本地原型，使用 mock AI）。进度与已知限制见 [docs/MVP_SCOPE.md](docs/MVP_SCOPE.md)。
+
+## 试一试
+
+1. 「工具」→ 安装 PDF；首页出现 PDF 入口。
+2. 打开 PDF → 开始 → 选择两个以上 PDF → 确认文件名 → 得到合并结果，可分享 / 导出。
+3. 点「AI 修改」，输入：`把首页改成文件工作台，导航栏只保留首页、工具、设置` → 查看修改前 / 后预览 → 应用。
+4. 在 PDF 工具页点右上角「AI」，输入：`把 PDF 工具首页简化成上传和合并两个步骤，完成后自动按照‘合并-日期’命名` → 应用后再合并一次。
+5. 点浮动的「历史」按钮，恢复任意旧版本；或在修改后的提示条上点「撤销」。
+
+AI 能听懂的句式见 [docs/MOCK_AI_PHRASES.md](docs/MOCK_AI_PHRASES.md)（mock AI 是规则解析器，不是语言模型）。
 
 ## 启动本地 demo（不需要任何付费账号或 API key）
 
@@ -52,7 +62,8 @@ npm run ios -- --localhost
 
 ```
 apps/mobile/        Expo App（Expo Router，路由在 src/app/）
-packages/core/      纯 TypeScript 内核：schema、修改操作、校验、迁移、mock AI（M1 实现）
+packages/core/      纯 TypeScript 内核：schema、修改操作、校验、迁移、mock AI、内置工具清单
+packages/tool-pdf/  PDF 合并（pdf-lib）
 scripts/            仓库脚本（许可证检查）
 docs/               架构、范围、决策、安全说明、mock AI 句式清单
 ```

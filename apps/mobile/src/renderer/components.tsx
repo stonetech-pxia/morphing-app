@@ -4,7 +4,9 @@ import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
+import { FileList } from './FileList';
 import type { Palette } from './theme';
+import { WorkflowRunner } from './WorkflowRunner';
 
 // 白名单渲染器（§5.2、§7A）：配置中的每种组件类型对应这里的一个真实组件。
 // 配置只提供数据，不包含任何可执行内容。新增组件类型必须同时修改 core 的 schema 和这里。
@@ -75,30 +77,6 @@ function ToolCard({ toolId, env }: { toolId: string; env: RenderEnv }) {
   );
 }
 
-function WorkflowSteps({ workflowId, env }: { workflowId: string; env: RenderEnv }) {
-  const wf = env.config.workflows.find((w) => w.id === workflowId);
-  if (!wf) return null;
-  return (
-    <Card env={env}>
-      <Text style={[styles.cardTitle, { color: env.palette.text }]}>{wf.name}</Text>
-      {wf.steps.map((step, i) => (
-        <Text key={step.id} style={{ color: env.palette.subtext }}>
-          {i + 1}. {env.registry.actions.get(step.action)?.label[env.locale] ?? step.action}
-        </Text>
-      ))}
-    </Card>
-  );
-}
-
-function FileList({ title, env }: { title: string; env: RenderEnv }) {
-  return (
-    <Card env={env}>
-      <Text style={[styles.cardTitle, { color: env.palette.text }]}>{title}</Text>
-      <Text style={{ color: env.palette.subtext }}>{t(env.locale, 'noFiles')}</Text>
-    </Card>
-  );
-}
-
 export function ComponentView({ component, env }: { component: Component; env: RenderEnv }) {
   switch (component.type) {
     case 'header':
@@ -127,9 +105,16 @@ export function ComponentView({ component, env }: { component: Component; env: R
         </Card>
       );
     case 'fileList':
-      return <FileList title={component.props.title} env={env} />;
+      return (
+        <FileList
+          title={component.props.title}
+          limit={component.props.limit}
+          mimeType={component.props.mimeType}
+          env={env}
+        />
+      );
     case 'workflowRunner':
-      return <WorkflowSteps workflowId={component.props.workflowId} env={env} />;
+      return <WorkflowRunner workflowId={component.props.workflowId} env={env} />;
   }
 }
 

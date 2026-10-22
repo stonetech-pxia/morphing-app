@@ -1,6 +1,6 @@
 import { navTargetLabel, pageIdOf, type NavTarget, type WorkspaceConfig } from '@morph/core';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -14,7 +14,7 @@ import { ToolsView } from './ToolsView';
 
 const BAR_HEIGHT = 56;
 
-function firstTab(config: WorkspaceConfig): NavTarget {
+export function firstTab(config: WorkspaceConfig): NavTarget {
   return (
     config.shell.nav.find((n) => n !== 'ai') ??
     config.shell.floating.find((n) => n !== 'ai') ??
@@ -49,7 +49,14 @@ function Banner({ palette }: { palette: Palette }) {
 }
 
 /** App 外壳：内容区域、按配置渲染的底部导航、受保护元素的浮动按钮。 */
-export function Shell() {
+/** selected 由上层持有：版本变化时外壳会重新挂载，当前所在的导航项不应因此丢失。 */
+export function Shell({
+  selected,
+  onSelect: setSelected,
+}: {
+  selected: NavTarget | null;
+  onSelect: (target: NavTarget) => void;
+}) {
   const { registry, locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
   const headId = useWorkspace((s) => s.head!.id);
@@ -57,7 +64,6 @@ export function Shell() {
   const palette = usePalette(config.theme);
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [selected, setSelected] = useState<NavTarget>(() => firstTab(config));
 
   // 渲染完成（没有被 ErrorBoundary 拦截）才确认这次提交成功（§4）。
   useEffect(() => {
@@ -65,7 +71,8 @@ export function Shell() {
   }, [headId, markRendered]);
 
   const entries = [...config.shell.nav, ...config.shell.floating];
-  const active = entries.includes(selected) && selected !== 'ai' ? selected : firstTab(config);
+  const active =
+    selected && entries.includes(selected) && selected !== 'ai' ? selected : firstTab(config);
   const open = (target: NavTarget) =>
     target === 'ai' ? router.push('/change') : setSelected(target);
 

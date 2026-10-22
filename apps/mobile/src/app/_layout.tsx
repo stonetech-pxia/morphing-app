@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { getDeviceLocale, t } from '@/i18n';
+import { expoFilePlatform } from '@/runtime/expo-platform';
 import { usePalette } from '@/renderer/theme';
 import { SQLiteWorkspaceRepo, migrateDatabase } from '@/storage/sqlite';
 import { WorkspaceProvider, useWorkspace } from '@/workspace/context';
@@ -57,26 +58,30 @@ function ThemedStack() {
 }
 
 export default function RootLayout() {
-  const [store, setStore] = useState<WorkspaceStore | null>(null);
+  const [runtime, setRuntime] = useState<{
+    store: WorkspaceStore;
+    repo: SQLiteWorkspaceRepo;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       const db = await openDatabaseAsync('morph.db');
       await migrateDatabase(db);
+      const repo = new SQLiteWorkspaceRepo(db);
       const created = createWorkspaceStore({
-        repo: new SQLiteWorkspaceRepo(db),
+        repo,
         provider: createMockAIProvider(),
         registry,
         locale,
         now: () => new Date(),
       });
       await created.getState().boot();
-      setStore(created);
+      setRuntime({ store: created, repo });
     })().catch((e) => setError(String(e)));
   }, []);
 
-  if (!store) {
+  if (!runtime) {
     return (
       <Centered>
         {error ? <Text>{`${t(locale, 'bootFailed')}\n${error}`}</Text> : <ActivityIndicator />}
@@ -84,7 +89,14 @@ export default function RootLayout() {
     );
   }
   return (
-    <WorkspaceProvider value={{ store, registry, locale }}>
+    <WorkspaceProvider
+      value={{
+        store: runtime.store,
+        repo: runtime.repo,
+        files: expoFilePlatform,
+        registry,
+        locale,
+      }}>
       <RootStack />
     </WorkspaceProvider>
   );

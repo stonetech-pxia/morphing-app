@@ -67,7 +67,7 @@
 
 ## 5. 本地存储（M1/M2 唯一权威来源）
 
-SQLite 表（`PRAGMA user_version` 管理数据库结构升级，见 `apps/mobile/src/storage/sqlite.ts`）。M1 已实现 `workspace_head`、`revisions`、`change_requests`；其余在 M2 加入：
+SQLite 表（`PRAGMA user_version` 管理数据库结构升级，见 `apps/mobile/src/storage/sqlite.ts`）：
 
 | 表                | 内容                                                              |
 | ----------------- | ----------------------------------------------------------------- |
@@ -78,7 +78,11 @@ SQLite 表（`PRAGMA user_version` 管理数据库结构升级，见 `apps/mobil
 | `asset_grants`    | 工具 → 文件的授权                                                 |
 | `tool_runs`       | 工作流执行记录（不含文件内容）                                    |
 
-用户文件存放在 App 的文档目录，与 revision 分开，回滚不会触及。
+用户文件存放在 App 文档目录的 `assets/<id>/<文件名>`，与 revision 分开，回滚和卸载工具都不会触及。
+
+## 5.1 工作流执行（M2）
+
+`apps/mobile/src/runtime/runner.ts` 是唯一执行动作的地方：按顺序执行步骤，步骤之间通过固定数据槽（files → document → fileName → savedFile）传递数据。平台能力（选择文件、读写、分享）通过 `FilePlatform` 注入，App 中由 Expo 模块实现，测试中用内存实现 + 真实 PDF。
 
 ## 6. 外部能力接口（§14.2）
 

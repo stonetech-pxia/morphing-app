@@ -1,8 +1,10 @@
 import {
   RevisionConflictError,
+  type AssetRecord,
   type ChangeRequestRecord,
   type CommitInput,
   type RevisionRecord,
+  type ToolRunRecord,
   type WorkspaceRepo,
 } from './types';
 
@@ -12,6 +14,9 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
   private revisions: (Omit<RevisionRecord, 'config'> & { configJson: string })[] = [];
   private headId: number | null = null;
   private changeRequests: ChangeRequestRecord[] = [];
+  private assets: AssetRecord[] = [];
+  private grants = new Set<string>();
+  private toolRuns: ToolRunRecord[] = [];
   private clock = 0;
 
   private now() {
@@ -102,5 +107,56 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
 
   async getChangeRequest(id: number) {
     return this.changeRequests.find((x) => x.id === id) ?? null;
+  }
+
+  async addAsset(asset: AssetRecord) {
+    this.assets.push({ ...asset });
+  }
+
+  async getAsset(id: string) {
+    return this.assets.find((a) => a.id === id) ?? null;
+  }
+
+  async listAssets() {
+    return [...this.assets].reverse();
+  }
+
+  async grantAsset(toolId: string, assetId: string) {
+    this.grants.add(`${toolId}/${assetId}`);
+  }
+
+  async hasGrant(toolId: string, assetId: string) {
+    return this.grants.has(`${toolId}/${assetId}`);
+  }
+
+  async revokeToolGrants(toolId: string) {
+    for (const key of [...this.grants]) if (key.startsWith(`${toolId}/`)) this.grants.delete(key);
+  }
+
+  async startToolRun(input: { toolId: string; workflowId: string; revisionId: number }) {
+    const id = this.toolRuns.length + 1;
+    this.toolRuns.push({
+      id,
+      ...input,
+      status: 'running',
+      error: null,
+      outputAssetId: null,
+      startedAt: this.now(),
+      finishedAt: null,
+    });
+    return id;
+  }
+
+  async finishToolRun(id: number, result: Parameters<WorkspaceRepo['finishToolRun']>[1]) {
+    const run = this.toolRuns.find((r) => r.id === id);
+    if (!run) throw new Error(`tool run ${id} not found`);
+    run.status = result.status;
+    run.error = result.error ?? null;
+    run.outputAssetId = result.outputAssetId ?? null;
+    run.finishedAt = this.now();
+  }
+
+  async listToolRuns(limit: number) {
+    return [...this.toolRuns].reverse().slice(0, limit);
   }
 }

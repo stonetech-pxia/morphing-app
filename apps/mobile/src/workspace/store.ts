@@ -64,6 +64,8 @@ export interface WorkspaceState {
   proposal: Proposal | null;
   banner: Banner | null;
   busy: boolean;
+  /** 文件列表的刷新信号：工作流保存文件后递增。 */
+  assetsVersion: number;
 
   boot(): Promise<void>;
   propose(input: string): Promise<ProposeResult>;
@@ -77,6 +79,7 @@ export interface WorkspaceState {
   reportRenderError(error: unknown): Promise<void>;
   dismissBanner(): void;
   listRevisions(limit?: number): Promise<RevisionRecord[]>;
+  bumpAssets(): void;
 }
 
 export type WorkspaceStore = StoreApi<WorkspaceState>;
@@ -218,6 +221,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       proposal: null,
       banner: null,
       busy: false,
+      assetsVersion: 0,
 
       async boot() {
         try {
@@ -318,6 +322,11 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
             summary: proposal.summary,
           };
           set({ proposal: null });
+          // 被移除的工具失去文件授权；文件本身保留（§7G）。
+          const remaining = new Set(proposal.after.tools.map((t) => t.toolId));
+          for (const tool of proposal.before.tools) {
+            if (!remaining.has(tool.toolId)) await repo.revokeToolGrants(tool.toolId);
+          }
           await reload();
           return true;
         } catch (e) {
@@ -405,6 +414,8 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       dismissBanner: () => set({ banner: null }),
 
       listRevisions: (limit = 50) => repo.listRevisions(limit),
+
+      bumpAssets: () => set({ assetsVersion: get().assetsVersion + 1 }),
     };
   });
 }

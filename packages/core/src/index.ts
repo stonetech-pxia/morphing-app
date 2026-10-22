@@ -6,6 +6,7 @@ export * from './ai/types';
 export * from './change';
 export * from './defaults';
 export * from './describe';
+export * from './limits';
 export * from './migrate';
 export * from './naming';
 export * from './ops';
