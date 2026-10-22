@@ -12,6 +12,7 @@ import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
 
 import { t } from '../i18n';
+import { RecordForm, RecordList, Stat } from './data';
 import { FileList } from './FileList';
 import type { Palette } from './theme';
 import { Button, Card, IconTile } from './ui';
@@ -335,6 +336,12 @@ export function ComponentView({ component, env }: { component: Component; env: R
       return <View style={{ height: { small: 4, medium: 16, large: 32 }[component.props.size] }} />;
     case 'group':
       return <Group component={component} env={env} />;
+    case 'recordList':
+      return <RecordList props={component.props} env={env} />;
+    case 'recordForm':
+      return <RecordForm props={component.props} env={env} componentId={component.id} />;
+    case 'stat':
+      return <Stat props={component.props} env={env} />;
     case 'fileList':
       return (
         <FileList
@@ -362,6 +369,9 @@ export function PageView({
   return (
     <ScrollView
       style={{ backgroundColor: palette.background }}
+      // 数据表单：键盘弹出时可以直接点选项和按钮，并自动把输入框滚到键盘上方。
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
       contentContainerStyle={{
         padding: palette.pad,
         gap: palette.gap,

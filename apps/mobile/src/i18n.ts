@@ -231,6 +231,61 @@ const strings = {
   },
   runError_unexpected: { en: 'Something went wrong: {detail}', zh: '出现错误：{detail}' },
   toolMissing: { en: 'This tool is not available.', zh: '这个工具不可用。' },
+
+  // 用户数据
+  noRecords: { en: 'Nothing here yet', zh: '还没有记录' },
+  today: { en: 'Today', zh: '今天' },
+  yesterday: { en: 'Yesterday', zh: '昨天' },
+  fieldRequired: { en: 'Required', zh: '必填' },
+  fieldInvalid: { en: 'Not a valid value', zh: '格式不对' },
+  fieldTooLong: { en: 'Too long', zh: '太长了' },
+  tableFull: {
+    en: 'This table is full (10,000 entries).',
+    zh: '这张表已满（1 万条）。',
+  },
+  useFullForm: {
+    en: 'Some required fields aren’t in this form. Open the full form to add.',
+    zh: '有必填项不在这个表单里，请用完整表单添加。',
+  },
+  recordDeleted: { en: 'Entry deleted', zh: '已删除一条记录' },
+  newRecord: { en: 'New entry', zh: '新记录' },
+  editRecord: { en: 'Edit entry', zh: '编辑记录' },
+  save: { en: 'Save', zh: '保存' },
+  delete: { en: 'Delete', zh: '删除' },
+  tableMissing: {
+    en: 'This data table is no longer part of the app. Its entries are kept in Settings → Data.',
+    zh: '这张数据表已不在界面里，记录保存在「设置 → 数据」。',
+  },
+  dataTitle: { en: 'Data', zh: '数据' },
+  dataRowHint: {
+    en: 'Your entries: export, recently deleted',
+    zh: '你记录的数据：导出、最近删除',
+  },
+  dataPrivacy: {
+    en: 'Entries are stored only on this phone. The AI only sees the structure of your tables (names and fields), never what you enter.',
+    zh: '记录只保存在这台手机上。AI 只能看到数据表的结构（表名和字段），永远看不到你填写的内容。',
+  },
+  dataTables: { en: 'Data tables', zh: '数据表' },
+  unusedTables: { en: 'Not in the app', zh: '不在界面里的数据' },
+  unusedTablesHint: {
+    en: 'Tables that were removed from the app. Their entries come back if a version with the table is restored.',
+    zh: '已从界面移除的数据表。恢复到含有这张表的版本时，记录会回来。',
+  },
+  recentlyDeleted: { en: 'Recently deleted', zh: '最近删除' },
+  recentlyDeletedHint: {
+    en: 'Kept for 30 days, then removed for good.',
+    zh: '保留 30 天，之后永久删除。',
+  },
+  recordCount: { en: '{count} entries', zh: '{count} 条记录' },
+  exportCsv: { en: 'Export CSV', zh: '导出 CSV' },
+  deleteForever: { en: 'Delete forever', zh: '永久删除' },
+  deleteForeverConfirm: {
+    en: 'Delete all {count} entries of “{name}”? This can’t be undone.',
+    zh: '永久删除「{name}」的全部 {count} 条记录？此操作无法撤销。',
+  },
+  restore: { en: 'Restore', zh: '恢复' },
+  nothingDeleted: { en: 'Nothing deleted recently', zh: '最近没有删除的记录' },
+  unknownTable: { en: 'Table {id}', zh: '数据表 {id}' },
   pageMissing: { en: 'This page no longer exists.', zh: '这个页面已不存在。' },
 } satisfies Record<string, Record<Locale, string>>;
 

@@ -12,6 +12,7 @@ import {
   type Page,
   type WorkspaceConfig,
 } from '../schema';
+import { entryOps, templateOps, type DataTemplate } from '../templates';
 import type { AIProvider, Plan, PlanContext, RejectReason } from './types';
 
 // 基于规则的 mock AI（§7F）。不是语言模型：只认识 docs/MOCK_AI_PHRASES.md 中的句式。
@@ -411,24 +412,7 @@ const addPageRule: Rule = (clause, state) => {
       },
     },
   ];
-  // 新页面需要一个入口：导航栏有空位就放进导航栏（设置之前），否则在首页加一个快捷入口。
-  const nav = state.config.shell.nav;
-  if (nav.length < 5) {
-    const at = nav.indexOf('settings');
-    const items = [...nav];
-    items.splice(at < 0 ? items.length : at, 0, pageTarget(id));
-    ops.push({ op: 'setNavItems', items });
-  } else {
-    ops.push({
-      op: 'addComponent',
-      pageId: HOME_PAGE_ID,
-      component: {
-        id: `shortcut-${id}`,
-        type: 'shortcut',
-        props: { title, icon: 'star', target: pageTarget(id) },
-      },
-    });
-  }
+  ops.push(...entryOps(state.config, id, title, 'star'));
   return ops;
 };
 
@@ -462,6 +446,59 @@ const removePageRule: Rule = (clause, state) => {
     );
   }
   return [{ op: 'removePage', pageId: target.id }];
+};
+
+const TEMPLATE_WORDS: [RegExp, DataTemplate][] = [
+  [/^(?:记账|账本|记账本|budget|expenses?|expense tracker)$/i, 'budget'],
+  [/^(?:待办|待办清单|待办事项|to-?do|to-?do list|tasks?)$/i, 'todo'],
+  [/^(?:读书清单|书单|阅读清单|reading list|books?)$/i, 'reading'],
+  [/^(?:笔记|笔记本|notes?)$/i, 'notes'],
+];
+
+/** 内置数据页面模板：「新建一个记账页面」「Create a to-do list」。 */
+const templateRule: Rule = (clause, state) => {
+  const m =
+    clause.match(/^(?:新建|添加|加|增加|创建|做|建)(?:一个|个)?(.+?)(?:页面|页)?$/) ??
+    clause.match(/^(?:add|create|make)(?: me)? (?:a |an )?(.+?)(?: page)?$/i);
+  if (!m) return null;
+  const word = m[1]!.trim();
+  const template = TEMPLATE_WORDS.find(([re]) => re.test(word))?.[1];
+  if (!template) return null;
+  return templateOps(template, state.config, state.ctx.locale);
+};
+
+function newFieldId(fields: readonly { id: string }[]): string {
+  for (let n = 1; ; n++) if (!fields.some((f) => f.id === `field-${n}`)) return `field-${n}`;
+}
+
+/** 「给账目加一个「支付方式」字段」：加一个文字字段。 */
+const addFieldRule: Rule = (clause, state) => {
+  const m =
+    clause.match(
+      /^(?:给|在)"?(.+?)"?(?:里|中|表)?(?:加|添加|增加)(?:一个|个)?"(.+?)"(?:字段|栏|项)$/,
+    ) ?? clause.match(/^add (?:a )?"?(.+?)"? field to (?:the )?"?(.+?)"?$/i);
+  if (!m) return null;
+  const [table, name] = /^add/i.test(clause) ? [m[2]!, m[1]!] : [m[1]!, m[2]!];
+  const collection = state.config.collections.find(
+    (c) => c.name.toLowerCase() === table.trim().toLowerCase(),
+  );
+  if (!collection) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        `找不到数据表「${table}」。`,
+        `There is no data table called “${table}”.`,
+      ),
+    );
+  }
+  return [
+    {
+      op: 'addField',
+      collectionId: collection.id,
+      field: { id: newFieldId(collection.fields), name: name.trim(), type: 'text' },
+    },
+  ];
 };
 
 const STEP_KEYWORDS: [RegExp, string][] = [
@@ -668,6 +705,8 @@ const RULES: Rule[] = [
   radiusRule,
   densityRule,
   cardStyleRule,
+  templateRule,
+  addFieldRule,
   addPageRule,
   removePageRule,
   floatingRule,
@@ -681,6 +720,24 @@ const RULES: Rule[] = [
   visibilityRule,
   titleRule,
 ];
+
+/** 读、写、删、统计用户记录的请求（AI 只改界面，从不接触记录内容）。 */
+const USER_DATA = new RegExp(
+  [
+    '^记(?:一笔|一下|个账)',
+    '帮我记',
+    '(?:标成|标记为|设为|改成)(?:已)?完成',
+    '(?:删掉|删除|清空|清除)(?:所有|全部|上个月|这个月|今天|昨天|这些)?的?(?:账|账目|记录|待办|笔记|数据)$',
+    '(?:账|账目|记录|待办|笔记|数据)(?:都|全)?(?:删掉|删除|清空|清除)$',
+    '(?:花了|支出|收入|赚了)多少',
+    '(?:算|统计|看看|查查|告诉我|总结)(?:一下)?我的',
+    '^(?:log|record|add) (?:an? )?(?:expense|entry)\\b',
+    '\\b(?:delete|clear|remove) (?:all )?(?:my )?(?:records|entries|expenses|notes|tasks)\\b',
+    '\\bmark (?:all )?.*\\b(?:done|complete)\\b',
+    '\\bhow much did i\\b',
+  ].join('|'),
+  'i',
+);
 
 const RESTORE = /^(恢复|还原)(到)?上一(次|个)|^撤销|^撤回|^undo\b|^revert\b|^go back/i;
 const DELETE_FILES = /(删除|删掉|清空|清除).*文件|\b(delete|remove|erase)\b.*\bfiles?\b/i;
@@ -702,6 +759,16 @@ function planClauses(clauses: string[], ctx: PlanContext): Plan {
           ctx.locale,
           '修改界面不会删除文件。如需删除，请在文件列表中手动操作。',
           'Changing the app never deletes files. To delete files, do it from a file list yourself.',
+        ),
+      );
+    }
+    if (USER_DATA.test(clause)) {
+      throw new Rejection(
+        'userData',
+        say(
+          ctx.locale,
+          'AI 只修改界面，不会读取或改动你记录的数据。请直接在页面上添加、修改或删除。',
+          'The AI only changes the app’s interface; it never reads or changes the data you record. Add, edit or delete entries on the page itself.',
         ),
       );
     }

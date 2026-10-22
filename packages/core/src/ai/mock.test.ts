@@ -209,6 +209,45 @@ describe('mock AI — navigation and pages', () => {
   });
 });
 
+describe('mock AI — data pages (structure only)', () => {
+  it.each([
+    ['新建一个记账页面', 'zh', '账目'],
+    ['新建待办清单', 'zh', '待办'],
+    ['做一个读书清单', 'zh', '书单'],
+    ['新建笔记页面', 'zh', '笔记'],
+    ['Create a to-do list', 'en', 'To-dos'],
+  ] as const)('F1 “%s” builds a data table and page', async (input, locale, table) => {
+    const { after } = await change(input, workspace(locale), locale);
+    expect(after.collections.map((c) => c.name)).toEqual([table]);
+    expect(after.pages).toHaveLength(2);
+  });
+
+  it('F2 adds a field to a table', async () => {
+    const budget = (await change('新建一个记账页面', workspace())).after;
+    const { after, lines } = await change('给账目加一个「支付方式」字段', budget);
+    expect(after.collections[0]!.fields.at(-1)).toEqual({
+      id: 'field-1',
+      name: '支付方式',
+      type: 'text',
+    });
+    expect(lines).toEqual(['给「账目」加字段「支付方式」（文字）']);
+  });
+
+  it.each([
+    '记一笔午饭 35',
+    '把上个月的账都删掉',
+    '把待办都标成完成',
+    '我这个月花了多少',
+    'delete all my expenses',
+  ])('X4 “%s” touches recorded data and is refused', async (input) => {
+    const budget = (await change('新建一个记账页面', workspace())).after;
+    expect(await plan(input, budget, /[a-z]/.test(input) ? 'en' : 'zh')).toMatchObject({
+      kind: 'reject',
+      reason: 'userData',
+    });
+  });
+});
+
 describe('mock AI — journey C (PDF tool)', () => {
   it('C1 simplifies to pick + merge, saves automatically as 合并-日期', async () => {
     const { after, lines } = await change(

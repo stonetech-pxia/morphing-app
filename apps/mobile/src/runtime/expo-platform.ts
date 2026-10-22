@@ -47,6 +47,19 @@ export const expoFilePlatform: FilePlatform = {
     return { path: `${ROOT}/${assetId}/${name}`, size: dest.size };
   },
 
+  async shareText(fileName, text, mimeType) {
+    const dir = new Directory(Paths.cache, 'exports');
+    dir.create({ idempotent: true, intermediates: true });
+    const file = new File(dir, fileName);
+    if (file.exists) file.delete();
+    file.create();
+    file.write(text);
+    await shareAsync(file.uri, {
+      mimeType,
+      ...(mimeType === 'text/csv' ? { UTI: 'public.comma-separated-values-text' } : {}),
+    });
+  },
+
   async share(path, mimeType) {
     await shareAsync(fileAt(path).uri, {
       mimeType,

@@ -61,5 +61,6 @@ export function createDefaultWorkspace(locale: Locale): WorkspaceConfig {
     ],
     tools: [],
     workflows: [],
+    collections: [],
   };
 }

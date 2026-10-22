@@ -53,6 +53,14 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         value={t(locale, 'toolsRowHint')}
         onPress={() => selectTab('tools')}
       />
+      <ListRow
+        palette={palette}
+        testID="settings-data"
+        icon="inbox"
+        label={t(locale, 'dataTitle')}
+        value={t(locale, 'dataRowHint')}
+        onPress={() => router.push('/data')}
+      />
       <SectionLabel palette={palette}>{t(locale, 'general')}</SectionLabel>
       <ListRow palette={palette} label={t(locale, 'language')} value={t(locale, 'languageValue')} />
       <ListRow

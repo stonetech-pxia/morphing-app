@@ -1,3 +1,4 @@
+import type { DataRecord } from '@morph/core';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import {
@@ -6,6 +7,7 @@ import {
   type ChangeRequestRecord,
   type CommitInput,
   type RevisionRecord,
+  type StoredRecord,
   type ToolRunRecord,
   type WorkspaceRepo,
 } from './types';
@@ -63,7 +65,46 @@ const DB_MIGRATIONS: string[] = [
      started_at INTEGER NOT NULL,
      finished_at INTEGER
    );`,
+  // 用户记录：在配置之外，不随版本恢复（docs/DATA_DESIGN.md）。
+  `CREATE TABLE records (
+     id TEXT PRIMARY KEY,
+     collection_id TEXT NOT NULL,
+     values_json TEXT NOT NULL,
+     created_at INTEGER NOT NULL,
+     updated_at INTEGER NOT NULL,
+     deleted_at INTEGER
+   );
+   CREATE INDEX records_by_collection ON records (collection_id, deleted_at, created_at);`,
 ];
+
+interface RecordRow {
+  id: string;
+  collection_id: string;
+  values_json: string;
+  created_at: number;
+  updated_at: number;
+  deleted_at: number | null;
+}
+
+function toStoredRecord(row: RecordRow): StoredRecord {
+  let values: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(row.values_json);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      values = parsed as Record<string, unknown>;
+    }
+  } catch {
+    // 损坏的记录显示为空，而不是让页面崩溃。
+  }
+  return {
+    id: row.id,
+    collectionId: row.collection_id,
+    values,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    deletedAt: row.deleted_at,
+  };
+}
 
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
   await db.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
@@ -310,6 +351,72 @@ export class SQLiteWorkspaceRepo implements WorkspaceRepo {
       startedAt: r.started_at,
       finishedAt: r.finished_at,
     }));
+  }
+
+  async listRecords(collectionId: string) {
+    const rows = await this.db.getAllAsync<RecordRow>(
+      'SELECT * FROM records WHERE collection_id = ? AND deleted_at IS NULL',
+      collectionId,
+    );
+    return rows.map(toStoredRecord);
+  }
+
+  async getRecord(id: string) {
+    const row = await this.db.getFirstAsync<RecordRow>('SELECT * FROM records WHERE id = ?', id);
+    return row ? toStoredRecord(row) : null;
+  }
+
+  async insertRecord(record: DataRecord) {
+    await this.db.runAsync(
+      'INSERT INTO records (id, collection_id, values_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+      record.id,
+      record.collectionId,
+      JSON.stringify(record.values),
+      record.createdAt,
+      record.updatedAt,
+    );
+  }
+
+  async updateRecord(id: string, values: Record<string, unknown>, updatedAt: number) {
+    await this.db.runAsync(
+      'UPDATE records SET values_json = ?, updated_at = ? WHERE id = ?',
+      JSON.stringify(values),
+      updatedAt,
+      id,
+    );
+  }
+
+  async deleteRecord(id: string, deletedAt: number) {
+    await this.db.runAsync('UPDATE records SET deleted_at = ? WHERE id = ?', deletedAt, id);
+  }
+
+  async restoreRecord(id: string) {
+    await this.db.runAsync('UPDATE records SET deleted_at = NULL WHERE id = ?', id);
+  }
+
+  async listDeletedRecords() {
+    const rows = await this.db.getAllAsync<RecordRow>(
+      'SELECT * FROM records WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC',
+    );
+    return rows.map(toStoredRecord);
+  }
+
+  async purgeDeletedRecords(before: number) {
+    const result = await this.db.runAsync(
+      'DELETE FROM records WHERE deleted_at IS NOT NULL AND deleted_at < ?',
+      before,
+    );
+    return result.changes;
+  }
+
+  async countRecords() {
+    return this.db.getAllAsync<{ collectionId: string; count: number }>(
+      'SELECT collection_id AS collectionId, COUNT(*) AS count FROM records WHERE deleted_at IS NULL GROUP BY collection_id',
+    );
+  }
+
+  async purgeCollection(collectionId: string) {
+    await this.db.runAsync('DELETE FROM records WHERE collection_id = ?', collectionId);
   }
 }
 

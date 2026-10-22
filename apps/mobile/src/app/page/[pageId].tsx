@@ -8,6 +8,7 @@ import { Icon } from '@/renderer/Icon';
 import { PageView, type RenderEnv } from '@/renderer/components';
 import { usePalette } from '@/renderer/theme';
 import { useNavigate } from '@/shell/navigation';
+import { Toast } from '@/shell/Toast';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
 /** 不在导航栏里的页面（工具页、用户新建的页面）：同一个渲染器，渲染工作空间配置中的某一页。 */
@@ -54,6 +55,7 @@ export default function PageRoute() {
       <ErrorBoundary key={headId} onError={reportRenderError} fallback={<View />}>
         <PageView page={page} env={env} bottomInset={insets.bottom} />
       </ErrorBoundary>
+      <Toast palette={palette} bottom={insets.bottom + 16} />
     </>
   );
 }

@@ -37,6 +37,8 @@ export interface FilePlatform {
     bytes: Uint8Array,
   ): Promise<{ path: string; size: number }>;
   share(path: string, mimeType: string): Promise<void>;
+  /** 把一段文字存成临时文件并打开系统分享面板（导出 CSV 用）。不会成为用户文件。 */
+  shareText(fileName: string, text: string, mimeType: string): Promise<void>;
 }
 
 export interface RunPrompts {

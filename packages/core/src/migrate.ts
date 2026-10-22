@@ -43,8 +43,18 @@ export const migrateV1toV2: Migration = (config) => {
   };
 };
 
+/** v2 → v3：新增数据表结构 collections（记录本身不在配置里）。 */
+export const migrateV2toV3: Migration = (config) => ({
+  ...config,
+  schemaVersion: 3,
+  collections: [],
+});
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
-export const MIGRATIONS: Readonly<Record<number, Migration>> = { 1: migrateV1toV2 };
+export const MIGRATIONS: Readonly<Record<number, Migration>> = {
+  1: migrateV1toV2,
+  2: migrateV2toV3,
+};
 
 export type MigrateResult =
   { ok: true; config: unknown; fromVersion: number } | { ok: false; error: string };

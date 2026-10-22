@@ -3,7 +3,7 @@ import { z } from 'zod';
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 修改本文件中会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export type Locale = 'en' | 'zh';
 export type Localized = Record<Locale, string>;
@@ -72,6 +72,85 @@ export const ThemeSchema = z.strictObject({
   navStyle: z.enum(['iconLabel', 'label', 'icon']),
 });
 export type Theme = z.infer<typeof ThemeSchema>;
+
+// ---- 用户数据：数据表结构（在配置里，随版本）。记录本身不在配置里，见 docs/DATA_DESIGN.md ----
+
+const fieldBase = {
+  id: IdSchema,
+  name: text(1, 40),
+  required: z.boolean().optional(),
+};
+
+export const ChoiceOptionSchema = z.strictObject({ id: IdSchema, label: text(1, 40) });
+
+export const FieldSchema = z.discriminatedUnion('type', [
+  z.strictObject({ ...fieldBase, type: z.literal('text'), default: text(1, 200).optional() }),
+  z.strictObject({ ...fieldBase, type: z.literal('note') }),
+  z.strictObject({
+    ...fieldBase,
+    type: z.literal('number'),
+    decimals: z.number().int().min(0).max(4).optional(),
+    unit: text(1, 10).optional(),
+    default: z.number().finite().optional(),
+  }),
+  z.strictObject({
+    ...fieldBase,
+    type: z.literal('money'),
+    currency: z.string().regex(/^[A-Z]{3}$/, 'currency must be an ISO code like CNY'),
+    default: z.number().finite().optional(),
+  }),
+  z.strictObject({ ...fieldBase, type: z.literal('checkbox'), default: z.boolean().optional() }),
+  z.strictObject({ ...fieldBase, type: z.literal('date'), default: z.literal('today').optional() }),
+  z.strictObject({
+    ...fieldBase,
+    type: z.literal('choice'),
+    options: z.array(ChoiceOptionSchema).min(1).max(50),
+    default: IdSchema.optional(),
+  }),
+  z.strictObject({
+    ...fieldBase,
+    type: z.literal('rating'),
+    default: z.number().int().min(1).max(5).optional(),
+  }),
+]);
+export type Field = z.infer<typeof FieldSchema>;
+export type FieldType = Field['type'];
+
+export const CollectionSchema = z.strictObject({
+  id: IdSchema,
+  name: text(1, 40),
+  icon: IconSchema.optional(),
+  fields: z.array(FieldSchema).min(1).max(30),
+});
+export type Collection = z.infer<typeof CollectionSchema>;
+
+/** 每条记录都有的系统字段。 */
+export const SYSTEM_FIELDS = ['createdAt', 'updatedAt'] as const;
+export type SystemField = (typeof SYSTEM_FIELDS)[number];
+export const FieldRefSchema = z.union([IdSchema, z.enum(SYSTEM_FIELDS)]);
+
+export const PERIODS = [
+  'today',
+  'thisWeek',
+  'thisMonth',
+  'thisYear',
+  'last7days',
+  'last30days',
+] as const;
+export type Period = (typeof PERIODS)[number];
+
+/** 筛选条件：白名单比较，多个条件之间是“并且”，没有表达式。 */
+export const ConditionSchema = z.strictObject({
+  field: FieldRefSchema,
+  op: z.enum(['is', 'isNot', 'contains', 'gt', 'lt', 'isEmpty', 'isNotEmpty', 'inPeriod']),
+  value: z.union([z.string().max(200), z.number().finite(), z.boolean()]).optional(),
+});
+export type Condition = z.infer<typeof ConditionSchema>;
+
+export const SortSchema = z.strictObject({
+  field: FieldRefSchema,
+  direction: z.enum(['asc', 'desc']),
+});
 
 // ---- 导航 ----
 
@@ -207,6 +286,50 @@ export const SpacerComponentSchema = z.strictObject({
   props: z.strictObject({ size: z.enum(['small', 'medium', 'large']) }),
 });
 
+/** 记录列表：展示某张数据表的记录；checklist 用一个 checkbox 字段直接打勾。 */
+export const RecordListComponentSchema = z.strictObject({
+  ...componentBase,
+  type: z.literal('recordList'),
+  props: z.strictObject({
+    collectionId: IdSchema,
+    display: z.enum(['list', 'cards', 'checklist']),
+    titleField: FieldRefSchema,
+    subtitleFields: z.array(FieldRefSchema).max(2).optional(),
+    /** 显示在右侧的字段，例如金额。 */
+    trailingField: FieldRefSchema.optional(),
+    checkField: IdSchema.optional(),
+    filter: z.array(ConditionSchema).max(5).optional(),
+    sort: SortSchema.optional(),
+    limit: z.number().int().min(1).max(100),
+    emptyText: text(1, 80).optional(),
+  }),
+});
+
+/** 快速添加表单：inline 直接在页面上填，button 打开完整的记录编辑页。 */
+export const RecordFormComponentSchema = z.strictObject({
+  ...componentBase,
+  type: z.literal('recordForm'),
+  props: z.strictObject({
+    collectionId: IdSchema,
+    fieldIds: z.array(IdSchema).min(1).max(10),
+    submitLabel: text(1, 30),
+    mode: z.enum(['inline', 'button']),
+  }),
+});
+
+/** 统计：对一张表（可筛选）计数或求和、平均、最小、最大。 */
+export const StatComponentSchema = z.strictObject({
+  ...componentBase,
+  type: z.literal('stat'),
+  props: z.strictObject({
+    collectionId: IdSchema,
+    aggregate: z.enum(['count', 'sum', 'avg', 'min', 'max']),
+    fieldId: IdSchema.optional(),
+    filter: z.array(ConditionSchema).max(5).optional(),
+    label: text(1, 40),
+  }),
+});
+
 const LeafComponentSchema = z.discriminatedUnion('type', [
   HeaderComponentSchema,
   TextComponentSchema,
@@ -219,6 +342,9 @@ const LeafComponentSchema = z.discriminatedUnion('type', [
   NoticeComponentSchema,
   DividerComponentSchema,
   SpacerComponentSchema,
+  RecordListComponentSchema,
+  RecordFormComponentSchema,
+  StatComponentSchema,
 ]);
 export type LeafComponent = z.infer<typeof LeafComponentSchema>;
 
@@ -289,12 +415,21 @@ export const WorkspaceConfigSchema = z.strictObject({
   pages: z.array(PageSchema).min(1).max(20),
   tools: z.array(InstalledToolSchema),
   workflows: z.array(WorkflowSchema),
+  /** 数据表结构。记录内容不在配置里，也从不发给 AI。 */
+  collections: z.array(CollectionSchema).max(20),
 });
 export type WorkspaceConfig = z.infer<typeof WorkspaceConfigSchema>;
 
 /** 页面上的所有组件，包括分组里的子组件（深度优先，按显示顺序）。 */
 export function allComponents(page: Page): Component[] {
   return page.components.flatMap((c) => (c.type === 'group' ? [c, ...c.children] : [c]));
+}
+
+/** 数据组件引用的数据表。 */
+export function componentCollection(c: Component): string | null {
+  return c.type === 'recordList' || c.type === 'recordForm' || c.type === 'stat'
+    ? c.props.collectionId
+    : null;
 }
 
 /** 按钮和快捷入口指向的目标。 */

@@ -2,7 +2,9 @@ import { z } from 'zod';
 
 import type { Registry } from './registry';
 import {
+  CollectionSchema,
   ComponentSchema,
+  FieldSchema,
   ComponentStyleSchema,
   FONT_CHOICES,
   HOME_PAGE_ID,
@@ -13,8 +15,10 @@ import {
   PROTECTED_TARGETS,
   PageSchema,
   ThemeSchema,
+  componentCollection,
   componentTarget,
   pageTarget,
+  type Collection,
   type Component,
   type GroupComponent,
   type Locale,
@@ -102,6 +106,37 @@ export const OpSchema = z.discriminatedUnion('op', [
     params: z.record(z.string(), z.unknown()),
   }),
   z.strictObject({ op: z.literal('removeWorkflowStep'), workflowId: IdSchema, stepId: IdSchema }),
+  // ---- 数据表结构（只改结构，从不碰记录内容）----
+  z.strictObject({ op: z.literal('addCollection'), collection: CollectionSchema }),
+  z.strictObject({
+    op: z.literal('updateCollection'),
+    collectionId: IdSchema,
+    name: z.string().optional(),
+    icon: IconSchema.nullable().optional(),
+  }),
+  z.strictObject({
+    op: z.literal('addField'),
+    collectionId: IdSchema,
+    field: FieldSchema,
+    index: z.number().int().min(0).optional(),
+  }),
+  z.strictObject({
+    op: z.literal('updateField'),
+    collectionId: IdSchema,
+    fieldId: IdSchema,
+    /** 合并进字段定义；null 表示去掉该属性。type 只能在兼容的类型之间转换。 */
+    changes: z.record(z.string(), z.unknown()),
+  }),
+  z.strictObject({
+    op: z.literal('moveField'),
+    collectionId: IdSchema,
+    fieldId: IdSchema,
+    toIndex: z.number().int().min(0),
+  }),
+  /** 从结构里去掉字段：记录里的旧值保留，恢复旧版本时会回来。 */
+  z.strictObject({ op: z.literal('removeField'), collectionId: IdSchema, fieldId: IdSchema }),
+  /** 把数据表移出界面：记录保留，可在「设置 → 数据」里导出或由用户永久删除。 */
+  z.strictObject({ op: z.literal('removeCollection'), collectionId: IdSchema }),
 ]);
 export type Op = z.infer<typeof OpSchema>;
 export const OpListSchema = z.array(OpSchema).min(1).max(30);
@@ -109,7 +144,14 @@ export const OpListSchema = z.array(OpSchema).min(1).max(30);
 /** apply 过程中系统自动做出的调整，需要在预览中告知用户。 */
 export type ApplyNote =
   | { kind: 'movedToFloating'; target: NavTarget }
-  | { kind: 'removedLinks'; pageId: string; count: number };
+  | { kind: 'removedLinks'; pageId: string; count: number }
+  | { kind: 'removedDataComponents'; collectionId: string; count: number };
+
+/** 字段类型只能在这些类型之间互相转换，已有的值仍然能读出来。 */
+export const COMPATIBLE_FIELD_TYPES: readonly (readonly string[])[] = [
+  ['text', 'note'],
+  ['number', 'money'],
+];
 
 export type ApplyResult =
   { ok: true; config: WorkspaceConfig; notes: ApplyNote[] } | { ok: false; error: string };
@@ -373,7 +415,91 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       wf.steps = wf.steps.filter((s) => s.id !== op.stepId);
       return;
     }
+    case 'addCollection': {
+      if (config.collections.some((c) => c.id === op.collection.id)) {
+        throw new OpError(`collection ${op.collection.id} already exists`);
+      }
+      config.collections.push(JSON.parse(JSON.stringify(op.collection)) as Collection);
+      return;
+    }
+    case 'updateCollection': {
+      const collection = getCollection(config, op.collectionId);
+      if (op.name !== undefined) collection.name = op.name;
+      if (op.icon === null) delete collection.icon;
+      else if (op.icon !== undefined) collection.icon = op.icon;
+      return;
+    }
+    case 'addField': {
+      const collection = getCollection(config, op.collectionId);
+      if (collection.fields.some((f) => f.id === op.field.id)) {
+        throw new OpError(`field ${op.field.id} already exists in ${collection.id}`);
+      }
+      const index = Math.min(op.index ?? collection.fields.length, collection.fields.length);
+      collection.fields.splice(index, 0, JSON.parse(JSON.stringify(op.field)));
+      return;
+    }
+    case 'updateField': {
+      const collection = getCollection(config, op.collectionId);
+      const index = getFieldIndex(collection, op.fieldId);
+      const old = collection.fields[index]!;
+      if ('id' in op.changes) throw new OpError('a field id cannot change');
+      const newType = op.changes.type;
+      let next: Record<string, unknown>;
+      if (newType !== undefined && newType !== old.type) {
+        const compatible = COMPATIBLE_FIELD_TYPES.some(
+          (pair) => pair.includes(old.type) && pair.includes(String(newType)),
+        );
+        if (!compatible) {
+          throw new OpError(
+            `field ${old.id} cannot change from ${old.type} to ${String(newType)}; add a new field instead`,
+          );
+        }
+        // 换类型时只保留通用属性，类型专属的属性由 changes 提供（例如 money 的 currency）。
+        next = { id: old.id, name: old.name, ...(old.required ? { required: true } : {}) };
+      } else {
+        next = { ...old };
+      }
+      for (const [key, value] of Object.entries(op.changes)) {
+        if (value === null) delete next[key];
+        else next[key] = value;
+      }
+      // 合法性（例如选项 ID 唯一、默认值存在）由 validateWorkspace 检查。
+      collection.fields[index] = next as never;
+      return;
+    }
+    case 'moveField': {
+      const collection = getCollection(config, op.collectionId);
+      const [field] = collection.fields.splice(getFieldIndex(collection, op.fieldId), 1);
+      collection.fields.splice(Math.min(op.toIndex, collection.fields.length), 0, field!);
+      return;
+    }
+    case 'removeField': {
+      const collection = getCollection(config, op.collectionId);
+      collection.fields.splice(getFieldIndex(collection, op.fieldId), 1);
+      return;
+    }
+    case 'removeCollection': {
+      getCollection(config, op.collectionId);
+      config.collections = config.collections.filter((c) => c.id !== op.collectionId);
+      const count = removeEverywhere(config, (c) => componentCollection(c) === op.collectionId);
+      if (count > 0) {
+        notes.push({ kind: 'removedDataComponents', collectionId: op.collectionId, count });
+      }
+      return;
+    }
   }
+}
+
+function getCollection(config: WorkspaceConfig, id: string): Collection {
+  const collection = config.collections.find((c) => c.id === id);
+  if (!collection) throw new OpError(`collection ${id} not found`);
+  return collection;
+}
+
+function getFieldIndex(collection: Collection, id: string): number {
+  const index = collection.fields.findIndex((f) => f.id === id);
+  if (index < 0) throw new OpError(`field ${id} not found in ${collection.id}`);
+  return index;
 }
 
 function getWorkflow(config: WorkspaceConfig, id: string) {

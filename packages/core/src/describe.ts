@@ -64,6 +64,16 @@ export function componentLabel(
       return zh ? '分隔线' : 'divider';
     case 'spacer':
       return zh ? '空白间距' : 'spacer';
+    case 'recordList': {
+      const name = collectionName(c.props.collectionId, config);
+      return zh ? `「${name}」的记录列表` : `“${name}” list`;
+    }
+    case 'recordForm': {
+      const name = collectionName(c.props.collectionId, config);
+      return zh ? `「${name}」的添加表单` : `“${name}” form`;
+    }
+    case 'stat':
+      return zh ? `统计「${c.props.label}」` : `stat “${c.props.label}”`;
     case 'group': {
       const layout = {
         stack: zh ? '竖排' : 'stacked',
@@ -75,6 +85,21 @@ export function componentLabel(
     }
   }
 }
+
+function collectionName(id: string, config: WorkspaceConfig): string {
+  return config.collections.find((c) => c.id === id)?.name ?? id;
+}
+
+const FIELD_TYPE_NAMES: Record<string, [string, string]> = {
+  text: ['文字', 'text'],
+  note: ['长文本', 'long text'],
+  number: ['数字', 'number'],
+  money: ['金额', 'money'],
+  checkbox: ['勾选', 'checkbox'],
+  date: ['日期', 'date'],
+  choice: ['单选', 'choice'],
+  rating: ['评分', 'rating'],
+};
 
 type ThemeTokenKey = Exclude<keyof Theme, 'primaryColor' | 'mode' | 'colors'>;
 
@@ -126,7 +151,16 @@ export function describeChange(
   ctx: DescribeContext,
 ): string[] {
   const zh = ctx.locale === 'zh';
-  const page = (id: string) => before.pages.find((p) => p.id === id);
+  // 同一次修改里新建的数据表也要能用名字称呼。
+  const addedCollections = ops.flatMap((op) => (op.op === 'addCollection' ? [op.collection] : []));
+  // 同一次修改里新建的页面也一样（例如新建页面后把它放进导航栏）。
+  const addedPages = ops.flatMap((op) => (op.op === 'addPage' ? [op.page] : []));
+  const known: WorkspaceConfig = {
+    ...before,
+    pages: [...before.pages, ...addedPages],
+    collections: [...before.collections, ...addedCollections],
+  };
+  const page = (id: string) => known.pages.find((p) => p.id === id);
   const pageName = (id: string) => page(id)?.title ?? id;
   // 同一次修改里新加的组件（例如先加分组再把卡片移进去）也要能用名字称呼。
   const added = ops.flatMap((op) => (op.op === 'addComponent' ? [op.component] : []));
@@ -138,7 +172,7 @@ export function describeChange(
   };
   const comp = (pageId: string, id: string) => {
     const c = findComp(pageId, id);
-    return c ? componentLabel(c, before, ctx) : id;
+    return c ? componentLabel(c, known, ctx) : id;
   };
   const toolName = (id: string) => ctx.registry.tools.get(id)?.name[ctx.locale] ?? id;
   const wf = (id: string) => before.workflows.find((w) => w.id === id);
@@ -147,7 +181,7 @@ export function describeChange(
     return (action && ctx.registry.actions.get(action)?.label[ctx.locale]) ?? stepId;
   };
   const navList = (items: readonly NavTarget[]) =>
-    items.map((t) => navTargetLabel(t, before, ctx.locale)).join(zh ? '、' : ', ');
+    items.map((t) => navTargetLabel(t, known, ctx.locale)).join(zh ? '、' : ', ');
   const modeLabel = {
     light: zh ? '浅色' : 'light',
     dark: zh ? '深色' : 'dark',
@@ -167,9 +201,86 @@ export function describeChange(
       : `${comp(pageId, parentId)} on “${pageName(pageId)}”`;
   };
 
+  const coll = (id: string) => known.collections.find((c) => c.id === id);
+  const collName = (id: string) => coll(id)?.name ?? id;
+  const fieldName = (collectionId: string, fieldId: string) =>
+    coll(collectionId)?.fields.find((f) => f.id === fieldId)?.name ?? fieldId;
+  const typeName = (type: unknown) => FIELD_TYPE_NAMES[String(type)]?.[zh ? 0 : 1] ?? String(type);
+  const list = (items: string[]) => items.join(zh ? '、' : ', ');
+
   const lines: string[] = [];
   for (const op of ops) {
     switch (op.op) {
+      case 'addCollection':
+        lines.push(
+          zh
+            ? `新建数据表「${op.collection.name}」（${list(op.collection.fields.map((f) => f.name))}）`
+            : `Add data table “${op.collection.name}” (${list(op.collection.fields.map((f) => f.name))})`,
+        );
+        break;
+      case 'updateCollection':
+        if (op.name !== undefined)
+          lines.push(
+            zh
+              ? `数据表「${collName(op.collectionId)}」改名为「${op.name}」`
+              : `Rename data table “${collName(op.collectionId)}” to “${op.name}”`,
+          );
+        if (op.icon !== undefined)
+          lines.push(
+            zh
+              ? `数据表「${collName(op.collectionId)}」换图标`
+              : `Change the icon of “${collName(op.collectionId)}”`,
+          );
+        break;
+      case 'addField':
+        lines.push(
+          zh
+            ? `给「${collName(op.collectionId)}」加字段「${op.field.name}」（${typeName(op.field.type)}）`
+            : `Add field “${op.field.name}” (${typeName(op.field.type)}) to “${collName(op.collectionId)}”`,
+        );
+        break;
+      case 'updateField': {
+        const name = fieldName(op.collectionId, op.fieldId);
+        const parts: string[] = [];
+        if (typeof op.changes.name === 'string')
+          parts.push(zh ? `改名为「${op.changes.name}」` : `rename to “${op.changes.name}”`);
+        if (op.changes.type !== undefined)
+          parts.push(
+            zh ? `类型改为${typeName(op.changes.type)}` : `type → ${typeName(op.changes.type)}`,
+          );
+        if (Array.isArray(op.changes.options)) {
+          const labels = (op.changes.options as { label?: unknown }[]).map((o) => String(o.label));
+          parts.push(zh ? `选项改为 ${list(labels)}` : `options → ${list(labels)}`);
+        }
+        if (parts.length === 0) parts.push(zh ? '调整设置' : 'update settings');
+        lines.push(
+          zh
+            ? `「${collName(op.collectionId)}」的字段「${name}」${parts.join('，')}`
+            : `“${collName(op.collectionId)}” field “${name}”: ${parts.join(', ')}`,
+        );
+        break;
+      }
+      case 'moveField':
+        lines.push(
+          zh
+            ? `把「${collName(op.collectionId)}」的字段「${fieldName(op.collectionId, op.fieldId)}」移到第 ${op.toIndex + 1} 位`
+            : `Move field “${fieldName(op.collectionId, op.fieldId)}” of “${collName(op.collectionId)}” to position ${op.toIndex + 1}`,
+        );
+        break;
+      case 'removeField':
+        lines.push(
+          zh
+            ? `隐藏「${collName(op.collectionId)}」的字段「${fieldName(op.collectionId, op.fieldId)}」（已有数据保留）`
+            : `Hide field “${fieldName(op.collectionId, op.fieldId)}” of “${collName(op.collectionId)}” (existing data is kept)`,
+        );
+        break;
+      case 'removeCollection':
+        lines.push(
+          zh
+            ? `把数据表「${collName(op.collectionId)}」移出界面（记录保留，可在「设置 → 数据」里查看和导出）`
+            : `Remove data table “${collName(op.collectionId)}” from the app (records are kept in Settings → Data)`,
+        );
+        break;
       case 'setTheme': {
         if (op.primaryColor)
           lines.push(zh ? `主题色改为 ${op.primaryColor}` : `Theme color → ${op.primaryColor}`);
@@ -329,8 +440,8 @@ export function describeChange(
       case 'addComponent':
         lines.push(
           zh
-            ? `在${where(op.pageId, op.parentId)}添加${componentLabel(op.component, before, ctx)}`
-            : `Add ${componentLabel(op.component, before, ctx)} to ${where(op.pageId, op.parentId)}`,
+            ? `在${where(op.pageId, op.parentId)}添加${componentLabel(op.component, known, ctx)}`
+            : `Add ${componentLabel(op.component, known, ctx)} to ${where(op.pageId, op.parentId)}`,
         );
         break;
       case 'removeComponent':
@@ -392,6 +503,12 @@ export function describeChange(
           ? `「${label}」不能移除（AI 修改和历史入口都在里面），已改为浮动按钮`
           : `“${label}” can’t be removed (it holds the AI and History entries), so it becomes a floating button`,
       );
+    } else if (note.kind === 'removedDataComponents') {
+      lines.push(
+        zh
+          ? `同时移除 ${note.count} 个显示「${collName(note.collectionId)}」的组件`
+          : `Also removes ${note.count} component(s) that showed “${collName(note.collectionId)}”`,
+      );
     } else {
       lines.push(
         zh
@@ -433,6 +550,30 @@ export function describeRestore(
       lines.push(zh ? `「${toolName(id)}」工具会重新出现` : `The ${toolName(id)} tool comes back`);
     }
   }
-  lines.push(zh ? '你的文件不受影响' : 'Your files are not affected');
+  const tables = (c: WorkspaceConfig) => new Set(c.collections.map((x) => x.id));
+  const [beforeTables, afterTables] = [tables(before), tables(after)];
+  for (const c of before.collections) {
+    if (!afterTables.has(c.id)) {
+      lines.push(
+        zh
+          ? `数据表「${c.name}」会移出界面；记录保留在「设置 → 数据」，以后恢复回来时数据还在`
+          : `The “${c.name}” table leaves the app; its entries stay in Settings → Data and come back with it`,
+      );
+    }
+  }
+  for (const c of after.collections) {
+    if (!beforeTables.has(c.id)) {
+      lines.push(zh ? `数据表「${c.name}」会重新出现` : `The “${c.name}” table comes back`);
+    }
+  }
+  lines.push(
+    before.collections.length + after.collections.length > 0
+      ? zh
+        ? '你的文件和记录的数据不受影响'
+        : 'Your files and entries are not affected'
+      : zh
+        ? '你的文件不受影响'
+        : 'Your files are not affected',
+  );
   return lines;
 }

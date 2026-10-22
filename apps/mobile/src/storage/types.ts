@@ -1,4 +1,4 @@
-import type { WorkspaceConfig } from '@morph/core';
+import type { DataRecord, WorkspaceConfig } from '@morph/core';
 
 // 本地存储契约（M1/M2 以设备本地为唯一权威来源，§5.4）。
 // SQLite 实现用于 App，内存实现用于测试；两者必须满足同样的语义。
@@ -75,6 +75,12 @@ export interface ToolRunRecord {
   finishedAt: number | null;
 }
 
+/** 用户数据的一条记录（docs/DATA_DESIGN.md）。不属于任何版本：撤销、恢复都不会改动它。 */
+export interface StoredRecord extends DataRecord {
+  /** 软删除时间；null 表示正常。 */
+  deletedAt: number | null;
+}
+
 export interface WorkspaceRepo {
   getHead(): Promise<RevisionRecord | null>;
   getRevision(id: number): Promise<RevisionRecord | null>;
@@ -113,4 +119,22 @@ export interface WorkspaceRepo {
     result: { status: Exclude<ToolRunStatus, 'running'>; error?: string; outputAssetId?: string },
   ): Promise<void>;
   listToolRuns(limit: number): Promise<ToolRunRecord[]>;
+
+  // ---- 用户记录：只由用户在页面上的操作读写，从不经过 AI ----
+  /** 某张表未删除的记录（顺序不保证，由调用方排序）。 */
+  listRecords(collectionId: string): Promise<DataRecord[]>;
+  getRecord(id: string): Promise<StoredRecord | null>;
+  insertRecord(record: DataRecord): Promise<void>;
+  updateRecord(id: string, values: Record<string, unknown>, updatedAt: number): Promise<void>;
+  /** 软删除：可以撤销，「最近删除」里保留 30 天。 */
+  deleteRecord(id: string, deletedAt: number): Promise<void>;
+  restoreRecord(id: string): Promise<void>;
+  /** 最近删除的在前。 */
+  listDeletedRecords(): Promise<StoredRecord[]>;
+  /** 永久清除在 before 之前软删除的记录，返回清除的数量。 */
+  purgeDeletedRecords(before: number): Promise<number>;
+  /** 每张表未删除的记录数（包括已经不在配置里的表）。 */
+  countRecords(): Promise<{ collectionId: string; count: number }[]>;
+  /** 用户确认后永久删除一张表的全部记录。 */
+  purgeCollection(collectionId: string): Promise<void>;
 }

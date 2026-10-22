@@ -1,6 +1,7 @@
 import {
   BUILTIN_TOOLS,
   ComponentSchema,
+  FieldSchema,
   ICON_NAMES,
   OpSchema,
   createDefaultWorkspace,
@@ -51,6 +52,8 @@ describe('system prompt', () => {
       expect(prompt).toContain(`- ${option.shape.type.value} `);
     }
     for (const icon of ICON_NAMES) expect(prompt).toContain(icon);
+    for (const type of FieldSchema.options) expect(prompt).toContain(type.shape.type.value);
+    expect(prompt).toContain('"userData"');
   });
 });
 

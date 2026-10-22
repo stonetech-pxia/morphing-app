@@ -1,5 +1,6 @@
 import {
   PlanSchema,
+  RECORD_LIMITS,
   createDefaultWorkspace,
   describeRestore,
   prepareOps,
@@ -69,6 +70,10 @@ export interface WorkspaceState {
   assetsVersion: number;
   /** 外壳当前显示的导航项；版本变化时外壳会重新挂载，所以保存在这里。 */
   tab: NavTarget | null;
+  /** 记录的刷新信号：增删改记录后递增。 */
+  recordsVersion: number;
+  /** 记录操作后的提示（例如删除后可以撤销）。与版本提示条分开：记录不属于任何版本。 */
+  toast: { message: string; restoreRecordId?: string } | null;
 
   boot(): Promise<void>;
   propose(input: string): Promise<ProposeResult>;
@@ -82,6 +87,9 @@ export interface WorkspaceState {
   reportRenderError(error: unknown): Promise<void>;
   dismissBanner(): void;
   selectTab(target: NavTarget): void;
+  bumpRecords(): void;
+  showToast(toast: { message: string; restoreRecordId?: string }): void;
+  dismissToast(): void;
   listRevisions(limit?: number): Promise<RevisionRecord[]>;
   bumpAssets(): void;
 }
@@ -227,9 +235,15 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       busy: false,
       assetsVersion: 0,
       tab: null,
+      recordsVersion: 0,
+      toast: null,
 
       async boot() {
         try {
+          // 软删除超过保留期的记录在启动时永久清除（D-037）。
+          await repo.purgeDeletedRecords(
+            deps.now().getTime() - RECORD_LIMITS.deletedRetentionDays * 24 * 60 * 60 * 1000,
+          );
           const head = await repo.getHead();
           if (!head) {
             await repo.commitRevision({
@@ -418,6 +432,9 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
 
       dismissBanner: () => set({ banner: null }),
       selectTab: (target) => set({ tab: target }),
+      bumpRecords: () => set((s) => ({ recordsVersion: s.recordsVersion + 1 })),
+      showToast: (toast) => set({ toast }),
+      dismissToast: () => set({ toast: null }),
 
       listRevisions: (limit = 50) => repo.listRevisions(limit),
 

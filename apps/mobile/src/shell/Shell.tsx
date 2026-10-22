@@ -11,6 +11,7 @@ import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { HistoryView } from './HistoryView';
 import { targetIcon, targetLabel, useNavigate } from './navigation';
 import { SettingsView } from './SettingsView';
+import { Toast } from './Toast';
 import { ToolsView } from './ToolsView';
 
 const BAR_HEIGHT = { iconLabel: 64, label: 52, icon: 56 } as const;
@@ -127,6 +128,8 @@ export function Shell() {
           })}
         </View>
       ) : null}
+
+      <Toast palette={palette} bottom={barSpace + 12} />
 
       <View
         style={[

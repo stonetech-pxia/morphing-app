@@ -38,6 +38,11 @@ export class FakeFiles implements FilePlatform {
   async share(path: string) {
     this.shared.push(path);
   }
+  /** 导出的文字文件：文件名 → 内容。 */
+  sharedTexts = new Map<string, string>();
+  async shareText(fileName: string, text: string) {
+    this.sharedTexts.set(fileName, text);
+  }
   /** 放一个“用户可选择的”文件。 */
   offer(name: string, bytes: Uint8Array, mimeType = 'application/pdf'): PickedFile {
     const uri = `picker://${name}`;
