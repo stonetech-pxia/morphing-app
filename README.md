@@ -89,4 +89,4 @@ docs/               架构、范围、决策、安全说明、mock AI 句式清�
 
 ## 许可证
 
-[AGPL-3.0](LICENSE)。贡献者协议（CLA）待定，在接受外部贡献前确定，见 [docs/DECISIONS.md](docs/DECISIONS.md)。
+[AGPL-3.0](LICENSE)。目前暂不接受外部贡献（Pull Request），欢迎通过 issue 反馈问题和建议，见 [CONTRIBUTING.md](CONTRIBUTING.md)。
