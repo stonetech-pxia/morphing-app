@@ -7,6 +7,15 @@ import { packById, type PackManifest } from '@morph/core';
 export interface PackFs {
   /** 下载到 packs 目录下的相对路径，返回下载到的字节。 */
   download(url: string, path: string): Promise<Uint8Array>;
+  /**
+   * 大文件（几十到几百 MB 的语音模型）：下载到磁盘，在原生代码里边读边算 SHA-256，不读进 JS 内存；
+   * onBytes 报告已经下载的字节。没有时（Expo Go、测试）退回 download。
+   */
+  downloadLarge?(
+    url: string,
+    path: string,
+    onBytes: (bytes: number) => void,
+  ): Promise<{ size: number; sha256: string }>;
   exists(path: string): Promise<boolean>;
   readText(path: string): Promise<string>;
   writeText(path: string, text: string): Promise<void>;
@@ -47,6 +56,9 @@ const dirOf = (pack: PackManifest) => `${pack.id}/${pack.version}`;
 
 /** 同时下载的文件数。 */
 const PARALLEL = 6;
+
+/** 超过这个大小的文件走 downloadLarge。 */
+export const LARGE_FILE = 32 * 1024 * 1024;
 
 export class PackStore {
   constructor(
@@ -99,14 +111,27 @@ export class PackStore {
       const queue = [...pack.files];
       const worker = async () => {
         for (let file = queue.shift(); file; file = queue.shift()) {
-          let bytes: Uint8Array;
+          const path = `${dir}/${file.path}`;
+          let got: { size: number; sha256: string | null; bytes?: Uint8Array };
           try {
-            bytes = await this.fs.download(file.url, `${dir}/${file.path}`);
+            if (file.size > LARGE_FILE && this.fs.downloadLarge) {
+              got = await this.fs.downloadLarge(file.url, path, (bytes) =>
+                onProgress?.({
+                  packId: id,
+                  doneBytes: done + Math.min(bytes, file.size),
+                  totalBytes: total,
+                }),
+              );
+            } else {
+              const bytes = await this.fs.download(file.url, path);
+              got = { size: bytes.length, sha256: null, bytes };
+            }
           } catch {
             throw new PackError('download', file.path);
           }
-          if (bytes.length !== file.size) throw new PackError('size', file.path);
-          if ((await this.sha256(bytes)) !== file.sha256) throw new PackError('hash', file.path);
+          if (got.size !== file.size) throw new PackError('size', file.path);
+          const hash = got.sha256 ?? (await this.sha256(got.bytes!));
+          if (hash !== file.sha256) throw new PackError('hash', file.path);
           done += file.size;
           onProgress?.({ packId: id, doneBytes: done, totalBytes: total });
         }
