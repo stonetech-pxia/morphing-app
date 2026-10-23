@@ -144,6 +144,12 @@ export interface FilePlatform {
   removeRun(runId: string): Promise<void>;
   /** 启动时清理上次没来得及删除的临时目录。 */
   removeAllRuns(): Promise<void>;
+  /**
+   * 删除分享进来的文件的副本（D-097）：iOS 分享扩展放进 App Group 共享目录的文件，keep 以外的全部删掉
+   * （只动共享目录最上层、UUID 文件名的文件）；copies 是 Android 原生模块复制到缓存目录的副本，只删缓存目录里的。
+   * Android 的 content:// 地址本身不用删。
+   */
+  removeShared(keep?: readonly string[], copies?: readonly string[]): Promise<void>;
   /** 把临时文件存成用户文件。 */
   saveRunFile(uri: string, assetId: string, name: string): Promise<{ path: string; size: number }>;
 

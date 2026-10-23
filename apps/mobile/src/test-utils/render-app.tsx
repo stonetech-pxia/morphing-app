@@ -9,8 +9,10 @@ import ChangeRoute from '../app/change';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
 import RunRoute from '../app/run/[workflowId]';
+import ShareRoute from '../app/share';
 import WorkflowRoute from '../app/workflow/[id]';
 import WorkflowsRoute from '../app/workflows';
+import { useIncomingShare } from '../share/useIncomingShare';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { WorkspaceProvider } from '../workspace/context';
 import { createWorkspaceStore } from '../workspace/store';
@@ -29,6 +31,12 @@ const memorySecrets = (): SecretStore => {
   };
 };
 
+/** 和根布局一样接收分享（原生模块在测试里是假的或没有）。 */
+function ShareListener({ files }: { files: FakeFiles }) {
+  useIncomingShare(files);
+  return null;
+}
+
 export async function renderToolsApp(repo = new MemoryWorkspaceRepo(), files = new FakeFiles()) {
   const aiSettings = createAISettingsStore({ secrets: memorySecrets(), serverAvailable: false });
   await aiSettings.getState().load();
@@ -44,6 +52,7 @@ export async function renderToolsApp(repo = new MemoryWorkspaceRepo(), files = n
     _layout: () => (
       <AISettingsProvider store={aiSettings}>
         <WorkspaceProvider value={{ store, repo, files, registry: testRegistry, locale: 'zh' }}>
+          <ShareListener files={files} />
           <Stack />
         </WorkspaceProvider>
       </AISettingsProvider>
@@ -54,6 +63,7 @@ export async function renderToolsApp(repo = new MemoryWorkspaceRepo(), files = n
     'run/[workflowId]': RunRoute,
     workflows: WorkflowsRoute,
     'workflow/[id]': WorkflowRoute,
+    share: ShareRoute,
   });
   return { repo, store, files };
 }

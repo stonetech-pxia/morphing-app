@@ -134,7 +134,7 @@ interface StepContext {
 
 前缀即领域，实现位置见括号。
 
-- **输入输出（内核）**：`in.photos`（`source`：相册多选、拍照，或 `scanner` 系统文档相机——iOS 的 VisionKit、Android 的 ML Kit 文档扫描，实时找边、自动拍、多页、拍完已拉正，页面带 `straightened` 标记；没有文档相机的设备改用相机，D-086、D-087）、`in.files`（PDF / 图片 / 任意文件）、`file.rename`（命名模板）、`file.save`（存到 Morph 文件）、`out.share`、`out.saveToPhotos`、`out.print`；`in.text`（用户输入一段文字，private）、`in.records`（读取一张数据表的记录，可按时间段，按表里第一个日期字段）。（App：expo-image-picker、expo-document-picker、expo-sharing、expo-media-library、expo-print）
+- **输入输出（内核）**：`in.photos`（`source`：相册多选、拍照，或 `scanner` 系统文档相机——iOS 的 VisionKit、Android 的 ML Kit 文档扫描，实时找边、自动拍、多页、拍完已拉正，页面带 `straightened` 标记；没有文档相机的设备改用相机，D-086、D-087）、`in.files`（PDF / 图片 / 任意文件；这两个在第一步时也接收别的 App 分享进来的文件，§11）、`file.rename`（命名模板）、`file.save`（存到 Morph 文件）、`out.share`、`out.saveToPhotos`、`out.print`；`in.text`（用户输入一段文字，private）、`in.records`（读取一张数据表的记录，可按时间段，按表里第一个日期字段）。（App：expo-image-picker、expo-document-picker、expo-sharing、expo-media-library、expo-print）
 - **图片**：`image.convert`、`image.resize`、`image.compress`（压到 ≤ N KB）、`image.crop`（本地框选）、`image.rotate`、`image.stripMetadata`、`image.idPhoto`、`image.stitch`、`image.grid`、`image.redact`（本地）、`image.watermark`、`image.printSheet`（证件照排到 4×6 / 5×7 / A4 / Letter 相纸，带裁切线）。（算法：`packages/tool-image`；编码：expo-image-manipulator；合成：Skia 离屏绘制 `composeImage`，画布单边不超过 8192、总像素不超过 1677 万，超出整体缩小，D-079）
 - **PDF**：`pdf.fromImages`（A4 / Letter / 跟随图片，可设边距和 ≤ X MB）、`pdf.merge`（PDF 和图片混合）、`pdf.pages`（本地选页 / 删页 / 排序 / 旋转）、`pdf.selectPages`（按页码规则：全部 / 奇数 / 偶数 / 范围）、`pdf.rotate`、`pdf.split`、`pdf.pageNumbers`、`pdf.stamp`（文字戳 / 日期戳）、`pdf.sign`（本地）、`pdf.fillForm`（本地）+ 拍平、`pdf.toImages`、`pdf.extractText`。（`packages/tool-pdf`：pdf-lib；`toImages` / `extractText` / 缩略图需要 PDF 预览包）
 - **扫描**（工具 `scan`）：`scan.detect`（找边 → 本地调四角，每张都要确认 → 透视矫正，长边 2400；iOS 用 Vision 找边、Core Image 矫正，Android 和 Expo Go 用扫描包，D-086；文档相机拍的页面直接放行，也不需要扫描包）、`scan.enhance`（提亮 / 灰度 / 黑白 / 原样；Skia 颜色矩阵，不需要扩展包）。
@@ -170,12 +170,15 @@ interface StepContext {
 
 **原生依赖**（Gradle / 系统框架，不在 `check:licenses` 里，新增时要更新这张表）：
 
-| 依赖                                                                         | 版本     | 平台    | 许可证 / 条款                     | 用途                                  |
-| ---------------------------------------------------------------------------- | -------- | ------- | --------------------------------- | ------------------------------------- |
-| Vision、VisionKit、Core Image、ImageIO                                       | 系统自带 | iOS     | Apple 系统框架                    | 文字识别、找边、拉正、文档相机        |
-| `com.google.mlkit:text-recognition`（及 `-chinese`、`-japanese`、`-korean`） | 16.0.1   | Android | 闭源，Google ML Kit 条款（P-015） | 文字识别，模型打包进 App              |
-| `com.google.android.gms:play-services-mlkit-document-scanner`                | 16.0.0   | Android | 闭源，Google APIs 条款（P-015）   | 文档扫描界面（需要 Google Play 服务） |
-| `com.google.android.gms:play-services-base`                                  | 18.11.1  | Android | 闭源，Google APIs 条款（P-015）   | 检查有没有 Google Play 服务           |
+| 依赖                                                                         | 版本     | 平台    | 许可证 / 条款                     | 用途                                    |
+| ---------------------------------------------------------------------------- | -------- | ------- | --------------------------------- | --------------------------------------- |
+| Vision、VisionKit、Core Image、ImageIO                                       | 系统自带 | iOS     | Apple 系统框架                    | 文字识别、找边、拉正、文档相机          |
+| `com.google.mlkit:text-recognition`（及 `-chinese`、`-japanese`、`-korean`） | 16.0.1   | Android | 闭源，Google ML Kit 条款（P-015） | 文字识别，模型打包进 App                |
+| `com.google.android.gms:play-services-mlkit-document-scanner`                | 16.0.0   | Android | 闭源，Google APIs 条款（P-015）   | 文档扫描界面（需要 Google Play 服务）   |
+| `com.google.android.gms:play-services-base`                                  | 18.11.1  | Android | 闭源，Google APIs 条款（P-015）   | 检查有没有 Google Play 服务             |
+| `ExpoShareIntentModule`（CocoaPods，随 npm 包 expo-share-intent）            | 9.0.0    | iOS     | MIT                               | 分享到 Morph：主 App 读共享目录（§11）  |
+| `expo-share-intent`（Gradle 模块，随 npm 包）                                | 9.0.0    | Android | MIT                               | 分享到 Morph：接收 `ACTION_SEND`（§11） |
+| Social、UniformTypeIdentifiers、ImageIO（分享扩展 `MorphShare`）             | 系统自带 | iOS     | Apple 系统框架                    | 分享扩展复制文件（§11）                 |
 
 ## 7. 预设工作流和编辑
 
@@ -240,7 +243,7 @@ interface StepContext {
 
 T8 起有了开发版构建（D-084），下面这些可以用原生模块做，但还没排期：
 
-- 证件照自动框脸 / 换底色（Vision 人脸和人像分割）、中文表单填写、分享扩展 / 「用 Morph 打开」（目前要先把文件存到「文件」再回 Morph 里选）。
+- 证件照自动框脸 / 换底色（Vision 人脸和人像分割）、中文表单填写、「用 Morph 打开」（文件类型关联；「分享到 Morph」已经做了，见 §11）。
 - 视频压缩和剪辑、桌面小组件、Android 相册清理。
 - Android 上给已有照片找边（ML Kit 没有这个接口，目前用扫描包）。
 - 压缩任意外来 PDF、PDF 加密解密（第二批）。
@@ -259,3 +262,37 @@ T8 起有了开发版构建（D-084），下面这些可以用原生模块做，
 | T7     | 预设工作流 + 编辑器 + AI 修改和新建工作流（修改操作、planner、mock、评测）                  |
 | T8     | 开发版构建；iOS 原生文字识别和扫描（Vision、Core Image、文档相机）；扩展包留作退路          |
 | T9     | Android：ML Kit 文字识别和文档扫描（D-087）                                                 |
+| T10    | 分享到 Morph：iOS 分享扩展 + Android intent-filter，收件页面，分享的文件交给工作流（§11）   |
+
+## 11. 分享到 Morph（D-095–D-099）
+
+用户在照片、文件、邮件、微信等 App 里点分享 → 选 Morph → 文件进入 Morph，用户选一个工作流运行，或者存成 Morph 文件。
+
+**原生部分**（expo-share-intent 9.0.0，MIT，D-095）：
+
+```
+iOS：别的 App ──分享──▶ 分享扩展 MorphShare（我们的 ShareViewController.swift，D-099）
+        按顺序把文件复制到 App Group 共享目录（UUID.扩展名），写 UserDefaults[morphShareKey]
+        ──morph://dataUrl=morphShareKey?nonce=…#media|file──▶ 主 App
+Android：别的 App ──ACTION_SEND / ACTION_SEND_MULTIPLE（image/*、application/*）──▶ MainActivity（singleTask）
+主 App：ExpoShareIntentModule.getShareIntent → onChange（iOS 是 JSON，Android 是带 content:// 的对象）
+```
+
+- `ios/`、`android/` 仍由 prebuild 生成：`app.json` 里 `expo-share-intent` 的参数（激活规则：图片、文件各最多 50 个；Android 的 MIME 类型；扩展 target 名 `MorphShare`），加上本地插件 `plugins/with-share-extension.js`（显示名改成「Morph」，换上我们的控制器）。
+- App 里的入口是 `share/useIncomingShare.ts`（根布局调用）：订阅原生模块的 `onChange` → `normalizeShare`（两种平台的数据 → 和选择器一样的 `PickedFile[]`，只收 `file://` / `content://`，文字和网址不收）→ 放进内存里的 `useIncoming` → 打开 `/share`。iOS 的唤起链接由 `app/+native-intent.tsx` 拦下（冷启动到首页，开着时留在当前页面）。Expo Go 和测试里没有原生模块时什么也不做；测试用假的原生模块（`__tests__/share-test.tsx`）。
+
+**收件页面**（`/share`，D-098）：文件名和大小（只在本机显示）→「存到 Morph 文件」→「用工作流处理」：`shareFit(工作流, 文件)` 看第一步：
+
+| 第一步                  | 收什么                                                                      | 值的类型              |
+| ----------------------- | --------------------------------------------------------------------------- | --------------------- |
+| `in.photos`             | 全是图片（来源是相册、相机还是扫描都行；没拉正的照片由后面的找边处理）      | `images`              |
+| `in.files`              | 按 `accept`：`pdf` 全是 PDF、`images` 全是图片、`pdfOrImages`、`zip`、`any` | `FILE_ACCEPT[accept]` |
+| `in.text`、`in.records` | 不收                                                                        |                       |
+
+个数还要在第一步的 `min`–`max` 之间：类型对、个数不对的列出来但不能运行（「需要至少 2 个文件」「最多 1 个文件」）。超过大小上限（P-006，`sharedSizeProblem`）时只显示错误。点「运行」才运行，不会自动运行。
+
+**运行**（D-096）：`/run/<id>?shared=<分享 ID>` → `startRun({ incoming })` → `RunServices.incoming`。`in.photos` / `in.files` 在第一步看到 `incoming` 就不打开选择器，再按 `shareFitsInput` 检查一次类型和个数、按 P-006 检查大小，然后和选择器选的文件一样复制进本次运行的临时目录；第一步的「每次运行时问」不问。运行页第一步显示「分享进来的文件（N 个）」。
+
+**清理**（D-097）：运行页面关闭、存到 Morph 文件之后、关掉收件页面时 `releaseShare` 删掉共享目录里这一批；又分享一批时删掉上一批剩下的。只删分享扩展写的 UUID 文件名。
+
+**AI 看不到**：分享的文件、文件名、个数都不进配置和版本，也不进 planner 的提示词；工作流格式没有变，AI 相关部分（提示词、mock 句式、评测）都没改。

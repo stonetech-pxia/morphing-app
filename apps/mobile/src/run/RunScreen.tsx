@@ -10,6 +10,7 @@ import { saveItems } from '../runtime/actions/io';
 import type { LocalKind, LocalSteps, LocalUi } from '../runtime/local';
 import { granteeOf, newAssetId, startRun, type Run } from '../runtime/runner';
 import { PackGate } from '../packs/PackGate';
+import { releaseShare, type IncomingShare } from '../share/incoming';
 import { usePacks } from '../packs/PackHost';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { AskPanel } from './AskPanel';
@@ -38,7 +39,16 @@ type LocalPending = {
 /** 运行页面弹出动画的时长（iOS 模态约 350 毫秒）。 */
 const START_DELAY_MS = 450;
 
-export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: () => void }) {
+export function RunScreen({
+  workflow,
+  onEdit,
+  incoming,
+}: {
+  workflow: Workflow;
+  onEdit?: () => void;
+  /** 分享进来的文件（D-096）：第一步用它们，不打开选择器。关闭运行页面时删掉。 */
+  incoming?: IncomingShare;
+}) {
   const { repo, files, registry, locale } = useWorkspaceContext();
   const theme = useWorkspace((s) => s.config!.theme);
   const collections = useWorkspace((s) => s.config!.collections);
@@ -58,7 +68,10 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
   const [packAsk, setPackAsk] = useState<({ packId: string } & Pending<boolean>) | null>(null);
   const signal = useRef({ cancelled: false });
   const run = useRef<Run | null>(null);
-  const label = (action: string) => registry.actions.get(action)?.label[locale] ?? action;
+  const label = (action: string, index: number) =>
+    incoming && index === 0
+      ? t(locale, 'shareInputStep', { n: incoming.files.length })
+      : (registry.actions.get(action)?.label[locale] ?? action);
 
   const ui: LocalUi = {
     confirm: (title, ok, cancel) =>
@@ -109,6 +122,7 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
         return new Promise((resolve) => setPackAsk({ packId, resolve }));
       },
       signal: signal.current,
+      incoming: incoming?.files ?? null,
       askParams: (request) => new Promise((resolve) => setAsk({ ...request, resolve })),
       onEvent: (e) =>
         setCurrent(
@@ -128,6 +142,7 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
       clearTimeout(timer);
       signal.current.cancelled = true;
       void run.current?.dispose();
+      if (incoming) void releaseShare(files, incoming.id);
       // 扫描包和文字识别包的页面占几十 MB 内存，离开运行页面就关掉（下次用时再加载）。
       packs?.bridge.close('scan');
       packs?.bridge.close('ocr');
@@ -208,7 +223,7 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
                   styles.flex,
                   { color: state === 'pending' ? palette.muted : palette.text },
                 ]}>
-                {label(s.action)}
+                {label(s.action, i)}
                 {state === 'current' && current?.total
                   ? `  ${t(locale, 'runProgress', { done: current.done ?? 0, total: current.total })}`
                   : ''}

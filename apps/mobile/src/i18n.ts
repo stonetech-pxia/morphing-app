@@ -197,6 +197,11 @@ const strings = {
   runCancelled: { en: 'Cancelled', zh: '已取消' },
   share: { en: 'Share / export', zh: '分享 / 导出' },
   ok: { en: 'OK', zh: '确定' },
+  shareInputStep: { en: 'Shared files ({n})', zh: '分享进来的文件（{n} 个）' },
+  shareGone: {
+    en: 'These files are no longer here. Please share them again.',
+    zh: '这些文件已经不在了，请重新分享。',
+  },
   runError_tooFew: { en: 'Choose at least {min} files.', zh: '请至少选择 {min} 个文件。' },
   runError_tooMany: { en: 'Choose at most {max} files.', zh: '最多选择 {max} 个文件。' },
   runError_wrongType: {

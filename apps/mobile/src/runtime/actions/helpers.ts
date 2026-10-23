@@ -10,7 +10,7 @@ import {
 import { capPixels } from '@morph/tool-image';
 
 import type { WorkspaceRepo } from '../../storage/types';
-import type { FilePlatform } from '../platform';
+import type { FilePlatform, PickedFile } from '../platform';
 import type { PackRuntime } from '../../packs/bridge';
 import type { LocalUi } from '../local';
 
@@ -28,6 +28,8 @@ export interface RunServices {
   collections: readonly Collection[];
   /** 扩展包（WebView 里的 pdf.js、OpenCV、tesseract）；没有时为 null。 */
   packs: { runtime: PackRuntime; isInstalled(id: string): Promise<boolean> } | null;
+  /** 从别的 App 分享进来的文件：第一步（in.photos / in.files）直接用它们，不打开选择器（D-096）。 */
+  incoming?: readonly PickedFile[] | null;
 }
 
 export const MB = 1024 * 1024;
