@@ -21,6 +21,7 @@ import {
   mimeOf,
   type RunServices,
 } from './helpers';
+import { SCAN_OUTPUT_SIDE } from './scan';
 
 // 内核输入输出动作的实现（TOOLS_DESIGN §5）。
 
@@ -77,6 +78,7 @@ async function importPicked(
       ...(f.width ? { width: f.width } : {}),
       ...(f.height ? { height: f.height } : {}),
       ...(f.takenAt !== undefined ? { takenAt: f.takenAt } : {}),
+      ...(f.straightened ? { straightened: true } : {}),
     });
     ctx.progress(i + 1, picked.length);
   }
@@ -134,7 +136,13 @@ export const IO_IMPLS: Record<string, Impl> = {
     const { source, min, max } = params as { source: string; min: number; max: number };
     const { files, ui } = ctx.services;
     let picked: PickedFile[] = [];
-    if (source === 'camera') {
+    if (source === 'scanner' && files.vision?.documentCamera) {
+      // 系统文档相机：实时找边、自动拍摄、多页，拍完已经拉正（D-084）。
+      const pages = await files.vision.scanDocuments(ctx.services.runId, SCAN_OUTPUT_SIDE);
+      if (!pages || pages.length === 0) throw new RunCancelled();
+      picked = pages;
+    } else if (source === 'camera' || source === 'scanner') {
+      // 没有文档相机（Android、Expo Go、模拟器）时用相机拍，后面的找边步骤再拉正。
       const zh = ctx.locale === 'zh';
       while (picked.length < max) {
         const photo = await files.takePhoto();

@@ -14,7 +14,8 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Palette } from '../renderer/theme';
 import { Card, PageTitle, Pill, SectionLabel } from '../renderer/ui';
 import { useWorkflowChange } from '../run/workflow-change';
-import { useWorkspace } from '../workspace/context';
+import { packsNeeded } from '../runtime/runner';
+import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { Banner } from './Shell';
 
 /** 步骤串成一行：「选照片 → 证件照 → 命名」。 */
@@ -38,6 +39,7 @@ export function WorkflowsScreen({
   const zh = locale === 'zh';
   const router = useRouter();
   const config = useWorkspace((s) => s.config)!;
+  const { files } = useWorkspaceContext();
   const change = useWorkflowChange();
   const [showTools, setShowTools] = useState(false);
   const mine = config.workflows.filter((w) => !w.toolId);
@@ -99,7 +101,10 @@ export function WorkflowsScreen({
       <SectionLabel palette={palette}>{zh ? '预设库' : 'Presets'}</SectionLabel>
       {WORKFLOW_PRESETS.map((preset) => {
         const added = mine.filter((w) => w.presetId === preset.id);
-        const packs = (preset.packs ?? []).map((id) => packById(id)?.name[locale] ?? id);
+        // iOS 用系统的识别和扫描，不需要扫描包和文字识别包（D-084）。
+        const packs = packsNeeded(preset.packs ?? [], files).map(
+          (id) => packById(id)?.name[locale] ?? id,
+        );
         return (
           <Card key={preset.id} palette={palette} testID={`preset-${preset.id}`}>
             <Text style={[palette.font('title', 16), { color: palette.text }]}>

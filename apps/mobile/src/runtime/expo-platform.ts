@@ -13,6 +13,8 @@ import { Asset, requestPermissionsAsync } from 'expo-media-library';
 import { printAsync, printToFileAsync } from 'expo-print';
 import { shareAsync } from 'expo-sharing';
 
+import { expoVision } from './expo-vision';
+import MorphVision from '../../modules/morph-vision';
 import type { FilePlatform, ImageFormat, PickedFile } from './platform';
 import { composeOnSurface, enhanceJpeg, pixelsOf, renderTextPng } from './skia';
 
@@ -83,6 +85,8 @@ const UTI: Record<string, string> = {
 const MAX_IMAGE_SIDE = 2048;
 
 export const expoFilePlatform: FilePlatform = {
+  vision: expoVision((runId, relPath) => runFile(runId, relPath).uri),
+
   async pickImage() {
     const result = await launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -159,6 +163,8 @@ export const expoFilePlatform: FilePlatform = {
   },
 
   async takePhoto() {
+    // 开发版里没有相机时（模拟器）系统选择器会抛出原生异常让 App 崩溃，不能靠下面的 catch。
+    if (MorphVision && !MorphVision.isCameraAvailable()) throw new RunError('cameraUnavailable');
     const permission = await requestCameraPermissionsAsync();
     if (!permission.granted) throw new RunError('permissionDenied', { what: 'camera' });
     let result;

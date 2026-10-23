@@ -4,8 +4,9 @@ import type { ToolDefinition } from '../registry';
 import type { Locale, Workflow } from '../schema';
 import type { ActionDefinition } from '../workflow/contract';
 
-// 扫描工具的清单（T5）：找边和透视矫正在扫描包里（WebView + OpenCV.js + jscanify），
-// 四个角由用户在本地调整（找边在背景杂乱或纸张出画时会出错）；增强用 Skia，不需要扩展包。
+// 扫描工具的清单（T5）：找边和透视矫正在 iOS 上用系统的 Vision / Core Image（D-084），
+// 其他平台用扫描包（WebView + OpenCV.js + jscanify）；四个角由用户在本地调整（找边在背景杂乱或纸张出画时会出错）；
+// 系统文档相机拍的页面已经拉正，直接放行。增强用 Skia，不需要扩展包。
 
 export const SCAN_TOOL_ID = 'scan';
 export const SCAN_PAGE_ID = 'tool-scan';
@@ -19,8 +20,8 @@ export const SCAN_ACTIONS: readonly ActionDefinition[] = [
     id: 'scan.detect',
     label: { en: 'Find edges and straighten', zh: '找边并拉正' },
     description: {
-      en: 'Finds the edges of the paper in each photo; the user checks or drags the four corners; then the page is straightened.',
-      zh: '在每张照片里找到纸张的边，用户确认或拖动四个角，然后把页面拉正。',
+      en: 'Finds the edges of the paper in each photo; the user checks or drags the four corners; then the page is straightened. Pages from the document camera are already straight and pass through.',
+      zh: '在每张照片里找到纸张的边，用户确认或拖动四个角，然后把页面拉正。文档相机扫描的页面已经拉正，直接通过。',
     },
     input: ['images'],
     output: 'images',
@@ -81,7 +82,7 @@ export function scanWorkflows(locale: Locale): Workflow[] {
       'scan-camera',
       ['Scan to PDF', '扫描成 PDF'],
       [
-        { id: 'shoot', action: 'in.photos', params: { source: 'camera', min: 1, max: 30 } },
+        { id: 'shoot', action: 'in.photos', params: { source: 'scanner', min: 1, max: 30 } },
         { id: 'edges', action: 'scan.detect', params: {} },
         { id: 'look', action: 'scan.enhance', params: { mode: 'auto' }, ask: ['mode'] },
         toPdf,
@@ -135,8 +136,8 @@ export const scanTool: ToolDefinition = {
         props: {
           text: t(
             locale,
-            'Everything runs on this device; nothing is uploaded. The first scan downloads the scanner pack.',
-            '全部在本机处理，不会上传。第一次扫描时需要下载扫描包。',
+            'Everything runs on this device; nothing is uploaded. iPhone uses its built-in scanner; on other devices the first scan downloads the scanner pack.',
+            '全部在本机处理，不会上传。iPhone 用系统自带的扫描；其他设备第一次扫描时需要下载扫描包。',
           ),
         },
       },

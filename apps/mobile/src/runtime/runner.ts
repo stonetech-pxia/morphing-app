@@ -48,6 +48,15 @@ export interface Run {
 /** 保存的文件授权给谁：工具自带的工作流给工具，用户自己的工作流给它自己。 */
 export const granteeOf = (workflow: Workflow) => workflow.toolId ?? `workflow:${workflow.id}`;
 
+/** 有系统自带的文字识别和扫描（iOS 的 Vision，D-084）时，这些动作不需要扩展包。 */
+const VISION_ACTIONS: ReadonlySet<string> = new Set(['scan.detect', 'ocr.recognize']);
+
+/** 这台设备上真正需要下载的扩展包（工作流页的提示用）。 */
+export function packsNeeded(packIds: readonly string[], files: FilePlatform): string[] {
+  if (!files.vision) return [...packIds];
+  return packIds.filter((id) => id !== 'scan' && id !== 'ocr' && !id.startsWith('ocr-'));
+}
+
 export async function startRun(ctx: RunContext): Promise<Run> {
   const runId = ctx.newId();
   const result = await runWorkflow({
@@ -68,6 +77,7 @@ export async function startRun(ctx: RunContext): Promise<Run> {
     newId: ctx.newId,
     ...(ctx.askParams ? { askParams: ctx.askParams } : {}),
     ...(ctx.ensurePack ? { ensurePack: ctx.ensurePack } : {}),
+    ...(ctx.files.vision ? { nativeActions: VISION_ACTIONS } : {}),
     ...(ctx.signal ? { signal: ctx.signal } : {}),
     ...(ctx.onEvent ? { onEvent: ctx.onEvent } : {}),
     record: {

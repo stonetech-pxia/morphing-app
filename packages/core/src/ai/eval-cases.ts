@@ -851,6 +851,35 @@ const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
     },
   },
   {
+    id: 'W10',
+    input: '新建一个工作流：扫描文档，压到 300KB，存到文件',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.photos', 'image.compress', 'file.save'],
+        (steps) =>
+          param('in.photos', 'source', 'scanner')(steps) ??
+          param('image.compress', 'maxKB', 300)(steps),
+      ),
+    },
+  },
+  {
+    id: 'W10-en',
+    input: 'Create a workflow: scan documents, make a PDF, share',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.photos', 'pdf.fromImages', 'out.share'], (steps) =>
+        param('in.photos', 'source', 'scanner')(steps),
+      ),
+    },
+  },
+  {
     id: 'PW1',
     input: '帮我做个流程：拍收据，拉正，压缩到 300K，然后存起来',
     locale: 'zh',
@@ -908,6 +937,19 @@ const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
           ? null
           : 'the scanning workflow is not on the home page';
       },
+    },
+  },
+  {
+    id: 'PW5',
+    input: '做一个流程：用文档相机扫描几页合同，合成 PDF，然后分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.photos', 'pdf.fromImages', 'out.share'], (steps) =>
+        param('in.photos', 'source', 'scanner')(steps),
+      ),
     },
   },
 ];

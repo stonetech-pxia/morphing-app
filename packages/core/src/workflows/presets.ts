@@ -17,7 +17,11 @@ export interface WorkflowPreset {
 
 const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
 
-const photos = (min: number, max: number, source: 'library' | 'camera' = 'library') => ({
+const photos = (
+  min: number,
+  max: number,
+  source: 'library' | 'camera' | 'scanner' = 'library',
+) => ({
   id: 'pick',
   action: 'in.photos',
   params: { source, min, max },
@@ -115,13 +119,13 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     id: 'scan-document',
     name: { en: 'Scan a document', zh: '扫描文档' },
     description: {
-      en: 'Take photos → find the edges (you check the corners) → clean up → PDF → name it → share.',
-      zh: '拍照 → 自动找边（你确认四个角）→ 变清楚 → 合成 PDF → 命名 → 分享。',
+      en: 'Scan pages with the document camera (or take photos and check the corners) → clean up → PDF → name it → share.',
+      zh: '用文档相机扫描（或拍照后确认四个角）→ 变清楚 → 合成 PDF → 命名 → 分享。',
     },
     icon: 'scan',
     packs: ['scan'],
     steps: (locale) => [
-      photos(1, 30, 'camera'),
+      photos(1, 30, 'scanner'),
       { id: 'edges', action: 'scan.detect', params: {} },
       { id: 'look', action: 'scan.enhance', params: { mode: 'auto' } },
       {
@@ -153,13 +157,13 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     id: 'receipt-archive',
     name: { en: 'Receipt archive', zh: '收据归档' },
     description: {
-      en: 'Photograph a receipt → straighten it → under 500 KB → name it by date → save to files.',
-      zh: '拍收据 → 拉正 → 压到 500 KB 以内 → 按日期命名 → 存到文件。',
+      en: 'Scan a receipt (straightened automatically, or check the corners) → under 500 KB → name it by date → save to files.',
+      zh: '扫描收据（自动拉正，或确认四个角）→ 压到 500 KB 以内 → 按日期命名 → 存到文件。',
     },
     icon: 'inbox',
     packs: ['scan'],
     steps: (locale) => [
-      photos(1, 10, 'camera'),
+      photos(1, 10, 'scanner'),
       { id: 'edges', action: 'scan.detect', params: {} },
       { id: 'compress', action: 'image.compress', params: { maxKB: 500, format: 'jpeg' } },
       rename(t(locale, 'Receipt {date}', '收据-{date}'), false),

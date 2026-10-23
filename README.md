@@ -41,12 +41,13 @@ npm run ios:ai
 ### 1. 准备环境
 
 - Node.js 22 或 24（自带 npm）
-- 二选一：
-  - **iOS 模拟器**：安装 Xcode，并让命令行使用它（只需一次，需要输入密码）：
-    ```bash
-    sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-    ```
-  - **自己的手机**：在 App Store / Google Play 安装 **Expo Go**，手机与电脑连同一个 Wi-Fi。
+- **iOS 模拟器**：安装 Xcode（含 iOS 模拟器和 CocoaPods 能用的命令行工具），并让命令行使用它（只需一次，需要输入密码）：
+  ```bash
+  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+  ```
+- 不需要 Apple 账号：开发版在本机编译，装进模拟器不用签名。
+
+App 是**开发版构建**（expo-dev-client，D-084），不再用 Expo Go 打开：扫描和文字识别用 iOS 自带的 Vision，Expo Go 里没有这个原生模块（在 Expo Go 里仍能运行，扫描和识别会退回下载扩展包）。
 
 ### 2. 安装依赖
 
@@ -54,19 +55,31 @@ npm run ios:ai
 npm install
 ```
 
-### 3. 启动
+### 3. 编译并启动
 
 ```bash
 npm run ios
 ```
 
-会启动开发服务器，并在 iOS 模拟器中通过 Expo Go 打开 App。用真机时运行 `npm start`，再用手机相机扫描终端里的二维码。
+第一次会运行 `expo prebuild` 生成 `apps/mobile/ios/`（不进 git，随时可以删掉重新生成）、安装 CocoaPods、编译开发版并装进模拟器，再启动开发服务器，大约要几分钟；以后只改 JS 不用重新编译。改了原生代码（`apps/mobile/modules/`）、原生依赖或 app.json 后要再运行一次 `npm run ios`。
 
-如果模拟器提示 “The request timed out”，说明它无法通过局域网 IP 访问开发服务器，可改用 localhost：
+已经装过开发版、只想启动开发服务器时：
 
 ```bash
-npm run ios -- --localhost
+npm start
 ```
+
+然后在模拟器里打开 Morph。如果模拟器连不上局域网 IP（提示 “The request timed out”），改用 localhost：
+
+```bash
+npm start -- --localhost
+```
+
+```bash
+xcrun simctl openurl booted "exp+morph://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081"
+```
+
+真机需要 Apple 开发者账号签名（`npx expo run:ios --device`），目前还没有做。
 
 ## 常用命令
 

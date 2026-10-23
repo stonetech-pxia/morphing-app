@@ -7,3 +7,7 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# 开发版构建的原生工程由 expo prebuild 生成（CNG，D-084），不进 git
+apps/mobile/ios/
+apps/mobile/android/

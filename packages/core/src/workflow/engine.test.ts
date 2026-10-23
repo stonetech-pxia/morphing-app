@@ -206,4 +206,26 @@ describe('runWorkflow', () => {
     expect(await promise).toMatchObject({ value: { type: 'text', text: 'chi_sim' } });
     expect(order).toEqual(['ask', 'ocr-chi-sim']);
   });
+
+  it('does not ask for a pack when the platform runs the action natively (iOS Vision)', async () => {
+    const wf: Workflow = {
+      id: 'ocr',
+      name: 'OCR',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'scanner', min: 1, max: 5 } },
+        { id: 'read', action: 'ocr.recognize', params: { lang: 'jpn' } },
+      ],
+    };
+    const asked: string[] = [];
+    const { promise } = run(wf, {
+      impls: {
+        'in.photos': async () => ({ type: 'images', items: [pdfItem('scan')] }),
+        'ocr.recognize': async () => ({ type: 'text', text: '日本語', name: 'scan' }),
+      },
+      ensurePack: async (id) => (asked.push(id), true),
+      nativeActions: new Set(['ocr.recognize']),
+    });
+    expect(await promise).toMatchObject({ status: 'succeeded', value: { text: '日本語' } });
+    expect(asked).toEqual([]);
+  });
 });

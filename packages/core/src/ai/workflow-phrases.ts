@@ -28,6 +28,11 @@ const STEP_PHRASES: Matcher[] = [
     () => ({ action: 'in.photos', params: { source: 'library', min: 1, max: 30 } }),
   ],
   [
+    // 文档相机（D-084）：实时找边、自动拍、多页；单说「扫描」仍是找边拉正（scan.detect）。
+    /^(?:用文档相机)?扫描(?:文档|纸张|收据|几页纸?)$|^scan (?:documents?|paper|pages|receipts?)$/i,
+    () => ({ action: 'in.photos', params: { source: 'scanner', min: 1, max: 30 } }),
+  ],
+  [
     /^拍(?:照|照片|一张|几张)?$|^take (?:a )?(?:photos?|pictures?)$/i,
     () => ({ action: 'in.photos', params: { source: 'camera', min: 1, max: 10 } }),
   ],

@@ -8,9 +8,11 @@
     "scheme": "morph",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "app.morph.mobile",
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "app.morph.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -41,8 +43,16 @@
         "expo-image-picker",
         {
           "photosPermission": "Morph uses your photos only when you pick one to show in your app. Photos stay on this device.",
-          "cameraPermission": false,
+          "cameraPermission": "Morph uses the camera only when you take a photo or scan a document in a tool. Photos stay on this device.",
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Morph uses your photos only when you pick one to show in your app. Photos stay on this device.",
+          "savePhotosPermission": "Morph saves photos to your library only when a tool you run saves them.",
+          "isAccessMediaLocationEnabled": false
         }
       ]
     ],

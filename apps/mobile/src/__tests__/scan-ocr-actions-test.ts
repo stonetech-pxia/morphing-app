@@ -10,11 +10,13 @@ import type { Quad } from '@morph/tool-image';
 
 import type { PackPageId, PackRuntime } from '../packs/bridge';
 import type { LocalKind, LocalUi } from '../runtime/local';
-import { startRun } from '../runtime/runner';
+import { packsNeeded, startRun } from '../runtime/runner';
 import { MemoryWorkspaceRepo } from '../storage/memory';
-import { FakeFiles, TINY_JPEG } from '../test-utils/fake-files';
+import { FakeFiles, FakeVision, TINY_JPEG } from '../test-utils/fake-files';
 
-// 扫描和文字识别：扫描包 / 文字识别包页面换成假的（找边返回四个角，矫正返回真实的小 JPEG，识别返回文字）。
+// 扫描和文字识别有两条路径（D-084）：
+// - 没有系统识别（Android、Expo Go）：扫描包 / 文字识别包页面换成假的（找边返回四个角，矫正返回真实的小 JPEG，识别返回文字）；
+// - iOS 的 Vision：换成 FakeVision，不需要扩展包。
 
 const registry = createRegistry(BUILTIN_TOOLS);
 
@@ -65,8 +67,11 @@ function setup(
   workflow: Workflow,
   local: Partial<Record<LocalKind, unknown>> = {},
   answers: Record<string, unknown> = {},
+  native = false,
 ) {
   const files = new FakeFiles();
+  const vision = new FakeVision(files);
+  if (native) files.vision = vision;
   const packs = new FakePacks();
   const opened: { kind: LocalKind; input: unknown }[] = [];
   const asked: string[] = [];
@@ -94,7 +99,7 @@ function setup(
         askParams: async (request) => ({ ...request.params, ...answers }),
       })
     ).result;
-  return { files, packs, run, opened, asked };
+  return { files, vision, packs, run, opened, asked };
 }
 
 describe('scanner', () => {
@@ -199,5 +204,158 @@ describe('text recognition', () => {
       status: 'failed',
       error: { code: 'notFound', detail: { name: 'blank.jpg' } },
     });
+  });
+});
+
+describe('scanner and text recognition with the system Vision (iOS)', () => {
+  it('reads text with Vision in the chosen language, without any pack', async () => {
+    const { files, vision, packs, run, asked } = setup(
+      toolWorkflow('ocr', 'ocr-photos'),
+      {},
+      { lang: 'chi_sim' },
+      true,
+    );
+    vision.texts = ['租约 续签 通知\n月租 3200 元'];
+    files.nextPhotos = [files.offerImage('IMG_1.HEIC', 3024, 4032, 'image/heic')];
+    const result = await run();
+    expect(asked).toEqual([]);
+    expect(packs.calls).toEqual([]);
+    // 送进识别的是重新编码的 JPG；中文后面补上英文。
+    expect(vision.calls).toEqual([
+      {
+        method: 'recognizeText',
+        uri: expect.stringMatching(/IMG_1\.jpg$/),
+        args: ['zh-Hans', 'en-US'],
+      },
+    ]);
+    // 行内中文之间的空格照样整理掉。
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      value: { type: 'text', text: '租约续签通知\n月租3200元', name: 'IMG_1' },
+    });
+  });
+
+  it('finds the corners with Vision, lets the user confirm them and straightens with Core Image', async () => {
+    const { files, vision, packs, run, opened, asked } = setup(
+      toolWorkflow('scan', 'scan-library'),
+      { corners: [paper, paper] },
+      {},
+      true,
+    );
+    vision.found = [paper, null];
+    files.nextPhotos = [
+      files.offerImage('IMG_1.jpg', 3024, 4032),
+      files.offerImage('IMG_2.jpg', 3024, 4032),
+    ];
+    const result = await run();
+    expect(asked).toEqual([]);
+    expect(packs.calls).toEqual([]);
+    const input = opened[0]!.input as { items: { quad: Quad | null }[] };
+    expect(opened[0]!.kind).toBe('corners');
+    expect(input.items.map((i) => i.quad)).toEqual([paper, null]);
+    const straighten = vision.calls.filter((c) => c.method === 'straighten');
+    expect(straighten).toHaveLength(2);
+    expect(straighten[0]!.args).toMatchObject({ quad: paper, height: 2400 });
+    expect(files.enhanced).toEqual(['auto', 'auto']);
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      value: { type: 'pdf', items: [{ name: '扫描-2026-10-22', pageCount: 2 }] },
+    });
+  });
+
+  it('scans with the document camera: pages are already straight, so no corner screen', async () => {
+    const { files, vision, run, opened, asked } = setup(
+      toolWorkflow('scan', 'scan-camera'),
+      {},
+      {},
+      true,
+    );
+    expect(toolWorkflow('scan', 'scan-camera').steps[0]!.params).toMatchObject({
+      source: 'scanner',
+    });
+    vision.scanned = [1, 2, 3].map((n) => ({
+      ...files.offerImage(`scan-${n}.jpg`, 1700, 2400),
+      straightened: true,
+    }));
+    const result = await run();
+    expect(vision.calls.map((c) => c.method)).toEqual(['scanDocuments']);
+    expect(vision.calls[0]!.args).toEqual({ maxSide: 2400 });
+    expect(opened).toEqual([]);
+    expect(asked).toEqual([]);
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      value: { type: 'pdf', items: [{ pageCount: 3 }] },
+    });
+  });
+
+  it('cancels when the document camera is closed', async () => {
+    const { run } = setup(toolWorkflow('scan', 'scan-camera'), {}, {}, true);
+    expect((await run()).status).toBe('cancelled');
+  });
+
+  it('falls back to the camera where the document camera is missing (simulator), then finds edges', async () => {
+    const { files, vision, run, opened } = setup(
+      toolWorkflow('ocr', 'ocr-scan'),
+      { corners: [paper] },
+      { lang: 'eng' },
+      true,
+    );
+    vision.documentCamera = false;
+    vision.found = [paper];
+    vision.texts = ['Lease renewal'];
+    files.camera = [files.offerImage('cam.jpg', 3024, 4032)];
+    const result = await run();
+    expect(vision.calls.map((c) => c.method)).toEqual(['findPaper', 'straighten', 'recognizeText']);
+    expect(opened[0]!.kind).toBe('corners');
+    expect(result).toMatchObject({ status: 'succeeded', value: { text: 'Lease renewal' } });
+  });
+
+  it('keeps document-camera pages and straightens only the photos that need it, in order', async () => {
+    const { files, vision, run, opened } = setup(
+      toolWorkflow('scan', 'scan-straighten'),
+      { corners: [paper] },
+      {},
+      true,
+    );
+    const ready = { ...files.offerImage('scan-1.jpg', 1700, 2400), straightened: true };
+    files.nextPhotos = [ready, files.offerImage('photo.jpg', 3024, 4032)];
+    vision.found = [paper];
+    const result = await run();
+    const input = opened[0]!.input as { items: unknown[] };
+    expect(input.items).toHaveLength(1);
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      value: {
+        items: [
+          { name: 'scan-1', straightened: true },
+          { name: 'photo', width: expect.any(Number) },
+        ],
+      },
+    });
+  });
+});
+
+describe('without the system Vision (Android, Expo Go)', () => {
+  it('scans with the camera and the scanner pack when the workflow asks for the document camera', async () => {
+    const { files, packs, run, asked } = setup(toolWorkflow('scan', 'scan-camera'), {
+      corners: [paper],
+    });
+    packs.detected = [paper];
+    files.camera = [files.offerImage('cam.jpg', 3024, 4032), null];
+    const result = await run();
+    expect(asked).toEqual(['scan']);
+    expect(packs.calls.map((c) => c.method)).toEqual(['detect', 'warp']);
+    expect(result).toMatchObject({ status: 'succeeded', value: { type: 'pdf' } });
+  });
+
+  it('lists the packs this device needs', () => {
+    const files = new FakeFiles();
+    expect(packsNeeded(['scan', 'ocr-jpn', 'pdfview'], files)).toEqual([
+      'scan',
+      'ocr-jpn',
+      'pdfview',
+    ]);
+    files.vision = new FakeVision(files);
+    expect(packsNeeded(['scan', 'ocr', 'ocr-jpn', 'pdfview'], files)).toEqual(['pdfview']);
   });
 });

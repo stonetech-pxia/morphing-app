@@ -52,14 +52,14 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     id: 'in.photos',
     label: { en: 'Choose photos', zh: '选照片' },
     description: {
-      en: 'Pick photos from the library or take them with the camera.',
-      zh: '从相册选照片，或用相机拍照。',
+      en: 'Pick photos from the library, take them with the camera, or scan paper with the document camera (finds the edges, captures automatically, several pages, already straightened; where it is not available, the camera is used).',
+      zh: '从相册选照片、用相机拍照，或用文档相机扫描纸张（自动找边、自动拍、可以多页、拍完已经拉正；没有文档相机的设备改用相机）。',
     },
     input: [],
     output: 'images',
     params: z
       .strictObject({
-        source: z.enum(['library', 'camera']),
+        source: z.enum(['library', 'camera', 'scanner']),
         min: z.number().int().min(1).max(MAX_PICK),
         max: z.number().int().min(1).max(MAX_PICK),
       })
@@ -72,6 +72,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
         options: [
           { value: 'library', label: { en: 'Photo library', zh: '相册' } },
           { value: 'camera', label: { en: 'Camera', zh: '拍照' } },
+          { value: 'scanner', label: { en: 'Scan documents', zh: '扫描文档' } },
         ],
       },
       ...countFields(MAX_PICK),
@@ -86,6 +87,11 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
         id: 'camera',
         label: { en: 'Camera, up to 10', zh: '拍照，最多 10 张' },
         values: { source: 'camera', min: 1, max: 10 },
+      },
+      {
+        id: 'scanner',
+        label: { en: 'Scan documents, up to 30 pages', zh: '扫描文档，最多 30 页' },
+        values: { source: 'scanner', min: 1, max: 30 },
       },
     ],
     requires: ['files.pick'],

@@ -2,7 +2,16 @@ import { RunError } from '@morph/core';
 import { zlibSync } from 'fflate';
 import { PDFDocument } from 'pdf-lib';
 
-import type { DrawOp, FilePlatform, ImageFormat, ImageOps, PickedFile } from '../runtime/platform';
+import type { Quad } from '@morph/tool-image';
+
+import type {
+  DrawOp,
+  FilePlatform,
+  ImageFormat,
+  ImageOps,
+  PickedFile,
+  VisionPlatform,
+} from '../runtime/platform';
 
 // 测试用工具：内存文件平台和真实 PDF 生成。
 
@@ -69,6 +78,8 @@ export function makePng(width: number, height: number): Uint8Array {
 /** 内存中的“文件系统”。 */
 export class FakeFiles implements FilePlatform {
   disk = new Map<string, Uint8Array>();
+  /** 系统文字识别和扫描：默认没有（像 Android / Expo Go），测试里换成 FakeVision。 */
+  vision: VisionPlatform | null = null;
   /** 下一次选文件（「文件」App）的结果。 */
   nextPick: PickedFile[] | null = null;
   /** 下一次从相册多选的结果。 */
@@ -309,5 +320,43 @@ export class FakeFiles implements FilePlatform {
     const uri = `picker://${name}`;
     this.disk.set(uri, bytes);
     return { uri, name, size: bytes.length, mimeType };
+  }
+}
+
+/** 假的系统文字识别和扫描（iOS 的 Vision）：按顺序返回找到的角和识别的文字，拉正写一张真实的小 JPEG。 */
+export class FakeVision implements VisionPlatform {
+  calls: { method: string; uri: string; args?: unknown }[] = [];
+  /** 每次找边的结果（按顺序）。 */
+  found: (Quad | null)[] = [];
+  texts: string[] = [];
+  documentCamera = true;
+  /** 下一次文档相机拍到的页面；null 表示用户取消。 */
+  scanned: PickedFile[] | null = null;
+
+  constructor(private files: FakeFiles) {}
+
+  async recognizeText(uri: string, languages: readonly string[]) {
+    this.calls.push({ method: 'recognizeText', uri, args: languages });
+    return this.texts.shift() ?? '';
+  }
+  async findPaper(uri: string) {
+    this.calls.push({ method: 'findPaper', uri });
+    return this.found.shift() ?? null;
+  }
+  async straighten(
+    uri: string,
+    quad: Quad,
+    size: { width: number; height: number },
+    runId: string,
+    relPath: string,
+  ) {
+    this.calls.push({ method: 'straighten', uri, args: { quad, ...size } });
+    const out = await this.files.writeRunFile(runId, relPath, TINY_JPEG);
+    this.files.imageSizes.set(out.uri, size);
+    return { ...out, ...size };
+  }
+  async scanDocuments(_runId: string, maxSide: number) {
+    this.calls.push({ method: 'scanDocuments', uri: '', args: { maxSide } });
+    return this.scanned;
   }
 }

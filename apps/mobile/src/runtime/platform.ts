@@ -1,3 +1,5 @@
+import type { Quad } from '@morph/tool-image';
+
 // 平台能力（App 中由 Expo 模块实现，见 expo-platform.ts；测试中用 test-utils/fake-files.ts 的内存实现）。
 // 动作实现只通过这里接触文件系统和系统界面。
 
@@ -10,6 +12,8 @@ export interface PickedFile {
   height?: number;
   /** 照片的拍摄时间（毫秒）。 */
   takenAt?: number;
+  /** 系统文档相机拍的页面：已经找边拉正。 */
+  straightened?: boolean;
 }
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp';
@@ -67,7 +71,33 @@ export interface SavedSignature {
   aspect: number;
 }
 
+/**
+ * 系统自带的文字识别和扫描（iOS：Vision / VisionKit / Core Image，见 modules/morph-vision，D-084）。
+ * 没有时（Android、Expo Go）为 null，扫描和文字识别退回扩展包。全部在本机处理。
+ */
+export interface VisionPlatform {
+  /** 识别文字；languages 是 BCP 47，第一种是用户选的语言。文字只返回给 App。 */
+  recognizeText(uri: string, languages: readonly string[]): Promise<string>;
+  /** 找纸张的四个角（像素，已按拍摄方向摆正）；没找到返回 null。 */
+  findPaper(uri: string): Promise<Quad | null>;
+  /** 按四个角拉正，缩放到 size，存成本次运行的 JPG 临时文件。 */
+  straighten(
+    uri: string,
+    quad: Quad,
+    size: { width: number; height: number },
+    runId: string,
+    relPath: string,
+  ): Promise<EncodedImage>;
+  /** 系统文档相机能不能用（模拟器上不能）。 */
+  readonly documentCamera: boolean;
+  /** 打开系统文档相机（实时找边、自动拍摄、多页），页面放进本次运行的临时目录；用户取消时返回 null。 */
+  scanDocuments(runId: string, maxSide: number): Promise<PickedFile[] | null>;
+}
+
 export interface FilePlatform {
+  /** 系统自带的文字识别和扫描；没有时为 null。 */
+  readonly vision: VisionPlatform | null;
+
   // ---- 用户文件（assets/<id>/<文件名>，D-019）----
   /** 从相册选一张照片（图片组件用）；用户取消时返回 null。 */
   pickImage(): Promise<PickedFile | null>;

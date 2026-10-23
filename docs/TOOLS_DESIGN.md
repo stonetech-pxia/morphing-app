@@ -5,11 +5,11 @@
 
 ## 0. 原则
 
-1. **全部在手机本地运行，并且能在 Expo Go 里用**：纯 JS、WebView 里的 JS/WASM、Expo Go 自带的原生模块。做不到的（§9）不做。
+1. **全部在手机本地运行**。T7 之前要求能在 Expo Go 里用；从 T8 起 App 用开发版构建（D-084），可以写本地原生模块调用**系统框架**（iOS 的 Vision / VisionKit / Core Image，没有第三方原生代码）。用了原生能力的动作在 Android 和 Expo Go 上仍要有退路（纯 JS 或 WebView 扩展包），工作流配置在各平台通用。还没做的见 §9。
 2. **AI 永远看不到用户的文件内容、文件名、OCR 出来的文字和记录内容**（D-036 / D-042 / D-046）。AI 只能看到动作目录、参数和工作流结构。用户说出的规格（「240 KB 以内」「600×600」）是规则，可以发给 AI。
 3. **工作流是线性的、非图灵完备的**：一串步骤，每步一个登记过的动作，没有分支、循环和表达式（§7C）。
 4. **单独使用一个工具 = 只含这一个动作（加上输入步骤）的工作流**。工具页和工作流共用同一个执行器。
-5. **纯逻辑放在 `core` 和 `tool-*` 包里，用 Node 加真实文件测试**；平台能力（选照片、编码图片、WebView、打印）由 App 注入。
+5. **纯逻辑放在 `core` 和 `tool-*` 包里，用 Node 加真实文件测试**；平台能力（选照片、编码图片、WebView、打印、系统识别）由 App 注入，测试里换成假的。
 
 ## 1. 类型化的值（替代 D-014 的 4 个固定数据槽）
 
@@ -134,11 +134,11 @@ interface StepContext {
 
 前缀即领域，实现位置见括号。
 
-- **输入输出（内核）**：`in.photos`（相册多选或拍照）、`in.files`（PDF / 图片 / 任意文件）、`file.rename`（命名模板）、`file.save`（存到 Morph 文件）、`out.share`、`out.saveToPhotos`、`out.print`；`in.text`（用户输入一段文字，private）、`in.records`（读取一张数据表的记录，可按时间段，按表里第一个日期字段）。（App：expo-image-picker、expo-document-picker、expo-sharing、expo-media-library、expo-print）
+- **输入输出（内核）**：`in.photos`（`source`：相册多选、拍照，或 `scanner` 系统文档相机——实时找边、自动拍、多页、拍完已拉正，页面带 `straightened` 标记；没有文档相机的设备改用相机，D-086）、`in.files`（PDF / 图片 / 任意文件）、`file.rename`（命名模板）、`file.save`（存到 Morph 文件）、`out.share`、`out.saveToPhotos`、`out.print`；`in.text`（用户输入一段文字，private）、`in.records`（读取一张数据表的记录，可按时间段，按表里第一个日期字段）。（App：expo-image-picker、expo-document-picker、expo-sharing、expo-media-library、expo-print）
 - **图片**：`image.convert`、`image.resize`、`image.compress`（压到 ≤ N KB）、`image.crop`（本地框选）、`image.rotate`、`image.stripMetadata`、`image.idPhoto`、`image.stitch`、`image.grid`、`image.redact`（本地）、`image.watermark`、`image.printSheet`（证件照排到 4×6 / 5×7 / A4 / Letter 相纸，带裁切线）。（算法：`packages/tool-image`；编码：expo-image-manipulator；合成：Skia 离屏绘制 `composeImage`，画布单边不超过 8192、总像素不超过 1677 万，超出整体缩小，D-079）
 - **PDF**：`pdf.fromImages`（A4 / Letter / 跟随图片，可设边距和 ≤ X MB）、`pdf.merge`（PDF 和图片混合）、`pdf.pages`（本地选页 / 删页 / 排序 / 旋转）、`pdf.selectPages`（按页码规则：全部 / 奇数 / 偶数 / 范围）、`pdf.rotate`、`pdf.split`、`pdf.pageNumbers`、`pdf.stamp`（文字戳 / 日期戳）、`pdf.sign`（本地）、`pdf.fillForm`（本地）+ 拍平、`pdf.toImages`、`pdf.extractText`。（`packages/tool-pdf`：pdf-lib；`toImages` / `extractText` / 缩略图需要 PDF 预览包）
-- **扫描**（工具 `scan`）：`scan.detect`（扫描包找边 → 本地调四角，每张都要确认 → 扫描包透视矫正，长边 2400）、`scan.enhance`（提亮 / 灰度 / 黑白 / 原样；Skia 颜色矩阵，不需要扩展包）。
-- **文字识别**（工具 `ocr`）：`ocr.recognize`（images → text，参数 `lang` 选 12 种语言之一；`packFor` 按语言确保语言包，语言包连同识别包一起下载）。中日文字之间多出来的空格在本机去掉（`tidyOcrText`）。
+- **扫描**（工具 `scan`）：`scan.detect`（找边 → 本地调四角，每张都要确认 → 透视矫正，长边 2400；iOS 用 Vision 找边、Core Image 矫正，其他平台用扫描包，D-086；文档相机拍的页面直接放行）、`scan.enhance`（提亮 / 灰度 / 黑白 / 原样；Skia 颜色矩阵，不需要扩展包）。
+- **文字识别**（工具 `ocr`）：`ocr.recognize`（images → text，参数 `lang` 选 12 种语言之一。iOS 用 Vision 的 `VNRecognizeTextRequest`（accurate + 语言纠错，中日韩等补上英文），不需要下载，D-085；其他平台 `packFor` 按语言确保语言包，语言包连同识别包一起下载）。中日文字之间多出来的空格在本机去掉（`tidyOcrText`）。
 - **文字**（工具 `text`）：`text.copy`、`text.toFile`（.txt）、`text.toPdf`（expo-print，系统字体，中日韩都能显示）。
 - **打包**（工具 `zip`）：`zip.create`、`zip.extract`。（`packages/tool-archive`：fflate，只用同步接口）
 - **二维码**（工具 `qr`）：`qr.generate`（文字 → PNG，tool-qr 自带的 PNG 编码器）、`qr.read`（图片 → 文字，Skia 读像素后用 jsQR）。（`packages/tool-qr`：lean-qr、jsQR）
@@ -166,6 +166,7 @@ interface StepContext {
 - **加载**：WebView 只加载我们随 App 发布的固定 HTML，库文件从本地扩展包目录读取，不访问网络（CSP `default-src 'none'`，见 T4 实验记录）。WebView 和 App 之间只有固定格式的消息（动作名 + 数据），不注入任何模型生成的字符串（open-tool-research N3）。
 - **下载来源**：先用 jsDelivr 上固定版本的地址，以后换成自己的服务器（只改清单）。
 - **App Store 2.5.2**：见 DECISIONS（待创始人确认）。
+- **iOS 不需要扫描包和文字识别包**（D-085、D-086）：有原生模块时 `scan.detect`、`ocr.recognize` 走系统的 Vision，执行器不再为它们确认扩展包（`RunOptions.nativeActions`），工作流页的「第一次运行时需要下载」也不列出这两个包。这两个包暂时留给 Android 和 Expo Go；要不要删、Android 用什么，见 DECISIONS P-012、P-013。PDF 预览包各平台都还需要。
 
 ## 7. 预设工作流和编辑
 
@@ -177,9 +178,9 @@ interface StepContext {
 | `document-packet`    | 材料包              | 选照片 / 拍照 → 裁剪 → 排顺序（`file.order`）→ A4 PDF ≤ 4 MB → 命名 → 分享 |         |
 | `email-photos`       | 照片发邮件 / 传网站 | 选照片 → 长边 1600 → 压到 500 KB → 分享                                    |         |
 | `sign-return`        | 签回表格            | 选 PDF → 填表（没有字段时跳过）→ 签名 → 分享                               | pdfview |
-| `scan-document`      | 扫描文档            | 拍照 → 找边 → 变清楚 → PDF → 命名 → 分享                                   | scan    |
+| `scan-document`      | 扫描文档            | 文档相机扫描（或拍照后找边）→ 变清楚 → PDF → 命名 → 分享                   | scan    |
 | `combine-documents`  | 多份材料合一        | 选 PDF 和图片 → 合并 → 选页 / 排序 / 旋转 → 命名 → 分享                    |         |
-| `receipt-archive`    | 收据归档            | 拍收据 → 拉正 → 压到 500 KB → 按日期命名 → 存到文件                        | scan    |
+| `receipt-archive`    | 收据归档            | 扫描收据（或拍照后拉正）→ 压到 500 KB → 按日期命名 → 存到文件              | scan    |
 | `redact-screenshots` | 截图打码分享        | 选截图 → 拼长图 → 打码 → 分享                                              |         |
 | `send-photos`        | 批量发照片          | 选照片 → 转 JPG → 去掉定位 → 长边 2048 → ZIP → 分享                        |         |
 | `print-id-photos`    | 证件照打印          | 选照片 → 证件照 → 排到 6 寸相纸（裁切线）→ 打印或保存                      |         |
@@ -226,14 +227,14 @@ interface StepContext {
 
 配 v4 的 fixture（默认、简化过步骤、去掉了询问三种）和测试。工具页的组件不动；工具新增的功能通过工具目录里的「更新」按钮（`updateTool`：补上缺少的工作流和工具页上的入口，保留用户的修改）加进来。
 
-## 9. Expo Go 里做不了（不做）
+## 9. 还没做的（需要原生能力）
 
-- 分享扩展 / 「用 Morph 打开」：用户先把邮件里的文件存到「文件」，再回 Morph 里选。
-- 视频压缩和剪辑、智能抠图 / 换底色、桌面小组件、Android 相册清理。
-- 基于 ML Kit 或 VisionKit 的原生扫描和 OCR。
+T8 起有了开发版构建（D-084），下面这些可以用原生模块做，但还没排期：
+
+- 证件照自动框脸 / 换底色（Vision 人脸和人像分割）、中文表单填写、分享扩展 / 「用 Morph 打开」（目前要先把文件存到「文件」再回 Morph 里选）。
+- 视频压缩和剪辑、桌面小组件、Android 相册清理。
+- Android 的原生扫描和文字识别（ML Kit 是闭源的，许可证待定，P-013）；Android 目前用扩展包。
 - 压缩任意外来 PDF、PDF 加密解密（第二批）。
-
-这些等以后有开发版构建再说。
 
 ## 10. 里程碑
 
@@ -247,3 +248,4 @@ interface StepContext {
 | T5     | 扫描包（找边、调四角、增强）+ 文字识别包（按语言下载）                                      |
 | T6     | Skia：拼长图、打码、水印、证件照排版；ZIP；二维码；用记录生成 PDF / 打印；文字转 PDF        |
 | T7     | 预设工作流 + 编辑器 + AI 修改和新建工作流（修改操作、planner、mock、评测）                  |
+| T8     | 开发版构建；iOS 原生文字识别和扫描（Vision、Core Image、文档相机）；扩展包留作退路          |

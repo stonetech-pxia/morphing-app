@@ -5,7 +5,8 @@ import type { ToolDefinition } from '../registry';
 import type { Locale, Localized, Workflow } from '../schema';
 import type { ActionDefinition } from '../workflow/contract';
 
-// 文字识别工具的清单（T5）：tesseract.js 在文字识别包里运行（WebView），每种语言一个语言包。
+// 文字识别工具的清单（T5）：iOS 用系统的 Vision 识别（D-084），不需要下载；
+// 其他平台用文字识别包里的 tesseract.js（WebView），每种语言一个语言包。
 // 识别出的文字只留在本机（RunValue 'text'）：复制、存成文件、生成 PDF，绝不发给 AI（D-036）。
 
 export const OCR_TOOL_ID = 'ocr';
@@ -33,8 +34,8 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
     id: 'ocr.recognize',
     label: { en: 'Recognize text', zh: '识别文字' },
     description: {
-      en: 'Reads printed text in the images (one language per run). Handwriting and receipt amounts are often wrong. The text stays on this device.',
-      zh: '识别图片里的印刷文字（每次一种语言）。手写和收据金额常常认错。文字只留在本机。',
+      en: 'Reads printed text in the images (one language per run). Handwriting and receipt amounts may be wrong. The text stays on this device.',
+      zh: '识别图片里的印刷文字（每次一种语言）。手写和收据金额可能认错。文字只留在本机。',
     },
     input: ['images'],
     output: 'text',
@@ -48,7 +49,7 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     pack: 'ocr',
-    // 语言包依赖识别包：确保语言包就会连同识别包一起下载。
+    // 语言包依赖识别包：确保语言包就会连同识别包一起下载。iOS 用系统识别，不需要（engine 的 nativeActions）。
     packFor: (params) => ocrPackId(String(params.lang)),
     requires: [],
   },
@@ -94,7 +95,7 @@ export function ocrWorkflows(locale: Locale): Workflow[] {
       'ocr-scan',
       ['Scan and get text', '拍照识别文字'],
       [
-        { id: 'shoot', action: 'in.photos', params: { source: 'camera', min: 1, max: 10 } },
+        { id: 'shoot', action: 'in.photos', params: { source: 'scanner', min: 1, max: 10 } },
         { id: 'edges', action: 'scan.detect', params: {} },
         { id: 'read', action: 'ocr.recognize', params: { lang }, ask: ['lang'] },
       ],
@@ -131,8 +132,8 @@ export const ocrTool: ToolDefinition = {
         props: {
           text: t(
             locale,
-            'Runs on this device; the text is never uploaded. Each language is downloaded the first time you use it.',
-            '在本机识别，文字不会上传。每种语言第一次用时下载。',
+            'Runs on this device; the text is never uploaded. iPhone uses its built-in text recognition; on other devices each language is downloaded the first time you use it.',
+            '在本机识别，文字不会上传。iPhone 用系统自带的识别；其他设备每种语言第一次用时下载。',
           ),
         },
       },

@@ -22,6 +22,8 @@ export interface RunItem {
   pageCount?: number;
   /** 照片的拍摄时间（毫秒）。 */
   takenAt?: number;
+  /** 系统文档相机拍的页面：已经找边拉正，scan.detect 直接放行。 */
+  straightened?: boolean;
   /** 已经存成用户文件时的文件 ID。 */
   assetId?: string;
 }
@@ -129,6 +131,8 @@ export interface RunOptions<S> {
   askParams?: (request: AskRequest) => Promise<Record<string, unknown> | null>;
   /** 步骤需要扩展包时调用：已安装或用户确认下载并完成后返回 true；用户拒绝返回 false（D-064）。 */
   ensurePack?: (packId: string) => Promise<boolean>;
+  /** 由平台原生实现的动作（iOS 的 Vision，D-084）：不需要扩展包，不调用 ensurePack。 */
+  nativeActions?: ReadonlySet<string>;
   /** 界面把 cancelled 设为 true 即可取消。 */
   signal?: { cancelled: boolean };
   onEvent?: (event: RunEvent) => void;
@@ -219,7 +223,9 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
         params = action.params.parse({ ...params, ...answered });
       }
       // 先问参数再确认扩展包：文字识别的语言包由本次选的语言决定。
-      const pack = action.packFor?.(params) ?? action.pack;
+      const pack = opts.nativeActions?.has(action.id)
+        ? undefined
+        : (action.packFor?.(params) ?? action.pack);
       if (pack && opts.ensurePack && !(await orCancel(opts.ensurePack(pack)))) {
         throw new RunCancelled();
       }
