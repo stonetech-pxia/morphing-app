@@ -514,9 +514,10 @@ const strings = {
   readyFix: { en: 'Not quite right? Ask AI to change it', zh: '不太对？让 AI 改这个' },
   aboutWorkflow: { en: 'Changing “{name}”', zh: '要改的快捷操作：「{name}」' },
   aboutWorkflowHint: {
-    en: 'Say how it should change, for example “smaller” or “share at the end”.',
-    zh: '说说想怎么改它，比如「再小一点」「最后加一步分享」。',
+    en: 'Say how it should change, or try one of the examples below.',
+    zh: '说说想怎么改它，也可以先试试下面的例子。',
   },
+  aboutPlaceholder: { en: 'For example: {example}', zh: '例如：{example}' },
   aboutShared: { en: 'For the {what} you shared', zh: '给分享进来的 {what}' },
   aboutSharedHint: {
     en: 'Say what these files should become; AI makes a quick action for it. AI only knows what kind of files they are and how many.',

@@ -98,6 +98,8 @@ export function ShareScreen() {
     // 能运行的排在前面（排序是稳定的，组内保持原来的顺序）；刚让 AI 做好的排最前。
     .sort((a, b) => Number(b.fit.ok) - Number(a.fit.ok))
     .sort((a, b) => Number(isNew(b.wf)) - Number(isNew(a.wf)));
+  const mine = candidates.filter(({ wf }) => !wf.toolId);
+  const fromTools = candidates.filter(({ wf }) => wf.toolId);
   // 还没添加、第一步收得下这些文件的现成快捷操作（D-129）。
   const presets = WORKFLOW_PRESETS.filter((p) => !config.workflows.some((w) => w.presetId === p.id))
     .map((preset) => ({ preset, wf: presetWorkflow(preset, locale, preset.id) }))
@@ -106,6 +108,33 @@ export function ShareScreen() {
   function isNew(wf: Workflow) {
     return knownIds !== null && !wf.toolId && !knownIds.has(wf.id);
   }
+
+  const workflowCard = ({ wf, fit }: (typeof candidates)[number]) => (
+    <Card key={wf.id} palette={palette} testID={`share-workflow-${wf.id}`}>
+      <Text style={[palette.font('title', 16), { color: palette.text }]}>
+        {wf.name}
+        {isNew(wf) ? (zh ? ' · 刚做好' : ' · just made') : ''}
+      </Text>
+      {wf.toolId ? (
+        <Text style={caption}>{registry.tools.get(wf.toolId)?.name[locale]}</Text>
+      ) : null}
+      <Text style={caption}>{stepChain(wf, registry, locale)}</Text>
+      {fit.ok ? (
+        <View style={styles.actions}>
+          <Pill
+            palette={palette}
+            testID={`share-run-${wf.id}`}
+            label={zh ? '运行' : 'Run'}
+            onPress={() => run(wf)}
+          />
+        </View>
+      ) : (
+        <Text style={[palette.font('bodyMedium', 13), { color: palette.danger }]}>
+          {reason(fit)}
+        </Text>
+      )}
+    </Card>
+  );
 
   const reason = (fit: ShareFit) =>
     fit.ok
@@ -247,38 +276,20 @@ export function ShareScreen() {
             <Card palette={palette}>
               <Text testID="share-no-workflows" style={caption}>
                 {zh
-                  ? '还没有能处理这些文件的快捷操作。可以添加下面现成的，或者让 AI 搭一个。'
-                  : 'No quick action takes these files yet. Add a ready-made one below, or ask AI to make one.'}
+                  ? '还没有能处理这些文件的快捷操作。可以让 AI 搭一个，或者添加下面现成的。'
+                  : 'No quick action takes these files yet. Ask AI to make one, or add a ready-made one below.'}
               </Text>
             </Card>
           ) : (
-            candidates.map(({ wf, fit }) => (
-              <Card key={wf.id} palette={palette} testID={`share-workflow-${wf.id}`}>
-                <Text style={[palette.font('title', 16), { color: palette.text }]}>
-                  {wf.name}
-                  {isNew(wf) ? (zh ? ' · 刚做好' : ' · just made') : ''}
-                </Text>
-                {wf.toolId ? (
-                  <Text style={caption}>{registry.tools.get(wf.toolId)?.name[locale]}</Text>
-                ) : null}
-                <Text style={caption}>{stepChain(wf, registry, locale)}</Text>
-                {fit.ok ? (
-                  <View style={styles.actions}>
-                    <Pill
-                      palette={palette}
-                      testID={`share-run-${wf.id}`}
-                      label={zh ? '运行' : 'Run'}
-                      onPress={() => run(wf)}
-                    />
-                  </View>
-                ) : (
-                  <Text style={[palette.font('bodyMedium', 13), { color: palette.danger }]}>
-                    {reason(fit)}
-                  </Text>
-                )}
-              </Card>
-            ))
+            mine.map(workflowCard)
           )}
+          <Button
+            palette={palette}
+            testID="share-ask-ai"
+            variant="outline"
+            label={zh ? '让 AI 搭一个' : 'Ask AI to make one'}
+            onPress={askAI}
+          />
           {presets.length > 0 ? (
             <>
               <SectionLabel palette={palette}>
@@ -302,13 +313,15 @@ export function ShareScreen() {
               ))}
             </>
           ) : null}
-          <Button
-            palette={palette}
-            testID="share-ask-ai"
-            variant="outline"
-            label={zh ? '让 AI 搭一个' : 'Ask AI to make one'}
-            onPress={askAI}
-          />
+          {/* 工具里的单个功能放在最后：图片工具就有十几个，放前面会把「让 AI 搭一个」和现成的挤到很下面。 */}
+          {fromTools.length > 0 ? (
+            <>
+              <SectionLabel palette={palette}>
+                {zh ? '工具里的功能' : 'From your tools'}
+              </SectionLabel>
+              {fromTools.map(workflowCard)}
+            </>
+          ) : null}
         </>
       )}
     </ScrollView>

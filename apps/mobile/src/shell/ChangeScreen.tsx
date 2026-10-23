@@ -182,7 +182,13 @@ export function ChangeScreen() {
               testID="change-input"
               value={input}
               onChangeText={setInput}
-              placeholder={t(locale, 'changePlaceholder')}
+              placeholder={
+                !about
+                  ? t(locale, 'changePlaceholder')
+                  : examples[0]
+                    ? t(locale, 'aboutPlaceholder', { example: examples[0] })
+                    : ''
+              }
               placeholderTextColor={palette.caption}
               multiline
               style={[
