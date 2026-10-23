@@ -63,8 +63,8 @@ export interface LocalSteps {
 export type LocalKind = keyof LocalSteps;
 
 export interface LocalUi {
-  /** 简单的二选一，例如「再拍一张？」。 */
-  confirm(title: string, ok: string, cancel: string): Promise<boolean>;
+  /** 简单的二选一，例如「再拍一张？」。message 是标题下面的说明（Android 的标题最多两行）。 */
+  confirm(title: string, ok: string, cancel: string, message?: string): Promise<boolean>;
   /** 打开本地操作界面；用户取消时返回 null。 */
   open<K extends LocalKind>(
     kind: K,

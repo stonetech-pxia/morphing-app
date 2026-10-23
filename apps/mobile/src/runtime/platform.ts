@@ -121,6 +121,10 @@ export interface TranslatePlatform {
   readonly downloadBytes?: number;
   /** 下载一种语言的模型（Android）；没有网络时抛出。iOS 没有这个方法。 */
   download?(language: string): Promise<void>;
+  /** 已下载的语言（Android，「设置 → 已下载内容」列出；iOS 的语言由系统设置管理，没有这个方法）。 */
+  downloadedLanguages?(): Promise<string[]>;
+  /** 删除一种语言的模型（Android）。 */
+  removeLanguage?(language: string): Promise<void>;
   /**
    * 翻译，一段对一段。iOS 需要下载时系统会弹窗；用户取消时抛出 code 为 cancelled 的错误。
    */

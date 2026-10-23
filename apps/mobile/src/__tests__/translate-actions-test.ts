@@ -48,7 +48,10 @@ function setup(workflow: Workflow, answers: Record<string, unknown> = {}, confir
   const packs = new PdfTextPack();
   const confirms: string[] = [];
   const ui: LocalUi = {
-    confirm: async (title) => (confirms.push(title), confirmDownload),
+    confirm: async (title, _ok, _cancel, message) => (
+      confirms.push(`${title}｜${message}`),
+      confirmDownload
+    ),
     open: async () => null as never,
   };
   const run = async (): Promise<RunResult> =>
@@ -131,7 +134,7 @@ describe('translate.text', () => {
     ok.translator.missing = new Set(['ja', 'zh-Hans']);
     expect((await ok.run()).status).toBe('succeeded');
     expect(ok.confirms).toEqual([
-      '首次使用需下载约 60 MB（简体中文、日文），之后不联网也能用。建议连接 Wi-Fi。',
+      '首次使用需下载约 60 MB｜翻译语言：简体中文、日文。之后不联网也能用，建议连接 Wi-Fi。',
     ]);
     expect(ok.translator.calls.filter((c) => c.method === 'download')).toEqual([
       { method: 'download', args: ['zh-Hans'] },

@@ -68,9 +68,10 @@ export const TRANSLATE_IMPLS: Record<string, Impl> = {
       const langs = names([...missing]);
       const mb = Math.round((missing.size * (translator.downloadBytes ?? 0)) / MB);
       const ok = await ctx.services.ui.confirm(
-        t(locale, 'translateDownloadAsk', { mb, langs }),
+        t(locale, 'translateDownloadAsk', { mb }),
         t(locale, 'translateDownload'),
         t(locale, 'cancel'),
+        t(locale, 'translateDownloadBody', { langs }),
       );
       if (!ok) throw new RunCancelled();
       for (const language of missing) {

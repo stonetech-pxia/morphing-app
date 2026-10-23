@@ -1,5 +1,12 @@
-import { fireEvent, within } from '@testing-library/react-native';
+import { createDefaultWorkspace } from '@morph/core';
+import { fireEvent, render, within } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
+import { Alert } from 'react-native';
+
+import { PackStore } from '../packs/store';
+import { makePalette } from '../renderer/theme';
+import { PacksScreen } from '../shell/PacksScreen';
+import { MemoryPackFs, manifests, sha256 } from '../test-utils/memory-packs';
 
 import { FakeFiles, FakeTranslator, FakeVision } from '../test-utils/fake-files';
 import { acceptNextAlert, renderToolsApp } from '../test-utils/render-app';
@@ -97,5 +104,30 @@ describe('translation journeys (UI)', () => {
     expect(translator.calls.filter((c) => c.method === 'download')).toEqual([
       { method: 'download', args: ['ja'] },
     ]);
+  });
+
+  it('lists Android translation languages under Downloads and deletes one (D-175)', async () => {
+    const { translator } = filesWithTranslator();
+    translator.downloaded = new Set(['ja', 'zh-Hans']);
+    const fs = new MemoryPackFs();
+    const lookup = await manifests(fs);
+    const store = new PackStore(fs, sha256, (id) => lookup.get(id));
+    const palette = makePalette(createDefaultWorkspace('zh').theme, false);
+    await render(
+      <PacksScreen store={store} palette={palette} locale="zh" translator={translator} />,
+    );
+    expect(await screen.findByText('翻译语言：日文')).toBeTruthy();
+    expect(screen.getByText('翻译语言：简体中文')).toBeTruthy();
+    // 没有别的下载内容时不显示「还没有下载过内容」和合计。
+    expect(screen.queryByTestId('packs-empty')).toBeNull();
+    expect(screen.queryByTestId('packs-total')).toBeNull();
+
+    jest.spyOn(Alert, 'alert').mockImplementationOnce((_t, _m, buttons) => {
+      buttons?.find((b) => b.style === 'destructive')?.onPress?.();
+    });
+    await fireEvent.press(screen.getByTestId('translate-language-delete-ja'));
+    expect(await screen.findByTestId('translate-language-zh-Hans')).toBeTruthy();
+    expect(screen.queryByTestId('translate-language-ja')).toBeNull();
+    expect(translator.missing.has('ja')).toBe(true);
   });
 });

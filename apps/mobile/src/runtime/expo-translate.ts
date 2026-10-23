@@ -18,7 +18,7 @@ function rethrow(e: unknown): never {
 export function expoTranslate(): TranslatePlatform | null {
   const native = MorphTranslate;
   if (!native) return null;
-  const download = native.download;
+  const { download, downloadedLanguages, deleteLanguage } = native;
   return {
     supported: native.isSupported(),
     detectLanguages: (texts) => native.detectLanguages(texts),
@@ -30,5 +30,11 @@ export function expoTranslate(): TranslatePlatform | null {
         }
       : {}),
     translate: (texts, from, to) => native.translate(texts, from, to).catch(rethrow),
+    ...(downloadedLanguages && deleteLanguage
+      ? {
+          downloadedLanguages: () => downloadedLanguages(),
+          removeLanguage: (language: string) => deleteLanguage(language),
+        }
+      : {}),
   };
 }

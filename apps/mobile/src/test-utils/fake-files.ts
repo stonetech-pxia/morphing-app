@@ -462,9 +462,17 @@ export class FakeTranslator implements TranslatePlatform {
   get downloadBytes() {
     return this.android ? 30 * 1024 * 1024 : undefined;
   }
+  /** 下载过的语言（「设置 → 已下载内容」列出）。 */
+  downloaded = new Set<string>();
   download = async (language: string) => {
     this.calls.push({ method: 'download', args: [language] });
     this.missing.delete(language);
+    this.downloaded.add(language);
+  };
+  downloadedLanguages = async () => [...this.downloaded];
+  removeLanguage = async (language: string) => {
+    this.downloaded.delete(language);
+    this.missing.add(language);
   };
   async translate(texts: readonly string[], from: string, to: string) {
     this.calls.push({ method: 'translate', args: [texts, from, to] });

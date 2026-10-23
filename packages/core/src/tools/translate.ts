@@ -90,7 +90,10 @@ export const TRANSLATE_ACTIONS: readonly ActionDefinition[] = [
         key: 'from',
         label: { en: 'From', zh: '原文语言' },
         kind: 'choice',
-        options: [{ value: 'auto', label: { en: 'Detect', zh: '自动识别' } }, ...languageOptions],
+        options: [
+          { value: 'auto', label: { en: 'Auto-detect', zh: '自动识别' } },
+          ...languageOptions,
+        ],
       },
       {
         key: 'to',

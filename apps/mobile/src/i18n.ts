@@ -549,13 +549,26 @@ const strings = {
     zh: '把{from}翻成{to}（这台手机不支持）',
   },
   translateDownloadAsk: {
-    en: 'First use needs about {mb} MB of downloads ({langs}). After that it works offline. Wi-Fi is recommended.',
-    zh: '首次使用需下载约 {mb} MB（{langs}），之后不联网也能用。建议连接 Wi-Fi。',
+    en: 'First use needs a download of about {mb} MB',
+    zh: '首次使用需下载约 {mb} MB',
+  },
+  translateDownloadBody: {
+    en: 'Translation languages: {langs}. After that it works offline. Wi-Fi is recommended.',
+    zh: '翻译语言：{langs}。之后不联网也能用，建议连接 Wi-Fi。',
   },
   translateDownload: { en: 'Download', zh: '下载' },
   translateDownloadFailed: {
     en: 'the {langs} language files (check the connection and try again)',
     zh: '{langs}的翻译语言（请检查网络后再试）',
+  },
+  translateLanguageTitle: { en: 'Translation: {name}', zh: '翻译语言：{name}' },
+  translateLanguageHint: {
+    en: 'About 30 MB, for translating on this device (Google ML Kit).',
+    zh: '约 30 MB，用来在本机翻译（Google ML Kit）。',
+  },
+  translateDeleteMessage: {
+    en: 'You will be asked to download it again the next time you translate this language.',
+    zh: '下次翻译这种语言时会再问你是否下载。',
   },
   translateNote: {
     en: 'Translated on this device — good for understanding the meaning. For official documents, use a professional translator.',

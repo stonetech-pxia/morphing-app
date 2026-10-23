@@ -90,11 +90,11 @@ export function RunScreen({
       : (registry.actions.get(action)?.label[locale] ?? action);
 
   const ui: LocalUi = {
-    confirm: (title, ok, cancel) =>
+    confirm: (title, ok, cancel, message) =>
       new Promise((resolve) =>
         Alert.alert(
           title,
-          undefined,
+          message,
           [
             { text: cancel, style: 'cancel', onPress: () => resolve(false) },
             { text: ok, onPress: () => resolve(true) },
