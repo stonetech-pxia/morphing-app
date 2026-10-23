@@ -14,6 +14,10 @@ import android.provider.OpenableColumns
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.audio.AudioProcessor
+import androidx.media3.common.audio.ChannelMixingAudioProcessor
+import androidx.media3.common.audio.ChannelMixingMatrix
+import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.FrameDropEffect
 import androidx.media3.effect.Presentation
@@ -36,6 +40,8 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 import kotlin.math.max
 import kotlin.math.min
@@ -70,6 +76,8 @@ class MorphMediaModule : Module() {
   /** 正在进行的任务（只在主线程读写）。 */
   private val jobs = mutableMapOf<String, Transformer>()
   private val cancelled = mutableSetOf<String>()
+  /** 在后台线程里跑的任务（写 WAV）：取消标记。 */
+  private val threadJobs = ConcurrentHashMap<String, AtomicBoolean>()
 
   override fun definition() = ModuleDefinition {
     Name("MorphMedia")
@@ -90,6 +98,10 @@ class MorphMediaModule : Module() {
 
     AsyncFunction("transcode") {
       jobId: String, uri: String, output: String, options: Map<String, Any?>, promise: Promise ->
+      if (options["video"] == "drop") {
+        transcodeAudio(jobId, Uri.parse(uri), File(Uri.parse(output).path!!), options, promise)
+        return@AsyncFunction
+      }
       try {
         val transformer = buildTranscode(Uri.parse(uri), options)
         run(jobId, transformer.first, transformer.second, File(Uri.parse(output).path!!), promise)
@@ -157,7 +169,39 @@ class MorphMediaModule : Module() {
       }
     }
 
+    // 音频（D-153、D-155，音频会话）：几段接成一段（Media3 的一个序列）、波形（自己解码）。
+    AsyncFunction("concat") {
+      jobId: String, uris: List<String>, output: String, options: Map<String, Any?>, promise: Promise ->
+      try {
+        if ((options["container"] as? String ?: "m4a") != "m4a") throw NotImplementedException("concat to WAV")
+        @Suppress("UNCHECKED_CAST")
+        val audio = options["audio"] as? Map<String, Any?> ?: emptyMap()
+        val items = uris.map { audioItem(MediaItem.fromUri(Uri.parse(it)), audio) }
+        val composition = Composition.Builder(EditedMediaItemSequence.withAudioFrom(items)).build()
+        run(jobId, aacTransformer(audio), composition, File(Uri.parse(output).path!!), promise)
+      } catch (e: CodedException) {
+        promise.reject(e)
+      } catch (e: Exception) {
+        promise.reject(MediaFailedException(e.message))
+      }
+    }.runOnQueue(Queues.MAIN)
+
+    AsyncFunction("waveform") { uri: String, buckets: Int, range: Map<String, Double>?, promise: Promise ->
+      thread {
+        try {
+          val start = ((range?.get("startMs") ?: 0.0) * 1000).toLong()
+          val end = range?.get("endMs")?.let { (it * 1000).toLong() } ?: Long.MAX_VALUE
+          promise.resolve(AudioPcm.waveform(context, Uri.parse(uri), buckets, start, end))
+        } catch (e: CodedException) {
+          promise.reject(e)
+        } catch (e: Exception) {
+          promise.reject(MediaUnsupportedException(e.message))
+        }
+      }
+    }
+
     Function("cancel") { jobId: String ->
+      threadJobs[jobId]?.set(true)
       main.post {
         cancelled.add(jobId)
         jobs[jobId]?.cancel()
@@ -301,6 +345,106 @@ class MorphMediaModule : Module() {
       .setEncoderFactory(encoders.build())
       .build()
     return transformer to composition
+  }
+
+  // ---- 音频 ----
+
+  /** 去掉画面、统一声道和采样率（几段接起来时格式要一样；AAC 低码率要单声道、低采样率）。 */
+  private fun audioItem(item: MediaItem, audio: Map<String, Any?>): EditedMediaItem {
+    val processors = mutableListOf<AudioProcessor>()
+    (audio["channels"] as? Number)?.toInt()?.let { channels ->
+      val mix = ChannelMixingAudioProcessor()
+      for (input in 1..8) mix.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(input, channels))
+      processors += mix
+    }
+    (audio["sampleRate"] as? Number)?.toInt()?.let { rate ->
+      processors += SonicAudioProcessor().apply { setOutputSampleRateHz(rate) }
+    }
+    return EditedMediaItem.Builder(item)
+      .setRemoveVideo(true)
+      .setEffects(Effects(processors, listOf()))
+      .build()
+  }
+
+  private fun aacTransformer(audio: Map<String, Any?>): Transformer {
+    val encoders = DefaultEncoderFactory.Builder(context).setEnableFallback(true)
+    (audio["bitrateKbps"] as? Number)?.let { kbps ->
+      encoders.setRequestedAudioEncoderSettings(
+        AudioEncoderSettings.Builder().setBitrate((kbps.toDouble() * 1000).roundToInt()).build()
+      )
+    }
+    return Transformer.Builder(context)
+      .setAudioMimeType(MimeTypes.AUDIO_AAC)
+      .setEncoderFactory(encoders.build())
+      .build()
+  }
+
+  /** 只要声音：M4A 用 Media3（AAC，写 MP4 容器），WAV 自己解码再写 16 位 PCM。 */
+  @Suppress("UNCHECKED_CAST")
+  private fun transcodeAudio(jobId: String, uri: Uri, output: File, options: Map<String, Any?>, promise: Promise) {
+    val container = options["container"] as? String ?: "m4a"
+    val audio = options["audio"] as? Map<String, Any?> ?: emptyMap()
+    val range = options["range"] as? Map<String, Any?>
+    val startMs = (range?.get("startMs") as? Number)?.toLong()
+    val endMs = (range?.get("endMs") as? Number)?.toLong()
+    when (container) {
+      "m4a" -> main.post {
+        try {
+          val builder = MediaItem.Builder().setUri(uri)
+          if (startMs != null && endMs != null) {
+            builder.setClippingConfiguration(
+              MediaItem.ClippingConfiguration.Builder().setStartPositionMs(startMs).setEndPositionMs(endMs).build()
+            )
+          }
+          val composition = Composition.Builder(
+            EditedMediaItemSequence.withAudioFrom(listOf(audioItem(builder.build(), audio)))
+          ).build()
+          run(jobId, aacTransformer(audio), composition, output, promise)
+        } catch (e: CodedException) {
+          promise.reject(e)
+        } catch (e: Exception) {
+          promise.reject(MediaFailedException(e.message))
+        }
+      }
+      "wav" -> {
+        val flag = AtomicBoolean(false)
+        threadJobs[jobId] = flag
+        thread {
+          try {
+            output.parentFile?.mkdirs()
+            output.delete()
+            val wav = AudioPcm.WavWriter(output)
+            val wanted = (audio["channels"] as? Number)?.toInt()
+            val startUs = (startMs ?: 0L) * 1000
+            val endUs = endMs?.let { it * 1000 } ?: Long.MAX_VALUE
+            val durationUs = (((probe(uri)["durationMs"] as? Double) ?: 0.0) * 1000).toLong()
+            AudioPcm.decode(context, uri, startUs, endUs, { flag.get() }) { chunk ->
+              val channels = wanted ?: min(2, chunk.channels)
+              wav.write(AudioPcm.remix(chunk, channels), channels, chunk.sampleRate)
+              val span = (if (endUs == Long.MAX_VALUE) durationUs else endUs) - startUs
+              if (span > 0) sendProgress(jobId, (chunk.ptsUs - startUs).toDouble() / span)
+            }
+            if (flag.get()) {
+              output.delete()
+              promise.reject(MediaCancelledException())
+              return@thread
+            }
+            wav.close()
+            sendProgress(jobId, 1.0)
+            promise.resolve(result(output))
+          } catch (e: CodedException) {
+            output.delete()
+            promise.reject(e)
+          } catch (e: Exception) {
+            output.delete()
+            promise.reject(MediaFailedException(e.message))
+          } finally {
+            threadJobs.remove(jobId)
+          }
+        }
+      }
+      else -> promise.reject(NotImplementedException("audio to $container"))
+    }
   }
 
   /** 有没有硬件或软件编码器能按这个尺寸（横竖都试）编码这种格式。 */

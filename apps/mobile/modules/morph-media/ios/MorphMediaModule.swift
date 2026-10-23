@@ -126,6 +126,31 @@ public class MorphMediaModule: Module {
       }
     }
 
+    // 音频（D-153、D-155，音频会话）：几段接成一段、波形。
+    AsyncFunction("concat") {
+      (jobId: String, uris: [URL], output: URL, options: [String: Any], promise: Promise) in
+      let job = self.start(jobId)
+      Task {
+        defer { self.finish(jobId) }
+        do {
+          let result = try await self.concat(job, jobId: jobId, uris: uris, output: output, options: options)
+          promise.resolve(result)
+        } catch {
+          promise.reject(Self.coded(error, job: job))
+        }
+      }
+    }
+
+    AsyncFunction("waveform") { (uri: URL, buckets: Int, range: [String: Double]?, promise: Promise) in
+      Task {
+        do {
+          promise.resolve(try await Self.waveform(uri, buckets: buckets, range: range))
+        } catch {
+          promise.reject(Self.coded(error))
+        }
+      }
+    }
+
     Function("cancel") { (jobId: String) in
       let job = self.jobsLock.withLock { self.jobs[jobId] }
       job?.cancel()
@@ -242,6 +267,21 @@ public class MorphMediaModule: Module {
     _ job: Job, jobId: String, uri: URL, output: URL, options: [String: Any]
   ) async throws -> [String: Any] {
     let container = options["container"] as? String ?? "mp4"
+    if options["video"] as? String == "drop" {
+      let asset = AVURLAsset(url: uri)
+      let (duration, tracks) = try await asset.load(.duration, .tracks)
+      let audioTracks = tracks.filter { $0.mediaType == .audio }
+      if audioTracks.isEmpty { throw MediaUnsupportedException("no audio") }
+      var timeRange = CMTimeRange(start: .zero, duration: duration)
+      if let range = options["range"] as? [String: Double], let start = range["startMs"], let end = range["endMs"] {
+        timeRange = CMTimeRange(
+          start: CMTime(seconds: start / 1000, preferredTimescale: 600),
+          end: CMTime(seconds: min(end / 1000, duration.seconds), preferredTimescale: 600))
+      }
+      return try await writeAudio(
+        job, jobId: jobId, asset: asset, tracks: audioTracks, timeRange: timeRange, output: output,
+        container: container, audio: options["audio"] as? [String: Any] ?? [:])
+    }
     guard container == "mp4", let video = options["video"] as? [String: Any] else {
       throw NotImplementedException("transcode to \(container)")
     }
@@ -438,7 +478,7 @@ public class MorphMediaModule: Module {
   /** 把一路样本从 reader 搬到 writer，直到读完或写入失败。 */
   private static func pump(
     _ output: AVAssetReaderOutput, into input: AVAssetWriterInput, queue: DispatchQueue,
-    onSample: ((CMTime) -> Void)?
+    onSample: ((CMTime) -> Void)? = nil
   ) async {
     await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
       var done = false
@@ -465,6 +505,188 @@ public class MorphMediaModule: Module {
   private static func result(_ url: URL) async throws -> [String: Any] {
     let info = try await probe(url)
     return ["uri": url.absoluteString, "size": fileSize(url), "info": info]
+  }
+
+  // MARK: - 音频（D-153、D-155）
+
+  /**
+   * 把几路声音（混在一起；合成时它们首尾相接）编码成 M4A（AAC）或 WAV（16 位 PCM）。
+   * AAC 低码率时用单声道、低采样率，否则编码器不接受（和视频的声音一样）。
+   */
+  private func writeAudio(
+    _ job: Job, jobId: String, asset: AVAsset, tracks: [AVAssetTrack], timeRange: CMTimeRange,
+    output: URL, container: String, audio: [String: Any]
+  ) async throws -> [String: Any] {
+    let codec = audio["codec"] as? String ?? (container == "wav" ? "pcm" : "aac")
+    guard (container == "m4a" && codec == "aac") || (container == "wav" && codec == "pcm") else {
+      throw NotImplementedException("\(container) with \(codec)")
+    }
+    let kbps = audio["bitrateKbps"] as? Double ?? 128
+    let channels = audio["channels"] as? Int ?? (codec == "aac" && kbps < 64 ? 1 : 2)
+    let sampleRate = audio["sampleRate"] as? Double ?? (codec == "aac" && kbps < 48 ? 22050 : 44100)
+    let pcm: [String: Any] = [
+      AVFormatIDKey: kAudioFormatLinearPCM,
+      AVSampleRateKey: sampleRate,
+      AVNumberOfChannelsKey: channels,
+      AVLinearPCMBitDepthKey: 16,
+      AVLinearPCMIsFloatKey: false,
+      AVLinearPCMIsBigEndianKey: false,
+      AVLinearPCMIsNonInterleaved: false,
+    ]
+    let settings: [String: Any] =
+      codec == "pcm"
+      ? pcm
+      : [
+        AVFormatIDKey: kAudioFormatMPEG4AAC,
+        AVSampleRateKey: sampleRate,
+        AVNumberOfChannelsKey: channels,
+        AVEncoderBitRateKey: Int(kbps * 1000),
+      ]
+
+    let reader: AVAssetReader
+    let writer: AVAssetWriter
+    do {
+      reader = try AVAssetReader(asset: asset)
+      try? FileManager.default.removeItem(at: output)
+      try FileManager.default.createDirectory(
+        at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+      writer = try AVAssetWriter(outputURL: output, fileType: container == "wav" ? .wav : .m4a)
+    } catch {
+      throw MediaFailedException(error.localizedDescription)
+    }
+    reader.timeRange = timeRange
+    let out = AVAssetReaderAudioMixOutput(audioTracks: tracks, audioSettings: pcm)
+    out.alwaysCopiesSampleData = false
+    guard reader.canAdd(out) else { throw MediaUnsupportedException("audio output") }
+    reader.add(out)
+    let input = AVAssetWriterInput(mediaType: .audio, outputSettings: settings)
+    input.expectsMediaDataInRealTime = false
+    guard writer.canAdd(input) else { throw MediaFailedException("audio input \(kbps) kbps \(channels) ch") }
+    writer.add(input)
+
+    job.onCancel = {
+      reader.cancelReading()
+      writer.cancelWriting()
+    }
+    if job.cancelled { throw MediaCancelledException() }
+    guard reader.startReading() else {
+      throw MediaUnsupportedException(reader.error?.localizedDescription ?? "reader")
+    }
+    guard writer.startWriting() else {
+      throw MediaFailedException(writer.error?.localizedDescription ?? "writer")
+    }
+    writer.startSession(atSourceTime: timeRange.start)
+
+    let total = max(timeRange.duration.seconds, 0.001)
+    let start = timeRange.start.seconds
+    var lastReported = -1.0
+    await Self.pump(out, into: input, queue: DispatchQueue(label: "morph.media.audio")) { time in
+      let value = (time.seconds - start) / total
+      if value - lastReported >= 0.01 {
+        lastReported = value
+        self.progress(jobId, value)
+      }
+    }
+
+    if job.cancelled {
+      writer.cancelWriting()
+      throw MediaCancelledException()
+    }
+    if reader.status == .failed {
+      writer.cancelWriting()
+      if job.backgrounded { throw MediaInterruptedException() }
+      throw MediaFailedException(reader.error?.localizedDescription ?? "read")
+    }
+    await writer.finishWriting()
+    if writer.status != .completed {
+      if job.backgrounded { throw MediaInterruptedException() }
+      throw MediaFailedException(writer.error?.localizedDescription ?? "write")
+    }
+    progress(jobId, 1)
+    return try await Self.result(output)
+  }
+
+  /** 几段接成一段：每段放进合成里自己的一路，首尾相接，读的时候混成一路（格式、采样率可以不同）。 */
+  private func concat(
+    _ job: Job, jobId: String, uris: [URL], output: URL, options: [String: Any]
+  ) async throws -> [String: Any] {
+    let composition = AVMutableComposition()
+    var tracks: [AVAssetTrack] = []
+    var cursor = CMTime.zero
+    for uri in uris {
+      let asset = AVURLAsset(url: uri)
+      let (duration, sourceTracks) = try await asset.load(.duration, .tracks)
+      guard let source = sourceTracks.first(where: { $0.mediaType == .audio }) else {
+        throw MediaUnsupportedException("no audio: \(uri.lastPathComponent)")
+      }
+      guard let track = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else {
+        throw MediaFailedException("composition track")
+      }
+      do {
+        try track.insertTimeRange(CMTimeRange(start: .zero, duration: duration), of: source, at: cursor)
+      } catch {
+        throw MediaUnsupportedException(error.localizedDescription)
+      }
+      tracks.append(track)
+      cursor = cursor + duration
+    }
+    return try await writeAudio(
+      job, jobId: jobId, asset: composition, tracks: tracks,
+      timeRange: CMTimeRange(start: .zero, duration: cursor), output: output,
+      container: options["container"] as? String ?? "m4a", audio: options["audio"] as? [String: Any] ?? [:])
+  }
+
+  /** 波形：解成 8 kHz 单声道，每一份取最大的音量，再按最响的一份归一到 0–1。 */
+  static func waveform(_ uri: URL, buckets: Int, range: [String: Double]?) async throws -> [Double] {
+    let asset = AVURLAsset(url: uri)
+    let (duration, tracks) = try await asset.load(.duration, .tracks)
+    let audio = tracks.filter { $0.mediaType == .audio }
+    if audio.isEmpty || buckets <= 0 { throw MediaUnsupportedException("no audio") }
+    var timeRange = CMTimeRange(start: .zero, duration: duration)
+    if let range, let start = range["startMs"], let end = range["endMs"] {
+      timeRange = CMTimeRange(
+        start: CMTime(seconds: start / 1000, preferredTimescale: 600),
+        end: CMTime(seconds: end / 1000, preferredTimescale: 600))
+    }
+    let rate = 8000.0
+    let reader = try AVAssetReader(asset: asset)
+    reader.timeRange = timeRange
+    let out = AVAssetReaderAudioMixOutput(
+      audioTracks: audio,
+      audioSettings: [
+        AVFormatIDKey: kAudioFormatLinearPCM,
+        AVSampleRateKey: rate,
+        AVNumberOfChannelsKey: 1,
+        AVLinearPCMBitDepthKey: 16,
+        AVLinearPCMIsFloatKey: false,
+        AVLinearPCMIsBigEndianKey: false,
+        AVLinearPCMIsNonInterleaved: false,
+      ])
+    guard reader.canAdd(out) else { throw MediaUnsupportedException("waveform output") }
+    reader.add(out)
+    guard reader.startReading() else {
+      throw MediaUnsupportedException(reader.error?.localizedDescription ?? "reader")
+    }
+    let total = max(1, Int(timeRange.duration.seconds * rate))
+    var peaks = [Double](repeating: 0, count: buckets)
+    var index = 0
+    while let sample = out.copyNextSampleBuffer() {
+      guard let block = CMSampleBufferGetDataBuffer(sample) else { continue }
+      let length = CMBlockBufferGetDataLength(block)
+      var data = Data(count: length)
+      data.withUnsafeMutableBytes { raw in
+        _ = CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: length, destination: raw.baseAddress!)
+      }
+      data.withUnsafeBytes { raw in
+        for value in raw.bindMemory(to: Int16.self) {
+          let bucket = min(buckets - 1, index * buckets / total)
+          peaks[bucket] = max(peaks[bucket], abs(Double(value)) / 32768)
+          index += 1
+        }
+      }
+    }
+    let loudest = peaks.max() ?? 0
+    return loudest > 0 ? peaks.map { $0 / loudest } : peaks
   }
 
   // MARK: - trim
