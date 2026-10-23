@@ -140,14 +140,16 @@ App 侧：`apps/mobile/src/runtime/runner.ts` 把执行器接上存储和平台�
 ## 7. 计划服务（apps/api）
 
 ```
-App ──POST /v1/plan {input, locale, config}──► Hono
-        校验请求（≤64KB，输入 ≤500 字）→ validateWorkspace(config) → 每分钟 / 每天限额
+App ──POST /v1/plan {input, locale, config}──► Cloudflare 隧道 ──► Hono（127.0.0.1）
+        客户端令牌 → 校验请求（≤64KB，输入 ≤500 字）→ validateWorkspace(config)
+        → 全局每天上限 → 每台设备每分钟 / 每天限额
         → Claude（系统提示词可缓存；拒答时服务端回退）→ PlanSchema + prepareOps → 必要时修正一次
-        ◄── {plan} 或 {error: bad_request | invalid_config | rate_limited | daily_limit | ai_unavailable}
+        ◄── {plan} 或 {error: unauthorized | bad_request | invalid_config | rate_limited | daily_limit | ai_unavailable}
 ```
 
 - 没有配置 `ANTHROPIC_API_KEY` 时，服务使用 mock，接口不变。
 - 只监听 `127.0.0.1`，日志只记录元数据（结果类型、输入长度、耗时），不记录用户输入和配置。
+- 生产部署在 Mac mini 上，经 Cloudflare 隧道对外（D-131，[DEPLOY.md](DEPLOY.md)）；登录上线前用客户端令牌 + 按设备限额 + 全局上限防护（D-132）。
 
 ## 7. 最大的 5 项工程风险
 

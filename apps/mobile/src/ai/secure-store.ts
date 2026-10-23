@@ -1,3 +1,4 @@
+import { randomUUID } from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 
 import type { SecretStore } from './settings';
@@ -10,3 +11,16 @@ export const secureSecretStore: SecretStore = {
   set: (key, value) => SecureStore.setItemAsync(key, value, OPTIONS),
   delete: (key) => SecureStore.deleteItemAsync(key, OPTIONS),
 };
+
+// 只用于 Morph 服务器按设备限额（D-132）：首次使用时随机生成，不含任何设备信息。
+let deviceId: Promise<string | null> | undefined;
+export function getDeviceId(): Promise<string | null> {
+  deviceId ??= (async () => {
+    const saved = await secureSecretStore.get('morph.deviceId');
+    if (saved) return saved;
+    const fresh = randomUUID();
+    await secureSecretStore.set('morph.deviceId', fresh);
+    return fresh;
+  })().catch(() => null);
+  return deviceId;
+}
