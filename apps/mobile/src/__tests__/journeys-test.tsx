@@ -174,6 +174,21 @@ describe('user journeys (UI)', () => {
     ).not.toContain('workflowRunner');
   });
 
+  it('notes from the AI appear above the planned changes (D-110)', async () => {
+    const mock = createMockAIProvider();
+    await renderApp(undefined, undefined, {
+      plan: async (input, ctx) => {
+        const plan = await mock.plan(input, ctx);
+        return plan.kind === 'ops'
+          ? { ...plan, notes: ['应用没有定时运行，每月需要你自己点一次。'] }
+          : plan;
+      },
+    });
+    await askAi('添加签证照片工作流');
+    expect(await screen.findByTestId('plan-notes')).toHaveTextContent(/需要你知道/);
+    expect(screen.getByTestId('plan-note-0')).toHaveTextContent(/每月需要你自己点一次/);
+  });
+
   it('cancel keeps the app unchanged', async () => {
     const { store } = await renderApp();
     await askAi('主题换成绿色');

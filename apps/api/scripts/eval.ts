@@ -9,7 +9,7 @@ import { createAIRuntime, loadRootEnv, type Transport } from '../src/config';
 // 用评测集（packages/core/src/ai/eval-cases.ts）衡量真实模型。会产生 API 费用。
 // 用法：npm run eval -- --model claude-haiku-5-5 [--cases A1,C1] [--effort low] [--transport http]
 //   --transport http：使用 App 内“自带 key”模式的 HTTP 传输层（默认 sdk，即服务端）。
-//   --verbose：失败时打印模型给出的计划。
+//   --verbose：失败时打印模型给出的计划。计划里的 notes（D-110）总是打印。
 
 const { values } = parseArgs({
   options: {
@@ -70,6 +70,7 @@ for (const c of cases) {
       if (values.verbose) line += `\n   ${JSON.stringify(plan)}`;
       failures.push(`${c.id}（${c.input}）：${outcome.reason}`);
     }
+    if (plan.kind === 'ops' && plan.notes?.length) line += `\n   notes: ${plan.notes.join(' / ')}`;
   } catch (e) {
     line = `💥 ${c.id}  ${String(e)}`;
     failures.push(`${c.id}（${c.input}）：${String(e)}`);

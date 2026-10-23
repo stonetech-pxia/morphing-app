@@ -309,6 +309,7 @@ const strings = {
   resultPages: { en: '{n} pages', zh: '{n} 页' },
   resultCount: { en: '{n} files', zh: '{n} 个文件' },
   homeEntry: { en: 'Add a shortcut on the home page', zh: '在首页放一个入口' },
+  notesTitle: { en: 'Good to know', zh: '需要你知道' },
   workflowWhere: {
     en: 'You will find it under Tools → Workflows.',
     zh: '之后在「工具 → 工作流」里可以找到它。',

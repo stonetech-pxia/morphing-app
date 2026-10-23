@@ -201,6 +201,18 @@ export function ChangeScreen() {
               style={[palette.font('heading', 22), { color: palette.text, letterSpacing: -0.4 }]}>
               {proposal.summary}
             </Text>
+            {proposal.notes?.length ? (
+              <Card palette={palette} background={palette.primaryTint} testID="plan-notes">
+                <Text style={[palette.font('title', 15), { color: palette.text }]}>
+                  {t(locale, 'notesTitle')}
+                </Text>
+                {proposal.notes.map((note, i) => (
+                  <Text key={i} testID={`plan-note-${i}`} style={text}>
+                    • {note}
+                  </Text>
+                ))}
+              </Card>
+            ) : null}
             <Card palette={palette}>
               <Text style={[palette.font('title', 15), { color: palette.text }]}>
                 {t(locale, 'planTitle')}

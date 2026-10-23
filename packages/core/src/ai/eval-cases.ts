@@ -25,8 +25,15 @@ function sameValue(a: unknown, b: unknown): boolean {
 
 export type EvalSetup = 'default' | 'pdf' | 'pdfBelowFiles' | 'budget' | 'visa';
 
+export type OpsPlan = Extract<Plan, { kind: 'ops' }>;
+
 export type EvalExpectation =
-  | { kind: 'ops'; check: (after: WorkspaceConfig) => string | null }
+  | {
+      kind: 'ops';
+      check: (after: WorkspaceConfig) => string | null;
+      /** 检查计划本身（notes、homeEntry）。 */
+      plan?: (plan: OpsPlan) => string | null;
+    }
   | { kind: 'restorePrevious' }
   | { kind: 'reject'; reason?: RejectReason };
 
@@ -1056,7 +1063,156 @@ const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
-export const EVAL_CASES: readonly EvalCase[] = [...BASE_EVAL_CASES, ...WORKFLOW_EVAL_CASES];
+// 「目标式」说法（D-110）：用户只说「我有什么、想要什么」，AI 自己搭工作流。只要求真实模型通过。
+// 同时检查：不顺手放到首页（D-109）、做不到的部分写进 notes、按用途补步骤但不加多余的。
+
+/** 没有任何页面上的运行卡片（用户没说要放首页）。 */
+const noRunner = (c: WorkspaceConfig) => {
+  const runners = c.pages.flatMap((p) =>
+    allComponents(p).filter((x) => x.type === 'workflowRunner'),
+  );
+  return runners.length === 0 ? null : `added a runner on a page without being asked`;
+};
+const withoutAction = (action: string) => (c: WorkspaceConfig) =>
+  userWorkflows(c).some((w) => w.steps.some((s) => s.action === action))
+    ? `added a ${action} step the goal does not need`
+    : null;
+const someAction =
+  (actions: readonly string[]) => (steps: { action: string; params: Record<string, unknown> }[]) =>
+    steps.some((s) => actions.includes(s.action))
+      ? null
+      : `expected one of ${actions.join(' / ')}, got ${steps.map((s) => s.action).join(',')}`;
+const datedName = (steps: { action: string; params: Record<string, unknown> }[]) => {
+  const template = steps.find((s) => s.action === 'file.rename')?.params.template;
+  return typeof template === 'string' && /\{date/.test(template)
+    ? null
+    : `the file name should carry the date, got ${String(template)}`;
+};
+const hasNotes = (plan: OpsPlan) =>
+  plan.notes && plan.notes.length > 0 ? null : 'expected notes on what the app cannot do';
+
+const GOAL_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'GW1',
+    input: '身份证正反面两张照片，学校要一个 PDF，不能超过 2MB',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: all(
+        hasWorkflow(['in.photos', 'pdf.fromImages'], param('pdf.fromImages', 'maxMB', 2)),
+        noRunner,
+      ),
+    },
+  },
+  {
+    id: 'GW2',
+    input: '纸质合同要签字后发回',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: all(
+        hasWorkflow(
+          ['in.photos', 'pdf.fromImages', 'pdf.sign', 'out.share'],
+          param('in.photos', 'source', 'scanner'),
+        ),
+        noRunner,
+      ),
+    },
+  },
+  {
+    id: 'GW3',
+    input: '要申请美国签证，我有一张自拍',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: all(
+        (c) => (visa(c) ? null : 'expected the visa photo preset'),
+        hasWorkflow(['in.photos', 'image.idPhoto'], param('image.idPhoto', 'spec', 'us-passport')),
+        noRunner,
+      ),
+    },
+  },
+  {
+    id: 'GW4',
+    input: '每个月要把发票拍下来整理成一个 PDF 发给会计',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      // 没有定时运行：要在 notes 里说「每月需要你自己点一次」；发给会计按日期命名。
+      check: all(hasWorkflow(['in.photos', 'pdf.fromImages'], datedName), noRunner),
+      plan: hasNotes,
+    },
+  },
+  {
+    id: 'GW5',
+    input: '几张照片要发邮件给朋友',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      // 多张大照片可能超过邮件附件上限：要压缩或缩小。
+      check: all(
+        hasWorkflow(['in.photos', 'out.share'], someAction(['image.compress', 'image.resize'])),
+        noRunner,
+      ),
+    },
+  },
+  {
+    id: 'GW6',
+    input: '把购物小票拍下来存成 PDF',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      // 拉正就够了，不用再让用户手动裁剪。
+      check: all(
+        hasWorkflow(['in.photos', 'pdf.fromImages']),
+        withoutAction('image.crop'),
+        noRunner,
+      ),
+    },
+  },
+  {
+    id: 'GW7',
+    input: '添加扫描文档工作流，但是不要放到首页',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['in.photos', 'scan.detect']), noRunner),
+      plan: (plan) => (plan.homeEntry === false ? null : 'homeEntry should be false'),
+    },
+  },
+  {
+    id: 'GW4-en',
+    input: 'Every month I photograph my invoices and send one PDF to my accountant',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['in.photos', 'pdf.fromImages'], datedName), noRunner),
+      plan: hasNotes,
+    },
+  },
+];
+
+export const EVAL_CASES: readonly EvalCase[] = [
+  ...BASE_EVAL_CASES,
+  ...WORKFLOW_EVAL_CASES,
+  ...GOAL_EVAL_CASES,
+];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };
 
@@ -1085,6 +1241,6 @@ export function judgeEval(
     );
   if (!prepared) return fail('ops were not prepared');
   if (!prepared.ok) return fail(`invalid ops: ${prepared.issues.join('; ')}`);
-  const problem = c.expect.check(prepared.after);
+  const problem = c.expect.check(prepared.after) ?? c.expect.plan?.(plan) ?? null;
   return problem ? fail(problem) : { pass: true };
 }

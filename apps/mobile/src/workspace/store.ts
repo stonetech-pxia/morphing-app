@@ -56,6 +56,8 @@ export interface Proposal {
   homeEntry?: { workflowIds: string[]; on: boolean };
   /** AI 计划里的操作（不含首页入口），切换首页入口时据此重新计算。 */
   ops?: Op[];
+  /** AI 写给用户的说明：做不到的部分、补上的步骤为什么要加（D-110）。 */
+  notes?: string[];
 }
 
 export type ProposeResult =
@@ -230,7 +232,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       ops: unknown,
       source: RevisionSource,
       summary: string,
-      homeEntry?: boolean,
+      plan?: { homeEntry?: boolean; notes?: string[] },
     ): Promise<ProposeResult> {
       const { config, head } = get();
       if (!config || !head) throw new Error('workspace not loaded');
@@ -254,8 +256,9 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         source,
         summary,
         ops: parsed,
+        ...(plan?.notes?.length ? { notes: plan.notes } : {}),
         ...(homeless.length > 0
-          ? withHomeEntry(config, parsed, prepared, homeless, homeEntry !== false)
+          ? withHomeEntry(config, parsed, prepared, homeless, plan?.homeEntry !== false)
           : {
               after: prepared.after,
               lines: prepared.lines,
@@ -391,7 +394,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
               return { kind: 'rejected', message: msg('noPrevious'), examples: [] };
             return await restoreProposal(head.parentId, input);
           }
-          return await opsProposal(input, plan.ops, 'ai', input, plan.homeEntry);
+          return await opsProposal(input, plan.ops, 'ai', input, plan);
         } finally {
           set({ busy: false });
         }
