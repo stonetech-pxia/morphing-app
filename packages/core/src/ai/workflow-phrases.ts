@@ -8,6 +8,8 @@ import { WORKFLOW_PRESETS, type WorkflowPreset } from '../workflows/presets';
 export interface StepPhrase {
   action: string;
   params: Record<string, unknown>;
+  /** 每次运行时问的参数（「输入文字」要问文字）。 */
+  ask?: string[] | undefined;
 }
 
 const num = (s: string) => Number(s.replace(/,/g, ''));
@@ -22,7 +24,72 @@ function sizeKB(text: string): number | null {
 
 type Matcher = [RegExp, (m: RegExpMatchArray, locale: Locale) => StepPhrase];
 
+// ---- 翻译（D-174，MOCK_AI_PHRASES TR）----
+
+/** 「中文」「英语」「Japanese」→ 翻译的语言代码。 */
+const LANGUAGE_WORDS: [RegExp, string][] = [
+  [/^(?:繁体中文|繁体|繁體中文|traditional chinese)$/i, 'zh-Hant'],
+  [/^(?:中文|简体中文|汉语|chinese|simplified chinese)$/i, 'zh-Hans'],
+  [/^(?:英文|英语|english)$/i, 'en'],
+  [/^(?:日文|日语|japanese)$/i, 'ja'],
+  [/^(?:韩文|韩语|korean)$/i, 'ko'],
+  [/^(?:法文|法语|french)$/i, 'fr'],
+  [/^(?:德文|德语|german)$/i, 'de'],
+  [/^(?:西班牙文|西班牙语|spanish)$/i, 'es'],
+  [/^(?:葡萄牙文|葡萄牙语|portuguese)$/i, 'pt'],
+  [/^(?:意大利文|意大利语|italian)$/i, 'it'],
+  [/^(?:俄文|俄语|russian)$/i, 'ru'],
+  [/^(?:越南文|越南语|vietnamese)$/i, 'vi'],
+  [/^(?:泰文|泰语|thai)$/i, 'th'],
+];
+export const LANGUAGE_WORD =
+  '(繁体中文|繁體中文|简体中文|中文|汉语|英文|英语|日文|日语|韩文|韩语|法文|法语|德文|德语|西班牙文|西班牙语|葡萄牙文|葡萄牙语|意大利文|意大利语|俄文|俄语|越南文|越南语|泰文|泰语|traditional chinese|simplified chinese|chinese|english|japanese|korean|french|german|spanish|portuguese|italian|russian|vietnamese|thai)';
+
+/** 语言说法 → 代码；不认识返回 null。 */
+export function languageOf(word: string): string | null {
+  return LANGUAGE_WORDS.find(([re]) => re.test(word.trim()))?.[1] ?? null;
+}
+
+const TRANSLATE_PHRASES: Matcher[] = [
+  [
+    new RegExp(
+      `^(?:翻译|翻|译)成\\s*${LANGUAGE_WORD}$|^translate (?:it |them |the text )?(?:in)?to ${LANGUAGE_WORD}$`,
+      'i',
+    ),
+    (m) => ({
+      action: 'translate.text',
+      params: { from: 'auto', to: languageOf(m[1] ?? m[2]!)! },
+    }),
+  ],
+  [
+    // 只说「翻译」：翻成界面语言，每次运行时可以换。
+    /^翻译(?:一下)?$|^translate(?: it| them)?$/i,
+    (_m, locale) => ({
+      action: 'translate.text',
+      params: { from: 'auto', to: locale === 'zh' ? 'zh-Hans' : 'en' },
+      ask: ['to'],
+    }),
+  ],
+  [
+    /^(?:输入|粘贴|输入或粘贴)(?:一段)?文字$|^(?:type|paste|type or paste) (?:some |the )?text$/i,
+    () => ({ action: 'in.text', params: { text: '' }, ask: ['text'] }),
+  ],
+  [
+    /^提取\s*pdf\s*(?:里的|的)?文字$|^(?:get|extract) (?:the )?text (?:from|of) (?:the )?pdfs?$/i,
+    () => ({ action: 'pdf.extractText', params: {} }),
+  ],
+  [
+    /^复制(?:文字|译文|结果|下来)?$|^copy(?: the)? (?:text|translation)$/i,
+    () => ({ action: 'text.copy', params: {} }),
+  ],
+  [
+    /^(?:存成|保存成|存为)(?:文字|文本|txt)(?:文件)?$|^save (?:it )?as (?:a )?(?:text|txt)(?: file)?$/i,
+    () => ({ action: 'text.toFile', params: {} }),
+  ],
+];
+
 const STEP_PHRASES: Matcher[] = [
+  ...TRANSLATE_PHRASES,
   [
     /^(?:从相册)?(?:选|选择|挑)(?:几张|多张|一张)?(?:照片|图片|截图)$|^(?:choose|pick|select) (?:some |a )?(?:photos?|pictures?|images?|screenshots?)$/i,
     () => ({ action: 'in.photos', params: { source: 'library', min: 1, max: 30 } }),
@@ -197,6 +264,34 @@ export function stepIdFor(action: string, taken: readonly { id: string }[]): str
   for (let i = 2; ; i++) if (!used.has(`${base}-${i}`)) return `${base}-${i}`;
 }
 
+/** 输出文字的动作：后面的「转成 PDF」是文字转 PDF（D-174）。 */
+const TEXT_OUTPUT = new Set([
+  'in.text',
+  'ocr.recognize',
+  'pdf.extractText',
+  'translate.text',
+  'qr.read',
+  'text.copy',
+]);
+
+/**
+ * 同一句话按前一步换成接得上的动作：选 PDF 之后的「提取文字」是提取 PDF 文字；
+ * 文字之后的「转成 PDF」是文字转 PDF。
+ */
+function fitToPrevious(p: StepPhrase, previous: WorkflowStep | undefined): StepPhrase {
+  if (
+    p.action === 'ocr.recognize' &&
+    previous?.action === 'in.files' &&
+    previous.params.accept === 'pdf'
+  ) {
+    return { action: 'pdf.extractText', params: {} };
+  }
+  if (p.action === 'pdf.fromImages' && previous && TEXT_OUTPUT.has(previous.action)) {
+    return { action: 'text.toPdf', params: { pageSize: 'a4', fontSize: 12 } };
+  }
+  return p;
+}
+
 /** 这一步之后的值大致是什么（只用来给「压到 N MB」选动作）。 */
 export type PhraseKind = 'images' | 'video' | 'pdf' | 'other';
 
@@ -249,12 +344,24 @@ export function kindOfSteps(steps: readonly StepPhrase[]): PhraseKind | null {
 
 export function stepsFrom(phrases: readonly StepPhrase[]): WorkflowStep[] {
   const steps: WorkflowStep[] = [];
-  for (const p of phrases)
-    steps.push({ id: stepIdFor(p.action, steps), action: p.action, params: p.params });
+  for (const phrase of phrases) {
+    const p = fitToPrevious(phrase, steps.at(-1));
+    steps.push({
+      id: stepIdFor(p.action, steps),
+      action: p.action,
+      params: p.params,
+      ...(p.ask ? { ask: p.ask } : {}),
+    });
+  }
   return steps;
 }
 
 const PRESET_WORDS: [RegExp, string][] = [
+  // 翻译预设（D-173）放在「扫描」「打码」前面。
+  [/截图翻译|翻译截图|translate screenshots?/i, 'screenshot-translate'],
+  [/外文\s*pdf|translate a pdf/i, 'foreign-pdf'],
+  [/外文材料|纸质材料翻|paper documents into/i, 'foreign-paper'],
+  [/中文材料翻成英文|chinese documents into english/i, 'papers-to-english'],
   [/视频太大|视频发不出去|video (?:is )?too big/i, 'video-too-big'],
   [/pdf\s*太大|pdf\s*传不上去|pdf (?:is )?too big/i, 'pdf-too-big'],
   [

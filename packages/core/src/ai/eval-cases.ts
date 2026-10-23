@@ -822,6 +822,27 @@ const param =
     const got = steps.find((s) => s.action === action)?.params[key];
     return got === value ? null : `${action}.${key} should be ${String(value)}, got ${String(got)}`;
   };
+/** 有一个用户快捷操作翻译成 to；first 给了时第一步必须是其中之一。 */
+const translatesTo =
+  (to: string, first?: readonly string[]) =>
+  (c: WorkspaceConfig): string | null => {
+    for (const wf of userWorkflows(c)) {
+      const step = wf.steps.find((s) => s.action === 'translate.text');
+      if (step?.params.to === to && (!first || first.includes(wf.steps[0]?.action ?? ''))) {
+        return null;
+      }
+    }
+    return `expected a quick action translating into ${to}, got ${userWorkflows(c)
+      .map((w) =>
+        w.steps
+          .map(
+            (s) => `${s.action}${s.action === 'translate.text' ? `(${String(s.params.to)})` : ''}`,
+          )
+          .join(' → '),
+      )
+      .join(' | ')}`;
+  };
+
 const visaActions = (c: WorkspaceConfig) => visa(c)?.steps.map((s) => s.action) ?? [];
 
 const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
@@ -1376,12 +1397,13 @@ const ABOUT_EVAL_CASES: readonly EvalCase[] = [
     expect: { kind: 'reject', reason: 'errand' },
   },
   {
+    // D-171：翻译文件是文件上的事，做一个翻译快捷操作（以前按办事拒绝）。
     id: 'ER2',
     input: '把这份合同翻译成英文',
     locale: 'zh',
     setup: 'pdf',
     mock: true,
-    expect: { kind: 'reject', reason: 'errand' },
+    expect: { kind: 'ops', check: translatesTo('en', ['in.files', 'in.photos']) },
   },
   {
     id: 'ER3',
@@ -1676,6 +1698,115 @@ const VIDEO_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+// ---- 翻译（D-170–D-176）：翻译文件做成快捷操作；直接要译文仍按办事拒绝 ----
+
+const TRANSLATE_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'TR1',
+    input: '帮我翻译一下这句话：Thank you for your help',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'TR2-en',
+    input: 'Translate this sentence into Chinese: break a leg',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'TR3',
+    input: '新建一个快捷操作：选截图，识别文字，翻译成中文，复制文字',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.photos', 'ocr.recognize', 'translate.text', 'text.copy'],
+        param('translate.text', 'to', 'zh-Hans'),
+      ),
+    },
+  },
+  {
+    id: 'TR4-en',
+    input: 'Translate this letter into Chinese',
+    locale: 'en',
+    setup: 'pdf',
+    mock: true,
+    expect: { kind: 'ops', check: translatesTo('zh-Hans', ['in.files', 'in.photos']) },
+  },
+  {
+    id: 'TR5',
+    input: '添加截图翻译快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.presetId === 'screenshot-translate')
+          ? null
+          : 'expected the screenshot-translate preset',
+    },
+  },
+  {
+    id: 'TR6',
+    input: '收到的日文邮件截图老是看不懂，想以后能一键翻成中文',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: all(
+        translatesTo('zh-Hans', ['in.photos']),
+        hasWorkflow(['in.photos', 'ocr.recognize', 'translate.text']),
+      ),
+    },
+  },
+  {
+    id: 'TR7',
+    input: '翻译成中文',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    about: { kind: 'shared', images: 0, pdfs: 1, others: 0 },
+    expect: {
+      kind: 'ops',
+      check: all(
+        translatesTo('zh-Hans', ['in.files']),
+        hasWorkflow(['in.files', 'pdf.extractText', 'translate.text']),
+      ),
+    },
+  },
+  {
+    id: 'TR8',
+    input: '这句英文是什么意思：It’s raining cats and dogs',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'TR9-en',
+    input:
+      'I keep getting PDFs in Spanish from my landlord. Make something to read them in English.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: all(
+        translatesTo('en', ['in.files']),
+        hasWorkflow(['in.files', 'pdf.extractText', 'translate.text']),
+      ),
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...BASE_EVAL_CASES,
   ...WORKFLOW_EVAL_CASES,
@@ -1683,6 +1814,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...WORDING_EVAL_CASES,
   ...ABOUT_EVAL_CASES,
   ...VIDEO_EVAL_CASES,
+  ...TRANSLATE_EVAL_CASES,
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };

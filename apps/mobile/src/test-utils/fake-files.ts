@@ -15,6 +15,7 @@ import type {
   MediaOutput,
   MediaPlatform,
   PickedFile,
+  TranslatePlatform,
   VideoEncode,
   VisionPlatform,
 } from '../runtime/platform';
@@ -86,6 +87,8 @@ export class FakeFiles implements FilePlatform {
   disk = new Map<string, Uint8Array>();
   /** 系统文字识别和扫描：默认没有（像 Android / Expo Go），测试里换成 FakeVision。 */
   vision: VisionPlatform | null = null;
+  /** 系统翻译：默认没有（像 Expo Go），测试里换成 FakeTranslator。 */
+  translator: TranslatePlatform | null = null;
   /** 视频处理：默认有（像开发版），测试 Expo Go 时设为 null。 */
   media: MediaPlatform | null = new FakeMedia(this);
   /** 下一次从相册选视频的结果。 */
@@ -555,5 +558,64 @@ export class FakeVision implements VisionPlatform {
   async scanDocuments(_runId: string, maxSide: number) {
     this.calls.push({ method: 'scanDocuments', uri: '', args: { maxSide } });
     return this.scanned;
+  }
+}
+
+/**
+ * 假的系统翻译（D-170）：按文字猜语言（汉字 → zh，假名 → ja，其他字母 → en），译文是「[目标语言] 原文」。
+ * android = true 时要下载的语言给出大小（ML Kit），否则不给（iOS 由系统弹窗）。
+ */
+export class FakeTranslator implements TranslatePlatform {
+  supported = true;
+  calls: { method: string; args: unknown[] }[] = [];
+  /** 还没下载的语言。 */
+  missing = new Set<string>();
+  unsupported = new Set<string>();
+  android = false;
+  /** 下一次翻译抛出的错误码（cancelled：用户在 iOS 的下载弹窗里取消）。 */
+  failWith: string | null = null;
+
+  async detectLanguages(texts: readonly string[]) {
+    this.calls.push({ method: 'detectLanguages', args: [texts.length] });
+    return texts.map((x) =>
+      /[\u3040-\u30ff]/.test(x)
+        ? 'ja'
+        : /[\u4e00-\u9fff]/.test(x)
+          ? 'zh'
+          : /[a-z]/i.test(x)
+            ? 'en'
+            : null,
+    );
+  }
+  async status(from: string, to: string) {
+    this.calls.push({ method: 'status', args: [from, to] });
+    if (this.unsupported.has(from) || this.unsupported.has(to)) {
+      return { status: 'unsupported' as const };
+    }
+    const missing = [from, to].filter((l) => this.missing.has(l));
+    if (missing.length === 0) return { status: 'installed' as const };
+    return this.android
+      ? { status: 'download' as const, missing }
+      : { status: 'download' as const };
+  }
+  get downloadBytes() {
+    return this.android ? 30 * 1024 * 1024 : undefined;
+  }
+  /** 下载过的语言（「设置 → 已下载内容」列出）。 */
+  downloaded = new Set<string>();
+  download = async (language: string) => {
+    this.calls.push({ method: 'download', args: [language] });
+    this.missing.delete(language);
+    this.downloaded.add(language);
+  };
+  downloadedLanguages = async () => [...this.downloaded];
+  removeLanguage = async (language: string) => {
+    this.downloaded.delete(language);
+    this.missing.add(language);
+  };
+  async translate(texts: readonly string[], from: string, to: string) {
+    this.calls.push({ method: 'translate', args: [texts, from, to] });
+    if (this.failWith) throw Object.assign(new Error(this.failWith), { code: this.failWith });
+    return texts.map((x) => `[${to}] ${x}`);
   }
 }

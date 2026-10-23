@@ -1,6 +1,6 @@
 # 内置工具与工作流设计
 
-本文是内置工具（图片、PDF、视频、扫描、文字识别、打包、二维码、打印）和跨工具工作流的设计。
+本文是内置工具（图片、PDF、视频、扫描、文字识别、翻译、打包、二维码、打印）和跨工具工作流的设计。
 决策编号见 [DECISIONS.md](DECISIONS.md)（D-060 起）；用户数据规则见 [DATA_DESIGN.md](DATA_DESIGN.md)。
 
 ## 0. 原则
@@ -157,6 +157,7 @@ interface StepContext {
 - **PDF**：`pdf.fromImages`（A4 / Letter / 跟随图片，可设边距和 ≤ X MB）、`pdf.compress`（把已有 PDF 压到 ≤ X MB：先只压图片、保留文字，不够小时按 `whenTooBig` 问用户 / 转成图片 / 保留文字，D-145）、`pdf.merge`（PDF 和图片混合）、`pdf.pages`（本地选页 / 删页 / 排序 / 旋转）、`pdf.selectPages`（按页码规则：全部 / 奇数 / 偶数 / 范围）、`pdf.rotate`、`pdf.split`、`pdf.pageNumbers`、`pdf.stamp`（文字戳 / 日期戳）、`pdf.sign`（本地）、`pdf.fillForm`（本地）+ 拍平、`pdf.toImages`、`pdf.extractText`。（`packages/tool-pdf`：pdf-lib；`toImages` / `extractText` / 缩略图需要 PDF 预览包）
 - **扫描**（工具 `scan`）：`scan.detect`（找边 → 本地调四角，每张都要确认 → 透视矫正，长边 2400；iOS 用 Vision 找边、Core Image 矫正，Android 和 Expo Go 用扫描包，D-086；文档相机拍的页面直接放行，也不需要扫描包）、`scan.enhance`（提亮 / 灰度 / 黑白 / 原样；Skia 颜色矩阵，不需要扩展包）。
 - **文字识别**（工具 `ocr`）：`ocr.recognize`（images → text，参数 `lang` 选 12 种语言之一。iOS 用 Vision 的 `VNRecognizeTextRequest`（accurate + 语言纠错，中日韩等补上英文），不需要下载，D-085；Android 用 ML Kit 文字识别 v2（模型打包进 App），俄文不支持，D-087；系统识别不了时 `packFor` 按语言确保语言包，语言包连同识别包一起下载）。中日文字之间多出来的空格在本机去掉（`tidyOcrText`）。
+- **翻译**（工具 `translate`，D-170–D-176）：`translate.text`（text → text，参数 `from`：自动识别或 20 种语言之一，`to`：20 种语言之一，默认每次运行时问）。iOS 用系统的 Translation 框架（iOS 18 起；iOS 26 起已下载的语言直接建会话，要下载或更早的系统时挂一个看不见的 SwiftUI 视图用 `.translationTask`，语言包由系统弹窗下载），NaturalLanguage 识别语言；Android 用 ML Kit 翻译（每种语言模型约 30 MB，第一次用时 App 先问「首次使用需下载约 X MB」再下载，之后离线）和 ML Kit 语言识别（打包进 App）。翻译前在本机把文字拆成段（`splitForTranslation`：空行分段，段里折行的句子接起来，标题、短行、列表项另起），自动识别时每段单独识别语言、按原文语言分组翻，和目标语言相同的段原样保留，再按原来的分段拼回（`joinTranslation`）。只出纯文字（可以接 `text.toPdf` 排成 PDF），不保留原文件排版；结果页写明「本机翻译，适合看懂意思；正式文件请找专业翻译」。一次最多 10 万字。Expo Go 和 iOS 17 及更早报「不支持这个步骤」并说明原因；ML Kit 没有繁体中文。文字不上传、不发给 AI。
 - **文字**（工具 `text`）：`text.copy`、`text.toFile`（.txt）、`text.toPdf`（expo-print，系统字体，中日韩都能显示）。
 - **打包**（工具 `zip`）：`zip.create`、`zip.extract`。（`packages/tool-archive`：fflate，只用同步接口）
 - **二维码**（工具 `qr`）：`qr.generate`（文字 → PNG，tool-qr 自带的 PNG 编码器）、`qr.read`（图片 → 文字，Skia 读像素后用 jsQR）。（`packages/tool-qr`：lean-qr、jsQR）
@@ -180,7 +181,7 @@ interface StepContext {
 - **清单写在代码里**（`core/src/packs.ts`）：id、版本、文件列表（下载地址、SHA-256、大小）、许可证。下载后逐个校验 SHA-256，不一致就删除整个版本目录并报错。
 - **只能由用户触发下载**：界面显示大小，建议用 Wi-Fi。AI 和工作流都不能自己下载；执行到需要扩展包的步骤时暂停，弹窗请用户确认（`PackGate`），用户拒绝就取消本次运行。
 - **存储**：`documentDirectory/packs/<id>/<version>/`，写完并校验后才写 `ready.json`，所以中断的下载不会被当成已安装。不进 revision，回滚不受影响；下载过就能离线使用。
-- **管理**：「设置 → 扩展包」（`app/packs.tsx`）列出已下载的扩展包、占用空间、许可证和版本，可以删除（删除文字识别包时语言包一起删除）。
+- **管理**：「设置 → 扩展包」（`app/packs.tsx`）列出已下载的扩展包、占用空间、许可证和版本，可以删除（删除文字识别包时语言包一起删除）。Android 下载过的翻译语言（ML Kit 模型，不是扩展包，不在 `PACKS` 清单里）也列在这一页，可以删除（D-175）；iOS 的翻译语言由系统「设置 → 翻译」管理。
 - **加载**：WebView 只加载我们随 App 发布的固定 HTML，库文件从本地扩展包目录读取，不访问网络（CSP `default-src 'none'`，见 T4 实验记录）。WebView 和 App 之间只有固定格式的消息（动作名 + 数据），不注入任何模型生成的字符串（open-tool-research N3）。
 - **下载来源**：先用 jsDelivr 上固定版本的地址，以后换成自己的服务器（只改清单）。
 - **App Store 2.5.2**：见 DECISIONS（待创始人确认）。
@@ -191,6 +192,9 @@ interface StepContext {
 | 依赖                                                                                          | 版本             | 平台    | 许可证 / 条款                     | 用途                                                          |
 | --------------------------------------------------------------------------------------------- | ---------------- | ------- | --------------------------------- | ------------------------------------------------------------- |
 | Vision、VisionKit、Core Image、ImageIO                                                        | 系统自带         | iOS     | Apple 系统框架                    | 文字识别、找边、拉正、文档相机                                |
+| Translation（弱链接，iOS 18 起）、NaturalLanguage、SwiftUI                                    | 系统自带         | iOS     | Apple 系统框架                    | 本机翻译、识别语言（morph-translate，D-170）                  |
+| `com.google.mlkit:translate`                                                                  | 17.0.3           | Android | 闭源，Google ML Kit 条款（P-015） | 本机翻译，语言模型第一次用时下载（每种约 30 MB）              |
+| `com.google.mlkit:language-id`                                                                | 17.0.6           | Android | 闭源，Google ML Kit 条款（P-015） | 识别每段文字的语言，模型打包进 App                            |
 | UIKit（`UIActivityViewController`、`UIDocumentPickerViewController`）、UniformTypeIdentifiers | 系统自带         | iOS     | Apple 系统框架                    | 一次分享多个文件、存到选定文件夹（morph-share，D-119、D-120） |
 | `androidx.core`（FileProvider，随 React Native 已经在 App 里）、存储访问框架                  | 随 RN / 系统自带 | Android | Apache-2.0 / Android 系统接口     | 一次分享多个文件、存到选定文件夹（morph-share）               |
 | `com.google.mlkit:text-recognition`（及 `-chinese`、`-japanese`、`-korean`）                  | 16.0.1           | Android | 闭源，Google ML Kit 条款（P-015） | 文字识别，模型打包进 App                                      |
@@ -204,24 +208,28 @@ interface StepContext {
 
 ## 7. 预设工作流和编辑
 
-10 个预设写在 `core/src/workflows/presets.ts`，不随版本：用户在「工作流」页点「添加」（或对 AI 说「添加签证照片工作流」）时用 `presetWorkflow()` 复制进配置（一个可撤销的版本，带 `presetId` 和图标，没有 `toolId`），之后就和用户自己的工作流一样，可以改参数、改步骤、复制、放到页面上、删除。预设是用户工作流，**不要求先安装任何工具**；需要扩展包的预设在第一次运行到那一步时才请用户确认下载（§6）。
+14 个预设写在 `core/src/workflows/presets.ts`，不随版本：用户在「工作流」页点「添加」（或对 AI 说「添加签证照片工作流」）时用 `presetWorkflow()` 复制进配置（一个可撤销的版本，带 `presetId` 和图标，没有 `toolId`），之后就和用户自己的工作流一样，可以改参数、改步骤、复制、放到页面上、删除。预设是用户工作流，**不要求先安装任何工具**；需要扩展包的预设在第一次运行到那一步时才请用户确认下载（§6）。
 
-快捷操作页的「现成的」按生活场景分组（`PRESET_SCENARIOS`，D-130）：出国办证（签证 / 证件照、证件照打印）、交材料签文件（材料包、签回表格、扫描文档、多份材料合一、PDF 太大传不上去）、报销记账（收据归档）、发照片和视频（照片发邮件、截图打码分享、批量发照片、视频太大发不出去）（D-146）。
+快捷操作页的「现成的」按生活场景分组（`PRESET_SCENARIOS`，D-130）：出国办证（签证 / 证件照、证件照打印、中文材料翻成英文）、交材料签文件（材料包、签回表格、扫描文档、多份材料合一、PDF 太大传不上去、外文 PDF 翻成中文、拍外文材料翻成中文）、报销记账（收据归档）、发照片和视频（照片发邮件、截图打码分享、批量发照片、视频太大发不出去、截图翻译）（D-146）。翻译预设翻成界面语言（英文界面翻成英文），名字也跟着变。
 
-| id                   | 名称                | 步骤                                                                       | 扩展包  |
-| -------------------- | ------------------- | -------------------------------------------------------------------------- | ------- |
-| `visa-photo`         | 签证 / 证件照       | 选照片 → 证件照（美签 600×600，≤ 240 KB）→ 命名                            |         |
-| `document-packet`    | 材料包              | 选照片 / 拍照 → 裁剪 → 排顺序（`file.order`）→ A4 PDF ≤ 4 MB → 命名 → 分享 |         |
-| `email-photos`       | 照片发邮件 / 传网站 | 选照片 → 长边 1600 → 压到 500 KB → 分享                                    |         |
-| `sign-return`        | 签回表格            | 选 PDF → 填表（没有字段时跳过）→ 签名 → 分享                               | pdfview |
-| `scan-document`      | 扫描文档            | 文档相机扫描（或拍照后找边）→ 变清楚 → PDF → 命名 → 分享                   | scan    |
-| `combine-documents`  | 多份材料合一        | 选 PDF 和图片 → 合并 → 选页 / 排序 / 旋转 → 命名 → 分享                    |         |
-| `receipt-archive`    | 收据归档            | 扫描收据（或拍照后拉正）→ 压到 500 KB → 按日期命名 → 存到文件              | scan    |
-| `redact-screenshots` | 截图打码分享        | 选截图 → 拼长图 → 打码 → 分享                                              |         |
-| `send-photos`        | 批量发照片          | 选照片 → 转 JPG → 去掉定位 → 长边 2048 → ZIP → 分享                        |         |
-| `print-id-photos`    | 证件照打印          | 选照片 → 证件照 → 排到 6 寸相纸（裁切线）→ 打印或保存                      |         |
-| `pdf-too-big`        | PDF 太大传不上去    | 选 PDF → 压缩 PDF（默认 2 MB，每次问）→ 分享                               |         |
-| `video-too-big`      | 视频太大发不出去    | 选视频 → 压缩视频（默认 20 MB，每次问）→ 分享                              |         |
+| id                     | 名称                | 步骤                                                                              | 扩展包    |
+| ---------------------- | ------------------- | --------------------------------------------------------------------------------- | --------- |
+| `visa-photo`           | 签证 / 证件照       | 选照片 → 证件照（美签 600×600，≤ 240 KB）→ 命名                                   |           |
+| `document-packet`      | 材料包              | 选照片 / 拍照 → 裁剪 → 排顺序（`file.order`）→ A4 PDF ≤ 4 MB → 命名 → 分享        |           |
+| `email-photos`         | 照片发邮件 / 传网站 | 选照片 → 长边 1600 → 压到 500 KB → 分享                                           |           |
+| `sign-return`          | 签回表格            | 选 PDF → 填表（没有字段时跳过）→ 签名 → 分享                                      | pdfview   |
+| `scan-document`        | 扫描文档            | 文档相机扫描（或拍照后找边）→ 变清楚 → PDF → 命名 → 分享                          | scan      |
+| `combine-documents`    | 多份材料合一        | 选 PDF 和图片 → 合并 → 选页 / 排序 / 旋转 → 命名 → 分享                           |           |
+| `receipt-archive`      | 收据归档            | 扫描收据（或拍照后拉正）→ 压到 500 KB → 按日期命名 → 存到文件                     | scan      |
+| `redact-screenshots`   | 截图打码分享        | 选截图 → 拼长图 → 打码 → 分享                                                     |           |
+| `send-photos`          | 批量发照片          | 选照片 → 转 JPG → 去掉定位 → 长边 2048 → ZIP → 分享                               |           |
+| `print-id-photos`      | 证件照打印          | 选照片 → 证件照 → 排到 6 寸相纸（裁切线）→ 打印或保存                             |           |
+| `pdf-too-big`          | PDF 太大传不上去    | 选 PDF → 压缩 PDF（默认 2 MB，每次问）→ 分享                                      |           |
+| `video-too-big`        | 视频太大发不出去    | 选视频 → 压缩视频（默认 20 MB，每次问）→ 分享                                     |           |
+| `foreign-pdf`          | 外文 PDF 翻成中文   | 选 PDF → 提取文字 → 翻成中文 → 文字转 PDF → 命名「原名-中文」→ 分享               | pdfview   |
+| `foreign-paper`        | 拍外文材料翻成中文  | 文档相机扫描 → 找边 → 识别文字（每次问语言）→ 翻成中文 → 文字转 PDF → 命名 → 分享 | scan、ocr |
+| `papers-to-english`    | 中文材料翻成英文    | 文档相机扫描 → 找边 → 识别中文 → 翻成英文 → 文字转 PDF → 命名 → 分享              | scan、ocr |
+| `screenshot-translate` | 截图翻译            | 选截图 → 识别文字（每次问语言）→ 翻成中文 → 复制文字                              | ocr       |
 
 **「工作流」页**（`app/workflows.tsx`，入口在设置页和工具页）：我的工作流（运行 / 编辑）、预设库（添加；已添加的显示「已添加」，可以再添加一个）、工具自带的（默认收起）。这个页面由内核提供，AI 不能修改它。
 

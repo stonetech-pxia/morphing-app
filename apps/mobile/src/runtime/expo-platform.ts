@@ -22,6 +22,7 @@ import {
   shareAll,
   type ShareDeps,
 } from './expo-share';
+import { expoTranslate } from './expo-translate';
 import { expoMedia } from './expo-media';
 import { expoVision } from './expo-vision';
 import MorphShare from '../../modules/morph-share';
@@ -158,6 +159,7 @@ const MAX_IMAGE_SIDE = 2048;
 
 export const expoFilePlatform: FilePlatform = {
   vision: expoVision((runId, relPath) => runFile(runId, relPath).uri),
+  translator: expoTranslate(),
   media: expoMedia((runId, relPath) => runFile(runId, relPath).uri),
 
   async pickImage() {

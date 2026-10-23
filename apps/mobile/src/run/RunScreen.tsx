@@ -95,11 +95,11 @@ export function RunScreen({
       : (registry.actions.get(action)?.label[locale] ?? action);
 
   const ui: LocalUi = {
-    confirm: (title, ok, cancel) =>
+    confirm: (title, ok, cancel, message) =>
       new Promise((resolve) =>
         Alert.alert(
           title,
-          undefined,
+          message,
           [
             { text: cancel, style: 'cancel', onPress: () => resolve(false) },
             { text: ok, onPress: () => resolve(true) },
@@ -312,6 +312,14 @@ export function RunScreen({
             {runErrorText(locale, outcome.error.code, outcome.error.detail)}
           </Text>
         </Card>
+      ) : null}
+      {/* 翻译的结果下面说明一句（D-172）：本机翻译适合看懂意思，正式文件找专业翻译。 */}
+      {value && workflow.steps.some((st) => st.action === 'translate.text') ? (
+        <Text
+          testID="translate-note"
+          style={[palette.font('body', 13), { color: palette.caption }]}>
+          {t(locale, 'translateNote')}
+        </Text>
       ) : null}
       {value ? (
         <ResultView

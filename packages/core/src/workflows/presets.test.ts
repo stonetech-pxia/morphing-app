@@ -13,9 +13,9 @@ import {
 } from './presets';
 
 describe('workflow presets', () => {
-  it('has the twelve presets with unique ids', () => {
-    expect(WORKFLOW_PRESETS).toHaveLength(12);
-    expect(new Set(WORKFLOW_PRESETS.map((p) => p.id)).size).toBe(12);
+  it('has the sixteen presets with unique ids', () => {
+    expect(WORKFLOW_PRESETS).toHaveLength(16);
+    expect(new Set(WORKFLOW_PRESETS.map((p) => p.id)).size).toBe(16);
   });
 
   it('puts the video and PDF size presets in their scenarios (D-146)', () => {
@@ -47,7 +47,7 @@ describe('workflow presets', () => {
     },
   );
 
-  it('all twelve can be added to a workspace without installing any tool', () => {
+  it('all of them can be added to a workspace without installing any tool', () => {
     const base = workspace('zh');
     const ops = WORKFLOW_PRESETS.map((p) => ({
       op: 'addWorkflow' as const,

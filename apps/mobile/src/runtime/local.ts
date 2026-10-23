@@ -71,8 +71,8 @@ export interface LocalSteps {
 export type LocalKind = keyof LocalSteps;
 
 export interface LocalUi {
-  /** 简单的二选一，例如「再拍一张？」。 */
-  confirm(title: string, ok: string, cancel: string): Promise<boolean>;
+  /** 简单的二选一，例如「再拍一张？」。message 是标题下面的说明（Android 的标题最多两行）。 */
+  confirm(title: string, ok: string, cancel: string, message?: string): Promise<boolean>;
   /**
    * 运行中问一句（固定的几种问题，文字在 App 里写好，不是 AI 生成的），例如压缩 PDF 不够小时
    * 「转成图片 / 就用现在的」。返回选了第几个，取消返回 null。
