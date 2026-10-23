@@ -29,6 +29,7 @@ import { PackStore } from '@/packs/store';
 import { expoFilePlatform } from '@/runtime/expo-platform';
 import { CloseButton } from '@/shell/CloseButton';
 import { CLAY_FONTS, usePalette } from '@/renderer/theme';
+import { useIncomingShare } from '@/share/useIncomingShare';
 import { SQLiteWorkspaceRepo, migrateDatabase } from '@/storage/sqlite';
 import { WorkspaceProvider, useWorkspace } from '@/workspace/context';
 import { createRemoteAIProvider } from '@/workspace/remote-ai';
@@ -77,6 +78,8 @@ function RootStack() {
 
 function ThemedStack() {
   const theme = useWorkspace((s) => s.config!.theme);
+  // 别的 App 分享进来的文件 → 收件页面（D-114）。
+  useIncomingShare(expoFilePlatform);
   const palette = usePalette(theme);
   const closable = {
     presentation: 'modal',
@@ -104,6 +107,7 @@ function ThemedStack() {
         <Stack.Screen name="workflow/[id]" />
         <Stack.Screen name="record/[collectionId]" options={closable} />
         <Stack.Screen name="run/[workflowId]" options={closable} />
+        <Stack.Screen name="share" options={closable} />
       </Stack>
     </>
   );

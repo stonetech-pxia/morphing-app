@@ -54,6 +54,25 @@
           "savePhotosPermission": "Morph saves photos to your library only when a tool you run saves them.",
           "isAccessMediaLocationEnabled": false
         }
+      ],
+      [
+        "expo-share-intent",
+        {
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsImageWithMaxCount": 50,
+            "NSExtensionActivationSupportsFileWithMaxCount": 50
+          },
+          "iosShareExtensionName": "MorphShare",
+          "androidIntentFilters": ["image/*", "application/*"],
+          "androidMultiIntentFilters": ["image/*", "application/*"]
+        }
+      ],
+      [
+        "./plugins/with-share-extension",
+        {
+          "target": "MorphShare",
+          "displayName": "Morph"
+        }
       ]
     ],
     "experiments": {

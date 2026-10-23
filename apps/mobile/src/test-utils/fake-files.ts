@@ -164,6 +164,12 @@ export class FakeFiles implements FilePlatform {
   async removeAllRuns() {
     for (const key of [...this.disk.keys()]) if (key.startsWith('runs/')) this.disk.delete(key);
   }
+  async removeShared(keep: readonly string[] = [], copies: readonly string[] = []) {
+    for (const key of [...this.disk.keys()]) {
+      if (key.startsWith('file:///group/') && !keep.includes(key)) this.disk.delete(key);
+    }
+    for (const uri of copies) this.disk.delete(uri);
+  }
   async saveRunFile(uri: string, assetId: string, name: string) {
     return this.writeBytes(assetId, name, await this.readBytes(uri));
   }
@@ -314,6 +320,19 @@ export class FakeFiles implements FilePlatform {
   /** 临时目录里还剩的文件。 */
   runFiles() {
     return [...this.disk.keys()].filter((k) => k.startsWith('runs/'));
+  }
+  /** 放一个“别的 App 分享进来的”文件（iOS 的 App Group 共享目录）。 */
+  offerShared(
+    name: string,
+    bytes: Uint8Array,
+    mimeType: string | null = 'application/pdf',
+  ): PickedFile {
+    const uri = `file:///group/${name}`;
+    this.disk.set(uri, bytes);
+    return { uri, name, size: bytes.length, mimeType };
+  }
+  sharedFiles() {
+    return [...this.disk.keys()].filter((k) => k.startsWith('file:///group/'));
   }
   /** 放一个“用户可选择的”文件。 */
   offer(name: string, bytes: Uint8Array, mimeType = 'application/pdf'): PickedFile {

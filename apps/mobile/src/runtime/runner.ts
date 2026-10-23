@@ -16,7 +16,7 @@ import type { RunServices } from './actions/helpers';
 import { ACTION_IMPLS } from './actions';
 import { VISION_LANGUAGES } from './actions/ocr';
 import type { LocalUi } from './local';
-import type { FilePlatform } from './platform';
+import type { FilePlatform, PickedFile } from './platform';
 
 // App 侧的执行入口：把 core 的执行器（workflow/engine.ts）接上本地存储、平台能力和运行页面。
 // 这里是唯一能执行动作的地方；配置里只有动作 ID 和参数，没有任何代码。
@@ -40,6 +40,8 @@ export interface RunContext {
   ensurePack?: (packId: string) => Promise<boolean>;
   signal?: { cancelled: boolean };
   onEvent?: (event: RunEvent) => void;
+  /** 分享进来的文件（D-115）：交给第一步，第一步不再打开选择器，也不问参数。 */
+  incoming?: readonly PickedFile[] | null;
 }
 
 export interface Run {
@@ -89,6 +91,15 @@ export function packsNeeded(packIds: readonly string[], files: FilePlatform): st
   });
 }
 
+/** 第一步用分享进来的文件时，它的「每次运行时问」（来源、个数）没有意义，不问。 */
+function askUnlessShared(
+  ctx: RunContext,
+  ask: NonNullable<RunContext['askParams']>,
+): NonNullable<RunContext['askParams']> {
+  if (!ctx.incoming) return ask;
+  return async (request) => (request.step === ctx.workflow.steps[0] ? {} : ask(request));
+}
+
 export async function startRun(ctx: RunContext): Promise<Run> {
   const runId = ctx.newId();
   const result = await runWorkflow({
@@ -103,11 +114,12 @@ export async function startRun(ctx: RunContext): Promise<Run> {
       ui: ctx.ui,
       collections: ctx.collections ?? [],
       packs: ctx.packs ?? null,
+      incoming: ctx.incoming ?? null,
     },
     locale: ctx.locale,
     now: ctx.now,
     newId: ctx.newId,
-    ...(ctx.askParams ? { askParams: ctx.askParams } : {}),
+    ...(ctx.askParams ? { askParams: askUnlessShared(ctx, ctx.askParams) } : {}),
     ...(ctx.ensurePack ? { ensurePack: ctx.ensurePack } : {}),
     packNotNeeded: (actionId, params, input) => packNotNeeded(ctx.files, actionId, params, input),
     ...(ctx.signal ? { signal: ctx.signal } : {}),

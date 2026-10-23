@@ -16,6 +16,15 @@ module.exports = defineConfig([
   },
   {
     // .claude/worktrees 是其他会话的工作目录，不属于这个检出。
-    ignores: ['**/node_modules/**', '**/dist/**', '**/.expo/**', '**/coverage/**', '.claude/**'],
+    // apps/mobile/ios、android 由 expo prebuild 生成（CNG，不进 git）。
+    ignores: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/.expo/**',
+      '**/coverage/**',
+      '.claude/**',
+      'apps/mobile/ios/**',
+      'apps/mobile/android/**',
+    ],
   },
 ]);

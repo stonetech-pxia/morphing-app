@@ -23,6 +23,9 @@ import { composeOnSurface, enhanceJpeg, pixelsOf, renderTextPng } from './skia';
 
 const ROOT = 'assets';
 
+/** 分享扩展复制进共享目录的文件名（plugins/share-extension/ShareViewController.swift）。 */
+const SHARED_COPY = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\.[A-Za-z0-9]+$/i;
+
 function assetDir(assetId: string): Directory {
   const dir = new Directory(Paths.document, ROOT, assetId);
   dir.create({ idempotent: true, intermediates: true });
@@ -217,6 +220,23 @@ export const expoFilePlatform: FilePlatform = {
   async removeAllRuns() {
     const dir = new Directory(Paths.cache, 'runs');
     if (dir.exists) dir.delete();
+  },
+
+  async removeShared(keep = [], copies = []) {
+    // 分享扩展把文件复制到 App Group 共享目录的最上层，文件名是 UUID.扩展名。只删这种文件：
+    // 共享目录里还有系统的文件（例如容器的元数据，删了系统会重建整个目录）和 Library 子目录。
+    const keepNames = new Set(keep.map((uri) => uri.split('/').pop()));
+    for (const container of Object.values(Paths.appleSharedContainers ?? {})) {
+      for (const entry of container.list()) {
+        if (entry instanceof File && SHARED_COPY.test(entry.name) && !keepNames.has(entry.name)) {
+          entry.delete();
+        }
+      }
+    }
+    for (const uri of copies) {
+      const copy = new File(uri);
+      if (copy.uri.startsWith(Paths.cache.uri) && copy.exists) copy.delete();
+    }
   },
 
   async saveRunFile(uri, assetId, name) {

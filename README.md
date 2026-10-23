@@ -15,6 +15,7 @@
 6. 让 AI 搭一个能记东西的页面：`新建一个记账页面` → 在页面上记几笔，统计会更新；AI 只改界面，读不到你记的内容。
 7. 加图片和格式：`在首页顶部加一张横幅图片` → 点图片位从相册选照片（AI 看不到照片）；`首页加一段介绍，用粗体强调重点，再列三个要点`；`把首页图标换成🏡`。
 8. 再试试改样式和布局：`字体大一点，去掉阴影`、`新建一个叫「记账」的页面`、`把 AI 入口删掉`（之后从「设置 → 修改这个 App」进入）。
+9. 分享到 Morph（开发版）：在「照片」或「文件」里选几张照片或 PDF → 分享 → Morph → 收件页面列出能处理这些文件的工作流，点一个运行（例如「合并 PDF」），或者「存到 Morph 文件」。文件只在本机处理。
 
 默认风格「Clay」沿用 Docudis 的设计 token（沙色背景、陶土橙主色、Sora / Karla 字体、22pt 圆角）。AI 能修改的范围见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#2-固定内核与可变层5)。
 
@@ -61,7 +62,7 @@ npm install
 npm run ios
 ```
 
-第一次会运行 `expo prebuild` 生成 `apps/mobile/ios/`（不进 git，随时可以删掉重新生成）、安装 CocoaPods、编译开发版并装进模拟器，再启动开发服务器，大约要几分钟；以后只改 JS 不用重新编译。改了原生代码（`apps/mobile/modules/`）、原生依赖或 app.json 后要再运行一次 `npm run ios`。
+第一次会运行 `expo prebuild` 生成 `apps/mobile/ios/`（不进 git，随时可以删掉重新生成；里面有主 App 和分享扩展 `MorphShare` 两个 target）、安装 CocoaPods、编译开发版并装进模拟器，再启动开发服务器，大约要几分钟；以后只改 JS 不用重新编译。改了原生代码（`apps/mobile/modules/`、`apps/mobile/plugins/`）、原生依赖或 app.json 后要再运行一次 `npm run ios`（改了 `plugins/` 时先删掉 `apps/mobile/ios/`）。CocoaPods 报 `Unicode Normalization not appropriate for ASCII-8BIT` 时，终端的语言环境不是 UTF-8，先 `export LANG=en_US.UTF-8`。
 
 已经装过开发版、只想启动开发服务器时：
 

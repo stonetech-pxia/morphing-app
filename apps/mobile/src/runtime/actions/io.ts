@@ -4,6 +4,7 @@ import {
   RunError,
   renderNameTemplate,
   sanitizeFileName,
+  shareFitsInput,
   uniqueFileName,
   type ActionImpl,
   type FileValueType,
@@ -91,6 +92,28 @@ function checkCount(count: number, min: number, max: number, kind: string) {
   if (count > max) throw new RunError('tooMany', { max });
 }
 
+/**
+ * 从别的 App 分享进来的文件（D-115）：只在第一步用，代替选择器。类型、个数、大小和选择器一样检查，
+ * 收件页面已经只列出接得上的工作流，这里是再检查一次。
+ */
+async function importShared(
+  ctx: Parameters<Impl>[2],
+  params: Record<string, unknown>,
+  kind: string,
+): Promise<{ type: FileValueType; items: RunItem[] } | null> {
+  const shared = ctx.index === 0 ? ctx.services.incoming : null;
+  if (!shared) return null;
+  const infos = shared.map((f) => ({ ...f, mimeType: mimeOf(f.name, f.mimeType) }));
+  const fit = shareFitsInput(ctx.action.id, params, infos);
+  if (!fit.ok) {
+    if (fit.reason === 'tooFew') throw new RunError('tooFew', { min: fit.min, kind });
+    if (fit.reason === 'tooMany') throw new RunError('tooMany', { max: fit.max });
+    throw new RunError('wrongType', { name: shared[0]?.name ?? '', kind });
+  }
+  checkSizes(shared);
+  return { type: fit.type, items: await importPicked(ctx.services, shared, ctx) };
+}
+
 /** 把临时文件存成用户文件（file.save 步骤和结果页的「保存」共用）。已经存过的跳过。 */
 export async function saveItems(
   services: Pick<RunServices, 'files' | 'repo' | 'grantee'>,
@@ -133,6 +156,8 @@ export async function saveItems(
 
 export const IO_IMPLS: Record<string, Impl> = {
   async 'in.photos'(_input, params, ctx) {
+    const shared = await importShared(ctx, params, 'image');
+    if (shared) return shared;
     const { source, min, max } = params as { source: string; min: number; max: number };
     const { files, ui } = ctx.services;
     let picked: PickedFile[] = [];
@@ -169,6 +194,8 @@ export const IO_IMPLS: Record<string, Impl> = {
 
   async 'in.files'(_input, params, ctx) {
     const { accept, min, max } = params as { accept: string; min: number; max: number };
+    const shared = await importShared(ctx, params, kindOf(accept));
+    if (shared) return shared;
     const picked = await ctx.services.files.pickDocuments(DOCUMENT_TYPES[accept]!, max > 1);
     if (!picked) throw new RunCancelled();
     checkCount(picked.length, min, max, kindOf(accept));

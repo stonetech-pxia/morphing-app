@@ -11,8 +11,10 @@
 │  src/renderer/   白名单组件表：配置中的 type → 真实组件            │
 │  src/storage/    SQLite：revision、修改请求、文件、授权、执行记录    │
 │  src/runtime/    工作流执行器 + 平台动作（选文件、保存、分享）       │
+│  src/share/      分享到 Morph：接收、收件页面                    │
 │  modules/morph-vision/  本地原生模块（iOS Swift：Vision；     │
 │                  Android Kotlin：ML Kit）                     │
+│  plugins/        本地 config plugin（iOS 分享扩展的控制器）      │
 │  ios/ android/   expo prebuild 生成（CNG，不进 git）            │
 ├───────────────────────────────────────────────────────────────┤
 │ packages/core（纯 TypeScript，无平台依赖）                        │
@@ -31,7 +33,7 @@
 - `core` 不得 import React、React Native、Expo 或任何平台 API。所有可在电脑上测试的逻辑都放在这里。
 - `tool-*` 只依赖 `core` 的类型与动作接口；文件读写等平台能力由 App 注入。
 - `apps/mobile` 依赖 `core` 和 `tool-*`；渲染器只能渲染白名单组件，不执行配置中的任何代码。
-- 原生代码只写在本地 Expo 模块里（`apps/mobile/modules/`），只用系统框架；JS 侧用 `requireOptionalNativeModule`，模块不存在（Expo Go、Android、测试）时为 `null`，调用方必须有退路。
+- 原生代码只写在本地 Expo 模块里（`apps/mobile/modules/`），只用系统框架（例外：iOS 分享扩展的控制器在 `apps/mobile/plugins/share-extension/`，由 config plugin 放进生成的扩展 target，D-118）；JS 侧用 `requireOptionalNativeModule`，模块不存在（Expo Go、Android、测试）时为 `null`，调用方必须有退路。
 - AI（mock 或真实）只能输出**修改操作列表**，不能直接写配置、写数据库或生成代码。
 
 ## 2. 固定内核与可变层（§5）
@@ -111,6 +113,8 @@ App 侧：`apps/mobile/src/runtime/runner.ts` 把执行器接上存储和平台�
 扩展包（D-064、D-075）：清单在 `core/src/packs.ts`；下载、校验、删除在 `apps/mobile/src/packs/store.ts`（`documentDirectory/packs/<id>/<version>/`）；`PackHost` 按需挂载隐藏的 WebView，页面是随 App 发布的固定 HTML（`packs/pages/`），库文件经 `bridge.ts` 分块送进页面。用户在 `PackGate` 确认后才下载；「设置 → 扩展包」（`app/packs.tsx`）管理已下载的扩展包。扩展包页面：`pdfview`（pdf.js）、`scan`（OpenCV.js + jscanify：找边、透视矫正）、`ocr`（tesseract.js：worker 是前置脚本 + 内嵌 wasm 的核心 + worker.min.js 拼成的 Blob，语言数据由页面送进 worker）。送进页面的图片先在 App 里重新编码成 JPG 并缩到 1677 万像素以内（`imageForPage`）；离开运行页面时关掉扫描和识别页面释放内存。动作的扩展包由参数决定时用 `packFor`（执行器先问参数再确认下载）。
 
 系统识别（D-084–D-087）：`FilePlatform.vision`（`VisionPlatform`，接口在 `runtime/platform.ts`，实现在 `runtime/expo-vision.ts`）包装本地模块 `MorphVision`（iOS：`modules/morph-vision/ios/MorphVisionModule.swift`；Android：`modules/morph-vision/android/…/MorphVisionModule.kt`，ML Kit，没有找边和拉正）：`recognizeText`（Vision 文字识别）、`findPaper`（文档分割 + 矩形检测）、`straighten`（Core Image 透视矫正，直接写进本次运行的临时目录）、`scanDocuments`（VisionKit 文档相机）。`vision` 为 `null`（Expo Go）、`canFindPaper` 为 false（Android）或 `supportsLanguage` 为 false（Android 上的俄文）时，`scan.detect` / `ocr.recognize` 退回扫描包 / 文字识别包；执行器通过 `runner.ts` 的 `packNotNeeded` 判断这一步要不要确认扩展包。测试里 `FakeFiles.vision` 默认是 `null`，换成 `FakeVision` 就是 iOS 的路径，再设 `canFindPaper = false`、`unsupported` 加上 `ru` 就是 Android。
+
+分享到 Morph（D-114–D-118，TOOLS_DESIGN §11）：原生部分是 expo-share-intent（iOS 分享扩展 + App Group，Android intent-filter），iOS 扩展的控制器是我们自己的。根布局的 `share/useIncomingShare.ts` 订阅原生模块，`share/incoming.ts` 把两种平台的数据整理成选择器同样的 `PickedFile[]`、只放在内存里；收件页面 `app/share.tsx`（`share/ShareScreen.tsx`，内核页面）用 `core/src/share.ts` 的 `shareFit` 列出第一步接得上的工作流，点了才跳到 `/run/<id>?shared=<分享 ID>`；`startRun({ incoming })` 把文件交给第一步的 `in.photos` / `in.files`，它们不再打开选择器。共享目录里的副本由 `FilePlatform.removeShared` 删除。
 
 图片合成（拼长图、宫格、打码、水印、相纸）：排版在 `packages/tool-image`，`runtime/actions/compose.ts` 生成固定的几种绘制步骤（`DrawOp`），`runtime/skia.ts` 离屏执行。超过 GPU 画布上限会让 App 直接崩溃（不是 JS 错误），所以画布一律先经过 `surfaceScale`。文字转 PDF 和报表用 `core/src/html.ts` 的固定模板 + expo-print。
 
