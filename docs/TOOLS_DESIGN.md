@@ -385,7 +385,7 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
 | `audio.merge`      | audio → audio（1 个） | 无                                                                | morph-media `concat`                                                              |
 | `audio.fromVideo`  | video → audio         | `format`                                                          | 没有声音的视频报 `noAudio`                                                        |
 
-- morph-media 补的部分：iOS `writeAudio`（`AVAssetReaderAudioMixOutput` → AAC `.m4a` / LPCM `.wav`）、`concat`（每段一路合成轨，首尾相接）、`waveform`（8 kHz 单声道峰值）；Android M4A 用 Media3（去掉画面、`ChannelMixingAudioProcessor` + `SonicAudioProcessor` 统一格式），WAV 和波形用 `AudioPcm.kt` 自己解码。
+- morph-media 补的部分：iOS `writeAudio`（`AVAssetReaderAudioMixOutput` → AAC `.m4a` / LPCM `.wav`）、`concat`（每段一路合成轨，首尾相接）、`waveform`（8 kHz 单声道峰值）；Android M4A 用 Media3（去掉画面、`ChannelMixingAudioProcessor` + `SonicAudioProcessor` 统一格式；封装用系统的 MediaMuxer，默认的 InAppMp4Muxer 会在文件头预留约 400 KB），WAV 和波形用 `AudioPcm.kt` 自己解码。
 - App：`runtime/actions/audio.ts`、`MediaPlatform.encodeAudio / concatAudio / waveform`、`FilePlatform.speech`、`packNotNeeded`（iPhone 不用下载内容）。
 - 错误：`audioTooSmall`、`noAudio`、`noSpeech`；`needsFullApp` 的说法改成「视频和音频」。
 - 测试：`core/audio.test.ts`、`audio-actions-test.ts`（假的 media / speech）、`audio-journeys-test.tsx`（录音、转文字、波形剪切、压小的界面旅程）。
