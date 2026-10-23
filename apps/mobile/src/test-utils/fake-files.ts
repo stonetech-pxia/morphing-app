@@ -178,7 +178,7 @@ export class FakeFiles implements FilePlatform {
   folderChoice: 'pick' | 'cancel' | 'notWritable' = 'pick';
   /** 用户在选择器里选的文件夹名。 */
   nextFolder = 'MorphOut';
-  /** 记住的文件夹（D-104）。 */
+  /** 记住的文件夹（D-123）。 */
   remembered: string | null = null;
   /** 打开了几次文件夹选择器。 */
   folderPicks = 0;

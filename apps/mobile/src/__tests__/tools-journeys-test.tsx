@@ -52,7 +52,7 @@ describe('tool journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('prompt-ok'));
     expect(await screen.findByTestId('result-item-c.jpg')).toBeTruthy();
 
-    // 一次分享面板带上三个文件（D-100）。
+    // 一次分享面板带上三个文件（D-119）。
     await fireEvent.press(screen.getByTestId('result-share'));
     expect(files.shareSheets.map((sheet) => sheet.length)).toEqual([3]);
 

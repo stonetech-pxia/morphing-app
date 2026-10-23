@@ -251,7 +251,7 @@ describe('input and output actions', () => {
     expect(folder.get('a.jpg')).toEqual(new Uint8Array([0xff, 0xd8, 1]));
     expect(files.folderPicks).toBe(1);
 
-    // 记住了文件夹（D-104）：下次直接存进去，不再弹选择器。
+    // 记住了文件夹（D-123）：下次直接存进去，不再弹选择器。
     files.nextPhotos = [photo(files, 'd.jpg')];
     expect(await run()).toMatchObject({ status: 'succeeded' });
     expect(files.folderPicks).toBe(1);

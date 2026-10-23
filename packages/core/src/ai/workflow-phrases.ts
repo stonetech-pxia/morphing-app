@@ -119,12 +119,12 @@ const STEP_PHRASES: Matcher[] = [
     (m) => ({ action: 'file.rename', params: { template: (m[1] ?? m[2]!).trim() } }),
   ],
   [
-    // 一次分享全部文件（D-100）；发到哪个 App 由用户在分享面板里选，不会自动发给某个人。
+    // 一次分享全部文件（D-119）；发到哪个 App 由用户在分享面板里选，不会自动发给某个人。
     /^(?:一次|一起|全部|一次性)?分享(?:全部|所有文件|出去)?$|^(?:发|分享)到(?:微信|WhatsApp|QQ|邮件|邮箱)$|^share(?: it| them| them all| all(?: at once)?| all the files)?(?: at once)?$/i,
     () => ({ action: 'out.share', params: {} }),
   ],
   [
-    // 存到用户在「文件」里选的文件夹（D-101）：本机、iCloud 云盘、Google Drive、Dropbox 都走系统选择器。
+    // 存到用户在「文件」里选的文件夹（D-120）：本机、iCloud 云盘、Google Drive、Dropbox 都走系统选择器。
     /^(?:存到|保存到|存进|放到)\s*(?:icloud\s*(?:云盘|drive)?|google\s*drive|dropbox|onedrive|网盘|云盘)?\s*(?:的|里的)?\s*(?:某个|一个|指定的?|选定的?)?\s*文件夹(?:里)?$|^(?:存到|保存到|存进)\s*(?:icloud\s*(?:云盘|drive)?|google\s*drive|dropbox|onedrive|网盘|云盘)$|^save (?:it |them )?(?:to|into|in) (?:a |the |my )?(?:chosen )?(?:folder|icloud(?: drive)?(?: folder)?|google drive(?: folder)?|dropbox(?: folder)?)$/i,
     () => ({ action: 'out.saveToFolder', params: {} }),
   ],

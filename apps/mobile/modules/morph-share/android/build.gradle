@@ -1,4 +1,4 @@
-// 本地 Expo 模块的 Android 部分（D-100、D-101）：ACTION_SEND_MULTIPLE 一次分享多个文件，
+// 本地 Expo 模块的 Android 部分（D-119、D-120）：ACTION_SEND_MULTIPLE 一次分享多个文件，
 // 存储访问框架（ACTION_OPEN_DOCUMENT_TREE）存到用户选的文件夹。只用 Android 系统接口和 androidx.core 的 FileProvider。
 plugins {
   id 'com.android.library'

@@ -9,7 +9,7 @@ import {
   type ShareDeps,
 } from '../runtime/expo-share';
 
-// 输出去向（D-100、D-101、D-104）：原生模块 MorphShare 用假的，Expo Go 的退路也用假的。
+// 输出去向（D-119、D-120、D-123）：原生模块 MorphShare 用假的，Expo Go 的退路也用假的。
 
 const items = [
   { uri: 'file:///cache/runs/r/1/收据 1.jpg', name: '收据 1', ext: 'jpg', mimeType: 'image/jpeg' },

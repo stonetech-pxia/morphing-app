@@ -22,7 +22,7 @@ export interface ResultActions {
   share(): Promise<void>;
   /** choose：换一个文件夹（否则存到记住的文件夹）。返回文件夹名，用户取消时返回 null（按钮不显示「已存」）。 */
   saveToFolder(choose: boolean): Promise<string | null>;
-  /** 记住的文件夹的名字（D-104）。 */
+  /** 记住的文件夹的名字（D-123）。 */
   rememberedFolder(): string | null;
   saveToPhotos(): Promise<void>;
   print(): Promise<void>;
@@ -114,7 +114,7 @@ export function ResultView({
     />
   );
 
-  // 存到记住的文件夹，或换一个（D-104）；两个按钮共用「已存」状态。
+  // 存到记住的文件夹，或换一个（D-123）；两个按钮共用「已存」状态。
   const folderPill = (key: 'folder' | 'folderChange', choose: boolean) => (
     <Pill
       key={key}

@@ -3,9 +3,9 @@ import { RunError, sanitizeFileName, uniqueFileName } from '@morph/core';
 import type { MorphShareModule, SavedToFolder } from '../../modules/morph-share';
 import type { FolderItem } from './platform';
 
-// 输出去向（D-100、D-101）：一次分享多个文件、存到用户在「文件」里选的文件夹。
+// 输出去向（D-119、D-120）：一次分享多个文件、存到用户在「文件」里选的文件夹。
 // 有本地模块 MorphShare 时用它；没有时（Expo Go）分享退回 expo-sharing 逐个打开面板，
-// 存到文件夹退回 expo-file-system 的选文件夹。记住上次选的文件夹（D-104）：原生模块存在系统里，
+// 存到文件夹退回 expo-file-system 的选文件夹。记住上次选的文件夹（D-123）：原生模块存在系统里，
 // Expo Go 里只在这次打开 App 期间记住。依赖从外面传进来，测试里用假的。
 
 /** 用户选好的文件夹（Expo Go 里的退路）。 */

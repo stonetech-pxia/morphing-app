@@ -15,10 +15,10 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.File
 import kotlin.concurrent.thread
 
-// 分享和存到文件夹的 Android 实现（D-100、D-101）：
+// 分享和存到文件夹的 Android 实现（D-119、D-120）：
 // - 分享：ACTION_SEND_MULTIPLE 一次带上全部文件（content:// 地址，只给读权限）。
 // - 存到文件夹：存储访问框架 ACTION_OPEN_DOCUMENT_TREE，用户选文件夹（本机、Google Drive 等文档提供者），
-//   逐个 createDocument 并复制。记住上次选的文件夹（P-019、D-104）：申请长期读写授权、把地址存在
+//   逐个 createDocument 并复制。记住上次选的文件夹（P-019、D-123）：申请长期读写授权、把地址存在
 //   SharedPreferences，下次直接存进去；换文件夹时放掉旧的授权，文件夹没了或授权被收回时重新让用户选。
 // 文件内容和文件名不写日志。
 

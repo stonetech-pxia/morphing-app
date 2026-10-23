@@ -95,7 +95,7 @@ const shareOne = (item: { uri: string; mimeType: string }) =>
     ...(UTI[item.mimeType] ? { UTI: UTI[item.mimeType] } : {}),
   });
 
-/** 分享和存到文件夹（D-100、D-101）：有 MorphShare 用它，Expo Go 里退回 expo-sharing / expo-file-system。 */
+/** 分享和存到文件夹（D-119、D-120）：有 MorphShare 用它，Expo Go 里退回 expo-sharing / expo-file-system。 */
 const SHARE: ShareDeps = {
   native: MorphShare,
   shareOne,

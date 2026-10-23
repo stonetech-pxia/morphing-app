@@ -2,12 +2,12 @@ import ExpoModulesCore
 import UIKit
 import UniformTypeIdentifiers
 
-// 分享和存到文件夹的 iOS 实现（D-100、D-101）：
+// 分享和存到文件夹的 iOS 实现（D-119、D-120）：
 // - 分享：UIActivityViewController 一次带上全部文件（微信、WhatsApp、邮件、隔空投送、存到「文件」…）。
 // - 存到文件夹：UIDocumentPickerViewController 让用户选一个文件夹（可以新建；iCloud 云盘、Google Drive、
 //   Dropbox 等「文件」提供者由它们自己的 App 同步），再用 NSFileCoordinator 把文件复制进去，重名时加序号。
 //   不用导出模式：模拟器实测文件夹里已有同名文件时，导出选择器报 OSStatus -8072、什么也不存。
-// 记住上次选的文件夹（P-019、D-104）：存成书签（UserDefaults），下次直接存进去；文件夹没了就重新让用户选。
+// 记住上次选的文件夹（P-019、D-123）：存成书签（UserDefaults），下次直接存进去；文件夹没了就重新让用户选。
 // Morph 只把本机文件交给系统界面和用户选的文件夹，不联网。
 
 final class PresenterMissingException: Exception, @unchecked Sendable {
