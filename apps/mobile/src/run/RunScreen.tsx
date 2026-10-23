@@ -278,6 +278,11 @@ export function RunScreen({
             share: async () => {
               if (isFileValue(value)) await files.shareUris(value.items);
             },
+            saveToFolder: async (choose) =>
+              isFileValue(value)
+                ? ((await files.saveToFolder(value.items, choose))?.folder ?? null)
+                : null,
+            rememberedFolder: () => files.rememberedFolder(),
             saveToPhotos: async () => {
               if (isFileValue(value)) await files.saveToPhotos(value.items.map((i) => i.uri));
             },

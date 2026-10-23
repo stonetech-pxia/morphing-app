@@ -13,7 +13,15 @@ import { Asset, requestPermissionsAsync } from 'expo-media-library';
 import { printAsync, printToFileAsync } from 'expo-print';
 import { shareAsync } from 'expo-sharing';
 
+import {
+  FOLDER_NOT_WRITABLE,
+  rememberedFolder,
+  saveAllToFolder,
+  shareAll,
+  type ShareDeps,
+} from './expo-share';
 import { expoVision } from './expo-vision';
+import MorphShare from '../../modules/morph-share';
 import MorphVision from '../../modules/morph-vision';
 import type { FilePlatform, ImageFormat, PickedFile } from './platform';
 import { composeOnSurface, enhanceJpeg, pixelsOf, renderTextPng } from './skia';
@@ -84,6 +92,47 @@ const UTI: Record<string, string> = {
   'text/plain': 'public.plain-text',
 };
 
+const shareOne = (item: { uri: string; mimeType: string }) =>
+  shareAsync(item.uri, {
+    mimeType: item.mimeType,
+    ...(UTI[item.mimeType] ? { UTI: UTI[item.mimeType] } : {}),
+  });
+
+/** 分享和存到文件夹（D-119、D-120）：有 MorphShare 用它，Expo Go 里退回 expo-sharing / expo-file-system。 */
+const SHARE: ShareDeps = {
+  native: MorphShare,
+  shareOne,
+  remembered: null,
+  async pickFolder() {
+    let dir: Directory;
+    try {
+      dir = await Directory.pickDirectoryAsync();
+    } catch (e) {
+      if (/CANCEL/i.test(String((e as { code?: string }).code))) return null;
+      throw e;
+    }
+    return {
+      name: dir.name,
+      names() {
+        try {
+          return dir.list().map((entry) => entry.name);
+        } catch {
+          return [];
+        }
+      },
+      async write(name, mimeType, sourceUri) {
+        let file: File;
+        try {
+          file = dir.createFile(name, mimeType);
+        } catch {
+          throw Object.assign(new Error('folder not writable'), { code: FOLDER_NOT_WRITABLE });
+        }
+        file.write(await new File(sourceUri).bytes());
+      },
+    };
+  },
+};
+
 /** 照片最长边（D-047）：足够全屏清晰显示，又不会占用太多空间。 */
 const MAX_IMAGE_SIDE = 2048;
 
@@ -147,10 +196,7 @@ export const expoFilePlatform: FilePlatform = {
   },
 
   async share(path, mimeType) {
-    await shareAsync(fileAt(path).uri, {
-      mimeType,
-      ...(UTI[mimeType] ? { UTI: UTI[mimeType] } : {}),
-    });
+    await shareOne({ uri: fileAt(path).uri, mimeType });
   },
 
   async pickPhotos(max) {
@@ -245,14 +291,11 @@ export const expoFilePlatform: FilePlatform = {
     return { path: `${ROOT}/${assetId}/${name}`, size: dest.size };
   },
 
-  async shareUris(items) {
-    for (const item of items) {
-      await shareAsync(item.uri, {
-        mimeType: item.mimeType,
-        ...(UTI[item.mimeType] ? { UTI: UTI[item.mimeType] } : {}),
-      });
-    }
-  },
+  shareUris: (items) => shareAll(SHARE, items),
+
+  saveToFolder: (items, choose = false) => saveAllToFolder(SHARE, items, choose),
+
+  rememberedFolder: () => rememberedFolder(SHARE),
 
   async saveToPhotos(uris) {
     const permission = await requestPermissionsAsync(true, ['photo']);

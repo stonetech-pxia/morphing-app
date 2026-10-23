@@ -99,6 +99,14 @@ export interface VisionPlatform {
   scanDocuments(runId: string, maxSide: number): Promise<PickedFile[] | null>;
 }
 
+/** 存到文件夹的一个文件：本机地址、文件名（不含扩展名）和扩展名。 */
+export interface FolderItem {
+  uri: string;
+  name: string;
+  ext: string;
+  mimeType: string;
+}
+
 export interface FilePlatform {
   /** 系统自带的文字识别和扫描；没有时为 null。 */
   readonly vision: VisionPlatform | null;
@@ -154,8 +162,19 @@ export interface FilePlatform {
   saveRunFile(uri: string, assetId: string, name: string): Promise<{ path: string; size: number }>;
 
   // ---- 工作流执行：输出 ----
-  /** 依次打开系统分享面板（系统一次只能分享一个文件）。 */
+  /** 打开一次系统分享面板带上全部文件（MorphShare，D-119）；没有原生模块时（Expo Go）逐个打开。 */
   shareUris(items: readonly { uri: string; mimeType: string }[]): Promise<void>;
+  /**
+   * 把文件复制进「文件」里的一个文件夹（D-120）。记住上次选的文件夹（D-123）：choose 不为 true 时
+   * 有记住的就直接存进去，否则让用户选一个并记住它。返回存了几个和文件夹名，用户取消时返回 null。
+   * 文件夹写不进去时抛出 folderNotWritable。
+   */
+  saveToFolder(
+    items: readonly FolderItem[],
+    choose?: boolean,
+  ): Promise<{ saved: number; folder: string } | null>;
+  /** 记住的文件夹的名字；没有时为 null。 */
+  rememberedFolder(): string | null;
   /** 存到系统相册；没有权限时抛出 permissionDenied。 */
   saveToPhotos(uris: readonly string[]): Promise<void>;
   print(item: { uri: string; mimeType: string }): Promise<void>;

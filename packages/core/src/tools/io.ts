@@ -247,8 +247,21 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     id: 'out.share',
     label: { en: 'Share', zh: '分享' },
     description: {
-      en: 'Open the share sheet (Mail, Messages, AirDrop, Files…).',
-      zh: '打开系统分享面板（邮件、信息、隔空投送、存到文件…）。',
+      en: 'Open the share sheet once with all the files (WeChat, WhatsApp, Mail, Messages, AirDrop, Files…).',
+      zh: '打开一次系统分享面板，带上全部文件（微信、WhatsApp、邮件、信息、隔空投送、存到文件…）。',
+    },
+    input: ['files'],
+    output: 'same',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
+  },
+  {
+    id: 'out.saveToFolder',
+    label: { en: 'Save to a folder', zh: '存到文件夹' },
+    description: {
+      en: 'Copy the files into a folder in Files (on this device, iCloud Drive, Google Drive, Dropbox…). The user picks the folder the first time; after that the same folder is used (it can be changed on the result page). Morph does not upload anything; the cloud app syncs the folder.',
+      zh: '把文件复制进「文件」里的一个文件夹（本机、iCloud 云盘、Google Drive、Dropbox…）。第一次由用户选，之后存到同一个文件夹（可以在结果页换）。Morph 不上传，网盘由它自己的 App 同步。',
     },
     input: ['files'],
     output: 'same',

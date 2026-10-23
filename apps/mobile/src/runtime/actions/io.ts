@@ -259,6 +259,13 @@ export const IO_IMPLS: Record<string, Impl> = {
     return input!;
   },
 
+  async 'out.saveToFolder'(input, _params, ctx) {
+    // 有记住的文件夹就直接存进去，第一次才让用户选（D-123）。用户关掉选择器不算失败
+    // （和关掉分享面板一样），结果页上还可以再存。
+    await ctx.services.files.saveToFolder(fileItems(input));
+    return input!;
+  },
+
   async 'out.saveToPhotos'(input, _params, ctx) {
     await ctx.services.files.saveToPhotos(fileItems(input).map((i) => i.uri));
     return input!;

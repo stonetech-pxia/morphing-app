@@ -117,6 +117,31 @@ describe('mock AI — workflows', () => {
     expect(actions(shared.after, 'visa-photo').at(-1)).toBe('out.share');
   });
 
+  it('W11 shares everything at once or saves to a folder in Files (iCloud Drive, Google Drive…)', async () => {
+    const { after } = await change('新建工作流：选照片，压到 500KB，一次分享', workspace('zh'));
+    expect(actions(after, after.workflows.at(-1)!.id)).toEqual([
+      'in.photos',
+      'image.compress',
+      'out.share',
+    ]);
+    const icloud = await change('新建工作流：选照片，存到 iCloud 的某个文件夹', workspace('zh'));
+    expect(actions(icloud.after, icloud.after.workflows.at(-1)!.id).at(-1)).toBe(
+      'out.saveToFolder',
+    );
+    const en = await change(
+      'Create a workflow: choose photos, compress to 500 KB, save to a folder',
+      workspace('en'),
+      'en',
+    );
+    expect(actions(en.after, en.after.workflows.at(-1)!.id).at(-1)).toBe('out.saveToFolder');
+    const added = await change('在签证照片最后加一步存到 Google Drive', withVisa());
+    expect(actions(added.after, 'visa-photo').at(-1)).toBe('out.saveToFolder');
+    // 只有分享面板和文件夹选择器，没有「自动发给某个人」。
+    expect(await plan('新建工作流：选照片，自动发给张三', workspace('zh'))).toMatchObject({
+      kind: 'reject',
+    });
+  });
+
   it('W7 changes the size limit; W8 removes a step', async () => {
     const sized = await change('把签证照片的大小改成 200KB', withVisa());
     expect(

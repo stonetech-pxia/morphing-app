@@ -51,6 +51,61 @@ describe('tool journeys (UI)', () => {
     expect(await screen.findByTestId('run-image-compress')).toBeTruthy();
   });
 
+  it('shares every result in one sheet and saves them to a remembered folder from the result page', async () => {
+    const { files } = await installImageTool();
+    files.nextPhotos = [
+      files.offerImage('a.jpg', 400, 300),
+      files.offerImage('b.jpg', 400, 300),
+      files.offerImage('c.jpg', 400, 300),
+    ];
+    await fireEvent.press(screen.getByTestId('run-image-compress'));
+    await fireEvent.press(await screen.findByTestId('ask-preset-kb-240'));
+    await fireEvent.press(screen.getByTestId('prompt-ok'));
+    expect(await screen.findByTestId('result-item-c.jpg')).toBeTruthy();
+
+    // 一次分享面板带上三个文件（D-119）。
+    await fireEvent.press(screen.getByTestId('result-share'));
+    expect(files.shareSheets.map((sheet) => sheet.length)).toEqual([3]);
+
+    // 关掉文件夹选择器：不算存好，也不报错。
+    files.folderChoice = 'cancel';
+    await fireEvent.press(screen.getByTestId('result-folder'));
+    expect(screen.getByText('存到文件夹')).toBeTruthy();
+    expect(files.folders.size).toBe(0);
+
+    files.folderChoice = 'notWritable';
+    await fireEvent.press(screen.getByTestId('result-folder'));
+    expect(await screen.findByText('不能存进这个文件夹，请换一个文件夹再试。')).toBeTruthy();
+
+    files.folderChoice = 'pick';
+    await fireEvent.press(screen.getByTestId('result-folder'));
+    expect(await screen.findByText('已存到「MorphOut」')).toBeTruthy();
+    expect([...files.folders.get('MorphOut')!.keys()]).toEqual(['a.jpg', 'b.jpg', 'c.jpg']);
+    expect(files.folderPicks).toBe(3);
+
+    // 换文件夹：再弹一次选择器，以后记住新的。
+    files.nextFolder = 'Receipts';
+    await fireEvent.press(screen.getByTestId('result-folderChange'));
+    expect(await screen.findByText('已存到「Receipts」')).toBeTruthy();
+    expect(files.folderPicks).toBe(4);
+    expect(files.remembered).toBe('Receipts');
+  });
+
+  it('offers the remembered folder by name on the result page', async () => {
+    const { files } = await installImageTool();
+    files.remembered = 'MorphOut';
+    files.nextPhotos = [files.offerImage('a.jpg', 400, 300)];
+    await fireEvent.press(screen.getByTestId('run-image-compress'));
+    await fireEvent.press(await screen.findByTestId('ask-preset-kb-240'));
+    await fireEvent.press(screen.getByTestId('prompt-ok'));
+    expect(await screen.findByText('存到「MorphOut」')).toBeTruthy();
+    expect(screen.getByText('换文件夹')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('result-folder'));
+    expect(await screen.findByText('已存到「MorphOut」')).toBeTruthy();
+    // 直接存进去，没有弹选择器。
+    expect(files.folderPicks).toBe(0);
+  });
+
   it('a wrong value in the question is caught before running', async () => {
     const { files } = await installImageTool();
     files.nextPhotos = [files.offerImage('a.jpg', 400, 300)];

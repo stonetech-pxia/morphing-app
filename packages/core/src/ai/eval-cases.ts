@@ -989,6 +989,30 @@ const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
     },
   },
   {
+    id: 'W11',
+    input: '新建工作流：选照片，压到 500KB，存到 iCloud 的某个文件夹',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.photos', 'image.compress', 'out.saveToFolder'], (steps) =>
+        param('image.compress', 'maxKB', 500)(steps),
+      ),
+    },
+  },
+  {
+    id: 'W11-en',
+    input: 'Create a workflow: choose photos, compress to 500 KB, save to a folder',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.photos', 'image.compress', 'out.saveToFolder']),
+    },
+  },
+  {
     id: 'PW1',
     input: '帮我做个流程：拍收据，拉正，压缩到 300K，然后存起来',
     locale: 'zh',
@@ -1058,6 +1082,31 @@ const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
       kind: 'ops',
       check: hasWorkflow(['in.photos', 'pdf.fromImages', 'out.share'], (steps) =>
         param('in.photos', 'source', 'scanner')(steps),
+      ),
+    },
+  },
+  {
+    id: 'PW6',
+    input: '做个流程：扫描合同，合成 PDF，直接存进我 Google Drive 里的一个文件夹',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.photos', 'pdf.fromImages', 'out.saveToFolder']),
+    },
+  },
+  {
+    id: 'PW7',
+    input:
+      'Make a workflow that shrinks my photos to 1 MB each and sends them all to WhatsApp in one go',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.photos', 'image.compress', 'out.share'], (steps) =>
+        param('image.compress', 'maxKB', 1024)(steps),
       ),
     },
   },
