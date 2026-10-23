@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
-import { THEME_PRESETS, type ThemePresetId } from '../presets';
+import { THEME_PRESETS, THEME_PRESET_IDS, presetRequest, type ThemePresetId } from '../presets';
 import type { Locale, WorkspaceConfig } from '../schema';
 import { apply, registry, workspace } from '../test-helpers';
 import { createMockAIProvider } from './mock';
@@ -179,6 +179,14 @@ describe('mock AI — style', () => {
     expect((await change('卡片改成新粗野风格', workspace())).after.theme.colors).toEqual({});
     expect((await change('主题换成绿色', workspace())).after.theme.cardStyle).toBe('shadow');
   });
+
+  it.each(THEME_PRESET_IDS.flatMap((id) => (['zh', 'en'] as const).map((l) => [id, l] as const)))(
+    'B12c the style picker sentence for %s (%s) applies exactly that preset',
+    async (id, locale) => {
+      const p = await plan(presetRequest(id, locale), workspace(locale), locale);
+      expect(p).toEqual({ kind: 'ops', ops: [{ op: 'applyThemePreset', preset: id }] });
+    },
+  );
 
   it('B9d page backdrop', async () => {
     expect((await change('背景改成极光', workspace())).after.theme.backdrop).toBe('aurora');

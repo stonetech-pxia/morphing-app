@@ -1,4 +1,9 @@
-import { THEME_PRESETS, presetOfTheme, type ThemePresetId } from '@morph/core';
+import {
+  createMockAIProvider,
+  presetOfTheme,
+  presetRequest,
+  type ThemePresetId,
+} from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -19,6 +24,9 @@ import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { ProposeResult } from '../workspace/store';
 import { Preview } from './Preview';
 import { StylePicker } from './StylePicker';
+
+/** 风格选择器填进去的原句由内置规则生成计划，不调用设置里的 AI（D-095）。 */
+const presetPlanner = createMockAIProvider();
 
 const EXAMPLES = {
   zh: [
@@ -52,12 +60,13 @@ export function ChangeScreen() {
   const proposal = useWorkspace((s) => s.proposal);
   const busy = useWorkspace((s) => s.busy);
   const propose = useWorkspace((s) => s.propose);
-  const proposeOps = useWorkspace((s) => s.proposeOps);
   const confirm = useWorkspace((s) => s.confirm);
   const cancel = useWorkspace((s) => s.cancel);
   const palette = usePalette(config.theme);
 
   const [input, setInput] = useState('');
+  /** 风格选择器最近填进去的句子；用户改过输入框后就不再相等，交给设置里的 AI。 */
+  const [presetText, setPresetText] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Exclude<ProposeResult, { kind: 'preview' }> | null>(
     null,
   );
@@ -81,22 +90,17 @@ export function ChangeScreen() {
     setFeedback(null);
     setPreviewBroken(false);
     setSide('after');
-    const result = await propose(text.trim());
+    const planner = text.trim() === presetText ? presetPlanner : undefined;
+    const result = await propose(text.trim(), planner);
     if (result.kind !== 'preview') setFeedback(result);
   }
 
-  /** 直接点选风格预设：不经过 AI，生成同样的 applyThemePreset 操作，走同一个预览（D-095）。 */
-  async function pickStyle(preset: ThemePresetId) {
-    if (busy) return;
+  /** 点选风格预设：把切换风格的句子填进输入框，用户点「预览」后照常走预览（D-095）。 */
+  function pickStyle(preset: ThemePresetId) {
+    const text = presetRequest(preset, locale);
     setFeedback(null);
-    setPreviewBroken(false);
-    setSide('after');
-    const name = THEME_PRESETS[preset].name[locale];
-    const result = await proposeOps(
-      [{ op: 'applyThemePreset', preset }],
-      t(locale, 'styleSummary', { name }),
-    );
-    if (result.kind !== 'preview') setFeedback(result);
+    setInput(text);
+    setPresetText(text);
   }
 
   async function apply() {

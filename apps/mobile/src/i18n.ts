@@ -25,7 +25,6 @@ const strings = {
   },
   examples: { en: 'Try:', zh: '可以试试：' },
   pickStyle: { en: 'Pick a style', zh: '选一个风格' },
-  styleSummary: { en: 'Switch to the {name} style', zh: '换成「{name}」风格' },
   preview: { en: 'Preview', zh: '预览' },
   thinking: { en: 'Working on it…', zh: '正在生成修改…' },
   planTitle: { en: 'Planned changes', zh: '将要做的修改' },

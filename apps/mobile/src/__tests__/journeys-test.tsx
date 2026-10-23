@@ -1,4 +1,10 @@
-import { BUILTIN_TOOLS, THEME_PRESETS, createMockAIProvider, createRegistry } from '@morph/core';
+import {
+  BUILTIN_TOOLS,
+  THEME_PRESETS,
+  createMockAIProvider,
+  createRegistry,
+  type AIProvider,
+} from '@morph/core';
 import { fireEvent } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
@@ -29,12 +35,16 @@ const memorySecrets = (): SecretStore => {
   };
 };
 
-async function renderApp(repo = new MemoryWorkspaceRepo(), files = new FakeFiles()) {
+async function renderApp(
+  repo = new MemoryWorkspaceRepo(),
+  files = new FakeFiles(),
+  provider: AIProvider = createMockAIProvider(),
+) {
   const aiSettings = createAISettingsStore({ secrets: memorySecrets(), serverAvailable: false });
   await aiSettings.getState().load();
   const store = createWorkspaceStore({
     repo,
-    provider: createMockAIProvider(),
+    provider,
     registry,
     locale: 'zh',
     now: () => new Date(2026, 9, 22, 9, 0),
@@ -120,33 +130,50 @@ describe('user journeys (UI)', () => {
     expect(store.getState().head!.id).toBe(1);
   });
 
-  it('pick a style by hand: preview, apply as a version, marked as current, undo restores', async () => {
-    const { store } = await renderApp();
+  /** 设置里选的 AI（这里假装是远程模型）：什么都拒绝，用来确认风格选择器的原句没有交给它。 */
+  const configuredAI = () => ({
+    plan: jest.fn<ReturnType<AIProvider['plan']>, Parameters<AIProvider['plan']>>(async () => ({
+      kind: 'reject' as const,
+      reason: 'unknown' as const,
+      message: '远程 AI 收到了',
+      examples: [],
+    })),
+  });
+
+  it('pick a style: fills the sentence, the built-in rules preview it, apply, marked, undo restores', async () => {
+    const ai = configuredAI();
+    const { store } = await renderApp(undefined, undefined, ai);
     await fireEvent.press(screen.getByTestId('nav-ai'));
     expect(await screen.findByText('选一个风格')).toBeTruthy();
     // 默认的 Clay 不是预设，没有格子被标为当前风格。
     expect(screen.getByTestId('style-brutalist').props.accessibilityState.selected).toBe(false);
 
     await fireEvent.press(screen.getByTestId('style-brutalist'));
-    expect(await screen.findByTestId('proposal-summary')).toHaveTextContent('换成「新粗野」风格');
+    expect(screen.getByTestId('change-input').props.value).toBe('换成新粗野风格');
+    await fireEvent.press(screen.getByTestId('change-submit'));
+    expect(await screen.findByTestId('proposal-summary')).toHaveTextContent('换成新粗野风格');
     expect(screen.getByTestId('plan-line-0')).toHaveTextContent(/新粗野/);
+    expect(ai.plan).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByTestId('preview-before'));
     await fireEvent.press(screen.getByTestId('preview-after'));
     // 预览期间 App 本身没有变化。
     expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
 
     await fireEvent.press(screen.getByTestId('change-apply'));
-    expect(await screen.findByTestId('banner')).toHaveTextContent(/已应用：换成「新粗野」风格/);
+    expect(await screen.findByTestId('banner')).toHaveTextContent(/已应用：换成新粗野风格/);
     expect(store.getState().config!.theme).toEqual(THEME_PRESETS.brutalist.theme);
-    expect(store.getState().head).toMatchObject({ id: 2, source: 'user' });
+    expect(store.getState().head).toMatchObject({ id: 2, source: 'ai' });
     const [latest] = await store.getState().listRevisions();
-    expect(latest!.summary).toBe('换成「新粗野」风格');
+    expect(latest!.summary).toBe('换成新粗野风格');
 
     // 回到 AI 页，新粗野被标为当前风格。
     await fireEvent.press(screen.getByTestId('nav-ai'));
-    const brutalist = await screen.findByTestId('style-brutalist');
-    expect(brutalist.props.accessibilityState.selected).toBe(true);
+    expect((await screen.findByTestId('style-brutalist')).props.accessibilityState.selected).toBe(
+      true,
+    );
+    // 离开 AI 页：预览另一个风格再取消。
     await fireEvent.press(screen.getByTestId('style-ios'));
+    await fireEvent.press(screen.getByTestId('change-submit'));
     await fireEvent.press(await screen.findByTestId('change-cancel'));
 
     await fireEvent.press(await screen.findByText('撤销'));
@@ -155,11 +182,25 @@ describe('user journeys (UI)', () => {
     expect(store.getState().head).toMatchObject({ source: 'restore' });
   });
 
-  it('cancelling a picked style leaves the app unchanged', async () => {
-    const { store } = await renderApp();
+  it('a picked style sentence that the user edits goes to the configured AI', async () => {
+    const ai = configuredAI();
+    const { store } = await renderApp(undefined, undefined, ai);
     await fireEvent.press(screen.getByTestId('nav-ai'));
     await fireEvent.press(await screen.findByTestId('style-glass'));
-    expect(await screen.findByTestId('proposal-summary')).toHaveTextContent('换成「液态玻璃」风格');
+    await fireEvent.changeText(screen.getByTestId('change-input'), '换成液态玻璃风格，字体大一点');
+    await fireEvent.press(screen.getByTestId('change-submit'));
+    expect(await screen.findByText('远程 AI 收到了')).toBeTruthy();
+    expect(ai.plan).toHaveBeenCalledTimes(1);
+    expect(ai.plan.mock.calls[0]![0]).toBe('换成液态玻璃风格，字体大一点');
+    expect(store.getState().head!.id).toBe(1);
+  });
+
+  it('cancelling a picked style leaves the app unchanged', async () => {
+    const { store } = await renderApp(undefined, undefined, configuredAI());
+    await fireEvent.press(screen.getByTestId('nav-ai'));
+    await fireEvent.press(await screen.findByTestId('style-glass'));
+    await fireEvent.press(screen.getByTestId('change-submit'));
+    expect(await screen.findByTestId('proposal-summary')).toHaveTextContent('换成液态玻璃风格');
     await fireEvent.press(screen.getByTestId('change-cancel'));
     expect(await screen.findByTestId('nav-ai')).toBeTruthy();
     expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
