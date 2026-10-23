@@ -5,7 +5,7 @@ import { isEmoji, unsafeLinks } from './richtext';
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 修改本文件中会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
 
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 
 export type Locale = 'en' | 'zh';
 export type Localized = Record<Locale, string>;
@@ -80,6 +80,7 @@ export const ThemeColorsSchema = z.strictObject({
   surface: HexColorSchema.optional(),
   text: HexColorSchema.optional(),
   secondary: HexColorSchema.optional(),
+  tertiary: HexColorSchema.optional(),
 });
 export type ThemeColors = z.infer<typeof ThemeColorsSchema>;
 
@@ -88,13 +89,31 @@ export const ThemeSchema = z.strictObject({
   mode: z.enum(['light', 'dark', 'system']),
   /** 覆盖默认配色；未设置的颜色使用默认风格（Clay）的值。 */
   colors: ThemeColorsSchema,
+  /** 深色模式下的颜色覆盖；没设置的颜色依次使用 colors、默认风格的深色值。 */
+  darkColors: ThemeColorsSchema.optional(),
   /** 字体组合：clay = 标题 Sora + 正文 Karla。 */
   font: z.enum(FONT_CHOICES),
   fontScale: z.number().min(0.85).max(1.3),
   /** 卡片圆角（pt）；按钮等控件的圆角随之缩放。 */
   radius: z.number().int().min(0).max(28),
   density: z.enum(['compact', 'comfortable', 'spacious']),
-  cardStyle: z.enum(['shadow', 'outline', 'flat']),
+  /**
+   * brutal = 粗边 + 硬阴影（新粗野），soft = 双向柔和阴影（新拟物），puffy = 内高光 + 柔和阴影（黏土），
+   * glass = 半透明毛玻璃，glow = 主色外发光（霓虹），chrome = 金属渐变 + 高光（Y2K）。
+   */
+  cardStyle: z.enum([
+    'shadow',
+    'outline',
+    'flat',
+    'brutal',
+    'soft',
+    'puffy',
+    'glass',
+    'glow',
+    'chrome',
+  ]),
+  /** 页面背景：纯色（默认）、主色到辅助色的渐变、三色极光。颜色都从主题配色算出，深色模式自动跟着变。 */
+  backdrop: z.enum(['plain', 'gradient', 'aurora']).optional(),
   navStyle: z.enum(['iconLabel', 'label', 'icon']),
 });
 export type Theme = z.infer<typeof ThemeSchema>;

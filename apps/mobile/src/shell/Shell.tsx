@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t } from '../i18n';
 import { EditablePage } from '../editing/EditablePage';
 import type { RenderEnv } from '../renderer/components';
+import { GlassFill } from '../renderer/GlassFill';
 import { Icon } from '../renderer/Icon';
 import { usePalette, type Palette } from '../renderer/theme';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
@@ -104,7 +105,7 @@ export function Shell() {
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: palette.background, paddingTop: insets.top }]}>
+    <View style={[styles.root, palette.backdrop, { paddingTop: insets.top }]}>
       <Banner palette={palette} />
       <View style={styles.content}>{content}</View>
 
@@ -124,6 +125,7 @@ export function Shell() {
             pressed && { transform: [{ scale: 0.96 }] },
             editing && styles.invisible,
           ]}>
+          <GlassFill palette={palette} radius={999} />
           <Text style={[palette.font('title', 14), { color: palette.primaryText }]}>
             {t(locale, 'edit')}
           </Text>
@@ -146,6 +148,7 @@ export function Shell() {
                   { borderRadius: 999 },
                   pressed && { transform: [{ scale: 0.96 }] },
                 ]}>
+                <GlassFill palette={palette} radius={999} />
                 <Icon name={targetIcon(target, config)} size={18} color={fg} />
                 <Text style={[palette.font('title', 14), { color: fg }]}>
                   {targetLabel(target, config, locale)}
@@ -165,10 +168,11 @@ export function Shell() {
           {
             height: barSpace,
             paddingBottom: insets.bottom,
-            backgroundColor: palette.surface,
+            backgroundColor: palette.barBackground,
             borderColor: palette.border,
           },
         ]}>
+        <GlassFill palette={palette} radius={0} />
         {config.shell.nav.map((target) => {
           const isActive = target === active;
           const color = isActive || target === 'ai' ? palette.primaryText : palette.caption;

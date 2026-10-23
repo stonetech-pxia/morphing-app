@@ -82,7 +82,7 @@ function ThemedStack() {
           headerTintColor: palette.text,
           headerBackButtonDisplayMode: 'minimal',
           headerTitleStyle: { ...palette.font('title', 17), color: palette.text } as never,
-          contentStyle: { backgroundColor: palette.background },
+          contentStyle: palette.backdrop,
         }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen

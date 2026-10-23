@@ -9,6 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
+import { GlassFill } from './GlassFill';
 import { Icon } from './Icon';
 import type { Palette } from './theme';
 
@@ -40,6 +41,7 @@ export function Card({
   if (!onPress) {
     return (
       <View testID={testID} style={base}>
+        <GlassFill palette={palette} />
         {children}
       </View>
     );
@@ -51,6 +53,7 @@ export function Card({
       onLongPress={onLongPress}
       disabled={disabled}
       style={({ pressed }) => [base, pressed && { transform: [{ scale: 0.97 }] }]}>
+      <GlassFill palette={palette} />
       {children}
     </Pressable>
   );

@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
 import { ErrorBoundary } from '../renderer/ErrorBoundary';
+import { GlassFill } from '../renderer/GlassFill';
 import { Icon } from '../renderer/Icon';
 import { PageView, type RenderEnv } from '../renderer/components';
 import { usePalette } from '../renderer/theme';
@@ -40,10 +41,7 @@ export function Preview({
       <View
         testID="preview"
         pointerEvents="none"
-        style={[
-          styles.frame,
-          { backgroundColor: palette.background, borderColor: palette.border },
-        ]}>
+        style={[styles.frame, palette.backdrop, { borderColor: palette.border }]}>
         <View style={styles.page}>
           <PageView page={page} env={env} />
         </View>
@@ -60,6 +58,7 @@ export function Preview({
                     palette.cardStyle(accent ? palette.primary : palette.surface),
                     { borderRadius: 999 },
                   ]}>
+                  <GlassFill palette={palette} radius={999} />
                   <Icon name={targetIcon(target, config)} size={13} color={fg} />
                   <Text style={[palette.font('title', 11), { color: fg }]}>
                     {targetLabel(target, config, locale)}
@@ -70,7 +69,11 @@ export function Preview({
           </View>
         ) : null}
         <View
-          style={[styles.bar, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+          style={[
+            styles.bar,
+            { backgroundColor: palette.barBackground, borderColor: palette.border },
+          ]}>
+          <GlassFill palette={palette} radius={0} />
           {config.shell.nav.map((target) => (
             <View key={target} style={styles.tab}>
               {navStyle !== 'label' ? (

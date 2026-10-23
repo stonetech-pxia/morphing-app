@@ -430,7 +430,8 @@ export function PageView({
   return (
     <ScrollView
       {...scroll}
-      style={{ backgroundColor: palette.background }}
+      // 渐变背景画在外层容器上（和状态栏区域连成一片），页面本身透明。
+      style={palette.hasBackdrop ? undefined : { backgroundColor: palette.background }}
       // 数据表单：键盘弹出时可以直接点选项和按钮，并自动把输入框滚到键盘上方。
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets

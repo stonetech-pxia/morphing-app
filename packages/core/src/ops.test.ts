@@ -76,6 +76,37 @@ describe('applyOps', () => {
     expect(apply(styled, [{ op: 'resetTheme' }]).theme).toEqual(workspace().theme);
   });
 
+  it('sets dark-mode colors separately and drops them when all are cleared', () => {
+    const styled = apply(workspace(), [
+      {
+        op: 'setTheme',
+        mode: 'system',
+        cardStyle: 'brutal',
+        colors: { background: '#FFF8E7', tertiary: '#3B82F6' },
+        darkColors: { background: '#111111', surface: '#1C1C1C', text: '#F5F5F5' },
+      },
+    ]);
+    expect(styled.theme.colors).toEqual({ background: '#FFF8E7', tertiary: '#3B82F6' });
+    expect(styled.theme.darkColors).toEqual({
+      background: '#111111',
+      surface: '#1C1C1C',
+      text: '#F5F5F5',
+    });
+    expect(validateWorkspace(styled, registry).ok).toBe(true);
+    const cleared = apply(styled, [
+      { op: 'setTheme', darkColors: { background: null, surface: null, text: null } },
+    ]);
+    expect(cleared.theme).not.toHaveProperty('darkColors');
+    expect(apply(styled, [{ op: 'resetTheme' }]).theme).toEqual(workspace().theme);
+  });
+
+  it('sets a page backdrop and glass cards; resetting the theme removes the backdrop', () => {
+    const styled = apply(workspace(), [{ op: 'setTheme', backdrop: 'aurora', cardStyle: 'glass' }]);
+    expect(styled.theme).toMatchObject({ backdrop: 'aurora', cardStyle: 'glass' });
+    expect(validateWorkspace(styled, registry).ok).toBe(true);
+    expect(apply(styled, [{ op: 'resetTheme' }]).theme).not.toHaveProperty('backdrop');
+  });
+
   it('adds a page with its own components, and removes it together with links to it', () => {
     const added = apply(workspace(), [
       {
@@ -385,6 +416,33 @@ describe('prepareOps', () => {
       '导航栏改为：首页、AI 修改（原来：首页、工具、AI 修改、历史、设置）',
       '新建页面「笔记」（0 个组件）',
       '「设置」不能移除（AI 修改和历史入口都在里面），已改为浮动按钮',
+    ]);
+  });
+
+  it('describes dark-mode colors and the new card styles', () => {
+    const op = {
+      op: 'setTheme',
+      cardStyle: 'soft',
+      colors: { tertiary: '#3B82F6' },
+      darkColors: { background: '#111111' },
+    } as const;
+    const zh = prepareOps(workspace(), [op], ctx);
+    expect(zh.ok && zh.lines).toEqual([
+      '第三色改为 #3B82F6',
+      '深色模式的背景色改为 #111111',
+      '卡片样式改为柔和浮雕（新拟物）',
+    ]);
+    const glass = prepareOps(
+      workspace(),
+      [{ op: 'setTheme', cardStyle: 'glass', backdrop: 'aurora' }],
+      ctx,
+    );
+    expect(glass.ok && glass.lines).toEqual(['卡片样式改为毛玻璃', '页面背景改为极光']);
+    const en = prepareOps(workspace('en'), [op], { ...ctx, locale: 'en' });
+    expect(en.ok && en.lines).toEqual([
+      'Tertiary color → #3B82F6',
+      'Dark mode background → #111111',
+      'Card style → soft embossed (neumorphic)',
     ]);
   });
 });

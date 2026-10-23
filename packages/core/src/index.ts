@@ -15,6 +15,7 @@ export * from './limits';
 export * from './migrate';
 export * from './naming';
 export * from './ops';
+export * from './presets';
 export * from './registry';
 export * from './richtext';
 export * from './schema';

@@ -112,13 +112,16 @@ export function isDark(theme: Theme, systemDark: boolean): boolean {
 
 export function resolveColors(theme: Theme, dark: boolean): ResolvedColors {
   const base = dark ? CLAY.dark : CLAY.light;
-  const o = theme.colors;
+  // 深色模式：darkColors 优先，没设置的颜色沿用 colors（旧主题只有 colors，行为不变）。
+  const o = dark ? { ...theme.colors, ...theme.darkColors } : theme.colors;
   const background = o.background ?? base.background;
   const surface = o.surface ?? base.surface;
   const text = o.text ?? base.text;
   const secondary = o.secondary ?? base.secondary;
+  const tertiary = o.tertiary ?? base.tertiary;
   const primary = theme.primaryColor;
   const tintAmount = dark ? 0.78 : 0.82;
+  const custom = Boolean(o.text || o.surface || o.background);
   return {
     dark,
     background,
@@ -134,18 +137,82 @@ export function resolveColors(theme: Theme, dark: boolean): ResolvedColors {
     secondary,
     secondaryTint: mix(secondary, surface, tintAmount),
     onSecondaryTint: readable(secondary, mix(secondary, surface, tintAmount), text, 4.5),
-    tertiary: base.tertiary,
-    tertiaryTint: mix(base.tertiary, surface, tintAmount),
-    onTertiaryTint: readable(base.tertiary, mix(base.tertiary, surface, tintAmount), text, 4.5),
+    tertiary,
+    tertiaryTint: mix(tertiary, surface, tintAmount),
+    onTertiaryTint: readable(tertiary, mix(tertiary, surface, tintAmount), text, 4.5),
     danger: base.danger,
-    shadow: base.shadow,
+    // 浅色模式下 Clay 的暖棕阴影只适合 Clay 配色；换了配色时阴影用正文色，色相跟着主题走。
+    shadow: custom && !dark ? text : base.shadow,
   };
+}
+
+/** 毛玻璃卡片里卡片色的比例，其余透出页面背景（对比度检查按这个比例估算卡片的实际颜色）。 */
+export const GLASS_OPACITY = 0.4;
+
+/** 极光背景里每团颜色中心的不透明度。 */
+export const AURORA_ALPHA = { light: 0.45, dark: 0.5 } as const;
+
+/**
+ * 页面背景上出现的颜色（不透明值）。渲染器按它们画渐变，校验器检查文字压在上面是否清楚。
+ * gradient：主色淡色 → 背景色 → 辅助色淡色；aurora：主色、辅助色、第三色三团光的中心色。
+ */
+export function backdropStops(theme: Theme, c: ResolvedColors): string[] {
+  switch (theme.backdrop) {
+    case 'gradient':
+      return [
+        mix(c.background, c.primary, 0.3),
+        c.background,
+        mix(c.background, c.secondary, 0.25),
+      ];
+    case 'aurora': {
+      const alpha = c.dark ? AURORA_ALPHA.dark : AURORA_ALPHA.light;
+      return [c.primary, c.secondary, c.tertiary].map((x) => mix(c.background, x, alpha));
+    }
+    default:
+      return [c.background];
+  }
+}
+
+/** 金属卡片的四个色标（上亮、中段由亮转暗、下面反光），从卡片底色算出。 */
+export function chromeStops(base: string, dark: boolean): [string, string, string, string] {
+  return [
+    mix(base, '#FFFFFF', dark ? 0.2 : 0.65),
+    base,
+    mix(base, '#000000', dark ? 0.25 : 0.14),
+    mix(base, '#FFFFFF', dark ? 0.1 : 0.35),
+  ];
 }
 
 export const MIN_TEXT_CONTRAST = 4.5;
 
+/** 正文可能直接压在上面的颜色：背景、卡片，以及渐变背景、毛玻璃和金属卡片实际呈现的颜色。 */
+function textSurfaces(theme: Theme, c: ResolvedColors): [string, string][] {
+  const surfaces: [string, string][] = [
+    ['background', c.background],
+    ['surface', c.surface],
+  ];
+  const stops = backdropStops(theme, c);
+  if (theme.backdrop && theme.backdrop !== 'plain') {
+    stops.forEach((color, i) => surfaces.push([`backdrop color ${i + 1}`, color]));
+  }
+  if (theme.cardStyle === 'glass') {
+    stops.forEach((color, i) =>
+      surfaces.push([
+        `glass card over backdrop color ${i + 1}`,
+        mix(color, c.surface, GLASS_OPACITY),
+      ]),
+    );
+  }
+  if (theme.cardStyle === 'chrome') {
+    chromeStops(c.surface, c.dark).forEach((color, i) =>
+      surfaces.push([`chrome card shade ${i + 1}`, color]),
+    );
+  }
+  return surfaces;
+}
+
 /**
- * 可读性检查：正文在背景和卡片上的对比度必须达到 WCAG AA。
+ * 可读性检查：正文在背景、卡片（含渐变背景、毛玻璃和金属卡片的实际颜色）上的对比度必须达到 WCAG AA。
  * 返回不满足的组合；主题可能显示为浅色或深色时两种都检查。
  */
 export function contrastProblems(theme: Theme): string[] {
@@ -153,10 +220,7 @@ export function contrastProblems(theme: Theme): string[] {
   const problems: string[] = [];
   for (const dark of modes) {
     const c = resolveColors(theme, dark);
-    for (const [name, bg] of [
-      ['background', c.background],
-      ['surface', c.surface],
-    ] as const) {
+    for (const [name, bg] of textSurfaces(theme, c)) {
       const ratio = contrast(c.text, bg);
       if (ratio < MIN_TEXT_CONTRAST) {
         problems.push(

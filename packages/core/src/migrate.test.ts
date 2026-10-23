@@ -138,6 +138,13 @@ describe('migrateWorkspace', () => {
     ]);
   });
 
+  it('v5 → v6: only bumps the version', () => {
+    const v5 = { ...workspace(), schemaVersion: 5 };
+    const result = prepareSnapshot(v5, registry);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.after).toEqual(workspace());
+  });
+
   it('refuses snapshots it cannot migrate', () => {
     const v0 = { ...v1Snapshot, schemaVersion: 0 };
     expect(migrateWorkspace(v0)).toEqual({ ok: false, error: 'no migration from schemaVersion 0' });

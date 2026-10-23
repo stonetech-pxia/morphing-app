@@ -4,9 +4,21 @@ import type { Registry } from '../registry';
 import { allComponents, type Locale, type WorkspaceConfig } from '../schema';
 import { parseRichText } from '../richtext';
 import { templateOps } from '../templates';
-import { contrast, isDark, resolveColors } from '../theme';
+import { THEME_PRESETS } from '../presets';
+import { CLAY, contrast, isDark, resolveColors } from '../theme';
 import { presetById, presetWorkflow } from '../workflows/presets';
 import type { Plan, RejectReason } from './types';
+
+/** 结构相同即可（校验后对象的键顺序可能变）。 */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return a === b;
+  const ka = Object.keys(a);
+  const kb = Object.keys(b);
+  return (
+    ka.length === kb.length &&
+    ka.every((k) => sameValue((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]))
+  );
+}
 
 // AI 评测集（§7F、§14）：mock AI 与真实模型用同一组用例衡量。
 // ID 与 docs/MOCK_AI_PHRASES.md 对应；P* 是只有真实模型才需要理解的改写说法。
@@ -283,6 +295,96 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
         c.theme.cardStyle !== 'shadow'
           ? null
           : `cards should lose their shadow, got ${c.theme.cardStyle}`,
+    },
+  },
+  {
+    id: 'B9b',
+    input: '卡片改成新粗野风格',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.theme.cardStyle === 'brutal' ? null : `cards should be brutal, got ${c.theme.cardStyle}`,
+    },
+  },
+  {
+    id: 'B9d',
+    input: '背景改成极光，卡片改成毛玻璃',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.theme.backdrop === 'aurora' && c.theme.cardStyle === 'glass'
+          ? null
+          : `expected aurora + glass, got ${c.theme.backdrop} + ${c.theme.cardStyle}`,
+    },
+  },
+  {
+    id: 'B12b',
+    input: '换成杂志风',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        sameValue(c.theme, THEME_PRESETS.editorial.theme)
+          ? null
+          : `theme should be the editorial preset, got ${JSON.stringify(c.theme)}`,
+    },
+  },
+  {
+    id: 'B12d',
+    input: '换成毛玻璃风格',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        sameValue(c.theme, THEME_PRESETS.glass.theme)
+          ? null
+          : `theme should be the glass preset, got ${JSON.stringify(c.theme)}`,
+    },
+  },
+  {
+    id: 'B12c',
+    input: '换成霓虹风格，主色改成粉色',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        if (c.theme.cardStyle !== 'glow')
+          return `expected the neon preset, got ${c.theme.cardStyle}`;
+        const [r, g, b] = [1, 3, 5].map((i) => parseInt(c.theme.primaryColor.slice(i, i + 2), 16));
+        return r! > 180 && r! > g! + 40 && b! > g!
+          ? null
+          : `primary should be pink, got ${c.theme.primaryColor}`;
+      },
+    },
+  },
+  {
+    id: 'B9c',
+    input: '深色模式下用纯黑背景，浅色模式不变',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const light = resolveColors(c.theme, false).background;
+        const dark = resolveColors(c.theme, true).background;
+        if (light !== CLAY.light.background) return `light background changed to ${light}`;
+        return contrast(dark, '#000000') < 1.2
+          ? null
+          : `dark background should be black, got ${dark}`;
+      },
     },
   },
   // 导航与页面

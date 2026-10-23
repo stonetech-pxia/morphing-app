@@ -11,6 +11,7 @@ import {
   stepsFrom,
   type StepPhrase,
 } from './workflow-phrases';
+import { THEME_PRESET_IDS, type ThemePresetId } from '../presets';
 import type { ToolDefinition } from '../registry';
 import {
   HOME_PAGE_ID,
@@ -322,7 +323,70 @@ const cardStyleRule: Rule = (clause) => {
   if (/^(?:卡片)?(?:加上|恢复)阴影$|^(?:add )?(?:card )?shadows$/i.test(clause)) {
     return [{ op: 'setTheme', cardStyle: 'shadow' }];
   }
+  const m =
+    clause.match(
+      /^卡片(?:改成|改为|换成|用)(新粗野|粗野|新拟物|拟物|浮雕|黏土|粘土|毛玻璃|玻璃|霓虹发光|霓虹|发光|金属|Y2K)(?:风格|样式|风|质感|效果)?$/i,
+    ) ??
+    clause.match(
+      /^(neubrutalist|brutalist|neumorphic|claymorphic|clay|puffy|glass|frosted glass|neon|glowing|chrome|metallic) cards$/i,
+    );
+  if (m) {
+    const word = m[1]!;
+    const cardStyle = /粗野|brutal/i.test(word)
+      ? 'brutal'
+      : /拟物|浮雕|neumorphic/i.test(word)
+        ? 'soft'
+        : /玻璃|glass/i.test(word)
+          ? 'glass'
+          : /霓虹|发光|neon|glow/i.test(word)
+            ? 'glow'
+            : /金属|Y2K|chrome|metallic/i.test(word)
+              ? 'chrome'
+              : 'puffy';
+    return [{ op: 'setTheme', cardStyle }];
+  }
   return null;
+};
+
+const backdropRule: Rule = (clause) => {
+  const m =
+    clause.match(/^(?:页面)?背景(?:改成|改为|换成|用)(渐变|极光|纯色)(?:色|背景|效果)?$/) ??
+    clause.match(/^(?:use (?:a |an )?)?(gradient|aurora|solid) (?:page )?background$/i);
+  if (!m) return null;
+  const backdrop = /渐变|gradient/i.test(m[1]!)
+    ? 'gradient'
+    : /极光|aurora/i.test(m[1]!)
+      ? 'aurora'
+      : 'plain';
+  return [{ op: 'setTheme', backdrop }];
+};
+
+/** 风格预设的叫法（小写比较）。只认整体风格；「卡片改成新粗野」之类只改卡片，见 cardStyleRule。 */
+const PRESET_ALIASES: Record<ThemePresetId, string[]> = {
+  ios: ['ios', 'ios原生', 'ios 原生', '苹果', '苹果原生', 'apple'],
+  material: ['material', 'material you', 'material design', '安卓', '谷歌'],
+  editorial: ['杂志', '报刊', '编辑', 'editorial', 'magazine'],
+  pastel: ['马卡龙', '粉彩', '柔和', 'pastel'],
+  nature: ['自然', '大地', '森林', 'nature', 'earthy'],
+  terminal: ['终端', '极客', '程序员', '代码', 'terminal', 'hacker'],
+  neon: ['霓虹', '赛博', '赛博朋克', '赛博霓虹', 'neon', 'cyberpunk'],
+  claymorphism: ['黏土', '粘土', 'claymorphism', 'claymorphic'],
+  brutalist: ['新粗野', '粗野', '野兽派', 'brutalist', 'neubrutalism', 'neubrutalist'],
+  neumorphism: ['新拟物', '拟物', 'neumorphism', 'neumorphic', 'soft ui'],
+  glass: ['毛玻璃', '玻璃', '液态玻璃', 'liquid glass', 'glass', 'glassmorphism', 'frosted glass'],
+  y2k: ['y2k', 'y2k 千禧', '千禧', '千禧年', '金属', 'chrome'],
+};
+
+const presetRule: Rule = (clause) => {
+  const m =
+    clause.match(
+      /^(?:把)?(?:整体|整个)?(?:风格|样式|主题|外观|界面)?(?:换成|改成|改为|切换到|切换成|变成|用)(.+?)(?:的)?(?:风格|风|样式|主题|预设)?$/,
+    ) ??
+    clause.match(/^(?:switch to |use |make it |apply )?(?:an? |the )?(.+?) (?:style|theme|look)$/i);
+  if (!m) return null;
+  const name = m[1]!.trim().toLowerCase();
+  const preset = THEME_PRESET_IDS.find((id) => PRESET_ALIASES[id].includes(name));
+  return preset ? [{ op: 'applyThemePreset', preset }] : null;
 };
 
 const resetStyleRule: Rule = (clause) =>
@@ -1132,6 +1196,8 @@ const RULES: Rule[] = [
   radiusRule,
   densityRule,
   cardStyleRule,
+  backdropRule,
+  presetRule,
   imageRule,
   pageIconRule,
   templateRule,
