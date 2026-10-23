@@ -354,7 +354,8 @@ class MorphMediaModule : Module() {
     val processors = mutableListOf<AudioProcessor>()
     (audio["channels"] as? Number)?.toInt()?.let { channels ->
       val mix = ChannelMixingAudioProcessor()
-      for (input in 1..8) mix.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(input, channels))
+      // Media3 只有单声道、立体声之间的默认混音（3 声道以上会抛异常）。
+      for (input in 1..2) mix.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(input, channels))
       processors += mix
     }
     (audio["sampleRate"] as? Number)?.toInt()?.let { rate ->
