@@ -43,6 +43,12 @@ describe('tool journeys (UI)', () => {
 
     await fireEvent.press(screen.getByTestId('result-photos'));
     expect(files.savedToPhotos).toHaveLength(1);
+
+    // 「完成」关闭运行页，回到工具页（D-111）。
+    expect(screen.getByTestId('run-done')).toHaveTextContent('完成');
+    await fireEvent.press(screen.getByTestId('run-done'));
+    expect(screen.queryByTestId('run-done')).toBeNull();
+    expect(await screen.findByTestId('run-image-compress')).toBeTruthy();
   });
 
   it('a wrong value in the question is caught before running', async () => {
