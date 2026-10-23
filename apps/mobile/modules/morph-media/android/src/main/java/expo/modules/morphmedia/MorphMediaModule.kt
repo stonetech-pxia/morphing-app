@@ -29,6 +29,7 @@ import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
+import androidx.media3.transformer.FrameworkMuxer
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
 import androidx.media3.transformer.VideoEncoderSettings
@@ -377,6 +378,9 @@ class MorphMediaModule : Module() {
     return Transformer.Builder(context)
       .setAudioMimeType(MimeTypes.AUDIO_AAC)
       .setEncoderFactory(encoders.build())
+      // 默认的 InAppMp4Muxer 在文件头给索引预留约 400 KB：两段语音备忘合成 250 KB 的声音、文件却有
+      // 650 KB，压到 2 MB 也总是第一次超标。系统的 MediaMuxer 不预留。
+      .setMuxerFactory(FrameworkMuxer.Factory())
       .build()
   }
 
