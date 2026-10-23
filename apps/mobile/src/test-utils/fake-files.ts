@@ -5,6 +5,7 @@ import { PDFDocument } from 'pdf-lib';
 import type { Quad } from '@morph/tool-image';
 
 import type {
+  AudioEncode,
   DrawOp,
   FilePlatform,
   FolderItem,
@@ -19,6 +20,13 @@ import type {
   VideoEncode,
   VisionPlatform,
 } from '../runtime/platform';
+import {
+  SpeechError,
+  type SpeechErrorCode,
+  type SpeechNeed,
+  type SpeechPlatform,
+  type TranscribeRequest,
+} from '../runtime/speech';
 
 // 测试用工具：内存文件平台和真实 PDF 生成。
 
@@ -91,6 +99,8 @@ export class FakeFiles implements FilePlatform {
   translator: TranslatePlatform | null = null;
   /** 视频处理：默认有（像开发版），测试 Expo Go 时设为 null。 */
   media: MediaPlatform | null = new FakeMedia(this);
+  /** 语音转文字：默认没有（像 Expo Go），测试里换成 FakeSpeech。 */
+  speech: SpeechPlatform | null = null;
   /** 下一次从相册选视频的结果。 */
   nextVideos: PickedFile[] | null = null;
   /** 手机剩余空间（字节）；null 表示读不到。 */
@@ -160,6 +170,26 @@ export class FakeFiles implements FilePlatform {
     };
     this.videos.set(picked.uri, info);
     return { ...picked, durationMs: info.durationMs, width: info.width!, height: info.height! };
+  }
+  /** 放一个「文件」里可选的假音频；字节数就是它的大小。 */
+  offerAudio(
+    name: string,
+    opts: Partial<MediaInfo> & { size: number },
+    mimeType = 'audio/mp4',
+  ): PickedFile {
+    const picked = this.offer(name, new Uint8Array(opts.size), mimeType);
+    const info: MediaInfo = {
+      kind: 'audio',
+      durationMs: 60_000,
+      hasVideo: false,
+      hasAudio: true,
+      audioBitrateKbps: 128,
+      channels: 2,
+      sampleRate: 44100,
+      ...opts,
+    };
+    this.videos.set(picked.uri, info);
+    return { ...picked, durationMs: info.durationMs };
   }
   async takePhoto() {
     if (!this.cameraAvailable) {
@@ -514,6 +544,106 @@ export class FakeMedia implements MediaPlatform {
   async thumbnails(uri: string, timesMs: readonly number[]) {
     await this.probe(uri);
     return timesMs.map((ms) => `frame://${uri}/${ms}`);
+  }
+  audioEncodes: (AudioEncode & { uri: string })[] = [];
+  concats: { uris: readonly string[]; settings: AudioEncode }[] = [];
+  private async writeAudio(
+    durationMs: number,
+    settings: AudioEncode,
+    runId: string,
+    relPath: string,
+  ): Promise<MediaOutput> {
+    const bytes = Math.max(
+      1,
+      Math.round(
+        (settings.format === 'wav'
+          ? settings.sampleRate * settings.channels * 2 * (durationMs / 1000)
+          : (settings.bitrateKbps * 1000 * (durationMs / 1000)) / 8) * this.oversize,
+      ),
+    );
+    const out = await this.files.writeRunFile(runId, relPath, new Uint8Array(bytes));
+    const info: MediaInfo = {
+      kind: 'audio',
+      durationMs,
+      size: bytes,
+      hasVideo: false,
+      hasAudio: true,
+      audioCodec: settings.format === 'wav' ? 'lpcm' : 'aac',
+      audioBitrateKbps: settings.bitrateKbps,
+      channels: settings.channels,
+      sampleRate: settings.sampleRate,
+    };
+    this.files.videos.set(out.uri, info);
+    return { uri: out.uri, ext: settings.format, size: bytes, info };
+  }
+  async encodeAudio(
+    uri: string,
+    settings: AudioEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.fail();
+    const source = await this.probe(uri);
+    if (!source.hasAudio)
+      throw Object.assign(new Error('no audio'), { code: 'ERR_MEDIA_UNSUPPORTED' });
+    this.audioEncodes.push({ ...settings, uri });
+    job.progress(0.5);
+    if (job.isCancelled()) {
+      throw Object.assign(new Error('cancelled'), { code: 'ERR_MEDIA_CANCELLED' });
+    }
+    const ms = settings.range ? settings.range.endMs - settings.range.startMs : source.durationMs;
+    const out = await this.writeAudio(ms, settings, runId, relPath);
+    job.progress(1);
+    return out;
+  }
+  async concatAudio(
+    uris: readonly string[],
+    settings: AudioEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.fail();
+    let ms = 0;
+    for (const uri of uris) ms += (await this.probe(uri)).durationMs;
+    this.concats.push({ uris, settings });
+    const out = await this.writeAudio(ms, settings, runId, relPath);
+    job.progress(1);
+    return out;
+  }
+  /** 波形：null 表示原生模块读不到。 */
+  peaks: number[] | null = [0.1, 0.8, 0.4, 1];
+  async waveform(uri: string, buckets: number) {
+    await this.probe(uri);
+    return this.peaks
+      ? Array.from({ length: buckets }, (_, i) => this.peaks![i % this.peaks!.length]!)
+      : null;
+  }
+}
+
+/** 假的语音转文字（modules/morph-speech）：按顺序返回文字，记下语言和模型。 */
+export class FakeSpeech implements SpeechPlatform {
+  engine: 'system' | 'whisper' = 'whisper';
+  calls: { uri: string; language: string; model: string }[] = [];
+  texts: string[] = [];
+  /** need() 的结果；Android 默认要下载模型。 */
+  needs: SpeechNeed = { kind: 'ready' };
+  prepared: string[] = [];
+  error: SpeechErrorCode | null = null;
+  async need() {
+    return this.needs;
+  }
+  async prepare(language: string) {
+    this.prepared.push(language);
+    this.needs = { kind: 'ready' };
+  }
+  async transcribe(uri: string, request: TranscribeRequest) {
+    this.calls.push({ uri, language: request.language, model: request.model });
+    request.onProgress?.(0.5);
+    if (request.isCancelled?.()) throw new SpeechError('cancelled');
+    if (this.error) throw new SpeechError(this.error);
+    return { text: this.texts.shift() ?? '', durationMs: 1000 };
   }
 }
 

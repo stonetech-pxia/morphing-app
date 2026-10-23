@@ -12,7 +12,7 @@ import type { LocalScreenProps } from '../RunScreen';
 import { LocalFrame } from './LocalFrame';
 
 // 剪一段（TOOLS_DESIGN §4 trimMedia，D-143）：逐个选开始和结束。视频和音频共用起止拖动、微调、
-// 时间显示和「只播放这一段」；上半部分视频显示画面，音频以后由音频工具补上波形（现在是图标）。
+// 时间显示和「只播放这一段」；上半部分视频显示画面，音频显示图标；时间轴上视频是缩略图，音频是波形（D-155）。
 // 结果只在本次运行里使用。
 
 /** 至少留多长（毫秒）。 */
@@ -241,6 +241,8 @@ export function TrimScreen({
     p.timeUpdateEventInterval = 0.1;
   });
   const thumbs = useThumbnails(player, item);
+  const waveform = input.waveforms?.[index] ?? null;
+  const audio = item.mimeType.startsWith('audio/');
 
   const [responder] = useState(() =>
     PanResponder.create({
@@ -317,6 +319,7 @@ export function TrimScreen({
             {thumbs.map((thumb, i) => (
               <Image key={i} source={thumb} style={styles.thumb} contentFit="cover" />
             ))}
+            {waveform ? <Waveform peaks={waveform} color={palette.primary} /> : null}
           </View>
           {width > 0 ? (
             <>
@@ -356,8 +359,27 @@ export function TrimScreen({
           style={[palette.font('bodyMedium', 15), { color: palette.muted, textAlign: 'center' }]}>
           {t(locale, 'trimLength', { length: formatTime(range.endMs - range.startMs, true) })}
         </Text>
+        {audio ? (
+          <Text style={[palette.font('body', 13), { color: palette.caption, textAlign: 'center' }]}>
+            {t(locale, 'trimRingtone')}
+          </Text>
+        ) : null}
       </View>
     </LocalFrame>
+  );
+}
+
+/** 音频的波形：每根柱子是一小段时间里最大的音量（0–1）。 */
+function Waveform({ peaks, color }: { peaks: readonly number[]; color: string }) {
+  return (
+    <View testID="trim-waveform" style={styles.waveform}>
+      {peaks.map((p, i) => (
+        <View
+          key={i}
+          style={[styles.peak, { height: `${Math.max(6, p * 100)}%`, backgroundColor: color }]}
+        />
+      ))}
+    </View>
   );
 }
 
@@ -377,6 +399,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   thumb: { flex: 1 },
+  waveform: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 1, paddingHorizontal: 2 },
+  peak: { flex: 1, borderRadius: 1, opacity: 0.7 },
   controls: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
   timeline: { height: 52, borderRadius: 8 },
   dim: { position: 'absolute', top: 0, bottom: 0, backgroundColor: '#00000055' },

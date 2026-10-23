@@ -47,7 +47,7 @@
         {
           "photosPermission": "Morph uses your photos only when you pick one to show in your app. Photos stay on this device.",
           "cameraPermission": "Morph uses the camera only when you take a photo or scan a document in a tool. Photos stay on this device.",
-          "microphonePermission": false
+          "microphonePermission": "Morph uses the microphone only when you record audio in a quick action. Recordings stay on this device."
         }
       ],
       [
@@ -83,6 +83,14 @@
         {
           "supportsBackgroundPlayback": false,
           "supportsPictureInPicture": false
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Morph uses the microphone only when you record audio in a quick action. Recordings stay on this device.",
+          "enableBackgroundRecording": true,
+          "enableBackgroundPlayback": false
         }
       ]
     ],

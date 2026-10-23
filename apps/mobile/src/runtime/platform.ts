@@ -1,5 +1,7 @@
 import type { Quad } from '@morph/tool-image';
 
+import type { SpeechPlatform } from './speech';
+
 // 平台能力（App 中由 Expo 模块实现，见 expo-platform.ts；测试中用 test-utils/fake-files.ts 的内存实现）。
 // 动作实现只通过这里接触文件系统和系统界面。
 
@@ -155,7 +157,10 @@ export interface MediaInfo {
   hdr?: boolean;
   videoCodec?: string;
   videoBitrateKbps?: number;
+  audioCodec?: string;
   audioBitrateKbps?: number;
+  sampleRate?: number;
+  channels?: number;
 }
 
 /** 一次视频编码的要求（H.264 + AAC 的 MP4）。 */
@@ -166,6 +171,15 @@ export interface VideoEncode {
   /** 缩小到这个短边；不缩小时不给。 */
   shortSide?: number;
   maxFps: number;
+  range?: { startMs: number; endMs: number };
+}
+
+/** 音频的编码要求（core 的 AudioPlan）：M4A（AAC）或 WAV（16 位 PCM）；range 只要其中一段。 */
+export interface AudioEncode {
+  format: 'm4a' | 'wav';
+  bitrateKbps: number;
+  channels: 1 | 2;
+  sampleRate: number;
   range?: { startMs: number; endMs: number };
 }
 
@@ -213,6 +227,24 @@ export interface MediaPlatform {
     maxSide: number,
     runId: string,
   ): Promise<string[]>;
+  /** 音频（或视频的声音）编码成 M4A / WAV（D-153）。 */
+  encodeAudio(
+    uri: string,
+    settings: AudioEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
+  /** 几段按顺序接成一段（D-155），格式、采样率可以不同。 */
+  concatAudio(
+    uris: readonly string[],
+    settings: AudioEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
+  /** 波形（buckets 个 0–1 的峰值），剪一段界面用；读不到时返回 null。 */
+  waveform(uri: string, buckets: number): Promise<number[] | null>;
 }
 
 export interface FilePlatform {
@@ -222,6 +254,8 @@ export interface FilePlatform {
   readonly translator: TranslatePlatform | null;
   /** 本机处理视频和音频；没有时（Expo Go）为 null。 */
   readonly media: MediaPlatform | null;
+  /** 本机语音转文字（D-150、D-151，modules/morph-speech）；没有时（Expo Go）为 null。 */
+  readonly speech: SpeechPlatform | null;
 
   // ---- 用户文件（assets/<id>/<文件名>，D-019）----
   /** 从相册选一张照片（图片组件用）；用户取消时返回 null。 */

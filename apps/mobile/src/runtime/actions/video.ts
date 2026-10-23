@@ -51,7 +51,7 @@ export function mediaError(e: unknown, item: RunItem): Error {
 }
 
 /** 剩余空间够不够写 bytes 这么大的文件（读不到剩余空间时放行）。 */
-function checkSpace(ctx: Ctx, bytes: number): void {
+export function checkSpace(ctx: Ctx, bytes: number): void {
   const free = ctx.services.files.freeDiskBytes();
   if (free === null || free - SPARE_BYTES >= bytes) return;
   const gb = Math.ceil(((bytes + SPARE_BYTES - free) / 1024 / MB) * 10) / 10;

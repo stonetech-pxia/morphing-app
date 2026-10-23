@@ -1,6 +1,8 @@
 import type { RunItem } from '@morph/core';
 import type { Quad } from '@morph/tool-image';
 
+import type { PickedFile } from './platform';
+
 // 本地操作步骤（TOOLS_DESIGN §4）：执行到这里时，运行页面打开对应的界面，用户的操作结果只在本次运行里使用。
 // 每种界面的输入和输出在这里登记；运行页面（app/run/[workflowId].tsx）负责显示。
 
@@ -63,9 +65,15 @@ export interface LocalSteps {
    * 返回每个文件选的一段。
    */
   trimMedia: {
-    in: { items: RunItem[] };
+    /** waveforms：音频的波形（0–1 的峰值，和 items 一一对应；视频或读不到时为 null，D-155）。 */
+    in: { items: RunItem[]; waveforms?: (number[] | null)[] };
     out: { startMs: number; endMs: number }[];
   };
+  /**
+   * 录音（D-154）：开始 / 暂停 / 完成，锁屏后继续录。name 是录音的文件名（不含扩展名）。
+   * 返回录好的文件（M4A，在缓存目录里，之后移进本次运行的临时目录）。
+   */
+  record: { in: { name: string }; out: PickedFile };
 }
 
 export type LocalKind = keyof LocalSteps;

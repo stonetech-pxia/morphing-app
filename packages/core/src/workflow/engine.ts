@@ -78,6 +78,12 @@ export type RunErrorCode =
   | 'targetTooSmall'
   /** 处理视频时切到了别的 App（iOS 不让后台用视频编码器，D-148）。 */
   | 'interrupted'
+  /** 音频压到目标大小会听不清（detail.mb：至少要多少 MB，D-153）。 */
+  | 'audioTooSmall'
+  /** 视频里没有声音（取声音时，D-155）。 */
+  | 'noAudio'
+  /** 录音里没有听到说话（语音转文字，D-150）。 */
+  | 'noSpeech'
   | 'unexpected';
 
 export class RunError extends Error {

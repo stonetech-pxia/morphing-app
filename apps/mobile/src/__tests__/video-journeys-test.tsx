@@ -93,6 +93,8 @@ describe('video journeys (UI)', () => {
     files.media = null;
     files.nextVideos = [files.offerVideo('a.mov', { size: 100 * MB })];
     await fireEvent.press(screen.getByTestId('run-video-convert'));
-    expect(await screen.findByText('视频要在正式版 Morph 里处理，这个预览版里不行。')).toBeTruthy();
+    expect(
+      await screen.findByText('视频和音频要在正式版 Morph 里处理，这个预览版里不行。'),
+    ).toBeTruthy();
   });
 });
