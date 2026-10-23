@@ -296,9 +296,11 @@ export const expoFilePlatform: FilePlatform = {
     const source = new File(uri);
     // 选择器放在缓存里的副本：移进本次运行的临时目录，运行结束一起删掉。
     if (uri.startsWith(Paths.cache.uri) && source.exists) {
+      // 移动之前读大小：移动后新地址的 File 对象读到的可能还是 0。
+      const size = source.size;
       const dest = runFile(runId, fileName);
       source.move(dest);
-      return { uri: dest.uri, size: dest.size };
+      return { uri: dest.uri, size };
     }
     // 分享进来的（共享目录、content://）：原地使用，不复制（D-116 另外负责删除）。
     let size = 0;

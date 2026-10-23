@@ -290,9 +290,14 @@ public class MorphMediaModule: Module {
     let instruction = AVMutableVideoCompositionInstruction()
     instruction.timeRange = CMTimeRange(start: .zero, duration: duration)
     let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
+    // 摆正：preferredTransform 不一定带平移（不是 iPhone 拍的视频常常只有旋转），
+    // 按转过之后的外框把画面挪回原点，再缩放到输出尺寸。
+    let bounds = CGRect(origin: .zero, size: natural).applying(transform)
+    let upright = transform.concatenating(
+      CGAffineTransform(translationX: -bounds.minX, y: -bounds.minY))
     let sx = CGFloat(outW) / shownW
     let sy = CGFloat(outH) / shownH
-    layer.setTransform(transform.concatenating(CGAffineTransform(scaleX: sx, y: sy)), at: .zero)
+    layer.setTransform(upright.concatenating(CGAffineTransform(scaleX: sx, y: sy)), at: .zero)
     instruction.layerInstructions = [layer]
     composition.instructions = [instruction]
 

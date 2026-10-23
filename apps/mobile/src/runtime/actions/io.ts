@@ -92,7 +92,7 @@ async function importPicked(
       name,
       ext,
       mimeType,
-      size: stored.size,
+      size: stored.size || f.size || 0,
       ...(f.width ? { width: f.width } : {}),
       ...(f.height ? { height: f.height } : {}),
       ...(f.takenAt !== undefined ? { takenAt: f.takenAt } : {}),

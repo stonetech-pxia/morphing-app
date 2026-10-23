@@ -23,6 +23,13 @@ const MAX_PICTURE_SIDE = 2400;
 /** 转成图片时每页渲染的长边。 */
 const PAGE_SIDE = 2000;
 const MAX_QUALITY = 0.8;
+/**
+ * 保留文字时图片最多缩到这么小（相对长边 2400，约 960 像素，A4 上约 115 dpi，字还看得清）；
+ * 再小就不如停下来问用户要不要转成图片。
+ */
+const MIN_PICTURE_SCALE = 0.4;
+/** 转成图片时每页最多缩到这么小（约 600 像素）。 */
+const MIN_PAGE_SCALE = 0.3;
 
 const fileName = (item: RunItem) => `${item.name}.${item.ext}`;
 
@@ -75,6 +82,7 @@ async function recompressPictures(
     targetBytes: target,
     overheadBytes: compressor.otherBytes,
     maxQuality: MAX_QUALITY,
+    minScale: MIN_PICTURE_SCALE,
     encodeAll: async (quality, scale) => {
       chosen = new Map();
       let total = 0;
@@ -136,6 +144,7 @@ async function picturePages(
     targetBytes: target,
     overheadBytes: 2048 + rendered.length * 1024,
     maxQuality: MAX_QUALITY,
+    minScale: MIN_PAGE_SCALE,
     encodeAll: async (quality, scale) => {
       jpegs = [];
       let total = 0;

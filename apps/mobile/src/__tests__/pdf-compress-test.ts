@@ -202,6 +202,20 @@ describe('compress PDF', () => {
     ]);
   });
 
+  it('does not shrink scans until they are unreadable: asks instead', async () => {
+    const { files, run, questions } = setup(toolWorkflow('pdf-compress'), {
+      answers: { maxMB: 0.1 },
+      choice: 1,
+    });
+    files.nextPick = [files.offer('scan.pdf', await scannedPdf(3, 1_500_000))];
+    const { doc } = await pdfOf(files, await run());
+    expect(questions).toHaveLength(1);
+    // 保留文字时图片长边不小于约 960 像素（2400 × 0.4）。
+    const smallest = Math.min(...files.encodes.map((e) => Math.max(e.width, e.height)));
+    expect(smallest).toBeGreaterThanOrEqual(940);
+    expect(doc.getPageCount()).toBe(3);
+  });
+
   it('cancels when the question is dismissed; follows whenTooBig without asking', async () => {
     const dismissed = setup(toolWorkflow('pdf-compress'), { answers: { maxMB: 1 }, choice: null });
     dismissed.files.nextPick = [dismissed.files.offer('b.pdf', await bulkyPdf(3 * MB))];
