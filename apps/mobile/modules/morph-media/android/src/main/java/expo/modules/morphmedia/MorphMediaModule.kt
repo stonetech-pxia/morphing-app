@@ -2,6 +2,7 @@ package expo.modules.morphmedia
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.media.MediaCodecList
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
@@ -107,24 +108,41 @@ class MorphMediaModule : Module() {
         promise.reject(MediaFailedException("range"))
         return@AsyncFunction
       }
-      val item = MediaItem.Builder()
-        .setUri(Uri.parse(uri))
-        .setClippingConfiguration(
-          MediaItem.ClippingConfiguration.Builder()
-            .setStartPositionMs(start.toLong())
-            .setEndPositionMs(end.toLong())
+      val source = Uri.parse(uri)
+      // 先在后台读格式：手机没有能按原尺寸编码这种格式（例如 HEVC）的编码器时，Transformer 会
+      // 悄悄退到很小的分辨率（模拟器实测 1080×1920 的 HEVC 变成 270×480），这时改用 H.264。
+      thread {
+        val info = try {
+          probe(source)
+        } catch (e: CodedException) {
+          promise.reject(e)
+          return@thread
+        }
+        main.post {
+          val item = MediaItem.Builder()
+            .setUri(source)
+            .setClippingConfiguration(
+              MediaItem.ClippingConfiguration.Builder()
+                .setStartPositionMs(start.toLong())
+                .setEndPositionMs(end.toLong())
+                .build()
+            )
             .build()
-        )
-        .build()
-      // 不改编码、不加效果：只重新编码开头到第一个关键帧的一小段，其余原样搬过去。
-      val transformer = Transformer.Builder(context)
-        .experimentalSetTrimOptimizationEnabled(true)
-        .build()
-      val composition = Composition.Builder(
-        EditedMediaItemSequence.withAudioAndVideoFrom(listOf(EditedMediaItem.Builder(item).build()))
-      ).build()
-      run(jobId, transformer, composition, File(Uri.parse(output).path!!), promise)
-    }.runOnQueue(Queues.MAIN)
+          // 不改编码、不加效果：只重新编码开头到第一个关键帧的一小段，其余原样搬过去。
+          val builder = Transformer.Builder(context).experimentalSetTrimOptimizationEnabled(true)
+          val codec = (info["videoCodec"] as? String)?.let { "video/$it" }
+          val width = (info["width"] as? Int) ?: 0
+          val height = (info["height"] as? Int) ?: 0
+          if (codec != null && !canEncode(codec, width, height)) {
+            builder.setVideoMimeType(MimeTypes.VIDEO_H264)
+          }
+          val composition = Composition.Builder(
+            EditedMediaItemSequence.withAudioAndVideoFrom(listOf(EditedMediaItem.Builder(item).build()))
+          ).build()
+          run(jobId, builder.build(), composition, File(Uri.parse(output).path!!), promise)
+        }
+      }
+    }
 
     AsyncFunction("thumbnails") {
       uri: String, timesMs: List<Double>, maxSide: Double, directory: String, promise: Promise ->
@@ -283,6 +301,19 @@ class MorphMediaModule : Module() {
       .setEncoderFactory(encoders.build())
       .build()
     return transformer to composition
+  }
+
+  /** 有没有硬件或软件编码器能按这个尺寸（横竖都试）编码这种格式。 */
+  private fun canEncode(mime: String, width: Int, height: Int): Boolean {
+    if (width <= 0 || height <= 0) return true
+    return MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.any { info ->
+      info.isEncoder && info.supportedTypes.any { it.equals(mime, ignoreCase = true) } &&
+        runCatching {
+          val video = info.getCapabilitiesForType(mime).videoCapabilities
+          video != null &&
+            (video.isSizeSupported(width, height) || video.isSizeSupported(height, width))
+        }.getOrDefault(false)
+    }
   }
 
   // ---- probe ----

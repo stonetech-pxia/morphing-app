@@ -110,9 +110,13 @@ async function eachVideo(
   const out: RunItem[] = [];
   for (const [i, item] of items.entries()) {
     ctx.throwIfCancelled();
+    // 超了重压时原生进度会从 0 重新开始：显示的进度只增不减。
+    let shown = 0;
     const job = {
-      progress: (f: number) =>
-        ctx.progress(Math.round(((i + Math.min(1, f)) / items.length) * 100), 100, 'percent'),
+      progress: (f: number) => {
+        shown = Math.max(shown, Math.min(1, f));
+        ctx.progress(Math.round(((i + shown) / items.length) * 100), 100, 'percent');
+      },
       isCancelled: () => {
         try {
           ctx.throwIfCancelled();
