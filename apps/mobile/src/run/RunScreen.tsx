@@ -69,7 +69,12 @@ export function RunScreen({
   const palette = usePalette(theme);
   const router = useRouter();
   // 打开即开始运行，所以初始状态就是第 1 步。
-  const [current, setCurrent] = useState<{ index: number; done?: number; total?: number } | null>({
+  const [current, setCurrent] = useState<{
+    index: number;
+    done?: number;
+    total?: number;
+    unit?: 'percent';
+  } | null>({
     index: 0,
   });
   const [outcome, setOutcome] = useState<RunResult | null>(null);
@@ -90,14 +95,26 @@ export function RunScreen({
       : (registry.actions.get(action)?.label[locale] ?? action);
 
   const ui: LocalUi = {
-    confirm: (title, ok, cancel) =>
+    confirm: (title, ok, cancel, message) =>
       new Promise((resolve) =>
         Alert.alert(
           title,
-          undefined,
+          message,
           [
             { text: cancel, style: 'cancel', onPress: () => resolve(false) },
             { text: ok, onPress: () => resolve(true) },
+          ],
+          { cancelable: false },
+        ),
+      ),
+    choose: (title, message, options) =>
+      new Promise((resolve) =>
+        Alert.alert(
+          title,
+          message,
+          [
+            ...options.map((text, i) => ({ text, onPress: () => resolve(i) })),
+            { text: t(locale, 'cancel'), style: 'cancel' as const, onPress: () => resolve(null) },
           ],
           { cancelable: false },
         ),
@@ -154,7 +171,9 @@ export function RunScreen({
       },
       onEvent: (e) =>
         setCurrent(
-          e.kind === 'step' ? { index: e.index } : { index: e.index, done: e.done, total: e.total },
+          e.kind === 'step'
+            ? { index: e.index }
+            : { index: e.index, done: e.done, total: e.total, ...(e.unit ? { unit: e.unit } : {}) },
         ),
     });
     run.current = started;
@@ -255,7 +274,7 @@ export function RunScreen({
                 ]}>
                 {label(s.action, i)}
                 {state === 'current' && current?.total
-                  ? `  ${t(locale, 'runProgress', { done: current.done ?? 0, total: current.total })}`
+                  ? `  ${t(locale, current.unit === 'percent' ? 'runPercent' : 'runProgress', { done: current.done ?? 0, total: current.total })}`
                   : ''}
               </Text>
             </View>
@@ -293,6 +312,14 @@ export function RunScreen({
             {runErrorText(locale, outcome.error.code, outcome.error.detail)}
           </Text>
         </Card>
+      ) : null}
+      {/* 翻译的结果下面说明一句（D-172）：本机翻译适合看懂意思，正式文件找专业翻译。 */}
+      {value && workflow.steps.some((st) => st.action === 'translate.text') ? (
+        <Text
+          testID="translate-note"
+          style={[palette.font('body', 13), { color: palette.caption }]}>
+          {t(locale, 'translateNote')}
+        </Text>
       ) : null}
       {value ? (
         <ResultView

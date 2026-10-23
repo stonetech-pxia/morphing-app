@@ -1,4 +1,4 @@
-import { totalSize, type Locale, type RunItem, type RunValue } from '@morph/core';
+import { mediaKindOf, totalSize, type Locale, type RunItem, type RunValue } from '@morph/core';
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -7,6 +7,7 @@ import { runErrorText, t, type StringKey } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import type { Palette } from '../renderer/theme';
 import { Card, Pill } from '../renderer/ui';
+import { MediaRow } from './MediaRow';
 
 // 结果预览（TOOLS_DESIGN §3）：图片缩略图、PDF 页数和大小、文字全文（只在本机显示）。
 // 结果页始终提供保存、分享、存到文件夹、存到相册（图片）、打印（PDF / 图片）、复制（文字）。
@@ -37,6 +38,10 @@ function ItemRow({ item, palette, locale }: { item: RunItem; palette: Palette; l
     item.pageCount ? t(locale, 'resultPages', { n: item.pageCount }) : null,
     formatBytes(item.size),
   ].filter(Boolean);
+  const kind = mediaKindOf(item.mimeType, item.ext);
+  if (kind === 'video' || kind === 'audio') {
+    return <MediaRow item={item} palette={palette} locale={locale} detail={details.join(' · ')} />;
+  }
   return (
     <View style={styles.item} testID={`result-item-${fileName}`}>
       {image ? (
@@ -181,6 +186,11 @@ export function ResultView({
   const items = value.items;
   const allSaved = items.every((i) => i.assetId);
   const images = items.every((i) => i.mimeType.startsWith('image/'));
+  // 存到相册：图片和视频（D-140）。
+  const photos = items.every((i) => {
+    const kind = mediaKindOf(i.mimeType, i.ext);
+    return kind === 'image' || kind === 'video';
+  });
   const printable = images || items.every((i) => i.mimeType === 'application/pdf');
   const outputSize = totalSize(value);
   return (
@@ -208,7 +218,7 @@ export function ResultView({
         {pill('share', 'resultShare', null, actions.share)}
         {folderPill('folder', false)}
         {folder ? folderPill('folderChange', true) : null}
-        {images ? pill('photos', 'resultPhotos', 'resultPhotosDone', actions.saveToPhotos) : null}
+        {photos ? pill('photos', 'resultPhotos', 'resultPhotosDone', actions.saveToPhotos) : null}
         {printable ? pill('print', 'resultPrint', null, actions.print) : null}
       </View>
       {error ? (

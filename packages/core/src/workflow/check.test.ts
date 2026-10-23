@@ -81,9 +81,41 @@ describe('types', () => {
     expect(insertableActions([], 0, registry).map((a) => a.id)).toEqual([
       'in.photos',
       'in.files',
+      'in.videos',
       'in.text',
       'in.records',
     ]);
+  });
+
+  it('video and audio are files, but merging PDFs does not take them (D-140)', () => {
+    expect(acceptsType(['files'], 'video')).toBe(true);
+    expect(acceptsType(['files'], 'audio')).toBe(true);
+    expect(acceptsType(['video'], 'files')).toBe(false);
+    const steps = [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 2 } },
+      { id: 'merge', action: 'pdf.merge', params: {} },
+    ];
+    const wf = { id: 'v', name: 'v', steps };
+    expect(workflowProblems(wf, registry)).toEqual([
+      expect.objectContaining({
+        code: 'binding',
+        message: 'v/merge: pdf.merge does not take video',
+      }),
+    ]);
+    const ids = insertableActions(steps.slice(0, 1), 1, registry).map((a) => a.id);
+    expect(ids).toEqual(
+      expect.arrayContaining(['video.compress', 'out.share', 'out.saveToPhotos', 'zip.create']),
+    );
+    expect(ids).not.toContain('pdf.merge');
+    expect(ids).not.toContain('image.compress');
+    const audio = insertableActions(
+      [{ id: 'pick', action: 'in.files', params: { accept: 'audio', min: 1, max: 1 } }],
+      1,
+      registry,
+    ).map((a) => a.id);
+    expect(audio).toContain('out.share');
+    expect(audio).not.toContain('out.saveToPhotos');
+    expect(audio).not.toContain('video.compress');
   });
 
   it('default parameters come from the first preset or an empty object', () => {

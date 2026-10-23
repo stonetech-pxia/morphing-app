@@ -822,6 +822,27 @@ const param =
     const got = steps.find((s) => s.action === action)?.params[key];
     return got === value ? null : `${action}.${key} should be ${String(value)}, got ${String(got)}`;
   };
+/** 有一个用户快捷操作翻译成 to；first 给了时第一步必须是其中之一。 */
+const translatesTo =
+  (to: string, first?: readonly string[]) =>
+  (c: WorkspaceConfig): string | null => {
+    for (const wf of userWorkflows(c)) {
+      const step = wf.steps.find((s) => s.action === 'translate.text');
+      if (step?.params.to === to && (!first || first.includes(wf.steps[0]?.action ?? ''))) {
+        return null;
+      }
+    }
+    return `expected a quick action translating into ${to}, got ${userWorkflows(c)
+      .map((w) =>
+        w.steps
+          .map(
+            (s) => `${s.action}${s.action === 'translate.text' ? `(${String(s.params.to)})` : ''}`,
+          )
+          .join(' → '),
+      )
+      .join(' | ')}`;
+  };
+
 const visaActions = (c: WorkspaceConfig) => visa(c)?.steps.map((s) => s.action) ?? [];
 
 const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
@@ -1376,12 +1397,13 @@ const ABOUT_EVAL_CASES: readonly EvalCase[] = [
     expect: { kind: 'reject', reason: 'errand' },
   },
   {
+    // D-171：翻译文件是文件上的事，做一个翻译快捷操作（以前按办事拒绝）。
     id: 'ER2',
     input: '把这份合同翻译成英文',
     locale: 'zh',
     setup: 'pdf',
     mock: true,
-    expect: { kind: 'reject', reason: 'errand' },
+    expect: { kind: 'ops', check: translatesTo('en', ['in.files', 'in.photos']) },
   },
   {
     id: 'ER3',
@@ -1492,12 +1514,307 @@ const ABOUT_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+/** 视频和压缩 PDF（D-140–D-147）。V* 是 mock 句式（MOCK_AI_PHRASES W12–W14），PV* 和 SH3 只要求真实模型。 */
+const firstVideo = (steps: { action: string; params: Record<string, unknown> }[]) => {
+  const first = steps[0];
+  if (first?.action === 'in.videos') return null;
+  if (first?.action === 'in.files' && first.params.accept === 'videos') return null;
+  return `first step should pick videos, got ${first?.action}`;
+};
+const firstPdf = (steps: { action: string; params: Record<string, unknown> }[]) => {
+  const first = steps[0];
+  return first?.action === 'in.files' &&
+    ['pdf', 'pdfOrImages', 'any'].includes(String(first.params.accept))
+    ? null
+    : `first step should pick PDFs, got ${first?.action} ${String(first?.params.accept)}`;
+};
+const presetAdded = (id: string) => (c: WorkspaceConfig) =>
+  userWorkflows(c).some((w) => w.presetId === id) ? null : `the ${id} preset was not added`;
+
+const VIDEO_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'V1',
+    input: '新建一个快捷操作：选视频，压到 20MB，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.videos', 'video.compress', 'out.share'],
+        (steps) =>
+          param('video.compress', 'maxMB', 20)(steps) ??
+          param('video.compress', 'by', 'size')(steps),
+      ),
+    },
+  },
+  {
+    id: 'V1-en',
+    input: 'Create a quick action: choose videos, compress to 25 MB, then share',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.videos', 'video.compress', 'out.share'],
+        param('video.compress', 'maxMB', 25),
+      ),
+    },
+  },
+  {
+    id: 'V2',
+    input: '新建一个快捷操作：选视频，转成 MP4',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: hasWorkflow(['in.videos', 'video.convert']) },
+  },
+  {
+    id: 'V3',
+    input: '新建一个快捷操作：选视频，剪一段，压缩视频，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.videos', 'video.trim', 'video.compress', 'out.share']),
+    },
+  },
+  {
+    id: 'V4',
+    input: '新建一个快捷操作：选 PDF，压到 2MB，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.files', 'pdf.compress', 'out.share'],
+        param('pdf.compress', 'maxMB', 2),
+      ),
+    },
+  },
+  {
+    id: 'V4-en',
+    input: 'Create a quick action: choose PDFs, compress to 1 MB',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.files', 'pdf.compress'], param('pdf.compress', 'maxMB', 1)),
+    },
+  },
+  {
+    id: 'V5',
+    input: '添加视频太大发不出去快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: presetAdded('video-too-big') },
+  },
+  {
+    id: 'V6-en',
+    input: 'Add the PDF too big to upload quick action',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: presetAdded('pdf-too-big') },
+  },
+  {
+    id: 'PV1',
+    input: '视频太大了微信发不出去，帮我做个能压到 25MB 再分享的',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['video.compress', 'out.share'],
+        (steps) => firstVideo(steps) ?? param('video.compress', 'maxMB', 25)(steps),
+      ),
+    },
+  },
+  {
+    id: 'PV2',
+    input: '朋友说我发的 MOV 视频在电脑上打不开，做一个转换的快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['video.convert'], firstVideo) },
+  },
+  {
+    id: 'PV3-en',
+    input: 'The school portal only takes PDFs under 2 MB and my scanned transcript is 15 MB',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: all(
+        hasWorkflow(
+          ['pdf.compress'],
+          (steps) => firstPdf(steps) ?? param('pdf.compress', 'maxMB', 2)(steps),
+        ),
+        withoutAction('pdf.toImages'),
+      ),
+    },
+  },
+  {
+    id: 'PV4-en',
+    input: 'I want to cut a short part out of a long video and send just that part',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['video.trim', 'out.share'], firstVideo) },
+  },
+  {
+    id: 'PV5',
+    input: '把这个视频压到 20MB',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['video.compress'],
+        (steps) => firstVideo(steps) ?? param('video.compress', 'maxMB', 20)(steps),
+      ),
+    },
+  },
+  {
+    id: 'SH3',
+    input: '压小一点，好发微信',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    about: { kind: 'shared', images: 0, pdfs: 0, others: 0, videos: 1 },
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['video.compress'], firstVideo), noRunner),
+      plan: homeEntryOff,
+    },
+  },
+];
+
+// ---- 翻译（D-170–D-176）：翻译文件做成快捷操作；直接要译文仍按办事拒绝 ----
+
+const TRANSLATE_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'TR1',
+    input: '帮我翻译一下这句话：Thank you for your help',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'TR2-en',
+    input: 'Translate this sentence into Chinese: break a leg',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'TR3',
+    input: '新建一个快捷操作：选截图，识别文字，翻译成中文，复制文字',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.photos', 'ocr.recognize', 'translate.text', 'text.copy'],
+        param('translate.text', 'to', 'zh-Hans'),
+      ),
+    },
+  },
+  {
+    id: 'TR4-en',
+    input: 'Translate this letter into Chinese',
+    locale: 'en',
+    setup: 'pdf',
+    mock: true,
+    expect: { kind: 'ops', check: translatesTo('zh-Hans', ['in.files', 'in.photos']) },
+  },
+  {
+    id: 'TR5',
+    input: '添加截图翻译快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.presetId === 'screenshot-translate')
+          ? null
+          : 'expected the screenshot-translate preset',
+    },
+  },
+  {
+    id: 'TR6',
+    input: '收到的日文邮件截图老是看不懂，想以后能一键翻成中文',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: all(
+        translatesTo('zh-Hans', ['in.photos']),
+        hasWorkflow(['in.photos', 'ocr.recognize', 'translate.text']),
+      ),
+    },
+  },
+  {
+    id: 'TR7',
+    input: '翻译成中文',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    about: { kind: 'shared', images: 0, pdfs: 1, others: 0 },
+    expect: {
+      kind: 'ops',
+      check: all(
+        translatesTo('zh-Hans', ['in.files']),
+        hasWorkflow(['in.files', 'pdf.extractText', 'translate.text']),
+      ),
+    },
+  },
+  {
+    id: 'TR8',
+    input: '这句英文是什么意思：It’s raining cats and dogs',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'TR9-en',
+    input:
+      'I keep getting PDFs in Spanish from my landlord. Make something to read them in English.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: all(
+        translatesTo('en', ['in.files']),
+        hasWorkflow(['in.files', 'pdf.extractText', 'translate.text']),
+      ),
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...BASE_EVAL_CASES,
   ...WORKFLOW_EVAL_CASES,
   ...GOAL_EVAL_CASES,
   ...WORDING_EVAL_CASES,
   ...ABOUT_EVAL_CASES,
+  ...VIDEO_EVAL_CASES,
+  ...TRANSLATE_EVAL_CASES,
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };

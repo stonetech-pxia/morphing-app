@@ -10,7 +10,13 @@ import type {
   FolderItem,
   ImageFormat,
   ImageOps,
+  MediaInfo,
+  MediaJob,
+  MediaOutput,
+  MediaPlatform,
   PickedFile,
+  TranslatePlatform,
+  VideoEncode,
   VisionPlatform,
 } from '../runtime/platform';
 
@@ -81,6 +87,16 @@ export class FakeFiles implements FilePlatform {
   disk = new Map<string, Uint8Array>();
   /** 系统文字识别和扫描：默认没有（像 Android / Expo Go），测试里换成 FakeVision。 */
   vision: VisionPlatform | null = null;
+  /** 系统翻译：默认没有（像 Expo Go），测试里换成 FakeTranslator。 */
+  translator: TranslatePlatform | null = null;
+  /** 视频处理：默认有（像开发版），测试 Expo Go 时设为 null。 */
+  media: MediaPlatform | null = new FakeMedia(this);
+  /** 下一次从相册选视频的结果。 */
+  nextVideos: PickedFile[] | null = null;
+  /** 手机剩余空间（字节）；null 表示读不到。 */
+  freeBytes: number | null = 64 * 1024 * 1024 * 1024;
+  /** 被「移进」本次运行的文件（视频、音频不复制，D-142）。 */
+  adopted: string[] = [];
   /** 下一次选文件（「文件」App）的结果。 */
   nextPick: PickedFile[] | null = null;
   /** 下一次从相册多选的结果。 */
@@ -101,6 +117,49 @@ export class FakeFiles implements FilePlatform {
   }
   async pickPhotos(max: number) {
     return this.nextPhotos ? this.nextPhotos.slice(0, max) : null;
+  }
+  async pickVideos(max: number) {
+    return this.nextVideos ? this.nextVideos.slice(0, max) : null;
+  }
+  async adoptIntoRun(uri: string, runId: string, fileName: string) {
+    const bytes = this.disk.get(uri);
+    if (!bytes) throw new Error('permission denied');
+    this.adopted.push(uri);
+    // 选择器的副本（picker://）和运行中的临时文件移进来；分享进来的原地使用。
+    if (uri.startsWith('picker://') || uri.startsWith('runs/')) {
+      const dest = `runs/${runId}/${fileName}`;
+      this.disk.delete(uri);
+      this.disk.set(dest, bytes);
+      const info = this.videos.get(uri);
+      if (info) this.videos.set(dest, info);
+      return { uri: dest, size: bytes.length };
+    }
+    return { uri, size: bytes.length };
+  }
+  freeDiskBytes() {
+    return this.freeBytes;
+  }
+  /** 假视频的信息（uri → 时长、宽高、有没有声音）。 */
+  videos = new Map<string, MediaInfo>();
+  /** 放一个“用户可选择的”假视频；字节数就是它的大小（内容不重要）。 */
+  offerVideo(
+    name: string,
+    opts: Partial<MediaInfo> & { size: number },
+    mimeType = 'video/quicktime',
+  ): PickedFile {
+    const picked = this.offer(name, new Uint8Array(opts.size), mimeType);
+    const info: MediaInfo = {
+      kind: 'video',
+      durationMs: 60_000,
+      hasVideo: true,
+      hasAudio: true,
+      width: 1920,
+      height: 1080,
+      videoBitrateKbps: 15_000,
+      ...opts,
+    };
+    this.videos.set(picked.uri, info);
+    return { ...picked, durationMs: info.durationMs, width: info.width!, height: info.height! };
   }
   async takePhoto() {
     if (!this.cameraAvailable) {
@@ -375,6 +434,89 @@ export class FakeFiles implements FilePlatform {
   }
 }
 
+/**
+ * 假的视频处理（modules/morph-media）：按码率和时长算出输出大小，写出相应长度的字节。
+ * oversize 让编码器超出码率（测试「超了再压一次」）。
+ */
+export class FakeMedia implements MediaPlatform {
+  encodes: (VideoEncode & { uri: string })[] = [];
+  trims: { uri: string; range: { startMs: number; endMs: number } }[] = [];
+  /** 输出比按码率算的大多少（1 = 正好）。 */
+  oversize = 1;
+  /** 下一次处理抛出的错误码（ERR_MEDIA_UNSUPPORTED 等）。 */
+  failWith: string | null = null;
+
+  constructor(private files: FakeFiles) {}
+
+  async probe(uri: string): Promise<MediaInfo> {
+    const info = this.files.videos.get(uri);
+    if (!info) throw Object.assign(new Error('unsupported'), { code: 'ERR_MEDIA_UNSUPPORTED' });
+    return { ...info, size: this.files.disk.get(uri)?.length ?? 0 };
+  }
+  private fail() {
+    if (this.failWith) {
+      const code = this.failWith;
+      this.failWith = null;
+      throw Object.assign(new Error(code), { code });
+    }
+  }
+  async encodeVideo(
+    uri: string,
+    settings: VideoEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.fail();
+    const source = await this.probe(uri);
+    this.encodes.push({ ...settings, uri });
+    job.progress(0.5);
+    if (job.isCancelled()) {
+      throw Object.assign(new Error('cancelled'), { code: 'ERR_MEDIA_CANCELLED' });
+    }
+    const ms = settings.range ? settings.range.endMs - settings.range.startMs : source.durationMs;
+    const bytes = Math.round(
+      (((settings.videoKbps + settings.audioKbps) * 1000 * (ms / 1000)) / 8) * this.oversize,
+    );
+    const out = await this.files.writeRunFile(runId, relPath, new Uint8Array(bytes));
+    const short = settings.shortSide ?? Math.min(source.width ?? 0, source.height ?? 0);
+    const k = short / Math.min(source.width ?? 1, source.height ?? 1);
+    const info: MediaInfo = {
+      ...source,
+      durationMs: ms,
+      size: bytes,
+      width: Math.round((source.width ?? 0) * k),
+      height: Math.round((source.height ?? 0) * k),
+      hasAudio: settings.audioKbps > 0,
+    };
+    this.files.videos.set(out.uri, info);
+    job.progress(1);
+    return { uri: out.uri, ext: 'mp4', size: bytes, info };
+  }
+  async trim(
+    uri: string,
+    range: { startMs: number; endMs: number },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.fail();
+    const source = await this.probe(uri);
+    this.trims.push({ uri, range });
+    const part = (range.endMs - range.startMs) / source.durationMs;
+    const bytes = Math.max(1, Math.round(source.size * part));
+    const out = await this.files.writeRunFile(runId, relPath, new Uint8Array(bytes));
+    const info = { ...source, durationMs: range.endMs - range.startMs, size: bytes };
+    this.files.videos.set(out.uri, info);
+    job.progress(1);
+    return { uri: out.uri, ext: 'mp4', size: bytes, info };
+  }
+  async thumbnails(uri: string, timesMs: readonly number[]) {
+    await this.probe(uri);
+    return timesMs.map((ms) => `frame://${uri}/${ms}`);
+  }
+}
+
 /** 假的系统文字识别和扫描（iOS 的 Vision；Android 的 ML Kit 设 canFindPaper = false）：按顺序返回找到的角和识别的文字，拉正写一张真实的小 JPEG。 */
 export class FakeVision implements VisionPlatform {
   calls: { method: string; uri: string; args?: unknown }[] = [];
@@ -416,5 +558,64 @@ export class FakeVision implements VisionPlatform {
   async scanDocuments(_runId: string, maxSide: number) {
     this.calls.push({ method: 'scanDocuments', uri: '', args: { maxSide } });
     return this.scanned;
+  }
+}
+
+/**
+ * 假的系统翻译（D-170）：按文字猜语言（汉字 → zh，假名 → ja，其他字母 → en），译文是「[目标语言] 原文」。
+ * android = true 时要下载的语言给出大小（ML Kit），否则不给（iOS 由系统弹窗）。
+ */
+export class FakeTranslator implements TranslatePlatform {
+  supported = true;
+  calls: { method: string; args: unknown[] }[] = [];
+  /** 还没下载的语言。 */
+  missing = new Set<string>();
+  unsupported = new Set<string>();
+  android = false;
+  /** 下一次翻译抛出的错误码（cancelled：用户在 iOS 的下载弹窗里取消）。 */
+  failWith: string | null = null;
+
+  async detectLanguages(texts: readonly string[]) {
+    this.calls.push({ method: 'detectLanguages', args: [texts.length] });
+    return texts.map((x) =>
+      /[\u3040-\u30ff]/.test(x)
+        ? 'ja'
+        : /[\u4e00-\u9fff]/.test(x)
+          ? 'zh'
+          : /[a-z]/i.test(x)
+            ? 'en'
+            : null,
+    );
+  }
+  async status(from: string, to: string) {
+    this.calls.push({ method: 'status', args: [from, to] });
+    if (this.unsupported.has(from) || this.unsupported.has(to)) {
+      return { status: 'unsupported' as const };
+    }
+    const missing = [from, to].filter((l) => this.missing.has(l));
+    if (missing.length === 0) return { status: 'installed' as const };
+    return this.android
+      ? { status: 'download' as const, missing }
+      : { status: 'download' as const };
+  }
+  get downloadBytes() {
+    return this.android ? 30 * 1024 * 1024 : undefined;
+  }
+  /** 下载过的语言（「设置 → 已下载内容」列出）。 */
+  downloaded = new Set<string>();
+  download = async (language: string) => {
+    this.calls.push({ method: 'download', args: [language] });
+    this.missing.delete(language);
+    this.downloaded.add(language);
+  };
+  downloadedLanguages = async () => [...this.downloaded];
+  removeLanguage = async (language: string) => {
+    this.downloaded.delete(language);
+    this.missing.add(language);
+  };
+  async translate(texts: readonly string[], from: string, to: string) {
+    this.calls.push({ method: 'translate', args: [texts, from, to] });
+    if (this.failWith) throw Object.assign(new Error(this.failWith), { code: this.failWith });
+    return texts.map((x) => `[${to}] ${x}`);
   }
 }

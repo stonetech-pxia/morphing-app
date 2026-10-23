@@ -29,7 +29,7 @@ describe('mock AI — errands (D-113)', () => {
   it.each([
     '帮我写一封请假邮件',
     '写一段朋友圈文案，配上这几张照片',
-    '把这份合同翻译成英文',
+    '帮我翻译一下这句话：谢谢你的帮助',
     '总结一下这个 PDF',
     '这份合同讲了什么',
     '帮我查一下签证要多少钱',
@@ -45,18 +45,19 @@ describe('mock AI — errands (D-113)', () => {
     }
   });
 
-  it.each(['Write an email to my landlord', 'Translate this PDF', 'What does this contract say?'])(
-    'rejects “%s” in English',
-    async (input) => {
-      const p = await plan(input, workspace('en'), undefined, 'en');
-      expect(p).toMatchObject({ kind: 'reject', reason: 'errand' });
-      if (p.kind === 'reject') {
-        for (const example of p.examples) {
-          expect((await plan(example, workspace('en'), undefined, 'en')).kind).toBe('ops');
-        }
+  it.each([
+    'Write an email to my landlord',
+    'Translate this sentence: thank you',
+    'What does this contract say?',
+  ])('rejects “%s” in English', async (input) => {
+    const p = await plan(input, workspace('en'), undefined, 'en');
+    expect(p).toMatchObject({ kind: 'reject', reason: 'errand' });
+    if (p.kind === 'reject') {
+      for (const example of p.examples) {
+        expect((await plan(example, workspace('en'), undefined, 'en')).kind).toBe('ops');
       }
-    },
-  );
+    }
+  });
 
   it('says to tap a quick action instead of running it', async () => {
     const p = await plan('现在帮我运行签证照片', withVisa());

@@ -145,10 +145,17 @@ describe('migrateWorkspace', () => {
     if (result.ok) expect(result.after).toEqual(workspace());
   });
 
+  it('v6 → v7: only bumps the version; file lists can now show one kind of file', () => {
+    const v6 = { ...workspace(), schemaVersion: 6 };
+    const result = prepareSnapshot(v6, registry);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.after).toEqual(workspace());
+  });
+
   it('refuses snapshots it cannot migrate', () => {
     const v0 = { ...v1Snapshot, schemaVersion: 0 };
     expect(migrateWorkspace(v0)).toEqual({ ok: false, error: 'no migration from schemaVersion 0' });
-    expect(migrateWorkspace({ schemaVersion: 7 }).ok).toBe(false);
+    expect(migrateWorkspace({ schemaVersion: 8 }).ok).toBe(false);
     expect(migrateWorkspace('garbage').ok).toBe(false);
   });
 

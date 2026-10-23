@@ -1,4 +1,5 @@
 import {
+  FILE_LIMITS,
   PAGE_POINTS,
   RunError,
   localDate,
@@ -25,6 +26,7 @@ import {
 } from '@morph/tool-qr';
 
 import {
+  MB,
   baseName,
   displayName,
   extOf,
@@ -124,6 +126,15 @@ export const MORE_IMPLS: Record<string, Impl> = {
 
   async 'zip.create'(input, _params, ctx) {
     const items = fileItems(input);
+    // fflate 在内存里打包：视频和音频也按 P-006 的 50 MB 算，不能用 MEDIA_LIMITS（D-142）。
+    for (const item of items) {
+      if (item.size > FILE_LIMITS.maxFileBytes) {
+        throw new RunError('tooLarge', {
+          name: displayName(item),
+          mb: FILE_LIMITS.maxFileBytes / MB,
+        });
+      }
+    }
     const entries = [];
     for (const [i, item] of items.entries()) {
       ctx.throwIfCancelled();

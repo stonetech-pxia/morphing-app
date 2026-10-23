@@ -66,7 +66,15 @@ export const PlanSchema: z.ZodType<Plan> = z.discriminatedUnion('kind', [
  */
 export type PlanAbout =
   | { kind: 'workflow'; workflowId: string }
-  | { kind: 'shared'; images: number; pdfs: number; others: number };
+  | {
+      kind: 'shared';
+      images: number;
+      pdfs: number;
+      others: number;
+      /** 视频和音频（D-147）；旧版 App 不发，所以可选。 */
+      videos?: number | undefined;
+      audio?: number | undefined;
+    };
 
 export const PlanAboutSchema: z.ZodType<PlanAbout> = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('workflow'), workflowId: z.string().min(1).max(64) }),
@@ -75,6 +83,8 @@ export const PlanAboutSchema: z.ZodType<PlanAbout> = z.discriminatedUnion('kind'
     images: z.number().int().min(0).max(100),
     pdfs: z.number().int().min(0).max(100),
     others: z.number().int().min(0).max(100),
+    videos: z.number().int().min(0).max(100).optional(),
+    audio: z.number().int().min(0).max(100).optional(),
   }),
 ]);
 

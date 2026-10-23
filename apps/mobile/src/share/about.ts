@@ -1,4 +1,4 @@
-import type { PlanAbout } from '@morph/core';
+import { mediaKindOf, type PlanAbout } from '@morph/core';
 
 import { mimeOf } from '../runtime/actions/helpers';
 import type { IncomingShare } from './incoming';
@@ -7,12 +7,23 @@ import type { IncomingShare } from './incoming';
 export function sharedAbout(share: IncomingShare): Extract<PlanAbout, { kind: 'shared' }> {
   let images = 0;
   let pdfs = 0;
+  let videos = 0;
+  let audio = 0;
   let others = 0;
   for (const f of share.files) {
-    const mime = mimeOf(f.name, f.mimeType);
-    if (mime.startsWith('image/')) images++;
-    else if (mime === 'application/pdf') pdfs++;
+    const kind = mediaKindOf(mimeOf(f.name, f.mimeType), f.name);
+    if (kind === 'image') images++;
+    else if (kind === 'pdf') pdfs++;
+    else if (kind === 'video') videos++;
+    else if (kind === 'audio') audio++;
     else others++;
   }
-  return { kind: 'shared', images, pdfs, others };
+  return {
+    kind: 'shared',
+    images,
+    pdfs,
+    others,
+    ...(videos ? { videos } : {}),
+    ...(audio ? { audio } : {}),
+  };
 }

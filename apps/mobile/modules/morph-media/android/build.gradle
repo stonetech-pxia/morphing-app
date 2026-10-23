@@ -1,0 +1,27 @@
+// 本地 Expo 模块的 Android 部分（D-141）：Jetpack Media3 Transformer（Apache-2.0，Google 官方）
+// 在本机压缩、转格式、剪切视频和音频，用手机的硬件编码器；读信息和取画面用系统的
+// MediaExtractor / MediaMetadataRetriever。
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.morphmedia'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.morphmedia"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // 必须和 expo-video 用的 Media3 版本一致（它的 build.gradle 里的 androidxMedia3Version），
+  // 否则 Gradle 会把两边升到同一个版本，expo-video 可能不兼容。
+  def media3Version = "1.9.1"
+  implementation "androidx.media3:media3-transformer:${media3Version}"
+  implementation "androidx.media3:media3-effect:${media3Version}"
+  implementation "androidx.media3:media3-common:${media3Version}"
+}

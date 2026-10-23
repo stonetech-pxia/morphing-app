@@ -8,7 +8,7 @@ import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
 /** 「设置 → 扩展包」：已下载的扩展包和占用空间（D-064）。由内核提供，AI 不能修改。 */
 export default function PacksRoute() {
-  const { locale } = useWorkspaceContext();
+  const { locale, files } = useWorkspaceContext();
   const theme = useWorkspace((s) => s.config!.theme);
   const palette = usePalette(theme);
   const packs = usePacks();
@@ -21,5 +21,12 @@ export default function PacksRoute() {
       </View>
     );
   }
-  return <PacksScreen store={packs.store} palette={palette} locale={locale} />;
+  return (
+    <PacksScreen
+      store={packs.store}
+      palette={palette}
+      locale={locale}
+      translator={files.translator}
+    />
+  );
 }

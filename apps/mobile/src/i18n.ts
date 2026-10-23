@@ -534,6 +534,85 @@ const strings = {
   habitMake: { en: 'Make it', zh: '做一个' },
   habitNo: { en: 'No thanks', zh: '不用了' },
   habitMade: { en: 'Added “{name}” to the home page', zh: '已把「{name}」放到首页' },
+
+  // ---- 翻译（D-170–D-176）：错误说明拼进「不支持这个步骤：…」/「需要的内容没有下载好：…」 ----
+  translateNeedsFullApp: {
+    en: 'Translate (it works in the full Morph app, not in this preview)',
+    zh: '翻译（要在正式版 Morph 里用，这个预览版里没有本机翻译）',
+  },
+  translateOsTooOld: {
+    en: 'Translate (needs iOS 18 or later)',
+    zh: '翻译（需要 iOS 18 或更新的系统）',
+  },
+  translatePairUnsupported: {
+    en: 'translating {from} into {to} (this phone can’t do it)',
+    zh: '把{from}翻成{to}（这台手机不支持）',
+  },
+  translateDownloadAsk: {
+    en: 'First use needs a download of about {mb} MB',
+    zh: '首次使用需下载约 {mb} MB',
+  },
+  translateDownloadBody: {
+    en: 'Translation languages: {langs}. After that it works offline. Wi-Fi is recommended.',
+    zh: '翻译语言：{langs}。之后不联网也能用，建议连接 Wi-Fi。',
+  },
+  translateDownload: { en: 'Download', zh: '下载' },
+  translateDownloadFailed: {
+    en: 'the {langs} language files (check the connection and try again)',
+    zh: '{langs}的翻译语言（请检查网络后再试）',
+  },
+  translateLanguageTitle: { en: 'Translation: {name}', zh: '翻译语言：{name}' },
+  translateLanguageHint: {
+    en: 'About 30 MB, for translating on this device (Google ML Kit).',
+    zh: '约 30 MB，用来在本机翻译（Google ML Kit）。',
+  },
+  translateDeleteMessage: {
+    en: 'You will be asked to download it again the next time you translate this language.',
+    zh: '下次翻译这种语言时会再问你是否下载。',
+  },
+  translateNote: {
+    en: 'Translated on this device — good for understanding the meaning. For official documents, use a professional translator.',
+    zh: '本机翻译，适合看懂意思；正式文件请找专业翻译。',
+  },
+  // ---- 视频、音频和压缩 PDF（D-140–D-148）。音频工具的文字请另起一块，方便合并。----
+  runPercent: { en: '{done}%', zh: '{done}%' },
+  runError_needsFullApp: {
+    en: 'Videos can only be processed in the full Morph app, not in this preview.',
+    zh: '视频要在正式版 Morph 里处理，这个预览版里不行。',
+  },
+  runError_mediaUnsupported: {
+    en: '“{name}” can’t be opened: the format isn’t supported, or it is copy-protected.',
+    zh: '「{name}」打不开：格式不支持，或者有版权保护。',
+  },
+  runError_notEnoughSpace: {
+    en: 'There isn’t enough space on this phone. About {gb} GB more is needed.',
+    zh: '手机空间不够，还需要大约 {gb} GB。',
+  },
+  runError_targetTooSmall: {
+    en: 'At {target}, “{name}” would be too blurry to watch. It needs at least {mb} MB, or trim it shorter first.',
+    zh: '「{name}」压到 {target} 画面会看不清。至少要 {mb} MB，或者先剪短一点。',
+  },
+  runError_interrupted: {
+    en: 'Morph went to the background, so this didn’t finish. Stay in Morph and tap “Run again”.',
+    zh: '处理时切到了别的 App，没有完成。请留在 Morph 里，再点「再来一次」。',
+  },
+  mediaPlay: { en: 'Play', zh: '播放' },
+  mediaDuration: { en: '{duration}', zh: '{duration}' },
+  trimTitle: { en: 'Trim', zh: '剪一段' },
+  trimOf: { en: '{n} of {total}', zh: '第 {n}/{total} 个' },
+  trimHint: {
+    en: 'Drag the two handles to choose the part to keep.',
+    zh: '拖动两边的把手，选出要留下的一段。',
+  },
+  trimStart: { en: 'Start', zh: '开始' },
+  trimEnd: { en: 'End', zh: '结束' },
+  trimLength: { en: '{length} kept', zh: '留下 {length}' },
+  trimPlaySelection: { en: 'Play this part', zh: '只播放这一段' },
+  trimPause: { en: 'Pause', zh: '暂停' },
+  trimDone: { en: 'Done', zh: '完成' },
+  trimNext: { en: 'Next', zh: '下一个' },
+  sharedVideos: { en: '{n} videos', zh: '{n} 个视频' },
+  sharedAudio: { en: '{n} audio files', zh: '{n} 个音频' },
 } satisfies Record<string, Record<Locale, string>>;
 
 export type StringKey = keyof typeof strings;

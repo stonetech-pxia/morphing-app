@@ -4,6 +4,8 @@ import { getDocumentAsync } from 'expo-document-picker';
 import { Directory, File, Paths } from 'expo-file-system';
 import { FlipType, ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import {
+  UIImagePickerPreferredAssetRepresentationMode,
+  VideoExportPreset,
   launchCameraAsync,
   launchImageLibraryAsync,
   requestCameraPermissionsAsync,
@@ -20,6 +22,8 @@ import {
   shareAll,
   type ShareDeps,
 } from './expo-share';
+import { expoTranslate } from './expo-translate';
+import { expoMedia } from './expo-media';
 import { expoVision } from './expo-vision';
 import MorphShare from '../../modules/morph-share';
 import MorphVision from '../../modules/morph-vision';
@@ -77,6 +81,20 @@ function pickedPhoto(a: ImagePickerAsset): PickedFile {
   };
 }
 
+function pickedVideo(a: ImagePickerAsset): PickedFile {
+  const ext =
+    a.fileName?.split('.').pop()?.toLowerCase() ?? (a.mimeType === 'video/mp4' ? 'mp4' : 'mov');
+  return {
+    uri: a.uri,
+    name: a.fileName ?? `video-${Date.now()}.${ext}`,
+    size: a.fileSize ?? null,
+    mimeType: a.mimeType ?? null,
+    width: a.width,
+    height: a.height,
+    ...(a.duration ? { durationMs: a.duration } : {}),
+  };
+}
+
 const SAVE_FORMATS: Record<ImageFormat, SaveFormat> = {
   jpeg: SaveFormat.JPEG,
   png: SaveFormat.PNG,
@@ -90,6 +108,9 @@ const UTI: Record<string, string> = {
   'image/png': 'public.png',
   'application/zip': 'public.zip-archive',
   'text/plain': 'public.plain-text',
+  'video/mp4': 'public.mpeg-4',
+  'video/quicktime': 'com.apple.quicktime-movie',
+  'audio/mp4': 'com.apple.m4a-audio',
 };
 
 const shareOne = (item: { uri: string; mimeType: string }) =>
@@ -138,6 +159,8 @@ const MAX_IMAGE_SIDE = 2048;
 
 export const expoFilePlatform: FilePlatform = {
   vision: expoVision((runId, relPath) => runFile(runId, relPath).uri),
+  translator: expoTranslate(),
+  media: expoMedia((runId, relPath) => runFile(runId, relPath).uri),
 
   async pickImage() {
     const result = await launchImageLibraryAsync({
@@ -211,6 +234,21 @@ export const expoFilePlatform: FilePlatform = {
     return result.assets.map(pickedPhoto);
   },
 
+  async pickVideos(max) {
+    const result = await launchImageLibraryAsync({
+      mediaTypes: ['videos'],
+      allowsMultipleSelection: max > 1,
+      selectionLimit: max,
+      orderedSelection: true,
+      // 原样拿到视频（HEVC 也不转），不然大视频要在选的时候先等系统转码（D-142）。
+      videoExportPreset: VideoExportPreset.Passthrough,
+      preferredAssetRepresentationMode: UIImagePickerPreferredAssetRepresentationMode.Current,
+      shouldDownloadFromNetwork: true,
+    });
+    if (result.canceled) return null;
+    return result.assets.map(pickedVideo);
+  },
+
   async takePhoto() {
     // 开发版里没有相机时（模拟器）系统选择器会抛出原生异常让 App 崩溃，不能靠下面的 catch。
     if (MorphVision && !MorphVision.isCameraAvailable()) throw new RunError('cameraUnavailable');
@@ -256,6 +294,34 @@ export const expoFilePlatform: FilePlatform = {
     return { uri: dest.uri, size: bytes.length };
   },
 
+  async adoptIntoRun(uri, runId, fileName) {
+    const source = new File(uri);
+    // 选择器放在缓存里的副本：移进本次运行的临时目录，运行结束一起删掉。
+    if (uri.startsWith(Paths.cache.uri) && source.exists) {
+      // 移动之前读大小：移动后新地址的 File 对象读到的可能还是 0。
+      const size = source.size;
+      const dest = runFile(runId, fileName);
+      source.move(dest);
+      return { uri: dest.uri, size };
+    }
+    // 分享进来的（共享目录、content://）：原地使用，不复制（D-116 另外负责删除）。
+    let size = 0;
+    try {
+      size = source.size;
+    } catch {
+      // content:// 不一定读得到大小，之后由 probe 补上。
+    }
+    return { uri, size };
+  },
+
+  freeDiskBytes() {
+    try {
+      return Paths.availableDiskSpace;
+    } catch {
+      return null;
+    }
+  },
+
   readUri: (uri) => new File(uri).bytes(),
 
   async removeRun(runId) {
@@ -298,7 +364,7 @@ export const expoFilePlatform: FilePlatform = {
   rememberedFolder: () => rememberedFolder(SHARE),
 
   async saveToPhotos(uris) {
-    const permission = await requestPermissionsAsync(true, ['photo']);
+    const permission = await requestPermissionsAsync(true, ['photo', 'video']);
     if (!permission.granted) throw new RunError('permissionDenied', { what: 'photos' });
     for (const uri of uris) await Asset.create(uri);
   },

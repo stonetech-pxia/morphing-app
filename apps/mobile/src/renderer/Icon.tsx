@@ -37,6 +37,8 @@ const SYMBOLS: Record<IconName, SymbolName> = {
   printer: { ios: 'printer.fill', android: 'print' },
   signature: { ios: 'signature', android: 'draw' },
   workflow: { ios: 'arrow.triangle.branch', android: 'account_tree' },
+  video: { ios: 'video.fill', android: 'videocam' },
+  audio: { ios: 'waveform', android: 'graphic_eq' },
 };
 
 export function Icon({

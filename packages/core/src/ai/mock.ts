@@ -2,13 +2,19 @@ import { checkNameTemplate } from '../naming';
 import { applyOps, topIndex, type Op } from '../ops';
 import { workflowProblems } from '../workflow/check';
 import { newWorkflowId, presetWorkflow } from '../workflows/presets';
+import { TRANSLATE_LANGUAGE_NAMES, type TranslateLanguage } from '../tools/translate';
 import {
+  LANGUAGE_WORD,
   findPreset,
   findWorkflowByName,
+  languageOf,
+  fitSizePhrases,
+  kindOfSteps,
   parseStepPhrase,
   splitStepPhrases,
   stepIdFor,
   stepsFrom,
+  type PhraseKind,
   type StepPhrase,
 } from './workflow-phrases';
 import { THEME_PRESET_IDS, type ThemePresetId } from '../presets';
@@ -887,8 +893,8 @@ function requireWorkflow(rawName: string, state: State): Workflow {
   );
 }
 
-function stepPhrases(text: string, state: State): StepPhrase[] {
-  return splitStepPhrases(text).map((p) => {
+function stepPhrases(text: string, state: State, before: PhraseKind | null = null): StepPhrase[] {
+  const phrases = splitStepPhrases(text).map((p) => {
     const step = parseStepPhrase(p, state.ctx.locale);
     if (step) return step;
     throw new Rejection(
@@ -896,6 +902,7 @@ function stepPhrases(text: string, state: State): StepPhrase[] {
       say(state.ctx.locale, `不认识步骤「${p}」。`, `I don’t know the step “${p}”.`),
     );
   });
+  return fitSizePhrases(phrases, before);
 }
 
 /** 步骤接不上（例如 PDF 之后存到相册）时整句拒绝，说明是哪一步。 */
@@ -1049,7 +1056,8 @@ const addStepRule: Rule = (clause, state) => {
     clause.match(/^in (?:the )?"?(.+?)"? (?:workflow|quick action),? add (?:a step:? )?(.+)$/i);
   if (!m) return null;
   const wf = requireWorkflow(m[1]!, state);
-  const phrases = stepPhrases(m[2]!, state);
+  // 「压到 N MB」按快捷操作里处理的是视频、PDF 还是图片来选动作。
+  const phrases = stepPhrases(m[2]!, state, kindOfSteps(wf.steps));
   // 处理类的步骤插在结尾的命名 / 保存 / 分享之前；输出类的放在最后。
   let index = wf.steps.length;
   const ops: Op[] = [];
@@ -1089,9 +1097,18 @@ const setSizeRule: Rule = (clause, state) => {
     if (step.action === 'image.compress' || step.action === 'image.idPhoto') {
       const maxKB = Math.round(isMB ? value * 1024 : value);
       ops.push({ op: 'setStepParams', workflowId: wf.id, stepId: step.id, params: { maxKB } });
-    } else if (step.action === 'pdf.fromImages') {
-      const maxMB = isMB ? value : Math.round((value / 1024) * 100) / 100;
+    } else if (step.action === 'pdf.fromImages' || step.action === 'pdf.compress') {
+      const mb = isMB ? value : Math.round((value / 1024) * 100) / 100;
+      const maxMB = step.action === 'pdf.compress' ? Math.max(0.1, mb) : mb;
       ops.push({ op: 'setStepParams', workflowId: wf.id, stepId: step.id, params: { maxMB } });
+    } else if (step.action === 'video.compress') {
+      const maxMB = Math.max(1, Math.round(isMB ? value : value / 1024));
+      ops.push({
+        op: 'setStepParams',
+        workflowId: wf.id,
+        stepId: step.id,
+        params: { by: 'size', maxMB },
+      });
     }
   }
   if (ops.length === 0) {
@@ -1192,8 +1209,81 @@ const reportRule: Rule = (clause, state) => {
   return [{ op: 'addWorkflow', workflow: wf }];
 };
 
+// ---- 翻译文件（D-171、D-174）：「把这份合同翻译成英文」是文件上的事，做一个翻译快捷操作 ----
+
+const DOC_WORD =
+  '(合同|文件|pdf|材料|文档|说明书|信|通知|证明|成绩单|论文|报告|截图|照片|图片|扫描件|菜单|告示|' +
+  'contract|document|pdf|file|letter|notice|certificate|transcript|report|paper|screenshot|photo|picture|image|scan|menu|sign)';
+/** 文件是图片：先识别文字。 */
+const IMAGE_DOC =
+  /^(?:截图|照片|图片|扫描件|菜单|告示|screenshot|photo|picture|image|scan|menu|sign)$/i;
+const MEASURE = '(?:这|那)?(?:一)?(?:份|个|些|张|几张|几份|封|篇|页|几页)?';
+const DOC_TRANSLATE = new RegExp(
+  [
+    `^(?:帮我|给我)?(?:把|将)?${MEASURE}${DOC_WORD}(?:都|全部)?(?:翻译|翻|译)成\\s*${LANGUAGE_WORD}$`,
+    `^(?:帮我|给我)?(?:翻译|翻)(?:一下)?${MEASURE}${DOC_WORD}()$`,
+    `^translate (?:this|the|my|these|a|an) ${DOC_WORD}s?(?: (?:in)?to ${LANGUAGE_WORD})?$`,
+  ].join('|'),
+  'i',
+);
+
+const translateDocRule: Rule = (clause, state) => {
+  const m = DOC_TRANSLATE.exec(clause.trim());
+  if (!m) return null;
+  const [doc, langWord] = [m[1] ?? m[3] ?? m[5]!, m[2] ?? m[4] ?? m[6]];
+  const { locale } = state.ctx;
+  const to = ((langWord ? languageOf(langWord) : null) ??
+    (locale === 'zh' ? 'zh-Hans' : 'en')) as TranslateLanguage;
+  const image = IMAGE_DOC.test(doc);
+  const translate = {
+    id: 'translate',
+    action: 'translate.text',
+    params: { from: 'auto', to },
+    ...(langWord ? {} : { ask: ['to'] }),
+  };
+  const steps: Workflow['steps'] = image
+    ? [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 10 } },
+        {
+          id: 'read',
+          action: 'ocr.recognize',
+          params: { lang: to.startsWith('zh') ? 'eng' : 'chi_sim' },
+          ask: ['lang'],
+        },
+        translate,
+        { id: 'copy', action: 'text.copy', params: {} },
+      ]
+    : [
+        { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 1 } },
+        { id: 'extract', action: 'pdf.extractText', params: {} },
+        translate,
+        { id: 'pdf', action: 'text.toPdf', params: { pageSize: 'a4', fontSize: 12 } },
+        { id: 'share', action: 'out.share', params: {} },
+      ];
+  // 名字最长 40 个字：简体中文就叫「中文」。
+  const language =
+    to === 'zh-Hans' ? say(locale, '中文', 'Chinese') : TRANSLATE_LANGUAGE_NAMES[to][locale];
+  const base = say(
+    locale,
+    `${doc.toUpperCase() === 'PDF' ? 'PDF' : doc}翻成${language}`,
+    `Translate ${doc} into ${language}`,
+  );
+  let name = base.slice(0, 36);
+  for (let i = 2; state.config.workflows.some((w) => w.name === name); i++) {
+    name = `${base.slice(0, 36)} ${i}`;
+  }
+  const wf: Workflow = {
+    id: newWorkflowId(`translate-to-${to}`, state.config.workflows),
+    name,
+    steps,
+  };
+  requireWorkable(wf, state);
+  return [{ op: 'addWorkflow', workflow: wf }];
+};
+
 const RULES: Rule[] = [
   reportRule,
+  translateDocRule,
   // 工作流的句式先判断：它们都要求句子里有工作流的名字或「工作流」，不会抢走其他句式。
   newWorkflowRule,
   addPresetRule,
@@ -1261,6 +1351,7 @@ const ERRAND = new RegExp(
   [
     '^(?:请|麻烦)?(?:你)?(?:帮我|给我|替我)?(?:写|起草|拟|编)(?:一|个|封|段|篇|份|条)',
     '(?:帮我|给我)翻译|翻译(?:成|一下|这)',
+    '(?:英文|英语|中文|日语|日文|韩语|韩文|法语|德语|西班牙语)怎么(?:说|讲|写)',
     '(?:总结|概括|解释|讲讲|说说)(?:一下)?(?:这|那)',
     '(?:讲了|说了|写了)(?:些)?什么|是什么意思|什么意思',
     '^(?:帮我)?(?:查|搜|搜索)(?:一下|一查)',
@@ -1277,6 +1368,22 @@ const RUN_NOW =
   /^(?:现在|马上|立刻)?(?:帮我)?(?:运行|执行|跑一下|跑一遍|开始)|^(?:please )?(?:run|start)\b/i;
 
 /** 办事类请求的拒绝例子：都是内置规则认得的句子。 */
+/** 直接要译文（「帮我翻译一下这句话：…」）：Morph 不给译文，可以做一个翻译快捷操作（D-171）。 */
+const TRANSLATE_ERRAND = /翻译|翻成|译成|怎么说|\btranslat/i;
+const TRANSLATE_EXAMPLES: Localized[] = [
+  {
+    zh: '新建一个快捷操作：输入文字，翻译成英文，复制文字',
+    en: 'Create a quick action: type text, translate into Chinese, copy text',
+  },
+  { zh: '添加截图翻译快捷操作', en: 'Add the translate screenshots quick action' },
+  {
+    zh: '新建一个快捷操作：选 PDF，提取 PDF 文字，翻译成中文，转成 PDF，分享',
+    en: 'Create a quick action: choose a PDF, get text from PDF, translate into English, make a PDF, share',
+  },
+];
+/** 说的是改快捷操作本身（「添加截图翻译快捷操作」「新建一个快捷操作：…，翻译成英文」），不是办事。 */
+const ABOUT_QUICK_ACTION = /快捷操作|工作流|\bquick action\b|\bworkflow\b/i;
+
 const ERRAND_EXAMPLES: Localized[] = [
   {
     zh: '新建一个快捷操作：扫描文档，压到 300KB，存到文件',
@@ -1384,7 +1491,20 @@ export function createMockAIProvider(): AIProvider {
           examples: [],
         };
       }
-      if (ERRAND.test(whole)) {
+      const translateDoc = splitClauses(whole).some((c) => DOC_TRANSLATE.test(c));
+      if (ERRAND.test(whole) && !translateDoc && !ABOUT_QUICK_ACTION.test(whole)) {
+        if (TRANSLATE_ERRAND.test(whole)) {
+          return {
+            kind: 'reject',
+            reason: 'errand',
+            message: say(
+              ctx.locale,
+              'Morph 不会直接给出译文，它只会修改这个 App。可以做一个翻译快捷操作，以后在本机翻译文字、截图或 PDF。',
+              'Morph doesn’t hand you a translation; it only changes this app. It can make a translation quick action that translates text, screenshots or PDFs on this device.',
+            ),
+            examples: TRANSLATE_EXAMPLES.map((e) => e[ctx.locale]),
+          };
+        }
         return {
           kind: 'reject',
           reason: 'errand',

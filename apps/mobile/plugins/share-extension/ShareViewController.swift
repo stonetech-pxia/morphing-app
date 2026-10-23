@@ -1,7 +1,7 @@
 // Morph 的 iOS 分享扩展（D-114、D-118）：别的 App 分享文件给 Morph 时运行。
 // 按分享的顺序逐个把文件复制到 App Group 共享目录，全部复制完再用 morph:// 深链唤起主 App。
 // 数据格式和 expo-share-intent 主 App 模块读取的一致（UserDefaults 里 morphShareKey 下的 JSON）。
-// 只收文件（照片、PDF、任意文件），不收文字和网址；不访问网络，不读相册以外的任何东西。
+// 只收文件（照片、视频、PDF、任意文件），不收文字和网址；不访问网络，不读相册以外的任何东西。
 // 由 plugins/with-share-extension.js 在 prebuild 时替换 expo-share-intent 生成的同名文件。
 
 import UIKit
@@ -56,16 +56,18 @@ class ShareViewController: UIViewController {
     let defaults = UserDefaults(suiteName: group)
     defaults?.set(data, forKey: sharedKey)
     defaults?.synchronize()
-    let kind = files.allSatisfy { $0.type == 0 } ? "media" : "file"
+    let kind = files.allSatisfy { $0.type <= 1 } ? "media" : "file"
     openHostApp("\(scheme)://dataUrl=\(sharedKey)?nonce=\(UUID().uuidString)#\(kind)")
     finish()
   }
 
-  /** 选一个文件类型：优先原始文件（照片的 HEIC / JPEG、PDF…），其次任意数据。 */
+  /** 选一个文件类型：优先原始文件（照片的 HEIC / JPEG、视频的 MOV / MP4、PDF…），其次任意数据。 */
   private func fileType(of provider: NSItemProvider) -> String? {
     let types = provider.registeredTypeIdentifiers.compactMap { UTType($0) }
     let usable = types.filter { $0.conforms(to: .data) && !$0.conforms(to: .text) }
-    return (usable.first { $0.conforms(to: .image) } ?? usable.first)?.identifier
+    return (usable.first { $0.conforms(to: .image) }
+      ?? usable.first { $0.conforms(to: .audiovisualContent) }
+      ?? usable.first)?.identifier
   }
 
   private func copy(_ provider: NSItemProvider, into dir: URL) async -> SharedFile? {
@@ -139,7 +141,7 @@ class ShareViewController: UIViewController {
       path: url.absoluteString, thumbnail: nil, fileName: name, fileSize: size,
       width: width, height: height, duration: nil,
       mimeType: type?.preferredMIMEType ?? "application/octet-stream",
-      type: isImage ? 0 : 2)
+      type: isImage ? 0 : (type?.conforms(to: .movie) ?? false) ? 1 : 2)
   }
 
   /** 扩展不能直接打开 URL，沿响应链找到 UIApplication 打开主 App。 */

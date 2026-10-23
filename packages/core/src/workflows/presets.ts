@@ -12,7 +12,7 @@ export const PRESET_SCENARIOS = [
   { id: 'ids', name: { en: 'Visas and IDs', zh: '出国办证' } },
   { id: 'paperwork', name: { en: 'Forms and documents', zh: '交材料、签文件' } },
   { id: 'receipts', name: { en: 'Receipts and expenses', zh: '报销记账' } },
-  { id: 'photos', name: { en: 'Sending photos', zh: '发照片' } },
+  { id: 'photos', name: { en: 'Sending photos and videos', zh: '发照片和视频' } },
 ] as const satisfies readonly { id: string; name: Localized }[];
 
 export type PresetScenario = (typeof PRESET_SCENARIOS)[number]['id'];
@@ -47,6 +47,21 @@ const rename = (template: string, ask = true) => ({
   params: { template },
   ...(ask ? { ask: ['template'] } : {}),
 });
+
+// 翻译预设（D-173）用的步骤。
+const recognize = (lang: string, ask = true) => ({
+  id: 'read',
+  action: 'ocr.recognize',
+  params: { lang },
+  ...(ask ? { ask: ['lang'] } : {}),
+});
+/** 翻成界面语言：中文界面翻成中文，英文界面翻成英文。 */
+const translateTo = (locale: Locale) => ({
+  id: 'translate',
+  action: 'translate.text',
+  params: { from: 'auto', to: locale === 'zh' ? 'zh-Hans' : 'en' },
+});
+const textPdf = { id: 'pdf', action: 'text.toPdf', params: { pageSize: 'a4', fontSize: 12 } };
 
 export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   {
@@ -174,6 +189,26 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'pdf-too-big',
+    scenario: 'paperwork',
+    name: { en: 'PDF too big to upload', zh: 'PDF 太大传不上去' },
+    description: {
+      en: 'Choose PDFs → make each one smaller than the size you need (2 MB unless you change it; text stays selectable when possible) → share.',
+      zh: '选 PDF → 压到要求的大小以内（默认 2 MB，可以每次改；能保留文字时文字仍可选中）→ 分享。',
+    },
+    icon: 'document',
+    steps: () => [
+      { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 10 } },
+      {
+        id: 'compress',
+        action: 'pdf.compress',
+        params: { maxMB: 2, whenTooBig: 'ask' },
+        ask: ['maxMB'],
+      },
+      share,
+    ],
+  },
+  {
     id: 'receipt-archive',
     scenario: 'receipts',
     name: { en: 'Receipt archive', zh: '收据归档' },
@@ -231,6 +266,26 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'video-too-big',
+    scenario: 'photos',
+    name: { en: 'Video too big to send', zh: '视频太大发不出去' },
+    description: {
+      en: 'Choose videos → make each one smaller than the size you need (20 MB unless you change it) as an MP4 that plays everywhere → share.',
+      zh: '选视频 → 压到要求的大小以内（默认 20 MB，可以每次改），变成哪里都能放的 MP4 → 分享。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      {
+        id: 'compress',
+        action: 'video.compress',
+        params: { by: 'size', maxMB: 20, quality: '720p' },
+        ask: ['maxMB'],
+      },
+      share,
+    ],
+  },
+  {
     id: 'print-id-photos',
     scenario: 'ids',
     name: { en: 'ID photos to print', zh: '证件照打印' },
@@ -248,6 +303,83 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
         ask: ['spec'],
       },
       { id: 'sheet', action: 'image.printSheet', params: { sheet: '4x6', guides: true } },
+    ],
+  },
+  // ---- 翻译（D-173）：只出纯文字（可以排成 PDF），用来看懂意思，不是正式翻译 ----
+  {
+    id: 'foreign-pdf',
+    scenario: 'paperwork',
+    name: { en: 'Translate a PDF into English', zh: '外文 PDF 翻成中文' },
+    description: {
+      en: 'Choose a PDF with text → get its text → translate it into English on this device → plain-text PDF → share. For understanding, not an official translation.',
+      zh: '选一个有文字的 PDF → 提取文字 → 在本机翻成中文 → 排成纯文字 PDF → 分享。用来看懂意思，不是正式翻译。',
+    },
+    icon: 'document',
+    packs: ['pdfview'],
+    steps: (locale) => [
+      { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 1 } },
+      { id: 'extract', action: 'pdf.extractText', params: {} },
+      translateTo(locale),
+      textPdf,
+      rename(t(locale, '{sourceName}-English', '{sourceName}-中文'), false),
+      share,
+    ],
+  },
+  {
+    id: 'foreign-paper',
+    scenario: 'paperwork',
+    name: { en: 'Translate paper documents into English', zh: '拍外文材料翻成中文' },
+    description: {
+      en: 'Scan the pages → recognize the text (choose its language) → translate it into English on this device → plain-text PDF → share. For understanding, not an official translation.',
+      zh: '扫描纸质材料 → 识别文字（选原文语言）→ 在本机翻成中文 → 排成纯文字 PDF → 分享。用来看懂意思，不是正式翻译。',
+    },
+    icon: 'scan',
+    packs: ['scan', 'ocr'],
+    steps: (locale) => [
+      photos(1, 20, 'scanner'),
+      { id: 'edges', action: 'scan.detect', params: {} },
+      recognize(locale === 'zh' ? 'eng' : 'chi_sim'),
+      translateTo(locale),
+      textPdf,
+      rename(t(locale, 'Translation {date}', '译文-{date}'), false),
+      share,
+    ],
+  },
+  {
+    id: 'papers-to-english',
+    scenario: 'ids',
+    name: { en: 'Chinese documents into English', zh: '中文材料翻成英文' },
+    description: {
+      en: 'Scan Chinese documents → recognize the text → translate into English on this device → plain-text PDF → share. A draft to check; embassies and schools usually need a certified translation.',
+      zh: '扫描中文材料 → 识别文字 → 在本机翻成英文 → 排成纯文字 PDF → 分享。是一份参考稿；使馆、学校通常要正式翻译件。',
+    },
+    icon: 'scan',
+    packs: ['scan', 'ocr'],
+    steps: (locale) => [
+      photos(1, 20, 'scanner'),
+      { id: 'edges', action: 'scan.detect', params: {} },
+      recognize('chi_sim', false),
+      { id: 'translate', action: 'translate.text', params: { from: 'zh-Hans', to: 'en' } },
+      textPdf,
+      rename(t(locale, 'English {date}', '英文-{date}'), false),
+      share,
+    ],
+  },
+  {
+    id: 'screenshot-translate',
+    scenario: 'photos',
+    name: { en: 'Translate screenshots', zh: '截图翻译' },
+    description: {
+      en: 'Choose screenshots → recognize the text (choose its language) → translate it into English on this device → copy the text.',
+      zh: '选截图 → 识别文字（选原文语言）→ 在本机翻成中文 → 复制文字。',
+    },
+    icon: 'photo',
+    packs: ['ocr'],
+    steps: (locale) => [
+      photos(1, 10),
+      recognize(locale === 'zh' ? 'eng' : 'chi_sim'),
+      translateTo(locale),
+      { id: 'copy', action: 'text.copy', params: {} },
     ],
   },
 ];

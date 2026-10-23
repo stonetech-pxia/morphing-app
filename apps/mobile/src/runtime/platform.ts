@@ -14,6 +14,8 @@ export interface PickedFile {
   takenAt?: number;
   /** 系统文档相机拍的页面：已经找边拉正。 */
   straightened?: boolean;
+  /** 视频、音频的时长（毫秒），选择器给得出时。 */
+  durationMs?: number;
 }
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp';
@@ -99,6 +101,38 @@ export interface VisionPlatform {
   scanDocuments(runId: string, maxSide: number): Promise<PickedFile[] | null>;
 }
 
+/**
+ * 系统自带的本机翻译（modules/morph-translate，D-170）：iOS 是 Translation 框架（iOS 18 起），
+ * Android 是 ML Kit（语言模型第一次用时下载，约 30 MB）。语言用 BCP 47。没有原生模块时（Expo Go）为 null。
+ * 文字只在本机处理，不上传、不发给 AI。
+ */
+export interface TranslatePlatform {
+  /** 这台设备能不能翻译（iOS 17 及更早没有系统翻译）。 */
+  readonly supported: boolean;
+  /** 每段文字的语言；认不出时为 null。 */
+  detectLanguages(texts: readonly string[]): Promise<(string | null)[]>;
+  /**
+   * 这一对语言现在能不能翻：installed 直接能翻；download 要先下载，missing 是还没下载的语言（Android，
+   * 由 App 先问用户）；iOS 不给 missing，系统在翻译时自己弹窗问。unsupported 不能翻。
+   */
+  status(
+    from: string,
+    to: string,
+  ): Promise<{ status: 'installed' | 'download' | 'unsupported'; missing?: string[] }>;
+  /** 每种语言要下载多少字节（估计，Android 的 ML Kit 约 30 MB）。 */
+  readonly downloadBytes?: number;
+  /** 下载一种语言的模型（Android）；没有网络时抛出。iOS 没有这个方法。 */
+  download?(language: string): Promise<void>;
+  /** 已下载的语言（Android，「设置 → 已下载内容」列出；iOS 的语言由系统设置管理，没有这个方法）。 */
+  downloadedLanguages?(): Promise<string[]>;
+  /** 删除一种语言的模型（Android）。 */
+  removeLanguage?(language: string): Promise<void>;
+  /**
+   * 翻译，一段对一段。iOS 需要下载时系统会弹窗；用户取消时抛出 code 为 cancelled 的错误。
+   */
+  translate(texts: readonly string[], from: string, to: string): Promise<string[]>;
+}
+
 /** 存到文件夹的一个文件：本机地址、文件名（不含扩展名）和扩展名。 */
 export interface FolderItem {
   uri: string;
@@ -107,9 +141,87 @@ export interface FolderItem {
   mimeType: string;
 }
 
+/** 视频、音频的信息（modules/morph-media 的 probe，D-141）。 */
+export interface MediaInfo {
+  kind: 'video' | 'audio';
+  durationMs: number;
+  size: number;
+  hasVideo: boolean;
+  hasAudio: boolean;
+  /** 画面摆正之后的宽高。 */
+  width?: number;
+  height?: number;
+  fps?: number;
+  hdr?: boolean;
+  videoCodec?: string;
+  videoBitrateKbps?: number;
+  audioBitrateKbps?: number;
+}
+
+/** 一次视频编码的要求（H.264 + AAC 的 MP4）。 */
+export interface VideoEncode {
+  videoKbps: number;
+  /** 0 = 去掉声音。 */
+  audioKbps: number;
+  /** 缩小到这个短边；不缩小时不给。 */
+  shortSide?: number;
+  maxFps: number;
+  range?: { startMs: number; endMs: number };
+}
+
+/** 一个长任务：步内进度（0–1）和取消。 */
+export interface MediaJob {
+  progress(fraction: number): void;
+  isCancelled(): boolean;
+}
+
+/** 处理结果：本次运行的临时文件。 */
+export interface MediaOutput {
+  uri: string;
+  ext: string;
+  size: number;
+  info: MediaInfo;
+}
+
+/**
+ * 在本机处理视频和音频（modules/morph-media：iOS AVFoundation、Android Media3，D-141）。
+ * 没有原生模块时（Expo Go）为 null，视频动作报 needsFullApp。处理期间屏幕不灭（D-148）。
+ * 出错时抛出带 code 的错误（ERR_MEDIA_UNSUPPORTED / CANCELLED / INTERRUPTED / NOT_IMPLEMENTED / FAILED）。
+ */
+export interface MediaPlatform {
+  probe(uri: string): Promise<MediaInfo>;
+  /** 重新编码成 MP4，写进本次运行的临时目录 relPath（扩展名 .mp4）。 */
+  encodeVideo(
+    uri: string,
+    settings: VideoEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
+  /** 不重新编码地剪一段；输出的扩展名可能和 relPath 不同（MP4 放不下原来的声音时用 MOV）。 */
+  trim(
+    uri: string,
+    range: { startMs: number; endMs: number },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
+  /** 按时间取画面（已摆正），JPEG 放进本次运行的临时目录。 */
+  thumbnails(
+    uri: string,
+    timesMs: readonly number[],
+    maxSide: number,
+    runId: string,
+  ): Promise<string[]>;
+}
+
 export interface FilePlatform {
   /** 系统自带的文字识别和扫描；没有时为 null。 */
   readonly vision: VisionPlatform | null;
+  /** 系统自带的本机翻译（D-170）；没有原生模块时为 null。 */
+  readonly translator: TranslatePlatform | null;
+  /** 本机处理视频和音频；没有时（Expo Go）为 null。 */
+  readonly media: MediaPlatform | null;
 
   // ---- 用户文件（assets/<id>/<文件名>，D-019）----
   /** 从相册选一张照片（图片组件用）；用户取消时返回 null。 */
@@ -136,12 +248,25 @@ export interface FilePlatform {
   pickPhotos(max: number): Promise<PickedFile[] | null>;
   /** 拍一张照片；用户取消时返回 null，没有相机时抛出 cameraUnavailable。 */
   takePhoto(): Promise<PickedFile | null>;
+  /** 从相册多选视频（不在选的时候转码）；用户取消时返回 null。 */
+  pickVideos(max: number): Promise<PickedFile[] | null>;
   /** 从「文件」App 选文件；types 是 MIME 类型（可含 image/*、* / *）。 */
   pickDocuments(types: readonly string[], multiple: boolean): Promise<PickedFile[] | null>;
 
   // ---- 工作流执行：临时文件（缓存目录 runs/<runId>/，D-063）----
   /** 把选择器给的文件复制进本次运行的临时目录。 */
   copyToRun(uri: string, runId: string, fileName: string): Promise<{ uri: string; size: number }>;
+  /**
+   * 大文件（视频、音频）不复制（D-142）：选择器放在 App 缓存里的副本移进本次运行的临时目录（之后一起删）；
+   * 分享进来的（共享目录、content://）原地使用，返回原地址。
+   */
+  adoptIntoRun(
+    uri: string,
+    runId: string,
+    fileName: string,
+  ): Promise<{ uri: string; size: number }>;
+  /** 手机剩余空间（字节）；读不到时为 null。 */
+  freeDiskBytes(): number | null;
   writeRunFile(
     runId: string,
     fileName: string,

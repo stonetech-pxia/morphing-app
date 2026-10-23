@@ -1,11 +1,11 @@
 # 内置工具与工作流设计
 
-本文是内置工具（图片、PDF、扫描、文字识别、打包、二维码、打印）和跨工具工作流的设计。
+本文是内置工具（图片、PDF、视频、扫描、文字识别、翻译、打包、二维码、打印）和跨工具工作流的设计。
 决策编号见 [DECISIONS.md](DECISIONS.md)（D-060 起）；用户数据规则见 [DATA_DESIGN.md](DATA_DESIGN.md)。
 
 ## 0. 原则
 
-1. **全部在手机本地运行**。T7 之前要求能在 Expo Go 里用；从 T8 起 App 用开发版构建（D-084），可以写本地原生模块调用**系统框架**（iOS 的 Vision / VisionKit / Core Image，没有第三方原生代码）。Android 用 Google ML Kit（D-087）。系统做不了的情况（Expo Go、Android 上给照片找边、ML Kit 不认的语言）仍要有退路（纯 JS 或 WebView 扩展包），工作流配置在各平台通用。还没做的见 §9。
+1. **全部在手机本地运行**。T7 之前要求能在 Expo Go 里用；从 T8 起 App 用开发版构建（D-084），可以写本地原生模块调用**系统框架**（iOS 的 Vision / VisionKit / Core Image / AVFoundation，没有第三方原生代码）。Android 用 Google ML Kit（D-087）和 Jetpack Media3（视频，D-141）。视频在 Expo Go 里不能处理（`needsFullApp`）。系统做不了的情况（Expo Go、Android 上给照片找边、ML Kit 不认的语言）仍要有退路（纯 JS 或 WebView 扩展包），工作流配置在各平台通用。还没做的见 §9。
 2. **AI 永远看不到用户的文件内容、文件名、OCR 出来的文字和记录内容**（D-036 / D-042 / D-046）。AI 只能看到动作目录、参数和工作流结构。用户说出的规格（「240 KB 以内」「600×600」）是规则，可以发给 AI。
 3. **工作流是线性的、非图灵完备的**：一串步骤，每步一个登记过的动作，没有分支、循环和表达式（§7C）。
 4. **单独使用一个工具 = 只含这一个动作（加上输入步骤）的工作流**。工具页和工作流共用同一个执行器。
@@ -19,19 +19,33 @@
 | --------- | ---------------------------------------- | ----------------------------------------------------- |
 | `images`  | 图片文件数组（JPEG / PNG / WebP / HEIC） | 每项带宽高、可选的拍摄时间                            |
 | `pdf`     | PDF 文件数组（通常 1 个，拆分后多个）    | 每项带页数                                            |
-| `files`   | 任意文件数组                             | 是 `images`、`pdf`、`zip` 的父类型                    |
+| `files`   | 任意文件数组                             | 是 `images`、`pdf`、`zip`、`video`、`audio` 的父类型  |
 | `zip`     | 一个 ZIP 文件                            |                                                       |
+| `video`   | 视频文件数组（MOV / MP4 等）             | 每项带时长、宽高；原生模块边读边写（D-140、D-142）    |
+| `audio`   | 音频文件数组（m4a / wav / mp3 等）       | 这一批只有类型和输入，动作由音频工具提供（D-140）     |
 | `text`    | 一段文字（OCR、二维码识别、PDF 抽文字）  | **只留在本机**：复制、存成文件、生成 PDF，绝不发给 AI |
 | `records` | 记录（以后接数据表时再用）               | 第一批只登记类型，没有动作产出它                      |
 
-类型兼容：动作声明接受 `files` 时，`images` / `pdf` / `zip` 都能接上；反过来不行。
+类型兼容：动作声明接受 `files` 时，`images` / `pdf` / `zip` / `video` / `audio` 都能接上；反过来不行。动作可以用 `rejects` 排除处理不了的子类型（`pdf.merge` 不收视频和音频，D-140）。
 
 运行时的值（App 层）：
 
 ```ts
-type RunItem = { uri; name; ext; mimeType; size; width?; height?; pageCount?; takenAt? };
+type RunItem = {
+  uri;
+  name;
+  ext;
+  mimeType;
+  size;
+  width?;
+  height?;
+  pageCount?;
+  durationMs?;
+  takenAt?;
+};
 type RunValue =
-  { type: 'images' | 'pdf' | 'files' | 'zip'; items: RunItem[] } | { type: 'text'; text: string };
+  | { type: 'images' | 'pdf' | 'files' | 'zip' | 'video' | 'audio'; items: RunItem[] }
+  | { type: 'text'; text: string };
 ```
 
 中间结果是缓存目录 `runs/<runId>/` 里的临时文件，执行结束（成功、取消、失败）后清理；只有「保存」步骤或用户在结果页点「保存」才会成为用户文件（`assets` 表）。`name` 是不含扩展名的显示名，随值一起传递，「命名」步骤改的就是它。
@@ -45,6 +59,7 @@ interface ActionDefinition {
   id: string; // 'image.compress'，按领域加前缀
   label: Localized; // 「压到指定大小」
   input: ValueType[]; // 接受的类型；[] = 输入动作（只能是第一步）
+  rejects?: ValueType[]; // 接受 files 但处理不了的子类型（D-140）
   output: ValueType | 'same' | ((params) => ValueType); // 'same' = 类型不变（命名、保存、分享）
   params: ZodType; // 参数结构，执行前再解析一次（D-020）
   fields: ParamField[]; // 每个参数的界面元数据，编辑器据此生成表单
@@ -99,7 +114,8 @@ Step     = { id, action, params, ask?: string[] }   // ask：这些参数每次�
 - **执行前再解析参数**（D-020）；运行时询问的参数合并进本次运行，不写回配置。
 - **结果可预览**：图片缩略图、PDF 页数和大小、文字全文（只在本机显示）。结果页始终提供「保存到文件」「分享」「存到相册」（图片）「打印」（PDF / 图片）「复制」（文字）。
 - **`tool_runs` 只记录元数据**：工作流 ID、状态、错误代码、输出文件 ID，不记录内容和文件名。
-- **大小上限**（P-006）：单个文件 50 MB、一次合计 100 MB；送进 WebView 的图片先缩到 1677 万像素以内（iOS canvas 上限）。
+- **大小上限**（P-006）：单个文件 50 MB、一次合计 100 MB；送进 WebView 的图片先缩到 1677 万像素以内（iOS canvas 上限）。视频和音频单独算：单个 4 GB、一次最多 10 个，开始处理前查剩余空间，不复制大文件（D-142）。
+- **运行中问一句**：`LocalUi.choose` 只问固定的几种问题（文字写在 App 里），例如压缩 PDF 压不到时「转成图片 / 就用现在的」（D-145）。
 
 动作实现的接口：
 
@@ -118,15 +134,16 @@ interface StepContext {
 
 调研的 10 个场景里有 8 个需要用户亲手操作。这类步骤在工作流里只是一个占位（AI 只决定它出现在哪里），执行到这里时打开对应界面，用户的操作结果只在本次运行里使用：
 
-| `local`    | 界面                                                      | 用在           |
-| ---------- | --------------------------------------------------------- | -------------- |
-| `crop`     | 裁剪框（可锁定比例），逐张确认                            | 证件照、裁剪   |
-| `reorder`  | 列表 + 上移 / 下移 / 删除                                 | 材料包、合并   |
-| `pages`    | 按页码选页、删页、排序、旋转（有 PDF 预览包时显示缩略图） | 选页、整理页面 |
-| `corners`  | 在照片上拖四个角                                          | 扫描           |
-| `redact`   | 在图片上画框，选模糊或黑块                                | 截图打码       |
-| `sign`     | 签名板（画一次可以存起来）+ 选页和位置                    | 签回表格       |
-| `fillForm` | PDF 表单字段逐个填写                                      | 签回表格       |
+| `local`     | 界面                                                                      | 用在                              |
+| ----------- | ------------------------------------------------------------------------- | --------------------------------- |
+| `crop`      | 裁剪框（可锁定比例），逐张确认                                            | 证件照、裁剪                      |
+| `reorder`   | 列表 + 上移 / 下移 / 删除                                                 | 材料包、合并                      |
+| `pages`     | 按页码选页、删页、排序、旋转（有 PDF 预览包时显示缩略图）                 | 选页、整理页面                    |
+| `corners`   | 在照片上拖四个角                                                          | 扫描                              |
+| `redact`    | 在图片上画框，选模糊或黑块                                                | 截图打码                          |
+| `sign`      | 签名板（画一次可以存起来）+ 选页和位置                                    | 签回表格                          |
+| `fillForm`  | PDF 表单字段逐个填写                                                      | 签回表格                          |
+| `trimMedia` | 视频画面（音频以后是波形）+ 时间轴两个把手、±1 秒、只播放这一段，逐个确认 | 剪一段（视频、以后的音频，D-143） |
 
 签名存在 `documentDirectory/signatures/`，不进配置、不进版本，也不发给 AI。
 
@@ -134,11 +151,13 @@ interface StepContext {
 
 前缀即领域，实现位置见括号。
 
-- **输入输出（内核）**：`in.photos`（`source`：相册多选、拍照，或 `scanner` 系统文档相机——iOS 的 VisionKit、Android 的 ML Kit 文档扫描，实时找边、自动拍、多页、拍完已拉正，页面带 `straightened` 标记；没有文档相机的设备改用相机，D-086、D-087）、`in.files`（PDF / 图片 / 任意文件；这两个在第一步时也接收别的 App 分享进来的文件，§11）、`file.rename`（命名模板）、`file.save`（存到 Morph 文件）、`out.share`（一次分享全部文件，D-119）、`out.saveToFolder`（复制进「文件」里的文件夹：第一次由用户选，之后记住同一个，结果页可以换；iCloud 云盘、Google Drive 等网盘由它们自己的 App 同步，D-120、D-123）、`out.saveToPhotos`、`out.print`；`in.text`（用户输入一段文字，private）、`in.records`（读取一张数据表的记录，可按时间段，按表里第一个日期字段）。（App：expo-image-picker、expo-document-picker、本地模块 morph-share（Expo Go 里退回 expo-sharing / expo-file-system）、expo-media-library、expo-print）
+- **输入输出（内核）**：`in.videos`（从相册选视频，不在选的时候转码，D-142）、`in.photos`（`source`：相册多选、拍照，或 `scanner` 系统文档相机——iOS 的 VisionKit、Android 的 ML Kit 文档扫描，实时找边、自动拍、多页、拍完已拉正，页面带 `straightened` 标记；没有文档相机的设备改用相机，D-086、D-087）、`in.files`（PDF / 图片 / 视频 / 音频 / 任意文件；这两个在第一步时也接收别的 App 分享进来的文件，§11）、`file.rename`（命名模板）、`file.save`（存到 Morph 文件）、`out.share`（一次分享全部文件，D-119）、`out.saveToFolder`（复制进「文件」里的文件夹：第一次由用户选，之后记住同一个，结果页可以换；iCloud 云盘、Google Drive 等网盘由它们自己的 App 同步，D-120、D-123）、`out.saveToPhotos`、`out.print`；`in.text`（用户输入一段文字，private）、`in.records`（读取一张数据表的记录，可按时间段，按表里第一个日期字段）。（App：expo-image-picker、expo-document-picker、本地模块 morph-share（Expo Go 里退回 expo-sharing / expo-file-system）、expo-media-library、expo-print）
 - **图片**：`image.convert`、`image.resize`、`image.compress`（压到 ≤ N KB）、`image.crop`（本地框选）、`image.rotate`、`image.stripMetadata`、`image.idPhoto`、`image.stitch`、`image.grid`、`image.redact`（本地）、`image.watermark`、`image.printSheet`（证件照排到 4×6 / 5×7 / A4 / Letter 相纸，带裁切线）。（算法：`packages/tool-image`；编码：expo-image-manipulator；合成：Skia 离屏绘制 `composeImage`，画布单边不超过 8192、总像素不超过 1677 万，超出整体缩小，D-079）
-- **PDF**：`pdf.fromImages`（A4 / Letter / 跟随图片，可设边距和 ≤ X MB）、`pdf.merge`（PDF 和图片混合）、`pdf.pages`（本地选页 / 删页 / 排序 / 旋转）、`pdf.selectPages`（按页码规则：全部 / 奇数 / 偶数 / 范围）、`pdf.rotate`、`pdf.split`、`pdf.pageNumbers`、`pdf.stamp`（文字戳 / 日期戳）、`pdf.sign`（本地）、`pdf.fillForm`（本地）+ 拍平、`pdf.toImages`、`pdf.extractText`。（`packages/tool-pdf`：pdf-lib；`toImages` / `extractText` / 缩略图需要 PDF 预览包）
+- **视频**（工具 `video`，D-143）：`video.compress`（按大小 ≤ N MB 或按画质 1080p / 720p / 480p）、`video.convert`（转成 MP4，画质基本不变）、`video.trim`（本地 `trimMedia`，不重新编码）。输出一律 MP4（H.264 + AAC）。码率和分辨率在 `core/media.ts` 算，编码在本地模块 `morph-media`（iOS AVFoundation、Android Media3 Transformer，D-141）；输入是 `in.videos`（相册，1–10 个）或 `in.files`（`accept: videos`）。
+- **PDF**：`pdf.fromImages`（A4 / Letter / 跟随图片，可设边距和 ≤ X MB）、`pdf.compress`（把已有 PDF 压到 ≤ X MB：先只压图片、保留文字，不够小时按 `whenTooBig` 问用户 / 转成图片 / 保留文字，D-145）、`pdf.merge`（PDF 和图片混合）、`pdf.pages`（本地选页 / 删页 / 排序 / 旋转）、`pdf.selectPages`（按页码规则：全部 / 奇数 / 偶数 / 范围）、`pdf.rotate`、`pdf.split`、`pdf.pageNumbers`、`pdf.stamp`（文字戳 / 日期戳）、`pdf.sign`（本地）、`pdf.fillForm`（本地）+ 拍平、`pdf.toImages`、`pdf.extractText`。（`packages/tool-pdf`：pdf-lib；`toImages` / `extractText` / 缩略图需要 PDF 预览包）
 - **扫描**（工具 `scan`）：`scan.detect`（找边 → 本地调四角，每张都要确认 → 透视矫正，长边 2400；iOS 用 Vision 找边、Core Image 矫正，Android 和 Expo Go 用扫描包，D-086；文档相机拍的页面直接放行，也不需要扫描包）、`scan.enhance`（提亮 / 灰度 / 黑白 / 原样；Skia 颜色矩阵，不需要扩展包）。
 - **文字识别**（工具 `ocr`）：`ocr.recognize`（images → text，参数 `lang` 选 12 种语言之一。iOS 用 Vision 的 `VNRecognizeTextRequest`（accurate + 语言纠错，中日韩等补上英文），不需要下载，D-085；Android 用 ML Kit 文字识别 v2（模型打包进 App），俄文不支持，D-087；系统识别不了时 `packFor` 按语言确保语言包，语言包连同识别包一起下载）。中日文字之间多出来的空格在本机去掉（`tidyOcrText`）。
+- **翻译**（工具 `translate`，D-170–D-176）：`translate.text`（text → text，参数 `from`：自动识别或 20 种语言之一，`to`：20 种语言之一，默认每次运行时问）。iOS 用系统的 Translation 框架（iOS 18 起；iOS 26 起已下载的语言直接建会话，要下载或更早的系统时挂一个看不见的 SwiftUI 视图用 `.translationTask`，语言包由系统弹窗下载），NaturalLanguage 识别语言；Android 用 ML Kit 翻译（每种语言模型约 30 MB，第一次用时 App 先问「首次使用需下载约 X MB」再下载，之后离线）和 ML Kit 语言识别（打包进 App）。翻译前在本机把文字拆成段（`splitForTranslation`：空行分段，段里折行的句子接起来，标题、短行、列表项另起），自动识别时每段单独识别语言、按原文语言分组翻，和目标语言相同的段原样保留，再按原来的分段拼回（`joinTranslation`）。只出纯文字（可以接 `text.toPdf` 排成 PDF），不保留原文件排版；结果页写明「本机翻译，适合看懂意思；正式文件请找专业翻译」。一次最多 10 万字。Expo Go 和 iOS 17 及更早报「不支持这个步骤」并说明原因；ML Kit 没有繁体中文。文字不上传、不发给 AI。
 - **文字**（工具 `text`）：`text.copy`、`text.toFile`（.txt）、`text.toPdf`（expo-print，系统字体，中日韩都能显示）。
 - **打包**（工具 `zip`）：`zip.create`、`zip.extract`。（`packages/tool-archive`：fflate，只用同步接口）
 - **二维码**（工具 `qr`）：`qr.generate`（文字 → PNG，tool-qr 自带的 PNG 编码器）、`qr.read`（图片 → 文字，Skia 读像素后用 jsQR）。（`packages/tool-qr`：lean-qr、jsQR）
@@ -163,7 +182,7 @@ interface StepContext {
 - **清单写在代码里**（`core/src/packs.ts`）：id、版本、文件列表（下载地址、SHA-256、大小）、许可证。下载后逐个校验 SHA-256，不一致就删除整个版本目录并报错。
 - **只能由用户触发下载**：界面显示大小，建议用 Wi-Fi。AI 和工作流都不能自己下载；执行到需要扩展包的步骤时暂停，弹窗请用户确认（`PackGate`），用户拒绝就取消本次运行。
 - **存储**：`documentDirectory/packs/<id>/<version>/`，写完并校验后才写 `ready.json`，所以中断的下载不会被当成已安装。不进 revision，回滚不受影响；下载过就能离线使用。
-- **管理**：「设置 → 扩展包」（`app/packs.tsx`）列出已下载的扩展包、占用空间、许可证和版本，可以删除（删除文字识别包时语言包一起删除）。
+- **管理**：「设置 → 扩展包」（`app/packs.tsx`）列出已下载的扩展包、占用空间、许可证和版本，可以删除（删除文字识别包时语言包一起删除）。Android 下载过的翻译语言（ML Kit 模型，不是扩展包，不在 `PACKS` 清单里）也列在这一页，可以删除（D-175）；iOS 的翻译语言由系统「设置 → 翻译」管理。
 - **加载**：WebView 只加载我们随 App 发布的固定 HTML，库文件从本地扩展包目录读取，不访问网络（CSP `default-src 'none'`，见 T4 实验记录）。WebView 和 App 之间只有固定格式的消息（动作名 + 数据），不注入任何模型生成的字符串（open-tool-research N3）。
 - **下载来源**：先用 jsDelivr 上固定版本的地址，以后换成自己的服务器（只改清单）。
 - **App Store 2.5.2**：见 DECISIONS（待创始人确认）。
@@ -174,11 +193,16 @@ interface StepContext {
 | 依赖                                                                                          | 版本             | 平台    | 许可证 / 条款                     | 用途                                                          |
 | --------------------------------------------------------------------------------------------- | ---------------- | ------- | --------------------------------- | ------------------------------------------------------------- |
 | Vision、VisionKit、Core Image、ImageIO                                                        | 系统自带         | iOS     | Apple 系统框架                    | 文字识别、找边、拉正、文档相机                                |
+| Translation（弱链接，iOS 18 起）、NaturalLanguage、SwiftUI                                    | 系统自带         | iOS     | Apple 系统框架                    | 本机翻译、识别语言（morph-translate，D-170）                  |
+| `com.google.mlkit:translate`                                                                  | 17.0.3           | Android | 闭源，Google ML Kit 条款（P-015） | 本机翻译，语言模型第一次用时下载（每种约 30 MB）              |
+| `com.google.mlkit:language-id`                                                                | 17.0.6           | Android | 闭源，Google ML Kit 条款（P-015） | 识别每段文字的语言，模型打包进 App                            |
 | UIKit（`UIActivityViewController`、`UIDocumentPickerViewController`）、UniformTypeIdentifiers | 系统自带         | iOS     | Apple 系统框架                    | 一次分享多个文件、存到选定文件夹（morph-share，D-119、D-120） |
 | `androidx.core`（FileProvider，随 React Native 已经在 App 里）、存储访问框架                  | 随 RN / 系统自带 | Android | Apache-2.0 / Android 系统接口     | 一次分享多个文件、存到选定文件夹（morph-share）               |
 | `com.google.mlkit:text-recognition`（及 `-chinese`、`-japanese`、`-korean`）                  | 16.0.1           | Android | 闭源，Google ML Kit 条款（P-015） | 文字识别，模型打包进 App                                      |
 | `com.google.android.gms:play-services-mlkit-document-scanner`                                 | 16.0.0           | Android | 闭源，Google APIs 条款（P-015）   | 文档扫描界面（需要 Google Play 服务）                         |
 | `com.google.android.gms:play-services-base`                                                   | 18.11.1          | Android | 闭源，Google APIs 条款（P-015）   | 检查有没有 Google Play 服务                                   |
+| AVFoundation、CoreMedia、VideoToolbox                                                         | 系统自带         | iOS     | Apple 系统框架                    | 视频压缩、转格式、剪切、取画面（morph-media，D-141）          |
+| `androidx.media3:media3-transformer`、`media3-effect`、`media3-common`                        | 1.9.1            | Android | Apache-2.0                        | 视频压缩、转格式、剪切（morph-media；和 expo-video 同版本）   |
 | `ExpoShareIntentModule`（CocoaPods，随 npm 包 expo-share-intent）                             | 9.0.0            | iOS     | MIT                               | 分享到 Morph：主 App 读共享目录（§11）                        |
 | `expo-share-intent`（Gradle 模块，随 npm 包）                                                 | 9.0.0            | Android | MIT                               | 分享到 Morph：接收 `ACTION_SEND`（§11）                       |
 | Social、UniformTypeIdentifiers、ImageIO（分享扩展 `MorphShare`）                              | 系统自带         | iOS     | Apple 系统框架                    | 分享扩展复制文件（§11）                                       |
@@ -188,22 +212,28 @@ interface StepContext {
 
 ## 7. 预设工作流和编辑
 
-10 个预设写在 `core/src/workflows/presets.ts`，不随版本：用户在「工作流」页点「添加」（或对 AI 说「添加签证照片工作流」）时用 `presetWorkflow()` 复制进配置（一个可撤销的版本，带 `presetId` 和图标，没有 `toolId`），之后就和用户自己的工作流一样，可以改参数、改步骤、复制、放到页面上、删除。预设是用户工作流，**不要求先安装任何工具**；需要扩展包的预设在第一次运行到那一步时才请用户确认下载（§6）。
+14 个预设写在 `core/src/workflows/presets.ts`，不随版本：用户在「工作流」页点「添加」（或对 AI 说「添加签证照片工作流」）时用 `presetWorkflow()` 复制进配置（一个可撤销的版本，带 `presetId` 和图标，没有 `toolId`），之后就和用户自己的工作流一样，可以改参数、改步骤、复制、放到页面上、删除。预设是用户工作流，**不要求先安装任何工具**；需要扩展包的预设在第一次运行到那一步时才请用户确认下载（§6）。
 
-快捷操作页的「现成的」按生活场景分组（`PRESET_SCENARIOS`，D-130）：出国办证（签证 / 证件照、证件照打印）、交材料签文件（材料包、签回表格、扫描文档、多份材料合一）、报销记账（收据归档）、发照片（照片发邮件、截图打码分享、批量发照片）。
+快捷操作页的「现成的」按生活场景分组（`PRESET_SCENARIOS`，D-130）：出国办证（签证 / 证件照、证件照打印、中文材料翻成英文）、交材料签文件（材料包、签回表格、扫描文档、多份材料合一、PDF 太大传不上去、外文 PDF 翻成中文、拍外文材料翻成中文）、报销记账（收据归档）、发照片和视频（照片发邮件、截图打码分享、批量发照片、视频太大发不出去、截图翻译）（D-146）。翻译预设翻成界面语言（英文界面翻成英文），名字也跟着变。
 
-| id                   | 名称                | 步骤                                                                       | 扩展包  |
-| -------------------- | ------------------- | -------------------------------------------------------------------------- | ------- |
-| `visa-photo`         | 签证 / 证件照       | 选照片 → 证件照（美签 600×600，≤ 240 KB）→ 命名                            |         |
-| `document-packet`    | 材料包              | 选照片 / 拍照 → 裁剪 → 排顺序（`file.order`）→ A4 PDF ≤ 4 MB → 命名 → 分享 |         |
-| `email-photos`       | 照片发邮件 / 传网站 | 选照片 → 长边 1600 → 压到 500 KB → 分享                                    |         |
-| `sign-return`        | 签回表格            | 选 PDF → 填表（没有字段时跳过）→ 签名 → 分享                               | pdfview |
-| `scan-document`      | 扫描文档            | 文档相机扫描（或拍照后找边）→ 变清楚 → PDF → 命名 → 分享                   | scan    |
-| `combine-documents`  | 多份材料合一        | 选 PDF 和图片 → 合并 → 选页 / 排序 / 旋转 → 命名 → 分享                    |         |
-| `receipt-archive`    | 收据归档            | 扫描收据（或拍照后拉正）→ 压到 500 KB → 按日期命名 → 存到文件              | scan    |
-| `redact-screenshots` | 截图打码分享        | 选截图 → 拼长图 → 打码 → 分享                                              |         |
-| `send-photos`        | 批量发照片          | 选照片 → 转 JPG → 去掉定位 → 长边 2048 → ZIP → 分享                        |         |
-| `print-id-photos`    | 证件照打印          | 选照片 → 证件照 → 排到 6 寸相纸（裁切线）→ 打印或保存                      |         |
+| id                     | 名称                | 步骤                                                                              | 扩展包    |
+| ---------------------- | ------------------- | --------------------------------------------------------------------------------- | --------- |
+| `visa-photo`           | 签证 / 证件照       | 选照片 → 证件照（美签 600×600，≤ 240 KB）→ 命名                                   |           |
+| `document-packet`      | 材料包              | 选照片 / 拍照 → 裁剪 → 排顺序（`file.order`）→ A4 PDF ≤ 4 MB → 命名 → 分享        |           |
+| `email-photos`         | 照片发邮件 / 传网站 | 选照片 → 长边 1600 → 压到 500 KB → 分享                                           |           |
+| `sign-return`          | 签回表格            | 选 PDF → 填表（没有字段时跳过）→ 签名 → 分享                                      | pdfview   |
+| `scan-document`        | 扫描文档            | 文档相机扫描（或拍照后找边）→ 变清楚 → PDF → 命名 → 分享                          | scan      |
+| `combine-documents`    | 多份材料合一        | 选 PDF 和图片 → 合并 → 选页 / 排序 / 旋转 → 命名 → 分享                           |           |
+| `receipt-archive`      | 收据归档            | 扫描收据（或拍照后拉正）→ 压到 500 KB → 按日期命名 → 存到文件                     | scan      |
+| `redact-screenshots`   | 截图打码分享        | 选截图 → 拼长图 → 打码 → 分享                                                     |           |
+| `send-photos`          | 批量发照片          | 选照片 → 转 JPG → 去掉定位 → 长边 2048 → ZIP → 分享                               |           |
+| `print-id-photos`      | 证件照打印          | 选照片 → 证件照 → 排到 6 寸相纸（裁切线）→ 打印或保存                             |           |
+| `pdf-too-big`          | PDF 太大传不上去    | 选 PDF → 压缩 PDF（默认 2 MB，每次问）→ 分享                                      |           |
+| `video-too-big`        | 视频太大发不出去    | 选视频 → 压缩视频（默认 20 MB，每次问）→ 分享                                     |           |
+| `foreign-pdf`          | 外文 PDF 翻成中文   | 选 PDF → 提取文字 → 翻成中文 → 文字转 PDF → 命名「原名-中文」→ 分享               | pdfview   |
+| `foreign-paper`        | 拍外文材料翻成中文  | 文档相机扫描 → 找边 → 识别文字（每次问语言）→ 翻成中文 → 文字转 PDF → 命名 → 分享 | scan、ocr |
+| `papers-to-english`    | 中文材料翻成英文    | 文档相机扫描 → 找边 → 识别中文 → 翻成英文 → 文字转 PDF → 命名 → 分享              | scan、ocr |
+| `screenshot-translate` | 截图翻译            | 选截图 → 识别文字（每次问语言）→ 翻成中文 → 复制文字                              | ocr       |
 
 **「工作流」页**（`app/workflows.tsx`，入口在设置页和工具页）：我的工作流（运行 / 编辑）、预设库（添加；已添加的显示「已添加」，可以再添加一个）、工具自带的（默认收起）。这个页面由内核提供，AI 不能修改它。
 
@@ -252,9 +282,10 @@ interface StepContext {
 T8 起有了开发版构建（D-084），下面这些可以用原生模块做，但还没排期：
 
 - 证件照自动框脸 / 换底色（Vision 人脸和人像分割）、中文表单填写、「用 Morph 打开」（文件类型关联；「分享到 Morph」已经做了，见 §11）。
-- 视频压缩和剪辑、桌面小组件、Android 相册清理。
+- 桌面小组件、Android 相册清理；音频（语音转文字、压小 / 转格式、剪一段、录音、拼接，由音频工具做，D-150 起）。
+- 视频：后台继续处理（现在要留在 Morph 里，D-148）、用 Morph 录像、HEVC 输出。
 - Android 上给已有照片找边（ML Kit 没有这个接口，目前用扫描包）。
-- 压缩任意外来 PDF、PDF 加密解密（第二批）。
+- PDF 加密解密（第二批）；压缩 PDF 时用原生渲染代替 PDF 预览下载内容。
 
 ## 10. 里程碑
 
@@ -282,7 +313,7 @@ T8 起有了开发版构建（D-084），下面这些可以用原生模块做，
 iOS：别的 App ──分享──▶ 分享扩展 MorphShare（我们的 ShareViewController.swift，D-118）
         按顺序把文件复制到 App Group 共享目录（UUID.扩展名），写 UserDefaults[morphShareKey]
         ──morph://dataUrl=morphShareKey?nonce=…#media|file──▶ 主 App
-Android：别的 App ──ACTION_SEND / ACTION_SEND_MULTIPLE（image/*、application/*）──▶ MainActivity（singleTask）
+Android：别的 App ──ACTION_SEND / ACTION_SEND_MULTIPLE（image/*、video/*、audio/*、application/*）──▶ MainActivity（singleTask）
 主 App：ExpoShareIntentModule.getShareIntent → onChange（iOS 是 JSON，Android 是带 content:// 的对象）
 ```
 
@@ -291,11 +322,12 @@ Android：别的 App ──ACTION_SEND / ACTION_SEND_MULTIPLE（image/*、applic
 
 **收件页面**（`/share`，D-117）：文件名和大小（只在本机显示）→「存到 Morph 文件」→「用工作流处理」：`shareFit(工作流, 文件)` 看第一步：
 
-| 第一步                  | 收什么                                                                      | 值的类型              |
-| ----------------------- | --------------------------------------------------------------------------- | --------------------- |
-| `in.photos`             | 全是图片（来源是相册、相机还是扫描都行；没拉正的照片由后面的找边处理）      | `images`              |
-| `in.files`              | 按 `accept`：`pdf` 全是 PDF、`images` 全是图片、`pdfOrImages`、`zip`、`any` | `FILE_ACCEPT[accept]` |
-| `in.text`、`in.records` | 不收                                                                        |                       |
+| 第一步                  | 收什么                                                                                         | 值的类型              |
+| ----------------------- | ---------------------------------------------------------------------------------------------- | --------------------- |
+| `in.photos`             | 全是图片（来源是相册、相机还是扫描都行；没拉正的照片由后面的找边处理）                         | `images`              |
+| `in.videos`             | 全是视频（D-144）                                                                              | `video`               |
+| `in.files`              | 按 `accept`：`pdf` 全是 PDF、`images` 全是图片、`pdfOrImages`、`zip`、`videos`、`audio`、`any` | `FILE_ACCEPT[accept]` |
+| `in.text`、`in.records` | 不收                                                                                           |                       |
 
 个数还要在第一步的 `min`–`max` 之间：类型对、个数不对的列出来但不能运行（「需要至少 2 个文件」「最多 1 个文件」）。超过大小上限（P-006，`sharedSizeProblem`）时只显示错误。点「运行」才运行，不会自动运行。
 
