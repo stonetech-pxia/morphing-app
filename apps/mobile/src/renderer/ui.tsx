@@ -26,9 +26,11 @@ export function Card({
   background,
   style,
   testID,
+  accessibilityLabel,
 }: {
   palette: Palette;
   children: ReactNode;
+  accessibilityLabel?: string;
   onPress?: () => void;
   /** 页面编辑：长按打开组件的操作面板（D-052）。 */
   onLongPress?: () => void;
@@ -49,6 +51,8 @@ export function Card({
   return (
     <Pressable
       testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       onLongPress={onLongPress}
       disabled={disabled}

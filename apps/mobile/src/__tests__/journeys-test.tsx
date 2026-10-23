@@ -256,7 +256,7 @@ describe('user journeys (UI)', () => {
     // 从首页的工具入口打开同一个 App 里的 PDF 工具页。
     await fireEvent.press(await screen.findByTestId('nav-page:home'));
     await fireEvent.press((await screen.findAllByText('PDF'))[0]!);
-    expect(await screen.findByTestId('step-name')).toBeTruthy();
+    expect(await screen.findByTestId('run-pdf-merge')).toBeTruthy();
 
     files.nextPick = [
       files.offer('报告.pdf', await makePdf(1)),
@@ -289,7 +289,7 @@ describe('user journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('nav-tools'));
     await fireEvent.press(await screen.findByTestId('install-pdf'));
     await fireEvent.press(await screen.findByTestId('open-pdf'));
-    expect(await screen.findByTestId('step-name')).toBeTruthy();
+    expect(await screen.findByTestId('run-pdf-merge')).toBeTruthy();
 
     await fireEvent.press(screen.getByTestId('page-ai'));
     await fireEvent.changeText(
@@ -301,7 +301,7 @@ describe('user journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('change-apply'));
 
     // 回到同一个工具页：说明文字消失，命名不再询问，仍然只有一个工具实例。
-    expect(await screen.findByTestId('step-select')).toBeTruthy();
+    expect(await screen.findByTestId('run-pdf-merge')).toBeTruthy();
     expect(screen.queryByTestId('component-pdf-intro')).toBeNull();
     expect(store.getState().config!.tools).toHaveLength(1);
     expect(store.getState().config!.workflows.filter((w) => w.id === 'pdf-merge')).toHaveLength(1);

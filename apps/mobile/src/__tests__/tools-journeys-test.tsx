@@ -18,9 +18,11 @@ describe('tool journeys (UI)', () => {
 
   it('compresses photos from the image tool page and saves them only when asked', async () => {
     const { files, repo } = await installImageTool();
-    // 卡片上显示固定的设置；每次运行时问的大小不列出。
+    // 工具页的功能排成宫格，整块可点，没有单独的「开始」按钮（D-108）。
+    // 方块上显示固定的设置；每次运行时问的大小不列出。
     expect(await screen.findByText('压缩图片')).toBeTruthy();
     expect(screen.getByText('格式 JPG')).toBeTruthy();
+    expect(screen.queryAllByText('开始')).toEqual([]);
 
     files.nextPhotos = [
       files.offerImage('IMG_1.HEIC', 4032, 3024, 'image/heic', new Uint8Array(2_000_000)),
