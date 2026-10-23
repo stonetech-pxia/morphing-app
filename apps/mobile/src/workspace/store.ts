@@ -91,7 +91,8 @@ export interface WorkspaceState {
   editing: EditDraft | null;
 
   boot(): Promise<void>;
-  propose(input: string): Promise<ProposeResult>;
+  /** planner 不传时用设置里选的 AI；风格选择器填的原句用内置规则（D-095）。 */
+  propose(input: string, planner?: AIProvider): Promise<ProposeResult>;
   proposeRestore(revisionId: number): Promise<ProposeResult>;
   /** 来自界面按钮（安装、卸载等）的修改，同样经过校验和版本记录。 */
   proposeOps(ops: Op[], summary: string): Promise<ProposeResult>;
@@ -301,12 +302,12 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         }
       },
 
-      async propose(input) {
+      async propose(input, planner = deps.provider) {
         const { config, head } = get();
         if (!config || !head) throw new Error('workspace not loaded');
         set({ busy: true });
         try {
-          const raw = await deps.provider.plan(input, { config, registry, locale });
+          const raw = await planner.plan(input, { config, registry, locale });
           // 模型输出一律视为不可信数据（§8）。
           const parsed = PlanSchema.safeParse(raw);
           if (!parsed.success) {

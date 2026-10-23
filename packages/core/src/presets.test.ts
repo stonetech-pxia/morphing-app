@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from './change';
-import { THEME_PRESETS, THEME_PRESET_IDS } from './presets';
+import { THEME_PRESETS, THEME_PRESET_IDS, presetOfTheme } from './presets';
 import { ThemeSchema } from './schema';
 import { apply, registry, workspace } from './test-helpers';
 import { contrastProblems, resolveColors } from './theme';
@@ -46,5 +46,22 @@ describe('theme presets', () => {
       '样式换成「赛博霓虹」风格（颜色、字体、圆角、卡片和背景）',
       '主题色改为 #F472B6',
     ]);
+  });
+});
+
+describe('presetOfTheme', () => {
+  it.each(THEME_PRESET_IDS)('recognises %s after it is applied', (id) => {
+    expect(presetOfTheme(apply(workspace(), [{ op: 'applyThemePreset', preset: id }]).theme)).toBe(
+      id,
+    );
+  });
+
+  it('a tweaked preset or the default theme matches none', () => {
+    const tweaked = apply(workspace(), [
+      { op: 'applyThemePreset', preset: 'neon' },
+      { op: 'setTheme', radius: 4 },
+    ]);
+    expect(presetOfTheme(tweaked.theme)).toBeNull();
+    expect(presetOfTheme(workspace().theme)).toBeNull();
   });
 });
