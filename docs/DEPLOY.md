@@ -33,6 +33,16 @@ curl -s https://morph-api.stonetech.dev/health
 - `EXPO_PUBLIC_MORPH_API_URL=https://morph-api.stonetech.dev`
 - `EXPO_PUBLIC_MORPH_CLIENT_TOKEN=` 与服务端 `.env` 中的 `MORPH_CLIENT_TOKEN` 相同
 
+Android 直接装到手机上（release 包用调试密钥签名，能覆盖开发版，数据保留）：
+
+```bash
+cd apps/mobile && npx expo prebuild --platform android --no-install
+cd android && EXPO_PUBLIC_MORPH_API_URL=https://morph-api.stonetech.dev \
+  EXPO_PUBLIC_MORPH_CLIENT_TOKEN="$(grep '^MORPH_CLIENT_TOKEN=' ~/projects/morph-prod/.env | cut -d= -f2-)" \
+  ./gradlew app:assembleRelease -PreactNativeArchitectures=arm64-v8a
+adb -s <序列号> install -r app/build/outputs/apk/release/app-release.apk
+```
+
 客户端令牌会打包进 App，不是秘密（D-132）。换令牌会让旧版本 App 全部 401，所以只在被滥用时才换。
 
 ## Mac 需要保持的状态
