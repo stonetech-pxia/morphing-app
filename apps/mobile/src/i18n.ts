@@ -587,7 +587,7 @@ const strings = {
   guideIntro2Title: { en: 'Nothing to be afraid of', zh: '改错了也不怕' },
   guideIntro2Body: {
     en: 'You see a preview before anything changes, and you can go back any time.',
-    zh: '改之前先给你看预览，改过的随时能退回去。',
+    zh: '改之前先看预览，改过的随时能退回去。',
   },
   guideIntro3Title: {
     en: 'Say what you have and what you want',

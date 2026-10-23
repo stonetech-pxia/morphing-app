@@ -8,7 +8,7 @@ import {
   type PlanAbout,
   type ThemePresetId,
 } from '@morph/core';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -32,6 +32,7 @@ import { useIncoming } from '../share/incoming';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { ProposeResult } from '../workspace/store';
 import { aboutCandidates, examplesFor } from './examples';
+import { closeButtonOption, stackScreenOptions } from './header';
 import { Preview } from './Preview';
 import { StylePicker } from './StylePicker';
 
@@ -48,6 +49,7 @@ const typeDelay = (length: number) => Math.min(45, 1400 / Math.max(length, 1));
 export function ChangeScreen() {
   const { locale, registry } = useWorkspaceContext();
   const router = useRouter();
+  const navigation = useNavigation();
   const config = useWorkspace((s) => s.config)!;
   const proposal = useWorkspace((s) => s.proposal);
   const busy = useWorkspace((s) => s.busy);
@@ -173,6 +175,9 @@ export function ChangeScreen() {
    */
   async function apply() {
     const applied = proposal;
+    // 这个页面的导航栏先固定成现在的样子：确认后主题变了也不再更新它。Android 上带「关闭」按钮的
+    // 导航栏在这时更新会崩（react-native-screens：child already has a parent）。
+    navigation.setOptions({ ...stackScreenOptions(palette), ...closeButtonOption(palette) });
     const ok = await confirm();
     router.back();
     if (ok && guide) void setGuideStage(isGoalParam(guide) ? 'done' : 'goal');

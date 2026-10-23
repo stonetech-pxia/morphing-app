@@ -28,7 +28,7 @@ import { expoBridgeFiles, expoPackFs, expoSha256 } from '@/packs/expo-pack-fs';
 import { PackHostProvider } from '@/packs/PackHost';
 import { PackStore } from '@/packs/store';
 import { expoFilePlatform } from '@/runtime/expo-platform';
-import { CloseButton } from '@/shell/CloseButton';
+import { closeButtonOption, stackScreenOptions } from '@/shell/header';
 import { CLAY_FONTS, usePalette } from '@/renderer/theme';
 import { useIncomingShare } from '@/share/useIncomingShare';
 import { SQLiteWorkspaceRepo, migrateDatabase } from '@/storage/sqlite';
@@ -88,22 +88,11 @@ function ThemedStack() {
   // 别的 App 分享进来的文件 → 收件页面（D-114）。
   useIncomingShare(expoFilePlatform);
   const palette = usePalette(theme);
-  const closable = {
-    presentation: 'modal',
-    headerLeft: () => <CloseButton palette={palette} />,
-  } as const;
+  const closable = { presentation: 'modal', ...closeButtonOption(palette) } as const;
   return (
     <>
       <StatusBar style={palette.dark ? 'light' : 'dark'} />
-      <Stack
-        screenOptions={{
-          headerStyle: { backgroundColor: palette.background },
-          headerShadowVisible: false,
-          headerTintColor: palette.text,
-          headerBackButtonDisplayMode: 'minimal',
-          headerTitleStyle: { ...palette.font('title', 17), color: palette.text } as never,
-          contentStyle: palette.backdrop,
-        }}>
+      <Stack screenOptions={stackScreenOptions(palette)}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="change" options={{ ...closable, title: t(locale, 'changeTitle') }} />
         <Stack.Screen name="page/[pageId]" />

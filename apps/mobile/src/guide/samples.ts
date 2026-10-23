@@ -17,7 +17,16 @@ const PHOTOS = [
 ];
 
 async function samplePhotos(): Promise<PickedFile[]> {
-  const assets = await Asset.loadAsync(PHOTOS);
+  const assets = PHOTOS.map((m) => Asset.fromModule(m));
+  for (const asset of assets) {
+    // Android 正式包里的图片只有资源名（没有「:」），expo-asset 当作已经下载好了；
+    // 要的是能读的文件，所以让它复制一份到缓存目录。
+    if (asset.localUri && !asset.localUri.includes(':')) {
+      asset.downloaded = false;
+      asset.localUri = null;
+    }
+    await asset.downloadAsync();
+  }
   return assets.map((asset, i) => {
     const uri = asset.localUri ?? asset.uri;
     return {
