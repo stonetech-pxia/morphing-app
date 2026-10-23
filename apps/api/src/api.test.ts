@@ -15,7 +15,16 @@ const config = createDefaultWorkspace('zh');
 describe('plan server', () => {
   const make = (
     provider: AIProvider = createMockAIProvider(),
-    limits = { perMinuteLimit: 10, dailyLimit: 100 },
+    limits: {
+      perMinuteLimit: number;
+      dailyLimit: number;
+      globalDailyLimit: number;
+      clientToken?: string;
+    } = {
+      perMinuteLimit: 10,
+      dailyLimit: 100,
+      globalDailyLimit: 1000,
+    },
   ) => {
     const logs: Record<string, unknown>[] = [];
     let clock = Date.UTC(2026, 9, 22, 9);
@@ -28,10 +37,10 @@ describe('plan server', () => {
       now: () => clock,
       log: (e) => logs.push(e),
     });
-    const post = (body: unknown) =>
+    const post = (body: unknown, headers: Record<string, string> = {}) =>
       app.request('/v1/plan', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...headers },
         body: typeof body === 'string' ? body : JSON.stringify(body),
       });
     return { app, post, logs, tick: (ms: number) => (clock += ms) };
@@ -91,7 +100,11 @@ describe('plan server', () => {
   });
 
   it('enforces the per-minute and daily limits', async () => {
-    const { post, tick } = make(undefined, { perMinuteLimit: 2, dailyLimit: 3 });
+    const { post, tick } = make(undefined, {
+      perMinuteLimit: 2,
+      dailyLimit: 3,
+      globalDailyLimit: 100,
+    });
     const ok = { input: '主题换成绿色', locale: 'zh', config };
     expect((await post(ok)).status).toBe(200);
     expect((await post(ok)).status).toBe(200);
@@ -100,6 +113,39 @@ describe('plan server', () => {
     expect((await post(ok)).status).toBe(200);
     tick(61_000);
     expect(await (await post(ok)).json()).toEqual({ error: 'daily_limit' });
+  });
+
+  it('counts each device separately, under one daily cap for all', async () => {
+    const { post, tick } = make(undefined, {
+      perMinuteLimit: 1,
+      dailyLimit: 5,
+      globalDailyLimit: 3,
+    });
+    const ok = { input: '主题换成绿色', locale: 'zh', config };
+    const a = { 'x-morph-device': 'device-aaaa' };
+    const b = { 'x-morph-device': 'device-bbbb' };
+    expect((await post(ok, a)).status).toBe(200);
+    expect((await post(ok, a)).status).toBe(429);
+    expect((await post(ok, b)).status).toBe(200);
+    tick(61_000);
+    expect((await post(ok, a)).status).toBe(200);
+    expect(await (await post(ok, b)).json()).toEqual({ error: 'daily_limit' });
+    tick(24 * 3600_000);
+    expect((await post(ok, b)).status).toBe(200);
+    expect((await post(ok, { 'x-morph-device': 'no spaces!' })).status).toBe(400);
+  });
+
+  it('requires the client token when one is configured', async () => {
+    const { post } = make(undefined, {
+      perMinuteLimit: 10,
+      dailyLimit: 10,
+      globalDailyLimit: 10,
+      clientToken: 'secret-token',
+    });
+    const ok = { input: '主题换成绿色', locale: 'zh', config };
+    expect((await post(ok)).status).toBe(401);
+    expect((await post(ok, { 'x-morph-client': 'wrong' })).status).toBe(401);
+    expect((await post(ok, { 'x-morph-client': 'secret-token' })).status).toBe(200);
   });
 
   it('answers 502 when the AI fails', async () => {

@@ -25,6 +25,23 @@ describe('remote AI provider', () => {
     });
   });
 
+  it('sends the client token and device id when it has them', async () => {
+    const fetchImpl = respond(200, { plan: green });
+    const provider = createRemoteAIProvider({
+      baseUrl: 'http://api.test',
+      clientToken: 'token-1',
+      deviceId: async () => 'device-1234',
+      fetchImpl,
+    });
+    await provider.plan('主题换成绿色', ctx);
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(init.headers).toEqual({
+      'content-type': 'application/json',
+      'x-morph-client': 'token-1',
+      'x-morph-device': 'device-1234',
+    });
+  });
+
   it('explains server limits instead of failing silently', async () => {
     const limited = createRemoteAIProvider({
       baseUrl: 'http://api.test',

@@ -19,7 +19,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import { AISettingsProvider } from '@/ai/context';
 import { createAIRouter } from '@/ai/router';
-import { secureSecretStore } from '@/ai/secure-store';
+import { getDeviceId, secureSecretStore } from '@/ai/secure-store';
 import { createAISettingsStore } from '@/ai/settings';
 import { getDeviceLocale, t } from '@/i18n';
 import { PackBridge } from '@/packs/bridge';
@@ -49,7 +49,13 @@ const aiSettings = createAISettingsStore({
 const provider = createAIRouter({
   settings: aiSettings,
   mock: createMockAIProvider(),
-  remote: apiUrl ? createRemoteAIProvider({ baseUrl: apiUrl }) : null,
+  remote: apiUrl
+    ? createRemoteAIProvider({
+        baseUrl: apiUrl,
+        clientToken: process.env.EXPO_PUBLIC_MORPH_CLIENT_TOKEN,
+        deviceId: getDeviceId,
+      })
+    : null,
   registry,
   now: () => new Date(),
 });
