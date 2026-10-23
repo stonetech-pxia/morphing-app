@@ -323,18 +323,24 @@ export class FakeFiles implements FilePlatform {
   }
 }
 
-/** 假的系统文字识别和扫描（iOS 的 Vision）：按顺序返回找到的角和识别的文字，拉正写一张真实的小 JPEG。 */
+/** 假的系统文字识别和扫描（iOS 的 Vision；Android 的 ML Kit 设 canFindPaper = false）：按顺序返回找到的角和识别的文字，拉正写一张真实的小 JPEG。 */
 export class FakeVision implements VisionPlatform {
   calls: { method: string; uri: string; args?: unknown }[] = [];
   /** 每次找边的结果（按顺序）。 */
   found: (Quad | null)[] = [];
   texts: string[] = [];
   documentCamera = true;
+  canFindPaper = true;
+  /** 系统识别不了的语言（BCP 47 主语言），例如 Android 的 ML Kit 不认俄文。 */
+  unsupported = new Set<string>();
   /** 下一次文档相机拍到的页面；null 表示用户取消。 */
   scanned: PickedFile[] | null = null;
 
   constructor(private files: FakeFiles) {}
 
+  supportsLanguage(code: string) {
+    return !this.unsupported.has(code.split('-')[0]!);
+  }
   async recognizeText(uri: string, languages: readonly string[]) {
     this.calls.push({ method: 'recognizeText', uri, args: languages });
     return this.texts.shift() ?? '';

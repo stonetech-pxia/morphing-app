@@ -1,16 +1,20 @@
 import {
+  isFileValue,
   runWorkflow,
   type AskRequest,
   type Locale,
+  type OcrLanguage,
   type Registry,
   type RunEvent,
   type RunResult,
+  type RunValue,
   type Workflow,
 } from '@morph/core';
 
 import type { WorkspaceRepo } from '../storage/types';
 import type { RunServices } from './actions/helpers';
 import { ACTION_IMPLS } from './actions';
+import { VISION_LANGUAGES } from './actions/ocr';
 import type { LocalUi } from './local';
 import type { FilePlatform } from './platform';
 
@@ -48,13 +52,41 @@ export interface Run {
 /** 保存的文件授权给谁：工具自带的工作流给工具，用户自己的工作流给它自己。 */
 export const granteeOf = (workflow: Workflow) => workflow.toolId ?? `workflow:${workflow.id}`;
 
-/** 有系统自带的文字识别和扫描（iOS 的 Vision，D-084）时，这些动作不需要扩展包。 */
-const VISION_ACTIONS: ReadonlySet<string> = new Set(['scan.detect', 'ocr.recognize']);
+/**
+ * 这一步在这台设备上不需要扩展包（D-085–D-087）：系统能识别这种语言；系统能找边，
+ * 或者输入全是文档相机拉正过的页面（scan.detect 直接放行）。
+ */
+export function packNotNeeded(
+  files: FilePlatform,
+  actionId: string,
+  params: Record<string, unknown>,
+  input: RunValue | null,
+): boolean {
+  const { vision } = files;
+  if (actionId === 'ocr.recognize') {
+    const languages = VISION_LANGUAGES[params.lang as OcrLanguage];
+    return !!vision && !!languages && vision.supportsLanguage(languages[0]!);
+  }
+  if (actionId === 'scan.detect') {
+    if (vision?.canFindPaper) return true;
+    return isFileValue(input) && input.items.every((item) => item.straightened);
+  }
+  return false;
+}
 
-/** 这台设备上真正需要下载的扩展包（工作流页的提示用）。 */
+/** 这台设备上真正需要下载的扩展包（工作流页的提示用；预设的扫描都从文档相机开始）。 */
 export function packsNeeded(packIds: readonly string[], files: FilePlatform): string[] {
-  if (!files.vision) return [...packIds];
-  return packIds.filter((id) => id !== 'scan' && id !== 'ocr' && !id.startsWith('ocr-'));
+  const { vision } = files;
+  if (!vision) return [...packIds];
+  return packIds.filter((id) => {
+    if (id === 'scan') return !vision.canFindPaper && !vision.documentCamera;
+    if (id === 'ocr') return false;
+    if (id.startsWith('ocr-')) {
+      const languages = VISION_LANGUAGES[id.slice(4).replace('-', '_') as OcrLanguage];
+      return !languages || !vision.supportsLanguage(languages[0]!);
+    }
+    return true;
+  });
 }
 
 export async function startRun(ctx: RunContext): Promise<Run> {
@@ -77,7 +109,7 @@ export async function startRun(ctx: RunContext): Promise<Run> {
     newId: ctx.newId,
     ...(ctx.askParams ? { askParams: ctx.askParams } : {}),
     ...(ctx.ensurePack ? { ensurePack: ctx.ensurePack } : {}),
-    ...(ctx.files.vision ? { nativeActions: VISION_ACTIONS } : {}),
+    packNotNeeded: (actionId, params, input) => packNotNeeded(ctx.files, actionId, params, input),
     ...(ctx.signal ? { signal: ctx.signal } : {}),
     ...(ctx.onEvent ? { onEvent: ctx.onEvent } : {}),
     record: {

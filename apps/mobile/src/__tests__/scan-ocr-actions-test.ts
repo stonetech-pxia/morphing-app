@@ -16,7 +16,8 @@ import { FakeFiles, FakeVision, TINY_JPEG } from '../test-utils/fake-files';
 
 // 扫描和文字识别有两条路径（D-084）：
 // - 没有系统识别（Android、Expo Go）：扫描包 / 文字识别包页面换成假的（找边返回四个角，矫正返回真实的小 JPEG，识别返回文字）；
-// - iOS 的 Vision：换成 FakeVision，不需要扩展包。
+// - iOS 的 Vision：换成 FakeVision，不需要扩展包；
+// - Android 的 ML Kit：FakeVision 不能找边、不认俄文，这两种情况退回扩展包。
 
 const registry = createRegistry(BUILTIN_TOOLS);
 
@@ -335,7 +336,7 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
   });
 });
 
-describe('without the system Vision (Android, Expo Go)', () => {
+describe('without the system recognition (Expo Go)', () => {
   it('scans with the camera and the scanner pack when the workflow asks for the document camera', async () => {
     const { files, packs, run, asked } = setup(toolWorkflow('scan', 'scan-camera'), {
       corners: [paper],
@@ -357,5 +358,75 @@ describe('without the system Vision (Android, Expo Go)', () => {
     ]);
     files.vision = new FakeVision(files);
     expect(packsNeeded(['scan', 'ocr', 'ocr-jpn', 'pdfview'], files)).toEqual(['pdfview']);
+  });
+});
+
+describe('Android (ML Kit): no edge finding, no Russian', () => {
+  const android = (vision: FakeVision) => {
+    vision.canFindPaper = false;
+    vision.unsupported.add('ru');
+  };
+
+  it('reads Chinese with ML Kit, but downloads the language pack for Russian', async () => {
+    const zh = setup(toolWorkflow('ocr', 'ocr-photos'), {}, { lang: 'chi_sim' }, true);
+    android(zh.vision);
+    zh.vision.texts = ['租约续签通知'];
+    zh.files.nextPhotos = [zh.files.offerImage('a.jpg', 1000, 1400)];
+    expect(await zh.run()).toMatchObject({ status: 'succeeded', value: { text: '租约续签通知' } });
+    expect(zh.asked).toEqual([]);
+    expect(zh.packs.calls).toEqual([]);
+
+    const ru = setup(toolWorkflow('ocr', 'ocr-photos'), {}, { lang: 'rus' }, true);
+    android(ru.vision);
+    ru.packs.texts = ['Привет'];
+    ru.files.nextPhotos = [ru.files.offerImage('a.jpg', 1000, 1400)];
+    expect(await ru.run()).toMatchObject({ status: 'succeeded', value: { text: 'Привет' } });
+    expect(ru.asked).toEqual(['ocr-rus']);
+    expect(ru.vision.calls).toEqual([]);
+  });
+
+  it('finds edges of library photos with the scanner pack', async () => {
+    const { files, vision, packs, run, asked } = setup(
+      toolWorkflow('scan', 'scan-straighten'),
+      { corners: [paper] },
+      {},
+      true,
+    );
+    android(vision);
+    packs.detected = [paper];
+    files.nextPhotos = [files.offerImage('a.jpg', 3000, 4000)];
+    expect((await run()).status).toBe('succeeded');
+    expect(asked).toEqual(['scan']);
+    expect(packs.calls.map((c) => c.method)).toEqual(['detect', 'warp']);
+    expect(vision.calls).toEqual([]);
+  });
+
+  it('scans with the ML Kit document scanner without asking for the scanner pack', async () => {
+    const { files, vision, run, opened, asked } = setup(
+      toolWorkflow('scan', 'scan-camera'),
+      {},
+      {},
+      true,
+    );
+    android(vision);
+    vision.scanned = [{ ...files.offerImage('page-1.jpg', 1700, 2400), straightened: true }];
+    const result = await run();
+    expect(asked).toEqual([]);
+    expect(opened).toEqual([]);
+    expect(result).toMatchObject({ status: 'succeeded', value: { type: 'pdf' } });
+  });
+
+  it('lists the packs an Android phone still needs', () => {
+    const files = new FakeFiles();
+    const vision = new FakeVision(files);
+    android(vision);
+    files.vision = vision;
+    expect(packsNeeded(['scan', 'ocr', 'ocr-jpn', 'ocr-rus', 'pdfview'], files)).toEqual([
+      'ocr-rus',
+      'pdfview',
+    ]);
+    // 没有 Google Play 服务：没有文档扫描，扫描包也要下载。
+    vision.documentCamera = false;
+    expect(packsNeeded(['scan'], files)).toEqual(['scan']);
   });
 });

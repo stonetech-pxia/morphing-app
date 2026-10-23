@@ -81,6 +81,14 @@ xcrun simctl openurl booted "exp+morph://expo-development-client/?url=http%3A%2F
 
 真机需要 Apple 开发者账号签名（`npx expo run:ios --device`），目前还没有做。
 
+**Android**：需要 JDK 17 和 Android SDK（设置 `ANDROID_HOME`），打开一台模拟器或用 USB 连上开启了调试的手机，然后：
+
+```bash
+npm run android
+```
+
+第一次会生成 `apps/mobile/android/`（不进 git）并用 Gradle 编译，大约要几分钟。文字识别用 Google ML Kit（模型打包进 App），拍照扫描用 ML Kit 文档扫描，需要手机上有 Google Play 服务（D-087）。
+
 ## 常用命令
 
 | 命令                                       | 作用                                            |

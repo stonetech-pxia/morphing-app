@@ -13,7 +13,7 @@ import {
 } from './helpers';
 
 // 扫描（T5）：找边 → 用户在本地确认或拖动四个角 → 透视矫正；增强用 Skia。
-// 找边和矫正在 iOS 上用系统的 Vision / Core Image（D-084），没有时用扫描包页面（OpenCV.js）。
+// 找边和矫正在 iOS 上用系统的 Vision / Core Image（D-086），其他平台用扫描包页面（OpenCV.js）。
 // 系统文档相机拍的页面已经拉正，直接放行。
 
 type Impl = ActionImpl<RunServices>;
@@ -32,7 +32,9 @@ export const SCAN_IMPLS: Record<string, Impl> = {
     const todo = items.filter((item) => !item.straightened);
     if (todo.length === 0) return { type: 'images', items };
     const { packs } = ctx.services;
-    const vision = ctx.services.files.vision;
+    // Android 的 ML Kit 不能给照片找边，退回扫描包。
+    const native = ctx.services.files.vision;
+    const vision = native?.canFindPaper ? native : null;
     if (!vision && !packs) throw new RunError('packFailed', { detail: 'scan' });
     const found: { item: RunItem; quad: Quad | null }[] = [];
     for (const [i, original] of todo.entries()) {

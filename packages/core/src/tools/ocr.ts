@@ -5,8 +5,8 @@ import type { ToolDefinition } from '../registry';
 import type { Locale, Localized, Workflow } from '../schema';
 import type { ActionDefinition } from '../workflow/contract';
 
-// 文字识别工具的清单（T5）：iOS 用系统的 Vision 识别（D-084），不需要下载；
-// 其他平台用文字识别包里的 tesseract.js（WebView），每种语言一个语言包。
+// 文字识别工具的清单（T5）：iOS 用系统的 Vision（D-085）、Android 用 ML Kit（D-087）识别，不需要下载；
+// 系统识别不了的语言（Android 上的俄文）和 Expo Go 用文字识别包里的 tesseract.js（WebView），每种语言一个语言包。
 // 识别出的文字只留在本机（RunValue 'text'）：复制、存成文件、生成 PDF，绝不发给 AI（D-036）。
 
 export const OCR_TOOL_ID = 'ocr';
@@ -49,7 +49,7 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     pack: 'ocr',
-    // 语言包依赖识别包：确保语言包就会连同识别包一起下载。iOS 用系统识别，不需要（engine 的 nativeActions）。
+    // 语言包依赖识别包：确保语言包就会连同识别包一起下载。系统能识别的语言不需要（engine 的 packNotNeeded）。
     packFor: (params) => ocrPackId(String(params.lang)),
     requires: [],
   },
@@ -132,8 +132,8 @@ export const ocrTool: ToolDefinition = {
         props: {
           text: t(
             locale,
-            'Runs on this device; the text is never uploaded. iPhone uses its built-in text recognition; on other devices each language is downloaded the first time you use it.',
-            '在本机识别，文字不会上传。iPhone 用系统自带的识别；其他设备每种语言第一次用时下载。',
+            'Runs on this device; the text is never uploaded. Most phones use built-in text recognition; otherwise each language is downloaded the first time you use it.',
+            '在本机识别，文字不会上传。大多数手机用系统自带的识别；不支持的语言第一次用时下载。',
           ),
         },
       },

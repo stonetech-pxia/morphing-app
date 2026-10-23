@@ -11,3 +11,6 @@ coverage/
 # 开发版构建的原生工程由 expo prebuild 生成（CNG，D-084），不进 git
 apps/mobile/ios/
 apps/mobile/android/
+
+# 本地原生模块的 Android 构建输出
+apps/mobile/modules/*/android/build/

@@ -1,7 +1,7 @@
 import { requireOptionalNativeModule } from 'expo';
 
-// 本地 Expo 模块 MorphVision（ios/MorphVisionModule.swift，D-084）。
-// 只在 iOS 开发版 / 正式版里有；Expo Go、Android 和测试里是 null，调用方退回扩展包。
+// 本地 Expo 模块 MorphVision（D-084、D-087）：iOS 是 ios/MorphVisionModule.swift（Vision），
+// Android 是 android/…/MorphVisionModule.kt（ML Kit）。Expo Go 和测试里是 null，调用方退回扩展包。
 // 坐标：像素，原点在左上角，和 @morph/tool-image 的 Quad 一致。
 
 export interface NativePoint {
@@ -28,6 +28,10 @@ export interface MorphVisionModule {
   isDocumentCameraSupported(): boolean;
   /** 有没有相机（模拟器上没有）。 */
   isCameraAvailable(): boolean;
+  /** 能不能给一张照片找纸张的四个角（iOS 能，Android 的 ML Kit 不能：detectDocument / straighten 不存在）。 */
+  canFindPaper(): boolean;
+  /** 这种语言（BCP 47）系统能不能识别。 */
+  supportsLanguage(code: string): boolean;
   supportedLanguages(): Promise<string[]>;
   /** languages：BCP 47，第一种必须支持，后面的是补充。 */
   recognizeText(
@@ -49,7 +53,7 @@ export interface MorphVisionModule {
     quality: number,
     output: string,
   ): Promise<{ width: number; height: number; size: number }>;
-  /** 打开系统文档相机；用户取消时返回 null。 */
+  /** 打开系统文档相机（iOS：VisionKit；Android：ML Kit，需要 Google Play 服务）；用户取消时返回 null。 */
   scanDocuments(directory: string, maxSide: number, quality: number): Promise<NativeImage[] | null>;
 }
 

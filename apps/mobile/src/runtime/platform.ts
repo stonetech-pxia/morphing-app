@@ -72,12 +72,17 @@ export interface SavedSignature {
 }
 
 /**
- * 系统自带的文字识别和扫描（iOS：Vision / VisionKit / Core Image，见 modules/morph-vision，D-084）。
- * 没有时（Android、Expo Go）为 null，扫描和文字识别退回扩展包。全部在本机处理。
+ * 系统自带的文字识别和扫描（modules/morph-vision）：iOS 是 Vision / VisionKit / Core Image（D-084–D-086），
+ * Android 是 Google ML Kit（D-087）。没有时（Expo Go）为 null。系统做不了的（Android 找边、俄文识别）
+ * 退回扩展包。全部在本机处理。
  */
 export interface VisionPlatform {
+  /** 这种语言（BCP 47）系统能不能识别。 */
+  supportsLanguage(code: string): boolean;
   /** 识别文字；languages 是 BCP 47，第一种是用户选的语言。文字只返回给 App。 */
   recognizeText(uri: string, languages: readonly string[]): Promise<string>;
+  /** 能不能给照片找边和拉正（findPaper / straighten）；Android 的 ML Kit 不能。 */
+  readonly canFindPaper: boolean;
   /** 找纸张的四个角（像素，已按拍摄方向摆正）；没找到返回 null。 */
   findPaper(uri: string): Promise<Quad | null>;
   /** 按四个角拉正，缩放到 size，存成本次运行的 JPG 临时文件。 */

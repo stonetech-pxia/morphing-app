@@ -223,7 +223,7 @@ describe('runWorkflow', () => {
         'ocr.recognize': async () => ({ type: 'text', text: '日本語', name: 'scan' }),
       },
       ensurePack: async (id) => (asked.push(id), true),
-      nativeActions: new Set(['ocr.recognize']),
+      packNotNeeded: (id, params) => id === 'ocr.recognize' && params.lang === 'jpn',
     });
     expect(await promise).toMatchObject({ status: 'succeeded', value: { text: '日本語' } });
     expect(asked).toEqual([]);

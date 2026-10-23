@@ -3,7 +3,8 @@ import { Directory, Paths } from 'expo-file-system';
 import MorphVision from '../../modules/morph-vision';
 import type { VisionPlatform } from './platform';
 
-// VisionPlatform 的 iOS 实现：本地 Expo 模块 MorphVision（D-084）。没有这个模块（Expo Go、Android）时为 null。
+// VisionPlatform 的实现：本地 Expo 模块 MorphVision（iOS：Vision，D-084；Android：ML Kit，D-087）。
+// 没有这个模块（Expo Go）时为 null。
 
 /** 拉正后和文档相机页面的 JPG 质量。 */
 const QUALITY = 0.9;
@@ -14,9 +15,13 @@ export function expoVision(
   const native = MorphVision;
   if (!native) return null;
   return {
+    supportsLanguage: (code) => native.supportsLanguage(code),
+
     async recognizeText(uri, languages) {
       return (await native.recognizeText(uri, languages)).text;
     },
+
+    canFindPaper: native.canFindPaper(),
 
     async findPaper(uri) {
       return (await native.detectDocument(uri)).quad;

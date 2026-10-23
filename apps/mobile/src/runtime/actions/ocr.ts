@@ -2,7 +2,8 @@ import { RunError, tidyOcrText, type ActionImpl, type OcrLanguage } from '@morph
 
 import { displayName, fileItems, imageForPage, type RunServices } from './helpers';
 
-// 文字识别（T5）：iOS 用系统的 Vision（D-084）；没有时每张图片送进文字识别包页面（tesseract.js）。
+// 文字识别（T5）：系统能识别这种语言时用系统的（iOS 的 Vision，D-085；Android 的 ML Kit，D-087）；
+// 否则每张图片送进文字识别包页面（tesseract.js）。
 // 结果只留在本机（D-036）。
 
 type Impl = ActionImpl<RunServices>;
@@ -32,10 +33,12 @@ export const VISION_LANGUAGES: Record<OcrLanguage, readonly string[]> = {
 export const OCR_IMPLS: Record<string, Impl> = {
   async 'ocr.recognize'(input, params, ctx) {
     const items = fileItems(input);
-    const { packs } = ctx.services;
-    const vision = ctx.services.files.vision;
-    if (!vision && !packs) throw new RunError('packFailed', { detail: 'ocr' });
     const lang = String(params.lang) as OcrLanguage;
+    const { packs } = ctx.services;
+    // 系统识别不了的语言（Android 的 ML Kit 不认俄文）退回文字识别包。
+    const native = ctx.services.files.vision;
+    const vision = native?.supportsLanguage(VISION_LANGUAGES[lang][0]!) ? native : null;
+    if (!vision && !packs) throw new RunError('packFailed', { detail: 'ocr' });
     const texts: string[] = [];
     for (const [i, original] of items.entries()) {
       ctx.throwIfCancelled();

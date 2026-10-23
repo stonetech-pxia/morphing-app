@@ -4,8 +4,8 @@ import type { ToolDefinition } from '../registry';
 import type { Locale, Workflow } from '../schema';
 import type { ActionDefinition } from '../workflow/contract';
 
-// 扫描工具的清单（T5）：找边和透视矫正在 iOS 上用系统的 Vision / Core Image（D-084），
-// 其他平台用扫描包（WebView + OpenCV.js + jscanify）；四个角由用户在本地调整（找边在背景杂乱或纸张出画时会出错）；
+// 扫描工具的清单（T5）：找边和透视矫正在 iOS 上用系统的 Vision / Core Image（D-086），
+// 其他平台用扫描包（WebView + OpenCV.js + jscanify）；拍照扫描用系统文档相机（iOS 的 VisionKit、Android 的 ML Kit）；四个角由用户在本地调整（找边在背景杂乱或纸张出画时会出错）；
 // 系统文档相机拍的页面已经拉正，直接放行。增强用 Skia，不需要扩展包。
 
 export const SCAN_TOOL_ID = 'scan';
@@ -136,8 +136,8 @@ export const scanTool: ToolDefinition = {
         props: {
           text: t(
             locale,
-            'Everything runs on this device; nothing is uploaded. iPhone uses its built-in scanner; on other devices the first scan downloads the scanner pack.',
-            '全部在本机处理，不会上传。iPhone 用系统自带的扫描；其他设备第一次扫描时需要下载扫描包。',
+            'Everything runs on this device; nothing is uploaded. Scanning uses the built-in document scanner; straightening photos may download the scanner pack the first time.',
+            '全部在本机处理，不会上传。扫描用系统自带的文档扫描；拉正已有照片时，有的设备第一次要下载扫描包。',
           ),
         },
       },

@@ -11,7 +11,8 @@
 │  src/renderer/   白名单组件表：配置中的 type → 真实组件            │
 │  src/storage/    SQLite：revision、修改请求、文件、授权、执行记录    │
 │  src/runtime/    工作流执行器 + 平台动作（选文件、保存、分享）       │
-│  modules/morph-vision/  本地原生模块（Swift，Vision / VisionKit）│
+│  modules/morph-vision/  本地原生模块（iOS Swift：Vision；     │
+│                  Android Kotlin：ML Kit）                     │
 │  ios/ android/   expo prebuild 生成（CNG，不进 git）            │
 ├───────────────────────────────────────────────────────────────┤
 │ packages/core（纯 TypeScript，无平台依赖）                        │
@@ -109,7 +110,7 @@ App 侧：`apps/mobile/src/runtime/runner.ts` 把执行器接上存储和平台�
 
 扩展包（D-064、D-075）：清单在 `core/src/packs.ts`；下载、校验、删除在 `apps/mobile/src/packs/store.ts`（`documentDirectory/packs/<id>/<version>/`）；`PackHost` 按需挂载隐藏的 WebView，页面是随 App 发布的固定 HTML（`packs/pages/`），库文件经 `bridge.ts` 分块送进页面。用户在 `PackGate` 确认后才下载；「设置 → 扩展包」（`app/packs.tsx`）管理已下载的扩展包。扩展包页面：`pdfview`（pdf.js）、`scan`（OpenCV.js + jscanify：找边、透视矫正）、`ocr`（tesseract.js：worker 是前置脚本 + 内嵌 wasm 的核心 + worker.min.js 拼成的 Blob，语言数据由页面送进 worker）。送进页面的图片先在 App 里重新编码成 JPG 并缩到 1677 万像素以内（`imageForPage`）；离开运行页面时关掉扫描和识别页面释放内存。动作的扩展包由参数决定时用 `packFor`（执行器先问参数再确认下载）。
 
-系统识别（D-084–D-086）：`FilePlatform.vision`（`VisionPlatform`，接口在 `runtime/platform.ts`，实现在 `runtime/expo-vision.ts`）包装本地模块 `MorphVision`（`modules/morph-vision/ios/MorphVisionModule.swift`）：`recognizeText`（Vision 文字识别）、`findPaper`（文档分割 + 矩形检测）、`straighten`（Core Image 透视矫正，直接写进本次运行的临时目录）、`scanDocuments`（VisionKit 文档相机）。`vision` 为 `null` 时（Android、Expo Go）`scan.detect` 和 `ocr.recognize` 退回扫描包 / 文字识别包；不为 `null` 时 `runner.ts` 把这两个动作作为 `nativeActions` 交给执行器，执行器就不再为它们确认扩展包。测试里 `FakeFiles.vision` 默认是 `null`，换成 `FakeVision` 就是 iOS 的路径。
+系统识别（D-084–D-087）：`FilePlatform.vision`（`VisionPlatform`，接口在 `runtime/platform.ts`，实现在 `runtime/expo-vision.ts`）包装本地模块 `MorphVision`（iOS：`modules/morph-vision/ios/MorphVisionModule.swift`；Android：`modules/morph-vision/android/…/MorphVisionModule.kt`，ML Kit，没有找边和拉正）：`recognizeText`（Vision 文字识别）、`findPaper`（文档分割 + 矩形检测）、`straighten`（Core Image 透视矫正，直接写进本次运行的临时目录）、`scanDocuments`（VisionKit 文档相机）。`vision` 为 `null`（Expo Go）、`canFindPaper` 为 false（Android）或 `supportsLanguage` 为 false（Android 上的俄文）时，`scan.detect` / `ocr.recognize` 退回扫描包 / 文字识别包；执行器通过 `runner.ts` 的 `packNotNeeded` 判断这一步要不要确认扩展包。测试里 `FakeFiles.vision` 默认是 `null`，换成 `FakeVision` 就是 iOS 的路径，再设 `canFindPaper = false`、`unsupported` 加上 `ru` 就是 Android。
 
 图片合成（拼长图、宫格、打码、水印、相纸）：排版在 `packages/tool-image`，`runtime/actions/compose.ts` 生成固定的几种绘制步骤（`DrawOp`），`runtime/skia.ts` 离屏执行。超过 GPU 画布上限会让 App 直接崩溃（不是 JS 错误），所以画布一律先经过 `surfaceScale`。文字转 PDF 和报表用 `core/src/html.ts` 的固定模板 + expo-print。
 

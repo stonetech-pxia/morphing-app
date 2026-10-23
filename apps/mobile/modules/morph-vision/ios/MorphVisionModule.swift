@@ -53,6 +53,17 @@ public class MorphVisionModule: Module {
       UIImagePickerController.isSourceTypeAvailable(.camera)
     }
 
+    // iOS 能找纸张的四个角（Android 的 ML Kit 不能）。
+    Function("canFindPaper") { () -> Bool in
+      true
+    }
+
+    // 某种语言（BCP 47）系统能不能识别；不能的话 App 退回文字识别包。
+    Function("supportsLanguage") { (code: String) -> Bool in
+      let supported = (try? VNRecognizeTextRequest().supportedRecognitionLanguages()) ?? []
+      return Self.match(code, in: supported) != nil
+    }
+
     AsyncFunction("supportedLanguages") { () -> [String] in
       try VNRecognizeTextRequest().supportedRecognitionLanguages()
     }

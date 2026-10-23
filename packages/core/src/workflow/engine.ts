@@ -131,8 +131,15 @@ export interface RunOptions<S> {
   askParams?: (request: AskRequest) => Promise<Record<string, unknown> | null>;
   /** 步骤需要扩展包时调用：已安装或用户确认下载并完成后返回 true；用户拒绝返回 false（D-064）。 */
   ensurePack?: (packId: string) => Promise<boolean>;
-  /** 由平台原生实现的动作（iOS 的 Vision，D-084）：不需要扩展包，不调用 ensurePack。 */
-  nativeActions?: ReadonlySet<string>;
+  /**
+   * 这一步在这台设备上不需要扩展包时返回 true，不调用 ensurePack（D-085–D-087）：
+   * 系统自带的识别（iOS 的 Vision、Android 的 ML Kit），或者输入已经是拉正的页面。
+   */
+  packNotNeeded?: (
+    actionId: string,
+    params: Record<string, unknown>,
+    input: RunValue | null,
+  ) => boolean;
   /** 界面把 cancelled 设为 true 即可取消。 */
   signal?: { cancelled: boolean };
   onEvent?: (event: RunEvent) => void;
@@ -223,7 +230,7 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
         params = action.params.parse({ ...params, ...answered });
       }
       // 先问参数再确认扩展包：文字识别的语言包由本次选的语言决定。
-      const pack = opts.nativeActions?.has(action.id)
+      const pack = opts.packNotNeeded?.(action.id, params, value)
         ? undefined
         : (action.packFor?.(params) ?? action.pack);
       if (pack && opts.ensurePack && !(await orCancel(opts.ensurePack(pack)))) {
