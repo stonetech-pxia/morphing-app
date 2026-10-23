@@ -93,7 +93,7 @@ function checkCount(count: number, min: number, max: number, kind: string) {
 }
 
 /**
- * 从别的 App 分享进来的文件（D-096）：只在第一步用，代替选择器。类型、个数、大小和选择器一样检查，
+ * 从别的 App 分享进来的文件（D-115）：只在第一步用，代替选择器。类型、个数、大小和选择器一样检查，
  * 收件页面已经只列出接得上的工作流，这里是再检查一次。
  */
 async function importShared(

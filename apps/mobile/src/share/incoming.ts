@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import type { FilePlatform, PickedFile } from '../runtime/platform';
 
 // 分享到 Morph（TOOLS_DESIGN §11）：别的 App 分享进来、还没处理的文件。只在内存里，不进配置、不进数据库，
-// 也不发给 AI；用户选了工作流、存到文件或关掉收件页面后清掉（D-097）。
+// 也不发给 AI；用户选了工作流、存到文件或关掉收件页面后清掉（D-116）。
 
 export interface IncomingShare {
   /** 每次分享一个新 ID：收件页面据此知道是不是又分享了一批。 */
@@ -71,7 +71,7 @@ export function normalizeShare(raw: unknown): PickedFile[] {
 
 /**
  * expo-share-intent 的 Android 模块读不到原始路径时，会把文件复制到 App 缓存目录的最上层（用原文件名）。
- * 我们用 content:// 地址，不用这些副本，但要记下来删掉（D-097）。
+ * 我们用 content:// 地址，不用这些副本，但要记下来删掉（D-116）。
  */
 export function nativeCopies(raw: unknown): string[] {
   const files = (raw as { files?: unknown } | null)?.files;
@@ -84,7 +84,7 @@ export function nativeCopies(raw: unknown): string[] {
 }
 
 /**
- * 用完一批分享的文件（D-097）：从内存里清掉，删掉共享目录里的副本。
+ * 用完一批分享的文件（D-116）：从内存里清掉，删掉共享目录里的副本。
  * 这期间又分享了一批时，只清这一批，新的一批保留。
  */
 export async function releaseShare(

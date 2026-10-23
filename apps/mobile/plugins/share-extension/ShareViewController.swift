@@ -1,4 +1,4 @@
-// Morph 的 iOS 分享扩展（D-095、D-099）：别的 App 分享文件给 Morph 时运行。
+// Morph 的 iOS 分享扩展（D-114、D-118）：别的 App 分享文件给 Morph 时运行。
 // 按分享的顺序逐个把文件复制到 App Group 共享目录，全部复制完再用 morph:// 深链唤起主 App。
 // 数据格式和 expo-share-intent 主 App 模块读取的一致（UserDefaults 里 morphShareKey 下的 JSON）。
 // 只收文件（照片、PDF、任意文件），不收文字和网址；不访问网络，不读相册以外的任何东西。

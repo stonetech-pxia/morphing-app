@@ -3,7 +3,7 @@ import type { Workflow } from './schema';
 import { FILE_ACCEPT } from './tools/io';
 import type { FileValueType } from './workflow/engine';
 
-// 分享到 Morph（TOOLS_DESIGN §11，D-095–D-099）：别的 App 分享进来的文件交给哪个工作流。
+// 分享到 Morph（TOOLS_DESIGN §11，D-114–D-118）：别的 App 分享进来的文件交给哪个工作流。
 // 文件只当作工作流第一步（in.photos / in.files）的输入，不改工作流的格式，AI 也看不到这些文件。
 
 /** 分享进来的一个文件；mimeType 已经按扩展名补全。 */

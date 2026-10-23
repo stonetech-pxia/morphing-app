@@ -72,7 +72,7 @@ function RootStack() {
 
 function ThemedStack() {
   const theme = useWorkspace((s) => s.config!.theme);
-  // 别的 App 分享进来的文件 → 收件页面（D-095）。
+  // 别的 App 分享进来的文件 → 收件页面（D-114）。
   useIncomingShare(expoFilePlatform);
   const palette = usePalette(theme);
   return (

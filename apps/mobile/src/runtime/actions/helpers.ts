@@ -28,7 +28,7 @@ export interface RunServices {
   collections: readonly Collection[];
   /** 扩展包（WebView 里的 pdf.js、OpenCV、tesseract）；没有时为 null。 */
   packs: { runtime: PackRuntime; isInstalled(id: string): Promise<boolean> } | null;
-  /** 从别的 App 分享进来的文件：第一步（in.photos / in.files）直接用它们，不打开选择器（D-096）。 */
+  /** 从别的 App 分享进来的文件：第一步（in.photos / in.files）直接用它们，不打开选择器（D-115）。 */
   incoming?: readonly PickedFile[] | null;
 }
 

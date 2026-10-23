@@ -7,7 +7,7 @@ import { Platform } from 'react-native';
 import type { FilePlatform } from '../runtime/platform';
 import { nativeCopies, normalizeShare, useIncoming } from './incoming';
 
-// 接收别的 App 分享进来的文件（D-095）：iOS 是分享扩展 + App Group + 深链，Android 是 ACTION_SEND /
+// 接收别的 App 分享进来的文件（D-114）：iOS 是分享扩展 + App Group + 深链，Android 是 ACTION_SEND /
 // ACTION_SEND_MULTIPLE。原生部分来自 expo-share-intent；Expo Go 和测试里没有这个模块，什么也不做。
 
 /** 分享扩展存数据用的键：`<scheme>ShareKey`。 */

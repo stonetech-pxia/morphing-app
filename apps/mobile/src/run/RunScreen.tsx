@@ -46,7 +46,7 @@ export function RunScreen({
 }: {
   workflow: Workflow;
   onEdit?: () => void;
-  /** 分享进来的文件（D-096）：第一步用它们，不打开选择器。关闭运行页面时删掉。 */
+  /** 分享进来的文件（D-115）：第一步用它们，不打开选择器。关闭运行页面时删掉。 */
   incoming?: IncomingShare;
 }) {
   const { repo, files, registry, locale } = useWorkspaceContext();

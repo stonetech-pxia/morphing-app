@@ -1,7 +1,7 @@
 import { isShareLink } from '@/share/useIncomingShare';
 
 /**
- * iOS 的分享扩展用 morph://dataUrl=morphShareKey… 唤起 App（D-095）。这不是页面地址：
+ * iOS 的分享扩展用 morph://dataUrl=morphShareKey… 唤起 App（D-114）。这不是页面地址：
  * 冷启动时先到首页，App 已经开着时留在当前页面；收件页面由 useIncomingShare 拿到文件后再打开。
  */
 export function redirectSystemPath({ path, initial }: { path: string; initial: boolean }) {

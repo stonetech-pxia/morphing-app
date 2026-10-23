@@ -11,7 +11,7 @@ import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 /** 运行一个工作流（工具页的单功能工作流、预设或用户自己的工作流）。 */
 export default function RunRoute() {
   const { workflowId, shared } = useLocalSearchParams<{ workflowId: string; shared?: string }>();
-  // 从收件页面来的（D-096）：用分享进来的那一批文件做第一步的输入。
+  // 从收件页面来的（D-115）：用分享进来的那一批文件做第一步的输入。
   const [incoming] = useState(() => {
     const share = useIncoming.getState().share;
     return shared && share && String(share.id) === shared ? share : null;

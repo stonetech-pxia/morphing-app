@@ -22,7 +22,7 @@ import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { releaseShare, useIncoming } from './incoming';
 
 /**
- * 收件页面（TOOLS_DESIGN §11，D-098）：「收到 N 个文件」，列出能接这些文件的工作流，点一个才运行
+ * 收件页面（TOOLS_DESIGN §11，D-117）：「收到 N 个文件」，列出能接这些文件的工作流，点一个才运行
  * （不会自动运行）；也可以存到 Morph 文件。文件名和大小只在本机显示，不发给 AI。由内核提供，AI 不能修改。
  */
 export function ShareScreen() {

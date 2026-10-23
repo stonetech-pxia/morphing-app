@@ -40,7 +40,7 @@ export interface RunContext {
   ensurePack?: (packId: string) => Promise<boolean>;
   signal?: { cancelled: boolean };
   onEvent?: (event: RunEvent) => void;
-  /** 分享进来的文件（D-096）：交给第一步，第一步不再打开选择器，也不问参数。 */
+  /** 分享进来的文件（D-115）：交给第一步，第一步不再打开选择器，也不问参数。 */
   incoming?: readonly PickedFile[] | null;
 }
 

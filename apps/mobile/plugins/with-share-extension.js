@@ -1,4 +1,4 @@
-// iOS 分享扩展的两处调整（D-095、D-099），在 expo-share-intent 生成扩展之后执行：
+// iOS 分享扩展的两处调整（D-114、D-118），在 expo-share-intent 生成扩展之后执行：
 // 1. 显示名：expo-share-intent 用 iosShareExtensionName 同时做 Xcode target 名和显示名，但 target 不能和
 //    主 App 同名（「Morph」），所以 target 叫 MorphShare，这里把分享面板里显示的名字改回「Morph」。
 // 2. 控制器：换成我们自己的 ShareViewController.swift（按顺序逐个复制，全部复制完才跳回主 App；

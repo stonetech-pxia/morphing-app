@@ -264,14 +264,14 @@ T8 起有了开发版构建（D-084），下面这些可以用原生模块做，
 | T9     | Android：ML Kit 文字识别和文档扫描（D-087）                                                 |
 | T10    | 分享到 Morph：iOS 分享扩展 + Android intent-filter，收件页面，分享的文件交给工作流（§11）   |
 
-## 11. 分享到 Morph（D-095–D-099）
+## 11. 分享到 Morph（D-114–D-118）
 
 用户在照片、文件、邮件、微信等 App 里点分享 → 选 Morph → 文件进入 Morph，用户选一个工作流运行，或者存成 Morph 文件。
 
-**原生部分**（expo-share-intent 9.0.0，MIT，D-095）：
+**原生部分**（expo-share-intent 9.0.0，MIT，D-114）：
 
 ```
-iOS：别的 App ──分享──▶ 分享扩展 MorphShare（我们的 ShareViewController.swift，D-099）
+iOS：别的 App ──分享──▶ 分享扩展 MorphShare（我们的 ShareViewController.swift，D-118）
         按顺序把文件复制到 App Group 共享目录（UUID.扩展名），写 UserDefaults[morphShareKey]
         ──morph://dataUrl=morphShareKey?nonce=…#media|file──▶ 主 App
 Android：别的 App ──ACTION_SEND / ACTION_SEND_MULTIPLE（image/*、application/*）──▶ MainActivity（singleTask）
@@ -281,7 +281,7 @@ Android：别的 App ──ACTION_SEND / ACTION_SEND_MULTIPLE（image/*、applic
 - `ios/`、`android/` 仍由 prebuild 生成：`app.json` 里 `expo-share-intent` 的参数（激活规则：图片、文件各最多 50 个；Android 的 MIME 类型；扩展 target 名 `MorphShare`），加上本地插件 `plugins/with-share-extension.js`（显示名改成「Morph」，换上我们的控制器）。
 - App 里的入口是 `share/useIncomingShare.ts`（根布局调用）：订阅原生模块的 `onChange` → `normalizeShare`（两种平台的数据 → 和选择器一样的 `PickedFile[]`，只收 `file://` / `content://`，文字和网址不收）→ 放进内存里的 `useIncoming` → 打开 `/share`。iOS 的唤起链接由 `app/+native-intent.tsx` 拦下（冷启动到首页，开着时留在当前页面）。Expo Go 和测试里没有原生模块时什么也不做；测试用假的原生模块（`__tests__/share-test.tsx`）。
 
-**收件页面**（`/share`，D-098）：文件名和大小（只在本机显示）→「存到 Morph 文件」→「用工作流处理」：`shareFit(工作流, 文件)` 看第一步：
+**收件页面**（`/share`，D-117）：文件名和大小（只在本机显示）→「存到 Morph 文件」→「用工作流处理」：`shareFit(工作流, 文件)` 看第一步：
 
 | 第一步                  | 收什么                                                                      | 值的类型              |
 | ----------------------- | --------------------------------------------------------------------------- | --------------------- |
@@ -291,8 +291,8 @@ Android：别的 App ──ACTION_SEND / ACTION_SEND_MULTIPLE（image/*、applic
 
 个数还要在第一步的 `min`–`max` 之间：类型对、个数不对的列出来但不能运行（「需要至少 2 个文件」「最多 1 个文件」）。超过大小上限（P-006，`sharedSizeProblem`）时只显示错误。点「运行」才运行，不会自动运行。
 
-**运行**（D-096）：`/run/<id>?shared=<分享 ID>` → `startRun({ incoming })` → `RunServices.incoming`。`in.photos` / `in.files` 在第一步看到 `incoming` 就不打开选择器，再按 `shareFitsInput` 检查一次类型和个数、按 P-006 检查大小，然后和选择器选的文件一样复制进本次运行的临时目录；第一步的「每次运行时问」不问。运行页第一步显示「分享进来的文件（N 个）」。
+**运行**（D-115）：`/run/<id>?shared=<分享 ID>` → `startRun({ incoming })` → `RunServices.incoming`。`in.photos` / `in.files` 在第一步看到 `incoming` 就不打开选择器，再按 `shareFitsInput` 检查一次类型和个数、按 P-006 检查大小，然后和选择器选的文件一样复制进本次运行的临时目录；第一步的「每次运行时问」不问。运行页第一步显示「分享进来的文件（N 个）」。
 
-**清理**（D-097）：运行页面关闭、存到 Morph 文件之后、关掉收件页面时 `releaseShare` 删掉共享目录里这一批；又分享一批时删掉上一批剩下的。只删分享扩展写的 UUID 文件名。
+**清理**（D-116）：运行页面关闭、存到 Morph 文件之后、关掉收件页面时 `releaseShare` 删掉共享目录里这一批；又分享一批时删掉上一批剩下的。只删分享扩展写的 UUID 文件名。
 
 **AI 看不到**：分享的文件、文件名、个数都不进配置和版本，也不进 planner 的提示词；工作流格式没有变，AI 相关部分（提示词、mock 句式、评测）都没改。
