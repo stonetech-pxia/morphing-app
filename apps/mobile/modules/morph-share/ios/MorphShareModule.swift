@@ -7,7 +7,8 @@ import UniformTypeIdentifiers
 // - 存到文件夹：UIDocumentPickerViewController 让用户选一个文件夹（可以新建；iCloud 云盘、Google Drive、
 //   Dropbox 等「文件」提供者由它们自己的 App 同步），再用 NSFileCoordinator 把文件复制进去，重名时加序号。
 //   不用导出模式：模拟器实测文件夹里已有同名文件时，导出选择器报 OSStatus -8072、什么也不存。
-// Morph 只把本机文件交给系统界面，不联网；文件夹的访问权限用完就放掉，不保存用户选的位置。
+// 记住上次选的文件夹（P-019、D-104）：存成书签（UserDefaults），下次直接存进去；文件夹没了就重新让用户选。
+// Morph 只把本机文件交给系统界面和用户选的文件夹，不联网。
 
 final class PresenterMissingException: Exception, @unchecked Sendable {
   override var reason: String { "There is no screen to show the sheet on" }
@@ -25,6 +26,8 @@ final class FolderNotWritableException: Exception, @unchecked Sendable {
 final class ExportFailedException: GenericException<String>, @unchecked Sendable {
   override var reason: String { "Saving failed: \(param)" }
 }
+
+private let folderBookmarkKey = "morph.share.folderBookmark"
 
 public class MorphShareModule: Module {
   private var folderDelegate: FolderDelegate?
@@ -53,10 +56,18 @@ public class MorphShareModule: Module {
     }
     .runOnQueue(DispatchQueue.main)
 
-    // mimeTypes 只给 Android 用。
-    AsyncFunction("exportFiles") { (uris: [URL], names: [String], _: [String], promise: Promise) in
+    Function("rememberedFolder") { () -> String? in
+      Self.rememberedFolder()?.lastPathComponent
+    }
+
+    // mimeTypes 只给 Android 用。useRemembered：有记住的文件夹就直接存进去，不弹选择器。
+    AsyncFunction("exportFiles") { (uris: [URL], names: [String], _: [String], useRemembered: Bool, promise: Promise) in
       guard !self.busy else {
         promise.reject(SheetBusyException())
+        return
+      }
+      if useRemembered, let folder = Self.rememberedFolder() {
+        Self.copyInBackground(uris, names: names, into: folder, promise: promise)
         return
       }
       guard let presenter = self.appContext?.utilities?.currentViewController() else {
@@ -72,16 +83,8 @@ public class MorphShareModule: Module {
           promise.resolve(nil)
           return
         }
-        // 复制放到后台，不卡界面。
-        DispatchQueue.global(qos: .userInitiated).async {
-          do {
-            promise.resolve(try Self.copy(uris, names: names, into: folder))
-          } catch let error as Exception {
-            promise.reject(error)
-          } catch {
-            promise.reject(ExportFailedException(error.localizedDescription))
-          }
-        }
+        Self.remember(folder)
+        Self.copyInBackground(uris, names: names, into: folder, promise: promise)
       }
       self.folderDelegate = delegate
       picker.delegate = delegate
@@ -91,6 +94,51 @@ public class MorphShareModule: Module {
       presenter.present(picker, animated: true)
     }
     .runOnQueue(DispatchQueue.main)
+  }
+
+  /** 复制放到后台，不卡界面。结果：存了几个、文件夹名。 */
+  private static func copyInBackground(_ uris: [URL], names: [String], into folder: URL, promise: Promise) {
+    DispatchQueue.global(qos: .userInitiated).async {
+      do {
+        let saved = try copy(uris, names: names, into: folder)
+        promise.resolve(["saved": saved, "folder": folder.lastPathComponent])
+      } catch let error as Exception {
+        promise.reject(error)
+      } catch {
+        promise.reject(ExportFailedException(error.localizedDescription))
+      }
+    }
+  }
+
+  /** 记住的文件夹；没有、书签失效或文件夹已经不在了时返回 nil（并忘掉它）。 */
+  private static func rememberedFolder() -> URL? {
+    guard let data = UserDefaults.standard.data(forKey: folderBookmarkKey) else { return nil }
+    var stale = false
+    guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale),
+          url.startAccessingSecurityScopedResource() else {
+      UserDefaults.standard.removeObject(forKey: folderBookmarkKey)
+      return nil
+    }
+    defer { url.stopAccessingSecurityScopedResource() }
+    // 书签会跟着文件夹走：被删进「最近删除」（.Trash）时也能解析出来，这时当作文件夹已经不在了。
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue,
+          !url.pathComponents.contains(".Trash") else {
+      UserDefaults.standard.removeObject(forKey: folderBookmarkKey)
+      return nil
+    }
+    if stale, let fresh = try? url.bookmarkData() {
+      UserDefaults.standard.set(fresh, forKey: folderBookmarkKey)
+    }
+    return url
+  }
+
+  private static func remember(_ folder: URL) {
+    guard folder.startAccessingSecurityScopedResource() else { return }
+    defer { folder.stopAccessingSecurityScopedResource() }
+    if let data = try? folder.bookmarkData() {
+      UserDefaults.standard.set(data, forKey: folderBookmarkKey)
+    }
   }
 
   private static func copy(_ sources: [URL], names: [String], into folder: URL) throws -> Int {

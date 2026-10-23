@@ -23,6 +23,7 @@
 - PDF 合并等文件处理全部在本机完成，不上传。
 - 修改流程：模型（目前是 mock）输出先经过 `PlanSchema` 解析，再经过 `prepareOps`（结构、引用、受保护元素、权限、数据流校验），通过后才能预览和保存。测试见 `packages/core/src/*.test.ts`。
 - 文件访问：工具只能读取 `AssetGrant` 授权给它的文件；卸载工具时撤销授权，文件保留。执行记录只保存状态和错误代码，不保存文件内容。
+- 存到文件夹（D-101、D-104）：Morph 记住用户最近选的一个文件夹（iOS 书签、Android 长期授权），只往里面新建文件，不读取、不列出、不修改里面已有的文件；换文件夹时放掉旧的授权。文件夹名只在本机显示，不进配置、不发给 AI。
 - 文件大小上限：单个 50 MB，单次合计 100 MB（`FILE_LIMITS`）。`.env*` 已加入 `.gitignore`（`.env.example` 除外）。
 - **npm audit**：报告约 40 个 moderate/high 漏洞，全部来自 Expo CLI 等开发与构建工具的间接依赖（例如 `braces`、`node-forge`、`sprintf-js`），不会打包进 App。`npm audit fix --force` 会降级或破坏 Expo 依赖，因此不执行；每次升级 Expo SDK 后重新检查。
 - **安装脚本**：npm 默认未执行 `fsevents`、`unrs-resolver`、`@parcel/watcher` 的安装脚本（npm 的 allowScripts 机制）。目前 lint、测试和打包都不受影响；如果以后出现相关问题，先审查脚本内容再批准。

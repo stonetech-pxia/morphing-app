@@ -18,7 +18,8 @@ import kotlin.concurrent.thread
 // 分享和存到文件夹的 Android 实现（D-100、D-101）：
 // - 分享：ACTION_SEND_MULTIPLE 一次带上全部文件（content:// 地址，只给读权限）。
 // - 存到文件夹：存储访问框架 ACTION_OPEN_DOCUMENT_TREE，用户选文件夹（本机、Google Drive 等文档提供者），
-//   逐个 createDocument 并复制。只用这一次的临时授权，不保留长期访问权限，不保存用户选的位置。
+//   逐个 createDocument 并复制。记住上次选的文件夹（P-019、D-104）：申请长期读写授权、把地址存在
+//   SharedPreferences，下次直接存进去；换文件夹时放掉旧的授权，文件夹没了或授权被收回时重新让用户选。
 // 文件内容和文件名不写日志。
 
 class MorphShareFileProvider : FileProvider()
@@ -32,6 +33,8 @@ class FolderNotWritableException :
 
 class ExportFailedException(detail: String?) : CodedException("Saving failed: $detail")
 
+private const val PREFS = "morph_share"
+private const val FOLDER_KEY = "folder"
 private const val SHARE_REQUEST = 0x4d53
 private const val FOLDER_REQUEST = 0x4d46
 
@@ -81,17 +84,26 @@ class MorphShareModule : Module() {
       activity.startActivityForResult(Intent.createChooser(intent, null), SHARE_REQUEST)
     }.runOnQueue(Queues.MAIN)
 
-    AsyncFunction("exportFiles") { uris: List<String>, names: List<String>, mimeTypes: List<String>, promise: Promise ->
+    Function("rememberedFolder") { rememberedFolder()?.second }
+
+    // useRemembered：有记住的文件夹就直接存进去，不弹选择器。
+    AsyncFunction("exportFiles") { uris: List<String>, names: List<String>, mimeTypes: List<String>, useRemembered: Boolean, promise: Promise ->
+      if (pendingShare != null || pendingExport != null) {
+        promise.reject(SheetBusyException())
+        return@AsyncFunction
+      }
+      val pending = PendingExport(promise, uris.map(::fileOf), names, mimeTypes)
+      val remembered = if (useRemembered) rememberedFolder() else null
+      if (remembered != null) {
+        copyInBackground(remembered.first, remembered.second, pending)
+        return@AsyncFunction
+      }
       val activity = appContext.currentActivity
       if (activity == null) {
         promise.reject(NoActivityException())
         return@AsyncFunction
       }
-      if (pendingShare != null || pendingExport != null) {
-        promise.reject(SheetBusyException())
-        return@AsyncFunction
-      }
-      pendingExport = PendingExport(promise, uris.map(::fileOf), names, mimeTypes)
+      pendingExport = pending
       activity.startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), FOLDER_REQUEST)
     }.runOnQueue(Queues.MAIN)
 
@@ -109,21 +121,75 @@ class MorphShareModule : Module() {
             pending.promise.resolve(null)
             return@OnActivityResult
           }
-          // 复制放到后台，不卡界面。
-          thread {
-            try {
-              pending.promise.resolve(copyInto(tree, pending))
-            } catch (e: CodedException) {
-              pending.promise.reject(e)
-            } catch (e: SecurityException) {
-              pending.promise.reject(FolderNotWritableException())
-            } catch (e: Exception) {
-              pending.promise.reject(ExportFailedException(e.message))
-            }
-          }
+          remember(tree)
+          copyInBackground(tree, folderName(tree) ?: "", pending)
         }
       }
     }
+  }
+
+  // 复制放到后台，不卡界面。结果：存了几个、文件夹名。
+  private fun copyInBackground(tree: Uri, name: String, pending: PendingExport) {
+    thread {
+      try {
+        val saved = copyInto(tree, pending)
+        pending.promise.resolve(mapOf("saved" to saved, "folder" to name))
+      } catch (e: CodedException) {
+        pending.promise.reject(e)
+      } catch (e: SecurityException) {
+        pending.promise.reject(FolderNotWritableException())
+      } catch (e: Exception) {
+        pending.promise.reject(ExportFailedException(e.message))
+      }
+    }
+  }
+
+  private val prefs
+    get() = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+  // 记住的文件夹（地址和名字）；没有、授权被收回或文件夹已经不在了时返回 null（并忘掉它）。
+  private fun rememberedFolder(): Pair<Uri, String>? {
+    val tree = prefs.getString(FOLDER_KEY, null)?.let(Uri::parse) ?: return null
+    val granted = context.contentResolver.persistedUriPermissions.any {
+      it.uri == tree && it.isWritePermission
+    }
+    val name = if (granted) folderName(tree) else null
+    if (name == null) {
+      forget(tree)
+      return null
+    }
+    return tree to name
+  }
+
+  private fun remember(tree: Uri) {
+    val old = prefs.getString(FOLDER_KEY, null)?.let(Uri::parse)
+    if (old != null && old != tree) forget(old)
+    val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+    try {
+      context.contentResolver.takePersistableUriPermission(tree, flags)
+      prefs.edit().putString(FOLDER_KEY, tree.toString()).apply()
+    } catch (e: SecurityException) {
+      // 这个文档提供者不给长期授权：这次照样存，下次再问。
+    }
+  }
+
+  private fun forget(tree: Uri) {
+    prefs.edit().remove(FOLDER_KEY).apply()
+    try {
+      val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+      context.contentResolver.releasePersistableUriPermission(tree, flags)
+    } catch (e: SecurityException) {
+      // 本来就没有授权。
+    }
+  }
+
+  // 文件夹的显示名；文件夹不在了时返回 null。
+  private fun folderName(tree: Uri): String? = try {
+    val doc = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+    context.contentResolver.query(doc, arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)
+      ?.use { if (it.moveToFirst()) it.getString(0) else null }
+  } catch (e: Exception) {
+    null
   }
 
   private fun copyInto(tree: Uri, pending: PendingExport): Int {

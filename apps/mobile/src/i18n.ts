@@ -304,7 +304,9 @@ const strings = {
   resultPhotosDone: { en: 'Saved to Photos', zh: '已存到相册' },
   resultPrint: { en: 'Print', zh: '打印' },
   resultFolder: { en: 'Save to a folder', zh: '存到文件夹' },
-  resultFolderDone: { en: 'Saved to the folder', zh: '已存到文件夹' },
+  resultFolderNamed: { en: 'Save to “{name}”', zh: '存到「{name}」' },
+  resultFolderDone: { en: 'Saved to “{name}”', zh: '已存到「{name}」' },
+  resultFolderChange: { en: 'Other folder', zh: '换文件夹' },
   resultCopy: { en: 'Copy', zh: '复制' },
   resultCopied: { en: 'Copied', zh: '已复制' },
   resultTextNote: {

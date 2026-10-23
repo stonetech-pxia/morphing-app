@@ -260,8 +260,8 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     id: 'out.saveToFolder',
     label: { en: 'Save to a folder', zh: '存到文件夹' },
     description: {
-      en: 'The user picks a folder in Files (on this device, iCloud Drive, Google Drive, Dropbox…) and the files are copied there. Morph does not upload anything; the cloud app syncs the folder.',
-      zh: '用户在「文件」里选一个文件夹（本机、iCloud 云盘、Google Drive、Dropbox…），文件复制进去。Morph 不上传，网盘由它自己的 App 同步。',
+      en: 'Copy the files into a folder in Files (on this device, iCloud Drive, Google Drive, Dropbox…). The user picks the folder the first time; after that the same folder is used (it can be changed on the result page). Morph does not upload anything; the cloud app syncs the folder.',
+      zh: '把文件复制进「文件」里的一个文件夹（本机、iCloud 云盘、Google Drive、Dropbox…）。第一次由用户选，之后存到同一个文件夹（可以在结果页换）。Morph 不上传，网盘由它自己的 App 同步。',
     },
     input: ['files'],
     output: 'same',

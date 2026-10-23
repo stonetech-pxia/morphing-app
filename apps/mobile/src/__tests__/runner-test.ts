@@ -246,8 +246,16 @@ describe('input and output actions', () => {
     expect(files.shareSheets.map((sheet) => sheet.map((u) => u.split('/').pop()))).toEqual([
       ['a.jpg', 'b.jpg', 'c.jpg'],
     ]);
-    expect([...files.folder.keys()]).toEqual(['a.jpg', 'b.jpg', 'c.jpg']);
-    expect(files.folder.get('a.jpg')).toEqual(new Uint8Array([0xff, 0xd8, 1]));
+    const folder = files.folders.get('MorphOut')!;
+    expect([...folder.keys()]).toEqual(['a.jpg', 'b.jpg', 'c.jpg']);
+    expect(folder.get('a.jpg')).toEqual(new Uint8Array([0xff, 0xd8, 1]));
+    expect(files.folderPicks).toBe(1);
+
+    // 记住了文件夹（D-104）：下次直接存进去，不再弹选择器。
+    files.nextPhotos = [photo(files, 'd.jpg')];
+    expect(await run()).toMatchObject({ status: 'succeeded' });
+    expect(files.folderPicks).toBe(1);
+    expect(files.folders.get('MorphOut')!.has('d.jpg')).toBe(true);
   });
 
   it('keeps the result when the folder picker is closed, and reports a folder it cannot write', async () => {
@@ -260,7 +268,8 @@ describe('input and output actions', () => {
     files.folderChoice = 'cancel';
     // 和关掉分享面板一样：运行成功，结果页上还可以再存。
     expect(await run()).toMatchObject({ status: 'succeeded', value: { type: 'images' } });
-    expect(files.folder.size).toBe(0);
+    expect(files.folders.size).toBe(0);
+    expect(files.remembered).toBeNull();
 
     files.folderChoice = 'notWritable';
     expect(await run()).toMatchObject({ stepIndex: 1, error: { code: 'folderNotWritable' } });

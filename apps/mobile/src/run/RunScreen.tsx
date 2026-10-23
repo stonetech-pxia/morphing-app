@@ -259,8 +259,11 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
             share: async () => {
               if (isFileValue(value)) await files.shareUris(value.items);
             },
-            saveToFolder: async () =>
-              isFileValue(value) && (await files.saveToFolder(value.items)) !== null,
+            saveToFolder: async (choose) =>
+              isFileValue(value)
+                ? ((await files.saveToFolder(value.items, choose))?.folder ?? null)
+                : null,
+            rememberedFolder: () => files.rememberedFolder(),
             saveToPhotos: async () => {
               if (isFileValue(value)) await files.saveToPhotos(value.items.map((i) => i.uri));
             },

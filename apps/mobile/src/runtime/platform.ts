@@ -159,10 +159,16 @@ export interface FilePlatform {
   /** 打开一次系统分享面板带上全部文件（MorphShare，D-100）；没有原生模块时（Expo Go）逐个打开。 */
   shareUris(items: readonly { uri: string; mimeType: string }[]): Promise<void>;
   /**
-   * 让用户在「文件」里选一个文件夹，把文件复制进去（D-101）。返回存了几个，用户取消时返回 null。
+   * 把文件复制进「文件」里的一个文件夹（D-101）。记住上次选的文件夹（D-104）：choose 不为 true 时
+   * 有记住的就直接存进去，否则让用户选一个并记住它。返回存了几个和文件夹名，用户取消时返回 null。
    * 文件夹写不进去时抛出 folderNotWritable。
    */
-  saveToFolder(items: readonly FolderItem[]): Promise<number | null>;
+  saveToFolder(
+    items: readonly FolderItem[],
+    choose?: boolean,
+  ): Promise<{ saved: number; folder: string } | null>;
+  /** 记住的文件夹的名字；没有时为 null。 */
+  rememberedFolder(): string | null;
   /** 存到系统相册；没有权限时抛出 permissionDenied。 */
   saveToPhotos(uris: readonly string[]): Promise<void>;
   print(item: { uri: string; mimeType: string }): Promise<void>;

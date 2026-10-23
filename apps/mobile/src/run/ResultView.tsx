@@ -20,8 +20,10 @@ export function formatBytes(bytes: number): string {
 export interface ResultActions {
   save(): Promise<void>;
   share(): Promise<void>;
-  /** 用户取消时返回 false（按钮不显示「已存」）。 */
-  saveToFolder(): Promise<boolean>;
+  /** choose：换一个文件夹（否则存到记住的文件夹）。返回文件夹名，用户取消时返回 null（按钮不显示「已存」）。 */
+  saveToFolder(choose: boolean): Promise<string | null>;
+  /** 记住的文件夹的名字（D-104）。 */
+  rememberedFolder(): string | null;
   saveToPhotos(): Promise<void>;
   print(): Promise<void>;
   copy(): Promise<void>;
@@ -82,6 +84,7 @@ export function ResultView({
 }) {
   const [done, setDone] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [folder, setFolder] = useState(() => actions.rememberedFolder());
   const act = (key: string, fn: () => Promise<void | boolean>) => async () => {
     setError(null);
     try {
@@ -108,6 +111,35 @@ export function ResultView({
       testID={`result-${key}`}
       label={t(locale, done.has(key) && doneLabel ? doneLabel : label)}
       onPress={() => void act(key, fn)()}
+    />
+  );
+
+  // 存到记住的文件夹，或换一个（D-104）；两个按钮共用「已存」状态。
+  const folderPill = (key: 'folder' | 'folderChange', choose: boolean) => (
+    <Pill
+      key={key}
+      palette={palette}
+      testID={`result-${key}`}
+      label={
+        choose
+          ? t(locale, 'resultFolderChange')
+          : done.has('folder') && folder
+            ? t(locale, 'resultFolderDone', { name: folder })
+            : folder
+              ? t(locale, 'resultFolderNamed', { name: folder })
+              : t(locale, 'resultFolder')
+      }
+      onPress={() =>
+        void act('folder', async () => {
+          const name = await actions.saveToFolder(choose);
+          if (name === null) {
+            // 取消了：记住的文件夹可能已经不在了（被删、授权被收回），按钮跟着更新。
+            setFolder(actions.rememberedFolder());
+            return false;
+          }
+          setFolder(name);
+        })()
+      }
     />
   );
 
@@ -160,7 +192,8 @@ export function ResultView({
       <View style={styles.actions}>
         {allSaved ? null : pill('save', 'resultSave', 'resultSaved', actions.save)}
         {pill('share', 'resultShare', null, actions.share)}
-        {pill('folder', 'resultFolder', 'resultFolderDone', actions.saveToFolder)}
+        {folderPill('folder', false)}
+        {folder ? folderPill('folderChange', true) : null}
         {images ? pill('photos', 'resultPhotos', 'resultPhotosDone', actions.saveToPhotos) : null}
         {printable ? pill('print', 'resultPrint', null, actions.print) : null}
       </View>

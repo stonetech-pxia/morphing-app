@@ -13,7 +13,13 @@ import { Asset, requestPermissionsAsync } from 'expo-media-library';
 import { printAsync, printToFileAsync } from 'expo-print';
 import { shareAsync } from 'expo-sharing';
 
-import { FOLDER_NOT_WRITABLE, saveAllToFolder, shareAll, type ShareDeps } from './expo-share';
+import {
+  FOLDER_NOT_WRITABLE,
+  rememberedFolder,
+  saveAllToFolder,
+  shareAll,
+  type ShareDeps,
+} from './expo-share';
 import { expoVision } from './expo-vision';
 import MorphShare from '../../modules/morph-share';
 import MorphVision from '../../modules/morph-vision';
@@ -93,6 +99,7 @@ const shareOne = (item: { uri: string; mimeType: string }) =>
 const SHARE: ShareDeps = {
   native: MorphShare,
   shareOne,
+  remembered: null,
   async pickFolder() {
     let dir: Directory;
     try {
@@ -102,6 +109,7 @@ const SHARE: ShareDeps = {
       throw e;
     }
     return {
+      name: dir.name,
       names() {
         try {
           return dir.list().map((entry) => entry.name);
@@ -265,7 +273,9 @@ export const expoFilePlatform: FilePlatform = {
 
   shareUris: (items) => shareAll(SHARE, items),
 
-  saveToFolder: (items) => saveAllToFolder(SHARE, items),
+  saveToFolder: (items, choose = false) => saveAllToFolder(SHARE, items, choose),
+
+  rememberedFolder: () => rememberedFolder(SHARE),
 
   async saveToPhotos(uris) {
     const permission = await requestPermissionsAsync(true, ['photo']);

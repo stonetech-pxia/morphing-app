@@ -174,17 +174,34 @@ export class FakeFiles implements FilePlatform {
     this.shareSheets.push(items.map((i) => i.uri));
     this.shared.push(...items.map((i) => i.uri));
   }
-  /** 下一次选文件夹时用户怎么做：选好、取消、选了写不进去的文件夹。 */
+  /** 下一次选文件夹时用户怎么做：选好、取消、选了写不进去的文件夹（写不进去对记住的文件夹也生效）。 */
   folderChoice: 'pick' | 'cancel' | 'notWritable' = 'pick';
-  /** 存进文件夹的文件：文件名 → 内容。 */
-  folder = new Map<string, Uint8Array>();
-  async saveToFolder(items: readonly FolderItem[]) {
-    if (this.folderChoice === 'cancel') return null;
-    if (this.folderChoice === 'notWritable') throw new RunError('folderNotWritable');
-    for (const item of items) {
-      this.folder.set(`${item.name}.${item.ext}`, await this.readBytes(item.uri));
+  /** 用户在选择器里选的文件夹名。 */
+  nextFolder = 'MorphOut';
+  /** 记住的文件夹（D-104）。 */
+  remembered: string | null = null;
+  /** 打开了几次文件夹选择器。 */
+  folderPicks = 0;
+  /** 各文件夹里的文件：文件夹名 → 文件名 → 内容。 */
+  folders = new Map<string, Map<string, Uint8Array>>();
+  async saveToFolder(items: readonly FolderItem[], choose = false) {
+    let folder = choose ? null : this.remembered;
+    if (!folder) {
+      this.folderPicks++;
+      if (this.folderChoice === 'cancel') return null;
+      folder = this.nextFolder;
     }
-    return items.length;
+    if (this.folderChoice === 'notWritable') throw new RunError('folderNotWritable');
+    this.remembered = folder;
+    const files = this.folders.get(folder) ?? new Map<string, Uint8Array>();
+    this.folders.set(folder, files);
+    for (const item of items) {
+      files.set(`${item.name}.${item.ext}`, await this.readBytes(item.uri));
+    }
+    return { saved: items.length, folder };
+  }
+  rememberedFolder() {
+    return this.remembered;
   }
   async saveToPhotos(uris: readonly string[]) {
     if (!this.photosAllowed) {

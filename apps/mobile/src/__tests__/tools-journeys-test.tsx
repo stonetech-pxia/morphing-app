@@ -40,7 +40,7 @@ describe('tool journeys (UI)', () => {
     expect(files.savedToPhotos).toHaveLength(1);
   });
 
-  it('shares every result in one sheet and saves them to a folder from the result page', async () => {
+  it('shares every result in one sheet and saves them to a remembered folder from the result page', async () => {
     const { files } = await installImageTool();
     files.nextPhotos = [
       files.offerImage('a.jpg', 400, 300),
@@ -60,7 +60,7 @@ describe('tool journeys (UI)', () => {
     files.folderChoice = 'cancel';
     await fireEvent.press(screen.getByTestId('result-folder'));
     expect(screen.getByText('存到文件夹')).toBeTruthy();
-    expect(files.folder.size).toBe(0);
+    expect(files.folders.size).toBe(0);
 
     files.folderChoice = 'notWritable';
     await fireEvent.press(screen.getByTestId('result-folder'));
@@ -68,8 +68,31 @@ describe('tool journeys (UI)', () => {
 
     files.folderChoice = 'pick';
     await fireEvent.press(screen.getByTestId('result-folder'));
-    expect(await screen.findByText('已存到文件夹')).toBeTruthy();
-    expect([...files.folder.keys()]).toEqual(['a.jpg', 'b.jpg', 'c.jpg']);
+    expect(await screen.findByText('已存到「MorphOut」')).toBeTruthy();
+    expect([...files.folders.get('MorphOut')!.keys()]).toEqual(['a.jpg', 'b.jpg', 'c.jpg']);
+    expect(files.folderPicks).toBe(3);
+
+    // 换文件夹：再弹一次选择器，以后记住新的。
+    files.nextFolder = 'Receipts';
+    await fireEvent.press(screen.getByTestId('result-folderChange'));
+    expect(await screen.findByText('已存到「Receipts」')).toBeTruthy();
+    expect(files.folderPicks).toBe(4);
+    expect(files.remembered).toBe('Receipts');
+  });
+
+  it('offers the remembered folder by name on the result page', async () => {
+    const { files } = await installImageTool();
+    files.remembered = 'MorphOut';
+    files.nextPhotos = [files.offerImage('a.jpg', 400, 300)];
+    await fireEvent.press(screen.getByTestId('run-image-compress'));
+    await fireEvent.press(await screen.findByTestId('ask-preset-kb-240'));
+    await fireEvent.press(screen.getByTestId('prompt-ok'));
+    expect(await screen.findByText('存到「MorphOut」')).toBeTruthy();
+    expect(screen.getByText('换文件夹')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('result-folder'));
+    expect(await screen.findByText('已存到「MorphOut」')).toBeTruthy();
+    // 直接存进去，没有弹选择器。
+    expect(files.folderPicks).toBe(0);
   });
 
   it('a wrong value in the question is caught before running', async () => {
