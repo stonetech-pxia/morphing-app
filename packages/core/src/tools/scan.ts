@@ -136,8 +136,8 @@ export const scanTool: ToolDefinition = {
         props: {
           text: t(
             locale,
-            'Everything runs on this device; nothing is uploaded. Scanning uses the built-in document scanner; straightening photos may download the scanner pack the first time.',
-            '全部在本机处理，不会上传。扫描用系统自带的文档扫描；拉正已有照片时，有的设备第一次要下载扫描包。',
+            'Everything runs on this device; nothing is uploaded. Scanning uses the built-in document scanner; straightening photos may download what it needs the first time (it works offline after that).',
+            '全部在本机处理，不会上传。扫描用系统自带的文档扫描；拉正已有照片时，有的设备第一次要下载一些内容（之后不联网也能用）。',
           ),
         },
       },

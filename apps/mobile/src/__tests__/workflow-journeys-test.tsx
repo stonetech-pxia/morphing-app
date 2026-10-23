@@ -26,7 +26,7 @@ describe('workflow journeys (UI)', () => {
     expect(await screen.findByTestId('workflow-visa-photo')).toBeTruthy();
     expect(store.getState().head).toMatchObject({
       source: 'user',
-      summary: '添加工作流「签证 / 证件照」',
+      summary: '添加了快捷操作「签证 / 证件照」',
     });
     const added = store.getState().head!.id;
 
@@ -52,7 +52,7 @@ describe('workflow journeys (UI)', () => {
     expect(wf.steps.map((s) => s.action).at(-1)).toBe('out.share');
     expect(store.getState().head).toMatchObject({
       id: added + 1,
-      summary: '修改工作流「美签照片」',
+      summary: '调整了快捷操作「美签照片」',
     });
 
     // 提示条上的「撤销」回到编辑之前。
@@ -103,6 +103,8 @@ describe('workflow journeys (UI)', () => {
     acceptNextAlert();
     await fireEvent.press(await screen.findByTestId('workflow-delete'));
     expect(store.getState().config!.workflows.some((w) => w.id === 'email-photos')).toBe(false);
-    expect(store.getState().head).toMatchObject({ summary: '删除工作流「照片发邮件 / 传网站」' });
+    expect(store.getState().head).toMatchObject({
+      summary: '删除了快捷操作「照片发邮件 / 传网站」',
+    });
   });
 });

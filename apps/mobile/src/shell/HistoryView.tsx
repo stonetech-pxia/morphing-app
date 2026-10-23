@@ -2,13 +2,13 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text } from 'react-native';
 
-import { t } from '../i18n';
+import { formatWhen, t } from '../i18n';
 import type { RenderEnv } from '../renderer/components';
 import { Card, PageTitle } from '../renderer/ui';
 import type { RevisionRecord } from '../storage/types';
 import { useWorkspace } from '../workspace/context';
 
-/** 历史版本（§3 旅程 D）：每次修改都是一个不可变版本；恢复会生成新版本。 */
+/** 改动记录（§3 旅程 D，D-112）：每次修改都是一个不可变版本；回到之前会生成新版本。 */
 export function HistoryView({ env }: { env: RenderEnv }) {
   const { palette, locale } = env;
   const router = useRouter();
@@ -46,8 +46,8 @@ export function HistoryView({ env }: { env: RenderEnv }) {
           palette={palette}
           background={r.id === headId ? palette.primaryTint : undefined}>
           <Text style={[palette.font('bodyBold', 12), { color: palette.caption }]}>
-            #{r.id} · {t(locale, `source_${r.source}`)} ·{' '}
-            {new Date(r.createdAt).toLocaleString(locale)}
+            {formatWhen(locale, new Date(r.createdAt), new Date())} ·{' '}
+            {t(locale, `source_${r.source}`)}
             {r.id === headId ? ` · ${t(locale, 'current')}` : ''}
           </Text>
           <Text style={[palette.font('bodyMedium', 16), { color: palette.text }]}>{r.summary}</Text>

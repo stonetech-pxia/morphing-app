@@ -291,12 +291,18 @@ describe('user journeys (UI)', () => {
 
     await fireEvent.press(await screen.findByTestId('nav-settings'));
     await fireEvent.press(await screen.findByTestId('settings-history'));
-    await fireEvent.press(await screen.findByTestId('restore-1'));
+    // 改动记录（D-112）：没有编号和秒数，说明是谁改的。
+    const entry = await screen.findByTestId('revision-2');
+    expect(entry).toHaveTextContent(/AI 改的/);
+    expect(entry).not.toHaveTextContent(/#\d|:\d\d:\d\d/);
+    expect(screen.getByTestId('restore-1')).toHaveTextContent('回到这时候的样子');
+    await fireEvent.press(screen.getByTestId('restore-1'));
     expect(await screen.findByText(/你的文件不受影响/)).toBeTruthy();
     await fireEvent.press(screen.getByTestId('change-apply'));
 
     expect(await screen.findByTestId('nav-ai')).toBeTruthy();
     expect(store.getState().head).toMatchObject({ id: 3, source: 'restore' });
+    expect(store.getState().head!.summary).toMatch(/^回到 .+ 的样子$/);
   });
 
   it('B: install PDF, merge two real PDFs, uninstall — the files stay', async () => {

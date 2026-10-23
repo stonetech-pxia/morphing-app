@@ -16,8 +16,8 @@ const strings = {
   // 修改流程
   changeTitle: { en: 'Change this app', zh: '修改这个 App' },
   changeHint: {
-    en: 'Describe what to change. You will see a preview before anything is applied.',
-    zh: '用一句话描述想怎么改。应用之前会先给你看预览。',
+    en: 'Describe what to change. You will see a preview before anything changes.',
+    zh: '用一句话描述想怎么改。改之前会先给你看预览。',
   },
   changePlaceholder: {
     en: 'e.g. Bigger text and no shadows',
@@ -28,9 +28,9 @@ const strings = {
   preview: { en: 'Preview', zh: '预览' },
   thinking: { en: 'Working on it…', zh: '正在生成修改…' },
   planTitle: { en: 'Planned changes', zh: '将要做的修改' },
-  before: { en: 'Before', zh: '修改前' },
-  after: { en: 'After', zh: '修改后' },
-  apply: { en: 'Apply', zh: '应用更改' },
+  before: { en: 'Now', zh: '现在' },
+  after: { en: 'After', zh: '改完后' },
+  apply: { en: 'Make this change', zh: '确认修改' },
   cancel: { en: 'Cancel', zh: '取消' },
   undo: { en: 'Undo', zh: '撤销' },
   close: { en: 'Close', zh: '关闭' },
@@ -41,18 +41,18 @@ const strings = {
   previewFailed: { en: 'The preview could not be rendered.', zh: '预览渲染失败。' },
   applied: { en: 'Applied', zh: '已应用' },
   conflict: {
-    en: 'The app changed while you were previewing. Nothing was applied; please try again.',
-    zh: '预览期间 App 已被修改，本次未应用，请重新生成。',
+    en: 'The app changed while you were previewing. Nothing was changed; please try again.',
+    zh: '预览期间 App 已被修改，这次没有改，请重新生成。',
   },
   rolledBack: {
-    en: 'The new version could not be displayed, so the previous version was restored.',
-    zh: '新版本无法正常显示，已自动恢复到之前的版本。',
+    en: 'The change could not be displayed, so the app went back to how it was.',
+    zh: '这次修改无法正常显示，已自动回到改之前的样子。',
   },
   recovered: {
-    en: 'The latest version was damaged, so the last working version was restored.',
-    zh: '最新版本已损坏，已自动恢复到最后一个可用版本。',
+    en: 'The latest change was damaged, so the app went back to the last time it worked.',
+    zh: '最近的修改已损坏，已自动回到最后一次能正常使用的样子。',
   },
-  noPrevious: { en: 'There is no earlier version to go back to.', zh: '没有更早的版本可以恢复。' },
+  noPrevious: { en: 'There is no earlier change to undo.', zh: '前面没有可以撤销的修改了。' },
   aiUnavailable: {
     en: 'The AI service could not be reached. Nothing was changed; please try again later.',
     zh: '暂时连不上 AI 服务，没有做任何修改，请稍后再试。',
@@ -67,32 +67,34 @@ const strings = {
   },
   undoSummary: { en: 'Undo', zh: '撤销' },
 
-  // 历史
-  historyTitle: { en: 'History', zh: '历史版本' },
-  current: { en: 'Current', zh: '当前' },
-  restoreThis: { en: 'Restore this version', zh: '恢复到这个版本' },
-  restoreSummary: { en: 'Restore version #{id}', zh: '恢复到版本 #{id}' },
-  source_seed: { en: 'Initial', zh: '初始' },
-  source_ai: { en: 'AI change', zh: 'AI 修改' },
-  source_user: { en: 'Your change', zh: '手动修改' },
-  source_restore: { en: 'Restore', zh: '恢复' },
-  source_rollback: { en: 'Automatic rollback', zh: '自动回退' },
-  source_recovery: { en: 'Automatic recovery', zh: '自动修复' },
-  initialSummary: { en: 'Initial workspace', zh: '初始工作空间' },
+  // 改动记录（D-112）
+  historyTitle: { en: 'Change history', zh: '改动记录' },
+  current: { en: 'Now', zh: '现在的样子' },
+  restoreThis: { en: 'Go back to this', zh: '回到这时候的样子' },
+  restoreSummary: { en: 'Back to {when}', zh: '回到 {when} 的样子' },
+  source_seed: { en: 'Start', zh: '一开始' },
+  source_ai: { en: 'By AI', zh: 'AI 改的' },
+  source_user: { en: 'By you', zh: '你改的' },
+  source_restore: { en: 'Went back', zh: '回到之前' },
+  source_rollback: { en: 'Undone automatically', zh: '自动退回' },
+  source_recovery: { en: 'Fixed automatically', zh: '自动修复' },
+  initialSummary: { en: 'The app as installed', zh: '刚装好的样子' },
+  dateToday: { en: 'Today {time}', zh: '今天 {time}' },
+  dateYesterday: { en: 'Yesterday {time}', zh: '昨天 {time}' },
 
   // 工具目录
   toolsTitle: { en: 'Tools', zh: '工具' },
-  install: { en: 'Install', zh: '安装' },
+  install: { en: 'Add', zh: '添加' },
   open: { en: 'Open', zh: '打开' },
-  installed: { en: 'Installed', zh: '已安装' },
-  uninstall: { en: 'Uninstall', zh: '卸载' },
+  installed: { en: 'Added', zh: '已添加' },
+  uninstall: { en: 'Remove', zh: '移除' },
   removeFromHome: { en: 'Remove from home', zh: '从首页移除入口' },
   addToHome: { en: 'Add to home', zh: '添加到首页' },
-  confirmTitle: { en: 'Confirm', zh: '确认' },
-  installSummary: { en: 'Install {name}', zh: '安装 {name}' },
-  uninstallSummary: { en: 'Uninstall {name}', zh: '卸载 {name}' },
-  removeCardSummary: { en: 'Remove {name} from home', zh: '从首页移除 {name}' },
-  addCardSummary: { en: 'Add {name} to home', zh: '把 {name} 添加到首页' },
+  installSummary: { en: 'Added {name}', zh: '添加了{name}工具' },
+  uninstallSummary: { en: 'Removed {name}', zh: '移除了{name}工具' },
+  uninstallTitle: { en: 'Remove {name}?', zh: '移除{name}工具？' },
+  removeCardSummary: { en: 'Took {name} off home', zh: '从首页移除了{name}' },
+  addCardSummary: { en: 'Put {name} on home', zh: '把{name}放到了首页' },
 
   // 设置
   settingsTitle: { en: 'Settings', zh: '设置' },
@@ -103,11 +105,11 @@ const strings = {
     zh: '用一句话描述想怎么改',
   },
   historyRowHint: {
-    en: 'Undo changes or go back to any earlier version',
-    zh: '撤销修改，或回到之前的任何版本',
+    en: 'Undo a change or go back to how the app was before',
+    zh: '撤销修改，或回到之前任何时候的样子',
   },
-  toolsRowHint: { en: 'Install, open or remove tools', zh: '安装、打开或卸载工具' },
-  openHistory: { en: 'Version history', zh: '历史版本' },
+  toolsRowHint: { en: 'Add, open or remove tools', zh: '添加、打开或移除工具' },
+  openHistory: { en: 'Change history', zh: '改动记录' },
   language: { en: 'Language', zh: '语言' },
   languageValue: { en: 'English (follows system)', zh: '简体中文（跟随系统）' },
   aiEngine: { en: 'AI', zh: 'AI' },
@@ -205,8 +207,8 @@ const strings = {
     zh: '「{name}」不是 {kind} 文件。',
   },
   runError_invalidWorkflow: {
-    en: 'This workflow has a step that doesn’t fit. Edit the workflow and try again.',
-    zh: '这个工作流里有接不上的步骤，请先修改工作流再试。',
+    en: 'This quick action has a step that doesn’t fit. Adjust its settings and try again.',
+    zh: '这个快捷操作里有接不上的步骤，请先调整设置再试。',
   },
   runError_cameraUnavailable: {
     en: 'The camera is not available on this device.',
@@ -217,8 +219,8 @@ const strings = {
     zh: '需要权限才能继续（{what}），可以在系统「设置」里允许。',
   },
   runError_packFailed: {
-    en: 'The extension pack could not be prepared: {detail}',
-    zh: '扩展包没有准备好：{detail}',
+    en: 'The download didn’t finish: {detail}',
+    zh: '需要的内容没有下载好：{detail}',
   },
   runError_targetNotMet: {
     en: 'Could not get “{name}” under {target} (smallest was {got}).',
@@ -282,7 +284,7 @@ const strings = {
   runError_unexpected: { en: 'Something went wrong: {detail}', zh: '出现错误：{detail}' },
 
   updateTool: { en: 'Update', zh: '更新' },
-  updateSummary: { en: 'Update {name}', zh: '更新 {name}' },
+  updateSummary: { en: 'Updated {name}', zh: '更新了{name}工具' },
 
   // 运行页面
   runTitle: { en: 'Run', zh: '运行' },
@@ -290,7 +292,7 @@ const strings = {
   runProgress: { en: '{done} of {total}', zh: '{done}/{total}' },
   runFailedAt: { en: 'Stopped at step {n}', zh: '在第 {n} 步停下' },
   runSucceeded: { en: 'Done', zh: '完成' },
-  runEdit: { en: 'Edit workflow', zh: '编辑工作流' },
+  runEdit: { en: 'Adjust settings', zh: '调整设置' },
   askTitle: { en: 'Before this step', zh: '这一步之前' },
   askName: { en: 'File name', zh: '文件名' },
   askInvalid: { en: 'Please check: {detail}', zh: '请检查：{detail}' },
@@ -311,26 +313,26 @@ const strings = {
   homeEntry: { en: 'Add a shortcut on the home page', zh: '在首页放一个入口' },
   notesTitle: { en: 'Good to know', zh: '需要你知道' },
   workflowWhere: {
-    en: 'You will find it under Tools → Workflows.',
-    zh: '之后在「工具 → 工作流」里可以找到它。',
+    en: 'You will find it under Tools → Quick actions.',
+    zh: '之后在「工具 → 快捷操作」里可以找到它。',
   },
   resultSmaller: { en: 'Was {from}, now {to}', zh: '原来 {from}，现在 {to}' },
   resultRecords: { en: '{n} records', zh: '{n} 条记录' },
   localDone: { en: 'Done', zh: '完成' },
   localNext: { en: 'Next', zh: '下一张' },
   toolMissing: { en: 'This tool is not available.', zh: '这个工具不可用。' },
-  workflowsTitle: { en: 'Workflows', zh: '工作流' },
+  workflowsTitle: { en: 'Quick actions', zh: '快捷操作' },
   workflowsRowHint: {
-    en: 'Presets and your own multi-step workflows',
-    zh: '预设和你自己的多步工作流',
+    en: 'Ready-made and your own multi-step actions',
+    zh: '现成的和你自己的多步操作',
   },
-  packsTitle: { en: 'Extension packs', zh: '扩展包' },
-  packsRowHint: { en: 'Downloaded packs and storage', zh: '已下载的扩展包和占用空间' },
+  packsTitle: { en: 'Downloads', zh: '已下载内容' },
+  packsRowHint: { en: 'What was downloaded and the space it uses', zh: '下载过的内容和占用空间' },
   packsHint: {
-    en: 'Some tools (scanner, text recognition, PDF preview) need a pack that is downloaded the first time you use them. They work offline afterwards.',
-    zh: '扫描、文字识别、PDF 预览等功能需要扩展包，第一次用时才会下载，之后不联网也能用。',
+    en: 'Some features (straightening photos, text recognition in more languages, PDF preview) download what they need the first time you use them. They work offline afterwards.',
+    zh: '有些功能（拉正照片、更多语言的文字识别、PDF 预览）第一次用时要下载一些内容，之后不联网也能用。',
   },
-  packsEmpty: { en: 'No packs downloaded yet.', zh: '还没有下载扩展包。' },
+  packsEmpty: { en: 'Nothing downloaded yet.', zh: '还没有下载过内容。' },
   packsTotal: { en: 'Using {size}', zh: '共占用 {size}' },
   packDelete: { en: 'Delete', zh: '删除' },
   packDeleteTitle: { en: 'Delete “{name}”?', zh: '删除「{name}」？' },
@@ -339,8 +341,8 @@ const strings = {
     zh: '下次用到时可以再下载。',
   },
   packDeleteWithLanguages: {
-    en: 'Its {count} language packs are deleted too. You can download them again the next time you need them.',
-    zh: '它的 {count} 个语言包也会一起删除。下次用到时可以再下载。',
+    en: 'Its {count} languages are deleted too. You can download them again the next time you need them.',
+    zh: '它的 {count} 种语言也会一起删除。下次用到时可以再下载。',
   },
 
   // 图片与链接
@@ -398,8 +400,8 @@ const strings = {
   dataTables: { en: 'Data tables', zh: '数据表' },
   unusedTables: { en: 'Not in the app', zh: '不在界面里的数据' },
   unusedTablesHint: {
-    en: 'Tables that were removed from the app. Their entries come back if a version with the table is restored.',
-    zh: '已从界面移除的数据表。恢复到含有这张表的版本时，记录会回来。',
+    en: 'Tables that were removed from the app. Their entries come back if you go back to a time when the table was there.',
+    zh: '已从界面移除的数据表。在改动记录里回到有这张表的时候，记录会回来。',
   },
   recentlyDeleted: { en: 'Recently deleted', zh: '最近删除' },
   recentlyDeletedHint: {
@@ -418,7 +420,7 @@ const strings = {
   unknownTable: { en: 'Table {id}', zh: '数据表 {id}' },
   pageMissing: { en: 'This page no longer exists.', zh: '这个页面已不存在。' },
 
-  // 直接编辑（长按组件、调整顺序）
+  // 直接编辑（长按一块、调整顺序）
   editText: { en: 'Edit text', zh: '改文字' },
   editColor: { en: 'Color', zh: '颜色' },
   editAlign: { en: 'Alignment', zh: '对齐' },
@@ -443,8 +445,8 @@ const strings = {
   edit: { en: 'Edit', zh: '编辑' },
   editPage: { en: 'Edit page', zh: '编辑页面' },
   editHint: {
-    en: 'Tap anything to change it. Hold ≡ to drag, or tap ↑ ↓. Tap Done to keep the changes.',
-    zh: '点任意一块就能改；按住 ≡ 拖动，或点 ↑ ↓ 移动。改好点「完成」。',
+    en: 'Tap a block to change it, hold ≡ to move it, tap Done when finished.',
+    zh: '点一块就能改，按住 ≡ 拖动换位置，改好点「完成」。',
   },
   discardEditTitle: { en: 'Discard your changes?', zh: '放弃这次的修改？' },
   discardEditMessage: {
@@ -481,7 +483,7 @@ const strings = {
   },
   deleteGroupMessage: {
     en: 'The {count} parts inside it are deleted too. Cancel discards the whole edit; after saving you can still undo it.',
-    zh: '里面的 {count} 个组件也会一起删除。点「取消」可以放弃这次编辑，保存后也能撤销。',
+    zh: '里面的 {count} 块也会一起删除。点「取消」可以放弃这次编辑，保存后也能撤销。',
   },
   deleteDataMessage: {
     en: 'Your entries are kept (Settings → Data). Cancel discards the whole edit; after saving you can still undo it.',
@@ -507,6 +509,24 @@ export function runErrorText(
   const key = `runError_${code}` as StringKey;
   if (!(key in strings)) return t(locale, 'runError_unexpected', { detail: code });
   return t(locale, key, { ...detail, ...(what ? { what } : {}) });
+}
+
+/** 改动记录里的时间（D-112）：今天 / 昨天 13:51，更早的显示日期，不显示秒。 */
+export function formatWhen(locale: Locale, at: Date, now: Date): string {
+  const time = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((day(now) - day(at)) / 86_400_000);
+  if (days === 0) return t(locale, 'dateToday', { time });
+  if (days === 1) return t(locale, 'dateYesterday', { time });
+  const sameYear = at.getFullYear() === now.getFullYear();
+  if (locale === 'zh')
+    return `${sameYear ? '' : `${at.getFullYear()}年`}${at.getMonth() + 1}月${at.getDate()}日 ${time}`;
+  const date = at.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  });
+  return `${date}, ${time}`;
 }
 
 export function t(

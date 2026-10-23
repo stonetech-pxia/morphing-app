@@ -371,8 +371,8 @@ export const printTool = simpleTool({
     '把数据表里的记录做成 PDF（报表、清单、收据），可以分享或打印。',
   ],
   intro: [
-    'Your records are filled in on this device and never uploaded. To make a report, ask AI (for example \u201cMake a PDF of this month\u2019s expenses\u201d) or add a workflow on the Workflows page.',
-    '记录在本机填进模板，不会上传。要做报表，可以对 AI 说「把本月的报销记录做成 PDF」，或者在「工作流」页新建。',
+    'Your records are filled in on this device and never uploaded. To make a report, ask AI (for example \u201cMake a PDF of this month\u2019s expenses\u201d) or add a quick action on the Quick actions page.',
+    '记录在本机填进模板，不会上传。要做报表，可以对 AI 说「把本月的报销记录做成 PDF」，或者在「快捷操作」页新建。',
   ],
   icon: 'printer',
   aliases: ['print', 'report', 'records to pdf', '打印', '报表', '记录生成pdf'],

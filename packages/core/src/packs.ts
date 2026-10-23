@@ -34,7 +34,7 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'scan',
     version: '1.4.3',
-    name: { en: 'Document scanner', zh: '扫描包' },
+    name: { en: 'Document scanner', zh: '拉正照片' },
     description: {
       en: 'Finds the edges of paper in a photo and straightens it (OpenCV.js + jscanify).',
       zh: '在照片里找到纸张的边，并把它拉正（OpenCV.js + jscanify）。',
@@ -64,7 +64,7 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'ocr',
     version: '7.0.0',
-    name: { en: 'Text recognition', zh: '文字识别包' },
+    name: { en: 'Text recognition', zh: '文字识别' },
     description: {
       en: 'Reads printed text in photos (tesseract.js). Each language is a separate download.',
       zh: '识别照片里的印刷文字（tesseract.js）。每种语言单独下载。',
@@ -304,7 +304,7 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'pdfview',
     version: '6.4.299',
-    name: { en: 'PDF preview', zh: 'PDF 预览包' },
+    name: { en: 'PDF preview', zh: 'PDF 预览' },
     description: {
       en: 'Shows PDF pages as pictures (thumbnails, PDF to images, placing a signature) and reads text from PDFs (pdf.js).',
       zh: '把 PDF 页面显示成图片（缩略图、PDF 转图片、放签名）并读出 PDF 里的文字（pdf.js）。',

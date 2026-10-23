@@ -13,7 +13,7 @@ import { DEFAULT_THEME } from './theme';
 export const SYSTEM_TARGET_LABELS: Record<SystemTarget, Localized> = {
   tools: { en: 'Tools', zh: '工具' },
   ai: { en: 'AI', zh: 'AI 修改' },
-  history: { en: 'History', zh: '历史' },
+  history: { en: 'Changes', zh: '改动记录' },
   settings: { en: 'Settings', zh: '设置' },
 };
 

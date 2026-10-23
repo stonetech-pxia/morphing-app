@@ -53,8 +53,8 @@ export function componentLabel(
     case 'workflowRunner': {
       const wf = config.workflows.find((w) => w.id === c.props.workflowId);
       return zh
-        ? `流程「${wf?.name ?? c.props.workflowId}」`
-        : `workflow “${wf?.name ?? c.props.workflowId}”`;
+        ? `快捷操作「${wf?.name ?? c.props.workflowId}」`
+        : `quick action “${wf?.name ?? c.props.workflowId}”`;
     }
     case 'button':
       return zh ? `按钮「${c.props.label}」` : `button “${c.props.label}”`;
@@ -395,8 +395,8 @@ export function describeChange(
       case 'addPage':
         lines.push(
           zh
-            ? `新建页面「${op.page.title}」（${op.page.components.length} 个组件）`
-            : `Add page “${op.page.title}” (${op.page.components.length} components)`,
+            ? `新建页面「${op.page.title}」（${op.page.components.length} 块内容）`
+            : `Add page “${op.page.title}” (${op.page.components.length} blocks)`,
         );
         break;
       case 'removePage':
@@ -518,8 +518,8 @@ export function describeChange(
       case 'installTool':
         lines.push(
           zh
-            ? `安装「${toolName(op.toolId)}」工具：新增工具页面和首页入口`
-            : `Install the ${toolName(op.toolId)} tool: adds its page and a home card`,
+            ? `添加「${toolName(op.toolId)}」工具：新增工具页面和首页入口`
+            : `Add the ${toolName(op.toolId)} tool: adds its page and a home card`,
         );
         break;
       case 'updateTool':
@@ -528,8 +528,8 @@ export function describeChange(
       case 'uninstallTool':
         lines.push(
           zh
-            ? `卸载「${toolName(op.toolId)}」工具：移除入口、页面和流程，已有文件全部保留`
-            : `Uninstall the ${toolName(op.toolId)} tool: removes its card, page and workflows; your files are kept`,
+            ? `移除「${toolName(op.toolId)}」工具：移除入口、页面和快捷操作，已有文件全部保留`
+            : `Remove the ${toolName(op.toolId)} tool: removes its card, page and quick actions; your files are kept`,
         );
         break;
       case 'setStepParams': {
@@ -566,11 +566,11 @@ export function describeChange(
         break;
       }
       case 'addWorkflow': {
-        const from = op.workflow.presetId ? (zh ? '（从预设添加）' : ' (from a preset)') : '';
+        const from = op.workflow.presetId ? (zh ? '（现成的）' : ' (ready-made)') : '';
         lines.push(
           zh
-            ? `新建工作流「${op.workflow.name}」${from}：${stepChain(op.workflow.steps)}`
-            : `New workflow “${op.workflow.name}”${from}: ${stepChain(op.workflow.steps)}`,
+            ? `新建快捷操作「${op.workflow.name}」${from}：${stepChain(op.workflow.steps)}`
+            : `New quick action “${op.workflow.name}”${from}: ${stepChain(op.workflow.steps)}`,
         );
         break;
       }
@@ -578,8 +578,8 @@ export function describeChange(
         const name = wf(op.workflowId)?.name ?? op.workflowId;
         lines.push(
           zh
-            ? `删除工作流「${name}」（文件不受影响）`
-            : `Delete the workflow “${name}” (files are kept)`,
+            ? `删除快捷操作「${name}」（文件不受影响）`
+            : `Delete the quick action “${name}” (files are kept)`,
         );
         break;
       }
@@ -587,8 +587,8 @@ export function describeChange(
         const name = wf(op.workflowId)?.name ?? op.workflowId;
         lines.push(
           zh
-            ? `工作流「${name}」改名为「${op.name}」`
-            : `Rename the workflow “${name}” to “${op.name}”`,
+            ? `快捷操作「${name}」改名为「${op.name}」`
+            : `Rename the quick action “${name}” to “${op.name}”`,
         );
         break;
       }
@@ -617,7 +617,7 @@ export function describeChange(
         const name = wf(op.workflowId)?.name ?? op.workflowId;
         if (op.name !== undefined && op.name !== name) {
           lines.push(
-            zh ? `工作流「${name}」改名为「${op.name}」` : `Rename “${name}” to “${op.name}”`,
+            zh ? `快捷操作「${name}」改名为「${op.name}」` : `Rename “${name}” to “${op.name}”`,
           );
         }
         if (op.steps) {
@@ -645,8 +645,8 @@ export function describeChange(
       const label = navTargetLabel(note.target, before, ctx.locale);
       lines.push(
         zh
-          ? `「${label}」不能移除（AI 修改和历史入口都在里面），已改为浮动按钮`
-          : `“${label}” can’t be removed (it holds the AI and History entries), so it becomes a floating button`,
+          ? `「${label}」不能移除（AI 修改和改动记录的入口都在里面），已改为浮动按钮`
+          : `“${label}” can’t be removed (it holds the AI and Change history entries), so it becomes a floating button`,
       );
     } else if (note.kind === 'updatedTool') {
       const def = ctx.registry.tools.get(note.toolId);
@@ -668,14 +668,14 @@ export function describeChange(
     } else if (note.kind === 'removedRunners') {
       lines.push(
         zh
-          ? `同时移除 ${note.count} 个运行这个工作流的卡片`
-          : `Also removes ${note.count} card(s) that ran this workflow`,
+          ? `同时移除 ${note.count} 个运行这个快捷操作的卡片`
+          : `Also removes ${note.count} card(s) that ran this quick action`,
       );
     } else if (note.kind === 'removedDataComponents') {
       lines.push(
         zh
-          ? `同时移除 ${note.count} 个显示「${collName(note.collectionId)}」的组件`
-          : `Also removes ${note.count} component(s) that showed “${collName(note.collectionId)}”`,
+          ? `同时移除 ${note.count} 块显示「${collName(note.collectionId)}」的内容`
+          : `Also removes ${note.count} block(s) that showed “${collName(note.collectionId)}”`,
       );
     } else {
       lines.push(
@@ -701,15 +701,15 @@ export function describeRestore(
   const afterTools = new Set(after.tools.map((t) => t.toolId));
   const lines = [
     zh
-      ? `恢复到版本 #${revision.id}（${revision.summary}）：页面、导航、主题和工具流程回到当时的样子`
-      : `Restore version #${revision.id} (${revision.summary}): pages, navigation, theme and tool workflows go back to how they were`,
+      ? `回到「${revision.summary}」那时候的样子：页面、导航、主题和快捷操作都回到当时`
+      : `Go back to when “${revision.summary}” happened: pages, navigation, theme and quick actions return to how they were`,
   ];
   for (const id of beforeTools) {
     if (!afterTools.has(id)) {
       lines.push(
         zh
-          ? `「${toolName(id)}」工具的入口和流程会被移除；它用过和生成的文件都会保留，重新安装即可继续使用`
-          : `The ${toolName(id)} tool’s card and workflows will be removed; its files are kept and it can be reinstalled`,
+          ? `「${toolName(id)}」工具的入口和快捷操作会被移除；它用过和生成的文件都会保留，重新添加即可继续使用`
+          : `The ${toolName(id)} tool’s card and quick actions will be removed; its files are kept and you can add it again`,
       );
     }
   }
@@ -724,7 +724,7 @@ export function describeRestore(
     if (!afterTables.has(c.id)) {
       lines.push(
         zh
-          ? `数据表「${c.name}」会移出界面；记录保留在「设置 → 数据」，以后恢复回来时数据还在`
+          ? `数据表「${c.name}」会移出界面；记录保留在「设置 → 数据」，以后回到有它的时候数据还在`
           : `The “${c.name}” table leaves the app; its entries stay in Settings → Data and come back with it`,
       );
     }

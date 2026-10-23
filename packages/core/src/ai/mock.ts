@@ -40,7 +40,7 @@ const EXAMPLES: Localized[] = [
   { zh: '主题换成绿色', en: 'Change the theme color to green' },
   { zh: '字体大一点', en: 'Bigger text' },
   { zh: '新建一个叫「记账」的页面', en: 'Add a page called Budget' },
-  { zh: '添加签证照片工作流', en: 'Add the visa photo workflow' },
+  { zh: '添加签证照片快捷操作', en: 'Add the visa photo quick action' },
   { zh: '撤销刚才的修改', en: 'Undo the last change' },
 ];
 
@@ -76,7 +76,7 @@ const say = (locale: Locale, zh: string, en: string) => (locale === 'zh' ? zh : 
 /** 「新建一个工作流：选照片，压到 500KB，分享」：冒号后面的逗号是步骤之间的分隔，不拆成子句。 */
 function joinWorkflowSteps(input: string): string {
   return input.replace(
-    /((?:工作流|流程|workflow)[:：])([^。！？!?\n]*)/gi,
+    /((?:快捷操作|工作流|流程|workflow|quick action)[:：])([^。！？!?\n]*)/gi,
     (_m, head: string, rest: string) => head + rest.replace(/[，,；;]/g, '、'),
   );
 }
@@ -116,8 +116,8 @@ function requireInstalled(tool: ToolDefinition, state: State): void {
       'notInstalled',
       say(
         state.ctx.locale,
-        `「${tool.name.zh}」工具还没有安装，请先在「工具」里安装。`,
-        `The ${tool.name.en} tool isn’t installed yet. Install it from Tools first.`,
+        `「${tool.name.zh}」工具还没有添加，请先在「工具」里添加。`,
+        `The ${tool.name.en} tool hasn’t been added yet. Add it from Tools first.`,
       ),
     );
   }
@@ -177,7 +177,7 @@ function findNavItem(rawName: string, state: State): NavTarget | null {
   if (/^(首页|主页|home)$/.test(name)) return pageTarget(HOME_PAGE_ID);
   if (/^(工具|工具目录|tools?)$/.test(name)) return 'tools';
   if (/^(设置|settings?)$/.test(name)) return 'settings';
-  if (/^(历史|历史记录|历史版本|history)$/.test(name)) return 'history';
+  if (/^(改动记录|历史|历史记录|历史版本|change history|history)$/.test(name)) return 'history';
   if (/^(ai|ai\s*修改)$/.test(name)) return 'ai';
   const p = state.config.pages.find((x) => x.title.toLowerCase() === name);
   if (p) return pageTarget(p.id);
@@ -189,7 +189,7 @@ function resolveNavItem(rawName: string, state: State): NavTarget {
   if (/^(首页|主页|home)$/.test(name)) return pageTarget(HOME_PAGE_ID);
   if (/^(工具|工具目录|tools?)$/.test(name)) return 'tools';
   if (/^(设置|settings?)$/.test(name)) return 'settings';
-  if (/^(历史|历史记录|history)$/.test(name)) return 'history';
+  if (/^(改动记录|历史|历史记录|change history|history)$/.test(name)) return 'history';
   if (/^(ai|ai\s*修改)$/.test(name)) return 'ai';
   const p = state.config.pages.find((x) => x.title.toLowerCase() === name);
   if (p) return pageTarget(p.id);
@@ -399,8 +399,8 @@ const resetStyleRule: Rule = (clause) =>
 const PROTECTED_MESSAGE = (locale: Locale) =>
   say(
     locale,
-    '「设置」不能移除：「AI 修改」和「历史」入口都在设置里，去掉它就无法继续修改或撤销了。可以把它改为浮动按钮。',
-    'Settings can’t be removed: it holds the AI and History entries, so without it you couldn’t change or undo anything. You can make it a floating button instead.',
+    '「设置」不能移除：「AI 修改」和「改动记录」入口都在设置里，去掉它就无法继续修改或撤销了。可以把它改为浮动按钮。',
+    'Settings can’t be removed: it holds the AI and Change history entries, so without it you couldn’t change or undo anything. You can make it a floating button instead.',
   );
 
 /** 从导航栏和浮动按钮里去掉一个入口（AI 修改、历史和工具都可以去掉，设置页里仍有入口）。 */
@@ -528,8 +528,8 @@ const removePageRule: Rule = (clause, state) => {
       'unknown',
       say(
         state.ctx.locale,
-        '这是工具的页面，请在「工具」里卸载该工具。',
-        'This page belongs to a tool. Uninstall the tool from Tools instead.',
+        '这是工具的页面，请在「工具」里移除这个工具。',
+        'This page belongs to a tool. Remove the tool from Tools instead.',
       ),
     );
   }
@@ -876,8 +876,8 @@ function requireWorkflow(rawName: string, state: State): Workflow {
     'unknown',
     say(
       state.ctx.locale,
-      `没有叫「${rawName.replace(/"/g, '').trim()}」的工作流。`,
-      `There is no workflow called “${rawName.replace(/"/g, '').trim()}”.`,
+      `没有叫「${rawName.replace(/"/g, '').trim()}」的快捷操作。`,
+      `There is no quick action called “${rawName.replace(/"/g, '').trim()}”.`,
     ),
   );
 }
@@ -906,10 +906,10 @@ function requireWorkable(wf: Workflow, state: State): void {
     say(
       state.ctx.locale,
       problem.code === 'source'
-        ? '工作流的第一步要选照片、选文件或拍照。'
+        ? '快捷操作的第一步要选照片、选文件或拍照。'
         : `「${label}」接不上前一步（类型不对或参数不完整）。`,
       problem.code === 'source'
-        ? 'A workflow has to start by choosing photos or files, or taking photos.'
+        ? 'A quick action has to start by choosing photos or files, or taking photos.'
         : `“${label}” doesn’t fit after the step before it.`,
     ),
   );
@@ -917,8 +917,9 @@ function requireWorkable(wf: Workflow, state: State): void {
 
 const addPresetRule: Rule = (clause, state) => {
   const m =
-    clause.match(/^(?:添加|加上|新增|加一个|添加一个)(?:预设)?(.+?)(?:预设|工作流|流程)$/) ??
-    clause.match(/^add (?:the )?(.+?) (?:preset|workflow)$/i);
+    clause.match(
+      /^(?:添加|加上|新增|加一个|添加一个)(?:预设)?(.+?)(?:预设|快捷操作|工作流|流程)$/,
+    ) ?? clause.match(/^add (?:the )?(.+?) (?:preset|workflow|quick action)$/i);
   if (!m) return null;
   const preset = findPreset(m[1]!);
   if (!preset) return null;
@@ -930,15 +931,17 @@ const addPresetRule: Rule = (clause, state) => {
 
 const newWorkflowRule: Rule = (clause, state) => {
   const m =
-    clause.match(/^(?:新建|创建|做|建)(?:一个)?(?:叫"?(.+?)"?的)?(?:工作流|流程)[:：]\s*(.+)$/) ??
     clause.match(
-      /^(?:create|make|add|new) (?:a )?(?:new )?workflow(?: called "?(.+?)"?)?:\s*(.+)$/i,
+      /^(?:新建|创建|做|建)(?:一个)?(?:叫"?(.+?)"?的)?(?:快捷操作|工作流|流程)[:：]\s*(.+)$/,
+    ) ??
+    clause.match(
+      /^(?:create|make|add|new) (?:a )?(?:new )?(?:workflow|quick action)(?: called "?(.+?)"?)?:\s*(.+)$/i,
     );
   if (!m) return null;
   const steps = stepsFrom(stepPhrases(m[2]!, state));
-  let name = m[1]?.trim() || say(state.ctx.locale, '我的工作流', 'My workflow');
+  let name = m[1]?.trim() || say(state.ctx.locale, '我的快捷操作', 'My quick action');
   for (let i = 2; state.config.workflows.some((w) => w.name === name); i++) {
-    name = `${m[1]?.trim() || say(state.ctx.locale, '我的工作流', 'My workflow')} ${i}`;
+    name = `${m[1]?.trim() || say(state.ctx.locale, '我的快捷操作', 'My quick action')} ${i}`;
   }
   const wf: Workflow = {
     id: newWorkflowId(m[1] ?? 'my-workflow', state.config.workflows),
@@ -956,9 +959,9 @@ const renameWorkflowRule: Rule = (clause, state) => {
   const m =
     clause.match(
       new RegExp(
-        `^(?:把|将)${Q}(.+?)${Q}(?:工作流|流程)?(?:改名为|改名成|重命名为|改叫|改名叫)${Q}(.+?)${Q}$`,
+        `^(?:把|将)${Q}(.+?)${Q}(?:快捷操作|工作流|流程)?(?:改名为|改名成|重命名为|改叫|改名叫)${Q}(.+?)${Q}$`,
       ),
-    ) ?? clause.match(/^rename (?:the )?"?(.+?)"? workflow to "?(.+?)"?$/i);
+    ) ?? clause.match(/^rename (?:the )?"?(.+?)"? (?:workflow|quick action) to "?(.+?)"?$/i);
   if (!m) return null;
   const wf = workflowNamed(m[1]!, state);
   if (!wf) return null;
@@ -967,9 +970,13 @@ const renameWorkflowRule: Rule = (clause, state) => {
 
 const removeWorkflowRule: Rule = (clause, state) => {
   const m =
-    clause.match(new RegExp(`^(?:删除|删掉|去掉|移除)${Q}(.+?)${Q}(?:这个)?(?:工作流|流程)$`)) ??
-    clause.match(new RegExp(`^(?:把|将)${Q}(.+?)${Q}(?:工作流|流程)(?:删除|删掉|去掉|移除)$`)) ??
-    clause.match(/^(?:delete|remove) (?:the )?"?(.+?)"? workflow$/i);
+    clause.match(
+      new RegExp(`^(?:删除|删掉|去掉|移除)${Q}(.+?)${Q}(?:这个)?(?:快捷操作|工作流|流程)$`),
+    ) ??
+    clause.match(
+      new RegExp(`^(?:把|将)${Q}(.+?)${Q}(?:快捷操作|工作流|流程)(?:删除|删掉|去掉|移除)$`),
+    ) ??
+    clause.match(/^(?:delete|remove) (?:the )?"?(.+?)"? (?:workflow|quick action)$/i);
   if (!m) return null;
   const wf = requireWorkflow(m[1]!, state);
   if (wf.toolId) {
@@ -977,8 +984,8 @@ const removeWorkflowRule: Rule = (clause, state) => {
       'unknown',
       say(
         state.ctx.locale,
-        `「${wf.name}」是工具自带的，不能单独删除；可以去掉其中的步骤，或者卸载工具。`,
-        `“${wf.name}” comes with a tool and can’t be deleted on its own; remove its steps or uninstall the tool instead.`,
+        `「${wf.name}」是工具自带的，不能单独删除；可以去掉其中的步骤，或者移除工具。`,
+        `“${wf.name}” comes with a tool and can’t be deleted on its own; remove its steps or remove the tool instead.`,
       ),
     );
   }
@@ -989,11 +996,11 @@ const workflowToHomeRule: Rule = (clause, state) => {
   const m =
     clause.match(
       new RegExp(
-        `^(?:把|将)${Q}(.+?)${Q}(?:工作流|流程)?(?:放到|加到|添加到|放在)(?:首页|主页)(?:上)?$`,
+        `^(?:把|将)${Q}(.+?)${Q}(?:快捷操作|工作流|流程)?(?:放到|加到|添加到|放在)(?:首页|主页)(?:上)?$`,
       ),
     ) ??
     clause.match(
-      /^(?:put|add) (?:the )?"?(.+?)"?(?: workflow)? (?:on|to) (?:the )?home(?: page)?$/i,
+      /^(?:put|add) (?:the )?"?(.+?)"?(?: workflow| quick action)? (?:on|to) (?:the )?home(?: page)?$/i,
     );
   if (!m) return null;
   const ops: Op[] = [];
@@ -1030,11 +1037,11 @@ const addStepRule: Rule = (clause, state) => {
   const m =
     clause.match(
       new RegExp(
-        `^(?:在|给)${Q}(.+?)${Q}(?:工作流|流程)?(?:里|中|最后|后面)*(?:加|添加|增加)(?:一步|一个步骤)[:：]?\\s*(.+)$`,
+        `^(?:在|给)${Q}(.+?)${Q}(?:快捷操作|工作流|流程)?(?:里|中|最后|后面)*(?:加|添加|增加)(?:一步|一个步骤)[:：]?\\s*(.+)$`,
       ),
     ) ??
-    clause.match(/^add (?:a )?step to (?:the )?"?(.+?)"?(?: workflow)?:\s*(.+)$/i) ??
-    clause.match(/^in (?:the )?"?(.+?)"? workflow,? add (?:a step:? )?(.+)$/i);
+    clause.match(/^add (?:a )?step to (?:the )?"?(.+?)"?(?: workflow| quick action)?:\s*(.+)$/i) ??
+    clause.match(/^in (?:the )?"?(.+?)"? (?:workflow|quick action),? add (?:a step:? )?(.+)$/i);
   if (!m) return null;
   const wf = requireWorkflow(m[1]!, state);
   const phrases = stepPhrases(m[2]!, state);
@@ -1059,12 +1066,12 @@ const setSizeRule: Rule = (clause, state) => {
   const m =
     clause.match(
       new RegExp(
-        `^(?:把)?${Q}(.+?)${Q}(?:工作流|流程)?(?:的)?(?:压缩|大小|文件大小)?(?:改成|改为|压到|不超过)\\s*(\\d+(?:\\.\\d+)?\\s*(?:kb|mb|k|m|兆))$`,
+        `^(?:把)?${Q}(.+?)${Q}(?:快捷操作|工作流|流程)?(?:的)?(?:压缩|大小|文件大小)?(?:改成|改为|压到|不超过)\\s*(\\d+(?:\\.\\d+)?\\s*(?:kb|mb|k|m|兆))$`,
         'i',
       ),
     ) ??
     clause.match(
-      /^(?:make|set|compress) (?:the )?"?(.+?)"?(?: workflow)? (?:to|under|size to) (\d+(?:\.\d+)?\s*(?:kb|mb))$/i,
+      /^(?:make|set|compress) (?:the )?"?(.+?)"?(?: workflow| quick action)? (?:to|under|size to) (\d+(?:\.\d+)?\s*(?:kb|mb))$/i,
     );
   if (!m) return null;
   const wf = workflowNamed(m[1]!, state);
@@ -1099,9 +1106,12 @@ const removeStepRule: Rule = (clause, state) => {
   const m =
     clause.match(
       new RegExp(
-        `^(?:把|将)?${Q}(.+?)${Q}(?:工作流|流程)?(?:的|里的|中的)${Q}(.+?)${Q}(?:这一步|这个步骤|步骤)?(?:去掉|删掉|删除|移除)$`,
+        `^(?:把|将)?${Q}(.+?)${Q}(?:快捷操作|工作流|流程)?(?:的|里的|中的)${Q}(.+?)${Q}(?:这一步|这个步骤|步骤)?(?:去掉|删掉|删除|移除)$`,
       ),
-    ) ?? clause.match(/^remove (?:the )?"?(.+?)"? step from (?:the )?"?(.+?)"?(?: workflow)?$/i);
+    ) ??
+    clause.match(
+      /^remove (?:the )?"?(.+?)"? step from (?:the )?"?(.+?)"?(?: workflow| quick action)?$/i,
+    );
   if (!m) return null;
   const english = /^remove/i.test(clause);
   const [wfName, stepName] = english ? [m[2]!, m[1]!] : [m[1]!, m[2]!];

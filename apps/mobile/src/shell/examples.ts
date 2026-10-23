@@ -7,17 +7,17 @@ import type { AIMode } from '../ai/settings';
 
 export const OFFLINE_EXAMPLES: Record<Locale, readonly string[]> = {
   zh: [
-    '添加签证照片工作流',
+    '添加签证照片快捷操作',
     '把照片发邮件放到首页',
-    '新建一个工作流：扫描文档，压到 300KB，存到文件',
+    '新建一个快捷操作：扫描文档，压到 300KB，存到文件',
     '新建一个记账页面',
     '字体大一点',
     '撤销刚才的修改',
   ],
   en: [
-    'Add the visa photo workflow',
-    'Put the photos for email workflow on the home page',
-    'Create a workflow: scan documents, make a PDF, share',
+    'Add the visa photo quick action',
+    'Put the photos for email quick action on the home page',
+    'Create a quick action: scan documents, make a PDF, share',
     'Add a budget page',
     'Bigger text',
     'Undo the last change',

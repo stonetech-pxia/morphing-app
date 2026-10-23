@@ -18,7 +18,7 @@ import {
 } from '@morph/core';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
-import { t } from '../i18n';
+import { formatWhen, t } from '../i18n';
 import {
   RevisionConflictError,
   type RevisionRecord,
@@ -290,7 +290,9 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         after: prepared.after,
         lines: describeRestore(config, prepared.after, target, { registry, locale }),
         source: 'restore',
-        summary: msg('restoreSummary', { id: revisionId }),
+        summary: msg('restoreSummary', {
+          when: formatWhen(locale, new Date(target.createdAt), deps.now()),
+        }),
         focusPageId: 'home',
       });
     }
@@ -400,8 +402,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         }
       },
 
-      proposeRestore: (revisionId) =>
-        restoreProposal(revisionId, msg('restoreSummary', { id: revisionId })),
+      proposeRestore: (revisionId) => restoreProposal(revisionId, `restore #${revisionId}`),
 
       proposeOps: (ops, summary) => opsProposal(summary, ops, 'user', summary),
 

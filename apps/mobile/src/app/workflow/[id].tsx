@@ -16,7 +16,7 @@ export default function WorkflowRoute() {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <Text style={[palette.font('body', 15), { color: palette.muted }]}>
-          {locale === 'zh' ? '这个工作流已经不在了。' : 'This workflow no longer exists.'}
+          {locale === 'zh' ? '这个快捷操作已经不在了。' : 'This quick action no longer exists.'}
         </Text>
       </View>
     );

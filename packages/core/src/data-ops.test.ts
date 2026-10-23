@@ -156,7 +156,7 @@ describe('data table ops', () => {
     const result = prepareOps(workspace(), templateOps('budget', workspace(), 'zh'), ctx);
     expect(result.ok && result.lines).toEqual([
       '新建数据表「账目」（金额、分类、日期、备注）',
-      '新建页面「记账」（4 个组件）',
+      '新建页面「记账」（4 块内容）',
       '在「首页」添加快捷入口「记账」',
     ]);
     const removed = prepareOps(
@@ -166,7 +166,7 @@ describe('data table ops', () => {
     );
     expect(removed.ok && removed.lines).toEqual([
       '把数据表「账目」移出界面（记录保留，可在「设置 → 数据」里查看和导出）',
-      '同时移除 4 个显示「账目」的组件',
+      '同时移除 4 块显示「账目」的内容',
     ]);
   });
 });

@@ -106,7 +106,7 @@ export function WorkflowEditor({
     const name = draft.name.trim();
     const ok = await change(
       [{ op: 'updateWorkflow', workflowId: workflow.id, name, steps: draft.steps }],
-      zh ? `修改工作流「${name}」` : `Edit the workflow “${name}”`,
+      zh ? `调整了快捷操作「${name}」` : `Adjusted the quick action “${name}”`,
     );
     if (ok) setDraft({ name, steps: draft.steps });
   }
@@ -119,7 +119,7 @@ export function WorkflowEditor({
     if (workflow.presetId) copy.presetId = workflow.presetId;
     const ok = await change(
       [{ op: 'addWorkflow', workflow: copy }],
-      zh ? `复制工作流「${workflow.name}」` : `Copy the workflow “${workflow.name}”`,
+      zh ? `复制了快捷操作「${workflow.name}」` : `Copied the quick action “${workflow.name}”`,
     );
     if (ok) router.replace({ pathname: '/workflow/[id]', params: { id } });
   }
@@ -176,8 +176,8 @@ export function WorkflowEditor({
         {workflow.toolId ? (
           <Text style={caption}>
             {zh
-              ? `这个工作流来自「${registry.tools.get(workflow.toolId)?.name.zh ?? workflow.toolId}」工具：可以修改，卸载工具时会一起移除。`
-              : `This workflow comes with the ${registry.tools.get(workflow.toolId)?.name.en ?? workflow.toolId} tool: you can change it; it goes away when the tool is uninstalled.`}
+              ? `这个快捷操作来自「${registry.tools.get(workflow.toolId)?.name.zh ?? workflow.toolId}」工具：可以修改，移除工具时会一起移除。`
+              : `This quick action comes with the ${registry.tools.get(workflow.toolId)?.name.en ?? workflow.toolId} tool: you can change it; it goes away when the tool is removed.`}
           </Text>
         ) : null}
 
@@ -363,7 +363,7 @@ export function WorkflowEditor({
                       },
                     },
                   ],
-                  zh ? `把「${workflow.name}」放到首页` : `Put “${workflow.name}” on Home`,
+                  zh ? `把「${workflow.name}」放到了首页` : `Put “${workflow.name}” on Home`,
                 )
               }
             />
@@ -372,7 +372,7 @@ export function WorkflowEditor({
             <Pill
               palette={palette}
               testID="workflow-reset"
-              label={zh ? '恢复预设' : 'Reset to preset'}
+              label={zh ? '恢复成原来的样子' : 'Reset to the original'}
               onPress={() =>
                 void change(
                   [
@@ -398,8 +398,8 @@ export function WorkflowEditor({
                   void change(
                     [{ op: 'removeWorkflow', workflowId: workflow.id }],
                     zh
-                      ? `删除工作流「${workflow.name}」`
-                      : `Delete the workflow “${workflow.name}”`,
+                      ? `删除了快捷操作「${workflow.name}」`
+                      : `Deleted the quick action “${workflow.name}”`,
                   ).then((ok) => ok && router.back());
                 })
               }
