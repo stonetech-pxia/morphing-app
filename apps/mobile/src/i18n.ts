@@ -308,6 +308,7 @@ const strings = {
   },
   resultPages: { en: '{n} pages', zh: '{n} 页' },
   resultCount: { en: '{n} files', zh: '{n} 个文件' },
+  resultSmaller: { en: 'Was {from}, now {to}', zh: '原来 {from}，现在 {to}' },
   resultRecords: { en: '{n} records', zh: '{n} 条记录' },
   localDone: { en: 'Done', zh: '完成' },
   localNext: { en: 'Next', zh: '下一张' },
@@ -436,8 +437,8 @@ const strings = {
   edit: { en: 'Edit', zh: '编辑' },
   editPage: { en: 'Edit page', zh: '编辑页面' },
   editHint: {
-    en: 'Tap a part to change it. Hold ≡ and drag, or use ↑ ↓. Done saves everything as one version.',
-    zh: '点组件修改；按住 ≡ 拖动或点 ↑ ↓ 移动。点「完成」保存为一个版本。',
+    en: 'Tap anything to change it. Hold ≡ to drag, or tap ↑ ↓. Tap Done to keep the changes.',
+    zh: '点任意一块就能改；按住 ≡ 拖动，或点 ↑ ↓ 移动。改好点「完成」。',
   },
   discardEditTitle: { en: 'Discard your changes?', zh: '放弃这次的修改？' },
   discardEditMessage: {

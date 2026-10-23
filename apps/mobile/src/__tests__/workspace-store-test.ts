@@ -2,6 +2,7 @@ import {
   BUILTIN_TOOLS,
   createMockAIProvider,
   createRegistry,
+  createStarterWorkspace,
   type WorkspaceConfig,
 } from '@morph/core';
 
@@ -53,6 +54,23 @@ describe('workspace store', () => {
     expect(store.getState().status).toBe('ready');
     expect(store.getState().head).toMatchObject({ id: 1, source: 'seed' });
     expect((await repo.listRevisions(10)).length).toBe(1);
+  });
+
+  it('the app seeds the starter tools as the first version (D-104)', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    const store = createWorkspaceStore({
+      repo,
+      provider: createMockAIProvider(),
+      registry,
+      locale: 'zh',
+      now: () => new Date(2026, 9, 22, 9, 0),
+      seed: createStarterWorkspace,
+    });
+    await store.getState().boot();
+    const config = store.getState().config!;
+    expect(config.tools.map((t) => t.toolId)).toEqual(['image', 'pdf', 'scan', 'ocr', 'qr']);
+    expect(config.shell.nav).toEqual(['page:home', 'tools', 'ai', 'settings']);
+    expect((await repo.listRevisions(10)).map((r) => r.source)).toEqual(['seed']);
   });
 
   it('journey A: preview does not change the app; confirm does, and survives a restart', async () => {

@@ -150,6 +150,7 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
       status: 'succeeded',
       value: { ...value, items },
       saved: items.flatMap((i) => i.assetId ?? []),
+      inputSize: outcome?.status === 'succeeded' ? outcome.inputSize : 0,
     });
     bumpAssets();
   }
@@ -252,6 +253,7 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
       {value ? (
         <ResultView
           value={value}
+          inputSize={outcome?.status === 'succeeded' ? outcome.inputSize : 0}
           palette={palette}
           locale={locale}
           actions={{

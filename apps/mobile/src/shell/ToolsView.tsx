@@ -7,7 +7,10 @@ import type { RenderEnv } from '../renderer/components';
 import { Card, IconTile, ListRow, PageTitle, Pill } from '../renderer/ui';
 import { useWorkspace } from '../workspace/context';
 
-/** 工具目录（§3 旅程 B）：安装、打开、移除首页入口、卸载。所有操作都生成新版本，可撤销。 */
+/**
+ * 工具目录（§3 旅程 B）：安装、打开、移除首页入口、卸载。所有操作都生成新版本，可撤销。
+ * 只有卸载先确认（会一起移除这个工具的工作流）；其他操作直接应用，提示条上可撤销（D-105）。
+ */
 export function ToolsView({ env }: { env: RenderEnv }) {
   const { config, palette, locale, registry } = env;
   const router = useRouter();
@@ -16,13 +19,17 @@ export function ToolsView({ env }: { env: RenderEnv }) {
   const cancel = useWorkspace((s) => s.cancel);
   const home = config.pages.find((p) => p.id === HOME_PAGE_ID)!;
 
-  async function change(ops: Op[], summary: string) {
+  async function change(ops: Op[], summary: string, ask = false) {
     const result = await proposeOps(ops, summary);
     if (result.kind !== 'preview') {
       Alert.alert(
         t(locale, 'invalidPlan'),
         result.kind === 'invalid' ? result.issues.join('\n') : result.message,
       );
+      return;
+    }
+    if (!ask) {
+      await confirm();
       return;
     }
     Alert.alert(t(locale, 'confirmTitle'), result.proposal.lines.join('\n\n'), [
@@ -148,6 +155,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
                         change(
                           [{ op: 'uninstallTool', toolId: tool.id }],
                           t(locale, 'uninstallSummary', { name }),
+                          true,
                         ),
                       `uninstall-${tool.id}`,
                       true,

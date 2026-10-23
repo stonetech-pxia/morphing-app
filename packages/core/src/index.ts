@@ -19,6 +19,7 @@ export * from './presets';
 export * from './registry';
 export * from './richtext';
 export * from './schema';
+export * from './starter';
 export * from './templates';
 export * from './theme';
 export * from './tools';

@@ -1,7 +1,7 @@
 import { fireEvent } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
 
-import { acceptNextAlert, renderToolsApp } from '../test-utils/render-app';
+import { renderToolsApp } from '../test-utils/render-app';
 
 // 内置工具的界面旅程：安装 → 打开工具页 → 运行单功能工作流 → 结果页操作。
 
@@ -11,7 +11,6 @@ describe('tool journeys (UI)', () => {
   async function installImageTool() {
     const app = await renderToolsApp();
     await fireEvent.press(screen.getByTestId('nav-tools'));
-    acceptNextAlert();
     await fireEvent.press(await screen.findByTestId('install-image'));
     await fireEvent.press(await screen.findByTestId('open-image'));
     return app;
@@ -23,12 +22,16 @@ describe('tool journeys (UI)', () => {
     expect(await screen.findByText('压缩图片')).toBeTruthy();
     expect(screen.getByText('格式 JPG')).toBeTruthy();
 
-    files.nextPhotos = [files.offerImage('IMG_1.HEIC', 4032, 3024, 'image/heic')];
+    files.nextPhotos = [
+      files.offerImage('IMG_1.HEIC', 4032, 3024, 'image/heic', new Uint8Array(2_000_000)),
+    ];
     await fireEvent.press(screen.getByTestId('run-image-compress'));
     // 运行时询问目标大小：点「240 KB」再确定。
     await fireEvent.press(await screen.findByTestId('ask-preset-kb-240'));
     await fireEvent.press(screen.getByTestId('prompt-ok'));
     expect(await screen.findByTestId('result-item-IMG_1.jpg')).toBeTruthy();
+    // 变小了：显示原来和现在的大小。
+    expect(screen.getByTestId('result-smaller')).toHaveTextContent(/^原来 .+，现在 .+$/);
     expect(await repo.listAssets()).toEqual([]);
 
     await fireEvent.press(screen.getByTestId('result-save'));

@@ -17,37 +17,18 @@ import {
   View,
 } from 'react-native';
 
+import { useAISettings } from '../ai/context';
 import { t } from '../i18n';
 import { usePalette } from '../renderer/theme';
 import { Button, Card, SectionLabel } from '../renderer/ui';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { ProposeResult } from '../workspace/store';
+import { examplesFor } from './examples';
 import { Preview } from './Preview';
 import { StylePicker } from './StylePicker';
 
 /** 风格选择器填进去的原句由内置规则生成计划，不调用设置里的 AI（D-095）。 */
 const presetPlanner = createMockAIProvider();
-
-const EXAMPLES = {
-  zh: [
-    '主题换成绿色',
-    '字体大一点',
-    '去掉阴影',
-    '新建一个叫「记账」的页面',
-    '添加签证照片工作流',
-    '导航栏只保留首页、工具、设置',
-    '撤销刚才的修改',
-  ],
-  en: [
-    'Change the theme color to green',
-    'Bigger text',
-    'Remove shadows',
-    'Add a page called Budget',
-    'Add the visa photo workflow',
-    'Only keep Home, Tools and Settings in the navigation',
-    'Undo the last change',
-  ],
-};
 
 /**
  * AI 修改入口（§4）：复述目标 → 列出将要做的修改 → 修改前后预览 → 应用 / 取消。
@@ -63,6 +44,7 @@ export function ChangeScreen() {
   const confirm = useWorkspace((s) => s.confirm);
   const cancel = useWorkspace((s) => s.cancel);
   const palette = usePalette(config.theme);
+  const aiMode = useAISettings((s) => s.mode);
 
   const [input, setInput] = useState('');
   /** 风格选择器最近填进去的句子；用户改过输入框后就不再相等，交给设置里的 AI。 */
@@ -181,7 +163,7 @@ export function ChangeScreen() {
 
             <SectionLabel palette={palette}>{t(locale, 'examples')}</SectionLabel>
             <View style={styles.chips}>
-              {EXAMPLES[locale].map((example) => (
+              {examplesFor(aiMode, locale).map((example) => (
                 <Pressable
                   key={example}
                   onPress={() => setInput(example)}

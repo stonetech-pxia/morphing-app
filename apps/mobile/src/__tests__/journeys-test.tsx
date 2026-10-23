@@ -5,7 +5,7 @@ import {
   createRegistry,
   type AIProvider,
 } from '@morph/core';
-import { fireEvent } from '@testing-library/react-native';
+import { act, fireEvent } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
@@ -19,6 +19,7 @@ import PageRoute from '../app/page/[pageId]';
 import RunRoute from '../app/run/[workflowId]';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, makePdf } from '../test-utils/fake-files';
+import { APPLIED_BANNER_MS } from '../shell/Shell';
 import { WorkspaceProvider } from '../workspace/context';
 import { createWorkspaceStore } from '../workspace/store';
 
@@ -67,7 +68,7 @@ async function renderApp(
   return { repo, store, files, aiSettings };
 }
 
-/** 工具目录里的操作用系统确认框；测试中直接点“应用更改”。 */
+/** 卸载工具要在系统确认框里确认；测试中直接点“应用更改”。其他工具操作直接应用。 */
 function acceptNextAlert() {
   jest.spyOn(Alert, 'alert').mockImplementationOnce((_title, _message, buttons) => {
     buttons?.find((b) => b.style !== 'cancel')?.onPress?.();
@@ -88,7 +89,6 @@ describe('user journeys (UI)', () => {
 
     // 旅程 B：在工具目录安装 PDF，首页出现入口。
     await fireEvent.press(screen.getByTestId('nav-tools'));
-    acceptNextAlert();
     await fireEvent.press(await screen.findByTestId('install-pdf'));
     await fireEvent.press(await screen.findByTestId('nav-page:home'));
     expect(await screen.findByTestId('component-card-pdf')).toBeTruthy();
@@ -119,6 +119,23 @@ describe('user journeys (UI)', () => {
     await fireEvent.press(screen.getByText('撤销'));
     expect(await screen.findByTestId('nav-ai')).toBeTruthy();
     expect(store.getState().head).toMatchObject({ source: 'restore' });
+  });
+
+  it('the applied banner goes away by itself; warnings stay (D-106)', async () => {
+    const { store } = await renderApp();
+    await askAi('主题换成绿色');
+    jest.useFakeTimers();
+    try {
+      await fireEvent.press(await screen.findByTestId('change-apply'));
+      expect(await screen.findByTestId('banner')).toBeTruthy();
+      await act(() => jest.advanceTimersByTime(APPLIED_BANNER_MS));
+      expect(screen.queryByTestId('banner')).toBeNull();
+      await act(() => store.setState({ banner: { kind: 'rolledBack', message: '已回退' } }));
+      await act(() => jest.advanceTimersByTime(APPLIED_BANNER_MS * 2));
+      expect(screen.getByTestId('banner')).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('cancel keeps the app unchanged', async () => {
@@ -234,7 +251,6 @@ describe('user journeys (UI)', () => {
   it('B: install PDF, merge two real PDFs, uninstall — the files stay', async () => {
     const { repo, files } = await renderApp();
     await fireEvent.press(screen.getByTestId('nav-tools'));
-    acceptNextAlert();
     await fireEvent.press(await screen.findByTestId('install-pdf'));
 
     // 从首页的工具入口打开同一个 App 里的 PDF 工具页。
@@ -271,7 +287,6 @@ describe('user journeys (UI)', () => {
   it('C: reshape the installed PDF tool through AI from its own page; the new flow runs', async () => {
     const { store, files } = await renderApp();
     await fireEvent.press(screen.getByTestId('nav-tools'));
-    acceptNextAlert();
     await fireEvent.press(await screen.findByTestId('install-pdf'));
     await fireEvent.press(await screen.findByTestId('open-pdf'));
     expect(await screen.findByTestId('step-name')).toBeTruthy();

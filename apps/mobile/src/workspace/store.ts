@@ -33,6 +33,8 @@ export interface WorkspaceDeps {
   registry: Registry;
   locale: Locale;
   now: () => Date;
+  /** 第一次启动时的第一个版本。App 用预装了工具的 createStarterWorkspace（D-104）；不传时是空白工作空间。 */
+  seed?: (locale: Locale, registry: Registry) => WorkspaceConfig;
 }
 
 export interface Proposal {
@@ -272,7 +274,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
           if (!head) {
             await repo.commitRevision({
               baseId: null,
-              config: createDefaultWorkspace(locale),
+              config: (deps.seed ?? createDefaultWorkspace)(locale, registry),
               source: 'seed',
               summary: msg('initialSummary'),
             });

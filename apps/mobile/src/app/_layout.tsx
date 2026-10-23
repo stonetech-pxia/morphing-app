@@ -4,7 +4,12 @@ import { Karla_500Medium } from '@expo-google-fonts/karla/500Medium';
 import { Karla_700Bold } from '@expo-google-fonts/karla/700Bold';
 import { Sora_600SemiBold } from '@expo-google-fonts/sora/600SemiBold';
 import { Sora_700Bold } from '@expo-google-fonts/sora/700Bold';
-import { BUILTIN_TOOLS, createMockAIProvider, createRegistry } from '@morph/core';
+import {
+  BUILTIN_TOOLS,
+  createMockAIProvider,
+  createRegistry,
+  createStarterWorkspace,
+} from '@morph/core';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -130,6 +135,7 @@ export default function RootLayout() {
         registry,
         locale,
         now: () => new Date(),
+        seed: createStarterWorkspace,
       });
       await created.getState().boot();
       // 上次运行没来得及删除的临时文件（D-063）。
