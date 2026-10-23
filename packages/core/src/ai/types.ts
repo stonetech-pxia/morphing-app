@@ -12,12 +12,20 @@ export type RejectReason =
   'unknown' | 'protected' | 'deleteFiles' | 'userData' | 'notInstalled' | 'noChange';
 
 export type Plan =
-  | { kind: 'ops'; ops: Op[] }
+  | {
+      kind: 'ops';
+      ops: Op[];
+      /**
+       * 新建的工作流要不要在首页放入口（D-109）：false = 用户说了不要放；省略 = 由用户在预览里勾选，
+       * 默认勾上。用户要放到首页时，AI 直接加 workflowRunner，不用这个字段。
+       */
+      homeEntry?: boolean;
+    }
   | { kind: 'restorePrevious' }
   | { kind: 'reject'; reason: RejectReason; message: string; examples: string[] };
 
 export const PlanSchema: z.ZodType<Plan> = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('ops'), ops: OpListSchema }),
+  z.strictObject({ kind: z.literal('ops'), ops: OpListSchema, homeEntry: z.boolean().optional() }),
   z.strictObject({ kind: z.literal('restorePrevious') }),
   z.strictObject({
     kind: z.literal('reject'),

@@ -1,5 +1,6 @@
 import {
   createMockAIProvider,
+  pageTarget,
   presetOfTheme,
   presetRequest,
   type ThemePresetId,
@@ -43,6 +44,8 @@ export function ChangeScreen() {
   const propose = useWorkspace((s) => s.propose);
   const confirm = useWorkspace((s) => s.confirm);
   const cancel = useWorkspace((s) => s.cancel);
+  const setHomeEntry = useWorkspace((s) => s.setHomeEntry);
+  const selectTab = useWorkspace((s) => s.selectTab);
   const palette = usePalette(config.theme);
   const aiMode = useAISettings((s) => s.mode);
 
@@ -85,9 +88,18 @@ export function ChangeScreen() {
     setPresetText(text);
   }
 
+  /** 应用后带用户去看改了什么（D-109）：新工作流不在页面上时打开工作流列表，否则切到改动的页面。 */
   async function apply() {
-    await confirm();
+    const applied = proposal;
+    const ok = await confirm();
     router.back();
+    if (!ok || !applied) return;
+    if (applied.focusWorkflowId) {
+      router.push('/workflows');
+      return;
+    }
+    const target = pageTarget(applied.focusPageId);
+    if (applied.after.shell.nav.includes(target)) selectTab(target);
   }
 
   async function discard() {
@@ -198,32 +210,64 @@ export function ChangeScreen() {
                   • {line}
                 </Text>
               ))}
+              {proposal.homeEntry ? (
+                <Pressable
+                  testID="change-home-entry"
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: proposal.homeEntry.on }}
+                  onPress={() => setHomeEntry(!proposal.homeEntry!.on)}
+                  hitSlop={6}
+                  style={styles.check}>
+                  <View
+                    style={[
+                      styles.box,
+                      { borderColor: palette.primary },
+                      proposal.homeEntry.on && { backgroundColor: palette.primary },
+                    ]}>
+                    {proposal.homeEntry.on ? (
+                      <Text style={[palette.font('bodyBold', 14), { color: palette.onPrimary }]}>
+                        ✓
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Text style={[styles.flex, text]}>{t(locale, 'homeEntry')}</Text>
+                </Pressable>
+              ) : null}
             </Card>
 
-            {/* 两段式切换（Docudis 的 ClaySegmented）。 */}
-            <View style={[styles.segment, { backgroundColor: palette.border }]}>
-              {(['before', 'after'] as const).map((s) => (
-                <Pressable
-                  key={s}
-                  testID={`preview-${s}`}
-                  onPress={() => setSide(s)}
-                  style={[styles.segmentItem, side === s && { backgroundColor: palette.surface }]}>
-                  <Text
-                    style={[
-                      palette.font('title', 14),
-                      { color: side === s ? palette.text : palette.caption },
-                    ]}>
-                    {t(locale, s)}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <Preview
-              key={`${proposal.changeRequestId}-${side}`}
-              config={side === 'before' ? proposal.before : proposal.after}
-              pageId={proposal.focusPageId}
-              onError={() => side === 'after' && setPreviewBroken(true)}
-            />
+            {proposal.focusWorkflowId ? (
+              <WorkflowSteps workflowId={proposal.focusWorkflowId} />
+            ) : (
+              <>
+                {/* 两段式切换（Docudis 的 ClaySegmented）。 */}
+                <View style={[styles.segment, { backgroundColor: palette.border }]}>
+                  {(['before', 'after'] as const).map((s) => (
+                    <Pressable
+                      key={s}
+                      testID={`preview-${s}`}
+                      onPress={() => setSide(s)}
+                      style={[
+                        styles.segmentItem,
+                        side === s && { backgroundColor: palette.surface },
+                      ]}>
+                      <Text
+                        style={[
+                          palette.font('title', 14),
+                          { color: side === s ? palette.text : palette.caption },
+                        ]}>
+                        {t(locale, s)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Preview
+                  key={`${proposal.changeRequestId}-${side}`}
+                  config={side === 'before' ? proposal.before : proposal.after}
+                  pageId={proposal.focusPageId}
+                  onError={() => side === 'after' && setPreviewBroken(true)}
+                />
+              </>
+            )}
 
             <View style={styles.actions}>
               <Button
@@ -249,8 +293,39 @@ export function ChangeScreen() {
   );
 }
 
+/** 新工作流不在任何页面上时，预览显示它的步骤，并说明在哪里找到它（D-109）。 */
+function WorkflowSteps({ workflowId }: { workflowId: string }) {
+  const { locale, registry } = useWorkspaceContext();
+  const proposal = useWorkspace((s) => s.proposal)!;
+  const palette = usePalette(proposal.after.theme);
+  const workflow = proposal.after.workflows.find((w) => w.id === workflowId);
+  if (!workflow) return null;
+  return (
+    <Card palette={palette} testID="preview-workflow">
+      <Text style={[palette.font('title', 17), { color: palette.text }]}>{workflow.name}</Text>
+      {workflow.steps.map((step, i) => (
+        <Text key={step.id} style={[palette.font('body', 15), { color: palette.text }]}>
+          {`${i + 1}. ${registry.actions.get(step.action)?.label[locale] ?? step.action}`}
+        </Text>
+      ))}
+      <Text style={[palette.font('body', 13), { color: palette.caption }]}>
+        {t(locale, 'workflowWhere')}
+      </Text>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  check: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  box: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   page: { paddingBottom: 48 },
   input: { minHeight: 110, borderWidth: 1, padding: 14, textAlignVertical: 'top' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

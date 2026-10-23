@@ -308,6 +308,11 @@ const strings = {
   },
   resultPages: { en: '{n} pages', zh: '{n} 页' },
   resultCount: { en: '{n} files', zh: '{n} 个文件' },
+  homeEntry: { en: 'Add a shortcut on the home page', zh: '在首页放一个入口' },
+  workflowWhere: {
+    en: 'You will find it under Tools → Workflows.',
+    zh: '之后在「工具 → 工作流」里可以找到它。',
+  },
   resultSmaller: { en: 'Was {from}, now {to}', zh: '原来 {from}，现在 {to}' },
   resultRecords: { en: '{n} records', zh: '{n} 条记录' },
   localDone: { en: 'Done', zh: '完成' },

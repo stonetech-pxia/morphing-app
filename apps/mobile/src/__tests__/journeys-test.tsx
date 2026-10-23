@@ -17,6 +17,7 @@ import ChangeRoute from '../app/change';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
 import RunRoute from '../app/run/[workflowId]';
+import WorkflowsRoute from '../app/workflows';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, makePdf } from '../test-utils/fake-files';
 import { APPLIED_BANNER_MS } from '../shell/Shell';
@@ -64,6 +65,7 @@ async function renderApp(
     'page/[pageId]': PageRoute,
     'ai-settings': AISettingsRoute,
     'run/[workflowId]': RunRoute,
+    workflows: WorkflowsRoute,
   });
   return { repo, store, files, aiSettings };
 }
@@ -136,6 +138,40 @@ describe('user journeys (UI)', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it('a new workflow: home entry ticked by default, then the app shows where it went (D-109)', async () => {
+    const { store } = await renderApp();
+    // 从设置页打开 AI 修改。
+    await fireEvent.press(screen.getByTestId('nav-settings'));
+    await askAi('添加签证照片工作流');
+    const box = await screen.findByTestId('change-home-entry');
+    expect(box.props.accessibilityState).toMatchObject({ checked: true });
+    await fireEvent.press(screen.getByTestId('change-apply'));
+    // 应用后回到首页，新的运行卡片就在标题下面。
+    const id = store.getState().config!.workflows[0]!.id;
+    expect(await screen.findByTestId(`run-${id}`)).toBeTruthy();
+    expect(store.getState().tab).toBe('page:home');
+  });
+
+  it('a new workflow without a home entry: steps in the preview, then the workflow list', async () => {
+    const { store } = await renderApp();
+    await askAi('添加签证照片工作流');
+    await fireEvent.press(await screen.findByTestId('change-home-entry'));
+    expect(screen.getByTestId('change-home-entry').props.accessibilityState).toMatchObject({
+      checked: false,
+    });
+    expect(screen.getByTestId('preview-workflow')).toHaveTextContent(/1\. 选照片/);
+    expect(screen.queryByTestId('preview-before')).toBeNull();
+    await fireEvent.press(screen.getByTestId('change-apply'));
+    const id = store.getState().config!.workflows[0]!.id;
+    expect(await screen.findByTestId(`workflow-${id}`)).toBeTruthy();
+    expect(
+      store
+        .getState()
+        .config!.pages.flatMap((p) => p.components)
+        .map((c) => c.type),
+    ).not.toContain('workflowRunner');
   });
 
   it('cancel keeps the app unchanged', async () => {

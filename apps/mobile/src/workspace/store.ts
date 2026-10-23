@@ -5,8 +5,10 @@ import {
   coalesceOps,
   createDefaultWorkspace,
   describeRestore,
+  homeEntryOps,
   prepareOps,
   prepareSnapshot,
+  workflowsWithoutEntry,
   type AIProvider,
   type Locale,
   type NavTarget,
@@ -48,6 +50,12 @@ export interface Proposal {
   summary: string;
   /** 预览时展示的页面。 */
   focusPageId: string;
+  /** 新建、但不在任何页面上的工作流：预览显示它的步骤，应用后打开工作流列表（D-109）。 */
+  focusWorkflowId?: string;
+  /** AI 新建的工作流的「在首页放一个入口」选项（D-109）；on 时 after 已包含首页的运行卡片。 */
+  homeEntry?: { workflowIds: string[]; on: boolean };
+  /** AI 计划里的操作（不含首页入口），切换首页入口时据此重新计算。 */
+  ops?: Op[];
 }
 
 export type ProposeResult =
@@ -98,6 +106,8 @@ export interface WorkspaceState {
   proposeRestore(revisionId: number): Promise<ProposeResult>;
   /** 来自界面按钮（安装、卸载等）的修改，同样经过校验和版本记录。 */
   proposeOps(ops: Op[], summary: string): Promise<ProposeResult>;
+  /** 预览里勾选 / 取消「在首页放一个入口」（D-109）。 */
+  setHomeEntry(on: boolean): void;
   confirm(): Promise<boolean>;
   cancel(): Promise<void>;
   undo(): Promise<void>;
@@ -181,11 +191,46 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       return { kind: 'preview', proposal };
     }
 
+    /**
+     * 计划里的操作加上（勾选时）首页入口，算出预览要显示的内容。
+     * 首页入口加不进去（例如操作数到了上限）时当作不勾选。
+     */
+    function withHomeEntry(
+      before: WorkspaceConfig,
+      ops: Op[],
+      base: { after: WorkspaceConfig; lines: string[] },
+      workflowIds: string[],
+      on: boolean,
+    ): Pick<Proposal, 'after' | 'lines' | 'focusPageId' | 'focusWorkflowId' | 'homeEntry'> {
+      if (on) {
+        const full = prepareOps(before, [...ops, ...homeEntryOps(base.after, workflowIds)], {
+          registry,
+          locale,
+          now: deps.now(),
+        });
+        if (full.ok)
+          return {
+            after: full.after,
+            lines: base.lines,
+            focusPageId: 'home',
+            homeEntry: { workflowIds, on: true },
+          };
+      }
+      return {
+        after: base.after,
+        lines: base.lines,
+        focusPageId: focusPage(ops, base.after),
+        focusWorkflowId: workflowIds[0],
+        homeEntry: { workflowIds, on: false },
+      };
+    }
+
     async function opsProposal(
       input: string,
       ops: unknown,
       source: RevisionSource,
       summary: string,
+      homeEntry?: boolean,
     ): Promise<ProposeResult> {
       const { config, head } = get();
       if (!config || !head) throw new Error('workspace not loaded');
@@ -200,14 +245,22 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         });
         return { kind: 'invalid', issues: prepared.issues };
       }
+      const parsed = ops as Op[];
+      // AI 新建的工作流不在任何页面上时，由用户决定要不要放到首页（D-109）。
+      const homeless = source === 'ai' ? workflowsWithoutEntry(parsed, prepared.after) : [];
       return recordPreview(input, ops, head, {
         kind: 'ops',
         before: config,
-        after: prepared.after,
-        lines: prepared.lines,
         source,
         summary,
-        focusPageId: focusPage(ops as Op[], prepared.after),
+        ops: parsed,
+        ...(homeless.length > 0
+          ? withHomeEntry(config, parsed, prepared, homeless, homeEntry !== false)
+          : {
+              after: prepared.after,
+              lines: prepared.lines,
+              focusPageId: focusPage(parsed, prepared.after),
+            }),
       });
     }
 
@@ -338,7 +391,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
               return { kind: 'rejected', message: msg('noPrevious'), examples: [] };
             return await restoreProposal(head.parentId, input);
           }
-          return await opsProposal(input, plan.ops, 'ai', input);
+          return await opsProposal(input, plan.ops, 'ai', input, plan.homeEntry);
         } finally {
           set({ busy: false });
         }
@@ -348,6 +401,30 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         restoreProposal(revisionId, msg('restoreSummary', { id: revisionId })),
 
       proposeOps: (ops, summary) => opsProposal(summary, ops, 'user', summary),
+
+      setHomeEntry(on) {
+        const proposal = get().proposal;
+        if (!proposal?.homeEntry || !proposal.ops || proposal.homeEntry.on === on) return;
+        const base = prepareOps(proposal.before, proposal.ops, {
+          registry,
+          locale,
+          now: deps.now(),
+        });
+        if (!base.ok) return;
+        const { focusWorkflowId: _, ...rest } = proposal;
+        set({
+          proposal: {
+            ...rest,
+            ...withHomeEntry(
+              proposal.before,
+              proposal.ops,
+              base,
+              proposal.homeEntry.workflowIds,
+              on,
+            ),
+          },
+        });
+      },
 
       async confirm() {
         const proposal = get().proposal;

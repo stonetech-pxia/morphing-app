@@ -10,6 +10,7 @@ export * from './change';
 export * from './data';
 export * from './defaults';
 export * from './describe';
+export * from './home-entry';
 export * from './html';
 export * from './limits';
 export * from './migrate';
