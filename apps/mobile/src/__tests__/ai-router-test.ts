@@ -97,14 +97,14 @@ describe('AI settings', () => {
 
   it('tests the connection without spending tokens and explains failures', async () => {
     const ok = jest.fn(
-      async () => new Response(JSON.stringify({ id: 'claude-opus-5-5' }), { status: 200 }),
+      async () => new Response(JSON.stringify({ id: 'claude-haiku-5-5' }), { status: 200 }),
     );
     const a = await setup({ fetchImpl: ok });
     expect(await a.settings.getState().testConnection()).toEqual({ ok: false, kind: 'no_key' });
     await a.settings.getState().saveKey(KEY);
     expect(await a.settings.getState().testConnection()).toEqual({ ok: true });
     expect((ok.mock.calls[0] as unknown as [string])[0]).toBe(
-      'https://api.anthropic.com/v1/models/claude-opus-5-5',
+      'https://api.anthropic.com/v1/models/claude-haiku-5-5',
     );
 
     const b = await setup({ fetchImpl: claudeError(401, 'authentication_error') });
