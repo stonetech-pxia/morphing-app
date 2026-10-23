@@ -33,7 +33,12 @@ export function createRemoteAIProvider(options: RemoteAIOptions): AIProvider {
         const response = await fetchImpl(`${options.baseUrl}/v1/plan`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ input, locale: ctx.locale, config: ctx.config }),
+          body: JSON.stringify({
+            input,
+            locale: ctx.locale,
+            config: ctx.config,
+            ...(ctx.about ? { about: ctx.about } : {}),
+          }),
           signal: controller.signal,
         });
         const body = (await response.json().catch(() => null)) as {

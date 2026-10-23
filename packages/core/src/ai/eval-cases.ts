@@ -7,7 +7,7 @@ import { templateOps } from '../templates';
 import { THEME_PRESETS } from '../presets';
 import { CLAY, contrast, isDark, resolveColors } from '../theme';
 import { presetById, presetWorkflow } from '../workflows/presets';
-import type { Plan, RejectReason } from './types';
+import type { Plan, PlanAbout, RejectReason } from './types';
 
 /** 结构相同即可（校验后对象的键顺序可能变）。 */
 function sameValue(a: unknown, b: unknown): boolean {
@@ -45,6 +45,8 @@ export interface EvalCase {
   expect: EvalExpectation;
   /** mock AI 是否应当通过（改写说法只要求真实模型通过）。 */
   mock: boolean;
+  /** 从哪里打开的 AI（D-124）：一个快捷操作，或分享进来的文件。 */
+  about?: PlanAbout;
 }
 
 export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry): WorkspaceConfig {
@@ -1345,11 +1347,157 @@ const WORDING_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+// AI 只改 App（D-113、D-124）：办事类请求拒绝并给出能做的快捷操作；文件上的事照样做成快捷操作；
+// 从一个快捷操作打开时「这个」指它；从收件页面打开时，新快捷操作的第一步收得下分享的文件。
+
+const visaStep = (c: WorkspaceConfig, action: string) =>
+  visa(c)?.steps.find((s) => s.action === action);
+/** visa 场景里用户自己的快捷操作只有签证照片：改它，不新建。 */
+const onlyVisa = (c: WorkspaceConfig) =>
+  userWorkflows(c).length === 1 ? null : `made a new quick action instead of changing this one`;
+const homeEntryOff = (plan: OpsPlan) =>
+  plan.homeEntry === false ? null : 'a quick action for shared files should set homeEntry: false';
+const photosFit =
+  (count: number) => (steps: { action: string; params: Record<string, unknown> }[]) => {
+    const first = steps[0];
+    if (first?.action !== 'in.photos')
+      return `first step should be in.photos, got ${first?.action}`;
+    const { min, max } = first.params as { min: number; max: number };
+    return min <= count && count <= max ? null : `in.photos ${min}..${max} does not take ${count}`;
+  };
+
+const ABOUT_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'ER1',
+    input: '帮我写一封请假邮件',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'ER2',
+    input: '把这份合同翻译成英文',
+    locale: 'zh',
+    setup: 'pdf',
+    mock: true,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'ER3',
+    input: 'What does this contract say?',
+    locale: 'en',
+    setup: 'pdf',
+    mock: true,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'ER4',
+    input: '现在帮我运行签证照片',
+    locale: 'zh',
+    setup: 'visa',
+    mock: true,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'ER5',
+    input: '这几张照片太大了，帮我压到 200KB',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.photos', 'image.compress'], param('image.compress', 'maxKB', 200)),
+    },
+  },
+  {
+    id: 'AB1',
+    input: '把这个的大小改成 200KB',
+    locale: 'zh',
+    setup: 'visa',
+    mock: true,
+    about: { kind: 'workflow', workflowId: 'visa-photo' },
+    expect: {
+      kind: 'ops',
+      check: all(onlyVisa, (c) =>
+        visaStep(c, 'image.idPhoto')?.params.maxKB === 200
+          ? null
+          : 'the visa photo should be at most 200 KB',
+      ),
+    },
+  },
+  {
+    id: 'AB2',
+    input: '再小一点，150KB 以内',
+    locale: 'zh',
+    setup: 'visa',
+    mock: false,
+    about: { kind: 'workflow', workflowId: 'visa-photo' },
+    expect: {
+      kind: 'ops',
+      check: all(onlyVisa, (c) =>
+        visaStep(c, 'image.idPhoto')?.params.maxKB === 150
+          ? null
+          : `the visa photo should be at most 150 KB, got ${String(visaStep(c, 'image.idPhoto')?.params.maxKB)}`,
+      ),
+    },
+  },
+  {
+    id: 'AB3-en',
+    input: 'Also take the location out of it',
+    locale: 'en',
+    setup: 'visa',
+    mock: false,
+    about: { kind: 'workflow', workflowId: 'visa-photo' },
+    expect: {
+      kind: 'ops',
+      check: all(onlyVisa, (c) =>
+        visaStep(c, 'image.stripMetadata') ? null : 'no location removal step in the visa photo',
+      ),
+    },
+  },
+  {
+    id: 'SH1',
+    input: '做成一个 PDF',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    about: { kind: 'shared', images: 2, pdfs: 0, others: 0 },
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['in.photos', 'pdf.fromImages'], photosFit(2)), noRunner),
+      plan: homeEntryOff,
+    },
+  },
+  {
+    id: 'SH2-en',
+    input: 'Combine them into one file',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    about: { kind: 'shared', images: 0, pdfs: 3, others: 0 },
+    expect: {
+      kind: 'ops',
+      check: all(
+        hasWorkflow(['in.files', 'pdf.merge'], (steps) => {
+          const { accept, max } = steps[0]!.params as { accept: string; max: number };
+          return ['pdf', 'pdfOrImages', 'any'].includes(accept) && max >= 3
+            ? null
+            : `in.files ${accept} max ${max} does not take 3 PDFs`;
+        }),
+        noRunner,
+      ),
+      plan: homeEntryOff,
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...BASE_EVAL_CASES,
   ...WORKFLOW_EVAL_CASES,
   ...GOAL_EVAL_CASES,
   ...WORDING_EVAL_CASES,
+  ...ABOUT_EVAL_CASES,
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };

@@ -61,6 +61,24 @@ describe('plan server', () => {
       400,
     );
     expect((await post({ input: 'hi', locale: 'zh', config, extra: true })).status).toBe(400);
+    // 上下文只能是快捷操作的 id，或分享文件的类型和个数（D-124）。
+    expect(
+      (await post({ input: 'hi', locale: 'zh', config, about: { kind: 'shared', names: ['a'] } }))
+        .status,
+    ).toBe(400);
+  });
+
+  it('passes where the user opened AI from to the planner', async () => {
+    const seen: unknown[] = [];
+    const { post } = make({
+      plan: async (_input, ctx) => {
+        seen.push(ctx.about);
+        return { kind: 'restorePrevious' };
+      },
+    });
+    const about = { kind: 'shared', images: 2, pdfs: 0, others: 0 };
+    expect((await post({ input: '做成一个 PDF', locale: 'zh', config, about })).status).toBe(200);
+    expect(seen).toEqual([about]);
   });
 
   it('rejects oversized bodies', async () => {

@@ -68,7 +68,12 @@ export function createClaudePlanner(options: PlannerOptions): AIProvider {
       const messages: PlannerMessage[] = [
         {
           role: 'user',
-          content: buildUserMessage(redactForAI(ctx.config, ctx.registry), input, ctx.locale),
+          content: buildUserMessage(
+            redactForAI(ctx.config, ctx.registry),
+            input,
+            ctx.locale,
+            ctx.about,
+          ),
         },
       ];
       for (let attempt = 0; ; attempt++) {

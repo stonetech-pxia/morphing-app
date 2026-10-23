@@ -20,6 +20,7 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
   private assets: AssetRecord[] = [];
   private grants = new Set<string>();
   private toolRuns: ToolRunRecord[] = [];
+  private meta = new Map<string, string>();
   /** 记录以 JSON 保存，模拟数据库的写入与读取。 */
   private records = new Map<string, string>();
   private clock = 0;
@@ -159,6 +160,14 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
     run.error = result.error ?? null;
     run.outputAssetId = result.outputAssetId ?? null;
     run.finishedAt = this.now();
+  }
+
+  async getMeta(key: string) {
+    return this.meta.get(key) ?? null;
+  }
+
+  async setMeta(key: string, value: string) {
+    this.meta.set(key, value);
   }
 
   async listToolRuns(limit: number) {

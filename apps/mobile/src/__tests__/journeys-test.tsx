@@ -16,6 +16,7 @@ import AISettingsRoute from '../app/ai-settings';
 import ChangeRoute from '../app/change';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
+import ReadyRoute from '../app/ready/[workflowId]';
 import RunRoute from '../app/run/[workflowId]';
 import WorkflowsRoute from '../app/workflows';
 import { MemoryWorkspaceRepo } from '../storage/memory';
@@ -66,6 +67,7 @@ async function renderApp(
     'ai-settings': AISettingsRoute,
     'run/[workflowId]': RunRoute,
     workflows: WorkflowsRoute,
+    'ready/[workflowId]': ReadyRoute,
   });
   return { repo, store, files, aiSettings };
 }
@@ -148,13 +150,15 @@ describe('user journeys (UI)', () => {
     const box = await screen.findByTestId('change-home-entry');
     expect(box.props.accessibilityState).toMatchObject({ checked: true });
     await fireEvent.press(screen.getByTestId('change-apply'));
-    // 应用后回到首页，新的运行卡片就在标题下面。
+    // 应用后先看到「做好了」（D-125），说明首页上也有入口；「先不用」回到首页，运行卡片就在标题下面。
+    expect(await screen.findByTestId('ready-screen')).toHaveTextContent(/首页上也放了入口/);
+    expect(store.getState().tab).toBe('page:home');
+    await fireEvent.press(screen.getByTestId('ready-later'));
     const id = store.getState().config!.workflows[0]!.id;
     expect(await screen.findByTestId(`run-${id}`)).toBeTruthy();
-    expect(store.getState().tab).toBe('page:home');
   });
 
-  it('a new workflow without a home entry: steps in the preview, then the workflow list', async () => {
+  it('a new workflow without a home entry: steps in the preview, then where to find it', async () => {
     const { store } = await renderApp();
     await askAi('添加签证照片工作流');
     await fireEvent.press(await screen.findByTestId('change-home-entry'));
@@ -164,8 +168,8 @@ describe('user journeys (UI)', () => {
     expect(screen.getByTestId('preview-workflow')).toHaveTextContent(/1\. 选照片/);
     expect(screen.queryByTestId('preview-before')).toBeNull();
     await fireEvent.press(screen.getByTestId('change-apply'));
-    const id = store.getState().config!.workflows[0]!.id;
-    expect(await screen.findByTestId(`workflow-${id}`)).toBeTruthy();
+    // 「做好了」说明以后在哪里找到它（D-125）。
+    expect(await screen.findByTestId('ready-screen')).toHaveTextContent(/工具 → 快捷操作/);
     expect(
       store
         .getState()

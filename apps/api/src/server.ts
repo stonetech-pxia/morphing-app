@@ -1,4 +1,4 @@
-import { validateWorkspace, type AIProvider, type Registry } from '@morph/core';
+import { PlanAboutSchema, validateWorkspace, type AIProvider, type Registry } from '@morph/core';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
@@ -23,6 +23,7 @@ const PlanRequestSchema = z.strictObject({
   input: z.string().trim().min(1).max(500),
   locale: z.enum(['en', 'zh']),
   config: z.unknown(),
+  about: PlanAboutSchema.optional(),
 });
 
 export function createApp(options: ServerOptions) {
@@ -62,6 +63,7 @@ export function createApp(options: ServerOptions) {
           config: valid.config,
           registry: options.registry,
           locale: body.data.locale,
+          ...(body.data.about ? { about: body.data.about } : {}),
         });
         // 日志只记录元数据，不记录用户输入或配置内容。
         log({

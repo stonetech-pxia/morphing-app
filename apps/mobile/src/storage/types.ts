@@ -120,6 +120,10 @@ export interface WorkspaceRepo {
   ): Promise<void>;
   listToolRuns(limit: number): Promise<ToolRunRecord[]>;
 
+  // ---- 设备上的小设置（不属于配置、不进版本，例如使用习惯的统计 D-127）----
+  getMeta(key: string): Promise<string | null>;
+  setMeta(key: string, value: string): Promise<void>;
+
   // ---- 用户记录：只由用户在页面上的操作读写，从不经过 AI ----
   /** 某张表未删除的记录（顺序不保证，由调用方排序）。 */
   listRecords(collectionId: string): Promise<DataRecord[]>;

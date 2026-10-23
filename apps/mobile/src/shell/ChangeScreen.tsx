@@ -1,11 +1,13 @@
 import {
+  allComponents,
   createMockAIProvider,
   pageTarget,
   presetOfTheme,
   presetRequest,
+  type PlanAbout,
   type ThemePresetId,
 } from '@morph/core';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -22,9 +24,11 @@ import { useAISettings } from '../ai/context';
 import { t } from '../i18n';
 import { usePalette } from '../renderer/theme';
 import { Button, Card, SectionLabel } from '../renderer/ui';
+import { sharedAbout } from '../share/about';
+import { useIncoming } from '../share/incoming';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { ProposeResult } from '../workspace/store';
-import { examplesFor } from './examples';
+import { aboutCandidates, examplesFor } from './examples';
 import { Preview } from './Preview';
 import { StylePicker } from './StylePicker';
 
@@ -36,7 +40,7 @@ const presetPlanner = createMockAIProvider();
  * 只有提交并重新渲染成功后，外壳才显示“已应用”。
  */
 export function ChangeScreen() {
-  const { locale } = useWorkspaceContext();
+  const { locale, registry } = useWorkspaceContext();
   const router = useRouter();
   const config = useWorkspace((s) => s.config)!;
   const proposal = useWorkspace((s) => s.proposal);
@@ -48,6 +52,51 @@ export function ChangeScreen() {
   const selectTab = useWorkspace((s) => s.selectTab);
   const palette = usePalette(config.theme);
   const aiMode = useAISettings((s) => s.mode);
+  // 从一个快捷操作（「让 AI 改这个」）或收件页面打开时带上的上下文（D-124）。
+  const params = useLocalSearchParams<{ workflow?: string; shared?: string }>();
+  const share = useIncoming((s) => s.share);
+  const [about] = useState<PlanAbout | undefined>(() => {
+    if (params.workflow && config.workflows.some((w) => w.id === params.workflow))
+      return { kind: 'workflow', workflowId: params.workflow };
+    if (params.shared && share && String(share.id) === params.shared) return sharedAbout(share);
+    return undefined;
+  });
+  const aboutName =
+    about?.kind === 'workflow'
+      ? config.workflows.find((w) => w.id === about.workflowId)?.name
+      : undefined;
+  const aboutOnHome =
+    about?.kind === 'workflow' &&
+    config.pages.some(
+      (p) =>
+        p.id === 'home' &&
+        allComponents(p).some(
+          (c) => c.type === 'workflowRunner' && c.props.workflowId === about.workflowId,
+        ),
+    );
+  // 有上下文时的例子（D-124）；内置规则只留它真的认得的句子，所以先试一遍再显示。
+  const [examples, setExamples] = useState<readonly string[]>(() =>
+    !about
+      ? examplesFor(aiMode, locale)
+      : aiMode === 'mock'
+        ? []
+        : aboutCandidates(about, aiMode, locale, { onHome: aboutOnHome }),
+  );
+  useEffect(() => {
+    if (!about || aiMode !== 'mock') return;
+    const candidates = aboutCandidates(about, aiMode, locale, { onHome: aboutOnHome });
+    let live = true;
+    void Promise.all(
+      candidates.map((c) => presetPlanner.plan(c, { config, registry, locale, about })),
+    ).then((plans) => {
+      if (live) setExamples(candidates.filter((_, i) => plans[i]!.kind === 'ops'));
+    });
+    return () => {
+      live = false;
+    };
+    // 只在打开时算一次。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [input, setInput] = useState('');
   /** 风格选择器最近填进去的句子；用户改过输入框后就不再相等，交给设置里的 AI。 */
@@ -76,7 +125,7 @@ export function ChangeScreen() {
     setPreviewBroken(false);
     setSide('after');
     const planner = text.trim() === presetText ? presetPlanner : undefined;
-    const result = await propose(text.trim(), planner);
+    const result = await propose(text.trim(), planner, about);
     if (result.kind !== 'preview') setFeedback(result);
   }
 
@@ -88,18 +137,24 @@ export function ChangeScreen() {
     setPresetText(text);
   }
 
-  /** 应用后带用户去看改了什么（D-109）：新工作流不在页面上时打开工作流列表，否则切到改动的页面。 */
+  /**
+   * 应用后带用户去看改了什么（D-109）。新做了一个快捷操作时打开「做好了」页面，由用户自己点
+   * 「现在就用一次」（D-125）；从快捷操作或收件页面打开的回到原来的页面（收件页面会列出新的快捷操作）。
+   */
   async function apply() {
     const applied = proposal;
     const ok = await confirm();
     router.back();
-    if (!ok || !applied) return;
-    if (applied.focusWorkflowId) {
-      router.push('/workflows');
-      return;
-    }
+    if (!ok || !applied || about) return;
+    const before = new Set(applied.before.workflows.map((w) => w.id));
+    const added = applied.after.workflows.filter((w) => !before.has(w.id));
     const target = pageTarget(applied.focusPageId);
     if (applied.after.shell.nav.includes(target)) selectTab(target);
+    if (added.length === 1) {
+      router.push({ pathname: '/ready/[workflowId]', params: { workflowId: added[0]!.id } });
+      return;
+    }
+    if (applied.focusWorkflowId) router.push('/workflows');
   }
 
   async function discard() {
@@ -119,12 +174,31 @@ export function ChangeScreen() {
         keyboardShouldPersistTaps="handled">
         {!proposal ? (
           <>
-            <Text style={sub}>{t(locale, 'changeHint')}</Text>
+            {about ? (
+              <Card palette={palette} background={palette.primaryTint} testID="change-about">
+                <Text style={[palette.font('title', 15), { color: palette.text }]}>
+                  {about.kind === 'workflow'
+                    ? t(locale, 'aboutWorkflow', { name: aboutName ?? '' })
+                    : t(locale, 'aboutShared', { what: sharedWhat(about, locale) })}
+                </Text>
+                <Text style={sub}>
+                  {t(locale, about.kind === 'workflow' ? 'aboutWorkflowHint' : 'aboutSharedHint')}
+                </Text>
+              </Card>
+            ) : (
+              <Text style={sub}>{t(locale, 'changeHint')}</Text>
+            )}
             <TextInput
               testID="change-input"
               value={input}
               onChangeText={setInput}
-              placeholder={t(locale, 'changePlaceholder')}
+              placeholder={
+                !about
+                  ? t(locale, 'changePlaceholder')
+                  : examples[0]
+                    ? t(locale, 'aboutPlaceholder', { example: examples[0] })
+                    : ''
+              }
               placeholderTextColor={palette.caption}
               multiline
               style={[
@@ -160,39 +234,53 @@ export function ChangeScreen() {
                     ))}
                   </>
                 ) : (
-                  <Text style={text}>{feedback.message}</Text>
+                  <>
+                    <Text style={text}>{feedback.message}</Text>
+                    {/* 拒绝时给的例子（例如办事类请求能做成的快捷操作，D-128）：点一下填进输入框。 */}
+                    {feedback.examples.length > 0 ? (
+                      <View style={styles.chips} testID="change-feedback-examples">
+                        {feedback.examples.map((example) => (
+                          <Chip
+                            key={example}
+                            label={example}
+                            palette={palette}
+                            onPress={() => setInput(example)}
+                          />
+                        ))}
+                      </View>
+                    ) : null}
+                  </>
                 )}
               </Card>
             ) : null}
 
-            <SectionLabel palette={palette}>{t(locale, 'pickStyle')}</SectionLabel>
-            <StylePicker
-              locale={locale}
-              current={presetOfTheme(config.theme)}
-              palette={palette}
-              onPick={pickStyle}
-            />
+            {about ? null : (
+              <>
+                <SectionLabel palette={palette}>{t(locale, 'pickStyle')}</SectionLabel>
+                <StylePicker
+                  locale={locale}
+                  current={presetOfTheme(config.theme)}
+                  palette={palette}
+                  onPick={pickStyle}
+                />
+              </>
+            )}
 
-            <SectionLabel palette={palette}>{t(locale, 'examples')}</SectionLabel>
-            <View style={styles.chips}>
-              {examplesFor(aiMode, locale).map((example) => (
-                <Pressable
-                  key={example}
-                  onPress={() => setInput(example)}
-                  style={({ pressed }) => [
-                    styles.chip,
-                    {
-                      borderColor: palette.border,
-                      backgroundColor: palette.surface,
-                      opacity: pressed ? 0.6 : 1,
-                    },
-                  ]}>
-                  <Text style={[palette.font('bodyBold', 13), { color: palette.text }]}>
-                    {example}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            {examples.length > 0 ? (
+              <>
+                <SectionLabel palette={palette}>{t(locale, 'examples')}</SectionLabel>
+                <View style={styles.chips} testID="change-examples">
+                  {examples.map((example) => (
+                    <Chip
+                      key={example}
+                      label={example}
+                      palette={palette}
+                      onPress={() => setInput(example)}
+                    />
+                  ))}
+                </View>
+              </>
+            ) : null}
           </>
         ) : (
           <>
@@ -303,6 +391,41 @@ export function ChangeScreen() {
       </ScrollView>
     </KeyboardAvoidingView>
   );
+}
+
+function Chip({
+  label,
+  palette,
+  onPress,
+}: {
+  label: string;
+  palette: ReturnType<typeof usePalette>;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.chip,
+        {
+          borderColor: palette.border,
+          backgroundColor: palette.surface,
+          opacity: pressed ? 0.6 : 1,
+        },
+      ]}>
+      <Text style={[palette.font('bodyBold', 13), { color: palette.text }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** 「2 张照片和 1 个 PDF」：分享进来的文件的类型和个数。 */
+function sharedWhat(about: Extract<PlanAbout, { kind: 'shared' }>, locale: 'en' | 'zh'): string {
+  const parts = [
+    about.images ? t(locale, 'sharedPhotos', { n: about.images }) : null,
+    about.pdfs ? t(locale, 'sharedPdfs', { n: about.pdfs }) : null,
+    about.others ? t(locale, 'sharedOthers', { n: about.others }) : null,
+  ].filter(Boolean);
+  return parts.join(locale === 'zh' ? '和' : ' and ');
 }
 
 /** 新工作流不在任何页面上时，预览显示它的步骤，并说明在哪里找到它（D-109）。 */

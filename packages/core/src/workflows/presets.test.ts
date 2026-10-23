@@ -4,12 +4,24 @@ import { applyOps } from '../ops';
 import { registry, workspace } from '../test-helpers';
 import { validateWorkspace } from '../validate';
 import { typesAlong, workflowProblems } from '../workflow/check';
-import { WORKFLOW_PRESETS, newWorkflowId, presetWorkflow } from './presets';
+import {
+  PRESET_SCENARIOS,
+  WORKFLOW_PRESETS,
+  newWorkflowId,
+  presetWorkflow,
+  presetsIn,
+} from './presets';
 
 describe('workflow presets', () => {
   it('has the ten presets with unique ids', () => {
     expect(WORKFLOW_PRESETS).toHaveLength(10);
     expect(new Set(WORKFLOW_PRESETS.map((p) => p.id)).size).toBe(10);
+  });
+
+  it('puts every preset in exactly one scenario, none empty (D-130)', () => {
+    const grouped = PRESET_SCENARIOS.flatMap((sc) => presetsIn(sc.id));
+    expect(grouped.map((p) => p.id).sort()).toEqual(WORKFLOW_PRESETS.map((p) => p.id).sort());
+    for (const sc of PRESET_SCENARIOS) expect(presetsIn(sc.id).length).toBeGreaterThan(0);
   });
 
   it.each(WORKFLOW_PRESETS.map((p) => [p.id, p] as const))(

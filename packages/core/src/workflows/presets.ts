@@ -4,8 +4,22 @@ import type { IconName, Locale, Localized, Workflow } from '../schema';
 // 之后就和用户自己的工作流一样，可以改参数、改步骤、复制、放到页面上、删除；编辑页可以「恢复预设」。
 // 预设只用登记过的动作，不要求先安装对应的工具（跨工具的用户工作流，§2）。
 
+/**
+ * 预设按生活场景分组（D-130）：普通人说不清要什么，但看到「出国办证」「报销」就知道。
+ * 顺序就是快捷操作页上的顺序。
+ */
+export const PRESET_SCENARIOS = [
+  { id: 'ids', name: { en: 'Visas and IDs', zh: '出国办证' } },
+  { id: 'paperwork', name: { en: 'Forms and documents', zh: '交材料、签文件' } },
+  { id: 'receipts', name: { en: 'Receipts and expenses', zh: '报销记账' } },
+  { id: 'photos', name: { en: 'Sending photos', zh: '发照片' } },
+] as const satisfies readonly { id: string; name: Localized }[];
+
+export type PresetScenario = (typeof PRESET_SCENARIOS)[number]['id'];
+
 export interface WorkflowPreset {
   id: string;
+  scenario: PresetScenario;
   name: Localized;
   /** 一句话说明，显示在预设库里，也发给 AI。 */
   description: Localized;
@@ -37,6 +51,7 @@ const rename = (template: string, ask = true) => ({
 export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   {
     id: 'visa-photo',
+    scenario: 'ids',
     name: { en: 'Visa / ID photo', zh: '签证 / 证件照' },
     description: {
       en: 'Choose a photo, frame your face, get the official size as a JPG under the size limit (US visa: 600×600, ≤ 240 KB).',
@@ -56,6 +71,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   },
   {
     id: 'document-packet',
+    scenario: 'paperwork',
     name: { en: 'Application packet', zh: '材料包' },
     description: {
       en: 'Photos of documents → crop and order them → one A4 PDF under 4 MB → name it → share.',
@@ -77,6 +93,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   },
   {
     id: 'email-photos',
+    scenario: 'photos',
     name: { en: 'Photos for email or upload', zh: '照片发邮件 / 传网站' },
     description: {
       en: 'Choose photos → long side 1600 px → each under 500 KB as JPG → share.',
@@ -97,6 +114,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   },
   {
     id: 'sign-return',
+    scenario: 'paperwork',
     name: { en: 'Sign and send back', zh: '签回表格' },
     description: {
       en: 'Choose a PDF → fill in its form fields (skipped when there are none) → sign → share.',
@@ -117,6 +135,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   },
   {
     id: 'scan-document',
+    scenario: 'paperwork',
     name: { en: 'Scan a document', zh: '扫描文档' },
     description: {
       en: 'Scan pages with the document camera (or take photos and check the corners) → clean up → PDF → name it → share.',
@@ -139,6 +158,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   },
   {
     id: 'combine-documents',
+    scenario: 'paperwork',
     name: { en: 'Combine documents', zh: '多份材料合一' },
     description: {
       en: 'Choose PDFs and images → merge into one PDF → pick, order and rotate pages → name it → share.',
@@ -155,6 +175,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   },
   {
     id: 'receipt-archive',
+    scenario: 'receipts',
     name: { en: 'Receipt archive', zh: '收据归档' },
     description: {
       en: 'Scan a receipt (straightened automatically, or check the corners) → under 500 KB → name it by date → save to files.',
@@ -172,6 +193,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   },
   {
     id: 'redact-screenshots',
+    scenario: 'photos',
     name: { en: 'Hide parts of screenshots', zh: '截图打码分享' },
     description: {
       en: 'Choose screenshots → stitch into one long image → cover private parts → share.',
@@ -191,6 +213,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   },
   {
     id: 'send-photos',
+    scenario: 'photos',
     name: { en: 'Send many photos', zh: '批量发照片' },
     description: {
       en: 'Choose photos → JPG → remove location → long side 2048 px → one ZIP → share.',
@@ -209,6 +232,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   },
   {
     id: 'print-id-photos',
+    scenario: 'ids',
     name: { en: 'ID photos to print', zh: '证件照打印' },
     description: {
       en: 'Choose a photo → frame it at the ID size → repeat it on 4×6 in photo paper with cut lines → print or save.',
@@ -229,6 +253,10 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
 ];
 
 export const presetById = (id: string) => WORKFLOW_PRESETS.find((p) => p.id === id);
+
+/** 一个场景里的预设，按 WORKFLOW_PRESETS 的顺序。 */
+export const presetsIn = (scenario: PresetScenario) =>
+  WORKFLOW_PRESETS.filter((p) => p.scenario === scenario);
 
 /** 从预设复制一个工作流（不属于任何工具，记住 presetId 以便恢复）。 */
 export function presetWorkflow(preset: WorkflowPreset, locale: Locale, id: string): Workflow {

@@ -13,6 +13,7 @@ import {
   type Locale,
   type NavTarget,
   type Op,
+  type PlanAbout,
   type Registry,
   type WorkspaceConfig,
 } from '@morph/core';
@@ -103,8 +104,11 @@ export interface WorkspaceState {
   editing: EditDraft | null;
 
   boot(): Promise<void>;
-  /** planner 不传时用设置里选的 AI；风格选择器填的原句用内置规则（D-095）。 */
-  propose(input: string, planner?: AIProvider): Promise<ProposeResult>;
+  /**
+   * planner 不传时用设置里选的 AI；风格选择器填的原句用内置规则（D-095）。
+   * about：从哪里打开的 AI 修改（一个快捷操作、分享进来的文件，D-124）。
+   */
+  propose(input: string, planner?: AIProvider, about?: PlanAbout): Promise<ProposeResult>;
   proposeRestore(revisionId: number): Promise<ProposeResult>;
   /** 来自界面按钮（安装、卸载等）的修改，同样经过校验和版本记录。 */
   proposeOps(ops: Op[], summary: string): Promise<ProposeResult>;
@@ -362,12 +366,17 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         }
       },
 
-      async propose(input, planner = deps.provider) {
+      async propose(input, planner = deps.provider, about) {
         const { config, head } = get();
         if (!config || !head) throw new Error('workspace not loaded');
         set({ busy: true });
         try {
-          const raw = await planner.plan(input, { config, registry, locale });
+          const raw = await planner.plan(input, {
+            config,
+            registry,
+            locale,
+            ...(about ? { about } : {}),
+          });
           // 模型输出一律视为不可信数据（§8）。
           const parsed = PlanSchema.safeParse(raw);
           if (!parsed.success) {
@@ -396,7 +405,10 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
               return { kind: 'rejected', message: msg('noPrevious'), examples: [] };
             return await restoreProposal(head.parentId, input);
           }
-          return await opsProposal(input, plan.ops, 'ai', input, plan);
+          // 给分享进来的文件做的快捷操作在收件页面运行，首页入口默认不勾（D-124）。
+          const shaped =
+            about?.kind === 'shared' ? { ...plan, homeEntry: plan.homeEntry ?? false } : plan;
+          return await opsProposal(input, plan.ops, 'ai', input, shaped);
         } finally {
           set({ busy: false });
         }

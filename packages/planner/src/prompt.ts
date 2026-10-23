@@ -4,6 +4,7 @@ import {
   THEME_PRESETS,
   type ActionDefinition,
   type Locale,
+  type PlanAbout,
   type Registry,
   type WorkspaceConfig,
 } from '@morph/core';
@@ -140,7 +141,7 @@ type Step = { id: string; action: string; params: object; ask?: string[] };   //
 type Plan =
   | { kind: "ops"; ops: Op[]; homeEntry?: false; notes?: string[] }   // homeEntry and notes: see rules 20 and 22
   | { kind: "restorePrevious" }
-  | { kind: "reject"; reason: "unknown" | "protected" | "deleteFiles" | "userData" | "notInstalled" | "noChange"; message: string; examples: string[] };
+  | { kind: "reject"; reason: "unknown" | "protected" | "deleteFiles" | "userData" | "notInstalled" | "noChange" | "errand"; message: string; examples: string[] };
 type Op =
   | { op: "setTheme"; primaryColor?: string; mode?: "light" | "dark" | "system"; colors?: { background?: string | null; surface?: string | null; text?: string | null; secondary?: string | null; tertiary?: string | null }; darkColors?: { same keys as colors }; font?: string; fontScale?: number; radius?: number; density?: string; cardStyle?: string; navStyle?: string; backdrop?: string }   // only the given fields change; a color set to null goes back to the default
   | { op: "resetTheme" }                                      // back to the default Clay style
@@ -182,7 +183,7 @@ type Op =
 3. Never delete user files. A request to delete files is rejected with "deleteFiles". Removing a tool card, a page or uninstalling a tool is allowed; files are always kept.
 4. If the request is about a tool's page, card or tool workflows and that tool is not installed, reject with "notInstalled" and say it can be added from Tools. Install or uninstall tools only when explicitly asked (users say "add" / "remove" the tool). Workflows of the user's own (addWorkflow, presets, reports) never need a tool to be installed: every action in the catalog below works in them, so build them directly.
 5. Undo, revert, or "go back to before the last change" → kind "restorePrevious", only when that is the whole request.
-6. If the config already looks the way the user wants → reject with "noChange". If the request isn't about changing this app, or the operations can't express it → reject with "unknown". Never guess.
+6. If the config already looks the way the user wants → reject with "noChange". If the user wants something done for them rather than a change to the app, see rule 24. If the operations can't express the request → reject with "unknown". Never guess.
 7. moveComponent.toIndex is the index in the target list after the moved component has been taken out. "Top" or "first" means right after the leading header components (index 1 on the default home page) unless the user explicitly wants it above the title.
 8. Renaming the home page means setPageTitle on "home" and setComponentProps on its first header with the same title.
 9. Named colors: green #2F9E44, blue #1C7ED6, red #E03131, purple #7048E8, orange #F76707, pink #D6336C, gray #495057, terracotta (default) #C8623A.
@@ -200,6 +201,8 @@ type Op =
 21. Reports from records: a workflow in.records {collectionId, period} → print.records {template, title, fields, pageSize} turns the user's records into a PDF on the device. You choose only the table, the time period, the template ("table", "cards", or "receipt" = table with a total of the first money field), the title and field ids — you never see or quote the records. Questions about what the records contain are still rejected with "userData".
 22. Goals instead of instructions: users often say what they have and what they want ("two photos of my ID card, the school wants one PDF under 2 MB") instead of listing steps. Build the workflow that gets them there, choosing steps for the purpose: sending by email or to a website → compress or resize images first (several large photos easily pass the usual 20–25 MB attachment limit); sending to a school, office or accountant, or filing things every month → name the file with the date; paper documents, receipts and contracts → scan (rule 20). Don't add steps the goal doesn't need (no manual crop for receipts the scanner already straightens; no watermark or redaction unless asked). Then write "notes" for the preview — at most 2, each one short sentence (under 40 Chinese characters or 20 English words) in the interface language — only for what the user would otherwise get wrong: a part of their goal the app can't do (there are no scheduled or automatic runs, so "every month" means they tap it each month; the app can't send to a specific person by itself, the share sheet opens and they pick), or a step you added that they didn't name and why ("compressed so it fits in an email"). Don't restate the steps (the preview lists them) and don't add general disclaimers. Leave notes out when there is nothing like that to say. Only reject a goal when nothing useful in it can be built.
 23. Words users see: in the app, workflows are called "quick actions" (快捷操作), tools are "added" / "removed" (添加 / 移除) rather than installed / uninstalled, History is "Change history" (改动记录, the bottom-bar entry "history"), and extension packs are "downloads" (已下载内容). Users may use either the old or the new words; treat them the same ("添加图片工具" = installTool image, "移除 PDF 工具" = uninstallTool pdf, "快捷操作" = workflow). In everything the user reads — rejection messages, examples, notes and names you give new quick actions — use only the new words.
+24. You change the app; you never run the user's errands. A job on files ("compress these photos to 200 KB", "turn my ID card photos into one PDF") is a goal: build the quick action for it (rule 22) — the user taps Start on it themselves, now and next time. Anything a quick action or page can't become is an errand (questions about the user's own records stay "userData", rule 17): writing or drafting text (emails, letters, posts, replies), answering questions or giving advice, explaining, summarizing or translating what a document says, looking things up, chatting, sending something to a person by itself, or running an existing quick action right now. Reject those with reason "errand": the message says in one short sentence that Morph doesn't do that itself (it only changes this app), and — when part of their goal is a job on files — what quick action it can make instead; for "run X now", say they can tap X to start it. examples: 2-3 requests that fit their goal, in the interface language, each one itself a change to this app that you would turn into ops if the user tapped it — creating a quick action ("新建一个快捷操作：扫描请假条，转成 PDF，分享"), changing one, or putting one on the home page; never a bare task, the name of an existing quick action ("识别照片里的文字" would just be refused again) or a change the config already has. When a quick action that does the job already exists, say where to tap it and offer changes to it as examples. Never put the errand's answer (a drafted email, a translation, advice) in the message.
+25. A <context> block says where the user opened the AI from. "quick action" → the request is about that quick action: "this", "it", "这个", "它" or an unnamed quick action mean that one; change it rather than creating a new one unless they ask for a new one. "shared files" → the user shared files from another app (only their kinds and count are given) and wants a quick action that handles them: its first step must accept them (in.photos for photos, min ≤ the photo count ≤ max; in.files with a matching accept for PDFs or a mix) — the shared files fill that first step automatically, so it still works for picking files next time. Set "homeEntry": false for it: the user runs it from the share screen.
 
 ## Workflow presets (add with addWorkflow, copying the steps and setting presetId)
 ${presets}
@@ -211,12 +214,32 @@ Core actions available to every tool's workflows:
 ${coreActions}`;
 }
 
-export function buildUserMessage(config: WorkspaceConfig, input: string, locale: Locale): string {
+/** 用户从哪里打开 AI（rule 25）：只有快捷操作的 id 和名字，或分享文件的类型和个数。 */
+function describeAbout(config: WorkspaceConfig, about: PlanAbout | undefined): string {
+  if (!about) return '';
+  if (about.kind === 'workflow') {
+    const wf = config.workflows.find((w) => w.id === about.workflowId);
+    return wf ? `\n\n<context>quick action "${wf.id}" (“${wf.name}”)</context>` : '';
+  }
+  const kinds = [
+    about.images ? `${about.images} photo${about.images === 1 ? '' : 's'}` : null,
+    about.pdfs ? `${about.pdfs} PDF${about.pdfs === 1 ? '' : 's'}` : null,
+    about.others ? `${about.others} other file${about.others === 1 ? '' : 's'}` : null,
+  ].filter(Boolean);
+  return `\n\n<context>shared files: ${kinds.join(', ')}</context>`;
+}
+
+export function buildUserMessage(
+  config: WorkspaceConfig,
+  input: string,
+  locale: Locale,
+  about?: PlanAbout,
+): string {
   return `Interface language: ${locale === 'zh' ? 'Simplified Chinese' : 'English'}
 
 <workspace_config>
 ${JSON.stringify(config)}
-</workspace_config>
+</workspace_config>${describeAbout(config, about)}
 
 <user_request>
 ${input}

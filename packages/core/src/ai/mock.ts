@@ -863,6 +863,11 @@ const Q = '"?';
 
 /** 句子里说的工作流：先按名字找，再按预设找（「签证照片」→ 从签证预设添加的那个）。 */
 function workflowNamed(rawName: string, state: State): Workflow | undefined {
+  // 从一个快捷操作打开 AI 时（D-124），「这个」「它」就是那个快捷操作。
+  const about = state.ctx.about;
+  if (about?.kind === 'workflow' && THIS.test(rawName.replace(/"/g, '').trim())) {
+    return state.config.workflows.find((w) => w.id === about.workflowId);
+  }
   const byName = findWorkflowByName(rawName, state.config);
   if (byName) return byName;
   const preset = findPreset(rawName);
@@ -1245,6 +1250,41 @@ const USER_DATA = new RegExp(
 );
 
 const RESTORE = /^(恢复|还原)(到)?上一(次|个)|^撤销|^撤回|^undo\b|^revert\b|^go back/i;
+const THIS =
+  /^(?:这个|它|这一个|该)(?:快捷操作|工作流|流程)?$|^(?:this|it|this quick action|this workflow)$/i;
+
+/**
+ * 替用户办事、而不是改 App 的请求（D-113、D-128）：写东西、翻译、总结或解释内容、提问、搜索。
+ * 整句检查：这类话里常有逗号，拆开后的子句看不出来。
+ */
+const ERRAND = new RegExp(
+  [
+    '^(?:请|麻烦)?(?:你)?(?:帮我|给我|替我)?(?:写|起草|拟|编)(?:一|个|封|段|篇|份|条)',
+    '(?:帮我|给我)翻译|翻译(?:成|一下|这)',
+    '(?:总结|概括|解释|讲讲|说说)(?:一下)?(?:这|那)',
+    '(?:讲了|说了|写了)(?:些)?什么|是什么意思|什么意思',
+    '^(?:帮我)?(?:查|搜|搜索)(?:一下|一查)',
+    '^(?:please )?(?:write|draft|compose)\\b',
+    '\\btranslate\\b',
+    '\\b(?:summari[sz]e|explain)\\b',
+    '^(?:what|why|who|when|where)\\b',
+    '^(?:search|look up|google)\\b',
+  ].join('|'),
+  'i',
+);
+/** 「现在帮我运行签证照片」：AI 不替用户运行，点快捷操作就能开始。 */
+const RUN_NOW =
+  /^(?:现在|马上|立刻)?(?:帮我)?(?:运行|执行|跑一下|跑一遍|开始)|^(?:please )?(?:run|start)\b/i;
+
+/** 办事类请求的拒绝例子：都是内置规则认得的句子。 */
+const ERRAND_EXAMPLES: Localized[] = [
+  {
+    zh: '新建一个快捷操作：扫描文档，压到 300KB，存到文件',
+    en: 'Create a quick action: scan documents, make a PDF, share',
+  },
+  { zh: '添加签证照片快捷操作', en: 'Add the visa photo quick action' },
+  { zh: '把照片发邮件放到首页', en: 'Put the photos for email quick action on the home page' },
+];
 const DELETE_FILES = /(删除|删掉|清空|清除).*文件|\b(delete|remove|erase)\b.*\bfiles?\b/i;
 const PROTECTED_WORD = '(?:设置|\\bsettings?\\b)';
 const REMOVE_WORD = '(?:删除|删掉|去掉|移除|隐藏|不要|\\bdelete\\b|\\bremove\\b|\\bhide\\b)';
@@ -1329,6 +1369,31 @@ export function createMockAIProvider(): AIProvider {
           reason: 'unknown',
           message: say(ctx.locale, '请输入你想怎么修改。', 'Tell me what to change.'),
           examples,
+        };
+      }
+      const whole = input.trim();
+      if (RUN_NOW.test(whole)) {
+        return {
+          kind: 'reject',
+          reason: 'errand',
+          message: say(
+            ctx.locale,
+            'AI 不会替你运行快捷操作。点一下这个快捷操作就能开始。',
+            'The AI doesn’t run quick actions for you. Tap the quick action to start it.',
+          ),
+          examples: [],
+        };
+      }
+      if (ERRAND.test(whole)) {
+        return {
+          kind: 'reject',
+          reason: 'errand',
+          message: say(
+            ctx.locale,
+            'Morph 不替你写东西、回答问题或总结文件内容，它只会修改这个 App。常做的事可以做成快捷操作，以后点一下就能用。',
+            'Morph doesn’t write, answer questions or summarize files for you; it only changes this app. Things you do often can become quick actions you start with one tap.',
+          ),
+          examples: ERRAND_EXAMPLES.map((e) => e[ctx.locale]),
         };
       }
       if (clauses.some((c) => RESTORE.test(c))) {

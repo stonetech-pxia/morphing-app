@@ -54,6 +54,7 @@ for (const c of cases) {
       config,
       registry: runtime.registry,
       locale: c.locale,
+      ...(c.about ? { about: c.about } : {}),
     });
     const prepared =
       plan.kind === 'ops'

@@ -502,6 +502,38 @@ const strings = {
     en: 'Your entries are kept (Settings → Data). Cancel discards the whole edit; after saving you can still undo it.',
     zh: '记录不会被删除（在「设置 → 数据」里）。点「取消」可以放弃这次编辑，保存后也能撤销。',
   },
+  // AI 只改 App（D-113、D-124–D-130）
+  readyTitle: { en: 'Your quick action is ready', zh: '快捷操作做好了' },
+  readyRunNow: { en: 'Use it now', zh: '现在就用一次' },
+  readyLater: { en: 'Not now', zh: '先不用' },
+  readyHome: {
+    en: 'There is also a shortcut on the home page: tap it next time.',
+    zh: '首页上也放了入口，下次点一下就能用。',
+  },
+  askAIChange: { en: 'Ask AI to change it', zh: '让 AI 改这个' },
+  readyFix: { en: 'Not quite right? Ask AI to change it', zh: '不太对？让 AI 改这个' },
+  aboutWorkflow: { en: 'Changing “{name}”', zh: '要改的快捷操作：「{name}」' },
+  aboutWorkflowHint: {
+    en: 'Say how it should change, or try one of the examples below.',
+    zh: '说说想怎么改它，也可以先试试下面的例子。',
+  },
+  aboutPlaceholder: { en: 'For example: {example}', zh: '例如：{example}' },
+  aboutShared: { en: 'For the {what} you shared', zh: '给分享进来的 {what}' },
+  aboutSharedHint: {
+    en: 'Say what these files should become; AI makes a quick action for it. AI only knows what kind of files they are and how many.',
+    zh: '说说想把这些文件变成什么，AI 会做一个快捷操作。AI 只知道文件的类型和个数。',
+  },
+  sharedPhotos: { en: '{n} photos', zh: '{n} 张照片' },
+  sharedPdfs: { en: '{n} PDFs', zh: '{n} 个 PDF' },
+  sharedOthers: { en: '{n} files', zh: '{n} 个文件' },
+  habitTitle: { en: 'Often use {value}?', zh: '经常用「{value}」？' },
+  habitBody: {
+    en: 'Make it a quick action “{name}” on the home page, so next time it is one tap and no questions.',
+    zh: '做成快捷操作「{name}」放到首页，下次点一下就好，不用再选。',
+  },
+  habitMake: { en: 'Make it', zh: '做一个' },
+  habitNo: { en: 'No thanks', zh: '不用了' },
+  habitMade: { en: 'Added “{name}” to the home page', zh: '已把「{name}」放到首页' },
 } satisfies Record<string, Record<Locale, string>>;
 
 export type StringKey = keyof typeof strings;
