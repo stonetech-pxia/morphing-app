@@ -534,6 +534,46 @@ const strings = {
   habitMake: { en: 'Make it', zh: '做一个' },
   habitNo: { en: 'No thanks', zh: '不用了' },
   habitMade: { en: 'Added “{name}” to the home page', zh: '已把「{name}」放到首页' },
+
+  // ---- 视频、音频和压缩 PDF（D-140–D-148）。音频工具的文字请另起一块，方便合并。----
+  runPercent: { en: '{done}%', zh: '{done}%' },
+  runError_needsFullApp: {
+    en: 'Videos can only be processed in the full Morph app, not in this preview.',
+    zh: '视频要在正式版 Morph 里处理，这个预览版里不行。',
+  },
+  runError_mediaUnsupported: {
+    en: '“{name}” can’t be opened: the format isn’t supported, or it is copy-protected.',
+    zh: '「{name}」打不开：格式不支持，或者有版权保护。',
+  },
+  runError_notEnoughSpace: {
+    en: 'There isn’t enough space on this phone. About {gb} GB more is needed.',
+    zh: '手机空间不够，还需要大约 {gb} GB。',
+  },
+  runError_targetTooSmall: {
+    en: 'At {target}, “{name}” would be too blurry to watch. It needs at least {mb} MB, or trim it shorter first.',
+    zh: '「{name}」压到 {target} 画面会看不清。至少要 {mb} MB，或者先剪短一点。',
+  },
+  runError_interrupted: {
+    en: 'Morph went to the background, so this didn’t finish. Stay in Morph and tap “Run again”.',
+    zh: '处理时切到了别的 App，没有完成。请留在 Morph 里，再点「再来一次」。',
+  },
+  mediaPlay: { en: 'Play', zh: '播放' },
+  mediaDuration: { en: '{duration}', zh: '{duration}' },
+  trimTitle: { en: 'Trim', zh: '剪一段' },
+  trimOf: { en: '{n} of {total}', zh: '第 {n}/{total} 个' },
+  trimHint: {
+    en: 'Drag the two handles to choose the part to keep.',
+    zh: '拖动两边的把手，选出要留下的一段。',
+  },
+  trimStart: { en: 'Start', zh: '开始' },
+  trimEnd: { en: 'End', zh: '结束' },
+  trimLength: { en: '{length} kept', zh: '留下 {length}' },
+  trimPlaySelection: { en: 'Play this part', zh: '只播放这一段' },
+  trimPause: { en: 'Pause', zh: '暂停' },
+  trimDone: { en: 'Done', zh: '完成' },
+  trimNext: { en: 'Next', zh: '下一个' },
+  sharedVideos: { en: '{n} videos', zh: '{n} 个视频' },
+  sharedAudio: { en: '{n} audio files', zh: '{n} 个音频' },
 } satisfies Record<string, Record<Locale, string>>;
 
 export type StringKey = keyof typeof strings;

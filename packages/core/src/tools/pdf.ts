@@ -131,6 +131,7 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
       zh: '把 PDF 和图片按选择顺序合并成一个 PDF，每张图片占一页。',
     },
     input: ['files'],
+    rejects: ['video', 'audio'],
     output: 'pdf',
     params: z.strictObject({ imagePage: z.enum(['a4', 'letter', 'fit']).optional() }),
     fields: [
@@ -196,6 +197,51 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
         label: { en: 'Same as image', zh: '跟随图片' },
         values: { pageSize: 'fit', orientation: 'auto', marginMm: 0, fit: 'contain', maxMB: 0 },
       },
+    ],
+    requires: [],
+  },
+  {
+    id: 'pdf.compress',
+    label: { en: 'Make PDF smaller', zh: '压缩 PDF' },
+    description: {
+      en: 'Make existing PDFs smaller than a size by recompressing the pictures inside; text stays selectable. If that is not enough, whenTooBig decides: ask the user, turn the pages into pictures (text can no longer be selected), or keep the text and accept a bigger file.',
+      zh: '把已有的 PDF 压到不超过某个大小：重新压缩里面的图片，文字仍可选中。不够小时按「压不到时」：问用户、把每页转成图片（文字不能再选中），或保留文字、接受大一点的文件。',
+    },
+    input: ['pdf'],
+    output: 'pdf',
+    params: z.strictObject({
+      maxMB: z.number().min(0.1).max(100),
+      whenTooBig: z.enum(['ask', 'images', 'keepText']),
+    }),
+    fields: [
+      {
+        key: 'maxMB',
+        label: { en: 'At most', zh: '不超过' },
+        kind: 'number',
+        unit: 'MB',
+        min: 0.1,
+        max: 100,
+        step: 0.5,
+      },
+      {
+        key: 'whenTooBig',
+        label: { en: 'If it cannot get that small', zh: '压不到时' },
+        kind: 'choice',
+        options: [
+          { value: 'ask', label: { en: 'Ask me', zh: '问我' } },
+          {
+            value: 'images',
+            label: { en: 'Turn pages into pictures', zh: '把页面转成图片' },
+          },
+          { value: 'keepText', label: { en: 'Keep the text', zh: '保留文字' } },
+        ],
+      },
+    ],
+    presets: [
+      { id: '2mb', label: { en: '2 MB', zh: '2 MB' }, values: { maxMB: 2, whenTooBig: 'ask' } },
+      { id: '1mb', label: { en: '1 MB', zh: '1 MB' }, values: { maxMB: 1, whenTooBig: 'ask' } },
+      { id: '5mb', label: { en: '5 MB', zh: '5 MB' }, values: { maxMB: 5, whenTooBig: 'ask' } },
+      { id: '10mb', label: { en: '10 MB', zh: '10 MB' }, values: { maxMB: 10, whenTooBig: 'ask' } },
     ],
     requires: [],
   },
@@ -582,6 +628,19 @@ export function pdfWorkflows(locale: Locale): Workflow[] {
       ],
     ),
     wf(
+      'pdf-compress',
+      ['Make PDF smaller', '压缩 PDF'],
+      [
+        pickPdf(1, 10),
+        {
+          id: 'run',
+          action: 'pdf.compress',
+          params: { maxMB: 2, whenTooBig: 'ask' },
+          ask: ['maxMB'],
+        },
+      ],
+    ),
+    wf(
       'pdf-arrange',
       ['Arrange pages', '整理页面'],
       [pickPdf(1, 1), { id: 'run', action: 'pdf.pages', params: {} }],
@@ -692,11 +751,11 @@ export function pdfWorkflows(locale: Locale): Workflow[] {
 
 export const pdfTool: ToolDefinition = {
   id: PDF_TOOL_ID,
-  version: '2.1.0',
+  version: '2.2.0',
   name: { en: 'PDF', zh: 'PDF' },
   description: {
-    en: 'Merge, convert, arrange, split, number, stamp, sign and fill in PDFs on this device.',
-    zh: '在本机合并 PDF、图片转 PDF、整理和拆分页面、加页码和文字戳、签名、填表。',
+    en: 'Merge, convert, compress, arrange, split, number, stamp, sign and fill in PDFs on this device.',
+    zh: '在本机合并 PDF、图片转 PDF、压缩 PDF、整理和拆分页面、加页码和文字戳、签名、填表。',
   },
   icon: 'document',
   aliases: ['pdf', 'pdf tool', 'pdf 工具'],

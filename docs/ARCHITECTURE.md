@@ -16,6 +16,8 @@
 │                  Android Kotlin：ML Kit）                     │
 │  plugins/        本地 config plugin（iOS 分享扩展的控制器）      │
 │  modules/morph-share/   一次分享多个文件、存到选定文件夹      │
+│  modules/morph-media/   视频（以后音频）：iOS AVFoundation、   │
+│                  Android Media3 Transformer                   │
 │  ios/ android/   expo prebuild 生成（CNG，不进 git）            │
 ├───────────────────────────────────────────────────────────────┤
 │ packages/core（纯 TypeScript，无平台依赖）                        │
@@ -119,6 +121,8 @@ App 侧：`apps/mobile/src/runtime/runner.ts` 把执行器接上存储和平台�
 分享到 Morph（D-114–D-118，TOOLS_DESIGN §11）：原生部分是 expo-share-intent（iOS 分享扩展 + App Group，Android intent-filter），iOS 扩展的控制器是我们自己的。根布局的 `share/useIncomingShare.ts` 订阅原生模块，`share/incoming.ts` 把两种平台的数据整理成选择器同样的 `PickedFile[]`、只放在内存里；收件页面 `app/share.tsx`（`share/ShareScreen.tsx`，内核页面）用 `core/src/share.ts` 的 `shareFit` 列出第一步接得上的工作流，点了才跳到 `/run/<id>?shared=<分享 ID>`；`startRun({ incoming })` 把文件交给第一步的 `in.photos` / `in.files`，它们不再打开选择器。共享目录里的副本由 `FilePlatform.removeShared` 删除。
 
 输出去向（D-119、D-120）：`FilePlatform.shareUris` / `saveToFolder` 由 `runtime/expo-share.ts` 实现，包装本地模块 `MorphShare`（`modules/morph-share/`：iOS 的 `UIActivityViewController` 和选文件夹 + `NSFileCoordinator` 复制；Android 的 `ACTION_SEND_MULTIPLE` + 模块自带的 FileProvider 和存储访问框架）。模块为 `null`（Expo Go）时分享退回 expo-sharing 逐个打开，存到文件夹退回 expo-file-system 的 `Directory.pickDirectoryAsync`。记住的文件夹（D-123）由原生模块保存（iOS 书签在 UserDefaults，Android 长期授权 + SharedPreferences），JS 只拿到文件夹名（`rememberedFolder()`）；Expo Go 里只记在内存。依赖都从参数传进来，`__tests__/expo-share-test.ts` 用假的原生模块测两条路径；动作和结果页用 `FakeFiles.shareSheets` / `folderChoice` / `folder`。
+
+视频和音频（D-140–D-148）：`FilePlatform.media`（`MediaPlatform`，接口在 `runtime/platform.ts`，实现在 `runtime/expo-media.ts`）包装本地模块 `MorphMedia`（`modules/morph-media/`：iOS `AVAssetReader` + `AVVideoComposition` + `AVAssetWriter`、Passthrough 导出、`AVAssetImageGenerator`；Android Media3 Transformer 1.9.1 和 MediaExtractor / MediaMetadataRetriever）。JS 接口按视频 + 音频设计（`probe`、`transcode`、`trim`、`thumbnails`、`cancel`、`progress` 事件；`concat`、`waveform` 留给音频工具）。码率和分辨率在 `core/src/media.ts` 算（纯函数，Node 测试），动作在 `runtime/actions/video.ts`；处理期间屏幕不灭，进度按百分比显示，「停止」会取消原生任务。视频不复制进运行目录：`FilePlatform.adoptIntoRun` 把选择器缓存里的副本移进来、分享进来的原地使用。结果页的视频 / 音频一行是 `run/MediaRow.tsx`（expo-video 播放），剪一段是 `run/local/TrimScreen.tsx`。模块为 `null`（Expo Go）时视频动作报 `needsFullApp`；测试里 `FakeFiles.media` 是 `FakeMedia`（按码率算输出大小）。压缩 PDF（D-145）不需要原生代码：`packages/tool-pdf/src/compress.ts` 找出 JPEG / Flate 图片交给系统编码器，`runtime/actions/pdf-compress.ts` 搜索质量和缩放，压不到时用 `LocalUi.choose` 问用户，转成图片用 PDF 预览下载内容。
 
 图片合成（拼长图、宫格、打码、水印、相纸）：排版在 `packages/tool-image`，`runtime/actions/compose.ts` 生成固定的几种绘制步骤（`DrawOp`），`runtime/skia.ts` 离屏执行。超过 GPU 画布上限会让 App 直接崩溃（不是 JS 错误），所以画布一律先经过 `surfaceScale`。文字转 PDF 和报表用 `core/src/html.ts` 的固定模板 + expo-print。
 

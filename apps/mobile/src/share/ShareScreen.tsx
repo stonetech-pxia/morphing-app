@@ -1,11 +1,14 @@
 import {
   WORKFLOW_PRESETS,
+  mediaKindOf,
   newWorkflowId,
   presetWorkflow,
   sanitizeFileName,
   shareFit,
   sharedSizeProblem,
   uniqueFileName,
+  type IconName,
+  type MediaKind,
   type ShareFit,
   type Workflow,
 } from '@morph/core';
@@ -19,6 +22,7 @@ import { Icon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Button, Card, Pill, SectionLabel } from '../renderer/ui';
 import { baseName, extOf, mimeOf } from '../runtime/actions/helpers';
+import { formatTime } from '../run/local/TrimScreen';
 import { useWorkflowChange } from '../run/workflow-change';
 import { newAssetId } from '../runtime/runner';
 import { stepChain } from '../shell/WorkflowsScreen';
@@ -29,6 +33,12 @@ import { releaseShare, useIncoming } from './incoming';
  * 收件页面（TOOLS_DESIGN §11，D-117）：「收到 N 个文件」，列出能接这些文件的工作流，点一个才运行
  * （不会自动运行）；也可以存到 Morph 文件。文件名和大小只在本机显示，不发给 AI。由内核提供，AI 不能修改。
  */
+const ICONS: Partial<Record<MediaKind, IconName>> = {
+  image: 'photo',
+  video: 'video',
+  audio: 'audio',
+};
+
 export function ShareScreen() {
   const { repo, files, registry, locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
@@ -56,6 +66,28 @@ export function ShareScreen() {
   useEffect(() => {
     shareId.current = share?.id;
   }, [share?.id]);
+  // 视频和音频的时长（只在本机显示）；没有原生模块时不显示。
+  const [durations, setDurations] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const media = files.media;
+    if (!share || !media) return;
+    let alive = true;
+    void (async () => {
+      for (const f of share.files) {
+        const kind = mediaKindOf(mimeOf(f.name, f.mimeType), f.name);
+        if (kind !== 'video' && kind !== 'audio') continue;
+        try {
+          const info = await media.probe(f.uri);
+          if (alive) setDurations((d) => ({ ...d, [f.uri]: info.durationMs }));
+        } catch {
+          // 打不开的文件运行时会报错，这里只是不显示时长。
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [files, share]);
 
   useEffect(
     () => () => {
@@ -236,7 +268,7 @@ export function ShareScreen() {
               i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
             ]}>
             <Icon
-              name={infos[i]!.mimeType.startsWith('image/') ? 'photo' : 'document'}
+              name={ICONS[mediaKindOf(infos[i]!.mimeType, f.name)] ?? 'document'}
               size={18}
               color={palette.secondary}
             />
@@ -245,9 +277,14 @@ export function ShareScreen() {
               style={[styles.flex, palette.font('bodyMedium', 15), { color: palette.text }]}>
               {f.name}
             </Text>
-            {f.size !== null ? (
+            {f.size !== null || durations[f.uri] ? (
               <Text style={[palette.font('body', 13), { color: palette.caption }]}>
-                {formatSize(f.size)}
+                {[
+                  durations[f.uri] ? formatTime(durations[f.uri]!) : null,
+                  f.size !== null ? formatSize(f.size) : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
               </Text>
             ) : null}
           </View>

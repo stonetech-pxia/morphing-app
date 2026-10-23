@@ -5,7 +5,7 @@ import { isEmoji, unsafeLinks } from './richtext';
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 修改本文件中会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
 
-export const CURRENT_SCHEMA_VERSION = 6;
+export const CURRENT_SCHEMA_VERSION = 7;
 
 export type Locale = 'en' | 'zh';
 export type Localized = Record<Locale, string>;
@@ -51,6 +51,8 @@ export const ICON_NAMES = [
   'printer',
   'signature',
   'workflow',
+  'video',
+  'audio',
 ] as const;
 export const IconSchema = z.enum(ICON_NAMES);
 export type IconName = z.infer<typeof IconSchema>;
@@ -276,7 +278,8 @@ export const FileListComponentSchema = z.strictObject({
   props: z.strictObject({
     title: text(1, 60),
     limit: z.number().int().min(1).max(50),
-    mimeType: z.enum(['application/pdf']).optional(),
+    /** 只列出这一类文件：PDF，或者某一大类（image/*、video/*、audio/*，D-140）。 */
+    mimeType: z.enum(['application/pdf', 'image/*', 'video/*', 'audio/*']).optional(),
   }),
 });
 

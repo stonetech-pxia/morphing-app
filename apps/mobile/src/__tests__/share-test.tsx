@@ -149,7 +149,7 @@ describe('running a workflow on shared files', () => {
         locale: 'zh',
         now: () => new Date(2026, 9, 23, 9, 0),
         newId: () => `id${Math.random()}`,
-        ui: { confirm: async () => false, open: async () => null },
+        ui: { confirm: async () => false, choose: async () => null, open: async () => null },
         incoming,
         askParams: async (request: AskRequest) => {
           asked.push(request.step.action);
@@ -334,6 +334,33 @@ describe('share journeys (UI)', () => {
     await act(() => router.back());
     expect(files.disk.has(copy)).toBe(false);
     expect(files.disk.has(content)).toBe(true);
+  });
+
+  it('takes shared videos: shows their length, offers the video quick actions and compresses in place', async () => {
+    const { files } = await setupApp();
+    const MB = 1024 * 1024;
+    const trip = files.offerShared('trip.MOV', new Uint8Array(120 * MB), 'video/quicktime');
+    files.videos.set(trip.uri, {
+      kind: 'video',
+      durationMs: 75_000,
+      size: 120 * MB,
+      hasVideo: true,
+      hasAudio: true,
+      width: 1920,
+      height: 1080,
+    });
+    await share([trip]);
+    expect(await screen.findByText('trip.MOV')).toBeTruthy();
+    expect(await screen.findByText('1:15 · 120.0 MB')).toBeTruthy();
+    // 证件照、合并 PDF 都不收视频；现成的「视频太大发不出去」可以添加并运行（视频不超过 4 GB，不受 50 MB 限制）。
+    expect(screen.queryByTestId('share-too-large')).toBeNull();
+    expect(screen.queryByTestId('share-workflow-visa-photo')).toBeNull();
+    await fireEvent.press(screen.getByTestId('share-preset-add-video-too-big'));
+    await fireEvent.press(await screen.findByTestId('prompt-ok', {}, { timeout: 3000 }));
+    expect(await screen.findByTestId('result-item-trip.mp4')).toBeTruthy();
+    // 分享进来的原件原地使用，不复制进运行目录。
+    expect(files.adopted).toEqual([trip.uri]);
+    expect(files.runFiles()).toHaveLength(1);
   });
 
   it('says so when nothing usable was shared', async () => {
