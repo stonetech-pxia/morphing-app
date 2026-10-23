@@ -534,6 +534,33 @@ const strings = {
   habitMake: { en: 'Make it', zh: '做一个' },
   habitNo: { en: 'No thanks', zh: '不用了' },
   habitMade: { en: 'Added “{name}” to the home page', zh: '已把「{name}」放到首页' },
+
+  // ---- 翻译（D-170–D-176）：错误说明拼进「不支持这个步骤：…」/「需要的内容没有下载好：…」 ----
+  translateNeedsFullApp: {
+    en: 'Translate (it works in the full Morph app, not in this preview)',
+    zh: '翻译（要在正式版 Morph 里用，这个预览版里没有本机翻译）',
+  },
+  translateOsTooOld: {
+    en: 'Translate (needs iOS 18 or later)',
+    zh: '翻译（需要 iOS 18 或更新的系统）',
+  },
+  translatePairUnsupported: {
+    en: 'translating {from} into {to} (this phone can’t do it)',
+    zh: '把{from}翻成{to}（这台手机不支持）',
+  },
+  translateDownloadAsk: {
+    en: 'First use needs about {mb} MB of downloads ({langs}). After that it works offline. Wi-Fi is recommended.',
+    zh: '首次使用需下载约 {mb} MB（{langs}），之后不联网也能用。建议连接 Wi-Fi。',
+  },
+  translateDownload: { en: 'Download', zh: '下载' },
+  translateDownloadFailed: {
+    en: 'the {langs} language files (check the connection and try again)',
+    zh: '{langs}的翻译语言（请检查网络后再试）',
+  },
+  translateNote: {
+    en: 'Translated on this device — good for understanding the meaning. For official documents, use a professional translator.',
+    zh: '本机翻译，适合看懂意思；正式文件请找专业翻译。',
+  },
 } satisfies Record<string, Record<Locale, string>>;
 
 export type StringKey = keyof typeof strings;

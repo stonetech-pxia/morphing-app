@@ -99,6 +99,34 @@ export interface VisionPlatform {
   scanDocuments(runId: string, maxSide: number): Promise<PickedFile[] | null>;
 }
 
+/**
+ * 系统自带的本机翻译（modules/morph-translate，D-170）：iOS 是 Translation 框架（iOS 18 起），
+ * Android 是 ML Kit（语言模型第一次用时下载，约 30 MB）。语言用 BCP 47。没有原生模块时（Expo Go）为 null。
+ * 文字只在本机处理，不上传、不发给 AI。
+ */
+export interface TranslatePlatform {
+  /** 这台设备能不能翻译（iOS 17 及更早没有系统翻译）。 */
+  readonly supported: boolean;
+  /** 每段文字的语言；认不出时为 null。 */
+  detectLanguages(texts: readonly string[]): Promise<(string | null)[]>;
+  /**
+   * 这一对语言现在能不能翻：installed 直接能翻；download 要先下载，missing 是还没下载的语言（Android，
+   * 由 App 先问用户）；iOS 不给 missing，系统在翻译时自己弹窗问。unsupported 不能翻。
+   */
+  status(
+    from: string,
+    to: string,
+  ): Promise<{ status: 'installed' | 'download' | 'unsupported'; missing?: string[] }>;
+  /** 每种语言要下载多少字节（估计，Android 的 ML Kit 约 30 MB）。 */
+  readonly downloadBytes?: number;
+  /** 下载一种语言的模型（Android）；没有网络时抛出。iOS 没有这个方法。 */
+  download?(language: string): Promise<void>;
+  /**
+   * 翻译，一段对一段。iOS 需要下载时系统会弹窗；用户取消时抛出 code 为 cancelled 的错误。
+   */
+  translate(texts: readonly string[], from: string, to: string): Promise<string[]>;
+}
+
 /** 存到文件夹的一个文件：本机地址、文件名（不含扩展名）和扩展名。 */
 export interface FolderItem {
   uri: string;
@@ -110,6 +138,8 @@ export interface FolderItem {
 export interface FilePlatform {
   /** 系统自带的文字识别和扫描；没有时为 null。 */
   readonly vision: VisionPlatform | null;
+  /** 系统自带的本机翻译（D-170）；没有原生模块时为 null。 */
+  readonly translator: TranslatePlatform | null;
 
   // ---- 用户文件（assets/<id>/<文件名>，D-019）----
   /** 从相册选一张照片（图片组件用）；用户取消时返回 null。 */

@@ -13,9 +13,9 @@ import {
 } from './presets';
 
 describe('workflow presets', () => {
-  it('has the ten presets with unique ids', () => {
-    expect(WORKFLOW_PRESETS).toHaveLength(10);
-    expect(new Set(WORKFLOW_PRESETS.map((p) => p.id)).size).toBe(10);
+  it('has the fourteen presets with unique ids', () => {
+    expect(WORKFLOW_PRESETS).toHaveLength(14);
+    expect(new Set(WORKFLOW_PRESETS.map((p) => p.id)).size).toBe(14);
   });
 
   it('puts every preset in exactly one scenario, none empty (D-130)', () => {
@@ -41,7 +41,7 @@ describe('workflow presets', () => {
     },
   );
 
-  it('all ten can be added to a workspace without installing any tool', () => {
+  it('all of them can be added to a workspace without installing any tool', () => {
     const base = workspace('zh');
     const ops = WORKFLOW_PRESETS.map((p) => ({
       op: 'addWorkflow' as const,

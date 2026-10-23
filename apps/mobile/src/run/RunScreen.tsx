@@ -294,6 +294,14 @@ export function RunScreen({
           </Text>
         </Card>
       ) : null}
+      {/* 翻译的结果下面说明一句（D-172）：本机翻译适合看懂意思，正式文件找专业翻译。 */}
+      {value && workflow.steps.some((st) => st.action === 'translate.text') ? (
+        <Text
+          testID="translate-note"
+          style={[palette.font('body', 13), { color: palette.caption }]}>
+          {t(locale, 'translateNote')}
+        </Text>
+      ) : null}
       {value ? (
         <ResultView
           value={value}
