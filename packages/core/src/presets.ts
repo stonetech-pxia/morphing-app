@@ -357,3 +357,20 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
     },
   },
 };
+
+/** 结构相同即可（校验后对象的键顺序可能变）；值为 undefined 的键视为没有。 */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return a === b;
+  const keys = (o: object) =>
+    Object.keys(o).filter((k) => (o as Record<string, unknown>)[k] !== undefined);
+  const ka = keys(a);
+  return (
+    ka.length === keys(b).length &&
+    ka.every((k) => sameValue((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]))
+  );
+}
+
+/** 当前主题仍和某个预设完全一致时返回它的 id（风格选择器用来标出当前风格）；微调过就不再算。 */
+export function presetOfTheme(theme: Theme): ThemePresetId | null {
+  return THEME_PRESET_IDS.find((id) => sameValue(theme, THEME_PRESETS[id].theme)) ?? null;
+}

@@ -1,3 +1,4 @@
+import { THEME_PRESETS, presetOfTheme, type ThemePresetId } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -17,6 +18,7 @@ import { Button, Card, SectionLabel } from '../renderer/ui';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { ProposeResult } from '../workspace/store';
 import { Preview } from './Preview';
+import { StylePicker } from './StylePicker';
 
 const EXAMPLES = {
   zh: [
@@ -50,6 +52,7 @@ export function ChangeScreen() {
   const proposal = useWorkspace((s) => s.proposal);
   const busy = useWorkspace((s) => s.busy);
   const propose = useWorkspace((s) => s.propose);
+  const proposeOps = useWorkspace((s) => s.proposeOps);
   const confirm = useWorkspace((s) => s.confirm);
   const cancel = useWorkspace((s) => s.cancel);
   const palette = usePalette(config.theme);
@@ -79,6 +82,20 @@ export function ChangeScreen() {
     setPreviewBroken(false);
     setSide('after');
     const result = await propose(text.trim());
+    if (result.kind !== 'preview') setFeedback(result);
+  }
+
+  /** 直接点选风格预设：不经过 AI，生成同样的 applyThemePreset 操作，走同一个预览（D-095）。 */
+  async function pickStyle(preset: ThemePresetId) {
+    if (busy) return;
+    setFeedback(null);
+    setPreviewBroken(false);
+    setSide('after');
+    const name = THEME_PRESETS[preset].name[locale];
+    const result = await proposeOps(
+      [{ op: 'applyThemePreset', preset }],
+      t(locale, 'styleSummary', { name }),
+    );
     if (result.kind !== 'preview') setFeedback(result);
   }
 
@@ -149,6 +166,14 @@ export function ChangeScreen() {
                 )}
               </Card>
             ) : null}
+
+            <SectionLabel palette={palette}>{t(locale, 'pickStyle')}</SectionLabel>
+            <StylePicker
+              locale={locale}
+              current={presetOfTheme(config.theme)}
+              palette={palette}
+              onPick={pickStyle}
+            />
 
             <SectionLabel palette={palette}>{t(locale, 'examples')}</SectionLabel>
             <View style={styles.chips}>

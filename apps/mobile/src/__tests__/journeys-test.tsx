@@ -1,4 +1,4 @@
-import { BUILTIN_TOOLS, createMockAIProvider, createRegistry } from '@morph/core';
+import { BUILTIN_TOOLS, THEME_PRESETS, createMockAIProvider, createRegistry } from '@morph/core';
 import { fireEvent } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
@@ -118,6 +118,53 @@ describe('user journeys (UI)', () => {
     expect(await screen.findByTestId('nav-ai')).toBeTruthy();
     expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
     expect(store.getState().head!.id).toBe(1);
+  });
+
+  it('pick a style by hand: preview, apply as a version, marked as current, undo restores', async () => {
+    const { store } = await renderApp();
+    await fireEvent.press(screen.getByTestId('nav-ai'));
+    expect(await screen.findByText('选一个风格')).toBeTruthy();
+    // 默认的 Clay 不是预设，没有格子被标为当前风格。
+    expect(screen.getByTestId('style-brutalist').props.accessibilityState.selected).toBe(false);
+
+    await fireEvent.press(screen.getByTestId('style-brutalist'));
+    expect(await screen.findByTestId('proposal-summary')).toHaveTextContent('换成「新粗野」风格');
+    expect(screen.getByTestId('plan-line-0')).toHaveTextContent(/新粗野/);
+    await fireEvent.press(screen.getByTestId('preview-before'));
+    await fireEvent.press(screen.getByTestId('preview-after'));
+    // 预览期间 App 本身没有变化。
+    expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
+
+    await fireEvent.press(screen.getByTestId('change-apply'));
+    expect(await screen.findByTestId('banner')).toHaveTextContent(/已应用：换成「新粗野」风格/);
+    expect(store.getState().config!.theme).toEqual(THEME_PRESETS.brutalist.theme);
+    expect(store.getState().head).toMatchObject({ id: 2, source: 'user' });
+    const [latest] = await store.getState().listRevisions();
+    expect(latest!.summary).toBe('换成「新粗野」风格');
+
+    // 回到 AI 页，新粗野被标为当前风格。
+    await fireEvent.press(screen.getByTestId('nav-ai'));
+    const brutalist = await screen.findByTestId('style-brutalist');
+    expect(brutalist.props.accessibilityState.selected).toBe(true);
+    await fireEvent.press(screen.getByTestId('style-ios'));
+    await fireEvent.press(await screen.findByTestId('change-cancel'));
+
+    await fireEvent.press(await screen.findByText('撤销'));
+    await screen.findByTestId('nav-ai');
+    expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
+    expect(store.getState().head).toMatchObject({ source: 'restore' });
+  });
+
+  it('cancelling a picked style leaves the app unchanged', async () => {
+    const { store } = await renderApp();
+    await fireEvent.press(screen.getByTestId('nav-ai'));
+    await fireEvent.press(await screen.findByTestId('style-glass'));
+    expect(await screen.findByTestId('proposal-summary')).toHaveTextContent('换成「液态玻璃」风格');
+    await fireEvent.press(screen.getByTestId('change-cancel'));
+    expect(await screen.findByTestId('nav-ai')).toBeTruthy();
+    expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
+    expect(store.getState().head!.id).toBe(1);
+    expect(screen.queryByTestId('banner')).toBeNull();
   });
 
   it('unknown requests show a clear message and no preview', async () => {
