@@ -82,6 +82,7 @@ describe('types', () => {
       'in.photos',
       'in.files',
       'in.videos',
+      'in.audio',
       'in.text',
       'in.records',
     ]);
