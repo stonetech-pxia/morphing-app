@@ -39,7 +39,7 @@ const strings = {
     zh: '这次修改未通过校验，已被拦截：',
   },
   previewFailed: { en: 'The preview could not be rendered.', zh: '预览渲染失败。' },
-  applied: { en: 'Applied', zh: '已应用' },
+  applied: { en: 'Changed', zh: '已改好' },
   conflict: {
     en: 'The app changed while you were previewing. Nothing was changed; please try again.',
     zh: '预览期间 App 已被修改，这次没有改，请重新生成。',

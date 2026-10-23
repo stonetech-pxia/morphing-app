@@ -74,7 +74,7 @@ const order = (store: WorkspaceStore) =>
 async function commit(store: WorkspaceStore, ops: Op[], summary: string) {
   expect((await store.getState().proposeOps(ops, summary)).kind).toBe('preview');
   await store.getState().confirm();
-  expect(await screen.findByText(`已应用：${summary}`)).toBeTruthy();
+  expect(await screen.findByText(`已改好：${summary}`)).toBeTruthy();
 }
 
 /** 长按：进入编辑模式并打开组件的操作面板。 */
@@ -93,7 +93,7 @@ async function tapInEditor(id: string) {
 /** 「完成」：草稿保存为一个版本。 */
 async function done(store: WorkspaceStore, summary: string) {
   await fireEvent.press(screen.getByTestId('arrange-done'));
-  expect(await screen.findByText(`已应用：${summary}`)).toBeTruthy();
+  expect(await screen.findByText(`已改好：${summary}`)).toBeTruthy();
   expect(store.getState().editing).toBeNull();
   expect(store.getState().head).toMatchObject({ source: 'user', summary });
 }

@@ -17,7 +17,7 @@ import { Toast } from './Toast';
 import { ToolsView } from './ToolsView';
 
 const BAR_HEIGHT = { iconLabel: 64, label: 52, icon: 56 } as const;
-/** 「已应用」提示条显示多久后自动消失（D-106）；之后仍可在「设置 → 历史版本」撤销。 */
+/** 「已应用」提示条显示多久后自动消失（D-106）；之后仍可在「设置 → 改动记录」撤销。 */
 export const APPLIED_BANNER_MS = 6000;
 
 export function firstTab(config: WorkspaceConfig): NavTarget {

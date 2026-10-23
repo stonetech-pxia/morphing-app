@@ -228,7 +228,7 @@ describe('user journeys (UI)', () => {
     expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
 
     await fireEvent.press(screen.getByTestId('change-apply'));
-    expect(await screen.findByTestId('banner')).toHaveTextContent(/已应用：换成新粗野风格/);
+    expect(await screen.findByTestId('banner')).toHaveTextContent(/已改好：换成新粗野风格/);
     expect(store.getState().config!.theme).toEqual(THEME_PRESETS.brutalist.theme);
     expect(store.getState().head).toMatchObject({ id: 2, source: 'ai' });
     const [latest] = await store.getState().listRevisions();
