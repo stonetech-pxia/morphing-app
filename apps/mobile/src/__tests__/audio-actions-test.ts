@@ -276,6 +276,21 @@ describe('audio tool', () => {
     expect(media.audioEncodes).toEqual([]);
   });
 
+  it('joins voice memos at their own bitrate when the file has none (Android M4A)', async () => {
+    const { files, media, run } = setup(toolWorkflow('audio-merge'));
+    // 两段 22 秒、各 90 KB 的语音备忘（约 34 kbps），原生模块读不到码率。
+    const memo = (name: string) =>
+      files.offerAudio(name, {
+        size: 90 * 1024,
+        durationMs: 21_600,
+        channels: 1,
+        audioBitrateKbps: undefined,
+      });
+    files.nextPick = [memo('a.m4a'), memo('b.m4a')];
+    await run();
+    expect(media.concats[0]!.settings).toMatchObject({ bitrateKbps: 48, channels: 1 });
+  });
+
   it('joins recordings in order into one M4A', async () => {
     const { files, media, run } = setup(toolWorkflow('audio-merge'));
     files.nextPick = [

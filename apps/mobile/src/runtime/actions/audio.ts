@@ -2,6 +2,7 @@ import {
   RunCancelled,
   RunError,
   SPEECH_LANGUAGE_NAMES,
+  audioSourceKbps,
   planAudioConvert,
   planAudioQuality,
   planAudioSize,
@@ -303,13 +304,14 @@ export const AUDIO_IMPLS: Record<string, Impl> = {
     for (const item of items) infos.push(await probeAudio(media, item));
     const sources = items.map((item, i) => sourceOf(item, infos[i]!));
     const durationMs = sources.reduce((sum, s) => sum + s.durationMs, 0);
-    // 有一段是立体声就用立体声；码率按最好的那段（最高 192 kbps）。
+    // 有一段是立体声就用立体声；码率按最好的那段（最高 192 kbps）。Android 读 M4A 常常没有码率，
+    // 按大小和时长算（否则两段语音备忘会按 128 kbps 合成，变大好几倍）。
     const plan = planAudioConvert(
       {
         durationMs,
         size: 0,
         channels: Math.max(...sources.map((s) => s.channels ?? 2)),
-        kbps: Math.max(...sources.map((s) => s.kbps ?? 128)),
+        kbps: Math.max(...sources.map((s) => audioSourceKbps(s) || 128)),
       },
       'm4a',
     );

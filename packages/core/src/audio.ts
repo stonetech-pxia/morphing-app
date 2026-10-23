@@ -44,7 +44,8 @@ export type AudioSizePlan =
 
 const MB = 1024 * 1024;
 
-const sourceKbps = (s: AudioSource) =>
+/** 原来的码率（kbps）：读不到时按大小和时长算，都没有时为 0。 */
+export const audioSourceKbps = (s: AudioSource) =>
   s.kbps && s.kbps > 0
     ? s.kbps
     : s.durationMs > 0
@@ -82,7 +83,7 @@ export function planAudioSize(source: AudioSource, targetBytes: number, factor =
 /** 按音质：不比原来的码率高（压小不会变大）；单声道的原文件不升成立体声。 */
 export function planAudioQuality(source: AudioSource, quality: AudioQuality): AudioPlan {
   const tier = AUDIO_QUALITY_PLANS[quality];
-  const original = sourceKbps(source);
+  const original = audioSourceKbps(source);
   const kbps =
     original > 0
       ? Math.max(MIN_AUDIO_KBPS, Math.min(tier.bitrateKbps, original))
@@ -107,7 +108,7 @@ export function planAudioConvert(source: AudioSource, format: AudioFormat): Audi
     return { format, bitrateKbps: 0, channels, sampleRate };
   }
   // 码率跟着原来的走（再编码一次略加一点，免得音质变差），不把低码率的录音变大：48–192 kbps。
-  const original = sourceKbps(source);
+  const original = audioSourceKbps(source);
   const kbps = Math.round(
     original > 0 ? Math.min(MAX_AUDIO_KBPS, Math.max(48, original * 1.2)) : 160,
   );
