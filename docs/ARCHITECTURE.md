@@ -92,14 +92,15 @@ AI 可以修改的范围（schemaVersion 2，见 `packages/core/src/schema.ts`�
 
 SQLite 表（`PRAGMA user_version` 管理数据库结构升级，见 `apps/mobile/src/storage/sqlite.ts`）：
 
-| 表                | 内容                                                              |
-| ----------------- | ----------------------------------------------------------------- |
-| `workspace_head`  | 当前 head revision ID                                             |
-| `revisions`       | 不可变快照：ID、父 ID、schemaVersion、配置 JSON、来源、摘要、时间 |
-| `change_requests` | 原始输入、ops、状态、关联 revision、错误                          |
-| `assets`          | 用户文件元数据与本地路径（归属 workspace）                        |
-| `asset_grants`    | 工具 → 文件的授权                                                 |
-| `tool_runs`       | 工作流执行记录（不含文件内容）                                    |
+| 表                | 内容                                                                |
+| ----------------- | ------------------------------------------------------------------- |
+| `workspace_head`  | 当前 head revision ID                                               |
+| `revisions`       | 不可变快照：ID、父 ID、schemaVersion、配置 JSON、来源、摘要、时间   |
+| `change_requests` | 原始输入、ops、状态、关联 revision、错误                            |
+| `assets`          | 用户文件元数据与本地路径（归属 workspace）                          |
+| `asset_grants`    | 工具 → 文件的授权                                                   |
+| `tool_runs`       | 工作流执行记录（不含文件内容）                                      |
+| `app_meta`        | 设备上的小设置，例如使用习惯的统计（D-127）；不进配置、不随版本恢复 |
 
 用户文件存放在 App 文档目录的 `assets/<id>/<文件名>`，与 revision 分开，回滚和卸载工具都不会触及。
 
