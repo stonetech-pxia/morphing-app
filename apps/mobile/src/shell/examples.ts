@@ -81,8 +81,20 @@ const OFFLINE_SHARED: Record<Locale, readonly string[]> = {
   en: ['Create a quick action: choose photos, convert to JPG, remove location, zip, share'],
 };
 
-export function aboutCandidates(about: PlanAbout, mode: AIMode, locale: Locale): readonly string[] {
-  if (about.kind === 'workflow') return ABOUT_WORKFLOW[mode === 'mock' ? 'mock' : 'ai'][locale];
+/** 放到首页、拼长图这类例子只在说得通时给（已经在首页、只有一张照片时不给）。 */
+const ON_HOME = /首页|home page/i;
+const STITCH = /拼成|stitch/i;
+
+export function aboutCandidates(
+  about: PlanAbout,
+  mode: AIMode,
+  locale: Locale,
+  { onHome = false }: { onHome?: boolean } = {},
+): readonly string[] {
+  if (about.kind === 'workflow') {
+    const all = ABOUT_WORKFLOW[mode === 'mock' ? 'mock' : 'ai'][locale];
+    return onHome ? all.filter((e) => !ON_HOME.test(e)) : all;
+  }
   if (mode === 'mock')
     return about.images > 0 && about.pdfs + about.others === 0 ? OFFLINE_SHARED[locale] : [];
   const kind =
@@ -91,5 +103,6 @@ export function aboutCandidates(about: PlanAbout, mode: AIMode, locale: Locale):
       : about.images + about.others === 0
         ? 'pdfs'
         : 'mixed';
-  return ABOUT_SHARED[kind][locale];
+  const all = ABOUT_SHARED[kind][locale];
+  return about.images < 2 ? all.filter((e) => !STITCH.test(e)) : all;
 }

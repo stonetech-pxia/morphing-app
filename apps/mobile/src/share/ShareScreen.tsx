@@ -11,7 +11,7 @@ import {
 } from '@morph/core';
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 
 import { runErrorText } from '../i18n';
 import { formatSize } from '../renderer/FileList';
@@ -45,6 +45,14 @@ export function ShareScreen() {
   const change = useWorkflowChange();
   // 打开 AI 之前已有的快捷操作：回来后新做的那个标「刚做好」、排在最前面（D-129）。
   const [knownIds, setKnownIds] = useState<Set<string> | null>(null);
+  const scroll = useRef<ScrollViewInstance>(null);
+  // AI 做好回到这里时，新的排在最前：滚到顶上让用户看到（否则还停在「让 AI 搭一个」那里）。
+  const newest = knownIds
+    ? config.workflows.find((w) => !w.toolId && !knownIds.has(w.id))?.id
+    : undefined;
+  useEffect(() => {
+    if (newest) scroll.current?.scrollTo({ y: 0, animated: true });
+  }, [newest]);
   useEffect(() => {
     shareId.current = share?.id;
   }, [share?.id]);
@@ -215,6 +223,7 @@ export function ShareScreen() {
 
   return (
     <ScrollView
+      ref={scroll}
       testID="share-screen"
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 48 }}>
       <Stack.Screen options={{ title }} />

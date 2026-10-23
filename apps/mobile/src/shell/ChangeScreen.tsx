@@ -1,4 +1,5 @@
 import {
+  allComponents,
   createMockAIProvider,
   pageTarget,
   presetOfTheme,
@@ -64,17 +65,26 @@ export function ChangeScreen() {
     about?.kind === 'workflow'
       ? config.workflows.find((w) => w.id === about.workflowId)?.name
       : undefined;
+  const aboutOnHome =
+    about?.kind === 'workflow' &&
+    config.pages.some(
+      (p) =>
+        p.id === 'home' &&
+        allComponents(p).some(
+          (c) => c.type === 'workflowRunner' && c.props.workflowId === about.workflowId,
+        ),
+    );
   // 有上下文时的例子（D-124）；内置规则只留它真的认得的句子，所以先试一遍再显示。
   const [examples, setExamples] = useState<readonly string[]>(() =>
     !about
       ? examplesFor(aiMode, locale)
       : aiMode === 'mock'
         ? []
-        : aboutCandidates(about, aiMode, locale),
+        : aboutCandidates(about, aiMode, locale, { onHome: aboutOnHome }),
   );
   useEffect(() => {
     if (!about || aiMode !== 'mock') return;
-    const candidates = aboutCandidates(about, aiMode, locale);
+    const candidates = aboutCandidates(about, aiMode, locale, { onHome: aboutOnHome });
     let live = true;
     void Promise.all(
       candidates.map((c) => presetPlanner.plan(c, { config, registry, locale, about })),
