@@ -8,10 +8,13 @@ import {
   findPreset,
   findWorkflowByName,
   languageOf,
+  fitSizePhrases,
+  kindOfSteps,
   parseStepPhrase,
   splitStepPhrases,
   stepIdFor,
   stepsFrom,
+  type PhraseKind,
   type StepPhrase,
 } from './workflow-phrases';
 import { THEME_PRESET_IDS, type ThemePresetId } from '../presets';
@@ -890,8 +893,8 @@ function requireWorkflow(rawName: string, state: State): Workflow {
   );
 }
 
-function stepPhrases(text: string, state: State): StepPhrase[] {
-  return splitStepPhrases(text).map((p) => {
+function stepPhrases(text: string, state: State, before: PhraseKind | null = null): StepPhrase[] {
+  const phrases = splitStepPhrases(text).map((p) => {
     const step = parseStepPhrase(p, state.ctx.locale);
     if (step) return step;
     throw new Rejection(
@@ -899,6 +902,7 @@ function stepPhrases(text: string, state: State): StepPhrase[] {
       say(state.ctx.locale, `不认识步骤「${p}」。`, `I don’t know the step “${p}”.`),
     );
   });
+  return fitSizePhrases(phrases, before);
 }
 
 /** 步骤接不上（例如 PDF 之后存到相册）时整句拒绝，说明是哪一步。 */
@@ -1052,7 +1056,8 @@ const addStepRule: Rule = (clause, state) => {
     clause.match(/^in (?:the )?"?(.+?)"? (?:workflow|quick action),? add (?:a step:? )?(.+)$/i);
   if (!m) return null;
   const wf = requireWorkflow(m[1]!, state);
-  const phrases = stepPhrases(m[2]!, state);
+  // 「压到 N MB」按快捷操作里处理的是视频、PDF 还是图片来选动作。
+  const phrases = stepPhrases(m[2]!, state, kindOfSteps(wf.steps));
   // 处理类的步骤插在结尾的命名 / 保存 / 分享之前；输出类的放在最后。
   let index = wf.steps.length;
   const ops: Op[] = [];
@@ -1092,9 +1097,18 @@ const setSizeRule: Rule = (clause, state) => {
     if (step.action === 'image.compress' || step.action === 'image.idPhoto') {
       const maxKB = Math.round(isMB ? value * 1024 : value);
       ops.push({ op: 'setStepParams', workflowId: wf.id, stepId: step.id, params: { maxKB } });
-    } else if (step.action === 'pdf.fromImages') {
-      const maxMB = isMB ? value : Math.round((value / 1024) * 100) / 100;
+    } else if (step.action === 'pdf.fromImages' || step.action === 'pdf.compress') {
+      const mb = isMB ? value : Math.round((value / 1024) * 100) / 100;
+      const maxMB = step.action === 'pdf.compress' ? Math.max(0.1, mb) : mb;
       ops.push({ op: 'setStepParams', workflowId: wf.id, stepId: step.id, params: { maxMB } });
+    } else if (step.action === 'video.compress') {
+      const maxMB = Math.max(1, Math.round(isMB ? value : value / 1024));
+      ops.push({
+        op: 'setStepParams',
+        workflowId: wf.id,
+        stepId: step.id,
+        params: { by: 'size', maxMB },
+      });
     }
   }
   if (ops.length === 0) {

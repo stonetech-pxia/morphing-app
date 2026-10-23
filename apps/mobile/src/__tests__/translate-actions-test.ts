@@ -52,6 +52,7 @@ function setup(workflow: Workflow, answers: Record<string, unknown> = {}, confir
       confirms.push(`${title}｜${message}`),
       confirmDownload
     ),
+    choose: async () => null,
     open: async () => null as never,
   };
   const run = async (): Promise<RunResult> =>

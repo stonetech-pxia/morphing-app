@@ -16,6 +16,12 @@ const pdf = (name = 'a', size = 1000): SharedFileInfo => ({
   mimeType: 'application/pdf',
   size,
 });
+const mov = (name = 'a', size = 1000): SharedFileInfo => ({
+  name: `${name}.mov`,
+  mimeType: 'video/quicktime',
+  size,
+});
+const m4a: SharedFileInfo = { name: 'memo.m4a', mimeType: 'audio/mp4', size: 1000 };
 const docx: SharedFileInfo = {
   name: 'notes.docx',
   mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -80,6 +86,27 @@ describe('shareFit', () => {
     expect(shareFit(preset('visa-photo'), [])).toEqual({ ok: false, reason: 'type' });
   });
 
+  it('a video workflow takes shared videos (D-144)', () => {
+    expect(shareFit(preset('video-too-big'), [mov('1'), mov('2')])).toEqual({
+      ok: true,
+      type: 'video',
+    });
+    expect(shareFit(preset('video-too-big'), [jpg()])).toEqual({ ok: false, reason: 'type' });
+    expect(shareFit(preset('visa-photo'), [mov()])).toEqual({ ok: false, reason: 'type' });
+    expect(shareFit(withFirst('in.files', { accept: 'videos', min: 1, max: 3 }), [mov()])).toEqual({
+      ok: true,
+      type: 'video',
+    });
+    expect(shareFit(withFirst('in.files', { accept: 'audio', min: 1, max: 3 }), [m4a])).toEqual({
+      ok: true,
+      type: 'audio',
+    });
+    expect(shareFit(withFirst('in.files', { accept: 'audio', min: 1, max: 3 }), [mov()])).toEqual({
+      ok: false,
+      reason: 'type',
+    });
+  });
+
   it('zip only takes zip archives', () => {
     expect(acceptsSharedFile('zip', 'application/zip')).toBe(true);
     expect(acceptsSharedFile('zip', 'application/pdf')).toBe(false);
@@ -97,6 +124,18 @@ describe('sharedSizeProblem (P-006)', () => {
     expect(sharedSizeProblem([pdf('1', 40 * MB), pdf('2', 40 * MB), pdf('3', 40 * MB)])).toEqual({
       code: 'tooLargeTotal',
       detail: { mb: 100 },
+    });
+    // 视频和音频单独算：单个 4 GB，最多 10 个，不计入 100 MB 的合计（D-142）。
+    expect(sharedSizeProblem([mov('1', 900 * MB), mov('2', 900 * MB), pdf('a', 10 * MB)])).toBe(
+      null,
+    );
+    expect(sharedSizeProblem([mov('huge', 4097 * MB)])).toEqual({
+      code: 'tooLarge',
+      detail: { name: 'huge.mov', mb: 4096 },
+    });
+    expect(sharedSizeProblem(Array.from({ length: 11 }, (_, i) => mov(String(i))))).toEqual({
+      code: 'tooMany',
+      detail: { max: 10 },
     });
     // 不知道大小的文件先放行，复制进来之后再按实际大小检查。
     expect(sharedSizeProblem([{ name: 'x.pdf', mimeType: 'application/pdf', size: null }])).toBe(

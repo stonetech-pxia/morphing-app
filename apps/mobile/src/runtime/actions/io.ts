@@ -2,6 +2,7 @@ import {
   FILE_ACCEPT,
   RunCancelled,
   RunError,
+  mediaKindOf,
   renderNameTemplate,
   sanitizeFileName,
   shareFitsInput,
@@ -19,6 +20,7 @@ import {
   fileItems,
   freshName,
   isImageMime,
+  isMediaFile,
   mimeOf,
   type RunServices,
 } from './helpers';
@@ -32,13 +34,20 @@ const DOCUMENT_TYPES: Record<string, string[]> = {
   pdf: ['application/pdf'],
   images: ['image/*'],
   pdfOrImages: ['application/pdf', 'image/*'],
+  videos: ['video/*'],
+  audio: ['audio/*'],
   any: ['*/*'],
 };
 
-const kindOf = (accept: string) =>
-  accept === 'pdf' ? 'PDF' : accept === 'images' ? 'image' : 'PDF/image';
+const KINDS: Record<string, string> = {
+  pdf: 'PDF',
+  images: 'image',
+  videos: 'video',
+  audio: 'audio',
+};
+const kindOf = (accept: string) => KINDS[accept] ?? 'PDF/image';
 
-function matches(accept: string, mime: string): boolean {
+function matches(accept: string, mime: string, name: string): boolean {
   switch (accept) {
     case 'pdf':
       return mime === 'application/pdf';
@@ -46,6 +55,10 @@ function matches(accept: string, mime: string): boolean {
       return isImageMime(mime);
     case 'pdfOrImages':
       return mime === 'application/pdf' || isImageMime(mime);
+    case 'videos':
+      return mediaKindOf(mime, name) === 'video';
+    case 'audio':
+      return mediaKindOf(mime, name) === 'audio';
     default:
       return true;
   }
@@ -64,9 +77,13 @@ async function importPicked(
     const mimeType = mimeOf(clean, f.mimeType);
     const ext = extOf(clean) || (mimeType === 'application/pdf' ? 'pdf' : 'jpg');
     const name = baseName(clean);
+    // 视频和音频可能有几个 GB：不复制，移进来或原地使用（D-142）。
+    const media = isMediaFile({ name: clean, mimeType });
     let stored;
     try {
-      stored = await services.files.copyToRun(f.uri, services.runId, freshName(name, ext));
+      stored = media
+        ? await services.files.adoptIntoRun(f.uri, services.runId, freshName(name, ext))
+        : await services.files.copyToRun(f.uri, services.runId, freshName(name, ext));
     } catch {
       throw new RunError('accessDenied', { name: f.name });
     }
@@ -75,15 +92,18 @@ async function importPicked(
       name,
       ext,
       mimeType,
-      size: stored.size,
+      size: stored.size || f.size || 0,
       ...(f.width ? { width: f.width } : {}),
       ...(f.height ? { height: f.height } : {}),
       ...(f.takenAt !== undefined ? { takenAt: f.takenAt } : {}),
       ...(f.straightened ? { straightened: true } : {}),
+      ...(f.durationMs ? { durationMs: f.durationMs } : {}),
     });
     ctx.progress(i + 1, picked.length);
   }
-  checkSizes(items.map((i) => ({ name: `${i.name}.${i.ext}`, size: i.size })));
+  checkSizes(
+    items.map((i) => ({ name: `${i.name}.${i.ext}`, size: i.size, mimeType: i.mimeType })),
+  );
   return items;
 }
 
@@ -110,7 +130,7 @@ async function importShared(
     if (fit.reason === 'tooMany') throw new RunError('tooMany', { max: fit.max });
     throw new RunError('wrongType', { name: shared[0]?.name ?? '', kind });
   }
-  checkSizes(shared);
+  checkSizes(infos);
   return { type: fit.type, items: await importPicked(ctx.services, shared, ctx) };
 }
 
@@ -192,6 +212,22 @@ export const IO_IMPLS: Record<string, Impl> = {
     return { type: 'images', items: await importPicked(ctx.services, picked, ctx) };
   },
 
+  async 'in.videos'(_input, params, ctx) {
+    const shared = await importShared(ctx, params, 'video');
+    if (shared) return shared;
+    const { min, max } = params as { min: number; max: number };
+    const picked = await ctx.services.files.pickVideos(max);
+    if (!picked) throw new RunCancelled();
+    checkCount(picked.length, min, max, 'video');
+    for (const f of picked) {
+      if (mediaKindOf(mimeOf(f.name, f.mimeType), f.name) !== 'video') {
+        throw new RunError('wrongType', { name: f.name, kind: 'video' });
+      }
+    }
+    checkSizes(picked.map((f) => ({ ...f, mimeType: mimeOf(f.name, f.mimeType) })));
+    return { type: 'video', items: await importPicked(ctx.services, picked, ctx) };
+  },
+
   async 'in.files'(_input, params, ctx) {
     const { accept, min, max } = params as { accept: string; min: number; max: number };
     const shared = await importShared(ctx, params, kindOf(accept));
@@ -200,11 +236,11 @@ export const IO_IMPLS: Record<string, Impl> = {
     if (!picked) throw new RunCancelled();
     checkCount(picked.length, min, max, kindOf(accept));
     for (const f of picked) {
-      if (!matches(accept, mimeOf(f.name, f.mimeType))) {
+      if (!matches(accept, mimeOf(f.name, f.mimeType), f.name)) {
         throw new RunError('wrongType', { name: f.name, kind: kindOf(accept) });
       }
     }
-    checkSizes(picked);
+    checkSizes(picked.map((f) => ({ ...f, mimeType: mimeOf(f.name, f.mimeType) })));
     const type = FILE_ACCEPT[accept] as FileValueType;
     return { type, items: await importPicked(ctx.services, picked, ctx) };
   },
@@ -227,13 +263,17 @@ export const IO_IMPLS: Record<string, Impl> = {
     });
     // 临时文件也换成新名字（分享出去的文件名就是它）。
     const renamed: RunItem[] = [];
+    const { files, runId } = ctx.services;
     for (const item of named) {
-      const stored = await ctx.services.files.copyToRun(
-        item.uri,
-        ctx.services.runId,
-        freshName(item.name, item.ext),
-      );
-      renamed.push({ ...item, uri: stored.uri });
+      const fileName = freshName(item.name, item.ext);
+      // 视频和音频很大：临时文件直接改名（移动），只有分享进来的原件才复制（D-142）。
+      let uri: string | null = null;
+      if (isMediaFile({ name: `${item.name}.${item.ext}`, mimeType: item.mimeType })) {
+        const moved = await files.adoptIntoRun(item.uri, runId, fileName);
+        if (moved.uri !== item.uri) uri = moved.uri;
+      }
+      uri ??= (await files.copyToRun(item.uri, runId, fileName)).uri;
+      renamed.push({ ...item, uri });
     }
     return { ...input!, items: renamed } as typeof input & { items: RunItem[] };
   },

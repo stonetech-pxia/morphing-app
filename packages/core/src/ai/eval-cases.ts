@@ -1514,6 +1514,190 @@ const ABOUT_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+/** 视频和压缩 PDF（D-140–D-147）。V* 是 mock 句式（MOCK_AI_PHRASES W12–W14），PV* 和 SH3 只要求真实模型。 */
+const firstVideo = (steps: { action: string; params: Record<string, unknown> }[]) => {
+  const first = steps[0];
+  if (first?.action === 'in.videos') return null;
+  if (first?.action === 'in.files' && first.params.accept === 'videos') return null;
+  return `first step should pick videos, got ${first?.action}`;
+};
+const firstPdf = (steps: { action: string; params: Record<string, unknown> }[]) => {
+  const first = steps[0];
+  return first?.action === 'in.files' &&
+    ['pdf', 'pdfOrImages', 'any'].includes(String(first.params.accept))
+    ? null
+    : `first step should pick PDFs, got ${first?.action} ${String(first?.params.accept)}`;
+};
+const presetAdded = (id: string) => (c: WorkspaceConfig) =>
+  userWorkflows(c).some((w) => w.presetId === id) ? null : `the ${id} preset was not added`;
+
+const VIDEO_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'V1',
+    input: '新建一个快捷操作：选视频，压到 20MB，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.videos', 'video.compress', 'out.share'],
+        (steps) =>
+          param('video.compress', 'maxMB', 20)(steps) ??
+          param('video.compress', 'by', 'size')(steps),
+      ),
+    },
+  },
+  {
+    id: 'V1-en',
+    input: 'Create a quick action: choose videos, compress to 25 MB, then share',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.videos', 'video.compress', 'out.share'],
+        param('video.compress', 'maxMB', 25),
+      ),
+    },
+  },
+  {
+    id: 'V2',
+    input: '新建一个快捷操作：选视频，转成 MP4',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: hasWorkflow(['in.videos', 'video.convert']) },
+  },
+  {
+    id: 'V3',
+    input: '新建一个快捷操作：选视频，剪一段，压缩视频，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.videos', 'video.trim', 'video.compress', 'out.share']),
+    },
+  },
+  {
+    id: 'V4',
+    input: '新建一个快捷操作：选 PDF，压到 2MB，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.files', 'pdf.compress', 'out.share'],
+        param('pdf.compress', 'maxMB', 2),
+      ),
+    },
+  },
+  {
+    id: 'V4-en',
+    input: 'Create a quick action: choose PDFs, compress to 1 MB',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.files', 'pdf.compress'], param('pdf.compress', 'maxMB', 1)),
+    },
+  },
+  {
+    id: 'V5',
+    input: '添加视频太大发不出去快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: presetAdded('video-too-big') },
+  },
+  {
+    id: 'V6-en',
+    input: 'Add the PDF too big to upload quick action',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: presetAdded('pdf-too-big') },
+  },
+  {
+    id: 'PV1',
+    input: '视频太大了微信发不出去，帮我做个能压到 25MB 再分享的',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['video.compress', 'out.share'],
+        (steps) => firstVideo(steps) ?? param('video.compress', 'maxMB', 25)(steps),
+      ),
+    },
+  },
+  {
+    id: 'PV2',
+    input: '朋友说我发的 MOV 视频在电脑上打不开，做一个转换的快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['video.convert'], firstVideo) },
+  },
+  {
+    id: 'PV3-en',
+    input: 'The school portal only takes PDFs under 2 MB and my scanned transcript is 15 MB',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: all(
+        hasWorkflow(
+          ['pdf.compress'],
+          (steps) => firstPdf(steps) ?? param('pdf.compress', 'maxMB', 2)(steps),
+        ),
+        withoutAction('pdf.toImages'),
+      ),
+    },
+  },
+  {
+    id: 'PV4-en',
+    input: 'I want to cut a short part out of a long video and send just that part',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['video.trim', 'out.share'], firstVideo) },
+  },
+  {
+    id: 'PV5',
+    input: '把这个视频压到 20MB',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['video.compress'],
+        (steps) => firstVideo(steps) ?? param('video.compress', 'maxMB', 20)(steps),
+      ),
+    },
+  },
+  {
+    id: 'SH3',
+    input: '压小一点，好发微信',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    about: { kind: 'shared', images: 0, pdfs: 0, others: 0, videos: 1 },
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['video.compress'], firstVideo), noRunner),
+      plan: homeEntryOff,
+    },
+  },
+];
+
 // ---- 翻译（D-170–D-176）：翻译文件做成快捷操作；直接要译文仍按办事拒绝 ----
 
 const TRANSLATE_EVAL_CASES: readonly EvalCase[] = [
@@ -1629,6 +1813,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...GOAL_EVAL_CASES,
   ...WORDING_EVAL_CASES,
   ...ABOUT_EVAL_CASES,
+  ...VIDEO_EVAL_CASES,
   ...TRANSLATE_EVAL_CASES,
 ];
 

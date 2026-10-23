@@ -36,6 +36,7 @@ function setup(workflow: Workflow, answer: string | null = '我的合并') {
   const confirms: boolean[] = [];
   const ui: LocalUi = {
     confirm: async () => confirms.shift() ?? false,
+    choose: async () => null,
     open: async () => null,
   };
   // 运行页面的询问：记录建议的名字，回答 answer。

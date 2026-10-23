@@ -1,7 +1,7 @@
 import type { Registry } from '../registry';
 import type { Workflow, WorkflowStep } from '../schema';
 import {
-  acceptsType,
+  actionAccepts,
   isSourceAction,
   outputTypeOf,
   type ActionDefinition,
@@ -43,9 +43,7 @@ export function typesAlong(
       out.push(null);
       continue;
     }
-    if (
-      isSourceAction(action) ? i !== 0 : current === null || !acceptsType(action.input, current)
-    ) {
+    if (isSourceAction(action) ? i !== 0 : current === null || !actionAccepts(action, current)) {
       broken = true;
       out.push(null);
       continue;
@@ -71,11 +69,11 @@ export function insertableActions(
       // 第一步只能是输入动作，而且原来的第一步（也是输入动作）不能被挤到后面。
       return isSourceAction(action) && (!next || !isSourceAction(next));
     }
-    if (isSourceAction(action) || !acceptsType(action.input, before!)) return false;
+    if (isSourceAction(action) || !actionAccepts(action, before!)) return false;
     if (!next) return true;
     const defaults = defaultParams(action);
     const produced = outputTypeOf(action, defaults ?? {}, before);
-    return produced !== null && !isSourceAction(next) && acceptsType(next.input, produced);
+    return produced !== null && !isSourceAction(next) && actionAccepts(next, produced);
   });
 }
 
@@ -137,10 +135,12 @@ export function workflowProblems(wf: Workflow, registry: Registry): StepProblem[
     } else if (i === 0) {
       problem('source', `the first step must choose the input (photos or files), not ${action.id}`);
       broken = true;
-    } else if (!broken && current !== null && !acceptsType(action.input, current)) {
+    } else if (!broken && current !== null && !actionAccepts(action, current)) {
       problem(
         'binding',
-        `${action.id} needs ${action.input.join(' or ')} but the previous step gives ${current}`,
+        action.rejects?.includes(current)
+          ? `${action.id} does not take ${current}`
+          : `${action.id} needs ${action.input.join(' or ')} but the previous step gives ${current}`,
       );
       broken = true;
     }

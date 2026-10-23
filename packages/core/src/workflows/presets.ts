@@ -12,7 +12,7 @@ export const PRESET_SCENARIOS = [
   { id: 'ids', name: { en: 'Visas and IDs', zh: '出国办证' } },
   { id: 'paperwork', name: { en: 'Forms and documents', zh: '交材料、签文件' } },
   { id: 'receipts', name: { en: 'Receipts and expenses', zh: '报销记账' } },
-  { id: 'photos', name: { en: 'Sending photos', zh: '发照片' } },
+  { id: 'photos', name: { en: 'Sending photos and videos', zh: '发照片和视频' } },
 ] as const satisfies readonly { id: string; name: Localized }[];
 
 export type PresetScenario = (typeof PRESET_SCENARIOS)[number]['id'];
@@ -189,6 +189,26 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'pdf-too-big',
+    scenario: 'paperwork',
+    name: { en: 'PDF too big to upload', zh: 'PDF 太大传不上去' },
+    description: {
+      en: 'Choose PDFs → make each one smaller than the size you need (2 MB unless you change it; text stays selectable when possible) → share.',
+      zh: '选 PDF → 压到要求的大小以内（默认 2 MB，可以每次改；能保留文字时文字仍可选中）→ 分享。',
+    },
+    icon: 'document',
+    steps: () => [
+      { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 10 } },
+      {
+        id: 'compress',
+        action: 'pdf.compress',
+        params: { maxMB: 2, whenTooBig: 'ask' },
+        ask: ['maxMB'],
+      },
+      share,
+    ],
+  },
+  {
     id: 'receipt-archive',
     scenario: 'receipts',
     name: { en: 'Receipt archive', zh: '收据归档' },
@@ -242,6 +262,26 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
       { id: 'size', action: 'image.resize', params: { mode: 'longEdge', px: 2048 } },
       { id: 'zip', action: 'zip.create', params: {} },
       rename(t(locale, 'Photos {date}', '照片-{date}')),
+      share,
+    ],
+  },
+  {
+    id: 'video-too-big',
+    scenario: 'photos',
+    name: { en: 'Video too big to send', zh: '视频太大发不出去' },
+    description: {
+      en: 'Choose videos → make each one smaller than the size you need (20 MB unless you change it) as an MP4 that plays everywhere → share.',
+      zh: '选视频 → 压到要求的大小以内（默认 20 MB，可以每次改），变成哪里都能放的 MP4 → 分享。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      {
+        id: 'compress',
+        action: 'video.compress',
+        params: { by: 'size', maxMB: 20, quality: '720p' },
+        ask: ['maxMB'],
+      },
       share,
     ],
   },

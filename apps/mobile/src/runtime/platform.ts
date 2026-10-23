@@ -14,6 +14,8 @@ export interface PickedFile {
   takenAt?: number;
   /** 系统文档相机拍的页面：已经找边拉正。 */
   straightened?: boolean;
+  /** 视频、音频的时长（毫秒），选择器给得出时。 */
+  durationMs?: number;
 }
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp';
@@ -139,11 +141,87 @@ export interface FolderItem {
   mimeType: string;
 }
 
+/** 视频、音频的信息（modules/morph-media 的 probe，D-141）。 */
+export interface MediaInfo {
+  kind: 'video' | 'audio';
+  durationMs: number;
+  size: number;
+  hasVideo: boolean;
+  hasAudio: boolean;
+  /** 画面摆正之后的宽高。 */
+  width?: number;
+  height?: number;
+  fps?: number;
+  hdr?: boolean;
+  videoCodec?: string;
+  videoBitrateKbps?: number;
+  audioBitrateKbps?: number;
+}
+
+/** 一次视频编码的要求（H.264 + AAC 的 MP4）。 */
+export interface VideoEncode {
+  videoKbps: number;
+  /** 0 = 去掉声音。 */
+  audioKbps: number;
+  /** 缩小到这个短边；不缩小时不给。 */
+  shortSide?: number;
+  maxFps: number;
+  range?: { startMs: number; endMs: number };
+}
+
+/** 一个长任务：步内进度（0–1）和取消。 */
+export interface MediaJob {
+  progress(fraction: number): void;
+  isCancelled(): boolean;
+}
+
+/** 处理结果：本次运行的临时文件。 */
+export interface MediaOutput {
+  uri: string;
+  ext: string;
+  size: number;
+  info: MediaInfo;
+}
+
+/**
+ * 在本机处理视频和音频（modules/morph-media：iOS AVFoundation、Android Media3，D-141）。
+ * 没有原生模块时（Expo Go）为 null，视频动作报 needsFullApp。处理期间屏幕不灭（D-148）。
+ * 出错时抛出带 code 的错误（ERR_MEDIA_UNSUPPORTED / CANCELLED / INTERRUPTED / NOT_IMPLEMENTED / FAILED）。
+ */
+export interface MediaPlatform {
+  probe(uri: string): Promise<MediaInfo>;
+  /** 重新编码成 MP4，写进本次运行的临时目录 relPath（扩展名 .mp4）。 */
+  encodeVideo(
+    uri: string,
+    settings: VideoEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
+  /** 不重新编码地剪一段；输出的扩展名可能和 relPath 不同（MP4 放不下原来的声音时用 MOV）。 */
+  trim(
+    uri: string,
+    range: { startMs: number; endMs: number },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
+  /** 按时间取画面（已摆正），JPEG 放进本次运行的临时目录。 */
+  thumbnails(
+    uri: string,
+    timesMs: readonly number[],
+    maxSide: number,
+    runId: string,
+  ): Promise<string[]>;
+}
+
 export interface FilePlatform {
   /** 系统自带的文字识别和扫描；没有时为 null。 */
   readonly vision: VisionPlatform | null;
   /** 系统自带的本机翻译（D-170）；没有原生模块时为 null。 */
   readonly translator: TranslatePlatform | null;
+  /** 本机处理视频和音频；没有时（Expo Go）为 null。 */
+  readonly media: MediaPlatform | null;
 
   // ---- 用户文件（assets/<id>/<文件名>，D-019）----
   /** 从相册选一张照片（图片组件用）；用户取消时返回 null。 */
@@ -170,12 +248,25 @@ export interface FilePlatform {
   pickPhotos(max: number): Promise<PickedFile[] | null>;
   /** 拍一张照片；用户取消时返回 null，没有相机时抛出 cameraUnavailable。 */
   takePhoto(): Promise<PickedFile | null>;
+  /** 从相册多选视频（不在选的时候转码）；用户取消时返回 null。 */
+  pickVideos(max: number): Promise<PickedFile[] | null>;
   /** 从「文件」App 选文件；types 是 MIME 类型（可含 image/*、* / *）。 */
   pickDocuments(types: readonly string[], multiple: boolean): Promise<PickedFile[] | null>;
 
   // ---- 工作流执行：临时文件（缓存目录 runs/<runId>/，D-063）----
   /** 把选择器给的文件复制进本次运行的临时目录。 */
   copyToRun(uri: string, runId: string, fileName: string): Promise<{ uri: string; size: number }>;
+  /**
+   * 大文件（视频、音频）不复制（D-142）：选择器放在 App 缓存里的副本移进本次运行的临时目录（之后一起删）；
+   * 分享进来的（共享目录、content://）原地使用，返回原地址。
+   */
+  adoptIntoRun(
+    uri: string,
+    runId: string,
+    fileName: string,
+  ): Promise<{ uri: string; size: number }>;
+  /** 手机剩余空间（字节）；读不到时为 null。 */
+  freeDiskBytes(): number | null;
   writeRunFile(
     runId: string,
     fileName: string,

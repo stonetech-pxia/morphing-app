@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { checkNameTemplate } from '../naming';
+import { MEDIA_LIMITS } from '../limits';
 import { IdSchema, PERIODS } from '../schema';
 import type { ActionDefinition, ValueType } from '../workflow/contract';
 
@@ -36,6 +37,8 @@ export const FILE_ACCEPT: Record<string, ValueType> = {
   images: 'images',
   pdfOrImages: 'files',
   zip: 'zip',
+  videos: 'video',
+  audio: 'audio',
   any: 'files',
 };
 
@@ -100,14 +103,14 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     id: 'in.files',
     label: { en: 'Choose files', zh: '选文件' },
     description: {
-      en: 'Pick files from the Files app (PDFs, images or any file).',
-      zh: '从「文件」App 选文件（PDF、图片或任意文件）。',
+      en: 'Pick files from the Files app (PDFs, images, videos, audio or any file).',
+      zh: '从「文件」App 选文件（PDF、图片、视频、音频或任意文件）。',
     },
     input: [],
     output: (p) => FILE_ACCEPT[String(p.accept)] ?? 'files',
     params: z
       .strictObject({
-        accept: z.enum(['pdf', 'images', 'pdfOrImages', 'zip', 'any']),
+        accept: z.enum(['pdf', 'images', 'pdfOrImages', 'zip', 'videos', 'audio', 'any']),
         min: z.number().int().min(1).max(MAX_PICK),
         max: z.number().int().min(1).max(MAX_PICK),
       })
@@ -122,6 +125,8 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
           { value: 'images', label: { en: 'Images', zh: '图片' } },
           { value: 'pdfOrImages', label: { en: 'PDFs and images', zh: 'PDF 和图片' } },
           { value: 'zip', label: { en: 'ZIP archive', zh: 'ZIP 压缩包' } },
+          { value: 'videos', label: { en: 'Videos', zh: '视频' } },
+          { value: 'audio', label: { en: 'Audio', zh: '音频' } },
           { value: 'any', label: { en: 'Any file', zh: '任意文件' } },
         ],
       },
@@ -138,6 +143,32 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
         label: { en: 'PDFs and images, up to 30', zh: 'PDF 和图片，最多 30 个' },
         values: { accept: 'pdfOrImages', min: 1, max: 30 },
       },
+    ],
+    requires: ['files.pick'],
+  },
+  {
+    id: 'in.videos',
+    label: { en: 'Choose videos', zh: '选视频' },
+    description: {
+      en: 'Pick videos from the photo library (up to 10, each up to 4 GB).',
+      zh: '从相册选视频（最多 10 个，每个不超过 4 GB）。',
+    },
+    input: [],
+    output: 'video',
+    params: z
+      .strictObject({
+        min: z.number().int().min(1).max(MEDIA_LIMITS.maxCount),
+        max: z.number().int().min(1).max(MEDIA_LIMITS.maxCount),
+      })
+      .refine((p) => p.min <= p.max, { message: 'min must not exceed max' }),
+    fields: [...countFields(MEDIA_LIMITS.maxCount)],
+    presets: [
+      {
+        id: 'several',
+        label: { en: 'Up to 10 videos', zh: '最多 10 个视频' },
+        values: { min: 1, max: 10 },
+      },
+      { id: 'one', label: { en: 'One video', zh: '1 个视频' }, values: { min: 1, max: 1 } },
     ],
     requires: ['files.pick'],
   },
@@ -272,8 +303,11 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'out.saveToPhotos',
     label: { en: 'Save to Photos', zh: '存到相册' },
-    description: { en: 'Save the images to the photo library.', zh: '把图片存到系统相册。' },
-    input: ['images'],
+    description: {
+      en: 'Save the images or videos to the photo library.',
+      zh: '把图片或视频存到系统相册。',
+    },
+    input: ['images', 'video'],
     output: 'same',
     params: z.strictObject({}),
     fields: [],

@@ -8,6 +8,13 @@ export {
   type PdfInput,
   canEncodeStandardText,
 } from './core';
+export {
+  type PdfCompressor,
+  type PdfPicture,
+  type PdfReplacement,
+  openForCompression,
+  picturePagesPdf,
+} from './compress';
 export { type FormField, type FormFieldType, fillForm, listFormFields } from './forms';
 export { type ImageInput, type ImageKind, type ImagePageOptions, imagesToPdf } from './images';
 export { type DocumentInput, countPages, mergeDocuments, mergePdfs } from './merge';

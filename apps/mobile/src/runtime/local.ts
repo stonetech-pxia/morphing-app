@@ -58,6 +58,14 @@ export interface LocalSteps {
   redact: { in: { items: RunItem[] }; out: Rect[][] };
   /** 排序、删除：返回保留下来的下标，按新顺序。 */
   reorder: { in: { items: RunItem[] }; out: number[] };
+  /**
+   * 剪一段（视频、音频共用，D-143）：逐个选开始和结束（毫秒）。视频显示画面，音频以后显示波形。
+   * 返回每个文件选的一段。
+   */
+  trimMedia: {
+    in: { items: RunItem[] };
+    out: { startMs: number; endMs: number }[];
+  };
 }
 
 export type LocalKind = keyof LocalSteps;
@@ -65,6 +73,11 @@ export type LocalKind = keyof LocalSteps;
 export interface LocalUi {
   /** 简单的二选一，例如「再拍一张？」。message 是标题下面的说明（Android 的标题最多两行）。 */
   confirm(title: string, ok: string, cancel: string, message?: string): Promise<boolean>;
+  /**
+   * 运行中问一句（固定的几种问题，文字在 App 里写好，不是 AI 生成的），例如压缩 PDF 不够小时
+   * 「转成图片 / 就用现在的」。返回选了第几个，取消返回 null。
+   */
+  choose(title: string, message: string, options: readonly string[]): Promise<number | null>;
   /** 打开本地操作界面；用户取消时返回 null。 */
   open<K extends LocalKind>(
     kind: K,

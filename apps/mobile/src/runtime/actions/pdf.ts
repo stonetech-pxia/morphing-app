@@ -58,7 +58,7 @@ export function pdfError(e: unknown, name = ''): never {
   }
 }
 
-async function guard<T>(name: string, fn: () => Promise<T>): Promise<T> {
+export async function guard<T>(name: string, fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (e) {
@@ -67,7 +67,7 @@ async function guard<T>(name: string, fn: () => Promise<T>): Promise<T> {
 }
 
 /** 输出一个 PDF 临时文件。 */
-async function writePdf(ctx: Ctx, bytes: Uint8Array, name: string): Promise<RunItem> {
+export async function writePdf(ctx: Ctx, bytes: Uint8Array, name: string): Promise<RunItem> {
   const pages = await pageInfo(bytes);
   return writeItem(ctx.services, bytes, {
     name,
@@ -175,7 +175,7 @@ const today = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 /** 用 PDF 预览包把页面渲染成 JPEG（App 里的 WebView + pdf.js）。返回本次运行的临时图片。 */
-async function renderPages(
+export async function renderPages(
   ctx: Ctx,
   item: RunItem,
   opts: { maxSide: number; quality: number; pages?: number[] },

@@ -68,7 +68,14 @@ describe('workspace store', () => {
     });
     await store.getState().boot();
     const config = store.getState().config!;
-    expect(config.tools.map((t) => t.toolId)).toEqual(['image', 'pdf', 'scan', 'ocr', 'qr']);
+    expect(config.tools.map((t) => t.toolId)).toEqual([
+      'image',
+      'pdf',
+      'video',
+      'scan',
+      'ocr',
+      'qr',
+    ]);
     expect(config.shell.nav).toEqual(['page:home', 'tools', 'ai', 'settings']);
     expect((await repo.listRevisions(10)).map((r) => r.source)).toEqual(['seed']);
   });

@@ -54,6 +54,7 @@ function setup(
   const opened: { kind: LocalKind; input: unknown }[] = [];
   const ui: LocalUi = {
     confirm: async () => false,
+    choose: async () => null,
     open: async (kind, input) => {
       opened.push({ kind, input });
       return (local[kind] ?? null) as never;

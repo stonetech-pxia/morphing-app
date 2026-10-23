@@ -9,7 +9,7 @@ export interface StepPhrase {
   action: string;
   params: Record<string, unknown>;
   /** 每次运行时问的参数（「输入文字」要问文字）。 */
-  ask?: string[];
+  ask?: string[] | undefined;
 }
 
 const num = (s: string) => Number(s.replace(/,/g, ''));
@@ -98,6 +98,27 @@ const STEP_PHRASES: Matcher[] = [
     // 文档相机（D-084）：实时找边、自动拍、多页；单说「扫描」仍是找边拉正（scan.detect）。
     /^(?:用文档相机)?扫描(?:文档|纸张|收据|几页纸?)$|^scan (?:documents?|paper|pages|receipts?)$/i,
     () => ({ action: 'in.photos', params: { source: 'scanner', min: 1, max: 30 } }),
+  ],
+  [
+    // 视频（D-147）：从相册选；压缩、转成 MP4、剪一段。
+    /^(?:从相册)?(?:选|选择|挑)(?:几个|一个|一段)?视频$|^(?:choose|pick|select) (?:some |a )?videos?$/i,
+    () => ({ action: 'in.videos', params: { min: 1, max: 10 } }),
+  ],
+  [
+    /^压缩视频$|^(?:把)?视频压小(?:一点)?$|^compress (?:the )?videos?$|^make (?:the )?videos? smaller$/i,
+    () => ({ action: 'video.compress', params: { by: 'size', maxMB: 20, quality: '720p' } }),
+  ],
+  [
+    /^(?:转|转成|转换成|改成)\s*mp4(?:\s*格式)?$|^convert (?:it |them )?to mp4$/i,
+    () => ({ action: 'video.convert', params: { format: 'mp4' } }),
+  ],
+  [
+    /^(?:剪一段|剪视频|剪辑|截取一段)$|^trim(?: it| the video)?$/i,
+    () => ({ action: 'video.trim', params: {} }),
+  ],
+  [
+    /^压缩\s*pdf$|^(?:把)?\s*pdf\s*压小(?:一点)?$|^compress (?:the )?pdfs?$|^make (?:the )?pdfs? smaller$/i,
+    () => ({ action: 'pdf.compress', params: { maxMB: 2, whenTooBig: 'ask' } }),
   ],
   [
     /^拍(?:照|照片|一张|几张)?$|^take (?:a )?(?:photos?|pictures?)$/i,
@@ -271,6 +292,56 @@ function fitToPrevious(p: StepPhrase, previous: WorkflowStep | undefined): StepP
   return p;
 }
 
+/** 这一步之后的值大致是什么（只用来给「压到 N MB」选动作）。 */
+export type PhraseKind = 'images' | 'video' | 'pdf' | 'other';
+
+function kindAfter(step: StepPhrase, before: PhraseKind | null): PhraseKind | null {
+  if (step.action === 'in.photos' || step.action.startsWith('image.')) return 'images';
+  if (step.action === 'in.videos' || step.action.startsWith('video.')) return 'video';
+  if (step.action === 'in.files') {
+    const accept = step.params.accept;
+    return accept === 'pdf' ? 'pdf' : accept === 'videos' ? 'video' : 'other';
+  }
+  if (step.action === 'pdf.toImages') return 'images';
+  if (step.action.startsWith('pdf.')) return 'pdf';
+  if (step.action === 'zip.create') return 'other';
+  return before;
+}
+
+/**
+ * 「压到 N MB」默认是压图片；前面是视频时换成压缩视频，是 PDF 时换成压缩 PDF（D-147）。
+ * before：这些步骤之前的值（往已有快捷操作里加步骤时）。
+ */
+export function fitSizePhrases(
+  phrases: readonly StepPhrase[],
+  before: PhraseKind | null = null,
+): StepPhrase[] {
+  let kind = before;
+  return phrases.map((p) => {
+    let step = p;
+    if (p.action === 'image.compress' && (kind === 'video' || kind === 'pdf')) {
+      const mb = Number(p.params.maxKB) / 1024;
+      step =
+        kind === 'video'
+          ? {
+              action: 'video.compress',
+              params: { by: 'size', maxMB: Math.max(1, Math.round(mb)), quality: '720p' },
+            }
+          : {
+              action: 'pdf.compress',
+              params: { maxMB: Math.max(0.1, Math.round(mb * 10) / 10), whenTooBig: 'ask' },
+            };
+    }
+    kind = kindAfter(step, kind);
+    return step;
+  });
+}
+
+/** 一串已有步骤之后的值大致是什么。 */
+export function kindOfSteps(steps: readonly StepPhrase[]): PhraseKind | null {
+  return steps.reduce<PhraseKind | null>((kind, step) => kindAfter(step, kind), null);
+}
+
 export function stepsFrom(phrases: readonly StepPhrase[]): WorkflowStep[] {
   const steps: WorkflowStep[] = [];
   for (const phrase of phrases) {
@@ -291,6 +362,8 @@ const PRESET_WORDS: [RegExp, string][] = [
   [/外文\s*pdf|translate a pdf/i, 'foreign-pdf'],
   [/外文材料|纸质材料翻|paper documents into/i, 'foreign-paper'],
   [/中文材料翻成英文|chinese documents into english/i, 'papers-to-english'],
+  [/视频太大|视频发不出去|video (?:is )?too big/i, 'video-too-big'],
+  [/pdf\s*太大|pdf\s*传不上去|pdf (?:is )?too big/i, 'pdf-too-big'],
   [
     /证件照打印|打印证件照|证件照冲印|print(?:ing)? id photos?|id photos? to print/i,
     'print-id-photos',

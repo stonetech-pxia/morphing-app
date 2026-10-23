@@ -115,6 +115,7 @@ export async function startRun(ctx: RunContext): Promise<Run> {
       collections: ctx.collections ?? [],
       packs: ctx.packs ?? null,
       incoming: ctx.incoming ?? null,
+      ...(ctx.ensurePack ? { ensurePack: ctx.ensurePack } : {}),
     },
     locale: ctx.locale,
     now: ctx.now,
