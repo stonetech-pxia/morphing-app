@@ -77,6 +77,10 @@
   },
   "jest": {
     "preset": "jest-expo",
+    "modulePathIgnorePatterns": [
+      "<rootDir>/android/",
+      "<rootDir>/ios/"
+    ],
     "setupFiles": [
       "<rootDir>/jest.setup.js"
     ]

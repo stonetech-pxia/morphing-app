@@ -13,8 +13,10 @@ describe('extension packs', () => {
       for (const dep of pack.requires ?? []) expect(ids).toContain(dep);
       for (const file of pack.files) {
         expect(file.sha256).toMatch(/^[0-9a-f]{64}$/);
-        // 固定版本：地址里必须带 @版本号。
-        expect(file.url).toMatch(/^https:\/\/cdn\.jsdelivr\.net\/npm\/(@[^/]+\/)?[^@/]+@\d/);
+        // 固定版本：jsDelivr 的地址里必须带 @版本号；放不进 jsDelivr 的大文件（语音模型）用 Hugging Face 固定提交的地址。
+        expect(file.url).toMatch(
+          /^https:\/\/(cdn\.jsdelivr\.net\/npm\/(@[^/]+\/)?[^@/]+@\d|huggingface\.co\/[^/]+\/[^/]+\/resolve\/[0-9a-f]{40}\/)/,
+        );
         expect(file.size).toBeGreaterThan(0);
         expect(file.path).not.toMatch(/\.\.|^\//);
       }
@@ -67,6 +69,45 @@ describe('extension packs', () => {
 
     fs.net.delete('https://cdn/a.js');
     await expect(store.install('ocr')).rejects.toEqual(new PackError('download', 'a.js'));
+  });
+
+  it('large files (speech models) are hashed by the native side, with byte progress', async () => {
+    const fs = new MemoryPackFs();
+    const big = 190 * 1024 * 1024;
+    const manifest = {
+      id: 'speech-whisper-small',
+      version: '1.0.0',
+      name: { en: '', zh: '' },
+      description: { en: '', zh: '' },
+      license: 'MIT',
+      files: [
+        { path: 'model.bin', url: 'https://hf/model.bin', size: big, sha256: 'a'.repeat(64) },
+      ],
+    };
+    let reply = { size: big, sha256: 'a'.repeat(64) };
+    const large: string[] = [];
+    const fsWithLarge = Object.assign(fs, {
+      async downloadLarge(url: string, path: string, onBytes: (n: number) => void) {
+        large.push(`${url} -> ${path}`);
+        fs.files.set(path, text('x'));
+        onBytes(big / 2);
+        return reply;
+      },
+    });
+    const store = new PackStore(fsWithLarge, sha256, () => manifest);
+    const progress: number[] = [];
+    await store.install('speech-whisper-small', (p) => progress.push(p.doneBytes));
+    expect(large).toEqual(['https://hf/model.bin -> speech-whisper-small/1.0.0/model.bin']);
+    expect(fs.downloads).toEqual([]);
+    expect(progress).toEqual([0, big / 2, big]);
+    expect(await store.isInstalled('speech-whisper-small')).toBe(true);
+
+    await store.remove('speech-whisper-small');
+    reply = { size: big, sha256: 'b'.repeat(64) };
+    await expect(store.install('speech-whisper-small')).rejects.toEqual(
+      new PackError('hash', 'model.bin'),
+    );
+    expect(fs.files.size).toBe(0);
   });
 
   it('removing the text recognition pack also removes its languages', async () => {

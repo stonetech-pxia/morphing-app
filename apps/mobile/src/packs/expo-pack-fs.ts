@@ -1,9 +1,11 @@
 import { CryptoDigestAlgorithm, digest } from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
 
+import MorphSpeech from '../../modules/morph-speech';
 import type { PackFs, Sha256 } from './store';
 
 // PackFs 的 Expo 实现：documentDirectory/packs/。下载用 expo-file-system，哈希用 expo-crypto（都在 Expo Go 里）。
+// 大文件（语音模型）的哈希由原生模块 MorphSpeech 边读边算（没有它时退回整份读进来算）。
 
 const root = () => new Directory(Paths.document, 'packs');
 
@@ -23,6 +25,17 @@ export const expoPackFs: PackFs = {
     const file = await File.downloadFileAsync(url, dest);
     return file.bytes();
   },
+
+  ...(MorphSpeech && {
+    async downloadLarge(url: string, path: string, onBytes: (bytes: number) => void) {
+      const dest = fileAt(path);
+      if (dest.exists) dest.delete();
+      const file = await File.downloadFileAsync(url, dest, {
+        onProgress: ({ bytesWritten }) => onBytes(bytesWritten),
+      });
+      return { size: file.size, sha256: await MorphSpeech!.sha256File(file.uri) };
+    },
+  }),
 
   async exists(path) {
     return new File(root(), ...path.split('/')).exists;

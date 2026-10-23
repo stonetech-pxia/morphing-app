@@ -183,6 +183,16 @@ Android 模拟器（Pixel 7 / Android 15，开发版，全新安装，英文界�
 
 没有实测：**iOS 上真正的翻译和系统下载弹窗**（模拟器不支持，要真机）、iOS 26+ 已下载语言直接建会话的那条路、iOS 17 及更早的提示（模拟器只有 iOS 27）、真机速度、「外文 PDF 翻成中文」「拍外文材料翻成中文」「中文材料翻成英文」三个预设在模拟器上的完整运行（有自动测试；扫描要真机）、Android 真机。
 
+## 音频（第一阶段：语音转文字的底层，2026-10-23）
+
+创始人同意做音频工具和对应的现成快捷操作；为了不和视频会话撞车分两个阶段，方案和待定项在会话笔记 `audio-tools-design.md`。第一阶段只做了语音转文字的底层（D-150、D-151，TOOLS_DESIGN §12）：
+
+- iOS：系统的 SpeechAnalyzer（iOS 26 起，SpeechTranscriber，不支持时 DictationTranscriber），更早的系统用 SFSpeechRecognizer，都只在本机识别。
+- Android：whisper.cpp 编进 App，模型是第一次用时下载的下载内容（small 190 MB / base 60 MB + 语音检测 0.9 MB），大文件在原生代码里校验。
+- 还没有接进快捷操作：`audio` 值类型、语音转文字动作、录音、压小 / 剪一段 / 合成 / 从视频取声音和 6 个现成快捷操作在第二阶段做。
+
+单元测试：core `speech.test.ts`（语言、模型下载内容、整理文字）、App `speech-test.ts`（假的原生模块：语言代码、模型地址、进度、取消、错误码）、`pack-store-test.ts`（大文件下载）、Kotlin `PcmTest`（重采样、切段）。实测：Android 模拟器上识别中英文、长静音、取消、下载模型都通过；iOS 模拟器上系统识别不能用（报「这台设备不能用」，不崩溃），同一段 Swift 代码在 Mac 上识别通过。没有实测：真机。
+
 ## 验收清单（§10）
 
 - [x] README 列明无需付费 API key 的本地启动步骤

@@ -175,6 +175,7 @@ interface StepContext {
 | `ocr`        | tesseract.js、worker、核心 wasm                     | 约 4 MB       |
 | `ocr-<lang>` | 每种语言一个模型（4.0.0_best_int）：eng、chi_sim 等 | 1.7–3 MB / 种 |
 | `pdfview`    | pdf.js（legacy build）                              | 实测后填写    |
+| `speech-*`   | Android 语音转文字的 whisper 模型 + 语音检测（§12） | 61 / 191 MB   |
 
 机制：
 
@@ -205,6 +206,9 @@ interface StepContext {
 | `ExpoShareIntentModule`（CocoaPods，随 npm 包 expo-share-intent）                             | 9.0.0            | iOS     | MIT                               | 分享到 Morph：主 App 读共享目录（§11）                        |
 | `expo-share-intent`（Gradle 模块，随 npm 包）                                                 | 9.0.0            | Android | MIT                               | 分享到 Morph：接收 `ACTION_SEND`（§11）                       |
 | Social、UniformTypeIdentifiers、ImageIO（分享扩展 `MorphShare`）                              | 系统自带         | iOS     | Apple 系统框架                    | 分享扩展复制文件（§11）                                       |
+| Speech、AVFoundation、CryptoKit                                                               | 系统自带         | iOS     | Apple 系统框架                    | 语音转文字（morph-speech，§12）                               |
+| whisper.cpp（含 ggml，CMake 构建时按 SHA-256 下载源码）                                       | 1.9.5            | Android | MIT                               | 语音转文字（§12）                                             |
+| MediaExtractor、MediaCodec                                                                    | 系统自带         | Android | Android 系统接口                  | 把音频解码给 whisper（§12）                                   |
 
 ## 7. 预设工作流和编辑
 
@@ -334,3 +338,37 @@ Android：别的 App ──ACTION_SEND / ACTION_SEND_MULTIPLE（image/*、video/
 **AI 看不到**：分享的文件、文件名、个数都不进配置和版本；只有用户在收件页面点「让 AI 搭一个」时，planner 会收到文件的类型和个数（例如「2 photos, 1 PDF」，D-124、D-129），文件名、大小、内容仍然不发；工作流格式没有变，AI 相关部分（提示词、mock 句式、评测）都没改。
 
 **收件页面现场搭一个**（D-129）：用户自己的快捷操作 →「让 AI 搭一个」→ 还没添加、第一步收得下这些文件的现成快捷操作（「添加并运行」）→ 工具里的单个功能；AI 做好后回到收件页面，新的排在最前、标「刚做好」，仍由用户点「运行」。
+
+## 12. 语音转文字（D-150、D-151，音频会话第一阶段）
+
+只做了底层：本地模块 `modules/morph-speech`、下载内容、App 一侧的适配（`runtime/speech.ts`），还没有接进快捷操作——`audio` 值类型、`speech.transcribe` 动作、录音、结果页等第二阶段在视频会话的共用底层（原生媒体模块、剪一段界面）合进 main 之后再做。
+
+```
+JS（runtime/speech.ts）
+  need(语言, 模型) → ready / systemDownload（iOS）/ pack（Android）/ unsupported
+  prepare(语言)         iOS 让系统下载识别模型（用户确认后）
+  transcribe(地址, …)  → 段落 → tidyTranscript（core/speech.ts）→ 文字
+iOS（MorphSpeechModule.swift）
+  iOS 26+：SpeechAnalyzer + SpeechTranscriber；设备没有它（isAvailable 为 false）或语言不支持时 DictationTranscriber
+          文件按 1 秒一块读出、用 AVAudioConverter 转成 bestAvailableAudioFormat 再喂进去
+  更早：  SFSpeechRecognizer + requiresOnDeviceRecognition（第一次弹「语音识别」权限）
+Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
+  MediaExtractor + MediaCodec 解码 → 混成单声道 → 加窗 sinc 重采样到 16 kHz（Pcm.kt，有单元测试）
+  → 每 5 分钟一段（在段尾 20 秒里最安静处切开）→ whisper_full（束搜索 5、语音检测、普通话简体提示词）
+```
+
+- **语言**：`SPEECH_LANGUAGES`（12 种，同文字识别）；iOS 用 `SYSTEM_SPEECH_LOCALES`（BCP 47），whisper 用 `whisperLanguage`（国语也是 zh，靠 `whisperPrompt` 出繁体）。
+- **整理**（`tidyTranscript`）：中文换全角标点、去中文之间的空格；去掉一整段都是字幕网站 / 「谢谢观看」/ [音乐] 这类 whisper 在静音里编出来的；中日文直接相连、其他语言用空格；停顿 3 秒以上换段（Android 开了语音检测后 whisper 给的时间是连着的，换段不起作用，第二阶段用语音检测的时间段补上）。
+- **下载内容**：`speech-whisper-small`（190 MB）、`speech-whisper-base`（60 MB），都依赖 `speech-vad`（0.9 MB）。大于 32 MB 的文件走 `PackFs.downloadLarge`：expo-file-system 下载到磁盘并按字节报告进度，SHA-256 由 `MorphSpeech.sha256File` 在原生代码里边读边算（Android 用 MessageDigest，iOS 用 CryptoKit），不把几百 MB 读进 JS。
+- **CPU 后端**（Android arm64）：ggml 编出 armv8.0 / 8.2（点积）/ 8.2（点积 + 半精度）/ 8.6（再加 i8mm）四种，运行时从新到旧挑这台手机支持的；带 SVE / SME 的几种不打包——苹果芯片上的 Android 模拟器声称支持 SVE2 / SME2，用上之后 22 秒的录音要 562 秒（正常版本 42 秒），Mac 上同样编译的版本直接非法指令退出。
+- **取消**：原生侧是原子变量，whisper 在计算图的间隙检查，模拟器上 10–20 秒内生效；iOS 取消 Swift 任务并 `cancelAndFinishNow`。
+- **错误码**：`ERR_SPEECH_UNSUPPORTED_LANGUAGE`、`_NEEDS_DOWNLOAD`、`_NOT_AUTHORIZED`、`_UNREADABLE_AUDIO`、`_MODEL`、`_CANCELLED`、`_UNAVAILABLE`（设备上系统识别用不了），App 一侧换成 `SpeechError.code`。
+
+**实测**（2026-10-23，测试录音是 Mac 朗读声生成的 m4a / wav）：
+
+| 环境                                                            | 结果                                                                                                                                                                                                                              |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Android 模拟器 morph_api35（arm64，2.5 GB 内存），whisper small | 中文 22 秒 → 42 秒识别完，全对；中文 108 秒（前后和中间共 65 秒静音）→ 78 秒，两段都完整、没有编句子；英文 16 秒 → 30 秒，全对；取消有效；下载 190 MB 模型并校验成功                                                              |
+| iOS 模拟器 iPhone 18 Pro Max（iOS 27）                          | 系统识别**在模拟器上不能用**：SpeechTranscriber `isAvailable` 为 false，DictationTranscriber 占名额后显示已安装但没有任何可用的音频格式，旧接口报「Failed to initialize recognizer」；现在都报 `ERR_SPEECH_UNAVAILABLE`，不会崩溃 |
+| Mac（macOS 27，同一段 Swift 代码单独编译）                      | SpeechTranscriber：中文 2.3% / 22% 错字率，带 65 秒静音的录音完整；DictationTranscriber：4.7% / 36%，标点更多                                                                                                                     |
+| 真机                                                            | 没有测（iPhone 没有；三星真机是创始人在用的手机，第一阶段没装）                                                                                                                                                                   |

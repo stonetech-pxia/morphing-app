@@ -24,6 +24,7 @@ export * from './richtext';
 export * from './schema';
 export * from './starter';
 export * from './share';
+export * from './speech';
 export * from './templates';
 export * from './theme';
 export * from './tools';
