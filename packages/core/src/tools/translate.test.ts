@@ -4,6 +4,7 @@ import { registry } from '../test-helpers';
 import { workflowProblems } from '../workflow/check';
 import {
   TRANSLATE_LANGUAGES,
+  fixCjkRadicals,
   groupBySource,
   joinTranslation,
   normalizeDetected,
@@ -65,6 +66,26 @@ describe('joinTranslation', () => {
     const pieces = [[['尊敬的租户：']], [['第一句。', '第二句。'], ['谢谢']]];
     expect(joinTranslation(pieces, 'zh-Hans')).toBe('尊敬的租户：\n\n第一句。第二句。\n谢谢');
     expect(joinTranslation([[['One.', 'Two.']]], 'en')).toBe('One. Two.');
+  });
+
+  it('drops the space ML Kit leaves after Chinese punctuation', () => {
+    expect(joinTranslation([[['房东周一检查公寓。 请把钥匙交给管理员。']]], 'zh-Hans')).toBe(
+      '房东周一检查公寓。请把钥匙交给管理员。',
+    );
+    expect(joinTranslation([[['Hi. There.']]], 'en')).toBe('Hi. There.');
+  });
+});
+
+describe('fixCjkRadicals', () => {
+  it('turns Kangxi radicals from PDF text into ordinary characters, keeping full-width punctuation', () => {
+    // 苹方生成的 PDF：⼗⼀⽉⼀⽇、⾄、⼋ 都是康熙部首。
+    expect(fixCjkRadicals('从⼗⼀⽉⼀⽇起，周⼀⾄周五上午⼋点：')).toBe(
+      '从十一月一日起，周一至周五上午八点：',
+    );
+  });
+
+  it('splits PDF text with radicals like ordinary text', () => {
+    expect(flat(splitForTranslation('⼯作⽇'))).toEqual(['工作日']);
   });
 });
 

@@ -1,4 +1,4 @@
-import { RunCancelled, RunError, type ActionImpl, type RunItem } from '@morph/core';
+import { RunCancelled, RunError, fixCjkRadicals, type ActionImpl, type RunItem } from '@morph/core';
 import { searchSharedQuality } from '@morph/tool-image';
 import {
   PdfError,
@@ -394,7 +394,7 @@ export const PDF_IMPLS: Record<string, Impl> = {
     } catch (e) {
       throw new RunError('unreadable', { name: fileName(item), detail: String(e) });
     }
-    const text = result.pages.join('\n\n').trim();
+    const text = fixCjkRadicals(result.pages.join('\n\n')).trim();
     // 扫描件没有文字层。
     if (!text) throw new RunError('notFound', { name: fileName(item) });
     // 文字只留在本机，绝不发给 AI（D-036）。
