@@ -1447,6 +1447,64 @@ export const PACKS: readonly PackManifest[] = [
       ),
     ],
   },
+  // ---- 语音转文字（D-151，音频会话）：Android 用 whisper.cpp 在本机识别，模型从 Hugging Face 固定版本下载 ----
+  // jsDelivr 单个文件最大 20 MB，放不下模型，所以用 Hugging Face 固定提交（commit）的地址。
+  {
+    id: 'speech-vad',
+    version: '6.2.0',
+    name: { en: 'Speech detection', zh: '语音检测' },
+    description: {
+      en: 'Finds where people are talking in a recording, so silence and music are skipped (Silero VAD).',
+      zh: '找出录音里有人说话的部分，跳过静音和音乐（Silero VAD）。',
+    },
+    license: 'MIT (Silero VAD, ggml conversion by whisper.cpp)',
+    files: [
+      f(
+        'vad.bin',
+        'https://huggingface.co/ggml-org/whisper-vad/resolve/9ffd54a1e1ee413ddf265af9913beaf518d1639b/ggml-silero-v6.2.0.bin',
+        885098,
+        '2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987',
+      ),
+    ],
+  },
+  {
+    id: 'speech-whisper-small',
+    version: '1.0.0',
+    name: { en: 'Speech to text', zh: '语音转文字' },
+    description: {
+      en: 'Turns recordings into text on this device (whisper small). Better for Chinese, slower.',
+      zh: '在本机把录音转成文字（whisper small）。中文更准，速度慢一些。',
+    },
+    license: 'MIT (OpenAI Whisper small, ggml q5_1 by whisper.cpp)',
+    requires: ['speech-vad'],
+    files: [
+      f(
+        'model.bin',
+        'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small-q5_1.bin',
+        190085487,
+        'ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb',
+      ),
+    ],
+  },
+  {
+    id: 'speech-whisper-base',
+    version: '1.0.0',
+    name: { en: 'Speech to text (fast)', zh: '语音转文字（快速）' },
+    description: {
+      en: 'Turns recordings into text on this device (whisper base). About 3 times faster, less accurate for Chinese.',
+      zh: '在本机把录音转成文字（whisper base）。快约 3 倍，中文错字多一些。',
+    },
+    license: 'MIT (OpenAI Whisper base, ggml q5_1 by whisper.cpp)',
+    requires: ['speech-vad'],
+    files: [
+      f(
+        'model.bin',
+        'https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base-q5_1.bin',
+        59707625,
+        '422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898',
+      ),
+    ],
+  },
 ];
 
 /** OCR 语言代码（tesseract）→ 扩展包 ID。 */
