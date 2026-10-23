@@ -92,7 +92,7 @@ export class FakeFiles implements FilePlatform {
   nextVideos: PickedFile[] | null = null;
   /** 手机剩余空间（字节）；null 表示读不到。 */
   freeBytes: number | null = 64 * 1024 * 1024 * 1024;
-  /** 被「移进」本次运行的文件（视频、音频不复制，D-133）。 */
+  /** 被「移进」本次运行的文件（视频、音频不复制，D-142）。 */
   adopted: string[] = [];
   /** 下一次选文件（「文件」App）的结果。 */
   nextPick: PickedFile[] | null = null;

@@ -1,4 +1,4 @@
-// 本地 Expo 模块的 Android 部分（D-132）：Jetpack Media3 Transformer（Apache-2.0，Google 官方）
+// 本地 Expo 模块的 Android 部分（D-141）：Jetpack Media3 Transformer（Apache-2.0，Google 官方）
 // 在本机压缩、转格式、剪切视频和音频，用手机的硬件编码器；读信息和取画面用系统的
 // MediaExtractor / MediaMetadataRetriever。
 plugins {

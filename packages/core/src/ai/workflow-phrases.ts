@@ -33,7 +33,7 @@ const STEP_PHRASES: Matcher[] = [
     () => ({ action: 'in.photos', params: { source: 'scanner', min: 1, max: 30 } }),
   ],
   [
-    // 视频（D-138）：从相册选；压缩、转成 MP4、剪一段。
+    // 视频（D-147）：从相册选；压缩、转成 MP4、剪一段。
     /^(?:从相册)?(?:选|选择|挑)(?:几个|一个|一段)?视频$|^(?:choose|pick|select) (?:some |a )?videos?$/i,
     () => ({ action: 'in.videos', params: { min: 1, max: 10 } }),
   ],
@@ -214,7 +214,7 @@ function kindAfter(step: StepPhrase, before: PhraseKind | null): PhraseKind | nu
 }
 
 /**
- * 「压到 N MB」默认是压图片；前面是视频时换成压缩视频，是 PDF 时换成压缩 PDF（D-138）。
+ * 「压到 N MB」默认是压图片；前面是视频时换成压缩视频，是 PDF 时换成压缩 PDF（D-147）。
  * before：这些步骤之前的值（往已有快捷操作里加步骤时）。
  */
 export function fitSizePhrases(

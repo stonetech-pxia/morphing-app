@@ -109,7 +109,7 @@ export const migrateV4toV5: Migration = (config) => {
 export const migrateV5toV6: Migration = (config) => ({ ...config, schemaVersion: 6 });
 
 /**
- * v6 → v7：文件列表可以只列一大类文件（image/*、video/*、audio/*），图标多了 video 和 audio（D-131）；
+ * v6 → v7：文件列表可以只列一大类文件（image/*、video/*、audio/*），图标多了 video 和 audio（D-140）；
  * 已有数据不需要改动，只提升版本号。
  */
 export const migrateV6toV7: Migration = (config) => ({ ...config, schemaVersion: 7 });

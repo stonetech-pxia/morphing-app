@@ -5,9 +5,9 @@ import type { ToolDefinition } from '../registry';
 import type { Locale, Workflow } from '../schema';
 import type { ActionDefinition } from '../workflow/contract';
 
-// 视频工具的清单（D-134、D-137）：压缩、转成 MP4、剪一段。编码在 App 的原生模块 morph-media 里
-// （iOS AVFoundation、Android Media3，D-132）；码率和分辨率的计算在 core/media.ts。
-// 输出一律是 MP4（H.264 + AAC），微信、邮件、电脑和老手机都能放（D-134）。
+// 视频工具的清单（D-143、D-146）：压缩、转成 MP4、剪一段。编码在 App 的原生模块 morph-media 里
+// （iOS AVFoundation、Android Media3，D-141）；码率和分辨率的计算在 core/media.ts。
+// 输出一律是 MP4（H.264 + AAC），微信、邮件、电脑和老手机都能放（D-143）。
 
 export const VIDEO_TOOL_ID = 'video';
 export const VIDEO_PAGE_ID = 'tool-video';

@@ -7,7 +7,7 @@ import type { Localized } from '../schema';
 
 /**
  * 步骤之间传递的值的类型（D-060）。files 是 images、pdf、zip、video、audio 的父类型。
- * video 和 audio 一起加（D-131）：音频的动作由以后的音频工具提供。
+ * video 和 audio 一起加（D-140）：音频的动作由以后的音频工具提供。
  */
 export const VALUE_TYPES = [
   'images',

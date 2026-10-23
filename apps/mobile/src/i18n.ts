@@ -535,7 +535,7 @@ const strings = {
   habitNo: { en: 'No thanks', zh: '不用了' },
   habitMade: { en: 'Added “{name}” to the home page', zh: '已把「{name}」放到首页' },
 
-  // ---- 视频、音频和压缩 PDF（D-131–D-139）。音频工具的文字请另起一块，方便合并。----
+  // ---- 视频、音频和压缩 PDF（D-140–D-148）。音频工具的文字请另起一块，方便合并。----
   runPercent: { en: '{done}%', zh: '{done}%' },
   runError_needsFullApp: {
     en: 'Videos can only be processed in the full Morph app, not in this preview.',

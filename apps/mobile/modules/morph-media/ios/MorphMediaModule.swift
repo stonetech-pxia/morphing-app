@@ -2,13 +2,13 @@ import AVFoundation
 import ExpoModulesCore
 import UIKit
 
-// 视频和音频的 iOS 实现（D-132）：只用 AVFoundation，全部在本机处理，不联网。
+// 视频和音频的 iOS 实现（D-141）：只用 AVFoundation，全部在本机处理，不联网。
 // - probe：AVURLAsset 读时长、宽高、方向、帧率、码率、编码、是否 HDR。
 // - transcode：AVAssetReader（经过 AVVideoComposition：摆正、缩小、限帧率、HDR 转 BT.709）
 //   + AVAssetWriter（H.264 + AAC，MP4），自己指定码率。
 // - trim：AVAssetExportSession 的 Passthrough + timeRange，不重新编码。
 // - thumbnails：AVAssetImageGenerator。
-// 视频编码器不能在后台用：处理时切到别的 App 会失败，报 ERR_MEDIA_INTERRUPTED（D-139）。
+// 视频编码器不能在后台用：处理时切到别的 App 会失败，报 ERR_MEDIA_INTERRUPTED（D-148）。
 
 final class MediaUnsupportedException: GenericException<String>, @unchecked Sendable {
   override var code: String { "ERR_MEDIA_UNSUPPORTED" }

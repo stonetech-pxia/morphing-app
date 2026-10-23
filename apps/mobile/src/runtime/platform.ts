@@ -109,7 +109,7 @@ export interface FolderItem {
   mimeType: string;
 }
 
-/** 视频、音频的信息（modules/morph-media 的 probe，D-132）。 */
+/** 视频、音频的信息（modules/morph-media 的 probe，D-141）。 */
 export interface MediaInfo {
   kind: 'video' | 'audio';
   durationMs: number;
@@ -152,8 +152,8 @@ export interface MediaOutput {
 }
 
 /**
- * 在本机处理视频和音频（modules/morph-media：iOS AVFoundation、Android Media3，D-132）。
- * 没有原生模块时（Expo Go）为 null，视频动作报 needsFullApp。处理期间屏幕不灭（D-139）。
+ * 在本机处理视频和音频（modules/morph-media：iOS AVFoundation、Android Media3，D-141）。
+ * 没有原生模块时（Expo Go）为 null，视频动作报 needsFullApp。处理期间屏幕不灭（D-148）。
  * 出错时抛出带 code 的错误（ERR_MEDIA_UNSUPPORTED / CANCELLED / INTERRUPTED / NOT_IMPLEMENTED / FAILED）。
  */
 export interface MediaPlatform {
@@ -223,7 +223,7 @@ export interface FilePlatform {
   /** 把选择器给的文件复制进本次运行的临时目录。 */
   copyToRun(uri: string, runId: string, fileName: string): Promise<{ uri: string; size: number }>;
   /**
-   * 大文件（视频、音频）不复制（D-133）：选择器放在 App 缓存里的副本移进本次运行的临时目录（之后一起删）；
+   * 大文件（视频、音频）不复制（D-142）：选择器放在 App 缓存里的副本移进本次运行的临时目录（之后一起删）；
    * 分享进来的（共享目录、content://）原地使用，返回原地址。
    */
   adoptIntoRun(

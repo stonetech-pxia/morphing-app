@@ -86,7 +86,7 @@ describe('shareFit', () => {
     expect(shareFit(preset('visa-photo'), [])).toEqual({ ok: false, reason: 'type' });
   });
 
-  it('a video workflow takes shared videos (D-135)', () => {
+  it('a video workflow takes shared videos (D-144)', () => {
     expect(shareFit(preset('video-too-big'), [mov('1'), mov('2')])).toEqual({
       ok: true,
       type: 'video',
@@ -125,7 +125,7 @@ describe('sharedSizeProblem (P-006)', () => {
       code: 'tooLargeTotal',
       detail: { mb: 100 },
     });
-    // 视频和音频单独算：单个 4 GB，最多 10 个，不计入 100 MB 的合计（D-133）。
+    // 视频和音频单独算：单个 4 GB，最多 10 个，不计入 100 MB 的合计（D-142）。
     expect(sharedSizeProblem([mov('1', 900 * MB), mov('2', 900 * MB), pdf('a', 10 * MB)])).toBe(
       null,
     );

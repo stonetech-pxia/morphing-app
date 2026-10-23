@@ -32,7 +32,7 @@ export interface RunServices {
   /** 扩展包（WebView 里的 pdf.js、OpenCV、tesseract）；没有时为 null。 */
   packs: { runtime: PackRuntime; isInstalled(id: string): Promise<boolean> } | null;
   /**
-   * 动作执行到一半才知道要不要下载内容时用（压缩 PDF 转成图片要 PDF 预览，D-136）：
+   * 动作执行到一半才知道要不要下载内容时用（压缩 PDF 转成图片要 PDF 预览，D-145）：
    * 已下载或用户确认下载完成返回 true，用户拒绝返回 false。
    */
   ensurePack?: (packId: string) => Promise<boolean>;
@@ -102,7 +102,7 @@ export const isMediaFile = (f: { name: string; mimeType?: string | null }) => {
 
 /**
  * 选择器给的文件：检查大小上限（P-006）。选择器不一定提供大小，复制后再检查一次。
- * 视频和音频由原生模块边读边写，单独用 MEDIA_LIMITS：单个 4 GB、最多 10 个，不计入合计（D-133）。
+ * 视频和音频由原生模块边读边写，单独用 MEDIA_LIMITS：单个 4 GB、最多 10 个，不计入合计（D-142）。
  */
 export function checkSizes(
   sizes: readonly { name: string; size: number | null; mimeType?: string | null }[],

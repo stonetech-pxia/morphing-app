@@ -71,7 +71,7 @@ export type PlanAbout =
       images: number;
       pdfs: number;
       others: number;
-      /** 视频和音频（D-138）；旧版 App 不发，所以可选。 */
+      /** 视频和音频（D-147）；旧版 App 不发，所以可选。 */
       videos?: number | undefined;
       audio?: number | undefined;
     };

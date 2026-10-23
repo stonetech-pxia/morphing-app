@@ -1492,7 +1492,7 @@ const ABOUT_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
-/** 视频和压缩 PDF（D-131–D-138）。V* 是 mock 句式（MOCK_AI_PHRASES W12–W14），PV* 和 SH3 只要求真实模型。 */
+/** 视频和压缩 PDF（D-140–D-147）。V* 是 mock 句式（MOCK_AI_PHRASES W12–W14），PV* 和 SH3 只要求真实模型。 */
 const firstVideo = (steps: { action: string; params: Record<string, unknown> }[]) => {
   const first = steps[0];
   if (first?.action === 'in.videos') return null;

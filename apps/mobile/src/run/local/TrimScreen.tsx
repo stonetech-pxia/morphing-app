@@ -11,7 +11,7 @@ import type { Palette } from '../../renderer/theme';
 import type { LocalScreenProps } from '../RunScreen';
 import { LocalFrame } from './LocalFrame';
 
-// 剪一段（TOOLS_DESIGN §4 trimMedia，D-134）：逐个选开始和结束。视频和音频共用起止拖动、微调、
+// 剪一段（TOOLS_DESIGN §4 trimMedia，D-143）：逐个选开始和结束。视频和音频共用起止拖动、微调、
 // 时间显示和「只播放这一段」；上半部分视频显示画面，音频以后由音频工具补上波形（现在是图标）。
 // 结果只在本次运行里使用。
 

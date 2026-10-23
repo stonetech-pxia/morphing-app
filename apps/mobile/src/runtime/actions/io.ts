@@ -77,7 +77,7 @@ async function importPicked(
     const mimeType = mimeOf(clean, f.mimeType);
     const ext = extOf(clean) || (mimeType === 'application/pdf' ? 'pdf' : 'jpg');
     const name = baseName(clean);
-    // 视频和音频可能有几个 GB：不复制，移进来或原地使用（D-133）。
+    // 视频和音频可能有几个 GB：不复制，移进来或原地使用（D-142）。
     const media = isMediaFile({ name: clean, mimeType });
     let stored;
     try {
@@ -266,7 +266,7 @@ export const IO_IMPLS: Record<string, Impl> = {
     const { files, runId } = ctx.services;
     for (const item of named) {
       const fileName = freshName(item.name, item.ext);
-      // 视频和音频很大：临时文件直接改名（移动），只有分享进来的原件才复制（D-133）。
+      // 视频和音频很大：临时文件直接改名（移动），只有分享进来的原件才复制（D-142）。
       let uri: string | null = null;
       if (isMediaFile({ name: `${item.name}.${item.ext}`, mimeType: item.mimeType })) {
         const moved = await files.adoptIntoRun(item.uri, runId, fileName);

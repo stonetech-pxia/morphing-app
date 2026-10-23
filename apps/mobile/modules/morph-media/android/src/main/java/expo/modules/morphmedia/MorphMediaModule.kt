@@ -41,7 +41,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-// 视频和音频的 Android 实现（D-132）：和 iOS 的 JS 接口相同。
+// 视频和音频的 Android 实现（D-141）：和 iOS 的 JS 接口相同。
 // - probe：MediaExtractor（编码、码率、采样率、HDR）+ MediaMetadataRetriever（时长、宽高、方向）。
 // - transcode：Media3 Transformer，H.264 + AAC 写 MP4，指定码率；缩小用 Presentation，限帧率用
 //   FrameDropEffect，HDR 用 OpenGL 转成普通画面。

@@ -4,8 +4,8 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import MorphMedia, { type MediaResult } from '../../modules/morph-media';
 import type { MediaInfo, MediaJob, MediaOutput, MediaPlatform } from './platform';
 
-// MediaPlatform 的实现：本地 Expo 模块 MorphMedia（iOS AVFoundation、Android Media3，D-132）。
-// 没有这个模块（Expo Go）时为 null。处理期间屏幕不灭：iOS 不让后台用视频编码器（D-139）。
+// MediaPlatform 的实现：本地 Expo 模块 MorphMedia（iOS AVFoundation、Android Media3，D-141）。
+// 没有这个模块（Expo Go）时为 null。处理期间屏幕不灭：iOS 不让后台用视频编码器（D-148）。
 
 /** 多久看一次「停止」。 */
 const CANCEL_POLL_MS = 200;

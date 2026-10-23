@@ -15,7 +15,7 @@ import { startRun } from '../runtime/runner';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, FakeMedia } from '../test-utils/fake-files';
 
-// 视频工具（D-131–D-134）：选视频不复制、压到指定大小 / 画质、转成 MP4、剪一段，以及出错的说法。
+// 视频工具（D-140–D-143）：选视频不复制、压到指定大小 / 画质、转成 MP4、剪一段，以及出错的说法。
 // 原生模块 morph-media 换成 FakeMedia：按码率和时长算出输出大小。
 
 const registry = createRegistry(BUILTIN_TOOLS);
@@ -107,7 +107,7 @@ describe('video tool', () => {
     const [video] = videosOf(await run());
     expect(video).toMatchObject({ name: 'IMG_0001', ext: 'mp4', mimeType: 'video/mp4' });
     expect(video!.size).toBeLessThanOrEqual(20 * MB);
-    // 选择器的副本是移进来的，不是复制（D-133）。
+    // 选择器的副本是移进来的，不是复制（D-142）。
     expect(files.adopted).toEqual(['picker://IMG_0001.MOV']);
     expect(files.disk.has('picker://IMG_0001.MOV')).toBe(false);
     // 1080p 原片按 20 MB 压到 720p、30 帧。

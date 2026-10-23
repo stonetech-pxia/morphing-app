@@ -13,7 +13,7 @@ import {
 
 import { type MergeResult, PdfError, loadPdf } from './core';
 
-// 压缩 PDF（D-136）：只重新压缩里面的图片，文字、链接、表格都保留。
+// 压缩 PDF（D-145）：只重新压缩里面的图片，文字、链接、表格都保留。
 // 图片的解码和编码由 App 的系统编码器完成（缩小 + 降质量，输出 JPEG），这里只负责
 // 找出能处理的图片、把它们变成编码器认识的 JPEG / PNG，以及把新的 JPEG 换回去。
 //

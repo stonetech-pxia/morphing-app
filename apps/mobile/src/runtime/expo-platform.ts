@@ -238,7 +238,7 @@ export const expoFilePlatform: FilePlatform = {
       allowsMultipleSelection: max > 1,
       selectionLimit: max,
       orderedSelection: true,
-      // 原样拿到视频（HEVC 也不转），不然大视频要在选的时候先等系统转码（D-133）。
+      // 原样拿到视频（HEVC 也不转），不然大视频要在选的时候先等系统转码（D-142）。
       videoExportPreset: VideoExportPreset.Passthrough,
       preferredAssetRepresentationMode: UIImagePickerPreferredAssetRepresentationMode.Current,
       shouldDownloadFromNetwork: true,

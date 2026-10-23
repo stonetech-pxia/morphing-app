@@ -186,7 +186,7 @@ export function ResultView({
   const items = value.items;
   const allSaved = items.every((i) => i.assetId);
   const images = items.every((i) => i.mimeType.startsWith('image/'));
-  // 存到相册：图片和视频（D-131）。
+  // 存到相册：图片和视频（D-140）。
   const photos = items.every((i) => {
     const kind = mediaKindOf(i.mimeType, i.ext);
     return kind === 'image' || kind === 'video';

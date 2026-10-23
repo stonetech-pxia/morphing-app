@@ -68,7 +68,7 @@ export type RunErrorCode =
   | 'textTooLong'
   | 'doesNotFit'
   | 'noRecords'
-  /** 视频、音频要用原生模块处理，Expo Go 里没有（D-132）。 */
+  /** 视频、音频要用原生模块处理，Expo Go 里没有（D-141）。 */
   | 'needsFullApp'
   /** 系统打不开这段视频 / 音频（格式不支持、有版权保护）。 */
   | 'mediaUnsupported'
@@ -76,7 +76,7 @@ export type RunErrorCode =
   | 'notEnoughSpace'
   /** 目标大小太小，压出来看不清（detail.mb：至少要多少 MB）。 */
   | 'targetTooSmall'
-  /** 处理视频时切到了别的 App（iOS 不让后台用视频编码器，D-139）。 */
+  /** 处理视频时切到了别的 App（iOS 不让后台用视频编码器，D-148）。 */
   | 'interrupted'
   | 'unexpected';
 

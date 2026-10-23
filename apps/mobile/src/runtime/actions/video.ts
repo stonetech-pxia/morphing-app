@@ -14,7 +14,7 @@ import {
 import type { MediaInfo, MediaOutput, MediaPlatform, VideoEncode } from '../platform';
 import { MB, displayName, fileItems, freshName, type RunServices } from './helpers';
 
-// 视频工具的动作实现（D-134）：码率和分辨率在 core/media.ts 里算，编码交给原生模块 morph-media。
+// 视频工具的动作实现（D-143）：码率和分辨率在 core/media.ts 里算，编码交给原生模块 morph-media。
 // 输出一律是 MP4（H.264 + AAC）。
 
 type Impl = ActionImpl<RunServices>;

@@ -17,7 +17,7 @@ import { startRun } from '../runtime/runner';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, TINY_JPEG } from '../test-utils/fake-files';
 
-// 压缩 PDF（D-136）：先只压图片、保留文字；压不到时问用户（转成图片 / 就用现在的），
+// 压缩 PDF（D-145）：先只压图片、保留文字；压不到时问用户（转成图片 / 就用现在的），
 // 或按参数直接转成图片 / 保留文字。系统编码器和 PDF 预览下载内容都换成假的。
 
 const registry = createRegistry(BUILTIN_TOOLS);

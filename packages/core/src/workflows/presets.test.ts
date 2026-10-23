@@ -18,7 +18,7 @@ describe('workflow presets', () => {
     expect(new Set(WORKFLOW_PRESETS.map((p) => p.id)).size).toBe(12);
   });
 
-  it('puts the video and PDF size presets in their scenarios (D-137)', () => {
+  it('puts the video and PDF size presets in their scenarios (D-146)', () => {
     expect(presetsIn('photos').map((p) => p.id)).toContain('video-too-big');
     expect(presetsIn('paperwork').map((p) => p.id)).toContain('pdf-too-big');
     expect(PRESET_SCENARIOS.find((s) => s.id === 'photos')!.name.zh).toBe('发照片和视频');

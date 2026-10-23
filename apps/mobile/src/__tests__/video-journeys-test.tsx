@@ -3,7 +3,7 @@ import { screen } from 'expo-router/testing-library';
 
 import { renderToolsApp } from '../test-utils/render-app';
 
-// 视频工具的界面旅程（D-131–D-134）：工具页 → 压缩 → 结果页（播放、存到相册）；剪一段的界面。
+// 视频工具的界面旅程（D-140–D-143）：工具页 → 压缩 → 结果页（播放、存到相册）；剪一段的界面。
 
 const MB = 1024 * 1024;
 

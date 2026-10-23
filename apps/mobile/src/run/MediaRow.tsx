@@ -10,7 +10,7 @@ import type { Palette } from '../renderer/theme';
 import { Pill } from '../renderer/ui';
 import { formatTime } from './local/TrimScreen';
 
-// 结果页上的一个视频或音频（D-131）：图标、文件名、时长 · 宽高 · 大小，「播放」打开全屏播放器
+// 结果页上的一个视频或音频（D-140）：图标、文件名、时长 · 宽高 · 大小，「播放」打开全屏播放器
 // （系统自带的播放控件，音频也能播放、看时长）。视频和音频共用，音频工具以后可以换成波形。
 
 function Player({

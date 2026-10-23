@@ -11,7 +11,7 @@ import { formatBytes } from './image';
 import { MB, fileItems, freshName, readItem, type RunServices } from './helpers';
 import { guard, renderPages, writePdf } from './pdf';
 
-// 压缩 PDF（D-136）：先只重新压缩里面的图片（文字、链接、表格都保留）；压不到目标时按 whenTooBig：
+// 压缩 PDF（D-145）：先只重新压缩里面的图片（文字、链接、表格都保留）；压不到目标时按 whenTooBig：
 // 问用户（「转成图片 / 就用现在的」）、把每页转成图片（要用 PDF 预览下载内容），或保留文字。
 // 图片的缩小和编码用系统编码器（expo-image-manipulator），所有图片共用一个质量和缩放（D-073）。
 

@@ -87,7 +87,7 @@ describe('types', () => {
     ]);
   });
 
-  it('video and audio are files, but merging PDFs does not take them (D-131)', () => {
+  it('video and audio are files, but merging PDFs does not take them (D-140)', () => {
     expect(acceptsType(['files'], 'video')).toBe(true);
     expect(acceptsType(['files'], 'audio')).toBe(true);
     expect(acceptsType(['video'], 'files')).toBe(false);

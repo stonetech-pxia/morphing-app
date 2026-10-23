@@ -1,6 +1,6 @@
 import { requireOptionalNativeModule, type EventSubscription } from 'expo';
 
-// 本地 Expo 模块 MorphMedia（D-132）：在本机处理视频和音频，只用系统框架和官方库。
+// 本地 Expo 模块 MorphMedia（D-141）：在本机处理视频和音频，只用系统框架和官方库。
 // iOS 是 ios/MorphMediaModule.swift（AVFoundation），Android 是 android/…/MorphMediaModule.kt
 // （Jetpack Media3 Transformer，Apache-2.0）。Expo Go 和测试里是 null，视频动作报 needsFullApp。
 //

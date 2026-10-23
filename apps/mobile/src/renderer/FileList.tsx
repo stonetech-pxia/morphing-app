@@ -35,7 +35,7 @@ export function FileList({
     let alive = true;
     void repo.listAssets().then((all) => {
       // 文件列表只显示文档；界面用的照片也是用户文件，但不在这里列出（D-051）。
-      // mimeType 可以是一大类（video/*、audio/*、image/*，D-131）。
+      // mimeType 可以是一大类（video/*、audio/*、image/*，D-140）。
       const documents = all.filter((a) =>
         mimeType?.endsWith('/*')
           ? a.mimeType.startsWith(mimeType.slice(0, -1))

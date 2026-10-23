@@ -27,7 +27,7 @@ const isZip = (mime: string) =>
   mime === 'application/zip' || mime === 'application/x-zip-compressed';
 const isVideo = (mime: string) => mime.startsWith('video/');
 const isAudio = (mime: string) => mime.startsWith('audio/');
-/** 视频和音频由原生模块处理，用 MEDIA_LIMITS（D-133）。 */
+/** 视频和音频由原生模块处理，用 MEDIA_LIMITS（D-142）。 */
 const isMedia = (f: SharedFileInfo) => {
   const kind = mediaKindOf(f.mimeType, f.name);
   return kind === 'video' || kind === 'audio';
@@ -104,7 +104,7 @@ export function shareFit(workflow: Workflow, files: readonly SharedFileInfo[]): 
 }
 
 /**
- * 大小上限（P-006）：和选择器选的文件一样，单个 50 MB、合计 100 MB。视频和音频单独算（D-133）：
+ * 大小上限（P-006）：和选择器选的文件一样，单个 50 MB、合计 100 MB。视频和音频单独算（D-142）：
  * 单个 4 GB、最多 10 个，不计入合计。没问题时返回 null。
  */
 export function sharedSizeProblem(
