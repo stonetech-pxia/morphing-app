@@ -1208,10 +1208,99 @@ const GOAL_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+// 新说法（D-112）：「快捷操作 / quick action」「添加 / 移除工具」「改动记录」，旧说法仍然能用（W*、P7）。
+
+const toolIds = (c: WorkspaceConfig) => c.tools.map((t) => t.toolId);
+const onHome = (c: WorkspaceConfig) =>
+  allComponents(home(c)).some(
+    (x) => x.type === 'workflowRunner' && x.props.workflowId === visa(c)?.id,
+  )
+    ? null
+    : 'no runner for the visa quick action on the home page';
+
+const WORDING_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'QA1',
+    input: '添加签证照片快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: hasWorkflow(['in.photos', 'image.idPhoto']) },
+  },
+  {
+    id: 'QA1-en',
+    input: 'Add the visa photo quick action',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: hasWorkflow(['in.photos', 'image.idPhoto']) },
+  },
+  {
+    id: 'QA2',
+    input: '新建一个快捷操作：选照片，压到 500KB，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.photos', 'image.compress', 'out.share'],
+        param('image.compress', 'maxKB', 500),
+      ),
+    },
+  },
+  {
+    id: 'QA3',
+    input: '把签证照片快捷操作放到首页',
+    locale: 'zh',
+    setup: 'visa',
+    mock: true,
+    expect: { kind: 'ops', check: onHome },
+  },
+  {
+    id: 'QA4',
+    input: '把改动记录从导航栏去掉',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.shell.nav.includes('history')
+          ? `History should leave the bar, got ${c.shell.nav.join(',')}`
+          : null,
+    },
+  },
+  {
+    id: 'QA5',
+    input: '添加图片工具',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        toolIds(c).includes('image') ? null : `image tool not added: ${toolIds(c).join(',')}`,
+    },
+  },
+  {
+    id: 'QA6',
+    input: 'Remove the PDF tool',
+    locale: 'en',
+    setup: 'pdf',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => (toolIds(c).includes('pdf') ? 'the PDF tool is still there' : null),
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...BASE_EVAL_CASES,
   ...WORKFLOW_EVAL_CASES,
   ...GOAL_EVAL_CASES,
+  ...WORDING_EVAL_CASES,
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };
