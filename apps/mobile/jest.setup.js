@@ -62,8 +62,8 @@ jest.mock('expo-video', () => {
         const player = makePlayer(source);
         setup?.(player);
         return player;
-      // 和真的一样只随地址重建；setup 只在创建时调用一次。
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+        // 和真的一样只随地址重建；setup 只在创建时调用一次。
+        // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [source]),
   };
 });
