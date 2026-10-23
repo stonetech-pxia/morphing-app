@@ -649,6 +649,7 @@ const strings = {
     zh: '本机自动识别，有噪音或口音时可能有错字，请核对。',
   },
   audioMerged: { en: '{name} and {n} more', zh: '{name} 等 {n} 段' },
+  trimWaveformLoading: { en: 'Reading the waveform…', zh: '正在读取波形…' },
   trimRingtone: {
     en: 'On Android you can then choose the saved file as a ringtone in Settings → Sounds; an iPhone app can’t set ringtones.',
     zh: '存好后，Android 可以在「设置 → 声音」里把它设成铃声；iPhone 不能由 App 设成铃声。',

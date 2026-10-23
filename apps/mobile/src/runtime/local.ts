@@ -61,12 +61,15 @@ export interface LocalSteps {
   /** 排序、删除：返回保留下来的下标，按新顺序。 */
   reorder: { in: { items: RunItem[] }; out: number[] };
   /**
-   * 剪一段（视频、音频共用，D-143）：逐个选开始和结束（毫秒）。视频显示画面，音频以后显示波形。
+   * 剪一段（视频、音频共用，D-143）：逐个选开始和结束（毫秒）。视频显示画面，音频显示波形。
    * 返回每个文件选的一段。
    */
   trimMedia: {
-    /** waveforms：音频的波形（0–1 的峰值，和 items 一一对应；视频或读不到时为 null，D-155）。 */
-    in: { items: RunItem[]; waveforms?: (number[] | null)[] };
+    /**
+     * loadWaveform：读第 i 个文件的波形（0–1 的峰值；视频或读不到时为 null，D-155）。界面先打开、
+     * 波形读好再画：Android 上长录音要解码几十秒以上。
+     */
+    in: { items: RunItem[]; loadWaveform?: (index: number) => Promise<number[] | null> };
     out: { startMs: number; endMs: number }[];
   };
   /**

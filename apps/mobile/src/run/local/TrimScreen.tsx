@@ -212,6 +212,30 @@ function useThumbnails(player: VideoPlayer, item: RunItem): VideoThumbnail[] {
   return thumbs?.uri === uri ? thumbs.list : [];
 }
 
+/** 音频的波形：界面打开后再读（Android 上长录音要解码很久）；undefined 表示还在读。 */
+function useWaveform(
+  load: ((index: number) => Promise<number[] | null>) | undefined,
+  index: number,
+  audio: boolean,
+): number[] | null | undefined {
+  // 记下是第几个文件的波形：换文件时不用在 effect 里清空。
+  const [peaks, setPeaks] = useState<{ index: number; list: number[] | null } | null>(null);
+  useEffect(() => {
+    if (!audio || !load) return;
+    let alive = true;
+    load(index)
+      .catch(() => null)
+      .then((list) => {
+        if (alive) setPeaks({ index, list });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [load, index, audio]);
+  if (!audio || !load) return null;
+  return peaks?.index === index ? peaks.list : undefined;
+}
+
 export function TrimScreen({
   input,
   palette,
@@ -241,8 +265,8 @@ export function TrimScreen({
     p.timeUpdateEventInterval = 0.1;
   });
   const thumbs = useThumbnails(player, item);
-  const waveform = input.waveforms?.[index] ?? null;
   const audio = item.mimeType.startsWith('audio/');
+  const waveform = useWaveform(input.loadWaveform, index, audio);
 
   const [responder] = useState(() =>
     PanResponder.create({
@@ -320,6 +344,15 @@ export function TrimScreen({
               <Image key={i} source={thumb} style={styles.thumb} contentFit="cover" />
             ))}
             {waveform ? <Waveform peaks={waveform} color={palette.primary} /> : null}
+            {waveform === undefined ? (
+              <View style={[styles.waveform, styles.center]}>
+                <Text
+                  testID="trim-waveform-loading"
+                  style={[palette.font('body', 13), { color: palette.caption }]}>
+                  {t(locale, 'trimWaveformLoading')}
+                </Text>
+              </View>
+            ) : null}
           </View>
           {width > 0 ? (
             <>
@@ -402,7 +435,8 @@ const styles = StyleSheet.create({
   waveform: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 1, paddingHorizontal: 2 },
   peak: { flex: 1, borderRadius: 1, opacity: 0.7 },
   controls: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
-  timeline: { height: 52, borderRadius: 8 },
+  // 左右再缩进 24：把手离屏幕边 40，不落在 Android 的返回手势区（从边缘往里拖会关掉页面）。
+  timeline: { height: 52, borderRadius: 8, marginHorizontal: 24 },
   dim: { position: 'absolute', top: 0, bottom: 0, backgroundColor: '#00000055' },
   selection: { position: 'absolute', top: 0, bottom: 0, borderTopWidth: 3, borderBottomWidth: 3 },
   handle: { position: 'absolute', top: -4, bottom: -4, width: HANDLE, borderRadius: 6 },

@@ -251,17 +251,18 @@ export const AUDIO_IMPLS: Record<string, Impl> = {
 
   async 'audio.trim'(input, _params, ctx) {
     const media = mediaOf(ctx);
-    // 剪切界面要知道时长（分享进来的文件选择器没给）和波形。
+    // 剪切界面要知道时长（分享进来的文件选择器没给）；波形由界面打开后再读。
     const items: RunItem[] = [];
     const infos: MediaInfo[] = [];
-    const waveforms: (number[] | null)[] = [];
     for (const item of fileItems(input)) {
       const info = await probeAudio(media, item);
       infos.push(info);
       items.push({ ...item, durationMs: info.durationMs });
-      waveforms.push(await media.waveform(item.uri, WAVEFORM_BUCKETS));
     }
-    const ranges = await ctx.services.ui.open('trimMedia', { items, waveforms });
+    const ranges = await ctx.services.ui.open('trimMedia', {
+      items,
+      loadWaveform: (i) => media.waveform(items[i]!.uri, WAVEFORM_BUCKETS),
+    });
     if (!ranges) throw new RunCancelled();
     const out: RunItem[] = [];
     for (const [i, item] of items.entries()) {

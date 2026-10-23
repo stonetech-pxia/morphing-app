@@ -250,10 +250,13 @@ describe('audio tool', () => {
     });
     files.nextPick = [files.offerAudio('song.mp3', { size: 5 * MB }, 'audio/mpeg')];
     const [item] = audioOf(await run());
-    const input = opened[0]!.input as { items: { durationMs: number }[]; waveforms: number[][] };
+    const input = opened[0]!.input as {
+      items: { durationMs: number }[];
+      loadWaveform: (i: number) => Promise<number[] | null>;
+    };
     expect(opened[0]!.kind).toBe('trimMedia');
     expect(input.items[0]!.durationMs).toBe(60_000);
-    expect(input.waveforms[0]).toHaveLength(120);
+    expect(await input.loadWaveform(0)).toHaveLength(120);
     expect(media.audioEncodes[0]).toMatchObject({
       format: 'm4a',
       range: { startMs: 10_000, endMs: 40_000 },
@@ -268,7 +271,8 @@ describe('audio tool', () => {
     media.peaks = null;
     files.nextPick = [files.offerAudio('a.m4a', { size: 1 * MB })];
     expect(audioOf(await run())[0]).toMatchObject({ size: 1 * MB });
-    expect((opened[0]!.input as { waveforms: unknown[] }).waveforms).toEqual([null]);
+    const input = opened[0]!.input as { loadWaveform: (i: number) => Promise<unknown> };
+    expect(await input.loadWaveform(0)).toBeNull();
     expect(media.audioEncodes).toEqual([]);
   });
 

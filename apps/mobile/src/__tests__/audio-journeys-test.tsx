@@ -1,7 +1,7 @@
 import { fireEvent, waitFor } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
 
-import { FakeSpeech } from '../test-utils/fake-files';
+import { FakeMedia, FakeSpeech } from '../test-utils/fake-files';
 import { renderToolsApp } from '../test-utils/render-app';
 
 // 音频工具的界面旅程（D-150–D-156）：工具页 → 录音 → 结果页；语音转文字的结果和说明；
@@ -101,6 +101,17 @@ describe('audio journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('local-done'));
     expect(await screen.findByTestId('result-item-song.m4a')).toBeTruthy();
     expect(screen.getByText(/^0:50 · /)).toBeTruthy();
+  });
+
+  it('opens the trim screen before the waveform is read (long recordings on Android)', async () => {
+    const { files } = await openAudioTool();
+    jest.spyOn(files.media as FakeMedia, 'waveform').mockReturnValue(new Promise(() => {}));
+    files.nextPick = [files.offerAudio('song.mp3', { size: 5 * MB }, 'audio/mpeg')];
+    await fireEvent.press(screen.getByTestId('run-audio-trim'));
+    expect(await screen.findByText('正在读取波形…', {}, { timeout: 3000 })).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('trim-start-plus'));
+    await fireEvent.press(screen.getByTestId('local-done'));
+    expect(await screen.findByTestId('result-item-song.m4a')).toBeTruthy();
   });
 
   it('asks how small, then compresses a recording to M4A', async () => {
