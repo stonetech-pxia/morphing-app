@@ -2,6 +2,7 @@ import { HOME_PAGE_ID, allComponents, type Workflow } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import type { SampleKind } from '../guide/samples';
 import { t } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
@@ -11,8 +12,9 @@ import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 /**
  * 「快捷操作做好了」（D-125）：AI 新做了一个快捷操作后打开。AI 不替用户运行（D-113），
  * 用户自己点「现在就用一次」；也说明以后在哪里找到它。
+ * 新手引导做的（D-149）先给「用示例照片试一下」，不用先选自己的文件。
  */
-export function ReadyScreen({ workflow }: { workflow: Workflow }) {
+export function ReadyScreen({ workflow, sample }: { workflow: Workflow; sample?: SampleKind }) {
   const { locale, registry } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
@@ -51,21 +53,37 @@ export function ReadyScreen({ workflow }: { workflow: Workflow }) {
           {t(locale, onHome ? 'readyHome' : 'workflowWhere')}
         </Text>
       </Card>
+      {sample ? (
+        <Button
+          palette={palette}
+          testID="ready-sample"
+          label={t(locale, sample === 'photos' ? 'readyTryPhotos' : 'readyTryPdfs')}
+          onPress={() =>
+            router.replace({
+              pathname: '/run/[workflowId]',
+              params: { workflowId: workflow.id, sample },
+            })
+          }
+        />
+      ) : null}
       <Button
         palette={palette}
         testID="ready-run"
-        label={t(locale, 'readyRunNow')}
+        variant={sample ? 'outline' : 'filled'}
+        label={t(locale, sample ? 'readyRunOwn' : 'readyRunNow')}
         onPress={() =>
           router.replace({ pathname: '/run/[workflowId]', params: { workflowId: workflow.id } })
         }
       />
-      <Button
-        palette={palette}
-        testID="ready-later"
-        variant="outline"
-        label={t(locale, 'readyLater')}
-        onPress={() => router.back()}
-      />
+      {sample ? null : (
+        <Button
+          palette={palette}
+          testID="ready-later"
+          variant="outline"
+          label={t(locale, 'readyLater')}
+          onPress={() => router.back()}
+        />
+      )}
       <Pressable
         testID="ready-fix"
         accessibilityRole="link"

@@ -1,8 +1,11 @@
-import { pageIdOf, type NavTarget, type WorkspaceConfig } from '@morph/core';
+import { HOME_PAGE_ID, pageIdOf, type NavTarget, type WorkspaceConfig } from '@morph/core';
+import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { GuideCard } from '../guide/GuideCard';
+import { useGuide } from '../guide/store';
 import { t } from '../i18n';
 import { EditablePage } from '../editing/EditablePage';
 import type { RenderEnv } from '../renderer/components';
@@ -95,6 +98,13 @@ export function Shell() {
     void markRendered(headId);
   }, [headId, markRendered]);
 
+  // 第一次打开（或在设置里选了重新看）：先看划屏介绍（D-149）。
+  const guideStage = useGuide((s) => s.stage);
+  const router = useRouter();
+  useEffect(() => {
+    if (guideStage === 'intro') router.push('/welcome');
+  }, [guideStage, router]);
+
   const active = canShow(tab, config) ? tab : firstTab(config);
   const env: RenderEnv = { config, palette, locale, registry, interactive: true, navigate };
   const navStyle = config.theme.navStyle;
@@ -117,6 +127,7 @@ export function Shell() {
   return (
     <View style={[styles.root, palette.backdrop, { paddingTop: insets.top }]}>
       <Banner palette={palette} />
+      {pageId === HOME_PAGE_ID && !editing ? <GuideCard palette={palette} /> : null}
       <View style={styles.content}>{content}</View>
 
       {/* 编辑模式的开关（D-053）：导航栏里的页面没有标题栏，放在左下角；编辑模式下隐藏。 */}

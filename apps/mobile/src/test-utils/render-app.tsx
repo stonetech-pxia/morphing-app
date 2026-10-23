@@ -11,6 +11,7 @@ import PageRoute from '../app/page/[pageId]';
 import ReadyRoute from '../app/ready/[workflowId]';
 import RunRoute from '../app/run/[workflowId]';
 import ShareRoute from '../app/share';
+import WelcomeRoute from '../app/welcome';
 import WorkflowRoute from '../app/workflow/[id]';
 import WorkflowsRoute from '../app/workflows';
 import { useIncomingShare } from '../share/useIncomingShare';
@@ -66,6 +67,7 @@ export async function renderToolsApp(repo = new MemoryWorkspaceRepo(), files = n
     'workflow/[id]': WorkflowRoute,
     share: ShareRoute,
     'ready/[workflowId]': ReadyRoute,
+    welcome: WelcomeRoute,
   });
   return { repo, store, files };
 }

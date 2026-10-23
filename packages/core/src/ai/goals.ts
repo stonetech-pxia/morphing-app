@@ -19,6 +19,8 @@ export interface GuideGoal {
   steps(locale: Locale): Workflow['steps'];
   /** 预览里的说明：AI 自己补上的步骤为什么要加（D-110，最多 2 句）。 */
   notes: readonly Localized[];
+  /** 用户没说、AI 按用途补上的步骤（引导里标出来）。 */
+  added: readonly string[];
   /** 引导里能不能用内置的示例文件运行（视频不带示例，太占安装包）。 */
   sample: 'photos' | 'pdfs' | null;
 }
@@ -59,6 +61,7 @@ export const GUIDE_GOALS: readonly GuideGoal[] = [
         en: 'Removed the location from the photos, so no one can see where you took them.',
       },
     ],
+    added: ['jpg', 'clean'],
     sample: 'photos',
   },
   {
@@ -92,6 +95,7 @@ export const GUIDE_GOALS: readonly GuideGoal[] = [
         en: 'Saved as MP4, which plays on any phone or computer.',
       },
     ],
+    added: [],
     sample: null,
   },
   {
@@ -134,6 +138,7 @@ export const GUIDE_GOALS: readonly GuideGoal[] = [
         en: 'The file name carries the date, so it is easy to find later.',
       },
     ],
+    added: ['compress', 'name'],
     sample: 'pdfs',
   },
 ];

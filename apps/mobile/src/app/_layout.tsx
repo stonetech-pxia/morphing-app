@@ -21,6 +21,7 @@ import { AISettingsProvider } from '@/ai/context';
 import { createAIRouter } from '@/ai/router';
 import { getDeviceId, secureSecretStore } from '@/ai/secure-store';
 import { createAISettingsStore } from '@/ai/settings';
+import { useGuide } from '@/guide/store';
 import { getDeviceLocale, t } from '@/i18n';
 import { PackBridge } from '@/packs/bridge';
 import { expoBridgeFiles, expoPackFs, expoSha256 } from '@/packs/expo-pack-fs';
@@ -115,6 +116,10 @@ function ThemedStack() {
         <Stack.Screen name="run/[workflowId]" options={closable} />
         <Stack.Screen name="share" options={closable} />
         <Stack.Screen name="ready/[workflowId]" options={{ ...closable, title: '' }} />
+        <Stack.Screen
+          name="welcome"
+          options={{ presentation: 'fullScreenModal', headerShown: false, gestureEnabled: false }}
+        />
       </Stack>
     </>
   );
@@ -151,6 +156,7 @@ export default function RootLayout() {
         seed: createStarterWorkspace,
       });
       await created.getState().boot();
+      await useGuide.getState().load(repo);
       // 上次运行没来得及删除的临时文件（D-063）。
       await expoFilePlatform.removeAllRuns().catch(() => undefined);
       setRuntime({ store: created, repo });

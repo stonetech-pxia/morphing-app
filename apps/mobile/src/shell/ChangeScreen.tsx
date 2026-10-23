@@ -1,6 +1,7 @@
 import {
   allComponents,
   createMockAIProvider,
+  guideGoal,
   pageTarget,
   presetOfTheme,
   presetRequest,
@@ -10,6 +11,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -21,6 +23,7 @@ import {
 } from 'react-native';
 
 import { useAISettings } from '../ai/context';
+import { guideText, isGoalParam, useGuide } from '../guide/store';
 import { t } from '../i18n';
 import { usePalette } from '../renderer/theme';
 import { Button, Card, SectionLabel } from '../renderer/ui';
@@ -32,8 +35,11 @@ import { aboutCandidates, examplesFor } from './examples';
 import { Preview } from './Preview';
 import { StylePicker } from './StylePicker';
 
-/** 风格选择器填进去的原句由内置规则生成计划，不调用设置里的 AI（D-095）。 */
+/** 风格选择器填进去的原句由内置规则生成计划，不调用设置里的 AI（D-095）；新手引导的句子也是（D-149）。 */
 const presetPlanner = createMockAIProvider();
+
+/** 引导的句子打进输入框的速度：每个字的间隔，整句最多约 1.4 秒。 */
+const typeDelay = (length: number) => Math.min(45, 1400 / Math.max(length, 1));
 
 /**
  * AI 修改入口（§4）：复述目标 → 列出将要做的修改 → 修改前后预览 → 应用 / 取消。
@@ -53,7 +59,13 @@ export function ChangeScreen() {
   const palette = usePalette(config.theme);
   const aiMode = useAISettings((s) => s.mode);
   // 从一个快捷操作（「让 AI 改这个」）或收件页面打开时带上的上下文（D-124）。
-  const params = useLocalSearchParams<{ workflow?: string; shared?: string }>();
+  const params = useLocalSearchParams<{ workflow?: string; shared?: string; guide?: string }>();
+  // 从新手引导打开（D-149）：句子自动打进输入框，用内置规则生成预览。
+  const [guide] = useState(() =>
+    guideText(params.guide, locale) !== null ? params.guide : undefined,
+  );
+  const setGuideStage = useGuide((s) => s.setStage);
+  const [typing, setTyping] = useState(() => guideText(guide, locale) !== null);
   const share = useIncoming((s) => s.share);
   const [about] = useState<PlanAbout | undefined>(() => {
     if (params.workflow && config.workflows.some((w) => w.id === params.workflow))
@@ -119,15 +131,33 @@ export function ChangeScreen() {
     };
   }, [cancel]);
 
-  async function submit(text: string) {
+  async function submit(text: string, offline = text.trim() === presetText) {
     if (!text.trim() || busy) return;
     setFeedback(null);
     setPreviewBroken(false);
     setSide('after');
-    const planner = text.trim() === presetText ? presetPlanner : undefined;
-    const result = await propose(text.trim(), planner, about);
+    const result = await propose(text.trim(), offline ? presetPlanner : undefined, about);
     if (result.kind !== 'preview') setFeedback(result);
   }
+
+  // 引导的句子一个字一个字打进输入框，打完自动预览：用户看到「原来可以这么说」。
+  useEffect(() => {
+    const text = guideText(guide, locale);
+    if (!text) return;
+    let shown = 0;
+    const timer = setInterval(() => {
+      shown += 1;
+      setInput(text.slice(0, shown));
+      if (shown < text.length) return;
+      clearInterval(timer);
+      setTyping(false);
+      setPresetText(text);
+      void submit(text, true);
+    }, typeDelay(text.length));
+    return () => clearInterval(timer);
+    // 只在打开时打一次。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** 点选风格预设：把切换风格的句子填进输入框，用户点「预览」后照常走预览（D-095）。 */
   function pickStyle(preset: ThemePresetId) {
@@ -145,13 +175,19 @@ export function ChangeScreen() {
     const applied = proposal;
     const ok = await confirm();
     router.back();
+    if (ok && guide) void setGuideStage(isGoalParam(guide) ? 'done' : 'goal');
     if (!ok || !applied || about) return;
     const before = new Set(applied.before.workflows.map((w) => w.id));
     const added = applied.after.workflows.filter((w) => !before.has(w.id));
     const target = pageTarget(applied.focusPageId);
     if (applied.after.shell.nav.includes(target)) selectTab(target);
     if (added.length === 1) {
-      router.push({ pathname: '/ready/[workflowId]', params: { workflowId: added[0]!.id } });
+      // 引导做的快捷操作带示例文件时，「做好了」页面可以先用示例试一下（D-149）。
+      const sample = isGoalParam(guide) ? guideGoal(guide).sample : null;
+      router.push({
+        pathname: '/ready/[workflowId]',
+        params: { workflowId: added[0]!.id, ...(sample ? { sample } : {}) },
+      });
       return;
     }
     if (applied.focusWorkflowId) router.push('/workflows');
@@ -192,6 +228,7 @@ export function ChangeScreen() {
               testID="change-input"
               value={input}
               onChangeText={setInput}
+              editable={!typing}
               placeholder={
                 !about
                   ? t(locale, 'changePlaceholder')
@@ -216,7 +253,7 @@ export function ChangeScreen() {
               palette={palette}
               testID="change-submit"
               onPress={() => submit(input)}
-              loading={busy}
+              loading={busy || typing}
               label={t(locale, 'preview')}
             />
 
@@ -254,7 +291,7 @@ export function ChangeScreen() {
               </Card>
             ) : null}
 
-            {about ? null : (
+            {about || guide ? null : (
               <>
                 <SectionLabel palette={palette}>{t(locale, 'pickStyle')}</SectionLabel>
                 <StylePicker
@@ -266,7 +303,7 @@ export function ChangeScreen() {
               </>
             )}
 
-            {examples.length > 0 ? (
+            {examples.length > 0 && !guide ? (
               <>
                 <SectionLabel palette={palette}>{t(locale, 'examples')}</SectionLabel>
                 <View style={styles.chips} testID="change-examples">
@@ -335,8 +372,11 @@ export function ChangeScreen() {
               ) : null}
             </Card>
 
+            {isGoalParam(guide) ? <GrowingSteps guide={guide} /> : null}
             {proposal.focusWorkflowId ? (
-              <WorkflowSteps workflowId={proposal.focusWorkflowId} />
+              isGoalParam(guide) ? null : (
+                <WorkflowSteps workflowId={proposal.focusWorkflowId} />
+              )
             ) : (
               <>
                 {/* 两段式切换（Docudis 的 ClaySegmented）。 */}
@@ -452,8 +492,74 @@ function WorkflowSteps({ workflowId }: { workflowId: string }) {
   );
 }
 
+/**
+ * 引导做的快捷操作（D-149）：步骤一条一条长出来，AI 按用途补上的步骤标出来。
+ * 一句话变成好几步，是这一步的惊喜。
+ */
+function GrowingSteps({ guide }: { guide: Parameters<typeof guideGoal>[0] }) {
+  const { locale, registry } = useWorkspaceContext();
+  const proposal = useWorkspace((s) => s.proposal)!;
+  const palette = usePalette(proposal.after.theme);
+  const before = new Set(proposal.before.workflows.map((w) => w.id));
+  const workflow = proposal.after.workflows.find((w) => !before.has(w.id));
+  const added = new Set(guideGoal(guide).added);
+  const steps = workflow?.steps ?? [];
+  const [shown] = useState(() => steps.map(() => new Animated.Value(0)));
+  useEffect(() => {
+    Animated.stagger(
+      280,
+      shown.map((v) => Animated.timing(v, { toValue: 1, duration: 320, useNativeDriver: true })),
+    ).start();
+  }, [shown]);
+  if (!workflow) return null;
+  return (
+    <Card palette={palette} testID="guide-steps">
+      <Text style={[palette.font('title', 17), { color: palette.text }]}>{workflow.name}</Text>
+      {steps.map((step, i) => (
+        <Animated.View
+          key={step.id}
+          testID={`guide-step-${step.id}`}
+          style={[
+            styles.step,
+            {
+              opacity: shown[i],
+              transform: [
+                { translateY: shown[i]!.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) },
+              ],
+            },
+          ]}>
+          <View style={[styles.stepNo, { backgroundColor: palette.primaryTint }]}>
+            <Text style={[palette.font('bodyBold', 12), { color: palette.primaryText }]}>
+              {i + 1}
+            </Text>
+          </View>
+          <Text style={[palette.font('body', 15), styles.flex, { color: palette.text }]}>
+            {registry.actions.get(step.action)?.label[locale] ?? step.action}
+          </Text>
+          {added.has(step.id) ? (
+            <View style={[styles.tag, { backgroundColor: palette.secondary }]}>
+              <Text style={[palette.font('bodyBold', 11), { color: '#FFFFFF' }]}>
+                {t(locale, 'guideAdded')}
+              </Text>
+            </View>
+          ) : null}
+        </Animated.View>
+      ))}
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  step: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stepNo: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tag: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   check: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
   box: {
     width: 22,

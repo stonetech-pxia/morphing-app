@@ -574,6 +574,65 @@ const strings = {
   trimNext: { en: 'Next', zh: '下一个' },
   sharedVideos: { en: '{n} videos', zh: '{n} 个视频' },
   sharedAudio: { en: '{n} audio files', zh: '{n} 个音频' },
+
+  // 新手引导（D-149）
+  guideSkip: { en: 'Skip', zh: '跳过' },
+  guideNext: { en: 'Next', zh: '下一步' },
+  guideStart: { en: 'Start', zh: '开始' },
+  guideIntro1Title: { en: 'This is your app', zh: '这是你的 App' },
+  guideIntro1Body: {
+    en: 'Say one sentence and it changes how it looks and what it does.',
+    zh: '说一句话，就能改它的样子和功能。',
+  },
+  guideIntro2Title: { en: 'Nothing to be afraid of', zh: '改错了也不怕' },
+  guideIntro2Body: {
+    en: 'You see a preview before anything changes, and you can go back any time.',
+    zh: '改之前先给你看预览，改过的随时能退回去。',
+  },
+  guideIntro3Title: {
+    en: 'Say what you have and what you want',
+    zh: '说出你有什么、想要什么',
+  },
+  guideIntro3Body: {
+    en: 'It becomes a quick action you can use right away.',
+    zh: '它会做成一个能直接用的快捷操作。',
+  },
+  guideLookTitle: { en: 'Step 1 · Change this app', zh: '第 1 步 · 说一句话，改掉这个 App' },
+  guideLookBody: {
+    en: 'Tap one to try it. You see a preview first.',
+    zh: '点一句试试，改之前会先给你看预览。',
+  },
+  guideGoalTitle: {
+    en: 'Step 2 · What you have, what you want',
+    zh: '第 2 步 · 说出你有什么、想要什么',
+  },
+  guideGoalBody: {
+    en: 'One sentence becomes a quick action you can use right away.',
+    zh: '一句话，做成一个能直接用的快捷操作。',
+  },
+  guideMore: { en: 'Or try', zh: '再试试' },
+  guideUndoHint: {
+    en: 'Don’t like the change? Tap Undo above to go back.',
+    zh: '刚才的修改不喜欢？点上面的「撤销」就能退回去。',
+  },
+  guideLater: { en: 'Later', zh: '以后再说' },
+  guideSkipAll: { en: 'Skip the guide', zh: '跳过引导' },
+  guideTask: {
+    en: 'Starter task: make a quick action with one sentence',
+    zh: '新手任务：一句话做一个快捷操作',
+  },
+  guideAdded: { en: 'Added by AI', zh: 'AI 加的' },
+  readyTryPhotos: { en: 'Try it with sample photos', zh: '用示例照片试一下' },
+  readyTryPdfs: { en: 'Try it with sample contracts', zh: '用示例合同试一下' },
+  readyRunOwn: { en: 'Use my own files', zh: '用我自己的文件' },
+  runTryOwn: { en: 'Now try it with your own files', zh: '换成你自己的文件试试' },
+  samplePhotos: { en: 'Sample photos ({n})', zh: '示例照片（{n} 张）' },
+  samplePdfs: { en: 'Sample contracts ({n})', zh: '示例合同（{n} 份）' },
+  settingsGuide: { en: 'Show the guide again', zh: '重新看新手引导' },
+  settingsGuideHint: {
+    en: 'The intro and two short exercises',
+    zh: '划屏介绍和两个小练习',
+  },
 } satisfies Record<string, Record<Locale, string>>;
 
 export type StringKey = keyof typeof strings;
