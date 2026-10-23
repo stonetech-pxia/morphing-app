@@ -13,9 +13,15 @@ import {
 } from './presets';
 
 describe('workflow presets', () => {
-  it('has the ten presets with unique ids', () => {
-    expect(WORKFLOW_PRESETS).toHaveLength(10);
-    expect(new Set(WORKFLOW_PRESETS.map((p) => p.id)).size).toBe(10);
+  it('has the twelve presets with unique ids', () => {
+    expect(WORKFLOW_PRESETS).toHaveLength(12);
+    expect(new Set(WORKFLOW_PRESETS.map((p) => p.id)).size).toBe(12);
+  });
+
+  it('puts the video and PDF size presets in their scenarios (D-137)', () => {
+    expect(presetsIn('photos').map((p) => p.id)).toContain('video-too-big');
+    expect(presetsIn('paperwork').map((p) => p.id)).toContain('pdf-too-big');
+    expect(PRESET_SCENARIOS.find((s) => s.id === 'photos')!.name.zh).toBe('发照片和视频');
   });
 
   it('puts every preset in exactly one scenario, none empty (D-130)', () => {
@@ -41,7 +47,7 @@ describe('workflow presets', () => {
     },
   );
 
-  it('all ten can be added to a workspace without installing any tool', () => {
+  it('all twelve can be added to a workspace without installing any tool', () => {
     const base = workspace('zh');
     const ops = WORKFLOW_PRESETS.map((p) => ({
       op: 'addWorkflow' as const,

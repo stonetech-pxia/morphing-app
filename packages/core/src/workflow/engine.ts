@@ -20,6 +20,8 @@ export interface RunItem {
   width?: number;
   height?: number;
   pageCount?: number;
+  /** 视频、音频的时长（毫秒）。 */
+  durationMs?: number;
   /** 照片的拍摄时间（毫秒）。 */
   takenAt?: number;
   /** 系统文档相机拍的页面：已经找边拉正，scan.detect 直接放行。 */
@@ -66,6 +68,14 @@ export type RunErrorCode =
   | 'textTooLong'
   | 'doesNotFit'
   | 'noRecords'
+  /** 视频、音频要用原生模块处理，Expo Go 里没有（D-132）。 */
+  | 'needsFullApp'
+  /** 系统打不开这段视频 / 音频（格式不支持、有版权保护）。 */
+  | 'mediaUnsupported'
+  /** 手机剩余空间不够（detail.gb：还需要多少 GB）。 */
+  | 'notEnoughSpace'
+  /** 目标大小太小，压出来看不清（detail.mb：至少要多少 MB）。 */
+  | 'targetTooSmall'
   | 'unexpected';
 
 export class RunError extends Error {

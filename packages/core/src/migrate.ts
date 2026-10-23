@@ -108,6 +108,12 @@ export const migrateV4toV5: Migration = (config) => {
 /** v5 → v6：主题新增第三色、深色模式颜色、页面背景和六种卡片样式；已有数据不需要改动，只提升版本号。 */
 export const migrateV5toV6: Migration = (config) => ({ ...config, schemaVersion: 6 });
 
+/**
+ * v6 → v7：文件列表可以只列一大类文件（image/*、video/*、audio/*），图标多了 video 和 audio（D-131）；
+ * 已有数据不需要改动，只提升版本号。
+ */
+export const migrateV6toV7: Migration = (config) => ({ ...config, schemaVersion: 7 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -115,6 +121,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   3: migrateV3toV4,
   4: migrateV4toV5,
   5: migrateV5toV6,
+  6: migrateV6toV7,
 };
 
 export type MigrateResult =

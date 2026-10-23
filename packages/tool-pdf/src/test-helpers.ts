@@ -77,6 +77,37 @@ export function makePng(width: number, height: number): Uint8Array {
   );
 }
 
+/** 带噪点的 RGB（或 RGBA）PNG：压不小，嵌进 PDF 后够大，压缩 PDF 的测试用。 */
+export function makeNoisyPng(width: number, height: number, alpha = false): Uint8Array {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = alpha ? 6 : 2;
+  const comps = alpha ? 4 : 3;
+  const row = width * comps + 1;
+  const raw = Buffer.alloc(row * height);
+  let seed = 7;
+  for (let i = 0; i < raw.length; i++) {
+    if (i % row === 0) continue;
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    raw[i] = (seed >>> 16) & 0xff;
+  }
+  return new Uint8Array(
+    Buffer.concat([
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+      pngChunk('IHDR', ihdr),
+      pngChunk('IDAT', deflateSync(raw)),
+      pngChunk('IEND', new Uint8Array(0)),
+    ]),
+  );
+}
+
+/** 400×300 带噪点的 JPEG（约 90 KB，用 macOS sips 转出）。 */
+export function readNoisyJpeg(): Uint8Array {
+  return new Uint8Array(readFileSync(new URL('./__fixtures__/noise-400x300.jpg', import.meta.url)));
+}
+
 /** 60×40 的真实 JPEG（用 macOS sips 从渐变 PNG 转出）。 */
 export function readJpeg(): Uint8Array {
   return new Uint8Array(

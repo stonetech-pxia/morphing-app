@@ -5,10 +5,10 @@ import { HOME_PAGE_ID, pageTarget, type Locale, type WorkspaceConfig } from './s
 import { validateWorkspace } from './validate';
 
 /**
- * 新用户第一次打开时预装的工具（D-104）：需求量最大的图片和 PDF，加上手机本来就有的扫描、
- * 文字识别和二维码。都在本机运行，装上不会下载任何东西。
+ * 新用户第一次打开时预装的工具（D-104）：需求量最大的图片和 PDF，「视频太大发不出去」的视频（D-137），
+ * 加上手机本来就有的扫描、文字识别和二维码。都在本机运行，装上不会下载任何东西。
  */
-export const STARTER_TOOL_IDS = ['image', 'pdf', 'scan', 'ocr', 'qr'] as const;
+export const STARTER_TOOL_IDS = ['image', 'pdf', 'video', 'scan', 'ocr', 'qr'] as const;
 
 /**
  * 新用户的第一个版本：默认工作空间 + 预装工具，导航栏只有首页、工具、AI、设置（历史在设置里）。

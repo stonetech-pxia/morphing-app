@@ -5,17 +5,33 @@ import type { Localized } from '../schema';
 // 动作契约（docs/TOOLS_DESIGN.md §2）：每个动作声明「输入类型 → 输出类型」、参数结构和参数的界面元数据。
 // 只有登记过的动作才能出现在工作流里；实现由 tool-* 包和 App 运行时提供，这里只描述契约。
 
-/** 步骤之间传递的值的类型（D-060）。files 是 images、pdf、zip 的父类型。 */
-export const VALUE_TYPES = ['images', 'pdf', 'files', 'zip', 'text', 'records'] as const;
+/**
+ * 步骤之间传递的值的类型（D-060）。files 是 images、pdf、zip、video、audio 的父类型。
+ * video 和 audio 一起加（D-131）：音频的动作由以后的音频工具提供。
+ */
+export const VALUE_TYPES = [
+  'images',
+  'pdf',
+  'files',
+  'zip',
+  'video',
+  'audio',
+  'text',
+  'records',
+] as const;
 export type ValueType = (typeof VALUE_TYPES)[number];
 
-const FILE_SUBTYPES: readonly ValueType[] = ['images', 'pdf', 'zip', 'files'];
+const FILE_SUBTYPES: readonly ValueType[] = ['images', 'pdf', 'zip', 'video', 'audio', 'files'];
 
 /** 动作接受 accepted 中的类型时，值 actual 能不能接上。 */
 export function acceptsType(accepted: readonly ValueType[], actual: ValueType): boolean {
   if (accepted.includes(actual)) return true;
   return accepted.includes('files') && FILE_SUBTYPES.includes(actual);
 }
+
+/** 动作能不能接上类型为 actual 的值：接受的类型里有它，而且不在 rejects 里。 */
+export const actionAccepts = (action: ActionDefinition, actual: ValueType): boolean =>
+  acceptsType(action.input, actual) && !action.rejects?.includes(actual);
 
 /** 需要用户在本地亲手操作的步骤（TOOLS_DESIGN §4）。AI 只决定它出现在哪里，看不到操作内容。 */
 export const LOCAL_STEP_KINDS = [
@@ -26,6 +42,7 @@ export const LOCAL_STEP_KINDS = [
   'redact',
   'sign',
   'fillForm',
+  'trimMedia',
 ] as const;
 export type LocalStepKind = (typeof LOCAL_STEP_KINDS)[number];
 
@@ -73,6 +90,8 @@ export interface ActionDefinition {
   description: Localized;
   /** 接受的输入类型；空数组表示输入动作（只能是第一步）。 */
   input: readonly ValueType[];
+  /** 虽然接受 files，但处理不了的子类型（例如合并 PDF 不收视频和音频）。 */
+  rejects?: readonly ValueType[];
   output: OutputSpec;
   params: z.ZodType<Record<string, unknown>>;
   fields: readonly ParamField[];
