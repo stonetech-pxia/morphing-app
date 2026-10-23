@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ClaudeHttpError, checkModelAccess, createHttpCompleter } from './http';
 import { createClaudePlanner, type Complete, type Completion } from './planner';
-import { buildSystemPrompt } from './prompt';
+import { buildSystemPrompt, buildUserMessage } from './prompt';
 
 const registry = createRegistry(BUILTIN_TOOLS);
 const config = createDefaultWorkspace('zh');
@@ -56,7 +56,33 @@ describe('system prompt', () => {
     for (const icon of ICON_NAMES) expect(prompt).toContain(icon);
     for (const type of FieldSchema.options) expect(prompt).toContain(type.shape.type.value);
     expect(prompt).toContain('"userData"');
+    expect(prompt).toContain('"errand"');
     expect(prompt).toContain('mailto');
+  });
+});
+
+describe('user message context (D-124)', () => {
+  it('names the quick action the user opened AI from', () => {
+    const withWf = {
+      ...config,
+      workflows: [{ id: 'visa', name: '签证照片', steps: [] }],
+    } as unknown as typeof config;
+    const message = buildUserMessage(withWf, '再小一点', 'zh', {
+      kind: 'workflow',
+      workflowId: 'visa',
+    });
+    expect(message).toContain('<context>quick action "visa" (“签证照片”)</context>');
+    expect(buildUserMessage(config, 'hi', 'zh')).not.toContain('<context>');
+  });
+
+  it('gives only the kinds and count of shared files', () => {
+    const message = buildUserMessage(config, '做成一个 PDF', 'zh', {
+      kind: 'shared',
+      images: 2,
+      pdfs: 1,
+      others: 0,
+    });
+    expect(message).toContain('<context>shared files: 2 photos, 1 PDF</context>');
   });
 });
 

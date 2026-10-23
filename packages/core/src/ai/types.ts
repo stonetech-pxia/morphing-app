@@ -7,9 +7,23 @@ import type { Locale, WorkspaceConfig } from '../schema';
 // AIProvider（§5.4、§14.2）：输入用户的一句话和当前配置，输出结构化计划。
 // mock 与真实模型实现同一个接口；计划在使用前一律经过 PlanSchema 和 validateWorkspace。
 
-/** userData：请求涉及用户记录的内容（读、写、删、统计）。AI 只修改界面，从不接触记录。 */
+/**
+ * userData：请求涉及用户记录的内容（读、写、删、统计）。AI 只修改界面，从不接触记录。
+ * errand：要 AI 替用户办事、而不是改 App（写邮件、回答问题、总结文件内容……，D-113、D-128）；
+ * 说明里告诉用户可以做成什么快捷操作。
+ */
 export type RejectReason =
-  'unknown' | 'protected' | 'deleteFiles' | 'userData' | 'notInstalled' | 'noChange';
+  'unknown' | 'protected' | 'deleteFiles' | 'userData' | 'notInstalled' | 'noChange' | 'errand';
+
+export const REJECT_REASONS = [
+  'unknown',
+  'protected',
+  'deleteFiles',
+  'userData',
+  'notInstalled',
+  'noChange',
+  'errand',
+] as const satisfies readonly RejectReason[];
 
 export type Plan =
   | {
@@ -39,17 +53,37 @@ export const PlanSchema: z.ZodType<Plan> = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('restorePrevious') }),
   z.strictObject({
     kind: z.literal('reject'),
-    reason: z.enum(['unknown', 'protected', 'deleteFiles', 'userData', 'notInstalled', 'noChange']),
+    reason: z.enum(REJECT_REASONS),
     message: z.string(),
     examples: z.array(z.string()),
   }),
 ]) as z.ZodType<Plan>;
+
+/**
+ * 用户是从哪里打开 AI 修改的（D-124）。只有结构，没有内容：
+ * - workflow：从一个快捷操作打开（「让 AI 改这个」），「这个」「它」指的就是它。
+ * - shared：从收件页面打开，带着分享进来的文件的类型和个数（没有文件名、大小和内容）。
+ */
+export type PlanAbout =
+  | { kind: 'workflow'; workflowId: string }
+  | { kind: 'shared'; images: number; pdfs: number; others: number };
+
+export const PlanAboutSchema: z.ZodType<PlanAbout> = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('workflow'), workflowId: z.string().min(1).max(64) }),
+  z.strictObject({
+    kind: z.literal('shared'),
+    images: z.number().int().min(0).max(100),
+    pdfs: z.number().int().min(0).max(100),
+    others: z.number().int().min(0).max(100),
+  }),
+]);
 
 export interface PlanContext {
   config: WorkspaceConfig;
   registry: Registry;
   /** 界面语言：拒绝说明和示例用这种语言。 */
   locale: Locale;
+  about?: PlanAbout;
 }
 
 export interface AIProvider {
