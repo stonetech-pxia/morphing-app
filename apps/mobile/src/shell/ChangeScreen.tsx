@@ -423,6 +423,8 @@ function sharedWhat(about: Extract<PlanAbout, { kind: 'shared' }>, locale: 'en' 
   const parts = [
     about.images ? t(locale, 'sharedPhotos', { n: about.images }) : null,
     about.pdfs ? t(locale, 'sharedPdfs', { n: about.pdfs }) : null,
+    about.videos ? t(locale, 'sharedVideos', { n: about.videos }) : null,
+    about.audio ? t(locale, 'sharedAudio', { n: about.audio }) : null,
     about.others ? t(locale, 'sharedOthers', { n: about.others }) : null,
   ].filter(Boolean);
   return parts.join(locale === 'zh' ? '和' : ' and ');

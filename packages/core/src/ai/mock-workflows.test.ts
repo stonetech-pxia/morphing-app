@@ -165,4 +165,39 @@ describe('mock AI — workflows', () => {
   it('still refuses to read records while building a report workflow', async () => {
     expect(await plan('我这个月花了多少', workspace('zh'))).toMatchObject({ reason: 'userData' });
   });
+
+  it('W12–W14 videos and PDF compression: 「压到 N MB」 follows what the quick action holds', async () => {
+    const { after } = await change('新建一个快捷操作：选视频，压到 50MB，分享', workspace('zh'));
+    const wf = after.workflows.at(-1)!;
+    expect(wf.steps.map((s) => [s.action, s.params])).toEqual([
+      ['in.videos', { min: 1, max: 10 }],
+      ['video.compress', { by: 'size', maxMB: 50, quality: '720p' }],
+      ['out.share', {}],
+    ]);
+    // 往已有的视频快捷操作里加「压到 N MB」也是压视频；改大小改的是视频的 MB。
+    const added = await change(`在「${wf.name}」里加一步：压到 10MB`, after);
+    expect(actions(added.after, wf.id)).toEqual([
+      'in.videos',
+      'video.compress',
+      'video.compress',
+      'out.share',
+    ]);
+    const resized = await change(`把「${wf.name}」的大小改成 30MB`, after);
+    expect(resized.after.workflows.find((w) => w.id === wf.id)!.steps[1]!.params).toMatchObject({
+      by: 'size',
+      maxMB: 30,
+    });
+
+    const pdf = await change('新建一个快捷操作：选 PDF，压到 500KB', workspace('zh'));
+    expect(pdf.after.workflows.at(-1)!.steps[1]).toMatchObject({
+      action: 'pdf.compress',
+      params: { maxMB: 0.5, whenTooBig: 'ask' },
+    });
+    // 照片照旧压图片。
+    const photos = await change('新建一个快捷操作：选照片，压到 1MB', workspace('zh'));
+    expect(photos.after.workflows.at(-1)!.steps[1]).toMatchObject({
+      action: 'image.compress',
+      params: { maxKB: 1024 },
+    });
+  });
 });
