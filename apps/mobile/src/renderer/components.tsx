@@ -440,13 +440,48 @@ export function PageView({
         gap: palette.gap,
         paddingBottom: 24 + bottomInset,
       }}>
-      {page.components
-        .filter((c) => !c.hidden)
-        .map((c) => (
-          <Item key={c.id} component={c} env={pageEnv} />
-        ))}
+      {runnerGrid(page.components.filter((c) => !c.hidden)).map((block) =>
+        Array.isArray(block) ? (
+          <View key={block[0]!.id} style={[styles.row, { gap: palette.gap - 4 }]}>
+            {block.map((c) => (
+              <Item
+                key={c.id}
+                component={c}
+                env={{ ...pageEnv, inCell: true }}
+                style={styles.cell}
+              />
+            ))}
+            {block.length === 1 ? <View style={styles.cell} /> : null}
+          </View>
+        ) : (
+          <Item key={block.id} component={block} env={pageEnv} />
+        ),
+      )}
     </ScrollView>
   );
+}
+
+/**
+ * 相邻的两个以上运行卡片排成两列宫格（D-108），例如工具页上的十几个功能；单独一个保持整张卡片。
+ * 只影响显示，配置里仍是一个个组件，AI 和编辑模式看到的结构不变。
+ */
+function runnerGrid(components: readonly Component[]): (Component | Component[])[] {
+  const blocks: (Component | Component[])[] = [];
+  let run: Component[] = [];
+  const flush = () => {
+    if (run.length >= 2) for (let i = 0; i < run.length; i += 2) blocks.push(run.slice(i, i + 2));
+    else blocks.push(...run);
+    run = [];
+  };
+  for (const c of components) {
+    if (c.type === 'workflowRunner') run.push(c);
+    else {
+      flush();
+      blocks.push(c);
+    }
+  }
+  flush();
+  return blocks;
 }
 
 const styles = StyleSheet.create({

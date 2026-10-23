@@ -29,7 +29,7 @@ describe('workflow ops', () => {
     if (!result.ok) return;
     expect(result.after.workflows.at(-1)).toMatchObject({ id: 'visa', presetId: 'visa-photo' });
     expect(result.lines).toEqual([
-      '新建工作流「签证 / 证件照」（从预设添加）：选照片 → 证件照 → 命名',
+      '新建快捷操作「签证 / 证件照」（现成的）：选照片 → 证件照 → 命名',
     ]);
   });
 
@@ -76,8 +76,8 @@ describe('workflow ops', () => {
     expect(removed.after.workflows.some((w) => w.id === 'visa')).toBe(false);
     expect(JSON.stringify(removed.after.pages)).not.toContain('run-visa');
     expect(removed.lines).toEqual([
-      '删除工作流「签证 / 证件照」（文件不受影响）',
-      '同时移除 1 个运行这个工作流的卡片',
+      '删除快捷操作「签证 / 证件照」（文件不受影响）',
+      '同时移除 1 个运行这个快捷操作的卡片',
     ]);
     expect(
       prepareOps(config, [{ op: 'removeWorkflow', workflowId: 'pdf-merge' }], ctx),
@@ -107,7 +107,7 @@ describe('workflow ops', () => {
     expect(wf.name).toBe('美签照片');
     expect(wf.steps.map((s) => s.id)).toEqual(['pick', 'photo', 'share', 'name']);
     expect(result.lines).toEqual([
-      '工作流「签证 / 证件照」改名为「美签照片」',
+      '快捷操作「签证 / 证件照」改名为「美签照片」',
       '「签证 / 证件照」加一步「分享」',
       '「签证 / 证件照」把「命名」移到第 4 步',
     ]);
@@ -196,7 +196,7 @@ describe('workflow ops', () => {
     const wf = result.after.workflows.find((w) => w.id === 'mark')!;
     expect(wf.steps[1]!.params).toMatchObject({ text: '仅供王小明办签证', mode: 'corner' });
     expect(result.lines).toEqual([
-      '工作流「加水印」改名为「水印并分享」',
+      '快捷操作「加水印」改名为「水印并分享」',
       '「水印并分享」的步骤：选照片 → 文字水印 → 分享',
     ]);
   });

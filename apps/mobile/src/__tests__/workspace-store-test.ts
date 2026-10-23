@@ -2,6 +2,7 @@ import {
   BUILTIN_TOOLS,
   createMockAIProvider,
   createRegistry,
+  createStarterWorkspace,
   type WorkspaceConfig,
 } from '@morph/core';
 
@@ -53,6 +54,23 @@ describe('workspace store', () => {
     expect(store.getState().status).toBe('ready');
     expect(store.getState().head).toMatchObject({ id: 1, source: 'seed' });
     expect((await repo.listRevisions(10)).length).toBe(1);
+  });
+
+  it('the app seeds the starter tools as the first version (D-104)', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    const store = createWorkspaceStore({
+      repo,
+      provider: createMockAIProvider(),
+      registry,
+      locale: 'zh',
+      now: () => new Date(2026, 9, 22, 9, 0),
+      seed: createStarterWorkspace,
+    });
+    await store.getState().boot();
+    const config = store.getState().config!;
+    expect(config.tools.map((t) => t.toolId)).toEqual(['image', 'pdf', 'scan', 'ocr', 'qr']);
+    expect(config.shell.nav).toEqual(['page:home', 'tools', 'ai', 'settings']);
+    expect((await repo.listRevisions(10)).map((r) => r.source)).toEqual(['seed']);
   });
 
   it('journey A: preview does not change the app; confirm does, and survives a restart', async () => {
@@ -195,5 +213,67 @@ describe('workspace store', () => {
     expect(store.getState().banner).toMatchObject({ kind: 'recovered' });
     expect(store.getState().head).toMatchObject({ source: 'recovery', parentId: 2 });
     expect(store.getState().config!.pages[0]!.id).toBe('home');
+  });
+
+  describe('home entry for workflows the AI creates (D-109)', () => {
+    const runners = (config: WorkspaceConfig) =>
+      config.pages
+        .flatMap((p) => p.components)
+        .filter((c) => c.type === 'workflowRunner')
+        .map((c) => c.props.workflowId);
+
+    it('offers it ticked; unticking keeps the workflow off every page', async () => {
+      const { store } = await booted();
+      const result = await store.getState().propose('添加签证照片工作流');
+      if (result.kind !== 'preview') throw new Error(JSON.stringify(result));
+      const id = result.proposal.after.workflows[0]!.id;
+      expect(result.proposal.homeEntry).toEqual({ workflowIds: [id], on: true });
+      expect(result.proposal.focusPageId).toBe('home');
+      expect(runners(result.proposal.after)).toEqual([id]);
+      // 改动清单里不重复列出首页入口：它是单独的勾选项。
+      expect(result.proposal.lines.join('\n')).not.toMatch(/首页/);
+
+      store.getState().setHomeEntry(false);
+      const off = store.getState().proposal!;
+      expect(off.homeEntry).toEqual({ workflowIds: [id], on: false });
+      expect(off.focusWorkflowId).toBe(id);
+      expect(runners(off.after)).toEqual([]);
+
+      store.getState().setHomeEntry(true);
+      expect(runners(store.getState().proposal!.after)).toEqual([id]);
+      expect(store.getState().proposal!.focusWorkflowId).toBeUndefined();
+
+      expect(await store.getState().confirm()).toBe(true);
+      expect(runners(store.getState().config!)).toEqual([id]);
+    });
+
+    it('is not offered when the user already asked for the home page', async () => {
+      const { store } = await booted();
+      const result = await store.getState().propose('把签证照片放到首页');
+      if (result.kind !== 'preview') throw new Error(JSON.stringify(result));
+      expect(result.proposal.homeEntry).toBeUndefined();
+      expect(runners(result.proposal.after)).toHaveLength(1);
+    });
+
+    it('starts unticked when the plan says the user does not want it there', async () => {
+      const inner = createMockAIProvider();
+      const store = createWorkspaceStore({
+        repo: new MemoryWorkspaceRepo(),
+        provider: {
+          plan: async (input, ctx) => {
+            const plan = await inner.plan(input, ctx);
+            return plan.kind === 'ops' ? { ...plan, homeEntry: false } : plan;
+          },
+        },
+        registry,
+        locale: 'zh',
+        now: () => new Date(2026, 9, 22, 9, 0),
+      });
+      await store.getState().boot();
+      const result = await store.getState().propose('添加签证照片工作流');
+      if (result.kind !== 'preview') throw new Error(JSON.stringify(result));
+      expect(result.proposal.homeEntry?.on).toBe(false);
+      expect(runners(result.proposal.after)).toEqual([]);
+    });
   });
 });

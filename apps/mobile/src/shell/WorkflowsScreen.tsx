@@ -1,7 +1,6 @@
 import {
   WORKFLOW_PRESETS,
   newWorkflowId,
-  packById,
   presetWorkflow,
   type Locale,
   type Registry,
@@ -11,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { t } from '../i18n';
 import type { Palette } from '../renderer/theme';
 import { Card, PageTitle, Pill, SectionLabel } from '../renderer/ui';
 import { useWorkflowChange } from '../run/workflow-change';
@@ -78,33 +78,29 @@ export function WorkflowsScreen({
       style={{ backgroundColor: palette.background }}
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 48 }}>
       <Banner palette={palette} />
-      <PageTitle palette={palette}>{zh ? '工作流' : 'Workflows'}</PageTitle>
+      <PageTitle palette={palette}>{t(locale, 'workflowsTitle')}</PageTitle>
       <Text style={caption}>
         {zh
-          ? '工作流把几个步骤串起来一次做完，全部在本机处理。可以从预设添加，也可以对 AI 说「新建一个工作流：选照片、压到 500KB、分享」。'
-          : 'A workflow does several steps in one go, all on this device. Add one from the presets, or ask AI: “Create a workflow: choose photos, compress to 500 KB, share”.'}
+          ? '快捷操作把几个步骤串起来一次做完，全部在本机处理。可以从下面现成的里添加，也可以对 AI 说「新建一个快捷操作：选照片、压到 500KB、分享」。'
+          : 'A quick action does several steps in one go, all on this device. Add a ready-made one below, or ask AI: “Create a quick action: choose photos, compress to 500 KB, share”.'}
       </Text>
 
-      <SectionLabel palette={palette}>{zh ? '我的工作流' : 'My workflows'}</SectionLabel>
+      <SectionLabel palette={palette}>{zh ? '我的快捷操作' : 'My quick actions'}</SectionLabel>
       {mine.length === 0 ? (
         <Card palette={palette}>
           <Text testID="workflows-empty" style={caption}>
-            {zh
-              ? '还没有。从下面的预设库添加一个吧。'
-              : 'None yet. Add one from the presets below.'}
+            {zh ? '还没有。从下面现成的里添加一个吧。' : 'None yet. Add a ready-made one below.'}
           </Text>
         </Card>
       ) : (
         mine.map((wf) => row(wf))
       )}
 
-      <SectionLabel palette={palette}>{zh ? '预设库' : 'Presets'}</SectionLabel>
+      <SectionLabel palette={palette}>{zh ? '现成的' : 'Ready-made'}</SectionLabel>
       {WORKFLOW_PRESETS.map((preset) => {
         const added = mine.filter((w) => w.presetId === preset.id);
         // iOS 用系统的识别和扫描，不需要扫描包和文字识别包（D-084）。
-        const packs = packsNeeded(preset.packs ?? [], files).map(
-          (id) => packById(id)?.name[locale] ?? id,
-        );
+        const needsDownload = packsNeeded(preset.packs ?? [], files).length > 0;
         return (
           <Card key={preset.id} palette={palette} testID={`preset-${preset.id}`}>
             <Text style={[palette.font('title', 16), { color: palette.text }]}>
@@ -112,11 +108,11 @@ export function WorkflowsScreen({
               {added.length > 0 ? (zh ? ' · 已添加' : ' · added') : ''}
             </Text>
             <Text style={caption}>{preset.description[locale]}</Text>
-            {packs.length > 0 ? (
+            {needsDownload ? (
               <Text style={caption}>
                 {zh
-                  ? `第一次运行时需要下载：${packs.join('、')}`
-                  : `Downloads on first run: ${packs.join(', ')}`}
+                  ? '首次使用需要下载一些内容，之后不联网也能用。'
+                  : 'The first run downloads what it needs; it works offline afterwards.'}
               </Text>
             ) : null}
             <View style={styles.actions}>
@@ -132,7 +128,7 @@ export function WorkflowsScreen({
                   );
                   void change(
                     [{ op: 'addWorkflow', workflow: wf }],
-                    zh ? `添加工作流「${wf.name}」` : `Add the workflow “${wf.name}”`,
+                    zh ? `添加了快捷操作「${wf.name}」` : `Added the quick action “${wf.name}”`,
                   );
                 }}
               />

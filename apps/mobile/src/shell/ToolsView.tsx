@@ -7,7 +7,10 @@ import type { RenderEnv } from '../renderer/components';
 import { Card, IconTile, ListRow, PageTitle, Pill } from '../renderer/ui';
 import { useWorkspace } from '../workspace/context';
 
-/** 工具目录（§3 旅程 B）：安装、打开、移除首页入口、卸载。所有操作都生成新版本，可撤销。 */
+/**
+ * 工具目录（§3 旅程 B）：安装、打开、移除首页入口、卸载。所有操作都生成新版本，可撤销。
+ * 只有移除先确认（会一起移除这个工具的快捷操作）；其他操作直接应用，提示条上可撤销（D-105）。
+ */
 export function ToolsView({ env }: { env: RenderEnv }) {
   const { config, palette, locale, registry } = env;
   const router = useRouter();
@@ -16,7 +19,8 @@ export function ToolsView({ env }: { env: RenderEnv }) {
   const cancel = useWorkspace((s) => s.cancel);
   const home = config.pages.find((p) => p.id === HOME_PAGE_ID)!;
 
-  async function change(ops: Op[], summary: string) {
+  /** askTitle：要先确认的操作（只有移除工具）用这个标题。 */
+  async function change(ops: Op[], summary: string, askTitle?: string) {
     const result = await proposeOps(ops, summary);
     if (result.kind !== 'preview') {
       Alert.alert(
@@ -25,7 +29,11 @@ export function ToolsView({ env }: { env: RenderEnv }) {
       );
       return;
     }
-    Alert.alert(t(locale, 'confirmTitle'), result.proposal.lines.join('\n\n'), [
+    if (!askTitle) {
+      await confirm();
+      return;
+    }
+    Alert.alert(askTitle, result.proposal.lines.join('\n\n'), [
       { text: t(locale, 'cancel'), style: 'cancel', onPress: () => void cancel() },
       { text: t(locale, 'apply'), onPress: () => void confirm() },
     ]);
@@ -148,6 +156,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
                         change(
                           [{ op: 'uninstallTool', toolId: tool.id }],
                           t(locale, 'uninstallSummary', { name }),
+                          t(locale, 'uninstallTitle', { name }),
                         ),
                       `uninstall-${tool.id}`,
                       true,

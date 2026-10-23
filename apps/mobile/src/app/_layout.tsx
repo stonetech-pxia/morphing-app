@@ -4,7 +4,12 @@ import { Karla_500Medium } from '@expo-google-fonts/karla/500Medium';
 import { Karla_700Bold } from '@expo-google-fonts/karla/700Bold';
 import { Sora_600SemiBold } from '@expo-google-fonts/sora/600SemiBold';
 import { Sora_700Bold } from '@expo-google-fonts/sora/700Bold';
-import { BUILTIN_TOOLS, createMockAIProvider, createRegistry } from '@morph/core';
+import {
+  BUILTIN_TOOLS,
+  createMockAIProvider,
+  createRegistry,
+  createStarterWorkspace,
+} from '@morph/core';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -22,6 +27,7 @@ import { expoBridgeFiles, expoPackFs, expoSha256 } from '@/packs/expo-pack-fs';
 import { PackHostProvider } from '@/packs/PackHost';
 import { PackStore } from '@/packs/store';
 import { expoFilePlatform } from '@/runtime/expo-platform';
+import { CloseButton } from '@/shell/CloseButton';
 import { CLAY_FONTS, usePalette } from '@/renderer/theme';
 import { SQLiteWorkspaceRepo, migrateDatabase } from '@/storage/sqlite';
 import { WorkspaceProvider, useWorkspace } from '@/workspace/context';
@@ -72,6 +78,10 @@ function RootStack() {
 function ThemedStack() {
   const theme = useWorkspace((s) => s.config!.theme);
   const palette = usePalette(theme);
+  const closable = {
+    presentation: 'modal',
+    headerLeft: () => <CloseButton palette={palette} />,
+  } as const;
   return (
     <>
       <StatusBar style={palette.dark ? 'light' : 'dark'} />
@@ -85,18 +95,15 @@ function ThemedStack() {
           contentStyle: palette.backdrop,
         }}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="change"
-          options={{ presentation: 'modal', title: t(locale, 'changeTitle') }}
-        />
+        <Stack.Screen name="change" options={{ ...closable, title: t(locale, 'changeTitle') }} />
         <Stack.Screen name="page/[pageId]" />
         <Stack.Screen name="ai-settings" options={{ title: t(locale, 'aiSettingsTitle') }} />
         <Stack.Screen name="data" options={{ title: t(locale, 'dataTitle') }} />
         <Stack.Screen name="packs" options={{ title: t(locale, 'packsTitle') }} />
         <Stack.Screen name="workflows" options={{ title: t(locale, 'workflowsTitle') }} />
         <Stack.Screen name="workflow/[id]" />
-        <Stack.Screen name="record/[collectionId]" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="run/[workflowId]" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="record/[collectionId]" options={closable} />
+        <Stack.Screen name="run/[workflowId]" options={closable} />
       </Stack>
     </>
   );
@@ -130,6 +137,7 @@ export default function RootLayout() {
         registry,
         locale,
         now: () => new Date(),
+        seed: createStarterWorkspace,
       });
       await created.getState().boot();
       // 上次运行没来得及删除的临时文件（D-063）。

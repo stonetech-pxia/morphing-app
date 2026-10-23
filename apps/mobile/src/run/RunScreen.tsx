@@ -1,6 +1,7 @@
 import { RunError, isFileValue, type AskRequest, type RunResult, type Workflow } from '@morph/core';
+import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentType } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { runErrorText, t } from '../i18n';
 import { Icon } from '../renderer/Icon';
@@ -45,6 +46,7 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
   const revisionId = useWorkspace((s) => s.head!.id);
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const palette = usePalette(theme);
+  const router = useRouter();
   // 打开即开始运行，所以初始状态就是第 1 步。
   const [current, setCurrent] = useState<{ index: number; done?: number; total?: number } | null>({
     index: 0,
@@ -150,6 +152,7 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
       status: 'succeeded',
       value: { ...value, items },
       saved: items.flatMap((i) => i.assetId ?? []),
+      inputSize: outcome?.status === 'succeeded' ? outcome.inputSize : 0,
     });
     bumpAssets();
   }
@@ -252,6 +255,7 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
       {value ? (
         <ResultView
           value={value}
+          inputSize={outcome?.status === 'succeeded' ? outcome.inputSize : 0}
           palette={palette}
           locale={locale}
           actions={{
@@ -272,26 +276,39 @@ export function RunScreen({ workflow, onEdit }: { workflow: Workflow; onEdit?: (
         />
       ) : null}
 
+      {/* 结果页：「完成」关闭页面；「再来一次」次要；改设置是一个小链接（D-111）。 */}
       {!running ? (
-        <View style={styles.row}>
-          <Button
-            palette={palette}
-            testID="run-again"
-            label={t(locale, 'runAgain')}
-            onPress={() => void restart()}
-            style={styles.flex}
-          />
-          {onEdit ? (
+        <>
+          <View style={styles.row}>
             <Button
               palette={palette}
-              testID="run-edit"
+              testID="run-again"
               variant="outline"
-              label={t(locale, 'runEdit')}
-              onPress={onEdit}
+              label={t(locale, 'runAgain')}
+              onPress={() => void restart()}
               style={styles.flex}
             />
+            <Button
+              palette={palette}
+              testID="run-done"
+              label={t(locale, outcome?.status === 'succeeded' ? 'done' : 'close')}
+              onPress={() => router.back()}
+              style={styles.flex}
+            />
+          </View>
+          {onEdit ? (
+            <Pressable
+              testID="run-edit"
+              accessibilityRole="link"
+              hitSlop={8}
+              onPress={onEdit}
+              style={styles.editLink}>
+              <Text style={[palette.font('bodyMedium', 14), { color: palette.primaryText }]}>
+                {t(locale, 'runEdit')}
+              </Text>
+            </Pressable>
           ) : null}
-        </View>
+        </>
       ) : null}
 
       {ask ? (
@@ -350,4 +367,5 @@ const styles = StyleSheet.create({
   dot: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
   row: { flexDirection: 'row', gap: 10 },
+  editLink: { alignSelf: 'center', paddingVertical: 4 },
 });

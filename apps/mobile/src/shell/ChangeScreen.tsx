@@ -1,5 +1,6 @@
 import {
   createMockAIProvider,
+  pageTarget,
   presetOfTheme,
   presetRequest,
   type ThemePresetId,
@@ -17,37 +18,18 @@ import {
   View,
 } from 'react-native';
 
+import { useAISettings } from '../ai/context';
 import { t } from '../i18n';
 import { usePalette } from '../renderer/theme';
 import { Button, Card, SectionLabel } from '../renderer/ui';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { ProposeResult } from '../workspace/store';
+import { examplesFor } from './examples';
 import { Preview } from './Preview';
 import { StylePicker } from './StylePicker';
 
 /** 风格选择器填进去的原句由内置规则生成计划，不调用设置里的 AI（D-095）。 */
 const presetPlanner = createMockAIProvider();
-
-const EXAMPLES = {
-  zh: [
-    '主题换成绿色',
-    '字体大一点',
-    '去掉阴影',
-    '新建一个叫「记账」的页面',
-    '添加签证照片工作流',
-    '导航栏只保留首页、工具、设置',
-    '撤销刚才的修改',
-  ],
-  en: [
-    'Change the theme color to green',
-    'Bigger text',
-    'Remove shadows',
-    'Add a page called Budget',
-    'Add the visa photo workflow',
-    'Only keep Home, Tools and Settings in the navigation',
-    'Undo the last change',
-  ],
-};
 
 /**
  * AI 修改入口（§4）：复述目标 → 列出将要做的修改 → 修改前后预览 → 应用 / 取消。
@@ -62,7 +44,10 @@ export function ChangeScreen() {
   const propose = useWorkspace((s) => s.propose);
   const confirm = useWorkspace((s) => s.confirm);
   const cancel = useWorkspace((s) => s.cancel);
+  const setHomeEntry = useWorkspace((s) => s.setHomeEntry);
+  const selectTab = useWorkspace((s) => s.selectTab);
   const palette = usePalette(config.theme);
+  const aiMode = useAISettings((s) => s.mode);
 
   const [input, setInput] = useState('');
   /** 风格选择器最近填进去的句子；用户改过输入框后就不再相等，交给设置里的 AI。 */
@@ -103,9 +88,18 @@ export function ChangeScreen() {
     setPresetText(text);
   }
 
+  /** 应用后带用户去看改了什么（D-109）：新工作流不在页面上时打开工作流列表，否则切到改动的页面。 */
   async function apply() {
-    await confirm();
+    const applied = proposal;
+    const ok = await confirm();
     router.back();
+    if (!ok || !applied) return;
+    if (applied.focusWorkflowId) {
+      router.push('/workflows');
+      return;
+    }
+    const target = pageTarget(applied.focusPageId);
+    if (applied.after.shell.nav.includes(target)) selectTab(target);
   }
 
   async function discard() {
@@ -181,7 +175,7 @@ export function ChangeScreen() {
 
             <SectionLabel palette={palette}>{t(locale, 'examples')}</SectionLabel>
             <View style={styles.chips}>
-              {EXAMPLES[locale].map((example) => (
+              {examplesFor(aiMode, locale).map((example) => (
                 <Pressable
                   key={example}
                   onPress={() => setInput(example)}
@@ -207,6 +201,18 @@ export function ChangeScreen() {
               style={[palette.font('heading', 22), { color: palette.text, letterSpacing: -0.4 }]}>
               {proposal.summary}
             </Text>
+            {proposal.notes?.length ? (
+              <Card palette={palette} background={palette.primaryTint} testID="plan-notes">
+                <Text style={[palette.font('title', 15), { color: palette.text }]}>
+                  {t(locale, 'notesTitle')}
+                </Text>
+                {proposal.notes.map((note, i) => (
+                  <Text key={i} testID={`plan-note-${i}`} style={text}>
+                    • {note}
+                  </Text>
+                ))}
+              </Card>
+            ) : null}
             <Card palette={palette}>
               <Text style={[palette.font('title', 15), { color: palette.text }]}>
                 {t(locale, 'planTitle')}
@@ -216,32 +222,64 @@ export function ChangeScreen() {
                   • {line}
                 </Text>
               ))}
+              {proposal.homeEntry ? (
+                <Pressable
+                  testID="change-home-entry"
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: proposal.homeEntry.on }}
+                  onPress={() => setHomeEntry(!proposal.homeEntry!.on)}
+                  hitSlop={6}
+                  style={styles.check}>
+                  <View
+                    style={[
+                      styles.box,
+                      { borderColor: palette.primary },
+                      proposal.homeEntry.on && { backgroundColor: palette.primary },
+                    ]}>
+                    {proposal.homeEntry.on ? (
+                      <Text style={[palette.font('bodyBold', 14), { color: palette.onPrimary }]}>
+                        ✓
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Text style={[styles.flex, text]}>{t(locale, 'homeEntry')}</Text>
+                </Pressable>
+              ) : null}
             </Card>
 
-            {/* 两段式切换（Docudis 的 ClaySegmented）。 */}
-            <View style={[styles.segment, { backgroundColor: palette.border }]}>
-              {(['before', 'after'] as const).map((s) => (
-                <Pressable
-                  key={s}
-                  testID={`preview-${s}`}
-                  onPress={() => setSide(s)}
-                  style={[styles.segmentItem, side === s && { backgroundColor: palette.surface }]}>
-                  <Text
-                    style={[
-                      palette.font('title', 14),
-                      { color: side === s ? palette.text : palette.caption },
-                    ]}>
-                    {t(locale, s)}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <Preview
-              key={`${proposal.changeRequestId}-${side}`}
-              config={side === 'before' ? proposal.before : proposal.after}
-              pageId={proposal.focusPageId}
-              onError={() => side === 'after' && setPreviewBroken(true)}
-            />
+            {proposal.focusWorkflowId ? (
+              <WorkflowSteps workflowId={proposal.focusWorkflowId} />
+            ) : (
+              <>
+                {/* 两段式切换（Docudis 的 ClaySegmented）。 */}
+                <View style={[styles.segment, { backgroundColor: palette.border }]}>
+                  {(['before', 'after'] as const).map((s) => (
+                    <Pressable
+                      key={s}
+                      testID={`preview-${s}`}
+                      onPress={() => setSide(s)}
+                      style={[
+                        styles.segmentItem,
+                        side === s && { backgroundColor: palette.surface },
+                      ]}>
+                      <Text
+                        style={[
+                          palette.font('title', 14),
+                          { color: side === s ? palette.text : palette.caption },
+                        ]}>
+                        {t(locale, s)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Preview
+                  key={`${proposal.changeRequestId}-${side}`}
+                  config={side === 'before' ? proposal.before : proposal.after}
+                  pageId={proposal.focusPageId}
+                  onError={() => side === 'after' && setPreviewBroken(true)}
+                />
+              </>
+            )}
 
             <View style={styles.actions}>
               <Button
@@ -267,8 +305,39 @@ export function ChangeScreen() {
   );
 }
 
+/** 新工作流不在任何页面上时，预览显示它的步骤，并说明在哪里找到它（D-109）。 */
+function WorkflowSteps({ workflowId }: { workflowId: string }) {
+  const { locale, registry } = useWorkspaceContext();
+  const proposal = useWorkspace((s) => s.proposal)!;
+  const palette = usePalette(proposal.after.theme);
+  const workflow = proposal.after.workflows.find((w) => w.id === workflowId);
+  if (!workflow) return null;
+  return (
+    <Card palette={palette} testID="preview-workflow">
+      <Text style={[palette.font('title', 17), { color: palette.text }]}>{workflow.name}</Text>
+      {workflow.steps.map((step, i) => (
+        <Text key={step.id} style={[palette.font('body', 15), { color: palette.text }]}>
+          {`${i + 1}. ${registry.actions.get(step.action)?.label[locale] ?? step.action}`}
+        </Text>
+      ))}
+      <Text style={[palette.font('body', 13), { color: palette.caption }]}>
+        {t(locale, 'workflowWhere')}
+      </Text>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  check: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  box: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   page: { paddingBottom: 48 },
   input: { minHeight: 110, borderWidth: 1, padding: 14, textAlignVertical: 'top' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

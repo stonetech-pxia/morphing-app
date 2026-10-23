@@ -204,7 +204,7 @@ export function findPreset(text: string): WorkflowPreset | undefined {
 export function findWorkflowByName(rawName: string, config: WorkspaceConfig): Workflow | undefined {
   const name = rawName
     .replace(/"/g, '')
-    .replace(/(?:工作流|流程|workflow)$/i, '')
+    .replace(/(?:快捷操作|工作流|流程|workflow|quick action)$/i, '')
     .trim()
     .toLowerCase();
   if (!name) return undefined;

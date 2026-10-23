@@ -34,7 +34,7 @@ describe('mock AI — workflows', () => {
   it('W1 adds a preset by name or by a word in it, once', async () => {
     const { after, lines } = await change('添加签证照片工作流', workspace('zh'));
     expect(after.workflows.at(-1)).toMatchObject({ id: 'visa-photo', presetId: 'visa-photo' });
-    expect(lines[0]).toContain('新建工作流「签证 / 证件照」（从预设添加）');
+    expect(lines[0]).toContain('新建快捷操作「签证 / 证件照」（现成的）');
     const en = await change('Add the scan a document preset', workspace('en'), 'en');
     expect(en.after.workflows.at(-1)!.presetId).toBe('scan-document');
     // AI 修改页「可以试试」里的英文例句。
@@ -101,7 +101,7 @@ describe('mock AI — workflows', () => {
     expect(JSON.stringify(removed.after.pages)).not.toContain('visa-photo');
     expect(await plan('删除合并 PDF 工作流', withVisa())).toMatchObject({
       kind: 'reject',
-      message: '「合并 PDF」是工具自带的，不能单独删除；可以去掉其中的步骤，或者卸载工具。',
+      message: '「合并 PDF」是工具自带的，不能单独删除；可以去掉其中的步骤，或者移除工具。',
     });
   });
 

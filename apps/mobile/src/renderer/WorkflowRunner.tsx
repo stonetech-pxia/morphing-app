@@ -4,9 +4,12 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
 import type { RenderEnv } from './components';
-import { Button, Card } from './ui';
+import { Button, Card, IconTile } from './ui';
 
-/** workflowRunner 组件：显示工作流的步骤，点「开始」打开运行页面。 */
+/**
+ * workflowRunner 组件：显示工作流的步骤，点「开始」打开运行页面。
+ * 在宫格里（相邻的多个运行卡片，或用户自己的 grid / row 分组）显示成小方块，整块可点（D-108）。
+ */
 export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: RenderEnv }) {
   const router = useRouter();
   const { palette, locale, registry } = env;
@@ -23,6 +26,47 @@ export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: R
       return text ? [text] : [];
     })
     .join(locale === 'zh' ? '；' : '; ');
+  const start = () => {
+    if (env.interactive) router.push({ pathname: '/run/[workflowId]', params: { workflowId } });
+  };
+
+  if (env.inCell) {
+    const icon =
+      workflow.icon ?? (workflow.toolId && registry.tools.get(workflow.toolId)?.icon) ?? 'workflow';
+    // 多步的工作流（预设、自己搭的）列出步骤；单功能的名字已经说明了做什么，只列固定的设置。
+    const detail =
+      workflow.steps.length > 2
+        ? workflow.steps
+            .slice(1)
+            .map((s) => label(s.action))
+            .join(' → ')
+        : settings;
+    return (
+      <Card
+        palette={palette}
+        testID={`run-${workflow.id}`}
+        accessibilityLabel={workflow.name}
+        onPress={start}
+        onLongPress={env.onLongPress}
+        style={styles.tile}>
+        <IconTile
+          palette={palette}
+          icon={icon}
+          background={palette.primaryTint}
+          color={palette.primaryText}
+          size={40}
+        />
+        <Text numberOfLines={2} style={[palette.font('title', 15), { color: palette.text }]}>
+          {workflow.name}
+        </Text>
+        {detail ? (
+          <Text numberOfLines={2} style={[palette.font('body', 12), { color: palette.caption }]}>
+            {detail}
+          </Text>
+        ) : null}
+      </Card>
+    );
+  }
 
   return (
     <Card palette={palette} onLongPress={env.onLongPress}>
@@ -44,10 +88,7 @@ export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: R
         palette={palette}
         testID={`run-${workflow.id}`}
         label={t(locale, 'run')}
-        onPress={() => {
-          if (env.interactive)
-            router.push({ pathname: '/run/[workflowId]', params: { workflowId } });
-        }}
+        onPress={start}
         onLongPress={env.onLongPress}
         style={styles.run}
       />
@@ -58,4 +99,5 @@ export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: R
 const styles = StyleSheet.create({
   steps: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 6, rowGap: 2 },
   run: { marginTop: 6 },
+  tile: { flex: 1, minHeight: 132 },
 });

@@ -5,8 +5,10 @@ import {
   coalesceOps,
   createDefaultWorkspace,
   describeRestore,
+  homeEntryOps,
   prepareOps,
   prepareSnapshot,
+  workflowsWithoutEntry,
   type AIProvider,
   type Locale,
   type NavTarget,
@@ -16,7 +18,7 @@ import {
 } from '@morph/core';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
-import { t } from '../i18n';
+import { formatWhen, t } from '../i18n';
 import {
   RevisionConflictError,
   type RevisionRecord,
@@ -33,6 +35,8 @@ export interface WorkspaceDeps {
   registry: Registry;
   locale: Locale;
   now: () => Date;
+  /** 第一次启动时的第一个版本。App 用预装了工具的 createStarterWorkspace（D-104）；不传时是空白工作空间。 */
+  seed?: (locale: Locale, registry: Registry) => WorkspaceConfig;
 }
 
 export interface Proposal {
@@ -46,6 +50,14 @@ export interface Proposal {
   summary: string;
   /** 预览时展示的页面。 */
   focusPageId: string;
+  /** 新建、但不在任何页面上的工作流：预览显示它的步骤，应用后打开工作流列表（D-109）。 */
+  focusWorkflowId?: string;
+  /** AI 新建的工作流的「在首页放一个入口」选项（D-109）；on 时 after 已包含首页的运行卡片。 */
+  homeEntry?: { workflowIds: string[]; on: boolean };
+  /** AI 计划里的操作（不含首页入口），切换首页入口时据此重新计算。 */
+  ops?: Op[];
+  /** AI 写给用户的说明：做不到的部分、补上的步骤为什么要加（D-110）。 */
+  notes?: string[];
 }
 
 export type ProposeResult =
@@ -96,6 +108,8 @@ export interface WorkspaceState {
   proposeRestore(revisionId: number): Promise<ProposeResult>;
   /** 来自界面按钮（安装、卸载等）的修改，同样经过校验和版本记录。 */
   proposeOps(ops: Op[], summary: string): Promise<ProposeResult>;
+  /** 预览里勾选 / 取消「在首页放一个入口」（D-109）。 */
+  setHomeEntry(on: boolean): void;
   confirm(): Promise<boolean>;
   cancel(): Promise<void>;
   undo(): Promise<void>;
@@ -179,11 +193,46 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       return { kind: 'preview', proposal };
     }
 
+    /**
+     * 计划里的操作加上（勾选时）首页入口，算出预览要显示的内容。
+     * 首页入口加不进去（例如操作数到了上限）时当作不勾选。
+     */
+    function withHomeEntry(
+      before: WorkspaceConfig,
+      ops: Op[],
+      base: { after: WorkspaceConfig; lines: string[] },
+      workflowIds: string[],
+      on: boolean,
+    ): Pick<Proposal, 'after' | 'lines' | 'focusPageId' | 'focusWorkflowId' | 'homeEntry'> {
+      if (on) {
+        const full = prepareOps(before, [...ops, ...homeEntryOps(base.after, workflowIds)], {
+          registry,
+          locale,
+          now: deps.now(),
+        });
+        if (full.ok)
+          return {
+            after: full.after,
+            lines: base.lines,
+            focusPageId: 'home',
+            homeEntry: { workflowIds, on: true },
+          };
+      }
+      return {
+        after: base.after,
+        lines: base.lines,
+        focusPageId: focusPage(ops, base.after),
+        focusWorkflowId: workflowIds[0],
+        homeEntry: { workflowIds, on: false },
+      };
+    }
+
     async function opsProposal(
       input: string,
       ops: unknown,
       source: RevisionSource,
       summary: string,
+      plan?: { homeEntry?: boolean; notes?: string[] },
     ): Promise<ProposeResult> {
       const { config, head } = get();
       if (!config || !head) throw new Error('workspace not loaded');
@@ -198,14 +247,23 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         });
         return { kind: 'invalid', issues: prepared.issues };
       }
+      const parsed = ops as Op[];
+      // AI 新建的工作流不在任何页面上时，由用户决定要不要放到首页（D-109）。
+      const homeless = source === 'ai' ? workflowsWithoutEntry(parsed, prepared.after) : [];
       return recordPreview(input, ops, head, {
         kind: 'ops',
         before: config,
-        after: prepared.after,
-        lines: prepared.lines,
         source,
         summary,
-        focusPageId: focusPage(ops as Op[], prepared.after),
+        ops: parsed,
+        ...(plan?.notes?.length ? { notes: plan.notes } : {}),
+        ...(homeless.length > 0
+          ? withHomeEntry(config, parsed, prepared, homeless, plan?.homeEntry !== false)
+          : {
+              after: prepared.after,
+              lines: prepared.lines,
+              focusPageId: focusPage(parsed, prepared.after),
+            }),
       });
     }
 
@@ -232,7 +290,9 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         after: prepared.after,
         lines: describeRestore(config, prepared.after, target, { registry, locale }),
         source: 'restore',
-        summary: msg('restoreSummary', { id: revisionId }),
+        summary: msg('restoreSummary', {
+          when: formatWhen(locale, new Date(target.createdAt), deps.now()),
+        }),
         focusPageId: 'home',
       });
     }
@@ -272,7 +332,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
           if (!head) {
             await repo.commitRevision({
               baseId: null,
-              config: createDefaultWorkspace(locale),
+              config: (deps.seed ?? createDefaultWorkspace)(locale, registry),
               source: 'seed',
               summary: msg('initialSummary'),
             });
@@ -336,16 +396,39 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
               return { kind: 'rejected', message: msg('noPrevious'), examples: [] };
             return await restoreProposal(head.parentId, input);
           }
-          return await opsProposal(input, plan.ops, 'ai', input);
+          return await opsProposal(input, plan.ops, 'ai', input, plan);
         } finally {
           set({ busy: false });
         }
       },
 
-      proposeRestore: (revisionId) =>
-        restoreProposal(revisionId, msg('restoreSummary', { id: revisionId })),
+      proposeRestore: (revisionId) => restoreProposal(revisionId, `restore #${revisionId}`),
 
       proposeOps: (ops, summary) => opsProposal(summary, ops, 'user', summary),
+
+      setHomeEntry(on) {
+        const proposal = get().proposal;
+        if (!proposal?.homeEntry || !proposal.ops || proposal.homeEntry.on === on) return;
+        const base = prepareOps(proposal.before, proposal.ops, {
+          registry,
+          locale,
+          now: deps.now(),
+        });
+        if (!base.ok) return;
+        const { focusWorkflowId: _, ...rest } = proposal;
+        set({
+          proposal: {
+            ...rest,
+            ...withHomeEntry(
+              proposal.before,
+              proposal.ops,
+              base,
+              proposal.homeEntry.workflowIds,
+              on,
+            ),
+          },
+        });
+      },
 
       async confirm() {
         const proposal = get().proposal;

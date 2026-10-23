@@ -26,7 +26,7 @@ describe('extension packs screen', () => {
     expect(screen.getByTestId('packs-total').props.children).toBe('共占用 14 B');
 
     const alert = jest.spyOn(Alert, 'alert').mockImplementationOnce((_t, message, buttons) => {
-      expect(message).toContain('1 个语言包');
+      expect(message).toContain('1 种语言');
       buttons?.find((b) => b.style === 'destructive')?.onPress?.();
     });
     await fireEvent.press(screen.getByTestId('pack-delete-ocr'));

@@ -17,6 +17,8 @@ import { Toast } from './Toast';
 import { ToolsView } from './ToolsView';
 
 const BAR_HEIGHT = { iconLabel: 64, label: 52, icon: 56 } as const;
+/** 「已应用」提示条显示多久后自动消失（D-106）；之后仍可在「设置 → 改动记录」撤销。 */
+export const APPLIED_BANNER_MS = 6000;
 
 export function firstTab(config: WorkspaceConfig): NavTarget {
   return (
@@ -33,12 +35,20 @@ function canShow(target: NavTarget | null, config: WorkspaceConfig): target is N
   return pageId === null || config.pages.some((p) => p.id === pageId);
 }
 
-/** 版本提示条：已应用 / 已回退，带「撤销」。外壳和独立页面都显示。 */
+/**
+ * 版本提示条：已应用 / 已回退，带「撤销」。外壳和独立页面都显示。
+ * 「已应用」几秒后自动消失，免得之后被当成撤销别的操作；回退、冲突等警告要用户自己关。
+ */
 export function Banner({ palette }: { palette: Palette }) {
   const { locale } = useWorkspaceContext();
   const banner = useWorkspace((s) => s.banner);
   const undo = useWorkspace((s) => s.undo);
   const dismiss = useWorkspace((s) => s.dismissBanner);
+  useEffect(() => {
+    if (banner?.kind !== 'applied') return;
+    const timer = setTimeout(dismiss, APPLIED_BANNER_MS);
+    return () => clearTimeout(timer);
+  }, [banner, dismiss]);
   if (!banner) return null;
   const warn = banner.kind !== 'applied';
   const color = warn ? '#FFFFFF' : palette.onPrimary;

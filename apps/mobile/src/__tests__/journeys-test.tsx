@@ -5,7 +5,7 @@ import {
   createRegistry,
   type AIProvider,
 } from '@morph/core';
-import { fireEvent } from '@testing-library/react-native';
+import { act, fireEvent } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
@@ -17,8 +17,10 @@ import ChangeRoute from '../app/change';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
 import RunRoute from '../app/run/[workflowId]';
+import WorkflowsRoute from '../app/workflows';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, makePdf } from '../test-utils/fake-files';
+import { APPLIED_BANNER_MS } from '../shell/Shell';
 import { WorkspaceProvider } from '../workspace/context';
 import { createWorkspaceStore } from '../workspace/store';
 
@@ -63,11 +65,12 @@ async function renderApp(
     'page/[pageId]': PageRoute,
     'ai-settings': AISettingsRoute,
     'run/[workflowId]': RunRoute,
+    workflows: WorkflowsRoute,
   });
   return { repo, store, files, aiSettings };
 }
 
-/** 工具目录里的操作用系统确认框；测试中直接点“应用更改”。 */
+/** 卸载工具要在系统确认框里确认；测试中直接点“应用更改”。其他工具操作直接应用。 */
 function acceptNextAlert() {
   jest.spyOn(Alert, 'alert').mockImplementationOnce((_title, _message, buttons) => {
     buttons?.find((b) => b.style !== 'cancel')?.onPress?.();
@@ -88,7 +91,6 @@ describe('user journeys (UI)', () => {
 
     // 旅程 B：在工具目录安装 PDF，首页出现入口。
     await fireEvent.press(screen.getByTestId('nav-tools'));
-    acceptNextAlert();
     await fireEvent.press(await screen.findByTestId('install-pdf'));
     await fireEvent.press(await screen.findByTestId('nav-page:home'));
     expect(await screen.findByTestId('component-card-pdf')).toBeTruthy();
@@ -119,6 +121,72 @@ describe('user journeys (UI)', () => {
     await fireEvent.press(screen.getByText('撤销'));
     expect(await screen.findByTestId('nav-ai')).toBeTruthy();
     expect(store.getState().head).toMatchObject({ source: 'restore' });
+  });
+
+  it('the applied banner goes away by itself; warnings stay (D-106)', async () => {
+    const { store } = await renderApp();
+    await askAi('主题换成绿色');
+    jest.useFakeTimers();
+    try {
+      await fireEvent.press(await screen.findByTestId('change-apply'));
+      expect(await screen.findByTestId('banner')).toBeTruthy();
+      await act(() => jest.advanceTimersByTime(APPLIED_BANNER_MS));
+      expect(screen.queryByTestId('banner')).toBeNull();
+      await act(() => store.setState({ banner: { kind: 'rolledBack', message: '已回退' } }));
+      await act(() => jest.advanceTimersByTime(APPLIED_BANNER_MS * 2));
+      expect(screen.getByTestId('banner')).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('a new workflow: home entry ticked by default, then the app shows where it went (D-109)', async () => {
+    const { store } = await renderApp();
+    // 从设置页打开 AI 修改。
+    await fireEvent.press(screen.getByTestId('nav-settings'));
+    await askAi('添加签证照片工作流');
+    const box = await screen.findByTestId('change-home-entry');
+    expect(box.props.accessibilityState).toMatchObject({ checked: true });
+    await fireEvent.press(screen.getByTestId('change-apply'));
+    // 应用后回到首页，新的运行卡片就在标题下面。
+    const id = store.getState().config!.workflows[0]!.id;
+    expect(await screen.findByTestId(`run-${id}`)).toBeTruthy();
+    expect(store.getState().tab).toBe('page:home');
+  });
+
+  it('a new workflow without a home entry: steps in the preview, then the workflow list', async () => {
+    const { store } = await renderApp();
+    await askAi('添加签证照片工作流');
+    await fireEvent.press(await screen.findByTestId('change-home-entry'));
+    expect(screen.getByTestId('change-home-entry').props.accessibilityState).toMatchObject({
+      checked: false,
+    });
+    expect(screen.getByTestId('preview-workflow')).toHaveTextContent(/1\. 选照片/);
+    expect(screen.queryByTestId('preview-before')).toBeNull();
+    await fireEvent.press(screen.getByTestId('change-apply'));
+    const id = store.getState().config!.workflows[0]!.id;
+    expect(await screen.findByTestId(`workflow-${id}`)).toBeTruthy();
+    expect(
+      store
+        .getState()
+        .config!.pages.flatMap((p) => p.components)
+        .map((c) => c.type),
+    ).not.toContain('workflowRunner');
+  });
+
+  it('notes from the AI appear above the planned changes (D-110)', async () => {
+    const mock = createMockAIProvider();
+    await renderApp(undefined, undefined, {
+      plan: async (input, ctx) => {
+        const plan = await mock.plan(input, ctx);
+        return plan.kind === 'ops'
+          ? { ...plan, notes: ['应用没有定时运行，每月需要你自己点一次。'] }
+          : plan;
+      },
+    });
+    await askAi('添加签证照片工作流');
+    expect(await screen.findByTestId('plan-notes')).toHaveTextContent(/需要你知道/);
+    expect(screen.getByTestId('plan-note-0')).toHaveTextContent(/每月需要你自己点一次/);
   });
 
   it('cancel keeps the app unchanged', async () => {
@@ -160,7 +228,7 @@ describe('user journeys (UI)', () => {
     expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
 
     await fireEvent.press(screen.getByTestId('change-apply'));
-    expect(await screen.findByTestId('banner')).toHaveTextContent(/已应用：换成新粗野风格/);
+    expect(await screen.findByTestId('banner')).toHaveTextContent(/已改好：换成新粗野风格/);
     expect(store.getState().config!.theme).toEqual(THEME_PRESETS.brutalist.theme);
     expect(store.getState().head).toMatchObject({ id: 2, source: 'ai' });
     const [latest] = await store.getState().listRevisions();
@@ -223,24 +291,29 @@ describe('user journeys (UI)', () => {
 
     await fireEvent.press(await screen.findByTestId('nav-settings'));
     await fireEvent.press(await screen.findByTestId('settings-history'));
-    await fireEvent.press(await screen.findByTestId('restore-1'));
+    // 改动记录（D-112）：没有编号和秒数，说明是谁改的。
+    const entry = await screen.findByTestId('revision-2');
+    expect(entry).toHaveTextContent(/AI 改的/);
+    expect(entry).not.toHaveTextContent(/#\d|:\d\d:\d\d/);
+    expect(screen.getByTestId('restore-1')).toHaveTextContent('回到这时候的样子');
+    await fireEvent.press(screen.getByTestId('restore-1'));
     expect(await screen.findByText(/你的文件不受影响/)).toBeTruthy();
     await fireEvent.press(screen.getByTestId('change-apply'));
 
     expect(await screen.findByTestId('nav-ai')).toBeTruthy();
     expect(store.getState().head).toMatchObject({ id: 3, source: 'restore' });
+    expect(store.getState().head!.summary).toMatch(/^回到 .+ 的样子$/);
   });
 
   it('B: install PDF, merge two real PDFs, uninstall — the files stay', async () => {
     const { repo, files } = await renderApp();
     await fireEvent.press(screen.getByTestId('nav-tools'));
-    acceptNextAlert();
     await fireEvent.press(await screen.findByTestId('install-pdf'));
 
     // 从首页的工具入口打开同一个 App 里的 PDF 工具页。
     await fireEvent.press(await screen.findByTestId('nav-page:home'));
     await fireEvent.press((await screen.findAllByText('PDF'))[0]!);
-    expect(await screen.findByTestId('step-name')).toBeTruthy();
+    expect(await screen.findByTestId('run-pdf-merge')).toBeTruthy();
 
     files.nextPick = [
       files.offer('报告.pdf', await makePdf(1)),
@@ -271,10 +344,9 @@ describe('user journeys (UI)', () => {
   it('C: reshape the installed PDF tool through AI from its own page; the new flow runs', async () => {
     const { store, files } = await renderApp();
     await fireEvent.press(screen.getByTestId('nav-tools'));
-    acceptNextAlert();
     await fireEvent.press(await screen.findByTestId('install-pdf'));
     await fireEvent.press(await screen.findByTestId('open-pdf'));
-    expect(await screen.findByTestId('step-name')).toBeTruthy();
+    expect(await screen.findByTestId('run-pdf-merge')).toBeTruthy();
 
     await fireEvent.press(screen.getByTestId('page-ai'));
     await fireEvent.changeText(
@@ -286,7 +358,7 @@ describe('user journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('change-apply'));
 
     // 回到同一个工具页：说明文字消失，命名不再询问，仍然只有一个工具实例。
-    expect(await screen.findByTestId('step-select')).toBeTruthy();
+    expect(await screen.findByTestId('run-pdf-merge')).toBeTruthy();
     expect(screen.queryByTestId('component-pdf-intro')).toBeNull();
     expect(store.getState().config!.tools).toHaveLength(1);
     expect(store.getState().config!.workflows.filter((w) => w.id === 'pdf-merge')).toHaveLength(1);

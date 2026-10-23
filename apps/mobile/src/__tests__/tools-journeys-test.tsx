@@ -1,7 +1,7 @@
 import { fireEvent } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
 
-import { acceptNextAlert, renderToolsApp } from '../test-utils/render-app';
+import { renderToolsApp } from '../test-utils/render-app';
 
 // 内置工具的界面旅程：安装 → 打开工具页 → 运行单功能工作流 → 结果页操作。
 
@@ -11,7 +11,6 @@ describe('tool journeys (UI)', () => {
   async function installImageTool() {
     const app = await renderToolsApp();
     await fireEvent.press(screen.getByTestId('nav-tools'));
-    acceptNextAlert();
     await fireEvent.press(await screen.findByTestId('install-image'));
     await fireEvent.press(await screen.findByTestId('open-image'));
     return app;
@@ -19,16 +18,22 @@ describe('tool journeys (UI)', () => {
 
   it('compresses photos from the image tool page and saves them only when asked', async () => {
     const { files, repo } = await installImageTool();
-    // 卡片上显示固定的设置；每次运行时问的大小不列出。
+    // 工具页的功能排成宫格，整块可点，没有单独的「开始」按钮（D-108）。
+    // 方块上显示固定的设置；每次运行时问的大小不列出。
     expect(await screen.findByText('压缩图片')).toBeTruthy();
     expect(screen.getByText('格式 JPG')).toBeTruthy();
+    expect(screen.queryAllByText('开始')).toEqual([]);
 
-    files.nextPhotos = [files.offerImage('IMG_1.HEIC', 4032, 3024, 'image/heic')];
+    files.nextPhotos = [
+      files.offerImage('IMG_1.HEIC', 4032, 3024, 'image/heic', new Uint8Array(2_000_000)),
+    ];
     await fireEvent.press(screen.getByTestId('run-image-compress'));
     // 运行时询问目标大小：点「240 KB」再确定。
     await fireEvent.press(await screen.findByTestId('ask-preset-kb-240'));
     await fireEvent.press(screen.getByTestId('prompt-ok'));
     expect(await screen.findByTestId('result-item-IMG_1.jpg')).toBeTruthy();
+    // 变小了：显示原来和现在的大小。
+    expect(screen.getByTestId('result-smaller')).toHaveTextContent(/^原来 .+，现在 .+$/);
     expect(await repo.listAssets()).toEqual([]);
 
     await fireEvent.press(screen.getByTestId('result-save'));
@@ -38,6 +43,12 @@ describe('tool journeys (UI)', () => {
 
     await fireEvent.press(screen.getByTestId('result-photos'));
     expect(files.savedToPhotos).toHaveLength(1);
+
+    // 「完成」关闭运行页，回到工具页（D-111）。
+    expect(screen.getByTestId('run-done')).toHaveTextContent('完成');
+    await fireEvent.press(screen.getByTestId('run-done'));
+    expect(screen.queryByTestId('run-done')).toBeNull();
+    expect(await screen.findByTestId('run-image-compress')).toBeTruthy();
   });
 
   it('a wrong value in the question is caught before running', async () => {

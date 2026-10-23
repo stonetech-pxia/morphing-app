@@ -1,4 +1,4 @@
-import type { Locale, RunItem, RunValue } from '@morph/core';
+import { totalSize, type Locale, type RunItem, type RunValue } from '@morph/core';
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -72,11 +72,14 @@ export function ResultView({
   palette,
   locale,
   actions,
+  inputSize = 0,
 }: {
   value: RunValue;
   palette: Palette;
   locale: Locale;
   actions: ResultActions;
+  /** 输入文件的总大小；结果变小了（压缩、缩小）时显示「原来 X，现在 Y」。 */
+  inputSize?: number;
 }) {
   const [done, setDone] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -145,6 +148,7 @@ export function ResultView({
   const allSaved = items.every((i) => i.assetId);
   const images = items.every((i) => i.mimeType.startsWith('image/'));
   const printable = images || items.every((i) => i.mimeType === 'application/pdf');
+  const outputSize = totalSize(value);
   return (
     <Card palette={palette} testID="run-result">
       {items.length > 1 ? (
@@ -155,6 +159,16 @@ export function ResultView({
       {items.slice(0, 30).map((item) => (
         <ItemRow key={item.uri} item={item} palette={palette} locale={locale} />
       ))}
+      {inputSize > 0 && outputSize < inputSize ? (
+        <Text
+          testID="result-smaller"
+          style={[palette.font('bodyMedium', 14), { color: palette.muted }]}>
+          {t(locale, 'resultSmaller', {
+            from: formatBytes(inputSize),
+            to: formatBytes(outputSize),
+          })}
+        </Text>
+      ) : null}
       <View style={styles.actions}>
         {allSaved ? null : pill('save', 'resultSave', 'resultSaved', actions.save)}
         {pill('share', 'resultShare', null, actions.share)}

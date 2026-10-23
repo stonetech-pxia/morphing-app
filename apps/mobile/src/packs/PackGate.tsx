@@ -76,21 +76,24 @@ export function PackGate({
             styles.dialog,
             { backgroundColor: palette.surface, borderRadius: palette.radius },
           ]}>
-          {text('title', zh ? `需要下载「${pack.name.zh}」` : `Download “${pack.name.en}”?`)}
-          {text('body', pack.description[locale])}
-          {missing.length > 0
-            ? text(
-                'body',
-                zh
-                  ? `第一次还要一起下载：${missing.map((d) => packById(d)?.name.zh ?? d).join('、')}`
-                  : `Includes, the first time: ${missing.map((d) => packById(d)?.name.en ?? d).join(', ')}`,
-              )
-            : null}
+          {/* 第一次用到时的提示（D-112）：不出现「扩展包」这个词，只说要下载多少、之后能离线用。 */}
+          {text(
+            'title',
+            zh
+              ? `首次使用需下载 ${size === null ? '…' : formatBytes(size)}`
+              : `First use needs a ${size === null ? '…' : formatBytes(size)} download`,
+          )}
           {text(
             'body',
             zh
-              ? `大小 ${size === null ? '…' : formatBytes(size)}，下载一次以后不用网络也能用。建议连接 Wi-Fi。`
-              : `Size ${size === null ? '…' : formatBytes(size)}. After this one download it works offline. Wi-Fi is recommended.`,
+              ? '之后不联网也能用。建议连接 Wi-Fi。'
+              : 'After that it works offline. Wi-Fi is recommended.',
+          )}
+          {text(
+            'body',
+            [pack, ...missing.map((d) => packById(d) ?? null)]
+              .flatMap((p) => (p ? [p.description[locale]] : []))
+              .join(zh ? '' : ' '),
           )}
           {text('body', zh ? `许可证：${pack.license}` : `License: ${pack.license}`, {
             fontSize: 12,

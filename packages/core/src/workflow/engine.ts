@@ -115,7 +115,13 @@ export interface AskRequest {
 }
 
 export type RunResult =
-  | { status: 'succeeded'; value: RunValue | null; saved: string[] }
+  | {
+      status: 'succeeded';
+      value: RunValue | null;
+      saved: string[];
+      /** 第一步（输入）拿到的文件总大小：结果页显示「原来 X → 现在 Y」。 */
+      inputSize: number;
+    }
   | { status: 'cancelled' }
   | { status: 'failed'; error: RunError; stepIndex: number | null };
 
@@ -190,6 +196,7 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
   const saved: string[] = [];
   let value: RunValue | null = null;
   let index = 0;
+  let inputSize = 0;
   const throwIfCancelled = () => {
     if (opts.signal?.cancelled) throw new RunCancelled();
   };
@@ -252,8 +259,9 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
           saved,
         }),
       );
+      if (i === 0) inputSize = totalSize(value);
     }
-    return finish({ status: 'succeeded', value, saved });
+    return finish({ status: 'succeeded', value, saved, inputSize });
   } catch (e) {
     if (e instanceof RunCancelled) return finish({ status: 'cancelled' });
     const error = e instanceof RunError ? e : new RunError('unexpected', { detail: String(e) });
