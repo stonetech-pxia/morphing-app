@@ -35,8 +35,13 @@ export function FileList({
     let alive = true;
     void repo.listAssets().then((all) => {
       // 文件列表只显示文档；界面用的照片也是用户文件，但不在这里列出（D-051）。
+      // mimeType 可以是一大类（video/*、audio/*、image/*，D-131）。
       const documents = all.filter((a) =>
-        mimeType ? a.mimeType === mimeType : !a.mimeType.startsWith('image/'),
+        mimeType?.endsWith('/*')
+          ? a.mimeType.startsWith(mimeType.slice(0, -1))
+          : mimeType
+            ? a.mimeType === mimeType
+            : !a.mimeType.startsWith('image/'),
       );
       if (alive) setAssets(documents.slice(0, limit));
     });
@@ -64,7 +69,17 @@ export function FileList({
               styles.row,
               i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
             ]}>
-            <Icon name="document" size={18} color={palette.secondary} />
+            <Icon
+              name={
+                a.mimeType.startsWith('video/')
+                  ? 'video'
+                  : a.mimeType.startsWith('audio/')
+                    ? 'audio'
+                    : 'document'
+              }
+              size={18}
+              color={palette.secondary}
+            />
             <Text
               numberOfLines={1}
               style={[styles.name, palette.font('bodyMedium', 15), { color: palette.text }]}>

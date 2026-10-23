@@ -40,6 +40,7 @@ function setup(local: Partial<Record<LocalKind, unknown>> = {}) {
   const opened: LocalKind[] = [];
   const ui: LocalUi = {
     confirm: async () => false,
+    choose: async () => null,
     open: async (kind) => {
       opened.push(kind);
       return (local[kind] ?? null) as never;

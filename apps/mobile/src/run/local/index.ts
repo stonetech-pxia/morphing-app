@@ -9,6 +9,7 @@ import { PagesScreen } from './PagesScreen';
 import { RedactScreen } from './RedactScreen';
 import { ReorderScreen } from './ReorderScreen';
 import { SignScreen } from './SignScreen';
+import { TrimScreen } from './TrimScreen';
 
 // 每种本地操作对应的界面。
 export const LOCAL_SCREENS: { [K in LocalKind]?: ComponentType<LocalScreenProps<K>> } = {
@@ -19,4 +20,5 @@ export const LOCAL_SCREENS: { [K in LocalKind]?: ComponentType<LocalScreenProps<
   fillForm: FillFormScreen,
   corners: CornersScreen,
   redact: RedactScreen,
+  trimMedia: TrimScreen,
 };

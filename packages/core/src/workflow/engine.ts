@@ -76,6 +76,8 @@ export type RunErrorCode =
   | 'notEnoughSpace'
   /** 目标大小太小，压出来看不清（detail.mb：至少要多少 MB）。 */
   | 'targetTooSmall'
+  /** 处理视频时切到了别的 App（iOS 不让后台用视频编码器，D-139）。 */
+  | 'interrupted'
   | 'unexpected';
 
 export class RunError extends Error {
@@ -100,8 +102,8 @@ export interface StepContext<S> {
   now(): Date;
   newId(): string;
   services: S;
-  /** 步内进度，例如第 3/10 张。 */
-  progress(done: number, total: number): void;
+  /** 步内进度，例如第 3/10 张；unit 为 percent 时 done 是 0–100（视频处理）。 */
+  progress(done: number, total: number, unit?: 'percent'): void;
   throwIfCancelled(): void;
   /** 本次运行保存成用户文件的 ID（file.save 填写）。 */
   saved: string[];
@@ -115,7 +117,7 @@ export type ActionImpl<S> = (
 
 export type RunEvent =
   | { kind: 'step'; index: number }
-  | { kind: 'progress'; index: number; done: number; total: number };
+  | { kind: 'progress'; index: number; done: number; total: number; unit?: 'percent' };
 
 export interface AskRequest {
   step: WorkflowStep;
@@ -265,7 +267,14 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
           now: opts.now,
           newId: opts.newId,
           services: opts.services,
-          progress: (done, total) => opts.onEvent?.({ kind: 'progress', index: i, done, total }),
+          progress: (done, total, unit) =>
+            opts.onEvent?.({
+              kind: 'progress',
+              index: i,
+              done,
+              total,
+              ...(unit ? { unit } : {}),
+            }),
           throwIfCancelled,
           saved,
         }),

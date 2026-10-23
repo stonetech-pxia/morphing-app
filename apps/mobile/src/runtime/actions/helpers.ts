@@ -1,6 +1,9 @@
 import {
   FILE_LIMITS,
+  MEDIA_LIMITS,
+  MEDIA_MIME_BY_EXT,
   RunError,
+  mediaKindOf,
   isFileValue,
   sanitizeFileName,
   type Collection,
@@ -28,6 +31,11 @@ export interface RunServices {
   collections: readonly Collection[];
   /** 扩展包（WebView 里的 pdf.js、OpenCV、tesseract）；没有时为 null。 */
   packs: { runtime: PackRuntime; isInstalled(id: string): Promise<boolean> } | null;
+  /**
+   * 动作执行到一半才知道要不要下载内容时用（压缩 PDF 转成图片要 PDF 预览，D-136）：
+   * 已下载或用户确认下载完成返回 true，用户拒绝返回 false。
+   */
+  ensurePack?: (packId: string) => Promise<boolean>;
   /** 从别的 App 分享进来的文件：第一步（in.photos / in.files）直接用它们，不打开选择器（D-115）。 */
   incoming?: readonly PickedFile[] | null;
 }
@@ -45,6 +53,7 @@ const MIME_BY_EXT: Record<string, string> = {
   gif: 'image/gif',
   zip: 'application/zip',
   txt: 'text/plain',
+  ...MEDIA_MIME_BY_EXT,
 };
 
 export const extOf = (name: string) => /\.([^./]+)$/.exec(name)?.[1]?.toLowerCase() ?? '';
@@ -86,14 +95,34 @@ export async function writeItem(
   return { ...item, uri: stored.uri, size: stored.size };
 }
 
-/** 选择器给的文件：检查大小上限（P-006）。选择器不一定提供大小，复制后再检查一次。 */
-export function checkSizes(sizes: readonly { name: string; size: number | null }[]): void {
-  for (const f of sizes) {
+export const isMediaFile = (f: { name: string; mimeType?: string | null }) => {
+  const kind = mediaKindOf(f.mimeType, f.name);
+  return kind === 'video' || kind === 'audio';
+};
+
+/**
+ * 选择器给的文件：检查大小上限（P-006）。选择器不一定提供大小，复制后再检查一次。
+ * 视频和音频由原生模块边读边写，单独用 MEDIA_LIMITS：单个 4 GB、最多 10 个，不计入合计（D-133）。
+ */
+export function checkSizes(
+  sizes: readonly { name: string; size: number | null; mimeType?: string | null }[],
+): void {
+  const media = sizes.filter(isMediaFile);
+  for (const f of media) {
+    if ((f.size ?? 0) > MEDIA_LIMITS.maxFileBytes) {
+      throw new RunError('tooLarge', { name: f.name, mb: MEDIA_LIMITS.maxFileBytes / MB });
+    }
+  }
+  if (media.length > MEDIA_LIMITS.maxCount) {
+    throw new RunError('tooMany', { max: MEDIA_LIMITS.maxCount });
+  }
+  const others = sizes.filter((f) => !isMediaFile(f));
+  for (const f of others) {
     if ((f.size ?? 0) > FILE_LIMITS.maxFileBytes) {
       throw new RunError('tooLarge', { name: f.name, mb: FILE_LIMITS.maxFileBytes / MB });
     }
   }
-  if (sizes.reduce((sum, f) => sum + (f.size ?? 0), 0) > FILE_LIMITS.maxTotalBytes) {
+  if (others.reduce((sum, f) => sum + (f.size ?? 0), 0) > FILE_LIMITS.maxTotalBytes) {
     throw new RunError('tooLargeTotal', { mb: FILE_LIMITS.maxTotalBytes / MB });
   }
 }

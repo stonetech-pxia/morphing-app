@@ -60,11 +60,12 @@
         {
           "iosActivationRules": {
             "NSExtensionActivationSupportsImageWithMaxCount": 50,
+            "NSExtensionActivationSupportsMovieWithMaxCount": 10,
             "NSExtensionActivationSupportsFileWithMaxCount": 50
           },
           "iosShareExtensionName": "MorphShare",
-          "androidIntentFilters": ["image/*", "application/*"],
-          "androidMultiIntentFilters": ["image/*", "application/*"]
+          "androidIntentFilters": ["image/*", "video/*", "audio/*", "application/*"],
+          "androidMultiIntentFilters": ["image/*", "video/*", "audio/*", "application/*"]
         }
       ],
       [
@@ -72,6 +73,13 @@
         {
           "target": "MorphShare",
           "displayName": "Morph"
+        }
+      ],
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": false
         }
       ]
     ],

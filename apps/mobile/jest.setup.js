@@ -21,3 +21,49 @@ jest.mock('@shopify/react-native-skia', () => {
     matchFont: unavailable,
   };
 });
+
+// 视频播放（expo-video）也是原生模块：画面用空组件代替，播放器只记录状态（剪一段、结果页播放）。
+jest.mock('expo-video', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const makePlayer = (source) => {
+    const listeners = new Map();
+    const emit = (name, payload) => listeners.get(name)?.forEach((fn) => fn(payload));
+    return {
+      source,
+      playing: false,
+      currentTime: 0,
+      timeUpdateEventInterval: 0,
+      play() {
+        this.playing = true;
+        emit('playingChange', { isPlaying: true });
+      },
+      pause() {
+        this.playing = false;
+        emit('playingChange', { isPlaying: false });
+      },
+      generateThumbnailsAsync: async () => [],
+      addListener(name, fn) {
+        if (!listeners.has(name)) listeners.set(name, new Set());
+        listeners.get(name).add(fn);
+        return { remove: () => listeners.get(name)?.delete(fn) };
+      },
+      removeListener(name, fn) {
+        listeners.get(name)?.delete(fn);
+      },
+      release() {},
+    };
+  };
+  return {
+    VideoView: View,
+    createVideoPlayer: makePlayer,
+    useVideoPlayer: (source, setup) =>
+      React.useMemo(() => {
+        const player = makePlayer(source);
+        setup?.(player);
+        return player;
+      // 和真的一样只随地址重建；setup 只在创建时调用一次。
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [source]),
+  };
+});
