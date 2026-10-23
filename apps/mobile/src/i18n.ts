@@ -274,6 +274,10 @@ const strings = {
     zh: '无法访问「{name}」，请检查权限后重试。',
   },
   runError_saveFailed: { en: 'Saving failed: {detail}', zh: '保存失败：{detail}' },
+  runError_folderNotWritable: {
+    en: 'Files can’t be saved into this folder. Choose another folder and try again.',
+    zh: '不能存进这个文件夹，请换一个文件夹再试。',
+  },
   runError_unsupportedAction: {
     en: 'This step is not supported: {action}',
     zh: '不支持这个步骤：{action}',
@@ -299,6 +303,8 @@ const strings = {
   resultPhotos: { en: 'Save to Photos', zh: '存到相册' },
   resultPhotosDone: { en: 'Saved to Photos', zh: '已存到相册' },
   resultPrint: { en: 'Print', zh: '打印' },
+  resultFolder: { en: 'Save to a folder', zh: '存到文件夹' },
+  resultFolderDone: { en: 'Saved to the folder', zh: '已存到文件夹' },
   resultCopy: { en: 'Copy', zh: '复制' },
   resultCopied: { en: 'Copied', zh: '已复制' },
   resultTextNote: {

@@ -50,6 +50,7 @@ export type RunErrorCode =
   | 'encrypted'
   | 'accessDenied'
   | 'saveFailed'
+  | 'folderNotWritable'
   | 'unsupportedAction'
   | 'invalidWorkflow'
   | 'cameraUnavailable'

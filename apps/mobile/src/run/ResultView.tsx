@@ -9,7 +9,7 @@ import type { Palette } from '../renderer/theme';
 import { Card, Pill } from '../renderer/ui';
 
 // 结果预览（TOOLS_DESIGN §3）：图片缩略图、PDF 页数和大小、文字全文（只在本机显示）。
-// 结果页始终提供保存、分享、存到相册（图片）、打印（PDF / 图片）、复制（文字）。
+// 结果页始终提供保存、分享、存到文件夹、存到相册（图片）、打印（PDF / 图片）、复制（文字）。
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -20,6 +20,8 @@ export function formatBytes(bytes: number): string {
 export interface ResultActions {
   save(): Promise<void>;
   share(): Promise<void>;
+  /** 用户取消时返回 false（按钮不显示「已存」）。 */
+  saveToFolder(): Promise<boolean>;
   saveToPhotos(): Promise<void>;
   print(): Promise<void>;
   copy(): Promise<void>;
@@ -80,10 +82,10 @@ export function ResultView({
 }) {
   const [done, setDone] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const act = (key: string, fn: () => Promise<void>) => async () => {
+  const act = (key: string, fn: () => Promise<void | boolean>) => async () => {
     setError(null);
     try {
-      await fn();
+      if ((await fn()) === false) return;
       setDone((d) => new Set(d).add(key));
     } catch (e) {
       const code = (e as { code?: string }).code;
@@ -98,7 +100,7 @@ export function ResultView({
     key: string,
     label: StringKey,
     doneLabel: StringKey | null,
-    fn: () => Promise<void>,
+    fn: () => Promise<void | boolean>,
   ) => (
     <Pill
       key={key}
@@ -158,6 +160,7 @@ export function ResultView({
       <View style={styles.actions}>
         {allSaved ? null : pill('save', 'resultSave', 'resultSaved', actions.save)}
         {pill('share', 'resultShare', null, actions.share)}
+        {pill('folder', 'resultFolder', 'resultFolderDone', actions.saveToFolder)}
         {images ? pill('photos', 'resultPhotos', 'resultPhotosDone', actions.saveToPhotos) : null}
         {printable ? pill('print', 'resultPrint', null, actions.print) : null}
       </View>

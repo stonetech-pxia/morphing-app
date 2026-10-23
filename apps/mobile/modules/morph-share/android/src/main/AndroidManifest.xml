@@ -1,0 +1,14 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!-- 把本次运行的临时文件（缓存目录 runs/）以 content:// 地址交给分享目标，只给读权限。 -->
+    <provider
+        android:name=".MorphShareFileProvider"
+        android:authorities="${applicationId}.MorphShareFileProvider"
+        android:exported="false"
+        android:grantUriPermissions="true">
+      <meta-data
+          android:name="android.support.FILE_PROVIDER_PATHS"
+          android:resource="@xml/morph_share_paths" />
+    </provider>
+  </application>
+</manifest>

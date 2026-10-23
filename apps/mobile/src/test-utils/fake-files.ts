@@ -7,6 +7,7 @@ import type { Quad } from '@morph/tool-image';
 import type {
   DrawOp,
   FilePlatform,
+  FolderItem,
   ImageFormat,
   ImageOps,
   PickedFile,
@@ -167,8 +168,23 @@ export class FakeFiles implements FilePlatform {
   async saveRunFile(uri: string, assetId: string, name: string) {
     return this.writeBytes(assetId, name, await this.readBytes(uri));
   }
+  /** 每次打开分享面板带了哪些文件。 */
+  shareSheets: string[][] = [];
   async shareUris(items: readonly { uri: string }[]) {
+    this.shareSheets.push(items.map((i) => i.uri));
     this.shared.push(...items.map((i) => i.uri));
+  }
+  /** 下一次选文件夹时用户怎么做：选好、取消、选了写不进去的文件夹。 */
+  folderChoice: 'pick' | 'cancel' | 'notWritable' = 'pick';
+  /** 存进文件夹的文件：文件名 → 内容。 */
+  folder = new Map<string, Uint8Array>();
+  async saveToFolder(items: readonly FolderItem[]) {
+    if (this.folderChoice === 'cancel') return null;
+    if (this.folderChoice === 'notWritable') throw new RunError('folderNotWritable');
+    for (const item of items) {
+      this.folder.set(`${item.name}.${item.ext}`, await this.readBytes(item.uri));
+    }
+    return items.length;
   }
   async saveToPhotos(uris: readonly string[]) {
     if (!this.photosAllowed) {
