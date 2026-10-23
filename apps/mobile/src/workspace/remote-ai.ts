@@ -7,6 +7,10 @@ import { t } from '../i18n';
 
 export interface RemoteAIOptions {
   baseUrl: string;
+  /** 打包进 App 的客户端令牌（D-132）；登录鉴权上线前的临时防护，不是秘密。 */
+  clientToken?: string;
+  /** 用于服务器按设备限额。 */
+  deviceId?: () => Promise<string | null>;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
 }
@@ -30,9 +34,14 @@ export function createRemoteAIProvider(options: RemoteAIOptions): AIProvider {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
+        const device = await options.deviceId?.();
         const response = await fetchImpl(`${options.baseUrl}/v1/plan`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            'content-type': 'application/json',
+            ...(options.clientToken ? { 'x-morph-client': options.clientToken } : {}),
+            ...(device ? { 'x-morph-device': device } : {}),
+          },
           body: JSON.stringify({
             input,
             locale: ctx.locale,
