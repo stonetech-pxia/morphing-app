@@ -7,15 +7,7 @@ import {
   isFileValue,
 } from '@morph/core';
 import { useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
 import type { Palette } from '../renderer/theme';
@@ -96,9 +88,8 @@ export function AskPanel({
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={() => onAnswer(null)}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.backdrop}>
+      {/* Android 也要 padding：Modal 里窗口不跟着键盘缩小，三星键盘会挡住「确定」。 */}
+      <KeyboardAvoidingView behavior="padding" style={styles.backdrop}>
         <View
           style={[
             styles.dialog,

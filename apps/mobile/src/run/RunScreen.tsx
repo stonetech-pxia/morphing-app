@@ -237,6 +237,8 @@ export function RunScreen({
   return (
     <ScrollView
       testID="run-screen"
+      // 问话面板（Modal）也在这棵树里：不加这个，键盘开着时点「确定」只会收起键盘。
+      keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 80 }}>
       <Card palette={palette}>
         {workflow.steps.map((s, i) => {
