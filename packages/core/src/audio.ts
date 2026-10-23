@@ -97,7 +97,7 @@ export function planAudioQuality(source: AudioSource, quality: AudioQuality): Au
 }
 
 /**
- * 转格式（剪一段、合成、从视频取声音也用它）：M4A 尽量保持原来的音质（码率不超过 192 kbps）；
+ * 转格式（剪一段、合成、从视频取声音也用它）：M4A 码率跟着原来的走（48–192 kbps）；
  * WAV 是不压缩的 16 位 PCM，保持原来的声道（最多 2 个）和采样率。
  */
 export function planAudioConvert(source: AudioSource, format: AudioFormat): AudioPlan {
@@ -106,9 +106,12 @@ export function planAudioConvert(source: AudioSource, format: AudioFormat): Audi
     const sampleRate = source.sampleRate ? Math.min(48000, source.sampleRate) : 44100;
     return { format, bitrateKbps: 0, channels, sampleRate };
   }
+  // 码率跟着原来的走（再编码一次略加一点，免得音质变差），不把低码率的录音变大：48–192 kbps。
   const original = sourceKbps(source);
-  const kbps = original > 0 ? Math.min(MAX_AUDIO_KBPS, Math.max(96, original)) : 160;
-  return { format, ...shapeFor(kbps, channels) };
+  const kbps = Math.round(
+    original > 0 ? Math.min(MAX_AUDIO_KBPS, Math.max(48, original * 1.2)) : 160,
+  );
+  return { format, bitrateKbps: kbps, channels: kbps >= 64 ? channels : 1, sampleRate: 44100 };
 }
 
 /** 预计大小（字节）：检查剩余空间用。 */

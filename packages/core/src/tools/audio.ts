@@ -51,11 +51,12 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
       },
       {
         key: 'model',
-        label: { en: 'Recognition (Android)', zh: '识别（Android）' },
+        // Android 用哪个识别模型（下载内容：更准 190 MB、更快 60 MB）；iPhone 用系统识别，不看这一项。
+        label: { en: 'Recognition', zh: '识别' },
         kind: 'choice',
         options: [
-          { value: 'standard', label: { en: 'More accurate (190 MB)', zh: '更准（190 MB）' } },
-          { value: 'fast', label: { en: 'Faster (60 MB)', zh: '更快（60 MB）' } },
+          { value: 'standard', label: { en: 'More accurate', zh: '更准' } },
+          { value: 'fast', label: { en: 'Faster', zh: '更快' } },
         ],
       },
     ],

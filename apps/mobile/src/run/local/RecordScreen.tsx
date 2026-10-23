@@ -56,6 +56,7 @@ export function RecordScreen({
   const state = useAudioRecorderState(recorder, 200);
   const [phase, setPhase] = useState<Phase>('idle');
   const [denied, setDenied] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   async function start() {
     const permission = await requestRecordingPermissionsAsync();
@@ -63,15 +64,21 @@ export function RecordScreen({
       setDenied(true);
       return;
     }
-    await setAudioModeAsync({
-      allowsRecording: true,
-      playsInSilentMode: true,
-      shouldPlayInBackground: true,
-      allowsBackgroundRecording: true,
-    });
-    await recorder.prepareToRecordAsync();
-    recorder.record();
-    setPhase('recording');
+    try {
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+        shouldPlayInBackground: true,
+        allowsBackgroundRecording: true,
+      });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setFailed(false);
+      setPhase('recording');
+    } catch {
+      // 没有麦克风（模拟器、被别的 App 占着）：说一句，可以再试。
+      setFailed(true);
+    }
   }
 
   function toggle() {
@@ -170,7 +177,9 @@ export function RecordScreen({
         <Text style={[palette.font('body', 15), styles.hint, { color: palette.caption }]}>
           {denied
             ? t(locale, 'runError_permissionDenied', { what: t(locale, 'recordMicrophone') })
-            : t(locale, 'recordHint')}
+            : failed
+              ? t(locale, 'recordFailed')
+              : t(locale, 'recordHint')}
         </Text>
       </View>
     </LocalFrame>

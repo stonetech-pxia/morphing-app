@@ -472,7 +472,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   {
     id: 'cut-audio',
     scenario: 'sound',
-    name: { en: 'Cut out a part', zh: '剪一段' },
+    name: { en: 'Cut out part of a recording', zh: '剪一段音频' },
     description: {
       en: 'Choose a recording or song → pick the part you want on the waveform → save it in Files. On Android you can then choose it as a ringtone in Settings; an iPhone app can not set ringtones.',
       zh: '选一段录音或歌曲 → 在波形图上选要的部分 → 存到「文件」。Android 可以再到系统设置里把它设成铃声；iPhone 不能由 App 设成铃声。',

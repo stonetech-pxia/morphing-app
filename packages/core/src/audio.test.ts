@@ -109,6 +109,20 @@ describe('planAudioConvert', () => {
   });
 });
 
+describe('planAudioConvert keeps small recordings small', () => {
+  it('follows a low bitrate instead of raising it', () => {
+    expect(planAudioConvert({ durationMs: 1000, size: 0, kbps: 35, channels: 1 }, 'm4a')).toEqual({
+      format: 'm4a',
+      bitrateKbps: 48,
+      channels: 1,
+      sampleRate: 44100,
+    });
+    expect(
+      planAudioConvert({ durationMs: 1000, size: 0, kbps: 40, channels: 2 }, 'm4a'),
+    ).toMatchObject({ channels: 1 });
+  });
+});
+
 describe('audio tool', () => {
   it('its quick actions pass the static checks and it installs', () => {
     for (const locale of ['zh', 'en'] as const) {

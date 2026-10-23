@@ -8,7 +8,16 @@ import {
 } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentType } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { runErrorText, t } from '../i18n';
 import { Icon } from '../renderer/Icon';
@@ -25,6 +34,9 @@ import { AskPanel } from './AskPanel';
 import { HabitCard } from './HabitCard';
 import { LOCAL_SCREENS } from './local';
 import { ResultView } from './ResultView';
+
+/** 问话框淡出要多久（毫秒）。 */
+const ASK_DISMISS_MS = 400;
 
 // 运行页面（TOOLS_DESIGN §3）：每一步的进度、取消、运行时询问、本地操作界面、结果预览。
 // 打开即开始运行；关闭时取消并删除本次的临时文件。
@@ -416,8 +428,11 @@ export function RunScreen({
           locale={locale}
           now={new Date()}
           onAnswer={(answer) => {
-            ask.resolve(answer);
             setAsk(null);
+            // 问完马上打开系统选择器（第一步问「从文件选 / 录音」时）：iOS 上问话框还在淡出，
+            // 这时弹出的选择器会被系统悄悄丢掉、运行卡住。等它关完再继续。
+            if (Platform.OS === 'ios') setTimeout(() => ask.resolve(answer), ASK_DISMISS_MS);
+            else ask.resolve(answer);
           }}
         />
       ) : null}

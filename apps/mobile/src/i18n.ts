@@ -655,6 +655,10 @@ const strings = {
   },
   recordTitle: { en: 'Record', zh: '录音' },
   recordMicrophone: { en: 'Microphone', zh: '麦克风' },
+  recordFailed: {
+    en: 'The microphone can’t be used right now (another app may be using it). Try again.',
+    zh: '现在用不了麦克风（可能别的 App 正在用），请再试一次。',
+  },
   recordStart: { en: 'Start recording', zh: '开始录音' },
   recordPause: { en: 'Pause', zh: '暂停' },
   recordResume: { en: 'Continue', zh: '继续录' },
