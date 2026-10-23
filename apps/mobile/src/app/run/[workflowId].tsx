@@ -37,6 +37,7 @@ export default function RunRoute() {
         workflow={workflow}
         {...(incoming ? { incoming } : {})}
         onEdit={() => router.push({ pathname: '/workflow/[id]', params: { id: workflow.id } })}
+        onAskAI={() => router.push({ pathname: '/change', params: { workflow: workflow.id } })}
       />
     </>
   );

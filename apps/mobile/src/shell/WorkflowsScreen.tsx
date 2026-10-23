@@ -1,7 +1,9 @@
 import {
-  WORKFLOW_PRESETS,
+  PRESET_SCENARIOS,
   newWorkflowId,
   presetWorkflow,
+  presetsIn,
+  type WorkflowPreset,
   type Locale,
   type Registry,
   type Workflow,
@@ -72,6 +74,51 @@ export function WorkflowsScreen({
     </Card>
   );
 
+  const presetCard = (preset: WorkflowPreset) => {
+    const added = mine.filter((w) => w.presetId === preset.id);
+    // iOS 用系统的识别和扫描，不需要扫描包和文字识别包（D-084）。
+    const needsDownload = packsNeeded(preset.packs ?? [], files).length > 0;
+    return (
+      <Card key={preset.id} palette={palette} testID={`preset-${preset.id}`}>
+        <Text style={[palette.font('title', 16), { color: palette.text }]}>
+          {preset.name[locale]}
+          {added.length > 0 ? (zh ? ' · 已添加' : ' · added') : ''}
+        </Text>
+        <Text style={caption}>{preset.description[locale]}</Text>
+        {needsDownload ? (
+          <Text style={caption}>
+            {zh
+              ? '首次使用需要下载一些内容，之后不联网也能用。'
+              : 'The first run downloads what it needs; it works offline afterwards.'}
+          </Text>
+        ) : null}
+        <View style={styles.actions}>
+          {/* 加好了就能直接用（D-125）。 */}
+          {added.length > 0 ? (
+            <Pill
+              palette={palette}
+              testID={`preset-run-${preset.id}`}
+              label={zh ? '运行' : 'Run'}
+              onPress={() => run(added.at(-1)!)}
+            />
+          ) : null}
+          <Pill
+            palette={palette}
+            testID={`preset-add-${preset.id}`}
+            label={added.length > 0 ? (zh ? '再添加一个' : 'Add another') : zh ? '添加' : 'Add'}
+            onPress={() => {
+              const wf = presetWorkflow(preset, locale, newWorkflowId(preset.id, config.workflows));
+              void change(
+                [{ op: 'addWorkflow', workflow: wf }],
+                zh ? `添加了快捷操作「${wf.name}」` : `Added the quick action “${wf.name}”`,
+              );
+            }}
+          />
+        </View>
+      </Card>
+    );
+  };
+
   return (
     <ScrollView
       testID="workflows-screen"
@@ -96,46 +143,16 @@ export function WorkflowsScreen({
         mine.map((wf) => row(wf))
       )}
 
+      {/* 现成的快捷操作按生活场景分组（D-130）。 */}
       <SectionLabel palette={palette}>{zh ? '现成的' : 'Ready-made'}</SectionLabel>
-      {WORKFLOW_PRESETS.map((preset) => {
-        const added = mine.filter((w) => w.presetId === preset.id);
-        // iOS 用系统的识别和扫描，不需要扫描包和文字识别包（D-084）。
-        const needsDownload = packsNeeded(preset.packs ?? [], files).length > 0;
-        return (
-          <Card key={preset.id} palette={palette} testID={`preset-${preset.id}`}>
-            <Text style={[palette.font('title', 16), { color: palette.text }]}>
-              {preset.name[locale]}
-              {added.length > 0 ? (zh ? ' · 已添加' : ' · added') : ''}
-            </Text>
-            <Text style={caption}>{preset.description[locale]}</Text>
-            {needsDownload ? (
-              <Text style={caption}>
-                {zh
-                  ? '首次使用需要下载一些内容，之后不联网也能用。'
-                  : 'The first run downloads what it needs; it works offline afterwards.'}
-              </Text>
-            ) : null}
-            <View style={styles.actions}>
-              <Pill
-                palette={palette}
-                testID={`preset-add-${preset.id}`}
-                label={added.length > 0 ? (zh ? '再添加一个' : 'Add another') : zh ? '添加' : 'Add'}
-                onPress={() => {
-                  const wf = presetWorkflow(
-                    preset,
-                    locale,
-                    newWorkflowId(preset.id, config.workflows),
-                  );
-                  void change(
-                    [{ op: 'addWorkflow', workflow: wf }],
-                    zh ? `添加了快捷操作「${wf.name}」` : `Added the quick action “${wf.name}”`,
-                  );
-                }}
-              />
-            </View>
-          </Card>
-        );
-      })}
+      {PRESET_SCENARIOS.map((scenario) => (
+        <View key={scenario.id} style={styles.scenario} testID={`scenario-${scenario.id}`}>
+          <Text style={[palette.font('title', 15), { color: palette.muted }]}>
+            {scenario.name[locale]}
+          </Text>
+          {presetsIn(scenario.id).map(presetCard)}
+        </View>
+      ))}
 
       {toolOwned.length > 0 ? (
         <>
@@ -167,4 +184,5 @@ export function WorkflowsScreen({
 
 const styles = StyleSheet.create({
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+  scenario: { gap: 8 },
 });

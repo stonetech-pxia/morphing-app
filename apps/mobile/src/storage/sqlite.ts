@@ -75,6 +75,11 @@ const DB_MIGRATIONS: string[] = [
      deleted_at INTEGER
    );
    CREATE INDEX records_by_collection ON records (collection_id, deleted_at, created_at);`,
+  // 设备上的小设置：使用习惯的统计等（D-127），不随版本恢复。
+  `CREATE TABLE app_meta (
+     key TEXT PRIMARY KEY,
+     value TEXT NOT NULL
+   );`,
 ];
 
 interface RecordRow {
@@ -332,6 +337,22 @@ export class SQLiteWorkspaceRepo implements WorkspaceRepo {
       result.outputAssetId ?? null,
       Date.now(),
       id,
+    );
+  }
+
+  async getMeta(key: string) {
+    const row = await this.db.getFirstAsync<{ value: string }>(
+      'SELECT value FROM app_meta WHERE key = ?',
+      key,
+    );
+    return row?.value ?? null;
+  }
+
+  async setMeta(key: string, value: string) {
+    await this.db.runAsync(
+      'INSERT INTO app_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      key,
+      value,
     );
   }
 

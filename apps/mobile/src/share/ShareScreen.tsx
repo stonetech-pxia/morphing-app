@@ -1,4 +1,7 @@
 import {
+  WORKFLOW_PRESETS,
+  newWorkflowId,
+  presetWorkflow,
   sanitizeFileName,
   shareFit,
   sharedSizeProblem,
@@ -16,6 +19,7 @@ import { Icon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Button, Card, Pill, SectionLabel } from '../renderer/ui';
 import { baseName, extOf, mimeOf } from '../runtime/actions/helpers';
+import { useWorkflowChange } from '../run/workflow-change';
 import { newAssetId } from '../runtime/runner';
 import { stepChain } from '../shell/WorkflowsScreen';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
@@ -38,6 +42,9 @@ export function ShareScreen() {
   // 交给运行页面或已经存好时为 true：离开页面时不删文件（运行页面关闭时再删）。
   const handed = useRef(false);
   const shareId = useRef(share?.id);
+  const change = useWorkflowChange();
+  // 打开 AI 之前已有的快捷操作：回来后新做的那个标「刚做好」、排在最前面（D-129）。
+  const [knownIds, setKnownIds] = useState<Set<string> | null>(null);
   useEffect(() => {
     shareId.current = share?.id;
   }, [share?.id]);
@@ -88,8 +95,17 @@ export function ShareScreen() {
   ]
     .map((wf) => ({ wf, fit: shareFit(wf, infos) }))
     .filter(({ fit }) => fit.ok || fit.reason !== 'type')
-    // 能运行的排在前面（排序是稳定的，组内保持原来的顺序）。
-    .sort((a, b) => Number(b.fit.ok) - Number(a.fit.ok));
+    // 能运行的排在前面（排序是稳定的，组内保持原来的顺序）；刚让 AI 做好的排最前。
+    .sort((a, b) => Number(b.fit.ok) - Number(a.fit.ok))
+    .sort((a, b) => Number(isNew(b.wf)) - Number(isNew(a.wf)));
+  // 还没添加、第一步收得下这些文件的现成快捷操作（D-129）。
+  const presets = WORKFLOW_PRESETS.filter((p) => !config.workflows.some((w) => w.presetId === p.id))
+    .map((preset) => ({ preset, wf: presetWorkflow(preset, locale, preset.id) }))
+    .filter(({ wf }) => shareFit(wf, infos).ok);
+
+  function isNew(wf: Workflow) {
+    return knownIds !== null && !wf.toolId && !knownIds.has(wf.id);
+  }
 
   const reason = (fit: ShareFit) =>
     fit.ok
@@ -110,6 +126,22 @@ export function ShareScreen() {
       pathname: '/run/[workflowId]',
       params: { workflowId: wf.id, shared: String(share!.id) },
     });
+  }
+
+  /** 添加一个现成的快捷操作（可撤销），然后用分享的文件运行它。 */
+  async function addAndRun(preset: (typeof WORKFLOW_PRESETS)[number]) {
+    const wf = presetWorkflow(preset, locale, newWorkflowId(preset.id, config.workflows));
+    const ok = await change(
+      [{ op: 'addWorkflow', workflow: wf }],
+      zh ? `添加了快捷操作「${wf.name}」` : `Added the quick action “${wf.name}”`,
+    );
+    if (ok) run(wf);
+  }
+
+  /** 让 AI 搭一个：AI 只知道文件的类型和个数（D-124）。做好后回到这里，新的排在最前面。 */
+  function askAI() {
+    setKnownIds(new Set(config.workflows.map((w) => w.id)));
+    router.push({ pathname: '/change', params: { shared: String(share!.id) } });
   }
 
   async function save() {
@@ -215,14 +247,17 @@ export function ShareScreen() {
             <Card palette={palette}>
               <Text testID="share-no-workflows" style={caption}>
                 {zh
-                  ? '没有能处理这些文件的快捷操作。可以在「设置 → 快捷操作」里添加一个现成的。'
-                  : 'No quick action takes these files. Add a ready-made one in Settings → Quick actions.'}
+                  ? '还没有能处理这些文件的快捷操作。可以添加下面现成的，或者让 AI 搭一个。'
+                  : 'No quick action takes these files yet. Add a ready-made one below, or ask AI to make one.'}
               </Text>
             </Card>
           ) : (
             candidates.map(({ wf, fit }) => (
               <Card key={wf.id} palette={palette} testID={`share-workflow-${wf.id}`}>
-                <Text style={[palette.font('title', 16), { color: palette.text }]}>{wf.name}</Text>
+                <Text style={[palette.font('title', 16), { color: palette.text }]}>
+                  {wf.name}
+                  {isNew(wf) ? (zh ? ' · 刚做好' : ' · just made') : ''}
+                </Text>
                 {wf.toolId ? (
                   <Text style={caption}>{registry.tools.get(wf.toolId)?.name[locale]}</Text>
                 ) : null}
@@ -244,6 +279,36 @@ export function ShareScreen() {
               </Card>
             ))
           )}
+          {presets.length > 0 ? (
+            <>
+              <SectionLabel palette={palette}>
+                {zh ? '现成的快捷操作' : 'Ready-made quick actions'}
+              </SectionLabel>
+              {presets.map(({ preset, wf }) => (
+                <Card key={preset.id} palette={palette} testID={`share-preset-${preset.id}`}>
+                  <Text style={[palette.font('title', 16), { color: palette.text }]}>
+                    {preset.name[locale]}
+                  </Text>
+                  <Text style={caption}>{stepChain(wf, registry, locale)}</Text>
+                  <View style={styles.actions}>
+                    <Pill
+                      palette={palette}
+                      testID={`share-preset-add-${preset.id}`}
+                      label={zh ? '添加并运行' : 'Add and run'}
+                      onPress={() => void addAndRun(preset)}
+                    />
+                  </View>
+                </Card>
+              ))}
+            </>
+          ) : null}
+          <Button
+            palette={palette}
+            testID="share-ask-ai"
+            variant="outline"
+            label={zh ? '让 AI 搭一个' : 'Ask AI to make one'}
+            onPress={askAI}
+          />
         </>
       )}
     </ScrollView>

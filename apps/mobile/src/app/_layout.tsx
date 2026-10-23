@@ -108,6 +108,7 @@ function ThemedStack() {
         <Stack.Screen name="record/[collectionId]" options={closable} />
         <Stack.Screen name="run/[workflowId]" options={closable} />
         <Stack.Screen name="share" options={closable} />
+        <Stack.Screen name="ready/[workflowId]" options={{ ...closable, title: '' }} />
       </Stack>
     </>
   );

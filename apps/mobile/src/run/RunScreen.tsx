@@ -1,4 +1,11 @@
-import { RunError, isFileValue, type AskRequest, type RunResult, type Workflow } from '@morph/core';
+import {
+  RunError,
+  isFileValue,
+  type AskedAnswer,
+  type AskRequest,
+  type RunResult,
+  type Workflow,
+} from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -15,6 +22,7 @@ import { releaseShare, type IncomingShare } from '../share/incoming';
 import { usePacks } from '../packs/PackHost';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { AskPanel } from './AskPanel';
+import { HabitCard } from './HabitCard';
 import { LOCAL_SCREENS } from './local';
 import { ResultView } from './ResultView';
 
@@ -43,10 +51,13 @@ const START_DELAY_MS = 450;
 export function RunScreen({
   workflow,
   onEdit,
+  onAskAI,
   incoming,
 }: {
   workflow: Workflow;
   onEdit?: () => void;
+  /** 「让 AI 改这个」：带着这个快捷操作打开 AI 修改（D-126）。 */
+  onAskAI?: () => void;
   /** 分享进来的文件（D-115）：第一步用它们，不打开选择器。关闭运行页面时删掉。 */
   incoming?: IncomingShare;
 }) {
@@ -70,6 +81,9 @@ export function RunScreen({
   const [packAsk, setPackAsk] = useState<({ packId: string } & Pending<boolean>) | null>(null);
   const signal = useRef({ cancelled: false });
   const run = useRef<Run | null>(null);
+  // 这次运行里「每次运行时问」的回答，结果页据此提议做成快捷操作（D-127）。
+  const answers = useRef<AskedAnswer[]>([]);
+  const [runCount, setRunCount] = useState(0);
   const label = (action: string, index: number) =>
     incoming && index === 0
       ? t(locale, 'shareInputStep', { n: incoming.files.length })
@@ -103,6 +117,7 @@ export function RunScreen({
   }
 
   async function execute() {
+    answers.current = [];
     const started = await startRun({
       workflow,
       revisionId,
@@ -125,7 +140,18 @@ export function RunScreen({
       },
       signal: signal.current,
       incoming: incoming?.files ?? null,
-      askParams: (request) => new Promise((resolve) => setAsk({ ...request, resolve })),
+      askParams: async (request) => {
+        const answer = await new Promise<Record<string, unknown> | null>((resolve) =>
+          setAsk({ ...request, resolve }),
+        );
+        if (answer) {
+          const values = Object.fromEntries(
+            request.keys.filter((k) => k in answer).map((k) => [k, answer[k]]),
+          );
+          answers.current.push({ stepId: request.step.id, values });
+        }
+        return answer;
+      },
       onEvent: (e) =>
         setCurrent(
           e.kind === 'step' ? { index: e.index } : { index: e.index, done: e.done, total: e.total },
@@ -134,6 +160,7 @@ export function RunScreen({
     run.current = started;
     setCurrent(null);
     setOutcome(started.result);
+    setRunCount((n) => n + 1);
     if (started.result.status === 'succeeded' && started.result.saved.length > 0) bumpAssets();
   }
 
@@ -296,6 +323,10 @@ export function RunScreen({
         />
       ) : null}
 
+      {outcome?.status === 'succeeded' ? (
+        <HabitCard key={runCount} workflow={workflow} answers={answers.current} palette={palette} />
+      ) : null}
+
       {/* 结果页：「完成」关闭页面；「再来一次」次要；改设置是一个小链接（D-111）。 */}
       {!running ? (
         <>
@@ -316,18 +347,32 @@ export function RunScreen({
               style={styles.flex}
             />
           </View>
-          {onEdit ? (
-            <Pressable
-              testID="run-edit"
-              accessibilityRole="link"
-              hitSlop={8}
-              onPress={onEdit}
-              style={styles.editLink}>
-              <Text style={[palette.font('bodyMedium', 14), { color: palette.primaryText }]}>
-                {t(locale, 'runEdit')}
-              </Text>
-            </Pressable>
-          ) : null}
+          <View style={styles.links}>
+            {onEdit ? (
+              <Pressable
+                testID="run-edit"
+                accessibilityRole="link"
+                hitSlop={8}
+                onPress={onEdit}
+                style={styles.editLink}>
+                <Text style={[palette.font('bodyMedium', 14), { color: palette.primaryText }]}>
+                  {t(locale, 'runEdit')}
+                </Text>
+              </Pressable>
+            ) : null}
+            {onAskAI ? (
+              <Pressable
+                testID="run-ask-ai"
+                accessibilityRole="link"
+                hitSlop={8}
+                onPress={onAskAI}
+                style={styles.editLink}>
+                <Text style={[palette.font('bodyMedium', 14), { color: palette.primaryText }]}>
+                  {t(locale, 'askAIChange')}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
         </>
       ) : null}
 
@@ -387,5 +432,6 @@ const styles = StyleSheet.create({
   dot: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
   row: { flexDirection: 'row', gap: 10 },
-  editLink: { alignSelf: 'center', paddingVertical: 4 },
+  links: { flexDirection: 'row', justifyContent: 'center', gap: 24 },
+  editLink: { paddingVertical: 4 },
 });

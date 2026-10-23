@@ -1,4 +1,4 @@
-import type { Locale } from '@morph/core';
+import type { Locale, PlanAbout } from '@morph/core';
 
 import type { AIMode } from '../ai/settings';
 
@@ -45,4 +45,51 @@ export const AI_EXAMPLES: Record<Locale, readonly string[]> = {
 
 export function examplesFor(mode: AIMode, locale: Locale): readonly string[] {
   return (mode === 'mock' ? OFFLINE_EXAMPLES : AI_EXAMPLES)[locale];
+}
+
+// 从一个快捷操作或收件页面打开时（D-124）的例子。内置规则只认带「这个」的固定句式，
+// ChangeScreen 会先用内置规则试一遍，只留下它真能做的句子。
+
+const ABOUT_WORKFLOW: Record<'mock' | 'ai', Record<Locale, readonly string[]>> = {
+  mock: {
+    zh: ['把这个的大小改成 200KB', '在这个里加一步去掉定位', '把这个放到首页'],
+    en: ['Put this quick action on the home page'],
+  },
+  ai: {
+    zh: ['再小一点', '最后加一步分享', '把它放到首页', '换个名字，叫「交给学校」'],
+    en: ['Make it smaller', 'Share the result at the end', 'Put it on the home page'],
+  },
+};
+
+const ABOUT_SHARED: Record<'images' | 'pdfs' | 'mixed', Record<Locale, readonly string[]>> = {
+  images: {
+    zh: ['做成一个 PDF', '压到 500KB 再分享', '拼成一张长图', '去掉定位再分享'],
+    en: ['Make one PDF', 'Compress to 500 KB, then share', 'Stitch them into one long image'],
+  },
+  pdfs: {
+    zh: ['合成一个 PDF', '加上页码', '压小一点再分享'],
+    en: ['Combine them into one PDF', 'Add page numbers', 'Make them smaller, then share'],
+  },
+  mixed: {
+    zh: ['合成一个 PDF', '打包成 ZIP 再分享'],
+    en: ['Combine everything into one PDF', 'Zip them and share'],
+  },
+};
+
+const OFFLINE_SHARED: Record<Locale, readonly string[]> = {
+  zh: ['新建一个快捷操作：选照片，压到 500KB，分享', '新建一个快捷操作：选照片，去掉定位，分享'],
+  en: ['Create a quick action: choose photos, convert to JPG, remove location, zip, share'],
+};
+
+export function aboutCandidates(about: PlanAbout, mode: AIMode, locale: Locale): readonly string[] {
+  if (about.kind === 'workflow') return ABOUT_WORKFLOW[mode === 'mock' ? 'mock' : 'ai'][locale];
+  if (mode === 'mock')
+    return about.images > 0 && about.pdfs + about.others === 0 ? OFFLINE_SHARED[locale] : [];
+  const kind =
+    about.pdfs + about.others === 0
+      ? 'images'
+      : about.images + about.others === 0
+        ? 'pdfs'
+        : 'mixed';
+  return ABOUT_SHARED[kind][locale];
 }

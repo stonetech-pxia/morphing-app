@@ -8,6 +8,7 @@ import { createAISettingsStore, type SecretStore } from '../ai/settings';
 import ChangeRoute from '../app/change';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
+import ReadyRoute from '../app/ready/[workflowId]';
 import RunRoute from '../app/run/[workflowId]';
 import ShareRoute from '../app/share';
 import WorkflowRoute from '../app/workflow/[id]';
@@ -64,6 +65,7 @@ export async function renderToolsApp(repo = new MemoryWorkspaceRepo(), files = n
     workflows: WorkflowsRoute,
     'workflow/[id]': WorkflowRoute,
     share: ShareRoute,
+    'ready/[workflowId]': ReadyRoute,
   });
   return { repo, store, files };
 }
