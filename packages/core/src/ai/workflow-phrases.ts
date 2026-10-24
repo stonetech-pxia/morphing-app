@@ -172,6 +172,10 @@ const RECORD_PHRASES: Matcher[] = [
 ];
 
 const STEP_PHRASES: Matcher[] = [
+  [
+    /^(?:拼接视频|合并视频|拼成一段视频)$|^join (?:the )?videos?$/i,
+    () => ({ action: 'video.merge', params: {} }),
+  ],
   ...RECORD_PHRASES,
   ...TRANSLATE_PHRASES,
   ...AUDIO_PHRASES,
@@ -491,6 +495,7 @@ export function stepsFrom(phrases: readonly StepPhrase[]): WorkflowStep[] {
 }
 
 const PRESET_WORDS: [RegExp, string][] = [
+  [/把几段视频拼成一段|join video clips|merge videos/i, 'join-videos'],
   // 音频预设（D-156）放在「合一」「发照片」前面。
   [/录音转文字|录音变成文字|recordings? (?:in)?to text/i, 'audio-to-text'],
   [/语音太大|录音太大|recording (?:is )?too big/i, 'audio-too-big'],

@@ -340,7 +340,8 @@ public class MorphMediaModule: Module {
   // MARK: - transcode
 
   private func transcode(
-    _ job: Job, jobId: String, uri: URL, output: URL, options: [String: Any]
+    _ job: Job, jobId: String, uri: URL, output: URL, options: [String: Any],
+    sourceAsset: AVAsset? = nil, suppliedComposition: AVVideoComposition? = nil
   ) async throws -> [String: Any] {
     let container = options["container"] as? String ?? "mp4"
     if options["video"] as? String == "drop" {
@@ -369,12 +370,12 @@ public class MorphMediaModule: Module {
       throw NotImplementedException("audio codec \(codec)")
     }
 
-    let asset = AVURLAsset(url: uri)
+    let asset: AVAsset = sourceAsset ?? AVURLAsset(url: uri)
     let (duration, tracks) = try await asset.load(.duration, .tracks)
     guard let videoTrack = tracks.first(where: { $0.mediaType == .video }) else {
       throw MediaUnsupportedException("no video")
     }
-    let audioTrack = audioOptions == nil ? nil : tracks.first { $0.mediaType == .audio }
+    let audioTracks = audioOptions == nil ? [] : tracks.filter { $0.mediaType == .audio }
 
     var timeRange = CMTimeRange(start: .zero, duration: duration)
     if let range = options["range"] as? [String: Double], let start = range["startMs"], let end = range["endMs"] {
@@ -386,8 +387,8 @@ public class MorphMediaModule: Module {
     // 输出尺寸：摆正之后按短边缩小，不放大；H.264 要偶数宽高。
     let (natural, transform, nominalFps) = try await videoTrack.load(.naturalSize, .preferredTransform, .nominalFrameRate)
     let shown = natural.applying(transform)
-    let shownW = abs(shown.width)
-    let shownH = abs(shown.height)
+    let shownW = suppliedComposition?.renderSize.width ?? abs(shown.width)
+    let shownH = suppliedComposition?.renderSize.height ?? abs(shown.height)
     let shortSide = min(shownW, shownH)
     let maxShort = (video["maxShortSide"] as? Double).map { CGFloat($0) } ?? shortSide
     let scale = min(1, maxShort / max(shortSide, 1))
@@ -432,9 +433,9 @@ public class MorphMediaModule: Module {
     writer.shouldOptimizeForNetworkUse = true
 
     let videoOut = AVAssetReaderVideoCompositionOutput(
-      videoTracks: [videoTrack],
+      videoTracks: tracks.filter { $0.mediaType == .video },
       videoSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange])
-    videoOut.videoComposition = composition
+    videoOut.videoComposition = suppliedComposition ?? composition
     videoOut.alwaysCopiesSampleData = false
     guard reader.canAdd(videoOut) else { throw MediaUnsupportedException("video output") }
     reader.add(videoOut)
@@ -464,13 +465,13 @@ public class MorphMediaModule: Module {
 
     var audioOut: AVAssetReaderAudioMixOutput?
     var audioIn: AVAssetWriterInput?
-    if let audioTrack, let audioOptions {
+    if !audioTracks.isEmpty, let audioOptions {
       let kbps = audioOptions["bitrateKbps"] as? Double ?? 128
       // AAC 低码率时用单声道、低采样率，否则编码器不接受。
       let channels = (audioOptions["channels"] as? NSNumber)?.intValue ?? (kbps < 64 ? 1 : 2)
       let sampleRate = (audioOptions["sampleRate"] as? Double) ?? (kbps < 64 ? 22050 : 44100)
       let out = AVAssetReaderAudioMixOutput(
-        audioTracks: [audioTrack],
+        audioTracks: audioTracks,
         audioSettings: [
           AVFormatIDKey: kAudioFormatLinearPCM,
           AVSampleRateKey: sampleRate,
@@ -795,10 +796,76 @@ public class MorphMediaModule: Module {
     return try await Self.result(output)
   }
 
+  /** 视频首尾拼接：每段独立摆正并按第一段画布等比留边；无声片段不插入音轨。 */
+  private func concatVideo(
+    _ job: Job, jobId: String, uris: [URL], output: URL, options: [String: Any]
+  ) async throws -> [String: Any] {
+    guard (2...10).contains(uris.count), let videoOptions = options["video"] as? [String: Any] else {
+      throw MediaUnsupportedException("expected 2–10 video clips")
+    }
+    let width = (videoOptions["width"] as? NSNumber)?.intValue ?? 0
+    let height = (videoOptions["height"] as? NSNumber)?.intValue ?? 0
+    let fps = (videoOptions["maxFps"] as? NSNumber)?.doubleValue ?? 30
+    guard width > 0, height > 0, width % 2 == 0, height % 2 == 0, fps > 0, fps.isFinite else {
+      throw MediaUnsupportedException("invalid output dimensions or frame rate")
+    }
+    let asset = AVMutableComposition()
+    let composition = AVMutableVideoComposition()
+    composition.renderSize = CGSize(width: width, height: height)
+    composition.frameDuration = CMTime(seconds: 1 / fps, preferredTimescale: 60000)
+    composition.colorPrimaries = AVVideoColorPrimaries_ITU_R_709_2
+    composition.colorTransferFunction = AVVideoTransferFunction_ITU_R_709_2
+    composition.colorYCbCrMatrix = AVVideoYCbCrMatrix_ITU_R_709_2
+    var instructions: [AVVideoCompositionInstructionProtocol] = []
+    var cursor = CMTime.zero
+    for uri in uris {
+      if job.cancelled { throw MediaCancelledException() }
+      let sourceAsset = AVURLAsset(url: uri)
+      let sourceTracks = try await sourceAsset.load(.tracks)
+      guard let source = sourceTracks.first(where: { $0.mediaType == .video }),
+            let target = asset.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
+        throw MediaUnsupportedException("no video")
+      }
+      let (range, natural, transform) = try await source.load(.timeRange, .naturalSize, .preferredTransform)
+      guard range.duration.seconds > 0, range.duration.seconds.isFinite else { throw MediaUnsupportedException("empty video") }
+      try target.insertTimeRange(range, of: source, at: cursor)
+      let bounds = CGRect(origin: .zero, size: natural).applying(transform)
+      guard bounds.width > 0, bounds.height > 0 else { throw MediaUnsupportedException("empty frame") }
+      let scale = min(CGFloat(width) / bounds.width, CGFloat(height) / bounds.height)
+      let position = transform
+        .concatenating(CGAffineTransform(translationX: -bounds.minX, y: -bounds.minY))
+        .concatenating(CGAffineTransform(scaleX: scale, y: scale))
+        .concatenating(CGAffineTransform(translationX: (CGFloat(width) - bounds.width * scale) / 2,
+                                       y: (CGFloat(height) - bounds.height * scale) / 2))
+      let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: target)
+      layer.setTransform(position, at: cursor)
+      let instruction = AVMutableVideoCompositionInstruction()
+      instruction.timeRange = CMTimeRange(start: cursor, duration: range.duration)
+      instruction.backgroundColor = UIColor.black.cgColor
+      instruction.layerInstructions = [layer]
+      instructions.append(instruction)
+      if options["audio"] as? String != "drop", let audio = sourceTracks.first(where: { $0.mediaType == .audio }) {
+        let audioRange = try await audio.load(.timeRange)
+        let overlap = CMTimeRangeGetIntersection(range, otherRange: audioRange)
+        if overlap.duration.seconds > 0 {
+          guard let audioTarget = asset.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MediaFailedException("audio track") }
+          try audioTarget.insertTimeRange(overlap, of: audio, at: cursor + overlap.start - range.start)
+        }
+      }
+      cursor = cursor + range.duration
+    }
+    composition.instructions = instructions
+    return try await transcode(job, jobId: jobId, uri: uris[0], output: output, options: options,
+                               sourceAsset: asset, suppliedComposition: composition)
+  }
+
   /** 几段接成一段：每段放进合成里自己的一路，首尾相接，读的时候混成一路（格式、采样率可以不同）。 */
   private func concat(
     _ job: Job, jobId: String, uris: [URL], output: URL, options: [String: Any]
   ) async throws -> [String: Any] {
+    if options["video"] is [String: Any] {
+      return try await concatVideo(job, jobId: jobId, uris: uris, output: output, options: options)
+    }
     let composition = AVMutableComposition()
     var tracks: [AVAssetTrack] = []
     var cursor = CMTime.zero

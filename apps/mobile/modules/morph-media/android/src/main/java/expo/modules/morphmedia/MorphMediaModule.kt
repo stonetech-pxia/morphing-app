@@ -183,6 +183,12 @@ class MorphMediaModule : Module() {
     AsyncFunction("concat") {
       jobId: String, uris: List<String>, output: String, options: Map<String, Any?>, promise: Promise ->
       try {
+        if (options["video"] is Map<*, *>) {
+          if (uris.size !in 2..10) throw MediaUnsupportedException("expected 2–10 video clips")
+          val (transformer, composition) = buildTranscode(Uri.parse(uris.first()), options, uris.map { Uri.parse(it) })
+          run(jobId, transformer, composition, File(Uri.parse(output).path!!), promise)
+          return@AsyncFunction
+        }
         if ((options["container"] as? String ?: "m4a") != "m4a") throw NotImplementedException("concat to WAV")
         @Suppress("UNCHECKED_CAST")
         val audio = options["audio"] as? Map<String, Any?> ?: emptyMap()
@@ -311,7 +317,7 @@ class MorphMediaModule : Module() {
   }
 
   @Suppress("UNCHECKED_CAST")
-  private fun buildTranscode(uri: Uri, options: Map<String, Any?>): Pair<Transformer, Composition> {
+  private fun buildTranscode(uri: Uri, options: Map<String, Any?>, uris: List<Uri> = listOf(uri)): Pair<Transformer, Composition> {
     val container = options["container"] as? String ?: "mp4"
     val video = options["video"] as? Map<String, Any?>
     if (container != "mp4" || video == null) throw NotImplementedException("transcode to $container")
@@ -322,32 +328,42 @@ class MorphMediaModule : Module() {
       throw NotImplementedException("audio codec ${audio["codec"]}")
     }
 
-    val itemBuilder = MediaItem.Builder().setUri(uri)
-    (options["range"] as? Map<String, Any?>)?.let { range ->
-      val start = (range["startMs"] as Number).toLong()
-      val end = (range["endMs"] as Number).toLong()
-      itemBuilder.setClippingConfiguration(
-        MediaItem.ClippingConfiguration.Builder().setStartPositionMs(start).setEndPositionMs(end).build()
-      )
-    }
+    val items = uris.map { inputUri ->
+      val itemBuilder = MediaItem.Builder().setUri(inputUri)
+      (options["range"] as? Map<String, Any?>)?.let { range ->
+        val start = (range["startMs"] as Number).toLong()
+        val end = (range["endMs"] as Number).toLong()
+        itemBuilder.setClippingConfiguration(
+          MediaItem.ClippingConfiguration.Builder().setStartPositionMs(start).setEndPositionMs(end).build()
+        )
+      }
 
-    val effects = mutableListOf<androidx.media3.common.Effect>()
-    // JS 只在要缩小时才给 maxShortSide（不放大）；H.264 要偶数。
-    (video["maxShortSide"] as? Number)?.toInt()?.let { shortSide ->
-      effects.add(Presentation.createForShortSide(shortSide / 2 * 2))
-    }
-    (video["maxFps"] as? Number)?.toFloat()?.let { fps ->
-      effects.add(FrameDropEffect.createDefaultFrameDropEffect(fps))
-    }
+      val effects = mutableListOf<androidx.media3.common.Effect>()
+      // JS 只在要缩小时才给 maxShortSide（不放大）；H.264 要偶数。
+      (video["maxShortSide"] as? Number)?.toInt()?.let { shortSide ->
+        effects.add(Presentation.createForShortSide(shortSide / 2 * 2))
+      }
+      (video["maxFps"] as? Number)?.toFloat()?.let { fps ->
+        effects.add(FrameDropEffect.createDefaultFrameDropEffect(fps))
+      }
 
-    val edited = EditedMediaItem.Builder(itemBuilder.build())
-      .setRemoveAudio(dropAudio)
-      .setEffects(Effects(listOf(), effects))
-      .build()
+      val width = (video["width"] as? Number)?.toInt()
+      val height = (video["height"] as? Number)?.toInt()
+      if (width != null && height != null) {
+        if (width <= 0 || height <= 0 || width % 2 != 0 || height % 2 != 0) throw MediaUnsupportedException("invalid output dimensions")
+        effects.add(Presentation.createForWidthAndHeight(width, height, Presentation.LAYOUT_SCALE_TO_FIT))
+      }
+      EditedMediaItem.Builder(itemBuilder.build())
+        .setRemoveAudio(dropAudio)
+        .setEffects(Effects(listOf(), effects))
+        .build()
+    }
     val composition = Composition.Builder(
-      if (dropAudio) EditedMediaItemSequence.withVideoFrom(listOf(edited))
-      else EditedMediaItemSequence.withAudioAndVideoFrom(listOf(edited))
+      if (dropAudio) EditedMediaItemSequence.withVideoFrom(items)
+      else EditedMediaItemSequence.withAudioAndVideoFrom(items)
     )
+      // 有的片段没有声音：Media3 自动给这些片段补静音。
+      .experimentalSetForceAudioTrack(!dropAudio && uris.size > 1)
       // 普通画面（BT.709）：HDR 视频在这里转换，否则发到别处会发灰或过暗。
       .setHdrMode(Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL)
       .build()

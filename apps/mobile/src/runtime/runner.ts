@@ -54,6 +54,7 @@ export interface Run {
 
 /** 会跑很久的动作（视频、音频）：含这些步骤的运行切到别的 App 也继续（D-160）。 */
 const BACKGROUND_ACTIONS: ReadonlySet<string> = new Set([
+  'video.merge',
   'video.compress',
   'video.convert',
   'video.trim',

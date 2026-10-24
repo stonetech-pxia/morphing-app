@@ -162,6 +162,67 @@ async function eachVideo(
 }
 
 export const VIDEO_IMPLS: Record<string, Impl> = {
+  async 'video.merge'(input, _params, ctx) {
+    const items = fileItems(input);
+    if (items.length < 2) throw new RunError('tooFew', { min: 2 });
+    if (items.length > 10) throw new RunError('tooMany', { max: 10 });
+    const media = mediaOf(ctx);
+    const infos = [];
+    for (const item of items) {
+      ctx.throwIfCancelled();
+      infos.push(await probe(media, item));
+    }
+    const first = infos[0]!;
+    const width = Math.max(2, Math.round((first.width ?? 1920) / 2) * 2);
+    const height = Math.max(2, Math.round((first.height ?? 1080) / 2) * 2);
+    const durationMs = infos.reduce((n, info) => n + info.durationMs, 0);
+    const plan = planVideoConvert(sourceOf(items[0]!, first));
+    const settings = {
+      videoKbps: plan.videoKbps,
+      audioKbps: infos.some((i) => i.hasAudio) ? 128 : 0,
+      maxFps: first.fps && first.fps > 0 ? first.fps : 30,
+      width,
+      height,
+    };
+    checkSpace(ctx, estimate({ ...plan, audioKbps: settings.audioKbps }, durationMs));
+    try {
+      const result = await media.concatVideo(
+        items.map((i) => i.uri),
+        settings,
+        ctx.services.runId,
+        freshName(items[0]!.name, 'mp4'),
+        {
+          progress: (f) => ctx.progress(Math.round(f * 100), 100, 'percent'),
+          isCancelled: () => {
+            try {
+              ctx.throwIfCancelled();
+              return false;
+            } catch {
+              return true;
+            }
+          },
+        },
+      );
+      ctx.throwIfCancelled();
+      return {
+        type: 'video',
+        items: [
+          {
+            uri: result.uri,
+            name: items[0]!.name,
+            ext: 'mp4',
+            mimeType: 'video/mp4',
+            size: result.size,
+            durationMs: result.info.durationMs,
+            width: result.info.width ?? width,
+            height: result.info.height ?? height,
+          },
+        ],
+      };
+    } catch (e) {
+      throw mediaError(e, items[0]!);
+    }
+  },
   async 'video.compress'(input, params, ctx) {
     const { by, maxMB, quality } = params as {
       by: 'size' | 'quality';

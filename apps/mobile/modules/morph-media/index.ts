@@ -43,6 +43,9 @@ export interface VideoSettings {
   /** 缩小到这个短边像素；只在比原视频小时给（原生端不检查，不放大由调用方保证）。 */
   maxShortSide?: number;
   maxFps?: number;
+  /** 拼接时统一输出画布，尺寸必须为正偶数。 */
+  width?: number;
+  height?: number;
   /** HDR 转成普通画面（BT.709）。H.264 输出总是转。 */
   toSdr?: boolean;
 }

@@ -224,6 +224,14 @@ export interface MediaPlatform {
     relPath: string,
     job: MediaJob,
   ): Promise<MediaOutput>;
+  /** 按顺序拼接视频，尺寸和帧率以第一段为准，不同比例留黑边。 */
+  concatVideo(
+    uris: readonly string[],
+    settings: VideoEncode & { width: number; height: number },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
   /** 不重新编码地剪一段；输出的扩展名可能和 relPath 不同（MP4 放不下原来的声音时用 MOV）。 */
   trim(
     uri: string,

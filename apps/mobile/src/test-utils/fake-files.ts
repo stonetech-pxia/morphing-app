@@ -574,6 +574,41 @@ export class FakeMedia implements MediaPlatform {
       throw Object.assign(new Error(code), { code });
     }
   }
+  videoConcats: { uris: readonly string[]; width: number; height: number; maxFps: number }[] = [];
+  async concatVideo(
+    uris: readonly string[],
+    settings: VideoEncode & { width: number; height: number },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.fail();
+    this.videoConcats.push({
+      uris: [...uris],
+      width: settings.width,
+      height: settings.height,
+      maxFps: settings.maxFps,
+    });
+    const infos = await Promise.all(uris.map((uri) => this.probe(uri)));
+    const durationMs = infos.reduce((n, i) => n + i.durationMs, 0);
+    if (job.isCancelled())
+      throw Object.assign(new Error('cancelled'), { code: 'ERR_MEDIA_CANCELLED' });
+    const size = Math.round(((settings.videoKbps + settings.audioKbps) * durationMs) / 8);
+    const out = await this.files.writeRunFile(runId, relPath, new Uint8Array(size));
+    const info: MediaInfo = {
+      kind: 'video',
+      durationMs,
+      size,
+      width: settings.width,
+      height: settings.height,
+      fps: settings.maxFps,
+      hasVideo: true,
+      hasAudio: settings.audioKbps > 0,
+    };
+    this.files.videos.set(out.uri, info);
+    job.progress(1);
+    return { ...out, ext: 'mp4', info };
+  }
   async encodeVideo(
     uri: string,
     settings: VideoEncode,

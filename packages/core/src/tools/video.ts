@@ -16,6 +16,19 @@ const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en
 
 export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   {
+    id: 'video.merge',
+    label: { en: 'Join videos', zh: '拼接视频' },
+    description: {
+      en: 'Join 2–10 videos in order into one MP4. Put file.order before this step so the user can arrange the clips. Uses the first clip’s size and frame rate; other aspect ratios fit inside with black borders. Sound is kept; silent clips stay silent.',
+      zh: '把 2–10 段视频按顺序接成一个 MP4。前面加 file.order 让用户调整顺序。尺寸、帧率以第一段为准；不同比例居中留黑边，保留完整画面。保留声音，无声片段保持静音。',
+    },
+    input: ['video'],
+    output: 'video',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
+  },
+  {
     id: 'video.compress',
     label: { en: 'Make video smaller', zh: '压缩视频' },
     description: {
@@ -191,6 +204,15 @@ export function videoWorkflows(locale: Locale): Workflow[] {
   });
   return [
     wf(
+      'video-merge',
+      ['Join videos', '拼接视频'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 2, max: 10 } },
+        { id: 'order', action: 'file.order', params: {} },
+        { id: 'merge', action: 'video.merge', params: {} },
+      ],
+    ),
+    wf(
       'video-compress',
       ['Make videos smaller', '压缩视频'],
       [
@@ -239,7 +261,7 @@ export function videoWorkflows(locale: Locale): Workflow[] {
 
 export const videoTool: ToolDefinition = {
   id: VIDEO_TOOL_ID,
-  version: '1.1.0',
+  version: '1.2.0',
   name: { en: 'Video', zh: '视频' },
   description: {
     en: 'Make videos smaller, convert them to MP4, trim them and turn them into GIFs, on this device.',

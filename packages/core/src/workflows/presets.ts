@@ -303,6 +303,21 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'join-videos',
+    scenario: 'photos',
+    name: { en: 'Join video clips', zh: '把几段视频拼成一段' },
+    description: {
+      en: 'Choose 2–10 clips, arrange them, and join them into one MP4 using the first clip’s size and frame rate.',
+      zh: '选 2–10 段视频，调整顺序，按第一段的尺寸和帧率合成一个 MP4。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 2, max: 10 } },
+      { id: 'order', action: 'file.order', params: {} },
+      { id: 'merge', action: 'video.merge', params: {} },
+    ],
+  },
+  {
     id: 'video-too-big',
     scenario: 'photos',
     name: { en: 'Video too big to send', zh: '视频太大发不出去' },

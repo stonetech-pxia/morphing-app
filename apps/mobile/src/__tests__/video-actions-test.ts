@@ -36,6 +36,7 @@ function setup(
   opts: {
     answers?: Record<string, unknown>;
     trim?: { startMs: number; endMs: number }[] | null;
+    order?: number[] | null;
     signal?: { cancelled: boolean };
   } = {},
 ) {
@@ -48,7 +49,7 @@ function setup(
     choose: async () => null,
     open: async (kind, input) => {
       opened.push({ kind, input });
-      return (opts.trim ?? null) as never;
+      return (kind === 'reorder' ? (opts.order ?? null) : (opts.trim ?? null)) as never;
     },
   };
   const run = async (): Promise<RunResult> =>
@@ -95,6 +96,7 @@ describe('video tool', () => {
     );
     if (!result.ok) throw new Error(result.error);
     expect(result.config.workflows.map((w) => w.name)).toEqual([
+      '拼接视频',
       '压缩视频',
       '转成 MP4',
       '剪一段',
@@ -299,4 +301,72 @@ describe('video tool', () => {
     files.nextVideos = [files.offerVideo('a.mov', { size: 100 * MB })];
     expect((await run()).status).toBe('cancelled');
   });
+});
+
+describe('video merge', () => {
+  it('uses the first reordered clip’s dimensions and fps, sums durations and keeps later audio', async () => {
+    const { files, media, run } = setup(toolWorkflow('video-merge'), { order: [1, 0] });
+    files.nextVideos = [
+      files.offerVideo('landscape.mp4', {
+        size: 1000,
+        width: 1920,
+        height: 1080,
+        durationMs: 1000,
+        hasAudio: true,
+      }),
+      files.offerVideo('portrait.mp4', {
+        size: 1000,
+        width: 720,
+        height: 1280,
+        fps: 24,
+        durationMs: 2000,
+        hasAudio: false,
+      }),
+    ];
+    const [out] = videosOf(await run());
+    expect(out).toMatchObject({
+      name: 'portrait',
+      width: 720,
+      height: 1280,
+      durationMs: 3000,
+      ext: 'mp4',
+    });
+    expect(media.videoConcats[0]).toMatchObject({ width: 720, height: 1280, maxFps: 24 });
+    expect(media.videoConcats[0]!.uris[0]).toContain('portrait');
+    expect((await media.probe(out!.uri)).hasAudio).toBe(true);
+  });
+  it('checks the remaining count after ordering and handles cancelled ordering', async () => {
+    for (const order of [[0], null]) {
+      const { files, media, run } = setup(toolWorkflow('video-merge'), { order });
+      files.nextVideos = [
+        files.offerVideo('a.mp4', { size: 1000 }),
+        files.offerVideo('b.mp4', { size: 1000 }),
+      ];
+      const result = await run();
+      expect(order ? failure(result) : result).toMatchObject(
+        order ? { code: 'tooFew' } : { status: 'cancelled' },
+      );
+      expect(media.videoConcats).toEqual([]);
+    }
+  });
+  it('reports native failures', async () => {
+    const { files, media, run } = setup(toolWorkflow('video-merge'), { order: [0, 1] });
+    files.nextVideos = [
+      files.offerVideo('a.mp4', { size: 1000 }),
+      files.offerVideo('b.mp4', { size: 1000 }),
+    ];
+    media.failWith = 'ERR_MEDIA_INTERRUPTED';
+    expect(failure(await run())).toMatchObject({ code: 'interrupted' });
+  });
+});
+
+it('checks space for the entire merged duration before starting native encoding', async () => {
+  const { files, media, run } = setup(toolWorkflow('video-merge'), { order: [0, 1] });
+  files.nextVideos = [
+    files.offerVideo('a.mp4', { size: 1000 }),
+    files.offerVideo('b.mp4', { size: 1000 }),
+  ];
+  files.freeBytes = 50 * MB;
+  expect(failure(await run())).toMatchObject({ code: 'notEnoughSpace' });
+  expect(media.videoConcats).toEqual([]);
 });

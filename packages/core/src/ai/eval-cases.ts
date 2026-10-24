@@ -2653,7 +2653,50 @@ const FILE_ENTRY_CASES: EvalCase[] = [
   },
 }));
 
+const VIDEO_MERGE_CASES: EvalCase[] = [
+  {
+    id: 'VM1',
+    input: '添加把几段视频拼成一段快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps.some((s) => s.action === 'file.order') &&
+            w.steps.some((s) => s.action === 'video.merge'),
+        )
+          ? null
+          : 'missing video merge and order',
+    },
+  },
+  {
+    id: 'VM2',
+    input:
+      'Make a quick action to join my holiday video clips into one video. Let me arrange their order first.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps[0]?.action === 'in.videos' &&
+            w.steps.findIndex((s) => s.action === 'file.order') > 0 &&
+            w.steps.findIndex((s) => s.action === 'video.merge') >
+              w.steps.findIndex((s) => s.action === 'file.order'),
+        )
+          ? null
+          : 'missing ordered video merge',
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...VIDEO_MERGE_CASES,
   ...FILE_ENTRY_CASES,
   ...BASE_EVAL_CASES,
   ...SPLIT_EVAL_CASES,

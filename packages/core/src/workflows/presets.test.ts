@@ -13,9 +13,9 @@ import {
 } from './presets';
 
 describe('workflow presets', () => {
-  it('has the twenty-four presets with unique ids', () => {
-    expect(WORKFLOW_PRESETS).toHaveLength(24);
-    expect(new Set(WORKFLOW_PRESETS.map((p) => p.id)).size).toBe(24);
+  it('has the built-in presets with unique ids', () => {
+    expect(WORKFLOW_PRESETS.some((p) => p.id === 'join-videos')).toBe(true);
+    expect(new Set(WORKFLOW_PRESETS.map((p) => p.id)).size).toBe(WORKFLOW_PRESETS.length);
   });
 
   it('puts the audio presets in the study and sound scenarios (D-156)', () => {

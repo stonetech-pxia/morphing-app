@@ -198,3 +198,8 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 
 - 「首页加上打开相册」 / `Add a photo picker to home`：添加照片与视频选择入口。
 - 「首页加上打开文件」 / `Add a file picker to home`：添加文件选择入口。选完进入收件页面，由用户选择快捷操作。
+
+### 拼接视频（VM1–VM2）
+
+- 「添加把几段视频拼成一段快捷操作」 / `Add the join video clips quick action`：选 2–10 段视频 → 调整顺序 → 拼接成 MP4。
+- 步骤句式：「拼接视频」「合并视频」「拼成一段视频」 / `join videos`。
