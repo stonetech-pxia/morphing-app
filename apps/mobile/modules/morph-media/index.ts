@@ -106,6 +106,18 @@ export interface MorphMediaModule {
     output: string,
     options: TranscodeOptions,
   ): Promise<MediaResult>;
+  mixAudio?(
+    jobId: string,
+    uri: string,
+    music: string,
+    output: string,
+    options: TranscodeOptions & {
+      originalVolume: number;
+      loop: boolean;
+      videoDurationMs: number;
+      musicDurationMs: number;
+    },
+  ): Promise<MediaResult>;
   /** 不重新编码地剪一段（视频和音频都能用）。 */
   trim(jobId: string, uri: string, output: string, range: TimeRange): Promise<MediaResult>;
   /** 保存最接近时间点的一帧，原尺寸 JPEG，已摆正。旧开发构建缺此方法。 */

@@ -147,6 +147,16 @@ public class MorphMediaModule: Module {
       }
     }
 
+    AsyncFunction("mixAudio") {
+      (jobId: String, uri: URL, music: URL, output: URL, options: [String: Any], promise: Promise) in
+      let job = self.start(jobId)
+      Task {
+        defer { self.finish(jobId) }
+        do { promise.resolve(try await self.mixVideoAudio(job, jobId: jobId, uri: uri, music: music, output: output, options: options)) }
+        catch { promise.reject(Self.coded(error, job: job)) }
+      }
+    }
+
     AsyncFunction("trim") {
       (jobId: String, uri: URL, output: URL, range: [String: Double], promise: Promise) in
       let job = self.start(jobId)
@@ -351,7 +361,7 @@ public class MorphMediaModule: Module {
 
   private func transcode(
     _ job: Job, jobId: String, uri: URL, output: URL, options: [String: Any],
-    sourceAsset: AVAsset? = nil, suppliedComposition: AVVideoComposition? = nil
+    sourceAsset: AVAsset? = nil, suppliedComposition: AVVideoComposition? = nil, suppliedAudioMix: AVAudioMix? = nil
   ) async throws -> [String: Any] {
     let container = options["container"] as? String ?? "mp4"
     if options["video"] as? String == "drop" {
@@ -491,6 +501,7 @@ public class MorphMediaModule: Module {
           AVLinearPCMIsBigEndianKey: false,
           AVLinearPCMIsNonInterleaved: false,
         ])
+      out.audioMix = suppliedAudioMix
       let input = AVAssetWriterInput(
         mediaType: .audio,
         outputSettings: [
@@ -804,6 +815,55 @@ public class MorphMediaModule: Module {
     try? file.close()
     progress(jobId, 1)
     return try await Self.result(output)
+  }
+
+  /** 配乐在运行时由用户选；原音轨按指定比例混入，音乐可循环，输出时长始终跟随视频。 */
+  private func mixVideoAudio(
+    _ job: Job, jobId: String, uri: URL, music: URL, output: URL, options: [String: Any]
+  ) async throws -> [String: Any] {
+    let originalVolume = (options["originalVolume"] as? NSNumber)?.floatValue ?? 0
+    let loop = options["loop"] as? Bool ?? true
+    guard originalVolume.isFinite, (0...100).contains(originalVolume) else { throw MediaUnsupportedException("invalid original volume") }
+    let source = AVURLAsset(url: uri)
+    let tracks = try await source.load(.tracks)
+    guard let video = tracks.first(where: { $0.mediaType == .video }) else { throw MediaUnsupportedException("no video") }
+    let (range, transform) = try await video.load(.timeRange, .preferredTransform)
+    guard range.duration.seconds > 0 else { throw MediaUnsupportedException("empty video") }
+    let musicAsset = AVURLAsset(url: music)
+    let musicTracks = try await musicAsset.load(.tracks)
+    guard let musicTrack = musicTracks.first(where: { $0.mediaType == .audio }) else { throw MediaUnsupportedException("no music") }
+    let musicRange = try await musicTrack.load(.timeRange)
+    guard musicRange.duration.seconds > 0, musicRange.duration.seconds.isFinite else { throw MediaUnsupportedException("empty music") }
+    let asset = AVMutableComposition()
+    guard let videoTarget = asset.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
+          let musicTarget = asset.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MediaFailedException("composition track") }
+    try videoTarget.insertTimeRange(range, of: video, at: .zero)
+    videoTarget.preferredTransform = transform
+    var gains: [AVAudioMixInputParameters] = []
+    if originalVolume > 0, let original = tracks.first(where: { $0.mediaType == .audio }) {
+      let originalRange = try await original.load(.timeRange)
+      let overlap = CMTimeRangeGetIntersection(range, otherRange: originalRange)
+      if overlap.duration.seconds > 0 {
+        guard let originalTarget = asset.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MediaFailedException("audio track") }
+        try originalTarget.insertTimeRange(overlap, of: original, at: overlap.start - range.start)
+        let gain = AVMutableAudioMixInputParameters(track: originalTarget)
+        gain.setVolume(originalVolume / 100, at: .zero)
+        gains.append(gain)
+      }
+    }
+    var cursor = CMTime.zero
+    repeat {
+      if job.cancelled { throw MediaCancelledException() }
+      let length = CMTimeMinimum(musicRange.duration, range.duration - cursor)
+      try musicTarget.insertTimeRange(CMTimeRange(start: musicRange.start, duration: length), of: musicTrack, at: cursor)
+      cursor = cursor + length
+    } while loop && cursor < range.duration
+    let musicGain = AVMutableAudioMixInputParameters(track: musicTarget)
+    musicGain.setVolume(1, at: .zero)
+    gains.append(musicGain)
+    let mix = AVMutableAudioMix()
+    mix.inputParameters = gains
+    return try await transcode(job, jobId: jobId, uri: uri, output: output, options: options, sourceAsset: asset, suppliedAudioMix: mix)
   }
 
   /** 视频首尾拼接：每段独立摆正并按第一段画布等比留边；无声片段不插入音轨。 */

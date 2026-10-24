@@ -2763,7 +2763,48 @@ const VIDEO_MUTE_CASES: EvalCase[] = [
     },
   },
 ];
+const VIDEO_MUSIC_CASES: EvalCase[] = [
+  {
+    id: 'VMA1',
+    input: '添加给视频换背景音乐快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.audio'))
+          ? null
+          : 'missing video.audio',
+    },
+  },
+  {
+    id: 'VMA2',
+    input:
+      'Make an action to replace video sound with a music file I choose each time. Keep 20% of the original sound and repeat the music if it is shorter.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps.filter((s) => s.action.startsWith('in.')).length === 1 &&
+            w.steps.some(
+              (s) =>
+                s.action === 'video.audio' &&
+                s.params.originalVolume === 20 &&
+                s.params.loop === true,
+            ),
+        )
+          ? null
+          : 'missing runtime music with requested parameters',
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...VIDEO_MUSIC_CASES,
   ...VIDEO_MUTE_CASES,
   ...VIDEO_FRAME_CASES,
   ...VIDEO_MERGE_CASES,

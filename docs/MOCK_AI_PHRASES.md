@@ -213,3 +213,8 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 
 - 「添加视频去掉声音快捷操作」 / `Add the remove sound from videos quick action`：选视频 → 去掉全部音轨 → 无声 MP4。
 - 步骤句式：「去掉视频声音」「去掉声音」「视频静音」 / `mute videos`。
+
+### 视频配乐（VMA1–VMA2）
+
+- 「添加给视频换背景音乐快捷操作」 / `Add the add background music quick action`：选视频 → 运行时选音乐，默认只留音乐、短音乐循环。
+- 步骤句式：「换背景音乐」「给视频配乐」 / `add background music`。

@@ -16,6 +16,37 @@ const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en
 
 export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   {
+    id: 'video.audio',
+    label: { en: 'Change background music', zh: '换背景音乐' },
+    description: {
+      en: 'Choose a music file locally when this runs, then use it as the soundtrack for each video. Set how much original sound to keep (0–100%) and whether shorter music repeats. Longer music is trimmed. Output keeps each video’s duration; no file paths or music content go to AI.',
+      zh: '运行时在本机选一个音乐文件，为每段视频配乐。设置保留的原声音量（0–100%）以及较短音乐是否循环；较长音乐截到视频结束。结果时长不变，音乐内容和路径不发给 AI。',
+    },
+    input: ['video'],
+    output: 'video',
+    params: z.strictObject({ originalVolume: z.number().int().min(0).max(100), loop: z.boolean() }),
+    fields: [
+      {
+        key: 'originalVolume',
+        label: { en: 'Original sound', zh: '原声音量' },
+        kind: 'number',
+        unit: '%',
+        min: 0,
+        max: 100,
+        step: 10,
+      },
+      { key: 'loop', label: { en: 'Repeat shorter music', zh: '音乐较短时循环' }, kind: 'toggle' },
+    ],
+    presets: [
+      {
+        id: 'replace',
+        label: { en: 'Music only', zh: '只留音乐' },
+        values: { originalVolume: 0, loop: true },
+      },
+    ],
+    requires: ['files.pick'],
+  },
+  {
     id: 'video.mute',
     label: { en: 'Remove video sound', zh: '去掉视频声音' },
     description: {
@@ -231,6 +262,19 @@ export function videoWorkflows(locale: Locale): Workflow[] {
   });
   return [
     wf(
+      'video-audio',
+      ['Change background music', '换背景音乐'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+        {
+          id: 'music',
+          action: 'video.audio',
+          params: { originalVolume: 0, loop: true },
+          ask: ['originalVolume', 'loop'],
+        },
+      ],
+    ),
+    wf(
       'video-mute',
       ['Remove video sound', '去掉视频声音'],
       [
@@ -304,7 +348,7 @@ export function videoWorkflows(locale: Locale): Workflow[] {
 
 export const videoTool: ToolDefinition = {
   id: VIDEO_TOOL_ID,
-  version: '1.4.0',
+  version: '1.5.0',
   name: { en: 'Video', zh: '视频' },
   description: {
     en: 'Make videos smaller, convert them to MP4, trim them and turn them into GIFs, on this device.',

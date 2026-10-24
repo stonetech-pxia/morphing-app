@@ -162,6 +162,53 @@ async function eachVideo(
 }
 
 export const VIDEO_IMPLS: Record<string, Impl> = {
+  async 'video.audio'(input, params, ctx) {
+    const { originalVolume, loop } = params as { originalVolume: number; loop: boolean };
+    const media = mediaOf(ctx);
+    const selected = await ctx.services.files.pickDocuments(['audio/*'], false);
+    if (!selected?.[0]) throw new RunCancelled();
+    ctx.throwIfCancelled();
+    const music = selected[0];
+    let musicInfo: MediaInfo;
+    try {
+      musicInfo = await media.probe(music.uri);
+    } catch (e) {
+      throw mediaError(e, {
+        uri: music.uri,
+        name: music.name,
+        ext: '',
+        mimeType: music.mimeType ?? 'audio/*',
+        size: music.size ?? 0,
+      });
+    }
+    if (!musicInfo.hasAudio || !Number.isFinite(musicInfo.durationMs) || musicInfo.durationMs <= 0)
+      throw new RunError('mediaUnsupported', { name: music.name });
+    const stored = await ctx.services.files.adoptIntoRun(
+      music.uri,
+      ctx.services.runId,
+      freshName('music', 'audio'),
+    );
+    return eachVideo(input, ctx, async (item, _media, job) => {
+      const info = await probe(media, item);
+      const plan = { ...planVideoConvert(sourceOf(item, info)), audioKbps: 128 };
+      checkSpace(ctx, estimate(plan, info.durationMs));
+      return media.mixVideoAudio(
+        item.uri,
+        stored.uri,
+        {
+          ...encodeOf(plan, info),
+          audioKbps: 128,
+          originalVolume,
+          loop,
+          videoDurationMs: info.durationMs,
+          musicDurationMs: musicInfo.durationMs,
+        },
+        ctx.services.runId,
+        freshName(item.name, 'mp4'),
+        job,
+      );
+    });
+  },
   async 'video.mute'(input, _params, ctx) {
     return eachVideo(input, ctx, async (item, media, job) => {
       const info = await probe(media, item);

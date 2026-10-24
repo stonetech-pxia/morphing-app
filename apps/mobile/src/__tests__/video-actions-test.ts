@@ -103,6 +103,7 @@ describe('video tool', () => {
     );
     if (!result.ok) throw new Error(result.error);
     expect(result.config.workflows.map((w) => w.name)).toEqual([
+      '换背景音乐',
       '去掉视频声音',
       '截一帧存成照片',
       '拼接视频',
@@ -418,4 +419,32 @@ it('removes audio from every selected video and keeps the source files separate'
   expect(items.map((i) => i.durationMs)).toEqual([1000, 2000]);
   expect(media.encodes.map((s) => s.audioKbps)).toEqual([0, 0]);
   for (const item of items) expect((await media.probe(item.uri)).hasAudio).toBe(false);
+});
+
+describe('video music', () => {
+  it('chooses music once for all videos and preserves duration with the requested original volume and loop', async () => {
+    const { files, media, run } = setup(toolWorkflow('video-audio'), {
+      answers: { originalVolume: 25, loop: false },
+    });
+    files.nextVideos = [
+      files.offerVideo('a.mov', { size: 1000, durationMs: 3000 }),
+      files.offerVideo('b.mov', { size: 1000, durationMs: 2000 }),
+    ];
+    files.nextPick = [files.offerAudio('music.m4a', { size: 1000, durationMs: 1000 })];
+    const items = videosOf(await run());
+    expect(items.map((i) => i.durationMs)).toEqual([3000, 2000]);
+    expect(media.mixes).toHaveLength(2);
+    expect(media.mixes.map((m) => [m.originalVolume, m.loop])).toEqual([
+      [25, false],
+      [25, false],
+    ]);
+    expect(media.mixes[0]!.music).toBe(media.mixes[1]!.music);
+    expect(files.lastPickTypes).toEqual(['audio/*']);
+  });
+  it('cancelling the music picker cancels the action', async () => {
+    const { files, media, run } = setup(toolWorkflow('video-audio'));
+    files.nextVideos = [files.offerVideo('a.mov', { size: 1000 })];
+    expect((await run()).status).toBe('cancelled');
+    expect(media.mixes).toEqual([]);
+  });
 });

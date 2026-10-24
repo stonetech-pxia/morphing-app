@@ -86,6 +86,26 @@ export function expoMedia(
       return output(result);
     },
 
+    async mixVideoAudio(uri, music, settings, runId, relPath, job) {
+      if (!native.mixAudio) throw notImplemented('video background music');
+      const result = await run(job, (jobId) =>
+        native.mixAudio!(jobId, uri, music, runFileUri(runId, relPath), {
+          container: 'mp4',
+          video: {
+            codec: 'h264',
+            bitrateKbps: settings.videoKbps,
+            maxFps: settings.maxFps,
+            toSdr: true,
+          },
+          audio: { codec: 'aac', bitrateKbps: 128 },
+          originalVolume: settings.originalVolume,
+          loop: settings.loop,
+          videoDurationMs: settings.videoDurationMs,
+          musicDurationMs: settings.musicDurationMs,
+        }),
+      );
+      return output(result);
+    },
     async concatVideo(uris, settings, runId, relPath, job) {
       if (!native.concat) throw notImplemented('video concat');
       const result = await run(job, (jobId) =>

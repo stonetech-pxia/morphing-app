@@ -303,6 +303,25 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'video-background-music',
+    scenario: 'photos',
+    name: { en: 'Add background music', zh: '给视频换背景音乐' },
+    description: {
+      en: 'Choose videos and a music file, then replace their sound. Music repeats when shorter; you can change how much original sound to keep.',
+      zh: '选视频和音乐，换成新的配乐；较短音乐循环，可调整要保留多少原声。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      {
+        id: 'music',
+        action: 'video.audio',
+        params: { originalVolume: 0, loop: true },
+        ask: ['originalVolume', 'loop'],
+      },
+    ],
+  },
+  {
     id: 'mute-video',
     scenario: 'photos',
     name: { en: 'Remove sound from videos', zh: '视频去掉声音' },

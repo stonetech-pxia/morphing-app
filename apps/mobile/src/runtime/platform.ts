@@ -224,6 +224,20 @@ export interface MediaPlatform {
     relPath: string,
     job: MediaJob,
   ): Promise<MediaOutput>;
+  /** 配乐运行时选择，不作为工作流中的第二个传递值。 */
+  mixVideoAudio(
+    uri: string,
+    music: string,
+    settings: VideoEncode & {
+      originalVolume: number;
+      loop: boolean;
+      videoDurationMs: number;
+      musicDurationMs: number;
+    },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
   /** 按顺序拼接视频，尺寸和帧率以第一段为准，不同比例留黑边。 */
   concatVideo(
     uris: readonly string[],
