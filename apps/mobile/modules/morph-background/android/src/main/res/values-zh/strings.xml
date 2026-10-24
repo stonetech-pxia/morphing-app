@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="morph_background_channel_work">正在处理</string>
+  <string name="morph_background_channel_work_description">Morph 处理视频或录音时显示进度。</string>
+  <string name="morph_background_channel_done">处理完成</string>
+  <string name="morph_background_channel_done_description">你在别的 App 里时，处理完了告诉你。</string>
+</resources>

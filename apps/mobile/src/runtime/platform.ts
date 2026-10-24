@@ -247,6 +247,25 @@ export interface MediaPlatform {
   waveform(uri: string, buckets: number): Promise<number[] | null>;
 }
 
+/**
+ * 长任务切到别的 App 也继续（modules/morph-background，D-160–D-163）：Android 是前台服务和进度通知，
+ * iOS 26 是系统的后台任务（默认关着）。运行入口在一次含长步骤的运行前后调用；没有原生模块时为 null。
+ */
+export interface BackgroundPlatform {
+  /** 切到别的 App 时会不会继续；运行页据此提示「可以切走」或「请留在 Morph 里」。 */
+  readonly continuesInBackground: boolean;
+  /** Android 13 起第一次时问一次通知权限（D-161）；返回现在能不能发通知。 */
+  ensureNotificationPermission(): Promise<boolean>;
+  /** 系统不让开始时返回 false，任务照旧只在前台跑。 */
+  begin(title: string, text: string): boolean;
+  /** fraction 为 null 时进度不定。 */
+  update(text: string, fraction: number | null): void;
+  /** done 不为 null 时发一条完成通知（D-162）。 */
+  end(done: { title: string; body: string } | null): void;
+  /** Morph 现在在不在前台（决定发不发完成通知）。 */
+  isForeground(): boolean;
+}
+
 export interface FilePlatform {
   /** 系统自带的文字识别和扫描；没有时为 null。 */
   readonly vision: VisionPlatform | null;
@@ -256,6 +275,8 @@ export interface FilePlatform {
   readonly media: MediaPlatform | null;
   /** 本机语音转文字（D-150、D-151，modules/morph-speech）；没有时（Expo Go）为 null。 */
   readonly speech: SpeechPlatform | null;
+  /** 长任务切到后台也继续（D-160）；没有原生模块时（Expo Go）为 null。 */
+  readonly background: BackgroundPlatform | null;
 
   // ---- 用户文件（assets/<id>/<文件名>，D-019）----
   /** 从相册选一张照片（图片组件用）；用户取消时返回 null。 */

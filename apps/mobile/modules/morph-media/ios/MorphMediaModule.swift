@@ -9,6 +9,8 @@ import UIKit
 // - trim：AVAssetExportSession 的 Passthrough + timeRange，不重新编码。
 // - thumbnails：AVAssetImageGenerator。
 // 视频编码器不能在后台用：处理时切到别的 App 会失败，报 ERR_MEDIA_INTERRUPTED（D-148）。
+// 例外：morph-background 拿到了 iOS 26 的后台任务时（D-163，默认关着），切到后台不算中断；
+// 系统收回后台时间时，正在处理的任务按中断结束。
 
 final class MediaUnsupportedException: GenericException<String>, @unchecked Sendable {
   override var code: String { "ERR_MEDIA_UNSUPPORTED" }
@@ -66,16 +68,54 @@ private final class Job: @unchecked Sendable {
   }
 
   func markBackgrounded() { lock.withLock { _backgrounded = true } }
+
+  /** 系统收回了后台时间：停下来，按「切到后台」报错。 */
+  func interrupt() {
+    let handler: (() -> Void)? = lock.withLock {
+      _backgrounded = true
+      return _onCancel
+    }
+    handler?()
+  }
 }
+
+/** 和 morph-background 约定的通知名（两个模块互相看不到对方的代码）。 */
+private let continuedChangedNotification = Notification.Name("MorphContinuedProcessingChanged")
+private let continuedExpiredNotification = Notification.Name("MorphContinuedProcessingExpired")
 
 public class MorphMediaModule: Module {
   private let jobsLock = NSLock()
   private var jobs: [String: Job] = [:]
+  /** morph-background 拿到了后台任务（D-163）：这期间切到后台不算中断。 */
+  private var continued = false
+  private var continuedObservers: [NSObjectProtocol] = []
 
   public func definition() -> ModuleDefinition {
     Name("MorphMedia")
 
     Events("progress")
+
+    OnCreate {
+      let center = NotificationCenter.default
+      self.continuedObservers = [
+        center.addObserver(forName: continuedChangedNotification, object: nil, queue: nil) {
+          [weak self] note in
+          guard let self else { return }
+          let active = note.userInfo?["active"] as? Bool ?? false
+          self.jobsLock.withLock { self.continued = active }
+        },
+        center.addObserver(forName: continuedExpiredNotification, object: nil, queue: nil) {
+          [weak self] _ in
+          guard let self else { return }
+          self.jobsLock.withLock { Array(self.jobs.values) }.forEach { $0.interrupt() }
+        },
+      ]
+    }
+
+    OnDestroy {
+      self.continuedObservers.forEach { NotificationCenter.default.removeObserver($0) }
+      self.continuedObservers = []
+    }
 
     AsyncFunction("probe") { (uri: URL, promise: Promise) in
       Task {
@@ -161,10 +201,13 @@ public class MorphMediaModule: Module {
 
   private func start(_ jobId: String) -> Job {
     let job = Job()
-    // 切到后台时记一下：之后编码失败就是因为这个（iOS 不让后台用视频编码器）。
+    // 切到后台时记一下：之后编码失败就是因为这个（iOS 不让后台用视频编码器）。有后台任务时不算。
     let token = NotificationCenter.default.addObserver(
       forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: nil
-    ) { _ in job.markBackgrounded() }
+    ) { [weak self] _ in
+      let continued = self.map { module in module.jobsLock.withLock { module.continued } } ?? false
+      if !continued { job.markBackgrounded() }
+    }
     jobsLock.withLock {
       jobs[jobId] = job
       observers[jobId] = token
@@ -755,6 +798,7 @@ public class MorphMediaModule: Module {
     case .completed:
       return
     case .cancelled:
+      if job.backgrounded && !job.cancelled { throw MediaInterruptedException() }
       throw MediaCancelledException()
     default:
       if job.backgrounded { throw MediaInterruptedException() }

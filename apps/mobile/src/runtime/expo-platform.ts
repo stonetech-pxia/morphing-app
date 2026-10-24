@@ -23,6 +23,7 @@ import {
   type ShareDeps,
 } from './expo-share';
 import { expoTranslate } from './expo-translate';
+import { expoBackground } from './expo-background';
 import { expoMedia } from './expo-media';
 import { expoVision } from './expo-vision';
 import MorphShare from '../../modules/morph-share';
@@ -168,6 +169,7 @@ export const expoFilePlatform: FilePlatform = {
   vision: expoVision((runId, relPath) => runFile(runId, relPath).uri),
   translator: expoTranslate(),
   media: expoMedia((runId, relPath) => runFile(runId, relPath).uri),
+  background: expoBackground(),
   // Android 的识别模型在下载内容里（D-151）；iOS 用系统识别，不用下载内容。
   speech: createSpeech(MorphSpeech, {
     isInstalled: (id) => speechPacks.isInstalled(id),

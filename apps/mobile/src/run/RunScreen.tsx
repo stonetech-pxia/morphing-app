@@ -25,7 +25,7 @@ import { usePalette, type Palette } from '../renderer/theme';
 import { Button, Card } from '../renderer/ui';
 import { saveItems } from '../runtime/actions/io';
 import type { LocalKind, LocalSteps, LocalUi } from '../runtime/local';
-import { granteeOf, newAssetId, startRun, type Run } from '../runtime/runner';
+import { granteeOf, isBackgroundAction, newAssetId, startRun, type Run } from '../runtime/runner';
 import { PackGate } from '../packs/PackGate';
 import { releaseShare, type IncomingShare } from '../share/incoming';
 import { usePacks } from '../packs/PackHost';
@@ -295,6 +295,15 @@ export function RunScreen({
           );
         })}
       </Card>
+
+      {/* 长步骤（视频、音频）运行时说一句能不能切走（D-160、D-148）。 */}
+      {current && isBackgroundAction(workflow.steps[current.index]?.action ?? '') ? (
+        <Text
+          testID="run-background-hint"
+          style={[palette.font('body', 13), { color: palette.caption }]}>
+          {t(locale, files.background?.continuesInBackground ? 'runCanLeave' : 'runStayInMorph')}
+        </Text>
+      ) : null}
 
       {running ? (
         <Button

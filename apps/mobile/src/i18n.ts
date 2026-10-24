@@ -596,6 +596,21 @@ const strings = {
     en: 'Morph went to the background, so this didn’t finish. Stay in Morph and tap “Run again”.',
     zh: '处理时切到了别的 App，没有完成。请留在 Morph 里，再点「再来一次」。',
   },
+  // 长任务切到后台也继续（D-160–D-162）：运行页的提示，Android 通知栏的进度和完成通知。
+  runCanLeave: {
+    en: 'You can switch to another app; Morph keeps working in the background.',
+    zh: '可以切到别的 App，Morph 会在后台接着处理。',
+  },
+  runStayInMorph: {
+    en: 'Stay in Morph while this is being processed.',
+    zh: '处理时请留在 Morph 里。',
+  },
+  bgPreparing: { en: 'Getting ready…', zh: '准备中…' },
+  bgStep: { en: 'Step {n} of {total}: {step}', zh: '第 {n}/{total} 步：{step}' },
+  bgDoneTitle: { en: '“{name}” is done', zh: '「{name}」处理完了' },
+  bgDoneBody: { en: 'Tap to see the result.', zh: '点这里看结果。' },
+  bgFailedTitle: { en: '“{name}” didn’t finish', zh: '「{name}」没有完成' },
+  bgFailedBody: { en: 'Tap to see what happened.', zh: '点这里看看是怎么回事。' },
   mediaPlay: { en: 'Play', zh: '播放' },
   mediaDuration: { en: '{duration}', zh: '{duration}' },
   trimTitle: { en: 'Trim', zh: '剪一段' },

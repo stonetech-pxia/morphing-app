@@ -11,6 +11,7 @@ import {
   type Workflow,
 } from '@morph/core';
 
+import { t } from '../i18n';
 import type { WorkspaceRepo } from '../storage/types';
 import type { RunServices } from './actions/helpers';
 import { ACTION_IMPLS } from './actions';
@@ -49,6 +50,74 @@ export interface Run {
   /** 本次运行的临时文件 ID；结果页关闭时调用 dispose 删除。 */
   runId: string;
   dispose(): Promise<void>;
+}
+
+/** 会跑很久的动作（视频、音频）：含这些步骤的运行切到别的 App 也继续（D-160）。 */
+const BACKGROUND_ACTIONS: ReadonlySet<string> = new Set([
+  'video.compress',
+  'video.convert',
+  'video.trim',
+  'audio.transcribe',
+  'audio.compress',
+  'audio.convert',
+  'audio.trim',
+  'audio.merge',
+  'audio.fromVideo',
+]);
+
+export const isBackgroundAction = (actionId: string) => BACKGROUND_ACTIONS.has(actionId);
+
+/** 进度通知最多多久改一次（毫秒）。 */
+const NOTIFY_MS = 1000;
+
+/**
+ * 含长步骤的运行：从开始（用户刚点了，App 在前台；Android 12 起在后台不能开始）到结束一直保活，
+ * 长步骤后面的命名、保存也在后台跑完。第一次时问一次通知权限（D-161），结束时不在前台就发完成通知（D-162）。
+ */
+async function keepAlive(ctx: RunContext) {
+  const background = ctx.files.background;
+  const { workflow, locale, registry } = ctx;
+  if (!background || !workflow.steps.some((step) => isBackgroundAction(step.action))) return null;
+  await background.ensureNotificationPermission();
+  if (!background.begin(workflow.name, t(locale, 'bgPreparing'))) return null;
+  let notifiedAt = 0;
+  return {
+    onEvent(e: RunEvent) {
+      const now = ctx.now().getTime();
+      if (e.kind === 'progress' && now - notifiedAt < NOTIFY_MS) return;
+      notifiedAt = now;
+      const action = workflow.steps[e.index]!.action;
+      const text = t(locale, 'bgStep', {
+        n: e.index + 1,
+        total: workflow.steps.length,
+        step: registry.actions.get(action)?.label[locale] ?? action,
+      });
+      if (e.kind === 'step' || e.total <= 0) {
+        background.update(text, null);
+        return;
+      }
+      const amount = t(locale, e.unit === 'percent' ? 'runPercent' : 'runProgress', {
+        done: e.done,
+        total: e.total,
+      });
+      background.update(
+        `${text} · ${amount}`,
+        e.unit === 'percent' ? e.done / 100 : e.done / e.total,
+      );
+    },
+    end(result: RunResult | null) {
+      const notify = result !== null && result.status !== 'cancelled' && !background.isForeground();
+      const ok = result?.status === 'succeeded';
+      background.end(
+        notify
+          ? {
+              title: t(locale, ok ? 'bgDoneTitle' : 'bgFailedTitle', { name: workflow.name }),
+              body: t(locale, ok ? 'bgDoneBody' : 'bgFailedBody'),
+            }
+          : null,
+      );
+    },
+  };
 }
 
 /** 保存的文件授权给谁：工具自带的工作流给工具，用户自己的工作流给它自己。 */
@@ -107,6 +176,13 @@ function askUnlessShared(
 
 export async function startRun(ctx: RunContext): Promise<Run> {
   const runId = ctx.newId();
+  const alive = await keepAlive(ctx);
+  const onEvent = alive
+    ? (e: RunEvent) => {
+        alive.onEvent(e);
+        ctx.onEvent?.(e);
+      }
+    : ctx.onEvent;
   const result = await runWorkflow({
     workflow: ctx.workflow,
     registry: ctx.registry,
@@ -129,7 +205,7 @@ export async function startRun(ctx: RunContext): Promise<Run> {
     ...(ctx.ensurePack ? { ensurePack: ctx.ensurePack } : {}),
     packNotNeeded: (actionId, params, input) => packNotNeeded(ctx.files, actionId, params, input),
     ...(ctx.signal ? { signal: ctx.signal } : {}),
-    ...(ctx.onEvent ? { onEvent: ctx.onEvent } : {}),
+    ...(onEvent ? { onEvent } : {}),
     record: {
       start: () =>
         ctx.repo.startToolRun({
@@ -139,7 +215,16 @@ export async function startRun(ctx: RunContext): Promise<Run> {
         }),
       finish: (id, outcome) => ctx.repo.finishToolRun(id, outcome),
     },
-  });
+  }).then(
+    (done) => {
+      alive?.end(done);
+      return done;
+    },
+    (e: unknown) => {
+      alive?.end(null);
+      throw e;
+    },
+  );
   const dispose = () => ctx.files.removeRun(runId);
   // 没有结果可看时立即清理临时文件。
   if (result.status !== 'succeeded') await dispose();
