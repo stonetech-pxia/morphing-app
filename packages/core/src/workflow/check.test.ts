@@ -20,7 +20,9 @@ describe('action contracts', () => {
     (_id, action) => {
       const json = z.toJSONSchema(action.params) as { properties?: Record<string, unknown> };
       const keys = Object.keys(json.properties ?? {}).sort();
-      expect(action.fields.map((f) => f.key).sort()).toEqual(keys);
+      // 密码（secret）不在参数结构里：每次运行时问，不保存（D-193）。
+      const saved = action.fields.filter((f) => f.kind !== 'secret');
+      expect(saved.map((f) => f.key).sort()).toEqual(keys);
       for (const preset of action.presets ?? []) {
         expect(action.params.safeParse(preset.values).success, preset.id).toBe(true);
       }
@@ -84,6 +86,7 @@ describe('types', () => {
       'in.videos',
       'in.audio',
       'in.text',
+      'in.wifi',
       'in.records',
     ]);
   });

@@ -46,6 +46,9 @@ export const FILE_ACCEPT: Record<string, ValueType> = {
 /** 用户自己输入的文字最长多少字（文字转 PDF、二维码）。 */
 export const MAX_INPUT_TEXT = 5000;
 
+/** Wi-Fi 网络名最长 32 字节（IEEE 802.11）；这里按字数先挡一下，运行时再按字节检查。 */
+export const WIFI_NAME_MAX = 32;
+
 /** 读取记录的时间范围：表里第一个日期字段（没有就用创建时间）落在这段时间里。 */
 export const RECORD_PERIODS = ['all', ...PERIODS] as const;
 
@@ -273,6 +276,38 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
         multiline: true,
         private: true,
       },
+    ],
+    requires: [],
+  },
+  {
+    // D-198：给客人连 Wi-Fi 的二维码。网络名是用户写的（发给 AI 前换成占位符），密码每次运行时问、不保存。
+    id: 'in.wifi',
+    label: { en: 'Wi-Fi details', zh: 'Wi-Fi 信息' },
+    description: {
+      en: 'The user enters a Wi-Fi network (name, security, password); the result is the text phones read from a Wi-Fi QR code (follow with qr.generate). The password is asked on every run and never saved.',
+      zh: '用户填一个 Wi-Fi 网络（名字、加密方式、密码），变成手机扫 Wi-Fi 二维码时读到的文字（后面接「生成二维码」）。密码每次运行时问，不会保存。',
+    },
+    input: [],
+    output: 'text',
+    params: z.strictObject({
+      network: z.string().max(WIFI_NAME_MAX),
+      security: z.enum(['WPA', 'WEP', 'none']),
+      hidden: z.boolean(),
+    }),
+    fields: [
+      { key: 'network', label: { en: 'Network name', zh: '网络名' }, kind: 'text', private: true },
+      {
+        key: 'security',
+        label: { en: 'Security', zh: '加密方式' },
+        kind: 'choice',
+        options: [
+          { value: 'WPA', label: { en: 'WPA / WPA2 / WPA3', zh: 'WPA / WPA2 / WPA3' } },
+          { value: 'WEP', label: { en: 'WEP', zh: 'WEP' } },
+          { value: 'none', label: { en: 'No password', zh: '没有密码' } },
+        ],
+      },
+      { key: 'hidden', label: { en: 'Hidden network', zh: '隐藏的网络' }, kind: 'toggle' },
+      { key: 'password', label: { en: 'Password', zh: '密码' }, kind: 'secret' },
     ],
     requires: [],
   },

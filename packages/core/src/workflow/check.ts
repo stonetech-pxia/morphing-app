@@ -86,7 +86,7 @@ export function initialParams(action: ActionDefinition): Record<string, unknown>
   if (defaults) return defaults;
   const params: Record<string, unknown> = {};
   for (const f of action.fields) {
-    if (f.showIf) continue;
+    if (f.showIf || f.kind === 'secret') continue;
     if (f.kind === 'choice') params[f.key] = f.options?.[0]?.value;
     else if (f.kind === 'number') params[f.key] = f.min ?? 0;
     else if (f.kind === 'toggle') params[f.key] = false;

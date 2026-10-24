@@ -286,6 +286,7 @@ const strings = {
     zh: '「{name}」这一项填写的内容不符合要求。',
   },
   runError_emptyText: { en: 'There is no text to use.', zh: '没有可以用的文字。' },
+  runError_passwordMissing: { en: 'No password was entered.', zh: '没有填密码。' },
   runError_textTooLong: {
     en: 'The text is too long (at most {max} characters).',
     zh: '文字太长了（最多 {max} 个字）。',

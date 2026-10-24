@@ -301,6 +301,44 @@ describe('QR codes and text', () => {
     });
   });
 
+  it('makes a Wi-Fi QR code; the password is asked on every run and never saved (D-198)', async () => {
+    const wifi = setup(toolWorkflow('qr', 'qr-wifi'), {
+      network: 'Home;5G',
+      security: 'WPA',
+      password: 'secret123',
+    });
+    const [png] = items(await wifi.run());
+    expect(png).toMatchObject({ ext: 'png', mimeType: 'image/png' });
+    expect(JSON.stringify(toolWorkflow('qr', 'qr-wifi'))).not.toContain('secret123');
+
+    const text = setup(
+      {
+        id: 'w',
+        name: 'w',
+        steps: [
+          {
+            id: 'wifi',
+            action: 'in.wifi',
+            params: { network: 'Home;5G', security: 'WPA', hidden: true },
+          },
+        ],
+      },
+      { password: 'secret123' },
+    );
+    expect(await text.run()).toMatchObject({
+      status: 'succeeded',
+      value: { type: 'text', text: 'WIFI:T:WPA;S:Home\\;5G;P:secret123;H:true;;' },
+    });
+
+    const missing = setup(toolWorkflow('qr', 'qr-wifi'), { network: 'Home', security: 'WPA' });
+    expect(await missing.run()).toMatchObject({
+      status: 'failed',
+      error: { code: 'passwordMissing' },
+    });
+    const open = setup(toolWorkflow('qr', 'qr-wifi'), { network: 'Cafe', security: 'none' });
+    expect(await open.run()).toMatchObject({ status: 'succeeded' });
+  });
+
   it('refuses empty text and photos without a QR code', async () => {
     const empty = setup(toolWorkflow('qr', 'qr-make'), { text: '   ' });
     expect(await empty.run()).toMatchObject({ status: 'failed', error: { code: 'emptyText' } });

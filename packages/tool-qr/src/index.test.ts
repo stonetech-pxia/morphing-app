@@ -6,6 +6,8 @@ import {
   downscaleRgba,
   qrMatrix,
   qrToRgba,
+  wifiProblem,
+  wifiText,
   type QrEcc,
   type RgbaImage,
 } from './index';
@@ -130,5 +132,32 @@ describe('downscaleRgba', () => {
     expect(Array.from(small.data)).toEqual([0, 0, 0, 255, 200, 200, 200, 255]);
     const one = downscaleRgba(img, 1);
     expect(Array.from(one.data)).toEqual([100, 100, 100, 255]);
+  });
+});
+
+describe('Wi-Fi QR codes (D-198)', () => {
+  const net = { name: 'Home', security: 'WPA' as const, password: 'secret123', hidden: false };
+
+  it('writes the text phone cameras read, escaping special characters', () => {
+    expect(wifiText(net)).toBe('WIFI:T:WPA;S:Home;P:secret123;;');
+    expect(wifiText({ ...net, name: 'Café;Bar', password: 'a:b,c"d\\e', hidden: true })).toBe(
+      'WIFI:T:WPA;S:Café\\;Bar;P:a\\:b\\,c\\"d\\\\e;H:true;;',
+    );
+    expect(wifiText({ ...net, security: 'none', password: 'ignored' })).toBe(
+      'WIFI:T:nopass;S:Home;;',
+    );
+    // 能做成二维码再读回来。
+    const image = qrToRgba(qrMatrix(wifiText(net)), { scale: 6 });
+    expect(decodeQr(image)).toBe('WIFI:T:WPA;S:Home;P:secret123;;');
+  });
+
+  it('checks the name and the password first', () => {
+    expect(wifiProblem(net)).toBeNull();
+    expect(wifiProblem({ ...net, name: '  ' })).toBe('name');
+    expect(wifiProblem({ ...net, name: '网'.repeat(11) })).toBe('name');
+    expect(wifiProblem({ ...net, password: '' })).toBe('passwordMissing');
+    expect(wifiProblem({ ...net, password: 'short' })).toBe('password');
+    expect(wifiProblem({ ...net, security: 'WEP', password: 'short' })).toBeNull();
+    expect(wifiProblem({ ...net, security: 'none', password: '' })).toBeNull();
   });
 });

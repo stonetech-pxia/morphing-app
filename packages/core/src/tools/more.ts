@@ -208,7 +208,7 @@ export const QR_ACTIONS: readonly ActionDefinition[] = [
 
 export const qrTool = simpleTool({
   id: 'qr',
-  version: '1.0.0',
+  version: '1.1.0',
   name: ['QR code', '二维码'],
   description: [
     'Make QR codes from text, and read QR codes in photos and screenshots, on this device.',
@@ -226,6 +226,20 @@ export const qrTool = simpleTool({
       steps: [
         { id: 'type', action: 'in.text', params: { text: '' }, ask: ['text'] },
         { id: 'make', action: 'qr.generate', params: { sizePx: 600, ecc: 'M' } },
+      ],
+    },
+    {
+      // D-198：给客人连 Wi-Fi 的码。每次问网络名和加密方式，密码总是问、不保存。
+      id: 'qr-wifi',
+      name: t(locale, 'Wi-Fi QR code', 'Wi-Fi 二维码'),
+      steps: [
+        {
+          id: 'wifi',
+          action: 'in.wifi',
+          params: { network: '', security: 'WPA', hidden: false },
+          ask: ['network', 'security'],
+        },
+        { id: 'make', action: 'qr.generate', params: { sizePx: 1200, ecc: 'M' } },
       ],
     },
     {

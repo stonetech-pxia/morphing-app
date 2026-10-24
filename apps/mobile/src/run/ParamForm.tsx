@@ -11,9 +11,10 @@ export function visibleFields(
   values: Record<string, unknown>,
   only?: readonly string[],
 ): ParamField[] {
+  // 密码只在运行时问（D-193），编辑页不显示。
   return action.fields.filter(
     (f) =>
-      (!only || only.includes(f.key)) &&
+      (only ? only.includes(f.key) : f.kind !== 'secret') &&
       (!f.showIf || f.showIf.equals.includes(values[f.showIf.key] as never)),
   );
 }
@@ -206,6 +207,20 @@ function FieldInput({
         </View>
       );
     }
+    case 'secret':
+      return (
+        <TextInput
+          testID={testID}
+          style={input}
+          value={typeof value === 'string' ? value : ''}
+          onChangeText={onChange}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="off"
+          textContentType="none"
+        />
+      );
     default:
       return (
         <TextInput

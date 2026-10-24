@@ -290,6 +290,23 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    // D-198：扫老照片。找边拉正，不增强、不压缩，存回相册。
+    id: 'old-photos',
+    scenario: 'photos',
+    name: { en: 'Scan old photos', zh: '扫老照片' },
+    description: {
+      en: 'Photograph printed photos with the document camera (or check the corners) → straightened, kept as they are → save to Photos.',
+      zh: '用文档相机拍纸质老照片（或拍照后确认四个角）→ 拉正，不改颜色、不压缩 → 存到相册。',
+    },
+    icon: 'photo',
+    packs: ['scan'],
+    steps: () => [
+      photos(1, 30, 'scanner'),
+      { id: 'edges', action: 'scan.detect', params: {} },
+      { id: 'save', action: 'out.saveToPhotos', params: {} },
+    ],
+  },
+  {
     id: 'print-id-photos',
     scenario: 'ids',
     name: { en: 'ID photos to print', zh: '证件照打印' },

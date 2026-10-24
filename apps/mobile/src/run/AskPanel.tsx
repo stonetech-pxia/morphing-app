@@ -53,9 +53,15 @@ export function AskPanel({
 
   function submit() {
     const answers: Record<string, unknown> = {};
+    const secrets: Record<string, unknown> = {};
     for (const key of request.keys) {
       const field = request.action.fields.find((f) => f.key === key);
       let value = values[key];
+      // 密码不在参数结构里，单独交回去（D-193）。
+      if (field?.kind === 'secret') {
+        secrets[key] = value;
+        continue;
+      }
       // 用户输入的是最终文件名，不是模板：去掉花括号，按文件名规则清理。
       if (field?.kind === 'nameTemplate') {
         const literal = String(value ?? '')
@@ -79,7 +85,7 @@ export function AskPanel({
       );
       return;
     }
-    onAnswer(answers);
+    onAnswer({ ...answers, ...secrets });
   }
 
   const onlyName =

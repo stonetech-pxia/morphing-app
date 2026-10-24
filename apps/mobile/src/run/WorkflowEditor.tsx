@@ -242,6 +242,13 @@ export function WorkflowEditor({
                     {zh ? '运行时你在手机上操作这一步。' : 'You do this step by hand when it runs.'}
                   </Text>
                 ) : null}
+                {action?.fields.some((f) => f.kind === 'secret') ? (
+                  <Text style={[palette.font('bodyMedium', 13), { color: palette.primaryText }]}>
+                    {zh
+                      ? '密码在每次运行时问，不会保存。'
+                      : 'The password is asked on every run and never saved.'}
+                  </Text>
+                ) : null}
                 {action && action.fields.length > 0 ? (
                   <ParamForm
                     action={action}

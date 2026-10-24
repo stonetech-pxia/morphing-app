@@ -116,4 +116,26 @@ describe('tool journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('prompt-cancel'));
     expect(await screen.findByTestId('run-cancelled')).toBeTruthy();
   });
+
+  it('asks for the Wi-Fi password in a hidden field and never saves it (D-198)', async () => {
+    const { repo } = await renderToolsApp();
+    await fireEvent.press(screen.getByTestId('nav-tools'));
+    await fireEvent.press(await screen.findByTestId('install-qr'));
+    await fireEvent.press(await screen.findByTestId('open-qr'));
+    await fireEvent.press(await screen.findByTestId('run-qr-wifi'));
+    await fireEvent.changeText(await screen.findByTestId('ask-network'), 'Home');
+    const password = screen.getByTestId('ask-password');
+    expect(password.props.secureTextEntry).toBe(true);
+    // 没填密码：运行时报错，不会生成没用的码。
+    await fireEvent.press(screen.getByTestId('prompt-ok'));
+    expect(await screen.findByText('没有填密码。')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('run-again'));
+    await fireEvent.changeText(await screen.findByTestId('ask-network'), 'Home');
+    await fireEvent.changeText(screen.getByTestId('ask-password'), 'secret123');
+    await fireEvent.press(screen.getByTestId('prompt-ok'));
+    expect(await screen.findByTestId('result-share')).toBeTruthy();
+    const head = await repo.getHead();
+    expect(JSON.stringify(head!.config)).not.toContain('secret123');
+  });
 });
