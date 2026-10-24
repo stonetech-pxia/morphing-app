@@ -22,7 +22,7 @@ const needs = {
 const app = createApp({
   ...runtime,
   perMinuteLimit: Number(process.env.MORPH_PER_MINUTE_LIMIT ?? 10),
-  deviceDailyUsd: Number(process.env.MORPH_DEVICE_DAILY_USD ?? 0.05),
+  deviceDailyUsd: Number(process.env.MORPH_DEVICE_DAILY_USD ?? 0.2),
   globalDailyUsd: Number(process.env.MORPH_GLOBAL_DAILY_USD ?? 2),
   offPlanLimit: Number(process.env.MORPH_OFF_PLAN_LIMIT ?? 5),
   ...(clientToken ? { clientToken } : {}),
