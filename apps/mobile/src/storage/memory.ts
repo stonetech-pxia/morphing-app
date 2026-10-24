@@ -170,6 +170,19 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
     this.meta.set(key, value);
   }
 
+  async countSucceededRuns() {
+    const counts: import('./types').SucceededRuns = new Map();
+    for (const run of this.toolRuns) {
+      if (run.status !== 'succeeded') continue;
+      const prev = counts.get(run.workflowId);
+      counts.set(run.workflowId, {
+        count: (prev?.count ?? 0) + 1,
+        lastAt: Math.max(prev?.lastAt ?? 0, run.startedAt),
+      });
+    }
+    return counts;
+  }
+
   async listToolRuns(limit: number) {
     return [...this.toolRuns].reverse().slice(0, limit);
   }

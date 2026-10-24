@@ -356,6 +356,13 @@ export class SQLiteWorkspaceRepo implements WorkspaceRepo {
     );
   }
 
+  async countSucceededRuns() {
+    const rows = await this.db.getAllAsync<{ workflowId: string; count: number; lastAt: number }>(
+      "SELECT workflow_id AS workflowId, COUNT(*) AS count, MAX(started_at) AS lastAt FROM tool_runs WHERE status = 'succeeded' GROUP BY workflow_id",
+    );
+    return new Map(rows.map(({ workflowId, count, lastAt }) => [workflowId, { count, lastAt }]));
+  }
+
   async listToolRuns(limit: number) {
     const rows = await this.db.getAllAsync<ToolRunRow>(
       'SELECT * FROM tool_runs ORDER BY id DESC LIMIT ?',

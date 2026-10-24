@@ -151,7 +151,7 @@ describe('AI changes the app, the user runs it (UI)', () => {
     const photo = files.offer('IMG_1.jpg', TINY_JPEG, 'image/jpeg');
     await act(async () => useIncoming.getState().receive([photo]));
     await act(() => router.push('/share'));
-    expect(await screen.findByTestId('share-no-workflows')).toHaveTextContent(/让 AI 搭一个/);
+    expect(await screen.findByTestId('share-ask-ai')).toHaveTextContent(/我要自己说/);
     // 现成的里，第一步收一张照片的才列出来（签证照片收 1 张；签回表格收 PDF，不列）。
     expect(screen.getByTestId('share-preset-visa-photo')).toBeTruthy();
     expect(screen.queryByTestId('share-preset-sign-return')).toBeNull();

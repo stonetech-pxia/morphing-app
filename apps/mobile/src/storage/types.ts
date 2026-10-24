@@ -81,6 +81,8 @@ export interface StoredRecord extends DataRecord {
   deletedAt: number | null;
 }
 
+export type SucceededRuns = Map<string, { count: number; lastAt: number }>;
+
 export interface WorkspaceRepo {
   getHead(): Promise<RevisionRecord | null>;
   getRevision(id: number): Promise<RevisionRecord | null>;
@@ -119,6 +121,7 @@ export interface WorkspaceRepo {
     result: { status: Exclude<ToolRunStatus, 'running'>; error?: string; outputAssetId?: string },
   ): Promise<void>;
   listToolRuns(limit: number): Promise<ToolRunRecord[]>;
+  countSucceededRuns(): Promise<SucceededRuns>;
 
   // ---- 设备上的小设置（不属于配置、不进版本，例如使用习惯的统计 D-127）----
   getMeta(key: string): Promise<string | null>;
