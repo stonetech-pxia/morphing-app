@@ -1,4 +1,11 @@
-import { BUILTIN_TOOLS, createMockAIProvider, createRegistry } from '@morph/core';
+import {
+  BUILTIN_TOOLS,
+  createMockAIProvider,
+  createRegistry,
+  type Locale,
+  type Registry,
+  type WorkspaceConfig,
+} from '@morph/core';
 import { Stack } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
@@ -38,7 +45,12 @@ function ShareListener({ files }: { files: FakeFiles }) {
   return null;
 }
 
-export async function renderToolsApp(repo = new MemoryWorkspaceRepo(), files = new FakeFiles()) {
+export async function renderToolsApp(
+  repo = new MemoryWorkspaceRepo(),
+  files = new FakeFiles(),
+  /** 第一个版本；不传时是空白工作空间（App 里用 createStarterWorkspace）。 */
+  seed?: (locale: Locale, registry: Registry) => WorkspaceConfig,
+) {
   const aiSettings = createAISettingsStore({ secrets: memorySecrets(), serverAvailable: false });
   await aiSettings.getState().load();
   const store = createWorkspaceStore({
@@ -47,6 +59,7 @@ export async function renderToolsApp(repo = new MemoryWorkspaceRepo(), files = n
     registry: testRegistry,
     locale: 'zh',
     now: () => new Date(2026, 9, 22, 9, 0),
+    ...(seed ? { seed } : {}),
   });
   await store.getState().boot();
   await renderRouter({

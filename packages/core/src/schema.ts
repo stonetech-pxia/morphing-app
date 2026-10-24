@@ -5,7 +5,7 @@ import { isEmoji, unsafeLinks } from './richtext';
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 修改本文件中会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
 
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 export type Locale = 'en' | 'zh';
 export type Localized = Record<Locale, string>;
@@ -53,6 +53,8 @@ export const ICON_NAMES = [
   'workflow',
   'video',
   'audio',
+  'translate',
+  'note',
 ] as const;
 export const IconSchema = z.enum(ICON_NAMES);
 export type IconName = z.infer<typeof IconSchema>;
@@ -266,6 +268,19 @@ export const ToolCardComponentSchema = z.strictObject({
   props: z.strictObject({ toolId: IdSchema }),
 });
 
+/**
+ * 工具宫格（D-181）：一组工具的小图标，每行三个；点一下打开工具，还没添加的先添加再打开。
+ * toolIds 按顺序列出工具；不写 toolIds 时显示目录里同一页面上其他工具宫格没列出的全部工具（「更多工具」，没有就不显示）。
+ */
+export const ToolGridComponentSchema = z.strictObject({
+  ...componentBase,
+  type: z.literal('toolGrid'),
+  props: z.strictObject({
+    title: text(1, 60).optional(),
+    toolIds: z.array(IdSchema).min(1).max(30).optional(),
+  }),
+});
+
 export const CatalogLinkComponentSchema = z.strictObject({
   ...componentBase,
   type: z.literal('catalogLink'),
@@ -400,6 +415,7 @@ const LeafComponentSchema = z.discriminatedUnion('type', [
   HeaderComponentSchema,
   TextComponentSchema,
   ToolCardComponentSchema,
+  ToolGridComponentSchema,
   CatalogLinkComponentSchema,
   FileListComponentSchema,
   WorkflowRunnerComponentSchema,
@@ -490,6 +506,8 @@ export const WorkflowSchema = z.strictObject({
 export type Workflow = z.infer<typeof WorkflowSchema>;
 
 export const HOME_PAGE_ID = 'home';
+/** 新用户的工具箱页面（D-181）。是用户自己的页面，可以改、也可以删；「设置 → 工具」始终列出全部工具。 */
+export const TOOLBOX_PAGE_ID = 'toolbox';
 
 export const WorkspaceConfigSchema = z.strictObject({
   schemaVersion: z.literal(CURRENT_SCHEMA_VERSION),
@@ -506,6 +524,22 @@ export type WorkspaceConfig = z.infer<typeof WorkspaceConfigSchema>;
 /** 页面上的所有组件，包括分组里的子组件（深度优先，按显示顺序）。 */
 export function allComponents(page: Page): Component[] {
   return page.components.flatMap((c) => (c.type === 'group' ? [c, ...c.children] : [c]));
+}
+
+/**
+ * 一个工具宫格显示哪些工具（D-181）：写了 toolIds 就按它的顺序；没写就是目录里
+ * 同一页面上其他宫格都没列出的工具。目录里没有的工具不显示。
+ */
+export function toolGridToolIds(
+  grid: Extract<Component, { type: 'toolGrid' }>,
+  page: Page,
+  catalog: readonly string[],
+): string[] {
+  if (grid.props.toolIds) return grid.props.toolIds.filter((id) => catalog.includes(id));
+  const listed = new Set(
+    allComponents(page).flatMap((c) => (c.type === 'toolGrid' ? (c.props.toolIds ?? []) : [])),
+  );
+  return catalog.filter((id) => !listed.has(id));
 }
 
 /** 数据组件引用的数据表。 */

@@ -76,7 +76,7 @@ describe('workspace store', () => {
       'ocr',
       'qr',
     ]);
-    expect(config.shell.nav).toEqual(['page:home', 'tools', 'ai', 'settings']);
+    expect(config.shell.nav).toEqual(['page:home', 'ai', 'settings']);
     expect((await repo.listRevisions(10)).map((r) => r.source)).toEqual(['seed']);
   });
 

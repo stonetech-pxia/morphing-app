@@ -305,7 +305,7 @@ export const textTool = simpleTool({
     '在本机把输入或粘贴的文字变成 PDF 或文字文件。',
   ],
   intro: ['The text stays on this device.', '文字只留在本机。'],
-  icon: 'text',
+  icon: 'note',
   aliases: ['text', 'text to pdf', '文字', '文字转pdf', '文字转 pdf'],
   permissions: ['files.write'],
   actions: TEXT_ACTIONS,

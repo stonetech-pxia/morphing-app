@@ -1,6 +1,6 @@
 import { SYSTEM_TARGET_LABELS } from './defaults';
 import { plainText } from './richtext';
-import type { ApplyNote, Op } from './ops';
+import { shownInToolGrid, type ApplyNote, type Op } from './ops';
 import { THEME_PRESETS } from './presets';
 import type { Registry } from './registry';
 import { describeParams } from './workflow/format';
@@ -46,6 +46,14 @@ export function componentLabel(
       const name = ctx.registry.tools.get(c.props.toolId)?.name[ctx.locale] ?? c.props.toolId;
       return zh ? `「${name}」工具入口` : `${name} tool card`;
     }
+    case 'toolGrid':
+      return c.props.title
+        ? zh
+          ? `工具宫格「${c.props.title}」`
+          : `tool grid “${c.props.title}”`
+        : zh
+          ? '工具宫格'
+          : 'tool grid';
     case 'catalogLink':
       return zh ? `「${c.props.title}」入口` : `“${c.props.title}” link`;
     case 'fileList':
@@ -516,10 +524,15 @@ export function describeChange(
         );
         break;
       case 'installTool':
+        // 工具箱里已经有这个工具时不再往首页放入口（D-181）。
         lines.push(
-          zh
-            ? `添加「${toolName(op.toolId)}」工具：新增工具页面和首页入口`
-            : `Add the ${toolName(op.toolId)} tool: adds its page and a home card`,
+          shownInToolGrid(known, op.toolId, [...ctx.registry.tools.keys()])
+            ? zh
+              ? `添加「${toolName(op.toolId)}」工具：新增工具页面`
+              : `Add the ${toolName(op.toolId)} tool: adds its page`
+            : zh
+              ? `添加「${toolName(op.toolId)}」工具：新增工具页面和首页入口`
+              : `Add the ${toolName(op.toolId)} tool: adds its page and a home card`,
         );
         break;
       case 'updateTool':
