@@ -150,6 +150,7 @@ App ──POST /v1/plan {input, locale, config}──► Cloudflare 隧道 ─�
 - 没有配置 `ANTHROPIC_API_KEY` 时，服务使用 mock，接口不变。
 - 只监听 `127.0.0.1`，日志只记录元数据（结果类型、输入长度、耗时），不记录用户输入和配置。
 - 生产部署在 Mac mini 上，经 Cloudflare 隧道对外（D-131，[DEPLOY.md](DEPLOY.md)）；登录上线前用客户端令牌 + 按设备限额 + 全局上限防护（D-132）。
+- 下载的工具（D-177–D-179，[TOOL_DOWNLOAD_DESIGN.md](TOOL_DOWNLOAD_DESIGN.md)）：配置了 `MORPH_TOOLS_URL` 时，服务启动拉一次签名目录、之后每 15 分钟一次，把工具注册进自己的注册表（`registerTool`），校验配置和写提示词都用它。App 启动时先把本机下载过的工具注册进注册表，再打开工作空间。
 
 ## 7. 最大的 5 项工程风险
 

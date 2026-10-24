@@ -2,7 +2,7 @@ import type { Registry } from '@morph/core';
 
 import { supportsServerFallback } from './models';
 import type { Complete, Completion } from './planner';
-import { buildSystemPrompt } from './prompt';
+import { systemPromptFor } from './prompt';
 
 // 直接调用 Claude HTTP API 的传输层，供 App 内“自带 API key”模式使用。
 // 官方 TypeScript SDK 目前不支持 React Native，因此 App 端用 fetch；服务端仍用 SDK。
@@ -113,14 +113,19 @@ interface MessageResponse {
 }
 
 export function createHttpCompleter(options: HttpCompleterOptions): Complete {
-  const system = buildSystemPrompt(options.registry);
   const fallback = supportsServerFallback(options.model);
   return async (messages): Promise<Completion> => {
     const body = {
       model: options.model,
       max_tokens: 16000,
       // 系统提示词稳定不变，标记缓存以降低重复请求的成本。
-      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+      system: [
+        {
+          type: 'text',
+          text: systemPromptFor(options.registry),
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       messages,
       ...(options.effort ? { output_config: { effort: options.effort } } : {}),
       ...(fallback ? { fallbacks: 'default' } : {}),
