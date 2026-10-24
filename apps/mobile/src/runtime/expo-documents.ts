@@ -37,6 +37,13 @@ export function expoDocuments(
   if (native) {
     return {
       extensions: SYSTEM_EXTENSIONS,
+      passwords: {
+        lockState: (uri) => native.pdfLockState(uri),
+        unlock: (uri, password, runId, relPath) =>
+          native.unlockPdf(uri, password, runFileUri(runId, relPath)),
+        protect: (uri, password, runId, relPath) =>
+          native.protectPdf(uri, password, runFileUri(runId, relPath)),
+      },
       async toPdf(uri, _ext, page, runId, relPath) {
         return native.toPdf(uri, runFileUri(runId, relPath), { ...page, margin: MARGIN });
       },
@@ -44,6 +51,7 @@ export function expoDocuments(
   }
   return {
     extensions: ['docx'],
+    passwords: null,
     async toPdf(uri, _ext, page, runId, relPath) {
       // 浏览器版是打包好的一个文件（不依赖 Node 的 fs、path），只在用到时加载（约 400 KB）。
       // eslint-disable-next-line @typescript-eslint/no-require-imports

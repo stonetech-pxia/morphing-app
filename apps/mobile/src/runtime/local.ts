@@ -99,6 +99,13 @@ export interface LocalSteps {
     };
     out: { values: Record<string, unknown> } | { skip: true };
   };
+  /**
+   * 去掉 PDF 密码（D-194）：输这个 PDF 的打开密码。wrong：上一次输的不对。返回密码，或跳过这一个。
+   */
+  password: {
+    in: { name: string; wrong: boolean; index: number; total: number };
+    out: { password: string } | { skip: true };
+  };
 }
 
 export type LocalKind = keyof LocalSteps;

@@ -11,6 +11,7 @@ import { MORE_IMPLS } from './more';
 import { OCR_IMPLS } from './ocr';
 import { PDF_IMPLS } from './pdf';
 import { PDF_COMPRESS_IMPLS } from './pdf-compress';
+import { PDF_PASSWORD_IMPLS } from './pdf-password';
 import { RECORD_IMPLS } from './records';
 import { SCAN_IMPLS } from './scan';
 import { TRANSLATE_IMPLS } from './translate';
@@ -22,6 +23,7 @@ export const ACTION_IMPLS: Readonly<Record<string, ActionImpl<RunServices>>> = {
   ...RECORD_IMPLS,
   ...PDF_IMPLS,
   ...PDF_COMPRESS_IMPLS,
+  ...PDF_PASSWORD_IMPLS,
   ...DOCUMENT_IMPLS,
   ...VIDEO_IMPLS,
   ...GIF_IMPLS,

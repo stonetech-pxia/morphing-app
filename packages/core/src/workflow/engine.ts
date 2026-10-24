@@ -65,6 +65,9 @@ export type RunErrorCode =
   | 'badField'
   | 'notFound'
   | 'emptyText'
+  | 'passwordMissing'
+  | 'pdfRestricted'
+  | 'pdfPasswordUnsupported'
   | 'textTooLong'
   | 'doesNotFit'
   | 'noRecords'
@@ -119,6 +122,8 @@ export interface StepContext<S> {
   throwIfCancelled(): void;
   /** 本次运行保存成用户文件的 ID（file.save 填写）。 */
   saved: string[];
+  /** 这一步问到的密码（secret 参数）：只在这次运行里用；没有问（没有询问界面、用户没填）时没有这个键。 */
+  secrets: Readonly<Record<string, string>>;
 }
 
 export type ActionImpl<S> = (
@@ -248,18 +253,27 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
       const impl = opts.impls[step.action];
       if (!impl) throw new RunError('unsupportedAction', { action: step.action });
       let params = action.params.parse(step.params);
-      if (step.ask?.length && opts.askParams) {
+      // 密码每次都问（D-194），和配置里的 ask 一起问；回答分开放，不进参数。
+      const secretKeys = action.fields.filter((f) => f.kind === 'secret').map((f) => f.key);
+      const keys = [...(step.ask ?? []), ...secretKeys.filter((k) => !step.ask?.includes(k))];
+      const secrets: Record<string, string> = {};
+      if (keys.length && opts.askParams) {
         const answered = await orCancel(
           opts.askParams({
             step,
             action,
-            keys: step.ask,
+            keys,
             params,
             input: value,
           }),
         );
         if (answered === null) throw new RunCancelled();
-        params = action.params.parse({ ...params, ...answered });
+        const rest: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(answered)) {
+          if (!secretKeys.includes(k)) rest[k] = v;
+          else if (typeof v === 'string' && v !== '') secrets[k] = v;
+        }
+        params = action.params.parse({ ...params, ...rest });
       }
       // 先问参数再确认扩展包：文字识别的语言包由本次选的语言决定。
       const pack = opts.packNotNeeded?.(action.id, params, value)
@@ -289,6 +303,7 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
             }),
           throwIfCancelled,
           saved,
+          secrets,
         }),
       );
       if (i === 0) inputSize = totalSize(value);

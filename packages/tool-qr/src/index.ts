@@ -161,4 +161,48 @@ export function decodeQr({ data, width, height }: RgbaImage): string | null {
   const pixels = new Uint8ClampedArray(data.buffer, data.byteOffset, data.byteLength);
   return jsQR(pixels, width, height, { inversionAttempts: 'attemptBoth' })?.data ?? null;
 }
+export interface WifiNetwork {
+  name: string;
+  security: 'WPA' | 'WEP' | 'none';
+  password: string;
+  hidden: boolean;
+}
+
+/** Wi-Fi 二维码里的文字有问题：网络名（空、超过 32 字节）或密码（没填、WPA 不是 8–63 个字符）。 */
+export type WifiProblem = 'name' | 'passwordMissing' | 'password';
+
+/** 网络名、密码里的 \ ; , : " 前面加反斜杠（Wi-Fi 二维码格式的转义）。 */
+const wifiEscape = (s: string) => s.replace(/[\\;,:"]/g, (c) => `\\${c}`);
+
+/** UTF-8 字节数（这个包的类型里没有 TextEncoder）。 */
+function utf8Length(s: string): number {
+  let n = 0;
+  for (const ch of s) {
+    const cp = ch.codePointAt(0)!;
+    n += cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+  }
+  return n;
+}
+
+/** 先检查，有问题时返回问题，否则返回 null。 */
+export function wifiProblem(net: WifiNetwork): WifiProblem | null {
+  if (!net.name.trim() || utf8Length(net.name) > 32) return 'name';
+  if (net.security === 'none') return null;
+  if (!net.password) return 'passwordMissing';
+  if (net.security === 'WPA' && (net.password.length < 8 || net.password.length > 63)) {
+    return 'password';
+  }
+  return null;
+}
+
+/**
+ * 手机相机扫 Wi-Fi 二维码时认的文字（D-199）：WIFI:T:WPA;S:网络名;P:密码;H:true;;
+ * 没有密码时 T:nopass、不写 P。先用 wifiProblem 检查。
+ */
+export function wifiText(net: WifiNetwork): string {
+  const type = net.security === 'none' ? 'nopass' : net.security;
+  const password = net.security === 'none' ? '' : `P:${wifiEscape(net.password)};`;
+  return `WIFI:T:${type};S:${wifiEscape(net.name)};${password}${net.hidden ? 'H:true;' : ''};`;
+}
+
 export { encodePng } from './png';

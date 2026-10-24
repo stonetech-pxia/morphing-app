@@ -46,6 +46,9 @@ export const FILE_ACCEPT: Record<string, ValueType> = {
 /** 用户自己输入的文字最长多少字（文字转 PDF、二维码）。 */
 export const MAX_INPUT_TEXT = 5000;
 
+/** Wi-Fi 网络名最长 32 字节（IEEE 802.11）；这里按字数先挡一下，运行时再按字节检查。 */
+export const WIFI_NAME_MAX = 32;
+
 /** 读取记录的时间范围：表里第一个日期字段（没有就用创建时间）落在这段时间里。 */
 export const RECORD_PERIODS = ['all', ...PERIODS] as const;
 
@@ -277,6 +280,38 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     requires: [],
   },
   {
+    // D-199：给客人连 Wi-Fi 的二维码。网络名是用户写的（发给 AI 前换成占位符），密码每次运行时问、不保存。
+    id: 'in.wifi',
+    label: { en: 'Wi-Fi details', zh: 'Wi-Fi 信息' },
+    description: {
+      en: 'The user enters a Wi-Fi network (name, security, password); the result is the text phones read from a Wi-Fi QR code (follow with qr.generate). The password is asked on every run and never saved.',
+      zh: '用户填一个 Wi-Fi 网络（名字、加密方式、密码），变成手机扫 Wi-Fi 二维码时读到的文字（后面接「生成二维码」）。密码每次运行时问，不会保存。',
+    },
+    input: [],
+    output: 'text',
+    params: z.strictObject({
+      network: z.string().max(WIFI_NAME_MAX),
+      security: z.enum(['WPA', 'WEP', 'none']),
+      hidden: z.boolean(),
+    }),
+    fields: [
+      { key: 'network', label: { en: 'Network name', zh: '网络名' }, kind: 'text', private: true },
+      {
+        key: 'security',
+        label: { en: 'Security', zh: '加密方式' },
+        kind: 'choice',
+        options: [
+          { value: 'WPA', label: { en: 'WPA / WPA2 / WPA3', zh: 'WPA / WPA2 / WPA3' } },
+          { value: 'WEP', label: { en: 'WEP', zh: 'WEP' } },
+          { value: 'none', label: { en: 'No password', zh: '没有密码' } },
+        ],
+      },
+      { key: 'hidden', label: { en: 'Hidden network', zh: '隐藏的网络' }, kind: 'toggle' },
+      { key: 'password', label: { en: 'Password', zh: '密码' }, kind: 'secret' },
+    ],
+    requires: [],
+  },
+  {
     id: 'in.records',
     label: { en: 'Use records', zh: '读取记录' },
     description: {
@@ -360,6 +395,30 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     fields: [],
     local: 'reorder',
     requires: [],
+  },
+  {
+    // D-197：一份报销单越攒越多。默认接上这个快捷操作上次存下的结果；选中的文件只在这次运行里用。
+    id: 'file.addExisting',
+    label: { en: 'Add an existing file', zh: '加上已有文件' },
+    description: {
+      en: 'Asks which earlier file to add to the files so far: by default the last result this quick action saved, or a PDF or image picked in Files, or none this time. position "before" puts the existing file first. Follow with pdf.merge to grow one PDF run after run (an expense report that gets one more receipt each time).',
+      zh: '问用户把哪个已有的文件加进来：默认是这个快捷操作上次存下的结果，也可以从「文件」里选一个 PDF 或图片，或者这次不加。position 为 before 时已有的文件放在前面。后面接「按顺序合并」，一份 PDF 就能一次比一次长（报销单每次加一张收据）。',
+    },
+    input: ['files'],
+    output: 'files',
+    params: z.strictObject({ position: z.enum(['before', 'after']) }),
+    fields: [
+      {
+        key: 'position',
+        label: { en: 'Existing file goes', zh: '已有的文件放在' },
+        kind: 'choice',
+        options: [
+          { value: 'before', label: { en: 'First', zh: '前面' } },
+          { value: 'after', label: { en: 'Last', zh: '后面' } },
+        ],
+      },
+    ],
+    requires: ['files.pick'],
   },
   {
     id: 'file.save',

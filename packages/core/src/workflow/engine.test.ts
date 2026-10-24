@@ -228,4 +228,44 @@ describe('runWorkflow', () => {
     expect(await promise).toMatchObject({ status: 'succeeded', value: { text: '日本語' } });
     expect(asked).toEqual([]);
   });
+
+  it('always asks for passwords and hands them only to that step, never into the params (D-194)', async () => {
+    const wf: Workflow = {
+      id: 'wifi',
+      name: 'Wi-Fi',
+      steps: [
+        {
+          id: 'wifi',
+          action: 'in.wifi',
+          params: { network: 'Home', security: 'WPA', hidden: false },
+        },
+      ],
+    };
+    const asked: string[][] = [];
+    let seen: { params: Record<string, unknown>; secrets: Record<string, string> } | null = null;
+    const { promise } = run(wf, {
+      impls: {
+        'in.wifi': async (_input, params, ctx) => {
+          seen = { params, secrets: { ...ctx.secrets } };
+          return { type: 'text', text: 'x', name: 'x' };
+        },
+      },
+      askParams: async ({ keys }) => (asked.push([...keys]), { password: 'secret123' }),
+    });
+    expect(await promise).toMatchObject({ status: 'succeeded' });
+    expect(asked).toEqual([['password']]);
+    expect(seen).toEqual({
+      params: { network: 'Home', security: 'WPA', hidden: false },
+      secrets: { password: 'secret123' },
+    });
+    // 配置里存不进密码：参数结构里没有这个键。
+    expect(
+      registry.actions.get('in.wifi')!.params.safeParse({
+        network: 'Home',
+        security: 'WPA',
+        hidden: false,
+        password: 'secret123',
+      }).success,
+    ).toBe(false);
+  });
 });
