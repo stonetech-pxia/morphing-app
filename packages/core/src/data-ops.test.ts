@@ -145,7 +145,7 @@ describe('data table ops', () => {
       },
     ]);
     expect(issuesOf(bad)).toEqual([
-      'bad-stat: sum needs fieldId set to a number, money or rating field',
+      'bad-stat: sum needs fieldId set to a number, money, rating or formula field',
       'bad-stat: filter on amount: inPeriod needs a date field',
       'bad-stat: filter on category: value does not match the field type',
       'bad-list: a checklist needs checkField set to a checkbox field',

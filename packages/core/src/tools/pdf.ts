@@ -517,6 +517,36 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
     requires: [],
   },
   {
+    // D-186：iOS 用系统的文档预览排版（Word、Excel、PowerPoint、RTF 都能看），Android 系统不会显示
+    // 办公文档，只能把 Word（.docx）转成网页再排版，复杂排版会走样。
+    id: 'pdf.fromDocument',
+    label: { en: 'Document to PDF', zh: '文档转 PDF' },
+    description: {
+      en: 'Turn Word, Excel and PowerPoint files (also RTF) into PDFs on this device. On Android only Word (.docx) works, and complex layouts may shift.',
+      zh: '在本机把 Word、Excel、PowerPoint 文件（还有 RTF）转成 PDF。Android 上只支持 Word（.docx），排版复杂的可能会走样。',
+    },
+    input: ['files'],
+    rejects: ['images', 'pdf', 'zip', 'video', 'audio'],
+    output: 'pdf',
+    params: z.strictObject({ pageSize: z.enum(['a4', 'letter']) }),
+    fields: [
+      {
+        key: 'pageSize',
+        label: { en: 'Page size', zh: '纸张' },
+        kind: 'choice',
+        options: [
+          { value: 'a4', label: { en: 'A4', zh: 'A4' } },
+          { value: 'letter', label: { en: 'Letter', zh: 'Letter' } },
+        ],
+      },
+    ],
+    presets: [
+      { id: 'a4', label: { en: 'A4', zh: 'A4' }, values: { pageSize: 'a4' } },
+      { id: 'letter', label: { en: 'Letter', zh: 'Letter' }, values: { pageSize: 'letter' } },
+    ],
+    requires: [],
+  },
+  {
     id: 'pdf.extractText',
     label: { en: 'Get text from PDF', zh: '提取 PDF 文字' },
     description: {
@@ -625,6 +655,14 @@ export function pdfWorkflows(locale: Locale): Workflow[] {
           params: { pageSize: 'a4', orientation: 'auto', marginMm: 10, fit: 'contain', maxMB: 0 },
           ask: ['pageSize', 'maxMB'],
         },
+      ],
+    ),
+    wf(
+      'pdf-document',
+      ['Word / Excel / PPT to PDF', 'Word / Excel / PPT 转 PDF'],
+      [
+        { id: 'pick', action: 'in.files', params: { accept: 'documents', min: 1, max: 10 } },
+        { id: 'run', action: 'pdf.fromDocument', params: { pageSize: 'a4' } },
       ],
     ),
     wf(
@@ -751,14 +789,14 @@ export function pdfWorkflows(locale: Locale): Workflow[] {
 
 export const pdfTool: ToolDefinition = {
   id: PDF_TOOL_ID,
-  version: '2.2.0',
+  version: '2.3.0',
   name: { en: 'PDF', zh: 'PDF' },
   description: {
-    en: 'Merge, convert, compress, arrange, split, number, stamp, sign and fill in PDFs on this device.',
-    zh: '在本机合并 PDF、图片转 PDF、压缩 PDF、整理和拆分页面、加页码和文字戳、签名、填表。',
+    en: 'Merge, convert (images, Word, Excel, PowerPoint), compress, arrange, split, number, stamp, sign and fill in PDFs on this device.',
+    zh: '在本机合并 PDF、图片和 Word / Excel / PPT 转 PDF、压缩 PDF、整理和拆分页面、加页码和文字戳、签名、填表。',
   },
   icon: 'document',
-  aliases: ['pdf', 'pdf tool', 'pdf 工具'],
+  aliases: ['pdf', 'pdf tool', 'pdf 工具', 'word to pdf', 'word 转 pdf'],
   permissions: ['files.pick', 'files.write', 'photos.save', 'camera'],
   actions: PDF_ACTIONS,
   createPage: (locale) => ({

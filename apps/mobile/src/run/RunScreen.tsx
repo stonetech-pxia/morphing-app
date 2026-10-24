@@ -82,6 +82,7 @@ export function RunScreen({
   const collections = useWorkspace((s) => s.config!.collections);
   const revisionId = useWorkspace((s) => s.head!.id);
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
+  const bumpRecords = useWorkspace((s) => s.bumpRecords);
   const palette = usePalette(theme);
   const router = useRouter();
   // 打开即开始运行，所以初始状态就是第 1 步。
@@ -203,6 +204,8 @@ export function RunScreen({
     setOutcome(started.result);
     setRunCount((n) => n + 1);
     if (started.result.status === 'succeeded' && started.result.saved.length > 0) bumpAssets();
+    // 记一笔（D-187）直接写数据库：页面上的列表和统计要重新读（停在中途也可能已经记了几笔）。
+    if (workflow.steps.some((s) => s.action === 'out.addRecord')) bumpRecords();
   }
 
   useEffect(() => {

@@ -57,6 +57,7 @@
     "expo-system-ui": "~58.0.6",
     "expo-video": "~58.0.12",
     "expo-web-browser": "~58.0.6",
+    "mammoth": "1.13.0",
     "pdf-lib": "^1.17.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",

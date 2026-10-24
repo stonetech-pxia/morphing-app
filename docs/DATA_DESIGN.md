@@ -54,6 +54,8 @@
 | `date`     | `YYYY-MM-DD`，设备本地日期                       | 日期、截止日 |
 | `choice`   | 选项 ID（单选）                                  | 分类、状态   |
 | `rating`   | 1–5 的整数                                       | 评分         |
+| `file`     | Morph 里一个文件的 ID（D-187）                   | 收据、照片   |
+| `formula`  | 不存值，按 `expression` 现算（D-188）            | 小计、含税   |
 
 每条记录还自带两个系统字段：`createdAt`、`updatedAt`，可以用来排序和筛选。
 
@@ -131,6 +133,8 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 **校验器**新增检查：组件引用的表和字段必须存在；用法和类型匹配（`sum` 只能用于 `number` / `money`，`checklist` 需要 `checkbox` 字段，`inPeriod` 只能用于 `date` 或系统时间字段）；筛选值必须符合字段类型和选项。
 
 **修改说明**举例：「新建数据表「账目」（金额、分类、日期、备注）」「隐藏「账目」的字段「备注」（已有数据保留）」。
+
+**快捷操作写记录（D-187）**：`out.addRecord` 在快捷操作运行时弹出按表结构生成的表单，用户填完才写进数据库；文件存成 Morph 的文件放进附件字段。AI 只决定记到哪张表。
 
 **AI 不碰记录内容**：「删掉上个月的账」「把所有待办标成完成」这类请求会被拒绝，并提示直接在页面上操作（和 `deleteFiles` 同一类）。AI 是否可以代写记录，见 Q1。
 

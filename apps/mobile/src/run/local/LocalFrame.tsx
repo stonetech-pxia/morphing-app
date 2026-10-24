@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Palette } from '../../renderer/theme';
@@ -14,6 +14,7 @@ export function LocalFrame({
   onCancel,
   onDone,
   doneDisabled,
+  avoidKeyboard,
   children,
 }: {
   palette: Palette;
@@ -23,11 +24,16 @@ export function LocalFrame({
   onCancel: () => void;
   onDone: () => void;
   doneDisabled?: boolean;
+  /** 有输入框的界面（记一笔，D-187）：键盘弹出时「完成」跟着上移，不被挡住。 */
+  avoidKeyboard?: boolean;
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.root, { backgroundColor: palette.background, paddingTop: insets.top }]}>
+    <KeyboardAvoidingView
+      enabled={avoidKeyboard === true && Platform.OS === 'ios'}
+      behavior="padding"
+      style={[styles.root, { backgroundColor: palette.background, paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Pressable testID="local-cancel" onPress={onCancel} hitSlop={10}>
           <Text style={[palette.font('bodyBold', 16), { color: palette.muted }]}>
@@ -62,7 +68,7 @@ export function LocalFrame({
           </Text>
         </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

@@ -11,9 +11,17 @@ import type { Locale, WorkspaceConfig } from '../schema';
  * userData：请求涉及用户记录的内容（读、写、删、统计）。AI 只修改界面，从不接触记录。
  * errand：要 AI 替用户办事、而不是改 App（写邮件、回答问题、总结文件内容……，D-113、D-128）；
  * 说明里告诉用户可以做成什么快捷操作。
+ * unavailable：AI 没能回答（连不上、出错、限额），由 App 自己生成，模型不会用它（D-189：这种拒绝不能当成需求发回来）。
  */
 export type RejectReason =
-  'unknown' | 'protected' | 'deleteFiles' | 'userData' | 'notInstalled' | 'noChange' | 'errand';
+  | 'unknown'
+  | 'protected'
+  | 'deleteFiles'
+  | 'userData'
+  | 'notInstalled'
+  | 'noChange'
+  | 'errand'
+  | 'unavailable';
 
 export const REJECT_REASONS = [
   'unknown',
@@ -23,6 +31,7 @@ export const REJECT_REASONS = [
   'notInstalled',
   'noChange',
   'errand',
+  'unavailable',
 ] as const satisfies readonly RejectReason[];
 
 export type Plan =

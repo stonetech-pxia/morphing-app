@@ -155,7 +155,7 @@ describe('migrateWorkspace', () => {
   it('refuses snapshots it cannot migrate', () => {
     const v0 = { ...v1Snapshot, schemaVersion: 0 };
     expect(migrateWorkspace(v0)).toEqual({ ok: false, error: 'no migration from schemaVersion 0' });
-    expect(migrateWorkspace({ schemaVersion: 8 }).ok).toBe(false);
+    expect(migrateWorkspace({ schemaVersion: 9 }).ok).toBe(false);
     expect(migrateWorkspace('garbage').ok).toBe(false);
   });
 

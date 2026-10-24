@@ -1,4 +1,4 @@
-import { guideGoal, type Workflow } from '@morph/core';
+import { guideGoal, type RejectReason, type Workflow } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -20,6 +20,7 @@ import { isGoalParam } from '../guide/store';
 import { t } from '../i18n';
 import { UiIcon, type UiIconName } from '../renderer/Icon';
 import { usePalette, type Palette } from '../renderer/theme';
+import { NeedButton } from '../shell/NeedButton';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { shownConfig, type Draft, type DraftStep } from '../workspace/store';
 import { useDraftUi } from './ui';
@@ -256,8 +257,15 @@ function GrowingSteps({
   );
 }
 
-/** handOff：功能类的请求（D-191），可以带去「修改这个 App」说。 */
-type ChatReply = { afterSteps: number; message: string; examples: string[]; handOff?: string };
+type ChatReply = {
+  afterSteps: number;
+  message: string;
+  examples: string[];
+  /** AI 做不到的那句话和原因：下面显示「把这个需求告诉我们」（D-189）。 */
+  need?: { text: string; reason: RejectReason | undefined };
+  /** 功能类的请求（D-191），可以带去「修改这个 App」说。 */
+  handOff?: string;
+};
 
 /**
  * 「修改」：从底部拉起的聊天框（D-190）。每说一句就在草稿上再改一步，上面的 App 跟着变；
@@ -295,7 +303,12 @@ function DraftChat({
     if (result.kind === 'rejected') {
       setReplies((r) => [
         ...r,
-        { afterSteps: after, message: `${trimmed}\n${result.message}`, examples: result.examples },
+        {
+          afterSteps: after,
+          message: `${trimmed}\n${result.message}`,
+          examples: result.examples,
+          need: { text: trimmed, reason: result.reason },
+        },
       ]);
     } else if (result.kind === 'invalid') {
       setReplies((r) => [
@@ -465,6 +478,14 @@ function ReplyBubble({
           </Text>
         </Pressable>
       ))}
+      {reply.need ? (
+        <NeedButton
+          text={reply.need.text}
+          reason={reply.need.reason}
+          palette={palette}
+          locale={locale}
+        />
+      ) : null}
     </View>
   );
 }

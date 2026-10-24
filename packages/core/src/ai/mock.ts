@@ -1,6 +1,7 @@
 import { checkNameTemplate } from '../naming';
 import { applyOps, topIndex, type Op } from '../ops';
 import { workflowProblems } from '../workflow/check';
+import { outputTypeOf, type ValueType } from '../workflow/contract';
 import { newWorkflowId, presetWorkflow } from '../workflows/presets';
 import { TRANSLATE_LANGUAGE_NAMES, type TranslateLanguage } from '../tools/translate';
 import {
@@ -30,6 +31,7 @@ import {
   type NavTarget,
   type Page,
   type Workflow,
+  type WorkflowStep,
   type WorkspaceConfig,
 } from '../schema';
 import { isEmoji } from '../richtext';
@@ -916,6 +918,7 @@ function requireWorkflow(rawName: string, state: State): Workflow {
 function stepPhrases(text: string, state: State, before: PhraseKind | null = null): StepPhrase[] {
   const phrases = splitStepPhrases(text).map((p) => {
     const step = parseStepPhrase(p, state.ctx.locale);
+    if (step?.table !== undefined) return withTable(step, state);
     if (step) return step;
     throw new Rejection(
       'unknown',
@@ -923,6 +926,61 @@ function stepPhrases(text: string, state: State, before: PhraseKind | null = nul
     );
   });
   return fitSizePhrases(phrases, before);
+}
+
+/**
+ * 记一笔（D-187）：句子里的表名换成 collectionId。没说表名、只有一张表时用它；找不到时整句拒绝
+ * （AI 不替用户建表：先说「新建一个记账页面」）。
+ */
+function withTable(step: StepPhrase, state: State): StepPhrase {
+  const name = step.table!.toLowerCase();
+  const all = state.config.collections;
+  const collection = name
+    ? (all.find((c) => c.name.toLowerCase() === name) ??
+      all.find((c) => c.name.toLowerCase().includes(name) || name.includes(c.name.toLowerCase())))
+    : all.length === 1
+      ? all[0]
+      : undefined;
+  if (!collection) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        step.table
+          ? `没有叫「${step.table}」的数据表。可以先说「新建一个记账页面」。`
+          : '要记到哪张数据表？例如「记到账目」。',
+        step.table
+          ? `There is no data table called “${step.table}”. Try “Create a budget page” first.`
+          : 'Which data table should it go into? For example “add a record to Expenses”.',
+      ),
+    );
+  }
+  return { action: step.action, params: { collectionId: collection.id } };
+}
+
+/**
+ * 记一笔收文件时表里要有附件字段（D-187）：没有就先加一个「附件」字段（结构修改，不碰记录）。
+ */
+function recordFieldOps(steps: readonly WorkflowStep[], state: State): Op[] {
+  const ops: Op[] = [];
+  let value: ValueType | null = null;
+  for (const step of steps) {
+    const action = state.ctx.registry.actions.get(step.action);
+    if (step.action === 'out.addRecord' && value !== 'text' && value !== null) {
+      const collection = state.config.collections.find((c) => c.id === step.params.collectionId);
+      if (collection && !collection.fields.some((f) => f.type === 'file')) {
+        let id = 'attachment';
+        for (let i = 2; collection.fields.some((f) => f.id === id); i++) id = `attachment-${i}`;
+        ops.push({
+          op: 'addField',
+          collectionId: collection.id,
+          field: { id, name: say(state.ctx.locale, '附件', 'Attachment'), type: 'file' },
+        });
+      }
+    }
+    if (action) value = outputTypeOf(action, step.params, value);
+  }
+  return ops;
 }
 
 /** 步骤接不上（例如 PDF 之后存到相册）时整句拒绝，说明是哪一步。 */
@@ -984,7 +1042,7 @@ const newWorkflowRule: Rule = (clause, state) => {
     wf.id = newWorkflowId('my-workflow', state.config.workflows);
   }
   requireWorkable(wf, state);
-  return [{ op: 'addWorkflow', workflow: wf }];
+  return [...recordFieldOps(steps, state), { op: 'addWorkflow', workflow: wf }];
 };
 
 const renameWorkflowRule: Rule = (clause, state) => {

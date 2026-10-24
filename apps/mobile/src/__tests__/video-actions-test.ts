@@ -84,7 +84,7 @@ const failure = (result: RunResult) =>
   result.status === 'failed' ? { code: result.error.code, detail: result.error.detail } : result;
 
 describe('video tool', () => {
-  it('installs three quick actions and a video file list', () => {
+  it('installs four quick actions and a video file list', () => {
     const result = applyOps(
       createDefaultWorkspace('zh'),
       [{ op: 'installTool', toolId: 'video' }],
@@ -94,7 +94,12 @@ describe('video tool', () => {
       },
     );
     if (!result.ok) throw new Error(result.error);
-    expect(result.config.workflows.map((w) => w.name)).toEqual(['压缩视频', '转成 MP4', '剪一段']);
+    expect(result.config.workflows.map((w) => w.name)).toEqual([
+      '压缩视频',
+      '转成 MP4',
+      '剪一段',
+      '视频转 GIF',
+    ]);
     const page = result.config.pages.find((p) => p.id === 'tool-video')!;
     expect(page.components.find((c) => c.type === 'fileList')?.props).toMatchObject({
       mimeType: 'video/*',

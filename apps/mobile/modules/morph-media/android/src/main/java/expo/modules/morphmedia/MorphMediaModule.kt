@@ -2,6 +2,13 @@ package expo.modules.morphmedia
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.RectF
+import android.media.ExifInterface
 import android.media.MediaCodecList
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -54,6 +61,8 @@ import kotlin.math.roundToInt
 //   FrameDropEffect，HDR 用 OpenGL 转成普通画面。
 // - trim：Transformer 的剪切优化（只重新编码开头一小段，其余原样搬过去）。
 // - thumbnails：MediaMetadataRetriever。
+// - GIF（D-184）：视频按帧率用 MediaMetadataRetriever 取画面，图片用 BitmapFactory 读（按 EXIF 摆正），
+//   自己写的 GifEncoder 编码（系统没有 GIF 编码器）。
 // 全部在本机处理，不联网。分享进来的 content:// 地址直接读，不复制。
 
 class MediaUnsupportedException(detail: String?) :
@@ -198,6 +207,21 @@ class MorphMediaModule : Module() {
         } catch (e: Exception) {
           promise.reject(MediaUnsupportedException(e.message))
         }
+      }
+    }
+
+    // 动图（D-184）：在后台线程里取画面、编码，可以取消。
+    AsyncFunction("videoGif") {
+      jobId: String, uri: String, output: String, options: Map<String, Double>, promise: Promise ->
+      gifJob(jobId, File(Uri.parse(output).path!!), promise) { flag, out ->
+        videoGif(jobId, Uri.parse(uri), out, options, flag)
+      }
+    }
+
+    AsyncFunction("imagesGif") {
+      jobId: String, uris: List<String>, output: String, options: Map<String, Double>, promise: Promise ->
+      gifJob(jobId, File(Uri.parse(output).path!!), promise) { flag, out ->
+        imagesGif(jobId, uris.map { Uri.parse(it) }, out, options, flag)
       }
     }
 
@@ -384,7 +408,7 @@ class MorphMediaModule : Module() {
       .build()
   }
 
-  /** 只要声音：M4A 用 Media3（AAC，写 MP4 容器），WAV 自己解码再写 16 位 PCM。 */
+  /** 只要声音：M4A 用 Media3（AAC，写 MP4 容器），WAV 和 MP3（D-183，LAME）自己解码再写。 */
   @Suppress("UNCHECKED_CAST")
   private fun transcodeAudio(jobId: String, uri: Uri, output: File, options: Map<String, Any?>, promise: Promise) {
     val container = options["container"] as? String ?: "m4a"
@@ -411,36 +435,44 @@ class MorphMediaModule : Module() {
           promise.reject(MediaFailedException(e.message))
         }
       }
-      "wav" -> {
+      "wav", "mp3" -> {
         val flag = AtomicBoolean(false)
         threadJobs[jobId] = flag
         thread {
+          var mp3: Mp3Writer? = null
           try {
             output.parentFile?.mkdirs()
             output.delete()
-            val wav = AudioPcm.WavWriter(output)
+            val wav = if (container == "wav") AudioPcm.WavWriter(output) else null
+            mp3 = if (container == "mp3") Mp3Writer(output, (audio["bitrateKbps"] as? Number)?.toInt() ?: 192) else null
             val wanted = (audio["channels"] as? Number)?.toInt()
             val startUs = (startMs ?: 0L) * 1000
             val endUs = endMs?.let { it * 1000 } ?: Long.MAX_VALUE
             val durationUs = (((probe(uri)["durationMs"] as? Double) ?: 0.0) * 1000).toLong()
             AudioPcm.decode(context, uri, startUs, endUs, { flag.get() }) { chunk ->
               val channels = wanted ?: min(2, chunk.channels)
-              wav.write(AudioPcm.remix(chunk, channels), channels, chunk.sampleRate)
+              val samples = AudioPcm.remix(chunk, channels)
+              wav?.write(samples, channels, chunk.sampleRate)
+              mp3?.write(samples, channels, chunk.sampleRate)
               val span = (if (endUs == Long.MAX_VALUE) durationUs else endUs) - startUs
               if (span > 0) sendProgress(jobId, (chunk.ptsUs - startUs).toDouble() / span)
             }
             if (flag.get()) {
+              mp3?.abort()
               output.delete()
               promise.reject(MediaCancelledException())
               return@thread
             }
-            wav.close()
+            wav?.close()
+            mp3?.close()
             sendProgress(jobId, 1.0)
             promise.resolve(result(output))
           } catch (e: CodedException) {
+            mp3?.abort()
             output.delete()
             promise.reject(e)
           } catch (e: Exception) {
+            mp3?.abort()
             output.delete()
             promise.reject(MediaFailedException(e.message))
           } finally {
@@ -563,6 +595,165 @@ class MorphMediaModule : Module() {
   private fun result(output: File): Map<String, Any?> {
     val uri = Uri.fromFile(output)
     return mapOf("uri" to uri.toString(), "size" to output.length(), "info" to probe(uri))
+  }
+
+  // ---- GIF（D-184）----
+
+  private fun gifJob(
+    jobId: String,
+    output: File,
+    promise: Promise,
+    work: (AtomicBoolean, File) -> Map<String, Any?>,
+  ) {
+    val flag = AtomicBoolean(false)
+    threadJobs[jobId] = flag
+    thread {
+      try {
+        output.parentFile?.mkdirs()
+        output.delete()
+        val result = work(flag, output)
+        if (flag.get()) {
+          output.delete()
+          promise.reject(MediaCancelledException())
+        } else {
+          sendProgress(jobId, 1.0)
+          promise.resolve(result)
+        }
+      } catch (e: CodedException) {
+        output.delete()
+        promise.reject(e)
+      } catch (e: OutOfMemoryError) {
+        output.delete()
+        promise.reject(MediaFailedException("out of memory"))
+      } catch (e: Exception) {
+        output.delete()
+        promise.reject(MediaFailedException(e.message))
+      } finally {
+        threadJobs.remove(jobId)
+      }
+    }
+  }
+
+  private fun pixelsOf(bitmap: Bitmap): IntArray {
+    val pixels = IntArray(bitmap.width * bitmap.height)
+    bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+    return pixels
+  }
+
+  /** 视频 → GIF：从头到尾按 fps 取画面（已摆正，宽度不超过 width）；长度由调用方先检查。 */
+  private fun videoGif(
+    jobId: String, uri: Uri, output: File, options: Map<String, Double>, flag: AtomicBoolean,
+  ): Map<String, Any?> {
+    val maxWidth = (options["width"] ?: 480.0).roundToInt()
+    val fps = max(1.0, options["fps"] ?: 12.0)
+    val retriever = MediaMetadataRetriever()
+    try {
+      retriever.setDataSource(context, uri)
+      val durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+        ?: throw MediaUnsupportedException("duration")
+      val count = max(1, (durationMs / 1000.0 * fps).toInt())
+      val delayMs = (1000 / fps).roundToInt()
+      var encoder: GifEncoder? = null
+      var width = 0
+      var height = 0
+      FileOutputStream(output).buffered().use { out ->
+        for (i in 0 until count) {
+          if (flag.get()) return emptyMap()
+          val us = (i * 1_000_000L / fps).toLong()
+          val frame = (if (Build.VERSION.SDK_INT >= 27) {
+            retriever.getScaledFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST, maxWidth, maxWidth * 20)
+          } else {
+            retriever.getFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST)
+          }) ?: if (i == 0) throw MediaUnsupportedException("frame") else continue
+          if (encoder == null) {
+            // 画布按第一帧定（竖视频按宽度缩）。
+            val k = min(1.0, maxWidth.toDouble() / frame.width)
+            width = max(1, (frame.width * k).roundToInt())
+            height = max(1, (frame.height * k).roundToInt())
+            encoder = GifEncoder(out, width, height)
+          }
+          val fitted = if (frame.width == width && frame.height == height) frame
+          else Bitmap.createScaledBitmap(frame, width, height, true).also { frame.recycle() }
+          encoder.addFrame(pixelsOf(fitted), delayMs)
+          fitted.recycle()
+          sendProgress(jobId, (i + 1).toDouble() / count * 0.95)
+        }
+        encoder?.finish() ?: throw MediaUnsupportedException("no frames")
+      }
+      return mapOf(
+        "uri" to Uri.fromFile(output).toString(), "size" to output.length(),
+        "width" to width, "height" to height, "frames" to count,
+      )
+    } finally {
+      retriever.release()
+    }
+  }
+
+  /** 读一张图片：长边缩到 maxSide 左右（先按 2 的倍数抽样再精确缩），按 EXIF 摆正。 */
+  private fun loadImage(uri: Uri, maxSide: Int): Bitmap {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+    if (bounds.outWidth <= 0) throw MediaUnsupportedException(uri.lastPathSegment)
+    var sample = 1
+    while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxSide) sample *= 2
+    val bitmap = context.contentResolver.openInputStream(uri)?.use {
+      BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
+    } ?: throw MediaUnsupportedException(uri.lastPathSegment)
+    val orientation = runCatching {
+      context.contentResolver.openInputStream(uri)?.use {
+        ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+      }
+    }.getOrNull() ?: ExifInterface.ORIENTATION_NORMAL
+    val matrix = Matrix()
+    when (orientation) {
+      ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+      ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+      ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+      ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.postScale(-1f, 1f)
+      ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.postScale(1f, -1f)
+    }
+    val k = min(1f, maxSide.toFloat() / max(bitmap.width, bitmap.height))
+    matrix.postScale(k, k)
+    if (matrix.isIdentity) return bitmap
+    val out = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    if (out !== bitmap) bitmap.recycle()
+    return out
+  }
+
+  /** 图片 → GIF：画布是第一张（长边缩到 maxSide），每张按比例放进画布居中，空的地方白色。 */
+  private fun imagesGif(
+    jobId: String, uris: List<Uri>, output: File, options: Map<String, Double>, flag: AtomicBoolean,
+  ): Map<String, Any?> {
+    val maxSide = (options["maxSide"] ?: 480.0).roundToInt()
+    val delayMs = (options["delayMs"] ?: 500.0).roundToInt()
+    if (uris.isEmpty()) throw MediaFailedException("no images")
+    val first = loadImage(uris[0], maxSide)
+    val width = first.width
+    val height = first.height
+    val canvasBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(canvasBitmap)
+    val paint = Paint(Paint.FILTER_BITMAP_FLAG)
+    FileOutputStream(output).buffered().use { out ->
+      val encoder = GifEncoder(out, width, height)
+      for ((i, uri) in uris.withIndex()) {
+        if (flag.get()) return emptyMap()
+        val image = if (i == 0) first else loadImage(uri, maxSide)
+        val k = min(width.toFloat() / image.width, height.toFloat() / image.height)
+        val w = image.width * k
+        val h = image.height * k
+        canvas.drawColor(Color.WHITE)
+        canvas.drawBitmap(image, null, RectF((width - w) / 2, (height - h) / 2, (width + w) / 2, (height + h) / 2), paint)
+        image.recycle()
+        encoder.addFrame(pixelsOf(canvasBitmap), delayMs)
+        sendProgress(jobId, (i + 1).toDouble() / uris.size * 0.95)
+      }
+      encoder.finish()
+    }
+    canvasBitmap.recycle()
+    return mapOf(
+      "uri" to Uri.fromFile(output).toString(), "size" to output.length(),
+      "width" to width, "height" to height, "frames" to uris.size,
+    )
   }
 
   // ---- thumbnails ----

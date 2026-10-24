@@ -2128,6 +2128,243 @@ const SPLIT_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+// ---- 格式转换的缺口（D-183–D-186）：MP3、动图 GIF、从「文件」选视频、Word / Excel / PPT 转 PDF ----
+// FG* 是 mock 句式（MOCK_AI_PHRASES FG），PFG* 只要求真实模型。
+
+const firstDocuments = (steps: { action: string; params: Record<string, unknown> }[]) => {
+  const first = steps[0];
+  return first?.action === 'in.files' && first.params.accept === 'documents'
+    ? null
+    : `first step should pick Office documents, got ${first?.action}`;
+};
+
+const FORMAT_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'FG1',
+    input: '新建一个快捷操作：选音频，转成 MP3，存到文件夹',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.audio', 'audio.convert', 'out.saveToFolder'],
+        param('audio.convert', 'format', 'mp3'),
+      ),
+    },
+  },
+  {
+    id: 'FG2',
+    input: '新建一个快捷操作：选视频，转成 MP3，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.videos', 'audio.fromVideo', 'out.share'],
+        param('audio.fromVideo', 'format', 'mp3'),
+      ),
+    },
+  },
+  {
+    id: 'FG3',
+    input: '新建一个快捷操作：选视频，剪一段，转成 GIF，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: hasWorkflow(['in.videos', 'video.trim', 'video.toGif']) },
+  },
+  {
+    id: 'FG3-en',
+    input: 'Create a quick action: choose photos, make an animated GIF, share',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: hasWorkflow(['in.photos', 'image.toGif', 'out.share']) },
+  },
+  {
+    id: 'FG4',
+    input: '新建一个快捷操作：从文件选视频，转成 MP4，存到文件夹',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.videos', 'video.convert'], param('in.videos', 'source', 'files')),
+    },
+  },
+  {
+    id: 'FG5',
+    input: '新建一个快捷操作：选 Word 文档，转成 PDF，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.files', 'pdf.fromDocument', 'out.share'], firstDocuments),
+    },
+  },
+  {
+    id: 'FG5-en',
+    input: 'Create a quick action: choose Word documents, make a PDF, save to a folder',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.files', 'pdf.fromDocument', 'out.saveToFolder'], firstDocuments),
+    },
+  },
+  {
+    id: 'PFG1',
+    input: '车里只能放 MP3，想把手机里的歌转一下',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['audio.convert'],
+        (steps) => firstAudio(steps) ?? param('audio.convert', 'format', 'mp3')(steps),
+      ),
+    },
+  },
+  {
+    id: 'PFG2-en',
+    input: 'I want to turn a short clip of my cat into a GIF for the group chat',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['video.toGif'], firstVideo) },
+  },
+  {
+    id: 'PFG3',
+    input: '电脑上下载的 MKV 视频，手机上放不了，想转成能放的',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['video.convert'], (steps) => {
+        const first = steps[0];
+        if (first?.action === 'in.videos' && first.params.source === 'files') return null;
+        if (first?.action === 'in.files' && first.params.accept === 'videos') return null;
+        return `first step should pick videos from Files, got ${first?.action} ${JSON.stringify(first?.params)}`;
+      }),
+    },
+  },
+  {
+    id: 'PFG4',
+    input: '老师要交 PDF，我写的是 Word 作业',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['pdf.fromDocument'], firstDocuments) },
+  },
+];
+
+// ---- 记一笔、附件和公式字段（D-187、D-188）：快捷操作写记录；直接替用户记一笔仍按 userData 拒绝 ----
+// RE* 是 mock 句式（MOCK_AI_PHRASES RE），PRE* 只要求真实模型。
+
+/** 有一个快捷操作记到 expenses，而且这张表有附件字段（收文件时）。 */
+const logsTo =
+  (needsFile: boolean) =>
+  (c: WorkspaceConfig): string | null => {
+    const wf = userWorkflows(c).find((w) =>
+      w.steps.some((s) => s.action === 'out.addRecord' && s.params.collectionId === 'expenses'),
+    );
+    if (!wf) return 'expected a quick action with out.addRecord into expenses';
+    const table = c.collections.find((x) => x.id === 'expenses');
+    if (needsFile && !table?.fields.some((f) => f.type === 'file'))
+      return 'expenses should have a file field for the receipts';
+    return null;
+  };
+
+const RECORD_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'RE1',
+    input: '新建一个快捷操作：拍照，记到账目',
+    locale: 'zh',
+    setup: 'budget',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: all(
+        hasWorkflow(['in.photos', 'out.addRecord'], param('in.photos', 'source', 'camera')),
+        logsTo(true),
+      ),
+    },
+  },
+  {
+    id: 'RE1-en',
+    input: 'Create a quick action: take photos, add a record to Expenses',
+    locale: 'en',
+    setup: 'budget',
+    mock: true,
+    expect: { kind: 'ops', check: all(hasWorkflow(['in.photos', 'out.addRecord']), logsTo(true)) },
+  },
+  {
+    id: 'RE2',
+    input: '新建一个快捷操作：输入文字，记一笔',
+    locale: 'zh',
+    setup: 'budget',
+    mock: true,
+    expect: { kind: 'ops', check: all(hasWorkflow(['in.text', 'out.addRecord']), logsTo(false)) },
+  },
+  {
+    id: 'RE3',
+    input: '新建一个快捷操作：拍照，记到不存在的表',
+    locale: 'zh',
+    setup: 'budget',
+    mock: true,
+    expect: { kind: 'reject' },
+  },
+  {
+    id: 'PRE1',
+    input: '我想拍一下收据就能记一笔账，收据照片也留着',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: logsTo(true) },
+  },
+  {
+    id: 'PRE2-en',
+    input: 'Make a quick action to scan my receipts into the Expenses table',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: logsTo(true) },
+  },
+  {
+    id: 'PRE3',
+    input: '给账目加一个「含税」，等于金额乘以 1.06',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const f = c.collections
+          .find((x) => x.id === 'expenses')
+          ?.fields.find((x) => x.type === 'formula');
+        if (!f || f.type !== 'formula') return 'expected a formula field in expenses';
+        return /\{amount\}\s*\*\s*1\.06|1\.06\s*\*\s*\{amount\}/.test(f.expression)
+          ? null
+          : `formula should be amount × 1.06, got ${f.expression}`;
+      },
+    },
+  },
+  {
+    id: 'PRE4',
+    input: '记一笔午饭 35',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'reject', reason: 'userData' },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...BASE_EVAL_CASES,
   ...SPLIT_EVAL_CASES,
@@ -2138,6 +2375,8 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...VIDEO_EVAL_CASES,
   ...TRANSLATE_EVAL_CASES,
   ...AUDIO_EVAL_CASES,
+  ...FORMAT_EVAL_CASES,
+  ...RECORD_EVAL_CASES,
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };

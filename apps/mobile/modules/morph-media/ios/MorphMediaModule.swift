@@ -1,6 +1,9 @@
 import AVFoundation
 import ExpoModulesCore
+import ImageIO
+import MorphLame
 import UIKit
+import UniformTypeIdentifiers
 
 // 视频和音频的 iOS 实现（D-141）：只用 AVFoundation，全部在本机处理，不联网。
 // - probe：AVURLAsset 读时长、宽高、方向、帧率、码率、编码、是否 HDR。
@@ -8,6 +11,9 @@ import UIKit
 //   + AVAssetWriter（H.264 + AAC，MP4），自己指定码率。
 // - trim：AVAssetExportSession 的 Passthrough + timeRange，不重新编码。
 // - thumbnails：AVAssetImageGenerator。
+// - MP3（D-183）：AVFoundation 不能写 MP3，解成 PCM 后交给编进 App 的 LAME（MorphLame pod）。
+// - GIF（D-184）：视频用 AVAssetImageGenerator 按帧率取画面，图片用 ImageIO 读（摆正、缩小），
+//   ImageIO 写 GIF（每帧自己的调色板，循环播放）。
 // 视频编码器不能在后台用：处理时切到别的 App 会失败，报 ERR_MEDIA_INTERRUPTED（D-148）。
 
 final class MediaUnsupportedException: GenericException<String>, @unchecked Sendable {
@@ -147,6 +153,33 @@ public class MorphMediaModule: Module {
           promise.resolve(try await Self.waveform(uri, buckets: buckets, range: range))
         } catch {
           promise.reject(Self.coded(error))
+        }
+      }
+    }
+
+    // 动图（D-184）
+    AsyncFunction("videoGif") {
+      (jobId: String, uri: URL, output: URL, options: [String: Double], promise: Promise) in
+      let job = self.start(jobId)
+      Task {
+        defer { self.finish(jobId) }
+        do {
+          promise.resolve(try await self.videoGif(job, jobId: jobId, uri: uri, output: output, options: options))
+        } catch {
+          promise.reject(Self.coded(error, job: job))
+        }
+      }
+    }
+
+    AsyncFunction("imagesGif") {
+      (jobId: String, uris: [URL], output: URL, options: [String: Double], promise: Promise) in
+      let job = self.start(jobId)
+      Task {
+        defer { self.finish(jobId) }
+        do {
+          promise.resolve(try self.imagesGif(job, jobId: jobId, uris: uris, output: output, options: options))
+        } catch {
+          promise.reject(Self.coded(error, job: job))
         }
       }
     }
@@ -391,7 +424,7 @@ public class MorphMediaModule: Module {
     if let audioTrack, let audioOptions {
       let kbps = audioOptions["bitrateKbps"] as? Double ?? 128
       // AAC 低码率时用单声道、低采样率，否则编码器不接受。
-      let channels = (audioOptions["channels"] as? Int) ?? (kbps < 64 ? 1 : 2)
+      let channels = (audioOptions["channels"] as? NSNumber)?.intValue ?? (kbps < 64 ? 1 : 2)
       let sampleRate = (audioOptions["sampleRate"] as? Double) ?? (kbps < 64 ? 22050 : 44100)
       let out = AVAssetReaderAudioMixOutput(
         audioTracks: [audioTrack],
@@ -517,12 +550,17 @@ public class MorphMediaModule: Module {
     _ job: Job, jobId: String, asset: AVAsset, tracks: [AVAssetTrack], timeRange: CMTimeRange,
     output: URL, container: String, audio: [String: Any]
   ) async throws -> [String: Any] {
+    if container == "mp3" {
+      return try await writeMp3(
+        job, jobId: jobId, asset: asset, tracks: tracks, timeRange: timeRange, output: output, audio: audio)
+    }
     let codec = audio["codec"] as? String ?? (container == "wav" ? "pcm" : "aac")
     guard (container == "m4a" && codec == "aac") || (container == "wav" && codec == "pcm") else {
       throw NotImplementedException("\(container) with \(codec)")
     }
     let kbps = audio["bitrateKbps"] as? Double ?? 128
-    let channels = audio["channels"] as? Int ?? (codec == "aac" && kbps < 64 ? 1 : 2)
+    // JS 的数字到这里是 Double，`as? Int` 取不到：用 NSNumber 读。
+    let channels = (audio["channels"] as? NSNumber)?.intValue ?? (codec == "aac" && kbps < 64 ? 1 : 2)
     let sampleRate = audio["sampleRate"] as? Double ?? (codec == "aac" && kbps < 48 ? 22050 : 44100)
     let pcm: [String: Any] = [
       AVFormatIDKey: kAudioFormatLinearPCM,
@@ -602,6 +640,114 @@ public class MorphMediaModule: Module {
       if job.backgrounded { throw MediaInterruptedException() }
       throw MediaFailedException(writer.error?.localizedDescription ?? "write")
     }
+    progress(jobId, 1)
+    return try await Self.result(output)
+  }
+
+  /**
+   * MP3（D-183）：AVAssetReader 把声音解成 44.1 kHz 的 16 位 PCM（需要时系统重采样），LAME 编码，边编边写文件。
+   * LAME 的 quality 用 2（好，比默认的 5 慢一点）。
+   */
+  private func writeMp3(
+    _ job: Job, jobId: String, asset: AVAsset, tracks: [AVAssetTrack], timeRange: CMTimeRange,
+    output: URL, audio: [String: Any]
+  ) async throws -> [String: Any] {
+    let kbps = Int32(audio["bitrateKbps"] as? Double ?? 192)
+    let channels = (audio["channels"] as? NSNumber)?.intValue ?? 2
+    let sampleRate = 44100.0
+    let reader: AVAssetReader
+    do {
+      reader = try AVAssetReader(asset: asset)
+    } catch {
+      throw MediaUnsupportedException(error.localizedDescription)
+    }
+    reader.timeRange = timeRange
+    let out = AVAssetReaderAudioMixOutput(
+      audioTracks: tracks,
+      audioSettings: [
+        AVFormatIDKey: kAudioFormatLinearPCM,
+        AVSampleRateKey: sampleRate,
+        AVNumberOfChannelsKey: channels,
+        AVLinearPCMBitDepthKey: 16,
+        AVLinearPCMIsFloatKey: false,
+        AVLinearPCMIsBigEndianKey: false,
+        AVLinearPCMIsNonInterleaved: false,
+      ])
+    out.alwaysCopiesSampleData = false
+    guard reader.canAdd(out) else { throw MediaUnsupportedException("audio output") }
+    reader.add(out)
+
+    guard let lame = lame_init() else { throw MediaFailedException("mp3 encoder") }
+    defer { lame_close(lame) }
+    lame_set_in_samplerate(lame, Int32(sampleRate))
+    lame_set_num_channels(lame, Int32(channels))
+    lame_set_mode(lame, channels == 1 ? MONO : JOINT_STEREO)
+    lame_set_brate(lame, kbps)
+    lame_set_quality(lame, 2)
+    guard lame_init_params(lame) >= 0 else {
+      throw MediaFailedException("mp3 encoder \(kbps) kbps \(channels) ch")
+    }
+
+    try? FileManager.default.removeItem(at: output)
+    try FileManager.default.createDirectory(
+      at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+    guard FileManager.default.createFile(atPath: output.path, contents: nil),
+      let file = try? FileHandle(forWritingTo: output)
+    else { throw MediaFailedException("create \(output.lastPathComponent)") }
+    defer { try? file.close() }
+
+    job.onCancel = { reader.cancelReading() }
+    if job.cancelled { throw MediaCancelledException() }
+    guard reader.startReading() else {
+      throw MediaUnsupportedException(reader.error?.localizedDescription ?? "reader")
+    }
+
+    let total = max(timeRange.duration.seconds, 0.001)
+    let start = timeRange.start.seconds
+    var lastReported = -1.0
+    var mp3 = [UInt8]()
+    while let sample = out.copyNextSampleBuffer() {
+      if job.cancelled { break }
+      guard let block = CMSampleBufferGetDataBuffer(sample) else { continue }
+      let length = CMBlockBufferGetDataLength(block)
+      var pcm = [Int16](repeating: 0, count: length / 2)
+      pcm.withUnsafeMutableBytes { raw in
+        _ = CMBlockBufferCopyDataBytes(block, atOffset: 0, dataLength: length, destination: raw.baseAddress!)
+      }
+      let frames = Int32(pcm.count / channels)
+      // LAME 要求的最坏情况：1.25 × 样本数 + 7200 字节。
+      let capacity = Int(frames) * 5 / 4 + 7200
+      if mp3.count < capacity { mp3 = [UInt8](repeating: 0, count: capacity) }
+      let written = pcm.withUnsafeMutableBufferPointer { samples in
+        mp3.withUnsafeMutableBufferPointer { bytes in
+          channels == 1
+            ? lame_encode_buffer(lame, samples.baseAddress, samples.baseAddress, frames, bytes.baseAddress, Int32(capacity))
+            : lame_encode_buffer_interleaved(lame, samples.baseAddress, frames, bytes.baseAddress, Int32(capacity))
+        }
+      }
+      if written < 0 { throw MediaFailedException("mp3 encode \(written)") }
+      file.write(Data(mp3[0..<Int(written)]))
+      let value = (CMSampleBufferGetPresentationTimeStamp(sample).seconds - start) / total
+      if value - lastReported >= 0.01 {
+        lastReported = value
+        progress(jobId, value)
+      }
+    }
+    if job.cancelled {
+      try? FileManager.default.removeItem(at: output)
+      throw MediaCancelledException()
+    }
+    if reader.status == .failed {
+      try? FileManager.default.removeItem(at: output)
+      if job.backgrounded { throw MediaInterruptedException() }
+      throw MediaFailedException(reader.error?.localizedDescription ?? "read")
+    }
+    if mp3.count < 7200 { mp3 = [UInt8](repeating: 0, count: 7200) }
+    let tail = mp3.withUnsafeMutableBufferPointer { bytes in
+      lame_encode_flush(lame, bytes.baseAddress, Int32(bytes.count))
+    }
+    if tail > 0 { file.write(Data(mp3[0..<Int(tail)])) }
+    try? file.close()
     progress(jobId, 1)
     return try await Self.result(output)
   }
@@ -687,6 +833,114 @@ public class MorphMediaModule: Module {
     }
     let loudest = peaks.max() ?? 0
     return loudest > 0 ? peaks.map { $0 / loudest } : peaks
+  }
+
+  // MARK: - GIF（D-184）
+
+  private static func gifDestination(_ output: URL, frames: Int) throws -> CGImageDestination {
+    try? FileManager.default.removeItem(at: output)
+    try FileManager.default.createDirectory(
+      at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+    guard let dest = CGImageDestinationCreateWithURL(output as CFURL, UTType.gif.identifier as CFString, frames, nil)
+    else { throw MediaFailedException("gif destination") }
+    CGImageDestinationSetProperties(
+      dest, [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0]] as CFDictionary)
+    return dest
+  }
+
+  private static func gifFrame(delay: Double) -> CFDictionary {
+    [kCGImagePropertyGIFDictionary: [
+      kCGImagePropertyGIFDelayTime: delay, kCGImagePropertyGIFUnclampedDelayTime: delay,
+    ]] as CFDictionary
+  }
+
+  private static func gifResult(_ output: URL, width: Int, height: Int, frames: Int) -> [String: Any] {
+    ["uri": output.absoluteString, "size": fileSize(output), "width": width, "height": height, "frames": frames]
+  }
+
+  /** 视频 → GIF：从头到尾按 fps 取画面（已摆正，宽度不超过 width），整段都要（长度由调用方先检查）。 */
+  private func videoGif(
+    _ job: Job, jobId: String, uri: URL, output: URL, options: [String: Double]
+  ) async throws -> [String: Any] {
+    let width = options["width"] ?? 480
+    let fps = max(1, options["fps"] ?? 12)
+    let asset = AVURLAsset(url: uri)
+    let (duration, tracks) = try await asset.load(.duration, .tracks)
+    guard tracks.contains(where: { $0.mediaType == .video }) else { throw MediaUnsupportedException("no video") }
+    let count = max(1, Int(duration.seconds * fps))
+    let generator = AVAssetImageGenerator(asset: asset)
+    generator.appliesPreferredTrackTransform = true
+    // 宽度不超过 width，高度不限（竖着的视频按宽度缩）。
+    generator.maximumSize = CGSize(width: width, height: width * 20)
+    let tolerance = CMTime(seconds: 0.5 / fps, preferredTimescale: 600)
+    generator.requestedTimeToleranceBefore = tolerance
+    generator.requestedTimeToleranceAfter = tolerance
+    let dest = try Self.gifDestination(output, frames: count)
+    let props = Self.gifFrame(delay: 1 / fps)
+    var size = CGSize.zero
+    for i in 0..<count {
+      if job.cancelled { throw MediaCancelledException() }
+      let image: CGImage
+      do {
+        image = try await generator.image(at: CMTime(seconds: Double(i) / fps, preferredTimescale: 600)).image
+      } catch {
+        if i == 0 { throw MediaUnsupportedException(error.localizedDescription) }
+        continue
+      }
+      if i == 0 { size = CGSize(width: image.width, height: image.height) }
+      CGImageDestinationAddImage(dest, image, props)
+      progress(jobId, Double(i + 1) / Double(count) * 0.9)
+    }
+    guard CGImageDestinationFinalize(dest) else { throw MediaFailedException("gif finalize") }
+    progress(jobId, 1)
+    return Self.gifResult(output, width: Int(size.width), height: Int(size.height), frames: count)
+  }
+
+  /** 图片 → GIF：画布是第一张（长边缩到 maxSide），每张按比例放进画布居中，空的地方白色。 */
+  private func imagesGif(
+    _ job: Job, jobId: String, uris: [URL], output: URL, options: [String: Double]
+  ) throws -> [String: Any] {
+    let maxSide = options["maxSide"] ?? 480
+    let delay = (options["delayMs"] ?? 500) / 1000
+    func load(_ url: URL) throws -> CGImage {
+      guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+        let image = CGImageSourceCreateThumbnailAtIndex(
+          source, 0,
+          [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxSide,
+          ] as CFDictionary)
+      else { throw MediaUnsupportedException(url.lastPathComponent) }
+      return image
+    }
+    guard let first = uris.first else { throw MediaFailedException("no images") }
+    let firstImage = try load(first)
+    let canvas = CGSize(width: firstImage.width, height: firstImage.height)
+    let dest = try Self.gifDestination(output, frames: uris.count)
+    let props = Self.gifFrame(delay: delay)
+    guard
+      let context = CGContext(
+        data: nil, width: Int(canvas.width), height: Int(canvas.height), bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+    else { throw MediaFailedException("gif canvas") }
+    for (i, url) in uris.enumerated() {
+      if job.cancelled { throw MediaCancelledException() }
+      let image = i == 0 ? firstImage : try load(url)
+      let scale = min(canvas.width / CGFloat(image.width), canvas.height / CGFloat(image.height))
+      let w = CGFloat(image.width) * scale
+      let h = CGFloat(image.height) * scale
+      context.setFillColor(UIColor.white.cgColor)
+      context.fill(CGRect(origin: .zero, size: canvas))
+      context.interpolationQuality = .high
+      context.draw(image, in: CGRect(x: (canvas.width - w) / 2, y: (canvas.height - h) / 2, width: w, height: h))
+      guard let frame = context.makeImage() else { throw MediaFailedException("gif frame") }
+      CGImageDestinationAddImage(dest, frame, props)
+      progress(jobId, Double(i + 1) / Double(uris.count) * 0.9)
+    }
+    guard CGImageDestinationFinalize(dest) else { throw MediaFailedException("gif finalize") }
+    progress(jobId, 1)
+    return Self.gifResult(output, width: Int(canvas.width), height: Int(canvas.height), frames: uris.count)
   }
 
   // MARK: - trim

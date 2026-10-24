@@ -19,6 +19,7 @@ import {
   type PlanAbout,
   type PreparedChange,
   type Registry,
+  type RejectReason,
   type WorkspaceConfig,
 } from '@morph/core';
 import { createStore, type StoreApi } from 'zustand/vanilla';
@@ -69,7 +70,7 @@ export interface Proposal {
 
 export type ProposeResult =
   | { kind: 'preview'; proposal: Proposal }
-  | { kind: 'rejected'; message: string; examples: string[] }
+  | { kind: 'rejected'; message: string; examples: string[]; reason?: RejectReason }
   | { kind: 'invalid'; issues: string[] };
 
 export interface Banner {
@@ -126,7 +127,7 @@ export type DraftResult =
   /** 草稿里说「撤销」：退了一步。没有草稿时说「撤销」：直接回到上一个版本。 */
   | { kind: 'steppedBack' }
   | { kind: 'restored' }
-  | { kind: 'rejected'; message: string; examples: string[] }
+  | { kind: 'rejected'; message: string; examples: string[]; reason?: RejectReason }
   | { kind: 'invalid'; issues: string[] };
 
 /**
@@ -574,7 +575,12 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
             baseRevisionId: head.id,
             error: plan.reason,
           });
-          return { kind: 'rejected', message: plan.message, examples: plan.examples };
+          return {
+            kind: 'rejected',
+            message: plan.message,
+            examples: plan.examples,
+            reason: plan.reason,
+          };
         }
         if (plan.kind === 'restorePrevious') {
           if (current && current.steps.length > 1) {
@@ -787,7 +793,12 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
               baseRevisionId: head.id,
               error: plan.reason,
             });
-            return { kind: 'rejected', message: plan.message, examples: plan.examples };
+            return {
+              kind: 'rejected',
+              message: plan.message,
+              examples: plan.examples,
+              reason: plan.reason,
+            };
           }
           if (plan.kind === 'restorePrevious') {
             if (head.parentId === null)

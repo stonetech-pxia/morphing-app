@@ -10,6 +10,8 @@ export interface StepPhrase {
   params: Record<string, unknown>;
   /** 每次运行时问的参数（「输入文字」要问文字）。 */
   ask?: string[] | undefined;
+  /** 记一笔（D-187）：句子里说的表名，由调用方按当前配置换成 collectionId；空字符串表示没说。 */
+  table?: string;
 }
 
 const num = (s: string) => Number(s.replace(/,/g, ''));
@@ -112,7 +114,8 @@ const AUDIO_PHRASES: Matcher[] = [
     () => ({ action: 'audio.compress', params: { by: 'size', maxMB: 2, quality: 'standard' } }),
   ],
   [
-    /^(?:转|转成|转换成|改成)\s*(m4a|wav)(?:\s*格式)?$|^convert (?:it |them )?to (m4a|wav)$/i,
+    // MP3 输出（D-183）；跟在视频后面时换成「提取视频里的声音」（fitToPrevious）。
+    /^(?:转|转成|转换成|改成|存成)\s*(m4a|wav|mp3)(?:\s*格式)?$|^(?:convert (?:it |them )?to|save (?:it |them )?as) (m4a|wav|mp3)$/i,
     (m) => ({ action: 'audio.convert', params: { format: (m[1] ?? m[2]!).toLowerCase() } }),
   ],
   [
@@ -125,9 +128,54 @@ const AUDIO_PHRASES: Matcher[] = [
   ],
 ];
 
+// ---- 格式转换的缺口（D-183–D-186，MOCK_AI_PHRASES FG）----
+
+const FORMAT_PHRASES: Matcher[] = [
+  [
+    // 动图（D-184）：默认是几张图片做成动图；跟在视频后面时换成视频转 GIF（fitToPrevious）。
+    /^(?:转成|做成|变成|生成|转)\s*(?:gif|动图)(?:\s*动图)?$|^(?:make|turn (?:it |them )?into|convert (?:it |them )?to) (?:an? )?(?:animated )?gif$/i,
+    () => ({ action: 'image.toGif', params: { delayMs: 500, maxSide: 480 } }),
+  ],
+  [
+    // 从「文件」选（D-184、D-185）：电脑传来的、下载的照片和视频。
+    /^从文件(?:里|app 里)?(?:选|选择|挑)(?:几个|一个|一段)?视频$|^(?:choose|pick|select) (?:some |a )?videos? from (?:the )?files(?: app)?$/i,
+    () => ({ action: 'in.videos', params: { source: 'files', min: 1, max: 10 } }),
+  ],
+  [
+    /^从文件(?:里|app 里)?(?:选|选择|挑)(?:几张|一张)?(?:照片|图片)$|^(?:choose|pick|select) (?:some |a )?(?:photos?|pictures?|images?) from (?:the )?files(?: app)?$/i,
+    () => ({ action: 'in.photos', params: { source: 'files', min: 1, max: 30 } }),
+  ],
+  [
+    // 办公文档（D-186）。
+    /^(?:选|选择)\s*(?:一个|几个)?\s*(?:(?:word|excel|ppt|powerpoint|office)(?:\s*或\s*(?:word|excel|ppt|powerpoint))?\s*(?:文档|文件|表格|幻灯片)?|文档)$|^(?:choose|pick|select) (?:a |some )?(?:word|excel|powerpoint|office) (?:documents?|files?)$|^(?:choose|pick|select) (?:a |some )?documents?$/i,
+    () => ({ action: 'in.files', params: { accept: 'documents', min: 1, max: 10 } }),
+  ],
+];
+
+// ---- 记一笔（D-187，MOCK_AI_PHRASES RE）----
+
+const tableName = (raw: string | undefined) =>
+  (raw ?? '')
+    .replace(/["「」“”]/g, '')
+    .replace(/(?:这张表|数据表|表格|表|里)$/, '')
+    .trim();
+
+const RECORD_PHRASES: Matcher[] = [
+  [
+    /^(?:记一笔|记一条|记下来|记账)(?:到|进)?(.*)$|^(?:记到|记进|写进|写到|加到)(.+?)(?:表|数据表|里)?$/,
+    (m) => ({ action: 'out.addRecord', params: {}, table: tableName(m[1] ?? m[2]) }),
+  ],
+  [
+    /^(?:add|log) (?:a |one )?(?:record|entry)(?: (?:to|in) (?:the )?(.+?))?(?: table)?$|^(?:log|record) (?:it|them) (?:in|to) (?:the )?(.+?)(?: table)?$/i,
+    (m) => ({ action: 'out.addRecord', params: {}, table: tableName(m[1] ?? m[2]) }),
+  ],
+];
+
 const STEP_PHRASES: Matcher[] = [
+  ...RECORD_PHRASES,
   ...TRANSLATE_PHRASES,
   ...AUDIO_PHRASES,
+  ...FORMAT_PHRASES,
   [
     /^(?:从相册)?(?:选|选择|挑)(?:几张|多张|一张)?(?:照片|图片|截图)$|^(?:choose|pick|select) (?:some |a )?(?:photos?|pictures?|images?|screenshots?)$/i,
     () => ({ action: 'in.photos', params: { source: 'library', min: 1, max: 30 } }),
@@ -328,8 +376,28 @@ function fitToPrevious(p: StepPhrase, previous: WorkflowStep | undefined): StepP
   if (p.action === 'pdf.fromImages' && previous && TEXT_OUTPUT.has(previous.action)) {
     return { action: 'text.toPdf', params: { pageSize: 'a4', fontSize: 12 } };
   }
+  // 格式转换（D-183–D-186）：Word 之后的「转成 PDF」是文档转 PDF；视频之后的「转成 GIF」是视频转 GIF，
+  // 「转成 MP3」是提取视频里的声音。
+  if (
+    p.action === 'pdf.fromImages' &&
+    previous?.action === 'in.files' &&
+    previous.params.accept === 'documents'
+  ) {
+    return { action: 'pdf.fromDocument', params: { pageSize: 'a4' } };
+  }
+  if (previous && makesVideo(previous)) {
+    if (p.action === 'image.toGif')
+      return { action: 'video.toGif', params: { width: 480, fps: 12 } };
+    if (p.action === 'audio.convert') return { action: 'audio.fromVideo', params: p.params };
+  }
   return p;
 }
+
+/** 这一步的结果是视频。 */
+const makesVideo = (step: WorkflowStep) =>
+  step.action === 'in.videos' ||
+  (step.action.startsWith('video.') && step.action !== 'video.toGif') ||
+  (step.action === 'in.files' && step.params.accept === 'videos');
 
 /** 这一步之后的值大致是什么（只用来给「压到 N MB」选动作）。 */
 export type PhraseKind = 'images' | 'video' | 'audio' | 'pdf' | 'other';
@@ -338,6 +406,7 @@ function kindAfter(step: StepPhrase, before: PhraseKind | null): PhraseKind | nu
   if (step.action === 'in.photos' || step.action.startsWith('image.')) return 'images';
   if (step.action === 'audio.transcribe') return 'other';
   if (step.action === 'in.audio' || step.action.startsWith('audio.')) return 'audio';
+  if (step.action === 'video.toGif') return 'images';
   if (step.action === 'in.videos' || step.action.startsWith('video.')) return 'video';
   if (step.action === 'in.files') {
     const accept = step.params.accept;

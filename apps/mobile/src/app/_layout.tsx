@@ -11,12 +11,13 @@ import {
   createStarterWorkspace,
   trustedToolKeys,
 } from '@morph/core';
+import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { AISettingsProvider } from '@/ai/context';
 import { createAIRouter } from '@/ai/router';
@@ -39,7 +40,7 @@ import { createToolDownloads } from '@/tool-download/state';
 import { ToolDownloadStore } from '@/tool-download/store';
 import { SQLiteWorkspaceRepo, migrateDatabase } from '@/storage/sqlite';
 import { WorkspaceProvider, useWorkspace } from '@/workspace/context';
-import { createRemoteAIProvider } from '@/workspace/remote-ai';
+import { createNeedSender, createRemoteAIProvider } from '@/workspace/remote-ai';
 import { createWorkspaceStore, type WorkspaceStore } from '@/workspace/store';
 
 const locale = getDeviceLocale();
@@ -64,6 +65,16 @@ const apiUrl = process.env.EXPO_PUBLIC_MORPH_API_URL;
 const aiSettings = createAISettingsStore({
   secrets: secureSecretStore,
   serverAvailable: Boolean(apiUrl),
+  // 需求回收（D-189）：配置了服务器地址时，AI 做不到的那句话可以由用户点一下发过去。
+  needs: apiUrl
+    ? createNeedSender({
+        baseUrl: apiUrl,
+        clientToken: process.env.EXPO_PUBLIC_MORPH_CLIENT_TOKEN,
+        deviceId: getDeviceId,
+        ...(Platform.OS === 'ios' || Platform.OS === 'android' ? { platform: Platform.OS } : {}),
+        ...(Constants.expoConfig?.version ? { appVersion: Constants.expoConfig.version } : {}),
+      })
+    : null,
 });
 const provider = createAIRouter({
   settings: aiSettings,

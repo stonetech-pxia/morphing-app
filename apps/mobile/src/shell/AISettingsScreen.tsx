@@ -1,6 +1,6 @@
 import { MODELS } from '@morph/planner';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { useAISettings } from '../ai/context';
 import type { AIMode, ConnectionResult } from '../ai/settings';
@@ -72,6 +72,9 @@ export function AISettingsScreen() {
   const saveKey = useAISettings((s) => s.saveKey);
   const clearKey = useAISettings((s) => s.clearKey);
   const testConnection = useAISettings((s) => s.testConnection);
+  const needsButton = useAISettings((s) => s.needsButton);
+  const canSendNeeds = useAISettings((s) => s.canSendNeeds);
+  const setNeedsButton = useAISettings((s) => s.setNeedsButton);
 
   const [draft, setDraft] = useState('');
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
@@ -205,6 +208,29 @@ export function AISettingsScreen() {
             style={styles.secondary}
           />
         </>
+      ) : null}
+
+      {/* 需求回收（D-189）：默认显示按钮，点了才发送；关掉后不再显示。 */}
+      {canSendNeeds ? (
+        <Card palette={palette}>
+          <View style={styles.row}>
+            <View style={styles.flex}>
+              <Text style={[palette.font('title', 16), { color: palette.text }]}>
+                {t(locale, 'needsSettingTitle')}
+              </Text>
+              <Text style={[palette.font('body', 14), styles.note, { color: palette.muted }]}>
+                {t(locale, 'needsSettingNote')}
+              </Text>
+            </View>
+            <Switch
+              testID="ai-needs-button"
+              value={needsButton}
+              onValueChange={(on) => void setNeedsButton(on)}
+              trackColor={{ true: palette.primary, false: palette.border }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+        </Card>
       ) : null}
 
       {message ? (
