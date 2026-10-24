@@ -21,6 +21,8 @@ const NUDGE_MS = 1000;
 const THUMBS = 8;
 const HANDLE = 22;
 
+type Thumb = VideoThumbnail | { uri: string };
+
 export interface TrimRange {
   startMs: number;
   endMs: number;
@@ -188,10 +190,15 @@ function Preview({
   );
 }
 
-/** 时间轴的缩略图（只有视频）。 */
-function useThumbnails(player: VideoPlayer, item: RunItem): VideoThumbnail[] {
+/** 时间轴的缩略图（只有视频）。expo-video 取不到时（Android 上的 HDR 视频）用 load。 */
+function useThumbnails(
+  player: VideoPlayer,
+  item: RunItem,
+  load: ((index: number, timesMs: number[]) => Promise<string[]>) | undefined,
+  index: number,
+): Thumb[] {
   // 记下是哪个文件的缩略图：换文件时不用在 effect 里清空。
-  const [thumbs, setThumbs] = useState<{ uri: string; list: VideoThumbnail[] } | null>(null);
+  const [thumbs, setThumbs] = useState<{ uri: string; list: Thumb[] } | null>(null);
   const duration = item.durationMs ?? 0;
   const video = item.mimeType.startsWith('video/');
   const uri = item.uri;
@@ -201,6 +208,14 @@ function useThumbnails(player: VideoPlayer, item: RunItem): VideoThumbnail[] {
     const times = Array.from({ length: THUMBS }, (_, i) => ((i + 0.5) * duration) / THUMBS / 1000);
     player
       .generateThumbnailsAsync(times, { maxWidth: 160 })
+      .catch(async (e: unknown) => {
+        if (!load) throw e;
+        const files = await load(
+          index,
+          times.map((s) => s * 1000),
+        );
+        return files.map((file) => ({ uri: file }));
+      })
       .then((list) => {
         if (alive) setThumbs({ uri, list });
       })
@@ -208,7 +223,7 @@ function useThumbnails(player: VideoPlayer, item: RunItem): VideoThumbnail[] {
     return () => {
       alive = false;
     };
-  }, [player, video, duration, uri]);
+  }, [player, video, duration, uri, load, index]);
   return thumbs?.uri === uri ? thumbs.list : [];
 }
 
@@ -264,7 +279,7 @@ export function TrimScreen({
   const player = useVideoPlayer(item.uri, (p) => {
     p.timeUpdateEventInterval = 0.1;
   });
-  const thumbs = useThumbnails(player, item);
+  const thumbs = useThumbnails(player, item, input.loadThumbnails, index);
   const audio = item.mimeType.startsWith('audio/');
   const waveform = useWaveform(input.loadWaveform, index, audio);
 

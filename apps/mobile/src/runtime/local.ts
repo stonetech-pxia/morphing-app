@@ -69,7 +69,15 @@ export interface LocalSteps {
      * loadWaveform：读第 i 个文件的波形（0–1 的峰值；视频或读不到时为 null，D-155）。界面先打开、
      * 波形读好再画：Android 上长录音要解码几十秒以上。
      */
-    in: { items: RunItem[]; loadWaveform?: (index: number) => Promise<number[] | null> };
+    in: {
+      items: RunItem[];
+      loadWaveform?: (index: number) => Promise<number[] | null>;
+      /**
+       * loadThumbnails：取第 i 个视频在这些时间（毫秒）的画面（文件地址）。expo-video 取不到时用：
+       * 三星相机默认拍的 HDR 视频，Android 按精确时间取帧会失败，时间轴没有缩略图。
+       */
+      loadThumbnails?: (index: number, timesMs: number[]) => Promise<string[]>;
+    };
     out: { startMs: number; endMs: number }[];
   };
   /**

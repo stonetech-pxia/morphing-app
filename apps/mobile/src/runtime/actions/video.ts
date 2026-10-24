@@ -233,7 +233,11 @@ export const VIDEO_IMPLS: Record<string, Impl> = {
         ...(info.height ? { height: info.height } : {}),
       });
     }
-    const ranges = await ctx.services.ui.open('trimMedia', { items });
+    const ranges = await ctx.services.ui.open('trimMedia', {
+      items,
+      loadThumbnails: (i, timesMs) =>
+        media.thumbnails(items[i]!.uri, timesMs, 160, ctx.services.runId),
+    });
     if (!ranges) throw new RunCancelled();
     let i = 0;
     return eachVideo({ type: 'video', items }, ctx, async (item, _media, job) => {
