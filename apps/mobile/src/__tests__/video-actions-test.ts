@@ -37,6 +37,7 @@ function setup(
     answers?: Record<string, unknown>;
     trim?: { startMs: number; endMs: number }[] | null;
     order?: number[] | null;
+    frames?: number[] | null;
     signal?: { cancelled: boolean };
   } = {},
 ) {
@@ -49,7 +50,13 @@ function setup(
     choose: async () => null,
     open: async (kind, input) => {
       opened.push({ kind, input });
-      return (kind === 'reorder' ? (opts.order ?? null) : (opts.trim ?? null)) as never;
+      return (
+        kind === 'frameMedia'
+          ? (opts.frames ?? null)
+          : kind === 'reorder'
+            ? (opts.order ?? null)
+            : (opts.trim ?? null)
+      ) as never;
     },
   };
   const run = async (): Promise<RunResult> =>
@@ -96,6 +103,7 @@ describe('video tool', () => {
     );
     if (!result.ok) throw new Error(result.error);
     expect(result.config.workflows.map((w) => w.name)).toEqual([
+      '截一帧存成照片',
       '拼接视频',
       '压缩视频',
       '转成 MP4',
@@ -369,4 +377,31 @@ it('checks space for the entire merged duration before starting native encoding'
   files.freeBytes = 50 * MB;
   expect(failure(await run())).toMatchObject({ code: 'notEnoughSpace' });
   expect(media.videoConcats).toEqual([]);
+});
+
+describe('video frame', () => {
+  it('saves the selected time as an upright full-resolution image', async () => {
+    const { files, media, run, opened } = setup(toolWorkflow('video-frame'), { frames: [1250] });
+    files.nextVideos = [
+      files.offerVideo('trip.mov', { size: 1000, durationMs: 3000, width: 1080, height: 1920 }),
+    ];
+    const result = await run();
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      value: {
+        type: 'images',
+        items: [{ name: 'trip-1250ms', mimeType: 'image/jpeg', width: 1080, height: 1920 }],
+      },
+    });
+    expect(opened[0]!.kind).toBe('frameMedia');
+    expect(media.frames[0]!.timeMs).toBe(1250);
+  });
+  it('cancels without extracting and rejects invalid selected times', async () => {
+    for (const frames of [null, [-1], [Infinity], [3000]]) {
+      const { files, media, run } = setup(toolWorkflow('video-frame'), { frames });
+      files.nextVideos = [files.offerVideo('trip.mov', { size: 1000, durationMs: 3000 })];
+      expect((await run()).status).toBe(frames === null ? 'cancelled' : 'failed');
+      expect(media.frames).toEqual([]);
+    }
+  });
 });

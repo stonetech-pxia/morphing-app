@@ -166,6 +166,17 @@ class MorphMediaModule : Module() {
       }
     }
 
+    AsyncFunction("frame") { uri: String, timeMs: Double, directory: String, promise: Promise ->
+      thread {
+        try {
+          if (!timeMs.isFinite() || timeMs < 0) throw MediaUnsupportedException("invalid frame time")
+          promise.resolve(thumbnails(Uri.parse(uri), listOf(timeMs), 0, File(Uri.parse(directory).path!!), true).first())
+        } catch (e: CodedException) { promise.reject(e) }
+        catch (e: OutOfMemoryError) { promise.reject(MediaFailedException("not enough memory for a full-resolution frame")) }
+        catch (e: Exception) { promise.reject(MediaUnsupportedException(e.message)) }
+      }
+    }
+
     AsyncFunction("thumbnails") {
       uri: String, timesMs: List<Double>, maxSide: Double, directory: String, promise: Promise ->
       thread {
@@ -774,20 +785,22 @@ class MorphMediaModule : Module() {
 
   // ---- thumbnails ----
 
-  private fun thumbnails(uri: Uri, timesMs: List<Double>, maxSide: Int, directory: File): List<String> {
+  private fun thumbnails(uri: Uri, timesMs: List<Double>, maxSide: Int, directory: File, precise: Boolean = false): List<String> {
     directory.mkdirs()
     val retriever = MediaMetadataRetriever()
     try {
       retriever.setDataSource(context, uri)
       return timesMs.map { ms ->
         val us = (ms * 1000).toLong()
-        val frame = if (Build.VERSION.SDK_INT >= 27) {
+        val frame = (if (precise) {
+          retriever.getFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST)
+        } else if (Build.VERSION.SDK_INT >= 27) {
           retriever.getScaledFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, maxSide, maxSide)
         } else {
           retriever.getFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)?.let { scaled(it, maxSide) }
-        } ?: throw MediaUnsupportedException("frame at $ms")
+        }) ?: throw MediaUnsupportedException("frame at $ms")
         val file = File(directory, "${UUID.randomUUID()}.jpg")
-        FileOutputStream(file).use { frame.compress(Bitmap.CompressFormat.JPEG, 70, it) }
+        FileOutputStream(file).use { frame.compress(Bitmap.CompressFormat.JPEG, if (precise) 95 else 70, it) }
         frame.recycle()
         Uri.fromFile(file).toString()
       }

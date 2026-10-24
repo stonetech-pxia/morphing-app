@@ -161,6 +161,16 @@ public class MorphMediaModule: Module {
       }
     }
 
+    AsyncFunction("frame") { (uri: URL, timeMs: Double, directory: URL, promise: Promise) in
+      Task {
+        do {
+          guard timeMs.isFinite, timeMs >= 0 else { throw MediaUnsupportedException("invalid frame time") }
+          let frames = try await Self.thumbnails(uri, timesMs: [timeMs], maxSide: 0, directory: directory, precise: true)
+          promise.resolve(frames[0])
+        } catch { promise.reject(Self.coded(error)) }
+      }
+    }
+
     AsyncFunction("thumbnails") {
       (uri: URL, timesMs: [Double], maxSide: Double, directory: URL, promise: Promise) in
       Task {
@@ -1129,13 +1139,13 @@ public class MorphMediaModule: Module {
 
   // MARK: - thumbnails
 
-  static func thumbnails(_ uri: URL, timesMs: [Double], maxSide: Double, directory: URL) async throws -> [String] {
+  static func thumbnails(_ uri: URL, timesMs: [Double], maxSide: Double, directory: URL, precise: Bool = false) async throws -> [String] {
     let asset = AVURLAsset(url: uri)
     let generator = AVAssetImageGenerator(asset: asset)
     generator.appliesPreferredTrackTransform = true
     generator.maximumSize = CGSize(width: maxSide, height: maxSide)
     // 时间轴上的缩略图不需要准确到帧，放宽一点快很多。
-    let tolerance = CMTime(seconds: 0.5, preferredTimescale: 600)
+    let tolerance = precise ? CMTime.zero : CMTime(seconds: 0.5, preferredTimescale: 600)
     generator.requestedTimeToleranceBefore = tolerance
     generator.requestedTimeToleranceAfter = tolerance
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -1148,7 +1158,7 @@ public class MorphMediaModule: Module {
       } catch {
         throw MediaUnsupportedException(error.localizedDescription)
       }
-      guard let data = UIImage(cgImage: image).jpegData(compressionQuality: 0.7) else {
+      guard let data = UIImage(cgImage: image).jpegData(compressionQuality: precise ? 0.95 : 0.7) else {
         throw MediaFailedException("jpeg")
       }
       let file = directory.appendingPathComponent("\(UUID().uuidString).jpg")

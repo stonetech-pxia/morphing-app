@@ -45,7 +45,7 @@ export function moveEdge(
 }
 
 /** 跳到某个时间（毫秒）。 */
-function seek(player: VideoPlayer, ms: number) {
+export function seek(player: VideoPlayer, ms: number) {
   player.currentTime = ms / 1000;
 }
 
@@ -191,7 +191,7 @@ function Preview({
 }
 
 /** 时间轴的缩略图（只有视频）。expo-video 取不到时（Android 上的 HDR 视频）用 load。 */
-function useThumbnails(
+export function useThumbnails(
   player: VideoPlayer,
   item: RunItem,
   load: ((index: number, timesMs: number[]) => Promise<string[]>) | undefined,

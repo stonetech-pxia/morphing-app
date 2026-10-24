@@ -16,6 +16,20 @@ const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en
 
 export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   {
+    id: 'video.frame',
+    label: { en: 'Save a video frame', zh: '截一帧存成照片' },
+    description: {
+      en: 'Choose a time in each video on the device and save the nearest decoded frame as a full-resolution JPEG, upright. Output is images, so image actions and saving to Photos can follow.',
+      zh: '在手机上为每段视频选一个时间点，把最接近的画面存成原尺寸、已摆正的 JPEG。输出图片，可以继续接图片处理或存到相册。',
+    },
+    input: ['video'],
+    output: 'images',
+    params: z.strictObject({}),
+    fields: [],
+    local: 'frameMedia',
+    requires: [],
+  },
+  {
     id: 'video.merge',
     label: { en: 'Join videos', zh: '拼接视频' },
     description: {
@@ -204,6 +218,14 @@ export function videoWorkflows(locale: Locale): Workflow[] {
   });
   return [
     wf(
+      'video-frame',
+      ['Save a video frame', '截一帧存成照片'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+        { id: 'frame', action: 'video.frame', params: {} },
+      ],
+    ),
+    wf(
       'video-merge',
       ['Join videos', '拼接视频'],
       [
@@ -261,7 +283,7 @@ export function videoWorkflows(locale: Locale): Workflow[] {
 
 export const videoTool: ToolDefinition = {
   id: VIDEO_TOOL_ID,
-  version: '1.2.0',
+  version: '1.3.0',
   name: { en: 'Video', zh: '视频' },
   description: {
     en: 'Make videos smaller, convert them to MP4, trim them and turn them into GIFs, on this device.',

@@ -303,6 +303,21 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'video-frame',
+    scenario: 'photos',
+    name: { en: 'Save a photo from a video', zh: '从视频里截一张照片' },
+    description: {
+      en: 'Choose videos, pick a frame in each, and save the photos to your library.',
+      zh: '选视频，为每段挑一帧，存成照片放到相册。',
+    },
+    icon: 'photo',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'frame', action: 'video.frame', params: {} },
+      { id: 'save', action: 'out.saveToPhotos', params: {} },
+    ],
+  },
+  {
     id: 'join-videos',
     scenario: 'photos',
     name: { en: 'Join video clips', zh: '把几段视频拼成一段' },

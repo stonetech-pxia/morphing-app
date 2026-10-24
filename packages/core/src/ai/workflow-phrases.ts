@@ -173,6 +173,10 @@ const RECORD_PHRASES: Matcher[] = [
 
 const STEP_PHRASES: Matcher[] = [
   [
+    /^(?:截一帧|截一帧存成照片|视频截帧)$|^save a video frame$/i,
+    () => ({ action: 'video.frame', params: {} }),
+  ],
+  [
     /^(?:拼接视频|合并视频|拼成一段视频)$|^join (?:the )?videos?$/i,
     () => ({ action: 'video.merge', params: {} }),
   ],
@@ -400,7 +404,7 @@ function fitToPrevious(p: StepPhrase, previous: WorkflowStep | undefined): StepP
 /** 这一步的结果是视频。 */
 const makesVideo = (step: WorkflowStep) =>
   step.action === 'in.videos' ||
-  (step.action.startsWith('video.') && step.action !== 'video.toGif') ||
+  (step.action.startsWith('video.') && !['video.toGif', 'video.frame'].includes(step.action)) ||
   (step.action === 'in.files' && step.params.accept === 'videos');
 
 /** 这一步之后的值大致是什么（只用来给「压到 N MB」选动作）。 */
@@ -410,6 +414,7 @@ function kindAfter(step: StepPhrase, before: PhraseKind | null): PhraseKind | nu
   if (step.action === 'in.photos' || step.action.startsWith('image.')) return 'images';
   if (step.action === 'audio.transcribe') return 'other';
   if (step.action === 'in.audio' || step.action.startsWith('audio.')) return 'audio';
+  if (step.action === 'video.frame') return 'images';
   if (step.action === 'video.toGif') return 'images';
   if (step.action === 'in.videos' || step.action.startsWith('video.')) return 'video';
   if (step.action === 'in.files') {
@@ -496,6 +501,7 @@ export function stepsFrom(phrases: readonly StepPhrase[]): WorkflowStep[] {
 
 const PRESET_WORDS: [RegExp, string][] = [
   [/把几段视频拼成一段|join video clips|merge videos/i, 'join-videos'],
+  [/从视频里截一张照片|photo from a video/i, 'video-frame'],
   // 音频预设（D-156）放在「合一」「发照片」前面。
   [/录音转文字|录音变成文字|recordings? (?:in)?to text/i, 'audio-to-text'],
   [/语音太大|录音太大|recording (?:is )?too big/i, 'audio-too-big'],

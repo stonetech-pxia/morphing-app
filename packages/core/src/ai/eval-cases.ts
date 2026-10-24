@@ -2695,7 +2695,43 @@ const VIDEO_MERGE_CASES: EvalCase[] = [
   },
 ];
 
+const VIDEO_FRAME_CASES: EvalCase[] = [
+  {
+    id: 'VF1',
+    input: '添加从视频里截一张照片快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.frame'))
+          ? null
+          : 'missing video.frame',
+    },
+  },
+  {
+    id: 'VF2',
+    input: 'Make a quick action to choose a still frame from a video and save it to Photos.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps[0]?.action === 'in.videos' &&
+            w.steps.some((s) => s.action === 'video.frame') &&
+            w.steps.some((s) => s.action === 'out.saveToPhotos'),
+        )
+          ? null
+          : 'missing video frame to Photos',
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...VIDEO_FRAME_CASES,
   ...VIDEO_MERGE_CASES,
   ...FILE_ENTRY_CASES,
   ...BASE_EVAL_CASES,

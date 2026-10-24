@@ -694,6 +694,12 @@ const strings = {
   bgFailedBody: { en: 'Tap to see what happened.', zh: '点这里看看是怎么回事。' },
   mediaPlay: { en: 'Play', zh: '播放' },
   mediaDuration: { en: '{duration}', zh: '{duration}' },
+  frameTitle: { en: 'Choose a frame', zh: '选一帧' },
+  frameDone: { en: 'Save this frame', zh: '就要这一帧' },
+  frameHint: {
+    en: 'Tap the timeline, then adjust the time to choose a photo.',
+    zh: '点时间轴选画面，再微调时间。',
+  },
   trimTitle: { en: 'Trim', zh: '剪一段' },
   trimOf: { en: '{n} of {total}', zh: '第 {n}/{total} 个' },
   trimHint: {

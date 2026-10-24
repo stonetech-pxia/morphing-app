@@ -660,6 +660,15 @@ export class FakeMedia implements MediaPlatform {
     job.progress(1);
     return { uri: out.uri, ext: 'mp4', size: bytes, info };
   }
+  frames: { uri: string; timeMs: number }[] = [];
+  async frame(uri: string, timeMs: number, runId: string) {
+    this.fail();
+    const info = await this.probe(uri);
+    this.frames.push({ uri, timeMs });
+    const out = await this.files.writeRunFile(runId, `frame-${this.frames.length}.jpg`, TINY_JPEG);
+    this.files.imageSizes.set(out.uri, { width: info.width ?? 1, height: info.height ?? 1 });
+    return out.uri;
+  }
   async thumbnails(uri: string, timesMs: readonly number[]) {
     await this.probe(uri);
     return timesMs.map((ms) => `frame://${uri}/${ms}`);

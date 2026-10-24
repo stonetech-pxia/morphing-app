@@ -162,6 +162,50 @@ async function eachVideo(
 }
 
 export const VIDEO_IMPLS: Record<string, Impl> = {
+  async 'video.frame'(input, _params, ctx) {
+    const media = mediaOf(ctx);
+    const items: RunItem[] = [];
+    for (const item of fileItems(input)) {
+      ctx.throwIfCancelled();
+      const info = await probe(media, item);
+      items.push({ ...item, durationMs: info.durationMs, width: info.width, height: info.height });
+    }
+    const times = await ctx.services.ui.open('frameMedia', {
+      items,
+      loadThumbnails: (i, ms) => media.thumbnails(items[i]!.uri, ms, 160, ctx.services.runId),
+    });
+    if (!times) throw new RunCancelled();
+    const out: RunItem[] = [];
+    for (const [i, item] of items.entries()) {
+      ctx.throwIfCancelled();
+      const time = times[i];
+      if (
+        time === undefined ||
+        !Number.isFinite(time) ||
+        time < 0 ||
+        time >= (item.durationMs ?? 0)
+      )
+        throw new RunError('mediaUnsupported', { name: displayName(item) });
+      try {
+        const uri = await media.frame(item.uri, time, ctx.services.runId);
+        const size = (await ctx.services.files.readBytes(uri)).length;
+        const dimensions = await ctx.services.files.imageSize(uri);
+        out.push({
+          uri,
+          name: `${item.name}-${Math.round(time)}ms`,
+          ext: 'jpg',
+          mimeType: 'image/jpeg',
+          size,
+          ...dimensions,
+        });
+      } catch (e) {
+        throw mediaError(e, item);
+      }
+      ctx.progress(i + 1, items.length);
+    }
+    ctx.throwIfCancelled();
+    return { type: 'images', items: out };
+  },
   async 'video.merge'(input, _params, ctx) {
     const items = fileItems(input);
     if (items.length < 2) throw new RunError('tooFew', { min: 2 });

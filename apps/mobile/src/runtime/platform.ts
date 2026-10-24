@@ -240,6 +240,8 @@ export interface MediaPlatform {
     relPath: string,
     job: MediaJob,
   ): Promise<MediaOutput>;
+  /** 精确解码指定时间附近的一帧，原尺寸 JPEG，已摆正。 */
+  frame(uri: string, timeMs: number, runId: string): Promise<string>;
   /** 按时间取画面（已摆正），JPEG 放进本次运行的临时目录。 */
   thumbnails(
     uri: string,

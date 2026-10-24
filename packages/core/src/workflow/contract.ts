@@ -43,6 +43,7 @@ export const LOCAL_STEP_KINDS = [
   'sign',
   'fillForm',
   'trimMedia',
+  'frameMedia',
   'recordEntry',
 ] as const;
 export type LocalStepKind = (typeof LOCAL_STEP_KINDS)[number];

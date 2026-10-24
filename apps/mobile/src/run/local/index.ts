@@ -12,6 +12,7 @@ import { RecordScreen } from './RecordScreen';
 import { RedactScreen } from './RedactScreen';
 import { ReorderScreen } from './ReorderScreen';
 import { SignScreen } from './SignScreen';
+import { FrameScreen } from './FrameScreen';
 import { TrimScreen } from './TrimScreen';
 
 // 每种本地操作对应的界面。
@@ -24,6 +25,7 @@ export const LOCAL_SCREENS: { [K in LocalKind]?: ComponentType<LocalScreenProps<
   corners: CornersScreen,
   redact: RedactScreen,
   trimMedia: TrimScreen,
+  frameMedia: FrameScreen,
   record: RecordScreen,
   recordEntry: RecordEntryScreen,
   password: PasswordScreen,

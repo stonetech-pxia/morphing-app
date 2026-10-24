@@ -108,6 +108,8 @@ export interface MorphMediaModule {
   ): Promise<MediaResult>;
   /** 不重新编码地剪一段（视频和音频都能用）。 */
   trim(jobId: string, uri: string, output: string, range: TimeRange): Promise<MediaResult>;
+  /** 保存最接近时间点的一帧，原尺寸 JPEG，已摆正。旧开发构建缺此方法。 */
+  frame?(uri: string, timeMs: number, directory: string): Promise<string>;
   /** 按时间取画面（已摆正，长边不超过 maxSide），写成 JPEG 放进 directory，返回文件地址。 */
   thumbnails(
     uri: string,

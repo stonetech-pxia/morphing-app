@@ -203,3 +203,8 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 
 - 「添加把几段视频拼成一段快捷操作」 / `Add the join video clips quick action`：选 2–10 段视频 → 调整顺序 → 拼接成 MP4。
 - 步骤句式：「拼接视频」「合并视频」「拼成一段视频」 / `join videos`。
+
+### 视频截帧（VF1–VF2）
+
+- 「添加从视频里截一张照片快捷操作」 / `Add the photo from a video quick action`：选视频 → 在本机选时间 → 存 JPEG 到相册。
+- 步骤句式：「截一帧」「视频截帧」 / `save a video frame`。

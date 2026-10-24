@@ -64,6 +64,13 @@ export interface LocalSteps {
    * 剪一段（视频、音频共用，D-143）：逐个选开始和结束（毫秒）。视频显示画面，音频显示波形。
    * 返回每个文件选的一段。
    */
+  frameMedia: {
+    in: {
+      items: RunItem[];
+      loadThumbnails: (index: number, timesMs: number[]) => Promise<string[]>;
+    };
+    out: number[];
+  };
   trimMedia: {
     /**
      * loadWaveform：读第 i 个文件的波形（0–1 的峰值；视频或读不到时为 null，D-155）。界面先打开、

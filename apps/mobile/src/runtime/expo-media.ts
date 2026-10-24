@@ -156,6 +156,13 @@ export function expoMedia(
       return run(job, (jobId) => native.imagesGif(jobId, uris, out, settings));
     },
 
+    async frame(uri, timeMs, runId) {
+      if (!native.frame) throw notImplemented('video frame');
+      const dir = new Directory(Paths.cache, 'runs', runId, 'frames');
+      dir.create({ idempotent: true, intermediates: true });
+      return native.frame(uri, timeMs, dir.uri);
+    },
+
     async thumbnails(uri, timesMs, maxSide, runId) {
       const dir = new Directory(Paths.cache, 'runs', runId, 'frames');
       dir.create({ idempotent: true, intermediates: true });
