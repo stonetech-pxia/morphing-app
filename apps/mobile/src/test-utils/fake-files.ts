@@ -6,6 +6,8 @@ import type { Quad } from '@morph/tool-image';
 
 import type {
   AudioEncode,
+  BackgroundPlatform,
+  DocumentPlatform,
   DrawOp,
   FilePlatform,
   FolderItem,
@@ -93,6 +95,8 @@ export function makePng(width: number, height: number): Uint8Array {
 /** 内存中的“文件系统”。 */
 export class FakeFiles implements FilePlatform {
   disk = new Map<string, Uint8Array>();
+  /** 办公文档转 PDF：默认像 Android，只能转 .docx（iOS 的测试换成全部格式）。 */
+  documents: FakeDocuments = new FakeDocuments(this);
   /** 系统文字识别和扫描：默认没有（像 Android / Expo Go），测试里换成 FakeVision。 */
   vision: VisionPlatform | null = null;
   /** 系统翻译：默认没有（像 Expo Go），测试里换成 FakeTranslator。 */
@@ -101,6 +105,8 @@ export class FakeFiles implements FilePlatform {
   media: MediaPlatform | null = new FakeMedia(this);
   /** 语音转文字：默认没有（像 Expo Go），测试里换成 FakeSpeech。 */
   speech: SpeechPlatform | null = null;
+  /** 后台继续（D-160）：默认没有（像 Expo Go），测试里换成 FakeBackground。 */
+  background: BackgroundPlatform | null = null;
   /** 下一次从相册选视频的结果。 */
   nextVideos: PickedFile[] | null = null;
   /** 手机剩余空间（字节）；null 表示读不到。 */
@@ -464,6 +470,36 @@ export class FakeFiles implements FilePlatform {
   }
 }
 
+/** 假的文档转 PDF（D-186）：每 1 KB 文档算一页，写出一个最小的 PDF 头。 */
+export class FakeDocuments implements DocumentPlatform {
+  extensions: readonly string[] = ['docx'];
+  converted: { uri: string; ext: string; page: { width: number; height: number } }[] = [];
+  /** 下一次转换抛出的错误码。 */
+  failWith: string | null = null;
+  constructor(private files: FakeFiles) {}
+  async toPdf(
+    uri: string,
+    ext: string,
+    page: { width: number; height: number },
+    runId: string,
+    relPath: string,
+  ) {
+    if (this.failWith) {
+      const code = this.failWith;
+      this.failWith = null;
+      throw Object.assign(new Error(code), { code });
+    }
+    this.converted.push({ uri, ext, page });
+    const size = this.files.disk.get(uri)?.length ?? 0;
+    const out = await this.files.writeRunFile(
+      runId,
+      relPath,
+      new TextEncoder().encode('%PDF-1.7\n'),
+    );
+    return { uri: out.uri, size: out.size, pageCount: Math.max(1, Math.ceil(size / 1024)) };
+  }
+}
+
 /**
  * 假的视频处理（modules/morph-media）：按码率和时长算出输出大小，写出相应长度的字节。
  * oversize 让编码器超出码率（测试「超了再压一次」）。
@@ -612,6 +648,48 @@ export class FakeMedia implements MediaPlatform {
     job.progress(1);
     return out;
   }
+  gifs: { uris: readonly string[]; settings: Record<string, number> }[] = [];
+  /** 假的 GIF：每帧 1 KB，尺寸按设置算（视频按 16:9，图片按正方形）。 */
+  private async writeGif(
+    frames: number,
+    width: number,
+    height: number,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ) {
+    if (job.isCancelled()) {
+      throw Object.assign(new Error('cancelled'), { code: 'ERR_MEDIA_CANCELLED' });
+    }
+    const out = await this.files.writeRunFile(runId, relPath, new Uint8Array(frames * 1024));
+    job.progress(1);
+    return { uri: out.uri, size: out.size, width, height, frames };
+  }
+  async videoGif(
+    uri: string,
+    settings: { width: number; fps: number },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ) {
+    this.fail();
+    const source = await this.probe(uri);
+    this.gifs.push({ uris: [uri], settings });
+    const frames = Math.max(1, Math.floor((source.durationMs / 1000) * settings.fps));
+    const height = Math.round((settings.width * 9) / 16);
+    return this.writeGif(frames, settings.width, height, runId, relPath, job);
+  }
+  async imagesGif(
+    uris: readonly string[],
+    settings: { delayMs: number; maxSide: number },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ) {
+    this.fail();
+    this.gifs.push({ uris, settings });
+    return this.writeGif(uris.length, settings.maxSide, settings.maxSide, runId, relPath, job);
+  }
   /** 波形：null 表示原生模块读不到。 */
   peaks: number[] | null = [0.1, 0.8, 0.4, 1];
   async waveform(uri: string, buckets: number) {
@@ -644,6 +722,40 @@ export class FakeSpeech implements SpeechPlatform {
     if (request.isCancelled?.()) throw new SpeechError('cancelled');
     if (this.error) throw new SpeechError(this.error);
     return { text: this.texts.shift() ?? '', durationMs: 1000 };
+  }
+}
+
+/** 假的后台继续（modules/morph-background）：按顺序记下每次调用。 */
+export class FakeBackground implements BackgroundPlatform {
+  continuesInBackground = true;
+  /** 通知权限：问的时候用户怎么答。 */
+  grantNotifications = true;
+  /** Morph 在不在前台。 */
+  foreground = true;
+  /** begin 的返回值（false：系统不让）。 */
+  canBegin = true;
+  calls: (
+    | { kind: 'permission' }
+    | { kind: 'begin'; title: string; text: string }
+    | { kind: 'update'; text: string; fraction: number | null }
+    | { kind: 'end'; done: { title: string; body: string } | null }
+  )[] = [];
+  async ensureNotificationPermission() {
+    this.calls.push({ kind: 'permission' });
+    return this.grantNotifications;
+  }
+  begin(title: string, text: string) {
+    this.calls.push({ kind: 'begin', title, text });
+    return this.canBegin;
+  }
+  update(text: string, fraction: number | null) {
+    this.calls.push({ kind: 'update', text, fraction });
+  }
+  end(done: { title: string; body: string } | null) {
+    this.calls.push({ kind: 'end', done });
+  }
+  isForeground() {
+    return this.foreground;
   }
 }
 

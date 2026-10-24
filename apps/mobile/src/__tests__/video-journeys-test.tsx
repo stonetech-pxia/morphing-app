@@ -1,6 +1,7 @@
 import { fireEvent } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
 
+import { FakeBackground } from '../test-utils/fake-files';
 import { renderToolsApp } from '../test-utils/render-app';
 
 // 视频工具的界面旅程（D-140–D-143）：工具页 → 压缩 → 结果页（播放、存到相册）；剪一段的界面。
@@ -23,7 +24,7 @@ describe('video journeys (UI)', () => {
     expect(await screen.findByText('压缩视频')).toBeTruthy();
     expect(screen.getByText('转成 MP4')).toBeTruthy();
     expect(screen.getByText('剪一段')).toBeTruthy();
-    expect(screen.getByText('全部在本机处理，不会上传。处理视频时请留在 Morph 里。')).toBeTruthy();
+    expect(screen.getByText('全部在本机处理，不会上传。')).toBeTruthy();
 
     files.nextVideos = [files.offerVideo('IMG_0001.MOV', { size: 120 * MB })];
     await fireEvent.press(screen.getByTestId('run-video-compress'));
@@ -88,11 +89,32 @@ describe('video journeys (UI)', () => {
     expect(await screen.findByText(/^0:57 · /)).toBeTruthy();
   });
 
+  it('says whether you can switch apps while a video step runs', async () => {
+    const { files } = await openVideoTool();
+    files.nextVideos = [files.offerVideo('trip.mov', { size: 60 * MB })];
+    await fireEvent.press(screen.getByTestId('run-video-trim'));
+    // 没有后台模块（像 iOS 现在）：请留在 Morph 里。
+    await screen.findByTestId('trim-start', {}, { timeout: 3000 });
+    expect(screen.getByTestId('run-background-hint')).toHaveTextContent('处理时请留在 Morph 里。');
+    await fireEvent.press(screen.getByTestId('local-done'));
+    await screen.findByText(/^1:00 · /);
+    expect(screen.queryByTestId('run-background-hint')).toBeNull();
+
+    // Android：可以切走。
+    files.background = new FakeBackground();
+    files.nextVideos = [files.offerVideo('trip.mov', { size: 60 * MB })];
+    await fireEvent.press(screen.getByTestId('run-again'));
+    await screen.findByTestId('trim-start', {}, { timeout: 3000 });
+    expect(screen.getByTestId('run-background-hint')).toHaveTextContent(
+      '可以切到别的 App，Morph 会在后台接着处理。',
+    );
+  });
+
   it('says videos need the full app when the native module is missing', async () => {
     const { files } = await openVideoTool();
     files.media = null;
     files.nextVideos = [files.offerVideo('a.mov', { size: 100 * MB })];
-    await fireEvent.press(screen.getByTestId('run-video-convert'));
+    await fireEvent.press(screen.getByTestId('run-video-trim'));
     expect(
       await screen.findByText('视频和音频要在正式版 Morph 里处理，这个预览版里不行。'),
     ).toBeTruthy();

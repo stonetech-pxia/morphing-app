@@ -12,7 +12,7 @@ import {
   type ShareFit,
   type Workflow,
 } from '@morph/core';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 
@@ -54,7 +54,11 @@ export function ShareScreen() {
   const shareId = useRef(share?.id);
   const change = useWorkflowChange();
   // 打开 AI 之前已有的快捷操作：回来后新做的那个标「刚做好」、排在最前面（D-129）。
-  const [knownIds, setKnownIds] = useState<Set<string> | null>(null);
+  // AI 的修改在草稿里应用（D-190），应用后重新打开这个页面，带着新做的那个（made）。
+  const { made } = useLocalSearchParams<{ made?: string }>();
+  const [knownIds, setKnownIds] = useState<Set<string> | null>(() =>
+    made ? new Set(config.workflows.filter((w) => w.id !== made).map((w) => w.id)) : null,
+  );
   const scroll = useRef<ScrollViewInstance>(null);
   // AI 做好回到这里时，新的排在最前：滚到顶上让用户看到（否则还停在「让 AI 搭一个」那里）。
   const newest = knownIds
@@ -210,6 +214,8 @@ export function ShareScreen() {
   /** 让 AI 搭一个：AI 只知道文件的类型和个数（D-124）。做好后回到这里，新的排在最前面。 */
   function askAI() {
     setKnownIds(new Set(config.workflows.map((w) => w.id)));
+    // AI 的修改先进草稿、这个页面会关掉（D-190）：分享的文件留着，应用后回到这里还能用。
+    handed.current = true;
     router.push({ pathname: '/change', params: { shared: String(share!.id) } });
   }
 

@@ -11,9 +11,17 @@ import type { Locale, WorkspaceConfig } from '../schema';
  * userData：请求涉及用户记录的内容（读、写、删、统计）。AI 只修改界面，从不接触记录。
  * errand：要 AI 替用户办事、而不是改 App（写邮件、回答问题、总结文件内容……，D-113、D-128）；
  * 说明里告诉用户可以做成什么快捷操作。
+ * unavailable：AI 没能回答（连不上、出错、限额），由 App 自己生成，模型不会用它（D-189：这种拒绝不能当成需求发回来）。
  */
 export type RejectReason =
-  'unknown' | 'protected' | 'deleteFiles' | 'userData' | 'notInstalled' | 'noChange' | 'errand';
+  | 'unknown'
+  | 'protected'
+  | 'deleteFiles'
+  | 'userData'
+  | 'notInstalled'
+  | 'noChange'
+  | 'errand'
+  | 'unavailable';
 
 export const REJECT_REASONS = [
   'unknown',
@@ -23,6 +31,7 @@ export const REJECT_REASONS = [
   'notInstalled',
   'noChange',
   'errand',
+  'unavailable',
 ] as const satisfies readonly RejectReason[];
 
 export type Plan =
@@ -39,6 +48,11 @@ export type Plan =
        * 每月要自己点一次），以及 AI 按用途补上的步骤为什么要加。
        */
       notes?: string[];
+      /**
+       * 一句话里功能和外观都有时（D-191），ops 只做功能，剩下的外观请求写在这里（界面语言的一句话），
+       * 做完后变成一条「接着改」的预设，点一下进草稿。
+       */
+      next?: string;
     }
   | { kind: 'restorePrevious' }
   | { kind: 'reject'; reason: RejectReason; message: string; examples: string[] };
@@ -49,6 +63,7 @@ export const PlanSchema: z.ZodType<Plan> = z.discriminatedUnion('kind', [
     ops: OpListSchema,
     homeEntry: z.boolean().optional(),
     notes: z.array(z.string().min(1).max(200)).max(4).optional(),
+    next: z.string().min(1).max(200).optional(),
   }),
   z.strictObject({ kind: z.literal('restorePrevious') }),
   z.strictObject({

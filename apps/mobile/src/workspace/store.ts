@@ -5,16 +5,21 @@ import {
   coalesceOps,
   createDefaultWorkspace,
   describeRestore,
+  functionFirst,
   homeEntryOps,
   prepareOps,
   prepareSnapshot,
   workflowsWithoutEntry,
   type AIProvider,
+  type FunctionFirst,
   type Locale,
   type NavTarget,
   type Op,
+  type Plan,
   type PlanAbout,
+  type PreparedChange,
   type Registry,
+  type RejectReason,
   type WorkspaceConfig,
 } from '@morph/core';
 import { createStore, type StoreApi } from 'zustand/vanilla';
@@ -38,6 +43,8 @@ export interface WorkspaceDeps {
   now: () => Date;
   /** 第一次启动时的第一个版本。App 用预装了工具的 createStarterWorkspace（D-104）；不传时是空白工作空间。 */
   seed?: (locale: Locale, registry: Registry) => WorkspaceConfig;
+  /** 不在注册表里的工具叫什么（从下载的工具目录里查，D-177）；恢复历史版本缺工具时提示用。 */
+  toolName?: (toolId: string) => string | undefined;
 }
 
 export interface Proposal {
@@ -63,7 +70,7 @@ export interface Proposal {
 
 export type ProposeResult =
   | { kind: 'preview'; proposal: Proposal }
-  | { kind: 'rejected'; message: string; examples: string[] }
+  | { kind: 'rejected'; message: string; examples: string[]; reason?: RejectReason }
   | { kind: 'invalid'; issues: string[] };
 
 export interface Banner {
@@ -84,6 +91,67 @@ export interface EditDraft {
 
 export type EditResult = { ok: true } | { ok: false; issues: string[] } | { ok: false; full: true };
 
+/** AI 修改草稿的一步（D-190）：用户说的一句话和 AI 给的修改。 */
+export interface DraftStep {
+  input: string;
+  /** 已包含新快捷操作的首页入口。 */
+  ops: Op[];
+  lines: string[];
+  notes?: string[];
+  changeRequestId: number;
+  /** 套用到这一步为止的配置。不存盘：启动或回到草稿时在最新版本上重新算（rebaseDraft）。 */
+  config: WorkspaceConfig;
+}
+
+/** 草稿从哪里开始的：应用后据此带用户回去（新手引导、从快捷操作或收件页面打开）。 */
+export interface DraftOrigin {
+  guide?: string;
+  about?: PlanAbout;
+}
+
+/**
+ * AI 修改的草稿（D-190）：AI 处理完直接进入草稿模式，App 显示改完后的样子，能看不能用；
+ * 「修改」接着说、「退一步」撤掉最近一步、「应用」合成一个版本保存、「离开」回到正式的 App 但草稿保留。
+ * 一次只有一份，存在本机（app_meta），重启也在。
+ */
+export interface Draft {
+  steps: DraftStep[];
+  origin: DraftOrigin;
+  /** 正在草稿模式里；false = 离开了，草稿还在。 */
+  open: boolean;
+}
+
+export type DraftResult =
+  /** focusPageId：这一步改到的页面，进入草稿时显示它。 */
+  | { kind: 'drafted'; step: DraftStep; focusPageId: string }
+  /** 草稿里说「撤销」：退了一步。没有草稿时说「撤销」：直接回到上一个版本。 */
+  | { kind: 'steppedBack' }
+  | { kind: 'restored' }
+  | { kind: 'rejected'; message: string; examples: string[]; reason?: RejectReason }
+  | { kind: 'invalid'; issues: string[] };
+
+/**
+ * AI 修改页说的一句话（D-191）：功能类直接应用（applied），外观类进草稿。
+ * 在草稿的聊天框里说功能类的话会被拒绝（functionInDraft），说明要去「修改这个 App」说。
+ */
+export type ChangeResult =
+  | DraftResult
+  /** focusPageId：改到的页面，回到 App 时显示它。 */
+  | { kind: 'applied'; applied: Applied; focusPageId: string }
+  | { kind: 'functionInDraft'; message: string };
+
+/** 应用之后（草稿或直接应用的功能）带用户去哪里要用的信息。 */
+export interface Applied {
+  addedWorkflowIds: string[];
+  addedCollectionIds: string[];
+  origin: DraftOrigin;
+  /** AI 的说明（D-110），直接应用的功能在「做好了」页面上显示。 */
+  notes?: string[];
+}
+
+const DRAFT_META_KEY = 'draft';
+const NEXT_META_KEY = 'next';
+
 export interface WorkspaceState {
   status: 'loading' | 'ready' | 'error';
   error: string | null;
@@ -102,6 +170,15 @@ export interface WorkspaceState {
   toast: { message: string; restoreRecordId?: string } | null;
   /** 编辑模式（直接编辑，D-052–D-054）；为 null 时不在编辑模式。 */
   editing: EditDraft | null;
+  /** AI 修改的草稿（D-190）。 */
+  draft: Draft | null;
+  /** 草稿的提示：重新套用时去掉了几步、草稿显示出错退了一步。 */
+  draftNotice: string | null;
+  /**
+   * 「接着改」的预设（D-191）：上一次功能修改那句话里剩下的外观请求。只有一条，存在本机；
+   * 下一次功能修改换掉它，用掉或撤销时清掉。
+   */
+  next: string | null;
 
   boot(): Promise<void>;
   /**
@@ -133,6 +210,27 @@ export interface WorkspaceState {
   dismissToast(): void;
   listRevisions(limit?: number): Promise<RevisionRecord[]>;
   bumpAssets(): void;
+  /**
+   * AI 修改页的一句话（D-191）：功能类直接应用，外观类进草稿（没有草稿时新建一份）；
+   * planner 不传时用设置里选的 AI。
+   */
+  change(input: string, planner?: AIProvider, origin?: DraftOrigin): Promise<ChangeResult>;
+  /** 草稿聊天框的一句话：只改外观，功能类的请求不做。 */
+  draftChange(input: string): Promise<ChangeResult>;
+  clearNext(): Promise<void>;
+  stepBack(): Promise<void>;
+  openDraft(): void;
+  closeDraft(): void;
+  applyDraft(): Promise<Applied | null>;
+  deleteDraft(): Promise<void>;
+  /** 草稿显示出错：撤掉最近一步（只有一步时删掉草稿），回到能显示的样子。 */
+  draftRenderFailed(error: unknown): Promise<void>;
+  dismissDraftNotice(): void;
+}
+
+/** 外壳和页面要显示的配置：在草稿模式里是草稿，否则是当前版本。 */
+export function shownConfig(s: Pick<WorkspaceState, 'config' | 'draft'>): WorkspaceConfig | null {
+  return s.draft?.open ? (s.draft.steps.at(-1)?.config ?? s.config) : s.config;
 }
 
 export type WorkspaceStore = StoreApi<WorkspaceState>;
@@ -275,6 +373,16 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       const { config, head } = get();
       if (!config || !head) throw new Error('workspace not loaded');
       const target = await repo.getRevision(revisionId);
+      // 这个版本用到了本机没有的下载工具（换了手机、删了下载的内容）：先下载才能恢复（D-177）。
+      const missing = (
+        (target?.config as { tools?: { toolId: string }[] } | undefined)?.tools ?? []
+      )
+        .map((tool) => tool.toolId)
+        .filter((id) => !registry.tools.has(id));
+      if (target && missing.length > 0) {
+        const names = missing.map((id) => deps.toolName?.(id) ?? id).join(msg('listSeparator'));
+        return { kind: 'invalid', issues: [msg('restoreNeedsTool', { names })] };
+      }
       const prepared = target ? prepareSnapshot(target.config, registry) : null;
       if (!target || !prepared?.ok) {
         const issues =
@@ -312,6 +420,323 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       await reload();
     }
 
+    /** 启动：读取当前版本，坏了就沿历史找最后一个能用的。 */
+    async function bootHead() {
+      try {
+        // 软删除超过保留期的记录在启动时永久清除（D-037）。
+        await repo.purgeDeletedRecords(
+          deps.now().getTime() - RECORD_LIMITS.deletedRetentionDays * 24 * 60 * 60 * 1000,
+        );
+        const head = await repo.getHead();
+        if (!head) {
+          await repo.commitRevision({
+            baseId: null,
+            config: (deps.seed ?? createDefaultWorkspace)(locale, registry),
+            source: 'seed',
+            summary: msg('initialSummary'),
+          });
+          await reload();
+          return;
+        }
+        // 启动时沿历史向前寻找最后一个有效版本，保证不白屏（§4、§7E）。
+        for (
+          let r: RevisionRecord | null = head;
+          r;
+          r = r.parentId ? await repo.getRevision(r.parentId) : null
+        ) {
+          const prepared = prepareSnapshot(r.config, registry);
+          if (!prepared.ok) continue;
+          if (r.id === head.id) {
+            await reload();
+          } else {
+            await commitFallback(prepared.after, 'recovery', msg('recovered'));
+            set({ banner: { kind: 'recovered', message: msg('recovered') } });
+          }
+          return;
+        }
+        await commitFallback(createDefaultWorkspace(locale), 'recovery', msg('recovered'));
+        set({ banner: { kind: 'recovered', message: msg('recovered') } });
+      } catch (e) {
+        set({ status: 'error', error: String(e) });
+      }
+    }
+
+    async function saveDraft(draft: Draft | null) {
+      const stored = draft && {
+        origin: draft.origin,
+        steps: draft.steps.map(({ config: _, ...step }) => step),
+      };
+      await repo.setMeta(DRAFT_META_KEY, stored ? JSON.stringify(stored) : '');
+    }
+
+    /**
+     * 把草稿的每一步重新套在最新版本上（离开草稿期间可能撤销过、添加过工具）。
+     * 套不上的那一步和后面的都去掉，并提示用户。
+     */
+    function rebaseDraft(
+      draft: Pick<Draft, 'origin' | 'open'> & { steps: Omit<DraftStep, 'config'>[] },
+    ): Draft | null {
+      const { config } = get();
+      if (!config) return null;
+      const steps: DraftStep[] = [];
+      let base = config;
+      for (const step of draft.steps) {
+        const prepared = prepareOps(base, step.ops, { registry, locale, now: deps.now() });
+        if (!prepared.ok) break;
+        base = prepared.after;
+        steps.push({ ...step, config: base });
+      }
+      const dropped = draft.steps.length - steps.length;
+      if (dropped > 0) set({ draftNotice: msg('draftDropped', { n: dropped }) });
+      for (const step of draft.steps.slice(steps.length)) {
+        void repo.updateChangeRequest(step.changeRequestId, {
+          status: 'failed',
+          error: 'no longer applies',
+        });
+      }
+      return steps.length > 0 ? { ...draft, steps } : null;
+    }
+
+    async function loadDraft() {
+      const raw = await repo.getMeta(DRAFT_META_KEY);
+      if (!raw) return;
+      try {
+        const stored = JSON.parse(raw) as Pick<Draft, 'origin'> & {
+          steps: Omit<DraftStep, 'config'>[];
+        };
+        const draft = rebaseDraft({ ...stored, open: false });
+        set({ draft });
+        if (!draft || draft.steps.length !== stored.steps.length) await saveDraft(draft);
+      } catch {
+        await saveDraft(null);
+      }
+    }
+
+    /** 新建的快捷操作默认在首页放入口；用户说了不要放、或者是给分享进来的文件做的（D-124），就不放。 */
+    function withHomeEntries(
+      before: WorkspaceConfig,
+      ops: Op[],
+      prepared: Extract<PreparedChange, { ok: true }>,
+      plan: { homeEntry?: boolean },
+      about: PlanAbout | undefined,
+    ): { ops: Op[]; prepared: Extract<PreparedChange, { ok: true }> } {
+      const wantHome =
+        (about?.kind === 'shared' ? (plan.homeEntry ?? false) : plan.homeEntry) !== false;
+      const homeless = wantHome ? workflowsWithoutEntry(ops, prepared.after) : [];
+      if (homeless.length === 0) return { ops, prepared };
+      const withEntry = [...ops, ...homeEntryOps(prepared.after, homeless)];
+      const full = prepareOps(before, withEntry, { registry, locale, now: deps.now() });
+      return full.ok ? { ops: withEntry, prepared: full } : { ops, prepared };
+    }
+
+    async function failedPlan(input: string, plan: unknown, error: string) {
+      const head = get().head!;
+      await repo.createChangeRequest({
+        input,
+        plan,
+        status: 'failed',
+        baseRevisionId: head.id,
+        error,
+      });
+    }
+
+    async function aiChange(
+      input: string,
+      planner: AIProvider,
+      origin: DraftOrigin,
+      inChat: boolean,
+    ): Promise<ChangeResult> {
+      const { config, head } = get();
+      if (!config || !head) throw new Error('workspace not loaded');
+      set({ busy: true });
+      try {
+        let current = get().draft;
+        if (current && !current.open) current = rebaseDraft(current);
+        const base = current?.steps.at(-1)?.config ?? config;
+        // 草稿里接着说的话沿用开始时的上下文：「这个」还是那个快捷操作（D-124）。
+        const about = origin.about ?? current?.origin.about;
+        const raw = await planner.plan(input, {
+          config: base,
+          registry,
+          locale,
+          ...(about ? { about } : {}),
+        });
+        const parsed = PlanSchema.safeParse(raw);
+        if (!parsed.success) {
+          await failedPlan(input, raw, 'plan did not match schema');
+          return { kind: 'invalid', issues: parsed.error.issues.map((i) => i.message) };
+        }
+        const plan = parsed.data;
+        if (plan.kind === 'reject') {
+          await repo.createChangeRequest({
+            input,
+            plan,
+            status: 'rejected',
+            baseRevisionId: head.id,
+            error: plan.reason,
+          });
+          return {
+            kind: 'rejected',
+            message: plan.message,
+            examples: plan.examples,
+            reason: plan.reason,
+          };
+        }
+        if (plan.kind === 'restorePrevious') {
+          if (current && current.steps.length > 1) {
+            set({ draft: current });
+            await get().stepBack();
+            return { kind: 'steppedBack' };
+          }
+          if (current) return { kind: 'rejected', message: msg('draftFirstStep'), examples: [] };
+          if (head.parentId === null)
+            return { kind: 'rejected', message: msg('noPrevious'), examples: [] };
+          const result = await restoreProposal(head.parentId, input);
+          if (result.kind !== 'preview') return result;
+          await get().confirm();
+          return { kind: 'restored' };
+        }
+        const ctx = { registry, locale, now: deps.now() };
+        const prepared = prepareOps(base, plan.ops, ctx);
+        if (!prepared.ok) {
+          await failedPlan(input, plan.ops, `${prepared.stage}: ${prepared.issues.join('; ')}`);
+          return { kind: 'invalid', issues: prepared.issues };
+        }
+        // 功能先做（D-191）：直接应用到正式的版本，不进草稿；草稿里只改外观。
+        const first = functionFirst(base, plan.ops, ctx);
+        if (first.kind === 'function') {
+          if (inChat) {
+            await repo.createChangeRequest({
+              input,
+              plan: plan.ops,
+              status: 'rejected',
+              baseRevisionId: head.id,
+              error: 'function change in a draft',
+            });
+            return { kind: 'functionInDraft', message: msg('draftNoFunction') };
+          }
+          return await applyFunction(input, plan, first, {
+            ...origin,
+            ...(about ? { about } : {}),
+          });
+        }
+        // 外观：新建或接着改草稿（D-190）。
+        const { ops, prepared: after } = withHomeEntries(base, plan.ops, prepared, plan, about);
+        const changeRequestId = await repo.createChangeRequest({
+          input,
+          plan: ops,
+          status: 'previewing',
+          baseRevisionId: head.id,
+        });
+        const step: DraftStep = {
+          input,
+          ops,
+          lines: after.lines,
+          ...(plan.notes?.length ? { notes: plan.notes } : {}),
+          changeRequestId,
+          config: after.after,
+        };
+        const draft: Draft = {
+          steps: [...(current?.steps ?? []), step],
+          origin: current?.origin ?? origin,
+          open: true,
+        };
+        set({ draft, editing: null });
+        await saveDraft(draft);
+        if (input === get().next) await get().clearNext();
+        return { kind: 'drafted', step, focusPageId: focusPage(ops, after.after) };
+      } finally {
+        set({ busy: false });
+      }
+    }
+
+    /**
+     * 功能类修改直接保存成一个 AI 版本（D-191），顶部照常「已改好 · 撤销」。这句话里剩下的外观
+     * 变成「接着改」的预设：模型给的 next，没给就用那些外观操作的说明。草稿还在，打开时重新套上。
+     */
+    async function applyFunction(
+      input: string,
+      plan: Extract<Plan, { kind: 'ops' }>,
+      first: Extract<FunctionFirst, { kind: 'function' }>,
+      origin: DraftOrigin,
+    ): Promise<ChangeResult> {
+      const { config, head, draft } = get();
+      const ctx = { registry, locale, now: deps.now() };
+      const prepared = prepareOps(config!, first.ops, ctx);
+      if (!prepared.ok) {
+        await failedPlan(input, first.ops, `${prepared.stage}: ${prepared.issues.join('; ')}`);
+        // 在草稿的样子上说的：要用到草稿里的东西。
+        return draft
+          ? { kind: 'rejected', message: msg('functionNeedsDraft'), examples: [] }
+          : { kind: 'invalid', issues: prepared.issues };
+      }
+      const { ops, prepared: after } = withHomeEntries(
+        config!,
+        first.ops,
+        prepared,
+        plan,
+        origin.about,
+      );
+      const deferred =
+        first.deferred.length > 0 ? prepareOps(after.after, first.deferred, ctx) : null;
+      const next =
+        plan.next ??
+        (deferred?.ok && deferred.lines.length > 0
+          ? deferred.lines.join(locale === 'zh' ? '；' : '; ').slice(0, 200)
+          : null);
+      const changeRequestId = await repo.createChangeRequest({
+        input,
+        plan: ops,
+        status: 'previewing',
+        baseRevisionId: head!.id,
+      });
+      const summary = input.slice(0, 200);
+      try {
+        const revision = await repo.commitRevision({
+          baseId: head!.id,
+          config: after.after,
+          source: 'ai',
+          summary,
+        });
+        pending = { changeRequestId, revisionId: revision.id, undoTo: head!.id, summary };
+      } catch (e) {
+        if (!(e instanceof RevisionConflictError)) throw e;
+        await repo.updateChangeRequest(changeRequestId, { status: 'failed', error: e.message });
+        await reload();
+        return { kind: 'rejected', message: msg('conflict'), examples: [] };
+      }
+      set({ next, ...(draft?.open ? { draft: { ...draft, open: false }, toast: null } : {}) });
+      await repo.setMeta(NEXT_META_KEY, next ?? '');
+      // 被移除的工具失去文件授权；文件本身保留（§7G）。
+      const remaining = new Set(after.after.tools.map((t) => t.toolId));
+      for (const tool of config!.tools) {
+        if (!remaining.has(tool.toolId)) await repo.revokeToolGrants(tool.toolId);
+      }
+      await reload();
+      const applied = addedBy(config!, after.after, origin);
+      return {
+        kind: 'applied',
+        applied: plan.notes?.length ? { ...applied, notes: plan.notes } : applied,
+        focusPageId: focusPage(ops, after.after),
+      };
+    }
+
+    function addedBy(
+      before: WorkspaceConfig,
+      after: WorkspaceConfig,
+      origin: DraftOrigin,
+    ): Applied {
+      const workflows = new Set(before.workflows.map((w) => w.id));
+      const collections = new Set(before.collections.map((c) => c.id));
+      return {
+        addedWorkflowIds: after.workflows.filter((w) => !workflows.has(w.id)).map((w) => w.id),
+        addedCollectionIds: after.collections
+          .filter((c) => !collections.has(c.id))
+          .map((c) => c.id),
+        origin,
+      };
+    }
+
     return {
       status: 'loading',
       error: null,
@@ -325,45 +750,15 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       recordsVersion: 0,
       toast: null,
       editing: null,
+      draft: null,
+      draftNotice: null,
+      next: null,
 
       async boot() {
-        try {
-          // 软删除超过保留期的记录在启动时永久清除（D-037）。
-          await repo.purgeDeletedRecords(
-            deps.now().getTime() - RECORD_LIMITS.deletedRetentionDays * 24 * 60 * 60 * 1000,
-          );
-          const head = await repo.getHead();
-          if (!head) {
-            await repo.commitRevision({
-              baseId: null,
-              config: (deps.seed ?? createDefaultWorkspace)(locale, registry),
-              source: 'seed',
-              summary: msg('initialSummary'),
-            });
-            await reload();
-            return;
-          }
-          // 启动时沿历史向前寻找最后一个有效版本，保证不白屏（§4、§7E）。
-          for (
-            let r: RevisionRecord | null = head;
-            r;
-            r = r.parentId ? await repo.getRevision(r.parentId) : null
-          ) {
-            const prepared = prepareSnapshot(r.config, registry);
-            if (!prepared.ok) continue;
-            if (r.id === head.id) {
-              await reload();
-            } else {
-              await commitFallback(prepared.after, 'recovery', msg('recovered'));
-              set({ banner: { kind: 'recovered', message: msg('recovered') } });
-            }
-            return;
-          }
-          await commitFallback(createDefaultWorkspace(locale), 'recovery', msg('recovered'));
-          set({ banner: { kind: 'recovered', message: msg('recovered') } });
-        } catch (e) {
-          set({ status: 'error', error: String(e) });
-        }
+        await bootHead();
+        if (get().status !== 'ready') return;
+        await loadDraft();
+        set({ next: (await repo.getMeta(NEXT_META_KEY)) || null });
       },
 
       async propose(input, planner = deps.provider, about) {
@@ -398,7 +793,12 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
               baseRevisionId: head.id,
               error: plan.reason,
             });
-            return { kind: 'rejected', message: plan.message, examples: plan.examples };
+            return {
+              kind: 'rejected',
+              message: plan.message,
+              examples: plan.examples,
+              reason: plan.reason,
+            };
           }
           if (plan.kind === 'restorePrevious') {
             if (head.parentId === null)
@@ -493,6 +893,8 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         if (undoTo === undefined) return;
         const result = await restoreProposal(undoTo, msg('undoSummary'));
         set({ banner: null });
+        // 撤销了那次功能修改，剩下的那句也就接不上了。
+        await get().clearNext();
         if (result.kind === 'preview') {
           set({ proposal: { ...result.proposal, summary: msg('undoSummary') } });
           await get().confirm();
@@ -595,6 +997,109 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       listRevisions: (limit = 50) => repo.listRevisions(limit),
 
       bumpAssets: () => set({ assetsVersion: get().assetsVersion + 1 }),
+
+      change: (input, planner = deps.provider, origin = {}) =>
+        aiChange(input, planner, origin, false),
+
+      draftChange: (input) => aiChange(input, deps.provider, {}, true),
+
+      async clearNext() {
+        if (get().next === null) return;
+        set({ next: null });
+        await repo.setMeta(NEXT_META_KEY, '');
+      },
+
+      async stepBack() {
+        const draft = get().draft;
+        if (!draft || draft.steps.length < 2) return;
+        const removed = draft.steps.at(-1)!;
+        const next = { ...draft, steps: draft.steps.slice(0, -1) };
+        set({ draft: next });
+        await saveDraft(next);
+        await repo.updateChangeRequest(removed.changeRequestId, { status: 'cancelled' });
+      },
+
+      openDraft() {
+        const draft = get().draft;
+        if (!draft || draft.open) return;
+        const rebased = rebaseDraft({ ...draft, open: true });
+        set({ draft: rebased, editing: null });
+        if (!rebased || rebased.steps.length !== draft.steps.length) void saveDraft(rebased);
+      },
+
+      closeDraft() {
+        const draft = get().draft;
+        // 草稿里唯一的提示是「应用之后才能用」，离开时一起收掉。
+        if (draft?.open) set({ draft: { ...draft, open: false }, toast: null });
+      },
+
+      async applyDraft() {
+        const { draft, head, config } = get();
+        if (!draft || !head || !config) return null;
+        const after = draft.steps.at(-1)!.config;
+        set({ busy: true });
+        try {
+          const summary = draft.steps
+            .map((s) => s.input)
+            .join(locale === 'zh' ? '；' : '; ')
+            .slice(0, 200);
+          const revision = await repo.commitRevision({
+            baseId: head.id,
+            config: after,
+            source: 'ai',
+            summary,
+          });
+          const last = draft.steps.at(-1)!;
+          for (const step of draft.steps.slice(0, -1)) {
+            await repo.updateChangeRequest(step.changeRequestId, {
+              status: 'committed',
+              resultRevisionId: revision.id,
+            });
+          }
+          pending = {
+            changeRequestId: last.changeRequestId,
+            revisionId: revision.id,
+            undoTo: head.id,
+            summary,
+          };
+          set({ draft: null, toast: null });
+          await saveDraft(null);
+          // 被移除的工具失去文件授权；文件本身保留（§7G）。
+          const remaining = new Set(after.tools.map((t) => t.toolId));
+          for (const tool of config.tools) {
+            if (!remaining.has(tool.toolId)) await repo.revokeToolGrants(tool.toolId);
+          }
+          await reload();
+          return addedBy(config, after, draft.origin);
+        } finally {
+          set({ busy: false });
+        }
+      },
+
+      async deleteDraft() {
+        const draft = get().draft;
+        if (!draft) return;
+        set({ draft: null });
+        await saveDraft(null);
+        for (const step of draft.steps) {
+          await repo.updateChangeRequest(step.changeRequestId, { status: 'cancelled' });
+        }
+      },
+
+      async draftRenderFailed(error) {
+        const draft = get().draft;
+        if (!draft) return;
+        const last = draft.steps.at(-1)!;
+        await repo.updateChangeRequest(last.changeRequestId, {
+          status: 'rolled_back',
+          error: String(error).slice(0, 300),
+        });
+        const next = draft.steps.length > 1 ? { ...draft, steps: draft.steps.slice(0, -1) } : null;
+        set({ draft: next, draftNotice: msg('draftRenderFailed') });
+        await saveDraft(next);
+      },
+
+      dismissDraftNotice: () => set({ draftNotice: null }),
     };
   });
 }

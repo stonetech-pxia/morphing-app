@@ -10,7 +10,7 @@ import { renderToolsApp } from '../test-utils/render-app';
 
 describe('starter home and toolbox (UI)', () => {
   const start = () =>
-    renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), createStarterWorkspace);
+    renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), { seed: createStarterWorkspace });
 
   it('shows three quick actions and a toolbox entry, with no Tools tab', async () => {
     await start();

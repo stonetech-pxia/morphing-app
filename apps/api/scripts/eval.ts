@@ -1,6 +1,6 @@
 import { parseArgs } from 'node:util';
 
-import { EVAL_CASES, buildSetup, judgeEval, prepareOps } from '@morph/core';
+import { EVAL_CASES, runEvalCase } from '@morph/core';
 
 import { MODELS, type Completion } from '@morph/planner';
 
@@ -45,33 +45,26 @@ console.log(
 );
 
 for (const c of cases) {
-  const config = buildSetup(c.setup, c.locale, runtime.registry);
   const before = completions.length;
   const started = Date.now();
   let line: string;
   try {
-    const plan = await runtime.provider.plan(c.input, {
-      config,
-      registry: runtime.registry,
-      locale: c.locale,
-      ...(c.about ? { about: c.about } : {}),
-    });
-    const prepared =
-      plan.kind === 'ops'
-        ? prepareOps(config, plan.ops, { registry: runtime.registry, locale: c.locale, now })
-        : null;
-    const outcome = judgeEval(c, plan, prepared);
-    const calls = completions.length - before;
+    const { outcome, plans } = await runEvalCase(c, runtime.provider, runtime.registry, now);
+    const calls = completions.length - before - (plans.length - 1);
     const repaired = calls > 1 ? `，修复 ${calls - 1} 次` : '';
     if (outcome.pass) {
       passed++;
       line = `✅ ${c.id}  ${Date.now() - started}ms${repaired}`;
     } else {
       line = `❌ ${c.id}  ${outcome.reason}${repaired}`;
-      if (values.verbose) line += `\n   ${JSON.stringify(plan)}`;
+      if (values.verbose) line += plans.map((p) => `\n   ${JSON.stringify(p)}`).join('');
       failures.push(`${c.id}（${c.input}）：${outcome.reason}`);
     }
-    if (plan.kind === 'ops' && plan.notes?.length) line += `\n   notes: ${plan.notes.join(' / ')}`;
+    for (const plan of plans) {
+      if (plan.kind !== 'ops') continue;
+      if (plan.notes?.length) line += `\n   notes: ${plan.notes.join(' / ')}`;
+      if (plan.next) line += `\n   next: ${plan.next}`;
+    }
   } catch (e) {
     line = `💥 ${c.id}  ${String(e)}`;
     failures.push(`${c.id}（${c.input}）：${String(e)}`);

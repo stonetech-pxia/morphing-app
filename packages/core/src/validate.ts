@@ -1,3 +1,4 @@
+import { parseFormula } from './formula';
 import type { Registry } from './registry';
 import {
   HOME_PAGE_ID,
@@ -14,6 +15,7 @@ import {
 } from './schema';
 import { contrastProblems } from './theme';
 import { workflowProblems } from './workflow/check';
+import { outputTypeOf, type ValueType } from './workflow/contract';
 
 // 变更校验（§7D）：结构 → 引用 → 受保护元素 → 可读性 → 工具与权限 → 工作流数据流。
 // 任何配置在保存或渲染之前都必须通过这里。
@@ -137,6 +139,11 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
       issue('duplicate', `field ${id} in ${collection.id}`);
     }
     for (const field of collection.fields) {
+      if (field.type === 'formula') {
+        for (const problem of formulaProblems(field.expression, collection))
+          issue('data', `${collection.id}.${field.id}: ${problem}`);
+        continue;
+      }
       if (field.type !== 'choice') continue;
       for (const id of duplicates(field.options.map((o) => o.id))) {
         issue('duplicate', `option ${id} in ${collection.id}.${field.id}`);
@@ -168,7 +175,7 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
     for (const id of duplicates(wf.steps.map((s) => s.id)))
       issue('duplicate', `step ${id} in ${wf.id}`);
     for (const problem of workflowProblems(wf, registry)) issue(problem.code, problem.message);
-    for (const message of recordStepProblems(wf, config)) issue('data', message);
+    for (const message of recordStepProblems(wf, config, registry)) issue('data', message);
     // 工具自带的工作流只能用该工具声明过的权限；用户自己的工作流由用户逐步确认。
     if (!toolDef) continue;
     for (const step of wf.steps) {
@@ -186,14 +193,38 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
   return issues.length > 0 ? { ok: false, issues } : { ok: true, config };
 }
 
-/** 读取记录的步骤要指向存在的数据表；生成 PDF 的字段要是这张表的字段（D-042）。 */
+/**
+ * 读取记录的步骤要指向存在的数据表；生成 PDF 的字段要是这张表的字段（D-042）。
+ * 记一笔（D-187）：表要存在；收文件时表里要有附件字段，收文字时要有长文本或文字字段。
+ */
 function recordStepProblems(
   wf: WorkspaceConfig['workflows'][number],
   config: WorkspaceConfig,
+  registry: Registry,
 ): string[] {
   const problems: string[] = [];
   let collection: WorkspaceConfig['collections'][number] | undefined;
+  let value: ValueType | null = null;
   for (const step of wf.steps) {
+    const action = registry.actions.get(step.action);
+    if (step.action === 'out.addRecord') {
+      const target = config.collections.find((c) => c.id === step.params.collectionId);
+      if (!target) {
+        problems.push(
+          `${wf.id}/${step.id}: data table ${String(step.params.collectionId)} does not exist`,
+        );
+      } else if (value === 'text') {
+        if (!target.fields.some((f) => f.type === 'note' || f.type === 'text'))
+          problems.push(
+            `${wf.id}/${step.id}: ${target.id} needs a text or long text field for the text`,
+          );
+      } else if (value !== null && !target.fields.some((f) => f.type === 'file')) {
+        problems.push(
+          `${wf.id}/${step.id}: ${target.id} needs an attachment (file) field for the files`,
+        );
+      }
+    }
+    if (action) value = outputTypeOf(action, step.params, value);
     if (step.action === 'in.records') {
       collection = config.collections.find((c) => c.id === step.params.collectionId);
       if (!collection) {
@@ -214,7 +245,21 @@ function recordStepProblems(
   return problems;
 }
 
-const NUMERIC = ['number', 'money', 'rating'];
+const NUMERIC = ['number', 'money', 'rating', 'formula'];
+
+/** 公式（D-188）：能解析，引用的字段都在这张表里，而且是数字、金额或评分（不引用别的公式）。 */
+function formulaProblems(expression: string, collection: Collection): string[] {
+  const parsed = parseFormula(expression);
+  if (!parsed.ok) return [`formula "${expression}": ${parsed.error}`];
+  const problems: string[] = [];
+  for (const id of parsed.refs) {
+    const ref = collection.fields.find((f) => f.id === id);
+    if (!ref) problems.push(`formula uses ${id}, which is not a field of ${collection.id}`);
+    else if (!['number', 'money', 'rating'].includes(ref.type))
+      problems.push(`formula uses ${id}, which is not a number, money or rating field`);
+  }
+  return problems;
+}
 
 /** 数据组件引用的表、字段和筛选条件是否合法。 */
 function dataComponentProblems(c: Component, config: WorkspaceConfig): string[] {
@@ -245,8 +290,13 @@ function dataComponentProblems(c: Component, config: WorkspaceConfig): string[] 
       break;
     }
     case 'recordForm':
-      for (const id of c.props.fieldIds)
-        if (!field(id)) problems.push(`form field ${id} does not exist`);
+      for (const id of c.props.fieldIds) {
+        const f = field(id);
+        if (!f) problems.push(`form field ${id} does not exist`);
+        // 公式算出来、附件由快捷操作存进来（D-187、D-188）：表单里填不了。
+        else if (f.type === 'formula' || f.type === 'file')
+          problems.push(`form field ${id} is a ${f.type} field and cannot be filled in a form`);
+      }
       for (const id of duplicates(c.props.fieldIds))
         problems.push(`form field ${id} is listed twice`);
       break;
@@ -255,7 +305,7 @@ function dataComponentProblems(c: Component, config: WorkspaceConfig): string[] 
         const f = c.props.fieldId ? field(c.props.fieldId) : undefined;
         if (!f || !NUMERIC.includes(f.type)) {
           problems.push(
-            `${c.props.aggregate} needs fieldId set to a number, money or rating field`,
+            `${c.props.aggregate} needs fieldId set to a number, money, rating or formula field`,
           );
         }
       }

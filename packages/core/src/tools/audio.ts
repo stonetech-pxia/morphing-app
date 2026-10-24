@@ -28,6 +28,10 @@ const formatField = {
   options: [
     { value: 'm4a', label: { en: 'M4A (small, plays everywhere)', zh: 'M4A（小，哪里都能放）' } },
     { value: 'wav', label: { en: 'WAV (uncompressed, large)', zh: 'WAV（不压缩，很大）' } },
+    {
+      value: 'mp3',
+      label: { en: 'MP3 (for old players and car stereos)', zh: 'MP3（老播放器、车载音响）' },
+    },
   ],
 };
 
@@ -144,8 +148,8 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
     id: 'audio.convert',
     label: { en: 'Convert audio', zh: '音频转格式' },
     description: {
-      en: 'Convert recordings (WAV, MP3, AMR, CAF, OGG…) to M4A, which plays everywhere, or to uncompressed WAV. MP3 output is not available.',
-      zh: '把录音（WAV、MP3、AMR、CAF、OGG 等）转成哪里都能放的 M4A，或不压缩的 WAV。不能转成 MP3。',
+      en: 'Convert recordings and music (M4A, WAV, MP3, AMR, CAF, FLAC…) to M4A, which plays everywhere, to MP3 (for old players and car stereos), or to uncompressed WAV.',
+      zh: '把录音和音乐（M4A、WAV、MP3、AMR、CAF、FLAC 等）转成哪里都能放的 M4A、MP3（老播放器、车载音响），或不压缩的 WAV。',
     },
     input: ['audio'],
     output: 'audio',
@@ -154,6 +158,7 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
     presets: [
       { id: 'm4a', label: { en: 'M4A', zh: 'M4A' }, values: { format: 'm4a' } },
       { id: 'wav', label: { en: 'WAV', zh: 'WAV' }, values: { format: 'wav' } },
+      { id: 'mp3', label: { en: 'MP3', zh: 'MP3' }, values: { format: 'mp3' } },
     ],
     requires: [],
   },
@@ -188,14 +193,17 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
     id: 'audio.fromVideo',
     label: { en: 'Get the sound from videos', zh: '提取视频里的声音' },
     description: {
-      en: 'Save only the sound of each video as an audio file (M4A, or uncompressed WAV).',
-      zh: '只要每个视频里的声音，存成音频文件（M4A，或不压缩的 WAV）。',
+      en: 'Save only the sound of each video as an audio file (M4A, MP3, or uncompressed WAV).',
+      zh: '只要每个视频里的声音，存成音频文件（M4A、MP3，或不压缩的 WAV）。',
     },
     input: ['video'],
     output: 'audio',
     params: z.strictObject({ format: z.enum(AUDIO_FORMATS) }),
     fields: [formatField],
-    presets: [{ id: 'm4a', label: { en: 'M4A', zh: 'M4A' }, values: { format: 'm4a' } }],
+    presets: [
+      { id: 'm4a', label: { en: 'M4A', zh: 'M4A' }, values: { format: 'm4a' } },
+      { id: 'mp3', label: { en: 'MP3', zh: 'MP3' }, values: { format: 'mp3' } },
+    ],
     requires: [],
   },
 ];

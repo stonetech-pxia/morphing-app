@@ -22,7 +22,9 @@ import {
   shareAll,
   type ShareDeps,
 } from './expo-share';
+import { expoDocuments } from './expo-documents';
 import { expoTranslate } from './expo-translate';
+import { expoBackground } from './expo-background';
 import { expoMedia } from './expo-media';
 import { expoVision } from './expo-vision';
 import MorphShare from '../../modules/morph-share';
@@ -164,10 +166,21 @@ const SHARE: ShareDeps = {
 /** 照片最长边（D-047）：足够全屏清晰显示，又不会占用太多空间。 */
 const MAX_IMAGE_SIDE = 2048;
 
+let documents: FilePlatform['documents'] | null = null;
+
 export const expoFilePlatform: FilePlatform = {
+  // Android 的 Word 转 PDF 要用下面的 htmlToPdf，第一次用时再建。
+  get documents() {
+    documents ??= expoDocuments(
+      (runId, relPath) => runFile(runId, relPath).uri,
+      (...args) => expoFilePlatform.htmlToPdf(...args),
+    );
+    return documents;
+  },
   vision: expoVision((runId, relPath) => runFile(runId, relPath).uri),
   translator: expoTranslate(),
   media: expoMedia((runId, relPath) => runFile(runId, relPath).uri),
+  background: expoBackground(),
   // Android 的识别模型在下载内容里（D-151）；iOS 用系统识别，不用下载内容。
   speech: createSpeech(MorphSpeech, {
     isInstalled: (id) => speechPacks.isInstalled(id),

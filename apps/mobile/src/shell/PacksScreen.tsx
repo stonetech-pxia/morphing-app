@@ -18,12 +18,17 @@ export function PacksScreen({
   palette,
   locale,
   translator,
+  tools,
+  onRemoveTool,
 }: {
   store: PackStore;
   palette: Palette;
   locale: Locale;
   /** Android 的翻译语言模型也在这里列出、删除（D-175）；iOS 的由系统设置管理。 */
   translator?: TranslatePlatform | null;
+  /** 从服务器下载的工具（D-177）。已经添加的要先在「工具」里移除才能删。 */
+  tools?: readonly { id: string; name: string; version: string; bytes: number; added: boolean }[];
+  onRemoveTool?: (id: string) => Promise<void>;
 }) {
   const [list, setList] = useState<InstalledPack[] | null>(null);
   const [languages, setLanguages] = useState<string[]>([]);
@@ -67,6 +72,21 @@ export function PacksScreen({
     );
   }
 
+  function removeTool(tool: NonNullable<typeof tools>[number]) {
+    if (tool.added) {
+      Alert.alert(t(locale, 'packDeleteTitle', { name: tool.name }), t(locale, 'toolDeleteAdded'));
+      return;
+    }
+    Alert.alert(t(locale, 'packDeleteTitle', { name: tool.name }), t(locale, 'toolDeleteMessage'), [
+      { text: t(locale, 'cancel'), style: 'cancel' },
+      {
+        text: t(locale, 'packDelete'),
+        style: 'destructive',
+        onPress: () => void onRemoveTool?.(tool.id),
+      },
+    ]);
+  }
+
   const caption = [palette.font('body', 13), { color: palette.muted }];
   const total = (list ?? []).reduce((sum, p) => sum + p.bytes, 0);
   return (
@@ -76,7 +96,7 @@ export function PacksScreen({
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 48 }}>
       <PageTitle palette={palette}>{t(locale, 'packsTitle')}</PageTitle>
       <Text style={caption}>{t(locale, 'packsHint')}</Text>
-      {list === null ? null : list.length === 0 && languages.length === 0 ? (
+      {list === null ? null : list.length === 0 && languages.length === 0 && !tools?.length ? (
         <Card palette={palette}>
           <Text testID="packs-empty" style={caption}>
             {t(locale, 'packsEmpty')}
@@ -114,6 +134,22 @@ export function PacksScreen({
           })}
         </>
       )}
+      {(tools ?? []).map((tool) => (
+        <Card key={tool.id} palette={palette} testID={`downloaded-tool-${tool.id}`}>
+          <Text style={[palette.font('title', 16), { color: palette.text }]}>{tool.name}</Text>
+          <Text style={caption}>{t(locale, 'toolDownloadedHint')}</Text>
+          <Text style={caption}>{`${formatBytes(tool.bytes)} · ${tool.version}`}</Text>
+          <View style={{ flexDirection: 'row' }}>
+            <Pill
+              palette={palette}
+              danger
+              testID={`downloaded-tool-delete-${tool.id}`}
+              label={t(locale, 'packDelete')}
+              onPress={() => removeTool(tool)}
+            />
+          </View>
+        </Card>
+      ))}
       {languages.map((code) => (
         <Card key={code} palette={palette} testID={`translate-language-${code}`}>
           <Text style={[palette.font('title', 16), { color: palette.text }]}>

@@ -1,0 +1,17 @@
+// 本地 Expo 模块的 Android 部分（D-160）：前台服务，让视频和音频的长任务切到别的 App 也能跑完。
+// 只用 Android 系统接口和 AndroidX Core（expo-modules-core 已经带了），没有第三方代码。
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.morphbackground'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.morphbackground"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}

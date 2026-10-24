@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { VIDEO_QUALITIES } from '../media';
+import { GIF_MAX_SECONDS, VIDEO_QUALITIES } from '../media';
 import type { ToolDefinition } from '../registry';
 import type { Locale, Workflow } from '../schema';
 import type { ActionDefinition } from '../workflow/contract';
@@ -117,6 +117,49 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
     requires: [],
   },
   {
+    // D-184：iOS 用系统 ImageIO 写 GIF，Android 用 morph-media 里自己写的编码器（GifEncoder.kt）。
+    id: 'video.toGif',
+    label: { en: 'Video to GIF', zh: '视频转 GIF' },
+    description: {
+      en: `Turn each video into an animated GIF (at most ${GIF_MAX_SECONDS} seconds; put "Trim" before it for a longer video). GIFs have no sound and get large quickly: a smaller width and fewer frames per second keep them small.`,
+      zh: `把每个视频变成动图 GIF（最长 ${GIF_MAX_SECONDS} 秒；视频更长时前面加「剪一段」）。GIF 没有声音，而且很容易变大：宽度小一些、每秒帧数少一些就会小很多。`,
+    },
+    input: ['video'],
+    output: 'images',
+    params: z.strictObject({
+      width: z.number().int().min(160).max(800),
+      fps: z.number().int().min(4).max(20),
+    }),
+    fields: [
+      {
+        key: 'width',
+        label: { en: 'Width', zh: '宽度' },
+        kind: 'choice',
+        options: [
+          { value: 320, label: { en: '320 px (small)', zh: '320 像素（小）' } },
+          { value: 480, label: { en: '480 px', zh: '480 像素' } },
+          { value: 640, label: { en: '640 px (sharp)', zh: '640 像素（清楚）' } },
+        ],
+      },
+      {
+        key: 'fps',
+        label: { en: 'Frames per second', zh: '每秒帧数' },
+        kind: 'choice',
+        options: [
+          { value: 8, label: { en: '8 (smallest)', zh: '8（最小）' } },
+          { value: 12, label: { en: '12', zh: '12' } },
+          { value: 15, label: { en: '15 (smooth)', zh: '15（流畅）' } },
+        ],
+      },
+    ],
+    presets: [
+      { id: 'small', label: { en: 'Small', zh: '小' }, values: { width: 320, fps: 8 } },
+      { id: 'medium', label: { en: 'Medium', zh: '中' }, values: { width: 480, fps: 12 } },
+      { id: 'sharp', label: { en: 'Sharp', zh: '清楚' }, values: { width: 640, fps: 15 } },
+    ],
+    requires: [],
+  },
+  {
     id: 'video.trim',
     label: { en: 'Trim', zh: '剪一段' },
     description: {
@@ -158,7 +201,13 @@ export function videoWorkflows(locale: Locale): Workflow[] {
       'video-convert',
       ['Convert to MP4', '转成 MP4'],
       [
-        { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+        // 每次问从相册还是从「文件」选：电脑上下载的 MKV、AVI 一般在「文件」里（D-185）。
+        {
+          id: 'pick',
+          action: 'in.videos',
+          params: { source: 'library', min: 1, max: 10 },
+          ask: ['source'],
+        },
         { id: 'run', action: 'video.convert', params: { format: 'mp4' } },
       ],
     ),
@@ -170,19 +219,28 @@ export function videoWorkflows(locale: Locale): Workflow[] {
         { id: 'run', action: 'video.trim', params: {} },
       ],
     ),
+    wf(
+      'video-gif',
+      ['Video to GIF', '视频转 GIF'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 1, max: 1 } },
+        { id: 'trim', action: 'video.trim', params: {} },
+        { id: 'run', action: 'video.toGif', params: { width: 480, fps: 12 }, ask: ['width'] },
+      ],
+    ),
   ];
 }
 
 export const videoTool: ToolDefinition = {
   id: VIDEO_TOOL_ID,
-  version: '1.0.0',
+  version: '1.1.0',
   name: { en: 'Video', zh: '视频' },
   description: {
-    en: 'Make videos smaller, convert them to MP4 and trim them, on this device.',
-    zh: '在本机压缩视频、转成 MP4、剪一段。',
+    en: 'Make videos smaller, convert them to MP4, trim them and turn them into GIFs, on this device.',
+    zh: '在本机压缩视频、转成 MP4、剪一段、转成 GIF 动图。',
   },
   icon: 'video',
-  aliases: ['video', 'videos', 'video tool', 'movie', '视频', '视频工具', '影片'],
+  aliases: ['video', 'videos', 'video tool', 'movie', 'gif', '视频', '视频工具', '影片', '动图'],
   permissions: ['files.pick', 'files.write', 'photos.save'],
   actions: VIDEO_ACTIONS,
   createPage: (locale) => ({
@@ -202,8 +260,8 @@ export const videoTool: ToolDefinition = {
         props: {
           text: t(
             locale,
-            'Everything runs on this device; nothing is uploaded. Stay in Morph while a video is being processed.',
-            '全部在本机处理，不会上传。处理视频时请留在 Morph 里。',
+            'Everything runs on this device; nothing is uploaded.',
+            '全部在本机处理，不会上传。',
           ),
         },
       },

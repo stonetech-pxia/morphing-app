@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- 通知频道（系统设置里看得到）。 -->
+  <string name="morph_background_channel_work">Processing</string>
+  <string name="morph_background_channel_work_description">Shows progress while Morph processes a video or recording.</string>
+  <string name="morph_background_channel_done">Finished</string>
+  <string name="morph_background_channel_done_description">Tells you when processing finishes while you are in another app.</string>
+</resources>

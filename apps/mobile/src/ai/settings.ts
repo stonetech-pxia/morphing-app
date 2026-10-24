@@ -24,7 +24,19 @@ const KEYS = {
   keyHint: 'morph.ai.keyHint',
   mode: 'morph.ai.mode',
   model: 'morph.ai.model',
+  needsButton: 'morph.ai.needsButton',
 };
+
+/** 用户主动发来的一条需求（D-189）：只有这句话和没有身份信息的元数据。 */
+export interface Need {
+  text: string;
+  locale: 'en' | 'zh';
+  reason: 'unknown' | 'errand' | 'notInstalled';
+  ai: AIMode;
+}
+
+/** 把一条需求发给 Morph 的服务器；成功返回 true。 */
+export type NeedSender = (need: Need) => Promise<boolean>;
 
 export type ConnectionResult =
   { ok: true } | { ok: false; kind: ClaudeErrorKind | 'no_key' | 'network' };
@@ -37,10 +49,16 @@ export interface AISettingsState {
   keyHint: string | null;
   /** 是否配置了 Morph 服务器地址。 */
   serverAvailable: boolean;
+  /** AI 做不到时显示「把这个需求告诉我们」（D-189，默认显示；点了才发送）。 */
+  needsButton: boolean;
+  /** 能不能发需求（配置了服务器地址）。 */
+  canSendNeeds: boolean;
 
   load(): Promise<void>;
   setMode(mode: AIMode): Promise<void>;
   setModel(model: string): Promise<void>;
+  setNeedsButton(on: boolean): Promise<void>;
+  sendNeed(need: Omit<Need, 'ai'>): Promise<boolean>;
   saveKey(key: string): Promise<boolean>;
   clearKey(): Promise<void>;
   getKey(): Promise<string | null>;
@@ -56,6 +74,7 @@ export function createAISettingsStore(deps: {
   secrets: SecretStore;
   serverAvailable: boolean;
   fetchImpl?: typeof fetch;
+  needs?: NeedSender | null;
 }): AISettingsStore {
   const { secrets } = deps;
   const defaultMode: AIMode = deps.serverAvailable ? 'server' : 'mock';
@@ -65,12 +84,15 @@ export function createAISettingsStore(deps: {
     model: DEFAULT_MODEL,
     keyHint: null,
     serverAvailable: deps.serverAvailable,
+    needsButton: true,
+    canSendNeeds: Boolean(deps.needs),
 
     async load() {
-      const [mode, model, keyHint] = await Promise.all([
+      const [mode, model, keyHint, needsButton] = await Promise.all([
         secrets.get(KEYS.mode),
         secrets.get(KEYS.model),
         secrets.get(KEYS.keyHint),
+        secrets.get(KEYS.needsButton),
       ]);
       const validMode =
         mode === 'mock' || mode === 'byok' || (mode === 'server' && deps.serverAvailable)
@@ -81,7 +103,18 @@ export function createAISettingsStore(deps: {
         mode: validMode,
         model: MODELS.some((m) => m.id === model) ? model! : DEFAULT_MODEL,
         keyHint,
+        needsButton: needsButton !== 'off',
       });
+    },
+
+    async setNeedsButton(on) {
+      await secrets.set(KEYS.needsButton, on ? 'on' : 'off');
+      set({ needsButton: on });
+    },
+
+    async sendNeed(need) {
+      if (!deps.needs) return false;
+      return deps.needs({ ...need, ai: get().mode });
     },
 
     async setMode(mode) {

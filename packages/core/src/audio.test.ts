@@ -109,6 +109,19 @@ describe('planAudioConvert', () => {
   });
 });
 
+describe('planAudioConvert to MP3 (D-183)', () => {
+  it('uses 1.5 × the original bitrate, rounded up to a standard MP3 bitrate, 128–320 kbps', () => {
+    const mp3 = (kbps: number | undefined, channels = 2) =>
+      planAudioConvert({ durationMs: 1000, size: 0, channels, ...(kbps ? { kbps } : {}) }, 'mp3');
+    expect(mp3(128)).toEqual({ format: 'mp3', bitrateKbps: 192, channels: 2, sampleRate: 44100 });
+    expect(mp3(48, 1)).toEqual({ format: 'mp3', bitrateKbps: 128, channels: 1, sampleRate: 44100 });
+    expect(mp3(256).bitrateKbps).toBe(320);
+    expect(mp3(1411).bitrateKbps).toBe(320);
+    expect(mp3(undefined).bitrateKbps).toBe(192);
+    expect(estimateAudioBytes(mp3(128), 10_000)).toBe(240_000);
+  });
+});
+
 describe('planAudioConvert keeps small recordings small', () => {
   it('follows a low bitrate instead of raising it', () => {
     expect(planAudioConvert({ durationMs: 1000, size: 0, kbps: 35, channels: 1 }, 'm4a')).toEqual({

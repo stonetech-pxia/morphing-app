@@ -1,0 +1,3 @@
+# 开发用的签名私钥（D-178）：只有开发版 App 和设置了 MORPH_TOOLS_DEV_KEY=1 的计划服务信任它。
+# 它是公开的，正式发布绝不能用它。正式私钥由创始人离线保管，不进仓库。
+FlRB5Rv6NwoQT8cKQzSPAmPqkLARyGnhYCVBPrMEK9I=

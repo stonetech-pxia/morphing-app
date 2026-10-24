@@ -25,6 +25,29 @@ export const MEDIA_MIME_BY_EXT: Readonly<Record<string, string>> = {
 
 const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif']);
 
+/** 办公文档的扩展名 → MIME 类型（D-186：Word、Excel、PowerPoint 转 PDF）。 */
+export const OFFICE_MIME_BY_EXT: Readonly<Record<string, string>> = {
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  // 系统的文件选择器认 text/rtf（application/rtf 选不了），别的 App 分享过来时两种都有。
+  rtf: 'text/rtf',
+};
+export const OFFICE_MIME_TYPES = [
+  ...new Set([...Object.values(OFFICE_MIME_BY_EXT), 'application/rtf']),
+];
+
+/** 是不是办公文档：MIME 类型认得出就看它，否则看扩展名。 */
+export function isOfficeFile(mimeType: string | null | undefined, name: string): boolean {
+  const mime = (mimeType ?? '').toLowerCase();
+  if (OFFICE_MIME_TYPES.includes(mime)) return true;
+  const ext = name.includes('.') ? extOf(name) : name.toLowerCase();
+  return ext in OFFICE_MIME_BY_EXT;
+}
+
 const extOf = (name: string) => /\.([^./]+)$/.exec(name)?.[1]?.toLowerCase() ?? '';
 
 /**
@@ -51,6 +74,13 @@ export const isVideoFile = (mimeType: string | null | undefined, nameOrExt = '')
   mediaKindOf(mimeType, nameOrExt) === 'video';
 export const isAudioFile = (mimeType: string | null | undefined, nameOrExt = '') =>
   mediaKindOf(mimeType, nameOrExt) === 'audio';
+
+// ---- 动图 GIF（video.toGif、image.toGif，D-184）----
+
+/** 视频转 GIF 最长几秒：GIF 每一帧都是一整张图，再长就有几十 MB。 */
+export const GIF_MAX_SECONDS = 30;
+/** 多张图片做成动图最多几张。 */
+export const GIF_MAX_FRAMES = 50;
 
 // ---- 压视频（video.compress）----
 

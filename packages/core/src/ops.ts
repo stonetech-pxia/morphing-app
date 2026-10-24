@@ -643,7 +643,11 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
           );
         }
         // 换类型时只保留通用属性，类型专属的属性由 changes 提供（例如 money 的 currency）。
-        next = { id: old.id, name: old.name, ...(old.required ? { required: true } : {}) };
+        next = {
+          id: old.id,
+          name: old.name,
+          ...('required' in old && old.required ? { required: true } : {}),
+        };
       } else {
         next = { ...old };
       }

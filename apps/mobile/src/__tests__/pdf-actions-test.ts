@@ -81,12 +81,12 @@ async function pdfsOf(
 const widths = (doc: PDFDocument) => doc.getPages().map((p) => p.getWidth());
 
 describe('PDF tool workflows', () => {
-  it('installs fourteen single-tool workflows that all validate', () => {
+  it('installs fifteen single-tool workflows that all validate', () => {
     const result = applyOps(createDefaultWorkspace('en'), [{ op: 'installTool', toolId: 'pdf' }], {
       registry,
       locale: 'en',
     });
-    expect(result.ok && result.config.workflows).toHaveLength(14);
+    expect(result.ok && result.config.workflows).toHaveLength(15);
   });
 
   it('merges PDFs and images in order; images become A4 pages', async () => {

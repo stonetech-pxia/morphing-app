@@ -48,14 +48,15 @@ export interface VideoSettings {
 }
 
 export interface AudioSettings {
-  codec: 'aac' | 'pcm';
+  /** mp3：编进 App 的 LAME（D-183）。 */
+  codec: 'aac' | 'pcm' | 'mp3';
   bitrateKbps?: number;
   sampleRate?: number;
   channels?: 1 | 2;
 }
 
 export interface TranscodeOptions {
-  container: 'mp4' | 'm4a' | 'wav';
+  container: 'mp4' | 'm4a' | 'wav' | 'mp3';
   /** 'drop'：只要声音（音频转格式、从视频取声音）。 */
   video: VideoSettings | 'drop';
   /** 'drop'：去掉声音。 */
@@ -69,6 +70,14 @@ export interface MediaResult {
   uri: string;
   size: number;
   info: MediaInfo;
+}
+
+export interface GifResult {
+  uri: string;
+  size: number;
+  width: number;
+  height: number;
+  frames: number;
 }
 
 /** 原生端的错误码（error.code）。 */
@@ -103,6 +112,20 @@ export interface MorphMediaModule {
     maxSide: number,
     directory: string,
   ): Promise<string[]>;
+  /** 动图（D-184）：整段视频按 fps 取画面（宽度不超过 width）写成 GIF。 */
+  videoGif(
+    jobId: string,
+    uri: string,
+    output: string,
+    options: { width: number; fps: number },
+  ): Promise<GifResult>;
+  /** 动图（D-184）：几张图片（长边缩到 maxSide，按第一张的尺寸居中摆放）写成 GIF，每张停 delayMs。 */
+  imagesGif(
+    jobId: string,
+    uris: readonly string[],
+    output: string,
+    options: { delayMs: number; maxSide: number },
+  ): Promise<GifResult>;
   cancel(jobId: string): void;
   addListener(
     event: 'progress',

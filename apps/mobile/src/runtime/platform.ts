@@ -174,9 +174,9 @@ export interface VideoEncode {
   range?: { startMs: number; endMs: number };
 }
 
-/** 音频的编码要求（core 的 AudioPlan）：M4A（AAC）或 WAV（16 位 PCM）；range 只要其中一段。 */
+/** 音频的编码要求（core 的 AudioPlan）：M4A（AAC）、WAV（16 位 PCM）或 MP3（D-183）；range 只要其中一段。 */
 export interface AudioEncode {
-  format: 'm4a' | 'wav';
+  format: 'm4a' | 'wav' | 'mp3';
   bitrateKbps: number;
   channels: 1 | 2;
   sampleRate: number;
@@ -195,6 +195,15 @@ export interface MediaOutput {
   ext: string;
   size: number;
   info: MediaInfo;
+}
+
+/** 写好的动图（D-184）：本次运行的临时文件。 */
+export interface GifOutput {
+  uri: string;
+  size: number;
+  width: number;
+  height: number;
+  frames: number;
 }
 
 /**
@@ -227,7 +236,7 @@ export interface MediaPlatform {
     maxSide: number,
     runId: string,
   ): Promise<string[]>;
-  /** 音频（或视频的声音）编码成 M4A / WAV（D-153）。 */
+  /** 音频（或视频的声音）编码成 M4A / WAV / MP3（D-153、D-183）。 */
   encodeAudio(
     uri: string,
     settings: AudioEncode,
@@ -245,9 +254,63 @@ export interface MediaPlatform {
   ): Promise<MediaOutput>;
   /** 波形（buckets 个 0–1 的峰值），剪一段界面用；读不到时返回 null。 */
   waveform(uri: string, buckets: number): Promise<number[] | null>;
+  /** 整段视频转成 GIF（D-184）：按 fps 取画面，宽度不超过 width。 */
+  videoGif(
+    uri: string,
+    settings: { width: number; fps: number },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<GifOutput>;
+  /** 几张图片做成 GIF（D-184）：长边缩到 maxSide，按第一张的尺寸居中摆放，每张停 delayMs。 */
+  imagesGif(
+    uris: readonly string[],
+    settings: { delayMs: number; maxSide: number },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<GifOutput>;
+}
+
+/**
+ * 办公文档转 PDF（D-186）。iOS 用系统的文档预览排版（modules/morph-docs），Word、Excel、PowerPoint、RTF 都能转；
+ * Android（和没有原生模块的 Expo Go）用 mammoth 把 Word（.docx）转成网页再打印成 PDF。
+ */
+export interface DocumentPlatform {
+  /** 能转的扩展名（小写）。 */
+  readonly extensions: readonly string[];
+  /** 转成本次运行的 PDF 临时文件；打不开时抛出 code 为 ERR_DOC_UNREADABLE 的错误。 */
+  toPdf(
+    uri: string,
+    ext: string,
+    page: { width: number; height: number },
+    runId: string,
+    relPath: string,
+  ): Promise<{ uri: string; size: number; pageCount: number }>;
+}
+
+/**
+ * 长任务切到别的 App 也继续（modules/morph-background，D-160–D-163）：Android 是前台服务和进度通知，
+ * iOS 26 是系统的后台任务（默认关着）。运行入口在一次含长步骤的运行前后调用；没有原生模块时为 null。
+ */
+export interface BackgroundPlatform {
+  /** 切到别的 App 时会不会继续；运行页据此提示「可以切走」或「请留在 Morph 里」。 */
+  readonly continuesInBackground: boolean;
+  /** Android 13 起第一次时问一次通知权限（D-161）；返回现在能不能发通知。 */
+  ensureNotificationPermission(): Promise<boolean>;
+  /** 系统不让开始时返回 false，任务照旧只在前台跑。 */
+  begin(title: string, text: string): boolean;
+  /** fraction 为 null 时进度不定。 */
+  update(text: string, fraction: number | null): void;
+  /** done 不为 null 时发一条完成通知（D-162）。 */
+  end(done: { title: string; body: string } | null): void;
+  /** Morph 现在在不在前台（决定发不发完成通知）。 */
+  isForeground(): boolean;
 }
 
 export interface FilePlatform {
+  /** 办公文档转 PDF（D-186）。 */
+  readonly documents: DocumentPlatform;
   /** 系统自带的文字识别和扫描；没有时为 null。 */
   readonly vision: VisionPlatform | null;
   /** 系统自带的本机翻译（D-170）；没有原生模块时为 null。 */
@@ -256,6 +319,8 @@ export interface FilePlatform {
   readonly media: MediaPlatform | null;
   /** 本机语音转文字（D-150、D-151，modules/morph-speech）；没有时（Expo Go）为 null。 */
   readonly speech: SpeechPlatform | null;
+  /** 长任务切到后台也继续（D-160）；没有原生模块时（Expo Go）为 null。 */
+  readonly background: BackgroundPlatform | null;
 
   // ---- 用户文件（assets/<id>/<文件名>，D-019）----
   /** 从相册选一张照片（图片组件用）；用户取消时返回 null。 */

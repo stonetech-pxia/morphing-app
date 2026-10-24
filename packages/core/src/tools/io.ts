@@ -31,7 +31,7 @@ const countFields = (max: number) =>
     },
   ] as const;
 
-/** in.files 选什么文件 → 输出类型。 */
+/** in.files 选什么文件 → 输出类型。documents：Word、Excel、PowerPoint 等办公文档（D-186）。 */
 export const FILE_ACCEPT: Record<string, ValueType> = {
   pdf: 'pdf',
   images: 'images',
@@ -39,6 +39,7 @@ export const FILE_ACCEPT: Record<string, ValueType> = {
   zip: 'zip',
   videos: 'video',
   audio: 'audio',
+  documents: 'files',
   any: 'files',
 };
 
@@ -55,14 +56,14 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     id: 'in.photos',
     label: { en: 'Choose photos', zh: '选照片' },
     description: {
-      en: 'Pick photos from the library, take them with the camera, or scan paper with the document camera (finds the edges, captures automatically, several pages, already straightened; where it is not available, the camera is used).',
-      zh: '从相册选照片、用相机拍照，或用文档相机扫描纸张（自动找边、自动拍、可以多页、拍完已经拉正；没有文档相机的设备改用相机）。',
+      en: 'Pick photos from the library or from the Files app (pictures downloaded or sent from a computer), take them with the camera, or scan paper with the document camera (finds the edges, captures automatically, several pages, already straightened; where it is not available, the camera is used).',
+      zh: '从相册或「文件」App 选照片（下载的、电脑传来的图片），用相机拍照，或用文档相机扫描纸张（自动找边、自动拍、可以多页、拍完已经拉正；没有文档相机的设备改用相机）。',
     },
     input: [],
     output: 'images',
     params: z
       .strictObject({
-        source: z.enum(['library', 'camera', 'scanner']),
+        source: z.enum(['library', 'files', 'camera', 'scanner']),
         min: z.number().int().min(1).max(MAX_PICK),
         max: z.number().int().min(1).max(MAX_PICK),
       })
@@ -74,6 +75,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
         kind: 'choice',
         options: [
           { value: 'library', label: { en: 'Photo library', zh: '相册' } },
+          { value: 'files', label: { en: 'Files', zh: '从文件选' } },
           { value: 'camera', label: { en: 'Camera', zh: '拍照' } },
           { value: 'scanner', label: { en: 'Scan documents', zh: '扫描文档' } },
         ],
@@ -103,14 +105,23 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     id: 'in.files',
     label: { en: 'Choose files', zh: '选文件' },
     description: {
-      en: 'Pick files from the Files app (PDFs, images, videos, audio or any file).',
-      zh: '从「文件」App 选文件（PDF、图片、视频、音频或任意文件）。',
+      en: 'Pick files from the Files app (PDFs, images, videos, audio, Word / Excel / PowerPoint documents, or any file).',
+      zh: '从「文件」App 选文件（PDF、图片、视频、音频、Word / Excel / PowerPoint 文档或任意文件）。',
     },
     input: [],
     output: (p) => FILE_ACCEPT[String(p.accept)] ?? 'files',
     params: z
       .strictObject({
-        accept: z.enum(['pdf', 'images', 'pdfOrImages', 'zip', 'videos', 'audio', 'any']),
+        accept: z.enum([
+          'pdf',
+          'images',
+          'pdfOrImages',
+          'zip',
+          'videos',
+          'audio',
+          'documents',
+          'any',
+        ]),
         min: z.number().int().min(1).max(MAX_PICK),
         max: z.number().int().min(1).max(MAX_PICK),
       })
@@ -127,6 +138,10 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
           { value: 'zip', label: { en: 'ZIP archive', zh: 'ZIP 压缩包' } },
           { value: 'videos', label: { en: 'Videos', zh: '视频' } },
           { value: 'audio', label: { en: 'Audio', zh: '音频' } },
+          {
+            value: 'documents',
+            label: { en: 'Word, Excel, PowerPoint', zh: 'Word、Excel、PowerPoint' },
+          },
           { value: 'any', label: { en: 'Any file', zh: '任意文件' } },
         ],
       },
@@ -150,25 +165,47 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     id: 'in.videos',
     label: { en: 'Choose videos', zh: '选视频' },
     description: {
-      en: 'Pick videos from the photo library (up to 10, each up to 4 GB).',
-      zh: '从相册选视频（最多 10 个，每个不超过 4 GB）。',
+      en: 'Pick videos from the photo library, or from the Files app (downloaded or copied from a computer: MP4, MOV, and on Android also MKV, WEBM, AVI); up to 10, each up to 4 GB.',
+      zh: '从相册选视频，或从「文件」App 选（下载的、电脑拷来的：MP4、MOV，Android 还能选 MKV、WEBM、AVI）；最多 10 个，每个不超过 4 GB。',
     },
     input: [],
     output: 'video',
     params: z
       .strictObject({
+        // D-185：以前没有这一项（只从相册选），所以可以不写，不写就是相册。
+        source: z.enum(['library', 'files']).optional(),
         min: z.number().int().min(1).max(MEDIA_LIMITS.maxCount),
         max: z.number().int().min(1).max(MEDIA_LIMITS.maxCount),
       })
       .refine((p) => p.min <= p.max, { message: 'min must not exceed max' }),
-    fields: [...countFields(MEDIA_LIMITS.maxCount)],
+    fields: [
+      {
+        key: 'source',
+        label: { en: 'From', zh: '来源' },
+        kind: 'choice',
+        options: [
+          { value: 'library', label: { en: 'Photo library', zh: '相册' } },
+          { value: 'files', label: { en: 'Files', zh: '从文件选' } },
+        ],
+      },
+      ...countFields(MEDIA_LIMITS.maxCount),
+    ],
     presets: [
       {
         id: 'several',
         label: { en: 'Up to 10 videos', zh: '最多 10 个视频' },
-        values: { min: 1, max: 10 },
+        values: { source: 'library', min: 1, max: 10 },
       },
-      { id: 'one', label: { en: 'One video', zh: '1 个视频' }, values: { min: 1, max: 1 } },
+      {
+        id: 'one',
+        label: { en: 'One video', zh: '1 个视频' },
+        values: { source: 'library', min: 1, max: 1 },
+      },
+      {
+        id: 'files',
+        label: { en: 'From Files, up to 10', zh: '从文件选，最多 10 个' },
+        values: { source: 'files', min: 1, max: 10 },
+      },
     ],
     requires: ['files.pick'],
   },
@@ -267,6 +304,23 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: [],
+  },
+  {
+    // D-187：快捷操作写记录。AI 只选哪张表；填什么由用户在运行时的表单里填，记录不进配置、不发给 AI（D-036）。
+    id: 'out.addRecord',
+    label: { en: 'Add a record', zh: '记一笔' },
+    description: {
+      en: "Add a record to a data table for each file (or once for text): the file is saved in Morph and goes into the table's first attachment field, text goes into its first long-text or text field, and the user fills in the other fields (amount, category…) on a form while the quick action runs; date fields start as today. The records stay on this device. The files are passed on unchanged.",
+      zh: '给每个文件（或这段文字）在一张数据表里记一笔：文件存进 Morph，放进表里第一个附件字段；文字放进第一个长文本或文字字段；其他字段（金额、分类等）由用户在运行时的表单里填，日期默认今天。记录只留在本机。文件原样交给下一步。',
+    },
+    input: ['files', 'text'],
+    output: 'same',
+    params: z.strictObject({ collectionId: IdSchema }),
+    fields: [
+      { key: 'collectionId', label: { en: 'Data table', zh: '数据表' }, kind: 'collection' },
+    ],
+    local: 'recordEntry',
+    requires: ['files.write'],
   },
   {
     id: 'file.rename',

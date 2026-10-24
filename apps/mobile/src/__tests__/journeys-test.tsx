@@ -5,12 +5,14 @@ import {
   createRegistry,
   type AIProvider,
 } from '@morph/core';
-import { act, fireEvent } from '@testing-library/react-native';
+import { act, fireEvent, within } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
 
 import { AISettingsProvider } from '../ai/context';
+import { DraftChatSheet } from '../draft/DraftBar';
+import { useDraftUi } from '../draft/ui';
 import { createAISettingsStore, type SecretStore } from '../ai/settings';
 import AISettingsRoute from '../app/ai-settings';
 import ChangeRoute from '../app/change';
@@ -58,6 +60,7 @@ async function renderApp(
       <AISettingsProvider store={aiSettings}>
         <WorkspaceProvider value={{ store, repo, files, registry, locale: 'zh' }}>
           <Stack />
+          <DraftChatSheet />
         </WorkspaceProvider>
       </AISettingsProvider>
     ),
@@ -85,10 +88,18 @@ async function askAi(text: string) {
   await fireEvent.press(screen.getByTestId('change-submit'));
 }
 
-describe('user journeys (UI)', () => {
-  afterEach(() => jest.restoreAllMocks());
+/** 草稿模式（D-190）底部的「应用」。 */
+async function applyDraft() {
+  await fireEvent.press(await screen.findByTestId('draft-apply'));
+}
 
-  it('B + A + undo: install PDF, reshape the home page with preview, then undo', async () => {
+describe('user journeys (UI)', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+    useDraftUi.setState({ chatOpen: false, seenStep: null });
+  });
+
+  it('B + A + undo: install PDF, reshape the home page in a draft, apply, then undo', async () => {
     const { store } = await renderApp();
 
     // 旅程 B：在工具目录安装 PDF，首页出现入口。
@@ -97,18 +108,19 @@ describe('user journeys (UI)', () => {
     await fireEvent.press(await screen.findByTestId('nav-page:home'));
     expect(await screen.findByTestId('component-card-pdf')).toBeTruthy();
 
-    // 旅程 A：自然语言 → 计划与预览。
+    // 旅程 A：自然语言 → 直接进入草稿模式（D-190）：App 显示改完后的样子，已保存的版本没变。
     await askAi('把首页改成文件工作台，导航栏只保留首页、工具、设置');
-    expect(await screen.findByTestId('plan-line-0')).toBeTruthy();
-    await fireEvent.press(screen.getByTestId('preview-before'));
-    await fireEvent.press(screen.getByTestId('preview-after'));
-    // 预览期间 App 本身没有变化。
+    expect(await screen.findByTestId('draft-bar')).toBeTruthy();
+    expect(screen.getAllByText('文件工作台').length).toBeGreaterThan(0);
+    expect(screen.queryByTestId('nav-ai')).toBeNull();
     expect(store.getState().config!.shell.nav).toHaveLength(5);
+    expect(screen.getByTestId('draft-reply')).toHaveTextContent(/改好了/);
 
-    await fireEvent.press(screen.getByTestId('change-apply'));
+    await applyDraft();
 
     // 同一个 App 的首页立即变化：页面标题与导航标签都已更新，AI 和历史不在导航栏里。
     expect(await screen.findAllByText('文件工作台')).toHaveLength(2);
+    expect(screen.queryByTestId('draft-bar')).toBeNull();
     expect(screen.queryByTestId('nav-ai')).toBeNull();
     expect(screen.queryByTestId('nav-history')).toBeNull();
     expect(screen.queryByTestId('floating-ai')).toBeNull();
@@ -130,7 +142,7 @@ describe('user journeys (UI)', () => {
     await askAi('主题换成绿色');
     jest.useFakeTimers();
     try {
-      await fireEvent.press(await screen.findByTestId('change-apply'));
+      await applyDraft();
       expect(await screen.findByTestId('banner')).toBeTruthy();
       await act(() => jest.advanceTimersByTime(APPLIED_BANNER_MS));
       expect(screen.queryByTestId('banner')).toBeNull();
@@ -142,43 +154,79 @@ describe('user journeys (UI)', () => {
     }
   });
 
-  it('a new workflow: home entry ticked by default, then the app shows where it went (D-109)', async () => {
+  it('a new workflow is made right away and goes on the home page; “ready” comes first', async () => {
     const { store } = await renderApp();
-    // 从设置页打开 AI 修改。
+    // 从设置页打开 AI 修改。快捷操作是功能，不进草稿，直接做好（D-191）。
     await fireEvent.press(screen.getByTestId('nav-settings'));
     await askAi('添加签证照片工作流');
-    const box = await screen.findByTestId('change-home-entry');
-    expect(box.props.accessibilityState).toMatchObject({ checked: true });
-    await fireEvent.press(screen.getByTestId('change-apply'));
-    // 应用后先看到「做好了」（D-125），说明首页上也有入口；「先不用」回到首页，运行卡片就在标题下面。
+    // 先看到「做好了」（D-125），说明首页上也有入口；「先不用」回到首页，运行卡片就在标题下面。
     expect(await screen.findByTestId('ready-screen')).toHaveTextContent(/首页上也放了入口/);
+    expect(screen.getByTestId('ready-name')).toHaveTextContent(/签证 \/ 证件照/);
+    // 「做好了」页面上也有「已改好 · 撤销」（不然提示条在下面的 App 里自己消失了）。
+    expect(
+      await within(screen.getByTestId('ready-screen')).findByTestId('banner'),
+    ).toHaveTextContent(/撤销/);
+    expect(store.getState().draft).toBeNull();
     expect(store.getState().tab).toBe('page:home');
-    await fireEvent.press(screen.getByTestId('ready-later'));
     const id = store.getState().config!.workflows[0]!.id;
+    await fireEvent.press(screen.getByTestId('ready-later'));
     expect(await screen.findByTestId(`run-${id}`)).toBeTruthy();
+    // 顶部照常可以撤销。
+    expect(await screen.findByTestId('banner')).toHaveTextContent(/撤销/);
   });
 
-  it('a new workflow without a home entry: steps in the preview, then where to find it', async () => {
+  it('a sentence with both does the quick action first; “keep going” drafts the look (D-191)', async () => {
+    const { store } = await renderApp();
+    await askAi('主题换成绿色，添加签证照片快捷操作');
+    expect(await screen.findByTestId('ready-screen')).toBeTruthy();
+    expect(store.getState().config!.theme.primaryColor).not.toBe('#2F9E44');
+    expect(screen.getByTestId('next-card')).toHaveTextContent(/主题换成绿色/);
+    await fireEvent.press(screen.getByTestId('next-go'));
+    // 句子自动打进 AI 修改页并发送，外观进草稿。
+    expect(await screen.findByTestId('draft-bar', {}, { timeout: 4000 })).toBeTruthy();
+    expect(store.getState().draft!.steps[0]!.config.theme.primaryColor).toBe('#2F9E44');
+    expect(store.getState().next).toBeNull();
+  });
+
+  it('the draft chat refuses a quick action and can take it to Change this app (D-191)', async () => {
+    const { store } = await renderApp();
+    await askAi('主题换成绿色');
+    await fireEvent.press(await screen.findByTestId('draft-edit'));
+    await fireEvent.changeText(
+      await screen.findByTestId('draft-chat-input'),
+      '添加签证照片快捷操作',
+    );
+    await fireEvent.press(screen.getByTestId('draft-chat-send'));
+    expect(await screen.findByTestId('draft-chat-rejected')).toHaveTextContent(
+      /添加签证照片快捷操作\s+草稿里只改外观/,
+    );
+    expect(store.getState().draft!.steps).toHaveLength(1);
+    await fireEvent.press(screen.getByTestId('draft-chat-handoff'));
+    expect(await screen.findByTestId('change-input')).toHaveProp('value', '添加签证照片快捷操作');
+    await fireEvent.press(screen.getByTestId('change-submit'));
+    expect(await screen.findByTestId('ready-screen')).toBeTruthy();
+    // 草稿还在，回去时套在新版本上。
+    expect(store.getState().draft).toMatchObject({ open: false });
+  });
+
+  it('in a draft the app can be browsed but not used (D-190)', async () => {
     const { store } = await renderApp();
     await askAi('添加签证照片工作流');
-    await fireEvent.press(await screen.findByTestId('change-home-entry'));
-    expect(screen.getByTestId('change-home-entry').props.accessibilityState).toMatchObject({
-      checked: false,
-    });
-    expect(screen.getByTestId('preview-workflow')).toHaveTextContent(/1\. 选照片/);
-    expect(screen.queryByTestId('preview-before')).toBeNull();
-    await fireEvent.press(screen.getByTestId('change-apply'));
-    // 「做好了」说明以后在哪里找到它（D-125）。
-    expect(await screen.findByTestId('ready-screen')).toHaveTextContent(/工具 → 快捷操作/);
-    expect(
-      store
-        .getState()
-        .config!.pages.flatMap((p) => p.components)
-        .map((c) => c.type),
-    ).not.toContain('workflowRunner');
+    await fireEvent.press(await screen.findByTestId('ready-later'));
+    const id = store.getState().config!.workflows[0]!.id;
+    await askAi('主题换成绿色');
+    await screen.findByTestId('draft-bar');
+    await fireEvent.press(screen.getByTestId(`run-${id}`));
+    expect(await screen.findByTestId('toast')).toHaveTextContent(/应用之后才能用/);
+    expect(screen.queryByTestId('run-screen')).toBeNull();
+    // 切换页面照常。
+    await fireEvent.press(screen.getByTestId('nav-tools'));
+    expect(await screen.findByTestId('install-pdf')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('install-pdf'));
+    expect(store.getState().config!.tools.map((t) => t.toolId)).not.toContain('pdf');
   });
 
-  it('notes from the AI appear above the planned changes (D-110)', async () => {
+  it('notes from the AI appear in the reply (D-110)', async () => {
     const mock = createMockAIProvider();
     await renderApp(undefined, undefined, {
       plan: async (input, ctx) => {
@@ -188,18 +236,64 @@ describe('user journeys (UI)', () => {
           : plan;
       },
     });
+    // 直接做好的功能：说明在「做好了」页面上；草稿里的外观修改：说明在回复里。
     await askAi('添加签证照片工作流');
-    expect(await screen.findByTestId('plan-notes')).toHaveTextContent(/需要你知道/);
-    expect(screen.getByTestId('plan-note-0')).toHaveTextContent(/每月需要你自己点一次/);
+    expect(await screen.findByTestId('ready-note-0')).toHaveTextContent(/每月需要你自己点一次/);
+    await fireEvent.press(screen.getByTestId('ready-later'));
+    await askAi('主题换成绿色');
+    expect(await screen.findByTestId('draft-note-0')).toHaveTextContent(/每月需要你自己点一次/);
   });
 
-  it('cancel keeps the app unchanged', async () => {
+  it('leave keeps the draft; the AI page continues or deletes it', async () => {
     const { store } = await renderApp();
     await askAi('主题换成绿色');
-    await fireEvent.press(await screen.findByTestId('change-cancel'));
+    // 草稿里点会真的做事的东西只提示；离开时提示一起收掉。
+    await fireEvent.press(await screen.findByTestId('nav-settings'));
+    await fireEvent.press(await screen.findByTestId('settings-data'));
+    expect(await screen.findByTestId('toast')).toHaveTextContent(/应用之后才能用/);
+    await fireEvent.press(screen.getByTestId('draft-leave'));
+    expect(screen.queryByTestId('toast')).toBeNull();
     expect(await screen.findByTestId('nav-ai')).toBeTruthy();
+    expect(screen.queryByTestId('draft-bar')).toBeNull();
     expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
     expect(store.getState().head!.id).toBe(1);
+    expect(store.getState().draft!.steps).toHaveLength(1);
+
+    await fireEvent.press(screen.getByTestId('nav-ai'));
+    expect(await screen.findByTestId('change-draft')).toHaveTextContent(/你有一份草稿 · 1 步/);
+    await fireEvent.press(screen.getByTestId('change-draft-continue'));
+    expect(await screen.findByTestId('draft-bar')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('draft-leave'));
+
+    await fireEvent.press(await screen.findByTestId('nav-ai'));
+    acceptNextAlert();
+    await fireEvent.press(await screen.findByTestId('change-draft-delete'));
+    expect(store.getState().draft).toBeNull();
+    expect(store.getState().head!.id).toBe(1);
+  });
+
+  it('each sentence in the chat is a step; step back takes the last one away', async () => {
+    const { store } = await renderApp();
+    await askAi('首页改成文件工作台');
+    expect(screen.getByTestId('draft-back').props.accessibilityState.disabled).toBe(true);
+    await fireEvent.press(await screen.findByTestId('draft-edit'));
+    await fireEvent.changeText(await screen.findByTestId('draft-chat-input'), '主题换成绿色');
+    await fireEvent.press(screen.getByTestId('draft-chat-send'));
+    const reply = await screen.findByTestId('draft-chat-reply-1');
+    expect(within(reply).getByText(/#2F9E44/)).toBeTruthy();
+    expect(store.getState().draft!.steps).toHaveLength(2);
+    // 做不到的说明原因。
+    await fireEvent.changeText(screen.getByTestId('draft-chat-input'), '帮我订一张机票');
+    await fireEvent.press(screen.getByTestId('draft-chat-send'));
+    const rejected = await screen.findByTestId('draft-chat-rejected');
+    expect(within(rejected).getByText(/暂时无法理解/)).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('draft-chat-close'));
+
+    await fireEvent.press(screen.getByTestId('draft-back'));
+    expect(store.getState().draft!.steps).toHaveLength(1);
+    await applyDraft();
+    expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
+    expect(store.getState().config!.pages.find((p) => p.id === 'home')!.title).toBe('文件工作台');
   });
 
   /** 设置里选的 AI（这里假装是远程模型）：什么都拒绝，用来确认风格选择器的原句没有交给它。 */
@@ -212,26 +306,22 @@ describe('user journeys (UI)', () => {
     })),
   });
 
-  it('pick a style: fills the sentence, the built-in rules preview it, apply, marked, undo restores', async () => {
+  it('pick a style: the built-in rules draft it, apply, marked, undo restores', async () => {
     const ai = configuredAI();
     const { store } = await renderApp(undefined, undefined, ai);
     await fireEvent.press(screen.getByTestId('nav-ai'));
+    await fireEvent.press(await screen.findByTestId('change-pick-style'));
     expect(await screen.findByText('选一个风格')).toBeTruthy();
     // 默认的 Clay 不是预设，没有格子被标为当前风格。
     expect(screen.getByTestId('style-brutalist').props.accessibilityState.selected).toBe(false);
 
     await fireEvent.press(screen.getByTestId('style-brutalist'));
-    expect(screen.getByTestId('change-input').props.value).toBe('换成新粗野风格');
-    await fireEvent.press(screen.getByTestId('change-submit'));
-    expect(await screen.findByTestId('proposal-summary')).toHaveTextContent('换成新粗野风格');
-    expect(screen.getByTestId('plan-line-0')).toHaveTextContent(/新粗野/);
+    expect(await screen.findByTestId('draft-bar')).toBeTruthy();
     expect(ai.plan).not.toHaveBeenCalled();
-    await fireEvent.press(screen.getByTestId('preview-before'));
-    await fireEvent.press(screen.getByTestId('preview-after'));
-    // 预览期间 App 本身没有变化。
+    // 草稿期间已保存的版本没有变化。
     expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
 
-    await fireEvent.press(screen.getByTestId('change-apply'));
+    await applyDraft();
     expect(await screen.findByTestId('banner')).toHaveTextContent(/已改好：换成新粗野风格/);
     expect(store.getState().config!.theme).toEqual(THEME_PRESETS.brutalist.theme);
     expect(store.getState().head).toMatchObject({ id: 2, source: 'ai' });
@@ -240,13 +330,12 @@ describe('user journeys (UI)', () => {
 
     // 回到 AI 页，新粗野被标为当前风格。
     await fireEvent.press(screen.getByTestId('nav-ai'));
+    await fireEvent.press(await screen.findByTestId('change-pick-style'));
     expect((await screen.findByTestId('style-brutalist')).props.accessibilityState.selected).toBe(
       true,
     );
-    // 离开 AI 页：预览另一个风格再取消。
     await fireEvent.press(screen.getByTestId('style-ios'));
-    await fireEvent.press(screen.getByTestId('change-submit'));
-    await fireEvent.press(await screen.findByTestId('change-cancel'));
+    await fireEvent.press(await screen.findByTestId('draft-leave'));
 
     await fireEvent.press(await screen.findByText('撤销'));
     await screen.findByTestId('nav-ai');
@@ -254,44 +343,29 @@ describe('user journeys (UI)', () => {
     expect(store.getState().head).toMatchObject({ source: 'restore' });
   });
 
-  it('a picked style sentence that the user edits goes to the configured AI', async () => {
+  it('a typed sentence goes to the configured AI even when it names a style', async () => {
     const ai = configuredAI();
     const { store } = await renderApp(undefined, undefined, ai);
-    await fireEvent.press(screen.getByTestId('nav-ai'));
-    await fireEvent.press(await screen.findByTestId('style-glass'));
-    await fireEvent.changeText(screen.getByTestId('change-input'), '换成液态玻璃风格，字体大一点');
-    await fireEvent.press(screen.getByTestId('change-submit'));
+    await askAi('换成液态玻璃风格，字体大一点');
     expect(await screen.findByText('远程 AI 收到了')).toBeTruthy();
     expect(ai.plan).toHaveBeenCalledTimes(1);
     expect(ai.plan.mock.calls[0]![0]).toBe('换成液态玻璃风格，字体大一点');
     expect(store.getState().head!.id).toBe(1);
+    expect(store.getState().draft).toBeNull();
   });
 
-  it('cancelling a picked style leaves the app unchanged', async () => {
-    const { store } = await renderApp(undefined, undefined, configuredAI());
-    await fireEvent.press(screen.getByTestId('nav-ai'));
-    await fireEvent.press(await screen.findByTestId('style-glass'));
-    await fireEvent.press(screen.getByTestId('change-submit'));
-    expect(await screen.findByTestId('proposal-summary')).toHaveTextContent('换成液态玻璃风格');
-    await fireEvent.press(screen.getByTestId('change-cancel'));
-    expect(await screen.findByTestId('nav-ai')).toBeTruthy();
-    expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
-    expect(store.getState().head!.id).toBe(1);
-    expect(screen.queryByTestId('banner')).toBeNull();
-  });
-
-  it('unknown requests show a clear message and no preview', async () => {
+  it('unknown requests show a clear message and no draft', async () => {
     await renderApp();
     await askAi('帮我订一张机票');
     expect(await screen.findByTestId('change-feedback')).toBeTruthy();
     expect(screen.getByText(/暂时无法理解/)).toBeTruthy();
-    expect(screen.queryByTestId('change-apply')).toBeNull();
+    expect(screen.queryByTestId('draft-bar')).toBeNull();
   });
 
   it('D: restore an earlier version from History (reachable from Settings)', async () => {
     const { store } = await renderApp();
     await askAi('导航栏只保留首页、工具、设置');
-    await fireEvent.press(await screen.findByTestId('change-apply'));
+    await applyDraft();
 
     await fireEvent.press(await screen.findByTestId('nav-settings'));
     await fireEvent.press(await screen.findByTestId('settings-history'));
@@ -300,9 +374,14 @@ describe('user journeys (UI)', () => {
     expect(entry).toHaveTextContent(/AI 改的/);
     expect(entry).not.toHaveTextContent(/#\d|:\d\d:\d\d/);
     expect(screen.getByTestId('restore-1')).toHaveTextContent('回到这时候的样子');
+    // 先问一句（说明文件不受影响），确认后立即生效（D-190）。
+    let message: string | undefined;
+    jest.spyOn(Alert, 'alert').mockImplementationOnce((_title, msg, buttons) => {
+      message = msg ?? undefined;
+      buttons?.find((b) => b.style !== 'cancel')?.onPress?.();
+    });
     await fireEvent.press(screen.getByTestId('restore-1'));
-    expect(await screen.findByText(/你的文件不受影响/)).toBeTruthy();
-    await fireEvent.press(screen.getByTestId('change-apply'));
+    expect(message).toMatch(/你的文件不受影响/);
 
     expect(await screen.findByTestId('nav-ai')).toBeTruthy();
     expect(store.getState().head).toMatchObject({ id: 3, source: 'restore' });
@@ -358,12 +437,10 @@ describe('user journeys (UI)', () => {
       '把 PDF 工具首页简化成上传和合并两个步骤，完成后自动按照‘合并-日期’命名',
     );
     await fireEvent.press(screen.getByTestId('change-submit'));
-    expect(await screen.findByText(/「命名」不再询问/)).toBeTruthy();
-    await fireEvent.press(screen.getByTestId('change-apply'));
-
-    // 回到同一个工具页：说明文字消失，命名不再询问，仍然只有一个工具实例。
+    // 改快捷操作是功能，直接生效（D-191）：回到同一个工具页，顶部可以撤销，仍然只有一个工具实例。
+    expect(await screen.findByTestId('banner')).toHaveTextContent(/撤销/);
     expect(await screen.findByTestId('run-pdf-merge')).toBeTruthy();
-    expect(screen.queryByTestId('component-pdf-intro')).toBeNull();
+    expect(store.getState().draft).toBeNull();
     expect(store.getState().config!.tools).toHaveLength(1);
     expect(store.getState().config!.workflows.filter((w) => w.id === 'pdf-merge')).toHaveLength(1);
 
@@ -376,37 +453,37 @@ describe('user journeys (UI)', () => {
     expect(screen.queryByTestId('prompt-ok')).toBeNull();
   });
 
-  it('AI can leave the navigation entirely; Settings still opens AI and History to undo', async () => {
+  it('AI can leave the navigation entirely; Settings still opens AI and undo is immediate', async () => {
     const { store } = await renderApp();
     await askAi('把 AI 入口删掉，把历史从导航栏移除');
-    await fireEvent.press(await screen.findByTestId('change-apply'));
+    await applyDraft();
     expect(await screen.findByTestId('banner')).toBeTruthy();
     expect(screen.queryByTestId('nav-ai')).toBeNull();
     expect(screen.queryByTestId('nav-history')).toBeNull();
     expect(screen.queryByTestId('floating-ai')).toBeNull();
 
-    // 从设置进入 AI 修改，把它们恢复回来。
+    // 从设置进入 AI 修改说「撤销」：没有草稿时直接回到上一个版本。
     await fireEvent.press(screen.getByTestId('nav-settings'));
     await fireEvent.press(await screen.findByTestId('settings-ai'));
     await fireEvent.changeText(await screen.findByTestId('change-input'), '撤销刚才的修改');
     await fireEvent.press(screen.getByTestId('change-submit'));
-    await fireEvent.press(await screen.findByTestId('change-apply'));
     expect(await screen.findByTestId('nav-ai')).toBeTruthy();
     expect(store.getState().config!.shell.nav).toContain('history');
+    expect(store.getState().draft).toBeNull();
   });
 
   it('Settings itself cannot be removed', async () => {
     await renderApp();
     await askAi('把设置删掉');
     expect(await screen.findByText(/「设置」不能移除/)).toBeTruthy();
-    expect(screen.queryByTestId('change-apply')).toBeNull();
+    expect(screen.queryByTestId('draft-bar')).toBeNull();
   });
 
   it('a new page gets an entry (the nav bar is full, so a home shortcut) and the theme restyles', async () => {
     const { store } = await renderApp();
     await askAi('新建一个叫「记账」的页面，字体大一点，去掉阴影');
-    expect(await screen.findByText(/新建页面「记账」/)).toBeTruthy();
-    await fireEvent.press(screen.getByTestId('change-apply'));
+    expect(await screen.findByTestId('draft-reply')).toHaveTextContent(/新建页面「记账」/);
+    await applyDraft();
 
     expect(await screen.findByTestId('component-shortcut-page-1')).toBeTruthy();
     await fireEvent.press(screen.getByText('记账'));

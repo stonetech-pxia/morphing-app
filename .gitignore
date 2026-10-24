@@ -14,3 +14,7 @@ apps/mobile/android/
 
 # 本地原生模块的 Android 构建输出
 apps/mobile/modules/*/android/build/
+
+# 需求回收（D-189）：计划服务收到的需求，只在服务器上
+apps/api/data/
+/data/

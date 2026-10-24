@@ -1,0 +1,20 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- 长任务切到别的 App 也继续（D-160）：前台服务。Android 15 起用 mediaProcessing（处理视频和音频；系统没开这种类型时退回
+       dataSync），更早的用 dataSync；Google Play 后台要声明这两种类型的用途。 -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+  <!-- 进度和完成通知；Android 13 起第一次跑长任务时问一次（D-161）。 -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <!-- 锁屏后 CPU 不睡，任务继续。 -->
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+  <application>
+    <!-- 用户从最近任务里划掉 Morph 就是不要了：服务跟着停。 -->
+    <service
+      android:name="expo.modules.morphbackground.MorphBackgroundService"
+      android:exported="false"
+      android:stopWithTask="true"
+      android:foregroundServiceType="mediaProcessing|dataSync" />
+  </application>
+</manifest>

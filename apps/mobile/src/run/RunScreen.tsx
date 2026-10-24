@@ -19,13 +19,14 @@ import {
   View,
 } from 'react-native';
 
+import type { SampleKind } from '../guide/samples';
 import { runErrorText, t } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import { usePalette, type Palette } from '../renderer/theme';
 import { Button, Card } from '../renderer/ui';
 import { saveItems } from '../runtime/actions/io';
 import type { LocalKind, LocalSteps, LocalUi } from '../runtime/local';
-import { granteeOf, newAssetId, startRun, type Run } from '../runtime/runner';
+import { granteeOf, isBackgroundAction, newAssetId, startRun, type Run } from '../runtime/runner';
 import { PackGate } from '../packs/PackGate';
 import { releaseShare, type IncomingShare } from '../share/incoming';
 import { usePacks } from '../packs/PackHost';
@@ -65,6 +66,7 @@ export function RunScreen({
   onEdit,
   onAskAI,
   incoming,
+  sample,
 }: {
   workflow: Workflow;
   onEdit?: () => void;
@@ -72,12 +74,15 @@ export function RunScreen({
   onAskAI?: () => void;
   /** 分享进来的文件（D-115）：第一步用它们，不打开选择器。关闭运行页面时删掉。 */
   incoming?: IncomingShare;
+  /** incoming 是新手引导的示例文件（D-149）：不删，结果页请用户换成自己的文件再试。 */
+  sample?: SampleKind;
 }) {
   const { repo, files, registry, locale } = useWorkspaceContext();
   const theme = useWorkspace((s) => s.config!.theme);
   const collections = useWorkspace((s) => s.config!.collections);
   const revisionId = useWorkspace((s) => s.head!.id);
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
+  const bumpRecords = useWorkspace((s) => s.bumpRecords);
   const palette = usePalette(theme);
   const router = useRouter();
   // 打开即开始运行，所以初始状态就是第 1 步。
@@ -103,7 +108,13 @@ export function RunScreen({
   const [runCount, setRunCount] = useState(0);
   const label = (action: string, index: number) =>
     incoming && index === 0
-      ? t(locale, 'shareInputStep', { n: incoming.files.length })
+      ? t(
+          locale,
+          sample ? (sample === 'photos' ? 'samplePhotos' : 'samplePdfs') : 'shareInputStep',
+          {
+            n: incoming.files.length,
+          },
+        )
       : (registry.actions.get(action)?.label[locale] ?? action);
 
   const ui: LocalUi = {
@@ -193,6 +204,8 @@ export function RunScreen({
     setOutcome(started.result);
     setRunCount((n) => n + 1);
     if (started.result.status === 'succeeded' && started.result.saved.length > 0) bumpAssets();
+    // 记一笔（D-187）直接写数据库：页面上的列表和统计要重新读（停在中途也可能已经记了几笔）。
+    if (workflow.steps.some((s) => s.action === 'out.addRecord')) bumpRecords();
   }
 
   useEffect(() => {
@@ -202,7 +215,7 @@ export function RunScreen({
       clearTimeout(timer);
       signal.current.cancelled = true;
       void run.current?.dispose();
-      if (incoming) void releaseShare(files, incoming.id);
+      if (incoming && !sample) void releaseShare(files, incoming.id);
       // 扫描包和文字识别包的页面占几十 MB 内存，离开运行页面就关掉（下次用时再加载）。
       packs?.bridge.close('scan');
       packs?.bridge.close('ocr');
@@ -296,6 +309,15 @@ export function RunScreen({
         })}
       </Card>
 
+      {/* 长步骤（视频、音频）运行时说一句能不能切走（D-160、D-148）。 */}
+      {current && isBackgroundAction(workflow.steps[current.index]?.action ?? '') ? (
+        <Text
+          testID="run-background-hint"
+          style={[palette.font('body', 13), { color: palette.caption }]}>
+          {t(locale, files.background?.continuesInBackground ? 'runCanLeave' : 'runStayInMorph')}
+        </Text>
+      ) : null}
+
       {running ? (
         <Button
           palette={palette}
@@ -372,6 +394,17 @@ export function RunScreen({
 
       {outcome?.status === 'succeeded' ? (
         <HabitCard key={runCount} workflow={workflow} answers={answers.current} palette={palette} />
+      ) : null}
+
+      {sample && outcome?.status === 'succeeded' ? (
+        <Button
+          palette={palette}
+          testID="run-try-own"
+          label={t(locale, 'runTryOwn')}
+          onPress={() =>
+            router.replace({ pathname: '/run/[workflowId]', params: { workflowId: workflow.id } })
+          }
+        />
       ) : null}
 
       {/* 结果页：「完成」关闭页面；「再来一次」次要；改设置是一个小链接（D-111）。 */}
