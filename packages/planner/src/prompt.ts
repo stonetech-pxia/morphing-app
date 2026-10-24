@@ -2,6 +2,7 @@ import {
   ICON_NAMES,
   WORKFLOW_PRESETS,
   THEME_PRESETS,
+  registryRevision,
   type ActionDefinition,
   type Locale,
   type PlanAbout,
@@ -10,7 +11,7 @@ import {
 } from '@morph/core';
 import { z } from 'zod';
 
-// 发给模型的提示词。系统提示词只依赖内置工具目录，内容稳定，可以被缓存；
+// 发给模型的提示词。系统提示词只依赖工具目录（内置的加上下载的），内容稳定，可以被缓存；
 // 每次请求变化的部分（当前配置、用户输入）放在用户消息里。
 // 只发送界面配置，不发送任何用户文件或文件名（§8：发给模型的内容尽量少）。
 
@@ -72,9 +73,29 @@ function describeAction(a: ActionDefinition): string {
   }`;
 }
 
+const promptCache = new WeakMap<Registry, { revision: number; text: string }>();
+
+/** 系统提示词；注册表加入或替换了下载的工具（registryRevision 变了）时重新生成。 */
+export function systemPromptFor(registry: Registry): string {
+  const revision = registryRevision(registry);
+  const cached = promptCache.get(registry);
+  if (cached?.revision === revision) return cached.text;
+  const text = buildSystemPrompt(registry);
+  promptCache.set(registry, { revision, text });
+  return text;
+}
+
 export function buildSystemPrompt(registry: Registry): string {
   const tools = [...registry.tools.values()]
     .map((tool) => {
+      // 下载的数据工具没有自己的动作，只带几个组合已有动作的快捷操作（D-177）。
+      if (tool.actions.length === 0) {
+        const quick = tool
+          .createWorkflows('en')
+          .map((wf) => `“${wf.name}”`)
+          .join(', ');
+        return `- ${tool.id} (“${tool.name.en}”): ${tool.description.en}\n  No actions of its own; installing it adds these quick actions: ${quick}`;
+      }
       const actions = tool.actions.map((a) => `    - ${describeAction(a)}`).join('\n');
       return `- ${tool.id} (“${tool.name.en}”): ${tool.description.en}\n  Actions:\n${actions}`;
     })

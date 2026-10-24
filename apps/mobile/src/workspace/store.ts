@@ -38,6 +38,8 @@ export interface WorkspaceDeps {
   now: () => Date;
   /** 第一次启动时的第一个版本。App 用预装了工具的 createStarterWorkspace（D-104）；不传时是空白工作空间。 */
   seed?: (locale: Locale, registry: Registry) => WorkspaceConfig;
+  /** 不在注册表里的工具叫什么（从下载的工具目录里查，D-177）；恢复历史版本缺工具时提示用。 */
+  toolName?: (toolId: string) => string | undefined;
 }
 
 export interface Proposal {
@@ -275,6 +277,16 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       const { config, head } = get();
       if (!config || !head) throw new Error('workspace not loaded');
       const target = await repo.getRevision(revisionId);
+      // 这个版本用到了本机没有的下载工具（换了手机、删了下载的内容）：先下载才能恢复（D-177）。
+      const missing = (
+        (target?.config as { tools?: { toolId: string }[] } | undefined)?.tools ?? []
+      )
+        .map((tool) => tool.toolId)
+        .filter((id) => !registry.tools.has(id));
+      if (target && missing.length > 0) {
+        const names = missing.map((id) => deps.toolName?.(id) ?? id).join(msg('listSeparator'));
+        return { kind: 'invalid', issues: [msg('restoreNeedsTool', { names })] };
+      }
       const prepared = target ? prepareSnapshot(target.config, registry) : null;
       if (!target || !prepared?.ok) {
         const issues =

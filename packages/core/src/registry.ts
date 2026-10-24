@@ -18,6 +18,8 @@ export interface ToolDefinition {
   createPage(locale: Locale): Page;
   /** 安装时写进配置的工作流（单功能工作流和工具自带的流程，D-061）。 */
   createWorkflows(locale: Locale): Workflow[];
+  /** 从服务器下载的工具（D-177）；没有这一项的是随 App 发布的内置工具。 */
+  origin?: 'download';
 }
 
 /** 内核动作：不属于任何工具，所有工作流都可以使用。 */
@@ -48,4 +50,22 @@ export function createRegistry(tools: readonly ToolDefinition[]): Registry {
     }
   }
   return { tools: toolMap, actions, actionOwner };
+}
+
+const revisions = new WeakMap<Registry, number>();
+
+/** 注册表改过几次（加入或替换下载的工具时加 1）；提示词按它缓存。 */
+export const registryRevision = (registry: Registry) => revisions.get(registry) ?? 0;
+
+/**
+ * 加入或替换一个下载的工具（D-177）。直接改这个注册表，用到它的地方（运行、校验、AI）都能看到。
+ * 下载的工具没有自己的动作（第一步只组合已有的动作），不能顶替内置工具。
+ */
+export function registerTool(registry: Registry, tool: ToolDefinition): void {
+  if (tool.origin !== 'download') throw new Error(`tool ${tool.id} is not a downloaded tool`);
+  if (tool.actions.length > 0) throw new Error(`downloaded tool ${tool.id} must not add actions`);
+  const existing = registry.tools.get(tool.id);
+  if (existing && existing.origin !== 'download') throw new Error(`tool ${tool.id} is built in`);
+  (registry.tools as Map<string, ToolDefinition>).set(tool.id, tool);
+  revisions.set(registry, registryRevision(registry) + 1);
 }

@@ -46,7 +46,14 @@ export const LOCAL_STEP_KINDS = [
 ] as const;
 export type LocalStepKind = (typeof LOCAL_STEP_KINDS)[number];
 
-export type Permission = 'files.pick' | 'files.write' | 'photos.save' | 'camera' | 'microphone';
+export const PERMISSIONS = [
+  'files.pick',
+  'files.write',
+  'photos.save',
+  'camera',
+  'microphone',
+] as const;
+export type Permission = (typeof PERMISSIONS)[number];
 
 export type ParamUnit = 'px' | 'KB' | 'MB' | '%' | '°' | 'mm' | 'pt' | 'in';
 

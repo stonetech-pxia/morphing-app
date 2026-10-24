@@ -1,4 +1,4 @@
-import { BUILTIN_TOOLS, createMockAIProvider, createRegistry } from '@morph/core';
+import { BUILTIN_TOOLS, createMockAIProvider, createRegistry, type Registry } from '@morph/core';
 import { Stack } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
@@ -14,6 +14,8 @@ import ShareRoute from '../app/share';
 import WorkflowRoute from '../app/workflow/[id]';
 import WorkflowsRoute from '../app/workflows';
 import { useIncomingShare } from '../share/useIncomingShare';
+import { ToolDownloadsProvider } from '../tool-download/context';
+import type { ToolDownloads } from '../tool-download/state';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { WorkspaceProvider } from '../workspace/context';
 import { createWorkspaceStore } from '../workspace/store';
@@ -38,23 +40,37 @@ function ShareListener({ files }: { files: FakeFiles }) {
   return null;
 }
 
-export async function renderToolsApp(repo = new MemoryWorkspaceRepo(), files = new FakeFiles()) {
+export async function renderToolsApp(
+  repo = new MemoryWorkspaceRepo(),
+  files = new FakeFiles(),
+  /** 下载的工具（D-177）：要用自己的注册表，下载时会往里面加工具。 */
+  options: { registry?: Registry; toolDownloads?: ToolDownloads } = {},
+) {
+  const registry = options.registry ?? testRegistry;
   const aiSettings = createAISettingsStore({ secrets: memorySecrets(), serverAvailable: false });
   await aiSettings.getState().load();
   const store = createWorkspaceStore({
     repo,
     provider: createMockAIProvider(),
-    registry: testRegistry,
+    registry,
     locale: 'zh',
     now: () => new Date(2026, 9, 22, 9, 0),
+    toolName: (id) =>
+      options.toolDownloads?.getState().catalog?.tools.find((e) => e.id === id)?.name.zh,
   });
   await store.getState().boot();
   await renderRouter({
     _layout: () => (
       <AISettingsProvider store={aiSettings}>
-        <WorkspaceProvider value={{ store, repo, files, registry: testRegistry, locale: 'zh' }}>
+        <WorkspaceProvider value={{ store, repo, files, registry, locale: 'zh' }}>
           <ShareListener files={files} />
-          <Stack />
+          {options.toolDownloads ? (
+            <ToolDownloadsProvider value={options.toolDownloads}>
+              <Stack />
+            </ToolDownloadsProvider>
+          ) : (
+            <Stack />
+          )}
         </WorkspaceProvider>
       </AISettingsProvider>
     ),

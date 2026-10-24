@@ -6,6 +6,8 @@ import { t } from '@/i18n';
 import { usePalette } from '@/renderer/theme';
 import { RunScreen } from '@/run/RunScreen';
 import { useIncoming } from '@/share/incoming';
+import { useToolDownloads } from '@/tool-download/context';
+import { toolRevoked } from '@/tool-download/state';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
 /** 运行一个工作流（工具页的单功能工作流、预设或用户自己的工作流）。 */
@@ -16,11 +18,28 @@ export default function RunRoute() {
     const share = useIncoming.getState().share;
     return shared && share && String(share.id) === shared ? share : null;
   });
-  const { locale } = useWorkspaceContext();
+  const { locale, registry } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
   const router = useRouter();
   const workflow = config.workflows.find((w) => w.id === workflowId);
+  // 下载的工具被停用了（D-178）：它的快捷操作不能运行，配置和文件都留着。
+  const revoked = useToolDownloads(
+    (s) => workflow?.toolId !== undefined && toolRevoked(s, workflow.toolId),
+  );
+  if (workflow && revoked) {
+    const name = registry.tools.get(workflow.toolId!)?.name[locale] ?? workflow.toolId!;
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <Stack.Screen options={{ title: workflow.name }} />
+        <Text
+          testID="run-revoked"
+          style={[palette.font('body', 15), { color: palette.muted, textAlign: 'center' }]}>
+          {t(locale, 'toolRevokedRun', { name })}
+        </Text>
+      </View>
+    );
+  }
   if (!workflow || (shared && !incoming)) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
