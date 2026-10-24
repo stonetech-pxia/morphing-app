@@ -185,6 +185,9 @@ export default function RootLayout() {
       void toolDownloads.getState().refresh(CATALOG_DAY_MS);
       // 上次运行没来得及删除的临时文件（D-063）。
       await expoFilePlatform.removeAllRuns().catch(() => undefined);
+      // 已经删掉的快捷操作不再记着文件夹（D-195）。
+      const booted = created.getState().config;
+      if (booted) expoFilePlatform.forgetFolders(booted.workflows.map((w) => w.id));
       setRuntime({ store: created, repo });
     })().catch((e) => setError(String(e)));
   }, []);

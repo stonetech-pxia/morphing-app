@@ -376,9 +376,9 @@ export function RunScreen({
             },
             saveToFolder: async (choose) =>
               isFileValue(value)
-                ? ((await files.saveToFolder(value.items, choose))?.folder ?? null)
+                ? ((await files.saveToFolder(value.items, workflow.id, choose))?.folder ?? null)
                 : null,
-            rememberedFolder: () => files.rememberedFolder(),
+            rememberedFolder: () => files.rememberedFolder(workflow.id),
             saveToPhotos: async () => {
               if (isFileValue(value)) await files.saveToPhotos(value.items.map((i) => i.uri));
             },

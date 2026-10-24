@@ -350,9 +350,9 @@ export const IO_IMPLS: Record<string, Impl> = {
   },
 
   async 'out.saveToFolder'(input, _params, ctx) {
-    // 有记住的文件夹就直接存进去，第一次才让用户选（D-123）。用户关掉选择器不算失败
-    // （和关掉分享面板一样），结果页上还可以再存。
-    await ctx.services.files.saveToFolder(fileItems(input));
+    // 有记住的文件夹就直接存进去，第一次才让用户选（D-123）；每个快捷操作记自己的（D-195）。
+    // 用户关掉选择器不算失败（和关掉分享面板一样），结果页上还可以再存。
+    await ctx.services.files.saveToFolder(fileItems(input), ctx.workflow.id);
     return input!;
   },
 

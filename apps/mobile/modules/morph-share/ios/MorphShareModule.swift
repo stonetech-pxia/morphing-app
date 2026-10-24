@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 //   Dropbox 等「文件」提供者由它们自己的 App 同步），再用 NSFileCoordinator 把文件复制进去，重名时加序号。
 //   不用导出模式：模拟器实测文件夹里已有同名文件时，导出选择器报 OSStatus -8072、什么也不存。
 // 记住上次选的文件夹（P-019、D-123）：存成书签（UserDefaults），下次直接存进去；文件夹没了就重新让用户选。
+// 每个快捷操作记自己的文件夹（D-195）：「快捷操作 ID → 书签」另存一份；还没有时用最后选过的那个并记给它。
 // Morph 只把本机文件交给系统界面和用户选的文件夹，不联网。
 
 final class PresenterMissingException: Exception, @unchecked Sendable {
@@ -28,6 +29,7 @@ final class ExportFailedException: GenericException<String>, @unchecked Sendable
 }
 
 private let folderBookmarkKey = "morph.share.folderBookmark"
+private let folderBookmarksKey = "morph.share.folderBookmarks"
 
 public class MorphShareModule: Module {
   private var folderDelegate: FolderDelegate?
@@ -56,17 +58,22 @@ public class MorphShareModule: Module {
     }
     .runOnQueue(DispatchQueue.main)
 
-    Function("rememberedFolder") { () -> String? in
-      Self.rememberedFolder()?.lastPathComponent
+    Function("rememberedFolder") { (key: String) -> String? in
+      Self.rememberedFolder(for: key, adopt: false)?.lastPathComponent
     }
 
-    // mimeTypes 只给 Android 用。useRemembered：有记住的文件夹就直接存进去，不弹选择器。
-    AsyncFunction("exportFiles") { (uris: [URL], names: [String], _: [String], useRemembered: Bool, promise: Promise) in
+    Function("forgetFolders") { (keep: [String]) in
+      let kept = Self.bookmarks().filter { keep.contains($0.key) }
+      UserDefaults.standard.set(kept, forKey: folderBookmarksKey)
+    }
+
+    // mimeTypes 只给 Android 用。useRemembered：有记住的文件夹就直接存进去，不弹选择器。key：快捷操作 ID。
+    AsyncFunction("exportFiles") { (uris: [URL], names: [String], _: [String], useRemembered: Bool, key: String, promise: Promise) in
       guard !self.busy else {
         promise.reject(SheetBusyException())
         return
       }
-      if useRemembered, let folder = Self.rememberedFolder() {
+      if useRemembered, let folder = Self.rememberedFolder(for: key, adopt: true) {
         Self.copyInBackground(uris, names: names, into: folder, promise: promise)
         return
       }
@@ -83,7 +90,7 @@ public class MorphShareModule: Module {
           promise.resolve(nil)
           return
         }
-        Self.remember(folder)
+        Self.remember(folder, for: key)
         Self.copyInBackground(uris, names: names, into: folder, promise: promise)
       }
       self.folderDelegate = delegate
@@ -110,13 +117,40 @@ public class MorphShareModule: Module {
     }
   }
 
-  /** 记住的文件夹；没有、书签失效或文件夹已经不在了时返回 nil（并忘掉它）。 */
-  private static func rememberedFolder() -> URL? {
+  /** 每个快捷操作的书签：快捷操作 ID → 书签。 */
+  private static func bookmarks() -> [String: Data] {
+    UserDefaults.standard.dictionary(forKey: folderBookmarksKey) as? [String: Data] ?? [:]
+  }
+
+  private static func setBookmark(_ data: Data?, for key: String) {
+    var all = bookmarks()
+    all[key] = data
+    UserDefaults.standard.set(all, forKey: folderBookmarksKey)
+  }
+
+  /**
+   * 快捷操作 key 的文件夹：它自己的，没有时是最后选过的（adopt 为 true 时记给它，真正要存的时候才记）。
+   * 都没有、书签失效或文件夹已经不在了时返回 nil（并忘掉失效的那个）。
+   */
+  private static func rememberedFolder(for key: String, adopt: Bool) -> URL? {
+    if let data = bookmarks()[key] {
+      if let url = resolve(data, save: { setBookmark($0, for: key) }) { return url }
+      setBookmark(nil, for: key)
+    }
     guard let data = UserDefaults.standard.data(forKey: folderBookmarkKey) else { return nil }
+    guard let url = resolve(data, save: { UserDefaults.standard.set($0, forKey: folderBookmarkKey) }) else {
+      UserDefaults.standard.removeObject(forKey: folderBookmarkKey)
+      return nil
+    }
+    if adopt { setBookmark(UserDefaults.standard.data(forKey: folderBookmarkKey), for: key) }
+    return url
+  }
+
+  /** 解析书签；书签失效或文件夹已经不在了时返回 nil。书签过期时用 save 存新的。 */
+  private static func resolve(_ data: Data, save: (Data) -> Void) -> URL? {
     var stale = false
     guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale),
           url.startAccessingSecurityScopedResource() else {
-      UserDefaults.standard.removeObject(forKey: folderBookmarkKey)
       return nil
     }
     defer { url.stopAccessingSecurityScopedResource() }
@@ -124,20 +158,21 @@ public class MorphShareModule: Module {
     var isDirectory: ObjCBool = false
     guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue,
           !url.pathComponents.contains(".Trash") else {
-      UserDefaults.standard.removeObject(forKey: folderBookmarkKey)
       return nil
     }
     if stale, let fresh = try? url.bookmarkData() {
-      UserDefaults.standard.set(fresh, forKey: folderBookmarkKey)
+      save(fresh)
     }
     return url
   }
 
-  private static func remember(_ folder: URL) {
+  /** 记给这个快捷操作，也记成最后选过的。 */
+  private static func remember(_ folder: URL, for key: String) {
     guard folder.startAccessingSecurityScopedResource() else { return }
     defer { folder.stopAccessingSecurityScopedResource() }
     if let data = try? folder.bookmarkData() {
       UserDefaults.standard.set(data, forKey: folderBookmarkKey)
+      setBookmark(data, for: key)
     }
   }
 

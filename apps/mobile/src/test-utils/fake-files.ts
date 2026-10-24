@@ -279,21 +279,25 @@ export class FakeFiles implements FilePlatform {
   folderChoice: 'pick' | 'cancel' | 'notWritable' = 'pick';
   /** 用户在选择器里选的文件夹名。 */
   nextFolder = 'MorphOut';
-  /** 记住的文件夹（D-123）。 */
+  /** 最后选过的文件夹（D-123）。 */
   remembered: string | null = null;
+  /** 每个快捷操作记住的文件夹（D-195）：快捷操作 ID → 文件夹名。 */
+  rememberedBy = new Map<string, string>();
   /** 打开了几次文件夹选择器。 */
   folderPicks = 0;
   /** 各文件夹里的文件：文件夹名 → 文件名 → 内容。 */
   folders = new Map<string, Map<string, Uint8Array>>();
-  async saveToFolder(items: readonly FolderItem[], choose = false) {
-    let folder = choose ? null : this.remembered;
+  async saveToFolder(items: readonly FolderItem[], key: string, choose = false) {
+    const kept = choose ? null : (this.rememberedBy.get(key) ?? this.remembered);
+    let folder = kept;
     if (!folder) {
       this.folderPicks++;
       if (this.folderChoice === 'cancel') return null;
       folder = this.nextFolder;
     }
     if (this.folderChoice === 'notWritable') throw new RunError('folderNotWritable');
-    this.remembered = folder;
+    if (!kept) this.remembered = folder;
+    this.rememberedBy.set(key, folder);
     const files = this.folders.get(folder) ?? new Map<string, Uint8Array>();
     this.folders.set(folder, files);
     for (const item of items) {
@@ -301,8 +305,13 @@ export class FakeFiles implements FilePlatform {
     }
     return { saved: items.length, folder };
   }
-  rememberedFolder() {
-    return this.remembered;
+  rememberedFolder(key: string) {
+    return this.rememberedBy.get(key) ?? this.remembered;
+  }
+  forgetFolders(keep: readonly string[]) {
+    for (const key of [...this.rememberedBy.keys()]) {
+      if (!keep.includes(key)) this.rememberedBy.delete(key);
+    }
   }
   async saveToPhotos(uris: readonly string[]) {
     if (!this.photosAllowed) {

@@ -17,6 +17,7 @@ import { shareAsync } from 'expo-sharing';
 
 import {
   FOLDER_NOT_WRITABLE,
+  forgetFolders,
   rememberedFolder,
   saveAllToFolder,
   shareAll,
@@ -133,6 +134,7 @@ const SHARE: ShareDeps = {
   native: MorphShare,
   shareOne,
   remembered: null,
+  rememberedBy: new Map(),
   async pickFolder() {
     let dir: Directory;
     try {
@@ -384,9 +386,10 @@ export const expoFilePlatform: FilePlatform = {
 
   shareUris: (items) => shareAll(SHARE, items),
 
-  saveToFolder: (items, choose = false) => saveAllToFolder(SHARE, items, choose),
+  saveToFolder: (items, key, choose = false) => saveAllToFolder(SHARE, items, key, choose),
 
-  rememberedFolder: () => rememberedFolder(SHARE),
+  rememberedFolder: (key) => rememberedFolder(SHARE, key),
+  forgetFolders: (keep) => forgetFolders(SHARE, keep),
 
   async saveToPhotos(uris) {
     const permission = await requestPermissionsAsync(true, ['photo', 'video']);
