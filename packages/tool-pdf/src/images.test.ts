@@ -106,7 +106,7 @@ describe('imagesToPdf', () => {
     expect(size?.[1]).toBeCloseTo(50 + 20 * MM);
   });
 
-  it('adds an invisible text layer where the lines were recognised, Latin lines only (D-194, P-028)', async () => {
+  it('adds an invisible text layer where the lines were recognised, Latin lines only (D-195, P-028)', async () => {
     const result = await imagesToPdf(
       [
         {

@@ -280,7 +280,7 @@ export const PDF_IMPLS: Record<string, Impl> = {
         ctx.progress(i + 1, items.length);
       }
     }
-    // 能搜索的 PDF（D-194）：每页识别文字和位置。没有系统自带的识别（Expo Go）时不加；某一页识别失败只是那页不加。
+    // 能搜索的 PDF（D-195）：每页识别文字和位置。没有系统自带的识别（Expo Go）时不加；某一页识别失败只是那页不加。
     const vision = textLayer ? ctx.services.files.vision : null;
     if (vision) {
       for (const [i, item] of items.entries()) {

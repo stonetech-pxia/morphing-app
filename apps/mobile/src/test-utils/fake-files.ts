@@ -238,7 +238,7 @@ export class FakeFiles implements FilePlatform {
     this.sharedTexts.set(fileName, text);
   }
   async copyToRun(uri: string, runId: string, fileName: string) {
-    // 用户文件的地址（fileUri）也能复制进来，例如「加上已有文件」（D-196）。
+    // 用户文件的地址（fileUri）也能复制进来，例如「加上已有文件」（D-197）。
     const bytes = this.disk.get(uri) ?? this.disk.get(uri.replace('file:///fake/', ''));
     if (!bytes) throw new Error('permission denied');
     const dest = `runs/${runId}/${fileName}`;
@@ -284,7 +284,7 @@ export class FakeFiles implements FilePlatform {
   nextFolder = 'MorphOut';
   /** 最后选过的文件夹（D-123）。 */
   remembered: string | null = null;
-  /** 每个快捷操作记住的文件夹（D-195）：快捷操作 ID → 文件夹名。 */
+  /** 每个快捷操作记住的文件夹（D-196）：快捷操作 ID → 文件夹名。 */
   rememberedBy = new Map<string, string>();
   /** 打开了几次文件夹选择器。 */
   folderPicks = 0;

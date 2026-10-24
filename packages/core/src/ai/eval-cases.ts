@@ -2359,7 +2359,7 @@ const FORMAT_EVAL_CASES: readonly EvalCase[] = [
     expect: { kind: 'ops', check: hasWorkflow(['pdf.fromDocument'], firstDocuments) },
   },
   {
-    // D-194：扫出来的 PDF 要能搜索、复制文字。
+    // D-195：扫出来的 PDF 要能搜索、复制文字。
     id: 'PSP1',
     input: 'Scan receipts into a PDF where I can search and copy the text later',
     locale: 'en',
@@ -2374,7 +2374,7 @@ const FORMAT_EVAL_CASES: readonly EvalCase[] = [
     },
   },
   {
-    // D-193：带密码的 PDF 先去密码，再合并。
+    // D-194：带密码的 PDF 先去密码，再合并。
     id: 'PPW1',
     input: '银行发的对账单 PDF 有密码，想去掉密码再和别的材料合成一份',
     locale: 'zh',
@@ -2383,7 +2383,7 @@ const FORMAT_EVAL_CASES: readonly EvalCase[] = [
     expect: { kind: 'ops', check: hasWorkflow(['pdf.unlock', 'pdf.merge']) },
   },
   {
-    // D-193：加密码放在最后（之后只有命名、保存、分享）。
+    // D-194：加密码放在最后（之后只有命名、保存、分享）。
     id: 'PPW2',
     input: 'Before I send a contract I want to put a password on the PDF',
     locale: 'en',
@@ -2401,7 +2401,7 @@ const FORMAT_EVAL_CASES: readonly EvalCase[] = [
     },
   },
   {
-    // D-196：一份报销单越攒越多。
+    // D-197：一份报销单越攒越多。
     id: 'PFA1',
     input: '出差时每拍一张收据，就接到上次那份报销单 PDF 后面，最后只交一份',
     locale: 'zh',
@@ -2410,7 +2410,7 @@ const FORMAT_EVAL_CASES: readonly EvalCase[] = [
     expect: { kind: 'ops', check: hasWorkflow(['file.addExisting', 'pdf.merge']) },
   },
   {
-    // D-198：Wi-Fi 二维码。自己搭（in.wifi → qr.generate）或添加二维码工具（带「Wi-Fi 二维码」）都算。
+    // D-199：Wi-Fi 二维码。自己搭（in.wifi → qr.generate）或添加二维码工具（带「Wi-Fi 二维码」）都算。
     id: 'PWF1',
     input: '想做一个二维码，让来家里的客人扫一下就能连上 Wi-Fi',
     locale: 'zh',

@@ -41,7 +41,7 @@ export interface MorphVisionModule {
     text: string;
     lines: number;
     languages: string[];
-    /** 识别时图片的像素大小和每行的位置（原点在左上角，D-194）。 */
+    /** 识别时图片的像素大小和每行的位置（原点在左上角，D-195）。 */
     width: number;
     height: number;
     items: { text: string; x: number; y: number; width: number; height: number }[];

@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
 //   Dropbox 等「文件」提供者由它们自己的 App 同步），再用 NSFileCoordinator 把文件复制进去，重名时加序号。
 //   不用导出模式：模拟器实测文件夹里已有同名文件时，导出选择器报 OSStatus -8072、什么也不存。
 // 记住上次选的文件夹（P-019、D-123）：存成书签（UserDefaults），下次直接存进去；文件夹没了就重新让用户选。
-// 每个快捷操作记自己的文件夹（D-195）：「快捷操作 ID → 书签」另存一份；还没有时用最后选过的那个并记给它。
+// 每个快捷操作记自己的文件夹（D-196）：「快捷操作 ID → 书签」另存一份；还没有时用最后选过的那个并记给它。
 // Morph 只把本机文件交给系统界面和用户选的文件夹，不联网。
 
 final class PresenterMissingException: Exception, @unchecked Sendable {

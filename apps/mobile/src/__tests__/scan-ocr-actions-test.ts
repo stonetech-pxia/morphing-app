@@ -291,7 +291,7 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
     });
   });
 
-  it('adds an invisible text layer to scanned PDFs so they can be searched (D-194)', async () => {
+  it('adds an invisible text layer to scanned PDFs so they can be searched (D-195)', async () => {
     const wf: Workflow = {
       id: 'scan',
       name: 'scan',

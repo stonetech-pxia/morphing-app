@@ -57,7 +57,7 @@ export function AskPanel({
     for (const key of request.keys) {
       const field = request.action.fields.find((f) => f.key === key);
       let value = values[key];
-      // 密码不在参数结构里，单独交回去（D-193）。要输两遍的，两遍要一样。
+      // 密码不在参数结构里，单独交回去（D-194）。要输两遍的，两遍要一样。
       if (field?.kind === 'secret') {
         if (field.confirm && value !== values[againKey(key)]) {
           return setError(t(locale, 'askPasswordMismatch'));

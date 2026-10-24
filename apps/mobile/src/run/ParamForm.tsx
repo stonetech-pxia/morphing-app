@@ -15,7 +15,7 @@ export function visibleFields(
   values: Record<string, unknown>,
   only?: readonly string[],
 ): ParamField[] {
-  // 密码只在运行时问（D-193），编辑页不显示。
+  // 密码只在运行时问（D-194），编辑页不显示。
   return action.fields.filter(
     (f) =>
       (only ? only.includes(f.key) : f.kind !== 'secret') &&

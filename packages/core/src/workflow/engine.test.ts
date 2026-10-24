@@ -229,7 +229,7 @@ describe('runWorkflow', () => {
     expect(asked).toEqual([]);
   });
 
-  it('always asks for passwords and hands them only to that step, never into the params (D-193)', async () => {
+  it('always asks for passwords and hands them only to that step, never into the params (D-194)', async () => {
     const wf: Workflow = {
       id: 'wifi',
       name: 'Wi-Fi',

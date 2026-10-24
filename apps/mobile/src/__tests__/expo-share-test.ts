@@ -10,7 +10,7 @@ import {
   type ShareDeps,
 } from '../runtime/expo-share';
 
-// 输出去向（D-119、D-120、D-123、D-195）：原生模块 MorphShare 用假的，Expo Go 的退路也用假的。
+// 输出去向（D-119、D-120、D-123、D-196）：原生模块 MorphShare 用假的，Expo Go 的退路也用假的。
 
 const items = [
   { uri: 'file:///cache/runs/r/1/收据 1.jpg', name: '收据 1', ext: 'jpg', mimeType: 'image/jpeg' },
@@ -163,7 +163,7 @@ describe('saving to a folder', () => {
     ).rejects.toMatchObject({ code: 'folderNotWritable' });
   });
 
-  it('each shortcut keeps its own folder, starting from the last one chosen (D-195)', async () => {
+  it('each shortcut keeps its own folder, starting from the last one chosen (D-196)', async () => {
     const receipts = memoryFolder('Receipts', []);
     const contracts = memoryFolder('Contracts', []);
     const fallback = fallbackDeps(receipts.folder);

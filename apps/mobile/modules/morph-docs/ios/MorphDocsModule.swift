@@ -5,7 +5,7 @@ import WebKit
 
 // 办公文档转 PDF 的 iOS 实现（D-186）：WKWebView 打开文档（系统自己把 Word、Excel、PowerPoint、RTF 排成网页），
 // 等排版稳定后用 UIPrintPageRenderer 按纸张分页，画进 PDF。全部在本机，网页视图不联网（只读这一个文件）。
-// PDF 密码（D-193）：PDFKit 判断要不要密码、解锁后另存一份没有密码的、加上打开密码。密码只在这一次调用里用。
+// PDF 密码（D-194）：PDFKit 判断要不要密码、解锁后另存一份没有密码的、加上打开密码。密码只在这一次调用里用。
 
 final class DocUnreadableException: GenericException<String>, @unchecked Sendable {
   override var code: String { "ERR_DOC_UNREADABLE" }

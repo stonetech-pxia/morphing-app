@@ -61,7 +61,7 @@ export const MORE_IMPLS: Record<string, Impl> = {
   },
 
   async 'in.wifi'(_input, params, ctx) {
-    // 密码每次运行时问，只在这次运行里（D-198、D-193）。
+    // 密码每次运行时问，只在这次运行里（D-199、D-194）。
     const network = {
       name: String(params.network ?? ''),
       security: params.security as 'WPA' | 'WEP' | 'none',

@@ -163,7 +163,7 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
       marginMm: z.number().min(0).max(30),
       fit: z.enum(['contain', 'cover']),
       maxMB: z.number().min(0).max(100),
-      /** D-194：能搜索、复制文字（旧配置没有这个参数时当作关）。 */
+      /** D-195：能搜索、复制文字（旧配置没有这个参数时当作关）。 */
       textLayer: z.boolean().optional(),
     }),
     fields: [
@@ -613,7 +613,7 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
   },
 ];
 
-// ---- PDF 密码（D-193）：iOS 用 PDFKit；Android 先不做（P-025），运行时报不支持 ----
+// ---- PDF 密码（D-194）：iOS 用 PDFKit；Android 先不做（P-025），运行时报不支持 ----
 
 export const PDF_PASSWORD_ACTIONS: readonly ActionDefinition[] = [
   {

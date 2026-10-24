@@ -1,6 +1,6 @@
 import { requireOptionalNativeModule } from 'expo';
 
-// 本地 Expo 模块 MorphShare（D-119、D-120、D-123、D-195）：一次分享多个文件、把文件存进用户在「文件」里选的文件夹。
+// 本地 Expo 模块 MorphShare（D-119、D-120、D-123、D-196）：一次分享多个文件、把文件存进用户在「文件」里选的文件夹。
 // iOS 是 ios/MorphShareModule.swift（UIActivityViewController、UIDocumentPickerViewController 选文件夹），
 // Android 是 android/…/MorphShareModule.kt（ACTION_SEND_MULTIPLE、存储访问框架）。只用系统框架，不联网。
 // Expo Go 和测试里是 null，调用方退回逐个分享 / expo-file-system 选文件夹。
@@ -15,7 +15,7 @@ export interface MorphShareModule {
   /** 打开一次系统分享面板，带上全部文件（本机 file:// 地址）；面板关掉后返回。 */
   shareFiles(uris: readonly string[], mimeTypes: readonly string[]): Promise<void>;
   /**
-   * 这个快捷操作（key）会存进的文件夹的名字（D-195）：它自己记住的，没有时是最后选过的那个（D-123）；
+   * 这个快捷操作（key）会存进的文件夹的名字（D-196）：它自己记住的，没有时是最后选过的那个（D-123）；
    * 都没有、或者文件夹已经不在 / 授权被收回时为 null。
    */
   rememberedFolder(key: string): string | null;

@@ -78,7 +78,7 @@ const mergeWorkflow = (ops: Op[] = []) => pdfWorkspace(ops).workflows[0]!;
 
 const custom = (steps: Workflow['steps']): Workflow => ({ id: 'mine', name: '我的', steps });
 
-describe('PDF passwords (D-193)', () => {
+describe('PDF passwords (D-194)', () => {
   const unlock = custom([
     { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 10 } },
     { id: 'unlock', action: 'pdf.unlock', params: {} },
@@ -173,7 +173,7 @@ describe('PDF passwords (D-193)', () => {
   });
 });
 
-describe('adding an existing file (D-196)', () => {
+describe('adding an existing file (D-197)', () => {
   const wf = custom([
     { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 1 } },
     { id: 'add', action: 'file.addExisting', params: { position: 'before' } },
@@ -418,7 +418,7 @@ describe('input and output actions', () => {
     expect([...folder.keys()]).toEqual(['a.jpg', 'b.jpg', 'c.jpg']);
     expect(folder.get('a.jpg')).toEqual(new Uint8Array([0xff, 0xd8, 1]));
     expect(files.folderPicks).toBe(1);
-    // 记给这个快捷操作（D-195）。
+    // 记给这个快捷操作（D-196）。
     expect(files.rememberedBy.get(wf.id)).toBe('MorphOut');
 
     // 记住了文件夹（D-123）：下次直接存进去，不再弹选择器。

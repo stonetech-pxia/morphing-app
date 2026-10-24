@@ -67,7 +67,7 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
         label: { en: '20 MB', zh: '20 MB' },
         values: { by: 'size', maxMB: 20, quality: '720p' },
       },
-      // D-198：写上常见的限制，用户一看就知道选哪个（各平台的限制上线前再核对）。
+      // D-199：写上常见的限制，用户一看就知道选哪个（各平台的限制上线前再核对）。
       {
         id: '10mb',
         label: { en: '10 MB · Discord', zh: '10 MB · Discord' },

@@ -196,7 +196,7 @@ export function wifiProblem(net: WifiNetwork): WifiProblem | null {
 }
 
 /**
- * 手机相机扫 Wi-Fi 二维码时认的文字（D-198）：WIFI:T:WPA;S:网络名;P:密码;H:true;;
+ * 手机相机扫 Wi-Fi 二维码时认的文字（D-199）：WIFI:T:WPA;S:网络名;P:密码;H:true;;
  * 没有密码时 T:nopass、不写 P。先用 wifiProblem 检查。
  */
 export function wifiText(net: WifiNetwork): string {

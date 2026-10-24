@@ -117,7 +117,7 @@ describe('tool journeys (UI)', () => {
     expect(await screen.findByTestId('run-cancelled')).toBeTruthy();
   });
 
-  it('asks for the Wi-Fi password in a hidden field and never saves it (D-198)', async () => {
+  it('asks for the Wi-Fi password in a hidden field and never saves it (D-199)', async () => {
     const { repo } = await renderToolsApp();
     await fireEvent.press(screen.getByTestId('nav-tools'));
     await fireEvent.press(await screen.findByTestId('install-qr'));
@@ -139,7 +139,7 @@ describe('tool journeys (UI)', () => {
     expect(JSON.stringify(head!.config)).not.toContain('secret123');
   });
 
-  it('removes and adds PDF passwords: a password screen per file, the new password typed twice (D-193)', async () => {
+  it('removes and adds PDF passwords: a password screen per file, the new password typed twice (D-194)', async () => {
     const { files } = await renderToolsApp();
     await fireEvent.press(screen.getByTestId('nav-tools'));
     await fireEvent.press(await screen.findByTestId('install-pdf'));

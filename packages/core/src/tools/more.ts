@@ -229,7 +229,7 @@ export const qrTool = simpleTool({
       ],
     },
     {
-      // D-198：给客人连 Wi-Fi 的码。每次问网络名和加密方式，密码总是问、不保存。
+      // D-199：给客人连 Wi-Fi 的码。每次问网络名和加密方式，密码总是问、不保存。
       id: 'qr-wifi',
       name: t(locale, 'Wi-Fi QR code', 'Wi-Fi 二维码'),
       steps: [

@@ -20,7 +20,7 @@ describe('action contracts', () => {
     (_id, action) => {
       const json = z.toJSONSchema(action.params) as { properties?: Record<string, unknown> };
       const keys = Object.keys(json.properties ?? {}).sort();
-      // 密码（secret）不在参数结构里：每次运行时问，不保存（D-193）。
+      // 密码（secret）不在参数结构里：每次运行时问，不保存（D-194）。
       const saved = action.fields.filter((f) => f.kind !== 'secret');
       expect(saved.map((f) => f.key).sort()).toEqual(keys);
       for (const preset of action.presets ?? []) {

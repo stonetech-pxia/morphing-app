@@ -3,7 +3,7 @@ import { requireOptionalNativeModule } from 'expo';
 // 本地 Expo 模块 MorphDocs（D-186）：iOS 用系统的文档预览（WKWebView 能显示 Word、Excel、PowerPoint、RTF）
 // 加打印排版，把办公文档分页画成 PDF。只有 iOS；Android 系统不会显示办公文档，App 在 JS 里用 mammoth
 // 把 Word 转成网页再打印（runtime/expo-documents.ts）。Expo Go 和测试里是 null。
-// PDF 密码（D-193）也在这里：iOS 的 PDFKit。Android 没有（P-025）。
+// PDF 密码（D-194）也在这里：iOS 的 PDFKit。Android 没有（P-025）。
 // 出错时 error.code：ERR_DOC_UNREADABLE（打不开：损坏、加密、格式不对）、ERR_DOC_FAILED。
 
 export interface MorphDocsModule {

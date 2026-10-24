@@ -135,7 +135,7 @@ describe('downscaleRgba', () => {
   });
 });
 
-describe('Wi-Fi QR codes (D-198)', () => {
+describe('Wi-Fi QR codes (D-199)', () => {
   const net = { name: 'Home', security: 'WPA' as const, password: 'secret123', hidden: false };
 
   it('writes the text phone cameras read, escaping special characters', () => {

@@ -93,7 +93,7 @@ class MorphVisionModule : Module() {
         val lines = result.textBlocks.flatMap { block ->
           block.lines.mapNotNull { line -> line.boundingBox?.let { TextLine(line.text, it) } }
         }
-        // 每行的位置（D-194）：像素，原点在左上角；框是按拍摄方向摆正后的坐标，宽高也按摆正后的给。
+        // 每行的位置（D-195）：像素，原点在左上角；框是按拍摄方向摆正后的坐标，宽高也按摆正后的给。
         val turned = image.rotationDegrees == 90 || image.rotationDegrees == 270
         val items = lines.map {
           mapOf(

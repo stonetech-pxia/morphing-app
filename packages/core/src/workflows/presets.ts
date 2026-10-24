@@ -238,7 +238,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
-    // D-196：扫一张收据，接到上次的报销单后面，合成一份。
+    // D-197：扫一张收据，接到上次的报销单后面，合成一份。
     id: 'expense-report',
     scenario: 'receipts',
     name: { en: 'Expense report: add a receipt', zh: '报销单：扫一张加一张' },
@@ -323,7 +323,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
-    // D-198：扫老照片。找边拉正，不增强、不压缩，存回相册。
+    // D-199：扫老照片。找边拉正，不增强、不压缩，存回相册。
     id: 'old-photos',
     scenario: 'photos',
     name: { en: 'Scan old photos', zh: '扫老照片' },

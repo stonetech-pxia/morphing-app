@@ -5,7 +5,7 @@ import { t } from '../../i18n';
 import type { LocalScreenProps } from '../RunScreen';
 import { LocalFrame } from './LocalFrame';
 
-// 去掉 PDF 密码（D-193）：要密码才能打开的 PDF，逐个输密码。密码只交给这一次运行，不保存、不发给 AI。
+// 去掉 PDF 密码（D-194）：要密码才能打开的 PDF，逐个输密码。密码只交给这一次运行，不保存、不发给 AI。
 
 export function PasswordScreen({
   input,

@@ -2,7 +2,7 @@ import { RunCancelled, RunError, type ActionImpl, type RunItem } from '@morph/co
 
 import { displayName, fileItems, freshName, type RunServices } from './helpers';
 
-// PDF 密码（D-193）：去掉打开密码、加上打开密码。iOS 用 PDFKit（modules/morph-docs）；
+// PDF 密码（D-194）：去掉打开密码、加上打开密码。iOS 用 PDFKit（modules/morph-docs）；
 // Android 和 Expo Go 没有（P-025），运行时报不支持。密码只在这一次运行里用，不保存、不进运行记录。
 
 type Impl = ActionImpl<RunServices>;

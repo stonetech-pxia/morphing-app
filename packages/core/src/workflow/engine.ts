@@ -253,7 +253,7 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
       const impl = opts.impls[step.action];
       if (!impl) throw new RunError('unsupportedAction', { action: step.action });
       let params = action.params.parse(step.params);
-      // 密码每次都问（D-193），和配置里的 ask 一起问；回答分开放，不进参数。
+      // 密码每次都问（D-194），和配置里的 ask 一起问；回答分开放，不进参数。
       const secretKeys = action.fields.filter((f) => f.kind === 'secret').map((f) => f.key);
       const keys = [...(step.ask ?? []), ...secretKeys.filter((k) => !step.ask?.includes(k))];
       const secrets: Record<string, string> = {};

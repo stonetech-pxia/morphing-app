@@ -114,7 +114,7 @@ async function importPicked(
 }
 
 /**
- * 这个快捷操作上次存下的结果（D-196）：运行记录里最近一次成功、存了文件的那次。文件已经删了、
+ * 这个快捷操作上次存下的结果（D-197）：运行记录里最近一次成功、存了文件的那次。文件已经删了、
  * 或者没有授权给它（§7G）时为 null。
  */
 async function lastResult(ctx: Parameters<Impl>[2]): Promise<PickedFile | null> {
@@ -406,7 +406,7 @@ export const IO_IMPLS: Record<string, Impl> = {
   },
 
   async 'out.saveToFolder'(input, _params, ctx) {
-    // 有记住的文件夹就直接存进去，第一次才让用户选（D-123）；每个快捷操作记自己的（D-195）。
+    // 有记住的文件夹就直接存进去，第一次才让用户选（D-123）；每个快捷操作记自己的（D-196）。
     // 用户关掉选择器不算失败（和关掉分享面板一样），结果页上还可以再存。
     await ctx.services.files.saveToFolder(fileItems(input), ctx.workflow.id);
     return input!;

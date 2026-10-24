@@ -280,7 +280,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     requires: [],
   },
   {
-    // D-198：给客人连 Wi-Fi 的二维码。网络名是用户写的（发给 AI 前换成占位符），密码每次运行时问、不保存。
+    // D-199：给客人连 Wi-Fi 的二维码。网络名是用户写的（发给 AI 前换成占位符），密码每次运行时问、不保存。
     id: 'in.wifi',
     label: { en: 'Wi-Fi details', zh: 'Wi-Fi 信息' },
     description: {
@@ -397,7 +397,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     requires: [],
   },
   {
-    // D-196：一份报销单越攒越多。默认接上这个快捷操作上次存下的结果；选中的文件只在这次运行里用。
+    // D-197：一份报销单越攒越多。默认接上这个快捷操作上次存下的结果；选中的文件只在这次运行里用。
     id: 'file.addExisting',
     label: { en: 'Add an existing file', zh: '加上已有文件' },
     description: {

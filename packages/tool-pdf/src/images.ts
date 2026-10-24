@@ -23,7 +23,7 @@ import {
 import { type MergeResult, PdfError, assertNumber } from './core';
 
 // 图片转 PDF：每张图片一页，按页面选项排版并居中。图片带着识别出的文字时，在上面画一层看不见的字
-// （D-194）：PDF 看起来不变，但能搜索、选中、复制。
+// （D-195）：PDF 看起来不变，但能搜索、选中、复制。
 
 export type ImageKind = 'jpeg' | 'png';
 
@@ -90,7 +90,7 @@ export function assertImagePageOptions(opts: ImagePageOptions): void {
 }
 
 /**
- * 看不见的文字层（D-194）：每行用文字渲染模式「不可见」画在识别框的位置，横向缩放到框的宽度。
+ * 看不见的文字层（D-195）：每行用文字渲染模式「不可见」画在识别框的位置，横向缩放到框的宽度。
  * 只写 Helvetica 写得出的字（拉丁字母，P-028）；有别的字的那一行跳过。
  */
 function drawTextLayer(

@@ -64,7 +64,7 @@ export interface ParamField {
   label: Localized;
   /**
    * collection：选一张数据表（选项来自配置）；fields：选这张表的几个字段（编辑页按前面「读取记录」步骤的表列出）。
-   * secret：密码（D-193、D-198）。不在参数结构里，配置存不进去、AI 看不到；每次运行时都问，
+   * secret：密码（D-194、D-199）。不在参数结构里，配置存不进去、AI 看不到；每次运行时都问，
    * 只交给这一次运行（StepContext.secrets），不进运行记录。
    */
   kind:
@@ -90,7 +90,7 @@ export interface ParamField {
   ask?: boolean;
   /** 用户自己写的文字（水印、文字戳）：发给 AI 前替换成占位符（D-065）。 */
   private?: boolean;
-  /** secret 要输两遍、一样才行（给 PDF 加密码，D-193）。 */
+  /** secret 要输两遍、一样才行（给 PDF 加密码，D-194）。 */
   confirm?: boolean;
 }
 

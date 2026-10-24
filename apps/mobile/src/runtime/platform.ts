@@ -86,7 +86,7 @@ export interface VisionPlatform {
   supportsLanguage(code: string): boolean;
   /** 识别文字；languages 是 BCP 47，第一种是用户选的语言。文字只返回给 App。 */
   recognizeText(uri: string, languages: readonly string[]): Promise<string>;
-  /** 识别文字，给出每行的位置（可搜索 PDF 的文字层，D-194）。 */
+  /** 识别文字，给出每行的位置（可搜索 PDF 的文字层，D-195）。 */
   recognizeLines(uri: string, languages: readonly string[]): Promise<TextLayer>;
   /** 能不能给照片找边和拉正（findPaper / straighten）；Android 的 ML Kit 不能。 */
   readonly canFindPaper: boolean;
@@ -279,7 +279,7 @@ export interface MediaPlatform {
  * 办公文档转 PDF（D-186）。iOS 用系统的文档预览排版（modules/morph-docs），Word、Excel、PowerPoint、RTF 都能转；
  * Android（和没有原生模块的 Expo Go）用 mammoth 把 Word（.docx）转成网页再打印成 PDF。
  */
-/** PDF 密码（D-193，modules/morph-docs 的 PDFKit）。结果写成本次运行的临时文件 runs/<runId>/<relPath>。 */
+/** PDF 密码（D-194，modules/morph-docs 的 PDFKit）。结果写成本次运行的临时文件 runs/<runId>/<relPath>。 */
 export interface PdfPasswordPlatform {
   /** none：没有加密；restricted：不用密码能打开但有限制；locked：要密码才能打开。打不开时抛出错误。 */
   lockState(uri: string): Promise<'none' | 'restricted' | 'locked'>;
@@ -413,7 +413,7 @@ export interface FilePlatform {
   /** 打开一次系统分享面板带上全部文件（MorphShare，D-119）；没有原生模块时（Expo Go）逐个打开。 */
   shareUris(items: readonly { uri: string; mimeType: string }[]): Promise<void>;
   /**
-   * 把文件复制进「文件」里的一个文件夹（D-120）。每个快捷操作（key 是它的 ID）记住自己的文件夹（D-195）：
+   * 把文件复制进「文件」里的一个文件夹（D-120）。每个快捷操作（key 是它的 ID）记住自己的文件夹（D-196）：
    * choose 不为 true 时有记住的就直接存进去，还没有时用最后选过的那个（D-123）并记给它；
    * 否则让用户选一个并记住它。返回存了几个和文件夹名，用户取消时返回 null。
    * 文件夹写不进去时抛出 folderNotWritable。

@@ -185,7 +185,7 @@ export function RunScreen({
           setAsk({ ...request, resolve }),
         );
         if (answer) {
-          // 密码不留下来（D-193）。
+          // 密码不留下来（D-194）。
           const secret = (k: string) =>
             request.action.fields.find((f) => f.key === k)?.kind === 'secret';
           const values = Object.fromEntries(

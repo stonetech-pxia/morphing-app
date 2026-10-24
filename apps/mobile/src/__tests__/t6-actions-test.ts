@@ -301,7 +301,7 @@ describe('QR codes and text', () => {
     });
   });
 
-  it('makes a Wi-Fi QR code; the password is asked on every run and never saved (D-198)', async () => {
+  it('makes a Wi-Fi QR code; the password is asked on every run and never saved (D-199)', async () => {
     const wifi = setup(toolWorkflow('qr', 'qr-wifi'), {
       network: 'Home;5G',
       security: 'WPA',
