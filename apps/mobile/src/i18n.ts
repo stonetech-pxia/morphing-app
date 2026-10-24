@@ -95,6 +95,44 @@ const strings = {
   uninstallTitle: { en: 'Remove {name}?', zh: '移除{name}工具？' },
   removeCardSummary: { en: 'Took {name} off home', zh: '从首页移除了{name}' },
   addCardSummary: { en: 'Put {name} on home', zh: '把{name}放到了首页' },
+  // 下载的工具（D-177）
+  toolDownloadSize: { en: 'Downloads {size}', zh: '需要下载 {size}' },
+  toolDownloading: { en: 'Downloading…', zh: '正在下载…' },
+  toolNeedsAppUpdate: {
+    en: 'Needs a newer version of this app',
+    zh: '需要先更新 App 才能添加',
+  },
+  toolRevoked: { en: 'Paused', zh: '暂时停用' },
+  toolRevokedRun: {
+    en: '“{name}” is paused for now, so this quick action can’t run. Try again later.',
+    zh: '「{name}」暂时停用了，这个快捷操作现在不能用。过一阵再试试。',
+  },
+  toolDownloadFailedTitle: { en: '“{name}” was not added', zh: '「{name}」没有添加' },
+  toolDownloadFailed: {
+    en: 'It could not be downloaded. Check the network and try again.',
+    zh: '没有下载成功。请检查网络后再试。',
+  },
+  toolDownloadRejected: {
+    en: 'What was downloaded did not pass the safety check, so nothing was changed.',
+    zh: '下载的内容没有通过安全检查，什么都没有改。',
+  },
+  restoreNeedsTool: {
+    en: 'This version uses {names}, which is not on this phone. Add it in Tools first, then restore.',
+    zh: '这个版本用到了「{names}」，这台手机上还没有。先到「工具」里添加，再恢复。',
+  },
+  listSeparator: { en: ', ', zh: '、' },
+  toolDownloadedHint: {
+    en: 'A tool downloaded from the Morph catalog.',
+    zh: '从 Morph 工具目录下载的工具。',
+  },
+  toolDeleteMessage: {
+    en: 'You can download it again from Tools later.',
+    zh: '以后可以在「工具」里再下载。',
+  },
+  toolDeleteAdded: {
+    en: 'This tool is still added. Remove it in Tools first, then delete it here.',
+    zh: '这个工具还在用。先到「工具」里移除它，再回来删除。',
+  },
 
   // 设置
   settingsTitle: { en: 'Settings', zh: '设置' },

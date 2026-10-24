@@ -39,3 +39,5 @@ export * from './workflow/engine';
 export * from './workflow/redact';
 export * from './workflows/presets';
 export * from './packs';
+export * from './tool-download';
+export * from './tool-keys';

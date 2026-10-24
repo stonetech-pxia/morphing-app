@@ -43,6 +43,8 @@ cd android && EXPO_PUBLIC_MORPH_API_URL=https://morph-api.stonetech.dev \
 adb -s <序列号> install -r app/build/outputs/apk/release/app-release.apk
 ```
 
+下载的工具（D-177–D-179）：打包时再设 `EXPO_PUBLIC_MORPH_TOOLS_URL=<R2 上目录的地址>`，Mac mini 的 `.env` 设同一个地址 `MORPH_TOOLS_URL=…`（不要设 `MORPH_TOOLS_DEV_KEY`）。发布工具不用重启服务，它每 15 分钟拉一次目录；发布步骤见 [TOOL_DOWNLOAD_DESIGN.md](TOOL_DOWNLOAD_DESIGN.md) §13。
+
 客户端令牌会打包进 App，不是秘密（D-132）。换令牌会让旧版本 App 全部 401，所以只在被滥用时才换。
 
 ## Mac 需要保持的状态

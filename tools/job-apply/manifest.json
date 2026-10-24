@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "id": "job-apply",
+  "version": "1.0.0",
+  "hostApi": 1,
+  "ageRating": "4+",
+  "name": { "en": "Job application", "zh": "求职材料" },
+  "description": {
+    "en": "Put your CV and certificates into one small PDF, and shrink a profile photo for application forms.",
+    "zh": "把简历和证书合成一个小 PDF，把头像压到网申表格要的大小。"
+  },
+  "intro": {
+    "en": "Everything runs on this device; nothing is uploaded.",
+    "zh": "全部在本机处理，不会上传。"
+  },
+  "icon": "person",
+  "aliases": ["job application", "cv", "resume", "求职", "求职材料", "简历", "网申"],
+  "permissions": ["files.pick"],
+  "workflows": [
+    {
+      "id": "job-apply-docs",
+      "name": { "en": "CV and certificates in one PDF", "zh": "简历和证书合成一个 PDF" },
+      "icon": "merge",
+      "steps": [
+        {
+          "id": "pick",
+          "action": "in.files",
+          "params": { "accept": "pdfOrImages", "min": 1, "max": 20 }
+        },
+        { "id": "merge", "action": "pdf.merge", "params": { "imagePage": "a4" } },
+        { "id": "pages", "action": "pdf.pages", "params": {} },
+        {
+          "id": "compress",
+          "action": "pdf.compress",
+          "params": { "maxMB": 2, "whenTooBig": "ask" },
+          "ask": ["maxMB"]
+        },
+        { "id": "name", "action": "file.rename", "params": { "template": "{sourceName}-{date}" } },
+        { "id": "share", "action": "out.share", "params": {} }
+      ]
+    },
+    {
+      "id": "job-apply-photo",
+      "name": { "en": "Profile photo under 200 KB", "zh": "头像压到 200 KB" },
+      "icon": "photo",
+      "steps": [
+        {
+          "id": "pick",
+          "action": "in.photos",
+          "params": { "source": "library", "min": 1, "max": 1 }
+        },
+        { "id": "crop", "action": "image.crop", "params": { "aspect": "1:1" } },
+        { "id": "size", "action": "image.resize", "params": { "mode": "longEdge", "px": 800 } },
+        {
+          "id": "compress",
+          "action": "image.compress",
+          "params": { "maxKB": 200, "format": "jpeg" },
+          "ask": ["maxKB"]
+        },
+        { "id": "share", "action": "out.share", "params": {} }
+      ]
+    }
+  ]
+}

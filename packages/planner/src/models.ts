@@ -4,7 +4,8 @@ import type { Localized } from '@morph/core';
 // https://platform.claude.com/docs/en/about-claude/pricing
 // costPerChange 来自 2026-10-22 评测集实测的平均值（系统提示词已缓存）。
 
-export const DEFAULT_MODEL = 'claude-opus-5-5';
+// 默认 Haiku（P-010，创始人 2026-10-23 定）：评测和 Opus 一样全部通过，价格约为 1/25。
+export const DEFAULT_MODEL = 'claude-haiku-5-5';
 
 export interface ModelInfo {
   id: string;
@@ -20,7 +21,7 @@ export const MODELS: readonly ModelInfo[] = [
     name: 'Claude Opus 5.5',
     price: { input: 4, output: 20, cacheRead: 0.2 },
     costPerChange: 0.005,
-    note: { zh: '能力最强（默认）', en: 'Most capable (default)' },
+    note: { zh: '能力最强', en: 'Most capable' },
   },
   {
     id: 'claude-sonnet-5-5',
@@ -34,7 +35,7 @@ export const MODELS: readonly ModelInfo[] = [
     name: 'Claude Haiku 5.5',
     price: { input: 0.1, output: 0.5, cacheRead: 0.01 },
     costPerChange: 0.0002,
-    note: { zh: '最便宜', en: 'Lowest cost' },
+    note: { zh: '最便宜（默认）', en: 'Lowest cost (default)' },
   },
 ];
 
