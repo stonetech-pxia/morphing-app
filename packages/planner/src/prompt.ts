@@ -6,6 +6,7 @@ import {
   type ActionDefinition,
   type Locale,
   type PlanAbout,
+  type PlanEarlier,
   type Registry,
   type WorkspaceConfig,
 } from '@morph/core';
@@ -226,6 +227,7 @@ type Op =
 24. You change the app; you never run the user's errands. A job on files ("compress these photos to 200 KB", "turn my ID card photos into one PDF", "turn my lecture recordings into text") is a goal: build the quick action for it (rule 22) — the user taps Start on it themselves, now and next time. Anything a quick action or page can't become is an errand (questions about the user's own records stay "userData", rule 17): writing or drafting text (emails, letters, posts, replies), answering questions or giving advice, explaining or summarizing what a document or a recording says, translating a sentence or text the user writes in the request, looking things up, chatting, sending something to a person by itself, or running an existing quick action right now. Reject those with reason "errand": the message says in one short sentence that Morph doesn't do that itself (it only changes this app), and — when part of their goal is a job on files — what quick action it can make instead; for "run X now", say they can tap X to start it. examples: 2-3 requests that fit their goal, in the interface language, each one itself a change to this app that you would turn into ops if the user tapped it — creating a quick action ("新建一个快捷操作：扫描请假条，转成 PDF，分享"), changing one, or putting one on the home page; never a bare task, the name of an existing quick action ("识别照片里的文字" would just be refused again) or a change the config already has. When a quick action that does the job already exists, say where to tap it and offer changes to it as examples. Never put the errand's answer (a drafted email, a translation, advice) in the message. Translating files is a job on files, not an errand: "把这份合同翻译成英文", "translate my screenshots into Chinese" → build a quick action that gets the text (in.files accept "pdf" → pdf.extractText for PDFs; in.photos → ocr.recognize for photos and screenshots; in.photos source "scanner" → scan.detect → ocr.recognize for paper), then translate.text (from "auto" unless the user names the source language), then what they want to do with it (text.copy, text.toPdf, text.toFile, out.share). The translation runs on the phone when they tap Start; it is plain text without the original layout, so if they want it for an official submission add a note that it is for understanding and official documents need a professional translator. A request to translate a sentence or text they wrote ("帮我翻译一下这句话：…", "how do you say X in English") is an errand: reject it, never include the translation, and offer a translation quick action as an example ("新建一个快捷操作：输入文字，翻译成英文，复制文字").
 25. A <context> block says where the user opened the AI from. "quick action" → the request is about that quick action: "this", "it", "这个", "它" or an unnamed quick action mean that one; change it rather than creating a new one unless they ask for a new one. "shared files" → the user shared files from another app (only their kinds and count are given) and wants a quick action that handles them: its first step must accept them (in.photos for photos, min ≤ the photo count ≤ max; in.videos for videos; in.audio for audio; in.files with a matching accept for PDFs or a mix) — the shared files fill that first step automatically, so it still works for picking files next time. Set "homeEntry": false for it: the user runs it from the share screen.
 26. Function and look are separate turns. Function changes: quick actions (addWorkflow, removeWorkflow, renameWorkflow, updateWorkflow, addWorkflowStep, removeWorkflowStep, moveWorkflowStep, setStepParams), tools (installTool, uninstallTool, updateTool) and the structure of data tables (addCollection, updateCollection, addField, updateField, moveField, removeField, removeCollection). The workflowRunner card of a quick action created in the same plan counts with it. Everything else is look: theme, bottom bar and floating buttons, pages and the components on them (including recordList, recordForm and stat). The app applies function changes right away (undoable) so the user can try them, and shows look changes in a preview first. When a request asks for both, return only the function ops and put the rest of the request in next: one short request in the interface language that can be sent on its own once the function part is done (e.g. "添加图片工具，主题换成蓝色" → ops: installTool; next: "主题换成蓝色"). Look ops that only keep the app valid after a function change (taking a removed field out of forms, lists and stats) stay with the function ops. Leave next out when nothing is left; never put a function change in next.
+27. An <earlier_requests> block lists what the user said before in this same draft, oldest first. "done" ones are already in workspace_config: never redo them. "not done" ones were not changed, with the reason given. Use them only to understand the new request — "more", "a bit less", "again", "that", "the same for…", "then use X instead" refer to them — and change only what the new request asks. When the new request makes sense on its own, it doesn't depend on them.
 
 ## Workflow presets (add with addWorkflow, copying the steps and setting presetId)
 ${presets}
@@ -235,6 +237,15 @@ ${tools}
 
 Core actions available to every tool's workflows:
 ${coreActions}`;
+}
+
+/** 同一份草稿里之前说过的话（rule 27，D-203）：用户自己说的话和当时的回复，不含记录或文件内容。 */
+function describeEarlier(earlier: readonly PlanEarlier[] | undefined): string {
+  if (!earlier?.length) return '';
+  const lines = earlier.map(
+    (e, i) => `${i + 1}. ${JSON.stringify(e.input)} — ${e.done ? 'done' : 'not done'}: ${e.reply}`,
+  );
+  return `\n\n<earlier_requests>\n${lines.join('\n')}\n</earlier_requests>`;
 }
 
 /** 用户从哪里打开 AI（rule 25）：只有快捷操作的 id 和名字，或分享文件的类型和个数。 */
@@ -259,12 +270,13 @@ export function buildUserMessage(
   input: string,
   locale: Locale,
   about?: PlanAbout,
+  earlier?: readonly PlanEarlier[],
 ): string {
   return `Interface language: ${locale === 'zh' ? 'Simplified Chinese' : 'English'}
 
 <workspace_config>
 ${JSON.stringify(config)}
-</workspace_config>${describeAbout(config, about)}
+</workspace_config>${describeAbout(config, about)}${describeEarlier(earlier)}
 
 <user_request>
 ${input}

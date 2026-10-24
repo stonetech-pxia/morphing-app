@@ -1,4 +1,11 @@
-import { BUILTIN_TOOLS, allComponents, createMockAIProvider, createRegistry } from '@morph/core';
+import {
+  BUILTIN_TOOLS,
+  allComponents,
+  createMockAIProvider,
+  createRegistry,
+  type AIProvider,
+  type PlanContext,
+} from '@morph/core';
 
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { createWorkspaceStore, shownConfig, type WorkspaceStore } from '../workspace/store';
@@ -265,5 +272,105 @@ describe('function changes go straight in (D-191)', () => {
     const shown = shownConfig(store.getState())!;
     expect(shown.theme.primaryColor).toBe('#2F9E44');
     expect(shown.workflows.some((w) => w.id === 'visa-photo')).toBe(true);
+  });
+});
+
+describe('the draft chat remembers what was said (D-203)', () => {
+  /** 记下每次交给 AI 的上下文。 */
+  async function recorded(repo = new MemoryWorkspaceRepo()) {
+    const mock = createMockAIProvider();
+    const contexts: PlanContext[] = [];
+    const provider: AIProvider = {
+      plan: (input, ctx) => {
+        contexts.push(ctx);
+        return mock.plan(input, ctx);
+      },
+    };
+    const store = createWorkspaceStore({
+      repo,
+      provider,
+      registry,
+      locale: 'zh',
+      now: () => new Date(2026, 9, 24, 9, 0),
+    });
+    await store.getState().boot();
+    return { store, contexts };
+  }
+
+  it('earlier sentences of this draft go to the AI with what came of them', async () => {
+    const { store, contexts } = await recorded();
+    await say(store, '首页改成文件工作台');
+    expect(contexts[0]!.earlier).toBeUndefined();
+    const lines = store.getState().draft!.steps[0]!.lines;
+    const refused = await store.getState().draftChange('撤销刚才的修改');
+    await say(store, '主题换成绿色');
+    expect(contexts[2]!.earlier).toEqual([
+      { input: '首页改成文件工作台', done: true, reply: lines.join('; ') },
+      {
+        input: '撤销刚才的修改',
+        done: false,
+        reply: refused.kind === 'rejected' ? refused.message : '',
+      },
+    ]);
+  });
+
+  it('only the last five sentences are sent; stepping back is not one of them', async () => {
+    const { store, contexts } = await recorded();
+    for (const input of [
+      '主题换成绿色',
+      '主题换成蓝色',
+      '主题换成红色',
+      '字体大一点',
+      '字体小一点',
+    ])
+      await say(store, input);
+    await store.getState().draftChange('撤销');
+    await say(store, '主题换成紫色');
+    expect(contexts.at(-1)!.earlier!.map((e) => e.input)).toEqual([
+      '主题换成绿色',
+      '主题换成蓝色',
+      '主题换成红色',
+      '字体大一点',
+    ]);
+    await say(store, '主题换成橙色');
+    await say(store, '主题换成粉色');
+    expect(contexts.at(-1)!.earlier!.map((e) => e.input)).toEqual([
+      '主题换成蓝色',
+      '主题换成红色',
+      '字体大一点',
+      '主题换成紫色',
+      '主题换成橙色',
+    ]);
+  });
+
+  it('“Change this app” starts fresh even with a draft around', async () => {
+    const { store, contexts } = await recorded();
+    await say(store, '主题换成绿色');
+    await store.getState().change('首页改成文件工作台');
+    expect(contexts.at(-1)!.earlier).toBeUndefined();
+  });
+
+  it('replies are kept with the draft, survive a restart and go with the steps they follow', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    const { store } = await recorded(repo);
+    await say(store, '首页改成文件工作台');
+    await store.getState().draftChange('撤销刚才的修改');
+    await say(store, '主题换成绿色');
+    await store.getState().draftChange('添加签证照片快捷操作');
+    expect(store.getState().draft!.replies).toMatchObject([
+      { afterSteps: 1, input: '撤销刚才的修改', kind: 'rejected' },
+      { afterSteps: 2, input: '添加签证照片快捷操作', kind: 'functionInDraft' },
+    ]);
+
+    const { store: again } = await recorded(repo);
+    expect(again.getState().draft!.replies).toEqual(store.getState().draft!.replies);
+    again.getState().openDraft();
+    // 退一步：排在退掉的那一步后面的回复一起去掉。
+    await again.getState().stepBack();
+    expect(again.getState().draft!.replies.map((r) => r.input)).toEqual(['撤销刚才的修改']);
+
+    await again.getState().applyDraft();
+    await say(again, '字体大一点');
+    expect(again.getState().draft!.replies).toEqual([]);
   });
 });

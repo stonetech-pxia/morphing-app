@@ -17,6 +17,7 @@ import {
   type Op,
   type Plan,
   type PlanAbout,
+  type PlanEarlier,
   type PreparedChange,
   type Registry,
   type RejectReason,
@@ -116,9 +117,51 @@ export interface DraftOrigin {
  */
 export interface Draft {
   steps: DraftStep[];
+  /** 聊天框里没变成一步的话和回复（D-203），跟草稿一起存盘。 */
+  replies: DraftChatReply[];
   origin: DraftOrigin;
   /** 正在草稿模式里；false = 离开了，草稿还在。 */
   open: boolean;
+}
+
+/** 草稿聊天框里没变成一步的一句话（D-203）：做不到、不合格、功能类、退了一步。 */
+export interface DraftChatReply {
+  /** 说的时候草稿有几步：聊天框把它排在这一步后面；退一步退过它时一起去掉。 */
+  afterSteps: number;
+  input: string;
+  kind: 'rejected' | 'invalid' | 'functionInDraft' | 'steppedBack';
+  message: string;
+  examples: string[];
+  reason?: RejectReason;
+}
+
+/** 带给 AI 的最近几句（D-203）。 */
+const EARLIER_LIMIT = 5;
+
+/** 草稿聊天框里之前说过的话，按说的顺序，最多 EARLIER_LIMIT 句；退一步不算一句。 */
+function earlierOf(draft: Draft): PlanEarlier[] {
+  const all: PlanEarlier[] = [];
+  const said = (after: number) => {
+    for (const r of draft.replies) {
+      if (r.afterSteps === after && r.kind !== 'steppedBack')
+        all.push({ input: r.input, done: false, reply: r.message });
+    }
+  };
+  said(0);
+  draft.steps.forEach((step, i) => {
+    all.push({ input: step.input, done: true, reply: step.lines.join('; ') });
+    said(i + 1);
+  });
+  return all.slice(-EARLIER_LIMIT);
+}
+
+/** 草稿只留前几步时，排在去掉的那些步后面的回复也去掉。 */
+function keepSteps(draft: Draft, steps: DraftStep[]): Draft {
+  return {
+    ...draft,
+    steps,
+    replies: draft.replies.filter((r) => r.afterSteps <= steps.length),
+  };
 }
 
 export type DraftResult =
@@ -465,6 +508,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       const stored = draft && {
         origin: draft.origin,
         steps: draft.steps.map(({ config: _, ...step }) => step),
+        replies: draft.replies,
       };
       await repo.setMeta(DRAFT_META_KEY, stored ? JSON.stringify(stored) : '');
     }
@@ -474,7 +518,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
      * 套不上的那一步和后面的都去掉，并提示用户。
      */
     function rebaseDraft(
-      draft: Pick<Draft, 'origin' | 'open'> & { steps: Omit<DraftStep, 'config'>[] },
+      draft: Pick<Draft, 'origin' | 'open' | 'replies'> & { steps: Omit<DraftStep, 'config'>[] },
     ): Draft | null {
       const { config } = get();
       if (!config) return null;
@@ -494,7 +538,12 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
           error: 'no longer applies',
         });
       }
-      return steps.length > 0 ? { ...draft, steps } : null;
+      if (steps.length === 0) return null;
+      return {
+        ...draft,
+        steps,
+        replies: draft.replies.filter((r) => r.afterSteps <= steps.length),
+      };
     }
 
     async function loadDraft() {
@@ -503,8 +552,10 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       try {
         const stored = JSON.parse(raw) as Pick<Draft, 'origin'> & {
           steps: Omit<DraftStep, 'config'>[];
+          /** D-203 之前存的草稿没有。 */
+          replies?: DraftChatReply[];
         };
-        const draft = rebaseDraft({ ...stored, open: false });
+        const draft = rebaseDraft({ ...stored, replies: stored.replies ?? [], open: false });
         set({ draft });
         if (!draft || draft.steps.length !== stored.steps.length) await saveDraft(draft);
       } catch {
@@ -527,6 +578,36 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       const withEntry = [...ops, ...homeEntryOps(prepared.after, homeless)];
       const full = prepareOps(before, withEntry, { registry, locale, now: deps.now() });
       return full.ok ? { ops: withEntry, prepared: full } : { ops, prepared };
+    }
+
+    /** 聊天框里没变成一步的结果记成一条回复（D-203）。 */
+    function replyFor(
+      input: string,
+      result: ChangeResult,
+    ): Omit<DraftChatReply, 'afterSteps'> | null {
+      switch (result.kind) {
+        case 'rejected':
+          return {
+            input,
+            kind: 'rejected',
+            message: result.message,
+            examples: result.examples,
+            ...(result.reason ? { reason: result.reason } : {}),
+          };
+        case 'invalid':
+          return {
+            input,
+            kind: 'invalid',
+            message: `${msg('invalidPlan')} ${result.issues.join('；')}`,
+            examples: [],
+          };
+        case 'functionInDraft':
+          return { input, kind: 'functionInDraft', message: result.message, examples: [] };
+        case 'steppedBack':
+          return { input, kind: 'steppedBack', message: msg('draftSteppedBack'), examples: [] };
+        default:
+          return null;
+      }
     }
 
     async function failedPlan(input: string, plan: unknown, error: string) {
@@ -555,11 +636,14 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         const base = current?.steps.at(-1)?.config ?? config;
         // 草稿里接着说的话沿用开始时的上下文：「这个」还是那个快捷操作（D-124）。
         const about = origin.about ?? current?.origin.about;
+        // 草稿聊天框里接着说：之前说过的话一起带上，用户不用每次都从头说（D-203）。
+        const earlier = inChat && current ? earlierOf(current) : [];
         const raw = await planner.plan(input, {
           config: base,
           registry,
           locale,
           ...(about ? { about } : {}),
+          ...(earlier.length ? { earlier } : {}),
         });
         const parsed = PlanSchema.safeParse(raw);
         if (!parsed.success) {
@@ -638,6 +722,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         };
         const draft: Draft = {
           steps: [...(current?.steps ?? []), step],
+          replies: current?.replies ?? [],
           origin: current?.origin ?? origin,
           open: true,
         };
@@ -1001,7 +1086,20 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       change: (input, planner = deps.provider, origin = {}) =>
         aiChange(input, planner, origin, false),
 
-      draftChange: (input) => aiChange(input, deps.provider, {}, true),
+      async draftChange(input) {
+        const result = await aiChange(input, deps.provider, {}, true);
+        const draft = get().draft;
+        const reply = draft && replyFor(input, result);
+        if (draft && reply) {
+          const next = {
+            ...draft,
+            replies: [...draft.replies, { ...reply, afterSteps: draft.steps.length }],
+          };
+          set({ draft: next });
+          await saveDraft(next);
+        }
+        return result;
+      },
 
       async clearNext() {
         if (get().next === null) return;
@@ -1013,7 +1111,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         const draft = get().draft;
         if (!draft || draft.steps.length < 2) return;
         const removed = draft.steps.at(-1)!;
-        const next = { ...draft, steps: draft.steps.slice(0, -1) };
+        const next = keepSteps(draft, draft.steps.slice(0, -1));
         set({ draft: next });
         await saveDraft(next);
         await repo.updateChangeRequest(removed.changeRequestId, { status: 'cancelled' });
@@ -1094,7 +1192,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
           status: 'rolled_back',
           error: String(error).slice(0, 300),
         });
-        const next = draft.steps.length > 1 ? { ...draft, steps: draft.steps.slice(0, -1) } : null;
+        const next = draft.steps.length > 1 ? keepSteps(draft, draft.steps.slice(0, -1)) : null;
         set({ draft: next, draftNotice: msg('draftRenderFailed') });
         await saveDraft(next);
       },

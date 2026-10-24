@@ -10,7 +10,7 @@ import { CLAY, contrast, isDark, resolveColors } from '../theme';
 import { presetById, presetWorkflow } from '../workflows/presets';
 import { prepareOps, type PreparedChange } from '../change';
 import { functionFirst, hasFunctionOps } from './kinds';
-import type { AIProvider, Plan, PlanAbout, RejectReason } from './types';
+import type { AIProvider, Plan, PlanAbout, PlanEarlier, RejectReason } from './types';
 
 /** 结构相同即可（校验后对象的键顺序可能变）。 */
 function sameValue(a: unknown, b: unknown): boolean {
@@ -56,7 +56,14 @@ export interface EvalCase {
    * check 检查两步之后的样子（用户点了「接着改」）。
    */
   next?: boolean;
+  /**
+   * 草稿聊天框里之前说过的话（D-203）：有 ops 的是做了的一步（先套在 setup 上，回复是它的说明），
+   * 有 notDone 的是没做的一句和原因。
+   */
+  earlier?: EvalEarlier[];
 }
+
+export type EvalEarlier = { input: string; ops: Op[] } | { input: string; notDone: string };
 
 export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry): WorkspaceConfig {
   if (setup === 'starter') return createStarterWorkspace(locale, registry);
@@ -2461,6 +2468,100 @@ const RECORD_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+const BLUE = '#1C7ED6';
+const toBlue: Op[] = [{ op: 'setTheme', primaryColor: BLUE }];
+
+/** 草稿聊天框里接着说（D-203）：只有带上之前说过的话才知道「再…一点」「那就…」指什么。 */
+const DRAFT_CHAT_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'DR1',
+    input: '再深一点',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    earlier: [{ input: '主题色换成蓝色', ops: toBlue }],
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const hex = c.theme.primaryColor;
+        const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [
+          number,
+          number,
+          number,
+        ];
+        if (!(b > r && b > g)) return `the color should still be blue, got ${hex}`;
+        return contrast(hex, '#FFFFFF') > contrast(BLUE, '#FFFFFF')
+          ? null
+          : `the blue should be darker than ${BLUE}, got ${hex}`;
+      },
+    },
+  },
+  {
+    id: 'DR2',
+    input: '那就用渐变吧',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    earlier: [
+      {
+        input: '背景换成我的照片',
+        notDone: '背景不能用照片，可以换成纯色、渐变或极光背景。',
+      },
+    ],
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.theme.backdrop === 'gradient'
+          ? null
+          : `backdrop should be gradient, got ${String(c.theme.backdrop)}`,
+    },
+  },
+  {
+    id: 'DR3-en',
+    input: 'A bit more',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    earlier: [{ input: 'Make the text bigger', ops: [{ op: 'setTheme', fontScale: 1.15 }] }],
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.theme.fontScale > 1.15
+          ? null
+          : `fontScale should grow past 1.15, got ${c.theme.fontScale}`,
+    },
+  },
+  {
+    id: 'DR4',
+    input: '首页标题改成「工具箱」',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    earlier: [{ input: '主题色换成蓝色', ops: toBlue }],
+    expect: { kind: 'ops', check: all(titled('工具箱'), color(BLUE)) },
+  },
+  {
+    id: 'DR5',
+    input: '那先把主题换成绿色',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    earlier: [
+      {
+        input: '添加签证照片快捷操作',
+        notDone:
+          '草稿里只改外观。快捷操作、工具和数据表要在「修改这个 App」里改：会直接生效，可以撤销。',
+      },
+    ],
+    expect: {
+      kind: 'ops',
+      check: all(color('#2F9E44'), (c) =>
+        c.workflows.length === 0 ? null : 'the quick action should not be added in the draft',
+      ),
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...BASE_EVAL_CASES,
   ...SPLIT_EVAL_CASES,
@@ -2475,6 +2576,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
 
   ...FORMAT_EVAL_CASES,
   ...RECORD_EVAL_CASES,
+  ...DRAFT_CHAT_EVAL_CASES,
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };
@@ -2490,15 +2592,27 @@ export async function runEvalCase(
   now: Date,
 ): Promise<{ outcome: EvalOutcome; plans: Plan[] }> {
   const ctx = { registry, locale: c.locale, now };
+  const fail = (reason: string) => ({ pass: false, reason }) as const;
+  let config = buildSetup(c.setup, c.locale, registry);
+  const earlier: PlanEarlier[] = [];
+  for (const e of c.earlier ?? []) {
+    if ('notDone' in e) {
+      earlier.push({ input: e.input, done: false, reply: e.notDone });
+      continue;
+    }
+    const done = prepareOps(config, e.ops, ctx);
+    if (!done.ok) throw new Error(`${c.id}: earlier “${e.input}” does not apply`);
+    config = done.after;
+    earlier.push({ input: e.input, done: true, reply: done.lines.join('; ') });
+  }
   const ask = (input: string, config: WorkspaceConfig) =>
     provider.plan(input, {
       config,
       registry,
       locale: c.locale,
       ...(c.about ? { about: c.about } : {}),
+      ...(earlier.length ? { earlier } : {}),
     });
-  const fail = (reason: string) => ({ pass: false, reason }) as const;
-  const config = buildSetup(c.setup, c.locale, registry);
   const plan = await ask(c.input, config);
   const plans = [plan];
   if (plan.kind !== 'ops') return { outcome: judgeEval(c, plan, null), plans };
