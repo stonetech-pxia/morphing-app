@@ -152,10 +152,17 @@ describe('migrateWorkspace', () => {
     if (result.ok) expect(result.after).toEqual(workspace());
   });
 
+  it('v8 → v9: only bumps the version; tool grids are new', () => {
+    const v8 = { ...workspace(), schemaVersion: 8 };
+    const result = prepareSnapshot(v8, registry);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.after).toEqual(workspace());
+  });
+
   it('refuses snapshots it cannot migrate', () => {
     const v0 = { ...v1Snapshot, schemaVersion: 0 };
     expect(migrateWorkspace(v0)).toEqual({ ok: false, error: 'no migration from schemaVersion 0' });
-    expect(migrateWorkspace({ schemaVersion: 9 }).ok).toBe(false);
+    expect(migrateWorkspace({ schemaVersion: 10 }).ok).toBe(false);
     expect(migrateWorkspace('garbage').ok).toBe(false);
   });
 

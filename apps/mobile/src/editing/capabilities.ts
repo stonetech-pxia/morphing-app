@@ -35,6 +35,7 @@ export const CAPABILITIES: Record<ComponentType, Capability> = {
     style: ALL_STYLES,
   },
   toolCard: { text: [], style: ALL_STYLES },
+  toolGrid: { text: [{ prop: 'title', max: 60, optional: true }], style: ['align'] },
   catalogLink: { text: [{ prop: 'title', max: 60 }], style: ALL_STYLES },
   shortcut: {
     text: [

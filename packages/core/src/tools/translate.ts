@@ -304,14 +304,14 @@ export const translateTool: ToolDefinition = {
     en: 'Translate text, photos and PDFs on this device, in 20 languages. Plain text only, for understanding the meaning.',
     zh: '在本机翻译文字、照片和 PDF 里的文字，支持 20 种语言。只出纯文字，用来看懂意思。',
   },
-  icon: 'text',
+  icon: 'translate',
   aliases: ['translate', 'translation', 'translator', '翻译', '翻译工具', '翻译文字'],
   permissions: ['files.pick', 'files.write'],
   actions: TRANSLATE_ACTIONS,
   createPage: (locale) => ({
     id: `tool-${TRANSLATE_TOOL_ID}`,
     title: t(locale, 'Translate', '翻译'),
-    icon: 'text',
+    icon: 'translate',
     toolId: TRANSLATE_TOOL_ID,
     components: [
       {

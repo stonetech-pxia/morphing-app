@@ -9,7 +9,7 @@ export const OFFLINE_EXAMPLES: Record<Locale, readonly string[]> = {
   zh: [
     '我有一堆旅行照片，想发给朋友',
     '添加签证照片快捷操作',
-    '把照片发邮件放到首页',
+    '把批量发照片放到首页',
     '新建一个快捷操作：扫描文档，压到 300KB，存到文件',
     '新建一个记账页面',
     '字体大一点',
@@ -18,7 +18,7 @@ export const OFFLINE_EXAMPLES: Record<Locale, readonly string[]> = {
   en: [
     'I have a bunch of trip photos to send to friends',
     'Add the visa photo quick action',
-    'Put the photos for email quick action on the home page',
+    'Put the send many photos quick action on the home page',
     'Create a quick action: scan documents, make a PDF, share',
     'Add a budget page',
     'Bigger text',

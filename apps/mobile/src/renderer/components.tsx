@@ -28,6 +28,7 @@ import { ImageView } from './ImageView';
 import { RichText } from './RichText';
 import { cardColors, type Palette } from './theme';
 import { Button, Card, IconTile } from './ui';
+import { ToolGrid } from './ToolGrid';
 import { WorkflowRunner } from './WorkflowRunner';
 
 // 白名单渲染器（§5.2、§7A）：配置中的每种组件类型对应这里的一个真实组件。
@@ -271,6 +272,14 @@ export function ComponentView({ component, env }: { component: Component; env: R
       );
     case 'toolCard':
       return <ToolCard toolId={component.props.toolId} style={style} env={env} />;
+    case 'toolGrid':
+      return (
+        <ToolGrid
+          grid={component}
+          page={env.config.pages.find((p) => p.id === env.pageId)}
+          env={env}
+        />
+      );
     case 'catalogLink':
       return (
         <Tile

@@ -1,10 +1,4 @@
-import {
-  BUILTIN_TOOLS,
-  allComponents,
-  createMockAIProvider,
-  createRegistry,
-  createStarterWorkspace,
-} from '@morph/core';
+import { BUILTIN_TOOLS, allComponents, createMockAIProvider, createRegistry } from '@morph/core';
 
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { createWorkspaceStore, shownConfig, type WorkspaceStore } from '../workspace/store';
@@ -130,9 +124,17 @@ describe('AI change drafts (D-190)', () => {
       registry,
       locale: 'zh',
       now: () => new Date(2026, 9, 24, 9, 0),
-      seed: createStarterWorkspace,
     });
     await store.getState().boot();
+    // 新用户的首页没有工具卡片（D-182）：先添加图片和 PDF 工具，PDF 卡片排在第二。
+    await store.getState().proposeOps(
+      [
+        { op: 'installTool', toolId: 'image' },
+        { op: 'installTool', toolId: 'pdf' },
+      ],
+      '添加图片和 PDF',
+    );
+    await store.getState().confirm();
     await say(store, '字体大一点');
     await say(store, '把 PDF 放到最上面');
     store.getState().closeDraft();

@@ -18,9 +18,11 @@ import {
   ThemeSchema,
   WorkflowSchema,
   WorkflowStepSchema,
+  allComponents,
   componentCollection,
   componentTarget,
   pageTarget,
+  toolGridToolIds,
   type Collection,
   type Component,
   type GroupComponent,
@@ -289,6 +291,19 @@ function toolCardIndex(home: Page): number {
   return catalog >= 0 ? catalog : topIndex(home);
 }
 
+/** 某个页面上的工具宫格已经显示这个工具（D-181）：添加工具时不用再往首页放入口。 */
+export function shownInToolGrid(
+  config: WorkspaceConfig,
+  toolId: string,
+  catalog: readonly string[],
+): boolean {
+  return config.pages.some((page) =>
+    allComponents(page).some(
+      (c) => c.type === 'toolGrid' && toolGridToolIds(c, page, catalog).includes(toolId),
+    ),
+  );
+}
+
 /** 受保护元素不在导航栏也不在浮动入口时，自动改为浮动入口（§5.1）。 */
 function keepProtectedReachable(config: WorkspaceConfig, notes: ApplyNote[]): void {
   for (const target of PROTECTED_TARGETS) {
@@ -442,6 +457,7 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       config.pages.push(page);
       config.workflows.push(...workflows);
       config.tools.push({ toolId: def.id, version: def.version, pageId: page.id });
+      if (shownInToolGrid(config, def.id, [...ctx.registry.tools.keys()])) return;
       const home = getPage(config, HOME_PAGE_ID);
       home.components.splice(toolCardIndex(home), 0, {
         id: `card-${def.id}`,

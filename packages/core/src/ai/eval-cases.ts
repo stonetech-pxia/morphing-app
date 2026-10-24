@@ -1,8 +1,9 @@
 import { createDefaultWorkspace } from '../defaults';
 import { applyOps, type Op } from '../ops';
 import type { Registry } from '../registry';
-import { allComponents, type Locale, type WorkspaceConfig } from '../schema';
+import { allComponents, type Component, type Locale, type WorkspaceConfig } from '../schema';
 import { parseRichText } from '../richtext';
+import { createStarterWorkspace } from '../starter';
 import { templateOps } from '../templates';
 import { THEME_PRESETS } from '../presets';
 import { CLAY, contrast, isDark, resolveColors } from '../theme';
@@ -25,7 +26,8 @@ function sameValue(a: unknown, b: unknown): boolean {
 // AI 评测集（§7F、§14）：mock AI 与真实模型用同一组用例衡量。
 // ID 与 docs/MOCK_AI_PHRASES.md 对应；P* 是只有真实模型才需要理解的改写说法。
 
-export type EvalSetup = 'default' | 'pdf' | 'pdfBelowFiles' | 'budget' | 'visa';
+/** starter：新用户的第一个版本（精简首页 + 工具箱，D-181、D-182）。 */
+export type EvalSetup = 'default' | 'pdf' | 'pdfBelowFiles' | 'budget' | 'visa' | 'starter';
 
 export type OpsPlan = Extract<Plan, { kind: 'ops' }>;
 
@@ -57,6 +59,7 @@ export interface EvalCase {
 }
 
 export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry): WorkspaceConfig {
+  if (setup === 'starter') return createStarterWorkspace(locale, registry);
   const ops: Op[] = [];
   if (setup === 'visa') {
     ops.push({ op: 'installTool', toolId: 'pdf' });
@@ -2069,6 +2072,99 @@ const AUDIO_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+// 工具箱是用户自己的页面，AI 能改（D-181）。
+
+type ToolGrid = Extract<Component, { type: 'toolGrid' }>;
+const toolbox = (c: WorkspaceConfig) => c.pages.find((p) => p.id === 'toolbox');
+const grids = (c: WorkspaceConfig) =>
+  (toolbox(c)?.components ?? []).filter((x): x is ToolGrid => x.type === 'toolGrid');
+const gridWith = (c: WorkspaceConfig, toolId: string) =>
+  grids(c).filter((g) => g.props.toolIds?.includes(toolId));
+const gridTitled = (c: WorkspaceConfig, title: RegExp) =>
+  grids(c).find((g) => title.test(g.props.title ?? ''));
+
+const TOOLBOX_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'TB1',
+    input: '把翻译移到照片那一组',
+    locale: 'zh',
+    setup: 'starter',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const found = gridWith(c, 'translate');
+        if (found.length !== 1)
+          return `translate should be in exactly one grid, got ${found.length}`;
+        const g = found[0]!;
+        return g.props.toolIds?.includes('image')
+          ? null
+          : `translate is not in the photos grid: ${JSON.stringify(g.props)}`;
+      },
+    },
+  },
+  {
+    id: 'TB2',
+    input: '工具箱最上面加一组「常用」，放图片和 PDF',
+    locale: 'zh',
+    setup: 'starter',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const g = gridTitled(c, /常用/);
+        if (!g) return 'no 常用 grid';
+        if (!(g.props.toolIds?.includes('image') && g.props.toolIds.includes('pdf')))
+          return `常用 should list image and pdf, got ${JSON.stringify(g.props.toolIds)}`;
+        const first = toolbox(c)!.components.find((x) => x.type !== 'header');
+        return first === g ? null : '常用 should be the first group';
+      },
+    },
+  },
+  {
+    id: 'TB3',
+    input: 'Rename the toolbox to My tools',
+    locale: 'en',
+    setup: 'starter',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        toolbox(c)?.title === 'My tools' ? null : `toolbox title is ${toolbox(c)?.title}`,
+    },
+  },
+  {
+    id: 'TB4',
+    input: '把工具箱放到导航栏',
+    locale: 'zh',
+    setup: 'starter',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.shell.nav.includes('page:toolbox')
+          ? null
+          : `toolbox not in the bar: ${c.shell.nav.join(',')}`,
+    },
+  },
+  {
+    id: 'TB5',
+    input: '添加压缩包工具',
+    locale: 'zh',
+    setup: 'starter',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.tools.some((t) => t.toolId === 'zip')
+          ? allComponents(home(c)).some((x) => x.type === 'toolCard')
+            ? 'the toolbox already shows zip, so home should get no tool card'
+            : null
+          : 'zip not added',
+    },
+  },
+];
+
 const toolInFront = (toolId: string) => (c: WorkspaceConfig) => {
   const page = c.pages.find((p) => p.toolId === toolId);
   if (!page) return `the ${toolId} tool should be added`;
@@ -2375,6 +2471,8 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...VIDEO_EVAL_CASES,
   ...TRANSLATE_EVAL_CASES,
   ...AUDIO_EVAL_CASES,
+  ...TOOLBOX_EVAL_CASES,
+
   ...FORMAT_EVAL_CASES,
   ...RECORD_EVAL_CASES,
 ];

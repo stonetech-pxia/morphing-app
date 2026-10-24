@@ -112,6 +112,19 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
           `component ${c.id} shows tool ${c.props.toolId} which is not installed`,
         );
       }
+      if (c.type === 'toolGrid') {
+        for (const toolId of c.props.toolIds ?? []) {
+          if (!registry.tools.has(toolId)) {
+            issue(
+              'unknown-tool',
+              `component ${c.id} lists tool ${toolId} which is not in the catalog`,
+            );
+          }
+        }
+        for (const toolId of duplicates(c.props.toolIds ?? [])) {
+          issue('duplicate', `tool ${toolId} in component ${c.id}`);
+        }
+      }
       if (c.type === 'workflowRunner' && !workflowIds.has(c.props.workflowId)) {
         issue('unknown-workflow', `component ${c.id} runs missing workflow ${c.props.workflowId}`);
       }

@@ -39,6 +39,8 @@ const SYMBOLS: Record<IconName, SymbolName> = {
   workflow: { ios: 'arrow.triangle.branch', android: 'account_tree' },
   video: { ios: 'video.fill', android: 'videocam' },
   audio: { ios: 'waveform', android: 'graphic_eq' },
+  translate: { ios: 'translate', android: 'translate' },
+  note: { ios: 'note.text', android: 'notes' },
 };
 
 export function Icon({
