@@ -28,7 +28,7 @@ import { useAISettings } from '../ai/context';
 import { useAfterApply } from '../draft/useApplyDraft';
 import { guideText } from '../guide/store';
 import { t } from '../i18n';
-import { UiIcon } from '../renderer/Icon';
+import { Icon, UiIcon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Button, Card } from '../renderer/ui';
 import { sharedAbout } from '../share/about';
@@ -270,6 +270,7 @@ export function ChangeScreen() {
           </Card>
         ) : null}
 
+        {/* 输入框：左边一个闪光图标、柔和阴影，和划屏介绍最后一页的对话框一样。 */}
         <View
           style={[
             styles.box,
@@ -277,22 +278,26 @@ export function ChangeScreen() {
               backgroundColor: palette.surface,
               borderColor: palette.border,
               borderRadius: palette.controlRadius,
+              boxShadow: `0px 2px 6px ${palette.shadow}1F`,
             },
           ]}>
-          <TextInput
-            testID="change-input"
-            value={input}
-            onChangeText={setInput}
-            editable={!typing}
-            placeholder={
-              about && examples[0]
-                ? t(locale, 'aboutPlaceholder', { example: examples[0] })
-                : t(locale, 'changeAsk')
-            }
-            placeholderTextColor={palette.caption}
-            multiline
-            style={[styles.input, palette.font('body', 16), { color: palette.text }]}
-          />
+          <View style={styles.inputRow}>
+            <Icon name="sparkles" size={18} color={palette.primary} />
+            <TextInput
+              testID="change-input"
+              value={input}
+              onChangeText={setInput}
+              editable={!typing}
+              placeholder={
+                about && examples[0]
+                  ? t(locale, 'aboutPlaceholder', { example: examples[0] })
+                  : t(locale, 'changeAsk')
+              }
+              placeholderTextColor={palette.caption}
+              multiline
+              style={[styles.input, palette.font('body', 16), { color: palette.text }]}
+            />
+          </View>
           <Pressable
             testID="change-submit"
             accessibilityRole="button"
@@ -430,14 +435,10 @@ function Chip({
       onPress={onPress}
       style={({ pressed }) => [
         styles.chip,
-        {
-          borderColor: palette.border,
-          backgroundColor: palette.surface,
-          opacity: pressed ? 0.6 : 1,
-        },
+        { backgroundColor: palette.primaryTint, opacity: pressed ? 0.6 : 1 },
       ]}>
       {icon ? <UiIcon name="palette" size={14} color={palette.primaryText} /> : null}
-      <Text style={[palette.font('bodyBold', 13), { color: palette.text }]}>{label}</Text>
+      <Text style={[palette.font('bodyMedium', 13), { color: palette.primaryText }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -460,7 +461,8 @@ const styles = StyleSheet.create({
   page: { paddingBottom: 48 },
   row: { flexDirection: 'row', gap: 10, marginTop: 4 },
   box: { borderWidth: 1, padding: 12, gap: 8 },
-  input: { minHeight: 84, textAlignVertical: 'top', padding: 2 },
+  inputRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  input: { flex: 1, minHeight: 84, textAlignVertical: 'top', padding: 2 },
   send: {
     alignSelf: 'flex-end',
     width: 40,
@@ -474,7 +476,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 14,
     minHeight: 34,

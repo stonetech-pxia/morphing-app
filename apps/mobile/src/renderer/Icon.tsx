@@ -77,7 +77,7 @@ export function Icon({
 }
 
 /**
- * 内核界面自己用的图标（草稿模式的按钮、发送等，D-190）。不在 core 的白名单里：AI 和配置用不到它们。
+ * 内核界面自己用的图标（草稿模式的按钮、发送、划屏介绍的示意图等，D-190）。不在 core 的白名单里：AI 和配置用不到它们。
  */
 const UI_SYMBOLS = {
   chat: { ios: 'bubble.left.fill', android: 'chat' },
@@ -86,6 +86,9 @@ const UI_SYMBOLS = {
   close: { ios: 'xmark', android: 'close' },
   send: { ios: 'arrow.up', android: 'arrow_upward' },
   palette: { ios: 'paintpalette.fill', android: 'palette' },
+  arrowRight: { ios: 'arrow.right', android: 'arrow_forward' },
+  arrowDown: { ios: 'arrow.down', android: 'arrow_downward' },
+  chevronRight: { ios: 'chevron.right', android: 'chevron_right' },
 } satisfies Record<string, SymbolName>;
 
 export type UiIconName = keyof typeof UI_SYMBOLS;
