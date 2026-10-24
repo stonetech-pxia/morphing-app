@@ -357,6 +357,8 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
   → 每 5 分钟一段（在段尾 20 秒里最安静处切开）→ whisper_full（束搜索 5、语音检测、普通话简体提示词）
 ```
 
+- **whisper.cpp 补丁**（`cpp/patch-whisper.cmake`，构建时打）：窗口以单个时间戳结束时不再跳过剩下的部分，从最后一个时间戳接着识别（开了语音检测，送进去的都是说话；三星真机上 5 分钟会议原来漏约 1 分钟）。换 whisper.cpp 版本时补丁找不到那一行会让构建失败。
+
 - **语言**：`SPEECH_LANGUAGES`（12 种，同文字识别）；iOS 用 `SYSTEM_SPEECH_LOCALES`（BCP 47），whisper 用 `whisperLanguage`（国语也是 zh，靠 `whisperPrompt` 出繁体）。
 - **整理**（`tidyTranscript`）：中文换全角标点、去中文之间的空格；去掉一整段都是字幕网站 / 「谢谢观看」/ [音乐] 这类 whisper 在静音里编出来的；中日文直接相连、其他语言用空格；停顿 3 秒以上换段（Android 开了语音检测后 whisper 给的时间是连着的，换段不起作用，第二阶段用语音检测的时间段补上）。
 - **下载内容**：`speech-whisper-small`（190 MB）、`speech-whisper-base`（60 MB），都依赖 `speech-vad`（0.9 MB）。大于 32 MB 的文件走 `PackFs.downloadLarge`：expo-file-system 下载到磁盘并按字节报告进度，SHA-256 由 `MorphSpeech.sha256File` 在原生代码里边读边算（Android 用 MessageDigest，iOS 用 CryptoKit），不把几百 MB 读进 JS。
