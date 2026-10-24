@@ -347,7 +347,11 @@ function DraftChat({
               </Text>
             </Pressable>
           </View>
-          <ScrollView ref={scroll} style={styles.flex} contentContainerStyle={styles.messages}>
+          <ScrollView
+            ref={scroll}
+            style={styles.flex}
+            contentContainerStyle={styles.messages}
+            keyboardShouldPersistTaps="handled">
             {draft
               ? steps.map((step: DraftStep, i) => (
                   <View key={step.changeRequestId} style={styles.turn}>
