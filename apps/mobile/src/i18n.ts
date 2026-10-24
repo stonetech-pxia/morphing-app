@@ -680,8 +680,8 @@ const strings = {
   draftSteppedBack: { en: 'Took back the last step.', zh: '退了一步。' },
   draftCard: { en: 'You have a draft · {n} step(s)', zh: '你有一份草稿 · {n} 步' },
   draftCardHint: {
-    en: 'What you say now continues this draft.',
-    zh: '新说的一句会接着改这份草稿。',
+    en: 'Look changes you ask for now continue this draft; quick actions, tools and data tables take effect right away.',
+    zh: '新说的外观修改会接着改这份草稿；快捷操作、工具和数据表直接生效。',
   },
   draftContinue: { en: 'Continue', zh: '继续' },
   draftDelete: { en: 'Delete', zh: '删除' },
@@ -699,6 +699,28 @@ const strings = {
   draftRenderFailed: {
     en: 'The last change could not be shown, so it was taken back.',
     zh: '刚才那一步显示不出来，已经撤掉。',
+  },
+
+  // 功能和外观分开改（D-191）
+  draftNoFunction: {
+    en: 'The draft only changes the look. Quick actions, tools and data tables are changed on the Change this app page: they take effect right away and can be undone.',
+    zh: '草稿里只改外观。快捷操作、工具和数据表要在「修改这个 App」里改：会直接生效，可以撤销。',
+  },
+  draftNoFunctionGo: { en: 'Say it on Change this app', zh: '去「修改这个 App」说' },
+  functionNeedsDraft: {
+    en: 'This change needs something from your draft. Apply the draft first, then say it again.',
+    zh: '这个修改要用到草稿里还没应用的改动。先应用草稿，再说一次。',
+  },
+  nextTitle: { en: 'Keep going', zh: '接着改' },
+  nextHint: {
+    en: 'The rest of what you asked changes the look: tap to see it in a draft first.',
+    zh: '这句话里剩下的是外观的修改，点一下先在草稿里看看效果。',
+  },
+  tableReadyTitle: { en: 'Your data table is ready', zh: '数据表做好了' },
+  tableReadyRecord: { en: 'Add an entry now', zh: '现在就记一笔' },
+  tableReadyWhere: {
+    en: 'Entries stay on this device. You can also see the table in Settings → Data.',
+    zh: '记录存在本机，在「设置 → 数据」里也能看到这张表。',
   },
 
   // 新手引导（D-149）

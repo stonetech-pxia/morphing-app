@@ -88,7 +88,7 @@ describe('AI change drafts (D-190)', () => {
     await say(store, '首页改成文件工作台');
     await say(store, '主题换成绿色');
     const applied = await store.getState().applyDraft();
-    expect(applied).toEqual({ addedWorkflowIds: [], origin: {} });
+    expect(applied).toEqual({ addedWorkflowIds: [], addedCollectionIds: [], origin: {} });
     expect(store.getState().draft).toBeNull();
     const head = store.getState().head!;
     expect(head.parentId).toBe(baseId);
@@ -100,15 +100,6 @@ describe('AI change drafts (D-190)', () => {
     expect(await repo.getMeta('draft')).toBe('');
     await store.getState().undo();
     expect(store.getState().config!.theme.primaryColor).not.toBe('#2F9E44');
-  });
-
-  it('a new quick action goes on the home page by default, and the draft reports it', async () => {
-    const { store } = await booted();
-    await say(store, '我有一堆旅行照片，想发给朋友');
-    const home = draftConfig(store).pages.find((p) => p.id === 'home')!;
-    expect(allComponents(home).some((c) => c.type === 'workflowRunner')).toBe(true);
-    const applied = await store.getState().applyDraft();
-    expect(applied!.addedWorkflowIds).toEqual(['trip-photos']);
   });
 
   it('the draft survives a restart and is rebased onto the latest version', async () => {
@@ -183,5 +174,94 @@ describe('AI change drafts (D-190)', () => {
     expect(await store.getState().draftChange('撤销刚才的修改')).toEqual({ kind: 'restored' });
     expect(store.getState().config!.theme.primaryColor).not.toBe('#2F9E44');
     expect(store.getState().draft).toBeNull();
+  });
+});
+
+async function change(store: WorkspaceStore, input: string) {
+  const result = await store.getState().change(input);
+  if (result.kind !== 'applied') throw new Error(`${input}: ${JSON.stringify(result)}`);
+  return result.applied;
+}
+
+describe('function changes go straight in (D-191)', () => {
+  it('a new quick action is applied right away, with its home entry, and can be undone', async () => {
+    const { store } = await booted();
+    const baseId = store.getState().head!.id;
+    const applied = await change(store, '我有一堆旅行照片，想发给朋友');
+    expect(applied.addedWorkflowIds).toEqual(['trip-photos']);
+    expect(applied.notes?.length).toBeGreaterThan(0);
+    expect(store.getState().draft).toBeNull();
+    const home = store.getState().config!.pages.find((p) => p.id === 'home')!;
+    expect(allComponents(home).some((c) => c.type === 'workflowRunner')).toBe(true);
+    const head = store.getState().head!;
+    expect(head).toMatchObject({ parentId: baseId, source: 'ai' });
+    await store.getState().markRendered(head.id);
+    expect(store.getState().banner).toMatchObject({ kind: 'applied', undoTo: baseId });
+    await store.getState().undo();
+    expect(store.getState().config!.workflows.some((w) => w.id === 'trip-photos')).toBe(false);
+  });
+
+  it('a sentence with both does the function first and keeps the rest as the next request', async () => {
+    const { store, repo } = await booted();
+    await change(store, '主题换成绿色，添加签证照片快捷操作');
+    expect(store.getState().config!.workflows.some((w) => w.id === 'visa-photo')).toBe(true);
+    expect(store.getState().config!.theme.primaryColor).not.toBe('#2F9E44');
+    expect(store.getState().next).toBe('主题换成绿色');
+    expect(await repo.getMeta('next')).toBe('主题换成绿色');
+    // 重启后还在；点了之后进草稿，用掉就清掉。
+    const again = makeStore(repo);
+    await again.getState().boot();
+    expect(again.getState().next).toBe('主题换成绿色');
+    expect(await again.getState().change('主题换成绿色')).toMatchObject({ kind: 'drafted' });
+    expect(again.getState().next).toBeNull();
+    expect(await repo.getMeta('next')).toBe('');
+  });
+
+  it('a data page is the table first, then the page in a draft', async () => {
+    const { store } = await booted();
+    const applied = await change(store, '新建一个记账页面');
+    expect(applied.addedCollectionIds).toEqual(['expenses']);
+    expect(store.getState().config!.pages.some((p) => p.id === 'budget')).toBe(false);
+    expect(store.getState().next).toBe('增加记账页面');
+    const result = await store.getState().change('增加记账页面');
+    expect(result).toMatchObject({ kind: 'drafted' });
+    expect(draftConfig(store).pages.some((p) => p.id === 'budget')).toBe(true);
+  });
+
+  it('a new function change replaces the next request; undoing it clears it', async () => {
+    const { store } = await booted();
+    await change(store, '新建一个记账页面');
+    await change(store, '添加签证照片快捷操作');
+    expect(store.getState().next).toBeNull();
+    await change(store, '主题换成绿色，添加扫描文档快捷操作');
+    expect(store.getState().next).toBe('主题换成绿色');
+    await store.getState().markRendered(store.getState().head!.id);
+    await store.getState().undo();
+    expect(store.getState().next).toBeNull();
+  });
+
+  it('the draft chat refuses function changes and leaves the draft alone', async () => {
+    const { store } = await booted();
+    await say(store, '主题换成绿色');
+    const headId = store.getState().head!.id;
+    expect(await store.getState().draftChange('添加签证照片快捷操作')).toMatchObject({
+      kind: 'functionInDraft',
+      message: expect.stringMatching(/草稿里只改外观/),
+    });
+    expect(store.getState().draft!.steps).toHaveLength(1);
+    expect(store.getState().head!.id).toBe(headId);
+  });
+
+  it('a function change with a draft around goes into the real app; the draft is kept on top', async () => {
+    const { store } = await booted();
+    await say(store, '主题换成绿色');
+    await change(store, '添加签证照片快捷操作');
+    const draft = store.getState().draft!;
+    expect(draft.open).toBe(false);
+    expect(store.getState().config!.workflows.some((w) => w.id === 'visa-photo')).toBe(true);
+    store.getState().openDraft();
+    const shown = shownConfig(store.getState())!;
+    expect(shown.theme.primaryColor).toBe('#2F9E44');
+    expect(shown.workflows.some((w) => w.id === 'visa-photo')).toBe(true);
   });
 });

@@ -79,23 +79,21 @@ describe('first-run guide', () => {
     const trip = GUIDE_GOALS[0]!;
 
     await fireEvent.press(await screen.findByTestId(`guide-goal-${trip.id}`));
-    // 草稿的回复里步骤一条一条长出来，AI 补上的标出来（D-149、D-190）。
-    const steps = await screen.findByTestId('draft-steps', {}, TYPED);
-    expect(steps).toHaveTextContent(/发旅行照片给朋友/);
-    expect(screen.getByTestId('draft-step-jpg')).toHaveTextContent(/AI 加的/);
-    expect(screen.getByTestId('draft-step-clean')).toHaveTextContent(/去掉定位.*AI 加的/);
-    expect(screen.getByTestId('draft-step-zip')).not.toHaveTextContent(/AI 加的/);
-    expect(screen.getByTestId('draft-note-1')).toHaveTextContent(/别人看不到你在哪拍的/);
-    // 默认放到首页：草稿首页上已经有它的卡片（锁着）。
-    const id = store.getState().draft!.steps[0]!.config.workflows.at(-1)!.id;
-    expect(screen.getByTestId(`run-${id}`)).toBeTruthy();
-
-    await fireEvent.press(screen.getByTestId('draft-apply'));
+    // 快捷操作是功能，直接做好（D-191），不进草稿：「做好了」页面列出步骤，AI 补上的标出来（D-149）。
+    expect(await screen.findByTestId('ready-run', {}, TYPED)).toHaveTextContent('用我自己的文件');
+    expect(store.getState().draft).toBeNull();
+    expect(screen.getByTestId('ready-name')).toHaveTextContent('发旅行照片给朋友');
+    expect(screen.getByTestId('ready-added-jpg')).toBeTruthy();
+    expect(screen.getByTestId('ready-added-clean')).toBeTruthy();
+    expect(screen.queryByTestId('ready-added-zip')).toBeNull();
+    expect(screen.getByTestId('ready-note-1')).toHaveTextContent(/别人看不到你在哪拍的/);
     expect(await repo.getMeta('guide')).toBe('done');
     const added = store.getState().config!.workflows.find((w) => w.name === '发旅行照片给朋友')!;
     expect(added.steps).toHaveLength(7);
+    // 默认放到首页。
+    const home = store.getState().config!.pages.find((p) => p.id === 'home')!;
+    expect(home.components.some((c) => c.type === 'workflowRunner')).toBe(true);
 
-    expect(await screen.findByTestId('ready-run')).toHaveTextContent('用我自己的文件');
     await fireEvent.press(screen.getByTestId('ready-sample'));
     expect(load).toHaveBeenCalledWith('photos');
     expect(await screen.findByTestId('run-step-pick')).toHaveTextContent(/示例照片（3 张）/);
@@ -109,10 +107,9 @@ describe('first-run guide', () => {
     const pdfs = [files.offer('a.pdf', await makePdf(3)), files.offer('b.pdf', await makePdf(2))];
     jest.spyOn(samples, 'loadSamples').mockResolvedValue(pdfs);
     await fireEvent.press(await screen.findByTestId('guide-goal-contracts'));
-    await screen.findByTestId('draft-steps', {}, TYPED);
-    expect(screen.getByTestId('draft-step-compress')).toHaveTextContent(/AI 加的/);
-    await fireEvent.press(screen.getByTestId('draft-apply'));
-    await fireEvent.press(await screen.findByTestId('ready-sample'));
+    await screen.findByTestId('ready-sample', {}, TYPED);
+    expect(screen.getByTestId('ready-added-compress')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('ready-sample'));
     expect(await screen.findByTestId('run-step-pick')).toHaveTextContent(/示例合同（2 份）/);
     expect(await screen.findByTestId('run-try-own', {}, TYPED)).toBeTruthy();
   });
@@ -120,9 +117,7 @@ describe('first-run guide', () => {
   it('the video sentence has no samples: “ready” runs it on the user’s own video', async () => {
     await startGuide('goal');
     await fireEvent.press(await screen.findByTestId('guide-goal-big-video'));
-    await screen.findByTestId('draft-steps', {}, TYPED);
-    await fireEvent.press(screen.getByTestId('draft-apply'));
-    expect(await screen.findByTestId('ready-run')).toHaveTextContent('现在就用一次');
+    expect(await screen.findByTestId('ready-run', {}, TYPED)).toHaveTextContent('现在就用一次');
     expect(screen.queryByTestId('ready-sample')).toBeNull();
   });
 

@@ -36,8 +36,15 @@ import {
 } from '../schema';
 import { isEmoji } from '../richtext';
 import { ICON_NAMES } from '../schema';
-import { entryOps, templateOps, type DataTemplate } from '../templates';
+import {
+  entryOps,
+  templateCollectionOp,
+  templateCollectionWithoutPage,
+  templatePageOps,
+  type DataTemplate,
+} from '../templates';
 import { goalPlan } from './goals';
+import { splitOps } from './kinds';
 import type { AIProvider, Plan, PlanContext, RejectReason } from './types';
 
 // 基于规则的 mock AI（§7F）。不是语言模型：只认识 docs/MOCK_AI_PHRASES.md 中的句式。
@@ -78,6 +85,8 @@ interface State {
   config: WorkspaceConfig;
   /** 整句话中提到的工具，供“完成后按日期命名”这类省略主语的子句使用。 */
   mentionedTool: ToolDefinition | undefined;
+  /** 这个子句做完功能后剩下的外观请求（D-191），例如建好数据表后的「增加记账页面」。 */
+  next?: string;
 }
 
 const say = (locale: Locale, zh: string, en: string) => (locale === 'zh' ? zh : en);
@@ -552,7 +561,18 @@ const TEMPLATE_WORDS: [RegExp, DataTemplate][] = [
   [/^(?:笔记|笔记本|notes?)$/i, 'notes'],
 ];
 
-/** 内置数据页面模板：「新建一个记账页面」「Create a to-do list」。 */
+/** 预设里说的模板名字：「增加记账页面」「Add a budget page」又会回到 templateRule。 */
+const TEMPLATE_NAMES: Record<DataTemplate, Localized> = {
+  budget: { zh: '记账', en: 'budget' },
+  todo: { zh: '待办', en: 'to-do list' },
+  reading: { zh: '读书清单', en: 'reading list' },
+  notes: { zh: '笔记', en: 'notes' },
+};
+
+/**
+ * 内置数据页面模板：「新建一个记账页面」「Create a to-do list」。数据表是功能、页面是外观（D-191）：
+ * 先只建数据表，页面留作下一句；数据表已经建好、还没有页面时，这句话就是加页面。
+ */
 const templateRule: Rule = (clause, state) => {
   const m =
     clause.match(/^(?:新建|添加|加|增加|创建|做|建)(?:一个|个)?(.+?)(?:页面|页)?$/) ??
@@ -561,7 +581,12 @@ const templateRule: Rule = (clause, state) => {
   const word = m[1]!.trim();
   const template = TEMPLATE_WORDS.find(([re]) => re.test(word))?.[1];
   if (!template) return null;
-  return templateOps(template, state.config, state.ctx.locale);
+  const { config, ctx } = state;
+  const waiting = templateCollectionWithoutPage(template, config);
+  if (waiting) return templatePageOps(template, config, ctx.locale, waiting);
+  const name = TEMPLATE_NAMES[template][ctx.locale];
+  state.next = say(ctx.locale, `增加${name}页面`, `Add a ${name} page`);
+  return [templateCollectionOp(template, config, ctx.locale)];
 };
 
 function newFieldId(fields: readonly { id: string }[]): string {
@@ -720,12 +745,6 @@ const simplifyRule: Rule = (clause, state) => {
       } else {
         ops.push({ op: 'removeWorkflowStep', workflowId: wf.id, stepId: step.id });
       }
-    }
-  }
-  const toolPage = state.config.pages.find((p) => p.toolId === tool.id);
-  for (const c of toolPage?.components ?? []) {
-    if (c.type === 'text' && !c.hidden) {
-      ops.push({ op: 'setComponentHidden', pageId: toolPage!.id, componentId: c.id, hidden: true });
     }
   }
   return ops;
@@ -1459,9 +1478,16 @@ const REMOVE_PROTECTED = new RegExp(
   'i',
 );
 
-function planClauses(clauses: string[], ctx: PlanContext): Plan {
+interface ClauseResult {
+  clause: string;
+  ops: Op[];
+  next?: string;
+}
+
+/** 一个子句一个子句地套用规则；已经是目标状态的子句（例如 PDF 本来就在最上面）不产生修改。 */
+function runClauses(clauses: string[], ctx: PlanContext): ClauseResult[] {
   const state: State = { ctx, config: ctx.config, mentionedTool: findTool(clauses.join(' '), ctx) };
-  const ops: Op[] = [];
+  const results: ClauseResult[] = [];
   for (const clause of clauses) {
     if (DELETE_FILES.test(clause)) {
       throw new Rejection(
@@ -1485,6 +1511,7 @@ function planClauses(clauses: string[], ctx: PlanContext): Plan {
     }
     if (REMOVE_PROTECTED.test(clause))
       throw new Rejection('protected', PROTECTED_MESSAGE(ctx.locale));
+    delete state.next;
     const clauseOps = RULES.reduce<Op[] | null>(
       (found, rule) => found ?? rule(clause, state),
       null,
@@ -1504,11 +1531,23 @@ function planClauses(clauses: string[], ctx: PlanContext): Plan {
       locale: ctx.locale,
     });
     if (!applied.ok) throw new Rejection('unknown', applied.error);
-    // 已经是目标状态的子句（例如 PDF 本来就在最上面）不产生修改。
     if (JSON.stringify(applied.config) === JSON.stringify(state.config)) continue;
     state.config = applied.config;
-    ops.push(...clauseOps);
+    results.push({ clause, ops: clauseOps, ...(state.next ? { next: state.next } : {}) });
   }
+  return results;
+}
+
+/** 子句拼回一句话：中文用逗号，英文用句号（splitClauses 不按英文逗号拆）；引号换回「」。 */
+function joinClauses(clauses: string[], locale: Locale): string {
+  return locale === 'zh'
+    ? clauses.map((c) => c.replace(/"([^"]*)"/g, '「$1」')).join('，')
+    : clauses.join('. ');
+}
+
+function planClauses(clauses: string[], ctx: PlanContext): Plan {
+  const first = runClauses(clauses, ctx);
+  const ops = first.flatMap((r) => r.ops);
   if (ops.length === 0) {
     return {
       kind: 'reject',
@@ -1521,7 +1560,23 @@ function planClauses(clauses: string[], ctx: PlanContext): Plan {
       examples: [],
     };
   }
-  return { kind: 'ops', ops };
+  const fn = new Set(splitOps(ops).function);
+  if (fn.size === 0) return { kind: 'ops', ops };
+  // 功能先做（D-191）：外观的子句不做，拼成下一句；功能的子句不带外观再算一遍。
+  const isFn = (r: ClauseResult) => r.ops.some((op) => fn.has(op));
+  const fnClauses = first.filter(isFn).map((r) => r.clause);
+  const second = fnClauses.length === first.length ? first : runClauses(fnClauses, ctx);
+  const nextOf = new Map(second.map((r) => [r.clause, r.next]));
+  const rest = first.flatMap((r) => {
+    if (!isFn(r)) return [r.clause];
+    const next = nextOf.get(r.clause);
+    return next ? [next] : [];
+  });
+  return {
+    kind: 'ops',
+    ops: splitOps(second.flatMap((r) => r.ops)).function,
+    ...(rest.length > 0 ? { next: joinClauses(rest, ctx.locale).slice(0, 200) } : {}),
+  };
 }
 
 export function createMockAIProvider(): AIProvider {
