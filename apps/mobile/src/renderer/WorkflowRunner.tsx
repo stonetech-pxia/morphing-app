@@ -27,6 +27,7 @@ export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: R
     })
     .join(locale === 'zh' ? '；' : '; ');
   const start = () => {
+    if (env.locked) return env.locked();
     if (env.interactive) router.push({ pathname: '/run/[workflowId]', params: { workflowId } });
   };
 

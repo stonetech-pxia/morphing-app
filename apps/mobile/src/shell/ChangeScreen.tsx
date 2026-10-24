@@ -7,10 +7,13 @@ import {
   type PlanAbout,
   type ThemePresetId,
 } from '@morph/core';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -19,41 +22,57 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAISettings } from '../ai/context';
+import { guideText } from '../guide/store';
 import { t } from '../i18n';
+import { UiIcon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
-import { Button, Card, SectionLabel } from '../renderer/ui';
+import { Button, Card } from '../renderer/ui';
 import { sharedAbout } from '../share/about';
 import { useIncoming } from '../share/incoming';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
-import type { ProposeResult } from '../workspace/store';
+import type { DraftResult } from '../workspace/store';
 import { aboutCandidates, examplesFor } from './examples';
-import { Preview } from './Preview';
+import { closeButtonOption, stackScreenOptions } from './header';
 import { StylePicker } from './StylePicker';
 
-/** 风格选择器填进去的原句由内置规则生成计划，不调用设置里的 AI（D-095）。 */
+/** 风格选择器填进去的原句由内置规则生成计划，不调用设置里的 AI（D-095）；新手引导的句子也是（D-149）。 */
 const presetPlanner = createMockAIProvider();
 
+/** 引导的句子打进输入框的速度：每个字的间隔，整句最多约 1.4 秒。 */
+const typeDelay = (length: number) => Math.min(45, 1400 / Math.max(length, 1));
+
+/** 输入框下面最多几个例子（不算「换个风格」）。 */
+const MAX_EXAMPLES = 2;
+
 /**
- * AI 修改入口（§4）：复述目标 → 列出将要做的修改 → 修改前后预览 → 应用 / 取消。
- * 只有提交并重新渲染成功后，外壳才显示“已应用”。
+ * AI 修改入口（§4、D-190）：一个带发送箭头的输入框和几个例子。AI 处理完，页面关掉，直接进入草稿模式：
+ * App 换成改完后的样子，能看不能用，底部「修改 / 退一步 / 应用 / 离开」。
+ * 已经有草稿时，新的一句接着改这份草稿；也可以继续或删除它。
  */
 export function ChangeScreen() {
   const { locale, registry } = useWorkspaceContext();
   const router = useRouter();
+  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const config = useWorkspace((s) => s.config)!;
-  const proposal = useWorkspace((s) => s.proposal);
+  const draft = useWorkspace((s) => s.draft);
   const busy = useWorkspace((s) => s.busy);
-  const propose = useWorkspace((s) => s.propose);
-  const confirm = useWorkspace((s) => s.confirm);
-  const cancel = useWorkspace((s) => s.cancel);
-  const setHomeEntry = useWorkspace((s) => s.setHomeEntry);
+  const draftChange = useWorkspace((s) => s.draftChange);
+  const openDraft = useWorkspace((s) => s.openDraft);
+  const deleteDraft = useWorkspace((s) => s.deleteDraft);
   const selectTab = useWorkspace((s) => s.selectTab);
   const palette = usePalette(config.theme);
   const aiMode = useAISettings((s) => s.mode);
   // 从一个快捷操作（「让 AI 改这个」）或收件页面打开时带上的上下文（D-124）。
-  const params = useLocalSearchParams<{ workflow?: string; shared?: string }>();
+  const params = useLocalSearchParams<{ workflow?: string; shared?: string; guide?: string }>();
+  // 从新手引导打开（D-149）：句子自动打进输入框，用内置规则处理。
+  const [guide] = useState(() =>
+    guideText(params.guide, locale) !== null ? params.guide : undefined,
+  );
+  const [typing, setTyping] = useState(() => guideText(guide, locale) !== null);
   const share = useIncoming((s) => s.share);
   const [about] = useState<PlanAbout | undefined>(() => {
     if (params.workflow && config.workflows.some((w) => w.id === params.workflow))
@@ -101,68 +120,84 @@ export function ChangeScreen() {
   const [input, setInput] = useState('');
   /** 风格选择器最近填进去的句子；用户改过输入框后就不再相等，交给设置里的 AI。 */
   const [presetText, setPresetText] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<Exclude<ProposeResult, { kind: 'preview' }> | null>(
-    null,
-  );
-  const [side, setSide] = useState<'before' | 'after'>('after');
-  const [previewBroken, setPreviewBroken] = useState(false);
-
-  // 关闭页面（例如下滑）时，未确认的修改视为取消。延迟判断，避免开发模式下的重复挂载误取消。
-  const mounted = useRef(false);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      setTimeout(() => {
-        if (!mounted.current) void cancel();
-      }, 0);
-    };
-  }, [cancel]);
-
-  async function submit(text: string) {
-    if (!text.trim() || busy) return;
-    setFeedback(null);
-    setPreviewBroken(false);
-    setSide('after');
-    const planner = text.trim() === presetText ? presetPlanner : undefined;
-    const result = await propose(text.trim(), planner, about);
-    if (result.kind !== 'preview') setFeedback(result);
-  }
-
-  /** 点选风格预设：把切换风格的句子填进输入框，用户点「预览」后照常走预览（D-095）。 */
-  function pickStyle(preset: ThemePresetId) {
-    const text = presetRequest(preset, locale);
-    setFeedback(null);
-    setInput(text);
-    setPresetText(text);
-  }
+  const [feedback, setFeedback] = useState<Extract<
+    DraftResult,
+    { kind: 'rejected' | 'invalid' }
+  > | null>(null);
+  const [stylesOpen, setStylesOpen] = useState(false);
 
   /**
-   * 应用后带用户去看改了什么（D-109）。新做了一个快捷操作时打开「做好了」页面，由用户自己点
-   * 「现在就用一次」（D-125）；从快捷操作或收件页面打开的回到原来的页面（收件页面会列出新的快捷操作）。
+   * 关掉这个页面，回到草稿：从外壳或页面打开的回到原处（页面也显示草稿）；从运行页面、收件页面、
+   * 「做好了」页面打开的（有上下文）一起关掉，因为草稿模式不在它们里面。
    */
-  async function apply() {
-    const applied = proposal;
-    const ok = await confirm();
-    router.back();
-    if (!ok || !applied || about) return;
-    const before = new Set(applied.before.workflows.map((w) => w.id));
-    const added = applied.after.workflows.filter((w) => !before.has(w.id));
-    const target = pageTarget(applied.focusPageId);
-    if (applied.after.shell.nav.includes(target)) selectTab(target);
-    if (added.length === 1) {
-      router.push({ pathname: '/ready/[workflowId]', params: { workflowId: added[0]!.id } });
+  function leave() {
+    if (!router.canGoBack()) router.replace('/');
+    else if (about && router.canDismiss()) router.dismissAll();
+    else router.back();
+  }
+
+  async function submit(text: string, offline = text.trim() === presetText) {
+    if (!text.trim() || busy) return;
+    setFeedback(null);
+    // 「撤销」会立即回到上一个版本、可能换主题：先把这个页面的导航栏固定住。Android 上带「关闭」
+    // 按钮的导航栏在这时更新会崩（react-native-screens：child already has a parent）。
+    navigation.setOptions({ ...stackScreenOptions(palette), ...closeButtonOption(palette) });
+    const result = await draftChange(text.trim(), offline ? presetPlanner : undefined, {
+      ...(guide ? { guide } : {}),
+      ...(about ? { about } : {}),
+    });
+    if (result.kind === 'rejected' || result.kind === 'invalid') {
+      setFeedback(result);
       return;
     }
-    if (applied.focusWorkflowId) router.push('/workflows');
+    // 进入草稿时显示改到的那一页（在导航栏里时）。
+    if (result.kind === 'drafted') {
+      const target = pageTarget(result.focusPageId);
+      if (result.step.config.shell.nav.includes(target)) selectTab(target);
+    }
+    leave();
   }
 
-  async function discard() {
-    await cancel();
-    router.back();
+  // 引导的句子一个字一个字打进输入框，打完自动处理：用户看到「原来可以这么说」。
+  useEffect(() => {
+    const text = guideText(guide, locale);
+    if (!text) return;
+    let shown = 0;
+    const timer = setInterval(() => {
+      shown += 1;
+      setInput(text.slice(0, shown));
+      if (shown < text.length) return;
+      clearInterval(timer);
+      setTyping(false);
+      setPresetText(text);
+      void submit(text, true);
+    }, typeDelay(text.length));
+    return () => clearInterval(timer);
+    // 只在打开时打一次。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** 点选风格：直接用内置规则换成那个风格，进入草稿看效果（D-095）。 */
+  function pickStyle(preset: ThemePresetId) {
+    const text = presetRequest(preset, locale);
+    setStylesOpen(false);
+    setInput(text);
+    setPresetText(text);
+    void submit(text, true);
   }
 
-  const text = [palette.font('body', 15), { color: palette.text }];
+  function askDelete() {
+    if (!draft) return;
+    Alert.alert(
+      t(locale, 'draftDeleteTitle'),
+      t(locale, 'draftDeleteBody', { n: draft.steps.length }),
+      [
+        { text: t(locale, 'cancel'), style: 'cancel' },
+        { text: t(locale, 'draftDelete'), style: 'destructive', onPress: () => void deleteDraft() },
+      ],
+    );
+  }
+
   const sub = [palette.font('body', 15), { color: palette.muted }];
 
   return (
@@ -172,223 +207,173 @@ export function ChangeScreen() {
       <ScrollView
         contentContainerStyle={[styles.page, { padding: palette.pad, gap: palette.gap - 2 }]}
         keyboardShouldPersistTaps="handled">
-        {!proposal ? (
-          <>
-            {about ? (
-              <Card palette={palette} background={palette.primaryTint} testID="change-about">
-                <Text style={[palette.font('title', 15), { color: palette.text }]}>
-                  {about.kind === 'workflow'
-                    ? t(locale, 'aboutWorkflow', { name: aboutName ?? '' })
-                    : t(locale, 'aboutShared', { what: sharedWhat(about, locale) })}
-                </Text>
-                <Text style={sub}>
-                  {t(locale, about.kind === 'workflow' ? 'aboutWorkflowHint' : 'aboutSharedHint')}
-                </Text>
-              </Card>
-            ) : (
-              <Text style={sub}>{t(locale, 'changeHint')}</Text>
-            )}
-            <TextInput
-              testID="change-input"
-              value={input}
-              onChangeText={setInput}
-              placeholder={
-                !about
-                  ? t(locale, 'changePlaceholder')
-                  : examples[0]
-                    ? t(locale, 'aboutPlaceholder', { example: examples[0] })
-                    : ''
-              }
-              placeholderTextColor={palette.caption}
-              multiline
-              style={[
-                styles.input,
-                palette.font('body', 16),
-                {
-                  color: palette.text,
-                  backgroundColor: palette.surface,
-                  borderColor: palette.border,
-                  borderRadius: palette.controlRadius,
-                },
-              ]}
-            />
-            <Button
-              palette={palette}
-              testID="change-submit"
-              onPress={() => submit(input)}
-              loading={busy}
-              label={t(locale, 'preview')}
-            />
-
-            {feedback ? (
-              <Card palette={palette} testID="change-feedback">
-                {feedback.kind === 'invalid' ? (
-                  <>
-                    <Text style={[palette.font('bodyBold', 15), { color: palette.danger }]}>
-                      {t(locale, 'invalidPlan')}
-                    </Text>
-                    {feedback.issues.map((issue) => (
-                      <Text key={issue} style={sub}>
-                        • {issue}
-                      </Text>
-                    ))}
-                  </>
-                ) : (
-                  <>
-                    <Text style={text}>{feedback.message}</Text>
-                    {/* 拒绝时给的例子（例如办事类请求能做成的快捷操作，D-128）：点一下填进输入框。 */}
-                    {feedback.examples.length > 0 ? (
-                      <View style={styles.chips} testID="change-feedback-examples">
-                        {feedback.examples.map((example) => (
-                          <Chip
-                            key={example}
-                            label={example}
-                            palette={palette}
-                            onPress={() => setInput(example)}
-                          />
-                        ))}
-                      </View>
-                    ) : null}
-                  </>
-                )}
-              </Card>
-            ) : null}
-
-            {about ? null : (
-              <>
-                <SectionLabel palette={palette}>{t(locale, 'pickStyle')}</SectionLabel>
-                <StylePicker
-                  locale={locale}
-                  current={presetOfTheme(config.theme)}
-                  palette={palette}
-                  onPick={pickStyle}
-                />
-              </>
-            )}
-
-            {examples.length > 0 ? (
-              <>
-                <SectionLabel palette={palette}>{t(locale, 'examples')}</SectionLabel>
-                <View style={styles.chips} testID="change-examples">
-                  {examples.map((example) => (
-                    <Chip
-                      key={example}
-                      label={example}
-                      palette={palette}
-                      onPress={() => setInput(example)}
-                    />
-                  ))}
-                </View>
-              </>
-            ) : null}
-          </>
-        ) : (
-          <>
-            <Text
-              testID="proposal-summary"
-              style={[palette.font('heading', 22), { color: palette.text, letterSpacing: -0.4 }]}>
-              {proposal.summary}
+        {about ? (
+          <Card palette={palette} background={palette.primaryTint} testID="change-about">
+            <Text style={[palette.font('title', 15), { color: palette.text }]}>
+              {about.kind === 'workflow'
+                ? t(locale, 'aboutWorkflow', { name: aboutName ?? '' })
+                : t(locale, 'aboutShared', { what: sharedWhat(about, locale) })}
             </Text>
-            {proposal.notes?.length ? (
-              <Card palette={palette} background={palette.primaryTint} testID="plan-notes">
-                <Text style={[palette.font('title', 15), { color: palette.text }]}>
-                  {t(locale, 'notesTitle')}
-                </Text>
-                {proposal.notes.map((note, i) => (
-                  <Text key={i} testID={`plan-note-${i}`} style={text}>
-                    • {note}
-                  </Text>
-                ))}
-              </Card>
-            ) : null}
-            <Card palette={palette}>
-              <Text style={[palette.font('title', 15), { color: palette.text }]}>
-                {t(locale, 'planTitle')}
-              </Text>
-              {proposal.lines.map((line, i) => (
-                <Text key={i} testID={`plan-line-${i}`} style={text}>
-                  • {line}
-                </Text>
-              ))}
-              {proposal.homeEntry ? (
-                <Pressable
-                  testID="change-home-entry"
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: proposal.homeEntry.on }}
-                  onPress={() => setHomeEntry(!proposal.homeEntry!.on)}
-                  hitSlop={6}
-                  style={styles.check}>
-                  <View
-                    style={[
-                      styles.box,
-                      { borderColor: palette.primary },
-                      proposal.homeEntry.on && { backgroundColor: palette.primary },
-                    ]}>
-                    {proposal.homeEntry.on ? (
-                      <Text style={[palette.font('bodyBold', 14), { color: palette.onPrimary }]}>
-                        ✓
-                      </Text>
-                    ) : null}
-                  </View>
-                  <Text style={[styles.flex, text]}>{t(locale, 'homeEntry')}</Text>
-                </Pressable>
-              ) : null}
-            </Card>
+            <Text style={sub}>
+              {t(locale, about.kind === 'workflow' ? 'aboutWorkflowHint' : 'aboutSharedHint')}
+            </Text>
+          </Card>
+        ) : null}
 
-            {proposal.focusWorkflowId ? (
-              <WorkflowSteps workflowId={proposal.focusWorkflowId} />
-            ) : (
-              <>
-                {/* 两段式切换（Docudis 的 ClaySegmented）。 */}
-                <View style={[styles.segment, { backgroundColor: palette.border }]}>
-                  {(['before', 'after'] as const).map((s) => (
-                    <Pressable
-                      key={s}
-                      testID={`preview-${s}`}
-                      onPress={() => setSide(s)}
-                      style={[
-                        styles.segmentItem,
-                        side === s && { backgroundColor: palette.surface },
-                      ]}>
-                      <Text
-                        style={[
-                          palette.font('title', 14),
-                          { color: side === s ? palette.text : palette.caption },
-                        ]}>
-                        {t(locale, s)}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-                <Preview
-                  key={`${proposal.changeRequestId}-${side}`}
-                  config={side === 'before' ? proposal.before : proposal.after}
-                  pageId={proposal.focusPageId}
-                  onError={() => side === 'after' && setPreviewBroken(true)}
-                />
-              </>
-            )}
-
-            <View style={styles.actions}>
+        {draft && !guide ? (
+          <Card palette={palette} background={palette.primaryTint} testID="change-draft">
+            <Text style={[palette.font('title', 15), { color: palette.text }]}>
+              {t(locale, 'draftCard', { n: draft.steps.length })}
+            </Text>
+            <Text style={sub}>{t(locale, 'draftCardHint')}</Text>
+            <View style={styles.row}>
               <Button
                 palette={palette}
-                testID="change-cancel"
-                variant="outline"
-                onPress={discard}
-                label={t(locale, 'cancel')}
-              />
-              <Button
-                palette={palette}
-                testID="change-apply"
-                onPress={apply}
-                disabled={busy || previewBroken}
-                label={t(locale, 'apply')}
+                testID="change-draft-continue"
+                label={t(locale, 'draftContinue')}
+                onPress={() => {
+                  openDraft();
+                  leave();
+                }}
                 style={styles.flex}
               />
+              <Button
+                palette={palette}
+                testID="change-draft-delete"
+                variant="outline"
+                danger
+                label={t(locale, 'draftDelete')}
+                onPress={askDelete}
+              />
             </View>
-          </>
+          </Card>
+        ) : null}
+
+        <View
+          style={[
+            styles.box,
+            {
+              backgroundColor: palette.surface,
+              borderColor: palette.border,
+              borderRadius: palette.controlRadius,
+            },
+          ]}>
+          <TextInput
+            testID="change-input"
+            value={input}
+            onChangeText={setInput}
+            editable={!typing}
+            placeholder={
+              about && examples[0]
+                ? t(locale, 'aboutPlaceholder', { example: examples[0] })
+                : t(locale, 'changeAsk')
+            }
+            placeholderTextColor={palette.caption}
+            multiline
+            style={[styles.input, palette.font('body', 16), { color: palette.text }]}
+          />
+          <Pressable
+            testID="change-submit"
+            accessibilityRole="button"
+            accessibilityLabel={t(locale, 'send')}
+            disabled={busy || typing}
+            onPress={() => void submit(input)}
+            style={[styles.send, { backgroundColor: palette.primary }]}>
+            {busy || typing ? (
+              <ActivityIndicator color={palette.onPrimary} />
+            ) : (
+              <UiIcon name="send" size={20} color={palette.onPrimary} />
+            )}
+          </Pressable>
+        </View>
+
+        {feedback ? (
+          <Card palette={palette} testID="change-feedback">
+            {feedback.kind === 'invalid' ? (
+              <>
+                <Text style={[palette.font('bodyBold', 15), { color: palette.danger }]}>
+                  {t(locale, 'invalidPlan')}
+                </Text>
+                {feedback.issues.map((issue) => (
+                  <Text key={issue} style={sub}>
+                    • {issue}
+                  </Text>
+                ))}
+              </>
+            ) : (
+              <>
+                <Text style={[palette.font('body', 15), { color: palette.text }]}>
+                  {feedback.message}
+                </Text>
+                {/* 拒绝时给的例子（例如办事类请求能做成的快捷操作，D-128）：点一下填进输入框。 */}
+                {feedback.examples.length > 0 ? (
+                  <View style={styles.chips} testID="change-feedback-examples">
+                    {feedback.examples.map((example) => (
+                      <Chip
+                        key={example}
+                        label={example}
+                        palette={palette}
+                        onPress={() => setInput(example)}
+                      />
+                    ))}
+                  </View>
+                ) : null}
+              </>
+            )}
+          </Card>
+        ) : null}
+
+        {guide ? null : (
+          <View style={styles.chips} testID="change-examples">
+            {examples.slice(0, MAX_EXAMPLES).map((example) => (
+              <Chip
+                key={example}
+                label={example}
+                palette={palette}
+                onPress={() => setInput(example)}
+              />
+            ))}
+            {about ? null : (
+              <Chip
+                testID="change-pick-style"
+                label={t(locale, 'pickStyleChip')}
+                icon
+                palette={palette}
+                onPress={() => setStylesOpen(true)}
+              />
+            )}
+          </View>
         )}
       </ScrollView>
+
+      {/* 「换个风格」：从底部弹出风格选择（D-095），选了直接进入草稿看效果。 */}
+      <Modal
+        visible={stylesOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setStylesOpen(false)}>
+        <Pressable
+          style={styles.scrim}
+          onPress={() => setStylesOpen(false)}
+          accessibilityLabel={t(locale, 'close')}
+        />
+        <View
+          testID="change-styles"
+          style={[
+            styles.sheet,
+            { backgroundColor: palette.surface, paddingBottom: insets.bottom + 16 },
+          ]}>
+          <Text style={[palette.font('title', 16), { color: palette.text }]}>
+            {t(locale, 'pickStyle')}
+          </Text>
+          <StylePicker
+            locale={locale}
+            current={presetOfTheme(config.theme)}
+            palette={palette}
+            onPick={pickStyle}
+          />
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -397,13 +382,18 @@ function Chip({
   label,
   palette,
   onPress,
+  icon,
+  testID,
 }: {
   label: string;
   palette: ReturnType<typeof usePalette>;
   onPress: () => void;
+  icon?: boolean;
+  testID?: string;
 }) {
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       style={({ pressed }) => [
         styles.chip,
@@ -413,6 +403,7 @@ function Chip({
           opacity: pressed ? 0.6 : 1,
         },
       ]}>
+      {icon ? <UiIcon name="palette" size={14} color={palette.primaryText} /> : null}
       <Text style={[palette.font('bodyBold', 13), { color: palette.text }]}>{label}</Text>
     </Pressable>
   );
@@ -430,57 +421,37 @@ function sharedWhat(about: Extract<PlanAbout, { kind: 'shared' }>, locale: 'en' 
   return parts.join(locale === 'zh' ? '和' : ' and ');
 }
 
-/** 新工作流不在任何页面上时，预览显示它的步骤，并说明在哪里找到它（D-109）。 */
-function WorkflowSteps({ workflowId }: { workflowId: string }) {
-  const { locale, registry } = useWorkspaceContext();
-  const proposal = useWorkspace((s) => s.proposal)!;
-  const palette = usePalette(proposal.after.theme);
-  const workflow = proposal.after.workflows.find((w) => w.id === workflowId);
-  if (!workflow) return null;
-  return (
-    <Card palette={palette} testID="preview-workflow">
-      <Text style={[palette.font('title', 17), { color: palette.text }]}>{workflow.name}</Text>
-      {workflow.steps.map((step, i) => (
-        <Text key={step.id} style={[palette.font('body', 15), { color: palette.text }]}>
-          {`${i + 1}. ${registry.actions.get(step.action)?.label[locale] ?? step.action}`}
-        </Text>
-      ))}
-      <Text style={[palette.font('body', 13), { color: palette.caption }]}>
-        {t(locale, 'workflowWhere')}
-      </Text>
-    </Card>
-  );
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  check: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
-  box: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
+  flex: { flex: 1 },
+  page: { paddingBottom: 48 },
+  row: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  box: { borderWidth: 1, padding: 12, gap: 8 },
+  input: { minHeight: 84, textAlignVertical: 'top', padding: 2 },
+  send: {
+    alignSelf: 'flex-end',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  page: { paddingBottom: 48 },
-  input: { minHeight: 110, borderWidth: 1, padding: 14, textAlignVertical: 'top' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 14,
     minHeight: 34,
-    justifyContent: 'center',
   },
-  segment: { flexDirection: 'row', borderRadius: 14, padding: 4 },
-  segmentItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 36,
-    borderRadius: 11,
+  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)' },
+  sheet: {
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    gap: 14,
   },
-  actions: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  flex: { flex: 1 },
 });

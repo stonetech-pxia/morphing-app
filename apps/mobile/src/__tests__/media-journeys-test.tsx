@@ -60,7 +60,8 @@ async function askAi(text: string) {
   await fireEvent.press(screen.getByTestId('nav-ai'));
   await fireEvent.changeText(await screen.findByTestId('change-input'), text);
   await fireEvent.press(screen.getByTestId('change-submit'));
-  await fireEvent.press(await screen.findByTestId('change-apply'));
+  // 进入草稿（D-190），应用。
+  await fireEvent.press(await screen.findByTestId('draft-apply'));
   expect(await screen.findByTestId('banner')).toBeTruthy();
 }
 

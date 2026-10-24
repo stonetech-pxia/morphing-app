@@ -314,7 +314,10 @@ export function RecordList({
             accessibilityState={{ checked }}
             disabled={!env.interactive}
             hitSlop={8}
-            onPress={() => void actions.update(collection, r, { [props.checkField!]: !checked })}
+            onPress={
+              env.locked ??
+              (() => void actions.update(collection, r, { [props.checkField!]: !checked }))
+            }
             onLongPress={env.onLongPress}
             style={[
               styles.check,
@@ -349,7 +352,9 @@ export function RecordList({
         ) : null}
       </View>
     );
-    const open = env.interactive ? () => openEditor(router, collection.id, r.id) : undefined;
+    const open = env.interactive
+      ? (env.locked ?? (() => openEditor(router, collection.id, r.id)))
+      : undefined;
     if (props.display === 'cards') {
       return (
         <Card
@@ -416,7 +421,9 @@ export function RecordForm({
         palette={palette}
         testID={`form-${componentId}`}
         label={props.submitLabel}
-        onPress={env.interactive ? () => openEditor(router, collection.id) : undefined}
+        onPress={
+          env.interactive ? (env.locked ?? (() => openEditor(router, collection.id))) : undefined
+        }
         onLongPress={env.onLongPress}
       />
     );
@@ -424,6 +431,7 @@ export function RecordForm({
 
   async function submit() {
     if (!collection || !env.interactive) return;
+    if (env.locked) return env.locked();
     const result = await actions.add(collection, values);
     if (result.ok) {
       setValues({});

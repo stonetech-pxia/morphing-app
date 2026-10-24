@@ -22,13 +22,15 @@ import { AISettingsProvider } from '@/ai/context';
 import { createAIRouter } from '@/ai/router';
 import { getDeviceId, secureSecretStore } from '@/ai/secure-store';
 import { createAISettingsStore } from '@/ai/settings';
+import { DraftChatSheet } from '@/draft/DraftBar';
+import { useGuide } from '@/guide/store';
 import { getDeviceLocale, t } from '@/i18n';
 import { PackBridge } from '@/packs/bridge';
 import { expoBridgeFiles, expoPackFs, expoSha256 } from '@/packs/expo-pack-fs';
 import { PackHostProvider } from '@/packs/PackHost';
 import { PackStore } from '@/packs/store';
 import { expoFilePlatform } from '@/runtime/expo-platform';
-import { CloseButton } from '@/shell/CloseButton';
+import { closeButtonOption, stackScreenOptions } from '@/shell/header';
 import { CLAY_FONTS, usePalette } from '@/renderer/theme';
 import { useIncomingShare } from '@/share/useIncomingShare';
 import { ToolDownloadsProvider } from '@/tool-download/context';
@@ -104,22 +106,11 @@ function ThemedStack() {
   // 别的 App 分享进来的文件 → 收件页面（D-114）。
   useIncomingShare(expoFilePlatform);
   const palette = usePalette(theme);
-  const closable = {
-    presentation: 'modal',
-    headerLeft: () => <CloseButton palette={palette} />,
-  } as const;
+  const closable = { presentation: 'modal', ...closeButtonOption(palette) } as const;
   return (
     <>
       <StatusBar style={palette.dark ? 'light' : 'dark'} />
-      <Stack
-        screenOptions={{
-          headerStyle: { backgroundColor: palette.background },
-          headerShadowVisible: false,
-          headerTintColor: palette.text,
-          headerBackButtonDisplayMode: 'minimal',
-          headerTitleStyle: { ...palette.font('title', 17), color: palette.text } as never,
-          contentStyle: palette.backdrop,
-        }}>
+      <Stack screenOptions={stackScreenOptions(palette)}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="change" options={{ ...closable, title: t(locale, 'changeTitle') }} />
         <Stack.Screen name="page/[pageId]" />
@@ -132,7 +123,13 @@ function ThemedStack() {
         <Stack.Screen name="run/[workflowId]" options={closable} />
         <Stack.Screen name="share" options={closable} />
         <Stack.Screen name="ready/[workflowId]" options={{ ...closable, title: '' }} />
+        <Stack.Screen
+          name="welcome"
+          options={{ presentation: 'fullScreenModal', headerShown: false, gestureEnabled: false }}
+        />
       </Stack>
+      {/* 草稿模式的聊天框只放一个（D-190）：外壳每改一步会重新挂载，推入的页面也要用它。 */}
+      <DraftChatSheet />
     </>
   );
 }
@@ -172,6 +169,7 @@ export default function RootLayout() {
           toolDownloads.getState().catalog?.tools.find((e) => e.id === id)?.name[locale],
       });
       await created.getState().boot();
+      await useGuide.getState().load(repo);
       void toolDownloads.getState().refresh(CATALOG_DAY_MS);
       // 上次运行没来得及删除的临时文件（D-063）。
       await expoFilePlatform.removeAllRuns().catch(() => undefined);

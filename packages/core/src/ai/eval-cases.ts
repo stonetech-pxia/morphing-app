@@ -1278,6 +1278,81 @@ const GOAL_EVAL_CASES: readonly EvalCase[] = [
       plan: hasNotes,
     },
   },
+  // 新手引导的三句（D-149）：内置规则也要认得；真实模型拿到同样的句子也要搭出能用的快捷操作。
+  {
+    id: 'GW8',
+    input: '我有一堆旅行照片，想发给朋友',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      // 发给别人：要缩小或压缩。去掉定位是引导里的惊喜点，由内置规则保证（goals.test.ts），真实模型不强求。
+      check: all(
+        hasWorkflow(['in.photos', 'out.share'], someAction(['image.compress', 'image.resize'])),
+        noRunner,
+      ),
+    },
+  },
+  {
+    id: 'GW8-en',
+    input: 'I have a bunch of trip photos to send to friends',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: all(
+        hasWorkflow(['in.photos', 'out.share'], someAction(['image.compress', 'image.resize'])),
+        noRunner,
+      ),
+    },
+  },
+  {
+    id: 'GW9',
+    input: '我拍了一段视频，太大了发不出去',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['in.videos', 'video.compress', 'out.share']), noRunner),
+    },
+  },
+  {
+    id: 'GW9-en',
+    input: 'I shot a video and it’s too big to send',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['in.videos', 'video.compress', 'out.share']), noRunner),
+    },
+  },
+  {
+    id: 'GW10',
+    input: '我有好几份 PDF 合同，想合成一份加上页码，发邮件给律师',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['in.files', 'pdf.merge', 'pdf.pageNumbers', 'out.share']), noRunner),
+    },
+  },
+  {
+    id: 'GW10-en',
+    input:
+      'I have several PDF contracts to combine into one with page numbers and email to my lawyer',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['in.files', 'pdf.merge', 'pdf.pageNumbers', 'out.share']), noRunner),
+    },
+  },
 ];
 
 // 新说法（D-112）：「快捷操作 / quick action」「添加 / 移除工具」「改动记录」，旧说法仍然能用（W*、P7）。

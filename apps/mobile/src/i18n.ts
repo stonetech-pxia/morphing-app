@@ -651,6 +651,114 @@ const strings = {
   trimNext: { en: 'Next', zh: '下一个' },
   sharedVideos: { en: '{n} videos', zh: '{n} 个视频' },
   sharedAudio: { en: '{n} audio files', zh: '{n} 个音频' },
+
+  // AI 修改的草稿（D-190）
+  draftDropped: {
+    en: 'The app changed since you left the draft; {n} step(s) no longer fit and were removed.',
+    zh: '离开草稿之后 App 又改过，有 {n} 步套不上了，已经去掉。',
+  },
+  draftFirstStep: {
+    en: 'This is the first step of the draft. To drop the whole draft, delete it on the Change this app page.',
+    zh: '这已经是草稿的第一步了。要整个丢掉，去「修改这个 App」删除草稿。',
+  },
+  draftEdit: { en: 'Change', zh: '修改' },
+  draftBack: { en: 'Step back', zh: '退一步' },
+  draftApply: { en: 'Apply', zh: '应用' },
+  draftLeave: { en: 'Leave', zh: '离开' },
+  draftLocked: {
+    en: 'This is a draft. Apply it to use this.',
+    zh: '这是草稿，应用之后才能用。',
+  },
+  draftReplyTitle: { en: 'Done. This is how it looks now', zh: '改好了，这是改完后的样子' },
+  draftGuideHint: {
+    en: 'Tap Apply to keep it, or Change to keep going.',
+    zh: '点「应用」保留，点「修改」接着说。',
+  },
+  draftChatTitle: { en: 'Change the draft', zh: '修改草稿' },
+  draftChatClose: { en: 'Hide', zh: '收起' },
+  draftChatPlaceholder: { en: 'Say one more thing…', zh: '再说一句…' },
+  draftSteppedBack: { en: 'Took back the last step.', zh: '退了一步。' },
+  draftCard: { en: 'You have a draft · {n} step(s)', zh: '你有一份草稿 · {n} 步' },
+  draftCardHint: {
+    en: 'What you say now continues this draft.',
+    zh: '新说的一句会接着改这份草稿。',
+  },
+  draftContinue: { en: 'Continue', zh: '继续' },
+  draftDelete: { en: 'Delete', zh: '删除' },
+  draftDeleteTitle: { en: 'Delete this draft?', zh: '删掉这份草稿？' },
+  draftDeleteBody: {
+    en: 'All {n} step(s) of the draft are dropped. The app stays as it is.',
+    zh: '草稿里的 {n} 步都会丢掉，App 不受影响。',
+  },
+  send: { en: 'Send', zh: '发送' },
+  changeAsk: {
+    en: 'What should change? One sentence is enough',
+    zh: '想怎么改？说一句就行',
+  },
+  pickStyleChip: { en: 'Pick a style', zh: '换个风格' },
+  draftRenderFailed: {
+    en: 'The last change could not be shown, so it was taken back.',
+    zh: '刚才那一步显示不出来，已经撤掉。',
+  },
+
+  // 新手引导（D-149）
+  guideSkip: { en: 'Skip', zh: '跳过' },
+  guideNext: { en: 'Next', zh: '下一步' },
+  guideStart: { en: 'Start', zh: '开始' },
+  guideIntro1Title: { en: 'This is your app', zh: '这是你的 App' },
+  guideIntro1Body: {
+    en: 'Say one sentence and it changes how it looks and what it does.',
+    zh: '说一句话，就能改它的样子和功能。',
+  },
+  guideIntro2Title: { en: 'Nothing to be afraid of', zh: '改错了也不怕' },
+  guideIntro2Body: {
+    en: 'You see a preview before anything changes, and you can go back any time.',
+    zh: '改之前先看预览，改过的随时能退回去。',
+  },
+  guideIntro3Title: {
+    en: 'Say what you have and what you want',
+    zh: '说出你有什么、想要什么',
+  },
+  guideIntro3Body: {
+    en: 'It becomes a quick action you can use right away.',
+    zh: '它会做成一个能直接用的快捷操作。',
+  },
+  guideLookTitle: { en: 'Step 1 · Change this app', zh: '第 1 步 · 说一句话，改掉这个 App' },
+  guideLookBody: {
+    en: 'Tap one to try it. You see a preview first.',
+    zh: '点一句试试，改之前会先给你看预览。',
+  },
+  guideGoalTitle: {
+    en: 'Step 2 · What you have, what you want',
+    zh: '第 2 步 · 说出你有什么、想要什么',
+  },
+  guideGoalBody: {
+    en: 'One sentence becomes a quick action you can use right away.',
+    zh: '一句话，做成一个能直接用的快捷操作。',
+  },
+  guideMore: { en: 'Or try', zh: '再试试' },
+  guideUndoHint: {
+    en: 'Don’t like the change? Tap Undo above to go back.',
+    zh: '刚才的修改不喜欢？点上面的「撤销」就能退回去。',
+  },
+  guideLater: { en: 'Later', zh: '以后再说' },
+  guideSkipAll: { en: 'Skip the guide', zh: '跳过引导' },
+  guideTask: {
+    en: 'Starter task: make a quick action with one sentence',
+    zh: '新手任务：一句话做一个快捷操作',
+  },
+  guideAdded: { en: 'Added by AI', zh: 'AI 加的' },
+  readyTryPhotos: { en: 'Try it with sample photos', zh: '用示例照片试一下' },
+  readyTryPdfs: { en: 'Try it with sample contracts', zh: '用示例合同试一下' },
+  readyRunOwn: { en: 'Use my own files', zh: '用我自己的文件' },
+  runTryOwn: { en: 'Now try it with your own files', zh: '换成你自己的文件试试' },
+  samplePhotos: { en: 'Sample photos ({n})', zh: '示例照片（{n} 张）' },
+  samplePdfs: { en: 'Sample contracts ({n})', zh: '示例合同（{n} 份）' },
+  settingsGuide: { en: 'Show the guide again', zh: '重新看新手引导' },
+  settingsGuideHint: {
+    en: 'The intro and two short exercises',
+    zh: '划屏介绍和两个小练习',
+  },
   // ---- 音频工具（D-150–D-156，音频会话）----
   runError_audioTooSmall: {
     en: 'At {target}, “{name}” would be too hard to understand. It needs at least {mb} MB, or trim it shorter first.',
