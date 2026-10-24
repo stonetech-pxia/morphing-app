@@ -38,6 +38,7 @@ export interface TimeRange {
 }
 
 export interface VideoSettings {
+  aspectRatio?: number;
   codec: 'h264';
   bitrateKbps?: number;
   /** 缩小到这个短边像素；只在比原视频小时给（原生端不检查，不放大由调用方保证）。 */

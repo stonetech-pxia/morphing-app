@@ -173,6 +173,10 @@ const RECORD_PHRASES: Matcher[] = [
 
 const STEP_PHRASES: Matcher[] = [
   [
+    /^(?:视频)?裁成\s*(9:16|1:1|4:5|16:9)$|^crop video to (9:16|1:1|4:5|16:9)$/i,
+    (m) => ({ action: 'video.crop', params: { ratio: m[1] ?? m[2] } }),
+  ],
+  [
     /^(?:顺时针)?旋转(?:视频)?\s*(90|180|270)\s*度$|^rotate (?:the )?video (90|180|270) degrees$/i,
     (m) => ({ action: 'video.rotate', params: { degrees: Number(m[1] ?? m[2]) } }),
   ],
@@ -517,6 +521,7 @@ const PRESET_WORDS: [RegExp, string][] = [
   [/视频去掉声音|remove sound from videos/i, 'mute-video'],
   [/给视频换背景音乐|add background music/i, 'video-background-music'],
   [/把视频转正|fix video rotation/i, 'fix-video-rotation'],
+  [/裁成竖屏视频|portrait posts/i, 'vertical-video'],
   // 音频预设（D-156）放在「合一」「发照片」前面。
   [/录音转文字|录音变成文字|recordings? (?:in)?to text/i, 'audio-to-text'],
   [/语音太大|录音太大|recording (?:is )?too big/i, 'audio-too-big'],

@@ -303,17 +303,67 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
-    id: 'fix-video-rotation',
+    id: 'video-too-big',
     scenario: 'photos',
-    name: { en: 'Fix video rotation', zh: '把视频转正' },
+    name: { en: 'Video too big to send', zh: '视频太大发不出去' },
     description: {
-      en: 'Choose videos and rotate their picture right, left or upside down, keeping sound.',
-      zh: '选视频，向右、向左或倒过来转正，声音保留。',
+      en: 'Choose videos → make each one smaller than the size you need (20 MB unless you change it) as an MP4 that plays everywhere → share.',
+      zh: '选视频 → 压到要求的大小以内（默认 20 MB，可以每次改），变成哪里都能放的 MP4 → 分享。',
     },
     icon: 'video',
     steps: () => [
       { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
-      { id: 'rotate', action: 'video.rotate', params: { degrees: 90 }, ask: ['degrees'] },
+      {
+        id: 'compress',
+        action: 'video.compress',
+        params: { by: 'size', maxMB: 20, quality: '720p' },
+        ask: ['maxMB'],
+      },
+      share,
+    ],
+  },
+  {
+    id: 'join-videos',
+    scenario: 'photos',
+    name: { en: 'Join video clips', zh: '把几段视频拼成一段' },
+    description: {
+      en: 'Choose 2–10 clips, arrange them, and join them into one MP4 using the first clip’s size and frame rate.',
+      zh: '选 2–10 段视频，调整顺序，按第一段的尺寸和帧率合成一个 MP4。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 2, max: 10 } },
+      { id: 'order', action: 'file.order', params: {} },
+      { id: 'merge', action: 'video.merge', params: {} },
+    ],
+  },
+  {
+    id: 'video-frame',
+    scenario: 'photos',
+    name: { en: 'Save a photo from a video', zh: '从视频里截一张照片' },
+    description: {
+      en: 'Choose videos, pick a frame in each, and save the photos to your library.',
+      zh: '选视频，为每段挑一帧，存成照片放到相册。',
+    },
+    icon: 'photo',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'frame', action: 'video.frame', params: {} },
+      { id: 'save', action: 'out.saveToPhotos', params: {} },
+    ],
+  },
+  {
+    id: 'mute-video',
+    scenario: 'photos',
+    name: { en: 'Remove sound from videos', zh: '视频去掉声音' },
+    description: {
+      en: 'Choose videos and make silent MP4 copies, keeping your originals.',
+      zh: '选视频，另存为无声 MP4，原片保留。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'mute', action: 'video.mute', params: {} },
     ],
   },
   {
@@ -336,67 +386,31 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
-    id: 'mute-video',
+    id: 'fix-video-rotation',
     scenario: 'photos',
-    name: { en: 'Remove sound from videos', zh: '视频去掉声音' },
+    name: { en: 'Fix video rotation', zh: '把视频转正' },
     description: {
-      en: 'Choose videos and make silent MP4 copies, keeping your originals.',
-      zh: '选视频，另存为无声 MP4，原片保留。',
+      en: 'Choose videos and rotate their picture right, left or upside down, keeping sound.',
+      zh: '选视频，向右、向左或倒过来转正，声音保留。',
     },
     icon: 'video',
     steps: () => [
       { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
-      { id: 'mute', action: 'video.mute', params: {} },
+      { id: 'rotate', action: 'video.rotate', params: { degrees: 90 }, ask: ['degrees'] },
     ],
   },
   {
-    id: 'video-frame',
+    id: 'vertical-video',
     scenario: 'photos',
-    name: { en: 'Save a photo from a video', zh: '从视频里截一张照片' },
+    name: { en: 'Crop videos for portrait posts', zh: '裁成竖屏视频' },
     description: {
-      en: 'Choose videos, pick a frame in each, and save the photos to your library.',
-      zh: '选视频，为每段挑一帧，存成照片放到相册。',
-    },
-    icon: 'photo',
-    steps: () => [
-      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
-      { id: 'frame', action: 'video.frame', params: {} },
-      { id: 'save', action: 'out.saveToPhotos', params: {} },
-    ],
-  },
-  {
-    id: 'join-videos',
-    scenario: 'photos',
-    name: { en: 'Join video clips', zh: '把几段视频拼成一段' },
-    description: {
-      en: 'Choose 2–10 clips, arrange them, and join them into one MP4 using the first clip’s size and frame rate.',
-      zh: '选 2–10 段视频，调整顺序，按第一段的尺寸和帧率合成一个 MP4。',
-    },
-    icon: 'video',
-    steps: () => [
-      { id: 'pick', action: 'in.videos', params: { min: 2, max: 10 } },
-      { id: 'order', action: 'file.order', params: {} },
-      { id: 'merge', action: 'video.merge', params: {} },
-    ],
-  },
-  {
-    id: 'video-too-big',
-    scenario: 'photos',
-    name: { en: 'Video too big to send', zh: '视频太大发不出去' },
-    description: {
-      en: 'Choose videos → make each one smaller than the size you need (20 MB unless you change it) as an MP4 that plays everywhere → share.',
-      zh: '选视频 → 压到要求的大小以内（默认 20 MB，可以每次改），变成哪里都能放的 MP4 → 分享。',
+      en: 'Choose videos and crop the center to 9:16, or pick another shape each time.',
+      zh: '选视频，居中裁成 9:16 竖屏，也可每次选别的比例。',
     },
     icon: 'video',
     steps: () => [
       { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
-      {
-        id: 'compress',
-        action: 'video.compress',
-        params: { by: 'size', maxMB: 20, quality: '720p' },
-        ask: ['maxMB'],
-      },
-      share,
+      { id: 'crop', action: 'video.crop', params: { ratio: '9:16' }, ask: ['ratio'] },
     ],
   },
   {

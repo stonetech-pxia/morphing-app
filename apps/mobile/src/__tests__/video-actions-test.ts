@@ -103,6 +103,7 @@ describe('video tool', () => {
     );
     if (!result.ok) throw new Error(result.error);
     expect(result.config.workflows.map((w) => w.name)).toEqual([
+      '视频裁成指定比例',
       '旋转视频',
       '换背景音乐',
       '去掉视频声音',
@@ -463,3 +464,25 @@ it.each([90, 180, 270])('rotates each video clockwise by %s degrees', async (deg
   });
   expect(media.rotations[0]!.degrees).toBe(degrees);
 });
+
+it.each(['9:16', '1:1', '4:5', '16:9'])(
+  'center-crops video to %s without changing duration or sound',
+  async (ratio) => {
+    const { files, media, run } = setup(toolWorkflow('video-crop'), { answers: { ratio } });
+    files.nextVideos = [
+      files.offerVideo('wide.mov', {
+        size: 1000,
+        durationMs: 1000,
+        width: 1920,
+        height: 1080,
+        hasAudio: true,
+      }),
+    ];
+    const [item] = videosOf(await run());
+    const [w, h] = ratio.split(':').map(Number);
+    expect(item!.width! / item!.height!).toBeCloseTo(w! / h!, 2);
+    expect(item!.durationMs).toBe(1000);
+    expect((await media.probe(item!.uri)).hasAudio).toBe(true);
+    expect(media.encodes[0]!.aspectRatio).toBe(w! / h!);
+  },
+);

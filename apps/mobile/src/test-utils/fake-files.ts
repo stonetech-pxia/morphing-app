@@ -661,14 +661,26 @@ export class FakeMedia implements MediaPlatform {
       (((settings.videoKbps + settings.audioKbps) * 1000 * (ms / 1000)) / 8) * this.oversize,
     );
     const out = await this.files.writeRunFile(runId, relPath, new Uint8Array(bytes));
-    const short = settings.shortSide ?? Math.min(source.width ?? 0, source.height ?? 0);
-    const k = short / Math.min(source.width ?? 1, source.height ?? 1);
+    const originalW = source.width ?? 1;
+    const originalH = source.height ?? 1;
+    const cropW = settings.aspectRatio
+      ? Math.min(originalW, originalH * settings.aspectRatio)
+      : originalW;
+    const cropH = settings.aspectRatio
+      ? Math.min(originalH, originalW / settings.aspectRatio)
+      : originalH;
+    const short = settings.shortSide ?? Math.min(cropW, cropH);
+    const k = Math.min(1, short / Math.min(cropW, cropH));
     const info: MediaInfo = {
       ...source,
       durationMs: ms,
       size: bytes,
-      width: Math.round((source.width ?? 0) * k),
-      height: Math.round((source.height ?? 0) * k),
+      width: settings.aspectRatio
+        ? Math.max(2, Math.round((cropW * k) / 2) * 2)
+        : Math.round(originalW * k),
+      height: settings.aspectRatio
+        ? Math.max(2, Math.round((cropH * k) / 2) * 2)
+        : Math.round(originalH * k),
       hasAudio: settings.audioKbps > 0,
     };
     this.files.videos.set(out.uri, info);

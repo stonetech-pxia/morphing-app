@@ -162,6 +162,21 @@ async function eachVideo(
 }
 
 export const VIDEO_IMPLS: Record<string, Impl> = {
+  async 'video.crop'(input, params, ctx) {
+    const [w, h] = String(params.ratio).split(':').map(Number);
+    return eachVideo(input, ctx, async (item, media, job) => {
+      const info = await probe(media, item);
+      const plan = planVideoConvert(sourceOf(item, info));
+      checkSpace(ctx, estimate(plan, info.durationMs));
+      return media.encodeVideo(
+        item.uri,
+        { ...encodeOf(plan, info), aspectRatio: w! / h! },
+        ctx.services.runId,
+        freshName(item.name, 'mp4'),
+        job,
+      );
+    });
+  },
   async 'video.rotate'(input, params, ctx) {
     const { degrees } = params as { degrees: 90 | 180 | 270 };
     return eachVideo(input, ctx, async (item, media, job) => {

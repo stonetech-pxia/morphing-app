@@ -417,8 +417,12 @@ public class MorphMediaModule: Module {
     // 输出尺寸：摆正之后按短边缩小，不放大；H.264 要偶数宽高。
     let (natural, transform, nominalFps) = try await videoTrack.load(.naturalSize, .preferredTransform, .nominalFrameRate)
     let shown = natural.applying(transform)
-    let shownW = suppliedComposition?.renderSize.width ?? abs(shown.width)
-    let shownH = suppliedComposition?.renderSize.height ?? abs(shown.height)
+    let frameW = suppliedComposition?.renderSize.width ?? abs(shown.width)
+    let frameH = suppliedComposition?.renderSize.height ?? abs(shown.height)
+    let ratio = (video["aspectRatio"] as? NSNumber)?.doubleValue
+    if let ratio, !ratio.isFinite || ratio <= 0 { throw MediaUnsupportedException("invalid aspect ratio") }
+    let shownW = ratio.map { min(frameW, frameH * CGFloat($0)) } ?? frameW
+    let shownH = ratio.map { min(frameH, frameW / CGFloat($0)) } ?? frameH
     let shortSide = min(shownW, shownH)
     let maxShort = (video["maxShortSide"] as? Double).map { CGFloat($0) } ?? shortSide
     let scale = min(1, maxShort / max(shortSide, 1))
@@ -441,7 +445,7 @@ public class MorphMediaModule: Module {
     // 按转过之后的外框把画面挪回原点，再缩放到输出尺寸。
     let bounds = CGRect(origin: .zero, size: natural).applying(transform)
     let upright = transform.concatenating(
-      CGAffineTransform(translationX: -bounds.minX, y: -bounds.minY))
+      CGAffineTransform(translationX: -bounds.minX - (frameW - shownW) / 2, y: -bounds.minY - (frameH - shownH) / 2))
     let sx = CGFloat(outW) / shownW
     let sy = CGFloat(outH) / shownH
     layer.setTransform(upright.concatenating(CGAffineTransform(scaleX: sx, y: sy)), at: .zero)

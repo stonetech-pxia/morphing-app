@@ -403,6 +403,10 @@ class MorphMediaModule : Module() {
         effects.add(FrameDropEffect.createDefaultFrameDropEffect(fps))
       }
 
+      (video["aspectRatio"] as? Number)?.toFloat()?.let { ratio ->
+        if (!ratio.isFinite() || ratio <= 0f) throw MediaUnsupportedException("invalid aspect ratio")
+        effects.add(Presentation.createForAspectRatio(ratio, Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP))
+      }
       (video["rotationDegrees"] as? Number)?.toFloat()?.let { degrees ->
         // Media3 正数为逆时针，界面的角度为顺时针。
         effects.add(ScaleAndRotateTransformation.Builder().setRotationDegrees(-degrees).build())

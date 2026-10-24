@@ -223,3 +223,8 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 
 - 「添加把视频转正快捷操作」 / `Add the fix video rotation quick action`：选视频 → 顺时针旋转 90/180/270 度。
 - 步骤句式：「顺时针旋转视频 90 度」「旋转 180 度」 / `rotate video 270 degrees`。
+
+### 视频裁比例（VC1–VC2）
+
+- 「添加裁成竖屏视频快捷操作」 / `Add the portrait posts quick action`：选视频 → 居中裁成指定比例。
+- 步骤句式：「视频裁成 9:16」「裁成 1:1」 / `crop video to 4:5`。

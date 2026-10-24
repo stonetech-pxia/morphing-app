@@ -2835,7 +2835,40 @@ const VIDEO_ROTATE_CASES: EvalCase[] = [
     },
   },
 ];
+const VIDEO_CROP_CASES: EvalCase[] = [
+  {
+    id: 'VC1',
+    input: '添加裁成竖屏视频快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.crop'))
+          ? null
+          : 'missing video.crop',
+    },
+  },
+  {
+    id: 'VC2',
+    input: 'Make an action to center-crop videos into 1:1 squares, keeping their sound.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some((s) => s.action === 'video.crop' && s.params.ratio === '1:1'),
+        )
+          ? null
+          : 'missing square video crop',
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...VIDEO_CROP_CASES,
   ...VIDEO_ROTATE_CASES,
   ...VIDEO_MUSIC_CASES,
   ...VIDEO_MUTE_CASES,

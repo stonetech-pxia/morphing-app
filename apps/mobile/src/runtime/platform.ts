@@ -168,6 +168,8 @@ export interface MediaInfo {
 
 /** 一次视频编码的要求（H.264 + AAC 的 MP4）。 */
 export interface VideoEncode {
+  /** 居中裁剪到这个宽高比。 */
+  aspectRatio?: number;
   videoKbps: number;
   /** 0 = 去掉声音。 */
   audioKbps: number;

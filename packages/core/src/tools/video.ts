@@ -16,6 +16,31 @@ const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en
 
 export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   {
+    id: 'video.crop',
+    label: { en: 'Crop video to a shape', zh: '视频裁成指定比例' },
+    description: {
+      en: 'Center-crop each video to 9:16, 1:1, 4:5 or 16:9. The outside edges are removed, not stretched. Sound and duration are kept. This version crops the center; it does not let the user reposition the crop.',
+      zh: '把每段视频居中裁成 9:16、1:1、4:5 或 16:9，裁去边缘，不拉伸。声音、时长保留。此版只居中裁剪，不能手动移动位置。',
+    },
+    input: ['video'],
+    output: 'video',
+    params: z.strictObject({ ratio: z.enum(['9:16', '1:1', '4:5', '16:9']) }),
+    fields: [
+      {
+        key: 'ratio',
+        label: { en: 'Shape', zh: '比例' },
+        kind: 'choice',
+        options: [
+          { value: '9:16', label: { en: '9:16 · portrait', zh: '9:16 · 竖屏' } },
+          { value: '1:1', label: { en: '1:1 · square', zh: '1:1 · 正方形' } },
+          { value: '4:5', label: { en: '4:5 · portrait', zh: '4:5 · 竖版' } },
+          { value: '16:9', label: { en: '16:9 · landscape', zh: '16:9 · 横屏' } },
+        ],
+      },
+    ],
+    requires: [],
+  },
+  {
     id: 'video.rotate',
     label: { en: 'Rotate video', zh: '旋转视频' },
     description: {
@@ -286,6 +311,14 @@ export function videoWorkflows(locale: Locale): Workflow[] {
   });
   return [
     wf(
+      'video-crop',
+      ['Crop video to a shape', '视频裁成指定比例'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+        { id: 'crop', action: 'video.crop', params: { ratio: '9:16' }, ask: ['ratio'] },
+      ],
+    ),
+    wf(
       'video-rotate',
       ['Rotate video', '旋转视频'],
       [
@@ -380,7 +413,7 @@ export function videoWorkflows(locale: Locale): Workflow[] {
 
 export const videoTool: ToolDefinition = {
   id: VIDEO_TOOL_ID,
-  version: '1.6.0',
+  version: '1.7.0',
   name: { en: 'Video', zh: '视频' },
   description: {
     en: 'Make videos smaller, convert them to MP4, trim them and turn them into GIFs, on this device.',
