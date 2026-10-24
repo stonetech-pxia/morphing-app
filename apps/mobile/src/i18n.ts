@@ -667,24 +667,37 @@ const strings = {
   guideSkip: { en: 'Skip', zh: '跳过' },
   guideNext: { en: 'Next', zh: '下一步' },
   guideStart: { en: 'Start', zh: '开始' },
-  guideIntro1Title: { en: 'This is your app', zh: '这是你的 App' },
-  guideIntro1Body: {
-    en: 'Say one sentence and it changes how it looks and what it does.',
-    zh: '说一句话，就能改它的样子和功能。',
+  // 划屏介绍：每页一张图配一句话。
+  guideIntro1: {
+    en: 'Your own app. Change how it looks with one sentence, any way you like.',
+    zh: '属于你的 App，用一句话随心所欲地改变界面',
   },
-  guideIntro2Title: { en: 'Nothing to be afraid of', zh: '改错了也不怕' },
-  guideIntro2Body: {
-    en: 'You see a preview before anything changes, and you can go back any time.',
-    zh: '改之前先看预览，改过的随时能退回去。',
+  guideIntro2: {
+    en: 'Say one sentence and the whole app gets a new look.',
+    zh: '说一句话，整个 App 换个样子',
   },
-  guideIntro3Title: {
-    en: 'Say what you have and what you want',
-    zh: '说出你有什么、想要什么',
+  guideIntro3: {
+    en: 'Things that took several steps become one tap.',
+    zh: '几步才能做完的事，变成点一下',
   },
-  guideIntro3Body: {
-    en: 'It becomes a quick action you can use right away.',
-    zh: '它会做成一个能直接用的快捷操作。',
+  guideIntro4: {
+    en: "Now it's your turn. Say your idea in one sentence.",
+    zh: '现在轮到你了，用一句话说出你的想法',
   },
+  guideIntroMiniTitle: { en: 'My day', zh: '我的一天' },
+  guideIntroStyleAsk: { en: 'Make it neon', zh: '换成赛博霓虹风' },
+  guideIntroBefore: { en: 'Before', zh: '以前' },
+  guideIntroBeforeCount: { en: '5 steps · 2 apps', zh: '5 步 · 换 2 个 App' },
+  guideIntroOld1: { en: 'Open Photos', zh: '打开相册' },
+  guideIntroOld2: { en: 'Pick photos', zh: '挑照片' },
+  guideIntroOld3: { en: 'Compress in another app', zh: '换个 App 压缩' },
+  guideIntroOld4: { en: 'Rename', zh: '改名' },
+  guideIntroOld5: { en: 'Share', zh: '分享' },
+  guideIntroNow: { en: 'Send trip photos to friends', zh: '发旅行照片给朋友' },
+  guideIntroAsk: { en: 'I want…', zh: '我想要……' },
+  guideIntroIdea1: { en: 'Make the home page dark blue', zh: '首页换成深蓝色' },
+  guideIntroIdea2: { en: 'Add a water check-in', zh: '加一个喝水打卡' },
+  guideIntroIdea3: { en: 'Turn screenshots into a PDF', zh: '把截图整理成 PDF' },
   guideLookTitle: { en: 'Step 1 · Change this app', zh: '第 1 步 · 说一句话，改掉这个 App' },
   guideLookBody: {
     en: 'Tap one to try it. You see a preview first.',

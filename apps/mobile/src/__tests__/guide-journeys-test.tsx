@@ -46,9 +46,22 @@ describe('first-run guide', () => {
 
   it('shows the intro first; skipping it leads to step 1 on the home page', async () => {
     const { repo } = await startGuide();
-    expect(await screen.findByTestId('welcome')).toHaveTextContent(/这是你的 App/);
+    expect(await screen.findByTestId('welcome')).toHaveTextContent(/属于你的 App/);
     await fireEvent.press(screen.getByTestId('welcome-next'));
     await fireEvent.press(screen.getByTestId('welcome-skip'));
+    expect(await screen.findByTestId('guide-look')).toHaveTextContent(/第 1 步/);
+    expect(await repo.getMeta('guide')).toBe('look');
+  });
+
+  it('the intro has four pages; "Start" on the last one leads to step 1', async () => {
+    const { repo } = await startGuide();
+    await screen.findByTestId('welcome');
+    for (const i of [0, 1, 2, 3]) expect(screen.getByTestId(`welcome-page-${i}`)).toBeTruthy();
+    expect(screen.getByTestId('welcome-art-style')).toHaveTextContent(/换成赛博霓虹风/);
+    expect(screen.getByTestId('welcome-art-quick')).toHaveTextContent(/发旅行照片给朋友/);
+    for (let i = 0; i < 3; i++) await fireEvent.press(screen.getByTestId('welcome-next'));
+    expect(screen.getByTestId('welcome-next')).toHaveTextContent('开始');
+    await fireEvent.press(screen.getByTestId('welcome-next'));
     expect(await screen.findByTestId('guide-look')).toHaveTextContent(/第 1 步/);
     expect(await repo.getMeta('guide')).toBe('look');
   });
