@@ -1,14 +1,23 @@
 import { parseArgs } from 'node:util';
 
-import { EVAL_CASES, runEvalCase } from '@morph/core';
+import { BUILTIN_TOOLS, EVAL_CASES, createRegistry, runEvalCase } from '@morph/core';
 
-import { MODELS, type Completion } from '@morph/planner';
+import {
+  MODELS,
+  createClaudePlanner,
+  createHttpCompleter,
+  createRelayCompleter,
+  type Completion,
+  type HttpCompleterOptions,
+} from '@morph/planner';
 
-import { createAIRuntime, loadRootEnv, type Transport } from '../src/config';
+import { createRelayRuntime, loadRootEnv } from '../src/config';
+import { createApp } from '../src/server';
 
 // 用评测集（packages/core/src/ai/eval-cases.ts）衡量真实模型。会产生 API 费用。
 // 用法：npm run eval -- --model claude-haiku-5-5 [--cases A1,C1] [--effort low] [--transport http]
-//   --transport http：使用 App 内“自带 key”模式的 HTTP 传输层（默认 sdk，即服务端）。
+//   默认（relay）：和「Morph 服务器」模式完全一样——App 的转发传输层 → 本进程里的 /v1/complete → Claude（D-193）。
+//   --transport http：App 内「自带 key」模式的 HTTP 传输层，直接调用 Claude。
 //   --verbose：失败时打印模型给出的计划。计划里的 notes（D-110）总是打印。
 
 const { values } = parseArgs({
@@ -26,13 +35,44 @@ const env = { ...process.env };
 if (values.model) env.MORPH_AI_MODEL = values.model;
 if (values.effort) env.MORPH_AI_EFFORT = values.effort;
 
-const completions: Completion[] = [];
-const transport: Transport = values.transport === 'http' ? 'http' : 'sdk';
-const runtime = createAIRuntime(env, (c) => completions.push(c), transport);
-if (runtime.providerName !== 'claude') {
+const runtime = createRelayRuntime(env);
+const apiKey = env.ANTHROPIC_API_KEY?.trim();
+if (!runtime.relay || !apiKey) {
   console.error('未配置 ANTHROPIC_API_KEY，无法评测真实模型。见 docs/API_KEY_SETUP.md。');
   process.exit(1);
 }
+
+const registry = createRegistry(BUILTIN_TOOLS);
+const completions: Completion[] = [];
+const transport = values.transport === 'http' ? 'http' : 'relay';
+const server = createApp({
+  ...runtime,
+  perMinuteLimit: 1000,
+  deviceDailyUsd: 100,
+  globalDailyUsd: 100,
+  offPlanLimit: 1000,
+  log: () => {},
+});
+const complete =
+  transport === 'http'
+    ? createHttpCompleter({
+        apiKey,
+        model: runtime.model,
+        registry,
+        effort: values.effort as HttpCompleterOptions['effort'],
+      })
+    : createRelayCompleter({
+        baseUrl: 'http://relay.test',
+        registry,
+        timeoutMs: 120_000,
+        fetchImpl: ((url: string, init?: RequestInit) => server.request(url, init)) as typeof fetch,
+      });
+const provider = createClaudePlanner({
+  complete,
+  registry,
+  now: () => new Date(),
+  onCompletion: (c) => completions.push(c),
+});
 
 const selected = values.cases ? new Set(values.cases.split(',')) : null;
 const cases = EVAL_CASES.filter((c) => !selected || selected.has(c.id));
@@ -49,7 +89,7 @@ for (const c of cases) {
   const started = Date.now();
   let line: string;
   try {
-    const { outcome, plans } = await runEvalCase(c, runtime.provider, runtime.registry, now);
+    const { outcome, plans } = await runEvalCase(c, provider, registry, now);
     const calls = completions.length - before - (plans.length - 1);
     const repaired = calls > 1 ? `，修复 ${calls - 1} 次` : '';
     if (outcome.pass) {
@@ -89,6 +129,7 @@ const cost = price
 console.log(`\n通过：${passed}/${cases.length}`);
 console.log(
   `请求 ${completions.length} 次；输入 ${total.input} token（另有缓存读取 ${total.cacheRead}），输出 ${total.output} token` +
+    `（单次最多 ${Math.max(0, ...completions.map((c) => c.usage.outputTokens))}）` +
     (cost !== null ? `；估算费用 $${cost.toFixed(3)}` : ''),
 );
 const served = new Set(completions.map((c) => c.model));

@@ -1,6 +1,6 @@
-# 部署计划服务（Mac mini，D-131）
+# 部署模型转发服务（Mac mini，D-131）
 
-计划服务（`apps/api`）跑在创始人的 Mac mini 上，经 Cloudflare 隧道对外提供 `https://morph-api.stonetech.dev`。生成计划时不保存数据；唯一保存的是用户主动发来的需求（见下面「需求回收」），换机器时把那个文件一起拷走。
+模型转发服务（`apps/api`，D-193）跑在创始人的 Mac mini 上，经 Cloudflare 隧道对外提供 `https://morph-api.stonetech.dev`。转发时不保存数据；它不认识 App 的版本，App 升级不用重新部署；唯一保存的是用户主动发来的需求（见下面「需求回收」），换机器时把那个文件一起拷走。
 
 ```
 App ──https──► Cloudflare ──隧道 morph-prod──► Mac mini 127.0.0.1:8788（launchd：dev.stonetech.morph-api）──► Claude
@@ -43,7 +43,7 @@ cd android && EXPO_PUBLIC_MORPH_API_URL=https://morph-api.stonetech.dev \
 adb -s <序列号> install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-下载的工具（D-177–D-179）：打包时再设 `EXPO_PUBLIC_MORPH_TOOLS_URL=<R2 上目录的地址>`，Mac mini 的 `.env` 设同一个地址 `MORPH_TOOLS_URL=…`（不要设 `MORPH_TOOLS_DEV_KEY`）。发布工具不用重启服务，它每 15 分钟拉一次目录；发布步骤见 [TOOL_DOWNLOAD_DESIGN.md](TOOL_DOWNLOAD_DESIGN.md) §13。
+下载的工具（D-177–D-179）：打包时再设 `EXPO_PUBLIC_MORPH_TOOLS_URL=<R2 上目录的地址>`。服务器不用知道下载的工具（提示词由 App 写，D-193）；发布步骤见 [TOOL_DOWNLOAD_DESIGN.md](TOOL_DOWNLOAD_DESIGN.md) §13。
 
 客户端令牌会打包进 App，不是秘密（D-132）。换令牌会让旧版本 App 全部 401，所以只在被滥用时才换。
 

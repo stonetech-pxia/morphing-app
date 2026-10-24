@@ -3,22 +3,10 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import Anthropic from '@anthropic-ai/sdk';
-import {
-  BUILTIN_TOOLS,
-  createMockAIProvider,
-  createRegistry,
-  type AIProvider,
-  type Registry,
-} from '@morph/core';
+import { DEFAULT_MODEL, MODELS } from '@morph/planner';
 
-import {
-  DEFAULT_MODEL,
-  createClaudePlanner,
-  createHttpCompleter,
-  type Completion,
-} from '@morph/planner';
-
-import { createSdkCompleter } from './claude-provider';
+import { createSdkRelay } from './claude-provider';
+import type { Price, Relay } from './server';
 
 // 读取仓库根目录的 .env（见 docs/API_KEY_SETUP.md）。key 只进入进程环境，从不打印。
 export function loadRootEnv(): void {
@@ -30,42 +18,26 @@ export function loadRootEnv(): void {
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 type Effort = (typeof EFFORTS)[number];
 
-export interface AIRuntime {
-  provider: AIProvider;
-  providerName: 'claude' | 'mock';
-  model: string | null;
-  registry: Registry;
+export interface RelayRuntime {
+  /** 没配置 ANTHROPIC_API_KEY 时为 null。 */
+  relay: Relay | null;
+  model: string;
+  price: Price;
 }
 
-/** sdk：服务端默认；http：与 App 内“自带 key”模式相同的传输层（用于评测）。 */
-export type Transport = 'sdk' | 'http';
-
-export function createAIRuntime(
-  env: NodeJS.ProcessEnv,
-  onCompletion?: (completion: Completion) => void,
-  transport: Transport = 'sdk',
-): AIRuntime {
-  const registry = createRegistry(BUILTIN_TOOLS);
-  const apiKey = env.ANTHROPIC_API_KEY?.trim();
-  if (!apiKey) {
-    return { provider: createMockAIProvider(), providerName: 'mock', model: null, registry };
-  }
+export function createRelayRuntime(env: NodeJS.ProcessEnv): RelayRuntime {
   const model = env.MORPH_AI_MODEL?.trim() || DEFAULT_MODEL;
+  // 限额按金额算，所以只能用已知价格的模型。
+  const price = MODELS.find((m) => m.id === model)?.price;
+  if (!price) throw new Error(`不知道 ${model} 的价格，请在 packages/planner/src/models.ts 里加上`);
+  const apiKey = env.ANTHROPIC_API_KEY?.trim();
+  if (!apiKey) return { relay: null, model, price };
   const effortEnv = env.MORPH_AI_EFFORT?.trim();
   const effort = EFFORTS.includes(effortEnv as Effort) ? (effortEnv as Effort) : undefined;
-  const complete =
-    transport === 'http'
-      ? createHttpCompleter({ apiKey, model, effort, registry })
-      : createSdkCompleter(new Anthropic({ apiKey, timeout: 60_000, maxRetries: 1 }), {
-          model,
-          effort,
-          registry,
-        });
-  const provider = createClaudePlanner({
-    complete,
-    registry,
-    now: () => new Date(),
-    ...(onCompletion ? { onCompletion } : {}),
+  const relay = createSdkRelay(new Anthropic({ apiKey, timeout: 60_000, maxRetries: 1 }), {
+    model,
+    maxTokens: Number(env.MORPH_MAX_OUTPUT_TOKENS ?? 16_000),
+    effort,
   });
-  return { provider, providerName: 'claude', model, registry };
+  return { relay, model, price };
 }

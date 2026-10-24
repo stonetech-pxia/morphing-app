@@ -27,7 +27,7 @@
 │ packages/tool-*  pdf（pdf-lib）· image · archive（fflate）· qr   │
 │                  纯逻辑，清单在 core/src/tools                    │
 ├───────────────────────────────────────────────────────────────┤
-│ apps/api（M3）  Hono 计划服务 + Claude（账号与云端数据见 CLOUD_DESIGN）│
+│ apps/api（M3）  Hono 模型转发 + Claude（账号与云端数据见 CLOUD_DESIGN）│
 └───────────────────────────────────────────────────────────────┘
 ```
 
@@ -128,29 +128,29 @@ App 侧：`apps/mobile/src/runtime/runner.ts` 把执行器接上存储和平台�
 
 ## 6. 外部能力接口（§14.2）
 
-- AI 来源由「设置 → AI」选择（`apps/mobile/src/ai/`）：内置规则 / Morph 服务器 / 用户自带 Claude API key。规划逻辑在 `packages/planner`，服务端和 App 共用。
+- AI 来源由「设置 → AI」选择（`apps/mobile/src/ai/`）：内置规则 / Morph 服务器 / 用户自带 Claude API key。规划逻辑在 `packages/planner`，都在 App 里运行（D-193）。
 - `AIProvider`（已实现）：
   - mock：规则解析，离线可用（句式见 [MOCK_AI_PHRASES.md](MOCK_AI_PHRASES.md)）。
-  - Claude 规划器：`packages/planner/src/planner.ts`。服务端通过 SDK 调用（`apps/api`），自带 key 时 App 通过 `fetch` 直接调用 HTTP API（`packages/planner/src/http.ts`）。模型以 JSON 回复 core 的 `Plan` 格式，服务端用 `PlanSchema` + `prepareOps` 校验，不合格时带着问题清单请求一次修正。
-  - remote：`apps/mobile/src/workspace/remote-ai.ts`，App 通过 `POST /v1/plan` 调用服务端；服务不可用时返回“没有做任何修改”的拒绝，不会静默退回 mock。
+  - Claude 规划器：`packages/planner/src/planner.ts`，在 App 里写提示词（用本机的注册表，含下载的工具）、校验（`PlanSchema` + `prepareOps`），不合格时带着问题清单请求一次修正。模型调用的传输层二选一：自带 key 时直接调用 Claude HTTP API（`packages/planner/src/http.ts`）；Morph 服务器时经 `POST /v1/complete` 转发（`packages/planner/src/relay.ts`，App 端在 `apps/mobile/src/workspace/remote-ai.ts`）。服务不可用时返回“没有做任何修改”的拒绝，不会静默退回 mock。
 - 无论来源，计划到达 App 后都会再经过 `PlanSchema` 与 `prepareOps`（§8：模型输出从不被直接信任）。
-- 评测：`packages/core/src/ai/eval-cases.ts` 是 mock 与真实模型共用的评测集；`npm run eval -- --model <id>` 用真实模型跑一遍（产生少量费用）。
+- 评测：`packages/core/src/ai/eval-cases.ts` 是 mock 与真实模型共用的评测集；`npm run eval -- --model <id>` 用真实模型跑一遍（产生少量费用），默认走和 Morph 服务器模式一样的转发路径。
 - 以下只约定形状，不写代码：`SyncProvider`（跨设备同步）、`StorageProvider`（云端文件）、`ExecutionProvider`（动作在本地还是云端执行）。账号与同步的设计见 [CLOUD_DESIGN.md](CLOUD_DESIGN.md)。
 
-## 7. 计划服务（apps/api）
+## 7. 模型转发（apps/api，D-193）
 
 ```
-App ──POST /v1/plan {input, locale, config}──► Cloudflare 隧道 ──► Hono（127.0.0.1）
-        客户端令牌 → 校验请求（≤64KB，输入 ≤500 字）→ validateWorkspace(config)
-        → 全局每天上限 → 每台设备每分钟 / 每天限额
-        → Claude（系统提示词可缓存；拒答时服务端回退）→ PlanSchema + prepareOps → 必要时修正一次
-        ◄── {plan} 或 {error: unauthorized | bad_request | invalid_config | rate_limited | daily_limit | ai_unavailable}
+App（写提示词、校验、修正）──POST /v1/complete {system, messages}──► Cloudflare 隧道 ──► Hono（127.0.0.1）
+        客户端令牌 → 请求形状（只有 system 和 1 条 / 3 条消息，用户消息只能是文字，≤320KB）
+        → 全局每天花费上限 → 这台设备：不像计划的回复次数、每分钟次数、每天花费
+        → Claude（模型、输出上限、思考力度由服务器定；系统提示词标记缓存）
+        ◄── {text, stopReason, content, model, usage} 或 {error: unauthorized | bad_request | blocked | rate_limited | daily_limit | ai_unavailable}
 ```
 
-- 没有配置 `ANTHROPIC_API_KEY` 时，服务使用 mock，接口不变。
-- 只监听 `127.0.0.1`，日志只记录元数据（结果类型、输入长度、耗时），不记录用户输入和配置。
-- 生产部署在 Mac mini 上，经 Cloudflare 隧道对外（D-131，[DEPLOY.md](DEPLOY.md)）；登录上线前用客户端令牌 + 按设备限额 + 全局上限防护（D-132）。
-- 下载的工具（D-177–D-179，[TOOL_DOWNLOAD_DESIGN.md](TOOL_DOWNLOAD_DESIGN.md)）：配置了 `MORPH_TOOLS_URL` 时，服务启动拉一次签名目录、之后每 15 分钟一次，把工具注册进自己的注册表（`registerTool`），校验配置和写提示词都用它。App 启动时先把本机下载过的工具注册进注册表，再打开工作空间。
+- 服务器不认识 schema、工具和提示词：App 怎么升级都不用改服务器。代价是提示词的修改要随 App 发布。
+- 限额按金额算（`packages/planner/src/models.ts` 的价格）：每台设备每天 `MORPH_DEVICE_DAILY_USD`，所有设备每天 `MORPH_GLOBAL_DAILY_USD`。回复不是「带 kind 的 JSON」记一次，一台设备一天超过 `MORPH_OFF_PLAN_LIMIT` 次就当天不再转发（模型拒答不算）。
+- 没有配置 `ANTHROPIC_API_KEY` 时 `/v1/complete` 返回 503（App 里的内置规则不需要服务器）。
+- 只监听 `127.0.0.1`，日志只记录元数据（轮次、token、费用、耗时、设备 id 哈希的前 8 位），不记录提示词、用户输入和回复。
+- 生产部署在 Mac mini 上，经 Cloudflare 隧道对外（D-131，[DEPLOY.md](DEPLOY.md)）；登录和设备证明（P-024）上线前用客户端令牌 + 上面的限额防护（D-132）。
 
 ## 7. 最大的 5 项工程风险
 
