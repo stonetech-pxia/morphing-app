@@ -7,7 +7,7 @@ import {
 } from '@morph/core';
 import { describe, expect, it } from 'vitest';
 
-import { createApp } from './server';
+import { createApp, type NeedEntry } from './server';
 
 const registry = createRegistry(BUILTIN_TOOLS);
 const config = createDefaultWorkspace('zh');
@@ -153,5 +153,75 @@ describe('plan server', () => {
     const res = await make(broken).post({ input: '主题换成绿色', locale: 'zh', config });
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ error: 'ai_unavailable' });
+  });
+});
+
+describe('needs (D-189)', () => {
+  const make = (withStore = true, clientToken?: string) => {
+    const saved: NeedEntry[] = [];
+    const logs: Record<string, unknown>[] = [];
+    const app = createApp({
+      provider: createMockAIProvider(),
+      providerName: 'mock',
+      model: null,
+      registry,
+      perMinuteLimit: 10,
+      dailyLimit: 100,
+      globalDailyLimit: 1000,
+      needsPerDeviceLimit: 2,
+      ...(clientToken ? { clientToken } : {}),
+      now: () => Date.UTC(2026, 9, 24, 9),
+      log: (e) => logs.push(e),
+      ...(withStore ? { needs: { append: async (e: NeedEntry) => void saved.push(e) } } : {}),
+    });
+    const post = (body: unknown, headers: Record<string, string> = {}) =>
+      app.request('/v1/needs', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-morph-device': 'device-1234',
+          ...headers,
+        },
+        body: JSON.stringify(body),
+      });
+    return { post, saved, logs };
+  };
+  const need = {
+    text: '每天早上提醒我吃药',
+    locale: 'zh',
+    reason: 'unknown',
+    ai: 'server',
+    platform: 'ios',
+    appVersion: '1.0.0',
+  };
+
+  it('stores only the sentence and metadata without identity, and logs no text', async () => {
+    const { post, saved, logs } = make();
+    expect((await post(need)).status).toBe(200);
+    expect(saved).toEqual([{ at: '2026-10-24T09:00:00.000Z', ...need }]);
+    expect(JSON.stringify(saved)).not.toContain('device-1234');
+    expect(logs).toEqual([{ event: 'need', reason: 'unknown', chars: 9 }]);
+  });
+
+  it('rejects bad bodies, extra fields and a missing token', async () => {
+    const { post } = make(true, 'secret');
+    expect((await post(need)).status).toBe(401);
+    const h = { 'x-morph-client': 'secret' };
+    expect((await post({ ...need, reason: 'userData' }, h)).status).toBe(400);
+    expect((await post({ ...need, config: {} }, h)).status).toBe(400);
+    expect((await post({ ...need, text: 'x'.repeat(501) }, h)).status).toBe(400);
+    expect((await post(need, h)).status).toBe(200);
+  });
+
+  it('limits each device per day', async () => {
+    const { post } = make();
+    expect((await post(need)).status).toBe(200);
+    expect((await post(need)).status).toBe(200);
+    expect((await post(need)).status).toBe(429);
+    expect((await post(need, { 'x-morph-device': 'device-5678' })).status).toBe(200);
+  });
+
+  it('says it is not collecting when no store is set up', async () => {
+    expect((await make(false).post(need)).status).toBe(503);
   });
 });

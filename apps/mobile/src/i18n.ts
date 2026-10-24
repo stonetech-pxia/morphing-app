@@ -770,6 +770,25 @@ const strings = {
     en: '“{name}” is a {format} file, which this phone can’t open. Convert it to MP4 on a computer first.',
     zh: '「{name}」是 {format} 格式，这台手机打不开。可以先在电脑上转成 MP4。',
   },
+  // ---- 需求回收（D-189）----
+  needSend: { en: 'Tell us you need this', zh: '把这个需求告诉我们' },
+  needRetry: { en: 'Not sent. Try again', zh: '没发出去，再试一次' },
+  needSent: {
+    en: 'Thanks, we got it. New tools come through updates and downloads.',
+    zh: '收到了，谢谢。新功能会通过更新和下载内容加进来。',
+  },
+  needPrivacy: {
+    en: 'Only this sentence is sent to Morph — no files, records or settings.',
+    zh: '只发送这一句话给 Morph，不含文件、记录和设置。',
+  },
+  needsSettingTitle: {
+    en: 'Offer to send requests AI can’t do',
+    zh: 'AI 做不到时，可以把需求告诉我们',
+  },
+  needsSettingNote: {
+    en: 'Shows a button under the answer. Nothing is sent unless you tap it.',
+    zh: '在回答下面显示一个按钮，你点了才会发送那一句话。',
+  },
   // ---- 记一笔、附件和公式字段（D-187、D-188）----
   noAttachment: { en: 'No attachment', zh: '没有附件' },
   attachmentMissing: { en: 'The file was deleted', zh: '文件已经删掉了' },

@@ -36,6 +36,7 @@ import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { DraftResult } from '../workspace/store';
 import { aboutCandidates, examplesFor } from './examples';
 import { closeButtonOption, stackScreenOptions } from './header';
+import { NeedButton } from './NeedButton';
 import { StylePicker } from './StylePicker';
 
 /** 风格选择器填进去的原句由内置规则生成计划，不调用设置里的 AI（D-095）；新手引导的句子也是（D-149）。 */
@@ -125,6 +126,8 @@ export function ChangeScreen() {
     { kind: 'rejected' | 'invalid' }
   > | null>(null);
   const [stylesOpen, setStylesOpen] = useState(false);
+  /** 被拒绝的那句话（需求回收，D-189）。 */
+  const [asked, setAsked] = useState('');
 
   /**
    * 关掉这个页面，回到草稿：从外壳或页面打开的回到原处（页面也显示草稿）；从运行页面、收件页面、
@@ -148,6 +151,7 @@ export function ChangeScreen() {
     });
     if (result.kind === 'rejected' || result.kind === 'invalid') {
       setFeedback(result);
+      setAsked(text.trim());
       return;
     }
     // 进入草稿时显示改到的那一页（在导航栏里时）。
@@ -317,6 +321,15 @@ export function ChangeScreen() {
                       />
                     ))}
                   </View>
+                ) : null}
+                {feedback.kind === 'rejected' ? (
+                  <NeedButton
+                    key={asked}
+                    text={asked}
+                    reason={feedback.reason}
+                    palette={palette}
+                    locale={locale}
+                  />
                 ) : null}
               </>
             )}
