@@ -1,6 +1,6 @@
 // 本地 Expo 模块的 Android 部分（D-141）：Jetpack Media3 Transformer（Apache-2.0，Google 官方）
 // 在本机压缩、转格式、剪切视频和音频，用手机的硬件编码器；读信息和取画面用系统的
-// MediaExtractor / MediaMetadataRetriever。
+// MediaExtractor / MediaMetadataRetriever。MP3 用编进 App 的 LAME（D-183，src/main/cpp）。
 plugins {
   id 'com.android.library'
   id 'expo-module-gradle-plugin'
@@ -15,6 +15,13 @@ android {
     versionCode 1
     versionName '1.0.0'
   }
+  externalNativeBuild {
+    cmake {
+      path "src/main/cpp/CMakeLists.txt"
+      version "3.22.1"
+      buildStagingDirectory "${rootProject.buildDir}/morph-media-cxx"
+    }
+  }
 }
 
 dependencies {
@@ -24,4 +31,5 @@ dependencies {
   implementation "androidx.media3:media3-transformer:${media3Version}"
   implementation "androidx.media3:media3-effect:${media3Version}"
   implementation "androidx.media3:media3-common:${media3Version}"
+  testImplementation 'junit:junit:4.13.2'
 }

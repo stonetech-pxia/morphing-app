@@ -1,4 +1,4 @@
-import type { RunItem } from '@morph/core';
+import type { Collection, RunItem } from '@morph/core';
 import type { Quad } from '@morph/tool-image';
 
 import type { PickedFile } from './platform';
@@ -85,6 +85,20 @@ export interface LocalSteps {
    * 返回录好的文件（M4A，在缓存目录里，之后移进本次运行的临时目录）。
    */
   record: { in: { name: string }; out: PickedFile };
+  /**
+   * 记一笔（D-187）：按数据表的字段生成表单（附件和公式不用填）。prefill 是预先填好的值（文字、日期），
+   * file 是这一笔对应的文件（照片显示出来，其他显示文件名）。返回表单的值，或跳过这一个。
+   */
+  recordEntry: {
+    in: {
+      collection: Collection;
+      prefill: Record<string, unknown>;
+      file?: RunItem;
+      index: number;
+      total: number;
+    };
+    out: { values: Record<string, unknown> } | { skip: true };
+  };
 }
 
 export type LocalKind = keyof LocalSteps;

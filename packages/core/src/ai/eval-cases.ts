@@ -7,7 +7,9 @@ import { templateOps } from '../templates';
 import { THEME_PRESETS } from '../presets';
 import { CLAY, contrast, isDark, resolveColors } from '../theme';
 import { presetById, presetWorkflow } from '../workflows/presets';
-import type { Plan, PlanAbout, RejectReason } from './types';
+import { prepareOps, type PreparedChange } from '../change';
+import { functionFirst, hasFunctionOps } from './kinds';
+import type { AIProvider, Plan, PlanAbout, RejectReason } from './types';
 
 /** 结构相同即可（校验后对象的键顺序可能变）。 */
 function sameValue(a: unknown, b: unknown): boolean {
@@ -47,6 +49,11 @@ export interface EvalCase {
   mock: boolean;
   /** 从哪里打开的 AI（D-124）：一个快捷操作，或分享进来的文件。 */
   about?: PlanAbout;
+  /**
+   * 先做功能、再接着做外观（D-191）：第一句只能是功能，计划里要有 next；照着 next 再问一次，
+   * check 检查两步之后的样子（用户点了「接着改」）。
+   */
+  next?: boolean;
 }
 
 export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry): WorkspaceConfig {
@@ -425,6 +432,7 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     input: '新建一个记账页面',
     locale: 'zh',
     setup: 'default',
+    next: true,
     mock: true,
     expect: { kind: 'ops', check: dataPage('money', 'sum') },
   },
@@ -650,6 +658,7 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     input: '做一个记账页面，能看到这个月一共花了多少',
     locale: 'zh',
     setup: 'default',
+    next: true,
     mock: false,
     expect: { kind: 'ops', check: dataPage('money', 'sum') },
   },
@@ -658,6 +667,7 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     input: '我想要一个读书清单，可以勾选读完了没有',
     locale: 'zh',
     setup: 'default',
+    next: true,
     mock: false,
     expect: { kind: 'ops', check: dataPage('checkbox', 'checklist') },
   },
@@ -1276,6 +1286,81 @@ const GOAL_EVAL_CASES: readonly EvalCase[] = [
       kind: 'ops',
       check: all(hasWorkflow(['in.photos', 'pdf.fromImages'], datedName), noRunner),
       plan: hasNotes,
+    },
+  },
+  // 新手引导的三句（D-149）：内置规则也要认得；真实模型拿到同样的句子也要搭出能用的快捷操作。
+  {
+    id: 'GW8',
+    input: '我有一堆旅行照片，想发给朋友',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      // 发给别人：要缩小或压缩。去掉定位是引导里的惊喜点，由内置规则保证（goals.test.ts），真实模型不强求。
+      check: all(
+        hasWorkflow(['in.photos', 'out.share'], someAction(['image.compress', 'image.resize'])),
+        noRunner,
+      ),
+    },
+  },
+  {
+    id: 'GW8-en',
+    input: 'I have a bunch of trip photos to send to friends',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: all(
+        hasWorkflow(['in.photos', 'out.share'], someAction(['image.compress', 'image.resize'])),
+        noRunner,
+      ),
+    },
+  },
+  {
+    id: 'GW9',
+    input: '我拍了一段视频，太大了发不出去',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['in.videos', 'video.compress', 'out.share']), noRunner),
+    },
+  },
+  {
+    id: 'GW9-en',
+    input: 'I shot a video and it’s too big to send',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['in.videos', 'video.compress', 'out.share']), noRunner),
+    },
+  },
+  {
+    id: 'GW10',
+    input: '我有好几份 PDF 合同，想合成一份加上页码，发邮件给律师',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['in.files', 'pdf.merge', 'pdf.pageNumbers', 'out.share']), noRunner),
+    },
+  },
+  {
+    id: 'GW10-en',
+    input:
+      'I have several PDF contracts to combine into one with page numbers and email to my lawyer',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['in.files', 'pdf.merge', 'pdf.pageNumbers', 'out.share']), noRunner),
     },
   },
 ];
@@ -1984,8 +2069,305 @@ const AUDIO_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+const toolInFront = (toolId: string) => (c: WorkspaceConfig) => {
+  const page = c.pages.find((p) => p.toolId === toolId);
+  if (!page) return `the ${toolId} tool should be added`;
+  return c.shell.nav[0] === `page:${page.id}`
+    ? null
+    : `the ${toolId} tool should be first in the bottom bar, got ${c.shell.nav.join(',')}`;
+};
+
+// 功能和外观分开改（D-191）：一句话两样都有时先做功能，外观留作下一句。
+const SPLIT_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'FL1',
+    input: '主题换成绿色，添加签证照片快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    next: true,
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['in.photos', 'image.idPhoto']), color('#2F9E44')),
+    },
+  },
+  {
+    id: 'FL1-en',
+    input: 'Add the visa photo quick action. Change the theme color to green',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    next: true,
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['in.photos', 'image.idPhoto']), color('#2F9E44')),
+    },
+  },
+  {
+    id: 'FL2',
+    input: '添加图片工具，放到底部导航的第一个',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    next: true,
+    expect: { kind: 'ops', check: toolInFront('image') },
+  },
+  {
+    id: 'FL3-en',
+    input: 'I want a to-do list I can tick off, and make the whole app dark',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    next: true,
+    expect: {
+      kind: 'ops',
+      check: all(dataPage('checkbox', 'checklist'), (c) =>
+        c.theme.mode === 'dark' || darkBackground(c) === null ? null : 'the app should be dark',
+      ),
+    },
+  },
+];
+
+// ---- 格式转换的缺口（D-183–D-186）：MP3、动图 GIF、从「文件」选视频、Word / Excel / PPT 转 PDF ----
+// FG* 是 mock 句式（MOCK_AI_PHRASES FG），PFG* 只要求真实模型。
+
+const firstDocuments = (steps: { action: string; params: Record<string, unknown> }[]) => {
+  const first = steps[0];
+  return first?.action === 'in.files' && first.params.accept === 'documents'
+    ? null
+    : `first step should pick Office documents, got ${first?.action}`;
+};
+
+const FORMAT_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'FG1',
+    input: '新建一个快捷操作：选音频，转成 MP3，存到文件夹',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.audio', 'audio.convert', 'out.saveToFolder'],
+        param('audio.convert', 'format', 'mp3'),
+      ),
+    },
+  },
+  {
+    id: 'FG2',
+    input: '新建一个快捷操作：选视频，转成 MP3，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.videos', 'audio.fromVideo', 'out.share'],
+        param('audio.fromVideo', 'format', 'mp3'),
+      ),
+    },
+  },
+  {
+    id: 'FG3',
+    input: '新建一个快捷操作：选视频，剪一段，转成 GIF，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: hasWorkflow(['in.videos', 'video.trim', 'video.toGif']) },
+  },
+  {
+    id: 'FG3-en',
+    input: 'Create a quick action: choose photos, make an animated GIF, share',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: hasWorkflow(['in.photos', 'image.toGif', 'out.share']) },
+  },
+  {
+    id: 'FG4',
+    input: '新建一个快捷操作：从文件选视频，转成 MP4，存到文件夹',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.videos', 'video.convert'], param('in.videos', 'source', 'files')),
+    },
+  },
+  {
+    id: 'FG5',
+    input: '新建一个快捷操作：选 Word 文档，转成 PDF，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.files', 'pdf.fromDocument', 'out.share'], firstDocuments),
+    },
+  },
+  {
+    id: 'FG5-en',
+    input: 'Create a quick action: choose Word documents, make a PDF, save to a folder',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.files', 'pdf.fromDocument', 'out.saveToFolder'], firstDocuments),
+    },
+  },
+  {
+    id: 'PFG1',
+    input: '车里只能放 MP3，想把手机里的歌转一下',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['audio.convert'],
+        (steps) => firstAudio(steps) ?? param('audio.convert', 'format', 'mp3')(steps),
+      ),
+    },
+  },
+  {
+    id: 'PFG2-en',
+    input: 'I want to turn a short clip of my cat into a GIF for the group chat',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['video.toGif'], firstVideo) },
+  },
+  {
+    id: 'PFG3',
+    input: '电脑上下载的 MKV 视频，手机上放不了，想转成能放的',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['video.convert'], (steps) => {
+        const first = steps[0];
+        if (first?.action === 'in.videos' && first.params.source === 'files') return null;
+        if (first?.action === 'in.files' && first.params.accept === 'videos') return null;
+        return `first step should pick videos from Files, got ${first?.action} ${JSON.stringify(first?.params)}`;
+      }),
+    },
+  },
+  {
+    id: 'PFG4',
+    input: '老师要交 PDF，我写的是 Word 作业',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['pdf.fromDocument'], firstDocuments) },
+  },
+];
+
+// ---- 记一笔、附件和公式字段（D-187、D-188）：快捷操作写记录；直接替用户记一笔仍按 userData 拒绝 ----
+// RE* 是 mock 句式（MOCK_AI_PHRASES RE），PRE* 只要求真实模型。
+
+/** 有一个快捷操作记到 expenses，而且这张表有附件字段（收文件时）。 */
+const logsTo =
+  (needsFile: boolean) =>
+  (c: WorkspaceConfig): string | null => {
+    const wf = userWorkflows(c).find((w) =>
+      w.steps.some((s) => s.action === 'out.addRecord' && s.params.collectionId === 'expenses'),
+    );
+    if (!wf) return 'expected a quick action with out.addRecord into expenses';
+    const table = c.collections.find((x) => x.id === 'expenses');
+    if (needsFile && !table?.fields.some((f) => f.type === 'file'))
+      return 'expenses should have a file field for the receipts';
+    return null;
+  };
+
+const RECORD_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'RE1',
+    input: '新建一个快捷操作：拍照，记到账目',
+    locale: 'zh',
+    setup: 'budget',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: all(
+        hasWorkflow(['in.photos', 'out.addRecord'], param('in.photos', 'source', 'camera')),
+        logsTo(true),
+      ),
+    },
+  },
+  {
+    id: 'RE1-en',
+    input: 'Create a quick action: take photos, add a record to Expenses',
+    locale: 'en',
+    setup: 'budget',
+    mock: true,
+    expect: { kind: 'ops', check: all(hasWorkflow(['in.photos', 'out.addRecord']), logsTo(true)) },
+  },
+  {
+    id: 'RE2',
+    input: '新建一个快捷操作：输入文字，记一笔',
+    locale: 'zh',
+    setup: 'budget',
+    mock: true,
+    expect: { kind: 'ops', check: all(hasWorkflow(['in.text', 'out.addRecord']), logsTo(false)) },
+  },
+  {
+    id: 'RE3',
+    input: '新建一个快捷操作：拍照，记到不存在的表',
+    locale: 'zh',
+    setup: 'budget',
+    mock: true,
+    expect: { kind: 'reject' },
+  },
+  {
+    id: 'PRE1',
+    input: '我想拍一下收据就能记一笔账，收据照片也留着',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: logsTo(true) },
+  },
+  {
+    id: 'PRE2-en',
+    input: 'Make a quick action to scan my receipts into the Expenses table',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: logsTo(true) },
+  },
+  {
+    id: 'PRE3',
+    input: '给账目加一个「含税」，等于金额乘以 1.06',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const f = c.collections
+          .find((x) => x.id === 'expenses')
+          ?.fields.find((x) => x.type === 'formula');
+        if (!f || f.type !== 'formula') return 'expected a formula field in expenses';
+        return /\{amount\}\s*\*\s*1\.06|1\.06\s*\*\s*\{amount\}/.test(f.expression)
+          ? null
+          : `formula should be amount × 1.06, got ${f.expression}`;
+      },
+    },
+  },
+  {
+    id: 'PRE4',
+    input: '记一笔午饭 35',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'reject', reason: 'userData' },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...BASE_EVAL_CASES,
+  ...SPLIT_EVAL_CASES,
   ...WORKFLOW_EVAL_CASES,
   ...GOAL_EVAL_CASES,
   ...WORDING_EVAL_CASES,
@@ -1993,9 +2375,56 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...VIDEO_EVAL_CASES,
   ...TRANSLATE_EVAL_CASES,
   ...AUDIO_EVAL_CASES,
+  ...FORMAT_EVAL_CASES,
+  ...RECORD_EVAL_CASES,
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };
+
+/**
+ * 按 App 的做法跑一个用例（D-191）：计划不能把功能和外观混在一起；要求接着改的用例照着 next 再问一次，
+ * 在第一步的结果上套用第二个计划。mock 的测试和真实模型的评测脚本共用。
+ */
+export async function runEvalCase(
+  c: EvalCase,
+  provider: AIProvider,
+  registry: Registry,
+  now: Date,
+): Promise<{ outcome: EvalOutcome; plans: Plan[] }> {
+  const ctx = { registry, locale: c.locale, now };
+  const ask = (input: string, config: WorkspaceConfig) =>
+    provider.plan(input, {
+      config,
+      registry,
+      locale: c.locale,
+      ...(c.about ? { about: c.about } : {}),
+    });
+  const fail = (reason: string) => ({ pass: false, reason }) as const;
+  const config = buildSetup(c.setup, c.locale, registry);
+  const plan = await ask(c.input, config);
+  const plans = [plan];
+  if (plan.kind !== 'ops') return { outcome: judgeEval(c, plan, null), plans };
+  const first = functionFirst(config, plan.ops, ctx);
+  if (first.kind === 'function' && first.deferred.length > 0) {
+    return { outcome: fail('the plan mixes function and look ops (D-191)'), plans };
+  }
+  let prepared: PreparedChange = prepareOps(config, plan.ops, ctx);
+  if (c.next && prepared.ok) {
+    if (first.kind !== 'function')
+      return { outcome: fail('the first turn should do the function part'), plans };
+    if (!plan.next) return { outcome: fail('expected next with the look part'), plans };
+    const second = await ask(plan.next, prepared.after);
+    plans.push(second);
+    if (second.kind !== 'ops') {
+      const why = second.kind === 'reject' ? `: ${second.message}` : '';
+      return { outcome: fail(`next “${plan.next}” gave ${second.kind}${why}`), plans };
+    }
+    if (hasFunctionOps(second.ops))
+      return { outcome: fail(`next “${plan.next}” should only change the look`), plans };
+    prepared = prepareOps(prepared.after, second.ops, ctx);
+  }
+  return { outcome: judgeEval(c, plan, prepared), plans };
+}
 
 /** 判定一个计划是否符合用例预期。afterOrIssues 来自 prepareOps。 */
 export function judgeEval(

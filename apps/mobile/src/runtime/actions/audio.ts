@@ -35,7 +35,8 @@ const MAX_RETRIES = 2;
 /** 剪一段界面的波形有多少根。 */
 const WAVEFORM_BUCKETS = 120;
 
-const audioMime = (ext: string) => (ext === 'wav' ? 'audio/wav' : 'audio/mp4');
+const audioMime = (ext: string) =>
+  ext === 'wav' ? 'audio/wav' : ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4';
 
 function mediaOf(ctx: Ctx): MediaPlatform {
   const media = ctx.services.files.media;
@@ -132,10 +133,11 @@ async function eachAudio(
   return { type: 'audio', items: out };
 }
 
-/** 已经是这种格式（M4A 里是 AAC、或者 WAV）：不用再转。 */
+/** 已经是这种格式（M4A 里是 AAC、WAV 或 MP3）：不用再转。 */
 function alreadyIn(item: RunItem, info: MediaInfo, format: AudioFormat): boolean {
   if (info.hasVideo) return false;
   if (format === 'wav') return item.ext === 'wav';
+  if (format === 'mp3') return item.ext === 'mp3';
   return item.ext === 'm4a' && /^(aac|mp4a)/i.test(info.audioCodec ?? '');
 }
 

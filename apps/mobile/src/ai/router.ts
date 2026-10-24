@@ -29,7 +29,7 @@ const ERROR_MESSAGES: Record<ClaudeErrorKind | 'network' | 'bad_output', StringK
 
 const reject = (locale: Locale, key: StringKey): Plan => ({
   kind: 'reject',
-  reason: 'unknown',
+  reason: 'unavailable',
   message: t(locale, key),
   examples: [],
 });

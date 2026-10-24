@@ -174,9 +174,9 @@ export interface VideoEncode {
   range?: { startMs: number; endMs: number };
 }
 
-/** 音频的编码要求（core 的 AudioPlan）：M4A（AAC）或 WAV（16 位 PCM）；range 只要其中一段。 */
+/** 音频的编码要求（core 的 AudioPlan）：M4A（AAC）、WAV（16 位 PCM）或 MP3（D-183）；range 只要其中一段。 */
 export interface AudioEncode {
-  format: 'm4a' | 'wav';
+  format: 'm4a' | 'wav' | 'mp3';
   bitrateKbps: number;
   channels: 1 | 2;
   sampleRate: number;
@@ -195,6 +195,15 @@ export interface MediaOutput {
   ext: string;
   size: number;
   info: MediaInfo;
+}
+
+/** 写好的动图（D-184）：本次运行的临时文件。 */
+export interface GifOutput {
+  uri: string;
+  size: number;
+  width: number;
+  height: number;
+  frames: number;
 }
 
 /**
@@ -227,7 +236,7 @@ export interface MediaPlatform {
     maxSide: number,
     runId: string,
   ): Promise<string[]>;
-  /** 音频（或视频的声音）编码成 M4A / WAV（D-153）。 */
+  /** 音频（或视频的声音）编码成 M4A / WAV / MP3（D-153、D-183）。 */
   encodeAudio(
     uri: string,
     settings: AudioEncode,
@@ -245,6 +254,39 @@ export interface MediaPlatform {
   ): Promise<MediaOutput>;
   /** 波形（buckets 个 0–1 的峰值），剪一段界面用；读不到时返回 null。 */
   waveform(uri: string, buckets: number): Promise<number[] | null>;
+  /** 整段视频转成 GIF（D-184）：按 fps 取画面，宽度不超过 width。 */
+  videoGif(
+    uri: string,
+    settings: { width: number; fps: number },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<GifOutput>;
+  /** 几张图片做成 GIF（D-184）：长边缩到 maxSide，按第一张的尺寸居中摆放，每张停 delayMs。 */
+  imagesGif(
+    uris: readonly string[],
+    settings: { delayMs: number; maxSide: number },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<GifOutput>;
+}
+
+/**
+ * 办公文档转 PDF（D-186）。iOS 用系统的文档预览排版（modules/morph-docs），Word、Excel、PowerPoint、RTF 都能转；
+ * Android（和没有原生模块的 Expo Go）用 mammoth 把 Word（.docx）转成网页再打印成 PDF。
+ */
+export interface DocumentPlatform {
+  /** 能转的扩展名（小写）。 */
+  readonly extensions: readonly string[];
+  /** 转成本次运行的 PDF 临时文件；打不开时抛出 code 为 ERR_DOC_UNREADABLE 的错误。 */
+  toPdf(
+    uri: string,
+    ext: string,
+    page: { width: number; height: number },
+    runId: string,
+    relPath: string,
+  ): Promise<{ uri: string; size: number; pageCount: number }>;
 }
 
 /**
@@ -267,6 +309,8 @@ export interface BackgroundPlatform {
 }
 
 export interface FilePlatform {
+  /** 办公文档转 PDF（D-186）。 */
+  readonly documents: DocumentPlatform;
   /** 系统自带的文字识别和扫描；没有时为 null。 */
   readonly vision: VisionPlatform | null;
   /** 系统自带的本机翻译（D-170）；没有原生模块时为 null。 */

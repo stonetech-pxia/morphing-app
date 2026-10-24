@@ -127,11 +127,13 @@ describe('types', () => {
       max: 10,
     });
     expect(defaultParams(registry.actions.get('in.records')!)).toBeNull();
+    expect(defaultParams(registry.actions.get('out.addRecord')!)).toBeNull();
   });
 
-  it('every action except reading records gets valid starting parameters', () => {
+  it('every action except the ones that need a data table gets valid starting parameters', () => {
     for (const action of registry.actions.values()) {
-      if (action.id === 'in.records') continue;
+      // 读取记录、记一笔（D-187）要先选一张表。
+      if (action.fields.some((f) => f.kind === 'collection')) continue;
       expect(action.params.safeParse(initialParams(action)).success, action.id).toBe(true);
     }
     // 读取记录要先选一张表：初始值让编辑页提示用户选。

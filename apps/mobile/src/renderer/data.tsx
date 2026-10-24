@@ -4,8 +4,11 @@ import {
   formatMoney,
   formatNumber,
   formatRef,
+  formatValue,
   localDate,
+  prepareRecordValues,
   readValue,
+  recordValue,
   sortRecords,
   type Collection,
   type Component,
@@ -15,10 +18,12 @@ import {
   type FieldIssue,
 } from '@morph/core';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { useRecordActions, useRecords } from '../data/records';
+import type { AssetRecord } from '../storage/types';
+import { useWorkspaceContext } from '../workspace/context';
 import { t } from '../i18n';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
@@ -159,6 +164,20 @@ export function FieldInput({
           ))}
         </View>
       );
+    case 'file':
+      return (
+        <AttachmentInput
+          value={value}
+          onChange={onChange}
+          palette={palette}
+          locale={locale}
+          disabled={disabled}
+          testID={testID}
+        />
+      );
+    case 'formula':
+      // 公式不能填，由 FieldsForm 显示算出来的值（D-188）。
+      return null;
     case 'rating':
       return (
         <View style={styles.chips}>
@@ -181,6 +200,68 @@ export function FieldInput({
         </View>
       );
   }
+}
+
+/** 附件（D-187）：显示文件名，点一下打开分享面板（用别的 App 看），可以去掉。换文件要重新「记一笔」。 */
+function AttachmentInput({
+  value,
+  onChange,
+  palette,
+  locale,
+  disabled,
+  testID,
+}: {
+  value: unknown;
+  onChange: (value: unknown) => void;
+  palette: Palette;
+  locale: RenderEnv['locale'];
+  disabled?: boolean | undefined;
+  testID: string;
+}) {
+  const { repo, files } = useWorkspaceContext();
+  // 读到的文件连同它的 ID 一起记：值换了以后旧的那条不再显示。
+  const [loaded, setLoaded] = useState<{ id: string; asset: AssetRecord | null } | null>(null);
+  useEffect(() => {
+    if (typeof value !== 'string' || !value) return;
+    let alive = true;
+    void repo.getAsset(value).then((asset) => alive && setLoaded({ id: value, asset }));
+    return () => {
+      alive = false;
+    };
+  }, [repo, value]);
+  const asset = loaded && loaded.id === value ? loaded.asset : null;
+  if (typeof value !== 'string' || !value) {
+    return (
+      <Text style={[palette.font('body', 14), { color: palette.caption }]}>
+        {t(locale, 'noAttachment')}
+      </Text>
+    );
+  }
+  return (
+    <View style={styles.dateRow}>
+      <Pressable
+        testID={testID}
+        disabled={!asset}
+        onPress={() => asset && void files.share(asset.path, asset.mimeType)}
+        style={[styles.flex, styles.attachment]}>
+        <Icon name="document" size={18} color={palette.secondary} />
+        <Text
+          numberOfLines={1}
+          style={[styles.flex, palette.font('bodyMedium', 15), { color: palette.text }]}>
+          {asset?.name ?? t(locale, 'attachmentMissing')}
+        </Text>
+      </Pressable>
+      <Pressable
+        testID={`${testID}-remove`}
+        disabled={disabled}
+        hitSlop={8}
+        onPress={() => onChange('')}>
+        <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
+          {t(locale, 'removeAttachment')}
+        </Text>
+      </Pressable>
+    </View>
+  );
 }
 
 /** 一组字段的输入，带名称和错误提示。记录编辑页和 inline 表单共用。 */
@@ -207,11 +288,37 @@ export function FieldsForm({
   testPrefix: string;
   showLabels?: boolean;
 }) {
+  // 公式按表单里现在的值算（D-188）。
+  const computed = () => {
+    const prepared = prepareRecordValues(collection, values, null, new Date());
+    return {
+      id: '',
+      collectionId: collection.id,
+      values: prepared.ok ? prepared.values : {},
+      createdAt: 0,
+      updatedAt: 0,
+    };
+  };
   return (
     <View style={styles.fields}>
       {fieldIds.map((id) => {
         const field = collection.fields.find((f) => f.id === id);
         if (!field) return null;
+        if (field.type === 'formula') {
+          const shown = formatValue(field, recordValue(computed(), collection, id), locale);
+          return (
+            <View key={id} style={styles.field}>
+              <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
+                {field.name}
+              </Text>
+              <Text
+                testID={`${testPrefix}-${id}`}
+                style={[palette.font('title', 16), { color: palette.text }]}>
+                {shown || '—'}
+              </Text>
+            </View>
+          );
+        }
         const issue = issues.find((i) => i.fieldId === id);
         const inline = field.type === 'checkbox';
         return (
@@ -224,7 +331,7 @@ export function FieldsForm({
                   inline && styles.flex,
                 ]}>
                 {field.name}
-                {field.required ? ' *' : ''}
+                {'required' in field && field.required ? ' *' : ''}
               </Text>
             ) : null}
             <FieldInput
@@ -314,7 +421,10 @@ export function RecordList({
             accessibilityState={{ checked }}
             disabled={!env.interactive}
             hitSlop={8}
-            onPress={() => void actions.update(collection, r, { [props.checkField!]: !checked })}
+            onPress={
+              env.locked ??
+              (() => void actions.update(collection, r, { [props.checkField!]: !checked }))
+            }
             onLongPress={env.onLongPress}
             style={[
               styles.check,
@@ -349,7 +459,9 @@ export function RecordList({
         ) : null}
       </View>
     );
-    const open = env.interactive ? () => openEditor(router, collection.id, r.id) : undefined;
+    const open = env.interactive
+      ? (env.locked ?? (() => openEditor(router, collection.id, r.id)))
+      : undefined;
     if (props.display === 'cards') {
       return (
         <Card
@@ -416,7 +528,9 @@ export function RecordForm({
         palette={palette}
         testID={`form-${componentId}`}
         label={props.submitLabel}
-        onPress={env.interactive ? () => openEditor(router, collection.id) : undefined}
+        onPress={
+          env.interactive ? (env.locked ?? (() => openEditor(router, collection.id))) : undefined
+        }
         onLongPress={env.onLongPress}
       />
     );
@@ -424,6 +538,7 @@ export function RecordForm({
 
   async function submit() {
     if (!collection || !env.interactive) return;
+    if (env.locked) return env.locked();
     const result = await actions.add(collection, values);
     if (result.ok) {
       setValues({});
@@ -482,7 +597,9 @@ export function Stat({ props, env, tone }: { props: StatProps; env: RenderEnv; t
   const field = props.fieldId ? collection.fields.find((f) => f.id === props.fieldId) : undefined;
   let shown = '—';
   if (value !== null) {
-    if (props.aggregate !== 'count' && field?.type === 'money')
+    if (props.aggregate !== 'count' && field?.type === 'formula')
+      shown = formatValue(field, value, env.locale);
+    else if (props.aggregate !== 'count' && field?.type === 'money')
       shown = formatMoney(value, field.currency);
     else if (props.aggregate !== 'count' && field?.type === 'number')
       shown = `${formatNumber(value, field.decimals)}${field.unit ? ` ${field.unit}` : ''}`;
@@ -535,4 +652,5 @@ const styles = StyleSheet.create({
   },
   done: { textDecorationLine: 'line-through' },
   fillCard: { flexGrow: 1 },
+  attachment: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 });

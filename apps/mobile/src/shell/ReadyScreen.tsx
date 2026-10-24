@@ -1,18 +1,39 @@
-import { HOME_PAGE_ID, allComponents, type Workflow } from '@morph/core';
+import {
+  HOME_PAGE_ID,
+  allComponents,
+  guideGoal,
+  type GuideGoalId,
+  type Workflow,
+} from '@morph/core';
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import type { SampleKind } from '../guide/samples';
 import { t } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Button, Card } from '../renderer/ui';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { NextCard } from './NextCard';
+import { Banner } from './Shell';
 
 /**
  * 「快捷操作做好了」（D-125）：AI 新做了一个快捷操作后打开。AI 不替用户运行（D-113），
  * 用户自己点「现在就用一次」；也说明以后在哪里找到它。
+ * 新手引导做的（D-149）先给「用示例照片试一下」，不用先选自己的文件，AI 按用途补上的步骤标出来。
+ * 功能类修改直接应用（D-191），AI 的说明和「接着改」也在这里。
  */
-export function ReadyScreen({ workflow }: { workflow: Workflow }) {
+export function ReadyScreen({
+  workflow,
+  sample,
+  guide,
+  notes = [],
+}: {
+  workflow: Workflow;
+  sample?: SampleKind;
+  guide?: GuideGoalId;
+  notes?: string[];
+}) {
   const { locale, registry } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
@@ -25,11 +46,14 @@ export function ReadyScreen({ workflow }: { workflow: Workflow }) {
       ),
   );
   const body = [palette.font('body', 15), { color: palette.text }];
+  const added = new Set<string>(guide ? guideGoal(guide).added : []);
 
   return (
     <ScrollView
       testID="ready-screen"
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 48 }}>
+      {/* 直接应用的功能（D-191）：「已改好 · 撤销」在这里也看得到。 */}
+      <Banner palette={palette} />
       <View style={styles.head}>
         <View style={[styles.badge, { backgroundColor: palette.secondary }]}>
           <Icon name="check" size={22} color="#FFFFFF" />
@@ -43,29 +67,65 @@ export function ReadyScreen({ workflow }: { workflow: Workflow }) {
           {workflow.name}
         </Text>
         {workflow.steps.map((step, i) => (
-          <Text key={step.id} style={body}>
-            {`${i + 1}. ${registry.actions.get(step.action)?.label[locale] ?? step.action}`}
+          <View key={step.id} style={styles.step}>
+            <Text style={[body, styles.flex]}>
+              {`${i + 1}. ${registry.actions.get(step.action)?.label[locale] ?? step.action}`}
+            </Text>
+            {added.has(step.id) ? (
+              <View
+                testID={`ready-added-${step.id}`}
+                style={[styles.tag, { backgroundColor: palette.secondary }]}>
+                <Text style={[palette.font('bodyBold', 11), { color: '#FFFFFF' }]}>
+                  {t(locale, 'guideAdded')}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ))}
+        {notes.map((note, i) => (
+          <Text
+            key={`n${i}`}
+            testID={`ready-note-${i}`}
+            style={[palette.font('body', 13), { color: palette.muted }]}>
+            {note}
           </Text>
         ))}
         <Text style={[palette.font('body', 13), { color: palette.caption }]}>
           {t(locale, onHome ? 'readyHome' : 'workflowWhere')}
         </Text>
       </Card>
+      {sample ? (
+        <Button
+          palette={palette}
+          testID="ready-sample"
+          label={t(locale, sample === 'photos' ? 'readyTryPhotos' : 'readyTryPdfs')}
+          onPress={() =>
+            router.replace({
+              pathname: '/run/[workflowId]',
+              params: { workflowId: workflow.id, sample },
+            })
+          }
+        />
+      ) : null}
       <Button
         palette={palette}
         testID="ready-run"
-        label={t(locale, 'readyRunNow')}
+        variant={sample ? 'outline' : 'filled'}
+        label={t(locale, sample ? 'readyRunOwn' : 'readyRunNow')}
         onPress={() =>
           router.replace({ pathname: '/run/[workflowId]', params: { workflowId: workflow.id } })
         }
       />
-      <Button
-        palette={palette}
-        testID="ready-later"
-        variant="outline"
-        label={t(locale, 'readyLater')}
-        onPress={() => router.back()}
-      />
+      <NextCard palette={palette} />
+      {sample ? null : (
+        <Button
+          palette={palette}
+          testID="ready-later"
+          variant="outline"
+          label={t(locale, 'readyLater')}
+          onPress={() => router.back()}
+        />
+      )}
       <Pressable
         testID="ready-fix"
         accessibilityRole="link"
@@ -90,5 +150,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   flex: { flex: 1 },
+  step: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  tag: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   link: { alignSelf: 'center', paddingVertical: 4 },
 });

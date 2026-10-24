@@ -1,3 +1,4 @@
+import { evaluateFormula, parseFormula, type FormulaNode } from './formula';
 import type { Collection, Condition, Field, Locale, Period, SystemField } from './schema';
 
 // 用户数据（记录）的纯函数：写入校验、宽容读取、筛选、排序、统计、显示格式、CSV 导出。
@@ -94,10 +95,46 @@ export function readValue(field: Field, raw: unknown): FieldValue | undefined {
       return typeof raw === 'string' && isValidDate(raw) ? raw : undefined;
     case 'choice':
       return typeof raw === 'string' && field.options.some((o) => o.id === raw) ? raw : undefined;
+    case 'file':
+      return typeof raw === 'string' && FILE_ID.test(raw) ? raw : undefined;
+    case 'formula':
+      // 公式不存值（D-188），由 recordValue 现算。
+      return undefined;
   }
 }
 
-/** 记录上某个字段（包括系统字段）的值；系统字段的值是本地日期。 */
+/** 附件的值：文件 ID（和配置里的 ID 一样的写法）。 */
+const FILE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+
+const formulaCache = new Map<string, FormulaNode | null>();
+function formulaNode(expression: string): FormulaNode | null {
+  let node = formulaCache.get(expression);
+  if (node === undefined) {
+    const parsed = parseFormula(expression);
+    node = parsed.ok ? parsed.node : null;
+    formulaCache.set(expression, node);
+  }
+  return node;
+}
+
+/** 公式字段在一条记录上的值：引用的字段都是数字时才有值，结果按字段的小数位（默认 2 位）取整。 */
+function formulaValue(
+  field: Extract<Field, { type: 'formula' }>,
+  record: DataRecord,
+  collection: Collection,
+): number | undefined {
+  const node = formulaNode(field.expression);
+  if (!node) return undefined;
+  const value = evaluateFormula(node, (id) => {
+    const ref = fieldOf(collection, id);
+    if (!ref || ref.type === 'formula') return undefined;
+    const v = readValue(ref, record.values[id]);
+    return typeof v === 'number' ? v : undefined;
+  });
+  return value === undefined ? undefined : round(value, field.decimals ?? 2);
+}
+
+/** 记录上某个字段（包括系统字段）的值；系统字段的值是本地日期，公式现算。 */
 export function recordValue(
   record: DataRecord,
   collection: Collection,
@@ -105,6 +142,7 @@ export function recordValue(
 ): FieldValue | undefined {
   if (isSystemField(ref)) return localDate(new Date(record[ref]));
   const field = fieldOf(collection, ref);
+  if (field?.type === 'formula') return formulaValue(field, record, collection);
   return field ? readValue(field, record.values[ref]) : undefined;
 }
 
@@ -146,11 +184,17 @@ function coerce(field: Field, input: unknown): Coerced {
       return typeof input === 'string' && field.options.some((o) => o.id === input)
         ? { value: input }
         : { issue: 'invalid' };
+    case 'file':
+      return typeof input === 'string' && FILE_ID.test(input)
+        ? { value: input }
+        : { issue: 'invalid' };
+    case 'formula':
+      return { issue: 'invalid' };
   }
 }
 
 function defaultValue(field: Field, now: Date): FieldValue | undefined {
-  if (field.type === 'note' || field.default === undefined) return undefined;
+  if (!('default' in field) || field.default === undefined) return undefined;
   if (field.type === 'date') return localDate(now);
   return field.default;
 }
@@ -171,6 +215,11 @@ export function prepareRecordValues(
   const values: Record<string, unknown> = { ...previous };
   const issues: FieldIssue[] = [];
   for (const field of collection.fields) {
+    // 公式不存值（D-188）：输入里有也忽略。
+    if (field.type === 'formula') {
+      delete values[field.id];
+      continue;
+    }
     let raw: unknown;
     if (Object.prototype.hasOwnProperty.call(input, field.id)) raw = input[field.id];
     else if (previous !== null) raw = previous[field.id];
@@ -333,11 +382,18 @@ export function formatNumber(n: number, decimals?: number): string {
   return groupThousands(n, Number.isInteger(n) ? 0 : Math.min(4, String(n).split('.')[1]!.length));
 }
 
-/** 字段值的显示文字；值无效或为空时返回空字符串。 */
+/** 字段值的显示文字；值无效或为空时返回空字符串。公式字段请用 formatRef（要整条记录才能算）。 */
 export function formatValue(field: Field, raw: unknown, locale: Locale): string {
-  const value = readValue(field, raw);
+  const value =
+    field.type === 'formula' ? (typeof raw === 'number' ? raw : undefined) : readValue(field, raw);
   if (value === undefined) return '';
   switch (field.type) {
+    case 'formula':
+      return field.currency
+        ? formatMoney(value as number, field.currency)
+        : `${formatNumber(value as number, field.decimals)}${field.unit ? ` ${field.unit}` : ''}`;
+    case 'file':
+      return locale === 'zh' ? '附件' : 'Attachment';
     case 'money':
       return formatMoney(value as number, field.currency);
     case 'number':
@@ -367,6 +423,8 @@ export function formatRef(
 ): string {
   if (isSystemField(ref)) return formatTimestamp(record[ref]);
   const field = fieldOf(collection, ref);
+  if (field?.type === 'formula')
+    return formatValue(field, recordValue(record, collection, ref), locale);
   return field ? formatValue(field, record.values[ref], locale) : '';
 }
 
@@ -384,10 +442,10 @@ export function recordsToCsv(
   ];
   const rows = records.map((r) => [
     ...collection.fields.map((f) => {
-      const v = readValue(f, r.values[f.id]);
+      const v = recordValue(r, collection, f.id);
       if (v === undefined) return '';
       if (f.type === 'money') return (v as number).toFixed(2);
-      if (f.type === 'number' || f.type === 'rating') return String(v);
+      if (f.type === 'number' || f.type === 'rating' || f.type === 'formula') return String(v);
       return formatValue(f, v, locale);
     }),
     formatTimestamp(r.createdAt),

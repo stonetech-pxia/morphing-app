@@ -16,6 +16,7 @@
     "api": "npm run start --workspace @morph/api",
     "ios:ai": "npm run ios:ai --workspace @morph/mobile --",
     "eval": "npm run eval --workspace @morph/api --",
+    "tools": "npm run tools --workspace @morph/api --",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

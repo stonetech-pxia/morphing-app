@@ -114,7 +114,7 @@ describe('video journeys (UI)', () => {
     const { files } = await openVideoTool();
     files.media = null;
     files.nextVideos = [files.offerVideo('a.mov', { size: 100 * MB })];
-    await fireEvent.press(screen.getByTestId('run-video-convert'));
+    await fireEvent.press(screen.getByTestId('run-video-trim'));
     expect(
       await screen.findByText('视频和音频要在正式版 Morph 里处理，这个预览版里不行。'),
     ).toBeTruthy();

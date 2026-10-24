@@ -6,6 +6,7 @@ import { CornersScreen } from './CornersScreen';
 import { CropScreen } from './CropScreen';
 import { FillFormScreen } from './FillFormScreen';
 import { PagesScreen } from './PagesScreen';
+import { RecordEntryScreen } from './RecordEntryScreen';
 import { RecordScreen } from './RecordScreen';
 import { RedactScreen } from './RedactScreen';
 import { ReorderScreen } from './ReorderScreen';
@@ -23,4 +24,5 @@ export const LOCAL_SCREENS: { [K in LocalKind]?: ComponentType<LocalScreenProps<
   redact: RedactScreen,
   trimMedia: TrimScreen,
   record: RecordScreen,
+  recordEntry: RecordEntryScreen,
 };

@@ -2,6 +2,8 @@
 // 不得依赖 React Native 或任何平台 API，以便在测试和未来的服务端中复用。
 
 export * from './ai/eval-cases';
+export * from './ai/goals';
+export * from './ai/kinds';
 export * from './ai/mock';
 export { stepIdFor } from './ai/workflow-phrases';
 export * from './ai/types';
@@ -38,3 +40,5 @@ export * from './workflow/engine';
 export * from './workflow/redact';
 export * from './workflows/presets';
 export * from './packs';
+export * from './tool-download';
+export * from './tool-keys';

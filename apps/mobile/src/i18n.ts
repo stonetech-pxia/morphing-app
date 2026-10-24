@@ -95,6 +95,44 @@ const strings = {
   uninstallTitle: { en: 'Remove {name}?', zh: '移除{name}工具？' },
   removeCardSummary: { en: 'Took {name} off home', zh: '从首页移除了{name}' },
   addCardSummary: { en: 'Put {name} on home', zh: '把{name}放到了首页' },
+  // 下载的工具（D-177）
+  toolDownloadSize: { en: 'Downloads {size}', zh: '需要下载 {size}' },
+  toolDownloading: { en: 'Downloading…', zh: '正在下载…' },
+  toolNeedsAppUpdate: {
+    en: 'Needs a newer version of this app',
+    zh: '需要先更新 App 才能添加',
+  },
+  toolRevoked: { en: 'Paused', zh: '暂时停用' },
+  toolRevokedRun: {
+    en: '“{name}” is paused for now, so this quick action can’t run. Try again later.',
+    zh: '「{name}」暂时停用了，这个快捷操作现在不能用。过一阵再试试。',
+  },
+  toolDownloadFailedTitle: { en: '“{name}” was not added', zh: '「{name}」没有添加' },
+  toolDownloadFailed: {
+    en: 'It could not be downloaded. Check the network and try again.',
+    zh: '没有下载成功。请检查网络后再试。',
+  },
+  toolDownloadRejected: {
+    en: 'What was downloaded did not pass the safety check, so nothing was changed.',
+    zh: '下载的内容没有通过安全检查，什么都没有改。',
+  },
+  restoreNeedsTool: {
+    en: 'This version uses {names}, which is not on this phone. Add it in Tools first, then restore.',
+    zh: '这个版本用到了「{names}」，这台手机上还没有。先到「工具」里添加，再恢复。',
+  },
+  listSeparator: { en: ', ', zh: '、' },
+  toolDownloadedHint: {
+    en: 'A tool downloaded from the Morph catalog.',
+    zh: '从 Morph 工具目录下载的工具。',
+  },
+  toolDeleteMessage: {
+    en: 'You can download it again from Tools later.',
+    zh: '以后可以在「工具」里再下载。',
+  },
+  toolDeleteAdded: {
+    en: 'This tool is still added. Remove it in Tools first, then delete it here.',
+    zh: '这个工具还在用。先到「工具」里移除它，再回来删除。',
+  },
 
   // 设置
   settingsTitle: { en: 'Settings', zh: '设置' },
@@ -628,12 +666,191 @@ const strings = {
   trimNext: { en: 'Next', zh: '下一个' },
   sharedVideos: { en: '{n} videos', zh: '{n} 个视频' },
   sharedAudio: { en: '{n} audio files', zh: '{n} 个音频' },
+
+  // AI 修改的草稿（D-190）
+  draftDropped: {
+    en: 'The app changed since you left the draft; {n} step(s) no longer fit and were removed.',
+    zh: '离开草稿之后 App 又改过，有 {n} 步套不上了，已经去掉。',
+  },
+  draftFirstStep: {
+    en: 'This is the first step of the draft. To drop the whole draft, delete it on the Change this app page.',
+    zh: '这已经是草稿的第一步了。要整个丢掉，去「修改这个 App」删除草稿。',
+  },
+  draftEdit: { en: 'Change', zh: '修改' },
+  draftBack: { en: 'Step back', zh: '退一步' },
+  draftApply: { en: 'Apply', zh: '应用' },
+  draftLeave: { en: 'Leave', zh: '离开' },
+  draftLocked: {
+    en: 'This is a draft. Apply it to use this.',
+    zh: '这是草稿，应用之后才能用。',
+  },
+  draftReplyTitle: { en: 'Done. This is how it looks now', zh: '改好了，这是改完后的样子' },
+  draftGuideHint: {
+    en: 'Tap Apply to keep it, or Change to keep going.',
+    zh: '点「应用」保留，点「修改」接着说。',
+  },
+  draftChatTitle: { en: 'Change the draft', zh: '修改草稿' },
+  draftChatClose: { en: 'Hide', zh: '收起' },
+  draftChatPlaceholder: { en: 'Say one more thing…', zh: '再说一句…' },
+  draftSteppedBack: { en: 'Took back the last step.', zh: '退了一步。' },
+  draftCard: { en: 'You have a draft · {n} step(s)', zh: '你有一份草稿 · {n} 步' },
+  draftCardHint: {
+    en: 'Look changes you ask for now continue this draft; quick actions, tools and data tables take effect right away.',
+    zh: '新说的外观修改会接着改这份草稿；快捷操作、工具和数据表直接生效。',
+  },
+  draftContinue: { en: 'Continue', zh: '继续' },
+  draftDelete: { en: 'Delete', zh: '删除' },
+  draftDeleteTitle: { en: 'Delete this draft?', zh: '删掉这份草稿？' },
+  draftDeleteBody: {
+    en: 'All {n} step(s) of the draft are dropped. The app stays as it is.',
+    zh: '草稿里的 {n} 步都会丢掉，App 不受影响。',
+  },
+  send: { en: 'Send', zh: '发送' },
+  changeAsk: {
+    en: 'What should change? One sentence is enough',
+    zh: '想怎么改？说一句就行',
+  },
+  pickStyleChip: { en: 'Pick a style', zh: '换个风格' },
+  draftRenderFailed: {
+    en: 'The last change could not be shown, so it was taken back.',
+    zh: '刚才那一步显示不出来，已经撤掉。',
+  },
+
+  // 功能和外观分开改（D-191）
+  draftNoFunction: {
+    en: 'The draft only changes the look. Quick actions, tools and data tables are changed on the Change this app page: they take effect right away and can be undone.',
+    zh: '草稿里只改外观。快捷操作、工具和数据表要在「修改这个 App」里改：会直接生效，可以撤销。',
+  },
+  draftNoFunctionGo: { en: 'Say it on Change this app', zh: '去「修改这个 App」说' },
+  functionNeedsDraft: {
+    en: 'This change needs something from your draft. Apply the draft first, then say it again.',
+    zh: '这个修改要用到草稿里还没应用的改动。先应用草稿，再说一次。',
+  },
+  nextTitle: { en: 'Keep going', zh: '接着改' },
+  nextHint: {
+    en: 'The rest of what you asked changes the look: tap to see it in a draft first.',
+    zh: '这句话里剩下的是外观的修改，点一下先在草稿里看看效果。',
+  },
+  tableReadyTitle: { en: 'Your data table is ready', zh: '数据表做好了' },
+  tableReadyRecord: { en: 'Add an entry now', zh: '现在就记一笔' },
+  tableReadyWhere: {
+    en: 'Entries stay on this device. You can also see the table in Settings → Data.',
+    zh: '记录存在本机，在「设置 → 数据」里也能看到这张表。',
+  },
+
+  // 新手引导（D-149）
+  guideSkip: { en: 'Skip', zh: '跳过' },
+  guideNext: { en: 'Next', zh: '下一步' },
+  guideStart: { en: 'Start', zh: '开始' },
+  // 划屏介绍：每页一张图配一句话。
+  guideIntro1: {
+    en: 'Your own app. Change how it looks with one sentence, any way you like.',
+    zh: '属于你的 App，用一句话随心所欲地改变界面',
+  },
+  guideIntro2: {
+    en: 'Say one sentence and the whole app gets a new look.',
+    zh: '说一句话，整个 App 换个样子',
+  },
+  guideIntro3: {
+    en: 'Things that took several steps become one tap.',
+    zh: '几步才能做完的事，变成点一下',
+  },
+  guideIntro4: {
+    en: "Now it's your turn. Say your idea in one sentence.",
+    zh: '现在轮到你了，用一句话说出你的想法',
+  },
+  guideIntroMiniTitle: { en: 'My day', zh: '我的一天' },
+  guideIntroStyleAsk: { en: 'Make it neon', zh: '换成赛博霓虹风' },
+  guideIntroBefore: { en: 'Before', zh: '以前' },
+  guideIntroBeforeCount: { en: '5 steps · 2 apps', zh: '5 步 · 换 2 个 App' },
+  guideIntroOld1: { en: 'Open Photos', zh: '打开相册' },
+  guideIntroOld2: { en: 'Pick photos', zh: '挑照片' },
+  guideIntroOld3: { en: 'Compress in another app', zh: '换个 App 压缩' },
+  guideIntroOld4: { en: 'Rename', zh: '改名' },
+  guideIntroOld5: { en: 'Share', zh: '分享' },
+  guideIntroNow: { en: 'Send trip photos to friends', zh: '发旅行照片给朋友' },
+  guideIntroAsk: { en: 'I want…', zh: '我想要……' },
+  guideIntroIdea1: { en: 'Make the home page dark blue', zh: '首页换成深蓝色' },
+  guideIntroIdea2: { en: 'Add a water check-in', zh: '加一个喝水打卡' },
+  guideIntroIdea3: { en: 'Turn screenshots into a PDF', zh: '把截图整理成 PDF' },
+  guideLookTitle: { en: 'Step 1 · Change this app', zh: '第 1 步 · 说一句话，改掉这个 App' },
+  guideLookBody: {
+    en: 'Tap one to try it. You see a preview first.',
+    zh: '点一句试试，改之前会先给你看预览。',
+  },
+  guideGoalTitle: {
+    en: 'Step 2 · What you have, what you want',
+    zh: '第 2 步 · 说出你有什么、想要什么',
+  },
+  guideGoalBody: {
+    en: 'One sentence becomes a quick action you can use right away.',
+    zh: '一句话，做成一个能直接用的快捷操作。',
+  },
+  guideMore: { en: 'Or try', zh: '再试试' },
+  guideUndoHint: {
+    en: 'Don’t like the change? Tap Undo above to go back.',
+    zh: '刚才的修改不喜欢？点上面的「撤销」就能退回去。',
+  },
+  guideLater: { en: 'Later', zh: '以后再说' },
+  guideSkipAll: { en: 'Skip the guide', zh: '跳过引导' },
+  guideTask: {
+    en: 'Starter task: make a quick action with one sentence',
+    zh: '新手任务：一句话做一个快捷操作',
+  },
+  guideAdded: { en: 'Added by AI', zh: 'AI 加的' },
+  readyTryPhotos: { en: 'Try it with sample photos', zh: '用示例照片试一下' },
+  readyTryPdfs: { en: 'Try it with sample contracts', zh: '用示例合同试一下' },
+  readyRunOwn: { en: 'Use my own files', zh: '用我自己的文件' },
+  runTryOwn: { en: 'Now try it with your own files', zh: '换成你自己的文件试试' },
+  samplePhotos: { en: 'Sample photos ({n})', zh: '示例照片（{n} 张）' },
+  samplePdfs: { en: 'Sample contracts ({n})', zh: '示例合同（{n} 份）' },
+  settingsGuide: { en: 'Show the guide again', zh: '重新看新手引导' },
+  settingsGuideHint: {
+    en: 'The intro and two short exercises',
+    zh: '划屏介绍和两个小练习',
+  },
   // ---- 音频工具（D-150–D-156，音频会话）----
   runError_audioTooSmall: {
     en: 'At {target}, “{name}” would be too hard to understand. It needs at least {mb} MB, or trim it shorter first.',
     zh: '「{name}」压到 {target} 声音会听不清。至少要 {mb} MB，或者先剪短一点。',
   },
   runError_noAudio: { en: '“{name}” has no sound.', zh: '「{name}」里没有声音。' },
+  // ---- 格式转换的缺口（D-183–D-186）----
+  runError_formatUnsupported: {
+    en: '“{name}” is a {format} file, which this phone can’t open. Convert it to MP4 on a computer first.',
+    zh: '「{name}」是 {format} 格式，这台手机打不开。可以先在电脑上转成 MP4。',
+  },
+  // ---- 需求回收（D-189）----
+  needSend: { en: 'Tell us you need this', zh: '把这个需求告诉我们' },
+  needRetry: { en: 'Not sent. Try again', zh: '没发出去，再试一次' },
+  needSent: {
+    en: 'Thanks, we got it. New tools come through updates and downloads.',
+    zh: '收到了，谢谢。新功能会通过更新和下载内容加进来。',
+  },
+  needPrivacy: {
+    en: 'Only this sentence is sent to Morph — no files, records or settings.',
+    zh: '只发送这一句话给 Morph，不含文件、记录和设置。',
+  },
+  needsSettingTitle: {
+    en: 'Offer to send requests AI can’t do',
+    zh: 'AI 做不到时，可以把需求告诉我们',
+  },
+  needsSettingNote: {
+    en: 'Shows a button under the answer. Nothing is sent unless you tap it.',
+    zh: '在回答下面显示一个按钮，你点了才会发送那一句话。',
+  },
+  // ---- 记一笔、附件和公式字段（D-187、D-188）----
+  noAttachment: { en: 'No attachment', zh: '没有附件' },
+  attachmentMissing: { en: 'The file was deleted', zh: '文件已经删掉了' },
+  removeAttachment: { en: 'Remove', zh: '去掉' },
+  runError_documentUnsupported: {
+    en: '“{name}” is a {format} file. On this phone only Word documents (.docx) can be turned into PDFs.',
+    zh: '「{name}」是 {format} 文件。这台手机上只能把 Word 文档（.docx）转成 PDF。',
+  },
+  runError_tooLong: {
+    en: '“{name}” is too long for a GIF (at most {seconds} seconds). Trim it first.',
+    zh: '「{name}」太长了，做不成 GIF（最长 {seconds} 秒）。请先剪一段。',
+  },
   runError_noSpeech: {
     en: 'No speech was heard in “{name}”.',
     zh: '在「{name}」里没有听到说话。',

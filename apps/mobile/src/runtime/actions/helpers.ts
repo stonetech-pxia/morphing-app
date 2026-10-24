@@ -2,6 +2,7 @@ import {
   FILE_LIMITS,
   MEDIA_LIMITS,
   MEDIA_MIME_BY_EXT,
+  OFFICE_MIME_BY_EXT,
   RunError,
   mediaKindOf,
   isFileValue,
@@ -54,6 +55,7 @@ const MIME_BY_EXT: Record<string, string> = {
   zip: 'application/zip',
   txt: 'text/plain',
   ...MEDIA_MIME_BY_EXT,
+  ...OFFICE_MIME_BY_EXT,
 };
 
 export const extOf = (name: string) => /\.([^./]+)$/.exec(name)?.[1]?.toLowerCase() ?? '';

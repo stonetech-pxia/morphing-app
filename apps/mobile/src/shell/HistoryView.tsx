@@ -1,4 +1,3 @@
-import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text } from 'react-native';
 
@@ -11,10 +10,11 @@ import { useWorkspace } from '../workspace/context';
 /** 改动记录（§3 旅程 D，D-112）：每次修改都是一个不可变版本；回到之前会生成新版本。 */
 export function HistoryView({ env }: { env: RenderEnv }) {
   const { palette, locale } = env;
-  const router = useRouter();
   const headId = useWorkspace((s) => s.head!.id);
   const listRevisions = useWorkspace((s) => s.listRevisions);
   const proposeRestore = useWorkspace((s) => s.proposeRestore);
+  const confirm = useWorkspace((s) => s.confirm);
+  const cancel = useWorkspace((s) => s.cancel);
   const [revisions, setRevisions] = useState<RevisionRecord[]>([]);
 
   useEffect(() => {
@@ -25,14 +25,21 @@ export function HistoryView({ env }: { env: RenderEnv }) {
     };
   }, [headId, listRevisions]);
 
+  /** 回到之前的样子：先问一句（说明哪些会回到当时、文件不受影响），确认后立即生效，可以撤销（D-190）。 */
   async function restore(id: number) {
+    if (env.locked) return env.locked();
     const result = await proposeRestore(id);
-    if (result.kind === 'preview') router.push('/change');
-    else
+    if (result.kind !== 'preview') {
       Alert.alert(
         t(locale, 'invalidPlan'),
         result.kind === 'invalid' ? result.issues.join('\n') : result.message,
       );
+      return;
+    }
+    Alert.alert(result.proposal.summary, result.proposal.lines.join('\n'), [
+      { text: t(locale, 'cancel'), style: 'cancel', onPress: () => void cancel() },
+      { text: t(locale, 'restoreThis'), onPress: () => void confirm() },
+    ]);
   }
 
   return (
