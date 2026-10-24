@@ -65,6 +65,8 @@ export function packNotNeeded(
   input: RunValue | null,
 ): boolean {
   const { vision } = files;
+  // 语音转文字（D-150、D-151）：iOS 用系统识别，不用下载内容；没有原生模块时动作自己报错，不白下载。
+  if (actionId === 'audio.transcribe') return files.speech?.engine !== 'whisper';
   if (actionId === 'ocr.recognize') {
     const languages = VISION_LANGUAGES[params.lang as OcrLanguage];
     return !!vision && !!languages && vision.supportsLanguage(languages[0]!);
@@ -79,10 +81,13 @@ export function packNotNeeded(
 /** 这台设备上真正需要下载的扩展包（工作流页的提示用；预设的扫描都从文档相机开始）。 */
 export function packsNeeded(packIds: readonly string[], files: FilePlatform): string[] {
   const { vision } = files;
-  if (!vision) return [...packIds];
+  const speechNeeded = (id: string) =>
+    !id.startsWith('speech-') || files.speech?.engine === 'whisper';
+  if (!vision) return packIds.filter(speechNeeded);
   return packIds.filter((id) => {
     if (id === 'scan') return !vision.canFindPaper && !vision.documentCamera;
     if (id === 'ocr') return false;
+    if (id.startsWith('speech-')) return speechNeeded(id);
     if (id.startsWith('ocr-')) {
       const languages = VISION_LANGUAGES[id.slice(4).replace('-', '_') as OcrLanguage];
       return !languages || !vision.supportsLanguage(languages[0]!);

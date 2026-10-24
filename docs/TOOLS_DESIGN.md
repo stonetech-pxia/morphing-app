@@ -357,6 +357,8 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
   → 每 5 分钟一段（在段尾 20 秒里最安静处切开）→ whisper_full（束搜索 5、语音检测、普通话简体提示词）
 ```
 
+- **whisper.cpp 补丁**（`cpp/patch-whisper.cmake`，构建时打）：窗口以单个时间戳结束时不再跳过剩下的部分，从最后一个时间戳接着识别（开了语音检测，送进去的都是说话；三星真机上 5 分钟会议原来漏约 1 分钟）。换 whisper.cpp 版本时补丁找不到那一行会让构建失败。
+
 - **语言**：`SPEECH_LANGUAGES`（12 种，同文字识别）；iOS 用 `SYSTEM_SPEECH_LOCALES`（BCP 47），whisper 用 `whisperLanguage`（国语也是 zh，靠 `whisperPrompt` 出繁体）。
 - **整理**（`tidyTranscript`）：中文换全角标点、去中文之间的空格；去掉一整段都是字幕网站 / 「谢谢观看」/ [音乐] 这类 whisper 在静音里编出来的；中日文直接相连、其他语言用空格；停顿 3 秒以上换段（Android 开了语音检测后 whisper 给的时间是连着的，换段不起作用，第二阶段用语音检测的时间段补上）。
 - **下载内容**：`speech-whisper-small`（190 MB）、`speech-whisper-base`（60 MB），都依赖 `speech-vad`（0.9 MB）。大于 32 MB 的文件走 `PackFs.downloadLarge`：expo-file-system 下载到磁盘并按字节报告进度，SHA-256 由 `MorphSpeech.sha256File` 在原生代码里边读边算（Android 用 MessageDigest，iOS 用 CryptoKit），不把几百 MB 读进 JS。
@@ -372,3 +374,20 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
 | iOS 模拟器 iPhone 18 Pro Max（iOS 27）                          | 系统识别**在模拟器上不能用**：SpeechTranscriber `isAvailable` 为 false，DictationTranscriber 占名额后显示已安装但没有任何可用的音频格式，旧接口报「Failed to initialize recognizer」；现在都报 `ERR_SPEECH_UNAVAILABLE`，不会崩溃 |
 | Mac（macOS 27，同一段 Swift 代码单独编译）                      | SpeechTranscriber：中文 2.3% / 22% 错字率，带 65 秒静音的录音完整；DictationTranscriber：4.7% / 36%，标点更多                                                                                                                     |
 | 真机                                                            | 没有测（iPhone 没有；三星真机是创始人在用的手机，第一阶段没装）                                                                                                                                                                   |
+
+## 13. 音频工具（D-152–D-158，音频会话第二阶段）
+
+| 动作               | 输入 → 输出           | 参数                                                              | 实现                                                                              |
+| ------------------ | --------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `in.audio`         | → audio               | `source: files / record`、`min` / `max`                           | 文件选择器 `audio/*`；录音界面 `run/local/RecordScreen.tsx`（本地界面 `record`）  |
+| `audio.transcribe` | audio → text          | `lang`（12 种）、`model`（Android：更准 / 更快）                  | morph-speech（§12）；iPhone 第一次用某种语言先问再让系统下载                      |
+| `audio.compress`   | audio → audio         | `by: size / quality`、`maxMB`、`quality: high / standard / voice` | `planAudioSize` / `planAudioQuality` → morph-media `transcode`（`video: 'drop'`） |
+| `audio.convert`    | audio → audio         | `format: m4a / wav`                                               | 已经是这种格式时不转                                                              |
+| `audio.trim`       | audio → audio         | 无（本地操作 `trimMedia`，带波形）                                | 重新编码成 M4A，带 `range`                                                        |
+| `audio.merge`      | audio → audio（1 个） | 无                                                                | morph-media `concat`                                                              |
+| `audio.fromVideo`  | video → audio         | `format`                                                          | 没有声音的视频报 `noAudio`                                                        |
+
+- morph-media 补的部分：iOS `writeAudio`（`AVAssetReaderAudioMixOutput` → AAC `.m4a` / LPCM `.wav`）、`concat`（每段一路合成轨，首尾相接）、`waveform`（8 kHz 单声道峰值）；Android M4A 用 Media3（去掉画面、`ChannelMixingAudioProcessor` + `SonicAudioProcessor` 统一格式；封装用系统的 MediaMuxer，默认的 InAppMp4Muxer 会在文件头预留约 400 KB），WAV 和波形用 `AudioPcm.kt` 自己解码。
+- App：`runtime/actions/audio.ts`、`MediaPlatform.encodeAudio / concatAudio / waveform`、`FilePlatform.speech`、`packNotNeeded`（iPhone 不用下载内容）。
+- 错误：`audioTooSmall`、`noAudio`、`noSpeech`；`needsFullApp` 的说法改成「视频和音频」。
+- 测试：`core/audio.test.ts`、`audio-actions-test.ts`（假的 media / speech）、`audio-journeys-test.tsx`（录音、转文字、波形剪切、压小的界面旅程）。

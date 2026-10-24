@@ -12,7 +12,7 @@ import type { LocalScreenProps } from '../RunScreen';
 import { LocalFrame } from './LocalFrame';
 
 // 剪一段（TOOLS_DESIGN §4 trimMedia，D-143）：逐个选开始和结束。视频和音频共用起止拖动、微调、
-// 时间显示和「只播放这一段」；上半部分视频显示画面，音频以后由音频工具补上波形（现在是图标）。
+// 时间显示和「只播放这一段」；上半部分视频显示画面，音频显示图标；时间轴上视频是缩略图，音频是波形（D-155）。
 // 结果只在本次运行里使用。
 
 /** 至少留多长（毫秒）。 */
@@ -20,6 +20,8 @@ export const MIN_TRIM_MS = 1000;
 const NUDGE_MS = 1000;
 const THUMBS = 8;
 const HANDLE = 22;
+
+type Thumb = VideoThumbnail | { uri: string };
 
 export interface TrimRange {
   startMs: number;
@@ -188,10 +190,15 @@ function Preview({
   );
 }
 
-/** 时间轴的缩略图（只有视频）。 */
-function useThumbnails(player: VideoPlayer, item: RunItem): VideoThumbnail[] {
+/** 时间轴的缩略图（只有视频）。expo-video 取不到时（Android 上的 HDR 视频）用 load。 */
+function useThumbnails(
+  player: VideoPlayer,
+  item: RunItem,
+  load: ((index: number, timesMs: number[]) => Promise<string[]>) | undefined,
+  index: number,
+): Thumb[] {
   // 记下是哪个文件的缩略图：换文件时不用在 effect 里清空。
-  const [thumbs, setThumbs] = useState<{ uri: string; list: VideoThumbnail[] } | null>(null);
+  const [thumbs, setThumbs] = useState<{ uri: string; list: Thumb[] } | null>(null);
   const duration = item.durationMs ?? 0;
   const video = item.mimeType.startsWith('video/');
   const uri = item.uri;
@@ -201,6 +208,14 @@ function useThumbnails(player: VideoPlayer, item: RunItem): VideoThumbnail[] {
     const times = Array.from({ length: THUMBS }, (_, i) => ((i + 0.5) * duration) / THUMBS / 1000);
     player
       .generateThumbnailsAsync(times, { maxWidth: 160 })
+      .catch(async (e: unknown) => {
+        if (!load) throw e;
+        const files = await load(
+          index,
+          times.map((s) => s * 1000),
+        );
+        return files.map((file) => ({ uri: file }));
+      })
       .then((list) => {
         if (alive) setThumbs({ uri, list });
       })
@@ -208,8 +223,32 @@ function useThumbnails(player: VideoPlayer, item: RunItem): VideoThumbnail[] {
     return () => {
       alive = false;
     };
-  }, [player, video, duration, uri]);
+  }, [player, video, duration, uri, load, index]);
   return thumbs?.uri === uri ? thumbs.list : [];
+}
+
+/** 音频的波形：界面打开后再读（Android 上长录音要解码很久）；undefined 表示还在读。 */
+function useWaveform(
+  load: ((index: number) => Promise<number[] | null>) | undefined,
+  index: number,
+  audio: boolean,
+): number[] | null | undefined {
+  // 记下是第几个文件的波形：换文件时不用在 effect 里清空。
+  const [peaks, setPeaks] = useState<{ index: number; list: number[] | null } | null>(null);
+  useEffect(() => {
+    if (!audio || !load) return;
+    let alive = true;
+    load(index)
+      .catch(() => null)
+      .then((list) => {
+        if (alive) setPeaks({ index, list });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [load, index, audio]);
+  if (!audio || !load) return null;
+  return peaks?.index === index ? peaks.list : undefined;
 }
 
 export function TrimScreen({
@@ -240,7 +279,9 @@ export function TrimScreen({
   const player = useVideoPlayer(item.uri, (p) => {
     p.timeUpdateEventInterval = 0.1;
   });
-  const thumbs = useThumbnails(player, item);
+  const thumbs = useThumbnails(player, item, input.loadThumbnails, index);
+  const audio = item.mimeType.startsWith('audio/');
+  const waveform = useWaveform(input.loadWaveform, index, audio);
 
   const [responder] = useState(() =>
     PanResponder.create({
@@ -317,6 +358,16 @@ export function TrimScreen({
             {thumbs.map((thumb, i) => (
               <Image key={i} source={thumb} style={styles.thumb} contentFit="cover" />
             ))}
+            {waveform ? <Waveform peaks={waveform} color={palette.primary} /> : null}
+            {waveform === undefined ? (
+              <View style={[styles.waveform, styles.center]}>
+                <Text
+                  testID="trim-waveform-loading"
+                  style={[palette.font('body', 13), { color: palette.caption }]}>
+                  {t(locale, 'trimWaveformLoading')}
+                </Text>
+              </View>
+            ) : null}
           </View>
           {width > 0 ? (
             <>
@@ -356,8 +407,27 @@ export function TrimScreen({
           style={[palette.font('bodyMedium', 15), { color: palette.muted, textAlign: 'center' }]}>
           {t(locale, 'trimLength', { length: formatTime(range.endMs - range.startMs, true) })}
         </Text>
+        {audio ? (
+          <Text style={[palette.font('body', 13), { color: palette.caption, textAlign: 'center' }]}>
+            {t(locale, 'trimRingtone')}
+          </Text>
+        ) : null}
       </View>
     </LocalFrame>
+  );
+}
+
+/** 音频的波形：每根柱子是一小段时间里最大的音量（0–1）。 */
+function Waveform({ peaks, color }: { peaks: readonly number[]; color: string }) {
+  return (
+    <View testID="trim-waveform" style={styles.waveform}>
+      {peaks.map((p, i) => (
+        <View
+          key={i}
+          style={[styles.peak, { height: `${Math.max(6, p * 100)}%`, backgroundColor: color }]}
+        />
+      ))}
+    </View>
   );
 }
 
@@ -377,8 +447,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   thumb: { flex: 1 },
+  waveform: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 1, paddingHorizontal: 2 },
+  peak: { flex: 1, borderRadius: 1, opacity: 0.7 },
   controls: { paddingHorizontal: 16, paddingTop: 12, gap: 10 },
-  timeline: { height: 52, borderRadius: 8 },
+  // 左右再缩进 24：把手离屏幕边 40，不落在 Android 的返回手势区（从边缘往里拖会关掉页面）。
+  timeline: { height: 52, borderRadius: 8, marginHorizontal: 24 },
   dim: { position: 'absolute', top: 0, bottom: 0, backgroundColor: '#00000055' },
   selection: { position: 'absolute', top: 0, bottom: 0, borderTopWidth: 3, borderBottomWidth: 3 },
   handle: { position: 'absolute', top: -4, bottom: -4, width: HANDLE, borderRadius: 6 },

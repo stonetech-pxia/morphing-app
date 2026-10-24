@@ -51,7 +51,7 @@ export function mediaError(e: unknown, item: RunItem): Error {
 }
 
 /** 剩余空间够不够写 bytes 这么大的文件（读不到剩余空间时放行）。 */
-function checkSpace(ctx: Ctx, bytes: number): void {
+export function checkSpace(ctx: Ctx, bytes: number): void {
   const free = ctx.services.files.freeDiskBytes();
   if (free === null || free - SPARE_BYTES >= bytes) return;
   const gb = Math.ceil(((bytes + SPARE_BYTES - free) / 1024 / MB) * 10) / 10;
@@ -233,7 +233,11 @@ export const VIDEO_IMPLS: Record<string, Impl> = {
         ...(info.height ? { height: info.height } : {}),
       });
     }
-    const ranges = await ctx.services.ui.open('trimMedia', { items });
+    const ranges = await ctx.services.ui.open('trimMedia', {
+      items,
+      loadThumbnails: (i, timesMs) =>
+        media.thumbnails(items[i]!.uri, timesMs, 160, ctx.services.runId),
+    });
     if (!ranges) throw new RunCancelled();
     let i = 0;
     return eachVideo({ type: 'video', items }, ctx, async (item, _media, job) => {

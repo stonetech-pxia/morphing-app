@@ -16,6 +16,8 @@ FetchContent_Declare(
   whisper
   URL https://github.com/ggml-org/whisper.cpp/archive/refs/tags/v1.9.5.tar.gz
   URL_HASH SHA256=ff1a9053feb509ff9d7729703355541ae9690073a6b1c40eb692c962e0dc1720
+  # 识别长录音时不再整段跳过有人说话的部分（见 patch-whisper.cmake）。
+  PATCH_COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/patch-whisper.cmake
 )
 
 set(WHISPER_BUILD_TESTS OFF CACHE BOOL "" FORCE)

@@ -68,6 +68,8 @@ const SHARE_INPUTS: Readonly<
   // 相册、拍照、扫描都算：分享进来的照片没有拉正，后面的找边步骤会处理。
   'in.photos': () => ({ type: 'images', accepts: isImage }),
   'in.videos': () => ({ type: 'video', accepts: isVideo }),
+  // 录音来源也算：分享进来的录音直接用，不打开录音界面（D-154）。
+  'in.audio': () => ({ type: 'audio', accepts: isAudio }),
   'in.files': (params) => {
     const accept = String(params.accept);
     return {

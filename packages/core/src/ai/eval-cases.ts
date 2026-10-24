@@ -1807,6 +1807,183 @@ const TRANSLATE_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+// ---- 音频（D-150–D-157）：录音转文字、压小、剪一段、合成、取视频的声音做成快捷操作；总结录音内容按办事拒绝 ----
+// AU* 是 mock 句式（MOCK_AI_PHRASES AU），PAU* 和 SH4 只要求真实模型。
+
+const firstAudio = (steps: { action: string; params: Record<string, unknown> }[]) => {
+  const first = steps[0];
+  if (first?.action === 'in.audio') return null;
+  if (first?.action === 'in.files' && first.params.accept === 'audio') return null;
+  return `first step should pick or record audio, got ${first?.action}`;
+};
+
+const AUDIO_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'AU1',
+    input: '新建一个快捷操作：录音，转成文字，转成 PDF，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.audio', 'audio.transcribe', 'text.toPdf', 'out.share'],
+        (steps) =>
+          param('in.audio', 'source', 'record')(steps) ??
+          param('audio.transcribe', 'lang', 'zh')(steps),
+      ),
+    },
+  },
+  {
+    id: 'AU1-en',
+    input: 'Create a quick action: choose recordings, transcribe, save as a text file',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.audio', 'audio.transcribe', 'text.toFile'],
+        (steps) =>
+          param('in.audio', 'source', 'files')(steps) ??
+          param('audio.transcribe', 'lang', 'en')(steps),
+      ),
+    },
+  },
+  {
+    id: 'AU2',
+    input: '新建一个快捷操作：选录音，压到 2MB，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.audio', 'audio.compress', 'out.share'],
+        (steps) =>
+          param('audio.compress', 'maxMB', 2)(steps) ??
+          param('audio.compress', 'by', 'size')(steps),
+      ),
+    },
+  },
+  {
+    id: 'AU3',
+    input: '新建一个快捷操作：选几段录音，排序，合成一段，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.audio', 'file.order', 'audio.merge', 'out.share']),
+    },
+  },
+  {
+    id: 'AU4',
+    input: '新建一个快捷操作：选视频，提取声音，存到文件夹',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.videos', 'audio.fromVideo', 'out.saveToFolder']),
+    },
+  },
+  {
+    id: 'AU5',
+    input: '新建一个快捷操作：选音频，剪一段，存到文件夹',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.audio', 'audio.trim', 'out.saveToFolder']),
+    },
+  },
+  {
+    id: 'AU6',
+    input: '添加录音转文字快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: presetAdded('audio-to-text') },
+  },
+  {
+    id: 'AU7-en',
+    input: 'Add the recording too big to send quick action',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: presetAdded('audio-too-big') },
+  },
+  {
+    id: 'PAU1',
+    input: '上课录的音想变成文字笔记，帮我做一个快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['audio.transcribe'], firstAudio) },
+  },
+  {
+    id: 'PAU2-en',
+    input: 'My voice memo is too big to email, it has to be under 10 MB',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['audio.compress'],
+        (steps) => firstAudio(steps) ?? param('audio.compress', 'maxMB', 10)(steps),
+      ),
+    },
+  },
+  {
+    id: 'PAU3',
+    input: '采访录了好几段，想拼成一个文件发给编辑',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['audio.merge'], firstAudio) },
+  },
+  {
+    id: 'PAU4',
+    input: '想把视频里的背景音乐单独存下来',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['in.videos', 'audio.fromVideo'], firstVideo) },
+  },
+  {
+    id: 'PAU5',
+    input: '帮我总结一下这段会议录音说了什么',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'PAU6-en',
+    input: 'I want to cut 30 seconds out of a song to use as my ringtone',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['audio.trim'], firstAudio) },
+  },
+  {
+    id: 'SH4',
+    input: '转成文字',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    about: { kind: 'shared', images: 0, pdfs: 0, others: 0, audio: 1 },
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['audio.transcribe'], firstAudio), noRunner),
+      plan: homeEntryOff,
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...BASE_EVAL_CASES,
   ...WORKFLOW_EVAL_CASES,
@@ -1815,6 +1992,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...ABOUT_EVAL_CASES,
   ...VIDEO_EVAL_CASES,
   ...TRANSLATE_EVAL_CASES,
+  ...AUDIO_EVAL_CASES,
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };

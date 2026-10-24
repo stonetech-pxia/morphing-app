@@ -67,3 +67,60 @@ jest.mock('expo-video', () => {
       }, [source]),
   };
 });
+
+// expo-audio（录音，D-154）：假的录音机。record() 之后每次读状态时长加 1 秒；stop() 写出一个小文件地址。
+// global.__audioPermission 可以设成 false 测「没有麦克风权限」。
+jest.mock('expo-audio', () => {
+  const React = require('react');
+  const makeRecorder = () => {
+    const recorder = {
+      uri: null,
+      isRecording: false,
+      durationMillis: 0,
+      async prepareToRecordAsync() {
+        this.uri = 'file:///cache/ExpoAudio/recording.m4a';
+      },
+      record() {
+        this.isRecording = true;
+      },
+      pause() {
+        this.isRecording = false;
+      },
+      async stop() {
+        this.isRecording = false;
+      },
+    };
+    return recorder;
+  };
+  return {
+    AudioQuality: { MIN: 0, LOW: 32, MEDIUM: 64, HIGH: 96, MAX: 127 },
+    IOSOutputFormat: { MPEG4AAC: 'aac ' },
+    useAudioRecorder: () => React.useMemo(makeRecorder, []),
+    useAudioRecorderState: (recorder) => {
+      const [, tick] = React.useState(0);
+      React.useEffect(() => {
+        const timer = setInterval(() => {
+          if (recorder.isRecording) {
+            recorder.durationMillis += 1000;
+            tick((n) => n + 1);
+          }
+        }, 200);
+        return () => clearInterval(timer);
+      }, [recorder]);
+      return {
+        canRecord: true,
+        isRecording: recorder.isRecording,
+        durationMillis: recorder.durationMillis,
+        fileSize: 0,
+        mediaServicesDidReset: false,
+        metering: recorder.isRecording ? -20 : undefined,
+        url: recorder.uri,
+      };
+    },
+    requestRecordingPermissionsAsync: async () => ({
+      granted: global.__audioPermission !== false,
+      status: global.__audioPermission !== false ? 'granted' : 'denied',
+    }),
+    setAudioModeAsync: async () => undefined,
+  };
+});

@@ -13,9 +13,23 @@ import {
 } from './presets';
 
 describe('workflow presets', () => {
-  it('has the sixteen presets with unique ids', () => {
-    expect(WORKFLOW_PRESETS).toHaveLength(16);
-    expect(new Set(WORKFLOW_PRESETS.map((p) => p.id)).size).toBe(16);
+  it('has the twenty-two presets with unique ids', () => {
+    expect(WORKFLOW_PRESETS).toHaveLength(22);
+    expect(new Set(WORKFLOW_PRESETS.map((p) => p.id)).size).toBe(22);
+  });
+
+  it('puts the audio presets in the study and sound scenarios (D-156)', () => {
+    expect(presetsIn('study').map((p) => p.id)).toEqual([
+      'audio-to-text',
+      'merge-recordings',
+      'voice-memo-archive',
+    ]);
+    expect(presetsIn('sound').map((p) => p.id)).toEqual([
+      'audio-too-big',
+      'cut-audio',
+      'video-sound',
+    ]);
+    expect(PRESET_SCENARIOS.map((s) => s.name.zh).slice(-2)).toEqual(['学习工作', '发声音']);
   });
 
   it('puts the video and PDF size presets in their scenarios (D-146)', () => {

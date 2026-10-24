@@ -173,6 +173,52 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     requires: ['files.pick'],
   },
   {
+    // 音频（D-154）：从「文件」选录音或音乐（语音备忘录分享出来的、微信下载的），或者现在录一段。
+    id: 'in.audio',
+    label: { en: 'Choose or record audio', zh: '选音频 / 录音' },
+    description: {
+      en: 'Pick recordings or music from the Files app (up to 10, each up to 4 GB), or record one now with the microphone (it keeps recording when the screen locks).',
+      zh: '从「文件」选录音或音乐（最多 10 个，每个不超过 4 GB），或者现在用麦克风录一段（锁屏后继续录）。',
+    },
+    input: [],
+    output: 'audio',
+    params: z
+      .strictObject({
+        source: z.enum(['files', 'record']),
+        min: z.number().int().min(1).max(MEDIA_LIMITS.maxCount),
+        max: z.number().int().min(1).max(MEDIA_LIMITS.maxCount),
+      })
+      .refine((p) => p.min <= p.max, { message: 'min must not exceed max' }),
+    fields: [
+      {
+        key: 'source',
+        label: { en: 'From', zh: '来源' },
+        kind: 'choice',
+        options: [
+          { value: 'files', label: { en: 'Files', zh: '从文件选' } },
+          { value: 'record', label: { en: 'Record now', zh: '现在录音' } },
+        ],
+      },
+      ...countFields(MEDIA_LIMITS.maxCount).map((f) => ({
+        ...f,
+        showIf: { key: 'source', equals: ['files'] },
+      })),
+    ],
+    presets: [
+      {
+        id: 'files',
+        label: { en: 'Files, up to 10', zh: '从文件选，最多 10 个' },
+        values: { source: 'files', min: 1, max: 10 },
+      },
+      {
+        id: 'record',
+        label: { en: 'Record now', zh: '现在录音' },
+        values: { source: 'record', min: 1, max: 1 },
+      },
+    ],
+    requires: ['files.pick'],
+  },
+  {
     id: 'in.text',
     label: { en: 'Type or paste text', zh: '输入文字' },
     description: {

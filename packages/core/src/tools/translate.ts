@@ -148,12 +148,21 @@ function splitLong(unit: string): string[] {
 }
 
 /**
+ * 康熙部首（U+2F00–2FDF）和部首补充（U+2E80–2EFF）换成同形的普通汉字（「⼗⼀⽉」→「十一月」）。
+ * Mac、iPhone 用苹方生成的 PDF 取出的文字常是这些字符，看着一样，但翻译、搜索都认不出。
+ * 只换这两个区：整段做 NFKC 会把中文的全角标点也改成半角。
+ */
+export function fixCjkRadicals(text: string): string {
+  return text.replace(/[\u2E80-\u2EFF\u2F00-\u2FDF]/g, (c) => c.normalize('NFKC'));
+}
+
+/**
  * 把文字拆成要翻译的小段：空行分段；段里的行重新接起来（文字识别和 PDF 每一行都断开，逐行翻译会把
  * 一句话拆坏），但一句话结束、短行（标题、地址、称呼）和列表项另起。结果是「段 → 行 → 片」，
  * 一行太长时按句子切成几片。
  */
 export function splitForTranslation(text: string): string[][][] {
-  return text
+  return fixCjkRadicals(text)
     .replace(/\r\n?/g, '\n')
     .split(/\n\s*\n/)
     .map((block) =>
@@ -183,10 +192,14 @@ export function splitForTranslation(text: string): string[][][] {
 
 /** 拼回去：同一行的几片按译文的文字接起来，行之间换行，段之间空一行。 */
 export function joinTranslation(pieces: string[][][], to: string): string {
-  const glue = /^(?:zh|ja)/.test(to) ? '' : ' ';
-  return pieces
-    .map((lines) => lines.map((parts) => parts.map((p) => p.trim()).join(glue)).join('\n'))
+  const cjk = /^(?:zh|ja)/.test(to);
+  const joined = pieces
+    .map((lines) =>
+      lines.map((parts) => parts.map((p) => p.trim()).join(cjk ? '' : ' ')).join('\n'),
+    )
     .join('\n\n');
+  // ML Kit 翻成中文、日文时句号后面还留着原文的空格（「公寓。 请…」）。
+  return cjk ? joined.replace(/([。！？；：，、])[ \t]+/g, '$1') : joined;
 }
 
 /** 系统识别出的语言代码 → 翻译用的代码；认不出（und、拼音）返回 null。 */
