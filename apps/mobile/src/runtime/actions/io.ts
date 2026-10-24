@@ -228,6 +228,36 @@ export const IO_IMPLS: Record<string, Impl> = {
     return { type: 'video', items: await importPicked(ctx.services, picked, ctx) };
   },
 
+  // 音频（D-154）：从「文件」选，或者打开录音界面现在录一段；分享进来的录音直接用。
+  async 'in.audio'(_input, params, ctx) {
+    const shared = await importShared(ctx, params, 'audio');
+    if (shared) return shared;
+    const { source, min, max } = params as { source: 'files' | 'record'; min: number; max: number };
+    if (source === 'record') {
+      const name = renderNameTemplate(
+        ctx.locale === 'zh' ? '录音 {date:YYYY-MM-DD_HH.mm}' : 'Recording {date:YYYY-MM-DD_HH.mm}',
+        {
+          now: ctx.now(),
+          index: 1,
+          sourceName: '',
+        },
+      );
+      const recorded = await ctx.services.ui.open('record', { name });
+      if (!recorded) throw new RunCancelled();
+      return { type: 'audio', items: await importPicked(ctx.services, [recorded], ctx) };
+    }
+    const picked = await ctx.services.files.pickDocuments(DOCUMENT_TYPES.audio!, max > 1);
+    if (!picked) throw new RunCancelled();
+    checkCount(picked.length, min, max, 'audio');
+    for (const f of picked) {
+      if (mediaKindOf(mimeOf(f.name, f.mimeType), f.name) !== 'audio') {
+        throw new RunError('wrongType', { name: f.name, kind: 'audio' });
+      }
+    }
+    checkSizes(picked.map((f) => ({ ...f, mimeType: mimeOf(f.name, f.mimeType) })));
+    return { type: 'audio', items: await importPicked(ctx.services, picked, ctx) };
+  },
+
   async 'in.files'(_input, params, ctx) {
     const { accept, min, max } = params as { accept: string; min: number; max: number };
     const shared = await importShared(ctx, params, kindOf(accept));

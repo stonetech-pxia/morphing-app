@@ -71,7 +71,17 @@ export function ReorderScreen({
               ) : (
                 <View
                   style={[styles.thumb, styles.center, { backgroundColor: palette.primaryTint }]}>
-                  <Icon name="document" size={22} color={palette.primaryText} />
+                  <Icon
+                    name={
+                      item.mimeType.startsWith('audio/')
+                        ? 'audio'
+                        : item.mimeType.startsWith('video/')
+                          ? 'video'
+                          : 'document'
+                    }
+                    size={22}
+                    color={palette.primaryText}
+                  />
                 </View>
               )}
               <Text

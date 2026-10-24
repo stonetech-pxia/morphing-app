@@ -2,7 +2,7 @@ import { Directory, Paths } from 'expo-file-system';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
 import MorphMedia, { type MediaResult } from '../../modules/morph-media';
-import type { MediaInfo, MediaJob, MediaOutput, MediaPlatform } from './platform';
+import type { AudioEncode, MediaInfo, MediaJob, MediaOutput, MediaPlatform } from './platform';
 
 // MediaPlatform 的实现：本地 Expo 模块 MorphMedia（iOS AVFoundation、Android Media3，D-141）。
 // 没有这个模块（Expo Go）时为 null。处理期间屏幕不灭：iOS 不让后台用视频编码器（D-148）。
@@ -22,6 +22,16 @@ function output(result: MediaResult): MediaOutput {
     info: result.info as MediaInfo,
   };
 }
+
+const audioSettings = (settings: AudioEncode) => ({
+  codec: settings.format === 'wav' ? ('pcm' as const) : ('aac' as const),
+  bitrateKbps: settings.bitrateKbps,
+  sampleRate: settings.sampleRate,
+  channels: settings.channels,
+});
+
+const notImplemented = (what: string) =>
+  Object.assign(new Error(`Not implemented yet: ${what}`), { code: 'ERR_NOT_IMPLEMENTED' });
 
 export function expoMedia(
   runFileUri: (runId: string, relPath: string) => string,
@@ -74,6 +84,41 @@ export function expoMedia(
     async trim(uri, range, runId, relPath, job) {
       const out = runFileUri(runId, relPath);
       return output(await run(job, (jobId) => native.trim(jobId, uri, out, range)));
+    },
+
+    async encodeAudio(uri, settings, runId, relPath, job) {
+      const out = runFileUri(runId, relPath);
+      const result = await run(job, (jobId) =>
+        native.transcode(jobId, uri, out, {
+          container: settings.format,
+          video: 'drop',
+          audio: audioSettings(settings),
+          ...(settings.range ? { range: settings.range } : {}),
+        }),
+      );
+      return output(result);
+    },
+
+    async concatAudio(uris, settings, runId, relPath, job) {
+      if (!native.concat) throw notImplemented('concat');
+      const out = runFileUri(runId, relPath);
+      const result = await run(job, (jobId) =>
+        native.concat!(jobId, uris, out, {
+          container: settings.format,
+          video: 'drop',
+          audio: audioSettings(settings),
+        }),
+      );
+      return output(result);
+    },
+
+    async waveform(uri, buckets) {
+      if (!native.waveform) return null;
+      try {
+        return await native.waveform(uri, buckets);
+      } catch {
+        return null;
+      }
     },
 
     async thumbnails(uri, timesMs, maxSide, runId) {

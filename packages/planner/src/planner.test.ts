@@ -57,6 +57,9 @@ describe('system prompt', () => {
     for (const type of FieldSchema.options) expect(prompt).toContain(type.shape.type.value);
     expect(prompt).toContain('"userData"');
     expect(prompt).toContain('"errand"');
+    // 翻译文件做成快捷操作，翻译一句话仍是办事（D-171）。
+    expect(prompt).toContain('translate.text');
+    expect(prompt).toContain('Translating files is a job on files');
     expect(prompt).toContain('mailto');
   });
 });

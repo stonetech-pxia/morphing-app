@@ -1,5 +1,7 @@
 import type { Quad } from '@morph/tool-image';
 
+import type { SpeechPlatform } from './speech';
+
 // 平台能力（App 中由 Expo 模块实现，见 expo-platform.ts；测试中用 test-utils/fake-files.ts 的内存实现）。
 // 动作实现只通过这里接触文件系统和系统界面。
 
@@ -101,6 +103,38 @@ export interface VisionPlatform {
   scanDocuments(runId: string, maxSide: number): Promise<PickedFile[] | null>;
 }
 
+/**
+ * 系统自带的本机翻译（modules/morph-translate，D-170）：iOS 是 Translation 框架（iOS 18 起），
+ * Android 是 ML Kit（语言模型第一次用时下载，约 30 MB）。语言用 BCP 47。没有原生模块时（Expo Go）为 null。
+ * 文字只在本机处理，不上传、不发给 AI。
+ */
+export interface TranslatePlatform {
+  /** 这台设备能不能翻译（iOS 17 及更早没有系统翻译）。 */
+  readonly supported: boolean;
+  /** 每段文字的语言；认不出时为 null。 */
+  detectLanguages(texts: readonly string[]): Promise<(string | null)[]>;
+  /**
+   * 这一对语言现在能不能翻：installed 直接能翻；download 要先下载，missing 是还没下载的语言（Android，
+   * 由 App 先问用户）；iOS 不给 missing，系统在翻译时自己弹窗问。unsupported 不能翻。
+   */
+  status(
+    from: string,
+    to: string,
+  ): Promise<{ status: 'installed' | 'download' | 'unsupported'; missing?: string[] }>;
+  /** 每种语言要下载多少字节（估计，Android 的 ML Kit 约 30 MB）。 */
+  readonly downloadBytes?: number;
+  /** 下载一种语言的模型（Android）；没有网络时抛出。iOS 没有这个方法。 */
+  download?(language: string): Promise<void>;
+  /** 已下载的语言（Android，「设置 → 已下载内容」列出；iOS 的语言由系统设置管理，没有这个方法）。 */
+  downloadedLanguages?(): Promise<string[]>;
+  /** 删除一种语言的模型（Android）。 */
+  removeLanguage?(language: string): Promise<void>;
+  /**
+   * 翻译，一段对一段。iOS 需要下载时系统会弹窗；用户取消时抛出 code 为 cancelled 的错误。
+   */
+  translate(texts: readonly string[], from: string, to: string): Promise<string[]>;
+}
+
 /** 存到文件夹的一个文件：本机地址、文件名（不含扩展名）和扩展名。 */
 export interface FolderItem {
   uri: string;
@@ -123,7 +157,10 @@ export interface MediaInfo {
   hdr?: boolean;
   videoCodec?: string;
   videoBitrateKbps?: number;
+  audioCodec?: string;
   audioBitrateKbps?: number;
+  sampleRate?: number;
+  channels?: number;
 }
 
 /** 一次视频编码的要求（H.264 + AAC 的 MP4）。 */
@@ -134,6 +171,15 @@ export interface VideoEncode {
   /** 缩小到这个短边；不缩小时不给。 */
   shortSide?: number;
   maxFps: number;
+  range?: { startMs: number; endMs: number };
+}
+
+/** 音频的编码要求（core 的 AudioPlan）：M4A（AAC）或 WAV（16 位 PCM）；range 只要其中一段。 */
+export interface AudioEncode {
+  format: 'm4a' | 'wav';
+  bitrateKbps: number;
+  channels: 1 | 2;
+  sampleRate: number;
   range?: { startMs: number; endMs: number };
 }
 
@@ -181,13 +227,35 @@ export interface MediaPlatform {
     maxSide: number,
     runId: string,
   ): Promise<string[]>;
+  /** 音频（或视频的声音）编码成 M4A / WAV（D-153）。 */
+  encodeAudio(
+    uri: string,
+    settings: AudioEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
+  /** 几段按顺序接成一段（D-155），格式、采样率可以不同。 */
+  concatAudio(
+    uris: readonly string[],
+    settings: AudioEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
+  /** 波形（buckets 个 0–1 的峰值），剪一段界面用；读不到时返回 null。 */
+  waveform(uri: string, buckets: number): Promise<number[] | null>;
 }
 
 export interface FilePlatform {
   /** 系统自带的文字识别和扫描；没有时为 null。 */
   readonly vision: VisionPlatform | null;
+  /** 系统自带的本机翻译（D-170）；没有原生模块时为 null。 */
+  readonly translator: TranslatePlatform | null;
   /** 本机处理视频和音频；没有时（Expo Go）为 null。 */
   readonly media: MediaPlatform | null;
+  /** 本机语音转文字（D-150、D-151，modules/morph-speech）；没有时（Expo Go）为 null。 */
+  readonly speech: SpeechPlatform | null;
 
   // ---- 用户文件（assets/<id>/<文件名>，D-019）----
   /** 从相册选一张照片（图片组件用）；用户取消时返回 null。 */

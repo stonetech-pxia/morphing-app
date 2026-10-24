@@ -1,4 +1,5 @@
 import type { IconName, Locale, Localized, Workflow } from '../schema';
+import { speechLangFor } from '../tools/audio';
 
 // 内置的预设工作流（TOOLS_DESIGN §7，D-081）：不随版本，用户在「工作流」页点「添加」时复制进配置，
 // 之后就和用户自己的工作流一样，可以改参数、改步骤、复制、放到页面上、删除；编辑页可以「恢复预设」。
@@ -13,6 +14,9 @@ export const PRESET_SCENARIOS = [
   { id: 'paperwork', name: { en: 'Forms and documents', zh: '交材料、签文件' } },
   { id: 'receipts', name: { en: 'Receipts and expenses', zh: '报销记账' } },
   { id: 'photos', name: { en: 'Sending photos and videos', zh: '发照片和视频' } },
+  // 音频（D-156）：录音转文字、合成、按日期归档放「学习工作」；压小、剪一段、取视频的声音放「发声音」。
+  { id: 'study', name: { en: 'Study and work', zh: '学习工作' } },
+  { id: 'sound', name: { en: 'Sending audio', zh: '发声音' } },
 ] as const satisfies readonly { id: string; name: Localized }[];
 
 export type PresetScenario = (typeof PRESET_SCENARIOS)[number]['id'];
@@ -47,6 +51,21 @@ const rename = (template: string, ask = true) => ({
   params: { template },
   ...(ask ? { ask: ['template'] } : {}),
 });
+
+// 翻译预设（D-173）用的步骤。
+const recognize = (lang: string, ask = true) => ({
+  id: 'read',
+  action: 'ocr.recognize',
+  params: { lang },
+  ...(ask ? { ask: ['lang'] } : {}),
+});
+/** 翻成界面语言：中文界面翻成中文，英文界面翻成英文。 */
+const translateTo = (locale: Locale) => ({
+  id: 'translate',
+  action: 'translate.text',
+  params: { from: 'auto', to: locale === 'zh' ? 'zh-Hans' : 'en' },
+});
+const textPdf = { id: 'pdf', action: 'text.toPdf', params: { pageSize: 'a4', fontSize: 12 } };
 
 export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   {
@@ -288,6 +307,197 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
         ask: ['spec'],
       },
       { id: 'sheet', action: 'image.printSheet', params: { sheet: '4x6', guides: true } },
+    ],
+  },
+  // ---- 翻译（D-173）：只出纯文字（可以排成 PDF），用来看懂意思，不是正式翻译 ----
+  {
+    id: 'foreign-pdf',
+    scenario: 'paperwork',
+    name: { en: 'Translate a PDF into English', zh: '外文 PDF 翻成中文' },
+    description: {
+      en: 'Choose a PDF with text → get its text → translate it into English on this device → plain-text PDF → share. For understanding, not an official translation.',
+      zh: '选一个有文字的 PDF → 提取文字 → 在本机翻成中文 → 排成纯文字 PDF → 分享。用来看懂意思，不是正式翻译。',
+    },
+    icon: 'document',
+    packs: ['pdfview'],
+    steps: (locale) => [
+      { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 1 } },
+      { id: 'extract', action: 'pdf.extractText', params: {} },
+      translateTo(locale),
+      textPdf,
+      rename(t(locale, '{sourceName}-English', '{sourceName}-中文'), false),
+      share,
+    ],
+  },
+  {
+    id: 'foreign-paper',
+    scenario: 'paperwork',
+    name: { en: 'Translate paper documents into English', zh: '拍外文材料翻成中文' },
+    description: {
+      en: 'Scan the pages → recognize the text (choose its language) → translate it into English on this device → plain-text PDF → share. For understanding, not an official translation.',
+      zh: '扫描纸质材料 → 识别文字（选原文语言）→ 在本机翻成中文 → 排成纯文字 PDF → 分享。用来看懂意思，不是正式翻译。',
+    },
+    icon: 'scan',
+    packs: ['scan', 'ocr'],
+    steps: (locale) => [
+      photos(1, 20, 'scanner'),
+      { id: 'edges', action: 'scan.detect', params: {} },
+      recognize(locale === 'zh' ? 'eng' : 'chi_sim'),
+      translateTo(locale),
+      textPdf,
+      rename(t(locale, 'Translation {date}', '译文-{date}'), false),
+      share,
+    ],
+  },
+  {
+    id: 'papers-to-english',
+    scenario: 'ids',
+    name: { en: 'Chinese documents into English', zh: '中文材料翻成英文' },
+    description: {
+      en: 'Scan Chinese documents → recognize the text → translate into English on this device → plain-text PDF → share. A draft to check; embassies and schools usually need a certified translation.',
+      zh: '扫描中文材料 → 识别文字 → 在本机翻成英文 → 排成纯文字 PDF → 分享。是一份参考稿；使馆、学校通常要正式翻译件。',
+    },
+    icon: 'scan',
+    packs: ['scan', 'ocr'],
+    steps: (locale) => [
+      photos(1, 20, 'scanner'),
+      { id: 'edges', action: 'scan.detect', params: {} },
+      recognize('chi_sim', false),
+      { id: 'translate', action: 'translate.text', params: { from: 'zh-Hans', to: 'en' } },
+      textPdf,
+      rename(t(locale, 'English {date}', '英文-{date}'), false),
+      share,
+    ],
+  },
+  {
+    id: 'screenshot-translate',
+    scenario: 'photos',
+    name: { en: 'Translate screenshots', zh: '截图翻译' },
+    description: {
+      en: 'Choose screenshots → recognize the text (choose its language) → translate it into English on this device → copy the text.',
+      zh: '选截图 → 识别文字（选原文语言）→ 在本机翻成中文 → 复制文字。',
+    },
+    icon: 'photo',
+    packs: ['ocr'],
+    steps: (locale) => [
+      photos(1, 10),
+      recognize(locale === 'zh' ? 'eng' : 'chi_sim'),
+      translateTo(locale),
+      { id: 'copy', action: 'text.copy', params: {} },
+    ],
+  },
+  // ---- 音频（D-156）----
+  {
+    id: 'audio-to-text',
+    scenario: 'study',
+    name: { en: 'Recording to text', zh: '录音转文字' },
+    description: {
+      en: 'Record now or choose recordings → turn them into text on this device (asks the language) → lay the text out as a PDF → share. The text may have mistakes; check it.',
+      zh: '现在录音或选录音 → 在本机转成文字（每次问语言）→ 排成 PDF → 分享。文字可能有错字，请核对。',
+    },
+    icon: 'audio',
+    packs: ['speech-whisper-small'],
+    steps: (locale) => [
+      {
+        id: 'pick',
+        action: 'in.audio',
+        params: { source: 'record', min: 1, max: 10 },
+        ask: ['source'],
+      },
+      {
+        id: 'text',
+        action: 'audio.transcribe',
+        params: { lang: speechLangFor(locale), model: 'standard' },
+        ask: ['lang'],
+      },
+      { id: 'pdf', action: 'text.toPdf', params: { pageSize: 'a4', fontSize: 12 } },
+      share,
+    ],
+  },
+  {
+    id: 'merge-recordings',
+    scenario: 'study',
+    name: { en: 'Join recordings into one', zh: '几段录音合成一个' },
+    description: {
+      en: 'Choose several recordings → put them in order → join them into one M4A → name it → share.',
+      zh: '选几段录音 → 排好顺序 → 接成一段 M4A → 起个名字 → 分享。',
+    },
+    icon: 'audio',
+    steps: (locale) => [
+      { id: 'pick', action: 'in.audio', params: { source: 'files', min: 2, max: 10 } },
+      { id: 'order', action: 'file.order', params: {} },
+      { id: 'merge', action: 'audio.merge', params: {} },
+      rename(t(locale, 'Recording {date}', '录音 {date}')),
+      share,
+    ],
+  },
+  {
+    id: 'voice-memo-archive',
+    scenario: 'study',
+    name: { en: 'Voice memos by date', zh: '语音备忘按日期归档' },
+    description: {
+      en: 'Record a voice memo → name it with the date and time → save it in your folder in Files (chosen the first time).',
+      zh: '录一段语音备忘 → 用日期和时间命名 → 存进「文件」里的文件夹（第一次时选一个）。',
+    },
+    icon: 'audio',
+    steps: (locale) => [
+      { id: 'pick', action: 'in.audio', params: { source: 'record', min: 1, max: 1 } },
+      rename(
+        t(locale, 'Voice memo {date:YYYY-MM-DD_HH.mm}', '语音备忘 {date:YYYY-MM-DD_HH.mm}'),
+        false,
+      ),
+      { id: 'save', action: 'out.saveToFolder', params: {} },
+    ],
+  },
+  {
+    id: 'audio-too-big',
+    scenario: 'sound',
+    name: { en: 'Recording too big to send', zh: '语音太大发不出去' },
+    description: {
+      en: 'Choose recordings → make each one smaller than the size you need (2 MB unless you change it) as an M4A that plays everywhere → share.',
+      zh: '选录音 → 压到要求的大小以内（默认 2 MB，可以每次改），变成哪里都能放的 M4A → 分享。',
+    },
+    icon: 'audio',
+    steps: () => [
+      { id: 'pick', action: 'in.audio', params: { source: 'files', min: 1, max: 10 } },
+      {
+        id: 'compress',
+        action: 'audio.compress',
+        params: { by: 'size', maxMB: 2, quality: 'standard' },
+        ask: ['maxMB'],
+      },
+      share,
+    ],
+  },
+  {
+    id: 'cut-audio',
+    scenario: 'sound',
+    name: { en: 'Cut out part of a recording', zh: '剪一段音频' },
+    description: {
+      en: 'Choose a recording or song → pick the part you want on the waveform → save it in Files. On Android you can then choose it as a ringtone in Settings; an iPhone app can not set ringtones.',
+      zh: '选一段录音或歌曲 → 在波形图上选要的部分 → 存到「文件」。Android 可以再到系统设置里把它设成铃声；iPhone 不能由 App 设成铃声。',
+    },
+    icon: 'audio',
+    steps: () => [
+      { id: 'pick', action: 'in.audio', params: { source: 'files', min: 1, max: 1 } },
+      { id: 'trim', action: 'audio.trim', params: {} },
+      { id: 'save', action: 'out.saveToFolder', params: {} },
+    ],
+  },
+  {
+    id: 'video-sound',
+    scenario: 'sound',
+    name: { en: 'Keep the sound of a video', zh: '把视频的声音存下来' },
+    description: {
+      en: 'Choose videos → keep only their sound as M4A → name it → save it in Files.',
+      zh: '选视频 → 只要里面的声音（M4A）→ 起个名字 → 存到「文件」。',
+    },
+    icon: 'audio',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'sound', action: 'audio.fromVideo', params: { format: 'm4a' } },
+      rename('{sourceName}'),
+      { id: 'save', action: 'out.saveToFolder', params: {} },
     ],
   },
 ];

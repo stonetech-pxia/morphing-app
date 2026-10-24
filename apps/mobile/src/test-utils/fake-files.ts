@@ -5,6 +5,7 @@ import { PDFDocument } from 'pdf-lib';
 import type { Quad } from '@morph/tool-image';
 
 import type {
+  AudioEncode,
   DrawOp,
   FilePlatform,
   FolderItem,
@@ -15,9 +16,17 @@ import type {
   MediaOutput,
   MediaPlatform,
   PickedFile,
+  TranslatePlatform,
   VideoEncode,
   VisionPlatform,
 } from '../runtime/platform';
+import {
+  SpeechError,
+  type SpeechErrorCode,
+  type SpeechNeed,
+  type SpeechPlatform,
+  type TranscribeRequest,
+} from '../runtime/speech';
 
 // 测试用工具：内存文件平台和真实 PDF 生成。
 
@@ -86,8 +95,12 @@ export class FakeFiles implements FilePlatform {
   disk = new Map<string, Uint8Array>();
   /** 系统文字识别和扫描：默认没有（像 Android / Expo Go），测试里换成 FakeVision。 */
   vision: VisionPlatform | null = null;
+  /** 系统翻译：默认没有（像 Expo Go），测试里换成 FakeTranslator。 */
+  translator: TranslatePlatform | null = null;
   /** 视频处理：默认有（像开发版），测试 Expo Go 时设为 null。 */
   media: MediaPlatform | null = new FakeMedia(this);
+  /** 语音转文字：默认没有（像 Expo Go），测试里换成 FakeSpeech。 */
+  speech: SpeechPlatform | null = null;
   /** 下一次从相册选视频的结果。 */
   nextVideos: PickedFile[] | null = null;
   /** 手机剩余空间（字节）；null 表示读不到。 */
@@ -157,6 +170,26 @@ export class FakeFiles implements FilePlatform {
     };
     this.videos.set(picked.uri, info);
     return { ...picked, durationMs: info.durationMs, width: info.width!, height: info.height! };
+  }
+  /** 放一个「文件」里可选的假音频；字节数就是它的大小。 */
+  offerAudio(
+    name: string,
+    opts: Partial<MediaInfo> & { size: number },
+    mimeType = 'audio/mp4',
+  ): PickedFile {
+    const picked = this.offer(name, new Uint8Array(opts.size), mimeType);
+    const info: MediaInfo = {
+      kind: 'audio',
+      durationMs: 60_000,
+      hasVideo: false,
+      hasAudio: true,
+      audioBitrateKbps: 128,
+      channels: 2,
+      sampleRate: 44100,
+      ...opts,
+    };
+    this.videos.set(picked.uri, info);
+    return { ...picked, durationMs: info.durationMs };
   }
   async takePhoto() {
     if (!this.cameraAvailable) {
@@ -512,6 +545,106 @@ export class FakeMedia implements MediaPlatform {
     await this.probe(uri);
     return timesMs.map((ms) => `frame://${uri}/${ms}`);
   }
+  audioEncodes: (AudioEncode & { uri: string })[] = [];
+  concats: { uris: readonly string[]; settings: AudioEncode }[] = [];
+  private async writeAudio(
+    durationMs: number,
+    settings: AudioEncode,
+    runId: string,
+    relPath: string,
+  ): Promise<MediaOutput> {
+    const bytes = Math.max(
+      1,
+      Math.round(
+        (settings.format === 'wav'
+          ? settings.sampleRate * settings.channels * 2 * (durationMs / 1000)
+          : (settings.bitrateKbps * 1000 * (durationMs / 1000)) / 8) * this.oversize,
+      ),
+    );
+    const out = await this.files.writeRunFile(runId, relPath, new Uint8Array(bytes));
+    const info: MediaInfo = {
+      kind: 'audio',
+      durationMs,
+      size: bytes,
+      hasVideo: false,
+      hasAudio: true,
+      audioCodec: settings.format === 'wav' ? 'lpcm' : 'aac',
+      audioBitrateKbps: settings.bitrateKbps,
+      channels: settings.channels,
+      sampleRate: settings.sampleRate,
+    };
+    this.files.videos.set(out.uri, info);
+    return { uri: out.uri, ext: settings.format, size: bytes, info };
+  }
+  async encodeAudio(
+    uri: string,
+    settings: AudioEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.fail();
+    const source = await this.probe(uri);
+    if (!source.hasAudio)
+      throw Object.assign(new Error('no audio'), { code: 'ERR_MEDIA_UNSUPPORTED' });
+    this.audioEncodes.push({ ...settings, uri });
+    job.progress(0.5);
+    if (job.isCancelled()) {
+      throw Object.assign(new Error('cancelled'), { code: 'ERR_MEDIA_CANCELLED' });
+    }
+    const ms = settings.range ? settings.range.endMs - settings.range.startMs : source.durationMs;
+    const out = await this.writeAudio(ms, settings, runId, relPath);
+    job.progress(1);
+    return out;
+  }
+  async concatAudio(
+    uris: readonly string[],
+    settings: AudioEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.fail();
+    let ms = 0;
+    for (const uri of uris) ms += (await this.probe(uri)).durationMs;
+    this.concats.push({ uris, settings });
+    const out = await this.writeAudio(ms, settings, runId, relPath);
+    job.progress(1);
+    return out;
+  }
+  /** 波形：null 表示原生模块读不到。 */
+  peaks: number[] | null = [0.1, 0.8, 0.4, 1];
+  async waveform(uri: string, buckets: number) {
+    await this.probe(uri);
+    return this.peaks
+      ? Array.from({ length: buckets }, (_, i) => this.peaks![i % this.peaks!.length]!)
+      : null;
+  }
+}
+
+/** 假的语音转文字（modules/morph-speech）：按顺序返回文字，记下语言和模型。 */
+export class FakeSpeech implements SpeechPlatform {
+  engine: 'system' | 'whisper' = 'whisper';
+  calls: { uri: string; language: string; model: string }[] = [];
+  texts: string[] = [];
+  /** need() 的结果；Android 默认要下载模型。 */
+  needs: SpeechNeed = { kind: 'ready' };
+  prepared: string[] = [];
+  error: SpeechErrorCode | null = null;
+  async need() {
+    return this.needs;
+  }
+  async prepare(language: string) {
+    this.prepared.push(language);
+    this.needs = { kind: 'ready' };
+  }
+  async transcribe(uri: string, request: TranscribeRequest) {
+    this.calls.push({ uri, language: request.language, model: request.model });
+    request.onProgress?.(0.5);
+    if (request.isCancelled?.()) throw new SpeechError('cancelled');
+    if (this.error) throw new SpeechError(this.error);
+    return { text: this.texts.shift() ?? '', durationMs: 1000 };
+  }
 }
 
 /** 假的系统文字识别和扫描（iOS 的 Vision；Android 的 ML Kit 设 canFindPaper = false）：按顺序返回找到的角和识别的文字，拉正写一张真实的小 JPEG。 */
@@ -555,5 +688,64 @@ export class FakeVision implements VisionPlatform {
   async scanDocuments(_runId: string, maxSide: number) {
     this.calls.push({ method: 'scanDocuments', uri: '', args: { maxSide } });
     return this.scanned;
+  }
+}
+
+/**
+ * 假的系统翻译（D-170）：按文字猜语言（汉字 → zh，假名 → ja，其他字母 → en），译文是「[目标语言] 原文」。
+ * android = true 时要下载的语言给出大小（ML Kit），否则不给（iOS 由系统弹窗）。
+ */
+export class FakeTranslator implements TranslatePlatform {
+  supported = true;
+  calls: { method: string; args: unknown[] }[] = [];
+  /** 还没下载的语言。 */
+  missing = new Set<string>();
+  unsupported = new Set<string>();
+  android = false;
+  /** 下一次翻译抛出的错误码（cancelled：用户在 iOS 的下载弹窗里取消）。 */
+  failWith: string | null = null;
+
+  async detectLanguages(texts: readonly string[]) {
+    this.calls.push({ method: 'detectLanguages', args: [texts.length] });
+    return texts.map((x) =>
+      /[\u3040-\u30ff]/.test(x)
+        ? 'ja'
+        : /[\u4e00-\u9fff]/.test(x)
+          ? 'zh'
+          : /[a-z]/i.test(x)
+            ? 'en'
+            : null,
+    );
+  }
+  async status(from: string, to: string) {
+    this.calls.push({ method: 'status', args: [from, to] });
+    if (this.unsupported.has(from) || this.unsupported.has(to)) {
+      return { status: 'unsupported' as const };
+    }
+    const missing = [from, to].filter((l) => this.missing.has(l));
+    if (missing.length === 0) return { status: 'installed' as const };
+    return this.android
+      ? { status: 'download' as const, missing }
+      : { status: 'download' as const };
+  }
+  get downloadBytes() {
+    return this.android ? 30 * 1024 * 1024 : undefined;
+  }
+  /** 下载过的语言（「设置 → 已下载内容」列出）。 */
+  downloaded = new Set<string>();
+  download = async (language: string) => {
+    this.calls.push({ method: 'download', args: [language] });
+    this.missing.delete(language);
+    this.downloaded.add(language);
+  };
+  downloadedLanguages = async () => [...this.downloaded];
+  removeLanguage = async (language: string) => {
+    this.downloaded.delete(language);
+    this.missing.add(language);
+  };
+  async translate(texts: readonly string[], from: string, to: string) {
+    this.calls.push({ method: 'translate', args: [texts, from, to] });
+    if (this.failWith) throw Object.assign(new Error(this.failWith), { code: this.failWith });
+    return texts.map((x) => `[${to}] ${x}`);
   }
 }

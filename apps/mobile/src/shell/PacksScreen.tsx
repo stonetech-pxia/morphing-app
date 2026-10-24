@@ -1,9 +1,10 @@
-import { packById, type Locale } from '@morph/core';
+import { packById, translateLanguageName, type Locale } from '@morph/core';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
 
 import { t } from '../i18n';
 import type { InstalledPack, PackStore } from '../packs/store';
+import type { TranslatePlatform } from '../runtime/platform';
 import type { Palette } from '../renderer/theme';
 import { Card, PageTitle, Pill } from '../renderer/ui';
 import { formatBytes } from '../run/ResultView';
@@ -16,14 +17,33 @@ export function PacksScreen({
   store,
   palette,
   locale,
+  translator,
 }: {
   store: PackStore;
   palette: Palette;
   locale: Locale;
+  /** Android 的翻译语言模型也在这里列出、删除（D-175）；iOS 的由系统设置管理。 */
+  translator?: TranslatePlatform | null;
 }) {
   const [list, setList] = useState<InstalledPack[] | null>(null);
-  const reload = useCallback(() => void store.installed().then(setList), [store]);
+  const [languages, setLanguages] = useState<string[]>([]);
+  const reload = useCallback(() => {
+    void store.installed().then(setList);
+    void translator?.downloadedLanguages?.().then(setLanguages);
+  }, [store, translator]);
   useEffect(reload, [reload]);
+
+  function removeLanguage(code: string) {
+    const name = translateLanguageName(code, locale);
+    Alert.alert(t(locale, 'packDeleteTitle', { name }), t(locale, 'translateDeleteMessage'), [
+      { text: t(locale, 'cancel'), style: 'cancel' },
+      {
+        text: t(locale, 'packDelete'),
+        style: 'destructive',
+        onPress: () => void translator?.removeLanguage?.(code).then(reload),
+      },
+    ]);
+  }
 
   function remove(pack: InstalledPack) {
     const manifest = packById(pack.id)!;
@@ -56,13 +76,13 @@ export function PacksScreen({
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 48 }}>
       <PageTitle palette={palette}>{t(locale, 'packsTitle')}</PageTitle>
       <Text style={caption}>{t(locale, 'packsHint')}</Text>
-      {list === null ? null : list.length === 0 ? (
+      {list === null ? null : list.length === 0 && languages.length === 0 ? (
         <Card palette={palette}>
           <Text testID="packs-empty" style={caption}>
             {t(locale, 'packsEmpty')}
           </Text>
         </Card>
-      ) : (
+      ) : list.length === 0 ? null : (
         <>
           <Text
             testID="packs-total"
@@ -94,6 +114,23 @@ export function PacksScreen({
           })}
         </>
       )}
+      {languages.map((code) => (
+        <Card key={code} palette={palette} testID={`translate-language-${code}`}>
+          <Text style={[palette.font('title', 16), { color: palette.text }]}>
+            {t(locale, 'translateLanguageTitle', { name: translateLanguageName(code, locale) })}
+          </Text>
+          <Text style={caption}>{t(locale, 'translateLanguageHint')}</Text>
+          <View style={{ flexDirection: 'row' }}>
+            <Pill
+              palette={palette}
+              danger
+              testID={`translate-language-delete-${code}`}
+              label={t(locale, 'packDelete')}
+              onPress={() => removeLanguage(code)}
+            />
+          </View>
+        </Card>
+      ))}
     </ScrollView>
   );
 }

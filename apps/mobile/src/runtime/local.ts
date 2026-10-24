@@ -1,6 +1,8 @@
 import type { RunItem } from '@morph/core';
 import type { Quad } from '@morph/tool-image';
 
+import type { PickedFile } from './platform';
+
 // 本地操作步骤（TOOLS_DESIGN §4）：执行到这里时，运行页面打开对应的界面，用户的操作结果只在本次运行里使用。
 // 每种界面的输入和输出在这里登记；运行页面（app/run/[workflowId].tsx）负责显示。
 
@@ -59,20 +61,37 @@ export interface LocalSteps {
   /** 排序、删除：返回保留下来的下标，按新顺序。 */
   reorder: { in: { items: RunItem[] }; out: number[] };
   /**
-   * 剪一段（视频、音频共用，D-143）：逐个选开始和结束（毫秒）。视频显示画面，音频以后显示波形。
+   * 剪一段（视频、音频共用，D-143）：逐个选开始和结束（毫秒）。视频显示画面，音频显示波形。
    * 返回每个文件选的一段。
    */
   trimMedia: {
-    in: { items: RunItem[] };
+    /**
+     * loadWaveform：读第 i 个文件的波形（0–1 的峰值；视频或读不到时为 null，D-155）。界面先打开、
+     * 波形读好再画：Android 上长录音要解码几十秒以上。
+     */
+    in: {
+      items: RunItem[];
+      loadWaveform?: (index: number) => Promise<number[] | null>;
+      /**
+       * loadThumbnails：取第 i 个视频在这些时间（毫秒）的画面（文件地址）。expo-video 取不到时用：
+       * 三星相机默认拍的 HDR 视频，Android 按精确时间取帧会失败，时间轴没有缩略图。
+       */
+      loadThumbnails?: (index: number, timesMs: number[]) => Promise<string[]>;
+    };
     out: { startMs: number; endMs: number }[];
   };
+  /**
+   * 录音（D-154）：开始 / 暂停 / 完成，锁屏后继续录。name 是录音的文件名（不含扩展名）。
+   * 返回录好的文件（M4A，在缓存目录里，之后移进本次运行的临时目录）。
+   */
+  record: { in: { name: string }; out: PickedFile };
 }
 
 export type LocalKind = keyof LocalSteps;
 
 export interface LocalUi {
-  /** 简单的二选一，例如「再拍一张？」。 */
-  confirm(title: string, ok: string, cancel: string): Promise<boolean>;
+  /** 简单的二选一，例如「再拍一张？」。message 是标题下面的说明（Android 的标题最多两行）。 */
+  confirm(title: string, ok: string, cancel: string, message?: string): Promise<boolean>;
   /**
    * 运行中问一句（固定的几种问题，文字在 App 里写好，不是 AI 生成的），例如压缩 PDF 不够小时
    * 「转成图片 / 就用现在的」。返回选了第几个，取消返回 null。

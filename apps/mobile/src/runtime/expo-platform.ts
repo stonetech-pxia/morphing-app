@@ -22,12 +22,20 @@ import {
   shareAll,
   type ShareDeps,
 } from './expo-share';
+import { expoTranslate } from './expo-translate';
 import { expoMedia } from './expo-media';
 import { expoVision } from './expo-vision';
 import MorphShare from '../../modules/morph-share';
+import MorphSpeech from '../../modules/morph-speech';
 import MorphVision from '../../modules/morph-vision';
 import type { FilePlatform, ImageFormat, PickedFile } from './platform';
 import { composeOnSurface, enhanceJpeg, pixelsOf, renderTextPng } from './skia';
+import { createSpeech } from './speech';
+import { expoPackFs, expoSha256 } from '../packs/expo-pack-fs';
+import { PackStore } from '../packs/store';
+
+/** 只用来找语音模型的文件（下载由 App 根布局的 PackStore 负责，D-064）。 */
+const speechPacks = new PackStore(expoPackFs, expoSha256);
 
 // FilePlatform 的 Expo 实现。用户文件存放在 App 文档目录的 assets/<id>/<文件名>，
 // 数据库只保存相对路径，与配置版本完全分开（§7G）。
@@ -158,7 +166,13 @@ const MAX_IMAGE_SIDE = 2048;
 
 export const expoFilePlatform: FilePlatform = {
   vision: expoVision((runId, relPath) => runFile(runId, relPath).uri),
+  translator: expoTranslate(),
   media: expoMedia((runId, relPath) => runFile(runId, relPath).uri),
+  // Android 的识别模型在下载内容里（D-151）；iOS 用系统识别，不用下载内容。
+  speech: createSpeech(MorphSpeech, {
+    isInstalled: (id) => speechPacks.isInstalled(id),
+    uri: (id, file) => expoPackFs.uri(speechPacks.path(id, file)),
+  }),
 
   async pickImage() {
     const result = await launchImageLibraryAsync({

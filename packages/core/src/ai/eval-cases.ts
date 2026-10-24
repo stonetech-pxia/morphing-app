@@ -822,6 +822,27 @@ const param =
     const got = steps.find((s) => s.action === action)?.params[key];
     return got === value ? null : `${action}.${key} should be ${String(value)}, got ${String(got)}`;
   };
+/** 有一个用户快捷操作翻译成 to；first 给了时第一步必须是其中之一。 */
+const translatesTo =
+  (to: string, first?: readonly string[]) =>
+  (c: WorkspaceConfig): string | null => {
+    for (const wf of userWorkflows(c)) {
+      const step = wf.steps.find((s) => s.action === 'translate.text');
+      if (step?.params.to === to && (!first || first.includes(wf.steps[0]?.action ?? ''))) {
+        return null;
+      }
+    }
+    return `expected a quick action translating into ${to}, got ${userWorkflows(c)
+      .map((w) =>
+        w.steps
+          .map(
+            (s) => `${s.action}${s.action === 'translate.text' ? `(${String(s.params.to)})` : ''}`,
+          )
+          .join(' → '),
+      )
+      .join(' | ')}`;
+  };
+
 const visaActions = (c: WorkspaceConfig) => visa(c)?.steps.map((s) => s.action) ?? [];
 
 const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
@@ -1451,12 +1472,13 @@ const ABOUT_EVAL_CASES: readonly EvalCase[] = [
     expect: { kind: 'reject', reason: 'errand' },
   },
   {
+    // D-171：翻译文件是文件上的事，做一个翻译快捷操作（以前按办事拒绝）。
     id: 'ER2',
     input: '把这份合同翻译成英文',
     locale: 'zh',
     setup: 'pdf',
     mock: true,
-    expect: { kind: 'reject', reason: 'errand' },
+    expect: { kind: 'ops', check: translatesTo('en', ['in.files', 'in.photos']) },
   },
   {
     id: 'ER3',
@@ -1751,6 +1773,292 @@ const VIDEO_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+// ---- 翻译（D-170–D-176）：翻译文件做成快捷操作；直接要译文仍按办事拒绝 ----
+
+const TRANSLATE_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'TR1',
+    input: '帮我翻译一下这句话：Thank you for your help',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'TR2-en',
+    input: 'Translate this sentence into Chinese: break a leg',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'TR3',
+    input: '新建一个快捷操作：选截图，识别文字，翻译成中文，复制文字',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.photos', 'ocr.recognize', 'translate.text', 'text.copy'],
+        param('translate.text', 'to', 'zh-Hans'),
+      ),
+    },
+  },
+  {
+    id: 'TR4-en',
+    input: 'Translate this letter into Chinese',
+    locale: 'en',
+    setup: 'pdf',
+    mock: true,
+    expect: { kind: 'ops', check: translatesTo('zh-Hans', ['in.files', 'in.photos']) },
+  },
+  {
+    id: 'TR5',
+    input: '添加截图翻译快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.presetId === 'screenshot-translate')
+          ? null
+          : 'expected the screenshot-translate preset',
+    },
+  },
+  {
+    id: 'TR6',
+    input: '收到的日文邮件截图老是看不懂，想以后能一键翻成中文',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: all(
+        translatesTo('zh-Hans', ['in.photos']),
+        hasWorkflow(['in.photos', 'ocr.recognize', 'translate.text']),
+      ),
+    },
+  },
+  {
+    id: 'TR7',
+    input: '翻译成中文',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    about: { kind: 'shared', images: 0, pdfs: 1, others: 0 },
+    expect: {
+      kind: 'ops',
+      check: all(
+        translatesTo('zh-Hans', ['in.files']),
+        hasWorkflow(['in.files', 'pdf.extractText', 'translate.text']),
+      ),
+    },
+  },
+  {
+    id: 'TR8',
+    input: '这句英文是什么意思：It’s raining cats and dogs',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'TR9-en',
+    input:
+      'I keep getting PDFs in Spanish from my landlord. Make something to read them in English.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: all(
+        translatesTo('en', ['in.files']),
+        hasWorkflow(['in.files', 'pdf.extractText', 'translate.text']),
+      ),
+    },
+  },
+];
+
+// ---- 音频（D-150–D-157）：录音转文字、压小、剪一段、合成、取视频的声音做成快捷操作；总结录音内容按办事拒绝 ----
+// AU* 是 mock 句式（MOCK_AI_PHRASES AU），PAU* 和 SH4 只要求真实模型。
+
+const firstAudio = (steps: { action: string; params: Record<string, unknown> }[]) => {
+  const first = steps[0];
+  if (first?.action === 'in.audio') return null;
+  if (first?.action === 'in.files' && first.params.accept === 'audio') return null;
+  return `first step should pick or record audio, got ${first?.action}`;
+};
+
+const AUDIO_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'AU1',
+    input: '新建一个快捷操作：录音，转成文字，转成 PDF，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.audio', 'audio.transcribe', 'text.toPdf', 'out.share'],
+        (steps) =>
+          param('in.audio', 'source', 'record')(steps) ??
+          param('audio.transcribe', 'lang', 'zh')(steps),
+      ),
+    },
+  },
+  {
+    id: 'AU1-en',
+    input: 'Create a quick action: choose recordings, transcribe, save as a text file',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.audio', 'audio.transcribe', 'text.toFile'],
+        (steps) =>
+          param('in.audio', 'source', 'files')(steps) ??
+          param('audio.transcribe', 'lang', 'en')(steps),
+      ),
+    },
+  },
+  {
+    id: 'AU2',
+    input: '新建一个快捷操作：选录音，压到 2MB，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.audio', 'audio.compress', 'out.share'],
+        (steps) =>
+          param('audio.compress', 'maxMB', 2)(steps) ??
+          param('audio.compress', 'by', 'size')(steps),
+      ),
+    },
+  },
+  {
+    id: 'AU3',
+    input: '新建一个快捷操作：选几段录音，排序，合成一段，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.audio', 'file.order', 'audio.merge', 'out.share']),
+    },
+  },
+  {
+    id: 'AU4',
+    input: '新建一个快捷操作：选视频，提取声音，存到文件夹',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.videos', 'audio.fromVideo', 'out.saveToFolder']),
+    },
+  },
+  {
+    id: 'AU5',
+    input: '新建一个快捷操作：选音频，剪一段，存到文件夹',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.audio', 'audio.trim', 'out.saveToFolder']),
+    },
+  },
+  {
+    id: 'AU6',
+    input: '添加录音转文字快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: presetAdded('audio-to-text') },
+  },
+  {
+    id: 'AU7-en',
+    input: 'Add the recording too big to send quick action',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: presetAdded('audio-too-big') },
+  },
+  {
+    id: 'PAU1',
+    input: '上课录的音想变成文字笔记，帮我做一个快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['audio.transcribe'], firstAudio) },
+  },
+  {
+    id: 'PAU2-en',
+    input: 'My voice memo is too big to email, it has to be under 10 MB',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['audio.compress'],
+        (steps) => firstAudio(steps) ?? param('audio.compress', 'maxMB', 10)(steps),
+      ),
+    },
+  },
+  {
+    id: 'PAU3',
+    input: '采访录了好几段，想拼成一个文件发给编辑',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['audio.merge'], firstAudio) },
+  },
+  {
+    id: 'PAU4',
+    input: '想把视频里的背景音乐单独存下来',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['in.videos', 'audio.fromVideo'], firstVideo) },
+  },
+  {
+    id: 'PAU5',
+    input: '帮我总结一下这段会议录音说了什么',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'PAU6-en',
+    input: 'I want to cut 30 seconds out of a song to use as my ringtone',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['audio.trim'], firstAudio) },
+  },
+  {
+    id: 'SH4',
+    input: '转成文字',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    about: { kind: 'shared', images: 0, pdfs: 0, others: 0, audio: 1 },
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['audio.transcribe'], firstAudio), noRunner),
+      plan: homeEntryOff,
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...BASE_EVAL_CASES,
   ...WORKFLOW_EVAL_CASES,
@@ -1758,6 +2066,8 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...WORDING_EVAL_CASES,
   ...ABOUT_EVAL_CASES,
   ...VIDEO_EVAL_CASES,
+  ...TRANSLATE_EVAL_CASES,
+  ...AUDIO_EVAL_CASES,
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };

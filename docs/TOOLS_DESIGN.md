@@ -1,6 +1,6 @@
 # 内置工具与工作流设计
 
-本文是内置工具（图片、PDF、视频、扫描、文字识别、打包、二维码、打印）和跨工具工作流的设计。
+本文是内置工具（图片、PDF、视频、扫描、文字识别、翻译、打包、二维码、打印）和跨工具工作流的设计。
 决策编号见 [DECISIONS.md](DECISIONS.md)（D-060 起）；用户数据规则见 [DATA_DESIGN.md](DATA_DESIGN.md)。
 
 ## 0. 原则
@@ -157,6 +157,7 @@ interface StepContext {
 - **PDF**：`pdf.fromImages`（A4 / Letter / 跟随图片，可设边距和 ≤ X MB）、`pdf.compress`（把已有 PDF 压到 ≤ X MB：先只压图片、保留文字，不够小时按 `whenTooBig` 问用户 / 转成图片 / 保留文字，D-145）、`pdf.merge`（PDF 和图片混合）、`pdf.pages`（本地选页 / 删页 / 排序 / 旋转）、`pdf.selectPages`（按页码规则：全部 / 奇数 / 偶数 / 范围）、`pdf.rotate`、`pdf.split`、`pdf.pageNumbers`、`pdf.stamp`（文字戳 / 日期戳）、`pdf.sign`（本地）、`pdf.fillForm`（本地）+ 拍平、`pdf.toImages`、`pdf.extractText`。（`packages/tool-pdf`：pdf-lib；`toImages` / `extractText` / 缩略图需要 PDF 预览包）
 - **扫描**（工具 `scan`）：`scan.detect`（找边 → 本地调四角，每张都要确认 → 透视矫正，长边 2400；iOS 用 Vision 找边、Core Image 矫正，Android 和 Expo Go 用扫描包，D-086；文档相机拍的页面直接放行，也不需要扫描包）、`scan.enhance`（提亮 / 灰度 / 黑白 / 原样；Skia 颜色矩阵，不需要扩展包）。
 - **文字识别**（工具 `ocr`）：`ocr.recognize`（images → text，参数 `lang` 选 12 种语言之一。iOS 用 Vision 的 `VNRecognizeTextRequest`（accurate + 语言纠错，中日韩等补上英文），不需要下载，D-085；Android 用 ML Kit 文字识别 v2（模型打包进 App），俄文不支持，D-087；系统识别不了时 `packFor` 按语言确保语言包，语言包连同识别包一起下载）。中日文字之间多出来的空格在本机去掉（`tidyOcrText`）。
+- **翻译**（工具 `translate`，D-170–D-176）：`translate.text`（text → text，参数 `from`：自动识别或 20 种语言之一，`to`：20 种语言之一，默认每次运行时问）。iOS 用系统的 Translation 框架（iOS 18 起；iOS 26 起已下载的语言直接建会话，要下载或更早的系统时挂一个看不见的 SwiftUI 视图用 `.translationTask`，语言包由系统弹窗下载），NaturalLanguage 识别语言；Android 用 ML Kit 翻译（每种语言模型约 30 MB，第一次用时 App 先问「首次使用需下载约 X MB」再下载，之后离线）和 ML Kit 语言识别（打包进 App）。翻译前在本机把文字拆成段（`splitForTranslation`：空行分段，段里折行的句子接起来，标题、短行、列表项另起），自动识别时每段单独识别语言、按原文语言分组翻，和目标语言相同的段原样保留，再按原来的分段拼回（`joinTranslation`）。只出纯文字（可以接 `text.toPdf` 排成 PDF），不保留原文件排版；结果页写明「本机翻译，适合看懂意思；正式文件请找专业翻译」。一次最多 10 万字。Expo Go 和 iOS 17 及更早报「不支持这个步骤」并说明原因；ML Kit 没有繁体中文。文字不上传、不发给 AI。
 - **文字**（工具 `text`）：`text.copy`、`text.toFile`（.txt）、`text.toPdf`（expo-print，系统字体，中日韩都能显示）。
 - **打包**（工具 `zip`）：`zip.create`、`zip.extract`。（`packages/tool-archive`：fflate，只用同步接口）
 - **二维码**（工具 `qr`）：`qr.generate`（文字 → PNG，tool-qr 自带的 PNG 编码器）、`qr.read`（图片 → 文字，Skia 读像素后用 jsQR）。（`packages/tool-qr`：lean-qr、jsQR）
@@ -174,13 +175,14 @@ interface StepContext {
 | `ocr`        | tesseract.js、worker、核心 wasm                     | 约 4 MB       |
 | `ocr-<lang>` | 每种语言一个模型（4.0.0_best_int）：eng、chi_sim 等 | 1.7–3 MB / 种 |
 | `pdfview`    | pdf.js（legacy build）                              | 实测后填写    |
+| `speech-*`   | Android 语音转文字的 whisper 模型 + 语音检测（§12） | 61 / 191 MB   |
 
 机制：
 
 - **清单写在代码里**（`core/src/packs.ts`）：id、版本、文件列表（下载地址、SHA-256、大小）、许可证。下载后逐个校验 SHA-256，不一致就删除整个版本目录并报错。
 - **只能由用户触发下载**：界面显示大小，建议用 Wi-Fi。AI 和工作流都不能自己下载；执行到需要扩展包的步骤时暂停，弹窗请用户确认（`PackGate`），用户拒绝就取消本次运行。
 - **存储**：`documentDirectory/packs/<id>/<version>/`，写完并校验后才写 `ready.json`，所以中断的下载不会被当成已安装。不进 revision，回滚不受影响；下载过就能离线使用。
-- **管理**：「设置 → 扩展包」（`app/packs.tsx`）列出已下载的扩展包、占用空间、许可证和版本，可以删除（删除文字识别包时语言包一起删除）。
+- **管理**：「设置 → 扩展包」（`app/packs.tsx`）列出已下载的扩展包、占用空间、许可证和版本，可以删除（删除文字识别包时语言包一起删除）。Android 下载过的翻译语言（ML Kit 模型，不是扩展包，不在 `PACKS` 清单里）也列在这一页，可以删除（D-175）；iOS 的翻译语言由系统「设置 → 翻译」管理。
 - **加载**：WebView 只加载我们随 App 发布的固定 HTML，库文件从本地扩展包目录读取，不访问网络（CSP `default-src 'none'`，见 T4 实验记录）。WebView 和 App 之间只有固定格式的消息（动作名 + 数据），不注入任何模型生成的字符串（open-tool-research N3）。
 - **下载来源**：先用 jsDelivr 上固定版本的地址，以后换成自己的服务器（只改清单）。
 - **App Store 2.5.2**：见 DECISIONS（待创始人确认）。
@@ -191,6 +193,9 @@ interface StepContext {
 | 依赖                                                                                          | 版本             | 平台    | 许可证 / 条款                     | 用途                                                          |
 | --------------------------------------------------------------------------------------------- | ---------------- | ------- | --------------------------------- | ------------------------------------------------------------- |
 | Vision、VisionKit、Core Image、ImageIO                                                        | 系统自带         | iOS     | Apple 系统框架                    | 文字识别、找边、拉正、文档相机                                |
+| Translation（弱链接，iOS 18 起）、NaturalLanguage、SwiftUI                                    | 系统自带         | iOS     | Apple 系统框架                    | 本机翻译、识别语言（morph-translate，D-170）                  |
+| `com.google.mlkit:translate`                                                                  | 17.0.3           | Android | 闭源，Google ML Kit 条款（P-015） | 本机翻译，语言模型第一次用时下载（每种约 30 MB）              |
+| `com.google.mlkit:language-id`                                                                | 17.0.6           | Android | 闭源，Google ML Kit 条款（P-015） | 识别每段文字的语言，模型打包进 App                            |
 | UIKit（`UIActivityViewController`、`UIDocumentPickerViewController`）、UniformTypeIdentifiers | 系统自带         | iOS     | Apple 系统框架                    | 一次分享多个文件、存到选定文件夹（morph-share，D-119、D-120） |
 | `androidx.core`（FileProvider，随 React Native 已经在 App 里）、存储访问框架                  | 随 RN / 系统自带 | Android | Apache-2.0 / Android 系统接口     | 一次分享多个文件、存到选定文件夹（morph-share）               |
 | `com.google.mlkit:text-recognition`（及 `-chinese`、`-japanese`、`-korean`）                  | 16.0.1           | Android | 闭源，Google ML Kit 条款（P-015） | 文字识别，模型打包进 App                                      |
@@ -201,27 +206,34 @@ interface StepContext {
 | `ExpoShareIntentModule`（CocoaPods，随 npm 包 expo-share-intent）                             | 9.0.0            | iOS     | MIT                               | 分享到 Morph：主 App 读共享目录（§11）                        |
 | `expo-share-intent`（Gradle 模块，随 npm 包）                                                 | 9.0.0            | Android | MIT                               | 分享到 Morph：接收 `ACTION_SEND`（§11）                       |
 | Social、UniformTypeIdentifiers、ImageIO（分享扩展 `MorphShare`）                              | 系统自带         | iOS     | Apple 系统框架                    | 分享扩展复制文件（§11）                                       |
+| Speech、AVFoundation、CryptoKit                                                               | 系统自带         | iOS     | Apple 系统框架                    | 语音转文字（morph-speech，§12）                               |
+| whisper.cpp（含 ggml，CMake 构建时按 SHA-256 下载源码）                                       | 1.9.5            | Android | MIT                               | 语音转文字（§12）                                             |
+| MediaExtractor、MediaCodec                                                                    | 系统自带         | Android | Android 系统接口                  | 把音频解码给 whisper（§12）                                   |
 
 ## 7. 预设工作流和编辑
 
-10 个预设写在 `core/src/workflows/presets.ts`，不随版本：用户在「工作流」页点「添加」（或对 AI 说「添加签证照片工作流」）时用 `presetWorkflow()` 复制进配置（一个可撤销的版本，带 `presetId` 和图标，没有 `toolId`），之后就和用户自己的工作流一样，可以改参数、改步骤、复制、放到页面上、删除。预设是用户工作流，**不要求先安装任何工具**；需要扩展包的预设在第一次运行到那一步时才请用户确认下载（§6）。
+14 个预设写在 `core/src/workflows/presets.ts`，不随版本：用户在「工作流」页点「添加」（或对 AI 说「添加签证照片工作流」）时用 `presetWorkflow()` 复制进配置（一个可撤销的版本，带 `presetId` 和图标，没有 `toolId`），之后就和用户自己的工作流一样，可以改参数、改步骤、复制、放到页面上、删除。预设是用户工作流，**不要求先安装任何工具**；需要扩展包的预设在第一次运行到那一步时才请用户确认下载（§6）。
 
-快捷操作页的「现成的」按生活场景分组（`PRESET_SCENARIOS`，D-130）：出国办证（签证 / 证件照、证件照打印）、交材料签文件（材料包、签回表格、扫描文档、多份材料合一、PDF 太大传不上去）、报销记账（收据归档）、发照片和视频（照片发邮件、截图打码分享、批量发照片、视频太大发不出去）（D-146）。
+快捷操作页的「现成的」按生活场景分组（`PRESET_SCENARIOS`，D-130）：出国办证（签证 / 证件照、证件照打印、中文材料翻成英文）、交材料签文件（材料包、签回表格、扫描文档、多份材料合一、PDF 太大传不上去、外文 PDF 翻成中文、拍外文材料翻成中文）、报销记账（收据归档）、发照片和视频（照片发邮件、截图打码分享、批量发照片、视频太大发不出去、截图翻译）（D-146）。翻译预设翻成界面语言（英文界面翻成英文），名字也跟着变。
 
-| id                   | 名称                | 步骤                                                                       | 扩展包  |
-| -------------------- | ------------------- | -------------------------------------------------------------------------- | ------- |
-| `visa-photo`         | 签证 / 证件照       | 选照片 → 证件照（美签 600×600，≤ 240 KB）→ 命名                            |         |
-| `document-packet`    | 材料包              | 选照片 / 拍照 → 裁剪 → 排顺序（`file.order`）→ A4 PDF ≤ 4 MB → 命名 → 分享 |         |
-| `email-photos`       | 照片发邮件 / 传网站 | 选照片 → 长边 1600 → 压到 500 KB → 分享                                    |         |
-| `sign-return`        | 签回表格            | 选 PDF → 填表（没有字段时跳过）→ 签名 → 分享                               | pdfview |
-| `scan-document`      | 扫描文档            | 文档相机扫描（或拍照后找边）→ 变清楚 → PDF → 命名 → 分享                   | scan    |
-| `combine-documents`  | 多份材料合一        | 选 PDF 和图片 → 合并 → 选页 / 排序 / 旋转 → 命名 → 分享                    |         |
-| `receipt-archive`    | 收据归档            | 扫描收据（或拍照后拉正）→ 压到 500 KB → 按日期命名 → 存到文件              | scan    |
-| `redact-screenshots` | 截图打码分享        | 选截图 → 拼长图 → 打码 → 分享                                              |         |
-| `send-photos`        | 批量发照片          | 选照片 → 转 JPG → 去掉定位 → 长边 2048 → ZIP → 分享                        |         |
-| `print-id-photos`    | 证件照打印          | 选照片 → 证件照 → 排到 6 寸相纸（裁切线）→ 打印或保存                      |         |
-| `pdf-too-big`        | PDF 太大传不上去    | 选 PDF → 压缩 PDF（默认 2 MB，每次问）→ 分享                               |         |
-| `video-too-big`      | 视频太大发不出去    | 选视频 → 压缩视频（默认 20 MB，每次问）→ 分享                              |         |
+| id                     | 名称                | 步骤                                                                              | 扩展包    |
+| ---------------------- | ------------------- | --------------------------------------------------------------------------------- | --------- |
+| `visa-photo`           | 签证 / 证件照       | 选照片 → 证件照（美签 600×600，≤ 240 KB）→ 命名                                   |           |
+| `document-packet`      | 材料包              | 选照片 / 拍照 → 裁剪 → 排顺序（`file.order`）→ A4 PDF ≤ 4 MB → 命名 → 分享        |           |
+| `email-photos`         | 照片发邮件 / 传网站 | 选照片 → 长边 1600 → 压到 500 KB → 分享                                           |           |
+| `sign-return`          | 签回表格            | 选 PDF → 填表（没有字段时跳过）→ 签名 → 分享                                      | pdfview   |
+| `scan-document`        | 扫描文档            | 文档相机扫描（或拍照后找边）→ 变清楚 → PDF → 命名 → 分享                          | scan      |
+| `combine-documents`    | 多份材料合一        | 选 PDF 和图片 → 合并 → 选页 / 排序 / 旋转 → 命名 → 分享                           |           |
+| `receipt-archive`      | 收据归档            | 扫描收据（或拍照后拉正）→ 压到 500 KB → 按日期命名 → 存到文件                     | scan      |
+| `redact-screenshots`   | 截图打码分享        | 选截图 → 拼长图 → 打码 → 分享                                                     |           |
+| `send-photos`          | 批量发照片          | 选照片 → 转 JPG → 去掉定位 → 长边 2048 → ZIP → 分享                               |           |
+| `print-id-photos`      | 证件照打印          | 选照片 → 证件照 → 排到 6 寸相纸（裁切线）→ 打印或保存                             |           |
+| `pdf-too-big`          | PDF 太大传不上去    | 选 PDF → 压缩 PDF（默认 2 MB，每次问）→ 分享                                      |           |
+| `video-too-big`        | 视频太大发不出去    | 选视频 → 压缩视频（默认 20 MB，每次问）→ 分享                                     |           |
+| `foreign-pdf`          | 外文 PDF 翻成中文   | 选 PDF → 提取文字 → 翻成中文 → 文字转 PDF → 命名「原名-中文」→ 分享               | pdfview   |
+| `foreign-paper`        | 拍外文材料翻成中文  | 文档相机扫描 → 找边 → 识别文字（每次问语言）→ 翻成中文 → 文字转 PDF → 命名 → 分享 | scan、ocr |
+| `papers-to-english`    | 中文材料翻成英文    | 文档相机扫描 → 找边 → 识别中文 → 翻成英文 → 文字转 PDF → 命名 → 分享              | scan、ocr |
+| `screenshot-translate` | 截图翻译            | 选截图 → 识别文字（每次问语言）→ 翻成中文 → 复制文字                              | ocr       |
 
 **「工作流」页**（`app/workflows.tsx`，入口在设置页和工具页）：我的工作流（运行 / 编辑）、预设库（添加；已添加的显示「已添加」，可以再添加一个）、工具自带的（默认收起）。这个页面由内核提供，AI 不能修改它。
 
@@ -326,3 +338,56 @@ Android：别的 App ──ACTION_SEND / ACTION_SEND_MULTIPLE（image/*、video/
 **AI 看不到**：分享的文件、文件名、个数都不进配置和版本；只有用户在收件页面点「让 AI 搭一个」时，planner 会收到文件的类型和个数（例如「2 photos, 1 PDF」，D-124、D-129），文件名、大小、内容仍然不发；工作流格式没有变，AI 相关部分（提示词、mock 句式、评测）都没改。
 
 **收件页面现场搭一个**（D-129）：用户自己的快捷操作 →「让 AI 搭一个」→ 还没添加、第一步收得下这些文件的现成快捷操作（「添加并运行」）→ 工具里的单个功能；AI 做好后回到收件页面，新的排在最前、标「刚做好」，仍由用户点「运行」。
+
+## 12. 语音转文字（D-150、D-151，音频会话第一阶段）
+
+只做了底层：本地模块 `modules/morph-speech`、下载内容、App 一侧的适配（`runtime/speech.ts`），还没有接进快捷操作——`audio` 值类型、`speech.transcribe` 动作、录音、结果页等第二阶段在视频会话的共用底层（原生媒体模块、剪一段界面）合进 main 之后再做。
+
+```
+JS（runtime/speech.ts）
+  need(语言, 模型) → ready / systemDownload（iOS）/ pack（Android）/ unsupported
+  prepare(语言)         iOS 让系统下载识别模型（用户确认后）
+  transcribe(地址, …)  → 段落 → tidyTranscript（core/speech.ts）→ 文字
+iOS（MorphSpeechModule.swift）
+  iOS 26+：SpeechAnalyzer + SpeechTranscriber；设备没有它（isAvailable 为 false）或语言不支持时 DictationTranscriber
+          文件按 1 秒一块读出、用 AVAudioConverter 转成 bestAvailableAudioFormat 再喂进去
+  更早：  SFSpeechRecognizer + requiresOnDeviceRecognition（第一次弹「语音识别」权限）
+Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
+  MediaExtractor + MediaCodec 解码 → 混成单声道 → 加窗 sinc 重采样到 16 kHz（Pcm.kt，有单元测试）
+  → 每 5 分钟一段（在段尾 20 秒里最安静处切开）→ whisper_full（束搜索 5、语音检测、普通话简体提示词）
+```
+
+- **whisper.cpp 补丁**（`cpp/patch-whisper.cmake`，构建时打）：窗口以单个时间戳结束时不再跳过剩下的部分，从最后一个时间戳接着识别（开了语音检测，送进去的都是说话；三星真机上 5 分钟会议原来漏约 1 分钟）。换 whisper.cpp 版本时补丁找不到那一行会让构建失败。
+
+- **语言**：`SPEECH_LANGUAGES`（12 种，同文字识别）；iOS 用 `SYSTEM_SPEECH_LOCALES`（BCP 47），whisper 用 `whisperLanguage`（国语也是 zh，靠 `whisperPrompt` 出繁体）。
+- **整理**（`tidyTranscript`）：中文换全角标点、去中文之间的空格；去掉一整段都是字幕网站 / 「谢谢观看」/ [音乐] 这类 whisper 在静音里编出来的；中日文直接相连、其他语言用空格；停顿 3 秒以上换段（Android 开了语音检测后 whisper 给的时间是连着的，换段不起作用，第二阶段用语音检测的时间段补上）。
+- **下载内容**：`speech-whisper-small`（190 MB）、`speech-whisper-base`（60 MB），都依赖 `speech-vad`（0.9 MB）。大于 32 MB 的文件走 `PackFs.downloadLarge`：expo-file-system 下载到磁盘并按字节报告进度，SHA-256 由 `MorphSpeech.sha256File` 在原生代码里边读边算（Android 用 MessageDigest，iOS 用 CryptoKit），不把几百 MB 读进 JS。
+- **CPU 后端**（Android arm64）：ggml 编出 armv8.0 / 8.2（点积）/ 8.2（点积 + 半精度）/ 8.6（再加 i8mm）四种，运行时从新到旧挑这台手机支持的；带 SVE / SME 的几种不打包——苹果芯片上的 Android 模拟器声称支持 SVE2 / SME2，用上之后 22 秒的录音要 562 秒（正常版本 42 秒），Mac 上同样编译的版本直接非法指令退出。
+- **取消**：原生侧是原子变量，whisper 在计算图的间隙检查，模拟器上 10–20 秒内生效；iOS 取消 Swift 任务并 `cancelAndFinishNow`。
+- **错误码**：`ERR_SPEECH_UNSUPPORTED_LANGUAGE`、`_NEEDS_DOWNLOAD`、`_NOT_AUTHORIZED`、`_UNREADABLE_AUDIO`、`_MODEL`、`_CANCELLED`、`_UNAVAILABLE`（设备上系统识别用不了），App 一侧换成 `SpeechError.code`。
+
+**实测**（2026-10-23，测试录音是 Mac 朗读声生成的 m4a / wav）：
+
+| 环境                                                            | 结果                                                                                                                                                                                                                              |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Android 模拟器 morph_api35（arm64，2.5 GB 内存），whisper small | 中文 22 秒 → 42 秒识别完，全对；中文 108 秒（前后和中间共 65 秒静音）→ 78 秒，两段都完整、没有编句子；英文 16 秒 → 30 秒，全对；取消有效；下载 190 MB 模型并校验成功                                                              |
+| iOS 模拟器 iPhone 18 Pro Max（iOS 27）                          | 系统识别**在模拟器上不能用**：SpeechTranscriber `isAvailable` 为 false，DictationTranscriber 占名额后显示已安装但没有任何可用的音频格式，旧接口报「Failed to initialize recognizer」；现在都报 `ERR_SPEECH_UNAVAILABLE`，不会崩溃 |
+| Mac（macOS 27，同一段 Swift 代码单独编译）                      | SpeechTranscriber：中文 2.3% / 22% 错字率，带 65 秒静音的录音完整；DictationTranscriber：4.7% / 36%，标点更多                                                                                                                     |
+| 真机                                                            | 没有测（iPhone 没有；三星真机是创始人在用的手机，第一阶段没装）                                                                                                                                                                   |
+
+## 13. 音频工具（D-152–D-158，音频会话第二阶段）
+
+| 动作               | 输入 → 输出           | 参数                                                              | 实现                                                                              |
+| ------------------ | --------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `in.audio`         | → audio               | `source: files / record`、`min` / `max`                           | 文件选择器 `audio/*`；录音界面 `run/local/RecordScreen.tsx`（本地界面 `record`）  |
+| `audio.transcribe` | audio → text          | `lang`（12 种）、`model`（Android：更准 / 更快）                  | morph-speech（§12）；iPhone 第一次用某种语言先问再让系统下载                      |
+| `audio.compress`   | audio → audio         | `by: size / quality`、`maxMB`、`quality: high / standard / voice` | `planAudioSize` / `planAudioQuality` → morph-media `transcode`（`video: 'drop'`） |
+| `audio.convert`    | audio → audio         | `format: m4a / wav`                                               | 已经是这种格式时不转                                                              |
+| `audio.trim`       | audio → audio         | 无（本地操作 `trimMedia`，带波形）                                | 重新编码成 M4A，带 `range`                                                        |
+| `audio.merge`      | audio → audio（1 个） | 无                                                                | morph-media `concat`                                                              |
+| `audio.fromVideo`  | video → audio         | `format`                                                          | 没有声音的视频报 `noAudio`                                                        |
+
+- morph-media 补的部分：iOS `writeAudio`（`AVAssetReaderAudioMixOutput` → AAC `.m4a` / LPCM `.wav`）、`concat`（每段一路合成轨，首尾相接）、`waveform`（8 kHz 单声道峰值）；Android M4A 用 Media3（去掉画面、`ChannelMixingAudioProcessor` + `SonicAudioProcessor` 统一格式；封装用系统的 MediaMuxer，默认的 InAppMp4Muxer 会在文件头预留约 400 KB），WAV 和波形用 `AudioPcm.kt` 自己解码。
+- App：`runtime/actions/audio.ts`、`MediaPlatform.encodeAudio / concatAudio / waveform`、`FilePlatform.speech`、`packNotNeeded`（iPhone 不用下载内容）。
+- 错误：`audioTooSmall`、`noAudio`、`noSpeech`；`needsFullApp` 的说法改成「视频和音频」。
+- 测试：`core/audio.test.ts`、`audio-actions-test.ts`（假的 media / speech）、`audio-journeys-test.tsx`（录音、转文字、波形剪切、压小的界面旅程）。

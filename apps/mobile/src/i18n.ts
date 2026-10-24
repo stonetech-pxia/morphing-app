@@ -535,11 +535,50 @@ const strings = {
   habitNo: { en: 'No thanks', zh: '不用了' },
   habitMade: { en: 'Added “{name}” to the home page', zh: '已把「{name}」放到首页' },
 
+  // ---- 翻译（D-170–D-176）：错误说明拼进「不支持这个步骤：…」/「需要的内容没有下载好：…」 ----
+  translateNeedsFullApp: {
+    en: 'Translate (it works in the full Morph app, not in this preview)',
+    zh: '翻译（要在正式版 Morph 里用，这个预览版里没有本机翻译）',
+  },
+  translateOsTooOld: {
+    en: 'Translate (needs iOS 18 or later)',
+    zh: '翻译（需要 iOS 18 或更新的系统）',
+  },
+  translatePairUnsupported: {
+    en: 'translating {from} into {to} (this phone can’t do it)',
+    zh: '把{from}翻成{to}（这台手机不支持）',
+  },
+  translateDownloadAsk: {
+    en: 'First use needs a download of about {mb} MB',
+    zh: '首次使用需下载约 {mb} MB',
+  },
+  translateDownloadBody: {
+    en: 'Translation languages: {langs}. After that it works offline. Wi-Fi is recommended.',
+    zh: '翻译语言：{langs}。之后不联网也能用，建议连接 Wi-Fi。',
+  },
+  translateDownload: { en: 'Download', zh: '下载' },
+  translateDownloadFailed: {
+    en: 'the {langs} language files (check the connection and try again)',
+    zh: '{langs}的翻译语言（请检查网络后再试）',
+  },
+  translateLanguageTitle: { en: 'Translation: {name}', zh: '翻译语言：{name}' },
+  translateLanguageHint: {
+    en: 'About 30 MB, for translating on this device (Google ML Kit).',
+    zh: '约 30 MB，用来在本机翻译（Google ML Kit）。',
+  },
+  translateDeleteMessage: {
+    en: 'You will be asked to download it again the next time you translate this language.',
+    zh: '下次翻译这种语言时会再问你是否下载。',
+  },
+  translateNote: {
+    en: 'Translated on this device — good for understanding the meaning. For official documents, use a professional translator.',
+    zh: '本机翻译，适合看懂意思；正式文件请找专业翻译。',
+  },
   // ---- 视频、音频和压缩 PDF（D-140–D-148）。音频工具的文字请另起一块，方便合并。----
   runPercent: { en: '{done}%', zh: '{done}%' },
   runError_needsFullApp: {
-    en: 'Videos can only be processed in the full Morph app, not in this preview.',
-    zh: '视频要在正式版 Morph 里处理，这个预览版里不行。',
+    en: 'Videos and audio can only be processed in the full Morph app, not in this preview.',
+    zh: '视频和音频要在正式版 Morph 里处理，这个预览版里不行。',
   },
   runError_mediaUnsupported: {
     en: '“{name}” can’t be opened: the format isn’t supported, or it is copy-protected.',
@@ -633,6 +672,64 @@ const strings = {
     en: 'The intro and two short exercises',
     zh: '划屏介绍和两个小练习',
   },
+  // ---- 音频工具（D-150–D-156，音频会话）----
+  runError_audioTooSmall: {
+    en: 'At {target}, “{name}” would be too hard to understand. It needs at least {mb} MB, or trim it shorter first.',
+    zh: '「{name}」压到 {target} 声音会听不清。至少要 {mb} MB，或者先剪短一点。',
+  },
+  runError_noAudio: { en: '“{name}” has no sound.', zh: '「{name}」里没有声音。' },
+  runError_noSpeech: {
+    en: 'No speech was heard in “{name}”.',
+    zh: '在「{name}」里没有听到说话。',
+  },
+  speechLangUnsupported: {
+    en: 'This phone can’t recognize {lang} on the device.',
+    zh: '这台手机不能在本机识别{lang}。',
+  },
+  speechUnavailable: {
+    en: 'Speech recognition doesn’t work on this device (a simulator, or a system that is too old).',
+    zh: '这台设备不能在本机做语音识别（模拟器，或者系统版本太旧）。',
+  },
+  speechDownloadAsk: {
+    en: 'Recognizing {lang} needs a download first',
+    zh: '第一次识别{lang}需要先下载',
+  },
+  speechDownloadBody: {
+    en: 'The speech model comes from Apple. After that it works without the internet.',
+    zh: '语音模型由苹果提供，下载后不联网也能用。',
+  },
+  speechDownload: { en: 'Download', zh: '下载' },
+  speechDownloadFailed: {
+    en: 'the speech model for {lang}',
+    zh: '{lang}的语音模型',
+  },
+  speechNote: {
+    en: 'Recognized on this device — words may be wrong, especially with noise or accents. Check it.',
+    zh: '本机自动识别，有噪音或口音时可能有错字，请核对。',
+  },
+  audioMerged: { en: '{name} and {n} more', zh: '{name} 等 {n} 段' },
+  trimWaveformLoading: { en: 'Reading the waveform…', zh: '正在读取波形…' },
+  trimRingtone: {
+    en: 'On Android you can then choose the saved file as a ringtone in Settings → Sounds; an iPhone app can’t set ringtones.',
+    zh: '存好后，Android 可以在「设置 → 声音」里把它设成铃声；iPhone 不能由 App 设成铃声。',
+  },
+  recordTitle: { en: 'Record', zh: '录音' },
+  recordMicrophone: { en: 'Microphone', zh: '麦克风' },
+  recordFailed: {
+    en: 'The microphone can’t be used right now (another app may be using it). Try again.',
+    zh: '现在用不了麦克风（可能别的 App 正在用），请再试一次。',
+  },
+  recordStart: { en: 'Start recording', zh: '开始录音' },
+  recordPause: { en: 'Pause', zh: '暂停' },
+  recordResume: { en: 'Continue', zh: '继续录' },
+  recordDone: { en: 'Done', zh: '完成' },
+  recordHint: {
+    en: 'It keeps recording when the screen locks. Tap Done when you have finished.',
+    zh: '锁屏后会继续录。录完点「完成」。',
+  },
+  recordDiscardTitle: { en: 'Throw away this recording?', zh: '不要这段录音了？' },
+  recordDiscard: { en: 'Throw away', zh: '不要了' },
+  recordKeep: { en: 'Keep recording', zh: '继续录' },
 } satisfies Record<string, Record<Locale, string>>;
 
 export type StringKey = keyof typeof strings;
@@ -640,6 +737,8 @@ export type StringKey = keyof typeof strings;
 const PERMISSION_NAMES: Record<string, Record<Locale, string>> = {
   photos: { en: 'Photos', zh: '相册' },
   camera: { en: 'Camera', zh: '相机' },
+  microphone: { en: 'Microphone', zh: '麦克风' },
+  speech: { en: 'Speech recognition', zh: '语音识别' },
 };
 
 /** 运行错误的提示（detail 里的权限名等内部词换成用户看得懂的说法）。 */
