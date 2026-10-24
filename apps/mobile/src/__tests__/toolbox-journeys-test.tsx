@@ -1,5 +1,8 @@
 import { createStarterWorkspace } from '@morph/core';
-import { fireEvent } from '@testing-library/react-native';
+import { act, fireEvent } from '@testing-library/react-native';
+import { router } from 'expo-router';
+import { Alert } from 'react-native';
+import { useIncoming } from '../share/incoming';
 import { screen } from 'expo-router/testing-library';
 
 import { MemoryWorkspaceRepo } from '../storage/memory';
@@ -36,5 +39,55 @@ describe('starter home and toolbox (UI)', () => {
     // 工具箱里已经有它：首页不多出工具入口。
     const home = config.pages.find((p) => p.id === 'home')!;
     expect(JSON.stringify(home)).not.toContain('toolCard');
+  });
+});
+
+describe('home file pickers', () => {
+  const start = () =>
+    renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), { seed: createStarterWorkspace });
+  it('cancelling leaves the home and incoming batch unchanged', async () => {
+    const { files } = await start();
+    const pick = jest.spyOn(files, 'pickMedia');
+    await fireEvent.press(await screen.findByTestId('file-pick-media'));
+    expect(pick).toHaveBeenCalledWith(50);
+    expect(screen.queryByTestId('share-screen')).toBeNull();
+  });
+  it('accepts photos and videos together, opens the inbox, then describes picked files to AI', async () => {
+    const { files } = await start();
+    const photo = files.offerImage('private-name.jpg', 400, 300);
+    const video = files.offerVideo('private-movie.mp4', { size: 1000, durationMs: 1000 });
+    files.nextMedia = [photo, video];
+    await fireEvent.press(await screen.findByTestId('file-pick-media'));
+    expect(await screen.findByTestId('share-screen')).toBeTruthy();
+    expect(useIncoming.getState().share).toMatchObject({ source: 'picker', files: [photo, video] });
+    expect(screen.queryByTestId('run-screen')).toBeNull();
+    await fireEvent.press(screen.getByTestId('share-ask-ai'));
+    expect(await screen.findByTestId('change-about')).toHaveTextContent(/给你选的/);
+    expect(screen.getByTestId('change-about')).not.toHaveTextContent(/private/);
+    expect(screen.getByTestId('change-input').props.placeholder).toBe(
+      '说出你想要的，Morph 会努力完成你的需求',
+    );
+  });
+  it('opens any documents in the same inbox and keeps picker files on dismissal', async () => {
+    const { files } = await start();
+    const pdf = files.offer('picked.pdf', new Uint8Array([1, 2, 3]));
+    files.nextPick = [pdf];
+    await fireEvent.press(await screen.findByTestId('file-pick-files'));
+    expect(await screen.findByTestId('share-screen')).toBeTruthy();
+    expect(files.lastPickTypes).toEqual(['*/*']);
+    await act(() => router.back());
+    expect(files.disk.has(pdf.uri)).toBe(true);
+    expect(useIncoming.getState().share).toBeNull();
+  });
+  it('rejects more than ten videos before receiving a batch', async () => {
+    const { files } = await start();
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    files.nextMedia = Array.from({ length: 11 }, (_, i) =>
+      files.offerVideo(`${i}.mp4`, { size: 1000, durationMs: 1000 }),
+    );
+    await fireEvent.press(await screen.findByTestId('file-pick-media'));
+    expect(alert).toHaveBeenCalled();
+    expect(screen.queryByTestId('share-screen')).toBeNull();
+    alert.mockRestore();
   });
 });

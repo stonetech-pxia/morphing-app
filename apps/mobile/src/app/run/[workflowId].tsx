@@ -30,7 +30,7 @@ export default function RunRoute() {
   useEffect(() => {
     if (!sampleKind) return;
     loadSamples(sampleKind)
-      .then((files) => setSamples({ id: 0, files, copies: [] }))
+      .then((files) => setSamples({ id: 0, files, copies: [], source: 'picker' }))
       .catch(() => setSamplesFailed(true));
   }, [sampleKind]);
   const { locale, registry } = useWorkspaceContext();

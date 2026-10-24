@@ -367,6 +367,8 @@ export interface FilePlatform {
   shareText(fileName: string, text: string, mimeType: string): Promise<void>;
 
   // ---- 工作流执行：选择 ----
+  /** 从相册混选照片和视频；用户取消时返回 null。 */
+  pickMedia(max: number): Promise<PickedFile[] | null>;
   /** 从相册多选照片；用户取消时返回 null。 */
   pickPhotos(max: number): Promise<PickedFile[] | null>;
   /** 拍一张照片；用户取消时返回 null，没有相机时抛出 cameraUnavailable。 */
@@ -381,12 +383,13 @@ export interface FilePlatform {
   copyToRun(uri: string, runId: string, fileName: string): Promise<{ uri: string; size: number }>;
   /**
    * 大文件（视频、音频）不复制（D-142）：选择器放在 App 缓存里的副本移进本次运行的临时目录（之后一起删）；
-   * 分享进来的（共享目录、content://）原地使用，返回原地址。
+   * 分享进来的（共享目录、content://）原地使用，返回原地址；keepSource 为 true 时缓存副本也不移动（收件页要支持再次运行）。
    */
   adoptIntoRun(
     uri: string,
     runId: string,
     fileName: string,
+    keepSource?: boolean,
   ): Promise<{ uri: string; size: number }>;
   /** 手机剩余空间（字节）；读不到时为 null。 */
   freeDiskBytes(): number | null;

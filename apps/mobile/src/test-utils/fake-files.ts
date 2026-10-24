@@ -133,18 +133,22 @@ export class FakeFiles implements FilePlatform {
   async pickImage() {
     return this.nextImage;
   }
+  nextMedia: PickedFile[] | null = null;
+  async pickMedia(max: number) {
+    return this.nextMedia ? this.nextMedia.slice(0, max) : null;
+  }
   async pickPhotos(max: number) {
     return this.nextPhotos ? this.nextPhotos.slice(0, max) : null;
   }
   async pickVideos(max: number) {
     return this.nextVideos ? this.nextVideos.slice(0, max) : null;
   }
-  async adoptIntoRun(uri: string, runId: string, fileName: string) {
+  async adoptIntoRun(uri: string, runId: string, fileName: string, keepSource = false) {
     const bytes = this.disk.get(uri);
     if (!bytes) throw new Error('permission denied');
     this.adopted.push(uri);
     // 选择器的副本（picker://）和运行中的临时文件移进来；分享进来的原地使用。
-    if (uri.startsWith('picker://') || uri.startsWith('runs/')) {
+    if (!keepSource && (uri.startsWith('picker://') || uri.startsWith('runs/'))) {
       const dest = `runs/${runId}/${fileName}`;
       this.disk.delete(uri);
       this.disk.set(dest, bytes);

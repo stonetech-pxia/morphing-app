@@ -6,7 +6,7 @@ import { isEmoji, unsafeLinks } from './richtext';
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 修改本文件中会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
 
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 
 export type Locale = 'en' | 'zh';
 export type Localized = Record<Locale, string>;
@@ -265,6 +265,13 @@ const componentBase = {
   style: ComponentStyleSchema.optional(),
 };
 
+/** 内核固定行为：只能选择来源，AI 不提供可执行内容。 */
+export const FilePickComponentSchema = z.strictObject({
+  ...componentBase,
+  type: z.literal('filePick'),
+  props: z.strictObject({ source: z.enum(['media', 'files']) }),
+});
+
 export const HeaderComponentSchema = z.strictObject({
   ...componentBase,
   type: z.literal('header'),
@@ -428,6 +435,7 @@ export const StatComponentSchema = z.strictObject({
 });
 
 const LeafComponentSchema = z.discriminatedUnion('type', [
+  FilePickComponentSchema,
   HeaderComponentSchema,
   TextComponentSchema,
   ToolCardComponentSchema,

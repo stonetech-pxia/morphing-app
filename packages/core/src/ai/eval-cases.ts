@@ -2633,7 +2633,28 @@ const DRAFT_CHAT_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+const FILE_ENTRY_CASES: EvalCase[] = [
+  ['FE1', '首页加上打开相册', 'zh', 'media'],
+  ['FE2', 'Add a file picker to home', 'en', 'files'],
+].map(([id, input, locale, source]) => ({
+  id: id!,
+  input: input!,
+  locale: locale as Locale,
+  setup: 'default',
+  mock: true,
+  expect: {
+    kind: 'ops',
+    check: (c) =>
+      allComponents(home(c)).some(
+        (x) => x.type === 'filePick' && x.props.source === source && !x.hidden,
+      )
+        ? null
+        : 'missing file picker entry',
+  },
+}));
+
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...FILE_ENTRY_CASES,
   ...BASE_EVAL_CASES,
   ...SPLIT_EVAL_CASES,
   ...WORKFLOW_EVAL_CASES,

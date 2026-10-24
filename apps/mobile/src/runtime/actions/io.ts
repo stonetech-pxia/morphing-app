@@ -88,7 +88,12 @@ async function importPicked(
     let stored;
     try {
       stored = media
-        ? await services.files.adoptIntoRun(f.uri, services.runId, freshName(name, ext))
+        ? await services.files.adoptIntoRun(
+            f.uri,
+            services.runId,
+            freshName(name, ext),
+            !!services.incoming,
+          )
         : await services.files.copyToRun(f.uri, services.runId, freshName(name, ext));
     } catch {
       throw new RunError('accessDenied', { name: f.name });

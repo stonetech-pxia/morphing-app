@@ -34,6 +34,7 @@ export const CAPABILITIES: Record<ComponentType, Capability> = {
     text: [{ prop: 'text', max: 1500, multiline: true, rich: true }],
     style: ALL_STYLES,
   },
+  filePick: { text: [], style: [] },
   toolCard: { text: [], style: ALL_STYLES },
   toolGrid: { text: [{ prop: 'title', max: 60, optional: true }], style: ['align'] },
   catalogLink: { text: [{ prop: 'title', max: 60 }], style: ALL_STYLES },

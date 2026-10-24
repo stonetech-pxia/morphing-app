@@ -24,6 +24,7 @@ import {
 import { t } from '../i18n';
 import { RecordForm, RecordList, Stat } from './data';
 import { FileList } from './FileList';
+import { FilePick } from './FilePick';
 import { ImageView } from './ImageView';
 import { RichText } from './RichText';
 import { cardColors, type Palette } from './theme';
@@ -242,6 +243,8 @@ export function ComponentView({ component, env }: { component: Component; env: R
   const scale = SIZES[style?.size ?? 'medium'];
   const align: TextStyle | undefined = style?.align === 'center' ? styles.textCenter : undefined;
   switch (component.type) {
+    case 'filePick':
+      return <FilePick source={component.props.source} env={env} />;
     case 'header':
       return (
         <View style={styles.header}>

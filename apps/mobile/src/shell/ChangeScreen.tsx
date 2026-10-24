@@ -233,11 +233,13 @@ export function ChangeScreen() {
             <Text style={[palette.font('title', 15), { color: palette.text }]}>
               {about.kind === 'workflow'
                 ? t(locale, 'aboutWorkflow', { name: aboutName ?? '' })
-                : t(locale, 'aboutShared', { what: sharedWhat(about, locale) })}
+                : t(locale, share?.source === 'picker' ? 'sharePicked' : 'aboutShared', {
+                    what: sharedWhat(about, locale),
+                  })}
             </Text>
-            <Text style={sub}>
-              {t(locale, about.kind === 'workflow' ? 'aboutWorkflowHint' : 'aboutSharedHint')}
-            </Text>
+            {about.kind === 'workflow' ? (
+              <Text style={sub}>{t(locale, 'aboutWorkflowHint')}</Text>
+            ) : null}
           </Card>
         ) : null}
 
@@ -289,9 +291,11 @@ export function ChangeScreen() {
               onChangeText={setInput}
               editable={!typing}
               placeholder={
-                about && examples[0]
-                  ? t(locale, 'aboutPlaceholder', { example: examples[0] })
-                  : t(locale, 'changeAsk')
+                about?.kind === 'shared'
+                  ? t(locale, 'sharePlaceholder')
+                  : about && examples[0]
+                    ? t(locale, 'aboutPlaceholder', { example: examples[0] })
+                    : t(locale, 'changeAsk')
               }
               placeholderTextColor={palette.caption}
               multiline

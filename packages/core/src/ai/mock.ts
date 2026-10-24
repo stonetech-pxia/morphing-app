@@ -1359,7 +1359,31 @@ const translateDocRule: Rule = (clause, state) => {
   return [{ op: 'addWorkflow', workflow: wf }];
 };
 
+const filePickRule: Rule = (clause, state) => {
+  const media = /^(?:首页加上打开相册|Add a photo picker to home)$/i.test(clause);
+  const files = /^(?:首页加上打开文件|Add a file picker to home)$/i.test(clause);
+  if (!media && !files) return null;
+  const source = media ? 'media' : 'files';
+  if (
+    allComponents(page(state, HOME_PAGE_ID)).some(
+      (c) => c.type === 'filePick' && c.props.source === source && !c.hidden,
+    )
+  )
+    return [];
+  const ids = new Set(allComponents(page(state, HOME_PAGE_ID)).map((c) => c.id));
+  let id = `pick-${source}`;
+  for (let n = 2; ids.has(id); n++) id = `pick-${source}-${n}`;
+  return [
+    {
+      op: 'addComponent',
+      pageId: HOME_PAGE_ID,
+      component: { id, type: 'filePick', props: { source } },
+    },
+  ];
+};
+
 const RULES: Rule[] = [
+  filePickRule,
   reportRule,
   translateDocRule,
   // 工作流的句式先判断：它们都要求句子里有工作流的名字或「工作流」，不会抢走其他句式。

@@ -3,10 +3,7 @@ import {
   mediaKindOf,
   newWorkflowId,
   presetWorkflow,
-  sanitizeFileName,
-  shareFit,
   sharedSizeProblem,
-  uniqueFileName,
   type IconName,
   type MediaKind,
   type ShareFit,
@@ -14,24 +11,25 @@ import {
 } from '@morph/core';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 
-import { runErrorText } from '../i18n';
+import { runErrorText, t } from '../i18n';
 import { formatSize } from '../renderer/FileList';
 import { Icon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Button, Card, Pill, SectionLabel } from '../renderer/ui';
-import { baseName, extOf, mimeOf } from '../runtime/actions/helpers';
+import { mimeOf } from '../runtime/actions/helpers';
 import { formatTime } from '../run/local/TrimScreen';
 import { useWorkflowChange } from '../run/workflow-change';
-import { newAssetId } from '../runtime/runner';
 import { stepChain } from '../shell/WorkflowsScreen';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { releaseShare, useIncoming } from './incoming';
+import { shareRecommendations } from './recommendations';
+import type { SucceededRuns } from '../storage/types';
 
 /**
  * 收件页面（TOOLS_DESIGN §11，D-117）：「收到 N 个文件」，列出能接这些文件的工作流，点一个才运行
- * （不会自动运行）；也可以存到 Morph 文件。文件名和大小只在本机显示，不发给 AI。由内核提供，AI 不能修改。
+ * （不会自动运行）。文件名和大小只在本机显示，不发给 AI。由内核提供，AI 不能修改。
  */
 const ICONS: Partial<Record<MediaKind, IconName>> = {
   image: 'photo',
@@ -42,14 +40,30 @@ const ICONS: Partial<Record<MediaKind, IconName>> = {
 export function ShareScreen() {
   const { repo, files, registry, locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
-  const bumpAssets = useWorkspace((s) => s.bumpAssets);
-  const showToast = useWorkspace((s) => s.showToast);
   const palette = usePalette(config.theme);
   const share = useIncoming((s) => s.share);
   const router = useRouter();
   const zh = locale === 'zh';
-  const [saving, setSaving] = useState(false);
-  // 交给运行页面或已经存好时为 true：离开页面时不删文件（运行页面关闭时再删）。
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const expanded = expandedId === share?.id;
+  const [allId, setAllId] = useState<number | null>(null);
+  const showAll = allId === share?.id;
+  const [usage, setUsage] = useState<SucceededRuns>(new Map());
+  useEffect(() => {
+    let alive = true;
+    void repo
+      .countSucceededRuns()
+      .then((counts) => {
+        if (alive) setUsage(counts);
+      })
+      .catch(() => {
+        /* 统计暂时不可用时仍可手动选择快捷操作。 */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [repo, share?.id]);
+  // 交给运行页面或 AI 时为 true：离开页面时不删文件（运行页面关闭时再删）。
   const handed = useRef(false);
   const shareId = useRef(share?.id);
   const change = useWorkflowChange();
@@ -132,33 +146,25 @@ export function ShareScreen() {
     size: f.size,
   }));
   const sizeProblem = sharedSizeProblem(infos);
-  // 只列出第一步收文件、类型对得上的工作流；个数不对的列出来但不能点，说明原因。
-  const candidates = [
-    ...config.workflows.filter((w) => !w.toolId),
-    ...config.workflows.filter((w) => w.toolId),
-  ]
-    .map((wf) => ({ wf, fit: shareFit(wf, infos) }))
-    .filter(({ fit }) => fit.ok || fit.reason !== 'type')
-    // 能运行的排在前面（排序是稳定的，组内保持原来的顺序）；刚让 AI 做好的排最前。
-    .sort((a, b) => Number(b.fit.ok) - Number(a.fit.ok))
-    .sort((a, b) => Number(isNew(b.wf)) - Number(isNew(a.wf)));
-  const mine = candidates.filter(({ wf }) => !wf.toolId);
-  const fromTools = candidates.filter(({ wf }) => wf.toolId);
-  // 还没添加、第一步收得下这些文件的现成快捷操作（D-129）。
-  const presets = WORKFLOW_PRESETS.filter((p) => !config.workflows.some((w) => w.presetId === p.id))
-    .map((preset) => ({ preset, wf: presetWorkflow(preset, locale, preset.id) }))
-    .filter(({ wf }) => shareFit(wf, infos).ok);
+  const { all, recommended } = shareRecommendations(config.workflows, infos, usage, locale, newest);
+  const candidates = showAll ? all : recommended;
 
   function isNew(wf: Workflow) {
     return knownIds !== null && !wf.toolId && !knownIds.has(wf.id);
   }
 
-  const workflowCard = ({ wf, fit }: (typeof candidates)[number]) => (
-    <Card key={wf.id} palette={palette} testID={`share-workflow-${wf.id}`}>
+  const workflowCard = ({ wf, fit, preset }: (typeof candidates)[number]) => (
+    <Card
+      key={wf.id}
+      palette={palette}
+      testID={preset ? `share-preset-${preset.id}` : `share-workflow-${wf.id}`}>
       <Text style={[palette.font('title', 16), { color: palette.text }]}>
         {wf.name}
         {isNew(wf) ? (zh ? ' · 刚做好' : ' · just made') : ''}
       </Text>
+      {usage.has(wf.id) && !preset ? (
+        <Text style={caption}>{t(locale, 'shareUsed', { n: usage.get(wf.id)!.count })}</Text>
+      ) : null}
       {wf.toolId ? (
         <Text style={caption}>{registry.tools.get(wf.toolId)?.name[locale]}</Text>
       ) : null}
@@ -167,9 +173,9 @@ export function ShareScreen() {
         <View style={styles.actions}>
           <Pill
             palette={palette}
-            testID={`share-run-${wf.id}`}
-            label={zh ? '运行' : 'Run'}
-            onPress={() => run(wf)}
+            testID={preset ? `share-preset-add-${preset.id}` : `share-run-${wf.id}`}
+            label={preset ? (zh ? '添加并运行' : 'Add and run') : zh ? '运行' : 'Run'}
+            onPress={() => (preset ? void addAndRun(preset) : run(wf))}
           />
         </View>
       ) : (
@@ -219,46 +225,6 @@ export function ShareScreen() {
     router.push({ pathname: '/change', params: { shared: String(share!.id) } });
   }
 
-  async function save() {
-    if (!share) return;
-    setSaving(true);
-    try {
-      const existing = (await repo.listAssets()).map((a) => a.name);
-      for (const f of share.files) {
-        const clean = sanitizeFileName(f.name);
-        const mimeType = mimeOf(clean, f.mimeType);
-        const ext = extOf(clean) || (mimeType === 'application/pdf' ? 'pdf' : 'bin');
-        const name = uniqueFileName(baseName(clean), ext, existing);
-        existing.push(name);
-        const id = newAssetId();
-        const stored = await files.importFile(f, id, name);
-        await repo.addAsset({
-          id,
-          name,
-          mimeType,
-          size: stored.size,
-          path: stored.path,
-          source: 'picked',
-          createdAt: Date.now(),
-        });
-      }
-      bumpAssets();
-      handed.current = true;
-      await releaseShare(files, share.id);
-      showToast({
-        message: zh
-          ? `已存到文件：${share.files.length} 个`
-          : `Saved to files: ${share.files.length}`,
-      });
-      if (router.canDismiss()) router.dismissAll();
-      else router.replace('/');
-    } catch (e) {
-      Alert.alert(zh ? '没能保存' : 'Could not save', String(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <ScrollView
       ref={scroll}
@@ -266,41 +232,48 @@ export function ShareScreen() {
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 48 }}>
       <Stack.Screen options={{ title }} />
       <Card palette={palette}>
-        {share.files.map((f, i) => (
-          <View
-            key={`${i}-${f.uri}`}
-            style={[
-              styles.file,
-              i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
-            ]}>
-            <Icon
-              name={ICONS[mediaKindOf(infos[i]!.mimeType, f.name)] ?? 'document'}
-              size={18}
-              color={palette.secondary}
-            />
-            <Text
-              numberOfLines={1}
-              style={[styles.flex, palette.font('bodyMedium', 15), { color: palette.text }]}>
-              {f.name}
-            </Text>
-            {f.size !== null || durations[f.uri] ? (
-              <Text style={[palette.font('body', 13), { color: palette.caption }]}>
-                {[
-                  durations[f.uri] ? formatTime(durations[f.uri]!) : null,
-                  f.size !== null ? formatSize(f.size) : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </Text>
-            ) : null}
-          </View>
-        ))}
+        <Button
+          palette={palette}
+          variant="text"
+          testID="share-files-toggle"
+          label={`${t(locale, infos.every((f) => f.mimeType.startsWith('image/')) ? 'sharePhotoSummary' : 'shareSummary', { n: share.files.length })}${infos.every((f) => f.size !== null) ? ` · ${formatSize(infos.reduce((n, f) => n + (f.size ?? 0), 0))}` : ''} · ${t(locale, expanded ? 'shareCollapse' : 'shareExpand')}`}
+          onPress={() => setExpandedId(expanded ? null : share.id)}
+        />
+        {expanded
+          ? share.files.map((f, i) => (
+              <View
+                key={`${i}-${f.uri}`}
+                style={[
+                  styles.file,
+                  i > 0 && {
+                    borderTopWidth: StyleSheet.hairlineWidth,
+                    borderColor: palette.border,
+                  },
+                ]}>
+                <Icon
+                  name={ICONS[mediaKindOf(infos[i]!.mimeType, f.name)] ?? 'document'}
+                  size={18}
+                  color={palette.secondary}
+                />
+                <Text
+                  numberOfLines={1}
+                  style={[styles.flex, palette.font('bodyMedium', 15), { color: palette.text }]}>
+                  {f.name}
+                </Text>
+                {f.size !== null || durations[f.uri] ? (
+                  <Text style={[palette.font('body', 13), { color: palette.caption }]}>
+                    {[
+                      durations[f.uri] ? formatTime(durations[f.uri]!) : null,
+                      f.size !== null ? formatSize(f.size) : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </Text>
+                ) : null}
+              </View>
+            ))
+          : null}
       </Card>
-      <Text style={caption}>
-        {zh
-          ? '文件只在这台手机上处理，AI 看不到文件名和内容。'
-          : 'Files are handled on this device only; AI never sees their names or contents.'}
-      </Text>
 
       {sizeProblem ? (
         <Card palette={palette}>
@@ -312,70 +285,33 @@ export function ShareScreen() {
         </Card>
       ) : (
         <>
-          <Button
-            palette={palette}
-            testID="share-save"
-            variant="outline"
-            label={zh ? '存到 Morph 文件' : 'Save to Morph files'}
-            loading={saving}
-            disabled={saving}
-            onPress={() => void save()}
-          />
-          <SectionLabel palette={palette}>
-            {zh ? '用快捷操作处理' : 'Run a quick action'}
-          </SectionLabel>
-          {candidates.length === 0 ? (
-            <Card palette={palette}>
-              <Text testID="share-no-workflows" style={caption}>
-                {zh
-                  ? '还没有能处理这些文件的快捷操作。可以让 AI 搭一个，或者添加下面现成的。'
-                  : 'No quick action takes these files yet. Ask AI to make one, or add a ready-made one below.'}
-              </Text>
-            </Card>
-          ) : (
-            mine.map(workflowCard)
-          )}
+          {candidates.length > 0 ? (
+            <SectionLabel palette={palette}>{t(locale, 'shareRecent')}</SectionLabel>
+          ) : null}
+          {candidates.map(workflowCard)}
+          {!showAll && all.length > recommended.length ? (
+            <Button
+              palette={palette}
+              variant="text"
+              testID="share-see-all"
+              label={t(locale, 'shareSeeAll', { n: all.length })}
+              onPress={() => setAllId(share.id)}
+            />
+          ) : null}
           <Button
             palette={palette}
             testID="share-ask-ai"
             variant="outline"
-            label={zh ? '让 AI 搭一个' : 'Ask AI to make one'}
+            label={t(locale, 'shareDescribe')}
             onPress={askAI}
           />
-          {presets.length > 0 ? (
-            <>
-              <SectionLabel palette={palette}>
-                {zh ? '现成的快捷操作' : 'Ready-made quick actions'}
-              </SectionLabel>
-              {presets.map(({ preset, wf }) => (
-                <Card key={preset.id} palette={palette} testID={`share-preset-${preset.id}`}>
-                  <Text style={[palette.font('title', 16), { color: palette.text }]}>
-                    {preset.name[locale]}
-                  </Text>
-                  <Text style={caption}>{stepChain(wf, registry, locale)}</Text>
-                  <View style={styles.actions}>
-                    <Pill
-                      palette={palette}
-                      testID={`share-preset-add-${preset.id}`}
-                      label={zh ? '添加并运行' : 'Add and run'}
-                      onPress={() => void addAndRun(preset)}
-                    />
-                  </View>
-                </Card>
-              ))}
-            </>
-          ) : null}
-          {/* 工具里的单个功能放在最后：图片工具就有十几个，放前面会把「让 AI 搭一个」和现成的挤到很下面。 */}
-          {fromTools.length > 0 ? (
-            <>
-              <SectionLabel palette={palette}>
-                {zh ? '工具里的功能' : 'From your tools'}
-              </SectionLabel>
-              {fromTools.map(workflowCard)}
-            </>
-          ) : null}
         </>
       )}
+      <Text style={caption}>
+        {zh
+          ? '文件只在这台手机上处理，AI 看不到文件名和内容。'
+          : 'Files are handled on this device only; AI never sees their names or contents.'}
+      </Text>
     </ScrollView>
   );
 }

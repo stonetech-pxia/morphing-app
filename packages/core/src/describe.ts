@@ -46,6 +46,14 @@ export function componentLabel(
       const name = ctx.registry.tools.get(c.props.toolId)?.name[ctx.locale] ?? c.props.toolId;
       return zh ? `「${name}」工具入口` : `${name} tool card`;
     }
+    case 'filePick':
+      return c.props.source === 'media'
+        ? zh
+          ? '打开相册'
+          : 'Open photo library'
+        : zh
+          ? '打开文件'
+          : 'Open files';
     case 'toolGrid':
       return c.props.title
         ? zh

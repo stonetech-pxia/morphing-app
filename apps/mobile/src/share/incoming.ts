@@ -3,27 +3,33 @@ import { create } from 'zustand';
 import type { FilePlatform, PickedFile } from '../runtime/platform';
 
 // 分享到 Morph（TOOLS_DESIGN §11）：别的 App 分享进来、还没处理的文件。只在内存里，不进配置、不进数据库，
-// 也不发给 AI；用户选了工作流、存到文件或关掉收件页面后清掉（D-116）。
+// 也不发给 AI；用户关闭收件或运行页面后清掉（D-116）。
 
 export interface IncomingShare {
   /** 每次分享一个新 ID：收件页面据此知道是不是又分享了一批。 */
   id: number;
   files: PickedFile[];
+  source: 'share' | 'picker';
   /** Android：原生模块顺手复制到 App 缓存目录的副本（file://），用完一起删。 */
   copies: string[];
 }
 
 interface IncomingState {
   share: IncomingShare | null;
-  receive(files: PickedFile[], copies?: string[]): void;
+  receive(files: PickedFile[], copies?: string[], source?: IncomingShare['source']): void;
   clear(): void;
 }
 
 let seq = 0;
+const batches = new Map<number, IncomingShare>();
 
 export const useIncoming = create<IncomingState>()((set) => ({
   share: null,
-  receive: (files, copies = []) => set({ share: { id: ++seq, files, copies } }),
+  receive: (files, copies = [], source = 'share') => {
+    const share = { id: ++seq, files, copies, source };
+    batches.set(share.id, share);
+    set({ share });
+  },
   clear: () => set({ share: null }),
 }));
 
@@ -91,8 +97,12 @@ export async function releaseShare(
   files: Pick<FilePlatform, 'removeShared'>,
   id: number,
 ): Promise<void> {
+  const batch = batches.get(id);
+  if (!batch) return;
+  batches.delete(id);
   const current = useIncoming.getState().share;
   if (current?.id === id) useIncoming.getState().clear();
+  if (batch?.source === 'picker') return;
   const keep = current && current.id !== id ? current.files.map((f) => f.uri) : [];
-  await files.removeShared(keep, current?.id === id ? current.copies : []).catch(() => undefined);
+  await files.removeShared(keep, batch?.copies ?? []).catch(() => undefined);
 }

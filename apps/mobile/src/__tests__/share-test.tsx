@@ -186,6 +186,22 @@ describe('running a workflow on shared files', () => {
     expect(files.sharedFiles()).toHaveLength(2);
   });
 
+  it('keeps picked media available after disposal for another run', async () => {
+    const { files, run } = setup({
+      id: 'video',
+      name: 'video',
+      steps: [{ id: 'pick', action: 'in.videos', params: { source: 'library', min: 1, max: 10 } }],
+    });
+    const video = files.offerVideo('picked.mp4', { size: 1000, durationMs: 1000 }, 'video/mp4');
+    const first = await run([video]);
+    expect(first.result.status).toBe('succeeded');
+    await first.dispose();
+    expect(files.disk.has(video.uri)).toBe(true);
+    const second = await run([video]);
+    expect(second.result.status).toBe('succeeded');
+    await second.dispose();
+  });
+
   it('checks the type and count like a picker would', async () => {
     const merge = applyOps(createDefaultWorkspace('zh'), [{ op: 'installTool', toolId: 'pdf' }], {
       registry,
@@ -236,6 +252,12 @@ describe('share journeys (UI)', () => {
     );
     expect(result.kind).toBe('preview');
     await act(() => store.getState().confirm());
+    const used = await app.repo.startToolRun({
+      toolId: 'workflow:sign-return',
+      workflowId: 'sign-return',
+      revisionId: 1,
+    });
+    await app.repo.finishToolRun(used, { status: 'succeeded' });
     const merge = store.getState().config!.workflows.find((w) => w.steps[0]!.params.min === 2)!;
     return { ...app, merge };
   }
@@ -252,7 +274,10 @@ describe('share journeys (UI)', () => {
 
     expect(await screen.findByTestId('share-screen')).toBeTruthy();
     expect(native().clearShareIntent).toHaveBeenCalledWith('morphShareKey');
+    expect(screen.queryByText('报告.pdf')).toBeNull();
+    await fireEvent.press(screen.getByTestId('share-files-toggle'));
     expect(screen.getByText('报告.pdf')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('share-see-all'));
     // 合并 PDF 接得上；签回表格只收 1 个，列出来但不能运行；证件照只收照片，不列出。
     expect(screen.getByTestId(`share-run-${merge.id}`)).toBeTruthy();
     expect(screen.getByTestId('share-workflow-sign-return')).toBeTruthy();
@@ -280,18 +305,13 @@ describe('share journeys (UI)', () => {
     expect(useIncoming.getState().share).toBeNull();
   });
 
-  it('saves the shared files to Morph files', async () => {
-    const { files, repo, store } = await setupApp();
+  it('has no save button and clears the shared copies when dismissed', async () => {
+    const { files, repo } = await setupApp();
     await share([files.offerShared('IMG_1.jpg', TINY_JPEG, 'image/jpeg')]);
-    expect(await screen.findByText('IMG_1.jpg')).toBeTruthy();
-    expect(screen.getByTestId('share-workflow-visa-photo')).toBeTruthy();
-
-    await fireEvent.press(screen.getByTestId('share-save'));
-    expect(await screen.findByText('已存到文件：1 个')).toBeTruthy();
-    expect((await repo.listAssets()).map((a) => [a.name, a.mimeType, a.source])).toEqual([
-      ['IMG_1.jpg', 'image/jpeg', 'picked'],
-    ]);
-    expect(store.getState().assetsVersion).toBeGreaterThan(0);
+    expect(await screen.findByTestId('share-screen')).toBeTruthy();
+    expect(screen.queryByTestId('share-save')).toBeNull();
+    await act(() => router.back());
+    expect(await repo.listAssets()).toEqual([]);
     expect(files.sharedFiles()).toEqual([]);
   });
 
@@ -329,7 +349,9 @@ describe('share journeys (UI)', () => {
         type: 'file',
       }),
     );
-    expect(await screen.findByText('lease.jpg')).toBeTruthy();
+    expect(await screen.findByTestId('share-screen')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('share-files-toggle'));
+    expect(screen.getByText('lease.jpg')).toBeTruthy();
     expect(screen.getByTestId('share-run-visa-photo')).toBeTruthy();
     await act(() => router.back());
     expect(files.disk.has(copy)).toBe(false);
@@ -350,7 +372,9 @@ describe('share journeys (UI)', () => {
       height: 1080,
     });
     await share([trip]);
-    expect(await screen.findByText('trip.MOV')).toBeTruthy();
+    expect(await screen.findByTestId('share-screen')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('share-files-toggle'));
+    expect(screen.getByText('trip.MOV')).toBeTruthy();
     expect(await screen.findByText('1:15 · 120.0 MB')).toBeTruthy();
     // 证件照、合并 PDF 都不收视频；现成的「视频太大发不出去」可以添加并运行（视频不超过 4 GB，不受 50 MB 限制）。
     expect(screen.queryByTestId('share-too-large')).toBeNull();
