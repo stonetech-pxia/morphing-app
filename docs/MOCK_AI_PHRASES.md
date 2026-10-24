@@ -208,3 +208,8 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 
 - 「添加从视频里截一张照片快捷操作」 / `Add the photo from a video quick action`：选视频 → 在本机选时间 → 存 JPEG 到相册。
 - 步骤句式：「截一帧」「视频截帧」 / `save a video frame`。
+
+### 视频静音（VMU1–VMU2）
+
+- 「添加视频去掉声音快捷操作」 / `Add the remove sound from videos quick action`：选视频 → 去掉全部音轨 → 无声 MP4。
+- 步骤句式：「去掉视频声音」「去掉声音」「视频静音」 / `mute videos`。

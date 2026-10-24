@@ -103,6 +103,7 @@ describe('video tool', () => {
     );
     if (!result.ok) throw new Error(result.error);
     expect(result.config.workflows.map((w) => w.name)).toEqual([
+      '去掉视频声音',
       '截一帧存成照片',
       '拼接视频',
       '压缩视频',
@@ -404,4 +405,17 @@ describe('video frame', () => {
       expect(media.frames).toEqual([]);
     }
   });
+});
+
+it('removes audio from every selected video and keeps the source files separate', async () => {
+  const { files, media, run } = setup(toolWorkflow('video-mute'));
+  files.nextVideos = [
+    files.offerVideo('sound.mov', { size: 1000, hasAudio: true, durationMs: 1000 }),
+    files.offerVideo('quiet.mov', { size: 1000, hasAudio: false, durationMs: 2000 }),
+  ];
+  const items = videosOf(await run());
+  expect(items).toHaveLength(2);
+  expect(items.map((i) => i.durationMs)).toEqual([1000, 2000]);
+  expect(media.encodes.map((s) => s.audioKbps)).toEqual([0, 0]);
+  for (const item of items) expect((await media.probe(item.uri)).hasAudio).toBe(false);
 });

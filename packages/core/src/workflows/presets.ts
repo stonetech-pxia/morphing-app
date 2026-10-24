@@ -303,6 +303,20 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'mute-video',
+    scenario: 'photos',
+    name: { en: 'Remove sound from videos', zh: '视频去掉声音' },
+    description: {
+      en: 'Choose videos and make silent MP4 copies, keeping your originals.',
+      zh: '选视频，另存为无声 MP4，原片保留。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'mute', action: 'video.mute', params: {} },
+    ],
+  },
+  {
     id: 'video-frame',
     scenario: 'photos',
     name: { en: 'Save a photo from a video', zh: '从视频里截一张照片' },

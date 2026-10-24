@@ -16,6 +16,19 @@ const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en
 
 export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   {
+    id: 'video.mute',
+    label: { en: 'Remove video sound', zh: '去掉视频声音' },
+    description: {
+      en: 'Remove all sound from each video and export an MP4 with no audio track. Video is re-encoded; the source file is kept.',
+      zh: '去掉每段视频的全部声音，导出没有音轨的 MP4。画面会重新编码，原文件保留。',
+    },
+    input: ['video'],
+    output: 'video',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
+  },
+  {
     id: 'video.frame',
     label: { en: 'Save a video frame', zh: '截一帧存成照片' },
     description: {
@@ -218,6 +231,14 @@ export function videoWorkflows(locale: Locale): Workflow[] {
   });
   return [
     wf(
+      'video-mute',
+      ['Remove video sound', '去掉视频声音'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+        { id: 'mute', action: 'video.mute', params: {} },
+      ],
+    ),
+    wf(
       'video-frame',
       ['Save a video frame', '截一帧存成照片'],
       [
@@ -283,7 +304,7 @@ export function videoWorkflows(locale: Locale): Workflow[] {
 
 export const videoTool: ToolDefinition = {
   id: VIDEO_TOOL_ID,
-  version: '1.3.0',
+  version: '1.4.0',
   name: { en: 'Video', zh: '视频' },
   description: {
     en: 'Make videos smaller, convert them to MP4, trim them and turn them into GIFs, on this device.',

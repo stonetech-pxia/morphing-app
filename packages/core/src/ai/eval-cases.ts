@@ -2730,7 +2730,41 @@ const VIDEO_FRAME_CASES: EvalCase[] = [
     },
   },
 ];
+const VIDEO_MUTE_CASES: EvalCase[] = [
+  {
+    id: 'VMU1',
+    input: '添加视频去掉声音快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.mute'))
+          ? null
+          : 'missing video.mute',
+    },
+  },
+  {
+    id: 'VMU2',
+    input: 'Make a reusable action to remove all sound from my videos before I share them.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps[0]?.action === 'in.videos' && w.steps.some((s) => s.action === 'video.mute'),
+        )
+          ? null
+          : 'missing silent video action',
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...VIDEO_MUTE_CASES,
   ...VIDEO_FRAME_CASES,
   ...VIDEO_MERGE_CASES,
   ...FILE_ENTRY_CASES,

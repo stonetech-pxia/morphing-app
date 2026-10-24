@@ -162,6 +162,20 @@ async function eachVideo(
 }
 
 export const VIDEO_IMPLS: Record<string, Impl> = {
+  async 'video.mute'(input, _params, ctx) {
+    return eachVideo(input, ctx, async (item, media, job) => {
+      const info = await probe(media, item);
+      const plan = { ...planVideoConvert(sourceOf(item, info)), audioKbps: 0 };
+      checkSpace(ctx, estimate(plan, info.durationMs));
+      return media.encodeVideo(
+        item.uri,
+        { ...encodeOf(plan, info), audioKbps: 0 },
+        ctx.services.runId,
+        freshName(item.name, 'mp4'),
+        job,
+      );
+    });
+  },
   async 'video.frame'(input, _params, ctx) {
     const media = mediaOf(ctx);
     const items: RunItem[] = [];

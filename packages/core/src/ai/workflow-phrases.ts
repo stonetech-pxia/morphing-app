@@ -173,6 +173,10 @@ const RECORD_PHRASES: Matcher[] = [
 
 const STEP_PHRASES: Matcher[] = [
   [
+    /^(?:去掉视频声音|去掉声音|视频静音)$|^mute (?:the )?videos?$/i,
+    () => ({ action: 'video.mute', params: {} }),
+  ],
+  [
     /^(?:截一帧|截一帧存成照片|视频截帧)$|^save a video frame$/i,
     () => ({ action: 'video.frame', params: {} }),
   ],
@@ -502,6 +506,7 @@ export function stepsFrom(phrases: readonly StepPhrase[]): WorkflowStep[] {
 const PRESET_WORDS: [RegExp, string][] = [
   [/把几段视频拼成一段|join video clips|merge videos/i, 'join-videos'],
   [/从视频里截一张照片|photo from a video/i, 'video-frame'],
+  [/视频去掉声音|remove sound from videos/i, 'mute-video'],
   // 音频预设（D-156）放在「合一」「发照片」前面。
   [/录音转文字|录音变成文字|recordings? (?:in)?to text/i, 'audio-to-text'],
   [/语音太大|录音太大|recording (?:is )?too big/i, 'audio-too-big'],
