@@ -1,9 +1,10 @@
-import { CURRENT_SCHEMA_VERSION } from '@morph/core';
+import { CURRENT_SCHEMA_VERSION, HOME_PAGE_ID, pageTarget } from '@morph/core';
 import { MODELS } from '@morph/planner';
 import { useRouter } from 'expo-router';
 import { ScrollView } from 'react-native';
 
 import { useAISettings } from '../ai/context';
+import { useGuide } from '../guide/store';
 import { t } from '../i18n';
 import type { RenderEnv } from '../renderer/components';
 import { ListRow, PageTitle, SectionLabel } from '../renderer/ui';
@@ -18,6 +19,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
   const headId = useWorkspace((s) => s.head!.id);
   const selectTab = useWorkspace((s) => s.selectTab);
   const router = useRouter();
+  const setGuideStage = useGuide((s) => s.setStage);
   const aiMode = useAISettings((s) => s.mode);
   const aiModel = useAISettings((s) => s.model);
   const aiValue =
@@ -35,7 +37,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         icon="sparkles"
         label={t(locale, 'changeTitle')}
         value={t(locale, 'changeRowHint')}
-        onPress={() => router.push('/change')}
+        onPress={env.locked ?? (() => router.push('/change'))}
       />
       <ListRow
         palette={palette}
@@ -59,7 +61,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         icon="workflow"
         label={t(locale, 'workflowsTitle')}
         value={t(locale, 'workflowsRowHint')}
-        onPress={() => router.push('/workflows')}
+        onPress={env.locked ?? (() => router.push('/workflows'))}
       />
       <ListRow
         palette={palette}
@@ -67,7 +69,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         icon="archive"
         label={t(locale, 'packsTitle')}
         value={t(locale, 'packsRowHint')}
-        onPress={() => router.push('/packs')}
+        onPress={env.locked ?? (() => router.push('/packs'))}
       />
       <ListRow
         palette={palette}
@@ -75,7 +77,20 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         icon="inbox"
         label={t(locale, 'dataTitle')}
         value={t(locale, 'dataRowHint')}
-        onPress={() => router.push('/data')}
+        onPress={env.locked ?? (() => router.push('/data'))}
+      />
+      <ListRow
+        palette={palette}
+        testID="settings-guide"
+        icon="lightbulb"
+        label={t(locale, 'settingsGuide')}
+        value={t(locale, 'settingsGuideHint')}
+        onPress={() => {
+          if (env.locked) return env.locked();
+          // 回到首页从头再来（D-149）：外壳看到 intro 会先打开划屏介绍。
+          selectTab(pageTarget(HOME_PAGE_ID));
+          void setGuideStage('intro');
+        }}
       />
       <SectionLabel palette={palette}>{t(locale, 'general')}</SectionLabel>
       <ListRow palette={palette} label={t(locale, 'language')} value={t(locale, 'languageValue')} />
@@ -83,7 +98,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         palette={palette}
         label={t(locale, 'aiEngine')}
         value={aiValue}
-        onPress={() => router.push('/ai-settings')}
+        onPress={env.locked ?? (() => router.push('/ai-settings'))}
       />
       <ListRow
         palette={palette}

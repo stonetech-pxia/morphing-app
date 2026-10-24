@@ -1,8 +1,14 @@
-import { pageIdOf, type NavTarget, type WorkspaceConfig } from '@morph/core';
+import { HOME_PAGE_ID, pageIdOf, type NavTarget, type WorkspaceConfig } from '@morph/core';
+import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DraftBar } from '../draft/DraftBar';
+import { useDraftUi } from '../draft/ui';
+import { directEditEntry } from '../editing/entry';
+import { GuideCard } from '../guide/GuideCard';
+import { useGuide } from '../guide/store';
 import { t } from '../i18n';
 import { EditablePage } from '../editing/EditablePage';
 import type { RenderEnv } from '../renderer/components';
@@ -10,6 +16,7 @@ import { GlassFill } from '../renderer/GlassFill';
 import { Icon } from '../renderer/Icon';
 import { usePalette, type Palette } from '../renderer/theme';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { shownConfig } from '../workspace/store';
 import { HistoryView } from './HistoryView';
 import { targetIcon, targetLabel, useNavigate } from './navigation';
 import { SettingsView } from './SettingsView';
@@ -77,17 +84,62 @@ export function Banner({ palette }: { palette: Palette }) {
   );
 }
 
+/** 草稿的提示（D-190）：重新套用时去掉了几步、某一步显示不出来已经撤掉。 */
+export function DraftNotice({ palette }: { palette: Palette }) {
+  const { locale } = useWorkspaceContext();
+  const notice = useWorkspace((s) => s.draftNotice);
+  const dismiss = useWorkspace((s) => s.dismissDraftNotice);
+  if (!notice) return null;
+  return (
+    <View
+      testID="draft-notice"
+      style={[
+        styles.banner,
+        { backgroundColor: palette.danger, borderRadius: palette.controlRadius },
+      ]}>
+      <Text style={[styles.bannerText, palette.font('bodyMedium', 14), { color: '#FFFFFF' }]}>
+        {notice}
+      </Text>
+      <Pressable onPress={dismiss} hitSlop={8} accessibilityLabel={t(locale, 'close')}>
+        <Text style={[palette.font('bodyBold', 14), { color: '#FFFFFF' }]}>✕</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/** 外壳给页面的环境（D-190）：在草稿模式里打开页面照常，「AI 修改」打开聊天框，真的做事的操作只提示。 */
+export function useShellEnv(): Pick<RenderEnv, 'navigate' | 'locked'> & { inDraft: boolean } {
+  const { locale } = useWorkspaceContext();
+  const inDraft = useWorkspace((s) => !!s.draft?.open);
+  const showToast = useWorkspace((s) => s.showToast);
+  const setChatOpen = useDraftUi((s) => s.setChatOpen);
+  const markSeen = useDraftUi((s) => s.markSeen);
+  const lastStep = useWorkspace((s) => s.draft?.steps.at(-1)?.changeRequestId);
+  const navigate = useNavigate();
+  if (!inDraft) return { navigate, inDraft };
+  return {
+    inDraft,
+    navigate: (target) => (target === 'ai' ? setChatOpen(true) : navigate(target)),
+    // 提示「应用之后才能用」；最新一步的回复会挡住提示，先收起来。
+    locked: () => {
+      if (lastStep !== undefined) markSeen(lastStep);
+      showToast({ message: t(locale, 'draftLocked') });
+    },
+  };
+}
+
 /** App 外壳：内容区域、按配置渲染的底部导航和浮动按钮。 */
 export function Shell() {
   const { registry, locale } = useWorkspaceContext();
-  const config = useWorkspace((s) => s.config)!;
+  // 草稿模式里显示草稿（D-190）。
+  const config = useWorkspace(shownConfig)!;
   const headId = useWorkspace((s) => s.head!.id);
   const tab = useWorkspace((s) => s.tab);
   const markRendered = useWorkspace((s) => s.markRendered);
   const editing = useWorkspace((s) => s.editing !== null);
   const startEditing = useWorkspace((s) => s.startEditing);
   const palette = usePalette(config.theme);
-  const navigate = useNavigate();
+  const { navigate, locked, inDraft } = useShellEnv();
   const insets = useSafeAreaInsets();
 
   // 渲染完成（没有被 ErrorBoundary 拦截）才确认这次提交成功（§4）。
@@ -95,8 +147,23 @@ export function Shell() {
     void markRendered(headId);
   }, [headId, markRendered]);
 
+  // 第一次打开（或在设置里选了重新看）：先看划屏介绍（D-149）。
+  const guideStage = useGuide((s) => s.stage);
+  const router = useRouter();
+  useEffect(() => {
+    if (guideStage === 'intro') router.push('/welcome');
+  }, [guideStage, router]);
+
   const active = canShow(tab, config) ? tab : firstTab(config);
-  const env: RenderEnv = { config, palette, locale, registry, interactive: true, navigate };
+  const env: RenderEnv = {
+    config,
+    palette,
+    locale,
+    registry,
+    interactive: true,
+    navigate,
+    ...(locked ? { locked } : {}),
+  };
   const navStyle = config.theme.navStyle;
   // 编辑模式下隐藏导航栏和浮动按钮：先「完成」或「取消」，草稿不会在切换页面时丢失（D-054）。
   const barSpace = editing ? insets.bottom : BAR_HEIGHT[navStyle] + insets.bottom;
@@ -116,11 +183,14 @@ export function Shell() {
 
   return (
     <View style={[styles.root, palette.backdrop, { paddingTop: insets.top }]}>
-      <Banner palette={palette} />
+      {inDraft ? null : <Banner palette={palette} />}
+      <DraftNotice palette={palette} />
+      {pageId === HOME_PAGE_ID && !editing && !inDraft ? <GuideCard palette={palette} /> : null}
       <View style={styles.content}>{content}</View>
 
-      {/* 编辑模式的开关（D-053）：导航栏里的页面没有标题栏，放在左下角；编辑模式下隐藏。 */}
-      {pageId !== null ? (
+      {/* 编辑模式的开关（D-053）：导航栏里的页面没有标题栏，放在左下角；编辑模式下隐藏。
+          入口暂时关掉（D-190，editing/entry.ts）。 */}
+      {pageId !== null && directEditEntry.enabled && !inDraft ? (
         <Pressable
           testID={editing ? undefined : 'page-edit'}
           accessibilityRole="button"
@@ -142,7 +212,7 @@ export function Shell() {
         </Pressable>
       ) : null}
 
-      {config.shell.floating.length > 0 && !editing ? (
+      {config.shell.floating.length > 0 && !editing && !inDraft ? (
         <View style={[styles.floating, { bottom: barSpace + 16 }]}>
           {config.shell.floating.map((target) => {
             const accent = target === 'ai';
@@ -169,7 +239,8 @@ export function Shell() {
         </View>
       ) : null}
 
-      <Toast palette={palette} bottom={barSpace + 12} />
+      <DraftBar palette={palette} bottom={barSpace + 12} />
+      <Toast palette={palette} bottom={barSpace + (inDraft ? 84 : 12)} />
 
       <View
         style={[
@@ -241,10 +312,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     minHeight: 48,
   },
-  bar: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6 },
-  hidden: { display: 'none' },
   invisible: { opacity: 0 },
   editButton: { position: 'absolute', left: 16, minHeight: 40, paddingHorizontal: 16 },
+  bar: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6 },
+  hidden: { display: 'none' },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3 },
   tabIcon: {
     width: 52,

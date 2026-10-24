@@ -26,6 +26,7 @@ export function RichText({
 
   function open(url: string) {
     if (!env.interactive) return;
+    if (env.locked) return env.locked();
     Alert.alert(
       t(locale, 'openLinkTitle'),
       t(locale, 'openLinkMessage', { target: linkTarget(url) }),

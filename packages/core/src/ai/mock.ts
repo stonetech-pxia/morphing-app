@@ -35,6 +35,7 @@ import {
 import { isEmoji } from '../richtext';
 import { ICON_NAMES } from '../schema';
 import { entryOps, templateOps, type DataTemplate } from '../templates';
+import { goalPlan } from './goals';
 import type { AIProvider, Plan, PlanContext, RejectReason } from './types';
 
 // 基于规则的 mock AI（§7F）。不是语言模型：只认识 docs/MOCK_AI_PHRASES.md 中的句式。
@@ -1516,6 +1517,9 @@ export function createMockAIProvider(): AIProvider {
           examples: ERRAND_EXAMPLES.map((e) => e[ctx.locale]),
         };
       }
+      // 新手引导里的「我有什么，我想要什么」（D-149）。
+      const goal = goalPlan(whole, ctx);
+      if (goal) return goal;
       if (clauses.some((c) => RESTORE.test(c))) {
         if (clauses.length === 1) return { kind: 'restorePrevious' };
         return {

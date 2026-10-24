@@ -19,6 +19,7 @@ import {
   View,
 } from 'react-native';
 
+import type { SampleKind } from '../guide/samples';
 import { runErrorText, t } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import { usePalette, type Palette } from '../renderer/theme';
@@ -65,6 +66,7 @@ export function RunScreen({
   onEdit,
   onAskAI,
   incoming,
+  sample,
 }: {
   workflow: Workflow;
   onEdit?: () => void;
@@ -72,6 +74,8 @@ export function RunScreen({
   onAskAI?: () => void;
   /** 分享进来的文件（D-115）：第一步用它们，不打开选择器。关闭运行页面时删掉。 */
   incoming?: IncomingShare;
+  /** incoming 是新手引导的示例文件（D-149）：不删，结果页请用户换成自己的文件再试。 */
+  sample?: SampleKind;
 }) {
   const { repo, files, registry, locale } = useWorkspaceContext();
   const theme = useWorkspace((s) => s.config!.theme);
@@ -103,7 +107,13 @@ export function RunScreen({
   const [runCount, setRunCount] = useState(0);
   const label = (action: string, index: number) =>
     incoming && index === 0
-      ? t(locale, 'shareInputStep', { n: incoming.files.length })
+      ? t(
+          locale,
+          sample ? (sample === 'photos' ? 'samplePhotos' : 'samplePdfs') : 'shareInputStep',
+          {
+            n: incoming.files.length,
+          },
+        )
       : (registry.actions.get(action)?.label[locale] ?? action);
 
   const ui: LocalUi = {
@@ -202,7 +212,7 @@ export function RunScreen({
       clearTimeout(timer);
       signal.current.cancelled = true;
       void run.current?.dispose();
-      if (incoming) void releaseShare(files, incoming.id);
+      if (incoming && !sample) void releaseShare(files, incoming.id);
       // 扫描包和文字识别包的页面占几十 MB 内存，离开运行页面就关掉（下次用时再加载）。
       packs?.bridge.close('scan');
       packs?.bridge.close('ocr');
@@ -372,6 +382,17 @@ export function RunScreen({
 
       {outcome?.status === 'succeeded' ? (
         <HabitCard key={runCount} workflow={workflow} answers={answers.current} palette={palette} />
+      ) : null}
+
+      {sample && outcome?.status === 'succeeded' ? (
+        <Button
+          palette={palette}
+          testID="run-try-own"
+          label={t(locale, 'runTryOwn')}
+          onPress={() =>
+            router.replace({ pathname: '/run/[workflowId]', params: { workflowId: workflow.id } })
+          }
+        />
       ) : null}
 
       {/* 结果页：「完成」关闭页面；「再来一次」次要；改设置是一个小链接（D-111）。 */}

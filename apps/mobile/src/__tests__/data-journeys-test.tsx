@@ -73,7 +73,8 @@ async function askAi(text: string) {
   await fireEvent.press(screen.getByTestId('nav-ai'));
   await fireEvent.changeText(await screen.findByTestId('change-input'), text);
   await fireEvent.press(screen.getByTestId('change-submit'));
-  await fireEvent.press(await screen.findByTestId('change-apply'));
+  // 进入草稿（D-190），应用。
+  await fireEvent.press(await screen.findByTestId('draft-apply'));
   expect(await screen.findByTestId('banner')).toBeTruthy();
 }
 
@@ -210,7 +211,7 @@ describe('user data (UI)', () => {
     await fireEvent.changeText(await screen.findByTestId('change-input'), '记一笔午饭 35');
     await fireEvent.press(screen.getByTestId('change-submit'));
     expect(await screen.findByText(/AI 只修改界面，不会读取或改动你记录的数据/)).toBeTruthy();
-    expect(screen.queryByTestId('change-apply')).toBeNull();
+    expect(screen.queryByTestId('draft-bar')).toBeNull();
   });
 });
 

@@ -4,6 +4,8 @@ import { renderRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
 
 import { AISettingsProvider } from '../ai/context';
+import { DraftChatSheet } from '../draft/DraftBar';
+import { useDraftUi } from '../draft/ui';
 import { createAISettingsStore, type SecretStore } from '../ai/settings';
 import ChangeRoute from '../app/change';
 import HomeRoute from '../app/index';
@@ -11,6 +13,7 @@ import PageRoute from '../app/page/[pageId]';
 import ReadyRoute from '../app/ready/[workflowId]';
 import RunRoute from '../app/run/[workflowId]';
 import ShareRoute from '../app/share';
+import WelcomeRoute from '../app/welcome';
 import WorkflowRoute from '../app/workflow/[id]';
 import WorkflowsRoute from '../app/workflows';
 import { useIncomingShare } from '../share/useIncomingShare';
@@ -22,6 +25,9 @@ import { createWorkspaceStore } from '../workspace/store';
 import { FakeFiles } from './fake-files';
 
 // 工具和工作流旅程测试共用：真实路由 + 内存存储 + 假文件平台。
+
+// 草稿模式的界面状态是模块级的（D-190）：每个测试从关着的聊天框开始。
+afterEach(() => useDraftUi.setState({ chatOpen: false, seenStep: null }));
 
 export const testRegistry = createRegistry(BUILTIN_TOOLS);
 
@@ -67,9 +73,13 @@ export async function renderToolsApp(
           {options.toolDownloads ? (
             <ToolDownloadsProvider value={options.toolDownloads}>
               <Stack />
+              <DraftChatSheet />
             </ToolDownloadsProvider>
           ) : (
-            <Stack />
+            <>
+              <Stack />
+              <DraftChatSheet />
+            </>
           )}
         </WorkspaceProvider>
       </AISettingsProvider>
@@ -82,6 +92,7 @@ export async function renderToolsApp(
     'workflow/[id]': WorkflowRoute,
     share: ShareRoute,
     'ready/[workflowId]': ReadyRoute,
+    welcome: WelcomeRoute,
   });
   return { repo, store, files };
 }

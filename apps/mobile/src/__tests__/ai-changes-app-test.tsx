@@ -32,7 +32,8 @@ describe('AI changes the app, the user runs it (UI)', () => {
   it('a new quick action opens “ready”; the user taps “use it now” to run it (D-125)', async () => {
     const { store, files } = await renderToolsApp();
     await askAi('添加签证照片快捷操作');
-    await fireEvent.press(await screen.findByTestId('change-apply'));
+    // 进入草稿（D-190）：AI 没有自己运行；「应用」后打开「做好了」。
+    await fireEvent.press(await screen.findByTestId('draft-apply'));
     expect(await screen.findByTestId('ready-screen')).toHaveTextContent(/快捷操作做好了/);
     expect(screen.getByTestId('ready-name')).toHaveTextContent('签证 / 证件照');
     // AI 没有自己运行。
@@ -58,11 +59,11 @@ describe('AI changes the app, the user runs it (UI)', () => {
 
     await fireEvent.press(screen.getByText('把这个的大小改成 200KB'));
     await fireEvent.press(screen.getByTestId('change-submit'));
-    await fireEvent.press(await screen.findByTestId('change-apply'));
+    await fireEvent.press(await screen.findByTestId('draft-apply'));
     const visa = store.getState().config!.workflows.find((w) => w.id === 'visa-photo')!;
     expect(visa.steps.find((s) => s.action === 'image.idPhoto')!.params.maxKB).toBe(200);
-    // 改的是已有的快捷操作：不打开「做好了」。
-    expect(screen.queryByTestId('ready-screen')).toBeNull();
+    // 应用后打开它的「做好了」页面，现在就能再用一次（D-190：原来的结果页在进草稿时关掉了）。
+    expect(await screen.findByTestId('ready-name')).toHaveTextContent('签证 / 证件照');
   });
 
   it('the result page has “ask AI to change it” next to “adjust settings”', async () => {
@@ -162,13 +163,12 @@ describe('AI changes the app, the user runs it (UI)', () => {
     expect(await screen.findByTestId('change-about')).toHaveTextContent(/给分享进来的 1 张照片/);
     await fireEvent.press(await screen.findByText('新建一个快捷操作：选照片，压到 500KB，分享'));
     await fireEvent.press(screen.getByTestId('change-submit'));
-    // 首页入口默认不勾：在收件页面运行。
-    expect((await screen.findByTestId('change-home-entry')).props.accessibilityState).toMatchObject(
-      {
-        checked: false,
-      },
-    );
-    await fireEvent.press(screen.getByTestId('change-apply'));
+    // 进入草稿（D-190）：给分享的文件做的不放首页，在收件页面运行。
+    expect(await screen.findByTestId('draft-bar')).toBeTruthy();
+    expect(screen.queryByTestId('share-screen')).toBeNull();
+    const home = store.getState().draft!.steps[0]!.config.pages.find((p) => p.id === 'home')!;
+    expect(home.components.some((c) => c.type === 'workflowRunner')).toBe(false);
+    await fireEvent.press(screen.getByTestId('draft-apply'));
     // 回到收件页面，新做的排在最前面、标「刚做好」，不会自己运行。
     const made = store.getState().config!.workflows.find((w) => !w.toolId)!;
     expect(await screen.findByTestId(`share-workflow-${made.id}`)).toHaveTextContent(/刚做好/);

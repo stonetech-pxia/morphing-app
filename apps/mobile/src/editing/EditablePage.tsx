@@ -7,6 +7,7 @@ import { useWorkspace } from '../workspace/context';
 import { useEditActions } from './actions';
 import { ArrangeView } from './ArrangeView';
 import { EditSheet } from './EditSheet';
+import { directEditEntry } from './entry';
 
 // 可以直接编辑的页面（D-052）：外壳和独立页面用它代替 PageView。
 // 平时长按组件进入编辑模式并打开它的操作面板；编辑模式下显示草稿，换成带把手和箭头的编辑视图，
@@ -69,13 +70,17 @@ export function EditablePage({
     <>
       <PageView
         page={page}
-        env={{
-          ...env,
-          edit: (id) => {
-            startEditing(page.id);
-            setSelected(id);
-          },
-        }}
+        env={
+          directEditEntry.enabled && !env.locked
+            ? {
+                ...env,
+                edit: (id) => {
+                  startEditing(page.id);
+                  setSelected(id);
+                },
+              }
+            : env
+        }
         bottomInset={bottomInset}
         scroll={rememberScroll(page.id)}
       />
