@@ -267,7 +267,7 @@ iOS 模拟器（新建的 iPhone 17 Pro，iOS 27，临时打开开关）：提�
 
 **上架前**：Google Play 后台要声明前台服务类型 `mediaProcessing` 和 `dataSync` 的用途（附演示视频）。
 
-没有实测：三星真机锁屏一小时转文字（看 One UI 的省电管理会不会杀服务，要接上手机）；语音转文字在后台（同一套保活，自动测试覆盖，模拟器上 whisper 太慢没跑）；Android 14 及以下（`dataSync`）；iPhone 真机上的 iOS 26 后台任务（视频编码器、语音识别在后台能不能用，D-163）；Android 15 每天 6 小时上限到了以后（`onTimeout`）。
+没有实测：三星真机锁屏一小时转文字（看 One UI 的省电管理会不会杀 morph-background 的服务；锁屏录音 1 小时 23 分钟不断是录音组件自己的前台服务，见 P-023，不能代替这一项）；语音转文字在后台（同一套保活，自动测试覆盖，模拟器上 whisper 太慢没跑）；Android 14 及以下（`dataSync`）；iPhone 真机上的 iOS 26 后台任务（视频编码器、语音识别在后台能不能用，D-163）；Android 15 每天 6 小时上限到了以后（`onTimeout`）。
 
 ## 验收清单（§10）
 
