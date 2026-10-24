@@ -614,6 +614,20 @@ const strings = {
   sharedVideos: { en: '{n} videos', zh: '{n} 个视频' },
   sharedAudio: { en: '{n} audio files', zh: '{n} 个音频' },
 
+  // AI 修改的草稿（D-177）
+  draftDropped: {
+    en: 'The app changed since you left the draft; {n} step(s) no longer fit and were removed.',
+    zh: '离开草稿之后 App 又改过，有 {n} 步套不上了，已经去掉。',
+  },
+  draftFirstStep: {
+    en: 'This is the first step of the draft. To drop the whole draft, delete it on the Change this app page.',
+    zh: '这已经是草稿的第一步了。要整个丢掉，去「修改这个 App」删除草稿。',
+  },
+  draftRenderFailed: {
+    en: 'The last change could not be shown, so it was taken back.',
+    zh: '刚才那一步显示不出来，已经撤掉。',
+  },
+
   // 新手引导（D-149）
   guideSkip: { en: 'Skip', zh: '跳过' },
   guideNext: { en: 'Next', zh: '下一步' },
