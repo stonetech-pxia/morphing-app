@@ -2359,6 +2359,21 @@ const FORMAT_EVAL_CASES: readonly EvalCase[] = [
     expect: { kind: 'ops', check: hasWorkflow(['pdf.fromDocument'], firstDocuments) },
   },
   {
+    // D-194：扫出来的 PDF 要能搜索、复制文字。
+    id: 'PSP1',
+    input: 'Scan receipts into a PDF where I can search and copy the text later',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.photos', 'pdf.fromImages'],
+        param('pdf.fromImages', 'textLayer', true),
+      ),
+    },
+  },
+  {
     // D-193：带密码的 PDF 先去密码，再合并。
     id: 'PPW1',
     input: '银行发的对账单 PDF 有密码，想去掉密码再和别的材料合成一份',

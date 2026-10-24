@@ -37,7 +37,15 @@ export interface MorphVisionModule {
   recognizeText(
     uri: string,
     languages: readonly string[],
-  ): Promise<{ text: string; lines: number; languages: string[] }>;
+  ): Promise<{
+    text: string;
+    lines: number;
+    languages: string[];
+    /** 识别时图片的像素大小和每行的位置（原点在左上角，D-194）。 */
+    width: number;
+    height: number;
+    items: { text: string; x: number; y: number; width: number; height: number }[];
+  }>;
   detectDocument(uri: string): Promise<{
     width: number;
     height: number;

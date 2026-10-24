@@ -169,7 +169,14 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
       {
         id: 'pdf',
         action: 'pdf.fromImages',
-        params: { pageSize: 'a4', orientation: 'auto', marginMm: 0, fit: 'contain', maxMB: 0 },
+        params: {
+          pageSize: 'a4',
+          orientation: 'auto',
+          marginMm: 0,
+          fit: 'contain',
+          maxMB: 0,
+          textLayer: true,
+        },
       },
       rename(t(locale, 'Scan {date}', '扫描-{date}')),
       share,

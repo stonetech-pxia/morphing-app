@@ -91,10 +91,24 @@ public class MorphVisionModule: Module {
         guard let best = obs.topCandidates(1).first else { return nil }
         return TextLine(text: best.string, box: obs.boundingBox, confidence: best.confidence)
       }
+      // 每行的位置（D-194，可搜索 PDF 的文字层）：像素，原点在左上角（Vision 的框是 0–1、原点在左下角）。
+      let size = image.extent.size
+      let items = lines.map { line -> [String: Any] in
+        [
+          "text": line.text,
+          "x": line.box.minX * size.width,
+          "y": (1 - line.box.maxY) * size.height,
+          "width": line.box.width * size.width,
+          "height": line.box.height * size.height,
+        ]
+      }
       return [
         "text": Self.layout(lines),
         "lines": lines.count,
         "languages": request.recognitionLanguages,
+        "width": size.width,
+        "height": size.height,
+        "items": items,
       ]
     }
 

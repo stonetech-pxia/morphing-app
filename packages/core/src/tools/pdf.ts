@@ -152,8 +152,8 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
     id: 'pdf.fromImages',
     label: { en: 'Images to PDF', zh: '图片转 PDF' },
     description: {
-      en: 'Put the images into one PDF (A4, Letter or the image size) with optional margins. Max size (MB) makes the PDF smaller by compressing the images; 0 = no limit.',
-      zh: '把图片排成一个 PDF（A4、Letter 或跟随图片），可设边距。「不超过」会压缩图片让 PDF 小于这个大小，0 表示不限。',
+      en: 'Put the images into one PDF (A4, Letter or the image size) with optional margins. Max size (MB) makes the PDF smaller by compressing the images; 0 = no limit. textLayer recognises the text on the device and adds it invisibly, so the PDF can be searched and copied from (Latin-script languages; needs the built-in text recognition).',
+      zh: '把图片排成一个 PDF（A4、Letter 或跟随图片），可设边距。「不超过」会压缩图片让 PDF 小于这个大小，0 表示不限。textLayer 在本机识别文字，加一层看不见的字，PDF 就能搜索、复制文字（拉丁字母的语言；要有系统自带的文字识别）。',
     },
     input: ['images'],
     output: 'pdf',
@@ -163,6 +163,8 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
       marginMm: z.number().min(0).max(30),
       fit: z.enum(['contain', 'cover']),
       maxMB: z.number().min(0).max(100),
+      /** D-194：能搜索、复制文字（旧配置没有这个参数时当作关）。 */
+      textLayer: z.boolean().optional(),
     }),
     fields: [
       ...imagePageFields,
@@ -174,6 +176,11 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
         min: 0,
         max: 100,
         step: 0.5,
+      },
+      {
+        key: 'textLayer',
+        label: { en: 'Searchable text', zh: '能搜索、复制文字' },
+        kind: 'toggle',
       },
     ],
     presets: [

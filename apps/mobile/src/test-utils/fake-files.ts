@@ -3,6 +3,7 @@ import { zlibSync } from 'fflate';
 import { PDFDocument } from 'pdf-lib';
 
 import type { Quad } from '@morph/tool-image';
+import type { TextLayer } from '@morph/tool-pdf';
 
 import type {
   AudioEncode,
@@ -823,6 +824,14 @@ export class FakeVision implements VisionPlatform {
   async recognizeText(uri: string, languages: readonly string[]) {
     this.calls.push({ method: 'recognizeText', uri, args: languages });
     return this.texts.shift() ?? '';
+  }
+  /** 每次按行识别的结果（按顺序）；没有时是一张 100×100、没有字的图。 */
+  layers: (TextLayer | Error)[] = [];
+  async recognizeLines(uri: string, languages: readonly string[]) {
+    this.calls.push({ method: 'recognizeLines', uri, args: languages });
+    const next = this.layers.shift() ?? { width: 100, height: 100, lines: [] };
+    if (next instanceof Error) throw next;
+    return next;
   }
   async findPaper(uri: string) {
     this.calls.push({ method: 'findPaper', uri });

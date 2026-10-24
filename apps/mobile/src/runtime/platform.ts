@@ -1,4 +1,5 @@
 import type { Quad } from '@morph/tool-image';
+import type { TextLayer } from '@morph/tool-pdf';
 
 import type { SpeechPlatform } from './speech';
 
@@ -85,6 +86,8 @@ export interface VisionPlatform {
   supportsLanguage(code: string): boolean;
   /** 识别文字；languages 是 BCP 47，第一种是用户选的语言。文字只返回给 App。 */
   recognizeText(uri: string, languages: readonly string[]): Promise<string>;
+  /** 识别文字，给出每行的位置（可搜索 PDF 的文字层，D-194）。 */
+  recognizeLines(uri: string, languages: readonly string[]): Promise<TextLayer>;
   /** 能不能给照片找边和拉正（findPaper / straighten）；Android 的 ML Kit 不能。 */
   readonly canFindPaper: boolean;
   /** 找纸张的四个角（像素，已按拍摄方向摆正）；没找到返回 null。 */

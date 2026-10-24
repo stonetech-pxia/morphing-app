@@ -17,6 +17,7 @@ import {
   stampImage,
   stampText,
   type DocumentInput,
+  type ImageInput,
   type ImageKind,
   type ImagePageOptions,
   type PageRule,
@@ -99,6 +100,9 @@ function ruleOf(params: Record<string, unknown>): PageRule {
 }
 
 /** 图片的 JPEG / PNG 字节：pdf-lib 只能嵌入这两种；HEIC、WebP 和很大的 PNG 先转成 JPEG。 */
+/** 文字层识别用的语言：只写拉丁字母（P-028），第一种必须是系统支持的。 */
+const TEXT_LAYER_LANGUAGES = ['en-US', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'pt-BR'];
+
 async function imageBytes(
   ctx: Ctx,
   item: RunItem,
@@ -243,8 +247,11 @@ export const PDF_IMPLS: Record<string, Impl> = {
 
   async 'pdf.fromImages'(input, params, ctx) {
     const items = fileItems(input);
-    const { maxMB, ...page } = params as unknown as ImagePageOptions & { maxMB: number };
-    let images: Awaited<ReturnType<typeof imageBytes>>[] = [];
+    const { maxMB, textLayer, ...page } = params as unknown as ImagePageOptions & {
+      maxMB: number;
+      textLayer?: boolean;
+    };
+    let images: ImageInput[] = [];
     if (maxMB > 0) {
       // 「PDF ≤ X MB」：所有图片共用一个质量和缩放，生成前按总大小搜索（D-073）。
       const target = maxMB * MB;
@@ -270,6 +277,22 @@ export const PDF_IMPLS: Record<string, Impl> = {
       for (const [i, item] of items.entries()) {
         ctx.throwIfCancelled();
         images.push(await imageBytes(ctx, item));
+        ctx.progress(i + 1, items.length);
+      }
+    }
+    // 能搜索的 PDF（D-194）：每页识别文字和位置。没有系统自带的识别（Expo Go）时不加；某一页识别失败只是那页不加。
+    const vision = textLayer ? ctx.services.files.vision : null;
+    if (vision) {
+      for (const [i, item] of items.entries()) {
+        ctx.throwIfCancelled();
+        try {
+          images[i] = {
+            ...images[i]!,
+            text: await vision.recognizeLines(item.uri, TEXT_LAYER_LANGUAGES),
+          };
+        } catch {
+          // 这一页不加文字层。
+        }
         ctx.progress(i + 1, items.length);
       }
     }

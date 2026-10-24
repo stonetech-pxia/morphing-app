@@ -106,6 +106,37 @@ describe('imagesToPdf', () => {
     expect(size?.[1]).toBeCloseTo(50 + 20 * MM);
   });
 
+  it('adds an invisible text layer where the lines were recognised, Latin lines only (D-194, P-028)', async () => {
+    const result = await imagesToPdf(
+      [
+        {
+          bytes: readJpeg(),
+          kind: 'jpeg',
+          width: 60,
+          height: 40,
+          text: {
+            width: 600,
+            height: 400,
+            lines: [
+              { text: 'Total 12,50 €', x: 60, y: 40, width: 300, height: 30 },
+              { text: 'Café crème', x: 60, y: 100, width: 200, height: 30 },
+              { text: '合计', x: 60, y: 160, width: 100, height: 30 },
+            ],
+          },
+        },
+        { bytes: readJpeg(), kind: 'jpeg', width: 60, height: 40 },
+      ],
+      A4,
+    );
+    const content = await pageContent(result.bytes, 0);
+    // 渲染模式 3（不可见），两行拉丁字母写进去，中文那行跳过。
+    expect(content.match(/3 Tr/g)).toHaveLength(2);
+    expect(content.match(/\bTj\b/g)).toHaveLength(2);
+    expect(content).toMatch(/\d+(\.\d+)? Tz/);
+    // 第二页没有文字。
+    expect(await pageContent(result.bytes, 1)).not.toMatch(/Tr/);
+  });
+
   it('rejects bad input', async () => {
     await expect(imagesToPdf([], A4)).rejects.toMatchObject({ code: 'tooFew' });
     await expect(

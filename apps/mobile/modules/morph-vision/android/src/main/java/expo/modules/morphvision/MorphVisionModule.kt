@@ -93,7 +93,25 @@ class MorphVisionModule : Module() {
         val lines = result.textBlocks.flatMap { block ->
           block.lines.mapNotNull { line -> line.boundingBox?.let { TextLine(line.text, it) } }
         }
-        mapOf("text" to layout(lines), "lines" to lines.size, "languages" to listOf(first))
+        // 每行的位置（D-194）：像素，原点在左上角；框是按拍摄方向摆正后的坐标，宽高也按摆正后的给。
+        val turned = image.rotationDegrees == 90 || image.rotationDegrees == 270
+        val items = lines.map {
+          mapOf(
+            "text" to it.text,
+            "x" to it.box.left.toDouble(),
+            "y" to it.box.top.toDouble(),
+            "width" to it.box.width().toDouble(),
+            "height" to it.box.height().toDouble(),
+          )
+        }
+        mapOf(
+          "text" to layout(lines),
+          "lines" to lines.size,
+          "languages" to listOf(first),
+          "width" to (if (turned) image.height else image.width),
+          "height" to (if (turned) image.width else image.height),
+          "items" to items,
+        )
       } catch (e: Exception) {
         throw VisionFailedException(e.message)
       } finally {

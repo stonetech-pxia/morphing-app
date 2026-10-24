@@ -7,6 +7,7 @@ import {
   type Workflow,
 } from '@morph/core';
 import type { Quad } from '@morph/tool-image';
+import { PDFDocument, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 
 import type { PackPageId, PackRuntime } from '../packs/bridge';
 import type { LocalKind, LocalUi } from '../runtime/local';
@@ -288,6 +289,78 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
       status: 'succeeded',
       value: { type: 'pdf', items: [{ pageCount: 3 }] },
     });
+  });
+
+  it('adds an invisible text layer to scanned PDFs so they can be searched (D-194)', async () => {
+    const wf: Workflow = {
+      id: 'scan',
+      name: 'scan',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'scanner', min: 1, max: 5 } },
+        {
+          id: 'pdf',
+          action: 'pdf.fromImages',
+          params: {
+            pageSize: 'a4',
+            orientation: 'auto',
+            marginMm: 0,
+            fit: 'contain',
+            maxMB: 0,
+            textLayer: true,
+          },
+        },
+      ],
+    };
+    const line = { text: 'Invoice 42', x: 10, y: 10, width: 60, height: 8 };
+    const { files, vision, run } = setup(wf, {}, {}, true);
+    vision.scanned = [1, 2, 3].map((n) => ({
+      ...files.offerImage(`scan-${n}.jpg`, 1700, 2400),
+      straightened: true,
+    }));
+    // 第二页识别失败：那一页不加文字层，PDF 照样生成。
+    vision.layers = [
+      { width: 100, height: 100, lines: [line] },
+      new Error('vision failed'),
+      { width: 100, height: 100, lines: [line, { ...line, text: '发票' }] },
+    ];
+    const result = await run();
+    expect(vision.calls.filter((c) => c.method === 'recognizeLines').map((c) => c.args)).toEqual(
+      Array(3).fill(['en-US', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'pt-BR']),
+    );
+    const [pdf] =
+      result.status === 'succeeded' && result.value && 'items' in result.value
+        ? result.value.items
+        : [];
+    const doc = await PDFDocument.load(files.disk.get(pdf!.uri)!);
+    expect(doc.getPageCount()).toBe(3);
+    // 页面内容是压缩过的：解开所有流再找（图片的 JPEG 流跳过）。
+    const decoded = (obj: unknown) => {
+      if (!(obj instanceof PDFRawStream)) return '';
+      try {
+        return new TextDecoder('latin1').decode(decodePDFRawStream(obj).decode());
+      } catch {
+        return '';
+      }
+    };
+    const text = doc.context
+      .enumerateIndirectObjects()
+      .map(([, obj]) => decoded(obj))
+      .join('\n');
+    // 第一页、第三页各一行拉丁字母；中文那行跳过（P-028）。
+    expect(text.match(/3 Tr/g)).toHaveLength(2);
+
+    // 没有系统识别（Expo Go）：不加文字层，PDF 照常。
+    const library: Workflow = {
+      ...wf,
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+        wf.steps[1]!,
+      ],
+    };
+    const plain = setup(library);
+    plain.files.nextPhotos = [plain.files.offerImage('a.jpg', 1700, 2400)];
+    expect(await plain.run()).toMatchObject({ status: 'succeeded', value: { type: 'pdf' } });
+    expect(plain.vision.calls).toEqual([]);
   });
 
   it('cancels when the document camera is closed', async () => {
