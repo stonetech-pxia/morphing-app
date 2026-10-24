@@ -260,8 +260,8 @@ export const videoTool: ToolDefinition = {
         props: {
           text: t(
             locale,
-            'Everything runs on this device; nothing is uploaded. Stay in Morph while a video is being processed.',
-            '全部在本机处理，不会上传。处理视频时请留在 Morph 里。',
+            'Everything runs on this device; nothing is uploaded.',
+            '全部在本机处理，不会上传。',
           ),
         },
       },

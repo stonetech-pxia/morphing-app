@@ -254,6 +254,25 @@ Android 模拟器（morph_api35，2026-10-24）全新安装实测：压小（18.
 
 **没测**：iPhone 真机（这次只有三星）；视频分享到微信后的播放；从微信分享进来；剩余空间不够；没有 Google 服务的手机；release 包里的完整流程（只编了包量大小）；中低端 Android 手机的识别速度。开发版里用 adb 打字时两个挨着的 r 会触发开发版「按两下 R 重新加载」，这是开发版才有的，不影响正式版。
 
+## 长任务后台继续（D-160–D-163，2026-10-24）
+
+创始人选了方案 2：Android 做后台继续，iOS 26 的后台任务先在模拟器上试。新本地模块 `morph-background`：Android 是前台服务（进度通知、PARTIAL_WAKE_LOCK），iOS 是 `BGContinuedProcessingTask`（默认关着）。`runner.ts` 在含视频、音频步骤的运行前后保活，运行页按平台提示能不能切走，视频工具页不再写「请留在 Morph 里」。
+
+Android 模拟器（新建的 `morph_background_api35`，Pixel 7 / Android 15，开发版）实测：
+
+- 第一次运行「转成 MP4」弹系统的通知权限框；选完视频，运行页显示「You can switch to another app; Morph keeps working in the background.」；切到桌面后通知栏是「Convert to MP4 · Step 2 of 2: Convert to MP4 · 6%」，带进度条。
+- **修了**：这个 Android 15 镜像不接受 `mediaProcessing`（`InvalidForegroundServiceTypeException: Starting FGS with type none`），服务起不来，进度通知变成一条停服务也带不走的普通通知。现在先试 `mediaProcessing`、失败退回 `dataSync`（`isForeground=true types=0x1`），只有服务真的进了前台才改通知。
+- 40 秒 1080p 视频：转到 6% 时切到桌面、锁屏、`dumpsys deviceidle force-idle`（深度省电）→ 30 秒内转完（24% → 83% → 完成），通知「“Convert to MP4” is done · Tap to see the result.」；点通知回到结果页（0:39，49.9 MB → 43.2 MB），服务已经停了。
+- 拒绝通知权限（`pm clear` 后重新来）：照样进前台服务、在后台转完，通知栏什么都没有；「再来一次」不再问。
+- 选视频时切走（系统选择器被关掉）算取消，回到 Morph 时服务停掉；图片这种短任务不启动服务。
+- 后台失败时发「“Convert to MP4” didn’t finish」。这次失败本身是环境问题：这台 Mac 当时负载 90–137（几个会话同时在跑），模拟器 CPU 卡死 67–84 秒、系统进程被看门狗重启，解码服务报 bufferpool 错误、`MUXING_TIMEOUT`。对照：没有前台服务时（第一个包），这台模拟器上切到桌面 3 分钟也照样在转——模拟器和三星（D-148 那次切走 30 秒）短时间都不冻结，前台服务的作用要在长时间锁屏、内存紧张和厂商省电时才看得出来。
+
+iOS 模拟器（新建的 iPhone 17 Pro，iOS 27，临时打开开关）：提交 `BGContinuedProcessingTaskRequest` 报「BGTaskScheduler is not available on this platform」——**模拟器不支持后台任务**；而且模拟器不挂起切走的 App（切到主屏幕 20 秒，4 分钟的 HEVC 照样从 8% 转到 63%，最后转完），所以 iOS 的后台行为只能在真机上判断。模拟器上现在视为不支持（运行页提示「请留在 Morph 里」）。iOS 不弹通知权限。
+
+**上架前**：Google Play 后台要声明前台服务类型 `mediaProcessing` 和 `dataSync` 的用途（附演示视频）。
+
+没有实测：三星真机锁屏一小时转文字（看 One UI 的省电管理会不会杀 morph-background 的服务；锁屏录音 1 小时 23 分钟不断是录音组件自己的前台服务，见 P-023，不能代替这一项）；语音转文字在后台（同一套保活，自动测试覆盖，模拟器上 whisper 太慢没跑）；Android 14 及以下（`dataSync`）；iPhone 真机上的 iOS 26 后台任务（视频编码器、语音识别在后台能不能用，D-163）；Android 15 每天 6 小时上限到了以后（`onTimeout`）。
+
 ## 从服务器下载工具（第一步，D-177–D-179，2026-10-24）
 
 数据工具：清单只有文字和快捷操作，组合已有的动作；目录用 Ed25519 签名。自动测试：core 14 例（清单检查、签名、停用、版本比较、UTF-8）、App 11 例（下载存储、工具页添加 / 更新 / 停用、恢复历史版本缺工具、已下载内容页）、计划服务 6 例（发布、签名、兼容检查、服务端注册和提示词）。

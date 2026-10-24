@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["MorphBackgroundModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.morphbackground.MorphBackgroundModule"]
+  }
+}

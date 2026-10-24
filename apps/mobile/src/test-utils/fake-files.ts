@@ -6,6 +6,7 @@ import type { Quad } from '@morph/tool-image';
 
 import type {
   AudioEncode,
+  BackgroundPlatform,
   DocumentPlatform,
   DrawOp,
   FilePlatform,
@@ -104,6 +105,8 @@ export class FakeFiles implements FilePlatform {
   media: MediaPlatform | null = new FakeMedia(this);
   /** 语音转文字：默认没有（像 Expo Go），测试里换成 FakeSpeech。 */
   speech: SpeechPlatform | null = null;
+  /** 后台继续（D-160）：默认没有（像 Expo Go），测试里换成 FakeBackground。 */
+  background: BackgroundPlatform | null = null;
   /** 下一次从相册选视频的结果。 */
   nextVideos: PickedFile[] | null = null;
   /** 手机剩余空间（字节）；null 表示读不到。 */
@@ -719,6 +722,40 @@ export class FakeSpeech implements SpeechPlatform {
     if (request.isCancelled?.()) throw new SpeechError('cancelled');
     if (this.error) throw new SpeechError(this.error);
     return { text: this.texts.shift() ?? '', durationMs: 1000 };
+  }
+}
+
+/** 假的后台继续（modules/morph-background）：按顺序记下每次调用。 */
+export class FakeBackground implements BackgroundPlatform {
+  continuesInBackground = true;
+  /** 通知权限：问的时候用户怎么答。 */
+  grantNotifications = true;
+  /** Morph 在不在前台。 */
+  foreground = true;
+  /** begin 的返回值（false：系统不让）。 */
+  canBegin = true;
+  calls: (
+    | { kind: 'permission' }
+    | { kind: 'begin'; title: string; text: string }
+    | { kind: 'update'; text: string; fraction: number | null }
+    | { kind: 'end'; done: { title: string; body: string } | null }
+  )[] = [];
+  async ensureNotificationPermission() {
+    this.calls.push({ kind: 'permission' });
+    return this.grantNotifications;
+  }
+  begin(title: string, text: string) {
+    this.calls.push({ kind: 'begin', title, text });
+    return this.canBegin;
+  }
+  update(text: string, fraction: number | null) {
+    this.calls.push({ kind: 'update', text, fraction });
+  }
+  end(done: { title: string; body: string } | null) {
+    this.calls.push({ kind: 'end', done });
+  }
+  isForeground() {
+    return this.foreground;
   }
 }
 

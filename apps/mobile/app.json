@@ -11,7 +11,8 @@
       "bundleIdentifier": "app.morph.mobile",
       "icon": "./assets/expo.icon",
       "infoPlist": {
-        "NSSpeechRecognitionUsageDescription": "Morph turns recordings into text on this device when you run speech to text. Recordings stay on this device."
+        "NSSpeechRecognitionUsageDescription": "Morph turns recordings into text on this device when you run speech to text. Recordings stay on this device.",
+        "BGTaskSchedulerPermittedIdentifiers": ["app.morph.mobile.work.*"]
       }
     },
     "android": {
