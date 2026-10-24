@@ -3,6 +3,7 @@ import { zlibSync } from 'fflate';
 import { PDFDocument } from 'pdf-lib';
 
 import type { Quad } from '@morph/tool-image';
+import type { TextLayer } from '@morph/tool-pdf';
 
 import type {
   AudioEncode,
@@ -17,6 +18,7 @@ import type {
   MediaJob,
   MediaOutput,
   MediaPlatform,
+  PdfPasswordPlatform,
   PickedFile,
   TranslatePlatform,
   VideoEncode,
@@ -236,7 +238,8 @@ export class FakeFiles implements FilePlatform {
     this.sharedTexts.set(fileName, text);
   }
   async copyToRun(uri: string, runId: string, fileName: string) {
-    const bytes = this.disk.get(uri);
+    // 用户文件的地址（fileUri）也能复制进来，例如「加上已有文件」（D-197）。
+    const bytes = this.disk.get(uri) ?? this.disk.get(uri.replace('file:///fake/', ''));
     if (!bytes) throw new Error('permission denied');
     const dest = `runs/${runId}/${fileName}`;
     this.disk.set(dest, bytes);
@@ -279,21 +282,25 @@ export class FakeFiles implements FilePlatform {
   folderChoice: 'pick' | 'cancel' | 'notWritable' = 'pick';
   /** 用户在选择器里选的文件夹名。 */
   nextFolder = 'MorphOut';
-  /** 记住的文件夹（D-123）。 */
+  /** 最后选过的文件夹（D-123）。 */
   remembered: string | null = null;
+  /** 每个快捷操作记住的文件夹（D-196）：快捷操作 ID → 文件夹名。 */
+  rememberedBy = new Map<string, string>();
   /** 打开了几次文件夹选择器。 */
   folderPicks = 0;
   /** 各文件夹里的文件：文件夹名 → 文件名 → 内容。 */
   folders = new Map<string, Map<string, Uint8Array>>();
-  async saveToFolder(items: readonly FolderItem[], choose = false) {
-    let folder = choose ? null : this.remembered;
+  async saveToFolder(items: readonly FolderItem[], key: string, choose = false) {
+    const kept = choose ? null : (this.rememberedBy.get(key) ?? this.remembered);
+    let folder = kept;
     if (!folder) {
       this.folderPicks++;
       if (this.folderChoice === 'cancel') return null;
       folder = this.nextFolder;
     }
     if (this.folderChoice === 'notWritable') throw new RunError('folderNotWritable');
-    this.remembered = folder;
+    if (!kept) this.remembered = folder;
+    this.rememberedBy.set(key, folder);
     const files = this.folders.get(folder) ?? new Map<string, Uint8Array>();
     this.folders.set(folder, files);
     for (const item of items) {
@@ -301,8 +308,13 @@ export class FakeFiles implements FilePlatform {
     }
     return { saved: items.length, folder };
   }
-  rememberedFolder() {
-    return this.remembered;
+  rememberedFolder(key: string) {
+    return this.rememberedBy.get(key) ?? this.remembered;
+  }
+  forgetFolders(keep: readonly string[]) {
+    for (const key of [...this.rememberedBy.keys()]) {
+      if (!keep.includes(key)) this.rememberedBy.delete(key);
+    }
   }
   async saveToPhotos(uris: readonly string[]) {
     if (!this.photosAllowed) {
@@ -471,12 +483,44 @@ export class FakeFiles implements FilePlatform {
 }
 
 /** 假的文档转 PDF（D-186）：每 1 KB 文档算一页，写出一个最小的 PDF 头。 */
+/**
+ * 假的 PDF 密码：内容以「%LOCK:密码」开头的是要密码才能打开的，「%RESTRICT」开头的是只限制了打印、复制。
+ * 解锁后去掉这一行，加密码时加上这一行。
+ */
+export class FakePdfPasswords implements PdfPasswordPlatform {
+  constructor(private files: FakeFiles) {}
+  private text(uri: string) {
+    return new TextDecoder().decode(this.files.disk.get(uri) ?? new Uint8Array());
+  }
+  async lockState(uri: string) {
+    const text = this.text(uri);
+    return text.startsWith('%LOCK:')
+      ? 'locked'
+      : text.startsWith('%RESTRICT')
+        ? 'restricted'
+        : 'none';
+  }
+  async unlock(uri: string, password: string, runId: string, relPath: string) {
+    const [first, ...rest] = this.text(uri).split('\n');
+    if (first !== `%LOCK:${password}`) return null;
+    return this.files.writeRunFile(runId, relPath, new TextEncoder().encode(rest.join('\n')));
+  }
+  async protect(uri: string, password: string, runId: string, relPath: string) {
+    const bytes = new TextEncoder().encode(`%LOCK:${password}\n${this.text(uri)}`);
+    return this.files.writeRunFile(runId, relPath, bytes);
+  }
+}
+
 export class FakeDocuments implements DocumentPlatform {
   extensions: readonly string[] = ['docx'];
+  /** 设成 null 模拟 Android（P-025）。 */
+  passwords: PdfPasswordPlatform | null;
   converted: { uri: string; ext: string; page: { width: number; height: number } }[] = [];
   /** 下一次转换抛出的错误码。 */
   failWith: string | null = null;
-  constructor(private files: FakeFiles) {}
+  constructor(private files: FakeFiles) {
+    this.passwords = new FakePdfPasswords(files);
+  }
   async toPdf(
     uri: string,
     ext: string,
@@ -780,6 +824,14 @@ export class FakeVision implements VisionPlatform {
   async recognizeText(uri: string, languages: readonly string[]) {
     this.calls.push({ method: 'recognizeText', uri, args: languages });
     return this.texts.shift() ?? '';
+  }
+  /** 每次按行识别的结果（按顺序）；没有时是一张 100×100、没有字的图。 */
+  layers: (TextLayer | Error)[] = [];
+  async recognizeLines(uri: string, languages: readonly string[]) {
+    this.calls.push({ method: 'recognizeLines', uri, args: languages });
+    const next = this.layers.shift() ?? { width: 100, height: 100, lines: [] };
+    if (next instanceof Error) throw next;
+    return next;
   }
   async findPaper(uri: string) {
     this.calls.push({ method: 'findPaper', uri });

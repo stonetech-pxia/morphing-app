@@ -16,7 +16,14 @@ export {
   picturePagesPdf,
 } from './compress';
 export { type FormField, type FormFieldType, fillForm, listFormFields } from './forms';
-export { type ImageInput, type ImageKind, type ImagePageOptions, imagesToPdf } from './images';
+export {
+  type ImageInput,
+  type ImageKind,
+  type ImagePageOptions,
+  type TextLayer,
+  type TextLine,
+  imagesToPdf,
+} from './images';
 export { type DocumentInput, countPages, mergeDocuments, mergePdfs } from './merge';
 export {
   type PageInfo,

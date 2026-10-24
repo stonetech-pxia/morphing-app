@@ -169,7 +169,14 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
       {
         id: 'pdf',
         action: 'pdf.fromImages',
-        params: { pageSize: 'a4', orientation: 'auto', marginMm: 0, fit: 'contain', maxMB: 0 },
+        params: {
+          pageSize: 'a4',
+          orientation: 'auto',
+          marginMm: 0,
+          fit: 'contain',
+          maxMB: 0,
+          textLayer: true,
+        },
       },
       rename(t(locale, 'Scan {date}', '扫描-{date}')),
       share,
@@ -231,6 +238,32 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    // D-197：扫一张收据，接到上次的报销单后面，合成一份。
+    id: 'expense-report',
+    scenario: 'receipts',
+    name: { en: 'Expense report: add a receipt', zh: '报销单：扫一张加一张' },
+    description: {
+      en: 'Scan receipts → clean up → PDF → add them after the last expense report (or start a new one) → one PDF named by month → save to files.',
+      zh: '扫描收据 → 变清楚 → 转 PDF → 接到上次的报销单后面（也可以新开一份）→ 合成一份，按月份命名 → 存到文件。',
+    },
+    icon: 'inbox',
+    packs: ['scan'],
+    steps: (locale) => [
+      photos(1, 10, 'scanner'),
+      { id: 'edges', action: 'scan.detect', params: {} },
+      { id: 'look', action: 'scan.enhance', params: { mode: 'auto' } },
+      {
+        id: 'pdf',
+        action: 'pdf.fromImages',
+        params: { pageSize: 'a4', orientation: 'auto', marginMm: 0, fit: 'contain', maxMB: 0 },
+      },
+      { id: 'add', action: 'file.addExisting', params: { position: 'before' } },
+      { id: 'merge', action: 'pdf.merge', params: { imagePage: 'a4' } },
+      rename(t(locale, 'Expenses {date:YYYY-MM}', '报销单-{date:YYYY-MM}'), false),
+      { id: 'save', action: 'file.save', params: {} },
+    ],
+  },
+  {
     id: 'redact-screenshots',
     scenario: 'photos',
     name: { en: 'Hide parts of screenshots', zh: '截图打码分享' },
@@ -287,6 +320,23 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
         ask: ['maxMB'],
       },
       share,
+    ],
+  },
+  {
+    // D-199：扫老照片。找边拉正，不增强、不压缩，存回相册。
+    id: 'old-photos',
+    scenario: 'photos',
+    name: { en: 'Scan old photos', zh: '扫老照片' },
+    description: {
+      en: 'Photograph printed photos with the document camera (or check the corners) → straightened, kept as they are → save to Photos.',
+      zh: '用文档相机拍纸质老照片（或拍照后确认四个角）→ 拉正，不改颜色、不压缩 → 存到相册。',
+    },
+    icon: 'photo',
+    packs: ['scan'],
+    steps: () => [
+      photos(1, 30, 'scanner'),
+      { id: 'edges', action: 'scan.detect', params: {} },
+      { id: 'save', action: 'out.saveToPhotos', params: {} },
     ],
   },
   {

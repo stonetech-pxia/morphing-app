@@ -1,4 +1,5 @@
 import type { Quad } from '@morph/tool-image';
+import type { TextLayer } from '@morph/tool-pdf';
 
 import type { SpeechPlatform } from './speech';
 
@@ -85,6 +86,8 @@ export interface VisionPlatform {
   supportsLanguage(code: string): boolean;
   /** 识别文字；languages 是 BCP 47，第一种是用户选的语言。文字只返回给 App。 */
   recognizeText(uri: string, languages: readonly string[]): Promise<string>;
+  /** 识别文字，给出每行的位置（可搜索 PDF 的文字层，D-195）。 */
+  recognizeLines(uri: string, languages: readonly string[]): Promise<TextLayer>;
   /** 能不能给照片找边和拉正（findPaper / straighten）；Android 的 ML Kit 不能。 */
   readonly canFindPaper: boolean;
   /** 找纸张的四个角（像素，已按拍摄方向摆正）；没找到返回 null。 */
@@ -276,9 +279,30 @@ export interface MediaPlatform {
  * 办公文档转 PDF（D-186）。iOS 用系统的文档预览排版（modules/morph-docs），Word、Excel、PowerPoint、RTF 都能转；
  * Android（和没有原生模块的 Expo Go）用 mammoth 把 Word（.docx）转成网页再打印成 PDF。
  */
+/** PDF 密码（D-194，modules/morph-docs 的 PDFKit）。结果写成本次运行的临时文件 runs/<runId>/<relPath>。 */
+export interface PdfPasswordPlatform {
+  /** none：没有加密；restricted：不用密码能打开但有限制；locked：要密码才能打开。打不开时抛出错误。 */
+  lockState(uri: string): Promise<'none' | 'restricted' | 'locked'>;
+  /** 另存一份没有密码的；密码不对时返回 null。 */
+  unlock(
+    uri: string,
+    password: string,
+    runId: string,
+    relPath: string,
+  ): Promise<{ uri: string; size: number } | null>;
+  protect(
+    uri: string,
+    password: string,
+    runId: string,
+    relPath: string,
+  ): Promise<{ uri: string; size: number }>;
+}
+
 export interface DocumentPlatform {
   /** 能转的扩展名（小写）。 */
   readonly extensions: readonly string[];
+  /** PDF 密码；Android 和 Expo Go 没有（P-025）。 */
+  readonly passwords: PdfPasswordPlatform | null;
   /** 转成本次运行的 PDF 临时文件；打不开时抛出 code 为 ERR_DOC_UNREADABLE 的错误。 */
   toPdf(
     uri: string,
@@ -389,16 +413,20 @@ export interface FilePlatform {
   /** 打开一次系统分享面板带上全部文件（MorphShare，D-119）；没有原生模块时（Expo Go）逐个打开。 */
   shareUris(items: readonly { uri: string; mimeType: string }[]): Promise<void>;
   /**
-   * 把文件复制进「文件」里的一个文件夹（D-120）。记住上次选的文件夹（D-123）：choose 不为 true 时
-   * 有记住的就直接存进去，否则让用户选一个并记住它。返回存了几个和文件夹名，用户取消时返回 null。
+   * 把文件复制进「文件」里的一个文件夹（D-120）。每个快捷操作（key 是它的 ID）记住自己的文件夹（D-196）：
+   * choose 不为 true 时有记住的就直接存进去，还没有时用最后选过的那个（D-123）并记给它；
+   * 否则让用户选一个并记住它。返回存了几个和文件夹名，用户取消时返回 null。
    * 文件夹写不进去时抛出 folderNotWritable。
    */
   saveToFolder(
     items: readonly FolderItem[],
+    key: string,
     choose?: boolean,
   ): Promise<{ saved: number; folder: string } | null>;
-  /** 记住的文件夹的名字；没有时为 null。 */
-  rememberedFolder(): string | null;
+  /** 这个快捷操作会存进的文件夹的名字；没有时为 null。 */
+  rememberedFolder(key: string): string | null;
+  /** 忘掉已经删掉的快捷操作的文件夹（keep：现在还有的快捷操作 ID），打开 App 时调用。 */
+  forgetFolders(keep: readonly string[]): void;
   /** 存到系统相册；没有权限时抛出 permissionDenied。 */
   saveToPhotos(uris: readonly string[]): Promise<void>;
   print(item: { uri: string; mimeType: string }): Promise<void>;

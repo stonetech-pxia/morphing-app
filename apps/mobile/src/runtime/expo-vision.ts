@@ -21,6 +21,11 @@ export function expoVision(
       return (await native.recognizeText(uri, languages)).text;
     },
 
+    async recognizeLines(uri, languages) {
+      const { width, height, items } = await native.recognizeText(uri, languages);
+      return { width, height, lines: items };
+    },
+
     canFindPaper: native.canFindPaper(),
 
     async findPaper(uri) {

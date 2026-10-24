@@ -22,6 +22,8 @@ import {
   encodePng,
   qrMatrix,
   qrToRgba,
+  wifiProblem,
+  wifiText,
   MAX_TEXT_LENGTH,
 } from '@morph/tool-qr';
 
@@ -56,6 +58,28 @@ export const MORE_IMPLS: Record<string, Impl> = {
       text,
       name: ctx.locale === 'zh' ? '文字' : 'Text',
     };
+  },
+
+  async 'in.wifi'(_input, params, ctx) {
+    // 密码每次运行时问，只在这次运行里（D-199、D-194）。
+    const network = {
+      name: String(params.network ?? ''),
+      security: params.security as 'WPA' | 'WEP' | 'none',
+      password: ctx.secrets.password ?? '',
+      hidden: params.hidden === true,
+    };
+    const zh = ctx.locale === 'zh';
+    switch (wifiProblem(network)) {
+      case 'name':
+        throw new RunError('badField', { name: zh ? '网络名' : 'Network name' });
+      case 'passwordMissing':
+        throw new RunError('passwordMissing');
+      case 'password':
+        throw new RunError('badField', {
+          name: zh ? '密码（8–63 个字符）' : 'Password (8–63 characters)',
+        });
+    }
+    return { type: 'text', text: wifiText(network), name: network.name };
   },
 
   async 'in.records'(_input, params, ctx) {

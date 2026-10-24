@@ -185,8 +185,11 @@ export function RunScreen({
           setAsk({ ...request, resolve }),
         );
         if (answer) {
+          // 密码不留下来（D-194）。
+          const secret = (k: string) =>
+            request.action.fields.find((f) => f.key === k)?.kind === 'secret';
           const values = Object.fromEntries(
-            request.keys.filter((k) => k in answer).map((k) => [k, answer[k]]),
+            request.keys.filter((k) => k in answer && !secret(k)).map((k) => [k, answer[k]]),
           );
           answers.current.push({ stepId: request.step.id, values });
         }
@@ -376,9 +379,9 @@ export function RunScreen({
             },
             saveToFolder: async (choose) =>
               isFileValue(value)
-                ? ((await files.saveToFolder(value.items, choose))?.folder ?? null)
+                ? ((await files.saveToFolder(value.items, workflow.id, choose))?.folder ?? null)
                 : null,
-            rememberedFolder: () => files.rememberedFolder(),
+            rememberedFolder: () => files.rememberedFolder(workflow.id),
             saveToPhotos: async () => {
               if (isFileValue(value)) await files.saveToPhotos(value.items.map((i) => i.uri));
             },

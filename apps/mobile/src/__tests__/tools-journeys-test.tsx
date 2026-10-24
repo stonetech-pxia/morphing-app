@@ -116,4 +116,54 @@ describe('tool journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('prompt-cancel'));
     expect(await screen.findByTestId('run-cancelled')).toBeTruthy();
   });
+
+  it('asks for the Wi-Fi password in a hidden field and never saves it (D-199)', async () => {
+    const { repo } = await renderToolsApp();
+    await fireEvent.press(screen.getByTestId('nav-tools'));
+    await fireEvent.press(await screen.findByTestId('install-qr'));
+    await fireEvent.press(await screen.findByTestId('open-qr'));
+    await fireEvent.press(await screen.findByTestId('run-qr-wifi'));
+    await fireEvent.changeText(await screen.findByTestId('ask-network'), 'Home');
+    const password = screen.getByTestId('ask-password');
+    expect(password.props.secureTextEntry).toBe(true);
+    // 没填密码：运行时报错，不会生成没用的码。
+    await fireEvent.press(screen.getByTestId('prompt-ok'));
+    expect(await screen.findByText('没有填密码。')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('run-again'));
+    await fireEvent.changeText(await screen.findByTestId('ask-network'), 'Home');
+    await fireEvent.changeText(screen.getByTestId('ask-password'), 'secret123');
+    await fireEvent.press(screen.getByTestId('prompt-ok'));
+    expect(await screen.findByTestId('result-share')).toBeTruthy();
+    const head = await repo.getHead();
+    expect(JSON.stringify(head!.config)).not.toContain('secret123');
+  });
+
+  it('removes and adds PDF passwords: a password screen per file, the new password typed twice (D-194)', async () => {
+    const { files } = await renderToolsApp();
+    await fireEvent.press(screen.getByTestId('nav-tools'));
+    await fireEvent.press(await screen.findByTestId('install-pdf'));
+    await fireEvent.press(await screen.findByTestId('open-pdf'));
+    const pdf = (body: string) => files.offer('工资单.pdf', new TextEncoder().encode(body));
+
+    files.nextPick = [pdf('%LOCK:1234\n%PDF 工资')];
+    await fireEvent.press(await screen.findByTestId('run-pdf-unlock'));
+    await fireEvent.changeText(await screen.findByTestId('password-input'), 'nope');
+    await fireEvent.press(screen.getByTestId('local-done'));
+    expect(await screen.findByTestId('password-wrong')).toBeTruthy();
+    await fireEvent.changeText(screen.getByTestId('password-input'), '1234');
+    await fireEvent.press(screen.getByTestId('local-done'));
+    expect(await screen.findByTestId('result-share')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('run-done'));
+
+    files.nextPick = [pdf('%PDF 工资')];
+    await fireEvent.press(await screen.findByTestId('run-pdf-protect'));
+    await fireEvent.changeText(await screen.findByTestId('ask-password'), 'abc');
+    await fireEvent.changeText(screen.getByTestId('ask-password-again'), 'abd');
+    await fireEvent.press(screen.getByTestId('prompt-ok'));
+    expect(await screen.findByText('两次输入的密码不一样。')).toBeTruthy();
+    await fireEvent.changeText(screen.getByTestId('ask-password-again'), 'abc');
+    await fireEvent.press(screen.getByTestId('prompt-ok'));
+    expect(await screen.findByTestId('result-share')).toBeTruthy();
+  });
 });

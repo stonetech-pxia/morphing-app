@@ -1,19 +1,24 @@
 import type { ActionDefinition, Collection, Locale, ParamField } from '@morph/core';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
+import { t } from '../i18n';
 import type { Palette } from '../renderer/theme';
 import { useWorkspace } from '../workspace/context';
 
 // 根据动作的参数界面元数据自动生成表单（TOOLS_DESIGN §2）。运行时询问和工作流编辑页共用。
+
+/** 要输两遍的密码，第二遍放在这个键里（只在表单里，不交出去）。 */
+export const againKey = (key: string) => `${key}:again`;
 
 export function visibleFields(
   action: ActionDefinition,
   values: Record<string, unknown>,
   only?: readonly string[],
 ): ParamField[] {
+  // 密码只在运行时问（D-194），编辑页不显示。
   return action.fields.filter(
     (f) =>
-      (!only || only.includes(f.key)) &&
+      (only ? only.includes(f.key) : f.kind !== 'secret') &&
       (!f.showIf || f.showIf.equals.includes(values[f.showIf.key] as never)),
   );
 }
@@ -93,6 +98,21 @@ export function ParamForm({
             testID={`${testPrefix}-${field.key}`}
             collection={collection}
           />
+          {field.kind === 'secret' && field.confirm ? (
+            <>
+              <Text style={[palette.font('bodyBold', 14), { color: palette.text }]}>
+                {t(locale, 'askPasswordAgain')}
+              </Text>
+              <FieldInput
+                field={field}
+                value={values[againKey(field.key)]}
+                onChange={(v) => set(againKey(field.key), v)}
+                palette={palette}
+                locale={locale}
+                testID={`${testPrefix}-${field.key}-again`}
+              />
+            </>
+          ) : null}
         </View>
       ))}
     </View>
@@ -206,6 +226,20 @@ function FieldInput({
         </View>
       );
     }
+    case 'secret':
+      return (
+        <TextInput
+          testID={testID}
+          style={input}
+          value={typeof value === 'string' ? value : ''}
+          onChangeText={onChange}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="off"
+          textContentType="none"
+        />
+      );
     default:
       return (
         <TextInput
