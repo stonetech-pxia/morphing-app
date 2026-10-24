@@ -574,6 +574,21 @@ export class FakeMedia implements MediaPlatform {
       throw Object.assign(new Error(code), { code });
     }
   }
+  rotations: { uri: string; degrees: number }[] = [];
+  async rotateVideo(
+    uri: string,
+    degrees: 90 | 180 | 270,
+    settings: VideoEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.rotations.push({ uri, degrees });
+    const out = await this.encodeVideo(uri, settings, runId, relPath, job);
+    if (degrees !== 180) [out.info.width, out.info.height] = [out.info.height, out.info.width];
+    this.files.videos.set(out.uri, out.info);
+    return out;
+  }
   mixes: { uri: string; music: string; originalVolume: number; loop: boolean }[] = [];
   async mixVideoAudio(
     uri: string,

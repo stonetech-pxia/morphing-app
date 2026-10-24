@@ -106,6 +106,13 @@ export interface MorphMediaModule {
     output: string,
     options: TranscodeOptions,
   ): Promise<MediaResult>;
+  rotate?(
+    jobId: string,
+    uri: string,
+    output: string,
+    degrees: number,
+    options: TranscodeOptions,
+  ): Promise<MediaResult>;
   mixAudio?(
     jobId: string,
     uri: string,

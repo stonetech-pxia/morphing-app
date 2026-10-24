@@ -147,6 +147,16 @@ public class MorphMediaModule: Module {
       }
     }
 
+    AsyncFunction("rotate") {
+      (jobId: String, uri: URL, output: URL, degrees: Int, _options: [String: Any], promise: Promise) in
+      let job = self.start(jobId)
+      Task {
+        defer { self.finish(jobId) }
+        do { promise.resolve(try await self.rotateVideo(job, jobId: jobId, uri: uri, output: output, degrees: degrees)) }
+        catch { promise.reject(Self.coded(error, job: job)) }
+      }
+    }
+
     AsyncFunction("mixAudio") {
       (jobId: String, uri: URL, music: URL, output: URL, options: [String: Any], promise: Promise) in
       let job = self.start(jobId)
@@ -1123,15 +1133,40 @@ public class MorphMediaModule: Module {
     return Self.gifResult(output, width: Int(canvas.width), height: Int(canvas.height), frames: uris.count)
   }
 
+  /** iOS 只改容器里的方向信息，编码样本原样保留。 */
+  private func rotateVideo(_ job: Job, jobId: String, uri: URL, output: URL, degrees: Int) async throws -> [String: Any] {
+    guard [90, 180, 270].contains(degrees) else { throw MediaUnsupportedException("invalid rotation") }
+    if job.cancelled { throw MediaCancelledException() }
+    let source = AVURLAsset(url: uri)
+    let tracks = try await source.load(.tracks)
+    guard let video = tracks.first(where: { $0.mediaType == .video }) else { throw MediaUnsupportedException("no video") }
+    let (range, natural, transform) = try await video.load(.timeRange, .naturalSize, .preferredTransform)
+    let asset = AVMutableComposition()
+    guard let target = asset.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MediaFailedException("video track") }
+    try target.insertTimeRange(range, of: video, at: .zero)
+    let rotated = transform.concatenating(CGAffineTransform(rotationAngle: CGFloat(degrees) * .pi / 180))
+    let bounds = CGRect(origin: .zero, size: natural).applying(rotated)
+    target.preferredTransform = rotated.concatenating(CGAffineTransform(translationX: -bounds.minX, y: -bounds.minY))
+    for audio in tracks where audio.mediaType == .audio {
+      let audioRange = try await audio.load(.timeRange)
+      let overlap = CMTimeRangeGetIntersection(range, otherRange: audioRange)
+      if overlap.duration.seconds > 0 {
+        guard let audioTarget = asset.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MediaFailedException("audio track") }
+        try audioTarget.insertTimeRange(overlap, of: audio, at: overlap.start - range.start)
+      }
+    }
+    return try await trim(job, jobId: jobId, uri: uri, output: output, range: ["startMs": 0, "endMs": range.duration.seconds * 1000], sourceAsset: asset)
+  }
+
   // MARK: - trim
 
   private func trim(
-    _ job: Job, jobId: String, uri: URL, output: URL, range: [String: Double]
+    _ job: Job, jobId: String, uri: URL, output: URL, range: [String: Double], sourceAsset: AVAsset? = nil
   ) async throws -> [String: Any] {
     guard let startMs = range["startMs"], let endMs = range["endMs"], endMs > startMs else {
       throw MediaFailedException("range")
     }
-    let asset = AVURLAsset(url: uri)
+    let asset: AVAsset = sourceAsset ?? AVURLAsset(url: uri)
     let timeRange = CMTimeRange(
       start: CMTime(seconds: startMs / 1000, preferredTimescale: 600),
       end: CMTime(seconds: endMs / 1000, preferredTimescale: 600))

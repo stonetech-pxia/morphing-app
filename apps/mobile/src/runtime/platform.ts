@@ -224,6 +224,15 @@ export interface MediaPlatform {
     relPath: string,
     job: MediaJob,
   ): Promise<MediaOutput>;
+  /** 顺时针旋转；iOS 只改方向信息，Android 重新编码。 */
+  rotateVideo(
+    uri: string,
+    degrees: 90 | 180 | 270,
+    settings: VideoEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
   /** 配乐运行时选择，不作为工作流中的第二个传递值。 */
   mixVideoAudio(
     uri: string,

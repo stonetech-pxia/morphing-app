@@ -103,6 +103,7 @@ describe('video tool', () => {
     );
     if (!result.ok) throw new Error(result.error);
     expect(result.config.workflows.map((w) => w.name)).toEqual([
+      '旋转视频',
       '换背景音乐',
       '去掉视频声音',
       '截一帧存成照片',
@@ -447,4 +448,18 @@ describe('video music', () => {
     expect((await run()).status).toBe('cancelled');
     expect(media.mixes).toEqual([]);
   });
+});
+
+it.each([90, 180, 270])('rotates each video clockwise by %s degrees', async (degrees) => {
+  const { files, media, run } = setup(toolWorkflow('video-rotate'), { answers: { degrees } });
+  files.nextVideos = [
+    files.offerVideo('sideways.mov', { size: 1000, durationMs: 1000, width: 640, height: 360 }),
+  ];
+  const [item] = videosOf(await run());
+  expect(item).toMatchObject({
+    durationMs: 1000,
+    width: degrees === 180 ? 640 : 360,
+    height: degrees === 180 ? 360 : 640,
+  });
+  expect(media.rotations[0]!.degrees).toBe(degrees);
 });

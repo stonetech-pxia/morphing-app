@@ -173,6 +173,10 @@ const RECORD_PHRASES: Matcher[] = [
 
 const STEP_PHRASES: Matcher[] = [
   [
+    /^(?:顺时针)?旋转(?:视频)?\s*(90|180|270)\s*度$|^rotate (?:the )?video (90|180|270) degrees$/i,
+    (m) => ({ action: 'video.rotate', params: { degrees: Number(m[1] ?? m[2]) } }),
+  ],
+  [
     /^(?:换背景音乐|给视频配乐)$|^add background music$/i,
     () => ({ action: 'video.audio', params: { originalVolume: 0, loop: true } }),
   ],
@@ -512,6 +516,7 @@ const PRESET_WORDS: [RegExp, string][] = [
   [/从视频里截一张照片|photo from a video/i, 'video-frame'],
   [/视频去掉声音|remove sound from videos/i, 'mute-video'],
   [/给视频换背景音乐|add background music/i, 'video-background-music'],
+  [/把视频转正|fix video rotation/i, 'fix-video-rotation'],
   // 音频预设（D-156）放在「合一」「发照片」前面。
   [/录音转文字|录音变成文字|recordings? (?:in)?to text/i, 'audio-to-text'],
   [/语音太大|录音太大|recording (?:is )?too big/i, 'audio-too-big'],

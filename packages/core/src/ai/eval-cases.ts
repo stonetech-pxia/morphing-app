@@ -2803,7 +2803,40 @@ const VIDEO_MUSIC_CASES: EvalCase[] = [
     },
   },
 ];
+const VIDEO_ROTATE_CASES: EvalCase[] = [
+  {
+    id: 'VR1',
+    input: '添加把视频转正快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.rotate'))
+          ? null
+          : 'missing video.rotate',
+    },
+  },
+  {
+    id: 'VR2',
+    input: 'Make an action to turn my upside-down videos 180 degrees, keeping the sound.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some((s) => s.action === 'video.rotate' && s.params.degrees === 180),
+        )
+          ? null
+          : 'missing 180 degree rotation',
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...VIDEO_ROTATE_CASES,
   ...VIDEO_MUSIC_CASES,
   ...VIDEO_MUTE_CASES,
   ...VIDEO_FRAME_CASES,

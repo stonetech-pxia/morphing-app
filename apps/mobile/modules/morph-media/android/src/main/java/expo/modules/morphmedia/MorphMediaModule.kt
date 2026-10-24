@@ -28,6 +28,7 @@ import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.FrameDropEffect
 import androidx.media3.effect.Presentation
+import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.transformer.AudioEncoderSettings
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.DefaultEncoderFactory
@@ -120,6 +121,20 @@ class MorphMediaModule : Module() {
       } catch (e: Exception) {
         promise.reject(MediaFailedException(e.message))
       }
+    }.runOnQueue(Queues.MAIN)
+
+    AsyncFunction("rotate") {
+      jobId: String, uri: String, output: String, degrees: Int, options: Map<String, Any?>, promise: Promise ->
+      try {
+        if (degrees !in listOf(90, 180, 270)) throw MediaUnsupportedException("invalid rotation")
+        @Suppress("UNCHECKED_CAST")
+        val video = (options["video"] as? Map<String, Any?> ?: emptyMap()).toMutableMap()
+        video["rotationDegrees"] = degrees
+        val settings = options.toMutableMap().apply { put("video", video) }
+        val (transformer, composition) = buildTranscode(Uri.parse(uri), settings)
+        run(jobId, transformer, composition, File(Uri.parse(output).path!!), promise)
+      } catch (e: CodedException) { promise.reject(e) }
+      catch (e: Exception) { promise.reject(MediaFailedException(e.message)) }
     }.runOnQueue(Queues.MAIN)
 
     AsyncFunction("mixAudio") {
@@ -388,6 +403,10 @@ class MorphMediaModule : Module() {
         effects.add(FrameDropEffect.createDefaultFrameDropEffect(fps))
       }
 
+      (video["rotationDegrees"] as? Number)?.toFloat()?.let { degrees ->
+        // Media3 正数为逆时针，界面的角度为顺时针。
+        effects.add(ScaleAndRotateTransformation.Builder().setRotationDegrees(-degrees).build())
+      }
       val width = (video["width"] as? Number)?.toInt()
       val height = (video["height"] as? Number)?.toInt()
       if (width != null && height != null) {

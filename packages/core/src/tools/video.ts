@@ -16,6 +16,30 @@ const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en
 
 export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   {
+    id: 'video.rotate',
+    label: { en: 'Rotate video', zh: '旋转视频' },
+    description: {
+      en: 'Rotate each video clockwise by 90, 180 or 270 degrees, relative to its displayed orientation. iPhone keeps the encoded video and changes its transform; Android re-encodes. Sound and duration are kept.',
+      zh: '相对当前画面顺时针旋转 90、180 或 270 度。iPhone 只改旋转信息，不重新编码画面；Android 会重新编码。声音和时长保留。',
+    },
+    input: ['video'],
+    output: 'video',
+    params: z.strictObject({ degrees: z.union([z.literal(90), z.literal(180), z.literal(270)]) }),
+    fields: [
+      {
+        key: 'degrees',
+        label: { en: 'Clockwise', zh: '顺时针' },
+        kind: 'choice',
+        options: [
+          { value: 90, label: { en: '90° (right)', zh: '90°（向右）' } },
+          { value: 180, label: { en: '180° (upside down)', zh: '180°（倒过来）' } },
+          { value: 270, label: { en: '270° (left)', zh: '270°（向左）' } },
+        ],
+      },
+    ],
+    requires: [],
+  },
+  {
     id: 'video.audio',
     label: { en: 'Change background music', zh: '换背景音乐' },
     description: {
@@ -262,6 +286,14 @@ export function videoWorkflows(locale: Locale): Workflow[] {
   });
   return [
     wf(
+      'video-rotate',
+      ['Rotate video', '旋转视频'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+        { id: 'rotate', action: 'video.rotate', params: { degrees: 90 }, ask: ['degrees'] },
+      ],
+    ),
+    wf(
       'video-audio',
       ['Change background music', '换背景音乐'],
       [
@@ -348,7 +380,7 @@ export function videoWorkflows(locale: Locale): Workflow[] {
 
 export const videoTool: ToolDefinition = {
   id: VIDEO_TOOL_ID,
-  version: '1.5.0',
+  version: '1.6.0',
   name: { en: 'Video', zh: '视频' },
   description: {
     en: 'Make videos smaller, convert them to MP4, trim them and turn them into GIFs, on this device.',

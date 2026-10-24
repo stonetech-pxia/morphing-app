@@ -303,6 +303,20 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'fix-video-rotation',
+    scenario: 'photos',
+    name: { en: 'Fix video rotation', zh: '把视频转正' },
+    description: {
+      en: 'Choose videos and rotate their picture right, left or upside down, keeping sound.',
+      zh: '选视频，向右、向左或倒过来转正，声音保留。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'rotate', action: 'video.rotate', params: { degrees: 90 }, ask: ['degrees'] },
+    ],
+  },
+  {
     id: 'video-background-music',
     scenario: 'photos',
     name: { en: 'Add background music', zh: '给视频换背景音乐' },

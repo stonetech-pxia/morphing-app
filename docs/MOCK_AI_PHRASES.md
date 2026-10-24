@@ -218,3 +218,8 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 
 - 「添加给视频换背景音乐快捷操作」 / `Add the add background music quick action`：选视频 → 运行时选音乐，默认只留音乐、短音乐循环。
 - 步骤句式：「换背景音乐」「给视频配乐」 / `add background music`。
+
+### 视频旋转（VR1–VR2）
+
+- 「添加把视频转正快捷操作」 / `Add the fix video rotation quick action`：选视频 → 顺时针旋转 90/180/270 度。
+- 步骤句式：「顺时针旋转视频 90 度」「旋转 180 度」 / `rotate video 270 degrees`。
