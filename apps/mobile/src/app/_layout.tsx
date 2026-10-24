@@ -84,6 +84,8 @@ const provider = createAIRouter({
         baseUrl: apiUrl,
         clientToken: process.env.EXPO_PUBLIC_MORPH_CLIENT_TOKEN,
         deviceId: getDeviceId,
+        registry,
+        now: () => new Date(),
       })
     : null,
   registry,

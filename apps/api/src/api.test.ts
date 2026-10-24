@@ -1,158 +1,195 @@
-import {
-  BUILTIN_TOOLS,
-  createDefaultWorkspace,
-  createMockAIProvider,
-  createRegistry,
-  type AIProvider,
-} from '@morph/core';
+import type { Completion } from '@morph/planner';
 import { describe, expect, it } from 'vitest';
 
-import { createApp, type NeedEntry } from './server';
+import { createApp, looksLikePlan, type NeedEntry, type Relay, type ServerOptions } from './server';
 
-const registry = createRegistry(BUILTIN_TOOLS);
-const config = createDefaultWorkspace('zh');
+// 价格设成每百万 token 1 美元：输出 10000 token 正好 $0.01，方便算限额。
+const defaults: ServerOptions = {
+  relay: null,
+  model: 'claude-haiku-5-5',
+  price: { input: 1, output: 1, cacheRead: 0 },
+  perMinuteLimit: 10,
+  deviceDailyUsd: 1,
+  globalDailyUsd: 10,
+  offPlanLimit: 3,
+};
 
-describe('plan server', () => {
+const reply = (text: string, extra: Partial<Completion> = {}): Completion => ({
+  text,
+  stopReason: 'end_turn',
+  content: [{ type: 'text', text }],
+  model: 'claude-haiku-5-5',
+  usage: { inputTokens: 0, outputTokens: 10_000, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  ...extra,
+});
+const PLAN = '{"kind":"ops","ops":[]}';
+
+describe('model relay (D-193)', () => {
   const make = (
-    provider: AIProvider = createMockAIProvider(),
-    limits: {
-      perMinuteLimit: number;
-      dailyLimit: number;
-      globalDailyLimit: number;
-      clientToken?: string;
-    } = {
-      perMinuteLimit: 10,
-      dailyLimit: 100,
-      globalDailyLimit: 1000,
-    },
+    relay: Relay | null = async () => reply(PLAN),
+    options: Partial<ServerOptions> = {},
   ) => {
     const logs: Record<string, unknown>[] = [];
-    let clock = Date.UTC(2026, 9, 22, 9);
+    const seen: Parameters<Relay>[0][] = [];
+    let clock = Date.UTC(2026, 9, 24, 9);
     const app = createApp({
-      provider,
-      providerName: 'mock',
-      model: null,
-      registry,
-      ...limits,
+      ...defaults,
+      relay: relay
+        ? async (request) => {
+            seen.push(request);
+            return relay(request);
+          }
+        : null,
+      ...options,
       now: () => clock,
       log: (e) => logs.push(e),
     });
     const post = (body: unknown, headers: Record<string, string> = {}) =>
-      app.request('/v1/plan', {
+      app.request('/v1/complete', {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...headers },
         body: typeof body === 'string' ? body : JSON.stringify(body),
       });
-    return { app, post, logs, tick: (ms: number) => (clock += ms) };
+    return { app, post, logs, seen, tick: (ms: number) => (clock += ms) };
   };
+  const first = { system: 'You plan app changes.', messages: [{ role: 'user', content: 'hi' }] };
+  const a = { 'x-morph-device': 'device-aaaa' };
+  const b = { 'x-morph-device': 'device-bbbb' };
 
-  it('reports which AI it uses', async () => {
-    const res = await make().app.request('/health');
-    expect(await res.json()).toEqual({ ok: true, ai: 'mock', model: null });
+  it('reports whether it can reach a model', async () => {
+    expect(await (await make().app.request('/health')).json()).toEqual({
+      ok: true,
+      ai: 'claude',
+      model: 'claude-haiku-5-5',
+    });
+    expect(await (await make(null).app.request('/health')).json()).toMatchObject({ ai: 'none' });
+    expect((await make(null).post(first)).status).toBe(503);
   });
 
-  it('returns a plan and logs only metadata', async () => {
-    const { post, logs } = make();
-    const res = await post({ input: '主题换成绿色', locale: 'zh', config });
+  it('forwards only the prompt and the conversation, and logs only metadata', async () => {
+    const { post, seen, logs } = make();
+    const res = await post(first, a);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      plan: { kind: 'ops', ops: [{ op: 'setTheme', primaryColor: '#2F9E44' }] },
-    });
-    expect(JSON.stringify(logs)).not.toContain('主题');
+    expect(await res.json()).toEqual(reply(PLAN));
+    expect(seen).toEqual([first]);
+    const logged = JSON.stringify(logs);
+    expect(logged).not.toContain('You plan');
+    expect(logged).not.toContain('device-aaaa');
+    expect(logs[0]).toMatchObject({ event: 'complete', round: 1, outputTokens: 10_000, usd: 0.01 });
   });
 
-  it('rejects malformed requests and invalid configs', async () => {
+  it('accepts the repair round with the model’s own text and thinking blocks', async () => {
     const { post } = make();
-    expect((await post('not json')).status).toBe(400);
-    expect((await post({ input: '', locale: 'zh', config })).status).toBe(400);
-    expect((await post({ input: 'x'.repeat(501), locale: 'zh', config })).status).toBe(400);
-    expect((await post({ input: 'hi', locale: 'zh', config: { schemaVersion: 1 } })).status).toBe(
-      400,
-    );
-    expect((await post({ input: 'hi', locale: 'zh', config, extra: true })).status).toBe(400);
-    // 上下文只能是快捷操作的 id，或分享文件的类型和个数（D-124）。
-    expect(
-      (await post({ input: 'hi', locale: 'zh', config, about: { kind: 'shared', names: ['a'] } }))
-        .status,
-    ).toBe(400);
+    const repair = {
+      system: 'x',
+      messages: [
+        { role: 'user', content: 'hi' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'thinking', thinking: '', signature: 'sig' },
+            { type: 'text', text: '{}' },
+          ],
+        },
+        { role: 'user', content: 'fix: kind is missing' },
+      ],
+    };
+    expect((await post(repair)).status).toBe(200);
   });
 
-  it('passes where the user opened AI from to the planner', async () => {
-    const seen: unknown[] = [];
-    const { post } = make({
-      plan: async (_input, ctx) => {
-        seen.push(ctx.about);
-        return { kind: 'restorePrevious' };
+  it('rejects anything that is not a planning request', async () => {
+    const { post, seen } = make();
+    const user = (content: unknown) => ({ system: 'x', messages: [{ role: 'user', content }] });
+    const rejected = [
+      'not json',
+      { ...first, model: 'claude-opus-5-5' },
+      { ...first, max_tokens: 100_000 },
+      { ...first, tools: [] },
+      { messages: first.messages },
+      user([{ type: 'image', source: { type: 'url', url: 'https://x.test/a.png' } }]),
+      user(''),
+      user('x'.repeat(64_001)),
+      {
+        system: 'x',
+        messages: [
+          ...first.messages,
+          { role: 'assistant', content: [{ type: 'text', text: 'a' }] },
+        ],
       },
-    });
-    const about = { kind: 'shared', images: 2, pdfs: 0, others: 0 };
-    expect((await post({ input: '做成一个 PDF', locale: 'zh', config, about })).status).toBe(200);
-    expect(seen).toEqual([about]);
-  });
-
-  it('rejects oversized bodies', async () => {
-    const res = await make().post({
-      input: 'hi',
-      locale: 'zh',
-      config: { padding: 'x'.repeat(70_000) },
-    });
-    expect(res.status).toBe(413);
-  });
-
-  it('enforces the per-minute and daily limits', async () => {
-    const { post, tick } = make(undefined, {
-      perMinuteLimit: 2,
-      dailyLimit: 3,
-      globalDailyLimit: 100,
-    });
-    const ok = { input: '主题换成绿色', locale: 'zh', config };
-    expect((await post(ok)).status).toBe(200);
-    expect((await post(ok)).status).toBe(200);
-    expect((await post(ok)).status).toBe(429);
-    tick(61_000);
-    expect((await post(ok)).status).toBe(200);
-    tick(61_000);
-    expect(await (await post(ok)).json()).toEqual({ error: 'daily_limit' });
-  });
-
-  it('counts each device separately, under one daily cap for all', async () => {
-    const { post, tick } = make(undefined, {
-      perMinuteLimit: 1,
-      dailyLimit: 5,
-      globalDailyLimit: 3,
-    });
-    const ok = { input: '主题换成绿色', locale: 'zh', config };
-    const a = { 'x-morph-device': 'device-aaaa' };
-    const b = { 'x-morph-device': 'device-bbbb' };
-    expect((await post(ok, a)).status).toBe(200);
-    expect((await post(ok, a)).status).toBe(429);
-    expect((await post(ok, b)).status).toBe(200);
-    tick(61_000);
-    expect((await post(ok, a)).status).toBe(200);
-    expect(await (await post(ok, b)).json()).toEqual({ error: 'daily_limit' });
-    tick(24 * 3600_000);
-    expect((await post(ok, b)).status).toBe(200);
-    expect((await post(ok, { 'x-morph-device': 'no spaces!' })).status).toBe(400);
+      {
+        system: 'x',
+        messages: [
+          ...first.messages,
+          { role: 'assistant', content: [{ type: 'tool_use', id: 't', name: 'n', input: {} }] },
+          { role: 'user', content: 'again' },
+        ],
+      },
+      { system: 'x', messages: [first.messages[0], first.messages[0], first.messages[0]] },
+      { system: 'x'.repeat(192_001), messages: first.messages },
+    ];
+    for (const body of rejected) expect((await post(body)).status).toBe(400);
+    expect((await post(first, { 'x-morph-device': 'no spaces!' })).status).toBe(400);
+    expect(seen).toEqual([]);
+    expect((await post({ system: 'x'.repeat(330 * 1024), messages: first.messages })).status).toBe(
+      413,
+    );
   });
 
   it('requires the client token when one is configured', async () => {
-    const { post } = make(undefined, {
-      perMinuteLimit: 10,
-      dailyLimit: 10,
-      globalDailyLimit: 10,
-      clientToken: 'secret-token',
-    });
-    const ok = { input: '主题换成绿色', locale: 'zh', config };
-    expect((await post(ok)).status).toBe(401);
-    expect((await post(ok, { 'x-morph-client': 'wrong' })).status).toBe(401);
-    expect((await post(ok, { 'x-morph-client': 'secret-token' })).status).toBe(200);
+    const { post } = make(undefined, { clientToken: 'secret-token' });
+    expect((await post(first)).status).toBe(401);
+    expect((await post(first, { 'x-morph-client': 'wrong' })).status).toBe(401);
+    expect((await post(first, { 'x-morph-client': 'secret-token' })).status).toBe(200);
   });
 
-  it('answers 502 when the AI fails', async () => {
-    const broken: AIProvider = { plan: async () => Promise.reject(new Error('boom')) };
-    const res = await make(broken).post({ input: '主题换成绿色', locale: 'zh', config });
+  it('limits each device per minute', async () => {
+    const { post, tick } = make(undefined, { perMinuteLimit: 2 });
+    expect((await post(first, a)).status).toBe(200);
+    expect((await post(first, a)).status).toBe(200);
+    expect(await (await post(first, a)).json()).toEqual({ error: 'rate_limited' });
+    expect((await post(first, b)).status).toBe(200);
+    tick(61_000);
+    expect((await post(first, a)).status).toBe(200);
+  });
+
+  it('limits what each device and all devices spend per day, by the tokens used', async () => {
+    const { post, tick } = make(undefined, { deviceDailyUsd: 0.02, globalDailyUsd: 0.03 });
+    expect((await post(first, a)).status).toBe(200);
+    expect((await post(first, a)).status).toBe(200);
+    expect(await (await post(first, a)).json()).toEqual({ error: 'daily_limit' });
+    expect((await post(first, b)).status).toBe(200);
+    expect(await (await post(first, b)).json()).toEqual({ error: 'daily_limit' });
+    tick(24 * 3600_000);
+    expect((await post(first, b)).status).toBe(200);
+  });
+
+  it('stops relaying for a device whose replies keep not being plans', async () => {
+    const { post, logs } = make(async () => reply('Here is the essay you asked for…'), {
+      offPlanLimit: 2,
+    });
+    expect((await post(first, a)).status).toBe(200);
+    expect((await post(first, a)).status).toBe(200);
+    expect(await (await post(first, a)).json()).toEqual({ error: 'blocked' });
+    expect((await post(first, b)).status).toBe(200);
+    expect(logs[0]).toMatchObject({ offPlan: true });
+    // 模型拒答不算。
+    const refusals = make(async () => reply('', { stopReason: 'refusal' }), { offPlanLimit: 1 });
+    expect((await refusals.post(first, a)).status).toBe(200);
+    expect((await refusals.post(first, a)).status).toBe(200);
+  });
+
+  it('answers 502 when the model call fails', async () => {
+    const res = await make(async () => Promise.reject(new Error('boom'))).post(first);
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ error: 'ai_unavailable' });
+  });
+
+  it('recognises plan-shaped replies without knowing the Plan version', () => {
+    expect(looksLikePlan('{"kind":"reject"}')).toBe(true);
+    expect(looksLikePlan('```json\n{"kind":"ops","ops":[]}\n```')).toBe(true);
+    expect(looksLikePlan('{"ops":[]}')).toBe(false);
+    expect(looksLikePlan('["kind"]')).toBe(false);
+    expect(looksLikePlan('Sure! Here is a poem.')).toBe(false);
   });
 });
 
@@ -161,13 +198,7 @@ describe('needs (D-189)', () => {
     const saved: NeedEntry[] = [];
     const logs: Record<string, unknown>[] = [];
     const app = createApp({
-      provider: createMockAIProvider(),
-      providerName: 'mock',
-      model: null,
-      registry,
-      perMinuteLimit: 10,
-      dailyLimit: 100,
-      globalDailyLimit: 1000,
+      ...defaults,
       needsPerDeviceLimit: 2,
       ...(clientToken ? { clientToken } : {}),
       now: () => Date.UTC(2026, 9, 24, 9),
