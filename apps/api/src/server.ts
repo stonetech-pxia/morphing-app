@@ -1,25 +1,42 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
-import { PlanAboutSchema, validateWorkspace, type AIProvider, type Registry } from '@morph/core';
+import type { Completion, PlannerMessage } from '@morph/planner';
 import { Hono, type Context, type Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { z } from 'zod';
 
-// 计划服务（M3）：App 把用户的一句话和当前配置发过来，服务端调用模型，返回计划。
-// 生成计划时不保存任何数据；App 端仍会重新校验计划。
+// 模型转发（D-193）：App 发来系统提示词和对话，服务器加上 key、用自己选的模型转发给 Claude，原样返回。
+// 服务器不认识 schema、工具和提示词，App 怎么升级都不用改服务器；模型输出由 App 校验（§8）。
+// 因为提示词由 App 给，防滥用靠：只收规划要用的请求形状、按金额限额、不像计划的回复计分封设备，
+// 以及上架前的设备证明（P-024）。
 // 需求回收（D-189）：AI 做不到时，用户点「把这个需求告诉我们」才把那一句话发到 /v1/needs，存进 needs。
 
+/** 转发一次：只有系统提示词和对话，其余参数（模型、输出上限、思考力度）由服务器决定。 */
+export type Relay = (request: {
+  system: string;
+  messages: PlannerMessage[];
+}) => Promise<Completion>;
+
+/** 美元 / 百万 token。缓存写入按输入价格的 1.25 倍算。 */
+export interface Price {
+  input: number;
+  output: number;
+  cacheRead: number;
+}
+
 export interface ServerOptions {
-  provider: AIProvider;
-  providerName: 'claude' | 'mock';
+  /** 没配置 ANTHROPIC_API_KEY 时为 null，/v1/complete 返回 503。 */
+  relay: Relay | null;
   model: string | null;
-  registry: Registry;
+  price: Price;
   /** 每台设备每分钟最多请求数（防止误操作或循环快速耗尽额度）。 */
   perMinuteLimit: number;
-  /** 每台设备每天最多请求数。 */
-  dailyLimit: number;
-  /** 所有设备合计每天最多请求数。令牌和设备 id 都能伪造，这才是费用的真正上限（D-132）。 */
-  globalDailyLimit: number;
+  /** 每台设备每天最多花多少美元。 */
+  deviceDailyUsd: number;
+  /** 所有设备合计每天最多花多少美元。令牌和设备 id 都能伪造，这才是费用的真正上限（D-132）。 */
+  globalDailyUsd: number;
+  /** 一台设备一天里有这么多次回复不像修改计划，当天就不再给它转发。 */
+  offPlanLimit: number;
   /** 设置后，请求必须带 x-morph-client 头。登录鉴权上线前的临时防护（D-132）。 */
   clientToken?: string;
   now?: () => number;
@@ -32,7 +49,6 @@ export interface ServerOptions {
   needsDailyLimit?: number;
 }
 
-/** 一条需求：只有这句话和几项没有身份信息的元数据（不存设备 id、IP、配置）。 */
 export interface NeedEntry {
   at: string;
   text: string;
@@ -60,12 +76,61 @@ const NeedRequestSchema = z.strictObject({
     .optional(),
 });
 
-const PlanRequestSchema = z.strictObject({
-  input: z.string().trim().min(1).max(500),
-  locale: z.enum(['en', 'zh']),
-  config: z.unknown(),
-  about: PlanAboutSchema.optional(),
+// 只收规划要用的形状：第一次请求，或「请求、模型回复、修正」三条。用户消息只能是文字（不收图片、文件），
+// 模型回复只能是它自己返回的文字和思考块。客户端不能指定模型、工具或任何其他参数。
+const UserMessage = z.strictObject({
+  role: z.literal('user'),
+  content: z.string().min(1).max(64_000),
 });
+const AssistantMessage = z.strictObject({
+  role: z.literal('assistant'),
+  content: z
+    .array(
+      z.discriminatedUnion('type', [
+        z.strictObject({ type: z.literal('text'), text: z.string().max(64_000) }),
+        z.strictObject({
+          type: z.literal('thinking'),
+          thinking: z.string().max(64_000),
+          signature: z.string().max(64_000),
+        }),
+        z.strictObject({ type: z.literal('redacted_thinking'), data: z.string().max(64_000) }),
+      ]),
+    )
+    .min(1)
+    .max(8),
+});
+const CompleteRequestSchema = z.strictObject({
+  system: z.string().min(1).max(192_000),
+  messages: z.union([
+    z.tuple([UserMessage]),
+    z.tuple([UserMessage, AssistantMessage, UserMessage]),
+  ]),
+});
+
+/** 回复像不像一个修改计划：带字符串 kind 的 JSON 对象。和 Plan 的版本无关，只用来给滥用计分。 */
+export function looksLikePlan(text: string): boolean {
+  const trimmed = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '');
+  try {
+    const value = JSON.parse(trimmed) as unknown;
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      typeof (value as { kind?: unknown }).kind === 'string'
+    );
+  } catch {
+    return false;
+  }
+}
+
+export const costOf = (usage: Completion['usage'], price: Price) =>
+  (usage.inputTokens * price.input +
+    usage.cacheWriteTokens * price.input * 1.25 +
+    usage.cacheReadTokens * price.cacheRead +
+    usage.outputTokens * price.output) /
+  1_000_000;
 
 // App 首次使用时生成的随机 id，只用于按设备限额。
 const DEVICE_ID = /^[A-Za-z0-9-]{8,64}$/;
@@ -76,10 +141,10 @@ export function createApp(options: ServerOptions) {
   const now = options.now ?? Date.now;
   const log = options.log ?? ((entry) => console.log(JSON.stringify(entry)));
   const tokenDigest = options.clientToken ? digest(options.clientToken) : null;
-  // 每台设备最近一分钟的请求时间和当天的请求数；只记录被接受的请求，所以大小不超过全局上限。
-  let devices = new Map<string, { recent: number[]; count: number }>();
+  // 每台设备最近一分钟的请求时间、当天花的钱和不像计划的回复数；只记录转发过的请求，所以大小有上限。
+  let devices = new Map<string, { recent: number[]; usd: number; offPlan: number }>();
   let day = new Date(now()).toDateString();
-  let dayCount = 0;
+  let dayUsd = 0;
 
   const app = new Hono();
 
@@ -94,7 +159,9 @@ export function createApp(options: ServerOptions) {
   let needCount = 0;
   let needDevices = new Map<string, number>();
 
-  app.get('/health', (c) => c.json({ ok: true, ai: options.providerName, model: options.model }));
+  app.get('/health', (c) =>
+    c.json({ ok: true, ai: options.relay ? 'claude' : 'none', model: options.model }),
+  );
 
   app.post(
     '/v1/needs',
@@ -133,10 +200,11 @@ export function createApp(options: ServerOptions) {
   );
 
   app.post(
-    '/v1/plan',
+    '/v1/complete',
     requireClient,
-    bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.json({ error: 'payload_too_large' }, 413) }),
+    bodyLimit({ maxSize: 320 * 1024, onError: (c) => c.json({ error: 'payload_too_large' }, 413) }),
     async (c) => {
+      if (!options.relay) return c.json({ error: 'ai_unavailable' }, 503);
       const deviceHeader = c.req.header('x-morph-device');
       if (deviceHeader !== undefined && !DEVICE_ID.test(deviceHeader))
         return c.json({ error: 'bad_request' }, 400);
@@ -144,43 +212,45 @@ export function createApp(options: ServerOptions) {
       const today = new Date(t).toDateString();
       if (today !== day) {
         day = today;
-        dayCount = 0;
+        dayUsd = 0;
         devices = new Map();
       }
-      if (dayCount >= options.globalDailyLimit) return c.json({ error: 'daily_limit' }, 429);
-      const device = devices.get(deviceHeader ?? 'unknown') ?? { recent: [], count: 0 };
+      if (dayUsd >= options.globalDailyUsd) return c.json({ error: 'daily_limit' }, 429);
+      const key = deviceHeader ?? 'unknown';
+      const device = devices.get(key) ?? { recent: [], usd: 0, offPlan: 0 };
+      if (device.offPlan >= options.offPlanLimit) return c.json({ error: 'blocked' }, 403);
       while (device.recent.length > 0 && t - device.recent[0]! > 60_000) device.recent.shift();
       if (device.recent.length >= options.perMinuteLimit)
         return c.json({ error: 'rate_limited' }, 429);
-      if (device.count >= options.dailyLimit) return c.json({ error: 'daily_limit' }, 429);
+      if (device.usd >= options.deviceDailyUsd) return c.json({ error: 'daily_limit' }, 429);
 
-      const body = PlanRequestSchema.safeParse(await c.req.json().catch(() => null));
+      const body = CompleteRequestSchema.safeParse(await c.req.json().catch(() => null));
       if (!body.success) return c.json({ error: 'bad_request' }, 400);
-      const valid = validateWorkspace(body.data.config, options.registry);
-      if (!valid.ok) return c.json({ error: 'invalid_config' }, 400);
 
       device.recent.push(t);
-      device.count++;
-      devices.set(deviceHeader ?? 'unknown', device);
-      dayCount++;
+      devices.set(key, device);
       try {
-        const plan = await options.provider.plan(body.data.input, {
-          config: valid.config,
-          registry: options.registry,
-          locale: body.data.locale,
-          ...(body.data.about ? { about: body.data.about } : {}),
-        });
-        // 日志只记录元数据，不记录用户输入或配置内容。
+        const completion = await options.relay(body.data);
+        const usd = costOf(completion.usage, options.price);
+        device.usd += usd;
+        dayUsd += usd;
+        const offPlan = completion.stopReason !== 'refusal' && !looksLikePlan(completion.text);
+        if (offPlan) device.offPlan++;
+        // 日志只记录元数据，不记录提示词、用户输入或回复；设备 id 只记哈希前 8 位。
         log({
-          event: 'plan',
-          ai: options.providerName,
-          kind: plan.kind,
-          inputChars: body.data.input.length,
+          event: 'complete',
+          device: digest(key).toString('hex').slice(0, 8),
+          round: body.data.messages.length === 1 ? 1 : 2,
+          inputTokens: completion.usage.inputTokens,
+          cacheReadTokens: completion.usage.cacheReadTokens,
+          outputTokens: completion.usage.outputTokens,
+          usd: Number(usd.toFixed(6)),
+          ...(offPlan ? { offPlan: true } : {}),
           ms: now() - t,
         });
-        return c.json({ plan });
+        return c.json(completion);
       } catch (e) {
-        log({ event: 'plan_error', ai: options.providerName, error: String(e), ms: now() - t });
+        log({ event: 'complete_error', error: String(e), ms: now() - t });
         return c.json({ error: 'ai_unavailable' }, 502);
       }
     },
