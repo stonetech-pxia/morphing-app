@@ -288,9 +288,17 @@ describe('user journeys (UI)', () => {
     const rejected = await screen.findByTestId('draft-chat-rejected');
     expect(within(rejected).getByText(/暂时无法理解/)).toBeTruthy();
     await fireEvent.press(screen.getByTestId('draft-chat-close'));
+    // 回复记在草稿里（D-207）：再拉开还在；退掉它前面那一步时一起去掉。
+    await fireEvent.press(screen.getByTestId('draft-edit'));
+    expect(await screen.findByTestId('draft-chat-rejected')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('draft-chat-close'));
 
     await fireEvent.press(screen.getByTestId('draft-back'));
     expect(store.getState().draft!.steps).toHaveLength(1);
+    await fireEvent.press(screen.getByTestId('draft-edit'));
+    await screen.findByTestId('draft-chat-reply-0');
+    expect(screen.queryByTestId('draft-chat-rejected')).toBeNull();
+    await fireEvent.press(screen.getByTestId('draft-chat-close'));
     await applyDraft();
     expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
     expect(store.getState().config!.pages.find((p) => p.id === 'home')!.title).toBe('文件工作台');

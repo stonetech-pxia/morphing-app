@@ -103,12 +103,23 @@ export const PlanAboutSchema: z.ZodType<PlanAbout> = z.discriminatedUnion('kind'
   }),
 ]);
 
+/**
+ * 同一份草稿里之前说过的一句（D-207），最早的在前。done：做了，改动已经在配置里；
+ * reply：做了时是改了什么（给用户看的那几行），没做时是原因。
+ */
+export interface PlanEarlier {
+  input: string;
+  done: boolean;
+  reply: string;
+}
+
 export interface PlanContext {
   config: WorkspaceConfig;
   registry: Registry;
   /** 界面语言：拒绝说明和示例用这种语言。 */
   locale: Locale;
   about?: PlanAbout;
+  earlier?: PlanEarlier[];
 }
 
 export interface AIProvider {

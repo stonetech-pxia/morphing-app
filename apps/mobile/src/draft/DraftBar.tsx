@@ -1,4 +1,4 @@
-import { guideGoal, type RejectReason, type Workflow } from '@morph/core';
+import { guideGoal, type Workflow } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -22,7 +22,7 @@ import { UiIcon, type UiIconName } from '../renderer/Icon';
 import { usePalette, type Palette } from '../renderer/theme';
 import { NeedButton } from '../shell/NeedButton';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
-import { shownConfig, type Draft, type DraftStep } from '../workspace/store';
+import { shownConfig, type Draft, type DraftChatReply, type DraftStep } from '../workspace/store';
 import { useDraftUi } from './ui';
 import { useApplyDraft } from './useApplyDraft';
 
@@ -257,16 +257,6 @@ function GrowingSteps({
   );
 }
 
-type ChatReply = {
-  afterSteps: number;
-  message: string;
-  examples: string[];
-  /** AI 做不到的那句话和原因：下面显示「把这个需求告诉我们」（D-189）。 */
-  need?: { text: string; reason: RejectReason | undefined };
-  /** 功能类的请求（D-191），可以带去「修改这个 App」说。 */
-  handOff?: string;
-};
-
 /**
  * 「修改」：从底部拉起的聊天框（D-190）。每说一句就在草稿上再改一步，上面的 App 跟着变；
  * 做不到时说明原因并给出可以点的例子。草稿里只改外观：功能类的请求说明原因，可以带去「修改这个 App」说
@@ -281,7 +271,7 @@ function DraftChat({
   palette: Palette;
   onClose: () => void;
 }) {
-  const { locale, store } = useWorkspaceContext();
+  const { locale } = useWorkspaceContext();
   const insets = useSafeAreaInsets();
   const draft = useWorkspace((s) => s.draft);
   const busy = useWorkspace((s) => s.busy);
@@ -289,7 +279,6 @@ function DraftChat({
   const closeDraft = useWorkspace((s) => s.closeDraft);
   const router = useRouter();
   const [input, setInput] = useState('');
-  const [replies, setReplies] = useState<ChatReply[]>([]);
   const scroll = useRef<ScrollViewInstance>(null);
   const steps = draft?.steps ?? [];
 
@@ -297,44 +286,8 @@ function DraftChat({
     const trimmed = text.trim();
     if (!trimmed || busy) return;
     setInput('');
-    const result = await draftChange(trimmed);
-    // 回复排在提交之后的那一步后面。
-    const after = store.getState().draft?.steps.length ?? 0;
-    if (result.kind === 'rejected') {
-      setReplies((r) => [
-        ...r,
-        {
-          afterSteps: after,
-          message: `${trimmed}\n${result.message}`,
-          examples: result.examples,
-          need: { text: trimmed, reason: result.reason },
-        },
-      ]);
-    } else if (result.kind === 'invalid') {
-      setReplies((r) => [
-        ...r,
-        {
-          afterSteps: after,
-          message: `${trimmed}\n${t(locale, 'invalidPlan')} ${result.issues.join('；')}`,
-          examples: [],
-        },
-      ]);
-    } else if (result.kind === 'functionInDraft') {
-      setReplies((r) => [
-        ...r,
-        {
-          afterSteps: after,
-          message: `${trimmed}\n${result.message}`,
-          examples: [],
-          handOff: trimmed,
-        },
-      ]);
-    } else if (result.kind === 'steppedBack') {
-      setReplies((r) => [
-        ...r,
-        { afterSteps: after, message: t(locale, 'draftSteppedBack'), examples: [] },
-      ]);
-    }
+    // 做不到、退一步这些回复由 store 记在草稿里（D-207）。
+    await draftChange(trimmed);
     setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
   }
 
@@ -396,7 +349,7 @@ function DraftChat({
                         animate={i === steps.length - 1}
                       />
                     </View>
-                    {replies
+                    {draft.replies
                       .filter((r) => r.afterSteps === i + 1)
                       .map((r, j) => (
                         <ReplyBubble
@@ -453,19 +406,19 @@ function ReplyBubble({
   onExample,
   onHandOff,
 }: {
-  reply: ChatReply;
+  reply: DraftChatReply;
   palette: Palette;
   style: object[];
   onExample: (text: string) => void;
   onHandOff: (text: string) => void;
 }) {
   const { locale } = useWorkspaceContext();
-  const { handOff } = reply;
+  const message = reply.kind === 'steppedBack' ? reply.message : `${reply.input}\n${reply.message}`;
   return (
     <View style={style} testID="draft-chat-rejected">
-      <Text style={[palette.font('body', 14), { color: palette.text }]}>{reply.message}</Text>
-      {handOff ? (
-        <Pressable testID="draft-chat-handoff" onPress={() => onHandOff(handOff)} hitSlop={4}>
+      <Text style={[palette.font('body', 14), { color: palette.text }]}>{message}</Text>
+      {reply.kind === 'functionInDraft' ? (
+        <Pressable testID="draft-chat-handoff" onPress={() => onHandOff(reply.input)} hitSlop={4}>
           <Text style={[palette.font('bodyBold', 13), { color: palette.primaryText }]}>
             {t(locale, 'draftNoFunctionGo')}
           </Text>
@@ -478,13 +431,8 @@ function ReplyBubble({
           </Text>
         </Pressable>
       ))}
-      {reply.need ? (
-        <NeedButton
-          text={reply.need.text}
-          reason={reply.need.reason}
-          palette={palette}
-          locale={locale}
-        />
+      {reply.kind === 'rejected' ? (
+        <NeedButton text={reply.input} reason={reply.reason} palette={palette} locale={locale} />
       ) : null}
     </View>
   );
