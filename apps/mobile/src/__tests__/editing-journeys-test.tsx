@@ -5,7 +5,7 @@ import {
   templateOps,
   type Op,
 } from '@morph/core';
-import { fireEvent, within } from '@testing-library/react-native';
+import { fireEvent } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
 import { renderRouter, screen } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
@@ -16,6 +16,7 @@ import ChangeRoute from '../app/change';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
 import RecordRoute from '../app/record/[collectionId]';
+import { directEditEntry } from '../editing/entry';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
 import { WorkspaceProvider } from '../workspace/context';
@@ -113,6 +114,14 @@ function pressInNextAlert(label: string) {
 }
 
 describe('editing the page directly', () => {
+  // 入口暂时关掉了（D-190）；编辑功能本身还在，这里打开入口继续测它。
+  beforeAll(() => {
+    directEditEntry.enabled = true;
+  });
+  afterAll(() => {
+    directEditEntry.enabled = false;
+  });
+
   afterEach(() => jest.restoreAllMocks());
 
   it('long-press enters edit mode; edits stay a draft until Done saves one version', async () => {
@@ -408,14 +417,15 @@ describe('editing the page directly', () => {
     expect(store.getState().editing!.ops).toHaveLength(30);
   });
 
-  it('long-press does nothing in the preview', async () => {
+  it('long-press and the Edit button do nothing in a draft (D-190)', async () => {
     const { store } = await renderApp();
     await fireEvent.press(screen.getByTestId('nav-ai'));
     await fireEvent.changeText(await screen.findByTestId('change-input'), '首页改成文件工作台');
     await fireEvent.press(screen.getByTestId('change-submit'));
-    const preview = await screen.findByTestId('preview');
+    expect(await screen.findByTestId('draft-bar')).toBeTruthy();
+    expect(screen.queryByTestId('page-edit')).toBeNull();
     const headId = store.getState().head!.id;
-    await fireEvent(within(preview).getByTestId('component-welcome'), 'longPress');
+    await fireEvent(screen.getByTestId('component-welcome'), 'longPress');
     expect(screen.queryByTestId('edit-sheet')).toBeNull();
     expect(store.getState().editing).toBeNull();
     expect(store.getState().head!.id).toBe(headId);

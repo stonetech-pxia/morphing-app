@@ -21,6 +21,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
 
   /** askTitle：要先确认的操作（只有移除工具）用这个标题。 */
   async function change(ops: Op[], summary: string, askTitle?: string) {
+    if (env.locked) return env.locked();
     const result = await proposeOps(ops, summary);
     if (result.kind !== 'preview') {
       Alert.alert(
@@ -49,7 +50,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
         icon="workflow"
         label={t(locale, 'workflowsTitle')}
         value={t(locale, 'workflowsRowHint')}
-        onPress={() => router.push('/workflows')}
+        onPress={env.locked ?? (() => router.push('/workflows'))}
       />
       {[...registry.tools.values()].map((tool) => {
         const installed = config.tools.find((x) => x.toolId === tool.id);

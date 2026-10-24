@@ -4,6 +4,8 @@ import { renderRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
 
 import { AISettingsProvider } from '../ai/context';
+import { DraftChatSheet } from '../draft/DraftBar';
+import { useDraftUi } from '../draft/ui';
 import { createAISettingsStore, type SecretStore } from '../ai/settings';
 import ChangeRoute from '../app/change';
 import HomeRoute from '../app/index';
@@ -21,6 +23,9 @@ import { createWorkspaceStore } from '../workspace/store';
 import { FakeFiles } from './fake-files';
 
 // 工具和工作流旅程测试共用：真实路由 + 内存存储 + 假文件平台。
+
+// 草稿模式的界面状态是模块级的（D-190）：每个测试从关着的聊天框开始。
+afterEach(() => useDraftUi.setState({ chatOpen: false, seenStep: null }));
 
 export const testRegistry = createRegistry(BUILTIN_TOOLS);
 
@@ -56,6 +61,7 @@ export async function renderToolsApp(repo = new MemoryWorkspaceRepo(), files = n
         <WorkspaceProvider value={{ store, repo, files, registry: testRegistry, locale: 'zh' }}>
           <ShareListener files={files} />
           <Stack />
+          <DraftChatSheet />
         </WorkspaceProvider>
       </AISettingsProvider>
     ),

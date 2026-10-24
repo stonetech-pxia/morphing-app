@@ -63,7 +63,7 @@ export function FileList({
             key={a.id}
             testID={`file-${a.name}`}
             disabled={!env.interactive}
-            onPress={() => files.share(a.path, a.mimeType)}
+            onPress={env.locked ?? (() => void files.share(a.path, a.mimeType))}
             onLongPress={env.onLongPress}
             style={[
               styles.row,

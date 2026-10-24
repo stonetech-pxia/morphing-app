@@ -9,10 +9,12 @@ import { ErrorBoundary } from '@/renderer/ErrorBoundary';
 import { Icon } from '@/renderer/Icon';
 import type { RenderEnv } from '@/renderer/components';
 import { usePalette } from '@/renderer/theme';
-import { useNavigate } from '@/shell/navigation';
-import { Banner } from '@/shell/Shell';
+import { DraftBar } from '@/draft/DraftBar';
+import { directEditEntry } from '@/editing/entry';
+import { Banner, DraftNotice, useShellEnv } from '@/shell/Shell';
 import { Toast } from '@/shell/Toast';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { shownConfig } from '@/workspace/store';
 
 /** 不在导航栏里的页面（工具页、用户新建的页面）：同一个渲染器，渲染工作空间配置中的某一页。 */
 export default function PageRoute() {
@@ -20,14 +22,16 @@ export default function PageRoute() {
   const { registry, locale } = useWorkspaceContext();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const config = useWorkspace((s) => s.config)!;
+  // 草稿模式里显示草稿（D-190）。
+  const config = useWorkspace(shownConfig)!;
   const headId = useWorkspace((s) => s.head!.id);
   const reportRenderError = useWorkspace((s) => s.reportRenderError);
+  const draftFailed = useWorkspace((s) => s.draftRenderFailed);
   const editing = useWorkspace((s) => s.editing?.pageId === pageId);
-  const startEditing = useWorkspace((s) => s.startEditing);
   const cancelEditing = useWorkspace((s) => s.cancelEditing);
+  const startEditing = useWorkspace((s) => s.startEditing);
   const palette = usePalette(config.theme);
-  const navigate = useNavigate();
+  const { navigate, locked, inDraft } = useShellEnv();
   const page = config.pages.find((p) => p.id === pageId);
 
   // 页面被关闭（例如它被删除）时放弃未保存的编辑。
@@ -43,7 +47,15 @@ export default function PageRoute() {
     );
   }
 
-  const env: RenderEnv = { config, palette, locale, registry, interactive: true, navigate };
+  const env: RenderEnv = {
+    config,
+    palette,
+    locale,
+    registry,
+    interactive: true,
+    navigate,
+    ...(locked ? { locked } : {}),
+  };
   return (
     <>
       <Stack.Screen
@@ -53,19 +65,22 @@ export default function PageRoute() {
           // 编辑模式下不能返回：先在页面顶部点「完成」或「取消」，草稿不会丢失（D-054）。
           headerBackVisible: !editing,
           gestureEnabled: !editing,
-          // 「编辑」进入编辑模式（D-053）；也可以长按页面上的组件。
+          // AI 修改是改界面的唯一入口（D-190）；草稿模式里它打开聊天框。
           headerRight: () =>
             editing ? null : (
               <View style={styles.headerActions}>
-                <Pressable testID="page-edit" onPress={() => startEditing(page.id)} hitSlop={10}>
-                  <Text style={[palette.font('bodyBold', 16), { color: palette.primaryText }]}>
-                    {t(locale, 'edit')}
-                  </Text>
-                </Pressable>
+                {/* 「编辑」进入编辑模式（D-053），入口暂时关掉（D-190，editing/entry.ts）。 */}
+                {directEditEntry.enabled && !inDraft ? (
+                  <Pressable testID="page-edit" onPress={() => startEditing(page.id)} hitSlop={10}>
+                    <Text style={[palette.font('bodyBold', 16), { color: palette.primaryText }]}>
+                      {t(locale, 'edit')}
+                    </Text>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   testID="page-ai"
                   accessibilityLabel={t(locale, 'changeTitle')}
-                  onPress={() => router.push('/change')}
+                  onPress={() => (inDraft ? navigate('ai') : router.push('/change'))}
                   hitSlop={10}>
                   <Icon name="sparkles" size={22} color={palette.primaryText} />
                 </Pressable>
@@ -73,11 +88,16 @@ export default function PageRoute() {
             ),
         }}
       />
-      <Banner palette={palette} />
-      <ErrorBoundary key={headId} onError={reportRenderError} fallback={<View />}>
-        <EditablePage page={page} env={env} bottomInset={insets.bottom} />
+      {inDraft ? null : <Banner palette={palette} />}
+      <DraftNotice palette={palette} />
+      <ErrorBoundary
+        key={inDraft ? `${headId}-draft` : headId}
+        onError={inDraft ? draftFailed : reportRenderError}
+        fallback={<View />}>
+        <EditablePage page={page} env={env} bottomInset={insets.bottom + (inDraft ? 90 : 0)} />
       </ErrorBoundary>
-      <Toast palette={palette} bottom={insets.bottom + 16} />
+      <Toast palette={palette} bottom={insets.bottom + (inDraft ? 90 : 16)} />
+      <DraftBar palette={palette} bottom={insets.bottom + 16} />
     </>
   );
 }

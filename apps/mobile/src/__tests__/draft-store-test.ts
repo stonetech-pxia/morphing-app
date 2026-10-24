@@ -9,7 +9,7 @@ import {
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { createWorkspaceStore, shownConfig, type WorkspaceStore } from '../workspace/store';
 
-// AI 修改的草稿（D-177）：一句一句地改、退一步、离开再回来、应用成一个版本、删除、重启后还在。
+// AI 修改的草稿（D-190）：一句一句地改、退一步、离开再回来、应用成一个版本、删除、重启后还在。
 
 const registry = createRegistry(BUILTIN_TOOLS);
 
@@ -37,7 +37,7 @@ async function say(store: WorkspaceStore, input: string) {
 
 const draftConfig = (store: WorkspaceStore) => store.getState().draft!.steps.at(-1)!.config;
 
-describe('AI change drafts (D-177)', () => {
+describe('AI change drafts (D-190)', () => {
   it('a request makes a draft; the real app does not change until it is applied', async () => {
     const { store } = await booted();
     const before = store.getState().config!;

@@ -37,7 +37,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         icon="sparkles"
         label={t(locale, 'changeTitle')}
         value={t(locale, 'changeRowHint')}
-        onPress={() => router.push('/change')}
+        onPress={env.locked ?? (() => router.push('/change'))}
       />
       <ListRow
         palette={palette}
@@ -61,7 +61,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         icon="workflow"
         label={t(locale, 'workflowsTitle')}
         value={t(locale, 'workflowsRowHint')}
-        onPress={() => router.push('/workflows')}
+        onPress={env.locked ?? (() => router.push('/workflows'))}
       />
       <ListRow
         palette={palette}
@@ -69,7 +69,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         icon="archive"
         label={t(locale, 'packsTitle')}
         value={t(locale, 'packsRowHint')}
-        onPress={() => router.push('/packs')}
+        onPress={env.locked ?? (() => router.push('/packs'))}
       />
       <ListRow
         palette={palette}
@@ -77,7 +77,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         icon="inbox"
         label={t(locale, 'dataTitle')}
         value={t(locale, 'dataRowHint')}
-        onPress={() => router.push('/data')}
+        onPress={env.locked ?? (() => router.push('/data'))}
       />
       <ListRow
         palette={palette}
@@ -86,6 +86,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         label={t(locale, 'settingsGuide')}
         value={t(locale, 'settingsGuideHint')}
         onPress={() => {
+          if (env.locked) return env.locked();
           // 回到首页从头再来（D-149）：外壳看到 intro 会先打开划屏介绍。
           selectTab(pageTarget(HOME_PAGE_ID));
           void setGuideStage('intro');
@@ -97,7 +98,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         palette={palette}
         label={t(locale, 'aiEngine')}
         value={aiValue}
-        onPress={() => router.push('/ai-settings')}
+        onPress={env.locked ?? (() => router.push('/ai-settings'))}
       />
       <ListRow
         palette={palette}

@@ -614,7 +614,7 @@ const strings = {
   sharedVideos: { en: '{n} videos', zh: '{n} 个视频' },
   sharedAudio: { en: '{n} audio files', zh: '{n} 个音频' },
 
-  // AI 修改的草稿（D-177）
+  // AI 修改的草稿（D-190）
   draftDropped: {
     en: 'The app changed since you left the draft; {n} step(s) no longer fit and were removed.',
     zh: '离开草稿之后 App 又改过，有 {n} 步套不上了，已经去掉。',
@@ -623,6 +623,41 @@ const strings = {
     en: 'This is the first step of the draft. To drop the whole draft, delete it on the Change this app page.',
     zh: '这已经是草稿的第一步了。要整个丢掉，去「修改这个 App」删除草稿。',
   },
+  draftEdit: { en: 'Change', zh: '修改' },
+  draftBack: { en: 'Step back', zh: '退一步' },
+  draftApply: { en: 'Apply', zh: '应用' },
+  draftLeave: { en: 'Leave', zh: '离开' },
+  draftLocked: {
+    en: 'This is a draft. Apply it to use this.',
+    zh: '这是草稿，应用之后才能用。',
+  },
+  draftReplyTitle: { en: 'Done. This is how it looks now', zh: '改好了，这是改完后的样子' },
+  draftGuideHint: {
+    en: 'Tap Apply to keep it, or Change to keep going.',
+    zh: '点「应用」保留，点「修改」接着说。',
+  },
+  draftChatTitle: { en: 'Change the draft', zh: '修改草稿' },
+  draftChatClose: { en: 'Hide', zh: '收起' },
+  draftChatPlaceholder: { en: 'Say one more thing…', zh: '再说一句…' },
+  draftSteppedBack: { en: 'Took back the last step.', zh: '退了一步。' },
+  draftCard: { en: 'You have a draft · {n} step(s)', zh: '你有一份草稿 · {n} 步' },
+  draftCardHint: {
+    en: 'What you say now continues this draft.',
+    zh: '新说的一句会接着改这份草稿。',
+  },
+  draftContinue: { en: 'Continue', zh: '继续' },
+  draftDelete: { en: 'Delete', zh: '删除' },
+  draftDeleteTitle: { en: 'Delete this draft?', zh: '删掉这份草稿？' },
+  draftDeleteBody: {
+    en: 'All {n} step(s) of the draft are dropped. The app stays as it is.',
+    zh: '草稿里的 {n} 步都会丢掉，App 不受影响。',
+  },
+  send: { en: 'Send', zh: '发送' },
+  changeAsk: {
+    en: 'What should change? One sentence is enough',
+    zh: '想怎么改？说一句就行',
+  },
+  pickStyleChip: { en: 'Pick a style', zh: '换个风格' },
   draftRenderFailed: {
     en: 'The last change could not be shown, so it was taken back.',
     zh: '刚才那一步显示不出来，已经撤掉。',

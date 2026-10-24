@@ -84,7 +84,7 @@ export interface EditDraft {
 
 export type EditResult = { ok: true } | { ok: false; issues: string[] } | { ok: false; full: true };
 
-/** AI 修改草稿的一步（D-177）：用户说的一句话和 AI 给的修改。 */
+/** AI 修改草稿的一步（D-190）：用户说的一句话和 AI 给的修改。 */
 export interface DraftStep {
   input: string;
   /** 已包含新快捷操作的首页入口。 */
@@ -103,7 +103,7 @@ export interface DraftOrigin {
 }
 
 /**
- * AI 修改的草稿（D-177）：AI 处理完直接进入草稿模式，App 显示改完后的样子，能看不能用；
+ * AI 修改的草稿（D-190）：AI 处理完直接进入草稿模式，App 显示改完后的样子，能看不能用；
  * 「修改」接着说、「退一步」撤掉最近一步、「应用」合成一个版本保存、「离开」回到正式的 App 但草稿保留。
  * 一次只有一份，存在本机（app_meta），重启也在。
  */
@@ -115,7 +115,8 @@ export interface Draft {
 }
 
 export type DraftResult =
-  | { kind: 'drafted'; step: DraftStep }
+  /** focusPageId：这一步改到的页面，进入草稿时显示它。 */
+  | { kind: 'drafted'; step: DraftStep; focusPageId: string }
   /** 草稿里说「撤销」：退了一步。没有草稿时说「撤销」：直接回到上一个版本。 */
   | { kind: 'steppedBack' }
   | { kind: 'restored' }
@@ -148,7 +149,7 @@ export interface WorkspaceState {
   toast: { message: string; restoreRecordId?: string } | null;
   /** 编辑模式（直接编辑，D-052–D-054）；为 null 时不在编辑模式。 */
   editing: EditDraft | null;
-  /** AI 修改的草稿（D-177）。 */
+  /** AI 修改的草稿（D-190）。 */
   draft: Draft | null;
   /** 草稿的提示：重新套用时去掉了几步、草稿显示出错退了一步。 */
   draftNotice: string | null;
@@ -784,7 +785,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
             });
             return { kind: 'invalid', issues: prepared.issues };
           }
-          // AI 新建的快捷操作默认放到首页（D-177：草稿里看得到它）；用户说了不要放、或者是给分享进来的
+          // AI 新建的快捷操作默认放到首页（D-190：草稿里看得到它）；用户说了不要放、或者是给分享进来的
           // 文件做的（在收件页面运行，D-124），就不放。
           let ops: Op[] = plan.ops;
           let after = prepared;
@@ -820,7 +821,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
           };
           set({ draft, editing: null });
           await saveDraft(draft);
-          return { kind: 'drafted', step };
+          return { kind: 'drafted', step, focusPageId: focusPage(ops, after.after) };
         } finally {
           set({ busy: false });
         }

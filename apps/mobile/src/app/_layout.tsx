@@ -21,6 +21,7 @@ import { AISettingsProvider } from '@/ai/context';
 import { createAIRouter } from '@/ai/router';
 import { getDeviceId, secureSecretStore } from '@/ai/secure-store';
 import { createAISettingsStore } from '@/ai/settings';
+import { DraftChatSheet } from '@/draft/DraftBar';
 import { useGuide } from '@/guide/store';
 import { getDeviceLocale, t } from '@/i18n';
 import { PackBridge } from '@/packs/bridge';
@@ -110,6 +111,8 @@ function ThemedStack() {
           options={{ presentation: 'fullScreenModal', headerShown: false, gestureEnabled: false }}
         />
       </Stack>
+      {/* 草稿模式的聊天框只放一个（D-190）：外壳每改一步会重新挂载，推入的页面也要用它。 */}
+      <DraftChatSheet />
     </>
   );
 }
