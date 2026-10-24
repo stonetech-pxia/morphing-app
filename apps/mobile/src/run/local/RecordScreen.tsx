@@ -71,7 +71,14 @@ export function RecordScreen({
         shouldPlayInBackground: true,
         allowsBackgroundRecording: true,
       });
-      await recorder.prepareToRecordAsync();
+      try {
+        await recorder.prepareToRecordAsync();
+      } catch {
+        // 刚录完一段马上再录时，expo-audio 的后台录音服务正在关闭，有时 5 秒内连不上（三星 SM-S948B 实测
+        // 连录 8 段有 3 段），过一会儿再试就好。
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await recorder.prepareToRecordAsync();
+      }
       recorder.record();
       setFailed(false);
       setPhase('recording');
