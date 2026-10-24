@@ -244,7 +244,9 @@ Android 模拟器（morph_api35，2026-10-24）全新安装实测：压小（18.
 
 **P-023**：创始人拔掉 USB、锁屏放着，录了 **1 小时 23 分钟**（10:14–11:37，39.1 MB，64 kbps 单声道），一次都没断：每 10 秒的音量都正常，没有一段变成静音（Android 在后台没有前台服务时会把麦克风静音，这里没有发生）。没申请通知权限时前台服务照常运行，只是不显示「正在录音」的通知。建议**继续不申请**：少一个系统弹窗，录音不受影响；Android 12 起状态栏本来就有系统的麦克风提示。
 
-**权限**（release 包实际申请的）：录音、选音频、选视频要用的 RECORD_AUDIO、READ_MEDIA_AUDIO、READ_MEDIA_VIDEO 保留；`SYSTEM_ALERT_WINDOW`、`USE_BIOMETRIC`、`USE_FINGERPRINT`、`VIBRATE`、`READ_EXTERNAL_STORAGE` / `WRITE_EXTERNAL_STORAGE` 看起来用不到（来自依赖），去不去掉等创始人定。
+**权限**：录音、选音频、选视频要用的 RECORD_AUDIO、READ_MEDIA_AUDIO、READ_MEDIA_VIDEO 保留；用不到的 `SYSTEM_ALERT_WINDOW`、`VIBRATE`、`USE_BIOMETRIC`、`USE_FINGERPRINT`（来自依赖）按创始人的意思在 app.json 的 `android.blockedPermissions` 里去掉了，release 包已确认没有这 4 个，真机上启动、AI 设置（安全存储）、「发旅行照片给朋友」都正常。`READ_EXTERNAL_STORAGE` / `WRITE_EXTERNAL_STORAGE` 只在 Android 12 及更早生效（`maxSdkVersion=32`），旧手机存相册要用，保留。开发版里的 `SYSTEM_ALERT_WINDOW` 是开发菜单用的，不在正式版里。
+
+**还发现**：Android 上在「已下载内容」里删除翻译语言后，ML Kit 说已经删了，但模型文件（每种语言 12–14 MB）还留在 `no_backup/com.google.mlkit.translate.models`，重启也不清，空间没有腾出来；没有修，记为后续问题。
 
 **没测**：iPhone 真机（这次只有三星）；视频分享到微信后的播放；从微信分享进来；剩余空间不够；没有 Google 服务的手机；release 包里的完整流程（只编了包量大小）；中低端 Android 手机的识别速度。开发版里用 adb 打字时两个挨着的 r 会触发开发版「按两下 R 重新加载」，这是开发版才有的，不影响正式版。
 
