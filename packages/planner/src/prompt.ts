@@ -239,7 +239,7 @@ Core actions available to every tool's workflows:
 ${coreActions}`;
 }
 
-/** 同一份草稿里之前说过的话（rule 27，D-203）：用户自己说的话和当时的回复，不含记录或文件内容。 */
+/** 同一份草稿里之前说过的话（rule 27，D-207）：用户自己说的话和当时的回复，不含记录或文件内容。 */
 function describeEarlier(earlier: readonly PlanEarlier[] | undefined): string {
   if (!earlier?.length) return '';
   const lines = earlier.map(

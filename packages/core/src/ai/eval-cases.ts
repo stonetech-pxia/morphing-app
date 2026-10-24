@@ -57,7 +57,7 @@ export interface EvalCase {
    */
   next?: boolean;
   /**
-   * 草稿聊天框里之前说过的话（D-203）：有 ops 的是做了的一步（先套在 setup 上，回复是它的说明），
+   * 草稿聊天框里之前说过的话（D-207）：有 ops 的是做了的一步（先套在 setup 上，回复是它的说明），
    * 有 notDone 的是没做的一句和原因。
    */
   earlier?: EvalEarlier[];
@@ -2542,7 +2542,7 @@ const RECORD_EVAL_CASES: readonly EvalCase[] = [
 const BLUE = '#1C7ED6';
 const toBlue: Op[] = [{ op: 'setTheme', primaryColor: BLUE }];
 
-/** 草稿聊天框里接着说（D-203）：只有带上之前说过的话才知道「再…一点」「那就…」指什么。 */
+/** 草稿聊天框里接着说（D-207）：只有带上之前说过的话才知道「再…一点」「那就…」指什么。 */
 const DRAFT_CHAT_EVAL_CASES: readonly EvalCase[] = [
   {
     id: 'DR1',

@@ -117,14 +117,14 @@ export interface DraftOrigin {
  */
 export interface Draft {
   steps: DraftStep[];
-  /** 聊天框里没变成一步的话和回复（D-203），跟草稿一起存盘。 */
+  /** 聊天框里没变成一步的话和回复（D-207），跟草稿一起存盘。 */
   replies: DraftChatReply[];
   origin: DraftOrigin;
   /** 正在草稿模式里；false = 离开了，草稿还在。 */
   open: boolean;
 }
 
-/** 草稿聊天框里没变成一步的一句话（D-203）：做不到、不合格、功能类、退了一步。 */
+/** 草稿聊天框里没变成一步的一句话（D-207）：做不到、不合格、功能类、退了一步。 */
 export interface DraftChatReply {
   /** 说的时候草稿有几步：聊天框把它排在这一步后面；退一步退过它时一起去掉。 */
   afterSteps: number;
@@ -135,7 +135,7 @@ export interface DraftChatReply {
   reason?: RejectReason;
 }
 
-/** 带给 AI 的最近几句（D-203）。 */
+/** 带给 AI 的最近几句（D-207）。 */
 const EARLIER_LIMIT = 5;
 
 /** 草稿聊天框里之前说过的话，按说的顺序，最多 EARLIER_LIMIT 句；退一步不算一句。 */
@@ -552,7 +552,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       try {
         const stored = JSON.parse(raw) as Pick<Draft, 'origin'> & {
           steps: Omit<DraftStep, 'config'>[];
-          /** D-203 之前存的草稿没有。 */
+          /** D-207 之前存的草稿没有。 */
           replies?: DraftChatReply[];
         };
         const draft = rebaseDraft({ ...stored, replies: stored.replies ?? [], open: false });
@@ -580,7 +580,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       return full.ok ? { ops: withEntry, prepared: full } : { ops, prepared };
     }
 
-    /** 聊天框里没变成一步的结果记成一条回复（D-203）。 */
+    /** 聊天框里没变成一步的结果记成一条回复（D-207）。 */
     function replyFor(
       input: string,
       result: ChangeResult,
@@ -636,7 +636,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         const base = current?.steps.at(-1)?.config ?? config;
         // 草稿里接着说的话沿用开始时的上下文：「这个」还是那个快捷操作（D-124）。
         const about = origin.about ?? current?.origin.about;
-        // 草稿聊天框里接着说：之前说过的话一起带上，用户不用每次都从头说（D-203）。
+        // 草稿聊天框里接着说：之前说过的话一起带上，用户不用每次都从头说（D-207）。
         const earlier = inChat && current ? earlierOf(current) : [];
         const raw = await planner.plan(input, {
           config: base,

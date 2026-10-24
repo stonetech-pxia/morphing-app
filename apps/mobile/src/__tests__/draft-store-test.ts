@@ -275,7 +275,7 @@ describe('function changes go straight in (D-191)', () => {
   });
 });
 
-describe('the draft chat remembers what was said (D-203)', () => {
+describe('the draft chat remembers what was said (D-207)', () => {
   /** 记下每次交给 AI 的上下文。 */
   async function recorded(repo = new MemoryWorkspaceRepo()) {
     const mock = createMockAIProvider();

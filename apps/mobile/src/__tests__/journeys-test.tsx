@@ -288,7 +288,7 @@ describe('user journeys (UI)', () => {
     const rejected = await screen.findByTestId('draft-chat-rejected');
     expect(within(rejected).getByText(/暂时无法理解/)).toBeTruthy();
     await fireEvent.press(screen.getByTestId('draft-chat-close'));
-    // 回复记在草稿里（D-203）：再拉开还在；退掉它前面那一步时一起去掉。
+    // 回复记在草稿里（D-207）：再拉开还在；退掉它前面那一步时一起去掉。
     await fireEvent.press(screen.getByTestId('draft-edit'));
     expect(await screen.findByTestId('draft-chat-rejected')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('draft-chat-close'));

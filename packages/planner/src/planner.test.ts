@@ -88,7 +88,7 @@ describe('user message context (D-124)', () => {
     expect(message).toContain('<context>shared files: 2 photos, 1 PDF</context>');
   });
 
-  it('lists what was said earlier in the draft, before the new request (D-203)', () => {
+  it('lists what was said earlier in the draft, before the new request (D-207)', () => {
     const message = buildUserMessage(config, '再深一点', 'zh', undefined, [
       { input: '主题色换成蓝色', done: true, reply: '主题色改为 #1C7ED6' },
       { input: '背景用我的照片', done: false, reply: '背景不能用照片。' },

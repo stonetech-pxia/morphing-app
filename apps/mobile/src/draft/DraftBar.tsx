@@ -286,7 +286,7 @@ function DraftChat({
     const trimmed = text.trim();
     if (!trimmed || busy) return;
     setInput('');
-    // 做不到、退一步这些回复由 store 记在草稿里（D-203）。
+    // 做不到、退一步这些回复由 store 记在草稿里（D-207）。
     await draftChange(trimmed);
     setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
   }
