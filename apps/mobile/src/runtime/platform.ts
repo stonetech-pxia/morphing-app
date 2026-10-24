@@ -276,9 +276,30 @@ export interface MediaPlatform {
  * 办公文档转 PDF（D-186）。iOS 用系统的文档预览排版（modules/morph-docs），Word、Excel、PowerPoint、RTF 都能转；
  * Android（和没有原生模块的 Expo Go）用 mammoth 把 Word（.docx）转成网页再打印成 PDF。
  */
+/** PDF 密码（D-193，modules/morph-docs 的 PDFKit）。结果写成本次运行的临时文件 runs/<runId>/<relPath>。 */
+export interface PdfPasswordPlatform {
+  /** none：没有加密；restricted：不用密码能打开但有限制；locked：要密码才能打开。打不开时抛出错误。 */
+  lockState(uri: string): Promise<'none' | 'restricted' | 'locked'>;
+  /** 另存一份没有密码的；密码不对时返回 null。 */
+  unlock(
+    uri: string,
+    password: string,
+    runId: string,
+    relPath: string,
+  ): Promise<{ uri: string; size: number } | null>;
+  protect(
+    uri: string,
+    password: string,
+    runId: string,
+    relPath: string,
+  ): Promise<{ uri: string; size: number }>;
+}
+
 export interface DocumentPlatform {
   /** 能转的扩展名（小写）。 */
   readonly extensions: readonly string[];
+  /** PDF 密码；Android 和 Expo Go 没有（P-025）。 */
+  readonly passwords: PdfPasswordPlatform | null;
   /** 转成本次运行的 PDF 临时文件；打不开时抛出 code 为 ERR_DOC_UNREADABLE 的错误。 */
   toPdf(
     uri: string,

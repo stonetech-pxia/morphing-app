@@ -606,6 +606,40 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
   },
 ];
 
+// ---- PDF 密码（D-193）：iOS 用 PDFKit；Android 先不做（P-025），运行时报不支持 ----
+
+export const PDF_PASSWORD_ACTIONS: readonly ActionDefinition[] = [
+  {
+    id: 'pdf.unlock',
+    label: { en: 'Remove PDF password', zh: '去掉 PDF 密码' },
+    description: {
+      en: 'For each PDF that needs a password to open, the user types it on the device (or skips that file); the result has no password, so later steps can merge, compress or sign it. Other files (images, PDFs without a password) pass through unchanged. Passwords are never saved. iPhone only for now.',
+      zh: '每个要密码才能打开的 PDF，用户在手机上输一次密码（也可以跳过这个文件），得到没有密码的 PDF，后面的步骤就能合并、压缩、签名。别的文件（图片、没有密码的 PDF）原样通过。密码不会保存。暂时只有 iPhone 能用。',
+    },
+    input: ['files'],
+    rejects: ['video', 'audio'],
+    output: 'same',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
+  },
+  {
+    id: 'pdf.protect',
+    label: { en: 'Add a PDF password', zh: '给 PDF 加密码' },
+    description: {
+      en: 'Adds a password needed to open the PDFs. The password is asked on every run (typed twice) and never saved. Put it last, right before sharing or saving: other PDF steps can’t open a protected PDF. iPhone only for now.',
+      zh: '给 PDF 加上打开密码。密码每次运行时问（输两遍），不会保存。放在最后、分享或保存之前：加了密码的 PDF 别的步骤打不开。暂时只有 iPhone 能用。',
+    },
+    input: ['pdf'],
+    output: 'pdf',
+    params: z.strictObject({}),
+    fields: [
+      { key: 'password', label: { en: 'Password', zh: '密码' }, kind: 'secret', confirm: true },
+    ],
+    requires: [],
+  },
+];
+
 const pickPdf = (min: number, max: number) => ({
   id: 'pick',
   action: 'in.files',
@@ -764,6 +798,16 @@ export function pdfWorkflows(locale: Locale): Workflow[] {
       [pickPdf(1, 1), { id: 'run', action: 'pdf.extractText', params: {} }],
     ),
     wf(
+      'pdf-unlock',
+      ['Remove a password', '去掉密码'],
+      [pickPdf(1, 10), { id: 'run', action: 'pdf.unlock', params: {} }],
+    ),
+    wf(
+      'pdf-protect',
+      ['Add a password', '加密码'],
+      [pickPdf(1, 10), { id: 'run', action: 'pdf.protect', params: {} }],
+    ),
+    wf(
       'pdf-stamp',
       ['Text stamp', '文字戳'],
       [
@@ -789,16 +833,16 @@ export function pdfWorkflows(locale: Locale): Workflow[] {
 
 export const pdfTool: ToolDefinition = {
   id: PDF_TOOL_ID,
-  version: '2.3.0',
+  version: '2.4.0',
   name: { en: 'PDF', zh: 'PDF' },
   description: {
-    en: 'Merge, convert (images, Word, Excel, PowerPoint), compress, arrange, split, number, stamp, sign and fill in PDFs on this device.',
-    zh: '在本机合并 PDF、图片和 Word / Excel / PPT 转 PDF、压缩 PDF、整理和拆分页面、加页码和文字戳、签名、填表。',
+    en: 'Merge, convert (images, Word, Excel, PowerPoint), compress, arrange, split, number, stamp, sign, fill in, unlock and password-protect PDFs on this device.',
+    zh: '在本机合并 PDF、图片和 Word / Excel / PPT 转 PDF、压缩 PDF、整理和拆分页面、加页码和文字戳、签名、填表、去掉和加上密码。',
   },
   icon: 'document',
   aliases: ['pdf', 'pdf tool', 'pdf 工具', 'word to pdf', 'word 转 pdf'],
   permissions: ['files.pick', 'files.write', 'photos.save', 'camera'],
-  actions: PDF_ACTIONS,
+  actions: [...PDF_ACTIONS, ...PDF_PASSWORD_ACTIONS],
   createPage: (locale) => ({
     id: PDF_PAGE_ID,
     title: 'PDF',

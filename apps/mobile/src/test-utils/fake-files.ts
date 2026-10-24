@@ -17,6 +17,7 @@ import type {
   MediaJob,
   MediaOutput,
   MediaPlatform,
+  PdfPasswordPlatform,
   PickedFile,
   TranslatePlatform,
   VideoEncode,
@@ -481,12 +482,44 @@ export class FakeFiles implements FilePlatform {
 }
 
 /** 假的文档转 PDF（D-186）：每 1 KB 文档算一页，写出一个最小的 PDF 头。 */
+/**
+ * 假的 PDF 密码：内容以「%LOCK:密码」开头的是要密码才能打开的，「%RESTRICT」开头的是只限制了打印、复制。
+ * 解锁后去掉这一行，加密码时加上这一行。
+ */
+export class FakePdfPasswords implements PdfPasswordPlatform {
+  constructor(private files: FakeFiles) {}
+  private text(uri: string) {
+    return new TextDecoder().decode(this.files.disk.get(uri) ?? new Uint8Array());
+  }
+  async lockState(uri: string) {
+    const text = this.text(uri);
+    return text.startsWith('%LOCK:')
+      ? 'locked'
+      : text.startsWith('%RESTRICT')
+        ? 'restricted'
+        : 'none';
+  }
+  async unlock(uri: string, password: string, runId: string, relPath: string) {
+    const [first, ...rest] = this.text(uri).split('\n');
+    if (first !== `%LOCK:${password}`) return null;
+    return this.files.writeRunFile(runId, relPath, new TextEncoder().encode(rest.join('\n')));
+  }
+  async protect(uri: string, password: string, runId: string, relPath: string) {
+    const bytes = new TextEncoder().encode(`%LOCK:${password}\n${this.text(uri)}`);
+    return this.files.writeRunFile(runId, relPath, bytes);
+  }
+}
+
 export class FakeDocuments implements DocumentPlatform {
   extensions: readonly string[] = ['docx'];
+  /** 设成 null 模拟 Android（P-025）。 */
+  passwords: PdfPasswordPlatform | null;
   converted: { uri: string; ext: string; page: { width: number; height: number } }[] = [];
   /** 下一次转换抛出的错误码。 */
   failWith: string | null = null;
-  constructor(private files: FakeFiles) {}
+  constructor(private files: FakeFiles) {
+    this.passwords = new FakePdfPasswords(files);
+  }
   async toPdf(
     uri: string,
     ext: string,

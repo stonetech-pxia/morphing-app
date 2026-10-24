@@ -90,6 +90,8 @@ export interface ParamField {
   ask?: boolean;
   /** 用户自己写的文字（水印、文字戳）：发给 AI 前替换成占位符（D-065）。 */
   private?: boolean;
+  /** secret 要输两遍、一样才行（给 PDF 加密码，D-193）。 */
+  confirm?: boolean;
 }
 
 /** 常用规格：一键填入一组参数，例如「护照 35×45」「4 MB」。 */

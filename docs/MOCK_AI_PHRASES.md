@@ -159,7 +159,7 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 | FG4 | 新建一个快捷操作：从文件选视频，转成 MP4，存到文件夹                                                                 | `in.videos`（`source: files`）→ `video.convert`         |
 | FG5 | 新建一个快捷操作：选 Word 文档，转成 PDF，分享 / Create a quick action: choose Word documents, make a PDF            | `in.files`（`accept: documents`）→ `pdf.fromDocument`   |
 
-评测：FG1–FG5、FG3-en、FG5-en 内置规则通过；PFG1（车里只能放 MP3）、PFG2-en（猫的短视频做成 GIF）、PFG3（电脑下载的 MKV 手机放不了）、PFG4（Word 作业要交 PDF）只要求真实模型。PFA1（收据接到上次的报销单后面：`file.addExisting` → `pdf.merge`，D-196）、PWF1（给客人连 Wi-Fi 的二维码：`in.wifi` → `qr.generate`，或添加二维码工具，D-198）也只要求真实模型。
+评测：FG1–FG5、FG3-en、FG5-en 内置规则通过；PFG1（车里只能放 MP3）、PFG2-en（猫的短视频做成 GIF）、PFG3（电脑下载的 MKV 手机放不了）、PFG4（Word 作业要交 PDF）只要求真实模型。PPW1（对账单去密码再合并：`pdf.unlock` → `pdf.merge`，D-193）、PPW2-en（合同发出去前加密码：`pdf.protect` 在最后）、PFA1（收据接到上次的报销单后面：`file.addExisting` → `pdf.merge`，D-196）、PWF1（给客人连 Wi-Fi 的二维码：`in.wifi` → `qr.generate`，或添加二维码工具，D-198）也只要求真实模型。
 
 ## 新手引导的目标句（D-149）
 

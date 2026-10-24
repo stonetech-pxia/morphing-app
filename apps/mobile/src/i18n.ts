@@ -287,6 +287,11 @@ const strings = {
   },
   runError_emptyText: { en: 'There is no text to use.', zh: '没有可以用的文字。' },
   runError_passwordMissing: { en: 'No password was entered.', zh: '没有填密码。' },
+  askPasswordMismatch: {
+    en: 'The two passwords are different.',
+    zh: '两次输入的密码不一样。',
+  },
+  askPasswordAgain: { en: 'Password again', zh: '再输一次' },
   runError_textTooLong: {
     en: 'The text is too long (at most {max} characters).',
     zh: '文字太长了（最多 {max} 个字）。',
@@ -313,8 +318,16 @@ const strings = {
     zh: '无法读取「{name}」，文件可能已损坏。',
   },
   runError_encrypted: {
-    en: '“{name}” is password-protected, which is not supported yet.',
-    zh: '「{name}」有密码保护，暂不支持。',
+    en: '“{name}” has a password. Add the step “Remove PDF password” before this one.',
+    zh: '「{name}」有密码。可以在前面加一步「去掉 PDF 密码」。',
+  },
+  runError_pdfRestricted: {
+    en: '“{name}” opens without a password, but its author limited changes to it. Morph doesn’t remove such limits.',
+    zh: '「{name}」不用密码就能打开，但作者限制了修改。Morph 不解除这种限制。',
+  },
+  runError_pdfPasswordUnsupported: {
+    en: 'This phone can’t remove or add PDF passwords yet (iPhone only for now).',
+    zh: '这台手机暂时不能去掉或加上 PDF 密码（目前只有 iPhone 能用）。',
   },
   runError_accessDenied: {
     en: '“{name}” could not be accessed. Check permissions and try again.',

@@ -11,7 +11,7 @@ import { KeyboardAvoidingView, Modal, Pressable, StyleSheet, Text, View } from '
 
 import { t } from '../i18n';
 import type { Palette } from '../renderer/theme';
-import { ParamForm } from './ParamForm';
+import { ParamForm, againKey } from './ParamForm';
 
 // 运行时询问参数（工作流步骤的 ask）。文件名模板显示成渲染好的名字，用户改的是最终的名字。
 
@@ -57,8 +57,11 @@ export function AskPanel({
     for (const key of request.keys) {
       const field = request.action.fields.find((f) => f.key === key);
       let value = values[key];
-      // 密码不在参数结构里，单独交回去（D-193）。
+      // 密码不在参数结构里，单独交回去（D-193）。要输两遍的，两遍要一样。
       if (field?.kind === 'secret') {
+        if (field.confirm && value !== values[againKey(key)]) {
+          return setError(t(locale, 'askPasswordMismatch'));
+        }
         secrets[key] = value;
         continue;
       }

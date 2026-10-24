@@ -138,4 +138,32 @@ describe('tool journeys (UI)', () => {
     const head = await repo.getHead();
     expect(JSON.stringify(head!.config)).not.toContain('secret123');
   });
+
+  it('removes and adds PDF passwords: a password screen per file, the new password typed twice (D-193)', async () => {
+    const { files } = await renderToolsApp();
+    await fireEvent.press(screen.getByTestId('nav-tools'));
+    await fireEvent.press(await screen.findByTestId('install-pdf'));
+    await fireEvent.press(await screen.findByTestId('open-pdf'));
+    const pdf = (body: string) => files.offer('工资单.pdf', new TextEncoder().encode(body));
+
+    files.nextPick = [pdf('%LOCK:1234\n%PDF 工资')];
+    await fireEvent.press(await screen.findByTestId('run-pdf-unlock'));
+    await fireEvent.changeText(await screen.findByTestId('password-input'), 'nope');
+    await fireEvent.press(screen.getByTestId('local-done'));
+    expect(await screen.findByTestId('password-wrong')).toBeTruthy();
+    await fireEvent.changeText(screen.getByTestId('password-input'), '1234');
+    await fireEvent.press(screen.getByTestId('local-done'));
+    expect(await screen.findByTestId('result-share')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('run-done'));
+
+    files.nextPick = [pdf('%PDF 工资')];
+    await fireEvent.press(await screen.findByTestId('run-pdf-protect'));
+    await fireEvent.changeText(await screen.findByTestId('ask-password'), 'abc');
+    await fireEvent.changeText(screen.getByTestId('ask-password-again'), 'abd');
+    await fireEvent.press(screen.getByTestId('prompt-ok'));
+    expect(await screen.findByText('两次输入的密码不一样。')).toBeTruthy();
+    await fireEvent.changeText(screen.getByTestId('ask-password-again'), 'abc');
+    await fireEvent.press(screen.getByTestId('prompt-ok'));
+    expect(await screen.findByTestId('result-share')).toBeTruthy();
+  });
 });

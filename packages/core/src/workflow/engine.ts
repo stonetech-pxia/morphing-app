@@ -66,6 +66,8 @@ export type RunErrorCode =
   | 'notFound'
   | 'emptyText'
   | 'passwordMissing'
+  | 'pdfRestricted'
+  | 'pdfPasswordUnsupported'
   | 'textTooLong'
   | 'doesNotFit'
   | 'noRecords'

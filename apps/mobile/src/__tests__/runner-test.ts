@@ -37,13 +37,19 @@ function setup(workflow: Workflow, answer: string | null = '我的合并') {
   /** 运行中问一句（ui.choose）时依次回答；记下每次给的选项。 */
   const choices: (number | null)[] = [];
   const offered: string[][] = [];
+  /** 本地操作界面（ui.open）依次给的结果；记下打开了哪些。 */
+  const locals: unknown[] = [];
+  const opened: { kind: string; input: unknown }[] = [];
   const ui: LocalUi = {
     confirm: async () => confirms.shift() ?? false,
     choose: async (_title, _message, options) => {
       offered.push([...options]);
       return choices.shift() ?? null;
     },
-    open: async () => null,
+    open: async (kind, input) => {
+      opened.push({ kind, input });
+      return (locals.shift() ?? null) as never;
+    },
   };
   // 运行页面的询问：记录建议的名字，回答 answer。
   const askParams = async (request: AskRequest) => {
@@ -65,12 +71,107 @@ function setup(workflow: Workflow, answer: string | null = '我的合并') {
         askParams,
       })
     ).result;
-  return { repo, files, asked, confirms, choices, offered, run };
+  return { repo, files, asked, confirms, choices, offered, locals, opened, run };
 }
 
 const mergeWorkflow = (ops: Op[] = []) => pdfWorkspace(ops).workflows[0]!;
 
 const custom = (steps: Workflow['steps']): Workflow => ({ id: 'mine', name: '我的', steps });
+
+describe('PDF passwords (D-193)', () => {
+  const unlock = custom([
+    { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 10 } },
+    { id: 'unlock', action: 'pdf.unlock', params: {} },
+  ]);
+  const text = (files: FakeFiles, uri: string) => new TextDecoder().decode(files.disk.get(uri));
+  const pdf = (files: FakeFiles, name: string, body: string) =>
+    files.offer(name, new TextEncoder().encode(body));
+
+  it('asks for each locked PDF until the password is right, and passes others through', async () => {
+    const { files, locals, opened, run } = setup(unlock);
+    files.nextPick = [
+      pdf(files, '工资单.pdf', '%LOCK:1234\n%PDF 工资'),
+      pdf(files, '说明.pdf', '%PDF 说明'),
+    ];
+    locals.push({ password: 'nope' }, { password: '1234' });
+    const result = await run();
+    expect(opened.map((o) => o.input)).toEqual([
+      { name: '工资单.pdf', wrong: false, index: 0, total: 2 },
+      { name: '工资单.pdf', wrong: true, index: 0, total: 2 },
+    ]);
+    const items =
+      result.status === 'succeeded' && result.value && 'items' in result.value
+        ? result.value.items
+        : [];
+    expect(items.map((i) => text(files, i.uri))).toEqual(['%PDF 工资', '%PDF 说明']);
+  });
+
+  it('skips a file when asked, stops when cancelled, and leaves restricted PDFs alone (P-027)', async () => {
+    const two = setup(unlock);
+    two.files.nextPick = [
+      pdf(two.files, 'a.pdf', '%LOCK:x\n%PDF a'),
+      pdf(two.files, 'b.pdf', '%PDF b'),
+    ];
+    two.locals.push({ skip: true });
+    expect(await two.run()).toMatchObject({
+      status: 'succeeded',
+      value: { items: [{ name: 'b' }] },
+    });
+
+    const cancel = setup(unlock);
+    cancel.files.nextPick = [pdf(cancel.files, 'a.pdf', '%LOCK:x\n%PDF a')];
+    expect(await cancel.run()).toMatchObject({ status: 'cancelled' });
+
+    const restricted = setup(unlock);
+    restricted.files.nextPick = [pdf(restricted.files, 'r.pdf', '%RESTRICT\n%PDF r')];
+    expect(await restricted.run()).toMatchObject({
+      status: 'failed',
+      error: { code: 'pdfRestricted', detail: { name: 'r.pdf' } },
+    });
+  });
+
+  it('reports that this phone can’t do it on Android (P-025)', async () => {
+    const { files, run } = setup(unlock);
+    files.documents.passwords = null;
+    files.nextPick = [pdf(files, 'a.pdf', '%LOCK:x\n%PDF a')];
+    expect(await run()).toMatchObject({
+      status: 'failed',
+      error: { code: 'pdfPasswordUnsupported' },
+    });
+  });
+
+  it('adds a password asked at run time, and refuses to run without one', async () => {
+    const protect = custom([
+      { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 10 } },
+      { id: 'protect', action: 'pdf.protect', params: {} },
+    ]);
+    const repo = new MemoryWorkspaceRepo();
+    const files = new FakeFiles();
+    const go = (password: string | null) =>
+      startRun({
+        workflow: protect,
+        revisionId: 1,
+        repo,
+        files,
+        registry,
+        locale: 'zh',
+        now,
+        newId: () => `id${++ids}`,
+        ui: { confirm: async () => false, choose: async () => null, open: async () => null },
+        askParams: async () => (password === null ? {} : { password }),
+      }).then((r) => r.result);
+    files.nextPick = [pdf(files, '合同.pdf', '%PDF 合同')];
+    const done = await go('s3cret');
+    const items =
+      done.status === 'succeeded' && done.value && 'items' in done.value ? done.value.items : [];
+    expect(text(files, items[0]!.uri)).toBe('%LOCK:s3cret\n%PDF 合同');
+    // 运行记录里只有状态，没有密码。
+    expect(JSON.stringify(await repo.listToolRuns(10))).not.toContain('s3cret');
+
+    files.nextPick = [pdf(files, '合同.pdf', '%PDF 合同')];
+    expect(await go(null)).toMatchObject({ status: 'failed', error: { code: 'passwordMissing' } });
+  });
+});
 
 describe('adding an existing file (D-196)', () => {
   const wf = custom([

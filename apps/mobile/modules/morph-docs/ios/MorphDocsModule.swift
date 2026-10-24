@@ -1,9 +1,11 @@
 import ExpoModulesCore
+import PDFKit
 import UIKit
 import WebKit
 
 // 办公文档转 PDF 的 iOS 实现（D-186）：WKWebView 打开文档（系统自己把 Word、Excel、PowerPoint、RTF 排成网页），
 // 等排版稳定后用 UIPrintPageRenderer 按纸张分页，画进 PDF。全部在本机，网页视图不联网（只读这一个文件）。
+// PDF 密码（D-193）：PDFKit 判断要不要密码、解锁后另存一份没有密码的、加上打开密码。密码只在这一次调用里用。
 
 final class DocUnreadableException: GenericException<String>, @unchecked Sendable {
   override var code: String { "ERR_DOC_UNREADABLE" }
@@ -19,6 +21,33 @@ public class MorphDocsModule: Module {
   public func definition() -> ModuleDefinition {
     Name("MorphDocs")
 
+    // none：没有加密；restricted：不用密码就能打开，但限制了打印、复制等（P-027 不解除）；locked：要密码才能打开。
+    AsyncFunction("pdfLockState") { (uri: URL) -> String in
+      guard let doc = PDFDocument(url: uri) else { throw DocUnreadableException(uri.lastPathComponent) }
+      return doc.isLocked ? "locked" : doc.isEncrypted ? "restricted" : "none"
+    }
+
+    // 密码不对时返回 nil。
+    AsyncFunction("unlockPdf") { (uri: URL, password: String, output: URL) -> [String: Any]? in
+      guard let doc = PDFDocument(url: uri) else { throw DocUnreadableException(uri.lastPathComponent) }
+      guard doc.unlock(withPassword: password) else { return nil }
+      // 解锁后直接写出的文件仍然带密码（macOS 上实测）：把每页（连同页上的批注、表单）复制进一份新文档。
+      // 书签目录和文档信息不带过去。
+      let copy = PDFDocument()
+      for i in 0..<doc.pageCount {
+        if let page = doc.page(at: i)?.copy() as? PDFPage { copy.insert(page, at: copy.pageCount) }
+      }
+      return try Self.write(copy, to: output, options: [:])
+    }
+
+    AsyncFunction("protectPdf") { (uri: URL, password: String, output: URL) -> [String: Any] in
+      guard let doc = PDFDocument(url: uri), !doc.isLocked else {
+        throw DocUnreadableException(uri.lastPathComponent)
+      }
+      return try Self.write(
+        doc, to: output, options: [.userPasswordOption: password, .ownerPasswordOption: password])
+    }
+
     AsyncFunction("toPdf") { (uri: URL, output: URL, page: [String: Double], promise: Promise) in
       Task { @MainActor in
         do {
@@ -31,6 +60,16 @@ public class MorphDocsModule: Module {
         }
       }
     }
+  }
+}
+
+extension MorphDocsModule {
+  fileprivate static func write(
+    _ doc: PDFDocument, to output: URL, options: [PDFDocumentWriteOption: Any]
+  ) throws -> [String: Any] {
+    guard doc.write(to: output, withOptions: options) else { throw DocFailedException("write") }
+    let size = (try? FileManager.default.attributesOfItem(atPath: output.path)[.size] as? Int) ?? 0
+    return ["uri": output.absoluteString, "size": size]
   }
 }
 
