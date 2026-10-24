@@ -59,10 +59,10 @@ git check-ignore -q .env && echo "安全：不会被提交" || echo "危险：�
 npm run api
 ```
 
-默认模型是 `claude-opus-5-5`。要换模型，在 `.env` 里加一行（三个模型在评测中都是 22/22 通过）：
+默认模型是 `claude-haiku-5-5`（P-010）。要换模型，在 `.env` 里加一行（三个模型在评测中都是 22/22 通过）：
 
 ```
-MORPH_AI_MODEL=claude-haiku-5-5
+MORPH_AI_MODEL=claude-opus-5-5
 ```
 
 用评测集测一个模型（会产生少量费用，Haiku 一轮约 $0.004）：
@@ -81,7 +81,7 @@ npm run eval -- --model claude-haiku-5-5
 | Claude Sonnet 5.5 | $2 / $10                    | $0.003     | $3        |
 | Claude Opus 5.5   | $4 / $20                    | $0.005     | $5        |
 
-价格以 [官方定价](https://platform.claude.com/docs/en/about-claude/pricing) 为准。最终用哪个模型，用句式测试集实测后再定（DECISIONS P-010）。实际用量可以在 Console 的 [Usage 页面](https://platform.claude.com/usage) 查看。
+价格以 [官方定价](https://platform.claude.com/docs/en/about-claude/pricing) 为准。默认用 Haiku（DECISIONS P-010）。实际用量可以在 Console 的 [Usage 页面](https://platform.claude.com/usage) 查看。
 
 ## 6. 安全规则
 

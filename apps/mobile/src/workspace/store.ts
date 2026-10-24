@@ -5,16 +5,21 @@ import {
   coalesceOps,
   createDefaultWorkspace,
   describeRestore,
+  functionFirst,
   homeEntryOps,
   prepareOps,
   prepareSnapshot,
   workflowsWithoutEntry,
   type AIProvider,
+  type FunctionFirst,
   type Locale,
   type NavTarget,
   type Op,
+  type Plan,
   type PlanAbout,
+  type PreparedChange,
   type Registry,
+  type RejectReason,
   type WorkspaceConfig,
 } from '@morph/core';
 import { createStore, type StoreApi } from 'zustand/vanilla';
@@ -38,6 +43,8 @@ export interface WorkspaceDeps {
   now: () => Date;
   /** 第一次启动时的第一个版本。App 用预装了工具的 createStarterWorkspace（D-104）；不传时是空白工作空间。 */
   seed?: (locale: Locale, registry: Registry) => WorkspaceConfig;
+  /** 不在注册表里的工具叫什么（从下载的工具目录里查，D-177）；恢复历史版本缺工具时提示用。 */
+  toolName?: (toolId: string) => string | undefined;
 }
 
 export interface Proposal {
@@ -63,7 +70,7 @@ export interface Proposal {
 
 export type ProposeResult =
   | { kind: 'preview'; proposal: Proposal }
-  | { kind: 'rejected'; message: string; examples: string[] }
+  | { kind: 'rejected'; message: string; examples: string[]; reason?: RejectReason }
   | { kind: 'invalid'; issues: string[] };
 
 export interface Banner {
@@ -120,16 +127,30 @@ export type DraftResult =
   /** 草稿里说「撤销」：退了一步。没有草稿时说「撤销」：直接回到上一个版本。 */
   | { kind: 'steppedBack' }
   | { kind: 'restored' }
-  | { kind: 'rejected'; message: string; examples: string[] }
+  | { kind: 'rejected'; message: string; examples: string[]; reason?: RejectReason }
   | { kind: 'invalid'; issues: string[] };
 
-/** 应用草稿之后带用户去哪里要用的信息。 */
-export interface DraftApplied {
+/**
+ * AI 修改页说的一句话（D-191）：功能类直接应用（applied），外观类进草稿。
+ * 在草稿的聊天框里说功能类的话会被拒绝（functionInDraft），说明要去「修改这个 App」说。
+ */
+export type ChangeResult =
+  | DraftResult
+  /** focusPageId：改到的页面，回到 App 时显示它。 */
+  | { kind: 'applied'; applied: Applied; focusPageId: string }
+  | { kind: 'functionInDraft'; message: string };
+
+/** 应用之后（草稿或直接应用的功能）带用户去哪里要用的信息。 */
+export interface Applied {
   addedWorkflowIds: string[];
+  addedCollectionIds: string[];
   origin: DraftOrigin;
+  /** AI 的说明（D-110），直接应用的功能在「做好了」页面上显示。 */
+  notes?: string[];
 }
 
 const DRAFT_META_KEY = 'draft';
+const NEXT_META_KEY = 'next';
 
 export interface WorkspaceState {
   status: 'loading' | 'ready' | 'error';
@@ -153,6 +174,11 @@ export interface WorkspaceState {
   draft: Draft | null;
   /** 草稿的提示：重新套用时去掉了几步、草稿显示出错退了一步。 */
   draftNotice: string | null;
+  /**
+   * 「接着改」的预设（D-191）：上一次功能修改那句话里剩下的外观请求。只有一条，存在本机；
+   * 下一次功能修改换掉它，用掉或撤销时清掉。
+   */
+  next: string | null;
 
   boot(): Promise<void>;
   /**
@@ -184,12 +210,18 @@ export interface WorkspaceState {
   dismissToast(): void;
   listRevisions(limit?: number): Promise<RevisionRecord[]>;
   bumpAssets(): void;
-  /** 让 AI 改草稿（没有草稿时新建一份）；planner 不传时用设置里选的 AI。 */
-  draftChange(input: string, planner?: AIProvider, origin?: DraftOrigin): Promise<DraftResult>;
+  /**
+   * AI 修改页的一句话（D-191）：功能类直接应用，外观类进草稿（没有草稿时新建一份）；
+   * planner 不传时用设置里选的 AI。
+   */
+  change(input: string, planner?: AIProvider, origin?: DraftOrigin): Promise<ChangeResult>;
+  /** 草稿聊天框的一句话：只改外观，功能类的请求不做。 */
+  draftChange(input: string): Promise<ChangeResult>;
+  clearNext(): Promise<void>;
   stepBack(): Promise<void>;
   openDraft(): void;
   closeDraft(): void;
-  applyDraft(): Promise<DraftApplied | null>;
+  applyDraft(): Promise<Applied | null>;
   deleteDraft(): Promise<void>;
   /** 草稿显示出错：撤掉最近一步（只有一步时删掉草稿），回到能显示的样子。 */
   draftRenderFailed(error: unknown): Promise<void>;
@@ -341,6 +373,16 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       const { config, head } = get();
       if (!config || !head) throw new Error('workspace not loaded');
       const target = await repo.getRevision(revisionId);
+      // 这个版本用到了本机没有的下载工具（换了手机、删了下载的内容）：先下载才能恢复（D-177）。
+      const missing = (
+        (target?.config as { tools?: { toolId: string }[] } | undefined)?.tools ?? []
+      )
+        .map((tool) => tool.toolId)
+        .filter((id) => !registry.tools.has(id));
+      if (target && missing.length > 0) {
+        const names = missing.map((id) => deps.toolName?.(id) ?? id).join(msg('listSeparator'));
+        return { kind: 'invalid', issues: [msg('restoreNeedsTool', { names })] };
+      }
       const prepared = target ? prepareSnapshot(target.config, registry) : null;
       if (!target || !prepared?.ok) {
         const issues =
@@ -470,6 +512,231 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       }
     }
 
+    /** 新建的快捷操作默认在首页放入口；用户说了不要放、或者是给分享进来的文件做的（D-124），就不放。 */
+    function withHomeEntries(
+      before: WorkspaceConfig,
+      ops: Op[],
+      prepared: Extract<PreparedChange, { ok: true }>,
+      plan: { homeEntry?: boolean },
+      about: PlanAbout | undefined,
+    ): { ops: Op[]; prepared: Extract<PreparedChange, { ok: true }> } {
+      const wantHome =
+        (about?.kind === 'shared' ? (plan.homeEntry ?? false) : plan.homeEntry) !== false;
+      const homeless = wantHome ? workflowsWithoutEntry(ops, prepared.after) : [];
+      if (homeless.length === 0) return { ops, prepared };
+      const withEntry = [...ops, ...homeEntryOps(prepared.after, homeless)];
+      const full = prepareOps(before, withEntry, { registry, locale, now: deps.now() });
+      return full.ok ? { ops: withEntry, prepared: full } : { ops, prepared };
+    }
+
+    async function failedPlan(input: string, plan: unknown, error: string) {
+      const head = get().head!;
+      await repo.createChangeRequest({
+        input,
+        plan,
+        status: 'failed',
+        baseRevisionId: head.id,
+        error,
+      });
+    }
+
+    async function aiChange(
+      input: string,
+      planner: AIProvider,
+      origin: DraftOrigin,
+      inChat: boolean,
+    ): Promise<ChangeResult> {
+      const { config, head } = get();
+      if (!config || !head) throw new Error('workspace not loaded');
+      set({ busy: true });
+      try {
+        let current = get().draft;
+        if (current && !current.open) current = rebaseDraft(current);
+        const base = current?.steps.at(-1)?.config ?? config;
+        // 草稿里接着说的话沿用开始时的上下文：「这个」还是那个快捷操作（D-124）。
+        const about = origin.about ?? current?.origin.about;
+        const raw = await planner.plan(input, {
+          config: base,
+          registry,
+          locale,
+          ...(about ? { about } : {}),
+        });
+        const parsed = PlanSchema.safeParse(raw);
+        if (!parsed.success) {
+          await failedPlan(input, raw, 'plan did not match schema');
+          return { kind: 'invalid', issues: parsed.error.issues.map((i) => i.message) };
+        }
+        const plan = parsed.data;
+        if (plan.kind === 'reject') {
+          await repo.createChangeRequest({
+            input,
+            plan,
+            status: 'rejected',
+            baseRevisionId: head.id,
+            error: plan.reason,
+          });
+          return {
+            kind: 'rejected',
+            message: plan.message,
+            examples: plan.examples,
+            reason: plan.reason,
+          };
+        }
+        if (plan.kind === 'restorePrevious') {
+          if (current && current.steps.length > 1) {
+            set({ draft: current });
+            await get().stepBack();
+            return { kind: 'steppedBack' };
+          }
+          if (current) return { kind: 'rejected', message: msg('draftFirstStep'), examples: [] };
+          if (head.parentId === null)
+            return { kind: 'rejected', message: msg('noPrevious'), examples: [] };
+          const result = await restoreProposal(head.parentId, input);
+          if (result.kind !== 'preview') return result;
+          await get().confirm();
+          return { kind: 'restored' };
+        }
+        const ctx = { registry, locale, now: deps.now() };
+        const prepared = prepareOps(base, plan.ops, ctx);
+        if (!prepared.ok) {
+          await failedPlan(input, plan.ops, `${prepared.stage}: ${prepared.issues.join('; ')}`);
+          return { kind: 'invalid', issues: prepared.issues };
+        }
+        // 功能先做（D-191）：直接应用到正式的版本，不进草稿；草稿里只改外观。
+        const first = functionFirst(base, plan.ops, ctx);
+        if (first.kind === 'function') {
+          if (inChat) {
+            await repo.createChangeRequest({
+              input,
+              plan: plan.ops,
+              status: 'rejected',
+              baseRevisionId: head.id,
+              error: 'function change in a draft',
+            });
+            return { kind: 'functionInDraft', message: msg('draftNoFunction') };
+          }
+          return await applyFunction(input, plan, first, {
+            ...origin,
+            ...(about ? { about } : {}),
+          });
+        }
+        // 外观：新建或接着改草稿（D-190）。
+        const { ops, prepared: after } = withHomeEntries(base, plan.ops, prepared, plan, about);
+        const changeRequestId = await repo.createChangeRequest({
+          input,
+          plan: ops,
+          status: 'previewing',
+          baseRevisionId: head.id,
+        });
+        const step: DraftStep = {
+          input,
+          ops,
+          lines: after.lines,
+          ...(plan.notes?.length ? { notes: plan.notes } : {}),
+          changeRequestId,
+          config: after.after,
+        };
+        const draft: Draft = {
+          steps: [...(current?.steps ?? []), step],
+          origin: current?.origin ?? origin,
+          open: true,
+        };
+        set({ draft, editing: null });
+        await saveDraft(draft);
+        if (input === get().next) await get().clearNext();
+        return { kind: 'drafted', step, focusPageId: focusPage(ops, after.after) };
+      } finally {
+        set({ busy: false });
+      }
+    }
+
+    /**
+     * 功能类修改直接保存成一个 AI 版本（D-191），顶部照常「已改好 · 撤销」。这句话里剩下的外观
+     * 变成「接着改」的预设：模型给的 next，没给就用那些外观操作的说明。草稿还在，打开时重新套上。
+     */
+    async function applyFunction(
+      input: string,
+      plan: Extract<Plan, { kind: 'ops' }>,
+      first: Extract<FunctionFirst, { kind: 'function' }>,
+      origin: DraftOrigin,
+    ): Promise<ChangeResult> {
+      const { config, head, draft } = get();
+      const ctx = { registry, locale, now: deps.now() };
+      const prepared = prepareOps(config!, first.ops, ctx);
+      if (!prepared.ok) {
+        await failedPlan(input, first.ops, `${prepared.stage}: ${prepared.issues.join('; ')}`);
+        // 在草稿的样子上说的：要用到草稿里的东西。
+        return draft
+          ? { kind: 'rejected', message: msg('functionNeedsDraft'), examples: [] }
+          : { kind: 'invalid', issues: prepared.issues };
+      }
+      const { ops, prepared: after } = withHomeEntries(
+        config!,
+        first.ops,
+        prepared,
+        plan,
+        origin.about,
+      );
+      const deferred =
+        first.deferred.length > 0 ? prepareOps(after.after, first.deferred, ctx) : null;
+      const next =
+        plan.next ??
+        (deferred?.ok && deferred.lines.length > 0
+          ? deferred.lines.join(locale === 'zh' ? '；' : '; ').slice(0, 200)
+          : null);
+      const changeRequestId = await repo.createChangeRequest({
+        input,
+        plan: ops,
+        status: 'previewing',
+        baseRevisionId: head!.id,
+      });
+      const summary = input.slice(0, 200);
+      try {
+        const revision = await repo.commitRevision({
+          baseId: head!.id,
+          config: after.after,
+          source: 'ai',
+          summary,
+        });
+        pending = { changeRequestId, revisionId: revision.id, undoTo: head!.id, summary };
+      } catch (e) {
+        if (!(e instanceof RevisionConflictError)) throw e;
+        await repo.updateChangeRequest(changeRequestId, { status: 'failed', error: e.message });
+        await reload();
+        return { kind: 'rejected', message: msg('conflict'), examples: [] };
+      }
+      set({ next, ...(draft?.open ? { draft: { ...draft, open: false }, toast: null } : {}) });
+      await repo.setMeta(NEXT_META_KEY, next ?? '');
+      // 被移除的工具失去文件授权；文件本身保留（§7G）。
+      const remaining = new Set(after.after.tools.map((t) => t.toolId));
+      for (const tool of config!.tools) {
+        if (!remaining.has(tool.toolId)) await repo.revokeToolGrants(tool.toolId);
+      }
+      await reload();
+      const applied = addedBy(config!, after.after, origin);
+      return {
+        kind: 'applied',
+        applied: plan.notes?.length ? { ...applied, notes: plan.notes } : applied,
+        focusPageId: focusPage(ops, after.after),
+      };
+    }
+
+    function addedBy(
+      before: WorkspaceConfig,
+      after: WorkspaceConfig,
+      origin: DraftOrigin,
+    ): Applied {
+      const workflows = new Set(before.workflows.map((w) => w.id));
+      const collections = new Set(before.collections.map((c) => c.id));
+      return {
+        addedWorkflowIds: after.workflows.filter((w) => !workflows.has(w.id)).map((w) => w.id),
+        addedCollectionIds: after.collections
+          .filter((c) => !collections.has(c.id))
+          .map((c) => c.id),
+        origin,
+      };
+    }
+
     return {
       status: 'loading',
       error: null,
@@ -485,10 +752,13 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       editing: null,
       draft: null,
       draftNotice: null,
+      next: null,
 
       async boot() {
         await bootHead();
-        if (get().status === 'ready') await loadDraft();
+        if (get().status !== 'ready') return;
+        await loadDraft();
+        set({ next: (await repo.getMeta(NEXT_META_KEY)) || null });
       },
 
       async propose(input, planner = deps.provider, about) {
@@ -523,7 +793,12 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
               baseRevisionId: head.id,
               error: plan.reason,
             });
-            return { kind: 'rejected', message: plan.message, examples: plan.examples };
+            return {
+              kind: 'rejected',
+              message: plan.message,
+              examples: plan.examples,
+              reason: plan.reason,
+            };
           }
           if (plan.kind === 'restorePrevious') {
             if (head.parentId === null)
@@ -618,6 +893,8 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         if (undoTo === undefined) return;
         const result = await restoreProposal(undoTo, msg('undoSummary'));
         set({ banner: null });
+        // 撤销了那次功能修改，剩下的那句也就接不上了。
+        await get().clearNext();
         if (result.kind === 'preview') {
           set({ proposal: { ...result.proposal, summary: msg('undoSummary') } });
           await get().confirm();
@@ -721,110 +998,15 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
 
       bumpAssets: () => set({ assetsVersion: get().assetsVersion + 1 }),
 
-      async draftChange(input, planner = deps.provider, origin = {}) {
-        const { config, head } = get();
-        if (!config || !head) throw new Error('workspace not loaded');
-        set({ busy: true });
-        try {
-          let current = get().draft;
-          if (current && !current.open) current = rebaseDraft(current);
-          const base = current?.steps.at(-1)?.config ?? config;
-          // 草稿里接着说的话沿用开始时的上下文：「这个」还是那个快捷操作（D-124）。
-          const about = current ? current.origin.about : origin.about;
-          const raw = await planner.plan(input, {
-            config: base,
-            registry,
-            locale,
-            ...(about ? { about } : {}),
-          });
-          const parsed = PlanSchema.safeParse(raw);
-          if (!parsed.success) {
-            await repo.createChangeRequest({
-              input,
-              plan: raw,
-              status: 'failed',
-              baseRevisionId: head.id,
-              error: 'plan did not match schema',
-            });
-            return { kind: 'invalid', issues: parsed.error.issues.map((i) => i.message) };
-          }
-          const plan = parsed.data;
-          if (plan.kind === 'reject') {
-            await repo.createChangeRequest({
-              input,
-              plan,
-              status: 'rejected',
-              baseRevisionId: head.id,
-              error: plan.reason,
-            });
-            return { kind: 'rejected', message: plan.message, examples: plan.examples };
-          }
-          if (plan.kind === 'restorePrevious') {
-            if (current && current.steps.length > 1) {
-              set({ draft: current });
-              await get().stepBack();
-              return { kind: 'steppedBack' };
-            }
-            if (current) return { kind: 'rejected', message: msg('draftFirstStep'), examples: [] };
-            if (head.parentId === null)
-              return { kind: 'rejected', message: msg('noPrevious'), examples: [] };
-            const result = await restoreProposal(head.parentId, input);
-            if (result.kind !== 'preview') return result;
-            await get().confirm();
-            return { kind: 'restored' };
-          }
-          const ctx = { registry, locale, now: deps.now() };
-          const prepared = prepareOps(base, plan.ops, ctx);
-          if (!prepared.ok) {
-            await repo.createChangeRequest({
-              input,
-              plan: plan.ops,
-              status: 'failed',
-              baseRevisionId: head.id,
-              error: `${prepared.stage}: ${prepared.issues.join('; ')}`,
-            });
-            return { kind: 'invalid', issues: prepared.issues };
-          }
-          // AI 新建的快捷操作默认放到首页（D-190：草稿里看得到它）；用户说了不要放、或者是给分享进来的
-          // 文件做的（在收件页面运行，D-124），就不放。
-          let ops: Op[] = plan.ops;
-          let after = prepared;
-          const wantHome =
-            (about?.kind === 'shared' ? (plan.homeEntry ?? false) : plan.homeEntry) !== false;
-          const homeless = wantHome ? workflowsWithoutEntry(plan.ops, prepared.after) : [];
-          if (homeless.length > 0) {
-            const withEntry = [...plan.ops, ...homeEntryOps(prepared.after, homeless)];
-            const full = prepareOps(base, withEntry, ctx);
-            if (full.ok) {
-              ops = withEntry;
-              after = full;
-            }
-          }
-          const changeRequestId = await repo.createChangeRequest({
-            input,
-            plan: ops,
-            status: 'previewing',
-            baseRevisionId: head.id,
-          });
-          const step: DraftStep = {
-            input,
-            ops,
-            lines: after.lines,
-            ...(plan.notes?.length ? { notes: plan.notes } : {}),
-            changeRequestId,
-            config: after.after,
-          };
-          const draft: Draft = {
-            steps: [...(current?.steps ?? []), step],
-            origin: current?.origin ?? origin,
-            open: true,
-          };
-          set({ draft, editing: null });
-          await saveDraft(draft);
-          return { kind: 'drafted', step, focusPageId: focusPage(ops, after.after) };
-        } finally {
-          set({ busy: false });
-        }
+      change: (input, planner = deps.provider, origin = {}) =>
+        aiChange(input, planner, origin, false),
+
+      draftChange: (input) => aiChange(input, deps.provider, {}, true),
+
+      async clearNext() {
+        if (get().next === null) return;
+        set({ next: null });
+        await repo.setMeta(NEXT_META_KEY, '');
       },
 
       async stepBack() {
@@ -888,11 +1070,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
             if (!remaining.has(tool.toolId)) await repo.revokeToolGrants(tool.toolId);
           }
           await reload();
-          const before = new Set(config.workflows.map((w) => w.id));
-          return {
-            addedWorkflowIds: after.workflows.filter((w) => !before.has(w.id)).map((w) => w.id),
-            origin: draft.origin,
-          };
+          return addedBy(config, after, draft.origin);
         } finally {
           set({ busy: false });
         }

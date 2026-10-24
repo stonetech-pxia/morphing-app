@@ -95,6 +95,44 @@ const strings = {
   uninstallTitle: { en: 'Remove {name}?', zh: '移除{name}工具？' },
   removeCardSummary: { en: 'Took {name} off home', zh: '从首页移除了{name}' },
   addCardSummary: { en: 'Put {name} on home', zh: '把{name}放到了首页' },
+  // 下载的工具（D-177）
+  toolDownloadSize: { en: 'Downloads {size}', zh: '需要下载 {size}' },
+  toolDownloading: { en: 'Downloading…', zh: '正在下载…' },
+  toolNeedsAppUpdate: {
+    en: 'Needs a newer version of this app',
+    zh: '需要先更新 App 才能添加',
+  },
+  toolRevoked: { en: 'Paused', zh: '暂时停用' },
+  toolRevokedRun: {
+    en: '“{name}” is paused for now, so this quick action can’t run. Try again later.',
+    zh: '「{name}」暂时停用了，这个快捷操作现在不能用。过一阵再试试。',
+  },
+  toolDownloadFailedTitle: { en: '“{name}” was not added', zh: '「{name}」没有添加' },
+  toolDownloadFailed: {
+    en: 'It could not be downloaded. Check the network and try again.',
+    zh: '没有下载成功。请检查网络后再试。',
+  },
+  toolDownloadRejected: {
+    en: 'What was downloaded did not pass the safety check, so nothing was changed.',
+    zh: '下载的内容没有通过安全检查，什么都没有改。',
+  },
+  restoreNeedsTool: {
+    en: 'This version uses {names}, which is not on this phone. Add it in Tools first, then restore.',
+    zh: '这个版本用到了「{names}」，这台手机上还没有。先到「工具」里添加，再恢复。',
+  },
+  listSeparator: { en: ', ', zh: '、' },
+  toolDownloadedHint: {
+    en: 'A tool downloaded from the Morph catalog.',
+    zh: '从 Morph 工具目录下载的工具。',
+  },
+  toolDeleteMessage: {
+    en: 'You can download it again from Tools later.',
+    zh: '以后可以在「工具」里再下载。',
+  },
+  toolDeleteAdded: {
+    en: 'This tool is still added. Remove it in Tools first, then delete it here.',
+    zh: '这个工具还在用。先到「工具」里移除它，再回来删除。',
+  },
 
   // 设置
   settingsTitle: { en: 'Settings', zh: '设置' },
@@ -642,8 +680,8 @@ const strings = {
   draftSteppedBack: { en: 'Took back the last step.', zh: '退了一步。' },
   draftCard: { en: 'You have a draft · {n} step(s)', zh: '你有一份草稿 · {n} 步' },
   draftCardHint: {
-    en: 'What you say now continues this draft.',
-    zh: '新说的一句会接着改这份草稿。',
+    en: 'Look changes you ask for now continue this draft; quick actions, tools and data tables take effect right away.',
+    zh: '新说的外观修改会接着改这份草稿；快捷操作、工具和数据表直接生效。',
   },
   draftContinue: { en: 'Continue', zh: '继续' },
   draftDelete: { en: 'Delete', zh: '删除' },
@@ -661,6 +699,28 @@ const strings = {
   draftRenderFailed: {
     en: 'The last change could not be shown, so it was taken back.',
     zh: '刚才那一步显示不出来，已经撤掉。',
+  },
+
+  // 功能和外观分开改（D-191）
+  draftNoFunction: {
+    en: 'The draft only changes the look. Quick actions, tools and data tables are changed on the Change this app page: they take effect right away and can be undone.',
+    zh: '草稿里只改外观。快捷操作、工具和数据表要在「修改这个 App」里改：会直接生效，可以撤销。',
+  },
+  draftNoFunctionGo: { en: 'Say it on Change this app', zh: '去「修改这个 App」说' },
+  functionNeedsDraft: {
+    en: 'This change needs something from your draft. Apply the draft first, then say it again.',
+    zh: '这个修改要用到草稿里还没应用的改动。先应用草稿，再说一次。',
+  },
+  nextTitle: { en: 'Keep going', zh: '接着改' },
+  nextHint: {
+    en: 'The rest of what you asked changes the look: tap to see it in a draft first.',
+    zh: '这句话里剩下的是外观的修改，点一下先在草稿里看看效果。',
+  },
+  tableReadyTitle: { en: 'Your data table is ready', zh: '数据表做好了' },
+  tableReadyRecord: { en: 'Add an entry now', zh: '现在就记一笔' },
+  tableReadyWhere: {
+    en: 'Entries stay on this device. You can also see the table in Settings → Data.',
+    zh: '记录存在本机，在「设置 → 数据」里也能看到这张表。',
   },
 
   // 新手引导（D-149）
@@ -740,6 +800,42 @@ const strings = {
     zh: '「{name}」压到 {target} 声音会听不清。至少要 {mb} MB，或者先剪短一点。',
   },
   runError_noAudio: { en: '“{name}” has no sound.', zh: '「{name}」里没有声音。' },
+  // ---- 格式转换的缺口（D-183–D-186）----
+  runError_formatUnsupported: {
+    en: '“{name}” is a {format} file, which this phone can’t open. Convert it to MP4 on a computer first.',
+    zh: '「{name}」是 {format} 格式，这台手机打不开。可以先在电脑上转成 MP4。',
+  },
+  // ---- 需求回收（D-189）----
+  needSend: { en: 'Tell us you need this', zh: '把这个需求告诉我们' },
+  needRetry: { en: 'Not sent. Try again', zh: '没发出去，再试一次' },
+  needSent: {
+    en: 'Thanks, we got it. New tools come through updates and downloads.',
+    zh: '收到了，谢谢。新功能会通过更新和下载内容加进来。',
+  },
+  needPrivacy: {
+    en: 'Only this sentence is sent to Morph — no files, records or settings.',
+    zh: '只发送这一句话给 Morph，不含文件、记录和设置。',
+  },
+  needsSettingTitle: {
+    en: 'Offer to send requests AI can’t do',
+    zh: 'AI 做不到时，可以把需求告诉我们',
+  },
+  needsSettingNote: {
+    en: 'Shows a button under the answer. Nothing is sent unless you tap it.',
+    zh: '在回答下面显示一个按钮，你点了才会发送那一句话。',
+  },
+  // ---- 记一笔、附件和公式字段（D-187、D-188）----
+  noAttachment: { en: 'No attachment', zh: '没有附件' },
+  attachmentMissing: { en: 'The file was deleted', zh: '文件已经删掉了' },
+  removeAttachment: { en: 'Remove', zh: '去掉' },
+  runError_documentUnsupported: {
+    en: '“{name}” is a {format} file. On this phone only Word documents (.docx) can be turned into PDFs.',
+    zh: '「{name}」是 {format} 文件。这台手机上只能把 Word 文档（.docx）转成 PDF。',
+  },
+  runError_tooLong: {
+    en: '“{name}” is too long for a GIF (at most {seconds} seconds). Trim it first.',
+    zh: '「{name}」太长了，做不成 GIF（最长 {seconds} 秒）。请先剪一段。',
+  },
   runError_noSpeech: {
     en: 'No speech was heard in “{name}”.',
     zh: '在「{name}」里没有听到说话。',

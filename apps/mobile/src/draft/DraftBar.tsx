@@ -1,4 +1,5 @@
-import { guideGoal, type Workflow } from '@morph/core';
+import { guideGoal, type RejectReason, type Workflow } from '@morph/core';
+import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -19,6 +20,7 @@ import { isGoalParam } from '../guide/store';
 import { t } from '../i18n';
 import { UiIcon, type UiIconName } from '../renderer/Icon';
 import { usePalette, type Palette } from '../renderer/theme';
+import { NeedButton } from '../shell/NeedButton';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { shownConfig, type Draft, type DraftStep } from '../workspace/store';
 import { useDraftUi } from './ui';
@@ -255,11 +257,20 @@ function GrowingSteps({
   );
 }
 
-type ChatReply = { afterSteps: number; message: string; examples: string[] };
+type ChatReply = {
+  afterSteps: number;
+  message: string;
+  examples: string[];
+  /** AI 做不到的那句话和原因：下面显示「把这个需求告诉我们」（D-189）。 */
+  need?: { text: string; reason: RejectReason | undefined };
+  /** 功能类的请求（D-191），可以带去「修改这个 App」说。 */
+  handOff?: string;
+};
 
 /**
  * 「修改」：从底部拉起的聊天框（D-190）。每说一句就在草稿上再改一步，上面的 App 跟着变；
- * 做不到时说明原因并给出可以点的例子。
+ * 做不到时说明原因并给出可以点的例子。草稿里只改外观：功能类的请求说明原因，可以带去「修改这个 App」说
+ * （D-191，那里直接生效）。
  */
 function DraftChat({
   visible,
@@ -275,6 +286,8 @@ function DraftChat({
   const draft = useWorkspace((s) => s.draft);
   const busy = useWorkspace((s) => s.busy);
   const draftChange = useWorkspace((s) => s.draftChange);
+  const closeDraft = useWorkspace((s) => s.closeDraft);
+  const router = useRouter();
   const [input, setInput] = useState('');
   const [replies, setReplies] = useState<ChatReply[]>([]);
   const scroll = useRef<ScrollViewInstance>(null);
@@ -290,7 +303,12 @@ function DraftChat({
     if (result.kind === 'rejected') {
       setReplies((r) => [
         ...r,
-        { afterSteps: after, message: `${trimmed}\n${result.message}`, examples: result.examples },
+        {
+          afterSteps: after,
+          message: `${trimmed}\n${result.message}`,
+          examples: result.examples,
+          need: { text: trimmed, reason: result.reason },
+        },
       ]);
     } else if (result.kind === 'invalid') {
       setReplies((r) => [
@@ -299,6 +317,16 @@ function DraftChat({
           afterSteps: after,
           message: `${trimmed}\n${t(locale, 'invalidPlan')} ${result.issues.join('；')}`,
           examples: [],
+        },
+      ]);
+    } else if (result.kind === 'functionInDraft') {
+      setReplies((r) => [
+        ...r,
+        {
+          afterSteps: after,
+          message: `${trimmed}\n${result.message}`,
+          examples: [],
+          handOff: trimmed,
         },
       ]);
     } else if (result.kind === 'steppedBack') {
@@ -377,6 +405,11 @@ function DraftChat({
                           palette={palette}
                           style={bubble(false)}
                           onExample={setInput}
+                          onHandOff={(text) => {
+                            onClose();
+                            closeDraft();
+                            router.push({ pathname: '/change', params: { text } });
+                          }}
                         />
                       ))}
                   </View>
@@ -418,15 +451,26 @@ function ReplyBubble({
   palette,
   style,
   onExample,
+  onHandOff,
 }: {
   reply: ChatReply;
   palette: Palette;
   style: object[];
   onExample: (text: string) => void;
+  onHandOff: (text: string) => void;
 }) {
+  const { locale } = useWorkspaceContext();
+  const { handOff } = reply;
   return (
     <View style={style} testID="draft-chat-rejected">
       <Text style={[palette.font('body', 14), { color: palette.text }]}>{reply.message}</Text>
+      {handOff ? (
+        <Pressable testID="draft-chat-handoff" onPress={() => onHandOff(handOff)} hitSlop={4}>
+          <Text style={[palette.font('bodyBold', 13), { color: palette.primaryText }]}>
+            {t(locale, 'draftNoFunctionGo')}
+          </Text>
+        </Pressable>
+      ) : null}
       {reply.examples.map((example) => (
         <Pressable key={example} onPress={() => onExample(example)} hitSlop={4}>
           <Text style={[palette.font('bodyBold', 13), { color: palette.primaryText }]}>
@@ -434,6 +478,14 @@ function ReplyBubble({
           </Text>
         </Pressable>
       ))}
+      {reply.need ? (
+        <NeedButton
+          text={reply.need.text}
+          reason={reply.need.reason}
+          palette={palette}
+          locale={locale}
+        />
+      ) : null}
     </View>
   );
 }

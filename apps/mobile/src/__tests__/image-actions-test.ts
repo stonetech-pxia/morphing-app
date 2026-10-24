@@ -71,7 +71,7 @@ const imagesOf = (result: Awaited<ReturnType<ReturnType<typeof setup>['run']>>) 
 };
 
 describe('image tool workflows', () => {
-  it('installs twelve single-tool workflows that all validate', () => {
+  it('installs fourteen single-tool workflows that all validate', () => {
     const result = applyOps(
       createDefaultWorkspace('en'),
       [{ op: 'installTool', toolId: 'image' }],
@@ -83,12 +83,14 @@ describe('image tool workflows', () => {
     expect(result.ok && result.config.workflows.map((w) => w.id)).toEqual([
       'image-compress',
       'image-convert',
+      'image-heic',
       'image-resize',
       'image-crop',
       'image-rotate',
       'image-stripmetadata',
       'image-stitch',
       'image-grid',
+      'image-togif',
       'image-redact',
       'image-watermark',
       'image-idphoto',

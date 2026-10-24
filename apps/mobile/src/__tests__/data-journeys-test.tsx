@@ -18,6 +18,7 @@ import DataRoute from '../app/data';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
 import RecordRoute from '../app/record/[collectionId]';
+import TableReadyRoute from '../app/table-ready/[collectionId]';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
 import { WorkspaceProvider } from '../workspace/context';
@@ -64,17 +65,24 @@ async function renderApp({
     change: ChangeRoute,
     'page/[pageId]': PageRoute,
     'record/[collectionId]': RecordRoute,
+    'table-ready/[collectionId]': TableReadyRoute,
     data: DataRoute,
   });
   return { repo, store, files };
 }
 
-async function askAi(text: string) {
+/**
+ * 数据页面分两步（D-191）：数据表是功能，直接做好，打开「数据表做好了」；
+ * 页面是外观，点「接着改」自动发送，进草稿，应用。
+ */
+async function buildDataPage(text: string) {
   await fireEvent.press(screen.getByTestId('nav-ai'));
   await fireEvent.changeText(await screen.findByTestId('change-input'), text);
   await fireEvent.press(screen.getByTestId('change-submit'));
-  // 进入草稿（D-190），应用。
-  await fireEvent.press(await screen.findByTestId('draft-apply'));
+  expect(await screen.findByTestId('table-ready-screen')).toHaveTextContent(/数据表做好了/);
+  expect(screen.getByTestId('next-card')).toHaveTextContent(/增加记账页面/);
+  await fireEvent.press(screen.getByTestId('next-go'));
+  await fireEvent.press(await screen.findByTestId('draft-apply', {}, { timeout: 4000 }));
   expect(await screen.findByTestId('banner')).toBeTruthy();
 }
 
@@ -90,7 +98,7 @@ describe('user data (UI)', () => {
 
   it('AI builds a budget page; entries are recorded on the page and the stats update', async () => {
     const { repo } = await renderApp();
-    await askAi('新建一个记账页面');
+    await buildDataPage('新建一个记账页面');
 
     // 导航栏已满，新页面的入口是首页上的快捷入口。
     await fireEvent.press(await screen.findByText('记账'));
@@ -141,9 +149,22 @@ describe('user data (UI)', () => {
     expect(await screen.findByText('买燕麦奶')).toBeTruthy();
   });
 
+  it('a new table can be tried right away, before it has a page (D-191)', async () => {
+    const { repo } = await renderApp();
+    await fireEvent.press(screen.getByTestId('nav-ai'));
+    await fireEvent.changeText(await screen.findByTestId('change-input'), '新建一个记账页面');
+    await fireEvent.press(screen.getByTestId('change-submit'));
+    expect(await screen.findByTestId('table-ready-name')).toHaveTextContent('账目');
+    await fireEvent.press(screen.getByTestId('table-ready-record'));
+    await fireEvent.changeText(await screen.findByTestId('editor-amount'), '35');
+    await fireEvent.press(screen.getByTestId('editor-save'));
+    expect(await screen.findByTestId('nav-ai')).toBeTruthy();
+    expect(await repo.listRecords('expenses')).toHaveLength(1);
+  });
+
   it('undo, restore and removing the table never touch the entries', async () => {
     const { repo, store, files } = await renderApp();
-    await askAi('新建一个记账页面');
+    await buildDataPage('新建一个记账页面');
     await fireEvent.press(await screen.findByText('记账'));
     await addExpense('35', 'food', '午饭');
     expect(await screen.findAllByText('¥35.00')).toHaveLength(2);

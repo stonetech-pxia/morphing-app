@@ -1,11 +1,11 @@
 // 音频（D-152、D-153）：「压到指定大小 / 音质」「转格式」时的码率、声道和采样率。
 // 真正的编码在 App 的原生模块 morph-media 里（iOS AVFoundation、Android Media3），这里只有纯计算。
-// 输出默认 M4A（AAC），微信、邮件、电脑和所有手机都能放；也能输出 WAV（不压缩）。不做 MP3（P-020）。
+// 输出默认 M4A（AAC），微信、邮件、电脑和所有手机都能放；也能输出 WAV（不压缩）和 MP3（LAME，D-183）。
 
 export const AUDIO_QUALITIES = ['high', 'standard', 'voice'] as const;
 export type AudioQuality = (typeof AUDIO_QUALITIES)[number];
 
-export const AUDIO_FORMATS = ['m4a', 'wav'] as const;
+export const AUDIO_FORMATS = ['m4a', 'wav', 'mp3'] as const;
 export type AudioFormat = (typeof AUDIO_FORMATS)[number];
 
 /** 编码要求（交给原生模块）。WAV 只用 channels / sampleRate。 */
@@ -103,6 +103,7 @@ export function planAudioQuality(source: AudioSource, quality: AudioQuality): Au
  */
 export function planAudioConvert(source: AudioSource, format: AudioFormat): AudioPlan {
   const channels: 1 | 2 = source.channels === 1 ? 1 : 2;
+  if (format === 'mp3') return planMp3(source);
   if (format === 'wav') {
     const sampleRate = source.sampleRate ? Math.min(48000, source.sampleRate) : 44100;
     return { format, bitrateKbps: 0, channels, sampleRate };
@@ -113,6 +114,25 @@ export function planAudioConvert(source: AudioSource, format: AudioFormat): Audi
     original > 0 ? Math.min(MAX_AUDIO_KBPS, Math.max(48, original * 1.2)) : 160,
   );
   return { format, bitrateKbps: kbps, channels: kbps >= 64 ? channels : 1, sampleRate: 44100 };
+}
+
+/** MP3 的标准码率（kbps）：LAME 只按这些档位编码。 */
+export const MP3_BITRATES = [128, 160, 192, 224, 256, 320] as const;
+
+/**
+ * MP3：同样的音质比 AAC 要多一些码率，按原来的 1.5 倍取最近的标准档（128–320 kbps）；读不到原码率时 192。
+ * 采样率统一 44.1 kHz（各种播放器都认）；单声道的录音保持单声道。
+ */
+function planMp3(source: AudioSource): AudioPlan {
+  const original = audioSourceKbps(source);
+  const wanted = original > 0 ? original * 1.5 : 192;
+  const kbps = MP3_BITRATES.find((b) => b >= wanted) ?? 320;
+  return {
+    format: 'mp3',
+    bitrateKbps: kbps,
+    channels: source.channels === 1 ? 1 : 2,
+    sampleRate: 44100,
+  };
 }
 
 /** 预计大小（字节）：检查剩余空间用。 */

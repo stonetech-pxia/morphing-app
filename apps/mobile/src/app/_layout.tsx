@@ -9,13 +9,15 @@ import {
   createMockAIProvider,
   createRegistry,
   createStarterWorkspace,
+  trustedToolKeys,
 } from '@morph/core';
+import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { AISettingsProvider } from '@/ai/context';
 import { createAIRouter } from '@/ai/router';
@@ -32,9 +34,13 @@ import { expoFilePlatform } from '@/runtime/expo-platform';
 import { closeButtonOption, stackScreenOptions } from '@/shell/header';
 import { CLAY_FONTS, usePalette } from '@/renderer/theme';
 import { useIncomingShare } from '@/share/useIncomingShare';
+import { ToolDownloadsProvider } from '@/tool-download/context';
+import { expoToolFs } from '@/tool-download/expo-tool-fs';
+import { createToolDownloads } from '@/tool-download/state';
+import { ToolDownloadStore } from '@/tool-download/store';
 import { SQLiteWorkspaceRepo, migrateDatabase } from '@/storage/sqlite';
 import { WorkspaceProvider, useWorkspace } from '@/workspace/context';
-import { createRemoteAIProvider } from '@/workspace/remote-ai';
+import { createNeedSender, createRemoteAIProvider } from '@/workspace/remote-ai';
 import { createWorkspaceStore, type WorkspaceStore } from '@/workspace/store';
 
 const locale = getDeviceLocale();
@@ -42,11 +48,33 @@ const locale = getDeviceLocale();
 const packStore = new PackStore(expoPackFs, expoSha256);
 const packs = { store: packStore, bridge: new PackBridge(expoBridgeFiles(packStore)) };
 const registry = createRegistry(BUILTIN_TOOLS);
+// 从服务器下载的工具（D-177、D-178）：目录地址不是秘密；开发版另外信任仓库里的开发公钥。
+const toolsUrl = process.env.EXPO_PUBLIC_MORPH_TOOLS_URL;
+const toolDownloads = createToolDownloads({
+  store: new ToolDownloadStore(expoToolFs, expoSha256, {
+    baseUrl: toolsUrl ?? '',
+    trustedKeys: trustedToolKeys(__DEV__),
+  }),
+  registry,
+  configured: Boolean(toolsUrl),
+});
+/** 启动时目录超过一天没拉就拉一次（停用名单靠它生效，D-178）。 */
+const CATALOG_DAY_MS = 24 * 60 * 60 * 1000;
 // AI 来源由「设置 → AI」决定：内置规则、Morph 服务器（需配置地址，见 README）或用户自带 key。
 const apiUrl = process.env.EXPO_PUBLIC_MORPH_API_URL;
 const aiSettings = createAISettingsStore({
   secrets: secureSecretStore,
   serverAvailable: Boolean(apiUrl),
+  // 需求回收（D-189）：配置了服务器地址时，AI 做不到的那句话可以由用户点一下发过去。
+  needs: apiUrl
+    ? createNeedSender({
+        baseUrl: apiUrl,
+        clientToken: process.env.EXPO_PUBLIC_MORPH_CLIENT_TOKEN,
+        deviceId: getDeviceId,
+        ...(Platform.OS === 'ios' || Platform.OS === 'android' ? { platform: Platform.OS } : {}),
+        ...(Constants.expoConfig?.version ? { appVersion: Constants.expoConfig.version } : {}),
+      })
+    : null,
 });
 const provider = createAIRouter({
   settings: aiSettings,
@@ -106,6 +134,7 @@ function ThemedStack() {
         <Stack.Screen name="run/[workflowId]" options={closable} />
         <Stack.Screen name="share" options={closable} />
         <Stack.Screen name="ready/[workflowId]" options={{ ...closable, title: '' }} />
+        <Stack.Screen name="table-ready/[collectionId]" options={{ ...closable, title: '' }} />
         <Stack.Screen
           name="welcome"
           options={{ presentation: 'fullScreenModal', headerShown: false, gestureEnabled: false }}
@@ -139,6 +168,8 @@ export default function RootLayout() {
       const db = await openDatabaseAsync('morph.db');
       await migrateDatabase(db);
       const repo = new SQLiteWorkspaceRepo(db);
+      // 先把本机下载过的工具注册进来，用到它们的配置才校验得过。
+      await toolDownloads.getState().load();
       const created = createWorkspaceStore({
         repo,
         provider,
@@ -146,9 +177,12 @@ export default function RootLayout() {
         locale,
         now: () => new Date(),
         seed: createStarterWorkspace,
+        toolName: (id) =>
+          toolDownloads.getState().catalog?.tools.find((e) => e.id === id)?.name[locale],
       });
       await created.getState().boot();
       await useGuide.getState().load(repo);
+      void toolDownloads.getState().refresh(CATALOG_DAY_MS);
       // 上次运行没来得及删除的临时文件（D-063）。
       await expoFilePlatform.removeAllRuns().catch(() => undefined);
       setRuntime({ store: created, repo });
@@ -173,7 +207,9 @@ export default function RootLayout() {
           locale,
         }}>
         <PackHostProvider value={packs}>
-          <RootStack />
+          <ToolDownloadsProvider value={toolDownloads}>
+            <RootStack />
+          </ToolDownloadsProvider>
         </PackHostProvider>
       </WorkspaceProvider>
     </AISettingsProvider>

@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { Registry } from '@morph/core';
-import { buildSystemPrompt, supportsServerFallback, type Complete } from '@morph/planner';
+import { systemPromptFor, supportsServerFallback, type Complete } from '@morph/planner';
 
 // 服务端的模型调用传输层（官方 SDK）。规划逻辑在 @morph/planner，与 App 内的 HTTP 传输共用。
 // API key 只在服务端进程中，从不离开服务器。
@@ -12,13 +12,18 @@ export interface SdkCompleterOptions {
 }
 
 export function createSdkCompleter(client: Anthropic, options: SdkCompleterOptions): Complete {
-  const system = buildSystemPrompt(options.registry);
   return async (messages) => {
     const response = await client.beta.messages.create({
       model: options.model,
       max_tokens: 16000,
       // 系统提示词稳定不变，标记缓存以降低重复请求的成本。
-      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+      system: [
+        {
+          type: 'text',
+          text: systemPromptFor(options.registry),
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       messages: messages as Anthropic.Beta.BetaMessageParam[],
       ...(options.effort ? { output_config: { effort: options.effort } } : {}),
       ...(supportsServerFallback(options.model)

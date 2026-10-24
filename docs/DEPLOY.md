@@ -1,6 +1,6 @@
 # 部署计划服务（Mac mini，D-131）
 
-计划服务（`apps/api`）跑在创始人的 Mac mini 上，经 Cloudflare 隧道对外提供 `https://morph-api.stonetech.dev`。服务不保存数据，重启、换机器都不丢东西。
+计划服务（`apps/api`）跑在创始人的 Mac mini 上，经 Cloudflare 隧道对外提供 `https://morph-api.stonetech.dev`。生成计划时不保存数据；唯一保存的是用户主动发来的需求（见下面「需求回收」），换机器时把那个文件一起拷走。
 
 ```
 App ──https──► Cloudflare ──隧道 morph-prod──► Mac mini 127.0.0.1:8788（launchd：dev.stonetech.morph-api）──► Claude
@@ -43,7 +43,22 @@ cd android && EXPO_PUBLIC_MORPH_API_URL=https://morph-api.stonetech.dev \
 adb -s <序列号> install -r app/build/outputs/apk/release/app-release.apk
 ```
 
+下载的工具（D-177–D-179）：打包时再设 `EXPO_PUBLIC_MORPH_TOOLS_URL=<R2 上目录的地址>`，Mac mini 的 `.env` 设同一个地址 `MORPH_TOOLS_URL=…`（不要设 `MORPH_TOOLS_DEV_KEY`）。发布工具不用重启服务，它每 15 分钟拉一次目录；发布步骤见 [TOOL_DOWNLOAD_DESIGN.md](TOOL_DOWNLOAD_DESIGN.md) §13。
+
 客户端令牌会打包进 App，不是秘密（D-132）。换令牌会让旧版本 App 全部 401，所以只在被滥用时才换。
+
+## 需求回收（D-189）
+
+用户在 AI 做不到时点「把这个需求告诉我们」，那一句话追加到 `~/projects/morph-prod/apps/api/data/needs.jsonl`（一行一条 JSON：时间、这句话、语言、拒绝原因、用的哪种 AI、平台、版本；没有设备 id 和 IP）。目录在 `.gitignore` 里，发布新版本不会动它。换位置用 `.env` 的 `MORPH_NEEDS_FILE`。每台设备每天最多 20 条，全部合计每天 2000 条。
+
+```bash
+# 最近 20 条
+tail -20 ~/projects/morph-prod/apps/api/data/needs.jsonl
+# 按拒绝原因数一数（ai 是 mock 的多半是内置规则听不懂，不一定是缺功能）
+jq -r '.reason + " " + (.ai // "?")' ~/projects/morph-prod/apps/api/data/needs.jsonl | sort | uniq -c
+```
+
+隐私政策上线时要写明：只有用户点了按钮才发送，发送的只有这一句话。
 
 ## Mac 需要保持的状态
 

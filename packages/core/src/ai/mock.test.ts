@@ -22,7 +22,14 @@ async function change(input: string, config: WorkspaceConfig, locale: Locale = '
   if (p.kind !== 'ops') throw new Error(`expected ops for “${input}”, got ${JSON.stringify(p)}`);
   const prepared = prepareOps(config, p.ops, { registry, locale, now });
   if (!prepared.ok) throw new Error(`invalid change for “${input}”: ${prepared.issues.join('; ')}`);
-  return prepared;
+  return { ...prepared, plan: p };
+}
+
+/** 先做功能、再点「接着改」那一条（D-191）：数据页面要两句话。 */
+async function changeThenNext(input: string, config: WorkspaceConfig, locale: Locale = 'zh') {
+  const first = await change(input, config, locale);
+  if (!first.plan.next) throw new Error(`expected a next request for “${input}”`);
+  return change(first.plan.next, first.after, locale);
 }
 
 const home = (c: WorkspaceConfig) => c.pages.find((p) => p.id === 'home')!;
@@ -266,14 +273,51 @@ describe('mock AI — data pages (structure only)', () => {
     ['做一个读书清单', 'zh', '书单'],
     ['新建笔记页面', 'zh', '笔记'],
     ['Create a to-do list', 'en', 'To-dos'],
-  ] as const)('F1 “%s” builds a data table and page', async (input, locale, table) => {
-    const { after } = await change(input, workspace(locale), locale);
+  ] as const)('F1 “%s” builds the data table, then the page', async (input, locale, table) => {
+    // 数据表是功能，直接做；页面是外观，留作「接着改」的下一句（D-191）。
+    const first = await change(input, workspace(locale), locale);
+    expect(first.after.collections.map((c) => c.name)).toEqual([table]);
+    expect(first.after.pages).toHaveLength(1);
+    expect(first.plan.next).toMatch(/^增加.+页面$|^Add a .+ page$/);
+    const { after, plan: second } = await change(first.plan.next!, first.after, locale);
     expect(after.collections.map((c) => c.name)).toEqual([table]);
     expect(after.pages).toHaveLength(2);
+    expect(second.next).toBeUndefined();
+  });
+
+  it('F1 a second budget page gets a table of its own', async () => {
+    const budget = (await changeThenNext('新建一个记账页面', workspace())).after;
+    const { after, plan: p } = await change('新建一个记账页面', budget);
+    expect(after.collections.map((c) => c.id)).toEqual(['expenses', 'expenses-2']);
+    const { after: paged } = await change(p.next!, after);
+    expect(paged.pages.find((x) => x.id === 'budget-2')).toBeDefined();
+  });
+
+  it('D-191 a sentence with a function and a look change does the function first', async () => {
+    const { after, plan: p } = await change(
+      '主题换成绿色，添加签证照片快捷操作，首页改成文件工作台',
+      workspace(),
+    );
+    expect(after.workflows.map((w) => w.id)).toContain('visa-photo');
+    expect(after.theme.primaryColor).not.toBe('#2F9E44');
+    expect(home(after).title).toBe('首页');
+    expect(p.next).toBe('主题换成绿色，首页改成文件工作台');
+    const { after: looked, plan: second } = await change(p.next!, after);
+    expect(looked.theme.primaryColor).toBe('#2F9E44');
+    expect(second.next).toBeUndefined();
+  });
+
+  it('D-191 English look clauses come back as sentences', async () => {
+    const { plan: p } = await change(
+      'Add the visa photo quick action. Change the theme color to green',
+      workspace('en'),
+      'en',
+    );
+    expect(p.next).toBe('Change the theme color to green');
   });
 
   it('F2 adds a field to a table', async () => {
-    const budget = (await change('新建一个记账页面', workspace())).after;
+    const budget = (await changeThenNext('新建一个记账页面', workspace())).after;
     const { after, lines } = await change('给账目加一个「支付方式」字段', budget);
     expect(after.collections[0]!.fields.at(-1)).toEqual({
       id: 'field-1',
@@ -290,7 +334,7 @@ describe('mock AI — data pages (structure only)', () => {
     '我这个月花了多少',
     'delete all my expenses',
   ])('X4 “%s” touches recorded data and is refused', async (input) => {
-    const budget = (await change('新建一个记账页面', workspace())).after;
+    const budget = (await changeThenNext('新建一个记账页面', workspace())).after;
     expect(await plan(input, budget, /[a-z]/.test(input) ? 'en' : 'zh')).toMatchObject({
       kind: 'reject',
       reason: 'userData',
@@ -315,7 +359,7 @@ describe('mock AI — images and icons', () => {
   });
 
   it('G2 sets an emoji as a page icon', async () => {
-    const budget = (await change('新建一个记账页面', workspace())).after;
+    const budget = (await changeThenNext('新建一个记账页面', workspace())).after;
     const { after } = await change('把记账页面的图标换成💰', budget);
     expect(after.pages.find((p) => p.title === '记账')!.icon).toBe('💰');
     expect(await plan('把记账页面的图标换成钱', budget)).toMatchObject({ kind: 'reject' });
@@ -340,10 +384,6 @@ describe('mock AI — journey C (PDF tool)', () => {
       action: 'file.rename',
       params: { template: '合并-{date:YYYY-MM-DD}' },
     });
-    expect(
-      after.pages.find((p) => p.id === 'tool-pdf')!.components.find((c) => c.type === 'text')!
-        .hidden,
-    ).toBe(true);
     // 仍然是同一个工具实例。
     expect(after.tools).toHaveLength(1);
     expect(after.workflows.filter((w) => w.id === 'pdf-merge')).toHaveLength(1);

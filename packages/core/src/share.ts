@@ -1,5 +1,5 @@
 import { FILE_LIMITS, MEDIA_LIMITS } from './limits';
-import { mediaKindOf } from './media';
+import { OFFICE_MIME_TYPES, mediaKindOf } from './media';
 import type { Workflow } from './schema';
 import { FILE_ACCEPT } from './tools/io';
 import type { FileValueType } from './workflow/engine';
@@ -48,6 +48,8 @@ export function acceptsSharedFile(accept: string, mimeType: string): boolean {
       return isVideo(mimeType);
     case 'audio':
       return isAudio(mimeType);
+    case 'documents':
+      return OFFICE_MIME_TYPES.includes(mimeType);
     case 'any':
       return true;
     default:

@@ -66,7 +66,8 @@ describe('remote AI provider', () => {
       baseUrl: 'http://api.test',
       fetchImpl: jest.fn(async () => Promise.reject(new TypeError('Network request failed'))),
     });
-    expect(await down.plan('x', ctx)).toMatchObject({ kind: 'reject', reason: 'unknown' });
+    // 连不上不是「做不到」：用 unavailable，不显示「把这个需求告诉我们」（D-189）。
+    expect(await down.plan('x', ctx)).toMatchObject({ kind: 'reject', reason: 'unavailable' });
     const broken = createRemoteAIProvider({
       baseUrl: 'http://api.test',
       fetchImpl: respond(502, { error: 'ai_unavailable' }),

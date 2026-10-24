@@ -1,6 +1,7 @@
 import type { Op } from './ops';
 import {
   HOME_PAGE_ID,
+  allComponents,
   pageTarget,
   type Collection,
   type Locale,
@@ -316,15 +317,52 @@ export function entryOps(
 
 /** 生成某个模板的修改操作：新建数据表、新建页面，并给页面一个入口。 */
 export function templateOps(template: DataTemplate, config: WorkspaceConfig, locale: Locale): Op[] {
-  const [collectionBase, pageBase] = BASE_IDS[template];
-  const collectionId = uniqueId(collectionBase, (id) =>
+  const op = templateCollectionOp(template, config, locale);
+  return [op, ...templatePageOps(template, config, locale, op.collection.id)];
+}
+
+/** 只建模板的数据表（功能，D-191）；页面之后单独加（外观，先进草稿）。 */
+export function templateCollectionOp(
+  template: DataTemplate,
+  config: WorkspaceConfig,
+  locale: Locale,
+): Extract<Op, { op: 'addCollection' }> {
+  const collectionId = uniqueId(BASE_IDS[template][0], (id) =>
     config.collections.some((c) => c.id === id),
   );
-  const pageId = uniqueId(pageBase, (id) => config.pages.some((p) => p.id === id));
-  const { collection, page } = build(template, locale, collectionId);
+  const { collection } = build(template, locale, collectionId);
+  return { op: 'addCollection', collection: { id: collectionId, ...collection } };
+}
+
+/** 给已有的模板数据表建页面，并给页面一个入口。 */
+export function templatePageOps(
+  template: DataTemplate,
+  config: WorkspaceConfig,
+  locale: Locale,
+  collectionId: string,
+): Op[] {
+  const pageId = uniqueId(BASE_IDS[template][1], (id) => config.pages.some((p) => p.id === id));
+  const { page } = build(template, locale, collectionId);
   return [
-    { op: 'addCollection', collection: { id: collectionId, ...collection } },
     { op: 'addPage', page: { id: pageId, ...page } },
     ...entryOps(config, pageId, page.title, page.icon),
   ];
+}
+
+/** 这个模板建好、但还没有页面用到的数据表（先做了功能、页面还没加，D-191）。 */
+export function templateCollectionWithoutPage(
+  template: DataTemplate,
+  config: WorkspaceConfig,
+): string | undefined {
+  const base = BASE_IDS[template][0];
+  const shown = new Set(
+    config.pages.flatMap((p) =>
+      allComponents(p).flatMap((c) =>
+        'collectionId' in c.props ? [String(c.props.collectionId)] : [],
+      ),
+    ),
+  );
+  return config.collections.find(
+    (c) => (c.id === base || c.id.startsWith(`${base}-`)) && !shown.has(c.id),
+  )?.id;
 }

@@ -26,6 +26,8 @@ const ALLOWED = new Set([
   '(MIT OR CC0-1.0)',
   '(BSD-2-Clause OR MIT OR Apache-2.0)',
   '(BSD-3-Clause OR GPL-2.0)', // node-forge：按 BSD-3-Clause 使用
+  '(MIT OR GPL-3.0-or-later)', // jszip（mammoth 的依赖，D-186）：按 MIT 使用
+  'BSD', // duck（mammoth 的依赖，D-186）：package.json 只写了 BSD，LICENSE 文件是 BSD-2-Clause 原文
 ]);
 
 function licenseOf(pkg) {

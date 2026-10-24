@@ -1,6 +1,7 @@
 import { checkNameTemplate } from '../naming';
 import { applyOps, topIndex, type Op } from '../ops';
 import { workflowProblems } from '../workflow/check';
+import { outputTypeOf, type ValueType } from '../workflow/contract';
 import { newWorkflowId, presetWorkflow } from '../workflows/presets';
 import { TRANSLATE_LANGUAGE_NAMES, type TranslateLanguage } from '../tools/translate';
 import {
@@ -30,12 +31,20 @@ import {
   type NavTarget,
   type Page,
   type Workflow,
+  type WorkflowStep,
   type WorkspaceConfig,
 } from '../schema';
 import { isEmoji } from '../richtext';
 import { ICON_NAMES } from '../schema';
-import { entryOps, templateOps, type DataTemplate } from '../templates';
+import {
+  entryOps,
+  templateCollectionOp,
+  templateCollectionWithoutPage,
+  templatePageOps,
+  type DataTemplate,
+} from '../templates';
 import { goalPlan } from './goals';
+import { splitOps } from './kinds';
 import type { AIProvider, Plan, PlanContext, RejectReason } from './types';
 
 // 基于规则的 mock AI（§7F）。不是语言模型：只认识 docs/MOCK_AI_PHRASES.md 中的句式。
@@ -76,6 +85,8 @@ interface State {
   config: WorkspaceConfig;
   /** 整句话中提到的工具，供“完成后按日期命名”这类省略主语的子句使用。 */
   mentionedTool: ToolDefinition | undefined;
+  /** 这个子句做完功能后剩下的外观请求（D-191），例如建好数据表后的「增加记账页面」。 */
+  next?: string;
 }
 
 const say = (locale: Locale, zh: string, en: string) => (locale === 'zh' ? zh : en);
@@ -550,7 +561,18 @@ const TEMPLATE_WORDS: [RegExp, DataTemplate][] = [
   [/^(?:笔记|笔记本|notes?)$/i, 'notes'],
 ];
 
-/** 内置数据页面模板：「新建一个记账页面」「Create a to-do list」。 */
+/** 预设里说的模板名字：「增加记账页面」「Add a budget page」又会回到 templateRule。 */
+const TEMPLATE_NAMES: Record<DataTemplate, Localized> = {
+  budget: { zh: '记账', en: 'budget' },
+  todo: { zh: '待办', en: 'to-do list' },
+  reading: { zh: '读书清单', en: 'reading list' },
+  notes: { zh: '笔记', en: 'notes' },
+};
+
+/**
+ * 内置数据页面模板：「新建一个记账页面」「Create a to-do list」。数据表是功能、页面是外观（D-191）：
+ * 先只建数据表，页面留作下一句；数据表已经建好、还没有页面时，这句话就是加页面。
+ */
 const templateRule: Rule = (clause, state) => {
   const m =
     clause.match(/^(?:新建|添加|加|增加|创建|做|建)(?:一个|个)?(.+?)(?:页面|页)?$/) ??
@@ -559,7 +581,12 @@ const templateRule: Rule = (clause, state) => {
   const word = m[1]!.trim();
   const template = TEMPLATE_WORDS.find(([re]) => re.test(word))?.[1];
   if (!template) return null;
-  return templateOps(template, state.config, state.ctx.locale);
+  const { config, ctx } = state;
+  const waiting = templateCollectionWithoutPage(template, config);
+  if (waiting) return templatePageOps(template, config, ctx.locale, waiting);
+  const name = TEMPLATE_NAMES[template][ctx.locale];
+  state.next = say(ctx.locale, `增加${name}页面`, `Add a ${name} page`);
+  return [templateCollectionOp(template, config, ctx.locale)];
 };
 
 function newFieldId(fields: readonly { id: string }[]): string {
@@ -718,12 +745,6 @@ const simplifyRule: Rule = (clause, state) => {
       } else {
         ops.push({ op: 'removeWorkflowStep', workflowId: wf.id, stepId: step.id });
       }
-    }
-  }
-  const toolPage = state.config.pages.find((p) => p.toolId === tool.id);
-  for (const c of toolPage?.components ?? []) {
-    if (c.type === 'text' && !c.hidden) {
-      ops.push({ op: 'setComponentHidden', pageId: toolPage!.id, componentId: c.id, hidden: true });
     }
   }
   return ops;
@@ -897,6 +918,7 @@ function requireWorkflow(rawName: string, state: State): Workflow {
 function stepPhrases(text: string, state: State, before: PhraseKind | null = null): StepPhrase[] {
   const phrases = splitStepPhrases(text).map((p) => {
     const step = parseStepPhrase(p, state.ctx.locale);
+    if (step?.table !== undefined) return withTable(step, state);
     if (step) return step;
     throw new Rejection(
       'unknown',
@@ -904,6 +926,61 @@ function stepPhrases(text: string, state: State, before: PhraseKind | null = nul
     );
   });
   return fitSizePhrases(phrases, before);
+}
+
+/**
+ * 记一笔（D-187）：句子里的表名换成 collectionId。没说表名、只有一张表时用它；找不到时整句拒绝
+ * （AI 不替用户建表：先说「新建一个记账页面」）。
+ */
+function withTable(step: StepPhrase, state: State): StepPhrase {
+  const name = step.table!.toLowerCase();
+  const all = state.config.collections;
+  const collection = name
+    ? (all.find((c) => c.name.toLowerCase() === name) ??
+      all.find((c) => c.name.toLowerCase().includes(name) || name.includes(c.name.toLowerCase())))
+    : all.length === 1
+      ? all[0]
+      : undefined;
+  if (!collection) {
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        step.table
+          ? `没有叫「${step.table}」的数据表。可以先说「新建一个记账页面」。`
+          : '要记到哪张数据表？例如「记到账目」。',
+        step.table
+          ? `There is no data table called “${step.table}”. Try “Create a budget page” first.`
+          : 'Which data table should it go into? For example “add a record to Expenses”.',
+      ),
+    );
+  }
+  return { action: step.action, params: { collectionId: collection.id } };
+}
+
+/**
+ * 记一笔收文件时表里要有附件字段（D-187）：没有就先加一个「附件」字段（结构修改，不碰记录）。
+ */
+function recordFieldOps(steps: readonly WorkflowStep[], state: State): Op[] {
+  const ops: Op[] = [];
+  let value: ValueType | null = null;
+  for (const step of steps) {
+    const action = state.ctx.registry.actions.get(step.action);
+    if (step.action === 'out.addRecord' && value !== 'text' && value !== null) {
+      const collection = state.config.collections.find((c) => c.id === step.params.collectionId);
+      if (collection && !collection.fields.some((f) => f.type === 'file')) {
+        let id = 'attachment';
+        for (let i = 2; collection.fields.some((f) => f.id === id); i++) id = `attachment-${i}`;
+        ops.push({
+          op: 'addField',
+          collectionId: collection.id,
+          field: { id, name: say(state.ctx.locale, '附件', 'Attachment'), type: 'file' },
+        });
+      }
+    }
+    if (action) value = outputTypeOf(action, step.params, value);
+  }
+  return ops;
 }
 
 /** 步骤接不上（例如 PDF 之后存到相册）时整句拒绝，说明是哪一步。 */
@@ -965,7 +1042,7 @@ const newWorkflowRule: Rule = (clause, state) => {
     wf.id = newWorkflowId('my-workflow', state.config.workflows);
   }
   requireWorkable(wf, state);
-  return [{ op: 'addWorkflow', workflow: wf }];
+  return [...recordFieldOps(steps, state), { op: 'addWorkflow', workflow: wf }];
 };
 
 const renameWorkflowRule: Rule = (clause, state) => {
@@ -1401,9 +1478,16 @@ const REMOVE_PROTECTED = new RegExp(
   'i',
 );
 
-function planClauses(clauses: string[], ctx: PlanContext): Plan {
+interface ClauseResult {
+  clause: string;
+  ops: Op[];
+  next?: string;
+}
+
+/** 一个子句一个子句地套用规则；已经是目标状态的子句（例如 PDF 本来就在最上面）不产生修改。 */
+function runClauses(clauses: string[], ctx: PlanContext): ClauseResult[] {
   const state: State = { ctx, config: ctx.config, mentionedTool: findTool(clauses.join(' '), ctx) };
-  const ops: Op[] = [];
+  const results: ClauseResult[] = [];
   for (const clause of clauses) {
     if (DELETE_FILES.test(clause)) {
       throw new Rejection(
@@ -1427,6 +1511,7 @@ function planClauses(clauses: string[], ctx: PlanContext): Plan {
     }
     if (REMOVE_PROTECTED.test(clause))
       throw new Rejection('protected', PROTECTED_MESSAGE(ctx.locale));
+    delete state.next;
     const clauseOps = RULES.reduce<Op[] | null>(
       (found, rule) => found ?? rule(clause, state),
       null,
@@ -1446,11 +1531,23 @@ function planClauses(clauses: string[], ctx: PlanContext): Plan {
       locale: ctx.locale,
     });
     if (!applied.ok) throw new Rejection('unknown', applied.error);
-    // 已经是目标状态的子句（例如 PDF 本来就在最上面）不产生修改。
     if (JSON.stringify(applied.config) === JSON.stringify(state.config)) continue;
     state.config = applied.config;
-    ops.push(...clauseOps);
+    results.push({ clause, ops: clauseOps, ...(state.next ? { next: state.next } : {}) });
   }
+  return results;
+}
+
+/** 子句拼回一句话：中文用逗号，英文用句号（splitClauses 不按英文逗号拆）；引号换回「」。 */
+function joinClauses(clauses: string[], locale: Locale): string {
+  return locale === 'zh'
+    ? clauses.map((c) => c.replace(/"([^"]*)"/g, '「$1」')).join('，')
+    : clauses.join('. ');
+}
+
+function planClauses(clauses: string[], ctx: PlanContext): Plan {
+  const first = runClauses(clauses, ctx);
+  const ops = first.flatMap((r) => r.ops);
   if (ops.length === 0) {
     return {
       kind: 'reject',
@@ -1463,7 +1560,23 @@ function planClauses(clauses: string[], ctx: PlanContext): Plan {
       examples: [],
     };
   }
-  return { kind: 'ops', ops };
+  const fn = new Set(splitOps(ops).function);
+  if (fn.size === 0) return { kind: 'ops', ops };
+  // 功能先做（D-191）：外观的子句不做，拼成下一句；功能的子句不带外观再算一遍。
+  const isFn = (r: ClauseResult) => r.ops.some((op) => fn.has(op));
+  const fnClauses = first.filter(isFn).map((r) => r.clause);
+  const second = fnClauses.length === first.length ? first : runClauses(fnClauses, ctx);
+  const nextOf = new Map(second.map((r) => [r.clause, r.next]));
+  const rest = first.flatMap((r) => {
+    if (!isFn(r)) return [r.clause];
+    const next = nextOf.get(r.clause);
+    return next ? [next] : [];
+  });
+  return {
+    kind: 'ops',
+    ops: splitOps(second.flatMap((r) => r.ops)).function,
+    ...(rest.length > 0 ? { next: joinClauses(rest, ctx.locale).slice(0, 200) } : {}),
+  };
 }
 
 export function createMockAIProvider(): AIProvider {
