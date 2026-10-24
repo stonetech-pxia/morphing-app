@@ -39,6 +39,11 @@ export type Plan =
        * 每月要自己点一次），以及 AI 按用途补上的步骤为什么要加。
        */
       notes?: string[];
+      /**
+       * 一句话里功能和外观都有时（D-191），ops 只做功能，剩下的外观请求写在这里（界面语言的一句话），
+       * 做完后变成一条「接着改」的预设，点一下进草稿。
+       */
+      next?: string;
     }
   | { kind: 'restorePrevious' }
   | { kind: 'reject'; reason: RejectReason; message: string; examples: string[] };
@@ -49,6 +54,7 @@ export const PlanSchema: z.ZodType<Plan> = z.discriminatedUnion('kind', [
     ops: OpListSchema,
     homeEntry: z.boolean().optional(),
     notes: z.array(z.string().min(1).max(200)).max(4).optional(),
+    next: z.string().min(1).max(200).optional(),
   }),
   z.strictObject({ kind: z.literal('restorePrevious') }),
   z.strictObject({

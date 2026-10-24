@@ -123,6 +123,7 @@ function ThemedStack() {
         <Stack.Screen name="run/[workflowId]" options={closable} />
         <Stack.Screen name="share" options={closable} />
         <Stack.Screen name="ready/[workflowId]" options={{ ...closable, title: '' }} />
+        <Stack.Screen name="table-ready/[collectionId]" options={{ ...closable, title: '' }} />
         <Stack.Screen
           name="welcome"
           options={{ presentation: 'fullScreenModal', headerShown: false, gestureEnabled: false }}

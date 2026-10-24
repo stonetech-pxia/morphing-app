@@ -25,6 +25,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAISettings } from '../ai/context';
+import { useAfterApply } from '../draft/useApplyDraft';
 import { guideText } from '../guide/store';
 import { t } from '../i18n';
 import { UiIcon } from '../renderer/Icon';
@@ -48,31 +49,43 @@ const typeDelay = (length: number) => Math.min(45, 1400 / Math.max(length, 1));
 const MAX_EXAMPLES = 2;
 
 /**
- * AI 修改入口（§4、D-190）：一个带发送箭头的输入框和几个例子。AI 处理完，页面关掉，直接进入草稿模式：
- * App 换成改完后的样子，能看不能用，底部「修改 / 退一步 / 应用 / 离开」。
- * 已经有草稿时，新的一句接着改这份草稿；也可以继续或删除它。
+ * AI 修改入口（§4、D-190、D-191）：一个带发送箭头的输入框和几个例子。
+ * 改外观：AI 处理完，页面关掉，直接进入草稿模式：App 换成改完后的样子，能看不能用，
+ * 底部「修改 / 退一步 / 应用 / 离开」；已经有草稿时，新的一句接着改这份草稿，也可以继续或删除它。
+ * 改功能（快捷操作、工具、数据表）：直接应用（可以撤销），打开「做好了」页面马上试用；
+ * 这句话里剩下的外观变成一条「接着改」，在「做好了」页面上，也是这里的第一个例子。
  */
 export function ChangeScreen() {
-  const { locale, registry } = useWorkspaceContext();
+  const { locale, registry, store } = useWorkspaceContext();
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const config = useWorkspace((s) => s.config)!;
   const draft = useWorkspace((s) => s.draft);
   const busy = useWorkspace((s) => s.busy);
-  const draftChange = useWorkspace((s) => s.draftChange);
+  const change = useWorkspace((s) => s.change);
+  const next = useWorkspace((s) => s.next);
+  const afterApply = useAfterApply();
   const openDraft = useWorkspace((s) => s.openDraft);
   const deleteDraft = useWorkspace((s) => s.deleteDraft);
   const selectTab = useWorkspace((s) => s.selectTab);
   const palette = usePalette(config.theme);
   const aiMode = useAISettings((s) => s.mode);
   // 从一个快捷操作（「让 AI 改这个」）或收件页面打开时带上的上下文（D-124）。
-  const params = useLocalSearchParams<{ workflow?: string; shared?: string; guide?: string }>();
+  const params = useLocalSearchParams<{
+    workflow?: string;
+    shared?: string;
+    guide?: string;
+    next?: string;
+    text?: string;
+  }>();
   // 从新手引导打开（D-149）：句子自动打进输入框，用内置规则处理。
   const [guide] = useState(() =>
     guideText(params.guide, locale) !== null ? params.guide : undefined,
   );
-  const [typing, setTyping] = useState(() => guideText(guide, locale) !== null);
+  // 点了「接着改」（D-191）：那句话自动打进输入框，用设置里的 AI 处理。
+  const [auto] = useState(() => guideText(guide, locale) ?? (params.next ? next : null));
+  const [typing, setTyping] = useState(() => auto !== null);
   const share = useIncoming((s) => s.share);
   const [about] = useState<PlanAbout | undefined>(() => {
     if (params.workflow && config.workflows.some((w) => w.id === params.workflow))
@@ -117,7 +130,8 @@ export function ChangeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [input, setInput] = useState('');
+  // 草稿聊天框里说的功能类请求，带到这里来说（D-191）。
+  const [input, setInput] = useState(() => (auto ? '' : (params.text ?? '')));
   /** 风格选择器最近填进去的句子；用户改过输入框后就不再相等，交给设置里的 AI。 */
   const [presetText, setPresetText] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Extract<
@@ -142,7 +156,7 @@ export function ChangeScreen() {
     // 「撤销」会立即回到上一个版本、可能换主题：先把这个页面的导航栏固定住。Android 上带「关闭」
     // 按钮的导航栏在这时更新会崩（react-native-screens：child already has a parent）。
     navigation.setOptions({ ...stackScreenOptions(palette), ...closeButtonOption(palette) });
-    const result = await draftChange(text.trim(), offline ? presetPlanner : undefined, {
+    const result = await change(text.trim(), offline ? presetPlanner : undefined, {
       ...(guide ? { guide } : {}),
       ...(about ? { about } : {}),
     });
@@ -150,17 +164,20 @@ export function ChangeScreen() {
       setFeedback(result);
       return;
     }
-    // 进入草稿时显示改到的那一页（在导航栏里时）。
-    if (result.kind === 'drafted') {
+    // 进入草稿或回到 App 时显示改到的那一页（在导航栏里时）。
+    if (result.kind === 'drafted' || result.kind === 'applied') {
       const target = pageTarget(result.focusPageId);
-      if (result.step.config.shell.nav.includes(target)) selectTab(target);
+      const shown = result.kind === 'drafted' ? result.step.config : store.getState().config!;
+      if (shown.shell.nav.includes(target)) selectTab(target);
     }
     leave();
+    // 功能类直接应用了（D-191）：去「做好了」页面（或回到收件页面）试用。
+    if (result.kind === 'applied') afterApply(result.applied);
   }
 
-  // 引导的句子一个字一个字打进输入框，打完自动处理：用户看到「原来可以这么说」。
+  // 引导和「接着改」的句子一个字一个字打进输入框，打完自动处理：用户看到「原来可以这么说」。
   useEffect(() => {
-    const text = guideText(guide, locale);
+    const text = auto;
     if (!text) return;
     let shown = 0;
     const timer = setInterval(() => {
@@ -169,8 +186,8 @@ export function ChangeScreen() {
       if (shown < text.length) return;
       clearInterval(timer);
       setTyping(false);
-      setPresetText(text);
-      void submit(text, true);
+      if (guide) setPresetText(text);
+      void submit(text, !!guide);
     }, typeDelay(text.length));
     return () => clearInterval(timer);
     // 只在打开时打一次。
@@ -325,14 +342,17 @@ export function ChangeScreen() {
 
         {guide ? null : (
           <View style={styles.chips} testID="change-examples">
-            {examples.slice(0, MAX_EXAMPLES).map((example) => (
-              <Chip
-                key={example}
-                label={example}
-                palette={palette}
-                onPress={() => setInput(example)}
-              />
-            ))}
+            {(next && !auto ? [next, ...examples.filter((e) => e !== next)] : examples)
+              .slice(0, MAX_EXAMPLES)
+              .map((example) => (
+                <Chip
+                  key={example}
+                  label={example}
+                  palette={palette}
+                  onPress={() => setInput(example)}
+                  {...(example === next ? { testID: 'change-next' } : {})}
+                />
+              ))}
             {about ? null : (
               <Chip
                 testID="change-pick-style"

@@ -154,29 +154,62 @@ describe('user journeys (UI)', () => {
     }
   });
 
-  it('a new workflow goes on the home page; the draft shows it, then “ready” after applying', async () => {
+  it('a new workflow is made right away and goes on the home page; “ready” comes first', async () => {
     const { store } = await renderApp();
-    // 从设置页打开 AI 修改：进入草稿时切到改到的首页。
+    // 从设置页打开 AI 修改。快捷操作是功能，不进草稿，直接做好（D-191）。
     await fireEvent.press(screen.getByTestId('nav-settings'));
     await askAi('添加签证照片工作流');
-    expect(await screen.findByTestId('draft-steps')).toHaveTextContent(/签证 \/ 证件照/);
-    expect(screen.getByTestId('draft-step-pick')).toHaveTextContent(/选照片/);
-    expect(store.getState().tab).toBe('page:home');
-    const id = store.getState().draft!.steps[0]!.config.workflows[0]!.id;
-    expect(screen.getByTestId(`run-${id}`)).toBeTruthy();
-    await applyDraft();
-    // 应用后先看到「做好了」（D-125），说明首页上也有入口；「先不用」回到首页，运行卡片就在标题下面。
+    // 先看到「做好了」（D-125），说明首页上也有入口；「先不用」回到首页，运行卡片就在标题下面。
     expect(await screen.findByTestId('ready-screen')).toHaveTextContent(/首页上也放了入口/);
+    expect(screen.getByTestId('ready-name')).toHaveTextContent(/签证 \/ 证件照/);
+    expect(store.getState().draft).toBeNull();
+    expect(store.getState().tab).toBe('page:home');
+    const id = store.getState().config!.workflows[0]!.id;
     await fireEvent.press(screen.getByTestId('ready-later'));
     expect(await screen.findByTestId(`run-${id}`)).toBeTruthy();
+    // 顶部照常可以撤销。
+    expect(await screen.findByTestId('banner')).toHaveTextContent(/撤销/);
+  });
+
+  it('a sentence with both does the quick action first; “keep going” drafts the look (D-191)', async () => {
+    const { store } = await renderApp();
+    await askAi('主题换成绿色，添加签证照片快捷操作');
+    expect(await screen.findByTestId('ready-screen')).toBeTruthy();
+    expect(store.getState().config!.theme.primaryColor).not.toBe('#2F9E44');
+    expect(screen.getByTestId('next-card')).toHaveTextContent(/主题换成绿色/);
+    await fireEvent.press(screen.getByTestId('next-go'));
+    // 句子自动打进 AI 修改页并发送，外观进草稿。
+    expect(await screen.findByTestId('draft-bar', {}, { timeout: 4000 })).toBeTruthy();
+    expect(store.getState().draft!.steps[0]!.config.theme.primaryColor).toBe('#2F9E44');
+    expect(store.getState().next).toBeNull();
+  });
+
+  it('the draft chat refuses a quick action and can take it to Change this app (D-191)', async () => {
+    const { store } = await renderApp();
+    await askAi('主题换成绿色');
+    await fireEvent.press(await screen.findByTestId('draft-edit'));
+    await fireEvent.changeText(
+      await screen.findByTestId('draft-chat-input'),
+      '添加签证照片快捷操作',
+    );
+    await fireEvent.press(screen.getByTestId('draft-chat-send'));
+    expect(await screen.findByTestId('draft-chat-rejected')).toHaveTextContent(/草稿里只改外观/);
+    expect(store.getState().draft!.steps).toHaveLength(1);
+    await fireEvent.press(screen.getByTestId('draft-chat-handoff'));
+    expect(await screen.findByTestId('change-input')).toHaveProp('value', '添加签证照片快捷操作');
+    await fireEvent.press(screen.getByTestId('change-submit'));
+    expect(await screen.findByTestId('ready-screen')).toBeTruthy();
+    // 草稿还在，回去时套在新版本上。
+    expect(store.getState().draft).toMatchObject({ open: false });
   });
 
   it('in a draft the app can be browsed but not used (D-190)', async () => {
     const { store } = await renderApp();
     await askAi('添加签证照片工作流');
-    const id =
-      (await screen.findByTestId('draft-steps')) &&
-      store.getState().draft!.steps[0]!.config.workflows[0]!.id;
+    await fireEvent.press(await screen.findByTestId('ready-later'));
+    const id = store.getState().config!.workflows[0]!.id;
+    await askAi('主题换成绿色');
+    await screen.findByTestId('draft-bar');
     await fireEvent.press(screen.getByTestId(`run-${id}`));
     expect(await screen.findByTestId('toast')).toHaveTextContent(/应用之后才能用/);
     expect(screen.queryByTestId('run-screen')).toBeNull();
@@ -197,7 +230,11 @@ describe('user journeys (UI)', () => {
           : plan;
       },
     });
+    // 直接做好的功能：说明在「做好了」页面上；草稿里的外观修改：说明在回复里。
     await askAi('添加签证照片工作流');
+    expect(await screen.findByTestId('ready-note-0')).toHaveTextContent(/每月需要你自己点一次/);
+    await fireEvent.press(screen.getByTestId('ready-later'));
+    await askAi('主题换成绿色');
     expect(await screen.findByTestId('draft-note-0')).toHaveTextContent(/每月需要你自己点一次/);
   });
 
@@ -394,14 +431,10 @@ describe('user journeys (UI)', () => {
       '把 PDF 工具首页简化成上传和合并两个步骤，完成后自动按照‘合并-日期’命名',
     );
     await fireEvent.press(screen.getByTestId('change-submit'));
-    // 留在工具页，草稿模式显示改完后的样子。
-    expect(await screen.findByTestId('draft-reply')).toHaveTextContent(/「命名」不再询问/);
-    expect(screen.queryByTestId('component-pdf-intro')).toBeNull();
-    await applyDraft();
-
-    // 同一个工具页：说明文字消失，命名不再询问，仍然只有一个工具实例。
+    // 改快捷操作是功能，直接生效（D-191）：回到同一个工具页，顶部可以撤销，仍然只有一个工具实例。
+    expect(await screen.findByTestId('banner')).toHaveTextContent(/撤销/);
     expect(await screen.findByTestId('run-pdf-merge')).toBeTruthy();
-    expect(screen.queryByTestId('component-pdf-intro')).toBeNull();
+    expect(store.getState().draft).toBeNull();
     expect(store.getState().config!.tools).toHaveLength(1);
     expect(store.getState().config!.workflows.filter((w) => w.id === 'pdf-merge')).toHaveLength(1);
 

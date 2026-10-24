@@ -3,6 +3,7 @@
 
 export * from './ai/eval-cases';
 export * from './ai/goals';
+export * from './ai/kinds';
 export * from './ai/mock';
 export { stepIdFor } from './ai/workflow-phrases';
 export * from './ai/types';

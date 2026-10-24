@@ -7,7 +7,9 @@ import { templateOps } from '../templates';
 import { THEME_PRESETS } from '../presets';
 import { CLAY, contrast, isDark, resolveColors } from '../theme';
 import { presetById, presetWorkflow } from '../workflows/presets';
-import type { Plan, PlanAbout, RejectReason } from './types';
+import { prepareOps, type PreparedChange } from '../change';
+import { functionFirst, hasFunctionOps } from './kinds';
+import type { AIProvider, Plan, PlanAbout, RejectReason } from './types';
 
 /** 结构相同即可（校验后对象的键顺序可能变）。 */
 function sameValue(a: unknown, b: unknown): boolean {
@@ -47,6 +49,11 @@ export interface EvalCase {
   mock: boolean;
   /** 从哪里打开的 AI（D-124）：一个快捷操作，或分享进来的文件。 */
   about?: PlanAbout;
+  /**
+   * 先做功能、再接着做外观（D-191）：第一句只能是功能，计划里要有 next；照着 next 再问一次，
+   * check 检查两步之后的样子（用户点了「接着改」）。
+   */
+  next?: boolean;
 }
 
 export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry): WorkspaceConfig {
@@ -425,6 +432,7 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     input: '新建一个记账页面',
     locale: 'zh',
     setup: 'default',
+    next: true,
     mock: true,
     expect: { kind: 'ops', check: dataPage('money', 'sum') },
   },
@@ -650,6 +658,7 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     input: '做一个记账页面，能看到这个月一共花了多少',
     locale: 'zh',
     setup: 'default',
+    next: true,
     mock: false,
     expect: { kind: 'ops', check: dataPage('money', 'sum') },
   },
@@ -658,6 +667,7 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     input: '我想要一个读书清单，可以勾选读完了没有',
     locale: 'zh',
     setup: 'default',
+    next: true,
     mock: false,
     expect: { kind: 'ops', check: dataPage('checkbox', 'checklist') },
   },
@@ -2059,8 +2069,68 @@ const AUDIO_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+const toolInFront = (toolId: string) => (c: WorkspaceConfig) => {
+  const page = c.pages.find((p) => p.toolId === toolId);
+  if (!page) return `the ${toolId} tool should be added`;
+  return c.shell.nav[0] === `page:${page.id}`
+    ? null
+    : `the ${toolId} tool should be first in the bottom bar, got ${c.shell.nav.join(',')}`;
+};
+
+// 功能和外观分开改（D-191）：一句话两样都有时先做功能，外观留作下一句。
+const SPLIT_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'FL1',
+    input: '主题换成绿色，添加签证照片快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    next: true,
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['in.photos', 'image.idPhoto']), color('#2F9E44')),
+    },
+  },
+  {
+    id: 'FL1-en',
+    input: 'Add the visa photo quick action. Change the theme color to green',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    next: true,
+    expect: {
+      kind: 'ops',
+      check: all(hasWorkflow(['in.photos', 'image.idPhoto']), color('#2F9E44')),
+    },
+  },
+  {
+    id: 'FL2',
+    input: '添加图片工具，放到底部导航的第一个',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    next: true,
+    expect: { kind: 'ops', check: toolInFront('image') },
+  },
+  {
+    id: 'FL3-en',
+    input: 'I want a to-do list I can tick off, and make the whole app dark',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    next: true,
+    expect: {
+      kind: 'ops',
+      check: all(dataPage('checkbox', 'checklist'), (c) =>
+        c.theme.mode === 'dark' || darkBackground(c) === null ? null : 'the app should be dark',
+      ),
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...BASE_EVAL_CASES,
+  ...SPLIT_EVAL_CASES,
   ...WORKFLOW_EVAL_CASES,
   ...GOAL_EVAL_CASES,
   ...WORDING_EVAL_CASES,
@@ -2071,6 +2141,51 @@ export const EVAL_CASES: readonly EvalCase[] = [
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };
+
+/**
+ * 按 App 的做法跑一个用例（D-191）：计划不能把功能和外观混在一起；要求接着改的用例照着 next 再问一次，
+ * 在第一步的结果上套用第二个计划。mock 的测试和真实模型的评测脚本共用。
+ */
+export async function runEvalCase(
+  c: EvalCase,
+  provider: AIProvider,
+  registry: Registry,
+  now: Date,
+): Promise<{ outcome: EvalOutcome; plans: Plan[] }> {
+  const ctx = { registry, locale: c.locale, now };
+  const ask = (input: string, config: WorkspaceConfig) =>
+    provider.plan(input, {
+      config,
+      registry,
+      locale: c.locale,
+      ...(c.about ? { about: c.about } : {}),
+    });
+  const fail = (reason: string) => ({ pass: false, reason }) as const;
+  const config = buildSetup(c.setup, c.locale, registry);
+  const plan = await ask(c.input, config);
+  const plans = [plan];
+  if (plan.kind !== 'ops') return { outcome: judgeEval(c, plan, null), plans };
+  const first = functionFirst(config, plan.ops, ctx);
+  if (first.kind === 'function' && first.deferred.length > 0) {
+    return { outcome: fail('the plan mixes function and look ops (D-191)'), plans };
+  }
+  let prepared: PreparedChange = prepareOps(config, plan.ops, ctx);
+  if (c.next && prepared.ok) {
+    if (first.kind !== 'function')
+      return { outcome: fail('the first turn should do the function part'), plans };
+    if (!plan.next) return { outcome: fail('expected next with the look part'), plans };
+    const second = await ask(plan.next, prepared.after);
+    plans.push(second);
+    if (second.kind !== 'ops') {
+      const why = second.kind === 'reject' ? `: ${second.message}` : '';
+      return { outcome: fail(`next “${plan.next}” gave ${second.kind}${why}`), plans };
+    }
+    if (hasFunctionOps(second.ops))
+      return { outcome: fail(`next “${plan.next}” should only change the look`), plans };
+    prepared = prepareOps(prepared.after, second.ops, ctx);
+  }
+  return { outcome: judgeEval(c, plan, prepared), plans };
+}
 
 /** 判定一个计划是否符合用例预期。afterOrIssues 来自 prepareOps。 */
 export function judgeEval(

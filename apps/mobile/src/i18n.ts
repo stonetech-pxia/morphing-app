@@ -701,6 +701,28 @@ const strings = {
     zh: '刚才那一步显示不出来，已经撤掉。',
   },
 
+  // 功能和外观分开改（D-191）
+  draftNoFunction: {
+    en: 'The draft only changes the look. Quick actions, tools and data tables are changed on the Change this app page: they take effect right away and can be undone.',
+    zh: '草稿里只改外观。快捷操作、工具和数据表要在「修改这个 App」里改：会直接生效，可以撤销。',
+  },
+  draftNoFunctionGo: { en: 'Say it on Change this app', zh: '去「修改这个 App」说' },
+  functionNeedsDraft: {
+    en: 'This change needs something from your draft. Apply the draft first, then say it again.',
+    zh: '这个修改要用到草稿里还没应用的改动。先应用草稿，再说一次。',
+  },
+  nextTitle: { en: 'Keep going', zh: '接着改' },
+  nextHint: {
+    en: 'The rest of what you asked changes the look: tap to see it in a draft first.',
+    zh: '这句话里剩下的是外观的修改，点一下先在草稿里看看效果。',
+  },
+  tableReadyTitle: { en: 'Your data table is ready', zh: '数据表做好了' },
+  tableReadyRecord: { en: 'Add an entry now', zh: '现在就记一笔' },
+  tableReadyWhere: {
+    en: 'Entries stay on this device. You can also see the table in Settings → Data.',
+    zh: '记录存在本机，在「设置 → 数据」里也能看到这张表。',
+  },
+
   // 新手引导（D-149）
   guideSkip: { en: 'Skip', zh: '跳过' },
   guideNext: { en: 'Next', zh: '下一步' },
