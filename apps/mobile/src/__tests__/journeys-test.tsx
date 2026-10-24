@@ -204,7 +204,12 @@ describe('user journeys (UI)', () => {
   it('leave keeps the draft; the AI page continues or deletes it', async () => {
     const { store } = await renderApp();
     await askAi('主题换成绿色');
-    await fireEvent.press(await screen.findByTestId('draft-leave'));
+    // 草稿里点会真的做事的东西只提示；离开时提示一起收掉。
+    await fireEvent.press(await screen.findByTestId('nav-settings'));
+    await fireEvent.press(await screen.findByTestId('settings-data'));
+    expect(await screen.findByTestId('toast')).toHaveTextContent(/应用之后才能用/);
+    await fireEvent.press(screen.getByTestId('draft-leave'));
+    expect(screen.queryByTestId('toast')).toBeNull();
     expect(await screen.findByTestId('nav-ai')).toBeTruthy();
     expect(screen.queryByTestId('draft-bar')).toBeNull();
     expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');

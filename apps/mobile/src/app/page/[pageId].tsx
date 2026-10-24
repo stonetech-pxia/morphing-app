@@ -88,20 +88,24 @@ export default function PageRoute() {
             ),
         }}
       />
-      {inDraft ? null : <Banner palette={palette} />}
-      <DraftNotice palette={palette} />
-      <ErrorBoundary
-        key={inDraft ? `${headId}-draft` : headId}
-        onError={inDraft ? draftFailed : reportRenderError}
-        fallback={<View />}>
-        <EditablePage page={page} env={env} bottomInset={insets.bottom + (inDraft ? 90 : 0)} />
-      </ErrorBoundary>
-      <Toast palette={palette} bottom={insets.bottom + (inDraft ? 90 : 16)} />
-      <DraftBar palette={palette} bottom={insets.bottom + 16} />
+      {/* 草稿模式里内容区用草稿的背景（D-190）；顶部导航栏仍跟着已保存的版本。 */}
+      <View style={[styles.fill, inDraft && palette.backdrop]}>
+        {inDraft ? null : <Banner palette={palette} />}
+        <DraftNotice palette={palette} />
+        <ErrorBoundary
+          key={inDraft ? `${headId}-draft` : headId}
+          onError={inDraft ? draftFailed : reportRenderError}
+          fallback={<View />}>
+          <EditablePage page={page} env={env} bottomInset={insets.bottom + (inDraft ? 90 : 0)} />
+        </ErrorBoundary>
+        <DraftBar palette={palette} bottom={insets.bottom + 16} />
+        <Toast palette={palette} bottom={insets.bottom + (inDraft ? 90 : 16)} />
+      </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
 });

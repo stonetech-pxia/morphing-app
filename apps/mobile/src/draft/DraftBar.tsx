@@ -5,7 +5,6 @@ import {
   Animated,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -321,9 +320,8 @@ function DraftChat({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={styles.chatRoot}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {/* Android 也要 padding：Modal 里窗口不跟着键盘缩小，三星键盘会挡住输入框（同 AskPanel）。 */}
+      <KeyboardAvoidingView style={styles.chatRoot} behavior="padding">
         <Pressable
           style={styles.flex}
           onPress={onClose}
@@ -467,6 +465,7 @@ const styles = StyleSheet.create({
   chatRoot: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)' },
   sheet: {
     height: '58%',
+    flexShrink: 1,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     borderWidth: StyleSheet.hairlineWidth,

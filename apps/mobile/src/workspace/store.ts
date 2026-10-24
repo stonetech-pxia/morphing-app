@@ -847,7 +847,8 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
 
       closeDraft() {
         const draft = get().draft;
-        if (draft?.open) set({ draft: { ...draft, open: false } });
+        // 草稿里唯一的提示是「应用之后才能用」，离开时一起收掉。
+        if (draft?.open) set({ draft: { ...draft, open: false }, toast: null });
       },
 
       async applyDraft() {
@@ -879,7 +880,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
             undoTo: head.id,
             summary,
           };
-          set({ draft: null });
+          set({ draft: null, toast: null });
           await saveDraft(null);
           // 被移除的工具失去文件授权；文件本身保留（§7G）。
           const remaining = new Set(after.tools.map((t) => t.toolId));

@@ -113,12 +113,18 @@ export function useShellEnv(): Pick<RenderEnv, 'navigate' | 'locked'> & { inDraf
   const inDraft = useWorkspace((s) => !!s.draft?.open);
   const showToast = useWorkspace((s) => s.showToast);
   const setChatOpen = useDraftUi((s) => s.setChatOpen);
+  const markSeen = useDraftUi((s) => s.markSeen);
+  const lastStep = useWorkspace((s) => s.draft?.steps.at(-1)?.changeRequestId);
   const navigate = useNavigate();
   if (!inDraft) return { navigate, inDraft };
   return {
     inDraft,
     navigate: (target) => (target === 'ai' ? setChatOpen(true) : navigate(target)),
-    locked: () => showToast({ message: t(locale, 'draftLocked') }),
+    // 提示「应用之后才能用」；最新一步的回复会挡住提示，先收起来。
+    locked: () => {
+      if (lastStep !== undefined) markSeen(lastStep);
+      showToast({ message: t(locale, 'draftLocked') });
+    },
   };
 }
 
@@ -233,8 +239,8 @@ export function Shell() {
         </View>
       ) : null}
 
-      <Toast palette={palette} bottom={barSpace + (inDraft ? 84 : 12)} />
       <DraftBar palette={palette} bottom={barSpace + 12} />
+      <Toast palette={palette} bottom={barSpace + (inDraft ? 84 : 12)} />
 
       <View
         style={[
