@@ -8,6 +8,7 @@ import { usePalette } from '../renderer/theme';
 import { Button, Card } from '../renderer/ui';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { NextCard } from './NextCard';
+import { Banner } from './Shell';
 
 /**
  * 「数据表做好了」（D-191）：AI 新建了一张数据表（功能，直接生效）。现在就能记一笔试试；
@@ -31,6 +32,8 @@ export function TableReadyScreen({
     <ScrollView
       testID="table-ready-screen"
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 48 }}>
+      {/* 直接应用的功能（D-191）：「已改好 · 撤销」在这里也看得到。 */}
+      <Banner palette={palette} />
       <View style={styles.head}>
         <View style={[styles.badge, { backgroundColor: palette.secondary }]}>
           <Icon name="check" size={22} color="#FFFFFF" />

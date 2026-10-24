@@ -680,8 +680,8 @@ const strings = {
   draftSteppedBack: { en: 'Took back the last step.', zh: '退了一步。' },
   draftCard: { en: 'You have a draft · {n} step(s)', zh: '你有一份草稿 · {n} 步' },
   draftCardHint: {
-    en: 'What you say now continues this draft.',
-    zh: '新说的一句会接着改这份草稿。',
+    en: 'Look changes you ask for now continue this draft; quick actions, tools and data tables take effect right away.',
+    zh: '新说的外观修改会接着改这份草稿；快捷操作、工具和数据表直接生效。',
   },
   draftContinue: { en: 'Continue', zh: '继续' },
   draftDelete: { en: 'Delete', zh: '删除' },

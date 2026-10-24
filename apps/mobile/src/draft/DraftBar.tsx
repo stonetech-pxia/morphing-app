@@ -309,7 +309,12 @@ function DraftChat({
     } else if (result.kind === 'functionInDraft') {
       setReplies((r) => [
         ...r,
-        { afterSteps: after, message: result.message, examples: [], handOff: trimmed },
+        {
+          afterSteps: after,
+          message: `${trimmed}\n${result.message}`,
+          examples: [],
+          handOff: trimmed,
+        },
       ]);
     } else if (result.kind === 'steppedBack') {
       setReplies((r) => [

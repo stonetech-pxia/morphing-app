@@ -162,6 +162,10 @@ describe('user journeys (UI)', () => {
     // 先看到「做好了」（D-125），说明首页上也有入口；「先不用」回到首页，运行卡片就在标题下面。
     expect(await screen.findByTestId('ready-screen')).toHaveTextContent(/首页上也放了入口/);
     expect(screen.getByTestId('ready-name')).toHaveTextContent(/签证 \/ 证件照/);
+    // 「做好了」页面上也有「已改好 · 撤销」（不然提示条在下面的 App 里自己消失了）。
+    expect(
+      await within(screen.getByTestId('ready-screen')).findByTestId('banner'),
+    ).toHaveTextContent(/撤销/);
     expect(store.getState().draft).toBeNull();
     expect(store.getState().tab).toBe('page:home');
     const id = store.getState().config!.workflows[0]!.id;
@@ -193,7 +197,9 @@ describe('user journeys (UI)', () => {
       '添加签证照片快捷操作',
     );
     await fireEvent.press(screen.getByTestId('draft-chat-send'));
-    expect(await screen.findByTestId('draft-chat-rejected')).toHaveTextContent(/草稿里只改外观/);
+    expect(await screen.findByTestId('draft-chat-rejected')).toHaveTextContent(
+      /添加签证照片快捷操作\s+草稿里只改外观/,
+    );
     expect(store.getState().draft!.steps).toHaveLength(1);
     await fireEvent.press(screen.getByTestId('draft-chat-handoff'));
     expect(await screen.findByTestId('change-input')).toHaveProp('value', '添加签证照片快捷操作');

@@ -15,6 +15,7 @@ import { usePalette } from '../renderer/theme';
 import { Button, Card } from '../renderer/ui';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { NextCard } from './NextCard';
+import { Banner } from './Shell';
 
 /**
  * 「快捷操作做好了」（D-125）：AI 新做了一个快捷操作后打开。AI 不替用户运行（D-113），
@@ -51,6 +52,8 @@ export function ReadyScreen({
     <ScrollView
       testID="ready-screen"
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 48 }}>
+      {/* 直接应用的功能（D-191）：「已改好 · 撤销」在这里也看得到。 */}
+      <Banner palette={palette} />
       <View style={styles.head}>
         <View style={[styles.badge, { backgroundColor: palette.secondary }]}>
           <Icon name="check" size={22} color="#FFFFFF" />
