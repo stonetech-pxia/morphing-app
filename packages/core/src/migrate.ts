@@ -114,6 +114,12 @@ export const migrateV5toV6: Migration = (config) => ({ ...config, schemaVersion:
  */
 export const migrateV6toV7: Migration = (config) => ({ ...config, schemaVersion: 7 });
 
+/**
+ * v7 → v8：数据表新增附件（file）和公式（formula）字段，快捷操作可以「记一笔」（D-187、D-188）；
+ * 已有数据不需要改动，只提升版本号。
+ */
+export const migrateV7toV8: Migration = (config) => ({ ...config, schemaVersion: 8 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -122,6 +128,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   4: migrateV4toV5,
   5: migrateV5toV6,
   6: migrateV6toV7,
+  7: migrateV7toV8,
 };
 
 export type MigrateResult =

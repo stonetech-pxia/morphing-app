@@ -770,6 +770,10 @@ const strings = {
     en: '“{name}” is a {format} file, which this phone can’t open. Convert it to MP4 on a computer first.',
     zh: '「{name}」是 {format} 格式，这台手机打不开。可以先在电脑上转成 MP4。',
   },
+  // ---- 记一笔、附件和公式字段（D-187、D-188）----
+  noAttachment: { en: 'No attachment', zh: '没有附件' },
+  attachmentMissing: { en: 'The file was deleted', zh: '文件已经删掉了' },
+  removeAttachment: { en: 'Remove', zh: '去掉' },
   runError_documentUnsupported: {
     en: '“{name}” is a {format} file. On this phone only Word documents (.docx) can be turned into PDFs.',
     zh: '「{name}」是 {format} 文件。这台手机上只能把 Word 文档（.docx）转成 PDF。',

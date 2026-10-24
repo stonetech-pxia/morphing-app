@@ -10,6 +10,8 @@ export interface StepPhrase {
   params: Record<string, unknown>;
   /** 每次运行时问的参数（「输入文字」要问文字）。 */
   ask?: string[] | undefined;
+  /** 记一笔（D-187）：句子里说的表名，由调用方按当前配置换成 collectionId；空字符串表示没说。 */
+  table?: string;
 }
 
 const num = (s: string) => Number(s.replace(/,/g, ''));
@@ -150,7 +152,27 @@ const FORMAT_PHRASES: Matcher[] = [
   ],
 ];
 
+// ---- 记一笔（D-187，MOCK_AI_PHRASES RE）----
+
+const tableName = (raw: string | undefined) =>
+  (raw ?? '')
+    .replace(/["「」“”]/g, '')
+    .replace(/(?:这张表|数据表|表格|表|里)$/, '')
+    .trim();
+
+const RECORD_PHRASES: Matcher[] = [
+  [
+    /^(?:记一笔|记一条|记下来|记账)(?:到|进)?(.*)$|^(?:记到|记进|写进|写到|加到)(.+?)(?:表|数据表|里)?$/,
+    (m) => ({ action: 'out.addRecord', params: {}, table: tableName(m[1] ?? m[2]) }),
+  ],
+  [
+    /^(?:add|log) (?:a |one )?(?:record|entry)(?: (?:to|in) (?:the )?(.+?))?(?: table)?$|^(?:log|record) (?:it|them) (?:in|to) (?:the )?(.+?)(?: table)?$/i,
+    (m) => ({ action: 'out.addRecord', params: {}, table: tableName(m[1] ?? m[2]) }),
+  ],
+];
+
 const STEP_PHRASES: Matcher[] = [
+  ...RECORD_PHRASES,
   ...TRANSLATE_PHRASES,
   ...AUDIO_PHRASES,
   ...FORMAT_PHRASES,

@@ -2195,6 +2195,107 @@ const FORMAT_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+// ---- 记一笔、附件和公式字段（D-187、D-188）：快捷操作写记录；直接替用户记一笔仍按 userData 拒绝 ----
+// RE* 是 mock 句式（MOCK_AI_PHRASES RE），PRE* 只要求真实模型。
+
+/** 有一个快捷操作记到 expenses，而且这张表有附件字段（收文件时）。 */
+const logsTo =
+  (needsFile: boolean) =>
+  (c: WorkspaceConfig): string | null => {
+    const wf = userWorkflows(c).find((w) =>
+      w.steps.some((s) => s.action === 'out.addRecord' && s.params.collectionId === 'expenses'),
+    );
+    if (!wf) return 'expected a quick action with out.addRecord into expenses';
+    const table = c.collections.find((x) => x.id === 'expenses');
+    if (needsFile && !table?.fields.some((f) => f.type === 'file'))
+      return 'expenses should have a file field for the receipts';
+    return null;
+  };
+
+const RECORD_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'RE1',
+    input: '新建一个快捷操作：拍照，记到账目',
+    locale: 'zh',
+    setup: 'budget',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: all(
+        hasWorkflow(['in.photos', 'out.addRecord'], param('in.photos', 'source', 'camera')),
+        logsTo(true),
+      ),
+    },
+  },
+  {
+    id: 'RE1-en',
+    input: 'Create a quick action: take photos, add a record to Expenses',
+    locale: 'en',
+    setup: 'budget',
+    mock: true,
+    expect: { kind: 'ops', check: all(hasWorkflow(['in.photos', 'out.addRecord']), logsTo(true)) },
+  },
+  {
+    id: 'RE2',
+    input: '新建一个快捷操作：输入文字，记一笔',
+    locale: 'zh',
+    setup: 'budget',
+    mock: true,
+    expect: { kind: 'ops', check: all(hasWorkflow(['in.text', 'out.addRecord']), logsTo(false)) },
+  },
+  {
+    id: 'RE3',
+    input: '新建一个快捷操作：拍照，记到不存在的表',
+    locale: 'zh',
+    setup: 'budget',
+    mock: true,
+    expect: { kind: 'reject' },
+  },
+  {
+    id: 'PRE1',
+    input: '我想拍一下收据就能记一笔账，收据照片也留着',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: logsTo(true) },
+  },
+  {
+    id: 'PRE2-en',
+    input: 'Make a quick action to scan my receipts into the Expenses table',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: logsTo(true) },
+  },
+  {
+    id: 'PRE3',
+    input: '给账目加一个「含税」，等于金额乘以 1.06',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const f = c.collections
+          .find((x) => x.id === 'expenses')
+          ?.fields.find((x) => x.type === 'formula');
+        if (!f || f.type !== 'formula') return 'expected a formula field in expenses';
+        return /\{amount\}\s*\*\s*1\.06|1\.06\s*\*\s*\{amount\}/.test(f.expression)
+          ? null
+          : `formula should be amount × 1.06, got ${f.expression}`;
+      },
+    },
+  },
+  {
+    id: 'PRE4',
+    input: '记一笔午饭 35',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'reject', reason: 'userData' },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...BASE_EVAL_CASES,
   ...WORKFLOW_EVAL_CASES,
@@ -2205,6 +2306,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...TRANSLATE_EVAL_CASES,
   ...AUDIO_EVAL_CASES,
   ...FORMAT_EVAL_CASES,
+  ...RECORD_EVAL_CASES,
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };

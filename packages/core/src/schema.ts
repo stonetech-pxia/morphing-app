@@ -1,11 +1,12 @@
 import { z } from 'zod';
 
+import { MAX_FORMULA_LENGTH } from './formula';
 import { isEmoji, unsafeLinks } from './richtext';
 
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 修改本文件中会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
 
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 export type Locale = 'en' | 'zh';
 export type Localized = Record<Locale, string>;
@@ -158,6 +159,21 @@ export const FieldSchema = z.discriminatedUnion('type', [
     ...fieldBase,
     type: z.literal('rating'),
     default: z.number().int().min(1).max(5).optional(),
+  }),
+  // D-187：附件，值是 Morph 里一个文件的 ID（快捷操作「记一笔」存进来的收据、照片等）。
+  z.strictObject({ ...fieldBase, type: z.literal('file') }),
+  // D-188：公式，由同一张表的数字、金额、评分字段算出来（只有四则运算），不存进记录、不能填。
+  z.strictObject({
+    id: IdSchema,
+    name: text(1, 40),
+    type: z.literal('formula'),
+    expression: text(1, MAX_FORMULA_LENGTH),
+    decimals: z.number().int().min(0).max(4).optional(),
+    unit: text(1, 10).optional(),
+    currency: z
+      .string()
+      .regex(/^[A-Z]{3}$/, 'currency must be an ISO code like CNY')
+      .optional(),
   }),
 ]);
 export type Field = z.infer<typeof FieldSchema>;

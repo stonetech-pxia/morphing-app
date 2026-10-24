@@ -11,6 +11,7 @@ import { MORE_IMPLS } from './more';
 import { OCR_IMPLS } from './ocr';
 import { PDF_IMPLS } from './pdf';
 import { PDF_COMPRESS_IMPLS } from './pdf-compress';
+import { RECORD_IMPLS } from './records';
 import { SCAN_IMPLS } from './scan';
 import { TRANSLATE_IMPLS } from './translate';
 import { VIDEO_IMPLS } from './video';
@@ -18,6 +19,7 @@ import { VIDEO_IMPLS } from './video';
 // 所有动作实现。登记表里的每个动作都必须在这里有实现（runner-test 检查）。
 export const ACTION_IMPLS: Readonly<Record<string, ActionImpl<RunServices>>> = {
   ...IO_IMPLS,
+  ...RECORD_IMPLS,
   ...PDF_IMPLS,
   ...PDF_COMPRESS_IMPLS,
   ...DOCUMENT_IMPLS,

@@ -306,6 +306,23 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     requires: [],
   },
   {
+    // D-187：快捷操作写记录。AI 只选哪张表；填什么由用户在运行时的表单里填，记录不进配置、不发给 AI（D-036）。
+    id: 'out.addRecord',
+    label: { en: 'Add a record', zh: '记一笔' },
+    description: {
+      en: "Add a record to a data table for each file (or once for text): the file is saved in Morph and goes into the table's first attachment field, text goes into its first long-text or text field, and the user fills in the other fields (amount, category…) on a form while the quick action runs; date fields start as today. The records stay on this device. The files are passed on unchanged.",
+      zh: '给每个文件（或这段文字）在一张数据表里记一笔：文件存进 Morph，放进表里第一个附件字段；文字放进第一个长文本或文字字段；其他字段（金额、分类等）由用户在运行时的表单里填，日期默认今天。记录只留在本机。文件原样交给下一步。',
+    },
+    input: ['files', 'text'],
+    output: 'same',
+    params: z.strictObject({ collectionId: IdSchema }),
+    fields: [
+      { key: 'collectionId', label: { en: 'Data table', zh: '数据表' }, kind: 'collection' },
+    ],
+    local: 'recordEntry',
+    requires: ['files.write'],
+  },
+  {
     id: 'file.rename',
     label: { en: 'Name the files', zh: '命名' },
     description: {

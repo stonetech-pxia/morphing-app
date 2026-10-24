@@ -111,6 +111,8 @@ const FIELD_TYPE_NAMES: Record<string, [string, string]> = {
   date: ['日期', 'date'],
   choice: ['单选', 'choice'],
   rating: ['评分', 'rating'],
+  file: ['附件', 'attachment'],
+  formula: ['公式', 'formula'],
 };
 
 type ThemeTokenKey = Exclude<keyof Theme, 'primaryColor' | 'mode' | 'colors' | 'darkColors'>;
