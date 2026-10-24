@@ -3,6 +3,8 @@ import type { ActionImpl } from '@morph/core';
 import type { RunServices } from './helpers';
 import { AUDIO_IMPLS } from './audio';
 import { COMPOSE_IMPLS } from './compose';
+import { DOCUMENT_IMPLS } from './documents';
+import { GIF_IMPLS } from './gif';
 import { IMAGE_IMPLS } from './image';
 import { IO_IMPLS } from './io';
 import { MORE_IMPLS } from './more';
@@ -18,7 +20,9 @@ export const ACTION_IMPLS: Readonly<Record<string, ActionImpl<RunServices>>> = {
   ...IO_IMPLS,
   ...PDF_IMPLS,
   ...PDF_COMPRESS_IMPLS,
+  ...DOCUMENT_IMPLS,
   ...VIDEO_IMPLS,
+  ...GIF_IMPLS,
   ...AUDIO_IMPLS,
   ...IMAGE_IMPLS,
   ...SCAN_IMPLS,

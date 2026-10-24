@@ -1,6 +1,8 @@
 import {
   FILE_ACCEPT,
+  OFFICE_MIME_TYPES,
   RunCancelled,
+  isOfficeFile,
   RunError,
   mediaKindOf,
   renderNameTemplate,
@@ -36,6 +38,7 @@ const DOCUMENT_TYPES: Record<string, string[]> = {
   pdfOrImages: ['application/pdf', 'image/*'],
   videos: ['video/*'],
   audio: ['audio/*'],
+  documents: [...OFFICE_MIME_TYPES],
   any: ['*/*'],
 };
 
@@ -44,6 +47,7 @@ const KINDS: Record<string, string> = {
   images: 'image',
   videos: 'video',
   audio: 'audio',
+  documents: 'document',
 };
 const kindOf = (accept: string) => KINDS[accept] ?? 'PDF/image';
 
@@ -59,6 +63,8 @@ function matches(accept: string, mime: string, name: string): boolean {
       return mediaKindOf(mime, name) === 'video';
     case 'audio':
       return mediaKindOf(mime, name) === 'audio';
+    case 'documents':
+      return isOfficeFile(mime, name);
     default:
       return true;
   }
@@ -202,6 +208,16 @@ export const IO_IMPLS: Record<string, Impl> = {
         if (!more) break;
       }
       if (picked.length === 0) throw new RunCancelled();
+    } else if (source === 'files') {
+      // 从「文件」选（D-184）：下载的、电脑传来的图片，包括 HEIC。
+      const result = await files.pickDocuments(DOCUMENT_TYPES.images!, max > 1);
+      if (!result) throw new RunCancelled();
+      for (const f of result) {
+        if (!isImageMime(mimeOf(f.name, f.mimeType))) {
+          throw new RunError('wrongType', { name: f.name, kind: 'image' });
+        }
+      }
+      picked = result;
     } else {
       const result = await files.pickPhotos(max);
       if (!result) throw new RunCancelled();
@@ -215,8 +231,12 @@ export const IO_IMPLS: Record<string, Impl> = {
   async 'in.videos'(_input, params, ctx) {
     const shared = await importShared(ctx, params, 'video');
     if (shared) return shared;
-    const { min, max } = params as { min: number; max: number };
-    const picked = await ctx.services.files.pickVideos(max);
+    const { source, min, max } = params as { source?: string; min: number; max: number };
+    // 从「文件」选（D-185）：电脑拷来的、下载的视频一般不在相册里。
+    const picked =
+      source === 'files'
+        ? await ctx.services.files.pickDocuments(DOCUMENT_TYPES.videos!, max > 1)
+        : await ctx.services.files.pickVideos(max);
     if (!picked) throw new RunCancelled();
     checkCount(picked.length, min, max, 'video');
     for (const f of picked) {

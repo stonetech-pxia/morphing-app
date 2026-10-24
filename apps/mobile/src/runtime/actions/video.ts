@@ -32,6 +32,8 @@ function mediaOf(ctx: Ctx): MediaPlatform {
   return media;
 }
 
+const PC_VIDEO_FORMATS = ['mkv', 'webm', 'avi', 'wmv', 'flv'];
+
 /** 原生模块的错误 → 给用户看的错误。 */
 export function mediaError(e: unknown, item: RunItem): Error {
   if (e instanceof RunError || e instanceof RunCancelled) return e;
@@ -40,7 +42,13 @@ export function mediaError(e: unknown, item: RunItem): Error {
     case 'ERR_MEDIA_CANCELLED':
       return new RunCancelled();
     case 'ERR_MEDIA_UNSUPPORTED':
-      return new RunError('mediaUnsupported', { name: displayName(item) });
+      // 电脑上常见、手机系统常常打不开的格式（iPhone 不认 MKV、WEBM、AVI，D-185）：说清是格式的问题。
+      return PC_VIDEO_FORMATS.includes(item.ext.toLowerCase())
+        ? new RunError('formatUnsupported', {
+            name: displayName(item),
+            format: item.ext.toUpperCase(),
+          })
+        : new RunError('mediaUnsupported', { name: displayName(item) });
     case 'ERR_MEDIA_INTERRUPTED':
       return new RunError('interrupted');
     case 'ERR_NOT_IMPLEMENTED':

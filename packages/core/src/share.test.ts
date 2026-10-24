@@ -111,6 +111,14 @@ describe('shareFit', () => {
     expect(acceptsSharedFile('zip', 'application/zip')).toBe(true);
     expect(acceptsSharedFile('zip', 'application/pdf')).toBe(false);
     expect(acceptsSharedFile('nonsense', 'application/pdf')).toBe(false);
+    // Word、Excel、PowerPoint（D-186）。
+    expect(
+      acceptsSharedFile(
+        'documents',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ),
+    ).toBe(true);
+    expect(acceptsSharedFile('documents', 'application/pdf')).toBe(false);
   });
 });
 

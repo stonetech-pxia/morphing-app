@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { GIF_MAX_FRAMES } from '../media';
 import type { ToolDefinition } from '../registry';
 import type { Locale, Workflow } from '../schema';
 import type { ActionDefinition, ParamField } from '../workflow/contract';
@@ -393,6 +394,49 @@ export const IMAGE_COMPOSE_ACTIONS: readonly ActionDefinition[] = [
     requires: [],
   },
   {
+    // D-184：iOS 用系统 ImageIO 写 GIF，Android 用 morph-media 里自己写的编码器（GifEncoder.kt）。
+    id: 'image.toGif',
+    label: { en: 'Make an animated GIF', zh: '做成动图' },
+    description: {
+      en: `Turn the images (at most ${GIF_MAX_FRAMES}, in their current order) into one animated GIF that loops, each image shown for the chosen time. Images are fitted into the size of the first one.`,
+      zh: `把这些图片（最多 ${GIF_MAX_FRAMES} 张，按现在的顺序）做成一张循环播放的动图 GIF，每张停留选定的时间。图片按第一张的尺寸摆放。`,
+    },
+    input: ['images'],
+    output: 'images',
+    params: z.strictObject({
+      delayMs: z.number().int().min(100).max(5000),
+      maxSide: z.number().int().min(160).max(1200),
+    }),
+    fields: [
+      {
+        key: 'delayMs',
+        label: { en: 'Each image', zh: '每张停留' },
+        kind: 'choice',
+        options: [
+          { value: 200, label: { en: '0.2 s (fast)', zh: '0.2 秒（快）' } },
+          { value: 500, label: { en: '0.5 s', zh: '0.5 秒' } },
+          { value: 1000, label: { en: '1 s', zh: '1 秒' } },
+          { value: 2000, label: { en: '2 s (slow)', zh: '2 秒（慢）' } },
+        ],
+      },
+      {
+        key: 'maxSide',
+        label: { en: 'Size', zh: '尺寸' },
+        kind: 'choice',
+        options: [
+          { value: 320, label: { en: '320 px (small)', zh: '320 像素（小）' } },
+          { value: 480, label: { en: '480 px', zh: '480 像素' } },
+          { value: 800, label: { en: '800 px (sharp)', zh: '800 像素（清楚）' } },
+        ],
+      },
+    ],
+    presets: [
+      { id: 'half', label: { en: '0.5 s', zh: '0.5 秒' }, values: { delayMs: 500, maxSide: 480 } },
+      { id: 'one', label: { en: '1 s', zh: '1 秒' }, values: { delayMs: 1000, maxSide: 480 } },
+    ],
+    requires: [],
+  },
+  {
     id: 'image.grid',
     label: { en: 'Photo grid', zh: '拼宫格' },
     description: {
@@ -656,6 +700,21 @@ export function imageWorkflows(locale: Locale): Workflow[] {
     single(locale, 'image.convert', ['Convert format', '转格式'], { format: 'jpeg', quality: 85 }, [
       'format',
     ]),
+    // D-184：iPhone 照片（HEIC）转 JPG。功能和「转格式」一样，单独一个名字好找；每次问从相册还是「文件」选。
+    {
+      id: 'image-heic',
+      toolId: IMAGE_TOOL_ID,
+      name: t(locale, 'HEIC to JPG', 'HEIC 转 JPG'),
+      steps: [
+        {
+          id: 'pick',
+          action: 'in.photos',
+          params: { source: 'library', min: 1, max: 30 },
+          ask: ['source'],
+        },
+        { id: 'run', action: 'image.convert', params: { format: 'jpeg', quality: 90 } },
+      ],
+    },
     single(locale, 'image.resize', ['Resize', '改尺寸'], { mode: 'longEdge', px: 2048 }, [
       'mode',
       'px',
@@ -684,6 +743,14 @@ export function imageWorkflows(locale: Locale): Workflow[] {
       { columns: 3, cell: '1:1', gapPx: 8, background: '#FFFFFF' },
       ['columns'],
       { min: 2, max: 16 },
+    ),
+    single(
+      locale,
+      'image.toGif',
+      ['Animated GIF', '做成动图'],
+      { delayMs: 500, maxSide: 480 },
+      ['delayMs'],
+      { min: 2, max: GIF_MAX_FRAMES },
     ),
     single(locale, 'image.redact', ['Hide parts', '打码'], { style: 'black' }, ['style'], {
       min: 1,
@@ -736,14 +803,26 @@ export function imageWorkflows(locale: Locale): Workflow[] {
 
 export const imageTool: ToolDefinition = {
   id: IMAGE_TOOL_ID,
-  version: '1.1.0',
+  version: '1.2.0',
   name: { en: 'Images', zh: '图片' },
   description: {
-    en: 'Compress, convert, resize, crop, rotate and clean photos; stitch, grid, hide parts, watermark and make ID photos, on this device.',
-    zh: '在本机压缩、转格式、改尺寸、裁剪、旋转照片，去掉定位；拼长图、拼宫格、打码、加水印、做证件照。',
+    en: 'Compress, convert (HEIC to JPG too), resize, crop, rotate and clean photos; stitch, grid, animated GIFs, hide parts, watermark and make ID photos, on this device.',
+    zh: '在本机压缩、转格式（包括 HEIC 转 JPG）、改尺寸、裁剪、旋转照片，去掉定位；拼长图、拼宫格、做动图、打码、加水印、做证件照。',
   },
   icon: 'photo',
-  aliases: ['image', 'images', 'photo', 'photos', 'picture', '图片', '照片', '图片工具'],
+  aliases: [
+    'image',
+    'images',
+    'photo',
+    'photos',
+    'picture',
+    'heic',
+    'heic to jpg',
+    '图片',
+    '照片',
+    '图片工具',
+    'heic 转 jpg',
+  ],
   permissions: ['files.pick', 'files.write', 'photos.save', 'camera'],
   actions: [...IMAGE_ACTIONS, ...IMAGE_COMPOSE_ACTIONS],
   createPage: (locale) => ({

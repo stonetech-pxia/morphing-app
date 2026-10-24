@@ -136,6 +136,20 @@ Mock AI 是**基于规则的解析器**，不是语言模型（交接文档 §7F
 
 评测：AU1–AU7 内置规则通过；PAU1–PAU6、SH4 只要求真实模型（上课录音变文字笔记、语音备忘超过 10 MB、几段采访拼成一个、视频的背景音乐、总结录音 → 拒绝 errand、剪 30 秒做铃声、分享进来的录音「转成文字」）。
 
+## 格式转换（D-183–D-186）
+
+步骤句式：「转成 / 存成 MP3」「convert to MP3」→ `audio.convert`（`format: mp3`），跟在视频后面时是 `audio.fromVideo`（`format: mp3`）；「转成 GIF / 做成动图」「make an animated GIF」→ `image.toGif`，跟在视频后面时是 `video.toGif`；「从文件选视频 / 照片」「choose videos from Files」→ `in.videos` / `in.photos`（`source: files`）；「选 Word 文档 / 选文档 / 选 Excel 表格 / 选 Word 或 PPT」「choose Word documents」→ `in.files`（`accept: documents`），之后的「转成 PDF」是 `pdf.fromDocument`。
+
+| ID  | 句式                                                                                                                 | 结果                                                    |
+| --- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| FG1 | 新建一个快捷操作：选音频，转成 MP3，存到文件夹                                                                       | `in.audio` → `audio.convert`（mp3）→ `out.saveToFolder` |
+| FG2 | 新建一个快捷操作：选视频，转成 MP3，分享                                                                             | `in.videos` → `audio.fromVideo`（mp3）→ `out.share`     |
+| FG3 | 新建一个快捷操作：选视频，剪一段，转成 GIF，分享 / Create a quick action: choose photos, make an animated GIF, share | `video.trim` → `video.toGif`；照片之后是 `image.toGif`  |
+| FG4 | 新建一个快捷操作：从文件选视频，转成 MP4，存到文件夹                                                                 | `in.videos`（`source: files`）→ `video.convert`         |
+| FG5 | 新建一个快捷操作：选 Word 文档，转成 PDF，分享 / Create a quick action: choose Word documents, make a PDF            | `in.files`（`accept: documents`）→ `pdf.fromDocument`   |
+
+评测：FG1–FG5、FG3-en、FG5-en 内置规则通过；PFG1（车里只能放 MP3）、PFG2-en（猫的短视频做成 GIF）、PFG3（电脑下载的 MKV 手机放不了）、PFG4（Word 作业要交 PDF）只要求真实模型。
+
 ## 必须拒绝的输入（示例）
 
 | ID  | 句式                                                                                                                           | 预期结果                                                                                                                            |

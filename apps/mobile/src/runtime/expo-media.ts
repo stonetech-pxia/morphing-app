@@ -24,7 +24,12 @@ function output(result: MediaResult): MediaOutput {
 }
 
 const audioSettings = (settings: AudioEncode) => ({
-  codec: settings.format === 'wav' ? ('pcm' as const) : ('aac' as const),
+  codec:
+    settings.format === 'wav'
+      ? ('pcm' as const)
+      : settings.format === 'mp3'
+        ? ('mp3' as const)
+        : ('aac' as const),
   bitrateKbps: settings.bitrateKbps,
   sampleRate: settings.sampleRate,
   channels: settings.channels,
@@ -119,6 +124,16 @@ export function expoMedia(
       } catch {
         return null;
       }
+    },
+
+    async videoGif(uri, settings, runId, relPath, job) {
+      const out = runFileUri(runId, relPath);
+      return run(job, (jobId) => native.videoGif(jobId, uri, out, settings));
+    },
+
+    async imagesGif(uris, settings, runId, relPath, job) {
+      const out = runFileUri(runId, relPath);
+      return run(job, (jobId) => native.imagesGif(jobId, uris, out, settings));
     },
 
     async thumbnails(uri, timesMs, maxSide, runId) {

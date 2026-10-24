@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   MIN_VIDEO_KBPS,
+  isOfficeFile,
   SIZE_MARGIN,
   isAudioFile,
   isVideoFile,
@@ -39,6 +40,14 @@ describe('mediaKindOf', () => {
     expect(isVideoFile(null, 'a.mp4')).toBe(true);
     expect(isAudioFile('audio/x-caf')).toBe(true);
     expect(isAudioFile('video/mp4')).toBe(false);
+  });
+
+  it('knows Word, Excel and PowerPoint files by MIME type or extension (D-186)', () => {
+    expect(isOfficeFile('application/msword', 'a')).toBe(true);
+    expect(isOfficeFile('application/octet-stream', 'Budget.XLSX')).toBe(true);
+    expect(isOfficeFile(null, 'talk.pptx')).toBe(true);
+    expect(isOfficeFile('application/pdf', 'a.pdf')).toBe(false);
+    expect(isOfficeFile(null, 'notes.txt')).toBe(false);
   });
 });
 

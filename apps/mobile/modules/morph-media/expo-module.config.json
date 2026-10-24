@@ -1,7 +1,8 @@
 {
   "platforms": ["apple", "android"],
   "apple": {
-    "modules": ["MorphMediaModule"]
+    "modules": ["MorphMediaModule"],
+    "swiftModuleNames": ["MorphMedia"]
   },
   "android": {
     "modules": ["expo.modules.morphmedia.MorphMediaModule"]

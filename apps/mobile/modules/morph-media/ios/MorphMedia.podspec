@@ -1,5 +1,5 @@
 # 本地 Expo 模块（D-141）：在本机压缩、转格式、剪切视频和音频，取画面。
-# 只依赖 Apple 系统框架（AVFoundation），没有第三方代码。
+# 用 Apple 系统框架（AVFoundation）；MP3 用 LAME 编码器（MorphLame，../lame，D-183）。
 
 Pod::Spec.new do |s|
   s.name           = 'MorphMedia'
@@ -15,6 +15,7 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
+  s.dependency 'MorphLame'
   s.frameworks = 'AVFoundation', 'CoreMedia', 'VideoToolbox', 'UIKit'
 
   s.source_files = '**/*.{h,m,swift}'

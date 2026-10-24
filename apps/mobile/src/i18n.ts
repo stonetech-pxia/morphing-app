@@ -657,6 +657,19 @@ const strings = {
     zh: '「{name}」压到 {target} 声音会听不清。至少要 {mb} MB，或者先剪短一点。',
   },
   runError_noAudio: { en: '“{name}” has no sound.', zh: '「{name}」里没有声音。' },
+  // ---- 格式转换的缺口（D-183–D-186）----
+  runError_formatUnsupported: {
+    en: '“{name}” is a {format} file, which this phone can’t open. Convert it to MP4 on a computer first.',
+    zh: '「{name}」是 {format} 格式，这台手机打不开。可以先在电脑上转成 MP4。',
+  },
+  runError_documentUnsupported: {
+    en: '“{name}” is a {format} file. On this phone only Word documents (.docx) can be turned into PDFs.',
+    zh: '「{name}」是 {format} 文件。这台手机上只能把 Word 文档（.docx）转成 PDF。',
+  },
+  runError_tooLong: {
+    en: '“{name}” is too long for a GIF (at most {seconds} seconds). Trim it first.',
+    zh: '「{name}」太长了，做不成 GIF（最长 {seconds} 秒）。请先剪一段。',
+  },
   runError_noSpeech: {
     en: 'No speech was heard in “{name}”.',
     zh: '在「{name}」里没有听到说话。',

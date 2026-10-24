@@ -84,6 +84,12 @@ export type RunErrorCode =
   | 'noAudio'
   /** 录音里没有听到说话（语音转文字，D-150）。 */
   | 'noSpeech'
+  /** 这种格式这台手机打不开（detail.format：MKV 等，D-185）。 */
+  | 'formatUnsupported'
+  /** 视频太长，做不成 GIF（detail.seconds：最长几秒，D-184）。 */
+  | 'tooLong'
+  /** 这台手机不能把这种文档转成 PDF（detail.format：XLSX 等；Android 只能转 Word，D-186）。 */
+  | 'documentUnsupported'
   | 'unexpected';
 
 export class RunError extends Error {
