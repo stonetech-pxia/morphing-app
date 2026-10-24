@@ -231,6 +231,32 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    // D-196：扫一张收据，接到上次的报销单后面，合成一份。
+    id: 'expense-report',
+    scenario: 'receipts',
+    name: { en: 'Expense report: add a receipt', zh: '报销单：扫一张加一张' },
+    description: {
+      en: 'Scan receipts → clean up → PDF → add them after the last expense report (or start a new one) → one PDF named by month → save to files.',
+      zh: '扫描收据 → 变清楚 → 转 PDF → 接到上次的报销单后面（也可以新开一份）→ 合成一份，按月份命名 → 存到文件。',
+    },
+    icon: 'inbox',
+    packs: ['scan'],
+    steps: (locale) => [
+      photos(1, 10, 'scanner'),
+      { id: 'edges', action: 'scan.detect', params: {} },
+      { id: 'look', action: 'scan.enhance', params: { mode: 'auto' } },
+      {
+        id: 'pdf',
+        action: 'pdf.fromImages',
+        params: { pageSize: 'a4', orientation: 'auto', marginMm: 0, fit: 'contain', maxMB: 0 },
+      },
+      { id: 'add', action: 'file.addExisting', params: { position: 'before' } },
+      { id: 'merge', action: 'pdf.merge', params: { imagePage: 'a4' } },
+      rename(t(locale, 'Expenses {date:YYYY-MM}', '报销单-{date:YYYY-MM}'), false),
+      { id: 'save', action: 'file.save', params: {} },
+    ],
+  },
+  {
     id: 'redact-screenshots',
     scenario: 'photos',
     name: { en: 'Hide parts of screenshots', zh: '截图打码分享' },

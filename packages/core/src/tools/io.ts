@@ -397,6 +397,30 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     requires: [],
   },
   {
+    // D-196：一份报销单越攒越多。默认接上这个快捷操作上次存下的结果；选中的文件只在这次运行里用。
+    id: 'file.addExisting',
+    label: { en: 'Add an existing file', zh: '加上已有文件' },
+    description: {
+      en: 'Asks which earlier file to add to the files so far: by default the last result this quick action saved, or a PDF or image picked in Files, or none this time. position "before" puts the existing file first. Follow with pdf.merge to grow one PDF run after run (an expense report that gets one more receipt each time).',
+      zh: '问用户把哪个已有的文件加进来：默认是这个快捷操作上次存下的结果，也可以从「文件」里选一个 PDF 或图片，或者这次不加。position 为 before 时已有的文件放在前面。后面接「按顺序合并」，一份 PDF 就能一次比一次长（报销单每次加一张收据）。',
+    },
+    input: ['files'],
+    output: 'files',
+    params: z.strictObject({ position: z.enum(['before', 'after']) }),
+    fields: [
+      {
+        key: 'position',
+        label: { en: 'Existing file goes', zh: '已有的文件放在' },
+        kind: 'choice',
+        options: [
+          { value: 'before', label: { en: 'First', zh: '前面' } },
+          { value: 'after', label: { en: 'Last', zh: '后面' } },
+        ],
+      },
+    ],
+    requires: ['files.pick'],
+  },
+  {
     id: 'file.save',
     label: { en: 'Save to Morph files', zh: '存到文件' },
     description: {

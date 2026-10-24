@@ -34,9 +34,15 @@ function setup(workflow: Workflow, answer: string | null = '我的合并') {
   const files = new FakeFiles();
   const asked: string[] = [];
   const confirms: boolean[] = [];
+  /** 运行中问一句（ui.choose）时依次回答；记下每次给的选项。 */
+  const choices: (number | null)[] = [];
+  const offered: string[][] = [];
   const ui: LocalUi = {
     confirm: async () => confirms.shift() ?? false,
-    choose: async () => null,
+    choose: async (_title, _message, options) => {
+      offered.push([...options]);
+      return choices.shift() ?? null;
+    },
     open: async () => null,
   };
   // 运行页面的询问：记录建议的名字，回答 answer。
@@ -59,12 +65,72 @@ function setup(workflow: Workflow, answer: string | null = '我的合并') {
         askParams,
       })
     ).result;
-  return { repo, files, asked, confirms, run };
+  return { repo, files, asked, confirms, choices, offered, run };
 }
 
 const mergeWorkflow = (ops: Op[] = []) => pdfWorkspace(ops).workflows[0]!;
 
 const custom = (steps: Workflow['steps']): Workflow => ({ id: 'mine', name: '我的', steps });
+
+describe('adding an existing file (D-196)', () => {
+  const wf = custom([
+    { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 1 } },
+    { id: 'add', action: 'file.addExisting', params: { position: 'before' } },
+    { id: 'name', action: 'file.rename', params: { template: '报销单' } },
+    { id: 'save', action: 'file.save', params: {} },
+  ]);
+  const names = (r: Awaited<ReturnType<ReturnType<typeof setup>['run']>>) =>
+    r.status === 'succeeded' && r.value && 'items' in r.value
+      ? r.value.items.map((i) => i.name)
+      : r;
+
+  it('offers the last result of this quick action and puts it first', async () => {
+    const { files, choices, offered, run, repo } = setup(wf);
+    // 第一次：还没有上次的结果，「这次新开一份」。
+    files.nextPick = [files.offer('收据1.pdf', new Uint8Array([1]))];
+    choices.push(1);
+    expect(names(await run())).toEqual(['报销单']);
+    expect(offered[0]).toEqual(['从「文件」里选一个', '这次新开一份']);
+    const first = (await repo.listAssets())[0]!;
+
+    // 第二次：默认接上上次存下的报销单，放在前面。
+    files.nextPick = [files.offer('收据2.pdf', new Uint8Array([2]))];
+    choices.push(0);
+    const result = await run();
+    expect(offered[1]).toEqual(['上次的「报销单.pdf」', '从「文件」里选一个', '这次新开一份']);
+    expect(result).toMatchObject({ status: 'succeeded' });
+    const items =
+      result.status === 'succeeded' && result.value && 'items' in result.value
+        ? result.value.items
+        : [];
+    expect(items.map((i) => files.disk.get(i.uri)?.[0])).toEqual([1, 2]);
+    // 旧的那份留着（P-030）。
+    expect((await repo.listAssets()).map((a) => a.id)).toContain(first.id);
+  });
+
+  it('can take a PDF or image from Files instead, and cancelling stops the run', async () => {
+    const { files, choices, run } = setup(wf);
+    files.nextPick = [files.offer('收据.pdf', new Uint8Array([2]))];
+    choices.push(0);
+    // 没有上次的结果时第一项是「从文件里选」；选择器第二次给的是要加上的旧文件。
+    const original = files.pickDocuments.bind(files);
+    let calls = 0;
+    let addTypes: readonly string[] = [];
+    files.pickDocuments = async (types) => {
+      calls++;
+      if (calls === 1) return original(types);
+      addTypes = types;
+      return [files.offer('旧报销单.pdf', new Uint8Array([1]))];
+    };
+    expect(await run()).toMatchObject({ status: 'succeeded' });
+    expect(addTypes).toEqual(['application/pdf', 'image/*']);
+
+    files.nextPick = [files.offer('收据.pdf', new Uint8Array([2]))];
+    calls = 0;
+    choices.push(null as never);
+    expect(await run()).toMatchObject({ status: 'cancelled' });
+  });
+});
 
 describe('action implementations', () => {
   it('every registered action has an implementation', () => {

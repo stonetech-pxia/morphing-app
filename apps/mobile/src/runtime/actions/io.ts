@@ -113,6 +113,37 @@ async function importPicked(
   return items;
 }
 
+/**
+ * 这个快捷操作上次存下的结果（D-196）：运行记录里最近一次成功、存了文件的那次。文件已经删了、
+ * 或者没有授权给它（§7G）时为 null。
+ */
+async function lastResult(ctx: Parameters<Impl>[2]): Promise<PickedFile | null> {
+  const { repo, files, grantee } = ctx.services;
+  const run = (await repo.listToolRuns(200)).find(
+    (r) => r.workflowId === ctx.workflow.id && r.status === 'succeeded' && r.outputAssetId,
+  );
+  const asset = run ? await repo.getAsset(run.outputAssetId!) : null;
+  if (!asset || !(await repo.hasGrant(grantee, asset.id))) return null;
+  return {
+    uri: files.fileUri(asset.path),
+    name: asset.name,
+    size: asset.size,
+    mimeType: asset.mimeType,
+  };
+}
+
+function addExistingQuestion(zh: boolean, last: string | null) {
+  return {
+    title: zh ? '加上哪个已有的文件？' : 'Add which existing file?',
+    message: zh ? '会和这次的文件合在一起。' : 'It goes together with this run’s files.',
+    options: [
+      ...(last ? [zh ? `上次的「${last}」` : `Last one: “${last}”`] : []),
+      zh ? '从「文件」里选一个' : 'Choose one in Files',
+      zh ? '这次新开一份' : 'Start a new one this time',
+    ],
+  };
+}
+
 function checkCount(count: number, min: number, max: number, kind: string) {
   if (count < min) throw new RunError('tooFew', { min, kind });
   if (count > max) throw new RunError('tooMany', { max });
@@ -335,6 +366,31 @@ export const IO_IMPLS: Record<string, Impl> = {
     if (order.length === 0) throw new RunError('tooFew', { min: 1, kind: 'file' });
     return { ...input!, items: order.map((i) => items[i]!) } as typeof input & {
       items: RunItem[];
+    };
+  },
+
+  async 'file.addExisting'(input, params, ctx) {
+    const items = fileItems(input);
+    const last = await lastResult(ctx);
+    const q = addExistingQuestion(ctx.locale === 'zh', last?.name ?? null);
+    const answer = await ctx.services.ui.choose(q.title, q.message, q.options);
+    if (answer === null) throw new RunCancelled();
+    const choice = last ? answer : answer + 1;
+    let picked: PickedFile[] | null;
+    if (choice === 0) picked = [last!];
+    else if (choice === 1) {
+      picked = await ctx.services.files.pickDocuments(DOCUMENT_TYPES.pdfOrImages!, false);
+      if (!picked) throw new RunCancelled();
+      for (const f of picked) {
+        if (!matches('pdfOrImages', mimeOf(f.name, f.mimeType), f.name)) {
+          throw new RunError('wrongType', { name: f.name, kind: kindOf('pdfOrImages') });
+        }
+      }
+    } else return { type: 'files', items };
+    const added = await importPicked(ctx.services, picked, ctx);
+    return {
+      type: 'files',
+      items: params.position === 'before' ? [...added, ...items] : [...items, ...added],
     };
   },
 
