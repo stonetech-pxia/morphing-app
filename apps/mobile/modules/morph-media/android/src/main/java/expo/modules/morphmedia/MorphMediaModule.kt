@@ -28,6 +28,7 @@ import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.FrameDropEffect
 import androidx.media3.effect.Presentation
+import androidx.media3.effect.SpeedChangeEffect
 import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.transformer.AudioEncoderSettings
 import androidx.media3.transformer.Composition
@@ -395,6 +396,12 @@ class MorphMediaModule : Module() {
       }
 
       val effects = mutableListOf<androidx.media3.common.Effect>()
+      val audioProcessors = mutableListOf<AudioProcessor>()
+      (video["speed"] as? Number)?.toFloat()?.let { speed ->
+        if (!speed.isFinite() || speed !in 0.5f..4f) throw MediaUnsupportedException("invalid speed")
+        effects.add(SpeedChangeEffect(speed))
+        audioProcessors.add(SonicAudioProcessor().apply { setSpeed(speed); setPitch(speed) })
+      }
       // JS 只在要缩小时才给 maxShortSide（不放大）；H.264 要偶数。
       (video["maxShortSide"] as? Number)?.toInt()?.let { shortSide ->
         effects.add(Presentation.createForShortSide(shortSide / 2 * 2))
@@ -419,7 +426,7 @@ class MorphMediaModule : Module() {
       }
       EditedMediaItem.Builder(itemBuilder.build())
         .setRemoveAudio(dropAudio)
-        .setEffects(Effects(listOf(), effects))
+        .setEffects(Effects(audioProcessors, effects))
         .build()
     }
     val composition = Composition.Builder(

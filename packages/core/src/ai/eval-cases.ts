@@ -2867,7 +2867,40 @@ const VIDEO_CROP_CASES: EvalCase[] = [
     },
   },
 ];
+const VIDEO_SPEED_CASES: EvalCase[] = [
+  {
+    id: 'VS1',
+    input: '添加视频加速或慢放快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.speed'))
+          ? null
+          : 'missing video.speed',
+    },
+  },
+  {
+    id: 'VS2',
+    input: 'Make an action that plays videos at half speed (0.5x).',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some((s) => s.action === 'video.speed' && s.params.factor === 0.5),
+        )
+          ? null
+          : 'missing half-speed video',
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...VIDEO_SPEED_CASES,
   ...VIDEO_CROP_CASES,
   ...VIDEO_ROTATE_CASES,
   ...VIDEO_MUSIC_CASES,

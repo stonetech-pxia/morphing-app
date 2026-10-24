@@ -228,3 +228,8 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 
 - 「添加裁成竖屏视频快捷操作」 / `Add the portrait posts quick action`：选视频 → 居中裁成指定比例。
 - 步骤句式：「视频裁成 9:16」「裁成 1:1」 / `crop video to 4:5`。
+
+### 视频变速（VS1–VS2）
+
+- 「添加视频加速或慢放快捷操作」 / `Add the speed up or slow down video quick action`：选视频 → 改成 0.5×–4× 速度。
+- 步骤句式：「视频速度 2 倍」「变速 0.5 倍」 / `video speed 2x`。声音一起变速、变调。

@@ -139,7 +139,13 @@ public class MorphMediaModule: Module {
       Task {
         defer { self.finish(jobId) }
         do {
-          let result = try await self.transcode(job, jobId: jobId, uri: uri, output: output, options: options)
+          let video = options["video"] as? [String: Any]
+          let result: [String: Any]
+          if let factor = (video?["speed"] as? NSNumber)?.doubleValue {
+            result = try await self.speedVideo(job, jobId: jobId, uri: uri, output: output, options: options, factor: factor)
+          } else {
+            result = try await self.transcode(job, jobId: jobId, uri: uri, output: output, options: options)
+          }
           promise.resolve(result)
         } catch {
           promise.reject(Self.coded(error, job: job))
@@ -371,7 +377,7 @@ public class MorphMediaModule: Module {
 
   private func transcode(
     _ job: Job, jobId: String, uri: URL, output: URL, options: [String: Any],
-    sourceAsset: AVAsset? = nil, suppliedComposition: AVVideoComposition? = nil, suppliedAudioMix: AVAudioMix? = nil
+    sourceAsset: AVAsset? = nil, suppliedComposition: AVVideoComposition? = nil, suppliedAudioMix: AVAudioMix? = nil, suppliedTimePitch: AVAudioTimePitchAlgorithm? = nil
   ) async throws -> [String: Any] {
     let container = options["container"] as? String ?? "mp4"
     if options["video"] as? String == "drop" {
@@ -516,6 +522,7 @@ public class MorphMediaModule: Module {
           AVLinearPCMIsNonInterleaved: false,
         ])
       out.audioMix = suppliedAudioMix
+      if let suppliedTimePitch { out.audioTimePitchAlgorithm = suppliedTimePitch }
       let input = AVAssetWriterInput(
         mediaType: .audio,
         outputSettings: [
@@ -829,6 +836,32 @@ public class MorphMediaModule: Module {
     try? file.close()
     progress(jobId, 1)
     return try await Self.result(output)
+  }
+
+  /** 变速同时缩放视频和音频的时间；varispeed 让声音按同样比例变调。 */
+  private func speedVideo(_ job: Job, jobId: String, uri: URL, output: URL, options: [String: Any], factor: Double) async throws -> [String: Any] {
+    guard factor.isFinite, (0.5...4).contains(factor) else { throw MediaUnsupportedException("invalid speed") }
+    if job.cancelled { throw MediaCancelledException() }
+    let source = AVURLAsset(url: uri)
+    let tracks = try await source.load(.tracks)
+    guard let video = tracks.first(where: { $0.mediaType == .video }) else { throw MediaUnsupportedException("no video") }
+    let (range, transform) = try await video.load(.timeRange, .preferredTransform)
+    guard range.duration.seconds > 0 else { throw MediaUnsupportedException("empty video") }
+    let asset = AVMutableComposition()
+    guard let target = asset.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MediaFailedException("video track") }
+    try target.insertTimeRange(range, of: video, at: .zero)
+    target.preferredTransform = transform
+    for audio in tracks where audio.mediaType == .audio {
+      let audioRange = try await audio.load(.timeRange)
+      let overlap = CMTimeRangeGetIntersection(range, otherRange: audioRange)
+      if overlap.duration.seconds > 0 {
+        guard let audioTarget = asset.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MediaFailedException("audio track") }
+        try audioTarget.insertTimeRange(overlap, of: audio, at: overlap.start - range.start)
+      }
+    }
+    asset.scaleTimeRange(CMTimeRange(start: .zero, duration: range.duration),
+                         toDuration: CMTime(seconds: range.duration.seconds / factor, preferredTimescale: 60000))
+    return try await transcode(job, jobId: jobId, uri: uri, output: output, options: options, sourceAsset: asset, suppliedTimePitch: .varispeed)
   }
 
   /** 配乐在运行时由用户选；原音轨按指定比例混入，音乐可循环，输出时长始终跟随视频。 */

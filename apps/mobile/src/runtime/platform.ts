@@ -168,6 +168,8 @@ export interface MediaInfo {
 
 /** 一次视频编码的要求（H.264 + AAC 的 MP4）。 */
 export interface VideoEncode {
+  /** 视频和声音一起变速，声音随之变调。 */
+  speed?: number;
   /** 居中裁剪到这个宽高比。 */
   aspectRatio?: number;
   videoKbps: number;

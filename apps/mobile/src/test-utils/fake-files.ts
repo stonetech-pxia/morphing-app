@@ -656,7 +656,9 @@ export class FakeMedia implements MediaPlatform {
     if (job.isCancelled()) {
       throw Object.assign(new Error('cancelled'), { code: 'ERR_MEDIA_CANCELLED' });
     }
-    const ms = settings.range ? settings.range.endMs - settings.range.startMs : source.durationMs;
+    const ms =
+      (settings.range ? settings.range.endMs - settings.range.startMs : source.durationMs) /
+      (settings.speed ?? 1);
     const bytes = Math.round(
       (((settings.videoKbps + settings.audioKbps) * 1000 * (ms / 1000)) / 8) * this.oversize,
     );

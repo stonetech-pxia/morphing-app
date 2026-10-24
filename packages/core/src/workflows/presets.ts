@@ -400,6 +400,20 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'video-speed',
+    scenario: 'photos',
+    name: { en: 'Speed up or slow down video', zh: '视频加速或慢放' },
+    description: {
+      en: 'Choose videos and a playback speed from 0.5× to 4×. Sound changes speed and pitch too.',
+      zh: '选视频，改成 0.5× 到 4× 速度。声音也会变速、变调。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'speed', action: 'video.speed', params: { factor: 2 }, ask: ['factor'] },
+    ],
+  },
+  {
     id: 'vertical-video',
     scenario: 'photos',
     name: { en: 'Crop videos for portrait posts', zh: '裁成竖屏视频' },

@@ -74,6 +74,7 @@ export function expoMedia(
           video: {
             codec: 'h264',
             ...(settings.aspectRatio ? { aspectRatio: settings.aspectRatio } : {}),
+            ...(settings.speed ? { speed: settings.speed } : {}),
             bitrateKbps: settings.videoKbps,
             maxFps: settings.maxFps,
             toSdr: true,

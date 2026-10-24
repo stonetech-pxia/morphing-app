@@ -16,6 +16,34 @@ const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en
 
 export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   {
+    id: 'video.speed',
+    label: { en: 'Change video speed', zh: '视频加速或慢放' },
+    description: {
+      en: 'Play each video at 0.5×–4× speed and export an MP4. 0.5× doubles the duration; 2× halves it. Sound speeds up or slows down too, and its pitch changes. This does not add new frames for smooth slow motion.',
+      zh: '把每段视频改成 0.5×–4× 速度并导出 MP4。0.5× 时长翻倍，2× 时长减半；声音也随之加速或减速，音调会变高或变低。不会插入新画面来补慢动作。',
+    },
+    input: ['video'],
+    output: 'video',
+    params: z.strictObject({ factor: z.number().min(0.5).max(4) }),
+    fields: [
+      {
+        key: 'factor',
+        label: { en: 'Speed', zh: '速度' },
+        kind: 'choice',
+        options: [
+          { value: 0.5, label: { en: '0.5×', zh: '0.5×' } },
+          { value: 0.75, label: { en: '0.75×', zh: '0.75×' } },
+          { value: 1, label: { en: '1×', zh: '1×' } },
+          { value: 1.25, label: { en: '1.25×', zh: '1.25×' } },
+          { value: 1.5, label: { en: '1.5×', zh: '1.5×' } },
+          { value: 2, label: { en: '2×', zh: '2×' } },
+          { value: 4, label: { en: '4×', zh: '4×' } },
+        ],
+      },
+    ],
+    requires: [],
+  },
+  {
     id: 'video.crop',
     label: { en: 'Crop video to a shape', zh: '视频裁成指定比例' },
     description: {
@@ -311,6 +339,14 @@ export function videoWorkflows(locale: Locale): Workflow[] {
   });
   return [
     wf(
+      'video-speed',
+      ['Change video speed', '视频加速或慢放'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+        { id: 'speed', action: 'video.speed', params: { factor: 2 }, ask: ['factor'] },
+      ],
+    ),
+    wf(
       'video-crop',
       ['Crop video to a shape', '视频裁成指定比例'],
       [
@@ -413,7 +449,7 @@ export function videoWorkflows(locale: Locale): Workflow[] {
 
 export const videoTool: ToolDefinition = {
   id: VIDEO_TOOL_ID,
-  version: '1.7.0',
+  version: '1.8.0',
   name: { en: 'Video', zh: '视频' },
   description: {
     en: 'Make videos smaller, convert them to MP4, trim them and turn them into GIFs, on this device.',

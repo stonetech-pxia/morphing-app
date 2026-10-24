@@ -162,6 +162,21 @@ async function eachVideo(
 }
 
 export const VIDEO_IMPLS: Record<string, Impl> = {
+  async 'video.speed'(input, params, ctx) {
+    const factor = Number(params.factor);
+    return eachVideo(input, ctx, async (item, media, job) => {
+      const info = await probe(media, item);
+      const plan = planVideoConvert(sourceOf(item, info));
+      checkSpace(ctx, estimate(plan, info.durationMs / factor));
+      return media.encodeVideo(
+        item.uri,
+        { ...encodeOf(plan, info), speed: factor },
+        ctx.services.runId,
+        freshName(item.name, 'mp4'),
+        job,
+      );
+    });
+  },
   async 'video.crop'(input, params, ctx) {
     const [w, h] = String(params.ratio).split(':').map(Number);
     return eachVideo(input, ctx, async (item, media, job) => {

@@ -38,6 +38,7 @@ export interface TimeRange {
 }
 
 export interface VideoSettings {
+  speed?: number;
   aspectRatio?: number;
   codec: 'h264';
   bitrateKbps?: number;

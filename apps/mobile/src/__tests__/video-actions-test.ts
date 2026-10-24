@@ -103,6 +103,7 @@ describe('video tool', () => {
     );
     if (!result.ok) throw new Error(result.error);
     expect(result.config.workflows.map((w) => w.name)).toEqual([
+      '视频加速或慢放',
       '视频裁成指定比例',
       '旋转视频',
       '换背景音乐',
@@ -484,5 +485,19 @@ it.each(['9:16', '1:1', '4:5', '16:9'])(
     expect(item!.durationMs).toBe(1000);
     expect((await media.probe(item!.uri)).hasAudio).toBe(true);
     expect(media.encodes[0]!.aspectRatio).toBe(w! / h!);
+  },
+);
+
+it.each([0.5, 0.75, 1, 2, 4])(
+  'changes duration at %sx speed and keeps the sound',
+  async (factor) => {
+    const { files, media, run } = setup(toolWorkflow('video-speed'), { answers: { factor } });
+    files.nextVideos = [
+      files.offerVideo('action.mov', { size: 1000, durationMs: 4000, hasAudio: true }),
+    ];
+    const [item] = videosOf(await run());
+    expect(item!.durationMs).toBe(4000 / factor);
+    expect(media.encodes[0]!.speed).toBe(factor);
+    expect((await media.probe(item!.uri)).hasAudio).toBe(true);
   },
 );
