@@ -249,6 +249,21 @@ export const expoFilePlatform: FilePlatform = {
     await shareOne({ uri: fileAt(path).uri, mimeType });
   },
 
+  async pickMedia(max) {
+    const result = await launchImageLibraryAsync({
+      mediaTypes: ['images', 'videos'],
+      allowsMultipleSelection: max > 1,
+      selectionLimit: max,
+      orderedSelection: true,
+      exif: true,
+      videoExportPreset: VideoExportPreset.Passthrough,
+      preferredAssetRepresentationMode: UIImagePickerPreferredAssetRepresentationMode.Current,
+      shouldDownloadFromNetwork: true,
+    });
+    if (result.canceled) return null;
+    return result.assets.map((a) => (a.type === 'video' ? pickedVideo(a) : pickedPhoto(a)));
+  },
+
   async pickPhotos(max) {
     const result = await launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -321,10 +336,10 @@ export const expoFilePlatform: FilePlatform = {
     return { uri: dest.uri, size: bytes.length };
   },
 
-  async adoptIntoRun(uri, runId, fileName) {
+  async adoptIntoRun(uri, runId, fileName, keepSource = false) {
     const source = new File(uri);
     // 选择器放在缓存里的副本：移进本次运行的临时目录，运行结束一起删掉。
-    if (uri.startsWith(Paths.cache.uri) && source.exists) {
+    if (!keepSource && uri.startsWith(Paths.cache.uri) && source.exists) {
       // 移动之前读大小：移动后新地址的 File 对象读到的可能还是 0。
       const size = source.size;
       const dest = runFile(runId, fileName);

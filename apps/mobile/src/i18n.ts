@@ -10,6 +10,31 @@ export function getDeviceLocale(): Locale {
 }
 
 const strings = {
+  openMedia: { en: 'Open photo library', zh: '打开相册', fr: 'Ouvrir les photos' },
+  openFiles: { en: 'Open files', zh: '打开文件', fr: 'Ouvrir les fichiers' },
+  filePickFailed: {
+    en: 'Could not open the picker. Please try again.',
+    zh: '没能打开选择器，请重试。',
+    fr: 'Impossible d’ouvrir le sélecteur. Réessayez.',
+  },
+  shareRecent: { en: 'Used recently', zh: '最近用过', fr: 'Utilisés récemment' },
+  shareUsed: { en: 'Used {n} times', zh: '用过 {n} 次', fr: 'Utilisé {n} fois' },
+  shareDescribe: { en: 'Describe it myself', zh: '我要自己说', fr: 'Je le décris moi-même' },
+  shareSeeAll: { en: 'See all {n}', zh: '查看全部 {n} 个', fr: 'Tout voir ({n})' },
+  sharePicked: {
+    en: 'For the {what} you picked',
+    zh: '给你选的 {what}',
+    fr: 'Pour les {what} choisis',
+  },
+  sharePlaceholder: {
+    en: 'Say what you want, and Morph will do its best to make it happen',
+    zh: '说出你想要的，Morph 会努力完成你的需求',
+    fr: 'Dites ce que vous voulez, Morph fera de son mieux pour y arriver',
+  },
+  shareExpand: { en: 'Show files', zh: '查看文件', fr: 'Voir les fichiers' },
+  shareCollapse: { en: 'Hide files', zh: '收起文件', fr: 'Masquer les fichiers' },
+  shareSummary: { en: '{n} files', zh: '{n} 个文件', fr: '{n} fichiers' },
+  sharePhotoSummary: { en: '{n} photos', zh: '{n} 张照片', fr: '{n} photos' },
   loading: { en: 'Loading…', zh: '正在载入…' },
   bootFailed: { en: 'The workspace could not be opened.', zh: '无法打开工作空间。' },
 
@@ -570,7 +595,11 @@ const strings = {
     zh: '说说想怎么改它，也可以先试试下面的例子。',
   },
   aboutPlaceholder: { en: 'For example: {example}', zh: '例如：{example}' },
-  aboutShared: { en: 'For the {what} you shared', zh: '给分享进来的 {what}' },
+  aboutShared: {
+    en: 'For the {what} you shared',
+    zh: '给分享进来的 {what}',
+    fr: 'Pour les {what} partagés',
+  },
   aboutSharedHint: {
     en: 'Say what these files should become; AI makes a quick action for it. AI only knows what kind of files they are and how many.',
     zh: '说说想把这些文件变成什么，AI 会做一个快捷操作。AI 只知道文件的类型和个数。',
@@ -917,11 +946,11 @@ const strings = {
   recordDiscardTitle: { en: 'Throw away this recording?', zh: '不要这段录音了？' },
   recordDiscard: { en: 'Throw away', zh: '不要了' },
   recordKeep: { en: 'Keep recording', zh: '继续录' },
-} satisfies Record<string, Record<Locale, string>>;
+} satisfies Record<string, Record<Locale, string> & { fr?: string }>;
 
 export type StringKey = keyof typeof strings;
 
-const PERMISSION_NAMES: Record<string, Record<Locale, string>> = {
+const PERMISSION_NAMES: Record<string, Record<Locale, string> & { fr?: string }> = {
   photos: { en: 'Photos', zh: '相册' },
   camera: { en: 'Camera', zh: '相机' },
   microphone: { en: 'Microphone', zh: '麦克风' },

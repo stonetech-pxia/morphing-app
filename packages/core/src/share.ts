@@ -1,7 +1,7 @@
 import { FILE_LIMITS, MEDIA_LIMITS } from './limits';
 import { OFFICE_MIME_TYPES, mediaKindOf } from './media';
 import type { Workflow } from './schema';
-import { FILE_ACCEPT } from './tools/io';
+import { FILE_ACCEPT, MAX_PICK } from './tools/io';
 import type { FileValueType } from './workflow/engine';
 
 // 分享到 Morph（TOOLS_DESIGN §11，D-114–D-118）：别的 App 分享进来的文件交给哪个工作流。
@@ -118,6 +118,7 @@ export function sharedSizeProblem(
   | { code: 'tooLargeTotal'; detail: { mb: number } }
   | { code: 'tooMany'; detail: { max: number } }
   | null {
+  if (files.length > MAX_PICK) return { code: 'tooMany', detail: { max: MAX_PICK } };
   const mb = (bytes: number) => bytes / 1024 / 1024;
   const media = files.filter(isMedia);
   for (const f of media) {

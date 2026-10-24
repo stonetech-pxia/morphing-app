@@ -114,6 +114,19 @@ export function createStarterWorkspace(locale: Locale, registry: Registry): Work
     ...workflows.map((workflow) => ({ op: 'addWorkflow' as const, workflow })),
     { op: 'removeComponent', pageId: HOME_PAGE_ID, componentId: 'catalog' },
     { op: 'removeComponent', pageId: HOME_PAGE_ID, componentId: 'recent-files' },
+    {
+      op: 'addComponent',
+      pageId: HOME_PAGE_ID,
+      component: {
+        id: 'file-entries',
+        type: 'group',
+        props: { layout: 'grid', columns: 2 },
+        children: [
+          { id: 'open-media', type: 'filePick', props: { source: 'media' } },
+          { id: 'open-files', type: 'filePick', props: { source: 'files' } },
+        ],
+      },
+    },
     { op: 'addComponent', pageId: HOME_PAGE_ID, component: quick },
     { op: 'setNavItems', items: [pageTarget(HOME_PAGE_ID), 'ai', 'settings'] },
   ];

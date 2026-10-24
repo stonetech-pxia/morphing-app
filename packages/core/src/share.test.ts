@@ -123,6 +123,14 @@ describe('shareFit', () => {
 });
 
 describe('sharedSizeProblem (P-006)', () => {
+  it('accepts fifty ordinary files and rejects fifty-one', () => {
+    expect(sharedSizeProblem(Array.from({ length: 50 }, (_, i) => pdf(String(i), 1)))).toBeNull();
+    expect(sharedSizeProblem(Array.from({ length: 51 }, (_, i) => pdf(String(i), 1)))).toEqual({
+      code: 'tooMany',
+      detail: { max: 50 },
+    });
+  });
+
   it('applies the same limits as the pickers', () => {
     expect(sharedSizeProblem([pdf('a', 10 * MB)])).toBeNull();
     expect(sharedSizeProblem([pdf('big', 51 * MB)])).toEqual({

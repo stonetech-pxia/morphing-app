@@ -5,6 +5,7 @@ import { migrateWorkspace, type Migration } from './migrate';
 import { registry, workspace } from './test-helpers';
 import { V4_CUSTOM_ASK, V4_DEFAULT_MERGE, V4_FIXED_NAME } from './fixtures/v4';
 import { DEFAULT_THEME } from './theme';
+import { CURRENT_SCHEMA_VERSION } from './schema';
 
 /** schemaVersion 1 的真实快照：装了 PDF，导航栏已精简，AI 和历史是浮动按钮。 */
 const v1Snapshot = {
@@ -48,6 +49,15 @@ const v1Snapshot = {
 };
 
 describe('migrateWorkspace', () => {
+  it('v9 → v10 preserves the existing home without adding file pickers', () => {
+    const previous = { ...workspace(), schemaVersion: 9 };
+    const original = structuredClone(previous);
+    const result = prepareSnapshot(previous, registry);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.after).toEqual({ ...previous, schemaVersion: 10 });
+    expect(previous).toEqual(original);
+  });
+
   it('upgrades a real v1 snapshot into a valid v2 config with the default style', () => {
     const result = prepareSnapshot(v1Snapshot, registry);
     expect(result.ok).toBe(true);
@@ -162,7 +172,7 @@ describe('migrateWorkspace', () => {
   it('refuses snapshots it cannot migrate', () => {
     const v0 = { ...v1Snapshot, schemaVersion: 0 };
     expect(migrateWorkspace(v0)).toEqual({ ok: false, error: 'no migration from schemaVersion 0' });
-    expect(migrateWorkspace({ schemaVersion: 10 }).ok).toBe(false);
+    expect(migrateWorkspace({ schemaVersion: CURRENT_SCHEMA_VERSION + 1 }).ok).toBe(false);
     expect(migrateWorkspace('garbage').ok).toBe(false);
   });
 

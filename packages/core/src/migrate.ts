@@ -123,6 +123,9 @@ export const migrateV7toV8: Migration = (config) => ({ ...config, schemaVersion:
 /** v8 → v9：新增工具宫格组件 toolGrid，图标多了 translate 和 note（D-181）；已有数据不需要改动，只提升版本号。 */
 export const migrateV8toV9: Migration = (config) => ({ ...config, schemaVersion: 9 });
 
+/** v9 → v10：新增文件选择入口；保持老用户页面原样。 */
+export const migrateV9toV10: Migration = (config) => ({ ...config, schemaVersion: 10 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -133,6 +136,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   6: migrateV6toV7,
   7: migrateV7toV8,
   8: migrateV8toV9,
+  9: migrateV9toV10,
 };
 
 export type MigrateResult =
