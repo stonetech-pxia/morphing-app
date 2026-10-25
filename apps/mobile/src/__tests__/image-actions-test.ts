@@ -284,8 +284,12 @@ describe('background removal', () => {
     files.vision = vision;
     files.nextPhotos = [files.offerImage('photo.jpg', 100, 100)];
     vision.backgroundRemovalSupported = false;
+    const pick = jest.spyOn(files, 'pickPhotos');
     expect(await run()).toMatchObject({ status: 'failed', error: { code: 'unsupportedAction' } });
     expect(vision.calls).toEqual([]);
+    // 开始前就说做不了：不让用户先选照片。
+    expect(pick).not.toHaveBeenCalled();
+    pick.mockRestore();
     vision.backgroundRemovalSupported = true;
     vision.backgroundFailure = true;
     expect(await run()).toMatchObject({ status: 'failed', error: { code: 'backgroundFailed' } });

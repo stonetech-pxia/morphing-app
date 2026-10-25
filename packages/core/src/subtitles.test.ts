@@ -63,4 +63,33 @@ describe('SRT subtitles', () => {
     expect(speechToSrt([], 'en', 1000)).toBe('');
     expect(speechToSrt([{ startMs: 0, endMs: 100, text: 'hello' }], 'en', NaN)).toBe('');
   });
+  it('keeps text from a segment that overlaps an earlier one', () => {
+    const srt = speechToSrt(
+      [
+        { startMs: 0, endMs: 3000, text: 'One.' },
+        { startMs: 1000, endMs: 2000, text: 'Two.' },
+        { startMs: 2500, endMs: 4000, text: 'Three.' },
+      ],
+      'en',
+      5000,
+    );
+    expect(srt).toContain('Two.');
+    expect(srt).toContain('Three.');
+  });
+  it('splits a long segment into cues of at most six seconds and two lines', () => {
+    const words = Array.from({ length: 60 }, (_, i) => `word${i}`).join(' ');
+    const srt = speechToSrt([{ startMs: 0, endMs: 30000, text: words }], 'en', 30000);
+    const cues = srt.split('\r\n\r\n');
+    expect(cues.length).toBeGreaterThanOrEqual(5);
+    for (const cue of cues) {
+      const [, time, ...lines] = cue.trim().split('\r\n');
+      expect(lines.length).toBeLessThanOrEqual(2);
+      const [a, b] = time!.split(' --> ').map((t) => {
+        const [h, m, rest] = t.split(':');
+        const [sec, ms] = rest!.split(',');
+        return ((+h! * 60 + +m!) * 60 + +sec!) * 1000 + +ms!;
+      });
+      expect(b! - a!).toBeLessThanOrEqual(6000);
+    }
+  });
 });

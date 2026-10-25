@@ -1,4 +1,5 @@
 import {
+  RunError,
   localize,
   isFileValue,
   runWorkflow,
@@ -186,8 +187,24 @@ function askUnlessShared(
   return async (request) => (request.step === ctx.workflow.steps[0] ? {} : ask(request));
 }
 
+/**
+ * 这台设备根本做不了的步骤（iOS 17 以下、没有 Google Play 服务时的去背景）：开始前就说，
+ * 不要等用户选完照片、跑到那一步才告诉他。
+ */
+function unsupportedStep(ctx: RunContext): RunResult | null {
+  const index = ctx.workflow.steps.findIndex((s) => s.action === 'image.removeBackground');
+  if (index < 0 || ctx.files.vision?.backgroundRemovalSupported) return null;
+  return {
+    status: 'failed',
+    stepIndex: index,
+    error: new RunError('unsupportedAction', { action: t(ctx.locale, 'backgroundNeedsSystem') }),
+  };
+}
+
 export async function startRun(ctx: RunContext): Promise<Run> {
   const runId = ctx.newId();
+  const blocked = unsupportedStep(ctx);
+  if (blocked) return { result: blocked, runId, dispose: async () => undefined };
   const alive = await keepAlive(ctx);
   const onEvent = alive
     ? (e: RunEvent) => {

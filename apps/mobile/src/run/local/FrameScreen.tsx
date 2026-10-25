@@ -58,9 +58,12 @@ export function FrameScreen({
           onPress={(e) => {
             if (width > 0) select((e.nativeEvent.locationX / width) * end);
           }}>
-          {thumbnails.map((thumb, i) => (
-            <Image key={i} source={thumb} contentFit="cover" style={styles.thumb} />
-          ))}
+          {/* 缩略图不接收点击：否则 locationX 是相对被点中的那一张算的，点中间会选到开头附近。 */}
+          <View style={styles.strip} pointerEvents="none">
+            {thumbnails.map((thumb, i) => (
+              <Image key={i} source={thumb} contentFit="cover" style={styles.thumb} />
+            ))}
+          </View>
           <View
             pointerEvents="none"
             style={[
@@ -100,6 +103,7 @@ const styles = StyleSheet.create({
   preview: { flex: 1, backgroundColor: '#000000', marginHorizontal: 16, borderRadius: 8 },
   controls: { padding: 20, gap: 16 },
   timeline: { height: 60, flexDirection: 'row', marginHorizontal: 24, backgroundColor: '#000000' },
+  strip: { ...StyleSheet.absoluteFill, flexDirection: 'row' },
   thumb: { flex: 1 },
   marker: { position: 'absolute', top: -4, bottom: -4, width: 4 },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },

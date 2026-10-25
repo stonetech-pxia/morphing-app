@@ -62,7 +62,17 @@ it('keeps outline rectangles and freehand paths, ignores tiny accidental arrows,
   expect(state.marks[0]).toHaveLength(1);
   state = reduceAnnotations(state, { type: 'tool', tool: 'pen' }, sizes);
   state = reduceAnnotations(state, { type: 'grant', x: 20, y: 10 }, sizes);
-  for (let n = 0; n < 1200; n++)
-    state = reduceAnnotations(state, { type: 'move', dx: n / 10, dy: n / 20 }, sizes);
-  expect(state.draft?.points).toHaveLength(1000);
+  // 先往右画、再往下画：超过上限后形状要保留（拐角还在），点数不超过上限。
+  for (let n = 0; n < 900; n++)
+    state = reduceAnnotations(state, { type: 'move', dx: n / 10, dy: 0 }, sizes);
+  for (let n = 0; n < 900; n++)
+    state = reduceAnnotations(state, { type: 'move', dx: 89.9, dy: n / 20 }, sizes);
+  const points = state.draft!.points;
+  expect(points.length).toBeLessThanOrEqual(1000);
+  const corner = points.some((p) => Math.abs(p.x - points[points.length - 1]!.x) < 1 && p.y < 60);
+  expect(corner).toBe(true);
+  expect(points[points.length - 1]!.y).toBeGreaterThan(points[0]!.y + 100);
+  // 末尾不能是一条从旧点直接拉到手指的直线。
+  const [a, b] = points.slice(-2);
+  expect(Math.hypot(b!.x - a!.x, b!.y - a!.y)).toBeLessThan(5);
 });
