@@ -6,14 +6,14 @@ import { newWorkflowId } from '../workflows/presets';
 import type { Plan, PlanContext } from './types';
 
 // 「我有什么，我想要什么」的目标句（D-149）：一句简单的目标，搭出一个能直接用的多步快捷操作。
-// 原来是新手引导第 2 步的句子，D-231 起引导里不再有；现在是 AI 修改页的例子。
+// 原来是新手引导第 2 步的句子和 AI 修改页的例子（D-231、D-233 起都不再显示）；用户自己这么说时内置规则照样认得。
 // 内置规则只认这几句（和相近的说法）；别的目标说法交给真实模型（planner 规则 22）。
 
 export type GoalId = 'trip-photos' | 'big-video' | 'contracts';
 
 export interface Goal {
   id: GoalId;
-  /** 原句（AI 修改页的例子用这个说法）。 */
+  /** 原句（测试用这个说法）。 */
   text: Localized;
   /** 整句匹配；都以「我」开头，不会抢走「添加视频太大发不出去快捷操作」这类句子。 */
   match: readonly RegExp[];

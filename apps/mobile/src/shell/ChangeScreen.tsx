@@ -35,7 +35,7 @@ import { sharedAbout } from '../share/about';
 import { useIncoming } from '../share/incoming';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { DraftResult } from '../workspace/store';
-import { aboutCandidates, examplesFor } from './examples';
+import { aboutCandidates } from './examples';
 import { closeButtonOption, stackScreenOptions } from './header';
 import { NeedButton } from './NeedButton';
 import { StylePicker } from './StylePicker';
@@ -47,7 +47,6 @@ const presetPlanner = createMockAIProvider();
 const typeDelay = (length: number) => Math.min(45, 1400 / Math.max(length, 1));
 
 /** 输入框下面最多几个例子（不算「换个风格」）。 */
-const MAX_EXAMPLES = 2;
 
 /**
  * AI 修改入口（§4、D-190、D-191）：一个带发送箭头的输入框和几个例子。
@@ -123,13 +122,12 @@ export function ChangeScreen() {
           (c) => c.type === 'workflowRunner' && c.props.workflowId === about.workflowId,
         ),
     );
-  // 有上下文时的例子（D-124）；内置规则只留它真的认得的句子，所以先试一遍再显示。
+  // 有上下文时输入框里提示的例子（D-124）；内置规则只留它真的认得的句子，所以先试一遍。
+  // 页面上不再列出预设的句子（D-233），只留「换个风格」。
   const [examples, setExamples] = useState<readonly string[]>(() =>
-    !about
-      ? examplesFor(aiMode, locale)
-      : aiMode === 'mock'
-        ? []
-        : aboutCandidates(about, aiMode, locale, { onHome: aboutOnHome }),
+    !about || aiMode === 'mock'
+      ? []
+      : aboutCandidates(about, aiMode, locale, { onHome: aboutOnHome }),
   );
   useEffect(() => {
     if (!about || aiMode !== 'mock') return;
@@ -418,17 +416,15 @@ export function ChangeScreen() {
 
         {guide ? null : (
           <View style={styles.chips} testID="change-examples">
-            {(next && !auto ? [next, ...examples.filter((e) => e !== next)] : examples)
-              .slice(0, MAX_EXAMPLES)
-              .map((example) => (
-                <Chip
-                  key={example}
-                  label={example}
-                  palette={palette}
-                  onPress={() => setInput(example)}
-                  {...(example === next ? { testID: 'change-next' } : {})}
-                />
-              ))}
+            {/* 「接着改」是用户自己那句话剩下的部分（D-191），不是预设的句子。 */}
+            {next && !auto ? (
+              <Chip
+                testID="change-next"
+                label={next}
+                palette={palette}
+                onPress={() => setInput(next)}
+              />
+            ) : null}
             {about ? null : (
               <Chip
                 testID="change-pick-style"

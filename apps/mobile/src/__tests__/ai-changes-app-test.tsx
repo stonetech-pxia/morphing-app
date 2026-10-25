@@ -51,12 +51,11 @@ describe('AI changes the app, the user runs it (UI)', () => {
     expect(await screen.findByTestId('change-about')).toHaveTextContent(
       /要改的快捷操作：「签证 \/ 证件照」/,
     );
-    // 内置规则只留它认得的例子；风格选择器不显示。
-    const examples = await screen.findByTestId('change-examples');
-    expect(examples).toHaveTextContent(/把这个的大小改成 200KB/);
-    expect(screen.queryByText('选一个风格')).toBeNull();
+    // 不列预设的句子（D-233）；风格选择器也不显示。
+    expect(screen.queryByText('把这个的大小改成 200KB')).toBeNull();
+    expect(screen.queryByTestId('change-pick-style')).toBeNull();
 
-    await fireEvent.press(screen.getByText('把这个的大小改成 200KB'));
+    await fireEvent.changeText(screen.getByTestId('change-input'), '把这个的大小改成 200KB');
     await fireEvent.press(screen.getByTestId('change-submit'));
     // 改快捷操作直接生效（D-191），打开它的「做好了」页面，现在就能再用一次。
     expect(await screen.findByTestId('ready-name')).toHaveTextContent('签证 / 证件照');
@@ -159,7 +158,10 @@ describe('AI changes the app, the user runs it (UI)', () => {
     // 让 AI 搭一个：AI 页说明是给分享进来的文件，只知道类型和个数。
     await fireEvent.press(screen.getByTestId('share-ask-ai'));
     expect(await screen.findByTestId('change-about')).toHaveTextContent(/给分享进来的 1 张照片/);
-    await fireEvent.press(await screen.findByText('新建一个快捷操作：选照片，压到 500KB，分享'));
+    await fireEvent.changeText(
+      screen.getByTestId('change-input'),
+      '新建一个快捷操作：选照片，压到 500KB，分享',
+    );
     await fireEvent.press(screen.getByTestId('change-submit'));
     // 直接做好（D-191），回到收件页面，新做的排在最前面、标「刚做好」，不会自己运行。
     // 给分享的文件做的不放首页，在收件页面运行。
