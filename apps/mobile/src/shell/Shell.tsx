@@ -130,7 +130,7 @@ export function Shell() {
 
       {/* 编辑模式的开关（D-053）：导航栏里的页面没有标题栏，放在左下角；编辑模式下隐藏。
           入口暂时关掉（D-190，editing/entry.ts）。 */}
-      {pageId !== null && directEditEntry.enabled && !inDraft ? (
+      {pageId !== null && directEditEntry.pageButton && !inDraft ? (
         <Pressable
           testID={editing ? undefined : 'page-edit'}
           accessibilityRole="button"

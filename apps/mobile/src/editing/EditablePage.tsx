@@ -71,7 +71,7 @@ export function EditablePage({
       <PageView
         page={page}
         env={
-          directEditEntry.enabled && !env.locked
+          directEditEntry.longPress && !env.locked
             ? {
                 ...env,
                 edit: (id) => {

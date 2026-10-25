@@ -116,10 +116,10 @@ function pressInNextAlert(label: string) {
 describe('editing the page directly', () => {
   // 入口暂时关掉了（D-190）；编辑功能本身还在，这里打开入口继续测它。
   beforeAll(() => {
-    directEditEntry.enabled = true;
+    directEditEntry.pageButton = true;
   });
   afterAll(() => {
-    directEditEntry.enabled = false;
+    directEditEntry.pageButton = false;
   });
 
   afterEach(() => jest.restoreAllMocks());

@@ -70,7 +70,7 @@ export default function PageRoute() {
             editing ? null : (
               <View style={styles.headerActions}>
                 {/* 「编辑」进入编辑模式（D-053），入口暂时关掉（D-190，editing/entry.ts）。 */}
-                {directEditEntry.enabled && !inDraft ? (
+                {directEditEntry.pageButton && !inDraft ? (
                   <Pressable testID="page-edit" onPress={() => startEditing(page.id)} hitSlop={10}>
                     <Text style={[palette.font('bodyBold', 16), { color: palette.primaryText }]}>
                       {t(locale, 'edit')}
