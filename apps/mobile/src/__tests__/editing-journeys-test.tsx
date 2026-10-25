@@ -30,6 +30,16 @@ import { createWorkspaceStore, type WorkspaceStore } from '../workspace/store';
 
 const registry = createRegistry(BUILTIN_TOOLS);
 
+// 单组件编辑的工具栏量到位置后才显示；替身直接给一个位置（真机上由原生回调）。
+beforeEach(() => {
+  jest
+    .requireActual('@react-native/jest-preset/jest/MockNativeMethods')
+    .default.measureLayout.mockImplementation(
+      (_to: unknown, success: (x: number, y: number, w: number, h: number) => void) =>
+        success(20, 100, 320, 40),
+    );
+});
+
 const memorySecrets = (): SecretStore => {
   const data = new Map<string, string>();
   return {
@@ -511,6 +521,21 @@ describe('single-component editing', () => {
     await fireEvent.press(screen.getByTestId('single-blank'));
     expect(store.getState().editing).toBeNull();
     expect(store.getState().head!.id).toBe(before);
+  });
+
+  it('hiding the selected component still leaves Edit and Done on screen', async () => {
+    const { store } = await renderApp();
+    await fireEvent(screen.getByTestId('component-welcome'), 'longPress');
+    await fireEvent.press(await screen.findByTestId('single-edit-welcome'));
+    await fireEvent.press(screen.getByTestId('edit-hide'));
+    expect(screen.queryByTestId('component-welcome')).toBeNull();
+    // 组件不在页面上了，工具栏固定在可见区域顶部；还能打开面板把它显示回来。
+    await fireEvent.press(screen.getByTestId('single-edit-welcome'));
+    expect(screen.getByTestId('edit-hide')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('edit-close'));
+    await fireEvent.press(screen.getByTestId('single-done-welcome'));
+    expect(await screen.findByText('已改好：编辑「首页」（1 处修改）')).toBeTruthy();
+    expect(home(store).components.find((c) => c.id === 'welcome')!.hidden).toBe(true);
   });
 });
 

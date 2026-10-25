@@ -191,6 +191,18 @@ export function useSingleDrag(
     target,
     scrollShift,
     scrollGesture,
+    /** 组件相对滚动内容的位置（工具栏画在滚动内容里）；量不了时立刻给 null。 */
+    measureInContent: (id: string, done: (box: ItemBox | null) => void) => {
+      const view = views.current.get(id)?.view;
+      // 测试替身没有内层视图时退回滚动视图本身。
+      const inner = scrollRef.current?.getInnerViewRef() ?? scrollRef.current;
+      if (!view || !inner) return done(null);
+      view.measureLayout(
+        inner,
+        (x, y, width, height) => done({ x, y, width, height }),
+        () => done(null),
+      );
+    },
     register: (id: string, view: HostInstance | null, inCell: boolean) => {
       if (view) views.current.set(id, { view, inCell });
       else views.current.delete(id);

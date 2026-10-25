@@ -27,8 +27,9 @@ import {
 import { GestureDetector, type PanGesture } from 'react-native-gesture-handler';
 
 import { t } from '../i18n';
+import { LONG_PRESS_MS } from '../editing/entry';
+import { FocusItem, FocusToolbar } from '../editing/FocusItem';
 import type { SingleDrag } from '../editing/useSingleDrag';
-import { FocusItem } from '../editing/FocusItem';
 import { RecordForm, RecordList, Stat } from './data';
 import { FileList } from './FileList';
 import { FilePick } from './FilePick';
@@ -76,9 +77,6 @@ export interface RenderEnv {
    */
   locked?: () => void;
 }
-
-/** 长按多久打开组件的操作面板。 */
-export const LONG_PRESS_MS = 450;
 
 type Tone = NonNullable<ComponentStyle['tone']>;
 
@@ -554,6 +552,7 @@ export function PageView({
           <Item key={block.id} component={block} env={pageEnv} />
         ),
       )}
+      {env.focus?.selectedId ? <FocusToolbar env={pageEnv} page={page} /> : null}
     </ScrollView>
   );
   const drag = env.focus?.drag;
@@ -575,6 +574,7 @@ export function PageView({
           ]}
         />
       ) : null}
+      {env.focus?.selectedId ? <FocusToolbar env={pageEnv} page={page} pinned /> : null}
     </View>
   ) : (
     content
