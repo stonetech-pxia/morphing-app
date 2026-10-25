@@ -1,6 +1,7 @@
 #ifndef MORPH_DSP_H
 #define MORPH_DSP_H
 #include <stddef.h>
+#include "MorphDenoise.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

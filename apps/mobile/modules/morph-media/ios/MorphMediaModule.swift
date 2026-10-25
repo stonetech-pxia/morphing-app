@@ -164,6 +164,16 @@ public class MorphMediaModule: Module {
       }
     }
 
+    AsyncFunction("denoise") {
+      (jobId: String, uri: URL, output: URL, options: [String: Any], promise: Promise) in
+      let job = self.start(jobId)
+      Task {
+        defer { self.finish(jobId) }
+        do { promise.resolve(try await self.denoiseAudio(job, jobId: jobId, uri: uri, output: output, options: options)) }
+        catch { promise.reject(Self.coded(error, job: job)) }
+      }
+    }
+
     AsyncFunction("rotate") {
       (jobId: String, uri: URL, output: URL, degrees: Int, _options: [String: Any], promise: Promise) in
       let job = self.start(jobId)
@@ -926,6 +936,55 @@ public class MorphMediaModule: Module {
     }
     writer = nil
     progress(jobId, 0.5)
+    return try await encodeProcessedAudio(job, jobId: jobId, uri: uri, pcm: pcm, output: output, options: options)
+  }
+
+  /** RNNoise 每次处理 10ms；丢掉前 20ms 算法延迟、补尾帧，保持原始时间轴。 */
+  private func denoiseAudio(_ job: Job, jobId: String, uri: URL, output: URL, options: [String: Any]) async throws -> [String: Any] {
+    guard let denoiser = morph_denoise_create(2) else { throw MediaFailedException("denoiser") }
+    defer { morph_denoise_destroy(denoiser) }
+    try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let pcm = output.appendingPathExtension("denoise.caf")
+    defer { try? FileManager.default.removeItem(at: pcm) }
+    let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)!
+    var writer: AVAudioFile? = try AVAudioFile(forWriting: pcm, settings: format.settings)
+    var input = [Float](repeating: 0, count: 960)
+    var filtered = input
+    var filled = 0; var skip = 960; var total = 0; var written = 0
+    func process() throws {
+      if job.cancelled { throw MediaCancelledException() }
+      let code = input.withUnsafeBufferPointer { source in filtered.withUnsafeMutableBufferPointer { target in morph_denoise_process(denoiser, source.baseAddress!, target.baseAddress!) } }
+      guard code == 0 else { throw MediaFailedException("denoise frame") }
+      let drop = min(480, skip); skip -= drop
+      let frames = min(480 - drop, total - written)
+      if frames > 0 {
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)), let channels = buffer.floatChannelData else { throw MediaFailedException("PCM allocation") }
+        buffer.frameLength = AVAudioFrameCount(frames)
+        for i in 0..<frames { for c in 0..<2 { channels[c][i] = filtered[(i + drop)*2+c] } }
+        try writer!.write(from: buffer); written += frames
+      }
+      filled = 0
+    }
+    try await readPcm(job, uri: uri) { samples, frames in
+      total += frames
+      var offset = 0
+      while offset < frames {
+        let count = min(480 - filled, frames - offset)
+        for i in 0..<count*2 { input[filled*2+i] = samples[offset*2+i] }
+        filled += count; offset += count
+        if filled == 480 { try process() }
+      }
+    }
+    if filled > 0 { for i in filled*2..<960 { input[i] = 0 }; try process() }
+    input = [Float](repeating: 0, count: 960)
+    for _ in 0..<2 { try process() }
+    guard written == total else { throw MediaFailedException("denoise duration") }
+    writer = nil
+    progress(jobId, 0.5)
+    return try await encodeProcessedAudio(job, jobId: jobId, uri: uri, pcm: pcm, output: output, options: options)
+  }
+
+  private func encodeProcessedAudio(_ job: Job, jobId: String, uri: URL, pcm: URL, output: URL, options: [String: Any]) async throws -> [String: Any] {
     var encode = options
     encode["container"] = "m4a"
     encode["audio"] = ["codec": "aac", "bitrateKbps": 192.0, "sampleRate": 48000.0, "channels": 2]

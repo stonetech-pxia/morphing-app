@@ -173,6 +173,10 @@ const RECORD_PHRASES: Matcher[] = [
 
 const STEP_PHRASES: Matcher[] = [
   [
+    /人声降噪|去除?杂音|reduce (?:speech|background) noise|denoise/i,
+    () => ({ action: 'audio.denoise', params: {} }),
+  ],
+  [
     /^调到正常音量$|^normalize volume$/i,
     () => ({ action: 'audio.volume', params: { mode: 'normal', db: 0 } }),
   ],
@@ -440,7 +444,7 @@ export type PhraseKind = 'images' | 'video' | 'audio' | 'pdf' | 'other';
 
 function kindAfter(step: StepPhrase, before: PhraseKind | null): PhraseKind | null {
   if (step.action === 'in.photos' || step.action.startsWith('image.')) return 'images';
-  if (step.action === 'audio.volume') return before;
+  if (step.action === 'audio.volume' || step.action === 'audio.denoise') return before;
   if (step.action === 'audio.transcribe') return 'other';
   if (step.action === 'in.audio' || step.action.startsWith('audio.')) return 'audio';
   if (step.action === 'video.frame') return 'images';
@@ -536,6 +540,8 @@ const PRESET_WORDS: [RegExp, string][] = [
   [/把视频转正|fix video rotation/i, 'fix-video-rotation'],
   [/裁成竖屏视频|portrait posts/i, 'vertical-video'],
   [/视频加速或慢放|speed up or slow down video/i, 'video-speed'],
+  [/录音人声降噪|noise in a voice recording/i, 'denoise-audio'],
+  [/视频人声降噪|noise in video speech/i, 'denoise-video'],
   [/把录音调到正常音量|quiet audio easier/i, 'normal-audio-volume'],
   [/把视频调到正常音量|quiet video easier/i, 'normal-video-volume'],
   // 音频预设（D-156）放在「合一」「发照片」前面。

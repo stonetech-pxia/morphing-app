@@ -2955,7 +2955,44 @@ const AUDIO_VOLUME_CASES: EvalCase[] = [
     },
   },
 ];
+const AUDIO_DENOISE_CASES: EvalCase[] = [
+  {
+    id: 'ADN1',
+    input: '添加录音人声降噪快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'audio.denoise'))
+          ? null
+          : 'missing speech noise reduction',
+    },
+  },
+  {
+    id: 'ADN2',
+    input:
+      'Make an action to reduce background noise in spoken videos. Keep the video picture, do not transcribe it.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps[0]?.action === 'in.videos' &&
+            w.steps.some((s) => s.action === 'audio.denoise') &&
+            !w.steps.some((s) => ['audio.fromVideo', 'audio.transcribe'].includes(s.action)),
+        )
+          ? null
+          : 'missing video denoise preserving video',
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...AUDIO_DENOISE_CASES,
   ...AUDIO_VOLUME_CASES,
   ...VIDEO_SPEED_CASES,
   ...VIDEO_CROP_CASES,

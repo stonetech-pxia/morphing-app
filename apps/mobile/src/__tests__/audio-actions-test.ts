@@ -123,6 +123,7 @@ describe('audio tool', () => {
     );
     if (!result.ok) throw new Error(result.error);
     expect(result.config.workflows.map((w) => w.name)).toEqual([
+      '人声降噪',
       '调整音量',
       '语音转文字',
       '录音',
@@ -485,4 +486,24 @@ it('the same volume action keeps a video as video', async () => {
     value: { type: 'video', items: [{ ext: 'mp4', durationMs: 2000 }] },
   });
   expect(media.volumes).toHaveLength(1);
+});
+
+it('reduces speech noise in audio and video while preserving the input type', async () => {
+  for (const kind of ['audio', 'video'] as const) {
+    const { files, media, run } = setup(
+      preset(kind === 'audio' ? 'denoise-audio' : 'denoise-video'),
+    );
+    const picked = [
+      kind === 'audio'
+        ? files.offerAudio('speech.m4a', { size: 1000, durationMs: 2037 })
+        : files.offerVideo('speech.mp4', { size: 1000, durationMs: 2037 }),
+    ];
+    if (kind === 'audio') files.nextPick = picked;
+    else files.nextVideos = picked;
+    expect(await run()).toMatchObject({
+      status: 'succeeded',
+      value: { type: kind, items: [{ durationMs: 2037 }] },
+    });
+    expect(media.denoises).toHaveLength(1);
+  }
 });

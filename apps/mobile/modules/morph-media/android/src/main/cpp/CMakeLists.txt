@@ -27,3 +27,11 @@ add_library(morphdsp SHARED morph_dsp.c ${DSP_DIR}/MorphDsp.c ${DSP_DIR}/ebur128
 target_include_directories(morphdsp PRIVATE ${DSP_DIR} ${DSP_DIR}/ebur128/queue)
 target_compile_options(morphdsp PRIVATE -O3)
 target_link_libraries(morphdsp PRIVATE m)
+
+set(RNNOISE_DIR ${DSP_DIR}/rnnoise)
+set(RNNOISE_NAMES denoise rnn pitch kiss_fft celt_lpc nnet nnet_default parse_lpcnet_weights rnnoise_data rnnoise_tables)
+foreach(name ${RNNOISE_NAMES})
+  target_sources(morphdsp PRIVATE ${RNNOISE_DIR}/src/${name}.c)
+endforeach()
+target_sources(morphdsp PRIVATE ${DSP_DIR}/MorphDenoise.c)
+target_include_directories(morphdsp PRIVATE ${RNNOISE_DIR}/include ${RNNOISE_DIR}/src)

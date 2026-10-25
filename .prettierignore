@@ -6,3 +6,6 @@ package-lock.json
 LICENSE
 PRODUCT_HANDOFF_CLAUDE_CODE.md
 .claude
+
+# Vendored RNNoise source and model must retain upstream formatting.
+apps/mobile/modules/morph-media/dsp/rnnoise

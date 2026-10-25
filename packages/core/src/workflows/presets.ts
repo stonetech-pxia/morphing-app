@@ -633,6 +633,34 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'denoise-audio',
+    scenario: 'sound',
+    name: { en: 'Reduce noise in a voice recording', zh: '录音人声降噪' },
+    description: {
+      en: 'Reduce background noise around speech. Music may also be suppressed.',
+      zh: '减少录音中人声周围的噪声，音乐也可能被削弱。',
+    },
+    icon: 'audio',
+    steps: () => [
+      { id: 'pick', action: 'in.audio', params: { source: 'files', min: 1, max: 10 } },
+      { id: 'denoise', action: 'audio.denoise', params: {} },
+    ],
+  },
+  {
+    id: 'denoise-video',
+    scenario: 'photos',
+    name: { en: 'Reduce noise in video speech', zh: '视频人声降噪' },
+    description: {
+      en: 'Reduce background noise around video speech and keep the picture. Music may also be suppressed.',
+      zh: '减少视频中人声周围的噪声，保留画面，音乐也可能被削弱。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'denoise', action: 'audio.denoise', params: {} },
+    ],
+  },
+  {
     id: 'audio-too-big',
     scenario: 'sound',
     name: { en: 'Recording too big to send', zh: '语音太大发不出去' },

@@ -26,6 +26,7 @@ describe('workflow presets', () => {
     ]);
     expect(presetsIn('sound').map((p) => p.id)).toEqual([
       'normal-audio-volume',
+      'denoise-audio',
       'audio-too-big',
       'cut-audio',
       'video-sound',

@@ -114,6 +114,12 @@ export interface MorphMediaModule {
     output: string,
     options: { automatic: boolean; db: number; video: VideoSettings | 'drop' },
   ): Promise<MediaResult>;
+  denoise?(
+    jobId: string,
+    uri: string,
+    output: string,
+    options: { video: VideoSettings | 'drop' },
+  ): Promise<MediaResult>;
   rotate?(
     jobId: string,
     uri: string,

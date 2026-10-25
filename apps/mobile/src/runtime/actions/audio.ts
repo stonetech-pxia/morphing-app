@@ -171,87 +171,95 @@ function speechError(e: unknown, item: RunItem, ctx: Ctx, language: SpeechLangua
   }
 }
 
-export const AUDIO_IMPLS: Record<string, Impl> = {
-  async 'audio.volume'(input, params, ctx) {
-    if (!input || (input.type !== 'audio' && input.type !== 'video'))
-      throw new RunError('wrongType', { kind: 'audio/video' });
-    const media = mediaOf(ctx);
-    const out: RunItem[] = [];
-    for (const [i, item] of input.items.entries()) {
-      ctx.throwIfCancelled();
-      const info = await probeAudio(media, item);
-      const video =
-        input.type === 'video'
-          ? planVideoConvert({
-              durationMs: info.durationMs,
-              size: item.size,
-              hasAudio: info.hasAudio,
-              width: info.width,
-              height: info.height,
-              videoKbps: info.videoBitrateKbps,
-            })
-          : undefined;
-      const pcmBytes =
-        (info.durationMs / 1000) *
-        Math.max(48000 * 2 * 4, (info.sampleRate ?? 48000) * (info.channels ?? 2) * 2);
-      checkSpace(
-        ctx,
-        pcmBytes +
-          (video
-            ? ((video.videoKbps + video.audioKbps) * info.durationMs) / 8
-            : info.durationMs * 24),
-      );
-      let shown = 0;
-      try {
-        const result = await media.volume(
-          item.uri,
-          {
-            automatic: params.mode === 'normal',
-            db: Number(params.db),
-            ...(video
-              ? {
-                  video: {
-                    videoKbps: video.videoKbps,
-                    audioKbps: video.audioKbps,
-                    maxFps: video.maxFps,
-                  },
-                }
-              : {}),
-          },
-          ctx.services.runId,
-          freshName(item.name, video ? 'mp4' : 'm4a'),
-          {
-            progress: (f) => {
-              shown = Math.max(shown, Math.min(1, f));
-              ctx.progress(Math.round(((i + shown) / input.items.length) * 100), 100, 'percent');
-            },
-            isCancelled: () => {
-              try {
-                ctx.throwIfCancelled();
-                return false;
-              } catch {
-                return true;
-              }
-            },
-          },
-        );
-        out.push({
-          ...item,
-          uri: result.uri,
-          ext: result.ext,
-          mimeType: video ? 'video/mp4' : 'audio/mp4',
-          size: result.size,
-          durationMs: result.info.durationMs,
-          ...(result.info.width ? { width: result.info.width } : {}),
-          ...(result.info.height ? { height: result.info.height } : {}),
-        });
-      } catch (e) {
-        throw mediaError(e, item);
-      }
-    }
+async function processSound(
+  input: Parameters<Impl>[0],
+  params: Parameters<Impl>[1],
+  ctx: Ctx,
+  denoise: boolean,
+): Promise<RunValue> {
+  if (!input || (input.type !== 'audio' && input.type !== 'video'))
+    throw new RunError('wrongType', { kind: 'audio/video' });
+  const media = mediaOf(ctx);
+  const out: RunItem[] = [];
+  for (const [i, item] of input.items.entries()) {
     ctx.throwIfCancelled();
-    return { type: input.type, items: out };
-  },
+    const info = await probeAudio(media, item);
+    const video =
+      input.type === 'video'
+        ? planVideoConvert({
+            durationMs: info.durationMs,
+            size: item.size,
+            hasAudio: info.hasAudio,
+            width: info.width,
+            height: info.height,
+            videoKbps: info.videoBitrateKbps,
+          })
+        : undefined;
+    const pcmBytes =
+      (info.durationMs / 1000) *
+      Math.max(48000 * 2 * 4, (info.sampleRate ?? 48000) * (info.channels ?? 2) * 2);
+    checkSpace(
+      ctx,
+      pcmBytes +
+        (video
+          ? ((video.videoKbps + video.audioKbps) * info.durationMs) / 8
+          : info.durationMs * 24),
+    );
+    let shown = 0;
+    try {
+      const result = await (denoise ? media.denoise.bind(media) : media.volume.bind(media))(
+        item.uri,
+        {
+          automatic: params.mode === 'normal',
+          db: Number(params.db ?? 0),
+          ...(video
+            ? {
+                video: {
+                  videoKbps: video.videoKbps,
+                  audioKbps: video.audioKbps,
+                  maxFps: video.maxFps,
+                },
+              }
+            : {}),
+        },
+        ctx.services.runId,
+        freshName(item.name, video ? 'mp4' : 'm4a'),
+        {
+          progress: (f) => {
+            shown = Math.max(shown, Math.min(1, f));
+            ctx.progress(Math.round(((i + shown) / input.items.length) * 100), 100, 'percent');
+          },
+          isCancelled: () => {
+            try {
+              ctx.throwIfCancelled();
+              return false;
+            } catch {
+              return true;
+            }
+          },
+        },
+      );
+      out.push({
+        ...item,
+        uri: result.uri,
+        ext: result.ext,
+        mimeType: video ? 'video/mp4' : 'audio/mp4',
+        size: result.size,
+        durationMs: result.info.durationMs,
+        ...(result.info.width ? { width: result.info.width } : {}),
+        ...(result.info.height ? { height: result.info.height } : {}),
+      });
+    } catch (e) {
+      throw mediaError(e, item);
+    }
+  }
+  ctx.throwIfCancelled();
+  return { type: input.type, items: out };
+}
+
+export const AUDIO_IMPLS: Record<string, Impl> = {
+  'audio.volume': (input, params, ctx) => processSound(input, params, ctx, false),
+  'audio.denoise': (input, params, ctx) => processSound(input, params, ctx, true),
   async 'audio.compress'(input, params, ctx) {
     const { by, maxMB, quality } = params as {
       by: 'size' | 'quality';

@@ -239,3 +239,10 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 - 「添加把录音调到正常音量快捷操作」 / `Add the quiet audio easier quick action`。
 - 「添加把视频调到正常音量快捷操作」 / `Add the quiet video easier quick action`。
 - 步骤：「调到正常音量」 / `normalize volume`；「音量 +6 dB」 / `volume -6 dB`。同一动作收音频或视频，保持类型。
+
+### 人声降噪
+
+- 添加录音人声降噪快捷操作
+- 添加视频人声降噪快捷操作
+- 步骤句式：人声降噪 / reduce speech noise / denoise
+- 适合讲话录音，音乐可能被削弱；视频保留画面。

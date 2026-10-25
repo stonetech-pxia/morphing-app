@@ -107,6 +107,23 @@ export function expoMedia(
         ),
       );
     },
+    async denoise(uri, settings, runId, relPath, job) {
+      if (!native.denoise) throw notImplemented('speech noise reduction');
+      return output(
+        await run(job, (jobId) =>
+          native.denoise!(jobId, uri, runFileUri(runId, relPath), {
+            video: settings.video
+              ? {
+                  codec: 'h264',
+                  bitrateKbps: settings.video.videoKbps,
+                  maxFps: settings.video.maxFps,
+                  toSdr: true,
+                }
+              : 'drop',
+          }),
+        ),
+      );
+    },
     async rotateVideo(uri, degrees, settings, runId, relPath, job) {
       if (!native.rotate) throw notImplemented('video rotation');
       return output(

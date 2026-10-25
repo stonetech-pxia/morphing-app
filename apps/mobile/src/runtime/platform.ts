@@ -236,6 +236,13 @@ export interface MediaPlatform {
     relPath: string,
     job: MediaJob,
   ): Promise<MediaOutput>;
+  denoise(
+    uri: string,
+    settings: { automatic?: boolean; db?: number; video?: VideoEncode },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
   /** 顺时针旋转；iOS 只改方向信息，Android 重新编码。 */
   rotateVideo(
     uri: string,

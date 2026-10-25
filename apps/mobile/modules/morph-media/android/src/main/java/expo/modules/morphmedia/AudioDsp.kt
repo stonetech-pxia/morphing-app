@@ -7,4 +7,7 @@ object AudioDsp {
   @JvmStatic external fun nativeAdd(handle: Long, pcm: ShortArray, count: Int): Int
   @JvmStatic external fun nativeGain(handle: Long, automatic: Boolean, db: Double): Double
   @JvmStatic external fun nativeDestroy(handle: Long)
+  @JvmStatic external fun nativeDenoiseCreate(channels: Int): Long
+  @JvmStatic external fun nativeDenoise(handle: Long, input: FloatArray, output: FloatArray): Int
+  @JvmStatic external fun nativeDenoiseDestroy(handle: Long)
 }

@@ -9,8 +9,9 @@ Pod::Spec.new do |s|
   s.source = { git: '' }
   s.platforms = { :ios => '16.4' }
   s.static_framework = true
-  s.source_files = 'MorphDsp.{c,h}', 'ebur128/*.{c,h}'
-  s.public_header_files = 'MorphDsp.h'
+  s.source_files = 'Morph*.{c,h}', 'ebur128/*.{c,h}', 'rnnoise/include/*.h', 'rnnoise/src/*.h', 'rnnoise/src/{denoise,rnn,pitch,kiss_fft,celt_lpc,nnet,nnet_default,parse_lpcnet_weights,rnnoise_data,rnnoise_tables}.c'
+  s.header_mappings_dir = '.'
+  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'HEADER_SEARCH_PATHS' => '"$(PODS_TARGET_SRCROOT)/rnnoise/include" "$(PODS_TARGET_SRCROOT)/rnnoise/src"' }
+  s.public_header_files = 'MorphDsp.h', 'MorphDenoise.h'
   s.resource_bundles = { 'MorphDspLicenses' => ['notices/*.txt'] }
-  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
 end

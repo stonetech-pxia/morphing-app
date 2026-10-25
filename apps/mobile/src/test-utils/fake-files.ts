@@ -592,6 +592,17 @@ export class FakeMedia implements MediaPlatform {
       job,
     );
   }
+  denoises: string[] = [];
+  async denoise(
+    uri: string,
+    settings: { video?: VideoEncode },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.denoises.push(uri);
+    return this.volume(uri, { ...settings, automatic: false, db: 0 }, runId, relPath, job);
+  }
   rotations: { uri: string; degrees: number }[] = [];
   async rotateVideo(
     uri: string,

@@ -37,6 +37,20 @@ const formatField = {
 
 export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
   {
+    id: 'audio.denoise',
+    label: { en: 'Reduce speech noise', zh: '人声降噪' },
+    description: {
+      en: 'Reduce background noise around speech in audio or video on this device with RNNoise. Best for spoken recordings; music and other wanted sounds can be suppressed. Mono/stereo only. Audio becomes M4A; video keeps its picture (MP4, re-encoded). No speech recognition or upload.',
+      zh: '使用本机 RNNoise 减少音频或视频中人声周围的背景噪声。适合讲话录音，音乐和其他想保留的声音也可能被削弱。支持单声道/立体声。音频输出 M4A，视频保留画面（MP4，重新编码）。不识别或上传内容。',
+    },
+    input: ['audio', 'video'],
+    output: 'same',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
+    presets: [{ id: 'speech', label: { en: 'Speech', zh: '人声' }, values: {} }],
+  },
+  {
     id: 'audio.volume',
     label: { en: 'Adjust volume', zh: '调整音量' },
     description: {
@@ -266,6 +280,11 @@ export function audioWorkflows(locale: Locale): Workflow[] {
   });
   return [
     wf(
+      'audio-denoise',
+      ['Reduce speech noise', '人声降噪'],
+      [pickAudio(1, 10), { id: 'denoise', action: 'audio.denoise', params: {} }],
+    ),
+    wf(
       'audio-volume',
       ['Adjust volume', '调整音量'],
       [
@@ -344,7 +363,7 @@ export function audioWorkflows(locale: Locale): Workflow[] {
 
 export const audioTool: ToolDefinition = {
   id: AUDIO_TOOL_ID,
-  version: '1.1.0',
+  version: '1.2.0',
   name: { en: 'Audio', zh: '音频' },
   description: {
     en: 'Turn recordings into text, record, make audio smaller, convert, trim and join it, on this device.',

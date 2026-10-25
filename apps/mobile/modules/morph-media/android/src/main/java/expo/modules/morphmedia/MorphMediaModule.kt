@@ -181,6 +181,41 @@ class MorphMediaModule : Module() {
       }
     }
 
+    AsyncFunction("denoise") {
+      jobId: String, uri: String, output: String, options: Map<String, Any?>, promise: Promise ->
+      val flag = AtomicBoolean(false)
+      threadJobs[jobId] = flag
+      thread {
+        val destination = File(Uri.parse(output).path!!)
+        val wave = File(destination.parentFile, "${destination.name}.denoise.wav")
+        try {
+          destination.parentFile?.mkdirs()
+          AudioDenoise.prepare(context, Uri.parse(uri), wave, flag, (probe(Uri.parse(uri))["durationMs"] as? Number)?.toDouble() ?: 0.0) { sendProgress(jobId, it) }
+          if (flag.get()) throw MediaCancelledException()
+          main.post {
+            try {
+              if (flag.get()) throw MediaCancelledException()
+              if (options["video"] is Map<*, *>) {
+                val mixOptions = options.toMutableMap().apply {
+                  put("container", "mp4"); put("audio", mapOf("codec" to "aac", "bitrateKbps" to 192))
+                  put("originalVolume", 0); put("loop", false)
+                  put("videoDurationMs", probe(Uri.parse(uri))["durationMs"] ?: 0)
+                  put("musicDurationMs", probe(Uri.fromFile(wave))["durationMs"] ?: 0)
+                }
+                mixVideoAudio(jobId, uri, Uri.fromFile(wave).toString(), output, mixOptions, promise)
+              } else {
+                transcodeAudio(jobId, Uri.fromFile(wave), destination,
+                  mapOf("container" to "m4a", "video" to "drop", "audio" to mapOf("codec" to "aac", "bitrateKbps" to 192)), promise)
+              }
+            } catch (e: CodedException) { promise.reject(e) }
+            catch (e: Exception) { promise.reject(MediaFailedException(e.message)) }
+            finally { threadJobs.remove(jobId) }
+          }
+        } catch (e: CodedException) { threadJobs.remove(jobId); wave.delete(); promise.reject(e) }
+        catch (e: Exception) { threadJobs.remove(jobId); wave.delete(); promise.reject(MediaFailedException(e.message)) }
+      }
+    }
+
     AsyncFunction("trim") {
       jobId: String, uri: String, output: String, range: Map<String, Double>, promise: Promise ->
       val start = range["startMs"]

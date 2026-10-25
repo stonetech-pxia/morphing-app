@@ -19,3 +19,22 @@ JNIEXPORT jdouble JNICALL Java_expo_modules_morphmedia_AudioDsp_nativeGain(JNIEn
 JNIEXPORT void JNICALL Java_expo_modules_morphmedia_AudioDsp_nativeDestroy(JNIEnv *e, jclass c, jlong handle) {
   morph_meter_destroy((MorphMeter *)(intptr_t)handle);
 }
+
+JNIEXPORT jlong JNICALL Java_expo_modules_morphmedia_AudioDsp_nativeDenoiseCreate(JNIEnv *e, jclass c, jint channels) {
+  return (jlong)(intptr_t)morph_denoise_create(channels);
+}
+JNIEXPORT jint JNICALL Java_expo_modules_morphmedia_AudioDsp_nativeDenoise(JNIEnv *e, jclass c, jlong handle, jfloatArray input, jfloatArray output) {
+  jsize n = (*e)->GetArrayLength(e, input);
+  if (!handle || (n != 480 && n != 960) || (*e)->GetArrayLength(e, output) != n) return -1;
+  jfloat *in = (*e)->GetFloatArrayElements(e, input, NULL);
+  if (!in) return -1;
+  jfloat *out = (*e)->GetFloatArrayElements(e, output, NULL);
+  if (!out) { (*e)->ReleaseFloatArrayElements(e,input,in,JNI_ABORT); return -1; }
+  int result = morph_denoise_process((MorphDenoiser *)(intptr_t)handle,in,out);
+  (*e)->ReleaseFloatArrayElements(e,input,in,JNI_ABORT);
+  (*e)->ReleaseFloatArrayElements(e,output,out,0);
+  return result;
+}
+JNIEXPORT void JNICALL Java_expo_modules_morphmedia_AudioDsp_nativeDenoiseDestroy(JNIEnv *e, jclass c, jlong handle) {
+  morph_denoise_destroy((MorphDenoiser *)(intptr_t)handle);
+}

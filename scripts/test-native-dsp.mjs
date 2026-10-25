@@ -30,6 +30,45 @@ try {
   const test = spawnSync(binary, [], { encoding: 'utf8' });
   if (test.stdout) process.stdout.write(test.stdout);
   if (test.status !== 0) throw new Error(test.stderr || 'Native DSP assertions failed');
+  const denoiseBinary = path.join(dir, 'denoise-test');
+  const names = [
+    'denoise',
+    'rnn',
+    'pitch',
+    'kiss_fft',
+    'celt_lpc',
+    'nnet',
+    'nnet_default',
+    'parse_lpcnet_weights',
+    'rnnoise_data',
+    'rnnoise_tables',
+  ];
+  const denoiseCompile = spawnSync(
+    process.env.CC || 'cc',
+    [
+      '-O2',
+      '-I',
+      root,
+      '-I',
+      `${root}/rnnoise/include`,
+      '-I',
+      `${root}/rnnoise/src`,
+      `${root}/tests/denoise_test.c`,
+      `${root}/MorphDenoise.c`,
+      ...names.map((name) => `${root}/rnnoise/src/${name}.c`),
+      '-lm',
+      '-o',
+      denoiseBinary,
+    ],
+    { encoding: 'utf8' },
+  );
+  if (denoiseCompile.status !== 0)
+    throw new Error(
+      denoiseCompile.error?.message || denoiseCompile.stderr || 'RNNoise compilation failed',
+    );
+  const denoiseTest = spawnSync(denoiseBinary, [], { encoding: 'utf8' });
+  if (denoiseTest.stdout) process.stdout.write(denoiseTest.stdout);
+  if (denoiseTest.status !== 0) throw new Error(denoiseTest.stderr || 'RNNoise assertions failed');
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }

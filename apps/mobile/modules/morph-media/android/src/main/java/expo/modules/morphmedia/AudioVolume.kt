@@ -13,37 +13,8 @@ object AudioVolume {
     var handle = 0L
     var rate = 0
     var channels = 0
-    // MediaExtractor 的音轨可能晚于画面开始：补齐时间戳间隙，再做两遍相同的分析/写入。
-    fun visit(sink: (PcmChunk) -> Unit) {
-      var position = 0L
-      var sourceRate = 0
-      var sourceChannels = 0
-      fun pad(to: Long) {
-        while (position < to) {
-          if (cancelled.get()) throw MediaCancelledException()
-          val frames = minOf(to - position, 4096L).toInt()
-          sink(PcmChunk(ShortArray(frames * sourceChannels), frames * sourceChannels, sourceChannels, sourceRate, position * 1000000 / sourceRate))
-          position += frames
-        }
-      }
-      AudioPcm.decode(context, uri, 0, Long.MAX_VALUE, { cancelled.get() }) { chunk ->
-        if (sourceRate == 0) { sourceRate = chunk.sampleRate; sourceChannels = chunk.channels }
-        if (sourceRate != chunk.sampleRate || sourceChannels != chunk.channels) throw MediaUnsupportedException("audio format changed")
-        val end = (durationMs * sourceRate / 1000).toLong()
-        val start = chunk.ptsUs * sourceRate / 1000000
-        pad(minOf(end, maxOf(0, start)))
-        val skip = maxOf(0, position - start).toInt()
-        val frames = minOf((chunk.count / sourceChannels - skip).toLong(), end - position).coerceAtLeast(0).toInt()
-        if (frames > 0) {
-          val samples = chunk.samples.copyOfRange(skip * sourceChannels, (skip + frames) * sourceChannels)
-          sink(PcmChunk(samples, samples.size, sourceChannels, sourceRate, position * 1000000 / sourceRate))
-          position += frames
-        }
-      }
-      if (sourceRate > 0) pad((durationMs * sourceRate / 1000).toLong())
-    }
     try {
-      visit { chunk ->
+      AudioPcm.visitTimeline(context, uri, durationMs, { cancelled.get() }) { chunk ->
         if (handle == 0L) {
           rate = chunk.sampleRate
           channels = chunk.channels
@@ -60,7 +31,7 @@ object AudioVolume {
       val writer = AudioPcm.WavWriter(output)
       var complete = false
       try {
-        visit { chunk ->
+        AudioPcm.visitTimeline(context, uri, durationMs, { cancelled.get() }) { chunk ->
           if (chunk.sampleRate != rate || chunk.channels != channels) throw MediaUnsupportedException("audio format changed")
           val adjusted = ShortArray(chunk.count) { i -> (chunk.samples[i].toDouble() * gain).roundToInt().coerceIn(-32768, 32767).toShort() }
           writer.write(adjusted, channels, rate)
