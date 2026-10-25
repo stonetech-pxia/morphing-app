@@ -128,6 +128,7 @@ export function aboutCandidates(
   locale: Locale,
   { onHome = false }: { onHome?: boolean } = {},
 ): readonly string[] {
+  if (about.kind === 'chain') return [];
   if (about.kind === 'workflow') {
     const all = localize(ABOUT_WORKFLOW[mode === 'mock' ? 'mock' : 'ai'], locale);
     return onHome ? all.filter((e) => !ON_HOME.test(e)) : all;

@@ -1,7 +1,7 @@
 import { CURRENT_SCHEMA_VERSION, HOME_PAGE_ID, pageTarget } from '@morph/core';
 import { MODELS } from '@morph/planner';
 import { useRouter } from 'expo-router';
-import { ScrollView } from 'react-native';
+import { ScrollView, Text } from 'react-native';
 
 import { useAISettings } from '../ai/context';
 import { useGuide } from '../guide/store';
@@ -105,6 +105,11 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         label={t(locale, 'about')}
         value={t(locale, 'aboutValue', { schema: CURRENT_SCHEMA_VERSION, revision: headId })}
       />
+      <Text
+        testID="settings-trust"
+        style={[palette.font('body', 13), { color: palette.muted, lineHeight: 20 }]}>
+        {t(locale, 'trustNote')}
+      </Text>
     </ScrollView>
   );
 }

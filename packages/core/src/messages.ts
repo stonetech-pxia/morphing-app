@@ -2,6 +2,33 @@ import { FRENCH_PAIRS } from './french-pairs';
 import type { Locale, Localized } from './schema';
 
 export const strings = {
+  trustNote: {
+    en: 'No ads. No account needed to process files. Files are processed on your device. AI changes receive your request and app configuration, never file or record contents.',
+    zh: '没有广告。处理文件不需要账号。文件在本机处理；AI 修改只接收你的要求和 App 配置，不接收文件或记录内容。',
+    fr: 'Sans publicité. Aucun compte requis pour traiter vos fichiers. Le traitement reste sur votre appareil. L’IA reçoit votre demande et la configuration de l’application, jamais le contenu des fichiers ou des enregistrements.',
+  },
+  resultContinue: { en: 'Continue processing', zh: '接着处理', fr: 'Continuer le traitement' },
+  resultIncoming: {
+    en: 'For these results: {what}',
+    zh: '接着处理这些结果：{what}',
+    fr: 'Pour ces résultats : {what}',
+  },
+  chainMake: {
+    en: 'Combine into one quick action',
+    zh: '合成一个快捷操作',
+    fr: 'Combiner en une action rapide',
+  },
+  chainAbout: {
+    en: 'First “{first}”, then “{second}”',
+    zh: '先「{first}」，再「{second}」',
+    fr: 'D’abord « {first} », puis « {second} »',
+  },
+  chainRequest: {
+    en: 'Create one quick action that combines these two in this order, without choosing files again between them.',
+    zh: '按这个顺序合成一个快捷操作，中间不用重新选择文件。',
+    fr: 'Créez une action rapide combinant ces deux actions dans cet ordre, sans sélectionner les fichiers à nouveau entre les deux.',
+  },
+
   openMedia: { en: 'Open photo library', zh: '打开相册', fr: 'Ouvrir les photos' },
   openFiles: { en: 'Open files', zh: '打开文件', fr: 'Ouvrir les fichiers' },
   filePickFailed: {

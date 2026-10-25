@@ -77,10 +77,12 @@ export const PlanSchema: z.ZodType<Plan> = z.discriminatedUnion('kind', [
 /**
  * 用户是从哪里打开 AI 修改的（D-124）。只有结构，没有内容：
  * - workflow：从一个快捷操作打开（「让 AI 改这个」），「这个」「它」指的就是它。
+ * - chain：从两次成功接续的结果打开，带有顺序的两个快捷操作 ID，没有文件信息。
  * - shared：从收件页面打开，带着分享进来的文件的类型和个数（没有文件名、大小和内容）。
  */
 export type PlanAbout =
   | { kind: 'workflow'; workflowId: string }
+  | { kind: 'chain'; first: string; second: string }
   | {
       kind: 'shared';
       images: number;
@@ -92,6 +94,11 @@ export type PlanAbout =
     };
 
 export const PlanAboutSchema: z.ZodType<PlanAbout> = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('chain'),
+    first: z.string().min(1).max(64),
+    second: z.string().min(1).max(64),
+  }),
   z.strictObject({ kind: z.literal('workflow'), workflowId: z.string().min(1).max(64) }),
   z.strictObject({
     kind: z.literal('shared'),

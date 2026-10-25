@@ -30,10 +30,11 @@ import { saveItems } from '../runtime/actions/io';
 import type { LocalKind, LocalSteps, LocalUi } from '../runtime/local';
 import { granteeOf, isBackgroundAction, newAssetId, startRun, type Run } from '../runtime/runner';
 import { PackGate } from '../packs/PackGate';
-import { releaseShare, type IncomingShare } from '../share/incoming';
+import { copyResults, releaseShare, useIncoming, type IncomingShare } from '../share/incoming';
 import { usePacks } from '../packs/PackHost';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { AskPanel } from './AskPanel';
+import { ChainCard } from './ChainCard';
 import { HabitCard } from './HabitCard';
 import { LOCAL_SCREENS } from './local';
 import { ResultView } from './ResultView';
@@ -103,6 +104,9 @@ export function RunScreen({
   const [local, setLocal] = useState<LocalPending | null>(null);
   const packs = usePacks();
   const [packAsk, setPackAsk] = useState<({ packId: string } & Pending<boolean>) | null>(null);
+  const alive = useRef(true);
+  const transferring = useRef(false);
+  const [transferBusy, setTransferBusy] = useState(false);
   const signal = useRef({ cancelled: false });
   const run = useRef<Run | null>(null);
   // 这次运行里「每次运行时问」的回答，结果页据此提议做成快捷操作（D-127）。
@@ -204,6 +208,10 @@ export function RunScreen({
             : { index: e.index, done: e.done, total: e.total, ...(e.unit ? { unit: e.unit } : {}) },
         ),
     });
+    if (!alive.current) {
+      await started.dispose();
+      return;
+    }
     run.current = started;
     setCurrent(null);
     setOutcome(started.result);
@@ -215,8 +223,10 @@ export function RunScreen({
 
   useEffect(() => {
     // 等运行页面弹出的动画结束再开始：动画进行中系统不会弹出照片 / 文件选择器（会一直停在第 1 步）。
+    alive.current = true;
     const timer = setTimeout(() => void execute(), START_DELAY_MS);
     return () => {
+      alive.current = false;
       clearTimeout(timer);
       signal.current.cancelled = true;
       void run.current?.dispose();
@@ -246,6 +256,31 @@ export function RunScreen({
       inputSize: outcome?.status === 'succeeded' ? outcome.inputSize : 0,
     });
     bumpAssets();
+  }
+
+  async function continueProcessing() {
+    if (!isFileValue(value) || transferring.current) return;
+    transferring.current = true;
+    setTransferBusy(true);
+    const runId = newAssetId();
+    const previous = useIncoming.getState().share?.id;
+    try {
+      const picked = await copyResults(files, value.items, runId);
+      if (!alive.current || previous !== useIncoming.getState().share?.id) {
+        await files.removeRun(runId);
+        return;
+      }
+      useIncoming.getState().receive(picked, [], 'result', { runId, workflow });
+      try {
+        router.replace('/share');
+      } catch (error) {
+        await releaseShare(files, useIncoming.getState().share!.id);
+        throw error;
+      }
+    } finally {
+      transferring.current = false;
+      if (alive.current) setTransferBusy(false);
+    }
   }
 
   const LocalScreen = local
@@ -386,6 +421,7 @@ export function RunScreen({
           locale={locale}
           actions={{
             save: saveResult,
+            continueProcessing,
             share: async () => {
               if (isFileValue(value)) await files.shareUris(value.items);
             },
@@ -404,6 +440,15 @@ export function RunScreen({
               if (value.type === 'text') await files.copyText(value.text);
             },
           }}
+        />
+      ) : null}
+
+      {outcome?.status === 'succeeded' && incoming?.result ? (
+        <ChainCard
+          key={`chain-${runCount}`}
+          source={incoming.result}
+          workflow={workflow}
+          palette={palette}
         />
       ) : null}
 
@@ -429,6 +474,7 @@ export function RunScreen({
             <Button
               palette={palette}
               testID="run-again"
+              disabled={transferBusy}
               variant="outline"
               label={t(locale, 'runAgain')}
               onPress={() => void restart()}
@@ -437,6 +483,7 @@ export function RunScreen({
             <Button
               palette={palette}
               testID="run-done"
+              disabled={transferBusy}
               label={t(locale, outcome?.status === 'succeeded' ? 'done' : 'close')}
               onPress={() => router.back()}
               style={styles.flex}

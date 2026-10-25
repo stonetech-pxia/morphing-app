@@ -91,6 +91,15 @@ export function WelcomeScreen() {
           </View>
         ))}
       </ScrollView>
+      <Text
+        testID="welcome-trust"
+        style={[
+          palette.font('body', 12),
+          styles.center,
+          { color: palette.muted, marginHorizontal: 24, marginBottom: 16 },
+        ]}>
+        {t(locale, 'trustNote')}
+      </Text>
       <View style={styles.dots}>
         {PAGES.map((page, i) => (
           <View

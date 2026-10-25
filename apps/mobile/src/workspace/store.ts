@@ -572,7 +572,9 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       about: PlanAbout | undefined,
     ): { ops: Op[]; prepared: Extract<PreparedChange, { ok: true }> } {
       const wantHome =
-        (about?.kind === 'shared' ? (plan.homeEntry ?? false) : plan.homeEntry) !== false;
+        (about?.kind === 'shared' || about?.kind === 'chain'
+          ? (plan.homeEntry ?? false)
+          : plan.homeEntry) !== false;
       const homeless = wantHome ? workflowsWithoutEntry(ops, prepared.after) : [];
       if (homeless.length === 0) return { ops, prepared };
       const withEntry = [...ops, ...homeEntryOps(prepared.after, homeless)];
@@ -892,7 +894,9 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
           }
           // 给分享进来的文件做的快捷操作在收件页面运行，首页入口默认不勾（D-124）。
           const shaped =
-            about?.kind === 'shared' ? { ...plan, homeEntry: plan.homeEntry ?? false } : plan;
+            about?.kind === 'shared' || about?.kind === 'chain'
+              ? { ...plan, homeEntry: plan.homeEntry ?? false }
+              : plan;
           return await opsProposal(input, plan.ops, 'ai', input, shaped);
         } finally {
           set({ busy: false });

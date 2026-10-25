@@ -11,8 +11,8 @@ import {
   type Workflow,
 } from '@morph/core';
 
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 
 import { runErrorText, t } from '../i18n';
@@ -65,7 +65,12 @@ export function ShareScreen() {
   }, [repo, share?.id]);
   // 交给运行页面或 AI 时为 true：离开页面时不删文件（运行页面关闭时再删）。
   const handed = useRef(false);
-  const shareId = useRef(share?.id);
+  // 从 AI 取消返回后，收件页重新负责关闭时的清理。
+  useFocusEffect(
+    useCallback(() => {
+      handed.current = false;
+    }, []),
+  );
   const change = useWorkflowChange();
   // 打开 AI 之前已有的快捷操作：回来后新做的那个标「刚做好」、排在最前面（D-129）。
   // AI 的修改在草稿里应用（D-190），应用后重新打开这个页面，带着新做的那个（made）。
@@ -81,9 +86,6 @@ export function ShareScreen() {
   useEffect(() => {
     if (newest) scroll.current?.scrollTo({ y: 0, animated: true });
   }, [newest]);
-  useEffect(() => {
-    shareId.current = share?.id;
-  }, [share?.id]);
   // 视频和音频的时长（只在本机显示）；没有原生模块时不显示。
   const [durations, setDurations] = useState<Record<string, number>>({});
   useEffect(() => {
@@ -107,19 +109,19 @@ export function ShareScreen() {
     };
   }, [files, share]);
 
-  useEffect(
-    () => () => {
-      // 关掉收件页面（返回、下滑）又没有处理：删掉共享目录里的副本。
-      if (!handed.current && shareId.current !== undefined) {
-        void releaseShare(files, shareId.current);
-      }
-    },
-    [files],
-  );
+  useEffect(() => {
+    const id = share?.id;
+    handed.current = false;
+    return () => {
+      if (!handed.current && id !== undefined) void releaseShare(files, id);
+    };
+  }, [files, share?.id]);
 
   const caption = [palette.font('body', 13), { color: palette.muted }];
   const title = share
-    ? t(locale, 'sharedFilesReceived', { n: share.files.length })
+    ? share.source === 'result'
+      ? t(locale, 'resultContinue')
+      : t(locale, 'sharedFilesReceived', { n: share.files.length })
     : t(locale, 'ShareScreen_Shared_with_Morph_bb8fe');
 
   if (!share || share.files.length === 0) {
