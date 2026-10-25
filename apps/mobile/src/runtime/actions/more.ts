@@ -1,4 +1,5 @@
 import {
+  t,
   FILE_LIMITS,
   PAGE_POINTS,
   RunError,
@@ -14,6 +15,7 @@ import {
   type RunItem,
   type RunValue,
 } from '@morph/core';
+
 import { ArchiveError, createZip, extractZip, mimeTypeOfName } from '@morph/tool-archive';
 import {
   QrError,
@@ -56,7 +58,7 @@ export const MORE_IMPLS: Record<string, Impl> = {
     return {
       type: 'text',
       text,
-      name: ctx.locale === 'zh' ? '文字' : 'Text',
+      name: t(ctx.locale, 'more_Text_6ebbd'),
     };
   },
 
@@ -68,15 +70,15 @@ export const MORE_IMPLS: Record<string, Impl> = {
       password: ctx.secrets.password ?? '',
       hidden: params.hidden === true,
     };
-    const zh = ctx.locale === 'zh';
+
     switch (wifiProblem(network)) {
       case 'name':
-        throw new RunError('badField', { name: zh ? '网络名' : 'Network name' });
+        throw new RunError('badField', { name: t(ctx.locale, 'more_Network_name_1c98e') });
       case 'passwordMissing':
         throw new RunError('passwordMissing');
       case 'password':
         throw new RunError('badField', {
-          name: zh ? '密码（8–63 个字符）' : 'Password (8–63 characters)',
+          name: t(ctx.locale, 'more_Password_8_63_characters_1c4be'),
         });
     }
     return { type: 'text', text: wifiText(network), name: network.name };
@@ -221,7 +223,7 @@ export const MORE_IMPLS: Record<string, Impl> = {
     const png = encodePng(qrToRgba(matrix, { scale }));
     const width = (matrix.size + 8) * scale;
     const item = await writeItem(ctx.services, png, {
-      name: ctx.locale === 'zh' ? '二维码' : 'QR code',
+      name: t(ctx.locale, 'more_QR_code_0d124'),
       ext: 'png',
       mimeType: 'image/png',
       width,

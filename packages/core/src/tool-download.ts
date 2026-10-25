@@ -1,3 +1,4 @@
+import { localize } from './localization';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha2.js';
 import { z } from 'zod';
@@ -86,6 +87,7 @@ const localized = (max: number) =>
   z.strictObject({
     en: z.string().trim().min(1).max(max),
     zh: z.string().trim().min(1).max(max),
+    fr: z.string().trim().min(1).max(max).optional(),
   });
 
 export const ToolManifestSchema = z.strictObject({
@@ -124,7 +126,7 @@ export const ToolManifestSchema = z.strictObject({
 });
 export type ToolManifest = z.infer<typeof ToolManifestSchema>;
 
-const pick = (locale: Locale, text: { en: string; zh: string }) => text[locale];
+const pick = (locale: Locale, text: { en: string; zh: string }) => localize(text, locale);
 
 /** 把清单变成注册表里的工具：工具页和 simpleTool 的排法一样（标题、说明、每个快捷操作一个运行卡片）。 */
 export function toolFromManifest(manifest: ToolManifest): ToolDefinition {
@@ -172,8 +174,11 @@ export function toolFromManifest(manifest: ToolManifest): ToolDefinition {
   return {
     id: manifest.id,
     version: manifest.version,
-    name: manifest.name,
-    description: manifest.description,
+    name: { ...manifest.name, fr: manifest.name.fr ?? manifest.name.en },
+    description: {
+      ...manifest.description,
+      fr: manifest.description.fr ?? manifest.description.en,
+    },
     icon: manifest.icon,
     aliases: manifest.aliases.map((a) => a.toLowerCase()),
     permissions: manifest.permissions,

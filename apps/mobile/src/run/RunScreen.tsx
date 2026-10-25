@@ -1,4 +1,5 @@
 import {
+  localize,
   RunError,
   isFileValue,
   type AskedAnswer,
@@ -6,6 +7,7 @@ import {
   type RunResult,
   type Workflow,
 } from '@morph/core';
+
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import {
@@ -45,7 +47,7 @@ const ASK_DISMISS_MS = 400;
 export interface LocalScreenProps<K extends LocalKind> {
   input: LocalSteps[K]['in'];
   palette: Palette;
-  locale: 'en' | 'zh';
+  locale: 'en' | 'zh' | 'fr';
   onDone: (out: LocalSteps[K]['out']) => void;
   onCancel: () => void;
 }
@@ -115,7 +117,7 @@ export function RunScreen({
             n: incoming.files.length,
           },
         )
-      : (registry.actions.get(action)?.label[locale] ?? action);
+      : (localize(registry.actions.get(action)?.label, locale) ?? action);
 
   const ui: LocalUi = {
     confirm: (title, ok, cancel, message) =>

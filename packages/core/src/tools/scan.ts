@@ -1,3 +1,4 @@
+import { t, pairText } from '../messages';
 import { z } from 'zod';
 
 import type { ToolDefinition } from '../registry';
@@ -11,17 +12,20 @@ import type { ActionDefinition } from '../workflow/contract';
 export const SCAN_TOOL_ID = 'scan';
 export const SCAN_PAGE_ID = 'tool-scan';
 
-const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
-
 export const ENHANCE_MODES = ['auto', 'gray', 'bw', 'none'] as const;
 
 export const SCAN_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'scan.detect',
-    label: { en: 'Find edges and straighten', zh: '找边并拉正' },
+    label: {
+      en: 'Find edges and straighten',
+      zh: '找边并拉正',
+      fr: 'Trouver les bords et redresser',
+    },
     description: {
       en: 'Finds the edges of the paper in each photo; the user checks or drags the four corners; then the page is straightened. Pages from the document camera are already straight and pass through.',
       zh: '在每张照片里找到纸张的边，用户确认或拖动四个角，然后把页面拉正。文档相机扫描的页面已经拉正，直接通过。',
+      fr: 'Recherche les bords du papier dans chaque photo ; vous vérifiez ou faites glisser les quatre coins, puis la page est redressée. Les pages de la caméra de document sont déjà droites et sont conservées telles quelles.',
     },
     input: ['images'],
     output: 'images',
@@ -33,10 +37,11 @@ export const SCAN_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'scan.enhance',
-    label: { en: 'Enhance', zh: '增强' },
+    label: { en: 'Enhance', zh: '增强', fr: 'Améliorer' },
     description: {
       en: 'Makes scanned pages easier to read: brighter (auto), grayscale, or black and white.',
       zh: '让扫描的页面更清楚：自动提亮、灰度或黑白。',
+      fr: 'Rend les pages numérisées plus lisibles : éclaircies (auto), en niveaux de gris ou en noir et blanc.',
     },
     input: ['images'],
     output: 'images',
@@ -44,13 +49,13 @@ export const SCAN_ACTIONS: readonly ActionDefinition[] = [
     fields: [
       {
         key: 'mode',
-        label: { en: 'Look', zh: '效果' },
+        label: { en: 'Look', zh: '效果', fr: 'Rendu' },
         kind: 'choice',
         options: [
-          { value: 'auto', label: { en: 'Brighter', zh: '提亮' } },
-          { value: 'gray', label: { en: 'Grayscale', zh: '灰度' } },
-          { value: 'bw', label: { en: 'Black and white', zh: '黑白' } },
-          { value: 'none', label: { en: 'Original', zh: '原样' } },
+          { value: 'auto', label: { en: 'Brighter', zh: '提亮', fr: 'Éclairci' } },
+          { value: 'gray', label: { en: 'Grayscale', zh: '灰度', fr: 'Niveaux de gris' } },
+          { value: 'bw', label: { en: 'Black and white', zh: '黑白', fr: 'Noir et blanc' } },
+          { value: 'none', label: { en: 'Original', zh: '原样', fr: 'Original' } },
         ],
       },
     ],
@@ -69,13 +74,13 @@ export function scanWorkflows(locale: Locale): Workflow[] {
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
     toolId: SCAN_TOOL_ID,
-    name: t(locale, ...name),
+    name: pairText(locale, name),
     steps,
   });
   const name = {
     id: 'name',
     action: 'file.rename',
-    params: { template: t(locale, 'Scan {date}', '扫描-{date}') },
+    params: { template: t(locale, 'scan_Scan_5b295') },
   };
   return [
     wf(
@@ -114,10 +119,11 @@ export function scanWorkflows(locale: Locale): Workflow[] {
 export const scanTool: ToolDefinition = {
   id: SCAN_TOOL_ID,
   version: '1.0.0',
-  name: { en: 'Scanner', zh: '扫描' },
+  name: { en: 'Scanner', zh: '扫描', fr: 'Numériser' },
   description: {
     en: 'Turn photos of paper into straight, clean pages and PDFs on this device.',
     zh: '在本机把拍下的纸张拉正、变清楚，合成 PDF。',
+    fr: 'Transformez les photos de papier en pages droites et nettes, et en PDF, sur cet appareil.',
   },
   icon: 'scan',
   aliases: ['scan', 'scanner', 'document scanner', '扫描', '扫描仪'],
@@ -125,20 +131,16 @@ export const scanTool: ToolDefinition = {
   actions: SCAN_ACTIONS,
   createPage: (locale) => ({
     id: SCAN_PAGE_ID,
-    title: t(locale, 'Scanner', '扫描'),
+    title: t(locale, 'scan_Scanner_08f22'),
     icon: 'scan',
     toolId: SCAN_TOOL_ID,
     components: [
-      { id: 'scan-header', type: 'header', props: { title: t(locale, 'Scanner', '扫描') } },
+      { id: 'scan-header', type: 'header', props: { title: t(locale, 'scan_Scanner_08f22') } },
       {
         id: 'scan-intro',
         type: 'text',
         props: {
-          text: t(
-            locale,
-            'Everything runs on this device; nothing is uploaded. Scanning uses the built-in document scanner; straightening photos may download what it needs the first time (it works offline after that).',
-            '全部在本机处理，不会上传。扫描用系统自带的文档扫描；拉正已有照片时，有的设备第一次要下载一些内容（之后不联网也能用）。',
-          ),
+          text: t(locale, 'scan_Everything_runs_on_this_device_nothing_09e42'),
         },
       },
       ...scanWorkflows(locale).map((wf) => ({
@@ -150,7 +152,7 @@ export const scanTool: ToolDefinition = {
         id: 'scan-files',
         type: 'fileList',
         props: {
-          title: t(locale, 'Scans', '扫描件'),
+          title: t(locale, 'scan_Scans_7ac9d'),
           limit: 10,
           mimeType: 'application/pdf',
         },

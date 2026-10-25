@@ -1,3 +1,4 @@
+import { t } from './messages';
 import type { Op } from './ops';
 import {
   HOME_PAGE_ID,
@@ -15,8 +16,6 @@ import {
 export const DATA_TEMPLATES = ['budget', 'todo', 'reading', 'notes'] as const;
 export type DataTemplate = (typeof DATA_TEMPLATES)[number];
 
-const t = (locale: Locale, zh: string, en: string) => (locale === 'zh' ? zh : en);
-
 function uniqueId(base: string, taken: (id: string) => boolean): string {
   if (!taken(base)) return base;
   for (let n = 2; ; n++) if (!taken(`${base}-${n}`)) return `${base}-${n}`;
@@ -32,39 +31,39 @@ function build(
     case 'budget':
       return {
         collection: {
-          name: t(locale, '账目', 'Expenses'),
+          name: t(locale, 'templates_Expenses_628c1'),
           icon: 'chart',
           fields: [
             {
               id: 'amount',
-              name: t(locale, '金额', 'Amount'),
+              name: t(locale, 'templates_Amount_454fd'),
               type: 'money',
-              currency: t(locale, 'CNY', 'USD'),
+              currency: t(locale, 'templates_USD_006d1'),
               required: true,
             },
             {
               id: 'category',
-              name: t(locale, '分类', 'Category'),
+              name: t(locale, 'templates_Category_74b40'),
               type: 'choice',
               options: [
-                { id: 'food', label: t(locale, '餐饮', 'Food') },
-                { id: 'transport', label: t(locale, '交通', 'Transport') },
-                { id: 'shopping', label: t(locale, '购物', 'Shopping') },
-                { id: 'home', label: t(locale, '居家', 'Home') },
-                { id: 'fun', label: t(locale, '娱乐', 'Fun') },
-                { id: 'other', label: t(locale, '其他', 'Other') },
+                { id: 'food', label: t(locale, 'templates_Food_8ab5c') },
+                { id: 'transport', label: t(locale, 'templates_Transport_a9c49') },
+                { id: 'shopping', label: t(locale, 'templates_Shopping_5cfd4') },
+                { id: 'home', label: t(locale, 'templates_Home_38780') },
+                { id: 'fun', label: t(locale, 'templates_Fun_1e014') },
+                { id: 'other', label: t(locale, 'templates_Other_82cdf') },
               ],
               default: 'food',
             },
-            { id: 'date', name: t(locale, '日期', 'Date'), type: 'date', default: 'today' },
-            { id: 'note', name: t(locale, '备注', 'Note'), type: 'text' },
+            { id: 'date', name: t(locale, 'templates_Date_a50c7'), type: 'date', default: 'today' },
+            { id: 'note', name: t(locale, 'templates_Note_4f584'), type: 'text' },
           ],
         },
         page: {
-          title: t(locale, '记账', 'Budget'),
+          title: t(locale, 'templates_Budget_b41b1'),
           icon: 'chart',
           components: [
-            { id: 'title', type: 'header', props: { title: t(locale, '记账', 'Budget') } },
+            { id: 'title', type: 'header', props: { title: t(locale, 'templates_Budget_b41b1') } },
             {
               id: 'summary',
               type: 'group',
@@ -77,7 +76,7 @@ function build(
                     collectionId: c,
                     aggregate: 'sum',
                     fieldId: 'amount',
-                    label: t(locale, '本月支出', 'This month'),
+                    label: t(locale, 'templates_This_month_ef628'),
                     filter: [{ field: 'date', op: 'inPeriod', value: 'thisMonth' }],
                   },
                 },
@@ -87,7 +86,7 @@ function build(
                   props: {
                     collectionId: c,
                     aggregate: 'count',
-                    label: t(locale, '本月笔数', 'Entries'),
+                    label: t(locale, 'templates_Entries_3c27f'),
                     filter: [{ field: 'date', op: 'inPeriod', value: 'thisMonth' }],
                   },
                 },
@@ -99,7 +98,7 @@ function build(
               props: {
                 collectionId: c,
                 fieldIds: ['amount', 'category', 'note'],
-                submitLabel: t(locale, '记一笔', 'Add'),
+                submitLabel: t(locale, 'templates_Add_87da3'),
                 mode: 'inline',
               },
             },
@@ -114,7 +113,7 @@ function build(
                 trailingField: 'amount',
                 sort: { field: 'date', direction: 'desc' },
                 limit: 30,
-                emptyText: t(locale, '还没有记录', 'Nothing yet'),
+                emptyText: t(locale, 'templates_Nothing_yet_9f2eb'),
               },
             },
           ],
@@ -123,26 +122,26 @@ function build(
     case 'todo':
       return {
         collection: {
-          name: t(locale, '待办', 'To-dos'),
+          name: t(locale, 'templates_To_dos_42048'),
           icon: 'check',
           fields: [
-            { id: 'title', name: t(locale, '事项', 'Task'), type: 'text', required: true },
-            { id: 'done', name: t(locale, '完成', 'Done'), type: 'checkbox' },
-            { id: 'due', name: t(locale, '截止日期', 'Due'), type: 'date' },
+            { id: 'title', name: t(locale, 'templates_Task_5fa9b'), type: 'text', required: true },
+            { id: 'done', name: t(locale, 'templates_Done_6f135'), type: 'checkbox' },
+            { id: 'due', name: t(locale, 'templates_Due_f5da7'), type: 'date' },
           ],
         },
         page: {
-          title: t(locale, '待办', 'To-do'),
+          title: t(locale, 'templates_To_do_ca3e9'),
           icon: 'check',
           components: [
-            { id: 'title', type: 'header', props: { title: t(locale, '待办', 'To-do') } },
+            { id: 'title', type: 'header', props: { title: t(locale, 'templates_To_do_ca3e9') } },
             {
               id: 'open-count',
               type: 'stat',
               props: {
                 collectionId: c,
                 aggregate: 'count',
-                label: t(locale, '未完成', 'Open'),
+                label: t(locale, 'templates_Open_f1cc8'),
                 filter: [{ field: 'done', op: 'is', value: false }],
               },
             },
@@ -152,7 +151,7 @@ function build(
               props: {
                 collectionId: c,
                 fieldIds: ['title'],
-                submitLabel: t(locale, '添加', 'Add'),
+                submitLabel: t(locale, 'templates_Add_b7a68'),
                 mode: 'inline',
               },
             },
@@ -167,7 +166,7 @@ function build(
                 subtitleFields: ['due'],
                 sort: { field: 'createdAt', direction: 'desc' },
                 limit: 50,
-                emptyText: t(locale, '没有待办事项', 'No tasks'),
+                emptyText: t(locale, 'templates_No_tasks_c61dd'),
               },
             },
           ],
@@ -176,38 +175,38 @@ function build(
     case 'reading':
       return {
         collection: {
-          name: t(locale, '书单', 'Books'),
+          name: t(locale, 'templates_Books_936cc'),
           icon: 'bookmark',
           fields: [
-            { id: 'title', name: t(locale, '书名', 'Title'), type: 'text', required: true },
-            { id: 'author', name: t(locale, '作者', 'Author'), type: 'text' },
+            { id: 'title', name: t(locale, 'templates_Title_880a4'), type: 'text', required: true },
+            { id: 'author', name: t(locale, 'templates_Author_746ae'), type: 'text' },
             {
               id: 'status',
-              name: t(locale, '状态', 'Status'),
+              name: t(locale, 'templates_Status_d925f'),
               type: 'choice',
               options: [
-                { id: 'want', label: t(locale, '想读', 'Want to read') },
-                { id: 'reading', label: t(locale, '在读', 'Reading') },
-                { id: 'done', label: t(locale, '读完', 'Finished') },
+                { id: 'want', label: t(locale, 'templates_Want_to_read_a7318') },
+                { id: 'reading', label: t(locale, 'templates_Reading_27c53') },
+                { id: 'done', label: t(locale, 'templates_Finished_08ced') },
               ],
               default: 'want',
             },
-            { id: 'rating', name: t(locale, '评分', 'Rating'), type: 'rating' },
-            { id: 'note', name: t(locale, '笔记', 'Notes'), type: 'note' },
+            { id: 'rating', name: t(locale, 'templates_Rating_a0ed3'), type: 'rating' },
+            { id: 'note', name: t(locale, 'templates_Notes_17714'), type: 'note' },
           ],
         },
         page: {
-          title: t(locale, '读书清单', 'Reading'),
+          title: t(locale, 'templates_Reading_758da'),
           icon: 'bookmark',
           components: [
-            { id: 'title', type: 'header', props: { title: t(locale, '读书清单', 'Reading') } },
+            { id: 'title', type: 'header', props: { title: t(locale, 'templates_Reading_758da') } },
             {
               id: 'finished',
               type: 'stat',
               props: {
                 collectionId: c,
                 aggregate: 'count',
-                label: t(locale, '已读完', 'Finished'),
+                label: t(locale, 'templates_Finished_efc6c'),
                 filter: [{ field: 'status', op: 'is', value: 'done' }],
               },
             },
@@ -217,7 +216,7 @@ function build(
               props: {
                 collectionId: c,
                 fieldIds: ['title', 'author', 'status'],
-                submitLabel: t(locale, '添加一本书', 'Add a book'),
+                submitLabel: t(locale, 'templates_Add_a_book_7ee61'),
                 mode: 'button',
               },
             },
@@ -231,7 +230,7 @@ function build(
                 subtitleFields: ['author', 'status'],
                 trailingField: 'rating',
                 limit: 50,
-                emptyText: t(locale, '还没有书', 'No books yet'),
+                emptyText: t(locale, 'templates_No_books_yet_64371'),
               },
             },
           ],
@@ -240,25 +239,25 @@ function build(
     case 'notes':
       return {
         collection: {
-          name: t(locale, '笔记', 'Notes'),
+          name: t(locale, 'templates_Notes_17714'),
           icon: 'document',
           fields: [
-            { id: 'title', name: t(locale, '标题', 'Title'), type: 'text', required: true },
-            { id: 'body', name: t(locale, '正文', 'Text'), type: 'note' },
+            { id: 'title', name: t(locale, 'templates_Title_5bdb7'), type: 'text', required: true },
+            { id: 'body', name: t(locale, 'templates_Text_f1abc'), type: 'note' },
           ],
         },
         page: {
-          title: t(locale, '笔记', 'Notes'),
+          title: t(locale, 'templates_Notes_17714'),
           icon: 'document',
           components: [
-            { id: 'title', type: 'header', props: { title: t(locale, '笔记', 'Notes') } },
+            { id: 'title', type: 'header', props: { title: t(locale, 'templates_Notes_17714') } },
             {
               id: 'add',
               type: 'recordForm',
               props: {
                 collectionId: c,
                 fieldIds: ['title', 'body'],
-                submitLabel: t(locale, '写笔记', 'New note'),
+                submitLabel: t(locale, 'templates_New_note_b5bca'),
                 mode: 'button',
               },
             },
@@ -272,7 +271,7 @@ function build(
                 subtitleFields: ['body'],
                 sort: { field: 'updatedAt', direction: 'desc' },
                 limit: 50,
-                emptyText: t(locale, '还没有笔记', 'No notes yet'),
+                emptyText: t(locale, 'templates_No_notes_yet_56f53'),
               },
             },
           ],

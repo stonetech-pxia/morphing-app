@@ -1,4 +1,13 @@
-import { RunCancelled, RunError, aspectRatio, type ActionImpl, type RunItem } from '@morph/core';
+import {
+  formatFileSize,
+  type Locale,
+  RunCancelled,
+  RunError,
+  aspectRatio,
+  type ActionImpl,
+  type RunItem,
+} from '@morph/core';
+
 import {
   readExif,
   resizeDimensions,
@@ -30,10 +39,8 @@ function keepFormat(item: RunItem): ImageFormat {
   return 'jpeg';
 }
 
-export const formatBytes = (bytes: number) =>
-  bytes >= 1024 * 1024
-    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
-    : `${Math.round(bytes / 1024)} KB`;
+export const formatBytes = (bytes: number, locale: Locale = 'en') =>
+  formatFileSize(bytes, locale, true);
 
 export async function sizeOf(ctx: Ctx, item: RunItem) {
   if (item.width && item.height) return { width: item.width, height: item.height };
@@ -213,8 +220,8 @@ export const IMAGE_IMPLS: Record<string, Impl> = {
       if (!result.met || !last) {
         throw new RunError('targetNotMet', {
           name: `${item.name}.${item.ext}`,
-          target: formatBytes(target),
-          got: formatBytes(result.bytes),
+          target: formatBytes(target, ctx.locale),
+          got: formatBytes(result.bytes, ctx.locale),
         });
       }
       return last;

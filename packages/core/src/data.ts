@@ -1,3 +1,5 @@
+import { localeTag } from './localization';
+import { t } from './messages';
 import { evaluateFormula, parseFormula, type FormulaNode } from './formula';
 import type { Collection, Condition, Field, Locale, Period, SystemField } from './schema';
 
@@ -369,7 +371,9 @@ function groupThousands(n: number, decimals: number): string {
   return `${n < 0 ? '-' : ''}${grouped}${frac ? `.${frac}` : ''}`;
 }
 
-export function formatMoney(n: number, currency: string): string {
+export function formatMoney(n: number, currency: string, locale: Locale = 'en'): string {
+  if (locale === 'fr')
+    return new Intl.NumberFormat(localeTag(locale), { style: 'currency', currency }).format(n);
   const symbol = CURRENCY_SYMBOLS[currency];
   const amount = groupThousands(n, 2);
   return symbol
@@ -377,7 +381,12 @@ export function formatMoney(n: number, currency: string): string {
     : `${currency} ${amount}`;
 }
 
-export function formatNumber(n: number, decimals?: number): string {
+export function formatNumber(n: number, decimals?: number, locale: Locale = 'en'): string {
+  if (locale === 'fr')
+    return new Intl.NumberFormat(localeTag(locale), {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals ?? 4,
+    }).format(n);
   if (decimals !== undefined) return groupThousands(n, decimals);
   return groupThousands(n, Number.isInteger(n) ? 0 : Math.min(4, String(n).split('.')[1]!.length));
 }
@@ -390,18 +399,22 @@ export function formatValue(field: Field, raw: unknown, locale: Locale): string 
   switch (field.type) {
     case 'formula':
       return field.currency
-        ? formatMoney(value as number, field.currency)
-        : `${formatNumber(value as number, field.decimals)}${field.unit ? ` ${field.unit}` : ''}`;
+        ? formatMoney(value as number, field.currency, locale)
+        : `${formatNumber(value as number, field.decimals, locale)}${field.unit ? ` ${field.unit}` : ''}`;
     case 'file':
-      return locale === 'zh' ? '附件' : 'Attachment';
+      return t(locale, 'data_Attachment_6f6cf');
     case 'money':
-      return formatMoney(value as number, field.currency);
+      return formatMoney(value as number, field.currency, locale);
     case 'number':
-      return `${formatNumber(value as number, field.decimals)}${field.unit ? ` ${field.unit}` : ''}`;
+      return `${formatNumber(value as number, field.decimals, locale)}${field.unit ? ` ${field.unit}` : ''}`;
     case 'rating':
       return '★'.repeat(value as number) + '☆'.repeat(5 - (value as number));
     case 'checkbox':
-      return value ? (locale === 'zh' ? '是' : 'Yes') : locale === 'zh' ? '否' : 'No';
+      return value ? t(locale, 'data_Yes_1f54e') : t(locale, 'data_No_04a4b');
+    case 'date':
+      return locale === 'fr'
+        ? new Intl.DateTimeFormat(localeTag(locale)).format(new Date(`${value}T12:00:00`))
+        : String(value);
     case 'choice':
       return field.options.find((o) => o.id === value)?.label ?? '';
     default:
@@ -409,8 +422,13 @@ export function formatValue(field: Field, raw: unknown, locale: Locale): string 
   }
 }
 
-export function formatTimestamp(ms: number): string {
+export function formatTimestamp(ms: number, locale: Locale = 'en'): string {
   const d = new Date(ms);
+  if (locale === 'fr')
+    return new Intl.DateTimeFormat(localeTag(locale), {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(d);
   return `${localDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
@@ -421,7 +439,7 @@ export function formatRef(
   ref: string,
   locale: Locale,
 ): string {
-  if (isSystemField(ref)) return formatTimestamp(record[ref]);
+  if (isSystemField(ref)) return formatTimestamp(record[ref], locale);
   const field = fieldOf(collection, ref);
   if (field?.type === 'formula')
     return formatValue(field, recordValue(record, collection, ref), locale);
@@ -436,10 +454,7 @@ export function recordsToCsv(
   records: readonly DataRecord[],
   locale: Locale,
 ): string {
-  const header = [
-    ...collection.fields.map((f) => f.name),
-    locale === 'zh' ? '创建时间' : 'Created',
-  ];
+  const header = [...collection.fields.map((f) => f.name), t(locale, 'data_Created_1626a')];
   const rows = records.map((r) => [
     ...collection.fields.map((f) => {
       const v = recordValue(r, collection, f.id);
@@ -448,7 +463,7 @@ export function recordsToCsv(
       if (f.type === 'number' || f.type === 'rating' || f.type === 'formula') return String(v);
       return formatValue(f, v, locale);
     }),
-    formatTimestamp(r.createdAt),
+    formatTimestamp(r.createdAt, locale),
   ]);
   return `﻿${[header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n')}\r\n`;
 }

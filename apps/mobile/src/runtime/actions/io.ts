@@ -1,4 +1,5 @@
 import {
+  t,
   FILE_ACCEPT,
   OFFICE_MIME_TYPES,
   RunCancelled,
@@ -137,14 +138,14 @@ async function lastResult(ctx: Parameters<Impl>[2]): Promise<PickedFile | null> 
   };
 }
 
-function addExistingQuestion(zh: boolean, last: string | null) {
+function addExistingQuestion(locale: import('@morph/core').Locale, last: string | null) {
   return {
-    title: zh ? '加上哪个已有的文件？' : 'Add which existing file?',
-    message: zh ? '会和这次的文件合在一起。' : 'It goes together with this run’s files.',
+    title: t(locale, 'io_Add_which_existing_file_a4bbf'),
+    message: t(locale, 'io_It_goes_together_with_this_run_s_files_03244'),
     options: [
-      ...(last ? [zh ? `上次的「${last}」` : `Last one: “${last}”`] : []),
-      zh ? '从「文件」里选一个' : 'Choose one in Files',
-      zh ? '这次新开一份' : 'Start a new one this time',
+      ...(last ? [t(locale, 'io_Last_one_15660', { v0: last })] : []),
+      t(locale, 'io_Choose_one_in_Files_e6073'),
+      t(locale, 'io_Start_a_new_one_this_time_6e970'),
     ],
   };
 }
@@ -230,16 +231,16 @@ export const IO_IMPLS: Record<string, Impl> = {
       picked = pages;
     } else if (source === 'camera' || source === 'scanner') {
       // 没有文档相机（Expo Go、模拟器、没有 Google Play 服务的 Android）时用相机拍，后面的找边步骤再拉正。
-      const zh = ctx.locale === 'zh';
+
       while (picked.length < max) {
         const photo = await files.takePhoto();
         if (!photo) break;
         picked.push(photo);
         if (picked.length >= max) break;
         const more = await ui.confirm(
-          zh ? `已拍 ${picked.length} 张` : `${picked.length} taken`,
-          zh ? '再拍一张' : 'Take another',
-          zh ? '完成' : 'Done',
+          t(ctx.locale, 'io_taken_af2cf', { v0: picked.length }),
+          t(ctx.locale, 'io_Take_another_1b43d'),
+          t(ctx.locale, 'io_Done_6f135'),
         );
         if (!more) break;
       }
@@ -290,14 +291,11 @@ export const IO_IMPLS: Record<string, Impl> = {
     if (shared) return shared;
     const { source, min, max } = params as { source: 'files' | 'record'; min: number; max: number };
     if (source === 'record') {
-      const name = renderNameTemplate(
-        ctx.locale === 'zh' ? '录音 {date:YYYY-MM-DD_HH.mm}' : 'Recording {date:YYYY-MM-DD_HH.mm}',
-        {
-          now: ctx.now(),
-          index: 1,
-          sourceName: '',
-        },
-      );
+      const name = renderNameTemplate(t(ctx.locale, 'io_Recording_1a04e'), {
+        now: ctx.now(),
+        index: 1,
+        sourceName: '',
+      });
       const recorded = await ctx.services.ui.open('record', { name });
       if (!recorded) throw new RunCancelled();
       return { type: 'audio', items: await importPicked(ctx.services, [recorded], ctx) };
@@ -377,7 +375,7 @@ export const IO_IMPLS: Record<string, Impl> = {
   async 'file.addExisting'(input, params, ctx) {
     const items = fileItems(input);
     const last = await lastResult(ctx);
-    const q = addExistingQuestion(ctx.locale === 'zh', last?.name ?? null);
+    const q = addExistingQuestion(ctx.locale, last?.name ?? null);
     const answer = await ctx.services.ui.choose(q.title, q.message, q.options);
     if (answer === null) throw new RunCancelled();
     const choice = last ? answer : answer + 1;

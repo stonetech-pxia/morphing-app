@@ -1,4 +1,12 @@
-import { GUIDE_GOALS, guideGoal, type GuideGoalId, type Locale, type Localized } from '@morph/core';
+import {
+  localize,
+  GUIDE_GOALS,
+  guideGoal,
+  type GuideGoalId,
+  type Locale,
+  type Localized,
+} from '@morph/core';
+
 import { create } from 'zustand';
 
 import type { WorkspaceRepo } from '../storage/types';
@@ -41,21 +49,23 @@ export const useGuide = create<GuideState>()((set, get) => ({
  * 引导里固定用内置规则，不调用设置里的 AI：结果稳定、马上出来，也不需要 key。
  */
 export const LOOK_PROMPTS: readonly Localized[] = [
-  { zh: '换成霓虹风格', en: 'Switch to the Neon style' },
+  { zh: '换成霓虹风格', en: 'Switch to the Neon style', fr: 'Passer au style Néon' },
   {
     zh: '首页改成文件工作台，主题换成绿色',
     en: 'Rename the home page to File desk. Change the theme color to green',
+    fr: 'Renommer la page d’accueil « Bureau des fichiers ». Changer la couleur du thème en vert',
   },
-  { zh: '换成毛玻璃风格', en: 'Switch to the Glass style' },
+  { zh: '换成毛玻璃风格', en: 'Switch to the Glass style', fr: 'Passer au style Verre dépoli' },
 ];
 
 /** 从引导打开 AI 修改时带的参数（`look-0` 这样的第 1 步句子，或者第 2 步的目标 id）对应的句子。 */
 export function guideText(param: string | undefined, locale: Locale): string | null {
+  if (locale === 'fr') locale = 'en';
   if (!param) return null;
   const look = /^look-(\d+)$/.exec(param);
-  if (look) return LOOK_PROMPTS[Number(look[1])]?.[locale] ?? null;
+  if (look) return localize(LOOK_PROMPTS[Number(look[1])], locale) ?? null;
   return GUIDE_GOALS.some((g) => g.id === param)
-    ? guideGoal(param as GuideGoalId).text[locale]
+    ? localize(guideGoal(param as GuideGoalId).text, locale)
     : null;
 }
 

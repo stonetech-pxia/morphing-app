@@ -1,4 +1,5 @@
 import {
+  localize,
   HOME_PAGE_ID,
   HOST_API,
   ToolDownloadError,
@@ -9,6 +10,7 @@ import {
   type CatalogEntry,
   type Op,
 } from '@morph/core';
+
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -62,7 +64,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
     } catch (e) {
       const network = e instanceof ToolDownloadError && e.code === 'download';
       Alert.alert(
-        t(locale, 'toolDownloadFailedTitle', { name: entry.name[locale] }),
+        t(locale, 'toolDownloadFailedTitle', { name: localize(entry.name, locale) }),
         t(locale, network ? 'toolDownloadFailed' : 'toolDownloadRejected'),
       );
       return false;
@@ -107,7 +109,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
         const card = allComponents(home).find(
           (c) => c.type === 'toolCard' && c.props.toolId === tool.id,
         );
-        const name = tool.name[locale];
+        const name = localize(tool.name, locale);
         const entry = tool.origin === 'download' ? offered(tool.id) : undefined;
         // 目录里有比本机更新的版本：先下载，再和内置工具一样「更新」。
         const newer = entry && compareVersions(entry.version, tool.version) > 0 ? entry : undefined;
@@ -138,7 +140,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
                   {revoked ? ` · ${t(locale, 'toolRevoked')}` : ''}
                 </Text>
                 <Text style={[palette.font('body', 14), { color: palette.muted }]}>
-                  {tool.description[locale]}
+                  {localize(tool.description, locale)}
                 </Text>
               </View>
             </View>
@@ -235,7 +237,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
       {(catalog?.tools ?? [])
         .filter((e) => !registry.tools.has(e.id) && !isRevoked(catalog, e.id, e.version))
         .map((entry) => {
-          const name = entry.name[locale];
+          const name = localize(entry.name, locale);
           const tooNew = entry.hostApi > HOST_API;
           return (
             <Card key={entry.id} palette={palette} testID={`catalog-${entry.id}`}>
@@ -249,12 +251,12 @@ export function ToolsView({ env }: { env: RenderEnv }) {
                 <View style={styles.flex}>
                   <Text style={[palette.font('title', 17), { color: palette.text }]}>{name}</Text>
                   <Text style={[palette.font('body', 14), { color: palette.muted }]}>
-                    {entry.description[locale]}
+                    {localize(entry.description, locale)}
                   </Text>
                   <Text style={[palette.font('body', 13), { color: palette.muted }]}>
                     {tooNew
                       ? t(locale, 'toolNeedsAppUpdate')
-                      : t(locale, 'toolDownloadSize', { size: formatSize(entry.size) })}
+                      : t(locale, 'toolDownloadSize', { size: formatSize(entry.size, locale) })}
                   </Text>
                 </View>
               </View>

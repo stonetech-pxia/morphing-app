@@ -1,3 +1,4 @@
+import { t } from './messages';
 import {
   CURRENT_SCHEMA_VERSION,
   HOME_PAGE_ID,
@@ -11,11 +12,11 @@ import {
 import { DEFAULT_THEME } from './theme';
 
 export const SYSTEM_TARGET_LABELS: Record<SystemTarget, Localized> = {
-  quickActions: { en: 'What Morph can do', zh: 'Morph 可以做什么' },
-  tools: { en: 'Tools', zh: '工具' },
-  ai: { en: 'AI', zh: 'AI 修改' },
-  history: { en: 'Changes', zh: '改动记录' },
-  settings: { en: 'Settings', zh: '设置' },
+  quickActions: { en: 'What Morph can do', zh: 'Morph 可以做什么', fr: 'Ce que Morph peut faire' },
+  tools: { en: 'Tools', zh: '工具', fr: 'Outils' },
+  ai: { en: 'AI', zh: 'AI 修改', fr: 'IA' },
+  history: { en: 'Changes', zh: '改动记录', fr: 'Modifications' },
+  settings: { en: 'Settings', zh: '设置', fr: 'Paramètres' },
 };
 
 export const SYSTEM_TARGET_ICONS: Record<SystemTarget, IconName> = {
@@ -28,7 +29,6 @@ export const SYSTEM_TARGET_ICONS: Record<SystemTarget, IconName> = {
 
 /** 首次启动时写入的默认工作空间（revision 1）。 */
 export function createDefaultWorkspace(locale: Locale): WorkspaceConfig {
-  const zh = locale === 'zh';
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     theme: JSON.parse(JSON.stringify(DEFAULT_THEME)) as WorkspaceConfig['theme'],
@@ -39,24 +39,26 @@ export function createDefaultWorkspace(locale: Locale): WorkspaceConfig {
     pages: [
       {
         id: HOME_PAGE_ID,
-        title: zh ? '首页' : 'Home',
+        title: t(locale, 'defaults_Home_ec133'),
         icon: 'home',
         components: [
           {
             id: 'welcome',
             type: 'header',
             props: {
-              title: zh ? '我的工作台' : 'My workspace',
-              subtitle: zh
-                ? '点「AI 修改」，用一句话改造这个 App'
-                : 'Tap AI and describe how this app should change',
+              title: t(locale, 'defaults_My_workspace_df4a5'),
+              subtitle: t(locale, 'defaults_Tap_AI_and_describe_how_this_app_shoul_7d958'),
             },
           },
-          { id: 'catalog', type: 'catalogLink', props: { title: zh ? '添加工具' : 'Add tools' } },
+          {
+            id: 'catalog',
+            type: 'catalogLink',
+            props: { title: t(locale, 'defaults_Add_tools_9c8e1') },
+          },
           {
             id: 'recent-files',
             type: 'fileList',
-            props: { title: zh ? '最近文件' : 'Recent files', limit: 5 },
+            props: { title: t(locale, 'defaults_Recent_files_2d602'), limit: 5 },
           },
         ],
       },

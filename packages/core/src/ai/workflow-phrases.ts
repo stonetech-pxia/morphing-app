@@ -68,7 +68,7 @@ const TRANSLATE_PHRASES: Matcher[] = [
     /^翻译(?:一下)?$|^translate(?: it| them)?$/i,
     (_m, locale) => ({
       action: 'translate.text',
-      params: { from: 'auto', to: locale === 'zh' ? 'zh-Hans' : 'en' },
+      params: { from: 'auto', to: locale === 'zh' ? 'zh-Hans' : locale === 'fr' ? 'fr' : 'en' },
       ask: ['to'],
     }),
   ],
@@ -105,7 +105,7 @@ const AUDIO_PHRASES: Matcher[] = [
     /^(?:语音转文字|录音转文字|转成文字|转文字|变成文字|识别语音|听写)$|^(?:transcribe(?: it| them)?|speech to text|turn (?:it|them) into text)$/i,
     (_m, locale) => ({
       action: 'audio.transcribe',
-      params: { lang: locale === 'zh' ? 'zh' : 'en', model: 'standard' },
+      params: { lang: locale === 'zh' ? 'zh' : locale === 'fr' ? 'fr' : 'en', model: 'standard' },
       ask: ['lang'],
     }),
   ],
@@ -342,7 +342,7 @@ const STEP_PHRASES: Matcher[] = [
     /^(?:识别文字|文字识别|提取文字)$|^(?:recognize|read|extract) (?:the )?text$/i,
     (_m, locale) => ({
       action: 'ocr.recognize',
-      params: { lang: locale === 'zh' ? 'chi_sim' : 'eng' },
+      params: { lang: locale === 'zh' ? 'chi_sim' : locale === 'fr' ? 'fra' : 'eng' },
     }),
   ],
   [

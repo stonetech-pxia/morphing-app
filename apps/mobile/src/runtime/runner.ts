@@ -1,4 +1,5 @@
 import {
+  localize,
   isFileValue,
   runWorkflow,
   type AskRequest,
@@ -100,7 +101,7 @@ async function keepAlive(ctx: RunContext) {
       const text = t(locale, 'bgStep', {
         n: e.index + 1,
         total: workflow.steps.length,
-        step: registry.actions.get(action)?.label[locale] ?? action,
+        step: localize(registry.actions.get(action)?.label, locale) ?? action,
       });
       if (e.kind === 'step' || e.total <= 0) {
         background.update(text, null);

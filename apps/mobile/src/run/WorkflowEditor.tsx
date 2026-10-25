@@ -1,4 +1,6 @@
 import {
+  localize,
+  t,
   HOME_PAGE_ID,
   allComponents,
   initialParams,
@@ -14,6 +16,7 @@ import {
   type Workflow,
   type WorkflowStep,
 } from '@morph/core';
+
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -46,7 +49,6 @@ export function WorkflowEditor({
   locale: Locale;
   registry: Registry;
 }) {
-  const zh = locale === 'zh';
   const router = useRouter();
   const config = useWorkspace((s) => s.config)!;
   const change = useWorkflowChange();
@@ -69,7 +71,7 @@ export function WorkflowEditor({
   );
   const nameOk = draft.name.trim().length > 0 && draft.name.trim().length <= 40;
   const canSave = dirty && problems.length === 0 && nameOk;
-  const label = (a: ActionDefinition | undefined, id: string) => a?.label[locale] ?? id;
+  const label = (a: ActionDefinition | undefined, id: string) => localize(a?.label, locale) ?? id;
   const home = config.pages.find((p) => p.id === HOME_PAGE_ID)!;
   const onHome = allComponents(home).some(
     (c) => c.type === 'workflowRunner' && c.props.workflowId === workflow.id,
@@ -106,20 +108,20 @@ export function WorkflowEditor({
     const name = draft.name.trim();
     const ok = await change(
       [{ op: 'updateWorkflow', workflowId: workflow.id, name, steps: draft.steps }],
-      zh ? `调整了快捷操作「${name}」` : `Adjusted the quick action “${name}”`,
+      t(locale, 'WorkflowEditor_Adjusted_the_quick_action_3c10b', { v0: name }),
     );
     if (ok) setDraft({ name, steps: draft.steps });
   }
 
   async function duplicate() {
     const id = newWorkflowId(workflow.presetId ?? 'my-workflow', config.workflows);
-    const name = `${workflow.name}${zh ? ' 副本' : ' copy'}`.slice(0, 40);
+    const name = `${workflow.name}${t(locale, 'WorkflowEditor_copy_04014')}`.slice(0, 40);
     const copy: Workflow = { id, name, steps: workflow.steps };
     if (workflow.icon) copy.icon = workflow.icon;
     if (workflow.presetId) copy.presetId = workflow.presetId;
     const ok = await change(
       [{ op: 'addWorkflow', workflow: copy }],
-      zh ? `复制了快捷操作「${workflow.name}」` : `Copied the quick action “${workflow.name}”`,
+      t(locale, 'WorkflowEditor_Copied_the_quick_action_a4506', { v0: workflow.name }),
     );
     if (ok) router.replace({ pathname: '/workflow/[id]', params: { id } });
   }
@@ -142,7 +144,7 @@ export function WorkflowEditor({
       style={styles.insert}
       hitSlop={6}>
       <Text style={[palette.font('bodyBold', 14), { color: palette.primaryText }]}>
-        {zh ? '＋ 在这里加一步' : '＋ Add a step here'}
+        {t(locale, 'WorkflowEditor_Add_a_step_here_ffc74')}
       </Text>
     </Pressable>
   );
@@ -155,7 +157,7 @@ export function WorkflowEditor({
         contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 6, paddingBottom: 80 }}>
         <Banner palette={palette} />
         <Text style={[palette.font('bodyBold', 14), { color: palette.text }]}>
-          {zh ? '名称' : 'Name'}
+          {t(locale, 'WorkflowEditor_Name_4406f')}
         </Text>
         <TextInput
           testID="workflow-name"
@@ -175,9 +177,9 @@ export function WorkflowEditor({
         />
         {workflow.toolId ? (
           <Text style={caption}>
-            {zh
-              ? `这个快捷操作来自「${registry.tools.get(workflow.toolId)?.name.zh ?? workflow.toolId}」工具：可以修改，移除工具时会一起移除。`
-              : `This quick action comes with the ${registry.tools.get(workflow.toolId)?.name.en ?? workflow.toolId} tool: you can change it; it goes away when the tool is removed.`}
+            {t(locale, 'workflowFromTool', {
+              name: localize(registry.tools.get(workflow.toolId)?.name, locale) ?? workflow.toolId,
+            })}
           </Text>
         ) : null}
 
@@ -236,17 +238,17 @@ export function WorkflowEditor({
                     <Text style={[palette.font('bodyBold', 15), { color: palette.danger }]}>✕</Text>
                   </Pressable>
                 </View>
-                {action ? <Text style={caption}>{action.description[locale]}</Text> : null}
+                {action ? (
+                  <Text style={caption}>{localize(action.description, locale)}</Text>
+                ) : null}
                 {action?.local ? (
                   <Text style={[palette.font('bodyMedium', 13), { color: palette.primaryText }]}>
-                    {zh ? '运行时你在手机上操作这一步。' : 'You do this step by hand when it runs.'}
+                    {t(locale, 'WorkflowEditor_You_do_this_step_by_hand_when_it_runs_97fbe')}
                   </Text>
                 ) : null}
                 {action?.fields.some((f) => f.kind === 'secret') ? (
                   <Text style={[palette.font('bodyMedium', 13), { color: palette.primaryText }]}>
-                    {zh
-                      ? '密码在每次运行时问，不会保存。'
-                      : 'The password is asked on every run and never saved.'}
+                    {t(locale, 'WorkflowEditor_The_password_is_asked_on_every_run_and_8f613')}
                   </Text>
                 ) : null}
                 {action && action.fields.length > 0 ? (
@@ -263,7 +265,7 @@ export function WorkflowEditor({
                 {fields.length > 0 ? (
                   <View style={{ gap: 6 }}>
                     <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
-                      {zh ? '每次运行时问：' : 'Ask on every run:'}
+                      {t(locale, 'WorkflowEditor_Ask_on_every_run_16477')}
                     </Text>
                     <View style={styles.wrap}>
                       {fields.map((f) => (
@@ -271,7 +273,7 @@ export function WorkflowEditor({
                           key={f.key}
                           palette={palette}
                           testID={`step-${i}-ask-${f.key}`}
-                          label={f.label[locale]}
+                          label={localize(f.label, locale)}
                           selected={ask.includes(f.key)}
                           onPress={() => {
                             const next = ask.includes(f.key)
@@ -295,16 +297,8 @@ export function WorkflowEditor({
                     testID={`step-problem-${i}`}
                     style={[palette.font('bodyMedium', 13), { color: palette.danger }]}>
                     {stepProblems[0]!.code === 'binding' || stepProblems[0]!.code === 'source'
-                      ? zh
-                        ? i === 0
-                          ? '第一步要选照片、选文件、输入文字或读取记录。'
-                          : '这一步接不上前一步（类型不对）。'
-                        : i === 0
-                          ? 'The first step has to choose photos or files, take text or read records.'
-                          : 'This step doesn’t fit after the one before it.'
-                      : zh
-                        ? '请检查这一步的设置。'
-                        : 'Check the settings of this step.'}
+                      ? t(locale, i === 0 ? 'workflowInputRequired' : 'workflowTypeMismatch')
+                      : t(locale, 'WorkflowEditor_Check_the_settings_of_this_step_c9b47')}
                   </Text>
                 ) : null}
               </Card>
@@ -317,7 +311,7 @@ export function WorkflowEditor({
           <Button
             palette={palette}
             testID="workflow-save"
-            label={zh ? '保存' : 'Save'}
+            label={t(locale, 'WorkflowEditor_Save_82522')}
             disabled={!canSave}
             onPress={() => void save()}
             style={styles.flex}
@@ -327,7 +321,7 @@ export function WorkflowEditor({
               palette={palette}
               testID="workflow-discard"
               variant="outline"
-              label={zh ? '放弃修改' : 'Discard'}
+              label={t(locale, 'WorkflowEditor_Discard_1a93f')}
               onPress={() => setDraft(saved)}
               style={styles.flex}
             />
@@ -336,7 +330,7 @@ export function WorkflowEditor({
               palette={palette}
               testID="workflow-run"
               variant="outline"
-              label={zh ? '运行' : 'Run'}
+              label={t(locale, 'WorkflowEditor_Run_5cab2')}
               onPress={() =>
                 router.push({ pathname: '/run/[workflowId]', params: { workflowId: workflow.id } })
               }
@@ -348,14 +342,14 @@ export function WorkflowEditor({
           <Pill
             palette={palette}
             testID="workflow-duplicate"
-            label={zh ? '复制' : 'Duplicate'}
+            label={t(locale, 'WorkflowEditor_Duplicate_6da85')}
             onPress={() => void duplicate()}
           />
           {onHome ? null : (
             <Pill
               palette={palette}
               testID="workflow-to-home"
-              label={zh ? '放到首页' : 'Put on Home'}
+              label={t(locale, 'WorkflowEditor_Put_on_Home_d5bc4')}
               onPress={() =>
                 void change(
                   [
@@ -370,7 +364,7 @@ export function WorkflowEditor({
                       },
                     },
                   ],
-                  zh ? `把「${workflow.name}」放到了首页` : `Put “${workflow.name}” on Home`,
+                  t(locale, 'WorkflowEditor_Put_on_Home_69b25', { v0: workflow.name }),
                 )
               }
             />
@@ -379,7 +373,7 @@ export function WorkflowEditor({
             <Pill
               palette={palette}
               testID="workflow-reset"
-              label={zh ? '恢复成原来的样子' : 'Reset to the original'}
+              label={t(locale, 'WorkflowEditor_Reset_to_the_original_6cfe2')}
               onPress={() =>
                 void change(
                   [
@@ -389,7 +383,7 @@ export function WorkflowEditor({
                       steps: preset.steps(locale),
                     },
                   ],
-                  zh ? `「${workflow.name}」恢复预设` : `Reset “${workflow.name}” to the preset`,
+                  t(locale, 'WorkflowEditor_Reset_to_the_preset_567aa', { v0: workflow.name }),
                 ).then((ok) => ok && setDraft({ name: draft.name, steps: preset.steps(locale) }))
               }
             />
@@ -399,14 +393,14 @@ export function WorkflowEditor({
               palette={palette}
               danger
               testID="workflow-delete"
-              label={zh ? '删除' : 'Delete'}
+              label={t(locale, 'WorkflowEditor_Delete_8940a')}
               onPress={() =>
                 confirmDelete(locale, workflow.name, () => {
                   void change(
                     [{ op: 'removeWorkflow', workflowId: workflow.id }],
-                    zh
-                      ? `删除了快捷操作「${workflow.name}」`
-                      : `Deleted the quick action “${workflow.name}”`,
+                    t(locale, 'WorkflowEditor_Deleted_the_quick_action_a2984', {
+                      v0: workflow.name,
+                    }),
                   ).then((ok) => ok && router.back());
                 })
               }
@@ -423,22 +417,20 @@ export function WorkflowEditor({
               style={[styles.sheet, { backgroundColor: palette.background }]}>
               <View style={styles.stepHead}>
                 <Text style={[palette.font('title', 17), styles.flex, { color: palette.text }]}>
-                  {zh ? '加一步' : 'Add a step'}
+                  {t(locale, 'WorkflowEditor_Add_a_step_40731')}
                 </Text>
                 <Pressable
                   testID="step-picker-close"
                   onPress={() => setInserting(null)}
                   hitSlop={8}>
                   <Text style={[palette.font('bodyBold', 16), { color: palette.muted }]}>
-                    {zh ? '取消' : 'Cancel'}
+                    {t(locale, 'WorkflowEditor_Cancel_bd576')}
                   </Text>
                 </Pressable>
               </View>
               <ScrollView contentContainerStyle={{ gap: 8, paddingBottom: 40 }}>
                 {insertableActions(draft.steps, inserting, registry).length === 0 ? (
-                  <Text style={caption}>
-                    {zh ? '这里没有能接上的步骤。' : 'No step fits here.'}
-                  </Text>
+                  <Text style={caption}>{t(locale, 'WorkflowEditor_No_step_fits_here_303a6')}</Text>
                 ) : null}
                 {insertableActions(draft.steps, inserting, registry).map((a) => (
                   <Card
@@ -450,9 +442,9 @@ export function WorkflowEditor({
                       setInserting(null);
                     }}>
                     <Text style={[palette.font('title', 15), { color: palette.text }]}>
-                      {a.label[locale]}
+                      {localize(a.label, locale)}
                     </Text>
-                    <Text style={caption}>{a.description[locale]}</Text>
+                    <Text style={caption}>{localize(a.description, locale)}</Text>
                   </Card>
                 ))}
               </ScrollView>

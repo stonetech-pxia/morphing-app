@@ -17,7 +17,7 @@ export function ReorderScreen({
   onCancel,
 }: LocalScreenProps<'reorder'>) {
   const [order, setOrder] = useState(() => input.items.map((_, i) => i));
-  const zh = locale === 'zh';
+
   const move = (pos: number, delta: number) =>
     setOrder((o) => {
       const next = [...o];
@@ -45,7 +45,7 @@ export function ReorderScreen({
   return (
     <LocalFrame
       palette={palette}
-      title={zh ? '排序' : 'Order'}
+      title={t(locale, 'ReorderScreen_Order_7c116')}
       cancelLabel={t(locale, 'cancel')}
       doneLabel={t(locale, 'localDone')}
       onCancel={onCancel}

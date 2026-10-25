@@ -1,16 +1,17 @@
-import { Karla_400Regular } from '@expo-google-fonts/karla/400Regular';
-import { Karla_400Regular_Italic } from '@expo-google-fonts/karla/400Regular_Italic';
-import { Karla_500Medium } from '@expo-google-fonts/karla/500Medium';
-import { Karla_700Bold } from '@expo-google-fonts/karla/700Bold';
-import { Sora_600SemiBold } from '@expo-google-fonts/sora/600SemiBold';
-import { Sora_700Bold } from '@expo-google-fonts/sora/700Bold';
 import {
+  localize,
   BUILTIN_TOOLS,
   createMockAIProvider,
   createRegistry,
   createStarterWorkspace,
   trustedToolKeys,
 } from '@morph/core';
+import { Karla_400Regular } from '@expo-google-fonts/karla/400Regular';
+import { Karla_400Regular_Italic } from '@expo-google-fonts/karla/400Regular_Italic';
+import { Karla_500Medium } from '@expo-google-fonts/karla/500Medium';
+import { Karla_700Bold } from '@expo-google-fonts/karla/700Bold';
+import { Sora_600SemiBold } from '@expo-google-fonts/sora/600SemiBold';
+import { Sora_700Bold } from '@expo-google-fonts/sora/700Bold';
 import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -132,7 +133,7 @@ function ThemedStack() {
         <Stack.Screen name="packs" options={{ title: t(locale, 'packsTitle') }} />
         <Stack.Screen
           name="quick-actions/index"
-          options={{ title: locale === 'zh' ? 'Morph 可以做什么' : 'What Morph can do' }}
+          options={{ title: t(locale, '_layout_What_Morph_can_do_8f4f4') }}
         />
         <Stack.Screen name="quick-actions/[kind]" />
         <Stack.Screen name="workflows" options={{ title: t(locale, 'workflowsTitle') }} />
@@ -185,7 +186,7 @@ export default function RootLayout() {
         now: () => new Date(),
         seed: createStarterWorkspace,
         toolName: (id) =>
-          toolDownloads.getState().catalog?.tools.find((e) => e.id === id)?.name[locale],
+          localize(toolDownloads.getState().catalog?.tools.find((e) => e.id === id)?.name, locale),
       });
       await created.getState().boot();
       await useGuide.getState().load(repo);

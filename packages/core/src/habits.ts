@@ -1,3 +1,5 @@
+import { t } from './messages';
+import { localize } from './localization';
 import type { Registry } from './registry';
 import type { Locale, Workflow } from './schema';
 import { formatParamValue } from './workflow/format';
@@ -98,7 +100,7 @@ export function habitLabel(
     const keys = Object.keys(answer.values);
     const preset = action.presets?.find((p) => keys.every((k) => p.values[k] === answer.values[k]));
     if (preset) {
-      parts.push(preset.label[locale]);
+      parts.push(localize(preset.label, locale));
       continue;
     }
     for (const field of action.fields) {
@@ -106,7 +108,7 @@ export function habitLabel(
         parts.push(formatParamValue(field, answer.values[field.key], locale, now));
     }
   }
-  return parts.join(locale === 'zh' ? '、' : ', ');
+  return parts.join(t(locale, 'separatorList'));
 }
 
 /**

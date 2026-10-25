@@ -1,3 +1,4 @@
+import { t } from '@morph/core';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Text, View } from 'react-native';
 
@@ -16,7 +17,7 @@ export default function WorkflowRoute() {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <Text style={[palette.font('body', 15), { color: palette.muted }]}>
-          {locale === 'zh' ? '这个快捷操作已经不在了。' : 'This quick action no longer exists.'}
+          {t(locale, '_id__This_quick_action_no_longer_exists_35f5a')}
         </Text>
       </View>
     );

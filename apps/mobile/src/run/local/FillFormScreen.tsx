@@ -22,7 +22,6 @@ export function FillFormScreen({
   onDone,
   onCancel,
 }: LocalScreenProps<'fillForm'>) {
-  const zh = locale === 'zh';
   const fields = input.fields.filter((f) => !f.readOnly && f.type !== 'other');
   const [values, setValues] = useState<Record<string, Value>>({});
   const set = (name: string, value: Value) => setValues((v) => ({ ...v, [name]: value }));
@@ -44,7 +43,7 @@ export function FillFormScreen({
   return (
     <LocalFrame
       palette={palette}
-      title={zh ? '填写表单' : 'Fill in form'}
+      title={t(locale, 'FillFormScreen_Fill_in_form_5d701')}
       cancelLabel={t(locale, 'cancel')}
       doneLabel={t(locale, 'localDone')}
       onCancel={onCancel}
@@ -52,9 +51,11 @@ export function FillFormScreen({
       doneDisabled={bad.length > 0}>
       <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
         <Text style={[palette.font('body', 14), { color: palette.muted }]}>
-          {zh
-            ? `${input.item.name}.${input.item.ext} 有 ${fields.length} 个可以填写的字段。只能填英文字母、数字和常用符号。`
-            : `${input.item.name}.${input.item.ext} has ${fields.length} fields to fill in. Use Latin letters, digits and common symbols.`}
+          {t(locale, 'FillFormScreen_has_fields_to_fill_in_Use_Latin_letter_e3442', {
+            v0: input.item.name,
+            v1: input.item.ext,
+            v2: fields.length,
+          })}
         </Text>
         {fields.map((field, i) => {
           const value = valueOf(field.name, field.value);
@@ -96,9 +97,7 @@ export function FillFormScreen({
               )}
               {invalid ? (
                 <Text style={[palette.font('body', 13), { color: palette.danger }]}>
-                  {zh
-                    ? '这个表单只能写英文字母、数字和常用符号。'
-                    : 'This form can only hold Latin letters, digits and common symbols.'}
+                  {t(locale, 'FillFormScreen_This_form_can_only_hold_Latin_letters__179fb')}
                 </Text>
               ) : null}
             </View>

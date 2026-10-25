@@ -22,18 +22,18 @@ export const SPEECH_LANGUAGES = [
 export type SpeechLanguage = (typeof SPEECH_LANGUAGES)[number];
 
 export const SPEECH_LANGUAGE_NAMES: Record<SpeechLanguage, Localized> = {
-  zh: { en: 'Mandarin (Simplified)', zh: '普通话（简体）' },
-  'zh-TW': { en: 'Mandarin (Traditional)', zh: '国语（繁体）' },
-  en: { en: 'English', zh: '英语' },
-  ja: { en: 'Japanese', zh: '日语' },
-  ko: { en: 'Korean', zh: '韩语' },
-  fr: { en: 'French', zh: '法语' },
-  de: { en: 'German', zh: '德语' },
-  es: { en: 'Spanish', zh: '西班牙语' },
-  pt: { en: 'Portuguese', zh: '葡萄牙语' },
-  it: { en: 'Italian', zh: '意大利语' },
-  ru: { en: 'Russian', zh: '俄语' },
-  vi: { en: 'Vietnamese', zh: '越南语' },
+  zh: { en: 'Mandarin (Simplified)', zh: '普通话（简体）', fr: 'Mandarin (simplifié)' },
+  'zh-TW': { en: 'Mandarin (Traditional)', zh: '国语（繁体）', fr: 'Mandarin (traditionnel)' },
+  en: { en: 'English', zh: '英语', fr: 'Anglais' },
+  ja: { en: 'Japanese', zh: '日语', fr: 'Japonais' },
+  ko: { en: 'Korean', zh: '韩语', fr: 'Coréen' },
+  fr: { en: 'French', zh: '法语', fr: 'Français' },
+  de: { en: 'German', zh: '德语', fr: 'Allemand' },
+  es: { en: 'Spanish', zh: '西班牙语', fr: 'Espagnol' },
+  pt: { en: 'Portuguese', zh: '葡萄牙语', fr: 'Portugais' },
+  it: { en: 'Italian', zh: '意大利语', fr: 'Italien' },
+  ru: { en: 'Russian', zh: '俄语', fr: 'Russe' },
+  vi: { en: 'Vietnamese', zh: '越南语', fr: 'Vietnamien' },
 };
 
 /** iOS 系统识别用的语言（BCP 47）。 */

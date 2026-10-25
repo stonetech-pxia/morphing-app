@@ -12,28 +12,44 @@ export const QUICK_ACTION_CATEGORIES: Record<
   }
 > = {
   image: {
-    name: { en: 'Photos', zh: '图片' },
-    prefill: { en: 'With my photos, I want to', zh: '我想要把图片' },
+    name: { en: 'Photos', zh: '图片', fr: 'Photos' },
+    prefill: {
+      en: 'With my photos, I want to',
+      zh: '我想要把图片',
+      fr: 'Avec mes photos, je veux',
+    },
     icon: 'photo',
   },
   video: {
-    name: { en: 'Videos', zh: '视频' },
-    prefill: { en: 'With my videos, I want to', zh: '我想要把视频' },
+    name: { en: 'Videos', zh: '视频', fr: 'Vidéos' },
+    prefill: {
+      en: 'With my videos, I want to',
+      zh: '我想要把视频',
+      fr: 'Avec mes vidéos, je veux',
+    },
     icon: 'video',
   },
   audio: {
-    name: { en: 'Audio', zh: '音频' },
-    prefill: { en: 'With my audio, I want to', zh: '我想要把音频' },
+    name: { en: 'Audio', zh: '音频', fr: 'Audio' },
+    prefill: {
+      en: 'With my audio, I want to',
+      zh: '我想要把音频',
+      fr: 'Avec mes fichiers audio, je veux',
+    },
     icon: 'audio',
   },
   document: {
-    name: { en: 'Documents', zh: '文档' },
-    prefill: { en: 'With my documents, I want to', zh: '我想要把文档' },
+    name: { en: 'Documents', zh: '文档', fr: 'Documents' },
+    prefill: {
+      en: 'With my documents, I want to',
+      zh: '我想要把文档',
+      fr: 'Avec mes documents, je veux',
+    },
     icon: 'document',
   },
   other: {
-    name: { en: 'Other', zh: '其他' },
-    prefill: { en: 'I want to', zh: '我想要' },
+    name: { en: 'Other', zh: '其他', fr: 'Autres' },
+    prefill: { en: 'I want to', zh: '我想要', fr: 'Je veux' },
     icon: 'workflow',
   },
 };

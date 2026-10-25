@@ -1,10 +1,12 @@
 import {
+  localize,
   HOME_PAGE_ID,
   allComponents,
   guideGoal,
   type GuideGoalId,
   type Workflow,
 } from '@morph/core';
+
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -69,7 +71,7 @@ export function ReadyScreen({
         {workflow.steps.map((step, i) => (
           <View key={step.id} style={styles.step}>
             <Text style={[body, styles.flex]}>
-              {`${i + 1}. ${registry.actions.get(step.action)?.label[locale] ?? step.action}`}
+              {`${i + 1}. ${localize(registry.actions.get(step.action)?.label, locale) ?? step.action}`}
             </Text>
             {added.has(step.id) ? (
               <View

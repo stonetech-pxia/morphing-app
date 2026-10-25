@@ -1,0 +1,12 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "选择要处理的照片或视频时，Morph 需要访问相册。文件保留在这台设备上。",
+    "NSPhotoLibraryAddUsageDescription": "仅在你选择保存时，Morph 才会把照片和视频存入相册。",
+    "NSCameraUsageDescription": "拍照或扫描文档时，Morph 需要使用相机。照片保留在这台设备上。",
+    "NSMicrophoneUsageDescription": "录音时，Morph 需要使用麦克风。录音保留在这台设备上。",
+    "NSSpeechRecognitionUsageDescription": "运行语音转文字时，Morph 会在这台设备上识别录音。录音保留在本机。"
+  },
+  "android": {
+    "app_name": "Morph"
+  }
+}

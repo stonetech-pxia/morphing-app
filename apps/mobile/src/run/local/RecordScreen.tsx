@@ -157,7 +157,7 @@ export function RecordScreen({
         <Text
           testID="record-time"
           style={[palette.font('title', 56), styles.time, { color: palette.text }]}>
-          {formatTime(state.durationMillis)}
+          {formatTime(state.durationMillis, false, locale)}
         </Text>
         <Meter level={level} palette={palette} />
         <Pressable

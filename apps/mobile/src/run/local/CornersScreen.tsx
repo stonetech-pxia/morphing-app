@@ -92,7 +92,6 @@ export function CornersScreen({
   onDone,
   onCancel,
 }: LocalScreenProps<'corners'>) {
-  const zh = locale === 'zh';
   const { items } = input;
   const sizes = items.map(({ item }) => ({ width: item.width ?? 1, height: item.height ?? 1 }));
   const initial = (i: number) => items[i]!.quad ?? defaultQuad(sizes[i]!);
@@ -143,10 +142,8 @@ export function CornersScreen({
       palette={palette}
       title={
         items.length > 1
-          ? `${zh ? '调整四个角' : 'Adjust corners'} ${index + 1}/${items.length}`
-          : zh
-            ? '调整四个角'
-            : 'Adjust corners'
+          ? `${t(locale, 'CornersScreen_Adjust_corners_44eed')} ${index + 1}/${items.length}`
+          : t(locale, 'CornersScreen_Adjust_corners_44eed')
       }
       cancelLabel={t(locale, 'cancel')}
       doneLabel={t(locale, last ? 'localDone' : 'localNext')}
@@ -158,12 +155,8 @@ export function CornersScreen({
       }}>
       <Text style={[palette.font('body', 14), styles.hint, { color: palette.muted }]}>
         {found
-          ? zh
-            ? '已找到纸张的边。不对的话，拖动四个角。'
-            : 'Found the edges of the paper. Drag the corners if they are off.'
-          : zh
-            ? '没找到纸张的边，请把四个角拖到纸张的四个角上。'
-            : 'Could not find the paper. Drag the four corners onto its corners.'}
+          ? t(locale, 'CornersScreen_Found_the_edges_of_the_paper_Drag_the__2c34c')
+          : t(locale, 'CornersScreen_Could_not_find_the_paper_Drag_the_four_f60d0')}
       </Text>
       <View
         testID="corners-area"
@@ -215,22 +208,18 @@ export function CornersScreen({
             { color: valid ? palette.muted : palette.danger },
           ]}>
           {valid
-            ? zh
-              ? '拖动圆点调整'
-              : 'Drag the dots'
-            : zh
-              ? '四个角的位置不对'
-              : 'The corners are crossed'}
+            ? t(locale, 'CornersScreen_Drag_the_dots_9312c')
+            : t(locale, 'CornersScreen_The_corners_are_crossed_7c433')}
         </Text>
         {found
           ? link(
-              zh ? '自动找到的' : 'Detected',
+              t(locale, 'CornersScreen_Detected_c1138'),
               () => dispatch({ type: 'set', quad: found }),
               'corners-detected',
             )
           : null}
         {link(
-          zh ? '整张照片' : 'Whole photo',
+          t(locale, 'CornersScreen_Whole_photo_a2dee'),
           () => dispatch({ type: 'set', quad: defaultQuad(sizes[index]!, 0) }),
           'corners-whole',
         )}

@@ -96,7 +96,6 @@ export function RedactScreen({
   onDone,
   onCancel,
 }: LocalScreenProps<'redact'>) {
-  const zh = locale === 'zh';
   const { items } = input;
   const sizes = items.map((it) => ({ width: it.width ?? 1, height: it.height ?? 1 }));
   const [state, dispatch] = useReducer(
@@ -141,10 +140,8 @@ export function RedactScreen({
       palette={palette}
       title={
         items.length > 1
-          ? `${zh ? '打码' : 'Hide parts'} ${index + 1}/${items.length}`
-          : zh
-            ? '打码'
-            : 'Hide parts'
+          ? `${t(locale, 'RedactScreen_Hide_parts_9ca8f')} ${index + 1}/${items.length}`
+          : t(locale, 'RedactScreen_Hide_parts_9ca8f')
       }
       cancelLabel={t(locale, 'cancel')}
       doneLabel={t(locale, last ? 'localDone' : 'localNext')}
@@ -154,9 +151,7 @@ export function RedactScreen({
         onDone(state.boxes);
       }}>
       <Text style={[palette.font('body', 14), styles.hint, { color: palette.muted }]}>
-        {zh
-          ? '用手指拖出方框，盖住姓名、号码等不想给别人看的地方。'
-          : 'Drag to draw boxes over names, numbers or anything private.'}
+        {t(locale, 'RedactScreen_Drag_to_draw_boxes_over_names_numbers__e780a')}
       </Text>
       <View
         testID="redact-area"
@@ -192,7 +187,7 @@ export function RedactScreen({
       </View>
       <View style={styles.footer}>
         <Text style={[palette.font('body', 14), styles.flex, { color: palette.muted }]}>
-          {zh ? `${boxes.length} 处` : `${boxes.length} boxes`}
+          {t(locale, 'RedactScreen_boxes_4d76c', { v0: boxes.length })}
         </Text>
         <Pressable
           testID="redact-undo"
@@ -204,7 +199,7 @@ export function RedactScreen({
               palette.font('bodyBold', 15),
               { color: boxes.length ? palette.primaryText : palette.border },
             ]}>
-            {zh ? '撤销一个' : 'Undo'}
+            {t(locale, 'RedactScreen_Undo_791a7')}
           </Text>
         </Pressable>
       </View>

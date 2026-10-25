@@ -37,6 +37,23 @@ const freshRegistry = () => createRegistry(BUILTIN_TOOLS);
 const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value));
 
 describe('tool manifests (D-177)', () => {
+  it('accepts old bilingual manifests in French without rewriting their metadata', () => {
+    const manifest = example();
+    expect(manifest.name.fr).toBeUndefined();
+    const original = structuredClone(manifest);
+    const registry = freshRegistry();
+    const tool = toolFromManifest(manifest);
+    registerTool(registry, tool);
+    const result = applyOps(
+      createDefaultWorkspace('fr'),
+      [{ op: 'installTool', toolId: tool.id }],
+      { registry, locale: 'fr' },
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(validateWorkspace(result.config, registry)).toMatchObject({ ok: true });
+    expect(tool.name.fr).toBe(manifest.name.en);
+    expect(manifest).toEqual(original);
+  });
   it('the example data tool in tools/ passes every check', () => {
     expect(checkToolManifest(example(), freshRegistry())).toEqual([]);
   });
@@ -85,7 +102,7 @@ describe('tool manifests (D-177)', () => {
     next.version = '1.1.0';
     next.workflows.push({
       id: 'job-apply-letter',
-      name: { en: 'Cover letter to PDF', zh: '求职信转 PDF' },
+      name: { en: 'Cover letter to PDF', zh: '求职信转 PDF', fr: 'Cover letter to PDF' },
       steps: [
         { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 1 } },
         { id: 'share', action: 'out.share', params: {} },
@@ -185,8 +202,8 @@ describe('signed catalog (D-178)', () => {
     path: 'tools/job-apply/1.0.0.json',
     size: 1234,
     sha256: 'a'.repeat(64),
-    name: { en: 'Job application', zh: '求职材料' },
-    description: { en: 'CV in one PDF.', zh: '简历合成一个 PDF。' },
+    name: { en: 'Job application', zh: '求职材料', fr: 'Job application' },
+    description: { en: 'CV in one PDF.', zh: '简历合成一个 PDF。', fr: 'CV in one PDF.' },
     icon: 'person',
   } as const;
   const catalog: Catalog = {

@@ -1,3 +1,5 @@
+import { localize } from '../localization';
+import { t, pairText } from '../messages';
 import { z } from 'zod';
 
 import type { ToolDefinition } from '../registry';
@@ -9,8 +11,6 @@ import type { ActionDefinition } from '../workflow/contract';
 // 只输出纯文字（可以再排成 PDF），不保留原文件的排版。
 
 export const TRANSLATE_TOOL_ID = 'translate';
-
-const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
 
 /**
  * 能选的语言（BCP 47）：Apple 翻译和 ML Kit 都支持的常用语言。繁体中文只有 iOS 支持
@@ -41,26 +41,26 @@ export const TRANSLATE_LANGUAGES = [
 export type TranslateLanguage = (typeof TRANSLATE_LANGUAGES)[number];
 
 export const TRANSLATE_LANGUAGE_NAMES: Record<TranslateLanguage, Localized> = {
-  'zh-Hans': { en: 'Chinese (Simplified)', zh: '简体中文' },
-  en: { en: 'English', zh: '英文' },
-  'zh-Hant': { en: 'Chinese (Traditional)', zh: '繁体中文' },
-  ja: { en: 'Japanese', zh: '日文' },
-  ko: { en: 'Korean', zh: '韩文' },
-  fr: { en: 'French', zh: '法文' },
-  de: { en: 'German', zh: '德文' },
-  es: { en: 'Spanish', zh: '西班牙文' },
-  pt: { en: 'Portuguese', zh: '葡萄牙文' },
-  it: { en: 'Italian', zh: '意大利文' },
-  ru: { en: 'Russian', zh: '俄文' },
-  vi: { en: 'Vietnamese', zh: '越南文' },
-  th: { en: 'Thai', zh: '泰文' },
-  id: { en: 'Indonesian', zh: '印尼文' },
-  ar: { en: 'Arabic', zh: '阿拉伯文' },
-  tr: { en: 'Turkish', zh: '土耳其文' },
-  nl: { en: 'Dutch', zh: '荷兰文' },
-  pl: { en: 'Polish', zh: '波兰文' },
-  uk: { en: 'Ukrainian', zh: '乌克兰文' },
-  hi: { en: 'Hindi', zh: '印地文' },
+  'zh-Hans': { en: 'Chinese (Simplified)', zh: '简体中文', fr: 'Chinois (simplifié)' },
+  en: { en: 'English', zh: '英文', fr: 'Anglais' },
+  'zh-Hant': { en: 'Chinese (Traditional)', zh: '繁体中文', fr: 'Chinois (traditionnel)' },
+  ja: { en: 'Japanese', zh: '日文', fr: 'Japonais' },
+  ko: { en: 'Korean', zh: '韩文', fr: 'Coréen' },
+  fr: { en: 'French', zh: '法文', fr: 'Français' },
+  de: { en: 'German', zh: '德文', fr: 'Allemand' },
+  es: { en: 'Spanish', zh: '西班牙文', fr: 'Espagnol' },
+  pt: { en: 'Portuguese', zh: '葡萄牙文', fr: 'Portugais' },
+  it: { en: 'Italian', zh: '意大利文', fr: 'Italien' },
+  ru: { en: 'Russian', zh: '俄文', fr: 'Russe' },
+  vi: { en: 'Vietnamese', zh: '越南文', fr: 'Vietnamien' },
+  th: { en: 'Thai', zh: '泰文', fr: 'Thaï' },
+  id: { en: 'Indonesian', zh: '印尼文', fr: 'Indonésien' },
+  ar: { en: 'Arabic', zh: '阿拉伯文', fr: 'Arabe' },
+  tr: { en: 'Turkish', zh: '土耳其文', fr: 'Turc' },
+  nl: { en: 'Dutch', zh: '荷兰文', fr: 'Néerlandais' },
+  pl: { en: 'Polish', zh: '波兰文', fr: 'Polonais' },
+  uk: { en: 'Ukrainian', zh: '乌克兰文', fr: 'Ukrainien' },
+  hi: { en: 'Hindi', zh: '印地文', fr: 'Hindi' },
 };
 
 /** 一次最多翻译多少字（约 30 页）：本机翻译很快，但太长会让用户等很久。 */
@@ -74,10 +74,11 @@ const languageOptions = TRANSLATE_LANGUAGES.map((value) => ({
 export const TRANSLATE_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'translate.text',
-    label: { en: 'Translate', zh: '翻译' },
+    label: { en: 'Translate', zh: '翻译', fr: 'Traduire' },
     description: {
       en: 'Translate the text on this device (Apple Translation on iPhone, ML Kit on Android) into another language; the result is plain text, without the original layout. Good for understanding the meaning, not for official translations. The first use of a language may need a download. The text stays on this device.',
       zh: '在本机把文字翻译成另一种语言（iPhone 用系统翻译，Android 用 ML Kit），结果是纯文字，不保留原来的排版。适合看懂意思，正式文件请找专业翻译。第一次用某种语言时可能要下载。文字只留在本机。',
+      fr: 'Traduire le texte sur cet appareil (Traduction d’Apple sur iPhone, ML Kit sur Android) vers une autre langue ; le résultat est du texte brut, sans la mise en page d’origine. Utile pour comprendre le sens, pas pour des traductions officielles. La première utilisation d’une langue peut nécessiter un téléchargement. Le texte reste sur cet appareil.',
     },
     input: ['text'],
     output: 'text',
@@ -88,16 +89,19 @@ export const TRANSLATE_ACTIONS: readonly ActionDefinition[] = [
     fields: [
       {
         key: 'from',
-        label: { en: 'From', zh: '原文语言' },
+        label: { en: 'From', zh: '原文语言', fr: 'Langue source' },
         kind: 'choice',
         options: [
-          { value: 'auto', label: { en: 'Auto-detect', zh: '自动识别' } },
+          {
+            value: 'auto',
+            label: { en: 'Auto-detect', zh: '自动识别', fr: 'Détection automatique' },
+          },
           ...languageOptions,
         ],
       },
       {
         key: 'to',
-        label: { en: 'Into', zh: '翻译成' },
+        label: { en: 'Into', zh: '翻译成', fr: 'Vers' },
         kind: 'choice',
         // 简体中文、英文排在最前（最常用）。只有这一个参数要问，不另设常用规格按钮（会和选项重复）。
         options: languageOptions,
@@ -248,7 +252,7 @@ export function groupBySource(
 /** 语言的显示名；不在列表里的（自动识别出的瑞典文等）显示代码。 */
 export function translateLanguageName(code: string, locale: Locale): string {
   const known = TRANSLATE_LANGUAGE_NAMES[code as TranslateLanguage];
-  return known ? known[locale] : code;
+  return known ? localize(known, locale) : code;
 }
 
 // ---- 工具 ----
@@ -258,12 +262,12 @@ export function translateLanguageName(code: string, locale: Locale): string {
  * （中文界面）或中文（英文界面）识别，也是每次问。
  */
 export function translateWorkflows(locale: Locale): Workflow[] {
-  const to = locale === 'zh' ? 'zh-Hans' : 'en';
-  const ocrLang = locale === 'zh' ? 'eng' : 'chi_sim';
+  const to = locale === 'zh' ? 'zh-Hans' : locale === 'fr' ? 'fr' : 'en';
+  const ocrLang = locale === 'zh' ? 'eng' : locale === 'fr' ? 'eng' : 'chi_sim';
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
     toolId: TRANSLATE_TOOL_ID,
-    name: t(locale, ...name),
+    name: pairText(locale, name),
     steps,
   });
   return [
@@ -299,10 +303,11 @@ export function translateWorkflows(locale: Locale): Workflow[] {
 export const translateTool: ToolDefinition = {
   id: TRANSLATE_TOOL_ID,
   version: '1.0.0',
-  name: { en: 'Translate', zh: '翻译' },
+  name: { en: 'Translate', zh: '翻译', fr: 'Traduire' },
   description: {
     en: 'Translate text, photos and PDFs on this device, in 20 languages. Plain text only, for understanding the meaning.',
     zh: '在本机翻译文字、照片和 PDF 里的文字，支持 20 种语言。只出纯文字，用来看懂意思。',
+    fr: 'Traduisez le texte, les photos et les PDF sur cet appareil, dans 20 langues. Texte brut uniquement, pour comprendre le sens.',
   },
   icon: 'translate',
   aliases: ['translate', 'translation', 'translator', '翻译', '翻译工具', '翻译文字'],
@@ -310,24 +315,20 @@ export const translateTool: ToolDefinition = {
   actions: TRANSLATE_ACTIONS,
   createPage: (locale) => ({
     id: `tool-${TRANSLATE_TOOL_ID}`,
-    title: t(locale, 'Translate', '翻译'),
+    title: t(locale, 'translate_Translate_6c51b'),
     icon: 'translate',
     toolId: TRANSLATE_TOOL_ID,
     components: [
       {
         id: 'translate-header',
         type: 'header',
-        props: { title: t(locale, 'Translate', '翻译') },
+        props: { title: t(locale, 'translate_Translate_6c51b') },
       },
       {
         id: 'translate-intro',
         type: 'text',
         props: {
-          text: t(
-            locale,
-            'Translates on this device; the text is never uploaded. Good for understanding the meaning — for official documents, use a professional translator. The first use of a language may need a download.',
-            '在本机翻译，文字不会上传。适合看懂意思；正式文件请找专业翻译。第一次用某种语言时可能要下载。',
-          ),
+          text: t(locale, 'translate_Translates_on_this_device_the_text_is__027c8'),
         },
       },
       ...translateWorkflows(locale).map((wf) => ({

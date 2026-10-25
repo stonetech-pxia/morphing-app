@@ -1,4 +1,5 @@
-import { packById, translateLanguageName, type Locale } from '@morph/core';
+import { localize, packById, translateLanguageName, type Locale } from '@morph/core';
+
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
 
@@ -55,7 +56,7 @@ export function PacksScreen({
     const dependents = (list ?? []).filter((p) =>
       (packById(p.id)?.requires ?? []).includes(pack.id),
     );
-    const name = manifest.name[locale];
+    const name = localize(manifest.name, locale);
     Alert.alert(
       t(locale, 'packDeleteTitle', { name }),
       dependents.length > 0
@@ -107,18 +108,18 @@ export function PacksScreen({
           <Text
             testID="packs-total"
             style={[palette.font('bodyBold', 14), { color: palette.text }]}>
-            {t(locale, 'packsTotal', { size: formatBytes(total) })}
+            {t(locale, 'packsTotal', { size: formatBytes(total, locale) })}
           </Text>
           {list.map((p) => {
             const manifest = packById(p.id)!;
             return (
               <Card key={p.id} palette={palette} testID={`pack-${p.id}`}>
                 <Text style={[palette.font('title', 16), { color: palette.text }]}>
-                  {manifest.name[locale]}
+                  {localize(manifest.name, locale)}
                 </Text>
-                <Text style={caption}>{manifest.description[locale]}</Text>
+                <Text style={caption}>{localize(manifest.description, locale)}</Text>
                 <Text style={caption}>
-                  {`${formatBytes(p.bytes)} · ${manifest.license} · ${p.version}`}
+                  {`${formatBytes(p.bytes, locale)} · ${manifest.license} · ${p.version}`}
                 </Text>
                 <View style={{ flexDirection: 'row' }}>
                   <Pill
@@ -138,7 +139,7 @@ export function PacksScreen({
         <Card key={tool.id} palette={palette} testID={`downloaded-tool-${tool.id}`}>
           <Text style={[palette.font('title', 16), { color: palette.text }]}>{tool.name}</Text>
           <Text style={caption}>{t(locale, 'toolDownloadedHint')}</Text>
-          <Text style={caption}>{`${formatBytes(tool.bytes)} · ${tool.version}`}</Text>
+          <Text style={caption}>{`${formatBytes(tool.bytes, locale)} · ${tool.version}`}</Text>
           <View style={{ flexDirection: 'row' }}>
             <Pill
               palette={palette}

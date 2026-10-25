@@ -47,7 +47,7 @@ const v110 = (): ToolManifest => {
   m.version = '1.1.0';
   m.workflows.push({
     id: 'job-apply-letter',
-    name: { en: 'Cover letter', zh: '求职信' },
+    name: { en: 'Cover letter', zh: '求职信', fr: 'Cover letter' },
     steps: [
       { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 1 } },
       { id: 'share', action: 'out.share', params: {} },

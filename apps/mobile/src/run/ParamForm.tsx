@@ -1,4 +1,11 @@
-import type { ActionDefinition, Collection, Locale, ParamField } from '@morph/core';
+import {
+  localize,
+  type ActionDefinition,
+  type Collection,
+  type Locale,
+  type ParamField,
+} from '@morph/core';
+
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { t } from '../i18n';
@@ -75,7 +82,7 @@ export function ParamForm({
               key={p.id}
               palette={palette}
               testID={`${testPrefix}-preset-${p.id}`}
-              label={p.label[locale]}
+              label={localize(p.label, locale)}
               selected={Object.entries(p.values).every(([k, v]) => values[k] === v)}
               onPress={() => onChange({ ...values, ...p.values })}
             />
@@ -86,7 +93,7 @@ export function ParamForm({
         <View key={field.key} style={styles.field}>
           {hideLabels ? null : (
             <Text style={[palette.font('bodyBold', 14), { color: palette.text }]}>
-              {field.label[locale]}
+              {localize(field.label, locale)}
             </Text>
           )}
           <FieldInput
@@ -155,7 +162,7 @@ function FieldInput({
               key={String(o.value)}
               palette={palette}
               testID={`${testID}-${String(o.value)}`}
-              label={o.label[locale]}
+              label={localize(o.label, locale)}
               selected={value === o.value}
               onPress={() => onChange(o.value)}
             />
@@ -203,7 +210,7 @@ function FieldInput({
       if (!collection) {
         return (
           <Text style={[palette.font('body', 14), { color: palette.muted }]}>
-            {locale === 'zh' ? '先选数据表' : 'Choose a data table first'}
+            {t(locale, 'ParamForm_Choose_a_data_table_first_b5c9a')}
           </Text>
         );
       }

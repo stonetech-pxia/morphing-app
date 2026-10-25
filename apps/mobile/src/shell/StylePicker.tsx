@@ -1,4 +1,11 @@
-import { THEME_PRESETS, THEME_PRESET_IDS, type Locale, type ThemePresetId } from '@morph/core';
+import {
+  localize,
+  THEME_PRESETS,
+  THEME_PRESET_IDS,
+  type Locale,
+  type ThemePresetId,
+} from '@morph/core';
+
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { GlassFill } from '../renderer/GlassFill';
@@ -65,7 +72,7 @@ function Swatch({
           palette.font(current ? 'bodyBold' : 'bodyMedium', 12),
           { color: current ? palette.text : palette.muted },
         ]}>
-        {preset.name[locale]}
+        {localize(preset.name, locale)}
       </Text>
     </Pressable>
   );

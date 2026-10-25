@@ -14,7 +14,6 @@ export function PasswordScreen({
   onDone,
   onCancel,
 }: LocalScreenProps<'password'>) {
-  const zh = locale === 'zh';
   const { name, wrong, index, total } = input;
   const [password, setPassword] = useState('');
   return (
@@ -22,16 +21,14 @@ export function PasswordScreen({
       palette={palette}
       title={total > 1 ? `${name} · ${index + 1}/${total}` : name}
       cancelLabel={t(locale, 'cancel')}
-      doneLabel={zh ? '打开' : 'Open'}
+      doneLabel={t(locale, 'PasswordScreen_Open_c5147')}
       onCancel={onCancel}
       onDone={() => onDone({ password })}
       doneDisabled={password === ''}
       avoidKeyboard>
       <View style={styles.body}>
         <Text style={[palette.font('body', 15), { color: palette.text }]}>
-          {zh
-            ? '这个 PDF 要密码才能打开。输入密码后会另存一份没有密码的，原文件不变。'
-            : 'This PDF needs a password to open. Morph saves a copy without the password; the original stays as it is.'}
+          {t(locale, 'PasswordScreen_This_PDF_needs_a_password_to_open_Morp_31218')}
         </Text>
         <TextInput
           testID="password-input"
@@ -59,11 +56,11 @@ export function PasswordScreen({
           <Text
             testID="password-wrong"
             style={[palette.font('bodyMedium', 14), { color: palette.danger }]}>
-            {zh ? '密码不对，请再试一次。' : 'That password is wrong. Try again.'}
+            {t(locale, 'PasswordScreen_That_password_is_wrong_Try_again_74476')}
           </Text>
         ) : null}
         <Text style={[palette.font('body', 13), { color: palette.caption }]}>
-          {zh ? '密码不会保存。' : 'The password is not saved.'}
+          {t(locale, 'PasswordScreen_The_password_is_not_saved_9f226')}
         </Text>
         {total > 1 ? (
           <Pressable
@@ -72,7 +69,7 @@ export function PasswordScreen({
             style={styles.skip}
             hitSlop={8}>
             <Text style={[palette.font('bodyBold', 15), { color: palette.primaryText }]}>
-              {zh ? '跳过这一个' : 'Skip this one'}
+              {t(locale, 'PasswordScreen_Skip_this_one_71a32')}
             </Text>
           </Pressable>
         ) : null}

@@ -3191,7 +3191,56 @@ const QUICK_ACTION_ENTRY_CASES: EvalCase[] = [
     },
   },
 ];
+const FRENCH_CASES: readonly EvalCase[] = [
+  {
+    id: 'FR1',
+    locale: 'fr',
+    setup: 'default',
+    mock: false,
+    input:
+      'Créez une action rapide pour choisir des photos, réduire chaque image à 500 Ko maximum, puis les partager.',
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            (w.steps[0]?.action === 'in.photos' ||
+              (w.steps[0]?.action === 'in.files' && w.steps[0]?.params.accept === 'images')) &&
+            w.steps.some((s) => s.action === 'image.compress' && s.params.maxKB === 500) &&
+            w.steps.some((s) => s.action === 'out.share'),
+        )
+          ? null
+          : 'missing photo compression/share workflow',
+    },
+  },
+  {
+    id: 'FR2',
+    locale: 'fr',
+    setup: 'default',
+    mock: false,
+    input: 'Envoyez ces photos à ma mère par e-mail maintenant.',
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'FR3',
+    locale: 'fr',
+    setup: 'default',
+    mock: false,
+    input:
+      'Je voudrais créer un carnet de dépenses pour noter la date, le montant et la catégorie.',
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.collections.some((collection) =>
+          collection.fields.some((f) => f.type === 'money' && f.currency === 'EUR'),
+        )
+          ? null
+          : 'French expense table must use EUR',
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...FRENCH_CASES,
   ...QUICK_ACTION_ENTRY_CASES,
   ...VIDEO_SUBTITLE_CASES,
   ...IMAGE_ANNOTATE_CASES,

@@ -162,7 +162,7 @@ export function CropScreen({ input, palette, locale, onDone, onCancel }: LocalSc
   );
 
   const last = index === items.length - 1;
-  const zh = locale === 'zh';
+
   const view = (r: Rect) => ({
     left: offset.x + r.x * scale,
     top: offset.y + r.y * scale,
@@ -177,10 +177,8 @@ export function CropScreen({ input, palette, locale, onDone, onCancel }: LocalSc
       palette={palette}
       title={
         items.length > 1
-          ? `${zh ? '裁剪' : 'Crop'} ${index + 1}/${items.length}`
-          : zh
-            ? '裁剪'
-            : 'Crop'
+          ? `${t(locale, 'CropScreen_Crop_007d5')} ${index + 1}/${items.length}`
+          : t(locale, 'CropScreen_Crop_007d5')
       }
       cancelLabel={t(locale, 'cancel')}
       doneLabel={t(locale, last ? 'localDone' : 'localNext')}
@@ -284,7 +282,7 @@ export function CropScreen({ input, palette, locale, onDone, onCancel }: LocalSc
         </Text>
         <Pressable testID="crop-reset" onPress={() => dispatch({ type: 'reset' })}>
           <Text style={[palette.font('bodyBold', 15), { color: palette.primaryText }]}>
-            {zh ? '重置' : 'Reset'}
+            {t(locale, 'CropScreen_Reset_efa10')}
           </Text>
         </Pressable>
       </View>

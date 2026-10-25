@@ -16,8 +16,8 @@ const mutate = (fn: (c: WorkspaceConfig) => void, base = workspace('zh', { withP
 };
 
 describe('validateWorkspace', () => {
-  it('accepts the default workspace in both languages, with and without the PDF tool', () => {
-    for (const locale of ['zh', 'en'] as const) {
+  it('accepts the default workspace in all three languages, with and without the PDF tool', () => {
+    for (const locale of ['zh', 'en', 'fr'] as const) {
       expect(issuesOf(workspace(locale))).toEqual([]);
       expect(issuesOf(workspace(locale, { withPdf: true }))).toEqual([]);
     }

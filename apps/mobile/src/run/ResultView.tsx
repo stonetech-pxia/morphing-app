@@ -1,4 +1,12 @@
-import { mediaKindOf, totalSize, type Locale, type RunItem, type RunValue } from '@morph/core';
+import {
+  formatFileSize,
+  type Locale,
+  mediaKindOf,
+  totalSize,
+  type RunItem,
+  type RunValue,
+} from '@morph/core';
+
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -12,11 +20,7 @@ import { MediaRow } from './MediaRow';
 // 结果预览（TOOLS_DESIGN §3）：图片缩略图、PDF 页数和大小、文字全文（只在本机显示）。
 // 结果页始终提供保存、分享、存到文件夹、存到相册（图片）、打印（PDF / 图片）、复制（文字）。
 
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
+export const formatBytes = (bytes: number, locale: Locale = 'en') => formatFileSize(bytes, locale);
 
 export interface ResultActions {
   save(): Promise<void>;
@@ -36,7 +40,7 @@ function ItemRow({ item, palette, locale }: { item: RunItem; palette: Palette; l
   const details = [
     item.width && item.height ? `${item.width}×${item.height}` : null,
     item.pageCount ? t(locale, 'resultPages', { n: item.pageCount }) : null,
-    formatBytes(item.size),
+    formatBytes(item.size, locale),
   ].filter(Boolean);
   const kind = mediaKindOf(item.mimeType, item.ext);
   if (kind === 'video' || kind === 'audio') {
@@ -208,8 +212,8 @@ export function ResultView({
           testID="result-smaller"
           style={[palette.font('bodyMedium', 14), { color: palette.muted }]}>
           {t(locale, 'resultSmaller', {
-            from: formatBytes(inputSize),
-            to: formatBytes(outputSize),
+            from: formatBytes(inputSize, locale),
+            to: formatBytes(outputSize, locale),
           })}
         </Text>
       ) : null}

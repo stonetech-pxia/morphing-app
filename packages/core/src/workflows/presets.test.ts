@@ -47,9 +47,9 @@ describe('workflow presets', () => {
   });
 
   it.each(WORKFLOW_PRESETS.map((p) => [p.id, p] as const))(
-    '%s passes the static checks in both languages',
+    '%s passes the static checks in all three languages',
     (_id, preset) => {
-      for (const locale of ['zh', 'en'] as const) {
+      for (const locale of ['zh', 'en', 'fr'] as const) {
         const wf = presetWorkflow(preset, locale, preset.id);
         expect(workflowProblems(wf, registry)).toEqual([]);
         expect(typesAlong(wf.steps, registry).every((t) => t !== null)).toBe(true);
@@ -63,20 +63,23 @@ describe('workflow presets', () => {
     },
   );
 
-  it('all of them can be added to a workspace without installing any tool', () => {
-    const base = workspace('zh');
-    const ops = WORKFLOW_PRESETS.map((p) => ({
-      op: 'addWorkflow' as const,
-      workflow: presetWorkflow(p, 'zh', newWorkflowId(p.id, base.workflows)),
-    }));
-    const result = applyOps(base, ops, { registry, locale: 'zh' });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(validateWorkspace(result.config, registry)).toMatchObject({ ok: true });
-    expect(result.config.workflows.map((w) => w.presetId)).toEqual(
-      WORKFLOW_PRESETS.map((p) => p.id),
-    );
-  });
+  it.each(['zh', 'en', 'fr'] as const)(
+    'all presets can be added without installing tools (%s)',
+    (locale) => {
+      const base = workspace(locale);
+      const ops = WORKFLOW_PRESETS.map((p) => ({
+        op: 'addWorkflow' as const,
+        workflow: presetWorkflow(p, locale, newWorkflowId(p.id, base.workflows)),
+      }));
+      const result = applyOps(base, ops, { registry, locale });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(validateWorkspace(result.config, registry)).toMatchObject({ ok: true });
+      expect(result.config.workflows.map((w) => w.presetId)).toEqual(
+        WORKFLOW_PRESETS.map((p) => p.id),
+      );
+    },
+  );
 
   it('makes ids from names that are free', () => {
     expect(newWorkflowId('visa-photo', [])).toBe('visa-photo');

@@ -11,8 +11,12 @@
       "bundleIdentifier": "app.morph.mobile",
       "icon": "./assets/expo.icon",
       "infoPlist": {
-        "NSSpeechRecognitionUsageDescription": "Morph turns recordings into text on this device when you run speech to text. Recordings stay on this device.",
-        "BGTaskSchedulerPermittedIdentifiers": ["app.morph.mobile.work.*"]
+        "NSSpeechRecognitionUsageDescription": "Morph transcribes recordings on this device when you run speech to text. Recordings stay on this device.",
+        "BGTaskSchedulerPermittedIdentifiers": ["app.morph.mobile.work.*"],
+        "NSPhotoLibraryUsageDescription": "Morph accesses your photo library when you choose photos or videos to process. Your files stay on this device.",
+        "NSPhotoLibraryAddUsageDescription": "Morph saves photos and videos to your library only when you ask it to.",
+        "NSCameraUsageDescription": "Morph uses the camera when you take a photo or scan a document. Photos stay on this device.",
+        "NSMicrophoneUsageDescription": "Morph uses the microphone when you record audio. Recordings stay on this device."
       }
     },
     "android": {
@@ -46,22 +50,27 @@
         }
       ],
       "expo-sqlite",
-      "expo-localization",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": ["en", "zh-Hans", "fr"]
+        }
+      ],
       "expo-sharing",
       "expo-secure-store",
       [
         "expo-image-picker",
         {
-          "photosPermission": "Morph uses your photos only when you pick one to show in your app. Photos stay on this device.",
-          "cameraPermission": "Morph uses the camera only when you take a photo or scan a document in a tool. Photos stay on this device.",
-          "microphonePermission": "Morph uses the microphone only when you record audio in a quick action. Recordings stay on this device."
+          "photosPermission": "Morph accesses your photo library when you choose photos or videos to process. Your files stay on this device.",
+          "cameraPermission": "Morph uses the camera when you take a photo or scan a document. Photos stay on this device.",
+          "microphonePermission": "Morph uses the microphone when you record audio. Recordings stay on this device."
         }
       ],
       [
         "expo-media-library",
         {
-          "photosPermission": "Morph uses your photos only when you pick one to show in your app. Photos stay on this device.",
-          "savePhotosPermission": "Morph saves photos and videos to your library only when a tool you run saves them.",
+          "photosPermission": "Morph accesses your photo library when you choose photos or videos to process. Your files stay on this device.",
+          "savePhotosPermission": "Morph saves photos and videos to your library only when you ask it to.",
           "isAccessMediaLocationEnabled": false
         }
       ],
@@ -95,7 +104,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Morph uses the microphone only when you record audio in a quick action. Recordings stay on this device.",
+          "microphonePermission": "Morph uses the microphone when you record audio. Recordings stay on this device.",
           "enableBackgroundRecording": true,
           "enableBackgroundPlayback": false
         }
@@ -103,6 +112,11 @@
     ],
     "experiments": {
       "reactCompiler": true
+    },
+    "locales": {
+      "en": "./locales/en.json",
+      "zh-Hans": "./locales/zh-Hans.json",
+      "fr": "./locales/fr.json"
     }
   }
 }

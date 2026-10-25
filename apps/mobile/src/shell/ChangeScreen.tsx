@@ -454,7 +454,10 @@ function Chip({
 }
 
 /** 「2 张照片和 1 个 PDF」：分享进来的文件的类型和个数。 */
-function sharedWhat(about: Extract<PlanAbout, { kind: 'shared' }>, locale: 'en' | 'zh'): string {
+function sharedWhat(
+  about: Extract<PlanAbout, { kind: 'shared' }>,
+  locale: 'en' | 'zh' | 'fr',
+): string {
   const parts = [
     about.images ? t(locale, 'sharedPhotos', { n: about.images }) : null,
     about.pdfs ? t(locale, 'sharedPdfs', { n: about.pdfs }) : null,
@@ -462,7 +465,7 @@ function sharedWhat(about: Extract<PlanAbout, { kind: 'shared' }>, locale: 'en' 
     about.audio ? t(locale, 'sharedAudio', { n: about.audio }) : null,
     about.others ? t(locale, 'sharedOthers', { n: about.others }) : null,
   ].filter(Boolean);
-  return parts.join(locale === 'zh' ? '和' : ' and ');
+  return parts.join(t(locale, 'ChangeScreen_and_d40e9'));
 }
 
 const styles = StyleSheet.create({

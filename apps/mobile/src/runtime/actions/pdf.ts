@@ -269,8 +269,8 @@ export const PDF_IMPLS: Record<string, Impl> = {
       if (!result.met) {
         throw new RunError('targetNotMet', {
           name: 'PDF',
-          target: formatBytes(target),
-          got: formatBytes(result.bytes),
+          target: formatBytes(target, ctx.locale),
+          got: formatBytes(result.bytes, ctx.locale),
         });
       }
     } else {

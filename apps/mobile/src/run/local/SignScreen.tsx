@@ -112,7 +112,6 @@ function strokesToPng(strokes: Stroke[]): { bytes: Uint8Array; aspect: number } 
 }
 
 export function SignScreen({ input, palette, locale, onDone, onCancel }: LocalScreenProps<'sign'>) {
-  const zh = locale === 'zh';
   const { files } = useWorkspaceContext();
   const [saved, setSaved] = useState<SavedSignature[] | null>(null);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
@@ -198,9 +197,9 @@ export function SignScreen({ input, palette, locale, onDone, onCancel }: LocalSc
     return (
       <LocalFrame
         palette={palette}
-        title={zh ? '签名' : 'Signature'}
+        title={t(locale, 'SignScreen_Signature_4843e')}
         cancelLabel={t(locale, 'cancel')}
-        doneLabel={zh ? '下一步' : 'Next'}
+        doneLabel={t(locale, 'SignScreen_Next_aa103')}
         doneDisabled={strokes.length === 0}
         onCancel={onCancel}
         onDone={() => {
@@ -213,7 +212,7 @@ export function SignScreen({ input, palette, locale, onDone, onCancel }: LocalSc
           {saved && saved.length > 0 ? (
             <>
               <Text style={[palette.font('bodyBold', 15), { color: palette.text }]}>
-                {zh ? '用存好的签名' : 'Use a saved signature'}
+                {t(locale, 'SignScreen_Use_a_saved_signature_56e73')}
               </Text>
               <View style={styles.savedRow}>
                 {saved.map((s) => (
@@ -232,18 +231,18 @@ export function SignScreen({ input, palette, locale, onDone, onCancel }: LocalSc
             </>
           ) : null}
           <Text style={[palette.font('bodyBold', 15), { color: palette.text }]}>
-            {zh ? '在下面写你的签名' : 'Sign below'}
+            {t(locale, 'SignScreen_Sign_below_ee862')}
           </Text>
           <SignaturePad onChange={setStrokes} clearSignal={clear} />
           <View style={styles.row}>
             <Pressable testID="signature-clear" onPress={() => setClear((c) => c + 1)}>
               <Text style={[palette.font('bodyBold', 15), { color: palette.primaryText }]}>
-                {zh ? '重写' : 'Clear'}
+                {t(locale, 'SignScreen_Clear_643ff')}
               </Text>
             </Pressable>
             <Pressable testID="signature-keep" onPress={() => setKeep((k) => !k)}>
               <Text style={[palette.font('body', 15), { color: palette.text }]}>
-                {`${keep ? '☑' : '☐'} ${zh ? '存起来下次用（只存在这台设备上）' : 'Keep for next time (on this device only)'}`}
+                {`${keep ? '☑' : '☐'} ${t(locale, 'SignScreen_Keep_for_next_time_on_this_device_only_e4001')}`}
               </Text>
             </Pressable>
           </View>
@@ -256,7 +255,7 @@ export function SignScreen({ input, palette, locale, onDone, onCancel }: LocalSc
   return (
     <LocalFrame
       palette={palette}
-      title={zh ? '放签名' : 'Place signature'}
+      title={t(locale, 'SignScreen_Place_signature_f02ea')}
       cancelLabel={t(locale, 'cancel')}
       doneLabel={t(locale, 'localDone')}
       onCancel={onCancel}
@@ -275,9 +274,7 @@ export function SignScreen({ input, palette, locale, onDone, onCancel }: LocalSc
           </Text>
         </Pressable>
         <Text style={[palette.font('bodyMedium', 15), { color: palette.text }]}>
-          {zh
-            ? `第 ${pageIndex + 1} / ${input.pages.length} 页`
-            : `Page ${pageIndex + 1} of ${input.pages.length}`}
+          {t(locale, 'SignScreen_Page_of_75351', { v0: pageIndex + 1, v1: input.pages.length })}
         </Text>
         <Pressable
           testID="sign-next"
@@ -333,12 +330,16 @@ export function SignScreen({ input, palette, locale, onDone, onCancel }: LocalSc
               { borderColor: place.width === w ? palette.primary : palette.border },
             ]}>
             <Text style={[palette.font('bodyBold', 14), { color: palette.text }]}>
-              {w === 0.2 ? (zh ? '小' : 'S') : w === 0.32 ? (zh ? '中' : 'M') : zh ? '大' : 'L'}
+              {w === 0.2
+                ? t(locale, 'SignScreen_S_c6a9b')
+                : w === 0.32
+                  ? t(locale, 'SignScreen_M_e9efc')
+                  : t(locale, 'SignScreen_L_56d2b')}
             </Text>
           </Pressable>
         ))}
         <Text style={[palette.font('body', 13), { color: palette.muted }]}>
-          {zh ? '拖动签名调整位置' : 'Drag the signature to move it'}
+          {t(locale, 'SignScreen_Drag_the_signature_to_move_it_f7c5b')}
         </Text>
       </View>
     </LocalFrame>

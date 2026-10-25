@@ -71,8 +71,8 @@ export async function manifests(fs: MemoryPackFs) {
   const base: PackManifest = {
     id: 'ocr',
     version: '7.0.0',
-    name: { en: 'OCR', zh: '文字识别包' },
-    description: { en: '', zh: '' },
+    name: { en: 'OCR', zh: '文字识别包', fr: 'OCR' },
+    description: { en: '', zh: '', fr: '' },
     license: 'Apache-2.0',
     files: [await file('https://cdn/a.js', 'aaa'), await file('https://cdn/b.js', 'bbbb')],
   };

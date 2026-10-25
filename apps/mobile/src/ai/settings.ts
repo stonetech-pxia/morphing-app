@@ -30,7 +30,7 @@ const KEYS = {
 /** 用户主动发来的一条需求（D-189）：只有这句话和没有身份信息的元数据。 */
 export interface Need {
   text: string;
-  locale: 'en' | 'zh';
+  locale: 'en' | 'zh' | 'fr';
   reason: 'unknown' | 'errand' | 'notInstalled';
   ai: AIMode;
 }

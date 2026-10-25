@@ -21,21 +21,29 @@ export const MODELS: readonly ModelInfo[] = [
     name: 'Claude Opus 5.5',
     price: { input: 4, output: 20, cacheRead: 0.2 },
     costPerChange: 0.005,
-    note: { zh: '能力最强', en: 'Most capable' },
+    note: { zh: '能力最强', en: 'Most capable', fr: 'Le plus performant' },
   },
   {
     id: 'claude-sonnet-5-5',
     name: 'Claude Sonnet 5.5',
     price: { input: 2, output: 10, cacheRead: 0.2 },
     costPerChange: 0.003,
-    note: { zh: '速度与能力均衡', en: 'Balanced speed and capability' },
+    note: {
+      zh: '速度与能力均衡',
+      en: 'Balanced speed and capability',
+      fr: 'Vitesse et performance équilibrées',
+    },
   },
   {
     id: 'claude-haiku-5-5',
     name: 'Claude Haiku 5.5',
     price: { input: 0.1, output: 0.5, cacheRead: 0.01 },
     costPerChange: 0.0002,
-    note: { zh: '最便宜（默认）', en: 'Lowest cost (default)' },
+    note: {
+      zh: '最便宜（默认）',
+      en: 'Lowest cost (default)',
+      fr: 'Coût le plus bas (par défaut)',
+    },
   },
 ];
 

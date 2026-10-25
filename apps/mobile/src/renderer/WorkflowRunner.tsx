@@ -1,4 +1,4 @@
-import { describeParams } from '@morph/core';
+import { localize, describeParams } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -15,7 +15,7 @@ export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: R
   const { palette, locale, registry } = env;
   const workflow = env.config.workflows.find((w) => w.id === workflowId);
   if (!workflow) return null;
-  const label = (action: string) => registry.actions.get(action)?.label[locale] ?? action;
+  const label = (action: string) => localize(registry.actions.get(action)?.label, locale) ?? action;
   // 关键设置（例如「不超过 500 KB」）；每次运行时询问的参数不列出。
   const settings = workflow.steps
     .flatMap((s) => {
@@ -25,7 +25,7 @@ export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: R
       const text = describeParams(action, s.params, locale, new Date(), fixed);
       return text ? [text] : [];
     })
-    .join(locale === 'zh' ? '；' : '; ');
+    .join(t(locale, 'separatorSemicolon'));
   const start = () => {
     if (env.locked) return env.locked();
     if (env.interactive) router.push({ pathname: '/run/[workflowId]', params: { workflowId } });
