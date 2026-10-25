@@ -78,9 +78,11 @@ async function commit(store: WorkspaceStore, ops: Op[], summary: string) {
   expect(await screen.findByText(`已改好：${summary}`)).toBeTruthy();
 }
 
-/** 长按：进入编辑模式并打开组件的操作面板。 */
+/** 保留的整页编辑入口：打开编辑模式和组件操作面板。 */
 async function longPress(testID: string) {
-  await fireEvent(await screen.findByTestId(testID), 'longPress');
+  const id = testID.replace('component-', '');
+  await fireEvent.press(await screen.findByTestId('page-edit'));
+  await fireEvent.press(await screen.findByTestId(`arrange-edit-${id}`));
   expect(await screen.findByTestId('edit-sheet')).toBeTruthy();
   expect(screen.getByTestId('arrange-bar')).toBeTruthy();
 }
@@ -386,12 +388,15 @@ describe('editing the page directly', () => {
       '按钮',
     );
     await fireEvent(await screen.findByText('去工具'), 'longPress');
-    expect(await screen.findByTestId('edit-sheet')).toBeTruthy();
+    expect(await screen.findByTestId('single-toolbar-go-tools')).toBeTruthy();
+    expect(screen.queryByTestId('edit-sheet')).toBeNull();
     expect(store.getState().tab).toBeNull();
+    await fireEvent.press(screen.getByTestId('single-edit-go-tools'));
     await fireEvent.press(screen.getByTestId('edit-text'));
     await fireEvent.changeText(screen.getByTestId('edit-field-label'), '打开工具');
     await fireEvent.press(screen.getByTestId('edit-save'));
-    await done(store, '编辑「首页」（1 处修改）');
+    await fireEvent.press(screen.getByTestId('single-done-go-tools'));
+    expect(await screen.findByText('已改好：编辑「首页」（1 处修改）')).toBeTruthy();
     expect(await screen.findByText('打开工具')).toBeTruthy();
   });
 
@@ -429,5 +434,50 @@ describe('editing the page directly', () => {
     expect(screen.queryByTestId('edit-sheet')).toBeNull();
     expect(store.getState().editing).toBeNull();
     expect(store.getState().head!.id).toBe(headId);
+  });
+});
+
+describe('single-component editing', () => {
+  it('long-press selects only that component, blocks normal actions and saves one undoable version', async () => {
+    const { store } = await renderApp();
+    const before = store.getState().head!.id;
+    expect(screen.queryByTestId('page-edit')).toBeNull();
+    await fireEvent(screen.getByTestId('component-welcome'), 'longPress');
+    expect(await screen.findByTestId('single-toolbar-welcome')).toBeTruthy();
+    expect(screen.queryByTestId('arrange-bar')).toBeNull();
+    expect(screen.queryByTestId('edit-sheet')).toBeNull();
+    expect(store.getState().editing).toMatchObject({ mode: 'single', ops: [] });
+    await fireEvent.press(screen.getByText('添加工具'));
+    expect(store.getState().tab).toBeNull();
+    await fireEvent.press(screen.getByTestId('single-edit-welcome'));
+    await fireEvent.press(screen.getByTestId('edit-text'));
+    await fireEvent.changeText(screen.getByTestId('edit-field-title'), '新工作台');
+    await fireEvent.press(screen.getByTestId('edit-save'));
+    expect(screen.getByTestId('single-toolbar-welcome')).toBeTruthy();
+    expect(store.getState().head!.id).toBe(before);
+    // 换一个组件时沿用同一份草稿。
+    await fireEvent(screen.getByTestId('component-catalog'), 'longPress');
+    expect(screen.getByTestId('single-toolbar-catalog')).toBeTruthy();
+    expect(screen.queryByTestId('single-toolbar-welcome')).toBeNull();
+    await fireEvent.press(screen.getByTestId('single-edit-catalog'));
+    await fireEvent.press(screen.getByTestId('edit-tone-primary'));
+    await fireEvent.press(screen.getByTestId('edit-close'));
+    await fireEvent.press(screen.getByTestId('single-done-catalog'));
+    expect(await screen.findByText('已改好：编辑「首页」（2 处修改）')).toBeTruthy();
+    expect(store.getState().head!.id).toBe(before + 1);
+    expect(store.getState().editing).toBeNull();
+    await undo(store);
+    expect(home(store).components[0]!.props).toMatchObject({ title: '我的工作台' });
+    expect(home(store).components[1]!.style).toBeUndefined();
+  });
+
+  it('finishing an unchanged selection on blank space creates no version', async () => {
+    const { store } = await renderApp();
+    const before = store.getState().head!.id;
+    await fireEvent(screen.getByTestId('component-welcome'), 'longPress');
+    expect(await screen.findByTestId('single-toolbar-welcome')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('single-blank'));
+    expect(store.getState().editing).toBeNull();
+    expect(store.getState().head!.id).toBe(before);
   });
 });

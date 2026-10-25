@@ -84,6 +84,7 @@ export interface Banner {
 /** 编辑模式的草稿（D-054）：操作先累积在这里，点「完成」时作为一个版本提交。 */
 export interface EditDraft {
   pageId: string;
+  mode: 'single' | 'page';
   /** 已合并相邻同类操作。 */
   ops: Op[];
   /** 应用 ops 后、已通过校验的配置；编辑模式下页面显示它。 */
@@ -240,7 +241,7 @@ export interface WorkspaceState {
   reportRenderError(error: unknown): Promise<void>;
   dismissBanner(): void;
   selectTab(target: NavTarget): void;
-  startEditing(pageId: string): void;
+  startEditing(pageId: string, mode?: EditDraft['mode']): void;
   /** 把操作加入草稿：先校验，不通过时草稿不变。 */
   editOps(ops: Op[]): EditResult;
   /** 「完成」：草稿作为一个 source 为 user 的版本提交；没有实际变化时直接退出。 */
@@ -1042,10 +1043,10 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       dismissBanner: () => set({ banner: null }),
       selectTab: (target) => set({ tab: target, editing: null }),
 
-      startEditing(pageId) {
+      startEditing(pageId, mode = 'page') {
         const { config, editing } = get();
         if (!config || editing?.pageId === pageId) return;
-        set({ editing: { pageId, ops: [], config } });
+        set({ editing: { pageId, mode, ops: [], config } });
       },
 
       editOps(ops) {

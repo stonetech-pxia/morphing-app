@@ -34,22 +34,27 @@ export function EditablePage({
   env: RenderEnv;
   bottomInset?: number;
 }) {
-  const draft = useWorkspace((s) => (s.editing?.pageId === page.id ? s.editing.config : null));
+  const editing = useWorkspace((s) => (s.editing?.pageId === page.id ? s.editing : null));
+  const draft = editing?.config;
   const startEditing = useWorkspace((s) => s.startEditing);
   const shown = draft?.pages.find((p) => p.id === page.id) ?? page;
   const { edit, finish, cancel } = useEditActions(shown);
   const [selected, setSelected] = useState<string | null>(null);
+  const [sheetId, setSheetId] = useState<string | null>(null);
 
   const sheet = (
     <EditSheet
       page={shown}
-      componentId={selected}
+      componentId={editing?.mode === 'page' ? selected : sheetId}
       palette={env.palette}
-      onClose={() => setSelected(null)}
+      onClose={() => {
+        setSheetId(null);
+        if (editing?.mode === 'page') setSelected(null);
+      }}
     />
   );
 
-  if (draft) {
+  if (draft && editing?.mode === 'page') {
     return (
       <>
         <ArrangeView
@@ -69,13 +74,19 @@ export function EditablePage({
   return (
     <>
       <PageView
-        page={page}
+        page={shown}
         env={
           directEditEntry.longPress && !env.locked
             ? {
                 ...env,
+                config: draft ?? env.config,
+                focus: {
+                  selectedId: draft ? selected : null,
+                  onEdit: setSheetId,
+                  onDone: () => void finish(),
+                },
                 edit: (id) => {
-                  startEditing(page.id);
+                  startEditing(page.id, 'single');
                   setSelected(id);
                 },
               }

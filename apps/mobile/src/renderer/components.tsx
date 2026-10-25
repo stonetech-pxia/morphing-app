@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 
 import { t } from '../i18n';
+import { FocusItem } from '../editing/FocusItem';
 import { RecordForm, RecordList, Stat } from './data';
 import { FileList } from './FileList';
 import { FilePick } from './FilePick';
@@ -54,6 +55,12 @@ export interface RenderEnv {
   pageId?: string;
   /** 可以直接编辑的页面：长按组件时打开它的操作面板（D-052）。预览和系统页面没有。 */
   edit?: (componentId: string) => void;
+  /** 单组件编辑保留正常页面布局，只给选中项加工具栏。 */
+  focus?: {
+    selectedId: string | null;
+    onEdit: (id: string) => void;
+    onDone: () => void;
+  };
   /** 当前组件的长按操作：组件里可点按的部分（卡片、按钮、列表行）也要响应长按。 */
   onLongPress?: () => void;
   /**
@@ -441,6 +448,13 @@ function Item({
   env: RenderEnv;
   style?: StyleProp<ViewStyle>;
 }) {
+  if (env.focus) {
+    return (
+      <FocusItem component={component} env={env} style={style}>
+        {(itemEnv) => <ComponentView component={component} env={itemEnv} />}
+      </FocusItem>
+    );
+  }
   const edit = env.interactive ? env.edit : undefined;
   if (!edit) {
     return (
@@ -485,10 +499,19 @@ export function PageView({
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets
       contentContainerStyle={{
+        flexGrow: 1,
         padding: palette.pad,
         gap: palette.gap,
         paddingBottom: 24 + bottomInset,
       }}>
+      {env.focus?.selectedId ? (
+        <Pressable
+          testID="single-blank"
+          accessible={false}
+          style={StyleSheet.absoluteFill}
+          onPress={env.focus.onDone}
+        />
+      ) : null}
       {runnerGrid(page.components.filter((c) => !c.hidden)).map((block) =>
         Array.isArray(block) ? (
           <View key={block[0]!.id} style={[styles.row, { gap: palette.gap - 4 }]}>
