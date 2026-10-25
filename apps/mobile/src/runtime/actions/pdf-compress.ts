@@ -1,4 +1,5 @@
-import { RunCancelled, RunError, type ActionImpl, type RunItem } from '@morph/core';
+import { t, RunCancelled, RunError, type ActionImpl, type RunItem } from '@morph/core';
+
 import { searchSharedQuality } from '@morph/tool-image';
 import {
   openForCompression,
@@ -34,18 +35,17 @@ const MIN_PAGE_SCALE = 0.3;
 const fileName = (item: RunItem) => `${item.name}.${item.ext}`;
 
 /** 压不到目标时问的一句（文字写在这里，不是 AI 生成的）。 */
-function tooBigQuestion(zh: boolean, name: string, target: string, got: string) {
-  return zh
-    ? {
-        title: `「${name}」压不到 ${target}`,
-        message: `保留文字最多能压到 ${got}。把每页转成图片能压得更小，但文字不能再选中、复制，链接和可以填写的表格也会失效。`,
-        options: ['转成图片', `就用 ${got} 的`],
-      }
-    : {
-        title: `“${name}” can’t get under ${target}`,
-        message: `Keeping the text, the smallest is ${got}. Turning the pages into pictures makes it smaller, but the text can no longer be selected or copied, and links and fillable fields stop working.`,
-        options: ['Turn into pictures', `Keep the ${got} one`],
-      };
+function tooBigQuestion(
+  locale: import('@morph/core').Locale,
+  name: string,
+  target: string,
+  got: string,
+) {
+  return {
+    title: t(locale, 'pdfCompressionLimit', { name, target }),
+    message: t(locale, 'pdfCompressionChoice', { got }),
+    options: [t(locale, 'pdfTurnIntoPictures'), t(locale, 'pdfKeepCurrent', { got })],
+  };
 }
 
 /** 保留文字，只压图片：返回压好的 PDF（可能还是比目标大）。 */
@@ -215,7 +215,7 @@ export const PDF_COMPRESS_IMPLS: Record<string, Impl> = {
         let choice = whenTooBig;
         if (choice === 'ask') {
           const q = tooBigQuestion(
-            ctx.locale === 'zh',
+            ctx.locale,
             fileName(item),
             formatBytes(target),
             formatBytes(best.length),

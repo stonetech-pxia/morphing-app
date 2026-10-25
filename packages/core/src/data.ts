@@ -1,3 +1,4 @@
+import { t } from './messages';
 import { evaluateFormula, parseFormula, type FormulaNode } from './formula';
 import type { Collection, Condition, Field, Locale, Period, SystemField } from './schema';
 
@@ -393,7 +394,7 @@ export function formatValue(field: Field, raw: unknown, locale: Locale): string 
         ? formatMoney(value as number, field.currency)
         : `${formatNumber(value as number, field.decimals)}${field.unit ? ` ${field.unit}` : ''}`;
     case 'file':
-      return locale === 'zh' ? '附件' : 'Attachment';
+      return t(locale, 'data_Attachment_6f6cf');
     case 'money':
       return formatMoney(value as number, field.currency);
     case 'number':
@@ -401,7 +402,7 @@ export function formatValue(field: Field, raw: unknown, locale: Locale): string 
     case 'rating':
       return '★'.repeat(value as number) + '☆'.repeat(5 - (value as number));
     case 'checkbox':
-      return value ? (locale === 'zh' ? '是' : 'Yes') : locale === 'zh' ? '否' : 'No';
+      return value ? t(locale, 'data_Yes_1f54e') : t(locale, 'data_No_04a4b');
     case 'choice':
       return field.options.find((o) => o.id === value)?.label ?? '';
     default:
@@ -436,10 +437,7 @@ export function recordsToCsv(
   records: readonly DataRecord[],
   locale: Locale,
 ): string {
-  const header = [
-    ...collection.fields.map((f) => f.name),
-    locale === 'zh' ? '创建时间' : 'Created',
-  ];
+  const header = [...collection.fields.map((f) => f.name), t(locale, 'data_Created_1626a')];
   const rows = records.map((r) => [
     ...collection.fields.map((f) => {
       const v = recordValue(r, collection, f.id);

@@ -1,3 +1,4 @@
+import { t, pairText } from '../messages';
 import { z } from 'zod';
 
 import { GIF_MAX_SECONDS, VIDEO_QUALITIES } from '../media';
@@ -19,8 +20,6 @@ import type { ActionDefinition } from '../workflow/contract';
 
 export const VIDEO_TOOL_ID = 'video';
 export const VIDEO_PAGE_ID = 'tool-video';
-
-const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
 
 export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   {
@@ -381,7 +380,7 @@ export function videoWorkflows(locale: Locale): Workflow[] {
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
     toolId: VIDEO_TOOL_ID,
-    name: t(locale, ...name),
+    name: pairText(locale, name),
     steps,
   });
   return [
@@ -522,24 +521,20 @@ export const videoTool: ToolDefinition = {
   actions: VIDEO_ACTIONS,
   createPage: (locale) => ({
     id: VIDEO_PAGE_ID,
-    title: t(locale, 'Video', '视频'),
+    title: t(locale, 'video_Video_19238'),
     icon: 'video',
     toolId: VIDEO_TOOL_ID,
     components: [
       {
         id: 'video-header',
         type: 'header',
-        props: { title: t(locale, 'Video tools', '视频工具') },
+        props: { title: t(locale, 'video_Video_tools_632fd') },
       },
       {
         id: 'video-intro',
         type: 'text',
         props: {
-          text: t(
-            locale,
-            'Everything runs on this device; nothing is uploaded.',
-            '全部在本机处理，不会上传。',
-          ),
+          text: t(locale, 'video_Everything_runs_on_this_device_nothing_d4b96'),
         },
       },
       ...videoWorkflows(locale).map((wf) => ({
@@ -550,7 +545,7 @@ export const videoTool: ToolDefinition = {
       {
         id: 'video-files',
         type: 'fileList',
-        props: { title: t(locale, 'Videos', '视频文件'), limit: 10, mimeType: 'video/*' },
+        props: { title: t(locale, 'video_Videos_0f33c'), limit: 10, mimeType: 'video/*' },
       },
     ],
   }),

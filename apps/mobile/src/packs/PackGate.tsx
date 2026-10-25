@@ -1,4 +1,5 @@
-import { packById, packDownloadSize, type Locale } from '@morph/core';
+import { localize, t, packById, packDownloadSize, type Locale } from '@morph/core';
+
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -49,9 +50,9 @@ export function PackGate({
     } catch (e) {
       setProgress(null);
       setError(
-        zh
-          ? `下载没有完成（${String((e as Error).message)}）。请检查网络后重试。`
-          : `The download did not finish (${String((e as Error).message)}). Check the connection and try again.`,
+        t(locale, 'PackGate_The_download_did_not_finish_Check_the__9d7b7', {
+          v0: String((e as Error).message),
+        }),
       );
     }
   }
@@ -79,23 +80,18 @@ export function PackGate({
           {/* 第一次用到时的提示（D-112）：不出现「扩展包」这个词，只说要下载多少、之后能离线用。 */}
           {text(
             'title',
-            zh
-              ? `首次使用需下载 ${size === null ? '…' : formatBytes(size)}`
-              : `First use needs a ${size === null ? '…' : formatBytes(size)} download`,
+            t(locale, 'PackGate_First_use_needs_a_download_3c1d7', {
+              v0: size === null ? '…' : formatBytes(size),
+            }),
           )}
-          {text(
-            'body',
-            zh
-              ? '之后不联网也能用。建议连接 Wi-Fi。'
-              : 'After that it works offline. Wi-Fi is recommended.',
-          )}
+          {text('body', t(locale, 'PackGate_After_that_it_works_offline_Wi_Fi_is_r_77ca7'))}
           {text(
             'body',
             [pack, ...missing.map((d) => packById(d) ?? null)]
-              .flatMap((p) => (p ? [p.description[locale]] : []))
+              .flatMap((p) => (p ? [localize(p.description, locale)] : []))
               .join(zh ? '' : ' '),
           )}
-          {text('body', zh ? `许可证：${pack.license}` : `License: ${pack.license}`, {
+          {text('body', t(locale, 'PackGate_License_ff05c', { v0: pack.license }), {
             fontSize: 12,
           })}
           {progress !== null ? (
@@ -117,13 +113,13 @@ export function PackGate({
           <View style={styles.actions}>
             <Pressable testID="pack-cancel" onPress={() => onDone(false)} hitSlop={8}>
               <Text style={[palette.font('bodyBold', 16), { color: palette.muted }]}>
-                {zh ? '取消' : 'Cancel'}
+                {t(locale, 'PackGate_Cancel_bd576')}
               </Text>
             </Pressable>
             {progress === null ? (
               <Pressable testID="pack-download" onPress={() => void download()} hitSlop={8}>
                 <Text style={[palette.font('bodyBold', 16), { color: palette.primaryText }]}>
-                  {zh ? (error ? '重试' : '下载') : error ? 'Retry' : 'Download'}
+                  {t(locale, error ? 'retry' : 'speechDownload')}
                 </Text>
               </Pressable>
             ) : null}

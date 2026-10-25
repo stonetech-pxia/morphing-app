@@ -767,7 +767,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       const next =
         plan.next ??
         (deferred?.ok && deferred.lines.length > 0
-          ? deferred.lines.join(locale === 'zh' ? '；' : '; ').slice(0, 200)
+          ? deferred.lines.join(t(locale, 'separatorSemicolon')).slice(0, 200)
           : null);
       const changeRequestId = await repo.createChangeRequest({
         input,
@@ -1139,7 +1139,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         try {
           const summary = draft.steps
             .map((s) => s.input)
-            .join(locale === 'zh' ? '；' : '; ')
+            .join(t(locale, 'separatorSemicolon'))
             .slice(0, 200);
           const revision = await repo.commitRevision({
             baseId: head.id,

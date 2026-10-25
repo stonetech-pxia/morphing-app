@@ -1,3 +1,4 @@
+import { localize } from '@morph/core';
 import { Text, View } from 'react-native';
 
 import { t } from '@/i18n';
@@ -16,7 +17,7 @@ export default function PacksRoute() {
   const removeTool = useToolDownloads((s) => s.remove);
   const tools = Object.entries(downloaded).map(([id, d]) => ({
     id,
-    name: registry.tools.get(id)?.name[locale] ?? id,
+    name: localize(registry.tools.get(id)?.name, locale) ?? id,
     version: d.version,
     bytes: d.bytes,
     added: added.some((x) => x.toolId === id),

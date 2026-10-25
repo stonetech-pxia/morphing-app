@@ -21,7 +21,7 @@ export function NeedButton({
   text: string;
   reason: RejectReason | undefined;
   palette: Palette;
-  locale: 'en' | 'zh';
+  locale: 'en' | 'zh' | 'fr';
 }) {
   const shown = useAISettings((s) => s.needsButton && s.canSendNeeds);
   const sendNeed = useAISettings((s) => s.sendNeed);

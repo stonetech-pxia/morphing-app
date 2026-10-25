@@ -1,3 +1,4 @@
+import { t, pairText } from './messages';
 import { createDefaultWorkspace } from './defaults';
 import { applyOps, type Op } from './ops';
 import type { Registry } from './registry';
@@ -36,8 +37,7 @@ const TOOLBOX_GROUPS: { id: string; title: [string, string]; toolIds?: string[] 
  * createDefaultWorkspace 保持空白：测试、评测和回退都以它为基准。
  */
 export function createStarterWorkspace(locale: Locale, registry: Registry): WorkspaceConfig {
-  const zh = locale === 'zh';
-  const pick = (pair: [string, string]) => (zh ? pair[1] : pair[0]);
+  const pick = (pair: [string, string]) => pairText(locale, pair);
   const base = createDefaultWorkspace(locale);
   const toolIds = STARTER_TOOL_IDS.filter((id) => registry.tools.has(id));
 
@@ -54,20 +54,20 @@ export function createStarterWorkspace(locale: Locale, registry: Registry): Work
   });
   const toolbox = {
     id: TOOLBOX_PAGE_ID,
-    title: zh ? '工具箱' : 'Toolbox',
+    title: t(locale, 'starter_Toolbox_802f3'),
     icon: 'apps' as const,
     components: [
       {
         id: 'toolbox-header',
         type: 'header' as const,
-        props: { title: zh ? '工具箱' : 'Toolbox' },
+        props: { title: t(locale, 'starter_Toolbox_802f3') },
       },
       ...grids,
       {
         id: 'toolbox-manage',
         type: 'button' as const,
         props: {
-          label: zh ? '管理工具' : 'Manage tools',
+          label: t(locale, 'starter_Manage_tools_f1487'),
           target: 'tools' as const,
           variant: 'text' as const,
         },
@@ -101,7 +101,7 @@ export function createStarterWorkspace(locale: Locale, registry: Registry): Work
         id: 'what-morph-can-do',
         type: 'shortcut',
         props: {
-          title: zh ? 'Morph 可以做什么' : 'What Morph can do',
+          title: t(locale, 'starter_What_Morph_can_do_8f4f4'),
           icon: 'workflow',
           target: 'quickActions',
         },
@@ -114,8 +114,8 @@ export function createStarterWorkspace(locale: Locale, registry: Registry): Work
         id: 'open-toolbox',
         type: 'shortcut',
         props: {
-          title: zh ? '工具箱' : 'Toolbox',
-          subtitle: zh ? '全部工具' : 'All tools',
+          title: t(locale, 'starter_Toolbox_802f3'),
+          subtitle: t(locale, 'starter_All_tools_0d722'),
           icon: 'apps',
           target: pageTarget(TOOLBOX_PAGE_ID),
         },

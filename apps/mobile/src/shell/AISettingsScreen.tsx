@@ -1,3 +1,4 @@
+import { localize } from '@morph/core';
 import { MODELS } from '@morph/planner';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
@@ -189,7 +190,7 @@ export function AISettingsScreen() {
               testID={`model-${m.id}`}
               selected={model === m.id}
               title={m.name}
-              note={`${m.note[locale]} · ${t(locale, 'perChange', { cost: m.costPerChange })}`}
+              note={`${localize(m.note, locale)} · ${t(locale, 'perChange', { cost: m.costPerChange })}`}
               onPress={() => {
                 setMessage(null);
                 void setModel(m.id);

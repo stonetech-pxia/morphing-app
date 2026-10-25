@@ -1,3 +1,5 @@
+import { localize } from './localization';
+import { t, pairText } from './messages';
 import { SYSTEM_TARGET_LABELS } from './defaults';
 import { plainText } from './richtext';
 import { shownInToolGrid, type ApplyNote, type Op } from './ops';
@@ -27,7 +29,7 @@ export interface DescribeContext {
 export function navTargetLabel(target: NavTarget, config: WorkspaceConfig, locale: Locale): string {
   const pageId = pageIdOf(target);
   if (pageId === null)
-    return SYSTEM_TARGET_LABELS[target as keyof typeof SYSTEM_TARGET_LABELS][locale];
+    return localize(SYSTEM_TARGET_LABELS[target as keyof typeof SYSTEM_TARGET_LABELS], locale);
   return config.pages.find((p) => p.id === pageId)?.title ?? pageId;
 }
 
@@ -36,78 +38,64 @@ export function componentLabel(
   config: WorkspaceConfig,
   ctx: DescribeContext,
 ): string {
-  const zh = ctx.locale === 'zh';
   switch (c.type) {
     case 'header':
-      return zh ? `标题「${c.props.title}」` : `header “${c.props.title}”`;
+      return t(ctx.locale, 'describe_header_455aa', { v0: c.props.title });
     case 'text':
-      return zh ? '说明文字' : 'description text';
+      return t(ctx.locale, 'describe_description_text_fccd4');
     case 'toolCard': {
-      const name = ctx.registry.tools.get(c.props.toolId)?.name[ctx.locale] ?? c.props.toolId;
-      return zh ? `「${name}」工具入口` : `${name} tool card`;
+      const name =
+        localize(ctx.registry.tools.get(c.props.toolId)?.name, ctx.locale) ?? c.props.toolId;
+      return t(ctx.locale, 'describe_tool_card_80198', { v0: name });
     }
     case 'filePick':
       return c.props.source === 'media'
-        ? zh
-          ? '打开相册'
-          : 'Open photo library'
-        : zh
-          ? '打开文件'
-          : 'Open files';
+        ? t(ctx.locale, 'describe_Open_photo_library_47a7e')
+        : t(ctx.locale, 'describe_Open_files_3477c');
     case 'toolGrid':
       return c.props.title
-        ? zh
-          ? `工具宫格「${c.props.title}」`
-          : `tool grid “${c.props.title}”`
-        : zh
-          ? '工具宫格'
-          : 'tool grid';
+        ? t(ctx.locale, 'describe_tool_grid_e987a', { v0: c.props.title })
+        : t(ctx.locale, 'describe_tool_grid_1c74f');
     case 'catalogLink':
-      return zh ? `「${c.props.title}」入口` : `“${c.props.title}” link`;
+      return t(ctx.locale, 'describe_link_941e3', { v0: c.props.title });
     case 'fileList':
-      return zh ? `文件列表「${c.props.title}」` : `file list “${c.props.title}”`;
+      return t(ctx.locale, 'describe_file_list_a11dd', { v0: c.props.title });
     case 'workflowRunner': {
       const wf = config.workflows.find((w) => w.id === c.props.workflowId);
-      return zh
-        ? `快捷操作「${wf?.name ?? c.props.workflowId}」`
-        : `quick action “${wf?.name ?? c.props.workflowId}”`;
+      return t(ctx.locale, 'describe_quick_action_1fb38', { v0: wf?.name ?? c.props.workflowId });
     }
     case 'button':
-      return zh ? `按钮「${c.props.label}」` : `button “${c.props.label}”`;
+      return t(ctx.locale, 'describe_button_d79ee', { v0: c.props.label });
     case 'shortcut':
-      return zh ? `快捷入口「${c.props.title}」` : `shortcut “${c.props.title}”`;
+      return t(ctx.locale, 'describe_shortcut_b2616', { v0: c.props.title });
     case 'notice':
-      return zh ? '提示框' : 'notice';
+      return t(ctx.locale, 'describe_notice_f50d5');
     case 'image':
       return c.props.caption
-        ? zh
-          ? `图片「${c.props.caption}」`
-          : `image “${c.props.caption}”`
-        : zh
-          ? '图片'
-          : 'image';
+        ? t(ctx.locale, 'describe_image_d5072', { v0: c.props.caption })
+        : t(ctx.locale, 'describe_image_df755');
     case 'divider':
-      return zh ? '分隔线' : 'divider';
+      return t(ctx.locale, 'describe_divider_7fe10');
     case 'spacer':
-      return zh ? '空白间距' : 'spacer';
+      return t(ctx.locale, 'describe_spacer_9a646');
     case 'recordList': {
       const name = collectionName(c.props.collectionId, config);
-      return zh ? `「${name}」的记录列表` : `“${name}” list`;
+      return t(ctx.locale, 'describe_list_0b528', { v0: name });
     }
     case 'recordForm': {
       const name = collectionName(c.props.collectionId, config);
-      return zh ? `「${name}」的添加表单` : `“${name}” form`;
+      return t(ctx.locale, 'describe_form_f4ef1', { v0: name });
     }
     case 'stat':
-      return zh ? `统计「${c.props.label}」` : `stat “${c.props.label}”`;
+      return t(ctx.locale, 'describe_stat_c1587', { v0: c.props.label });
     case 'group': {
       const layout = {
-        stack: zh ? '竖排' : 'stacked',
-        row: zh ? '横排' : 'row',
-        grid: zh ? '网格' : 'grid',
+        stack: t(ctx.locale, 'describe_stacked_00ce0'),
+        row: t(ctx.locale, 'describe_row_be7f8'),
+        grid: t(ctx.locale, 'describe_grid_3f0e7'),
       }[c.props.layout];
-      const name = c.props.title ? (zh ? `「${c.props.title}」` : ` “${c.props.title}”`) : '';
-      return zh ? `${layout}分组${name}` : `${layout} group${name}`;
+      const name = c.props.title ? t(ctx.locale, 'describe__5caf2', { v0: c.props.title }) : '';
+      return t(ctx.locale, 'describe_group_86cab', { v0: layout, v1: name });
     }
   }
 }
@@ -134,7 +122,7 @@ const FIELD_TYPE_NAMES: Record<string, [string, string]> = {
 type ThemeTokenKey = Exclude<keyof Theme, 'primaryColor' | 'mode' | 'colors' | 'darkColors'>;
 
 /** 主题 token 的名字和取值说明。 */
-function describeToken(key: ThemeTokenKey, value: unknown, zh: boolean): string {
+function describeToken(key: ThemeTokenKey, value: unknown, locale: Locale): string {
   const values: Record<string, Record<string, [string, string]>> = {
     font: {
       clay: ['默认字体（Sora + Karla）', 'the default fonts (Sora + Karla)'],
@@ -178,12 +166,12 @@ function describeToken(key: ThemeTokenKey, value: unknown, zh: boolean): string 
     navStyle: ['导航栏样式', 'Navigation bar'],
     backdrop: ['页面背景', 'Page background'],
   };
-  const pick = ([a, b]: [string, string]) => (zh ? a : b);
+  const pick = ([a, b]: [string, string]) => pairText(locale, [b, a]);
   let shown: string;
   if (key === 'fontScale') shown = `${Math.round(Number(value) * 100)}%`;
   else if (key === 'radius') shown = String(value);
   else shown = pick(values[key]?.[String(value)] ?? [String(value), String(value)]);
-  return zh ? `${pick(names[key])}改为${shown}` : `${pick(names[key])} → ${shown}`;
+  return t(locale, 'describe__41054', { v0: pick(names[key]), v1: shown });
 }
 
 export function describeChange(
@@ -216,13 +204,13 @@ export function describeChange(
     const c = findComp(pageId, id);
     return c ? componentLabel(c, known, ctx) : id;
   };
-  const toolName = (id: string) => ctx.registry.tools.get(id)?.name[ctx.locale] ?? id;
+  const toolName = (id: string) => localize(ctx.registry.tools.get(id)?.name, ctx.locale) ?? id;
   // 同一次修改里新建的工作流也要能找到名字（新建后接着加步骤）。
   const addedWorkflows = ops.flatMap((o) => (o.op === 'addWorkflow' ? [o.workflow] : []));
   const wf = (id: string) =>
     before.workflows.find((w) => w.id === id) ?? addedWorkflows.find((w) => w.id === id);
   const actionLabel = (action: string) =>
-    ctx.registry.actions.get(action)?.label[ctx.locale] ?? action;
+    localize(ctx.registry.actions.get(action)?.label, ctx.locale) ?? action;
   const stepLabel = (wfId: string, stepId: string) => {
     const action = wf(wfId)?.steps.find((s) => s.id === stepId)?.action;
     return action ? actionLabel(action) : stepId;
@@ -230,116 +218,125 @@ export function describeChange(
   const stepChain = (steps: readonly { action: string }[]) =>
     steps.map((st) => actionLabel(st.action)).join(' → ');
   const navList = (items: readonly NavTarget[]) =>
-    items.map((t) => navTargetLabel(t, known, ctx.locale)).join(zh ? '、' : ', ');
+    items.map((t) => navTargetLabel(t, known, ctx.locale)).join(t(ctx.locale, 'separatorList'));
   const modeLabel = {
-    light: zh ? '浅色' : 'light',
-    dark: zh ? '深色' : 'dark',
-    system: zh ? '跟随系统' : 'system',
+    light: t(ctx.locale, 'describe_light_57222'),
+    dark: t(ctx.locale, 'describe_dark_12552'),
+    system: t(ctx.locale, 'describe_system_84963'),
   };
 
   const colorNames = {
-    background: zh ? '背景色' : 'Background',
-    surface: zh ? '卡片颜色' : 'Card color',
-    text: zh ? '文字颜色' : 'Text color',
-    secondary: zh ? '辅助色' : 'Secondary color',
-    tertiary: zh ? '第三色' : 'Tertiary color',
+    background: t(ctx.locale, 'describe_Background_639fc'),
+    surface: t(ctx.locale, 'describe_Card_color_cb523'),
+    text: t(ctx.locale, 'describe_Text_color_af4a8'),
+    secondary: t(ctx.locale, 'describe_Secondary_color_844c7'),
+    tertiary: t(ctx.locale, 'describe_Tertiary_color_dec1a'),
   };
   const where = (pageId: string, parentId: string | undefined) => {
-    if (parentId === undefined) return zh ? `「${pageName(pageId)}」` : `“${pageName(pageId)}”`;
-    return zh
-      ? `「${pageName(pageId)}」的${comp(pageId, parentId)}`
-      : `${comp(pageId, parentId)} on “${pageName(pageId)}”`;
+    if (parentId === undefined) return t(ctx.locale, 'describe__441c2', { v0: pageName(pageId) });
+    return t(ctx.locale, 'describe_on_43dea', { v0: comp(pageId, parentId), v1: pageName(pageId) });
   };
 
   const coll = (id: string) => known.collections.find((c) => c.id === id);
   const collName = (id: string) => coll(id)?.name ?? id;
   const fieldName = (collectionId: string, fieldId: string) =>
     coll(collectionId)?.fields.find((f) => f.id === fieldId)?.name ?? fieldId;
-  const typeName = (type: unknown) => FIELD_TYPE_NAMES[String(type)]?.[zh ? 0 : 1] ?? String(type);
-  const list = (items: string[]) => items.join(zh ? '、' : ', ');
+  const typeName = (type: unknown) =>
+    FIELD_TYPE_NAMES[String(type)]
+      ? pairText(ctx.locale, [
+          FIELD_TYPE_NAMES[String(type)]![1],
+          FIELD_TYPE_NAMES[String(type)]![0],
+        ])
+      : String(type);
+  const list = (items: string[]) => items.join(t(ctx.locale, 'separatorList'));
 
   const lines: string[] = [];
   for (const op of ops) {
     switch (op.op) {
       case 'addCollection':
         lines.push(
-          zh
-            ? `新建数据表「${op.collection.name}」（${list(op.collection.fields.map((f) => f.name))}）`
-            : `Add data table “${op.collection.name}” (${list(op.collection.fields.map((f) => f.name))})`,
+          t(ctx.locale, 'describe_Add_data_table_f79c6', {
+            v0: op.collection.name,
+            v1: list(op.collection.fields.map((f) => f.name)),
+          }),
         );
         break;
       case 'updateCollection':
         if (op.name !== undefined)
           lines.push(
-            zh
-              ? `数据表「${collName(op.collectionId)}」改名为「${op.name}」`
-              : `Rename data table “${collName(op.collectionId)}” to “${op.name}”`,
+            t(ctx.locale, 'describe_Rename_data_table_to_c585f', {
+              v0: collName(op.collectionId),
+              v1: op.name,
+            }),
           );
         if (op.icon !== undefined)
           lines.push(
-            zh
-              ? `数据表「${collName(op.collectionId)}」换图标`
-              : `Change the icon of “${collName(op.collectionId)}”`,
+            t(ctx.locale, 'describe_Change_the_icon_of_9c456', { v0: collName(op.collectionId) }),
           );
         break;
       case 'addField':
         lines.push(
-          zh
-            ? `给「${collName(op.collectionId)}」加字段「${op.field.name}」（${typeName(op.field.type)}）`
-            : `Add field “${op.field.name}” (${typeName(op.field.type)}) to “${collName(op.collectionId)}”`,
+          t(ctx.locale, 'describe_Add_field_to_b8810', {
+            v0: op.field.name,
+            v1: typeName(op.field.type),
+            v2: collName(op.collectionId),
+          }),
         );
         break;
       case 'updateField': {
         const name = fieldName(op.collectionId, op.fieldId);
         const parts: string[] = [];
         if (typeof op.changes.name === 'string')
-          parts.push(zh ? `改名为「${op.changes.name}」` : `rename to “${op.changes.name}”`);
+          parts.push(t(ctx.locale, 'describe_rename_to_08deb', { v0: op.changes.name }));
         if (op.changes.type !== undefined)
-          parts.push(
-            zh ? `类型改为${typeName(op.changes.type)}` : `type → ${typeName(op.changes.type)}`,
-          );
+          parts.push(t(ctx.locale, 'describe_type_7382b', { v0: typeName(op.changes.type) }));
         if (Array.isArray(op.changes.options)) {
           const labels = (op.changes.options as { label?: unknown }[]).map((o) => String(o.label));
-          parts.push(zh ? `选项改为 ${list(labels)}` : `options → ${list(labels)}`);
+          parts.push(t(ctx.locale, 'describe_options_64e79', { v0: list(labels) }));
         }
-        if (parts.length === 0) parts.push(zh ? '调整设置' : 'update settings');
+        if (parts.length === 0) parts.push(t(ctx.locale, 'describe_update_settings_2aaf6'));
         lines.push(
-          zh
-            ? `「${collName(op.collectionId)}」的字段「${name}」${parts.join('，')}`
-            : `“${collName(op.collectionId)}” field “${name}”: ${parts.join(', ')}`,
+          t(ctx.locale, 'describeFieldChange', {
+            collection: collName(op.collectionId),
+            name,
+            changes: parts.join(t(ctx.locale, 'separatorComma')),
+          }),
         );
         break;
       }
       case 'moveField':
         lines.push(
-          zh
-            ? `把「${collName(op.collectionId)}」的字段「${fieldName(op.collectionId, op.fieldId)}」移到第 ${op.toIndex + 1} 位`
-            : `Move field “${fieldName(op.collectionId, op.fieldId)}” of “${collName(op.collectionId)}” to position ${op.toIndex + 1}`,
+          t(ctx.locale, 'describe_Move_field_of_to_position_aa798', {
+            v0: fieldName(op.collectionId, op.fieldId),
+            v1: collName(op.collectionId),
+            v2: op.toIndex + 1,
+          }),
         );
         break;
       case 'removeField':
         lines.push(
-          zh
-            ? `隐藏「${collName(op.collectionId)}」的字段「${fieldName(op.collectionId, op.fieldId)}」（已有数据保留）`
-            : `Hide field “${fieldName(op.collectionId, op.fieldId)}” of “${collName(op.collectionId)}” (existing data is kept)`,
+          t(ctx.locale, 'describe_Hide_field_of_existing_data_is_kept_4f9d1', {
+            v0: fieldName(op.collectionId, op.fieldId),
+            v1: collName(op.collectionId),
+          }),
         );
         break;
       case 'removeCollection':
         lines.push(
-          zh
-            ? `把数据表「${collName(op.collectionId)}」移出界面（记录保留，可在「设置 → 数据」里查看和导出）`
-            : `Remove data table “${collName(op.collectionId)}” from the app (records are kept in Settings → Data)`,
+          t(ctx.locale, 'describe_Remove_data_table_from_the_app_records_1a3d2', {
+            v0: collName(op.collectionId),
+          }),
         );
         break;
       case 'setTheme': {
         if (op.primaryColor)
-          lines.push(zh ? `主题色改为 ${op.primaryColor}` : `Theme color → ${op.primaryColor}`);
+          lines.push(t(ctx.locale, 'describe_Theme_color_8ee07', { v0: op.primaryColor }));
         if (op.mode)
-          lines.push(zh ? `外观改为${modeLabel[op.mode]}` : `Appearance → ${modeLabel[op.mode]}`);
+          lines.push(t(ctx.locale, 'describe_Appearance_b422e', { v0: modeLabel[op.mode] }));
         const colorChanges = [
           ...Object.entries(op.colors ?? {}).map(([k, v]) => [k, v, ''] as const),
           ...Object.entries(op.darkColors ?? {}).map(
-            ([k, v]) => [k, v, zh ? '深色模式的' : 'Dark mode '] as const,
+            ([k, v]) => [k, v, t(ctx.locale, 'describe_Dark_mode_74033')] as const,
           ),
         ];
         for (const [key, value, prefix] of colorChanges) {
@@ -348,12 +345,8 @@ export function describeChange(
           const name = prefix && !zh ? prefix + label.toLowerCase() : prefix + label;
           lines.push(
             value === null
-              ? zh
-                ? `${name}恢复默认`
-                : `${name} → default`
-              : zh
-                ? `${name}改为 ${value}`
-                : `${name} → ${value}`,
+              ? t(ctx.locale, 'describe_default_82b64', { v0: name })
+              : t(ctx.locale, 'describe__072d2', { v0: name, v1: value }),
           );
         }
         for (const key of [
@@ -365,81 +358,76 @@ export function describeChange(
           'navStyle',
           'backdrop',
         ] as const) {
-          if (op[key] !== undefined) lines.push(describeToken(key, op[key], zh));
+          if (op[key] !== undefined) lines.push(describeToken(key, op[key], ctx.locale));
         }
         break;
       }
       case 'applyThemePreset': {
-        const name = THEME_PRESETS[op.preset].name[zh ? 'zh' : 'en'];
+        const name = localize(THEME_PRESETS[op.preset].name, ctx.locale);
         lines.push(
-          zh
-            ? `样式换成「${name}」风格（颜色、字体、圆角、卡片和背景）`
-            : `Switch the style to “${name}” (colors, fonts, corners, cards and background)`,
+          t(ctx.locale, 'describe_Switch_the_style_to_colors_fonts_corne_60590', { v0: name }),
         );
         break;
       }
       case 'resetTheme':
-        lines.push(
-          zh
-            ? '样式恢复为默认风格（颜色、字体、圆角、间距）'
-            : 'Reset the style to the default (colors, fonts, corners, spacing)',
-        );
+        lines.push(t(ctx.locale, 'describe_Reset_the_style_to_the_default_colors__162af'));
         break;
       case 'setNavItems':
         lines.push(
-          zh
-            ? `导航栏改为：${navList(op.items)}（原来：${navList(before.shell.nav)}）`
-            : `Navigation → ${navList(op.items)} (was: ${navList(before.shell.nav)})`,
+          t(ctx.locale, 'describe_Navigation_was_7f9d5', {
+            v0: navList(op.items),
+            v1: navList(before.shell.nav),
+          }),
         );
         break;
       case 'setFloatingItems':
         lines.push(
           op.items.length === 0
-            ? zh
-              ? '去掉所有浮动按钮'
-              : 'Remove all floating buttons'
-            : zh
-              ? `浮动按钮改为：${navList(op.items)}`
-              : `Floating buttons → ${navList(op.items)}`,
+            ? t(ctx.locale, 'describe_Remove_all_floating_buttons_0029b')
+            : t(ctx.locale, 'describe_Floating_buttons_d071d', { v0: navList(op.items) }),
         );
         break;
       case 'setPageIcon':
         lines.push(
-          zh
-            ? `页面「${pageName(op.pageId)}」的图标${op.icon ? `改为 ${op.icon}` : '去掉'}`
-            : `Page “${pageName(op.pageId)}” icon → ${op.icon ?? 'none'}`,
+          t(ctx.locale, 'describePageIcon', {
+            page: pageName(op.pageId),
+            icon: op.icon
+              ? t(ctx.locale, 'describeNewIcon', { icon: op.icon })
+              : t(ctx.locale, 'describeNoIcon'),
+          }),
         );
         break;
       case 'addPage':
         lines.push(
-          zh
-            ? `新建页面「${op.page.title}」（${op.page.components.length} 块内容）`
-            : `Add page “${op.page.title}” (${op.page.components.length} blocks)`,
+          t(ctx.locale, 'describe_Add_page_blocks_80d1f', {
+            v0: op.page.title,
+            v1: op.page.components.length,
+          }),
         );
         break;
       case 'removePage':
         lines.push(
-          zh
-            ? `删除页面「${pageName(op.pageId)}」（文件不受影响）`
-            : `Remove page “${pageName(op.pageId)}” (files are not affected)`,
+          t(ctx.locale, 'describe_Remove_page_files_are_not_affected_5abad', {
+            v0: pageName(op.pageId),
+          }),
         );
         break;
       case 'setPageTitle':
         lines.push(
-          zh
-            ? `页面「${pageName(op.pageId)}」改名为「${op.title}」`
-            : `Rename page “${pageName(op.pageId)}” to “${op.title}”`,
+          t(ctx.locale, 'describe_Rename_page_to_5e2cc', { v0: pageName(op.pageId), v1: op.title }),
         );
         break;
       case 'moveComponent':
         lines.push(
-          zh
-            ? `把${comp(op.pageId, op.componentId)}移到${where(op.pageId, op.parentId)}第 ${op.toIndex + 1} 位`
-            : `Move ${comp(op.pageId, op.componentId)} to position ${op.toIndex + 1} in ${where(op.pageId, op.parentId)}`,
+          t(ctx.locale, 'describe_Move_to_position_in_7eb22', {
+            v0: comp(op.pageId, op.componentId),
+            v1: op.toIndex + 1,
+            v2: where(op.pageId, op.parentId),
+          }),
         );
         break;
       case 'setComponentProps': {
-        const propNames: Record<string, Record<Locale, string>> = {
+        const propNames: Record<string, import('./schema').Localized> = {
           title: { zh: '标题', en: 'title' },
           subtitle: { zh: '副标题', en: 'subtitle' },
           text: { zh: '文字', en: 'text' },
@@ -457,25 +445,26 @@ export function describeChange(
         const changes = Object.entries(op.props)
           .map(([k, v]) => {
             if (k === 'assetId') {
-              return v ? (zh ? '更换图片' : 'new picture') : zh ? '移除图片' : 'picture removed';
+              return v
+                ? t(ctx.locale, 'describe_new_picture_bf924')
+                : t(ctx.locale, 'describe_picture_removed_4fb32');
             }
-            const name = propNames[k]?.[ctx.locale] ?? k;
-            if (v === null) return zh ? `去掉${name}` : `${name} removed`;
+            const name = localize(propNames[k], ctx.locale) ?? k;
+            if (v === null) return t(ctx.locale, 'describe_removed_d5c25', { v0: name });
             // 富文本显示成纯文字，太长时截断。
             const shown = typeof v === 'string' && k === 'text' ? truncate(plainText(v)) : v;
             const value =
               typeof shown === 'string'
-                ? zh
-                  ? `「${shown}」`
-                  : `“${shown}”`
+                ? t(ctx.locale, 'describe__441c2', { v0: shown })
                 : JSON.stringify(shown);
-            return zh ? `${name}改为${value}` : `${name} → ${value}`;
+            return t(ctx.locale, 'describe__41054', { v0: name, v1: value });
           })
-          .join(zh ? '，' : ', ');
+          .join(t(ctx.locale, 'separatorComma'));
         lines.push(
-          zh
-            ? `修改${comp(op.pageId, op.componentId)}：${changes}`
-            : `Update ${comp(op.pageId, op.componentId)}: ${changes}`,
+          t(ctx.locale, 'describe_Update_75049', {
+            v0: comp(op.pageId, op.componentId),
+            v1: changes,
+          }),
         );
         break;
       }
@@ -497,52 +486,62 @@ export function describeChange(
           medium: ['中', 'medium'],
           large: ['大', 'large'],
         };
-        const i = zh ? 0 : 1;
         const changes = (Object.entries(op.style) as [string, string | null | undefined][])
           .filter((e): e is [string, string | null] => e[1] !== undefined)
           .map(([k, v]) => {
-            const shown = v === null ? (zh ? '默认' : 'default') : (values[v]?.[i] ?? v);
-            return zh ? `${names[k]![0]}改为${shown}` : `${names[k]![1]} → ${shown}`;
+            const shown =
+              v === null
+                ? t(ctx.locale, 'describe_default_9ef5c')
+                : values[v]
+                  ? pairText(ctx.locale, [values[v]![1], values[v]![0]])
+                  : v;
+            return t(ctx.locale, 'describeStyleChange', {
+              name: pairText(ctx.locale, [names[k]![1], names[k]![0]]),
+              value: shown,
+            });
           })
           .join(zh ? '，' : ', ');
         lines.push(
-          zh
-            ? `调整${comp(op.pageId, op.componentId)}的外观：${changes}`
-            : `Restyle ${comp(op.pageId, op.componentId)}: ${changes}`,
+          t(ctx.locale, 'describe_Restyle_0b6e5', {
+            v0: comp(op.pageId, op.componentId),
+            v1: changes,
+          }),
         );
         break;
       }
       case 'setComponentHidden':
         lines.push(
-          zh
-            ? `${op.hidden ? '隐藏' : '显示'}${comp(op.pageId, op.componentId)}`
-            : `${op.hidden ? 'Hide' : 'Show'} ${comp(op.pageId, op.componentId)}`,
+          t(ctx.locale, op.hidden ? 'describeHideComponent' : 'describeShowComponent', {
+            component: comp(op.pageId, op.componentId),
+          }),
         );
         break;
       case 'addComponent':
         lines.push(
-          zh
-            ? `在${where(op.pageId, op.parentId)}添加${componentLabel(op.component, known, ctx)}`
-            : `Add ${componentLabel(op.component, known, ctx)} to ${where(op.pageId, op.parentId)}`,
+          t(ctx.locale, 'describe_Add_to_f2026', {
+            v0: componentLabel(op.component, known, ctx),
+            v1: where(op.pageId, op.parentId),
+          }),
         );
         break;
       case 'removeComponent':
         lines.push(
-          zh
-            ? `从「${pageName(op.pageId)}」移除${comp(op.pageId, op.componentId)}`
-            : `Remove ${comp(op.pageId, op.componentId)} from “${pageName(op.pageId)}”`,
+          t(ctx.locale, 'describe_Remove_from_c2717', {
+            v0: comp(op.pageId, op.componentId),
+            v1: pageName(op.pageId),
+          }),
         );
         break;
       case 'installTool':
         // 工具箱里已经有这个工具时不再往首页放入口（D-181）。
         lines.push(
           shownInToolGrid(known, op.toolId, [...ctx.registry.tools.keys()])
-            ? zh
-              ? `添加「${toolName(op.toolId)}」工具：新增工具页面`
-              : `Add the ${toolName(op.toolId)} tool: adds its page`
-            : zh
-              ? `添加「${toolName(op.toolId)}」工具：新增工具页面和首页入口`
-              : `Add the ${toolName(op.toolId)} tool: adds its page and a home card`,
+            ? t(ctx.locale, 'describe_Add_the_tool_adds_its_page_7a595', {
+                v0: toolName(op.toolId),
+              })
+            : t(ctx.locale, 'describe_Add_the_tool_adds_its_page_and_a_home__ec774', {
+                v0: toolName(op.toolId),
+              }),
         );
         break;
       case 'updateTool':
@@ -550,9 +549,9 @@ export function describeChange(
         break;
       case 'uninstallTool':
         lines.push(
-          zh
-            ? `移除「${toolName(op.toolId)}」工具：移除入口、页面和快捷操作，已有文件全部保留`
-            : `Remove the ${toolName(op.toolId)} tool: removes its card, page and quick actions; your files are kept`,
+          t(ctx.locale, 'describe_Remove_the_tool_removes_its_card_page__2fb97', {
+            v0: toolName(op.toolId),
+          }),
         );
         break;
       case 'setStepParams': {
@@ -564,54 +563,51 @@ export function describeChange(
         const params =
           op.params && action ? describeParams(action, op.params, ctx.locale, ctx.now) : '';
         if (params) {
-          lines.push(zh ? `「${name}」的「${step}」：${params}` : `“${name}” – ${step}: ${params}`);
+          lines.push(t(ctx.locale, 'describe__3ca25', { v0: name, v1: step, v2: params }));
         } else if (op.params) {
-          lines.push(zh ? `调整「${name}」的「${step}」设置` : `Update “${name}” – ${step}`);
+          lines.push(t(ctx.locale, 'describe_Update_c2f66', { v0: name, v1: step }));
         }
         if (op.ask !== undefined) {
           const asked =
             action && op.ask.length > 0
               ? action.fields
                   .filter((f) => op.ask!.includes(f.key))
-                  .map((f) => f.label[ctx.locale])
-                  .join(zh ? '、' : ', ')
+                  .map((f) => localize(f.label, ctx.locale))
+                  .join(t(ctx.locale, 'separatorList'))
               : '';
           lines.push(
             asked
-              ? zh
-                ? `「${name}」每次运行时询问：${asked}`
-                : `“${name}” asks for ${asked} on every run`
-              : zh
-                ? `「${name}」的「${step}」不再询问，直接使用设定值`
-                : `“${name}” – ${step} no longer asks; it uses the saved settings`,
+              ? t(ctx.locale, 'describe_asks_for_on_every_run_708a8', { v0: name, v1: asked })
+              : t(ctx.locale, 'describe_no_longer_asks_it_uses_the_saved_setti_a3369', {
+                  v0: name,
+                  v1: step,
+                }),
           );
         }
         break;
       }
       case 'addWorkflow': {
-        const from = op.workflow.presetId ? (zh ? '（现成的）' : ' (ready-made)') : '';
+        const from = op.workflow.presetId ? t(ctx.locale, 'describe_ready_made_61047') : '';
         lines.push(
-          zh
-            ? `新建快捷操作「${op.workflow.name}」${from}：${stepChain(op.workflow.steps)}`
-            : `New quick action “${op.workflow.name}”${from}: ${stepChain(op.workflow.steps)}`,
+          t(ctx.locale, 'describe_New_quick_action_b4026', {
+            v0: op.workflow.name,
+            v1: from,
+            v2: stepChain(op.workflow.steps),
+          }),
         );
         break;
       }
       case 'removeWorkflow': {
         const name = wf(op.workflowId)?.name ?? op.workflowId;
         lines.push(
-          zh
-            ? `删除快捷操作「${name}」（文件不受影响）`
-            : `Delete the quick action “${name}” (files are kept)`,
+          t(ctx.locale, 'describe_Delete_the_quick_action_files_are_kept_deaf1', { v0: name }),
         );
         break;
       }
       case 'renameWorkflow': {
         const name = wf(op.workflowId)?.name ?? op.workflowId;
         lines.push(
-          zh
-            ? `快捷操作「${name}」改名为「${op.name}」`
-            : `Rename the quick action “${name}” to “${op.name}”`,
+          t(ctx.locale, 'describe_Rename_the_quick_action_to_e45a1', { v0: name, v1: op.name }),
         );
         break;
       }
@@ -621,33 +617,36 @@ export function describeChange(
         const params = action ? describeParams(action, op.step.params, ctx.locale, ctx.now) : '';
         const label = actionLabel(op.step.action);
         lines.push(
-          zh
-            ? `「${name}」加一步「${label}」${params ? `：${params}` : ''}`
-            : `Add the step “${label}” to “${name}”${params ? `: ${params}` : ''}`,
+          t(ctx.locale, 'describeAddStep', {
+            name,
+            label,
+            params: params ? t(ctx.locale, 'describeStepParameters', { params }) : '',
+          }),
         );
         break;
       }
       case 'moveWorkflowStep': {
         const name = wf(op.workflowId)?.name ?? op.workflowId;
         lines.push(
-          zh
-            ? `「${name}」把「${stepLabel(op.workflowId, op.stepId)}」移到第 ${op.toIndex + 1} 步`
-            : `Move “${stepLabel(op.workflowId, op.stepId)}” to step ${op.toIndex + 1} in “${name}”`,
+          t(ctx.locale, 'describe_Move_to_step_in_885bf', {
+            v0: stepLabel(op.workflowId, op.stepId),
+            v1: op.toIndex + 1,
+            v2: name,
+          }),
         );
         break;
       }
       case 'updateWorkflow': {
         const name = wf(op.workflowId)?.name ?? op.workflowId;
         if (op.name !== undefined && op.name !== name) {
-          lines.push(
-            zh ? `快捷操作「${name}」改名为「${op.name}」` : `Rename “${name}” to “${op.name}”`,
-          );
+          lines.push(t(ctx.locale, 'describe_Rename_to_decb3', { v0: name, v1: op.name }));
         }
         if (op.steps) {
           lines.push(
-            zh
-              ? `「${op.name ?? name}」的步骤：${stepChain(op.steps)}`
-              : `Steps of “${op.name ?? name}”: ${stepChain(op.steps)}`,
+            t(ctx.locale, 'describe_Steps_of_591ff', {
+              v0: op.name ?? name,
+              v1: stepChain(op.steps),
+            }),
           );
         }
         break;
@@ -655,9 +654,10 @@ export function describeChange(
       case 'removeWorkflowStep': {
         const name = wf(op.workflowId)?.name ?? op.workflowId;
         lines.push(
-          zh
-            ? `「${name}」去掉步骤「${stepLabel(op.workflowId, op.stepId)}」`
-            : `Remove step “${stepLabel(op.workflowId, op.stepId)}” from “${name}”`,
+          t(ctx.locale, 'describe_Remove_step_from_8750c', {
+            v0: stepLabel(op.workflowId, op.stepId),
+            v1: name,
+          }),
         );
         break;
       }
@@ -667,9 +667,7 @@ export function describeChange(
     if (note.kind === 'movedToFloating') {
       const label = navTargetLabel(note.target, before, ctx.locale);
       lines.push(
-        zh
-          ? `「${label}」不能移除（AI 修改和改动记录的入口都在里面），已改为浮动按钮`
-          : `“${label}” can’t be removed (it holds the AI and Change history entries), so it becomes a floating button`,
+        t(ctx.locale, 'describe_can_t_be_removed_it_holds_the_AI_and_C_e58da', { v0: label }),
       );
     } else if (note.kind === 'updatedTool') {
       const def = ctx.registry.tools.get(note.toolId);
@@ -681,30 +679,31 @@ export function describeChange(
         : note.workflowIds;
       lines.push(
         names.length === 0
-          ? zh
-            ? `更新「${toolName(note.toolId)}」工具到最新版本；你改过的内容保留`
-            : `Update the ${toolName(note.toolId)} tool to the latest version; your changes are kept`
-          : zh
-            ? `更新「${toolName(note.toolId)}」工具：新增 ${names.join('、')}；你改过的内容保留`
-            : `Update the ${toolName(note.toolId)} tool: adds ${names.join(', ')}; your changes are kept`,
+          ? t(ctx.locale, 'describe_Update_the_tool_to_the_latest_version__b20b4', {
+              v0: toolName(note.toolId),
+            })
+          : t(ctx.locale, 'describeUpdatedTool', {
+              tool: toolName(note.toolId),
+              names: names.join(t(ctx.locale, 'separatorList')),
+            }),
       );
     } else if (note.kind === 'removedRunners') {
       lines.push(
-        zh
-          ? `同时移除 ${note.count} 个运行这个快捷操作的卡片`
-          : `Also removes ${note.count} card(s) that ran this quick action`,
+        t(ctx.locale, 'describe_Also_removes_card_s_that_ran_this_quic_5d29f', { v0: note.count }),
       );
     } else if (note.kind === 'removedDataComponents') {
       lines.push(
-        zh
-          ? `同时移除 ${note.count} 块显示「${collName(note.collectionId)}」的内容`
-          : `Also removes ${note.count} block(s) that showed “${collName(note.collectionId)}”`,
+        t(ctx.locale, 'describe_Also_removes_block_s_that_showed_a7a30', {
+          v0: note.count,
+          v1: collName(note.collectionId),
+        }),
       );
     } else {
       lines.push(
-        zh
-          ? `同时移除 ${note.count} 个指向「${pageName(note.pageId)}」的按钮或快捷入口`
-          : `Also removes ${note.count} button(s) or shortcut(s) that opened “${pageName(note.pageId)}”`,
+        t(ctx.locale, 'describe_Also_removes_button_s_or_shortcut_s_th_d4dc1', {
+          v0: note.count,
+          v1: pageName(note.pageId),
+        }),
       );
     }
   }
@@ -718,27 +717,26 @@ export function describeRestore(
   revision: { id: number; summary: string },
   ctx: Pick<DescribeContext, 'registry' | 'locale'>,
 ): string[] {
-  const zh = ctx.locale === 'zh';
-  const toolName = (id: string) => ctx.registry.tools.get(id)?.name[ctx.locale] ?? id;
+  const toolName = (id: string) => localize(ctx.registry.tools.get(id)?.name, ctx.locale) ?? id;
   const beforeTools = new Set(before.tools.map((t) => t.toolId));
   const afterTools = new Set(after.tools.map((t) => t.toolId));
   const lines = [
-    zh
-      ? `回到「${revision.summary}」那时候的样子：页面、导航、主题和快捷操作都回到当时`
-      : `Go back to when “${revision.summary}” happened: pages, navigation, theme and quick actions return to how they were`,
+    t(ctx.locale, 'describe_Go_back_to_when_happened_pages_navigat_cbdc3', {
+      v0: revision.summary,
+    }),
   ];
   for (const id of beforeTools) {
     if (!afterTools.has(id)) {
       lines.push(
-        zh
-          ? `「${toolName(id)}」工具的入口和快捷操作会被移除；它用过和生成的文件都会保留，重新添加即可继续使用`
-          : `The ${toolName(id)} tool’s card and quick actions will be removed; its files are kept and you can add it again`,
+        t(ctx.locale, 'describe_The_tool_s_card_and_quick_actions_will_a857b', {
+          v0: toolName(id),
+        }),
       );
     }
   }
   for (const id of afterTools) {
     if (!beforeTools.has(id)) {
-      lines.push(zh ? `「${toolName(id)}」工具会重新出现` : `The ${toolName(id)} tool comes back`);
+      lines.push(t(ctx.locale, 'describe_The_tool_comes_back_205fb', { v0: toolName(id) }));
     }
   }
   const tables = (c: WorkspaceConfig) => new Set(c.collections.map((x) => x.id));
@@ -746,25 +744,19 @@ export function describeRestore(
   for (const c of before.collections) {
     if (!afterTables.has(c.id)) {
       lines.push(
-        zh
-          ? `数据表「${c.name}」会移出界面；记录保留在「设置 → 数据」，以后回到有它的时候数据还在`
-          : `The “${c.name}” table leaves the app; its entries stay in Settings → Data and come back with it`,
+        t(ctx.locale, 'describe_The_table_leaves_the_app_its_entries_s_29282', { v0: c.name }),
       );
     }
   }
   for (const c of after.collections) {
     if (!beforeTables.has(c.id)) {
-      lines.push(zh ? `数据表「${c.name}」会重新出现` : `The “${c.name}” table comes back`);
+      lines.push(t(ctx.locale, 'describe_The_table_comes_back_dd301', { v0: c.name }));
     }
   }
   lines.push(
     before.collections.length + after.collections.length > 0
-      ? zh
-        ? '你的文件和记录的数据不受影响'
-        : 'Your files and entries are not affected'
-      : zh
-        ? '你的文件不受影响'
-        : 'Your files are not affected',
+      ? t(ctx.locale, 'describe_Your_files_and_entries_are_not_affecte_c87ef')
+      : t(ctx.locale, 'describe_Your_files_are_not_affected_3c83c'),
   );
   return lines;
 }

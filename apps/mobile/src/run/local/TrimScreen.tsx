@@ -139,7 +139,7 @@ function Preview({
   range: TrimRange;
   edge: 'start' | 'end' | null;
   palette: Palette;
-  locale: 'en' | 'zh';
+  locale: 'en' | 'zh' | 'fr';
 }) {
   const video = item.mimeType.startsWith('video/');
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });

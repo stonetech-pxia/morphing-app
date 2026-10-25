@@ -1,4 +1,12 @@
-import { GUIDE_GOALS, guideGoal, type GuideGoalId, type Locale, type Localized } from '@morph/core';
+import {
+  localize,
+  GUIDE_GOALS,
+  guideGoal,
+  type GuideGoalId,
+  type Locale,
+  type Localized,
+} from '@morph/core';
+
 import { create } from 'zustand';
 
 import type { WorkspaceRepo } from '../storage/types';
@@ -53,9 +61,9 @@ export const LOOK_PROMPTS: readonly Localized[] = [
 export function guideText(param: string | undefined, locale: Locale): string | null {
   if (!param) return null;
   const look = /^look-(\d+)$/.exec(param);
-  if (look) return LOOK_PROMPTS[Number(look[1])]?.[locale] ?? null;
+  if (look) return localize(LOOK_PROMPTS[Number(look[1])], locale) ?? null;
   return GUIDE_GOALS.some((g) => g.id === param)
-    ? guideGoal(param as GuideGoalId).text[locale]
+    ? localize(guideGoal(param as GuideGoalId).text, locale)
     : null;
 }
 

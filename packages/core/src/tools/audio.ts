@@ -1,3 +1,4 @@
+import { t, pairText } from '../messages';
 import { z } from 'zod';
 
 import { AUDIO_FORMATS, AUDIO_QUALITIES } from '../audio';
@@ -18,8 +19,6 @@ import type { ActionDefinition } from '../workflow/contract';
 
 export const AUDIO_TOOL_ID = 'audio';
 export const AUDIO_PAGE_ID = 'tool-audio';
-
-const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
 
 const formatField = {
   key: 'format',
@@ -275,7 +274,7 @@ export function audioWorkflows(locale: Locale): Workflow[] {
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
     toolId: AUDIO_TOOL_ID,
-    name: t(locale, ...name),
+    name: pairText(locale, name),
     steps,
   });
   return [
@@ -388,24 +387,20 @@ export const audioTool: ToolDefinition = {
   actions: AUDIO_ACTIONS,
   createPage: (locale) => ({
     id: AUDIO_PAGE_ID,
-    title: t(locale, 'Audio', '音频'),
+    title: t(locale, 'audio_Audio_2bfdb'),
     icon: 'audio',
     toolId: AUDIO_TOOL_ID,
     components: [
       {
         id: 'audio-header',
         type: 'header',
-        props: { title: t(locale, 'Audio tools', '音频工具') },
+        props: { title: t(locale, 'audio_Audio_tools_ca3ac') },
       },
       {
         id: 'audio-intro',
         type: 'text',
         props: {
-          text: t(
-            locale,
-            'Everything runs on this device; nothing is uploaded. Recognized text may have mistakes, so check it.',
-            '全部在本机处理，不会上传。识别出的文字可能有错字，请核对。',
-          ),
+          text: t(locale, 'audio_Everything_runs_on_this_device_nothing_de468'),
         },
       },
       ...audioWorkflows(locale).map((wf) => ({
@@ -416,7 +411,7 @@ export const audioTool: ToolDefinition = {
       {
         id: 'audio-files',
         type: 'fileList',
-        props: { title: t(locale, 'Audio files', '音频文件'), limit: 10, mimeType: 'audio/*' },
+        props: { title: t(locale, 'audio_Audio_files_185dc'), limit: 10, mimeType: 'audio/*' },
       },
     ],
   }),

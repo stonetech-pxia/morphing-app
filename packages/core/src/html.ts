@@ -1,3 +1,4 @@
+import { t } from './messages';
 import {
   aggregateRecords,
   fieldOf,
@@ -75,8 +76,6 @@ export interface RecordsHtmlOptions {
   now: Date;
 }
 
-const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
-
 /** 记录 → HTML。receipt 在表格下面合计第一个金额（没有就数字）字段。 */
 export function recordsToHtml(
   collection: Collection,
@@ -89,9 +88,9 @@ export function recordsToHtml(
   );
   const nameOf = (ref: string) =>
     ref === 'createdAt'
-      ? t(locale, 'Created', '创建时间')
+      ? t(locale, 'html_Created_1626a')
       : ref === 'updatedAt'
-        ? t(locale, 'Updated', '修改时间')
+        ? t(locale, 'html_Updated_74f0c')
         : fieldOf(collection, ref)!.name;
   const numeric = (ref: string) => {
     const f = fieldOf(collection, ref);
@@ -100,7 +99,7 @@ export function recordsToHtml(
   const cell = (r: DataRecord, ref: string) => escapeHtml(formatRef(r, collection, ref, locale));
   const date = `${opts.now.getFullYear()}-${String(opts.now.getMonth() + 1).padStart(2, '0')}-${String(opts.now.getDate()).padStart(2, '0')}`;
   const header = `<header><h1>${escapeHtml(opts.title || collection.name)}</h1>
-<div class="meta">${escapeHtml(collection.name)} · ${t(locale, `${records.length} records`, `${records.length} 条`)} · ${date}</div></header>`;
+<div class="meta">${escapeHtml(collection.name)} · ${t(locale, 'html_records_3f794', { v0: records.length })} · ${date}</div></header>`;
 
   let body: string;
   if (opts.template === 'cards') {
@@ -136,7 +135,7 @@ export function recordsToHtml(
           field.type === 'money'
             ? formatMoney(sum, field.currency)
             : formatNumber(sum, field.type === 'number' ? field.decimals : undefined);
-        total = `<div class="total">${t(locale, 'Total', '合计')} · ${escapeHtml(field.name)}：<strong>${escapeHtml(shown)}</strong></div>`;
+        total = `<div class="total">${t(locale, 'html_Total_08322')} · ${escapeHtml(field.name)}：<strong>${escapeHtml(shown)}</strong></div>`;
       }
     }
     body = `<table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>${total}`;

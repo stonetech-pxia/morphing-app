@@ -23,7 +23,6 @@ export function PagesScreen({
   onDone,
   onCancel,
 }: LocalScreenProps<'pages'>) {
-  const zh = locale === 'zh';
   const [rows, setRows] = useState<Row[]>(() =>
     input.pages.map((_, index) => ({ index, rotate: 0 })),
   );
@@ -65,7 +64,7 @@ export function PagesScreen({
   return (
     <LocalFrame
       palette={palette}
-      title={zh ? `整理页面（${rows.length} 页）` : `Pages (${rows.length})`}
+      title={t(locale, 'PagesScreen_Pages_ab40b', { v0: rows.length })}
       cancelLabel={t(locale, 'cancel')}
       doneLabel={t(locale, 'localDone')}
       onCancel={onCancel}
@@ -107,11 +106,11 @@ export function PagesScreen({
               </View>
               <View style={styles.flex}>
                 <Text style={[palette.font('bodyMedium', 15), { color: palette.text }]}>
-                  {zh ? `第 ${row.index + 1} 页` : `Page ${row.index + 1}`}
+                  {t(locale, 'PagesScreen_Page_e76ad', { v0: row.index + 1 })}
                 </Text>
                 {row.rotate ? (
                   <Text style={[palette.font('body', 13), { color: palette.muted }]}>
-                    {zh ? `旋转 ${row.rotate}°` : `Rotated ${row.rotate}°`}
+                    {t(locale, 'PagesScreen_Rotated_41854', { v0: row.rotate })}
                   </Text>
                 ) : null}
               </View>
@@ -125,7 +124,7 @@ export function PagesScreen({
         {removed.length > 0 ? (
           <Pressable testID="pages-restore" onPress={restore} style={styles.restore}>
             <Text style={[palette.font('bodyBold', 15), { color: palette.primaryText }]}>
-              {zh ? `恢复删掉的 ${removed.length} 页` : `Restore ${removed.length} removed`}
+              {t(locale, 'PagesScreen_Restore_removed_a7e1a', { v0: removed.length })}
             </Text>
           </Pressable>
         ) : null}

@@ -1,4 +1,4 @@
-import { GUIDE_GOALS } from '@morph/core';
+import { localize, GUIDE_GOALS } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -65,7 +65,7 @@ export function GuideCard({ palette }: { palette: Palette }) {
               <Chip
                 key={prompt.en}
                 testID={`guide-look-${i}`}
-                label={prompt[locale]}
+                label={localize(prompt, locale)}
                 palette={palette}
                 onPress={() => open(`look-${i}`)}
               />
@@ -95,7 +95,7 @@ export function GuideCard({ palette }: { palette: Palette }) {
               <Icon name="sparkles" size={18} color={palette.onPrimary} />
               <Text
                 style={[palette.font('bodyBold', 16), styles.flex, { color: palette.onPrimary }]}>
-                {`“${first!.text[locale]}”`}
+                {`“${localize(first!.text, locale)}”`}
               </Text>
             </Pressable>
             <Text style={[palette.font('bodyBold', 13), { color: palette.caption }]}>
@@ -106,7 +106,7 @@ export function GuideCard({ palette }: { palette: Palette }) {
                 <Chip
                   key={goal.id}
                   testID={`guide-goal-${goal.id}`}
-                  label={goal.text[locale]}
+                  label={localize(goal.text, locale)}
                   palette={palette}
                   onPress={() => open(goal.id)}
                 />

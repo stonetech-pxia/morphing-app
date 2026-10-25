@@ -1,4 +1,5 @@
 import {
+  localize,
   renderNameTemplate,
   sanitizeFileName,
   type AskRequest,
@@ -6,6 +7,7 @@ import {
   type RunValue,
   isFileValue,
 } from '@morph/core';
+
 import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -70,7 +72,8 @@ export function AskPanel({
         const literal = String(value ?? '')
           .replace(/[{}]/g, '')
           .trim();
-        if (!literal) return setError(t(locale, 'askInvalid', { detail: field.label[locale] }));
+        if (!literal)
+          return setError(t(locale, 'askInvalid', { detail: localize(field.label, locale) }));
         value = sanitizeFileName(literal);
       }
       answers[key] = value;
@@ -79,11 +82,13 @@ export function AskPanel({
     if (!parsed.success) {
       const labels = parsed.error.issues.map((i) => {
         const key = String(i.path[0] ?? '');
-        return request.action.fields.find((f) => f.key === key)?.label[locale] ?? i.message;
+        return (
+          localize(request.action.fields.find((f) => f.key === key)?.label, locale) ?? i.message
+        );
       });
       setError(
         t(locale, 'askInvalid', {
-          detail: [...new Set(labels)].join(locale === 'zh' ? '、' : ', '),
+          detail: [...new Set(labels)].join(t(locale, 'separatorList')),
         }),
       );
       return;
@@ -105,7 +110,7 @@ export function AskPanel({
             { backgroundColor: palette.surface, borderRadius: palette.radius },
           ]}>
           <Text style={[palette.font('title', 18), { color: palette.text }]}>
-            {onlyName ? t(locale, 'askName') : request.action.label[locale]}
+            {onlyName ? t(locale, 'askName') : localize(request.action.label, locale)}
           </Text>
           <ParamForm
             action={request.action}

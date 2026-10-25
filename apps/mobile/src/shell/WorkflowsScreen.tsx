@@ -1,4 +1,5 @@
 import {
+  localize,
   QUICK_ACTION_KINDS,
   QUICK_ACTION_CATEGORIES,
   WORKFLOW_PRESETS,
@@ -13,6 +14,7 @@ import {
   type Registry,
   type Workflow,
 } from '@morph/core';
+
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -31,7 +33,9 @@ import { Banner } from './Shell';
 
 /** 步骤串成一行：「选照片 → 证件照 → 命名」。 */
 export function stepChain(wf: Pick<Workflow, 'steps'>, registry: Registry, locale: Locale): string {
-  return wf.steps.map((s) => registry.actions.get(s.action)?.label[locale] ?? s.action).join(' → ');
+  return wf.steps
+    .map((s) => localize(registry.actions.get(s.action)?.label, locale) ?? s.action)
+    .join(' → ');
 }
 
 /**
@@ -53,7 +57,6 @@ export function WorkflowsScreen({
   shared?: string;
   embedded?: boolean;
 }) {
-  const zh = locale === 'zh';
   const router = useRouter();
   const config = useWorkspace((s) => s.config)!;
   const { files, repo } = useWorkspaceContext();
@@ -106,10 +109,10 @@ export function WorkflowsScreen({
     const result = fit(w);
     if (result.ok) return '';
     if (result.reason === 'tooFew')
-      return zh ? `需要至少 ${result.min} 个文件` : `Needs at least ${result.min} files`;
+      return t(locale, 'WorkflowsScreen_Needs_at_least_files_0ed9b', { v0: result.min });
     if (result.reason === 'tooMany')
-      return zh ? `最多 ${result.max} 个文件` : `Takes at most ${result.max} files`;
-    return zh ? '不适用于这批文件' : 'Cannot use these files';
+      return t(locale, 'WorkflowsScreen_Takes_at_most_files_0fe59', { v0: result.max });
+    return t(locale, 'WorkflowsScreen_Cannot_use_these_files_d0ca3');
   };
   const caption = [palette.font('body', 13), { color: palette.muted }];
 
@@ -139,14 +142,14 @@ export function WorkflowsScreen({
           variant="text"
           palette={palette}
           testID={`workflow-run-${wf.id}`}
-          label={zh ? '运行' : 'Run'}
+          label={t(locale, 'WorkflowsScreen_Run_5cab2')}
           disabled={!fits(wf)}
           onPress={() => run(wf)}
         />
         <Pill
           palette={palette}
           testID={`workflow-edit-${wf.id}`}
-          label={zh ? '编辑' : 'Edit'}
+          label={t(locale, 'WorkflowsScreen_Edit_ef7c8')}
           onPress={() => edit(wf)}
         />
       </View>
@@ -160,15 +163,13 @@ export function WorkflowsScreen({
     return (
       <Card key={preset.id} palette={palette} testID={`preset-${preset.id}`}>
         <Text style={[palette.font('title', 16), { color: palette.text }]}>
-          {preset.name[locale]}
-          {added.length > 0 ? (zh ? ' · 已添加' : ' · added') : ''}
+          {localize(preset.name, locale)}
+          {added.length > 0 ? t(locale, 'WorkflowsScreen_added_db6a6') : ''}
         </Text>
-        <Text style={caption}>{preset.description[locale]}</Text>
+        <Text style={caption}>{localize(preset.description, locale)}</Text>
         {needsDownload ? (
           <Text style={caption}>
-            {zh
-              ? '首次使用需要下载一些内容，之后不联网也能用。'
-              : 'The first run downloads what it needs; it works offline afterwards.'}
+            {t(locale, 'WorkflowsScreen_The_first_run_downloads_what_it_needs__3a8fa')}
           </Text>
         ) : null}
         <View style={styles.actions}>
@@ -178,7 +179,7 @@ export function WorkflowsScreen({
               variant="text"
               palette={palette}
               testID={`preset-run-${preset.id}`}
-              label={zh ? '运行' : 'Run'}
+              label={t(locale, 'WorkflowsScreen_Run_5cab2')}
               disabled={!fits(added.at(-1)!)}
               onPress={() => run(added.at(-1)!)}
             />
@@ -186,12 +187,16 @@ export function WorkflowsScreen({
           <Pill
             palette={palette}
             testID={`preset-add-${preset.id}`}
-            label={added.length > 0 ? (zh ? '再添加一个' : 'Add another') : zh ? '添加' : 'Add'}
+            label={
+              added.length > 0
+                ? t(locale, 'WorkflowsScreen_Add_another_fea84')
+                : t(locale, 'WorkflowsScreen_Add_b7a68')
+            }
             onPress={() => {
               const wf = presetWorkflow(preset, locale, newWorkflowId(preset.id, config.workflows));
               void change(
                 [{ op: 'addWorkflow', workflow: wf }],
-                zh ? `添加了快捷操作「${wf.name}」` : `Added the quick action “${wf.name}”`,
+                t(locale, 'WorkflowsScreen_Added_the_quick_action_ad5f0', { v0: wf.name }),
               );
             }}
           />
@@ -209,14 +214,16 @@ export function WorkflowsScreen({
         style={{ backgroundColor: palette.background }}
         contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 48 }}>
         {embedded ? null : <Banner palette={palette} />}
-        <PageTitle palette={palette}>{zh ? 'Morph 可以做什么' : 'What Morph can do'}</PageTitle>
+        <PageTitle palette={palette}>
+          {t(locale, 'WorkflowsScreen_What_Morph_can_do_8f4f4')}
+        </PageTitle>
         {QUICK_ACTION_KINDS.map((category) => (
           <Card key={category} palette={palette}>
             <Icon name={QUICK_ACTION_CATEGORIES[category].icon} size={24} color={palette.primary} />
             <Button
               palette={palette}
               testID={`category-${category}`}
-              label={QUICK_ACTION_CATEGORIES[category].name[locale]}
+              label={localize(QUICK_ACTION_CATEGORIES[category].name, locale)}
               onPress={() => {
                 handed.current = true;
                 const route = {
@@ -238,37 +245,43 @@ export function WorkflowsScreen({
       style={{ backgroundColor: palette.background }}
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 48 }}>
       {embedded ? null : <Banner palette={palette} />}
-      <PageTitle palette={palette}>{QUICK_ACTION_CATEGORIES[kind].name[locale]}</PageTitle>
+      <PageTitle palette={palette}>
+        {localize(QUICK_ACTION_CATEGORIES[kind].name, locale)}
+      </PageTitle>
       <Button
         palette={palette}
         testID="quick-actions-create"
-        label={zh ? '做一个自己的快捷操作' : 'Make your own quick action'}
+        label={t(locale, 'WorkflowsScreen_Make_your_own_quick_action_8bc98')}
         onPress={() => {
           handed.current = true;
           router.push({
             pathname: '/change',
             params: {
-              text: QUICK_ACTION_CATEGORIES[kind].prefill[locale],
+              text: localize(QUICK_ACTION_CATEGORIES[kind].prefill, locale),
               ...(shared ? { shared } : {}),
             },
           });
         }}
       />
-      <SectionLabel palette={palette}>{zh ? '我的快捷操作' : 'My quick actions'}</SectionLabel>
+      <SectionLabel palette={palette}>
+        {t(locale, 'WorkflowsScreen_My_quick_actions_07fc0')}
+      </SectionLabel>
       {mine.length === 0 ? (
         <Text testID="workflows-empty" style={caption}>
-          {zh ? '还没有。从下面现成的里添加一个吧。' : 'None yet. Add a ready-made one below.'}
+          {t(locale, 'WorkflowsScreen_None_yet_Add_a_ready_made_one_below_c24f8')}
         </Text>
       ) : (
         mine.map((wf) => row(wf))
       )}
-      <SectionLabel palette={palette}>{zh ? '现成的' : 'Ready-made'}</SectionLabel>
+      <SectionLabel palette={palette}>{t(locale, 'WorkflowsScreen_Ready_made_1f239')}</SectionLabel>
       {WORKFLOW_PRESETS.filter((preset) => presetKinds(preset).includes(kind)).map(presetCard)}
       {toolOwned.length > 0 ? (
         <>
-          <SectionLabel palette={palette}>{zh ? '工具自带的' : 'From your tools'}</SectionLabel>
+          <SectionLabel palette={palette}>
+            {t(locale, 'WorkflowsScreen_From_your_tools_dca19')}
+          </SectionLabel>
           {toolOwned.map((wf) =>
-            row(wf, registry.tools.get(wf.toolId!)?.name[locale] ?? wf.toolId),
+            row(wf, localize(registry.tools.get(wf.toolId!)?.name, locale) ?? wf.toolId),
           )}
         </>
       ) : null}

@@ -1,3 +1,4 @@
+import { localize } from '@morph/core';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
@@ -43,7 +44,7 @@ export default function RunRoute() {
     (s) => workflow?.toolId !== undefined && toolRevoked(s, workflow.toolId),
   );
   if (workflow && revoked) {
-    const name = registry.tools.get(workflow.toolId!)?.name[locale] ?? workflow.toolId!;
+    const name = localize(registry.tools.get(workflow.toolId!)?.name, locale) ?? workflow.toolId!;
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <Stack.Screen options={{ title: workflow.name }} />

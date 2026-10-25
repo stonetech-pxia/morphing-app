@@ -1,4 +1,5 @@
 import {
+  localize,
   pageTarget,
   type Component,
   type ComponentStyle,
@@ -8,6 +9,7 @@ import {
   type Registry,
   type WorkspaceConfig,
 } from '@morph/core';
+
 import type { ReactNode } from 'react';
 import {
   Pressable,
@@ -170,8 +172,8 @@ function ToolCard({
       env={env}
       style={style}
       icon={def.icon}
-      title={page?.title ?? def.name[env.locale]}
-      subtitle={def.description[env.locale]}
+      title={page?.title ?? localize(def.name, env.locale)}
+      subtitle={localize(def.description, env.locale)}
       onPress={() => env.navigate(pageTarget(installed.pageId))}
     />
   );

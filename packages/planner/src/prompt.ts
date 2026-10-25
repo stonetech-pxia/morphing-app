@@ -1,4 +1,5 @@
 import {
+  t,
   ICON_NAMES,
   WORKFLOW_PRESETS,
   THEME_PRESETS,
@@ -10,6 +11,7 @@ import {
   type Registry,
   type WorkspaceConfig,
 } from '@morph/core';
+
 import { z } from 'zod';
 
 // 发给模型的提示词。系统提示词只依赖工具目录（内置的加上下载的），内容稳定，可以被缓存；
@@ -274,7 +276,7 @@ export function buildUserMessage(
   about?: PlanAbout,
   earlier?: readonly PlanEarlier[],
 ): string {
-  return `Interface language: ${locale === 'zh' ? 'Simplified Chinese' : 'English'}
+  return `Interface language: ${t(locale, 'prompt_English_fafbe')}
 
 <workspace_config>
 ${JSON.stringify(config)}

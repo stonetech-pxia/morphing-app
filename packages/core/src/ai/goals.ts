@@ -1,3 +1,5 @@
+import { localize } from '../localization';
+import { t } from '../messages';
 import type { Op } from '../ops';
 import type { IconName, Locale, Localized, Workflow } from '../schema';
 import { newWorkflowId } from '../workflows/presets';
@@ -25,7 +27,6 @@ export interface GuideGoal {
   sample: 'photos' | 'pdfs' | null;
 }
 
-const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
 const share = { id: 'share', action: 'out.share', params: {} };
 const rename = (template: string) => ({ id: 'name', action: 'file.rename', params: { template } });
 
@@ -48,7 +49,7 @@ export const GUIDE_GOALS: readonly GuideGoal[] = [
       { id: 'clean', action: 'image.stripMetadata', params: {} },
       { id: 'size', action: 'image.resize', params: { mode: 'longEdge', px: 2048 } },
       { id: 'zip', action: 'zip.create', params: {} },
-      rename(t(locale, 'Trip photos {date}', '旅行照片-{date}')),
+      rename(t(locale, 'goals_Trip_photos_4142c')),
       share,
     ],
     notes: [
@@ -125,7 +126,7 @@ export const GUIDE_GOALS: readonly GuideGoal[] = [
         },
       },
       { id: 'compress', action: 'pdf.compress', params: { maxMB: 10, whenTooBig: 'ask' } },
-      rename(t(locale, 'Contracts {date}', '合同-{date}')),
+      rename(t(locale, 'goals_Contracts_3f8a8')),
       share,
     ],
     notes: [
@@ -151,7 +152,7 @@ export function goalPlan(input: string, ctx: PlanContext): Plan | null {
   const goal = GUIDE_GOALS.find((g) => g.match.some((re) => re.test(text)));
   if (!goal) return null;
   const taken = ctx.config.workflows;
-  const base = goal.name[ctx.locale];
+  const base = localize(goal.name, ctx.locale);
   let name = base;
   for (let i = 2; taken.some((w) => w.name === name); i++) name = `${base} ${i}`;
   const workflow: Workflow = {
@@ -161,5 +162,5 @@ export function goalPlan(input: string, ctx: PlanContext): Plan | null {
     steps: goal.steps(ctx.locale),
   };
   const ops: Op[] = [{ op: 'addWorkflow', workflow }];
-  return { kind: 'ops', ops, notes: goal.notes.map((n) => n[ctx.locale]) };
+  return { kind: 'ops', ops, notes: goal.notes.map((n) => localize(n, ctx.locale)) };
 }

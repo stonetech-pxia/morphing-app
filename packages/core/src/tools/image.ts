@@ -1,3 +1,4 @@
+import { t, pairText } from '../messages';
 import { z } from 'zod';
 
 import { GIF_MAX_FRAMES } from '../media';
@@ -10,8 +11,6 @@ import type { ActionDefinition, ParamField } from '../workflow/contract';
 
 export const IMAGE_TOOL_ID = 'image';
 export const IMAGE_PAGE_ID = 'tool-image';
-
-const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
 
 export const IMAGE_FORMATS = ['jpeg', 'png', 'webp'] as const;
 
@@ -808,7 +807,7 @@ function single(
   return {
     id,
     toolId: IMAGE_TOOL_ID,
-    name: t(locale, ...name),
+    name: pairText(locale, name),
     steps: [
       { id: 'pick', action: 'in.photos', params: { source: 'library', ...pick } },
       { id: 'run', action, params, ...(ask.length ? { ask } : {}) },
@@ -847,7 +846,7 @@ export function imageWorkflows(locale: Locale): Workflow[] {
     {
       id: 'image-heic',
       toolId: IMAGE_TOOL_ID,
-      name: t(locale, 'HEIC to JPG', 'HEIC 转 JPG'),
+      name: t(locale, 'image_HEIC_to_JPG_64d8f'),
       steps: [
         {
           id: 'pick',
@@ -904,7 +903,7 @@ export function imageWorkflows(locale: Locale): Workflow[] {
       'image.watermark',
       ['Watermark', '加水印'],
       {
-        text: t(locale, 'Copy', '仅供办理使用'),
+        text: t(locale, 'image_Copy_49a2a'),
         mode: 'tile',
         corner: 'bottomRight',
         sizePercent: 30,
@@ -924,7 +923,7 @@ export function imageWorkflows(locale: Locale): Workflow[] {
     {
       id: 'image-printsheet',
       toolId: IMAGE_TOOL_ID,
-      name: t(locale, 'ID photos to print', '证件照冲印排版'),
+      name: t(locale, 'image_ID_photos_to_print_5dd87'),
       steps: [
         { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 1 } },
         {
@@ -970,24 +969,20 @@ export const imageTool: ToolDefinition = {
   actions: [...IMAGE_ACTIONS, ...IMAGE_COMPOSE_ACTIONS],
   createPage: (locale) => ({
     id: IMAGE_PAGE_ID,
-    title: t(locale, 'Images', '图片'),
+    title: t(locale, 'image_Images_edfbd'),
     icon: 'photo',
     toolId: IMAGE_TOOL_ID,
     components: [
       {
         id: 'image-header',
         type: 'header',
-        props: { title: t(locale, 'Image tools', '图片工具') },
+        props: { title: t(locale, 'image_Image_tools_2d55f') },
       },
       {
         id: 'image-intro',
         type: 'text',
         props: {
-          text: t(
-            locale,
-            'Everything runs on this device. Results are saved only when you tap Save.',
-            '全部在本机处理，不会上传。点「存到文件」才会保存结果。',
-          ),
+          text: t(locale, 'image_Everything_runs_on_this_device_Results_3f5b4'),
         },
       },
       ...imageWorkflows(locale).map((wf) => ({

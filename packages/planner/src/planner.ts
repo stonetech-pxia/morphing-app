@@ -1,4 +1,11 @@
-import { PlanSchema, prepareOps, redactForAI, type AIProvider, type Registry } from '@morph/core';
+import {
+  t,
+  PlanSchema,
+  prepareOps,
+  redactForAI,
+  type AIProvider,
+  type Registry,
+} from '@morph/core';
 
 import { buildRepairMessage, buildUserMessage } from './prompt';
 
@@ -43,10 +50,8 @@ export interface PlannerOptions {
   onCompletion?: (completion: Completion) => void;
 }
 
-const refusalMessage = (locale: 'en' | 'zh') =>
-  locale === 'zh'
-    ? '这个请求无法处理，请换一种说法描述你想怎么修改这个 App。'
-    : 'This request can’t be handled. Try describing how you want to change the app.';
+const refusalMessage = (locale: 'en' | 'zh' | 'fr') =>
+  t(locale, 'planner_This_request_can_t_be_handled_Try_desc_04270');
 
 /** 从回复文字中取出 JSON（容忍模型偶尔加上的代码块标记）。 */
 function parseJson(text: string): { ok: true; value: unknown } | { ok: false; issue: string } {

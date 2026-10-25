@@ -18,7 +18,6 @@ export function RecordEntryScreen({
   onDone,
   onCancel,
 }: LocalScreenProps<'recordEntry'>) {
-  const zh = locale === 'zh';
   const { collection, prefill, file, index, total } = input;
   // 附件由这一步放进去，不显示；公式显示算出来的值。
   const fieldIds = collection.fields.filter((f) => f.type !== 'file').map((f) => f.id);
@@ -55,7 +54,7 @@ export function RecordEntryScreen({
       palette={palette}
       title={total > 1 ? `${collection.name} · ${index + 1}/${total}` : collection.name}
       cancelLabel={t(locale, 'cancel')}
-      doneLabel={zh ? '记下' : 'Save'}
+      doneLabel={t(locale, 'RecordEntryScreen_Save_0e67b')}
       onCancel={onCancel}
       onDone={done}
       avoidKeyboard>
@@ -75,7 +74,7 @@ export function RecordEntryScreen({
             <Text
               numberOfLines={1}
               style={[palette.font('bodyMedium', 14), { color: palette.muted }]}>
-              {zh ? `附件：${file.name}.${file.ext}` : `Attachment: ${file.name}.${file.ext}`}
+              {t(locale, 'RecordEntryScreen_Attachment_9a7fe', { v0: file.name, v1: file.ext })}
             </Text>
           </View>
         ) : null}
@@ -96,7 +95,7 @@ export function RecordEntryScreen({
             style={styles.skip}
             hitSlop={8}>
             <Text style={[palette.font('bodyBold', 15), { color: palette.primaryText }]}>
-              {zh ? '这一个不记，看下一个' : 'Skip this one'}
+              {t(locale, 'RecordEntryScreen_Skip_this_one_d0de1')}
             </Text>
           </Pressable>
         ) : null}

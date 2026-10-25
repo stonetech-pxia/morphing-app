@@ -1,3 +1,5 @@
+import { localize } from '../localization';
+import { t, pairText } from '../messages';
 import { z } from 'zod';
 
 import type { ToolDefinition } from '../registry';
@@ -9,8 +11,6 @@ import type { ActionDefinition } from '../workflow/contract';
 // 只输出纯文字（可以再排成 PDF），不保留原文件的排版。
 
 export const TRANSLATE_TOOL_ID = 'translate';
-
-const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
 
 /**
  * 能选的语言（BCP 47）：Apple 翻译和 ML Kit 都支持的常用语言。繁体中文只有 iOS 支持
@@ -248,7 +248,7 @@ export function groupBySource(
 /** 语言的显示名；不在列表里的（自动识别出的瑞典文等）显示代码。 */
 export function translateLanguageName(code: string, locale: Locale): string {
   const known = TRANSLATE_LANGUAGE_NAMES[code as TranslateLanguage];
-  return known ? known[locale] : code;
+  return known ? localize(known, locale) : code;
 }
 
 // ---- 工具 ----
@@ -263,7 +263,7 @@ export function translateWorkflows(locale: Locale): Workflow[] {
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
     toolId: TRANSLATE_TOOL_ID,
-    name: t(locale, ...name),
+    name: pairText(locale, name),
     steps,
   });
   return [
@@ -310,24 +310,20 @@ export const translateTool: ToolDefinition = {
   actions: TRANSLATE_ACTIONS,
   createPage: (locale) => ({
     id: `tool-${TRANSLATE_TOOL_ID}`,
-    title: t(locale, 'Translate', '翻译'),
+    title: t(locale, 'translate_Translate_6c51b'),
     icon: 'translate',
     toolId: TRANSLATE_TOOL_ID,
     components: [
       {
         id: 'translate-header',
         type: 'header',
-        props: { title: t(locale, 'Translate', '翻译') },
+        props: { title: t(locale, 'translate_Translate_6c51b') },
       },
       {
         id: 'translate-intro',
         type: 'text',
         props: {
-          text: t(
-            locale,
-            'Translates on this device; the text is never uploaded. Good for understanding the meaning — for official documents, use a professional translator. The first use of a language may need a download.',
-            '在本机翻译，文字不会上传。适合看懂意思；正式文件请找专业翻译。第一次用某种语言时可能要下载。',
-          ),
+          text: t(locale, 'translate_Translates_on_this_device_the_text_is__027c8'),
         },
       },
       ...translateWorkflows(locale).map((wf) => ({

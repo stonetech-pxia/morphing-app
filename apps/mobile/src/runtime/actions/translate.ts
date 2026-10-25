@@ -44,7 +44,7 @@ export const TRANSLATE_IMPLS: Record<string, Impl> = {
     const to = String(params.to);
     const name = (code: string) => translateLanguageName(code, locale);
     const names = (codes: readonly string[]) =>
-      [...new Set(codes)].map(name).join(locale === 'zh' ? '、' : ', ');
+      [...new Set(codes)].map(name).join(t(locale, 'separatorList'));
 
     const pieces = splitForTranslation(text);
     const flat = pieces.flat(2);

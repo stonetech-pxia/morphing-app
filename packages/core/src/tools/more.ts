@@ -1,3 +1,4 @@
+import { t, pairText } from '../messages';
 import { z } from 'zod';
 
 import { RECORD_TEMPLATES } from '../html';
@@ -7,8 +8,6 @@ import type { ActionDefinition } from '../workflow/contract';
 
 // T6 的小工具：压缩包（fflate）、二维码（lean-qr / jsQR）、文字转 PDF、用记录生成 PDF。
 // 实现分别在 packages/tool-archive、packages/tool-qr、core/html.ts 和 App 运行时（expo-print）。
-
-const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
 
 const pageSizeField = {
   key: 'pageSize',
@@ -47,12 +46,12 @@ function simpleTool(spec: {
     actions: spec.actions,
     createPage: (locale) => ({
       id: pageId,
-      title: t(locale, ...spec.name),
+      title: pairText(locale, spec.name),
       icon: spec.icon,
       toolId: spec.id,
       components: [
-        { id: `${spec.id}-header`, type: 'header', props: { title: t(locale, ...spec.name) } },
-        { id: `${spec.id}-intro`, type: 'text', props: { text: t(locale, ...spec.intro) } },
+        { id: `${spec.id}-header`, type: 'header', props: { title: pairText(locale, spec.name) } },
+        { id: `${spec.id}-intro`, type: 'text', props: { text: pairText(locale, spec.intro) } },
         ...createWorkflows(locale).map((wf) => ({
           id: `${wf.id}-runner`,
           type: 'workflowRunner' as const,
@@ -111,35 +110,35 @@ export const zipTool = simpleTool({
   workflows: (locale) => [
     {
       id: 'zip-files',
-      name: t(locale, 'ZIP files', '文件打包'),
+      name: t(locale, 'more_ZIP_files_d8402'),
       steps: [
         { id: 'pick', action: 'in.files', params: { accept: 'any', min: 1, max: 50 } },
         { id: 'zip', action: 'zip.create', params: {} },
         {
           id: 'name',
           action: 'file.rename',
-          params: { template: t(locale, 'Files {date}', '文件-{date}') },
+          params: { template: t(locale, 'more_Files_0e973') },
           ask: ['template'],
         },
       ],
     },
     {
       id: 'zip-photos',
-      name: t(locale, 'ZIP photos', '照片打包'),
+      name: t(locale, 'more_ZIP_photos_b72f4'),
       steps: [
         { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 50 } },
         { id: 'zip', action: 'zip.create', params: {} },
         {
           id: 'name',
           action: 'file.rename',
-          params: { template: t(locale, 'Photos {date}', '照片-{date}') },
+          params: { template: t(locale, 'more_Photos_c2260') },
           ask: ['template'],
         },
       ],
     },
     {
       id: 'zip-extract',
-      name: t(locale, 'Unzip', '解压'),
+      name: t(locale, 'more_Unzip_cc21e'),
       steps: [
         { id: 'pick', action: 'in.files', params: { accept: 'zip', min: 1, max: 1 } },
         { id: 'unzip', action: 'zip.extract', params: {} },
@@ -222,7 +221,7 @@ export const qrTool = simpleTool({
   workflows: (locale) => [
     {
       id: 'qr-make',
-      name: t(locale, 'Make a QR code', '生成二维码'),
+      name: t(locale, 'more_Make_a_QR_code_7011a'),
       steps: [
         { id: 'type', action: 'in.text', params: { text: '' }, ask: ['text'] },
         { id: 'make', action: 'qr.generate', params: { sizePx: 600, ecc: 'M' } },
@@ -231,7 +230,7 @@ export const qrTool = simpleTool({
     {
       // D-199：给客人连 Wi-Fi 的码。每次问网络名和加密方式，密码总是问、不保存。
       id: 'qr-wifi',
-      name: t(locale, 'Wi-Fi QR code', 'Wi-Fi 二维码'),
+      name: t(locale, 'more_Wi_Fi_QR_code_12af4'),
       steps: [
         {
           id: 'wifi',
@@ -244,7 +243,7 @@ export const qrTool = simpleTool({
     },
     {
       id: 'qr-read',
-      name: t(locale, 'Read a QR code', '识别二维码'),
+      name: t(locale, 'more_Read_a_QR_code_df393'),
       steps: [
         { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 10 } },
         { id: 'read', action: 'qr.read', params: {} },
@@ -326,7 +325,7 @@ export const textTool = simpleTool({
   workflows: (locale) => [
     {
       id: 'text-pdf',
-      name: t(locale, 'Text to PDF', '文字转 PDF'),
+      name: t(locale, 'more_Text_to_PDF_ac970'),
       steps: [
         { id: 'type', action: 'in.text', params: { text: '' }, ask: ['text'] },
         { id: 'pdf', action: 'text.toPdf', params: { pageSize: 'a4', fontSize: 12 } },

@@ -1,3 +1,4 @@
+import { t, pairText } from '../messages';
 import { z } from 'zod';
 
 import { OCR_LANGUAGES, ocrPackId } from '../packs';
@@ -11,8 +12,6 @@ import type { ActionDefinition } from '../workflow/contract';
 
 export const OCR_TOOL_ID = 'ocr';
 export const OCR_PAGE_ID = 'tool-ocr';
-
-const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
 
 export const OCR_LANGUAGE_NAMES: Record<(typeof OCR_LANGUAGES)[number], Localized> = {
   eng: { en: 'English', zh: '英文' },
@@ -79,7 +78,7 @@ export function ocrWorkflows(locale: Locale): Workflow[] {
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
     toolId: OCR_TOOL_ID,
-    name: t(locale, ...name),
+    name: pairText(locale, name),
     steps,
   });
   return [
@@ -117,24 +116,20 @@ export const ocrTool: ToolDefinition = {
   actions: OCR_ACTIONS,
   createPage: (locale) => ({
     id: OCR_PAGE_ID,
-    title: t(locale, 'Text recognition', '文字识别'),
+    title: t(locale, 'ocr_Text_recognition_fe569'),
     icon: 'text',
     toolId: OCR_TOOL_ID,
     components: [
       {
         id: 'ocr-header',
         type: 'header',
-        props: { title: t(locale, 'Text recognition', '文字识别') },
+        props: { title: t(locale, 'ocr_Text_recognition_fe569') },
       },
       {
         id: 'ocr-intro',
         type: 'text',
         props: {
-          text: t(
-            locale,
-            'Runs on this device; the text is never uploaded. Most phones use built-in text recognition; otherwise each language is downloaded the first time you use it.',
-            '在本机识别，文字不会上传。大多数手机用系统自带的识别；不支持的语言第一次用时下载。',
-          ),
+          text: t(locale, 'ocr_Runs_on_this_device_the_text_is_never__38fca'),
         },
       },
       ...ocrWorkflows(locale).map((wf) => ({

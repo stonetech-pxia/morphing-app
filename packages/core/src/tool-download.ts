@@ -1,3 +1,4 @@
+import { localize } from './localization';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha2.js';
 import { z } from 'zod';
@@ -124,7 +125,7 @@ export const ToolManifestSchema = z.strictObject({
 });
 export type ToolManifest = z.infer<typeof ToolManifestSchema>;
 
-const pick = (locale: Locale, text: { en: string; zh: string }) => text[locale];
+const pick = (locale: Locale, text: { en: string; zh: string }) => localize(text, locale);
 
 /** 把清单变成注册表里的工具：工具页和 simpleTool 的排法一样（标题、说明、每个快捷操作一个运行卡片）。 */
 export function toolFromManifest(manifest: ToolManifest): ToolDefinition {

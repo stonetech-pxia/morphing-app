@@ -1,3 +1,5 @@
+import { localize } from '../localization';
+import { t } from '../messages';
 import { checkNameTemplate } from '../naming';
 import { applyOps, topIndex, type Op } from '../ops';
 import { workflowProblems } from '../workflow/check';
@@ -33,9 +35,10 @@ import {
   type Workflow,
   type WorkflowStep,
   type WorkspaceConfig,
+  ICON_NAMES,
 } from '../schema';
 import { isEmoji } from '../richtext';
-import { ICON_NAMES } from '../schema';
+
 import {
   entryOps,
   templateCollectionOp,
@@ -584,7 +587,7 @@ const templateRule: Rule = (clause, state) => {
   const { config, ctx } = state;
   const waiting = templateCollectionWithoutPage(template, config);
   if (waiting) return templatePageOps(template, config, ctx.locale, waiting);
-  const name = TEMPLATE_NAMES[template][ctx.locale];
+  const name = localize(TEMPLATE_NAMES[template], ctx.locale);
   state.next = say(ctx.locale, `增加${name}页面`, `Add a ${name} page`);
   return [templateCollectionOp(template, config, ctx.locale)];
 };
@@ -989,7 +992,8 @@ function requireWorkable(wf: Workflow, state: State): void {
   if (!problem) return;
   const step = wf.steps.find((s) => s.id === problem.stepId);
   const label = step
-    ? (state.ctx.registry.actions.get(step.action)?.label[state.ctx.locale] ?? step.action)
+    ? (localize(state.ctx.registry.actions.get(step.action)?.label, state.ctx.locale) ??
+      step.action)
     : '';
   throw new Rejection(
     'unknown',
@@ -1340,7 +1344,9 @@ const translateDocRule: Rule = (clause, state) => {
       ];
   // 名字最长 40 个字：简体中文就叫「中文」。
   const language =
-    to === 'zh-Hans' ? say(locale, '中文', 'Chinese') : TRANSLATE_LANGUAGE_NAMES[to][locale];
+    to === 'zh-Hans'
+      ? say(locale, '中文', 'Chinese')
+      : localize(TRANSLATE_LANGUAGE_NAMES[to], locale);
   const base = say(
     locale,
     `${doc.toUpperCase() === 'PDF' ? 'PDF' : doc}翻成${language}`,
@@ -1402,7 +1408,7 @@ const quickActionsRule: Rule = (clause, state) => {
         id: newComponentId('what-morph-can-do', home),
         type: 'shortcut',
         props: {
-          title: state.ctx.locale === 'zh' ? 'Morph 可以做什么' : 'What Morph can do',
+          title: t(state.ctx.locale, 'mock_What_Morph_can_do_8f4f4'),
           icon: 'workflow',
           target: 'quickActions',
         },
@@ -1636,7 +1642,7 @@ function planClauses(clauses: string[], ctx: PlanContext): Plan {
 export function createMockAIProvider(): AIProvider {
   return {
     async plan(input, ctx) {
-      const examples = EXAMPLES.map((e) => e[ctx.locale]);
+      const examples = EXAMPLES.map((e) => localize(e, ctx.locale));
       const clauses = splitClauses(joinWorkflowSteps(input));
       if (clauses.length === 0) {
         return {
@@ -1670,7 +1676,7 @@ export function createMockAIProvider(): AIProvider {
               'Morph 不会直接给出译文，它只会修改这个 App。可以做一个翻译快捷操作，以后在本机翻译文字、截图或 PDF。',
               'Morph doesn’t hand you a translation; it only changes this app. It can make a translation quick action that translates text, screenshots or PDFs on this device.',
             ),
-            examples: TRANSLATE_EXAMPLES.map((e) => e[ctx.locale]),
+            examples: TRANSLATE_EXAMPLES.map((e) => localize(e, ctx.locale)),
           };
         }
         return {
@@ -1681,7 +1687,7 @@ export function createMockAIProvider(): AIProvider {
             'Morph 不替你写东西、回答问题或总结文件内容，它只会修改这个 App。常做的事可以做成快捷操作，以后点一下就能用。',
             'Morph doesn’t write, answer questions or summarize files for you; it only changes this app. Things you do often can become quick actions you start with one tap.',
           ),
-          examples: ERRAND_EXAMPLES.map((e) => e[ctx.locale]),
+          examples: ERRAND_EXAMPLES.map((e) => localize(e, ctx.locale)),
         };
       }
       // 新手引导里的「我有什么，我想要什么」（D-149）。

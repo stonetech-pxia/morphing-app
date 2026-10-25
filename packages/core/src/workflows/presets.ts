@@ -1,3 +1,5 @@
+import { localize } from '../localization';
+import { t } from '../messages';
 import type { QuickActionKind } from '../quick-actions';
 import type { IconName, Locale, Localized, Workflow } from '../schema';
 import { speechLangFor } from '../tools/audio';
@@ -34,8 +36,6 @@ export interface WorkflowPreset {
   packs?: readonly string[];
   steps(locale: Locale): Workflow['steps'];
 }
-
-const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
 
 const photos = (
   min: number,
@@ -87,7 +87,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
         params: { spec: 'us-passport', maxKB: 240 },
         ask: ['spec', 'maxKB'],
       },
-      rename(t(locale, 'ID photo {date}', '证件照-{date}'), false),
+      rename(t(locale, 'presets_ID_photo_20f6d'), false),
     ],
   },
   {
@@ -108,7 +108,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
         action: 'pdf.fromImages',
         params: { pageSize: 'a4', orientation: 'auto', marginMm: 10, fit: 'contain', maxMB: 4 },
       },
-      rename(t(locale, 'Documents {date}', '材料-{date}')),
+      rename(t(locale, 'presets_Documents_4ee07')),
       share,
     ],
   },
@@ -180,7 +180,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
           textLayer: true,
         },
       },
-      rename(t(locale, 'Scan {date}', '扫描-{date}')),
+      rename(t(locale, 'presets_Scan_5b295')),
       share,
     ],
   },
@@ -197,7 +197,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
       { id: 'pick', action: 'in.files', params: { accept: 'pdfOrImages', min: 1, max: 30 } },
       { id: 'merge', action: 'pdf.merge', params: { imagePage: 'a4' } },
       { id: 'pages', action: 'pdf.pages', params: {} },
-      rename(t(locale, '{sourceName}-combined', '{sourceName}-合并')),
+      rename(t(locale, 'presets_combined_7b1c7')),
       share,
     ],
   },
@@ -235,7 +235,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
       photos(1, 10, 'scanner'),
       { id: 'edges', action: 'scan.detect', params: {} },
       { id: 'compress', action: 'image.compress', params: { maxKB: 500, format: 'jpeg' } },
-      rename(t(locale, 'Receipt {date}', '收据-{date}'), false),
+      rename(t(locale, 'presets_Receipt_d832a'), false),
       { id: 'save', action: 'file.save', params: {} },
     ],
   },
@@ -261,7 +261,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
       },
       { id: 'add', action: 'file.addExisting', params: { position: 'before' } },
       { id: 'merge', action: 'pdf.merge', params: { imagePage: 'a4' } },
-      rename(t(locale, 'Expenses {date:YYYY-MM}', '报销单-{date:YYYY-MM}'), false),
+      rename(t(locale, 'presets_Expenses_427ff'), false),
       { id: 'save', action: 'file.save', params: {} },
     ],
   },
@@ -300,7 +300,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
       { id: 'clean', action: 'image.stripMetadata', params: {} },
       { id: 'size', action: 'image.resize', params: { mode: 'longEdge', px: 2048 } },
       { id: 'zip', action: 'zip.create', params: {} },
-      rename(t(locale, 'Photos {date}', '照片-{date}')),
+      rename(t(locale, 'presets_Photos_c2260')),
       share,
     ],
   },
@@ -482,7 +482,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
       { id: 'extract', action: 'pdf.extractText', params: {} },
       translateTo(locale),
       textPdf,
-      rename(t(locale, '{sourceName}-English', '{sourceName}-中文'), false),
+      rename(t(locale, 'presets_English_2d0eb'), false),
       share,
     ],
   },
@@ -502,7 +502,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
       recognize(locale === 'zh' ? 'eng' : 'chi_sim'),
       translateTo(locale),
       textPdf,
-      rename(t(locale, 'Translation {date}', '译文-{date}'), false),
+      rename(t(locale, 'presets_Translation_38e12'), false),
       share,
     ],
   },
@@ -522,7 +522,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
       recognize('chi_sim', false),
       { id: 'translate', action: 'translate.text', params: { from: 'zh-Hans', to: 'en' } },
       textPdf,
-      rename(t(locale, 'English {date}', '英文-{date}'), false),
+      rename(t(locale, 'presets_English_fe3af'), false),
       share,
     ],
   },
@@ -584,7 +584,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
       { id: 'pick', action: 'in.audio', params: { source: 'files', min: 2, max: 10 } },
       { id: 'order', action: 'file.order', params: {} },
       { id: 'merge', action: 'audio.merge', params: {} },
-      rename(t(locale, 'Recording {date}', '录音 {date}')),
+      rename(t(locale, 'presets_Recording_cd46f')),
       share,
     ],
   },
@@ -599,10 +599,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     icon: 'audio',
     steps: (locale) => [
       { id: 'pick', action: 'in.audio', params: { source: 'record', min: 1, max: 1 } },
-      rename(
-        t(locale, 'Voice memo {date:YYYY-MM-DD_HH.mm}', '语音备忘 {date:YYYY-MM-DD_HH.mm}'),
-        false,
-      ),
+      rename(t(locale, 'presets_Voice_memo_d1e75'), false),
       { id: 'save', action: 'out.saveToFolder', params: {} },
     ],
   },
@@ -793,7 +790,7 @@ export const presetsIn = (scenario: PresetScenario) =>
 export function presetWorkflow(preset: WorkflowPreset, locale: Locale, id: string): Workflow {
   return {
     id,
-    name: preset.name[locale],
+    name: localize(preset.name, locale),
     icon: preset.icon,
     presetId: preset.id,
     steps: preset.steps(locale),

@@ -1,4 +1,5 @@
-import { guideGoal, type Workflow } from '@morph/core';
+import { localize, guideGoal, type Workflow } from '@morph/core';
+
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -242,7 +243,7 @@ function GrowingSteps({
             </Text>
           </View>
           <Text style={[palette.font('body', 14), styles.flex, { color: palette.text }]}>
-            {registry.actions.get(step.action)?.label[locale] ?? step.action}
+            {localize(registry.actions.get(step.action)?.label, locale) ?? step.action}
           </Text>
           {added.has(step.id) ? (
             <View style={[styles.tag, { backgroundColor: palette.secondary }]}>

@@ -1,3 +1,5 @@
+import { localize } from './localization';
+import { t } from './messages';
 import type { Locale, Localized, Theme } from './schema';
 
 // 内置风格预设（D-094）：每个都是一份完整的主题，AI 用 applyThemePreset 整套套用，之后还可以再微调。
@@ -377,6 +379,6 @@ export function presetOfTheme(theme: Theme): ThemePresetId | null {
 
 /** 风格选择器填进输入框的一句话（D-095）；mock AI 能把它识别成对应的 applyThemePreset（测试覆盖全部预设）。 */
 export function presetRequest(id: ThemePresetId, locale: Locale): string {
-  const name = THEME_PRESETS[id].name[locale];
-  return locale === 'zh' ? `换成${name}风格` : `Switch to the ${name} style`;
+  const name = localize(THEME_PRESETS[id].name, locale);
+  return t(locale, 'presets_Switch_to_the_style_aedda', { v0: name });
 }

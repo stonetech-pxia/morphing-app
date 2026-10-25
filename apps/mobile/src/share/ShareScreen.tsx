@@ -1,4 +1,5 @@
 import {
+  localize,
   WORKFLOW_PRESETS,
   mediaKindOf,
   newWorkflowId,
@@ -9,6 +10,7 @@ import {
   type ShareFit,
   type Workflow,
 } from '@morph/core';
+
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
@@ -43,7 +45,7 @@ export function ShareScreen() {
   const palette = usePalette(config.theme);
   const share = useIncoming((s) => s.share);
   const router = useRouter();
-  const zh = locale === 'zh';
+
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const expanded = expandedId === share?.id;
   const [usage, setUsage] = useState<SucceededRuns>(new Map());
@@ -117,23 +119,21 @@ export function ShareScreen() {
 
   const caption = [palette.font('body', 13), { color: palette.muted }];
   const title = share
-    ? zh
-      ? `收到 ${share.files.length} 个文件`
-      : `${share.files.length} file${share.files.length === 1 ? '' : 's'} received`
-    : zh
-      ? '分享到 Morph'
-      : 'Shared with Morph';
+    ? t(locale, 'sharedFilesReceived', { n: share.files.length })
+    : t(locale, 'ShareScreen_Shared_with_Morph_bb8fe');
 
   if (!share || share.files.length === 0) {
     return (
       <View style={[styles.empty, { padding: palette.pad }]} testID="share-screen">
         <Stack.Screen options={{ title }} />
         <Text testID="share-none" style={[palette.font('body', 15), { color: palette.muted }]}>
-          {zh
-            ? 'Morph 只接收文件（照片、PDF 等），文字和网址不行。'
-            : 'Morph only takes files (photos, PDFs and so on), not text or links.'}
+          {t(locale, 'ShareScreen_Morph_only_takes_files_photos_PDFs_and_91f45')}
         </Text>
-        <Button palette={palette} label={zh ? '关闭' : 'Close'} onPress={() => router.back()} />
+        <Button
+          palette={palette}
+          label={t(locale, 'ShareScreen_Close_59a26')}
+          onPress={() => router.back()}
+        />
       </View>
     );
   }
@@ -158,13 +158,13 @@ export function ShareScreen() {
       testID={preset ? `share-preset-${preset.id}` : `share-workflow-${wf.id}`}>
       <Text style={[palette.font('title', 16), { color: palette.text }]}>
         {wf.name}
-        {isNew(wf) ? (zh ? ' · 刚做好' : ' · just made') : ''}
+        {isNew(wf) ? t(locale, 'ShareScreen_just_made_ed6c1') : ''}
       </Text>
       {usage.has(wf.id) && !preset ? (
         <Text style={caption}>{t(locale, 'shareUsed', { n: usage.get(wf.id)!.count })}</Text>
       ) : null}
       {wf.toolId ? (
-        <Text style={caption}>{registry.tools.get(wf.toolId)?.name[locale]}</Text>
+        <Text style={caption}>{localize(registry.tools.get(wf.toolId)?.name, locale)}</Text>
       ) : null}
       <Text style={caption}>{stepChain(wf, registry, locale)}</Text>
       {fit.ok ? (
@@ -172,7 +172,11 @@ export function ShareScreen() {
           <Pill
             palette={palette}
             testID={preset ? `share-preset-add-${preset.id}` : `share-run-${wf.id}`}
-            label={preset ? (zh ? '添加并运行' : 'Add and run') : zh ? '运行' : 'Run'}
+            label={
+              preset
+                ? t(locale, 'ShareScreen_Add_and_run_c4281')
+                : t(locale, 'ShareScreen_Run_5cab2')
+            }
             onPress={() => (preset ? void addAndRun(preset) : run(wf))}
           />
         </View>
@@ -188,13 +192,9 @@ export function ShareScreen() {
     fit.ok
       ? ''
       : fit.reason === 'tooFew'
-        ? zh
-          ? `需要至少 ${fit.min} 个文件`
-          : `Needs at least ${fit.min} files`
+        ? t(locale, 'ShareScreen_Needs_at_least_files_0ed9b', { v0: fit.min })
         : fit.reason === 'tooMany'
-          ? zh
-            ? `最多 ${fit.max} 个文件`
-            : `Takes at most ${fit.max} files`
+          ? t(locale, 'ShareScreen_Takes_at_most_files_0fe59', { v0: fit.max })
           : '';
 
   function run(wf: Workflow) {
@@ -210,7 +210,7 @@ export function ShareScreen() {
     const wf = presetWorkflow(preset, locale, newWorkflowId(preset.id, config.workflows));
     const ok = await change(
       [{ op: 'addWorkflow', workflow: wf }],
-      zh ? `添加了快捷操作「${wf.name}」` : `Added the quick action “${wf.name}”`,
+      t(locale, 'ShareScreen_Added_the_quick_action_ad5f0', { v0: wf.name }),
     );
     if (ok) run(wf);
   }
@@ -320,9 +320,7 @@ export function ShareScreen() {
         </>
       )}
       <Text style={caption}>
-        {zh
-          ? '文件只在这台手机上处理，AI 看不到文件名和内容。'
-          : 'Files are handled on this device only; AI never sees their names or contents.'}
+        {t(locale, 'ShareScreen_Files_are_handled_on_this_device_only__c8099')}
       </Text>
     </ScrollView>
   );

@@ -28,14 +28,17 @@ export function useWorkflowChange() {
 }
 
 /** 删除之前确认一次。 */
-export function confirmDelete(locale: 'en' | 'zh', name: string, onDelete: () => void): void {
-  const zh = locale === 'zh';
+export function confirmDelete(
+  locale: 'en' | 'zh' | 'fr',
+  name: string,
+  onDelete: () => void,
+): void {
   Alert.alert(
-    zh ? `删除「${name}」？` : `Delete “${name}”?`,
-    zh ? '文件不受影响。删除后可以撤销。' : 'Your files are kept. You can undo this.',
+    t(locale, 'workflow_change_Delete_e4208', { v0: name }),
+    t(locale, 'workflow_change_Your_files_are_kept_You_can_undo_this_e9492'),
     [
       { text: t(locale, 'cancel'), style: 'cancel' },
-      { text: zh ? '删除' : 'Delete', style: 'destructive', onPress: onDelete },
+      { text: t(locale, 'workflow_change_Delete_8940a'), style: 'destructive', onPress: onDelete },
     ],
   );
 }

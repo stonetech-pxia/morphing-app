@@ -1,4 +1,5 @@
 import {
+  localize,
   RunCancelled,
   RunError,
   SPEECH_LANGUAGE_NAMES,
@@ -147,7 +148,7 @@ function alreadyIn(item: RunItem, info: MediaInfo, format: AudioFormat): boolean
 function speechError(e: unknown, item: RunItem, ctx: Ctx, language: SpeechLanguage): Error {
   if (e instanceof RunError || e instanceof RunCancelled) return e;
   const { locale } = ctx;
-  const lang = SPEECH_LANGUAGE_NAMES[language][locale];
+  const lang = localize(SPEECH_LANGUAGE_NAMES[language], locale);
   if (!(e instanceof SpeechError)) {
     return new RunError('unexpected', { detail: String((e as Error)?.message ?? e) });
   }
@@ -176,7 +177,7 @@ async function prepareSpeech(ctx: Ctx, language: SpeechLanguage, model: SpeechMo
   const { locale } = ctx;
   const speech = ctx.services.files.speech;
   if (!speech) throw new RunError('needsFullApp');
-  const lang = SPEECH_LANGUAGE_NAMES[language][locale];
+  const lang = localize(SPEECH_LANGUAGE_NAMES[language], locale);
 
   const need = await speech.need(language, model);
   if (need.kind === 'unsupported') {

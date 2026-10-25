@@ -1,3 +1,4 @@
+import { t, pairText } from '../messages';
 import { z } from 'zod';
 
 import type { ToolDefinition } from '../registry';
@@ -10,8 +11,6 @@ import type { ActionDefinition } from '../workflow/contract';
 
 export const SCAN_TOOL_ID = 'scan';
 export const SCAN_PAGE_ID = 'tool-scan';
-
-const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
 
 export const ENHANCE_MODES = ['auto', 'gray', 'bw', 'none'] as const;
 
@@ -69,13 +68,13 @@ export function scanWorkflows(locale: Locale): Workflow[] {
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
     toolId: SCAN_TOOL_ID,
-    name: t(locale, ...name),
+    name: pairText(locale, name),
     steps,
   });
   const name = {
     id: 'name',
     action: 'file.rename',
-    params: { template: t(locale, 'Scan {date}', '扫描-{date}') },
+    params: { template: t(locale, 'scan_Scan_5b295') },
   };
   return [
     wf(
@@ -125,20 +124,16 @@ export const scanTool: ToolDefinition = {
   actions: SCAN_ACTIONS,
   createPage: (locale) => ({
     id: SCAN_PAGE_ID,
-    title: t(locale, 'Scanner', '扫描'),
+    title: t(locale, 'scan_Scanner_08f22'),
     icon: 'scan',
     toolId: SCAN_TOOL_ID,
     components: [
-      { id: 'scan-header', type: 'header', props: { title: t(locale, 'Scanner', '扫描') } },
+      { id: 'scan-header', type: 'header', props: { title: t(locale, 'scan_Scanner_08f22') } },
       {
         id: 'scan-intro',
         type: 'text',
         props: {
-          text: t(
-            locale,
-            'Everything runs on this device; nothing is uploaded. Scanning uses the built-in document scanner; straightening photos may download what it needs the first time (it works offline after that).',
-            '全部在本机处理，不会上传。扫描用系统自带的文档扫描；拉正已有照片时，有的设备第一次要下载一些内容（之后不联网也能用）。',
-          ),
+          text: t(locale, 'scan_Everything_runs_on_this_device_nothing_09e42'),
         },
       },
       ...scanWorkflows(locale).map((wf) => ({
@@ -150,7 +145,7 @@ export const scanTool: ToolDefinition = {
         id: 'scan-files',
         type: 'fileList',
         props: {
-          title: t(locale, 'Scans', '扫描件'),
+          title: t(locale, 'scan_Scans_7ac9d'),
           limit: 10,
           mimeType: 'application/pdf',
         },

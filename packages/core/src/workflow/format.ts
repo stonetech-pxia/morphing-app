@@ -1,3 +1,5 @@
+import { localize } from '../localization';
+import { t } from '../messages';
 import { renderNameTemplate } from '../naming';
 import type { Locale } from '../schema';
 import type { ActionDefinition, ParamField } from './contract';
@@ -10,24 +12,23 @@ export function formatParamValue(
   locale: Locale,
   now: Date,
 ): string {
-  const zh = locale === 'zh';
   switch (field.kind) {
     case 'choice': {
       const option = field.options?.find((o) => o.value === value);
-      return option ? option.label[locale] : String(value);
+      return option ? localize(option.label, locale) : String(value);
     }
     case 'toggle':
-      return value ? (zh ? '开' : 'on') : zh ? '关' : 'off';
+      return value ? t(locale, 'format_on_7f2b0') : t(locale, 'format_off_4b193');
     case 'nameTemplate': {
       const template = String(value);
       const example = renderNameTemplate(template, {
         now,
         index: 1,
-        sourceName: zh ? '报告' : 'report',
+        sourceName: t(locale, 'format_report_25207'),
       });
       return template === example
         ? template
-        : `${template}${zh ? `（例如 ${example}）` : ` (e.g. ${example})`}`;
+        : `${template}${t(locale, 'format_e_g_248d5', { v0: example })}`;
     }
     case 'number':
       return field.unit ? `${String(value)} ${field.unit}` : String(value);
@@ -49,12 +50,8 @@ export function describeParams(
     if (only && !only.includes(field.key)) continue;
     if (!(field.key in params)) continue;
     if (field.showIf && !field.showIf.equals.includes(params[field.showIf.key] as never)) continue;
-    const value = field.private
-      ? locale === 'zh'
-        ? '（你写的文字）'
-        : '(your text)'
-      : params[field.key];
-    parts.push(`${field.label[locale]} ${formatParamValue(field, value, locale, now)}`);
+    const value = field.private ? t(locale, 'format_your_text_6c667') : params[field.key];
+    parts.push(`${localize(field.label, locale)} ${formatParamValue(field, value, locale, now)}`);
   }
-  return parts.join(locale === 'zh' ? '、' : ', ');
+  return parts.join(t(locale, 'separatorList'));
 }

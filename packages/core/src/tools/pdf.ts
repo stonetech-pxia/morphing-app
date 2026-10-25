@@ -1,3 +1,4 @@
+import { t, pairText } from '../messages';
 import { z } from 'zod';
 
 import type { ToolDefinition } from '../registry';
@@ -10,8 +11,6 @@ import type { ActionDefinition, ParamField } from '../workflow/contract';
 export const PDF_TOOL_ID = 'pdf';
 export const PDF_PAGE_ID = 'tool-pdf';
 export const PDF_MERGE_WORKFLOW_ID = 'pdf-merge';
-
-const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
 
 /** 按页码选页的规则：AI 只能选这些符号规则，看不到文件内容（open-tool-research N4）。 */
 export const PAGE_RULES = ['all', 'odd', 'even', 'first', 'last', 'range'] as const;
@@ -658,7 +657,7 @@ export function pdfWorkflows(locale: Locale): Workflow[] {
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
     toolId: PDF_TOOL_ID,
-    name: t(locale, ...name),
+    name: pairText(locale, name),
     steps,
   });
   return [
@@ -671,7 +670,7 @@ export function pdfWorkflows(locale: Locale): Workflow[] {
         {
           id: 'name',
           action: 'file.rename',
-          params: { template: t(locale, '{sourceName}-merged', '{sourceName}-合并') },
+          params: { template: t(locale, 'pdf_merged_19094') },
           ask: ['template'],
         },
         { id: 'save', action: 'file.save', params: {} },
@@ -823,7 +822,7 @@ export function pdfWorkflows(locale: Locale): Workflow[] {
           id: 'run',
           action: 'pdf.stamp',
           params: {
-            text: t(locale, 'COPY', '副本'),
+            text: t(locale, 'pdf_COPY_3fef3'),
             position: 'topRight',
             fontSize: 18,
             color: '#C92A2A',
@@ -859,17 +858,13 @@ export const pdfTool: ToolDefinition = {
       {
         id: 'pdf-header',
         type: 'header',
-        props: { title: t(locale, 'PDF tools', 'PDF 工具') },
+        props: { title: t(locale, 'pdf_PDF_tools_d81ee') },
       },
       {
         id: 'pdf-intro',
         type: 'text',
         props: {
-          text: t(
-            locale,
-            'Everything runs on this device; nothing is uploaded.',
-            '全部在本机处理，不会上传。',
-          ),
+          text: t(locale, 'pdf_Everything_runs_on_this_device_nothing_d4b96'),
         },
       },
       ...pdfWorkflows(locale).map((wf) => ({
@@ -881,7 +876,7 @@ export const pdfTool: ToolDefinition = {
         id: 'pdf-files',
         type: 'fileList',
         props: {
-          title: t(locale, 'PDF files', 'PDF 文件'),
+          title: t(locale, 'pdf_PDF_files_2d348'),
           limit: 10,
           mimeType: 'application/pdf',
         },
