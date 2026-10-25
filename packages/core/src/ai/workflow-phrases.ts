@@ -173,6 +173,10 @@ const RECORD_PHRASES: Matcher[] = [
 
 const STEP_PHRASES: Matcher[] = [
   [
+    /^(?:标注图片|画箭头|mark up photos|annotate photos)$/i,
+    () => ({ action: 'image.annotate', params: {} }),
+  ],
+  [
     /^(?:图片自动优化|自动优化照片|auto adjust photos)$/i,
     () => ({
       action: 'image.adjust',
@@ -565,6 +569,7 @@ const PRESET_WORDS: [RegExp, string][] = [
   [/把视频转正|fix video rotation/i, 'fix-video-rotation'],
   [/裁成竖屏视频|portrait posts/i, 'vertical-video'],
   [/视频加速或慢放|speed up or slow down video/i, 'video-speed'],
+  [/在图片上画箭头和文字|add arrows and notes/i, 'mark-up-photos'],
   [/把太暗的照片调亮|brighten dark photos/i, 'brighten-photos'],
   [/把照片背景去掉|remove a photo background/i, 'remove-photo-background'],
   [/录音人声降噪|noise in a voice recording/i, 'denoise-audio'],

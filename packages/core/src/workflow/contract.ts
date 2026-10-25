@@ -40,6 +40,7 @@ export const LOCAL_STEP_KINDS = [
   'pages',
   'corners',
   'redact',
+  'annotate',
   'sign',
   'fillForm',
   'trimMedia',

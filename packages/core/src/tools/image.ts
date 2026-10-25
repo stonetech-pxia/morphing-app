@@ -62,6 +62,22 @@ const resizeModes = ['longEdge', 'width', 'height', 'percent', 'fit'] as const;
 
 export const IMAGE_ACTIONS: readonly ActionDefinition[] = [
   {
+    id: 'image.annotate',
+    label: { en: 'Mark up photo', zh: '标注图片' },
+    description: {
+      en: 'A local editor lets the user place text, arrows, outline boxes and freehand strokes on each photo, choose colors and undo. The user types text while running; annotation content never goes to AI. Saves flattened PNG copies; very large images may be reduced to fit the drawing limit. Original photos are kept.',
+      zh: '运行时逐张在本机添加文字、箭头、方框和自由画笔，可选颜色、撤销。文字由用户运行时填写，标注内容不发给 AI。生成合成后的 PNG 副本；超大图片可能缩小以适应绘图上限。保留原图。',
+    },
+    input: ['images'],
+    output: 'images',
+    params: z.strictObject({}),
+    fields: [],
+    presets: [{ id: 'mark', label: { en: 'Mark up', zh: '标注' }, values: {} }],
+    local: 'annotate',
+    requires: [],
+  },
+
+  {
     id: 'image.adjust',
     label: { en: 'Adjust photo', zh: '调整图片' },
     description: {
@@ -802,6 +818,7 @@ function single(
 
 export function imageWorkflows(locale: Locale): Workflow[] {
   return [
+    single(locale, 'image.annotate', ['Mark up photo', '标注图片'], {}, []),
     single(
       locale,
       'image.adjust',
@@ -929,7 +946,7 @@ export function imageWorkflows(locale: Locale): Workflow[] {
 
 export const imageTool: ToolDefinition = {
   id: IMAGE_TOOL_ID,
-  version: '1.4.0',
+  version: '1.5.0',
   name: { en: 'Images', zh: '图片' },
   description: {
     en: 'Compress, convert (HEIC to JPG too), resize, crop, rotate and clean photos; stitch, grid, animated GIFs, hide parts, watermark and make ID photos, on this device.',

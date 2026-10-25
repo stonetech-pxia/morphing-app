@@ -82,6 +82,7 @@ describe('image tool workflows', () => {
       },
     );
     expect(result.ok && result.config.workflows.map((w) => w.id)).toEqual([
+      'image-annotate',
       'image-adjust',
       'image-removebackground',
       'image-compress',

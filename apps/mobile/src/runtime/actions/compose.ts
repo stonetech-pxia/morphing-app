@@ -12,6 +12,7 @@ import {
   type Rect,
 } from '@morph/tool-image';
 
+import { annotationPaths } from '../annotations';
 import type { DrawOp } from '../platform';
 import { displayName, fileItems, freshName, type RunServices } from './helpers';
 import { eachImage, encode, formatBytes, sizeOf } from './image';
@@ -94,6 +95,12 @@ function scaleOp(op: DrawOp, k: number): DrawOp {
       return { ...op, rect: scaleBox(op.rect, k) };
     case 'blur':
       return { ...op, rect: scaleBox(op.rect, k), sigma: op.sigma * k };
+    case 'path':
+      return {
+        ...op,
+        points: op.points.map((p) => ({ x: p.x * k, y: p.y * k })),
+        width: Math.max(1, op.width * k),
+      };
     case 'line':
       return {
         ...op,
@@ -129,6 +136,59 @@ async function withSizes(ctx: Ctx, items: RunItem[]) {
 }
 
 export const COMPOSE_IMPLS: Record<string, Impl> = {
+  async 'image.annotate'(input, _params, ctx) {
+    const items: RunItem[] = [];
+    for (const original of fileItems(input)) {
+      ctx.throwIfCancelled();
+      items.push(
+        await encode(
+          ctx,
+          original,
+          {},
+          original.mimeType === 'image/png' || original.mimeType === 'image/webp' ? 'png' : 'jpeg',
+          0.95,
+        ),
+      );
+    }
+    const all = await ctx.services.ui.open('annotate', { items });
+    if (!all) throw new RunCancelled();
+    if (all.length !== items.length)
+      throw new RunError('unexpected', { detail: 'Missing annotation page' });
+    const out: RunItem[] = [];
+    for (const [i, item] of items.entries()) {
+      ctx.throwIfCancelled();
+      const size = { width: item.width!, height: item.height! };
+      const ops: DrawOp[] = [
+        { kind: 'image', source: { uri: item.uri }, dst: { x: 0, y: 0, ...size } },
+      ];
+      for (const mark of all[i]!) {
+        if (mark.kind === 'text') {
+          const text = await ctx.services.files.renderText(mark.text, {
+            fontSize: mark.fontSize,
+            color: mark.color,
+            opacity: 1,
+          });
+          const k = Math.min(
+            1,
+            (size.width - mark.point.x) / text.width,
+            (size.height - mark.point.y) / text.height,
+          );
+          if (k > 0)
+            ops.push({
+              kind: 'image',
+              source: { bytes: text.bytes },
+              dst: { ...mark.point, width: text.width * k, height: text.height * k },
+            });
+        } else {
+          for (const points of annotationPaths(mark))
+            ops.push({ kind: 'path', points, width: mark.width, color: mark.color });
+        }
+      }
+      out.push(await compose(ctx, item.name, { ...size, background: '#00000000' }, ops, 'png'));
+      ctx.progress(i + 1, items.length);
+    }
+    return { type: 'images', items: out };
+  },
   async 'image.stitch'(input, params, ctx) {
     const { direction, gapPx, background } = params as {
       direction: 'vertical' | 'horizontal';

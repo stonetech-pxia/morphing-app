@@ -3,6 +3,7 @@ import type { ComponentType } from 'react';
 import type { LocalKind } from '../../runtime/local';
 import type { LocalScreenProps } from '../RunScreen';
 import { CornersScreen } from './CornersScreen';
+import { AnnotateScreen } from './AnnotateScreen';
 import { CropScreen } from './CropScreen';
 import { FillFormScreen } from './FillFormScreen';
 import { PagesScreen } from './PagesScreen';
@@ -24,6 +25,7 @@ export const LOCAL_SCREENS: { [K in LocalKind]?: ComponentType<LocalScreenProps<
   fillForm: FillFormScreen,
   corners: CornersScreen,
   redact: RedactScreen,
+  annotate: AnnotateScreen,
   trimMedia: TrimScreen,
   frameMedia: FrameScreen,
   record: RecordScreen,

@@ -605,6 +605,17 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'mark-up-photos',
+    scenario: 'photos',
+    name: { en: 'Add arrows and notes to photos', zh: '在图片上画箭头和文字' },
+    description: {
+      en: 'Draw arrows, boxes, freehand strokes and type notes on each photo, on this device.',
+      zh: '在本机逐张添加箭头、方框、画笔和文字。',
+    },
+    icon: 'photo',
+    steps: () => [photos(1, 10), { id: 'mark', action: 'image.annotate', params: {} }],
+  },
+  {
     id: 'brighten-photos',
     scenario: 'photos',
     name: { en: 'Brighten dark photos', zh: '把太暗的照片调亮' },

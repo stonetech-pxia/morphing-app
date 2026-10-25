@@ -67,6 +67,7 @@ export type DrawOp =
   | { kind: 'rect'; rect: Box; color: string }
   /** 把画布上这块区域模糊（打码）。 */
   | { kind: 'blur'; rect: Box; sigma: number }
+  | { kind: 'path'; points: { x: number; y: number }[]; color: string; width: number }
   | { kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number };
 
 /** 用户存好的签名（documentDirectory/signatures/，不进配置和版本，不发给 AI）。 */

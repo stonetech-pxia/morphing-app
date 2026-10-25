@@ -3080,7 +3080,39 @@ const IMAGE_ADJUST_CASES: EvalCase[] = [
     },
   },
 ];
+const IMAGE_ANNOTATE_CASES: EvalCase[] = [
+  {
+    id: 'IAN1',
+    input: '添加在图片上画箭头和文字快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'image.annotate'))
+          ? null
+          : 'missing local photo annotations',
+    },
+  },
+  {
+    id: 'IAN2',
+    input:
+      'Make a reusable action where I choose photos and draw arrows, outline boxes, freehand strokes and type labels on them myself when I run it.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'image.annotate'))
+          ? null
+          : 'missing local annotation editor',
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...IMAGE_ANNOTATE_CASES,
   ...IMAGE_ADJUST_CASES,
   ...IMAGE_BACKGROUND_CASES,
   ...AUDIO_DENOISE_CASES,

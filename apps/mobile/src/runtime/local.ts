@@ -1,6 +1,7 @@
 import type { Collection, RunItem } from '@morph/core';
 import type { Quad } from '@morph/tool-image';
 
+import type { ImageAnnotation } from './annotations';
 import type { PickedFile } from './platform';
 
 // 本地操作步骤（TOOLS_DESIGN §4）：执行到这里时，运行页面打开对应的界面，用户的操作结果只在本次运行里使用。
@@ -14,6 +15,7 @@ export interface Rect {
 }
 
 export interface LocalSteps {
+  annotate: { in: { items: RunItem[] }; out: ImageAnnotation[][] };
   /** 逐张框选裁剪区域（原图像素）。aspect 为 null 时自由比例。 */
   crop: { in: { items: RunItem[]; aspect: number | null }; out: Rect[] };
   /**

@@ -661,6 +661,23 @@ const strings = {
     en: 'Videos and audio can only be processed in the full Morph app, not in this preview.',
     zh: '视频和音频要在正式版 Morph 里处理，这个预览版里不行。',
   },
+  annotateTitle: { en: 'Mark up photo', zh: '标注图片' },
+  annotateText: { en: 'Text', zh: '文字' },
+  annotateArrow: { en: 'Arrow', zh: '箭头' },
+  annotateBox: { en: 'Box', zh: '方框' },
+  annotatePen: { en: 'Pen', zh: '画笔' },
+  annotateColor: { en: 'Color {n}', zh: '颜色 {n}' },
+  annotateTextHint: { en: 'Type a short label', zh: '输入简短文字' },
+  annotateTap: {
+    en: 'Type a label, then tap the photo to place it. Undo to replace a mark.',
+    zh: '先输入文字，再点图片放置。放错可撤销后重画。',
+  },
+  annotateDrag: {
+    en: 'Drag on the photo to draw. Undo to replace a mark.',
+    zh: '在图片上拖动画。画错可撤销后重画。',
+  },
+  annotateCount: { en: '{n}/100 marks', zh: '{n}/100 处' },
+  annotateUndo: { en: 'Undo', zh: '撤销一个' },
   imageAdjustmentNeedsApp: {
     en: 'Photo adjustment needs an updated Morph app.',
     zh: '图片调整需要更新后的 Morph App。',

@@ -14,6 +14,7 @@ jest.mock('@shopify/react-native-skia', () => {
   return {
     Canvas: View,
     Path: () => null,
+    Text: () => null,
     Image: () => null,
     Rect: () => null,
     ImageFormat: { JPEG: 3, PNG: 4, WEBP: 6 },
