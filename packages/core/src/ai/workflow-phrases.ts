@@ -173,6 +173,10 @@ const RECORD_PHRASES: Matcher[] = [
 
 const STEP_PHRASES: Matcher[] = [
   [
+    /^(?:导出字幕|导出SRT字幕|export SRT captions)$/i,
+    () => ({ action: 'video.subtitles', params: { lang: 'zh', model: 'standard' } }),
+  ],
+  [
     /^(?:标注图片|画箭头|mark up photos|annotate photos)$/i,
     () => ({ action: 'image.annotate', params: {} }),
   ],
@@ -465,7 +469,9 @@ function fitToPrevious(p: StepPhrase, previous: WorkflowStep | undefined): StepP
 /** 这一步的结果是视频。 */
 const makesVideo = (step: WorkflowStep) =>
   step.action === 'in.videos' ||
-  (step.action.startsWith('video.') && !['video.toGif', 'video.frame'].includes(step.action)) ||
+  (step.action !== 'video.subtitles' &&
+    step.action.startsWith('video.') &&
+    !['video.toGif', 'video.frame'].includes(step.action)) ||
   (step.action === 'in.files' && step.params.accept === 'videos');
 
 /** 这一步之后的值大致是什么（只用来给「压到 N MB」选动作）。 */
@@ -476,6 +482,7 @@ function kindAfter(step: StepPhrase, before: PhraseKind | null): PhraseKind | nu
   if (step.action === 'audio.volume' || step.action === 'audio.denoise') return before;
   if (step.action === 'audio.transcribe') return 'other';
   if (step.action === 'in.audio' || step.action.startsWith('audio.')) return 'audio';
+  if (step.action === 'video.subtitles') return 'other';
   if (step.action === 'video.frame') return 'images';
   if (step.action === 'video.toGif') return 'images';
   if (step.action === 'in.videos' || step.action.startsWith('video.')) return 'video';
@@ -569,6 +576,7 @@ const PRESET_WORDS: [RegExp, string][] = [
   [/把视频转正|fix video rotation/i, 'fix-video-rotation'],
   [/裁成竖屏视频|portrait posts/i, 'vertical-video'],
   [/视频加速或慢放|speed up or slow down video/i, 'video-speed'],
+  [/导出视频\s*SRT\s*字幕|export video captions as SRT/i, 'video-srt-captions'],
   [/在图片上画箭头和文字|add arrows and notes/i, 'mark-up-photos'],
   [/把太暗的照片调亮|brighten dark photos/i, 'brighten-photos'],
   [/把照片背景去掉|remove a photo background/i, 'remove-photo-background'],

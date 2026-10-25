@@ -3,11 +3,19 @@ import { z } from 'zod';
 import { GIF_MAX_SECONDS, VIDEO_QUALITIES } from '../media';
 import type { ToolDefinition } from '../registry';
 import type { Locale, Workflow } from '../schema';
+import {
+  SPEECH_LANGUAGES,
+  SPEECH_LANGUAGE_NAMES,
+  SPEECH_MODEL_PACKS,
+  SPEECH_MODELS,
+  type SpeechModel,
+} from '../speech';
+import { speechLangFor } from './audio';
 import type { ActionDefinition } from '../workflow/contract';
 
 // 视频工具的清单（D-143、D-146）：压缩、转成 MP4、剪一段。编码在 App 的原生模块 morph-media 里
 // （iOS AVFoundation、Android Media3，D-141）；码率和分辨率的计算在 core/media.ts。
-// 输出一律是 MP4（H.264 + AAC），微信、邮件、电脑和老手机都能放（D-143）。
+// 编码默认 MP4（H.264 + AAC）；截帧、GIF、SRT 字幕等动作另有输出类型。
 
 export const VIDEO_TOOL_ID = 'video';
 export const VIDEO_PAGE_ID = 'tool-video';
@@ -15,6 +23,45 @@ export const VIDEO_PAGE_ID = 'tool-video';
 const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
 
 export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
+  {
+    id: 'video.subtitles',
+    label: { en: 'Export SRT captions', zh: '导出 SRT 字幕' },
+    description: {
+      en: 'Recognize speech in each video on this device and export a separate UTF-8 .srt file with timestamps. This first version does not burn captions into the picture and does not output a subtitled video. Choose the spoken language; the first run may need a speech model download. Review words and timings, especially long segments, whose split timing is approximate. Video files and recognized words never go to AI.',
+      zh: '在本机识别每段视频中的讲话，导出带时间戳的独立 UTF-8 .srt 文件。首版不会把字幕烧进画面，也不输出带字幕视频。选择讲话语言，首次可能需要下载识别模型。请核对文字和时间，长段落拆分后的段内时间为近似值。视频和识别文字不发给 AI。',
+    },
+    input: ['video'],
+    output: 'files',
+    params: z.strictObject({ lang: z.enum(SPEECH_LANGUAGES), model: z.enum(SPEECH_MODELS) }),
+    fields: [
+      {
+        key: 'lang',
+        label: { en: 'Spoken language', zh: '讲话语言' },
+        kind: 'choice',
+        options: SPEECH_LANGUAGES.map((value) => ({ value, label: SPEECH_LANGUAGE_NAMES[value] })),
+      },
+      {
+        key: 'model',
+        label: { en: 'Recognition', zh: '识别' },
+        kind: 'choice',
+        options: [
+          { value: 'standard', label: { en: 'More accurate', zh: '更准' } },
+          { value: 'fast', label: { en: 'Faster', zh: '更快' } },
+        ],
+      },
+    ],
+    presets: [
+      {
+        id: 'english',
+        label: { en: 'English', zh: '英语' },
+        values: { lang: 'en', model: 'standard' },
+      },
+    ],
+    pack: SPEECH_MODEL_PACKS.standard,
+    packFor: (params) => SPEECH_MODEL_PACKS[params.model as SpeechModel],
+    requires: [],
+  },
+
   {
     id: 'video.speed',
     label: { en: 'Change video speed', zh: '视频加速或慢放' },
@@ -339,6 +386,20 @@ export function videoWorkflows(locale: Locale): Workflow[] {
   });
   return [
     wf(
+      'video-subtitles',
+      ['Export SRT captions', '导出 SRT 字幕'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+        {
+          id: 'captions',
+          action: 'video.subtitles',
+          params: { lang: speechLangFor(locale), model: 'standard' },
+          ask: ['lang'],
+        },
+      ],
+    ),
+
+    wf(
       'video-speed',
       ['Change video speed', '视频加速或慢放'],
       [
@@ -449,7 +510,7 @@ export function videoWorkflows(locale: Locale): Workflow[] {
 
 export const videoTool: ToolDefinition = {
   id: VIDEO_TOOL_ID,
-  version: '1.8.0',
+  version: '1.9.0',
   name: { en: 'Video', zh: '视频' },
   description: {
     en: 'Make videos smaller, convert them to MP4, trim them and turn them into GIFs, on this device.',

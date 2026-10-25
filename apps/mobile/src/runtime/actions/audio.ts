@@ -8,6 +8,7 @@ import {
   planAudioSize,
   estimateAudioBytes,
   planVideoConvert,
+  speechToSrt,
   type ActionImpl,
   type AudioFormat,
   type AudioPlan,
@@ -22,7 +23,7 @@ import {
 import { t } from '../../i18n';
 import type { MediaInfo, MediaOutput, MediaPlatform } from '../platform';
 import { SpeechError } from '../speech';
-import { MB, displayName, fileItems, freshName, type RunServices } from './helpers';
+import { MB, displayName, fileItems, freshName, writeItem, type RunServices } from './helpers';
 import { checkSpace, mediaError } from './video';
 
 // 音频工具的动作实现（D-150–D-155）：码率、声道在 core/audio.ts 里算，编码交给原生模块 morph-media，
@@ -171,6 +172,41 @@ function speechError(e: unknown, item: RunItem, ctx: Ctx, language: SpeechLangua
   }
 }
 
+async function prepareSpeech(ctx: Ctx, language: SpeechLanguage, model: SpeechModel) {
+  const { locale } = ctx;
+  const speech = ctx.services.files.speech;
+  if (!speech) throw new RunError('needsFullApp');
+  const lang = SPEECH_LANGUAGE_NAMES[language][locale];
+
+  const need = await speech.need(language, model);
+  if (need.kind === 'unsupported') {
+    throw new RunError('unsupportedAction', {
+      action: t(locale, 'speechLangUnsupported', { lang }),
+    });
+  }
+  // iPhone：系统要先下载这种语言的识别模型，下载前问一句（D-064、D-112）。
+  if (need.kind === 'systemDownload') {
+    const ok = await ctx.services.ui.confirm(
+      t(locale, 'speechDownloadAsk', { lang }),
+      t(locale, 'speechDownload'),
+      t(locale, 'cancel'),
+      t(locale, 'speechDownloadBody'),
+    );
+    if (!ok) throw new RunCancelled();
+    try {
+      await speech.prepare(language, (f) => ctx.progress(Math.round(f * 100), 100, 'percent'));
+    } catch {
+      throw new RunError('packFailed', { detail: t(locale, 'speechDownloadFailed', { lang }) });
+    }
+  }
+  // Android：模型由执行器在这一步之前按 packFor 确认下载；还没有说明下载失败了。
+  if (need.kind === 'pack') {
+    throw new RunError('packFailed', { detail: t(locale, 'speechDownloadFailed', { lang }) });
+  }
+
+  return speech;
+}
+
 async function processSound(
   input: Parameters<Impl>[0],
   params: Parameters<Impl>[1],
@@ -258,6 +294,63 @@ async function processSound(
 }
 
 export const AUDIO_IMPLS: Record<string, Impl> = {
+  async 'video.subtitles'(input, params, ctx) {
+    if (input?.type !== 'video') throw new RunError('wrongType', { kind: 'video' });
+    const language = params.lang as SpeechLanguage;
+    const model = params.model as SpeechModel;
+    const speech = await prepareSpeech(ctx, language, model);
+    const media = mediaOf(ctx);
+    const out: RunItem[] = [];
+    for (const [i, item] of input.items.entries()) {
+      ctx.throwIfCancelled();
+      const info = await probeAudio(media, item);
+      checkSpace(
+        ctx,
+        (info.durationMs / 1000) *
+          Math.max(48000 * 2 * 4, (info.sampleRate ?? 48000) * (info.channels ?? 2) * 2),
+      );
+      const job = jobFor(ctx, i, input.items.length);
+      let audio: MediaOutput;
+      try {
+        audio = await media.speechAudio(
+          item.uri,
+          ctx.services.runId,
+          freshName(`${item.name}-speech`, 'wav'),
+          { isCancelled: job.isCancelled, progress: (f) => job.progress(f * 0.2) },
+        );
+      } catch (error) {
+        throw mediaError(error, item);
+      }
+      ctx.throwIfCancelled();
+      let segments;
+      try {
+        ({ segments } = await speech.transcribe(audio.uri, {
+          language,
+          model,
+          timed: true,
+          onProgress: (f) => job.progress(0.2 + f * 0.8),
+          isCancelled: job.isCancelled,
+        }));
+      } catch (error) {
+        throw speechError(error, item, ctx, language);
+      }
+      if (!segments)
+        throw new RunError('unsupportedAction', { action: t(ctx.locale, 'subtitlesNeedApp') });
+      const srt = speechToSrt(segments, language, info.durationMs);
+      if (!srt) throw new RunError('noSpeech', { name: displayName(item) });
+      ctx.throwIfCancelled();
+      out.push(
+        await writeItem(ctx.services, new TextEncoder().encode(srt), {
+          name: item.name,
+          ext: 'srt',
+          mimeType: 'application/x-subrip',
+        }),
+      );
+    }
+    ctx.progress(100, 100, 'percent');
+    return { type: 'files', items: out };
+  },
+
   'audio.volume': (input, params, ctx) => processSound(input, params, ctx, false),
   'audio.denoise': (input, params, ctx) => processSound(input, params, ctx, true),
   async 'audio.compress'(input, params, ctx) {
@@ -429,36 +522,7 @@ export const AUDIO_IMPLS: Record<string, Impl> = {
     const items = fileItems(input);
     const language = params.lang as SpeechLanguage;
     const model = params.model as SpeechModel;
-    const { locale } = ctx;
-    const speech = ctx.services.files.speech;
-    if (!speech) throw new RunError('needsFullApp');
-    const lang = SPEECH_LANGUAGE_NAMES[language][locale];
-
-    const need = await speech.need(language, model);
-    if (need.kind === 'unsupported') {
-      throw new RunError('unsupportedAction', {
-        action: t(locale, 'speechLangUnsupported', { lang }),
-      });
-    }
-    // iPhone：系统要先下载这种语言的识别模型，下载前问一句（D-064、D-112）。
-    if (need.kind === 'systemDownload') {
-      const ok = await ctx.services.ui.confirm(
-        t(locale, 'speechDownloadAsk', { lang }),
-        t(locale, 'speechDownload'),
-        t(locale, 'cancel'),
-        t(locale, 'speechDownloadBody'),
-      );
-      if (!ok) throw new RunCancelled();
-      try {
-        await speech.prepare(language, (f) => ctx.progress(Math.round(f * 100), 100, 'percent'));
-      } catch {
-        throw new RunError('packFailed', { detail: t(locale, 'speechDownloadFailed', { lang }) });
-      }
-    }
-    // Android：模型由执行器在这一步之前按 packFor 确认下载；还没有说明下载失败了。
-    if (need.kind === 'pack') {
-      throw new RunError('packFailed', { detail: t(locale, 'speechDownloadFailed', { lang }) });
-    }
+    const speech = await prepareSpeech(ctx, language, model);
 
     const parts: { name: string; text: string }[] = [];
     for (const [i, item] of items.entries()) {

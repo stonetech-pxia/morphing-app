@@ -49,6 +49,7 @@ private final class Job: @unchecked Sendable {
   private let lock = NSLock()
   private var _cancelled = false
   private var _backgrounded = false
+  private var _interrupted = false
   private var _onCancel: (() -> Void)?
 
   /** 取消时要做的事（停止读写或导出）；设置时已经取消了就马上做。 */
@@ -57,7 +58,7 @@ private final class Job: @unchecked Sendable {
     set {
       let run = lock.withLock { () -> Bool in
         _onCancel = newValue
-        return _cancelled
+        return _cancelled || _interrupted
       }
       if run { newValue?() }
     }
@@ -65,6 +66,7 @@ private final class Job: @unchecked Sendable {
 
   var cancelled: Bool { lock.withLock { _cancelled } }
   var backgrounded: Bool { lock.withLock { _backgrounded } }
+  var interrupted: Bool { lock.withLock { _interrupted } }
 
   func cancel() {
     let handler: (() -> Void)? = lock.withLock {
@@ -80,6 +82,7 @@ private final class Job: @unchecked Sendable {
   func interrupt() {
     let handler: (() -> Void)? = lock.withLock {
       _backgrounded = true
+      _interrupted = true
       return _onCancel
     }
     handler?()
@@ -161,6 +164,15 @@ public class MorphMediaModule: Module {
         defer { self.finish(jobId) }
         do { promise.resolve(try await self.adjustVolume(job, jobId: jobId, uri: uri, output: output, options: options)) }
         catch { promise.reject(Self.coded(error, job: job)) }
+      }
+    }
+
+    AsyncFunction("speechAudio") { (jobId: String, uri: URL, output: URL, promise: Promise) in
+      let job = self.start(jobId)
+      Task {
+        defer { self.finish(jobId) }
+        do { promise.resolve(try await self.speechAudio(job, jobId: jobId, uri: uri, output: output)) }
+        catch { try? FileManager.default.removeItem(at: output); promise.reject(Self.coded(error, job: job)) }
       }
     }
 
@@ -861,6 +873,8 @@ public class MorphMediaModule: Module {
 
   /** 统一解成 48 kHz 双声道 Float PCM；按时间戳补静音，视频的声音不会被提前。 */
   private func readPcm(_ job: Job, uri: URL, consume: (UnsafePointer<Float>, Int) throws -> Void) async throws {
+    if job.cancelled { throw MediaCancelledException() }
+    if job.interrupted { throw MediaInterruptedException() }
     let asset = AVURLAsset(url: uri)
     let (duration, tracks) = try await asset.load(.duration, .tracks)
     let audio = tracks.filter { $0.mediaType == .audio }
@@ -874,13 +888,18 @@ public class MorphMediaModule: Module {
     guard reader.canAdd(out) else { throw MediaUnsupportedException("PCM reader") }
     reader.add(out)
     job.onCancel = { reader.cancelReading() }
-    guard reader.startReading() else { throw MediaUnsupportedException(reader.error?.localizedDescription ?? "PCM read") }
+    guard reader.startReading() else {
+      if job.cancelled { throw MediaCancelledException() }
+      if job.interrupted { throw MediaInterruptedException() }
+      throw MediaUnsupportedException(reader.error?.localizedDescription ?? "PCM read")
+    }
     defer { if reader.status == .reading { reader.cancelReading() } }
     var cursor = 0
     let silence = [Float](repeating: 0, count: 16384)
     func pad(to frame: Int) throws {
       while cursor < frame {
         if job.cancelled { throw MediaCancelledException() }
+        if job.interrupted { throw MediaInterruptedException() }
         let count = min(frame - cursor, silence.count / 2)
         try silence.withUnsafeBufferPointer { try consume($0.baseAddress!, count) }
         cursor += count
@@ -888,6 +907,7 @@ public class MorphMediaModule: Module {
     }
     while let sample = out.copyNextSampleBuffer() {
       if job.cancelled { throw MediaCancelledException() }
+      if job.interrupted { throw MediaInterruptedException() }
       guard let block = CMSampleBufferGetDataBuffer(sample) else { continue }
       let seconds = CMSampleBufferGetPresentationTimeStamp(sample).seconds
       guard seconds.isFinite else { throw MediaUnsupportedException("audio timestamp") }
@@ -905,8 +925,31 @@ public class MorphMediaModule: Module {
       }
     }
     if job.cancelled { throw MediaCancelledException() }
+    if job.interrupted { throw MediaInterruptedException() }
+    if reader.status == .cancelled { throw MediaCancelledException() }
     if reader.status == .failed { throw MediaFailedException(reader.error?.localizedDescription ?? "PCM decode") }
     try pad(to: totalFrames)
+  }
+
+  /** 语音识别用无损 WAV，按视频时间轴补静音；不能丢掉开头的音轨延迟。 */
+  private func speechAudio(_ job: Job, jobId: String, uri: URL, output: URL) async throws -> [String: Any] {
+    try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)!
+    var writer: AVAudioFile? = try AVAudioFile(forWriting: output, settings: format.settings)
+    let duration = try await AVURLAsset(url: uri).load(.duration).seconds
+    var done = 0; var shown = -1
+    try await readPcm(job, uri: uri) { samples, frames in
+      guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)), let channels = buffer.floatChannelData else { throw MediaFailedException("PCM allocation") }
+      buffer.frameLength = AVAudioFrameCount(frames)
+      for i in 0..<frames { for c in 0..<2 { channels[c][i] = samples[i*2+c] } }
+      try writer!.write(from: buffer)
+      done += frames
+      let percent = duration > 0 ? Int(min(100, Double(done)/48000/duration*100)) : 0
+      if percent > shown { shown = percent; progress(jobId, Double(percent)/100) }
+    }
+    writer = nil
+    if job.cancelled { throw MediaCancelledException() }
+    return try await Self.result(output)
   }
 
   private func adjustVolume(_ job: Job, jobId: String, uri: URL, output: URL, options: [String: Any]) async throws -> [String: Any] {

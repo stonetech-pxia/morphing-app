@@ -255,6 +255,8 @@ export interface MediaPlatform {
     job: MediaJob,
   ): Promise<MediaOutput>;
   /** 同一个响度动作接音频或视频；视频设置存在时保留画面。 */
+  /** 按视频完整时间轴提取 WAV，给本机字幕识别，包含开头/结尾静音。 */
+  speechAudio(uri: string, runId: string, relPath: string, job: MediaJob): Promise<MediaOutput>;
   volume(
     uri: string,
     settings: { automatic: boolean; db: number; video?: VideoEncode },

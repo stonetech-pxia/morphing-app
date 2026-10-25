@@ -88,6 +88,12 @@ export function expoMedia(
       return output(result);
     },
 
+    async speechAudio(uri, runId, relPath, job) {
+      if (!native.speechAudio) throw notImplemented('subtitle audio extraction');
+      return output(
+        await run(job, (jobId) => native.speechAudio!(jobId, uri, runFileUri(runId, relPath))),
+      );
+    },
     async volume(uri, settings, runId, relPath, job) {
       if (!native.volume) throw notImplemented('volume adjustment');
       return output(

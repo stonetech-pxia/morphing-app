@@ -605,6 +605,26 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'video-srt-captions',
+    scenario: 'photos',
+    packs: ['speech-whisper-small'],
+    name: { en: 'Export video captions as SRT', zh: '导出视频 SRT 字幕' },
+    description: {
+      en: 'Recognize video speech locally and save a separate SRT file. Captions are not burned into the video.',
+      zh: '在本机识别视频里的讲话，生成单独的 SRT 字幕文件，不烧录进画面。',
+    },
+    icon: 'video',
+    steps: (locale) => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      {
+        id: 'captions',
+        action: 'video.subtitles',
+        params: { lang: speechLangFor(locale), model: 'standard' },
+        ask: ['lang'],
+      },
+    ],
+  },
+  {
     id: 'mark-up-photos',
     scenario: 'photos',
     name: { en: 'Add arrows and notes to photos', zh: '在图片上画箭头和文字' },

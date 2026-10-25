@@ -26,6 +26,7 @@ class TranscribeOptions : Record {
   @Field val model: String? = null
   @Field val vad: String? = null
   @Field val prompt: String? = null
+  @Field val timed: Boolean = false
 }
 
 /** 一次交给 whisper 的声音最长 5 分钟（约 19 MB），在最后 20 秒里最安静的地方切开。 */

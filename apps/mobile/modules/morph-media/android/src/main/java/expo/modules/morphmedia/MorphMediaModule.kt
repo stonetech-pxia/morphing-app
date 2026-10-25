@@ -181,6 +181,31 @@ class MorphMediaModule : Module() {
       }
     }
 
+    AsyncFunction("speechAudio") { jobId: String, uri: String, output: String, promise: Promise ->
+      val flag = AtomicBoolean(false); threadJobs[jobId] = flag
+      thread {
+        val destination = File(Uri.parse(output).path!!)
+        try {
+          destination.parentFile?.mkdirs()
+          val durationMs = (probe(Uri.parse(uri))["durationMs"] as? Number)?.toDouble() ?: 0.0
+          val writer = AudioPcm.WavWriter(destination)
+          var complete = false; var shown = -1
+          try {
+            AudioPcm.visitTimeline(context, Uri.parse(uri), durationMs, { flag.get() }) { chunk ->
+              writer.write(chunk.samples, chunk.channels, chunk.sampleRate)
+              val percent = if (durationMs > 0) (chunk.ptsUs / 10 / durationMs).toInt().coerceIn(0,100) else 0
+              if (percent > shown) { shown = percent; sendProgress(jobId, percent/100.0) }
+            }
+            if (flag.get()) throw MediaCancelledException()
+            complete = true
+          } finally { if (complete) writer.close() else runCatching { writer.close() } }
+          promise.resolve(result(destination))
+        } catch (e: CodedException) { destination.delete(); promise.reject(e) }
+        catch (e: Exception) { destination.delete(); promise.reject(MediaFailedException(e.message)) }
+        finally { threadJobs.remove(jobId) }
+      }
+    }
+
     AsyncFunction("denoise") {
       jobId: String, uri: String, output: String, options: Map<String, Any?>, promise: Promise ->
       val flag = AtomicBoolean(false)

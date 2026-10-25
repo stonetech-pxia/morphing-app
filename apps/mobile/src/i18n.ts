@@ -661,6 +661,14 @@ const strings = {
     en: 'Videos and audio can only be processed in the full Morph app, not in this preview.',
     zh: '视频和音频要在正式版 Morph 里处理，这个预览版里不行。',
   },
+  subtitlesNeedApp: {
+    en: 'Exporting timed captions needs an updated Morph app.',
+    zh: '导出带时间的字幕需要更新后的 Morph App。',
+  },
+  subtitlesNote: {
+    en: 'These are separate SRT files. Open them with the original video in a compatible player or editor. Review the words and timing; captions have not been burned into the picture.',
+    zh: '这是单独的 SRT 文件，需要在支持的播放器或编辑器中与原视频一起打开。请核对文字和时间；字幕没有烧录进画面。',
+  },
   annotateTitle: { en: 'Mark up photo', zh: '标注图片' },
   annotateText: { en: 'Text', zh: '文字' },
   annotateArrow: { en: 'Arrow', zh: '箭头' },

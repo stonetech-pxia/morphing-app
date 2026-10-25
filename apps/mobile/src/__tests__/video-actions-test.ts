@@ -92,7 +92,7 @@ const failure = (result: RunResult) =>
   result.status === 'failed' ? { code: result.error.code, detail: result.error.detail } : result;
 
 describe('video tool', () => {
-  it('installs four quick actions and a video file list', () => {
+  it('installs video quick actions and a video file list', () => {
     const result = applyOps(
       createDefaultWorkspace('zh'),
       [{ op: 'installTool', toolId: 'video' }],
@@ -103,6 +103,7 @@ describe('video tool', () => {
     );
     if (!result.ok) throw new Error(result.error);
     expect(result.config.workflows.map((w) => w.name)).toEqual([
+      '导出 SRT 字幕',
       '视频加速或慢放',
       '视频裁成指定比例',
       '旋转视频',

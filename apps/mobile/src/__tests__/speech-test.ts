@@ -164,3 +164,20 @@ describe('speech to text', () => {
     ).rejects.toMatchObject({ code: 'failed' });
   });
 });
+
+it('requests native timed recognition only for captions and preserves the original segment timestamps', async () => {
+  const native = new FakeSpeech('system');
+  native.result = { segments: [{ startMs: 1234, endMs: 2456, text: 'Hello.' }], durationMs: 3000 };
+  const speech = createSpeech(native, null)!;
+  const result = await speech.transcribe('file:///timeline.wav', {
+    language: 'en',
+    model: 'standard',
+    timed: true,
+  });
+  expect(native.calls[0]!.options.timed).toBe(true);
+  expect(result.segments).toEqual(native.result.segments);
+  expect(
+    (await speech.transcribe('file:///timeline.wav', { language: 'en', model: 'standard' }))
+      .segments,
+  ).toBeUndefined();
+});

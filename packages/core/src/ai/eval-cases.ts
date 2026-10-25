@@ -3111,7 +3111,44 @@ const IMAGE_ANNOTATE_CASES: EvalCase[] = [
     },
   },
 ];
+const VIDEO_SUBTITLE_CASES: EvalCase[] = [
+  {
+    id: 'VST1',
+    input: '添加导出视频 SRT 字幕快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.subtitles'))
+          ? null
+          : 'missing SRT captions',
+    },
+  },
+  {
+    id: 'VST2',
+    input:
+      'Make an action to generate separate SRT subtitle files from my English-speaking videos. Recognize speech on this device; I will load the SRT in a video player.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps[0]?.action === 'in.videos' &&
+            w.steps.some((s) => s.action === 'video.subtitles' && s.params.lang === 'en') &&
+            !w.steps.some((s) => s.action === 'audio.fromVideo'),
+        )
+          ? null
+          : 'missing local English video captions',
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...VIDEO_SUBTITLE_CASES,
   ...IMAGE_ANNOTATE_CASES,
   ...IMAGE_ADJUST_CASES,
   ...IMAGE_BACKGROUND_CASES,

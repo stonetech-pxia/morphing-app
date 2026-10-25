@@ -574,6 +574,22 @@ export class FakeMedia implements MediaPlatform {
       throw Object.assign(new Error(code), { code });
     }
   }
+  speechExtractions: string[] = [];
+  async speechAudio(
+    uri: string,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.speechExtractions.push(uri);
+    return this.encodeAudio(
+      uri,
+      { format: 'wav', bitrateKbps: 1536, sampleRate: 48000, channels: 2 },
+      runId,
+      relPath,
+      job,
+    );
+  }
   volumes: { uri: string; automatic: boolean; db: number }[] = [];
   async volume(
     uri: string,
@@ -884,12 +900,23 @@ export class FakeSpeech implements SpeechPlatform {
     this.prepared.push(language);
     this.needs = { kind: 'ready' };
   }
+  timedResults: import('@morph/core').SpeechSegment[][] = [];
   async transcribe(uri: string, request: TranscribeRequest) {
     this.calls.push({ uri, language: request.language, model: request.model });
     request.onProgress?.(0.5);
     if (request.isCancelled?.()) throw new SpeechError('cancelled');
     if (this.error) throw new SpeechError(this.error);
-    return { text: this.texts.shift() ?? '', durationMs: 1000 };
+    const text = this.texts.shift() ?? '';
+    return {
+      text,
+      durationMs: 1000,
+      ...(request.timed
+        ? {
+            segments:
+              this.timedResults.shift() ?? (text ? [{ startMs: 0, endMs: 1000, text }] : []),
+          }
+        : {}),
+    };
   }
 }
 

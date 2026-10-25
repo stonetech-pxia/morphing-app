@@ -35,6 +35,7 @@ struct TranscribeOptions: Record {
   @Field var model: String?
   @Field var prompt: String?
   @Field var legacy: Bool = false
+  @Field var timed: Bool = false
 }
 
 public class MorphSpeechModule: Module {
@@ -142,7 +143,7 @@ public class MorphSpeechModule: Module {
       if #available(iOS 26.0, *), !legacy, let module = await Self.analyzerModule(language) {
         segments = try await Self.analyze(file: file, module: module, language: language, progress: progress)
       } else {
-        segments = try await Self.recognizeLegacy(url: uri, language: language, progress: progress)
+        segments = try await Self.recognizeLegacy(url: uri, language: language, timed: options.timed, progress: progress)
       }
       return ["segments": segments, "durationMs": durationMs]
     }
@@ -317,7 +318,7 @@ public class MorphSpeechModule: Module {
   }
 
   private static func recognizeLegacy(
-    url: URL, language: String, progress: @escaping (Double) -> Void
+    url: URL, language: String, timed: Bool, progress: @escaping (Double) -> Void
   ) async throws -> [[String: Any]] {
     guard let recognizer = legacyRecognizer(language) else { throw unsupportedLanguage(language) }
     guard await authorize() else { throw notAuthorized() }
@@ -337,8 +338,15 @@ public class MorphSpeechModule: Module {
             let start = (words.first?.timestamp ?? 0) * 1000
             let end = words.last.map { ($0.timestamp + $0.duration) * 1000 } ?? start
             if result.isFinal {
-              let text = result.bestTranscription.formattedString
-              if !text.isEmpty { segments.append(["startMs": start, "endMs": end, "text": text]) }
+              if timed {
+                // 使用系统实际的词时间戳，不把整段录音伪装成一个字幕。
+                for word in words {
+                  segments.append(["startMs": word.timestamp*1000, "endMs": (word.timestamp+word.duration)*1000, "text": word.substring])
+                }
+              } else {
+                let text = result.bestTranscription.formattedString
+                if !text.isEmpty { segments.append(["startMs": start, "endMs": end, "text": text]) }
+              }
               finished = true
               cont.resume(returning: segments)
               return

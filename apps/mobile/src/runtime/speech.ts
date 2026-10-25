@@ -8,6 +8,7 @@ import {
   whisperLanguage,
   whisperPrompt,
   type SpeechLanguage,
+  type SpeechSegment,
   type SpeechModel,
 } from '@morph/core';
 
@@ -63,6 +64,7 @@ export interface SpeechPacks {
 }
 
 export interface TranscribeRequest {
+  timed?: boolean;
   language: SpeechLanguage;
   /** Android 用哪个模型；iOS 不管。 */
   model: SpeechModel;
@@ -73,6 +75,7 @@ export interface TranscribeRequest {
 }
 
 export interface SpeechTranscript {
+  segments?: SpeechSegment[];
   text: string;
   durationMs: number;
 }
@@ -135,7 +138,7 @@ export function createSpeech(
       }
     },
 
-    async transcribe(uri, { language, model, onProgress, isCancelled }) {
+    async transcribe(uri, { language, model, onProgress, isCancelled, timed }) {
       const taskId = newTaskId();
       const whisper = native.engine === 'whisper';
       if (whisper && !packs) throw new SpeechError('model', 'no downloads');
@@ -150,6 +153,7 @@ export function createSpeech(
       try {
         const result = await native.transcribe(uri, {
           taskId,
+          ...(timed ? { timed: true } : {}),
           language: nativeLanguage(language),
           ...(whisper && {
             model: packs!.uri(SPEECH_MODEL_PACKS[model], SPEECH_MODEL_FILE),
@@ -157,7 +161,11 @@ export function createSpeech(
             prompt: whisperPrompt(language),
           }),
         });
-        return { text: tidyTranscript(result.segments, language), durationMs: result.durationMs };
+        return {
+          text: tidyTranscript(result.segments, language),
+          durationMs: result.durationMs,
+          ...(timed ? { segments: result.segments } : {}),
+        };
       } catch (e) {
         throw asSpeechError(e);
       } finally {

@@ -108,6 +108,7 @@ export interface MorphMediaModule {
     output: string,
     options: TranscodeOptions,
   ): Promise<MediaResult>;
+  speechAudio?(jobId: string, uri: string, output: string): Promise<MediaResult>;
   volume?(
     jobId: string,
     uri: string,
