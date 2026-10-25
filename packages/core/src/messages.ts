@@ -3366,13 +3366,123 @@ const SINGULAR_MESSAGES: Partial<Record<StringKey, Localized>> = {
     zh: '同时移除 {v0} 个指向「{v1}」的按钮或快捷入口',
     fr: 'Supprime aussi {v0} bouton ou raccourci ouvrant « {v1} »',
   },
+  shareUsed: { en: 'Used once', zh: '用过 {n} 次', fr: 'Utilisé {n} fois' },
+  runDone: {
+    en: 'Saved “{name}” ({pages} page)',
+    zh: '已保存「{name}」（{pages} 页）',
+    fr: '« {name} » enregistré ({pages} page)',
+  },
+  runError_tooFew: {
+    en: 'Choose at least {min} file.',
+    zh: '请至少选择 {min} 个文件。',
+    fr: 'Choisissez au moins {min} fichier.',
+  },
+  runError_tooMany: {
+    en: 'Choose at most {max} file.',
+    zh: '最多选择 {max} 个文件。',
+    fr: 'Choisissez au maximum {max} fichier.',
+  },
+  runError_tooLong: {
+    en: '“{name}” is too long for a GIF (at most {seconds} second). Trim it first.',
+    zh: '「{name}」太长了，做不成 GIF（最长 {seconds} 秒）。请先剪一段。',
+    fr: '« {name} » est trop long pour un GIF (maximum {seconds} seconde). Coupez-le d’abord.',
+  },
+  packDeleteWithLanguages: {
+    en: 'Its language is deleted too. You can download it again the next time you need it.',
+    zh: '它的 {count} 种语言也会一起删除。下次用到时可以再下载。',
+    fr: 'Sa langue sera aussi supprimée. Vous pourrez la télécharger à nouveau la prochaine fois que vous en aurez besoin.',
+  },
+  recordCount: { en: '{count} entry', zh: '{count} 条记录', fr: '{count} entrée' },
+  deleteForeverConfirm: {
+    en: 'Delete {count} entry of “{name}”? This can’t be undone.',
+    zh: '永久删除「{name}」的全部 {count} 条记录？此操作无法撤销。',
+    fr: 'Supprimer {count} entrée de « {name} » ? Cette action est irréversible.',
+  },
+  editPageSummary: {
+    en: 'Edit “{page}” ({count} change)',
+    zh: '编辑「{page}」（{count} 处修改）',
+    fr: 'Modifier « {page} » ({count} modification)',
+  },
+  deleteGroupMessage: {
+    en: 'The part inside it is deleted too. Cancel discards the whole edit; after saving you can still undo it.',
+    zh: '里面的 {count} 块也会一起删除。点「取消」可以放弃这次编辑，保存后也能撤销。',
+    fr: 'L’élément qu’il contient sera aussi supprimé. « Annuler » abandonne toute la modification ; après enregistrement, vous pourrez encore l’annuler.',
+  },
+  describe_Add_page_blocks_80d1f: {
+    en: 'Add page “{v0}” ({v1} block)',
+    zh: '新建页面「{v0}」（{v1} 块内容）',
+    fr: 'Ajouter la page « {v0} » ({v1} bloc)',
+  },
+  html_records_3f794: { en: '{v0} record', zh: '{v0} 条', fr: '{v0} enregistrement' },
+  ShareScreen_Needs_at_least_files_0ed9b: {
+    en: 'Needs at least {v0} file',
+    zh: '需要至少 {v0} 个文件',
+    fr: 'Au moins {v0} fichier requis',
+  },
+  ShareScreen_Takes_at_most_files_0fe59: {
+    en: 'Takes at most {v0} file',
+    zh: '最多 {v0} 个文件',
+    fr: 'Maximum {v0} fichier',
+  },
+  RedactScreen_boxes_4d76c: { en: '{v0} box', zh: '{v0} 处', fr: '{v0} zone' },
+  FillFormScreen_has_fields_to_fill_in_Use_Latin_letter_e3442: {
+    en: '{v0}.{v1} has {v2} field to fill in. Use Latin letters, digits and common symbols.',
+    zh: '{v0}.{v1} 有 {v2} 个可以填写的字段。只能填英文字母、数字和常用符号。',
+    fr: '{v0}.{v1} comporte {v2} champ à remplir. Utilisez des lettres latines, des chiffres et des symboles courants.',
+  },
+  PagesScreen_Restore_removed_a7e1a: {
+    en: 'Restore {v0} removed',
+    zh: '恢复删掉的 {v0} 页',
+    fr: 'Restaurer {v0} page supprimée',
+  },
+  io_taken_af2cf: { en: '{v0} taken', zh: '已拍 {v0} 张', fr: '{v0} photo prise' },
+  WorkflowsScreen_Needs_at_least_files_0ed9b: {
+    en: 'Needs at least {v0} file',
+    zh: '需要至少 {v0} 个文件',
+    fr: 'Au moins {v0} fichier requis',
+  },
+  WorkflowsScreen_Takes_at_most_files_0fe59: {
+    en: 'Takes at most {v0} file',
+    zh: '最多 {v0} 个文件',
+    fr: 'Maximum {v0} fichier',
+  },
 };
 
+/** 哪个参数决定单复数（默认是 n）。 */
 const PLURAL_COUNT_VARIABLE: Partial<Record<StringKey, string>> = {
   describe_Also_removes_card_s_that_ran_this_quic_5d29f: 'v0',
   describe_Also_removes_block_s_that_showed_a7a30: 'v0',
   describe_Also_removes_button_s_or_shortcut_s_th_d4dc1: 'v0',
+  runDone: 'pages',
+  runError_tooFew: 'min',
+  runError_tooMany: 'max',
+  runError_tooLong: 'seconds',
+  packDeleteWithLanguages: 'count',
+  recordCount: 'count',
+  deleteForeverConfirm: 'count',
+  editPageSummary: 'count',
+  deleteGroupMessage: 'count',
+  describe_Add_page_blocks_80d1f: 'v1',
+  html_records_3f794: 'v0',
+  ShareScreen_Needs_at_least_files_0ed9b: 'v0',
+  ShareScreen_Takes_at_most_files_0fe59: 'v0',
+  RedactScreen_boxes_4d76c: 'v0',
+  FillFormScreen_has_fields_to_fill_in_Use_Latin_letter_e3442: 'v2',
+  PagesScreen_Restore_removed_a7e1a: 'v0',
+  io_taken_af2cf: 'v0',
+  WorkflowsScreen_Needs_at_least_files_0ed9b: 'v0',
+  WorkflowsScreen_Takes_at_most_files_0fe59: 'v0',
 };
+
+/**
+ * 是否用单数（CLDR 的 one）。手写而不用 Intl.PluralRules：App 的 Hermes 引擎没有它，调用会直接抛错。
+ * 法语 0 和小于 2 的数是单数，英文只有 1，中文不分单复数。
+ */
+export function isSingular(locale: Locale, n: number): boolean {
+  if (locale === 'fr') return n >= 0 && n < 2;
+  if (locale === 'en') return n === 1;
+  return false;
+}
 
 export function t(
   locale: Locale,
@@ -3381,15 +3491,21 @@ export function t(
 ): string {
   const count = vars[PLURAL_COUNT_VARIABLE[key] ?? 'n'];
   const text =
-    typeof count === 'number' && new Intl.PluralRules(locale).select(count) === 'one'
+    typeof count === 'number' && isSingular(locale, count)
       ? (SINGULAR_MESSAGES[key] ?? MESSAGES[key])
       : MESSAGES[key];
+  // 不分组：版本号、年份这类数字不能写成「12 345」。
   return (text[locale] ?? text.en).replace(/\{(\w+)\}/g, (_, name: string) =>
     typeof vars[name] === 'number' && locale === 'fr'
-      ? new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 4 }).format(vars[name] as number)
+      ? FRENCH_NUMBER.format(vars[name] as number)
       : String(vars[name] ?? `{${name}}`),
   );
 }
+
+const FRENCH_NUMBER = new Intl.NumberFormat('fr-FR', {
+  maximumFractionDigits: 4,
+  useGrouping: false,
+});
 
 /** 兼容工具定义中已有的英文/中文名称对；迁移完成前统一在此回退。 */
 export function pairText(locale: Locale, pair: readonly [string, string]): string {
