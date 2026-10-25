@@ -246,3 +246,9 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 - 添加视频人声降噪快捷操作
 - 步骤句式：人声降噪 / reduce speech noise / denoise
 - 适合讲话录音，音乐可能被削弱；视频保留画面。
+
+### 图片去背景
+
+- 添加把照片背景去掉快捷操作
+- 步骤句式：抠图 / 去背景 / remove background；换成白底 / white background
+- 透明或纯色 PNG，需要 iOS 17+ 或 Android Google Play 服务。

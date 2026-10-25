@@ -24,6 +24,15 @@ export interface NativeImage {
 }
 
 export interface MorphVisionModule {
+  backgroundRemovalSupported?(): boolean;
+  backgroundStatus?(): Promise<'ready' | 'download' | 'unsupported'>;
+  downloadBackgroundModel?(): Promise<void>;
+  removeBackground?(
+    uri: string,
+    background: string,
+    output: string,
+  ): Promise<Omit<NativeImage, 'uri'>>;
+
   /** 系统文档相机能不能用（模拟器和很旧的设备上是 false）。 */
   isDocumentCameraSupported(): boolean;
   /** 有没有相机（模拟器上没有）。 */

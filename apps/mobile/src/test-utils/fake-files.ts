@@ -929,6 +929,25 @@ export class FakeBackground implements BackgroundPlatform {
 
 /** 假的系统文字识别和扫描（iOS 的 Vision；Android 的 ML Kit 设 canFindPaper = false）：按顺序返回找到的角和识别的文字，拉正写一张真实的小 JPEG。 */
 export class FakeVision implements VisionPlatform {
+  backgroundRemovalSupported = true;
+  backgroundState: 'ready' | 'download' | 'unsupported' = 'ready';
+  backgroundFailure = false;
+  async backgroundStatus() {
+    return this.backgroundState;
+  }
+  async downloadBackgroundModel() {
+    this.calls.push({ method: 'downloadBackgroundModel', uri: '' });
+    this.backgroundState = 'ready';
+  }
+  async removeBackground(uri: string, background: string, runId: string, relPath: string) {
+    this.calls.push({ method: 'removeBackground', uri, args: background });
+    if (this.backgroundFailure) throw new Error('no subject');
+    const size = await this.files.imageSize(uri);
+    const out = await this.files.writeRunFile(runId, relPath, TINY_JPEG);
+    this.files.imageSizes.set(out.uri, size);
+    return { ...out, ...size };
+  }
+
   calls: { method: string; uri: string; args?: unknown }[] = [];
   /** 每次找边的结果（按顺序）。 */
   found: (Quad | null)[] = [];

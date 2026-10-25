@@ -173,6 +173,17 @@ const RECORD_PHRASES: Matcher[] = [
 
 const STEP_PHRASES: Matcher[] = [
   [
+    /^(?:抠图|去背景|去掉背景|remove background)$/i,
+    () => ({
+      action: 'image.removeBackground',
+      params: { background: 'transparent', color: '#FFFFFF' },
+    }),
+  ],
+  [
+    /^(?:换成白底|白色背景|white background)$/i,
+    () => ({ action: 'image.removeBackground', params: { background: 'color', color: '#FFFFFF' } }),
+  ],
+  [
     /人声降噪|去除?杂音|reduce (?:speech|background) noise|denoise/i,
     () => ({ action: 'audio.denoise', params: {} }),
   ],
@@ -540,6 +551,7 @@ const PRESET_WORDS: [RegExp, string][] = [
   [/把视频转正|fix video rotation/i, 'fix-video-rotation'],
   [/裁成竖屏视频|portrait posts/i, 'vertical-video'],
   [/视频加速或慢放|speed up or slow down video/i, 'video-speed'],
+  [/把照片背景去掉|remove a photo background/i, 'remove-photo-background'],
   [/录音人声降噪|noise in a voice recording/i, 'denoise-audio'],
   [/视频人声降噪|noise in video speech/i, 'denoise-video'],
   [/把录音调到正常音量|quiet audio easier/i, 'normal-audio-volume'],

@@ -62,6 +62,50 @@ const resizeModes = ['longEdge', 'width', 'height', 'percent', 'fit'] as const;
 
 export const IMAGE_ACTIONS: readonly ActionDefinition[] = [
   {
+    id: 'image.removeBackground',
+    label: { en: 'Remove background', zh: '去背景' },
+    description: {
+      en: 'Keep the main subjects and remove the background locally, producing PNG with transparency or a solid color. Requires iOS 17+ or Android Google Play services (first use downloads a model). Fine hair, transparent objects and unclear subjects may need another editor. Does not guarantee an official ID photo.',
+      zh: '在本机保留主要主体、去掉背景，输出透明或纯色背景 PNG。需要 iOS 17+ 或 Android Google Play 服务（首次下载模型）。发丝、透明物体或主体不清晰时可能需要其他编辑器；不保证符合证件照要求。',
+    },
+    input: ['images'],
+    output: 'images',
+    params: z.strictObject({
+      background: z.enum(['transparent', 'color']),
+      color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    }),
+    fields: [
+      {
+        key: 'background',
+        label: { en: 'Background', zh: '背景' },
+        kind: 'choice',
+        options: [
+          { value: 'transparent', label: { en: 'Transparent', zh: '透明' } },
+          { value: 'color', label: { en: 'Solid color', zh: '纯色' } },
+        ],
+      },
+      {
+        key: 'color',
+        label: { en: 'Color', zh: '颜色' },
+        kind: 'color',
+        showIf: { key: 'background', equals: ['color'] },
+      },
+    ],
+    presets: [
+      {
+        id: 'transparent',
+        label: { en: 'Transparent', zh: '透明' },
+        values: { background: 'transparent', color: '#FFFFFF' },
+      },
+      {
+        id: 'white',
+        label: { en: 'White', zh: '白底' },
+        values: { background: 'color', color: '#FFFFFF' },
+      },
+    ],
+    requires: [],
+  },
+  {
     id: 'image.convert',
     label: { en: 'Convert format', zh: '转格式' },
     description: {
@@ -692,6 +736,13 @@ export function imageWorkflows(locale: Locale): Workflow[] {
   return [
     single(
       locale,
+      'image.removeBackground',
+      ['Remove background', '去背景'],
+      { background: 'transparent', color: '#FFFFFF' },
+      ['background', 'color'],
+    ),
+    single(
+      locale,
       'image.compress',
       ['Compress photos', '压缩图片'],
       { maxKB: 500, format: 'jpeg' },
@@ -803,7 +854,7 @@ export function imageWorkflows(locale: Locale): Workflow[] {
 
 export const imageTool: ToolDefinition = {
   id: IMAGE_TOOL_ID,
-  version: '1.2.0',
+  version: '1.3.0',
   name: { en: 'Images', zh: '图片' },
   description: {
     en: 'Compress, convert (HEIC to JPG too), resize, crop, rotate and clean photos; stitch, grid, animated GIFs, hide parts, watermark and make ID photos, on this device.',

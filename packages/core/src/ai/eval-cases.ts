@@ -2991,7 +2991,50 @@ const AUDIO_DENOISE_CASES: EvalCase[] = [
     },
   },
 ];
+const IMAGE_BACKGROUND_CASES: EvalCase[] = [
+  {
+    id: 'IBG1',
+    input: '添加把照片背景去掉快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some(
+            (s) => s.action === 'image.removeBackground' && s.params.background === 'transparent',
+          ),
+        )
+          ? null
+          : 'missing transparent background removal',
+    },
+  },
+  {
+    id: 'IBG2',
+    input:
+      'Make a reusable action to cut out the subjects in photos and put them on a white background.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some(
+            (s) =>
+              s.action === 'image.removeBackground' &&
+              s.params.background === 'color' &&
+              String(s.params.color).toUpperCase() === '#FFFFFF',
+          ),
+        )
+          ? null
+          : 'missing white background removal',
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...IMAGE_BACKGROUND_CASES,
   ...AUDIO_DENOISE_CASES,
   ...AUDIO_VOLUME_CASES,
   ...VIDEO_SPEED_CASES,

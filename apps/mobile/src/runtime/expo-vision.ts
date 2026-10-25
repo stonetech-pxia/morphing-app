@@ -15,6 +15,17 @@ export function expoVision(
   const native = MorphVision;
   if (!native) return null;
   return {
+    backgroundRemovalSupported: native.backgroundRemovalSupported?.() ?? false,
+    backgroundStatus: () => native.backgroundStatus?.() ?? Promise.resolve('unsupported'),
+    async downloadBackgroundModel() {
+      if (native.downloadBackgroundModel) await native.downloadBackgroundModel();
+    },
+    async removeBackground(uri, background, runId, relPath) {
+      if (!native.removeBackground) throw new Error('Background removal unavailable');
+      const output = runFileUri(runId, relPath);
+      return { uri: output, ...(await native.removeBackground(uri, background, output)) };
+    },
+
     supportsLanguage: (code) => native.supportsLanguage(code),
 
     async recognizeText(uri, languages) {

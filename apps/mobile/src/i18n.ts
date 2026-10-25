@@ -661,6 +661,24 @@ const strings = {
     en: 'Videos and audio can only be processed in the full Morph app, not in this preview.',
     zh: '视频和音频要在正式版 Morph 里处理，这个预览版里不行。',
   },
+  backgroundNeedsSystem: {
+    en: 'Background removal needs iOS 17 or later, or Android with Google Play services.',
+    zh: '去背景需要 iOS 17 或更新版本，或带 Google Play 服务的 Android。',
+  },
+  backgroundDownload: { en: 'Download', zh: '下载' },
+  backgroundDownloadAsk: { en: 'Download background removal?', zh: '下载去背景功能？' },
+  backgroundDownloadBody: {
+    en: 'Google Play services needs to download a model first. Photos stay on this device. After downloading, processing works offline.',
+    zh: 'Google Play 服务需要先下载模型。照片留在本机，下载后可以离线处理。',
+  },
+  backgroundDownloadFailed: {
+    en: 'The background removal model could not be downloaded. Check your connection and Google Play services, then try again.',
+    zh: '去背景模型没下载成功。请检查网络和 Google Play 服务后重试。',
+  },
+  runError_backgroundFailed: {
+    en: 'Could not remove the background from “{name}”. Try a clear photo with a distinct subject.',
+    zh: '「{name}」没能去掉背景，请试一张主体清晰、和背景有区别的照片。',
+  },
   runError_mediaUnsupported: {
     en: '“{name}” can’t be opened: the format isn’t supported, or it is copy-protected.',
     zh: '「{name}」打不开：格式不支持，或者有版权保护。',

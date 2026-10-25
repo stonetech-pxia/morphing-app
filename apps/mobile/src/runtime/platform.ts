@@ -82,6 +82,16 @@ export interface SavedSignature {
  * 退回扩展包。全部在本机处理。
  */
 export interface VisionPlatform {
+  readonly backgroundRemovalSupported: boolean;
+  backgroundStatus(): Promise<'ready' | 'download' | 'unsupported'>;
+  downloadBackgroundModel(): Promise<void>;
+  removeBackground(
+    uri: string,
+    background: string,
+    runId: string,
+    relPath: string,
+  ): Promise<EncodedImage>;
+
   /** 这种语言（BCP 47）系统能不能识别。 */
   supportsLanguage(code: string): boolean;
   /** 识别文字；languages 是 BCP 47，第一种是用户选的语言。文字只返回给 App。 */

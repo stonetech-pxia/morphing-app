@@ -605,6 +605,24 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'remove-photo-background',
+    scenario: 'photos',
+    name: { en: 'Remove a photo background', zh: '把照片背景去掉' },
+    description: {
+      en: 'Keep the subject on a transparent PNG. Requires iOS 17+ or Google Play services.',
+      zh: '保留主体，输出透明 PNG。需要 iOS 17+ 或 Google Play 服务。',
+    },
+    icon: 'photo',
+    steps: () => [
+      photos(1, 10),
+      {
+        id: 'remove',
+        action: 'image.removeBackground',
+        params: { background: 'transparent', color: '#FFFFFF' },
+      },
+    ],
+  },
+  {
     id: 'normal-audio-volume',
     scenario: 'sound',
     name: { en: 'Make quiet audio easier to hear', zh: '把录音调到正常音量' },
