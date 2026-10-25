@@ -11,18 +11,14 @@ interface ChainRecord {
   signature: string;
   count: number;
   transfer: string;
+  /** 用户已经合成过或者点了「不用了」：这两个快捷操作不改，就不再提。 */
+  dismissed?: boolean;
 }
 
-/** 同一批结果重复运行第二段不增加次数；任一配置变化后重新累计。 */
-export async function recordChain(
-  repo: Pick<WorkspaceRepo, 'getMeta' | 'setMeta'>,
-  first: Workflow,
-  second: Workflow,
-  transfer: string,
-): Promise<boolean> {
-  const metaKey = key(first.id, second.id);
-  const signature = JSON.stringify([first, second]);
-  let previous: ChainRecord | null = null;
+async function readChain(
+  repo: Pick<WorkspaceRepo, 'getMeta'>,
+  metaKey: string,
+): Promise<ChainRecord | null> {
   try {
     const raw = await repo.getMeta(metaKey);
     const parsed: unknown = raw ? JSON.parse(raw) : null;
@@ -38,13 +34,50 @@ export async function recordChain(
       parsed.count > 0 &&
       typeof parsed.transfer === 'string'
     )
-      previous = parsed as ChainRecord;
+      return parsed as ChainRecord;
   } catch {
     /* 旧统计损坏时从头记，不影响处理文件。 */
   }
+  return null;
+}
+
+/** 同一批结果重复运行第二段不增加次数；任一配置变化后重新累计。 */
+export async function recordChain(
+  repo: Pick<WorkspaceRepo, 'getMeta' | 'setMeta'>,
+  first: Workflow,
+  second: Workflow,
+  transfer: string,
+): Promise<boolean> {
+  const metaKey = key(first.id, second.id);
+  const signature = JSON.stringify([first, second]);
+  const previous = await readChain(repo, metaKey);
   const same = previous !== null && previous.signature === signature;
   const count =
     same && previous ? Math.min(2, previous.count + (previous.transfer === transfer ? 0 : 1)) : 1;
-  await repo.setMeta(metaKey, JSON.stringify({ signature, count, transfer }));
-  return count >= 2;
+  const dismissed = same && previous?.dismissed === true;
+  await repo.setMeta(
+    metaKey,
+    JSON.stringify({ signature, count, transfer, ...(dismissed ? { dismissed } : {}) }),
+  );
+  return count >= 2 && !dismissed;
+}
+
+/** 合成过或者点了「不用了」：同样的两个快捷操作不再提议（任何一个改过之后重新算）。 */
+export async function dismissChain(
+  repo: Pick<WorkspaceRepo, 'getMeta' | 'setMeta'>,
+  first: Workflow,
+  second: Workflow,
+): Promise<void> {
+  const metaKey = key(first.id, second.id);
+  const previous = await readChain(repo, metaKey);
+  const signature = JSON.stringify([first, second]);
+  await repo.setMeta(
+    metaKey,
+    JSON.stringify({
+      signature,
+      count: previous?.signature === signature ? previous.count : 1,
+      transfer: previous?.transfer ?? '',
+      dismissed: true,
+    }),
+  );
 }

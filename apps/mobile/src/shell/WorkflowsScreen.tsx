@@ -23,13 +23,14 @@ import { t } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import { mimeOf } from '../runtime/actions/helpers';
 import { useIncoming, releaseShare } from '../share/incoming';
+import { retiredIds } from '../share/recommendations';
 import type { SucceededRuns } from '../storage/types';
 import type { Palette } from '../renderer/theme';
 import { Button, Card, PageTitle, Pill, SectionLabel } from '../renderer/ui';
 import { useWorkflowChange } from '../run/workflow-change';
 import { packsNeeded } from '../runtime/runner';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
-import { Banner } from './Shell';
+import { Banner } from './Banner';
 
 /** 步骤串成一行：「选照片 → 证件照 → 命名」。 */
 export function stepChain(wf: Pick<Workflow, 'steps'>, registry: Registry, locale: Locale): string {
@@ -193,7 +194,14 @@ export function WorkflowsScreen({
                 : t(locale, 'WorkflowsScreen_Add_b7a68')
             }
             onPress={() => {
-              const wf = presetWorkflow(preset, locale, newWorkflowId(preset.id, config.workflows));
+              const wf = presetWorkflow(
+                preset,
+                locale,
+                newWorkflowId(preset.id, [
+                  ...config.workflows,
+                  ...retiredIds(config.workflows, usage),
+                ]),
+              );
               void change(
                 [{ op: 'addWorkflow', workflow: wf }],
                 t(locale, 'WorkflowsScreen_Added_the_quick_action_ad5f0', { v0: wf.name }),

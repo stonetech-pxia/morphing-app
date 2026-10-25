@@ -41,6 +41,29 @@ export function shareRecommendations(
     ...presets,
     ...unused.filter(({ wf }) => wf.toolId),
   ];
-  const all = [...fresh, ...used, ...fillers];
-  return { all, recommended: (used.length < 3 ? all : [...fresh, ...used]).slice(0, 5) };
+  // 只有能运行的才算「用过的够了」：先保证至少 3 个能运行的，再放用过但个数不对的（灰卡片，
+  // 说明原因），剩下的位置用没用过的补；灰卡片不能把能用的挤到「查看全部」里去。
+  const usedOk = used.filter(({ fit }) => fit.ok);
+  const usedOff = used.filter(({ fit }) => !fit.ok);
+  const lead = fresh.length + usedOk.length;
+  const needed = usedOk.length < 3 ? Math.max(0, 3 - lead) : 0;
+  const all = [
+    ...fresh,
+    ...usedOk,
+    ...fillers.slice(0, needed),
+    ...usedOff,
+    ...fillers.slice(needed),
+  ];
+  return {
+    all,
+    recommended: (usedOk.length < 3 ? all : [...fresh, ...usedOk, ...usedOff]).slice(0, 5),
+    anyUsed: used.length > 0,
+  };
+}
+
+/** 运行记录里出现过、现在已经不在的快捷操作 id：重新添加时不要再用，否则会接上旧的次数。 */
+export function retiredIds(workflows: readonly Workflow[], usage: SucceededRuns) {
+  return [...usage.keys()]
+    .filter((id) => !workflows.some((w) => w.id === id))
+    .map((id) => ({ id }));
 }

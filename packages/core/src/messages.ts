@@ -36,7 +36,12 @@ export const strings = {
     zh: '没能打开选择器，请重试。',
     fr: 'Impossible d’ouvrir le sélecteur. Réessayez.',
   },
-  shareRecent: { en: 'Suggested actions', zh: '最近用过', fr: 'Actions suggérées' },
+  shareRecent: { en: 'Used before', zh: '最近用过', fr: 'Déjà utilisées' },
+  shareSuggested: {
+    en: 'Try one of these',
+    zh: '可以试试这些',
+    fr: 'Essayez l’une de ces actions',
+  },
   shareUsed: { en: 'Used {n} times', zh: '用过 {n} 次', fr: 'Utilisé {n} fois' },
   shareDescribe: {
     en: 'Tell Morph what I need',

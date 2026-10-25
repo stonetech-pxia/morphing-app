@@ -90,6 +90,8 @@ export function ChangeScreen() {
   const [auto] = useState(() => guideText(guide, locale) ?? (params.next ? next : null));
   const [typing, setTyping] = useState(() => auto !== null);
   const share = useIncoming((s) => s.share);
+  // 打开这一页时是哪一批（分享的、App 里选的、上一次的结果）：之后又分享进来一批，卡片上的说法也不变。
+  const [source] = useState(() => share?.source);
   const [about] = useState<PlanAbout | undefined>(() => {
     if (
       params.first &&
@@ -251,9 +253,9 @@ export function ChangeScreen() {
                   ? t(locale, 'aboutWorkflow', { name: aboutName ?? '' })
                   : t(
                       locale,
-                      share?.source === 'result'
+                      source === 'result'
                         ? 'resultIncoming'
-                        : share?.source === 'picker'
+                        : source === 'picker'
                           ? 'sharePicked'
                           : 'aboutShared',
                       {
