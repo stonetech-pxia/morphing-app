@@ -19,7 +19,7 @@ object AudioDenoise {
     var rate = 0; var channels = 0
     var processor: SonicAudioProcessor? = null
     var input = FloatArray(0); var filtered = FloatArray(0)
-    var filled = 0; var skip = 960; var written = 0L
+    var filled = 0; var skip = 960; var written = 0L; var shown = -1
     val total = (durationMs * 48).roundToLong()
     val writer = AudioPcm.WavWriter(output)
     var complete = false
@@ -41,13 +41,22 @@ object AudioDenoise {
         filled++
         if (filled == 480) process()
       }
+      if (total > 0) {
+        // 降噪这一遍占进度的前 50%。
+        val percent = (written * 50 / total).toInt().coerceIn(0, 50)
+        if (percent > shown) { shown = percent; progress(percent / 100.0) }
+      }
     }
     fun drain() { processor?.let { consume(it.output) } }
     try {
       AudioPcm.visitTimeline(context, uri, durationMs, { cancelled.get() }) { chunk ->
+        // 多于两个声道（5.1 等）先混成立体声：偶数号声道进左边，奇数号进右边，各自取平均，和 iOS 一样只降噪两路。
+        val wide = chunk.channels > 2
+        val samples = if (wide) downmix(chunk.samples, chunk.count, chunk.channels) else chunk.samples
+        val count = if (wide) chunk.count / chunk.channels * 2 else chunk.count
         if (handle == 0L) {
-          rate = chunk.sampleRate; channels = chunk.channels
-          if (channels !in 1..2) throw MediaUnsupportedException("denoise supports mono or stereo")
+          rate = chunk.sampleRate; channels = if (wide) 2 else chunk.channels
+          if (channels !in 1..2) throw MediaUnsupportedException("no audio channels")
           handle = AudioDsp.nativeDenoiseCreate(channels)
           if (handle == 0L) throw MediaFailedException("denoiser")
           input = FloatArray(480 * channels); filtered = input.copyOf()
@@ -56,8 +65,8 @@ object AudioDenoise {
             configure(AudioProcessor.AudioFormat(rate, channels, C.ENCODING_PCM_16BIT)); flush()
           }
         }
-        val buffer = ByteBuffer.allocateDirect(chunk.count * 2).order(ByteOrder.nativeOrder())
-        buffer.asShortBuffer().put(chunk.samples, 0, chunk.count)
+        val buffer = ByteBuffer.allocateDirect(count * 2).order(ByteOrder.nativeOrder())
+        buffer.asShortBuffer().put(samples, 0, count)
         if (processor != null) { processor!!.queueInput(buffer); drain() } else consume(buffer)
       }
       if (handle == 0L) throw MediaUnsupportedException("no audio decoded")
@@ -67,11 +76,25 @@ object AudioDenoise {
       // 补齐尾端模型延迟，以及重采样最多一个采样点的取整误差。
       while (written < total) process()
       complete = true
-      progress(0.5)
+      if (shown < 50) progress(0.5)
     } finally {
       if (complete) writer.close() else runCatching { writer.close() }
       processor?.reset()
       if (handle != 0L) AudioDsp.nativeDenoiseDestroy(handle)
     }
+  }
+
+  private fun downmix(samples: ShortArray, count: Int, channels: Int): ShortArray {
+    val frames = count / channels
+    val out = ShortArray(frames * 2)
+    for (f in 0 until frames) {
+      var left = 0; var right = 0; var nl = 0; var nr = 0
+      for (c in 0 until channels) {
+        val v = samples[f * channels + c].toInt()
+        if (c % 2 == 0) { left += v; nl++ } else { right += v; nr++ }
+      }
+      out[f * 2] = (left / nl).toShort(); out[f * 2 + 1] = (right / nr).toShort()
+    }
+    return out
   }
 }

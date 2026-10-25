@@ -372,6 +372,22 @@ describe('video merge', () => {
     media.failWith = 'ERR_MEDIA_INTERRUPTED';
     expect(failure(await run())).toMatchObject({ code: 'interrupted' });
   });
+  it('does not blame the first clip when joining fails, and caps slow-motion frame rates', async () => {
+    const { files, media, run } = setup(toolWorkflow('video-merge'), { order: [0, 1] });
+    files.nextVideos = [
+      files.offerVideo('slowmo.mov', { size: 1000, fps: 240 }),
+      files.offerVideo('b.mp4', { size: 1000 }),
+    ];
+    media.failWith = 'ERR_MEDIA_UNSUPPORTED';
+    expect(failure(await run())).toMatchObject({ code: 'mergeUnsupported' });
+    const ok = setup(toolWorkflow('video-merge'), { order: [0, 1] });
+    ok.files.nextVideos = [
+      ok.files.offerVideo('slowmo.mov', { size: 1000, fps: 240 }),
+      ok.files.offerVideo('b.mp4', { size: 1000 }),
+    ];
+    await ok.run();
+    expect(ok.media.videoConcats[0]).toMatchObject({ maxFps: 60 });
+  });
 });
 
 it('checks space for the entire merged duration before starting native encoding', async () => {

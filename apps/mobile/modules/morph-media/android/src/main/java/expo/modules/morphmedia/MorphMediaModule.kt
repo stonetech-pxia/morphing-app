@@ -88,6 +88,9 @@ class MorphMediaModule : Module() {
   /** 正在进行的任务（只在主线程读写）。 */
   private val jobs = mutableMapOf<String, Transformer>()
   private val cancelled = mutableSetOf<String>()
+  // 进行中的 Transformer 任务的 Promise 和输出文件：Transformer.cancel() 之后不一定会回调监听器，
+  // 取消时由这里结束 Promise，JS 那边才不会一直等。谁先从这里取走谁负责结束（只结束一次）。
+  private val pending = mutableMapOf<String, Pair<Promise, File>>()
   /** 在后台线程里跑的任务（写 WAV）：取消标记。 */
   private val threadJobs = ConcurrentHashMap<String, AtomicBoolean>()
 
@@ -369,7 +372,12 @@ class MorphMediaModule : Module() {
       threadJobs[jobId]?.set(true)
       main.post {
         cancelled.add(jobId)
-        jobs[jobId]?.cancel()
+        jobs.remove(jobId)?.cancel()
+        pending.remove(jobId)?.let { (promise, output) ->
+          cancelled.remove(jobId)
+          output.delete()
+          promise.reject(MediaCancelledException())
+        }
       }
     }
   }
@@ -404,6 +412,7 @@ class MorphMediaModule : Module() {
       override fun onCompleted(composition: Composition, exportResult: ExportResult) {
         jobs.remove(jobId)
         cancelled.remove(jobId)
+        if (pending.remove(jobId) == null) return
         sendProgress(jobId, 1.0)
         thread {
           try {
@@ -421,6 +430,7 @@ class MorphMediaModule : Module() {
       ) {
         jobs.remove(jobId)
         output.delete()
+        if (pending.remove(jobId) == null) return
         if (cancelled.remove(jobId)) {
           promise.reject(MediaCancelledException())
           return
@@ -436,10 +446,12 @@ class MorphMediaModule : Module() {
       }
     })
     jobs[jobId] = transformer
+    pending[jobId] = promise to output
     try {
       transformer.start(composition, output.absolutePath)
     } catch (e: Exception) {
       jobs.remove(jobId)
+      pending.remove(jobId)
       promise.reject(MediaFailedException(e.message))
       return
     }
@@ -461,7 +473,8 @@ class MorphMediaModule : Module() {
       val (transformer, base) = buildTranscode(Uri.parse(uri), baseOptions)
       val videoItem = base.sequences.first().editedMediaItems.first()
       val volume = ChannelMixingAudioProcessor()
-      for (channels in 1..2) volume.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(channels, channels).scaleBy(originalVolume / 100f))
+      // 1–8 个声道都要有矩阵，否则 5.1 的原声会让导出失败。
+      for (channels in 1..8) volume.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(channels, channels).scaleBy(originalVolume / 100f))
       val editedVideo = videoItem.buildUpon().setEffects(Effects(listOf(volume), videoItem.effects.videoEffects)).build()
       val videoSequence = if (originalVolume == 0f) EditedMediaItemSequence.withVideoFrom(listOf(editedVideo))
         else EditedMediaItemSequence.withAudioAndVideoFrom(listOf(editedVideo))

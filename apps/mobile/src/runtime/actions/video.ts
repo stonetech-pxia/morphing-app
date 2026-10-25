@@ -261,7 +261,7 @@ export const VIDEO_IMPLS: Record<string, Impl> = {
       const info = await probe(media, item);
       const plan = { ...planVideoConvert(sourceOf(item, info)), audioKbps: 0 };
       checkSpace(ctx, estimate(plan, info.durationMs));
-      return media.encodeVideo(
+      return media.muteVideo(
         item.uri,
         { ...encodeOf(plan, info), audioKbps: 0 },
         ctx.services.runId,
@@ -332,7 +332,8 @@ export const VIDEO_IMPLS: Record<string, Impl> = {
     const settings = {
       videoKbps: plan.videoKbps,
       audioKbps: infos.some((i) => i.hasAudio) ? 128 : 0,
-      maxFps: first.fps && first.fps > 0 ? first.fps : 30,
+      // 帧率跟第一段，但不超过普通转换的上限：慢动作（120/240 fps）放在第一段时不能整段都按 240 fps 输出。
+      maxFps: Math.min(first.fps && first.fps > 0 ? first.fps : 30, plan.maxFps),
       width,
       height,
     };
@@ -372,6 +373,9 @@ export const VIDEO_IMPLS: Record<string, Impl> = {
         ],
       };
     } catch (e) {
+      // 每一段都已经单独打开过（probe）：拼的时候失败，说不清是哪一段，不能都算到第一段头上。
+      if ((e as { code?: string } | null)?.code === 'ERR_MEDIA_UNSUPPORTED')
+        throw new RunError('mergeUnsupported');
       throw mediaError(e, items[0]!);
     }
   },

@@ -271,6 +271,14 @@ export interface MediaPlatform {
     relPath: string,
     job: MediaJob,
   ): Promise<MediaOutput>;
+  /** 去掉声音；iOS 不重新编码，Android 重新编码画面。 */
+  muteVideo(
+    uri: string,
+    settings: VideoEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
   /** 顺时针旋转；iOS 只改方向信息，Android 重新编码。 */
   rotateVideo(
     uri: string,

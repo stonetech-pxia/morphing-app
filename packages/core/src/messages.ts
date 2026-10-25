@@ -1048,6 +1048,11 @@ export const strings = {
     zh: '「{name}」打不开：格式不支持，或者有版权保护。',
     fr: '« {name} » ne peut pas être ouvert : format non pris en charge ou protégé contre la copie.',
   },
+  runError_mergeUnsupported: {
+    en: 'These videos couldn’t be joined. Convert each one to MP4 first, then try again.',
+    zh: '这几段视频没能拼在一起。可以先把每一段转成 MP4 再试。',
+    fr: 'Impossible d’assembler ces vidéos. Convertissez d’abord chacune en MP4, puis réessayez.',
+  },
   runError_notEnoughSpace: {
     en: 'There isn’t enough space on this phone. About {gb} GB more is needed.',
     zh: '手机空间不够，还需要大约 {gb} GB。',

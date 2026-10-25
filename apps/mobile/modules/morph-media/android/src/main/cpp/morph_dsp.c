@@ -25,7 +25,9 @@ JNIEXPORT jlong JNICALL Java_expo_modules_morphmedia_AudioDsp_nativeDenoiseCreat
 }
 JNIEXPORT jint JNICALL Java_expo_modules_morphmedia_AudioDsp_nativeDenoise(JNIEnv *e, jclass c, jlong handle, jfloatArray input, jfloatArray output) {
   jsize n = (*e)->GetArrayLength(e, input);
-  if (!handle || (n != 480 && n != 960) || (*e)->GetArrayLength(e, output) != n) return -1;
+  // 长度必须正好是 480 × 创建时的声道数，否则 C 里会越界读写。
+  if (!handle || n != 480 * morph_denoise_channels((MorphDenoiser *)(intptr_t)handle) ||
+      (*e)->GetArrayLength(e, output) != n) return -1;
   jfloat *in = (*e)->GetFloatArrayElements(e, input, NULL);
   if (!in) return -1;
   jfloat *out = (*e)->GetFloatArrayElements(e, output, NULL);
