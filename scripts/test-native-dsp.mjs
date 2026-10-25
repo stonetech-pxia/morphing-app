@@ -47,6 +47,7 @@ try {
     process.env.CC || 'cc',
     [
       '-O2',
+      '-DDISABLE_DEBUG_FLOAT',
       '-I',
       root,
       '-I',

@@ -16,6 +16,7 @@ MorphDenoiser *morph_denoise_create(int channels) {
   for (int c = 0; c < channels; c++) if (!(s->states[c] = rnnoise_create(NULL))) { morph_denoise_destroy(s); return NULL; }
   return s;
 }
+int morph_denoise_channels(const MorphDenoiser *s) { return s ? s->channels : 0; }
 int morph_denoise_process(MorphDenoiser *s, const float *in, float *out) {
   if (!s || !in || !out) return -1;
   float input[480], output[480];

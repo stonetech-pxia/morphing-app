@@ -26,7 +26,7 @@ import { useWorkflowChange } from '../run/workflow-change';
 import { stepChain } from '../shell/WorkflowsScreen';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { releaseShare, useIncoming } from './incoming';
-import { shareRecommendations } from './recommendations';
+import { retiredIds, shareRecommendations } from './recommendations';
 import type { SucceededRuns } from '../storage/types';
 
 /**
@@ -48,7 +48,9 @@ export function ShareScreen() {
 
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const expanded = expandedId === share?.id;
-  const [usage, setUsage] = useState<SucceededRuns>(new Map());
+  // 读到使用次数之前不排推荐：否则先按「都没用过」排一遍，读到后卡片跳位置，快点时会点错。
+  const [usage, setUsage] = useState<SucceededRuns | null>(null);
+  const [showAll, setShowAll] = useState(false);
   useEffect(() => {
     let alive = true;
     void repo
@@ -58,6 +60,7 @@ export function ShareScreen() {
       })
       .catch(() => {
         /* 统计暂时不可用时仍可手动选择快捷操作。 */
+        if (alive) setUsage(new Map());
       });
     return () => {
       alive = false;
@@ -146,8 +149,16 @@ export function ShareScreen() {
     size: f.size,
   }));
   const sizeProblem = sharedSizeProblem(infos);
-  const { all, recommended } = shareRecommendations(config.workflows, infos, usage, locale, newest);
-  const candidates = recommended;
+  const counts = usage ?? new Map();
+  const { all, recommended, anyUsed } = shareRecommendations(
+    config.workflows,
+    infos,
+    counts,
+    locale,
+    newest,
+  );
+  // 「查看全部 N 个」就在这一页展开这 N 个（跳到分类页会漏掉也收这些文件、但属于别的分类的快捷操作）。
+  const candidates = usage === null ? [] : showAll ? all : recommended;
 
   function isNew(wf: Workflow) {
     return knownIds !== null && !wf.toolId && !knownIds.has(wf.id);
@@ -162,8 +173,8 @@ export function ShareScreen() {
         {wf.name}
         {isNew(wf) ? t(locale, 'ShareScreen_just_made_ed6c1') : ''}
       </Text>
-      {usage.has(wf.id) && !preset ? (
-        <Text style={caption}>{t(locale, 'shareUsed', { n: usage.get(wf.id)!.count })}</Text>
+      {counts.has(wf.id) && !preset ? (
+        <Text style={caption}>{t(locale, 'shareUsed', { n: counts.get(wf.id)!.count })}</Text>
       ) : null}
       {wf.toolId ? (
         <Text style={caption}>{localize(registry.tools.get(wf.toolId)?.name, locale)}</Text>
@@ -209,7 +220,11 @@ export function ShareScreen() {
 
   /** 添加一个现成的快捷操作（可撤销），然后用分享的文件运行它。 */
   async function addAndRun(preset: (typeof WORKFLOW_PRESETS)[number]) {
-    const wf = presetWorkflow(preset, locale, newWorkflowId(preset.id, config.workflows));
+    const wf = presetWorkflow(
+      preset,
+      locale,
+      newWorkflowId(preset.id, [...config.workflows, ...retiredIds(config.workflows, counts)]),
+    );
     const ok = await change(
       [{ op: 'addWorkflow', workflow: wf }],
       t(locale, 'ShareScreen_Added_the_quick_action_ad5f0', { v0: wf.name }),
@@ -293,30 +308,18 @@ export function ShareScreen() {
       ) : (
         <>
           {candidates.length > 0 ? (
-            <SectionLabel palette={palette}>{t(locale, 'shareRecent')}</SectionLabel>
+            <SectionLabel palette={palette}>
+              {t(locale, anyUsed ? 'shareRecent' : 'shareSuggested')}
+            </SectionLabel>
           ) : null}
           {candidates.map(workflowCard)}
-          {all.length > recommended.length ? (
+          {usage !== null && !showAll && all.length > recommended.length ? (
             <Button
               palette={palette}
               variant="text"
               testID="share-see-all"
               label={t(locale, 'shareSeeAll', { n: all.length })}
-              onPress={() => {
-                handed.current = true;
-                const kinds = new Set(infos.map((f) => mediaKindOf(f.mimeType, f.name)));
-                const first = [...kinds][0];
-                const kind =
-                  first === 'image' || first === 'video' || first === 'audio' ? first : 'document';
-                router.replace(
-                  kinds.size === 1
-                    ? {
-                        pathname: '/quick-actions/[kind]',
-                        params: { kind, shared: String(share.id) },
-                      }
-                    : { pathname: '/quick-actions', params: { shared: String(share.id) } },
-                );
-              }}
+              onPress={() => setShowAll(true)}
             />
           ) : null}
           <Button

@@ -60,5 +60,6 @@ export function formatWhen(locale: Locale, at: Date, now: Date): string {
     day: 'numeric',
     ...(sameYear ? {} : { year: 'numeric' }),
   });
-  return `${date}, ${time}`;
+  // 法语写「25 oct. à 13:51」。
+  return locale === 'fr' ? `${date} à ${time}` : `${date}, ${time}`;
 }

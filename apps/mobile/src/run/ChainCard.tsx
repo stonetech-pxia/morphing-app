@@ -1,14 +1,14 @@
 import type { Workflow } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
 import type { Palette } from '../renderer/theme';
 import { Card, Pill } from '../renderer/ui';
 import type { IncomingShare } from '../share/incoming';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
-import { recordChain, sameWorkflow } from './chains';
+import { dismissChain, recordChain, sameWorkflow } from './chains';
 
 export function ChainCard({
   source,
@@ -49,17 +49,33 @@ export function ChainCard({
       <Text style={[palette.font('body', 14), { color: palette.text }]}>
         {t(locale, 'chainAbout', { first: first.name, second: second.name })}
       </Text>
-      <Pill
-        palette={palette}
-        testID="chain-make"
-        label={t(locale, 'chainMake')}
-        onPress={() =>
-          router.push({
-            pathname: '/change',
-            params: { first: first.id, second: second.id, text: t(locale, 'chainRequest') },
-          })
-        }
-      />
+      <View style={styles.row}>
+        <Pill
+          palette={palette}
+          testID="chain-make"
+          label={t(locale, 'chainMake')}
+          onPress={() => {
+            void dismissChain(repo, first, second).catch(() => undefined);
+            router.push({
+              pathname: '/change',
+              params: { first: first.id, second: second.id, text: t(locale, 'chainRequest') },
+            });
+          }}
+        />
+        <Pill
+          palette={palette}
+          testID="chain-no"
+          label={t(locale, 'habitNo')}
+          onPress={() => {
+            setSuggest(false);
+            void dismissChain(repo, first, second).catch(() => undefined);
+          }}
+        />
+      </View>
     </Card>
   );
 }
+
+const styles = StyleSheet.create({
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+});

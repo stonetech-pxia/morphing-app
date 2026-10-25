@@ -71,7 +71,7 @@ describe('home file pickers', () => {
       '说出你想要的，Morph 会努力完成你的需求',
     );
   });
-  it('opens any documents in the same inbox and keeps picker files on dismissal', async () => {
+  it('opens any documents in the same inbox and removes the picker copy on dismissal', async () => {
     const { files } = await start();
     const pdf = files.offer('picked.pdf', new Uint8Array([1, 2, 3]));
     files.nextPick = [pdf];
@@ -79,7 +79,8 @@ describe('home file pickers', () => {
     expect(await screen.findByTestId('share-screen')).toBeTruthy();
     expect(files.lastPickTypes).toEqual(['*/*']);
     await act(() => router.back());
-    expect(files.disk.has(pdf.uri)).toBe(true);
+    // 选择器复制进缓存的那份（picker://）用完就删；相册和「文件」里的原件不受影响。
+    expect(files.disk.has(pdf.uri)).toBe(false);
     expect(useIncoming.getState().share).toBeNull();
   });
   it('rejects more than ten videos before receiving a batch', async () => {
@@ -91,6 +92,8 @@ describe('home file pickers', () => {
     await fireEvent.press(await screen.findByTestId('file-pick-media'));
     expect(alert).toHaveBeenCalled();
     expect(screen.queryByTestId('share-screen')).toBeNull();
+    // 不收的那一批，选择器的副本也删掉。
+    expect([...files.disk.keys()].some((k) => k.startsWith('picker://'))).toBe(false);
     alert.mockRestore();
   });
 });

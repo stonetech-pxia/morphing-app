@@ -273,6 +273,12 @@ export class FakeFiles implements FilePlatform {
     }
     for (const uri of copies) this.disk.delete(uri);
   }
+  async removePickedCopies(uris: readonly string[]) {
+    for (const uri of uris) if (uri.startsWith('picker://')) this.disk.delete(uri);
+  }
+  async removeStalePickerCopies() {
+    for (const key of [...this.disk.keys()]) if (key.startsWith('picker://')) this.disk.delete(key);
+  }
   async saveRunFile(uri: string, assetId: string, name: string) {
     return this.writeBytes(assetId, name, await this.readBytes(uri));
   }
@@ -618,6 +624,17 @@ export class FakeMedia implements MediaPlatform {
   ): Promise<MediaOutput> {
     this.denoises.push(uri);
     return this.volume(uri, { ...settings, automatic: false, db: 0 }, runId, relPath, job);
+  }
+  mutes: string[] = [];
+  async muteVideo(
+    uri: string,
+    settings: VideoEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.mutes.push(uri);
+    return this.encodeVideo(uri, { ...settings, audioKbps: 0 }, runId, relPath, job);
   }
   rotations: { uri: string; degrees: number }[] = [];
   async rotateVideo(

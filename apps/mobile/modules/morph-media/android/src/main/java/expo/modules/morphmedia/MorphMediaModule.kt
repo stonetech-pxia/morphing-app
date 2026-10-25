@@ -88,6 +88,9 @@ class MorphMediaModule : Module() {
   /** 正在进行的任务（只在主线程读写）。 */
   private val jobs = mutableMapOf<String, Transformer>()
   private val cancelled = mutableSetOf<String>()
+  // 进行中的 Transformer 任务的 Promise 和输出文件：Transformer.cancel() 之后不一定会回调监听器，
+  // 取消时由这里结束 Promise，JS 那边才不会一直等。谁先从这里取走谁负责结束（只结束一次）。
+  private val pending = mutableMapOf<String, Pair<Promise, File>>()
   /** 在后台线程里跑的任务（写 WAV）：取消标记。 */
   private val threadJobs = ConcurrentHashMap<String, AtomicBoolean>()
 
@@ -158,6 +161,8 @@ class MorphMediaModule : Module() {
           AudioVolume.prepare(context, Uri.parse(uri), wave, automatic, db, flag, (probe(Uri.parse(uri))["durationMs"] as? Number)?.toDouble() ?: 0.0) { sendProgress(jobId, it) }
           if (flag.get()) throw MediaCancelledException()
           main.post {
+            // 中间的 WAV 要等后面的异步编码用完，结束时（成功或失败）再删。
+            val done = promise.deletingAfter(wave)
             try {
               if (flag.get()) throw MediaCancelledException()
               if (options["video"] is Map<*, *>) {
@@ -167,13 +172,13 @@ class MorphMediaModule : Module() {
                   put("videoDurationMs", probe(Uri.parse(uri))["durationMs"] ?: 0)
                   put("musicDurationMs", probe(Uri.fromFile(wave))["durationMs"] ?: 0)
                 }
-                mixVideoAudio(jobId, uri, Uri.fromFile(wave).toString(), output, mixOptions, promise)
+                mixVideoAudio(jobId, uri, Uri.fromFile(wave).toString(), output, mixOptions, done)
               } else {
                 transcodeAudio(jobId, Uri.fromFile(wave), destination,
-                  mapOf("container" to "m4a", "video" to "drop", "audio" to mapOf("codec" to "aac", "bitrateKbps" to 192)), promise)
+                  mapOf("container" to "m4a", "video" to "drop", "audio" to mapOf("codec" to "aac", "bitrateKbps" to 192)), done)
               }
-            } catch (e: CodedException) { promise.reject(e) }
-            catch (e: Exception) { promise.reject(MediaFailedException(e.message)) }
+            } catch (e: CodedException) { done.reject(e) }
+            catch (e: Exception) { done.reject(MediaFailedException(e.message)) }
             finally { threadJobs.remove(jobId) }
           }
         } catch (e: CodedException) { threadJobs.remove(jobId); wave.delete(); promise.reject(e) }
@@ -218,6 +223,8 @@ class MorphMediaModule : Module() {
           AudioDenoise.prepare(context, Uri.parse(uri), wave, flag, (probe(Uri.parse(uri))["durationMs"] as? Number)?.toDouble() ?: 0.0) { sendProgress(jobId, it) }
           if (flag.get()) throw MediaCancelledException()
           main.post {
+            // 中间的 WAV 要等后面的异步编码用完，结束时（成功或失败）再删。
+            val done = promise.deletingAfter(wave)
             try {
               if (flag.get()) throw MediaCancelledException()
               if (options["video"] is Map<*, *>) {
@@ -227,13 +234,13 @@ class MorphMediaModule : Module() {
                   put("videoDurationMs", probe(Uri.parse(uri))["durationMs"] ?: 0)
                   put("musicDurationMs", probe(Uri.fromFile(wave))["durationMs"] ?: 0)
                 }
-                mixVideoAudio(jobId, uri, Uri.fromFile(wave).toString(), output, mixOptions, promise)
+                mixVideoAudio(jobId, uri, Uri.fromFile(wave).toString(), output, mixOptions, done)
               } else {
                 transcodeAudio(jobId, Uri.fromFile(wave), destination,
-                  mapOf("container" to "m4a", "video" to "drop", "audio" to mapOf("codec" to "aac", "bitrateKbps" to 192)), promise)
+                  mapOf("container" to "m4a", "video" to "drop", "audio" to mapOf("codec" to "aac", "bitrateKbps" to 192)), done)
               }
-            } catch (e: CodedException) { promise.reject(e) }
-            catch (e: Exception) { promise.reject(MediaFailedException(e.message)) }
+            } catch (e: CodedException) { done.reject(e) }
+            catch (e: Exception) { done.reject(MediaFailedException(e.message)) }
             finally { threadJobs.remove(jobId) }
           }
         } catch (e: CodedException) { threadJobs.remove(jobId); wave.delete(); promise.reject(e) }
@@ -365,7 +372,12 @@ class MorphMediaModule : Module() {
       threadJobs[jobId]?.set(true)
       main.post {
         cancelled.add(jobId)
-        jobs[jobId]?.cancel()
+        jobs.remove(jobId)?.cancel()
+        pending.remove(jobId)?.let { (promise, output) ->
+          cancelled.remove(jobId)
+          output.delete()
+          promise.reject(MediaCancelledException())
+        }
       }
     }
   }
@@ -400,6 +412,7 @@ class MorphMediaModule : Module() {
       override fun onCompleted(composition: Composition, exportResult: ExportResult) {
         jobs.remove(jobId)
         cancelled.remove(jobId)
+        if (pending.remove(jobId) == null) return
         sendProgress(jobId, 1.0)
         thread {
           try {
@@ -417,6 +430,7 @@ class MorphMediaModule : Module() {
       ) {
         jobs.remove(jobId)
         output.delete()
+        if (pending.remove(jobId) == null) return
         if (cancelled.remove(jobId)) {
           promise.reject(MediaCancelledException())
           return
@@ -432,10 +446,12 @@ class MorphMediaModule : Module() {
       }
     })
     jobs[jobId] = transformer
+    pending[jobId] = promise to output
     try {
       transformer.start(composition, output.absolutePath)
     } catch (e: Exception) {
       jobs.remove(jobId)
+      pending.remove(jobId)
       promise.reject(MediaFailedException(e.message))
       return
     }
@@ -457,7 +473,8 @@ class MorphMediaModule : Module() {
       val (transformer, base) = buildTranscode(Uri.parse(uri), baseOptions)
       val videoItem = base.sequences.first().editedMediaItems.first()
       val volume = ChannelMixingAudioProcessor()
-      for (channels in 1..2) volume.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(channels, channels).scaleBy(originalVolume / 100f))
+      // 1–8 个声道都要有矩阵，否则 5.1 的原声会让导出失败。
+      for (channels in 1..8) volume.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(channels, channels).scaleBy(originalVolume / 100f))
       val editedVideo = videoItem.buildUpon().setEffects(Effects(listOf(volume), videoItem.effects.videoEffects)).build()
       val videoSequence = if (originalVolume == 0f) EditedMediaItemSequence.withVideoFrom(listOf(editedVideo))
         else EditedMediaItemSequence.withAudioAndVideoFrom(listOf(editedVideo))
@@ -979,5 +996,20 @@ class MorphMediaModule : Module() {
     )
     bitmap.recycle()
     return out
+  }
+}
+
+/** 结束（成功或失败）时先删掉 file 再把结果交出去：给音量、降噪的中间 WAV 用。 */
+private fun Promise.deletingAfter(file: File): Promise {
+  val inner = this
+  return object : Promise {
+    override fun resolve(value: Any?) {
+      file.delete()
+      inner.resolve(value)
+    }
+    override fun reject(code: String?, message: String?, cause: Throwable?) {
+      file.delete()
+      inner.reject(code, message, cause)
+    }
   }
 }

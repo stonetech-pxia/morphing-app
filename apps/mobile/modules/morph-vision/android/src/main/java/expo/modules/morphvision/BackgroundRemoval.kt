@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** Google Play 服务只下载模型，图片在本机处理；由 JS 先征得下载同意。 */
 object BackgroundRemoval {
+  private const val MAX_SIDE = 4096
   fun supported(context: Context) = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS
   private fun segmenter() = SubjectSegmentation.getClient(SubjectSegmenterOptions.Builder().enableForegroundBitmap().build())
   fun status(context: Context): String {
@@ -53,10 +54,11 @@ object BackgroundRemoval {
     if (background != "transparent" && !Regex("^#[0-9A-Fa-f]{6}$").matches(background)) throw VisionFailedException("invalid color")
     if (status(context) != "ready") throw VisionFailedException("model unavailable")
     val client = segmenter()
+    // 先缩到长边 4096、摆正再交给 ML Kit：fromFilePath 会按原图解码，200 MP 的照片几份就内存不足。
+    val input = ImageLoading.decodeUpright(context, uri, MAX_SIDE)
     var foreground: Bitmap? = null
-    var flattened: Bitmap? = null
     try {
-      foreground = Tasks.await(client.process(InputImage.fromFilePath(context, uri)), 60, TimeUnit.SECONDS).foregroundBitmap ?: throw VisionFailedException("no subject")
+      foreground = Tasks.await(client.process(InputImage.fromBitmap(input, 0)), 60, TimeUnit.SECONDS).foregroundBitmap ?: throw VisionFailedException("no subject")
       // 找不到主体时不要悄悄导出空白图片。
       val row = IntArray(foreground.width)
       var found = false
@@ -65,15 +67,13 @@ object BackgroundRemoval {
         if (row.any { Color.alpha(it) > 127 }) { found = true; break }
       }
       if (!found) throw VisionFailedException("no subject")
-      val result = if (background == "transparent") foreground else {
-        Bitmap.createBitmap(foreground.width, foreground.height, Bitmap.Config.ARGB_8888).also {
-          flattened = it
-          val canvas = Canvas(it); canvas.drawColor(Color.parseColor(background)); canvas.drawBitmap(foreground, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG))
-        }
+      // 纯色背景直接画在输入图上（它已经用不着了），不再多建一张。
+      val result = if (background == "transparent") foreground else input.also {
+        val canvas = Canvas(it); canvas.drawColor(Color.parseColor(background)); canvas.drawBitmap(foreground, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG))
       }
       output.parentFile?.mkdirs()
       output.outputStream().use { if (!result.compress(Bitmap.CompressFormat.PNG, 100, it)) throw VisionFailedException("PNG encode") }
       return mapOf("width" to result.width, "height" to result.height, "size" to output.length())
-    } finally { flattened?.recycle(); foreground?.recycle(); client.close() }
+    } finally { input.recycle(); foreground?.recycle(); client.close() }
   }
 }

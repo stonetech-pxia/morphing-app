@@ -12,7 +12,7 @@ int morph_meter_add_float(MorphMeter *meter, const float *samples, size_t count)
 int morph_meter_add_short(MorphMeter *meter, const short *samples, size_t count);
 double morph_meter_lufs(MorphMeter *meter);
 double morph_meter_peak(MorphMeter *meter);
-/* 自动目标 -16 LUFS；手动增益也限制峰值至 -1 dBFS，最大放大 24 dB。 */
+/* 自动目标 -16 LUFS；手动增益也限制真峰值至 -1 dBTP，最大放大 24 dB。 */
 double morph_meter_gain(MorphMeter *meter, int automatic, double db);
 void morph_meter_destroy(MorphMeter *meter);
 #ifdef __cplusplus

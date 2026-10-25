@@ -1,4 +1,3 @@
-import { WorkflowsScreen } from './WorkflowsScreen';
 import { HOME_PAGE_ID, pageIdOf, type NavTarget, type WorkspaceConfig } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
@@ -15,18 +14,21 @@ import { EditablePage } from '../editing/EditablePage';
 import type { RenderEnv } from '../renderer/components';
 import { GlassFill } from '../renderer/GlassFill';
 import { Icon } from '../renderer/Icon';
-import { usePalette, type Palette } from '../renderer/theme';
+import { usePalette } from '../renderer/theme';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { shownConfig } from '../workspace/store';
+import { Banner, DraftNotice } from './Banner';
 import { HistoryView } from './HistoryView';
 import { targetIcon, targetLabel, useNavigate } from './navigation';
 import { SettingsView } from './SettingsView';
 import { Toast } from './Toast';
 import { ToolsView } from './ToolsView';
+import { WorkflowsScreen } from './WorkflowsScreen';
+
+// 提示条单独放在 Banner.tsx（WorkflowsScreen 也要用，放这里会循环引用）；这里照样导出，旧的引用不用改。
+export { APPLIED_BANNER_MS, Banner, DraftNotice } from './Banner';
 
 const BAR_HEIGHT = { iconLabel: 64, label: 52, icon: 56 } as const;
-/** 「已应用」提示条显示多久后自动消失（D-106）；之后仍可在「设置 → 改动记录」撤销。 */
-export const APPLIED_BANNER_MS = 6000;
 
 export function firstTab(config: WorkspaceConfig): NavTarget {
   return (
@@ -41,71 +43,6 @@ function canShow(target: NavTarget | null, config: WorkspaceConfig): target is N
   if (target === null || target === 'ai') return false;
   const pageId = pageIdOf(target);
   return pageId === null || config.pages.some((p) => p.id === pageId);
-}
-
-/**
- * 版本提示条：已应用 / 已回退，带「撤销」。外壳和独立页面都显示。
- * 「已应用」几秒后自动消失，免得之后被当成撤销别的操作；回退、冲突等警告要用户自己关。
- */
-export function Banner({ palette }: { palette: Palette }) {
-  const { locale } = useWorkspaceContext();
-  const banner = useWorkspace((s) => s.banner);
-  const undo = useWorkspace((s) => s.undo);
-  const dismiss = useWorkspace((s) => s.dismissBanner);
-  useEffect(() => {
-    if (banner?.kind !== 'applied') return;
-    const timer = setTimeout(dismiss, APPLIED_BANNER_MS);
-    return () => clearTimeout(timer);
-  }, [banner, dismiss]);
-  if (!banner) return null;
-  const warn = banner.kind !== 'applied';
-  const color = warn ? '#FFFFFF' : palette.onPrimary;
-  return (
-    <View
-      testID="banner"
-      style={[
-        styles.banner,
-        {
-          backgroundColor: warn ? palette.danger : palette.primary,
-          borderRadius: palette.controlRadius,
-        },
-      ]}>
-      <Text style={[styles.bannerText, palette.font('bodyMedium', 14), { color }]}>
-        {banner.message}
-      </Text>
-      {banner.undoTo !== undefined ? (
-        <Pressable onPress={undo} hitSlop={8}>
-          <Text style={[palette.font('bodyBold', 14), { color }]}>{t(locale, 'undo')}</Text>
-        </Pressable>
-      ) : null}
-      <Pressable onPress={dismiss} hitSlop={8} accessibilityLabel={t(locale, 'close')}>
-        <Text style={[palette.font('bodyBold', 14), { color }]}>✕</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-/** 草稿的提示（D-190）：重新套用时去掉了几步、某一步显示不出来已经撤掉。 */
-export function DraftNotice({ palette }: { palette: Palette }) {
-  const { locale } = useWorkspaceContext();
-  const notice = useWorkspace((s) => s.draftNotice);
-  const dismiss = useWorkspace((s) => s.dismissDraftNotice);
-  if (!notice) return null;
-  return (
-    <View
-      testID="draft-notice"
-      style={[
-        styles.banner,
-        { backgroundColor: palette.danger, borderRadius: palette.controlRadius },
-      ]}>
-      <Text style={[styles.bannerText, palette.font('bodyMedium', 14), { color: '#FFFFFF' }]}>
-        {notice}
-      </Text>
-      <Pressable onPress={dismiss} hitSlop={8} accessibilityLabel={t(locale, 'close')}>
-        <Text style={[palette.font('bodyBold', 14), { color: '#FFFFFF' }]}>✕</Text>
-      </Pressable>
-    </View>
-  );
 }
 
 /** 外壳给页面的环境（D-190）：在草稿模式里打开页面照常，「AI 修改」打开聊天框，真的做事的操作只提示。 */
@@ -297,16 +234,6 @@ export function Shell() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { flex: 1 },
-  banner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginHorizontal: 16,
-    marginTop: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  bannerText: { flex: 1 },
   floating: { position: 'absolute', right: 16, gap: 10, alignItems: 'flex-end' },
   fab: {
     flexDirection: 'row',

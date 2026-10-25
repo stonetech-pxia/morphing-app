@@ -130,6 +130,14 @@ export function expoMedia(
         ),
       );
     },
+    async muteVideo(uri, settings, runId, relPath, job) {
+      if (native.mute)
+        return output(
+          await run(job, (jobId) => native.mute!(jobId, uri, runFileUri(runId, relPath))),
+        );
+      return this.encodeVideo(uri, { ...settings, audioKbps: 0 }, runId, relPath, job);
+    },
+
     async rotateVideo(uri, degrees, settings, runId, relPath, job) {
       if (!native.rotate) throw notImplemented('video rotation');
       return output(

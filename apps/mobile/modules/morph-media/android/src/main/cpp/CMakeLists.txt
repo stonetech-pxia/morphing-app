@@ -35,3 +35,5 @@ foreach(name ${RNNOISE_NAMES})
 endforeach()
 target_sources(morphdsp PRIVATE ${DSP_DIR}/MorphDenoise.c)
 target_include_directories(morphdsp PRIVATE ${RNNOISE_DIR}/include ${RNNOISE_DIR}/src)
+# 不编进 RNNoise 调试用的浮点权重（每个 ABI 约 4 MB），推理走 int8 路径。
+target_compile_definitions(morphdsp PRIVATE DISABLE_DEBUG_FLOAT)

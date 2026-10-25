@@ -133,9 +133,11 @@ export function recordsToHtml(
         const sum = aggregateRecords(records, collection, 'sum', field.id) ?? 0;
         const shown =
           field.type === 'money'
-            ? formatMoney(sum, field.currency)
-            : formatNumber(sum, field.type === 'number' ? field.decimals : undefined);
-        total = `<div class="total">${t(locale, 'html_Total_08322')} · ${escapeHtml(field.name)}：<strong>${escapeHtml(shown)}</strong></div>`;
+            ? formatMoney(sum, field.currency, locale)
+            : formatNumber(sum, field.type === 'number' ? field.decimals : undefined, locale);
+        // 冒号按语言：中文全角，法语前面带窄不换行空格，英文半角。
+        const colon = locale === 'zh' ? '：' : locale === 'fr' ? '\u202f: ' : ': ';
+        total = `<div class="total">${t(locale, 'html_Total_08322')} · ${escapeHtml(field.name)}${colon}<strong>${escapeHtml(shown)}</strong></div>`;
       }
     }
     body = `<table><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>${total}`;

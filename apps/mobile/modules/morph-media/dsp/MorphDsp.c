@@ -8,7 +8,7 @@ MorphMeter *morph_meter_create(unsigned long rate, unsigned int channels) {
   if (rate < 8000 || rate > 192000 || channels < 1 || channels > 8) return NULL;
   MorphMeter *m = calloc(1, sizeof(*m));
   if (!m) return NULL;
-  m->state = ebur128_init(channels, rate, EBUR128_MODE_I | EBUR128_MODE_SAMPLE_PEAK | EBUR128_MODE_HISTOGRAM);
+  m->state = ebur128_init(channels, rate, EBUR128_MODE_I | EBUR128_MODE_TRUE_PEAK | EBUR128_MODE_HISTOGRAM);
   if (!m->state) { free(m); return NULL; }
   m->channels = channels;
   return m;
@@ -27,7 +27,8 @@ double morph_meter_lufs(MorphMeter *m) {
 double morph_meter_peak(MorphMeter *m) {
   double peak = 0;
   if (!m) return peak;
-  for (unsigned int c = 0; c < m->channels; c++) { double p = 0; ebur128_sample_peak(m->state, c, &p); if (p > peak) peak = p; }
+  /* 真峰值（4 倍过采样）：之后还要编码成 AAC，采样峰值留 -1 dB 余量也可能在解码后削波。 */
+  for (unsigned int c = 0; c < m->channels; c++) { double p = 0; ebur128_true_peak(m->state, c, &p); if (p > peak) peak = p; }
   return peak;
 }
 double morph_meter_gain(MorphMeter *m, int automatic, double db) {

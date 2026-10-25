@@ -3,7 +3,7 @@ import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
 
-import { recordChain } from '../run/chains';
+import { dismissChain, recordChain } from '../run/chains';
 import { copyResults, releaseShare, useIncoming } from '../share/incoming';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
@@ -41,6 +41,18 @@ it('counts distinct successful transfers, resets on edits and keeps order', asyn
   expect(await recordChain(repo, second, first, 'transfer-2')).toBe(false);
   expect(await recordChain(repo, first, second, 'transfer-2')).toBe(true);
   expect(await recordChain(repo, first, { ...second, name: 'changed' }, 'transfer-3')).toBe(false);
+});
+
+it('stops suggesting a combination after combining or saying no, until either changes', async () => {
+  const repo = new MemoryWorkspaceRepo();
+  await recordChain(repo, first, second, 'transfer-1');
+  expect(await recordChain(repo, first, second, 'transfer-2')).toBe(true);
+  await dismissChain(repo, first, second);
+  expect(await recordChain(repo, first, second, 'transfer-3')).toBe(false);
+  expect(await recordChain(repo, first, second, 'transfer-4')).toBe(false);
+  const edited = { ...second, name: 'changed' };
+  await recordChain(repo, first, edited, 'transfer-5');
+  expect(await recordChain(repo, first, edited, 'transfer-6')).toBe(true);
 });
 
 it('rolls back a partial result copy and preserves the source', async () => {

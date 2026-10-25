@@ -71,11 +71,15 @@ function matches(accept: string, mime: string, name: string): boolean {
   }
 }
 
-/** 把选中的文件复制进本次运行的临时目录。 */
+/**
+ * 把选中的文件复制进本次运行的临时目录。keepSource：收件页面的那一批（分享、App 里选的、上一次的结果）
+ * 原地使用、不移走，「再来一次」还要用；运行中途再选的文件照常移进来，运行结束一起删。
+ */
 async function importPicked(
   services: RunServices,
   picked: readonly PickedFile[],
   ctx: Parameters<Impl>[2],
+  keepSource = false,
 ): Promise<RunItem[]> {
   const items: RunItem[] = [];
   for (const [i, f] of picked.entries()) {
@@ -89,12 +93,7 @@ async function importPicked(
     let stored;
     try {
       stored = media
-        ? await services.files.adoptIntoRun(
-            f.uri,
-            services.runId,
-            freshName(name, ext),
-            !!services.incoming,
-          )
+        ? await services.files.adoptIntoRun(f.uri, services.runId, freshName(name, ext), keepSource)
         : await services.files.copyToRun(f.uri, services.runId, freshName(name, ext));
     } catch {
       throw new RunError('accessDenied', { name: f.name });
@@ -174,7 +173,7 @@ async function importShared(
     throw new RunError('wrongType', { name: shared[0]?.name ?? '', kind });
   }
   checkSizes(infos);
-  return { type: fit.type, items: await importPicked(ctx.services, shared, ctx) };
+  return { type: fit.type, items: await importPicked(ctx.services, shared, ctx, true) };
 }
 
 /** 把临时文件存成用户文件（file.save 步骤和结果页的「保存」共用）。已经存过的跳过。 */
@@ -348,12 +347,14 @@ export const IO_IMPLS: Record<string, Impl> = {
     // 临时文件也换成新名字（分享出去的文件名就是它）。
     const renamed: RunItem[] = [];
     const { files, runId } = ctx.services;
+    // 收件页面那一批原地使用（再来一次还要用），不能被改名移走。
+    const incoming = new Set(ctx.services.incoming?.map((f) => f.uri));
     for (const item of named) {
       const fileName = freshName(item.name, item.ext);
-      // 视频和音频很大：临时文件直接改名（移动），只有分享进来的原件才复制（D-142）。
+      // 视频和音频很大：临时文件直接改名（移动），只有收件页面的原件才复制（D-142）。
       let uri: string | null = null;
       if (isMediaFile({ name: `${item.name}.${item.ext}`, mimeType: item.mimeType })) {
-        const moved = await files.adoptIntoRun(item.uri, runId, fileName);
+        const moved = await files.adoptIntoRun(item.uri, runId, fileName, incoming.has(item.uri));
         if (moved.uri !== item.uri) uri = moved.uri;
       }
       uri ??= (await files.copyToRun(item.uri, runId, fileName)).uri;

@@ -68,6 +68,20 @@ for (const file of [...filesIn('packages'), ...filesIn('apps')]) {
         }
       }
     }
+    // 「zh ? '中文' : 'English'」这种写法法语界面会显示英文：界面文案要放进文案表（内置规则的 /ai/ 除外，P-037）。
+    if (
+      !file.includes('/ai/') &&
+      ts.isConditionalExpression(node) &&
+      /\bzh\b|locale === 'zh'|=== 'zh'/.test(node.condition.getText(source)) &&
+      [node.whenTrue, node.whenFalse].some(
+        (branch) =>
+          (ts.isStringLiteralLike(branch) || ts.isTemplateExpression(branch)) &&
+          /[\u3400-\u9fff]/.test(branch.getText(source)),
+      )
+    )
+      errors.push(
+        `${file}:${source.getLineAndCharacterOfPosition(node.getStart()).line + 1}: 中英三元式文案，法语会显示英文，改用文案表`,
+      );
     if (
       !file.includes('/ai/') &&
       ts.isArrayLiteralExpression(node) &&

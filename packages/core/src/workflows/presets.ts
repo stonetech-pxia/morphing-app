@@ -497,6 +497,8 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     // D-199：扫老照片。找边拉正，不增强、不压缩，存回相册。
     id: 'old-photos',
     scenario: 'photos',
+    // 输入是扫描（归文档），但做出来的是照片：两个分类里都放。
+    kinds: ['image', 'document'],
     name: { en: 'Scan old photos', zh: '扫老照片', fr: 'Numériser d’anciennes photos' },
     description: {
       en: 'Photograph printed photos with the document camera (or check the corners) → straightened, kept as they are → save to Photos.',

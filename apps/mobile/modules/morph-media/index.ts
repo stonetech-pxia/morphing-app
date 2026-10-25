@@ -128,6 +128,8 @@ export interface MorphMediaModule {
     degrees: number,
     options: TranscodeOptions,
   ): Promise<MediaResult>;
+  /** 去掉声音、不重新编码（iOS）；没有时用 transcode 去掉音轨。 */
+  mute?(jobId: string, uri: string, output: string): Promise<MediaResult>;
   mixAudio?(
     jobId: string,
     uri: string,

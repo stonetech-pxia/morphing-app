@@ -271,6 +271,14 @@ export interface MediaPlatform {
     relPath: string,
     job: MediaJob,
   ): Promise<MediaOutput>;
+  /** 去掉声音；iOS 不重新编码，Android 重新编码画面。 */
+  muteVideo(
+    uri: string,
+    settings: VideoEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
   /** 顺时针旋转；iOS 只改方向信息，Android 重新编码。 */
   rotateVideo(
     uri: string,
@@ -489,6 +497,13 @@ export interface FilePlatform {
    * Android 的 content:// 地址本身不用删。
    */
   removeShared(keep?: readonly string[], copies?: readonly string[]): Promise<void>;
+  /**
+   * 删除选择器放在 App 缓存目录里的副本（相册、「文件」选完之后系统复制的那份）。不在缓存目录的
+   * （相册原件、content://、用户文件、运行临时目录 runs/）一律不动。
+   */
+  removePickedCopies(uris: readonly string[]): Promise<void>;
+  /** 启动时调用：这时内存里没有任何一批收件，选择器缓存目录里剩下的副本都没人用了。 */
+  removeStalePickerCopies(): Promise<void>;
   /** 把临时文件存成用户文件。 */
   saveRunFile(uri: string, assetId: string, name: string): Promise<{ path: string; size: number }>;
 

@@ -3,15 +3,15 @@ import type { Locale, Localized } from './schema';
 
 export const strings = {
   trustNote: {
-    en: 'No ads. No account needed to process files. Files are processed on your device. AI changes receive your request and app configuration, never file or record contents.',
+    en: 'No ads. No account needed to work with your files. Files are processed on this device. When you ask AI to change the app, it gets your request and the app’s settings — never your files or entries.',
     zh: '没有广告。处理文件不需要账号。文件在本机处理；AI 修改只接收你的要求和 App 配置，不接收文件或记录内容。',
-    fr: 'Sans publicité. Aucun compte requis pour traiter vos fichiers. Le traitement reste sur votre appareil. L’IA reçoit votre demande et la configuration de l’application, jamais le contenu des fichiers ou des enregistrements.',
+    fr: 'Sans publicité. Aucun compte requis pour traiter vos fichiers. Le traitement reste sur votre appareil. L’IA reçoit votre demande et la configuration de l’application, jamais le contenu des fichiers ou des entrées.',
   },
   resultContinue: { en: 'Continue processing', zh: '接着处理', fr: 'Continuer le traitement' },
   resultIncoming: {
     en: 'For these results: {what}',
     zh: '接着处理这些结果：{what}',
-    fr: 'Pour ces résultats : {what}',
+    fr: 'Pour ces résultats : {what}',
   },
   chainMake: {
     en: 'Combine into one quick action',
@@ -36,7 +36,12 @@ export const strings = {
     zh: '没能打开选择器，请重试。',
     fr: 'Impossible d’ouvrir le sélecteur. Réessayez.',
   },
-  shareRecent: { en: 'Suggested actions', zh: '最近用过', fr: 'Actions suggérées' },
+  shareRecent: { en: 'Used before', zh: '最近用过', fr: 'Déjà utilisées' },
+  shareSuggested: {
+    en: 'Try one of these',
+    zh: '可以试试这些',
+    fr: 'Essayez l’une de ces actions',
+  },
   shareUsed: { en: 'Used {n} times', zh: '用过 {n} 次', fr: 'Utilisé {n} fois' },
   shareDescribe: {
     en: 'Tell Morph what I need',
@@ -50,7 +55,7 @@ export const strings = {
     fr: 'Fichiers sélectionnés : {what}',
   },
   sharePlaceholder: {
-    en: 'Say what you want, and Morph will do its best to make it happen',
+    en: 'Say what you want, and Morph will do its best',
     zh: '说出你想要的，Morph 会努力完成你的需求',
     fr: 'Dites ce que vous voulez, Morph fera de son mieux pour y arriver',
   },
@@ -139,12 +144,12 @@ export const strings = {
   // 改动记录（D-112）
   historyTitle: { en: 'Change history', zh: '改动记录', fr: 'Historique des modifications' },
   current: { en: 'Now', zh: '现在的样子', fr: 'État actuel' },
-  restoreThis: { en: 'Go back to this', zh: '回到这时候的样子', fr: 'Revenir à ce moment' },
+  restoreThis: { en: 'Restore this version', zh: '回到这时候的样子', fr: 'Revenir à ce moment' },
   restoreSummary: { en: 'Back to {when}', zh: '回到 {when} 的样子', fr: 'Retour à {when}' },
   source_seed: { en: 'Start', zh: '一开始', fr: 'Début' },
   source_ai: { en: 'By AI', zh: 'AI 改的', fr: 'Par l’IA' },
   source_user: { en: 'By you', zh: '你改的', fr: 'Par vous' },
-  source_restore: { en: 'Went back', zh: '回到之前', fr: 'Retour en arrière' },
+  source_restore: { en: 'Restored', zh: '回到之前', fr: 'Retour en arrière' },
   source_rollback: { en: 'Undone automatically', zh: '自动退回', fr: 'Annulé automatiquement' },
   source_recovery: { en: 'Fixed automatically', zh: '自动修复', fr: 'Corrigé automatiquement' },
   initialSummary: {
@@ -152,8 +157,8 @@ export const strings = {
     zh: '刚装好的样子',
     fr: 'L’app telle qu’installée',
   },
-  dateToday: { en: 'Today {time}', zh: '今天 {time}', fr: 'Aujourd’hui {time}' },
-  dateYesterday: { en: 'Yesterday {time}', zh: '昨天 {time}', fr: 'Hier {time}' },
+  dateToday: { en: 'Today {time}', zh: '今天 {time}', fr: 'Aujourd’hui à {time}' },
+  dateYesterday: { en: 'Yesterday {time}', zh: '昨天 {time}', fr: 'Hier à {time}' },
 
   // 工具目录
   toolsTitle: { en: 'Tools', zh: '工具', fr: 'Outils' },
@@ -167,12 +172,12 @@ export const strings = {
   uninstallSummary: { en: 'Removed {name}', zh: '移除了{name}工具', fr: '{name} retiré' },
   uninstallTitle: { en: 'Remove {name}?', zh: '移除{name}工具？', fr: 'Retirer {name} ?' },
   removeCardSummary: {
-    en: 'Took {name} off home',
+    en: 'Removed {name} from home',
     zh: '从首页移除了{name}',
     fr: '{name} retiré de l’accueil',
   },
   addCardSummary: {
-    en: 'Put {name} on home',
+    en: 'Added {name} to home',
     zh: '把{name}放到了首页',
     fr: 'Ajouter {name} à l’accueil',
   },
@@ -251,9 +256,9 @@ export const strings = {
   languageValue: {
     en: 'English (follows system)',
     zh: '简体中文（跟随系统）',
-    fr: 'English (suit le système)',
+    fr: 'Français (suit le système)',
   },
-  aiEngine: { en: 'AI', zh: 'AI', fr: 'AI' },
+  aiEngine: { en: 'AI', zh: 'AI', fr: 'IA' },
   aiEngineRemote: {
     en: 'Claude via the Morph server',
     zh: 'Claude（通过 Morph 服务器）',
@@ -437,7 +442,7 @@ export const strings = {
     fr: 'Le téléchargement n’a pas abouti : {detail}',
   },
   runError_targetNotMet: {
-    en: 'Could not get “{name}” under {target} (smallest was {got}).',
+    en: 'Couldn’t get “{name}” under {target} (the smallest was {got}).',
     zh: '「{name}」无法压到 {target} 以内（最小只能到 {got}）。',
     fr: 'Impossible de compresser « {name} » sous {target} (le minimum atteint est {got}).',
   },
@@ -457,7 +462,7 @@ export const strings = {
     fr: '« {name} » ne contient aucun formulaire à remplir.',
   },
   runError_badField: {
-    en: 'What was filled in for “{name}” doesn’t fit this field.',
+    en: 'The value entered for “{name}” doesn’t fit this field.',
     zh: '「{name}」这一项填写的内容不符合要求。',
     fr: 'Les données saisies pour « {name} » ne conviennent pas à ce champ.',
   },
@@ -483,9 +488,9 @@ export const strings = {
     fr: 'Le texte est trop long (maximum {max} caractères).',
   },
   runError_noRecords: {
-    en: 'There are no records in “{name}” for this time.',
+    en: 'There are no entries in “{name}” for this period.',
     zh: '「{name}」里这段时间没有记录。',
-    fr: 'Aucun enregistrement dans « {name} » pour cette période.',
+    fr: 'Aucune entrée dans « {name} » pour cette période.',
   },
   runError_doesNotFit: {
     en: '“{name}” does not fit on this paper. Cut it to an ID photo size first.',
@@ -613,7 +618,7 @@ export const strings = {
     zh: '原来 {from}，现在 {to}',
     fr: 'Était {from}, désormais {to}',
   },
-  resultRecords: { en: '{n} records', zh: '{n} 条记录', fr: '{n} enregistrements' },
+  resultRecords: { en: '{n} entries', zh: '{n} 条记录', fr: '{n} entrées' },
   localDone: { en: 'Done', zh: '完成', fr: 'Terminé' },
   localNext: { en: 'Next', zh: '下一张', fr: 'Suivant' },
   toolMissing: {
@@ -690,7 +695,7 @@ export const strings = {
   noRecords: {
     en: 'Nothing here yet',
     zh: '还没有记录',
-    fr: 'Aucun enregistrement pour l’instant',
+    fr: 'Aucune entrée pour l’instant',
   },
   today: { en: 'Today', zh: '今天', fr: 'Aujourd’hui' },
   yesterday: { en: 'Yesterday', zh: '昨天', fr: 'Hier' },
@@ -708,14 +713,14 @@ export const strings = {
     fr: 'Certains champs obligatoires ne figurent pas dans ce formulaire. Ouvrez le formulaire complet pour les ajouter.',
   },
   recordDeleted: { en: 'Entry deleted', zh: '已删除一条记录', fr: 'Enregistrement supprimé' },
-  newRecord: { en: 'New entry', zh: '新记录', fr: 'Nouvel enregistrement' },
-  editRecord: { en: 'Edit entry', zh: '编辑记录', fr: 'Modifier l’enregistrement' },
+  newRecord: { en: 'New entry', zh: '新记录', fr: 'Nouvelle entrée' },
+  editRecord: { en: 'Edit entry', zh: '编辑记录', fr: 'Modifier l’entrée' },
   save: { en: 'Save', zh: '保存', fr: 'Enregistrer' },
   delete: { en: 'Delete', zh: '删除', fr: 'Supprimer' },
   tableMissing: {
     en: 'This data table is no longer part of the app. Its entries are kept in Settings → Data.',
     zh: '这张数据表已不在界面里，记录保存在「设置 → 数据」。',
-    fr: 'Ce tableau de données ne fait plus partie de l’application. Ses enregistrements sont conservés dans Réglages → Données.',
+    fr: 'Ce tableau de données ne fait plus partie de l’application. Ses entrées sont conservées dans Paramètres → Données.',
   },
   dataTitle: { en: 'Data', zh: '数据', fr: 'Données' },
   dataRowHint: {
@@ -726,7 +731,7 @@ export const strings = {
   dataPrivacy: {
     en: 'Entries are stored only on this phone. The AI only sees the structure of your tables (names and fields), never what you enter.',
     zh: '记录只保存在这台手机上。AI 只能看到数据表的结构（表名和字段），永远看不到你填写的内容。',
-    fr: 'Les enregistrements sont stockés uniquement sur ce téléphone. L’IA ne voit que la structure de vos tableaux (noms et champs), jamais ce que vous saisissez.',
+    fr: 'Les entrées sont stockées uniquement sur ce téléphone. L’IA ne voit que la structure de vos tableaux (noms et champs), jamais ce que vous saisissez.',
   },
   dataTables: { en: 'Data tables', zh: '数据表', fr: 'Tableaux de données' },
   unusedTables: {
@@ -737,7 +742,7 @@ export const strings = {
   unusedTablesHint: {
     en: 'Tables that were removed from the app. Their entries come back if you go back to a time when the table was there.',
     zh: '已从界面移除的数据表。在改动记录里回到有这张表的时候，记录会回来。',
-    fr: 'Tableaux retirés de l’application. Leurs enregistrements reviennent si vous revenez, dans l’historique des modifications, à une époque où ce tableau existait.',
+    fr: 'Tableaux retirés de l’application. Leurs entrées reviennent si vous revenez, dans l’historique des modifications, à une époque où ce tableau existait.',
   },
   recentlyDeleted: { en: 'Recently deleted', zh: '最近删除', fr: 'Supprimés récemment' },
   recentlyDeletedHint: {
@@ -849,7 +854,7 @@ export const strings = {
   deleteDataMessage: {
     en: 'Your entries are kept (Settings → Data). Cancel discards the whole edit; after saving you can still undo it.',
     zh: '记录不会被删除（在「设置 → 数据」里）。点「取消」可以放弃这次编辑，保存后也能撤销。',
-    fr: 'Vos entrées sont conservées (Réglages → Données). « Annuler » abandonne toute la modification ; après enregistrement, vous pourrez encore l’annuler.',
+    fr: 'Vos entrées sont conservées (Paramètres → Données). « Annuler » abandonne toute la modification ; après enregistrement, vous pourrez encore l’annuler.',
   },
   // AI 只改 App（D-113、D-124–D-130）
   readyTitle: {
@@ -860,7 +865,7 @@ export const strings = {
   readyRunNow: { en: 'Use it now', zh: '现在就用一次', fr: 'L’utiliser maintenant' },
   readyLater: { en: 'Not now', zh: '先不用', fr: 'Pas maintenant' },
   readyHome: {
-    en: 'There is also a shortcut on the home page: tap it next time.',
+    en: 'It’s also on the home page — tap it next time.',
     zh: '首页上也放了入口，下次点一下就能用。',
     fr: 'Un raccourci est aussi disponible sur l’accueil : appuyez dessus la prochaine fois.',
   },
@@ -894,21 +899,16 @@ export const strings = {
     zh: '给分享进来的 {what}',
     fr: 'Fichiers partagés : {what}',
   },
-  aboutSharedHint: {
-    en: 'Say what these files should become; AI makes a quick action for it. AI only knows what kind of files they are and how many.',
-    zh: '说说想把这些文件变成什么，AI 会做一个快捷操作。AI 只知道文件的类型和个数。',
-    fr: 'Dites ce que ces fichiers doivent devenir : l’IA créera une action rapide pour cela. Elle ne connaît que le type de ces fichiers et leur nombre.',
-  },
   sharedPhotos: { en: '{n} photos', zh: '{n} 张照片', fr: '{n} photos' },
   sharedPdfs: { en: '{n} PDFs', zh: '{n} 个 PDF', fr: '{n} PDF' },
   sharedOthers: { en: '{n} files', zh: '{n} 个文件', fr: '{n} fichiers' },
   habitTitle: {
-    en: 'Often use {value}?',
+    en: 'Often choose {value}?',
     zh: '经常用「{value}」？',
     fr: 'Souvent utiliser « {value} » ?',
   },
   habitBody: {
-    en: 'Make it a quick action “{name}” on the home page, so next time it is one tap and no questions.',
+    en: 'Save it as a quick action “{name}” on the home page — next time it’s one tap, no questions.',
     zh: '做成快捷操作「{name}」放到首页，下次点一下就好，不用再选。',
     fr: 'Créer une action rapide « {name} » sur l’accueil : un seul appui la prochaine fois, sans rien demander.',
   },
@@ -1048,6 +1048,11 @@ export const strings = {
     zh: '「{name}」打不开：格式不支持，或者有版权保护。',
     fr: '« {name} » ne peut pas être ouvert : format non pris en charge ou protégé contre la copie.',
   },
+  runError_mergeUnsupported: {
+    en: 'These videos couldn’t be joined. Convert each one to MP4 first, then try again.',
+    zh: '这几段视频没能拼在一起。可以先把每一段转成 MP4 再试。',
+    fr: 'Impossible d’assembler ces vidéos. Convertissez d’abord chacune en MP4, puis réessayez.',
+  },
   runError_notEnoughSpace: {
     en: 'There isn’t enough space on this phone. About {gb} GB more is needed.',
     zh: '手机空间不够，还需要大约 {gb} GB。',
@@ -1101,7 +1106,7 @@ export const strings = {
   frameTitle: { en: 'Choose a frame', zh: '选一帧', fr: 'Choisissez une image' },
   frameDone: { en: 'Save this frame', zh: '就要这一帧', fr: 'Conserver cette image' },
   frameHint: {
-    en: 'Tap the timeline, then adjust the time to choose a photo.',
+    en: 'Tap the timeline, then fine-tune the time to pick the frame.',
     zh: '点时间轴选画面，再微调时间。',
     fr: 'Touchez la ligne de temps, puis ajustez l’heure pour choisir une image.',
   },
@@ -1156,7 +1161,7 @@ export const strings = {
   draftChatClose: { en: 'Hide', zh: '收起', fr: 'Masquer' },
   draftChatPlaceholder: { en: 'Say one more thing…', zh: '再说一句…', fr: 'Dites-en un peu plus…' },
   draftSteppedBack: {
-    en: 'Took back the last step.',
+    en: 'Undid the last step.',
     zh: '退了一步。',
     fr: 'Retour d’une étape effectué.',
   },
@@ -1166,7 +1171,7 @@ export const strings = {
     fr: 'Vous avez un brouillon · {n} étapes',
   },
   draftCardHint: {
-    en: 'Look changes you ask for now continue this draft; quick actions, tools and data tables take effect right away.',
+    en: 'Changes to the look continue this draft; changes to quick actions, tools and data tables apply right away.',
     zh: '新说的外观修改会接着改这份草稿；快捷操作、工具和数据表直接生效。',
     fr: 'Les modifications d’apparence que vous demandez poursuivent ce brouillon ; les actions rapides, les outils et les tableaux de données prennent effet immédiatement.',
   },
@@ -1190,7 +1195,7 @@ export const strings = {
   },
   pickStyleChip: { en: 'Pick a style', zh: '换个风格', fr: 'Choisir un style' },
   draftRenderFailed: {
-    en: 'The last change could not be shown, so it was taken back.',
+    en: 'The last change couldn’t be shown, so it was undone.',
     zh: '刚才那一步显示不出来，已经撤掉。',
     fr: 'La dernière modification n’a pas pu s’afficher, elle a donc été annulée.',
   },
@@ -1226,7 +1231,7 @@ export const strings = {
   tableReadyWhere: {
     en: 'Entries stay on this device. You can also see the table in Settings → Data.',
     zh: '记录存在本机，在「设置 → 数据」里也能看到这张表。',
-    fr: 'Les entrées restent sur cet appareil. Vous pouvez aussi voir le tableau dans « Réglages → Données ».',
+    fr: 'Les entrées restent sur cet appareil. Vous pouvez aussi voir le tableau dans « Paramètres → Données ».',
   },
 
   // 新手引导（D-149）
@@ -1250,7 +1255,7 @@ export const strings = {
     fr: 'Ce qui demandait plusieurs étapes se fait d’un seul appui.',
   },
   guideIntro4: {
-    en: "Now it's your turn. Say your idea in one sentence.",
+    en: 'Now it’s your turn. Say your idea in one sentence.',
     zh: '现在轮到你了，用一句话说出你的想法',
     fr: 'À vous de jouer. Décrivez votre idée en une phrase.',
   },
@@ -1392,9 +1397,9 @@ export const strings = {
     fr: 'Merci, c’est noté. Les nouveaux outils arriveront avec les mises à jour et les téléchargements.',
   },
   needPrivacy: {
-    en: 'Only this sentence is sent to Morph — no files, records or settings.',
+    en: 'Only this sentence is sent to Morph — no files, entries or settings.',
     zh: '只发送这一句话给 Morph，不含文件、记录和设置。',
-    fr: 'Seule cette phrase est envoyée à Morph — ni fichiers, ni enregistrements, ni réglages.',
+    fr: 'Seule cette phrase est envoyée à Morph — ni fichiers, ni entrées, ni réglages.',
   },
   needsSettingTitle: {
     en: 'Offer to send requests AI can’t do',
@@ -1488,11 +1493,11 @@ export const strings = {
     fr: 'L’enregistrement continue lorsque l’écran se verrouille. Appuyez sur « Terminer » une fois fini.',
   },
   recordDiscardTitle: {
-    en: 'Throw away this recording?',
+    en: 'Discard this recording?',
     zh: '不要这段录音了？',
     fr: 'Supprimer cet enregistrement ?',
   },
-  recordDiscard: { en: 'Throw away', zh: '不要了', fr: 'Supprimer' },
+  recordDiscard: { en: 'Discard', zh: '不要了', fr: 'Supprimer' },
   recordKeep: { en: 'Keep recording', zh: '继续录', fr: 'Continuer l’enregistrement' },
 } satisfies Record<string, Localized>;
 
@@ -1595,7 +1600,7 @@ export const extractedMessages = {
   describe_list_0b528: {
     en: '“{v0}” list',
     zh: '「{v0}」的记录列表',
-    fr: 'liste des enregistrements « {v0} »',
+    fr: 'liste des entrées « {v0} »',
   },
   describe_form_f4ef1: {
     en: '“{v0}” form',
@@ -1620,7 +1625,7 @@ export const extractedMessages = {
   describe_grid_3f0e7: {
     en: 'grid',
     zh: '网格',
-    fr: 'grille',
+    fr: 'en grille',
   },
   describe__5caf2: {
     en: ' “{v0}”',
@@ -1630,7 +1635,7 @@ export const extractedMessages = {
   describe_group_86cab: {
     en: '{v0} group{v1}',
     zh: '{v0}分组{v1}',
-    fr: '{v0} groupe{v1}',
+    fr: 'groupe {v0}{v1}',
   },
   describe__41054: {
     en: '{v0} → {v1}',
@@ -1690,12 +1695,12 @@ export const extractedMessages = {
   describe_Add_data_table_f79c6: {
     en: 'Add data table “{v0}” ({v1})',
     zh: '新建数据表「{v0}」（{v1}）',
-    fr: 'Ajouter la table de données « {v0} » ({v1})',
+    fr: 'Ajouter le tableau de données « {v0} » ({v1})',
   },
   describe_Rename_data_table_to_c585f: {
     en: 'Rename data table “{v0}” to “{v1}”',
     zh: '数据表「{v0}」改名为「{v1}」',
-    fr: 'Renommer la table de données « {v0} » en « {v1} »',
+    fr: 'Renommer le tableau de données « {v0} » en « {v1} »',
   },
   describe_Change_the_icon_of_9c456: {
     en: 'Change the icon of “{v0}”',
@@ -1738,9 +1743,9 @@ export const extractedMessages = {
     fr: 'Masquer le champ « {v0} » de « {v1} » (les données existantes sont conservées)',
   },
   describe_Remove_data_table_from_the_app_records_1a3d2: {
-    en: 'Remove data table “{v0}” from the app (records are kept in Settings → Data)',
+    en: 'Remove data table “{v0}” from the app (its entries are kept in Settings → Data)',
     zh: '把数据表「{v0}」移出界面（记录保留，可在「设置 → 数据」里查看和导出）',
-    fr: 'Retirer la table de données « {v0} » de l’application (les enregistrements sont conservés, consultables et exportables dans Réglages → Données)',
+    fr: 'Retirer le tableau de données « {v0} » de l’application (les entrées sont conservées, consultables et exportables dans Paramètres → Données)',
   },
   describe_Theme_color_8ee07: {
     en: 'Theme color → {v0}',
@@ -1756,6 +1761,11 @@ export const extractedMessages = {
     en: 'Dark mode ',
     zh: '深色模式的',
     fr: 'Mode sombre ',
+  },
+  describe_dark_color: {
+    en: 'Dark mode {v0}',
+    zh: '深色模式的{v0}',
+    fr: '{v0} (mode sombre)',
   },
   describe_default_82b64: {
     en: '{v0} → default',
@@ -1825,7 +1835,7 @@ export const extractedMessages = {
   describe_removed_d5c25: {
     en: '{v0} removed',
     zh: '去掉{v0}',
-    fr: '{v0} supprimé',
+    fr: 'Suppression : {v0}',
   },
   describe_Update_75049: {
     en: 'Update {v0}: {v1}',
@@ -1970,17 +1980,17 @@ export const extractedMessages = {
   describe_The_table_leaves_the_app_its_entries_s_29282: {
     en: 'The “{v0}” table leaves the app; its entries stay in Settings → Data and come back with it',
     zh: '数据表「{v0}」会移出界面；记录保留在「设置 → 数据」，以后回到有它的时候数据还在',
-    fr: 'La table « {v0} » quitte l’application ; ses entrées restent dans Réglages → Données et reviendront avec elle',
+    fr: 'Le tableau « {v0} » quitte l’application ; ses entrées restent dans Paramètres → Données et reviendront avec lui',
   },
   describe_The_table_comes_back_dd301: {
     en: 'The “{v0}” table comes back',
     zh: '数据表「{v0}」会重新出现',
-    fr: 'La table « {v0} » réapparaît',
+    fr: 'Le tableau « {v0} » réapparaît',
   },
   describe_Your_files_and_entries_are_not_affecte_c87ef: {
     en: 'Your files and entries are not affected',
     zh: '你的文件和记录的数据不受影响',
-    fr: 'Vos fichiers et enregistrements ne sont pas affectés',
+    fr: 'Vos fichiers et entrées ne sont pas affectés',
   },
   describe_Your_files_are_not_affected_3c83c: {
     en: 'Your files are not affected',
@@ -2040,7 +2050,7 @@ export const extractedMessages = {
   defaults_Tap_AI_and_describe_how_this_app_shoul_7d958: {
     en: 'Tap AI and describe how this app should change',
     zh: '点「AI 修改」，用一句话改造这个 App',
-    fr: 'Touchez « Modifier avec l’IA » et décrivez en une phrase comment cette app doit changer.',
+    fr: 'Touchez « IA » et décrivez en une phrase comment cette app doit changer.',
   },
   defaults_Add_tools_9c8e1: {
     en: 'Add tools',
@@ -2483,9 +2493,9 @@ export const extractedMessages = {
     fr: 'Modifié',
   },
   html_records_3f794: {
-    en: '{v0} records',
+    en: '{v0} entries',
     zh: '{v0} 条',
-    fr: '{v0} enregistrements',
+    fr: '{v0} entrées',
   },
   html_Total_08322: {
     en: 'Total',
@@ -2858,7 +2868,7 @@ export const extractedMessages = {
     fr: 'Action rapide « {v0} » copiée',
   },
   WorkflowEditor_Add_a_step_here_ffc74: {
-    en: '＋ Add a step here',
+    en: '+ Add a step here',
     zh: '＋ 在这里加一步',
     fr: '＋ Ajouter une étape ici',
   },
@@ -3080,7 +3090,7 @@ export const extractedMessages = {
   WorkflowsScreen_Add_another_fea84: {
     en: 'Add another',
     zh: '再添加一个',
-    fr: 'En ajouter un autre',
+    fr: 'En ajouter une autre',
   },
   WorkflowsScreen_Add_b7a68: {
     en: 'Add',
@@ -3161,9 +3171,9 @@ const dynamicMessages = {
     fr: 'Cette action rapide vient de l’outil « {name} ». Vous pouvez la modifier ; si vous retirez l’outil, elle est supprimée aussi.',
   },
   workflowInputRequired: {
-    en: 'The first step has to choose photos or files, take text or read records.',
+    en: 'The first step has to pick photos or files, take text, or read entries.',
     zh: '第一步要选照片、选文件、输入文字或读取记录。',
-    fr: 'La première étape doit être de choisir des photos ou fichiers, saisir un texte ou lire des enregistrements.',
+    fr: 'La première étape doit être de choisir des photos ou fichiers, saisir un texte ou lire des entrées.',
   },
   workflowTypeMismatch: {
     en: 'This step doesn’t fit after the one before it.',
@@ -3287,9 +3297,9 @@ const SINGULAR_MESSAGES: Partial<Record<StringKey, Localized>> = {
     fr: '{n} fichier',
   },
   resultRecords: {
-    en: '{n} record',
+    en: '{n} entry',
     zh: '{n} 条记录',
-    fr: '{n} enregistrement',
+    fr: '{n} entrée',
   },
   sharedPhotos: {
     en: '{n} photo',
@@ -3366,13 +3376,123 @@ const SINGULAR_MESSAGES: Partial<Record<StringKey, Localized>> = {
     zh: '同时移除 {v0} 个指向「{v1}」的按钮或快捷入口',
     fr: 'Supprime aussi {v0} bouton ou raccourci ouvrant « {v1} »',
   },
+  shareUsed: { en: 'Used {n} time', zh: '用过 {n} 次', fr: 'Utilisé {n} fois' },
+  runDone: {
+    en: 'Saved “{name}” ({pages} page)',
+    zh: '已保存「{name}」（{pages} 页）',
+    fr: '« {name} » enregistré ({pages} page)',
+  },
+  runError_tooFew: {
+    en: 'Choose at least {min} file.',
+    zh: '请至少选择 {min} 个文件。',
+    fr: 'Choisissez au moins {min} fichier.',
+  },
+  runError_tooMany: {
+    en: 'Choose at most {max} file.',
+    zh: '最多选择 {max} 个文件。',
+    fr: 'Choisissez au maximum {max} fichier.',
+  },
+  runError_tooLong: {
+    en: '“{name}” is too long for a GIF (at most {seconds} second). Trim it first.',
+    zh: '「{name}」太长了，做不成 GIF（最长 {seconds} 秒）。请先剪一段。',
+    fr: '« {name} » est trop long pour un GIF (maximum {seconds} seconde). Coupez-le d’abord.',
+  },
+  packDeleteWithLanguages: {
+    en: 'Its language is deleted too. You can download it again the next time you need it.',
+    zh: '它的 {count} 种语言也会一起删除。下次用到时可以再下载。',
+    fr: 'Sa langue sera aussi supprimée. Vous pourrez la télécharger à nouveau la prochaine fois que vous en aurez besoin.',
+  },
+  recordCount: { en: '{count} entry', zh: '{count} 条记录', fr: '{count} entrée' },
+  deleteForeverConfirm: {
+    en: 'Delete {count} entry of “{name}”? This can’t be undone.',
+    zh: '永久删除「{name}」的全部 {count} 条记录？此操作无法撤销。',
+    fr: 'Supprimer {count} entrée de « {name} » ? Cette action est irréversible.',
+  },
+  editPageSummary: {
+    en: 'Edit “{page}” ({count} change)',
+    zh: '编辑「{page}」（{count} 处修改）',
+    fr: 'Modifier « {page} » ({count} modification)',
+  },
+  deleteGroupMessage: {
+    en: 'The part inside it is deleted too. Cancel discards the whole edit; after saving you can still undo it.',
+    zh: '里面的 {count} 块也会一起删除。点「取消」可以放弃这次编辑，保存后也能撤销。',
+    fr: 'L’élément qu’il contient sera aussi supprimé. « Annuler » abandonne toute la modification ; après enregistrement, vous pourrez encore l’annuler.',
+  },
+  describe_Add_page_blocks_80d1f: {
+    en: 'Add page “{v0}” ({v1} block)',
+    zh: '新建页面「{v0}」（{v1} 块内容）',
+    fr: 'Ajouter la page « {v0} » ({v1} bloc)',
+  },
+  html_records_3f794: { en: '{v0} entry', zh: '{v0} 条', fr: '{v0} entrée' },
+  ShareScreen_Needs_at_least_files_0ed9b: {
+    en: 'Needs at least {v0} file',
+    zh: '需要至少 {v0} 个文件',
+    fr: 'Au moins {v0} fichier requis',
+  },
+  ShareScreen_Takes_at_most_files_0fe59: {
+    en: 'Takes at most {v0} file',
+    zh: '最多 {v0} 个文件',
+    fr: 'Maximum {v0} fichier',
+  },
+  RedactScreen_boxes_4d76c: { en: '{v0} box', zh: '{v0} 处', fr: '{v0} zone' },
+  FillFormScreen_has_fields_to_fill_in_Use_Latin_letter_e3442: {
+    en: '{v0}.{v1} has {v2} field to fill in. Use Latin letters, digits and common symbols.',
+    zh: '{v0}.{v1} 有 {v2} 个可以填写的字段。只能填英文字母、数字和常用符号。',
+    fr: '{v0}.{v1} comporte {v2} champ à remplir. Utilisez des lettres latines, des chiffres et des symboles courants.',
+  },
+  PagesScreen_Restore_removed_a7e1a: {
+    en: 'Restore {v0} removed',
+    zh: '恢复删掉的 {v0} 页',
+    fr: 'Restaurer {v0} page supprimée',
+  },
+  io_taken_af2cf: { en: '{v0} taken', zh: '已拍 {v0} 张', fr: '{v0} photo prise' },
+  WorkflowsScreen_Needs_at_least_files_0ed9b: {
+    en: 'Needs at least {v0} file',
+    zh: '需要至少 {v0} 个文件',
+    fr: 'Au moins {v0} fichier requis',
+  },
+  WorkflowsScreen_Takes_at_most_files_0fe59: {
+    en: 'Takes at most {v0} file',
+    zh: '最多 {v0} 个文件',
+    fr: 'Maximum {v0} fichier',
+  },
 };
 
+/** 哪个参数决定单复数（默认是 n）。 */
 const PLURAL_COUNT_VARIABLE: Partial<Record<StringKey, string>> = {
   describe_Also_removes_card_s_that_ran_this_quic_5d29f: 'v0',
   describe_Also_removes_block_s_that_showed_a7a30: 'v0',
   describe_Also_removes_button_s_or_shortcut_s_th_d4dc1: 'v0',
+  runDone: 'pages',
+  runError_tooFew: 'min',
+  runError_tooMany: 'max',
+  runError_tooLong: 'seconds',
+  packDeleteWithLanguages: 'count',
+  recordCount: 'count',
+  deleteForeverConfirm: 'count',
+  editPageSummary: 'count',
+  deleteGroupMessage: 'count',
+  describe_Add_page_blocks_80d1f: 'v1',
+  html_records_3f794: 'v0',
+  ShareScreen_Needs_at_least_files_0ed9b: 'v0',
+  ShareScreen_Takes_at_most_files_0fe59: 'v0',
+  RedactScreen_boxes_4d76c: 'v0',
+  FillFormScreen_has_fields_to_fill_in_Use_Latin_letter_e3442: 'v2',
+  PagesScreen_Restore_removed_a7e1a: 'v0',
+  io_taken_af2cf: 'v0',
+  WorkflowsScreen_Needs_at_least_files_0ed9b: 'v0',
+  WorkflowsScreen_Takes_at_most_files_0fe59: 'v0',
 };
+
+/**
+ * 是否用单数（CLDR 的 one）。手写而不用 Intl.PluralRules：App 的 Hermes 引擎没有它，调用会直接抛错。
+ * 法语 0 和小于 2 的数是单数，英文只有 1，中文不分单复数。
+ */
+export function isSingular(locale: Locale, n: number): boolean {
+  if (locale === 'fr') return n >= 0 && n < 2;
+  if (locale === 'en') return n === 1;
+  return false;
+}
 
 export function t(
   locale: Locale,
@@ -3381,15 +3501,21 @@ export function t(
 ): string {
   const count = vars[PLURAL_COUNT_VARIABLE[key] ?? 'n'];
   const text =
-    typeof count === 'number' && new Intl.PluralRules(locale).select(count) === 'one'
+    typeof count === 'number' && isSingular(locale, count)
       ? (SINGULAR_MESSAGES[key] ?? MESSAGES[key])
       : MESSAGES[key];
+  // 不分组：版本号、年份这类数字不能写成「12 345」。
   return (text[locale] ?? text.en).replace(/\{(\w+)\}/g, (_, name: string) =>
     typeof vars[name] === 'number' && locale === 'fr'
-      ? new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 4 }).format(vars[name] as number)
+      ? FRENCH_NUMBER.format(vars[name] as number)
       : String(vars[name] ?? `{${name}}`),
   );
 }
+
+const FRENCH_NUMBER = new Intl.NumberFormat('fr-FR', {
+  maximumFractionDigits: 4,
+  useGrouping: false,
+});
 
 /** 兼容工具定义中已有的英文/中文名称对；迁移完成前统一在此回退。 */
 export function pairText(locale: Locale, pair: readonly [string, string]): string {

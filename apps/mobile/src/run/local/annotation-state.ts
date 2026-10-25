@@ -92,9 +92,7 @@ export function reduceAnnotations(
         y: clamp(state.start.y + action.dy / scale, size.height),
       };
       const points =
-        state.draft.kind === 'pen'
-          ? [...state.draft.points.slice(0, 999), point]
-          : [state.start, point];
+        state.draft.kind === 'pen' ? [...thin(state.draft.points), point] : [state.start, point];
       return { ...state, draft: { ...state.draft, points } };
     }
     case 'end': {
@@ -122,4 +120,11 @@ export function reduceAnnotations(
         draft: null,
       };
   }
+}
+
+/** 一笔最多这么多点；到了就隔一个丢一个（保留首尾），笔画形状不变，不会把后半段拉成直线。 */
+const MAX_PEN_POINTS = 1000;
+function thin<T>(points: readonly T[]): readonly T[] {
+  if (points.length < MAX_PEN_POINTS) return points;
+  return points.filter((_, i) => i % 2 === 0 || i === points.length - 1);
 }

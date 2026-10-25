@@ -202,6 +202,24 @@ describe('running a workflow on shared files', () => {
     await second.dispose();
   });
 
+  it('a rename right after the inbox files copies them instead of moving them', async () => {
+    const { files, run } = setup({
+      id: 'video',
+      name: 'video',
+      steps: [
+        { id: 'pick', action: 'in.videos', params: { source: 'library', min: 1, max: 10 } },
+        { id: 'name', action: 'file.rename', params: { template: '{sourceName}-x' } },
+      ],
+    });
+    const video = files.offerVideo('picked.mp4', { size: 1000, durationMs: 1000 }, 'video/mp4');
+    const first = await run([video]);
+    expect(first.result.status).toBe('succeeded');
+    expect(files.disk.has(video.uri)).toBe(true);
+    await first.dispose();
+    // 「再来一次」：原来那份还在。
+    expect((await run([video])).result.status).toBe('succeeded');
+  });
+
   it('checks the type and count like a picker would', async () => {
     const merge = applyOps(createDefaultWorkspace('zh'), [{ op: 'installTool', toolId: 'pdf' }], {
       registry,
@@ -277,16 +295,17 @@ describe('share journeys (UI)', () => {
     expect(screen.queryByText('报告.pdf')).toBeNull();
     await fireEvent.press(screen.getByTestId('share-files-toggle'));
     expect(screen.getByText('报告.pdf')).toBeTruthy();
+    // 「查看全部」在这一页展开：收这些文件的都在，用过但个数不对的说明原因，收不了的不出现。
     await fireEvent.press(screen.getByTestId('share-see-all'));
-    expect(await screen.findByTestId('quick-actions-document')).toBeTruthy();
-    expect(screen.getByTestId(`workflow-run-${merge.id}`)).toBeTruthy();
-    expect(screen.getByTestId('workflow-run-sign-return')).toBeDisabled();
+    expect(screen.queryByTestId('share-see-all')).toBeNull();
+    expect(screen.getByTestId(`share-run-${merge.id}`)).toBeTruthy();
+    expect(screen.queryByTestId('share-run-sign-return')).toBeNull();
     expect(
-      within(screen.getByTestId('workflow-sign-return')).getByText('最多 1 个文件'),
+      within(screen.getByTestId('share-workflow-sign-return')).getByText('最多 1 个文件'),
     ).toBeTruthy();
-    expect(screen.queryByTestId('workflow-visa-photo')).toBeNull();
+    expect(screen.queryByTestId('share-workflow-visa-photo')).toBeNull();
     expect(screen.queryByTestId('run-screen')).toBeNull();
-    await fireEvent.press(screen.getByTestId(`workflow-run-${merge.id}`));
+    await fireEvent.press(screen.getByTestId(`share-run-${merge.id}`));
     expect(await screen.findByText('分享进来的文件（2 个）')).toBeTruthy();
     // 合并 PDF 每次运行时问文件名。
     await fireEvent.press(await screen.findByTestId('prompt-ok', {}, { timeout: 3000 }));

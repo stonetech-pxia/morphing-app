@@ -3213,6 +3213,36 @@ const FRENCH_CASES: readonly EvalCase[] = [
           : 'missing photo compression/share workflow',
     },
   },
+  // 法语引导的第 1 步句子：内置规则不认法语，交给真模型（guide/store.ts）。
+  {
+    id: 'FR4',
+    locale: 'fr',
+    setup: 'default',
+    mock: false,
+    input: 'Passer au style Néon',
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.theme.cardStyle === 'glow' ? null : `expected the neon preset, got ${c.theme.cardStyle}`,
+    },
+  },
+  {
+    id: 'FR5',
+    locale: 'fr',
+    setup: 'default',
+    mock: false,
+    input:
+      'Renommer la page d’accueil «\u00a0Bureau des fichiers\u00a0». Changer la couleur du thème en vert',
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const title = titled('Bureau des fichiers')(c);
+        if (title) return title;
+        const [r, g, b] = [1, 3, 5].map((i) => parseInt(c.theme.primaryColor.slice(i, i + 2), 16));
+        return g! > r! && g! > b! ? null : `primary should be green, got ${c.theme.primaryColor}`;
+      },
+    },
+  },
   {
     id: 'FR2',
     locale: 'fr',

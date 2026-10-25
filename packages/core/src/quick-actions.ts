@@ -58,6 +58,17 @@ export function isQuickActionKind(value: unknown): value is QuickActionKind {
   return QUICK_ACTION_KINDS.includes(value as QuickActionKind);
 }
 
+/** inferQuickActionKind 认识的第一步；新的输入动作要先在这里归类（测试会查）。 */
+export const CATEGORIZED_INPUTS = [
+  'in.photos',
+  'in.videos',
+  'in.audio',
+  'in.files',
+  'in.text',
+  'in.wifi',
+  'in.records',
+] as const;
+
 /** 按实际输入分类；扫描纸张属于文档。 */
 export function inferQuickActionKind(workflow: Pick<Workflow, 'steps'>): QuickActionKind {
   const first = workflow.steps[0];

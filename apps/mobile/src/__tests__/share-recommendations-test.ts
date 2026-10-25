@@ -1,6 +1,6 @@
 import type { SharedFileInfo, Workflow } from '@morph/core';
 
-import { shareRecommendations } from '../share/recommendations';
+import { retiredIds, shareRecommendations } from '../share/recommendations';
 import type { SucceededRuns } from '../storage/types';
 
 const infos: SharedFileInfo[] = [{ name: 'x.jpg', mimeType: 'image/jpeg', size: 10 }];
@@ -14,6 +14,26 @@ const usage = (...items: [string, number, number][]): SucceededRuns =>
   new Map(items.map(([id, count, lastAt]) => [id, { count, lastAt }]));
 
 describe('inbox recommendations', () => {
+  it('does not let greyed-out used actions crowd out runnable ones', () => {
+    const needsTwo = (id: string) =>
+      wf(id, { steps: [{ id: 'in', action: 'in.photos', params: { min: 2, max: 50 } }] });
+    const result = shareRecommendations(
+      [needsTwo('x'), needsTwo('y'), needsTwo('z'), wf('own')],
+      infos,
+      usage(['x', 20, 1], ['y', 10, 1], ['z', 5, 1]),
+      'zh',
+    );
+    // 三个用过但个数不对的不算「用过的够了」：能运行的还要补上来，而且排在灰卡片前面。
+    const ids = result.recommended.map((r) => r.wf.id);
+    expect(ids[0]).toBe('own');
+    expect(result.recommended.filter((r) => r.fit.ok).length).toBeGreaterThan(0);
+    expect(result.anyUsed).toBe(true);
+  });
+  it('does not reuse ids of removed quick actions that still have run counts', () => {
+    expect(retiredIds([wf('keep')], usage(['keep', 1, 1], ['gone', 9, 1]))).toEqual([
+      { id: 'gone' },
+    ]);
+  });
   it('orders successful uses by count then latest start; caps recommendations at five', () => {
     const workflows = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => wf(id));
     const runs = usage(
@@ -71,11 +91,17 @@ describe('inbox recommendations', () => {
       usage(['few', 1, 1], ['wrong', 10, 2]),
       'zh',
     ).all;
-    expect(used[0]).toMatchObject({ wf: { id: 'few' }, fit: { reason: 'tooFew' } });
+    // 用过但个数不对的照样列出来（灰掉、说明原因），但先保证前面有 3 个能运行的。
+    expect(used.slice(0, 3).every((x) => x.fit.ok)).toBe(true);
+    expect(used[3]).toMatchObject({ wf: { id: 'few' }, fit: { reason: 'tooFew' } });
     expect(used.some((x) => x.wf.id === 'wrong')).toBe(false);
     expect(
-      shareRecommendations([tooMany], [...infos, ...infos], usage(['many', 1, 1]), 'zh')
-        .recommended[0]!.fit,
+      shareRecommendations(
+        [tooMany],
+        [...infos, ...infos],
+        usage(['many', 1, 1]),
+        'zh',
+      ).recommended.find((r) => r.wf.id === 'many')?.fit,
     ).toMatchObject({ reason: 'tooMany' });
   });
 });

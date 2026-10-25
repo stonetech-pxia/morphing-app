@@ -12,7 +12,7 @@ import {
 } from '@morph/core';
 
 import type { MediaInfo, MediaOutput, MediaPlatform, VideoEncode } from '../platform';
-import { MB, displayName, fileItems, freshName, type RunServices } from './helpers';
+import { MB, displayName, extOf, fileItems, freshName, type RunServices } from './helpers';
 
 // 视频工具的动作实现（D-143）：码率和分辨率在 core/media.ts 里算，编码交给原生模块 morph-media。
 // 输出一律是 MP4（H.264 + AAC）。
@@ -229,10 +229,11 @@ export const VIDEO_IMPLS: Record<string, Impl> = {
     }
     if (!musicInfo.hasAudio || !Number.isFinite(musicInfo.durationMs) || musicInfo.durationMs <= 0)
       throw new RunError('mediaUnsupported', { name: music.name });
+    // 保留原来的扩展名：iOS 的 AVURLAsset 按扩展名认格式，「.audio」打不开。
     const stored = await ctx.services.files.adoptIntoRun(
       music.uri,
       ctx.services.runId,
-      freshName('music', 'audio'),
+      freshName('music', extOf(music.name) || 'm4a'),
     );
     return eachVideo(input, ctx, async (item, _media, job) => {
       const info = await probe(media, item);
@@ -260,7 +261,7 @@ export const VIDEO_IMPLS: Record<string, Impl> = {
       const info = await probe(media, item);
       const plan = { ...planVideoConvert(sourceOf(item, info)), audioKbps: 0 };
       checkSpace(ctx, estimate(plan, info.durationMs));
-      return media.encodeVideo(
+      return media.muteVideo(
         item.uri,
         { ...encodeOf(plan, info), audioKbps: 0 },
         ctx.services.runId,
@@ -331,7 +332,8 @@ export const VIDEO_IMPLS: Record<string, Impl> = {
     const settings = {
       videoKbps: plan.videoKbps,
       audioKbps: infos.some((i) => i.hasAudio) ? 128 : 0,
-      maxFps: first.fps && first.fps > 0 ? first.fps : 30,
+      // 帧率跟第一段，但不超过普通转换的上限：慢动作（120/240 fps）放在第一段时不能整段都按 240 fps 输出。
+      maxFps: Math.min(first.fps && first.fps > 0 ? first.fps : 30, plan.maxFps),
       width,
       height,
     };
@@ -371,6 +373,9 @@ export const VIDEO_IMPLS: Record<string, Impl> = {
         ],
       };
     } catch (e) {
+      // 每一段都已经单独打开过（probe）：拼的时候失败，说不清是哪一段，不能都算到第一段头上。
+      if ((e as { code?: string } | null)?.code === 'ERR_MEDIA_UNSUPPORTED')
+        throw new RunError('mergeUnsupported');
       throw mediaError(e, items[0]!);
     }
   },

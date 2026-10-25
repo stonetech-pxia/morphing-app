@@ -265,7 +265,7 @@ export function RunScreen({
     const runId = newAssetId();
     const previous = useIncoming.getState().share?.id;
     try {
-      const picked = await copyResults(files, value.items, runId);
+      const picked = await copyResults(files, value.items, runId, run.current?.runId);
       if (!alive.current || previous !== useIncoming.getState().share?.id) {
         await files.removeRun(runId);
         return;
