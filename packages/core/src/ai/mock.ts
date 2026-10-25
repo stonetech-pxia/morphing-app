@@ -20,7 +20,7 @@ import {
   type PhraseKind,
   type StepPhrase,
 } from './workflow-phrases';
-import { THEME_PRESET_IDS, type ThemePresetId } from '../presets';
+import { THEME_PRESETS, THEME_PRESET_IDS, type ThemePresetId } from '../presets';
 import type { ToolDefinition } from '../registry';
 import {
   HOME_PAGE_ID,
@@ -418,10 +418,18 @@ const presetRule: Rule = (clause) => {
     clause.match(
       /^(?:把)?(?:整体|整个)?(?:风格|样式|主题|外观|界面)?(?:换成|改成|改为|切换到|切换成|变成|用)(.+?)(?:的)?(?:风格|风|样式|主题|预设)?$/,
     ) ??
-    clause.match(/^(?:switch to |use |make it |apply )?(?:an? |the )?(.+?) (?:style|theme|look)$/i);
+    clause.match(
+      /^(?:switch to |use |make it |apply )?(?:an? |the )?(.+?) (?:style|theme|look)$/i,
+    ) ??
+    // 法语界面的风格选择器发的句子（presetRequest，D-234）：内置规则别的法语都不认（P-037）。
+    clause.match(/^passer au style (.+)$/i);
   if (!m) return null;
   const name = m[1]!.trim().toLowerCase();
-  const preset = THEME_PRESET_IDS.find((id) => PRESET_ALIASES[id].includes(name));
+  const preset = THEME_PRESET_IDS.find(
+    (id) =>
+      PRESET_ALIASES[id].includes(name) ||
+      localize(THEME_PRESETS[id].name, 'fr').toLowerCase() === name,
+  );
   return preset ? [{ op: 'applyThemePreset', preset }] : null;
 };
 

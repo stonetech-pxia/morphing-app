@@ -188,7 +188,10 @@ describe('mock AI — style', () => {
     expect((await change('主题换成绿色', workspace())).after.theme.cardStyle).toBe('shadow');
   });
 
-  it.each(THEME_PRESET_IDS.flatMap((id) => (['zh', 'en'] as const).map((l) => [id, l] as const)))(
+  // 法语界面的风格选择器也发这句话给内置规则（D-234）。
+  it.each(
+    THEME_PRESET_IDS.flatMap((id) => (['zh', 'en', 'fr'] as const).map((l) => [id, l] as const)),
+  )(
     'B12c the style picker sentence for %s (%s) applies exactly that preset',
     async (id, locale) => {
       const p = await plan(presetRequest(id, locale), workspace(locale), locale);
