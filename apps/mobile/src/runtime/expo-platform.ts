@@ -393,6 +393,23 @@ export const expoFilePlatform: FilePlatform = {
     }
   },
 
+  async removePickedCopies(uris) {
+    const runs = new Directory(Paths.cache, 'runs').uri;
+    for (const uri of uris) {
+      if (!uri.startsWith(Paths.cache.uri) || uri.startsWith(runs)) continue;
+      const copy = new File(uri);
+      if (copy.exists) copy.delete();
+    }
+  },
+
+  async removeStalePickerCopies() {
+    // expo-image-picker 和 expo-document-picker（58.x）把选中的文件复制到缓存目录下的这两个文件夹。
+    for (const name of ['ImagePicker', 'DocumentPicker']) {
+      const dir = new Directory(Paths.cache, name);
+      if (dir.exists) dir.delete();
+    }
+  },
+
   async saveRunFile(uri, assetId, name) {
     const dest = new File(assetDir(assetId), name);
     await new File(uri).copy(dest);

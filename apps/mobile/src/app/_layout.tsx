@@ -193,6 +193,8 @@ export default function RootLayout() {
       void toolDownloads.getState().refresh(CATALOG_DAY_MS);
       // 上次运行没来得及删除的临时文件（D-063）。
       await expoFilePlatform.removeAllRuns().catch(() => undefined);
+      // 上次在 App 里选了文件、没有处理完就退出时，选择器留在缓存里的副本。
+      await expoFilePlatform.removeStalePickerCopies().catch(() => undefined);
       // 已经删掉的快捷操作不再记着文件夹（D-196）。
       const booted = created.getState().config;
       if (booted) expoFilePlatform.forgetFolders(booted.workflows.map((w) => w.id));

@@ -202,6 +202,24 @@ describe('running a workflow on shared files', () => {
     await second.dispose();
   });
 
+  it('a rename right after the inbox files copies them instead of moving them', async () => {
+    const { files, run } = setup({
+      id: 'video',
+      name: 'video',
+      steps: [
+        { id: 'pick', action: 'in.videos', params: { source: 'library', min: 1, max: 10 } },
+        { id: 'name', action: 'file.rename', params: { template: '{sourceName}-x' } },
+      ],
+    });
+    const video = files.offerVideo('picked.mp4', { size: 1000, durationMs: 1000 }, 'video/mp4');
+    const first = await run([video]);
+    expect(first.result.status).toBe('succeeded');
+    expect(files.disk.has(video.uri)).toBe(true);
+    await first.dispose();
+    // 「再来一次」：原来那份还在。
+    expect((await run([video])).result.status).toBe('succeeded');
+  });
+
   it('checks the type and count like a picker would', async () => {
     const merge = applyOps(createDefaultWorkspace('zh'), [{ op: 'installTool', toolId: 'pdf' }], {
       registry,

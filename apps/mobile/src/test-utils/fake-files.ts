@@ -273,6 +273,12 @@ export class FakeFiles implements FilePlatform {
     }
     for (const uri of copies) this.disk.delete(uri);
   }
+  async removePickedCopies(uris: readonly string[]) {
+    for (const uri of uris) if (uri.startsWith('picker://')) this.disk.delete(uri);
+  }
+  async removeStalePickerCopies() {
+    for (const key of [...this.disk.keys()]) if (key.startsWith('picker://')) this.disk.delete(key);
+  }
   async saveRunFile(uri: string, assetId: string, name: string) {
     return this.writeBytes(assetId, name, await this.readBytes(uri));
   }

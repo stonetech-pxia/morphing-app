@@ -158,6 +158,8 @@ class MorphMediaModule : Module() {
           AudioVolume.prepare(context, Uri.parse(uri), wave, automatic, db, flag, (probe(Uri.parse(uri))["durationMs"] as? Number)?.toDouble() ?: 0.0) { sendProgress(jobId, it) }
           if (flag.get()) throw MediaCancelledException()
           main.post {
+            // 中间的 WAV 要等后面的异步编码用完，结束时（成功或失败）再删。
+            val done = promise.deletingAfter(wave)
             try {
               if (flag.get()) throw MediaCancelledException()
               if (options["video"] is Map<*, *>) {
@@ -167,13 +169,13 @@ class MorphMediaModule : Module() {
                   put("videoDurationMs", probe(Uri.parse(uri))["durationMs"] ?: 0)
                   put("musicDurationMs", probe(Uri.fromFile(wave))["durationMs"] ?: 0)
                 }
-                mixVideoAudio(jobId, uri, Uri.fromFile(wave).toString(), output, mixOptions, promise)
+                mixVideoAudio(jobId, uri, Uri.fromFile(wave).toString(), output, mixOptions, done)
               } else {
                 transcodeAudio(jobId, Uri.fromFile(wave), destination,
-                  mapOf("container" to "m4a", "video" to "drop", "audio" to mapOf("codec" to "aac", "bitrateKbps" to 192)), promise)
+                  mapOf("container" to "m4a", "video" to "drop", "audio" to mapOf("codec" to "aac", "bitrateKbps" to 192)), done)
               }
-            } catch (e: CodedException) { promise.reject(e) }
-            catch (e: Exception) { promise.reject(MediaFailedException(e.message)) }
+            } catch (e: CodedException) { done.reject(e) }
+            catch (e: Exception) { done.reject(MediaFailedException(e.message)) }
             finally { threadJobs.remove(jobId) }
           }
         } catch (e: CodedException) { threadJobs.remove(jobId); wave.delete(); promise.reject(e) }
@@ -218,6 +220,8 @@ class MorphMediaModule : Module() {
           AudioDenoise.prepare(context, Uri.parse(uri), wave, flag, (probe(Uri.parse(uri))["durationMs"] as? Number)?.toDouble() ?: 0.0) { sendProgress(jobId, it) }
           if (flag.get()) throw MediaCancelledException()
           main.post {
+            // 中间的 WAV 要等后面的异步编码用完，结束时（成功或失败）再删。
+            val done = promise.deletingAfter(wave)
             try {
               if (flag.get()) throw MediaCancelledException()
               if (options["video"] is Map<*, *>) {
@@ -227,13 +231,13 @@ class MorphMediaModule : Module() {
                   put("videoDurationMs", probe(Uri.parse(uri))["durationMs"] ?: 0)
                   put("musicDurationMs", probe(Uri.fromFile(wave))["durationMs"] ?: 0)
                 }
-                mixVideoAudio(jobId, uri, Uri.fromFile(wave).toString(), output, mixOptions, promise)
+                mixVideoAudio(jobId, uri, Uri.fromFile(wave).toString(), output, mixOptions, done)
               } else {
                 transcodeAudio(jobId, Uri.fromFile(wave), destination,
-                  mapOf("container" to "m4a", "video" to "drop", "audio" to mapOf("codec" to "aac", "bitrateKbps" to 192)), promise)
+                  mapOf("container" to "m4a", "video" to "drop", "audio" to mapOf("codec" to "aac", "bitrateKbps" to 192)), done)
               }
-            } catch (e: CodedException) { promise.reject(e) }
-            catch (e: Exception) { promise.reject(MediaFailedException(e.message)) }
+            } catch (e: CodedException) { done.reject(e) }
+            catch (e: Exception) { done.reject(MediaFailedException(e.message)) }
             finally { threadJobs.remove(jobId) }
           }
         } catch (e: CodedException) { threadJobs.remove(jobId); wave.delete(); promise.reject(e) }
@@ -979,5 +983,20 @@ class MorphMediaModule : Module() {
     )
     bitmap.recycle()
     return out
+  }
+}
+
+/** 结束（成功或失败）时先删掉 file 再把结果交出去：给音量、降噪的中间 WAV 用。 */
+private fun Promise.deletingAfter(file: File): Promise {
+  val inner = this
+  return object : Promise {
+    override fun resolve(value: Any?) {
+      file.delete()
+      inner.resolve(value)
+    }
+    override fun reject(code: String?, message: String?, cause: Throwable?) {
+      file.delete()
+      inner.reject(code, message, cause)
+    }
   }
 }

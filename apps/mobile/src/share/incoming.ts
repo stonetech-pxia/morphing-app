@@ -1,6 +1,7 @@
 import type { RunItem, Workflow } from '@morph/core';
 import { create } from 'zustand';
 
+import { isMediaFile } from '../runtime/actions/helpers';
 import type { FilePlatform, PickedFile } from '../runtime/platform';
 
 // 分享到 Morph（TOOLS_DESIGN §11）：别的 App 分享进来、还没处理的文件。只在内存里，不进配置、不进数据库，
@@ -108,7 +109,7 @@ export function nativeCopies(raw: unknown): string[] {
  * 这期间又分享了一批时，只清这一批，新的一批保留。
  */
 export async function releaseShare(
-  files: Pick<FilePlatform, 'removeShared' | 'removeRun'>,
+  files: Pick<FilePlatform, 'removeShared' | 'removeRun' | 'removePickedCopies'>,
   id: number,
 ): Promise<void> {
   const batch = batches.get(id);
@@ -120,22 +121,36 @@ export async function releaseShare(
     await files.removeRun(batch.result.runId).catch(() => undefined);
     return;
   }
-  if (batch.source === 'picker') return;
+  // App 里选的：只删选择器放在缓存里的副本，相册和「文件」里的原件不动。
+  if (batch.source === 'picker') {
+    await files.removePickedCopies(batch.files.map((f) => f.uri)).catch(() => undefined);
+    return;
+  }
   const keep = current && current.id !== id ? current.files.map((f) => f.uri) : [];
   await files.removeShared(keep, batch?.copies ?? []).catch(() => undefined);
 }
 
-/** 先复制整批再交接：上一页关闭会删掉原运行目录，不能把它的 URI 直接传下去。 */
+/**
+ * 先把整批放进新的运行目录再交接：上一页关闭会删掉原运行目录，不能把它的 URI 直接传下去。
+ * 上一次运行自己产出的视频、音频直接移过来（可能有几个 GB，D-142），其他的复制。
+ */
 export async function copyResults(
-  files: Pick<FilePlatform, 'copyToRun' | 'removeRun'>,
+  files: Pick<FilePlatform, 'copyToRun' | 'adoptIntoRun' | 'removeRun'>,
   items: readonly RunItem[],
   runId: string,
+  fromRunId?: string,
 ): Promise<PickedFile[]> {
+  const ownDir = fromRunId ? `runs/${fromRunId}/` : null;
   try {
     const picked: PickedFile[] = [];
     for (const [index, item] of items.entries()) {
       const ext = item.ext.replace(/[^a-zA-Z0-9]/g, '') || 'bin';
-      const copy = await files.copyToRun(item.uri, runId, `result-${index}.${ext}`);
+      const fileName = `result-${index}.${ext}`;
+      const own = ownDir !== null && item.uri.includes(ownDir);
+      const copy =
+        own && isMediaFile({ name: `${item.name}.${item.ext}`, mimeType: item.mimeType })
+          ? await files.adoptIntoRun(item.uri, runId, fileName)
+          : await files.copyToRun(item.uri, runId, fileName);
       picked.push({
         ...copy,
         name: `${item.name}.${item.ext}`,

@@ -30,6 +30,8 @@ export function FilePick({ source, env }: { source: 'media' | 'files'; env: Rend
         selected.map((f) => ({ ...f, mimeType: mimeOf(f.name, f.mimeType) })),
       );
       if (problem?.code === 'tooMany') {
+        // 选多了不收：选择器复制进缓存的副本（视频可能很大）也删掉。
+        await files.removePickedCopies(selected.map((f) => f.uri)).catch(() => undefined);
         Alert.alert(
           label,
           runErrorText(env.locale, 'tooMany', {
