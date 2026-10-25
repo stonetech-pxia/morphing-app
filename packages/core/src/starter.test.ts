@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { describeChange } from './describe';
 import { applyOps } from './ops';
 import { allComponents, toolGridToolIds, type Component } from './schema';
-import { STARTER_PRESET_IDS, STARTER_TOOL_IDS, createStarterWorkspace } from './starter';
+import { STARTER_TOOL_IDS, createStarterWorkspace } from './starter';
 import { registry } from './test-helpers';
 import { validateWorkspace } from './validate';
 
@@ -18,8 +18,13 @@ describe('createStarterWorkspace', () => {
       expect(config.tools.map((t) => t.toolId)).toEqual([...STARTER_TOOL_IDS]);
       expect(config.shell.nav).toEqual(['page:home', 'ai', 'settings']);
       const home = config.pages.find((p) => p.id === 'home')!;
-      // 标题、并排文件入口、三个现成快捷操作 + 工具箱入口；没有工具卡片和最近文件。
-      expect(home.components.map((c) => c.type)).toEqual(['header', 'group', 'shortcut', 'group']);
+      // 标题、并排文件入口、功能分类和工具箱；不预装或展示用户快捷操作。
+      expect(home.components.map((c) => c.type)).toEqual([
+        'header',
+        'group',
+        'shortcut',
+        'shortcut',
+      ]);
       expect((home.components[1] as Extract<Component, { type: 'group' }>).children).toMatchObject([
         { type: 'filePick', props: { source: 'media' } },
         { type: 'filePick', props: { source: 'files' } },
@@ -28,17 +33,12 @@ describe('createStarterWorkspace', () => {
         type: 'shortcut',
         props: { target: 'quickActions' },
       });
-      const group = home.components[3] as Extract<Component, { type: 'group' }>;
-      expect(group.children.map((c) => c.type)).toEqual([
-        'workflowRunner',
-        'workflowRunner',
-        'workflowRunner',
-        'shortcut',
-      ]);
-      expect(config.workflows.filter((w) => w.presetId).map((w) => w.presetId)).toEqual([
-        ...STARTER_PRESET_IDS,
-      ]);
-      expect(group.children[3]!.props).toMatchObject({ target: 'page:toolbox' });
+      expect(home.components[3]).toMatchObject({
+        type: 'shortcut',
+        props: { target: 'page:toolbox' },
+      });
+      expect(config.workflows.filter((w) => !w.toolId)).toEqual([]);
+      expect(allComponents(home).some((c) => c.type === 'workflowRunner')).toBe(false);
     },
   );
 
