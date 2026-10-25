@@ -23,7 +23,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "check:licenses": "node scripts/check-licenses.mjs",
-    "check": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run check:licenses"
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run test:native-dsp && npm run check:licenses",
+    "test:native-dsp": "node scripts/test-native-dsp.mjs"
   },
   "devDependencies": {
     "eslint": "^9.39.5",

@@ -108,6 +108,12 @@ export interface MorphMediaModule {
     output: string,
     options: TranscodeOptions,
   ): Promise<MediaResult>;
+  volume?(
+    jobId: string,
+    uri: string,
+    output: string,
+    options: { automatic: boolean; db: number; video: VideoSettings | 'drop' },
+  ): Promise<MediaResult>;
   rotate?(
     jobId: string,
     uri: string,

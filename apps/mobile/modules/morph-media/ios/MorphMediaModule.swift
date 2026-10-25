@@ -2,6 +2,7 @@ import AVFoundation
 import ExpoModulesCore
 import ImageIO
 import MorphLame
+import MorphDsp
 import UIKit
 import UniformTypeIdentifiers
 
@@ -150,6 +151,16 @@ public class MorphMediaModule: Module {
         } catch {
           promise.reject(Self.coded(error, job: job))
         }
+      }
+    }
+
+    AsyncFunction("volume") {
+      (jobId: String, uri: URL, output: URL, options: [String: Any], promise: Promise) in
+      let job = self.start(jobId)
+      Task {
+        defer { self.finish(jobId) }
+        do { promise.resolve(try await self.adjustVolume(job, jobId: jobId, uri: uri, output: output, options: options)) }
+        catch { promise.reject(Self.coded(error, job: job)) }
       }
     }
 
@@ -836,6 +847,94 @@ public class MorphMediaModule: Module {
     try? file.close()
     progress(jobId, 1)
     return try await Self.result(output)
+  }
+
+  /** 统一解成 48 kHz 双声道 Float PCM；按时间戳补静音，视频的声音不会被提前。 */
+  private func readPcm(_ job: Job, uri: URL, consume: (UnsafePointer<Float>, Int) throws -> Void) async throws {
+    let asset = AVURLAsset(url: uri)
+    let (duration, tracks) = try await asset.load(.duration, .tracks)
+    let audio = tracks.filter { $0.mediaType == .audio }
+    guard !audio.isEmpty, duration.seconds > 0, duration.seconds.isFinite, duration.seconds < Double(Int.max) / 48000 else { throw MediaUnsupportedException("no audio") }
+    let totalFrames = Int((duration.seconds * 48000).rounded())
+    let reader = try AVAssetReader(asset: asset)
+    let out = AVAssetReaderAudioMixOutput(audioTracks: audio, audioSettings: [
+      AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 48000.0, AVNumberOfChannelsKey: 2,
+      AVLinearPCMBitDepthKey: 32, AVLinearPCMIsFloatKey: true, AVLinearPCMIsNonInterleaved: false,
+    ])
+    guard reader.canAdd(out) else { throw MediaUnsupportedException("PCM reader") }
+    reader.add(out)
+    job.onCancel = { reader.cancelReading() }
+    guard reader.startReading() else { throw MediaUnsupportedException(reader.error?.localizedDescription ?? "PCM read") }
+    defer { if reader.status == .reading { reader.cancelReading() } }
+    var cursor = 0
+    let silence = [Float](repeating: 0, count: 16384)
+    func pad(to frame: Int) throws {
+      while cursor < frame {
+        if job.cancelled { throw MediaCancelledException() }
+        let count = min(frame - cursor, silence.count / 2)
+        try silence.withUnsafeBufferPointer { try consume($0.baseAddress!, count) }
+        cursor += count
+      }
+    }
+    while let sample = out.copyNextSampleBuffer() {
+      if job.cancelled { throw MediaCancelledException() }
+      guard let block = CMSampleBufferGetDataBuffer(sample) else { continue }
+      let seconds = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+      guard seconds.isFinite else { throw MediaUnsupportedException("audio timestamp") }
+      let start = Int((seconds * 48000).rounded())
+      try pad(to: min(totalFrames, max(0, start)))
+      var length = 0
+      var data: UnsafeMutablePointer<Int8>?
+      guard CMBlockBufferGetDataPointer(block, atOffset: 0, lengthAtOffsetOut: nil, totalLengthOut: &length, dataPointerOut: &data) == kCMBlockBufferNoErr, let data else { throw MediaFailedException("PCM buffer") }
+      let skip = max(0, cursor - start)
+      let frames = max(0, min(length / 8 - skip, totalFrames - cursor))
+      if frames > 0 {
+        let samples = UnsafeRawPointer(data).assumingMemoryBound(to: Float.self).advanced(by: skip * 2)
+        try consume(samples, frames)
+        cursor += frames
+      }
+    }
+    if job.cancelled { throw MediaCancelledException() }
+    if reader.status == .failed { throw MediaFailedException(reader.error?.localizedDescription ?? "PCM decode") }
+    try pad(to: totalFrames)
+  }
+
+  private func adjustVolume(_ job: Job, jobId: String, uri: URL, output: URL, options: [String: Any]) async throws -> [String: Any] {
+    let automatic = options["automatic"] as? Bool ?? true
+    let db = (options["db"] as? NSNumber)?.doubleValue ?? 0
+    guard db.isFinite, (-24...24).contains(db) else { throw MediaUnsupportedException("invalid gain") }
+    guard let meter = morph_meter_create(48000, 2) else { throw MediaFailedException("loudness meter") }
+    defer { morph_meter_destroy(meter) }
+    try await readPcm(job, uri: uri) { samples, frames in
+      if morph_meter_add_float(meter, samples, frames * 2) != 0 { throw MediaFailedException("loudness analysis") }
+    }
+    let gain = Float(morph_meter_gain(meter, automatic ? 1 : 0, db))
+    progress(jobId, 0.25)
+    try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let pcm = output.appendingPathExtension("volume.caf")
+    defer { try? FileManager.default.removeItem(at: pcm) }
+    let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)!
+    var writer: AVAudioFile? = try AVAudioFile(forWriting: pcm, settings: format.settings)
+    try await readPcm(job, uri: uri) { samples, frames in
+      guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)), let data = buffer.floatChannelData else { throw MediaFailedException("PCM allocation") }
+      buffer.frameLength = AVAudioFrameCount(frames)
+      for i in 0..<frames { for c in 0..<2 {
+        let value = samples[i * 2 + c] * gain
+        data[c][i] = value.isFinite ? min(1, max(-1, value)) : 0
+      } }
+      try writer!.write(from: buffer)
+    }
+    writer = nil
+    progress(jobId, 0.5)
+    var encode = options
+    encode["container"] = "m4a"
+    encode["audio"] = ["codec": "aac", "bitrateKbps": 192.0, "sampleRate": 48000.0, "channels": 2]
+    if options["video"] is [String: Any] {
+      encode["container"] = "mp4"; encode["originalVolume"] = 0; encode["loop"] = false
+      return try await mixVideoAudio(job, jobId: jobId, uri: uri, music: pcm, output: output, options: encode)
+    }
+    encode["video"] = "drop"
+    return try await transcode(job, jobId: jobId, uri: pcm, output: output, options: encode)
   }
 
   /** 变速同时缩放视频和音频的时间；varispeed 让声音按同样比例变调。 */

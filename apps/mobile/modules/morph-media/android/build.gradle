@@ -33,3 +33,11 @@ dependencies {
   implementation "androidx.media3:media3-common:${media3Version}"
   testImplementation 'junit:junit:4.13.2'
 }
+
+// 原生 C 依赖的许可原文随 APK 分发，不打包 C 源码。
+def copyDspLicenses = tasks.register('copyDspLicenses', Copy) {
+  from('../dsp/notices')
+  into("${project.buildDir}/generated/dsp-licenses/third-party")
+}
+android.sourceSets.main.assets.srcDir("${project.buildDir}/generated/dsp-licenses")
+tasks.named('preBuild').configure { dependsOn(copyDspLicenses) }

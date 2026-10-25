@@ -16,6 +16,7 @@ Pod::Spec.new do |s|
 
   s.dependency 'ExpoModulesCore'
   s.dependency 'MorphLame'
+  s.dependency 'MorphDsp'
   s.frameworks = 'AVFoundation', 'CoreMedia', 'VideoToolbox', 'UIKit'
 
   s.source_files = '**/*.{h,m,swift}'

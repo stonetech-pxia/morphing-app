@@ -64,6 +64,7 @@ const BACKGROUND_ACTIONS: ReadonlySet<string> = new Set([
   'video.convert',
   'video.trim',
   'video.toGif',
+  'audio.volume',
   'audio.transcribe',
   'audio.compress',
   'audio.convert',

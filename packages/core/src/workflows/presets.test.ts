@@ -25,6 +25,7 @@ describe('workflow presets', () => {
       'voice-memo-archive',
     ]);
     expect(presetsIn('sound').map((p) => p.id)).toEqual([
+      'normal-audio-volume',
       'audio-too-big',
       'cut-audio',
       'video-sound',

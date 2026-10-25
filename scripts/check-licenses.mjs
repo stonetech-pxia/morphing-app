@@ -1,6 +1,7 @@
 // 扫描 node_modules 中所有已安装包的 license 字段，发现与 AGPL-3.0 不兼容或未知的许可证时退出码为 1。
 // 用法：npm run check:licenses
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 // 与 AGPL-3.0 兼容的许可证（SPDX 表达式原样匹配）。新增条目前请确认兼容性，并在 docs/DECISIONS.md 记录。
@@ -63,9 +64,26 @@ function walk(dir) {
 
 walk('node_modules');
 
+// 本地 C 库不在 npm 清单里：同样检查 SPDX，并核对手工审阅过的上游源码和许可原文。
+const dspRoot = 'apps/mobile/modules/morph-media/dsp';
+const nativeLibraries = JSON.parse(
+  fs.readFileSync(path.join(dspRoot, 'dependencies.json'), 'utf8'),
+);
+for (const lib of nativeLibraries) {
+  if (!ALLOWED.has(lib.license)) problems.push(`${lib.name}@${lib.version}: ${lib.license}`);
+  for (const file of lib.files) {
+    const hash = createHash('sha256')
+      .update(fs.readFileSync(path.join(dspRoot, file.path)))
+      .digest('hex');
+    if (hash !== file.sha256) problems.push(`${lib.name}: source or license changed: ${file.path}`);
+  }
+}
+
 if (problems.length > 0) {
   console.error('以下依赖的许可证未在允许列表中，需要人工确认与 AGPL-3.0 的兼容性：');
   for (const p of problems) console.error(`  ${p}`);
   process.exit(1);
 }
-console.log(`已检查 ${seen.size} 个依赖，许可证均在允许列表中。`);
+console.log(
+  `已检查 ${seen.size} 个依赖，许可证均在允许列表中；另检查 ${nativeLibraries.length} 个本地 C 依赖及源码/许可校验和。`,
+);

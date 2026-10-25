@@ -140,33 +140,46 @@ class MorphMediaModule : Module() {
 
     AsyncFunction("mixAudio") {
       jobId: String, uri: String, music: String, output: String, options: Map<String, Any?>, promise: Promise ->
-      try {
-        val originalVolume = (options["originalVolume"] as? Number)?.toFloat() ?: 0f
-        val videoDuration = (options["videoDurationMs"] as? Number)?.toLong() ?: 0L
-        val musicDuration = (options["musicDurationMs"] as? Number)?.toLong() ?: 0L
-        if (!originalVolume.isFinite() || originalVolume !in 0f..100f || videoDuration <= 0 || musicDuration <= 0) throw MediaUnsupportedException("invalid music settings")
-        val baseOptions = options.toMutableMap()
-        if (originalVolume == 0f) baseOptions["audio"] = "drop"
-        val (transformer, base) = buildTranscode(Uri.parse(uri), baseOptions)
-        val videoItem = base.sequences.first().editedMediaItems.first()
-        val volume = ChannelMixingAudioProcessor()
-        for (channels in 1..2) volume.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(channels, channels).scaleBy(originalVolume / 100f))
-        val editedVideo = videoItem.buildUpon().setEffects(Effects(listOf(volume), videoItem.effects.videoEffects)).build()
-        val videoSequence = if (originalVolume == 0f) EditedMediaItemSequence.withVideoFrom(listOf(editedVideo))
-          else EditedMediaItemSequence.withAudioAndVideoFrom(listOf(editedVideo))
-        val musicItem = MediaItem.Builder().setUri(Uri.parse(music)).setClippingConfiguration(
-          MediaItem.ClippingConfiguration.Builder().setEndPositionMs(min(videoDuration, musicDuration)).build()
-        ).build()
-        val editedMusic = EditedMediaItem.Builder(musicItem).setRemoveVideo(true).build()
-        val musicSequence = EditedMediaItemSequence.withAudioFrom(listOf(editedMusic)).buildUpon()
-          .setIsLooping(options["loop"] as? Boolean ?: true).build()
-        val composition = Composition.Builder(videoSequence, musicSequence)
-          .experimentalSetForceAudioTrack(true)
-          .setHdrMode(Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL).build()
-        run(jobId, transformer, composition, File(Uri.parse(output).path!!), promise)
-      } catch (e: CodedException) { promise.reject(e) }
-      catch (e: Exception) { promise.reject(MediaFailedException(e.message)) }
+      mixVideoAudio(jobId, uri, music, output, options, promise)
     }.runOnQueue(Queues.MAIN)
+
+    AsyncFunction("volume") {
+      jobId: String, uri: String, output: String, options: Map<String, Any?>, promise: Promise ->
+      val flag = AtomicBoolean(false)
+      threadJobs[jobId] = flag
+      thread {
+        val destination = File(Uri.parse(output).path!!)
+        val wave = File(destination.parentFile, "${destination.name}.volume.wav")
+        try {
+          destination.parentFile?.mkdirs()
+          val automatic = options["automatic"] as? Boolean ?: true
+          val db = (options["db"] as? Number)?.toDouble() ?: 0.0
+          if (!db.isFinite() || db !in -24.0..24.0) throw MediaUnsupportedException("invalid gain")
+          AudioVolume.prepare(context, Uri.parse(uri), wave, automatic, db, flag, (probe(Uri.parse(uri))["durationMs"] as? Number)?.toDouble() ?: 0.0) { sendProgress(jobId, it) }
+          if (flag.get()) throw MediaCancelledException()
+          main.post {
+            try {
+              if (flag.get()) throw MediaCancelledException()
+              if (options["video"] is Map<*, *>) {
+                val mixOptions = options.toMutableMap().apply {
+                  put("container", "mp4"); put("audio", mapOf("codec" to "aac", "bitrateKbps" to 192))
+                  put("originalVolume", 0); put("loop", false)
+                  put("videoDurationMs", probe(Uri.parse(uri))["durationMs"] ?: 0)
+                  put("musicDurationMs", probe(Uri.fromFile(wave))["durationMs"] ?: 0)
+                }
+                mixVideoAudio(jobId, uri, Uri.fromFile(wave).toString(), output, mixOptions, promise)
+              } else {
+                transcodeAudio(jobId, Uri.fromFile(wave), destination,
+                  mapOf("container" to "m4a", "video" to "drop", "audio" to mapOf("codec" to "aac", "bitrateKbps" to 192)), promise)
+              }
+            } catch (e: CodedException) { promise.reject(e) }
+            catch (e: Exception) { promise.reject(MediaFailedException(e.message)) }
+            finally { threadJobs.remove(jobId) }
+          }
+        } catch (e: CodedException) { threadJobs.remove(jobId); wave.delete(); promise.reject(e) }
+        catch (e: Exception) { threadJobs.remove(jobId); wave.delete(); promise.reject(MediaFailedException(e.message)) }
+      }
+    }
 
     AsyncFunction("trim") {
       jobId: String, uri: String, output: String, range: Map<String, Double>, promise: Promise ->
@@ -371,6 +384,35 @@ class MorphMediaModule : Module() {
 
   private fun sendProgress(jobId: String, value: Double) {
     sendEvent("progress", mapOf("jobId" to jobId, "progress" to value.coerceIn(0.0, 1.0)))
+  }
+
+  private fun mixVideoAudio(jobId: String, uri: String, music: String, output: String, options: Map<String, Any?>, promise: Promise) {
+    try {
+      val originalVolume = (options["originalVolume"] as? Number)?.toFloat() ?: 0f
+      val videoDuration = (options["videoDurationMs"] as? Number)?.toLong() ?: 0L
+      val musicDuration = (options["musicDurationMs"] as? Number)?.toLong() ?: 0L
+      if (!originalVolume.isFinite() || originalVolume !in 0f..100f || videoDuration <= 0 || musicDuration <= 0) throw MediaUnsupportedException("invalid music settings")
+      val baseOptions = options.toMutableMap()
+      if (originalVolume == 0f) baseOptions["audio"] = "drop"
+      val (transformer, base) = buildTranscode(Uri.parse(uri), baseOptions)
+      val videoItem = base.sequences.first().editedMediaItems.first()
+      val volume = ChannelMixingAudioProcessor()
+      for (channels in 1..2) volume.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(channels, channels).scaleBy(originalVolume / 100f))
+      val editedVideo = videoItem.buildUpon().setEffects(Effects(listOf(volume), videoItem.effects.videoEffects)).build()
+      val videoSequence = if (originalVolume == 0f) EditedMediaItemSequence.withVideoFrom(listOf(editedVideo))
+        else EditedMediaItemSequence.withAudioAndVideoFrom(listOf(editedVideo))
+      val musicItem = MediaItem.Builder().setUri(Uri.parse(music)).setClippingConfiguration(
+        MediaItem.ClippingConfiguration.Builder().setEndPositionMs(min(videoDuration, musicDuration)).build()
+      ).build()
+      val editedMusic = EditedMediaItem.Builder(musicItem).setRemoveVideo(true).build()
+      val musicSequence = EditedMediaItemSequence.withAudioFrom(listOf(editedMusic)).buildUpon()
+        .setIsLooping(options["loop"] as? Boolean ?: true).build()
+      val composition = Composition.Builder(videoSequence, musicSequence)
+        .experimentalSetForceAudioTrack(true)
+        .setHdrMode(Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL).build()
+      run(jobId, transformer, composition, File(Uri.parse(output).path!!), promise)
+    } catch (e: CodedException) { promise.reject(e) }
+    catch (e: Exception) { promise.reject(MediaFailedException(e.message)) }
   }
 
   @Suppress("UNCHECKED_CAST")

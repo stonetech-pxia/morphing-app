@@ -165,6 +165,7 @@ object AudioPcm {
         out.setLength(0)
         out.write(ByteArray(44))
       }
+      if (bytes + samples.size * 2L > 0xffffffffL - 36) throw MediaUnsupportedException("audio is too long for a WAV intermediate")
       val buf = ByteBuffer.allocate(samples.size * 2).order(ByteOrder.LITTLE_ENDIAN)
       buf.asShortBuffer().put(samples)
       out.write(buf.array())

@@ -123,6 +123,7 @@ describe('audio tool', () => {
     );
     if (!result.ok) throw new Error(result.error);
     expect(result.config.workflows.map((w) => w.name)).toEqual([
+      '调整音量',
       '语音转文字',
       '录音',
       '压小音频',
@@ -462,4 +463,26 @@ describe('speech to text', () => {
     expect(result.status === 'succeeded' && result.value?.type).toBe('pdf');
     expect(s.files.shared).toHaveLength(1);
   });
+});
+
+it('adjusts audio volume automatically or by a specified dB gain', async () => {
+  for (const mode of ['normal', 'db']) {
+    const { files, media, run } = setup(toolWorkflow('audio-volume'), { answers: { mode, db: 6 } });
+    files.nextPick = [files.offerAudio('voice.m4a', { size: 1000, durationMs: 2000 })];
+    const result = await run();
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      value: { type: 'audio', items: [{ ext: 'm4a', durationMs: 2000 }] },
+    });
+    expect(media.volumes[0]).toMatchObject({ automatic: mode === 'normal', db: 6 });
+  }
+});
+it('the same volume action keeps a video as video', async () => {
+  const { files, media, run } = setup(preset('normal-video-volume'));
+  files.nextVideos = [files.offerVideo('quiet.mov', { size: 1000, durationMs: 2000 })];
+  expect(await run()).toMatchObject({
+    status: 'succeeded',
+    value: { type: 'video', items: [{ ext: 'mp4', durationMs: 2000 }] },
+  });
+  expect(media.volumes).toHaveLength(1);
 });

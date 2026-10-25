@@ -173,6 +173,14 @@ const RECORD_PHRASES: Matcher[] = [
 
 const STEP_PHRASES: Matcher[] = [
   [
+    /^调到正常音量$|^normalize volume$/i,
+    () => ({ action: 'audio.volume', params: { mode: 'normal', db: 0 } }),
+  ],
+  [
+    /^音量\s*([+-]?\d+)\s*dB$|^volume ([+-]?\d+) dB$/i,
+    (m) => ({ action: 'audio.volume', params: { mode: 'db', db: Number(m[1] ?? m[2]) } }),
+  ],
+  [
     /^(?:视频)?(?:速度|变速|加速到)\s*(0\.5|0\.75|1|1\.25|1\.5|2|3|4)\s*(?:倍|×)$|^video speed (0\.5|0\.75|1|1\.25|1\.5|2|3|4)x$/i,
     (m) => ({ action: 'video.speed', params: { factor: Number(m[1] ?? m[2]) } }),
   ],
@@ -432,6 +440,7 @@ export type PhraseKind = 'images' | 'video' | 'audio' | 'pdf' | 'other';
 
 function kindAfter(step: StepPhrase, before: PhraseKind | null): PhraseKind | null {
   if (step.action === 'in.photos' || step.action.startsWith('image.')) return 'images';
+  if (step.action === 'audio.volume') return before;
   if (step.action === 'audio.transcribe') return 'other';
   if (step.action === 'in.audio' || step.action.startsWith('audio.')) return 'audio';
   if (step.action === 'video.frame') return 'images';
@@ -527,6 +536,8 @@ const PRESET_WORDS: [RegExp, string][] = [
   [/把视频转正|fix video rotation/i, 'fix-video-rotation'],
   [/裁成竖屏视频|portrait posts/i, 'vertical-video'],
   [/视频加速或慢放|speed up or slow down video/i, 'video-speed'],
+  [/把录音调到正常音量|quiet audio easier/i, 'normal-audio-volume'],
+  [/把视频调到正常音量|quiet video easier/i, 'normal-video-volume'],
   // 音频预设（D-156）放在「合一」「发照片」前面。
   [/录音转文字|录音变成文字|recordings? (?:in)?to text/i, 'audio-to-text'],
   [/语音太大|录音太大|recording (?:is )?too big/i, 'audio-too-big'],

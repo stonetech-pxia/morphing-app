@@ -88,6 +88,25 @@ export function expoMedia(
       return output(result);
     },
 
+    async volume(uri, settings, runId, relPath, job) {
+      if (!native.volume) throw notImplemented('volume adjustment');
+      return output(
+        await run(job, (jobId) =>
+          native.volume!(jobId, uri, runFileUri(runId, relPath), {
+            automatic: settings.automatic,
+            db: settings.db,
+            video: settings.video
+              ? {
+                  codec: 'h264',
+                  bitrateKbps: settings.video.videoKbps,
+                  maxFps: settings.video.maxFps,
+                  toSdr: true,
+                }
+              : 'drop',
+          }),
+        ),
+      );
+    },
     async rotateVideo(uri, degrees, settings, runId, relPath, job) {
       if (!native.rotate) throw notImplemented('video rotation');
       return output(

@@ -233,3 +233,9 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 
 - 「添加视频加速或慢放快捷操作」 / `Add the speed up or slow down video quick action`：选视频 → 改成 0.5×–4× 速度。
 - 步骤句式：「视频速度 2 倍」「变速 0.5 倍」 / `video speed 2x`。声音一起变速、变调。
+
+### 音量（AVL1–AVL3）
+
+- 「添加把录音调到正常音量快捷操作」 / `Add the quiet audio easier quick action`。
+- 「添加把视频调到正常音量快捷操作」 / `Add the quiet video easier quick action`。
+- 步骤：「调到正常音量」 / `normalize volume`；「音量 +6 dB」 / `volume -6 dB`。同一动作收音频或视频，保持类型。

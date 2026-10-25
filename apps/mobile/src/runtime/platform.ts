@@ -228,6 +228,14 @@ export interface MediaPlatform {
     relPath: string,
     job: MediaJob,
   ): Promise<MediaOutput>;
+  /** 同一个响度动作接音频或视频；视频设置存在时保留画面。 */
+  volume(
+    uri: string,
+    settings: { automatic: boolean; db: number; video?: VideoEncode },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
   /** 顺时针旋转；iOS 只改方向信息，Android 重新编码。 */
   rotateVideo(
     uri: string,

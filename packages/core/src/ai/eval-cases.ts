@@ -2899,7 +2899,64 @@ const VIDEO_SPEED_CASES: EvalCase[] = [
     },
   },
 ];
+const AUDIO_VOLUME_CASES: EvalCase[] = [
+  {
+    id: 'AVL1',
+    input: '添加把录音调到正常音量快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some((s) => s.action === 'audio.volume' && s.params.mode === 'normal'),
+        )
+          ? null
+          : 'missing normal volume',
+    },
+  },
+  {
+    id: 'AVL2',
+    input:
+      'Make an action to bring the sound in my quiet videos up to normal volume. Keep the picture.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps[0]?.action === 'in.videos' &&
+            w.steps.some((s) => s.action === 'audio.volume' && s.params.mode === 'normal') &&
+            !w.steps.some((s) => s.action === 'audio.fromVideo'),
+        )
+          ? null
+          : 'missing video volume without dropping picture',
+    },
+  },
+  {
+    id: 'AVL3',
+    input: 'Make a reusable action to make recordings 6 dB louder.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some(
+            (s) => s.action === 'audio.volume' && s.params.mode === 'db' && s.params.db === 6,
+          ),
+        )
+          ? null
+          : 'missing +6dB gain',
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...AUDIO_VOLUME_CASES,
   ...VIDEO_SPEED_CASES,
   ...VIDEO_CROP_CASES,
   ...VIDEO_ROTATE_CASES,

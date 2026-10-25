@@ -605,6 +605,34 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'normal-audio-volume',
+    scenario: 'sound',
+    name: { en: 'Make quiet audio easier to hear', zh: '把录音调到正常音量' },
+    description: {
+      en: 'Choose recordings and adjust toward normal volume without clipping.',
+      zh: '选录音，尽量调到正常音量，并限制峰值以避免削波。',
+    },
+    icon: 'audio',
+    steps: () => [
+      { id: 'pick', action: 'in.audio', params: { source: 'files', min: 1, max: 10 } },
+      { id: 'volume', action: 'audio.volume', params: { mode: 'normal', db: 0 } },
+    ],
+  },
+  {
+    id: 'normal-video-volume',
+    scenario: 'photos',
+    name: { en: 'Make quiet video easier to hear', zh: '把视频调到正常音量' },
+    description: {
+      en: 'Choose videos and adjust their sound toward normal volume, keeping the picture.',
+      zh: '选视频，把声音尽量调到正常音量，保留画面。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'volume', action: 'audio.volume', params: { mode: 'normal', db: 0 } },
+    ],
+  },
+  {
     id: 'audio-too-big',
     scenario: 'sound',
     name: { en: 'Recording too big to send', zh: '语音太大发不出去' },

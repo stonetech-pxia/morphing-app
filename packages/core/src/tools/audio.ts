@@ -37,6 +37,45 @@ const formatField = {
 
 export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
   {
+    id: 'audio.volume',
+    label: { en: 'Adjust volume', zh: '调整音量' },
+    description: {
+      en: 'Adjust audio or video sound locally. Normal aims for -16 LUFS; manual changes gain in dB. Gain is limited to avoid clipping (-1 dBFS sample peak), so very dynamic material may stay quieter than the target. Audio becomes M4A; video remains video (MP4, picture re-encoded). Silence stays silent.',
+      zh: '在本机调整音频或视频的声音。自动尽量达到 -16 LUFS，手动按 dB 调整。增益受峰值限制（-1 dBFS）以避免削波，动态范围大的内容可能达不到目标。音频输出 M4A，视频仍输出视频（MP4，画面重新编码）。静音保持静音。',
+    },
+    input: ['audio', 'video'],
+    output: 'same',
+    params: z.strictObject({ mode: z.enum(['normal', 'db']), db: z.number().min(-24).max(24) }),
+    fields: [
+      {
+        key: 'mode',
+        label: { en: 'Volume', zh: '音量' },
+        kind: 'choice',
+        options: [
+          { value: 'normal', label: { en: 'Normal volume', zh: '调整到正常音量' } },
+          { value: 'db', label: { en: 'Adjust manually', zh: '手动调整' } },
+        ],
+      },
+      {
+        key: 'db',
+        label: { en: 'Gain (dB)', zh: '调整幅度（dB）' },
+        kind: 'number',
+        min: -24,
+        max: 24,
+        step: 1,
+        showIf: { key: 'mode', equals: ['db'] },
+      },
+    ],
+    presets: [
+      {
+        id: 'normal',
+        label: { en: 'Normal volume', zh: '正常音量' },
+        values: { mode: 'normal', db: 0 },
+      },
+    ],
+    requires: [],
+  },
+  {
     id: 'audio.transcribe',
     label: { en: 'Speech to text', zh: '语音转文字' },
     description: {
@@ -227,6 +266,19 @@ export function audioWorkflows(locale: Locale): Workflow[] {
   });
   return [
     wf(
+      'audio-volume',
+      ['Adjust volume', '调整音量'],
+      [
+        pickAudio(1, 10),
+        {
+          id: 'volume',
+          action: 'audio.volume',
+          params: { mode: 'normal', db: 0 },
+          ask: ['mode', 'db'],
+        },
+      ],
+    ),
+    wf(
       'audio-transcribe',
       ['Speech to text', '语音转文字'],
       [
@@ -292,7 +344,7 @@ export function audioWorkflows(locale: Locale): Workflow[] {
 
 export const audioTool: ToolDefinition = {
   id: AUDIO_TOOL_ID,
-  version: '1.0.0',
+  version: '1.1.0',
   name: { en: 'Audio', zh: '音频' },
   description: {
     en: 'Turn recordings into text, record, make audio smaller, convert, trim and join it, on this device.',
