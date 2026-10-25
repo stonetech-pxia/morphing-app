@@ -87,7 +87,9 @@ export function ChangeScreen() {
     guideText(params.guide, locale) !== null ? params.guide : undefined,
   );
   // 点了「接着改」（D-191）：那句话自动打进输入框，用设置里的 AI 处理。
-  const [auto] = useState(() => guideText(guide, locale) ?? (params.next ? next : null));
+  // 法语引导的句子交给设置里的 AI；设置里选的是内置规则（不认法语）时，照旧发英文句子（D-228）。
+  const guideLocale = locale === 'fr' && aiMode === 'mock' ? 'en' : locale;
+  const [auto] = useState(() => guideText(guide, guideLocale) ?? (params.next ? next : null));
   const [typing, setTyping] = useState(() => auto !== null);
   const share = useIncoming((s) => s.share);
   // 打开这一页时是哪一批（分享的、App 里选的、上一次的结果）：之后又分享进来一批，卡片上的说法也不变。
@@ -205,7 +207,7 @@ export function ChangeScreen() {
       setTyping(false);
       if (guide) setPresetText(text);
       // 引导的句子中英文用内置规则；法语内置规则不认，交给设置里的 AI（见 guide/store.ts）。
-      void submit(text, !!guide && locale !== 'fr');
+      void submit(text, !!guide && guideLocale !== 'fr');
     }, typeDelay(text.length));
     return () => clearInterval(timer);
     // 只在打开时打一次。

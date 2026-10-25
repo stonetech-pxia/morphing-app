@@ -5,7 +5,7 @@ export const strings = {
   trustNote: {
     en: 'No ads. No account needed to work with your files. Files are processed on this device. When you ask AI to change the app, it gets your request and the app’s settings — never your files or entries.',
     zh: '没有广告。处理文件不需要账号。文件在本机处理；AI 修改只接收你的要求和 App 配置，不接收文件或记录内容。',
-    fr: 'Sans publicité. Aucun compte requis pour traiter vos fichiers. Le traitement reste sur votre appareil. L’IA reçoit votre demande et la configuration de l’application, jamais le contenu des fichiers ou des enregistrements.',
+    fr: 'Sans publicité. Aucun compte requis pour traiter vos fichiers. Le traitement reste sur votre appareil. L’IA reçoit votre demande et la configuration de l’application, jamais le contenu des fichiers ou des entrées.',
   },
   resultContinue: { en: 'Continue processing', zh: '接着处理', fr: 'Continuer le traitement' },
   resultIncoming: {

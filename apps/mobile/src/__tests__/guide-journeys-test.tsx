@@ -85,6 +85,18 @@ describe('first-run guide', () => {
     expect(await repo.getMeta('guide')).toBe('goal');
   });
 
+  // D-228：内置规则不认法语。设置里选的是内置规则时，法语引导照旧发英文句子，照样进草稿。
+  it('in French with the built-in rules, step 1 still lands in a draft', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    await act(() => useGuide.getState().load(repo));
+    const { store } = await renderToolsApp(repo, new FakeFiles(), { locale: 'fr' });
+    await fireEvent.press(await screen.findByTestId('welcome-skip'));
+    await fireEvent.press(await screen.findByTestId('guide-look-0'));
+    await screen.findByTestId('draft-bar', {}, TYPED);
+    await fireEvent.press(screen.getByTestId('draft-apply'));
+    expect(store.getState().config!.theme.cardStyle).toBe('glow');
+  });
+
   it('step 2: one sentence grows a 7-step quick action that runs on sample photos', async () => {
     const { repo, store, files } = await startGuide('goal');
     const photos = [1, 2, 3].map((i) => files.offerImage(`trip-${i}.jpg`, 4032, 3024));
