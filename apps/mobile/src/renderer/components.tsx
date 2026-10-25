@@ -24,7 +24,10 @@ import {
   type ViewStyle,
 } from 'react-native';
 
+import { GestureDetector, type PanGesture } from 'react-native-gesture-handler';
+
 import { t } from '../i18n';
+import type { SingleDrag } from '../editing/useSingleDrag';
 import { FocusItem } from '../editing/FocusItem';
 import { RecordForm, RecordList, Stat } from './data';
 import { FileList } from './FileList';
@@ -60,7 +63,11 @@ export interface RenderEnv {
     selectedId: string | null;
     onEdit: (id: string) => void;
     onDone: () => void;
+    drag?: SingleDrag;
   };
+  parentDrag?: PanGesture;
+  focusWithinSelected?: boolean;
+  focusWithinDimmed?: boolean;
   /** 当前组件的长按操作：组件里可点按的部分（卡片、按钮、列表行）也要响应长按。 */
   onLongPress?: () => void;
   /**
@@ -229,7 +236,15 @@ function Group({
     body = (
       <View style={{ gap: palette.gap - 4 }}>
         {rows.map((row, r) => (
-          <View key={r} style={[styles.row, { gap: palette.gap - 4 }]}>
+          <View
+            key={r}
+            style={[
+              styles.row,
+              {
+                gap: palette.gap - 4,
+                zIndex: row.some((c) => c.id === env.focus?.selectedId) ? 10 : 0,
+              },
+            ]}>
             {row.map(item)}
             {Array.from({ length: columns - row.length }, (_, i) => (
               <View key={`empty-${i}`} style={styles.cell} />
@@ -254,7 +269,7 @@ function Group({
           {title.toUpperCase()}
         </Text>
       ) : null}
-      {body}
+      {children.length === 0 && env.focus ? <View style={{ height: 44 }} /> : body}
     </View>
   );
 }
@@ -490,8 +505,10 @@ export function PageView({
 }) {
   const { palette } = env;
   const pageEnv = { ...env, pageId: page.id };
-  return (
+  const content = (
     <ScrollView
+      testID={env.focus ? 'editable-scroll' : undefined}
+      ref={(view) => env.focus?.drag?.attachScroll(view)}
       {...scroll}
       // 渐变背景画在外层容器上（和状态栏区域连成一片），页面本身透明。
       style={palette.hasBackdrop ? undefined : { backgroundColor: palette.background }}
@@ -514,7 +531,15 @@ export function PageView({
       ) : null}
       {runnerGrid(page.components.filter((c) => !c.hidden)).map((block) =>
         Array.isArray(block) ? (
-          <View key={block[0]!.id} style={[styles.row, { gap: palette.gap - 4 }]}>
+          <View
+            key={block[0]!.id}
+            style={[
+              styles.row,
+              {
+                gap: palette.gap - 4,
+                zIndex: block.some((c) => c.id === env.focus?.selectedId) ? 10 : 0,
+              },
+            ]}>
             {block.map((c) => (
               <Item
                 key={c.id}
@@ -530,6 +555,29 @@ export function PageView({
         ),
       )}
     </ScrollView>
+  );
+  const drag = env.focus?.drag;
+  return drag ? (
+    <View ref={(view) => drag.attachViewport(view)} style={{ flex: 1 }}>
+      <GestureDetector gesture={drag.scrollGesture}>{content}</GestureDetector>
+      {drag.target ? (
+        <View
+          testID="single-drop-line"
+          pointerEvents="none"
+          style={[
+            { position: 'absolute', backgroundColor: palette.primary, zIndex: 100 },
+            {
+              left: drag.target.line.x,
+              top: drag.target.line.y,
+              width: drag.target.line.width,
+              height: drag.target.line.height,
+            },
+          ]}
+        />
+      ) : null}
+    </View>
+  ) : (
+    content
   );
 }
 

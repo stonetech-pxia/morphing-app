@@ -8,9 +8,10 @@ import { useEditActions } from './actions';
 import { ArrangeView } from './ArrangeView';
 import { EditSheet } from './EditSheet';
 import { directEditEntry } from './entry';
+import { useSingleDrag } from './useSingleDrag';
 
 // 可以直接编辑的页面（D-052）：外壳和独立页面用它代替 PageView。
-// 平时长按组件进入编辑模式并打开它的操作面板；编辑模式下显示草稿，换成带把手和箭头的编辑视图，
+// 长按只选中单个组件并可继续拖动（D-235）；整页编辑保留 ArrangeView。
 // 「完成」时整份草稿合成一个版本（D-054）。预览和系统页面不用它。
 
 /** 保存版本后页面会重新挂载；记住滚动位置，改完仍停在原处。 */
@@ -41,6 +42,13 @@ export function EditablePage({
   const { edit, finish, cancel } = useEditActions(shown);
   const [selected, setSelected] = useState<string | null>(null);
   const [sheetId, setSheetId] = useState<string | null>(null);
+
+  const select = (id: string) => {
+    startEditing(page.id, 'single');
+    setSelected(id);
+  };
+  const drag = useSingleDrag(shown, select, (op) => edit([op]));
+  const savedScroll = rememberScroll(page.id);
 
   const sheet = (
     <EditSheet
@@ -76,24 +84,31 @@ export function EditablePage({
       <PageView
         page={shown}
         env={
-          directEditEntry.longPress && !env.locked
+          directEditEntry.longPress && env.interactive && !env.locked
             ? {
                 ...env,
                 config: draft ?? env.config,
                 focus: {
                   selectedId: draft ? selected : null,
                   onEdit: setSheetId,
-                  onDone: () => void finish(),
+                  onDone: () => {
+                    if (!drag.draggingId) void finish();
+                  },
+                  drag,
                 },
-                edit: (id) => {
-                  startEditing(page.id, 'single');
-                  setSelected(id);
-                },
+                edit: select,
               }
             : env
         }
         bottomInset={bottomInset}
-        scroll={rememberScroll(page.id)}
+        scroll={{
+          ...savedScroll,
+          ...drag.scroll,
+          onScroll: (e) => {
+            savedScroll.onScroll?.(e);
+            drag.scroll.onScroll?.(e);
+          },
+        }}
       />
       {sheet}
     </>

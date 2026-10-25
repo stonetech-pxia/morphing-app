@@ -1,3 +1,4 @@
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
   BUILTIN_TOOLS,
   THEME_PRESETS,
@@ -59,7 +60,9 @@ async function renderApp(
     _layout: () => (
       <AISettingsProvider store={aiSettings}>
         <WorkspaceProvider value={{ store, repo, files, registry, locale: 'zh' }}>
-          <Stack />
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <Stack />
+          </GestureHandlerRootView>
           <DraftChatSheet />
         </WorkspaceProvider>
       </AISettingsProvider>

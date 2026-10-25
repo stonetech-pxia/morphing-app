@@ -1,3 +1,5 @@
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { createGestureController } from 'react-native-gesture-handler/jest-utils';
 import {
   BUILTIN_TOOLS,
   createMockAIProvider,
@@ -5,7 +7,7 @@ import {
   templateOps,
   type Op,
 } from '@morph/core';
-import { fireEvent } from '@testing-library/react-native';
+import { act, fireEvent } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
 import { renderRouter, screen } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
@@ -53,7 +55,9 @@ async function renderApp() {
     _layout: () => (
       <AISettingsProvider store={aiSettings}>
         <WorkspaceProvider value={{ store, repo, files: new FakeFiles(), registry, locale: 'zh' }}>
-          <Stack />
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <Stack />
+          </GestureHandlerRootView>
         </WorkspaceProvider>
       </AISettingsProvider>
     ),
@@ -102,6 +106,8 @@ async function done(store: WorkspaceStore, summary: string) {
 }
 
 const draftHome = (store: WorkspaceStore) => store.getState().editing!.config.pages[0]!;
+const draftHomeOrHome = (store: WorkspaceStore) =>
+  store.getState().editing?.config.pages[0] ?? home(store);
 
 /** 撤销最近一次修改（提示条上的「撤销」）。 */
 async function undo(store: WorkspaceStore) {
@@ -471,6 +477,32 @@ describe('single-component editing', () => {
     expect(home(store).components[1]!.style).toBeUndefined();
   });
 
+  it('keeps a selected group opaque and dims other groups only once', async () => {
+    const { store } = await renderApp();
+    await commit(
+      store,
+      [
+        {
+          op: 'addComponent',
+          pageId: 'home',
+          component: {
+            id: 'group',
+            type: 'group',
+            props: { layout: 'stack', title: '分组' },
+            children: [{ id: 'child', type: 'text', props: { text: '组里的文字' } }],
+          },
+        },
+      ],
+      '分组',
+    );
+    await fireEvent(screen.getByTestId('component-group'), 'longPress');
+    expect(screen.getByTestId('single-content-child')).toHaveStyle({ opacity: 1 });
+    await fireEvent(screen.getByTestId('component-welcome'), 'longPress');
+    expect(screen.getByTestId('single-content-group')).toHaveStyle({ opacity: 0.5 });
+    expect(screen.getByTestId('single-content-child')).toHaveStyle({ opacity: 1 });
+    await fireEvent.press(screen.getByTestId('single-done-welcome'));
+  });
+
   it('finishing an unchanged selection on blank space creates no version', async () => {
     const { store } = await renderApp();
     const before = store.getState().head!.id;
@@ -479,5 +511,202 @@ describe('single-component editing', () => {
     await fireEvent.press(screen.getByTestId('single-blank'));
     expect(store.getState().editing).toBeNull();
     expect(store.getState().head!.id).toBe(before);
+  });
+});
+
+async function gestureAct(callback: () => void) {
+  await act(async () => {
+    callback();
+    jest.runAllTicks();
+  });
+}
+
+describe('single-component gesture sessions', () => {
+  beforeEach(() => {
+    // 真实原生测量返回窗口坐标；替身也保留各组件不同的位置和尺寸。
+    const methods = jest.requireActual('@react-native/jest-preset/jest/MockNativeMethods').default;
+    methods.measureInWindow.mockImplementation(function (
+      this: { props: { testID?: string } },
+      callback: (x: number, y: number, w: number, h: number) => void,
+    ) {
+      const id = this.props.testID;
+      const y = id === 'single-frame-welcome' ? 100 : id === 'single-frame-catalog' ? 220 : 340;
+      if (id?.startsWith('single-frame-')) callback(20, y, 320, 90);
+      else callback(0, 0, 360, 600);
+    });
+  });
+  afterEach(() => {
+    jest
+      .requireActual('@react-native/jest-preset/jest/MockNativeMethods')
+      .default.measureInWindow.mockReset();
+  });
+
+  it('selects and moves on the same touch, keeps selection, then saves one undoable version', async () => {
+    const { store } = await renderApp();
+    const before = store.getState().head!.id;
+    const gesture = createGestureController('single-drag-welcome');
+    await gestureAct(() => {
+      gesture.begin({ absoluteX: 100, absoluteY: 140 });
+      gesture.activate({ absoluteX: 100, absoluteY: 140 });
+    });
+    expect(screen.getByTestId('single-toolbar-welcome')).toBeTruthy();
+    await gestureAct(() => gesture.update({ absoluteX: 100, absoluteY: 420, translationY: 280 }));
+    expect(screen.getByTestId('single-drop-line')).toBeTruthy();
+    await gestureAct(() => gesture.end());
+    expect(draftHome(store).components.map((c) => c.id)).toEqual([
+      'catalog',
+      'recent-files',
+      'welcome',
+    ]);
+    expect(screen.getByTestId('single-toolbar-welcome')).toBeTruthy();
+    expect(store.getState().head!.id).toBe(before);
+    await fireEvent.press(screen.getByTestId('single-done-welcome'));
+    expect(await screen.findByText('已改好：编辑「首页」（1 处修改）')).toBeTruthy();
+    expect(store.getState().head!.id).toBe(before + 1);
+    await undo(store);
+    expect(order(store)).toEqual(['welcome', 'catalog', 'recent-files']);
+  });
+
+  it('swaps both sides of a rendered workflow grid and keeps one draft', async () => {
+    const { store } = await renderApp();
+    await commit(store, [{ op: 'installTool', toolId: 'pdf' }], '准备 PDF');
+    const workflows = store.getState().config!.workflows;
+    await commit(
+      store,
+      [
+        ...home(store).components.map((c) => ({
+          op: 'removeComponent' as const,
+          pageId: 'home',
+          componentId: c.id,
+        })),
+        ...['left', 'right'].map((id, i) => ({
+          op: 'addComponent' as const,
+          pageId: 'home',
+          component: {
+            id,
+            type: 'workflowRunner' as const,
+            props: { workflowId: workflows[i]!.id },
+          },
+        })),
+      ],
+      '宫格',
+    );
+    const methods = jest.requireActual('@react-native/jest-preset/jest/MockNativeMethods').default;
+    methods.measureInWindow.mockImplementation(function (
+      this: { props: { testID?: string } },
+      callback: (x: number, y: number, w: number, h: number) => void,
+    ) {
+      const id = this.props.testID;
+      const ids = draftHomeOrHome(store).components.map((c) => `single-frame-${c.id}`);
+      const i = ids.indexOf(id ?? '');
+      if (i >= 0) callback(20 + i * 160, 100, 140, 110);
+      else callback(0, 0, 360, 600);
+    });
+    const gesture = createGestureController('single-drag-left');
+    await gestureAct(() => {
+      gesture.begin({ absoluteX: 80, absoluteY: 150 });
+      gesture.activate({ absoluteX: 80, absoluteY: 150 });
+    });
+    await gestureAct(() => gesture.update({ absoluteX: 300, absoluteY: 150, translationX: 220 }));
+    await gestureAct(() => gesture.end());
+    expect(draftHome(store).components.map((c) => c.id)).toEqual(['right', 'left']);
+    expect(screen.getByTestId('single-toolbar-left')).toBeTruthy();
+    // 重排使宫格的 React 行变化，新的 detector 仍然能继续拖。
+    const again = createGestureController('single-drag-left');
+    await gestureAct(() => {
+      again.begin({ absoluteX: 240, absoluteY: 150 });
+      again.activate({ absoluteX: 240, absoluteY: 150 });
+    });
+    await gestureAct(() => again.update({ absoluteX: 30, absoluteY: 150, translationX: -210 }));
+    await gestureAct(() => again.end());
+    expect(draftHome(store).components.map((c) => c.id)).toEqual(['left', 'right']);
+    await fireEvent.press(screen.getByTestId('single-done-left'));
+    expect(store.getState().editing).toBeNull();
+  });
+
+  it('auto-scrolls only after moving and stops immediately when the gesture is cancelled', async () => {
+    const { store } = await renderApp();
+    const scroll = screen.getByTestId('editable-scroll');
+    await fireEvent(scroll, 'contentSizeChange', 360, 1800);
+    const gesture = createGestureController('single-drag-welcome');
+    await gestureAct(() => {
+      gesture.begin({ absoluteX: 100, absoluteY: 140 });
+      gesture.activate({ absoluteX: 100, absoluteY: 140 });
+    });
+    await gestureAct(() => gesture.update({ absoluteX: 100, absoluteY: 590, translationY: 450 }));
+    const beforeScroll = screen.getByTestId('single-drop-line').props.style[1].top;
+    await act(async () => {
+      jest.advanceTimersByTime(80);
+      jest.runAllTicks();
+    });
+    expect(screen.getByTestId('single-drop-line').props.style[1].top).toBeLessThan(beforeScroll);
+    await gestureAct(() => gesture.cancel());
+    expect(screen.queryByTestId('single-drop-line')).toBeNull();
+    await act(async () => {
+      jest.advanceTimersByTime(80);
+    });
+    expect(screen.queryByTestId('single-drop-line')).toBeNull();
+    expect(store.getState().editing!.ops).toEqual([]);
+    await fireEvent.press(screen.getByTestId('single-done-welcome'));
+  });
+
+  it('cancellation and dropping back in place leave the draft unchanged', async () => {
+    const { store } = await renderApp();
+    const gesture = createGestureController('single-drag-welcome');
+    await gestureAct(() => {
+      gesture.begin({ absoluteX: 100, absoluteY: 140 });
+      gesture.activate({ absoluteX: 100, absoluteY: 140 });
+    });
+    await gestureAct(() => gesture.update({ absoluteX: 100, absoluteY: 400, translationY: 260 }));
+    await gestureAct(() => gesture.cancel());
+    expect(store.getState().editing!.ops).toEqual([]);
+    expect(screen.queryByTestId('single-drop-line')).toBeNull();
+    // 已选中后再次按住即可拖，不需要重新开草稿。
+    await gestureAct(() => {
+      gesture.begin({ absoluteX: 100, absoluteY: 140 });
+      gesture.activate({ absoluteX: 100, absoluteY: 140 });
+    });
+    await gestureAct(() => gesture.update({ absoluteX: 110, absoluteY: 150, translationY: 10 }));
+    await gestureAct(() => gesture.end());
+    expect(store.getState().editing!.ops).toEqual([]);
+    await fireEvent.press(screen.getByTestId('single-done-welcome'));
+    expect(store.getState().editing).toBeNull();
+  });
+});
+
+describe('quick gesture release', () => {
+  it('still applies a drop when native measurements finish after the finger is lifted', async () => {
+    const methods = jest.requireActual('@react-native/jest-preset/jest/MockNativeMethods').default;
+    methods.measureInWindow.mockImplementation(function (
+      this: { props: { testID?: string } },
+      callback: (x: number, y: number, w: number, h: number) => void,
+    ) {
+      const id = this.props.testID;
+      const y = id === 'single-frame-welcome' ? 100 : id === 'single-frame-catalog' ? 220 : 340;
+      callback(
+        0,
+        id?.startsWith('single-frame-') ? y : 0,
+        360,
+        id?.startsWith('single-frame-') ? 90 : 600,
+      );
+    });
+    try {
+      const { store } = await renderApp();
+      const gesture = createGestureController('single-drag-welcome');
+      await gestureAct(() => {
+        gesture.begin({ absoluteX: 100, absoluteY: 140 });
+        gesture.activate({ absoluteX: 100, absoluteY: 140 });
+        gesture.update({ absoluteX: 100, absoluteY: 420, translationY: 280 });
+        gesture.end();
+      });
+      expect(draftHome(store).components.map((c) => c.id)).toEqual([
+        'catalog',
+        'recent-files',
+        'welcome',
+      ]);
+      await fireEvent.press(screen.getByTestId('single-done-welcome'));
+    } finally {
+      methods.measureInWindow.mockReset();
+    }
   });
 });
