@@ -443,6 +443,8 @@ describe('video music', () => {
       [25, false],
     ]);
     expect(media.mixes[0]!.music).toBe(media.mixes[1]!.music);
+    // iOS 按扩展名认格式：移进本次运行后扩展名不能变。
+    expect(media.mixes[0]!.music).toMatch(/\.m4a$/);
     expect(files.lastPickTypes).toEqual(['audio/*']);
   });
   it('cancelling the music picker cancels the action', async () => {

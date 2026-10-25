@@ -12,7 +12,7 @@ import {
 } from '@morph/core';
 
 import type { MediaInfo, MediaOutput, MediaPlatform, VideoEncode } from '../platform';
-import { MB, displayName, fileItems, freshName, type RunServices } from './helpers';
+import { MB, displayName, extOf, fileItems, freshName, type RunServices } from './helpers';
 
 // 视频工具的动作实现（D-143）：码率和分辨率在 core/media.ts 里算，编码交给原生模块 morph-media。
 // 输出一律是 MP4（H.264 + AAC）。
@@ -229,10 +229,11 @@ export const VIDEO_IMPLS: Record<string, Impl> = {
     }
     if (!musicInfo.hasAudio || !Number.isFinite(musicInfo.durationMs) || musicInfo.durationMs <= 0)
       throw new RunError('mediaUnsupported', { name: music.name });
+    // 保留原来的扩展名：iOS 的 AVURLAsset 按扩展名认格式，「.audio」打不开。
     const stored = await ctx.services.files.adoptIntoRun(
       music.uri,
       ctx.services.runId,
-      freshName('music', 'audio'),
+      freshName('music', extOf(music.name) || 'm4a'),
     );
     return eachVideo(input, ctx, async (item, _media, job) => {
       const info = await probe(media, item);
