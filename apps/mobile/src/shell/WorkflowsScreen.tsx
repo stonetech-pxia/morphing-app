@@ -265,10 +265,8 @@ export function WorkflowsScreen({
       testID={`quick-actions-${kind}`}
       style={{ backgroundColor: palette.background }}
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 48 }}>
+      {/* 分类页总在页面栈里，顶部已有分类名。 */}
       {embedded ? null : <Banner palette={palette} />}
-      <PageTitle palette={palette}>
-        {localize(QUICK_ACTION_CATEGORIES[kind].name, locale)}
-      </PageTitle>
       <Button
         palette={palette}
         testID="quick-actions-create"
