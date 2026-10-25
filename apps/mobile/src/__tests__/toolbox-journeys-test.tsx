@@ -7,29 +7,27 @@ import { screen } from 'expo-router/testing-library';
 
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
-import { renderToolsApp } from '../test-utils/render-app';
+import { renderToolsApp, starterAfterGuide } from '../test-utils/render-app';
 
-// 新用户的精简首页和工具箱（D-181、D-182）。
+// 新用户的空白首页（D-231）、工具箱（D-181、D-182）和首页文件入口。
 
 describe('starter home and toolbox (UI)', () => {
   const start = () =>
     renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), { seed: createStarterWorkspace });
 
-  it('shows file pickers, the category entry and toolbox without preset shortcuts', async () => {
-    await start();
-    expect(await screen.findByTestId('file-pick-media')).toBeTruthy();
-    expect(screen.getByTestId('file-pick-files')).toBeTruthy();
-    expect(screen.getByText('Morph 可以做什么')).toBeTruthy();
-    expect(screen.queryByTestId('run-video-too-big')).toBeNull();
-    expect(screen.queryByTestId('run-email-photos')).toBeNull();
-    expect(screen.queryByTestId('run-pdf-too-big')).toBeNull();
-    expect(screen.getByText('工具箱')).toBeTruthy();
+  it('starts with an empty home page (D-231)', async () => {
+    const { store } = await start();
+    await screen.findByTestId('nav-settings');
+    expect(store.getState().config!.pages.find((p) => p.id === 'home')!.components).toEqual([]);
+    expect(screen.queryByTestId('file-pick-media')).toBeNull();
+    expect(screen.queryByText('Morph 可以做什么')).toBeNull();
     expect(screen.queryByTestId('nav-tools')).toBeNull();
   });
 
   it('opens added tools from the toolbox and adds a new one with one tap', async () => {
     const { store } = await start();
-    await fireEvent.press(await screen.findByText('全部工具'));
+    await screen.findByTestId('nav-settings');
+    await act(() => router.push('/page/toolbox'));
     expect(await screen.findByText('照片、视频和声音'.toUpperCase())).toBeTruthy();
     // 添加过的工具没有「+」，没添加的有。
     expect(screen.queryByTestId('toolgrid-add-image')).toBeNull();
@@ -47,7 +45,7 @@ describe('starter home and toolbox (UI)', () => {
 
 describe('home file pickers', () => {
   const start = () =>
-    renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), { seed: createStarterWorkspace });
+    renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), { seed: starterAfterGuide });
   it('cancelling leaves the home and incoming batch unchanged', async () => {
     const { files } = await start();
     const pick = jest.spyOn(files, 'pickMedia');

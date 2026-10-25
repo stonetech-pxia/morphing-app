@@ -3162,7 +3162,10 @@ const QUICK_ACTION_ENTRY_CASES: EvalCase[] = [
             p.id === 'home' &&
             allComponents(p).some(
               (x) =>
-                (x.type === 'shortcut' || x.type === 'button') && x.props.target === 'quickActions',
+                ((x.type === 'shortcut' || x.type === 'button') &&
+                  x.props.target === 'quickActions') ||
+                // 把分类入口直接放在首页也算（D-230）。
+                (x.type === 'quickActionList' && !x.props.kind),
             ),
         )
           ? null
@@ -3183,12 +3186,150 @@ const QUICK_ACTION_ENTRY_CASES: EvalCase[] = [
             p.id === 'home' &&
             allComponents(p).some(
               (x) =>
-                (x.type === 'shortcut' || x.type === 'button') && x.props.target === 'quickActions',
+                ((x.type === 'shortcut' || x.type === 'button') &&
+                  x.props.target === 'quickActions') ||
+                // 把分类入口直接放在首页也算（D-230）。
+                (x.type === 'quickActionList' && !x.props.kind),
             ),
         )
           ? null
           : 'missing quickActions home entry',
     },
+  },
+];
+// ---- 外观选项（D-230）----
+const homeEntries = (c: WorkspaceConfig) =>
+  allComponents(home(c)).filter(
+    (x) => x.type === 'shortcut' || x.type === 'toolCard' || x.type === 'catalogLink',
+  );
+/** 首页所有入口卡片都是这个样子（至少有一个）。 */
+const entriesLook = (look: 'row' | 'tile') => (c: WorkspaceConfig) => {
+  const entries = homeEntries(c);
+  return entries.length > 0 && entries.every((x) => (x.props as { look?: string }).look === look)
+    ? null
+    : `home entries should all be ${look}: ${JSON.stringify(entries.map((x) => x.props))}`;
+};
+const quickActionListOn = (kind: string) => (c: WorkspaceConfig) =>
+  allComponents(home(c)).some((x) => x.type === 'quickActionList' && x.props.kind === kind)
+    ? null
+    : `missing a ${kind} quickActionList on home`;
+
+const LOOK_CASES: EvalCase[] = [
+  {
+    id: 'LK1',
+    input: '图标改成浅色底',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) => (c.theme.iconStyle === 'tint' ? null : `iconStyle ${c.theme.iconStyle}`),
+    },
+  },
+  {
+    id: 'LK1-en',
+    input: 'Use solid icon backgrounds',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) => (c.theme.iconStyle === 'solid' ? null : `iconStyle ${c.theme.iconStyle}`),
+    },
+  },
+  {
+    id: 'LK2',
+    input: '首页入口改成列表',
+    locale: 'zh',
+    setup: 'pdf',
+    mock: true,
+    expect: { kind: 'ops', check: entriesLook('row') },
+  },
+  {
+    id: 'LK2-en',
+    input:
+      'Make the entries on the home page list rows like in Settings, with an arrow on the right',
+    locale: 'en',
+    setup: 'pdf',
+    mock: false,
+    expect: { kind: 'ops', check: entriesLook('row') },
+  },
+  {
+    id: 'LK3',
+    input: '把 PDF 页面上的快捷操作改成一行一行的列表，右边有播放按钮',
+    locale: 'zh',
+    setup: 'pdf',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const runners = allComponents(c.pages.find((p) => p.id === 'tool-pdf')!).filter(
+          (x) => x.type === 'workflowRunner',
+        );
+        return runners.length > 0 &&
+          runners.every((x) => x.type === 'workflowRunner' && x.props.look === 'row')
+          ? null
+          : 'PDF quick actions should all be rows';
+      },
+    },
+  },
+  {
+    id: 'LK4',
+    input: '工具箱页面上的「管理工具」按钮改成只显示一个图标',
+    locale: 'zh',
+    setup: 'starter',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const button = allComponents(c.pages.find((p) => p.id === 'toolbox')!).find(
+          (x) => x.id === 'toolbox-manage',
+        );
+        return button?.type === 'button' && button.props.variant === 'icon' && button.props.icon
+          ? null
+          : `manage button is ${JSON.stringify(button?.props)}`;
+      },
+    },
+  },
+  {
+    id: 'LK5',
+    input: '首页加上照片快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: quickActionListOn('image') },
+  },
+  {
+    id: 'LK5-en',
+    input: 'Show my video quick actions right on the home page',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: quickActionListOn('video') },
+  },
+];
+// 新手引导第 1 步（D-231）：空白首页上加两个文件入口。中英文走内置规则，法语交给模型。
+const twoFilePicks = (c: WorkspaceConfig) => {
+  const picks = allComponents(home(c)).filter((x) => x.type === 'filePick');
+  const sources = picks.map((x) => (x.type === 'filePick' ? x.props.source : '')).sort();
+  return sources.join(',') === 'files,media' ? null : `file pickers on home: ${sources.join(',')}`;
+};
+const GUIDE_STEP_CASES: EvalCase[] = [
+  {
+    id: 'GD1',
+    input: '加入「打开相册」和「打开文件」按钮',
+    locale: 'zh',
+    setup: 'starter',
+    mock: true,
+    expect: { kind: 'ops', check: twoFilePicks },
+  },
+  {
+    id: 'GD1-fr',
+    input: 'Ajouter les boutons « Ouvrir les photos » et « Ouvrir les fichiers »',
+    locale: 'fr',
+    setup: 'starter',
+    mock: false,
+    expect: { kind: 'ops', check: twoFilePicks },
   },
 ];
 const FRENCH_CASES: readonly EvalCase[] = [
@@ -3397,6 +3538,8 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,
   ...QUICK_ACTION_ENTRY_CASES,
+  ...LOOK_CASES,
+  ...GUIDE_STEP_CASES,
   ...VIDEO_SUBTITLE_CASES,
   ...IMAGE_ANNOTATE_CASES,
   ...IMAGE_ADJUST_CASES,

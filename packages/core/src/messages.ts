@@ -1152,11 +1152,6 @@ export const strings = {
     zh: '改好了，这是改完后的样子',
     fr: 'C’est fait, voici le nouveau rendu',
   },
-  draftGuideHint: {
-    en: 'Tap Apply to keep it, or Change to keep going.',
-    zh: '点「应用」保留，点「修改」接着说。',
-    fr: 'Appuyez sur « Appliquer » pour garder, ou sur « Modifier » pour continuer.',
-  },
   draftChatTitle: { en: 'Change the draft', zh: '修改草稿', fr: 'Modifier le brouillon' },
   draftChatClose: { en: 'Hide', zh: '收起', fr: 'Masquer' },
   draftChatPlaceholder: { en: 'Say one more thing…', zh: '再说一句…', fr: 'Dites-en un peu plus…' },
@@ -1298,26 +1293,25 @@ export const strings = {
     fr: 'Transformer des captures d’écran en PDF',
   },
   guideLookTitle: {
-    en: 'Step 1 · Change this app',
-    zh: '第 1 步 · 说一句话，改掉这个 App',
-    fr: 'Étape 1 · Modifier cette app',
+    en: 'Step 1',
+    zh: '第 1 步',
+    fr: 'Étape 1',
   },
   guideLookBody: {
-    en: 'Tap one to try it. You see a preview first.',
-    zh: '点一句试试，改之前会先给你看预览。',
-    fr: 'Touchez-en un pour l’essayer. Vous verrez d’abord un aperçu.',
+    en: 'The app is empty for now. Start by adding two buttons.',
+    zh: 'App 目前空荡荡的，先加两个按钮吧。',
+    fr: 'L’app est vide pour l’instant. Commencez par ajouter deux boutons.',
   },
   guideGoalTitle: {
-    en: 'Step 2 · What you have, what you want',
-    zh: '第 2 步 · 说出你有什么、想要什么',
-    fr: 'Étape 2 · Ce que vous avez, ce que vous voulez',
+    en: 'Step 2',
+    zh: '第 2 步',
+    fr: 'Étape 2',
   },
   guideGoalBody: {
-    en: 'One sentence becomes a quick action you can use right away.',
-    zh: '一句话，做成一个能直接用的快捷操作。',
-    fr: 'Une phrase devient une action rapide que vous pouvez utiliser tout de suite.',
+    en: 'This app takes the hassle out of working with files. Open the pictures or files you need to work on.',
+    zh: '这个 App 能简化繁琐的文件处理，打开你需要处理的图片或者文件。',
+    fr: 'Cette app simplifie les tâches fastidieuses sur les fichiers. Ouvrez les images ou les fichiers à traiter.',
   },
-  guideMore: { en: 'Or try', zh: '再试试', fr: 'Ou essayez' },
   guideUndoHint: {
     en: 'Don’t like the change? Tap Undo above to go back.',
     zh: '刚才的修改不喜欢？点上面的「撤销」就能退回去。',
@@ -1325,42 +1319,6 @@ export const strings = {
   },
   guideLater: { en: 'Later', zh: '以后再说', fr: 'Plus tard' },
   guideSkipAll: { en: 'Skip the guide', zh: '跳过引导', fr: 'Passer le guide' },
-  guideTask: {
-    en: 'Starter task: make a quick action with one sentence',
-    zh: '新手任务：一句话做一个快捷操作',
-    fr: 'Tâche de démarrage : créer une action rapide en une phrase',
-  },
-  guideAdded: { en: 'Added by AI', zh: 'AI 加的', fr: 'Ajouté par l’IA' },
-  readyTryPhotos: {
-    en: 'Try it with sample photos',
-    zh: '用示例照片试一下',
-    fr: 'Essayer avec des photos d’exemple',
-  },
-  readyTryPdfs: {
-    en: 'Try it with sample contracts',
-    zh: '用示例合同试一下',
-    fr: 'Essayer avec des contrats d’exemple',
-  },
-  readyRunOwn: {
-    en: 'Use my own files',
-    zh: '用我自己的文件',
-    fr: 'Utiliser mes propres fichiers',
-  },
-  runTryOwn: {
-    en: 'Now try it with your own files',
-    zh: '换成你自己的文件试试',
-    fr: 'Essayez avec vos propres fichiers',
-  },
-  samplePhotos: {
-    en: 'Sample photos ({n})',
-    zh: '示例照片（{n} 张）',
-    fr: 'Photos d’exemple ({n})',
-  },
-  samplePdfs: {
-    en: 'Sample contracts ({n})',
-    zh: '示例合同（{n} 份）',
-    fr: 'Contrats d’exemple ({n})',
-  },
   settingsGuide: { en: 'Show the guide again', zh: '重新看新手引导', fr: 'Revoir le guide' },
   settingsGuideHint: {
     en: 'The intro and two short exercises',
@@ -1556,6 +1514,16 @@ export const extractedMessages = {
     en: 'file list “{v0}”',
     zh: '文件列表「{v0}」',
     fr: 'liste de fichiers « {v0} »',
+  },
+  describe_quick_action_list: {
+    en: 'quick action list',
+    zh: '快捷操作列表',
+    fr: 'liste d’actions rapides',
+  },
+  describe_quick_action_list_kind: {
+    en: '“{v0}” quick action list',
+    zh: '「{v0}」快捷操作列表',
+    fr: 'liste d’actions rapides « {v0} »',
   },
   describe_quick_action_1fb38: {
     en: 'quick action “{v0}”',
@@ -2026,16 +1994,6 @@ export const extractedMessages = {
     en: 'Manage tools',
     zh: '管理工具',
     fr: 'Gérer les outils',
-  },
-  starter_What_Morph_can_do_8f4f4: {
-    en: 'What Morph can do',
-    zh: 'Morph 可以做什么',
-    fr: 'Ce que Morph peut faire',
-  },
-  starter_All_tools_0d722: {
-    en: 'All tools',
-    zh: '全部工具',
-    fr: 'Tous les outils',
   },
   defaults_Home_ec133: {
     en: 'Home',
@@ -3340,16 +3298,6 @@ const SINGULAR_MESSAGES: Partial<Record<StringKey, Localized>> = {
     en: 'You have a draft · {n} step',
     zh: '你有一份草稿 · {n} 步',
     fr: 'Vous avez un brouillon · {n} étape',
-  },
-  samplePhotos: {
-    en: 'Sample photo ({n})',
-    zh: '示例照片（{n} 张）',
-    fr: 'Photo d’exemple ({n})',
-  },
-  samplePdfs: {
-    en: 'Sample contract ({n})',
-    zh: '示例合同（{n} 份）',
-    fr: 'Contrat d’exemple ({n})',
   },
   draftDropped: {
     en: 'The app changed since you left the draft; {n} step no longer fits and was removed.',

@@ -6,6 +6,7 @@ import { Alert } from 'react-native';
 import { runErrorText, t } from '../i18n';
 import { mimeOf } from '../runtime/actions/helpers';
 import { releaseShare, useIncoming } from '../share/incoming';
+import { useGuide } from '../guide/store';
 import { useWorkspaceContext } from '../workspace/context';
 import type { RenderEnv } from './components';
 import { Button } from './ui';
@@ -43,6 +44,8 @@ export function FilePick({ source, env }: { source: 'media' | 'files'; env: Rend
       const previous = useIncoming.getState().share;
       if (previous) await releaseShare(files, previous.id);
       useIncoming.getState().receive(selected, [], 'picker');
+      // 新手引导第 2 步就是打开图片或文件（D-231）：打开了，引导结束。
+      if (useGuide.getState().stage === 'goal') void useGuide.getState().setStage('done');
       router.push('/share');
     } catch {
       Alert.alert(label, t(env.locale, 'filePickFailed'));

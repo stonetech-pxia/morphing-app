@@ -6,9 +6,16 @@ import {
   presetKinds,
   workflowKinds,
 } from './quick-actions';
+import { QuickActionListComponentSchema } from './schema';
 import { WORKFLOW_PRESETS, presetById, presetWorkflow } from './workflows/presets';
 
 describe('quick-action categories', () => {
+  it('quickActionList accepts exactly the quick action kinds', () => {
+    expect(QuickActionListComponentSchema.shape.props.shape.kind.unwrap().options).toEqual([
+      ...QUICK_ACTION_KINDS,
+    ]);
+  });
+
   it.each<[string, Record<string, unknown>, string]>([
     ['in.photos', {}, 'image'],
     ['in.photos', { source: 'scanner' }, 'document'],

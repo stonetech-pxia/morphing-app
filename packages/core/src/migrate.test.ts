@@ -49,11 +49,11 @@ const v1Snapshot = {
 };
 
 describe('migrateWorkspace', () => {
-  it('v10 → v11 preserves the entire existing workspace', () => {
+  it('v10 → v11 → v12 preserves the entire existing workspace', () => {
     const previous = { ...workspace(), schemaVersion: 10 };
     const result = prepareSnapshot(previous, registry);
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.after).toEqual({ ...previous, schemaVersion: 11 });
+    if (result.ok) expect(result.after).toEqual({ ...previous, schemaVersion: 12 });
     expect(previous.schemaVersion).toBe(10);
   });
   it('v9 → v10 preserves the existing home without adding file pickers', () => {

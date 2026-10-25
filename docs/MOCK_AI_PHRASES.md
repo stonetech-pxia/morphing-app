@@ -161,9 +161,9 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 
 评测：FG1–FG5、FG3-en、FG5-en 内置规则通过；PFG1（车里只能放 MP3）、PFG2-en（猫的短视频做成 GIF）、PFG3（电脑下载的 MKV 手机放不了）、PFG4（Word 作业要交 PDF）只要求真实模型。PSP1-en（扫出能搜索文字的 PDF：`pdf.fromImages` 的 `textLayer`，D-195）、PPW1（对账单去密码再合并：`pdf.unlock` → `pdf.merge`，D-194）、PPW2-en（合同发出去前加密码：`pdf.protect` 在最后）、PFA1（收据接到上次的报销单后面：`file.addExisting` → `pdf.merge`，D-197）、PWF1（给客人连 Wi-Fi 的二维码：`in.wifi` → `qr.generate`，或添加二维码工具，D-199）也只要求真实模型。
 
-## 新手引导的目标句（D-149）
+## 目标句（D-149）
 
-整句匹配，都以「我」开头；新建一个按目标起名的快捷操作，带预览说明（notes），默认放到首页。句子在 `core/ai/goals.ts`。
+原来是新手引导第 2 步的句子；D-231 起引导里不再有，D-233 起 AI 修改页也不再列出，用户自己这么说时内置规则照样认得。整句匹配，都以「我」开头；新建一个按目标起名的快捷操作，带预览说明（notes），默认放到首页。句子在 `core/ai/goals.ts`。
 
 | ID   | 句式（和相近说法）                                                                                                          | 预期修改                                                                          |
 | ---- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
@@ -276,6 +276,19 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 - 首页加上Morph 可以做什么 / Add What Morph can do to home
 - 添加内核的 `quickActions` 入口，打开图片、视频、音频、文档、其他分类；不生成替代的分类页面。
 - QAC1 / QAC2：中文和英文首页入口评测。
+
+### 新手引导第 1 步（D-231，GD1）
+
+- 「加入「打开相册」和「打开文件」按钮」 / `Add the “Open photo library” and “Open files” buttons`：在首页并排加上两个文件入口；已经有文件入口时回复「已经是这样了」，引导照样进入第 2 步。
+
+### 外观选项（D-230，LK1–LK5）
+
+- 「图标改成浅色底」/「图标改成实色底」 / `Use light icon backgrounds` / `Use solid icon backgrounds`：主题的 `iconStyle`。
+- 「首页入口改成大图标」/「首页入口改成列表」 / `Make the home shortcuts tiles` / `Make the home shortcuts rows`：首页所有入口卡片的 `look`。
+- 「快捷操作改成列表」/「小方块」/「卡片」 / `Show quick actions as rows|tiles|cards`：首页快捷操作的 `look`。
+- 「按钮只显示图标」 / `Make the buttons icons only`：首页按钮改成 `variant: icon`，图标用它打开的页面或系统入口的图标。
+- 「首页加上照片快捷操作」（照片 / 视频 / 音频 / 文档 / 其他） / `Add photo quick actions to home`：加一个 `quickActionList {kind}`。
+- 「首页显示全部快捷操作分类」 / `Show all quick action categories on home`：加一个不带 kind 的 `quickActionList`。
 
 ### 法语界面（D-224 / P-037）
 

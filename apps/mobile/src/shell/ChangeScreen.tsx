@@ -26,7 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAISettings } from '../ai/context';
 import { useAfterApply } from '../draft/useApplyDraft';
-import { guideText } from '../guide/store';
+import { guideText, useGuide } from '../guide/store';
 import { t } from '../i18n';
 import { Icon, UiIcon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
@@ -35,7 +35,7 @@ import { sharedAbout } from '../share/about';
 import { useIncoming } from '../share/incoming';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { DraftResult } from '../workspace/store';
-import { aboutCandidates, examplesFor } from './examples';
+import { aboutCandidates } from './examples';
 import { closeButtonOption, stackScreenOptions } from './header';
 import { NeedButton } from './NeedButton';
 import { StylePicker } from './StylePicker';
@@ -47,7 +47,6 @@ const presetPlanner = createMockAIProvider();
 const typeDelay = (length: number) => Math.min(45, 1400 / Math.max(length, 1));
 
 /** 输入框下面最多几个例子（不算「换个风格」）。 */
-const MAX_EXAMPLES = 2;
 
 /**
  * AI 修改入口（§4、D-190、D-191）：一个带发送箭头的输入框和几个例子。
@@ -82,7 +81,8 @@ export function ChangeScreen() {
     next?: string;
     text?: string;
   }>();
-  // 从新手引导打开（D-149）：句子自动打进输入框，用内置规则处理。
+  // 从新手引导第 1 步打开（D-149、D-231）：句子打进输入框后停下，用户自己点发送；
+  // 发送后直接生效，不进草稿。
   const [guide] = useState(() =>
     guideText(params.guide, locale) !== null ? params.guide : undefined,
   );
@@ -90,6 +90,9 @@ export function ChangeScreen() {
   // 法语引导的句子交给设置里的 AI；设置里选的是内置规则（不认法语）时，照旧发英文句子（D-228）。
   const guideLocale = locale === 'fr' && aiMode === 'mock' ? 'en' : locale;
   const [auto] = useState(() => guideText(guide, guideLocale) ?? (params.next ? next : null));
+  const propose = useWorkspace((s) => s.propose);
+  const confirm = useWorkspace((s) => s.confirm);
+  const setGuideStage = useGuide((s) => s.setStage);
   const [typing, setTyping] = useState(() => auto !== null);
   const share = useIncoming((s) => s.share);
   // 打开这一页时是哪一批（分享的、App 里选的、上一次的结果）：之后又分享进来一批，卡片上的说法也不变。
@@ -119,13 +122,12 @@ export function ChangeScreen() {
           (c) => c.type === 'workflowRunner' && c.props.workflowId === about.workflowId,
         ),
     );
-  // 有上下文时的例子（D-124）；内置规则只留它真的认得的句子，所以先试一遍再显示。
+  // 有上下文时输入框里提示的例子（D-124）；内置规则只留它真的认得的句子，所以先试一遍。
+  // 页面上不再列出预设的句子（D-233），只留「换个风格」。
   const [examples, setExamples] = useState<readonly string[]>(() =>
-    !about
-      ? examplesFor(aiMode, locale)
-      : aiMode === 'mock'
-        ? []
-        : aboutCandidates(about, aiMode, locale, { onHome: aboutOnHome }),
+    !about || aiMode === 'mock'
+      ? []
+      : aboutCandidates(about, aiMode, locale, { onHome: aboutOnHome }),
   );
   useEffect(() => {
     if (!about || aiMode !== 'mock') return;
@@ -174,8 +176,22 @@ export function ChangeScreen() {
     // 「撤销」会立即回到上一个版本、可能换主题：先把这个页面的导航栏固定住。Android 上带「关闭」
     // 按钮的导航栏在这时更新会崩（react-native-screens：child already has a parent）。
     navigation.setOptions({ ...stackScreenOptions(palette), ...closeButtonOption(palette) });
+    if (guide) {
+      // 顶部照常「已改好 · 撤销」；回到首页显示第 2 步。
+      const proposed = await propose(text.trim(), offline ? presetPlanner : undefined);
+      // 重新看引导时首页已经有这两个按钮：第 1 步算做完了。
+      const already = proposed.kind === 'rejected' && proposed.reason === 'noChange';
+      if (!already && (proposed.kind === 'rejected' || proposed.kind === 'invalid')) {
+        setFeedback(proposed);
+        setAsked(text.trim());
+        return;
+      }
+      if (!already && (proposed.kind !== 'preview' || !(await confirm()))) return;
+      void setGuideStage('goal');
+      leave();
+      return;
+    }
     const result = await change(text.trim(), offline ? presetPlanner : undefined, {
-      ...(guide ? { guide } : {}),
       ...(about ? { about } : {}),
     });
     if (result.kind === 'rejected' || result.kind === 'invalid') {
@@ -194,7 +210,8 @@ export function ChangeScreen() {
     if (result.kind === 'applied') afterApply(result.applied);
   }
 
-  // 引导和「接着改」的句子一个字一个字打进输入框，打完自动处理：用户看到「原来可以这么说」。
+  // 引导和「接着改」的句子一个字一个字打进输入框：用户看到「原来可以这么说」。引导的句子停下等用户发送，
+  // 「接着改」打完自动处理。
   useEffect(() => {
     const text = auto;
     if (!text) return;
@@ -205,9 +222,12 @@ export function ChangeScreen() {
       if (shown < text.length) return;
       clearInterval(timer);
       setTyping(false);
-      if (guide) setPresetText(text);
       // 引导的句子中英文用内置规则；法语内置规则不认，交给设置里的 AI（见 guide/store.ts）。
-      void submit(text, !!guide && guideLocale !== 'fr');
+      if (guide) {
+        if (guideLocale !== 'fr') setPresetText(text);
+        return;
+      }
+      void submit(text, false);
     }, typeDelay(text.length));
     return () => clearInterval(timer);
     // 只在打开时打一次。
@@ -396,17 +416,15 @@ export function ChangeScreen() {
 
         {guide ? null : (
           <View style={styles.chips} testID="change-examples">
-            {(next && !auto ? [next, ...examples.filter((e) => e !== next)] : examples)
-              .slice(0, MAX_EXAMPLES)
-              .map((example) => (
-                <Chip
-                  key={example}
-                  label={example}
-                  palette={palette}
-                  onPress={() => setInput(example)}
-                  {...(example === next ? { testID: 'change-next' } : {})}
-                />
-              ))}
+            {/* 「接着改」是用户自己那句话剩下的部分（D-191），不是预设的句子。 */}
+            {next && !auto ? (
+              <Chip
+                testID="change-next"
+                label={next}
+                palette={palette}
+                onPress={() => setInput(next)}
+              />
+            ) : null}
             {about ? null : (
               <Chip
                 testID="change-pick-style"

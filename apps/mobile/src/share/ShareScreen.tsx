@@ -307,6 +307,14 @@ export function ShareScreen() {
         </Card>
       ) : (
         <>
+          {/* 「我要自己说」放在快捷操作上面（D-233）。 */}
+          <Button
+            palette={palette}
+            testID="share-ask-ai"
+            variant="outline"
+            label={t(locale, 'shareDescribe')}
+            onPress={askAI}
+          />
           {candidates.length > 0 ? (
             <SectionLabel palette={palette}>
               {t(locale, anyUsed ? 'shareRecent' : 'shareSuggested')}
@@ -322,13 +330,6 @@ export function ShareScreen() {
               onPress={() => setShowAll(true)}
             />
           ) : null}
-          <Button
-            palette={palette}
-            testID="share-ask-ai"
-            variant="outline"
-            label={t(locale, 'shareDescribe')}
-            onPress={askAI}
-          />
         </>
       )}
       <Text style={caption}>

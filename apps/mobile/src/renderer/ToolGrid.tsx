@@ -6,6 +6,7 @@ import { t } from '../i18n';
 import { useWorkspace } from '../workspace/context';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
+import { iconColors } from './theme';
 import { Card, IconTile } from './ui';
 
 const COLUMNS = 3;
@@ -94,8 +95,9 @@ export function ToolGrid({
                     palette={palette}
                     icon={def.icon}
                     size={40}
-                    background={installed ? palette.primaryTint : palette.border}
-                    color={installed ? palette.primaryText : palette.caption}
+                    {...(installed
+                      ? iconColors(palette, 'tint')
+                      : { background: palette.border, color: palette.caption })}
                   />
                   {installed ? null : (
                     <View

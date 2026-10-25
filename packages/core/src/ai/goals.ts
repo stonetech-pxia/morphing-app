@@ -5,14 +5,15 @@ import type { IconName, Locale, Localized, Workflow } from '../schema';
 import { newWorkflowId } from '../workflows/presets';
 import type { Plan, PlanContext } from './types';
 
-// 新手引导里的「我有什么，我想要什么」（D-149）：一句简单的目标，搭出一个能直接用的多步快捷操作。
+// 「我有什么，我想要什么」的目标句（D-149）：一句简单的目标，搭出一个能直接用的多步快捷操作。
+// 原来是新手引导第 2 步的句子和 AI 修改页的例子（D-231、D-233 起都不再显示）；用户自己这么说时内置规则照样认得。
 // 内置规则只认这几句（和相近的说法）；别的目标说法交给真实模型（planner 规则 22）。
 
-export type GuideGoalId = 'trip-photos' | 'big-video' | 'contracts';
+export type GoalId = 'trip-photos' | 'big-video' | 'contracts';
 
-export interface GuideGoal {
-  id: GuideGoalId;
-  /** 引导里显示、点一下就打进输入框的原句。 */
+export interface Goal {
+  id: GoalId;
+  /** 原句（测试用这个说法）。 */
   text: Localized;
   /** 整句匹配；都以「我」开头，不会抢走「添加视频太大发不出去快捷操作」这类句子。 */
   match: readonly RegExp[];
@@ -21,16 +22,12 @@ export interface GuideGoal {
   steps(locale: Locale): Workflow['steps'];
   /** 预览里的说明：AI 自己补上的步骤为什么要加（D-110，最多 2 句）。 */
   notes: readonly Localized[];
-  /** 用户没说、AI 按用途补上的步骤（引导里标出来）。 */
-  added: readonly string[];
-  /** 引导里能不能用内置的示例文件运行（视频不带示例，太占安装包）。 */
-  sample: 'photos' | 'pdfs' | null;
 }
 
 const share = { id: 'share', action: 'out.share', params: {} };
 const rename = (template: string) => ({ id: 'name', action: 'file.rename', params: { template } });
 
-export const GUIDE_GOALS: readonly GuideGoal[] = [
+export const GOALS: readonly Goal[] = [
   {
     id: 'trip-photos',
     text: {
@@ -69,8 +66,6 @@ export const GUIDE_GOALS: readonly GuideGoal[] = [
         fr: 'Localisation supprimée des photos, personne ne peut voir où vous les avez prises.',
       },
     ],
-    added: ['jpg', 'clean'],
-    sample: 'photos',
   },
   {
     id: 'big-video',
@@ -110,8 +105,6 @@ export const GUIDE_GOALS: readonly GuideGoal[] = [
         fr: 'Enregistrée en MP4, lisible sur n’importe quel téléphone ou ordinateur.',
       },
     ],
-    added: [],
-    sample: null,
   },
   {
     id: 'contracts',
@@ -160,17 +153,13 @@ export const GUIDE_GOALS: readonly GuideGoal[] = [
         fr: 'Le nom du fichier contient la date, pour le retrouver facilement plus tard.',
       },
     ],
-    added: ['compress', 'name'],
-    sample: 'pdfs',
   },
 ];
 
-export const guideGoal = (id: GuideGoalId) => GUIDE_GOALS.find((g) => g.id === id)!;
-
-/** 句子是引导里的目标之一（或相近说法）时，返回对应的计划；否则 null，交给别的规则。 */
+/** 句子是这几个目标之一（或相近说法）时，返回对应的计划；否则 null，交给别的规则。 */
 export function goalPlan(input: string, ctx: PlanContext): Plan | null {
   const text = input.trim().replace(/[。.!！]+$/, '');
-  const goal = GUIDE_GOALS.find((g) => g.match.some((re) => re.test(text)));
+  const goal = GOALS.find((g) => g.match.some((re) => re.test(text)));
   if (!goal) return null;
   const taken = ctx.config.workflows;
   const base = localize(goal.name, ctx.locale);

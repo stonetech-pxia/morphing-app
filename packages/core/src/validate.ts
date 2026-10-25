@@ -125,6 +125,9 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
           issue('duplicate', `tool ${toolId} in component ${c.id}`);
         }
       }
+      if (c.type === 'button' && c.props.variant === 'icon' && !c.props.icon) {
+        issue('schema', `icon button ${c.id} on page ${page.id} needs an icon`);
+      }
       if (c.type === 'workflowRunner' && !workflowIds.has(c.props.workflowId)) {
         issue('unknown-workflow', `component ${c.id} runs missing workflow ${c.props.workflowId}`);
       }

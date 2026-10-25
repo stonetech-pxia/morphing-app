@@ -129,6 +129,12 @@ export const migrateV9toV10: Migration = (config) => ({ ...config, schemaVersion
 /** v10 → v11：允许分类系统入口，保持老用户的首页原样。 */
 export const migrateV10toV11: Migration = (config) => ({ ...config, schemaVersion: 11 });
 
+/**
+ * v11 → v12：入口卡片和快捷操作可以选样子，按钮可以带图标，主题多了图标底色，新增快捷操作列表组件（D-230）；
+ * 已有数据不需要改动，只提升版本号。
+ */
+export const migrateV11toV12: Migration = (config) => ({ ...config, schemaVersion: 12 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -141,6 +147,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   8: migrateV8toV9,
   9: migrateV9toV10,
   10: migrateV10toV11,
+  11: migrateV11toV12,
 };
 
 export type MigrateResult =

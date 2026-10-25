@@ -1,10 +1,9 @@
-import { createStarterWorkspace } from '@morph/core';
 import { fireEvent } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
 
 import { useIncoming } from '../share/incoming';
 import { makePdf } from '../test-utils/fake-files';
-import { renderToolsApp } from '../test-utils/render-app';
+import { renderToolsApp, starterAfterGuide } from '../test-utils/render-app';
 
 // D-200：真实路由的 App 内点击计数；假选择器 / 媒体平台，不冒充模拟器、系统分享或耗时测量。
 afterEach(() => useIncoming.getState().clear());
@@ -15,7 +14,7 @@ it.each([
 ] as const)(
   '%s (%s): first and second use finish with %i App taps',
   async (preset, source, expected) => {
-    const { files } = await renderToolsApp(undefined, undefined, { seed: createStarterWorkspace });
+    const { files } = await renderToolsApp(undefined, undefined, { seed: starterAfterGuide });
     const traces: string[][] = [];
     for (const iteration of [0, 1]) {
       const trace: string[] = [];

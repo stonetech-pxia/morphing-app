@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  StyleSheet,
   Text,
   View,
   type StyleProp,
@@ -11,7 +12,7 @@ import {
 
 import { GlassFill } from './GlassFill';
 import { Icon } from './Icon';
-import type { Palette } from './theme';
+import { iconColors, type Palette } from './theme';
 
 // Clay 风格的基础界面元素（对应 Docudis 的 clay_widgets）。配置渲染器和系统页面共用，
 // 所以主题里的颜色、字体、圆角和间距会作用到整个 App。
@@ -97,13 +98,17 @@ export function IconTile({
   );
 }
 
-/** 主按钮（52pt 高）、描边按钮和文字按钮。 */
+/**
+ * 主按钮（52pt 高）、描边按钮和文字按钮；icon 显示在文字前面。
+ * variant 为 icon 时只显示一个圆形图标，文字留给读屏（D-230）。
+ */
 export function Button({
   palette,
   label,
   onPress,
   onLongPress,
   variant = 'filled',
+  icon,
   disabled,
   loading,
   danger,
@@ -114,13 +119,37 @@ export function Button({
   label: string;
   onPress?: () => void;
   onLongPress?: () => void;
-  variant?: 'filled' | 'outline' | 'text';
+  variant?: 'filled' | 'outline' | 'text' | 'icon';
+  icon?: IconValue;
   disabled?: boolean;
   loading?: boolean;
   danger?: boolean;
   testID?: string;
   style?: StyleProp<ViewStyle>;
 }) {
+  if (variant === 'icon' && icon) {
+    const colors = iconColors(palette, 'solid');
+    return (
+      <Pressable
+        testID={testID}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        onPress={onPress}
+        onLongPress={onLongPress}
+        disabled={disabled || loading}
+        style={({ pressed }) => [
+          styles.iconButton,
+          { backgroundColor: colors.background, opacity: disabled ? 0.5 : pressed ? 0.7 : 1 },
+          style,
+        ]}>
+        {loading ? (
+          <ActivityIndicator color={colors.color} />
+        ) : (
+          <Icon name={icon} size={24} color={colors.color} />
+        )}
+      </Pressable>
+    );
+  }
   const accent = danger ? palette.danger : palette.primary;
   const filled = variant === 'filled';
   const color = filled ? palette.onPrimary : danger ? palette.danger : palette.primaryText;
@@ -150,6 +179,11 @@ export function Button({
       ]}>
       {loading ? (
         <ActivityIndicator color={color} />
+      ) : icon ? (
+        <View style={styles.labelRow}>
+          <Icon name={icon} size={20} color={color} />
+          <Text style={[palette.font('title', 16), { color }]}>{label}</Text>
+        </View>
       ) : (
         <Text style={[palette.font('title', 16), { color }]}>{label}</Text>
       )}
@@ -242,13 +276,7 @@ export function ListRow({
     <Card palette={palette} onPress={onPress} testID={testID}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
         {icon ? (
-          <IconTile
-            palette={palette}
-            icon={icon}
-            size={40}
-            background={palette.primaryTint}
-            color={palette.primaryText}
-          />
+          <IconTile palette={palette} icon={icon} size={40} {...iconColors(palette, 'tint')} />
         ) : null}
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[palette.font('title', 16), { color: palette.text }]}>{label}</Text>
@@ -263,3 +291,15 @@ export function ListRow({
     </Card>
   );
 }
+
+const styles = StyleSheet.create({
+  iconButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+  },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+});
