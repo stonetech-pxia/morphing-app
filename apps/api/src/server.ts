@@ -52,7 +52,7 @@ export interface ServerOptions {
 export interface NeedEntry {
   at: string;
   text: string;
-  locale: 'en' | 'zh';
+  locale: 'en' | 'zh' | 'fr';
   reason: string;
   /** 用的是哪种 AI：mock（内置规则）、server、byok。内置规则听不懂的句子很多是规则本身的限制。 */
   ai?: string | undefined;
@@ -66,7 +66,7 @@ export interface NeedStore {
 
 const NeedRequestSchema = z.strictObject({
   text: z.string().trim().min(1).max(500),
-  locale: z.enum(['en', 'zh']),
+  locale: z.enum(['en', 'zh', 'fr']),
   reason: z.enum(['unknown', 'errand', 'notInstalled']),
   ai: z.enum(['mock', 'server', 'byok']).optional(),
   platform: z.enum(['ios', 'android']).optional(),

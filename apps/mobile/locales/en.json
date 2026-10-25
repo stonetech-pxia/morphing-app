@@ -1,0 +1,12 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "Morph accesses your photo library when you choose photos or videos to process. Your files stay on this device.",
+    "NSPhotoLibraryAddUsageDescription": "Morph saves photos and videos to your library only when you ask it to.",
+    "NSCameraUsageDescription": "Morph uses the camera when you take a photo or scan a document. Photos stay on this device.",
+    "NSMicrophoneUsageDescription": "Morph uses the microphone when you record audio. Recordings stay on this device.",
+    "NSSpeechRecognitionUsageDescription": "Morph transcribes recordings on this device when you run speech to text. Recordings stay on this device."
+  },
+  "android": {
+    "app_name": "Morph"
+  }
+}

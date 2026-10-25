@@ -30,7 +30,7 @@ export interface ThemePreset {
 
 export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
   ios: {
-    name: { zh: 'iOS 原生', en: 'iOS' },
+    name: { zh: 'iOS 原生', en: 'iOS', fr: 'iOS natif' },
     description: 'Apple system look: grouped gray background, white cards, system blue',
     theme: {
       primaryColor: '#007AFF',
@@ -58,7 +58,7 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
     },
   },
   material: {
-    name: { zh: 'Material You', en: 'Material You' },
+    name: { zh: 'Material You', en: 'Material You', fr: 'Material You' },
     description: 'Google Material 3: tonal purple surfaces, large rounded cards',
     theme: {
       primaryColor: '#6750A4',
@@ -86,7 +86,7 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
     },
   },
   editorial: {
-    name: { zh: '杂志', en: 'Editorial' },
+    name: { zh: '杂志', en: 'Editorial', fr: 'Magazine' },
     description: 'Magazine layout: serif type, paper background, hairline borders, red accent',
     theme: {
       primaryColor: '#B3261E',
@@ -114,7 +114,7 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
     },
   },
   pastel: {
-    name: { zh: '马卡龙', en: 'Pastel' },
+    name: { zh: '马卡龙', en: 'Pastel', fr: 'Pastel' },
     description: 'Soft wellness look: peach background, coral and mint, very round cards',
     theme: {
       primaryColor: '#F0794F',
@@ -142,7 +142,7 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
     },
   },
   nature: {
-    name: { zh: '自然', en: 'Nature' },
+    name: { zh: '自然', en: 'Nature', fr: 'Nature' },
     description: 'Earthy biophilic look: fern green, sienna and ochre over a soft gradient',
     theme: {
       primaryColor: '#4F7942',
@@ -171,7 +171,7 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
     },
   },
   terminal: {
-    name: { zh: '终端', en: 'Terminal' },
+    name: { zh: '终端', en: 'Terminal', fr: 'Terminal' },
     description: 'Developer terminal: always dark, monospace, compact, green accent, outlined',
     theme: {
       primaryColor: '#22C55E',
@@ -192,7 +192,7 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
     },
   },
   neon: {
-    name: { zh: '赛博霓虹', en: 'Neon' },
+    name: { zh: '赛博霓虹', en: 'Neon', fr: 'Néon cyberpunk' },
     description: 'Cyberpunk: always dark, aurora glow background, cyan neon-glowing cards',
     theme: {
       primaryColor: '#22D3EE',
@@ -214,7 +214,7 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
     },
   },
   claymorphism: {
-    name: { zh: '黏土', en: 'Claymorphism' },
+    name: { zh: '黏土', en: 'Claymorphism', fr: 'Claymorphisme' },
     description: 'Playful 3D clay: lavender pastels, puffy cards with an inner highlight',
     theme: {
       primaryColor: '#8B5CF6',
@@ -242,7 +242,7 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
     },
   },
   brutalist: {
-    name: { zh: '新粗野', en: 'Neubrutalism' },
+    name: { zh: '新粗野', en: 'Neubrutalism', fr: 'Neubrutalisme' },
     description: 'Neubrutalism: cream background, thick outlines, hard offset shadows, loud colors',
     theme: {
       primaryColor: '#FF5C39',
@@ -270,7 +270,7 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
     },
   },
   neumorphism: {
-    name: { zh: '新拟物', en: 'Neumorphism' },
+    name: { zh: '新拟物', en: 'Neumorphism', fr: 'Neumorphisme' },
     description:
       'Soft UI: cards the same color as the background, raised by light and dark shadows',
     theme: {
@@ -299,7 +299,7 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
     },
   },
   glass: {
-    name: { zh: '液态玻璃', en: 'Liquid Glass' },
+    name: { zh: '液态玻璃', en: 'Liquid Glass', fr: 'Verre liquide' },
     description:
       'Glassmorphism / Liquid Glass: aurora background behind translucent frosted-glass cards',
     theme: {
@@ -329,7 +329,7 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
     },
   },
   y2k: {
-    name: { zh: 'Y2K 千禧', en: 'Y2K' },
+    name: { zh: 'Y2K 千禧', en: 'Y2K', fr: 'Y2K' },
     description:
       'Y2K chrome: pink-to-blue gradient background, glossy metallic cards, hot pink accent',
     theme: {

@@ -34,10 +34,11 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'scan',
     version: '1.4.3',
-    name: { en: 'Document scanner', zh: '拉正照片' },
+    name: { en: 'Document scanner', zh: '拉正照片', fr: 'Numérisation de documents' },
     description: {
       en: 'Finds the edges of paper in a photo and straightens it (OpenCV.js + jscanify).',
       zh: '在照片里找到纸张的边，并把它拉正（OpenCV.js + jscanify）。',
+      fr: 'Trouve les bords d’une feuille de papier dans une photo et la redresse (OpenCV.js + jscanify).',
     },
     license: 'MIT (jscanify 1.4.3) + Apache-2.0 (OpenCV 4.7.0)',
     files: [
@@ -64,10 +65,11 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'ocr',
     version: '7.0.0',
-    name: { en: 'Text recognition', zh: '文字识别' },
+    name: { en: 'Text recognition', zh: '文字识别', fr: 'Reconnaissance de texte' },
     description: {
       en: 'Reads printed text in photos (tesseract.js). Each language is a separate download.',
       zh: '识别照片里的印刷文字（tesseract.js）。每种语言单独下载。',
+      fr: 'Lit le texte imprimé dans les photos (tesseract.js). Chaque langue se télécharge séparément.',
     },
     license: 'Apache-2.0 (tesseract.js 7.0.0, tesseract.js-core 7.0.0)',
     files: [
@@ -112,8 +114,16 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'ocr-eng',
     version: '4.0.0',
-    name: { en: 'Text recognition: English', zh: '文字识别：英文' },
-    description: { en: 'English language model.', zh: '英文语言模型。' },
+    name: {
+      en: 'Text recognition: English',
+      zh: '文字识别：英文',
+      fr: 'Reconnaissance de texte : anglais',
+    },
+    description: {
+      en: 'English language model.',
+      zh: '英文语言模型。',
+      fr: 'Modèle de langue anglaise.',
+    },
     license: 'Apache-2.0 (tessdata_best 4.0.0_best_int)',
     requires: ['ocr'],
     files: [
@@ -128,8 +138,16 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'ocr-chi-sim',
     version: '4.0.0',
-    name: { en: 'Text recognition: Chinese (Simplified)', zh: '文字识别：简体中文' },
-    description: { en: 'Chinese (Simplified) language model.', zh: '简体中文语言模型。' },
+    name: {
+      en: 'Text recognition: Chinese (Simplified)',
+      zh: '文字识别：简体中文',
+      fr: 'Reconnaissance de texte : chinois simplifié',
+    },
+    description: {
+      en: 'Chinese (Simplified) language model.',
+      zh: '简体中文语言模型。',
+      fr: 'Modèle de langue chinois simplifié.',
+    },
     license: 'Apache-2.0 (tessdata_best 4.0.0_best_int)',
     requires: ['ocr'],
     files: [
@@ -144,8 +162,16 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'ocr-chi-tra',
     version: '4.0.0',
-    name: { en: 'Text recognition: Chinese (Traditional)', zh: '文字识别：繁体中文' },
-    description: { en: 'Chinese (Traditional) language model.', zh: '繁体中文语言模型。' },
+    name: {
+      en: 'Text recognition: Chinese (Traditional)',
+      zh: '文字识别：繁体中文',
+      fr: 'Reconnaissance de texte : chinois traditionnel',
+    },
+    description: {
+      en: 'Chinese (Traditional) language model.',
+      zh: '繁体中文语言模型。',
+      fr: 'Modèle de langue chinois traditionnel.',
+    },
     license: 'Apache-2.0 (tessdata_best 4.0.0_best_int)',
     requires: ['ocr'],
     files: [
@@ -160,8 +186,16 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'ocr-jpn',
     version: '4.0.0',
-    name: { en: 'Text recognition: Japanese', zh: '文字识别：日文' },
-    description: { en: 'Japanese language model.', zh: '日文语言模型。' },
+    name: {
+      en: 'Text recognition: Japanese',
+      zh: '文字识别：日文',
+      fr: 'Reconnaissance de texte : japonais',
+    },
+    description: {
+      en: 'Japanese language model.',
+      zh: '日文语言模型。',
+      fr: 'Modèle de langue japonaise.',
+    },
     license: 'Apache-2.0 (tessdata_best 4.0.0_best_int)',
     requires: ['ocr'],
     files: [
@@ -176,8 +210,16 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'ocr-kor',
     version: '4.0.0',
-    name: { en: 'Text recognition: Korean', zh: '文字识别：韩文' },
-    description: { en: 'Korean language model.', zh: '韩文语言模型。' },
+    name: {
+      en: 'Text recognition: Korean',
+      zh: '文字识别：韩文',
+      fr: 'Reconnaissance de texte : coréen',
+    },
+    description: {
+      en: 'Korean language model.',
+      zh: '韩文语言模型。',
+      fr: 'Modèle de langue coréenne.',
+    },
     license: 'Apache-2.0 (tessdata_best 4.0.0_best_int)',
     requires: ['ocr'],
     files: [
@@ -192,8 +234,16 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'ocr-fra',
     version: '4.0.0',
-    name: { en: 'Text recognition: French', zh: '文字识别：法文' },
-    description: { en: 'French language model.', zh: '法文语言模型。' },
+    name: {
+      en: 'Text recognition: French',
+      zh: '文字识别：法文',
+      fr: 'Reconnaissance de texte : français',
+    },
+    description: {
+      en: 'French language model.',
+      zh: '法文语言模型。',
+      fr: 'Modèle de langue française.',
+    },
     license: 'Apache-2.0 (tessdata_best 4.0.0_best_int)',
     requires: ['ocr'],
     files: [
@@ -208,8 +258,16 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'ocr-deu',
     version: '4.0.0',
-    name: { en: 'Text recognition: German', zh: '文字识别：德文' },
-    description: { en: 'German language model.', zh: '德文语言模型。' },
+    name: {
+      en: 'Text recognition: German',
+      zh: '文字识别：德文',
+      fr: 'Reconnaissance de texte : allemand',
+    },
+    description: {
+      en: 'German language model.',
+      zh: '德文语言模型。',
+      fr: 'Modèle de langue allemande.',
+    },
     license: 'Apache-2.0 (tessdata_best 4.0.0_best_int)',
     requires: ['ocr'],
     files: [
@@ -224,8 +282,16 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'ocr-spa',
     version: '4.0.0',
-    name: { en: 'Text recognition: Spanish', zh: '文字识别：西班牙文' },
-    description: { en: 'Spanish language model.', zh: '西班牙文语言模型。' },
+    name: {
+      en: 'Text recognition: Spanish',
+      zh: '文字识别：西班牙文',
+      fr: 'Reconnaissance de texte : espagnol',
+    },
+    description: {
+      en: 'Spanish language model.',
+      zh: '西班牙文语言模型。',
+      fr: 'Modèle de langue espagnole.',
+    },
     license: 'Apache-2.0 (tessdata_best 4.0.0_best_int)',
     requires: ['ocr'],
     files: [
@@ -240,8 +306,16 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'ocr-por',
     version: '4.0.0',
-    name: { en: 'Text recognition: Portuguese', zh: '文字识别：葡萄牙文' },
-    description: { en: 'Portuguese language model.', zh: '葡萄牙文语言模型。' },
+    name: {
+      en: 'Text recognition: Portuguese',
+      zh: '文字识别：葡萄牙文',
+      fr: 'Reconnaissance de texte : portugais',
+    },
+    description: {
+      en: 'Portuguese language model.',
+      zh: '葡萄牙文语言模型。',
+      fr: 'Modèle de langue portugaise.',
+    },
     license: 'Apache-2.0 (tessdata_best 4.0.0_best_int)',
     requires: ['ocr'],
     files: [
@@ -256,8 +330,16 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'ocr-ita',
     version: '4.0.0',
-    name: { en: 'Text recognition: Italian', zh: '文字识别：意大利文' },
-    description: { en: 'Italian language model.', zh: '意大利文语言模型。' },
+    name: {
+      en: 'Text recognition: Italian',
+      zh: '文字识别：意大利文',
+      fr: 'Reconnaissance de texte : italien',
+    },
+    description: {
+      en: 'Italian language model.',
+      zh: '意大利文语言模型。',
+      fr: 'Modèle de langue italienne.',
+    },
     license: 'Apache-2.0 (tessdata_best 4.0.0_best_int)',
     requires: ['ocr'],
     files: [
@@ -272,8 +354,16 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'ocr-rus',
     version: '4.0.0',
-    name: { en: 'Text recognition: Russian', zh: '文字识别：俄文' },
-    description: { en: 'Russian language model.', zh: '俄文语言模型。' },
+    name: {
+      en: 'Text recognition: Russian',
+      zh: '文字识别：俄文',
+      fr: 'Reconnaissance de texte : russe',
+    },
+    description: {
+      en: 'Russian language model.',
+      zh: '俄文语言模型。',
+      fr: 'Modèle de langue russe.',
+    },
     license: 'Apache-2.0 (tessdata_best 4.0.0_best_int)',
     requires: ['ocr'],
     files: [
@@ -288,8 +378,16 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'ocr-vie',
     version: '4.0.0',
-    name: { en: 'Text recognition: Vietnamese', zh: '文字识别：越南文' },
-    description: { en: 'Vietnamese language model.', zh: '越南文语言模型。' },
+    name: {
+      en: 'Text recognition: Vietnamese',
+      zh: '文字识别：越南文',
+      fr: 'Reconnaissance de texte : vietnamien',
+    },
+    description: {
+      en: 'Vietnamese language model.',
+      zh: '越南文语言模型。',
+      fr: 'Modèle de langue vietnamienne.',
+    },
     license: 'Apache-2.0 (tessdata_best 4.0.0_best_int)',
     requires: ['ocr'],
     files: [
@@ -304,10 +402,11 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'pdfview',
     version: '6.4.299',
-    name: { en: 'PDF preview', zh: 'PDF 预览' },
+    name: { en: 'PDF preview', zh: 'PDF 预览', fr: 'Aperçu PDF' },
     description: {
       en: 'Shows PDF pages as pictures (thumbnails, PDF to images, placing a signature) and reads text from PDFs (pdf.js).',
       zh: '把 PDF 页面显示成图片（缩略图、PDF 转图片、放签名）并读出 PDF 里的文字（pdf.js）。',
+      fr: 'Affiche les pages PDF sous forme d’images (vignettes, conversion PDF en images, ajout d’une signature) et lit le texte des PDF (pdf.js).',
     },
     license: 'Apache-2.0 (pdf.js 6.4.299); cmaps, fonts and decoders BSD',
     files: [
@@ -1452,10 +1551,11 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'speech-vad',
     version: '6.2.0',
-    name: { en: 'Speech detection', zh: '语音检测' },
+    name: { en: 'Speech detection', zh: '语音检测', fr: 'Détection de la parole' },
     description: {
       en: 'Finds where people are talking in a recording, so silence and music are skipped (Silero VAD).',
       zh: '找出录音里有人说话的部分，跳过静音和音乐（Silero VAD）。',
+      fr: 'Repère les passages où l’on parle dans un enregistrement, pour ignorer les silences et la musique (Silero VAD).',
     },
     license: 'MIT (Silero VAD, ggml conversion by whisper.cpp)',
     files: [
@@ -1470,10 +1570,11 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'speech-whisper-small',
     version: '1.0.0',
-    name: { en: 'Speech to text', zh: '语音转文字' },
+    name: { en: 'Speech to text', zh: '语音转文字', fr: 'Transcription' },
     description: {
       en: 'Turns recordings into text on this device (whisper small). Better for Chinese, slower.',
       zh: '在本机把录音转成文字（whisper small）。中文更准，速度慢一些。',
+      fr: 'Transcrit les enregistrements en texte sur cet appareil (whisper small). Meilleur pour le chinois, mais plus lent.',
     },
     license: 'MIT (OpenAI Whisper small, ggml q5_1 by whisper.cpp)',
     requires: ['speech-vad'],
@@ -1489,10 +1590,11 @@ export const PACKS: readonly PackManifest[] = [
   {
     id: 'speech-whisper-base',
     version: '1.0.0',
-    name: { en: 'Speech to text (fast)', zh: '语音转文字（快速）' },
+    name: { en: 'Speech to text (fast)', zh: '语音转文字（快速）', fr: 'Transcription (rapide)' },
     description: {
       en: 'Turns recordings into text on this device (whisper base). About 3 times faster, less accurate for Chinese.',
       zh: '在本机把录音转成文字（whisper base）。快约 3 倍，中文错字多一些。',
+      fr: 'Transcrit les enregistrements en texte sur cet appareil (whisper base). Environ 3 fois plus rapide, mais moins précis pour le chinois.',
     },
     license: 'MIT (OpenAI Whisper base, ggml q5_1 by whisper.cpp)',
     requires: ['speech-vad'],

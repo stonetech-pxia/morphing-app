@@ -77,8 +77,8 @@ describe('extension packs', () => {
     const manifest = {
       id: 'speech-whisper-small',
       version: '1.0.0',
-      name: { en: '', zh: '' },
-      description: { en: '', zh: '' },
+      name: { en: '', zh: '', fr: '' },
+      description: { en: '', zh: '', fr: '' },
       license: 'MIT',
       files: [
         { path: 'model.bin', url: 'https://hf/model.bin', size: big, sha256: 'a'.repeat(64) },

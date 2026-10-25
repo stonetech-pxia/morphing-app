@@ -256,7 +256,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
                   <Text style={[palette.font('body', 13), { color: palette.muted }]}>
                     {tooNew
                       ? t(locale, 'toolNeedsAppUpdate')
-                      : t(locale, 'toolDownloadSize', { size: formatSize(entry.size) })}
+                      : t(locale, 'toolDownloadSize', { size: formatSize(entry.size, locale) })}
                   </Text>
                 </View>
               </View>

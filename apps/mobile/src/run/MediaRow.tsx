@@ -59,7 +59,7 @@ export function MediaRow({
   const [open, setOpen] = useState(false);
   const fileName = `${item.name}.${item.ext}`;
   const kind = mediaKindOf(item.mimeType, item.ext);
-  const duration = item.durationMs ? formatTime(item.durationMs) : null;
+  const duration = item.durationMs ? formatTime(item.durationMs, false, locale) : null;
   return (
     <View style={styles.item} testID={`result-item-${fileName}`}>
       <View

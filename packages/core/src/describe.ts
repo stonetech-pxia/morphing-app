@@ -428,19 +428,19 @@ export function describeChange(
         break;
       case 'setComponentProps': {
         const propNames: Record<string, import('./schema').Localized> = {
-          title: { zh: '标题', en: 'title' },
-          subtitle: { zh: '副标题', en: 'subtitle' },
-          text: { zh: '文字', en: 'text' },
-          label: { zh: '文字', en: 'label' },
-          layout: { zh: '排列方式', en: 'layout' },
-          columns: { zh: '列数', en: 'columns' },
-          icon: { zh: '图标', en: 'icon' },
-          target: { zh: '打开的页面', en: 'target' },
-          variant: { zh: '样式', en: 'variant' },
-          aspect: { zh: '比例', en: 'aspect' },
-          fit: { zh: '填充方式', en: 'fit' },
-          caption: { zh: '说明', en: 'caption' },
-          placeholder: { zh: '提示', en: 'placeholder' },
+          title: { zh: '标题', en: 'title', fr: 'titre' },
+          subtitle: { zh: '副标题', en: 'subtitle', fr: 'sous-titre' },
+          text: { zh: '文字', en: 'text', fr: 'texte' },
+          label: { zh: '文字', en: 'label', fr: 'texte' },
+          layout: { zh: '排列方式', en: 'layout', fr: 'disposition' },
+          columns: { zh: '列数', en: 'columns', fr: 'colonnes' },
+          icon: { zh: '图标', en: 'icon', fr: 'icône' },
+          target: { zh: '打开的页面', en: 'target', fr: 'page ouverte' },
+          variant: { zh: '样式', en: 'variant', fr: 'variante' },
+          aspect: { zh: '比例', en: 'aspect', fr: 'proportions' },
+          fit: { zh: '填充方式', en: 'fit', fr: 'mode d’ajustement' },
+          caption: { zh: '说明', en: 'caption', fr: 'légende' },
+          placeholder: { zh: '提示', en: 'placeholder', fr: 'texte indicatif' },
         };
         const changes = Object.entries(op.props)
           .map(([k, v]) => {

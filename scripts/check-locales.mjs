@@ -8,6 +8,24 @@ const list = process.argv.includes('--list');
 const missing = [];
 const errors = [];
 let total = 0;
+let pairs = 0;
+const frenchPairs = new Map();
+const pairsSource = ts.createSourceFile(
+  'french-pairs.ts',
+  fs.readFileSync('packages/core/src/french-pairs.ts', 'utf8'),
+  ts.ScriptTarget.Latest,
+  true,
+);
+function collectPairs(node) {
+  if (
+    ts.isPropertyAssignment(node) &&
+    (ts.isStringLiteralLike(node.name) || ts.isIdentifier(node.name)) &&
+    ts.isStringLiteralLike(node.initializer)
+  )
+    frenchPairs.set(node.name.text, node.initializer.text);
+  ts.forEachChild(node, collectPairs);
+}
+collectPairs(pairsSource);
 function filesIn(root) {
   return fs.readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
     if (
@@ -50,11 +68,30 @@ for (const file of [...filesIn('packages'), ...filesIn('apps')]) {
         }
       }
     }
+    if (
+      !file.includes('/ai/') &&
+      ts.isArrayLiteralExpression(node) &&
+      node.elements.length === 2 &&
+      node.elements.every(ts.isStringLiteralLike)
+    ) {
+      const [a, b] = node.elements.map((n) => n.text);
+      const isChinese = (s) => /[\u3400-\u9fff]/.test(s);
+      const en = isChinese(a) && !isChinese(b) ? b : isChinese(b) && !isChinese(a) ? a : null;
+      if (en) {
+        pairs++;
+        if (!frenchPairs.has(en))
+          missing.push(
+            `${file}:${source.getLineAndCharacterOfPosition(node.getStart()).line + 1} (pair: ${en})`,
+          );
+        else if (placeholders(en) !== placeholders(frenchPairs.get(en)))
+          errors.push(`${file}: 名称对的法语占位符不一致`);
+      }
+    }
     ts.forEachChild(node, visit);
   }
   visit(source);
 }
-console.log(`本地化检查：${total} 处文案，${missing.length} 处待补法语。`);
+console.log(`本地化检查：${total} 处文案、${pairs} 处名称对，${missing.length} 处待补法语。`);
 if (list) missing.forEach((line) => console.log(`${line}: 缺少 fr`));
 errors.forEach((line) => console.error(line));
 if (errors.length || (!allowMissing && missing.length)) process.exitCode = 1;

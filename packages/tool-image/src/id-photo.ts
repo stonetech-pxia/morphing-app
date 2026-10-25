@@ -6,6 +6,7 @@ import type { Rect } from './geometry';
 export interface LocalizedText {
   en: string;
   zh: string;
+  fr: string;
 }
 
 export interface IdPhotoSpec {
@@ -30,7 +31,11 @@ export function mmToPx(mm: number, dpi: number): number {
 export const ID_PHOTO_SPECS: readonly IdPhotoSpec[] = [
   {
     id: 'us-passport',
-    label: { en: 'US passport / visa (2×2 in)', zh: '美国护照/签证（2×2 英寸）' },
+    label: {
+      en: 'US passport / visa (2×2 in)',
+      zh: '美国护照/签证（2×2 英寸）',
+      fr: 'Passeport / visa américain (2×2 po)',
+    },
     widthMm: 50.8,
     heightMm: 50.8,
     widthPx: 600,
@@ -39,11 +44,16 @@ export const ID_PHOTO_SPECS: readonly IdPhotoSpec[] = [
     note: {
       en: 'White background; head 1–1⅜ in (25–35 mm) chin to crown. DS-160 upload: square JPEG, 600×600 to 1200×1200 px, ≤ 240 KB.',
       zh: '白色背景；下巴到头顶 25–35 毫米。DS-160 上传：正方形 JPEG，600×600 至 1200×1200 像素，不超过 240 KB。',
+      fr: 'Fond blanc ; tête de 1 à 1⅜ po (25 à 35 mm), du menton au sommet du crâne. Téléversement DS-160 : JPEG carré, de 600×600 à 1200×1200 px, ≤ 240 Ko.',
     },
   },
   {
     id: 'cn-visa',
-    label: { en: 'China visa (33×48 mm)', zh: '中国签证（33×48 毫米）' },
+    label: {
+      en: 'China visa (33×48 mm)',
+      zh: '中国签证（33×48 毫米）',
+      fr: 'Visa chinois (33×48 mm)',
+    },
     widthMm: 33,
     heightMm: 48,
     widthPx: 390,
@@ -51,11 +61,16 @@ export const ID_PHOTO_SPECS: readonly IdPhotoSpec[] = [
     note: {
       en: 'Printed photo, white background. Online applications use a different digital size (about 354×472 to 420×560 px, 40–120 KB); check the current official requirement.',
       zh: '纸质照片，白色背景。网上申请的电子照片尺寸不同（约 354×472 至 420×560 像素，40–120 KB），请以官方最新要求为准。',
+      fr: 'Photo imprimée, fond blanc. Les demandes en ligne utilisent un format numérique différent (environ 354×472 à 420×560 px, 40 à 120 Ko) ; vérifiez l’exigence officielle actuelle.',
     },
   },
   {
     id: 'schengen',
-    label: { en: 'Schengen / EU visa (35×45 mm)', zh: '申根/欧盟签证（35×45 毫米）' },
+    label: {
+      en: 'Schengen / EU visa (35×45 mm)',
+      zh: '申根/欧盟签证（35×45 毫米）',
+      fr: 'Visa Schengen / UE (35×45 mm)',
+    },
     widthMm: 35,
     heightMm: 45,
     widthPx: 413,
@@ -63,11 +78,16 @@ export const ID_PHOTO_SPECS: readonly IdPhotoSpec[] = [
     note: {
       en: 'Light plain background; face about 70–80% of the photo height. Some countries differ slightly.',
       zh: '浅色纯色背景；面部约占照片高度 70–80%。各国细则略有差异。',
+      fr: 'Fond clair uni ; visage d’environ 70 à 80 % de la hauteur de la photo. Certains pays ont de légères différences.',
     },
   },
   {
     id: 'uk-passport',
-    label: { en: 'UK passport (35×45 mm)', zh: '英国护照（35×45 毫米）' },
+    label: {
+      en: 'UK passport (35×45 mm)',
+      zh: '英国护照（35×45 毫米）',
+      fr: 'Passeport britannique (35×45 mm)',
+    },
     widthMm: 35,
     heightMm: 45,
     widthPx: 413,
@@ -75,11 +95,16 @@ export const ID_PHOTO_SPECS: readonly IdPhotoSpec[] = [
     note: {
       en: 'Printed photo, plain light grey or cream background. Online applications need a digital photo of at least 600×750 px.',
       zh: '纸质照片，浅灰或米色纯色背景。网上申请需要至少 600×750 像素的电子照片。',
+      fr: 'Photo imprimée, fond gris clair ou crème uni. Les demandes en ligne nécessitent une photo numérique d’au moins 600×750 px.',
     },
   },
   {
     id: 'ca-passport',
-    label: { en: 'Canada passport (50×70 mm)', zh: '加拿大护照（50×70 毫米）' },
+    label: {
+      en: 'Canada passport (50×70 mm)',
+      zh: '加拿大护照（50×70 毫米）',
+      fr: 'Passeport canadien (50×70 mm)',
+    },
     widthMm: 50,
     heightMm: 70,
     widthPx: 591,
@@ -87,11 +112,16 @@ export const ID_PHOTO_SPECS: readonly IdPhotoSpec[] = [
     note: {
       en: 'White or light background; head 31–36 mm chin to crown.',
       zh: '白色或浅色背景；下巴到头顶 31–36 毫米。',
+      fr: 'Fond blanc ou clair ; tête de 31 à 36 mm, du menton au sommet du crâne.',
     },
   },
   {
     id: 'jp-passport',
-    label: { en: 'Japan passport / visa (35×45 mm)', zh: '日本护照/签证（35×45 毫米）' },
+    label: {
+      en: 'Japan passport / visa (35×45 mm)',
+      zh: '日本护照/签证（35×45 毫米）',
+      fr: 'Passeport / visa japonais (35×45 mm)',
+    },
     widthMm: 35,
     heightMm: 45,
     widthPx: 413,
@@ -99,11 +129,12 @@ export const ID_PHOTO_SPECS: readonly IdPhotoSpec[] = [
     note: {
       en: 'Plain background. Visa requirements vary by consulate; check before printing.',
       zh: '纯色背景。签证要求因领事馆而异，冲印前请确认。',
+      fr: 'Fond uni. Les exigences des visas varient selon le consulat ; vérifiez avant l’impression.',
     },
   },
   {
     id: 'in-visa',
-    label: { en: 'India visa (2×2 in)', zh: '印度签证（2×2 英寸）' },
+    label: { en: 'India visa (2×2 in)', zh: '印度签证（2×2 英寸）', fr: 'Visa indien (2×2 po)' },
     widthMm: 50.8,
     heightMm: 50.8,
     widthPx: 600,
@@ -111,11 +142,12 @@ export const ID_PHOTO_SPECS: readonly IdPhotoSpec[] = [
     note: {
       en: 'White background. e-Visa upload: square JPEG; the file size limit has changed over time, check the official site.',
       zh: '白色背景。电子签证上传：正方形 JPEG；体积上限曾有调整，请以官网为准。',
+      fr: 'Fond blanc. Téléversement e-Visa : JPEG carré ; la limite de taille du fichier a changé au fil du temps, consultez le site officiel.',
     },
   },
   {
     id: 'cn-1inch',
-    label: { en: '1-inch (25×35 mm)', zh: '一寸（25×35 毫米）' },
+    label: { en: '1-inch (25×35 mm)', zh: '一寸（25×35 毫米）', fr: 'Format 1 pouce (25×35 mm)' },
     widthMm: 25,
     heightMm: 35,
     widthPx: 295,
@@ -123,11 +155,12 @@ export const ID_PHOTO_SPECS: readonly IdPhotoSpec[] = [
     note: {
       en: 'Common in China for IDs, forms and resumes. Background colour depends on the use.',
       zh: '国内常用于证件、报名表、简历。背景颜色按用途要求。',
+      fr: 'Courant en Chine pour les pièces d’identité, formulaires et CV. La couleur de fond dépend de l’usage.',
     },
   },
   {
     id: 'cn-2inch',
-    label: { en: '2-inch (35×49 mm)', zh: '二寸（35×49 毫米）' },
+    label: { en: '2-inch (35×49 mm)', zh: '二寸（35×49 毫米）', fr: 'Format 2 pouces (35×49 mm)' },
     widthMm: 35,
     heightMm: 49,
     widthPx: 413,
@@ -135,6 +168,7 @@ export const ID_PHOTO_SPECS: readonly IdPhotoSpec[] = [
     note: {
       en: 'Standard Chinese 2-inch. Some uses ask for "small 2-inch" (33×48 mm) or 35×53 mm instead.',
       zh: '标准二寸。部分用途要求小二寸（33×48 毫米）或 35×53 毫米。',
+      fr: 'Format chinois standard de 2 pouces. Certains usages demandent le « petit 2 pouces » (33×48 mm) ou 35×53 mm.',
     },
   },
 ];

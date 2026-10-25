@@ -12,11 +12,11 @@ import {
 import { DEFAULT_THEME } from './theme';
 
 export const SYSTEM_TARGET_LABELS: Record<SystemTarget, Localized> = {
-  quickActions: { en: 'What Morph can do', zh: 'Morph 可以做什么' },
-  tools: { en: 'Tools', zh: '工具' },
-  ai: { en: 'AI', zh: 'AI 修改' },
-  history: { en: 'Changes', zh: '改动记录' },
-  settings: { en: 'Settings', zh: '设置' },
+  quickActions: { en: 'What Morph can do', zh: 'Morph 可以做什么', fr: 'Ce que Morph peut faire' },
+  tools: { en: 'Tools', zh: '工具', fr: 'Outils' },
+  ai: { en: 'AI', zh: 'AI 修改', fr: 'IA' },
+  history: { en: 'Changes', zh: '改动记录', fr: 'Modifications' },
+  settings: { en: 'Settings', zh: '设置', fr: 'Paramètres' },
 };
 
 export const SYSTEM_TARGET_ICONS: Record<SystemTarget, IconName> = {

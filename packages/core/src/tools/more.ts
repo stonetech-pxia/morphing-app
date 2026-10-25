@@ -11,11 +11,11 @@ import type { ActionDefinition } from '../workflow/contract';
 
 const pageSizeField = {
   key: 'pageSize',
-  label: { en: 'Paper', zh: '纸张' },
+  label: { en: 'Paper', zh: '纸张', fr: 'Format papier' },
   kind: 'choice',
   options: [
-    { value: 'a4', label: { en: 'A4', zh: 'A4' } },
-    { value: 'letter', label: { en: 'Letter', zh: 'Letter' } },
+    { value: 'a4', label: { en: 'A4', zh: 'A4', fr: 'A4' } },
+    { value: 'letter', label: { en: 'Letter', zh: 'Letter', fr: 'Letter' } },
   ],
 } as const;
 
@@ -38,8 +38,12 @@ function simpleTool(spec: {
   return {
     id: spec.id,
     version: spec.version,
-    name: { en: spec.name[0], zh: spec.name[1] },
-    description: { en: spec.description[0], zh: spec.description[1] },
+    name: { en: spec.name[0], zh: spec.name[1], fr: pairText('fr', spec.name) },
+    description: {
+      en: spec.description[0],
+      zh: spec.description[1],
+      fr: pairText('fr', spec.description),
+    },
     icon: spec.icon,
     aliases: spec.aliases,
     permissions: spec.permissions,
@@ -68,10 +72,11 @@ function simpleTool(spec: {
 export const ZIP_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'zip.create',
-    label: { en: 'Make a ZIP', zh: '打包成 ZIP' },
+    label: { en: 'Make a ZIP', zh: '打包成 ZIP', fr: 'Créer un ZIP' },
     description: {
       en: 'Put all the files into one ZIP archive (photos are stored as they are; documents are compressed).',
       zh: '把所有文件打包成一个 ZIP（照片原样存入，文档会压缩）。',
+      fr: 'Place tous les fichiers dans une seule archive ZIP (les photos sont conservées telles quelles ; les documents sont compressés).',
     },
     input: ['files'],
     output: 'zip',
@@ -81,10 +86,11 @@ export const ZIP_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'zip.extract',
-    label: { en: 'Unzip', zh: '解压' },
+    label: { en: 'Unzip', zh: '解压', fr: 'Décompresser' },
     description: {
       en: 'Take the files out of a ZIP archive (password-protected archives are not supported).',
       zh: '把 ZIP 里的文件取出来（不支持带密码的压缩包）。',
+      fr: 'Extrait les fichiers d’une archive ZIP (les archives protégées par mot de passe ne sont pas prises en charge).',
     },
     input: ['zip'],
     output: 'files',
@@ -152,10 +158,11 @@ export const zipTool = simpleTool({
 export const QR_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'qr.generate',
-    label: { en: 'Make a QR code', zh: '生成二维码' },
+    label: { en: 'Make a QR code', zh: '生成二维码', fr: 'Créer un code QR' },
     description: {
       en: 'Turn the text (a link, Wi-Fi details, contact) into a QR code image (PNG).',
       zh: '把文字（链接、Wi-Fi 信息、联系方式）变成二维码图片（PNG）。',
+      fr: 'Transforme le texte (lien, informations Wi-Fi, contact) en image de code QR (PNG).',
     },
     input: ['text'],
     output: 'images',
@@ -166,36 +173,47 @@ export const QR_ACTIONS: readonly ActionDefinition[] = [
     fields: [
       {
         key: 'sizePx',
-        label: { en: 'Size', zh: '大小' },
+        label: { en: 'Size', zh: '大小', fr: 'Taille' },
         kind: 'choice',
         options: [
-          { value: 600, label: { en: '600 px (screen)', zh: '600 像素（屏幕）' } },
-          { value: 1200, label: { en: '1200 px (print)', zh: '1200 像素（打印）' } },
+          {
+            value: 600,
+            label: { en: '600 px (screen)', zh: '600 像素（屏幕）', fr: '600 px (écran)' },
+          },
+          {
+            value: 1200,
+            label: { en: '1200 px (print)', zh: '1200 像素（打印）', fr: '1200 px (impression)' },
+          },
         ],
       },
       {
         key: 'ecc',
-        label: { en: 'Error correction', zh: '容错' },
+        label: { en: 'Error correction', zh: '容错', fr: 'Correction d’erreurs' },
         kind: 'choice',
         options: [
-          { value: 'L', label: { en: 'Low', zh: '低' } },
-          { value: 'M', label: { en: 'Medium', zh: '中' } },
-          { value: 'Q', label: { en: 'High', zh: '较高' } },
-          { value: 'H', label: { en: 'Highest', zh: '最高' } },
+          { value: 'L', label: { en: 'Low', zh: '低', fr: 'Faible' } },
+          { value: 'M', label: { en: 'Medium', zh: '中', fr: 'Moyen' } },
+          { value: 'Q', label: { en: 'High', zh: '较高', fr: 'Élevée' } },
+          { value: 'H', label: { en: 'Highest', zh: '最高', fr: 'Maximale' } },
         ],
       },
     ],
     presets: [
-      { id: 'screen', label: { en: 'Screen', zh: '屏幕' }, values: { sizePx: 600, ecc: 'M' } },
+      {
+        id: 'screen',
+        label: { en: 'Screen', zh: '屏幕', fr: 'Écran' },
+        values: { sizePx: 600, ecc: 'M' },
+      },
     ],
     requires: [],
   },
   {
     id: 'qr.read',
-    label: { en: 'Read QR codes', zh: '识别二维码' },
+    label: { en: 'Read QR codes', zh: '识别二维码', fr: 'Lire les codes QR' },
     description: {
       en: 'Find and read the QR code in each image. The text stays on this device.',
       zh: '找出每张图片里的二维码并读出内容。内容只留在本机。',
+      fr: 'Trouve et lit le code QR de chaque image. Le contenu reste sur cet appareil.',
     },
     input: ['images'],
     output: 'text',
@@ -257,10 +275,11 @@ export const qrTool = simpleTool({
 export const TEXT_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'text.toPdf',
-    label: { en: 'Text to PDF', zh: '文字转 PDF' },
+    label: { en: 'Text to PDF', zh: '文字转 PDF', fr: 'Texte en PDF' },
     description: {
       en: 'Lay the text out on pages as a PDF (system fonts, so Chinese and Japanese work).',
       zh: '把文字排成 PDF（用系统字体，中文、日文都能显示）。',
+      fr: 'Mettez le texte en pages dans un PDF (polices du système, pour que le chinois et le japonais s’affichent).',
     },
     input: ['text'],
     output: 'pdf',
@@ -272,7 +291,7 @@ export const TEXT_ACTIONS: readonly ActionDefinition[] = [
       pageSizeField,
       {
         key: 'fontSize',
-        label: { en: 'Text size', zh: '字号' },
+        label: { en: 'Text size', zh: '字号', fr: 'Taille du texte' },
         kind: 'number',
         unit: 'pt',
         min: 8,
@@ -280,16 +299,21 @@ export const TEXT_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     presets: [
-      { id: 'a4', label: { en: 'A4', zh: 'A4' }, values: { pageSize: 'a4', fontSize: 12 } },
+      {
+        id: 'a4',
+        label: { en: 'A4', zh: 'A4', fr: 'A4' },
+        values: { pageSize: 'a4', fontSize: 12 },
+      },
     ],
     requires: [],
   },
   {
     id: 'text.toFile',
-    label: { en: 'Text to file', zh: '存成文字文件' },
+    label: { en: 'Text to file', zh: '存成文字文件', fr: 'Texte vers fichier' },
     description: {
       en: 'Save the text as a .txt file (UTF-8).',
       zh: '把文字存成 .txt 文件（UTF-8）。',
+      fr: 'Enregistrez le texte dans un fichier .txt (UTF-8).',
     },
     input: ['text'],
     output: 'files',
@@ -299,8 +323,12 @@ export const TEXT_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'text.copy',
-    label: { en: 'Copy text', zh: '复制文字' },
-    description: { en: 'Copy the text to the clipboard.', zh: '把文字复制到剪贴板。' },
+    label: { en: 'Copy text', zh: '复制文字', fr: 'Copier le texte' },
+    description: {
+      en: 'Copy the text to the clipboard.',
+      zh: '把文字复制到剪贴板。',
+      fr: 'Copiez le texte dans le presse-papiers.',
+    },
     input: ['text'],
     output: 'same',
     params: z.strictObject({}),
@@ -339,10 +367,11 @@ export const textTool = simpleTool({
 export const PRINT_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'print.records',
-    label: { en: 'Records to PDF', zh: '记录生成 PDF' },
+    label: { en: 'Records to PDF', zh: '记录生成 PDF', fr: 'Enregistrements en PDF' },
     description: {
       en: 'Make a PDF from the records with a fixed template: table, cards, or receipt (table with a total of the first money field). The values are filled in on the device; only the template, title and field names are settings.',
       zh: '用固定模板把记录做成 PDF：表格、卡片，或清单（表格加第一个金额字段的合计）。记录内容在本机填进去，设置里只有模板、标题和字段。',
+      fr: 'Créez un PDF à partir des enregistrements avec un modèle fixe : tableau, fiches ou reçu (tableau avec le total du premier champ montant). Les valeurs sont remplies sur l’appareil ; seuls le modèle, le titre et les noms de champs sont des réglages.',
     },
     input: ['records'],
     output: 'pdf',
@@ -355,18 +384,22 @@ export const PRINT_ACTIONS: readonly ActionDefinition[] = [
     fields: [
       {
         key: 'template',
-        label: { en: 'Template', zh: '模板' },
+        label: { en: 'Template', zh: '模板', fr: 'Modèle' },
         kind: 'choice',
         options: [
-          { value: 'table', label: { en: 'Table', zh: '表格' } },
-          { value: 'cards', label: { en: 'Cards', zh: '卡片' } },
-          { value: 'receipt', label: { en: 'With total', zh: '带合计的清单' } },
+          { value: 'table', label: { en: 'Table', zh: '表格', fr: 'Tableau' } },
+          { value: 'cards', label: { en: 'Cards', zh: '卡片', fr: 'Fiches' } },
+          { value: 'receipt', label: { en: 'With total', zh: '带合计的清单', fr: 'Avec total' } },
         ],
       },
-      { key: 'title', label: { en: 'Title', zh: '标题' }, kind: 'text' },
+      { key: 'title', label: { en: 'Title', zh: '标题', fr: 'Titre' }, kind: 'text' },
       {
         key: 'fields',
-        label: { en: 'Fields (none = all)', zh: '字段（不选 = 全部）' },
+        label: {
+          en: 'Fields (none = all)',
+          zh: '字段（不选 = 全部）',
+          fr: 'Champs (aucun = tous)',
+        },
         kind: 'fields',
       },
       pageSizeField,

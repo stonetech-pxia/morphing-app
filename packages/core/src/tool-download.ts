@@ -87,6 +87,7 @@ const localized = (max: number) =>
   z.strictObject({
     en: z.string().trim().min(1).max(max),
     zh: z.string().trim().min(1).max(max),
+    fr: z.string().trim().min(1).max(max).optional(),
   });
 
 export const ToolManifestSchema = z.strictObject({
@@ -173,8 +174,11 @@ export function toolFromManifest(manifest: ToolManifest): ToolDefinition {
   return {
     id: manifest.id,
     version: manifest.version,
-    name: manifest.name,
-    description: manifest.description,
+    name: { ...manifest.name, fr: manifest.name.fr ?? manifest.name.en },
+    description: {
+      ...manifest.description,
+      fr: manifest.description.fr ?? manifest.description.en,
+    },
     icon: manifest.icon,
     aliases: manifest.aliases.map((a) => a.toLowerCase()),
     permissions: manifest.permissions,

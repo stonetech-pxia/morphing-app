@@ -108,7 +108,7 @@ export function PacksScreen({
           <Text
             testID="packs-total"
             style={[palette.font('bodyBold', 14), { color: palette.text }]}>
-            {t(locale, 'packsTotal', { size: formatBytes(total) })}
+            {t(locale, 'packsTotal', { size: formatBytes(total, locale) })}
           </Text>
           {list.map((p) => {
             const manifest = packById(p.id)!;
@@ -119,7 +119,7 @@ export function PacksScreen({
                 </Text>
                 <Text style={caption}>{localize(manifest.description, locale)}</Text>
                 <Text style={caption}>
-                  {`${formatBytes(p.bytes)} · ${manifest.license} · ${p.version}`}
+                  {`${formatBytes(p.bytes, locale)} · ${manifest.license} · ${p.version}`}
                 </Text>
                 <View style={{ flexDirection: 'row' }}>
                   <Pill
@@ -139,7 +139,7 @@ export function PacksScreen({
         <Card key={tool.id} palette={palette} testID={`downloaded-tool-${tool.id}`}>
           <Text style={[palette.font('title', 16), { color: palette.text }]}>{tool.name}</Text>
           <Text style={caption}>{t(locale, 'toolDownloadedHint')}</Text>
-          <Text style={caption}>{`${formatBytes(tool.bytes)} · ${tool.version}`}</Text>
+          <Text style={caption}>{`${formatBytes(tool.bytes, locale)} · ${tool.version}`}</Text>
           <View style={{ flexDirection: 'row' }}>
             <Pill
               palette={palette}

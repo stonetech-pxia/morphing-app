@@ -72,7 +72,7 @@ export function FrameScreen({
         <Text
           testID="frame-time"
           style={[palette.font('bodyBold', 20), { textAlign: 'center', color: palette.text }]}>
-          {formatTime(time, true)}
+          {formatTime(time, true, locale)}
         </Text>
         <View style={styles.row}>
           {[-1000, -100, 100, 1000].map((delta) => (

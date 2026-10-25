@@ -1,21 +1,29 @@
-import { localize, MESSAGES, t, type StringKey, Locale, Localized } from '@morph/core';
+import { localize, MESSAGES, t, type StringKey, type Locale, type Localized } from '@morph/core';
 
 import { getLocales } from 'expo-localization';
 export { t, type StringKey } from '@morph/core';
 
-// 界面文案集中在这里（DECISIONS P-003：英文 + 简体中文，跟随系统语言）。
+// 界面文案在 core/messages.ts；英文、简体中文、法语跟随系统语言。
 // 用户自己的内容（页面标题等）存放在工作空间配置里，不经过这里。
 
 export function getDeviceLocale(): Locale {
   const [primary] = getLocales();
-  return primary?.languageCode === 'zh' ? 'zh' : 'en';
+  return primary?.languageCode === 'zh' ? 'zh' : primary?.languageCode === 'fr' ? 'fr' : 'en';
 }
 
 const PERMISSION_NAMES: Record<string, Localized> = {
-  photos: { en: 'Photos', zh: '相册' },
-  camera: { en: 'Camera', zh: '相机' },
-  microphone: { en: 'Microphone', zh: '麦克风' },
-  speech: { en: 'Speech recognition', zh: '语音识别' },
+  photos: { en: 'Photos', zh: '相册', fr: 'Photos' },
+  camera: { en: 'Camera', zh: '相机', fr: 'Appareil photo' },
+  microphone: { en: 'Microphone', zh: '麦克风', fr: 'Microphone' },
+  speech: { en: 'Speech recognition', zh: '语音识别', fr: 'Reconnaissance vocale' },
+};
+
+const FILE_KIND_NAMES: Record<string, Localized> = {
+  image: { en: 'image', zh: '图片', fr: 'image' },
+  video: { en: 'video', zh: '视频', fr: 'vidéo' },
+  audio: { en: 'audio', zh: '音频', fr: 'audio' },
+  file: { en: 'file', zh: '文件', fr: 'fichier' },
+  documents: { en: 'Office document', zh: '办公文档', fr: 'document Office' },
 };
 
 /** 运行错误的提示（detail 里的权限名等内部词换成用户看得懂的说法）。 */
@@ -26,9 +34,15 @@ export function runErrorText(
 ): string {
   const what =
     typeof detail.what === 'string' ? localize(PERMISSION_NAMES[detail.what], locale) : undefined;
+  const kind =
+    typeof detail.kind === 'string' ? localize(FILE_KIND_NAMES[detail.kind], locale) : undefined;
   const key = `runError_${code}` as StringKey;
   if (!(key in MESSAGES)) return t(locale, 'runError_unexpected', { detail: code });
-  return t(locale, key, { ...detail, ...(what ? { what } : {}) });
+  return t(locale, key, {
+    ...detail,
+    ...(what ? { what } : {}),
+    ...(kind && locale === 'fr' ? { kind } : {}),
+  });
 }
 
 /** 改动记录里的时间（D-112）：今天 / 昨天 13:51，更早的显示日期，不显示秒。 */
@@ -41,7 +55,7 @@ export function formatWhen(locale: Locale, at: Date, now: Date): string {
   const sameYear = at.getFullYear() === now.getFullYear();
   if (locale === 'zh')
     return `${sameYear ? '' : `${at.getFullYear()}年`}${at.getMonth() + 1}月${at.getDate()}日 ${time}`;
-  const date = at.toLocaleDateString('en-US', {
+  const date = at.toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US', {
     month: 'short',
     day: 'numeric',
     ...(sameYear ? {} : { year: 'numeric' }),

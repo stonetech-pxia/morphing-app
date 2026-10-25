@@ -54,13 +54,25 @@ import type { AIProvider, Plan, PlanContext, RejectReason } from './types';
 // 一句话按标点拆成若干子句；任何一个子句无法理解，整句都拒绝，绝不生成猜测性修改。
 
 const EXAMPLES: Localized[] = [
-  { zh: '把 PDF 放到最上面', en: 'Put PDF at the top' },
-  { zh: '导航只保留首页、工具、设置', en: 'Only keep Home, Tools and Settings in the navigation' },
-  { zh: '主题换成绿色', en: 'Change the theme color to green' },
-  { zh: '字体大一点', en: 'Bigger text' },
-  { zh: '新建一个叫「记账」的页面', en: 'Add a page called Budget' },
-  { zh: '添加签证照片快捷操作', en: 'Add the visa photo quick action' },
-  { zh: '撤销刚才的修改', en: 'Undo the last change' },
+  { zh: '把 PDF 放到最上面', en: 'Put PDF at the top', fr: 'Mettre le PDF en haut' },
+  {
+    zh: '导航只保留首页、工具、设置',
+    en: 'Only keep Home, Tools and Settings in the navigation',
+    fr: 'Ne garder que Accueil, Outils et Réglages dans la navigation',
+  },
+  { zh: '主题换成绿色', en: 'Change the theme color to green', fr: 'Passer le thème en vert' },
+  { zh: '字体大一点', en: 'Bigger text', fr: 'Texte plus grand' },
+  {
+    zh: '新建一个叫「记账」的页面',
+    en: 'Add a page called Budget',
+    fr: 'Ajouter une page nommée « Budget »',
+  },
+  {
+    zh: '添加签证照片快捷操作',
+    en: 'Add the visa photo quick action',
+    fr: 'Ajouter l’action rapide photo de visa',
+  },
+  { zh: '撤销刚才的修改', en: 'Undo the last change', fr: 'Annuler la dernière modification' },
 ];
 
 const COLORS: [RegExp, string][] = [
@@ -566,10 +578,10 @@ const TEMPLATE_WORDS: [RegExp, DataTemplate][] = [
 
 /** 预设里说的模板名字：「增加记账页面」「Add a budget page」又会回到 templateRule。 */
 const TEMPLATE_NAMES: Record<DataTemplate, Localized> = {
-  budget: { zh: '记账', en: 'budget' },
-  todo: { zh: '待办', en: 'to-do list' },
-  reading: { zh: '读书清单', en: 'reading list' },
-  notes: { zh: '笔记', en: 'notes' },
+  budget: { zh: '记账', en: 'budget', fr: 'Budget' },
+  todo: { zh: '待办', en: 'to-do list', fr: 'liste de tâches' },
+  reading: { zh: '读书清单', en: 'reading list', fr: 'liste de lecture' },
+  notes: { zh: '笔记', en: 'notes', fr: 'notes' },
 };
 
 /**
@@ -1512,11 +1524,17 @@ const TRANSLATE_EXAMPLES: Localized[] = [
   {
     zh: '新建一个快捷操作：输入文字，翻译成英文，复制文字',
     en: 'Create a quick action: type text, translate into Chinese, copy text',
+    fr: 'Créer une action rapide : saisir du texte, le traduire en chinois, copier le texte',
   },
-  { zh: '添加截图翻译快捷操作', en: 'Add the translate screenshots quick action' },
+  {
+    zh: '添加截图翻译快捷操作',
+    en: 'Add the translate screenshots quick action',
+    fr: 'Ajouter l’action rapide traduction de captures d’écran',
+  },
   {
     zh: '新建一个快捷操作：选 PDF，提取 PDF 文字，翻译成中文，转成 PDF，分享',
     en: 'Create a quick action: choose a PDF, get text from PDF, translate into English, make a PDF, share',
+    fr: 'Créer une action rapide : choisir un PDF, extraire le texte du PDF, traduire en anglais, créer un PDF, partager',
   },
 ];
 /** 说的是改快捷操作本身（「添加截图翻译快捷操作」「新建一个快捷操作：…，翻译成英文」），不是办事。 */
@@ -1526,9 +1544,18 @@ const ERRAND_EXAMPLES: Localized[] = [
   {
     zh: '新建一个快捷操作：扫描文档，压到 300KB，存到文件',
     en: 'Create a quick action: scan documents, make a PDF, share',
+    fr: 'Créer une action rapide : numériser des documents, créer un PDF, partager',
   },
-  { zh: '添加签证照片快捷操作', en: 'Add the visa photo quick action' },
-  { zh: '把照片发邮件放到首页', en: 'Put the photos for email quick action on the home page' },
+  {
+    zh: '添加签证照片快捷操作',
+    en: 'Add the visa photo quick action',
+    fr: 'Ajouter l’action rapide photo de visa',
+  },
+  {
+    zh: '把照片发邮件放到首页',
+    en: 'Put the photos for email quick action on the home page',
+    fr: 'Placer sur l’accueil l’action rapide des photos pour e-mail',
+  },
 ];
 const DELETE_FILES = /(删除|删掉|清空|清除).*文件|\b(delete|remove|erase)\b.*\bfiles?\b/i;
 const PROTECTED_WORD = '(?:设置|\\bsettings?\\b)';
@@ -1642,6 +1669,8 @@ function planClauses(clauses: string[], ctx: PlanContext): Plan {
 export function createMockAIProvider(): AIProvider {
   return {
     async plan(input, ctx) {
+      // 内置规则只识别中英文句式；法语界面使用英文示例和回复（P-037）。
+      if (ctx.locale === 'fr') ctx = { ...ctx, locale: 'en' };
       const examples = EXAMPLES.map((e) => localize(e, ctx.locale));
       const clauses = splitClauses(joinWorkflowSteps(input));
       if (clauses.length === 0) {

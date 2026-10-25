@@ -81,7 +81,7 @@ export function PackGate({
           {text(
             'title',
             t(locale, 'PackGate_First_use_needs_a_download_3c1d7', {
-              v0: size === null ? '…' : formatBytes(size),
+              v0: size === null ? '…' : formatBytes(size, locale),
             }),
           )}
           {text('body', t(locale, 'PackGate_After_that_it_works_offline_Wi_Fi_is_r_77ca7'))}

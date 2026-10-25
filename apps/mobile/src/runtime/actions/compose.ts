@@ -362,8 +362,8 @@ export const COMPOSE_IMPLS: Record<string, Impl> = {
         if (!result.met) {
           throw new RunError('targetNotMet', {
             name: displayName(item),
-            target: formatBytes(maxKB * 1024),
-            got: formatBytes(result.bytes),
+            target: formatBytes(maxKB * 1024, ctx.locale),
+            got: formatBytes(result.bytes, ctx.locale),
           });
         }
       }

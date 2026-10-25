@@ -14,27 +14,28 @@ export const OCR_TOOL_ID = 'ocr';
 export const OCR_PAGE_ID = 'tool-ocr';
 
 export const OCR_LANGUAGE_NAMES: Record<(typeof OCR_LANGUAGES)[number], Localized> = {
-  eng: { en: 'English', zh: '英文' },
-  chi_sim: { en: 'Chinese (Simplified)', zh: '简体中文' },
-  chi_tra: { en: 'Chinese (Traditional)', zh: '繁体中文' },
-  jpn: { en: 'Japanese', zh: '日文' },
-  kor: { en: 'Korean', zh: '韩文' },
-  fra: { en: 'French', zh: '法文' },
-  deu: { en: 'German', zh: '德文' },
-  spa: { en: 'Spanish', zh: '西班牙文' },
-  por: { en: 'Portuguese', zh: '葡萄牙文' },
-  ita: { en: 'Italian', zh: '意大利文' },
-  rus: { en: 'Russian', zh: '俄文' },
-  vie: { en: 'Vietnamese', zh: '越南文' },
+  eng: { en: 'English', zh: '英文', fr: 'Anglais' },
+  chi_sim: { en: 'Chinese (Simplified)', zh: '简体中文', fr: 'Chinois (simplifié)' },
+  chi_tra: { en: 'Chinese (Traditional)', zh: '繁体中文', fr: 'Chinois (traditionnel)' },
+  jpn: { en: 'Japanese', zh: '日文', fr: 'Japonais' },
+  kor: { en: 'Korean', zh: '韩文', fr: 'Coréen' },
+  fra: { en: 'French', zh: '法文', fr: 'Français' },
+  deu: { en: 'German', zh: '德文', fr: 'Allemand' },
+  spa: { en: 'Spanish', zh: '西班牙文', fr: 'Espagnol' },
+  por: { en: 'Portuguese', zh: '葡萄牙文', fr: 'Portugais' },
+  ita: { en: 'Italian', zh: '意大利文', fr: 'Italien' },
+  rus: { en: 'Russian', zh: '俄文', fr: 'Russe' },
+  vie: { en: 'Vietnamese', zh: '越南文', fr: 'Vietnamien' },
 };
 
 export const OCR_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'ocr.recognize',
-    label: { en: 'Recognize text', zh: '识别文字' },
+    label: { en: 'Recognize text', zh: '识别文字', fr: 'Reconnaître le texte' },
     description: {
       en: 'Reads printed text in the images (one language per run). Handwriting and receipt amounts may be wrong. The text stays on this device.',
       zh: '识别图片里的印刷文字（每次一种语言）。手写和收据金额可能认错。文字只留在本机。',
+      fr: 'Reconnaît le texte imprimé des images (une langue par exécution). L’écriture manuscrite et les montants de tickets peuvent être mal lus. Le texte reste sur cet appareil.',
     },
     input: ['images'],
     output: 'text',
@@ -42,7 +43,7 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
     fields: [
       {
         key: 'lang',
-        label: { en: 'Language', zh: '语言' },
+        label: { en: 'Language', zh: '语言', fr: 'Langue' },
         kind: 'choice',
         options: OCR_LANGUAGES.map((value) => ({ value, label: OCR_LANGUAGE_NAMES[value] })),
       },
@@ -74,7 +75,7 @@ export function tidyOcrText(text: string): string {
 
 /** 单功能工作流（D-061）。默认语言跟随界面语言。 */
 export function ocrWorkflows(locale: Locale): Workflow[] {
-  const lang = locale === 'zh' ? 'chi_sim' : 'eng';
+  const lang = locale === 'zh' ? 'chi_sim' : locale === 'fr' ? 'fra' : 'eng';
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
     toolId: OCR_TOOL_ID,
@@ -105,10 +106,11 @@ export function ocrWorkflows(locale: Locale): Workflow[] {
 export const ocrTool: ToolDefinition = {
   id: OCR_TOOL_ID,
   version: '1.0.0',
-  name: { en: 'Text recognition', zh: '文字识别' },
+  name: { en: 'Text recognition', zh: '文字识别', fr: 'Reconnaissance de texte' },
   description: {
     en: 'Get printed text out of photos and scans on this device, in 12 languages.',
     zh: '在本机识别照片和扫描件里的印刷文字，支持 12 种语言。',
+    fr: 'Extrait le texte imprimé des photos et numérisations sur cet appareil, en 12 langues.',
   },
   icon: 'text',
   aliases: ['ocr', 'text recognition', 'recognize text', '文字识别', '识别文字', 'ocr 工具'],

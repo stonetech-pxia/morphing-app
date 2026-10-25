@@ -1,3 +1,4 @@
+import { formatFileSize, type Locale } from '@morph/core';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 
@@ -8,11 +9,7 @@ import type { RenderEnv } from './components';
 import { Icon } from './Icon';
 import { Card } from './ui';
 
-export function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
+export const formatSize = (bytes: number, locale: Locale = 'en') => formatFileSize(bytes, locale);
 
 /** fileList 组件：展示工作空间里的用户文件（与配置版本无关），点击即可分享 / 导出。 */
 export function FileList({
@@ -86,7 +83,7 @@ export function FileList({
               {a.name}
             </Text>
             <Text style={[palette.font('body', 13), { color: palette.caption }]}>
-              {formatSize(a.size)}
+              {formatSize(a.size, locale)}
             </Text>
           </Pressable>
         ))

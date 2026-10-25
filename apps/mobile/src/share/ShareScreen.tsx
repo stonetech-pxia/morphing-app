@@ -234,7 +234,14 @@ export function ShareScreen() {
           palette={palette}
           variant="text"
           testID="share-files-toggle"
-          label={`${t(locale, infos.every((f) => f.mimeType.startsWith('image/')) ? 'sharePhotoSummary' : 'shareSummary', { n: share.files.length })}${infos.every((f) => f.size !== null) ? ` · ${formatSize(infos.reduce((n, f) => n + (f.size ?? 0), 0))}` : ''} · ${t(locale, expanded ? 'shareCollapse' : 'shareExpand')}`}
+          label={`${t(locale, infos.every((f) => f.mimeType.startsWith('image/')) ? 'sharePhotoSummary' : 'shareSummary', { n: share.files.length })}${
+            infos.every((f) => f.size !== null)
+              ? ` · ${formatSize(
+                  infos.reduce((n, f) => n + (f.size ?? 0), 0),
+                  locale,
+                )}`
+              : ''
+          } · ${t(locale, expanded ? 'shareCollapse' : 'shareExpand')}`}
           onPress={() => setExpandedId(expanded ? null : share.id)}
         />
         {expanded
@@ -261,8 +268,8 @@ export function ShareScreen() {
                 {f.size !== null || durations[f.uri] ? (
                   <Text style={[palette.font('body', 13), { color: palette.caption }]}>
                     {[
-                      durations[f.uri] ? formatTime(durations[f.uri]!) : null,
-                      f.size !== null ? formatSize(f.size) : null,
+                      durations[f.uri] ? formatTime(durations[f.uri]!, false, locale) : null,
+                      f.size !== null ? formatSize(f.size, locale) : null,
                     ]
                       .filter(Boolean)
                       .join(' · ')}

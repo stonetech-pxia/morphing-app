@@ -119,7 +119,7 @@ describe('imagesToPdf', () => {
             height: 400,
             lines: [
               { text: 'Total 12,50 €', x: 60, y: 40, width: 300, height: 30 },
-              { text: 'Café crème', x: 60, y: 100, width: 200, height: 30 },
+              { text: 'Café, élève, à côté, garçon, cœur', x: 60, y: 100, width: 200, height: 30 },
               { text: '合计', x: 60, y: 160, width: 100, height: 30 },
             ],
           },

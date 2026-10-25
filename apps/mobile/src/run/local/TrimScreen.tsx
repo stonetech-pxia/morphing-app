@@ -1,4 +1,4 @@
-import type { RunItem } from '@morph/core';
+import { localeTag, type Locale, type RunItem } from '@morph/core';
 import { useEvent, useEventListener } from 'expo';
 import { Image } from 'expo-image';
 import { VideoView, useVideoPlayer, type VideoPlayer, type VideoThumbnail } from 'expo-video';
@@ -50,12 +50,17 @@ export function seek(player: VideoPlayer, ms: number) {
 }
 
 /** 0:05、1:02:03（显示到十分之一秒时 0:05.4）。 */
-export function formatTime(ms: number, tenths = false): string {
+export function formatTime(ms: number, tenths = false, locale: Locale = 'en'): string {
   const total = Math.max(0, ms) / 1000;
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
-  const sec = tenths ? s.toFixed(1).padStart(4, '0') : String(Math.floor(s)).padStart(2, '0');
+  const sec = new Intl.NumberFormat(localeTag(locale), {
+    minimumIntegerDigits: 2,
+    minimumFractionDigits: tenths ? 1 : 0,
+    maximumFractionDigits: tenths ? 1 : 0,
+    useGrouping: false,
+  }).format(tenths ? s : Math.floor(s));
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
 }
 
@@ -315,7 +320,7 @@ export function TrimScreen({
       <Text
         testID={`trim-${edge}`}
         style={[palette.font('bodyBold', 17), styles.time, { color: palette.text }]}>
-        {formatTime(edge === 'start' ? range.startMs : range.endMs, true)}
+        {formatTime(edge === 'start' ? range.startMs : range.endMs, true, locale)}
       </Text>
       {nudge(edge, NUDGE_MS, '+1s')}
     </View>
@@ -405,7 +410,9 @@ export function TrimScreen({
         <Text
           testID="trim-length"
           style={[palette.font('bodyMedium', 15), { color: palette.muted, textAlign: 'center' }]}>
-          {t(locale, 'trimLength', { length: formatTime(range.endMs - range.startMs, true) })}
+          {t(locale, 'trimLength', {
+            length: formatTime(range.endMs - range.startMs, true, locale),
+          })}
         </Text>
         {audio ? (
           <Text style={[palette.font('body', 13), { color: palette.caption, textAlign: 'center' }]}>

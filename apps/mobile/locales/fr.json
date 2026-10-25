@@ -1,0 +1,12 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "Morph accède à votre photothèque lorsque vous choisissez des photos ou des vidéos à traiter. Vos fichiers restent sur cet appareil.",
+    "NSPhotoLibraryAddUsageDescription": "Morph enregistre des photos et des vidéos dans votre photothèque uniquement à votre demande.",
+    "NSCameraUsageDescription": "Morph utilise l’appareil photo lorsque vous prenez une photo ou numérisez un document. Vos photos restent sur cet appareil.",
+    "NSMicrophoneUsageDescription": "Morph utilise le microphone lorsque vous enregistrez du son. Vos enregistrements restent sur cet appareil.",
+    "NSSpeechRecognitionUsageDescription": "Morph transcrit vos enregistrements sur cet appareil lorsque vous lancez une transcription. Vos enregistrements restent sur cet appareil."
+  },
+  "android": {
+    "app_name": "Morph"
+  }
+}

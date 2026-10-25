@@ -61,29 +61,31 @@ export async function renderToolsApp(
   /** 下载的工具（D-177）：要用自己的注册表，下载时会往里面加工具。 */
   options: {
     registry?: Registry;
+    locale?: Locale;
     toolDownloads?: ToolDownloads;
     /** 第一个版本；不传时是空白工作空间（App 里用 createStarterWorkspace）。 */
     seed?: (locale: Locale, registry: Registry) => WorkspaceConfig;
   } = {},
 ) {
   const registry = options.registry ?? testRegistry;
+  const locale = options.locale ?? 'zh';
   const aiSettings = createAISettingsStore({ secrets: memorySecrets(), serverAvailable: false });
   await aiSettings.getState().load();
   const store = createWorkspaceStore({
     repo,
     provider: createMockAIProvider(),
     registry,
-    locale: 'zh',
+    locale,
     now: () => new Date(2026, 9, 22, 9, 0),
     toolName: (id) =>
-      options.toolDownloads?.getState().catalog?.tools.find((e) => e.id === id)?.name.zh,
+      options.toolDownloads?.getState().catalog?.tools.find((e) => e.id === id)?.name[locale],
     ...(options.seed ? { seed: options.seed } : {}),
   });
   await store.getState().boot();
   await renderRouter({
     _layout: () => (
       <AISettingsProvider store={aiSettings}>
-        <WorkspaceProvider value={{ store, repo, files, registry, locale: 'zh' }}>
+        <WorkspaceProvider value={{ store, repo, files, registry, locale }}>
           <ShareListener files={files} />
           {options.toolDownloads ? (
             <ToolDownloadsProvider value={options.toolDownloads}>

@@ -10,7 +10,7 @@ import { validateWorkspace } from './validate';
 const catalog = [...registry.tools.keys()];
 
 describe('createStarterWorkspace', () => {
-  it.each(['zh', 'en'] as const)(
+  it.each(['zh', 'en', 'fr'] as const)(
     'installs the starter tools, a three-item bar and a short home page (%s)',
     (locale) => {
       const config = createStarterWorkspace(locale, registry);

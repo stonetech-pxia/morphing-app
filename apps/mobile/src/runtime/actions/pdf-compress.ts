@@ -184,8 +184,8 @@ async function picturePages(
   if (!result.met && pdf.bytes.length > target) {
     throw new RunError('targetNotMet', {
       name: fileName(item),
-      target: formatBytes(target),
-      got: formatBytes(pdf.bytes.length),
+      target: formatBytes(target, ctx.locale),
+      got: formatBytes(pdf.bytes.length, ctx.locale),
     });
   }
   return pdf.bytes;
@@ -217,8 +217,8 @@ export const PDF_COMPRESS_IMPLS: Record<string, Impl> = {
           const q = tooBigQuestion(
             ctx.locale,
             fileName(item),
-            formatBytes(target),
-            formatBytes(best.length),
+            formatBytes(target, ctx.locale),
+            formatBytes(best.length, ctx.locale),
           );
           const answer = await ctx.services.ui.choose(q.title, q.message, q.options);
           if (answer === null) throw new RunCancelled();

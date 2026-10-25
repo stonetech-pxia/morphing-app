@@ -9,7 +9,7 @@ import { isEmoji, unsafeLinks } from './richtext';
 export const CURRENT_SCHEMA_VERSION = 11;
 
 export type Locale = 'en' | 'zh' | 'fr';
-export type Localized = Record<'en' | 'zh', string> & { fr?: string };
+export type Localized = Record<Locale, string>;
 
 const ID_PATTERN = /^[a-z][a-z0-9-]{0,47}$/;
 export const IdSchema = z.string().regex(ID_PATTERN, 'id must be lowercase letters, digits or -');
