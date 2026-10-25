@@ -24,6 +24,13 @@ export interface NativeImage {
 }
 
 export interface MorphVisionModule {
+  adjustImage?(
+    uri: string,
+    options: { mode: 'auto' | 'manual'; brightness: number; contrast: number; saturation: number },
+    format: 'jpeg' | 'png',
+    output: string,
+  ): Promise<Omit<NativeImage, 'uri'>>;
+
   backgroundRemovalSupported?(): boolean;
   backgroundStatus?(): Promise<'ready' | 'download' | 'unsupported'>;
   downloadBackgroundModel?(): Promise<void>;

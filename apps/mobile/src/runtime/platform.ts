@@ -81,7 +81,22 @@ export interface SavedSignature {
  * Android 是 Google ML Kit（D-087）。没有时（Expo Go）为 null。系统做不了的（Android 找边、俄文识别）
  * 退回扩展包。全部在本机处理。
  */
+export interface ImageAdjustSettings {
+  mode: 'auto' | 'manual';
+  brightness: number;
+  contrast: number;
+  saturation: number;
+}
+
 export interface VisionPlatform {
+  adjustImage(
+    uri: string,
+    settings: ImageAdjustSettings,
+    format: 'jpeg' | 'png',
+    runId: string,
+    relPath: string,
+  ): Promise<EncodedImage>;
+
   readonly backgroundRemovalSupported: boolean;
   backgroundStatus(): Promise<'ready' | 'download' | 'unsupported'>;
   downloadBackgroundModel(): Promise<void>;

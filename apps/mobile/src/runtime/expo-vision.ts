@@ -15,6 +15,12 @@ export function expoVision(
   const native = MorphVision;
   if (!native) return null;
   return {
+    async adjustImage(uri, settings, format, runId, relPath) {
+      if (!native.adjustImage) throw new Error('Image adjustment unavailable');
+      const output = runFileUri(runId, relPath);
+      return { uri: output, ...(await native.adjustImage(uri, settings, format, output)) };
+    },
+
     backgroundRemovalSupported: native.backgroundRemovalSupported?.() ?? false,
     backgroundStatus: () => native.backgroundStatus?.() ?? Promise.resolve('unsupported'),
     async downloadBackgroundModel() {

@@ -69,6 +69,10 @@ public class MorphVisionModule: Module {
       return try self.removeBackground(uri, background: background, output: output)
     }
 
+    AsyncFunction("adjustImage") { (uri: URL, options: [String: Any], format: String, output: URL) -> [String: Any] in
+      return try self.adjustImage(uri, options: options, format: format, output: output)
+    }
+
     // iOS 能找纸张的四个角（Android 的 ML Kit 不能）。
     Function("canFindPaper") { () -> Bool in
       true
@@ -254,6 +258,32 @@ public class MorphVisionModule: Module {
     }
     if let rect = rectangle { return (rect, "rectangles") }
     return (nil, "none")
+  }
+
+  private func adjustImage(_ uri: URL, options: [String: Any], format: String, output: URL) throws -> [String: Any] {
+    let image = try loadImage(uri)
+    let automatic = options["mode"] as? String == "auto"
+    var result = image
+    if automatic {
+      for filter in image.autoAdjustmentFilters(options: [.enhance: true, .redEye: false]) {
+        filter.setValue(result, forKey: kCIInputImageKey)
+        if let adjusted = filter.outputImage { result = adjusted }
+      }
+    } else {
+      let brightness = (options["brightness"] as? NSNumber)?.doubleValue ?? 0
+      let contrast = (options["contrast"] as? NSNumber)?.doubleValue ?? 100
+      let saturation = (options["saturation"] as? NSNumber)?.doubleValue ?? 100
+      guard brightness.isFinite, contrast.isFinite, saturation.isFinite, (-100...100).contains(brightness), (0...200).contains(contrast), (0...200).contains(saturation) else { throw VisionFailedException("invalid adjustment") }
+      result = image.applyingFilter("CIColorControls", parameters: [kCIInputBrightnessKey: brightness/100, kCIInputContrastKey: contrast/100, kCIInputSaturationKey: saturation/100])
+    }
+    result = result.cropped(to: image.extent)
+    try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+    if format == "png" {
+      try ciContext.writePNGRepresentation(of: result, to: output, format: .RGBA8, colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
+    } else {
+      try writeJpeg(result, to: output, quality: 0.92)
+    }
+    return ["width": Int(result.extent.width), "height": Int(result.extent.height), "size": (try FileManager.default.attributesOfItem(atPath: output.path)[.size] as? NSNumber)?.intValue ?? 0]
   }
 
   private func removeBackground(_ uri: URL, background: String, output: URL) throws -> [String: Any] {

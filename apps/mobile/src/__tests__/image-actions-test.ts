@@ -82,6 +82,7 @@ describe('image tool workflows', () => {
       },
     );
     expect(result.ok && result.config.workflows.map((w) => w.id)).toEqual([
+      'image-adjust',
       'image-removebackground',
       'image-compress',
       'image-convert',
@@ -288,4 +289,32 @@ describe('background removal', () => {
     vision.backgroundFailure = true;
     expect(await run()).toMatchObject({ status: 'failed', error: { code: 'backgroundFailed' } });
   });
+});
+
+it('adjusts photo colors in automatic and manual modes, keeping dimensions and transparency formats', async () => {
+  for (const mode of ['auto', 'manual']) {
+    const { files, run } = setup(toolWorkflow('image-adjust'), {
+      mode,
+      brightness: 20,
+      contrast: 110,
+      saturation: 90,
+    });
+    const vision = new FakeVision(files);
+    files.vision = vision;
+    files.nextPhotos = [
+      files.offerImage('portrait.heic', 600, 800, 'image/heic'),
+      files.offerImage('sticker.webp', 900, 500, 'image/webp'),
+    ];
+    expect(imagesOf(await run())).toMatchObject([
+      { ext: 'jpg', mimeType: 'image/jpeg', width: 600, height: 800 },
+      { ext: 'png', mimeType: 'image/png', width: 900, height: 500 },
+    ]);
+    expect(vision.calls).toMatchObject([
+      {
+        method: 'adjustImage',
+        args: { mode, brightness: 20, contrast: 110, saturation: 90, format: 'jpeg' },
+      },
+      { method: 'adjustImage', args: { format: 'png' } },
+    ]);
+  }
 });

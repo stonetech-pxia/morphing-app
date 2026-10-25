@@ -3033,7 +3033,55 @@ const IMAGE_BACKGROUND_CASES: EvalCase[] = [
     },
   },
 ];
+const IMAGE_ADJUST_CASES: EvalCase[] = [
+  {
+    id: 'IAD1',
+    input: '添加把太暗的照片调亮快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some(
+            (s) =>
+              s.action === 'image.adjust' &&
+              s.params.mode === 'manual' &&
+              Number(s.params.brightness) > 0,
+          ),
+        )
+          ? null
+          : 'missing photo brightening',
+    },
+  },
+  {
+    id: 'IAD2',
+    input:
+      'Make a reusable photo adjustment: brightness +20, contrast 110, saturation 90. Keep the pixel dimensions.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some(
+            (s) =>
+              s.action === 'image.adjust' &&
+              s.params.mode === 'manual' &&
+              s.params.brightness === 20 &&
+              s.params.contrast === 110 &&
+              s.params.saturation === 90,
+          ),
+        )
+          ? null
+          : 'missing exact color adjustment parameters',
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...IMAGE_ADJUST_CASES,
   ...IMAGE_BACKGROUND_CASES,
   ...AUDIO_DENOISE_CASES,
   ...AUDIO_VOLUME_CASES,

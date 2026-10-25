@@ -173,6 +173,20 @@ const RECORD_PHRASES: Matcher[] = [
 
 const STEP_PHRASES: Matcher[] = [
   [
+    /^(?:图片自动优化|自动优化照片|auto adjust photos)$/i,
+    () => ({
+      action: 'image.adjust',
+      params: { mode: 'auto', brightness: 0, contrast: 100, saturation: 100 },
+    }),
+  ],
+  [
+    /^(?:调亮照片|brighten photos)$/i,
+    () => ({
+      action: 'image.adjust',
+      params: { mode: 'manual', brightness: 15, contrast: 100, saturation: 100 },
+    }),
+  ],
+  [
     /^(?:抠图|去背景|去掉背景|remove background)$/i,
     () => ({
       action: 'image.removeBackground',
@@ -551,6 +565,7 @@ const PRESET_WORDS: [RegExp, string][] = [
   [/把视频转正|fix video rotation/i, 'fix-video-rotation'],
   [/裁成竖屏视频|portrait posts/i, 'vertical-video'],
   [/视频加速或慢放|speed up or slow down video/i, 'video-speed'],
+  [/把太暗的照片调亮|brighten dark photos/i, 'brighten-photos'],
   [/把照片背景去掉|remove a photo background/i, 'remove-photo-background'],
   [/录音人声降噪|noise in a voice recording/i, 'denoise-audio'],
   [/视频人声降噪|noise in video speech/i, 'denoise-video'],

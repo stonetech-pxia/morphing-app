@@ -252,3 +252,9 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 - 添加把照片背景去掉快捷操作
 - 步骤句式：抠图 / 去背景 / remove background；换成白底 / white background
 - 透明或纯色 PNG，需要 iOS 17+ 或 Android Google Play 服务。
+
+### 图片颜色调整
+
+- 添加把太暗的照片调亮快捷操作
+- 步骤句式：图片自动优化 / auto adjust photos；调亮照片 / brighten photos
+- 自动优化或手动亮度、对比度、饱和度，保留尺寸，透明图片输出 PNG。

@@ -94,6 +94,39 @@ export async function eachImage(
 }
 
 export const IMAGE_IMPLS: Record<string, Impl> = {
+  async 'image.adjust'(input, params, ctx) {
+    const vision = ctx.services.files.vision;
+    if (!vision)
+      throw new RunError('unsupportedAction', { action: t(ctx.locale, 'imageAdjustmentNeedsApp') });
+    return eachImage(input, ctx, async (item) => {
+      const format =
+        item.mimeType === 'image/png' || item.mimeType === 'image/webp' ? 'png' : 'jpeg';
+      try {
+        const result = await vision.adjustImage(
+          item.uri,
+          {
+            mode: params.mode as 'auto' | 'manual',
+            brightness: Number(params.brightness),
+            contrast: Number(params.contrast),
+            saturation: Number(params.saturation),
+          },
+          format,
+          ctx.services.runId,
+          freshName(item.name, format === 'png' ? 'png' : 'jpg'),
+        );
+        ctx.throwIfCancelled();
+        return {
+          ...item,
+          ...result,
+          ext: format === 'png' ? 'png' : 'jpg',
+          mimeType: MIME[format],
+        };
+      } catch (error) {
+        if (error instanceof RunCancelled) throw error;
+        throw new RunError('unreadable', { name: item.name });
+      }
+    });
+  },
   async 'image.removeBackground'(input, params, ctx) {
     const vision = ctx.services.files.vision;
     if (!vision?.backgroundRemovalSupported)

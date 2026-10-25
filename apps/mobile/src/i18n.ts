@@ -661,6 +661,10 @@ const strings = {
     en: 'Videos and audio can only be processed in the full Morph app, not in this preview.',
     zh: '视频和音频要在正式版 Morph 里处理，这个预览版里不行。',
   },
+  imageAdjustmentNeedsApp: {
+    en: 'Photo adjustment needs an updated Morph app.',
+    zh: '图片调整需要更新后的 Morph App。',
+  },
   backgroundNeedsSystem: {
     en: 'Background removal needs iOS 17 or later, or Android with Google Play services.',
     zh: '去背景需要 iOS 17 或更新版本，或带 Google Play 服务的 Android。',

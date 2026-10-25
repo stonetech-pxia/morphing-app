@@ -605,6 +605,24 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'brighten-photos',
+    scenario: 'photos',
+    name: { en: 'Brighten dark photos', zh: '把太暗的照片调亮' },
+    description: {
+      en: 'Raise photo brightness a little, keeping the original dimensions.',
+      zh: '适度提高照片亮度，保留原尺寸。',
+    },
+    icon: 'photo',
+    steps: () => [
+      photos(1, 10),
+      {
+        id: 'adjust',
+        action: 'image.adjust',
+        params: { mode: 'manual', brightness: 15, contrast: 100, saturation: 100 },
+      },
+    ],
+  },
+  {
     id: 'remove-photo-background',
     scenario: 'photos',
     name: { en: 'Remove a photo background', zh: '把照片背景去掉' },
