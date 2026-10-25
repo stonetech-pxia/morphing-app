@@ -15,11 +15,14 @@ describe('starter home and toolbox (UI)', () => {
   const start = () =>
     renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), { seed: createStarterWorkspace });
 
-  it('shows three quick actions and a toolbox entry, with no Tools tab', async () => {
+  it('shows file pickers, the category entry and toolbox without preset shortcuts', async () => {
     await start();
-    expect(await screen.findByTestId('run-video-too-big')).toBeTruthy();
-    expect(screen.getByTestId('run-email-photos')).toBeTruthy();
-    expect(screen.getByTestId('run-pdf-too-big')).toBeTruthy();
+    expect(await screen.findByTestId('file-pick-media')).toBeTruthy();
+    expect(screen.getByTestId('file-pick-files')).toBeTruthy();
+    expect(screen.getByText('Morph 可以做什么')).toBeTruthy();
+    expect(screen.queryByTestId('run-video-too-big')).toBeNull();
+    expect(screen.queryByTestId('run-email-photos')).toBeNull();
+    expect(screen.queryByTestId('run-pdf-too-big')).toBeNull();
     expect(screen.getByText('工具箱')).toBeTruthy();
     expect(screen.queryByTestId('nav-tools')).toBeNull();
   });

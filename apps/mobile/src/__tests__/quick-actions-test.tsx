@@ -1,4 +1,10 @@
-import { createStarterWorkspace, QUICK_ACTION_CATEGORIES, QUICK_ACTION_KINDS } from '@morph/core';
+import {
+  createStarterWorkspace,
+  presetById,
+  presetWorkflow,
+  QUICK_ACTION_CATEGORIES,
+  QUICK_ACTION_KINDS,
+} from '@morph/core';
 import { act, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
@@ -71,6 +77,7 @@ describe('quick-action categories (UI)', () => {
     await renderToolsApp(repo, new FakeFiles(), {
       seed: (locale, registry) => {
         const config = createStarterWorkspace(locale, registry);
+        config.workflows.push(presetWorkflow(presetById('email-photos')!, locale, 'email-photos'));
         config.workflows.unshift({
           id: 'unused',
           name: 'Unused',
