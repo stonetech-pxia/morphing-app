@@ -3147,7 +3147,52 @@ const VIDEO_SUBTITLE_CASES: EvalCase[] = [
     },
   },
 ];
+const QUICK_ACTION_ENTRY_CASES: EvalCase[] = [
+  {
+    id: 'QAC1',
+    input: '首页加上Morph 可以做什么',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.pages.some(
+          (p) =>
+            p.id === 'home' &&
+            allComponents(p).some(
+              (x) =>
+                (x.type === 'shortcut' || x.type === 'button') && x.props.target === 'quickActions',
+            ),
+        )
+          ? null
+          : 'missing quickActions home entry',
+    },
+  },
+  {
+    id: 'QAC2',
+    input: 'Add What Morph can do to home',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.pages.some(
+          (p) =>
+            p.id === 'home' &&
+            allComponents(p).some(
+              (x) =>
+                (x.type === 'shortcut' || x.type === 'button') && x.props.target === 'quickActions',
+            ),
+        )
+          ? null
+          : 'missing quickActions home entry',
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...QUICK_ACTION_ENTRY_CASES,
   ...VIDEO_SUBTITLE_CASES,
   ...IMAGE_ANNOTATE_CASES,
   ...IMAGE_ADJUST_CASES,

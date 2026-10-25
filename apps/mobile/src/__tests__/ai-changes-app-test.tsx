@@ -183,14 +183,14 @@ describe('AI changes the app, the user runs it (UI)', () => {
     expect(screen.getByText('分享进来的文件（1 个）')).toBeTruthy();
   });
 
-  it('ready-made quick actions are grouped by scenario (D-130)', async () => {
+  it('ready-made quick actions are grouped by input type', async () => {
     await renderToolsApp();
     await act(() => router.push('/workflows'));
-    expect(await screen.findByTestId('scenario-ids')).toHaveTextContent(/出国办证/);
-    expect(screen.getByTestId('scenario-ids')).toHaveTextContent(/签证 \/ 证件照/);
-    expect(screen.getByTestId('scenario-receipts')).toHaveTextContent(/收据归档/);
+    await fireEvent.press(await screen.findByTestId('category-image'));
+    expect(await screen.findByTestId('preset-visa-photo')).toBeTruthy();
+    expect(screen.queryByTestId('preset-sign-return')).toBeNull();
     // 加好了就能直接运行。
-    await fireEvent.press(screen.getByTestId('preset-add-receipt-archive'));
-    expect(await screen.findByTestId('preset-run-receipt-archive')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('preset-add-visa-photo'));
+    expect(await screen.findByTestId('preset-run-visa-photo')).toBeTruthy();
   });
 });

@@ -1382,7 +1382,37 @@ const filePickRule: Rule = (clause, state) => {
   ];
 };
 
+const quickActionsRule: Rule = (clause, state) => {
+  if (!/^(?:首页加上Morph 可以做什么|Add What Morph can do to home)$/i.test(clause)) return null;
+  const home = page(state, HOME_PAGE_ID);
+  if (
+    allComponents(home).some(
+      (c) =>
+        (c.type === 'shortcut' || c.type === 'button') &&
+        c.props.target === 'quickActions' &&
+        !c.hidden,
+    )
+  )
+    return [];
+  return [
+    {
+      op: 'addComponent',
+      pageId: HOME_PAGE_ID,
+      component: {
+        id: newComponentId('what-morph-can-do', home),
+        type: 'shortcut',
+        props: {
+          title: state.ctx.locale === 'zh' ? 'Morph 可以做什么' : 'What Morph can do',
+          icon: 'workflow',
+          target: 'quickActions',
+        },
+      },
+    },
+  ];
+};
+
 const RULES: Rule[] = [
+  quickActionsRule,
   filePickRule,
   reportRule,
   translateDocRule,

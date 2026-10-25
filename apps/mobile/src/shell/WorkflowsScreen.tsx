@@ -1,20 +1,29 @@
 import {
-  PRESET_SCENARIOS,
+  QUICK_ACTION_KINDS,
+  QUICK_ACTION_CATEGORIES,
+  WORKFLOW_PRESETS,
+  workflowKinds,
+  presetKinds,
+  shareFit,
+  type QuickActionKind,
   newWorkflowId,
   presetWorkflow,
-  presetsIn,
   type WorkflowPreset,
   type Locale,
   type Registry,
   type Workflow,
 } from '@morph/core';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
+import { Icon } from '../renderer/Icon';
+import { mimeOf } from '../runtime/actions/helpers';
+import { useIncoming, releaseShare } from '../share/incoming';
+import type { SucceededRuns } from '../storage/types';
 import type { Palette } from '../renderer/theme';
-import { Card, PageTitle, Pill, SectionLabel } from '../renderer/ui';
+import { Button, Card, PageTitle, Pill, SectionLabel } from '../renderer/ui';
 import { useWorkflowChange } from '../run/workflow-change';
 import { packsNeeded } from '../runtime/runner';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
@@ -26,30 +35,94 @@ export function stepChain(wf: Pick<Workflow, 'steps'>, registry: Registry, local
 }
 
 /**
- * 「工作流」页（TOOLS_DESIGN §7，D-082）：我的工作流、工具自带的工作流、预设库。
+ * 快捷操作分类页：先做自己的，再看我的、现成的和工具自带的。
  * 由内核提供（AI 不能修改这个页面）；添加预设是一次可撤销的修改。
  */
 export function WorkflowsScreen({
   palette,
   locale,
   registry,
+  kind,
+  shared,
+  embedded = false,
 }: {
   palette: Palette;
   locale: Locale;
   registry: Registry;
+  kind?: QuickActionKind;
+  shared?: string;
+  embedded?: boolean;
 }) {
   const zh = locale === 'zh';
   const router = useRouter();
   const config = useWorkspace((s) => s.config)!;
-  const { files } = useWorkspaceContext();
+  const { files, repo } = useWorkspaceContext();
+  const incoming = useIncoming((s) => s.share);
+  const share = shared && String(incoming?.id) === shared ? incoming : null;
+  const handed = useRef(false);
+  useEffect(
+    () => () => {
+      if (shared && !handed.current) void releaseShare(files, Number(shared));
+    },
+    [files, shared],
+  );
+  const [usage, setUsage] = useState<SucceededRuns>(new Map());
+  useFocusEffect(
+    useCallback(() => {
+      handed.current = false;
+      let alive = true;
+      void repo
+        .countSucceededRuns()
+        .then((counts) => {
+          if (alive) setUsage(counts);
+        })
+        .catch(() => {
+          /* 统计暂时不可用时仍能浏览分类。 */
+        });
+      return () => {
+        alive = false;
+      };
+    }, [repo]),
+  );
   const change = useWorkflowChange();
-  const [showTools, setShowTools] = useState(false);
-  const mine = config.workflows.filter((w) => !w.toolId);
-  const toolOwned = config.workflows.filter((w) => w.toolId);
+  const inCategory = (w: Workflow) => !kind || workflowKinds(w).includes(kind);
+  const mine = config.workflows
+    .filter((w) => !w.toolId && inCategory(w))
+    .sort((a, b) => {
+      const x = usage.get(a.id),
+        y = usage.get(b.id);
+      return (y?.count ?? 0) - (x?.count ?? 0) || (y?.lastAt ?? 0) - (x?.lastAt ?? 0);
+    });
+  const toolOwned = config.workflows.filter((w) => w.toolId && inCategory(w));
+  const fit = (w: Workflow) =>
+    share
+      ? shareFit(
+          w,
+          share.files.map((f) => ({ ...f, mimeType: mimeOf(f.name, f.mimeType) })),
+        )
+      : { ok: true as const };
+  const fits = (w: Workflow) => fit(w).ok;
+  const fitMessage = (w: Workflow) => {
+    const result = fit(w);
+    if (result.ok) return '';
+    if (result.reason === 'tooFew')
+      return zh ? `需要至少 ${result.min} 个文件` : `Needs at least ${result.min} files`;
+    if (result.reason === 'tooMany')
+      return zh ? `最多 ${result.max} 个文件` : `Takes at most ${result.max} files`;
+    return zh ? '不适用于这批文件' : 'Cannot use these files';
+  };
   const caption = [palette.font('body', 13), { color: palette.muted }];
 
-  const run = (wf: Workflow) =>
-    router.push({ pathname: '/run/[workflowId]', params: { workflowId: wf.id } });
+  const run = (wf: Workflow) => {
+    if (!fits(wf) || (shared && !share)) return;
+    handed.current = true;
+    const route = {
+      pathname: '/run/[workflowId]' as const,
+      params: { workflowId: wf.id, ...(shared ? { shared } : {}) },
+    };
+    if (shared) router.replace(route);
+    else router.push(route);
+  };
   const edit = (wf: Workflow) => router.push({ pathname: '/workflow/[id]', params: { id: wf.id } });
 
   const row = (wf: Workflow, subtitle?: string) => (
@@ -57,11 +130,17 @@ export function WorkflowsScreen({
       <Text style={[palette.font('title', 16), { color: palette.text }]}>{wf.name}</Text>
       {subtitle ? <Text style={caption}>{subtitle}</Text> : null}
       <Text style={caption}>{stepChain(wf, registry, locale)}</Text>
+      {usage.has(wf.id) ? (
+        <Text style={caption}>{t(locale, 'shareUsed', { n: usage.get(wf.id)!.count })}</Text>
+      ) : null}
+      {share && !fits(wf) ? <Text style={caption}>{fitMessage(wf)}</Text> : null}
       <View style={styles.actions}>
-        <Pill
+        <Button
+          variant="text"
           palette={palette}
           testID={`workflow-run-${wf.id}`}
           label={zh ? '运行' : 'Run'}
+          disabled={!fits(wf)}
           onPress={() => run(wf)}
         />
         <Pill
@@ -95,10 +174,12 @@ export function WorkflowsScreen({
         <View style={styles.actions}>
           {/* 加好了就能直接用（D-125）。 */}
           {added.length > 0 ? (
-            <Pill
+            <Button
+              variant="text"
               palette={palette}
               testID={`preset-run-${preset.id}`}
               label={zh ? '运行' : 'Run'}
+              disabled={!fits(added.at(-1)!)}
               onPress={() => run(added.at(-1)!)}
             />
           ) : null}
@@ -119,63 +200,76 @@ export function WorkflowsScreen({
     );
   };
 
+  if (shared && !share) return <Text style={caption}>{t(locale, 'shareGone')}</Text>;
+
+  if (!kind)
+    return (
+      <ScrollView
+        testID="workflows-screen"
+        style={{ backgroundColor: palette.background }}
+        contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 48 }}>
+        {embedded ? null : <Banner palette={palette} />}
+        <PageTitle palette={palette}>{zh ? 'Morph 可以做什么' : 'What Morph can do'}</PageTitle>
+        {QUICK_ACTION_KINDS.map((category) => (
+          <Card key={category} palette={palette}>
+            <Icon name={QUICK_ACTION_CATEGORIES[category].icon} size={24} color={palette.primary} />
+            <Button
+              palette={palette}
+              testID={`category-${category}`}
+              label={QUICK_ACTION_CATEGORIES[category].name[locale]}
+              onPress={() => {
+                handed.current = true;
+                const route = {
+                  pathname: '/quick-actions/[kind]' as const,
+                  params: { kind: category, ...(shared ? { shared } : {}) },
+                };
+                if (shared) router.replace(route);
+                else router.push(route);
+              }}
+            />
+          </Card>
+        ))}
+      </ScrollView>
+    );
+
   return (
     <ScrollView
-      testID="workflows-screen"
+      testID={`quick-actions-${kind}`}
       style={{ backgroundColor: palette.background }}
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 48 }}>
-      <Banner palette={palette} />
-      <PageTitle palette={palette}>{t(locale, 'workflowsTitle')}</PageTitle>
-      <Text style={caption}>
-        {zh
-          ? '快捷操作把几个步骤串起来一次做完，全部在本机处理。可以从下面现成的里添加，也可以对 AI 说「新建一个快捷操作：选照片、压到 500KB、分享」。'
-          : 'A quick action does several steps in one go, all on this device. Add a ready-made one below, or ask AI: “Create a quick action: choose photos, compress to 500 KB, share”.'}
-      </Text>
-
+      {embedded ? null : <Banner palette={palette} />}
+      <PageTitle palette={palette}>{QUICK_ACTION_CATEGORIES[kind].name[locale]}</PageTitle>
+      <Button
+        palette={palette}
+        testID="quick-actions-create"
+        label={zh ? '做一个自己的快捷操作' : 'Make your own quick action'}
+        onPress={() => {
+          handed.current = true;
+          router.push({
+            pathname: '/change',
+            params: {
+              text: QUICK_ACTION_CATEGORIES[kind].prefill[locale],
+              ...(shared ? { shared } : {}),
+            },
+          });
+        }}
+      />
       <SectionLabel palette={palette}>{zh ? '我的快捷操作' : 'My quick actions'}</SectionLabel>
       {mine.length === 0 ? (
-        <Card palette={palette}>
-          <Text testID="workflows-empty" style={caption}>
-            {zh ? '还没有。从下面现成的里添加一个吧。' : 'None yet. Add a ready-made one below.'}
-          </Text>
-        </Card>
+        <Text testID="workflows-empty" style={caption}>
+          {zh ? '还没有。从下面现成的里添加一个吧。' : 'None yet. Add a ready-made one below.'}
+        </Text>
       ) : (
         mine.map((wf) => row(wf))
       )}
-
-      {/* 现成的快捷操作按生活场景分组（D-130）。 */}
       <SectionLabel palette={palette}>{zh ? '现成的' : 'Ready-made'}</SectionLabel>
-      {PRESET_SCENARIOS.map((scenario) => (
-        <View key={scenario.id} style={styles.scenario} testID={`scenario-${scenario.id}`}>
-          <Text style={[palette.font('title', 15), { color: palette.muted }]}>
-            {scenario.name[locale]}
-          </Text>
-          {presetsIn(scenario.id).map(presetCard)}
-        </View>
-      ))}
-
+      {WORKFLOW_PRESETS.filter((preset) => presetKinds(preset).includes(kind)).map(presetCard)}
       {toolOwned.length > 0 ? (
         <>
           <SectionLabel palette={palette}>{zh ? '工具自带的' : 'From your tools'}</SectionLabel>
-          <Pill
-            palette={palette}
-            testID="workflows-show-tools"
-            label={
-              showTools
-                ? zh
-                  ? '收起'
-                  : 'Hide'
-                : zh
-                  ? `显示 ${toolOwned.length} 个`
-                  : `Show ${toolOwned.length}`
-            }
-            onPress={() => setShowTools((v) => !v)}
-          />
-          {showTools
-            ? toolOwned.map((wf) =>
-                row(wf, registry.tools.get(wf.toolId!)?.name[locale] ?? wf.toolId),
-              )
-            : null}
+          {toolOwned.map((wf) =>
+            row(wf, registry.tools.get(wf.toolId!)?.name[locale] ?? wf.toolId),
+          )}
         </>
       ) : null}
     </ScrollView>
@@ -184,5 +278,4 @@ export function WorkflowsScreen({
 
 const styles = StyleSheet.create({
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
-  scenario: { gap: 8 },
 });

@@ -278,18 +278,15 @@ describe('share journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('share-files-toggle'));
     expect(screen.getByText('报告.pdf')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('share-see-all'));
-    // 合并 PDF 接得上；签回表格只收 1 个，列出来但不能运行；证件照只收照片，不列出。
-    expect(screen.getByTestId(`share-run-${merge.id}`)).toBeTruthy();
-    expect(screen.getByTestId('share-workflow-sign-return')).toBeTruthy();
-    expect(screen.queryByTestId('share-run-sign-return')).toBeNull();
+    expect(await screen.findByTestId('quick-actions-document')).toBeTruthy();
+    expect(screen.getByTestId(`workflow-run-${merge.id}`)).toBeTruthy();
+    expect(screen.getByTestId('workflow-run-sign-return')).toBeDisabled();
     expect(
-      within(screen.getByTestId('share-workflow-sign-return')).getByText('最多 1 个文件'),
+      within(screen.getByTestId('workflow-sign-return')).getByText('最多 1 个文件'),
     ).toBeTruthy();
-    expect(screen.queryByTestId('share-workflow-visa-photo')).toBeNull();
-    // 不会自动运行。
+    expect(screen.queryByTestId('workflow-visa-photo')).toBeNull();
     expect(screen.queryByTestId('run-screen')).toBeNull();
-
-    await fireEvent.press(screen.getByTestId(`share-run-${merge.id}`));
+    await fireEvent.press(screen.getByTestId(`workflow-run-${merge.id}`));
     expect(await screen.findByText('分享进来的文件（2 个）')).toBeTruthy();
     // 合并 PDF 每次运行时问文件名。
     await fireEvent.press(await screen.findByTestId('prompt-ok', {}, { timeout: 3000 }));

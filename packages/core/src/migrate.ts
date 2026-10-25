@@ -126,6 +126,9 @@ export const migrateV8toV9: Migration = (config) => ({ ...config, schemaVersion:
 /** v9 → v10：新增文件选择入口；保持老用户页面原样。 */
 export const migrateV9toV10: Migration = (config) => ({ ...config, schemaVersion: 10 });
 
+/** v10 → v11：允许分类系统入口，保持老用户的首页原样。 */
+export const migrateV10toV11: Migration = (config) => ({ ...config, schemaVersion: 11 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -137,6 +140,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   7: migrateV7toV8,
   8: migrateV8toV9,
   9: migrateV9toV10,
+  10: migrateV10toV11,
 };
 
 export type MigrateResult =

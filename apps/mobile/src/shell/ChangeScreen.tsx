@@ -133,6 +133,9 @@ export function ChangeScreen() {
 
   // 草稿聊天框里说的功能类请求，带到这里来说（D-191）。
   const [input, setInput] = useState(() => (auto ? '' : (params.text ?? '')));
+  const [prefillSelection, setPrefillSelection] = useState(() =>
+    !auto && params.text ? { start: params.text.length, end: params.text.length } : undefined,
+  );
   /** 风格选择器最近填进去的句子；用户改过输入框后就不再相等，交给设置里的 AI。 */
   const [presetText, setPresetText] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Extract<
@@ -287,6 +290,9 @@ export function ChangeScreen() {
             <Icon name="sparkles" size={18} color={palette.primary} />
             <TextInput
               testID="change-input"
+              autoFocus={Boolean(params.text) && !auto}
+              selection={prefillSelection}
+              onSelectionChange={() => setPrefillSelection(undefined)}
               value={input}
               onChangeText={setInput}
               editable={!typing}

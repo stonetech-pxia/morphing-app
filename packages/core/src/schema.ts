@@ -6,7 +6,7 @@ import { isEmoji, unsafeLinks } from './richtext';
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 修改本文件中会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
 
-export const CURRENT_SCHEMA_VERSION = 10;
+export const CURRENT_SCHEMA_VERSION = 11;
 
 export type Locale = 'en' | 'zh';
 export type Localized = Record<Locale, string>;
@@ -219,7 +219,7 @@ export const SortSchema = z.strictObject({
 
 // ---- 导航 ----
 
-export const SYSTEM_TARGETS = ['tools', 'ai', 'history', 'settings'] as const;
+export const SYSTEM_TARGETS = ['tools', 'ai', 'history', 'settings', 'quickActions'] as const;
 export type SystemTarget = (typeof SYSTEM_TARGETS)[number];
 
 /**

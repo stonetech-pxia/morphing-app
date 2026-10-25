@@ -46,8 +46,6 @@ export function ShareScreen() {
   const zh = locale === 'zh';
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const expanded = expandedId === share?.id;
-  const [allId, setAllId] = useState<number | null>(null);
-  const showAll = allId === share?.id;
   const [usage, setUsage] = useState<SucceededRuns>(new Map());
   useEffect(() => {
     let alive = true;
@@ -147,7 +145,7 @@ export function ShareScreen() {
   }));
   const sizeProblem = sharedSizeProblem(infos);
   const { all, recommended } = shareRecommendations(config.workflows, infos, usage, locale, newest);
-  const candidates = showAll ? all : recommended;
+  const candidates = recommended;
 
   function isNew(wf: Workflow) {
     return knownIds !== null && !wf.toolId && !knownIds.has(wf.id);
@@ -289,13 +287,27 @@ export function ShareScreen() {
             <SectionLabel palette={palette}>{t(locale, 'shareRecent')}</SectionLabel>
           ) : null}
           {candidates.map(workflowCard)}
-          {!showAll && all.length > recommended.length ? (
+          {all.length > recommended.length ? (
             <Button
               palette={palette}
               variant="text"
               testID="share-see-all"
               label={t(locale, 'shareSeeAll', { n: all.length })}
-              onPress={() => setAllId(share.id)}
+              onPress={() => {
+                handed.current = true;
+                const kinds = new Set(infos.map((f) => mediaKindOf(f.mimeType, f.name)));
+                const first = [...kinds][0];
+                const kind =
+                  first === 'image' || first === 'video' || first === 'audio' ? first : 'document';
+                router.replace(
+                  kinds.size === 1
+                    ? {
+                        pathname: '/quick-actions/[kind]',
+                        params: { kind, shared: String(share.id) },
+                      }
+                    : { pathname: '/quick-actions', params: { shared: String(share.id) } },
+                );
+              }}
             />
           ) : null}
           <Button

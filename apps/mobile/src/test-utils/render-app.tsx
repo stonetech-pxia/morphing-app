@@ -23,6 +23,8 @@ import ShareRoute from '../app/share';
 import WelcomeRoute from '../app/welcome';
 import WorkflowRoute from '../app/workflow/[id]';
 import WorkflowsRoute from '../app/workflows';
+import QuickActionsRoute from '../app/quick-actions';
+import QuickActionCategoryRoute from '../app/quick-actions/[kind]';
 import { useIncomingShare } from '../share/useIncomingShare';
 import { ToolDownloadsProvider } from '../tool-download/context';
 import type { ToolDownloads } from '../tool-download/state';
@@ -102,6 +104,8 @@ export async function renderToolsApp(
     'page/[pageId]': PageRoute,
     'run/[workflowId]': RunRoute,
     workflows: WorkflowsRoute,
+    'quick-actions/index': QuickActionsRoute,
+    'quick-actions/[kind]': QuickActionCategoryRoute,
     'workflow/[id]': WorkflowRoute,
     share: ShareRoute,
     'ready/[workflowId]': ReadyRoute,

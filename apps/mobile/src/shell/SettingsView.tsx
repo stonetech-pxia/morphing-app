@@ -61,7 +61,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         icon="workflow"
         label={t(locale, 'workflowsTitle')}
         value={t(locale, 'workflowsRowHint')}
-        onPress={env.locked ?? (() => router.push('/workflows'))}
+        onPress={env.locked ?? (() => router.push('/quick-actions'))}
       />
       <ListRow
         palette={palette}

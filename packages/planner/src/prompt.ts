@@ -139,7 +139,8 @@ export function buildSystemPrompt(registry: Registry): string {
   - group {title?, layout: "stack"|"row"|"grid", columns?: 2|3} with children: [component] (max 12, never another group). Use it to put things side by side (row) or in a grid.
 - Icons: one of these names: ${ICON_NAMES.join(', ')} — or a single emoji (e.g. "💰", "📚"). Use an emoji when no name fits.
 - Rich text (text and notice): **bold**, *italic*, [label](https://…) or [label](mailto:…) links (only https and mailto), lines starting with "- " for bullets or "1. " for numbered items, a blank line between paragraphs. No HTML, no headings, no images.
-- shell.nav: 1-5 bottom-bar entries in order. shell.floating: up to 3 floating buttons. An entry is "tools", "ai", "history", "settings", or "page:<pageId>". A target is any of these.
+- "quickActions" opens the kernel-owned quick-action library grouped by input file type. Use it for "What Morph can do" / "Morph 可以做什么" entry points; do not build replacement category pages.
+- shell.nav: 1-5 bottom-bar entries in order. shell.floating: up to 3 floating buttons. An entry is "tools", "ai", "history", "settings", "quickActions", or "page:<pageId>". A target is any of these.
 - theme: {primaryColor, mode: "light"|"dark"|"system", colors: {background?, surface?, text?, secondary?, tertiary?} (overrides of the default palette; all "#RRGGBB"), darkColors?: same shape (used in dark mode; a color not set there falls back to colors), font: "clay"|"system"|"serif"|"mono", fontScale (0.85-1.3, 1 = normal), radius (0-28, card corner radius), density: "compact"|"comfortable"|"spacious", cardStyle: "shadow"|"outline"|"flat"|"brutal"|"soft"|"puffy"|"glass"|"glow"|"chrome" (brutal = thick outline + hard offset shadow, soft = neumorphic raised, puffy = claymorphic with an inner highlight, glass = translucent frosted glass, glow = neon glow in the primary color, chrome = Y2K metallic gradient), navStyle: "iconLabel"|"label"|"icon", backdrop?: "plain"|"gradient"|"aurora" (page background; gradient = primary tint fading to the secondary tint, aurora = soft blobs of primary, secondary and tertiary; colors come from the palette). Glass cards look best over a gradient or aurora backdrop.
   Built-in style presets (applyThemePreset replaces the whole theme, light and dark colors included):
 ${themePresets}
@@ -158,7 +159,7 @@ ${themePresets}
 ## Output
 Reply with exactly one JSON object and nothing else (no prose, no code fences), matching this TypeScript type:
 
-type Target = "tools" | "ai" | "history" | "settings" | \`page:\${string}\`;
+type Target = "tools" | "ai" | "history" | "settings" | "quickActions" | \`page:\${string}\`;
 type ThemePreset = ${presetIds};
 type Style = { align?: "start" | "center" | null; tone?: "default" | "primary" | "secondary" | "tertiary" | "muted" | null; size?: "small" | "medium" | "large" | null };
 type Step = { id: string; action: string; params: object; ask?: string[] };   // params must match the action's parameters exactly

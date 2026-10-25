@@ -1,3 +1,4 @@
+import { WorkflowsScreen } from './WorkflowsScreen';
 import { HOME_PAGE_ID, pageIdOf, type NavTarget, type WorkspaceConfig } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
@@ -175,6 +176,8 @@ export function Shell() {
     content = <EditablePage page={page} env={env} bottomInset={barSpace + (editing ? 0 : 64)} />;
   } else if (active === 'tools') {
     content = <ToolsView env={env} />;
+  } else if (active === 'quickActions') {
+    content = <WorkflowsScreen palette={palette} locale={locale} registry={registry} embedded />;
   } else if (active === 'history') {
     content = <HistoryView env={env} />;
   } else {
