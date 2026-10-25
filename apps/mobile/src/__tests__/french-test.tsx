@@ -56,7 +56,7 @@ describe('French journeys', () => {
     });
     expect(store.getState().config!.theme.fontScale).toBe(original);
     await act(() => router.push('/quick-actions'));
-    expect(await screen.findByTestId('category-document')).toHaveTextContent('Documents');
+    expect(await screen.findByTestId('category-document')).toHaveTextContent(/^Documents/);
   });
 
   it('formats French decimals, currency, sizes and fractional seconds', () => {

@@ -92,6 +92,7 @@ function Tile({
   subtitle,
   onPress,
   titleColor,
+  row = false,
 }: {
   env: RenderEnv;
   style: ComponentStyle | undefined;
@@ -100,12 +101,15 @@ function Tile({
   subtitle?: string | undefined;
   onPress: () => void;
   titleColor?: string;
+  /** 像设置页的一行：浅色图标底、右边有箭头。 */
+  row?: boolean;
 }) {
   const { palette } = env;
   const colors = cardColors(palette, style?.tone);
   const scale = SIZES[style?.size ?? 'medium'];
   const center = style?.align === 'center';
   const stacked = center || env.inCell;
+  const listRow = row && !stacked && !style?.tone;
   return (
     <Card
       palette={palette}
@@ -117,9 +121,9 @@ function Tile({
         <IconTile
           palette={palette}
           icon={icon}
-          size={Math.round(46 * scale)}
-          background={colors.accent}
-          color={colors.on}
+          size={Math.round((listRow ? 40 : 46) * scale)}
+          background={listRow ? palette.primaryTint : colors.accent}
+          color={listRow ? palette.primaryText : colors.on}
         />
         <View style={[styles.flexText, stacked && styles.centerText, center && styles.centerItems]}>
           <Text
@@ -141,6 +145,9 @@ function Tile({
             </Text>
           ) : null}
         </View>
+        {listRow ? (
+          <Text style={[palette.font('title', 20), { color: palette.caption }]}>›</Text>
+        ) : null}
       </View>
     </Card>
   );
@@ -305,6 +312,7 @@ export function ComponentView({ component, env }: { component: Component; env: R
           title={component.props.title}
           subtitle={component.props.subtitle}
           onPress={() => env.navigate(component.props.target)}
+          row
         />
       );
     case 'button':

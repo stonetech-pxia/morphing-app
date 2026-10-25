@@ -91,6 +91,9 @@ const UI_SYMBOLS = {
   arrowRight: { ios: 'arrow.right', android: 'arrow_forward' },
   arrowDown: { ios: 'arrow.down', android: 'arrow_downward' },
   chevronRight: { ios: 'chevron.right', android: 'chevron_right' },
+  play: { ios: 'play.fill', android: 'play_arrow' },
+  edit: { ios: 'pencil', android: 'edit' },
+  add: { ios: 'plus', android: 'add' },
 } satisfies Record<string, SymbolName>;
 
 export type UiIconName = keyof typeof UI_SYMBOLS;

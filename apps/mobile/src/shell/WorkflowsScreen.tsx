@@ -17,16 +17,16 @@ import {
 
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
-import { Icon } from '../renderer/Icon';
+import { UiIcon, type UiIconName } from '../renderer/Icon';
 import { mimeOf } from '../runtime/actions/helpers';
 import { useIncoming, releaseShare } from '../share/incoming';
 import { retiredIds } from '../share/recommendations';
 import type { SucceededRuns } from '../storage/types';
 import type { Palette } from '../renderer/theme';
-import { Button, Card, PageTitle, Pill, SectionLabel } from '../renderer/ui';
+import { Button, Card, ListRow, PageTitle, SectionLabel } from '../renderer/ui';
 import { useWorkflowChange } from '../run/workflow-change';
 import { packsNeeded } from '../runtime/runner';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
@@ -131,28 +131,33 @@ export function WorkflowsScreen({
 
   const row = (wf: Workflow, subtitle?: string) => (
     <Card key={wf.id} palette={palette} testID={`workflow-${wf.id}`}>
-      <Text style={[palette.font('title', 16), { color: palette.text }]}>{wf.name}</Text>
-      {subtitle ? <Text style={caption}>{subtitle}</Text> : null}
-      <Text style={caption}>{stepChain(wf, registry, locale)}</Text>
-      {usage.has(wf.id) ? (
-        <Text style={caption}>{t(locale, 'shareUsed', { n: usage.get(wf.id)!.count })}</Text>
-      ) : null}
-      {share && !fits(wf) ? <Text style={caption}>{fitMessage(wf)}</Text> : null}
-      <View style={styles.actions}>
-        <Button
-          variant="text"
-          palette={palette}
-          testID={`workflow-run-${wf.id}`}
-          label={t(locale, 'WorkflowsScreen_Run_5cab2')}
-          disabled={!fits(wf)}
-          onPress={() => run(wf)}
-        />
-        <Pill
-          palette={palette}
-          testID={`workflow-edit-${wf.id}`}
-          label={t(locale, 'WorkflowsScreen_Edit_ef7c8')}
-          onPress={() => edit(wf)}
-        />
+      <View style={styles.cardRow}>
+        <View style={styles.cardText}>
+          <Text style={[palette.font('title', 16), { color: palette.text }]}>{wf.name}</Text>
+          {subtitle ? <Text style={caption}>{subtitle}</Text> : null}
+          <Text style={caption}>{stepChain(wf, registry, locale)}</Text>
+          {usage.has(wf.id) ? (
+            <Text style={caption}>{t(locale, 'shareUsed', { n: usage.get(wf.id)!.count })}</Text>
+          ) : null}
+          {share && !fits(wf) ? <Text style={caption}>{fitMessage(wf)}</Text> : null}
+        </View>
+        <View style={styles.actions}>
+          <IconAction
+            palette={palette}
+            icon="play"
+            testID={`workflow-run-${wf.id}`}
+            label={t(locale, 'WorkflowsScreen_Run_5cab2')}
+            disabled={!fits(wf)}
+            onPress={() => run(wf)}
+          />
+          <IconAction
+            palette={palette}
+            icon="edit"
+            testID={`workflow-edit-${wf.id}`}
+            label={t(locale, 'WorkflowsScreen_Edit_ef7c8')}
+            onPress={() => edit(wf)}
+          />
+        </View>
       </View>
     </Card>
   );
@@ -163,51 +168,56 @@ export function WorkflowsScreen({
     const needsDownload = packsNeeded(preset.packs ?? [], files).length > 0;
     return (
       <Card key={preset.id} palette={palette} testID={`preset-${preset.id}`}>
-        <Text style={[palette.font('title', 16), { color: palette.text }]}>
-          {localize(preset.name, locale)}
-          {added.length > 0 ? t(locale, 'WorkflowsScreen_added_db6a6') : ''}
-        </Text>
-        <Text style={caption}>{localize(preset.description, locale)}</Text>
-        {needsDownload ? (
-          <Text style={caption}>
-            {t(locale, 'WorkflowsScreen_The_first_run_downloads_what_it_needs__3a8fa')}
-          </Text>
-        ) : null}
-        <View style={styles.actions}>
-          {/* 加好了就能直接用（D-125）。 */}
-          {added.length > 0 ? (
-            <Button
-              variant="text"
+        <View style={styles.cardRow}>
+          <View style={styles.cardText}>
+            <Text style={[palette.font('title', 16), { color: palette.text }]}>
+              {localize(preset.name, locale)}
+              {added.length > 0 ? t(locale, 'WorkflowsScreen_added_db6a6') : ''}
+            </Text>
+            <Text style={caption}>{localize(preset.description, locale)}</Text>
+            {needsDownload ? (
+              <Text style={caption}>
+                {t(locale, 'WorkflowsScreen_The_first_run_downloads_what_it_needs__3a8fa')}
+              </Text>
+            ) : null}
+          </View>
+          <View style={styles.actions}>
+            {/* 加好了就能直接用（D-125）。 */}
+            {added.length > 0 ? (
+              <IconAction
+                palette={palette}
+                icon="play"
+                testID={`preset-run-${preset.id}`}
+                label={t(locale, 'WorkflowsScreen_Run_5cab2')}
+                disabled={!fits(added.at(-1)!)}
+                onPress={() => run(added.at(-1)!)}
+              />
+            ) : null}
+            <IconAction
               palette={palette}
-              testID={`preset-run-${preset.id}`}
-              label={t(locale, 'WorkflowsScreen_Run_5cab2')}
-              disabled={!fits(added.at(-1)!)}
-              onPress={() => run(added.at(-1)!)}
+              icon="add"
+              testID={`preset-add-${preset.id}`}
+              label={
+                added.length > 0
+                  ? t(locale, 'WorkflowsScreen_Add_another_fea84')
+                  : t(locale, 'WorkflowsScreen_Add_b7a68')
+              }
+              onPress={() => {
+                const wf = presetWorkflow(
+                  preset,
+                  locale,
+                  newWorkflowId(preset.id, [
+                    ...config.workflows,
+                    ...retiredIds(config.workflows, usage),
+                  ]),
+                );
+                void change(
+                  [{ op: 'addWorkflow', workflow: wf }],
+                  t(locale, 'WorkflowsScreen_Added_the_quick_action_ad5f0', { v0: wf.name }),
+                );
+              }}
             />
-          ) : null}
-          <Pill
-            palette={palette}
-            testID={`preset-add-${preset.id}`}
-            label={
-              added.length > 0
-                ? t(locale, 'WorkflowsScreen_Add_another_fea84')
-                : t(locale, 'WorkflowsScreen_Add_b7a68')
-            }
-            onPress={() => {
-              const wf = presetWorkflow(
-                preset,
-                locale,
-                newWorkflowId(preset.id, [
-                  ...config.workflows,
-                  ...retiredIds(config.workflows, usage),
-                ]),
-              );
-              void change(
-                [{ op: 'addWorkflow', workflow: wf }],
-                t(locale, 'WorkflowsScreen_Added_the_quick_action_ad5f0', { v0: wf.name }),
-              );
-            }}
-          />
+          </View>
         </View>
       </Card>
     );
@@ -221,28 +231,31 @@ export function WorkflowsScreen({
         testID="workflows-screen"
         style={{ backgroundColor: palette.background }}
         contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 48 }}>
-        {embedded ? null : <Banner palette={palette} />}
-        <PageTitle palette={palette}>
-          {t(locale, 'WorkflowsScreen_What_Morph_can_do_8f4f4')}
-        </PageTitle>
+        {/* 页面栈里顶部已有标题，不再重复；嵌在主界面里时没有顶部标题。 */}
+        {embedded ? (
+          <PageTitle palette={palette}>
+            {t(locale, 'WorkflowsScreen_What_Morph_can_do_8f4f4')}
+          </PageTitle>
+        ) : (
+          <Banner palette={palette} />
+        )}
         {QUICK_ACTION_KINDS.map((category) => (
-          <Card key={category} palette={palette}>
-            <Icon name={QUICK_ACTION_CATEGORIES[category].icon} size={24} color={palette.primary} />
-            <Button
-              palette={palette}
-              testID={`category-${category}`}
-              label={localize(QUICK_ACTION_CATEGORIES[category].name, locale)}
-              onPress={() => {
-                handed.current = true;
-                const route = {
-                  pathname: '/quick-actions/[kind]' as const,
-                  params: { kind: category, ...(shared ? { shared } : {}) },
-                };
-                if (shared) router.replace(route);
-                else router.push(route);
-              }}
-            />
-          </Card>
+          <ListRow
+            key={category}
+            palette={palette}
+            testID={`category-${category}`}
+            icon={QUICK_ACTION_CATEGORIES[category].icon}
+            label={localize(QUICK_ACTION_CATEGORIES[category].name, locale)}
+            onPress={() => {
+              handed.current = true;
+              const route = {
+                pathname: '/quick-actions/[kind]' as const,
+                params: { kind: category, ...(shared ? { shared } : {}) },
+              };
+              if (shared) router.replace(route);
+              else router.push(route);
+            }}
+          />
         ))}
       </ScrollView>
     );
@@ -297,6 +310,49 @@ export function WorkflowsScreen({
   );
 }
 
+/** 卡片右边的圆形图标按钮（运行、编辑、添加）；文字留给读屏。 */
+function IconAction({
+  palette,
+  icon,
+  label,
+  testID,
+  disabled = false,
+  onPress,
+}: {
+  palette: Palette;
+  icon: UiIconName;
+  label: string;
+  testID: string;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      hitSlop={4}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.iconAction,
+        { backgroundColor: palette.primaryTint, opacity: disabled ? 0.4 : pressed ? 0.7 : 1 },
+      ]}>
+      <UiIcon name={icon} size={18} color={palette.primaryText} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  cardText: { flex: 1, gap: 4 },
+  actions: { flexDirection: 'row', gap: 8 },
+  iconAction: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });
