@@ -122,7 +122,7 @@ function pressInNextAlert(label: string) {
 }
 
 describe('editing the page directly', () => {
-  // 入口暂时关掉了（D-190）；编辑功能本身还在，这里打开入口继续测它。
+  // 整页编辑入口继续关闭（D-235）；这里单独打开它，保留旧视图的回归测试。
   beforeAll(() => {
     directEditEntry.pageButton = true;
   });

@@ -29,7 +29,7 @@ import { useEditActions } from './actions';
 import { CAPABILITIES, type StyleKey, type TextField } from './capabilities';
 
 // 长按组件弹出的操作面板（D-052）：改文字、颜色、对齐、大小、位置、隐藏、删除。
-// 每个操作都是一次经过校验的修改，生成可撤销的新版本；面板随后关闭。
+// 每个操作先校验并加入编辑草稿；「完成」时整份草稿生成一个可撤销版本（D-054、D-235）。
 
 const STYLE_VALUES = {
   tone: ['default', 'primary', 'secondary', 'tertiary', 'muted'],
