@@ -11,7 +11,7 @@ import { readExif } from '@morph/tool-image';
 import type { LocalSteps, LocalUi } from '../runtime/local';
 import { startRun } from '../runtime/runner';
 import { MemoryWorkspaceRepo } from '../storage/memory';
-import { FakeFiles } from '../test-utils/fake-files';
+import { FakeFiles, FakeVision } from '../test-utils/fake-files';
 
 const registry = createRegistry(BUILTIN_TOOLS);
 
@@ -33,12 +33,13 @@ function setup(
   workflow: Workflow,
   answers: Record<string, unknown> = {},
   crop: LocalSteps['crop']['out'] | null = null,
+  confirm = false,
 ) {
   const repo = new MemoryWorkspaceRepo();
   const files = new FakeFiles();
   const opened: { kind: string; input: unknown }[] = [];
   const ui: LocalUi = {
-    confirm: async () => false,
+    confirm: async () => confirm,
     choose: async () => null,
     open: async (kind, input) => {
       opened.push({ kind, input });
@@ -71,7 +72,7 @@ const imagesOf = (result: Awaited<ReturnType<ReturnType<typeof setup>['run']>>) 
 };
 
 describe('image tool workflows', () => {
-  it('installs fourteen single-tool workflows that all validate', () => {
+  it('installs image tool workflows that all validate', () => {
     const result = applyOps(
       createDefaultWorkspace('en'),
       [{ op: 'installTool', toolId: 'image' }],
@@ -81,6 +82,9 @@ describe('image tool workflows', () => {
       },
     );
     expect(result.ok && result.config.workflows.map((w) => w.id)).toEqual([
+      'image-annotate',
+      'image-adjust',
+      'image-removebackground',
       'image-compress',
       'image-convert',
       'image-heic',
@@ -235,3 +239,83 @@ function jpegWithExif(): Uint8Array {
     0xd9,
   ]);
 }
+
+describe('background removal', () => {
+  it('exports each image as PNG and passes the chosen transparent or solid background', async () => {
+    for (const background of ['transparent', 'color']) {
+      const { files, run } = setup(toolWorkflow('image-removebackground'), {
+        background,
+        color: '#DDEEFF',
+      });
+      const vision = new FakeVision(files);
+      files.vision = vision;
+      files.nextPhotos = [
+        files.offerImage('portrait.heic', 600, 800),
+        files.offerImage('object.jpg', 900, 500),
+      ];
+      expect(imagesOf(await run())).toMatchObject([
+        { ext: 'png', mimeType: 'image/png', width: 600, height: 800 },
+        { ext: 'png', width: 900, height: 500 },
+      ]);
+      expect(
+        vision.calls.filter((c) => c.method === 'removeBackground').map((c) => c.args),
+      ).toEqual([
+        background === 'transparent' ? 'transparent' : '#DDEEFF',
+        background === 'transparent' ? 'transparent' : '#DDEEFF',
+      ]);
+    }
+  });
+  it('asks before downloading and processes only after approval', async () => {
+    for (const approve of [false, true]) {
+      const { files, run } = setup(toolWorkflow('image-removebackground'), {}, null, approve);
+      const vision = new FakeVision(files);
+      files.vision = vision;
+      vision.backgroundState = 'download';
+      files.nextPhotos = [files.offerImage('photo.jpg', 100, 100)];
+      expect((await run()).status).toBe(approve ? 'succeeded' : 'cancelled');
+      expect(vision.calls.map((c) => c.method)).toEqual(
+        approve ? ['downloadBackgroundModel', 'removeBackground'] : [],
+      );
+    }
+  });
+  it('explains unsupported devices before processing and reports a missing subject', async () => {
+    const { files, run } = setup(toolWorkflow('image-removebackground'));
+    const vision = new FakeVision(files);
+    files.vision = vision;
+    files.nextPhotos = [files.offerImage('photo.jpg', 100, 100)];
+    vision.backgroundRemovalSupported = false;
+    expect(await run()).toMatchObject({ status: 'failed', error: { code: 'unsupportedAction' } });
+    expect(vision.calls).toEqual([]);
+    vision.backgroundRemovalSupported = true;
+    vision.backgroundFailure = true;
+    expect(await run()).toMatchObject({ status: 'failed', error: { code: 'backgroundFailed' } });
+  });
+});
+
+it('adjusts photo colors in automatic and manual modes, keeping dimensions and transparency formats', async () => {
+  for (const mode of ['auto', 'manual']) {
+    const { files, run } = setup(toolWorkflow('image-adjust'), {
+      mode,
+      brightness: 20,
+      contrast: 110,
+      saturation: 90,
+    });
+    const vision = new FakeVision(files);
+    files.vision = vision;
+    files.nextPhotos = [
+      files.offerImage('portrait.heic', 600, 800, 'image/heic'),
+      files.offerImage('sticker.webp', 900, 500, 'image/webp'),
+    ];
+    expect(imagesOf(await run())).toMatchObject([
+      { ext: 'jpg', mimeType: 'image/jpeg', width: 600, height: 800 },
+      { ext: 'png', mimeType: 'image/png', width: 900, height: 500 },
+    ]);
+    expect(vision.calls).toMatchObject([
+      {
+        method: 'adjustImage',
+        args: { mode, brightness: 20, contrast: 110, saturation: 90, format: 'jpeg' },
+      },
+      { method: 'adjustImage', args: { format: 'png' } },
+    ]);
+  }
+});

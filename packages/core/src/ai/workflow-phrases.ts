@@ -172,6 +172,79 @@ const RECORD_PHRASES: Matcher[] = [
 ];
 
 const STEP_PHRASES: Matcher[] = [
+  [
+    /^(?:导出字幕|导出SRT字幕|export SRT captions)$/i,
+    () => ({ action: 'video.subtitles', params: { lang: 'zh', model: 'standard' } }),
+  ],
+  [
+    /^(?:标注图片|画箭头|mark up photos|annotate photos)$/i,
+    () => ({ action: 'image.annotate', params: {} }),
+  ],
+  [
+    /^(?:图片自动优化|自动优化照片|auto adjust photos)$/i,
+    () => ({
+      action: 'image.adjust',
+      params: { mode: 'auto', brightness: 0, contrast: 100, saturation: 100 },
+    }),
+  ],
+  [
+    /^(?:调亮照片|brighten photos)$/i,
+    () => ({
+      action: 'image.adjust',
+      params: { mode: 'manual', brightness: 15, contrast: 100, saturation: 100 },
+    }),
+  ],
+  [
+    /^(?:抠图|去背景|去掉背景|remove background)$/i,
+    () => ({
+      action: 'image.removeBackground',
+      params: { background: 'transparent', color: '#FFFFFF' },
+    }),
+  ],
+  [
+    /^(?:换成白底|白色背景|white background)$/i,
+    () => ({ action: 'image.removeBackground', params: { background: 'color', color: '#FFFFFF' } }),
+  ],
+  [
+    /人声降噪|去除?杂音|reduce (?:speech|background) noise|denoise/i,
+    () => ({ action: 'audio.denoise', params: {} }),
+  ],
+  [
+    /^调到正常音量$|^normalize volume$/i,
+    () => ({ action: 'audio.volume', params: { mode: 'normal', db: 0 } }),
+  ],
+  [
+    /^音量\s*([+-]?\d+)\s*dB$|^volume ([+-]?\d+) dB$/i,
+    (m) => ({ action: 'audio.volume', params: { mode: 'db', db: Number(m[1] ?? m[2]) } }),
+  ],
+  [
+    /^(?:视频)?(?:速度|变速|加速到)\s*(0\.5|0\.75|1|1\.25|1\.5|2|3|4)\s*(?:倍|×)$|^video speed (0\.5|0\.75|1|1\.25|1\.5|2|3|4)x$/i,
+    (m) => ({ action: 'video.speed', params: { factor: Number(m[1] ?? m[2]) } }),
+  ],
+  [
+    /^(?:视频)?裁成\s*(9:16|1:1|4:5|16:9)$|^crop video to (9:16|1:1|4:5|16:9)$/i,
+    (m) => ({ action: 'video.crop', params: { ratio: m[1] ?? m[2] } }),
+  ],
+  [
+    /^(?:顺时针)?旋转(?:视频)?\s*(90|180|270)\s*度$|^rotate (?:the )?video (90|180|270) degrees$/i,
+    (m) => ({ action: 'video.rotate', params: { degrees: Number(m[1] ?? m[2]) } }),
+  ],
+  [
+    /^(?:换背景音乐|给视频配乐)$|^add background music$/i,
+    () => ({ action: 'video.audio', params: { originalVolume: 0, loop: true } }),
+  ],
+  [
+    /^(?:去掉视频声音|去掉声音|视频静音)$|^mute (?:the )?videos?$/i,
+    () => ({ action: 'video.mute', params: {} }),
+  ],
+  [
+    /^(?:截一帧|截一帧存成照片|视频截帧)$|^save a video frame$/i,
+    () => ({ action: 'video.frame', params: {} }),
+  ],
+  [
+    /^(?:拼接视频|合并视频|拼成一段视频)$|^join (?:the )?videos?$/i,
+    () => ({ action: 'video.merge', params: {} }),
+  ],
   ...RECORD_PHRASES,
   ...TRANSLATE_PHRASES,
   ...AUDIO_PHRASES,
@@ -396,7 +469,9 @@ function fitToPrevious(p: StepPhrase, previous: WorkflowStep | undefined): StepP
 /** 这一步的结果是视频。 */
 const makesVideo = (step: WorkflowStep) =>
   step.action === 'in.videos' ||
-  (step.action.startsWith('video.') && step.action !== 'video.toGif') ||
+  (step.action !== 'video.subtitles' &&
+    step.action.startsWith('video.') &&
+    !['video.toGif', 'video.frame'].includes(step.action)) ||
   (step.action === 'in.files' && step.params.accept === 'videos');
 
 /** 这一步之后的值大致是什么（只用来给「压到 N MB」选动作）。 */
@@ -404,8 +479,11 @@ export type PhraseKind = 'images' | 'video' | 'audio' | 'pdf' | 'other';
 
 function kindAfter(step: StepPhrase, before: PhraseKind | null): PhraseKind | null {
   if (step.action === 'in.photos' || step.action.startsWith('image.')) return 'images';
+  if (step.action === 'audio.volume' || step.action === 'audio.denoise') return before;
   if (step.action === 'audio.transcribe') return 'other';
   if (step.action === 'in.audio' || step.action.startsWith('audio.')) return 'audio';
+  if (step.action === 'video.subtitles') return 'other';
+  if (step.action === 'video.frame') return 'images';
   if (step.action === 'video.toGif') return 'images';
   if (step.action === 'in.videos' || step.action.startsWith('video.')) return 'video';
   if (step.action === 'in.files') {
@@ -491,6 +569,21 @@ export function stepsFrom(phrases: readonly StepPhrase[]): WorkflowStep[] {
 }
 
 const PRESET_WORDS: [RegExp, string][] = [
+  [/把几段视频拼成一段|join video clips|merge videos/i, 'join-videos'],
+  [/从视频里截一张照片|photo from a video/i, 'video-frame'],
+  [/视频去掉声音|remove sound from videos/i, 'mute-video'],
+  [/给视频换背景音乐|add background music/i, 'video-background-music'],
+  [/把视频转正|fix video rotation/i, 'fix-video-rotation'],
+  [/裁成竖屏视频|portrait posts/i, 'vertical-video'],
+  [/视频加速或慢放|speed up or slow down video/i, 'video-speed'],
+  [/导出视频\s*SRT\s*字幕|export video captions as SRT/i, 'video-srt-captions'],
+  [/在图片上画箭头和文字|add arrows and notes/i, 'mark-up-photos'],
+  [/把太暗的照片调亮|brighten dark photos/i, 'brighten-photos'],
+  [/把照片背景去掉|remove a photo background/i, 'remove-photo-background'],
+  [/录音人声降噪|noise in a voice recording/i, 'denoise-audio'],
+  [/视频人声降噪|noise in video speech/i, 'denoise-video'],
+  [/把录音调到正常音量|quiet audio easier/i, 'normal-audio-volume'],
+  [/把视频调到正常音量|quiet video easier/i, 'normal-video-volume'],
   // 音频预设（D-156）放在「合一」「发照片」前面。
   [/录音转文字|录音变成文字|recordings? (?:in)?to text/i, 'audio-to-text'],
   [/语音太大|录音太大|recording (?:is )?too big/i, 'audio-too-big'],

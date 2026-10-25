@@ -53,6 +53,26 @@ public class MorphVisionModule: Module {
       UIImagePickerController.isSourceTypeAvailable(.camera)
     }
 
+    Function("backgroundRemovalSupported") { () -> Bool in
+      if #available(iOS 17.0, *) { return true }
+      return false
+    }
+
+    AsyncFunction("backgroundStatus") { () -> String in
+      if #available(iOS 17.0, *) { return "ready" }
+      return "unsupported"
+    }
+
+    AsyncFunction("downloadBackgroundModel") { () -> Void in }
+
+    AsyncFunction("removeBackground") { (uri: URL, background: String, output: URL) -> [String: Any] in
+      return try self.removeBackground(uri, background: background, output: output)
+    }
+
+    AsyncFunction("adjustImage") { (uri: URL, options: [String: Any], format: String, output: URL) -> [String: Any] in
+      return try self.adjustImage(uri, options: options, format: format, output: output)
+    }
+
     // iOS 能找纸张的四个角（Android 的 ML Kit 不能）。
     Function("canFindPaper") { () -> Bool in
       true
@@ -238,6 +258,58 @@ public class MorphVisionModule: Module {
     }
     if let rect = rectangle { return (rect, "rectangles") }
     return (nil, "none")
+  }
+
+  private func adjustImage(_ uri: URL, options: [String: Any], format: String, output: URL) throws -> [String: Any] {
+    let image = try loadImage(uri)
+    let automatic = options["mode"] as? String == "auto"
+    var result = image
+    if automatic {
+      for filter in image.autoAdjustmentFilters(options: [.enhance: true, .redEye: false]) {
+        filter.setValue(result, forKey: kCIInputImageKey)
+        if let adjusted = filter.outputImage { result = adjusted }
+      }
+    } else {
+      let brightness = (options["brightness"] as? NSNumber)?.doubleValue ?? 0
+      let contrast = (options["contrast"] as? NSNumber)?.doubleValue ?? 100
+      let saturation = (options["saturation"] as? NSNumber)?.doubleValue ?? 100
+      guard brightness.isFinite, contrast.isFinite, saturation.isFinite, (-100...100).contains(brightness), (0...200).contains(contrast), (0...200).contains(saturation) else { throw VisionFailedException("invalid adjustment") }
+      result = image.applyingFilter("CIColorControls", parameters: [kCIInputBrightnessKey: brightness/100, kCIInputContrastKey: contrast/100, kCIInputSaturationKey: saturation/100])
+    }
+    result = result.cropped(to: image.extent)
+    try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+    if format == "png" {
+      try ciContext.writePNGRepresentation(of: result, to: output, format: .RGBA8, colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
+    } else {
+      try writeJpeg(result, to: output, quality: 0.92)
+    }
+    return ["width": Int(result.extent.width), "height": Int(result.extent.height), "size": (try FileManager.default.attributesOfItem(atPath: output.path)[.size] as? NSNumber)?.intValue ?? 0]
+  }
+
+  private func removeBackground(_ uri: URL, background: String, output: URL) throws -> [String: Any] {
+    guard #available(iOS 17.0, *) else { throw VisionFailedException("iOS 17 required") }
+    let image = try loadImage(uri)
+    let handler = VNImageRequestHandler(ciImage: image, options: [:])
+    let request = VNGenerateForegroundInstanceMaskRequest()
+    do { try handler.perform([request]) } catch { throw VisionFailedException(error.localizedDescription) }
+    guard let observation = request.results?.first, !observation.allInstances.isEmpty else { throw VisionFailedException("no subject") }
+    let buffer = try observation.generateMaskedImage(ofInstances: observation.allInstances, from: handler, croppedToInstancesExtent: false)
+    return try writeCutout(CIImage(cvPixelBuffer: buffer), background: background, output: output)
+  }
+
+  private func writeCutout(_ foreground: CIImage, background: String, output: URL) throws -> [String: Any] {
+    let result: CIImage
+    if background == "transparent" {
+      result = foreground
+    } else {
+      guard background.range(of: "^#[0-9A-Fa-f]{6}$", options: .regularExpression) != nil,
+            let rgb = UInt32(background.dropFirst(), radix: 16) else { throw VisionFailedException("invalid color") }
+      let color = CIColor(red: CGFloat((rgb >> 16) & 255)/255, green: CGFloat((rgb >> 8) & 255)/255, blue: CGFloat(rgb & 255)/255)
+      result = foreground.composited(over: CIImage(color: color).cropped(to: foreground.extent))
+    }
+    try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try ciContext.writePNGRepresentation(of: result, to: output, format: .RGBA8, colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
+    return ["width": Int(result.extent.width), "height": Int(result.extent.height), "size": (try FileManager.default.attributesOfItem(atPath: output.path)[.size] as? NSNumber)?.intValue ?? 0]
   }
 
   private func loadImage(_ uri: URL) throws -> CIImage {

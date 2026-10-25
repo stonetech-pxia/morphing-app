@@ -162,6 +162,218 @@ async function eachVideo(
 }
 
 export const VIDEO_IMPLS: Record<string, Impl> = {
+  async 'video.speed'(input, params, ctx) {
+    const factor = Number(params.factor);
+    return eachVideo(input, ctx, async (item, media, job) => {
+      const info = await probe(media, item);
+      const plan = planVideoConvert(sourceOf(item, info));
+      checkSpace(ctx, estimate(plan, info.durationMs / factor));
+      return media.encodeVideo(
+        item.uri,
+        { ...encodeOf(plan, info), speed: factor },
+        ctx.services.runId,
+        freshName(item.name, 'mp4'),
+        job,
+      );
+    });
+  },
+  async 'video.crop'(input, params, ctx) {
+    const [w, h] = String(params.ratio).split(':').map(Number);
+    return eachVideo(input, ctx, async (item, media, job) => {
+      const info = await probe(media, item);
+      const plan = planVideoConvert(sourceOf(item, info));
+      checkSpace(ctx, estimate(plan, info.durationMs));
+      return media.encodeVideo(
+        item.uri,
+        { ...encodeOf(plan, info), aspectRatio: w! / h! },
+        ctx.services.runId,
+        freshName(item.name, 'mp4'),
+        job,
+      );
+    });
+  },
+  async 'video.rotate'(input, params, ctx) {
+    const { degrees } = params as { degrees: 90 | 180 | 270 };
+    return eachVideo(input, ctx, async (item, media, job) => {
+      const info = await probe(media, item);
+      const plan = planVideoConvert(sourceOf(item, info));
+      checkSpace(ctx, Math.max(item.size, estimate(plan, info.durationMs)));
+      return media.rotateVideo(
+        item.uri,
+        degrees,
+        encodeOf(plan, info),
+        ctx.services.runId,
+        freshName(item.name, 'mp4'),
+        job,
+      );
+    });
+  },
+  async 'video.audio'(input, params, ctx) {
+    const { originalVolume, loop } = params as { originalVolume: number; loop: boolean };
+    const media = mediaOf(ctx);
+    const selected = await ctx.services.files.pickDocuments(['audio/*'], false);
+    if (!selected?.[0]) throw new RunCancelled();
+    ctx.throwIfCancelled();
+    const music = selected[0];
+    let musicInfo: MediaInfo;
+    try {
+      musicInfo = await media.probe(music.uri);
+    } catch (e) {
+      throw mediaError(e, {
+        uri: music.uri,
+        name: music.name,
+        ext: '',
+        mimeType: music.mimeType ?? 'audio/*',
+        size: music.size ?? 0,
+      });
+    }
+    if (!musicInfo.hasAudio || !Number.isFinite(musicInfo.durationMs) || musicInfo.durationMs <= 0)
+      throw new RunError('mediaUnsupported', { name: music.name });
+    const stored = await ctx.services.files.adoptIntoRun(
+      music.uri,
+      ctx.services.runId,
+      freshName('music', 'audio'),
+    );
+    return eachVideo(input, ctx, async (item, _media, job) => {
+      const info = await probe(media, item);
+      const plan = { ...planVideoConvert(sourceOf(item, info)), audioKbps: 128 };
+      checkSpace(ctx, estimate(plan, info.durationMs));
+      return media.mixVideoAudio(
+        item.uri,
+        stored.uri,
+        {
+          ...encodeOf(plan, info),
+          audioKbps: 128,
+          originalVolume,
+          loop,
+          videoDurationMs: info.durationMs,
+          musicDurationMs: musicInfo.durationMs,
+        },
+        ctx.services.runId,
+        freshName(item.name, 'mp4'),
+        job,
+      );
+    });
+  },
+  async 'video.mute'(input, _params, ctx) {
+    return eachVideo(input, ctx, async (item, media, job) => {
+      const info = await probe(media, item);
+      const plan = { ...planVideoConvert(sourceOf(item, info)), audioKbps: 0 };
+      checkSpace(ctx, estimate(plan, info.durationMs));
+      return media.encodeVideo(
+        item.uri,
+        { ...encodeOf(plan, info), audioKbps: 0 },
+        ctx.services.runId,
+        freshName(item.name, 'mp4'),
+        job,
+      );
+    });
+  },
+  async 'video.frame'(input, _params, ctx) {
+    const media = mediaOf(ctx);
+    const items: RunItem[] = [];
+    for (const item of fileItems(input)) {
+      ctx.throwIfCancelled();
+      const info = await probe(media, item);
+      items.push({ ...item, durationMs: info.durationMs, width: info.width, height: info.height });
+    }
+    const times = await ctx.services.ui.open('frameMedia', {
+      items,
+      loadThumbnails: (i, ms) => media.thumbnails(items[i]!.uri, ms, 160, ctx.services.runId),
+    });
+    if (!times) throw new RunCancelled();
+    const out: RunItem[] = [];
+    for (const [i, item] of items.entries()) {
+      ctx.throwIfCancelled();
+      const time = times[i];
+      if (
+        time === undefined ||
+        !Number.isFinite(time) ||
+        time < 0 ||
+        time >= (item.durationMs ?? 0)
+      )
+        throw new RunError('mediaUnsupported', { name: displayName(item) });
+      try {
+        const uri = await media.frame(item.uri, time, ctx.services.runId);
+        const size = (await ctx.services.files.readBytes(uri)).length;
+        const dimensions = await ctx.services.files.imageSize(uri);
+        out.push({
+          uri,
+          name: `${item.name}-${Math.round(time)}ms`,
+          ext: 'jpg',
+          mimeType: 'image/jpeg',
+          size,
+          ...dimensions,
+        });
+      } catch (e) {
+        throw mediaError(e, item);
+      }
+      ctx.progress(i + 1, items.length);
+    }
+    ctx.throwIfCancelled();
+    return { type: 'images', items: out };
+  },
+  async 'video.merge'(input, _params, ctx) {
+    const items = fileItems(input);
+    if (items.length < 2) throw new RunError('tooFew', { min: 2 });
+    if (items.length > 10) throw new RunError('tooMany', { max: 10 });
+    const media = mediaOf(ctx);
+    const infos = [];
+    for (const item of items) {
+      ctx.throwIfCancelled();
+      infos.push(await probe(media, item));
+    }
+    const first = infos[0]!;
+    const width = Math.max(2, Math.round((first.width ?? 1920) / 2) * 2);
+    const height = Math.max(2, Math.round((first.height ?? 1080) / 2) * 2);
+    const durationMs = infos.reduce((n, info) => n + info.durationMs, 0);
+    const plan = planVideoConvert(sourceOf(items[0]!, first));
+    const settings = {
+      videoKbps: plan.videoKbps,
+      audioKbps: infos.some((i) => i.hasAudio) ? 128 : 0,
+      maxFps: first.fps && first.fps > 0 ? first.fps : 30,
+      width,
+      height,
+    };
+    checkSpace(ctx, estimate({ ...plan, audioKbps: settings.audioKbps }, durationMs));
+    try {
+      const result = await media.concatVideo(
+        items.map((i) => i.uri),
+        settings,
+        ctx.services.runId,
+        freshName(items[0]!.name, 'mp4'),
+        {
+          progress: (f) => ctx.progress(Math.round(f * 100), 100, 'percent'),
+          isCancelled: () => {
+            try {
+              ctx.throwIfCancelled();
+              return false;
+            } catch {
+              return true;
+            }
+          },
+        },
+      );
+      ctx.throwIfCancelled();
+      return {
+        type: 'video',
+        items: [
+          {
+            uri: result.uri,
+            name: items[0]!.name,
+            ext: 'mp4',
+            mimeType: 'video/mp4',
+            size: result.size,
+            durationMs: result.info.durationMs,
+            width: result.info.width ?? width,
+            height: result.info.height ?? height,
+          },
+        ],
+      };
+    } catch (e) {
+      throw mediaError(e, items[0]!);
+    }
+  },
   async 'video.compress'(input, params, ctx) {
     const { by, maxMB, quality } = params as {
       by: 'size' | 'quality';

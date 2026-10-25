@@ -3,11 +3,19 @@ import { z } from 'zod';
 import { GIF_MAX_SECONDS, VIDEO_QUALITIES } from '../media';
 import type { ToolDefinition } from '../registry';
 import type { Locale, Workflow } from '../schema';
+import {
+  SPEECH_LANGUAGES,
+  SPEECH_LANGUAGE_NAMES,
+  SPEECH_MODEL_PACKS,
+  SPEECH_MODELS,
+  type SpeechModel,
+} from '../speech';
+import { speechLangFor } from './audio';
 import type { ActionDefinition } from '../workflow/contract';
 
 // 视频工具的清单（D-143、D-146）：压缩、转成 MP4、剪一段。编码在 App 的原生模块 morph-media 里
 // （iOS AVFoundation、Android Media3，D-141）；码率和分辨率的计算在 core/media.ts。
-// 输出一律是 MP4（H.264 + AAC），微信、邮件、电脑和老手机都能放（D-143）。
+// 编码默认 MP4（H.264 + AAC）；截帧、GIF、SRT 字幕等动作另有输出类型。
 
 export const VIDEO_TOOL_ID = 'video';
 export const VIDEO_PAGE_ID = 'tool-video';
@@ -15,6 +23,193 @@ export const VIDEO_PAGE_ID = 'tool-video';
 const t = (locale: Locale, en: string, zh: string) => (locale === 'zh' ? zh : en);
 
 export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
+  {
+    id: 'video.subtitles',
+    label: { en: 'Export SRT captions', zh: '导出 SRT 字幕' },
+    description: {
+      en: 'Recognize speech in each video on this device and export a separate UTF-8 .srt file with timestamps. This first version does not burn captions into the picture and does not output a subtitled video. Choose the spoken language; the first run may need a speech model download. Review words and timings, especially long segments, whose split timing is approximate. Video files and recognized words never go to AI.',
+      zh: '在本机识别每段视频中的讲话，导出带时间戳的独立 UTF-8 .srt 文件。首版不会把字幕烧进画面，也不输出带字幕视频。选择讲话语言，首次可能需要下载识别模型。请核对文字和时间，长段落拆分后的段内时间为近似值。视频和识别文字不发给 AI。',
+    },
+    input: ['video'],
+    output: 'files',
+    params: z.strictObject({ lang: z.enum(SPEECH_LANGUAGES), model: z.enum(SPEECH_MODELS) }),
+    fields: [
+      {
+        key: 'lang',
+        label: { en: 'Spoken language', zh: '讲话语言' },
+        kind: 'choice',
+        options: SPEECH_LANGUAGES.map((value) => ({ value, label: SPEECH_LANGUAGE_NAMES[value] })),
+      },
+      {
+        key: 'model',
+        label: { en: 'Recognition', zh: '识别' },
+        kind: 'choice',
+        options: [
+          { value: 'standard', label: { en: 'More accurate', zh: '更准' } },
+          { value: 'fast', label: { en: 'Faster', zh: '更快' } },
+        ],
+      },
+    ],
+    presets: [
+      {
+        id: 'english',
+        label: { en: 'English', zh: '英语' },
+        values: { lang: 'en', model: 'standard' },
+      },
+    ],
+    pack: SPEECH_MODEL_PACKS.standard,
+    packFor: (params) => SPEECH_MODEL_PACKS[params.model as SpeechModel],
+    requires: [],
+  },
+
+  {
+    id: 'video.speed',
+    label: { en: 'Change video speed', zh: '视频加速或慢放' },
+    description: {
+      en: 'Play each video at 0.5×–4× speed and export an MP4. 0.5× doubles the duration; 2× halves it. Sound speeds up or slows down too, and its pitch changes. This does not add new frames for smooth slow motion.',
+      zh: '把每段视频改成 0.5×–4× 速度并导出 MP4。0.5× 时长翻倍，2× 时长减半；声音也随之加速或减速，音调会变高或变低。不会插入新画面来补慢动作。',
+    },
+    input: ['video'],
+    output: 'video',
+    params: z.strictObject({ factor: z.number().min(0.5).max(4) }),
+    fields: [
+      {
+        key: 'factor',
+        label: { en: 'Speed', zh: '速度' },
+        kind: 'choice',
+        options: [
+          { value: 0.5, label: { en: '0.5×', zh: '0.5×' } },
+          { value: 0.75, label: { en: '0.75×', zh: '0.75×' } },
+          { value: 1, label: { en: '1×', zh: '1×' } },
+          { value: 1.25, label: { en: '1.25×', zh: '1.25×' } },
+          { value: 1.5, label: { en: '1.5×', zh: '1.5×' } },
+          { value: 2, label: { en: '2×', zh: '2×' } },
+          { value: 4, label: { en: '4×', zh: '4×' } },
+        ],
+      },
+    ],
+    requires: [],
+  },
+  {
+    id: 'video.crop',
+    label: { en: 'Crop video to a shape', zh: '视频裁成指定比例' },
+    description: {
+      en: 'Center-crop each video to 9:16, 1:1, 4:5 or 16:9. The outside edges are removed, not stretched. Sound and duration are kept. This version crops the center; it does not let the user reposition the crop.',
+      zh: '把每段视频居中裁成 9:16、1:1、4:5 或 16:9，裁去边缘，不拉伸。声音、时长保留。此版只居中裁剪，不能手动移动位置。',
+    },
+    input: ['video'],
+    output: 'video',
+    params: z.strictObject({ ratio: z.enum(['9:16', '1:1', '4:5', '16:9']) }),
+    fields: [
+      {
+        key: 'ratio',
+        label: { en: 'Shape', zh: '比例' },
+        kind: 'choice',
+        options: [
+          { value: '9:16', label: { en: '9:16 · portrait', zh: '9:16 · 竖屏' } },
+          { value: '1:1', label: { en: '1:1 · square', zh: '1:1 · 正方形' } },
+          { value: '4:5', label: { en: '4:5 · portrait', zh: '4:5 · 竖版' } },
+          { value: '16:9', label: { en: '16:9 · landscape', zh: '16:9 · 横屏' } },
+        ],
+      },
+    ],
+    requires: [],
+  },
+  {
+    id: 'video.rotate',
+    label: { en: 'Rotate video', zh: '旋转视频' },
+    description: {
+      en: 'Rotate each video clockwise by 90, 180 or 270 degrees, relative to its displayed orientation. iPhone keeps the encoded video and changes its transform; Android re-encodes. Sound and duration are kept.',
+      zh: '相对当前画面顺时针旋转 90、180 或 270 度。iPhone 只改旋转信息，不重新编码画面；Android 会重新编码。声音和时长保留。',
+    },
+    input: ['video'],
+    output: 'video',
+    params: z.strictObject({ degrees: z.union([z.literal(90), z.literal(180), z.literal(270)]) }),
+    fields: [
+      {
+        key: 'degrees',
+        label: { en: 'Clockwise', zh: '顺时针' },
+        kind: 'choice',
+        options: [
+          { value: 90, label: { en: '90° (right)', zh: '90°（向右）' } },
+          { value: 180, label: { en: '180° (upside down)', zh: '180°（倒过来）' } },
+          { value: 270, label: { en: '270° (left)', zh: '270°（向左）' } },
+        ],
+      },
+    ],
+    requires: [],
+  },
+  {
+    id: 'video.audio',
+    label: { en: 'Change background music', zh: '换背景音乐' },
+    description: {
+      en: 'Choose a music file locally when this runs, then use it as the soundtrack for each video. Set how much original sound to keep (0–100%) and whether shorter music repeats. Longer music is trimmed. Output keeps each video’s duration; no file paths or music content go to AI.',
+      zh: '运行时在本机选一个音乐文件，为每段视频配乐。设置保留的原声音量（0–100%）以及较短音乐是否循环；较长音乐截到视频结束。结果时长不变，音乐内容和路径不发给 AI。',
+    },
+    input: ['video'],
+    output: 'video',
+    params: z.strictObject({ originalVolume: z.number().int().min(0).max(100), loop: z.boolean() }),
+    fields: [
+      {
+        key: 'originalVolume',
+        label: { en: 'Original sound', zh: '原声音量' },
+        kind: 'number',
+        unit: '%',
+        min: 0,
+        max: 100,
+        step: 10,
+      },
+      { key: 'loop', label: { en: 'Repeat shorter music', zh: '音乐较短时循环' }, kind: 'toggle' },
+    ],
+    presets: [
+      {
+        id: 'replace',
+        label: { en: 'Music only', zh: '只留音乐' },
+        values: { originalVolume: 0, loop: true },
+      },
+    ],
+    requires: ['files.pick'],
+  },
+  {
+    id: 'video.mute',
+    label: { en: 'Remove video sound', zh: '去掉视频声音' },
+    description: {
+      en: 'Remove all sound from each video and export an MP4 with no audio track. Video is re-encoded; the source file is kept.',
+      zh: '去掉每段视频的全部声音，导出没有音轨的 MP4。画面会重新编码，原文件保留。',
+    },
+    input: ['video'],
+    output: 'video',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
+  },
+  {
+    id: 'video.frame',
+    label: { en: 'Save a video frame', zh: '截一帧存成照片' },
+    description: {
+      en: 'Choose a time in each video on the device and save the nearest decoded frame as a full-resolution JPEG, upright. Output is images, so image actions and saving to Photos can follow.',
+      zh: '在手机上为每段视频选一个时间点，把最接近的画面存成原尺寸、已摆正的 JPEG。输出图片，可以继续接图片处理或存到相册。',
+    },
+    input: ['video'],
+    output: 'images',
+    params: z.strictObject({}),
+    fields: [],
+    local: 'frameMedia',
+    requires: [],
+  },
+  {
+    id: 'video.merge',
+    label: { en: 'Join videos', zh: '拼接视频' },
+    description: {
+      en: 'Join 2–10 videos in order into one MP4. Put file.order before this step so the user can arrange the clips. Uses the first clip’s size and frame rate; other aspect ratios fit inside with black borders. Sound is kept; silent clips stay silent.',
+      zh: '把 2–10 段视频按顺序接成一个 MP4。前面加 file.order 让用户调整顺序。尺寸、帧率以第一段为准；不同比例居中留黑边，保留完整画面。保留声音，无声片段保持静音。',
+    },
+    input: ['video'],
+    output: 'video',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
+  },
   {
     id: 'video.compress',
     label: { en: 'Make video smaller', zh: '压缩视频' },
@@ -191,6 +386,82 @@ export function videoWorkflows(locale: Locale): Workflow[] {
   });
   return [
     wf(
+      'video-subtitles',
+      ['Export SRT captions', '导出 SRT 字幕'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+        {
+          id: 'captions',
+          action: 'video.subtitles',
+          params: { lang: speechLangFor(locale), model: 'standard' },
+          ask: ['lang'],
+        },
+      ],
+    ),
+
+    wf(
+      'video-speed',
+      ['Change video speed', '视频加速或慢放'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+        { id: 'speed', action: 'video.speed', params: { factor: 2 }, ask: ['factor'] },
+      ],
+    ),
+    wf(
+      'video-crop',
+      ['Crop video to a shape', '视频裁成指定比例'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+        { id: 'crop', action: 'video.crop', params: { ratio: '9:16' }, ask: ['ratio'] },
+      ],
+    ),
+    wf(
+      'video-rotate',
+      ['Rotate video', '旋转视频'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+        { id: 'rotate', action: 'video.rotate', params: { degrees: 90 }, ask: ['degrees'] },
+      ],
+    ),
+    wf(
+      'video-audio',
+      ['Change background music', '换背景音乐'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+        {
+          id: 'music',
+          action: 'video.audio',
+          params: { originalVolume: 0, loop: true },
+          ask: ['originalVolume', 'loop'],
+        },
+      ],
+    ),
+    wf(
+      'video-mute',
+      ['Remove video sound', '去掉视频声音'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+        { id: 'mute', action: 'video.mute', params: {} },
+      ],
+    ),
+    wf(
+      'video-frame',
+      ['Save a video frame', '截一帧存成照片'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+        { id: 'frame', action: 'video.frame', params: {} },
+      ],
+    ),
+    wf(
+      'video-merge',
+      ['Join videos', '拼接视频'],
+      [
+        { id: 'pick', action: 'in.videos', params: { min: 2, max: 10 } },
+        { id: 'order', action: 'file.order', params: {} },
+        { id: 'merge', action: 'video.merge', params: {} },
+      ],
+    ),
+    wf(
       'video-compress',
       ['Make videos smaller', '压缩视频'],
       [
@@ -239,7 +510,7 @@ export function videoWorkflows(locale: Locale): Workflow[] {
 
 export const videoTool: ToolDefinition = {
   id: VIDEO_TOOL_ID,
-  version: '1.1.0',
+  version: '1.9.0',
   name: { en: 'Video', zh: '视频' },
   description: {
     en: 'Make videos smaller, convert them to MP4, trim them and turn them into GIFs, on this device.',

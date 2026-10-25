@@ -323,6 +323,111 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    id: 'join-videos',
+    scenario: 'photos',
+    name: { en: 'Join video clips', zh: '把几段视频拼成一段' },
+    description: {
+      en: 'Choose 2–10 clips, arrange them, and join them into one MP4 using the first clip’s size and frame rate.',
+      zh: '选 2–10 段视频，调整顺序，按第一段的尺寸和帧率合成一个 MP4。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 2, max: 10 } },
+      { id: 'order', action: 'file.order', params: {} },
+      { id: 'merge', action: 'video.merge', params: {} },
+    ],
+  },
+  {
+    id: 'video-frame',
+    scenario: 'photos',
+    name: { en: 'Save a photo from a video', zh: '从视频里截一张照片' },
+    description: {
+      en: 'Choose videos, pick a frame in each, and save the photos to your library.',
+      zh: '选视频，为每段挑一帧，存成照片放到相册。',
+    },
+    icon: 'photo',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'frame', action: 'video.frame', params: {} },
+      { id: 'save', action: 'out.saveToPhotos', params: {} },
+    ],
+  },
+  {
+    id: 'mute-video',
+    scenario: 'photos',
+    name: { en: 'Remove sound from videos', zh: '视频去掉声音' },
+    description: {
+      en: 'Choose videos and make silent MP4 copies, keeping your originals.',
+      zh: '选视频，另存为无声 MP4，原片保留。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'mute', action: 'video.mute', params: {} },
+    ],
+  },
+  {
+    id: 'video-background-music',
+    scenario: 'photos',
+    name: { en: 'Add background music', zh: '给视频换背景音乐' },
+    description: {
+      en: 'Choose videos and a music file, then replace their sound. Music repeats when shorter; you can change how much original sound to keep.',
+      zh: '选视频和音乐，换成新的配乐；较短音乐循环，可调整要保留多少原声。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      {
+        id: 'music',
+        action: 'video.audio',
+        params: { originalVolume: 0, loop: true },
+        ask: ['originalVolume', 'loop'],
+      },
+    ],
+  },
+  {
+    id: 'fix-video-rotation',
+    scenario: 'photos',
+    name: { en: 'Fix video rotation', zh: '把视频转正' },
+    description: {
+      en: 'Choose videos and rotate their picture right, left or upside down, keeping sound.',
+      zh: '选视频，向右、向左或倒过来转正，声音保留。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'rotate', action: 'video.rotate', params: { degrees: 90 }, ask: ['degrees'] },
+    ],
+  },
+  {
+    id: 'video-speed',
+    scenario: 'photos',
+    name: { en: 'Speed up or slow down video', zh: '视频加速或慢放' },
+    description: {
+      en: 'Choose videos and a playback speed from 0.5× to 4×. Sound changes speed and pitch too.',
+      zh: '选视频，改成 0.5× 到 4× 速度。声音也会变速、变调。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'speed', action: 'video.speed', params: { factor: 2 }, ask: ['factor'] },
+    ],
+  },
+  {
+    id: 'vertical-video',
+    scenario: 'photos',
+    name: { en: 'Crop videos for portrait posts', zh: '裁成竖屏视频' },
+    description: {
+      en: 'Choose videos and crop the center to 9:16, or pick another shape each time.',
+      zh: '选视频，居中裁成 9:16 竖屏，也可每次选别的比例。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'crop', action: 'video.crop', params: { ratio: '9:16' }, ask: ['ratio'] },
+    ],
+  },
+  {
     // D-199：扫老照片。找边拉正，不增强、不压缩，存回相册。
     id: 'old-photos',
     scenario: 'photos',
@@ -497,6 +602,129 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
         false,
       ),
       { id: 'save', action: 'out.saveToFolder', params: {} },
+    ],
+  },
+  {
+    id: 'video-srt-captions',
+    scenario: 'photos',
+    packs: ['speech-whisper-small'],
+    name: { en: 'Export video captions as SRT', zh: '导出视频 SRT 字幕' },
+    description: {
+      en: 'Recognize video speech locally and save a separate SRT file. Captions are not burned into the video.',
+      zh: '在本机识别视频里的讲话，生成单独的 SRT 字幕文件，不烧录进画面。',
+    },
+    icon: 'video',
+    steps: (locale) => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      {
+        id: 'captions',
+        action: 'video.subtitles',
+        params: { lang: speechLangFor(locale), model: 'standard' },
+        ask: ['lang'],
+      },
+    ],
+  },
+  {
+    id: 'mark-up-photos',
+    scenario: 'photos',
+    name: { en: 'Add arrows and notes to photos', zh: '在图片上画箭头和文字' },
+    description: {
+      en: 'Draw arrows, boxes, freehand strokes and type notes on each photo, on this device.',
+      zh: '在本机逐张添加箭头、方框、画笔和文字。',
+    },
+    icon: 'photo',
+    steps: () => [photos(1, 10), { id: 'mark', action: 'image.annotate', params: {} }],
+  },
+  {
+    id: 'brighten-photos',
+    scenario: 'photos',
+    name: { en: 'Brighten dark photos', zh: '把太暗的照片调亮' },
+    description: {
+      en: 'Raise photo brightness a little, keeping the original dimensions.',
+      zh: '适度提高照片亮度，保留原尺寸。',
+    },
+    icon: 'photo',
+    steps: () => [
+      photos(1, 10),
+      {
+        id: 'adjust',
+        action: 'image.adjust',
+        params: { mode: 'manual', brightness: 15, contrast: 100, saturation: 100 },
+      },
+    ],
+  },
+  {
+    id: 'remove-photo-background',
+    scenario: 'photos',
+    name: { en: 'Remove a photo background', zh: '把照片背景去掉' },
+    description: {
+      en: 'Keep the subject on a transparent PNG. Requires iOS 17+ or Google Play services.',
+      zh: '保留主体，输出透明 PNG。需要 iOS 17+ 或 Google Play 服务。',
+    },
+    icon: 'photo',
+    steps: () => [
+      photos(1, 10),
+      {
+        id: 'remove',
+        action: 'image.removeBackground',
+        params: { background: 'transparent', color: '#FFFFFF' },
+      },
+    ],
+  },
+  {
+    id: 'normal-audio-volume',
+    scenario: 'sound',
+    name: { en: 'Make quiet audio easier to hear', zh: '把录音调到正常音量' },
+    description: {
+      en: 'Choose recordings and adjust toward normal volume without clipping.',
+      zh: '选录音，尽量调到正常音量，并限制峰值以避免削波。',
+    },
+    icon: 'audio',
+    steps: () => [
+      { id: 'pick', action: 'in.audio', params: { source: 'files', min: 1, max: 10 } },
+      { id: 'volume', action: 'audio.volume', params: { mode: 'normal', db: 0 } },
+    ],
+  },
+  {
+    id: 'normal-video-volume',
+    scenario: 'photos',
+    name: { en: 'Make quiet video easier to hear', zh: '把视频调到正常音量' },
+    description: {
+      en: 'Choose videos and adjust their sound toward normal volume, keeping the picture.',
+      zh: '选视频，把声音尽量调到正常音量，保留画面。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'volume', action: 'audio.volume', params: { mode: 'normal', db: 0 } },
+    ],
+  },
+  {
+    id: 'denoise-audio',
+    scenario: 'sound',
+    name: { en: 'Reduce noise in a voice recording', zh: '录音人声降噪' },
+    description: {
+      en: 'Reduce background noise around speech. Music may also be suppressed.',
+      zh: '减少录音中人声周围的噪声，音乐也可能被削弱。',
+    },
+    icon: 'audio',
+    steps: () => [
+      { id: 'pick', action: 'in.audio', params: { source: 'files', min: 1, max: 10 } },
+      { id: 'denoise', action: 'audio.denoise', params: {} },
+    ],
+  },
+  {
+    id: 'denoise-video',
+    scenario: 'photos',
+    name: { en: 'Reduce noise in video speech', zh: '视频人声降噪' },
+    description: {
+      en: 'Reduce background noise around video speech and keep the picture. Music may also be suppressed.',
+      zh: '减少视频中人声周围的噪声，保留画面，音乐也可能被削弱。',
+    },
+    icon: 'video',
+    steps: () => [
+      { id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } },
+      { id: 'denoise', action: 'audio.denoise', params: {} },
     ],
   },
   {

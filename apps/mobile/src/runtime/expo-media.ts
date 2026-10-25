@@ -73,6 +73,8 @@ export function expoMedia(
           container: 'mp4',
           video: {
             codec: 'h264',
+            ...(settings.aspectRatio ? { aspectRatio: settings.aspectRatio } : {}),
+            ...(settings.speed ? { speed: settings.speed } : {}),
             bitrateKbps: settings.videoKbps,
             maxFps: settings.maxFps,
             toSdr: true,
@@ -81,6 +83,106 @@ export function expoMedia(
           audio:
             settings.audioKbps > 0 ? { codec: 'aac', bitrateKbps: settings.audioKbps } : 'drop',
           ...(settings.range ? { range: settings.range } : {}),
+        }),
+      );
+      return output(result);
+    },
+
+    async speechAudio(uri, runId, relPath, job) {
+      if (!native.speechAudio) throw notImplemented('subtitle audio extraction');
+      return output(
+        await run(job, (jobId) => native.speechAudio!(jobId, uri, runFileUri(runId, relPath))),
+      );
+    },
+    async volume(uri, settings, runId, relPath, job) {
+      if (!native.volume) throw notImplemented('volume adjustment');
+      return output(
+        await run(job, (jobId) =>
+          native.volume!(jobId, uri, runFileUri(runId, relPath), {
+            automatic: settings.automatic,
+            db: settings.db,
+            video: settings.video
+              ? {
+                  codec: 'h264',
+                  bitrateKbps: settings.video.videoKbps,
+                  maxFps: settings.video.maxFps,
+                  toSdr: true,
+                }
+              : 'drop',
+          }),
+        ),
+      );
+    },
+    async denoise(uri, settings, runId, relPath, job) {
+      if (!native.denoise) throw notImplemented('speech noise reduction');
+      return output(
+        await run(job, (jobId) =>
+          native.denoise!(jobId, uri, runFileUri(runId, relPath), {
+            video: settings.video
+              ? {
+                  codec: 'h264',
+                  bitrateKbps: settings.video.videoKbps,
+                  maxFps: settings.video.maxFps,
+                  toSdr: true,
+                }
+              : 'drop',
+          }),
+        ),
+      );
+    },
+    async rotateVideo(uri, degrees, settings, runId, relPath, job) {
+      if (!native.rotate) throw notImplemented('video rotation');
+      return output(
+        await run(job, (jobId) =>
+          native.rotate!(jobId, uri, runFileUri(runId, relPath), degrees, {
+            container: 'mp4',
+            video: {
+              codec: 'h264',
+              bitrateKbps: settings.videoKbps,
+              maxFps: settings.maxFps,
+              toSdr: true,
+            },
+            audio:
+              settings.audioKbps > 0 ? { codec: 'aac', bitrateKbps: settings.audioKbps } : 'drop',
+          }),
+        ),
+      );
+    },
+    async mixVideoAudio(uri, music, settings, runId, relPath, job) {
+      if (!native.mixAudio) throw notImplemented('video background music');
+      const result = await run(job, (jobId) =>
+        native.mixAudio!(jobId, uri, music, runFileUri(runId, relPath), {
+          container: 'mp4',
+          video: {
+            codec: 'h264',
+            bitrateKbps: settings.videoKbps,
+            maxFps: settings.maxFps,
+            toSdr: true,
+          },
+          audio: { codec: 'aac', bitrateKbps: 128 },
+          originalVolume: settings.originalVolume,
+          loop: settings.loop,
+          videoDurationMs: settings.videoDurationMs,
+          musicDurationMs: settings.musicDurationMs,
+        }),
+      );
+      return output(result);
+    },
+    async concatVideo(uris, settings, runId, relPath, job) {
+      if (!native.concat) throw notImplemented('video concat');
+      const result = await run(job, (jobId) =>
+        native.concat!(jobId, uris, runFileUri(runId, relPath), {
+          container: 'mp4',
+          video: {
+            codec: 'h264',
+            bitrateKbps: settings.videoKbps,
+            width: settings.width,
+            height: settings.height,
+            maxFps: settings.maxFps,
+            toSdr: true,
+          },
+          audio:
+            settings.audioKbps > 0 ? { codec: 'aac', bitrateKbps: settings.audioKbps } : 'drop',
         }),
       );
       return output(result);
@@ -134,6 +236,13 @@ export function expoMedia(
     async imagesGif(uris, settings, runId, relPath, job) {
       const out = runFileUri(runId, relPath);
       return run(job, (jobId) => native.imagesGif(jobId, uris, out, settings));
+    },
+
+    async frame(uri, timeMs, runId) {
+      if (!native.frame) throw notImplemented('video frame');
+      const dir = new Directory(Paths.cache, 'runs', runId, 'frames');
+      dir.create({ idempotent: true, intermediates: true });
+      return native.frame(uri, timeMs, dir.uri);
     },
 
     async thumbnails(uri, timesMs, maxSide, runId) {

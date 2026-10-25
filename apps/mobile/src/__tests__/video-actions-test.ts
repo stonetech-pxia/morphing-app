@@ -36,6 +36,8 @@ function setup(
   opts: {
     answers?: Record<string, unknown>;
     trim?: { startMs: number; endMs: number }[] | null;
+    order?: number[] | null;
+    frames?: number[] | null;
     signal?: { cancelled: boolean };
   } = {},
 ) {
@@ -48,7 +50,13 @@ function setup(
     choose: async () => null,
     open: async (kind, input) => {
       opened.push({ kind, input });
-      return (opts.trim ?? null) as never;
+      return (
+        kind === 'frameMedia'
+          ? (opts.frames ?? null)
+          : kind === 'reorder'
+            ? (opts.order ?? null)
+            : (opts.trim ?? null)
+      ) as never;
     },
   };
   const run = async (): Promise<RunResult> =>
@@ -84,7 +92,7 @@ const failure = (result: RunResult) =>
   result.status === 'failed' ? { code: result.error.code, detail: result.error.detail } : result;
 
 describe('video tool', () => {
-  it('installs four quick actions and a video file list', () => {
+  it('installs video quick actions and a video file list', () => {
     const result = applyOps(
       createDefaultWorkspace('zh'),
       [{ op: 'installTool', toolId: 'video' }],
@@ -95,6 +103,14 @@ describe('video tool', () => {
     );
     if (!result.ok) throw new Error(result.error);
     expect(result.config.workflows.map((w) => w.name)).toEqual([
+      '导出 SRT 字幕',
+      '视频加速或慢放',
+      '视频裁成指定比例',
+      '旋转视频',
+      '换背景音乐',
+      '去掉视频声音',
+      '截一帧存成照片',
+      '拼接视频',
       '压缩视频',
       '转成 MP4',
       '剪一段',
@@ -300,3 +316,189 @@ describe('video tool', () => {
     expect((await run()).status).toBe('cancelled');
   });
 });
+
+describe('video merge', () => {
+  it('uses the first reordered clip’s dimensions and fps, sums durations and keeps later audio', async () => {
+    const { files, media, run } = setup(toolWorkflow('video-merge'), { order: [1, 0] });
+    files.nextVideos = [
+      files.offerVideo('landscape.mp4', {
+        size: 1000,
+        width: 1920,
+        height: 1080,
+        durationMs: 1000,
+        hasAudio: true,
+      }),
+      files.offerVideo('portrait.mp4', {
+        size: 1000,
+        width: 720,
+        height: 1280,
+        fps: 24,
+        durationMs: 2000,
+        hasAudio: false,
+      }),
+    ];
+    const [out] = videosOf(await run());
+    expect(out).toMatchObject({
+      name: 'portrait',
+      width: 720,
+      height: 1280,
+      durationMs: 3000,
+      ext: 'mp4',
+    });
+    expect(media.videoConcats[0]).toMatchObject({ width: 720, height: 1280, maxFps: 24 });
+    expect(media.videoConcats[0]!.uris[0]).toContain('portrait');
+    expect((await media.probe(out!.uri)).hasAudio).toBe(true);
+  });
+  it('checks the remaining count after ordering and handles cancelled ordering', async () => {
+    for (const order of [[0], null]) {
+      const { files, media, run } = setup(toolWorkflow('video-merge'), { order });
+      files.nextVideos = [
+        files.offerVideo('a.mp4', { size: 1000 }),
+        files.offerVideo('b.mp4', { size: 1000 }),
+      ];
+      const result = await run();
+      expect(order ? failure(result) : result).toMatchObject(
+        order ? { code: 'tooFew' } : { status: 'cancelled' },
+      );
+      expect(media.videoConcats).toEqual([]);
+    }
+  });
+  it('reports native failures', async () => {
+    const { files, media, run } = setup(toolWorkflow('video-merge'), { order: [0, 1] });
+    files.nextVideos = [
+      files.offerVideo('a.mp4', { size: 1000 }),
+      files.offerVideo('b.mp4', { size: 1000 }),
+    ];
+    media.failWith = 'ERR_MEDIA_INTERRUPTED';
+    expect(failure(await run())).toMatchObject({ code: 'interrupted' });
+  });
+});
+
+it('checks space for the entire merged duration before starting native encoding', async () => {
+  const { files, media, run } = setup(toolWorkflow('video-merge'), { order: [0, 1] });
+  files.nextVideos = [
+    files.offerVideo('a.mp4', { size: 1000 }),
+    files.offerVideo('b.mp4', { size: 1000 }),
+  ];
+  files.freeBytes = 50 * MB;
+  expect(failure(await run())).toMatchObject({ code: 'notEnoughSpace' });
+  expect(media.videoConcats).toEqual([]);
+});
+
+describe('video frame', () => {
+  it('saves the selected time as an upright full-resolution image', async () => {
+    const { files, media, run, opened } = setup(toolWorkflow('video-frame'), { frames: [1250] });
+    files.nextVideos = [
+      files.offerVideo('trip.mov', { size: 1000, durationMs: 3000, width: 1080, height: 1920 }),
+    ];
+    const result = await run();
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      value: {
+        type: 'images',
+        items: [{ name: 'trip-1250ms', mimeType: 'image/jpeg', width: 1080, height: 1920 }],
+      },
+    });
+    expect(opened[0]!.kind).toBe('frameMedia');
+    expect(media.frames[0]!.timeMs).toBe(1250);
+  });
+  it('cancels without extracting and rejects invalid selected times', async () => {
+    for (const frames of [null, [-1], [Infinity], [3000]]) {
+      const { files, media, run } = setup(toolWorkflow('video-frame'), { frames });
+      files.nextVideos = [files.offerVideo('trip.mov', { size: 1000, durationMs: 3000 })];
+      expect((await run()).status).toBe(frames === null ? 'cancelled' : 'failed');
+      expect(media.frames).toEqual([]);
+    }
+  });
+});
+
+it('removes audio from every selected video and keeps the source files separate', async () => {
+  const { files, media, run } = setup(toolWorkflow('video-mute'));
+  files.nextVideos = [
+    files.offerVideo('sound.mov', { size: 1000, hasAudio: true, durationMs: 1000 }),
+    files.offerVideo('quiet.mov', { size: 1000, hasAudio: false, durationMs: 2000 }),
+  ];
+  const items = videosOf(await run());
+  expect(items).toHaveLength(2);
+  expect(items.map((i) => i.durationMs)).toEqual([1000, 2000]);
+  expect(media.encodes.map((s) => s.audioKbps)).toEqual([0, 0]);
+  for (const item of items) expect((await media.probe(item.uri)).hasAudio).toBe(false);
+});
+
+describe('video music', () => {
+  it('chooses music once for all videos and preserves duration with the requested original volume and loop', async () => {
+    const { files, media, run } = setup(toolWorkflow('video-audio'), {
+      answers: { originalVolume: 25, loop: false },
+    });
+    files.nextVideos = [
+      files.offerVideo('a.mov', { size: 1000, durationMs: 3000 }),
+      files.offerVideo('b.mov', { size: 1000, durationMs: 2000 }),
+    ];
+    files.nextPick = [files.offerAudio('music.m4a', { size: 1000, durationMs: 1000 })];
+    const items = videosOf(await run());
+    expect(items.map((i) => i.durationMs)).toEqual([3000, 2000]);
+    expect(media.mixes).toHaveLength(2);
+    expect(media.mixes.map((m) => [m.originalVolume, m.loop])).toEqual([
+      [25, false],
+      [25, false],
+    ]);
+    expect(media.mixes[0]!.music).toBe(media.mixes[1]!.music);
+    expect(files.lastPickTypes).toEqual(['audio/*']);
+  });
+  it('cancelling the music picker cancels the action', async () => {
+    const { files, media, run } = setup(toolWorkflow('video-audio'));
+    files.nextVideos = [files.offerVideo('a.mov', { size: 1000 })];
+    expect((await run()).status).toBe('cancelled');
+    expect(media.mixes).toEqual([]);
+  });
+});
+
+it.each([90, 180, 270])('rotates each video clockwise by %s degrees', async (degrees) => {
+  const { files, media, run } = setup(toolWorkflow('video-rotate'), { answers: { degrees } });
+  files.nextVideos = [
+    files.offerVideo('sideways.mov', { size: 1000, durationMs: 1000, width: 640, height: 360 }),
+  ];
+  const [item] = videosOf(await run());
+  expect(item).toMatchObject({
+    durationMs: 1000,
+    width: degrees === 180 ? 640 : 360,
+    height: degrees === 180 ? 360 : 640,
+  });
+  expect(media.rotations[0]!.degrees).toBe(degrees);
+});
+
+it.each(['9:16', '1:1', '4:5', '16:9'])(
+  'center-crops video to %s without changing duration or sound',
+  async (ratio) => {
+    const { files, media, run } = setup(toolWorkflow('video-crop'), { answers: { ratio } });
+    files.nextVideos = [
+      files.offerVideo('wide.mov', {
+        size: 1000,
+        durationMs: 1000,
+        width: 1920,
+        height: 1080,
+        hasAudio: true,
+      }),
+    ];
+    const [item] = videosOf(await run());
+    const [w, h] = ratio.split(':').map(Number);
+    expect(item!.width! / item!.height!).toBeCloseTo(w! / h!, 2);
+    expect(item!.durationMs).toBe(1000);
+    expect((await media.probe(item!.uri)).hasAudio).toBe(true);
+    expect(media.encodes[0]!.aspectRatio).toBe(w! / h!);
+  },
+);
+
+it.each([0.5, 0.75, 1, 2, 4])(
+  'changes duration at %sx speed and keeps the sound',
+  async (factor) => {
+    const { files, media, run } = setup(toolWorkflow('video-speed'), { answers: { factor } });
+    files.nextVideos = [
+      files.offerVideo('action.mov', { size: 1000, durationMs: 4000, hasAudio: true }),
+    ];
+    const [item] = videosOf(await run());
+    expect(item!.durationMs).toBe(4000 / factor);
+    expect(media.encodes[0]!.speed).toBe(factor);
+    expect((await media.probe(item!.uri)).hasAudio).toBe(true);
+  },
+);

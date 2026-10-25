@@ -28,6 +28,8 @@ export interface TranscribeOptions {
   prompt?: string;
   /** 只给测试用：iOS 26 起也走 SFSpeechRecognizer，用来在新系统上检查旧系统的那条路。 */
   legacy?: boolean;
+  /** 为字幕请求词/段落时间戳（旧版 iOS 按词分组）。 */
+  timed?: boolean;
 }
 
 export interface TranscriptSegment {

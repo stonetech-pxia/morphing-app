@@ -2,6 +2,7 @@ import AVFoundation
 import ExpoModulesCore
 import ImageIO
 import MorphLame
+import MorphDsp
 import UIKit
 import UniformTypeIdentifiers
 
@@ -48,6 +49,7 @@ private final class Job: @unchecked Sendable {
   private let lock = NSLock()
   private var _cancelled = false
   private var _backgrounded = false
+  private var _interrupted = false
   private var _onCancel: (() -> Void)?
 
   /** 取消时要做的事（停止读写或导出）；设置时已经取消了就马上做。 */
@@ -56,7 +58,7 @@ private final class Job: @unchecked Sendable {
     set {
       let run = lock.withLock { () -> Bool in
         _onCancel = newValue
-        return _cancelled
+        return _cancelled || _interrupted
       }
       if run { newValue?() }
     }
@@ -64,6 +66,7 @@ private final class Job: @unchecked Sendable {
 
   var cancelled: Bool { lock.withLock { _cancelled } }
   var backgrounded: Bool { lock.withLock { _backgrounded } }
+  var interrupted: Bool { lock.withLock { _interrupted } }
 
   func cancel() {
     let handler: (() -> Void)? = lock.withLock {
@@ -79,6 +82,7 @@ private final class Job: @unchecked Sendable {
   func interrupt() {
     let handler: (() -> Void)? = lock.withLock {
       _backgrounded = true
+      _interrupted = true
       return _onCancel
     }
     handler?()
@@ -139,11 +143,66 @@ public class MorphMediaModule: Module {
       Task {
         defer { self.finish(jobId) }
         do {
-          let result = try await self.transcode(job, jobId: jobId, uri: uri, output: output, options: options)
+          let video = options["video"] as? [String: Any]
+          let result: [String: Any]
+          if let factor = (video?["speed"] as? NSNumber)?.doubleValue {
+            result = try await self.speedVideo(job, jobId: jobId, uri: uri, output: output, options: options, factor: factor)
+          } else {
+            result = try await self.transcode(job, jobId: jobId, uri: uri, output: output, options: options)
+          }
           promise.resolve(result)
         } catch {
           promise.reject(Self.coded(error, job: job))
         }
+      }
+    }
+
+    AsyncFunction("volume") {
+      (jobId: String, uri: URL, output: URL, options: [String: Any], promise: Promise) in
+      let job = self.start(jobId)
+      Task {
+        defer { self.finish(jobId) }
+        do { promise.resolve(try await self.adjustVolume(job, jobId: jobId, uri: uri, output: output, options: options)) }
+        catch { promise.reject(Self.coded(error, job: job)) }
+      }
+    }
+
+    AsyncFunction("speechAudio") { (jobId: String, uri: URL, output: URL, promise: Promise) in
+      let job = self.start(jobId)
+      Task {
+        defer { self.finish(jobId) }
+        do { promise.resolve(try await self.speechAudio(job, jobId: jobId, uri: uri, output: output)) }
+        catch { try? FileManager.default.removeItem(at: output); promise.reject(Self.coded(error, job: job)) }
+      }
+    }
+
+    AsyncFunction("denoise") {
+      (jobId: String, uri: URL, output: URL, options: [String: Any], promise: Promise) in
+      let job = self.start(jobId)
+      Task {
+        defer { self.finish(jobId) }
+        do { promise.resolve(try await self.denoiseAudio(job, jobId: jobId, uri: uri, output: output, options: options)) }
+        catch { promise.reject(Self.coded(error, job: job)) }
+      }
+    }
+
+    AsyncFunction("rotate") {
+      (jobId: String, uri: URL, output: URL, degrees: Int, _options: [String: Any], promise: Promise) in
+      let job = self.start(jobId)
+      Task {
+        defer { self.finish(jobId) }
+        do { promise.resolve(try await self.rotateVideo(job, jobId: jobId, uri: uri, output: output, degrees: degrees)) }
+        catch { promise.reject(Self.coded(error, job: job)) }
+      }
+    }
+
+    AsyncFunction("mixAudio") {
+      (jobId: String, uri: URL, music: URL, output: URL, options: [String: Any], promise: Promise) in
+      let job = self.start(jobId)
+      Task {
+        defer { self.finish(jobId) }
+        do { promise.resolve(try await self.mixVideoAudio(job, jobId: jobId, uri: uri, music: music, output: output, options: options)) }
+        catch { promise.reject(Self.coded(error, job: job)) }
       }
     }
 
@@ -158,6 +217,16 @@ public class MorphMediaModule: Module {
         } catch {
           promise.reject(Self.coded(error, job: job))
         }
+      }
+    }
+
+    AsyncFunction("frame") { (uri: URL, timeMs: Double, directory: URL, promise: Promise) in
+      Task {
+        do {
+          guard timeMs.isFinite, timeMs >= 0 else { throw MediaUnsupportedException("invalid frame time") }
+          let frames = try await Self.thumbnails(uri, timesMs: [timeMs], maxSide: 0, directory: directory, precise: true)
+          promise.resolve(frames[0])
+        } catch { promise.reject(Self.coded(error)) }
       }
     }
 
@@ -340,7 +409,8 @@ public class MorphMediaModule: Module {
   // MARK: - transcode
 
   private func transcode(
-    _ job: Job, jobId: String, uri: URL, output: URL, options: [String: Any]
+    _ job: Job, jobId: String, uri: URL, output: URL, options: [String: Any],
+    sourceAsset: AVAsset? = nil, suppliedComposition: AVVideoComposition? = nil, suppliedAudioMix: AVAudioMix? = nil, suppliedTimePitch: AVAudioTimePitchAlgorithm? = nil
   ) async throws -> [String: Any] {
     let container = options["container"] as? String ?? "mp4"
     if options["video"] as? String == "drop" {
@@ -369,12 +439,12 @@ public class MorphMediaModule: Module {
       throw NotImplementedException("audio codec \(codec)")
     }
 
-    let asset = AVURLAsset(url: uri)
+    let asset: AVAsset = sourceAsset ?? AVURLAsset(url: uri)
     let (duration, tracks) = try await asset.load(.duration, .tracks)
     guard let videoTrack = tracks.first(where: { $0.mediaType == .video }) else {
       throw MediaUnsupportedException("no video")
     }
-    let audioTrack = audioOptions == nil ? nil : tracks.first { $0.mediaType == .audio }
+    let audioTracks = audioOptions == nil ? [] : tracks.filter { $0.mediaType == .audio }
 
     var timeRange = CMTimeRange(start: .zero, duration: duration)
     if let range = options["range"] as? [String: Double], let start = range["startMs"], let end = range["endMs"] {
@@ -386,8 +456,12 @@ public class MorphMediaModule: Module {
     // 输出尺寸：摆正之后按短边缩小，不放大；H.264 要偶数宽高。
     let (natural, transform, nominalFps) = try await videoTrack.load(.naturalSize, .preferredTransform, .nominalFrameRate)
     let shown = natural.applying(transform)
-    let shownW = abs(shown.width)
-    let shownH = abs(shown.height)
+    let frameW = suppliedComposition?.renderSize.width ?? abs(shown.width)
+    let frameH = suppliedComposition?.renderSize.height ?? abs(shown.height)
+    let ratio = (video["aspectRatio"] as? NSNumber)?.doubleValue
+    if let ratio, !ratio.isFinite || ratio <= 0 { throw MediaUnsupportedException("invalid aspect ratio") }
+    let shownW = ratio.map { min(frameW, frameH * CGFloat($0)) } ?? frameW
+    let shownH = ratio.map { min(frameH, frameW / CGFloat($0)) } ?? frameH
     let shortSide = min(shownW, shownH)
     let maxShort = (video["maxShortSide"] as? Double).map { CGFloat($0) } ?? shortSide
     let scale = min(1, maxShort / max(shortSide, 1))
@@ -410,7 +484,7 @@ public class MorphMediaModule: Module {
     // 按转过之后的外框把画面挪回原点，再缩放到输出尺寸。
     let bounds = CGRect(origin: .zero, size: natural).applying(transform)
     let upright = transform.concatenating(
-      CGAffineTransform(translationX: -bounds.minX, y: -bounds.minY))
+      CGAffineTransform(translationX: -bounds.minX - (frameW - shownW) / 2, y: -bounds.minY - (frameH - shownH) / 2))
     let sx = CGFloat(outW) / shownW
     let sy = CGFloat(outH) / shownH
     layer.setTransform(upright.concatenating(CGAffineTransform(scaleX: sx, y: sy)), at: .zero)
@@ -432,9 +506,9 @@ public class MorphMediaModule: Module {
     writer.shouldOptimizeForNetworkUse = true
 
     let videoOut = AVAssetReaderVideoCompositionOutput(
-      videoTracks: [videoTrack],
+      videoTracks: tracks.filter { $0.mediaType == .video },
       videoSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange])
-    videoOut.videoComposition = composition
+    videoOut.videoComposition = suppliedComposition ?? composition
     videoOut.alwaysCopiesSampleData = false
     guard reader.canAdd(videoOut) else { throw MediaUnsupportedException("video output") }
     reader.add(videoOut)
@@ -464,13 +538,13 @@ public class MorphMediaModule: Module {
 
     var audioOut: AVAssetReaderAudioMixOutput?
     var audioIn: AVAssetWriterInput?
-    if let audioTrack, let audioOptions {
+    if !audioTracks.isEmpty, let audioOptions {
       let kbps = audioOptions["bitrateKbps"] as? Double ?? 128
       // AAC 低码率时用单声道、低采样率，否则编码器不接受。
       let channels = (audioOptions["channels"] as? NSNumber)?.intValue ?? (kbps < 64 ? 1 : 2)
       let sampleRate = (audioOptions["sampleRate"] as? Double) ?? (kbps < 64 ? 22050 : 44100)
       let out = AVAssetReaderAudioMixOutput(
-        audioTracks: [audioTrack],
+        audioTracks: audioTracks,
         audioSettings: [
           AVFormatIDKey: kAudioFormatLinearPCM,
           AVSampleRateKey: sampleRate,
@@ -480,6 +554,8 @@ public class MorphMediaModule: Module {
           AVLinearPCMIsBigEndianKey: false,
           AVLinearPCMIsNonInterleaved: false,
         ])
+      out.audioMix = suppliedAudioMix
+      if let suppliedTimePitch { out.audioTimePitchAlgorithm = suppliedTimePitch }
       let input = AVAssetWriterInput(
         mediaType: .audio,
         outputSettings: [
@@ -795,10 +871,319 @@ public class MorphMediaModule: Module {
     return try await Self.result(output)
   }
 
+  /** 统一解成 48 kHz 双声道 Float PCM；按时间戳补静音，视频的声音不会被提前。 */
+  private func readPcm(_ job: Job, uri: URL, consume: (UnsafePointer<Float>, Int) throws -> Void) async throws {
+    if job.cancelled { throw MediaCancelledException() }
+    if job.interrupted { throw MediaInterruptedException() }
+    let asset = AVURLAsset(url: uri)
+    let (duration, tracks) = try await asset.load(.duration, .tracks)
+    let audio = tracks.filter { $0.mediaType == .audio }
+    guard !audio.isEmpty, duration.seconds > 0, duration.seconds.isFinite, duration.seconds < Double(Int.max) / 48000 else { throw MediaUnsupportedException("no audio") }
+    let totalFrames = Int((duration.seconds * 48000).rounded())
+    let reader = try AVAssetReader(asset: asset)
+    let out = AVAssetReaderAudioMixOutput(audioTracks: audio, audioSettings: [
+      AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 48000.0, AVNumberOfChannelsKey: 2,
+      AVLinearPCMBitDepthKey: 32, AVLinearPCMIsFloatKey: true, AVLinearPCMIsNonInterleaved: false,
+    ])
+    guard reader.canAdd(out) else { throw MediaUnsupportedException("PCM reader") }
+    reader.add(out)
+    job.onCancel = { reader.cancelReading() }
+    guard reader.startReading() else {
+      if job.cancelled { throw MediaCancelledException() }
+      if job.interrupted { throw MediaInterruptedException() }
+      throw MediaUnsupportedException(reader.error?.localizedDescription ?? "PCM read")
+    }
+    defer { if reader.status == .reading { reader.cancelReading() } }
+    var cursor = 0
+    let silence = [Float](repeating: 0, count: 16384)
+    func pad(to frame: Int) throws {
+      while cursor < frame {
+        if job.cancelled { throw MediaCancelledException() }
+        if job.interrupted { throw MediaInterruptedException() }
+        let count = min(frame - cursor, silence.count / 2)
+        try silence.withUnsafeBufferPointer { try consume($0.baseAddress!, count) }
+        cursor += count
+      }
+    }
+    while let sample = out.copyNextSampleBuffer() {
+      if job.cancelled { throw MediaCancelledException() }
+      if job.interrupted { throw MediaInterruptedException() }
+      guard let block = CMSampleBufferGetDataBuffer(sample) else { continue }
+      let seconds = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+      guard seconds.isFinite else { throw MediaUnsupportedException("audio timestamp") }
+      let start = Int((seconds * 48000).rounded())
+      try pad(to: min(totalFrames, max(0, start)))
+      var length = 0
+      var data: UnsafeMutablePointer<Int8>?
+      guard CMBlockBufferGetDataPointer(block, atOffset: 0, lengthAtOffsetOut: nil, totalLengthOut: &length, dataPointerOut: &data) == kCMBlockBufferNoErr, let data else { throw MediaFailedException("PCM buffer") }
+      let skip = max(0, cursor - start)
+      let frames = max(0, min(length / 8 - skip, totalFrames - cursor))
+      if frames > 0 {
+        let samples = UnsafeRawPointer(data).assumingMemoryBound(to: Float.self).advanced(by: skip * 2)
+        try consume(samples, frames)
+        cursor += frames
+      }
+    }
+    if job.cancelled { throw MediaCancelledException() }
+    if job.interrupted { throw MediaInterruptedException() }
+    if reader.status == .cancelled { throw MediaCancelledException() }
+    if reader.status == .failed { throw MediaFailedException(reader.error?.localizedDescription ?? "PCM decode") }
+    try pad(to: totalFrames)
+  }
+
+  /** 语音识别用无损 WAV，按视频时间轴补静音；不能丢掉开头的音轨延迟。 */
+  private func speechAudio(_ job: Job, jobId: String, uri: URL, output: URL) async throws -> [String: Any] {
+    try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)!
+    var writer: AVAudioFile? = try AVAudioFile(forWriting: output, settings: format.settings)
+    let duration = try await AVURLAsset(url: uri).load(.duration).seconds
+    var done = 0; var shown = -1
+    try await readPcm(job, uri: uri) { samples, frames in
+      guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)), let channels = buffer.floatChannelData else { throw MediaFailedException("PCM allocation") }
+      buffer.frameLength = AVAudioFrameCount(frames)
+      for i in 0..<frames { for c in 0..<2 { channels[c][i] = samples[i*2+c] } }
+      try writer!.write(from: buffer)
+      done += frames
+      let percent = duration > 0 ? Int(min(100, Double(done)/48000/duration*100)) : 0
+      if percent > shown { shown = percent; progress(jobId, Double(percent)/100) }
+    }
+    writer = nil
+    if job.cancelled { throw MediaCancelledException() }
+    return try await Self.result(output)
+  }
+
+  private func adjustVolume(_ job: Job, jobId: String, uri: URL, output: URL, options: [String: Any]) async throws -> [String: Any] {
+    let automatic = options["automatic"] as? Bool ?? true
+    let db = (options["db"] as? NSNumber)?.doubleValue ?? 0
+    guard db.isFinite, (-24...24).contains(db) else { throw MediaUnsupportedException("invalid gain") }
+    guard let meter = morph_meter_create(48000, 2) else { throw MediaFailedException("loudness meter") }
+    defer { morph_meter_destroy(meter) }
+    try await readPcm(job, uri: uri) { samples, frames in
+      if morph_meter_add_float(meter, samples, frames * 2) != 0 { throw MediaFailedException("loudness analysis") }
+    }
+    let gain = Float(morph_meter_gain(meter, automatic ? 1 : 0, db))
+    progress(jobId, 0.25)
+    try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let pcm = output.appendingPathExtension("volume.caf")
+    defer { try? FileManager.default.removeItem(at: pcm) }
+    let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)!
+    var writer: AVAudioFile? = try AVAudioFile(forWriting: pcm, settings: format.settings)
+    try await readPcm(job, uri: uri) { samples, frames in
+      guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)), let data = buffer.floatChannelData else { throw MediaFailedException("PCM allocation") }
+      buffer.frameLength = AVAudioFrameCount(frames)
+      for i in 0..<frames { for c in 0..<2 {
+        let value = samples[i * 2 + c] * gain
+        data[c][i] = value.isFinite ? min(1, max(-1, value)) : 0
+      } }
+      try writer!.write(from: buffer)
+    }
+    writer = nil
+    progress(jobId, 0.5)
+    return try await encodeProcessedAudio(job, jobId: jobId, uri: uri, pcm: pcm, output: output, options: options)
+  }
+
+  /** RNNoise 每次处理 10ms；丢掉前 20ms 算法延迟、补尾帧，保持原始时间轴。 */
+  private func denoiseAudio(_ job: Job, jobId: String, uri: URL, output: URL, options: [String: Any]) async throws -> [String: Any] {
+    guard let denoiser = morph_denoise_create(2) else { throw MediaFailedException("denoiser") }
+    defer { morph_denoise_destroy(denoiser) }
+    try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let pcm = output.appendingPathExtension("denoise.caf")
+    defer { try? FileManager.default.removeItem(at: pcm) }
+    let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2)!
+    var writer: AVAudioFile? = try AVAudioFile(forWriting: pcm, settings: format.settings)
+    var input = [Float](repeating: 0, count: 960)
+    var filtered = input
+    var filled = 0; var skip = 960; var total = 0; var written = 0
+    func process() throws {
+      if job.cancelled { throw MediaCancelledException() }
+      let code = input.withUnsafeBufferPointer { source in filtered.withUnsafeMutableBufferPointer { target in morph_denoise_process(denoiser, source.baseAddress!, target.baseAddress!) } }
+      guard code == 0 else { throw MediaFailedException("denoise frame") }
+      let drop = min(480, skip); skip -= drop
+      let frames = min(480 - drop, total - written)
+      if frames > 0 {
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)), let channels = buffer.floatChannelData else { throw MediaFailedException("PCM allocation") }
+        buffer.frameLength = AVAudioFrameCount(frames)
+        for i in 0..<frames { for c in 0..<2 { channels[c][i] = filtered[(i + drop)*2+c] } }
+        try writer!.write(from: buffer); written += frames
+      }
+      filled = 0
+    }
+    try await readPcm(job, uri: uri) { samples, frames in
+      total += frames
+      var offset = 0
+      while offset < frames {
+        let count = min(480 - filled, frames - offset)
+        for i in 0..<count*2 { input[filled*2+i] = samples[offset*2+i] }
+        filled += count; offset += count
+        if filled == 480 { try process() }
+      }
+    }
+    if filled > 0 { for i in filled*2..<960 { input[i] = 0 }; try process() }
+    input = [Float](repeating: 0, count: 960)
+    for _ in 0..<2 { try process() }
+    guard written == total else { throw MediaFailedException("denoise duration") }
+    writer = nil
+    progress(jobId, 0.5)
+    return try await encodeProcessedAudio(job, jobId: jobId, uri: uri, pcm: pcm, output: output, options: options)
+  }
+
+  private func encodeProcessedAudio(_ job: Job, jobId: String, uri: URL, pcm: URL, output: URL, options: [String: Any]) async throws -> [String: Any] {
+    var encode = options
+    encode["container"] = "m4a"
+    encode["audio"] = ["codec": "aac", "bitrateKbps": 192.0, "sampleRate": 48000.0, "channels": 2]
+    if options["video"] is [String: Any] {
+      encode["container"] = "mp4"; encode["originalVolume"] = 0; encode["loop"] = false
+      return try await mixVideoAudio(job, jobId: jobId, uri: uri, music: pcm, output: output, options: encode)
+    }
+    encode["video"] = "drop"
+    return try await transcode(job, jobId: jobId, uri: pcm, output: output, options: encode)
+  }
+
+  /** 变速同时缩放视频和音频的时间；varispeed 让声音按同样比例变调。 */
+  private func speedVideo(_ job: Job, jobId: String, uri: URL, output: URL, options: [String: Any], factor: Double) async throws -> [String: Any] {
+    guard factor.isFinite, (0.5...4).contains(factor) else { throw MediaUnsupportedException("invalid speed") }
+    if job.cancelled { throw MediaCancelledException() }
+    let source = AVURLAsset(url: uri)
+    let tracks = try await source.load(.tracks)
+    guard let video = tracks.first(where: { $0.mediaType == .video }) else { throw MediaUnsupportedException("no video") }
+    let (range, transform) = try await video.load(.timeRange, .preferredTransform)
+    guard range.duration.seconds > 0 else { throw MediaUnsupportedException("empty video") }
+    let asset = AVMutableComposition()
+    guard let target = asset.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MediaFailedException("video track") }
+    try target.insertTimeRange(range, of: video, at: .zero)
+    target.preferredTransform = transform
+    for audio in tracks where audio.mediaType == .audio {
+      let audioRange = try await audio.load(.timeRange)
+      let overlap = CMTimeRangeGetIntersection(range, otherRange: audioRange)
+      if overlap.duration.seconds > 0 {
+        guard let audioTarget = asset.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MediaFailedException("audio track") }
+        try audioTarget.insertTimeRange(overlap, of: audio, at: overlap.start - range.start)
+      }
+    }
+    asset.scaleTimeRange(CMTimeRange(start: .zero, duration: range.duration),
+                         toDuration: CMTime(seconds: range.duration.seconds / factor, preferredTimescale: 60000))
+    return try await transcode(job, jobId: jobId, uri: uri, output: output, options: options, sourceAsset: asset, suppliedTimePitch: .varispeed)
+  }
+
+  /** 配乐在运行时由用户选；原音轨按指定比例混入，音乐可循环，输出时长始终跟随视频。 */
+  private func mixVideoAudio(
+    _ job: Job, jobId: String, uri: URL, music: URL, output: URL, options: [String: Any]
+  ) async throws -> [String: Any] {
+    let originalVolume = (options["originalVolume"] as? NSNumber)?.floatValue ?? 0
+    let loop = options["loop"] as? Bool ?? true
+    guard originalVolume.isFinite, (0...100).contains(originalVolume) else { throw MediaUnsupportedException("invalid original volume") }
+    let source = AVURLAsset(url: uri)
+    let tracks = try await source.load(.tracks)
+    guard let video = tracks.first(where: { $0.mediaType == .video }) else { throw MediaUnsupportedException("no video") }
+    let (range, transform) = try await video.load(.timeRange, .preferredTransform)
+    guard range.duration.seconds > 0 else { throw MediaUnsupportedException("empty video") }
+    let musicAsset = AVURLAsset(url: music)
+    let musicTracks = try await musicAsset.load(.tracks)
+    guard let musicTrack = musicTracks.first(where: { $0.mediaType == .audio }) else { throw MediaUnsupportedException("no music") }
+    let musicRange = try await musicTrack.load(.timeRange)
+    guard musicRange.duration.seconds > 0, musicRange.duration.seconds.isFinite else { throw MediaUnsupportedException("empty music") }
+    let asset = AVMutableComposition()
+    guard let videoTarget = asset.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
+          let musicTarget = asset.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MediaFailedException("composition track") }
+    try videoTarget.insertTimeRange(range, of: video, at: .zero)
+    videoTarget.preferredTransform = transform
+    var gains: [AVAudioMixInputParameters] = []
+    if originalVolume > 0, let original = tracks.first(where: { $0.mediaType == .audio }) {
+      let originalRange = try await original.load(.timeRange)
+      let overlap = CMTimeRangeGetIntersection(range, otherRange: originalRange)
+      if overlap.duration.seconds > 0 {
+        guard let originalTarget = asset.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MediaFailedException("audio track") }
+        try originalTarget.insertTimeRange(overlap, of: original, at: overlap.start - range.start)
+        let gain = AVMutableAudioMixInputParameters(track: originalTarget)
+        gain.setVolume(originalVolume / 100, at: .zero)
+        gains.append(gain)
+      }
+    }
+    var cursor = CMTime.zero
+    repeat {
+      if job.cancelled { throw MediaCancelledException() }
+      let length = CMTimeMinimum(musicRange.duration, range.duration - cursor)
+      try musicTarget.insertTimeRange(CMTimeRange(start: musicRange.start, duration: length), of: musicTrack, at: cursor)
+      cursor = cursor + length
+    } while loop && cursor < range.duration
+    let musicGain = AVMutableAudioMixInputParameters(track: musicTarget)
+    musicGain.setVolume(1, at: .zero)
+    gains.append(musicGain)
+    let mix = AVMutableAudioMix()
+    mix.inputParameters = gains
+    return try await transcode(job, jobId: jobId, uri: uri, output: output, options: options, sourceAsset: asset, suppliedAudioMix: mix)
+  }
+
+  /** 视频首尾拼接：每段独立摆正并按第一段画布等比留边；无声片段不插入音轨。 */
+  private func concatVideo(
+    _ job: Job, jobId: String, uris: [URL], output: URL, options: [String: Any]
+  ) async throws -> [String: Any] {
+    guard (2...10).contains(uris.count), let videoOptions = options["video"] as? [String: Any] else {
+      throw MediaUnsupportedException("expected 2–10 video clips")
+    }
+    let width = (videoOptions["width"] as? NSNumber)?.intValue ?? 0
+    let height = (videoOptions["height"] as? NSNumber)?.intValue ?? 0
+    let fps = (videoOptions["maxFps"] as? NSNumber)?.doubleValue ?? 30
+    guard width > 0, height > 0, width % 2 == 0, height % 2 == 0, fps > 0, fps.isFinite else {
+      throw MediaUnsupportedException("invalid output dimensions or frame rate")
+    }
+    let asset = AVMutableComposition()
+    let composition = AVMutableVideoComposition()
+    composition.renderSize = CGSize(width: width, height: height)
+    composition.frameDuration = CMTime(seconds: 1 / fps, preferredTimescale: 60000)
+    composition.colorPrimaries = AVVideoColorPrimaries_ITU_R_709_2
+    composition.colorTransferFunction = AVVideoTransferFunction_ITU_R_709_2
+    composition.colorYCbCrMatrix = AVVideoYCbCrMatrix_ITU_R_709_2
+    var instructions: [AVVideoCompositionInstructionProtocol] = []
+    var cursor = CMTime.zero
+    for uri in uris {
+      if job.cancelled { throw MediaCancelledException() }
+      let sourceAsset = AVURLAsset(url: uri)
+      let sourceTracks = try await sourceAsset.load(.tracks)
+      guard let source = sourceTracks.first(where: { $0.mediaType == .video }),
+            let target = asset.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
+        throw MediaUnsupportedException("no video")
+      }
+      let (range, natural, transform) = try await source.load(.timeRange, .naturalSize, .preferredTransform)
+      guard range.duration.seconds > 0, range.duration.seconds.isFinite else { throw MediaUnsupportedException("empty video") }
+      try target.insertTimeRange(range, of: source, at: cursor)
+      let bounds = CGRect(origin: .zero, size: natural).applying(transform)
+      guard bounds.width > 0, bounds.height > 0 else { throw MediaUnsupportedException("empty frame") }
+      let scale = min(CGFloat(width) / bounds.width, CGFloat(height) / bounds.height)
+      let position = transform
+        .concatenating(CGAffineTransform(translationX: -bounds.minX, y: -bounds.minY))
+        .concatenating(CGAffineTransform(scaleX: scale, y: scale))
+        .concatenating(CGAffineTransform(translationX: (CGFloat(width) - bounds.width * scale) / 2,
+                                       y: (CGFloat(height) - bounds.height * scale) / 2))
+      let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: target)
+      layer.setTransform(position, at: cursor)
+      let instruction = AVMutableVideoCompositionInstruction()
+      instruction.timeRange = CMTimeRange(start: cursor, duration: range.duration)
+      instruction.backgroundColor = UIColor.black.cgColor
+      instruction.layerInstructions = [layer]
+      instructions.append(instruction)
+      if options["audio"] as? String != "drop", let audio = sourceTracks.first(where: { $0.mediaType == .audio }) {
+        let audioRange = try await audio.load(.timeRange)
+        let overlap = CMTimeRangeGetIntersection(range, otherRange: audioRange)
+        if overlap.duration.seconds > 0 {
+          guard let audioTarget = asset.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MediaFailedException("audio track") }
+          try audioTarget.insertTimeRange(overlap, of: audio, at: cursor + overlap.start - range.start)
+        }
+      }
+      cursor = cursor + range.duration
+    }
+    composition.instructions = instructions
+    return try await transcode(job, jobId: jobId, uri: uris[0], output: output, options: options,
+                               sourceAsset: asset, suppliedComposition: composition)
+  }
+
   /** 几段接成一段：每段放进合成里自己的一路，首尾相接，读的时候混成一路（格式、采样率可以不同）。 */
   private func concat(
     _ job: Job, jobId: String, uris: [URL], output: URL, options: [String: Any]
   ) async throws -> [String: Any] {
+    if options["video"] is [String: Any] {
+      return try await concatVideo(job, jobId: jobId, uris: uris, output: output, options: options)
+    }
     let composition = AVMutableComposition()
     var tracks: [AVAssetTrack] = []
     var cursor = CMTime.zero
@@ -986,15 +1371,40 @@ public class MorphMediaModule: Module {
     return Self.gifResult(output, width: Int(canvas.width), height: Int(canvas.height), frames: uris.count)
   }
 
+  /** iOS 只改容器里的方向信息，编码样本原样保留。 */
+  private func rotateVideo(_ job: Job, jobId: String, uri: URL, output: URL, degrees: Int) async throws -> [String: Any] {
+    guard [90, 180, 270].contains(degrees) else { throw MediaUnsupportedException("invalid rotation") }
+    if job.cancelled { throw MediaCancelledException() }
+    let source = AVURLAsset(url: uri)
+    let tracks = try await source.load(.tracks)
+    guard let video = tracks.first(where: { $0.mediaType == .video }) else { throw MediaUnsupportedException("no video") }
+    let (range, natural, transform) = try await video.load(.timeRange, .naturalSize, .preferredTransform)
+    let asset = AVMutableComposition()
+    guard let target = asset.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MediaFailedException("video track") }
+    try target.insertTimeRange(range, of: video, at: .zero)
+    let rotated = transform.concatenating(CGAffineTransform(rotationAngle: CGFloat(degrees) * .pi / 180))
+    let bounds = CGRect(origin: .zero, size: natural).applying(rotated)
+    target.preferredTransform = rotated.concatenating(CGAffineTransform(translationX: -bounds.minX, y: -bounds.minY))
+    for audio in tracks where audio.mediaType == .audio {
+      let audioRange = try await audio.load(.timeRange)
+      let overlap = CMTimeRangeGetIntersection(range, otherRange: audioRange)
+      if overlap.duration.seconds > 0 {
+        guard let audioTarget = asset.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw MediaFailedException("audio track") }
+        try audioTarget.insertTimeRange(overlap, of: audio, at: overlap.start - range.start)
+      }
+    }
+    return try await trim(job, jobId: jobId, uri: uri, output: output, range: ["startMs": 0, "endMs": range.duration.seconds * 1000], sourceAsset: asset)
+  }
+
   // MARK: - trim
 
   private func trim(
-    _ job: Job, jobId: String, uri: URL, output: URL, range: [String: Double]
+    _ job: Job, jobId: String, uri: URL, output: URL, range: [String: Double], sourceAsset: AVAsset? = nil
   ) async throws -> [String: Any] {
     guard let startMs = range["startMs"], let endMs = range["endMs"], endMs > startMs else {
       throw MediaFailedException("range")
     }
-    let asset = AVURLAsset(url: uri)
+    let asset: AVAsset = sourceAsset ?? AVURLAsset(url: uri)
     let timeRange = CMTimeRange(
       start: CMTime(seconds: startMs / 1000, preferredTimescale: 600),
       end: CMTime(seconds: endMs / 1000, preferredTimescale: 600))
@@ -1062,13 +1472,13 @@ public class MorphMediaModule: Module {
 
   // MARK: - thumbnails
 
-  static func thumbnails(_ uri: URL, timesMs: [Double], maxSide: Double, directory: URL) async throws -> [String] {
+  static func thumbnails(_ uri: URL, timesMs: [Double], maxSide: Double, directory: URL, precise: Bool = false) async throws -> [String] {
     let asset = AVURLAsset(url: uri)
     let generator = AVAssetImageGenerator(asset: asset)
     generator.appliesPreferredTrackTransform = true
     generator.maximumSize = CGSize(width: maxSide, height: maxSide)
     // 时间轴上的缩略图不需要准确到帧，放宽一点快很多。
-    let tolerance = CMTime(seconds: 0.5, preferredTimescale: 600)
+    let tolerance = precise ? CMTime.zero : CMTime(seconds: 0.5, preferredTimescale: 600)
     generator.requestedTimeToleranceBefore = tolerance
     generator.requestedTimeToleranceAfter = tolerance
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -1081,7 +1491,7 @@ public class MorphMediaModule: Module {
       } catch {
         throw MediaUnsupportedException(error.localizedDescription)
       }
-      guard let data = UIImage(cgImage: image).jpegData(compressionQuality: 0.7) else {
+      guard let data = UIImage(cgImage: image).jpegData(compressionQuality: precise ? 0.95 : 0.7) else {
         throw MediaFailedException("jpeg")
       }
       let file = directory.appendingPathComponent("\(UUID().uuidString).jpg")

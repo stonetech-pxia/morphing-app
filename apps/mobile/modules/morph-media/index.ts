@@ -38,11 +38,16 @@ export interface TimeRange {
 }
 
 export interface VideoSettings {
+  speed?: number;
+  aspectRatio?: number;
   codec: 'h264';
   bitrateKbps?: number;
   /** 缩小到这个短边像素；只在比原视频小时给（原生端不检查，不放大由调用方保证）。 */
   maxShortSide?: number;
   maxFps?: number;
+  /** 拼接时统一输出画布，尺寸必须为正偶数。 */
+  width?: number;
+  height?: number;
   /** HDR 转成普通画面（BT.709）。H.264 输出总是转。 */
   toSdr?: boolean;
 }
@@ -103,8 +108,42 @@ export interface MorphMediaModule {
     output: string,
     options: TranscodeOptions,
   ): Promise<MediaResult>;
+  speechAudio?(jobId: string, uri: string, output: string): Promise<MediaResult>;
+  volume?(
+    jobId: string,
+    uri: string,
+    output: string,
+    options: { automatic: boolean; db: number; video: VideoSettings | 'drop' },
+  ): Promise<MediaResult>;
+  denoise?(
+    jobId: string,
+    uri: string,
+    output: string,
+    options: { video: VideoSettings | 'drop' },
+  ): Promise<MediaResult>;
+  rotate?(
+    jobId: string,
+    uri: string,
+    output: string,
+    degrees: number,
+    options: TranscodeOptions,
+  ): Promise<MediaResult>;
+  mixAudio?(
+    jobId: string,
+    uri: string,
+    music: string,
+    output: string,
+    options: TranscodeOptions & {
+      originalVolume: number;
+      loop: boolean;
+      videoDurationMs: number;
+      musicDurationMs: number;
+    },
+  ): Promise<MediaResult>;
   /** 不重新编码地剪一段（视频和音频都能用）。 */
   trim(jobId: string, uri: string, output: string, range: TimeRange): Promise<MediaResult>;
+  /** 保存最接近时间点的一帧，原尺寸 JPEG，已摆正。旧开发构建缺此方法。 */
+  frame?(uri: string, timeMs: number, directory: string): Promise<string>;
   /** 按时间取画面（已摆正，长边不超过 maxSide），写成 JPEG 放进 directory，返回文件地址。 */
   thumbnails(
     uri: string,

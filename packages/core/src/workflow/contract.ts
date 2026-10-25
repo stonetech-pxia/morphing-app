@@ -40,9 +40,11 @@ export const LOCAL_STEP_KINDS = [
   'pages',
   'corners',
   'redact',
+  'annotate',
   'sign',
   'fillForm',
   'trimMedia',
+  'frameMedia',
   'recordEntry',
 ] as const;
 export type LocalStepKind = (typeof LOCAL_STEP_KINDS)[number];

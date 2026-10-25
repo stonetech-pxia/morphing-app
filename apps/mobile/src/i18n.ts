@@ -661,6 +661,53 @@ const strings = {
     en: 'Videos and audio can only be processed in the full Morph app, not in this preview.',
     zh: '视频和音频要在正式版 Morph 里处理，这个预览版里不行。',
   },
+  subtitlesNeedApp: {
+    en: 'Exporting timed captions needs an updated Morph app.',
+    zh: '导出带时间的字幕需要更新后的 Morph App。',
+  },
+  subtitlesNote: {
+    en: 'These are separate SRT files. Open them with the original video in a compatible player or editor. Review the words and timing; captions have not been burned into the picture.',
+    zh: '这是单独的 SRT 文件，需要在支持的播放器或编辑器中与原视频一起打开。请核对文字和时间；字幕没有烧录进画面。',
+  },
+  annotateTitle: { en: 'Mark up photo', zh: '标注图片' },
+  annotateText: { en: 'Text', zh: '文字' },
+  annotateArrow: { en: 'Arrow', zh: '箭头' },
+  annotateBox: { en: 'Box', zh: '方框' },
+  annotatePen: { en: 'Pen', zh: '画笔' },
+  annotateColor: { en: 'Color {n}', zh: '颜色 {n}' },
+  annotateTextHint: { en: 'Type a short label', zh: '输入简短文字' },
+  annotateTap: {
+    en: 'Type a label, then tap the photo to place it. Undo to replace a mark.',
+    zh: '先输入文字，再点图片放置。放错可撤销后重画。',
+  },
+  annotateDrag: {
+    en: 'Drag on the photo to draw. Undo to replace a mark.',
+    zh: '在图片上拖动画。画错可撤销后重画。',
+  },
+  annotateCount: { en: '{n}/100 marks', zh: '{n}/100 处' },
+  annotateUndo: { en: 'Undo', zh: '撤销一个' },
+  imageAdjustmentNeedsApp: {
+    en: 'Photo adjustment needs an updated Morph app.',
+    zh: '图片调整需要更新后的 Morph App。',
+  },
+  backgroundNeedsSystem: {
+    en: 'Background removal needs iOS 17 or later, or Android with Google Play services.',
+    zh: '去背景需要 iOS 17 或更新版本，或带 Google Play 服务的 Android。',
+  },
+  backgroundDownload: { en: 'Download', zh: '下载' },
+  backgroundDownloadAsk: { en: 'Download background removal?', zh: '下载去背景功能？' },
+  backgroundDownloadBody: {
+    en: 'Google Play services needs to download a model first. Photos stay on this device. After downloading, processing works offline.',
+    zh: 'Google Play 服务需要先下载模型。照片留在本机，下载后可以离线处理。',
+  },
+  backgroundDownloadFailed: {
+    en: 'The background removal model could not be downloaded. Check your connection and Google Play services, then try again.',
+    zh: '去背景模型没下载成功。请检查网络和 Google Play 服务后重试。',
+  },
+  runError_backgroundFailed: {
+    en: 'Could not remove the background from “{name}”. Try a clear photo with a distinct subject.',
+    zh: '「{name}」没能去掉背景，请试一张主体清晰、和背景有区别的照片。',
+  },
   runError_mediaUnsupported: {
     en: '“{name}” can’t be opened: the format isn’t supported, or it is copy-protected.',
     zh: '「{name}」打不开：格式不支持，或者有版权保护。',
@@ -694,6 +741,12 @@ const strings = {
   bgFailedBody: { en: 'Tap to see what happened.', zh: '点这里看看是怎么回事。' },
   mediaPlay: { en: 'Play', zh: '播放' },
   mediaDuration: { en: '{duration}', zh: '{duration}' },
+  frameTitle: { en: 'Choose a frame', zh: '选一帧' },
+  frameDone: { en: 'Save this frame', zh: '就要这一帧' },
+  frameHint: {
+    en: 'Tap the timeline, then adjust the time to choose a photo.',
+    zh: '点时间轴选画面，再微调时间。',
+  },
   trimTitle: { en: 'Trim', zh: '剪一段' },
   trimOf: { en: '{n} of {total}', zh: '第 {n}/{total} 个' },
   trimHint: {

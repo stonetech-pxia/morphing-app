@@ -21,6 +21,36 @@ import kotlin.math.min
 class PcmChunk(val samples: ShortArray, val count: Int, val channels: Int, val sampleRate: Int, val ptsUs: Long)
 
 object AudioPcm {
+  /** 解码并按时间戳补齐静音；避免处理后声音提前。 */
+  fun visitTimeline(context: Context, uri: Uri, durationMs: Double, cancelled: () -> Boolean, sink: (PcmChunk) -> Unit) {
+    var position = 0L
+    var sourceRate = 0
+    var sourceChannels = 0
+    fun pad(to: Long) {
+      while (position < to) {
+        if (cancelled()) throw MediaCancelledException()
+        val frames = minOf(to - position, 4096L).toInt()
+        sink(PcmChunk(ShortArray(frames * sourceChannels), frames * sourceChannels, sourceChannels, sourceRate, position * 1000000 / sourceRate))
+        position += frames
+      }
+    }
+    AudioPcm.decode(context, uri, 0, Long.MAX_VALUE, { cancelled() }) { chunk ->
+      if (sourceRate == 0) { sourceRate = chunk.sampleRate; sourceChannels = chunk.channels }
+      if (sourceRate != chunk.sampleRate || sourceChannels != chunk.channels) throw MediaUnsupportedException("audio format changed")
+      val end = (durationMs * sourceRate / 1000).toLong()
+      val start = chunk.ptsUs * sourceRate / 1000000
+      pad(minOf(end, maxOf(0, start)))
+      val skip = maxOf(0, position - start).toInt()
+      val frames = minOf((chunk.count / sourceChannels - skip).toLong(), end - position).coerceAtLeast(0).toInt()
+      if (frames > 0) {
+        val samples = chunk.samples.copyOfRange(skip * sourceChannels, (skip + frames) * sourceChannels)
+        sink(PcmChunk(samples, samples.size, sourceChannels, sourceRate, position * 1000000 / sourceRate))
+        position += frames
+      }
+    }
+    if (sourceRate > 0) pad((durationMs * sourceRate / 1000).toLong())
+  }
+
   private const val TIMEOUT_US = 10_000L
 
   /**
@@ -165,6 +195,7 @@ object AudioPcm {
         out.setLength(0)
         out.write(ByteArray(44))
       }
+      if (bytes + samples.size * 2L > 0xffffffffL - 36) throw MediaUnsupportedException("audio is too long for a WAV intermediate")
       val buf = ByteBuffer.allocate(samples.size * 2).order(ByteOrder.LITTLE_ENDIAN)
       buf.asShortBuffer().put(samples)
       out.write(buf.array())

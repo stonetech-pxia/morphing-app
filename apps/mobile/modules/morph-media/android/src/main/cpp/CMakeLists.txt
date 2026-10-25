@@ -20,3 +20,18 @@ target_compile_definitions(morphmp3 PRIVATE
   ieee754_float32_t=float ieee754_float64_t=double)
 target_compile_options(morphmp3 PRIVATE -O3 -w -fvisibility=hidden)
 target_link_libraries(morphmp3 PRIVATE m)
+
+# libebur128（MIT）：固定大小直方图的响度分析，和 iOS 用同一份 C 实现。
+set(DSP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../dsp)
+add_library(morphdsp SHARED morph_dsp.c ${DSP_DIR}/MorphDsp.c ${DSP_DIR}/ebur128/ebur128.c)
+target_include_directories(morphdsp PRIVATE ${DSP_DIR} ${DSP_DIR}/ebur128/queue)
+target_compile_options(morphdsp PRIVATE -O3)
+target_link_libraries(morphdsp PRIVATE m)
+
+set(RNNOISE_DIR ${DSP_DIR}/rnnoise)
+set(RNNOISE_NAMES denoise rnn pitch kiss_fft celt_lpc nnet nnet_default parse_lpcnet_weights rnnoise_data rnnoise_tables)
+foreach(name ${RNNOISE_NAMES})
+  target_sources(morphdsp PRIVATE ${RNNOISE_DIR}/src/${name}.c)
+endforeach()
+target_sources(morphdsp PRIVATE ${DSP_DIR}/MorphDenoise.c)
+target_include_directories(morphdsp PRIVATE ${RNNOISE_DIR}/include ${RNNOISE_DIR}/src)

@@ -123,6 +123,8 @@ describe('audio tool', () => {
     );
     if (!result.ok) throw new Error(result.error);
     expect(result.config.workflows.map((w) => w.name)).toEqual([
+      '人声降噪',
+      '调整音量',
       '语音转文字',
       '录音',
       '压小音频',
@@ -462,4 +464,91 @@ describe('speech to text', () => {
     expect(result.status === 'succeeded' && result.value?.type).toBe('pdf');
     expect(s.files.shared).toHaveLength(1);
   });
+});
+
+it('adjusts audio volume automatically or by a specified dB gain', async () => {
+  for (const mode of ['normal', 'db']) {
+    const { files, media, run } = setup(toolWorkflow('audio-volume'), { answers: { mode, db: 6 } });
+    files.nextPick = [files.offerAudio('voice.m4a', { size: 1000, durationMs: 2000 })];
+    const result = await run();
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      value: { type: 'audio', items: [{ ext: 'm4a', durationMs: 2000 }] },
+    });
+    expect(media.volumes[0]).toMatchObject({ automatic: mode === 'normal', db: 6 });
+  }
+});
+it('the same volume action keeps a video as video', async () => {
+  const { files, media, run } = setup(preset('normal-video-volume'));
+  files.nextVideos = [files.offerVideo('quiet.mov', { size: 1000, durationMs: 2000 })];
+  expect(await run()).toMatchObject({
+    status: 'succeeded',
+    value: { type: 'video', items: [{ ext: 'mp4', durationMs: 2000 }] },
+  });
+  expect(media.volumes).toHaveLength(1);
+});
+
+it('reduces speech noise in audio and video while preserving the input type', async () => {
+  for (const kind of ['audio', 'video'] as const) {
+    const { files, media, run } = setup(
+      preset(kind === 'audio' ? 'denoise-audio' : 'denoise-video'),
+    );
+    const picked = [
+      kind === 'audio'
+        ? files.offerAudio('speech.m4a', { size: 1000, durationMs: 2037 })
+        : files.offerVideo('speech.mp4', { size: 1000, durationMs: 2037 }),
+    ];
+    if (kind === 'audio') files.nextPick = picked;
+    else files.nextVideos = picked;
+    expect(await run()).toMatchObject({
+      status: 'succeeded',
+      value: { type: kind, items: [{ durationMs: 2037 }] },
+    });
+    expect(media.denoises).toHaveLength(1);
+  }
+});
+
+it('exports one SRT per video using timed recognition after full-timeline WAV extraction', async () => {
+  const { files, media, run } = setup(preset('video-srt-captions'), { answers: { lang: 'en' } });
+  const speech = new FakeSpeech();
+  files.speech = speech;
+  speech.timedResults = [
+    [{ startMs: 1200, endMs: 2400, text: 'Local captions.' }],
+    [{ startMs: 500, endMs: 1700, text: 'Second video.' }],
+  ];
+  files.nextVideos = [
+    files.offerVideo('one.mp4', { size: 1000, durationMs: 3000 }),
+    files.offerVideo('two.mp4', { size: 1000, durationMs: 2000 }),
+  ];
+  const result = await run();
+  expect(result).toMatchObject({
+    status: 'succeeded',
+    value: {
+      type: 'files',
+      items: [{ ext: 'srt', mimeType: 'application/x-subrip' }, { ext: 'srt' }],
+    },
+  });
+  if (result.status !== 'succeeded' || result.value?.type !== 'files')
+    throw new Error('no captions');
+  const first = await files.readBytes(result.value.items[0]!.uri);
+  expect(new TextDecoder().decode(first)).toContain('00:00:01,200 --> 00:00:02,400');
+  expect(media.speechExtractions).toHaveLength(2);
+  expect(speech.calls.every((call) => call.uri.endsWith('.wav'))).toBe(true);
+});
+it('does not emit empty SRT files for silence and stops before extraction when language download is refused', async () => {
+  const silent = setup(preset('video-srt-captions'));
+  silent.files.speech = new FakeSpeech();
+  silent.files.nextVideos = [
+    silent.files.offerVideo('silent.mp4', { size: 1000, durationMs: 3000 }),
+  ];
+  expect(await silent.run()).toMatchObject({ status: 'failed', error: { code: 'noSpeech' } });
+  const refused = setup(preset('video-srt-captions'));
+  const speech = new FakeSpeech();
+  speech.needs = { kind: 'systemDownload' };
+  refused.files.speech = speech;
+  refused.files.nextVideos = [
+    refused.files.offerVideo('talk.mp4', { size: 1000, durationMs: 3000 }),
+  ];
+  expect((await refused.run()).status).toBe('cancelled');
+  expect(refused.media.speechExtractions).toEqual([]);
 });

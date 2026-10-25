@@ -54,11 +54,20 @@ export interface Run {
 
 /** 会跑很久的动作（视频、音频）：含这些步骤的运行切到别的 App 也继续（D-160）。 */
 const BACKGROUND_ACTIONS: ReadonlySet<string> = new Set([
+  'video.speed',
+  'video.crop',
+  'video.rotate',
+  'video.audio',
+  'video.mute',
+  'video.merge',
   'video.compress',
   'video.convert',
   'video.trim',
   'video.toGif',
+  'audio.volume',
+  'audio.denoise',
   'audio.transcribe',
+  'video.subtitles',
   'audio.compress',
   'audio.convert',
   'audio.trim',
@@ -136,7 +145,8 @@ export function packNotNeeded(
 ): boolean {
   const { vision } = files;
   // 语音转文字（D-150、D-151）：iOS 用系统识别，不用下载内容；没有原生模块时动作自己报错，不白下载。
-  if (actionId === 'audio.transcribe') return files.speech?.engine !== 'whisper';
+  if (actionId === 'audio.transcribe' || actionId === 'video.subtitles')
+    return files.speech?.engine !== 'whisper';
   if (actionId === 'ocr.recognize') {
     const languages = VISION_LANGUAGES[params.lang as OcrLanguage];
     return !!vision && !!languages && vision.supportsLanguage(languages[0]!);

@@ -409,3 +409,98 @@ describe('records to PDF', () => {
     });
   });
 });
+
+describe('photo annotations', () => {
+  it('flattens local text, arrows, outlines and freehand paths into a transparent PNG copy', async () => {
+    const { files, run, opened } = setup(
+      toolWorkflow('image', 'image-annotate'),
+      {},
+      {
+        annotate: [
+          [
+            {
+              kind: 'text',
+              point: { x: 20, y: 30 },
+              text: '本机文字',
+              fontSize: 32,
+              color: '#2563EB',
+            },
+            {
+              kind: 'arrow',
+              points: [
+                { x: 10, y: 10 },
+                { x: 200, y: 100 },
+              ],
+              width: 5,
+              color: '#EF4444',
+            },
+            {
+              kind: 'box',
+              points: [
+                { x: 30, y: 40 },
+                { x: 100, y: 200 },
+              ],
+              width: 4,
+              color: '#FFFFFF',
+            },
+            {
+              kind: 'pen',
+              points: [
+                { x: 5, y: 6 },
+                { x: 10, y: 20 },
+                { x: 50, y: 30 },
+              ],
+              width: 6,
+              color: '#16A34A',
+            },
+          ],
+        ],
+      },
+    );
+    files.nextPhotos = [files.offerImage('transparent.png', 600, 400, 'image/png')];
+    expect(items(await run())).toMatchObject([
+      { ext: 'png', mimeType: 'image/png', width: 600, height: 400 },
+    ]);
+    expect(opened.map((o) => o.kind)).toEqual(['annotate']);
+    expect(files.renderedTexts).toEqual(['本机文字']);
+    expect(files.composed[0]!.canvas).toEqual({ width: 600, height: 400, background: '#00000000' });
+    expect(files.composed[0]!.ops.filter((op) => op.kind === 'path')).toHaveLength(4);
+    expect(files.composed[0]!.ops.filter((op) => op.kind === 'image')).toHaveLength(2);
+  });
+  it('cancels without composing and scales marks along with images above the GPU limit', async () => {
+    const cancelled = setup(toolWorkflow('image', 'image-annotate'));
+    cancelled.files.nextPhotos = [cancelled.files.offerImage('a.png', 600, 400, 'image/png')];
+    expect((await cancelled.run()).status).toBe('cancelled');
+    expect(cancelled.files.composed).toEqual([]);
+    const large = setup(
+      toolWorkflow('image', 'image-annotate'),
+      {},
+      {
+        annotate: [
+          [
+            {
+              kind: 'pen',
+              points: [
+                { x: 1000, y: 1000 },
+                { x: 2000, y: 2000 },
+              ],
+              width: 10,
+              color: '#000000',
+            },
+          ],
+        ],
+      },
+    );
+    large.files.nextPhotos = [large.files.offerImage('large.png', 16000, 8000, 'image/png')];
+    const result = items(await large.run());
+    expect(result[0]!.width).toBeLessThanOrEqual(8192);
+    const drawing = large.files.composed[0]!;
+    const k = drawing.canvas.width / 16000;
+    const path = drawing.ops.find((op) => op.kind === 'path');
+    expect(path?.kind).toBe('path');
+    if (path?.kind !== 'path') throw new Error('missing path');
+    expect(path.points[0]!.x).toBeCloseTo(1000 * k, 0);
+    expect(path.points[1]!.y).toBeCloseTo(2000 * k, 0);
+    expect(path.width).toBeCloseTo(10 * k, 2);
+  });
+});

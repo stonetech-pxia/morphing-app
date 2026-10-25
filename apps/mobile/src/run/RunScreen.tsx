@@ -361,9 +361,19 @@ export function RunScreen({
         </Text>
       ) : null}
       {/* 语音转文字的结果上面说明一句（D-150）：本机自动识别，可能有错字，请核对。 */}
-      {value && workflow.steps.some((st) => st.action === 'audio.transcribe') ? (
+      {value &&
+      workflow.steps.some(
+        (st) => st.action === 'audio.transcribe' || st.action === 'video.subtitles',
+      ) ? (
         <Text testID="speech-note" style={[palette.font('body', 13), { color: palette.caption }]}>
           {t(locale, 'speechNote')}
+        </Text>
+      ) : null}
+      {value && workflow.steps.some((st) => st.action === 'video.subtitles') ? (
+        <Text
+          testID="subtitles-note"
+          style={[palette.font('body', 13), { color: palette.caption }]}>
+          {t(locale, 'subtitlesNote')}
         </Text>
       ) : null}
       {value ? (

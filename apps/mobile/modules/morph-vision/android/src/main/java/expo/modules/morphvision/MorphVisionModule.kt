@@ -65,6 +65,17 @@ class MorphVisionModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("MorphVision")
 
+    Function("backgroundRemovalSupported") { BackgroundRemoval.supported(context) }
+    AsyncFunction("backgroundStatus") { BackgroundRemoval.status(context) }
+    AsyncFunction("downloadBackgroundModel") { BackgroundRemoval.download(context) }
+    AsyncFunction("removeBackground") { uri: String, background: String, output: String ->
+      BackgroundRemoval.remove(context, Uri.parse(uri), background, File(Uri.parse(output).path!!))
+    }
+
+    AsyncFunction("adjustImage") { uri: String, options: Map<String, Any?>, format: String, output: String ->
+      ImageAdjustment.adjust(context, Uri.parse(uri), options, format, File(Uri.parse(output).path!!))
+    }
+
     Function("canFindPaper") { false }
 
     // 文档扫描在 Google Play 服务里，没有 Google Play 服务的手机用不了。

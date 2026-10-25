@@ -67,6 +67,7 @@ export type DrawOp =
   | { kind: 'rect'; rect: Box; color: string }
   /** 把画布上这块区域模糊（打码）。 */
   | { kind: 'blur'; rect: Box; sigma: number }
+  | { kind: 'path'; points: { x: number; y: number }[]; color: string; width: number }
   | { kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number };
 
 /** 用户存好的签名（documentDirectory/signatures/，不进配置和版本，不发给 AI）。 */
@@ -81,7 +82,32 @@ export interface SavedSignature {
  * Android 是 Google ML Kit（D-087）。没有时（Expo Go）为 null。系统做不了的（Android 找边、俄文识别）
  * 退回扩展包。全部在本机处理。
  */
+export interface ImageAdjustSettings {
+  mode: 'auto' | 'manual';
+  brightness: number;
+  contrast: number;
+  saturation: number;
+}
+
 export interface VisionPlatform {
+  adjustImage(
+    uri: string,
+    settings: ImageAdjustSettings,
+    format: 'jpeg' | 'png',
+    runId: string,
+    relPath: string,
+  ): Promise<EncodedImage>;
+
+  readonly backgroundRemovalSupported: boolean;
+  backgroundStatus(): Promise<'ready' | 'download' | 'unsupported'>;
+  downloadBackgroundModel(): Promise<void>;
+  removeBackground(
+    uri: string,
+    background: string,
+    runId: string,
+    relPath: string,
+  ): Promise<EncodedImage>;
+
   /** 这种语言（BCP 47）系统能不能识别。 */
   supportsLanguage(code: string): boolean;
   /** 识别文字；languages 是 BCP 47，第一种是用户选的语言。文字只返回给 App。 */
@@ -168,6 +194,10 @@ export interface MediaInfo {
 
 /** 一次视频编码的要求（H.264 + AAC 的 MP4）。 */
 export interface VideoEncode {
+  /** 视频和声音一起变速，声音随之变调。 */
+  speed?: number;
+  /** 居中裁剪到这个宽高比。 */
+  aspectRatio?: number;
   videoKbps: number;
   /** 0 = 去掉声音。 */
   audioKbps: number;
@@ -224,6 +254,54 @@ export interface MediaPlatform {
     relPath: string,
     job: MediaJob,
   ): Promise<MediaOutput>;
+  /** 同一个响度动作接音频或视频；视频设置存在时保留画面。 */
+  /** 按视频完整时间轴提取 WAV，给本机字幕识别，包含开头/结尾静音。 */
+  speechAudio(uri: string, runId: string, relPath: string, job: MediaJob): Promise<MediaOutput>;
+  volume(
+    uri: string,
+    settings: { automatic: boolean; db: number; video?: VideoEncode },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
+  denoise(
+    uri: string,
+    settings: { automatic?: boolean; db?: number; video?: VideoEncode },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
+  /** 顺时针旋转；iOS 只改方向信息，Android 重新编码。 */
+  rotateVideo(
+    uri: string,
+    degrees: 90 | 180 | 270,
+    settings: VideoEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
+  /** 配乐运行时选择，不作为工作流中的第二个传递值。 */
+  mixVideoAudio(
+    uri: string,
+    music: string,
+    settings: VideoEncode & {
+      originalVolume: number;
+      loop: boolean;
+      videoDurationMs: number;
+      musicDurationMs: number;
+    },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
+  /** 按顺序拼接视频，尺寸和帧率以第一段为准，不同比例留黑边。 */
+  concatVideo(
+    uris: readonly string[],
+    settings: VideoEncode & { width: number; height: number },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput>;
   /** 不重新编码地剪一段；输出的扩展名可能和 relPath 不同（MP4 放不下原来的声音时用 MOV）。 */
   trim(
     uri: string,
@@ -232,6 +310,8 @@ export interface MediaPlatform {
     relPath: string,
     job: MediaJob,
   ): Promise<MediaOutput>;
+  /** 精确解码指定时间附近的一帧，原尺寸 JPEG，已摆正。 */
+  frame(uri: string, timeMs: number, runId: string): Promise<string>;
   /** 按时间取画面（已摆正），JPEG 放进本次运行的临时目录。 */
   thumbnails(
     uri: string,

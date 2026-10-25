@@ -574,6 +574,119 @@ export class FakeMedia implements MediaPlatform {
       throw Object.assign(new Error(code), { code });
     }
   }
+  speechExtractions: string[] = [];
+  async speechAudio(
+    uri: string,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.speechExtractions.push(uri);
+    return this.encodeAudio(
+      uri,
+      { format: 'wav', bitrateKbps: 1536, sampleRate: 48000, channels: 2 },
+      runId,
+      relPath,
+      job,
+    );
+  }
+  volumes: { uri: string; automatic: boolean; db: number }[] = [];
+  async volume(
+    uri: string,
+    settings: { automatic: boolean; db: number; video?: VideoEncode },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.volumes.push({ uri, automatic: settings.automatic, db: settings.db });
+    if (settings.video) return this.encodeVideo(uri, settings.video, runId, relPath, job);
+    return this.encodeAudio(
+      uri,
+      { format: 'm4a', bitrateKbps: 192, channels: 2, sampleRate: 48000 },
+      runId,
+      relPath,
+      job,
+    );
+  }
+  denoises: string[] = [];
+  async denoise(
+    uri: string,
+    settings: { video?: VideoEncode },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.denoises.push(uri);
+    return this.volume(uri, { ...settings, automatic: false, db: 0 }, runId, relPath, job);
+  }
+  rotations: { uri: string; degrees: number }[] = [];
+  async rotateVideo(
+    uri: string,
+    degrees: 90 | 180 | 270,
+    settings: VideoEncode,
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.rotations.push({ uri, degrees });
+    const out = await this.encodeVideo(uri, settings, runId, relPath, job);
+    if (degrees !== 180) [out.info.width, out.info.height] = [out.info.height, out.info.width];
+    this.files.videos.set(out.uri, out.info);
+    return out;
+  }
+  mixes: { uri: string; music: string; originalVolume: number; loop: boolean }[] = [];
+  async mixVideoAudio(
+    uri: string,
+    music: string,
+    settings: VideoEncode & {
+      originalVolume: number;
+      loop: boolean;
+      videoDurationMs: number;
+      musicDurationMs: number;
+    },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.mixes.push({ uri, music, originalVolume: settings.originalVolume, loop: settings.loop });
+    await this.probe(music);
+    return this.encodeVideo(uri, { ...settings, audioKbps: 128 }, runId, relPath, job);
+  }
+  videoConcats: { uris: readonly string[]; width: number; height: number; maxFps: number }[] = [];
+  async concatVideo(
+    uris: readonly string[],
+    settings: VideoEncode & { width: number; height: number },
+    runId: string,
+    relPath: string,
+    job: MediaJob,
+  ): Promise<MediaOutput> {
+    this.fail();
+    this.videoConcats.push({
+      uris: [...uris],
+      width: settings.width,
+      height: settings.height,
+      maxFps: settings.maxFps,
+    });
+    const infos = await Promise.all(uris.map((uri) => this.probe(uri)));
+    const durationMs = infos.reduce((n, i) => n + i.durationMs, 0);
+    if (job.isCancelled())
+      throw Object.assign(new Error('cancelled'), { code: 'ERR_MEDIA_CANCELLED' });
+    const size = Math.round(((settings.videoKbps + settings.audioKbps) * durationMs) / 8);
+    const out = await this.files.writeRunFile(runId, relPath, new Uint8Array(size));
+    const info: MediaInfo = {
+      kind: 'video',
+      durationMs,
+      size,
+      width: settings.width,
+      height: settings.height,
+      fps: settings.maxFps,
+      hasVideo: true,
+      hasAudio: settings.audioKbps > 0,
+    };
+    this.files.videos.set(out.uri, info);
+    job.progress(1);
+    return { ...out, ext: 'mp4', info };
+  }
   async encodeVideo(
     uri: string,
     settings: VideoEncode,
@@ -588,19 +701,33 @@ export class FakeMedia implements MediaPlatform {
     if (job.isCancelled()) {
       throw Object.assign(new Error('cancelled'), { code: 'ERR_MEDIA_CANCELLED' });
     }
-    const ms = settings.range ? settings.range.endMs - settings.range.startMs : source.durationMs;
+    const ms =
+      (settings.range ? settings.range.endMs - settings.range.startMs : source.durationMs) /
+      (settings.speed ?? 1);
     const bytes = Math.round(
       (((settings.videoKbps + settings.audioKbps) * 1000 * (ms / 1000)) / 8) * this.oversize,
     );
     const out = await this.files.writeRunFile(runId, relPath, new Uint8Array(bytes));
-    const short = settings.shortSide ?? Math.min(source.width ?? 0, source.height ?? 0);
-    const k = short / Math.min(source.width ?? 1, source.height ?? 1);
+    const originalW = source.width ?? 1;
+    const originalH = source.height ?? 1;
+    const cropW = settings.aspectRatio
+      ? Math.min(originalW, originalH * settings.aspectRatio)
+      : originalW;
+    const cropH = settings.aspectRatio
+      ? Math.min(originalH, originalW / settings.aspectRatio)
+      : originalH;
+    const short = settings.shortSide ?? Math.min(cropW, cropH);
+    const k = Math.min(1, short / Math.min(cropW, cropH));
     const info: MediaInfo = {
       ...source,
       durationMs: ms,
       size: bytes,
-      width: Math.round((source.width ?? 0) * k),
-      height: Math.round((source.height ?? 0) * k),
+      width: settings.aspectRatio
+        ? Math.max(2, Math.round((cropW * k) / 2) * 2)
+        : Math.round(originalW * k),
+      height: settings.aspectRatio
+        ? Math.max(2, Math.round((cropH * k) / 2) * 2)
+        : Math.round(originalH * k),
       hasAudio: settings.audioKbps > 0,
     };
     this.files.videos.set(out.uri, info);
@@ -624,6 +751,15 @@ export class FakeMedia implements MediaPlatform {
     this.files.videos.set(out.uri, info);
     job.progress(1);
     return { uri: out.uri, ext: 'mp4', size: bytes, info };
+  }
+  frames: { uri: string; timeMs: number }[] = [];
+  async frame(uri: string, timeMs: number, runId: string) {
+    this.fail();
+    const info = await this.probe(uri);
+    this.frames.push({ uri, timeMs });
+    const out = await this.files.writeRunFile(runId, `frame-${this.frames.length}.jpg`, TINY_JPEG);
+    this.files.imageSizes.set(out.uri, { width: info.width ?? 1, height: info.height ?? 1 });
+    return out.uri;
   }
   async thumbnails(uri: string, timesMs: readonly number[]) {
     await this.probe(uri);
@@ -764,12 +900,23 @@ export class FakeSpeech implements SpeechPlatform {
     this.prepared.push(language);
     this.needs = { kind: 'ready' };
   }
+  timedResults: import('@morph/core').SpeechSegment[][] = [];
   async transcribe(uri: string, request: TranscribeRequest) {
     this.calls.push({ uri, language: request.language, model: request.model });
     request.onProgress?.(0.5);
     if (request.isCancelled?.()) throw new SpeechError('cancelled');
     if (this.error) throw new SpeechError(this.error);
-    return { text: this.texts.shift() ?? '', durationMs: 1000 };
+    const text = this.texts.shift() ?? '';
+    return {
+      text,
+      durationMs: 1000,
+      ...(request.timed
+        ? {
+            segments:
+              this.timedResults.shift() ?? (text ? [{ startMs: 0, endMs: 1000, text }] : []),
+          }
+        : {}),
+    };
   }
 }
 
@@ -809,6 +956,38 @@ export class FakeBackground implements BackgroundPlatform {
 
 /** 假的系统文字识别和扫描（iOS 的 Vision；Android 的 ML Kit 设 canFindPaper = false）：按顺序返回找到的角和识别的文字，拉正写一张真实的小 JPEG。 */
 export class FakeVision implements VisionPlatform {
+  async adjustImage(
+    uri: string,
+    settings: import('../runtime/platform').ImageAdjustSettings,
+    format: 'jpeg' | 'png',
+    runId: string,
+    relPath: string,
+  ) {
+    this.calls.push({ method: 'adjustImage', uri, args: { ...settings, format } });
+    const size = await this.files.imageSize(uri);
+    const out = await this.files.writeRunFile(runId, relPath, TINY_JPEG);
+    this.files.imageSizes.set(out.uri, size);
+    return { ...out, ...size };
+  }
+  backgroundRemovalSupported = true;
+  backgroundState: 'ready' | 'download' | 'unsupported' = 'ready';
+  backgroundFailure = false;
+  async backgroundStatus() {
+    return this.backgroundState;
+  }
+  async downloadBackgroundModel() {
+    this.calls.push({ method: 'downloadBackgroundModel', uri: '' });
+    this.backgroundState = 'ready';
+  }
+  async removeBackground(uri: string, background: string, runId: string, relPath: string) {
+    this.calls.push({ method: 'removeBackground', uri, args: background });
+    if (this.backgroundFailure) throw new Error('no subject');
+    const size = await this.files.imageSize(uri);
+    const out = await this.files.writeRunFile(runId, relPath, TINY_JPEG);
+    this.files.imageSizes.set(out.uri, size);
+    return { ...out, ...size };
+  }
+
   calls: { method: string; uri: string; args?: unknown }[] = [];
   /** 每次找边的结果（按顺序）。 */
   found: (Quad | null)[] = [];

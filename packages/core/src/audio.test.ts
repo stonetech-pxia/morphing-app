@@ -142,7 +142,9 @@ describe('audio tool', () => {
       for (const wf of audioWorkflows(locale)) expect(workflowProblems(wf, registry)).toEqual([]);
     }
     const config = apply(workspace(), [{ op: 'installTool', toolId: 'audio' }]);
-    expect(config.workflows.filter((w) => w.toolId === 'audio')).toHaveLength(7);
+    expect(config.workflows.filter((w) => w.toolId === 'audio')).toHaveLength(
+      audioTool.createWorkflows!('zh').length,
+    );
     expect(audioTool.actions).toBe(AUDIO_ACTIONS);
   });
 

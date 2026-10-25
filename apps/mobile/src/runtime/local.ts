@@ -1,6 +1,7 @@
 import type { Collection, RunItem } from '@morph/core';
 import type { Quad } from '@morph/tool-image';
 
+import type { ImageAnnotation } from './annotations';
 import type { PickedFile } from './platform';
 
 // 本地操作步骤（TOOLS_DESIGN §4）：执行到这里时，运行页面打开对应的界面，用户的操作结果只在本次运行里使用。
@@ -14,6 +15,7 @@ export interface Rect {
 }
 
 export interface LocalSteps {
+  annotate: { in: { items: RunItem[] }; out: ImageAnnotation[][] };
   /** 逐张框选裁剪区域（原图像素）。aspect 为 null 时自由比例。 */
   crop: { in: { items: RunItem[]; aspect: number | null }; out: Rect[] };
   /**
@@ -64,6 +66,13 @@ export interface LocalSteps {
    * 剪一段（视频、音频共用，D-143）：逐个选开始和结束（毫秒）。视频显示画面，音频显示波形。
    * 返回每个文件选的一段。
    */
+  frameMedia: {
+    in: {
+      items: RunItem[];
+      loadThumbnails: (index: number, timesMs: number[]) => Promise<string[]>;
+    };
+    out: number[];
+  };
   trimMedia: {
     /**
      * loadWaveform：读第 i 个文件的波形（0–1 的峰值；视频或读不到时为 null，D-155）。界面先打开、

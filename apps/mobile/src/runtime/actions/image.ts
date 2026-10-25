@@ -7,6 +7,7 @@ import {
   type ResizeSpec,
 } from '@morph/tool-image';
 
+import { t } from '../../i18n';
 import type { ImageFormat, ImageOps } from '../platform';
 import { fileItems, freshName, readItem, writeItem, type RunServices } from './helpers';
 
@@ -93,6 +94,84 @@ export async function eachImage(
 }
 
 export const IMAGE_IMPLS: Record<string, Impl> = {
+  async 'image.adjust'(input, params, ctx) {
+    const vision = ctx.services.files.vision;
+    if (!vision)
+      throw new RunError('unsupportedAction', { action: t(ctx.locale, 'imageAdjustmentNeedsApp') });
+    return eachImage(input, ctx, async (item) => {
+      const format =
+        item.mimeType === 'image/png' || item.mimeType === 'image/webp' ? 'png' : 'jpeg';
+      try {
+        const result = await vision.adjustImage(
+          item.uri,
+          {
+            mode: params.mode as 'auto' | 'manual',
+            brightness: Number(params.brightness),
+            contrast: Number(params.contrast),
+            saturation: Number(params.saturation),
+          },
+          format,
+          ctx.services.runId,
+          freshName(item.name, format === 'png' ? 'png' : 'jpg'),
+        );
+        ctx.throwIfCancelled();
+        return {
+          ...item,
+          ...result,
+          ext: format === 'png' ? 'png' : 'jpg',
+          mimeType: MIME[format],
+        };
+      } catch (error) {
+        if (error instanceof RunCancelled) throw error;
+        throw new RunError('unreadable', { name: item.name });
+      }
+    });
+  },
+  async 'image.removeBackground'(input, params, ctx) {
+    const vision = ctx.services.files.vision;
+    if (!vision?.backgroundRemovalSupported)
+      throw new RunError('unsupportedAction', { action: t(ctx.locale, 'backgroundNeedsSystem') });
+    let status;
+    try {
+      status = await vision.backgroundStatus();
+    } catch {
+      throw new RunError('packFailed', { detail: t(ctx.locale, 'backgroundDownloadFailed') });
+    }
+    if (status === 'unsupported')
+      throw new RunError('unsupportedAction', { action: t(ctx.locale, 'backgroundNeedsSystem') });
+    if (status === 'download') {
+      const ok = await ctx.services.ui.confirm(
+        t(ctx.locale, 'backgroundDownloadAsk'),
+        t(ctx.locale, 'backgroundDownload'),
+        t(ctx.locale, 'cancel'),
+        t(ctx.locale, 'backgroundDownloadBody'),
+      );
+      if (!ok) throw new RunCancelled();
+      ctx.throwIfCancelled();
+      try {
+        await vision.downloadBackgroundModel();
+      } catch {
+        throw new RunError('packFailed', { detail: t(ctx.locale, 'backgroundDownloadFailed') });
+      }
+    }
+    const background = params.background === 'transparent' ? 'transparent' : String(params.color);
+    return eachImage(input, ctx, async (item) => {
+      try {
+        ctx.throwIfCancelled();
+        const result = await vision.removeBackground(
+          item.uri,
+          background,
+          ctx.services.runId,
+          freshName(item.name, 'png'),
+        );
+        ctx.throwIfCancelled();
+        return { ...item, ...result, ext: 'png', mimeType: 'image/png' };
+      } catch (error) {
+        if (error instanceof RunCancelled) throw error;
+        throw new RunError('backgroundFailed', { name: item.name });
+      }
+    });
+  },
   async 'image.convert'(input, params, ctx) {
     const { format, quality } = params as { format: ImageFormat; quality: number };
     return eachImage(input, ctx, (item) => encode(ctx, item, {}, format, quality / 100));

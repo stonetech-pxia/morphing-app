@@ -62,6 +62,134 @@ const resizeModes = ['longEdge', 'width', 'height', 'percent', 'fit'] as const;
 
 export const IMAGE_ACTIONS: readonly ActionDefinition[] = [
   {
+    id: 'image.annotate',
+    label: { en: 'Mark up photo', zh: '标注图片' },
+    description: {
+      en: 'A local editor lets the user place text, arrows, outline boxes and freehand strokes on each photo, choose colors and undo. The user types text while running; annotation content never goes to AI. Saves flattened PNG copies; very large images may be reduced to fit the drawing limit. Original photos are kept.',
+      zh: '运行时逐张在本机添加文字、箭头、方框和自由画笔，可选颜色、撤销。文字由用户运行时填写，标注内容不发给 AI。生成合成后的 PNG 副本；超大图片可能缩小以适应绘图上限。保留原图。',
+    },
+    input: ['images'],
+    output: 'images',
+    params: z.strictObject({}),
+    fields: [],
+    presets: [{ id: 'mark', label: { en: 'Mark up', zh: '标注' }, values: {} }],
+    local: 'annotate',
+    requires: [],
+  },
+
+  {
+    id: 'image.adjust',
+    label: { en: 'Adjust photo', zh: '调整图片' },
+    description: {
+      en: 'Improve photos locally with automatic color adjustment or manual brightness (-100 to 100, neutral 0), contrast and saturation (0 to 200, neutral 100). Automatic results differ across iOS and Android. Keeps dimensions; PNG/WebP inputs become PNG to preserve transparency, other photos become JPG. No face retouching or generative edits.',
+      zh: '在本机自动优化颜色，或手动调整亮度（-100 到 100，0 不变）、对比度和饱和度（0 到 200，100 不变）。两端自动效果有所不同。尺寸不变；PNG/WebP 输出 PNG 保留透明度，其他照片输出 JPG。不美颜或生成新内容。',
+    },
+    input: ['images'],
+    output: 'images',
+    params: z.strictObject({
+      mode: z.enum(['auto', 'manual']),
+      brightness: z.number().min(-100).max(100),
+      contrast: z.number().min(0).max(200),
+      saturation: z.number().min(0).max(200),
+    }),
+    fields: [
+      {
+        key: 'mode',
+        label: { en: 'Adjustment', zh: '调整方式' },
+        kind: 'choice',
+        options: [
+          { value: 'auto', label: { en: 'Automatic', zh: '自动优化' } },
+          { value: 'manual', label: { en: 'Manual', zh: '手动调整' } },
+        ],
+      },
+      {
+        key: 'brightness',
+        label: { en: 'Brightness', zh: '亮度' },
+        kind: 'number',
+        min: -100,
+        max: 100,
+        unit: '%',
+        showIf: { key: 'mode', equals: ['manual'] },
+      },
+      {
+        key: 'contrast',
+        label: { en: 'Contrast', zh: '对比度' },
+        kind: 'number',
+        min: 0,
+        max: 200,
+        unit: '%',
+        showIf: { key: 'mode', equals: ['manual'] },
+      },
+      {
+        key: 'saturation',
+        label: { en: 'Saturation', zh: '饱和度' },
+        kind: 'number',
+        min: 0,
+        max: 200,
+        unit: '%',
+        showIf: { key: 'mode', equals: ['manual'] },
+      },
+    ],
+    presets: [
+      {
+        id: 'auto',
+        label: { en: 'Automatic', zh: '自动优化' },
+        values: { mode: 'auto', brightness: 0, contrast: 100, saturation: 100 },
+      },
+      {
+        id: 'brighten',
+        label: { en: 'Brighter', zh: '调亮' },
+        values: { mode: 'manual', brightness: 15, contrast: 100, saturation: 100 },
+      },
+    ],
+    requires: [],
+  },
+
+  {
+    id: 'image.removeBackground',
+    label: { en: 'Remove background', zh: '去背景' },
+    description: {
+      en: 'Keep the main subjects and remove the background locally, producing PNG with transparency or a solid color. Requires iOS 17+ or Android Google Play services (first use downloads a model). Fine hair, transparent objects and unclear subjects may need another editor. Does not guarantee an official ID photo.',
+      zh: '在本机保留主要主体、去掉背景，输出透明或纯色背景 PNG。需要 iOS 17+ 或 Android Google Play 服务（首次下载模型）。发丝、透明物体或主体不清晰时可能需要其他编辑器；不保证符合证件照要求。',
+    },
+    input: ['images'],
+    output: 'images',
+    params: z.strictObject({
+      background: z.enum(['transparent', 'color']),
+      color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    }),
+    fields: [
+      {
+        key: 'background',
+        label: { en: 'Background', zh: '背景' },
+        kind: 'choice',
+        options: [
+          { value: 'transparent', label: { en: 'Transparent', zh: '透明' } },
+          { value: 'color', label: { en: 'Solid color', zh: '纯色' } },
+        ],
+      },
+      {
+        key: 'color',
+        label: { en: 'Color', zh: '颜色' },
+        kind: 'color',
+        showIf: { key: 'background', equals: ['color'] },
+      },
+    ],
+    presets: [
+      {
+        id: 'transparent',
+        label: { en: 'Transparent', zh: '透明' },
+        values: { background: 'transparent', color: '#FFFFFF' },
+      },
+      {
+        id: 'white',
+        label: { en: 'White', zh: '白底' },
+        values: { background: 'color', color: '#FFFFFF' },
+      },
+    ],
+    requires: [],
+  },
+  {
     id: 'image.convert',
     label: { en: 'Convert format', zh: '转格式' },
     description: {
@@ -690,6 +818,21 @@ function single(
 
 export function imageWorkflows(locale: Locale): Workflow[] {
   return [
+    single(locale, 'image.annotate', ['Mark up photo', '标注图片'], {}, []),
+    single(
+      locale,
+      'image.adjust',
+      ['Adjust photo', '调整图片'],
+      { mode: 'auto', brightness: 0, contrast: 100, saturation: 100 },
+      ['mode', 'brightness', 'contrast', 'saturation'],
+    ),
+    single(
+      locale,
+      'image.removeBackground',
+      ['Remove background', '去背景'],
+      { background: 'transparent', color: '#FFFFFF' },
+      ['background', 'color'],
+    ),
     single(
       locale,
       'image.compress',
@@ -803,7 +946,7 @@ export function imageWorkflows(locale: Locale): Workflow[] {
 
 export const imageTool: ToolDefinition = {
   id: IMAGE_TOOL_ID,
-  version: '1.2.0',
+  version: '1.5.0',
   name: { en: 'Images', zh: '图片' },
   description: {
     en: 'Compress, convert (HEIC to JPG too), resize, crop, rotate and clean photos; stitch, grid, animated GIFs, hide parts, watermark and make ID photos, on this device.',

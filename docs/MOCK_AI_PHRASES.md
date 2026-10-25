@@ -198,3 +198,75 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 
 - 「首页加上打开相册」 / `Add a photo picker to home`：添加照片与视频选择入口。
 - 「首页加上打开文件」 / `Add a file picker to home`：添加文件选择入口。选完进入收件页面，由用户选择快捷操作。
+
+### 拼接视频（VM1–VM2）
+
+- 「添加把几段视频拼成一段快捷操作」 / `Add the join video clips quick action`：选 2–10 段视频 → 调整顺序 → 拼接成 MP4。
+- 步骤句式：「拼接视频」「合并视频」「拼成一段视频」 / `join videos`。
+
+### 视频截帧（VF1–VF2）
+
+- 「添加从视频里截一张照片快捷操作」 / `Add the photo from a video quick action`：选视频 → 在本机选时间 → 存 JPEG 到相册。
+- 步骤句式：「截一帧」「视频截帧」 / `save a video frame`。
+
+### 视频静音（VMU1–VMU2）
+
+- 「添加视频去掉声音快捷操作」 / `Add the remove sound from videos quick action`：选视频 → 去掉全部音轨 → 无声 MP4。
+- 步骤句式：「去掉视频声音」「去掉声音」「视频静音」 / `mute videos`。
+
+### 视频配乐（VMA1–VMA2）
+
+- 「添加给视频换背景音乐快捷操作」 / `Add the add background music quick action`：选视频 → 运行时选音乐，默认只留音乐、短音乐循环。
+- 步骤句式：「换背景音乐」「给视频配乐」 / `add background music`。
+
+### 视频旋转（VR1–VR2）
+
+- 「添加把视频转正快捷操作」 / `Add the fix video rotation quick action`：选视频 → 顺时针旋转 90/180/270 度。
+- 步骤句式：「顺时针旋转视频 90 度」「旋转 180 度」 / `rotate video 270 degrees`。
+
+### 视频裁比例（VC1–VC2）
+
+- 「添加裁成竖屏视频快捷操作」 / `Add the portrait posts quick action`：选视频 → 居中裁成指定比例。
+- 步骤句式：「视频裁成 9:16」「裁成 1:1」 / `crop video to 4:5`。
+
+### 视频变速（VS1–VS2）
+
+- 「添加视频加速或慢放快捷操作」 / `Add the speed up or slow down video quick action`：选视频 → 改成 0.5×–4× 速度。
+- 步骤句式：「视频速度 2 倍」「变速 0.5 倍」 / `video speed 2x`。声音一起变速、变调。
+
+### 音量（AVL1–AVL3）
+
+- 「添加把录音调到正常音量快捷操作」 / `Add the quiet audio easier quick action`。
+- 「添加把视频调到正常音量快捷操作」 / `Add the quiet video easier quick action`。
+- 步骤：「调到正常音量」 / `normalize volume`；「音量 +6 dB」 / `volume -6 dB`。同一动作收音频或视频，保持类型。
+
+### 人声降噪
+
+- 添加录音人声降噪快捷操作
+- 添加视频人声降噪快捷操作
+- 步骤句式：人声降噪 / reduce speech noise / denoise
+- 适合讲话录音，音乐可能被削弱；视频保留画面。
+
+### 图片去背景
+
+- 添加把照片背景去掉快捷操作
+- 步骤句式：抠图 / 去背景 / remove background；换成白底 / white background
+- 透明或纯色 PNG，需要 iOS 17+ 或 Android Google Play 服务。
+
+### 图片颜色调整
+
+- 添加把太暗的照片调亮快捷操作
+- 步骤句式：图片自动优化 / auto adjust photos；调亮照片 / brighten photos
+- 自动优化或手动亮度、对比度、饱和度，保留尺寸，透明图片输出 PNG。
+
+### 图片标注
+
+- 添加在图片上画箭头和文字快捷操作
+- 步骤句式：标注图片 / 画箭头 / mark up photos / annotate photos
+- 运行时在本机添加文字、箭头、方框、自由画笔，六种颜色，可撤销。文字和笔画不发给 AI。
+
+### 视频字幕（首版 SRT）
+
+- 添加导出视频 SRT 字幕快捷操作
+- 步骤句式：导出字幕 / 导出SRT字幕 / export SRT captions
+- 选择讲话语言，在本机识别并导出独立 .srt 文件；不会把字幕烧录进视频。需要核对文字和时间。

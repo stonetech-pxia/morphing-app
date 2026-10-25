@@ -11,6 +11,7 @@ import { Platform } from 'react-native';
 
 import { MAX_SURFACE_SIDE, surfaceScale } from '@morph/tool-image';
 
+import { annotationSvg } from './annotations';
 import type { DrawOp } from './platform';
 
 /** 超过 Metal 纹理上限的离屏画布会让 App 直接崩溃（不是 JS 错误），所以先在 JS 里拦住。 */
@@ -28,26 +29,32 @@ function makeSurface(width: number, height: number) {
 /** 系统字体：iOS 用苹方（含中文），Android 用默认无衬线字体。 */
 const FONT_FAMILY = Platform.select({ ios: 'PingFang SC', default: 'sans-serif' });
 
-export function renderTextPng(
-  text: string,
-  style: { fontSize: number; color: string; opacity: number },
-): { bytes: Uint8Array; width: number; height: number } {
-  let font = matchFont({ fontFamily: FONT_FAMILY, fontSize: style.fontSize, fontWeight: 'bold' });
+/** 标注预览与导出使用同一字体、字宽、基线和内边距。 */
+export function textLayout(text: string, fontSize: number) {
+  let font = matchFont({ fontFamily: FONT_FAMILY, fontSize, fontWeight: 'bold' });
   // 很长的一行字会超过画布上限：按比例缩小字号（调用方只用宽高比）。
   const natural = font.measureText(text).width + 8;
   if (natural > MAX_SURFACE_SIDE) {
-    const fontSize = Math.max(8, Math.floor((style.fontSize * (MAX_SURFACE_SIDE - 16)) / natural));
-    font = matchFont({ fontFamily: FONT_FAMILY, fontSize, fontWeight: 'bold' });
+    const fittedSize = Math.max(8, Math.floor((fontSize * (MAX_SURFACE_SIDE - 16)) / natural));
+    font = matchFont({ fontFamily: FONT_FAMILY, fontSize: fittedSize, fontWeight: 'bold' });
   }
   const metrics = font.getMetrics();
   const width = Math.ceil(font.measureText(text).width) + 8;
   const height = Math.ceil(metrics.descent - metrics.ascent) + 8;
+  return { font, width, height, baseline: 4 - metrics.ascent };
+}
+
+export function renderTextPng(
+  text: string,
+  style: { fontSize: number; color: string; opacity: number },
+): { bytes: Uint8Array; width: number; height: number } {
+  const { font, width, height, baseline } = textLayout(text, style.fontSize);
   const surface = makeSurface(width, height);
   const canvas = surface.getCanvas();
   const paint = Skia.Paint();
   paint.setColor(Skia.Color(style.color));
   paint.setAlphaf(style.opacity);
-  canvas.drawText(text, 4, 4 - metrics.ascent, paint, font);
+  canvas.drawText(text, 4, baseline, paint, font);
   surface.flush();
   const bytes = surface.makeImageSnapshot().encodeToBytes(ImageFormat.PNG, 100);
   return { bytes, width, height };
@@ -170,6 +177,19 @@ export async function composeOnSurface(
         canvas.drawImage(snapshot, 0, 0, paint);
         canvas.restore();
         snapshot.dispose?.();
+        break;
+      }
+      case 'path': {
+        if (!op.points.length) break;
+        const paint = Skia.Paint();
+        paint.setAntiAlias(true);
+        paint.setColor(Skia.Color(op.color));
+        paint.setStyle(1);
+        paint.setStrokeWidth(op.width);
+        paint.setStrokeCap(1);
+        paint.setStrokeJoin(1);
+        const path = Skia.Path.MakeFromSVGString(annotationSvg(op.points));
+        if (path) canvas.drawPath(path, paint);
         break;
       }
       case 'line': {

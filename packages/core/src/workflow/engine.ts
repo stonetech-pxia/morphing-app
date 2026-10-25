@@ -75,6 +75,7 @@ export type RunErrorCode =
   | 'needsFullApp'
   /** 系统打不开这段视频 / 音频（格式不支持、有版权保护）。 */
   | 'mediaUnsupported'
+  | 'backgroundFailed'
   /** 手机剩余空间不够（detail.gb：还需要多少 GB）。 */
   | 'notEnoughSpace'
   /** 目标大小太小，压出来看不清（detail.mb：至少要多少 MB）。 */

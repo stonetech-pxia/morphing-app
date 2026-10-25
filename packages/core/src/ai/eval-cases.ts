@@ -2653,7 +2653,514 @@ const FILE_ENTRY_CASES: EvalCase[] = [
   },
 }));
 
+const VIDEO_MERGE_CASES: EvalCase[] = [
+  {
+    id: 'VM1',
+    input: '添加把几段视频拼成一段快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps.some((s) => s.action === 'file.order') &&
+            w.steps.some((s) => s.action === 'video.merge'),
+        )
+          ? null
+          : 'missing video merge and order',
+    },
+  },
+  {
+    id: 'VM2',
+    input:
+      'Make a quick action to join my holiday video clips into one video. Let me arrange their order first.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps[0]?.action === 'in.videos' &&
+            w.steps.findIndex((s) => s.action === 'file.order') > 0 &&
+            w.steps.findIndex((s) => s.action === 'video.merge') >
+              w.steps.findIndex((s) => s.action === 'file.order'),
+        )
+          ? null
+          : 'missing ordered video merge',
+    },
+  },
+];
+
+const VIDEO_FRAME_CASES: EvalCase[] = [
+  {
+    id: 'VF1',
+    input: '添加从视频里截一张照片快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.frame'))
+          ? null
+          : 'missing video.frame',
+    },
+  },
+  {
+    id: 'VF2',
+    input: 'Make a quick action to choose a still frame from a video and save it to Photos.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps[0]?.action === 'in.videos' &&
+            w.steps.some((s) => s.action === 'video.frame') &&
+            w.steps.some((s) => s.action === 'out.saveToPhotos'),
+        )
+          ? null
+          : 'missing video frame to Photos',
+    },
+  },
+];
+const VIDEO_MUTE_CASES: EvalCase[] = [
+  {
+    id: 'VMU1',
+    input: '添加视频去掉声音快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.mute'))
+          ? null
+          : 'missing video.mute',
+    },
+  },
+  {
+    id: 'VMU2',
+    input: 'Make a reusable action to remove all sound from my videos before I share them.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps[0]?.action === 'in.videos' && w.steps.some((s) => s.action === 'video.mute'),
+        )
+          ? null
+          : 'missing silent video action',
+    },
+  },
+];
+const VIDEO_MUSIC_CASES: EvalCase[] = [
+  {
+    id: 'VMA1',
+    input: '添加给视频换背景音乐快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.audio'))
+          ? null
+          : 'missing video.audio',
+    },
+  },
+  {
+    id: 'VMA2',
+    input:
+      'Make an action to replace video sound with a music file I choose each time. Keep 20% of the original sound and repeat the music if it is shorter.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps.filter((s) => s.action.startsWith('in.')).length === 1 &&
+            w.steps.some(
+              (s) =>
+                s.action === 'video.audio' &&
+                s.params.originalVolume === 20 &&
+                s.params.loop === true,
+            ),
+        )
+          ? null
+          : 'missing runtime music with requested parameters',
+    },
+  },
+];
+const VIDEO_ROTATE_CASES: EvalCase[] = [
+  {
+    id: 'VR1',
+    input: '添加把视频转正快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.rotate'))
+          ? null
+          : 'missing video.rotate',
+    },
+  },
+  {
+    id: 'VR2',
+    input: 'Make an action to turn my upside-down videos 180 degrees, keeping the sound.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some((s) => s.action === 'video.rotate' && s.params.degrees === 180),
+        )
+          ? null
+          : 'missing 180 degree rotation',
+    },
+  },
+];
+const VIDEO_CROP_CASES: EvalCase[] = [
+  {
+    id: 'VC1',
+    input: '添加裁成竖屏视频快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.crop'))
+          ? null
+          : 'missing video.crop',
+    },
+  },
+  {
+    id: 'VC2',
+    input: 'Make an action to center-crop videos into 1:1 squares, keeping their sound.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some((s) => s.action === 'video.crop' && s.params.ratio === '1:1'),
+        )
+          ? null
+          : 'missing square video crop',
+    },
+  },
+];
+const VIDEO_SPEED_CASES: EvalCase[] = [
+  {
+    id: 'VS1',
+    input: '添加视频加速或慢放快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.speed'))
+          ? null
+          : 'missing video.speed',
+    },
+  },
+  {
+    id: 'VS2',
+    input: 'Make an action that plays videos at half speed (0.5x).',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some((s) => s.action === 'video.speed' && s.params.factor === 0.5),
+        )
+          ? null
+          : 'missing half-speed video',
+    },
+  },
+];
+const AUDIO_VOLUME_CASES: EvalCase[] = [
+  {
+    id: 'AVL1',
+    input: '添加把录音调到正常音量快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some((s) => s.action === 'audio.volume' && s.params.mode === 'normal'),
+        )
+          ? null
+          : 'missing normal volume',
+    },
+  },
+  {
+    id: 'AVL2',
+    input:
+      'Make an action to bring the sound in my quiet videos up to normal volume. Keep the picture.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps[0]?.action === 'in.videos' &&
+            w.steps.some((s) => s.action === 'audio.volume' && s.params.mode === 'normal') &&
+            !w.steps.some((s) => s.action === 'audio.fromVideo'),
+        )
+          ? null
+          : 'missing video volume without dropping picture',
+    },
+  },
+  {
+    id: 'AVL3',
+    input: 'Make a reusable action to make recordings 6 dB louder.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some(
+            (s) => s.action === 'audio.volume' && s.params.mode === 'db' && s.params.db === 6,
+          ),
+        )
+          ? null
+          : 'missing +6dB gain',
+    },
+  },
+];
+const AUDIO_DENOISE_CASES: EvalCase[] = [
+  {
+    id: 'ADN1',
+    input: '添加录音人声降噪快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'audio.denoise'))
+          ? null
+          : 'missing speech noise reduction',
+    },
+  },
+  {
+    id: 'ADN2',
+    input:
+      'Make an action to reduce background noise in spoken videos. Keep the video picture, do not transcribe it.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps[0]?.action === 'in.videos' &&
+            w.steps.some((s) => s.action === 'audio.denoise') &&
+            !w.steps.some((s) => ['audio.fromVideo', 'audio.transcribe'].includes(s.action)),
+        )
+          ? null
+          : 'missing video denoise preserving video',
+    },
+  },
+];
+const IMAGE_BACKGROUND_CASES: EvalCase[] = [
+  {
+    id: 'IBG1',
+    input: '添加把照片背景去掉快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some(
+            (s) => s.action === 'image.removeBackground' && s.params.background === 'transparent',
+          ),
+        )
+          ? null
+          : 'missing transparent background removal',
+    },
+  },
+  {
+    id: 'IBG2',
+    input:
+      'Make a reusable action to cut out the subjects in photos and put them on a white background.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some(
+            (s) =>
+              s.action === 'image.removeBackground' &&
+              s.params.background === 'color' &&
+              String(s.params.color).toUpperCase() === '#FFFFFF',
+          ),
+        )
+          ? null
+          : 'missing white background removal',
+    },
+  },
+];
+const IMAGE_ADJUST_CASES: EvalCase[] = [
+  {
+    id: 'IAD1',
+    input: '添加把太暗的照片调亮快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some(
+            (s) =>
+              s.action === 'image.adjust' &&
+              s.params.mode === 'manual' &&
+              Number(s.params.brightness) > 0,
+          ),
+        )
+          ? null
+          : 'missing photo brightening',
+    },
+  },
+  {
+    id: 'IAD2',
+    input:
+      'Make a reusable photo adjustment: brightness +20, contrast 110, saturation 90. Keep the pixel dimensions.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) =>
+          w.steps.some(
+            (s) =>
+              s.action === 'image.adjust' &&
+              s.params.mode === 'manual' &&
+              s.params.brightness === 20 &&
+              s.params.contrast === 110 &&
+              s.params.saturation === 90,
+          ),
+        )
+          ? null
+          : 'missing exact color adjustment parameters',
+    },
+  },
+];
+const IMAGE_ANNOTATE_CASES: EvalCase[] = [
+  {
+    id: 'IAN1',
+    input: '添加在图片上画箭头和文字快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'image.annotate'))
+          ? null
+          : 'missing local photo annotations',
+    },
+  },
+  {
+    id: 'IAN2',
+    input:
+      'Make a reusable action where I choose photos and draw arrows, outline boxes, freehand strokes and type labels on them myself when I run it.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'image.annotate'))
+          ? null
+          : 'missing local annotation editor',
+    },
+  },
+];
+const VIDEO_SUBTITLE_CASES: EvalCase[] = [
+  {
+    id: 'VST1',
+    input: '添加导出视频 SRT 字幕快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.subtitles'))
+          ? null
+          : 'missing SRT captions',
+    },
+  },
+  {
+    id: 'VST2',
+    input:
+      'Make an action to generate separate SRT subtitle files from my English-speaking videos. Recognize speech on this device; I will load the SRT in a video player.',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.workflows.some(
+          (w) =>
+            w.steps[0]?.action === 'in.videos' &&
+            w.steps.some((s) => s.action === 'video.subtitles' && s.params.lang === 'en') &&
+            !w.steps.some((s) => s.action === 'audio.fromVideo'),
+        )
+          ? null
+          : 'missing local English video captions',
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...VIDEO_SUBTITLE_CASES,
+  ...IMAGE_ANNOTATE_CASES,
+  ...IMAGE_ADJUST_CASES,
+  ...IMAGE_BACKGROUND_CASES,
+  ...AUDIO_DENOISE_CASES,
+  ...AUDIO_VOLUME_CASES,
+  ...VIDEO_SPEED_CASES,
+  ...VIDEO_CROP_CASES,
+  ...VIDEO_ROTATE_CASES,
+  ...VIDEO_MUSIC_CASES,
+  ...VIDEO_MUTE_CASES,
+  ...VIDEO_FRAME_CASES,
+  ...VIDEO_MERGE_CASES,
   ...FILE_ENTRY_CASES,
   ...BASE_EVAL_CASES,
   ...SPLIT_EVAL_CASES,

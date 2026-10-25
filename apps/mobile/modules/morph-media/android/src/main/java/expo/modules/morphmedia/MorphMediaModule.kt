@@ -28,6 +28,8 @@ import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.FrameDropEffect
 import androidx.media3.effect.Presentation
+import androidx.media3.effect.SpeedChangeEffect
+import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.transformer.AudioEncoderSettings
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.DefaultEncoderFactory
@@ -122,6 +124,123 @@ class MorphMediaModule : Module() {
       }
     }.runOnQueue(Queues.MAIN)
 
+    AsyncFunction("rotate") {
+      jobId: String, uri: String, output: String, degrees: Int, options: Map<String, Any?>, promise: Promise ->
+      try {
+        if (degrees !in listOf(90, 180, 270)) throw MediaUnsupportedException("invalid rotation")
+        @Suppress("UNCHECKED_CAST")
+        val video = (options["video"] as? Map<String, Any?> ?: emptyMap()).toMutableMap()
+        video["rotationDegrees"] = degrees
+        val settings = options.toMutableMap().apply { put("video", video) }
+        val (transformer, composition) = buildTranscode(Uri.parse(uri), settings)
+        run(jobId, transformer, composition, File(Uri.parse(output).path!!), promise)
+      } catch (e: CodedException) { promise.reject(e) }
+      catch (e: Exception) { promise.reject(MediaFailedException(e.message)) }
+    }.runOnQueue(Queues.MAIN)
+
+    AsyncFunction("mixAudio") {
+      jobId: String, uri: String, music: String, output: String, options: Map<String, Any?>, promise: Promise ->
+      mixVideoAudio(jobId, uri, music, output, options, promise)
+    }.runOnQueue(Queues.MAIN)
+
+    AsyncFunction("volume") {
+      jobId: String, uri: String, output: String, options: Map<String, Any?>, promise: Promise ->
+      val flag = AtomicBoolean(false)
+      threadJobs[jobId] = flag
+      thread {
+        val destination = File(Uri.parse(output).path!!)
+        val wave = File(destination.parentFile, "${destination.name}.volume.wav")
+        try {
+          destination.parentFile?.mkdirs()
+          val automatic = options["automatic"] as? Boolean ?: true
+          val db = (options["db"] as? Number)?.toDouble() ?: 0.0
+          if (!db.isFinite() || db !in -24.0..24.0) throw MediaUnsupportedException("invalid gain")
+          AudioVolume.prepare(context, Uri.parse(uri), wave, automatic, db, flag, (probe(Uri.parse(uri))["durationMs"] as? Number)?.toDouble() ?: 0.0) { sendProgress(jobId, it) }
+          if (flag.get()) throw MediaCancelledException()
+          main.post {
+            try {
+              if (flag.get()) throw MediaCancelledException()
+              if (options["video"] is Map<*, *>) {
+                val mixOptions = options.toMutableMap().apply {
+                  put("container", "mp4"); put("audio", mapOf("codec" to "aac", "bitrateKbps" to 192))
+                  put("originalVolume", 0); put("loop", false)
+                  put("videoDurationMs", probe(Uri.parse(uri))["durationMs"] ?: 0)
+                  put("musicDurationMs", probe(Uri.fromFile(wave))["durationMs"] ?: 0)
+                }
+                mixVideoAudio(jobId, uri, Uri.fromFile(wave).toString(), output, mixOptions, promise)
+              } else {
+                transcodeAudio(jobId, Uri.fromFile(wave), destination,
+                  mapOf("container" to "m4a", "video" to "drop", "audio" to mapOf("codec" to "aac", "bitrateKbps" to 192)), promise)
+              }
+            } catch (e: CodedException) { promise.reject(e) }
+            catch (e: Exception) { promise.reject(MediaFailedException(e.message)) }
+            finally { threadJobs.remove(jobId) }
+          }
+        } catch (e: CodedException) { threadJobs.remove(jobId); wave.delete(); promise.reject(e) }
+        catch (e: Exception) { threadJobs.remove(jobId); wave.delete(); promise.reject(MediaFailedException(e.message)) }
+      }
+    }
+
+    AsyncFunction("speechAudio") { jobId: String, uri: String, output: String, promise: Promise ->
+      val flag = AtomicBoolean(false); threadJobs[jobId] = flag
+      thread {
+        val destination = File(Uri.parse(output).path!!)
+        try {
+          destination.parentFile?.mkdirs()
+          val durationMs = (probe(Uri.parse(uri))["durationMs"] as? Number)?.toDouble() ?: 0.0
+          val writer = AudioPcm.WavWriter(destination)
+          var complete = false; var shown = -1
+          try {
+            AudioPcm.visitTimeline(context, Uri.parse(uri), durationMs, { flag.get() }) { chunk ->
+              writer.write(chunk.samples, chunk.channels, chunk.sampleRate)
+              val percent = if (durationMs > 0) (chunk.ptsUs / 10 / durationMs).toInt().coerceIn(0,100) else 0
+              if (percent > shown) { shown = percent; sendProgress(jobId, percent/100.0) }
+            }
+            if (flag.get()) throw MediaCancelledException()
+            complete = true
+          } finally { if (complete) writer.close() else runCatching { writer.close() } }
+          promise.resolve(result(destination))
+        } catch (e: CodedException) { destination.delete(); promise.reject(e) }
+        catch (e: Exception) { destination.delete(); promise.reject(MediaFailedException(e.message)) }
+        finally { threadJobs.remove(jobId) }
+      }
+    }
+
+    AsyncFunction("denoise") {
+      jobId: String, uri: String, output: String, options: Map<String, Any?>, promise: Promise ->
+      val flag = AtomicBoolean(false)
+      threadJobs[jobId] = flag
+      thread {
+        val destination = File(Uri.parse(output).path!!)
+        val wave = File(destination.parentFile, "${destination.name}.denoise.wav")
+        try {
+          destination.parentFile?.mkdirs()
+          AudioDenoise.prepare(context, Uri.parse(uri), wave, flag, (probe(Uri.parse(uri))["durationMs"] as? Number)?.toDouble() ?: 0.0) { sendProgress(jobId, it) }
+          if (flag.get()) throw MediaCancelledException()
+          main.post {
+            try {
+              if (flag.get()) throw MediaCancelledException()
+              if (options["video"] is Map<*, *>) {
+                val mixOptions = options.toMutableMap().apply {
+                  put("container", "mp4"); put("audio", mapOf("codec" to "aac", "bitrateKbps" to 192))
+                  put("originalVolume", 0); put("loop", false)
+                  put("videoDurationMs", probe(Uri.parse(uri))["durationMs"] ?: 0)
+                  put("musicDurationMs", probe(Uri.fromFile(wave))["durationMs"] ?: 0)
+                }
+                mixVideoAudio(jobId, uri, Uri.fromFile(wave).toString(), output, mixOptions, promise)
+              } else {
+                transcodeAudio(jobId, Uri.fromFile(wave), destination,
+                  mapOf("container" to "m4a", "video" to "drop", "audio" to mapOf("codec" to "aac", "bitrateKbps" to 192)), promise)
+              }
+            } catch (e: CodedException) { promise.reject(e) }
+            catch (e: Exception) { promise.reject(MediaFailedException(e.message)) }
+            finally { threadJobs.remove(jobId) }
+          }
+        } catch (e: CodedException) { threadJobs.remove(jobId); wave.delete(); promise.reject(e) }
+        catch (e: Exception) { threadJobs.remove(jobId); wave.delete(); promise.reject(MediaFailedException(e.message)) }
+      }
+    }
+
     AsyncFunction("trim") {
       jobId: String, uri: String, output: String, range: Map<String, Double>, promise: Promise ->
       val start = range["startMs"]
@@ -166,6 +285,17 @@ class MorphMediaModule : Module() {
       }
     }
 
+    AsyncFunction("frame") { uri: String, timeMs: Double, directory: String, promise: Promise ->
+      thread {
+        try {
+          if (!timeMs.isFinite() || timeMs < 0) throw MediaUnsupportedException("invalid frame time")
+          promise.resolve(thumbnails(Uri.parse(uri), listOf(timeMs), 0, File(Uri.parse(directory).path!!), true).first())
+        } catch (e: CodedException) { promise.reject(e) }
+        catch (e: OutOfMemoryError) { promise.reject(MediaFailedException("not enough memory for a full-resolution frame")) }
+        catch (e: Exception) { promise.reject(MediaUnsupportedException(e.message)) }
+      }
+    }
+
     AsyncFunction("thumbnails") {
       uri: String, timesMs: List<Double>, maxSide: Double, directory: String, promise: Promise ->
       thread {
@@ -183,6 +313,12 @@ class MorphMediaModule : Module() {
     AsyncFunction("concat") {
       jobId: String, uris: List<String>, output: String, options: Map<String, Any?>, promise: Promise ->
       try {
+        if (options["video"] is Map<*, *>) {
+          if (uris.size !in 2..10) throw MediaUnsupportedException("expected 2–10 video clips")
+          val (transformer, composition) = buildTranscode(Uri.parse(uris.first()), options, uris.map { Uri.parse(it) })
+          run(jobId, transformer, composition, File(Uri.parse(output).path!!), promise)
+          return@AsyncFunction
+        }
         if ((options["container"] as? String ?: "m4a") != "m4a") throw NotImplementedException("concat to WAV")
         @Suppress("UNCHECKED_CAST")
         val audio = options["audio"] as? Map<String, Any?> ?: emptyMap()
@@ -310,8 +446,37 @@ class MorphMediaModule : Module() {
     sendEvent("progress", mapOf("jobId" to jobId, "progress" to value.coerceIn(0.0, 1.0)))
   }
 
+  private fun mixVideoAudio(jobId: String, uri: String, music: String, output: String, options: Map<String, Any?>, promise: Promise) {
+    try {
+      val originalVolume = (options["originalVolume"] as? Number)?.toFloat() ?: 0f
+      val videoDuration = (options["videoDurationMs"] as? Number)?.toLong() ?: 0L
+      val musicDuration = (options["musicDurationMs"] as? Number)?.toLong() ?: 0L
+      if (!originalVolume.isFinite() || originalVolume !in 0f..100f || videoDuration <= 0 || musicDuration <= 0) throw MediaUnsupportedException("invalid music settings")
+      val baseOptions = options.toMutableMap()
+      if (originalVolume == 0f) baseOptions["audio"] = "drop"
+      val (transformer, base) = buildTranscode(Uri.parse(uri), baseOptions)
+      val videoItem = base.sequences.first().editedMediaItems.first()
+      val volume = ChannelMixingAudioProcessor()
+      for (channels in 1..2) volume.putChannelMixingMatrix(ChannelMixingMatrix.createForConstantGain(channels, channels).scaleBy(originalVolume / 100f))
+      val editedVideo = videoItem.buildUpon().setEffects(Effects(listOf(volume), videoItem.effects.videoEffects)).build()
+      val videoSequence = if (originalVolume == 0f) EditedMediaItemSequence.withVideoFrom(listOf(editedVideo))
+        else EditedMediaItemSequence.withAudioAndVideoFrom(listOf(editedVideo))
+      val musicItem = MediaItem.Builder().setUri(Uri.parse(music)).setClippingConfiguration(
+        MediaItem.ClippingConfiguration.Builder().setEndPositionMs(min(videoDuration, musicDuration)).build()
+      ).build()
+      val editedMusic = EditedMediaItem.Builder(musicItem).setRemoveVideo(true).build()
+      val musicSequence = EditedMediaItemSequence.withAudioFrom(listOf(editedMusic)).buildUpon()
+        .setIsLooping(options["loop"] as? Boolean ?: true).build()
+      val composition = Composition.Builder(videoSequence, musicSequence)
+        .experimentalSetForceAudioTrack(true)
+        .setHdrMode(Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL).build()
+      run(jobId, transformer, composition, File(Uri.parse(output).path!!), promise)
+    } catch (e: CodedException) { promise.reject(e) }
+    catch (e: Exception) { promise.reject(MediaFailedException(e.message)) }
+  }
+
   @Suppress("UNCHECKED_CAST")
-  private fun buildTranscode(uri: Uri, options: Map<String, Any?>): Pair<Transformer, Composition> {
+  private fun buildTranscode(uri: Uri, options: Map<String, Any?>, uris: List<Uri> = listOf(uri)): Pair<Transformer, Composition> {
     val container = options["container"] as? String ?: "mp4"
     val video = options["video"] as? Map<String, Any?>
     if (container != "mp4" || video == null) throw NotImplementedException("transcode to $container")
@@ -322,32 +487,56 @@ class MorphMediaModule : Module() {
       throw NotImplementedException("audio codec ${audio["codec"]}")
     }
 
-    val itemBuilder = MediaItem.Builder().setUri(uri)
-    (options["range"] as? Map<String, Any?>)?.let { range ->
-      val start = (range["startMs"] as Number).toLong()
-      val end = (range["endMs"] as Number).toLong()
-      itemBuilder.setClippingConfiguration(
-        MediaItem.ClippingConfiguration.Builder().setStartPositionMs(start).setEndPositionMs(end).build()
-      )
-    }
+    val items = uris.map { inputUri ->
+      val itemBuilder = MediaItem.Builder().setUri(inputUri)
+      (options["range"] as? Map<String, Any?>)?.let { range ->
+        val start = (range["startMs"] as Number).toLong()
+        val end = (range["endMs"] as Number).toLong()
+        itemBuilder.setClippingConfiguration(
+          MediaItem.ClippingConfiguration.Builder().setStartPositionMs(start).setEndPositionMs(end).build()
+        )
+      }
 
-    val effects = mutableListOf<androidx.media3.common.Effect>()
-    // JS 只在要缩小时才给 maxShortSide（不放大）；H.264 要偶数。
-    (video["maxShortSide"] as? Number)?.toInt()?.let { shortSide ->
-      effects.add(Presentation.createForShortSide(shortSide / 2 * 2))
-    }
-    (video["maxFps"] as? Number)?.toFloat()?.let { fps ->
-      effects.add(FrameDropEffect.createDefaultFrameDropEffect(fps))
-    }
+      val effects = mutableListOf<androidx.media3.common.Effect>()
+      val audioProcessors = mutableListOf<AudioProcessor>()
+      (video["speed"] as? Number)?.toFloat()?.let { speed ->
+        if (!speed.isFinite() || speed !in 0.5f..4f) throw MediaUnsupportedException("invalid speed")
+        effects.add(SpeedChangeEffect(speed))
+        audioProcessors.add(SonicAudioProcessor().apply { setSpeed(speed); setPitch(speed) })
+      }
+      // JS 只在要缩小时才给 maxShortSide（不放大）；H.264 要偶数。
+      (video["maxShortSide"] as? Number)?.toInt()?.let { shortSide ->
+        effects.add(Presentation.createForShortSide(shortSide / 2 * 2))
+      }
+      (video["maxFps"] as? Number)?.toFloat()?.let { fps ->
+        effects.add(FrameDropEffect.createDefaultFrameDropEffect(fps))
+      }
 
-    val edited = EditedMediaItem.Builder(itemBuilder.build())
-      .setRemoveAudio(dropAudio)
-      .setEffects(Effects(listOf(), effects))
-      .build()
+      (video["aspectRatio"] as? Number)?.toFloat()?.let { ratio ->
+        if (!ratio.isFinite() || ratio <= 0f) throw MediaUnsupportedException("invalid aspect ratio")
+        effects.add(Presentation.createForAspectRatio(ratio, Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP))
+      }
+      (video["rotationDegrees"] as? Number)?.toFloat()?.let { degrees ->
+        // Media3 正数为逆时针，界面的角度为顺时针。
+        effects.add(ScaleAndRotateTransformation.Builder().setRotationDegrees(-degrees).build())
+      }
+      val width = (video["width"] as? Number)?.toInt()
+      val height = (video["height"] as? Number)?.toInt()
+      if (width != null && height != null) {
+        if (width <= 0 || height <= 0 || width % 2 != 0 || height % 2 != 0) throw MediaUnsupportedException("invalid output dimensions")
+        effects.add(Presentation.createForWidthAndHeight(width, height, Presentation.LAYOUT_SCALE_TO_FIT))
+      }
+      EditedMediaItem.Builder(itemBuilder.build())
+        .setRemoveAudio(dropAudio)
+        .setEffects(Effects(audioProcessors, effects))
+        .build()
+    }
     val composition = Composition.Builder(
-      if (dropAudio) EditedMediaItemSequence.withVideoFrom(listOf(edited))
-      else EditedMediaItemSequence.withAudioAndVideoFrom(listOf(edited))
+      if (dropAudio) EditedMediaItemSequence.withVideoFrom(items)
+      else EditedMediaItemSequence.withAudioAndVideoFrom(items)
     )
+      // 有的片段没有声音：Media3 自动给这些片段补静音。
+      .experimentalSetForceAudioTrack(!dropAudio && uris.size > 1)
       // 普通画面（BT.709）：HDR 视频在这里转换，否则发到别处会发灰或过暗。
       .setHdrMode(Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL)
       .build()
@@ -758,20 +947,22 @@ class MorphMediaModule : Module() {
 
   // ---- thumbnails ----
 
-  private fun thumbnails(uri: Uri, timesMs: List<Double>, maxSide: Int, directory: File): List<String> {
+  private fun thumbnails(uri: Uri, timesMs: List<Double>, maxSide: Int, directory: File, precise: Boolean = false): List<String> {
     directory.mkdirs()
     val retriever = MediaMetadataRetriever()
     try {
       retriever.setDataSource(context, uri)
       return timesMs.map { ms ->
         val us = (ms * 1000).toLong()
-        val frame = if (Build.VERSION.SDK_INT >= 27) {
+        val frame = (if (precise) {
+          retriever.getFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST)
+        } else if (Build.VERSION.SDK_INT >= 27) {
           retriever.getScaledFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, maxSide, maxSide)
         } else {
           retriever.getFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)?.let { scaled(it, maxSide) }
-        } ?: throw MediaUnsupportedException("frame at $ms")
+        }) ?: throw MediaUnsupportedException("frame at $ms")
         val file = File(directory, "${UUID.randomUUID()}.jpg")
-        FileOutputStream(file).use { frame.compress(Bitmap.CompressFormat.JPEG, 70, it) }
+        FileOutputStream(file).use { frame.compress(Bitmap.CompressFormat.JPEG, if (precise) 95 else 70, it) }
         frame.recycle()
         Uri.fromFile(file).toString()
       }
