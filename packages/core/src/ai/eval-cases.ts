@@ -39,7 +39,7 @@ export type EvalExpectation =
       plan?: (plan: OpsPlan) => string | null;
     }
   | { kind: 'restorePrevious' }
-  | { kind: 'reject'; reason?: RejectReason };
+  | { kind: 'reject'; reason?: RejectReason; message?: (message: string) => string | null };
 
 export interface EvalCase {
   id: string;
@@ -3239,7 +3239,132 @@ const FRENCH_CASES: readonly EvalCase[] = [
     },
   },
 ];
+const EXPERIENCE_CASES: readonly EvalCase[] = [
+  {
+    id: 'XP1',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    input: '我想逐字修改 PDF 里已经印好的文字，保留原来的排版。',
+    expect: {
+      kind: 'reject',
+      reason: 'unknown',
+      message: (m) =>
+        /分享/.test(m) && /Morph/i.test(m)
+          ? null
+          : 'must suggest specialized editing and sharing back to Morph',
+    },
+  },
+  {
+    id: 'XP2',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    input: 'Build a multi-track video editing timeline with keyframes and transitions.',
+    expect: {
+      kind: 'reject',
+      reason: 'unknown',
+      message: (m) =>
+        /shar/i.test(m) && /Morph/.test(m)
+          ? null
+          : 'must suggest sharing the edited file back to Morph',
+    },
+  },
+  {
+    id: 'XP3',
+    locale: 'fr',
+    setup: 'default',
+    mock: false,
+    input:
+      'Je veux retoucher les visages avec un pinceau pour effacer les rides et modifier la forme du nez.',
+    expect: {
+      kind: 'reject',
+      reason: 'unknown',
+      message: (m) =>
+        /partag/i.test(m) && /Morph/.test(m)
+          ? null
+          : 'must suggest sharing the edited file back to Morph',
+    },
+  },
+  {
+    id: 'XP4',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    input: '按这个顺序合成一个快捷操作，中间不用重新选择文件。',
+    about: { kind: 'chain', first: 'resize-first', second: 'pdf-second' },
+    earlier: [
+      {
+        input: '添加两个快捷操作',
+        ops: [
+          {
+            op: 'addWorkflow',
+            workflow: {
+              id: 'resize-first',
+              name: '照片缩小',
+              steps: [
+                {
+                  id: 'input',
+                  action: 'in.photos',
+                  params: { source: 'library', min: 1, max: 10 },
+                },
+                { id: 'resize', action: 'image.resize', params: { mode: 'longEdge', px: 1600 } },
+              ],
+            },
+          },
+          {
+            op: 'addWorkflow',
+            workflow: {
+              id: 'pdf-second',
+              name: '照片转 PDF',
+              steps: [
+                {
+                  id: 'input',
+                  action: 'in.photos',
+                  params: { source: 'library', min: 1, max: 10 },
+                },
+                {
+                  id: 'pdf',
+                  action: 'pdf.fromImages',
+                  params: {
+                    pageSize: 'a4',
+                    orientation: 'auto',
+                    marginMm: 10,
+                    fit: 'contain',
+                    maxMB: 4,
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+    expect: {
+      kind: 'ops',
+      plan: (p) => (p.homeEntry === false ? null : 'must not add a home entry'),
+      check: (c) => {
+        if (
+          !c.workflows.some((w) => w.id === 'resize-first') ||
+          !c.workflows.some((w) => w.id === 'pdf-second')
+        )
+          return 'original actions must remain';
+        const added = c.workflows.find((w) => !['resize-first', 'pdf-second'].includes(w.id));
+        return added &&
+          added.steps.filter((step) => step.action.startsWith('in.')).length === 1 &&
+          added.steps[0]?.action === 'in.photos' &&
+          added.steps[1]?.action === 'image.resize' &&
+          added.steps[1]?.params.px === 1600 &&
+          added.steps[2]?.action === 'pdf.fromImages' &&
+          added.steps[2]?.params.maxMB === 4
+          ? null
+          : 'must combine first resize then PDF without a second picker';
+      },
+    },
+  },
+];
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...EXPERIENCE_CASES,
   ...FRENCH_CASES,
   ...QUICK_ACTION_ENTRY_CASES,
   ...VIDEO_SUBTITLE_CASES,
@@ -3348,7 +3473,8 @@ export function judgeEval(
     if (c.expect.reason && plan.reason !== c.expect.reason) {
       return fail(`expected reject reason ${c.expect.reason}, got ${plan.reason}`);
     }
-    return { pass: true };
+    const messageProblem = c.expect.message?.(plan.message);
+    return messageProblem ? fail(messageProblem) : { pass: true };
   }
   if (plan.kind !== 'ops')
     return fail(

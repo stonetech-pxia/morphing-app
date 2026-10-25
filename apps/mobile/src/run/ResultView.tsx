@@ -32,6 +32,7 @@ export interface ResultActions {
   saveToPhotos(): Promise<void>;
   print(): Promise<void>;
   copy(): Promise<void>;
+  continueProcessing?(): Promise<void>;
 }
 
 function ItemRow({ item, palette, locale }: { item: RunItem; palette: Palette; locale: Locale }) {
@@ -219,6 +220,9 @@ export function ResultView({
       ) : null}
       <View style={styles.actions}>
         {allSaved ? null : pill('save', 'resultSave', 'resultSaved', actions.save)}
+        {items.length && actions.continueProcessing
+          ? pill('continue', 'resultContinue', null, actions.continueProcessing)
+          : null}
         {pill('share', 'resultShare', null, actions.share)}
         {folderPill('folder', false)}
         {folder ? folderPill('folderChange', true) : null}

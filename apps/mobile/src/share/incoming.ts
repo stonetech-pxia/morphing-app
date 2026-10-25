@@ -1,3 +1,4 @@
+import type { RunItem, Workflow } from '@morph/core';
 import { create } from 'zustand';
 
 import type { FilePlatform, PickedFile } from '../runtime/platform';
@@ -9,14 +10,21 @@ export interface IncomingShare {
   /** 每次分享一个新 ID：收件页面据此知道是不是又分享了一批。 */
   id: number;
   files: PickedFile[];
-  source: 'share' | 'picker';
+  source: 'share' | 'picker' | 'result';
+  /** 结果的独立临时副本及来源配置，只留本机。 */
+  result?: { runId: string; workflow: Workflow };
   /** Android：原生模块顺手复制到 App 缓存目录的副本（file://），用完一起删。 */
   copies: string[];
 }
 
 interface IncomingState {
   share: IncomingShare | null;
-  receive(files: PickedFile[], copies?: string[], source?: IncomingShare['source']): void;
+  receive(
+    files: PickedFile[],
+    copies?: string[],
+    source?: IncomingShare['source'],
+    result?: IncomingShare['result'],
+  ): void;
   clear(): void;
 }
 
@@ -25,8 +33,14 @@ const batches = new Map<number, IncomingShare>();
 
 export const useIncoming = create<IncomingState>()((set) => ({
   share: null,
-  receive: (files, copies = [], source = 'share') => {
-    const share = { id: ++seq, files, copies, source };
+  receive: (files, copies = [], source = 'share', result) => {
+    const share: IncomingShare = {
+      id: ++seq,
+      files,
+      copies,
+      source,
+      ...(result ? { result } : {}),
+    };
     batches.set(share.id, share);
     set({ share });
   },
@@ -94,7 +108,7 @@ export function nativeCopies(raw: unknown): string[] {
  * 这期间又分享了一批时，只清这一批，新的一批保留。
  */
 export async function releaseShare(
-  files: Pick<FilePlatform, 'removeShared'>,
+  files: Pick<FilePlatform, 'removeShared' | 'removeRun'>,
   id: number,
 ): Promise<void> {
   const batch = batches.get(id);
@@ -102,7 +116,37 @@ export async function releaseShare(
   batches.delete(id);
   const current = useIncoming.getState().share;
   if (current?.id === id) useIncoming.getState().clear();
-  if (batch?.source === 'picker') return;
+  if (batch.result) {
+    await files.removeRun(batch.result.runId).catch(() => undefined);
+    return;
+  }
+  if (batch.source === 'picker') return;
   const keep = current && current.id !== id ? current.files.map((f) => f.uri) : [];
   await files.removeShared(keep, batch?.copies ?? []).catch(() => undefined);
+}
+
+/** 先复制整批再交接：上一页关闭会删掉原运行目录，不能把它的 URI 直接传下去。 */
+export async function copyResults(
+  files: Pick<FilePlatform, 'copyToRun' | 'removeRun'>,
+  items: readonly RunItem[],
+  runId: string,
+): Promise<PickedFile[]> {
+  try {
+    const picked: PickedFile[] = [];
+    for (const [index, item] of items.entries()) {
+      const ext = item.ext.replace(/[^a-zA-Z0-9]/g, '') || 'bin';
+      const copy = await files.copyToRun(item.uri, runId, `result-${index}.${ext}`);
+      picked.push({
+        ...copy,
+        name: `${item.name}.${item.ext}`,
+        mimeType: item.mimeType,
+        ...(item.width && item.height ? { width: item.width, height: item.height } : {}),
+        ...(item.durationMs ? { durationMs: item.durationMs } : {}),
+      });
+    }
+    return picked;
+  } catch (error) {
+    await files.removeRun(runId).catch(() => undefined);
+    throw error;
+  }
 }

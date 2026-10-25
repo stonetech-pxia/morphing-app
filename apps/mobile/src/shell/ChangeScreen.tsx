@@ -75,6 +75,8 @@ export function ChangeScreen() {
   // 从一个快捷操作（「让 AI 改这个」）或收件页面打开时带上的上下文（D-124）。
   const params = useLocalSearchParams<{
     workflow?: string;
+    first?: string;
+    second?: string;
     shared?: string;
     guide?: string;
     next?: string;
@@ -89,6 +91,12 @@ export function ChangeScreen() {
   const [typing, setTyping] = useState(() => auto !== null);
   const share = useIncoming((s) => s.share);
   const [about] = useState<PlanAbout | undefined>(() => {
+    if (
+      params.first &&
+      params.second &&
+      [params.first, params.second].every((id) => config.workflows.some((w) => w.id === id))
+    )
+      return { kind: 'chain', first: params.first, second: params.second };
     if (params.workflow && config.workflows.some((w) => w.id === params.workflow))
       return { kind: 'workflow', workflowId: params.workflow };
     if (params.shared && share && String(share.id) === params.shared) return sharedAbout(share);
@@ -234,11 +242,24 @@ export function ChangeScreen() {
         {about ? (
           <Card palette={palette} background={palette.primaryTint} testID="change-about">
             <Text style={[palette.font('title', 15), { color: palette.text }]}>
-              {about.kind === 'workflow'
-                ? t(locale, 'aboutWorkflow', { name: aboutName ?? '' })
-                : t(locale, share?.source === 'picker' ? 'sharePicked' : 'aboutShared', {
-                    what: sharedWhat(about, locale),
-                  })}
+              {about.kind === 'chain'
+                ? t(locale, 'chainAbout', {
+                    first: config.workflows.find((w) => w.id === about.first)?.name ?? '',
+                    second: config.workflows.find((w) => w.id === about.second)?.name ?? '',
+                  })
+                : about.kind === 'workflow'
+                  ? t(locale, 'aboutWorkflow', { name: aboutName ?? '' })
+                  : t(
+                      locale,
+                      share?.source === 'result'
+                        ? 'resultIncoming'
+                        : share?.source === 'picker'
+                          ? 'sharePicked'
+                          : 'aboutShared',
+                      {
+                        what: sharedWhat(about, locale),
+                      },
+                    )}
             </Text>
             {about.kind === 'workflow' ? (
               <Text style={sub}>{t(locale, 'aboutWorkflowHint')}</Text>

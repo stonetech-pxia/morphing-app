@@ -4,6 +4,7 @@ import {
   FieldSchema,
   ICON_NAMES,
   OpSchema,
+  PlanAboutSchema,
   createDefaultWorkspace,
   createRegistry,
 } from '@morph/core';
@@ -65,6 +66,37 @@ describe('system prompt', () => {
 });
 
 describe('user message context (D-124)', () => {
+  it('accepts only workflow IDs in chain context, rejecting file data', () => {
+    expect(PlanAboutSchema.safeParse({ kind: 'chain', first: 'a', second: 'b' }).success).toBe(
+      true,
+    );
+    expect(
+      PlanAboutSchema.safeParse({ kind: 'chain', first: 'a', second: 'b', files: ['private.jpg'] })
+        .success,
+    ).toBe(false);
+  });
+
+  it('carries both ordered workflow definitions for composition without file context', () => {
+    const workspace = {
+      ...config,
+      workflows: [
+        { id: 'first', name: 'First', steps: [{ id: 'pick', action: 'in.photos', params: {} }] },
+        { id: 'second', name: 'Second', steps: [{ id: 'pick', action: 'in.photos', params: {} }] },
+      ],
+    } as typeof config;
+    const message = buildUserMessage(workspace, 'combine', 'en', {
+      kind: 'chain',
+      first: 'first',
+      second: 'second',
+    });
+    expect(message).toContain('first "first", then "second"');
+    expect(message).toContain('keeping the originals');
+    expect(message).toContain('never pick files again');
+    expect(
+      buildUserMessage(config, 'combine', 'en', { kind: 'chain', first: 'gone', second: 'second' }),
+    ).not.toContain('<context>');
+  });
+
   it('names the quick action the user opened AI from', () => {
     const withWf = {
       ...config,
