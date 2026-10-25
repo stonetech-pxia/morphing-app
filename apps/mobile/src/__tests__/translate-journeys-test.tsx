@@ -1,5 +1,5 @@
 import { createDefaultWorkspace } from '@morph/core';
-import { fireEvent, render, within } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
 
@@ -53,20 +53,15 @@ describe('translation journeys (UI)', () => {
     expect(files.clipboard).toBe('[en] 早上好。\n\nGood morning.');
   });
 
-  it('lists the translation presets by scenario and runs screenshot translation', async () => {
+  it('lists the translation presets by input type and runs screenshot translation', async () => {
     const { files } = filesWithTranslator();
     const { store } = await renderToolsApp(new MemoryWorkspaceRepo(), files);
     await fireEvent.press(screen.getByTestId('nav-settings'));
     await fireEvent.press(await screen.findByTestId('settings-workflows'));
     expect(await screen.findByTestId('workflows-screen')).toBeTruthy();
 
-    // D-130 的场景分组：外文文件在「交材料、签文件」，中文材料翻英文在「出国办证」，截图翻译在「发照片」。
-    const inGroup = (group: string, preset: string) =>
-      within(screen.getByTestId(`scenario-${group}`)).getByTestId(`preset-${preset}`);
-    expect(inGroup('paperwork', 'foreign-pdf')).toBeTruthy();
-    expect(inGroup('paperwork', 'foreign-paper')).toBeTruthy();
-    expect(inGroup('ids', 'papers-to-english')).toBeTruthy();
-    expect(inGroup('photos', 'screenshot-translate')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('category-image'));
+    expect(await screen.findByTestId('preset-screenshot-translate')).toBeTruthy();
 
     await fireEvent.press(screen.getByTestId('preset-add-screenshot-translate'));
     const added = store

@@ -127,6 +127,19 @@ export function createStarterWorkspace(locale: Locale, registry: Registry): Work
         ],
       },
     },
+    {
+      op: 'addComponent',
+      pageId: HOME_PAGE_ID,
+      component: {
+        id: 'what-morph-can-do',
+        type: 'shortcut',
+        props: {
+          title: zh ? 'Morph 可以做什么' : 'What Morph can do',
+          icon: 'workflow',
+          target: 'quickActions',
+        },
+      },
+    },
     { op: 'addComponent', pageId: HOME_PAGE_ID, component: quick },
     { op: 'setNavItems', items: [pageTarget(HOME_PAGE_ID), 'ai', 'settings'] },
   ];

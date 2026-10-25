@@ -1,3 +1,4 @@
+import type { QuickActionKind } from '../quick-actions';
 import type { IconName, Locale, Localized, Workflow } from '../schema';
 import { speechLangFor } from '../tools/audio';
 
@@ -24,6 +25,7 @@ export type PresetScenario = (typeof PRESET_SCENARIOS)[number]['id'];
 export interface WorkflowPreset {
   id: string;
   scenario: PresetScenario;
+  kinds?: readonly QuickActionKind[];
   name: Localized;
   /** 一句话说明，显示在预设库里，也发给 AI。 */
   description: Localized;
@@ -764,6 +766,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   },
   {
     id: 'video-sound',
+    kinds: ['video', 'audio'],
     scenario: 'sound',
     name: { en: 'Keep the sound of a video', zh: '把视频的声音存下来' },
     description: {

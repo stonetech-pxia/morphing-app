@@ -100,7 +100,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
         icon="workflow"
         label={t(locale, 'workflowsTitle')}
         value={t(locale, 'workflowsRowHint')}
-        onPress={env.locked ?? (() => router.push('/workflows'))}
+        onPress={env.locked ?? (() => router.push('/quick-actions'))}
       />
       {[...registry.tools.values()].map((tool) => {
         const installed = config.tools.find((x) => x.toolId === tool.id);

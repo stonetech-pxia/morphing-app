@@ -19,12 +19,16 @@ describe('createStarterWorkspace', () => {
       expect(config.shell.nav).toEqual(['page:home', 'ai', 'settings']);
       const home = config.pages.find((p) => p.id === 'home')!;
       // 标题、并排文件入口、三个现成快捷操作 + 工具箱入口；没有工具卡片和最近文件。
-      expect(home.components.map((c) => c.type)).toEqual(['header', 'group', 'group']);
+      expect(home.components.map((c) => c.type)).toEqual(['header', 'group', 'shortcut', 'group']);
       expect((home.components[1] as Extract<Component, { type: 'group' }>).children).toMatchObject([
         { type: 'filePick', props: { source: 'media' } },
         { type: 'filePick', props: { source: 'files' } },
       ]);
-      const group = home.components[2] as Extract<Component, { type: 'group' }>;
+      expect(home.components[2]).toMatchObject({
+        type: 'shortcut',
+        props: { target: 'quickActions' },
+      });
+      const group = home.components[3] as Extract<Component, { type: 'group' }>;
       expect(group.children.map((c) => c.type)).toEqual([
         'workflowRunner',
         'workflowRunner',

@@ -22,6 +22,10 @@ export function useNavigate(): (target: NavTarget) => void {
   const nav = useWorkspace((s) => s.config!.shell.nav);
   const selectTab = useWorkspace((s) => s.selectTab);
   return (target) => {
+    if (target === 'quickActions' && !nav.includes(target)) {
+      router.push('/quick-actions');
+      return;
+    }
     if (target === 'ai') {
       router.push('/change');
       return;

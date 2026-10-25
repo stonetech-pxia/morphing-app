@@ -44,3 +44,5 @@ export * from './tool-download';
 export * from './tool-keys';
 
 export * from './subtitles';
+
+export * from './quick-actions';

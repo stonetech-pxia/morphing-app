@@ -10,6 +10,8 @@ async function openWorkflows() {
   await fireEvent.press(screen.getByTestId('nav-settings'));
   await fireEvent.press(await screen.findByTestId('settings-workflows'));
   expect(await screen.findByTestId('workflows-screen')).toBeTruthy();
+  await fireEvent.press(screen.getByTestId('category-image'));
+  expect(await screen.findByTestId('quick-actions-image')).toBeTruthy();
   return app;
 }
 
