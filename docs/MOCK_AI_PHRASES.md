@@ -277,6 +277,10 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 - 添加内核的 `quickActions` 入口，打开图片、视频、音频、文档、其他分类；不生成替代的分类页面。
 - QAC1 / QAC2：中文和英文首页入口评测。
 
+### 新手引导第 1 步（D-231，GD1）
+
+- 「加入「打开相册」和「打开文件」按钮」 / `Add the “Open photo library” and “Open files” buttons`：在首页并排加上两个文件入口；已经有文件入口时回复「已经是这样了」，引导照样进入第 2 步。
+
 ### 外观选项（D-230，LK1–LK5）
 
 - 「图标改成浅色底」/「图标改成实色底」 / `Use light icon backgrounds` / `Use solid icon backgrounds`：主题的 `iconStyle`。

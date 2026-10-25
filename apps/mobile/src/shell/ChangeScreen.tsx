@@ -26,7 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAISettings } from '../ai/context';
 import { useAfterApply } from '../draft/useApplyDraft';
-import { guideText } from '../guide/store';
+import { guideText, isLookParam, useGuide } from '../guide/store';
 import { t } from '../i18n';
 import { Icon, UiIcon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
@@ -90,6 +90,11 @@ export function ChangeScreen() {
   // 法语引导的句子交给设置里的 AI；设置里选的是内置规则（不认法语）时，照旧发英文句子（D-228）。
   const guideLocale = locale === 'fr' && aiMode === 'mock' ? 'en' : locale;
   const [auto] = useState(() => guideText(guide, guideLocale) ?? (params.next ? next : null));
+  // 引导第 1 步（D-231）：句子打进输入框后停下，用户自己点发送；发送后直接生效，不进草稿。
+  const firstStep = isLookParam(guide);
+  const propose = useWorkspace((s) => s.propose);
+  const confirm = useWorkspace((s) => s.confirm);
+  const setGuideStage = useGuide((s) => s.setStage);
   const [typing, setTyping] = useState(() => auto !== null);
   const share = useIncoming((s) => s.share);
   // 打开这一页时是哪一批（分享的、App 里选的、上一次的结果）：之后又分享进来一批，卡片上的说法也不变。
@@ -174,6 +179,21 @@ export function ChangeScreen() {
     // 「撤销」会立即回到上一个版本、可能换主题：先把这个页面的导航栏固定住。Android 上带「关闭」
     // 按钮的导航栏在这时更新会崩（react-native-screens：child already has a parent）。
     navigation.setOptions({ ...stackScreenOptions(palette), ...closeButtonOption(palette) });
+    if (firstStep) {
+      // 顶部照常「已改好 · 撤销」；回到首页显示第 2 步。
+      const proposed = await propose(text.trim(), offline ? presetPlanner : undefined);
+      // 重新看引导时首页已经有这两个按钮：第 1 步算做完了。
+      const already = proposed.kind === 'rejected' && proposed.reason === 'noChange';
+      if (!already && (proposed.kind === 'rejected' || proposed.kind === 'invalid')) {
+        setFeedback(proposed);
+        setAsked(text.trim());
+        return;
+      }
+      if (!already && (proposed.kind !== 'preview' || !(await confirm()))) return;
+      void setGuideStage('goal');
+      leave();
+      return;
+    }
     const result = await change(text.trim(), offline ? presetPlanner : undefined, {
       ...(guide ? { guide } : {}),
       ...(about ? { about } : {}),
@@ -205,8 +225,9 @@ export function ChangeScreen() {
       if (shown < text.length) return;
       clearInterval(timer);
       setTyping(false);
-      if (guide) setPresetText(text);
       // 引导的句子中英文用内置规则；法语内置规则不认，交给设置里的 AI（见 guide/store.ts）。
+      if (guide && guideLocale !== 'fr') setPresetText(text);
+      if (firstStep) return;
       void submit(text, !!guide && guideLocale !== 'fr');
     }, typeDelay(text.length));
     return () => clearInterval(timer);

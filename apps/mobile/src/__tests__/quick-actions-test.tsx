@@ -64,11 +64,12 @@ describe('quick-action categories (UI)', () => {
     expect(await screen.findByTestId('preset-run-visa-photo')).toBeTruthy();
   });
 
-  it('opens the kernel library from the starter home', async () => {
+  it('opens the kernel library on a starter workspace', async () => {
     await renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), {
       seed: createStarterWorkspace,
     });
-    await fireEvent.press(await screen.findByText('Morph 可以做什么'));
+    await screen.findByTestId('nav-settings');
+    await act(() => router.push('/quick-actions'));
     for (const kind of QUICK_ACTION_KINDS)
       expect(await screen.findByTestId(`category-${kind}`)).toBeTruthy();
     await fireEvent.press(screen.getByTestId('category-image'));

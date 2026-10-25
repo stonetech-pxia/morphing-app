@@ -126,7 +126,8 @@ function ThemedStack() {
       <StatusBar style={palette.dark ? 'light' : 'dark'} />
       <Stack screenOptions={stackScreenOptions(palette)}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="change" options={{ ...closable, title: t(locale, 'changeTitle') }} />
+        {/* AI 修改页不显示标题（D-231），左上角只有「关闭」。 */}
+        <Stack.Screen name="change" options={{ ...closable, title: '' }} />
         <Stack.Screen name="page/[pageId]" />
         <Stack.Screen name="ai-settings" options={{ title: t(locale, 'aiSettingsTitle') }} />
         <Stack.Screen name="data" options={{ title: t(locale, 'dataTitle') }} />

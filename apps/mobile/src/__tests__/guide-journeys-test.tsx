@@ -1,29 +1,38 @@
 import {
   BUILTIN_TOOLS,
   GUIDE_GOALS,
+  allComponents,
   createMockAIProvider,
   createRegistry,
   createStarterWorkspace,
 } from '@morph/core';
-import { act, fireEvent } from '@testing-library/react-native';
+import { act, fireEvent, waitFor } from '@testing-library/react-native';
+import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
 
 import * as samples from '../guide/samples';
 import { LOOK_PROMPTS, useGuide } from '../guide/store';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, makePdf } from '../test-utils/fake-files';
-import { renderToolsApp } from '../test-utils/render-app';
+import { renderToolsApp, starterAfterGuide } from '../test-utils/render-app';
 
-// 新手引导（D-149）：划屏介绍 → 第 1 步改界面 → 第 2 步「我有什么，我想要什么」→ 示例文件跑通。
+// 新手引导（D-149、D-231）：划屏介绍 → 第 1 步加两个文件入口（直接生效）→ 第 2 步打开图片或文件；
+// 「我有什么，我想要什么」的目标仍能从 AI 修改跑通示例文件。
 
 const TYPED = { timeout: 4000 };
 
-async function startGuide(stage?: 'goal') {
+async function startGuide(stage?: 'goal', seed = createStarterWorkspace) {
   const repo = new MemoryWorkspaceRepo();
   if (stage) await repo.setMeta('guide', stage);
   const files = new FakeFiles();
   await act(() => useGuide.getState().load(repo));
-  return renderToolsApp(repo, files);
+  return renderToolsApp(repo, files, { seed });
+}
+
+/** 第 2 步不再有「做一个快捷操作」的句子（D-231）；这些目标仍可以带着 guide 参数打开 AI 修改。 */
+async function openGoal(goal: string) {
+  await screen.findByTestId('nav-settings');
+  await act(() => router.push({ pathname: '/change', params: { guide: goal } }));
 }
 
 describe('first-run guide', () => {
@@ -66,35 +75,83 @@ describe('first-run guide', () => {
     expect(await repo.getMeta('guide')).toBe('look');
   });
 
-  it('step 1: a tapped sentence types itself, lands in a draft, and applying keeps it', async () => {
+  const filePicks = (store: Awaited<ReturnType<typeof startGuide>>['store']) =>
+    allComponents(store.getState().config!.pages.find((p) => p.id === 'home')!).filter(
+      (c) => c.type === 'filePick',
+    );
+
+  it('step 1: the sentence fills the box and waits; sending adds both buttons without a draft', async () => {
     const { repo, store } = await startGuide();
     await fireEvent.press(await screen.findByTestId('welcome-skip'));
+    expect(await screen.findByTestId('guide-look')).toHaveTextContent(/空荡荡/);
     await fireEvent.press(await screen.findByTestId('guide-look-0'));
-    // 打字的时候不能改、也不能发送；打完自动用内置规则处理，直接进入草稿（D-190）。
-    expect(screen.getByTestId('change-input').props.editable).toBe(false);
-    await screen.findByTestId('draft-bar', {}, TYPED);
-    expect(screen.getByTestId('draft-guide-hint')).toHaveTextContent(/点「应用」保留/);
-    // 草稿里引导卡片不显示；还没应用，第 1 步还没完成。
-    expect(screen.queryByTestId('guide-look')).toBeNull();
-    expect(await repo.getMeta('guide')).toBe('look');
-    await fireEvent.press(screen.getByTestId('draft-apply'));
-    expect(store.getState().config!.theme.cardStyle).not.toBe('soft');
-    // 第 2 步出现，并告诉用户可以撤销刚才的修改。
+    // 打完字停在 AI 页面，由用户自己发送（D-231）。
+    await waitFor(
+      () => expect(screen.getByTestId('change-input').props.editable).toBe(true),
+      TYPED,
+    );
+    expect(screen.getByTestId('change-input')).toHaveProp('value', LOOK_PROMPTS[0]!.zh);
+    expect(filePicks(store)).toHaveLength(0);
+    await fireEvent.press(screen.getByTestId('change-submit'));
+    // 直接生效，不进草稿；回到首页显示第 2 步，并告诉用户可以撤销。
     expect(await screen.findByTestId('guide-goal')).toHaveTextContent(/第 2 步/);
+    expect(store.getState().draft).toBeNull();
+    expect(filePicks(store)).toHaveLength(2);
+    expect(screen.getByTestId('file-pick-media')).toBeTruthy();
     expect(screen.getByTestId('guide-undo-hint')).toHaveTextContent(/撤销/);
+    expect(screen.queryByTestId('guide-goal-trip-photos')).toBeNull();
     expect(await repo.getMeta('guide')).toBe('goal');
   });
 
-  // D-228：内置规则不认法语。设置里选的是内置规则时，法语引导照旧发英文句子，照样进草稿。
-  it('in French with the built-in rules, step 1 still lands in a draft', async () => {
+  // D-228：内置规则不认法语。设置里选的是内置规则时，法语引导照旧发英文句子。
+  it('in French with the built-in rules, step 1 still adds both buttons', async () => {
     const repo = new MemoryWorkspaceRepo();
     await act(() => useGuide.getState().load(repo));
-    const { store } = await renderToolsApp(repo, new FakeFiles(), { locale: 'fr' });
+    const { store } = await renderToolsApp(repo, new FakeFiles(), {
+      locale: 'fr',
+      seed: createStarterWorkspace,
+    });
     await fireEvent.press(await screen.findByTestId('welcome-skip'));
     await fireEvent.press(await screen.findByTestId('guide-look-0'));
-    await screen.findByTestId('draft-bar', {}, TYPED);
-    await fireEvent.press(screen.getByTestId('draft-apply'));
-    expect(store.getState().config!.theme.cardStyle).toBe('glow');
+    await waitFor(
+      () => expect(screen.getByTestId('change-input').props.editable).toBe(true),
+      TYPED,
+    );
+    await fireEvent.press(screen.getByTestId('change-submit'));
+    expect(await screen.findByTestId('guide-goal')).toBeTruthy();
+    expect(filePicks(store)).toHaveLength(2);
+  });
+
+  it('rerunning step 1 when both buttons are already there moves on to step 2', async () => {
+    const { store } = await startGuide(undefined, starterAfterGuide);
+    await fireEvent.press(await screen.findByTestId('welcome-skip'));
+    await fireEvent.press(await screen.findByTestId('guide-look-0'));
+    await waitFor(
+      () => expect(screen.getByTestId('change-input').props.editable).toBe(true),
+      TYPED,
+    );
+    await fireEvent.press(screen.getByTestId('change-submit'));
+    expect(await screen.findByTestId('guide-goal')).toBeTruthy();
+    expect(filePicks(store)).toHaveLength(2);
+  });
+
+  it('skipping the guide adds both buttons directly', async () => {
+    const { repo, store } = await startGuide();
+    await fireEvent.press(await screen.findByTestId('welcome-skip'));
+    await fireEvent.press(await screen.findByTestId('guide-skip'));
+    await waitFor(() => expect(filePicks(store)).toHaveLength(2));
+    expect(store.getState().draft).toBeNull();
+    expect(screen.queryByTestId('guide-look')).toBeNull();
+    expect(await repo.getMeta('guide')).toBe('done');
+  });
+
+  it('step 2 ends when the user opens pictures or files', async () => {
+    const { repo, files } = await startGuide('goal', starterAfterGuide);
+    expect(await screen.findByTestId('guide-goal')).toHaveTextContent(/简化繁琐的文件处理/);
+    files.nextMedia = [files.offerImage('a.jpg', 400, 300)];
+    await fireEvent.press(screen.getByTestId('file-pick-media'));
+    expect(await screen.findByTestId('share-screen')).toBeTruthy();
+    expect(await repo.getMeta('guide')).toBe('done');
   });
 
   it('step 2: one sentence grows a 7-step quick action that runs on sample photos', async () => {
@@ -103,7 +160,7 @@ describe('first-run guide', () => {
     const load = jest.spyOn(samples, 'loadSamples').mockResolvedValue(photos);
     const trip = GUIDE_GOALS[0]!;
 
-    await fireEvent.press(await screen.findByTestId(`guide-goal-${trip.id}`));
+    await openGoal(trip.id);
     // 快捷操作是功能，直接做好（D-191），不进草稿：「做好了」页面列出步骤，AI 补上的标出来（D-149）。
     expect(await screen.findByTestId('ready-run', {}, TYPED)).toHaveTextContent('用我自己的文件');
     expect(store.getState().draft).toBeNull();
@@ -131,7 +188,7 @@ describe('first-run guide', () => {
     const { files } = await startGuide('goal');
     const pdfs = [files.offer('a.pdf', await makePdf(3)), files.offer('b.pdf', await makePdf(2))];
     jest.spyOn(samples, 'loadSamples').mockResolvedValue(pdfs);
-    await fireEvent.press(await screen.findByTestId('guide-goal-contracts'));
+    await openGoal('contracts');
     await screen.findByTestId('ready-sample', {}, TYPED);
     expect(screen.getByTestId('ready-added-compress')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('ready-sample'));
@@ -141,18 +198,15 @@ describe('first-run guide', () => {
 
   it('the video sentence has no samples: “ready” runs it on the user’s own video', async () => {
     await startGuide('goal');
-    await fireEvent.press(await screen.findByTestId('guide-goal-big-video'));
+    await openGoal('big-video');
     expect(await screen.findByTestId('ready-run', {}, TYPED)).toHaveTextContent('现在就用一次');
     expect(screen.queryByTestId('ready-sample')).toBeNull();
   });
 
-  it('“later” leaves a small starter task that brings step 2 back', async () => {
+  it('“later” on step 2 ends the guide', async () => {
     const { repo } = await startGuide('goal');
     await fireEvent.press(await screen.findByTestId('guide-later'));
-    await fireEvent.press(await screen.findByTestId('guide-task'));
-    expect(await screen.findByTestId('guide-goal')).toBeTruthy();
-    await fireEvent.press(screen.getByTestId('guide-later'));
-    await fireEvent.press(await screen.findByTestId('guide-task-close'));
+    expect(screen.queryByTestId('guide-goal')).toBeNull();
     expect(screen.queryByTestId('guide-task')).toBeNull();
     expect(await repo.getMeta('guide')).toBe('done');
   });

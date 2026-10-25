@@ -48,6 +48,7 @@ import {
   templatePageOps,
   type DataTemplate,
 } from '../templates';
+import { homeFileEntryOps } from '../starter';
 import { goalPlan } from './goals';
 import { splitOps } from './kinds';
 import type { AIProvider, Plan, PlanContext, RejectReason } from './types';
@@ -1379,6 +1380,17 @@ const translateDocRule: Rule = (clause, state) => {
   return [{ op: 'addWorkflow', workflow: wf }];
 };
 
+/** 新手引导第 1 步的句子（D-231）：两个文件入口一起加，并排放。 */
+const bothFilePicksRule: Rule = (clause, state) => {
+  if (
+    !/^(?:首页)?(?:加入|加上|添加)[「“"]打开(?:相册|图片)[」”"]和[「“"]打开文件[」”"](?:两个)?按钮$|^add the [“"]open photo library[”"] and [“"]open files[”"] buttons$/i.test(
+      clause,
+    )
+  )
+    return null;
+  return homeFileEntryOps(state.config);
+};
+
 const filePickRule: Rule = (clause, state) => {
   const media = /^(?:首页加上打开相册|Add a photo picker to home)$/i.test(clause);
   const files = /^(?:首页加上打开文件|Add a file picker to home)$/i.test(clause);
@@ -1544,6 +1556,7 @@ const quickActionListRule: Rule = (clause, state) => {
 };
 
 const RULES: Rule[] = [
+  bothFilePicksRule,
   quickActionsRule,
   iconStyleRule,
   entryLookRule,

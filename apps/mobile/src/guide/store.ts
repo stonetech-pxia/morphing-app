@@ -11,7 +11,7 @@ import { create } from 'zustand';
 
 import type { WorkspaceRepo } from '../storage/types';
 
-// 新手引导（D-149）：划屏介绍 → 第 1 步说一句话改界面 → 第 2 步说出「我有什么，我想要什么」做一个快捷操作。
+// 新手引导（D-149、D-231）：划屏介绍 → 第 1 步发一句话加上两个文件入口（直接生效）→ 第 2 步打开图片或文件。
 // 进度存在本机的 app_meta 里；没有记录就是第一次打开。「设置 → 重新看新手引导」从头再来。
 
 /**
@@ -45,18 +45,16 @@ export const useGuide = create<GuideState>()((set, get) => ({
 }));
 
 /**
- * 第 1 步的句子：一眼就能看出变化，中英文都是内置规则认得的（测试逐句检查）。
+ * 第 1 步的句子（D-231）：首页是空的，先加上「打开相册」「打开文件」。中英文都是内置规则认得的（测试逐句检查）。
  * 中英文引导固定用内置规则，不调用设置里的 AI：结果稳定、马上出来，也不需要 key。
- * 内置规则不认法语（P-037）：法语界面发法语原句给设置里的 AI，做出来的名字也是法语。
+ * 内置规则不认法语（P-037）：法语界面发法语原句给设置里的 AI。
  */
 export const LOOK_PROMPTS: readonly Localized[] = [
-  { zh: '换成霓虹风格', en: 'Switch to the Neon style', fr: 'Passer au style Néon' },
   {
-    zh: '首页改成文件工作台，主题换成绿色',
-    en: 'Rename the home page to File desk. Change the theme color to green',
-    fr: 'Renommer la page d’accueil « Bureau des fichiers ». Changer la couleur du thème en vert',
+    zh: '加入「打开相册」和「打开文件」按钮',
+    en: 'Add the “Open photo library” and “Open files” buttons',
+    fr: 'Ajouter les boutons « Ouvrir les photos » et « Ouvrir les fichiers »',
   },
-  { zh: '换成毛玻璃风格', en: 'Switch to the Glass style', fr: 'Passer au style Verre dépoli' },
 ];
 
 /** 从引导打开 AI 修改时带的参数（`look-0` 这样的第 1 步句子，或者第 2 步的目标 id）对应的句子。 */
@@ -68,6 +66,9 @@ export function guideText(param: string | undefined, locale: Locale): string | n
     ? localize(guideGoal(param as GuideGoalId).text, locale)
     : null;
 }
+
+/** 第 1 步的句子（`look-0`）。 */
+export const isLookParam = (param: string | undefined) => /^look-\d+$/.test(param ?? '');
 
 export const isGoalParam = (param: string | undefined): param is GuideGoalId =>
   GUIDE_GOALS.some((g) => g.id === param);

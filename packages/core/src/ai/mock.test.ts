@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
 import { THEME_PRESETS, THEME_PRESET_IDS, presetRequest, type ThemePresetId } from '../presets';
-import { allComponents, type Locale, type WorkspaceConfig } from '../schema';
+import { allComponents, type Component, type Locale, type WorkspaceConfig } from '../schema';
 import { createStarterWorkspace } from '../starter';
 import { apply, registry, workspace } from '../test-helpers';
 import { createMockAIProvider } from './mock';
@@ -469,14 +469,25 @@ describe('mock AI — looks (D-230)', () => {
   });
 
   it('LK2 home entries as tiles or rows', async () => {
-    const { after, lines } = await change('首页入口改成大图标', starter());
-    expect(lines.join('\n')).toContain('大图标块');
-    const entries = homeOf(after).filter((c) => c.type === 'shortcut');
+    const isEntry = (c: Component) => c.type === 'toolCard' || c.type === 'catalogLink';
+    const lookOf = (c: Component) => (isEntry(c) ? (c.props as { look?: string }).look : null);
+    const { after, lines } = await change('首页入口改成列表', workspace('zh', { withPdf: true }));
+    expect(lines.join('\n')).toContain('一行');
+    const entries = homeOf(after).filter(isEntry);
     expect(entries.length).toBeGreaterThan(0);
-    for (const c of entries) expect(c.type === 'shortcut' && c.props.look).toBe('tile');
-    const back = await change('Make the home shortcuts rows', after, 'en');
-    for (const c of homeOf(back.after).filter((x) => x.type === 'shortcut'))
-      expect(c.type === 'shortcut' && c.props.look).toBe('row');
+    for (const c of entries) expect(lookOf(c)).toBe('row');
+    const back = await change('Make the home shortcuts tiles', after, 'en');
+    for (const c of homeOf(back.after).filter(isEntry)) expect(lookOf(c)).toBe('tile');
+  });
+
+  it('GD1 guide step 1 adds both file entries (D-231)', async () => {
+    for (const [text, locale] of [
+      ['加入「打开相册」和「打开文件」按钮', 'zh'],
+      ['Add the “Open photo library” and “Open files” buttons', 'en'],
+    ] as const) {
+      const { after } = await change(text, starter(locale), locale);
+      expect(homeOf(after).filter((c) => c.type === 'filePick')).toHaveLength(2);
+    }
   });
 
   it('LK3 home quick actions as rows', async () => {

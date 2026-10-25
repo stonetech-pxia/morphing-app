@@ -3199,7 +3199,16 @@ const QUICK_ACTION_ENTRY_CASES: EvalCase[] = [
 ];
 // ---- 外观选项（D-230）----
 const homeEntries = (c: WorkspaceConfig) =>
-  allComponents(home(c)).filter((x) => x.type === 'shortcut');
+  allComponents(home(c)).filter(
+    (x) => x.type === 'shortcut' || x.type === 'toolCard' || x.type === 'catalogLink',
+  );
+/** 首页所有入口卡片都是这个样子（至少有一个）。 */
+const entriesLook = (look: 'row' | 'tile') => (c: WorkspaceConfig) => {
+  const entries = homeEntries(c);
+  return entries.length > 0 && entries.every((x) => (x.props as { look?: string }).look === look)
+    ? null
+    : `home entries should all be ${look}: ${JSON.stringify(entries.map((x) => x.props))}`;
+};
 const quickActionListOn = (kind: string) => (c: WorkspaceConfig) =>
   allComponents(home(c)).some((x) => x.type === 'quickActionList' && x.props.kind === kind)
     ? null
@@ -3230,31 +3239,20 @@ const LOOK_CASES: EvalCase[] = [
   },
   {
     id: 'LK2',
-    input: '首页入口改成大图标',
+    input: '首页入口改成列表',
     locale: 'zh',
-    setup: 'starter',
+    setup: 'pdf',
     mock: true,
-    expect: {
-      kind: 'ops',
-      check: (c) =>
-        homeEntries(c).every((x) => x.type === 'shortcut' && x.props.look === 'tile')
-          ? null
-          : 'home shortcuts should all be tiles',
-    },
+    expect: { kind: 'ops', check: entriesLook('row') },
   },
   {
     id: 'LK2-en',
-    input: 'Make the home page shortcuts big cards with a colored icon block instead of list rows',
+    input:
+      'Make the entries on the home page list rows like in Settings, with an arrow on the right',
     locale: 'en',
-    setup: 'starter',
+    setup: 'pdf',
     mock: false,
-    expect: {
-      kind: 'ops',
-      check: (c) =>
-        homeEntries(c).every((x) => x.type === 'shortcut' && x.props.look === 'tile')
-          ? null
-          : 'home shortcuts should all be tiles',
-    },
+    expect: { kind: 'ops', check: entriesLook('row') },
   },
   {
     id: 'LK3',
@@ -3308,6 +3306,30 @@ const LOOK_CASES: EvalCase[] = [
     setup: 'default',
     mock: false,
     expect: { kind: 'ops', check: quickActionListOn('video') },
+  },
+];
+// 新手引导第 1 步（D-231）：空白首页上加两个文件入口。中英文走内置规则，法语交给模型。
+const twoFilePicks = (c: WorkspaceConfig) => {
+  const picks = allComponents(home(c)).filter((x) => x.type === 'filePick');
+  const sources = picks.map((x) => (x.type === 'filePick' ? x.props.source : '')).sort();
+  return sources.join(',') === 'files,media' ? null : `file pickers on home: ${sources.join(',')}`;
+};
+const GUIDE_STEP_CASES: EvalCase[] = [
+  {
+    id: 'GD1',
+    input: '加入「打开相册」和「打开文件」按钮',
+    locale: 'zh',
+    setup: 'starter',
+    mock: true,
+    expect: { kind: 'ops', check: twoFilePicks },
+  },
+  {
+    id: 'GD1-fr',
+    input: 'Ajouter les boutons « Ouvrir les photos » et « Ouvrir les fichiers »',
+    locale: 'fr',
+    setup: 'starter',
+    mock: false,
+    expect: { kind: 'ops', check: twoFilePicks },
   },
 ];
 const FRENCH_CASES: readonly EvalCase[] = [
@@ -3517,6 +3539,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...FRENCH_CASES,
   ...QUICK_ACTION_ENTRY_CASES,
   ...LOOK_CASES,
+  ...GUIDE_STEP_CASES,
   ...VIDEO_SUBTITLE_CASES,
   ...IMAGE_ANNOTATE_CASES,
   ...IMAGE_ADJUST_CASES,

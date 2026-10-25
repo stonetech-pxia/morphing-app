@@ -1,7 +1,10 @@
 import {
   BUILTIN_TOOLS,
+  applyOps,
   createMockAIProvider,
   createRegistry,
+  createStarterWorkspace,
+  homeFileEntryOps,
   type Locale,
   type Registry,
   type WorkspaceConfig,
@@ -53,6 +56,14 @@ const memorySecrets = (): SecretStore => {
 function ShareListener({ files }: { files: FakeFiles }) {
   useIncomingShare(files);
   return null;
+}
+
+/** 新用户做完引导第 1 步的样子（D-231）：空白首页加上「打开相册」「打开文件」。 */
+export function starterAfterGuide(locale: Locale, registry: Registry): WorkspaceConfig {
+  const config = createStarterWorkspace(locale, registry);
+  const result = applyOps(config, homeFileEntryOps(config), { registry, locale });
+  if (!result.ok) throw new Error(result.error);
+  return result.config;
 }
 
 export async function renderToolsApp(

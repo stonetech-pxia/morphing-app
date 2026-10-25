@@ -1,16 +1,16 @@
-import { createStarterWorkspace, formatFileSize, formatMoney, formatNumber } from '@morph/core';
+import { formatFileSize, formatMoney, formatNumber } from '@morph/core';
 import { act, fireEvent } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
-import { renderToolsApp } from '../test-utils/render-app';
+import { renderToolsApp, starterAfterGuide } from '../test-utils/render-app';
 import { formatTime } from '../run/local/TrimScreen';
 
 const start = () =>
   renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), {
     locale: 'fr',
-    seed: createStarterWorkspace,
+    seed: starterAfterGuide,
   });
 
 describe('French journeys', () => {
@@ -18,7 +18,7 @@ describe('French journeys', () => {
     await start();
     expect(await screen.findByText('Ouvrir les photos')).toBeTruthy();
     expect(screen.getByText('Ouvrir les fichiers')).toBeTruthy();
-    await fireEvent.press(screen.getByText('Ce que Morph peut faire'));
+    await act(() => router.push('/quick-actions'));
     await fireEvent.press(await screen.findByTestId('category-audio'));
     await fireEvent.press(await screen.findByTestId('quick-actions-create'));
     expect(await screen.findByTestId('change-input')).toHaveProp(
