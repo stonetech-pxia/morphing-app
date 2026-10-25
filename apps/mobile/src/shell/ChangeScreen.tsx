@@ -204,7 +204,8 @@ export function ChangeScreen() {
       clearInterval(timer);
       setTyping(false);
       if (guide) setPresetText(text);
-      void submit(text, !!guide);
+      // 引导的句子中英文用内置规则；法语内置规则不认，交给设置里的 AI（见 guide/store.ts）。
+      void submit(text, !!guide && locale !== 'fr');
     }, typeDelay(text.length));
     return () => clearInterval(timer);
     // 只在打开时打一次。

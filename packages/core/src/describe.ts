@@ -342,7 +342,12 @@ export function describeChange(
         for (const [key, value, prefix] of colorChanges) {
           if (value === undefined) continue;
           const label = colorNames[key as keyof typeof colorNames];
-          const name = prefix && !zh ? prefix + label.toLowerCase() : prefix + label;
+          // 法语不能拼成「Mode sombre arrière-plan」：整句按语言写在 describe_dark_color 里。
+          const name = prefix
+            ? t(ctx.locale, 'describe_dark_color', {
+                v0: ctx.locale === 'en' ? label.toLowerCase() : label,
+              })
+            : label;
           lines.push(
             value === null
               ? t(ctx.locale, 'describe_default_82b64', { v0: name })

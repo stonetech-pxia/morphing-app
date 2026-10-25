@@ -178,7 +178,7 @@ export default function DataRoute() {
                 {title || '—'}
               </Text>
               <Text style={caption}>
-                {name(c ?? null, r.collectionId)} · {formatTimestamp(r.deletedAt!)}
+                {name(c ?? null, r.collectionId)} · {formatTimestamp(r.deletedAt!, locale)}
               </Text>
               <View style={{ flexDirection: 'row' }}>
                 <Pill

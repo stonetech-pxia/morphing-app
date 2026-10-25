@@ -39,7 +39,7 @@ describe('French behavior', () => {
     expect(t('fr', 'recordCount', { count: 1 })).toBe('1 entrée');
     expect(t('fr', 'recordCount', { count: 0 })).toBe('0 entrée');
     expect(t('fr', 'recordCount', { count: 3 })).toBe('3 entrées');
-    expect(t('en', 'shareUsed', { n: 1 })).toBe('Used once');
+    expect(t('en', 'shareUsed', { n: 1 })).toBe('Used 1 time');
     expect(t('en', 'RedactScreen_boxes_4d76c', { v0: 1 })).toBe('1 box');
   });
   it('does not group digits in French numbers', () => {

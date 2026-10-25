@@ -371,7 +371,7 @@ export const PRINT_ACTIONS: readonly ActionDefinition[] = [
     description: {
       en: 'Make a PDF from the records with a fixed template: table, cards, or receipt (table with a total of the first money field). The values are filled in on the device; only the template, title and field names are settings.',
       zh: '用固定模板把记录做成 PDF：表格、卡片，或清单（表格加第一个金额字段的合计）。记录内容在本机填进去，设置里只有模板、标题和字段。',
-      fr: 'Créez un PDF à partir des enregistrements avec un modèle fixe : tableau, fiches ou reçu (tableau avec le total du premier champ montant). Les valeurs sont remplies sur l’appareil ; seuls le modèle, le titre et les noms de champs sont des réglages.',
+      fr: 'Créez un PDF à partir des entrées avec un modèle fixe : tableau, fiches ou reçu (tableau avec le total du premier champ montant). Les valeurs sont remplies sur l’appareil ; seuls le modèle, le titre et les noms de champs sont des réglages.',
     },
     input: ['records'],
     output: 'pdf',

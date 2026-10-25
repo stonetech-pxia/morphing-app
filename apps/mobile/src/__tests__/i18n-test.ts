@@ -15,9 +15,9 @@ describe('formatWhen', () => {
     ['en', new Date(2026, 9, 23, 13, 51), 'Today 13:51'],
     ['en', new Date(2026, 9, 22, 13, 51), 'Yesterday 13:51'],
     ['en', new Date(2026, 9, 21, 13, 51), 'Oct 21, 13:51'],
-    ['fr', new Date(2026, 9, 23, 13, 51), 'Aujourd’hui 13:51'],
-    ['fr', new Date(2026, 9, 22, 9, 3), 'Hier 09:03'],
-    ['fr', new Date(2026, 9, 21, 13, 51), '21 oct., 13:51'],
+    ['fr', new Date(2026, 9, 23, 13, 51), 'Aujourd’hui à 13:51'],
+    ['fr', new Date(2026, 9, 22, 9, 3), 'Hier à 09:03'],
+    ['fr', new Date(2026, 9, 21, 13, 51), '21 oct. à 13:51'],
   ] as const)('%s %s → %s', (locale, at, expected) => {
     expect(formatWhen(locale, at, now)).toBe(expected);
   });

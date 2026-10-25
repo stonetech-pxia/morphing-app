@@ -1,3 +1,4 @@
+import { formatNumber } from '../data';
 import { localize } from '../localization';
 import { t } from '../messages';
 import { renderNameTemplate } from '../naming';
@@ -30,8 +31,14 @@ export function formatParamValue(
         ? template
         : `${template}${t(locale, 'format_e_g_248d5', { v0: example })}`;
     }
-    case 'number':
-      return field.unit ? `${String(value)} ${field.unit}` : String(value);
+    case 'number': {
+      // 法语的小数点是逗号（0,5）。
+      const shown =
+        locale === 'fr' && typeof value === 'number'
+          ? formatNumber(value, undefined, 'fr')
+          : String(value);
+      return field.unit ? `${shown} ${field.unit}` : shown;
+    }
     default:
       return String(value);
   }

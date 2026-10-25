@@ -368,11 +368,11 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'in.records',
-    label: { en: 'Use records', zh: '读取记录', fr: 'Lire les enregistrements' },
+    label: { en: 'Use records', zh: '读取记录', fr: 'Lire les entrées' },
     description: {
       en: 'Take the records of one data table (optionally only a time period, by its first date field). Records stay on this device.',
       zh: '读取一张数据表的记录（可以只取某段时间，按表里第一个日期字段）。记录只留在本机。',
-      fr: 'Vous lisez les enregistrements d’une table de données (vous pouvez aussi ne prendre qu’une période, d’après son premier champ de date). Les enregistrements restent sur cet appareil.',
+      fr: 'Vous lisez les entrées d’un tableau de données (vous pouvez aussi ne prendre qu’une période, d’après son premier champ de date). Les entrées restent sur cet appareil.',
     },
     input: [],
     output: 'records',
@@ -413,7 +413,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     description: {
       en: "Add a record to a data table for each file (or once for text): the file is saved in Morph and goes into the table's first attachment field, text goes into its first long-text or text field, and the user fills in the other fields (amount, category…) on a form while the quick action runs; date fields start as today. The records stay on this device. The files are passed on unchanged.",
       zh: '给每个文件（或这段文字）在一张数据表里记一笔：文件存进 Morph，放进表里第一个附件字段；文字放进第一个长文本或文字字段；其他字段（金额、分类等）由用户在运行时的表单里填，日期默认今天。记录只留在本机。文件原样交给下一步。',
-      fr: 'Ajoutez un enregistrement à une table de données pour chaque fichier (ou une seule fois pour un texte) : le fichier est enregistré dans Morph et placé dans le premier champ pièce jointe de la table ; le texte va dans le premier champ texte long ou texte de la table ; vous remplissez les autres champs (montant, catégorie…) dans un formulaire pendant l’exécution de l’action rapide ; les champs de date commencent à aujourd’hui. Les enregistrements restent sur cet appareil. Les fichiers sont transmis sans modification.',
+      fr: 'Ajoutez une entrée à un tableau de données pour chaque fichier (ou une seule fois pour un texte) : le fichier est enregistré dans Morph et placé dans le premier champ pièce jointe du tableau ; le texte va dans le premier champ texte long ou texte du tableau ; vous remplissez les autres champs (montant, catégorie…) dans un formulaire pendant l’exécution de l’action rapide ; les champs de date commencent à aujourd’hui. Les enregistrements restent sur cet appareil. Les fichiers sont transmis sans modification.',
     },
     input: ['files', 'text'],
     output: 'same',

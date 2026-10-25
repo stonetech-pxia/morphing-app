@@ -45,8 +45,9 @@ export const useGuide = create<GuideState>()((set, get) => ({
 }));
 
 /**
- * 第 1 步的句子：一眼就能看出变化，都是内置规则认得的（测试逐句检查）。
- * 引导里固定用内置规则，不调用设置里的 AI：结果稳定、马上出来，也不需要 key。
+ * 第 1 步的句子：一眼就能看出变化，中英文都是内置规则认得的（测试逐句检查）。
+ * 中英文引导固定用内置规则，不调用设置里的 AI：结果稳定、马上出来，也不需要 key。
+ * 内置规则不认法语（P-037）：法语界面发法语原句给设置里的 AI，做出来的名字也是法语。
  */
 export const LOOK_PROMPTS: readonly Localized[] = [
   { zh: '换成霓虹风格', en: 'Switch to the Neon style', fr: 'Passer au style Néon' },
@@ -60,7 +61,6 @@ export const LOOK_PROMPTS: readonly Localized[] = [
 
 /** 从引导打开 AI 修改时带的参数（`look-0` 这样的第 1 步句子，或者第 2 步的目标 id）对应的句子。 */
 export function guideText(param: string | undefined, locale: Locale): string | null {
-  if (locale === 'fr') locale = 'en';
   if (!param) return null;
   const look = /^look-(\d+)$/.exec(param);
   if (look) return localize(LOOK_PROMPTS[Number(look[1])], locale) ?? null;
