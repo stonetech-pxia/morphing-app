@@ -19,6 +19,7 @@ import { StatusBar } from 'expo-status-bar';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AISettingsProvider } from '@/ai/context';
 import { createAIRouter } from '@/ai/router';
@@ -211,22 +212,24 @@ export default function RootLayout() {
     );
   }
   return (
-    <AISettingsProvider store={aiSettings}>
-      <WorkspaceProvider
-        value={{
-          store: runtime.store,
-          repo: runtime.repo,
-          files: expoFilePlatform,
-          registry,
-          locale,
-        }}>
-        <PackHostProvider value={packs}>
-          <ToolDownloadsProvider value={toolDownloads}>
-            <RootStack />
-          </ToolDownloadsProvider>
-        </PackHostProvider>
-      </WorkspaceProvider>
-    </AISettingsProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AISettingsProvider store={aiSettings}>
+        <WorkspaceProvider
+          value={{
+            store: runtime.store,
+            repo: runtime.repo,
+            files: expoFilePlatform,
+            registry,
+            locale,
+          }}>
+          <PackHostProvider value={packs}>
+            <ToolDownloadsProvider value={toolDownloads}>
+              <RootStack />
+            </ToolDownloadsProvider>
+          </PackHostProvider>
+        </WorkspaceProvider>
+      </AISettingsProvider>
+    </GestureHandlerRootView>
   );
 }
 

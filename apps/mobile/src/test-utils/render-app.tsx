@@ -12,6 +12,7 @@ import {
 import { Stack } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AISettingsProvider } from '../ai/context';
 import { DraftChatSheet } from '../draft/DraftBar';
@@ -95,22 +96,24 @@ export async function renderToolsApp(
   await store.getState().boot();
   await renderRouter({
     _layout: () => (
-      <AISettingsProvider store={aiSettings}>
-        <WorkspaceProvider value={{ store, repo, files, registry, locale }}>
-          <ShareListener files={files} />
-          {options.toolDownloads ? (
-            <ToolDownloadsProvider value={options.toolDownloads}>
-              <Stack />
-              <DraftChatSheet />
-            </ToolDownloadsProvider>
-          ) : (
-            <>
-              <Stack />
-              <DraftChatSheet />
-            </>
-          )}
-        </WorkspaceProvider>
-      </AISettingsProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <AISettingsProvider store={aiSettings}>
+          <WorkspaceProvider value={{ store, repo, files, registry, locale }}>
+            <ShareListener files={files} />
+            {options.toolDownloads ? (
+              <ToolDownloadsProvider value={options.toolDownloads}>
+                <Stack />
+                <DraftChatSheet />
+              </ToolDownloadsProvider>
+            ) : (
+              <>
+                <Stack />
+                <DraftChatSheet />
+              </>
+            )}
+          </WorkspaceProvider>
+        </AISettingsProvider>
+      </GestureHandlerRootView>
     ),
     index: HomeRoute,
     change: ChangeRoute,

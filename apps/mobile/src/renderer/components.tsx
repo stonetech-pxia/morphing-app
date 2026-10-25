@@ -24,7 +24,12 @@ import {
   type ViewStyle,
 } from 'react-native';
 
+import { GestureDetector, type PanGesture } from 'react-native-gesture-handler';
+
 import { t } from '../i18n';
+import { LONG_PRESS_MS } from '../editing/entry';
+import { FocusItem, FocusToolbar } from '../editing/FocusItem';
+import type { SingleDrag } from '../editing/useSingleDrag';
 import { RecordForm, RecordList, Stat } from './data';
 import { FileList } from './FileList';
 import { FilePick } from './FilePick';
@@ -54,6 +59,16 @@ export interface RenderEnv {
   pageId?: string;
   /** 可以直接编辑的页面：长按组件时打开它的操作面板（D-052）。预览和系统页面没有。 */
   edit?: (componentId: string) => void;
+  /** 单组件编辑保留正常页面布局，只给选中项加工具栏。 */
+  focus?: {
+    selectedId: string | null;
+    onEdit: (id: string) => void;
+    onDone: () => void;
+    drag?: SingleDrag;
+  };
+  parentDrag?: PanGesture;
+  focusWithinSelected?: boolean;
+  focusWithinDimmed?: boolean;
   /** 当前组件的长按操作：组件里可点按的部分（卡片、按钮、列表行）也要响应长按。 */
   onLongPress?: () => void;
   /**
@@ -62,9 +77,6 @@ export interface RenderEnv {
    */
   locked?: () => void;
 }
-
-/** 长按多久打开组件的操作面板。 */
-export const LONG_PRESS_MS = 450;
 
 type Tone = NonNullable<ComponentStyle['tone']>;
 
@@ -222,7 +234,15 @@ function Group({
     body = (
       <View style={{ gap: palette.gap - 4 }}>
         {rows.map((row, r) => (
-          <View key={r} style={[styles.row, { gap: palette.gap - 4 }]}>
+          <View
+            key={r}
+            style={[
+              styles.row,
+              {
+                gap: palette.gap - 4,
+                zIndex: row.some((c) => c.id === env.focus?.selectedId) ? 10 : 0,
+              },
+            ]}>
             {row.map(item)}
             {Array.from({ length: columns - row.length }, (_, i) => (
               <View key={`empty-${i}`} style={styles.cell} />
@@ -247,7 +267,7 @@ function Group({
           {title.toUpperCase()}
         </Text>
       ) : null}
-      {body}
+      {children.length === 0 && env.focus ? <View style={{ height: 44 }} /> : body}
     </View>
   );
 }
@@ -441,6 +461,13 @@ function Item({
   env: RenderEnv;
   style?: StyleProp<ViewStyle>;
 }) {
+  if (env.focus) {
+    return (
+      <FocusItem component={component} env={env} style={style}>
+        {(itemEnv) => <ComponentView component={component} env={itemEnv} />}
+      </FocusItem>
+    );
+  }
   const edit = env.interactive ? env.edit : undefined;
   if (!edit) {
     return (
@@ -476,8 +503,10 @@ export function PageView({
 }) {
   const { palette } = env;
   const pageEnv = { ...env, pageId: page.id };
-  return (
+  const content = (
     <ScrollView
+      testID={env.focus ? 'editable-scroll' : undefined}
+      ref={(view) => env.focus?.drag?.attachScroll(view)}
       {...scroll}
       // 渐变背景画在外层容器上（和状态栏区域连成一片），页面本身透明。
       style={palette.hasBackdrop ? undefined : { backgroundColor: palette.background }}
@@ -485,13 +514,30 @@ export function PageView({
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets
       contentContainerStyle={{
+        flexGrow: 1,
         padding: palette.pad,
         gap: palette.gap,
         paddingBottom: 24 + bottomInset,
       }}>
+      {env.focus?.selectedId ? (
+        <Pressable
+          testID="single-blank"
+          accessible={false}
+          style={StyleSheet.absoluteFill}
+          onPress={env.focus.onDone}
+        />
+      ) : null}
       {runnerGrid(page.components.filter((c) => !c.hidden)).map((block) =>
         Array.isArray(block) ? (
-          <View key={block[0]!.id} style={[styles.row, { gap: palette.gap - 4 }]}>
+          <View
+            key={block[0]!.id}
+            style={[
+              styles.row,
+              {
+                gap: palette.gap - 4,
+                zIndex: block.some((c) => c.id === env.focus?.selectedId) ? 10 : 0,
+              },
+            ]}>
             {block.map((c) => (
               <Item
                 key={c.id}
@@ -506,7 +552,32 @@ export function PageView({
           <Item key={block.id} component={block} env={pageEnv} />
         ),
       )}
+      {env.focus?.selectedId ? <FocusToolbar env={pageEnv} page={page} /> : null}
     </ScrollView>
+  );
+  const drag = env.focus?.drag;
+  return drag ? (
+    <View ref={(view) => drag.attachViewport(view)} style={{ flex: 1 }}>
+      <GestureDetector gesture={drag.scrollGesture}>{content}</GestureDetector>
+      {drag.target ? (
+        <View
+          testID="single-drop-line"
+          pointerEvents="none"
+          style={[
+            { position: 'absolute', backgroundColor: palette.primary, zIndex: 100 },
+            {
+              left: drag.target.line.x,
+              top: drag.target.line.y,
+              width: drag.target.line.width,
+              height: drag.target.line.height,
+            },
+          ]}
+        />
+      ) : null}
+      {env.focus?.selectedId ? <FocusToolbar env={pageEnv} page={page} pinned /> : null}
+    </View>
+  ) : (
+    content
   );
 }
 

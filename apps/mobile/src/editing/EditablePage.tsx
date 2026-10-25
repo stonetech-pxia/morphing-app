@@ -8,9 +8,10 @@ import { useEditActions } from './actions';
 import { ArrangeView } from './ArrangeView';
 import { EditSheet } from './EditSheet';
 import { directEditEntry } from './entry';
+import { useSingleDrag } from './useSingleDrag';
 
 // 可以直接编辑的页面（D-052）：外壳和独立页面用它代替 PageView。
-// 平时长按组件进入编辑模式并打开它的操作面板；编辑模式下显示草稿，换成带把手和箭头的编辑视图，
+// 长按只选中单个组件并可继续拖动（D-235）；整页编辑保留 ArrangeView。
 // 「完成」时整份草稿合成一个版本（D-054）。预览和系统页面不用它。
 
 /** 保存版本后页面会重新挂载；记住滚动位置，改完仍停在原处。 */
@@ -34,22 +35,34 @@ export function EditablePage({
   env: RenderEnv;
   bottomInset?: number;
 }) {
-  const draft = useWorkspace((s) => (s.editing?.pageId === page.id ? s.editing.config : null));
+  const editing = useWorkspace((s) => (s.editing?.pageId === page.id ? s.editing : null));
+  const draft = editing?.config;
   const startEditing = useWorkspace((s) => s.startEditing);
   const shown = draft?.pages.find((p) => p.id === page.id) ?? page;
   const { edit, finish, cancel } = useEditActions(shown);
   const [selected, setSelected] = useState<string | null>(null);
+  const [sheetId, setSheetId] = useState<string | null>(null);
+
+  const select = (id: string) => {
+    startEditing(page.id, 'single');
+    setSelected(id);
+  };
+  const drag = useSingleDrag(shown, select, (op) => edit([op]));
+  const savedScroll = rememberScroll(page.id);
 
   const sheet = (
     <EditSheet
       page={shown}
-      componentId={selected}
+      componentId={editing?.mode === 'page' ? selected : sheetId}
       palette={env.palette}
-      onClose={() => setSelected(null)}
+      onClose={() => {
+        setSheetId(null);
+        if (editing?.mode === 'page') setSelected(null);
+      }}
     />
   );
 
-  if (draft) {
+  if (draft && editing?.mode === 'page') {
     return (
       <>
         <ArrangeView
@@ -69,20 +82,33 @@ export function EditablePage({
   return (
     <>
       <PageView
-        page={page}
+        page={shown}
         env={
-          directEditEntry.enabled && !env.locked
+          directEditEntry.longPress && env.interactive && !env.locked
             ? {
                 ...env,
-                edit: (id) => {
-                  startEditing(page.id);
-                  setSelected(id);
+                config: draft ?? env.config,
+                focus: {
+                  selectedId: draft ? selected : null,
+                  onEdit: setSheetId,
+                  onDone: () => {
+                    if (!drag.draggingId) void finish();
+                  },
+                  drag,
                 },
+                edit: select,
               }
             : env
         }
         bottomInset={bottomInset}
-        scroll={rememberScroll(page.id)}
+        scroll={{
+          ...savedScroll,
+          ...drag.scroll,
+          onScroll: (e) => {
+            savedScroll.onScroll?.(e);
+            drag.scroll.onScroll?.(e);
+          },
+        }}
       />
       {sheet}
     </>

@@ -1,3 +1,6 @@
+// 原生手势用官方 Jest 替身，Worklets 不创建真实 UI runtime。
+jest.mock('react-native-worklets', () => require('react-native-worklets/src/mock'));
+require('react-native-gesture-handler/jestSetup');
 /* global jest */
 // Jest 里没有原生模块：WebView（扩展包页面）用一个空组件代替。扩展包的逻辑在测试里通过假的 PackRuntime 测。
 jest.mock('react-native-webview', () => {
