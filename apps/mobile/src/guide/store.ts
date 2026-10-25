@@ -1,11 +1,4 @@
-import {
-  localize,
-  GUIDE_GOALS,
-  guideGoal,
-  type GuideGoalId,
-  type Locale,
-  type Localized,
-} from '@morph/core';
+import { localize, type Locale, type Localized } from '@morph/core';
 
 import { create } from 'zustand';
 
@@ -14,13 +7,10 @@ import type { WorkspaceRepo } from '../storage/types';
 // 新手引导（D-149、D-231）：划屏介绍 → 第 1 步发一句话加上两个文件入口（直接生效）→ 第 2 步打开图片或文件。
 // 进度存在本机的 app_meta 里；没有记录就是第一次打开。「设置 → 重新看新手引导」从头再来。
 
-/**
- * intro：要显示划屏介绍；look：第 1 步；goal：第 2 步；later：第 2 步先放着（首页留一张小卡片）；
- * done：看完或关掉了。
- */
-export type GuideStage = 'intro' | 'look' | 'goal' | 'later' | 'done';
+/** intro：要显示划屏介绍；look：第 1 步；goal：第 2 步；done：看完或关掉了。 */
+export type GuideStage = 'intro' | 'look' | 'goal' | 'done';
 
-const STAGES: readonly GuideStage[] = ['intro', 'look', 'goal', 'later', 'done'];
+const STAGES: readonly GuideStage[] = ['intro', 'look', 'goal', 'done'];
 const META_KEY = 'guide';
 
 interface GuideState {
@@ -36,7 +26,9 @@ export const useGuide = create<GuideState>()((set, get) => ({
   repo: null,
   async load(repo) {
     const saved = await repo.getMeta(META_KEY);
-    set({ repo, stage: STAGES.includes(saved as GuideStage) ? (saved as GuideStage) : 'intro' });
+    // 以前的「新手任务」小卡片（later）已经去掉（D-231）：当作看完了。
+    const stage = saved === 'later' ? 'done' : saved;
+    set({ repo, stage: STAGES.includes(stage as GuideStage) ? (stage as GuideStage) : 'intro' });
   },
   async setStage(stage) {
     set({ stage });
@@ -57,18 +49,8 @@ export const LOOK_PROMPTS: readonly Localized[] = [
   },
 ];
 
-/** 从引导打开 AI 修改时带的参数（`look-0` 这样的第 1 步句子，或者第 2 步的目标 id）对应的句子。 */
+/** 从引导打开 AI 修改时带的参数（`look-0` 这样的第 1 步句子）对应的句子。 */
 export function guideText(param: string | undefined, locale: Locale): string | null {
-  if (!param) return null;
-  const look = /^look-(\d+)$/.exec(param);
-  if (look) return localize(LOOK_PROMPTS[Number(look[1])], locale) ?? null;
-  return GUIDE_GOALS.some((g) => g.id === param)
-    ? localize(guideGoal(param as GuideGoalId).text, locale)
-    : null;
+  const look = /^look-(\d+)$/.exec(param ?? '');
+  return look ? (localize(LOOK_PROMPTS[Number(look[1])], locale) ?? null) : null;
 }
-
-/** 第 1 步的句子（`look-0`）。 */
-export const isLookParam = (param: string | undefined) => /^look-\d+$/.test(param ?? '');
-
-export const isGoalParam = (param: string | undefined): param is GuideGoalId =>
-  GUIDE_GOALS.some((g) => g.id === param);

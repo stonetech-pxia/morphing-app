@@ -104,9 +104,8 @@ export interface DraftStep {
   config: WorkspaceConfig;
 }
 
-/** 草稿从哪里开始的：应用后据此带用户回去（新手引导、从快捷操作或收件页面打开）。 */
+/** 草稿从哪里开始的：应用后据此带用户回去（从快捷操作或收件页面打开）。 */
 export interface DraftOrigin {
-  guide?: string;
   about?: PlanAbout;
 }
 

@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
-import { Icon } from '../renderer/Icon';
 import type { Palette } from '../renderer/theme';
 import { Card } from '../renderer/ui';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
@@ -26,33 +25,6 @@ export function GuideCard({ palette }: { palette: Palette }) {
   const open = (guide: string) => router.push({ pathname: '/change', params: { guide } });
   const body = [palette.font('body', 14), { color: palette.muted }];
 
-  if (stage === 'later') {
-    return (
-      <View style={styles.wrap}>
-        <Pressable
-          testID="guide-task"
-          accessibilityRole="button"
-          onPress={() => void setStage('goal')}
-          style={[
-            styles.task,
-            palette.cardStyle(palette.primaryTint),
-            { borderRadius: palette.controlRadius },
-          ]}>
-          <Icon name="sparkles" size={18} color={palette.primaryText} />
-          <Text style={[palette.font('bodyMedium', 14), styles.flex, { color: palette.text }]}>
-            {t(locale, 'guideTask')}
-          </Text>
-          <Pressable
-            testID="guide-task-close"
-            accessibilityLabel={t(locale, 'close')}
-            hitSlop={10}
-            onPress={() => void setStage('done')}>
-            <Text style={[palette.font('bodyBold', 14), { color: palette.muted }]}>✕</Text>
-          </Pressable>
-        </Pressable>
-      </View>
-    );
-  }
   if (stage !== 'look' && stage !== 'goal') return null;
 
   /** 跳过引导（D-231）：直接加上两个文件入口（不进预览），顶部照常「已改好 · 撤销」。 */
@@ -136,7 +108,6 @@ function Chip({
 
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: 16, paddingTop: 8 },
-  flex: { flex: 1 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     borderWidth: 1,
@@ -144,13 +115,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     justifyContent: 'center',
-  },
-  task: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
   },
   link: { alignSelf: 'flex-start', paddingVertical: 2 },
 });

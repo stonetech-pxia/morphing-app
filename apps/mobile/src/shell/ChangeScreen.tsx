@@ -26,7 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAISettings } from '../ai/context';
 import { useAfterApply } from '../draft/useApplyDraft';
-import { guideText, isLookParam, useGuide } from '../guide/store';
+import { guideText, useGuide } from '../guide/store';
 import { t } from '../i18n';
 import { Icon, UiIcon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
@@ -82,7 +82,8 @@ export function ChangeScreen() {
     next?: string;
     text?: string;
   }>();
-  // 从新手引导打开（D-149）：句子自动打进输入框，用内置规则处理。
+  // 从新手引导第 1 步打开（D-149、D-231）：句子打进输入框后停下，用户自己点发送；
+  // 发送后直接生效，不进草稿。
   const [guide] = useState(() =>
     guideText(params.guide, locale) !== null ? params.guide : undefined,
   );
@@ -90,8 +91,6 @@ export function ChangeScreen() {
   // 法语引导的句子交给设置里的 AI；设置里选的是内置规则（不认法语）时，照旧发英文句子（D-228）。
   const guideLocale = locale === 'fr' && aiMode === 'mock' ? 'en' : locale;
   const [auto] = useState(() => guideText(guide, guideLocale) ?? (params.next ? next : null));
-  // 引导第 1 步（D-231）：句子打进输入框后停下，用户自己点发送；发送后直接生效，不进草稿。
-  const firstStep = isLookParam(guide);
   const propose = useWorkspace((s) => s.propose);
   const confirm = useWorkspace((s) => s.confirm);
   const setGuideStage = useGuide((s) => s.setStage);
@@ -179,7 +178,7 @@ export function ChangeScreen() {
     // 「撤销」会立即回到上一个版本、可能换主题：先把这个页面的导航栏固定住。Android 上带「关闭」
     // 按钮的导航栏在这时更新会崩（react-native-screens：child already has a parent）。
     navigation.setOptions({ ...stackScreenOptions(palette), ...closeButtonOption(palette) });
-    if (firstStep) {
+    if (guide) {
       // 顶部照常「已改好 · 撤销」；回到首页显示第 2 步。
       const proposed = await propose(text.trim(), offline ? presetPlanner : undefined);
       // 重新看引导时首页已经有这两个按钮：第 1 步算做完了。
@@ -195,7 +194,6 @@ export function ChangeScreen() {
       return;
     }
     const result = await change(text.trim(), offline ? presetPlanner : undefined, {
-      ...(guide ? { guide } : {}),
       ...(about ? { about } : {}),
     });
     if (result.kind === 'rejected' || result.kind === 'invalid') {
@@ -214,7 +212,8 @@ export function ChangeScreen() {
     if (result.kind === 'applied') afterApply(result.applied);
   }
 
-  // 引导和「接着改」的句子一个字一个字打进输入框，打完自动处理：用户看到「原来可以这么说」。
+  // 引导和「接着改」的句子一个字一个字打进输入框：用户看到「原来可以这么说」。引导的句子停下等用户发送，
+  // 「接着改」打完自动处理。
   useEffect(() => {
     const text = auto;
     if (!text) return;
@@ -226,9 +225,11 @@ export function ChangeScreen() {
       clearInterval(timer);
       setTyping(false);
       // 引导的句子中英文用内置规则；法语内置规则不认，交给设置里的 AI（见 guide/store.ts）。
-      if (guide && guideLocale !== 'fr') setPresetText(text);
-      if (firstStep) return;
-      void submit(text, !!guide && guideLocale !== 'fr');
+      if (guide) {
+        if (guideLocale !== 'fr') setPresetText(text);
+        return;
+      }
+      void submit(text, false);
     }, typeDelay(text.length));
     return () => clearInterval(timer);
     // 只在打开时打一次。

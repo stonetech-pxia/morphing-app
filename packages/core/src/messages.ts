@@ -1152,11 +1152,6 @@ export const strings = {
     zh: '改好了，这是改完后的样子',
     fr: 'C’est fait, voici le nouveau rendu',
   },
-  draftGuideHint: {
-    en: 'Tap Apply to keep it, or Change to keep going.',
-    zh: '点「应用」保留，点「修改」接着说。',
-    fr: 'Appuyez sur « Appliquer » pour garder, ou sur « Modifier » pour continuer.',
-  },
   draftChatTitle: { en: 'Change the draft', zh: '修改草稿', fr: 'Modifier le brouillon' },
   draftChatClose: { en: 'Hide', zh: '收起', fr: 'Masquer' },
   draftChatPlaceholder: { en: 'Say one more thing…', zh: '再说一句…', fr: 'Dites-en un peu plus…' },
@@ -1324,42 +1319,6 @@ export const strings = {
   },
   guideLater: { en: 'Later', zh: '以后再说', fr: 'Plus tard' },
   guideSkipAll: { en: 'Skip the guide', zh: '跳过引导', fr: 'Passer le guide' },
-  guideTask: {
-    en: 'Starter task: make a quick action with one sentence',
-    zh: '新手任务：一句话做一个快捷操作',
-    fr: 'Tâche de démarrage : créer une action rapide en une phrase',
-  },
-  guideAdded: { en: 'Added by AI', zh: 'AI 加的', fr: 'Ajouté par l’IA' },
-  readyTryPhotos: {
-    en: 'Try it with sample photos',
-    zh: '用示例照片试一下',
-    fr: 'Essayer avec des photos d’exemple',
-  },
-  readyTryPdfs: {
-    en: 'Try it with sample contracts',
-    zh: '用示例合同试一下',
-    fr: 'Essayer avec des contrats d’exemple',
-  },
-  readyRunOwn: {
-    en: 'Use my own files',
-    zh: '用我自己的文件',
-    fr: 'Utiliser mes propres fichiers',
-  },
-  runTryOwn: {
-    en: 'Now try it with your own files',
-    zh: '换成你自己的文件试试',
-    fr: 'Essayez avec vos propres fichiers',
-  },
-  samplePhotos: {
-    en: 'Sample photos ({n})',
-    zh: '示例照片（{n} 张）',
-    fr: 'Photos d’exemple ({n})',
-  },
-  samplePdfs: {
-    en: 'Sample contracts ({n})',
-    zh: '示例合同（{n} 份）',
-    fr: 'Contrats d’exemple ({n})',
-  },
   settingsGuide: { en: 'Show the guide again', zh: '重新看新手引导', fr: 'Revoir le guide' },
   settingsGuideHint: {
     en: 'The intro and two short exercises',
@@ -3339,16 +3298,6 @@ const SINGULAR_MESSAGES: Partial<Record<StringKey, Localized>> = {
     en: 'You have a draft · {n} step',
     zh: '你有一份草稿 · {n} 步',
     fr: 'Vous avez un brouillon · {n} étape',
-  },
-  samplePhotos: {
-    en: 'Sample photo ({n})',
-    zh: '示例照片（{n} 张）',
-    fr: 'Photo d’exemple ({n})',
-  },
-  samplePdfs: {
-    en: 'Sample contract ({n})',
-    zh: '示例合同（{n} 份）',
-    fr: 'Contrat d’exemple ({n})',
   },
   draftDropped: {
     en: 'The app changed since you left the draft; {n} step no longer fits and was removed.',
