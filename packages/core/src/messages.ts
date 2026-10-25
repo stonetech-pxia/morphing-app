@@ -103,7 +103,7 @@ export const strings = {
     zh: '预览渲染失败。',
     fr: 'Impossible d’afficher l’aperçu.',
   },
-  applied: { en: 'Changed', zh: '已改好', fr: 'Modifié' },
+  applied: { en: 'Changed: {summary}', zh: '已改好：{summary}', fr: 'Modifié : {summary}' },
   conflict: {
     en: 'The app changed while you were previewing. Nothing was changed; please try again.',
     zh: '预览期间 App 已被修改，这次没有改，请重新生成。',

@@ -1004,7 +1004,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
           set({
             banner: {
               kind: 'applied',
-              message: `${msg('applied')}：${done.summary}`,
+              message: msg('applied', { summary: done.summary }),
               undoTo: done.undoTo,
             },
           });
