@@ -3,6 +3,7 @@ import {
   pageTarget,
   type Component,
   type ComponentStyle,
+  type EntryLook,
   type Locale,
   type NavTarget,
   type Page,
@@ -29,9 +30,10 @@ import { FileList } from './FileList';
 import { FilePick } from './FilePick';
 import { ImageView } from './ImageView';
 import { RichText } from './RichText';
-import { cardColors, type Palette } from './theme';
+import { cardColors, iconColors, type Palette } from './theme';
 import { Button, Card, IconTile } from './ui';
 import { ToolGrid } from './ToolGrid';
+import { QuickActionList } from './QuickActionList';
 import { WorkflowRunner } from './WorkflowRunner';
 
 // 白名单渲染器（§5.2、§7A）：配置中的每种组件类型对应这里的一个真实组件。
@@ -92,7 +94,7 @@ function Tile({
   subtitle,
   onPress,
   titleColor,
-  row = false,
+  look,
 }: {
   env: RenderEnv;
   style: ComponentStyle | undefined;
@@ -101,15 +103,17 @@ function Tile({
   subtitle?: string | undefined;
   onPress: () => void;
   titleColor?: string;
-  /** 像设置页的一行：浅色图标底、右边有箭头。 */
-  row?: boolean;
+  /** row = 像设置页的一行（浅色图标底、右边有箭头），tile = 大图标块（D-230）。 */
+  look: EntryLook;
 }) {
   const { palette } = env;
   const colors = cardColors(palette, style?.tone);
   const scale = SIZES[style?.size ?? 'medium'];
   const center = style?.align === 'center';
   const stacked = center || env.inCell;
-  const listRow = row && !stacked && !style?.tone;
+  // 宫格和居中排列里没有横向的位置，总是竖着排。
+  const listRow = look === 'row' && !stacked;
+  const iconTile = iconColors(palette, listRow ? 'tint' : 'solid', style?.tone);
   return (
     <Card
       palette={palette}
@@ -122,8 +126,7 @@ function Tile({
           palette={palette}
           icon={icon}
           size={Math.round((listRow ? 40 : 46) * scale)}
-          background={listRow ? palette.primaryTint : colors.accent}
-          color={listRow ? palette.primaryText : colors.on}
+          {...iconTile}
         />
         <View style={[styles.flexText, stacked && styles.centerText, center && styles.centerItems]}>
           <Text
@@ -155,10 +158,12 @@ function Tile({
 
 function ToolCard({
   toolId,
+  look,
   style,
   env,
 }: {
   toolId: string;
+  look: EntryLook | undefined;
   style?: ComponentStyle;
   env: RenderEnv;
 }) {
@@ -182,6 +187,7 @@ function ToolCard({
       title={page?.title ?? localize(def.name, env.locale)}
       subtitle={localize(def.description, env.locale)}
       onPress={() => env.navigate(pageTarget(installed.pageId))}
+      look={look ?? 'tile'}
     />
   );
 }
@@ -283,7 +289,14 @@ export function ComponentView({ component, env }: { component: Component; env: R
         />
       );
     case 'toolCard':
-      return <ToolCard toolId={component.props.toolId} style={style} env={env} />;
+      return (
+        <ToolCard
+          toolId={component.props.toolId}
+          look={component.props.look}
+          style={style}
+          env={env}
+        />
+      );
     case 'toolGrid':
       return (
         <ToolGrid
@@ -301,6 +314,7 @@ export function ComponentView({ component, env }: { component: Component; env: R
           title={component.props.title}
           titleColor={palette.primaryText}
           onPress={() => env.navigate('tools')}
+          look={component.props.look ?? 'tile'}
         />
       );
     case 'shortcut':
@@ -312,7 +326,7 @@ export function ComponentView({ component, env }: { component: Component; env: R
           title={component.props.title}
           subtitle={component.props.subtitle}
           onPress={() => env.navigate(component.props.target)}
-          row
+          look={component.props.look ?? 'row'}
         />
       );
     case 'button':
@@ -321,6 +335,7 @@ export function ComponentView({ component, env }: { component: Component; env: R
           palette={palette}
           label={component.props.label}
           variant={component.props.variant}
+          icon={component.props.icon}
           onPress={env.interactive ? () => env.navigate(component.props.target) : undefined}
           onLongPress={env.onLongPress}
           style={style?.align === 'center' ? styles.centerSelf : undefined}
@@ -342,8 +357,7 @@ export function ComponentView({ component, env }: { component: Component; env: R
                 palette={palette}
                 icon={component.props.icon}
                 size={36}
-                background={colors.accent}
-                color={colors.on}
+                {...iconColors(palette, 'solid', style?.tone ?? 'secondary')}
               />
             ) : null}
             <View style={styles.flexText}>
@@ -402,7 +416,15 @@ export function ComponentView({ component, env }: { component: Component; env: R
         />
       );
     case 'workflowRunner':
-      return <WorkflowRunner workflowId={component.props.workflowId} env={env} />;
+      return (
+        <WorkflowRunner
+          workflowId={component.props.workflowId}
+          look={component.props.look}
+          env={env}
+        />
+      );
+    case 'quickActionList':
+      return <QuickActionList props={component.props} env={env} />;
   }
 }
 
@@ -496,12 +518,16 @@ function runnerGrid(components: readonly Component[]): (Component | Component[])
   const blocks: (Component | Component[])[] = [];
   let run: Component[] = [];
   const flush = () => {
-    if (run.length >= 2) for (let i = 0; i < run.length; i += 2) blocks.push(run.slice(i, i + 2));
+    const tiles =
+      run.length >= 2 || run.some((c) => c.type === 'workflowRunner' && c.props.look === 'tile');
+    if (tiles) for (let i = 0; i < run.length; i += 2) blocks.push(run.slice(i, i + 2));
     else blocks.push(...run);
     run = [];
   };
   for (const c of components) {
-    if (c.type === 'workflowRunner') run.push(c);
+    // 指定了 row / card 的不进宫格；指定了 tile 的单独一个也放进宫格（D-230）。
+    if (c.type === 'workflowRunner' && c.props.look !== 'row' && c.props.look !== 'card')
+      run.push(c);
     else {
       flush();
       blocks.push(c);

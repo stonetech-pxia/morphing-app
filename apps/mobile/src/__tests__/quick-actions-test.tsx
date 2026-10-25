@@ -30,6 +30,40 @@ describe('quick-action categories (UI)', () => {
     expect(screen.getAllByTestId('banner')).toHaveLength(1);
   });
 
+  it('shows a quick action list and an icon-only button on the home page (D-230)', async () => {
+    const { store } = await renderToolsApp();
+    await act(async () => {
+      await store.getState().proposeOps(
+        [
+          {
+            op: 'addComponent',
+            pageId: 'home',
+            component: { id: 'photos', type: 'quickActionList', props: { kind: 'image' } },
+          },
+          {
+            op: 'addComponent',
+            pageId: 'home',
+            component: {
+              id: 'open-ai',
+              type: 'button',
+              props: { label: '修改这个 App', target: 'ai', variant: 'icon', icon: 'sparkles' },
+            },
+          },
+        ],
+        'setup',
+      );
+      await store.getState().confirm();
+    });
+    expect(await screen.findByLabelText('修改这个 App')).toBeTruthy();
+    await fireEvent.press(await screen.findByTestId('preset-add-visa-photo'));
+    await waitFor(() =>
+      expect(store.getState().config!.workflows.some((w) => w.presetId === 'visa-photo')).toBe(
+        true,
+      ),
+    );
+    expect(await screen.findByTestId('preset-run-visa-photo')).toBeTruthy();
+  });
+
   it('opens the kernel library from the starter home', async () => {
     await renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), {
       seed: createStarterWorkspace,

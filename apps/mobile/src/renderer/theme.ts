@@ -221,3 +221,21 @@ export function cardColors(palette: Palette, tone: ComponentStyle['tone']) {
       return { background: palette.surface, accent: palette.primary, on: palette.onPrimary };
   }
 }
+
+/**
+ * 图标块的颜色（D-230）：主题设了 iconStyle 时所有图标块都跟着它，没设时用组件自己的默认。
+ * solid = 实色底、白图标；tint = 浅色底、彩色图标（卡片本身有底色时用卡片色系的强调色）。
+ */
+export function iconColors(
+  palette: Palette,
+  fallback: 'solid' | 'tint',
+  tone?: ComponentStyle['tone'],
+) {
+  const colors = cardColors(palette, tone);
+  if ((palette.theme.iconStyle ?? fallback) === 'solid') {
+    return { background: colors.accent, color: colors.on };
+  }
+  return !tone || tone === 'default'
+    ? { background: palette.primaryTint, color: palette.primaryText }
+    : { background: palette.surface, color: colors.accent };
+}

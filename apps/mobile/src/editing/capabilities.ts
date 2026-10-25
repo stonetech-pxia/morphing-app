@@ -62,6 +62,7 @@ export const CAPABILITIES: Record<ComponentType, Capability> = {
   },
   fileList: { text: [{ prop: 'title', max: 60 }], style: [] },
   workflowRunner: { text: [], style: [] },
+  quickActionList: { text: [{ prop: 'title', max: 60, optional: true }], style: [] },
   divider: { text: [], style: [] },
   spacer: { text: [], style: [] },
   group: { text: [{ prop: 'title', max: 60, optional: true }], style: ['tone', 'align'] },

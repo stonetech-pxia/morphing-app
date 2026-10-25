@@ -18,6 +18,7 @@ import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { t } from '../i18n';
 import type { RenderEnv } from '../renderer/components';
 import { formatSize } from '../renderer/FileList';
+import { iconColors } from '../renderer/theme';
 import { Card, IconTile, ListRow, PageTitle, Pill } from '../renderer/ui';
 import { useToolDownloads } from '../tool-download/context';
 import { toolRevoked } from '../tool-download/state';
@@ -130,8 +131,9 @@ export function ToolsView({ env }: { env: RenderEnv }) {
               <IconTile
                 palette={palette}
                 icon={tool.icon}
-                background={installed ? palette.primary : palette.secondary}
-                color="#FFFFFF"
+                {...(installed
+                  ? iconColors(palette, 'solid')
+                  : iconColors(palette, 'solid', 'secondary'))}
               />
               <View style={styles.flex}>
                 <Text style={[palette.font('title', 17), { color: palette.text }]}>

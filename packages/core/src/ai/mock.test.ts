@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
 import { THEME_PRESETS, THEME_PRESET_IDS, presetRequest, type ThemePresetId } from '../presets';
-import type { Locale, WorkspaceConfig } from '../schema';
+import { allComponents, type Locale, type WorkspaceConfig } from '../schema';
+import { createStarterWorkspace } from '../starter';
 import { apply, registry, workspace } from '../test-helpers';
 import { createMockAIProvider } from './mock';
 import type { Plan } from './types';
@@ -453,5 +454,70 @@ describe('mock AI — must refuse', () => {
     expect(await plan('remove the email', workspace('en'), 'en')).toMatchObject({
       reason: 'unknown',
     });
+  });
+});
+
+describe('mock AI — looks (D-230)', () => {
+  const starter = (locale: Locale = 'zh') => createStarterWorkspace(locale, registry);
+  const homeOf = (c: WorkspaceConfig) => allComponents(home(c));
+
+  it('LK1 icon backgrounds for the whole app', async () => {
+    expect((await change('图标改成浅色底', workspace())).after.theme.iconStyle).toBe('tint');
+    expect(
+      (await change('Use solid icon backgrounds', workspace(), 'en')).after.theme.iconStyle,
+    ).toBe('solid');
+  });
+
+  it('LK2 home entries as tiles or rows', async () => {
+    const { after, lines } = await change('首页入口改成大图标', starter());
+    expect(lines.join('\n')).toContain('大图标块');
+    const entries = homeOf(after).filter((c) => c.type === 'shortcut');
+    expect(entries.length).toBeGreaterThan(0);
+    for (const c of entries) expect(c.type === 'shortcut' && c.props.look).toBe('tile');
+    const back = await change('Make the home shortcuts rows', after, 'en');
+    for (const c of homeOf(back.after).filter((x) => x.type === 'shortcut'))
+      expect(c.type === 'shortcut' && c.props.look).toBe('row');
+  });
+
+  it('LK3 home quick actions as rows', async () => {
+    const withRunner = apply(workspace('zh', { withPdf: true }), [
+      {
+        op: 'addComponent',
+        pageId: 'home',
+        component: { id: 'run-merge', type: 'workflowRunner', props: { workflowId: 'pdf-merge' } },
+      },
+    ]);
+    const { after } = await change('快捷操作改成列表', withRunner);
+    const runner = homeOf(after).find((c) => c.id === 'run-merge')!;
+    expect(runner.type === 'workflowRunner' && runner.props.look).toBe('row');
+  });
+
+  it('LK4 icon-only buttons take the icon of what they open', async () => {
+    const withButton = apply(workspace(), [
+      {
+        op: 'addComponent',
+        pageId: 'home',
+        component: {
+          id: 'open-ai',
+          type: 'button',
+          props: { label: '修改', target: 'ai', variant: 'filled' },
+        },
+      },
+    ]);
+    const { after } = await change('按钮只显示图标', withButton);
+    const button = homeOf(after).find((c) => c.id === 'open-ai')!;
+    expect(button.type === 'button' && button.props).toMatchObject({
+      variant: 'icon',
+      icon: 'sparkles',
+    });
+  });
+
+  it('LK5 quick action list on home', async () => {
+    const { after } = await change('首页加上照片快捷操作', workspace());
+    expect(homeOf(after).find((c) => c.type === 'quickActionList')).toMatchObject({
+      props: { kind: 'image' },
+    });
+    const all = await change('Show all quick action categories on home', workspace(), 'en');
+    expect(homeOf(all.after).find((c) => c.type === 'quickActionList')?.props).toEqual({});
   });
 });

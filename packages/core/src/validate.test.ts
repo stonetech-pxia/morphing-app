@@ -34,6 +34,20 @@ describe('validateWorkspace', () => {
     ).toContain('schema');
   });
 
+  it('needs an icon for an icon-only button (D-230)', () => {
+    const button = (props: Record<string, unknown>) =>
+      mutate((c) =>
+        c.pages[0]!.components.push({
+          id: 'b',
+          type: 'button',
+          props: { label: 'AI', target: 'ai', ...props },
+        } as never),
+      );
+    expect(issuesOf(button({ variant: 'icon' }))).toContain('schema');
+    expect(issuesOf(button({ variant: 'icon', icon: 'sparkles' }))).toEqual([]);
+    expect(issuesOf(button({ variant: 'filled', icon: 'sparkles' }))).toEqual([]);
+  });
+
   it('rejects a wrong schemaVersion', () => {
     expect(issuesOf(mutate((c) => Object.assign(c, { schemaVersion: 99 })))).toContain('schema');
   });

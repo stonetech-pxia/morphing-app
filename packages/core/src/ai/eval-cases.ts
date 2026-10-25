@@ -3162,7 +3162,10 @@ const QUICK_ACTION_ENTRY_CASES: EvalCase[] = [
             p.id === 'home' &&
             allComponents(p).some(
               (x) =>
-                (x.type === 'shortcut' || x.type === 'button') && x.props.target === 'quickActions',
+                ((x.type === 'shortcut' || x.type === 'button') &&
+                  x.props.target === 'quickActions') ||
+                // 把分类入口直接放在首页也算（D-230）。
+                (x.type === 'quickActionList' && !x.props.kind),
             ),
         )
           ? null
@@ -3183,12 +3186,128 @@ const QUICK_ACTION_ENTRY_CASES: EvalCase[] = [
             p.id === 'home' &&
             allComponents(p).some(
               (x) =>
-                (x.type === 'shortcut' || x.type === 'button') && x.props.target === 'quickActions',
+                ((x.type === 'shortcut' || x.type === 'button') &&
+                  x.props.target === 'quickActions') ||
+                // 把分类入口直接放在首页也算（D-230）。
+                (x.type === 'quickActionList' && !x.props.kind),
             ),
         )
           ? null
           : 'missing quickActions home entry',
     },
+  },
+];
+// ---- 外观选项（D-230）----
+const homeEntries = (c: WorkspaceConfig) =>
+  allComponents(home(c)).filter((x) => x.type === 'shortcut');
+const quickActionListOn = (kind: string) => (c: WorkspaceConfig) =>
+  allComponents(home(c)).some((x) => x.type === 'quickActionList' && x.props.kind === kind)
+    ? null
+    : `missing a ${kind} quickActionList on home`;
+
+const LOOK_CASES: EvalCase[] = [
+  {
+    id: 'LK1',
+    input: '图标改成浅色底',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) => (c.theme.iconStyle === 'tint' ? null : `iconStyle ${c.theme.iconStyle}`),
+    },
+  },
+  {
+    id: 'LK1-en',
+    input: 'Use solid icon backgrounds',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) => (c.theme.iconStyle === 'solid' ? null : `iconStyle ${c.theme.iconStyle}`),
+    },
+  },
+  {
+    id: 'LK2',
+    input: '首页入口改成大图标',
+    locale: 'zh',
+    setup: 'starter',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        homeEntries(c).every((x) => x.type === 'shortcut' && x.props.look === 'tile')
+          ? null
+          : 'home shortcuts should all be tiles',
+    },
+  },
+  {
+    id: 'LK2-en',
+    input: 'Make the home page shortcuts big cards with a colored icon block instead of list rows',
+    locale: 'en',
+    setup: 'starter',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        homeEntries(c).every((x) => x.type === 'shortcut' && x.props.look === 'tile')
+          ? null
+          : 'home shortcuts should all be tiles',
+    },
+  },
+  {
+    id: 'LK3',
+    input: '把 PDF 页面上的快捷操作改成一行一行的列表，右边有播放按钮',
+    locale: 'zh',
+    setup: 'pdf',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const runners = allComponents(c.pages.find((p) => p.id === 'tool-pdf')!).filter(
+          (x) => x.type === 'workflowRunner',
+        );
+        return runners.length > 0 &&
+          runners.every((x) => x.type === 'workflowRunner' && x.props.look === 'row')
+          ? null
+          : 'PDF quick actions should all be rows';
+      },
+    },
+  },
+  {
+    id: 'LK4',
+    input: '工具箱页面上的「管理工具」按钮改成只显示一个图标',
+    locale: 'zh',
+    setup: 'starter',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const button = allComponents(c.pages.find((p) => p.id === 'toolbox')!).find(
+          (x) => x.id === 'toolbox-manage',
+        );
+        return button?.type === 'button' && button.props.variant === 'icon' && button.props.icon
+          ? null
+          : `manage button is ${JSON.stringify(button?.props)}`;
+      },
+    },
+  },
+  {
+    id: 'LK5',
+    input: '首页加上照片快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: quickActionListOn('image') },
+  },
+  {
+    id: 'LK5-en',
+    input: 'Show my video quick actions right on the home page',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: quickActionListOn('video') },
   },
 ];
 const FRENCH_CASES: readonly EvalCase[] = [
@@ -3397,6 +3516,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,
   ...QUICK_ACTION_ENTRY_CASES,
+  ...LOOK_CASES,
   ...VIDEO_SUBTITLE_CASES,
   ...IMAGE_ANNOTATE_CASES,
   ...IMAGE_ADJUST_CASES,

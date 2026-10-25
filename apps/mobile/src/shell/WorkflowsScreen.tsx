@@ -16,7 +16,7 @@ import {
 } from '@morph/core';
 
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
@@ -42,6 +42,8 @@ export function stepChain(wf: Pick<Workflow, 'steps'>, registry: Registry, local
 /**
  * 快捷操作分类页：先做自己的，再看我的、现成的和工具自带的。
  * 由内核提供（AI 不能修改这个页面）；添加预设是一次可撤销的修改。
+ * inPage：作为页面上的 quickActionList 组件显示（D-230），不滚动、没有提示条；
+ * guard 返回 true 时不响应点按（草稿、预览）。
  */
 export function WorkflowsScreen({
   palette,
@@ -50,6 +52,7 @@ export function WorkflowsScreen({
   kind,
   shared,
   embedded = false,
+  inPage,
 }: {
   palette: Palette;
   locale: Locale;
@@ -57,6 +60,7 @@ export function WorkflowsScreen({
   kind?: QuickActionKind;
   shared?: string;
   embedded?: boolean;
+  inPage?: { title?: string; guard: () => boolean };
 }) {
   const router = useRouter();
   const config = useWorkspace((s) => s.config)!;
@@ -117,8 +121,9 @@ export function WorkflowsScreen({
   };
   const caption = [palette.font('body', 13), { color: palette.muted }];
 
+  const blocked = () => inPage?.guard() ?? false;
   const run = (wf: Workflow) => {
-    if (!fits(wf) || (shared && !share)) return;
+    if (!fits(wf) || (shared && !share) || blocked()) return;
     handed.current = true;
     const route = {
       pathname: '/run/[workflowId]' as const,
@@ -127,8 +132,9 @@ export function WorkflowsScreen({
     if (shared) router.replace(route);
     else router.push(route);
   };
-  const edit = (wf: Workflow) => router.push({ pathname: '/workflow/[id]', params: { id: wf.id } });
-
+  const edit = (wf: Workflow) => {
+    if (!blocked()) router.push({ pathname: '/workflow/[id]', params: { id: wf.id } });
+  };
   const row = (wf: Workflow, subtitle?: string) => (
     <Card key={wf.id} palette={palette} testID={`workflow-${wf.id}`}>
       <View style={styles.cardRow}>
@@ -203,6 +209,7 @@ export function WorkflowsScreen({
                   : t(locale, 'WorkflowsScreen_Add_b7a68')
               }
               onPress={() => {
+                if (blocked()) return;
                 const wf = presetWorkflow(
                   preset,
                   locale,
@@ -227,12 +234,13 @@ export function WorkflowsScreen({
 
   if (!kind)
     return (
-      <ScrollView
+      <Body
+        palette={palette}
+        inPage={inPage}
         testID="workflows-screen"
-        style={{ backgroundColor: palette.background }}
-        contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 48 }}>
+        gap={inPage ? palette.gap - 4 : palette.gap}>
         {/* 页面栈里顶部已有标题，不再重复；嵌在主界面里时没有顶部标题。 */}
-        {embedded ? (
+        {inPage ? null : embedded ? (
           <PageTitle palette={palette}>
             {t(locale, 'WorkflowsScreen_What_Morph_can_do_8f4f4')}
           </PageTitle>
@@ -247,6 +255,7 @@ export function WorkflowsScreen({
             icon={QUICK_ACTION_CATEGORIES[category].icon}
             label={localize(QUICK_ACTION_CATEGORIES[category].name, locale)}
             onPress={() => {
+              if (blocked()) return;
               handed.current = true;
               const route = {
                 pathname: '/quick-actions/[kind]' as const,
@@ -257,21 +266,19 @@ export function WorkflowsScreen({
             }}
           />
         ))}
-      </ScrollView>
+      </Body>
     );
 
   return (
-    <ScrollView
-      testID={`quick-actions-${kind}`}
-      style={{ backgroundColor: palette.background }}
-      contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 48 }}>
+    <Body palette={palette} inPage={inPage} testID={`quick-actions-${kind}`} gap={palette.gap - 4}>
       {/* 分类页总在页面栈里，顶部已有分类名。 */}
-      {embedded ? null : <Banner palette={palette} />}
+      {embedded || inPage ? null : <Banner palette={palette} />}
       <Button
         palette={palette}
         testID="quick-actions-create"
         label={t(locale, 'WorkflowsScreen_Make_your_own_quick_action_8bc98')}
         onPress={() => {
+          if (blocked()) return;
           handed.current = true;
           router.push({
             pathname: '/change',
@@ -304,6 +311,39 @@ export function WorkflowsScreen({
           )}
         </>
       ) : null}
+    </Body>
+  );
+}
+
+/** 页面组件里不滚动，也没有提示条（页面自己有）；标题由 AI 决定。 */
+function Body({
+  palette,
+  inPage,
+  testID,
+  gap,
+  children,
+}: {
+  palette: Palette;
+  inPage: { title?: string } | undefined;
+  testID: string;
+  gap: number;
+  children: ReactNode;
+}) {
+  if (inPage)
+    return (
+      <View testID={testID} style={{ gap }}>
+        {inPage.title ? (
+          <Text style={[palette.font('title', 18), { color: palette.text }]}>{inPage.title}</Text>
+        ) : null}
+        {children}
+      </View>
+    );
+  return (
+    <ScrollView
+      testID={testID}
+      style={{ backgroundColor: palette.background }}
+      contentContainerStyle={{ padding: palette.pad, gap, paddingBottom: 48 }}>
+      {children}
     </ScrollView>
   );
 }

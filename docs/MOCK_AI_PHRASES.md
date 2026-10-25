@@ -277,6 +277,15 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 - 添加内核的 `quickActions` 入口，打开图片、视频、音频、文档、其他分类；不生成替代的分类页面。
 - QAC1 / QAC2：中文和英文首页入口评测。
 
+### 外观选项（D-230，LK1–LK5）
+
+- 「图标改成浅色底」/「图标改成实色底」 / `Use light icon backgrounds` / `Use solid icon backgrounds`：主题的 `iconStyle`。
+- 「首页入口改成大图标」/「首页入口改成列表」 / `Make the home shortcuts tiles` / `Make the home shortcuts rows`：首页所有入口卡片的 `look`。
+- 「快捷操作改成列表」/「小方块」/「卡片」 / `Show quick actions as rows|tiles|cards`：首页快捷操作的 `look`。
+- 「按钮只显示图标」 / `Make the buttons icons only`：首页按钮改成 `variant: icon`，图标用它打开的页面或系统入口的图标。
+- 「首页加上照片快捷操作」（照片 / 视频 / 音频 / 文档 / 其他） / `Add photo quick actions to home`：加一个 `quickActionList {kind}`。
+- 「首页显示全部快捷操作分类」 / `Show all quick action categories on home`：加一个不带 kind 的 `quickActionList`。
+
 ### 法语界面（D-224 / P-037）
 
 内置 mock 不解析法语，法语界面下使用英文示例和句式。真实模型按界面语言创建法语名称、说明和后续请求。法语默认货币为 EUR；FR1 / FR2 / FR3 评测分别覆盖创建图片压缩操作、拒绝直接代发邮件、记账表。

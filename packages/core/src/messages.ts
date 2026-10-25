@@ -1557,6 +1557,16 @@ export const extractedMessages = {
     zh: '文件列表「{v0}」',
     fr: 'liste de fichiers « {v0} »',
   },
+  describe_quick_action_list: {
+    en: 'quick action list',
+    zh: '快捷操作列表',
+    fr: 'liste d’actions rapides',
+  },
+  describe_quick_action_list_kind: {
+    en: '“{v0}” quick action list',
+    zh: '「{v0}」快捷操作列表',
+    fr: 'liste d’actions rapides « {v0} »',
+  },
   describe_quick_action_1fb38: {
     en: 'quick action “{v0}”',
     zh: '快捷操作「{v0}」',
