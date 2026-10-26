@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+import { prepareOps } from './change';
+import { recordValue } from './data';
+import { createDefaultWorkspace } from './defaults';
 import { evaluateFormula, parseFormula } from './formula';
+import { registry } from './test-helpers';
 
 const calc = (text: string, values: Record<string, number | undefined> = {}) => {
   const parsed = parseFormula(text);
@@ -46,5 +50,96 @@ describe('parseFormula / evaluateFormula (D-188)', () => {
     ]) {
       expect(parseFormula(bad).ok, bad).toBe(false);
     }
+  });
+});
+
+describe('if(compare, a, b) (D-246)', () => {
+  it('picks the second or third part by a comparison', () => {
+    // 满 100 打九折。
+    const discount = 'if({total} >= 100, {total} * 0.9, {total})';
+    expect(calc(discount, { total: 120 })).toBeCloseTo(108);
+    expect(calc(discount, { total: 100 })).toBeCloseTo(90);
+    expect(calc(discount, { total: 80 })).toBe(80);
+    expect(calc('if({a} = 0.3, 1, 0)', { a: 0.1 + 0.2 })).toBe(1);
+    expect(calc('if({a} < {b}, {b} - {a}, 0)', { a: 2, b: 5 })).toBe(3);
+    expect(calc('if({a} > 2, 1, 0) + if({a} <= 2, 10, 0)', { a: 2 })).toBe(10);
+    // 中文输入法的逗号和 ≥ 也认。
+    expect(calc('if({a} ≥ 1， 1， 0)', { a: 1 })).toBe(1);
+  });
+
+  it('can be nested within the usual nesting limit', () => {
+    const grade = 'if({score} >= 90, 3, if({score} >= 60, 2, 1))';
+    expect([95, 60, 10].map((score) => calc(grade, { score }))).toEqual([3, 2, 1]);
+    const deep = `${'if({a} > 0, '.repeat(21)}1${', 0)'.repeat(21)}`;
+    expect(parseFormula(deep).ok).toBe(false);
+  });
+
+  it('has no value when either side of the comparison is empty', () => {
+    expect(calc('if({a} > 1, 1, 0)', {})).toBeUndefined();
+    // 没选中的那一边空着没关系。
+    expect(calc('if({a} > 1, 1, {b})', { a: 5 })).toBe(1);
+  });
+
+  it('allows comparisons only as the first part of if, and no other words', () => {
+    for (const bad of [
+      '{a} > 1',
+      'if({a}, 1, 0)',
+      'if({a} > 1, 1)',
+      'if({a} > 1, 1, 0, 2)',
+      'if {a} > 1, 1, 0',
+      'if({a} == 1, 1, 0)',
+      'if({a} > 1 > 0, 1, 0)',
+      'max({a}, 1)',
+      'IFS({a} > 1, 1, 0)',
+      'if({a} > 1, {b} > 2, 0)',
+    ]) {
+      expect(parseFormula(bad).ok, bad).toBe(false);
+    }
+    const parsed = parseFormula('if({a} > {b}, {c}, {a})');
+    expect(parsed.ok && parsed.refs).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('if in a formula field', () => {
+  it('validates and computes on a record', () => {
+    const collection = {
+      id: 'orders',
+      name: '订单',
+      fields: [
+        { id: 'total', name: '金额', type: 'money' as const, currency: 'CNY' },
+        {
+          id: 'pay',
+          name: '实付',
+          type: 'formula' as const,
+          expression: 'if({total} >= 100, {total} * 0.9, {total})',
+          currency: 'CNY',
+        },
+      ],
+    };
+    const ctx = { registry, locale: 'zh' as const, now: new Date(2026, 9, 22) };
+    const ok = prepareOps(createDefaultWorkspace('zh'), [{ op: 'addCollection', collection }], ctx);
+    expect(ok.ok).toBe(true);
+    const record = {
+      id: 'r',
+      collectionId: 'orders',
+      values: { total: 150 },
+      createdAt: 0,
+      updatedAt: 0,
+    };
+    expect(recordValue(record, collection, 'pay')).toBe(135);
+
+    const bad = {
+      ...collection,
+      fields: [
+        collection.fields[0]!,
+        { ...collection.fields[1]!, expression: 'if({total} > 1, {missing}, 0)' },
+      ],
+    };
+    const rejected = prepareOps(
+      createDefaultWorkspace('zh'),
+      [{ op: 'addCollection', collection: bad }],
+      ctx,
+    );
+    expect(rejected.ok).toBe(false);
   });
 });

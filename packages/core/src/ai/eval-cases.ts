@@ -3674,6 +3674,22 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
       ),
     },
   },
+  {
+    id: 'FM1',
+    input: '给记账表加一个「实付」公式字段：金额满 100 打九折，不满不打折',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const formula = c.collections.flatMap((x) => x.fields).find((f) => f.type === 'formula');
+        return formula?.type === 'formula' && /^\s*if\(/.test(formula.expression)
+          ? null
+          : `expected a formula field using if(…), got ${JSON.stringify(formula)}`;
+      },
+    },
+  },
 ];
 
 export const EVAL_CASES: readonly EvalCase[] = [
