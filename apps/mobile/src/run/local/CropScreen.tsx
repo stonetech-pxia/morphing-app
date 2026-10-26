@@ -81,6 +81,7 @@ function reduce(
   action: CropAction,
   sizes: { width: number; height: number }[],
   aspect: number | null,
+  starts: readonly (Rect | undefined)[] = [],
 ): CropState {
   const size = sizes[state.index]!;
   const rect = state.rects[state.index]!;
@@ -126,19 +127,21 @@ function reduce(
     case 'next':
       return { ...state, index: Math.min(state.index + 1, sizes.length - 1), drag: null };
     case 'reset':
-      return { ...state, rects: replace(initialRect(size, aspect)) };
+      return { ...state, rects: replace(starts[state.index] ?? initialRect(size, aspect)) };
   }
 }
 
 export function CropScreen({ input, palette, locale, onDone, onCancel }: LocalScreenProps<'crop'>) {
-  const { items, aspect } = input;
+  const { items, aspect, initial } = input;
   const sizes = items.map((it) => ({ width: it.width ?? 1, height: it.height ?? 1 }));
+  // 自动框脸给的框（D-252）；没有的照片居中。「重来」回到这个框。
+  const starts = sizes.map((size, i) => initial?.[i] ?? initialRect(size, aspect));
   const [state, dispatch] = useReducer(
-    (s: CropState, a: CropAction) => reduce(s, a, sizes, aspect),
+    (s: CropState, a: CropAction) => reduce(s, a, sizes, aspect, starts),
     null,
     () => ({
       index: 0,
-      rects: sizes.map((size) => initialRect(size, aspect)),
+      rects: starts,
       box: { width: 0, height: 0 },
       drag: null,
     }),

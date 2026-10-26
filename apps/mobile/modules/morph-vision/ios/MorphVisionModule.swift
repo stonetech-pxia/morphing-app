@@ -69,6 +69,15 @@ public class MorphVisionModule: Module {
       return try self.removeBackground(uri, background: background, output: output)
     }
 
+    // 证件照（D-252）：人脸框（像素，原点在左上角，已按 EXIF 摆正）和只保留人像、换成纯色背景。
+    AsyncFunction("detectFaces") { (uri: URL) -> [String: Any] in
+      return try self.detectFaces(uri)
+    }
+
+    AsyncFunction("replacePersonBackground") { (uri: URL, color: String, output: URL) -> [String: Any] in
+      return try self.replacePersonBackground(uri, color: color, output: output)
+    }
+
     AsyncFunction("adjustImage") { (uri: URL, options: [String: Any], format: String, output: URL) -> [String: Any] in
       return try self.adjustImage(uri, options: options, format: format, output: output)
     }
@@ -295,6 +304,54 @@ public class MorphVisionModule: Module {
     guard let observation = request.results?.first, !observation.allInstances.isEmpty else { throw VisionFailedException("no subject") }
     let buffer = try observation.generateMaskedImage(ofInstances: observation.allInstances, from: handler, croppedToInstancesExtent: false)
     return try writeCutout(CIImage(cvPixelBuffer: buffer), background: background, output: output)
+  }
+
+  private func detectFaces(_ uri: URL) throws -> [String: Any] {
+    let image = try loadImage(uri)
+    let request = VNDetectFaceRectanglesRequest()
+    let handler = VNImageRequestHandler(ciImage: image, options: [:])
+    do { try handler.perform([request]) } catch { throw VisionFailedException(error.localizedDescription) }
+    let width = image.extent.width
+    let height = image.extent.height
+    // Vision 的框是 0–1 的比例，原点在左下角：换成像素、原点在左上角。
+    let faces: [[String: Double]] = (request.results ?? []).map { face in
+      let box = face.boundingBox
+      return [
+        "x": Double(box.minX * width),
+        "y": Double((1 - box.maxY) * height),
+        "width": Double(box.width * width),
+        "height": Double(box.height * height),
+      ]
+    }
+    return ["width": Int(width), "height": Int(height), "faces": faces]
+  }
+
+  /**
+   * 人像分割（iOS 15 起，VNGeneratePersonSegmentationRequest，accurate）：人留下，其余换成纯色，输出 PNG。
+   * 遮罩比原图小，放大到原图大小再混合；发丝边缘是半透明的过渡。
+   */
+  private func replacePersonBackground(_ uri: URL, color: String, output: URL) throws -> [String: Any] {
+    guard color.range(of: "^#[0-9A-Fa-f]{6}$", options: .regularExpression) != nil,
+          let rgb = UInt32(color.dropFirst(), radix: 16) else { throw VisionFailedException("invalid color") }
+    let image = try loadImage(uri)
+    let request = VNGeneratePersonSegmentationRequest()
+    request.qualityLevel = .accurate
+    request.outputPixelFormat = kCVPixelFormatType_OneComponent8
+    let handler = VNImageRequestHandler(ciImage: image, options: [:])
+    do { try handler.perform([request]) } catch { throw VisionFailedException(error.localizedDescription) }
+    guard let buffer = request.results?.first?.pixelBuffer else { throw VisionFailedException("no person") }
+    var mask = CIImage(cvPixelBuffer: buffer)
+    mask = mask.transformed(by: CGAffineTransform(
+      scaleX: image.extent.width / mask.extent.width, y: image.extent.height / mask.extent.height))
+    let fill = CIImage(color: CIColor(
+      red: CGFloat((rgb >> 16) & 255) / 255, green: CGFloat((rgb >> 8) & 255) / 255, blue: CGFloat(rgb & 255) / 255
+    )).cropped(to: image.extent)
+    guard let blend = CIFilter(name: "CIBlendWithMask", parameters: [
+      kCIInputImageKey: image, kCIInputBackgroundImageKey: fill, kCIInputMaskImageKey: mask,
+    ])?.outputImage?.cropped(to: image.extent) else { throw VisionFailedException("blend") }
+    try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try ciContext.writePNGRepresentation(of: blend, to: output, format: .RGBA8, colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
+    return ["width": Int(blend.extent.width), "height": Int(blend.extent.height), "size": Self.fileSize(output)]
   }
 
   private func writeCutout(_ foreground: CIImage, background: String, output: URL) throws -> [String: Any] {

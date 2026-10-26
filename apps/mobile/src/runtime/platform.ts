@@ -110,6 +110,24 @@ export interface VisionPlatform {
     relPath: string,
   ): Promise<EncodedImage>;
 
+  /**
+   * 证件照（D-252）：找人脸。坐标是 width × height 的图（已摆正，Android 会先缩小）上的像素，
+   * 调用方按比例换回原图。没有这个能力时没有这个方法。
+   */
+  detectFaces?(uri: string): Promise<{ width: number; height: number; faces: Box[] }>;
+  /**
+   * 证件照换底色（D-252）：人留下，其余换成纯色，输出 PNG。iOS 用人像分割（iOS 15 起），
+   * Android 用主体分割（和去背景同一个模型，要 Google Play 服务）。
+   */
+  replaceBackground?(
+    uri: string,
+    color: string,
+    runId: string,
+    relPath: string,
+  ): Promise<EncodedImage>;
+  /** replaceBackground 用的是系统自带的人像分割（iOS），不用先确认下载模型（Android 的主体分割要）。 */
+  readonly personSegmentation?: boolean;
+
   /** 这种语言（BCP 47）系统能不能识别。 */
   supportsLanguage(code: string): boolean;
   /** 识别文字；languages 是 BCP 47，第一种是用户选的语言。文字只返回给 App。 */

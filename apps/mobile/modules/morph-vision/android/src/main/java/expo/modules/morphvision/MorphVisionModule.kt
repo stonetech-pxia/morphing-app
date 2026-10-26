@@ -72,6 +72,9 @@ class MorphVisionModule : Module() {
       BackgroundRemoval.remove(context, Uri.parse(uri), background, File(Uri.parse(output).path!!))
     }
 
+    // 证件照（D-252）：ML Kit 人脸检测（模型打包进 App）；换底色用上面的主体分割（Google Play 服务的模型）。
+    AsyncFunction("detectFaces") { uri: String -> FaceFinder.detect(context, Uri.parse(uri)) }
+
     AsyncFunction("adjustImage") { uri: String, options: Map<String, Any?>, format: String, output: String ->
       ImageAdjustment.adjust(context, Uri.parse(uri), options, format, File(Uri.parse(output).path!!))
     }

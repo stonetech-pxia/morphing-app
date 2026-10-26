@@ -32,6 +32,24 @@ export function expoVision(
       return { uri: output, ...(await native.removeBackground(uri, background, output)) };
     },
 
+    ...(native.detectFaces
+      ? {
+          detectFaces: (uri: string) => native.detectFaces!(uri),
+        }
+      : {}),
+    personSegmentation: Boolean(native.replacePersonBackground),
+    ...(native.replacePersonBackground || native.removeBackground
+      ? {
+          async replaceBackground(uri: string, color: string, runId: string, relPath: string) {
+            const output = runFileUri(runId, relPath);
+            const done = native.replacePersonBackground
+              ? await native.replacePersonBackground(uri, color, output)
+              : await native.removeBackground!(uri, color, output);
+            return { uri: output, ...done };
+          },
+        }
+      : {}),
+
     supportsLanguage: (code) => native.supportsLanguage(code),
 
     async recognizeText(uri, languages) {

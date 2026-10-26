@@ -17,7 +17,8 @@ export interface Rect {
 export interface LocalSteps {
   annotate: { in: { items: RunItem[] }; out: ImageAnnotation[][] };
   /** 逐张框选裁剪区域（原图像素）。aspect 为 null 时自由比例。 */
-  crop: { in: { items: RunItem[]; aspect: number | null }; out: Rect[] };
+  /** initial：每张照片先摆好的框（证件照自动框脸，D-252）；null 或没有时居中。 */
+  crop: { in: { items: RunItem[]; aspect: number | null; initial?: (Rect | null)[] }; out: Rect[] };
   /**
    * 整理 PDF 页面：选页、删页、排序、旋转。返回保留的页（0 起的原页码），按新顺序，
    * rotate 是在原来基础上再顺时针转的角度。thumbnails 有 PDF 预览包时才有。

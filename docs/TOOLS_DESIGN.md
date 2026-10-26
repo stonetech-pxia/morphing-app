@@ -209,6 +209,8 @@ interface StepContext {
 | Speech、AVFoundation、CryptoKit                                                               | 系统自带         | iOS     | Apple 系统框架                    | 语音转文字（morph-speech，§12）                               |
 | whisper.cpp（含 ggml，CMake 构建时按 SHA-256 下载源码）                                       | 1.9.5            | Android | MIT                               | 语音转文字（§12）                                             |
 | MediaExtractor、MediaCodec                                                                    | 系统自带         | Android | Android 系统接口                  | 把音频解码给 whisper（§12）                                   |
+| `com.google.mlkit:face-detection`                                                             | 16.1.7           | Android | 闭源，Google ML Kit 条款（P-015） | 证件照自动框脸，模型打包进 App（D-252）                       |
+| Vision（`VNDetectFaceRectanglesRequest`、`VNGeneratePersonSegmentationRequest`）、Core Image  | 系统自带         | iOS     | Apple 系统框架                    | 证件照自动框脸、换底色（D-252）                               |
 | `expo-notifications`（npm 包，带 iOS / Android 原生代码）                                     | 58.1.6           | 两端    | MIT                               | 提醒：本地通知（D-251），不注册推送                           |
 
 ## 7. 预设工作流和编辑
@@ -282,10 +284,10 @@ interface StepContext {
 
 T8 起有了开发版构建（D-084），下面这些可以用原生模块做，但还没排期：
 
-- 证件照自动框脸 / 换底色（Vision 人脸和人像分割）、中文表单填写、「用 Morph 打开」（文件类型关联；「分享到 Morph」已经做了，见 §11）。
+- 中文表单填写、「用 Morph 打开」（文件类型关联；「分享到 Morph」已经做了，见 §11）。证件照自动框脸和换底色已经做了（D-252）。
 - 桌面小组件、Android 相册清理；音频（语音转文字、压小 / 转格式、剪一段、录音、拼接，由音频工具做，D-150 起）。
 - 视频：iPhone 上后台继续处理（Android 已经可以，D-160；iOS 26 的后台任务等真机确认，D-163）、用 Morph 录像、HEVC 输出。
-- Android 上给已有照片找边（ML Kit 没有这个接口，目前用扫描包）。
+- Android 上给已有照片找边（ML Kit 没有这个接口，目前用扫描包；看过的替代办法都不行，见 D-253）。
 - PDF 加密解密（第二批）；压缩 PDF 时用原生渲染代替 PDF 预览下载内容。
 
 ## 10. 里程碑
@@ -421,3 +423,5 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
 | `text.replace` | `find`、`replaceWith`（都是私有参数）、`ignoreCase` | 按字面全部替换，不是正则；AI 只看到 `<user text>`（D-082）     |
 | `text.extract` | `kind`：phone / email / url / number / date         | 一行一个，规则同 `{ocr:规则}`（`core/text-rules.ts`）          |
 | `text.lines`   | `mode`：split / join；`separator`                   | 按逗号（含中文逗号、顿号）、分号、空格、制表符拆行，或接成一行 |
+
+**证件照换底色 + 自动框脸**（D-252）：`image.idPhoto` 的 `background`（keep / white / blue / red / gray / custom + `color`）和 `autoCenter`。换底色在裁剪前对整张照片做：iOS 人像分割（`replacePersonBackground`），Android 主体分割（同去背景，第一次要确认下载模型）。自动框脸：系统人脸检测（`detectFaces`；iOS Vision、Android ML Kit）→ `@morph/tool-image` 的 `faceCrop`（头占照片高度按规格的 `HEAD_RATIO`）→ 作为裁剪界面的初始框，用户仍然确认。

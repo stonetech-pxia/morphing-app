@@ -3831,6 +3831,39 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
         (p.notes ?? []).length > 0 ? null : 'expected a note that it will not run by itself',
     },
   },
+  {
+    id: 'IDP1',
+    input: '新建一个快捷操作：选照片，做成一寸蓝底证件照，自动框脸',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.photos', 'image.idPhoto'],
+        (steps) =>
+          param('image.idPhoto', 'spec', 'cn-1inch')(steps) ??
+          param('image.idPhoto', 'background', 'blue')(steps) ??
+          param('image.idPhoto', 'autoCenter', true)(steps),
+      ),
+    },
+  },
+  {
+    id: 'IDP2',
+    input: 'Make a quick action for a US visa photo on a white background',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.photos', 'image.idPhoto'],
+        (steps) =>
+          param('image.idPhoto', 'spec', 'us-passport')(steps) ??
+          param('image.idPhoto', 'background', 'white')(steps),
+      ),
+    },
+  },
 ];
 
 export const EVAL_CASES: readonly EvalCase[] = [

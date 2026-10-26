@@ -14,6 +14,17 @@ export const IMAGE_PAGE_ID = 'tool-image';
 
 export const IMAGE_FORMATS = ['jpeg', 'png', 'webp'] as const;
 
+/** 证件照底色（D-252）：keep 不换；常用颜色有固定的色值，custom 用参数 color。 */
+export const ID_PHOTO_BACKGROUNDS = ['keep', 'white', 'blue', 'red', 'gray', 'custom'] as const;
+export const ID_PHOTO_BACKGROUND_COLORS: Record<string, string> = {
+  white: '#FFFFFF',
+  // 国内证件照常用的蓝底、红底。
+  blue: '#438EDB',
+  red: '#FF0000',
+  // 英国护照等要的浅灰。
+  gray: '#E6E6E6',
+};
+
 const formatField: ParamField = {
   key: 'format',
   label: { en: 'Format', zh: '格式', fr: 'Format' },
@@ -840,16 +851,27 @@ export const IMAGE_COMPOSE_ACTIONS: readonly ActionDefinition[] = [
     id: 'image.idPhoto',
     label: { en: 'ID photo', zh: '证件照', fr: 'Photo d’identité' },
     description: {
-      en: 'The user frames the face at the required shape; the photo is cut to the official size in pixels (300 dpi) as a JPG, and kept under the size limit if the spec has one. Check the background and head size yourself.',
-      zh: '用户按规格比例框选，照片裁成官方像素尺寸（300 dpi）的 JPG；规格有大小上限时压到上限以内。背景和头部比例需要自己检查。',
-      fr: 'L’utilisateur cadre le visage selon la forme requise ; la photo est recadrée à la taille officielle en pixels (300 dpi) au format JPG, et réduite sous la limite de taille si la norme en impose une. Vérifiez vous-même le fond et la taille de la tête.',
+      en: 'The user frames the face at the required shape; the photo is cut to the official size in pixels (300 dpi) as a JPG, and kept under the size limit if the spec has one. background replaces everything but the person with white, blue, red, light grey or a custom color (needs iOS 15+, or Google Play services on Android). autoCenter finds the face on the device and starts the frame with the head at the size the spec asks for; the user still checks and adjusts it. Check the result against the official rules yourself.',
+      zh: '用户按规格比例框选，照片裁成官方像素尺寸（300 dpi）的 JPG；规格有大小上限时压到上限以内。background 把人以外的部分换成白、蓝、红、浅灰或自定义颜色（需要 iOS 15 以上，Android 需要 Google Play 服务）。autoCenter 在本机找到人脸，按规格要求的头部比例先摆好框，用户仍然要确认、可以再调。结果是否符合官方要求需要自己检查。',
+      fr: 'L’utilisateur cadre le visage selon la forme requise ; la photo est recadrée à la taille officielle en pixels (300 dpi) au format JPG, et réduite sous la limite de taille si la norme en impose une. Vérifiez vous-même le fond et la taille de la tête. background remplace tout sauf la personne par du blanc, du bleu, du rouge, du gris clair ou une couleur personnalisée (iOS 15 ou ultérieur, ou services Google Play sur Android). autoCenter trouve le visage sur l’appareil et place d’abord le cadre avec la tête à la taille demandée par la norme ; l’utilisateur le vérifie et peut l’ajuster.',
     },
     input: ['images'],
     output: 'images',
-    params: z.strictObject({
-      spec: z.enum(ID_PHOTO_IDS),
-      maxKB: z.number().int().min(0).max(5000),
-    }),
+    params: z
+      .strictObject({
+        spec: z.enum(ID_PHOTO_IDS),
+        maxKB: z.number().int().min(0).max(5000),
+        /** D-252：换底色（不写 = 不换）和自动框脸（不写 = 不框）。 */
+        background: z.enum(ID_PHOTO_BACKGROUNDS).optional(),
+        color: z
+          .string()
+          .regex(/^#[0-9a-fA-F]{6}$/)
+          .optional(),
+        autoCenter: z.boolean().optional(),
+      })
+      .refine((p) => p.background !== 'custom' || p.color !== undefined, {
+        message: 'a custom background needs color',
+      }),
     fields: [
       {
         key: 'spec',
@@ -868,6 +890,34 @@ export const IMAGE_COMPOSE_ACTIONS: readonly ActionDefinition[] = [
         unit: 'KB',
         min: 0,
         max: 5000,
+      },
+      {
+        key: 'background',
+        label: { en: 'Background', zh: '底色', fr: 'Fond' },
+        kind: 'choice',
+        options: [
+          { value: 'keep', label: { en: 'Keep as is', zh: '不换', fr: 'Ne pas changer' } },
+          { value: 'white', label: { en: 'White', zh: '白色', fr: 'Blanc' } },
+          { value: 'blue', label: { en: 'Blue', zh: '蓝色', fr: 'Bleu' } },
+          { value: 'red', label: { en: 'Red', zh: '红色', fr: 'Rouge' } },
+          { value: 'gray', label: { en: 'Light grey', zh: '浅灰', fr: 'Gris clair' } },
+          { value: 'custom', label: { en: 'Other color', zh: '其他颜色', fr: 'Autre couleur' } },
+        ],
+      },
+      {
+        key: 'color',
+        label: { en: 'Color', zh: '颜色', fr: 'Couleur' },
+        kind: 'color',
+        showIf: { key: 'background', equals: ['custom'] },
+      },
+      {
+        key: 'autoCenter',
+        label: {
+          en: 'Frame the face automatically',
+          zh: '自动框脸',
+          fr: 'Cadrer le visage automatiquement',
+        },
+        kind: 'toggle',
       },
     ],
     presets: ID_PHOTO_CHOICES.map((c) => ({

@@ -17,7 +17,7 @@ import {
 } from '@morph/tool-image';
 
 import { t } from '../../i18n';
-import type { ImageFormat, ImageOps } from '../platform';
+import type { ImageFormat, ImageOps, VisionPlatform } from '../platform';
 import { fileItems, freshName, readItem, writeItem, type RunServices } from './helpers';
 
 // 图片动作的实现。像素处理交给平台（expo-image-manipulator），算法在 packages/tool-image。
@@ -100,6 +100,39 @@ export async function eachImage(
   return { type: 'images' as const, items: out };
 }
 
+/**
+ * 去背景、证件照换底色要的系统模型：不支持时说明原因；Android 第一次用要先问用户、再让 Google Play 服务下载模型。
+ */
+export async function backgroundModel(ctx: Ctx): Promise<VisionPlatform> {
+  const vision = ctx.services.files.vision;
+  if (!vision?.backgroundRemovalSupported)
+    throw new RunError('unsupportedAction', { action: t(ctx.locale, 'backgroundNeedsSystem') });
+  let status;
+  try {
+    status = await vision.backgroundStatus();
+  } catch {
+    throw new RunError('packFailed', { detail: t(ctx.locale, 'backgroundDownloadFailed') });
+  }
+  if (status === 'unsupported')
+    throw new RunError('unsupportedAction', { action: t(ctx.locale, 'backgroundNeedsSystem') });
+  if (status === 'download') {
+    const ok = await ctx.services.ui.confirm(
+      t(ctx.locale, 'backgroundDownloadAsk'),
+      t(ctx.locale, 'backgroundDownload'),
+      t(ctx.locale, 'cancel'),
+      t(ctx.locale, 'backgroundDownloadBody'),
+    );
+    if (!ok) throw new RunCancelled();
+    ctx.throwIfCancelled();
+    try {
+      await vision.downloadBackgroundModel();
+    } catch {
+      throw new RunError('packFailed', { detail: t(ctx.locale, 'backgroundDownloadFailed') });
+    }
+  }
+  return vision;
+}
+
 export const IMAGE_IMPLS: Record<string, Impl> = {
   async 'image.adjust'(input, params, ctx) {
     const vision = ctx.services.files.vision;
@@ -135,32 +168,7 @@ export const IMAGE_IMPLS: Record<string, Impl> = {
     });
   },
   async 'image.removeBackground'(input, params, ctx) {
-    const vision = ctx.services.files.vision;
-    if (!vision?.backgroundRemovalSupported)
-      throw new RunError('unsupportedAction', { action: t(ctx.locale, 'backgroundNeedsSystem') });
-    let status;
-    try {
-      status = await vision.backgroundStatus();
-    } catch {
-      throw new RunError('packFailed', { detail: t(ctx.locale, 'backgroundDownloadFailed') });
-    }
-    if (status === 'unsupported')
-      throw new RunError('unsupportedAction', { action: t(ctx.locale, 'backgroundNeedsSystem') });
-    if (status === 'download') {
-      const ok = await ctx.services.ui.confirm(
-        t(ctx.locale, 'backgroundDownloadAsk'),
-        t(ctx.locale, 'backgroundDownload'),
-        t(ctx.locale, 'cancel'),
-        t(ctx.locale, 'backgroundDownloadBody'),
-      );
-      if (!ok) throw new RunCancelled();
-      ctx.throwIfCancelled();
-      try {
-        await vision.downloadBackgroundModel();
-      } catch {
-        throw new RunError('packFailed', { detail: t(ctx.locale, 'backgroundDownloadFailed') });
-      }
-    }
+    const vision = await backgroundModel(ctx);
     const background = params.background === 'transparent' ? 'transparent' : String(params.color);
     return eachImage(input, ctx, async (item) => {
       try {

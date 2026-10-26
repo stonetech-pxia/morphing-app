@@ -1,4 +1,11 @@
-import { RunCancelled, RunError, aspectRatio, type ActionImpl, type RunItem } from '@morph/core';
+import {
+  ID_PHOTO_BACKGROUND_COLORS,
+  RunCancelled,
+  RunError,
+  aspectRatio,
+  type ActionImpl,
+  type RunItem,
+} from '@morph/core';
 import {
   ID_PHOTO_SPECS,
   centeredCropForAspect,
@@ -10,12 +17,17 @@ import {
   searchForTargetSize,
   surfaceScale,
   type Rect,
+  DEFAULT_HEAD_RATIO,
+  HEAD_RATIO,
+  faceCrop,
+  mainFace,
 } from '@morph/tool-image';
 
 import { annotationPaths } from '../annotations';
 import type { DrawOp } from '../platform';
 import { displayName, fileItems, freshName, type RunServices } from './helpers';
-import { eachImage, encode, formatBytes, sizeOf } from './image';
+import { t } from '../../i18n';
+import { backgroundModel, eachImage, encode, formatBytes, sizeOf } from './image';
 
 // T6 图片合成（D-079）：排版在 packages/tool-image 计算，像素由 Skia 离屏绘制（platform.composeImage）。
 
@@ -133,6 +145,67 @@ async function withSizes(ctx: Ctx, items: RunItem[]) {
     ready.push(await drawable(ctx, item));
   }
   return ready;
+}
+
+/** 证件照换底色（D-252）：人留下，其余换成纯色。iOS 用人像分割；Android 用主体分割，第一次要确认下载模型。 */
+async function replaceBackgrounds(ctx: Ctx, items: RunItem[], color: string): Promise<RunItem[]> {
+  const system = ctx.services.files.vision;
+  if (!system?.replaceBackground)
+    throw new RunError('unsupportedAction', { action: t(ctx.locale, 'backgroundNeedsSystem') });
+  const vision = system.personSegmentation ? system : await backgroundModel(ctx);
+  const out: RunItem[] = [];
+  for (const [i, item] of items.entries()) {
+    ctx.throwIfCancelled();
+    try {
+      const result = await vision.replaceBackground!(
+        item.uri,
+        color,
+        ctx.services.runId,
+        freshName(item.name, 'png'),
+      );
+      out.push({ ...item, ...result, ext: 'png', mimeType: 'image/png' });
+    } catch {
+      throw new RunError('backgroundFailed', { name: item.name });
+    }
+    ctx.progress(i + 1, items.length);
+  }
+  return out;
+}
+
+/** 每张照片按最大的那张脸先摆好的框；找不到脸或没有系统人脸检测（Expo Go）时为 null（居中）。 */
+async function faceFrames(
+  ctx: Ctx,
+  items: RunItem[],
+  specId: string,
+  aspect: number,
+): Promise<(Rect | null)[] | undefined> {
+  const vision = ctx.services.files.vision;
+  if (!vision?.detectFaces) return undefined;
+  const ratio = HEAD_RATIO[specId] ?? DEFAULT_HEAD_RATIO;
+  const frames: (Rect | null)[] = [];
+  for (const item of items) {
+    ctx.throwIfCancelled();
+    try {
+      const found = await vision.detectFaces(item.uri);
+      // 检测用的图可能缩小过（Android）：换回这张照片的像素。
+      const kx = item.width! / found.width;
+      const ky = item.height! / found.height;
+      const face = mainFace(
+        found.faces.map((f) => ({
+          x: f.x * kx,
+          y: f.y * ky,
+          width: f.width * kx,
+          height: f.height * ky,
+        })),
+      );
+      frames.push(
+        face ? faceCrop({ width: item.width!, height: item.height! }, face, aspect, ratio) : null,
+      );
+    } catch {
+      frames.push(null);
+    }
+  }
+  return frames;
 }
 
 export const COMPOSE_IMPLS: Record<string, Impl> = {
@@ -337,11 +410,25 @@ export const COMPOSE_IMPLS: Record<string, Impl> = {
     if (!spec) throw new RunError('unexpected', { detail: String(params.spec) });
     const maxKB = Number(params.maxKB);
     // 裁剪和缩放由系统编码器完成（认识 HEIC 和拍摄方向），不需要先转换。
-    const items: RunItem[] = [];
+    const aspect = spec.widthMm / spec.heightMm;
+    const background = params.background as string | undefined;
+    const color =
+      background && background !== 'keep'
+        ? background === 'custom'
+          ? String(params.color)
+          : ID_PHOTO_BACKGROUND_COLORS[background]!
+        : null;
+    let items: RunItem[] = [];
     for (const item of fileItems(input)) items.push({ ...item, ...(await sizeOf(ctx, item)) });
+    // D-252：换底色在裁剪之前做（整张照片分割得更准），输出 PNG，后面照常裁剪、编码成 JPG。
+    if (color) items = await replaceBackgrounds(ctx, items, color);
+    // 自动框脸：先在本机找脸，按规格的头部比例摆好框；用户在裁剪界面里确认、可以再调。
+    const initial =
+      params.autoCenter === true ? await faceFrames(ctx, items, spec.id, aspect) : undefined;
     const rects = await ctx.services.ui.open('crop', {
       items,
-      aspect: spec.widthMm / spec.heightMm,
+      aspect,
+      ...(initial ? { initial } : {}),
     });
     if (!rects) throw new RunCancelled();
     let i = 0;

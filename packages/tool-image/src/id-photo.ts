@@ -251,3 +251,64 @@ export function layoutPrintSheet(options: PrintSheetOptions): PrintSheetLayout {
   }
   return { width, height, placements, rotated, guides: lines };
 }
+
+// ---- 自动框脸（D-252）----
+
+/** 头（下巴到头顶）占照片高度的比例：各规格要求的中间值；没写的规格用 DEFAULT_HEAD_RATIO。 */
+export const HEAD_RATIO: Record<string, number> = {
+  'us-passport': 0.6, // 25–35 mm / 50.8 mm
+  'in-visa': 0.6,
+  'cn-visa': 0.63, // 28–33 mm / 48 mm
+  schengen: 0.75, // 32–36 mm / 45 mm
+  'uk-passport': 0.7, // 29–34 mm / 45 mm
+  'jp-passport': 0.75,
+  'ca-passport': 0.48, // 31–36 mm / 70 mm
+};
+export const DEFAULT_HEAD_RATIO = 0.65;
+
+/**
+ * 人脸检测给的框（iOS Vision、ML Kit 都是）大约从眉毛到下巴，不含额头上方和头发：
+ * 下巴到头顶约是框高的 1.45 倍。头顶上方留出的空白是上下空白合计的 40%。
+ */
+const HEAD_PER_FACE = 1.45;
+const TOP_SHARE = 0.4;
+
+/**
+ * 按人脸框算出证件照的裁剪框（原图像素，宽高比 = 规格的宽高比）：头的高度占规格要求的比例，
+ * 脸左右居中。照片不够大时整体缩小裁剪框（头会显得大一点），绝不超出原图。
+ */
+export function faceCrop(
+  image: { width: number; height: number },
+  face: Rect,
+  aspect: number,
+  headRatio: number,
+): Rect {
+  const head = face.height * HEAD_PER_FACE;
+  const chin = face.y + face.height;
+  let height = head / headRatio;
+  let width = height * aspect;
+  // 放不下时缩小，宽和高都不超过原图。
+  const shrink = Math.min(1, image.width / width, image.height / height);
+  width *= shrink;
+  height *= shrink;
+  const crown = chin - head;
+  const spare = Math.max(0, height - head);
+  let y = crown - spare * TOP_SHARE;
+  let x = face.x + face.width / 2 - width / 2;
+  x = Math.min(Math.max(0, x), image.width - width);
+  y = Math.min(Math.max(0, y), image.height - height);
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    width: Math.round(width),
+    height: Math.round(height),
+  };
+}
+
+/** 几张脸时用最大的那张（证件照只有一个人；背景里的人脸通常小）。 */
+export function mainFace(faces: readonly Rect[]): Rect | null {
+  return faces.reduce<Rect | null>(
+    (best, f) => (!best || f.width * f.height > best.width * best.height ? f : best),
+    null,
+  );
+}

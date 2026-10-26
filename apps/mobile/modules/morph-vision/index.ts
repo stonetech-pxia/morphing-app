@@ -40,6 +40,19 @@ export interface MorphVisionModule {
     output: string,
   ): Promise<Omit<NativeImage, 'uri'>>;
 
+  /** 人脸框（像素，原点在左上角，已摆正）；width / height 是检测用的图的大小（Android 会先缩小，D-252）。 */
+  detectFaces?(uri: string): Promise<{
+    width: number;
+    height: number;
+    faces: { x: number; y: number; width: number; height: number }[];
+  }>;
+  /** 只保留人像、其余换成纯色（iOS 人像分割，D-252）；Android 没有，用 removeBackground。 */
+  replacePersonBackground?(
+    uri: string,
+    color: string,
+    output: string,
+  ): Promise<Omit<NativeImage, 'uri'>>;
+
   /** 系统文档相机能不能用（模拟器和很旧的设备上是 false）。 */
   isDocumentCameraSupported(): boolean;
   /** 有没有相机（模拟器上没有）。 */

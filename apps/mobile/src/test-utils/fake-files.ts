@@ -8,6 +8,7 @@ import type { TextLayer } from '@morph/tool-pdf';
 import type {
   AudioEncode,
   BackgroundPlatform,
+  Box,
   DocumentPlatform,
   DrawOp,
   FilePlatform,
@@ -1014,6 +1015,23 @@ export class FakeVision implements VisionPlatform {
     if (this.backgroundFailure) throw new Error('no subject');
     const size = await this.files.imageSize(uri);
     const out = await this.files.writeRunFile(runId, relPath, TINY_JPEG);
+    this.files.imageSizes.set(out.uri, size);
+    return { ...out, ...size };
+  }
+
+  /** 证件照（D-252）：每次找脸的结果（按顺序；检测图的大小和脸框）。 */
+  faceResults: { width: number; height: number; faces: Box[] }[] = [];
+  async detectFaces(uri: string) {
+    this.calls.push({ method: 'detectFaces', uri });
+    return this.faceResults.shift() ?? { width: 1, height: 1, faces: [] };
+  }
+  /** iOS 的人像分割不用下载模型；改成 false 模拟 Android。 */
+  personSegmentation = true;
+  async replaceBackground(uri: string, color: string, runId: string, relPath: string) {
+    this.calls.push({ method: 'replaceBackground', uri, args: color });
+    if (this.backgroundFailure) throw new Error('no person');
+    const size = await this.files.imageSize(uri);
+    const out = await this.files.writeRunFile(runId, relPath, makePng(size.width, size.height));
     this.files.imageSizes.set(out.uri, size);
     return { ...out, ...size };
   }
