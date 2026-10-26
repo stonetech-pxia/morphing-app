@@ -158,7 +158,7 @@ interface StepContext {
 - **扫描**（工具 `scan`）：`scan.detect`（找边 → 本地调四角，每张都要确认 → 透视矫正，长边 2400；iOS 用 Vision 找边、Core Image 矫正，Android 和 Expo Go 用扫描包，D-086；文档相机拍的页面直接放行，也不需要扫描包）、`scan.enhance`（提亮 / 灰度 / 黑白 / 原样；Skia 颜色矩阵，不需要扩展包）。
 - **文字识别**（工具 `ocr`）：`ocr.recognize`（images → text，参数 `lang` 选 12 种语言之一。iOS 用 Vision 的 `VNRecognizeTextRequest`（accurate + 语言纠错，中日韩等补上英文），不需要下载，D-085；Android 用 ML Kit 文字识别 v2（模型打包进 App），俄文不支持，D-087；系统识别不了时 `packFor` 按语言确保语言包，语言包连同识别包一起下载）。中日文字之间多出来的空格在本机去掉（`tidyOcrText`）。
 - **翻译**（工具 `translate`，D-170–D-176）：`translate.text`（text → text，参数 `from`：自动识别或 20 种语言之一，`to`：20 种语言之一，默认每次运行时问）。iOS 用系统的 Translation 框架（iOS 18 起；iOS 26 起已下载的语言直接建会话，要下载或更早的系统时挂一个看不见的 SwiftUI 视图用 `.translationTask`，语言包由系统弹窗下载），NaturalLanguage 识别语言；Android 用 ML Kit 翻译（每种语言模型约 30 MB，第一次用时 App 先问「首次使用需下载约 X MB」再下载，之后离线）和 ML Kit 语言识别（打包进 App）。翻译前在本机把文字拆成段（`splitForTranslation`：空行分段，段里折行的句子接起来，标题、短行、列表项另起），自动识别时每段单独识别语言、按原文语言分组翻，和目标语言相同的段原样保留，再按原来的分段拼回（`joinTranslation`）。只出纯文字（可以接 `text.toPdf` 排成 PDF），不保留原文件排版；结果页写明「本机翻译，适合看懂意思；正式文件请找专业翻译」。一次最多 10 万字。Expo Go 和 iOS 17 及更早报「不支持这个步骤」并说明原因；ML Kit 没有繁体中文。文字不上传、不发给 AI。
-- **文字**（工具 `text`）：`text.copy`、`text.toFile`（.txt）、`text.toPdf`（expo-print，系统字体，中日韩都能显示）。
+- **文字**（工具 `text`）：`text.copy`、`text.toFile`（.txt）、`text.toPdf`（expo-print，系统字体，中日韩都能显示）；文字加工 `text.tidy`、`text.replace`、`text.extract`、`text.lines`（§14，D-245）。
 - **打包**（工具 `zip`）：`zip.create`、`zip.extract`。（`packages/tool-archive`：fflate，只用同步接口）
 - **二维码**（工具 `qr`）：`qr.generate`（文字 → PNG，tool-qr 自带的 PNG 编码器）、`qr.read`（图片 → 文字，Skia 读像素后用 jsQR）。（`packages/tool-qr`：lean-qr、jsQR）
 - **报表**（工具 `print`）：`print.records`（`records` → PDF；模板：表格 / 卡片 / 带合计的清单；记录值先转义再在本地填进去，AI 只选模板、标题和字段 ID，D-042、D-080）。模板在 `core/src/html.ts`。
@@ -411,3 +411,12 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
 **分组后各出一份**（D-243）：不加「对每组执行」的循环，而是在「把一批文件变成文件」的三个动作上加 `group`：`pdf.fromImages`、`pdf.merge`、`zip.create`。`group`：`none`（默认，一份）、`count` + `groupSize`（按原来的顺序每 N 个一份）、`day` / `month`（按拍摄时间，没有时用修改时间；组按日期排，读不到日期的放最后「没有日期」）。输出仍是普通的文件数组，名字是日期或这一组第一个文件的名字，后面接 `file.rename {sourceName}`、分享、存到文件夹都照常。纯逻辑 `core/grouping.ts`。
 
 **用识别出的文字命名**（D-244）：`{ocr:规则}` / `{qr:规则}`，规则是 `firstLine`、`invoiceNo`、`date`、`amount`、`phone`、`email`、`url`、`number`（`core/text-rules.ts`，不接受正则）。`file.rename` 看到这两种占位符时先在本机识别每张图片：文字用系统识别（界面语言 + 英文；没有时报 `needsRecognition`），二维码用 jsQR。文字只用来取名，不留下，不发给 AI。取不到时这一段不写；什么都不剩用原来的名字。
+
+**文字加工**（D-245，`core/text-ops.ts`）：都是 text → text，文字只在本机处理。
+
+| 动作           | 参数                                                | 做什么                                                         |
+| -------------- | --------------------------------------------------- | -------------------------------------------------------------- |
+| `text.tidy`    | `blankLines`：remove / single / keep；`spaces`      | 去掉多余空格和空行                                             |
+| `text.replace` | `find`、`replaceWith`（都是私有参数）、`ignoreCase` | 按字面全部替换，不是正则；AI 只看到 `<user text>`（D-082）     |
+| `text.extract` | `kind`：phone / email / url / number / date         | 一行一个，规则同 `{ocr:规则}`（`core/text-rules.ts`）          |
+| `text.lines`   | `mode`：split / join；`separator`                   | 按逗号（含中文逗号、顿号）、分号、空格、制表符拆行，或接成一行 |

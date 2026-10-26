@@ -3643,6 +3643,37 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
       }),
     },
   },
+  {
+    id: 'TX1',
+    input: '新建一个快捷操作：拍名片，识别文字，取出所有手机号，复制',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.photos', 'ocr.recognize', 'text.extract', 'text.copy'],
+        param('text.extract', 'kind', 'phone'),
+      ),
+    },
+  },
+  {
+    id: 'TX2',
+    input:
+      'Make a quick action: type text, replace "ACME" with "Globex", remove blank lines, save as a PDF',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.text', 'text.replace', 'text.tidy', 'text.toPdf'],
+        (steps) =>
+          param('text.replace', 'find', 'ACME')(steps) ??
+          param('text.replace', 'replaceWith', 'Globex')(steps),
+      ),
+    },
+  },
 ];
 
 export const EVAL_CASES: readonly EvalCase[] = [

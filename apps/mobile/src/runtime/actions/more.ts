@@ -3,14 +3,21 @@ import {
   FILE_LIMITS,
   PAGE_POINTS,
   RunError,
+  extractText,
   groupItems,
+  replaceText,
+  splitOrJoinLines,
+  tidyText,
   localDate,
   periodRange,
   recordsToHtml,
   sortRecords,
   textToHtml,
   type ActionImpl,
+  type BlankLines,
+  type ExtractKind,
   type GroupRule,
+  type LineSeparator,
   type PageSize,
   type Period,
   type RecordTemplate,
@@ -150,6 +157,44 @@ export const MORE_IMPLS: Record<string, Impl> = {
     const value = textOf(input);
     await ctx.services.files.copyText(value.text);
     return value;
+  },
+
+  // 文字加工（D-245）：只在本机处理。结果是空的就说明，不交给下一步一段空文字。
+  async 'text.tidy'(input, params) {
+    const value = textOf(input);
+    const text = tidyText(value.text, params.blankLines as BlankLines, params.spaces === true);
+    if (!text) throw new RunError('emptyText');
+    return { ...value, text };
+  },
+
+  async 'text.replace'(input, params) {
+    const value = textOf(input);
+    const { text } = replaceText(
+      value.text,
+      String(params.find ?? ''),
+      String(params.replaceWith ?? ''),
+      params.ignoreCase === true,
+    );
+    if (!text.trim()) throw new RunError('emptyText');
+    return { ...value, text };
+  },
+
+  async 'text.extract'(input, params, ctx) {
+    const value = textOf(input);
+    const text = extractText(value.text, params.kind as ExtractKind, ctx.locale);
+    if (!text) throw new RunError('notFound', { name: value.name });
+    return { ...value, text };
+  },
+
+  async 'text.lines'(input, params) {
+    const value = textOf(input);
+    const text = splitOrJoinLines(
+      value.text,
+      params.mode as 'split' | 'join',
+      params.separator as LineSeparator,
+    );
+    if (!text.trim()) throw new RunError('emptyText');
+    return { ...value, text };
   },
 
   async 'zip.create'(input, params, ctx) {

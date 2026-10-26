@@ -3,6 +3,8 @@ import { z } from 'zod';
 
 import { GROUP_FIELDS, groupNeedsSize, groupParams } from '../grouping';
 import { RECORD_TEMPLATES } from '../html';
+import { LINE_SEPARATORS } from '../text-ops';
+import { EXTRACT_KINDS } from '../text-rules';
 import type { ToolDefinition } from '../registry';
 import type { IconName, Locale, Workflow } from '../schema';
 import type { ActionDefinition } from '../workflow/contract';
@@ -334,6 +336,182 @@ export const TEXT_ACTIONS: readonly ActionDefinition[] = [
     output: 'same',
     params: z.strictObject({}),
     fields: [],
+    requires: [],
+  },
+  // ---- 文字加工（D-245）：text → text，文字只在本机处理 ----
+  {
+    id: 'text.tidy',
+    label: { en: 'Tidy up text', zh: '整理文字', fr: 'Nettoyer le texte' },
+    description: {
+      en: 'Remove extra spaces (at line ends, repeated spaces and tabs) and blank lines: blankLines "remove" drops them all, "single" keeps one between paragraphs, "keep" leaves them.',
+      zh: '去掉多余的空格（行首行尾、连续的空格和制表符）和空行：blankLines 为 remove 全部去掉，single 段落之间只留一个，keep 不动。',
+      fr: 'Supprime les espaces en trop (en début et fin de ligne, espaces et tabulations répétés) et les lignes vides : blankLines « remove » les retire toutes, « single » en garde une entre les paragraphes, « keep » les laisse.',
+    },
+    input: ['text'],
+    output: 'same',
+    params: z.strictObject({
+      blankLines: z.enum(['keep', 'single', 'remove']),
+      spaces: z.boolean(),
+    }),
+    fields: [
+      {
+        key: 'blankLines',
+        label: { en: 'Blank lines', zh: '空行', fr: 'Lignes vides' },
+        kind: 'choice',
+        options: [
+          {
+            value: 'remove',
+            label: { en: 'Remove all', zh: '全部去掉', fr: 'Toutes les retirer' },
+          },
+          {
+            value: 'single',
+            label: {
+              en: 'One between paragraphs',
+              zh: '段落之间留一个',
+              fr: 'Une entre les paragraphes',
+            },
+          },
+          { value: 'keep', label: { en: 'Keep', zh: '不动', fr: 'Garder' } },
+        ],
+      },
+      {
+        key: 'spaces',
+        label: { en: 'Remove extra spaces', zh: '去掉多余空格', fr: 'Retirer les espaces en trop' },
+        kind: 'toggle',
+      },
+    ],
+    presets: [
+      {
+        id: 'tidy',
+        label: { en: 'Tidy up', zh: '整理', fr: 'Nettoyer' },
+        values: { blankLines: 'single', spaces: true },
+      },
+    ],
+    requires: [],
+  },
+  {
+    id: 'text.replace',
+    label: { en: 'Replace words', zh: '替换文字', fr: 'Remplacer des mots' },
+    description: {
+      en: 'Replace every occurrence of a word or phrase with another, exactly as typed (not a pattern). Both are the user’s own words: shown to AI only as "<user text>".',
+      zh: '把一个词（或一句话）全部换成另一个，按字面替换（不是规则或通配符）。两个词都是用户自己写的，AI 只看到「<user text>」。',
+      fr: 'Remplace chaque occurrence d’un mot ou d’une expression par une autre, telle que saisie (pas un motif). Les deux sont vos propres mots : l’IA ne voit que « <user text> ».',
+    },
+    input: ['text'],
+    output: 'same',
+    params: z.strictObject({
+      // 空的时候什么都不换（新加的步骤先是空的，编辑页里再填）。
+      find: z.string().max(200),
+      replaceWith: z.string().max(200),
+      ignoreCase: z.boolean(),
+    }),
+    fields: [
+      {
+        key: 'find',
+        label: { en: 'Find', zh: '把', fr: 'Rechercher' },
+        kind: 'text',
+        private: true,
+      },
+      {
+        key: 'replaceWith',
+        label: { en: 'Replace with', zh: '换成', fr: 'Remplacer par' },
+        kind: 'text',
+        private: true,
+      },
+      {
+        key: 'ignoreCase',
+        label: { en: 'Ignore upper / lower case', zh: '不分大小写', fr: 'Ignorer la casse' },
+        kind: 'toggle',
+      },
+    ],
+    requires: [],
+  },
+  {
+    id: 'text.extract',
+    label: { en: 'Pick out from text', zh: '提取文字', fr: 'Extraire du texte' },
+    description: {
+      en: 'Keep only every phone number, e-mail address, web address, number or date found in the text, one per line (dates as YYYY-MM-DD, numbers without thousands separators). A fixed list of kinds: no patterns.',
+      zh: '只留下文字里的全部手机号、邮箱、网址、数字或日期，一行一个（日期写成 YYYY-MM-DD，数字去掉千位分隔）。只能从这几种里选，不能写规则。',
+      fr: 'Ne garde que les numéros de téléphone, adresses e-mail, adresses web, nombres ou dates trouvés dans le texte, un par ligne (dates au format AAAA-MM-JJ, nombres sans séparateur de milliers). Une liste fixe de types : pas de motif.',
+    },
+    input: ['text'],
+    output: 'same',
+    params: z.strictObject({ kind: z.enum(EXTRACT_KINDS) }),
+    fields: [
+      {
+        key: 'kind',
+        label: { en: 'What', zh: '提取什么', fr: 'Quoi' },
+        kind: 'choice',
+        options: [
+          {
+            value: 'phone',
+            label: { en: 'Phone numbers', zh: '手机号 / 电话', fr: 'Numéros de téléphone' },
+          },
+          { value: 'email', label: { en: 'E-mail addresses', zh: '邮箱', fr: 'Adresses e-mail' } },
+          { value: 'url', label: { en: 'Web addresses', zh: '网址', fr: 'Adresses web' } },
+          { value: 'number', label: { en: 'Numbers', zh: '数字', fr: 'Nombres' } },
+          { value: 'date', label: { en: 'Dates', zh: '日期', fr: 'Dates' } },
+        ],
+      },
+    ],
+    requires: [],
+  },
+  {
+    id: 'text.lines',
+    label: { en: 'Split or join lines', zh: '拆分 / 合并行', fr: 'Découper ou joindre les lignes' },
+    description: {
+      en: 'mode "split": cut the text at each separator (comma, semicolon, space or tab; Chinese commas count too) and put each part on its own line. mode "join": put all non-empty lines on one line, joined by the separator (newline, comma, semicolon, space, tab, or none).',
+      zh: 'mode 为 split：在分隔符（逗号、分号、空格或制表符，中文的逗号、顿号也算）处拆开，每段一行。mode 为 join：把所有不空的行接成一行，中间用分隔符（换行、逗号、分号、空格、制表符或不加）。',
+      fr: 'mode « split » : coupe le texte à chaque séparateur (virgule, point-virgule, espace ou tabulation ; les virgules chinoises comptent aussi) et met chaque partie sur sa propre ligne. mode « join » : met toutes les lignes non vides sur une seule ligne, reliées par le séparateur (retour à la ligne, virgule, point-virgule, espace, tabulation ou rien).',
+    },
+    input: ['text'],
+    output: 'same',
+    params: z.strictObject({
+      mode: z.enum(['split', 'join']),
+      separator: z.enum(LINE_SEPARATORS),
+    }),
+    fields: [
+      {
+        key: 'mode',
+        label: { en: 'Lines', zh: '方式', fr: 'Lignes' },
+        kind: 'choice',
+        options: [
+          {
+            value: 'split',
+            label: { en: 'Split into lines', zh: '拆成多行', fr: 'Découper en lignes' },
+          },
+          {
+            value: 'join',
+            label: { en: 'Join into one line', zh: '合成一行', fr: 'Joindre en une ligne' },
+          },
+        ],
+      },
+      {
+        key: 'separator',
+        label: { en: 'Separator', zh: '分隔符', fr: 'Séparateur' },
+        kind: 'choice',
+        options: [
+          { value: 'comma', label: { en: 'Comma', zh: '逗号', fr: 'Virgule' } },
+          { value: 'semicolon', label: { en: 'Semicolon', zh: '分号', fr: 'Point-virgule' } },
+          { value: 'space', label: { en: 'Space', zh: '空格', fr: 'Espace' } },
+          { value: 'tab', label: { en: 'Tab', zh: '制表符', fr: 'Tabulation' } },
+          { value: 'newline', label: { en: 'New line', zh: '换行', fr: 'Retour à la ligne' } },
+          { value: 'none', label: { en: 'Nothing', zh: '不加', fr: 'Rien' } },
+        ],
+      },
+    ],
+    presets: [
+      {
+        id: 'split-comma',
+        label: { en: 'Split at commas', zh: '按逗号拆成多行', fr: 'Découper aux virgules' },
+        values: { mode: 'split', separator: 'comma' },
+      },
+      {
+        id: 'join-none',
+        label: { en: 'Join lines', zh: '接成一段', fr: 'Joindre les lignes' },
+        values: { mode: 'join', separator: 'none' },
+      },
+    ],
     requires: [],
   },
 ];
