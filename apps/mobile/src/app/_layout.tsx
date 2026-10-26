@@ -32,6 +32,8 @@ import { PackBridge } from '@/packs/bridge';
 import { expoBridgeFiles, expoPackFs, expoSha256 } from '@/packs/expo-pack-fs';
 import { PackHostProvider } from '@/packs/PackHost';
 import { PackStore } from '@/packs/store';
+import { expoReminders } from '@/reminders/expo-reminders';
+import { useReminderOpen, useReminderSync } from '@/reminders/useReminders';
 import { expoFilePlatform } from '@/runtime/expo-platform';
 import { closeButtonOption, stackScreenOptions } from '@/shell/header';
 import { CLAY_FONTS, usePalette } from '@/renderer/theme';
@@ -99,6 +101,9 @@ const provider = createAIRouter({
   now: () => new Date(),
 });
 
+// 提醒（D-251）：expo-notifications 的本地通知。频道名跟随界面语言。
+const reminders = expoReminders(t(locale, 'remindersTitle'));
+
 function Centered({ children }: { children: ReactNode }) {
   return <View style={styles.center}>{children}</View>;
 }
@@ -125,6 +130,9 @@ function ThemedStack() {
   const theme = useWorkspace((s) => s.config!.theme);
   // 别的 App 分享进来的文件 → 收件页面（D-114）。
   useIncomingShare(expoFilePlatform);
+  // 提醒：配置或记录变了就重排；点提醒只打开页面或快捷操作（D-251）。
+  useReminderSync(reminders);
+  useReminderOpen(reminders);
   const palette = usePalette(theme);
   const closable = { presentation: 'modal', ...closeButtonOption(palette) } as const;
   return (
@@ -138,6 +146,8 @@ function ThemedStack() {
         <Stack.Screen name="ai-settings" options={{ title: t(locale, 'aiSettingsTitle') }} />
         <Stack.Screen name="data" options={{ title: t(locale, 'dataTitle') }} />
         <Stack.Screen name="packs" options={{ title: t(locale, 'packsTitle') }} />
+        <Stack.Screen name="reminders" options={{ title: t(locale, 'remindersTitle') }} />
+        <Stack.Screen name="reminder/[workflowId]" options={{ ...closable, title: '' }} />
         <Stack.Screen
           name="quick-actions/index"
           options={{ title: t(locale, '_layout_What_Morph_can_do_8f4f4') }}

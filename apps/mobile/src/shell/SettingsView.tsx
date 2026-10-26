@@ -80,6 +80,14 @@ export function SettingsView({ env }: { env: RenderEnv }) {
       />
       <ListRow
         palette={palette}
+        testID="settings-reminders"
+        icon="calendar"
+        label={t(locale, 'remindersTitle')}
+        value={t(locale, 'remindersRowHint', { n: env.config.reminders?.length ?? 0 })}
+        onPress={env.locked ?? (() => router.push('/reminders'))}
+      />
+      <ListRow
+        palette={palette}
         testID="settings-data"
         icon="inbox"
         label={t(locale, 'dataTitle')}

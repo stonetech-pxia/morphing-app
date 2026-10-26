@@ -15,6 +15,8 @@ import {
   NavTargetSchema,
   PROTECTED_TARGETS,
   PageSchema,
+  ReminderSchema,
+  MAX_REMINDERS,
   ThemeSchema,
   WorkflowSchema,
   WorkflowStepSchema,
@@ -35,6 +37,7 @@ import {
   type WorkspaceConfig,
 } from './schema';
 import { DEFAULT_THEME } from './theme';
+import { reminderProblems } from './reminders';
 import { REDACTED_TEXT } from './workflow/redact';
 
 // 语义化修改操作（§7D）。AI 只能输出这些操作；applyOps 是纯函数，不修改输入。
@@ -186,6 +189,15 @@ export const OpSchema = z.discriminatedUnion('op', [
   z.strictObject({ op: z.literal('removeField'), collectionId: IdSchema, fieldId: IdSchema }),
   /** 把数据表移出界面：记录保留，可在「设置 → 数据」里导出或由用户永久删除。 */
   z.strictObject({ op: z.literal('removeCollection'), collectionId: IdSchema }),
+  // 提醒（D-251）：只改设置，看不到记录。
+  z.strictObject({ op: z.literal('addReminder'), reminder: ReminderSchema }),
+  z.strictObject({
+    op: z.literal('updateReminder'),
+    reminderId: IdSchema,
+    /** 合并进提醒；null 表示去掉可选的属性（weekdays、collectionId、fieldId、daysBefore）。 */
+    changes: z.record(z.string(), z.unknown()),
+  }),
+  z.strictObject({ op: z.literal('removeReminder'), reminderId: IdSchema }),
 ]);
 export type Op = z.infer<typeof OpSchema>;
 /** 一次修改（一个版本）最多包含的操作数。 */
@@ -198,6 +210,8 @@ export type ApplyNote =
   | { kind: 'removedLinks'; pageId: string; count: number }
   | { kind: 'removedDataComponents'; collectionId: string; count: number }
   | { kind: 'removedRunners'; workflowId: string; count: number }
+  /** 提醒要打开的快捷操作 / 页面、要看的表或日期字段被移除了，提醒跟着移除（D-251）。 */
+  | { kind: 'removedReminders'; titles: string[] }
   | { kind: 'updatedTool'; toolId: string; workflowIds: string[] };
 
 /** 字段类型只能在这些类型之间互相转换，已有的值仍然能读出来。 */
@@ -671,6 +685,36 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       collection.fields.splice(getFieldIndex(collection, op.fieldId), 1);
       return;
     }
+    case 'addReminder': {
+      const reminders = (config.reminders ??= []);
+      if (reminders.some((r) => r.id === op.reminder.id))
+        throw new OpError(`reminder ${op.reminder.id} already exists`);
+      if (reminders.length >= MAX_REMINDERS)
+        throw new OpError(`at most ${MAX_REMINDERS} reminders`);
+      reminders.push(op.reminder);
+      return;
+    }
+    case 'updateReminder': {
+      const reminder = config.reminders?.find((r) => r.id === op.reminderId);
+      if (!reminder) throw new OpError(`reminder ${op.reminderId} not found`);
+      if ('id' in op.changes) throw new OpError('a reminder id cannot change');
+      const next: Record<string, unknown> = { ...reminder };
+      for (const [key, value] of Object.entries(op.changes)) {
+        if (value === null) delete next[key];
+        else next[key] = value;
+      }
+      // 合法性由 validateWorkspace 检查。
+      config.reminders = config.reminders!.map((r) =>
+        r.id === op.reminderId ? (next as never) : r,
+      );
+      return;
+    }
+    case 'removeReminder': {
+      if (!config.reminders?.some((r) => r.id === op.reminderId))
+        throw new OpError(`reminder ${op.reminderId} not found`);
+      config.reminders = config.reminders.filter((r) => r.id !== op.reminderId);
+      return;
+    }
     case 'removeCollection': {
       getCollection(config, op.collectionId);
       // D-250：别的表还引用它时不能移除，先移除那些引用字段（避免引用字段指向不存在的表）。
@@ -727,5 +771,23 @@ export function applyOps(
     if (e instanceof OpError) return { ok: false, error: e.message };
     throw e;
   }
+  pruneReminders(config, next, notes);
   return { ok: true, config: next, notes };
+}
+
+/**
+ * 原来好好的提醒，因为这批修改移除了它要打开的快捷操作 / 页面、要看的表或日期字段而失效：跟着移除并在说明里写出来
+ * （移除快捷操作、页面、表，卸载工具都会这样）。这批修改里新加或改过的提醒不动，有问题由校验器拒绝。
+ */
+function pruneReminders(before: WorkspaceConfig, after: WorkspaceConfig, notes: ApplyNote[]) {
+  if (!after.reminders?.length) return;
+  const removed: string[] = [];
+  after.reminders = after.reminders.filter((r) => {
+    const old = before.reminders?.find((x) => x.id === r.id);
+    const unchanged = old !== undefined && JSON.stringify(old) === JSON.stringify(r);
+    if (!unchanged || reminderProblems(r, after).length === 0) return true;
+    removed.push(r.title);
+    return false;
+  });
+  if (removed.length > 0) notes.push({ kind: 'removedReminders', titles: removed });
 }

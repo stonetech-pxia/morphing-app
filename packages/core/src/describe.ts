@@ -1,5 +1,5 @@
 import { localize } from './localization';
-import { t, pairText } from './messages';
+import { t, pairText, type StringKey } from './messages';
 import { SYSTEM_TARGET_LABELS } from './defaults';
 import { plainText } from './richtext';
 import { shownInToolGrid, type ApplyNote, type Op } from './ops';
@@ -13,6 +13,7 @@ import {
   type Component,
   type Locale,
   type NavTarget,
+  type Reminder,
   type Theme,
   type WorkspaceConfig,
 } from './schema';
@@ -107,6 +108,26 @@ export function componentLabel(
       return t(ctx.locale, 'describe_group_86cab', { v0: layout, v1: name });
     }
   }
+}
+
+/** 提醒什么时候响（修改说明用）。 */
+export function reminderWhen(r: Reminder, config: WorkspaceConfig, locale: Locale): string {
+  if (r.schedule === 'daily') return t(locale, 'reminderWhenDaily', { time: r.time });
+  if (r.schedule === 'weekly') {
+    const days = [...new Set(r.weekdays ?? [])]
+      .sort()
+      .map((d) => t(locale, `weekday${d}` as StringKey))
+      .join(t(locale, 'separatorList'));
+    return t(locale, 'reminderWhenWeekly', { days, time: r.time });
+  }
+  const collection = config.collections.find((c) => c.id === r.collectionId);
+  const field = collection?.fields.find((f) => f.id === r.fieldId);
+  return t(locale, 'reminderWhenDate', {
+    field: field?.name ?? String(r.fieldId),
+    table: collection?.name ?? String(r.collectionId),
+    n: r.daysBefore ?? 0,
+    time: r.time,
+  });
 }
 
 const truncate = (s: string, max = 40) => (s.length > max ? `${s.slice(0, max)}…` : s);
@@ -336,6 +357,24 @@ export function describeChange(
           }),
         );
         break;
+      case 'addReminder':
+        lines.push(
+          t(ctx.locale, 'describeAddReminder', {
+            title: op.reminder.title,
+            when: reminderWhen(op.reminder, known, ctx.locale),
+          }),
+        );
+        break;
+      case 'updateReminder': {
+        const r = known.reminders?.find((x: Reminder) => x.id === op.reminderId);
+        lines.push(t(ctx.locale, 'describeUpdateReminder', { title: r?.title ?? op.reminderId }));
+        break;
+      }
+      case 'removeReminder': {
+        const r = known.reminders?.find((x: Reminder) => x.id === op.reminderId);
+        lines.push(t(ctx.locale, 'describeRemoveReminder', { title: r?.title ?? op.reminderId }));
+        break;
+      }
       case 'removeCollection':
         lines.push(
           t(ctx.locale, 'describe_Remove_data_table_from_the_app_records_1a3d2', {
@@ -740,6 +779,12 @@ export function describeChange(
     } else if (note.kind === 'removedRunners') {
       lines.push(
         t(ctx.locale, 'describe_Also_removes_card_s_that_ran_this_quic_5d29f', { v0: note.count }),
+      );
+    } else if (note.kind === 'removedReminders') {
+      lines.push(
+        t(ctx.locale, 'describeRemovedReminders', {
+          names: note.titles.join(t(ctx.locale, 'separatorList')),
+        }),
       );
     } else if (note.kind === 'removedDataComponents') {
       lines.push(

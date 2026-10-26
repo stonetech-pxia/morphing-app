@@ -1612,6 +1612,84 @@ export const strings = {
     zh: '「{name}」里还没有记录。',
     fr: '« {name} » ne contient encore aucune entrée.',
   },
+  // 提醒（D-251）
+  describeAddReminder: {
+    en: 'Add reminder “{title}” ({when})',
+    zh: '新建提醒「{title}」（{when}）',
+    fr: 'Ajouter le rappel « {title} » ({when})',
+  },
+  describeUpdateReminder: {
+    en: 'Change reminder “{title}”',
+    zh: '修改提醒「{title}」',
+    fr: 'Modifier le rappel « {title} »',
+  },
+  describeRemoveReminder: {
+    en: 'Remove reminder “{title}”',
+    zh: '移除提醒「{title}」',
+    fr: 'Retirer le rappel « {title} »',
+  },
+  describeRemovedReminders: {
+    en: 'Also removes the reminders that needed it: {names}',
+    zh: '同时移除用到它的提醒：{names}',
+    fr: 'Retire aussi les rappels qui en dépendaient : {names}',
+  },
+  reminderWhenDaily: {
+    en: 'every day at {time}',
+    zh: '每天 {time}',
+    fr: 'tous les jours à {time}',
+  },
+  reminderWhenWeekly: {
+    en: 'every {days} at {time}',
+    zh: '每{days} {time}',
+    fr: 'chaque {days} à {time}',
+  },
+  reminderWhenDate: {
+    en: '{n} days before “{field}” in “{table}”, at {time}',
+    zh: '「{table}」的「{field}」前 {n} 天的 {time}',
+    fr: '{n} jours avant « {field} » dans « {table} », à {time}',
+  },
+  weekday1: { en: 'Monday', zh: '周一', fr: 'lundi' },
+  weekday2: { en: 'Tuesday', zh: '周二', fr: 'mardi' },
+  weekday3: { en: 'Wednesday', zh: '周三', fr: 'mercredi' },
+  weekday4: { en: 'Thursday', zh: '周四', fr: 'jeudi' },
+  weekday5: { en: 'Friday', zh: '周五', fr: 'vendredi' },
+  weekday6: { en: 'Saturday', zh: '周六', fr: 'samedi' },
+  weekday7: { en: 'Sunday', zh: '周日', fr: 'dimanche' },
+  reminderDueToday: {
+    en: '“{name}” is due today',
+    zh: '「{name}」今天到期',
+    fr: '« {name} » arrive à échéance aujourd’hui',
+  },
+  reminderDueIn: {
+    en: '“{name}” is due in {n} days ({date})',
+    zh: '「{name}」还有 {n} 天到期（{date}）',
+    fr: '« {name} » arrive à échéance dans {n} jours ({date})',
+  },
+  remindersTitle: { en: 'Reminders', zh: '提醒', fr: 'Rappels' },
+  remindersHint: {
+    en: 'Reminders are notifications on this device. Tapping one only opens the page or quick action; nothing runs by itself. To add or change a reminder, ask AI (for example “remind me every day at 9 to log expenses”).',
+    zh: '提醒是本机的通知。点提醒只打开对应的页面或快捷操作，不会自己运行任何东西。要新建或修改提醒，可以对 AI 说（例如「每天 9 点提醒我记账」）。',
+    fr: 'Les rappels sont des notifications sur cet appareil. En toucher un ouvre seulement la page ou l’action rapide ; rien ne s’exécute tout seul. Pour ajouter ou modifier un rappel, demandez à l’IA (par exemple « rappelle-moi tous les jours à 9 h de noter mes dépenses »).',
+  },
+  remindersNone: { en: 'No reminders yet', zh: '还没有提醒', fr: 'Aucun rappel pour l’instant' },
+  remindersOff: {
+    en: 'Notifications are off for Morph. Turn them on in the system Settings to get reminders.',
+    zh: 'Morph 的通知已关闭。要收到提醒，请在系统「设置」里打开。',
+    fr: 'Les notifications de Morph sont désactivées. Activez-les dans les Réglages du système pour recevoir les rappels.',
+  },
+  reminderRemove: { en: 'Remove', zh: '移除', fr: 'Retirer' },
+  reminderOpenTitle: {
+    en: 'From your reminder',
+    zh: '来自你的提醒',
+    fr: 'Depuis votre rappel',
+  },
+  reminderOpenRun: { en: 'Start', zh: '开始', fr: 'Démarrer' },
+  reminderOpenMissing: {
+    en: 'This reminder’s quick action is no longer in the app.',
+    zh: '这个提醒对应的快捷操作已经不在了。',
+    fr: 'L’action rapide de ce rappel n’est plus dans l’app.',
+  },
+  remindersRowHint: { en: '{n} reminders', zh: '{n} 个提醒', fr: '{n} rappels' },
 } satisfies Record<string, Localized>;
 
 export const extractedMessages = {
@@ -3514,6 +3592,17 @@ const SINGULAR_MESSAGES: Partial<Record<StringKey, Localized>> = {
     zh: '这个文件不满足「按条件筛选」的条件。',
     fr: 'Le fichier ne remplit pas les conditions de « Filtrer les fichiers ».',
   },
+  reminderWhenDate: {
+    en: '{n} day before “{field}” in “{table}”, at {time}',
+    zh: '「{table}」的「{field}」前 {n} 天的 {time}',
+    fr: '{n} jour avant « {field} » dans « {table} », à {time}',
+  },
+  reminderDueIn: {
+    en: '“{name}” is due in {n} day ({date})',
+    zh: '「{name}」还有 {n} 天到期（{date}）',
+    fr: '« {name} » arrive à échéance dans {n} jour ({date})',
+  },
+  remindersRowHint: { en: '{n} reminder', zh: '{n} 个提醒', fr: '{n} rappel' },
 };
 
 /** 哪个参数决定单复数（默认是 n）。 */

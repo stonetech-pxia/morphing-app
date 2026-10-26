@@ -26,6 +26,7 @@ export * from './naming';
 export * from './ops';
 export * from './presets';
 export * from './registry';
+export * from './reminders';
 export * from './richtext';
 export * from './schema';
 export * from './starter';

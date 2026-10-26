@@ -1,5 +1,6 @@
 import { formulaType, parseFormula } from './formula';
 import type { Registry } from './registry';
+import { reminderProblems } from './reminders';
 import {
   HOME_PAGE_ID,
   PROTECTED_TARGETS,
@@ -164,6 +165,13 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
     for (const c of allComponents(page)) {
       for (const problem of dataComponentProblems(c, config)) issue('data', `${c.id}: ${problem}`);
     }
+  }
+
+  // ---- 提醒（D-251）----
+  for (const id of duplicates((config.reminders ?? []).map((r) => r.id)))
+    issue('duplicate', `reminder ${id}`);
+  for (const r of config.reminders ?? []) {
+    for (const problem of reminderProblems(r, config)) issue('reminder', problem);
   }
 
   // ---- 工作流：动作登记、参数、权限、相邻两步的类型（§7B、§7C、D-060）----

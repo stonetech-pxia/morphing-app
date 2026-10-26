@@ -6,7 +6,7 @@ import { isEmoji, unsafeLinks } from './richtext';
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 修改本文件中会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
 
-export const CURRENT_SCHEMA_VERSION = 15;
+export const CURRENT_SCHEMA_VERSION = 16;
 
 export type Locale = 'en' | 'zh' | 'fr';
 export type Localized = Record<Locale, string>;
@@ -586,6 +586,41 @@ export const WorkflowSchema = z.strictObject({
 });
 export type Workflow = z.infer<typeof WorkflowSchema>;
 
+// ---- 提醒（D-251）：本地通知，不用推送、不需要服务器 ----
+
+/** 一天里的时间 HH:mm（设备本地时间）。 */
+export const TimeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'time like 09:00');
+
+/** 点提醒打开哪里：一个页面或系统入口，或者一个快捷操作（只打开，不运行）。 */
+export type ReminderTarget = NavTarget | `workflow:${string}`;
+const WORKFLOW_TARGET = /^workflow:[a-z][a-z0-9-]{0,47}$/;
+export const ReminderTargetSchema = z.custom<ReminderTarget>(
+  (v) => NavTargetSchema.safeParse(v).success || (typeof v === 'string' && WORKFLOW_TARGET.test(v)),
+  { message: 'opens must be a page, a system entry or workflow:<id>' },
+);
+
+/**
+ * 提醒（D-251）：daily 每天、weekly 每周几（weekdays：1 = 周一 … 7 = 周日）在 time 提醒；
+ * dateField 在一张表的日期字段到期前 daysBefore 天的 time 提醒（每条记录一次）。
+ * 点通知只打开 opens，绝不自动运行任何东西。title 是通知的标题（配置里的文字，AI 能看到）；
+ * dateField 提醒的正文在本机按记录生成（记录内容不进配置，不发给 AI）。
+ */
+export const ReminderSchema = z.strictObject({
+  id: IdSchema,
+  title: text(1, 60),
+  enabled: z.boolean(),
+  schedule: z.enum(['daily', 'weekly', 'dateField']),
+  time: TimeOfDaySchema,
+  weekdays: z.array(z.number().int().min(1).max(7)).min(1).max(7).optional(),
+  collectionId: IdSchema.optional(),
+  fieldId: IdSchema.optional(),
+  daysBefore: z.number().int().min(0).max(30).optional(),
+  opens: ReminderTargetSchema,
+});
+export type Reminder = z.infer<typeof ReminderSchema>;
+
+export const MAX_REMINDERS = 20;
+
 export const HOME_PAGE_ID = 'home';
 /** 新用户的工具箱页面（D-181）。是用户自己的页面，可以改、也可以删；「设置 → 工具」始终列出全部工具。 */
 export const TOOLBOX_PAGE_ID = 'toolbox';
@@ -599,6 +634,8 @@ export const WorkspaceConfigSchema = z.strictObject({
   workflows: z.array(WorkflowSchema).max(MAX_WORKFLOWS),
   /** 数据表结构。记录内容不在配置里，也从不发给 AI。 */
   collections: z.array(CollectionSchema).max(20),
+  /** 提醒（D-251，schemaVersion 16）；没有时就是没有提醒。 */
+  reminders: z.array(ReminderSchema).max(MAX_REMINDERS).optional(),
 });
 export type WorkspaceConfig = z.infer<typeof WorkspaceConfigSchema>;
 

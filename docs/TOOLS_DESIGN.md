@@ -209,6 +209,7 @@ interface StepContext {
 | Speech、AVFoundation、CryptoKit                                                               | 系统自带         | iOS     | Apple 系统框架                    | 语音转文字（morph-speech，§12）                               |
 | whisper.cpp（含 ggml，CMake 构建时按 SHA-256 下载源码）                                       | 1.9.5            | Android | MIT                               | 语音转文字（§12）                                             |
 | MediaExtractor、MediaCodec                                                                    | 系统自带         | Android | Android 系统接口                  | 把音频解码给 whisper（§12）                                   |
+| `expo-notifications`（npm 包，带 iOS / Android 原生代码）                                     | 58.1.6           | 两端    | MIT                               | 提醒：本地通知（D-251），不注册推送                           |
 
 ## 7. 预设工作流和编辑
 

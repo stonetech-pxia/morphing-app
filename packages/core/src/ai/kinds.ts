@@ -25,6 +25,10 @@ const FUNCTION_OPS: ReadonlySet<Op['op']> = new Set<Op['op']>([
   'moveField',
   'removeField',
   'removeCollection',
+  // 提醒是功能（D-251）：直接生效、可以撤销。
+  'addReminder',
+  'updateReminder',
+  'removeReminder',
 ]);
 
 /** 同一批操作里新建的快捷操作。 */

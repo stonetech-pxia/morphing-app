@@ -3784,6 +3784,53 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
       },
     },
   },
+  {
+    id: 'RM1',
+    input: '每天晚上 9 点提醒我记账',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        (c.reminders ?? []).some((r) => r.schedule === 'daily' && r.time === '21:00' && r.enabled)
+          ? null
+          : `expected a daily 21:00 reminder, got ${JSON.stringify(c.reminders)}`,
+    },
+  },
+  {
+    id: 'RM2',
+    input: 'Remind me 3 days before each date in my budget table, at 8am',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        (c.reminders ?? []).some(
+          (r) => r.schedule === 'dateField' && r.daysBefore === 3 && r.time === '08:00',
+        )
+          ? null
+          : `expected a dateField reminder 3 days before at 08:00, got ${JSON.stringify(c.reminders)}`,
+    },
+  },
+  {
+    id: 'RM3',
+    input: '每天早上 8 点自动运行签证照片快捷操作',
+    locale: 'zh',
+    setup: 'visa',
+    mock: false,
+    // 不能自动运行（P-043）：只能做一个打开它的提醒，并在说明里讲清楚。
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        (c.reminders ?? []).some((r) => r.opens.startsWith('workflow:') && r.time === '08:00')
+          ? null
+          : 'expected a reminder that opens the quick action at 08:00',
+      plan: (p) =>
+        (p.notes ?? []).length > 0 ? null : 'expected a note that it will not run by itself',
+    },
+  },
 ];
 
 export const EVAL_CASES: readonly EvalCase[] = [

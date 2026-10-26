@@ -102,6 +102,12 @@
         }
       ],
       [
+        "expo-notifications",
+        {
+          "enableRemoteNotifications": false
+        }
+      ],
+      [
         "expo-audio",
         {
           "microphonePermission": "Morph uses the microphone when you record audio. Recordings stay on this device.",
