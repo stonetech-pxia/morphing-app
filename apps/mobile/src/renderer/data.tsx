@@ -751,10 +751,11 @@ export function statText(
 ): string {
   if (value === null) return '—';
   if (aggregate !== 'count' && field?.type === 'formula') return formatValue(field, value, locale);
-  if (aggregate !== 'count' && field?.type === 'money') return formatMoney(value, field.currency);
+  if (aggregate !== 'count' && field?.type === 'money')
+    return formatMoney(value, field.currency, locale);
   if (aggregate !== 'count' && field?.type === 'number')
-    return `${formatNumber(value, field.decimals)}${field.unit ? ` ${field.unit}` : ''}`;
-  return formatNumber(value);
+    return `${formatNumber(value, field.decimals, locale)}${field.unit ? ` ${field.unit}` : ''}`;
+  return formatNumber(value, undefined, locale);
 }
 
 export function Stat({ props, env, tone }: { props: StatProps; env: RenderEnv; tone?: Tone }) {

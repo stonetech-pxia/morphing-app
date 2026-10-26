@@ -210,21 +210,23 @@ export function Chart({
               onLongPress={env.onLongPress}
               style={styles.legendRow}>
               <View style={[styles.swatch, { backgroundColor: colorOf(p, i) }]} />
-              <Text
-                numberOfLines={1}
-                style={[
-                  styles.flex,
-                  palette.font(i === selected ? 'bodyBold' : 'body', 14),
-                  { color: palette.text },
-                ]}>
-                {p.label}
-              </Text>
-              <Text style={[palette.font('body', 13), { color: palette.muted }]}>
-                {t(locale, 'chartShare', {
-                  value: valueText(p),
-                  percent: `${Math.round((p.value / total) * 100)}%`,
-                })}
-              </Text>
+              {/* 名称和数值上下排：法语金额（「1 234,50 CNY」）较长，并排时名称会被截断。 */}
+              <View style={styles.flex}>
+                <Text
+                  numberOfLines={2}
+                  style={[
+                    palette.font(i === selected ? 'bodyBold' : 'body', 14),
+                    { color: palette.text },
+                  ]}>
+                  {p.label}
+                </Text>
+                <Text style={[palette.font('body', 13), { color: palette.muted }]}>
+                  {t(locale, 'chartShare', {
+                    value: valueText(p),
+                    percent: `${Math.round((p.value / total) * 100)}%`,
+                  })}
+                </Text>
+              </View>
             </Pressable>
           ))}
         </View>

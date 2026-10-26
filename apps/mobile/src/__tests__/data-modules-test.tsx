@@ -1,6 +1,8 @@
 import {
   applyOps,
   createDefaultWorkspace,
+  formatNumber,
+  formatValue,
   localDate,
   type Collection,
   type Component,
@@ -10,6 +12,7 @@ import {
 import { fireEvent } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
 
+import { statText } from '../renderer/data';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { renderToolsApp } from '../test-utils/render-app';
 
@@ -306,5 +309,15 @@ describe('link to another table (D-250)', () => {
     await renderToolsApp(new MemoryWorkspaceRepo(), undefined, { seed });
     await fireEvent.press(await screen.findByTestId('form-add-order-client'));
     expect(await screen.findByText('「客户」里还没有记录。')).toBeTruthy();
+  });
+});
+
+describe('stat and chart values follow the interface language', () => {
+  it('French shows amounts and numbers the way the record list does', () => {
+    const money = expenses.fields[0]!;
+    const weight = { id: 'kg', name: 'Poids', type: 'number', decimals: 1, unit: 'kg' } as const;
+    expect(statText(1234.5, 'sum', money, 'fr')).toBe(formatValue(money, 1234.5, 'fr'));
+    expect(statText(1234.5, 'sum', weight, 'fr')).toBe(formatValue(weight, 1234.5, 'fr'));
+    expect(statText(1234, 'count', money, 'fr')).toBe(formatNumber(1234, undefined, 'fr'));
   });
 });
