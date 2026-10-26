@@ -22,9 +22,16 @@ export function SettingsView({ env }: { env: RenderEnv }) {
   const setGuideStage = useGuide((s) => s.setStage);
   const aiMode = useAISettings((s) => s.mode);
   const aiModel = useAISettings((s) => s.model);
+  const aiProvider = useAISettings((s) => s.provider);
+  const aiCustomModel = useAISettings((s) => s.customModel);
   const aiValue =
     aiMode === 'byok'
-      ? t(locale, 'aiEngineByok', { model: MODELS.find((m) => m.id === aiModel)?.name ?? aiModel })
+      ? t(locale, 'aiEngineByok', {
+          model:
+            aiProvider === 'openai'
+              ? aiCustomModel
+              : (MODELS.find((m) => m.id === aiModel)?.name ?? aiModel),
+        })
       : t(locale, aiMode === 'server' ? 'aiEngineRemote' : 'aiEngineMock');
   return (
     <ScrollView

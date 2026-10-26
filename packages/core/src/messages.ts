@@ -276,9 +276,9 @@ export const strings = {
     fr: 'Règles intégrées (simulation hors ligne)',
   },
   aiEngineByok: {
-    en: 'My own Claude API key ({model})',
-    zh: '我自己的 Claude API key（{model}）',
-    fr: 'Ma propre clé API Claude ({model})',
+    en: 'My own API key ({model})',
+    zh: '我自己的 API key（{model}）',
+    fr: 'Ma propre clé API ({model})',
   },
 
   // AI 设置
@@ -307,14 +307,99 @@ export const strings = {
     fr: 'Pendant la bêta, ce que vous dites à l’IA et la configuration de l’application sont enregistrés pour améliorer Morph. Les fichiers et les entrées ne sont jamais envoyés.',
   },
   aiModeByok: {
-    en: 'My own Claude API key',
-    zh: '我自己的 Claude API key',
-    fr: 'Ma propre clé API Claude',
+    en: 'My own API key',
+    zh: '我自己的 API key',
+    fr: 'Ma propre clé API',
   },
   aiModeByokNote: {
-    en: 'Calls Claude directly from this phone. Usage is billed to your Anthropic account.',
-    zh: '从这台手机直接调用 Claude，费用由你的 Anthropic 账号支付。',
-    fr: 'Appelle Claude directement depuis ce téléphone. L’usage est facturé sur votre compte Anthropic.',
+    en: 'Calls the provider you choose directly from this phone: Claude, or any OpenAI-compatible API. Usage is billed to your account with that provider.',
+    zh: '从这台手机直接调用你选的 provider：Claude，或任意 OpenAI 兼容接口。费用由你在那家的账号支付。',
+    fr: 'Appelle directement depuis ce téléphone le fournisseur de votre choix : Claude, ou toute API compatible OpenAI. L’usage est facturé sur votre compte chez ce fournisseur.',
+  },
+  // 自带 key 的两种 provider（D-241）
+  byokProviderLabel: { en: 'Provider', zh: 'Provider', fr: 'Fournisseur' },
+  byokProviderAnthropic: {
+    en: 'Anthropic (Claude)',
+    zh: 'Anthropic（Claude）',
+    fr: 'Anthropic (Claude)',
+  },
+  byokProviderAnthropicNote: {
+    en: 'Tested. Morph’s instructions to the AI are tuned for Claude.',
+    zh: '测试过。Morph 给 AI 的说明是按 Claude 调的。',
+    fr: 'Testé. Les instructions de Morph à l’IA sont réglées pour Claude.',
+  },
+  byokProviderOpenAI: {
+    en: 'OpenAI-compatible API',
+    zh: 'OpenAI 兼容接口',
+    fr: 'API compatible OpenAI',
+  },
+  byokProviderOpenAINote: {
+    en: 'OpenAI, OpenRouter, DeepSeek, Gemini, Groq, Ollama, LM Studio and others. Not tested.',
+    zh: 'OpenAI、OpenRouter、DeepSeek、Gemini、Groq、Ollama、LM Studio 等。没有测试过。',
+    fr: 'OpenAI, OpenRouter, DeepSeek, Gemini, Groq, Ollama, LM Studio et d’autres. Non testé.',
+  },
+  byokOtherWarning: {
+    en: 'Morph is tested with Claude. Other models may misunderstand requests or refuse them more often. Every change is still checked before it is applied, and you can undo it.',
+    zh: 'Morph 是用 Claude 测试的。其他模型可能更容易理解错或拒绝。每次修改应用前照样会检查，应用后也能撤销。',
+    fr: 'Morph est testé avec Claude. D’autres modèles peuvent plus souvent mal comprendre une demande ou la refuser. Chaque modification est toujours vérifiée avant d’être appliquée, et vous pouvez l’annuler.',
+  },
+  byokSentNote: {
+    en: 'When you ask for a change, what you say and the app’s settings are sent to {host}. Your files and entries are never sent.',
+    zh: '请 AI 修改时，你说的话和界面配置会发送到 {host}；文件和记录不会发送。',
+    fr: 'Quand vous demandez une modification, ce que vous dites et la configuration de l’application sont envoyés à {host}. Vos fichiers et entrées ne sont jamais envoyés.',
+  },
+  baseUrlLabel: { en: 'Base URL', zh: 'Base URL', fr: 'URL de base' },
+  baseUrlPresets: {
+    en: 'Fill in the address for',
+    zh: '填入常见 provider 的地址',
+    fr: 'Remplir l’adresse pour',
+  },
+  customModelLabel: { en: 'Model name', zh: '模型名', fr: 'Nom du modèle' },
+  customModelPlaceholder: {
+    en: 'As written in the provider’s docs',
+    zh: '照 provider 文档里的写法填',
+    fr: 'Tel qu’indiqué dans la documentation du fournisseur',
+  },
+  saveEndpoint: {
+    en: 'Save address and model',
+    zh: '保存地址和模型',
+    fr: 'Enregistrer l’adresse et le modèle',
+  },
+  endpointSaved: { en: 'Saved.', zh: '已保存。', fr: 'Enregistré.' },
+  baseUrlInvalid: {
+    en: 'Enter a full address, for example https://api.openai.com/v1.',
+    zh: '请填写完整地址，例如 https://api.openai.com/v1。',
+    fr: 'Saisissez une adresse complète, par exemple https://api.openai.com/v1.',
+  },
+  baseUrlInsecure: {
+    en: 'The address must start with https://. Plain http:// only works for localhost.',
+    zh: '地址必须以 https:// 开头；http:// 只能用于 localhost。',
+    fr: 'L’adresse doit commencer par https://. http:// ne fonctionne que pour localhost.',
+  },
+  customModelMissing: {
+    en: 'Enter the model name.',
+    zh: '请填写模型名。',
+    fr: 'Saisissez le nom du modèle.',
+  },
+  otherKeyPlaceholder: {
+    en: 'API key (not needed for local models)',
+    zh: 'API key（本地模型可以不填）',
+    fr: 'Clé API (inutile pour les modèles locaux)',
+  },
+  otherKeyFormatInvalid: {
+    en: 'That doesn’t look like an API key (no spaces, at least 8 characters).',
+    zh: '这看起来不是 API key（不能有空格，至少 8 个字符）。',
+    fr: 'Ce n’est pas une clé API valide (sans espaces, au moins 8 caractères).',
+  },
+  otherKeyPrivacyNote: {
+    en: 'The key is stored only in this phone’s secure storage (not synced or backed up to other devices) and is sent only to {host}. Changing the address deletes the key.',
+    zh: 'key 只保存在这台手机的安全存储里（不会同步或备份到其他设备），只发送给 {host}。换地址时 key 会被删除。',
+    fr: 'La clé n’est enregistrée que dans le stockage sécurisé de ce téléphone (non synchronisée ni sauvegardée sur d’autres appareils) et n’est envoyée qu’à {host}. Changer l’adresse supprime la clé.',
+  },
+  testOkOther: {
+    en: 'Connected. The address and key work.',
+    zh: '连接成功，地址和 key 都可以用。',
+    fr: 'Connecté. L’adresse et la clé fonctionnent.',
   },
   apiKeyLabel: { en: 'API key', zh: 'API key', fr: 'API key' },
   apiKeySaved: {
@@ -382,6 +467,26 @@ export const strings = {
     en: 'Couldn’t reach the Claude API. Nothing was changed; check the network and try again.',
     zh: '连不上 Claude API，没有做任何修改，请检查网络后再试。',
     fr: 'Impossible de joindre l’API Claude. Aucune modification n’a été effectuée ; vérifiez la connexion et réessayez.',
+  },
+  byokNoEndpoint: {
+    en: 'Enter the provider’s address and model name in Settings → AI first.',
+    zh: '请先在「设置 → AI」里填写 provider 的地址和模型名。',
+    fr: 'Saisissez d’abord l’adresse du fournisseur et le nom du modèle dans « Paramètres → IA ».',
+  },
+  byokOtherSpendLimit: {
+    en: 'Your account with this provider is out of credit or has reached its spend limit. Nothing was changed.',
+    zh: '你在这家 provider 的余额不足或已达到花费上限，没有做任何修改。',
+    fr: 'Votre compte chez ce fournisseur n’a plus de crédit ou a atteint son plafond de dépenses. Aucune modification n’a été effectuée.',
+  },
+  byokOtherBusy: {
+    en: 'The AI provider is busy or had an error. Nothing was changed; please try again shortly.',
+    zh: 'AI provider 暂时繁忙或出错，没有做任何修改，请稍后再试。',
+    fr: 'Le fournisseur d’IA est occupé ou a rencontré une erreur. Aucune modification n’a été effectuée ; réessayez dans un instant.',
+  },
+  byokOtherUnavailable: {
+    en: 'Couldn’t reach the AI provider, or it didn’t accept the request. Nothing was changed; check the address, the model name and the network.',
+    zh: '连不上 AI provider，或它不接受这个请求，没有做任何修改。请检查地址、模型名和网络。',
+    fr: 'Impossible de joindre le fournisseur d’IA, ou il n’a pas accepté la requête. Aucune modification n’a été effectuée ; vérifiez l’adresse, le nom du modèle et la connexion.',
   },
   aiBadOutput: {
     en: 'The AI’s answer couldn’t be used. Nothing was changed; try saying it another way.',
