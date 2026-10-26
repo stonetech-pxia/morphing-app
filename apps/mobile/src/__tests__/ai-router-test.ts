@@ -173,3 +173,164 @@ describe('AI router', () => {
     });
   });
 });
+
+// 自带 key 选 OpenAI 兼容接口（D-241）。
+describe('OpenAI-compatible provider', () => {
+  const green = { kind: 'ops', ops: [{ op: 'setTheme', primaryColor: '#2F9E44' }] };
+  const OTHER_KEY = 'sk-or-v1-' + 'y'.repeat(30) + 'ABCD';
+  const chatReply = (plan: unknown) =>
+    jest.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            model: 'm',
+            choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(plan) } }],
+          }),
+          { status: 200 },
+        ),
+    );
+
+  async function openai(options: { fetchImpl?: typeof fetch } = {}) {
+    const s = await setup(options);
+    await s.settings.getState().setMode('byok');
+    await s.settings.getState().setProvider('openai');
+    return s;
+  }
+
+  it('remembers the provider, address and model across restarts', async () => {
+    const { settings, secrets } = await openai();
+    expect(
+      await settings.getState().saveEndpoint('https://openrouter.ai/api/v1/', ' some/model '),
+    ).toEqual({ ok: true });
+    const reloaded = createAISettingsStore({ secrets, serverAvailable: false });
+    await reloaded.getState().load();
+    expect(reloaded.getState()).toMatchObject({
+      mode: 'byok',
+      provider: 'openai',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      customModel: 'some/model',
+      // Anthropic 的模型选择不受影响。
+      model: 'claude-haiku-5-5',
+    });
+  });
+
+  it('refuses plain http except for localhost, and an empty model name', async () => {
+    const { settings } = await openai();
+    const save = settings.getState().saveEndpoint;
+    expect(await save('http://api.example.com/v1', 'm')).toEqual({ ok: false, issue: 'insecure' });
+    expect(await save('http://192.168.1.5:11434/v1', 'm')).toEqual({
+      ok: false,
+      issue: 'insecure',
+    });
+    expect(await save('not a url', 'm')).toEqual({ ok: false, issue: 'invalid' });
+    expect(await save('https://api.example.com/v1', '  ')).toEqual({
+      ok: false,
+      issue: 'no_model',
+    });
+    expect(settings.getState().baseUrl).toBe('');
+    expect(await save('http://localhost:11434/v1', 'llama3.2')).toEqual({ ok: true });
+  });
+
+  it('keeps a separate key per provider, so the Claude key never goes to another address', async () => {
+    const { settings, secrets } = await setup();
+    await settings.getState().setMode('byok');
+    await settings.getState().saveKey(KEY);
+    await settings.getState().setProvider('openai');
+    expect(settings.getState().keyHint).toBeNull();
+    expect(await settings.getState().getKey()).toBeNull();
+    await settings.getState().saveEndpoint('https://api.example.com/v1', 'm');
+    expect(await settings.getState().saveKey('short')).toBe(false);
+    expect(await settings.getState().saveKey(OTHER_KEY)).toBe(true);
+    expect(settings.getState().keyHint).toBe('ABCD');
+
+    await settings.getState().setProvider('anthropic');
+    expect(settings.getState().keyHint).toBe('WXYZ');
+    expect(await settings.getState().getKey()).toBe(KEY);
+
+    const reloaded = createAISettingsStore({ secrets, serverAvailable: false });
+    await reloaded.getState().load();
+    await reloaded.getState().setProvider('openai');
+    expect(await reloaded.getState().getKey()).toBe(OTHER_KEY);
+  });
+
+  it('deletes the key when the address changes, but not when only the model changes', async () => {
+    const { settings } = await openai();
+    await settings.getState().saveEndpoint('https://api.example.com/v1', 'm');
+    await settings.getState().saveKey(OTHER_KEY);
+    await settings.getState().saveEndpoint('https://api.example.com/v1/', 'other-model');
+    expect(await settings.getState().getKey()).toBe(OTHER_KEY);
+    await settings.getState().saveEndpoint('https://somewhere-else.example/v1', 'other-model');
+    expect(await settings.getState().getKey()).toBeNull();
+    expect(settings.getState().keyHint).toBeNull();
+  });
+
+  it('asks for the address and model before calling', async () => {
+    const { router, settings } = await openai();
+    expect(await router.plan('主题换成绿色', ctx)).toMatchObject({
+      kind: 'reject',
+      message: '请先在「设置 → AI」里填写 provider 的地址和模型名。',
+    });
+    expect(await settings.getState().testConnection()).toEqual({ ok: false, kind: 'no_endpoint' });
+  });
+
+  it('calls the saved address with the user’s key and returns the validated plan', async () => {
+    const fetchImpl = chatReply(green);
+    const { settings, router } = await openai({ fetchImpl });
+    await settings.getState().saveEndpoint('https://api.example.com/v1', 'some-model');
+    await settings.getState().saveKey(OTHER_KEY);
+    expect(await router.plan('我想要绿色', ctx)).toEqual(green);
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://api.example.com/v1/chat/completions');
+    expect((init.headers as Record<string, string>).authorization).toBe(`Bearer ${OTHER_KEY}`);
+    expect(JSON.parse(String(init.body)).model).toBe('some-model');
+  });
+
+  it('works without a key for local models', async () => {
+    const fetchImpl = chatReply(green);
+    const { settings, router } = await openai({ fetchImpl });
+    await settings.getState().saveEndpoint('http://localhost:11434/v1', 'llama3.2');
+    expect(await router.plan('我想要绿色', ctx)).toEqual(green);
+    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(init.headers).not.toHaveProperty('authorization');
+  });
+
+  it('explains failures without naming Claude and never logs the key', async () => {
+    const logged = (['log', 'info', 'warn', 'error', 'debug'] as const).map((level) =>
+      jest.spyOn(console, level).mockImplementation(() => {}),
+    );
+    try {
+      const echo = jest.fn(
+        async () =>
+          new Response(JSON.stringify({ error: { message: `bad key ${OTHER_KEY}` } }), {
+            status: 503,
+          }),
+      );
+      const { settings, router } = await openai({ fetchImpl: echo });
+      await settings.getState().saveEndpoint('https://api.example.com/v1', 'm');
+      await settings.getState().saveKey(OTHER_KEY);
+      const plan = await router.plan('我想要绿色', ctx);
+      expect(plan).toMatchObject({
+        kind: 'reject',
+        message: 'AI provider 暂时繁忙或出错，没有做任何修改，请稍后再试。',
+      });
+      expect(JSON.stringify(plan)).not.toContain(OTHER_KEY);
+      expect(await settings.getState().testConnection()).toEqual({ ok: false, kind: 'overloaded' });
+      for (const spy of logged)
+        for (const call of spy.mock.calls) expect(JSON.stringify(call)).not.toContain(OTHER_KEY);
+    } finally {
+      for (const spy of logged) spy.mockRestore();
+    }
+  });
+
+  it('tests the connection by listing models', async () => {
+    const fetchImpl = jest.fn(
+      async () => new Response(JSON.stringify({ data: [{ id: 'm' }] }), { status: 200 }),
+    );
+    const { settings } = await openai({ fetchImpl });
+    await settings.getState().saveEndpoint('https://api.example.com/v1', 'm');
+    expect(await settings.getState().testConnection()).toEqual({ ok: true });
+    expect((fetchImpl.mock.calls[0] as unknown as [string])[0]).toBe(
+      'https://api.example.com/v1/models',
+    );
+  });
+});

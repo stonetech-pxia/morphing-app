@@ -1,10 +1,16 @@
 import { localize } from '@morph/core';
-import { MODELS } from '@morph/planner';
+import {
+  ANTHROPIC_API_URL,
+  MODELS,
+  OPENAI_COMPATIBLE_PRESETS,
+  checkBaseUrl,
+  hostOf,
+} from '@morph/planner';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { useAISettings } from '../ai/context';
-import type { AIMode, ConnectionResult } from '../ai/settings';
+import type { AIMode, ByokProvider, ConnectionResult, EndpointResult } from '../ai/settings';
 import { t, type StringKey } from '../i18n';
 import { usePalette, type Palette } from '../renderer/theme';
 import { Button, Card, SectionLabel } from '../renderer/ui';
@@ -12,6 +18,7 @@ import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 
 const RESULT_MESSAGES: Record<Exclude<ConnectionResult, { ok: true }>['kind'], StringKey> = {
   no_key: 'byokNoKey',
+  no_endpoint: 'byokNoEndpoint',
   invalid_key: 'byokInvalidKey',
   permission: 'byokPermission',
   spend_limit: 'byokSpendLimit',
@@ -22,6 +29,23 @@ const RESULT_MESSAGES: Record<Exclude<ConnectionResult, { ok: true }>['kind'], S
   bad_request: 'byokUnavailable',
   timeout: 'byokUnavailable',
   network: 'byokUnavailable',
+};
+
+/** OpenAI 兼容接口：提到 Claude 的几条换成不点名的说法（D-241）。 */
+const OTHER_RESULT_MESSAGES: typeof RESULT_MESSAGES = {
+  ...RESULT_MESSAGES,
+  spend_limit: 'byokOtherSpendLimit',
+  overloaded: 'byokOtherBusy',
+  server: 'byokOtherBusy',
+  bad_request: 'byokOtherUnavailable',
+  timeout: 'byokOtherUnavailable',
+  network: 'byokOtherUnavailable',
+};
+
+const ENDPOINT_MESSAGES: Record<Exclude<EndpointResult, { ok: true }>['issue'], StringKey> = {
+  invalid: 'baseUrlInvalid',
+  insecure: 'baseUrlInsecure',
+  no_model: 'customModelMissing',
 };
 
 function Option({
@@ -59,7 +83,7 @@ function Option({
   );
 }
 
-/** 「设置 → AI」：选择 AI 来源；自带 key 时管理 key、选择模型、测试连接。 */
+/** 「设置 → AI」：选择 AI 来源；自带 key 时选 provider（D-241）、管理 key、选择模型、测试连接。 */
 export function AISettingsScreen() {
   const { locale } = useWorkspaceContext();
   const theme = useWorkspace((s) => s.config!.theme);
@@ -70,6 +94,11 @@ export function AISettingsScreen() {
   const serverAvailable = useAISettings((s) => s.serverAvailable);
   const setMode = useAISettings((s) => s.setMode);
   const setModel = useAISettings((s) => s.setModel);
+  const provider = useAISettings((s) => s.provider);
+  const baseUrl = useAISettings((s) => s.baseUrl);
+  const customModel = useAISettings((s) => s.customModel);
+  const setProvider = useAISettings((s) => s.setProvider);
+  const saveEndpoint = useAISettings((s) => s.saveEndpoint);
   const saveKey = useAISettings((s) => s.saveKey);
   const clearKey = useAISettings((s) => s.clearKey);
   const testConnection = useAISettings((s) => s.testConnection);
@@ -78,6 +107,8 @@ export function AISettingsScreen() {
   const setNeedsButton = useAISettings((s) => s.setNeedsButton);
 
   const [draft, setDraft] = useState('');
+  const [urlDraft, setUrlDraft] = useState(baseUrl);
+  const [modelDraft, setModelDraft] = useState(customModel);
   const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [testing, setTesting] = useState(false);
 
@@ -86,10 +117,29 @@ export function AISettingsScreen() {
     void setMode(m);
   };
 
+  const chooseProvider = (p: ByokProvider) => {
+    setMessage(null);
+    setDraft('');
+    void setProvider(p);
+  };
+
   async function onSave() {
     const ok = await saveKey(draft);
     if (ok) setDraft('');
-    setMessage(ok ? null : { text: t(locale, 'keyFormatInvalid'), ok: false });
+    const invalid = provider === 'openai' ? 'otherKeyFormatInvalid' : 'keyFormatInvalid';
+    setMessage(ok ? null : { text: t(locale, invalid), ok: false });
+  }
+
+  async function onSaveEndpoint() {
+    const result = await saveEndpoint(urlDraft, modelDraft);
+    if (result.ok) {
+      const checked = checkBaseUrl(urlDraft);
+      if (checked.ok) setUrlDraft(checked.url);
+      setModelDraft(modelDraft.trim());
+      setMessage({ text: t(locale, 'endpointSaved'), ok: true });
+    } else {
+      setMessage({ text: t(locale, ENDPOINT_MESSAGES[result.issue]), ok: false });
+    }
   }
 
   async function onTest() {
@@ -98,18 +148,29 @@ export function AISettingsScreen() {
     setTesting(false);
     setMessage(
       result.ok
-        ? { text: t(locale, 'testOk'), ok: true }
-        : { text: t(locale, RESULT_MESSAGES[result.kind]), ok: false },
+        ? { text: t(locale, provider === 'openai' ? 'testOkOther' : 'testOk'), ok: true }
+        : {
+            text: t(
+              locale,
+              (provider === 'openai' ? OTHER_RESULT_MESSAGES : RESULT_MESSAGES)[result.kind],
+            ),
+            ok: false,
+          },
     );
   }
 
+  // 自带 key 时请求发到哪里：Anthropic 固定，OpenAI 兼容接口是已保存的地址。
+  const sentTo =
+    provider === 'anthropic' ? hostOf(ANTHROPIC_API_URL) : baseUrl ? hostOf(baseUrl) : '';
   const text = [palette.font('body', 15), { color: palette.text }];
   const sub = [palette.font('body', 13), { color: palette.muted }];
   return (
     <ScrollView
       style={{ backgroundColor: palette.background }}
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 48 }}
-      keyboardShouldPersistTaps="handled">
+      keyboardShouldPersistTaps="handled"
+      // 地址、模型名和 key 的输入框在下半屏，iOS 弹出键盘时要让开（Android 默认会调整）。
+      automaticallyAdjustKeyboardInsets>
       <SectionLabel palette={palette}>{t(locale, 'aiModeQuestion')}</SectionLabel>
       <Option
         testID="ai-mode-mock"
@@ -145,31 +206,75 @@ export function AISettingsScreen() {
 
       {mode === 'byok' ? (
         <>
-          <SectionLabel palette={palette}>{t(locale, 'apiKeyLabel')}</SectionLabel>
-          <Card palette={palette}>
-            {keyHint ? (
-              <View style={styles.row}>
-                <Text testID="api-key-saved" style={[styles.flex, text]}>
-                  {t(locale, 'apiKeySaved', { hint: keyHint })}
-                </Text>
-                <Pressable testID="api-key-delete" onPress={() => void clearKey()} hitSlop={8}>
-                  <Text style={[palette.font('bodyBold', 15), { color: palette.danger }]}>
-                    {t(locale, 'deleteKey')}
-                  </Text>
-                </Pressable>
-              </View>
-            ) : (
-              <>
+          <SectionLabel palette={palette}>{t(locale, 'byokProviderLabel')}</SectionLabel>
+          <Option
+            testID="byok-provider-anthropic"
+            selected={provider === 'anthropic'}
+            title={t(locale, 'byokProviderAnthropic')}
+            note={t(locale, 'byokProviderAnthropicNote')}
+            onPress={() => chooseProvider('anthropic')}
+            palette={palette}
+          />
+          <Option
+            testID="byok-provider-openai"
+            selected={provider === 'openai'}
+            title={t(locale, 'byokProviderOpenAI')}
+            note={t(locale, 'byokProviderOpenAINote')}
+            onPress={() => chooseProvider('openai')}
+            palette={palette}
+          />
+
+          {provider === 'openai' ? (
+            <>
+              <Text testID="byok-other-warning" style={sub}>
+                {t(locale, 'byokOtherWarning')}
+              </Text>
+              <SectionLabel palette={palette}>{t(locale, 'baseUrlLabel')}</SectionLabel>
+              <Card palette={palette}>
+                <Text style={sub}>{t(locale, 'baseUrlPresets')}</Text>
+                <View style={styles.chips}>
+                  {OPENAI_COMPATIBLE_PRESETS.map((p) => (
+                    <Pressable
+                      key={p.id}
+                      testID={`byok-preset-${p.id}`}
+                      onPress={() => setUrlDraft(p.baseUrl)}
+                      style={[
+                        styles.chip,
+                        {
+                          borderColor: urlDraft === p.baseUrl ? palette.primary : palette.border,
+                          borderRadius: palette.controlRadius,
+                        },
+                      ]}>
+                      <Text style={[palette.font('bodyMedium', 14), { color: palette.text }]}>
+                        {p.name}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
                 <TextInput
-                  testID="api-key-input"
-                  value={draft}
-                  onChangeText={setDraft}
-                  placeholder={t(locale, 'apiKeyPlaceholder')}
+                  testID="byok-base-url"
+                  value={urlDraft}
+                  onChangeText={setUrlDraft}
+                  placeholder="https://api.openai.com/v1"
                   placeholderTextColor={palette.subtext}
-                  secureTextEntry
                   autoCapitalize="none"
                   autoCorrect={false}
-                  textContentType="password"
+                  keyboardType="url"
+                  style={[
+                    styles.input,
+                    text,
+                    { borderColor: palette.border, borderRadius: palette.controlRadius },
+                  ]}
+                />
+                <Text style={sub}>{t(locale, 'customModelLabel')}</Text>
+                <TextInput
+                  testID="byok-model"
+                  value={modelDraft}
+                  onChangeText={setModelDraft}
+                  placeholder={t(locale, 'customModelPlaceholder')}
+                  placeholderTextColor={palette.subtext}
+                  autoCapitalize="none"
+                  autoCorrect={false}
                   style={[
                     styles.input,
                     text,
@@ -178,31 +283,99 @@ export function AISettingsScreen() {
                 />
                 <Button
                   palette={palette}
-                  testID="api-key-save"
-                  onPress={onSave}
-                  disabled={!draft.trim()}
-                  label={t(locale, 'saveKey')}
+                  testID="byok-endpoint-save"
+                  onPress={onSaveEndpoint}
+                  disabled={
+                    !urlDraft.trim() ||
+                    !modelDraft.trim() ||
+                    (urlDraft.trim() === baseUrl && modelDraft.trim() === customModel)
+                  }
+                  label={t(locale, 'saveEndpoint')}
                 />
-              </>
-            )}
-            <Text style={[styles.note, sub]}>{t(locale, 'keyPrivacyNote')}</Text>
-          </Card>
+              </Card>
+            </>
+          ) : null}
 
-          <SectionLabel palette={palette}>{t(locale, 'modelLabel')}</SectionLabel>
-          {MODELS.map((m) => (
-            <Option
-              key={m.id}
-              testID={`model-${m.id}`}
-              selected={model === m.id}
-              title={m.name}
-              note={`${localize(m.note, locale)} · ${t(locale, 'perChange', { cost: m.costPerChange })}`}
-              onPress={() => {
-                setMessage(null);
-                void setModel(m.id);
-              }}
-              palette={palette}
-            />
-          ))}
+          {/* key 只发给已保存的地址，所以 OpenAI 兼容接口先存地址再填 key。 */}
+          {sentTo ? (
+            <SectionLabel palette={palette}>{t(locale, 'apiKeyLabel')}</SectionLabel>
+          ) : null}
+          {sentTo ? (
+            <Card palette={palette}>
+              {keyHint ? (
+                <View style={styles.row}>
+                  <Text testID="api-key-saved" style={[styles.flex, text]}>
+                    {t(locale, 'apiKeySaved', { hint: keyHint })}
+                  </Text>
+                  <Pressable testID="api-key-delete" onPress={() => void clearKey()} hitSlop={8}>
+                    <Text style={[palette.font('bodyBold', 15), { color: palette.danger }]}>
+                      {t(locale, 'deleteKey')}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <>
+                  <TextInput
+                    testID="api-key-input"
+                    value={draft}
+                    onChangeText={setDraft}
+                    placeholder={t(
+                      locale,
+                      provider === 'openai' ? 'otherKeyPlaceholder' : 'apiKeyPlaceholder',
+                    )}
+                    placeholderTextColor={palette.subtext}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="password"
+                    style={[
+                      styles.input,
+                      text,
+                      { borderColor: palette.border, borderRadius: palette.controlRadius },
+                    ]}
+                  />
+                  <Button
+                    palette={palette}
+                    testID="api-key-save"
+                    onPress={onSave}
+                    disabled={!draft.trim()}
+                    label={t(locale, 'saveKey')}
+                  />
+                </>
+              )}
+              <Text style={[styles.note, sub]}>
+                {provider === 'openai'
+                  ? t(locale, 'otherKeyPrivacyNote', { host: sentTo })
+                  : t(locale, 'keyPrivacyNote')}
+              </Text>
+            </Card>
+          ) : null}
+
+          {provider === 'anthropic' ? (
+            <>
+              <SectionLabel palette={palette}>{t(locale, 'modelLabel')}</SectionLabel>
+              {MODELS.map((m) => (
+                <Option
+                  key={m.id}
+                  testID={`model-${m.id}`}
+                  selected={model === m.id}
+                  title={m.name}
+                  note={`${localize(m.note, locale)} · ${t(locale, 'perChange', { cost: m.costPerChange })}`}
+                  onPress={() => {
+                    setMessage(null);
+                    void setModel(m.id);
+                  }}
+                  palette={palette}
+                />
+              ))}
+            </>
+          ) : null}
+
+          {sentTo ? (
+            <Text testID="byok-sent-note" style={[styles.note, sub]}>
+              {t(locale, 'byokSentNote', { host: sentTo })}
+            </Text>
+          ) : null}
 
           <Button
             palette={palette}
@@ -275,4 +448,6 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, padding: 14 },
   secondary: { marginTop: 4 },
   note: { lineHeight: 18 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6 },
 });

@@ -9,7 +9,7 @@ import {
 
 import { buildRepairMessage, buildUserMessage } from './prompt';
 
-// Claude 规划器：服务端（SDK）和 App 内（HTTP，用户自带 key）共用同一份逻辑。
+// 规划器：服务端（SDK）和 App 内（HTTP，用户自带 key，Claude 或 OpenAI 兼容接口）共用同一份逻辑。
 // 模型以 JSON 文本回复 core 的 Plan 格式；回复一律经过 PlanSchema 与 prepareOps 校验，
 // 不合格时带着具体问题请求一次修正（§8：模型输出从不被直接信任）。
 
@@ -53,17 +53,31 @@ export interface PlannerOptions {
 const refusalMessage = (locale: 'en' | 'zh' | 'fr') =>
   t(locale, 'planner_This_request_can_t_be_handled_Try_desc_04270');
 
-/** 从回复文字中取出 JSON（容忍模型偶尔加上的代码块标记）。 */
-function parseJson(text: string): { ok: true; value: unknown } | { ok: false; issue: string } {
+/**
+ * 从回复文字中取出 JSON（容忍模型偶尔加上的代码块标记）。
+ * 非 Claude 模型常在 JSON 前后加一句话，整段解析失败时再试第一个 { 到最后一个 } 之间的部分。
+ */
+export function parseJson(
+  text: string,
+): { ok: true; value: unknown } | { ok: false; issue: string } {
   const trimmed = text
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/, '');
-  try {
-    return { ok: true, value: JSON.parse(trimmed) };
-  } catch {
-    return { ok: false, issue: 'the reply was not a single valid JSON object' };
+  const start = trimmed.indexOf('{');
+  const end = trimmed.lastIndexOf('}');
+  for (const candidate of [
+    trimmed,
+    start >= 0 && end > start ? trimmed.slice(start, end + 1) : null,
+  ]) {
+    if (candidate === null) continue;
+    try {
+      return { ok: true, value: JSON.parse(candidate) };
+    } catch {
+      // 试下一个
+    }
   }
+  return { ok: false, issue: 'the reply was not a single valid JSON object' };
 }
 
 export function createClaudePlanner(options: PlannerOptions): AIProvider {

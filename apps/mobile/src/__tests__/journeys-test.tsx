@@ -585,4 +585,46 @@ describe('user journeys (UI)', () => {
       keyHint: '9a1z',
     });
   });
+
+  it('Settings → AI: an OpenAI-compatible provider needs a saved https address before a key (D-241)', async () => {
+    const { aiSettings } = await renderApp();
+    await fireEvent.press(screen.getByTestId('nav-settings'));
+    await fireEvent.press(await screen.findByText('内置规则（离线 mock）'));
+    await fireEvent.press(await screen.findByTestId('ai-mode-byok'));
+    // Anthropic 时：发到 api.anthropic.com。
+    expect(await screen.findByText(/会发送到 api.anthropic.com/)).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('byok-provider-openai'));
+    expect(await screen.findByTestId('byok-other-warning')).toBeTruthy();
+    // 地址没存之前不让填 key，也不显示 Claude 模型。
+    expect(screen.queryByTestId('api-key-input')).toBeNull();
+    expect(screen.queryByTestId('model-claude-haiku-5-5')).toBeNull();
+
+    await fireEvent.changeText(screen.getByTestId('byok-base-url'), 'http://192.168.1.5:11434/v1');
+    await fireEvent.changeText(screen.getByTestId('byok-model'), 'llama3.2');
+    await fireEvent.press(screen.getByTestId('byok-endpoint-save'));
+    expect(
+      await screen.findByText('地址必须以 https:// 开头；http:// 只能用于 localhost。'),
+    ).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('byok-preset-openrouter'));
+    await fireEvent.changeText(screen.getByTestId('byok-model'), 'some/model');
+    await fireEvent.press(screen.getByTestId('byok-endpoint-save'));
+    expect(await screen.findByText('已保存。')).toBeTruthy();
+    expect(await screen.findByText(/会发送到 openrouter.ai/)).toBeTruthy();
+
+    await fireEvent.changeText(
+      screen.getByTestId('api-key-input'),
+      `sk-or-v1-${'k'.repeat(30)}7q2w`,
+    );
+    await fireEvent.press(screen.getByTestId('api-key-save'));
+    expect(await screen.findByText('已保存（末四位 7q2w）')).toBeTruthy();
+    expect(aiSettings.getState()).toMatchObject({
+      mode: 'byok',
+      provider: 'openai',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      customModel: 'some/model',
+      keyHint: '7q2w',
+    });
+  });
 });

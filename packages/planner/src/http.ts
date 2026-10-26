@@ -11,7 +11,7 @@ import { systemPromptFor } from './prompt';
 export const ANTHROPIC_API_URL = 'https://api.anthropic.com';
 const API_VERSION = '2023-06-01';
 
-export type ClaudeErrorKind =
+export type AIErrorKind =
   | 'invalid_key'
   | 'permission'
   | 'spend_limit'
@@ -22,9 +22,10 @@ export type ClaudeErrorKind =
   | 'server'
   | 'timeout';
 
-export class ClaudeHttpError extends Error {
+/** 两种自带 key 的传输层（Claude、OpenAI 兼容接口）共用的错误。 */
+export class AIHttpError extends Error {
   constructor(
-    readonly kind: ClaudeErrorKind,
+    readonly kind: AIErrorKind,
     readonly status: number,
     message: string,
   ) {
@@ -36,7 +37,7 @@ interface ErrorBody {
   error?: { type?: string; message?: string; details?: { error_code?: string } };
 }
 
-function classify(status: number, body: ErrorBody | null): ClaudeErrorKind {
+function classify(status: number, body: ErrorBody | null): AIErrorKind {
   const type = body?.error?.type;
   const message = body?.error?.message ?? '';
   if (status === 401 || type === 'authentication_error') return 'invalid_key';
@@ -78,16 +79,12 @@ async function request(
     const body = (await response.json().catch(() => null)) as unknown;
     if (!response.ok) {
       const kind = classify(response.status, body as ErrorBody | null);
-      throw new ClaudeHttpError(
-        kind,
-        response.status,
-        `Claude API error ${response.status} (${kind})`,
-      );
+      throw new AIHttpError(kind, response.status, `Claude API error ${response.status} (${kind})`);
     }
     return body;
   } catch (e) {
     if (controller.signal.aborted)
-      throw new ClaudeHttpError('timeout', 0, 'Claude API request timed out');
+      throw new AIHttpError('timeout', 0, 'Claude API request timed out');
     throw e;
   } finally {
     clearTimeout(timer);

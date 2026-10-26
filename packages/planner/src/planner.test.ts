@@ -10,7 +10,7 @@ import {
 } from '@morph/core';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ClaudeHttpError, checkModelAccess, createHttpCompleter } from './http';
+import { AIHttpError, checkModelAccess, createHttpCompleter } from './http';
 import { createClaudePlanner, type Complete, type Completion } from './planner';
 import { buildSystemPrompt, buildUserMessage } from './prompt';
 
@@ -322,7 +322,7 @@ describe('HTTP transport', () => {
       fetchImpl: fail(status, error),
     })([{ role: 'user', content: 'hi' }]);
     const err = await promise.catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(ClaudeHttpError);
+    expect(err).toBeInstanceOf(AIHttpError);
     expect(err).toMatchObject({ kind, status });
     expect(String((err as Error).message)).not.toContain('sk-ant-secret');
   });

@@ -128,10 +128,10 @@ App 侧：`apps/mobile/src/runtime/runner.ts` 把执行器接上存储和平台�
 
 ## 6. 外部能力接口（§14.2）
 
-- AI 来源由「设置 → AI」选择（`apps/mobile/src/ai/`）：内置规则 / Morph 服务器 / 用户自带 Claude API key。规划逻辑在 `packages/planner`，都在 App 里运行（D-193）。
+- AI 来源由「设置 → AI」选择（`apps/mobile/src/ai/`）：内置规则 / Morph 服务器 / 用户自带 key（Anthropic 或 OpenAI 兼容接口，D-241）。规划逻辑在 `packages/planner`，都在 App 里运行（D-193）。
 - `AIProvider`（已实现）：
   - mock：规则解析，离线可用（句式见 [MOCK_AI_PHRASES.md](MOCK_AI_PHRASES.md)）。
-  - Claude 规划器：`packages/planner/src/planner.ts`，在 App 里写提示词（用本机的注册表，含下载的工具）、校验（`PlanSchema` + `prepareOps`），不合格时带着问题清单请求一次修正。模型调用的传输层二选一：自带 key 时直接调用 Claude HTTP API（`packages/planner/src/http.ts`）；Morph 服务器时经 `POST /v1/complete` 转发（`packages/planner/src/relay.ts`，App 端在 `apps/mobile/src/workspace/remote-ai.ts`）。服务不可用时返回“没有做任何修改”的拒绝，不会静默退回 mock。
+  - Claude 规划器：`packages/planner/src/planner.ts`，在 App 里写提示词（用本机的注册表，含下载的工具）、校验（`PlanSchema` + `prepareOps`），不合格时带着问题清单请求一次修正。模型调用的传输层三选一：自带 key 时直接调用 Claude HTTP API（`packages/planner/src/http.ts`）或 OpenAI 兼容接口（`packages/planner/src/openai.ts`）；Morph 服务器时经 `POST /v1/complete` 转发（`packages/planner/src/relay.ts`，App 端在 `apps/mobile/src/workspace/remote-ai.ts`）。服务不可用时返回“没有做任何修改”的拒绝，不会静默退回 mock。
 - 无论来源，计划到达 App 后都会再经过 `PlanSchema` 与 `prepareOps`（§8：模型输出从不被直接信任）。
 - 评测：`packages/core/src/ai/eval-cases.ts` 是 mock 与真实模型共用的评测集；`npm run eval -- --model <id>` 用真实模型跑一遍（产生少量费用），默认走和 Morph 服务器模式一样的转发路径。
 - 以下只约定形状，不写代码：`SyncProvider`（跨设备同步）、`StorageProvider`（云端文件）、`ExecutionProvider`（动作在本地还是云端执行）。账号与同步的设计见 [CLOUD_DESIGN.md](CLOUD_DESIGN.md)。
