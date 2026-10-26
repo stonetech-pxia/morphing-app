@@ -546,7 +546,7 @@ export const MAX_WORKFLOWS = 100;
 
 /**
  * 工作流：线性步骤序列，步骤之间传递一个有类型的值（§7C、D-060，非图灵完备）。
- * toolId：安装工具时创建，卸载时一起移除；presetId：从哪个预设复制来的（D-062）。
+ * toolId：安装工具时创建，卸载时一起移除；presetId：从哪个预设复制来的（D-062，D-236）。
  */
 export const WorkflowSchema = z.strictObject({
   id: IdSchema,

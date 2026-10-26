@@ -32,7 +32,7 @@ it.each([
           files.offerImage('id-back.jpg', 1000, 630),
         ];
       await press(`file-pick-${source}`);
-      await press(iteration === 0 ? `share-preset-add-${preset}` : `share-run-${preset}`);
+      await press(`share-run-${preset}`);
       if (preset === 'document-packet') {
         await screen.findByText('裁剪 1/2', {}, { timeout: 3000 });
         await press('local-done');

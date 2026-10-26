@@ -1,9 +1,9 @@
-import { fireEvent } from '@testing-library/react-native';
+import { fireEvent, waitFor } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
 
 import { acceptNextAlert, renderToolsApp } from '../test-utils/render-app';
 
-// 工作流的界面旅程（T7）：设置 → 工作流 → 从预设添加 → 编辑参数、每次运行时问、加步骤 → 保存（一个版本）→ 撤销 → 运行。
+// 工作流的界面旅程（T7）：设置 → 快捷操作 → 内设的直接运行；编辑参数、每次运行时问、加步骤 → 保存（一个版本）→ 撤销。
 
 async function openWorkflows() {
   const app = await renderToolsApp();
@@ -21,19 +21,36 @@ const visa = (store: Awaited<ReturnType<typeof renderToolsApp>>['store']) =>
 describe('workflow journeys (UI)', () => {
   afterEach(() => jest.restoreAllMocks());
 
-  it('adds a preset, edits it into a new version, and undoes the edit', async () => {
+  it('lists built-in quick actions without anything to add (D-236)', async () => {
     const { store } = await openWorkflows();
-    expect(screen.getByTestId('workflows-empty')).toBeTruthy();
-    await fireEvent.press(screen.getByTestId('preset-add-visa-photo'));
-    expect(await screen.findByTestId('workflow-visa-photo')).toBeTruthy();
-    expect(store.getState().head).toMatchObject({
-      source: 'user',
-      summary: '添加了快捷操作「签证 / 证件照」',
-    });
-    const added = store.getState().head!.id;
+    expect(screen.getByTestId('workflow-visa-photo')).toBeTruthy();
+    expect(screen.getByTestId('workflow-run-visa-photo')).toBeTruthy();
+    expect(screen.queryByTestId('preset-add-visa-photo')).toBeNull();
+    expect(screen.queryByTestId('workflows-empty')).toBeNull();
+    expect(store.getState().config!.workflows.some((w) => w.presetId)).toBe(false);
+  });
 
+  it('runs a built-in quick action without changing the app, and remembers the use', async () => {
+    const { store, repo, files } = await openWorkflows();
+    const head = store.getState().head!.id;
+    files.nextPhotos = [files.offerImage('a.jpg', 4000, 3000)];
+    await fireEvent.press(screen.getByTestId('workflow-run-email-photos'));
+    await fireEvent.press(await screen.findByTestId('prompt-ok', {}, { timeout: 3000 }));
+    expect(await screen.findByTestId('run-result', {}, { timeout: 3000 })).toBeTruthy();
+    expect(files.shared).toHaveLength(1);
+    expect(store.getState().head!.id).toBe(head);
+    expect(store.getState().config!.workflows.some((w) => w.id === 'email-photos')).toBe(false);
+    expect((await repo.countSucceededRuns()).get('email-photos')?.count).toBe(1);
+  });
+
+  it('saves an edited built-in under its own id, and undo brings the built-in back', async () => {
+    const { store } = await openWorkflows();
+    const before = store.getState().head!.id;
     await fireEvent.press(screen.getByTestId('workflow-edit-visa-photo'));
     expect(await screen.findByTestId('workflow-editor')).toBeTruthy();
+    // 内设的本来就是原样，没有「恢复原样」；也不能删除。
+    expect(screen.queryByTestId('workflow-reset')).toBeNull();
+    expect(screen.queryByTestId('workflow-delete')).toBeNull();
     // 改名、把大小改成 200 KB、规格不再每次都问。
     await fireEvent.changeText(screen.getByTestId('workflow-name'), '美签照片');
     await fireEvent.changeText(screen.getByTestId('step-1-maxKB'), '200');
@@ -46,6 +63,8 @@ describe('workflow journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('workflow-save'));
 
     const wf = visa(store)!;
+    // 用同一个 ID：内设时用过的次数接着算。
+    expect(wf.id).toBe('visa-photo');
     expect(wf.name).toBe('美签照片');
     expect(wf.steps[1]).toMatchObject({
       params: { spec: 'us-passport', maxKB: 200 },
@@ -53,23 +72,23 @@ describe('workflow journeys (UI)', () => {
     });
     expect(wf.steps.map((s) => s.action).at(-1)).toBe('out.share');
     expect(store.getState().head).toMatchObject({
-      id: added + 1,
+      id: before + 1,
       summary: '调整了快捷操作「美签照片」',
     });
+    expect(await screen.findByTestId('workflow-reset')).toBeTruthy();
 
-    // 提示条上的「撤销」回到编辑之前。
+    // 提示条上的「撤销」回到编辑之前：又是内设的那个。
     await fireEvent.press(await screen.findByText('撤销'));
-    expect(visa(store)!.name).toBe('签证 / 证件照');
-    expect(visa(store)!.steps).toHaveLength(3);
-    // 编辑页跟着回到撤销后的样子，不留下「未保存的改动」。
-    expect(screen.getByTestId('workflow-name').props.value).toBe('签证 / 证件照');
+    expect(visa(store)).toBeUndefined();
+    await waitFor(() =>
+      expect(screen.getByTestId('workflow-name').props.value).toBe('签证 / 证件照'),
+    );
     expect(screen.queryByTestId('workflow-discard')).toBeNull();
   });
 
-  it('keeps steps that do not fit from being saved, and can put the workflow on Home', async () => {
+  it('keeps steps that do not fit from being saved, and can put a built-in on Home', async () => {
     const { store } = await openWorkflows();
-    await fireEvent.press(screen.getByTestId('preset-add-email-photos'));
-    await fireEvent.press(await screen.findByTestId('workflow-edit-email-photos'));
+    await fireEvent.press(screen.getByTestId('workflow-edit-email-photos'));
     // 把「选照片」移到第二步：第一步不再是输入，不能保存。
     await fireEvent.press(await screen.findByTestId('step-down-0'));
     expect(screen.getByTestId('step-problem-0')).toBeTruthy();
@@ -77,7 +96,11 @@ describe('workflow journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('workflow-discard'));
     expect(screen.queryByTestId('step-problem-0')).toBeNull();
 
+    const before = store.getState().head!.id;
     await fireEvent.press(screen.getByTestId('workflow-to-home'));
+    // 首页的入口要指向配置里的快捷操作：一起存进去，一个版本。
+    expect(store.getState().head!.id).toBe(before + 1);
+    expect(store.getState().config!.workflows.some((w) => w.id === 'email-photos')).toBe(true);
     const home = store.getState().config!.pages.find((p) => p.id === 'home')!;
     expect(
       home.components.some(
@@ -86,27 +109,26 @@ describe('workflow journeys (UI)', () => {
     ).toBe(true);
   });
 
-  it('runs the workflow from the editor', async () => {
-    const { files } = await openWorkflows();
-    await fireEvent.press(screen.getByTestId('preset-add-email-photos'));
-    await fireEvent.press(await screen.findByTestId('workflow-edit-email-photos'));
-    // 结果页会显示，分享步骤在测试里直接记录。
-    files.nextPhotos = [files.offerImage('a.jpg', 4000, 3000)];
-    await fireEvent.press(await screen.findByTestId('workflow-run'));
-    await fireEvent.press(await screen.findByTestId('prompt-ok', {}, { timeout: 3000 }));
-    expect(await screen.findByTestId('run-result', {}, { timeout: 3000 })).toBeTruthy();
-    expect(files.shared).toHaveLength(1);
+  it('copies a built-in under a new id', async () => {
+    const { store } = await openWorkflows();
+    await fireEvent.press(screen.getByTestId('workflow-edit-email-photos'));
+    await fireEvent.press(await screen.findByTestId('workflow-duplicate'));
+    const copy = store.getState().config!.workflows.find((w) => w.presetId === 'email-photos')!;
+    expect(copy.id).not.toBe('email-photos');
+    // 内设的那个还在。
+    await fireEvent.press(await screen.findByText('撤销'));
+    expect(store.getState().config!.workflows).toHaveLength(0);
   });
 
-  it('deletes the user’s own workflow after asking, but tools’ workflows have no delete', async () => {
+  it('deleting an edited built-in returns to the original', async () => {
     const { store } = await openWorkflows();
-    await fireEvent.press(screen.getByTestId('preset-add-email-photos'));
-    await fireEvent.press(await screen.findByTestId('workflow-edit-email-photos'));
+    await fireEvent.press(screen.getByTestId('workflow-edit-email-photos'));
+    await fireEvent.changeText(await screen.findByTestId('workflow-name'), '发邮件');
+    await fireEvent.press(screen.getByTestId('workflow-save'));
     acceptNextAlert();
     await fireEvent.press(await screen.findByTestId('workflow-delete'));
     expect(store.getState().config!.workflows.some((w) => w.id === 'email-photos')).toBe(false);
-    expect(store.getState().head).toMatchObject({
-      summary: '删除了快捷操作「照片发邮件 / 传网站」',
-    });
+    expect(store.getState().head).toMatchObject({ summary: '删除了快捷操作「发邮件」' });
+    expect(await screen.findByTestId('workflow-email-photos')).toBeTruthy();
   });
 });

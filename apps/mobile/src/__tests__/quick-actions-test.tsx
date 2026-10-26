@@ -55,13 +55,9 @@ describe('quick-action categories (UI)', () => {
       await store.getState().confirm();
     });
     expect(await screen.findByLabelText('修改这个 App')).toBeTruthy();
-    await fireEvent.press(await screen.findByTestId('preset-add-visa-photo'));
-    await waitFor(() =>
-      expect(store.getState().config!.workflows.some((w) => w.presetId === 'visa-photo')).toBe(
-        true,
-      ),
-    );
-    expect(await screen.findByTestId('preset-run-visa-photo')).toBeTruthy();
+    // 内设的直接列出来、直接运行（D-236）。
+    await fireEvent.press(await screen.findByTestId('workflow-run-visa-photo'));
+    expect(await screen.findByTestId('run-screen')).toBeTruthy();
   });
 
   it('opens the kernel library on a starter workspace', async () => {
@@ -94,9 +90,11 @@ describe('quick-action categories (UI)', () => {
     expect(screen.queryByTestId('draft-bar')).toBeNull();
   });
 
-  it('ranks my actions by successful uses and ignores failed runs', async () => {
+  it('ranks own and built-in actions together by successful uses, ignoring failed runs', async () => {
     const repo = new MemoryWorkspaceRepo();
     for (const [workflowId, status] of [
+      ['send-photos', 'succeeded'],
+      ['send-photos', 'succeeded'],
       ['email-photos', 'succeeded'],
       ['video-too-big', 'succeeded'],
       ['unused', 'failed'],
@@ -128,11 +126,14 @@ describe('quick-action categories (UI)', () => {
       expect(screen.getByTestId('workflow-email-photos')).toHaveTextContent(/用过\s*1\s*次/),
     );
     const rows = within(screen.getByTestId('quick-actions-image')).getAllByTestId(
-      /^workflow-(?:email-photos|unused)$/,
+      /^workflow-(?:send-photos|email-photos|unused|visa-photo)$/,
     );
+    // 没用过的：自己的在内设的前面。
     expect(rows.map((row) => row.props.testID)).toEqual([
+      'workflow-send-photos',
       'workflow-email-photos',
       'workflow-unused',
+      'workflow-visa-photo',
     ]);
   });
 

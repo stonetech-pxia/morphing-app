@@ -947,6 +947,28 @@ export function presetWorkflow(preset: WorkflowPreset, locale: Locale, id: strin
   };
 }
 
+/**
+ * 内设的快捷操作（D-236）：预设不用添加，直接用预设 ID 运行，运行记录也记在这个 ID 下。
+ * 配置里有它的副本（改过、放到首页、旧版本添加过的）或同 ID 的快捷操作时，用配置里的。
+ */
+export function builtInWorkflows(workflows: readonly Workflow[], locale: Locale): Workflow[] {
+  return WORKFLOW_PRESETS.filter(
+    (p) => !workflows.some((w) => w.presetId === p.id || w.id === p.id),
+  ).map((p) => presetWorkflow(p, locale, p.id));
+}
+
+/** 按 ID 找快捷操作：先找配置里的，再找内设的。 */
+export function findWorkflow(
+  workflows: readonly Workflow[],
+  id: string,
+  locale: Locale,
+): Workflow | undefined {
+  return (
+    workflows.find((w) => w.id === id) ??
+    builtInWorkflows(workflows, locale).find((w) => w.id === id)
+  );
+}
+
 /** 新工作流的 ID：基于名字（预设 ID 等），已用过时加序号。 */
 export function newWorkflowId(base: string, taken: readonly { id: string }[]): string {
   const clean =
