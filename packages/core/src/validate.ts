@@ -277,7 +277,8 @@ function formulaProblems(expression: string, collection: Collection): string[] {
 
 /** 数据组件引用的表、字段和筛选条件是否合法。 */
 function dataComponentProblems(c: Component, config: WorkspaceConfig): string[] {
-  if (c.type !== 'recordList' && c.type !== 'recordForm' && c.type !== 'stat') return [];
+  if (c.type !== 'recordList' && c.type !== 'recordForm' && c.type !== 'stat' && c.type !== 'chart')
+    return [];
   const collection = config.collections.find((x) => x.id === c.props.collectionId);
   if (!collection) return [`data table ${c.props.collectionId} does not exist`];
   const problems: string[] = [];
@@ -324,6 +325,28 @@ function dataComponentProblems(c: Component, config: WorkspaceConfig): string[] 
             `${c.props.aggregate} needs fieldId set to a number, money, rating or formula field`,
           );
         }
+      }
+      problems.push(...conditionProblems(c.props.filter, collection));
+      break;
+    }
+    // D-249：求和、平均要数字字段；按单选分时要单选字段；按时间分时用日期字段；饼图只能按单选分。
+    case 'chart': {
+      if (c.props.aggregate !== 'count') {
+        const f = c.props.fieldId ? field(c.props.fieldId) : undefined;
+        if (!f || !NUMERIC.includes(f.type))
+          problems.push(
+            `${c.props.aggregate} needs fieldId set to a number, money, rating or formula field`,
+          );
+      }
+      if (c.props.group === 'choice') {
+        if (!c.props.choiceField || field(c.props.choiceField)?.type !== 'choice')
+          problems.push('grouping by choice needs choiceField set to a choice field');
+      } else {
+        if (c.props.kind === 'pie')
+          problems.push('a pie chart can only be grouped by a choice field');
+        const d = c.props.dateField;
+        if (d !== undefined && d !== 'createdAt' && d !== 'updatedAt' && field(d)?.type !== 'date')
+          problems.push(`dateField ${d} must be a date field of ${collection.id}`);
       }
       problems.push(...conditionProblems(c.props.filter, collection));
       break;

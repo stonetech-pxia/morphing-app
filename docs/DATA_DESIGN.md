@@ -248,3 +248,4 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 ## 13. 分组统计、图表、表间引用（D-248 起）
 
 - **分组统计**（D-248，schemaVersion 13）：`stat.groupBy` 是一个单选字段，每个选项一行（按选项顺序，没有记录的也列出），没选的记录放在最后「未选」。
+- **图表**（D-249，schemaVersion 14）：`chart {collectionId, kind: bar / line / pie, aggregate: count / sum / avg, fieldId?, group: day / week / month / choice, dateField?, choiceField?, periods?, filter?, title}`。按时间分组显示最近几段（默认 7 天、8 周、6 个月），按单选字段分组每个选项一个点；饼图只能按单选分，超过 7 块合成「其他」。分组和几何在 `core/chart.ts`，App 用 View 画柱子、Skia `Path` 画折线和饼图。

@@ -95,6 +95,8 @@ export function componentLabel(
     }
     case 'stat':
       return t(ctx.locale, 'describe_stat_c1587', { v0: c.props.label });
+    case 'chart':
+      return t(ctx.locale, 'describeChart', { v0: c.props.title });
     case 'group': {
       const layout = {
         stack: t(ctx.locale, 'describe_stacked_00ce0'),

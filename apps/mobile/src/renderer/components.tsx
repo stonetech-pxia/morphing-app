@@ -30,6 +30,7 @@ import { t } from '../i18n';
 import { LONG_PRESS_MS } from '../editing/entry';
 import { FocusItem, FocusToolbar } from '../editing/FocusItem';
 import type { SingleDrag } from '../editing/useSingleDrag';
+import { Chart } from './Chart';
 import { RecordForm, RecordList, Stat } from './data';
 import { FileList } from './FileList';
 import { FilePick } from './FilePick';
@@ -426,6 +427,8 @@ export function ComponentView({ component, env }: { component: Component; env: R
       );
     case 'stat':
       return <Stat props={component.props} env={env} tone={style?.tone} />;
+    case 'chart':
+      return <Chart props={component.props} env={env} tone={style?.tone} />;
     case 'fileList':
       return (
         <FileList

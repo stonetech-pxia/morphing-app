@@ -57,6 +57,14 @@ describe('migrateWorkspace', () => {
       expect(result.after).toEqual({ ...previous, schemaVersion: CURRENT_SCHEMA_VERSION });
     expect(previous.schemaVersion).toBe(10);
   });
+  it('v13 → v14 (chart, D-249) only raises the version', () => {
+    const previous = { ...workspace(), schemaVersion: 13 };
+    expect(migrateWorkspace(previous, undefined, 14)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 14 },
+      fromVersion: 13,
+    });
+  });
   it('v12 → v13 (stat groupBy, D-248) only raises the version', () => {
     const previous = { ...workspace(), schemaVersion: 12 };
     const migrated = migrateWorkspace(previous, undefined, 13);

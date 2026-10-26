@@ -69,4 +69,5 @@ export const CAPABILITIES: Record<ComponentType, Capability> = {
   recordList: { text: [], style: ['tone'] },
   recordForm: { text: [], style: ['tone'] },
   stat: { text: [], style: ['tone'] },
+  chart: { text: [{ prop: 'title', max: 60 }], style: ['tone'] },
 };

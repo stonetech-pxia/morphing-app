@@ -9,6 +9,7 @@ export { stepIdFor } from './ai/workflow-phrases';
 export * from './ai/types';
 export * from './arrange';
 export * from './change';
+export * from './chart';
 export * from './data';
 export * from './defaults';
 export * from './file-filter';

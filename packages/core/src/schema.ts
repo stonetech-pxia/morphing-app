@@ -6,7 +6,7 @@ import { isEmoji, unsafeLinks } from './richtext';
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 修改本文件中会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
 
-export const CURRENT_SCHEMA_VERSION = 13;
+export const CURRENT_SCHEMA_VERSION = 14;
 
 export type Locale = 'en' | 'zh' | 'fr';
 export type Localized = Record<Locale, string>;
@@ -466,6 +466,27 @@ export const StatComponentSchema = z.strictObject({
   }),
 });
 
+/**
+ * 图表（D-249）：一张表的记录按时间段（最近几天 / 周 / 月）或单选字段分组，柱状、折线或饼图。
+ * 饼图只能按单选字段分。只有固定几种画法和聚合，没有表达式；记录只在本机读取。
+ */
+export const ChartComponentSchema = z.strictObject({
+  ...componentBase,
+  type: z.literal('chart'),
+  props: z.strictObject({
+    collectionId: IdSchema,
+    kind: z.enum(['bar', 'line', 'pie']),
+    aggregate: z.enum(['count', 'sum', 'avg']),
+    fieldId: IdSchema.optional(),
+    group: z.enum(['day', 'week', 'month', 'choice']),
+    dateField: FieldRefSchema.optional(),
+    choiceField: IdSchema.optional(),
+    periods: z.number().int().min(2).max(31).optional(),
+    filter: z.array(ConditionSchema).max(5).optional(),
+    title: text(1, 60),
+  }),
+});
+
 const LeafComponentSchema = z.discriminatedUnion('type', [
   FilePickComponentSchema,
   HeaderComponentSchema,
@@ -485,6 +506,7 @@ const LeafComponentSchema = z.discriminatedUnion('type', [
   RecordListComponentSchema,
   RecordFormComponentSchema,
   StatComponentSchema,
+  ChartComponentSchema,
 ]);
 export type LeafComponent = z.infer<typeof LeafComponentSchema>;
 
@@ -601,7 +623,10 @@ export function toolGridToolIds(
 
 /** 数据组件引用的数据表。 */
 export function componentCollection(c: Component): string | null {
-  return c.type === 'recordList' || c.type === 'recordForm' || c.type === 'stat'
+  return c.type === 'recordList' ||
+    c.type === 'recordForm' ||
+    c.type === 'stat' ||
+    c.type === 'chart'
     ? c.props.collectionId
     : null;
 }

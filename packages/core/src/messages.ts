@@ -1591,6 +1591,16 @@ export const strings = {
   },
   // 统计按选项分组（D-248）
   statNoChoice: { en: 'Not set', zh: '未选', fr: 'Non renseigné' },
+  // 图表（D-249）
+  describeChart: { en: 'chart “{v0}”', zh: '图表「{v0}」', fr: 'graphique « {v0} »' },
+  chartOther: { en: 'Other', zh: '其他', fr: 'Autres' },
+  chartEmpty: {
+    en: 'No entries to show yet',
+    zh: '还没有可以显示的记录',
+    fr: 'Aucune entrée à afficher pour l’instant',
+  },
+  chartPoint: { en: '{label}: {value}', zh: '{label}：{value}', fr: '{label} : {value}' },
+  chartShare: { en: '{value} ({percent})', zh: '{value}（{percent}）', fr: '{value} ({percent})' },
 } satisfies Record<string, Localized>;
 
 export const extractedMessages = {

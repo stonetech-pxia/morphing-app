@@ -3727,6 +3727,47 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
           : 'expected a stat with groupBy and aggregate sum',
     },
   },
+  {
+    id: 'CH1',
+    input: '记账页面加一个柱状图，显示最近 12 个月每月花了多少',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.pages.some((p) =>
+          allComponents(p).some(
+            (x) =>
+              x.type === 'chart' &&
+              x.props.kind === 'bar' &&
+              x.props.group === 'month' &&
+              x.props.aggregate === 'sum' &&
+              x.props.periods === 12,
+          ),
+        )
+          ? null
+          : 'expected a monthly bar chart of sums over 12 periods',
+    },
+  },
+  {
+    id: 'CH2',
+    input: 'Add a pie chart of spending by category to the budget page',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.pages.some((p) =>
+          allComponents(p).some(
+            (x) => x.type === 'chart' && x.props.kind === 'pie' && x.props.group === 'choice',
+          ),
+        )
+          ? null
+          : 'expected a pie chart grouped by a choice field',
+    },
+  },
 ];
 
 export const EVAL_CASES: readonly EvalCase[] = [

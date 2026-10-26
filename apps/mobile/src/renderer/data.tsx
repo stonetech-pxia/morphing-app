@@ -588,7 +588,7 @@ export function RecordForm({
 type StatProps = Extract<Component, { type: 'stat' }>['props'];
 
 /** 统计值的显示：金额按币种、数字按单位和小数位，计数和其他字段只显示数字。 */
-function statText(
+export function statText(
   value: number | null,
   aggregate: StatProps['aggregate'],
   field: Field | undefined,
