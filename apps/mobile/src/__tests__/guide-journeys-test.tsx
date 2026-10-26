@@ -83,12 +83,14 @@ describe('first-run guide', () => {
     expect(screen.getByTestId('change-input')).toHaveProp('value', LOOK_PROMPTS[0]!.zh);
     expect(filePicks(store)).toHaveLength(0);
     await fireEvent.press(screen.getByTestId('change-submit'));
-    // 直接生效，不进草稿；回到首页显示第 2 步，并告诉用户可以撤销。
+    // 直接生效，不进草稿；回到首页显示第 2 步。引导里的修改顶部不出「已改好 · 撤销」（D-239）。
     expect(await screen.findByTestId('guide-goal')).toHaveTextContent(/第 2 步/);
     expect(store.getState().draft).toBeNull();
     expect(filePicks(store)).toHaveLength(2);
     expect(screen.getByTestId('file-pick-media')).toBeTruthy();
-    expect(screen.getByTestId('guide-undo-hint')).toHaveTextContent(/撤销/);
+    expect(store.getState().banner).toBeNull();
+    expect(screen.queryByTestId('banner')).toBeNull();
+    expect(screen.queryByTestId('guide-undo-hint')).toBeNull();
     expect(screen.queryByTestId('guide-goal-trip-photos')).toBeNull();
     expect(await repo.getMeta('guide')).toBe('goal');
   });
@@ -132,6 +134,9 @@ describe('first-run guide', () => {
     await waitFor(() => expect(filePicks(store)).toHaveLength(2));
     expect(store.getState().draft).toBeNull();
     expect(screen.queryByTestId('guide-look')).toBeNull();
+    // 顶部不出「已改好 · 撤销」（D-239）。
+    expect(store.getState().banner).toBeNull();
+    expect(screen.queryByTestId('banner')).toBeNull();
     expect(await repo.getMeta('guide')).toBe('done');
   });
 

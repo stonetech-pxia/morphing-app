@@ -177,7 +177,7 @@ export function ChangeScreen() {
     // 按钮的导航栏在这时更新会崩（react-native-screens：child already has a parent）。
     navigation.setOptions({ ...stackScreenOptions(palette), ...closeButtonOption(palette) });
     if (guide) {
-      // 顶部照常「已改好 · 撤销」；回到首页显示第 2 步。
+      // 顶部不出「已改好 · 撤销」（D-239）；回到首页显示第 2 步。
       const proposed = await propose(text.trim(), offline ? presetPlanner : undefined);
       // 重新看引导时首页已经有这两个按钮：第 1 步算做完了。
       const already = proposed.kind === 'rejected' && proposed.reason === 'noChange';
@@ -186,7 +186,7 @@ export function ChangeScreen() {
         setAsked(text.trim());
         return;
       }
-      if (!already && (proposed.kind !== 'preview' || !(await confirm()))) return;
+      if (!already && (proposed.kind !== 'preview' || !(await confirm({ quiet: true })))) return;
       void setGuideStage('goal');
       leave();
       return;
