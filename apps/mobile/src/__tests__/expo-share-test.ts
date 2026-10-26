@@ -37,6 +37,10 @@ function fakeNative(exportResult: () => Promise<SavedToFolder | null>, remembere
       if (args[0].endsWith('.zzz')) {
         throw Object.assign(new Error('no viewer'), { code: 'ERR_NO_VIEWER' });
       }
+      if (args[0].endsWith('.bad')) {
+        // 原生里没接住的异常（例如 SecurityException），Expo 统一报 ERR_UNEXPECTED。
+        throw Object.assign(new Error('boom'), { code: 'ERR_UNEXPECTED' });
+      }
     },
   };
   return { native, calls };
@@ -211,6 +215,10 @@ describe('previewing a file (D-238)', () => {
         name: 'a.zzz',
       }),
     ).rejects.toEqual(new RunError('noViewer'));
+    // 别的原生错误不把错误代码显示给用户。
+    await expect(
+      previewFile(deps, { uri: 'content://x/a.bad', mimeType: 'application/pdf', name: 'a.pdf' }),
+    ).rejects.toEqual(new RunError('previewFailed'));
   });
 
   it('falls back to the share sheet without the native module (Expo Go)', async () => {

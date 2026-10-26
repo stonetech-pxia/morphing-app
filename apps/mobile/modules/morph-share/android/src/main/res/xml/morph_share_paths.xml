@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
   <cache-path name="runs" path="runs/" />
+  <!-- 收件页面预览时复制的那一份（D-238）。 -->
+  <cache-path name="preview" path="preview/" />
 </paths>

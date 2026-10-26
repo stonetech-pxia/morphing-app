@@ -56,6 +56,7 @@ export type RunErrorCode =
   | 'saveFailed'
   | 'folderNotWritable'
   | 'noViewer'
+  | 'previewFailed'
   | 'unsupportedAction'
   | 'invalidWorkflow'
   | 'cameraUnavailable'

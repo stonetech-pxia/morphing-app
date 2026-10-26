@@ -35,9 +35,9 @@ export interface MorphShareModule {
     key: string,
   ): Promise<SavedToFolder | null>;
   /**
-   * 用系统预览打开一个文件（D-238）：iOS 是 QuickLook（标题用 name，原来的文件名），Android 交给能打开它的 App；
-   * 打开后就返回。
-   * Android 上没有能打开它的 App 时抛出 code 为 ERR_NO_VIEWER 的错误。
+   * 用系统预览打开一个文件（D-238）：iOS 是 QuickLook（标题用 name，原来的文件名），Android 复制一份到缓存
+   * 后交给能打开它的 App；打开后就返回。
+   * Android 上没有能打开它的 App 时抛出 code 为 ERR_NO_VIEWER 的错误，读不到文件时为 ERR_PREVIEW_FAILED。
    */
   previewFile(uri: string, mimeType: string, name: string): Promise<void>;
   /** 忘掉不在 keep 里的快捷操作的文件夹（快捷操作已经删掉了）；最后选过的那个不动。 */
