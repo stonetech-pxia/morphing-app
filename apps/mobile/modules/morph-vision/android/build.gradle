@@ -13,6 +13,8 @@ android {
   defaultConfig {
     versionCode 1
     versionName '1.0.0'
+    // release 包开了 R8：ML Kit 的内部类不能被合并、改写。
+    consumerProguardFiles 'consumer-rules.pro'
   }
 }
 

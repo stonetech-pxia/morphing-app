@@ -296,7 +296,7 @@ export const VIDEO_IMPLS: Record<string, Impl> = {
         throw new RunError('mediaUnsupported', { name: displayName(item) });
       try {
         const uri = await media.frame(item.uri, time, ctx.services.runId);
-        const size = (await ctx.services.files.readBytes(uri)).length;
+        const size = (await ctx.services.files.readUri(uri)).length;
         const dimensions = await ctx.services.files.imageSize(uri);
         out.push({
           uri,

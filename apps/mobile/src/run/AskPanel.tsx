@@ -9,7 +9,15 @@ import {
 } from '@morph/core';
 
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { t } from '../i18n';
 import type { Palette } from '../renderer/theme';
@@ -112,19 +120,22 @@ export function AskPanel({
           <Text style={[palette.font('title', 18), { color: palette.text }]}>
             {onlyName ? t(locale, 'askName') : localize(request.action.label, locale)}
           </Text>
-          <ParamForm
-            action={request.action}
-            values={values}
-            onChange={(v) => {
-              setValues(v);
-              setError(null);
-            }}
-            palette={palette}
-            locale={locale}
-            only={request.keys}
-            testPrefix="ask"
-            hideLabels={onlyName}
-          />
+          {/* 问的参数多（证件照规格有十几个）时比屏幕高：中间滚动，标题和「确定」一直看得到。 */}
+          <ScrollView testID="ask-scroll" style={styles.scroll} keyboardShouldPersistTaps="handled">
+            <ParamForm
+              action={request.action}
+              values={values}
+              onChange={(v) => {
+                setValues(v);
+                setError(null);
+              }}
+              palette={palette}
+              locale={locale}
+              only={request.keys}
+              testPrefix="ask"
+              hideLabels={onlyName}
+            />
+          </ScrollView>
           {error ? (
             <Text
               testID="ask-error"
@@ -152,6 +163,7 @@ export function AskPanel({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: '#2A242080', justifyContent: 'center', padding: 24 },
-  dialog: { padding: 22, gap: 18 },
+  dialog: { padding: 22, gap: 18, maxHeight: '100%' },
+  scroll: { flexGrow: 0, flexShrink: 1 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 24 },
 });

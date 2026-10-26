@@ -160,7 +160,7 @@ const SHARE: ShareDeps = {
         } catch {
           throw Object.assign(new Error('folder not writable'), { code: FOLDER_NOT_WRITABLE });
         }
-        file.write(await new File(sourceUri).bytes());
+        await file.write(await new File(sourceUri).bytes());
       },
     };
   },
@@ -239,7 +239,7 @@ export const expoFilePlatform: FilePlatform = {
     const file = new File(dir, fileName);
     if (file.exists) file.delete();
     file.create();
-    file.write(text);
+    await file.write(text);
     await shareAsync(file.uri, {
       mimeType,
       ...(mimeType === 'text/csv' ? { UTI: 'public.comma-separated-values-text' } : {}),
@@ -332,7 +332,7 @@ export const expoFilePlatform: FilePlatform = {
   async writeRunFile(runId, fileName, bytes) {
     const dest = runFile(runId, fileName);
     dest.create();
-    dest.write(bytes);
+    await dest.write(bytes);
     // 刚写完时 size 可能还是 0，直接用字节数。
     return { uri: dest.uri, size: bytes.length };
   },
@@ -475,7 +475,7 @@ export const expoFilePlatform: FilePlatform = {
     for (const f of old.slice(2)) f.delete();
     const file = new File(dir, `${Date.now()}_${aspect.toFixed(3)}.png`);
     file.create();
-    file.write(png);
+    await file.write(png);
   },
 
   async renderText(text, style) {
@@ -486,7 +486,7 @@ export const expoFilePlatform: FilePlatform = {
     const out = enhanceJpeg(await new File(uri).bytes(), mode);
     const dest = runFile(runId, relPath);
     dest.create();
-    dest.write(out.bytes);
+    await dest.write(out.bytes);
     return { uri: dest.uri, width: out.width, height: out.height, size: out.bytes.length };
   },
 
@@ -494,7 +494,7 @@ export const expoFilePlatform: FilePlatform = {
     const out = await composeOnSurface(canvas, ops, save, (uri) => new File(uri).bytes());
     const dest = runFile(runId, relPath);
     dest.create();
-    dest.write(out.bytes);
+    await dest.write(out.bytes);
     return { uri: dest.uri, width: out.width, height: out.height, size: out.bytes.length };
   },
 
