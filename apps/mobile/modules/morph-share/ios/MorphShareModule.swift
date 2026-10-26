@@ -1,4 +1,5 @@
 import ExpoModulesCore
+import QuickLook
 import UIKit
 import UniformTypeIdentifiers
 
@@ -9,6 +10,7 @@ import UniformTypeIdentifiers
 //   不用导出模式：模拟器实测文件夹里已有同名文件时，导出选择器报 OSStatus -8072、什么也不存。
 // 记住上次选的文件夹（P-019、D-123）：存成书签（UserDefaults），下次直接存进去；文件夹没了就重新让用户选。
 // 每个快捷操作记自己的文件夹（D-196）：「快捷操作 ID → 书签」另存一份；还没有时用最后选过的那个并记给它。
+// - 预览（D-238）：QLPreviewController 显示收件页面上的一个文件（PDF、办公文档等），系统自带缩放和翻页。
 // Morph 只把本机文件交给系统界面和用户选的文件夹，不联网。
 
 final class PresenterMissingException: Exception, @unchecked Sendable {
@@ -33,6 +35,7 @@ private let folderBookmarksKey = "morph.share.folderBookmarks"
 
 public class MorphShareModule: Module {
   private var folderDelegate: FolderDelegate?
+  private var previewSource: PreviewSource?
   private var busy = false
 
   public func definition() -> ModuleDefinition {
@@ -55,6 +58,22 @@ public class MorphShareModule: Module {
       Self.anchor(sheet, on: presenter)
       self.busy = true
       presenter.present(sheet, animated: true)
+    }
+    .runOnQueue(DispatchQueue.main)
+
+    // 打开系统预览后就返回，不等用户关掉；mimeType 只给 Android 用。name 是原来的文件名：分享扩展存的副本
+    // 是 UUID 文件名，标题要显示原来的。
+    AsyncFunction("previewFile") { (uri: URL, _: String, name: String, promise: Promise) in
+      guard let presenter = self.appContext?.utilities?.currentViewController() else {
+        promise.reject(PresenterMissingException())
+        return
+      }
+      let source = PreviewSource(uri, title: name)
+      self.previewSource = source
+      let preview = QLPreviewController()
+      preview.dataSource = source
+      presenter.present(preview, animated: true)
+      promise.resolve(nil)
     }
     .runOnQueue(DispatchQueue.main)
 
@@ -249,5 +268,29 @@ final class FolderDelegate: NSObject, UIDocumentPickerDelegate, UIAdaptivePresen
   // 向下滑动关掉选择器也算取消。
   func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
     finish(nil)
+  }
+}
+
+final class PreviewItem: NSObject, QLPreviewItem {
+  let previewItemURL: URL?
+  let previewItemTitle: String?
+
+  init(_ url: URL, title: String) {
+    previewItemURL = url
+    previewItemTitle = title
+  }
+}
+
+final class PreviewSource: NSObject, QLPreviewControllerDataSource {
+  private let item: PreviewItem
+
+  init(_ url: URL, title: String) {
+    item = PreviewItem(url, title: title)
+  }
+
+  func numberOfPreviewItems(in controller: QLPreviewController) -> Int { 1 }
+
+  func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem {
+    item
   }
 }

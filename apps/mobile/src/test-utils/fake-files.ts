@@ -332,6 +332,14 @@ export class FakeFiles implements FilePlatform {
     }
     this.savedToPhotos.push(...uris);
   }
+  /** 用系统预览打开过的文件（D-238）。 */
+  previewed: { uri: string; mimeType: string }[] = [];
+  /** 为 true 时预览报「没有能打开它的 App」。 */
+  previewFails = false;
+  async previewFile(item: { uri: string; mimeType: string }) {
+    if (this.previewFails) throw new RunError('noViewer');
+    this.previewed.push({ uri: item.uri, mimeType: item.mimeType });
+  }
   async print(item: { uri: string }) {
     this.printed.push(item.uri);
   }

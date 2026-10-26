@@ -13,7 +13,9 @@ import {
   presetById,
   presetWorkflow,
   presetsIn,
+  sharePresetOrder,
 } from './presets';
+import { shareFit } from '../share';
 
 describe('workflow presets', () => {
   it('has the built-in presets with unique ids', () => {
@@ -107,5 +109,60 @@ describe('workflow presets', () => {
       presetId: 'visa-photo',
     });
     expect(findWorkflow([edited], 'visa-photo', 'zh')).toBeUndefined();
+  });
+});
+
+describe('inbox order for each kind of file (D-237)', () => {
+  const files = (mimeType: string, n: number) =>
+    Array.from({ length: n }, (_, i) => ({ name: `f${i}`, mimeType, size: 1 }));
+
+  it('puts the most common actions first for one photo, many photos, videos, PDFs and audio', () => {
+    expect(sharePresetOrder(files('image/jpeg', 1))).toEqual([
+      'email-photos',
+      'document-packet',
+      'visa-photo',
+      'mark-up-photos',
+      'remove-photo-background',
+    ]);
+    expect(sharePresetOrder(files('image/heic', 3))[0]).toBe('document-packet');
+    expect(sharePresetOrder(files('video/mp4', 1))[0]).toBe('video-too-big');
+    expect(sharePresetOrder(files('video/mp4', 2))[0]).toBe('join-videos');
+    expect(sharePresetOrder(files('application/pdf', 1))[0]).toBe('pdf-too-big');
+    expect(sharePresetOrder(files('application/pdf', 2))[0]).toBe('combine-documents');
+    expect(sharePresetOrder(files('audio/mp4', 1))[0]).toBe('audio-to-text');
+    expect(sharePresetOrder(files('audio/mp4', 2))[0]).toBe('merge-recordings');
+  });
+
+  it('only lists presets that exist and can take those files', () => {
+    for (const [mime, n] of [
+      ['image/jpeg', 1],
+      ['image/jpeg', 3],
+      ['video/mp4', 1],
+      ['video/mp4', 3],
+      ['application/pdf', 1],
+      ['application/pdf', 3],
+      ['audio/mp4', 1],
+      ['audio/mp4', 3],
+    ] as const) {
+      const infos = files(mime, n);
+      const order = sharePresetOrder(infos);
+      expect(order.length).toBeGreaterThan(0);
+      expect(order.length).toBeLessThanOrEqual(5);
+      for (const id of order) {
+        const preset = presetById(id);
+        expect(preset, id).toBeDefined();
+        expect(shareFit(presetWorkflow(preset!, 'zh', id), infos).ok, `${id} ${mime} ×${n}`).toBe(
+          true,
+        );
+      }
+    }
+  });
+
+  it('has no order for mixed kinds or other files', () => {
+    expect(sharePresetOrder([...files('image/jpeg', 1), ...files('application/pdf', 1)])).toEqual(
+      [],
+    );
+    expect(sharePresetOrder(files('application/zip', 1))).toEqual([]);
+    expect(sharePresetOrder([])).toEqual([]);
   });
 });

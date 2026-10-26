@@ -109,4 +109,46 @@ describe('inbox recommendations', () => {
       ).recommended.find((r) => r.wf.id === 'many')?.fit,
     ).toMatchObject({ reason: 'tooMany' });
   });
+  it('fills a new user with the most common built-in actions for this kind of file (D-237)', () => {
+    const ids = (files: SharedFileInfo[]) =>
+      shareRecommendations([], files, new Map(), 'zh').recommended.map((x) => x.wf.id);
+    expect(ids(infos)).toEqual([
+      'email-photos',
+      'document-packet',
+      'visa-photo',
+      'mark-up-photos',
+      'remove-photo-background',
+    ]);
+    expect(ids([{ name: 'a.pdf', mimeType: 'application/pdf', size: 1 }])).toEqual([
+      'pdf-too-big',
+      'sign-return',
+      'combine-documents',
+      'foreign-pdf',
+    ]);
+    // 自己做的没用过的仍排在内设的前面；用过的按次数排在最前。
+    expect(
+      shareRecommendations([wf('own'), wf('used')], infos, usage(['used', 1, 1]), 'zh')
+        .recommended.slice(0, 3)
+        .map((x) => x.wf.id),
+    ).toEqual(['used', 'own', 'email-photos']);
+  });
+  it('ranks a tool action that has the same id as a listed built-in one (video-frame) (D-237)', () => {
+    const toolFrame = wf('video-frame', {
+      toolId: 'video',
+      steps: [{ id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } }],
+    });
+    const ids = shareRecommendations(
+      [toolFrame],
+      [{ name: 'clip.mp4', mimeType: 'video/mp4', size: 1 }],
+      new Map(),
+      'zh',
+    ).recommended.map((x) => x.wf.id);
+    expect(ids).toEqual([
+      'video-too-big',
+      'video-sound',
+      'video-frame',
+      'mute-video',
+      'fix-video-rotation',
+    ]);
+  });
 });

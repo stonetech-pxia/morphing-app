@@ -3,6 +3,7 @@ import { RunError } from '@morph/core';
 import type { MorphShareModule, SavedToFolder } from '../../modules/morph-share';
 import {
   forgetFolders,
+  previewFile,
   rememberedFolder,
   saveAllToFolder,
   shareAll,
@@ -30,6 +31,12 @@ function fakeNative(exportResult: () => Promise<SavedToFolder | null>, remembere
     },
     forgetFolders(...args) {
       calls.push({ fn: 'forgetFolders', args });
+    },
+    async previewFile(...args) {
+      calls.push({ fn: 'previewFile', args });
+      if (args[0].endsWith('.zzz')) {
+        throw Object.assign(new Error('no viewer'), { code: 'ERR_NO_VIEWER' });
+      }
     },
   };
   return { native, calls };
@@ -182,5 +189,37 @@ describe('saving to a folder', () => {
     // 删掉的快捷操作忘掉它的文件夹，再用时回到最后选过的。
     forgetFolders(fallback.deps, ['contracts']);
     expect(rememberedFolder(fallback.deps, 'receipts')).toBe('Contracts');
+  });
+});
+
+describe('previewing a file (D-238)', () => {
+  it('opens the system preview; no app to open it becomes noViewer', async () => {
+    const { native, calls } = fakeNative(async () => null);
+    const deps: ShareDeps = { ...fallbackDeps(null).deps, native };
+    await previewFile(deps, {
+      uri: 'content://x/报告.pdf',
+      mimeType: 'application/pdf',
+      name: '报告.pdf',
+    });
+    expect(calls).toEqual([
+      { fn: 'previewFile', args: ['content://x/报告.pdf', 'application/pdf', '报告.pdf'] },
+    ]);
+    await expect(
+      previewFile(deps, {
+        uri: 'file:///cache/runs/r/a.zzz',
+        mimeType: 'application/octet-stream',
+        name: 'a.zzz',
+      }),
+    ).rejects.toEqual(new RunError('noViewer'));
+  });
+
+  it('falls back to the share sheet without the native module (Expo Go)', async () => {
+    const { deps, sheets } = fallbackDeps(null);
+    await previewFile(deps, {
+      uri: 'file:///group/a.pdf',
+      mimeType: 'application/pdf',
+      name: 'a.pdf',
+    });
+    expect(sheets).toEqual(['file:///group/a.pdf']);
   });
 });

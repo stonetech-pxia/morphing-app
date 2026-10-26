@@ -64,6 +64,25 @@ export async function shareAll(
   for (const item of items) await deps.shareOne(item);
 }
 
+export const NO_VIEWER = 'ERR_NO_VIEWER';
+
+/** 用系统预览打开一个文件（D-238）；Expo Go 里没有原生模块，退回分享面板（iOS 的面板上能看文件）。 */
+export async function previewFile(
+  deps: ShareDeps,
+  item: { uri: string; mimeType: string; name: string },
+): Promise<void> {
+  if (!deps.native) {
+    await deps.shareOne(item);
+    return;
+  }
+  try {
+    await deps.native.previewFile(item.uri, item.mimeType, item.name);
+  } catch (e) {
+    if ((e as { code?: string }).code === NO_VIEWER) throw new RunError('noViewer');
+    throw e;
+  }
+}
+
 /**
  * 存到快捷操作 key 的文件夹：choose 为 false 时有记住的文件夹就直接存进去（它自己的，没有时用最后选过的
  * 并记给它），否则（或 choose 为 true）让用户选一个，记给它，也记成最后选过的。用户取消时返回 null。
