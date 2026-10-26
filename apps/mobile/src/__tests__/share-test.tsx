@@ -403,6 +403,72 @@ describe('share journeys (UI)', () => {
     expect(files.runFiles()).toHaveLength(1);
   });
 
+  it('one photo: a new user sees the five most common quick actions, then 「我要自己说」 (D-237)', async () => {
+    const { files } = await renderToolsApp();
+    await share([files.offerShared('IMG_0001.jpg', TINY_JPEG, 'image/jpeg')]);
+    await screen.findByTestId('share-ask-ai');
+    // 按页面上从上到下的顺序。
+    const ids = screen
+      .getAllByTestId(/^share-(workflow-.*|ask-ai|see-all)$/)
+      .map((n) => n.props.testID as string);
+    expect(ids).toEqual([
+      'share-workflow-email-photos',
+      'share-workflow-document-packet',
+      'share-workflow-visa-photo',
+      'share-workflow-mark-up-photos',
+      'share-workflow-remove-photo-background',
+      'share-see-all',
+      'share-ask-ai',
+    ]);
+  });
+
+  it('one photo or video is shown on the page; tapping the photo opens it full screen (D-238)', async () => {
+    const { files } = await renderToolsApp();
+    await share([files.offerShared('IMG_0001.jpg', TINY_JPEG, 'image/jpeg')]);
+    const preview = await screen.findByTestId('share-preview-image');
+    // expo-image 的替身把 source 包成数组。
+    expect([within(preview).getByTestId('share-preview-image-file').props.source].flat()).toEqual([
+      { uri: 'file:///group/IMG_0001.jpg' },
+    ]);
+    await fireEvent.press(preview);
+    expect(screen.getByTestId('share-viewer')).toBeTruthy();
+    expect(screen.getByTestId('share-viewer-count')).toHaveTextContent('1 / 1');
+    await fireEvent.press(screen.getByTestId('share-viewer-close'));
+    expect(screen.queryByTestId('share-viewer')).toBeNull();
+    await act(() => router.back());
+
+    await share([files.offerShared('clip.mp4', TINY_JPEG, 'video/mp4')]);
+    expect(await screen.findByTestId('share-preview-video')).toBeTruthy();
+  });
+
+  it('several photos and videos open at the one tapped and page through all of them (D-238)', async () => {
+    const { files } = await renderToolsApp();
+    await share([
+      files.offerShared('a.jpg', TINY_JPEG, 'image/jpeg'),
+      files.offerShared('b.mp4', TINY_JPEG, 'video/mp4'),
+      files.offerShared('c.jpg', TINY_JPEG, 'image/jpeg'),
+    ]);
+    await screen.findByTestId('share-ask-ai');
+    // 多个文件不在页面上放大图，点开文件列表里的一个再看。
+    expect(screen.queryByTestId('share-preview-image')).toBeNull();
+    await fireEvent.press(screen.getByTestId('share-files-toggle'));
+    await fireEvent.press(screen.getByTestId('share-file-1'));
+    expect(screen.getByTestId('share-viewer-count')).toHaveTextContent('2 / 3');
+  });
+
+  it('a PDF opens in the system preview; one PDF opens straight from the summary (D-238)', async () => {
+    const { files } = await renderToolsApp();
+    const pdf = files.offerShared('报告.pdf', await makePdf(2));
+    await share([pdf]);
+    await fireEvent.press(await screen.findByTestId('share-files-toggle'));
+    expect(files.previewed).toEqual([{ uri: pdf.uri, mimeType: 'application/pdf' }]);
+    expect(screen.queryByTestId('share-viewer')).toBeNull();
+    // 没有能打开它的 App（Android）时说明原因，页面照常能用。
+    files.previewFails = true;
+    await fireEvent.press(screen.getByTestId('share-files-toggle'));
+    expect(screen.getByTestId('share-preview-error')).toHaveTextContent(/没有能打开/);
+  });
+
   it('says so when nothing usable was shared', async () => {
     await setupApp();
     await act(() => native().emit({ text: 'hello', type: 'text' }));

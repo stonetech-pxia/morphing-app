@@ -527,6 +527,11 @@ export interface FilePlatform {
   forgetFolders(keep: readonly string[]): void;
   /** 存到系统相册；没有权限时抛出 permissionDenied。 */
   saveToPhotos(uris: readonly string[]): Promise<void>;
+  /**
+   * 用系统预览打开一个文件（收件页面上的 PDF 等，D-238）：iOS 是 QuickLook，Android 交给能打开它的 App。
+   * 没有能打开它的 App 时抛出 noViewer。
+   */
+  previewFile(item: { uri: string; mimeType: string; name: string }): Promise<void>;
   print(item: { uri: string; mimeType: string }): Promise<void>;
   copyText(text: string): Promise<void>;
 

@@ -10,7 +10,15 @@ import {
 
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
+import { Image } from 'expo-image';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type ScrollViewInstance,
+} from 'react-native';
 
 import { runErrorText, t } from '../i18n';
 import { formatSize } from '../renderer/FileList';
@@ -21,6 +29,7 @@ import { mimeOf } from '../runtime/actions/helpers';
 import { formatTime } from '../run/local/TrimScreen';
 import { stepChain } from '../shell/WorkflowsScreen';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { FileViewer, InlineVideo } from './FileViewer';
 import { releaseShare, useIncoming } from './incoming';
 import { shareRecommendations } from './recommendations';
 import type { SucceededRuns } from '../storage/types';
@@ -29,6 +38,9 @@ import type { SucceededRuns } from '../storage/types';
  * 收件页面（TOOLS_DESIGN §11，D-117）：「收到 N 个文件」，列出能接这些文件的工作流，点一个才运行
  * （不会自动运行）。文件名和大小只在本机显示，不发给 AI。由内核提供，AI 不能修改。
  */
+// 页面上那一张照片、一个视频的高度（D-238）：iPhone 17e 上连同 5 个快捷操作和「我要自己说」不用上滑。
+const PREVIEW_HEIGHT = 132;
+
 const ICONS: Partial<Record<MediaKind, IconName>> = {
   image: 'photo',
   video: 'video',
@@ -47,6 +59,9 @@ export function ShareScreen() {
   // 读到使用次数之前不排推荐：否则先按「都没用过」排一遍，读到后卡片跳位置，快点时会点错。
   const [usage, setUsage] = useState<SucceededRuns | null>(null);
   const [showAll, setShowAll] = useState(false);
+  // 全屏看的照片或视频是第几个（D-238）；null 时没打开。
+  const [viewing, setViewing] = useState<number | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
     void repo
@@ -144,6 +159,35 @@ export function ShareScreen() {
     size: f.size,
   }));
   const sizeProblem = sharedSizeProblem(infos);
+  // 预览（D-238）：一张照片、一个视频直接显示在页面上；多个照片和视频点文件列表里的一个，全屏左右翻看；
+  // PDF 等别的文件用系统预览打开（一个时点摘要就打开）。只在本机显示。
+  const viewerKind = (i: number) => {
+    const kind = mediaKindOf(infos[i]!.mimeType, share.files[i]!.name);
+    return kind === 'image' || kind === 'video' ? kind : undefined;
+  };
+  const viewable = share.files.flatMap((f, i) => {
+    const kind = viewerKind(i);
+    return kind ? [{ uri: f.uri, kind }] : [];
+  });
+  const single =
+    share.files.length === 1 ? { uri: share.files[0]!.uri, kind: viewerKind(0) } : undefined;
+  async function open(i: number) {
+    setPreviewError(null);
+    if (viewerKind(i)) {
+      setViewing(viewable.findIndex((v) => v.uri === share!.files[i]!.uri));
+      return;
+    }
+    try {
+      await files.previewFile({
+        uri: share!.files[i]!.uri,
+        mimeType: infos[i]!.mimeType,
+        name: share!.files[i]!.name,
+      });
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      setPreviewError(code ? runErrorText(locale, code) : String(e));
+    }
+  }
   const counts = usage ?? new Map();
   const { all, recommended, anyUsed } = shareRecommendations(
     config.workflows,
@@ -159,34 +203,44 @@ export function ShareScreen() {
     return knownIds !== null && !wf.toolId && !knownIds.has(wf.id);
   }
 
-  const workflowCard = ({ wf, fit }: (typeof candidates)[number]) => (
-    <Card key={wf.id} palette={palette} testID={`share-workflow-${wf.id}`}>
-      <Text style={[palette.font('title', 16), { color: palette.text }]}>
-        {wf.name}
-        {isNew(wf) ? t(locale, 'ShareScreen_just_made_ed6c1') : ''}
-      </Text>
-      {counts.has(wf.id) ? (
-        <Text style={caption}>{t(locale, 'shareUsed', { n: counts.get(wf.id)!.count })}</Text>
-      ) : null}
-      {wf.toolId ? (
-        <Text style={caption}>{localize(registry.tools.get(wf.toolId)?.name, locale)}</Text>
-      ) : null}
-      <Text style={caption}>{stepChain(wf, registry, locale)}</Text>
-      {fit.ok ? (
-        <View style={styles.actions}>
-          <Pill
-            palette={palette}
-            testID={`share-run-${wf.id}`}
-            label={t(locale, 'ShareScreen_Run_5cab2')}
-            onPress={() => run(wf)}
-          />
-        </View>
-      ) : (
-        <Text style={[palette.font('bodyMedium', 13), { color: palette.danger }]}>
-          {reason(fit)}
+  // 一个快捷操作一行（D-237）：名字（法语长名字可以折成两行）和一行说明，右边「运行」；
+  // 5 个加「我要自己说」不用上滑就能看全。
+  const workflowRow = ({ wf, fit }: (typeof candidates)[number], i: number) => (
+    <View
+      key={wf.id}
+      testID={`share-workflow-${wf.id}`}
+      style={[
+        styles.row,
+        i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
+      ]}>
+      <View style={styles.flex}>
+        <Text numberOfLines={2} style={[palette.font('title', 15), { color: palette.text }]}>
+          {wf.name}
+          {isNew(wf) ? t(locale, 'ShareScreen_just_made_ed6c1') : ''}
         </Text>
-      )}
-    </Card>
+        <Text
+          numberOfLines={1}
+          style={fit.ok ? caption : [palette.font('bodyMedium', 13), { color: palette.danger }]}>
+          {fit.ok
+            ? [
+                counts.has(wf.id) ? t(locale, 'shareUsed', { n: counts.get(wf.id)!.count }) : null,
+                wf.toolId ? localize(registry.tools.get(wf.toolId)?.name, locale) : null,
+                stepChain(wf, registry, locale),
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : reason(fit)}
+        </Text>
+      </View>
+      {fit.ok ? (
+        <Pill
+          palette={palette}
+          testID={`share-run-${wf.id}`}
+          label={t(locale, 'ShareScreen_Run_5cab2')}
+          onPress={() => run(wf)}
+        />
+      ) : null}
+    </View>
   );
 
   const reason = (fit: ShareFit) =>
@@ -221,6 +275,18 @@ export function ShareScreen() {
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 48 }}>
       <Stack.Screen options={{ title }} />
       <Card palette={palette}>
+        {single?.kind === 'image' ? (
+          <Pressable testID="share-preview-image" onPress={() => void open(0)}>
+            <Image
+              testID="share-preview-image-file"
+              source={{ uri: single.uri }}
+              style={[styles.preview, { borderRadius: 8 }]}
+              contentFit="contain"
+            />
+          </Pressable>
+        ) : single?.kind === 'video' ? (
+          <InlineVideo uri={single.uri} height={PREVIEW_HEIGHT} />
+        ) : null}
         <Button
           palette={palette}
           variant="text"
@@ -232,19 +298,24 @@ export function ShareScreen() {
                   locale,
                 )}`
               : ''
-          } · ${t(locale, expanded ? 'shareCollapse' : 'shareExpand')}`}
-          onPress={() => setExpandedId(expanded ? null : share.id)}
+          } · ${t(locale, single && !single.kind ? 'sharePreview' : expanded ? 'shareCollapse' : 'shareExpand')}`}
+          onPress={() =>
+            single && !single.kind ? void open(0) : setExpandedId(expanded ? null : share.id)
+          }
         />
         {expanded
           ? share.files.map((f, i) => (
-              <View
+              <Pressable
                 key={`${i}-${f.uri}`}
-                style={[
+                testID={`share-file-${i}`}
+                onPress={() => void open(i)}
+                style={({ pressed }) => [
                   styles.file,
                   i > 0 && {
                     borderTopWidth: StyleSheet.hairlineWidth,
                     borderColor: palette.border,
                   },
+                  pressed && { opacity: 0.6 },
                 ]}>
                 <Icon
                   name={ICONS[mediaKindOf(infos[i]!.mimeType, f.name)] ?? 'document'}
@@ -266,10 +337,27 @@ export function ShareScreen() {
                       .join(' · ')}
                   </Text>
                 ) : null}
-              </View>
+                <Text style={[palette.font('title', 18), { color: palette.caption }]}>›</Text>
+              </Pressable>
             ))
           : null}
+        {previewError ? (
+          <Text
+            testID="share-preview-error"
+            style={[palette.font('bodyMedium', 14), { color: palette.danger }]}>
+            {previewError}
+          </Text>
+        ) : null}
       </Card>
+      {viewing !== null ? (
+        <FileViewer
+          items={viewable}
+          start={viewing}
+          onClose={() => setViewing(null)}
+          palette={palette}
+          locale={locale}
+        />
+      ) : null}
 
       {sizeProblem ? (
         <Card palette={palette}>
@@ -281,20 +369,16 @@ export function ShareScreen() {
         </Card>
       ) : (
         <>
-          {/* 「我要自己说」放在快捷操作上面（D-233）。 */}
-          <Button
-            palette={palette}
-            testID="share-ask-ai"
-            variant="outline"
-            label={t(locale, 'shareDescribe')}
-            onPress={askAI}
-          />
           {candidates.length > 0 ? (
             <SectionLabel palette={palette}>
               {t(locale, anyUsed ? 'shareRecent' : 'shareSuggested')}
             </SectionLabel>
           ) : null}
-          {candidates.map(workflowCard)}
+          {candidates.length > 0 ? (
+            <Card palette={palette} style={styles.list}>
+              {candidates.map(workflowRow)}
+            </Card>
+          ) : null}
           {usage !== null && !showAll && all.length > recommended.length ? (
             <Button
               palette={palette}
@@ -304,6 +388,14 @@ export function ShareScreen() {
               onPress={() => setShowAll(true)}
             />
           ) : null}
+          {/* 「我要自己说」放在快捷操作下面（D-237，原来在上面，D-233）。 */}
+          <Button
+            palette={palette}
+            testID="share-ask-ai"
+            variant="outline"
+            label={t(locale, 'shareDescribe')}
+            onPress={askAI}
+          />
         </>
       )}
       <Text style={caption}>
@@ -317,5 +409,7 @@ const styles = StyleSheet.create({
   empty: { flex: 1, gap: 16, justifyContent: 'center' },
   file: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 36 },
   flex: { flex: 1 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+  preview: { height: PREVIEW_HEIGHT, width: '100%' },
+  list: { paddingVertical: 2, gap: 0 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 6 },
 });

@@ -66,6 +66,7 @@ export const strings = {
   },
   shareExpand: { en: 'Show files', zh: '查看文件', fr: 'Voir les fichiers' },
   shareCollapse: { en: 'Hide files', zh: '收起文件', fr: 'Masquer les fichiers' },
+  sharePreview: { en: 'Preview', zh: '预览', fr: 'Aperçu' },
   shareSummary: { en: '{n} files', zh: '{n} 个文件', fr: '{n} fichiers' },
   sharePhotoSummary: { en: '{n} photos', zh: '{n} 张照片', fr: '{n} photos' },
   loading: { en: 'Loading…', zh: '正在载入…', fr: 'Chargement…' },
@@ -551,6 +552,11 @@ export const strings = {
     en: 'Files can’t be saved into this folder. Choose another folder and try again.',
     zh: '不能存进这个文件夹，请换一个文件夹再试。',
     fr: 'Impossible d’enregistrer les fichiers dans ce dossier. Choisissez un autre dossier et réessayez.',
+  },
+  runError_noViewer: {
+    en: 'No app on this phone can open this file.',
+    zh: '这台手机上没有能打开这个文件的 App。',
+    fr: 'Aucune app de ce téléphone ne peut ouvrir ce fichier.',
   },
   runError_unsupportedAction: {
     en: 'This step is not supported: {action}',

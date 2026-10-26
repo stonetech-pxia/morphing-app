@@ -18,6 +18,7 @@ import { shareAsync } from 'expo-sharing';
 import {
   FOLDER_NOT_WRITABLE,
   forgetFolders,
+  previewFile,
   rememberedFolder,
   saveAllToFolder,
   shareAll,
@@ -421,6 +422,7 @@ export const expoFilePlatform: FilePlatform = {
   saveToFolder: (items, key, choose = false) => saveAllToFolder(SHARE, items, key, choose),
 
   rememberedFolder: (key) => rememberedFolder(SHARE, key),
+  previewFile: (item) => previewFile(SHARE, item),
   forgetFolders: (keep) => forgetFolders(SHARE, keep),
 
   async saveToPhotos(uris) {
