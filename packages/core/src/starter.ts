@@ -5,6 +5,7 @@ import type { Registry } from './registry';
 import {
   HOME_PAGE_ID,
   TOOLBOX_PAGE_ID,
+  allComponents,
   pageTarget,
   type Component,
   type Locale,
@@ -32,7 +33,33 @@ const TOOLBOX_GROUPS: { id: string; title: [string, string]; toolIds?: string[] 
 ];
 
 /**
- * 新用户的第一个版本（D-182）：精简首页（文件入口、功能分类和工具箱）、工具箱页面、预装工具，
+ * 「打开相册」「打开文件」两个入口并排放在首页（新手引导第 1 步和「跳过引导」用，D-231）；
+ * 首页已经有文件入口时不再加。
+ */
+export function homeFileEntryOps(config: WorkspaceConfig): Op[] {
+  const home = config.pages.find((p) => p.id === HOME_PAGE_ID);
+  if (!home || allComponents(home).some((c) => c.type === 'filePick')) return [];
+  const ids = new Set(allComponents(home).map((c) => c.id));
+  const free = (id: string) => (ids.has(id) ? `${id}-2` : id);
+  return [
+    {
+      op: 'addComponent',
+      pageId: HOME_PAGE_ID,
+      component: {
+        id: free('file-entries'),
+        type: 'group',
+        props: { layout: 'grid', columns: 2 },
+        children: [
+          { id: free('open-media'), type: 'filePick', props: { source: 'media' } },
+          { id: free('open-files'), type: 'filePick', props: { source: 'files' } },
+        ],
+      },
+    },
+  ];
+}
+
+/**
+ * 新用户的第一个版本（D-182）：空白首页（D-231，引导第 1 步加上文件入口）、工具箱页面、预装工具，
  * 导航栏只有首页、AI、设置（工具在首页的工具箱里，管理工具和历史在设置里）。
  * createDefaultWorkspace 保持空白：测试、评测和回退都以它为基准。
  */
@@ -79,48 +106,10 @@ export function createStarterWorkspace(locale: Locale, registry: Registry): Work
     // 先放工具箱：添加工具时它已经显示这些工具，首页就不会多出工具入口（D-181）。
     { op: 'addPage', page: toolbox },
     ...toolIds.map((toolId) => ({ op: 'installTool' as const, toolId })),
+    // 首页从空白开始（D-231）：新手引导第 1 步让用户自己加上「打开相册」「打开文件」。
+    { op: 'removeComponent', pageId: HOME_PAGE_ID, componentId: 'welcome' },
     { op: 'removeComponent', pageId: HOME_PAGE_ID, componentId: 'catalog' },
     { op: 'removeComponent', pageId: HOME_PAGE_ID, componentId: 'recent-files' },
-    {
-      op: 'addComponent',
-      pageId: HOME_PAGE_ID,
-      component: {
-        id: 'file-entries',
-        type: 'group',
-        props: { layout: 'grid', columns: 2 },
-        children: [
-          { id: 'open-media', type: 'filePick', props: { source: 'media' } },
-          { id: 'open-files', type: 'filePick', props: { source: 'files' } },
-        ],
-      },
-    },
-    {
-      op: 'addComponent',
-      pageId: HOME_PAGE_ID,
-      component: {
-        id: 'what-morph-can-do',
-        type: 'shortcut',
-        props: {
-          title: t(locale, 'starter_What_Morph_can_do_8f4f4'),
-          icon: 'workflow',
-          target: 'quickActions',
-        },
-      },
-    },
-    {
-      op: 'addComponent',
-      pageId: HOME_PAGE_ID,
-      component: {
-        id: 'open-toolbox',
-        type: 'shortcut',
-        props: {
-          title: t(locale, 'starter_Toolbox_802f3'),
-          subtitle: t(locale, 'starter_All_tools_0d722'),
-          icon: 'apps',
-          target: pageTarget(TOOLBOX_PAGE_ID),
-        },
-      },
-    },
     { op: 'setNavItems', items: [pageTarget(HOME_PAGE_ID), 'ai', 'settings'] },
   ];
   const applied = applyOps(base, ops, { registry, locale });

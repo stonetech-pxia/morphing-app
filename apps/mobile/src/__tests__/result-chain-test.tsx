@@ -120,6 +120,40 @@ it('continues without saving or picking again; two transfers offer AI with both 
   await waitFor(() => expect(app.files.disk.has(two.files[0]!.uri)).toBe(false));
 });
 
+it('combining with a built-in quick action saves it first so AI can see both (D-236)', async () => {
+  const app = await renderToolsApp(undefined, undefined, {
+    seed: (locale) => ({ ...createDefaultWorkspace(locale), workflows: [first] }),
+  });
+  async function transfer() {
+    app.files.nextPhotos = [app.files.offerImage('private-id.jpg', 3000, 2000)];
+    await act(async () =>
+      router.push({ pathname: '/run/[workflowId]', params: { workflowId: first.id } }),
+    );
+    await screen.findByTestId('run-result', {}, { timeout: 3000 });
+    await fireEvent.press(screen.getByTestId('result-continue'));
+    await screen.findByTestId('share-screen');
+    // 第一次在「查看全部」里，用过之后排到前面。
+    if (!screen.queryByTestId('share-run-email-photos'))
+      await fireEvent.press(await screen.findByTestId('share-see-all'));
+    await fireEvent.press(await screen.findByTestId('share-run-email-photos'));
+    await fireEvent.press(await screen.findByTestId('prompt-ok', {}, { timeout: 3000 }));
+    await screen.findByTestId('run-result', {}, { timeout: 3000 });
+  }
+  await transfer();
+  await fireEvent.press(screen.getByTestId('run-done'));
+  await transfer();
+  expect(app.store.getState().config!.workflows.map((w) => w.id)).toEqual(['resize']);
+  await fireEvent.press(await screen.findByTestId('chain-make'));
+  expect(await screen.findByTestId('change-about')).toHaveTextContent(
+    '先「缩小照片」，再「照片发邮件 / 传网站」',
+  );
+  expect(app.store.getState().config!.workflows.map((w) => w.id)).toEqual([
+    'resize',
+    'email-photos',
+  ]);
+  await act(async () => router.dismissAll());
+}, 20000);
+
 it('releasing an older result preserves new incoming files and originals', async () => {
   const files = new FakeFiles();
   const photo = files.offerImage('original.jpg', 2000, 1000);

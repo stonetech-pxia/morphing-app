@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
 import { THEME_PRESETS, THEME_PRESET_IDS, presetRequest, type ThemePresetId } from '../presets';
-import type { Locale, WorkspaceConfig } from '../schema';
+import { allComponents, type Component, type Locale, type WorkspaceConfig } from '../schema';
+import { createStarterWorkspace } from '../starter';
 import { apply, registry, workspace } from '../test-helpers';
 import { createMockAIProvider } from './mock';
 import type { Plan } from './types';
@@ -187,7 +188,10 @@ describe('mock AI — style', () => {
     expect((await change('主题换成绿色', workspace())).after.theme.cardStyle).toBe('shadow');
   });
 
-  it.each(THEME_PRESET_IDS.flatMap((id) => (['zh', 'en'] as const).map((l) => [id, l] as const)))(
+  // 法语界面的风格选择器也发这句话给内置规则（D-234）。
+  it.each(
+    THEME_PRESET_IDS.flatMap((id) => (['zh', 'en', 'fr'] as const).map((l) => [id, l] as const)),
+  )(
     'B12c the style picker sentence for %s (%s) applies exactly that preset',
     async (id, locale) => {
       const p = await plan(presetRequest(id, locale), workspace(locale), locale);
@@ -453,5 +457,81 @@ describe('mock AI — must refuse', () => {
     expect(await plan('remove the email', workspace('en'), 'en')).toMatchObject({
       reason: 'unknown',
     });
+  });
+});
+
+describe('mock AI — looks (D-230)', () => {
+  const starter = (locale: Locale = 'zh') => createStarterWorkspace(locale, registry);
+  const homeOf = (c: WorkspaceConfig) => allComponents(home(c));
+
+  it('LK1 icon backgrounds for the whole app', async () => {
+    expect((await change('图标改成浅色底', workspace())).after.theme.iconStyle).toBe('tint');
+    expect(
+      (await change('Use solid icon backgrounds', workspace(), 'en')).after.theme.iconStyle,
+    ).toBe('solid');
+  });
+
+  it('LK2 home entries as tiles or rows', async () => {
+    const isEntry = (c: Component) => c.type === 'toolCard' || c.type === 'catalogLink';
+    const lookOf = (c: Component) => (isEntry(c) ? (c.props as { look?: string }).look : null);
+    const { after, lines } = await change('首页入口改成列表', workspace('zh', { withPdf: true }));
+    expect(lines.join('\n')).toContain('一行');
+    const entries = homeOf(after).filter(isEntry);
+    expect(entries.length).toBeGreaterThan(0);
+    for (const c of entries) expect(lookOf(c)).toBe('row');
+    const back = await change('Make the home shortcuts tiles', after, 'en');
+    for (const c of homeOf(back.after).filter(isEntry)) expect(lookOf(c)).toBe('tile');
+  });
+
+  it('GD1 guide step 1 adds both file entries (D-231)', async () => {
+    for (const [text, locale] of [
+      ['加入「打开相册」和「打开文件」按钮', 'zh'],
+      ['Add the “Open photo library” and “Open files” buttons', 'en'],
+    ] as const) {
+      const { after } = await change(text, starter(locale), locale);
+      expect(homeOf(after).filter((c) => c.type === 'filePick')).toHaveLength(2);
+    }
+  });
+
+  it('LK3 home quick actions as rows', async () => {
+    const withRunner = apply(workspace('zh', { withPdf: true }), [
+      {
+        op: 'addComponent',
+        pageId: 'home',
+        component: { id: 'run-merge', type: 'workflowRunner', props: { workflowId: 'pdf-merge' } },
+      },
+    ]);
+    const { after } = await change('快捷操作改成列表', withRunner);
+    const runner = homeOf(after).find((c) => c.id === 'run-merge')!;
+    expect(runner.type === 'workflowRunner' && runner.props.look).toBe('row');
+  });
+
+  it('LK4 icon-only buttons take the icon of what they open', async () => {
+    const withButton = apply(workspace(), [
+      {
+        op: 'addComponent',
+        pageId: 'home',
+        component: {
+          id: 'open-ai',
+          type: 'button',
+          props: { label: '修改', target: 'ai', variant: 'filled' },
+        },
+      },
+    ]);
+    const { after } = await change('按钮只显示图标', withButton);
+    const button = homeOf(after).find((c) => c.id === 'open-ai')!;
+    expect(button.type === 'button' && button.props).toMatchObject({
+      variant: 'icon',
+      icon: 'sparkles',
+    });
+  });
+
+  it('LK5 quick action list on home', async () => {
+    const { after } = await change('首页加上照片快捷操作', workspace());
+    expect(homeOf(after).find((c) => c.type === 'quickActionList')).toMatchObject({
+      props: { kind: 'image' },
+    });
+    const all = await change('Show all quick action categories on home', workspace(), 'en');
+    expect(homeOf(all.after).find((c) => c.type === 'quickActionList')?.props).toEqual({});
   });
 });

@@ -6,7 +6,7 @@ import { isEmoji, unsafeLinks } from './richtext';
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 修改本文件中会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
 
-export const CURRENT_SCHEMA_VERSION = 11;
+export const CURRENT_SCHEMA_VERSION = 12;
 
 export type Locale = 'en' | 'zh' | 'fr';
 export type Localized = Record<Locale, string>;
@@ -120,6 +120,8 @@ export const ThemeSchema = z.strictObject({
   /** 页面背景：纯色（默认）、主色到辅助色的渐变、三色极光。颜色都从主题配色算出，深色模式自动跟着变。 */
   backdrop: z.enum(['plain', 'gradient', 'aurora']).optional(),
   navStyle: z.enum(['iconLabel', 'label', 'icon']),
+  /** 图标底色：solid = 实色底白图标，tint = 浅色底彩色图标；不写时各组件用自己的默认（D-230）。 */
+  iconStyle: z.enum(['solid', 'tint']).optional(),
 });
 export type Theme = z.infer<typeof ThemeSchema>;
 
@@ -285,10 +287,14 @@ export const TextComponentSchema = z.strictObject({
   props: z.strictObject({ text: richText(1500) }),
 });
 
+/** 入口类卡片的样子（D-230）：row = 设置页那种一行、右边有箭头；tile = 大图标块。 */
+export const EntryLookSchema = z.enum(['row', 'tile']);
+export type EntryLook = z.infer<typeof EntryLookSchema>;
+
 export const ToolCardComponentSchema = z.strictObject({
   ...componentBase,
   type: z.literal('toolCard'),
-  props: z.strictObject({ toolId: IdSchema }),
+  props: z.strictObject({ toolId: IdSchema, look: EntryLookSchema.optional() }),
 });
 
 /**
@@ -307,7 +313,7 @@ export const ToolGridComponentSchema = z.strictObject({
 export const CatalogLinkComponentSchema = z.strictObject({
   ...componentBase,
   type: z.literal('catalogLink'),
-  props: z.strictObject({ title: text(1, 60) }),
+  props: z.strictObject({ title: text(1, 60), look: EntryLookSchema.optional() }),
 });
 
 export const FileListComponentSchema = z.strictObject({
@@ -324,17 +330,37 @@ export const FileListComponentSchema = z.strictObject({
 export const WorkflowRunnerComponentSchema = z.strictObject({
   ...componentBase,
   type: z.literal('workflowRunner'),
-  props: z.strictObject({ workflowId: IdSchema }),
+  props: z.strictObject({
+    workflowId: IdSchema,
+    /** card = 卡片加「运行」按钮，row = 一行、右边 ▶，tile = 宫格小块；不写时按位置自动选（D-230）。 */
+    look: z.enum(['card', 'row', 'tile']).optional(),
+  }),
 });
 
-/** 按钮：点击后打开一个页面或系统入口。 */
+/**
+ * 快捷操作列表（D-230）：不写 kind 时是「Morph 可以做什么」的分类入口；写了 kind 时列出这一类
+ * 我的快捷操作（▶ 运行、✎ 编辑）和现成的（＋ 添加）。内容由内核决定，AI 只决定放在哪里。
+ * kind 与 quick-actions.ts 的 QUICK_ACTION_KINDS 一致。
+ */
+export const QuickActionListComponentSchema = z.strictObject({
+  ...componentBase,
+  type: z.literal('quickActionList'),
+  props: z.strictObject({
+    title: text(1, 60).optional(),
+    kind: z.enum(['image', 'video', 'audio', 'document', 'other']).optional(),
+  }),
+});
+export type QuickActionListComponent = z.infer<typeof QuickActionListComponentSchema>;
+
+/** 按钮：点击后打开一个页面或系统入口。icon 显示在文字前面；variant 为 icon 时只显示圆形图标，文字留给读屏（D-230）。 */
 export const ButtonComponentSchema = z.strictObject({
   ...componentBase,
   type: z.literal('button'),
   props: z.strictObject({
     label: text(1, 40),
     target: NavTargetSchema,
-    variant: z.enum(['filled', 'outline', 'text']),
+    variant: z.enum(['filled', 'outline', 'text', 'icon']),
+    icon: IconValueSchema.optional(),
   }),
 });
 
@@ -347,6 +373,8 @@ export const ShortcutComponentSchema = z.strictObject({
     subtitle: text(1, 80).optional(),
     icon: IconValueSchema,
     target: NavTargetSchema,
+    /** 不写时是 row（D-230）。 */
+    look: EntryLookSchema.optional(),
   }),
 });
 
@@ -443,6 +471,7 @@ const LeafComponentSchema = z.discriminatedUnion('type', [
   CatalogLinkComponentSchema,
   FileListComponentSchema,
   WorkflowRunnerComponentSchema,
+  QuickActionListComponentSchema,
   ButtonComponentSchema,
   ShortcutComponentSchema,
   NoticeComponentSchema,
@@ -517,7 +546,7 @@ export const MAX_WORKFLOWS = 100;
 
 /**
  * 工作流：线性步骤序列，步骤之间传递一个有类型的值（§7C、D-060，非图灵完备）。
- * toolId：安装工具时创建，卸载时一起移除；presetId：从哪个预设复制来的（D-062）。
+ * toolId：安装工具时创建，卸载时一起移除；presetId：从哪个预设复制来的（D-062，D-236）。
  */
 export const WorkflowSchema = z.strictObject({
   id: IdSchema,

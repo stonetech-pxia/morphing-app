@@ -84,6 +84,7 @@ export interface Banner {
 /** 编辑模式的草稿（D-054）：操作先累积在这里，点「完成」时作为一个版本提交。 */
 export interface EditDraft {
   pageId: string;
+  mode: 'single' | 'page';
   /** 已合并相邻同类操作。 */
   ops: Op[];
   /** 应用 ops 后、已通过校验的配置；编辑模式下页面显示它。 */
@@ -104,9 +105,8 @@ export interface DraftStep {
   config: WorkspaceConfig;
 }
 
-/** 草稿从哪里开始的：应用后据此带用户回去（新手引导、从快捷操作或收件页面打开）。 */
+/** 草稿从哪里开始的：应用后据此带用户回去（从快捷操作或收件页面打开）。 */
 export interface DraftOrigin {
-  guide?: string;
   about?: PlanAbout;
 }
 
@@ -234,14 +234,15 @@ export interface WorkspaceState {
   proposeOps(ops: Op[], summary: string): Promise<ProposeResult>;
   /** 预览里勾选 / 取消「在首页放一个入口」（D-109）。 */
   setHomeEntry(on: boolean): void;
-  confirm(): Promise<boolean>;
+  /** quiet：渲染后顶部不出「已改好 · 撤销」（新手引导里的修改，D-239）。 */
+  confirm(options?: { quiet?: boolean }): Promise<boolean>;
   cancel(): Promise<void>;
   undo(): Promise<void>;
   markRendered(revisionId: number): Promise<void>;
   reportRenderError(error: unknown): Promise<void>;
   dismissBanner(): void;
   selectTab(target: NavTarget): void;
-  startEditing(pageId: string): void;
+  startEditing(pageId: string, mode?: EditDraft['mode']): void;
   /** 把操作加入草稿：先校验，不通过时草稿不变。 */
   editOps(ops: Op[]): EditResult;
   /** 「完成」：草稿作为一个 source 为 user 的版本提交；没有实际变化时直接退出。 */
@@ -306,6 +307,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
     revisionId: number;
     undoTo: number;
     summary: string;
+    quiet?: boolean;
   } | null = null;
   /** 连续回退次数；回退后仍无法渲染时停止，避免循环。 */
   let consecutiveRollbacks = 0;
@@ -931,7 +933,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         });
       },
 
-      async confirm() {
+      async confirm(options) {
         const proposal = get().proposal;
         if (!proposal) return false;
         set({ busy: true });
@@ -947,6 +949,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
             revisionId: revision.id,
             undoTo: proposal.baseRevisionId,
             summary: proposal.summary,
+            ...(options?.quiet ? { quiet: true } : {}),
           };
           set({ proposal: null });
           // 被移除的工具失去文件授权；文件本身保留（§7G）。
@@ -1002,10 +1005,11 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
             status: 'committed',
             resultRevisionId: done.revisionId,
           });
+          if (done.quiet) return;
           set({
             banner: {
               kind: 'applied',
-              message: `${msg('applied')}：${done.summary}`,
+              message: msg('applied', { summary: done.summary }),
               undoTo: done.undoTo,
             },
           });
@@ -1043,10 +1047,10 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       dismissBanner: () => set({ banner: null }),
       selectTab: (target) => set({ tab: target, editing: null }),
 
-      startEditing(pageId) {
+      startEditing(pageId, mode = 'page') {
         const { config, editing } = get();
         if (!config || editing?.pageId === pageId) return;
-        set({ editing: { pageId, ops: [], config } });
+        set({ editing: { pageId, mode, ops: [], config } });
       },
 
       editOps(ops) {

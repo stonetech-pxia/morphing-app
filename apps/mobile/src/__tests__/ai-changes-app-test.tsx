@@ -51,12 +51,11 @@ describe('AI changes the app, the user runs it (UI)', () => {
     expect(await screen.findByTestId('change-about')).toHaveTextContent(
       /要改的快捷操作：「签证 \/ 证件照」/,
     );
-    // 内置规则只留它认得的例子；风格选择器不显示。
-    const examples = await screen.findByTestId('change-examples');
-    expect(examples).toHaveTextContent(/把这个的大小改成 200KB/);
-    expect(screen.queryByText('选一个风格')).toBeNull();
+    // 不列预设的句子（D-233）；风格选择器也不显示。
+    expect(screen.queryByText('把这个的大小改成 200KB')).toBeNull();
+    expect(screen.queryByTestId('change-pick-style')).toBeNull();
 
-    await fireEvent.press(screen.getByText('把这个的大小改成 200KB'));
+    await fireEvent.changeText(screen.getByTestId('change-input'), '把这个的大小改成 200KB');
     await fireEvent.press(screen.getByTestId('change-submit'));
     // 改快捷操作直接生效（D-191），打开它的「做好了」页面，现在就能再用一次。
     expect(await screen.findByTestId('ready-name')).toHaveTextContent('签证 / 证件照');
@@ -152,18 +151,23 @@ describe('AI changes the app, the user runs it (UI)', () => {
     await act(async () => useIncoming.getState().receive([photo]));
     await act(() => router.push('/share'));
     expect(await screen.findByTestId('share-ask-ai')).toHaveTextContent(/我要自己说/);
-    // 现成的里，第一步收一张照片的才列出来（签证照片收 1 张；签回表格收 PDF，不列）。
-    expect(screen.getByTestId('share-preset-visa-photo')).toBeTruthy();
-    expect(screen.queryByTestId('share-preset-sign-return')).toBeNull();
+    // 内设的里，第一步收一张照片的才列出来（签证照片收 1 张；签回表格收 PDF，不列）。
+    expect(screen.getByTestId('share-workflow-visa-photo')).toBeTruthy();
+    expect(screen.queryByTestId('share-workflow-sign-return')).toBeNull();
 
     // 让 AI 搭一个：AI 页说明是给分享进来的文件，只知道类型和个数。
     await fireEvent.press(screen.getByTestId('share-ask-ai'));
     expect(await screen.findByTestId('change-about')).toHaveTextContent(/给分享进来的 1 张照片/);
-    await fireEvent.press(await screen.findByText('新建一个快捷操作：选照片，压到 500KB，分享'));
+    await fireEvent.changeText(
+      screen.getByTestId('change-input'),
+      '新建一个快捷操作：选照片，压到 500KB，分享',
+    );
     await fireEvent.press(screen.getByTestId('change-submit'));
     // 直接做好（D-191），回到收件页面，新做的排在最前面、标「刚做好」，不会自己运行。
     // 给分享的文件做的不放首页，在收件页面运行。
-    const made = await waitFor(() => store.getState().config!.workflows.find((w) => !w.toolId)!);
+    const made = await waitFor(() =>
+      store.getState().config!.workflows.find((w) => !w.toolId && !w.presetId)!,
+    );
     expect(await screen.findByTestId(`share-workflow-${made.id}`)).toHaveTextContent(/刚做好/);
     expect(store.getState().draft).toBeNull();
     const home = store.getState().config!.pages.find((p) => p.id === 'home')!;
@@ -172,25 +176,26 @@ describe('AI changes the app, the user runs it (UI)', () => {
     expect(screen.queryByTestId('run-screen')).toBeNull();
   });
 
-  it('“add and run” adds a ready-made quick action and runs it on the shared files', async () => {
+  it('runs a built-in quick action on the shared files without adding it (D-236)', async () => {
     const { store, files } = await renderToolsApp();
+    const head = store.getState().head!.id;
     const photo = files.offer('IMG_2.jpg', TINY_JPEG, 'image/jpeg');
     await act(async () => useIncoming.getState().receive([photo]));
     await act(() => router.push('/share'));
-    await fireEvent.press(await screen.findByTestId('share-preset-add-visa-photo'));
+    await fireEvent.press(await screen.findByTestId('share-run-visa-photo'));
     expect(await screen.findByTestId('run-screen')).toBeTruthy();
-    expect(store.getState().config!.workflows.some((w) => w.presetId === 'visa-photo')).toBe(true);
+    expect(store.getState().config!.workflows.some((w) => w.presetId === 'visa-photo')).toBe(false);
+    expect(store.getState().head!.id).toBe(head);
     expect(screen.getByText('分享进来的文件（1 个）')).toBeTruthy();
   });
 
-  it('ready-made quick actions are grouped by input type', async () => {
+  it('built-in quick actions are grouped by input type and run directly', async () => {
     await renderToolsApp();
     await act(() => router.push('/workflows'));
     await fireEvent.press(await screen.findByTestId('category-image'));
-    expect(await screen.findByTestId('preset-visa-photo')).toBeTruthy();
-    expect(screen.queryByTestId('preset-sign-return')).toBeNull();
-    // 加好了就能直接运行。
-    await fireEvent.press(screen.getByTestId('preset-add-visa-photo'));
-    expect(await screen.findByTestId('preset-run-visa-photo')).toBeTruthy();
+    expect(await screen.findByTestId('workflow-visa-photo')).toBeTruthy();
+    expect(screen.queryByTestId('workflow-sign-return')).toBeNull();
+    await fireEvent.press(screen.getByTestId('workflow-run-visa-photo'));
+    expect(await screen.findByTestId('run-screen')).toBeTruthy();
   });
 });

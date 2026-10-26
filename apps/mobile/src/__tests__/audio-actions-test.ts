@@ -530,7 +530,7 @@ it('exports one SRT per video using timed recognition after full-timeline WAV ex
   });
   if (result.status !== 'succeeded' || result.value?.type !== 'files')
     throw new Error('no captions');
-  const first = await files.readBytes(result.value.items[0]!.uri);
+  const first = await files.readUri(result.value.items[0]!.uri);
   expect(new TextDecoder().decode(first)).toContain('00:00:01,200 --> 00:00:02,400');
   expect(media.speechExtractions).toHaveLength(2);
   expect(speech.calls.every((call) => call.uri.endsWith('.wav'))).toBe(true);

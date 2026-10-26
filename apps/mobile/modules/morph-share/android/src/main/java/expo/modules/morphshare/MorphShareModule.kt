@@ -1,6 +1,7 @@
 package expo.modules.morphshare
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
@@ -22,6 +23,8 @@ import kotlin.concurrent.thread
 //   SharedPreferences，下次直接存进去；换文件夹时放掉旧的授权，文件夹没了或授权被收回时重新让用户选。
 //   每个快捷操作记自己的文件夹（D-196）：另存「folder:快捷操作 ID → 地址」，还没有时用最后选过的那个并记给它；
 //   某个文件夹不再被任何快捷操作（也不是最后选过的）用到时才放掉授权。
+// - 预览（D-238）：ACTION_VIEW 交给能打开这个文件的 App（系统的 PDF 阅读器、Google 云端硬盘等），只给读权限；
+//   分享进来的 content:// 原样交出去，本次运行的临时文件换成 content:// 地址。
 // 文件内容和文件名不写日志。
 
 class MorphShareFileProvider : FileProvider()
@@ -34,6 +37,8 @@ class FolderNotWritableException :
   CodedException("ERR_FOLDER_NOT_WRITABLE", "Files can't be saved into this folder", null)
 
 class ExportFailedException(detail: String?) : CodedException("Saving failed: $detail")
+
+class NoViewerException : CodedException("ERR_NO_VIEWER", "No app can open this file", null)
 
 private const val PREFS = "morph_share"
 private const val FOLDER_KEY = "folder"
@@ -86,6 +91,29 @@ class MorphShareModule : Module() {
       intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
       pendingShare = promise
       activity.startActivityForResult(Intent.createChooser(intent, null), SHARE_REQUEST)
+    }.runOnQueue(Queues.MAIN)
+
+    // 打开别的 App 后就返回，不等用户回来。name 只给 iOS 的预览标题用。
+    AsyncFunction("previewFile") { uri: String, mimeType: String, _: String, promise: Promise ->
+      val activity = appContext.currentActivity
+      if (activity == null) {
+        promise.reject(NoActivityException())
+        return@AsyncFunction
+      }
+      val target = if (uri.startsWith("content://")) {
+        Uri.parse(uri)
+      } else {
+        FileProvider.getUriForFile(context, "${context.packageName}.MorphShareFileProvider", fileOf(uri))
+      }
+      val intent = Intent(Intent.ACTION_VIEW)
+        .setDataAndType(target, mimeType)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+      try {
+        activity.startActivity(intent)
+        promise.resolve(null)
+      } catch (e: ActivityNotFoundException) {
+        promise.reject(NoViewerException())
+      }
     }.runOnQueue(Queues.MAIN)
 
     Function("rememberedFolder") { key: String -> rememberedFolder(key, adopt = false)?.second }

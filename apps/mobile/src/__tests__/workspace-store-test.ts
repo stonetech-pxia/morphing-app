@@ -188,6 +188,23 @@ describe('workspace store', () => {
     expect(store.getState().config!.tools).toEqual([]);
   });
 
+  it.each([
+    ['zh', '已改好：安装 PDF'],
+    ['en', 'Changed: 安装 PDF'],
+    ['fr', 'Modifi\u00e9\u202f: 安装 PDF'],
+  ] as const)('the applied banner uses the %s colon', async (locale, message) => {
+    const store = createWorkspaceStore({
+      repo: new MemoryWorkspaceRepo(),
+      provider: createMockAIProvider(),
+      registry,
+      locale,
+      now: () => new Date(2026, 9, 22, 9, 0),
+    });
+    await store.getState().boot();
+    await installPdf(store);
+    expect(store.getState().banner?.message).toBe(message);
+  });
+
   it('undo from the banner returns to the previous version', async () => {
     const { store } = await booted();
     await applyText(store, '主题换成绿色');

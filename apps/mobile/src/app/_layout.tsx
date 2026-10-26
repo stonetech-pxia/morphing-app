@@ -19,6 +19,7 @@ import { StatusBar } from 'expo-status-bar';
 import { openDatabaseAsync } from 'expo-sqlite';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AISettingsProvider } from '@/ai/context';
 import { createAIRouter } from '@/ai/router';
@@ -131,7 +132,8 @@ function ThemedStack() {
       <StatusBar style={palette.dark ? 'light' : 'dark'} />
       <Stack screenOptions={stackScreenOptions(palette)}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="change" options={{ ...closable, title: t(locale, 'changeTitle') }} />
+        {/* AI 修改页不显示标题（D-231），左上角只有「关闭」。 */}
+        <Stack.Screen name="change" options={{ ...closable, title: '' }} />
         <Stack.Screen name="page/[pageId]" />
         <Stack.Screen name="ai-settings" options={{ title: t(locale, 'aiSettingsTitle') }} />
         <Stack.Screen name="data" options={{ title: t(locale, 'dataTitle') }} />
@@ -215,22 +217,24 @@ export default function RootLayout() {
     );
   }
   return (
-    <AISettingsProvider store={aiSettings}>
-      <WorkspaceProvider
-        value={{
-          store: runtime.store,
-          repo: runtime.repo,
-          files: expoFilePlatform,
-          registry,
-          locale,
-        }}>
-        <PackHostProvider value={packs}>
-          <ToolDownloadsProvider value={toolDownloads}>
-            <RootStack />
-          </ToolDownloadsProvider>
-        </PackHostProvider>
-      </WorkspaceProvider>
-    </AISettingsProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AISettingsProvider store={aiSettings}>
+        <WorkspaceProvider
+          value={{
+            store: runtime.store,
+            repo: runtime.repo,
+            files: expoFilePlatform,
+            registry,
+            locale,
+          }}>
+          <PackHostProvider value={packs}>
+            <ToolDownloadsProvider value={toolDownloads}>
+              <RootStack />
+            </ToolDownloadsProvider>
+          </PackHostProvider>
+        </WorkspaceProvider>
+      </AISettingsProvider>
+    </GestureHandlerRootView>
   );
 }
 

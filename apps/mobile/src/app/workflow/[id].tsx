@@ -1,4 +1,4 @@
-import { t } from '@morph/core';
+import { findWorkflow, t } from '@morph/core';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { Text, View } from 'react-native';
 
@@ -12,7 +12,7 @@ export default function WorkflowRoute() {
   const { locale, registry } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
-  const workflow = config.workflows.find((w) => w.id === id);
+  const workflow = findWorkflow(config.workflows, id, locale);
   if (!workflow) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>

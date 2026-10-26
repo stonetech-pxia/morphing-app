@@ -4,7 +4,7 @@ import { prepareOps } from '../change';
 import { createStarterWorkspace } from '../starter';
 import { registry } from '../test-helpers';
 import { workflowProblems } from '../workflow/check';
-import { GUIDE_GOALS, goalPlan } from './goals';
+import { GOALS, goalPlan } from './goals';
 import { createMockAIProvider } from './mock';
 
 const now = new Date(2026, 9, 23, 9, 0);
@@ -12,7 +12,7 @@ const now = new Date(2026, 9, 23, 9, 0);
 describe('guide goals (D-149)', () => {
   const ai = createMockAIProvider();
 
-  it.each(GUIDE_GOALS.flatMap((g) => (['zh', 'en'] as const).map((l) => [g.id, l, g] as const)))(
+  it.each(GOALS.flatMap((g) => (['zh', 'en'] as const).map((l) => [g.id, l, g] as const)))(
     '%s (%s) builds a working quick action with notes',
     async (_id, locale, goal) => {
       const config = createStarterWorkspace(locale, registry);
@@ -53,7 +53,7 @@ describe('guide goals (D-149)', () => {
     const locale = 'zh' as const;
     let config = createStarterWorkspace(locale, registry);
     for (let i = 0; i < 2; i++) {
-      const plan = await ai.plan(GUIDE_GOALS[0]!.text.zh, { config, registry, locale });
+      const plan = await ai.plan(GOALS[0]!.text.zh, { config, registry, locale });
       if (plan.kind !== 'ops') throw new Error(plan.kind);
       const prepared = prepareOps(config, plan.ops, { registry, locale, now });
       if (!prepared.ok) throw new Error(prepared.issues.join());

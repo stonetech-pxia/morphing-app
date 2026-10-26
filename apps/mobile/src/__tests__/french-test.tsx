@@ -1,16 +1,16 @@
-import { createStarterWorkspace, formatFileSize, formatMoney, formatNumber } from '@morph/core';
+import { formatFileSize, formatMoney, formatNumber } from '@morph/core';
 import { act, fireEvent } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
-import { renderToolsApp } from '../test-utils/render-app';
+import { renderToolsApp, starterAfterGuide } from '../test-utils/render-app';
 import { formatTime } from '../run/local/TrimScreen';
 
 const start = () =>
   renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), {
     locale: 'fr',
-    seed: createStarterWorkspace,
+    seed: starterAfterGuide,
   });
 
 describe('French journeys', () => {
@@ -18,7 +18,7 @@ describe('French journeys', () => {
     await start();
     expect(await screen.findByText('Ouvrir les photos')).toBeTruthy();
     expect(screen.getByText('Ouvrir les fichiers')).toBeTruthy();
-    await fireEvent.press(screen.getByText('Ce que Morph peut faire'));
+    await act(() => router.push('/quick-actions'));
     await fireEvent.press(await screen.findByTestId('category-audio'));
     await fireEvent.press(await screen.findByTestId('quick-actions-create'));
     expect(await screen.findByTestId('change-input')).toHaveProp(
@@ -27,18 +27,21 @@ describe('French journeys', () => {
     );
   });
 
-  it('picks a photo, adds and runs an action, and shows a French result', async () => {
+  it('picks a photo, runs a built-in action, and shows a French result', async () => {
     const { files, store } = await start();
     files.nextMedia = [files.offerImage('private-photo.jpg', 2400, 1600)];
     await fireEvent.press(await screen.findByTestId('file-pick-media'));
     expect(await screen.findByTestId('share-screen')).toHaveTextContent(/1\s*photo/);
-    await fireEvent.press(await screen.findByTestId('share-preset-add-email-photos'));
+    expect(await screen.findByTestId('share-workflow-email-photos')).toHaveTextContent(
+      /Photos pour l’e-mail/,
+    );
+    await fireEvent.press(await screen.findByTestId('share-run-email-photos'));
     await fireEvent.press(await screen.findByTestId('prompt-ok'));
     expect(await screen.findByTestId('run-result')).toHaveTextContent(/Enregistrer dans Fichiers/);
     expect(files.shared).toHaveLength(1);
-    expect(
-      store.getState().config!.workflows.find((w) => w.presetId === 'email-photos')?.name,
-    ).not.toBe('Photos for email or upload');
+    expect(store.getState().config!.workflows.some((w) => w.presetId === 'email-photos')).toBe(
+      false,
+    );
   });
 
   it('uses English mock phrases in a French interface, and applies and undoes a draft', async () => {
@@ -56,7 +59,7 @@ describe('French journeys', () => {
     });
     expect(store.getState().config!.theme.fontScale).toBe(original);
     await act(() => router.push('/quick-actions'));
-    expect(await screen.findByTestId('category-document')).toHaveTextContent('Documents');
+    expect(await screen.findByTestId('category-document')).toHaveTextContent(/^Documents/);
   });
 
   it('formats French decimals, currency, sizes and fractional seconds', () => {

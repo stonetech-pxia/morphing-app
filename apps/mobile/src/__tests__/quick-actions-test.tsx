@@ -30,11 +30,42 @@ describe('quick-action categories (UI)', () => {
     expect(screen.getAllByTestId('banner')).toHaveLength(1);
   });
 
-  it('opens the kernel library from the starter home', async () => {
+  it('shows a quick action list and an icon-only button on the home page (D-230)', async () => {
+    const { store } = await renderToolsApp();
+    await act(async () => {
+      await store.getState().proposeOps(
+        [
+          {
+            op: 'addComponent',
+            pageId: 'home',
+            component: { id: 'photos', type: 'quickActionList', props: { kind: 'image' } },
+          },
+          {
+            op: 'addComponent',
+            pageId: 'home',
+            component: {
+              id: 'open-ai',
+              type: 'button',
+              props: { label: '修改这个 App', target: 'ai', variant: 'icon', icon: 'sparkles' },
+            },
+          },
+        ],
+        'setup',
+      );
+      await store.getState().confirm();
+    });
+    expect(await screen.findByLabelText('修改这个 App')).toBeTruthy();
+    // 内设的直接列出来、直接运行（D-236）。
+    await fireEvent.press(await screen.findByTestId('workflow-run-visa-photo'));
+    expect(await screen.findByTestId('run-screen')).toBeTruthy();
+  });
+
+  it('opens the kernel library on a starter workspace', async () => {
     await renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), {
       seed: createStarterWorkspace,
     });
-    await fireEvent.press(await screen.findByText('Morph 可以做什么'));
+    await screen.findByTestId('nav-settings');
+    await act(() => router.push('/quick-actions'));
     for (const kind of QUICK_ACTION_KINDS)
       expect(await screen.findByTestId(`category-${kind}`)).toBeTruthy();
     await fireEvent.press(screen.getByTestId('category-image'));
@@ -59,9 +90,11 @@ describe('quick-action categories (UI)', () => {
     expect(screen.queryByTestId('draft-bar')).toBeNull();
   });
 
-  it('ranks my actions by successful uses and ignores failed runs', async () => {
+  it('ranks own and built-in actions together by successful uses, ignoring failed runs', async () => {
     const repo = new MemoryWorkspaceRepo();
     for (const [workflowId, status] of [
+      ['send-photos', 'succeeded'],
+      ['send-photos', 'succeeded'],
       ['email-photos', 'succeeded'],
       ['video-too-big', 'succeeded'],
       ['unused', 'failed'],
@@ -93,11 +126,14 @@ describe('quick-action categories (UI)', () => {
       expect(screen.getByTestId('workflow-email-photos')).toHaveTextContent(/用过\s*1\s*次/),
     );
     const rows = within(screen.getByTestId('quick-actions-image')).getAllByTestId(
-      /^workflow-(?:email-photos|unused)$/,
+      /^workflow-(?:send-photos|email-photos|unused|visa-photo)$/,
     );
+    // 没用过的：自己的在内设的前面。
     expect(rows.map((row) => row.props.testID)).toEqual([
+      'workflow-send-photos',
       'workflow-email-photos',
       'workflow-unused',
+      'workflow-visa-photo',
     ]);
   });
 

@@ -2,8 +2,6 @@ import { useLocalSearchParams } from 'expo-router';
 import { Text, View } from 'react-native';
 
 import { readyNotes } from '@/draft/useApplyDraft';
-import { isSampleKind } from '@/guide/samples';
-import { isGoalParam } from '@/guide/store';
 import { t } from '@/i18n';
 import { usePalette } from '@/renderer/theme';
 import { ReadyScreen } from '@/shell/ReadyScreen';
@@ -11,12 +9,7 @@ import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
 /** AI 新做的快捷操作（D-125）。被撤销后打开时说明它已经不在了。 */
 export default function ReadyRoute() {
-  const { workflowId, sample, guide, notes } = useLocalSearchParams<{
-    workflowId: string;
-    sample?: string;
-    guide?: string;
-    notes?: string;
-  }>();
+  const { workflowId, notes } = useLocalSearchParams<{ workflowId: string; notes?: string }>();
   const { locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
@@ -30,12 +23,5 @@ export default function ReadyRoute() {
       </View>
     );
   }
-  return (
-    <ReadyScreen
-      workflow={workflow}
-      notes={readyNotes(notes)}
-      {...(isSampleKind(sample) ? { sample } : {})}
-      {...(isGoalParam(guide) ? { guide } : {})}
-    />
-  );
+  return <ReadyScreen workflow={workflow} notes={readyNotes(notes)} />;
 }

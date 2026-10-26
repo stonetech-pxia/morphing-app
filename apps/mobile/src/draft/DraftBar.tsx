@@ -1,4 +1,4 @@
-import { localize, guideGoal, type Workflow } from '@morph/core';
+import { localize, type Workflow } from '@morph/core';
 
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -17,7 +17,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { isGoalParam } from '../guide/store';
 import { t } from '../i18n';
 import { UiIcon, type UiIconName } from '../renderer/Icon';
 import { usePalette, type Palette } from '../renderer/theme';
@@ -127,7 +126,6 @@ function DraftReply({ draft, palette }: { draft: Draft; palette: Palette }) {
   const chatOpen = useDraftUi((s) => s.chatOpen);
   const last = draft.steps.at(-1)!;
   if (chatOpen || seenStep === last.changeRequestId) return null;
-  const guide = draft.origin.guide;
   return (
     <View
       testID="draft-reply"
@@ -149,13 +147,6 @@ function DraftReply({ draft, palette }: { draft: Draft; palette: Palette }) {
         </Pressable>
       </View>
       <StepReply draft={draft} index={draft.steps.length - 1} palette={palette} />
-      {guide && draft.steps.length === 1 ? (
-        <Text
-          testID="draft-guide-hint"
-          style={[palette.font('bodyMedium', 13), { color: palette.primaryText }]}>
-          {t(locale, 'draftGuideHint')}
-        </Text>
-      ) : null}
     </View>
   );
 }
@@ -174,13 +165,11 @@ function StepReply({
 }) {
   const step = draft.steps[index]!;
   const workflow = addedWorkflow(draft, index);
-  const guide = draft.origin.guide;
-  const added = index === 0 && isGoalParam(guide) ? new Set(guideGoal(guide).added) : new Set();
   const body = [palette.font('body', 14), { color: palette.text }];
   return (
     <View style={styles.stepReply}>
       {workflow ? (
-        <GrowingSteps workflow={workflow} added={added} palette={palette} animate={animate} />
+        <GrowingSteps workflow={workflow} palette={palette} animate={animate} />
       ) : (
         step.lines.slice(0, 4).map((line, i) => (
           <Text key={i} style={body}>
@@ -200,15 +189,13 @@ function StepReply({
   );
 }
 
-/** 新做的快捷操作：步骤一条一条长出来，AI 按用途补上的步骤标出来（引导的惊喜，D-149）。 */
+/** 新做的快捷操作：步骤一条一条长出来。 */
 function GrowingSteps({
   workflow,
-  added,
   palette,
   animate,
 }: {
   workflow: Workflow;
-  added: ReadonlySet<unknown>;
   palette: Palette;
   animate: boolean;
 }) {
@@ -245,13 +232,6 @@ function GrowingSteps({
           <Text style={[palette.font('body', 14), styles.flex, { color: palette.text }]}>
             {localize(registry.actions.get(step.action)?.label, locale) ?? step.action}
           </Text>
-          {added.has(step.id) ? (
-            <View style={[styles.tag, { backgroundColor: palette.secondary }]}>
-              <Text style={[palette.font('bodyBold', 11), { color: '#FFFFFF' }]}>
-                {t(locale, 'guideAdded')}
-              </Text>
-            </View>
-          ) : null}
         </Animated.View>
       ))}
     </View>
@@ -466,7 +446,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tag: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   chatRoot: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)' },
   sheet: {
     height: '58%',

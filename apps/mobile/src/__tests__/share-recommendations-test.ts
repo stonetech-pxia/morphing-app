@@ -1,6 +1,6 @@
 import type { SharedFileInfo, Workflow } from '@morph/core';
 
-import { retiredIds, shareRecommendations } from '../share/recommendations';
+import { shareRecommendations } from '../share/recommendations';
 import type { SucceededRuns } from '../storage/types';
 
 const infos: SharedFileInfo[] = [{ name: 'x.jpg', mimeType: 'image/jpeg', size: 10 }];
@@ -29,10 +29,15 @@ describe('inbox recommendations', () => {
     expect(result.recommended.filter((r) => r.fit.ok).length).toBeGreaterThan(0);
     expect(result.anyUsed).toBe(true);
   });
-  it('does not reuse ids of removed quick actions that still have run counts', () => {
-    expect(retiredIds([wf('keep')], usage(['keep', 1, 1], ['gone', 9, 1]))).toEqual([
-      { id: 'gone' },
-    ]);
+  it('ranks built-in quick actions by their own run history (D-236)', () => {
+    const result = shareRecommendations(
+      [wf('own')],
+      infos,
+      usage(['visa-photo', 3, 1], ['own', 1, 1]),
+      'zh',
+    );
+    expect(result.recommended.map((x) => x.wf.id).slice(0, 2)).toEqual(['visa-photo', 'own']);
+    expect(result.anyUsed).toBe(true);
   });
   it('orders successful uses by count then latest start; caps recommendations at five', () => {
     const workflows = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => wf(id));
@@ -48,7 +53,7 @@ describe('inbox recommendations', () => {
     expect(result.recommended.map((x) => x.wf.id)).toEqual(['d', 'c', 'b', 'a', 'f']);
     expect(result.all[5]!.wf.id).toBe('e');
   });
-  it('fills fewer than three used actions: own, unadded presets, then tool actions', () => {
+  it('fills fewer than three used actions: own, built-in, then tool actions', () => {
     const result = shareRecommendations(
       [wf('tool', { toolId: 'image' }), wf('own'), wf('used')],
       infos,
@@ -57,7 +62,7 @@ describe('inbox recommendations', () => {
     );
     expect(result.recommended).toHaveLength(5);
     expect(result.all.slice(0, 2).map((x) => x.wf.id)).toEqual(['used', 'own']);
-    expect(result.all[2]!.preset).toBeDefined();
+    expect(result.all[2]!.wf.presetId).toBeDefined();
     expect(result.all.at(-1)!.wf.id).toBe('tool');
   });
   it('does not fill once three used actions exist, and puts a newly made action first', () => {
@@ -70,7 +75,7 @@ describe('inbox recommendations', () => {
       shareRecommendations(workflows, infos, runs, 'zh', 'new').recommended.map((x) => x.wf.id),
     ).toEqual(['new', 'c', 'b', 'a']);
   });
-  it('retains count mismatches only if used, never wrong types, and excludes added presets', () => {
+  it('retains count mismatches only if used, never wrong types, and hides copied built-ins', () => {
     const tooFew = wf('few', {
       steps: [{ id: 'in', action: 'in.photos', params: { min: 2, max: 5 } }],
     });
@@ -83,7 +88,7 @@ describe('inbox recommendations', () => {
     const workflows = [tooFew, wrong, wf('added', { presetId: 'visa-photo' })];
     const empty = shareRecommendations(workflows, infos, new Map(), 'zh').all;
     expect(
-      empty.some((x) => x.wf.id === 'few' || x.wf.id === 'wrong' || x.preset?.id === 'visa-photo'),
+      empty.some((x) => x.wf.id === 'few' || x.wf.id === 'wrong' || x.wf.id === 'visa-photo'),
     ).toBe(false);
     const used = shareRecommendations(
       workflows,
@@ -103,5 +108,47 @@ describe('inbox recommendations', () => {
         'zh',
       ).recommended.find((r) => r.wf.id === 'many')?.fit,
     ).toMatchObject({ reason: 'tooMany' });
+  });
+  it('fills a new user with the most common built-in actions for this kind of file (D-237)', () => {
+    const ids = (files: SharedFileInfo[]) =>
+      shareRecommendations([], files, new Map(), 'zh').recommended.map((x) => x.wf.id);
+    expect(ids(infos)).toEqual([
+      'email-photos',
+      'document-packet',
+      'visa-photo',
+      'mark-up-photos',
+      'remove-photo-background',
+    ]);
+    expect(ids([{ name: 'a.pdf', mimeType: 'application/pdf', size: 1 }])).toEqual([
+      'pdf-too-big',
+      'sign-return',
+      'combine-documents',
+      'foreign-pdf',
+    ]);
+    // 自己做的没用过的仍排在内设的前面；用过的按次数排在最前。
+    expect(
+      shareRecommendations([wf('own'), wf('used')], infos, usage(['used', 1, 1]), 'zh')
+        .recommended.slice(0, 3)
+        .map((x) => x.wf.id),
+    ).toEqual(['used', 'own', 'email-photos']);
+  });
+  it('ranks a tool action that has the same id as a listed built-in one (video-frame) (D-237)', () => {
+    const toolFrame = wf('video-frame', {
+      toolId: 'video',
+      steps: [{ id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } }],
+    });
+    const ids = shareRecommendations(
+      [toolFrame],
+      [{ name: 'clip.mp4', mimeType: 'video/mp4', size: 1 }],
+      new Map(),
+      'zh',
+    ).recommended.map((x) => x.wf.id);
+    expect(ids).toEqual([
+      'video-too-big',
+      'video-sound',
+      'video-frame',
+      'mute-video',
+      'fix-video-rotation',
+    ]);
   });
 });

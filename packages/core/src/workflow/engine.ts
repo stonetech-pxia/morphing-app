@@ -53,6 +53,7 @@ export type RunErrorCode =
   | 'accessDenied'
   | 'saveFailed'
   | 'folderNotWritable'
+  | 'noViewer'
   | 'unsupportedAction'
   | 'invalidWorkflow'
   | 'cameraUnavailable'

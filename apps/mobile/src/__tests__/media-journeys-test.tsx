@@ -1,3 +1,4 @@
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BUILTIN_TOOLS, createMockAIProvider, createRegistry, type AIProvider } from '@morph/core';
 import { createClaudePlanner, type PlannerMessage } from '@morph/planner';
 import { fireEvent } from '@testing-library/react-native';
@@ -45,7 +46,9 @@ async function renderApp(provider: AIProvider = createMockAIProvider()) {
     _layout: () => (
       <AISettingsProvider store={aiSettings}>
         <WorkspaceProvider value={{ store, repo, files, registry, locale: 'zh' }}>
-          <Stack />
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <Stack />
+          </GestureHandlerRootView>
         </WorkspaceProvider>
       </AISettingsProvider>
     ),

@@ -67,6 +67,7 @@ export const OpSchema = z.discriminatedUnion('op', [
     cardStyle: ThemeSchema.shape.cardStyle.optional(),
     navStyle: ThemeSchema.shape.navStyle.optional(),
     backdrop: ThemeSchema.shape.backdrop,
+    iconStyle: ThemeSchema.shape.iconStyle,
   }),
   z.strictObject({ op: z.literal('resetTheme') }),
   z.strictObject({ op: z.literal('applyThemePreset'), preset: z.enum(THEME_PRESET_IDS) }),

@@ -1,7 +1,9 @@
 import { localize } from '../localization';
+import { mediaKindOf, type MediaKind } from '../media';
 import { t } from '../messages';
 import type { QuickActionKind } from '../quick-actions';
 import type { IconName, Locale, Localized, Workflow } from '../schema';
+import type { SharedFileInfo } from '../share';
 import { speechLangFor } from '../tools/audio';
 
 // 内置的预设工作流（TOOLS_DESIGN §7，D-081）：不随版本，用户在「工作流」页点「添加」时复制进配置，
@@ -945,6 +947,75 @@ export function presetWorkflow(preset: WorkflowPreset, locale: Locale, id: strin
     presetId: preset.id,
     steps: preset.steps(locale),
   };
+}
+
+// 收件页面没用过时先推荐哪几个（D-237）：按文件类型、一个还是多个，最常见的排前面。
+// 依据是 Smallpdf、iLovePDF、iLoveIMG 的热门工具和国内常见场景，还没有访谈验证。
+const SHARE_ORDER: Partial<Record<MediaKind, { one: string[]; many: string[] }>> = {
+  image: {
+    one: [
+      'email-photos',
+      'document-packet',
+      'visa-photo',
+      'mark-up-photos',
+      'remove-photo-background',
+    ],
+    many: [
+      'document-packet',
+      'send-photos',
+      'email-photos',
+      'redact-screenshots',
+      'mark-up-photos',
+    ],
+  },
+  video: {
+    one: ['video-too-big', 'video-sound', 'video-frame', 'mute-video', 'fix-video-rotation'],
+    many: ['join-videos', 'video-too-big', 'mute-video', 'video-sound', 'fix-video-rotation'],
+  },
+  pdf: {
+    one: ['pdf-too-big', 'sign-return', 'combine-documents', 'foreign-pdf'],
+    many: ['combine-documents', 'pdf-too-big'],
+  },
+  audio: {
+    one: ['audio-to-text', 'audio-too-big', 'cut-audio', 'denoise-audio', 'normal-audio-volume'],
+    many: [
+      'merge-recordings',
+      'audio-to-text',
+      'audio-too-big',
+      'denoise-audio',
+      'normal-audio-volume',
+    ],
+  },
+};
+
+/** 这批文件先推荐的内设快捷操作 ID（最多 5 个）；类型混在一起或别的文件时为空。 */
+export function sharePresetOrder(files: readonly SharedFileInfo[]): string[] {
+  const kinds = new Set(files.map((f) => mediaKindOf(f.mimeType, f.name)));
+  const order = kinds.size === 1 ? SHARE_ORDER[[...kinds][0]!] : undefined;
+  if (!order) return [];
+  return files.length === 1 ? order.one : order.many;
+}
+
+/**
+ * 内设的快捷操作（D-236）：预设不用添加，直接用预设 ID 运行，运行记录也记在这个 ID 下。
+ * 配置里有它的副本（改过、放到首页、旧版本添加过的）或同 ID 的快捷操作时，用配置里的。
+ */
+export function builtInWorkflows(workflows: readonly Workflow[], locale: Locale): Workflow[] {
+  return WORKFLOW_PRESETS.filter(
+    (p) => !workflows.some((w) => w.presetId === p.id || w.id === p.id),
+  ).map((p) => presetWorkflow(p, locale, p.id));
+}
+
+/** 按 ID 找快捷操作：先找配置里的，再找内设的。 */
+export function findWorkflow(
+  workflows: readonly Workflow[],
+  id: string,
+  locale: Locale,
+): Workflow | undefined {
+  return (
+    workflows.find((w) => w.id === id) ??
+    builtInWorkflows(workflows, locale).find((w) => w.id === id)
+  );
 }
 
 /** 新工作流的 ID：基于名字（预设 ID 等），已用过时加序号。 */

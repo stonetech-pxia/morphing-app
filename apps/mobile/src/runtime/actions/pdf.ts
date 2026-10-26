@@ -67,6 +67,21 @@ export async function guard<T>(name: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/** 文件已经打开之后出的错：PDF 自己的问题照常说明，其他的照实报出来（不说成「文件可能已损坏」）。 */
+function arrangeError(e: unknown): unknown {
+  if (e instanceof PdfError || e instanceof RunError || e instanceof RunCancelled) return e;
+  return new RunError('unexpected', { detail: String(e instanceof Error ? e.message : e) });
+}
+
+async function arranged(name: string, fn: () => Promise<Uint8Array>): Promise<Uint8Array> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (e instanceof PdfError) return pdfError(e, name);
+    throw arrangeError(e);
+  }
+}
+
 /** 输出一个 PDF 临时文件。 */
 export async function writePdf(ctx: Ctx, bytes: Uint8Array, name: string): Promise<RunItem> {
   const pages = await pageInfo(bytes);
@@ -301,8 +316,11 @@ export const PDF_IMPLS: Record<string, Impl> = {
   },
 
   async 'pdf.pages'(input, _params, ctx) {
-    return eachPdf(input, ctx, async (bytes, item) => {
-      const pages = await pageInfo(bytes);
+    const out: RunItem[] = [];
+    for (const [i, item] of fileItems(input).entries()) {
+      ctx.throwIfCancelled();
+      const bytes = await readItem(ctx.services, item);
+      const pages = await guard(fileName(item), () => pageInfo(bytes));
       // 装了 PDF 预览包就显示缩略图；没装也能按页码整理（不会为此弹出下载）。
       let thumbnails: string[] | undefined;
       if (ctx.services.packs && (await ctx.services.packs.isInstalled('pdfview'))) {
@@ -314,22 +332,38 @@ export const PDF_IMPLS: Record<string, Impl> = {
           thumbnails = undefined;
         }
       }
-      const chosen = await ctx.services.ui.open('pages', {
-        item,
-        pages,
-        ...(thumbnails ? { thumbnails } : {}),
-      });
-      if (!chosen) throw new RunCancelled();
-      let out = bytes;
-      for (const angle of [90, 180, 270] as const) {
-        const indices = chosen.filter((p) => p.rotate === angle).map((p) => p.index);
-        if (indices.length) out = await rotatePages(out, angle, indices);
+      // 整理界面出的错不是文件坏了，照实报出来（不经过 guard）。
+      let chosen;
+      try {
+        chosen = await ctx.services.ui.open('pages', {
+          item,
+          pages,
+          ...(thumbnails ? { thumbnails } : {}),
+        });
+      } catch (e) {
+        throw arrangeError(e);
       }
-      return selectPages(
-        out,
-        chosen.map((p) => p.index),
-      );
-    });
+      if (!chosen) throw new RunCancelled();
+      // 什么都没改（最常见：合并后直接点「完成」）就原样留着，不再把每一页复制一遍。
+      const unchanged =
+        chosen.length === pages.length && chosen.every((p, j) => p.index === j && !p.rotate);
+      const result = unchanged
+        ? bytes
+        : await arranged(fileName(item), async () => {
+            let next = bytes;
+            for (const angle of [90, 180, 270] as const) {
+              const indices = chosen.filter((p) => p.rotate === angle).map((p) => p.index);
+              if (indices.length) next = await rotatePages(next, angle, indices);
+            }
+            return selectPages(
+              next,
+              chosen.map((p) => p.index),
+            );
+          });
+      out.push(await writePdf(ctx, result, item.name));
+      ctx.progress(i + 1, fileItems(input).length);
+    }
+    return { type: 'pdf' as const, items: out };
   },
 
   async 'pdf.selectPages'(input, params, ctx) {

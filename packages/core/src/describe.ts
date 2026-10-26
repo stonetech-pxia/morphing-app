@@ -4,6 +4,7 @@ import { SYSTEM_TARGET_LABELS } from './defaults';
 import { plainText } from './richtext';
 import { shownInToolGrid, type ApplyNote, type Op } from './ops';
 import { THEME_PRESETS } from './presets';
+import { QUICK_ACTION_CATEGORIES } from './quick-actions';
 import type { Registry } from './registry';
 import { describeParams } from './workflow/format';
 import {
@@ -64,6 +65,12 @@ export function componentLabel(
       const wf = config.workflows.find((w) => w.id === c.props.workflowId);
       return t(ctx.locale, 'describe_quick_action_1fb38', { v0: wf?.name ?? c.props.workflowId });
     }
+    case 'quickActionList':
+      return c.props.kind
+        ? t(ctx.locale, 'describe_quick_action_list_kind', {
+            v0: localize(QUICK_ACTION_CATEGORIES[c.props.kind].name, ctx.locale) ?? c.props.kind,
+          })
+        : t(ctx.locale, 'describe_quick_action_list');
     case 'button':
       return t(ctx.locale, 'describe_button_d79ee', { v0: c.props.label });
     case 'shortcut':
@@ -156,6 +163,10 @@ function describeToken(key: ThemeTokenKey, value: unknown, locale: Locale): stri
       label: ['只显示文字', 'labels only'],
       icon: ['只显示图标', 'icons only'],
     },
+    iconStyle: {
+      solid: ['实色底', 'solid'],
+      tint: ['浅色底', 'light tint'],
+    },
   };
   const names: Record<ThemeTokenKey, [string, string]> = {
     font: ['字体', 'Font'],
@@ -165,6 +176,7 @@ function describeToken(key: ThemeTokenKey, value: unknown, locale: Locale): stri
     cardStyle: ['卡片样式', 'Card style'],
     navStyle: ['导航栏样式', 'Navigation bar'],
     backdrop: ['页面背景', 'Page background'],
+    iconStyle: ['图标底色', 'Icon background'],
   };
   const pick = ([a, b]: [string, string]) => pairText(locale, [b, a]);
   let shown: string;
@@ -362,6 +374,7 @@ export function describeChange(
           'cardStyle',
           'navStyle',
           'backdrop',
+          'iconStyle',
         ] as const) {
           if (op[key] !== undefined) lines.push(describeToken(key, op[key], ctx.locale));
         }
@@ -446,6 +459,33 @@ export function describeChange(
           fit: { zh: '填充方式', en: 'fit', fr: 'mode d’ajustement' },
           caption: { zh: '说明', en: 'caption', fr: 'légende' },
           placeholder: { zh: '提示', en: 'placeholder', fr: 'texte indicatif' },
+          look: { zh: '样子', en: 'look', fr: 'apparence' },
+          kind: { zh: '类别', en: 'category', fr: 'catégorie' },
+        };
+        // 取值也写成人话（D-230）。
+        const propValues: Record<string, Record<string, import('./schema').Localized>> = {
+          look: {
+            row: {
+              zh: '一行（右边有箭头）',
+              en: 'a row with an arrow',
+              fr: 'une ligne avec flèche',
+            },
+            tile: { zh: '大图标块', en: 'a large icon tile', fr: 'une grande tuile' },
+            card: {
+              zh: '卡片加「运行」按钮',
+              en: 'a card with a Run button',
+              fr: 'une carte avec bouton Exécuter',
+            },
+          },
+          variant: {
+            filled: { zh: '实心', en: 'filled', fr: 'plein' },
+            outline: { zh: '描边', en: 'outlined', fr: 'contour' },
+            text: { zh: '只有文字', en: 'text only', fr: 'texte seul' },
+            icon: { zh: '只显示图标', en: 'icon only', fr: 'icône seule' },
+          },
+          kind: Object.fromEntries(
+            Object.entries(QUICK_ACTION_CATEGORIES).map(([k, v]) => [k, v.name]),
+          ),
         };
         const changes = Object.entries(op.props)
           .map(([k, v]) => {
@@ -456,6 +496,8 @@ export function describeChange(
             }
             const name = localize(propNames[k], ctx.locale) ?? k;
             if (v === null) return t(ctx.locale, 'describe_removed_d5c25', { v0: name });
+            const named = typeof v === 'string' ? localize(propValues[k]?.[v], ctx.locale) : null;
+            if (named) return t(ctx.locale, 'describe__41054', { v0: name, v1: named });
             // 富文本显示成纯文字，太长时截断。
             const shown = typeof v === 'string' && k === 'text' ? truncate(plainText(v)) : v;
             const value =

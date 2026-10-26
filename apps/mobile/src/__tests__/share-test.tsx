@@ -392,15 +392,81 @@ describe('share journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('share-files-toggle'));
     expect(screen.getByText('trip.MOV')).toBeTruthy();
     expect(await screen.findByText('1:15 · 120.0 MB')).toBeTruthy();
-    // 证件照、合并 PDF 都不收视频；现成的「视频太大发不出去」可以添加并运行（视频不超过 4 GB，不受 50 MB 限制）。
+    // 证件照、合并 PDF 都不收视频；内设的「视频太大发不出去」直接运行（视频不超过 4 GB，不受 50 MB 限制）。
     expect(screen.queryByTestId('share-too-large')).toBeNull();
     expect(screen.queryByTestId('share-workflow-visa-photo')).toBeNull();
-    await fireEvent.press(screen.getByTestId('share-preset-add-video-too-big'));
+    await fireEvent.press(screen.getByTestId('share-run-video-too-big'));
     await fireEvent.press(await screen.findByTestId('prompt-ok', {}, { timeout: 3000 }));
     expect(await screen.findByTestId('result-item-trip.mp4')).toBeTruthy();
     // 分享进来的原件原地使用，不复制进运行目录。
     expect(files.adopted).toEqual([trip.uri]);
     expect(files.runFiles()).toHaveLength(1);
+  });
+
+  it('one photo: a new user sees the five most common quick actions, then 「我要自己说」 (D-237)', async () => {
+    const { files } = await renderToolsApp();
+    await share([files.offerShared('IMG_0001.jpg', TINY_JPEG, 'image/jpeg')]);
+    await screen.findByTestId('share-ask-ai');
+    // 按页面上从上到下的顺序。
+    const ids = screen
+      .getAllByTestId(/^share-(workflow-.*|ask-ai|see-all)$/)
+      .map((n) => n.props.testID as string);
+    expect(ids).toEqual([
+      'share-workflow-email-photos',
+      'share-workflow-document-packet',
+      'share-workflow-visa-photo',
+      'share-workflow-mark-up-photos',
+      'share-workflow-remove-photo-background',
+      'share-see-all',
+      'share-ask-ai',
+    ]);
+  });
+
+  it('one photo or video is shown on the page; tapping the photo opens it full screen (D-238)', async () => {
+    const { files } = await renderToolsApp();
+    await share([files.offerShared('IMG_0001.jpg', TINY_JPEG, 'image/jpeg')]);
+    const preview = await screen.findByTestId('share-preview-image');
+    // expo-image 的替身把 source 包成数组。
+    expect([within(preview).getByTestId('share-preview-image-file').props.source].flat()).toEqual([
+      { uri: 'file:///group/IMG_0001.jpg' },
+    ]);
+    await fireEvent.press(preview);
+    expect(screen.getByTestId('share-viewer')).toBeTruthy();
+    expect(screen.getByTestId('share-viewer-count')).toHaveTextContent('1 / 1');
+    await fireEvent.press(screen.getByTestId('share-viewer-close'));
+    expect(screen.queryByTestId('share-viewer')).toBeNull();
+    await act(() => router.back());
+
+    await share([files.offerShared('clip.mp4', TINY_JPEG, 'video/mp4')]);
+    expect(await screen.findByTestId('share-preview-video')).toBeTruthy();
+  });
+
+  it('several photos and videos open at the one tapped and page through all of them (D-238)', async () => {
+    const { files } = await renderToolsApp();
+    await share([
+      files.offerShared('a.jpg', TINY_JPEG, 'image/jpeg'),
+      files.offerShared('b.mp4', TINY_JPEG, 'video/mp4'),
+      files.offerShared('c.jpg', TINY_JPEG, 'image/jpeg'),
+    ]);
+    await screen.findByTestId('share-ask-ai');
+    // 多个文件不在页面上放大图，点开文件列表里的一个再看。
+    expect(screen.queryByTestId('share-preview-image')).toBeNull();
+    await fireEvent.press(screen.getByTestId('share-files-toggle'));
+    await fireEvent.press(screen.getByTestId('share-file-1'));
+    expect(screen.getByTestId('share-viewer-count')).toHaveTextContent('2 / 3');
+  });
+
+  it('a PDF opens in the system preview; one PDF opens straight from the summary (D-238)', async () => {
+    const { files } = await renderToolsApp();
+    const pdf = files.offerShared('报告.pdf', await makePdf(2));
+    await share([pdf]);
+    await fireEvent.press(await screen.findByTestId('share-files-toggle'));
+    expect(files.previewed).toEqual([{ uri: pdf.uri, mimeType: 'application/pdf' }]);
+    expect(screen.queryByTestId('share-viewer')).toBeNull();
+    // 没有能打开它的 App（Android）时说明原因，页面照常能用。
+    files.previewFails = true;
+    await fireEvent.press(screen.getByTestId('share-files-toggle'));
+    expect(screen.getByTestId('share-preview-error')).toHaveTextContent(/没有能打开/);
   });
 
   it('says so when nothing usable was shared', async () => {

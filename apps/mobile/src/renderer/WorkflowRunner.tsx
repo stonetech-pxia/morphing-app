@@ -4,13 +4,24 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
 import type { RenderEnv } from './components';
+import { UiIcon } from './Icon';
+import { iconColors } from './theme';
 import { Button, Card, IconTile } from './ui';
 
 /**
  * workflowRunner 组件：显示工作流的步骤，点「开始」打开运行页面。
  * 在宫格里（相邻的多个运行卡片，或用户自己的 grid / row 分组）显示成小方块，整块可点（D-108）。
+ * look 指定了样子时不看位置：card = 卡片加「运行」按钮，row = 一行、右边 ▶，tile = 小方块（D-230）。
  */
-export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: RenderEnv }) {
+export function WorkflowRunner({
+  workflowId,
+  look,
+  env,
+}: {
+  workflowId: string;
+  look?: 'card' | 'row' | 'tile';
+  env: RenderEnv;
+}) {
   const router = useRouter();
   const { palette, locale, registry } = env;
   const workflow = env.config.workflows.find((w) => w.id === workflowId);
@@ -31,17 +42,50 @@ export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: R
     if (env.interactive) router.push({ pathname: '/run/[workflowId]', params: { workflowId } });
   };
 
-  if (env.inCell) {
-    const icon =
-      workflow.icon ?? (workflow.toolId && registry.tools.get(workflow.toolId)?.icon) ?? 'workflow';
-    // 多步的工作流（预设、自己搭的）列出步骤；单功能的名字已经说明了做什么，只列固定的设置。
-    const detail =
-      workflow.steps.length > 2
-        ? workflow.steps
-            .slice(1)
-            .map((s) => label(s.action))
-            .join(' → ')
-        : settings;
+  const shown = look ?? (env.inCell ? 'tile' : 'card');
+  const icon =
+    workflow.icon ?? (workflow.toolId && registry.tools.get(workflow.toolId)?.icon) ?? 'workflow';
+  // 多步的工作流（预设、自己搭的）列出步骤；单功能的名字已经说明了做什么，只列固定的设置。
+  const detail =
+    workflow.steps.length > 2
+      ? workflow.steps
+          .slice(1)
+          .map((s) => label(s.action))
+          .join(' → ')
+      : settings;
+
+  if (shown === 'row') {
+    const play = iconColors(palette, 'tint');
+    return (
+      <Card
+        palette={palette}
+        testID={`run-${workflow.id}`}
+        accessibilityLabel={workflow.name}
+        onPress={start}
+        onLongPress={env.onLongPress}>
+        <View style={styles.row}>
+          <IconTile palette={palette} icon={icon} size={40} {...iconColors(palette, 'tint')} />
+          <View style={styles.rowText}>
+            <Text numberOfLines={2} style={[palette.font('title', 16), { color: palette.text }]}>
+              {workflow.name}
+            </Text>
+            {detail ? (
+              <Text
+                numberOfLines={2}
+                style={[palette.font('body', 13), { color: palette.caption }]}>
+                {detail}
+              </Text>
+            ) : null}
+          </View>
+          <View style={[styles.play, { backgroundColor: play.background }]}>
+            <UiIcon name="play" size={18} color={play.color} />
+          </View>
+        </View>
+      </Card>
+    );
+  }
+
+  if (shown === 'tile') {
     return (
       <Card
         palette={palette}
@@ -50,13 +94,7 @@ export function WorkflowRunner({ workflowId, env }: { workflowId: string; env: R
         onPress={start}
         onLongPress={env.onLongPress}
         style={styles.tile}>
-        <IconTile
-          palette={palette}
-          icon={icon}
-          background={palette.primaryTint}
-          color={palette.primaryText}
-          size={40}
-        />
+        <IconTile palette={palette} icon={icon} size={40} {...iconColors(palette, 'tint')} />
         <Text numberOfLines={2} style={[palette.font('title', 15), { color: palette.text }]}>
           {workflow.name}
         </Text>
@@ -101,4 +139,7 @@ const styles = StyleSheet.create({
   steps: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 6, rowGap: 2 },
   run: { marginTop: 6 },
   tile: { flex: 1, minHeight: 132 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rowText: { flex: 1, gap: 2 },
+  play: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
 });

@@ -1,7 +1,10 @@
 import {
   BUILTIN_TOOLS,
+  applyOps,
   createMockAIProvider,
   createRegistry,
+  createStarterWorkspace,
+  homeFileEntryOps,
   type Locale,
   type Registry,
   type WorkspaceConfig,
@@ -9,6 +12,7 @@ import {
 import { Stack } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AISettingsProvider } from '../ai/context';
 import { DraftChatSheet } from '../draft/DraftBar';
@@ -55,6 +59,14 @@ function ShareListener({ files }: { files: FakeFiles }) {
   return null;
 }
 
+/** 新用户做完引导第 1 步的样子（D-231）：空白首页加上「打开相册」「打开文件」。 */
+export function starterAfterGuide(locale: Locale, registry: Registry): WorkspaceConfig {
+  const config = createStarterWorkspace(locale, registry);
+  const result = applyOps(config, homeFileEntryOps(config), { registry, locale });
+  if (!result.ok) throw new Error(result.error);
+  return result.config;
+}
+
 export async function renderToolsApp(
   repo = new MemoryWorkspaceRepo(),
   files = new FakeFiles(),
@@ -84,22 +96,24 @@ export async function renderToolsApp(
   await store.getState().boot();
   await renderRouter({
     _layout: () => (
-      <AISettingsProvider store={aiSettings}>
-        <WorkspaceProvider value={{ store, repo, files, registry, locale }}>
-          <ShareListener files={files} />
-          {options.toolDownloads ? (
-            <ToolDownloadsProvider value={options.toolDownloads}>
-              <Stack />
-              <DraftChatSheet />
-            </ToolDownloadsProvider>
-          ) : (
-            <>
-              <Stack />
-              <DraftChatSheet />
-            </>
-          )}
-        </WorkspaceProvider>
-      </AISettingsProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <AISettingsProvider store={aiSettings}>
+          <WorkspaceProvider value={{ store, repo, files, registry, locale }}>
+            <ShareListener files={files} />
+            {options.toolDownloads ? (
+              <ToolDownloadsProvider value={options.toolDownloads}>
+                <Stack />
+                <DraftChatSheet />
+              </ToolDownloadsProvider>
+            ) : (
+              <>
+                <Stack />
+                <DraftChatSheet />
+              </>
+            )}
+          </WorkspaceProvider>
+        </AISettingsProvider>
+      </GestureHandlerRootView>
     ),
     index: HomeRoute,
     change: ChangeRoute,
