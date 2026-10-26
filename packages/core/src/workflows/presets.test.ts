@@ -6,8 +6,11 @@ import { validateWorkspace } from '../validate';
 import { typesAlong, workflowProblems } from '../workflow/check';
 import {
   PRESET_SCENARIOS,
+  builtInWorkflows,
+  findWorkflow,
   WORKFLOW_PRESETS,
   newWorkflowId,
+  presetById,
   presetWorkflow,
   presetsIn,
 } from './presets';
@@ -89,5 +92,20 @@ describe('workflow presets', () => {
     expect(newWorkflowId('My Photos!', [])).toBe('my-photos');
     expect(newWorkflowId('签证', [])).toBe('workflow');
     expect(newWorkflowId('2024 trip', [])).toBe('w-2024-trip');
+  });
+
+  it('offers every preset as built in until the config has its own copy (D-236)', () => {
+    expect(builtInWorkflows([], 'zh').map((w) => w.id)).toEqual(WORKFLOW_PRESETS.map((p) => p.id));
+    const edited = presetWorkflow(presetById('visa-photo')!, 'zh', 'visa-photo-2');
+    const sameId = { id: 'email-photos', name: 'Mine', steps: [] };
+    const ids = builtInWorkflows([edited, sameId], 'zh').map((w) => w.id);
+    expect(ids).not.toContain('visa-photo');
+    expect(ids).not.toContain('email-photos');
+    expect(findWorkflow([edited], 'visa-photo-2', 'zh')).toBe(edited);
+    expect(findWorkflow([], 'visa-photo', 'zh')).toMatchObject({
+      id: 'visa-photo',
+      presetId: 'visa-photo',
+    });
+    expect(findWorkflow([edited], 'visa-photo', 'zh')).toBeUndefined();
   });
 });

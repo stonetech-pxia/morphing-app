@@ -1,4 +1,4 @@
-import type { Workflow } from '@morph/core';
+import { findWorkflow, type Workflow } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -9,6 +9,7 @@ import { Card, Pill } from '../renderer/ui';
 import type { IncomingShare } from '../share/incoming';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { dismissChain, recordChain, sameWorkflow } from './chains';
+import { useWorkflowChange } from './workflow-change';
 
 export function ChainCard({
   source,
@@ -21,12 +22,13 @@ export function ChainCard({
 }) {
   const { repo, locale } = useWorkspaceContext();
   const workflows = useWorkspace((s) => s.config!.workflows);
-  const first = workflows.find((w) => w.id === source.workflow.id);
-  const second = workflows.find((w) => w.id === workflow.id);
+  const first = findWorkflow(workflows, source.workflow.id, locale);
+  const second = findWorkflow(workflows, workflow.id, locale);
   const valid =
     first && second && sameWorkflow(first, source.workflow) && sameWorkflow(second, workflow);
   const [suggest, setSuggest] = useState(false);
   const router = useRouter();
+  const change = useWorkflowChange();
   useEffect(() => {
     let live = true;
     if (valid)
@@ -54,8 +56,20 @@ export function ChainCard({
           palette={palette}
           testID="chain-make"
           label={t(locale, 'chainMake')}
-          onPress={() => {
+          onPress={async () => {
             void dismissChain(repo, first, second).catch(() => undefined);
+            // AI 只看得到配置里的快捷操作：内设的先存进去（D-236）。
+            const builtIn = (first.id === second.id ? [first] : [first, second]).filter(
+              (w) => !workflows.some((x) => x.id === w.id),
+            );
+            if (
+              builtIn.length > 0 &&
+              !(await change(
+                builtIn.map((w) => ({ op: 'addWorkflow' as const, workflow: w })),
+                t(locale, 'chainSaveBuiltIn', { first: first.name, second: second.name }),
+              ))
+            )
+              return;
             router.push({
               pathname: '/change',
               params: { first: first.id, second: second.id, text: t(locale, 'chainRequest') },

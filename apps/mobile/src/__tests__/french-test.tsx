@@ -27,18 +27,21 @@ describe('French journeys', () => {
     );
   });
 
-  it('picks a photo, adds and runs an action, and shows a French result', async () => {
+  it('picks a photo, runs a built-in action, and shows a French result', async () => {
     const { files, store } = await start();
     files.nextMedia = [files.offerImage('private-photo.jpg', 2400, 1600)];
     await fireEvent.press(await screen.findByTestId('file-pick-media'));
     expect(await screen.findByTestId('share-screen')).toHaveTextContent(/1\s*photo/);
-    await fireEvent.press(await screen.findByTestId('share-preset-add-email-photos'));
+    expect(await screen.findByTestId('share-workflow-email-photos')).toHaveTextContent(
+      /Photos pour l’e-mail/,
+    );
+    await fireEvent.press(await screen.findByTestId('share-run-email-photos'));
     await fireEvent.press(await screen.findByTestId('prompt-ok'));
     expect(await screen.findByTestId('run-result')).toHaveTextContent(/Enregistrer dans Fichiers/);
     expect(files.shared).toHaveLength(1);
-    expect(
-      store.getState().config!.workflows.find((w) => w.presetId === 'email-photos')?.name,
-    ).not.toBe('Photos for email or upload');
+    expect(store.getState().config!.workflows.some((w) => w.presetId === 'email-photos')).toBe(
+      false,
+    );
   });
 
   it('uses English mock phrases in a French interface, and applies and undoes a draft', async () => {

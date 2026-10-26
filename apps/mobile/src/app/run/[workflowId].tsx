@@ -1,4 +1,4 @@
-import { localize } from '@morph/core';
+import { findWorkflow, localize } from '@morph/core';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
@@ -11,7 +11,7 @@ import { useToolDownloads } from '@/tool-download/context';
 import { toolRevoked } from '@/tool-download/state';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
-/** 运行一个工作流（工具页的单功能工作流、预设或用户自己的工作流）。 */
+/** 运行一个工作流（工具页的单功能工作流、内设的预设或用户自己的工作流）。 */
 export default function RunRoute() {
   const { workflowId, shared } = useLocalSearchParams<{ workflowId: string; shared?: string }>();
   // 从收件页面来的（D-115）：用分享进来的那一批文件做第一步的输入。
@@ -23,7 +23,7 @@ export default function RunRoute() {
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
   const router = useRouter();
-  const workflow = config.workflows.find((w) => w.id === workflowId);
+  const workflow = findWorkflow(config.workflows, workflowId, locale);
   // 下载的工具被停用了（D-178）：它的快捷操作不能运行，配置和文件都留着。
   const revoked = useToolDownloads(
     (s) => workflow?.toolId !== undefined && toolRevoked(s, workflow.toolId),
@@ -57,7 +57,13 @@ export default function RunRoute() {
         workflow={workflow}
         {...(incoming ? { incoming } : {})}
         onEdit={() => router.push({ pathname: '/workflow/[id]', params: { id: workflow.id } })}
-        onAskAI={() => router.push({ pathname: '/change', params: { workflow: workflow.id } })}
+        // AI 只看得到配置里的快捷操作；内设的先在编辑页改一次（D-236）。
+        {...(config.workflows.some((w) => w.id === workflow.id)
+          ? {
+              onAskAI: () =>
+                router.push({ pathname: '/change', params: { workflow: workflow.id } }),
+            }
+          : {})}
       />
     </>
   );

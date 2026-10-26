@@ -392,10 +392,10 @@ describe('share journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('share-files-toggle'));
     expect(screen.getByText('trip.MOV')).toBeTruthy();
     expect(await screen.findByText('1:15 · 120.0 MB')).toBeTruthy();
-    // 证件照、合并 PDF 都不收视频；现成的「视频太大发不出去」可以添加并运行（视频不超过 4 GB，不受 50 MB 限制）。
+    // 证件照、合并 PDF 都不收视频；内设的「视频太大发不出去」直接运行（视频不超过 4 GB，不受 50 MB 限制）。
     expect(screen.queryByTestId('share-too-large')).toBeNull();
     expect(screen.queryByTestId('share-workflow-visa-photo')).toBeNull();
-    await fireEvent.press(screen.getByTestId('share-preset-add-video-too-big'));
+    await fireEvent.press(screen.getByTestId('share-run-video-too-big'));
     await fireEvent.press(await screen.findByTestId('prompt-ok', {}, { timeout: 3000 }));
     expect(await screen.findByTestId('result-item-trip.mp4')).toBeTruthy();
     // 分享进来的原件原地使用，不复制进运行目录。

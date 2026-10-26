@@ -55,23 +55,19 @@ describe('translation journeys (UI)', () => {
 
   it('lists the translation presets by input type and runs screenshot translation', async () => {
     const { files } = filesWithTranslator();
-    const { store } = await renderToolsApp(new MemoryWorkspaceRepo(), files);
+    await renderToolsApp(new MemoryWorkspaceRepo(), files);
     await fireEvent.press(screen.getByTestId('nav-settings'));
     await fireEvent.press(await screen.findByTestId('settings-workflows'));
     expect(await screen.findByTestId('workflows-screen')).toBeTruthy();
 
     await fireEvent.press(screen.getByTestId('category-image'));
-    expect(await screen.findByTestId('preset-screenshot-translate')).toBeTruthy();
-
-    await fireEvent.press(screen.getByTestId('preset-add-screenshot-translate'));
-    const added = store
-      .getState()
-      .config!.workflows.find((w) => w.presetId === 'screenshot-translate')!;
-    expect(added.name).toBe('截图翻译');
+    expect(await screen.findByTestId('workflow-screenshot-translate')).toHaveTextContent(
+      /截图翻译/,
+    );
 
     (files.vision as FakeVision).texts = ['Your parcel is at the front desk.'];
     files.nextPhotos = [files.offerImage('IMG_1.png', 1170, 2532, 'image/png')];
-    await fireEvent.press(await screen.findByTestId(`workflow-run-${added.id}`));
+    await fireEvent.press(await screen.findByTestId('workflow-run-screenshot-translate'));
     // 识别文字的语言每次问：默认英文，直接确定。
     await fireEvent.press(await screen.findByTestId('prompt-ok'));
     expect(await screen.findByTestId('result-text')).toHaveTextContent(

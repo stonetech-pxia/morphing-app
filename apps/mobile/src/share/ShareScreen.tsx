@@ -1,9 +1,6 @@
 import {
   localize,
-  WORKFLOW_PRESETS,
   mediaKindOf,
-  newWorkflowId,
-  presetWorkflow,
   sharedSizeProblem,
   type IconName,
   type MediaKind,
@@ -22,11 +19,10 @@ import { usePalette } from '../renderer/theme';
 import { Button, Card, Pill, SectionLabel } from '../renderer/ui';
 import { mimeOf } from '../runtime/actions/helpers';
 import { formatTime } from '../run/local/TrimScreen';
-import { useWorkflowChange } from '../run/workflow-change';
 import { stepChain } from '../shell/WorkflowsScreen';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { releaseShare, useIncoming } from './incoming';
-import { retiredIds, shareRecommendations } from './recommendations';
+import { shareRecommendations } from './recommendations';
 import type { SucceededRuns } from '../storage/types';
 
 /**
@@ -74,7 +70,6 @@ export function ShareScreen() {
       handed.current = false;
     }, []),
   );
-  const change = useWorkflowChange();
   // 打开 AI 之前已有的快捷操作：回来后新做的那个标「刚做好」、排在最前面（D-129）。
   // AI 的修改在草稿里应用（D-190），应用后重新打开这个页面，带着新做的那个（made）。
   const { made } = useLocalSearchParams<{ made?: string }>();
@@ -164,16 +159,13 @@ export function ShareScreen() {
     return knownIds !== null && !wf.toolId && !knownIds.has(wf.id);
   }
 
-  const workflowCard = ({ wf, fit, preset }: (typeof candidates)[number]) => (
-    <Card
-      key={wf.id}
-      palette={palette}
-      testID={preset ? `share-preset-${preset.id}` : `share-workflow-${wf.id}`}>
+  const workflowCard = ({ wf, fit }: (typeof candidates)[number]) => (
+    <Card key={wf.id} palette={palette} testID={`share-workflow-${wf.id}`}>
       <Text style={[palette.font('title', 16), { color: palette.text }]}>
         {wf.name}
         {isNew(wf) ? t(locale, 'ShareScreen_just_made_ed6c1') : ''}
       </Text>
-      {counts.has(wf.id) && !preset ? (
+      {counts.has(wf.id) ? (
         <Text style={caption}>{t(locale, 'shareUsed', { n: counts.get(wf.id)!.count })}</Text>
       ) : null}
       {wf.toolId ? (
@@ -184,13 +176,9 @@ export function ShareScreen() {
         <View style={styles.actions}>
           <Pill
             palette={palette}
-            testID={preset ? `share-preset-add-${preset.id}` : `share-run-${wf.id}`}
-            label={
-              preset
-                ? t(locale, 'ShareScreen_Add_and_run_c4281')
-                : t(locale, 'ShareScreen_Run_5cab2')
-            }
-            onPress={() => (preset ? void addAndRun(preset) : run(wf))}
+            testID={`share-run-${wf.id}`}
+            label={t(locale, 'ShareScreen_Run_5cab2')}
+            onPress={() => run(wf)}
           />
         </View>
       ) : (
@@ -216,20 +204,6 @@ export function ShareScreen() {
       pathname: '/run/[workflowId]',
       params: { workflowId: wf.id, shared: String(share!.id) },
     });
-  }
-
-  /** 添加一个现成的快捷操作（可撤销），然后用分享的文件运行它。 */
-  async function addAndRun(preset: (typeof WORKFLOW_PRESETS)[number]) {
-    const wf = presetWorkflow(
-      preset,
-      locale,
-      newWorkflowId(preset.id, [...config.workflows, ...retiredIds(config.workflows, counts)]),
-    );
-    const ok = await change(
-      [{ op: 'addWorkflow', workflow: wf }],
-      t(locale, 'ShareScreen_Added_the_quick_action_ad5f0', { v0: wf.name }),
-    );
-    if (ok) run(wf);
   }
 
   /** 让 AI 搭一个：AI 只知道文件的类型和个数（D-124）。做好后回到这里，新的排在最前面。 */

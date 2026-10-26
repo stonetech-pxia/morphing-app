@@ -23,6 +23,11 @@ export const strings = {
     zh: '先「{first}」，再「{second}」',
     fr: 'D’abord « {first} », puis « {second} »',
   },
+  chainSaveBuiltIn: {
+    en: 'Saved “{first}” and “{second}” to combine them',
+    zh: '保存了「{first}」和「{second}」，用来合成',
+    fr: '« {first} » et « {second} » enregistrées pour les combiner',
+  },
   chainRequest: {
     en: 'Create one quick action that combines these two in this order, without choosing files again between them.',
     zh: '按这个顺序合成一个快捷操作，中间不用重新选择文件。',
@@ -2555,11 +2560,6 @@ export const extractedMessages = {
     zh: ' · 刚做好',
     fr: ' · à l’instant',
   },
-  ShareScreen_Add_and_run_c4281: {
-    en: 'Add and run',
-    zh: '添加并运行',
-    fr: 'Ajouter et lancer',
-  },
   ShareScreen_Run_5cab2: {
     en: 'Run',
     zh: '运行',
@@ -2574,11 +2574,6 @@ export const extractedMessages = {
     en: 'Takes at most {v0} files',
     zh: '最多 {v0} 个文件',
     fr: 'Maximum {v0} fichiers',
-  },
-  ShareScreen_Added_the_quick_action_ad5f0: {
-    en: 'Added the quick action “{v0}”',
-    zh: '添加了快捷操作「{v0}」',
-    fr: 'Action rapide « {v0} » ajoutée',
   },
   ShareScreen_Files_are_handled_on_this_device_only__c8099: {
     en: 'Files are handled on this device only; AI never sees their names or contents.',
@@ -3035,30 +3030,10 @@ export const extractedMessages = {
     zh: '编辑',
     fr: 'Modifier',
   },
-  WorkflowsScreen_added_db6a6: {
-    en: ' · added',
-    zh: ' · 已添加',
-    fr: ' · ajouté',
-  },
   WorkflowsScreen_The_first_run_downloads_what_it_needs__3a8fa: {
     en: 'The first run downloads what it needs; it works offline afterwards.',
     zh: '首次使用需要下载一些内容，之后不联网也能用。',
     fr: 'La première utilisation télécharge les éléments nécessaires ; ensuite, vous pouvez l’utiliser hors connexion.',
-  },
-  WorkflowsScreen_Add_another_fea84: {
-    en: 'Add another',
-    zh: '再添加一个',
-    fr: 'En ajouter une autre',
-  },
-  WorkflowsScreen_Add_b7a68: {
-    en: 'Add',
-    zh: '添加',
-    fr: 'Ajouter',
-  },
-  WorkflowsScreen_Added_the_quick_action_ad5f0: {
-    en: 'Added the quick action “{v0}”',
-    zh: '添加了快捷操作「{v0}」',
-    fr: 'Action rapide « {v0} » ajoutée',
   },
   WorkflowsScreen_What_Morph_can_do_8f4f4: {
     en: 'What Morph can do',
@@ -3069,26 +3044,6 @@ export const extractedMessages = {
     en: 'Make your own quick action',
     zh: '做一个自己的快捷操作',
     fr: 'Créer votre propre action rapide',
-  },
-  WorkflowsScreen_My_quick_actions_07fc0: {
-    en: 'My quick actions',
-    zh: '我的快捷操作',
-    fr: 'Mes actions rapides',
-  },
-  WorkflowsScreen_None_yet_Add_a_ready_made_one_below_c24f8: {
-    en: 'None yet. Add a ready-made one below.',
-    zh: '还没有。从下面现成的里添加一个吧。',
-    fr: 'Aucune pour l’instant. Ajoutez-en une prête à l’emploi ci-dessous.',
-  },
-  WorkflowsScreen_Ready_made_1f239: {
-    en: 'Ready-made',
-    zh: '现成的',
-    fr: 'Prêtes à l’emploi',
-  },
-  WorkflowsScreen_From_your_tools_dca19: {
-    en: 'From your tools',
-    zh: '工具自带的',
-    fr: 'Depuis vos outils',
   },
   ChangeScreen_and_d40e9: {
     en: ' and ',

@@ -2,14 +2,11 @@ import {
   localize,
   QUICK_ACTION_KINDS,
   QUICK_ACTION_CATEGORIES,
-  WORKFLOW_PRESETS,
+  builtInWorkflows,
+  presetById,
   workflowKinds,
-  presetKinds,
   shareFit,
   type QuickActionKind,
-  newWorkflowId,
-  presetWorkflow,
-  type WorkflowPreset,
   type Locale,
   type Registry,
   type Workflow,
@@ -23,11 +20,9 @@ import { t } from '../i18n';
 import { UiIcon, type UiIconName } from '../renderer/Icon';
 import { mimeOf } from '../runtime/actions/helpers';
 import { useIncoming, releaseShare } from '../share/incoming';
-import { retiredIds } from '../share/recommendations';
 import type { SucceededRuns } from '../storage/types';
 import type { Palette } from '../renderer/theme';
-import { Button, Card, ListRow, PageTitle, SectionLabel } from '../renderer/ui';
-import { useWorkflowChange } from '../run/workflow-change';
+import { Button, Card, ListRow, PageTitle } from '../renderer/ui';
 import { packsNeeded } from '../runtime/runner';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { Banner } from './Banner';
@@ -40,8 +35,8 @@ export function stepChain(wf: Pick<Workflow, 'steps'>, registry: Registry, local
 }
 
 /**
- * 快捷操作分类页：先做自己的，再看我的、现成的和工具自带的。
- * 由内核提供（AI 不能修改这个页面）；添加预设是一次可撤销的修改。
+ * 快捷操作分类页：先做自己的，再是这一类的全部快捷操作，用得多、最近用过的在前。
+ * 由内核提供（AI 不能修改这个页面）；内设的快捷操作不用添加，直接运行（D-236）。
  * inPage：作为页面上的 quickActionList 组件显示（D-230），不滚动、没有提示条；
  * guard 返回 true 时不响应点按（草稿、预览）。
  */
@@ -92,16 +87,20 @@ export function WorkflowsScreen({
       };
     }, [repo]),
   );
-  const change = useWorkflowChange();
   const inCategory = (w: Workflow) => !kind || workflowKinds(w).includes(kind);
-  const mine = config.workflows
-    .filter((w) => !w.toolId && inCategory(w))
+  const builtIn = builtInWorkflows(config.workflows, locale);
+  // 没用过的按：自己的、内设的、工具带的。
+  const all = [
+    ...config.workflows.filter((w) => !w.toolId),
+    ...builtIn,
+    ...config.workflows.filter((w) => w.toolId),
+  ]
+    .filter(inCategory)
     .sort((a, b) => {
       const x = usage.get(a.id),
         y = usage.get(b.id);
       return (y?.count ?? 0) - (x?.count ?? 0) || (y?.lastAt ?? 0) - (x?.lastAt ?? 0);
     });
-  const toolOwned = config.workflows.filter((w) => w.toolId && inCategory(w));
   const fit = (w: Workflow) =>
     share
       ? shareFit(
@@ -135,94 +134,47 @@ export function WorkflowsScreen({
   const edit = (wf: Workflow) => {
     if (!blocked()) router.push({ pathname: '/workflow/[id]', params: { id: wf.id } });
   };
-  const row = (wf: Workflow, subtitle?: string) => (
-    <Card key={wf.id} palette={palette} testID={`workflow-${wf.id}`}>
-      <View style={styles.cardRow}>
-        <View style={styles.cardText}>
-          <Text style={[palette.font('title', 16), { color: palette.text }]}>{wf.name}</Text>
-          {subtitle ? <Text style={caption}>{subtitle}</Text> : null}
-          <Text style={caption}>{stepChain(wf, registry, locale)}</Text>
-          {usage.has(wf.id) ? (
-            <Text style={caption}>{t(locale, 'shareUsed', { n: usage.get(wf.id)!.count })}</Text>
-          ) : null}
-          {share && !fits(wf) ? <Text style={caption}>{fitMessage(wf)}</Text> : null}
-        </View>
-        <View style={styles.actions}>
-          <IconAction
-            palette={palette}
-            icon="play"
-            testID={`workflow-run-${wf.id}`}
-            label={t(locale, 'WorkflowsScreen_Run_5cab2')}
-            disabled={!fits(wf)}
-            onPress={() => run(wf)}
-          />
-          <IconAction
-            palette={palette}
-            icon="edit"
-            testID={`workflow-edit-${wf.id}`}
-            label={t(locale, 'WorkflowsScreen_Edit_ef7c8')}
-            onPress={() => edit(wf)}
-          />
-        </View>
-      </View>
-    </Card>
-  );
-
-  const presetCard = (preset: WorkflowPreset) => {
-    const added = mine.filter((w) => w.presetId === preset.id);
+  const row = (wf: Workflow) => {
+    const preset = builtIn.includes(wf) ? presetById(wf.presetId!) : undefined;
+    const toolName = wf.toolId
+      ? (localize(registry.tools.get(wf.toolId)?.name, locale) ?? wf.toolId)
+      : undefined;
+    // 内设的有一句说明，就不再列步骤（说明里已经讲了这几步）。
+    const description = preset && localize(preset.description, locale);
     // iOS 用系统的识别和扫描，不需要扫描包和文字识别包（D-084）。
-    const needsDownload = packsNeeded(preset.packs ?? [], files).length > 0;
+    const needsDownload = preset && packsNeeded(preset.packs ?? [], files).length > 0;
     return (
-      <Card key={preset.id} palette={palette} testID={`preset-${preset.id}`}>
+      <Card key={wf.id} palette={palette} testID={`workflow-${wf.id}`}>
         <View style={styles.cardRow}>
           <View style={styles.cardText}>
-            <Text style={[palette.font('title', 16), { color: palette.text }]}>
-              {localize(preset.name, locale)}
-              {added.length > 0 ? t(locale, 'WorkflowsScreen_added_db6a6') : ''}
-            </Text>
-            <Text style={caption}>{localize(preset.description, locale)}</Text>
+            <Text style={[palette.font('title', 16), { color: palette.text }]}>{wf.name}</Text>
+            {toolName ? <Text style={caption}>{toolName}</Text> : null}
+            <Text style={caption}>{description || stepChain(wf, registry, locale)}</Text>
             {needsDownload ? (
               <Text style={caption}>
                 {t(locale, 'WorkflowsScreen_The_first_run_downloads_what_it_needs__3a8fa')}
               </Text>
             ) : null}
+            {usage.has(wf.id) ? (
+              <Text style={caption}>{t(locale, 'shareUsed', { n: usage.get(wf.id)!.count })}</Text>
+            ) : null}
+            {share && !fits(wf) ? <Text style={caption}>{fitMessage(wf)}</Text> : null}
           </View>
           <View style={styles.actions}>
-            {/* 加好了就能直接用（D-125）。 */}
-            {added.length > 0 ? (
-              <IconAction
-                palette={palette}
-                icon="play"
-                testID={`preset-run-${preset.id}`}
-                label={t(locale, 'WorkflowsScreen_Run_5cab2')}
-                disabled={!fits(added.at(-1)!)}
-                onPress={() => run(added.at(-1)!)}
-              />
-            ) : null}
             <IconAction
               palette={palette}
-              icon="add"
-              testID={`preset-add-${preset.id}`}
-              label={
-                added.length > 0
-                  ? t(locale, 'WorkflowsScreen_Add_another_fea84')
-                  : t(locale, 'WorkflowsScreen_Add_b7a68')
-              }
-              onPress={() => {
-                if (blocked()) return;
-                const wf = presetWorkflow(
-                  preset,
-                  locale,
-                  newWorkflowId(preset.id, [
-                    ...config.workflows,
-                    ...retiredIds(config.workflows, usage),
-                  ]),
-                );
-                void change(
-                  [{ op: 'addWorkflow', workflow: wf }],
-                  t(locale, 'WorkflowsScreen_Added_the_quick_action_ad5f0', { v0: wf.name }),
-                );
-              }}
+              icon="play"
+              testID={`workflow-run-${wf.id}`}
+              label={t(locale, 'WorkflowsScreen_Run_5cab2')}
+              disabled={!fits(wf)}
+              onPress={() => run(wf)}
+            />
+            <IconAction
+              palette={palette}
+              icon="edit"
+              testID={`workflow-edit-${wf.id}`}
+              label={t(locale, 'WorkflowsScreen_Edit_ef7c8')}
+              onPress={() => edit(wf)}
             />
           </View>
         </View>
@@ -289,28 +241,7 @@ export function WorkflowsScreen({
           });
         }}
       />
-      <SectionLabel palette={palette}>
-        {t(locale, 'WorkflowsScreen_My_quick_actions_07fc0')}
-      </SectionLabel>
-      {mine.length === 0 ? (
-        <Text testID="workflows-empty" style={caption}>
-          {t(locale, 'WorkflowsScreen_None_yet_Add_a_ready_made_one_below_c24f8')}
-        </Text>
-      ) : (
-        mine.map((wf) => row(wf))
-      )}
-      <SectionLabel palette={palette}>{t(locale, 'WorkflowsScreen_Ready_made_1f239')}</SectionLabel>
-      {WORKFLOW_PRESETS.filter((preset) => presetKinds(preset).includes(kind)).map(presetCard)}
-      {toolOwned.length > 0 ? (
-        <>
-          <SectionLabel palette={palette}>
-            {t(locale, 'WorkflowsScreen_From_your_tools_dca19')}
-          </SectionLabel>
-          {toolOwned.map((wf) =>
-            row(wf, localize(registry.tools.get(wf.toolId!)?.name, locale) ?? wf.toolId),
-          )}
-        </>
-      ) : null}
+      {all.map(row)}
     </Body>
   );
 }
@@ -348,7 +279,7 @@ function Body({
   );
 }
 
-/** 卡片右边的圆形图标按钮（运行、编辑、添加）；文字留给读屏。 */
+/** 卡片右边的圆形图标按钮（运行、编辑）；文字留给读屏。 */
 function IconAction({
   palette,
   icon,

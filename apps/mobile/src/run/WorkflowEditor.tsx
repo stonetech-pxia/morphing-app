@@ -7,11 +7,13 @@ import {
   insertableActions,
   newWorkflowId,
   presetById,
+  WORKFLOW_PRESETS,
   stepIdFor,
   topIndex,
   workflowProblems,
   type ActionDefinition,
   type Locale,
+  type Op,
   type Registry,
   type Workflow,
   type WorkflowStep,
@@ -77,6 +79,9 @@ export function WorkflowEditor({
     (c) => c.type === 'workflowRunner' && c.props.workflowId === workflow.id,
   );
   const preset = workflow.presetId ? presetById(workflow.presetId) : undefined;
+  // 内设的快捷操作不在配置里（D-236）：保存、放到首页时才存进去，用预设 ID。
+  const stored = config.workflows.some((w) => w.id === workflow.id);
+  const addIfBuiltIn = (): Op[] => (stored ? [] : [{ op: 'addWorkflow', workflow }]);
   const caption = [palette.font('body', 13), { color: palette.muted }];
 
   const setStep = (i: number, next: Partial<WorkflowStep>) =>
@@ -107,14 +112,19 @@ export function WorkflowEditor({
   async function save() {
     const name = draft.name.trim();
     const ok = await change(
-      [{ op: 'updateWorkflow', workflowId: workflow.id, name, steps: draft.steps }],
+      stored
+        ? [{ op: 'updateWorkflow', workflowId: workflow.id, name, steps: draft.steps }]
+        : [{ op: 'addWorkflow', workflow: { ...workflow, name, steps: draft.steps } }],
       t(locale, 'WorkflowEditor_Adjusted_the_quick_action_3c10b', { v0: name }),
     );
     if (ok) setDraft({ name, steps: draft.steps });
   }
 
   async function duplicate() {
-    const id = newWorkflowId(workflow.presetId ?? 'my-workflow', config.workflows);
+    const id = newWorkflowId(workflow.presetId ?? 'my-workflow', [
+      ...config.workflows,
+      ...WORKFLOW_PRESETS,
+    ]);
     const name = `${workflow.name}${t(locale, 'WorkflowEditor_copy_04014')}`.slice(0, 40);
     const copy: Workflow = { id, name, steps: workflow.steps };
     if (workflow.icon) copy.icon = workflow.icon;
@@ -353,6 +363,7 @@ export function WorkflowEditor({
               onPress={() =>
                 void change(
                   [
+                    ...addIfBuiltIn(),
                     {
                       op: 'addComponent',
                       pageId: HOME_PAGE_ID,
@@ -369,7 +380,7 @@ export function WorkflowEditor({
               }
             />
           )}
-          {preset ? (
+          {preset && stored ? (
             <Pill
               palette={palette}
               testID="workflow-reset"
@@ -388,7 +399,7 @@ export function WorkflowEditor({
               }
             />
           ) : null}
-          {workflow.toolId ? null : (
+          {workflow.toolId || !stored ? null : (
             <Pill
               palette={palette}
               danger
