@@ -25,6 +25,29 @@
 - 原生改动要两边都编译：iOS 跑整个 App（`npx expo run:ios`），Android 至少跑改动模块的 `compileDebugKotlin` 和 `externalNativeBuildDebug`。引入第三方 C 库时，读它的构建开关，并比较开关前后的体积。
 - iOS 处理音频只取主音轨（第一条启用的），按源文件的声道数处理。Android 解码图片先缩到目标尺寸。原生中间文件在任务结束时删掉，成功和失败都要删。取消任务一定要让 Promise 结束。
 
+## 打包装到真机
+
+- **只在创始人明确要求时才动他的手机**。平时需要真机测试，就写好测试步骤交给他。装哪个分支、哪个提交，先问清楚。
+- 目前只在 Android（创始人的三星 SM-S948B，USB 连接）上打过包。**iPhone 真机还没打过包**：要先有苹果开发者团队和签名，prebuild 时会提示分享扩展没有 `DEVELOPMENT_TEAM`。这件事问创始人，不要自己猜着配。
+- 环境：`export JAVA_HOME=~/development/jdk-17/Contents/Home ANDROID_HOME=~/development/android-sdk`。CocoaPods 和 Gradle 前面都加 `LANG=en_US.UTF-8`。
+- **先备份手机上的数据。** release 包不能 `run-as`，所以先 `adb install -r` 一个 debug 包，**不要打开它**，再执行 `adb exec-out run-as app.morph.mobile tar cf - . > app-data.tar`，备份进 `side-session-notes/android-backups/<时间>/`。两种包都用 Expo 模板的调试密钥签名，所以能互相覆盖安装，数据保留。
+- **打 release 包**（不依赖 Metro，JS 在打包时就固定了）：
+
+  ```bash
+  cd apps/mobile && npx expo prebuild --platform android --no-install
+  cd android && EXPO_PUBLIC_MORPH_API_URL=https://morph-api.stonetech.dev \
+    EXPO_PUBLIC_MORPH_TOOLS_URL=https://morph-tools.stonetech.dev \
+    EXPO_PUBLIC_MORPH_CLIENT_TOKEN="$(grep '^MORPH_CLIENT_TOKEN=' ~/projects/morph-prod/.env | cut -d= -f2-)" \
+    ./gradlew app:assembleRelease -PreactNativeArchitectures=arm64-v8a
+  adb -s <序列号> install -r app/build/outputs/apk/release/app-release.apk
+  ```
+
+  三个环境变量都会打包进 App。漏掉一个，AI 或下载工具在手机上就用不了，而模拟器和单元测试都发现不了。令牌不是秘密（D-132），但不要打印到日志里。
+
+- adb 的毛病：在命令沙盒里 adb server 会崩，要在沙盒外后台跑 `adb nodaemon server`。别的会话也在用 adb 时，换一个端口（`ANDROID_ADB_SERVER_PORT=5038`）。每条命令都带 `-s <序列号>`，失败了就重试。`adb devices` 显示 offline（usb_read e00002eb）时，只能重新插线，或者在手机上关掉再打开 USB 调试。
+- 装完打开一次，确认 App 能启动、AI 修改能用。然后在汇报和项目记忆里写下：手机上现在是哪个分支、哪个提交，备份放在哪里。
+- 模拟器上的开发版也会过期：原生代码改过之后，旧的开发版跑新的 JS 可能一启动就报错（例如「无法打开工作空间」）。遇到这种情况先 `npx expo run:ios --device <UDID> --no-bundler` 重新打开发版（不能同时带 `--port`），不要当成代码的 bug。
+
 ## 测试
 
 - 修 bug 先写一个**在旧代码上会失败**的测试，再改代码让它通过。
