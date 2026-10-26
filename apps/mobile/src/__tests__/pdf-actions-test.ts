@@ -31,7 +31,7 @@ let ids = 0;
 function setup(
   workflow: Workflow,
   answers: Record<string, unknown> = {},
-  pages: LocalSteps['pages']['out'] | null = null,
+  pages: LocalSteps['pages']['out'] | null | (() => Promise<never>) = null,
 ) {
   const repo = new MemoryWorkspaceRepo();
   const files = new FakeFiles();
@@ -41,7 +41,7 @@ function setup(
     choose: async () => null,
     open: async (_kind, input) => {
       opened.push(input);
-      return pages as never;
+      return (typeof pages === 'function' ? await pages() : pages) as never;
     },
   };
   const run = async () =>
@@ -144,6 +144,31 @@ describe('PDF tool workflows', () => {
     expect(widths(doc)).toEqual([202, 200]);
     expect(doc.getPage(0).getRotation().angle).toBe(90);
     expect(doc.getPage(1).getRotation().angle).toBe(0);
+  });
+
+  it('keeps the PDF as it is when nothing on the page screen changed', async () => {
+    // 合并后的 PDF 直接点「完成」：不再把每一页复制一遍（手机上这一步曾报「文件可能已损坏」）。
+    const { files, run } = setup(toolWorkflow('pdf-arrange'), {}, [
+      { index: 0, rotate: 0 },
+      { index: 1, rotate: 0 },
+      { index: 2, rotate: 0 },
+    ]);
+    const original = await makePdf(3);
+    files.nextPick = [files.offer('report.pdf', original)];
+    const [{ item }] = await pdfsOf(files, await run());
+    expect(files.disk.get(item.uri)).toEqual(original);
+  });
+
+  it('reports what really went wrong when arranging fails after the PDF opened', async () => {
+    // 页面整理界面自己出错，不是文件坏了：照实说，下次能看出原因。
+    const { files, run } = setup(toolWorkflow('pdf-arrange'), {}, async () => {
+      throw new TypeError('page screen broke');
+    });
+    files.nextPick = [files.offer('report.pdf', await makePdf(2))];
+    expect(await run()).toMatchObject({
+      status: 'failed',
+      error: { code: 'unexpected', detail: { detail: 'page screen broke' } },
+    });
   });
 
   it('keeps pages by symbolic rules and page numbers, and reports pages that do not exist', async () => {

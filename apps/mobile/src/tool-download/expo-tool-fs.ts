@@ -34,7 +34,7 @@ export const expoToolFs: ToolFs = {
     const file = fileAt(path);
     if (file.exists) file.delete();
     file.create();
-    file.write(text);
+    await file.write(text);
   },
 
   async remove(path) {
