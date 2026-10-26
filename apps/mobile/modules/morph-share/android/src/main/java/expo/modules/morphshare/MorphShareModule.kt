@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.util.Log
 import androidx.core.content.FileProvider
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
@@ -23,8 +24,8 @@ import kotlin.concurrent.thread
 //   SharedPreferences，下次直接存进去；换文件夹时放掉旧的授权，文件夹没了或授权被收回时重新让用户选。
 //   每个快捷操作记自己的文件夹（D-196）：另存「folder:快捷操作 ID → 地址」，还没有时用最后选过的那个并记给它；
 //   某个文件夹不再被任何快捷操作（也不是最后选过的）用到时才放掉授权。
-// - 预览（D-238）：ACTION_VIEW 交给能打开这个文件的 App（系统的 PDF 阅读器、Google 云端硬盘等），只给读权限；
-//   分享进来的 content:// 原样交出去，本次运行的临时文件换成 content:// 地址。
+// - 预览（D-238）：复制进缓存 preview/ 后用 ACTION_VIEW 交给能打开这个文件的 App（系统的 PDF 阅读器、
+//   Google 云端硬盘等），只给读权限。
 // 文件内容和文件名不写日志。
 
 class MorphShareFileProvider : FileProvider()
@@ -39,6 +40,8 @@ class FolderNotWritableException :
 class ExportFailedException(detail: String?) : CodedException("Saving failed: $detail")
 
 class NoViewerException : CodedException("ERR_NO_VIEWER", "No app can open this file", null)
+
+class PreviewFailedException : CodedException("ERR_PREVIEW_FAILED", "The file could not be previewed", null)
 
 private const val PREFS = "morph_share"
 private const val FOLDER_KEY = "folder"
@@ -93,28 +96,52 @@ class MorphShareModule : Module() {
       activity.startActivityForResult(Intent.createChooser(intent, null), SHARE_REQUEST)
     }.runOnQueue(Queues.MAIN)
 
-    // 打开别的 App 后就返回，不等用户回来。name 只给 iOS 的预览标题用。
-    AsyncFunction("previewFile") { uri: String, mimeType: String, _: String, promise: Promise ->
+    // 打开别的 App 后就返回，不等用户回来。先把文件复制进自己的缓存 preview/（用原来的文件名），再用自己的
+    // FileProvider 地址交出去：分享进来的 content:// 是别的 App 的，不一定能把读权限再转交给第三个 App
+    // （创始人的三星上报过 ERR_UNEXPECTED），文件路径也不一定在 FileProvider 允许的目录里。
+    // 每次只留一份：复制前清掉上一次的。
+    AsyncFunction("previewFile") { uri: String, mimeType: String, name: String, promise: Promise ->
       val activity = appContext.currentActivity
       if (activity == null) {
         promise.reject(NoActivityException())
         return@AsyncFunction
       }
-      val target = if (uri.startsWith("content://")) {
-        Uri.parse(uri)
-      } else {
-        FileProvider.getUriForFile(context, "${context.packageName}.MorphShareFileProvider", fileOf(uri))
+      thread {
+        val target = try {
+          val dir = File(context.cacheDir, "preview")
+          dir.deleteRecursively()
+          dir.mkdirs()
+          val safe = name.replace('/', '_').ifBlank { "file" }
+          val copy = File(dir, safe)
+          val input = if (uri.startsWith("content://")) {
+            context.contentResolver.openInputStream(Uri.parse(uri))
+          } else {
+            fileOf(uri).inputStream()
+          }
+          requireNotNull(input) { "no input" }.use { from -> copy.outputStream().use { from.copyTo(it) } }
+          FileProvider.getUriForFile(context, "${context.packageName}.MorphShareFileProvider", copy)
+        } catch (e: Exception) {
+          // 只记异常类型，不记文件名和地址。
+          Log.w("MorphShare", "previewFile copy failed: ${e.javaClass.simpleName}")
+          promise.reject(PreviewFailedException())
+          return@thread
+        }
+        activity.runOnUiThread {
+          val intent = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(target, mimeType)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+          try {
+            activity.startActivity(intent)
+            promise.resolve(null)
+          } catch (e: ActivityNotFoundException) {
+            promise.reject(NoViewerException())
+          } catch (e: Exception) {
+            Log.w("MorphShare", "previewFile open failed: ${e.javaClass.simpleName}")
+            promise.reject(PreviewFailedException())
+          }
+        }
       }
-      val intent = Intent(Intent.ACTION_VIEW)
-        .setDataAndType(target, mimeType)
-        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-      try {
-        activity.startActivity(intent)
-        promise.resolve(null)
-      } catch (e: ActivityNotFoundException) {
-        promise.reject(NoViewerException())
-      }
-    }.runOnQueue(Queues.MAIN)
+    }
 
     Function("rememberedFolder") { key: String -> rememberedFolder(key, adopt = false)?.second }
 

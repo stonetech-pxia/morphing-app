@@ -79,7 +79,8 @@ export async function previewFile(
     await deps.native.previewFile(item.uri, item.mimeType, item.name);
   } catch (e) {
     if ((e as { code?: string }).code === NO_VIEWER) throw new RunError('noViewer');
-    throw e;
+    // 别的原生错误（读不到文件、权限）不把错误代码显示给用户。
+    throw new RunError('previewFailed');
   }
 }
 

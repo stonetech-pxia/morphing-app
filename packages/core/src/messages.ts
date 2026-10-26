@@ -558,6 +558,11 @@ export const strings = {
     zh: '这台手机上没有能打开这个文件的 App。',
     fr: 'Aucune app de ce téléphone ne peut ouvrir ce fichier.',
   },
+  runError_previewFailed: {
+    en: 'This file can’t be previewed. You can still use the quick actions below.',
+    zh: '这个文件打不开预览，下面的快捷操作照样能用。',
+    fr: 'Impossible d’afficher l’aperçu de ce fichier. Les actions rapides ci-dessous restent disponibles.',
+  },
   runError_unsupportedAction: {
     en: 'This step is not supported: {action}',
     zh: '不支持这个步骤：{action}',

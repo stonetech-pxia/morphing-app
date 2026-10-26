@@ -392,6 +392,9 @@ export const expoFilePlatform: FilePlatform = {
       const copy = new File(uri);
       if (copy.uri.startsWith(Paths.cache.uri) && copy.exists) copy.delete();
     }
+    // Android 预览时 MorphShare 复制进缓存 preview/ 的那一份（D-238），这一批放掉时一起删。
+    const preview = new Directory(Paths.cache, 'preview');
+    if (preview.exists) preview.delete();
   },
 
   async removePickedCopies(uris) {
