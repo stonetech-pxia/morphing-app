@@ -1323,11 +1323,6 @@ export const strings = {
     zh: '这个 App 能简化繁琐的文件处理，打开你需要处理的图片或者文件。',
     fr: 'Cette app simplifie les tâches fastidieuses sur les fichiers. Ouvrez les images ou les fichiers à traiter.',
   },
-  guideUndoHint: {
-    en: 'Don’t like the change? Tap Undo above to go back.',
-    zh: '刚才的修改不喜欢？点上面的「撤销」就能退回去。',
-    fr: 'Vous n’aimez pas la modification ? Appuyez sur « Annuler » ci-dessus pour revenir en arrière.',
-  },
   guideLater: { en: 'Later', zh: '以后再说', fr: 'Plus tard' },
   guideSkipAll: { en: 'Skip the guide', zh: '跳过引导', fr: 'Passer le guide' },
   settingsGuide: { en: 'Show the guide again', zh: '重新看新手引导', fr: 'Revoir le guide' },

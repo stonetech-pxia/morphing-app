@@ -10,14 +10,13 @@ import { LOOK_PROMPTS, useGuide } from './store';
 
 /**
  * 首页上的引导卡片（D-149、D-231）。第 1 步：首页是空的，点那句话打开 AI 修改，填进输入框由用户自己发送，
- * 两个文件入口直接加上（不进预览，可撤销）；「跳过引导」也直接加上。第 2 步：只有一句说明，
+ * 两个文件入口直接加上（不进预览，顶部不出「撤销」，D-239）；「跳过引导」也直接加上。第 2 步：只有一句说明，
  * 让用户点首页上的「打开相册」「打开文件」（打开后引导结束）。
  */
 export function GuideCard({ palette }: { palette: Palette }) {
   const { locale } = useWorkspaceContext();
   const stage = useGuide((s) => s.stage);
   const setStage = useGuide((s) => s.setStage);
-  const justChanged = useWorkspace((s) => s.banner?.kind === 'applied');
   const config = useWorkspace((s) => s.config)!;
   const proposeOps = useWorkspace((s) => s.proposeOps);
   const confirm = useWorkspace((s) => s.confirm);
@@ -27,12 +26,12 @@ export function GuideCard({ palette }: { palette: Palette }) {
 
   if (stage !== 'look' && stage !== 'goal') return null;
 
-  /** 跳过引导（D-231）：直接加上两个文件入口（不进预览），顶部照常「已改好 · 撤销」。 */
+  /** 跳过引导（D-231）：直接加上两个文件入口（不进预览），顶部不出「已改好 · 撤销」（D-239）。 */
   async function skip() {
     const ops = homeFileEntryOps(config);
     if (ops.length > 0) {
       const proposed = await proposeOps(ops, localize(LOOK_PROMPTS[0]!, locale));
-      if (proposed.kind === 'preview') await confirm();
+      if (proposed.kind === 'preview') await confirm({ quiet: true });
     }
     await setStage('done');
   }
@@ -56,12 +55,6 @@ export function GuideCard({ palette }: { palette: Palette }) {
               />
             ))}
           </View>
-        ) : justChanged ? (
-          <Text
-            testID="guide-undo-hint"
-            style={[palette.font('bodyMedium', 13), { color: palette.primaryText }]}>
-            {t(locale, 'guideUndoHint')}
-          </Text>
         ) : null}
         <Pressable
           testID={stage === 'look' ? 'guide-skip' : 'guide-later'}

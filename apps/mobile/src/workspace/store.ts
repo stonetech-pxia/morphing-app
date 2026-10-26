@@ -234,7 +234,8 @@ export interface WorkspaceState {
   proposeOps(ops: Op[], summary: string): Promise<ProposeResult>;
   /** 预览里勾选 / 取消「在首页放一个入口」（D-109）。 */
   setHomeEntry(on: boolean): void;
-  confirm(): Promise<boolean>;
+  /** quiet：渲染后顶部不出「已改好 · 撤销」（新手引导里的修改，D-239）。 */
+  confirm(options?: { quiet?: boolean }): Promise<boolean>;
   cancel(): Promise<void>;
   undo(): Promise<void>;
   markRendered(revisionId: number): Promise<void>;
@@ -306,6 +307,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
     revisionId: number;
     undoTo: number;
     summary: string;
+    quiet?: boolean;
   } | null = null;
   /** 连续回退次数；回退后仍无法渲染时停止，避免循环。 */
   let consecutiveRollbacks = 0;
@@ -931,7 +933,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         });
       },
 
-      async confirm() {
+      async confirm(options) {
         const proposal = get().proposal;
         if (!proposal) return false;
         set({ busy: true });
@@ -947,6 +949,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
             revisionId: revision.id,
             undoTo: proposal.baseRevisionId,
             summary: proposal.summary,
+            ...(options?.quiet ? { quiet: true } : {}),
           };
           set({ proposal: null });
           // 被移除的工具失去文件授权；文件本身保留（§7G）。
@@ -1002,6 +1005,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
             status: 'committed',
             resultRevisionId: done.revisionId,
           });
+          if (done.quiet) return;
           set({
             banner: {
               kind: 'applied',
