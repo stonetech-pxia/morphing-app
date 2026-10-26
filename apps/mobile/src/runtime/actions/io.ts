@@ -7,6 +7,8 @@ import {
   RunError,
   mediaKindOf,
   renderNameTemplate,
+  templateReads,
+  tidyOcrText,
   sanitizeFileName,
   shareFitsInput,
   uniqueFileName,
@@ -14,9 +16,13 @@ import {
   filterFiles,
   type ActionImpl,
   type FileFilter,
+  type Locale,
+  type OcrLanguage,
   type FileValueType,
   type RunItem,
 } from '@morph/core';
+
+import { decodeQr, downscaleRgba } from '@morph/tool-qr';
 
 import type { PickedFile } from '../platform';
 import {
@@ -26,11 +32,13 @@ import {
   extOf,
   fileItems,
   freshName,
+  imageForPage,
   isImageMime,
   isMediaFile,
   mimeOf,
   type RunServices,
 } from './helpers';
+import { VISION_LANGUAGES } from './ocr';
 import { SCAN_OUTPUT_SIDE } from './scan';
 
 // 内核输入输出动作的实现（TOOLS_DESIGN §5）。
@@ -221,6 +229,42 @@ export async function saveItems(
   return saved;
 }
 
+/** 命名用的识别语言：界面语言（中文是简体），系统识别会再补上英文。 */
+const NAMING_OCR_LANGUAGE: Record<Locale, OcrLanguage> = { zh: 'chi_sim', en: 'eng', fr: 'fra' };
+
+/**
+ * 给一个文件取名前在本机识别（D-244）：只看图片（PDF、视频不识别，规则取不到时用原来的名字）。
+ * 文字识别要系统自带的（iOS Vision、Android ML Kit），没有时（Expo Go）报 needsRecognition；二维码纯 JS，哪里都能读。
+ */
+async function recognizeForName(
+  ctx: Parameters<Impl>[2],
+  item: RunItem,
+  reads: { ocr: boolean; qr: boolean },
+): Promise<{ ocr?: string; qr?: string }> {
+  if (!isImageMime(item.mimeType)) return {};
+  const out: { ocr?: string; qr?: string } = {};
+  if (reads.ocr) {
+    const languages = VISION_LANGUAGES[NAMING_OCR_LANGUAGE[ctx.locale]];
+    const vision = ctx.services.files.vision;
+    if (!vision?.supportsLanguage(languages[0]!)) throw new RunError('needsRecognition');
+    const page = await imageForPage(ctx.services, item, 3500);
+    try {
+      out.ocr = tidyOcrText(await vision.recognizeText(page.uri, languages));
+    } catch {
+      out.ocr = '';
+    }
+  }
+  if (reads.qr) {
+    try {
+      const pixels = await ctx.services.files.imagePixels(item.uri, 1600);
+      out.qr = decodeQr(downscaleRgba(pixels, 1600)) ?? '';
+    } catch {
+      out.qr = '';
+    }
+  }
+  return out;
+}
+
 export const IO_IMPLS: Record<string, Impl> = {
   async 'in.photos'(_input, params, ctx) {
     const shared = await importShared(ctx, params, 'image');
@@ -336,6 +380,16 @@ export const IO_IMPLS: Record<string, Impl> = {
   async 'file.rename'(input, params, ctx) {
     const { template } = params as { template: string };
     const items = fileItems(input);
+    // D-244：模板里有 {ocr:…} / {qr:…} 时先在本机识别每个文件，文字只用来取名，不留下、不发给 AI。
+    const reads = templateReads(template);
+    const recognized: { ocr?: string; qr?: string }[] = [];
+    if (reads.ocr || reads.qr) {
+      for (const [i, item] of items.entries()) {
+        ctx.throwIfCancelled();
+        recognized.push(await recognizeForName(ctx, item, reads));
+        ctx.progress(i + 1, items.length);
+      }
+    }
     const taken: string[] = [];
     const named = items.map((item, i) => {
       const base = renderNameTemplate(template, {
@@ -343,6 +397,7 @@ export const IO_IMPLS: Record<string, Impl> = {
         index: i + 1,
         sourceName: item.name,
         ...(item.takenAt !== undefined ? { takenAt: new Date(item.takenAt) } : {}),
+        ...(recognized[i] ? { recognized: recognized[i], locale: ctx.locale } : {}),
       });
       // 同一批文件不重名：报告、报告-2、报告-3。
       const name = baseName(uniqueFileName(base, item.ext, taken));

@@ -1582,6 +1582,13 @@ export const strings = {
   },
   // 分组后各出一份（D-243）
   groupUndated: { en: 'No date', zh: '没有日期', fr: 'Sans date' },
+
+  // 命名用识别出的文字（D-244）
+  runError_needsRecognition: {
+    en: 'This file name uses text recognized in the file, and this device can’t recognize text on its own. Use the full Morph app, or remove that part of the name.',
+    zh: '这个文件名要用文件里识别出的文字，这台设备不能在本机识别文字。请用完整版 Morph，或者去掉文件名里的这一部分。',
+    fr: 'Ce nom de fichier utilise du texte reconnu dans le fichier, et cet appareil ne peut pas reconnaître le texte lui-même. Utilisez l’app Morph complète, ou retirez cette partie du nom.',
+  },
 } satisfies Record<string, Localized>;
 
 export const extractedMessages = {

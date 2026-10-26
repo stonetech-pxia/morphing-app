@@ -3611,6 +3611,38 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
       ),
     },
   },
+  {
+    id: 'ON1',
+    input: '新建一个快捷操作：拍收据，用收据上的日期和金额命名，存到文件',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.photos', 'file.rename'], (steps) => {
+        const template = String(steps.find((s) => s.action === 'file.rename')?.params.template);
+        return /\{ocr:date\}/.test(template) && /\{ocr:amount\}/.test(template)
+          ? null
+          : `template should use {ocr:date} and {ocr:amount}, got ${template}`;
+      }),
+    },
+  },
+  {
+    id: 'ON2',
+    input: 'Make a quick action that names each invoice photo by its invoice number',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.photos', 'file.rename'], (steps) => {
+        const rename = steps.find((s) => s.action === 'file.rename');
+        return String(rename?.params.template).includes('{ocr:invoiceNo}')
+          ? null
+          : `template should use {ocr:invoiceNo}, got ${String(rename?.params.template)}`;
+      }),
+    },
+  },
 ];
 
 export const EVAL_CASES: readonly EvalCase[] = [

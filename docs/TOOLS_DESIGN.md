@@ -163,7 +163,7 @@ interface StepContext {
 - **二维码**（工具 `qr`）：`qr.generate`（文字 → PNG，tool-qr 自带的 PNG 编码器）、`qr.read`（图片 → 文字，Skia 读像素后用 jsQR）。（`packages/tool-qr`：lean-qr、jsQR）
 - **报表**（工具 `print`）：`print.records`（`records` → PDF；模板：表格 / 卡片 / 带合计的清单；记录值先转义再在本地填进去，AI 只选模板、标题和字段 ID，D-042、D-080）。模板在 `core/src/html.ts`。
 
-文件名由用户选文件时决定，AI 只能给命名**模板**：`{date}`（= `{date:YYYY-MM-DD}`）、`{date:FORMAT}`、`{index}`、`{seq}`（两位序号 01、02…）、`{sourceName}`、`{taken}` / `{taken:FORMAT}`（照片拍摄日期，读不到时用当天）。
+文件名由用户选文件时决定，AI 只能给命名**模板**：`{date}`（= `{date:YYYY-MM-DD}`）、`{date:FORMAT}`、`{index}`、`{seq}`（两位序号 01、02…）、`{sourceName}`、`{taken}` / `{taken:FORMAT}`（照片拍摄日期，读不到时用当天）、`{ocr:规则}` / `{qr:规则}`（这张照片在本机识别出的文字 / 二维码内容里按固定规则取的一段，§14）。
 
 ## 6. 扩展包（按需下载）
 
@@ -409,3 +409,5 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
 读不到的信息算不满足。一个都不剩时 `whenEmpty`：`stop` 报 `noneMatched`，`skip` 原样交给下一步。只是这次运行不用，从不删除文件。纯逻辑 `core/file-filter.ts`（Node 测试），App 实现在 `runtime/actions/io.ts`。
 
 **分组后各出一份**（D-243）：不加「对每组执行」的循环，而是在「把一批文件变成文件」的三个动作上加 `group`：`pdf.fromImages`、`pdf.merge`、`zip.create`。`group`：`none`（默认，一份）、`count` + `groupSize`（按原来的顺序每 N 个一份）、`day` / `month`（按拍摄时间，没有时用修改时间；组按日期排，读不到日期的放最后「没有日期」）。输出仍是普通的文件数组，名字是日期或这一组第一个文件的名字，后面接 `file.rename {sourceName}`、分享、存到文件夹都照常。纯逻辑 `core/grouping.ts`。
+
+**用识别出的文字命名**（D-244）：`{ocr:规则}` / `{qr:规则}`，规则是 `firstLine`、`invoiceNo`、`date`、`amount`、`phone`、`email`、`url`、`number`（`core/text-rules.ts`，不接受正则）。`file.rename` 看到这两种占位符时先在本机识别每张图片：文字用系统识别（界面语言 + 英文；没有时报 `needsRecognition`），二维码用 jsQR。文字只用来取名，不留下，不发给 AI。取不到时这一段不写；什么都不剩用原来的名字。

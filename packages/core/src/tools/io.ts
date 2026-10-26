@@ -448,9 +448,9 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     id: 'file.rename',
     label: { en: 'Name the files', zh: '命名', fr: 'Nommer les fichiers' },
     description: {
-      en: 'Name the result with a template such as {sourceName}-{date}.',
-      zh: '按模板命名结果，例如 {sourceName}-{date}。',
-      fr: 'Nommez le résultat avec un modèle, par exemple {sourceName}-{date}.',
+      en: 'Name the result with a template such as {sourceName}-{date}. {ocr:RULE} / {qr:RULE} put in a part of the text recognized in each photo on the device / of its QR code; RULE is firstLine, invoiceNo, date, amount, phone, email, url or number. When nothing is found that part is left out (the original name if nothing is left).',
+      zh: '按模板命名结果，例如 {sourceName}-{date}。{ocr:规则} / {qr:规则} 取这张照片在本机识别出的文字 / 二维码内容里的一段；规则是 firstLine（第一行）、invoiceNo（发票号）、date（日期）、amount（金额）、phone（电话）、email、url、number（数字）。取不到时这一段不写（什么都不剩就用原来的名字）。',
+      fr: 'Nommez le résultat avec un modèle, par exemple {sourceName}-{date}. {ocr:RÈGLE} / {qr:RÈGLE} insèrent une partie du texte reconnu sur l’appareil dans chaque photo / de son code QR ; RÈGLE vaut firstLine, invoiceNo, date, amount, phone, email, url ou number. Si rien n’est trouvé, cette partie est omise (le nom d’origine s’il ne reste rien).',
     },
     input: ['files', 'images', 'pdf', 'zip'],
     output: 'same',

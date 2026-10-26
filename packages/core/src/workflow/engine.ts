@@ -74,6 +74,8 @@ export type RunErrorCode =
   | 'textTooLong'
   | 'doesNotFit'
   | 'noRecords'
+  /** 命名要在本机识别文字，这台设备没有系统自带的文字识别（Expo Go，D-244）。 */
+  | 'needsRecognition'
   /** 按条件筛选之后一个文件都不剩（detail.count：原来几个，D-242）。 */
   | 'noneMatched'
   /** 视频、音频要用原生模块处理，Expo Go 里没有（D-141）。 */
