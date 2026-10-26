@@ -53,8 +53,19 @@ describe('migrateWorkspace', () => {
     const previous = { ...workspace(), schemaVersion: 10 };
     const result = prepareSnapshot(previous, registry);
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.after).toEqual({ ...previous, schemaVersion: 12 });
+    if (result.ok)
+      expect(result.after).toEqual({ ...previous, schemaVersion: CURRENT_SCHEMA_VERSION });
     expect(previous.schemaVersion).toBe(10);
+  });
+  it('v12 → v13 (stat groupBy, D-248) only raises the version', () => {
+    const previous = { ...workspace(), schemaVersion: 12 };
+    const migrated = migrateWorkspace(previous, undefined, 13);
+    expect(migrated).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 13 },
+      fromVersion: 12,
+    });
+    expect(prepareSnapshot(previous, registry).ok).toBe(true);
   });
   it('v9 → v10 preserves the existing home without adding file pickers', () => {
     const previous = { ...workspace(), schemaVersion: 9 };

@@ -1589,6 +1589,8 @@ export const strings = {
     zh: '这个文件名要用文件里识别出的文字，这台设备不能在本机识别文字。请用完整版 Morph，或者去掉文件名里的这一部分。',
     fr: 'Ce nom de fichier utilise du texte reconnu dans le fichier, et cet appareil ne peut pas reconnaître le texte lui-même. Utilisez l’app Morph complète, ou retirez cette partie du nom.',
   },
+  // 统计按选项分组（D-248）
+  statNoChoice: { en: 'Not set', zh: '未选', fr: 'Non renseigné' },
 } satisfies Record<string, Localized>;
 
 export const extractedMessages = {

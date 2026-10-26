@@ -5,6 +5,7 @@ import {
   formatNumber,
   formatRef,
   formatValue,
+  groupedAggregate,
   localDate,
   prepareRecordValues,
   readValue,
@@ -586,38 +587,77 @@ export function RecordForm({
 
 type StatProps = Extract<Component, { type: 'stat' }>['props'];
 
+/** 统计值的显示：金额按币种、数字按单位和小数位，计数和其他字段只显示数字。 */
+function statText(
+  value: number | null,
+  aggregate: StatProps['aggregate'],
+  field: Field | undefined,
+  locale: RenderEnv['locale'],
+): string {
+  if (value === null) return '—';
+  if (aggregate !== 'count' && field?.type === 'formula') return formatValue(field, value, locale);
+  if (aggregate !== 'count' && field?.type === 'money') return formatMoney(value, field.currency);
+  if (aggregate !== 'count' && field?.type === 'number')
+    return `${formatNumber(value, field.decimals)}${field.unit ? ` ${field.unit}` : ''}`;
+  return formatNumber(value);
+}
+
 export function Stat({ props, env, tone }: { props: StatProps; env: RenderEnv; tone?: Tone }) {
   const { palette } = env;
   const collection = useCollection(env, props.collectionId);
   const records = useRecords(props.collectionId);
   if (!collection) return null;
   const matched = filterRecords(records ?? [], collection, props.filter, new Date());
+  const field = props.fieldId ? collection.fields.find((f) => f.id === props.fieldId) : undefined;
+  const background = tone ? cardColors(palette, tone).background : palette.primaryTint;
+  const heading = (
+    <Text
+      style={[palette.font('bodyBold', 12), { color: palette.primaryText, letterSpacing: 0.5 }]}>
+      {props.label.toUpperCase()}
+    </Text>
+  );
+  // D-248：按单选字段分组，每个选项一行。
+  if (props.groupBy) {
+    const groups =
+      records === null
+        ? []
+        : groupedAggregate(
+            matched,
+            collection,
+            props.aggregate,
+            props.fieldId,
+            props.groupBy,
+            t(env.locale, 'statNoChoice'),
+          );
+    return (
+      <Card palette={palette} background={background} style={styles.fillCard}>
+        {heading}
+        {groups.map((g) => (
+          <View key={g.optionId ?? '-'} style={styles.row}>
+            <Text
+              numberOfLines={1}
+              style={[styles.flex, palette.font('bodyMedium', 15), { color: palette.text }]}>
+              {g.label}
+            </Text>
+            <Text
+              testID={`stat-group-${props.collectionId}-${g.optionId ?? 'none'}`}
+              style={[palette.font('title', 16), { color: palette.text }]}>
+              {statText(g.value, props.aggregate, field, env.locale)}
+            </Text>
+          </View>
+        ))}
+      </Card>
+    );
+  }
   const value =
     records === null ? null : aggregateRecords(matched, collection, props.aggregate, props.fieldId);
-  const field = props.fieldId ? collection.fields.find((f) => f.id === props.fieldId) : undefined;
-  let shown = '—';
-  if (value !== null) {
-    if (props.aggregate !== 'count' && field?.type === 'formula')
-      shown = formatValue(field, value, env.locale);
-    else if (props.aggregate !== 'count' && field?.type === 'money')
-      shown = formatMoney(value, field.currency);
-    else if (props.aggregate !== 'count' && field?.type === 'number')
-      shown = `${formatNumber(value, field.decimals)}${field.unit ? ` ${field.unit}` : ''}`;
-    else shown = formatNumber(value);
-  }
   return (
-    <Card
-      palette={palette}
-      background={tone ? cardColors(palette, tone).background : palette.primaryTint}
-      style={styles.fillCard}>
-      <Text
-        style={[palette.font('bodyBold', 12), { color: palette.primaryText, letterSpacing: 0.5 }]}>
-        {props.label.toUpperCase()}
-      </Text>
+    <Card palette={palette} background={background} style={styles.fillCard}>
+      {heading}
       <Text
         testID={`stat-value-${props.collectionId}-${props.label}`}
         style={[palette.font('display', 26), { color: palette.text }]}>
-        {shown}
+        {statText(value, props.aggregate, field, env.locale)}
       </Text>
     </Card>
   );

@@ -6,7 +6,7 @@ import { isEmoji, unsafeLinks } from './richtext';
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 修改本文件中会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
 
-export const CURRENT_SCHEMA_VERSION = 12;
+export const CURRENT_SCHEMA_VERSION = 13;
 
 export type Locale = 'en' | 'zh' | 'fr';
 export type Localized = Record<Locale, string>;
@@ -449,7 +449,10 @@ export const RecordFormComponentSchema = z.strictObject({
   }),
 });
 
-/** 统计：对一张表（可筛选）计数或求和、平均、最小、最大。 */
+/**
+ * 统计：对一张表（可筛选）计数或求和、平均、最小、最大。
+ * groupBy（D-248）：按一个单选字段分组，每个选项一行（没选的记录另算一行）。
+ */
 export const StatComponentSchema = z.strictObject({
   ...componentBase,
   type: z.literal('stat'),
@@ -459,6 +462,7 @@ export const StatComponentSchema = z.strictObject({
     fieldId: IdSchema.optional(),
     filter: z.array(ConditionSchema).max(5).optional(),
     label: text(1, 40),
+    groupBy: IdSchema.optional(),
   }),
 });
 

@@ -362,6 +362,52 @@ export function aggregateRecords(
   }
 }
 
+export interface StatGroup {
+  /** 选项 ID；null 是没选的记录。 */
+  optionId: string | null;
+  label: string;
+  count: number;
+  value: number | null;
+}
+
+/**
+ * 按单选字段分组统计（D-248）：每个选项一行（按选项顺序，没有记录的选项也列出），
+ * 没选的记录有的话放在最后一行（label 用 noChoice）。选项已删掉的值算作没选。
+ */
+export function groupedAggregate(
+  records: readonly DataRecord[],
+  collection: Collection,
+  aggregate: Aggregate,
+  fieldId: string | undefined,
+  groupBy: string,
+  noChoice: string,
+): StatGroup[] {
+  const field = fieldOf(collection, groupBy);
+  if (field?.type !== 'choice') return [];
+  const buckets = new Map<string | null, DataRecord[]>();
+  for (const o of field.options) buckets.set(o.id, []);
+  for (const r of records) {
+    const v = readValue(field, r.values[groupBy]);
+    const key = typeof v === 'string' ? v : null;
+    buckets.set(key, [...(buckets.get(key) ?? []), r]);
+  }
+  return [...buckets.entries()].flatMap(([optionId, list]) =>
+    optionId === null && list.length === 0
+      ? []
+      : [
+          {
+            optionId,
+            label:
+              optionId === null
+                ? noChoice
+                : (field.options.find((o) => o.id === optionId)?.label ?? noChoice),
+            count: list.length,
+            value: aggregateRecords(list, collection, aggregate, fieldId),
+          },
+        ],
+  );
+}
+
 // ---- 显示与导出 ----
 
 const CURRENCY_SYMBOLS: Record<string, string> = {

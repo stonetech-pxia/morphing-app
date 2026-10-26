@@ -135,6 +135,9 @@ export const migrateV10toV11: Migration = (config) => ({ ...config, schemaVersio
  */
 export const migrateV11toV12: Migration = (config) => ({ ...config, schemaVersion: 12 });
 
+/** v12 → v13：统计组件可以按单选字段分组（D-248）；已有数据不需要改动，只提升版本号。 */
+export const migrateV12toV13: Migration = (config) => ({ ...config, schemaVersion: 13 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -148,6 +151,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   9: migrateV9toV10,
   10: migrateV10toV11,
   11: migrateV11toV12,
+  12: migrateV12toV13,
 };
 
 export type MigrateResult =

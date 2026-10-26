@@ -3708,6 +3708,25 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
       },
     },
   },
+  {
+    id: 'SG1',
+    input: '记账页面加一个统计：每个分类一共花了多少',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.pages.some((p) =>
+          allComponents(p).some(
+            (x) =>
+              x.type === 'stat' && x.props.groupBy !== undefined && x.props.aggregate === 'sum',
+          ),
+        )
+          ? null
+          : 'expected a stat with groupBy and aggregate sum',
+    },
+  },
 ];
 
 export const EVAL_CASES: readonly EvalCase[] = [

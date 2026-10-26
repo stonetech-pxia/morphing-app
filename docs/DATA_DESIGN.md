@@ -96,7 +96,7 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
 | `recordList` | `collectionId`、`display`（`list` / `cards` / `checklist`）、`titleField`、`subtitleFields`（≤ 2）、`filter`、`sort`、`limit`、`emptyText` | 点一条打开编辑；`checklist` 用一个 `checkbox` 字段直接打勾 |
 | `recordForm` | `collectionId`、`fieldIds`、`submitLabel`、`mode`（`inline` / `button`）                                                                   | 快速添加：`inline` 直接在页面上填，`button` 弹出完整表单   |
-| `stat`       | `collectionId`、`aggregate`（`count` / `sum` / `avg` / `min` / `max`）、`fieldId`、`filter`、`label`                                       | 例如“本月支出 ¥1,234”“未完成 5 项”                         |
+| `stat`       | `collectionId`、`aggregate`（`count` / `sum` / `avg` / `min` / `max`）、`fieldId`、`filter`、`label`、`groupBy`（D-248）                   | 例如“本月支出 ¥1,234”“未完成 5 项”；`groupBy` 每个选项一行 |
 
 **筛选**只能用白名单条件，多个条件之间是“并且”，没有表达式：
 
@@ -244,3 +244,7 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 
 - **条件**（D-246）：`if(左边 运算符 右边, 是的时候, 不是的时候)`，运算符 `> < >= <= =`，只能写在 `if` 的第一项；可以嵌套，嵌套层数（20）和长度（200 字）的上限不变。比较的两边有一边没有值时整个公式没有值。例：`if({total} >= 100, {total} * 0.9, {total})`。
 - **日期**（D-247）：日期字段 `{due}` 和 `today` 是日期，`days(从, 到)` 是相差的天数（到 − 从），两个日期可以在 `if` 里比较；日期不能加减乘除，结果必须是数字。例：「距离到期还有几天」= `days(today, {due})`，「逾期罚款」= `if({paid} > {due}, days({due}, {paid}) * 5, 0)`。日期字段为空时没有值；用到 `today` 的公式每天的值会变。
+
+## 13. 分组统计、图表、表间引用（D-248 起）
+
+- **分组统计**（D-248，schemaVersion 13）：`stat.groupBy` 是一个单选字段，每个选项一行（按选项顺序，没有记录的也列出），没选的记录放在最后「未选」。

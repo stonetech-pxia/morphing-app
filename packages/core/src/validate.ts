@@ -315,6 +315,8 @@ function dataComponentProblems(c: Component, config: WorkspaceConfig): string[] 
         problems.push(`form field ${id} is listed twice`);
       break;
     case 'stat': {
+      if (c.props.groupBy !== undefined && field(c.props.groupBy)?.type !== 'choice')
+        problems.push(`groupBy ${c.props.groupBy} must be a choice field of ${collection.id}`);
       if (c.props.aggregate !== 'count') {
         const f = c.props.fieldId ? field(c.props.fieldId) : undefined;
         if (!f || !NUMERIC.includes(f.type)) {
