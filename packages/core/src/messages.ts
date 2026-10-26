@@ -294,6 +294,12 @@ export const strings = {
     zh: '通过 {url} 调用 Claude。',
     fr: 'Claude via {url}.',
   },
+  // 测试期服务器保存请求（D-240）：只在用 Morph 服务器时显示。
+  aiServerStoredNote: {
+    en: 'During the beta, what you say to the AI and the app’s settings are saved to improve Morph. Files and entries are never sent.',
+    zh: '测试期间，你对 AI 说的话和界面配置会被保存，用来改进 Morph；文件和记录不会发送。',
+    fr: 'Pendant la bêta, ce que vous dites à l’IA et la configuration de l’application sont enregistrés pour améliorer Morph. Les fichiers et les entrées ne sont jamais envoyés.',
+  },
   aiModeByok: {
     en: 'My own Claude API key',
     zh: '我自己的 Claude API key',

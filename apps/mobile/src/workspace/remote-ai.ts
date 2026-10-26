@@ -19,6 +19,8 @@ export interface RemoteAIOptions {
   clientToken?: string | undefined;
   /** 用于服务器按设备限额。 */
   deviceId?: () => Promise<string | null>;
+  platform?: 'ios' | 'android';
+  appVersion?: string;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
 }
@@ -62,9 +64,7 @@ export function createRemoteAIProvider(
  * 需求回收（D-189）：用户在 AI 做不到时点「把这个需求告诉我们」，把那一句话发到 /v1/needs。
  * 只发这句话、语言、拒绝原因、用的是哪种 AI、平台和版本；不发配置、文件和记录。设备 id 只用于服务器限次数，不保存。
  */
-export function createNeedSender(
-  options: RemoteAIOptions & { platform?: 'ios' | 'android'; appVersion?: string },
-): NeedSender {
+export function createNeedSender(options: RemoteAIOptions): NeedSender {
   const fetchImpl = options.fetchImpl ?? fetch;
   return async (need) => {
     const controller = new AbortController();

@@ -61,17 +61,22 @@ describe('remote AI provider', () => {
     expect(repair[1]!.content).toEqual([{ type: 'text', text: 'not json' }]);
   });
 
-  it('sends the client token and device id when it has them', async () => {
+  it('sends the client token, device id, platform and version when it has them', async () => {
     const fetchImpl = respond(200, completion(JSON.stringify(green)));
-    await make({ clientToken: 'token-1', deviceId: async () => 'device-1234', fetchImpl }).plan(
-      '主题换成绿色',
-      ctx,
-    );
+    await make({
+      clientToken: 'token-1',
+      deviceId: async () => 'device-1234',
+      platform: 'ios',
+      appVersion: '1.2.0',
+      fetchImpl,
+    }).plan('主题换成绿色', ctx);
     const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(init.headers).toEqual({
       'content-type': 'application/json',
       'x-morph-client': 'token-1',
       'x-morph-device': 'device-1234',
+      'x-morph-platform': 'ios',
+      'x-morph-version': '1.2.0',
     });
   });
 

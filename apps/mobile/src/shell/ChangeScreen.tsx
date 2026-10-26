@@ -349,6 +349,15 @@ export function ChangeScreen() {
           </Pressable>
         </View>
 
+        {/* 测试期服务器保存请求（D-240）：中英文新手引导用内置规则，不经过服务器；法语引导经过（D-228）。 */}
+        {aiMode === 'server' && (!guide || locale === 'fr') ? (
+          <Text
+            testID="change-server-stored"
+            style={[palette.font('body', 13), { color: palette.caption }]}>
+            {t(locale, 'aiServerStoredNote')}
+          </Text>
+        ) : null}
+
         {feedback ? (
           <Card palette={palette} testID="change-feedback">
             {feedback.kind === 'invalid' ? (

@@ -1,6 +1,6 @@
 # 部署模型转发服务（Mac mini，D-131）
 
-模型转发服务（`apps/api`，D-193）跑在创始人的 Mac mini 上，经 Cloudflare 隧道对外提供 `https://morph-api.stonetech.dev`。转发时不保存数据；它不认识 App 的版本，App 升级不用重新部署；唯一保存的是用户主动发来的需求（见下面「需求回收」），换机器时把那个文件一起拷走。
+模型转发服务（`apps/api`，D-193）跑在创始人的 Mac mini 上，经 Cloudflare 隧道对外提供 `https://morph-api.stonetech.dev`。它不认识 App 的版本，App 升级不用重新部署；保存的只有用户主动发来的需求（见下面「需求回收」）和测试期的请求（见下面「测试期保存请求」），换机器时把这两个文件一起拷走。
 
 ```
 App ──https──► Cloudflare ──隧道 morph-prod──► Mac mini 127.0.0.1:8788（launchd：dev.stonetech.morph-api）──► Claude
@@ -59,6 +59,17 @@ jq -r '.reason + " " + (.ai // "?")' ~/projects/morph-prod/apps/api/data/needs.j
 ```
 
 隐私政策上线时要写明：只有用户点了按钮才发送，发送的只有这一句话。
+
+## 测试期保存请求（D-240）
+
+TestFlight 测试期间，生产 `.env` 设 `MORPH_REQUESTS_FILE=data/requests.jsonl`（相对 `apps/api`，即 `~/projects/morph-prod/apps/api/data/requests.jsonl`），重启服务后启动日志会显示「保存请求到 …」。每次转发成功追加一行 JSON：时间、设备 id 哈希前 8 位、平台、App 版本、第几轮、`system`（规划提示词）、`messages`（界面配置和用户的话）、模型回复、结束原因、token。不设就不保存。保留多久、怎么删除还没定（P-041）；文件里有用户的原话，不要拷到别处或提交。
+
+```bash
+# 最近 5 条：第一条消息的末尾（用户的话在最后）和模型回复的开头
+tail -5 ~/projects/morph-prod/apps/api/data/requests.jsonl | jq -r '.at, .messages[0].content[-200:], .reply[:200], ""'
+# 回复里没有 "kind" 的（多半不是修改计划）
+jq -c 'select(.reply | contains("\"kind\"") | not) | {at, reply: .reply[:200]}' ~/projects/morph-prod/apps/api/data/requests.jsonl
+```
 
 ## Mac 需要保持的状态
 

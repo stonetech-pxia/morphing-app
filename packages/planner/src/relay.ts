@@ -13,6 +13,9 @@ export interface RelayCompleterOptions {
   clientToken?: string | undefined;
   /** 用于服务器按设备限额。 */
   deviceId?: (() => Promise<string | null>) | undefined;
+  /** 测试期服务器随请求保存（D-240）。 */
+  platform?: 'ios' | 'android' | undefined;
+  appVersion?: string | undefined;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
 }
@@ -40,6 +43,8 @@ export function createRelayCompleter(options: RelayCompleterOptions): Complete {
           'content-type': 'application/json',
           ...(options.clientToken ? { 'x-morph-client': options.clientToken } : {}),
           ...(device ? { 'x-morph-device': device } : {}),
+          ...(options.platform ? { 'x-morph-platform': options.platform } : {}),
+          ...(options.appVersion ? { 'x-morph-version': options.appVersion } : {}),
         },
         body: JSON.stringify({ system: systemPromptFor(options.registry), messages }),
         signal: controller.signal,

@@ -129,6 +129,11 @@ export function AISettingsScreen() {
           palette={palette}
         />
       ) : null}
+      {mode === 'server' ? (
+        <Text testID="ai-server-stored" style={sub}>
+          {t(locale, 'aiServerStoredNote')}
+        </Text>
+      ) : null}
       <Option
         testID="ai-mode-byok"
         selected={mode === 'byok'}

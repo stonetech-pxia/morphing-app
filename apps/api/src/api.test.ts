@@ -1,7 +1,14 @@
 import type { Completion } from '@morph/planner';
 import { describe, expect, it } from 'vitest';
 
-import { createApp, looksLikePlan, type NeedEntry, type Relay, type ServerOptions } from './server';
+import {
+  createApp,
+  looksLikePlan,
+  type NeedEntry,
+  type Relay,
+  type RequestEntry,
+  type ServerOptions,
+} from './server';
 
 // 价格设成每百万 token 1 美元：输出 10000 token 正好 $0.01，方便算限额。
 const defaults: ServerOptions = {
@@ -182,6 +189,59 @@ describe('model relay (D-193)', () => {
     const res = await make(async () => Promise.reject(new Error('boom'))).post(first);
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ error: 'ai_unavailable' });
+  });
+
+  it('stores the prompt, conversation and reply when a store is set up, without the raw device id (D-240)', async () => {
+    const saved: RequestEntry[] = [];
+    const { post, logs } = make(undefined, {
+      requests: { append: async (e) => void saved.push(e) },
+    });
+    const res = await post(first, { ...a, 'x-morph-platform': 'ios', 'x-morph-version': '1.0.0' });
+    expect(res.status).toBe(200);
+    expect(saved).toEqual([
+      {
+        at: '2026-10-24T09:00:00.000Z',
+        device: logs[0]!.device,
+        platform: 'ios',
+        appVersion: '1.0.0',
+        round: 1,
+        system: first.system,
+        messages: first.messages,
+        reply: PLAN,
+        stopReason: 'end_turn',
+        inputTokens: 0,
+        outputTokens: 10_000,
+      },
+    ]);
+    expect(JSON.stringify(saved)).not.toContain('device-aaaa');
+    // 日志照旧不记内容。
+    expect(JSON.stringify(logs)).not.toContain('You plan');
+    // 平台和版本格式不对就不存，请求照常转发。
+    await post(first, { ...a, 'x-morph-platform': 'windows', 'x-morph-version': 'no spaces!' });
+    expect(saved[1]).not.toHaveProperty('platform');
+    expect(saved[1]).not.toHaveProperty('appVersion');
+  });
+
+  it('still answers when storing the request fails', async () => {
+    const { post, logs } = make(undefined, {
+      requests: { append: async () => Promise.reject(new Error('disk full')) },
+    });
+    const res = await post(first, a);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(reply(PLAN));
+    expect(logs[0]).toMatchObject({ event: 'request_store_error' });
+    expect(JSON.stringify(logs)).not.toContain('You plan');
+  });
+
+  it('stores nothing without a store or when the model call fails', async () => {
+    const saved: RequestEntry[] = [];
+    const requests = { append: async (e: RequestEntry) => void saved.push(e) };
+    expect((await make().post(first, a)).status).toBe(200);
+    expect(
+      (await make(async () => Promise.reject(new Error('boom')), { requests }).post(first, a))
+        .status,
+    ).toBe(502);
+    expect(saved).toEqual([]);
   });
 
   it('recognises plan-shaped replies without knowing the Plan version', () => {

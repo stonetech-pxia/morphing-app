@@ -10,6 +10,7 @@ import { z } from 'zod';
 // 因为提示词由 App 给，防滥用靠：只收规划要用的请求形状、按金额限额、不像计划的回复计分封设备，
 // 以及上架前的设备证明（P-024）。
 // 需求回收（D-189）：AI 做不到时，用户点「把这个需求告诉我们」才把那一句话发到 /v1/needs，存进 needs。
+// 测试期保存请求（D-240）：给了 requests 时，每次转发成功就把提示词、对话和回复存一条，用来找 AI 理解错的句子。
 
 /** 转发一次：只有系统提示词和对话，其余参数（模型、输出上限、思考力度）由服务器决定。 */
 export type Relay = (request: {
@@ -47,6 +48,27 @@ export interface ServerOptions {
   needsPerDeviceLimit?: number;
   /** 所有设备合计每天最多收几条需求。 */
   needsDailyLimit?: number;
+  /** 测试期保存请求（D-240）：不给时不保存。 */
+  requests?: RequestStore;
+}
+
+/** 一次转发成功的请求：设备 id 只存哈希（和日志一样），不存原始 id 和 IP。 */
+export interface RequestEntry {
+  at: string;
+  device: string;
+  platform?: string | undefined;
+  appVersion?: string | undefined;
+  round: 1 | 2;
+  system: string;
+  messages: PlannerMessage[];
+  reply: string;
+  stopReason: Completion['stopReason'];
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface RequestStore {
+  append(entry: RequestEntry): Promise<void>;
 }
 
 export interface NeedEntry {
@@ -134,6 +156,8 @@ export const costOf = (usage: Completion['usage'], price: Price) =>
 
 // App 首次使用时生成的随机 id，只用于按设备限额。
 const DEVICE_ID = /^[A-Za-z0-9-]{8,64}$/;
+const PLATFORM = /^(ios|android)$/;
+const APP_VERSION = /^[0-9A-Za-z.+-]{1,32}$/;
 
 const digest = (value: string) => createHash('sha256').update(value).digest();
 
@@ -236,11 +260,33 @@ export function createApp(options: ServerOptions) {
         dayUsd += usd;
         const offPlan = completion.stopReason !== 'refusal' && !looksLikePlan(completion.text);
         if (offPlan) device.offPlan++;
+        const deviceHash = digest(key).toString('hex').slice(0, 8);
+        const round = body.data.messages.length === 1 ? 1 : 2;
+        if (options.requests) {
+          // 平台和版本格式不对就不存，不拒绝请求；保存失败只记日志，照常返回回复。
+          const platform = c.req.header('x-morph-platform');
+          const appVersion = c.req.header('x-morph-version');
+          await options.requests
+            .append({
+              at: new Date(t).toISOString(),
+              device: deviceHash,
+              ...(platform && PLATFORM.test(platform) ? { platform } : {}),
+              ...(appVersion && APP_VERSION.test(appVersion) ? { appVersion } : {}),
+              round,
+              system: body.data.system,
+              messages: body.data.messages,
+              reply: completion.text,
+              stopReason: completion.stopReason,
+              inputTokens: completion.usage.inputTokens,
+              outputTokens: completion.usage.outputTokens,
+            })
+            .catch((e: unknown) => log({ event: 'request_store_error', error: String(e) }));
+        }
         // 日志只记录元数据，不记录提示词、用户输入或回复；设备 id 只记哈希前 8 位。
         log({
           event: 'complete',
-          device: digest(key).toString('hex').slice(0, 8),
-          round: body.data.messages.length === 1 ? 1 : 2,
+          device: deviceHash,
+          round,
           inputTokens: completion.usage.inputTokens,
           cacheReadTokens: completion.usage.cacheReadTokens,
           outputTokens: completion.usage.outputTokens,

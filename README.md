@@ -21,7 +21,7 @@ A phone app you install once and then keep changing by describing what you want:
 | Your requests      | **Stored during the beta to improve the project**  | Never reach our server                                                                                                                                                                                        |
 | Your files/records | Stay on the device                                 | Stay on the device                                                                                                                                                                                            |
 
-**What the beta stores**: for each AI change, what the app sends to the relay: the prompt (which includes the current app layout), the sentence you typed and the model's reply, plus a hash of the device id, platform, app version and time. It is used only to find requests the AI misunderstands and to improve the prompt and the test set.
+**What the beta stores**: for each AI change, what the app sends to the relay: the planning prompt, the current app layout, what you typed (including earlier sentences in the same change) and the model's reply, plus a hash of the device id, platform, app version and time. It is used only to find requests the AI misunderstands and to improve the prompt and the test set.
 **Never sent**: file contents and names, the data you record in pages, photos. The layout contains titles and text you wrote yourself, so don't put sensitive information in what you tell the AI. If you don't want your requests stored, build the app yourself and use your own key.
 
 ## Build it yourself

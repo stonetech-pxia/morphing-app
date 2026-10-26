@@ -63,6 +63,11 @@ const toolDownloads = createToolDownloads({
 const CATALOG_DAY_MS = 24 * 60 * 60 * 1000;
 // AI 来源由「设置 → AI」决定：内置规则、Morph 服务器（需配置地址，见 README）或用户自带 key。
 const apiUrl = process.env.EXPO_PUBLIC_MORPH_API_URL;
+// 平台和版本随需求（D-189）和测试期保存的请求（D-240）发给服务器。
+const appInfo = {
+  ...(Platform.OS === 'ios' || Platform.OS === 'android' ? { platform: Platform.OS } : {}),
+  ...(Constants.expoConfig?.version ? { appVersion: Constants.expoConfig.version } : {}),
+};
 const aiSettings = createAISettingsStore({
   secrets: secureSecretStore,
   serverAvailable: Boolean(apiUrl),
@@ -72,8 +77,7 @@ const aiSettings = createAISettingsStore({
         baseUrl: apiUrl,
         clientToken: process.env.EXPO_PUBLIC_MORPH_CLIENT_TOKEN,
         deviceId: getDeviceId,
-        ...(Platform.OS === 'ios' || Platform.OS === 'android' ? { platform: Platform.OS } : {}),
-        ...(Constants.expoConfig?.version ? { appVersion: Constants.expoConfig.version } : {}),
+        ...appInfo,
       })
     : null,
 });
@@ -85,6 +89,7 @@ const provider = createAIRouter({
         baseUrl: apiUrl,
         clientToken: process.env.EXPO_PUBLIC_MORPH_CLIENT_TOKEN,
         deviceId: getDeviceId,
+        ...appInfo,
         registry,
         now: () => new Date(),
       })

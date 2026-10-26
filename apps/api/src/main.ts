@@ -18,6 +18,17 @@ const needs = {
     await appendFile(needsFile, `${JSON.stringify(entry)}\n`, 'utf8');
   },
 };
+// 测试期保存请求（D-240）：只有设置了 MORPH_REQUESTS_FILE 才保存，本地开发和自建服务器默认不存。
+const requestsFile = process.env.MORPH_REQUESTS_FILE?.trim();
+const requests = requestsFile
+  ? {
+      async append(entry: object) {
+        const file = resolve(requestsFile);
+        await mkdir(dirname(file), { recursive: true });
+        await appendFile(file, `${JSON.stringify(entry)}\n`, 'utf8');
+      },
+    }
+  : undefined;
 
 const app = createApp({
   ...runtime,
@@ -27,6 +38,7 @@ const app = createApp({
   offPlanLimit: Number(process.env.MORPH_OFF_PLAN_LIMIT ?? 5),
   ...(clientToken ? { clientToken } : {}),
   needs,
+  ...(requests ? { requests } : {}),
 });
 
 // 只监听本机：对外由 Cloudflare 隧道从本机转发进来（D-131），本机不开放端口。
@@ -35,5 +47,6 @@ serve({ fetch: app.fetch, hostname: '127.0.0.1', port }, () => {
     ? `Claude (${runtime.model})`
     : '无（未配置 ANTHROPIC_API_KEY，/v1/complete 返回 503）';
   const token = clientToken ? '需要客户端令牌' : '不检查客户端令牌';
-  console.log(`Morph API: http://127.0.0.1:${port}  AI: ${ai}  ${token}`);
+  const stored = requestsFile ? `  保存请求到 ${resolve(requestsFile)}` : '';
+  console.log(`Morph API: http://127.0.0.1:${port}  AI: ${ai}  ${token}${stored}`);
 });
