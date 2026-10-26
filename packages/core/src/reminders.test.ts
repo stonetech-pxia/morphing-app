@@ -151,8 +151,21 @@ describe('planNotifications', () => {
     ]);
     expect(planned[0]).toMatchObject({
       title: '账单快到期了',
-      body: '「宽带」还有 3 天到期（2026-10-26）',
+      body: '「账单」里有一条记录还有 3 天到期（2026-10-26）',
     });
+    // 通知会出现在锁屏上：正文只写表名，不写记录的标题（P-043 ②）。
+    for (const n of planned) expect(n.body).not.toMatch(/宽带|房租/);
+  });
+
+  it('one day before uses the singular in every language', () => {
+    const c = config([{ op: 'addReminder', reminder: { ...dueSoon, daysBefore: 1 } }]);
+    const records = new Map([['bills', [bill('rent', 'Rent', '2026-11-01')]]]);
+    expect(planNotifications(c, records, now, 'en')[0]!.body).toBe(
+      'An entry in “账单” is due in 1 day (2026-11-01)',
+    );
+    expect(planNotifications(c, records, now, 'fr')[0]!.body).toBe(
+      'Une entrée de « 账单 » arrive à échéance dans 1 jour (2026-11-01)',
+    );
   });
 
   it('a reminder on the due day itself says so', () => {
@@ -163,6 +176,6 @@ describe('planNotifications', () => {
       now,
       'fr',
     );
-    expect(n!.body).toBe('« Loyer » arrive à échéance aujourd’hui');
+    expect(n!.body).toBe('Une entrée de « 账单 » arrive à échéance aujourd’hui');
   });
 });

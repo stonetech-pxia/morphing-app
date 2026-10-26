@@ -155,7 +155,9 @@ describe('syncing reminders', () => {
     };
     await syncReminders(platform, config, list, 'zh', now);
     expect(asked).toEqual(['bills']);
-    expect(platform.scheduled!.map((n) => n.body)).toEqual(['「房租」还有 1 天到期（2026-11-01）']);
+    expect(platform.scheduled!.map((n) => n.body)).toEqual([
+      '「账单」里有一条记录还有 1 天到期（2026-11-01）',
+    ]);
   });
 });
 

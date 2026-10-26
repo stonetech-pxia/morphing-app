@@ -251,4 +251,4 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 - **分组统计**（D-248，schemaVersion 13）：`stat.groupBy` 是一个单选字段，每个选项一行（按选项顺序，没有记录的也列出），没选的记录放在最后「未选」。
 - **图表**（D-249，schemaVersion 14）：`chart {collectionId, kind: bar / line / pie, aggregate: count / sum / avg, fieldId?, group: day / week / month / choice, dateField?, choiceField?, periods?, filter?, title}`。按时间分组显示最近几段（默认 7 天、8 周、6 个月），按单选字段分组每个选项一个点；饼图只能按单选分，超过 7 块合成「其他」。分组和几何在 `core/chart.ts`，App 用 View 画柱子、Skia `Path` 画折线和饼图。
 - **表间引用**（D-250，schemaVersion 15）：字段 `link {collectionId}`，值是那条记录的 ID，显示它的标题字段（第一个文字字段）。被引用的记录删掉时值保留、显示「已删除的记录」，恢复后显示回来；别的表还引用一张表时不能移除它（先移除引用字段）。筛选只有「有没有选」，不能按它排序。不做反向列表、多选和级联删除。
-- **到期提醒**（D-251，schemaVersion 16）：`reminders` 里 `schedule: dateField` 的提醒按一张表的日期字段，在到期前 `daysBefore` 天的 `time` 用本地通知提醒；记录在本机读、正文在本机生成，配置里只有设置。点提醒只打开页面或快捷操作，不运行。
+- **到期提醒**（D-251，schemaVersion 16）：`reminders` 里 `schedule: dateField` 的提醒按一张表的日期字段，在到期前 `daysBefore` 天的 `time` 用本地通知提醒；记录在本机读、正文在本机生成且只写表名（会出现在锁屏上，不写记录标题，P-043 ②），配置里只有设置。点提醒只打开页面或快捷操作，不运行。

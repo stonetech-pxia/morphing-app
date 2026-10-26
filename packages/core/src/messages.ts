@@ -1656,14 +1656,14 @@ export const strings = {
   weekday6: { en: 'Saturday', zh: '周六', fr: 'samedi' },
   weekday7: { en: 'Sunday', zh: '周日', fr: 'dimanche' },
   reminderDueToday: {
-    en: '“{name}” is due today',
-    zh: '「{name}」今天到期',
-    fr: '« {name} » arrive à échéance aujourd’hui',
+    en: 'An entry in “{table}” is due today',
+    zh: '「{table}」里有一条记录今天到期',
+    fr: 'Une entrée de « {table} » arrive à échéance aujourd’hui',
   },
   reminderDueIn: {
-    en: '“{name}” is due in {n} days ({date})',
-    zh: '「{name}」还有 {n} 天到期（{date}）',
-    fr: '« {name} » arrive à échéance dans {n} jours ({date})',
+    en: 'An entry in “{table}” is due in {n} days ({date})',
+    zh: '「{table}」里有一条记录还有 {n} 天到期（{date}）',
+    fr: 'Une entrée de « {table} » arrive à échéance dans {n} jours ({date})',
   },
   remindersTitle: { en: 'Reminders', zh: '提醒', fr: 'Rappels' },
   remindersHint: {
@@ -3598,9 +3598,9 @@ const SINGULAR_MESSAGES: Partial<Record<StringKey, Localized>> = {
     fr: '{n} jour avant « {field} » dans « {table} », à {time}',
   },
   reminderDueIn: {
-    en: '“{name}” is due in {n} day ({date})',
-    zh: '「{name}」还有 {n} 天到期（{date}）',
-    fr: '« {name} » arrive à échéance dans {n} jour ({date})',
+    en: 'An entry in “{table}” is due in {n} day ({date})',
+    zh: '「{table}」里有一条记录还有 {n} 天到期（{date}）',
+    fr: 'Une entrée de « {table} » arrive à échéance dans {n} jour ({date})',
   },
   remindersRowHint: { en: '{n} reminder', zh: '{n} 个提醒', fr: '{n} rappel' },
 };

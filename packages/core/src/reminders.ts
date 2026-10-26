@@ -1,4 +1,4 @@
-import { linkTitle, localDate, readValue, type DataRecord } from './data';
+import { localDate, readValue, type DataRecord } from './data';
 import { t } from './messages';
 import {
   pageIdOf,
@@ -104,12 +104,13 @@ export function planNotifications(
         const [y, m, d] = due.split('-').map(Number) as [number, number, number];
         const at = new Date(y, m - 1, d - before, hour, minute);
         if (at.getTime() <= now.getTime()) continue;
-        const name = linkTitle(record, collection, locale);
+        // 通知会出现在锁屏上：正文只写表名，不写记录的标题（P-043 ②）。
+        const table = collection.name;
         const body =
           before === 0
-            ? t(locale, 'reminderDueToday', { name })
+            ? t(locale, 'reminderDueToday', { table })
             : t(locale, 'reminderDueIn', {
-                name,
+                table,
                 n: before,
                 date: localDate(new Date(y, m - 1, d)),
               });
