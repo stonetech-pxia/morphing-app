@@ -151,7 +151,7 @@ interface StepContext {
 
 前缀即领域，实现位置见括号。
 
-- **输入输出（内核）**：`in.videos`（从相册选视频，不在选的时候转码，D-142）、`in.photos`（`source`：相册多选、拍照，或 `scanner` 系统文档相机——iOS 的 VisionKit、Android 的 ML Kit 文档扫描，实时找边、自动拍、多页、拍完已拉正，页面带 `straightened` 标记；没有文档相机的设备改用相机，D-086、D-087）、`in.files`（PDF / 图片 / 视频 / 音频 / 任意文件；这两个在第一步时也接收别的 App 分享进来的文件，§11）、`file.rename`（命名模板）、`file.save`（存到 Morph 文件）、`out.share`（一次分享全部文件，D-119）、`out.saveToFolder`（复制进「文件」里的文件夹：第一次由用户选，之后记住同一个，结果页可以换；iCloud 云盘、Google Drive 等网盘由它们自己的 App 同步，D-120、D-123）、`out.saveToPhotos`、`out.print`；`in.text`（用户输入一段文字，private）、`in.records`（读取一张数据表的记录，可按时间段，按表里第一个日期字段）。（App：expo-image-picker、expo-document-picker、本地模块 morph-share（Expo Go 里退回 expo-sharing / expo-file-system）、expo-media-library、expo-print）
+- **输入输出（内核）**：`in.videos`（从相册选视频，不在选的时候转码，D-142）、`in.photos`（`source`：相册多选、拍照，或 `scanner` 系统文档相机——iOS 的 VisionKit、Android 的 ML Kit 文档扫描，实时找边、自动拍、多页、拍完已拉正，页面带 `straightened` 标记；没有文档相机的设备改用相机，D-086、D-087）、`in.files`（PDF / 图片 / 视频 / 音频 / 任意文件；这两个在第一步时也接收别的 App 分享进来的文件，§11）、`file.rename`（命名模板）、`file.filter`（按固定条件筛选，§14）、`file.save`（存到 Morph 文件）、`out.share`（一次分享全部文件，D-119）、`out.saveToFolder`（复制进「文件」里的文件夹：第一次由用户选，之后记住同一个，结果页可以换；iCloud 云盘、Google Drive 等网盘由它们自己的 App 同步，D-120、D-123）、`out.saveToPhotos`、`out.print`；`in.text`（用户输入一段文字，private）、`in.records`（读取一张数据表的记录，可按时间段，按表里第一个日期字段）。（App：expo-image-picker、expo-document-picker、本地模块 morph-share（Expo Go 里退回 expo-sharing / expo-file-system）、expo-media-library、expo-print）
 - **图片**：`image.convert`、`image.resize`、`image.compress`（压到 ≤ N KB）、`image.crop`（本地框选）、`image.rotate`、`image.stripMetadata`、`image.idPhoto`、`image.stitch`、`image.grid`、`image.redact`（本地）、`image.watermark`、`image.printSheet`（证件照排到 4×6 / 5×7 / A4 / Letter 相纸，带裁切线）。（算法：`packages/tool-image`；编码：expo-image-manipulator；合成：Skia 离屏绘制 `composeImage`，画布单边不超过 8192、总像素不超过 1677 万，超出整体缩小，D-079）
 - **视频**（工具 `video`，D-143）：`video.compress`（按大小 ≤ N MB 或按画质 1080p / 720p / 480p）、`video.convert`（转成 MP4，画质基本不变）、`video.trim`（本地 `trimMedia`，不重新编码）。输出一律 MP4（H.264 + AAC）。码率和分辨率在 `core/media.ts` 算，编码在本地模块 `morph-media`（iOS AVFoundation、Android Media3 Transformer，D-141）；输入是 `in.videos`（相册，1–10 个）或 `in.files`（`accept: videos`）。
 - **PDF**：`pdf.fromImages`（A4 / Letter / 跟随图片，可设边距和 ≤ X MB）、`pdf.compress`（把已有 PDF 压到 ≤ X MB：先只压图片、保留文字，不够小时按 `whenTooBig` 问用户 / 转成图片 / 保留文字，D-145）、`pdf.merge`（PDF 和图片混合）、`pdf.pages`（本地选页 / 删页 / 排序 / 旋转）、`pdf.selectPages`（按页码规则：全部 / 奇数 / 偶数 / 范围）、`pdf.rotate`、`pdf.split`、`pdf.pageNumbers`、`pdf.stamp`（文字戳 / 日期戳）、`pdf.sign`（本地）、`pdf.fillForm`（本地）+ 拍平、`pdf.toImages`、`pdf.extractText`。（`packages/tool-pdf`：pdf-lib；`toImages` / `extractText` / 缩略图需要 PDF 预览包）
@@ -391,3 +391,19 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
 - App：`runtime/actions/audio.ts`、`MediaPlatform.encodeAudio / concatAudio / waveform`、`FilePlatform.speech`、`packNotNeeded`（iPhone 不用下载内容）。
 - 错误：`audioTooSmall`、`noAudio`、`noSpeech`；`needsFullApp` 的说法改成「视频和音频」。
 - 测试：`core/audio.test.ts`、`audio-actions-test.ts`（假的 media / speech）、`audio-journeys-test.tsx`（录音、转文字、波形剪切、压小的界面旅程）。
+
+## 14. 条件、分组和文字加工（D-242 起）
+
+仍然是线性步骤：条件、分组规则、提取规则都是从固定集合里选的**数据**，没有表达式、循环和分支，AI 看不到文件和文字。
+
+**按条件筛选**（`file.filter`，D-242）：files 进、同类型出。平铺的参数，每种条件最多一条，「不限」的不检查，其余全部满足才保留：
+
+| 参数                                   | 条件                                                                                    |
+| -------------------------------------- | --------------------------------------------------------------------------------------- |
+| `kind`                                 | 图片 / PDF / 视频 / 音频 / 办公文档（先看 MIME，不可靠时看扩展名）                      |
+| `size` + `sizeMB`                      | 大于 / 小于 N MB                                                                        |
+| `orientation`                          | 横 / 竖 / 方（宽高差 2% 以内算方）；选择器没给宽高时用 `imageSize` 读                   |
+| `date` + `days` / `period` / `from–to` | 最近 N 天、日历时间段（同数据表的 `PERIODS`）、两个日期之间；拍摄时间，没有时用修改时间 |
+| `duration` + `seconds`                 | 视频、音频长于 / 短于 N 秒；没有时长时用 `media.probe` 读                               |
+
+读不到的信息算不满足。一个都不剩时 `whenEmpty`：`stop` 报 `noneMatched`，`skip` 原样交给下一步。只是这次运行不用，从不删除文件。纯逻辑 `core/file-filter.ts`（Node 测试），App 实现在 `runtime/actions/io.ts`。

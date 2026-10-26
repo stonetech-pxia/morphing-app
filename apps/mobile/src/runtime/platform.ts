@@ -15,6 +15,8 @@ export interface PickedFile {
   height?: number;
   /** 照片的拍摄时间（毫秒）。 */
   takenAt?: number;
+  /** 文件的修改时间（毫秒，「文件」App 选的文件有，D-242）。 */
+  modifiedAt?: number;
   /** 系统文档相机拍的页面：已经找边拉正。 */
   straightened?: boolean;
   /** 视频、音频的时长（毫秒），选择器给得出时。 */

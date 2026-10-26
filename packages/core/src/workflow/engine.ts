@@ -24,6 +24,8 @@ export interface RunItem {
   durationMs?: number;
   /** 照片的拍摄时间（毫秒）。 */
   takenAt?: number;
+  /** 文件的修改时间（毫秒）：「文件」App 选的文件有，按日期筛选时拍摄时间读不到就用它（D-242）。 */
+  modifiedAt?: number;
   /** 系统文档相机拍的页面：已经找边拉正，scan.detect 直接放行。 */
   straightened?: boolean;
   /** 已经存成用户文件时的文件 ID。 */
@@ -72,6 +74,8 @@ export type RunErrorCode =
   | 'textTooLong'
   | 'doesNotFit'
   | 'noRecords'
+  /** 按条件筛选之后一个文件都不剩（detail.count：原来几个，D-242）。 */
+  | 'noneMatched'
   /** 视频、音频要用原生模块处理，Expo Go 里没有（D-141）。 */
   | 'needsFullApp'
   /** 系统打不开这段视频 / 音频（格式不支持、有版权保护）。 */

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { FILTER_KINDS, FILTER_ORIENTATIONS, hasFileCondition } from '../file-filter';
 import { checkNameTemplate } from '../naming';
 import { MEDIA_LIMITS } from '../limits';
 import { IdSchema, PERIODS } from '../schema';
@@ -52,7 +53,36 @@ export const WIFI_NAME_MAX = 32;
 /** 读取记录的时间范围：表里第一个日期字段（没有就用创建时间）落在这段时间里。 */
 export const RECORD_PERIODS = ['all', ...PERIODS] as const;
 
+const RECORD_PERIOD_OPTIONS = [
+  { value: 'all', label: { en: 'All', zh: '全部', fr: 'Tout' } },
+  { value: 'today', label: { en: 'Today', zh: '今天', fr: 'Aujourd’hui' } },
+  { value: 'thisWeek', label: { en: 'This week', zh: '本周', fr: 'Cette semaine' } },
+  { value: 'thisMonth', label: { en: 'This month', zh: '本月', fr: 'Ce mois-ci' } },
+  { value: 'thisYear', label: { en: 'This year', zh: '今年', fr: 'Cette année' } },
+  {
+    value: 'last7days',
+    label: { en: 'Last 7 days', zh: '最近 7 天', fr: '7 derniers jours' },
+  },
+  {
+    value: 'last30days',
+    label: { en: 'Last 30 days', zh: '最近 30 天', fr: '30 derniers jours' },
+  },
+];
+
 export const MAX_PICK = 50;
+
+const dateText = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date like 2026-10-22');
+const ANY = { en: 'Any', zh: '不限', fr: 'Peu importe' };
+
+/** file.filter 的「全部不限」：预设在它上面只改一两项。 */
+const NO_FILTER = {
+  kind: 'any',
+  size: 'any',
+  orientation: 'any',
+  date: 'any',
+  duration: 'any',
+  whenEmpty: 'stop',
+} as const;
 
 export const IO_ACTIONS: readonly ActionDefinition[] = [
   {
@@ -387,21 +417,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
         key: 'period',
         label: { en: 'Time', zh: '时间', fr: 'Période' },
         kind: 'choice',
-        options: [
-          { value: 'all', label: { en: 'All', zh: '全部', fr: 'Tout' } },
-          { value: 'today', label: { en: 'Today', zh: '今天', fr: 'Aujourd’hui' } },
-          { value: 'thisWeek', label: { en: 'This week', zh: '本周', fr: 'Cette semaine' } },
-          { value: 'thisMonth', label: { en: 'This month', zh: '本月', fr: 'Ce mois-ci' } },
-          { value: 'thisYear', label: { en: 'This year', zh: '今年', fr: 'Cette année' } },
-          {
-            value: 'last7days',
-            label: { en: 'Last 7 days', zh: '最近 7 天', fr: '7 derniers jours' },
-          },
-          {
-            value: 'last30days',
-            label: { en: 'Last 30 days', zh: '最近 30 天', fr: '30 derniers jours' },
-          },
-        ],
+        options: RECORD_PERIOD_OPTIONS,
       },
     ],
     requires: [],
@@ -473,6 +489,203 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     params: z.strictObject({}),
     fields: [],
     local: 'reorder',
+    requires: [],
+  },
+  {
+    // D-242：按固定条件筛选文件（类型、大小、方向、日期、时长），全部满足才保留。没有表达式。
+    id: 'file.filter',
+    label: { en: 'Keep only some files', zh: '按条件筛选', fr: 'Filtrer les fichiers' },
+    description: {
+      en: 'Keep only the files that meet every condition set here (the others are dropped from this run, never deleted): kind of file; size larger / smaller than N MB; photo orientation (landscape, portrait, square); date taken (or last modified) in the last N days or between two dates; video or audio length longer / shorter than N seconds. A condition left at "any" is not checked. A file whose date, size in pixels or length can’t be read does not meet that condition. whenEmpty: "stop" ends the run with a message when nothing is left, "skip" passes all the files on unfiltered.',
+      zh: '只保留满足这里全部条件的文件（其他的只是这次不用，不会删除）：文件类型；大于 / 小于 N MB；照片方向（横、竖、方）；拍摄（或修改）日期在最近 N 天或两个日期之间；视频、音频长于 / 短于 N 秒。选「不限」的条件不检查。读不到日期、尺寸或时长的文件算不满足这一条。whenEmpty：stop 一个都不剩时停下并说明，skip 不筛、全部交给下一步。',
+      fr: 'Ne garde que les fichiers qui remplissent toutes les conditions indiquées ici (les autres sont simplement écartés de cette exécution, jamais supprimés) : type de fichier ; taille supérieure / inférieure à N Mo ; orientation de la photo (paysage, portrait, carré) ; date de prise de vue (ou de modification) dans les N derniers jours ou entre deux dates ; durée d’une vidéo ou d’un audio supérieure / inférieure à N secondes. Une condition laissée sur « peu importe » n’est pas vérifiée. Un fichier dont la date, la taille en pixels ou la durée est illisible ne remplit pas cette condition. whenEmpty : « stop » arrête l’exécution avec un message s’il ne reste rien, « skip » transmet tous les fichiers sans les filtrer.',
+    },
+    input: ['files'],
+    output: 'same',
+    params: z
+      .strictObject({
+        kind: z.enum(FILTER_KINDS),
+        size: z.enum(['any', 'larger', 'smaller']),
+        sizeMB: z.number().min(0.01).max(4096).optional(),
+        orientation: z.enum(FILTER_ORIENTATIONS),
+        date: z.enum(['any', 'lastDays', 'period', 'between']),
+        days: z.number().int().min(1).max(3650).optional(),
+        period: z.enum(PERIODS).optional(),
+        from: dateText.optional(),
+        to: dateText.optional(),
+        duration: z.enum(['any', 'longer', 'shorter']),
+        seconds: z.number().min(1).max(86400).optional(),
+        whenEmpty: z.enum(['stop', 'skip']),
+      })
+      .refine(hasFileCondition, { message: 'choose at least one condition' })
+      .refine((p) => p.size === 'any' || p.sizeMB !== undefined, { message: 'sizeMB is missing' })
+      .refine((p) => p.date !== 'lastDays' || p.days !== undefined, { message: 'days is missing' })
+      .refine((p) => p.date !== 'period' || p.period !== undefined, {
+        message: 'period is missing',
+      })
+      .refine(
+        (p) =>
+          p.date !== 'between' || (p.from !== undefined && p.to !== undefined && p.from <= p.to),
+        { message: 'from and to must be dates with from <= to' },
+      )
+      .refine((p) => p.duration === 'any' || p.seconds !== undefined, {
+        message: 'seconds is missing',
+      }),
+    fields: [
+      {
+        key: 'kind',
+        label: { en: 'Kind', zh: '类型', fr: 'Type' },
+        kind: 'choice',
+        options: [
+          { value: 'any', label: ANY },
+          { value: 'images', label: { en: 'Images', zh: '图片', fr: 'Images' } },
+          { value: 'pdf', label: { en: 'PDF', zh: 'PDF', fr: 'PDF' } },
+          { value: 'video', label: { en: 'Videos', zh: '视频', fr: 'Vidéos' } },
+          { value: 'audio', label: { en: 'Audio', zh: '音频', fr: 'Audio' } },
+          {
+            value: 'documents',
+            label: { en: 'Office documents', zh: '办公文档', fr: 'Documents Office' },
+          },
+        ],
+      },
+      {
+        key: 'size',
+        label: { en: 'Size', zh: '大小', fr: 'Taille' },
+        kind: 'choice',
+        options: [
+          { value: 'any', label: ANY },
+          { value: 'larger', label: { en: 'Larger than', zh: '大于', fr: 'Plus de' } },
+          { value: 'smaller', label: { en: 'Smaller than', zh: '小于', fr: 'Moins de' } },
+        ],
+      },
+      {
+        key: 'sizeMB',
+        label: { en: 'Size limit', zh: '大小界限', fr: 'Limite de taille' },
+        kind: 'number',
+        unit: 'MB',
+        min: 0.01,
+        max: 4096,
+        showIf: { key: 'size', equals: ['larger', 'smaller'] },
+      },
+      {
+        key: 'orientation',
+        label: { en: 'Orientation', zh: '方向', fr: 'Orientation' },
+        kind: 'choice',
+        options: [
+          { value: 'any', label: ANY },
+          { value: 'landscape', label: { en: 'Landscape', zh: '横的', fr: 'Paysage' } },
+          { value: 'portrait', label: { en: 'Portrait', zh: '竖的', fr: 'Portrait' } },
+          { value: 'square', label: { en: 'Square', zh: '方的', fr: 'Carré' } },
+        ],
+      },
+      {
+        key: 'date',
+        label: {
+          en: 'Date taken or modified',
+          zh: '拍摄或修改日期',
+          fr: 'Date de prise ou de modification',
+        },
+        kind: 'choice',
+        options: [
+          { value: 'any', label: ANY },
+          {
+            value: 'lastDays',
+            label: { en: 'In the last days', zh: '最近几天', fr: 'Derniers jours' },
+          },
+          {
+            value: 'period',
+            label: { en: 'In a calendar period', zh: '某段日历时间', fr: 'Dans une période' },
+          },
+          {
+            value: 'between',
+            label: { en: 'Between two dates', zh: '两个日期之间', fr: 'Entre deux dates' },
+          },
+        ],
+      },
+      {
+        key: 'days',
+        label: { en: 'Number of days', zh: '天数', fr: 'Nombre de jours' },
+        kind: 'number',
+        min: 1,
+        max: 3650,
+        step: 1,
+        showIf: { key: 'date', equals: ['lastDays'] },
+      },
+      {
+        key: 'period',
+        label: { en: 'Period', zh: '时间段', fr: 'Période' },
+        kind: 'choice',
+        options: RECORD_PERIOD_OPTIONS.filter((o) => o.value !== 'all'),
+        showIf: { key: 'date', equals: ['period'] },
+      },
+      {
+        key: 'from',
+        label: { en: 'From (YYYY-MM-DD)', zh: '从（YYYY-MM-DD）', fr: 'Du (AAAA-MM-JJ)' },
+        kind: 'text',
+        showIf: { key: 'date', equals: ['between'] },
+      },
+      {
+        key: 'to',
+        label: { en: 'To (YYYY-MM-DD)', zh: '到（YYYY-MM-DD）', fr: 'Au (AAAA-MM-JJ)' },
+        kind: 'text',
+        showIf: { key: 'date', equals: ['between'] },
+      },
+      {
+        key: 'duration',
+        label: {
+          en: 'Length (video, audio)',
+          zh: '时长（视频、音频）',
+          fr: 'Durée (vidéo, audio)',
+        },
+        kind: 'choice',
+        options: [
+          { value: 'any', label: ANY },
+          { value: 'longer', label: { en: 'Longer than', zh: '长于', fr: 'Plus de' } },
+          { value: 'shorter', label: { en: 'Shorter than', zh: '短于', fr: 'Moins de' } },
+        ],
+      },
+      {
+        key: 'seconds',
+        label: { en: 'Seconds', zh: '秒数', fr: 'Secondes' },
+        kind: 'number',
+        min: 1,
+        max: 86400,
+        step: 1,
+        showIf: { key: 'duration', equals: ['longer', 'shorter'] },
+      },
+      {
+        key: 'whenEmpty',
+        label: { en: 'If none are left', zh: '一个都不剩时', fr: 'S’il ne reste rien' },
+        kind: 'choice',
+        options: [
+          {
+            value: 'stop',
+            label: { en: 'Stop and say so', zh: '停下并说明', fr: 'Arrêter et le signaler' },
+          },
+          {
+            value: 'skip',
+            label: { en: 'Keep all files', zh: '不筛，全部保留', fr: 'Garder tous les fichiers' },
+          },
+        ],
+      },
+    ],
+    presets: [
+      {
+        id: 'last-7-days',
+        label: { en: 'Last 7 days', zh: '最近 7 天', fr: '7 derniers jours' },
+        values: { ...NO_FILTER, date: 'lastDays', days: 7 },
+      },
+      {
+        id: 'larger-10',
+        label: { en: 'Larger than 10 MB', zh: '大于 10 MB', fr: 'Plus de 10 Mo' },
+        values: { ...NO_FILTER, size: 'larger', sizeMB: 10 },
+      },
+      {
+        id: 'landscape',
+        label: { en: 'Landscape photos', zh: '横的照片', fr: 'Photos paysage' },
+        values: { ...NO_FILTER, kind: 'images', orientation: 'landscape' },
+      },
+    ],
     requires: [],
   },
   {

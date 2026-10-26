@@ -3534,6 +3534,58 @@ const EXPERIENCE_CASES: readonly EvalCase[] = [
     },
   },
 ];
+// ---- 条件、分组和文字加工（D-242 起）：只给真实模型跑 ----
+const MODULE_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'FL1',
+    input: '新建一个快捷操作：选照片，只要最近 7 天拍的，打包成 ZIP',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.photos', 'file.filter', 'zip.create'],
+        (steps) =>
+          param('file.filter', 'date', 'lastDays')(steps) ?? param('file.filter', 'days', 7)(steps),
+      ),
+    },
+  },
+  {
+    id: 'FL2',
+    input: 'Make a quick action: choose files, skip anything over 10 MB, then share them',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.files', 'file.filter', 'out.share'],
+        (steps) =>
+          param('file.filter', 'size', 'smaller')(steps) ??
+          param('file.filter', 'sizeMB', 10)(steps),
+      ),
+    },
+  },
+  {
+    id: 'FL3',
+    input:
+      'Crée une action rapide : choisir des photos, garder seulement celles de ce mois-ci en paysage, puis les partager',
+    locale: 'fr',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.photos', 'file.filter', 'out.share'],
+        (steps) =>
+          param('file.filter', 'period', 'thisMonth')(steps) ??
+          param('file.filter', 'orientation', 'landscape')(steps),
+      ),
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,
@@ -3568,6 +3620,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...FORMAT_EVAL_CASES,
   ...RECORD_EVAL_CASES,
   ...DRAFT_CHAT_EVAL_CASES,
+  ...MODULE_EVAL_CASES,
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };

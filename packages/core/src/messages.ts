@@ -1574,6 +1574,12 @@ export const strings = {
   },
   recordDiscard: { en: 'Discard', zh: '不要了', fr: 'Supprimer' },
   recordKeep: { en: 'Keep recording', zh: '继续录', fr: 'Continuer l’enregistrement' },
+  // 按条件筛选（D-242）
+  runError_noneMatched: {
+    en: 'None of the {count} files meet the conditions of “Keep only some files”.',
+    zh: '{count} 个文件都不满足「按条件筛选」的条件。',
+    fr: 'Aucun des {count} fichiers ne remplit les conditions de « Filtrer les fichiers ».',
+  },
 } satisfies Record<string, Localized>;
 
 export const extractedMessages = {
@@ -3471,6 +3477,11 @@ const SINGULAR_MESSAGES: Partial<Record<StringKey, Localized>> = {
     zh: '最多 {v0} 个文件',
     fr: 'Maximum {v0} fichier',
   },
+  runError_noneMatched: {
+    en: 'The file doesn’t meet the conditions of “Keep only some files”.',
+    zh: '这个文件不满足「按条件筛选」的条件。',
+    fr: 'Le fichier ne remplit pas les conditions de « Filtrer les fichiers ».',
+  },
 };
 
 /** 哪个参数决定单复数（默认是 n）。 */
@@ -3497,6 +3508,7 @@ const PLURAL_COUNT_VARIABLE: Partial<Record<StringKey, string>> = {
   io_taken_af2cf: 'v0',
   WorkflowsScreen_Needs_at_least_files_0ed9b: 'v0',
   WorkflowsScreen_Takes_at_most_files_0fe59: 'v0',
+  runError_noneMatched: 'count',
 };
 
 /**

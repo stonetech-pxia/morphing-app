@@ -320,6 +320,8 @@ export const expoFilePlatform: FilePlatform = {
       name: a.name,
       size: a.size ?? null,
       mimeType: a.mimeType ?? null,
+      // 按日期筛选用（D-242）；有的提供方给 0，当作没有。
+      ...(a.lastModified > 0 ? { modifiedAt: a.lastModified } : {}),
     }));
   },
 

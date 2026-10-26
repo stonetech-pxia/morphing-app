@@ -10,7 +10,10 @@ import {
   sanitizeFileName,
   shareFitsInput,
   uniqueFileName,
+  fileFilterNeeds,
+  filterFiles,
   type ActionImpl,
+  type FileFilter,
   type FileValueType,
   type RunItem,
 } from '@morph/core';
@@ -19,6 +22,7 @@ import type { PickedFile } from '../platform';
 import {
   baseName,
   checkSizes,
+  displayName,
   extOf,
   fileItems,
   freshName,
@@ -107,6 +111,7 @@ async function importPicked(
       ...(f.width ? { width: f.width } : {}),
       ...(f.height ? { height: f.height } : {}),
       ...(f.takenAt !== undefined ? { takenAt: f.takenAt } : {}),
+      ...(f.modifiedAt !== undefined ? { modifiedAt: f.modifiedAt } : {}),
       ...(f.straightened ? { straightened: true } : {}),
       ...(f.durationMs ? { durationMs: f.durationMs } : {}),
     });
@@ -371,6 +376,40 @@ export const IO_IMPLS: Record<string, Impl> = {
     return { ...input!, items: order.map((i) => items[i]!) } as typeof input & {
       items: RunItem[];
     };
+  },
+
+  // D-242：按固定条件筛选。方向要宽高、时长要时长：选择器没给时先在本机读出来（只在这次运行里用）。
+  async 'file.filter'(input, params, ctx) {
+    const items = fileItems(input);
+    const filter = params as unknown as FileFilter;
+    const needs = fileFilterNeeds(filter);
+    const known: RunItem[] = [];
+    for (const [i, item] of items.entries()) {
+      ctx.throwIfCancelled();
+      let next = item;
+      const kind = mediaKindOf(item.mimeType, displayName(item));
+      if (needs.dimensions && kind === 'image' && !(item.width && item.height)) {
+        try {
+          next = { ...next, ...(await ctx.services.files.imageSize(item.uri)) };
+        } catch {
+          // 读不到尺寸：不满足方向条件。
+        }
+      }
+      const media = ctx.services.files.media;
+      if (needs.duration && (kind === 'video' || kind === 'audio') && !item.durationMs && media) {
+        try {
+          next = { ...next, durationMs: (await media.probe(item.uri)).durationMs };
+        } catch {
+          // 读不到时长：不满足时长条件。
+        }
+      }
+      known.push(next);
+      ctx.progress(i + 1, items.length);
+    }
+    const kept = filterFiles(known, filter, ctx.now());
+    if (kept.length > 0) return { ...input!, items: kept } as typeof input & { items: RunItem[] };
+    if (filter.whenEmpty === 'skip') return input!;
+    throw new RunError('noneMatched', { count: items.length });
   },
 
   async 'file.addExisting'(input, params, ctx) {
