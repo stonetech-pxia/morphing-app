@@ -224,6 +224,9 @@ export class FakeFiles implements FilePlatform {
     return { path, size: bytes.length };
   }
   async readBytes(path: string) {
+    // 真机上 readBytes 读的是「文档」目录里的相对路径；运行目录在缓存里、要用 readUri 读。
+    if (path.startsWith('runs/') || path.includes(':'))
+      throw new Error(`not a document path: ${path}`);
     const bytes = this.disk.get(path);
     if (!bytes) throw new Error('missing');
     return bytes;
@@ -257,7 +260,9 @@ export class FakeFiles implements FilePlatform {
     return { uri: dest, size: bytes.length };
   }
   async readUri(uri: string) {
-    return this.readBytes(uri);
+    const bytes = this.disk.get(uri);
+    if (!bytes) throw new Error('missing');
+    return bytes;
   }
   async removeRun(runId: string) {
     for (const key of [...this.disk.keys()]) {
@@ -280,7 +285,7 @@ export class FakeFiles implements FilePlatform {
     for (const key of [...this.disk.keys()]) if (key.startsWith('picker://')) this.disk.delete(key);
   }
   async saveRunFile(uri: string, assetId: string, name: string) {
-    return this.writeBytes(assetId, name, await this.readBytes(uri));
+    return this.writeBytes(assetId, name, await this.readUri(uri));
   }
   /** 每次打开分享面板带了哪些文件。 */
   shareSheets: string[][] = [];
@@ -314,7 +319,7 @@ export class FakeFiles implements FilePlatform {
     const files = this.folders.get(folder) ?? new Map<string, Uint8Array>();
     this.folders.set(folder, files);
     for (const item of items) {
-      files.set(`${item.name}.${item.ext}`, await this.readBytes(item.uri));
+      files.set(`${item.name}.${item.ext}`, await this.readUri(item.uri));
     }
     return { saved: items.length, folder };
   }
