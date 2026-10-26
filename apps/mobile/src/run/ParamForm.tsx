@@ -53,26 +53,42 @@ export function ParamForm({
   /** 「字段」参数从这张表里选（工作流里前面「读取记录」步骤的表）。 */
   collection?: Collection | undefined;
 }) {
-  const set = (key: string, value: unknown) => onChange({ ...values, [key]: value });
   // 运行时询问时也给常用规格，只填被问到的参数。
-  const presets = (action.presets ?? [])
-    .map((p) => ({
-      ...p,
-      values: only
-        ? Object.fromEntries(Object.entries(p.values).filter(([k]) => only.includes(k)))
-        : p.values,
-    }))
-    .filter((p, i, all) => {
-      const keys = Object.keys(p.values);
-      // 只剩一个选项参数时，按钮和下面的选项重复，不显示。
-      const sameAsChoice =
-        keys.length === 1 && action.fields.find((f) => f.key === keys[0])?.kind === 'choice';
-      return (
-        keys.length > 0 &&
-        !sameAsChoice &&
-        all.findIndex((q) => JSON.stringify(q.values) === JSON.stringify(p.values)) === i
-      );
-    });
+  const shown = visibleFields(action, values, only);
+  const all = (action.presets ?? []).map((p) => ({
+    ...p,
+    values: only
+      ? Object.fromEntries(Object.entries(p.values).filter(([k]) => only.includes(k)))
+      : p.values,
+  }));
+  // 和下面某个选项同名、设的就是那个选项的规格（例如证件照规格）：按钮和选项重复，不显示；
+  // 改由选那个选项时一起填上规格里的其他参数（证件照的大小上限）。
+  const choiceFor = (p: (typeof all)[number]) =>
+    shown.find(
+      (f) =>
+        f.kind === 'choice' &&
+        f.key in p.values &&
+        f.options?.some(
+          (o) =>
+            o.value === p.values[f.key] && localize(o.label, locale) === localize(p.label, locale),
+        ),
+    );
+  const presets = all.filter((p, i) => {
+    const keys = Object.keys(p.values);
+    // 只剩一个选项参数时，按钮和下面的选项重复，不显示。
+    const sameAsChoice =
+      keys.length === 1 && action.fields.find((f) => f.key === keys[0])?.kind === 'choice';
+    return (
+      keys.length > 0 &&
+      !sameAsChoice &&
+      !choiceFor(p) &&
+      all.findIndex((q) => JSON.stringify(q.values) === JSON.stringify(p.values)) === i
+    );
+  });
+  const set = (key: string, value: unknown) => {
+    const preset = all.find((p) => p.values[key] === value && choiceFor(p)?.key === key);
+    onChange({ ...values, ...preset?.values, [key]: value });
+  };
   return (
     <View style={styles.form}>
       {presets.length > 0 ? (
@@ -89,7 +105,7 @@ export function ParamForm({
           ))}
         </View>
       ) : null}
-      {visibleFields(action, values, only).map((field) => (
+      {shown.map((field) => (
         <View key={field.key} style={styles.field}>
           {hideLabels ? null : (
             <Text style={[palette.font('bodyBold', 14), { color: palette.text }]}>
