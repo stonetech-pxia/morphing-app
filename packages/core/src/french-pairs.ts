@@ -9,6 +9,7 @@ export const FRENCH_PAIRS: Readonly<Record<string, string>> = {
   choice: 'choix unique',
   rating: 'note',
   attachment: 'pièce jointe',
+  'link to another table': 'lien vers un autre tableau',
   formula: 'formule',
   'the default fonts (Sora + Karla)': 'la police par défaut (Sora + Karla)',
   'the system font': 'la police du système',

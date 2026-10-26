@@ -6,7 +6,7 @@ import { isEmoji, unsafeLinks } from './richtext';
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 修改本文件中会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
 
-export const CURRENT_SCHEMA_VERSION = 14;
+export const CURRENT_SCHEMA_VERSION = 15;
 
 export type Locale = 'en' | 'zh' | 'fr';
 export type Localized = Record<Locale, string>;
@@ -166,6 +166,8 @@ export const FieldSchema = z.discriminatedUnion('type', [
   }),
   // D-187：附件，值是 Morph 里一个文件的 ID（快捷操作「记一笔」存进来的收据、照片等）。
   z.strictObject({ ...fieldBase, type: z.literal('file') }),
+  // D-250：引用另一张表（也可以是自己）的一条记录；值是那条记录的 ID，列表里显示它的标题字段。
+  z.strictObject({ ...fieldBase, type: z.literal('link'), collectionId: IdSchema }),
   // D-188：公式，由同一张表的数字、金额、评分字段算出来（只有四则运算），不存进记录、不能填。
   z.strictObject({
     id: IdSchema,

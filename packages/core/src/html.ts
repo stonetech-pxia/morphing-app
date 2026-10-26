@@ -6,6 +6,7 @@ import {
   formatNumber,
   formatRef,
   type DataRecord,
+  type LinkResolver,
 } from './data';
 import type { Collection, Locale } from './schema';
 
@@ -74,6 +75,8 @@ export interface RecordsHtmlOptions {
   pageSize: PageSize;
   locale: Locale;
   now: Date;
+  /** 引用字段显示被引用记录的标题（D-250）。 */
+  links?: LinkResolver;
 }
 
 /** 记录 → HTML。receipt 在表格下面合计第一个金额（没有就数字）字段。 */
@@ -96,7 +99,8 @@ export function recordsToHtml(
     const f = fieldOf(collection, ref);
     return f?.type === 'money' || f?.type === 'number';
   };
-  const cell = (r: DataRecord, ref: string) => escapeHtml(formatRef(r, collection, ref, locale));
+  const cell = (r: DataRecord, ref: string) =>
+    escapeHtml(formatRef(r, collection, ref, locale, opts.links));
   const date = `${opts.now.getFullYear()}-${String(opts.now.getMonth() + 1).padStart(2, '0')}-${String(opts.now.getDate()).padStart(2, '0')}`;
   const header = `<header><h1>${escapeHtml(opts.title || collection.name)}</h1>
 <div class="meta">${escapeHtml(collection.name)} · ${t(locale, 'html_records_3f794', { v0: records.length })} · ${date}</div></header>`;

@@ -126,6 +126,7 @@ const FIELD_TYPE_NAMES: Record<string, [string, string]> = {
   rating: ['评分', 'rating'],
   file: ['附件', 'attachment'],
   formula: ['公式', 'formula'],
+  link: ['引用', 'link to another table'],
 };
 
 type ThemeTokenKey = Exclude<keyof Theme, 'primaryColor' | 'mode' | 'colors' | 'darkColors'>;

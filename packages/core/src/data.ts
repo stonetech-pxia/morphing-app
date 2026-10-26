@@ -98,6 +98,7 @@ export function readValue(field: Field, raw: unknown): FieldValue | undefined {
     case 'choice':
       return typeof raw === 'string' && field.options.some((o) => o.id === raw) ? raw : undefined;
     case 'file':
+    case 'link':
       return typeof raw === 'string' && FILE_ID.test(raw) ? raw : undefined;
     case 'formula':
       // 公式不存值（D-188），由 recordValue 现算。
@@ -197,6 +198,7 @@ function coerce(field: Field, input: unknown): Coerced {
         ? { value: input }
         : { issue: 'invalid' };
     case 'file':
+    case 'link':
       return typeof input === 'string' && FILE_ID.test(input)
         ? { value: input }
         : { issue: 'invalid' };
@@ -447,8 +449,69 @@ export function formatNumber(n: number, decimals?: number, locale: Locale = 'en'
   return groupThousands(n, Number.isInteger(n) ? 0 : Math.min(4, String(n).split('.')[1]!.length));
 }
 
-/** 字段值的显示文字；值无效或为空时返回空字符串。公式字段请用 formatRef（要整条记录才能算）。 */
-export function formatValue(field: Field, raw: unknown, locale: Locale): string {
+/**
+ * 引用字段（D-250）指向的那条记录的标题；那条记录已经删掉（或那张表的记录还没读出来）时为 null。
+ * 由 App 按已经读到的记录提供（makeLinkResolver）；没有时引用字段显示为空。
+ */
+export type LinkResolver = (collectionId: string, recordId: string) => string | null;
+
+/** 一张表在引用里显示哪个字段：第一个文字字段，没有就是第一个长文本、单选、数字、金额或日期字段。 */
+export function linkTitleField(collection: Collection): Field | undefined {
+  const order = ['text', 'note', 'choice', 'number', 'money', 'date'];
+  for (const type of order) {
+    const f = collection.fields.find((x) => x.type === type);
+    if (f) return f;
+  }
+  return undefined;
+}
+
+/** 一条记录作为被引用的一方时显示的标题（没有可显示的字段时用创建时间）。 */
+export function linkTitle(record: DataRecord, collection: Collection, locale: Locale): string {
+  const field = linkTitleField(collection);
+  const title = field ? formatValue(field, record.values[field.id], locale) : '';
+  return title || formatTimestamp(record.createdAt, locale);
+}
+
+/** 按读到的记录（表 ID → 没删的记录）查引用的标题。 */
+export function makeLinkResolver(
+  collections: readonly Collection[],
+  records: ReadonlyMap<string, readonly DataRecord[]>,
+  locale: Locale,
+): LinkResolver {
+  return (collectionId, recordId) => {
+    const collection = collections.find((c) => c.id === collectionId);
+    const record = records.get(collectionId)?.find((r) => r.id === recordId);
+    return collection && record ? linkTitle(record, collection, locale) : null;
+  };
+}
+
+/** 读出被引用的表的记录（listRecords 只给没删的），做成查标题的函数。列表、导出 CSV、生成 PDF 共用。 */
+export async function loadLinkResolver(
+  listRecords: (collectionId: string) => Promise<DataRecord[]>,
+  collections: readonly Collection[],
+  targets: readonly string[],
+  locale: Locale,
+): Promise<LinkResolver> {
+  const records = new Map<string, DataRecord[]>();
+  for (const id of targets) records.set(id, await listRecords(id));
+  return makeLinkResolver(collections, records, locale);
+}
+
+/** 一张表的引用字段指向哪些表（读记录时要连它们一起读）。 */
+export const linkedCollectionIds = (collection: Collection): string[] => [
+  ...new Set(collection.fields.flatMap((f) => (f.type === 'link' ? [f.collectionId] : []))),
+];
+
+/**
+ * 字段值的显示文字；值无效或为空时返回空字符串。公式字段请用 formatRef（要整条记录才能算）。
+ * 引用字段要 links 才能显示标题；被引用的记录删掉了时显示「已删除的记录」（D-250）。
+ */
+export function formatValue(
+  field: Field,
+  raw: unknown,
+  locale: Locale,
+  links?: LinkResolver,
+): string {
   const value =
     field.type === 'formula' ? (typeof raw === 'number' ? raw : undefined) : readValue(field, raw);
   if (value === undefined) return '';
@@ -459,6 +522,8 @@ export function formatValue(field: Field, raw: unknown, locale: Locale): string 
         : `${formatNumber(value as number, field.decimals, locale)}${field.unit ? ` ${field.unit}` : ''}`;
     case 'file':
       return t(locale, 'data_Attachment_6f6cf');
+    case 'link':
+      return links ? (links(field.collectionId, value as string) ?? t(locale, 'linkDeleted')) : '';
     case 'money':
       return formatMoney(value as number, field.currency, locale);
     case 'number':
@@ -494,12 +559,13 @@ export function formatRef(
   collection: Collection,
   ref: string,
   locale: Locale,
+  links?: LinkResolver,
 ): string {
   if (isSystemField(ref)) return formatTimestamp(record[ref], locale);
   const field = fieldOf(collection, ref);
   if (field?.type === 'formula')
     return formatValue(field, recordValue(record, collection, ref), locale);
-  return field ? formatValue(field, record.values[ref], locale) : '';
+  return field ? formatValue(field, record.values[ref], locale, links) : '';
 }
 
 const csvCell = (s: string) => (/[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
@@ -509,6 +575,7 @@ export function recordsToCsv(
   collection: Collection,
   records: readonly DataRecord[],
   locale: Locale,
+  links?: LinkResolver,
 ): string {
   const header = [...collection.fields.map((f) => f.name), t(locale, 'data_Created_1626a')];
   const rows = records.map((r) => [
@@ -517,7 +584,7 @@ export function recordsToCsv(
       if (v === undefined) return '';
       if (f.type === 'money') return (v as number).toFixed(2);
       if (f.type === 'number' || f.type === 'rating' || f.type === 'formula') return String(v);
-      return formatValue(f, v, locale);
+      return formatValue(f, v, locale, links);
     }),
     formatTimestamp(r.createdAt, locale),
   ]);

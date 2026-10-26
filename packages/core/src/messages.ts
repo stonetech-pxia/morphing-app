@@ -1601,6 +1601,17 @@ export const strings = {
   },
   chartPoint: { en: '{label}: {value}', zh: '{label}：{value}', fr: '{label} : {value}' },
   chartShare: { en: '{value} ({percent})', zh: '{value}（{percent}）', fr: '{value} ({percent})' },
+  // 表和表之间引用（D-250）
+  linkDeleted: { en: 'Deleted entry', zh: '已删除的记录', fr: 'Entrée supprimée' },
+  linkNone: { en: 'Not linked', zh: '没有选', fr: 'Aucun lien' },
+  linkChoose: { en: 'Choose…', zh: '选一条…', fr: 'Choisir…' },
+  linkSearch: { en: 'Search', zh: '搜索', fr: 'Rechercher' },
+  linkClear: { en: 'Remove link', zh: '不选了', fr: 'Retirer le lien' },
+  linkEmptyTable: {
+    en: '“{name}” has no entries yet.',
+    zh: '「{name}」里还没有记录。',
+    fr: '« {name} » ne contient encore aucune entrée.',
+  },
 } satisfies Record<string, Localized>;
 
 export const extractedMessages = {

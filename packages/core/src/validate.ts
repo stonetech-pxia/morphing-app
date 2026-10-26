@@ -147,6 +147,10 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
           issue('data', `${collection.id}.${field.id}: ${problem}`);
         continue;
       }
+      // D-250：引用的表要存在。
+      if (field.type === 'link' && !config.collections.some((c) => c.id === field.collectionId)) {
+        issue('data', `${collection.id}.${field.id}: links to missing table ${field.collectionId}`);
+      }
       if (field.type !== 'choice') continue;
       for (const id of duplicates(field.options.map((o) => o.id))) {
         issue('duplicate', `option ${id} in ${collection.id}.${field.id}`);
@@ -300,7 +304,11 @@ function dataComponentProblems(c: Component, config: WorkspaceConfig): string[] 
       } else if (c.props.checkField !== undefined) {
         ref(c.props.checkField, 'checkField');
       }
-      if (c.props.sort) ref(c.props.sort.field, 'sort field');
+      if (c.props.sort) {
+        ref(c.props.sort.field, 'sort field');
+        if (field(c.props.sort.field)?.type === 'link')
+          problems.push(`can't sort by the link field ${c.props.sort.field}`);
+      }
       problems.push(...conditionProblems(c.props.filter, collection));
       break;
     }
@@ -367,6 +375,11 @@ function conditionProblems(conditions: Condition[] | undefined, collection: Coll
     const type = system ? 'date' : f!.type;
     const v = cond.value;
     const where = `filter on ${cond.field}`;
+    // 引用字段只能看有没有选（D-250）：记录 ID 对 AI 和用户都没有意义。
+    if (type === 'link' && cond.op !== 'isEmpty' && cond.op !== 'isNotEmpty') {
+      problems.push(`${where}: a link field can only be filtered with isEmpty or isNotEmpty`);
+      continue;
+    }
     switch (cond.op) {
       case 'isEmpty':
       case 'isNotEmpty':

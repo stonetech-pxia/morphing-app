@@ -3,6 +3,8 @@ import {
   RECORD_LIMITS,
   formatRef,
   formatTimestamp,
+  linkedCollectionIds,
+  loadLinkResolver,
   recordsToCsv,
   type Collection,
 } from '@morph/core';
@@ -81,9 +83,16 @@ export default function DataRoute() {
   async function exportCsv(collection: Collection) {
     const records = await repo.listRecords(collection.id);
     records.sort((a, b) => a.createdAt - b.createdAt);
+    // 引用字段导出被引用记录的标题（D-250）。
+    const links = await loadLinkResolver(
+      (id) => repo.listRecords(id),
+      config.collections,
+      linkedCollectionIds(collection),
+      locale,
+    );
     await files.shareText(
       `${collection.name}.csv`,
-      recordsToCsv(collection, records, locale),
+      recordsToCsv(collection, records, locale, links),
       'text/csv',
     );
   }

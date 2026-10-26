@@ -1,9 +1,12 @@
 import {
   RECORD_LIMITS,
+  linkedCollectionIds,
+  loadLinkResolver,
   prepareRecordValues,
   type Collection,
   type DataRecord,
   type FieldIssue,
+  type LinkResolver,
 } from '@morph/core';
 import { useEffect, useState } from 'react';
 
@@ -27,6 +30,33 @@ export function useRecords(collectionId: string): DataRecord[] | null {
     };
   }, [repo, collectionId, version]);
   return records;
+}
+
+/**
+ * 引用字段（D-250）显示被引用记录的标题：读出这张表引用的那些表的记录（没删的），增删改后刷新。
+ * 被引用的记录删掉了就查不到，显示「已删除的记录」；恢复后又能查到。
+ */
+export function useLinkResolver(collection: Collection | undefined): LinkResolver | undefined {
+  const { repo, locale } = useWorkspaceContext();
+  const version = useWorkspace((s) => s.recordsVersion);
+  const collections = useWorkspace((s) => s.config?.collections);
+  const targets = collection ? linkedCollectionIds(collection).join(',') : '';
+  // 记下是为哪几张表读的：表换了以后旧的不再用。
+  const [loaded, setLoaded] = useState<{ targets: string; resolver: LinkResolver } | null>(null);
+  useEffect(() => {
+    if (!targets || !collections) return;
+    let alive = true;
+    void loadLinkResolver(
+      (id) => repo.listRecords(id),
+      collections,
+      targets.split(','),
+      locale,
+    ).then((resolver) => alive && setLoaded({ targets, resolver }));
+    return () => {
+      alive = false;
+    };
+  }, [repo, collections, targets, locale, version]);
+  return loaded && loaded.targets === targets ? loaded.resolver : undefined;
 }
 
 export type SaveResult =

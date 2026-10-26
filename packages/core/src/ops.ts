@@ -673,6 +673,19 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
     }
     case 'removeCollection': {
       getCollection(config, op.collectionId);
+      // D-250：别的表还引用它时不能移除，先移除那些引用字段（避免引用字段指向不存在的表）。
+      const linking = config.collections.flatMap((c) =>
+        c.id === op.collectionId
+          ? []
+          : c.fields
+              .filter((f) => f.type === 'link' && f.collectionId === op.collectionId)
+              .map((f) => `${c.id}.${f.id}`),
+      );
+      if (linking.length > 0) {
+        throw new OpError(
+          `table ${op.collectionId} is linked from ${linking.join(', ')}; remove those fields (and the components that show them) first`,
+        );
+      }
       config.collections = config.collections.filter((c) => c.id !== op.collectionId);
       const count = removeEverywhere(config, (c) => componentCollection(c) === op.collectionId);
       if (count > 0) {

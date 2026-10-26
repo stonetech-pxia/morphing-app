@@ -190,3 +190,121 @@ describe('chart (D-249)', () => {
     expect(screen.queryByTestId('chart-point-0')).toBeNull();
   });
 });
+
+describe('link to another table (D-250)', () => {
+  const clients: Collection = {
+    id: 'clients',
+    name: '客户',
+    fields: [{ id: 'name', name: '名字', type: 'text' }],
+  };
+  const orders: Collection = {
+    id: 'orders',
+    name: '订单',
+    fields: [
+      { id: 'item', name: '商品', type: 'text' },
+      { id: 'client', name: '客户', type: 'link', collectionId: 'clients' },
+    ],
+  };
+  const seed = (locale: Locale, registry: Registry) => {
+    const result = applyOps(
+      createDefaultWorkspace(locale),
+      [
+        { op: 'addCollection', collection: clients },
+        { op: 'addCollection', collection: orders },
+        {
+          op: 'addComponent',
+          pageId: 'home',
+          component: {
+            id: 'order-list',
+            type: 'recordList',
+            props: {
+              collectionId: 'orders',
+              display: 'list',
+              titleField: 'item',
+              subtitleFields: ['client'],
+              limit: 20,
+            },
+          },
+        },
+        {
+          op: 'addComponent',
+          pageId: 'home',
+          component: {
+            id: 'add-order',
+            type: 'recordForm',
+            props: {
+              collectionId: 'orders',
+              fieldIds: ['item', 'client'],
+              submitLabel: '记下',
+              mode: 'inline',
+            },
+          },
+        },
+      ],
+      { registry, locale },
+    );
+    if (!result.ok) throw new Error(result.error);
+    return result.config;
+  };
+
+  it('lists the linked client by name, says when it was deleted, and shows it again after undo', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    await repo.insertRecord({
+      id: 'c1',
+      collectionId: 'clients',
+      values: { name: '王小明' },
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await repo.insertRecord({
+      id: 'o1',
+      collectionId: 'orders',
+      values: { item: '书', client: 'c1' },
+      createdAt: 2,
+      updatedAt: 2,
+    });
+    const { store } = await renderToolsApp(repo, undefined, { seed });
+    expect(await screen.findByText('王小明')).toBeTruthy();
+
+    await repo.deleteRecord('c1', 3);
+    store.getState().bumpRecords();
+    expect(await screen.findByText('已删除的记录')).toBeTruthy();
+    // 订单里的引用还在，恢复客户后又能看到名字。
+    expect((await repo.listRecords('orders'))[0]!.values.client).toBe('c1');
+    await repo.restoreRecord('c1');
+    store.getState().bumpRecords();
+    expect(await screen.findByText('王小明')).toBeTruthy();
+  });
+
+  it('the form picks a client from the other table and stores only its id', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    await repo.insertRecord({
+      id: 'c1',
+      collectionId: 'clients',
+      values: { name: '王小明' },
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await repo.insertRecord({
+      id: 'c2',
+      collectionId: 'clients',
+      values: { name: '李华' },
+      createdAt: 2,
+      updatedAt: 2,
+    });
+    await renderToolsApp(repo, undefined, { seed });
+    await fireEvent.changeText(await screen.findByTestId('form-add-order-item'), '茶叶');
+    await fireEvent.press(screen.getByTestId('form-add-order-client'));
+    await fireEvent.press(await screen.findByTestId('form-add-order-client-option-c2'));
+    await fireEvent.press(screen.getByTestId('form-add-order-submit'));
+    const saved = await repo.listRecords('orders');
+    expect(saved.map((r) => r.values)).toEqual([{ item: '茶叶', client: 'c2' }]);
+    expect(await screen.findByText('李华')).toBeTruthy();
+  });
+
+  it('with an empty client table the picker says so', async () => {
+    await renderToolsApp(new MemoryWorkspaceRepo(), undefined, { seed });
+    await fireEvent.press(await screen.findByTestId('form-add-order-client'));
+    expect(await screen.findByText('「客户」里还没有记录。')).toBeTruthy();
+  });
+});

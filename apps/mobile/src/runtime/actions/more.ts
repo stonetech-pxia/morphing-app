@@ -5,6 +5,8 @@ import {
   RunError,
   extractText,
   groupItems,
+  linkedCollectionIds,
+  loadLinkResolver,
   replaceText,
   splitOrJoinLines,
   tidyText,
@@ -123,7 +125,15 @@ export const MORE_IMPLS: Record<string, Impl> = {
     const collection = ctx.services.collections.find((c) => c.id === input.collectionId);
     if (!collection) throw new RunError('notFound', { name: input.name });
     const pageSize = params.pageSize as PageSize;
+    // 引用字段印出被引用记录的标题（D-250）。
+    const links = await loadLinkResolver(
+      (id) => ctx.services.repo.listRecords(id),
+      ctx.services.collections,
+      linkedCollectionIds(collection),
+      ctx.locale,
+    );
     const html = recordsToHtml(collection, input.records, {
+      links,
       template: params.template as RecordTemplate,
       title: String(params.title ?? ''),
       fields: (params.fields as string[] | undefined) ?? [],

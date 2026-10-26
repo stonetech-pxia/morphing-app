@@ -6,6 +6,7 @@ import {
   formatRef,
   formatValue,
   groupedAggregate,
+  linkTitle,
   localDate,
   prepareRecordValues,
   readValue,
@@ -22,9 +23,9 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
-import { useRecordActions, useRecords } from '../data/records';
+import { useLinkResolver, useRecordActions, useRecords } from '../data/records';
 import type { AssetRecord } from '../storage/types';
-import { useWorkspaceContext } from '../workspace/context';
+import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { t } from '../i18n';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
@@ -179,6 +180,18 @@ export function FieldInput({
     case 'formula':
       // 公式不能填，由 FieldsForm 显示算出来的值（D-188）。
       return null;
+    case 'link':
+      return (
+        <LinkInput
+          field={field}
+          value={value}
+          onChange={onChange}
+          palette={palette}
+          locale={locale}
+          disabled={disabled}
+          testID={testID}
+        />
+      );
     case 'rating':
       return (
         <View style={styles.chips}>
@@ -261,6 +274,147 @@ function AttachmentInput({
           {t(locale, 'removeAttachment')}
         </Text>
       </Pressable>
+    </View>
+  );
+}
+
+/** 选一条记录时最多列出几条（按最近修改排序，可以搜索）。 */
+const LINK_LIST_LIMIT = 30;
+
+/**
+ * 引用字段（D-250）：显示选中的那条记录的标题；点开后列出被引用的表里的记录（可以搜索标题），点一条选它。
+ * 被引用的记录删掉了显示「已删除的记录」，可以换一条或不选。
+ */
+function LinkInput({
+  field,
+  value,
+  onChange,
+  palette,
+  locale,
+  disabled,
+  testID,
+}: {
+  field: Extract<Field, { type: 'link' }>;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  palette: Palette;
+  locale: RenderEnv['locale'];
+  disabled?: boolean | undefined;
+  testID: string;
+}) {
+  const target = useWorkspace((s) =>
+    s.config?.collections.find((c) => c.id === field.collectionId),
+  );
+  const records = useRecords(field.collectionId);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  if (!target) return null;
+  const chosen = typeof value === 'string' && value ? value : null;
+  const chosenRecord = chosen ? records?.find((r) => r.id === chosen) : undefined;
+  const shown = chosen
+    ? chosenRecord
+      ? linkTitle(chosenRecord, target, locale)
+      : records === null
+        ? ''
+        : t(locale, 'linkDeleted')
+    : t(locale, 'linkNone');
+  const matches = (records ?? [])
+    .map((r) => ({ r, title: linkTitle(r, target, locale) }))
+    .filter(({ title }) => title.toLowerCase().includes(query.trim().toLowerCase()))
+    .sort((a, b) => b.r.updatedAt - a.r.updatedAt)
+    .slice(0, LINK_LIST_LIMIT);
+  const row = [styles.dateRow, styles.attachment];
+  return (
+    <View style={styles.fields}>
+      <Pressable
+        testID={testID}
+        disabled={disabled}
+        onPress={() => setOpen(!open)}
+        style={[
+          styles.input,
+          ...row,
+          {
+            borderColor: palette.border,
+            borderRadius: palette.controlRadius,
+            backgroundColor: palette.surface,
+          },
+        ]}>
+        <Icon name="link" size={18} color={palette.secondary} />
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.flex,
+            palette.font('bodyMedium', 15),
+            { color: chosen ? palette.text : palette.caption },
+          ]}>
+          {shown}
+        </Text>
+        <Text style={[palette.font('bodyBold', 13), { color: palette.primaryText }]}>
+          {t(locale, 'linkChoose')}
+        </Text>
+      </Pressable>
+      {open ? (
+        <View style={styles.fields}>
+          {(records?.length ?? 0) > 8 ? (
+            <TextInput
+              testID={`${testID}-search`}
+              value={query}
+              onChangeText={setQuery}
+              placeholder={t(locale, 'linkSearch')}
+              placeholderTextColor={palette.caption}
+              style={[
+                styles.input,
+                palette.font('body', 15),
+                {
+                  color: palette.text,
+                  borderColor: palette.border,
+                  borderRadius: palette.controlRadius,
+                },
+              ]}
+            />
+          ) : null}
+          {records !== null && records.length === 0 ? (
+            <Text style={[palette.font('body', 14), { color: palette.caption }]}>
+              {t(locale, 'linkEmptyTable', { name: target.name })}
+            </Text>
+          ) : null}
+          {matches.map(({ r, title }) => (
+            <Pressable
+              key={r.id}
+              testID={`${testID}-option-${r.id}`}
+              onPress={() => {
+                onChange(r.id);
+                setOpen(false);
+              }}
+              style={[
+                styles.chip,
+                { borderColor: palette.border },
+                chosen === r.id && {
+                  borderColor: palette.primary,
+                  backgroundColor: palette.primaryTint,
+                },
+              ]}>
+              <Text
+                numberOfLines={1}
+                style={[palette.font('bodyMedium', 14), { color: palette.text }]}>
+                {title}
+              </Text>
+            </Pressable>
+          ))}
+          {chosen ? (
+            <Pressable
+              testID={`${testID}-clear`}
+              onPress={() => {
+                onChange('');
+                setOpen(false);
+              }}>
+              <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
+                {t(locale, 'linkClear')}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -386,6 +540,7 @@ export function RecordList({
   const collection = useCollection(env, props.collectionId);
   const records = useRecords(props.collectionId);
   const actions = useRecordActions();
+  const links = useLinkResolver(collection);
   if (!collection) return null;
   const shown = sortRecords(
     filterRecords(records ?? [], collection, props.filter, new Date()),
@@ -404,13 +559,13 @@ export function RecordList({
   }
 
   const row = (r: DataRecord, index: number) => {
-    const title = formatRef(r, collection, props.titleField, locale) || '—';
+    const title = formatRef(r, collection, props.titleField, locale, links) || '—';
     const subtitle = (props.subtitleFields ?? [])
-      .map((f) => formatRef(r, collection, f, locale))
+      .map((f) => formatRef(r, collection, f, locale, links))
       .filter(Boolean)
       .join(' · ');
     const trailing = props.trailingField
-      ? formatRef(r, collection, props.trailingField, locale)
+      ? formatRef(r, collection, props.trailingField, locale, links)
       : '';
     const checked = props.checkField ? r.values[props.checkField] === true : false;
     const body = (

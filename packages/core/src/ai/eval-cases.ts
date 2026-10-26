@@ -3768,6 +3768,22 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
           : 'expected a pie chart grouped by a choice field',
     },
   },
+  {
+    id: 'LK1',
+    input: '新建一张「客户」表（名字、电话），给记账表加一个字段，选这笔账是哪个客户的',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const link = c.collections.flatMap((x) => x.fields).find((f) => f.type === 'link');
+        return link?.type === 'link' && c.collections.some((x) => x.id === link.collectionId)
+          ? null
+          : 'expected a link field pointing at the new clients table';
+      },
+    },
+  },
 ];
 
 export const EVAL_CASES: readonly EvalCase[] = [
