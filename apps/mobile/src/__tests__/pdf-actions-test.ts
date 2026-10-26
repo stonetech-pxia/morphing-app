@@ -235,7 +235,8 @@ describe('PDF tool workflows', () => {
     );
     const doc = await PDFDocument.create();
     doc.addPage();
-    const bytes = await doc.save();
+    // 不用对象流保存才有 trailer 字典（默认是交叉引用流，下面的替换会落空）。
+    const bytes = await doc.save({ useObjectStreams: false });
     // 在 trailer 里加一个 /Encrypt 引用，pdf-lib 会把它当作加密文件。
     const text = new TextDecoder('latin1')
       .decode(bytes)
