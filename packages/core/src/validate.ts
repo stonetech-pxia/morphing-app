@@ -1,4 +1,4 @@
-import { parseFormula } from './formula';
+import { formulaType, parseFormula } from './formula';
 import type { Registry } from './registry';
 import {
   HOME_PAGE_ID,
@@ -250,7 +250,10 @@ function recordStepProblems(
 
 const NUMERIC = ['number', 'money', 'rating', 'formula'];
 
-/** 公式（D-188）：能解析，引用的字段都在这张表里，而且是数字、金额或评分（不引用别的公式）。 */
+/**
+ * 公式（D-188）：能解析，引用的字段都在这张表里，而且是数字、金额、评分或日期（不引用别的公式）；
+ * 日期只能用在 days() 和比较里，结果是数字（D-247）。
+ */
 function formulaProblems(expression: string, collection: Collection): string[] {
   const parsed = parseFormula(expression);
   if (!parsed.ok) return [`formula "${expression}": ${parsed.error}`];
@@ -258,10 +261,18 @@ function formulaProblems(expression: string, collection: Collection): string[] {
   for (const id of parsed.refs) {
     const ref = collection.fields.find((f) => f.id === id);
     if (!ref) problems.push(`formula uses ${id}, which is not a field of ${collection.id}`);
-    else if (!['number', 'money', 'rating'].includes(ref.type))
-      problems.push(`formula uses ${id}, which is not a number, money or rating field`);
+    else if (!['number', 'money', 'rating', 'date'].includes(ref.type))
+      problems.push(`formula uses ${id}, which is not a number, money, rating or date field`);
   }
-  return problems;
+  if (problems.length > 0) return problems;
+  const type = formulaType(parsed.node, (id) => {
+    const ref = collection.fields.find((f) => f.id === id);
+    return ref?.type === 'date' ? 'date' : 'number';
+  });
+  if (typeof type !== 'string') return [`formula "${expression}": ${type.error}`];
+  if (type !== 'number')
+    return [`formula "${expression}" gives a date; use days(from, to) to get a number`];
+  return [];
 }
 
 /** 数据组件引用的表、字段和筛选条件是否合法。 */

@@ -3690,6 +3690,24 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
       },
     },
   },
+  {
+    id: 'FM2',
+    input:
+      'Add a “Days left” formula to the budget table that counts the days from today until the date',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const formula = c.collections.flatMap((x) => x.fields).find((f) => f.type === 'formula');
+        return formula?.type === 'formula' &&
+          /days\(\s*today\s*,\s*\{[a-z0-9-]+\}\s*\)/.test(formula.expression)
+          ? null
+          : `expected days(today, {date}), got ${JSON.stringify(formula)}`;
+      },
+    },
+  },
 ];
 
 export const EVAL_CASES: readonly EvalCase[] = [

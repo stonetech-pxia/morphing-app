@@ -1,6 +1,6 @@
 import { localeTag } from './localization';
 import { t } from './messages';
-import { evaluateFormula, parseFormula, type FormulaNode } from './formula';
+import { dayNumber, evaluateFormula, parseFormula, type FormulaNode } from './formula';
 import type { Collection, Condition, Field, Locale, Period, SystemField } from './schema';
 
 // 用户数据（记录）的纯函数：写入校验、宽容读取、筛选、排序、统计、显示格式、CSV 导出。
@@ -119,32 +119,42 @@ function formulaNode(expression: string): FormulaNode | null {
   return node;
 }
 
-/** 公式字段在一条记录上的值：引用的字段都是数字时才有值，结果按字段的小数位（默认 2 位）取整。 */
+/**
+ * 公式字段在一条记录上的值：引用的字段都有值时才有值，结果按字段的小数位（默认 2 位）取整。
+ * 日期字段按天数算，today 是 now 那天（D-247）。
+ */
 function formulaValue(
   field: Extract<Field, { type: 'formula' }>,
   record: DataRecord,
   collection: Collection,
+  now: Date,
 ): number | undefined {
   const node = formulaNode(field.expression);
   if (!node) return undefined;
-  const value = evaluateFormula(node, (id) => {
-    const ref = fieldOf(collection, id);
-    if (!ref || ref.type === 'formula') return undefined;
-    const v = readValue(ref, record.values[id]);
-    return typeof v === 'number' ? v : undefined;
-  });
+  const value = evaluateFormula(
+    node,
+    (id) => {
+      const ref = fieldOf(collection, id);
+      if (!ref || ref.type === 'formula') return undefined;
+      const v = readValue(ref, record.values[id]);
+      if (ref.type === 'date') return typeof v === 'string' ? dayNumber(v) : undefined;
+      return typeof v === 'number' ? v : undefined;
+    },
+    dayNumber(localDate(now)),
+  );
   return value === undefined ? undefined : round(value, field.decimals ?? 2);
 }
 
-/** 记录上某个字段（包括系统字段）的值；系统字段的值是本地日期，公式现算。 */
+/** 记录上某个字段（包括系统字段）的值；系统字段的值是本地日期，公式现算（用到 today 时按 now 那天）。 */
 export function recordValue(
   record: DataRecord,
   collection: Collection,
   ref: string,
+  now: Date = new Date(),
 ): FieldValue | undefined {
   if (isSystemField(ref)) return localDate(new Date(record[ref]));
   const field = fieldOf(collection, ref);
-  if (field?.type === 'formula') return formulaValue(field, record, collection);
+  if (field?.type === 'formula') return formulaValue(field, record, collection, now);
   return field ? readValue(field, record.values[ref]) : undefined;
 }
 
@@ -256,7 +266,7 @@ export function matchesCondition(
   condition: Condition,
   now: Date,
 ): boolean {
-  const value = recordValue(record, collection, condition.field);
+  const value = recordValue(record, collection, condition.field, now);
   const target = condition.value;
   switch (condition.op) {
     case 'isEmpty':

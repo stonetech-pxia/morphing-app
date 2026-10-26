@@ -143,3 +143,96 @@ describe('if in a formula field', () => {
     expect(rejected.ok).toBe(false);
   });
 });
+
+describe('dates in formulas (D-247)', () => {
+  const collection = {
+    id: 'bills',
+    name: '账单',
+    fields: [
+      { id: 'due', name: '到期日', type: 'date' as const },
+      { id: 'paid', name: '付款日', type: 'date' as const },
+      { id: 'amount', name: '金额', type: 'money' as const, currency: 'CNY' },
+      {
+        id: 'left',
+        name: '还剩几天',
+        type: 'formula' as const,
+        expression: 'days(today, {due})',
+        decimals: 0,
+        unit: '天',
+      },
+      {
+        id: 'late',
+        name: '滞纳金',
+        type: 'formula' as const,
+        expression: 'if({paid} > {due}, days({due}, {paid}) * 5, 0)',
+      },
+    ],
+  };
+  const record = (values: Record<string, unknown>) => ({
+    id: 'r',
+    collectionId: 'bills',
+    values,
+    createdAt: 0,
+    updatedAt: 0,
+  });
+
+  it('counts the days left until a date, as of the given day', () => {
+    const r = record({ due: '2026-11-01' });
+    expect(recordValue(r, collection, 'left', new Date(2026, 9, 22, 23, 30))).toBe(10);
+    // 跨过夏令时切换（欧洲 10 月 25 日）也是整天数。
+    expect(recordValue(r, collection, 'left', new Date(2026, 9, 31))).toBe(1);
+    expect(
+      recordValue(record({ due: '2026-10-01' }), collection, 'left', new Date(2026, 9, 22)),
+    ).toBe(-21);
+  });
+
+  it('compares two dates and multiplies the days between them', () => {
+    const now = new Date(2026, 9, 22);
+    expect(
+      recordValue(record({ due: '2026-10-10', paid: '2026-10-13' }), collection, 'late', now),
+    ).toBe(15);
+    expect(
+      recordValue(record({ due: '2026-10-10', paid: '2026-10-09' }), collection, 'late', now),
+    ).toBe(0);
+  });
+
+  it('has no value when a date field is empty', () => {
+    const now = new Date(2026, 9, 22);
+    expect(recordValue(record({}), collection, 'left', now)).toBeUndefined();
+    expect(recordValue(record({ due: '2026-10-10' }), collection, 'late', now)).toBeUndefined();
+  });
+
+  it('a date can only go into days() or a comparison, and the result must be a number', () => {
+    const ctx = { registry, locale: 'zh' as const, now: new Date(2026, 9, 22) };
+    const withFormula = (expression: string) =>
+      prepareOps(
+        createDefaultWorkspace('zh'),
+        [
+          {
+            op: 'addCollection',
+            collection: {
+              ...collection,
+              fields: [
+                ...collection.fields.slice(0, 3),
+                { id: 'f', name: 'f', type: 'formula', expression },
+              ],
+            },
+          },
+        ],
+        ctx,
+      ).ok;
+    expect(withFormula('days(today, {due})')).toBe(true);
+    expect(withFormula('if({due} < today, 1, 0) * {amount}')).toBe(true);
+    for (const bad of [
+      '{due} + 1',
+      '{due} - {paid}',
+      'days({amount}, {due})',
+      'if({due} > 3, 1, 0)',
+      'if({amount} > 3, {due}, 0)',
+      'today',
+      '-{due}',
+    ]) {
+      expect(withFormula(bad), bad).toBe(false);
+    }
+  });
+});
