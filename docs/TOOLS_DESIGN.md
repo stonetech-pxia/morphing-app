@@ -407,3 +407,5 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
 | `duration` + `seconds`                 | 视频、音频长于 / 短于 N 秒；没有时长时用 `media.probe` 读                               |
 
 读不到的信息算不满足。一个都不剩时 `whenEmpty`：`stop` 报 `noneMatched`，`skip` 原样交给下一步。只是这次运行不用，从不删除文件。纯逻辑 `core/file-filter.ts`（Node 测试），App 实现在 `runtime/actions/io.ts`。
+
+**分组后各出一份**（D-243）：不加「对每组执行」的循环，而是在「把一批文件变成文件」的三个动作上加 `group`：`pdf.fromImages`、`pdf.merge`、`zip.create`。`group`：`none`（默认，一份）、`count` + `groupSize`（按原来的顺序每 N 个一份）、`day` / `month`（按拍摄时间，没有时用修改时间；组按日期排，读不到日期的放最后「没有日期」）。输出仍是普通的文件数组，名字是日期或这一组第一个文件的名字，后面接 `file.rename {sourceName}`、分享、存到文件夹都照常。纯逻辑 `core/grouping.ts`。

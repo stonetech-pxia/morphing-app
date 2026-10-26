@@ -3537,7 +3537,7 @@ const EXPERIENCE_CASES: readonly EvalCase[] = [
 // ---- 条件、分组和文字加工（D-242 起）：只给真实模型跑 ----
 const MODULE_EVAL_CASES: readonly EvalCase[] = [
   {
-    id: 'FL1',
+    id: 'FX1',
     input: '新建一个快捷操作：选照片，只要最近 7 天拍的，打包成 ZIP',
     locale: 'zh',
     setup: 'default',
@@ -3552,7 +3552,7 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     },
   },
   {
-    id: 'FL2',
+    id: 'FX2',
     input: 'Make a quick action: choose files, skip anything over 10 MB, then share them',
     locale: 'en',
     setup: 'default',
@@ -3568,7 +3568,7 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     },
   },
   {
-    id: 'FL3',
+    id: 'FX3',
     input:
       'Crée une action rapide : choisir des photos, garder seulement celles de ce mois-ci en paysage, puis les partager',
     locale: 'fr',
@@ -3581,6 +3581,33 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
         (steps) =>
           param('file.filter', 'period', 'thisMonth')(steps) ??
           param('file.filter', 'orientation', 'landscape')(steps),
+      ),
+    },
+  },
+  {
+    id: 'GR1',
+    input: '新建一个快捷操作：选照片，按拍摄日期每天做成一个 PDF',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.photos', 'pdf.fromImages'], param('pdf.fromImages', 'group', 'day')),
+    },
+  },
+  {
+    id: 'GR2',
+    input: 'Make a quick action that zips my files, 10 per ZIP',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.files', 'zip.create'],
+        (steps) =>
+          param('zip.create', 'group', 'count')(steps) ??
+          param('zip.create', 'groupSize', 10)(steps),
       ),
     },
   },

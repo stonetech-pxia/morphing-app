@@ -1,6 +1,7 @@
 import { t, pairText } from '../messages';
 import { z } from 'zod';
 
+import { GROUP_FIELDS, groupNeedsSize, groupParams } from '../grouping';
 import { RECORD_TEMPLATES } from '../html';
 import type { ToolDefinition } from '../registry';
 import type { IconName, Locale, Workflow } from '../schema';
@@ -74,14 +75,14 @@ export const ZIP_ACTIONS: readonly ActionDefinition[] = [
     id: 'zip.create',
     label: { en: 'Make a ZIP', zh: '打包成 ZIP', fr: 'Créer un ZIP' },
     description: {
-      en: 'Put all the files into one ZIP archive (photos are stored as they are; documents are compressed).',
-      zh: '把所有文件打包成一个 ZIP（照片原样存入，文档会压缩）。',
-      fr: 'Place tous les fichiers dans une seule archive ZIP (les photos sont conservées telles quelles ; les documents sont compressés).',
+      en: 'Put all the files into one ZIP archive (photos are stored as they are; documents are compressed). group makes one ZIP per group instead: "count" every groupSize files, "day" / "month" by the date taken (or modified).',
+      zh: '把所有文件打包成一个 ZIP（照片原样存入，文档会压缩）。group 改成每组一个 ZIP：count 每 groupSize 个一组，day / month 按拍摄（或修改）日期每天 / 每月一组。',
+      fr: 'Place tous les fichiers dans une seule archive ZIP (les photos sont conservées telles quelles ; les documents sont compressés). group crée plutôt une archive par groupe : « count » tous les groupSize fichiers, « day » / « month » selon la date de prise de vue (ou de modification).',
     },
     input: ['files'],
     output: 'zip',
-    params: z.strictObject({}),
-    fields: [],
+    params: z.strictObject(groupParams).refine(groupNeedsSize, { message: 'groupSize is missing' }),
+    fields: GROUP_FIELDS,
     requires: [],
   },
   {

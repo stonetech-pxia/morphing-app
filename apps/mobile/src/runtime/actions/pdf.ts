@@ -1,4 +1,13 @@
-import { RunCancelled, RunError, fixCjkRadicals, type ActionImpl, type RunItem } from '@morph/core';
+import {
+  RunCancelled,
+  RunError,
+  fixCjkRadicals,
+  groupItems,
+  t,
+  type ActionImpl,
+  type GroupRule,
+  type RunItem,
+} from '@morph/core';
 import { searchSharedQuality } from '@morph/tool-image';
 import {
   PdfError,
@@ -228,91 +237,145 @@ export async function renderPages(
   return out;
 }
 
-export const PDF_IMPLS: Record<string, Impl> = {
-  async 'pdf.merge'(input, params, ctx) {
-    const items = fileItems(input);
-    const allPdf = items.every((i) => !isImage(i));
-    const inputs: DocumentInput[] = [];
+/** 分组（D-243）：不分组时是一组，名字是第一个文件的名字（和以前一样）。 */
+function groupsOf(input: Parameters<Impl>[0], params: Record<string, unknown>, ctx: Ctx) {
+  return groupItems(
+    fileItems(input),
+    params.group as GroupRule | undefined,
+    params.groupSize as number | undefined,
+    t(ctx.locale, 'groupUndated'),
+  );
+}
+
+/** 一组 PDF 和图片按顺序合成一个 PDF。 */
+async function mergeGroup(
+  ctx: Ctx,
+  items: RunItem[],
+  params: Record<string, unknown>,
+  name: string,
+): Promise<RunItem> {
+  const allPdf = items.every((i) => !isImage(i));
+  const inputs: DocumentInput[] = [];
+  for (const [i, item] of items.entries()) {
+    ctx.throwIfCancelled();
+    if (isImage(item)) {
+      const image = await imageBytes(ctx, item);
+      inputs.push({ name: fileName(item), ...image });
+    } else {
+      inputs.push({
+        name: fileName(item),
+        bytes: await readItem(ctx.services, item),
+        kind: 'pdf' as const,
+      });
+    }
+    ctx.progress(i + 1, items.length);
+  }
+  const pageOpts: ImagePageOptions = {
+    pageSize: (params.imagePage as ImagePageOptions['pageSize'] | undefined) ?? 'a4',
+    orientation: 'auto',
+    marginMm: 0,
+    fit: 'contain',
+  };
+  const result = await guard('', () =>
+    // 只有 PDF 时沿用原来的合并（至少 2 个）。
+    allPdf ? mergePdfs(inputs) : mergeDocuments(inputs, pageOpts),
+  );
+  return writePdf(ctx, result.bytes, name);
+}
+
+/** 一组图片排成一个 PDF；大小上限对这一个 PDF 算（D-073）。 */
+async function imagesPdf(
+  ctx: Ctx,
+  items: RunItem[],
+  params: Record<string, unknown>,
+  name: string,
+): Promise<RunItem> {
+  const { maxMB, textLayer, ...rest } = params as unknown as ImagePageOptions & {
+    maxMB: number;
+    textLayer?: boolean;
+  };
+  const {
+    group: _group,
+    groupSize: _size,
+    ...page
+  } = rest as ImagePageOptions & {
+    group?: string;
+    groupSize?: number;
+  };
+  let images: ImageInput[] = [];
+  if (maxMB > 0) {
+    // 「PDF ≤ X MB」：所有图片共用一个质量和缩放，生成前按总大小搜索（D-073）。
+    const target = maxMB * MB;
+    const result = await searchSharedQuality({
+      targetBytes: target,
+      overheadBytes: 2048 + items.length * 1024,
+      maxQuality: 0.9,
+      encodeAll: async (quality, scale) => {
+        ctx.throwIfCancelled();
+        images = [];
+        for (const item of items) images.push(await imageBytes(ctx, item, quality, scale));
+        return images.reduce((sum, i) => sum + i.bytes.length, 0);
+      },
+    });
+    if (!result.met) {
+      throw new RunError('targetNotMet', {
+        name: 'PDF',
+        target: formatBytes(target, ctx.locale),
+        got: formatBytes(result.bytes, ctx.locale),
+      });
+    }
+  } else {
     for (const [i, item] of items.entries()) {
       ctx.throwIfCancelled();
-      if (isImage(item)) {
-        const image = await imageBytes(ctx, item);
-        inputs.push({ name: fileName(item), ...image });
-      } else {
-        inputs.push({
-          name: fileName(item),
-          bytes: await readItem(ctx.services, item),
-          kind: 'pdf' as const,
-        });
+      images.push(await imageBytes(ctx, item));
+      ctx.progress(i + 1, items.length);
+    }
+  }
+  // 能搜索的 PDF（D-195）：每页识别文字和位置。没有系统自带的识别（Expo Go）时不加；某一页识别失败只是那页不加。
+  const vision = textLayer ? ctx.services.files.vision : null;
+  if (vision) {
+    for (const [i, item] of items.entries()) {
+      ctx.throwIfCancelled();
+      try {
+        images[i] = {
+          ...images[i]!,
+          text: await vision.recognizeLines(item.uri, TEXT_LAYER_LANGUAGES),
+        };
+      } catch {
+        // 这一页不加文字层。
       }
       ctx.progress(i + 1, items.length);
     }
-    const pageOpts: ImagePageOptions = {
-      pageSize: (params.imagePage as ImagePageOptions['pageSize'] | undefined) ?? 'a4',
-      orientation: 'auto',
-      marginMm: 0,
-      fit: 'contain',
-    };
-    const result = await guard('', () =>
-      // 只有 PDF 时沿用原来的合并（至少 2 个）。
-      allPdf ? mergePdfs(inputs) : mergeDocuments(inputs, pageOpts),
-    );
-    return { type: 'pdf', items: [await writePdf(ctx, result.bytes, items[0]!.name)] };
+  }
+  const result = await guard('', () => imagesToPdf(images, page));
+  return writePdf(ctx, result.bytes, name);
+}
+
+export const PDF_IMPLS: Record<string, Impl> = {
+  async 'pdf.merge'(input, params, ctx) {
+    // D-243：分组时每组合成一个 PDF；分出来只有一个 PDF 的组原样留着（合并至少要 2 个，不分组时照旧报错）。
+    const grouped = params.group !== undefined && params.group !== 'none';
+    const out: RunItem[] = [];
+    for (const group of groupsOf(input, params, ctx)) {
+      ctx.throwIfCancelled();
+      const only = group.items[0]!;
+      if (grouped && group.items.length === 1 && !isImage(only)) {
+        const pages = await guard(fileName(only), async () =>
+          pageInfo(await readItem(ctx.services, only)),
+        );
+        out.push({ ...only, name: group.name, pageCount: pages.length });
+      } else out.push(await mergeGroup(ctx, group.items, params, group.name));
+    }
+    return { type: 'pdf', items: out };
   },
 
   async 'pdf.fromImages'(input, params, ctx) {
-    const items = fileItems(input);
-    const { maxMB, textLayer, ...page } = params as unknown as ImagePageOptions & {
-      maxMB: number;
-      textLayer?: boolean;
-    };
-    let images: ImageInput[] = [];
-    if (maxMB > 0) {
-      // 「PDF ≤ X MB」：所有图片共用一个质量和缩放，生成前按总大小搜索（D-073）。
-      const target = maxMB * MB;
-      const result = await searchSharedQuality({
-        targetBytes: target,
-        overheadBytes: 2048 + items.length * 1024,
-        maxQuality: 0.9,
-        encodeAll: async (quality, scale) => {
-          ctx.throwIfCancelled();
-          images = [];
-          for (const item of items) images.push(await imageBytes(ctx, item, quality, scale));
-          return images.reduce((sum, i) => sum + i.bytes.length, 0);
-        },
-      });
-      if (!result.met) {
-        throw new RunError('targetNotMet', {
-          name: 'PDF',
-          target: formatBytes(target, ctx.locale),
-          got: formatBytes(result.bytes, ctx.locale),
-        });
-      }
-    } else {
-      for (const [i, item] of items.entries()) {
-        ctx.throwIfCancelled();
-        images.push(await imageBytes(ctx, item));
-        ctx.progress(i + 1, items.length);
-      }
+    const out: RunItem[] = [];
+    for (const group of groupsOf(input, params, ctx)) {
+      ctx.throwIfCancelled();
+      out.push(await imagesPdf(ctx, group.items, params, group.name));
     }
-    // 能搜索的 PDF（D-195）：每页识别文字和位置。没有系统自带的识别（Expo Go）时不加；某一页识别失败只是那页不加。
-    const vision = textLayer ? ctx.services.files.vision : null;
-    if (vision) {
-      for (const [i, item] of items.entries()) {
-        ctx.throwIfCancelled();
-        try {
-          images[i] = {
-            ...images[i]!,
-            text: await vision.recognizeLines(item.uri, TEXT_LAYER_LANGUAGES),
-          };
-        } catch {
-          // 这一页不加文字层。
-        }
-        ctx.progress(i + 1, items.length);
-      }
-    }
-    const result = await guard('', () => imagesToPdf(images, page));
-    return { type: 'pdf', items: [await writePdf(ctx, result.bytes, items[0]!.name)] };
+    return { type: 'pdf', items: out };
   },
 
   async 'pdf.pages'(input, _params, ctx) {

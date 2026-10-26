@@ -1580,6 +1580,8 @@ export const strings = {
     zh: '{count} 个文件都不满足「按条件筛选」的条件。',
     fr: 'Aucun des {count} fichiers ne remplit les conditions de « Filtrer les fichiers ».',
   },
+  // 分组后各出一份（D-243）
+  groupUndated: { en: 'No date', zh: '没有日期', fr: 'Sans date' },
 } satisfies Record<string, Localized>;
 
 export const extractedMessages = {

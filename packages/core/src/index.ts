@@ -12,6 +12,7 @@ export * from './change';
 export * from './data';
 export * from './defaults';
 export * from './file-filter';
+export * from './grouping';
 export * from './describe';
 export * from './habits';
 export * from './home-entry';

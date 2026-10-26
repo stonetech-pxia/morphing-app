@@ -1,6 +1,7 @@
 import { t, pairText } from '../messages';
 import { z } from 'zod';
 
+import { GROUP_FIELDS, groupNeedsSize, groupParams } from '../grouping';
 import type { ToolDefinition } from '../registry';
 import type { Locale, Workflow } from '../schema';
 import type { ActionDefinition, ParamField } from '../workflow/contract';
@@ -137,14 +138,16 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
     id: 'pdf.merge',
     label: { en: 'Merge in order', zh: '按顺序合并', fr: 'Fusionner dans l’ordre' },
     description: {
-      en: 'Merge PDFs and images into one PDF, in the order they were chosen. Each image becomes a page.',
-      zh: '把 PDF 和图片按选择顺序合并成一个 PDF，每张图片占一页。',
-      fr: 'Fusionnez des PDF et des images en un seul PDF, dans l’ordre de sélection. Chaque image devient une page.',
+      en: 'Merge PDFs and images into one PDF, in the order they were chosen. Each image becomes a page. group splits the files first and makes one PDF per group: "count" every groupSize files, "day" / "month" by the date taken (or modified).',
+      zh: '把 PDF 和图片按选择顺序合并成一个 PDF，每张图片占一页。group 先分组、每组合成一个 PDF：count 每 groupSize 个一组，day / month 按拍摄（或修改）日期每天 / 每月一组。',
+      fr: 'Fusionnez des PDF et des images en un seul PDF, dans l’ordre de sélection. Chaque image devient une page. group répartit d’abord les fichiers et crée un PDF par groupe : « count » tous les groupSize fichiers, « day » / « month » selon la date de prise de vue (ou de modification).',
     },
     input: ['files'],
     rejects: ['video', 'audio'],
     output: 'pdf',
-    params: z.strictObject({ imagePage: z.enum(['a4', 'letter', 'fit']).optional() }),
+    params: z
+      .strictObject({ imagePage: z.enum(['a4', 'letter', 'fit']).optional(), ...groupParams })
+      .refine(groupNeedsSize, { message: 'groupSize is missing' }),
     fields: [
       {
         key: 'imagePage',
@@ -156,6 +159,7 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
           { value: 'fit', label: { en: 'Same as image', zh: '跟随图片', fr: 'Comme l’image' } },
         ],
       },
+      ...GROUP_FIELDS,
     ],
     requires: [],
   },
@@ -163,21 +167,25 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
     id: 'pdf.fromImages',
     label: { en: 'Images to PDF', zh: '图片转 PDF', fr: 'Images en PDF' },
     description: {
-      en: 'Put the images into one PDF (A4, Letter or the image size) with optional margins. Max size (MB) makes the PDF smaller by compressing the images; 0 = no limit. textLayer recognises the text on the device and adds it invisibly, so the PDF can be searched and copied from (Latin-script languages; needs the built-in text recognition).',
-      zh: '把图片排成一个 PDF（A4、Letter 或跟随图片），可设边距。「不超过」会压缩图片让 PDF 小于这个大小，0 表示不限。textLayer 在本机识别文字，加一层看不见的字，PDF 就能搜索、复制文字（拉丁字母的语言；要有系统自带的文字识别）。',
-      fr: 'Assemblez les images en un seul PDF (A4, Letter ou taille de l’image), avec des marges facultatives. « Taille max (Mo) » réduit la taille des images pour que le PDF soit plus petit ; 0 = pas de limite. textLayer reconnaît le texte sur l’appareil et l’ajoute de façon invisible, pour que le PDF puisse être recherché et copié (langues à alphabet latin ; nécessite la reconnaissance de texte intégrée).',
+      en: 'Put the images into one PDF (A4, Letter or the image size) with optional margins. Max size (MB) makes the PDF smaller by compressing the images; 0 = no limit. textLayer recognises the text on the device and adds it invisibly, so the PDF can be searched and copied from (Latin-script languages; needs the built-in text recognition). group makes one PDF per group instead: "count" every groupSize images, "day" / "month" by the date taken; max size then applies to each PDF.',
+      zh: '把图片排成一个 PDF（A4、Letter 或跟随图片），可设边距。「不超过」会压缩图片让 PDF 小于这个大小，0 表示不限。textLayer 在本机识别文字，加一层看不见的字，PDF 就能搜索、复制文字（拉丁字母的语言；要有系统自带的文字识别）。group 改成每组一个 PDF：count 每 groupSize 张一组，day / month 按拍摄日期每天 / 每月一组；「不超过」对每个 PDF 分别算。',
+      fr: 'Assemblez les images en un seul PDF (A4, Letter ou taille de l’image), avec des marges facultatives. « Taille max (Mo) » réduit la taille des images pour que le PDF soit plus petit ; 0 = pas de limite. textLayer reconnaît le texte sur l’appareil et l’ajoute de façon invisible, pour que le PDF puisse être recherché et copié (langues à alphabet latin ; nécessite la reconnaissance de texte intégrée). group crée plutôt un PDF par groupe : « count » toutes les groupSize images, « day » / « month » selon la date de prise de vue ; la taille max s’applique alors à chaque PDF.',
     },
     input: ['images'],
     output: 'pdf',
-    params: z.strictObject({
-      pageSize: z.enum(['a4', 'letter', 'fit']),
-      orientation: z.enum(['auto', 'portrait', 'landscape']),
-      marginMm: z.number().min(0).max(30),
-      fit: z.enum(['contain', 'cover']),
-      maxMB: z.number().min(0).max(100),
-      /** D-195：能搜索、复制文字（旧配置没有这个参数时当作关）。 */
-      textLayer: z.boolean().optional(),
-    }),
+    params: z
+      .strictObject({
+        pageSize: z.enum(['a4', 'letter', 'fit']),
+        orientation: z.enum(['auto', 'portrait', 'landscape']),
+        marginMm: z.number().min(0).max(30),
+        fit: z.enum(['contain', 'cover']),
+        maxMB: z.number().min(0).max(100),
+        /** D-195：能搜索、复制文字（旧配置没有这个参数时当作关）。 */
+        textLayer: z.boolean().optional(),
+        /** D-243：每组一个 PDF。 */
+        ...groupParams,
+      })
+      .refine(groupNeedsSize, { message: 'groupSize is missing' }),
     fields: [
       ...imagePageFields,
       {
@@ -194,6 +202,7 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
         label: { en: 'Searchable text', zh: '能搜索、复制文字', fr: 'Texte consultable' },
         kind: 'toggle',
       },
+      ...GROUP_FIELDS,
     ],
     presets: [
       {

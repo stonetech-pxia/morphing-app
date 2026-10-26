@@ -3,12 +3,14 @@ import {
   FILE_LIMITS,
   PAGE_POINTS,
   RunError,
+  groupItems,
   localDate,
   periodRange,
   recordsToHtml,
   sortRecords,
   textToHtml,
   type ActionImpl,
+  type GroupRule,
   type PageSize,
   type Period,
   type RecordTemplate,
@@ -150,7 +152,7 @@ export const MORE_IMPLS: Record<string, Impl> = {
     return value;
   },
 
-  async 'zip.create'(input, _params, ctx) {
+  async 'zip.create'(input, params, ctx) {
     const items = fileItems(input);
     // fflate 在内存里打包：视频和音频也按 P-006 的 50 MB 算，不能用 MEDIA_LIMITS（D-142）。
     for (const item of items) {
@@ -161,24 +163,37 @@ export const MORE_IMPLS: Record<string, Impl> = {
         });
       }
     }
-    const entries = [];
-    for (const [i, item] of items.entries()) {
-      ctx.throwIfCancelled();
-      entries.push({ name: displayName(item), bytes: await readItem(ctx.services, item) });
-      ctx.progress(i + 1, items.length);
+    // D-243：分组时每组一个 ZIP，名字是这一组的名字（日期或第一个文件的名字）。
+    const groups = groupItems(
+      items,
+      params.group as GroupRule | undefined,
+      params.groupSize as number | undefined,
+      t(ctx.locale, 'groupUndated'),
+    );
+    const zips: RunItem[] = [];
+    let done = 0;
+    for (const group of groups) {
+      const entries = [];
+      for (const item of group.items) {
+        ctx.throwIfCancelled();
+        entries.push({ name: displayName(item), bytes: await readItem(ctx.services, item) });
+        ctx.progress(++done, items.length);
+      }
+      let bytes: Uint8Array;
+      try {
+        bytes = createZip(entries);
+      } catch (e) {
+        throw archiveError(e, group.items[0]!);
+      }
+      zips.push(
+        await writeItem(ctx.services, bytes, {
+          name: group.name,
+          ext: 'zip',
+          mimeType: 'application/zip',
+        }),
+      );
     }
-    let bytes: Uint8Array;
-    try {
-      bytes = createZip(entries);
-    } catch (e) {
-      throw archiveError(e, items[0]!);
-    }
-    const zip = await writeItem(ctx.services, bytes, {
-      name: items[0]!.name,
-      ext: 'zip',
-      mimeType: 'application/zip',
-    });
-    return { type: 'zip', items: [zip] };
+    return { type: 'zip', items: zips };
   },
 
   async 'zip.extract'(input, _params, ctx) {
