@@ -541,6 +541,60 @@ export const textTool = simpleTool({
   ],
 });
 
+// ---- AA 分摊（D-259）：输入每个人付了多少，本机算出谁给谁多少；不用 AI ----
+
+export const SPLIT_ACTIONS: readonly ActionDefinition[] = [
+  {
+    id: 'split.bill',
+    label: { en: 'Split the bill', zh: 'AA 分摊', fr: 'Partager l’addition' },
+    description: {
+      en: 'The user enters each person’s name and how much they paid, on the device; the result is who pays whom how much (fewest transfers, two decimals, the cents that don’t divide evenly say who pays them). Worked out on this device; AI never sees the names or amounts.',
+      zh: '用户在手机上填每个人的名字和付了多少钱；结果是谁该给谁多少（转账笔数尽量少，保留两位小数，除不尽的几分钱写明由谁多付）。只在本机计算，AI 看不到名字和金额。',
+      fr: 'L’utilisateur saisit sur l’appareil le nom de chaque personne et ce qu’elle a payé ; le résultat indique qui doit combien à qui (le moins de virements possible, deux décimales, les centimes qui ne se divisent pas indiquent qui les paie). Calcul sur cet appareil ; l’IA ne voit jamais les noms ni les montants.',
+    },
+    input: [],
+    output: 'text',
+    params: z.strictObject({}),
+    fields: [],
+    local: 'splitBill',
+    requires: [],
+  },
+];
+
+export const splitTool = simpleTool({
+  id: 'split',
+  version: '1.0.0',
+  name: ['Split the bill', 'AA 分摊'],
+  description: [
+    'Enter who paid how much and see who pays whom. Worked out on this device.',
+    '填上每个人付了多少，看谁该给谁多少。只在本机计算。',
+  ],
+  intro: [
+    'Names and amounts stay on this device; AI never sees them.',
+    '名字和金额只留在本机，AI 看不到。',
+  ],
+  icon: 'person',
+  aliases: [
+    'split the bill',
+    'split bill',
+    'aa',
+    'aa 分摊',
+    'aa制',
+    '分摊',
+    '平摊',
+    'partager l’addition',
+  ],
+  permissions: [],
+  actions: SPLIT_ACTIONS,
+  workflows: (locale) => [
+    {
+      id: 'split-bill',
+      name: t(locale, 'splitTitle'),
+      steps: [{ id: 'enter', action: 'split.bill', params: {} }],
+    },
+  ],
+});
+
 // ---- 用记录生成 PDF ----
 
 export const PRINT_ACTIONS: readonly ActionDefinition[] = [

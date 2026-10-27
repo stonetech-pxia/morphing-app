@@ -1,4 +1,4 @@
-import type { Collection, RunItem } from '@morph/core';
+import type { BillPerson, Collection, RunItem } from '@morph/core';
 import type { Quad } from '@morph/tool-image';
 
 import type { ImageAnnotation } from './annotations';
@@ -116,6 +116,8 @@ export interface LocalSteps {
     in: { name: string; wrong: boolean; index: number; total: number };
     out: { password: string } | { skip: true };
   };
+  /** AA 分摊（D-259）：填每个人的名字和付了多少。只在这一次运行里用，不保存、不发给 AI。 */
+  splitBill: { in: Record<string, never>; out: { people: BillPerson[] } };
 }
 
 export type LocalKind = keyof LocalSteps;

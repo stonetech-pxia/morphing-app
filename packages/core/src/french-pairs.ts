@@ -95,6 +95,11 @@ export const FRENCH_PAIRS: Readonly<Record<string, string>> = {
   'Make QR codes from text, and read QR codes in photos and screenshots, on this device.':
     'Créez des QR codes à partir de texte, et lisez les QR codes des photos et captures d’écran, sur cet appareil.',
   Text: 'Texte',
+  'Split the bill': 'Partager l’addition',
+  'Enter who paid how much and see who pays whom. Worked out on this device.':
+    'Saisissez qui a payé combien et voyez qui doit combien à qui. Calcul sur cet appareil.',
+  'Names and amounts stay on this device; AI never sees them.':
+    'Les noms et les montants restent sur cet appareil ; l’IA ne les voit jamais.',
   'Turn typed or pasted text into a PDF or a text file, on this device.':
     'Transformez le texte saisi ou collé en PDF ou en fichier texte, sur cet appareil.',
   'The text stays on this device.': 'Le texte reste sur cet appareil.',

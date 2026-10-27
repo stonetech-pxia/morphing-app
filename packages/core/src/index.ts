@@ -34,6 +34,7 @@ export * from './share';
 export * from './speech';
 export * from './templates';
 export * from './text-ops';
+export * from './split-bill';
 export * from './text-rules';
 export * from './theme';
 export * from './tools';

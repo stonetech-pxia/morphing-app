@@ -4050,6 +4050,30 @@ const INVOICE_CASES: readonly EvalCase[] = [
   },
 ];
 
+// AA 分摊（D-259）：加工具是改 App；替用户算出谁给谁多少是办事（D-113），指向这个工具。
+const SPLIT_CASES: readonly EvalCase[] = [
+  {
+    id: 'SPL1',
+    input: '加一个 AA 分摊的工具',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.tools.some((t) => t.toolId === 'split') ? null : 'the split tool should be added',
+    },
+  },
+  {
+    id: 'SPL2',
+    input: 'We were three at dinner, I paid 90 and Sam paid 30. Who owes whom?',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+];
+
 const RECORD_TABLE_CASES: readonly EvalCase[] = [
   {
     id: 'RT1',
@@ -4107,6 +4131,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...RECORD_TABLE_CASES,
   ...CLARIFY_CASES,
   ...INVOICE_CASES,
+  ...SPLIT_CASES,
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };

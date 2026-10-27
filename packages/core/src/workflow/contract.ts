@@ -46,6 +46,7 @@ export const LOCAL_STEP_KINDS = [
   'trimMedia',
   'frameMedia',
   'recordEntry',
+  'splitBill',
 ] as const;
 export type LocalStepKind = (typeof LOCAL_STEP_KINDS)[number];
 

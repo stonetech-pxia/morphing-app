@@ -13,6 +13,7 @@ import { RecordScreen } from './RecordScreen';
 import { RedactScreen } from './RedactScreen';
 import { ReorderScreen } from './ReorderScreen';
 import { SignScreen } from './SignScreen';
+import { SplitBillScreen } from './SplitBillScreen';
 import { FrameScreen } from './FrameScreen';
 import { TrimScreen } from './TrimScreen';
 
@@ -31,4 +32,5 @@ export const LOCAL_SCREENS: { [K in LocalKind]?: ComponentType<LocalScreenProps<
   record: RecordScreen,
   recordEntry: RecordEntryScreen,
   password: PasswordScreen,
+  splitBill: SplitBillScreen,
 };

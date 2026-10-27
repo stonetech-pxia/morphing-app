@@ -1,7 +1,7 @@
 import type { ToolDefinition } from '../registry';
 import { audioTool } from './audio';
 import { imageTool } from './image';
-import { printTool, qrTool, textTool, zipTool } from './more';
+import { printTool, qrTool, splitTool, textTool, zipTool } from './more';
 import { ocrTool } from './ocr';
 import { pdfTool } from './pdf';
 import { scanTool } from './scan';
@@ -30,4 +30,5 @@ export const BUILTIN_TOOLS: readonly ToolDefinition[] = [
   qrTool,
   textTool,
   printTool,
+  splitTool,
 ];

@@ -1335,6 +1335,64 @@ export const strings = {
   },
 
   // 功能和外观分开改（D-191）
+  // AA 分摊（D-259）：金额已经按界面语言排好两位小数；名字是用户自己填的。
+  splitSummary: {
+    en: 'Total {total}, {n} people, {share} each',
+    zh: '合计 {total}，{n} 人，每人 {share}',
+    fr: 'Total {total}, {n} personnes, {share} chacun',
+  },
+  splitRemainder: {
+    en: 'The {extra} left over is paid by {names} ({cent} each)',
+    zh: '除不尽的 {extra} 由 {names} 各多付 {cent}',
+    fr: 'Le reste de {extra} est payé par {names} ({cent} chacun)',
+  },
+  // 只有一个人多付时（余数就是 1 分）。
+  splitRemainderOne: {
+    en: 'The {extra} left over is paid by {names}',
+    zh: '除不尽的 {extra} 由 {names} 多付',
+    fr: 'Le reste de {extra} est payé par {names}',
+  },
+  splitTransfer: {
+    en: '{from} → {to}: {amount}',
+    zh: '{from} → {to}：{amount}',
+    fr: '{from} → {to} : {amount}',
+  },
+  splitNothingToPay: {
+    en: 'Everyone paid the same: no one needs to pay anyone.',
+    zh: '大家付的一样多，不用转账。',
+    fr: 'Tout le monde a payé la même chose : personne ne doit rien.',
+  },
+  splitTitle: { en: 'Split the bill', zh: 'AA 分摊', fr: 'Partager l’addition' },
+  splitIntro: {
+    en: 'Enter each person’s name and how much they paid (0 if nothing). It is worked out on this device.',
+    zh: '填上每个人的名字和付了多少钱（没付就填 0）。只在本机计算。',
+    fr: 'Saisissez le nom de chaque personne et ce qu’elle a payé (0 si rien). Le calcul se fait sur cet appareil.',
+  },
+  splitName: { en: 'Name', zh: '名字', fr: 'Nom' },
+  splitPaid: { en: 'Paid', zh: '付了多少', fr: 'Payé' },
+  splitAddPerson: { en: 'Add a person', zh: '添加一个人', fr: 'Ajouter une personne' },
+  splitRemovePerson: { en: 'Remove', zh: '移除', fr: 'Retirer' },
+  splitWorkOut: { en: 'Work it out', zh: '算一下', fr: 'Calculer' },
+  splitNeedTwo: {
+    en: 'Add at least two people.',
+    zh: '至少要两个人。',
+    fr: 'Ajoutez au moins deux personnes.',
+  },
+  splitNeedName: {
+    en: 'Every person needs a name.',
+    zh: '每个人都要填名字。',
+    fr: 'Chaque personne doit avoir un nom.',
+  },
+  splitSameName: {
+    en: 'Each name must be different: {name}',
+    zh: '名字不能重复：{name}',
+    fr: 'Chaque nom doit être différent : {name}',
+  },
+  splitBadAmount: {
+    en: 'Check the amount for “{name}”.',
+    zh: '「{name}」的金额不对。',
+    fr: 'Vérifiez le montant de « {name} ».',
+  },
   // 草稿里逐条移除改动（D-257）。
   draftRemove: { en: 'Remove', zh: '移除', fr: 'Retirer' },
   draftRemoveTogether: {
@@ -3442,6 +3500,11 @@ export const MESSAGES = { ...strings, ...extractedMessages, ...dynamicMessages }
 export type StringKey = keyof typeof MESSAGES;
 
 const SINGULAR_MESSAGES: Partial<Record<StringKey, Localized>> = {
+  splitSummary: {
+    en: 'Total {total}, {n} person, {share} each',
+    zh: '合计 {total}，{n} 人，每人 {share}',
+    fr: 'Total {total}, {n} personne, {share} chacun',
+  },
   shareSummary: {
     en: '{n} file',
     zh: '{n} 个文件',

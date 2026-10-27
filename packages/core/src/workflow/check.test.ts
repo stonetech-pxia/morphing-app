@@ -88,6 +88,8 @@ describe('types', () => {
       'in.text',
       'in.wifi',
       'in.records',
+      // AA 分摊（D-259）：自己就是第一步，在本地界面里填。
+      'split.bill',
     ]);
   });
 

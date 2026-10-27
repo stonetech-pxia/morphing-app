@@ -2,7 +2,10 @@ import {
   t,
   FILE_LIMITS,
   PAGE_POINTS,
+  RunCancelled,
   RunError,
+  settleBill,
+  settlementText,
   extractText,
   groupItems,
   linkedCollectionIds,
@@ -161,6 +164,17 @@ export const MORE_IMPLS: Record<string, Impl> = {
       mimeType: 'text/plain',
     });
     return { type: 'files', items: [item] };
+  },
+
+  // AA 分摊（D-259）：用户在本地界面填好，本机算出转账；名字和金额只在这一次运行里。
+  async 'split.bill'(_input, _params, ctx) {
+    const answer = await ctx.services.ui.open('splitBill', {});
+    if (!answer) throw new RunCancelled();
+    return {
+      type: 'text',
+      text: settlementText(settleBill(answer.people), ctx.locale),
+      name: t(ctx.locale, 'splitTitle'),
+    };
   },
 
   async 'text.copy'(input, _params, ctx) {
