@@ -15,6 +15,12 @@ describe('prompt baseline', () => {
     );
   });
 
+  it('numbers the rules 1..N, component rules included, without gaps', () => {
+    const section = buildSystemPrompt(registry).split('## Rules\n')[1]!.split('\n\n')[0]!;
+    const numbers = section.split('\n').map((line) => parseInt(line, 10));
+    expect(numbers).toEqual(numbers.map((_, i) => i + 1));
+  });
+
   for (const locale of ['en', 'zh', 'fr'] as Locale[]) {
     it(`user message in ${locale}`, async () => {
       const message = buildUserMessage(createDefaultWorkspace(locale), 'make it green', locale);

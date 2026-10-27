@@ -36,4 +36,11 @@ export const statComponent: ComponentDefinitionOf<'stat', typeof props> = define
   },
   describe: (c, _config, ctx) => t(ctx.locale, 'describe_stat_c1587', { v0: c.props.label }),
   edit: { text: [], style: ['tone'] },
+  ai: {
+    doc: '{collectionId, aggregate: "count"|"sum"|"avg"|"min"|"max", fieldId? (a number, money, rating or formula field; not needed for count), filter?, label, groupBy? (a choice field: one row per option, e.g. spending per category)}',
+    rule: {
+      n: 34,
+      text: 'Totals per category ("how much per category", "每个分类花了多少", "count of tasks by status") → a stat with groupBy set to that choice field (aggregate count, sum or avg as asked); it lists every option with its own value and a "not set" row for entries without one. Grouping by anything other than a choice field is not possible in a stat.',
+    },
+  },
 });

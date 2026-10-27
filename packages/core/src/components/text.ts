@@ -12,4 +12,5 @@ export const textComponent: ComponentDefinitionOf<'text', typeof props> = define
   props,
   describe: (_c, _config, ctx) => t(ctx.locale, 'describe_description_text_fccd4'),
   edit: { text: [{ prop: 'text', max: 1500, multiline: true, rich: true }], style: ALL_STYLES },
+  ai: { doc: '{text}: rich text (see below), up to 1500 characters' },
 });

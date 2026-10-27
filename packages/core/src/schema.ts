@@ -28,6 +28,7 @@ export {
   componentDefinition,
   componentRefs,
   type Component,
+  type ComponentAI,
   type ComponentDefinition,
   type ComponentEdit,
   type ComponentOf,

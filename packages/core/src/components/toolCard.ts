@@ -17,4 +17,5 @@ export const toolCardComponent: ComponentDefinitionOf<'toolCard', typeof props> 
     return t(ctx.locale, 'describe_tool_card_80198', { v0: name });
   },
   edit: { text: [], style: ALL_STYLES },
+  ai: { doc: '{toolId, look?: "row"|"tile"}: entry to an installed tool\'s page' },
 });

@@ -20,4 +20,5 @@ export const headerComponent: ComponentDefinitionOf<'header', typeof props> = de
     ],
     style: ALL_STYLES,
   },
+  ai: { doc: '{title, subtitle?}' },
 });

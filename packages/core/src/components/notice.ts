@@ -22,4 +22,5 @@ export const noticeComponent: ComponentDefinitionOf<'notice', typeof props> = de
     ],
     style: ALL_STYLES,
   },
+  ai: { doc: '{title?, text, icon?}: a tinted callout; text is rich text, up to 600 characters' },
 });

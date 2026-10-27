@@ -31,4 +31,7 @@ export const groupComponent: ComponentDefinitionOf<'group', typeof props, typeof
       return t(ctx.locale, 'describe_group_86cab', { v0: layout, v1: name });
     },
     edit: { text: [{ prop: 'title', max: 60, optional: true }], style: ['tone', 'align'] },
+    ai: {
+      doc: '{title?, layout: "stack"|"row"|"grid", columns?: 2|3} with children: [component] (max 12, never another group). Use it to put things side by side (row) or in a grid.',
+    },
   });

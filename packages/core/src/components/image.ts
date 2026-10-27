@@ -31,4 +31,7 @@ export const imageComponent: ComponentDefinitionOf<'image', typeof props> = defi
     ],
     style: ['align'],
   },
+  ai: {
+    doc: '{assetId?, aspect: "wide"|"landscape"|"square"|"portrait", fit: "cover"|"contain", caption?, placeholder?}: a picture the user chooses. You can add an image slot and set its layout, caption and placeholder hint, but never choose or invent a picture: leave assetId out (the user taps the slot to pick a photo). You never see the pictures. Whenever the user asks for a photo, picture, image, banner image, cover, 图片, 照片, 头图, 封面, 横幅图片 or 配图, add an image component as an empty slot (the user fills it by tapping it) — do this even though you can\'t choose the picture yourself, and never substitute a notice or text for it.',
+  },
 });

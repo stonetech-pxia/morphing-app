@@ -22,4 +22,7 @@ export const buttonComponent: ComponentDefinitionOf<'button', typeof props> = de
       : [],
   describe: (c, _config, ctx) => t(ctx.locale, 'describe_button_d79ee', { v0: c.props.label }),
   edit: { text: [{ prop: 'label', max: 40 }], style: ['align'] },
+  ai: {
+    doc: '{label, target, variant: "filled"|"outline"|"text"|"icon", icon?}: opens target. icon shows before the label; variant "icon" shows only a round icon (needs icon; the label is still read by screen readers).',
+  },
 });

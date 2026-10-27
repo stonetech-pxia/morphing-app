@@ -55,4 +55,11 @@ export const chartComponent: ComponentDefinitionOf<'chart', typeof props> = defi
   },
   describe: (c, _config, ctx) => t(ctx.locale, 'describeChart', { v0: c.props.title }),
   edit: { text: [{ prop: 'title', max: 60 }], style: ['tone'] },
+  ai: {
+    doc: '{collectionId, kind: "bar"|"line"|"pie", aggregate: "count"|"sum"|"avg", fieldId? (number, money, rating or formula; not for count), group: "day"|"week"|"month"|"choice", dateField? (a date field or "createdAt"; default: the first date field), choiceField? (a choice field; required for group "choice"), periods? (2-31; default 7 days, 8 weeks, 6 months), filter?, title}: a pie chart needs group "choice"',
+    rule: {
+      n: 35,
+      text: 'Charts ("a chart of spending per month", "每天花了多少的柱状图", "pie chart by category", "trend over the last weeks") → a chart component on the page that shows the table: amounts over time are kind "bar" or "line" with group "day" / "week" / "month" (periods = how many recent days / weeks / months, e.g. 12 for "the last year by month"); shares of a whole are kind "pie" with group "choice". Use aggregate "sum" with the money field for spending, "count" for how many entries. A single total or a per-category list without a picture is a stat (rule 34). You only choose how the chart is built; you never see the values.',
+    },
+  },
 });

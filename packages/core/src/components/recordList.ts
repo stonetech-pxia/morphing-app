@@ -59,4 +59,7 @@ export const recordListComponent: ComponentDefinitionOf<'recordList', typeof pro
     describe: (c, config, ctx) =>
       t(ctx.locale, 'describe_list_0b528', { v0: collectionName(c.props.collectionId, config) }),
     edit: { text: [], style: ['tone'] },
+    ai: {
+      doc: '{collectionId, display: "list"|"cards"|"checklist", titleField, subtitleFields? (≤2), trailingField? (shown on the right, e.g. an amount), checkField? (a checkbox field; required for "checklist"), filter?, sort? {field, direction: "asc"|"desc"}, limit (1-100), emptyText?}: tapping a record opens the built-in editor',
+    },
   });

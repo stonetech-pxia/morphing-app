@@ -16,4 +16,7 @@ export const fileListComponent: ComponentDefinitionOf<'fileList', typeof props> 
   props,
   describe: (c, _config, ctx) => t(ctx.locale, 'describe_file_list_a11dd', { v0: c.props.title }),
   edit: { text: [{ prop: 'title', max: 60 }], style: [] },
+  ai: {
+    doc: '{title, limit (1-50), mimeType?: "application/pdf" | "image/*" | "video/*" | "audio/*"}: the user\'s files of that kind; without mimeType, their documents (photos used in image components are not listed)',
+  },
 });

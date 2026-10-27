@@ -27,4 +27,7 @@ export const quickActionListComponent: ComponentDefinitionOf<'quickActionList', 
           })
         : t(ctx.locale, 'describe_quick_action_list'),
     edit: { text: [{ prop: 'title', max: 60, optional: true }], style: [] },
+    ai: {
+      doc: '{title?, kind?: "image"|"video"|"audio"|"document"|"other"}: the kernel\'s quick-action library placed on a page. Without kind: the category entries (Photos, Videos, Audio, Documents, Other); with kind: that category\'s own quick actions (run, edit), the ready-made ones (add) and those from tools. You choose where it goes and its title, not its content. For "put the photo quick actions on home" add quickActionList {kind: "image"}; for "show what Morph can do on the home page" add it without kind.',
+    },
   });

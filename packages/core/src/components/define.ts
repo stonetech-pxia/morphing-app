@@ -88,6 +88,19 @@ export interface ComponentEdit {
   style: StyleKey[];
 }
 
+/** 发给 AI 的说明（packages/planner/src/prompt.ts 读它，英文）。改了要跑受影响的评测。 */
+export interface ComponentAI {
+  /**
+   * 提示词组件列表里的一行，类型名后面的部分：属性（? 表示可以不写，列出可选值和范围）和用法。
+   * 引用了数据表的组件列在「Data components」下，其余列在「Components」下。
+   */
+  doc: string;
+  /** 在提示词里排在哪个组件后面；不写就按登记顺序（filePick 是后加的，说明一直写在 button 后面）。 */
+  docAfter?: string;
+  /** 和这个组件有关的规则；n 是规则编号，新组件的规则接在最后一条后面。 */
+  rule?: { n: number; text: string };
+}
+
 export const ALL_STYLES: StyleKey[] = ['tone', 'align', 'size'];
 
 /** 组件自己的检查发现的问题。只写文字时是数据问题（code data，前面加组件 ID）。 */
@@ -115,6 +128,7 @@ export interface ComponentSpec<T extends string, P extends z.ZodObject, E extend
   /** 修改说明里怎么称呼这个组件（例如「标题“记账”」）。 */
   describe: (c: Instance<T, P, E>, config: WorkspaceConfig, ctx: DescribeContext) => string;
   edit: ComponentEdit;
+  ai: ComponentAI;
 }
 
 /**
