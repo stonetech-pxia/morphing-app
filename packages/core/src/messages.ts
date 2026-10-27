@@ -1335,6 +1335,19 @@ export const strings = {
   },
 
   // 功能和外观分开改（D-191）
+  // 草稿里逐条移除改动（D-257）。
+  draftRemove: { en: 'Remove', zh: '移除', fr: 'Retirer' },
+  draftRemoveTogether: {
+    en: 'These changes go together',
+    zh: '这几条要一起去掉',
+    fr: 'Ces modifications vont ensemble',
+  },
+  draftRemoveTogetherNote: {
+    en: 'Without the first one, the others no longer fit:',
+    zh: '去掉第一条，后面的就套不上了：',
+    fr: 'Sans la première, les autres ne s’appliquent plus :',
+  },
+  draftRemoveAll: { en: 'Remove them', zh: '一起移除', fr: 'Les retirer' },
   draftNoFunction: {
     en: 'The draft only changes the look. Quick actions, tools and data tables are changed on the Change this app page: they take effect right away and can be undone.',
     zh: '草稿里只改外观。快捷操作、工具和数据表要在「修改这个 App」里改：会直接生效，可以撤销。',

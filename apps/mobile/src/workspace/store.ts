@@ -165,6 +165,12 @@ function keepSteps(draft: Draft, steps: DraftStep[]): Draft {
   };
 }
 
+/** 草稿里的一条改动：第几步的第几个操作（D-257）。 */
+export interface DraftOpRef {
+  step: number;
+  op: number;
+}
+
 export type DraftResult =
   /** focusPageId：这一步改到的页面，进入草稿时显示它。 */
   | { kind: 'drafted'; step: DraftStep; focusPageId: string }
@@ -264,6 +270,13 @@ export interface WorkspaceState {
   draftChange(input: string): Promise<ChangeResult>;
   clearNext(): Promise<void>;
   stepBack(): Promise<void>;
+  /**
+   * 草稿里的一条改动要和哪些一起移除（D-257）：去掉它以后套不上的改动（例如新建的页面和把它放进导航栏）。
+   * 草稿里只剩这一条时返回空数组：和「退一步」一样，第一步不能退，要整个丢掉就删除草稿。
+   */
+  draftRemovalGroup(step: number, op: number): DraftOpRef[];
+  /** 移除草稿里的这些改动，剩下的重新套用；一步里的改动都移除了，这一步就像「退一步」一样去掉。 */
+  removeDraftOps(targets: readonly DraftOpRef[]): Promise<void>;
   openDraft(): void;
   closeDraft(): void;
   applyDraft(): Promise<Applied | null>;
@@ -1134,6 +1147,85 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         set({ draft: next });
         await saveDraft(next);
         await repo.updateChangeRequest(removed.changeRequestId, { status: 'cancelled' });
+      },
+
+      draftRemovalGroup(stepIndex, opIndex) {
+        const draft = get().draft;
+        const config = get().config;
+        if (!draft || !config || !draft.steps[stepIndex]?.ops[opIndex]) return [];
+        if (draft.steps.reduce((n, s) => n + s.ops.length, 0) < 2) return [];
+        const key = (r: DraftOpRef) => `${r.step}:${r.op}`;
+        // 一条一条按顺序套用，记下套得上的；去掉目标后原来套得上、现在套不上的就要一起移除。
+        const applying = (skip: string) => {
+          const ok = new Set<string>();
+          let base = config;
+          draft.steps.forEach((step, s) =>
+            step.ops.forEach((op, o) => {
+              const k = key({ step: s, op: o });
+              if (k === skip) return;
+              const prepared = prepareOps(base, [op], {
+                registry,
+                locale: locale(),
+                now: deps.now(),
+              });
+              if (!prepared.ok) return;
+              base = prepared.after;
+              ok.add(k);
+            }),
+          );
+          return ok;
+        };
+        const target = key({ step: stepIndex, op: opIndex });
+        const before = applying('');
+        const after = applying(target);
+        const group: DraftOpRef[] = [{ step: stepIndex, op: opIndex }];
+        draft.steps.forEach((step, s) =>
+          step.ops.forEach((_, o) => {
+            const k = key({ step: s, op: o });
+            if (k !== target && before.has(k) && !after.has(k)) group.push({ step: s, op: o });
+          }),
+        );
+        return group;
+      },
+
+      async removeDraftOps(targets) {
+        const draft = get().draft;
+        const config = get().config;
+        if (!draft || !config || targets.length === 0) return;
+        const total = draft.steps.reduce((n, s) => n + s.ops.length, 0);
+        if (targets.length >= total) return;
+        const gone = new Set(targets.map((r) => `${r.step}:${r.op}`));
+        const steps: DraftStep[] = [];
+        const removedSteps: DraftStep[] = [];
+        /** 原来的第几步现在是第几步（去掉的步之后的聊天回复跟着前移）。 */
+        const kept: number[] = [];
+        let base = config;
+        for (const [s, step] of draft.steps.entries()) {
+          const ops = step.ops.filter((_, o) => !gone.has(`${s}:${o}`));
+          if (ops.length === 0) {
+            removedSteps.push(step);
+            continue;
+          }
+          const prepared = prepareOps(base, ops, { registry, locale: locale(), now: deps.now() });
+          // 套不上（不该发生：依赖的改动已经一起移除）：保持原样。
+          if (!prepared.ok) return;
+          base = prepared.after;
+          steps.push({ ...step, ops, lines: prepared.lines, config: base });
+          kept.push(s);
+        }
+        const next: Draft = {
+          ...draft,
+          steps,
+          // 回复排在第 afterSteps 步后面：那一步去掉了，回复跟着去掉（和「退一步」一样）；否则跟着前移。
+          replies: draft.replies
+            .filter((r) => r.afterSteps === 0 || kept.includes(r.afterSteps - 1))
+            .map((r) => ({ ...r, afterSteps: kept.filter((s) => s < r.afterSteps).length })),
+        };
+        set({ draft: next });
+        await saveDraft(next);
+        for (const step of removedSteps) {
+          await repo.updateChangeRequest(step.changeRequestId, { status: 'cancelled' });
+        }
       },
 
       openDraft() {

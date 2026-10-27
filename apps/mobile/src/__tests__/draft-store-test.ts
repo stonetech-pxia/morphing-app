@@ -374,3 +374,95 @@ describe('the draft chat remembers what was said (D-207)', () => {
     expect(again.getState().draft!.replies).toEqual([]);
   });
 });
+
+describe('removing single changes from a draft', () => {
+  /** 一句话里三处改动：换颜色（独立）、新建页面、把它放进导航栏（依赖新建页面）。 */
+  const scripted: AIProvider = {
+    async plan(input: string, ctx: PlanContext) {
+      if (input === '旅行页') {
+        return {
+          kind: 'ops',
+          ops: [
+            { op: 'setTheme', primaryColor: '#2F9E44' },
+            {
+              op: 'addPage',
+              page: {
+                id: 'trip',
+                title: '旅行',
+                components: [{ id: 'title', type: 'header', props: { title: '旅行' } }],
+              },
+            },
+            { op: 'setNavItems', items: [...ctx.config.shell.nav.slice(0, 4), 'page:trip'] },
+          ],
+        };
+      }
+      return createMockAIProvider().plan(input, ctx);
+    },
+  };
+  async function drafted(...inputs: string[]) {
+    const repo = new MemoryWorkspaceRepo();
+    const store = createWorkspaceStore({
+      repo,
+      provider: scripted,
+      registry,
+      locale: 'zh',
+      now: () => new Date(2026, 9, 24, 9, 0),
+    });
+    await store.getState().boot();
+    for (const input of inputs) await say(store, input);
+    return { repo, store };
+  }
+
+  it('one change on its own goes; the others are re-applied right away', async () => {
+    const { store } = await drafted('旅行页');
+    expect(store.getState().draftRemovalGroup(0, 0)).toEqual([{ step: 0, op: 0 }]);
+    await store.getState().removeDraftOps([{ step: 0, op: 0 }]);
+    const step = store.getState().draft!.steps[0]!;
+    expect(step.ops.map((o) => o.op)).toEqual(['addPage', 'setNavItems']);
+    expect(draftConfig(store).theme.primaryColor).not.toBe('#2F9E44');
+    expect(draftConfig(store).shell.nav).toContain('page:trip');
+    expect(step.lines.join()).not.toMatch(/#2F9E44/);
+  });
+
+  it('a new page and putting it in the nav bar go together', async () => {
+    const { store } = await drafted('旅行页');
+    expect(store.getState().draftRemovalGroup(0, 1)).toEqual([
+      { step: 0, op: 1 },
+      { step: 0, op: 2 },
+    ]);
+    // 只去掉导航那一条不牵连新建页面。
+    expect(store.getState().draftRemovalGroup(0, 2)).toEqual([{ step: 0, op: 2 }]);
+    await store.getState().removeDraftOps(store.getState().draftRemovalGroup(0, 1));
+    expect(draftConfig(store).pages.some((p) => p.id === 'trip')).toBe(false);
+    expect(draftConfig(store).theme.primaryColor).toBe('#2F9E44');
+  });
+
+  it('a later step that needs the removed change goes with it', async () => {
+    const { store } = await drafted('旅行页', '主题换成蓝色');
+    const group = store.getState().draftRemovalGroup(0, 1);
+    expect(group).toEqual([
+      { step: 0, op: 1 },
+      { step: 0, op: 2 },
+    ]);
+    await store.getState().removeDraftOps(group);
+    expect(store.getState().draft!.steps).toHaveLength(2);
+  });
+
+  it('removing the only change of a step is the same as stepping back over it', async () => {
+    const { repo, store } = await drafted('旅行页', '主题换成蓝色');
+    const second = store.getState().draft!.steps[1]!;
+    expect(second.ops).toHaveLength(1);
+    await store.getState().removeDraftOps([{ step: 1, op: 0 }]);
+    expect(store.getState().draft!.steps).toHaveLength(1);
+    expect(draftConfig(store).theme.primaryColor).toBe('#2F9E44');
+    expect((await repo.getChangeRequest(second.changeRequestId))?.status).toBe('cancelled');
+  });
+
+  it('the last change left in a draft can only go with the whole draft', async () => {
+    const { store } = await drafted('主题换成蓝色');
+    expect(store.getState().draft!.steps[0]!.ops).toHaveLength(1);
+    expect(store.getState().draftRemovalGroup(0, 0)).toEqual([]);
+    await store.getState().removeDraftOps([{ step: 0, op: 0 }]);
+    expect(store.getState().draft!.steps).toHaveLength(1);
+  });
+});

@@ -1,9 +1,10 @@
-import { localize, type Workflow } from '@morph/core';
+import { describeChange, localize, type Workflow } from '@morph/core';
 
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   KeyboardAvoidingView,
   Modal,
@@ -165,17 +166,12 @@ function StepReply({
 }) {
   const step = draft.steps[index]!;
   const workflow = addedWorkflow(draft, index);
-  const body = [palette.font('body', 14), { color: palette.text }];
   return (
     <View style={styles.stepReply}>
       {workflow ? (
         <GrowingSteps workflow={workflow} palette={palette} animate={animate} />
       ) : (
-        step.lines.slice(0, 4).map((line, i) => (
-          <Text key={i} style={body}>
-            • {line}
-          </Text>
-        ))
+        <StepChanges draft={draft} index={index} palette={palette} />
       )}
       {step.notes?.map((note, i) => (
         <Text
@@ -186,6 +182,87 @@ function StepReply({
         </Text>
       ))}
     </View>
+  );
+}
+
+/**
+ * 这一步的改动，一个操作一条（D-257），每条旁边可以「移除」：剩下的马上重新套用。
+ * 去掉它别的改动就套不上时（新建的页面和把它放进导航栏），先说明这几条要一起去掉。
+ * 草稿里只剩一条时不能移除（和「退一步」一样，要整个丢掉就删除草稿）。
+ */
+function StepChanges({ draft, index, palette }: { draft: Draft; index: number; palette: Palette }) {
+  const { locale, registry } = useWorkspaceContext();
+  const committed = useWorkspace((s) => s.config);
+  const removalGroup = useWorkspace((s) => s.draftRemovalGroup);
+  const removeOps = useWorkspace((s) => s.removeDraftOps);
+  const busy = useWorkspace((s) => s.busy);
+  const step = draft.steps[index]!;
+  const before = index > 0 ? draft.steps[index - 1]!.config : committed;
+  if (!before) return null;
+  const byOp: string[][] = [];
+  describeChange(step.ops, before, [], { registry, locale, now: new Date() }, byOp);
+  const labels = byOp.map((lines) => lines.join(t(locale, 'separatorSemicolon')));
+  // 内核顺带做的事（例如设置改成浮动按钮）排在后面，不能单独移除。
+  const notes = step.lines.slice(byOp.reduce((n, lines) => n + lines.length, 0));
+  const labelOf = (r: { step: number; op: number }) => {
+    if (r.step === index) return labels[r.op];
+    const other: string[][] = [];
+    const s = draft.steps[r.step]!;
+    describeChange(
+      s.ops,
+      r.step > 0 ? draft.steps[r.step - 1]!.config : committed!,
+      [],
+      { registry, locale, now: new Date() },
+      other,
+    );
+    return other[r.op]?.join(t(locale, 'separatorSemicolon'));
+  };
+  const remove = (op: number) => {
+    const group = removalGroup(index, op);
+    if (group.length <= 1) return void removeOps(group);
+    Alert.alert(
+      t(locale, 'draftRemoveTogether'),
+      [t(locale, 'draftRemoveTogetherNote'), ...group.map((r) => `• ${labelOf(r) ?? ''}`)].join(
+        '\n',
+      ),
+      [
+        { text: t(locale, 'cancel'), style: 'cancel' },
+        {
+          text: t(locale, 'draftRemoveAll'),
+          style: 'destructive',
+          onPress: () => void removeOps(group),
+        },
+      ],
+    );
+  };
+  const removable = draft.steps.reduce((n, s) => n + s.ops.length, 0) > 1;
+  const body = [palette.font('body', 14), styles.flex, { color: palette.text }];
+  return (
+    <>
+      {labels.map((label, op) => (
+        <View key={op} style={styles.change} testID={`draft-change-${index}-${op}`}>
+          <Text style={body}>• {label}</Text>
+          {removable ? (
+            <Pressable
+              testID={`draft-remove-${index}-${op}`}
+              accessibilityRole="button"
+              accessibilityLabel={`${t(locale, 'draftRemove')} ${label}`}
+              disabled={busy}
+              hitSlop={8}
+              onPress={() => remove(op)}>
+              <Text style={[palette.font('bodyBold', 13), { color: palette.primaryText }]}>
+                {t(locale, 'draftRemove')}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ))}
+      {notes.map((line, i) => (
+        <Text key={`k${i}`} style={[palette.font('body', 13), { color: palette.muted }]}>
+          {line}
+        </Text>
+      ))}
+    </>
   );
 }
 
@@ -438,6 +515,7 @@ const styles = StyleSheet.create({
   reply: { alignSelf: 'stretch', gap: 6 },
   replyHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stepReply: { gap: 5 },
+  change: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   stepNo: {
     width: 22,

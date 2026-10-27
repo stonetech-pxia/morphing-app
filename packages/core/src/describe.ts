@@ -215,6 +215,8 @@ export function describeChange(
   before: WorkspaceConfig,
   notes: readonly ApplyNote[],
   ctx: DescribeContext,
+  /** 给了就按操作分开记下每个操作的说明（草稿里逐条移除，D-257）。 */
+  byOp?: string[][],
 ): string[] {
   const zh = ctx.locale === 'zh';
   // 同一次修改里新建的数据表也要能用名字称呼。
@@ -288,6 +290,11 @@ export function describeChange(
 
   const lines: string[] = [];
   for (const op of ops) {
+    const start = lines.length;
+    describeOne(op);
+    byOp?.push(lines.slice(start));
+  }
+  function describeOne(op: Op) {
     switch (op.op) {
       case 'addCollection':
         lines.push(
