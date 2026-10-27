@@ -14,7 +14,8 @@ import {
 
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 组件的定义在 components/（每种一个文件，见 docs/COMPONENTS.md），其余部分在 schema-base.ts。
-// 修改会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
+// 修改已有结构（包括给已有组件加属性）时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移；
+// 只新增一种组件不提升（D-254：老配置照样能读，旧 App 读到新组件时原样保留）。
 
 export const CURRENT_SCHEMA_VERSION = 16;
 
@@ -27,6 +28,7 @@ export {
   GROUP_MAX_CHILDREN,
   componentDefinition,
   componentRefs,
+  isKnownComponent,
   type Component,
   type ComponentAI,
   type ComponentDefinition,
@@ -38,8 +40,11 @@ export {
   type EditableText,
   type EntryLook,
   type GroupComponent,
+  type KnownComponent,
   type LeafComponent,
+  type NewComponent,
   type StyleKey,
+  type UnknownComponent,
 } from './components';
 export type QuickActionListComponent = ComponentOf<'quickActionList'>;
 
@@ -54,7 +59,8 @@ export const PageSchema = z.strictObject({
   toolId: IdSchema.optional(),
   components: z.array(ComponentSchema).max(30),
 });
-export type Page = z.infer<typeof PageSchema>;
+/** 页面；组件里可能有这个版本不认识的（D-254，见 UnknownComponent）。 */
+export type Page = Omit<z.infer<typeof PageSchema>, 'components'> & { components: Component[] };
 
 export const InstalledToolSchema = z.strictObject({
   toolId: IdSchema,
@@ -145,7 +151,9 @@ export const WorkspaceConfigSchema = z.strictObject({
   /** 提醒（D-251，schemaVersion 16）；没有时就是没有提醒。 */
   reminders: z.array(ReminderSchema).max(MAX_REMINDERS).optional(),
 });
-export type WorkspaceConfig = z.infer<typeof WorkspaceConfigSchema>;
+export type WorkspaceConfig = Omit<z.infer<typeof WorkspaceConfigSchema>, 'pages'> & {
+  pages: Page[];
+};
 
 /** 页面上的所有组件，包括分组里的子组件（深度优先，按显示顺序）。 */
 export function allComponents(page: Page): Component[] {

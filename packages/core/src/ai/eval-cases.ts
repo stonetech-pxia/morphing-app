@@ -146,7 +146,8 @@ const simplifiedMerge = (c: WorkspaceConfig) => {
 /** 首页第 index 个组件是一个还没选照片的图片位（AI 不能替用户选照片）。 */
 const imageSlot = (c: WorkspaceConfig, index: number): string | null => {
   const img = home(c).components[index];
-  if (img?.type !== 'image') return `expected an image at position ${index}, got ${img?.type}`;
+  if (img?.type !== 'image')
+    return `expected an image at position ${index}, got ${String(img?.type)}`;
   return img.props.assetId ? 'the AI must not pick a photo' : null;
 };
 /** 有这个标题的页面，且能从导航栏、浮动按钮或首页的按钮 / 快捷入口打开。 */
@@ -3287,7 +3288,7 @@ const LOOK_CASES: EvalCase[] = [
         );
         return button?.type === 'button' && button.props.variant === 'icon' && button.props.icon
           ? null
-          : `manage button is ${JSON.stringify(button?.props)}`;
+          : `manage button is ${JSON.stringify(button)}`;
       },
     },
   },

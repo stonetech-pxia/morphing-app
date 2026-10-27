@@ -3,6 +3,7 @@ import type { Op } from './ops';
 import {
   HOME_PAGE_ID,
   allComponents,
+  componentCollection,
   pageTarget,
   type Collection,
   type Locale,
@@ -12,6 +13,9 @@ import {
 
 // 内置的数据页面模板（D-040）：mock AI 用它们理解「新建一个记账页面」这类说法，
 // 评测集也用它们准备初始状态。模板只生成数据表结构和页面，不含任何记录。
+
+/** addPage 里的页面：只有这个版本认识的组件。 */
+type NewPage = Extract<Op, { op: 'addPage' }>['page'];
 
 export const DATA_TEMPLATES = ['budget', 'todo', 'reading', 'notes'] as const;
 export type DataTemplate = (typeof DATA_TEMPLATES)[number];
@@ -25,7 +29,7 @@ function build(
   template: DataTemplate,
   locale: Locale,
   collectionId: string,
-): { collection: Omit<Collection, 'id'>; page: Omit<Page, 'id'> } {
+): { collection: Omit<Collection, 'id'>; page: Omit<NewPage, 'id'> } {
   const c = collectionId;
   switch (template) {
     case 'budget':
@@ -356,9 +360,10 @@ export function templateCollectionWithoutPage(
   const base = BASE_IDS[template][0];
   const shown = new Set(
     config.pages.flatMap((p) =>
-      allComponents(p).flatMap((c) =>
-        'collectionId' in c.props ? [String(c.props.collectionId)] : [],
-      ),
+      allComponents(p).flatMap((c) => {
+        const id = componentCollection(c);
+        return id === null ? [] : [id];
+      }),
     ),
   );
   return config.collections.find(

@@ -30,7 +30,8 @@ export function prepareOps(
   }
   const applied = applyOps(before, parsed.data, ctx);
   if (!applied.ok) return { ok: false, stage: 'apply', issues: [applied.error] };
-  const valid = validateWorkspace(applied.config, ctx.registry);
+  // 修改前就有的、这个版本不认识的组件（D-254）原样留着；修改不能新加或改动它们。
+  const valid = validateWorkspace(applied.config, ctx.registry, { unknownComponents: before });
   if (!valid.ok)
     return { ok: false, stage: 'validate', issues: valid.issues.map((i) => i.message) };
   return {
@@ -44,7 +45,8 @@ export function prepareOps(
 export function prepareSnapshot(raw: unknown, registry: Registry): PreparedChange {
   const migrated = migrateWorkspace(raw);
   if (!migrated.ok) return { ok: false, stage: 'migrate', issues: [migrated.error] };
-  const valid = validateWorkspace(migrated.config, registry);
+  // 更新的 App 加的组件（D-254）原样保留，保存时写回去。
+  const valid = validateWorkspace(migrated.config, registry, { unknownComponents: 'keep' });
   if (!valid.ok)
     return { ok: false, stage: 'validate', issues: valid.issues.map((i) => i.message) };
   return { ok: true, after: valid.config, lines: [] };

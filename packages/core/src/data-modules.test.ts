@@ -11,7 +11,7 @@ import {
 } from './data';
 import type { Op } from './ops';
 import { createDefaultWorkspace } from './defaults';
-import type { Collection, Component } from './schema';
+import type { Collection, NewComponent } from './schema';
 import { registry } from './test-helpers';
 
 // 数据组件的新能力（D-248 起）：纯逻辑和校验。
@@ -41,7 +41,7 @@ const rec = (id: string, values: Record<string, unknown>): DataRecord => ({
   updatedAt: 0,
 });
 const ctx = { registry, locale: 'zh' as const, now: new Date(2026, 9, 22) };
-const withComponent = (component: Component) =>
+const withComponent = (component: NewComponent) =>
   prepareOps(
     createDefaultWorkspace('zh'),
     [
@@ -67,7 +67,7 @@ describe('groupedAggregate (D-248)', () => {
   });
 
   it('only groups by a choice field', () => {
-    const stat = (groupBy: string): Component => ({
+    const stat = (groupBy: string): NewComponent => ({
       id: 's',
       type: 'stat',
       props: { collectionId: 'tasks', aggregate: 'count', label: '数量', groupBy },
@@ -180,7 +180,7 @@ describe('link fields (D-250)', () => {
           limit: 20,
           ...props,
         },
-      } as Component,
+      } as NewComponent,
     });
     expect(tables([list({ filter: [{ field: 'client', op: 'isNotEmpty' }] })]).ok).toBe(true);
     expect(tables([list({ filter: [{ field: 'client', op: 'is', value: 'c1' }] })]).ok).toBe(false);

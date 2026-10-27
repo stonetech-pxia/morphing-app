@@ -3,6 +3,7 @@ import { DEFAULT_THEME } from './theme';
 
 // Schema 迁移（§7E）：恢复旧快照时逐级升级到当前版本，然后再校验。
 // 每次提升 CURRENT_SCHEMA_VERSION，都必须在 MIGRATIONS 中加入上一版本的迁移函数和测试。
+// 只新增一种组件不提升版本号（D-254），见 schema.ts。
 
 export type Migration = (config: Record<string, unknown>) => Record<string, unknown>;
 

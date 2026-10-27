@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { coalesceOps, dropOp, dropSlots, moveStepOp } from './arrange';
 import type { Op } from './ops';
-import type { Page, WorkspaceConfig } from './schema';
+import type { KnownComponent, Page, WorkspaceConfig } from './schema';
 import { apply, registry, workspace } from './test-helpers';
 import { validateWorkspace } from './validate';
 
@@ -143,7 +143,7 @@ describe('setComponentProps', () => {
         props: { title: '新标题', subtitle: null },
       },
     ]);
-    expect(home(c).components[0]!.props).toEqual({ title: '新标题' });
+    expect((home(c).components[0] as KnownComponent).props).toEqual({ title: '新标题' });
     expect(validateWorkspace(c, registry).ok).toBe(true);
   });
 });

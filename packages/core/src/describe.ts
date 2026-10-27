@@ -10,6 +10,7 @@ import { describeParams } from './workflow/format';
 import {
   allComponents,
   componentDefinition,
+  isKnownComponent,
   pageIdOf,
   type Component,
   type Locale,
@@ -41,6 +42,7 @@ export function componentLabel(
   config: WorkspaceConfig,
   ctx: DescribeContext,
 ): string {
+  if (!isKnownComponent(c)) return t(ctx.locale, 'describeUnknownComponent');
   return componentDefinition(c.type).describe(c, config, ctx);
 }
 

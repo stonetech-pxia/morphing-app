@@ -1598,6 +1598,17 @@ export const strings = {
   statNoChoice: { en: 'Not set', zh: '未选', fr: 'Non renseigné' },
   // 图表（D-249）
   describeChart: { en: 'chart “{v0}”', zh: '图表「{v0}」', fr: 'graphique « {v0} »' },
+  // D-254：更新的 App 加的组件，这个版本不认识，原样保留。
+  describeUnknownComponent: {
+    en: 'content from a newer version of this app',
+    zh: '新版本 App 才能显示的内容',
+    fr: 'contenu d’une version plus récente de cette app',
+  },
+  unknownComponent: {
+    en: 'This needs a newer version of this app to show.',
+    zh: '需要更新 App 才能显示这里的内容。',
+    fr: 'Une version plus récente de cette app est nécessaire pour afficher ce contenu.',
+  },
   chartOther: { en: 'Other', zh: '其他', fr: 'Autres' },
   chartEmpty: {
     en: 'No entries to show yet',

@@ -1,4 +1,10 @@
-import type { Component, ComponentOf, ComponentType } from '@morph/core';
+import {
+  isKnownComponent,
+  type Component,
+  type ComponentOf,
+  type ComponentType,
+  type KnownComponent,
+} from '@morph/core';
 
 import type { ReactNode } from 'react';
 import {
@@ -12,6 +18,7 @@ import {
 } from 'react-native';
 
 import { LONG_PRESS_MS } from '../editing/entry';
+import { t } from '../i18n';
 import { FocusItem } from '../editing/FocusItem';
 import { Chart } from './Chart';
 import type { RenderEnv } from './components';
@@ -37,8 +44,8 @@ export type Renderer<T extends ComponentType> = (
   env: RenderEnv,
 ) => ReactNode;
 
-const scaleOf = (c: Component) => SIZES[c.style?.size ?? 'medium'];
-const alignOf = (c: Component): TextStyle | undefined =>
+const scaleOf = (c: KnownComponent) => SIZES[c.style?.size ?? 'medium'];
+const alignOf = (c: KnownComponent): TextStyle | undefined =>
   c.style?.align === 'center' ? styles.textCenter : undefined;
 
 export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
@@ -171,7 +178,19 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
 };
 
 export function ComponentView({ component, env }: { component: Component; env: RenderEnv }) {
+  if (!isKnownComponent(component)) return <UnknownComponentView env={env} />;
   return (RENDERERS[component.type] as Renderer<ComponentType>)(component, env);
+}
+
+/** 更新的 App 加的组件（D-254）：配置里原样保留，这里只说明要更新 App 才能显示。 */
+function UnknownComponentView({ env }: { env: RenderEnv }) {
+  return (
+    <Card palette={env.palette}>
+      <Text style={[env.palette.font('body', 15), { color: env.palette.muted }]}>
+        {t(env.locale, 'unknownComponent')}
+      </Text>
+    </Card>
+  );
 }
 
 function Group({ component, env }: { component: ComponentOf<'group'>; env: RenderEnv }) {

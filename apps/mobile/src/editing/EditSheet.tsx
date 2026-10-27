@@ -1,8 +1,9 @@
 import {
   allComponents,
   componentCollection,
+  isKnownComponent,
   moveStepOp,
-  type Component,
+  type KnownComponent,
   type ComponentStyle,
   type Op,
   type Page,
@@ -91,7 +92,7 @@ function TextForm({
   onCancel,
   onSave,
 }: {
-  component: Component;
+  component: KnownComponent;
   fields: TextField[];
   palette: Palette;
   onCancel: () => void;
@@ -201,7 +202,9 @@ export function EditSheet({
 
   if (!component) return null;
   const id = component.id;
-  const caps = CAPABILITIES[component.type];
+  // 更新的 App 加的组件（D-254）只能移动和删除。
+  const known = isKnownComponent(component) ? component : null;
+  const caps = known ? CAPABILITIES[known.type] : { text: [], style: [] };
   const target = { pageId: page.id, componentId: id };
 
   /** 加入编辑草稿。改外观时面板保持打开，方便多试几种。 */
@@ -210,7 +213,7 @@ export function EditSheet({
   }
 
   function setStyle(key: StyleKey, value: string) {
-    const current = component!.style?.[key] ?? DEFAULTS[key];
+    const current = known?.style?.[key] ?? DEFAULTS[key];
     if (current === value) return;
     const style: Record<string, string | null> = { [key]: value === DEFAULTS[key] ? null : value };
     apply([{ op: 'setComponentStyle', ...target, style: style as ComponentStyle }], {
@@ -220,8 +223,8 @@ export function EditSheet({
 
   function confirmDelete() {
     const message =
-      component!.type === 'group' && component!.children.length > 0
-        ? t(locale, 'deleteGroupMessage', { count: component!.children.length })
+      known?.type === 'group' && known.children.length > 0
+        ? t(locale, 'deleteGroupMessage', { count: known.children.length })
         : componentCollection(component!)
           ? t(locale, 'deleteDataMessage')
           : t(locale, 'deleteComponentMessage');
@@ -263,9 +266,9 @@ export function EditSheet({
             <Text style={[palette.font('title', 18), { color: palette.text }]} numberOfLines={2}>
               {label(id)}
             </Text>
-            {editingText ? (
+            {editingText && known ? (
               <TextForm
-                component={component}
+                component={known}
                 fields={caps.text}
                 palette={palette}
                 onCancel={() => setEditingText(false)}
@@ -295,7 +298,7 @@ export function EditSheet({
                           palette={palette}
                           testID={`edit-${key}-${value}`}
                           label={t(locale, `${key}_${value}` as StringKey)}
-                          selected={(component.style?.[key] ?? DEFAULTS[key]) === value}
+                          selected={(known?.style?.[key] ?? DEFAULTS[key]) === value}
                           onPress={() => setStyle(key, value)}
                         />
                       ))}
@@ -319,14 +322,16 @@ export function EditSheet({
                   />
                 </View>
                 <View style={styles.chips}>
-                  <Chip
-                    palette={palette}
-                    testID="edit-hide"
-                    label={t(locale, component.hidden ? 'show' : 'hide')}
-                    onPress={() =>
-                      apply([{ op: 'setComponentHidden', ...target, hidden: !component.hidden }])
-                    }
-                  />
+                  {known ? (
+                    <Chip
+                      palette={palette}
+                      testID="edit-hide"
+                      label={t(locale, known.hidden ? 'show' : 'hide')}
+                      onPress={() =>
+                        apply([{ op: 'setComponentHidden', ...target, hidden: !known.hidden }])
+                      }
+                    />
+                  ) : null}
                   <Chip
                     palette={palette}
                     testID="edit-delete"

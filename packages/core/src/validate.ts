@@ -1,3 +1,4 @@
+import { COMPONENTS } from './components';
 import {
   NUMERIC_FIELD_TYPES,
   duplicates,
@@ -15,6 +16,7 @@ import {
   allComponents,
   componentCollection,
   componentDefinition,
+  isKnownComponent,
   pageIdOf,
   type Collection,
   type Component,
@@ -38,8 +40,22 @@ export interface ValidationIssue {
 export type ValidationResult =
   { ok: true; config: WorkspaceConfig } | { ok: false; issues: ValidationIssue[] };
 
-export function validateWorkspace(input: unknown, registry: Registry): ValidationResult {
-  const parsed = WorkspaceConfigSchema.safeParse(input);
+export interface ValidateOptions {
+  /**
+   * 这个版本不认识的组件（D-254，更新的 App 加的）。不写：一律当作结构错误（和以前一样）。
+   * 'keep'：原样保留（读取已存的配置、恢复历史版本）。一份配置：只保留这份配置里原样就有的
+   * （传 AI 或长按编辑修改前的配置：修改可以移动、删除它们，不能新加或改动）。
+   */
+  unknownComponents?: 'keep' | WorkspaceConfig;
+}
+
+export function validateWorkspace(
+  input: unknown,
+  registry: Registry,
+  options: ValidateOptions = {},
+): ValidationResult {
+  const unknown = setAsideUnknown(input, options.unknownComponents);
+  const parsed = WorkspaceConfigSchema.safeParse(unknown.input);
   if (!parsed.success) {
     return {
       ok: false,
@@ -49,7 +65,7 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
       })),
     };
   }
-  const config = parsed.data;
+  const config = unknown.restore(parsed.data);
   const issues: ValidationIssue[] = [];
   const issue = (code: string, message: string) => issues.push({ code, message });
 
@@ -108,6 +124,8 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
       : issue(problem.code, problem.message);
   for (const page of config.pages) {
     for (const c of allComponents(page)) {
+      // 不认识的组件（D-254）原样保留，没有可以检查的引用。
+      if (!isKnownComponent(c)) continue;
       const def = componentDefinition(c.type);
       for (const [prop, ref] of Object.entries(def.refs ?? {})) {
         const value = (c.props as Record<string, unknown>)[prop];
@@ -216,6 +234,73 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
   return issues.length > 0 ? { ok: false, issues } : { ok: true, config };
 }
 
+const KNOWN_TYPES = new Set<string>(COMPONENTS.map((d) => d.type));
+
+type Json = Record<string, unknown>;
+const isObject = (v: unknown): v is Json =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+const isUnknownComponent = (v: unknown): v is Json & { type: string } =>
+  isObject(v) && typeof v.type === 'string' && !KNOWN_TYPES.has(v.type);
+
+/** 一份配置里所有不认识的组件（D-254），按 JSON 文本。 */
+function unknownComponentTexts(config: WorkspaceConfig): Set<string> {
+  return new Set(
+    config.pages.flatMap((p) =>
+      allComponents(p).flatMap((c) => (isKnownComponent(c) ? [] : [JSON.stringify(c)])),
+    ),
+  );
+}
+
+/**
+ * 允许保留的不认识的组件（D-254）先换成同 ID 的分隔线做结构校验（其余问题的文字和位置都不变），
+ * 通过以后再换回原来的 JSON。不允许的照常校验，报结构错误。
+ */
+function setAsideUnknown(
+  input: unknown,
+  allow: ValidateOptions['unknownComponents'],
+): { input: unknown; restore: (config: WorkspaceConfig) => WorkspaceConfig } {
+  const none = { input, restore: (config: WorkspaceConfig) => config };
+  if (allow === undefined || !isObject(input) || !Array.isArray(input.pages)) return none;
+  const allowed = allow === 'keep' ? null : unknownComponentTexts(allow);
+  const isAllowed = (c: unknown): c is Json =>
+    isUnknownComponent(c) && (allowed === null || allowed.has(JSON.stringify(c)));
+  const kept: { page: number; index: number; child?: number; raw: Json }[] = [];
+  (input.pages as unknown[]).forEach((page, p) => {
+    if (!isObject(page) || !Array.isArray(page.components)) return;
+    page.components.forEach((c: unknown, i) => {
+      if (isAllowed(c)) kept.push({ page: p, index: i, raw: c });
+      else if (isObject(c) && c.type === 'group' && Array.isArray(c.children)) {
+        c.children.forEach((child: unknown, j) => {
+          if (isAllowed(child)) kept.push({ page: p, index: i, child: j, raw: child });
+        });
+      }
+    });
+  });
+  if (kept.length === 0) return none;
+  const copy = JSON.parse(JSON.stringify(input)) as { pages: { components: Json[] }[] };
+  const slot = (pages: { components: Json[] }[], k: (typeof kept)[number]) =>
+    k.child === undefined
+      ? { list: pages[k.page]!.components, at: k.index }
+      : { list: pages[k.page]!.components[k.index]!.children as Json[], at: k.child };
+  for (const k of kept) {
+    const { list, at } = slot(copy.pages, k);
+    const standIn: Json = { id: k.raw.id, type: 'divider', props: {} };
+    if (k.raw.hidden !== undefined) standIn.hidden = k.raw.hidden;
+    list[at] = standIn;
+  }
+  return {
+    input: copy,
+    restore: (config) => {
+      const pages = config.pages as unknown as { components: Json[] }[];
+      for (const k of kept) {
+        const { list, at } = slot(pages, k);
+        list[at] = JSON.parse(JSON.stringify(k.raw)) as Json;
+      }
+      return config;
+    },
+  };
+}
+
 /**
  * 读取记录的步骤要指向存在的数据表；生成 PDF 的字段要是这张表的字段（D-042）。
  * 记一笔（D-187）：表要存在；收文件时表里要有附件字段，收文字时要有长文本或文字字段。
@@ -304,7 +389,7 @@ function dataComponentProblems(
   registry: Registry,
 ): CheckProblem[] {
   const collectionId = componentCollection(c);
-  if (collectionId === null) return [];
+  if (collectionId === null || !isKnownComponent(c)) return [];
   const collection = config.collections.find((x) => x.id === collectionId);
   if (!collection) return [`data table ${collectionId} does not exist`];
   const def = componentDefinition(c.type);

@@ -23,11 +23,13 @@ import {
   allComponents,
   componentCollection,
   componentTarget,
+  isKnownComponent,
   pageTarget,
   toolGridToolIds,
   type Collection,
   type Component,
   type GroupComponent,
+  type KnownComponent,
   type Locale,
   type NavTarget,
   type Page,
@@ -264,6 +266,17 @@ function getComponent(page: Page, id: string): Located {
   return found;
 }
 
+/** 要改属性、外观或隐藏的组件：这个版本不认识的组件（D-254）只能移动和删除。 */
+function getKnownComponent(page: Page, id: string): KnownComponent {
+  const { component } = getComponent(page, id);
+  if (!isKnownComponent(component)) {
+    throw new OpError(
+      `component ${id} needs a newer version of the app; it can only be moved or removed`,
+    );
+  }
+  return component;
+}
+
 /** 组件要放入的列表：页面顶层，或某个分组的子组件。 */
 function targetList(page: Page, parentId: string | undefined, moving: Component): Component[] {
   if (parentId === undefined) return page.components;
@@ -414,7 +427,7 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       return;
     }
     case 'setComponentProps': {
-      const { component } = getComponent(getPage(config, op.pageId), op.componentId);
+      const component = getKnownComponent(getPage(config, op.pageId), op.componentId);
       // 只合并属性，null 表示去掉该属性；类型不能通过此操作改变，合法性由 validateWorkspace 检查。
       const props: Record<string, unknown> = { ...component.props };
       for (const [key, value] of Object.entries(op.props)) {
@@ -425,7 +438,7 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       return;
     }
     case 'setComponentStyle': {
-      const { component } = getComponent(getPage(config, op.pageId), op.componentId);
+      const component = getKnownComponent(getPage(config, op.pageId), op.componentId);
       const style: Record<string, unknown> = { ...component.style };
       for (const [key, value] of Object.entries(op.style)) {
         if (value === null) delete style[key];
@@ -436,7 +449,7 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       return;
     }
     case 'setComponentHidden': {
-      const { component } = getComponent(getPage(config, op.pageId), op.componentId);
+      const component = getKnownComponent(getPage(config, op.pageId), op.componentId);
       if (op.hidden) component.hidden = true;
       else delete component.hidden;
       return;
