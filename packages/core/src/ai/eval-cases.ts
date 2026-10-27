@@ -864,6 +864,33 @@ const translatesTo =
       .join(' | ')}`;
   };
 
+/**
+ * W10「扫描文档，压到 300KB，存到文件」：扫描的图片压到 300KB 再存，
+ * 或者扫描 →（找边拉正）→ 做成不超过 0.3 MB 的 PDF，最后一步存文件。创始人 2026-10-27（本地会话）确认两种都算对。
+ */
+const scanDocTo300KB = (c: WorkspaceConfig): string | null => {
+  const compressed = hasWorkflow(
+    ['in.photos', 'image.compress', 'file.save'],
+    (steps) =>
+      param('in.photos', 'source', 'scanner')(steps) ??
+      param('image.compress', 'maxKB', 300)(steps),
+  )(c);
+  if (compressed === null) return null;
+  const asPdf = hasWorkflow(['in.photos', 'pdf.fromImages', 'file.save'], (steps) => {
+    const maxMB = steps.find((s) => s.action === 'pdf.fromImages')?.params.maxMB;
+    return (
+      param('in.photos', 'source', 'scanner')(steps) ??
+      (typeof maxMB === 'number' && maxMB > 0 && maxMB <= 0.3
+        ? null
+        : `pdf.fromImages.maxMB should be at most 0.3, got ${String(maxMB)}`) ??
+      (steps.at(-1)?.action === 'file.save'
+        ? null
+        : `the last step should be file.save, got ${String(steps.at(-1)?.action)}`)
+    );
+  })(c);
+  return asPdf === null ? null : `${compressed}; or as a PDF: ${asPdf}`;
+};
+
 const visaActions = (c: WorkspaceConfig) => visa(c)?.steps.map((s) => s.action) ?? [];
 
 const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
@@ -1009,15 +1036,8 @@ const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
     locale: 'zh',
     setup: 'default',
     mock: true,
-    expect: {
-      kind: 'ops',
-      check: hasWorkflow(
-        ['in.photos', 'image.compress', 'file.save'],
-        (steps) =>
-          param('in.photos', 'source', 'scanner')(steps) ??
-          param('image.compress', 'maxKB', 300)(steps),
-      ),
-    },
+    // 两种理解都算对（D-083 补充）：把扫描的图片压到 300KB，或者先拉正再做成不超过 0.3 MB 的 PDF（scanDocTo300KB）。
+    expect: { kind: 'ops', check: scanDocTo300KB },
   },
   {
     id: 'W10-en',
