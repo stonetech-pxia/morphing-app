@@ -1,0 +1,433 @@
+{
+  "icon": "inbox",
+  "name": {
+    "en": "Expense helper",
+    "zh": "报销助手",
+    "fr": "Assistant notes de frais"
+  },
+  "summary": {
+    "en": "Scan receipts into an expense table, see what is still to submit, and print a report with the total.",
+    "zh": "扫收据记进报销表，看清还有多少待交，一键打印带合计的报销单。",
+    "fr": "Numérisez vos reçus dans un tableau de dépenses, voyez ce qui reste à soumettre et imprimez un état avec le total."
+  },
+  "ids": {
+    "$table.claims": "claims",
+    "$page.main": "expenses",
+    "$workflow.scanLog": "scan-receipt-log",
+    "$workflow.print": "print-expenses",
+    "$reminder.friday": "submit-expenses"
+  },
+  "tables": [
+    {
+      "id": "$table.claims",
+      "name": {
+        "en": "Expense claims",
+        "zh": "报销",
+        "fr": "Notes de frais"
+      },
+      "icon": "inbox",
+      "fields": [
+        {
+          "id": "amount",
+          "name": {
+            "en": "Amount",
+            "zh": "金额",
+            "fr": "Montant"
+          },
+          "type": "money",
+          "currency": {
+            "en": "USD",
+            "zh": "CNY",
+            "fr": "EUR"
+          },
+          "required": true
+        },
+        {
+          "id": "date",
+          "name": {
+            "en": "Date",
+            "zh": "日期",
+            "fr": "Date"
+          },
+          "type": "date",
+          "default": "today"
+        },
+        {
+          "id": "category",
+          "name": {
+            "en": "Category",
+            "zh": "分类",
+            "fr": "Catégorie"
+          },
+          "type": "choice",
+          "options": [
+            {
+              "id": "travel",
+              "label": {
+                "en": "Travel",
+                "zh": "交通",
+                "fr": "Transport"
+              }
+            },
+            {
+              "id": "meals",
+              "label": {
+                "en": "Meals",
+                "zh": "餐饮",
+                "fr": "Repas"
+              }
+            },
+            {
+              "id": "lodging",
+              "label": {
+                "en": "Lodging",
+                "zh": "住宿",
+                "fr": "Hébergement"
+              }
+            },
+            {
+              "id": "office",
+              "label": {
+                "en": "Office",
+                "zh": "办公",
+                "fr": "Bureau"
+              }
+            },
+            {
+              "id": "other",
+              "label": {
+                "en": "Other",
+                "zh": "其他",
+                "fr": "Autre"
+              }
+            }
+          ],
+          "default": "meals"
+        },
+        {
+          "id": "receipt",
+          "name": {
+            "en": "Receipt",
+            "zh": "收据",
+            "fr": "Reçu"
+          },
+          "type": "file"
+        },
+        {
+          "id": "status",
+          "name": {
+            "en": "Status",
+            "zh": "状态",
+            "fr": "Statut"
+          },
+          "type": "choice",
+          "options": [
+            {
+              "id": "pending",
+              "label": {
+                "en": "To submit",
+                "zh": "待交",
+                "fr": "À soumettre"
+              }
+            },
+            {
+              "id": "submitted",
+              "label": {
+                "en": "Submitted",
+                "zh": "已交",
+                "fr": "Soumise"
+              }
+            }
+          ],
+          "default": "pending"
+        },
+        {
+          "id": "note",
+          "name": {
+            "en": "Note",
+            "zh": "备注",
+            "fr": "Remarque"
+          },
+          "type": "text"
+        }
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "$workflow.scanLog",
+      "name": {
+        "en": "Scan a receipt and log it",
+        "zh": "扫描收据后记一笔",
+        "fr": "Numériser un reçu et l’enregistrer"
+      },
+      "icon": "scan",
+      "steps": [
+        {
+          "id": "pick",
+          "action": "in.photos",
+          "params": {
+            "source": "scanner",
+            "min": 1,
+            "max": 10
+          }
+        },
+        {
+          "id": "edges",
+          "action": "scan.detect",
+          "params": {}
+        },
+        {
+          "id": "log",
+          "action": "out.addRecord",
+          "params": {
+            "collectionId": "$table.claims"
+          }
+        }
+      ]
+    },
+    {
+      "id": "$workflow.print",
+      "name": {
+        "en": "Print this month’s expenses",
+        "zh": "打印本月报销单",
+        "fr": "Imprimer les dépenses du mois"
+      },
+      "icon": "printer",
+      "steps": [
+        {
+          "id": "read",
+          "action": "in.records",
+          "params": {
+            "collectionId": "$table.claims",
+            "period": "thisMonth"
+          }
+        },
+        {
+          "id": "pdf",
+          "action": "print.records",
+          "params": {
+            "template": "receipt",
+            "title": {
+              "en": "Expense report",
+              "zh": "报销单",
+              "fr": "Note de frais"
+            },
+            "fields": ["date", "category", "note", "amount"],
+            "pageSize": {
+              "en": "letter",
+              "zh": "a4",
+              "fr": "a4"
+            }
+          }
+        },
+        {
+          "id": "share",
+          "action": "out.share",
+          "params": {}
+        }
+      ]
+    },
+    {
+      "id": "$workflow.archive",
+      "presetId": "receipt-archive"
+    },
+    {
+      "id": "$workflow.report",
+      "presetId": "expense-report"
+    }
+  ],
+  "pages": [
+    {
+      "id": "$page.main",
+      "title": {
+        "en": "Expenses",
+        "zh": "报销",
+        "fr": "Dépenses"
+      },
+      "icon": "inbox",
+      "components": [
+        {
+          "id": "title",
+          "type": "header",
+          "props": {
+            "title": {
+              "en": "Expense helper",
+              "zh": "报销助手",
+              "fr": "Assistant notes de frais"
+            },
+            "subtitle": {
+              "en": "Scan the receipt, fill in the amount, print the report at the end of the month.",
+              "zh": "拍下收据、填上金额，月底一键出报销单。",
+              "fr": "Numérisez le reçu, indiquez le montant, imprimez la note de frais en fin de mois."
+            }
+          }
+        },
+        {
+          "id": "summary",
+          "type": "group",
+          "props": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "pending-total",
+              "type": "stat",
+              "props": {
+                "collectionId": "$table.claims",
+                "aggregate": "sum",
+                "fieldId": "amount",
+                "label": {
+                  "en": "To submit",
+                  "zh": "待交合计",
+                  "fr": "À soumettre"
+                },
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "is",
+                    "value": "pending"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "pending-count",
+              "type": "stat",
+              "props": {
+                "collectionId": "$table.claims",
+                "aggregate": "count",
+                "label": {
+                  "en": "Receipts to submit",
+                  "zh": "待交笔数",
+                  "fr": "Reçus à soumettre"
+                },
+                "filter": [
+                  {
+                    "field": "status",
+                    "op": "is",
+                    "value": "pending"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "actions",
+          "type": "group",
+          "props": {
+            "layout": "grid",
+            "columns": 2
+          },
+          "children": [
+            {
+              "id": "run-scan-log",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.scanLog",
+                "look": "tile"
+              }
+            },
+            {
+              "id": "run-print",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.print",
+                "look": "tile"
+              }
+            },
+            {
+              "id": "run-archive",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.archive",
+                "look": "tile"
+              }
+            },
+            {
+              "id": "run-report",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.report",
+                "look": "tile"
+              }
+            }
+          ]
+        },
+        {
+          "id": "pending",
+          "type": "recordList",
+          "props": {
+            "collectionId": "$table.claims",
+            "display": "list",
+            "titleField": "category",
+            "subtitleFields": ["note", "date"],
+            "trailingField": "amount",
+            "filter": [
+              {
+                "field": "status",
+                "op": "is",
+                "value": "pending"
+              }
+            ],
+            "sort": {
+              "field": "date",
+              "direction": "desc"
+            },
+            "limit": 50,
+            "emptyText": {
+              "en": "Nothing to submit. Scan a receipt to log one.",
+              "zh": "没有待交的报销，扫一张收据记一笔吧。",
+              "fr": "Rien à soumettre. Numérisez un reçu pour l’enregistrer."
+            }
+          }
+        },
+        {
+          "id": "by-category",
+          "type": "chart",
+          "props": {
+            "collectionId": "$table.claims",
+            "kind": "pie",
+            "aggregate": "sum",
+            "fieldId": "amount",
+            "group": "choice",
+            "choiceField": "category",
+            "title": {
+              "en": "Spending by category",
+              "zh": "各类花费",
+              "fr": "Dépenses par catégorie"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "main": "$page.main",
+  "entry": "nav",
+  "home": [
+    {
+      "id": "run-scan-receipt",
+      "type": "workflowRunner",
+      "props": {
+        "workflowId": "$workflow.scanLog",
+        "look": "row"
+      }
+    }
+  ],
+  "reminders": [
+    {
+      "id": "$reminder.friday",
+      "title": {
+        "en": "Time to submit this week’s expenses",
+        "zh": "交报销：把这周的收据交上去",
+        "fr": "C’est le moment de soumettre les dépenses de la semaine"
+      },
+      "enabled": true,
+      "schedule": "weekly",
+      "weekdays": [5],
+      "time": "16:00",
+      "opens": "page:$page.main"
+    }
+  ]
+}

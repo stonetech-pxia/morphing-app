@@ -1770,6 +1770,32 @@ export const strings = {
     fr: 'L’action rapide de ce rappel n’est plus dans l’app.',
   },
   remindersRowHint: { en: '{n} reminders', zh: '{n} 个提醒', fr: '{n} rappels' },
+  // 样板 App（D-260）：放不下时不套用，说明原因。
+  sampleTooManyTables: {
+    en: '“{name}” needs new data tables, but the app is close to the limit of 20. Remove tables you no longer use, then try again.',
+    zh: '「{name}」要新建数据表，可 App 里的数据表快到 20 张的上限了。先移除用不到的表，再来试试。',
+    fr: '« {name} » a besoin de nouveaux tableaux, mais l’app approche de la limite de 20. Supprimez les tableaux inutiles, puis réessayez.',
+  },
+  sampleTooManyPages: {
+    en: '“{name}” needs new pages, but the app is close to the limit of 20. Remove pages you no longer use, then try again.',
+    zh: '「{name}」要新建页面，可 App 里的页面快到 20 个的上限了。先移除用不到的页面，再来试试。',
+    fr: '« {name} » a besoin de nouvelles pages, mais l’app approche de la limite de 20. Supprimez les pages inutiles, puis réessayez.',
+  },
+  sampleTooManyWorkflows: {
+    en: '“{name}” needs new quick actions, but the app is close to the limit of 100. Remove quick actions you no longer use, then try again.',
+    zh: '「{name}」要添加快捷操作，可 App 里的快捷操作快到 100 个的上限了。先移除用不到的，再来试试。',
+    fr: '« {name} » a besoin de nouvelles actions rapides, mais l’app approche de la limite de 100. Supprimez celles que vous n’utilisez plus, puis réessayez.',
+  },
+  sampleTooManyReminders: {
+    en: '“{name}” needs new reminders, but the app is close to the limit of 20. Remove reminders in Settings → Reminders, then try again.',
+    zh: '「{name}」要添加提醒，可 App 里的提醒快到 20 个的上限了。先在「设置 → 提醒」移除一些，再来试试。',
+    fr: '« {name} » a besoin de nouveaux rappels, mais l’app approche de la limite de 20. Supprimez des rappels dans Paramètres → Rappels, puis réessayez.',
+  },
+  sampleHomeFull: {
+    en: '“{name}” needs a spot on the home page, but it is full. Remove something from the home page, then try again.',
+    zh: '「{name}」要在首页放一个入口，可首页已经放满了。先从首页移除一些内容，再来试试。',
+    fr: '« {name} » a besoin d’une place sur l’accueil, mais il est plein. Retirez un élément de l’accueil, puis réessayez.',
+  },
 } satisfies Record<string, Localized>;
 
 export const extractedMessages = {

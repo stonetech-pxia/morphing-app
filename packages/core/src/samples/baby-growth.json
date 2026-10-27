@@ -1,0 +1,303 @@
+{
+  "icon": "heart",
+  "name": {
+    "en": "Baby’s growth",
+    "zh": "宝宝成长",
+    "fr": "Croissance de bébé"
+  },
+  "summary": {
+    "en": "Height and weight charts, a growth log with photos, and quick actions to share photos and videos with family.",
+    "zh": "身高体重折线图、带照片的成长记录，照片视频一键发给家人。",
+    "fr": "Courbes de taille et de poids, un journal de croissance avec photos, et des actions rapides pour partager photos et vidéos en famille."
+  },
+  "ids": {
+    "$table.growth": "growth",
+    "$page.main": "baby",
+    "$workflow.photoLog": "growth-photo-log",
+    "$reminder.weekly": "weekly-measure"
+  },
+  "tables": [
+    {
+      "id": "$table.growth",
+      "name": {
+        "en": "Growth",
+        "zh": "成长记录",
+        "fr": "Croissance"
+      },
+      "icon": "heart",
+      "fields": [
+        {
+          "id": "date",
+          "name": {
+            "en": "Date",
+            "zh": "日期",
+            "fr": "Date"
+          },
+          "type": "date",
+          "default": "today",
+          "required": true
+        },
+        {
+          "id": "height",
+          "name": {
+            "en": "Height",
+            "zh": "身高",
+            "fr": "Taille"
+          },
+          "type": "number",
+          "decimals": 1,
+          "unit": "cm"
+        },
+        {
+          "id": "weight",
+          "name": {
+            "en": "Weight",
+            "zh": "体重",
+            "fr": "Poids"
+          },
+          "type": "number",
+          "decimals": 2,
+          "unit": "kg"
+        },
+        {
+          "id": "photo",
+          "name": {
+            "en": "Photo",
+            "zh": "照片",
+            "fr": "Photo"
+          },
+          "type": "file"
+        },
+        {
+          "id": "note",
+          "name": {
+            "en": "Little news",
+            "zh": "这次的小变化",
+            "fr": "Petite nouveauté"
+          },
+          "type": "text"
+        }
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "$workflow.photoLog",
+      "name": {
+        "en": "Add a photo to the growth log",
+        "zh": "选一张照片记成长",
+        "fr": "Ajouter une photo au journal"
+      },
+      "icon": "photo",
+      "steps": [
+        {
+          "id": "pick",
+          "action": "in.photos",
+          "params": {
+            "source": "library",
+            "min": 1,
+            "max": 1
+          }
+        },
+        {
+          "id": "log",
+          "action": "out.addRecord",
+          "params": {
+            "collectionId": "$table.growth"
+          }
+        }
+      ]
+    },
+    {
+      "id": "$workflow.send",
+      "presetId": "send-photos"
+    },
+    {
+      "id": "$workflow.oldPhotos",
+      "presetId": "old-photos"
+    },
+    {
+      "id": "$workflow.videoSmaller",
+      "presetId": "video-too-big"
+    },
+    {
+      "id": "$workflow.joinVideos",
+      "presetId": "join-videos"
+    }
+  ],
+  "pages": [
+    {
+      "id": "$page.main",
+      "title": {
+        "en": "Baby",
+        "zh": "宝宝",
+        "fr": "Bébé"
+      },
+      "icon": "heart",
+      "backdrop": {
+        "overlay": "medium"
+      },
+      "components": [
+        {
+          "id": "title",
+          "type": "header",
+          "props": {
+            "title": {
+              "en": "Baby’s growth",
+              "zh": "宝宝成长",
+              "fr": "Croissance de bébé"
+            },
+            "subtitle": {
+              "en": "Measure once a week and watch your little one grow.",
+              "zh": "每周量一次，看着宝宝一点点长大。",
+              "fr": "Mesurez une fois par semaine et regardez votre bébé grandir."
+            }
+          }
+        },
+        {
+          "id": "add",
+          "type": "recordForm",
+          "props": {
+            "collectionId": "$table.growth",
+            "fieldIds": ["date", "height", "weight", "note"],
+            "submitLabel": {
+              "en": "Log a measurement",
+              "zh": "记一次",
+              "fr": "Noter une mesure"
+            },
+            "mode": "button"
+          }
+        },
+        {
+          "id": "run-photo-log",
+          "type": "workflowRunner",
+          "props": {
+            "workflowId": "$workflow.photoLog",
+            "look": "row"
+          }
+        },
+        {
+          "id": "weight-chart",
+          "type": "chart",
+          "props": {
+            "collectionId": "$table.growth",
+            "kind": "line",
+            "aggregate": "avg",
+            "fieldId": "weight",
+            "group": "month",
+            "dateField": "date",
+            "periods": 12,
+            "title": {
+              "en": "Weight (kg)",
+              "zh": "体重（kg）",
+              "fr": "Poids (kg)"
+            }
+          }
+        },
+        {
+          "id": "height-chart",
+          "type": "chart",
+          "props": {
+            "collectionId": "$table.growth",
+            "kind": "line",
+            "aggregate": "avg",
+            "fieldId": "height",
+            "group": "month",
+            "dateField": "date",
+            "periods": 12,
+            "title": {
+              "en": "Height (cm)",
+              "zh": "身高（cm）",
+              "fr": "Taille (cm)"
+            }
+          }
+        },
+        {
+          "id": "log",
+          "type": "recordList",
+          "props": {
+            "collectionId": "$table.growth",
+            "display": "list",
+            "titleField": "date",
+            "subtitleFields": ["height", "weight"],
+            "trailingField": "note",
+            "sort": {
+              "field": "date",
+              "direction": "desc"
+            },
+            "limit": 50,
+            "emptyText": {
+              "en": "Log the first measurement to start the charts.",
+              "zh": "记下第一次身高体重，折线图就开始画了。",
+              "fr": "Notez la première mesure pour démarrer les courbes."
+            }
+          }
+        },
+        {
+          "id": "actions",
+          "type": "group",
+          "props": {
+            "title": {
+              "en": "Photos and videos",
+              "zh": "照片和视频",
+              "fr": "Photos et vidéos"
+            },
+            "layout": "grid",
+            "columns": 2
+          },
+          "children": [
+            {
+              "id": "run-send",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.send",
+                "look": "tile"
+              }
+            },
+            {
+              "id": "run-old-photos",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.oldPhotos",
+                "look": "tile"
+              }
+            },
+            {
+              "id": "run-video-smaller",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.videoSmaller",
+                "look": "tile"
+              }
+            },
+            {
+              "id": "run-join-videos",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.joinVideos",
+                "look": "tile"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "main": "$page.main",
+  "entry": "nav",
+  "reminders": [
+    {
+      "id": "$reminder.weekly",
+      "title": {
+        "en": "Time to measure your baby’s height and weight",
+        "zh": "该给宝宝量身高体重了",
+        "fr": "C’est le moment de mesurer la taille et le poids de bébé"
+      },
+      "enabled": true,
+      "schedule": "weekly",
+      "weekdays": [7],
+      "time": "10:00",
+      "opens": "page:$page.main"
+    }
+  ]
+}

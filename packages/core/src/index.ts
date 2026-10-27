@@ -34,6 +34,7 @@ export * from './starter';
 export * from './share';
 export * from './speech';
 export * from './templates';
+export * from './samples';
 export * from './text-ops';
 export * from './text-rules';
 export * from './theme';
