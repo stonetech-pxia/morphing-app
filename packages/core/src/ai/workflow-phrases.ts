@@ -172,79 +172,6 @@ const RECORD_PHRASES: Matcher[] = [
 ];
 
 const STEP_PHRASES: Matcher[] = [
-  [
-    /^(?:导出字幕|导出SRT字幕|export SRT captions)$/i,
-    () => ({ action: 'video.subtitles', params: { lang: 'zh', model: 'standard' } }),
-  ],
-  [
-    /^(?:标注图片|画箭头|mark up photos|annotate photos)$/i,
-    () => ({ action: 'image.annotate', params: {} }),
-  ],
-  [
-    /^(?:图片自动优化|自动优化照片|auto adjust photos)$/i,
-    () => ({
-      action: 'image.adjust',
-      params: { mode: 'auto', brightness: 0, contrast: 100, saturation: 100 },
-    }),
-  ],
-  [
-    /^(?:调亮照片|brighten photos)$/i,
-    () => ({
-      action: 'image.adjust',
-      params: { mode: 'manual', brightness: 15, contrast: 100, saturation: 100 },
-    }),
-  ],
-  [
-    /^(?:抠图|去背景|去掉背景|remove background)$/i,
-    () => ({
-      action: 'image.removeBackground',
-      params: { background: 'transparent', color: '#FFFFFF' },
-    }),
-  ],
-  [
-    /^(?:换成白底|白色背景|white background)$/i,
-    () => ({ action: 'image.removeBackground', params: { background: 'color', color: '#FFFFFF' } }),
-  ],
-  [
-    /人声降噪|去除?杂音|reduce (?:speech|background) noise|denoise/i,
-    () => ({ action: 'audio.denoise', params: {} }),
-  ],
-  [
-    /^调到正常音量$|^normalize volume$/i,
-    () => ({ action: 'audio.volume', params: { mode: 'normal', db: 0 } }),
-  ],
-  [
-    /^音量\s*([+-]?\d+)\s*dB$|^volume ([+-]?\d+) dB$/i,
-    (m) => ({ action: 'audio.volume', params: { mode: 'db', db: Number(m[1] ?? m[2]) } }),
-  ],
-  [
-    /^(?:视频)?(?:速度|变速|加速到)\s*(0\.5|0\.75|1|1\.25|1\.5|2|3|4)\s*(?:倍|×)$|^video speed (0\.5|0\.75|1|1\.25|1\.5|2|3|4)x$/i,
-    (m) => ({ action: 'video.speed', params: { factor: Number(m[1] ?? m[2]) } }),
-  ],
-  [
-    /^(?:视频)?裁成\s*(9:16|1:1|4:5|16:9)$|^crop video to (9:16|1:1|4:5|16:9)$/i,
-    (m) => ({ action: 'video.crop', params: { ratio: m[1] ?? m[2] } }),
-  ],
-  [
-    /^(?:顺时针)?旋转(?:视频)?\s*(90|180|270)\s*度$|^rotate (?:the )?video (90|180|270) degrees$/i,
-    (m) => ({ action: 'video.rotate', params: { degrees: Number(m[1] ?? m[2]) } }),
-  ],
-  [
-    /^(?:换背景音乐|给视频配乐)$|^add background music$/i,
-    () => ({ action: 'video.audio', params: { originalVolume: 0, loop: true } }),
-  ],
-  [
-    /^(?:去掉视频声音|去掉声音|视频静音)$|^mute (?:the )?videos?$/i,
-    () => ({ action: 'video.mute', params: {} }),
-  ],
-  [
-    /^(?:截一帧|截一帧存成照片|视频截帧)$|^save a video frame$/i,
-    () => ({ action: 'video.frame', params: {} }),
-  ],
-  [
-    /^(?:拼接视频|合并视频|拼成一段视频)$|^join (?:the )?videos?$/i,
-    () => ({ action: 'video.merge', params: {} }),
-  ],
   ...RECORD_PHRASES,
   ...TRANSLATE_PHRASES,
   ...AUDIO_PHRASES,
@@ -568,49 +495,15 @@ export function stepsFrom(phrases: readonly StepPhrase[]): WorkflowStep[] {
   return steps;
 }
 
+// 预设除了按名字找，只认拒绝时例子里的叫法（「签证照片」「照片发邮件」，D-265）。
 const PRESET_WORDS: [RegExp, string][] = [
-  [/把几段视频拼成一段|join video clips|merge videos/i, 'join-videos'],
-  [/从视频里截一张照片|photo from a video/i, 'video-frame'],
-  [/视频去掉声音|remove sound from videos/i, 'mute-video'],
-  [/给视频换背景音乐|add background music/i, 'video-background-music'],
-  [/把视频转正|fix video rotation/i, 'fix-video-rotation'],
-  [/裁成竖屏视频|portrait posts/i, 'vertical-video'],
-  [/视频加速或慢放|speed up or slow down video/i, 'video-speed'],
-  [/导出视频\s*SRT\s*字幕|export video captions as SRT/i, 'video-srt-captions'],
-  [/在图片上画箭头和文字|add arrows and notes/i, 'mark-up-photos'],
-  [/把太暗的照片调亮|brighten dark photos/i, 'brighten-photos'],
-  [/把照片背景去掉|remove a photo background/i, 'remove-photo-background'],
-  [/录音人声降噪|noise in a voice recording/i, 'denoise-audio'],
-  [/视频人声降噪|noise in video speech/i, 'denoise-video'],
-  [/把录音调到正常音量|quiet audio easier/i, 'normal-audio-volume'],
-  [/把视频调到正常音量|quiet video easier/i, 'normal-video-volume'],
-  // 音频预设（D-156）放在「合一」「发照片」前面。
-  [/录音转文字|录音变成文字|recordings? (?:in)?to text/i, 'audio-to-text'],
-  [/语音太大|录音太大|recording (?:is )?too big/i, 'audio-too-big'],
-  [/几段录音合成|录音合成一个|join recordings/i, 'merge-recordings'],
-  [/语音备忘|voice memos?/i, 'voice-memo-archive'],
-  [/剪一段音频|剪铃声|ringtone|part of a recording/i, 'cut-audio'],
-  [/视频的声音|视频里的声音|sound of a video/i, 'video-sound'],
-  // 翻译预设（D-173）放在「扫描」「打码」前面。
-  [/截图翻译|翻译截图|translate screenshots?/i, 'screenshot-translate'],
-  [/外文\s*pdf|translate a pdf/i, 'foreign-pdf'],
-  [/外文材料|纸质材料翻|paper documents into/i, 'foreign-paper'],
-  [/中文材料翻成英文|chinese documents into english/i, 'papers-to-english'],
-  [/视频太大|视频发不出去|video (?:is )?too big/i, 'video-too-big'],
-  [/pdf\s*太大|pdf\s*传不上去|pdf (?:is )?too big/i, 'pdf-too-big'],
+  // 放在签证前面：「证件照打印」不是签证照片。
   [
     /证件照打印|打印证件照|证件照冲印|print(?:ing)? id photos?|id photos? to print/i,
     'print-id-photos',
   ],
   [/签证|证件照|visa|id photo|passport photo/i, 'visa-photo'],
-  [/材料包|申请材料|application packet|document packet/i, 'document-packet'],
   [/发邮件|传网站|email|upload/i, 'email-photos'],
-  [/签回|签名表格|sign and (?:send|return)/i, 'sign-return'],
-  [/扫描文档|扫描|scan/i, 'scan-document'],
-  [/合一|多份材料|combine/i, 'combine-documents'],
-  [/收据|发票|receipt/i, 'receipt-archive'],
-  [/截图打码|打码|redact|hide parts/i, 'redact-screenshots'],
-  [/批量发照片|发照片|send (?:many )?photos/i, 'send-photos'],
 ];
 
 export function findPreset(text: string): WorkflowPreset | undefined {

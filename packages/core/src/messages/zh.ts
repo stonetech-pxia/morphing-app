@@ -885,9 +885,6 @@ export const zh: MessageTable = {
   format_report_25207: '报告',
   format_e_g_248d5: '（例如 {v0}）',
   format_your_text_6c667: '（你写的文字）',
-  mock_What_Morph_can_do_8f4f4: 'Morph 可以做什么',
-  goals_Trip_photos_4142c: '旅行照片-{date}',
-  goals_Contracts_3f8a8: '合同-{date}',
   ShareScreen_Shared_with_Morph_bb8fe: '分享到 Morph',
   ShareScreen_Morph_only_takes_files_photos_PDFs_and_91f45:
     'Morph 只接收文件（照片、PDF 等），文字和网址不行。',

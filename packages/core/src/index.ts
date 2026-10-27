@@ -2,7 +2,6 @@
 // 不得依赖 React Native 或任何平台 API，以便在测试和未来的服务端中复用。
 
 export * from './ai/eval-cases';
-export * from './ai/goals';
 export * from './ai/kinds';
 export * from './ai/mock';
 export * from './ai/preset-ops';

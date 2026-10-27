@@ -935,9 +935,6 @@ export const en = {
   format_report_25207: 'report',
   format_e_g_248d5: ' (e.g. {v0})',
   format_your_text_6c667: '(your text)',
-  mock_What_Morph_can_do_8f4f4: 'What Morph can do',
-  goals_Trip_photos_4142c: 'Trip photos {date}',
-  goals_Contracts_3f8a8: 'Contracts {date}',
   ShareScreen_Shared_with_Morph_bb8fe: 'Shared with Morph',
   ShareScreen_Morph_only_takes_files_photos_PDFs_and_91f45:
     'Morph only takes files (photos, PDFs and so on), not text or links.',

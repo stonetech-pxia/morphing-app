@@ -980,9 +980,6 @@ export const fr: MessageTable = {
   format_report_25207: 'rapport',
   format_e_g_248d5: ' (par ex. {v0})',
   format_your_text_6c667: '(votre texte)',
-  mock_What_Morph_can_do_8f4f4: 'Ce que Morph peut faire',
-  goals_Trip_photos_4142c: 'Photos de voyage {date}',
-  goals_Contracts_3f8a8: 'Contrats {date}',
   ShareScreen_Shared_with_Morph_bb8fe: 'Partagé avec Morph',
   ShareScreen_Morph_only_takes_files_photos_PDFs_and_91f45:
     'Morph n’accepte que les fichiers (photos, PDF, etc.), pas le texte ni les liens.',

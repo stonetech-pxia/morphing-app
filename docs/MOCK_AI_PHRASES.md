@@ -8,6 +8,8 @@ Mock AI 是**基于规则的解析器**，不是语言模型（交接文档 §7F
 
 实现：[packages/core/src/ai/mock.ts](../packages/core/src/ai/mock.ts)；测试：[mock.test.ts](../packages/core/src/ai/mock.test.ts)，每个 ID 一个用例。
 
+D-265（2026-10-27）删掉了界面上没有入口、用户也不太会这么说的句式：目标句（GW8–GW10）、外观选项（LK1–LK5）、「首页加上 Morph 可以做什么」（QAC1–QAC2）、各种视频 / 音频 / 图片编辑动作的单独步骤句式（截帧、静音、配乐、旋转、裁比例、变速、音量、降噪、去背景、调色、标注、字幕、拼接视频），以及预设的别名（除了拒绝例子里用到的「签证」「发邮件」和放在签证前面的「证件照打印」）。这些预设仍能按名字添加（「添加视频去掉声音快捷操作」）。下面各节里保留的就是内置规则还认的。
+
 补充规则：已经是目标状态的子句不产生修改（例如 PDF 本来就在最上面）；提到未安装的工具时提示先安装。
 
 ## 功能和外观分开改（D-191）
@@ -161,15 +163,9 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 
 评测：FG1–FG5、FG3-en、FG5-en 内置规则通过；PFG1（车里只能放 MP3）、PFG2-en（猫的短视频做成 GIF）、PFG3（电脑下载的 MKV 手机放不了）、PFG4（Word 作业要交 PDF）只要求真实模型。PSP1-en（扫出能搜索文字的 PDF：`pdf.fromImages` 的 `textLayer`，D-195）、PPW1（对账单去密码再合并：`pdf.unlock` → `pdf.merge`，D-194）、PPW2-en（合同发出去前加密码：`pdf.protect` 在最后）、PFA1（收据接到上次的报销单后面：`file.addExisting` → `pdf.merge`，D-197）、PWF1（给客人连 Wi-Fi 的二维码：`in.wifi` → `qr.generate`，或添加二维码工具，D-199）也只要求真实模型。
 
-## 目标句（D-149）
+## 目标句（D-149，D-265 起不再认）
 
-原来是新手引导第 2 步的句子；D-231 起引导里不再有，D-233 起 AI 修改页也不再列出，用户自己这么说时内置规则照样认得。整句匹配，都以「我」开头；新建一个按目标起名的快捷操作，带预览说明（notes），默认放到首页。句子在 `core/ai/goals.ts`。
-
-| ID   | 句式（和相近说法）                                                                                                          | 预期修改                                                                          |
-| ---- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| GW8  | 我有一堆旅行照片，想发给朋友 / I have a bunch of trip photos to send to friends                                             | 「发旅行照片给朋友」：选照片 → 转 JPG → 去掉定位 → 长边 2048 → 打包 → 命名 → 分享 |
-| GW9  | 我拍了一段视频，太大了发不出去 / I shot a video and it’s too big to send                                                    | 「把视频压小再发」：选视频 → 压到 20 MB → 分享                                    |
-| GW10 | 我有好几份 PDF 合同，想合成一份加上页码，发邮件给律师 / I have several PDF contracts to combine into one with page numbers… | 「合同合成一份发律师」：选文件 → 合并 → 加页码 → 压到 10 MB → 命名 → 分享         |
+「我有一堆旅行照片，想发给朋友」等三句（GW8–GW10）界面上已经没有入口，D-265 起内置规则不再认，整句按「暂时无法理解」拒绝；评测用例照旧，只要求真实模型。
 
 ## 记一笔（D-187）
 
@@ -213,93 +209,65 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 ### 拼接视频（VM1–VM2）
 
 - 「添加把几段视频拼成一段快捷操作」 / `Add the join video clips quick action`：选 2–10 段视频 → 调整顺序 → 拼接成 MP4。
-- 步骤句式：「拼接视频」「合并视频」「拼成一段视频」 / `join videos`。
 
 ### 视频截帧（VF1–VF2）
 
 - 「添加从视频里截一张照片快捷操作」 / `Add the photo from a video quick action`：选视频 → 在本机选时间 → 存 JPEG 到相册。
-- 步骤句式：「截一帧」「视频截帧」 / `save a video frame`。
 
 ### 视频静音（VMU1–VMU2）
 
 - 「添加视频去掉声音快捷操作」 / `Add the remove sound from videos quick action`：选视频 → 去掉全部音轨 → 无声 MP4。
-- 步骤句式：「去掉视频声音」「去掉声音」「视频静音」 / `mute videos`。
 
 ### 视频配乐（VMA1–VMA2）
 
 - 「添加给视频换背景音乐快捷操作」 / `Add the add background music quick action`：选视频 → 运行时选音乐，默认只留音乐、短音乐循环。
-- 步骤句式：「换背景音乐」「给视频配乐」 / `add background music`。
 
 ### 视频旋转（VR1–VR2）
 
 - 「添加把视频转正快捷操作」 / `Add the fix video rotation quick action`：选视频 → 顺时针旋转 90/180/270 度。
-- 步骤句式：「顺时针旋转视频 90 度」「旋转 180 度」 / `rotate video 270 degrees`。
 
 ### 视频裁比例（VC1–VC2）
 
 - 「添加裁成竖屏视频快捷操作」 / `Add the portrait posts quick action`：选视频 → 居中裁成指定比例。
-- 步骤句式：「视频裁成 9:16」「裁成 1:1」 / `crop video to 4:5`。
 
 ### 视频变速（VS1–VS2）
 
 - 「添加视频加速或慢放快捷操作」 / `Add the speed up or slow down video quick action`：选视频 → 改成 0.5×–4× 速度。
-- 步骤句式：「视频速度 2 倍」「变速 0.5 倍」 / `video speed 2x`。声音一起变速、变调。
 
 ### 音量（AVL1–AVL3）
 
 - 「添加把录音调到正常音量快捷操作」 / `Add the quiet audio easier quick action`。
 - 「添加把视频调到正常音量快捷操作」 / `Add the quiet video easier quick action`。
-- 步骤：「调到正常音量」 / `normalize volume`；「音量 +6 dB」 / `volume -6 dB`。同一动作收音频或视频，保持类型。
 
 ### 人声降噪
 
 - 添加录音人声降噪快捷操作
 - 添加视频人声降噪快捷操作
-- 步骤句式：人声降噪 / reduce speech noise / denoise
 - 适合讲话录音，音乐可能被削弱；视频保留画面。
 
 ### 图片去背景
 
 - 添加把照片背景去掉快捷操作
-- 步骤句式：抠图 / 去背景 / remove background；换成白底 / white background
 - 透明或纯色 PNG，需要 iOS 17+ 或 Android Google Play 服务。
 
 ### 图片颜色调整
 
 - 添加把太暗的照片调亮快捷操作
-- 步骤句式：图片自动优化 / auto adjust photos；调亮照片 / brighten photos
 - 自动优化或手动亮度、对比度、饱和度，保留尺寸，透明图片输出 PNG。
 
 ### 图片标注
 
 - 添加在图片上画箭头和文字快捷操作
-- 步骤句式：标注图片 / 画箭头 / mark up photos / annotate photos
 - 运行时在本机添加文字、箭头、方框、自由画笔，六种颜色，可撤销。文字和笔画不发给 AI。
 
 ### 视频字幕（首版 SRT）
 
 - 添加导出视频 SRT 字幕快捷操作
-- 步骤句式：导出字幕 / 导出SRT字幕 / export SRT captions
 - 选择讲话语言，在本机识别并导出独立 .srt 文件；不会把字幕烧录进视频。需要核对文字和时间。
-
-### 文件类型分类入口
-
-- 首页加上Morph 可以做什么 / Add What Morph can do to home
-- 添加内核的 `quickActions` 入口，打开图片、视频、音频、文档、其他分类；不生成替代的分类页面。
-- QAC1 / QAC2：中文和英文首页入口评测。
 
 ### 新手引导第 1 步（D-231，GD1）
 
 - 「加入「打开相册」和「打开文件」按钮」 / `Add the “Open photo library” and “Open files” buttons`：在首页并排加上两个文件入口；已经有文件入口时回复「已经是这样了」，引导照样进入第 2 步。
-
-### 外观选项（D-230，LK1–LK5）
-
-- 「图标改成浅色底」/「图标改成实色底」 / `Use light icon backgrounds` / `Use solid icon backgrounds`：主题的 `iconStyle`。
-- 「首页入口改成大图标」/「首页入口改成列表」 / `Make the home shortcuts tiles` / `Make the home shortcuts rows`：首页所有入口卡片的 `look`。
-- 「快捷操作改成列表」/「小方块」/「卡片」 / `Show quick actions as rows|tiles|cards`：首页快捷操作的 `look`。
-- 「按钮只显示图标」 / `Make the buttons icons only`：首页按钮改成 `variant: icon`，图标用它打开的页面或系统入口的图标。
-- 「首页加上照片快捷操作」（照片 / 视频 / 音频 / 文档 / 其他） / `Add photo quick actions to home`：加一个 `quickActionList {kind}`。
-- 「首页显示全部快捷操作分类」 / `Show all quick action categories on home`：加一个不带 kind 的 `quickActionList`。
 
 ### 法语界面（D-224 / P-037）
 
