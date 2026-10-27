@@ -18,11 +18,12 @@ import { describeChange } from './describe';
 import { recordsToHtml } from './html';
 import { applyOps, type Op } from './ops';
 import type { Collection, Condition, Field, Locale, WorkspaceConfig } from './schema';
-import { registry, workspace } from './test-helpers';
+import { registry, snapshotLines, workspace } from './test-helpers';
 import { validateWorkspace } from './validate';
 
 // 字段类型登记表重构的基线（2026-10-27）：每种字段在读取、写入、显示、导出、打印、筛选、排序、统计、
 // 公式、类型转换、修改说明里的输出。重构只换写法，这些输出必须完全不变。
+// 快照一项一行（snapshotLines，2026-10-27 起），内容和原来的展开写法相同。
 
 // 快照里的时间按本地时区显示，固定时区，换台机器（例如云端的 UTC）也一样。
 process.env.TZ = 'Europe/Paris';
@@ -137,7 +138,7 @@ describe('field baseline', () => {
   it('reads raw values', () => {
     const out: Record<string, unknown[]> = {};
     for (const f of FIELDS) out[f.id] = INPUTS.map((raw) => readValue(f, raw) ?? '∅');
-    expect(out).toMatchSnapshot();
+    expect(snapshotLines(out)).toMatchSnapshot();
   });
 
   it('cleans and checks values on write', () => {
@@ -152,7 +153,7 @@ describe('field baseline', () => {
         };
       }
     }
-    expect(out).toMatchSnapshot();
+    expect(snapshotLines(out)).toMatchSnapshot();
   });
 
   for (const locale of LOCALES) {
@@ -189,21 +190,27 @@ describe('field baseline', () => {
         locale,
         now: NOW,
       });
-      expect({
-        format,
-        refs,
-        csv: recordsToCsv(table, RECORDS, locale, links),
-        csvNoLinks: recordsToCsv(table, RECORDS, locale),
-        html,
-        receiptNumberOnly,
-        titles: [
-          linkTitle(RECORDS[0]!, table, locale),
-          linkTitle(RECORDS[3]!, table, locale),
-          ...(['n', 'ch', 'num', 'm', 'd', 'cb'] as const).map((id) =>
-            linkTitle(RECORDS[0]!, { ...table, fields: FIELDS.filter((f) => f.id === id) }, locale),
-          ),
-        ],
-      }).toMatchSnapshot();
+      expect(
+        snapshotLines({
+          format,
+          refs,
+          csv: recordsToCsv(table, RECORDS, locale, links),
+          csvNoLinks: recordsToCsv(table, RECORDS, locale),
+          html,
+          receiptNumberOnly,
+          titles: [
+            linkTitle(RECORDS[0]!, table, locale),
+            linkTitle(RECORDS[3]!, table, locale),
+            ...(['n', 'ch', 'num', 'm', 'd', 'cb'] as const).map((id) =>
+              linkTitle(
+                RECORDS[0]!,
+                { ...table, fields: FIELDS.filter((f) => f.id === id) },
+                locale,
+              ),
+            ),
+          ],
+        }),
+      ).toMatchSnapshot();
     });
   }
 
@@ -255,13 +262,15 @@ describe('field baseline', () => {
         stats[`${f.id} ${agg}`] = aggregateRecords(RECORDS, table, agg, f.id);
       }
     }
-    expect({
-      filters,
-      sorts,
-      stats,
-      grouped: groupedAggregate(RECORDS, table, 'sum', 'm', 'ch', 'none'),
-      groupedNotChoice: groupedAggregate(RECORDS, table, 'count', undefined, 't', 'none'),
-    }).toMatchSnapshot();
+    expect(
+      snapshotLines({
+        filters,
+        sorts,
+        stats,
+        grouped: groupedAggregate(RECORDS, table, 'sum', 'm', 'ch', 'none'),
+        groupedNotChoice: groupedAggregate(RECORDS, table, 'count', undefined, 't', 'none'),
+      }),
+    ).toMatchSnapshot();
   });
 
   it('validates filters, sorts, formulas and field references', () => {
@@ -370,7 +379,7 @@ describe('field baseline', () => {
         ],
       }),
     );
-    expect({ filterIssues, formulaIssues, sortIssues }).toMatchSnapshot();
+    expect(snapshotLines({ filterIssues, formulaIssues, sortIssues })).toMatchSnapshot();
   });
 
   it('switches field types and describes field changes', () => {
@@ -422,6 +431,6 @@ describe('field baseline', () => {
         ),
       ]);
     }
-    expect({ switches, described }).toMatchSnapshot();
+    expect(snapshotLines({ switches, described })).toMatchSnapshot();
   });
 });
