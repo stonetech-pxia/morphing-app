@@ -1700,6 +1700,13 @@ export const strings = {
     fr: 'Depuis votre rappel',
   },
   reminderOpenRun: { en: 'Start', zh: '开始', fr: 'Démarrer' },
+  // D-256：按钮、快捷入口打开的快捷操作（只摆出来，用户点「开始」才运行）。
+  openQuickActionTitle: { en: 'Quick action', zh: '快捷操作', fr: 'Action rapide' },
+  openQuickActionMissing: {
+    en: 'This quick action is no longer in the app.',
+    zh: '这个快捷操作已经不在了。',
+    fr: 'Cette action rapide n’est plus dans l’app.',
+  },
   reminderOpenMissing: {
     en: 'This reminder’s quick action is no longer in the app.',
     zh: '这个提醒对应的快捷操作已经不在了。',

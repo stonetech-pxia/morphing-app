@@ -1018,6 +1018,21 @@ export function findWorkflow(
   );
 }
 
+/**
+ * 入口（按钮、快捷入口）指向的快捷操作（D-256）：和 findWorkflow 一样；指向内设快捷操作（预设 ID）、
+ * 用户改过它以后配置里是 ID 不同的副本时，找到的是副本。
+ */
+export function findWorkflowTarget(
+  workflows: readonly Workflow[],
+  id: string,
+  locale: Locale,
+): Workflow | undefined {
+  return (
+    findWorkflow(workflows, id, locale) ??
+    (presetById(id) ? workflows.find((w) => w.presetId === id) : undefined)
+  );
+}
+
 /** 新工作流的 ID：基于名字（预设 ID 等），已用过时加序号。 */
 export function newWorkflowId(base: string, taken: readonly { id: string }[]): string {
   const clean =

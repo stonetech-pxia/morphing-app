@@ -13348,7 +13348,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
       "type": "array",
     },
     "schemaVersion": {
-      "const": 16,
+      "const": 17,
       "type": "number",
     },
     "shell": {

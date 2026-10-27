@@ -1,4 +1,4 @@
-import type { Locale, NavTarget, Page, Registry, WorkspaceConfig, Component } from '@morph/core';
+import type { Locale, OpenTarget, Page, Registry, WorkspaceConfig, Component } from '@morph/core';
 
 import { Pressable, ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
 
@@ -18,8 +18,8 @@ export interface RenderEnv {
   registry: Registry;
   /** 预览时为 false：组件只展示，不响应点击。 */
   interactive: boolean;
-  /** 打开一个页面或系统入口（按钮、快捷入口、工具卡片使用）。 */
-  navigate: (target: NavTarget) => void;
+  /** 打开一个页面、系统入口或快捷操作（按钮、快捷入口、工具卡片使用；快捷操作只打开，D-256）。 */
+  navigate: (target: OpenTarget) => void;
   /** 在横排或网格的格子里：卡片改为图标在上、文字在下。 */
   inCell?: boolean;
   /** 正在渲染的页面（图片组件更换照片时要用）。 */

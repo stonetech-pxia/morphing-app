@@ -717,6 +717,13 @@ export function describeChange(
           v1: collName(note.collectionId),
         }),
       );
+    } else if (note.kind === 'removedWorkflowLinks') {
+      lines.push(
+        t(ctx.locale, 'describe_Also_removes_button_s_or_shortcut_s_th_d4dc1', {
+          v0: note.count,
+          v1: known.workflows.find((w) => w.id === note.workflowId)?.name ?? note.workflowId,
+        }),
+      );
     } else {
       lines.push(
         t(ctx.locale, 'describe_Also_removes_button_s_or_shortcut_s_th_d4dc1', {

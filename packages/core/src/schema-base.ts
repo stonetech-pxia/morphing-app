@@ -191,7 +191,24 @@ export const NavTargetSchema = z.custom<NavTarget>(
 );
 
 export const pageTarget = (pageId: string): PageTarget => `page:${pageId}`;
-export const pageIdOf = (target: NavTarget): string | null =>
+
+/**
+ * 打开哪里：页面或系统入口，或者一个快捷操作 workflow:<id>。快捷操作只打开、摆出来，用户点「开始」才运行
+ * （提醒 D-251、P-043；按钮和快捷入口 D-256）。id 是配置里的快捷操作，按钮还可以是内设快捷操作的预设 ID。
+ */
+export type OpenTarget = NavTarget | `workflow:${string}`;
+const WORKFLOW_TARGET = /^workflow:[a-z][a-z0-9-]{0,47}$/;
+export const openTargetSchema = (message: string) =>
+  z.custom<OpenTarget>(
+    (v) =>
+      NavTargetSchema.safeParse(v).success || (typeof v === 'string' && WORKFLOW_TARGET.test(v)),
+    { message },
+  );
+
+/** workflow:<id> → id；不是快捷操作时为 null。 */
+export const workflowTargetId = (target: OpenTarget): string | null =>
+  target.startsWith('workflow:') ? target.slice('workflow:'.length) : null;
+export const pageIdOf = (target: NavTarget | `workflow:${string}`): string | null =>
   target.startsWith('page:') ? target.slice('page:'.length) : null;
 
 export const ShellSchema = z.strictObject({

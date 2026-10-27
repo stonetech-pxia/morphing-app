@@ -22,6 +22,7 @@ import ChangeRoute from '../app/change';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
 import ReadyRoute from '../app/ready/[workflowId]';
+import ReminderRoute from '../app/reminder/[workflowId]';
 import RunRoute from '../app/run/[workflowId]';
 import ShareRoute from '../app/share';
 import WelcomeRoute from '../app/welcome';
@@ -119,6 +120,7 @@ export async function renderToolsApp(
     change: ChangeRoute,
     'page/[pageId]': PageRoute,
     'run/[workflowId]': RunRoute,
+    'reminder/[workflowId]': ReminderRoute,
     workflows: WorkflowsRoute,
     'quick-actions/index': QuickActionsRoute,
     'quick-actions/[kind]': QuickActionCategoryRoute,

@@ -5,11 +5,11 @@ import {
   CollectionSchema,
   IconValueSchema,
   IdSchema,
-  NavTargetSchema,
   ShellSchema,
   ThemeSchema,
   boundedText,
-  type NavTarget,
+  openTargetSchema,
+  type OpenTarget,
 } from './schema-base';
 
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
@@ -17,7 +17,7 @@ import {
 // 修改已有结构（包括给已有组件加属性）时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移；
 // 只新增一种组件不提升（D-254：老配置照样能读，旧 App 读到新组件时原样保留）。
 
-export const CURRENT_SCHEMA_VERSION = 16;
+export const CURRENT_SCHEMA_VERSION = 17;
 
 export * from './schema-base';
 export {
@@ -106,11 +106,9 @@ export type Workflow = z.infer<typeof WorkflowSchema>;
 export const TimeOfDaySchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'time like 09:00');
 
 /** 点提醒打开哪里：一个页面或系统入口，或者一个快捷操作（只打开，不运行）。 */
-export type ReminderTarget = NavTarget | `workflow:${string}`;
-const WORKFLOW_TARGET = /^workflow:[a-z][a-z0-9-]{0,47}$/;
-export const ReminderTargetSchema = z.custom<ReminderTarget>(
-  (v) => NavTargetSchema.safeParse(v).success || (typeof v === 'string' && WORKFLOW_TARGET.test(v)),
-  { message: 'opens must be a page, a system entry or workflow:<id>' },
+export type ReminderTarget = OpenTarget;
+export const ReminderTargetSchema = openTargetSchema(
+  'opens must be a page, a system entry or workflow:<id>',
 );
 
 /**
@@ -182,6 +180,6 @@ export function componentCollection(c: Component): string | null {
 }
 
 /** 按钮和快捷入口这类组件打开的目标（定义里 refs 指向 target 的属性）。 */
-export function componentTarget(c: Component): NavTarget | null {
-  return (componentRefs(c, 'target')[0] as NavTarget | undefined) ?? null;
+export function componentTarget(c: Component): OpenTarget | null {
+  return (componentRefs(c, 'target')[0] as OpenTarget | undefined) ?? null;
 }

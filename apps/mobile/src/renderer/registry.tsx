@@ -1,9 +1,11 @@
 import {
   isKnownComponent,
+  workflowTargetId,
   type Component,
   type ComponentOf,
   type ComponentType,
   type KnownComponent,
+  type OpenTarget,
 } from '@morph/core';
 
 import type { ReactNode } from 'react';
@@ -43,6 +45,10 @@ export type Renderer<T extends ComponentType> = (
   component: ComponentOf<T>,
   env: RenderEnv,
 ) => ReactNode;
+
+/** 打开按钮、快捷入口的目标。草稿里（D-190）快捷操作打不开：打开后就能运行，草稿能看不能用。 */
+const open = (env: RenderEnv, target: OpenTarget) =>
+  env.locked && workflowTargetId(target) !== null ? env.locked() : env.navigate(target);
 
 const scaleOf = (c: KnownComponent) => SIZES[c.style?.size ?? 'medium'];
 const alignOf = (c: KnownComponent): TextStyle | undefined =>
@@ -100,7 +106,7 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
       icon={c.props.icon}
       title={c.props.title}
       subtitle={c.props.subtitle}
-      onPress={() => env.navigate(c.props.target)}
+      onPress={() => open(env, c.props.target)}
       look={c.props.look ?? 'row'}
     />
   ),
@@ -110,7 +116,7 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
       label={c.props.label}
       variant={c.props.variant}
       icon={c.props.icon}
-      onPress={env.interactive ? () => env.navigate(c.props.target) : undefined}
+      onPress={env.interactive ? () => open(env, c.props.target) : undefined}
       onLongPress={env.onLongPress}
       style={c.style?.align === 'center' ? styles.centerSelf : undefined}
     />

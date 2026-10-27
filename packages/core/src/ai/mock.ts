@@ -1511,7 +1511,7 @@ const iconButtonRule: Rule = (clause, state) => {
     const icon =
       c.props.icon ??
       (targetPage ? state.config.pages.find((p) => p.id === targetPage)?.icon : undefined) ??
-      TARGET_ICONS[c.props.target] ??
+      TARGET_ICONS[c.props.target as NavTarget] ??
       'link';
     return [
       {

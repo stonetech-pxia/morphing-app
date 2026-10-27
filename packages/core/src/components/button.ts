@@ -1,12 +1,12 @@
 import { z } from 'zod';
 
 import { t } from '../messages';
-import { boundedText, IconValueSchema, NavTargetSchema } from '../schema-base';
+import { boundedText, IconValueSchema, openTargetSchema } from '../schema-base';
 import { type ComponentDefinitionOf, defineComponent } from './define';
 
 const props = z.strictObject({
   label: boundedText(1, 40),
-  target: NavTargetSchema,
+  target: openTargetSchema('target must be a page, a system entry or workflow:<id>'),
   variant: z.enum(['filled', 'outline', 'text', 'icon']),
   icon: IconValueSchema.optional(),
 });
@@ -23,7 +23,7 @@ export const buttonComponent: ComponentDefinitionOf<'button', typeof props> = de
   describe: (c, _config, ctx) => t(ctx.locale, 'describe_button_d79ee', { v0: c.props.label }),
   edit: { text: [{ prop: 'label', max: 40 }], style: ['align'] },
   ai: {
-    doc: '{label, target, variant: "filled"|"outline"|"text"|"icon", icon?}: opens target. icon shows before the label; variant "icon" shows only a round icon (needs icon; the label is still read by screen readers).',
+    doc: '{label, target, variant: "filled"|"outline"|"text"|"icon", icon?}: opens target. icon shows before the label; variant "icon" shows only a round icon (needs icon; the label is still read by screen readers). target may also be "workflow:<id>" (a quick action in workflows[] or a built-in preset id) for "a button that opens my receipt quick action": tapping shows that quick action and the user taps Start; it never runs by itself.',
   },
   example: { props: { label: 'Settings', target: 'settings', variant: 'filled' } },
 });

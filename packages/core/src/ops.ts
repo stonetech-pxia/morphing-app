@@ -40,6 +40,7 @@ import {
   type WorkspaceConfig,
 } from './schema';
 import { DEFAULT_THEME } from './theme';
+import { presetById } from './workflows/presets';
 import { reminderProblems } from './reminders';
 import { REDACTED_TEXT } from './workflow/redact';
 
@@ -213,6 +214,8 @@ export type ApplyNote =
   | { kind: 'removedLinks'; pageId: string; count: number }
   | { kind: 'removedDataComponents'; collectionId: string; count: number }
   | { kind: 'removedRunners'; workflowId: string; count: number }
+  /** 打开这个快捷操作的按钮、快捷入口（D-256）。 */
+  | { kind: 'removedWorkflowLinks'; workflowId: string; count: number }
   /** 提醒要打开的快捷操作 / 页面、要看的表或日期字段被移除了，提醒跟着移除（D-251）。 */
   | { kind: 'removedReminders'; titles: string[] }
   | { kind: 'updatedTool'; toolId: string; workflowIds: string[] };
@@ -275,6 +278,19 @@ function getKnownComponent(page: Page, id: string): KnownComponent {
     );
   }
   return component;
+}
+
+/**
+ * 快捷操作移除后，打开它的按钮、快捷入口跟着移除（和页面移除时一样，D-256）。
+ * 同 ID 的内设快捷操作还在时（移除的是预设的副本）按钮仍然有效，不移除。
+ */
+function removeWorkflowLinks(config: WorkspaceConfig, workflowIds: readonly string[]): number {
+  const gone = workflowIds.filter((id) => !presetById(id)).map((id) => `workflow:${id}`);
+  if (gone.length === 0) return 0;
+  return removeEverywhere(config, (c) => {
+    const target = componentTarget(c);
+    return target !== null && gone.includes(target);
+  });
 }
 
 /** 组件要放入的列表：页面顶层，或某个分组的子组件。 */
@@ -501,7 +517,9 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       const target = pageTarget(tool.pageId);
       config.tools = config.tools.filter((t) => t.toolId !== op.toolId);
       config.pages = config.pages.filter((p) => p.toolId !== op.toolId);
+      const toolWorkflows = config.workflows.filter((w) => w.toolId === op.toolId).map((w) => w.id);
       config.workflows = config.workflows.filter((w) => w.toolId !== op.toolId);
+      removeWorkflowLinks(config, toolWorkflows);
       removeEverywhere(
         config,
         (c) =>
@@ -579,6 +597,9 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
         (c) => c.type === 'workflowRunner' && c.props.workflowId === op.workflowId,
       );
       if (count > 0) notes.push({ kind: 'removedRunners', workflowId: op.workflowId, count });
+      const links = removeWorkflowLinks(config, [op.workflowId]);
+      if (links > 0)
+        notes.push({ kind: 'removedWorkflowLinks', workflowId: op.workflowId, count: links });
       return;
     }
     case 'renameWorkflow': {

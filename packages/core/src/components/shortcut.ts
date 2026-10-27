@@ -1,14 +1,14 @@
 import { z } from 'zod';
 
 import { t } from '../messages';
-import { boundedText, IconValueSchema, NavTargetSchema } from '../schema-base';
+import { boundedText, IconValueSchema, openTargetSchema } from '../schema-base';
 import { ALL_STYLES, type ComponentDefinitionOf, defineComponent, EntryLookSchema } from './define';
 
 const props = z.strictObject({
   title: boundedText(1, 40),
   subtitle: boundedText(1, 80).optional(),
   icon: IconValueSchema,
-  target: NavTargetSchema,
+  target: openTargetSchema('target must be a page, a system entry or workflow:<id>'),
   /** 不写时是 row（D-230）。 */
   look: EntryLookSchema.optional(),
 });
@@ -27,7 +27,7 @@ export const shortcutComponent: ComponentDefinitionOf<'shortcut', typeof props> 
     style: ALL_STYLES,
   },
   ai: {
-    doc: '{title, subtitle?, icon, target, look?: "row"|"tile"}: a card with an icon that opens target. row (default) = a settings-style row with a light icon background and an arrow on the right; tile = a big card with a solid icon block, no arrow. In a grid or row group, or centered, it is always stacked.',
+    doc: '{title, subtitle?, icon, target, look?: "row"|"tile"}: a card with an icon that opens target. row (default) = a settings-style row with a light icon background and an arrow on the right; tile = a big card with a solid icon block, no arrow. In a grid or row group, or centered, it is always stacked. target may also be "workflow:<id>", like button.',
   },
   example: { props: { title: 'Tools', icon: 'apps', target: 'tools' } },
 });

@@ -13,14 +13,16 @@ import {
   fieldDefinition,
   isKnownComponent,
   pageIdOf,
+  workflowTargetId,
   type Collection,
   type Component,
   type Condition,
-  type NavTarget,
+  type OpenTarget,
   type Page,
   type WorkspaceConfig,
 } from './schema';
 import { contrastProblems } from './theme';
+import { presetById } from './workflows/presets';
 import { workflowProblems } from './workflow/check';
 import { outputTypeOf, type ValueType } from './workflow/contract';
 
@@ -126,9 +128,21 @@ export function validateWorkspace(
         const value = (c.props as Record<string, unknown>)[prop];
         if (!ref || value === undefined) continue;
         if (ref.to === 'target') {
-          const targetPage = pageIdOf(value as NavTarget);
+          const targetPage = pageIdOf(value as OpenTarget);
           if (targetPage !== null && !pageIds.has(targetPage)) {
             issue('unknown-page', `component ${c.id} on page ${page.id} opens missing ${value}`);
+          }
+          // D-256：快捷操作是配置里的，或者内设的（预设 ID）。
+          const targetWorkflow = workflowTargetId(value as OpenTarget);
+          if (
+            targetWorkflow !== null &&
+            !workflowIds.has(targetWorkflow) &&
+            !presetById(targetWorkflow)
+          ) {
+            issue(
+              'unknown-workflow',
+              `component ${c.id} on page ${page.id} opens missing ${value}`,
+            );
           }
         } else if (ref.to === 'tool') {
           for (const toolId of [value].flat() as string[]) {
