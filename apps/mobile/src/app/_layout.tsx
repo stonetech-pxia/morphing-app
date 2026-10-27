@@ -28,6 +28,7 @@ import { createAISettingsStore } from '@/ai/settings';
 import { DraftChatSheet } from '@/draft/DraftBar';
 import { useGuide } from '@/guide/store';
 import { getDeviceLocale, t } from '@/i18n';
+import { useLocaleChoice } from '@/locale/store';
 import { PackBridge } from '@/packs/bridge';
 import { expoBridgeFiles, expoPackFs, expoSha256 } from '@/packs/expo-pack-fs';
 import { PackHostProvider } from '@/packs/PackHost';
@@ -47,7 +48,9 @@ import { WorkspaceProvider, useWorkspace } from '@/workspace/context';
 import { createNeedSender, createRemoteAIProvider } from '@/workspace/remote-ai';
 import { createWorkspaceStore, type WorkspaceStore } from '@/workspace/store';
 
-const locale = getDeviceLocale();
+// 界面语言（D-254）：先用系统语言，打开数据库后读「设置 → 语言」里的选择；换了语言整个界面重新渲染。
+useLocaleChoice.getState().reset(getDeviceLocale());
+const currentLocale = () => useLocaleChoice.getState().locale;
 // 扩展包：只在用户确认后下载，存在 documentDirectory/packs（D-064）。
 const packStore = new PackStore(expoPackFs, expoSha256);
 const packs = { store: packStore, bridge: new PackBridge(expoBridgeFiles(packStore)) };
@@ -101,14 +104,15 @@ const provider = createAIRouter({
   now: () => new Date(),
 });
 
-// 提醒（D-251）：expo-notifications 的本地通知。频道名跟随界面语言。
-const reminders = expoReminders(t(locale, 'remindersTitle'));
+// 提醒（D-251）：expo-notifications 的本地通知。频道名跟随界面语言，换了语言下次重排时改名。
+const reminders = expoReminders(() => t(currentLocale(), 'remindersTitle'));
 
 function Centered({ children }: { children: ReactNode }) {
   return <View style={styles.center}>{children}</View>;
 }
 
 function RootStack() {
+  const locale = useLocaleChoice((s) => s.locale);
   const status = useWorkspace((s) => s.status);
   const error = useWorkspace((s) => s.error);
   const config = useWorkspace((s) => s.config);
@@ -127,6 +131,7 @@ function RootStack() {
 }
 
 function ThemedStack() {
+  const locale = useLocaleChoice((s) => s.locale);
   const theme = useWorkspace((s) => s.config!.theme);
   // 别的 App 分享进来的文件 → 收件页面（D-114）。
   useIncomingShare(expoFilePlatform);
@@ -147,6 +152,7 @@ function ThemedStack() {
         <Stack.Screen name="data" options={{ title: t(locale, 'dataTitle') }} />
         <Stack.Screen name="packs" options={{ title: t(locale, 'packsTitle') }} />
         <Stack.Screen name="reminders" options={{ title: t(locale, 'remindersTitle') }} />
+        <Stack.Screen name="language" options={{ title: t(locale, 'language') }} />
         <Stack.Screen name="reminder/[workflowId]" options={{ ...closable, title: '' }} />
         <Stack.Screen
           name="quick-actions/index"
@@ -172,6 +178,7 @@ function ThemedStack() {
 }
 
 export default function RootLayout() {
+  const locale = useLocaleChoice((s) => s.locale);
   const [runtime, setRuntime] = useState<{
     store: WorkspaceStore;
     repo: SQLiteWorkspaceRepo;
@@ -193,17 +200,22 @@ export default function RootLayout() {
       const db = await openDatabaseAsync('morph.db');
       await migrateDatabase(db);
       const repo = new SQLiteWorkspaceRepo(db);
+      // 先读语言的选择：第一次启动时预装的首页用选好的语言。
+      await useLocaleChoice.getState().load(repo, getDeviceLocale());
       // 先把本机下载过的工具注册进来，用到它们的配置才校验得过。
       await toolDownloads.getState().load();
       const created = createWorkspaceStore({
         repo,
         provider,
         registry,
-        locale,
+        locale: currentLocale,
         now: () => new Date(),
         seed: createStarterWorkspace,
         toolName: (id) =>
-          localize(toolDownloads.getState().catalog?.tools.find((e) => e.id === id)?.name, locale),
+          localize(
+            toolDownloads.getState().catalog?.tools.find((e) => e.id === id)?.name,
+            currentLocale(),
+          ),
       });
       await created.getState().boot();
       await useGuide.getState().load(repo);

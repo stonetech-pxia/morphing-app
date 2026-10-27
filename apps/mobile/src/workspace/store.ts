@@ -40,7 +40,8 @@ export interface WorkspaceDeps {
   repo: WorkspaceRepo;
   provider: AIProvider;
   registry: Registry;
-  locale: Locale;
+  /** 界面语言；App 传函数，设置里换了语言之后的修改用新语言（D-254）。 */
+  locale: Locale | (() => Locale);
   now: () => Date;
   /** 第一次启动时的第一个版本。App 用预装了工具的 createStarterWorkspace（D-104）；不传时是空白工作空间。 */
   seed?: (locale: Locale, registry: Registry) => WorkspaceConfig;
@@ -295,9 +296,11 @@ function focusPage(ops: readonly Op[], config: WorkspaceConfig): string {
 }
 
 export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
-  const { repo, registry, locale } = deps;
+  const { repo, registry } = deps;
+  // 界面语言可以在设置里换（D-254）：每次用到时现取，不在创建时固定。
+  const locale = () => (typeof deps.locale === 'function' ? deps.locale() : deps.locale);
   const msg = (key: Parameters<typeof t>[1], vars?: Record<string, string | number>) =>
-    t(locale, key, vars);
+    t(locale(), key, vars);
 
   /** 最近一次成功渲染的配置；渲染失败时回退到它。 */
   let lastRendered: WorkspaceConfig | null = null;
@@ -354,7 +357,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       if (on) {
         const full = prepareOps(before, [...ops, ...homeEntryOps(base.after, workflowIds)], {
           registry,
-          locale,
+          locale: locale(),
           now: deps.now(),
         });
         if (full.ok)
@@ -383,7 +386,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
     ): Promise<ProposeResult> {
       const { config, head } = get();
       if (!config || !head) throw new Error('workspace not loaded');
-      const prepared = prepareOps(config, ops, { registry, locale, now: deps.now() });
+      const prepared = prepareOps(config, ops, { registry, locale: locale(), now: deps.now() });
       if (!prepared.ok) {
         await repo.createChangeRequest({
           input,
@@ -445,10 +448,10 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         kind: 'restore',
         before: config,
         after: prepared.after,
-        lines: describeRestore(config, prepared.after, target, { registry, locale }),
+        lines: describeRestore(config, prepared.after, target, { registry, locale: locale() }),
         source: 'restore',
         summary: msg('restoreSummary', {
-          when: formatWhen(locale, new Date(target.createdAt), deps.now()),
+          when: formatWhen(locale(), new Date(target.createdAt), deps.now()),
         }),
         focusPageId: 'home',
       });
@@ -476,7 +479,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         if (!head) {
           await repo.commitRevision({
             baseId: null,
-            config: (deps.seed ?? createDefaultWorkspace)(locale, registry),
+            config: (deps.seed ?? createDefaultWorkspace)(locale(), registry),
             source: 'seed',
             summary: msg('initialSummary'),
           });
@@ -499,7 +502,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
           }
           return;
         }
-        await commitFallback(createDefaultWorkspace(locale), 'recovery', msg('recovered'));
+        await commitFallback(createDefaultWorkspace(locale()), 'recovery', msg('recovered'));
         set({ banner: { kind: 'recovered', message: msg('recovered') } });
       } catch (e) {
         set({ status: 'error', error: String(e) });
@@ -527,7 +530,11 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       const steps: DraftStep[] = [];
       let base = config;
       for (const step of draft.steps) {
-        const prepared = prepareOps(base, step.ops, { registry, locale, now: deps.now() });
+        const prepared = prepareOps(base, step.ops, {
+          registry,
+          locale: locale(),
+          now: deps.now(),
+        });
         if (!prepared.ok) break;
         base = prepared.after;
         steps.push({ ...step, config: base });
@@ -580,7 +587,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       const homeless = wantHome ? workflowsWithoutEntry(ops, prepared.after) : [];
       if (homeless.length === 0) return { ops, prepared };
       const withEntry = [...ops, ...homeEntryOps(prepared.after, homeless)];
-      const full = prepareOps(before, withEntry, { registry, locale, now: deps.now() });
+      const full = prepareOps(before, withEntry, { registry, locale: locale(), now: deps.now() });
       return full.ok ? { ops: withEntry, prepared: full } : { ops, prepared };
     }
 
@@ -645,7 +652,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         const raw = await planner.plan(input, {
           config: base,
           registry,
-          locale,
+          locale: locale(),
           ...(about ? { about } : {}),
           ...(earlier.length ? { earlier } : {}),
         });
@@ -684,7 +691,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
           await get().confirm();
           return { kind: 'restored' };
         }
-        const ctx = { registry, locale, now: deps.now() };
+        const ctx = { registry, locale: locale(), now: deps.now() };
         const prepared = prepareOps(base, plan.ops, ctx);
         if (!prepared.ok) {
           await failedPlan(input, plan.ops, `${prepared.stage}: ${prepared.issues.join('; ')}`);
@@ -750,7 +757,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       origin: DraftOrigin,
     ): Promise<ChangeResult> {
       const { config, head, draft } = get();
-      const ctx = { registry, locale, now: deps.now() };
+      const ctx = { registry, locale: locale(), now: deps.now() };
       const prepared = prepareOps(config!, first.ops, ctx);
       if (!prepared.ok) {
         await failedPlan(input, first.ops, `${prepared.stage}: ${prepared.issues.join('; ')}`);
@@ -771,7 +778,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       const next =
         plan.next ??
         (deferred?.ok && deferred.lines.length > 0
-          ? deferred.lines.join(t(locale, 'separatorSemicolon')).slice(0, 200)
+          ? deferred.lines.join(t(locale(), 'separatorSemicolon')).slice(0, 200)
           : null);
       const changeRequestId = await repo.createChangeRequest({
         input,
@@ -858,7 +865,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
           const raw = await planner.plan(input, {
             config,
             registry,
-            locale,
+            locale: locale(),
             ...(about ? { about } : {}),
           });
           // 模型输出一律视为不可信数据（§8）。
@@ -914,7 +921,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         if (!proposal?.homeEntry || !proposal.ops || proposal.homeEntry.on === on) return;
         const base = prepareOps(proposal.before, proposal.ops, {
           registry,
-          locale,
+          locale: locale(),
           now: deps.now(),
         });
         if (!base.ok) return;
@@ -1028,7 +1035,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         const sameAsFailed =
           lastRendered && JSON.stringify(lastRendered) === JSON.stringify(config);
         const fallback =
-          lastRendered && !sameAsFailed ? lastRendered : createDefaultWorkspace(locale);
+          lastRendered && !sameAsFailed ? lastRendered : createDefaultWorkspace(locale());
         await commitFallback(
           fallback,
           'rollback',
@@ -1058,7 +1065,11 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         if (!config || !editing) throw new Error('not editing');
         const merged = coalesceOps([...editing.ops, ...ops]);
         if (merged.length > MAX_OPS_PER_CHANGE) return { ok: false, full: true };
-        const prepared = prepareOps(config, merged, { registry, locale, now: deps.now() });
+        const prepared = prepareOps(config, merged, {
+          registry,
+          locale: locale(),
+          now: deps.now(),
+        });
         if (!prepared.ok) return { ok: false, issues: prepared.issues };
         set({ editing: { ...editing, ops: merged, config: prepared.after } });
         return { ok: true };
@@ -1147,7 +1158,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         try {
           const summary = draft.steps
             .map((s) => s.input)
-            .join(t(locale, 'separatorSemicolon'))
+            .join(t(locale(), 'separatorSemicolon'))
             .slice(0, 200);
           const revision = await repo.commitRevision({
             baseId: head.id,

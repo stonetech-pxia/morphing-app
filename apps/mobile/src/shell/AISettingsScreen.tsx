@@ -48,7 +48,8 @@ const ENDPOINT_MESSAGES: Record<Exclude<EndpointResult, { ok: true }>['issue'], 
   no_model: 'customModelMissing',
 };
 
-function Option({
+/** 单选的一项（也用在「设置 → 语言」）。 */
+export function Option({
   selected,
   title,
   note,
@@ -58,7 +59,7 @@ function Option({
 }: {
   selected: boolean;
   title: string;
-  note: string;
+  note?: string;
   onPress: () => void;
   palette: Palette;
   testID: string;
@@ -77,7 +78,9 @@ function Option({
       </View>
       <View style={styles.flex}>
         <Text style={[palette.font('title', 16), { color: palette.text }]}>{title}</Text>
-        <Text style={[palette.font('body', 14), { color: palette.muted }]}>{note}</Text>
+        {note ? (
+          <Text style={[palette.font('body', 14), { color: palette.muted }]}>{note}</Text>
+        ) : null}
       </View>
     </Pressable>
   );

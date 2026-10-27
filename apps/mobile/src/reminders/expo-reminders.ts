@@ -32,13 +32,17 @@ setNotificationHandler({
 });
 
 let channelReady: Promise<unknown> | null = null;
-/** Android 8 起通知要有频道：「提醒」一个，默认重要程度。 */
+let channelNamed: string | null = null;
+/** Android 8 起通知要有频道：「提醒」一个，默认重要程度。换了界面语言（D-254）时同一个频道改名。 */
 function ensureChannel(name: string) {
   if (Platform.OS !== 'android') return Promise.resolve();
-  channelReady ??= setNotificationChannelAsync(CHANNEL, {
-    name,
-    importance: AndroidImportance.DEFAULT,
-  });
+  if (!channelReady || channelNamed !== name) {
+    channelNamed = name;
+    channelReady = setNotificationChannelAsync(CHANNEL, {
+      name,
+      importance: AndroidImportance.DEFAULT,
+    });
+  }
   return channelReady;
 }
 
@@ -48,7 +52,7 @@ const opensOf = (data: unknown): ReminderTarget | null => {
   return parsed.success ? parsed.data : null;
 };
 
-export function expoReminders(channelName: string): NotificationPlatform {
+export function expoReminders(channelName: () => string): NotificationPlatform {
   return {
     async permission() {
       const { status } = await getPermissionsAsync();
@@ -61,7 +65,7 @@ export function expoReminders(channelName: string): NotificationPlatform {
       return granted;
     },
     async replaceAll(planned) {
-      await ensureChannel(channelName);
+      await ensureChannel(channelName());
       // Morph 只用 expo-notifications 排提醒（长任务的进度通知走 morph-background，不受影响）。
       await cancelAllScheduledNotificationsAsync();
       for (const n of planned) {

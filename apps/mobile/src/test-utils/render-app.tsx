@@ -11,6 +11,7 @@ import {
 } from '@morph/core';
 import { Stack } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
+import type { ReactNode } from 'react';
 import { Alert } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -19,7 +20,9 @@ import { DraftChatSheet } from '../draft/DraftBar';
 import { useDraftUi } from '../draft/ui';
 import { createAISettingsStore, type SecretStore } from '../ai/settings';
 import ChangeRoute from '../app/change';
+import AISettingsRoute from '../app/ai-settings';
 import HomeRoute from '../app/index';
+import LanguageRoute from '../app/language';
 import PageRoute from '../app/page/[pageId]';
 import ReadyRoute from '../app/ready/[workflowId]';
 import RunRoute from '../app/run/[workflowId]';
@@ -29,6 +32,7 @@ import WorkflowRoute from '../app/workflow/[id]';
 import WorkflowsRoute from '../app/workflows';
 import QuickActionsRoute from '../app/quick-actions';
 import QuickActionCategoryRoute from '../app/quick-actions/[kind]';
+import { useLocaleChoice } from '../locale/store';
 import { useIncomingShare } from '../share/useIncomingShare';
 import { ToolDownloadsProvider } from '../tool-download/context';
 import type { ToolDownloads } from '../tool-download/state';
@@ -53,6 +57,18 @@ const memorySecrets = (): SecretStore => {
   };
 };
 
+/** 和根布局一样：界面语言来自「设置 → 语言」的选择（D-254），换了语言整个界面重新渲染。 */
+function LocaleWorkspace({
+  value,
+  children,
+}: {
+  value: Omit<Parameters<typeof WorkspaceProvider>[0]['value'], 'locale'>;
+  children: ReactNode;
+}) {
+  const locale = useLocaleChoice((s) => s.locale);
+  return <WorkspaceProvider value={{ ...value, locale }}>{children}</WorkspaceProvider>;
+}
+
 /** 和根布局一样接收分享（原生模块在测试里是假的或没有）。 */
 function ShareListener({ files }: { files: FakeFiles }) {
   useIncomingShare(files);
@@ -73,16 +89,25 @@ export async function renderToolsApp(
   /** 下载的工具（D-177）：要用自己的注册表，下载时会往里面加工具。 */
   options: {
     registry?: Registry;
+    /** 系统语言；用户在「设置 → 语言」里的选择存在 repo 里（D-254）。 */
     locale?: Locale;
+    /** 「设置 → AI」选了 Morph 服务器。 */
+    aiServer?: boolean;
     toolDownloads?: ToolDownloads;
     /** 第一个版本；不传时是空白工作空间（App 里用 createStarterWorkspace）。 */
     seed?: (locale: Locale, registry: Registry) => WorkspaceConfig;
   } = {},
 ) {
   const registry = options.registry ?? testRegistry;
-  const locale = options.locale ?? 'zh';
-  const aiSettings = createAISettingsStore({ secrets: memorySecrets(), serverAvailable: false });
+  useLocaleChoice.getState().reset(options.locale ?? 'zh');
+  await useLocaleChoice.getState().load(repo, options.locale ?? 'zh');
+  const locale = () => useLocaleChoice.getState().locale;
+  const aiSettings = createAISettingsStore({
+    secrets: memorySecrets(),
+    serverAvailable: Boolean(options.aiServer),
+  });
   await aiSettings.getState().load();
+  if (options.aiServer) await aiSettings.getState().setMode('server');
   const store = createWorkspaceStore({
     repo,
     provider: createMockAIProvider(),
@@ -90,7 +115,7 @@ export async function renderToolsApp(
     locale,
     now: () => new Date(2026, 9, 22, 9, 0),
     toolName: (id) =>
-      options.toolDownloads?.getState().catalog?.tools.find((e) => e.id === id)?.name[locale],
+      options.toolDownloads?.getState().catalog?.tools.find((e) => e.id === id)?.name[locale()],
     ...(options.seed ? { seed: options.seed } : {}),
   });
   await store.getState().boot();
@@ -98,7 +123,7 @@ export async function renderToolsApp(
     _layout: () => (
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AISettingsProvider store={aiSettings}>
-          <WorkspaceProvider value={{ store, repo, files, registry, locale }}>
+          <LocaleWorkspace value={{ store, repo, files, registry }}>
             <ShareListener files={files} />
             {options.toolDownloads ? (
               <ToolDownloadsProvider value={options.toolDownloads}>
@@ -111,7 +136,7 @@ export async function renderToolsApp(
                 <DraftChatSheet />
               </>
             )}
-          </WorkspaceProvider>
+          </LocaleWorkspace>
         </AISettingsProvider>
       </GestureHandlerRootView>
     ),
@@ -126,6 +151,8 @@ export async function renderToolsApp(
     share: ShareRoute,
     'ready/[workflowId]': ReadyRoute,
     welcome: WelcomeRoute,
+    language: LanguageRoute,
+    'ai-settings': AISettingsRoute,
   });
   return { repo, store, files };
 }

@@ -259,10 +259,22 @@ export const strings = {
   },
   openHistory: { en: 'Change history', zh: '改动记录', fr: 'Historique des modifications' },
   language: { en: 'Language', zh: '语言', fr: 'Langue' },
-  languageValue: {
-    en: 'English (follows system)',
-    zh: '简体中文（跟随系统）',
-    fr: 'Français (suit le système)',
+  // 「设置 → 语言」（D-254）：{name} 是语言名，用它自己的语言写（English、中文、Français）。
+  languageFollowsSystem: {
+    en: '{name} (follows system)',
+    zh: '{name}（跟随系统）',
+    fr: '{name} (suit le système)',
+  },
+  languageSystem: { en: 'Follow system', zh: '跟随系统', fr: 'Suivre le système' },
+  languageSystemNote: {
+    en: 'Currently {name}',
+    zh: '现在是 {name}',
+    fr: 'Actuellement : {name}',
+  },
+  languageNote: {
+    en: 'Applies right away. System texts, such as permission prompts and the share menu, follow the system language.',
+    zh: '选了马上生效。权限弹窗、分享菜单等系统里的文字仍跟随系统语言。',
+    fr: 'S’applique tout de suite. Les textes du système, comme les demandes d’autorisation et le menu de partage, suivent la langue du système.',
   },
   aiEngine: { en: 'AI', zh: 'AI', fr: 'IA' },
   aiEngineRemote: {

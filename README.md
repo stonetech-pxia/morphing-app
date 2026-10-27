@@ -20,7 +20,7 @@ A phone app you install once and then keep changing by describing what you want:
 - **Change the app by describing it.** "Add Open photo library and Open files buttons", "make the font bigger and remove shadows", "add a page for tracking expenses", "remove the AI entry". Look changes go into a draft first; you can keep refining, step back, apply or leave. Changes to features (quick actions, tools, data tables) are saved right away with an undo bar. Every version is in the change history.
 - **Long-press to edit.** Long-press a component on a page to select it, drag to reorder, or open its edit panel.
 - **Your own data stays out of the AI.** Pages can record things (expenses, logs) in local data tables. The AI changes the layout but never sees what you record.
-- **Chinese, English and French**, following the system language.
+- **Chinese, English and French**, following the system language; you can also pick one in Settings → Language.
 
 ## Two ways to use it
 
@@ -36,7 +36,7 @@ A phone app you install once and then keep changing by describing what you want:
 
 ## Try it
 
-UI labels below are the English ones; the app follows your system language. The example sentences work with a real AI model; with the offline built-in rules, use the phrasings in [docs/MOCK_AI_PHRASES.md](docs/MOCK_AI_PHRASES.md) (the built-in rules are a parser, not a language model).
+UI labels below are the English ones; the app follows your system language unless you pick one in Settings → Language. The example sentences work with a real AI model; with the offline built-in rules, use the phrasings in [docs/MOCK_AI_PHRASES.md](docs/MOCK_AI_PHRASES.md) (the built-in rules are a parser, not a language model).
 
 1. **First launch.** After the intro pages the home screen is empty on purpose, with a bottom bar of **Home · AI · Settings**. The guide's first step offers one sentence, "add Open photo library and Open files buttons"; send it and the two buttons appear on the home screen ("Skip the guide" adds them too). Step 2 asks you to open a file. You can replay the guide from Settings.
 2. **Process a file.** Tap **Open files** and pick a few PDFs → the inbox suggests "Combine documents" and other quick actions → tap **Run**. Or share files to Morph from Photos or Files. The result page offers Share, Save to a folder, Continue processing and Run again.

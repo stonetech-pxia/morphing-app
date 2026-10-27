@@ -6,6 +6,7 @@ import { ScrollView, Text } from 'react-native';
 import { useAISettings } from '../ai/context';
 import { useGuide } from '../guide/store';
 import { t } from '../i18n';
+import { LOCALE_NAMES, useLocaleChoice } from '../locale/store';
 import type { RenderEnv } from '../renderer/components';
 import { ListRow, PageTitle, SectionLabel } from '../renderer/ui';
 import { useWorkspace } from '../workspace/context';
@@ -24,6 +25,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
   const aiModel = useAISettings((s) => s.model);
   const aiProvider = useAISettings((s) => s.provider);
   const aiCustomModel = useAISettings((s) => s.customModel);
+  const localeChoice = useLocaleChoice((s) => s.choice);
   const aiValue =
     aiMode === 'byok'
       ? t(locale, 'aiEngineByok', {
@@ -108,7 +110,17 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         }}
       />
       <SectionLabel palette={palette}>{t(locale, 'general')}</SectionLabel>
-      <ListRow palette={palette} label={t(locale, 'language')} value={t(locale, 'languageValue')} />
+      <ListRow
+        palette={palette}
+        testID="settings-language"
+        label={t(locale, 'language')}
+        value={
+          localeChoice === 'system'
+            ? t(locale, 'languageFollowsSystem', { name: LOCALE_NAMES[locale] })
+            : LOCALE_NAMES[locale]
+        }
+        onPress={env.locked ?? (() => router.push('/language'))}
+      />
       <ListRow
         palette={palette}
         label={t(locale, 'aiEngine')}

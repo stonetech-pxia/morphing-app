@@ -3,7 +3,7 @@ import { localize, MESSAGES, t, type StringKey, type Locale, type Localized } fr
 import { getLocales } from 'expo-localization';
 export { t, type StringKey } from '@morph/core';
 
-// 界面文案在 core/messages.ts；英文、简体中文、法语跟随系统语言。
+// 界面文案在 core/messages.ts；英文、简体中文、法语默认跟随系统语言，也可以在「设置 → 语言」里选（D-254，见 locale/store.ts）。
 // 用户自己的内容（页面标题等）存放在工作空间配置里，不经过这里。
 
 export function getDeviceLocale(): Locale {
