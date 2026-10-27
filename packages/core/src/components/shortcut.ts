@@ -29,4 +29,5 @@ export const shortcutComponent: ComponentDefinitionOf<'shortcut', typeof props> 
   ai: {
     doc: '{title, subtitle?, icon, target, look?: "row"|"tile"}: a card with an icon that opens target. row (default) = a settings-style row with a light icon background and an arrow on the right; tile = a big card with a solid icon block, no arrow. In a grid or row group, or centered, it is always stacked.',
   },
+  example: { props: { title: 'Tools', icon: 'apps', target: 'tools' } },
 });

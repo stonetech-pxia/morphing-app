@@ -1,4 +1,10 @@
-import { BUILTIN_TOOLS, createDefaultWorkspace, createRegistry, type Locale } from '@morph/core';
+import {
+  BUILTIN_TOOLS,
+  COMPONENTS,
+  createDefaultWorkspace,
+  createRegistry,
+  type Locale,
+} from '@morph/core';
 import { describe, expect, it } from 'vitest';
 
 import { buildSystemPrompt, buildUserMessage } from './prompt';
@@ -13,6 +19,14 @@ describe('prompt baseline', () => {
     await expect(buildSystemPrompt(registry)).toMatchFileSnapshot(
       './__snapshots__/system-prompt.txt',
     );
+  });
+
+  it('lists every registered component with its doc line and rule', () => {
+    const prompt = buildSystemPrompt(registry);
+    for (const def of COMPONENTS) {
+      expect(prompt).toContain(`\n  - ${def.type} ${def.ai.doc}\n`);
+      if (def.ai.rule) expect(prompt).toContain(`\n${def.ai.rule.n}. ${def.ai.rule.text}\n`);
+    }
   });
 
   it('numbers the rules 1..N, component rules included, without gaps', () => {

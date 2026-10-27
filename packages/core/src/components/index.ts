@@ -59,6 +59,8 @@ export interface ComponentDefinition {
   describe(c: KnownComponent, config: WorkspaceConfig, ctx: DescribeContext): string;
   edit: ComponentEdit;
   ai: ComponentAI;
+  example: { props: Record<string, unknown>; children?: unknown[] };
+  props: z.ZodObject;
 }
 
 const BY_TYPE = new Map<string, ComponentDefinition>(

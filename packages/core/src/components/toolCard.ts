@@ -18,4 +18,5 @@ export const toolCardComponent: ComponentDefinitionOf<'toolCard', typeof props> 
   },
   edit: { text: [], style: ALL_STYLES },
   ai: { doc: '{toolId, look?: "row"|"tile"}: entry to an installed tool\'s page' },
+  example: { props: { toolId: 'pdf' } },
 });

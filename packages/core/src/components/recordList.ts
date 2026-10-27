@@ -62,4 +62,15 @@ export const recordListComponent: ComponentDefinitionOf<'recordList', typeof pro
     ai: {
       doc: '{collectionId, display: "list"|"cards"|"checklist", titleField, subtitleFields? (≤2), trailingField? (shown on the right, e.g. an amount), checkField? (a checkbox field; required for "checklist"), filter?, sort? {field, direction: "asc"|"desc"}, limit (1-100), emptyText?}: tapping a record opens the built-in editor',
     },
+    example: {
+      props: {
+        collectionId: 'expenses',
+        display: 'list',
+        titleField: 'category',
+        subtitleFields: ['note', 'date'],
+        trailingField: 'amount',
+        sort: { field: 'date', direction: 'desc' },
+        limit: 30,
+      },
+    },
   });

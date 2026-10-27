@@ -23,4 +23,5 @@ export const workflowRunnerComponent: ComponentDefinitionOf<'workflowRunner', ty
     ai: {
       doc: '{workflowId, look?: "card"|"row"|"tile"}: runs a workflow. card = steps and a Run button, row = one line with a play icon on the right, tile = a small square (side by side two per row). Without look: tile when it sits next to other workflowRunners or in a grid/row group, card otherwise.',
     },
+    example: { props: { workflowId: 'pdf-merge' } },
   });

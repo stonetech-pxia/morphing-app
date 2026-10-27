@@ -11,4 +11,5 @@ export const dividerComponent: ComponentDefinitionOf<'divider', typeof props> = 
   describe: (_c, _config, ctx) => t(ctx.locale, 'describe_divider_7fe10'),
   edit: { text: [], style: [] },
   ai: { doc: '{}' },
+  example: { props: {} },
 });

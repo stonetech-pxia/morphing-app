@@ -11,4 +11,5 @@ export const spacerComponent: ComponentDefinitionOf<'spacer', typeof props> = de
   describe: (_c, _config, ctx) => t(ctx.locale, 'describe_spacer_9a646'),
   edit: { text: [], style: [] },
   ai: { doc: '{size: "small"|"medium"|"large"}' },
+  example: { props: { size: 'medium' } },
 });

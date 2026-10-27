@@ -62,4 +62,15 @@ export const chartComponent: ComponentDefinitionOf<'chart', typeof props> = defi
       text: 'Charts ("a chart of spending per month", "每天花了多少的柱状图", "pie chart by category", "trend over the last weeks") → a chart component on the page that shows the table: amounts over time are kind "bar" or "line" with group "day" / "week" / "month" (periods = how many recent days / weeks / months, e.g. 12 for "the last year by month"); shares of a whole are kind "pie" with group "choice". Use aggregate "sum" with the money field for spending, "count" for how many entries. A single total or a per-category list without a picture is a stat (rule 34). You only choose how the chart is built; you never see the values.',
     },
   },
+  example: {
+    props: {
+      collectionId: 'expenses',
+      kind: 'bar',
+      aggregate: 'sum',
+      fieldId: 'amount',
+      group: 'month',
+      dateField: 'date',
+      title: 'Spending by month',
+    },
+  },
 });

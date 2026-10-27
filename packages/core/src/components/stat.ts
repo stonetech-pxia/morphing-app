@@ -43,4 +43,13 @@ export const statComponent: ComponentDefinitionOf<'stat', typeof props> = define
       text: 'Totals per category ("how much per category", "每个分类花了多少", "count of tasks by status") → a stat with groupBy set to that choice field (aggregate count, sum or avg as asked); it lists every option with its own value and a "not set" row for entries without one. Grouping by anything other than a choice field is not possible in a stat.',
     },
   },
+  example: {
+    props: {
+      collectionId: 'expenses',
+      aggregate: 'sum',
+      fieldId: 'amount',
+      label: 'This month',
+      filter: [{ field: 'date', op: 'inPeriod', value: 'thisMonth' }],
+    },
+  },
 });

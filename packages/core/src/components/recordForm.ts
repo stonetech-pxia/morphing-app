@@ -36,4 +36,12 @@ export const recordFormComponent: ComponentDefinitionOf<'recordForm', typeof pro
     ai: {
       doc: '{collectionId, fieldIds (1-10), submitLabel, mode: "inline"|"button"}: "inline" adds records right on the page; "button" opens the full editor; formula and file fields can\'t be in fieldIds',
     },
+    example: {
+      props: {
+        collectionId: 'expenses',
+        fieldIds: ['amount', 'category', 'note'],
+        submitLabel: 'Add',
+        mode: 'inline',
+      },
+    },
   });

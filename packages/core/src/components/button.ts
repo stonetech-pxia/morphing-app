@@ -25,4 +25,5 @@ export const buttonComponent: ComponentDefinitionOf<'button', typeof props> = de
   ai: {
     doc: '{label, target, variant: "filled"|"outline"|"text"|"icon", icon?}: opens target. icon shows before the label; variant "icon" shows only a round icon (needs icon; the label is still read by screen readers).',
   },
+  example: { props: { label: 'Settings', target: 'settings', variant: 'filled' } },
 });

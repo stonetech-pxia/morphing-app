@@ -19,4 +19,5 @@ export const fileListComponent: ComponentDefinitionOf<'fileList', typeof props> 
   ai: {
     doc: '{title, limit (1-50), mimeType?: "application/pdf" | "image/*" | "video/*" | "audio/*"}: the user\'s files of that kind; without mimeType, their documents (photos used in image components are not listed)',
   },
+  example: { props: { title: 'Recent PDFs', limit: 5, mimeType: 'application/pdf' } },
 });

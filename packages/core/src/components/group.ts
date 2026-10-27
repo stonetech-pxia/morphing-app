@@ -34,4 +34,5 @@ export const groupComponent: ComponentDefinitionOf<'group', typeof props, typeof
     ai: {
       doc: '{title?, layout: "stack"|"row"|"grid", columns?: 2|3} with children: [component] (max 12, never another group). Use it to put things side by side (row) or in a grid.',
     },
+    example: { props: { layout: 'row' }, children: [] },
   });

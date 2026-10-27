@@ -129,6 +129,12 @@ export interface ComponentSpec<T extends string, P extends z.ZodObject, E extend
   describe: (c: Instance<T, P, E>, config: WorkspaceConfig, ctx: DescribeContext) => string;
   edit: ComponentEdit;
   ai: ComponentAI;
+  /**
+   * 一个能用的例子（不含 id 和 type）：components.test.ts 拿它在三种语言下校验、生成说明，
+   * App 的 registry-test 拿它渲染。只引用样例配置里有的：数据表 expenses（记账模版的
+   * amount、category、date、note），已添加的工具 pdf，它的快捷操作 pdf-merge。
+   */
+  example: Omit<Instance<T, P, E>, 'id' | 'type'>;
 }
 
 /**
