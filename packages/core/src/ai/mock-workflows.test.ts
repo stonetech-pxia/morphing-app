@@ -98,7 +98,12 @@ describe('mock AI — workflows', () => {
 
     const removed = await change('删除签证照片工作流', placed.after);
     expect(removed.after.workflows.some((w) => w.id === 'visa-photo')).toBe(false);
-    expect(JSON.stringify(removed.after.pages)).not.toContain('visa-photo');
+    // visa-photo 是内设快捷操作的 ID：删掉副本就回到内设的，首页卡片继续指向内设的（D-259）。
+    expect(
+      removed.after.pages[0]!.components.filter(
+        (c) => c.type === 'workflowRunner' && c.props.workflowId === 'visa-photo',
+      ),
+    ).toHaveLength(1);
     expect(await plan('删除合并 PDF 工作流', withVisa())).toMatchObject({
       kind: 'reject',
       message: '「合并 PDF」是工具自带的，不能单独删除；可以去掉其中的步骤，或者移除工具。',

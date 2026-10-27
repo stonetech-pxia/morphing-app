@@ -611,10 +611,13 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
         );
       }
       config.workflows = config.workflows.filter((w) => w.id !== op.workflowId);
-      const count = removeEverywhere(
-        config,
-        (c) => c.type === 'workflowRunner' && c.props.workflowId === op.workflowId,
-      );
+      // 删的是内设快捷操作的同 ID 副本时，卡片和按钮一样继续指向内设的（D-256、D-259），不移除。
+      const count = presetById(op.workflowId)
+        ? 0
+        : removeEverywhere(
+            config,
+            (c) => c.type === 'workflowRunner' && c.props.workflowId === op.workflowId,
+          );
       if (count > 0) notes.push({ kind: 'removedRunners', workflowId: op.workflowId, count });
       const links = removeWorkflowLinks(config, [op.workflowId]);
       if (links > 0)
