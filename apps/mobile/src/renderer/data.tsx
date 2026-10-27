@@ -24,7 +24,7 @@ import {
   type Backdrop,
 } from '@morph/core';
 import { useRouter } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -38,9 +38,9 @@ import {
 } from 'react-native';
 
 import { useLinkResolver, useRecordActions, useRecords } from '../data/records';
-import type { AssetRecord } from '../storage/types';
-import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { useWorkspace } from '../workspace/context';
 import { t } from '../i18n';
+import { AttachmentsInput } from './Attachments';
 import { onPicture } from './Backdrop';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
@@ -229,7 +229,7 @@ export const FIELD_EDITORS: { [T in FieldType]: FieldEditor<FieldOf<T>> } = {
   },
   file: {
     input: ({ value, onChange, palette, locale, disabled, testID }) => (
-      <AttachmentInput
+      <AttachmentsInput
         value={value}
         onChange={onChange}
         palette={palette}
@@ -277,68 +277,6 @@ export const FIELD_EDITORS: { [T in FieldType]: FieldEditor<FieldOf<T>> } = {
     ),
   },
 };
-
-/** 附件（D-187）：显示文件名，点一下打开分享面板（用别的 App 看），可以去掉。换文件要重新「记一笔」。 */
-function AttachmentInput({
-  value,
-  onChange,
-  palette,
-  locale,
-  disabled,
-  testID,
-}: {
-  value: unknown;
-  onChange: (value: unknown) => void;
-  palette: Palette;
-  locale: RenderEnv['locale'];
-  disabled?: boolean | undefined;
-  testID: string;
-}) {
-  const { repo, files } = useWorkspaceContext();
-  // 读到的文件连同它的 ID 一起记：值换了以后旧的那条不再显示。
-  const [loaded, setLoaded] = useState<{ id: string; asset: AssetRecord | null } | null>(null);
-  useEffect(() => {
-    if (typeof value !== 'string' || !value) return;
-    let alive = true;
-    void repo.getAsset(value).then((asset) => alive && setLoaded({ id: value, asset }));
-    return () => {
-      alive = false;
-    };
-  }, [repo, value]);
-  const asset = loaded && loaded.id === value ? loaded.asset : null;
-  if (typeof value !== 'string' || !value) {
-    return (
-      <Text style={[palette.font('body', 14), { color: palette.caption }]}>
-        {t(locale, 'noAttachment')}
-      </Text>
-    );
-  }
-  return (
-    <View style={styles.dateRow}>
-      <Pressable
-        testID={testID}
-        disabled={!asset}
-        onPress={() => asset && void files.share(asset.path, asset.mimeType)}
-        style={[styles.flex, styles.attachment]}>
-        <Icon name="document" size={18} color={palette.secondary} />
-        <Text
-          numberOfLines={1}
-          style={[styles.flex, palette.font('bodyMedium', 15), { color: palette.text }]}>
-          {asset?.name ?? t(locale, 'attachmentMissing')}
-        </Text>
-      </Pressable>
-      <Pressable
-        testID={`${testID}-remove`}
-        disabled={disabled}
-        hitSlop={8}
-        onPress={() => onChange('')}>
-        <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
-          {t(locale, 'removeAttachment')}
-        </Text>
-      </Pressable>
-    </View>
-  );
-}
 
 /** 选一条记录时最多列出几条（按最近修改排序，可以搜索）。 */
 const LINK_LIST_LIMIT = 30;

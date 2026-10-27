@@ -4,7 +4,8 @@ import type { Locale } from './schema-primitives';
 // 字段值的基本写法和显示格式。字段定义（fields/）和记录的纯函数（data.ts）都用；
 // 单独放一个文件，避免字段定义和 data.ts 互相引用。对外从 data.ts 导出。
 
-export type FieldValue = string | number | boolean;
+/** 附件字段（D-187、D-263）的值是一组文件 ID；别的字段是文字、数字或勾选。 */
+export type FieldValue = string | number | boolean | readonly string[];
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 export const pad = (n: number) => String(n).padStart(2, '0');
@@ -28,6 +29,9 @@ export const round = (n: number, decimals: number) => {
 
 /** 附件的值：文件 ID（和配置里的 ID 一样的写法）。 */
 export const FILE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+
+/** 一个附件字段最多放几个文件（D-263）。 */
+export const MAX_ATTACHMENTS = 20;
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   CNY: '¥',

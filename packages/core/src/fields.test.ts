@@ -112,7 +112,9 @@ describe.each(FIELDS.map((d) => [d.type, d] as const))('field %s', (_type, def) 
       def.filter.compare !== undefined && !def.filter.emptyOnly,
     );
     if (def.exampleValue !== undefined) {
-      expect(at({ op: 'is', value: def.exampleValue }).length === 0).toBe(!def.filter.emptyOnly);
+      // 附件的值是一组文件 ID，筛选时比的是其中一个。
+      const value = Array.isArray(def.exampleValue) ? def.exampleValue[0] : def.exampleValue;
+      expect(at({ op: 'is', value }).length === 0).toBe(!def.filter.emptyOnly);
     }
   });
 

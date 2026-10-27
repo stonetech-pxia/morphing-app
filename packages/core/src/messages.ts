@@ -2345,10 +2345,10 @@ export const extractedMessages = {
     zh: '你的文件不受影响',
     fr: 'Vos fichiers ne sont pas affectés',
   },
-  data_Attachment_6f6cf: {
-    en: 'Attachment',
-    zh: '附件',
-    fr: 'Pièce jointe',
+  data_attachments: {
+    en: '{n} attachments',
+    zh: '{n} 个附件',
+    fr: '{n} pièces jointes',
   },
   data_Yes_1f54e: {
     en: 'Yes',
@@ -3382,6 +3382,11 @@ export const MESSAGES = { ...strings, ...extractedMessages, ...dynamicMessages }
 export type StringKey = keyof typeof MESSAGES;
 
 const SINGULAR_MESSAGES: Partial<Record<StringKey, Localized>> = {
+  data_attachments: {
+    en: '{n} attachment',
+    zh: '{n} 个附件',
+    fr: '{n} pièce jointe',
+  },
   shareSummary: {
     en: '{n} file',
     zh: '{n} 个文件',

@@ -1472,7 +1472,9 @@ exports[`field baseline > cleans and checks values on write 1`] = `
       {
         "ok": true,
         "values": {
-          "f": "abc",
+          "f": [
+            "abc",
+          ],
         },
       },
       {
@@ -1496,13 +1498,17 @@ exports[`field baseline > cleans and checks values on write 1`] = `
       {
         "ok": true,
         "values": {
-          "f": "2026-02-30",
+          "f": [
+            "2026-02-30",
+          ],
         },
       },
       {
         "ok": true,
         "values": {
-          "f": "2026-10-27",
+          "f": [
+            "2026-10-27",
+          ],
         },
       },
       {
@@ -1517,19 +1523,25 @@ exports[`field baseline > cleans and checks values on write 1`] = `
       {
         "ok": true,
         "values": {
-          "f": "a",
+          "f": [
+            "a",
+          ],
         },
       },
       {
         "ok": true,
         "values": {
-          "f": "zz",
+          "f": [
+            "zz",
+          ],
         },
       },
       {
         "ok": true,
         "values": {
-          "f": "file_1",
+          "f": [
+            "file_1",
+          ],
         },
       },
       {
@@ -1572,7 +1584,9 @@ exports[`field baseline > cleans and checks values on write 1`] = `
     "keep": {
       "ok": true,
       "values": {
-        "f": "old",
+        "f": [
+          "old",
+        ],
         "other": 1,
       },
     },
@@ -1699,7 +1713,9 @@ exports[`field baseline > cleans and checks values on write 1`] = `
       {
         "ok": true,
         "values": {
-          "f": "abc",
+          "f": [
+            "abc",
+          ],
         },
       },
       {
@@ -1723,13 +1739,17 @@ exports[`field baseline > cleans and checks values on write 1`] = `
       {
         "ok": true,
         "values": {
-          "f": "2026-02-30",
+          "f": [
+            "2026-02-30",
+          ],
         },
       },
       {
         "ok": true,
         "values": {
-          "f": "2026-10-27",
+          "f": [
+            "2026-10-27",
+          ],
         },
       },
       {
@@ -1744,19 +1764,25 @@ exports[`field baseline > cleans and checks values on write 1`] = `
       {
         "ok": true,
         "values": {
-          "f": "a",
+          "f": [
+            "a",
+          ],
         },
       },
       {
         "ok": true,
         "values": {
-          "f": "zz",
+          "f": [
+            "zz",
+          ],
         },
       },
       {
         "ok": true,
         "values": {
-          "f": "file_1",
+          "f": [
+            "file_1",
+          ],
         },
       },
       {
@@ -1799,7 +1825,9 @@ exports[`field baseline > cleans and checks values on write 1`] = `
     "keep": {
       "ok": true,
       "values": {
-        "f": "old",
+        "f": [
+          "old",
+        ],
         "other": 1,
       },
     },
@@ -6304,14 +6332,14 @@ exports[`field baseline > displays and exports in en 1`] = `
 {
   "csv": "﻿Title,Note,Weight,Count,Price,Prix,Other,Done,Day,Kind,Stars,Receipt,Client,Double,Plus,Left,Created
 "Apple, ""red""","line1
-line2",2.5,1234567,12.50,-3.00,1000.00,Yes,2026-10-27,Alpha,5,Attachment,ACME,5,13.5,0,2026-10-20 10:00
+line2",2.5,1234567,12.50,-3.00,1000.00,Yes,2026-10-27,Alpha,5,1 attachment,ACME,5,13.5,0,2026-10-20 10:00
 banana,,10,,3.00,,,No,2026-10-01,Beta,1,,Deleted entry,20,4,-26,2026-10-21 10:00
 cherry,,,,,,,,,,,,,,,,1970-01-01 01:00
 ,,,,,,,,,,,,,,,,2026-10-22 10:00
 ",
   "csvNoLinks": "﻿Title,Note,Weight,Count,Price,Prix,Other,Done,Day,Kind,Stars,Receipt,Client,Double,Plus,Left,Created
 "Apple, ""red""","line1
-line2",2.5,1234567,12.50,-3.00,1000.00,Yes,2026-10-27,Alpha,5,Attachment,,5,13.5,0,2026-10-20 10:00
+line2",2.5,1234567,12.50,-3.00,1000.00,Yes,2026-10-27,Alpha,5,1 attachment,,5,13.5,0,2026-10-20 10:00
 banana,,10,,3.00,,,No,2026-10-01,Beta,1,,,20,4,-26,2026-10-21 10:00
 cherry,,,,,,,,,,,,,,,,1970-01-01 01:00
 ,,,,,,,,,,,,,,,,2026-10-22 10:00
@@ -6492,15 +6520,15 @@ cherry,,,,,,,,,,,,,,,,1970-01-01 01:00
       "",
       "",
       "",
-      "Attachment",
+      "1 attachment",
       "",
       "",
-      "Attachment",
-      "Attachment",
+      "1 attachment",
+      "1 attachment",
       "",
-      "Attachment",
-      "Attachment",
-      "Attachment",
+      "1 attachment",
+      "1 attachment",
+      "1 attachment",
       "",
       "",
       "",
@@ -6519,15 +6547,15 @@ cherry,,,,,,,,,,,,,,,,1970-01-01 01:00
       "",
       "",
       "",
-      "Attachment",
+      "1 attachment",
       "",
       "",
-      "Attachment",
-      "Attachment",
+      "1 attachment",
+      "1 attachment",
       "",
-      "Attachment",
-      "Attachment",
-      "Attachment",
+      "1 attachment",
+      "1 attachment",
+      "1 attachment",
       "",
       "",
       "",
@@ -7207,7 +7235,7 @@ tr { page-break-inside: avoid; }
 .v { flex: 1; overflow-wrap: anywhere; }
 </style></head><body><header><h1>Report</h1>
 <div class="meta">Items · 4 entries · 2026-10-27</div></header><table><thead><tr><th>Title</th><th>Note</th><th class="num">Weight</th><th class="num">Count</th><th class="num">Price</th><th class="num">Prix</th><th class="num">Other</th><th>Done</th><th>Day</th><th>Kind</th><th>Stars</th><th>Receipt</th><th>Client</th><th>Double</th><th>Plus</th><th>Left</th></tr></thead><tbody><tr><td>Apple, &quot;red&quot;</td><td>line1
-line2</td><td class="num">2.5 kg</td><td class="num">1,234,567</td><td class="num">¥12.50</td><td class="num">-€3.00</td><td class="num">CHF 1,000.00</td><td>Yes</td><td>2026-10-27</td><td>Alpha</td><td>★★★★★</td><td>Attachment</td><td>ACME</td><td>5.0 kg</td><td>$13.50</td><td>0</td></tr>
+line2</td><td class="num">2.5 kg</td><td class="num">1,234,567</td><td class="num">¥12.50</td><td class="num">-€3.00</td><td class="num">CHF 1,000.00</td><td>Yes</td><td>2026-10-27</td><td>Alpha</td><td>★★★★★</td><td>1 attachment</td><td>ACME</td><td>5.0 kg</td><td>$13.50</td><td>0</td></tr>
 <tr><td>banana</td><td></td><td class="num">10.0 kg</td><td class="num"></td><td class="num">¥3.00</td><td class="num"></td><td class="num"></td><td>No</td><td>2026-10-01</td><td>Beta</td><td>★☆☆☆☆</td><td></td><td>Deleted entry</td><td>20.0 kg</td><td>$4.00</td><td>-26</td></tr>
 <tr><td>cherry</td><td></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
 <tr><td></td><td></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></tbody></table></body></html>",
@@ -7231,7 +7259,7 @@ tr { page-break-inside: avoid; }
 .v { flex: 1; overflow-wrap: anywhere; }
 </style></head><body><header><h1>Report</h1>
 <div class="meta">Items · 4 entries · 2026-10-27</div></header><section class="card"><div class="row"><span class="k">Title</span><span class="v">Apple, &quot;red&quot;</span></div><div class="row"><span class="k">Note</span><span class="v">line1
-line2</span></div><div class="row"><span class="k">Weight</span><span class="v">2.5 kg</span></div><div class="row"><span class="k">Count</span><span class="v">1,234,567</span></div><div class="row"><span class="k">Price</span><span class="v">¥12.50</span></div><div class="row"><span class="k">Prix</span><span class="v">-€3.00</span></div><div class="row"><span class="k">Other</span><span class="v">CHF 1,000.00</span></div><div class="row"><span class="k">Done</span><span class="v">Yes</span></div><div class="row"><span class="k">Day</span><span class="v">2026-10-27</span></div><div class="row"><span class="k">Kind</span><span class="v">Alpha</span></div><div class="row"><span class="k">Stars</span><span class="v">★★★★★</span></div><div class="row"><span class="k">Receipt</span><span class="v">Attachment</span></div><div class="row"><span class="k">Client</span><span class="v">ACME</span></div><div class="row"><span class="k">Double</span><span class="v">5.0 kg</span></div><div class="row"><span class="k">Plus</span><span class="v">$13.50</span></div><div class="row"><span class="k">Left</span><span class="v">0</span></div></section>
+line2</span></div><div class="row"><span class="k">Weight</span><span class="v">2.5 kg</span></div><div class="row"><span class="k">Count</span><span class="v">1,234,567</span></div><div class="row"><span class="k">Price</span><span class="v">¥12.50</span></div><div class="row"><span class="k">Prix</span><span class="v">-€3.00</span></div><div class="row"><span class="k">Other</span><span class="v">CHF 1,000.00</span></div><div class="row"><span class="k">Done</span><span class="v">Yes</span></div><div class="row"><span class="k">Day</span><span class="v">2026-10-27</span></div><div class="row"><span class="k">Kind</span><span class="v">Alpha</span></div><div class="row"><span class="k">Stars</span><span class="v">★★★★★</span></div><div class="row"><span class="k">Receipt</span><span class="v">1 attachment</span></div><div class="row"><span class="k">Client</span><span class="v">ACME</span></div><div class="row"><span class="k">Double</span><span class="v">5.0 kg</span></div><div class="row"><span class="k">Plus</span><span class="v">$13.50</span></div><div class="row"><span class="k">Left</span><span class="v">0</span></div></section>
 <section class="card"><div class="row"><span class="k">Title</span><span class="v">banana</span></div><div class="row"><span class="k">Note</span><span class="v">—</span></div><div class="row"><span class="k">Weight</span><span class="v">10.0 kg</span></div><div class="row"><span class="k">Count</span><span class="v">—</span></div><div class="row"><span class="k">Price</span><span class="v">¥3.00</span></div><div class="row"><span class="k">Prix</span><span class="v">—</span></div><div class="row"><span class="k">Other</span><span class="v">—</span></div><div class="row"><span class="k">Done</span><span class="v">No</span></div><div class="row"><span class="k">Day</span><span class="v">2026-10-01</span></div><div class="row"><span class="k">Kind</span><span class="v">Beta</span></div><div class="row"><span class="k">Stars</span><span class="v">★☆☆☆☆</span></div><div class="row"><span class="k">Receipt</span><span class="v">—</span></div><div class="row"><span class="k">Client</span><span class="v">Deleted entry</span></div><div class="row"><span class="k">Double</span><span class="v">20.0 kg</span></div><div class="row"><span class="k">Plus</span><span class="v">$4.00</span></div><div class="row"><span class="k">Left</span><span class="v">-26</span></div></section>
 <section class="card"><div class="row"><span class="k">Title</span><span class="v">cherry</span></div><div class="row"><span class="k">Note</span><span class="v">—</span></div><div class="row"><span class="k">Weight</span><span class="v">—</span></div><div class="row"><span class="k">Count</span><span class="v">—</span></div><div class="row"><span class="k">Price</span><span class="v">—</span></div><div class="row"><span class="k">Prix</span><span class="v">—</span></div><div class="row"><span class="k">Other</span><span class="v">—</span></div><div class="row"><span class="k">Done</span><span class="v">—</span></div><div class="row"><span class="k">Day</span><span class="v">—</span></div><div class="row"><span class="k">Kind</span><span class="v">—</span></div><div class="row"><span class="k">Stars</span><span class="v">—</span></div><div class="row"><span class="k">Receipt</span><span class="v">—</span></div><div class="row"><span class="k">Client</span><span class="v">—</span></div><div class="row"><span class="k">Double</span><span class="v">—</span></div><div class="row"><span class="k">Plus</span><span class="v">—</span></div><div class="row"><span class="k">Left</span><span class="v">—</span></div></section>
 <section class="card"><div class="row"><span class="k">Title</span><span class="v">—</span></div><div class="row"><span class="k">Note</span><span class="v">—</span></div><div class="row"><span class="k">Weight</span><span class="v">—</span></div><div class="row"><span class="k">Count</span><span class="v">—</span></div><div class="row"><span class="k">Price</span><span class="v">—</span></div><div class="row"><span class="k">Prix</span><span class="v">—</span></div><div class="row"><span class="k">Other</span><span class="v">—</span></div><div class="row"><span class="k">Done</span><span class="v">—</span></div><div class="row"><span class="k">Day</span><span class="v">—</span></div><div class="row"><span class="k">Kind</span><span class="v">—</span></div><div class="row"><span class="k">Stars</span><span class="v">—</span></div><div class="row"><span class="k">Receipt</span><span class="v">—</span></div><div class="row"><span class="k">Client</span><span class="v">—</span></div><div class="row"><span class="k">Double</span><span class="v">—</span></div><div class="row"><span class="k">Plus</span><span class="v">—</span></div><div class="row"><span class="k">Left</span><span class="v">—</span></div></section></body></html>",
@@ -7255,7 +7283,7 @@ tr { page-break-inside: avoid; }
 .v { flex: 1; overflow-wrap: anywhere; }
 </style></head><body><header><h1>Report</h1>
 <div class="meta">Items · 4 entries · 2026-10-27</div></header><table><thead><tr><th>Title</th><th>Note</th><th class="num">Weight</th><th class="num">Count</th><th class="num">Price</th><th class="num">Prix</th><th class="num">Other</th><th>Done</th><th>Day</th><th>Kind</th><th>Stars</th><th>Receipt</th><th>Client</th><th>Double</th><th>Plus</th><th>Left</th></tr></thead><tbody><tr><td>Apple, &quot;red&quot;</td><td>line1
-line2</td><td class="num">2.5 kg</td><td class="num">1,234,567</td><td class="num">¥12.50</td><td class="num">-€3.00</td><td class="num">CHF 1,000.00</td><td>Yes</td><td>2026-10-27</td><td>Alpha</td><td>★★★★★</td><td>Attachment</td><td>ACME</td><td>5.0 kg</td><td>$13.50</td><td>0</td></tr>
+line2</td><td class="num">2.5 kg</td><td class="num">1,234,567</td><td class="num">¥12.50</td><td class="num">-€3.00</td><td class="num">CHF 1,000.00</td><td>Yes</td><td>2026-10-27</td><td>Alpha</td><td>★★★★★</td><td>1 attachment</td><td>ACME</td><td>5.0 kg</td><td>$13.50</td><td>0</td></tr>
 <tr><td>banana</td><td></td><td class="num">10.0 kg</td><td class="num"></td><td class="num">¥3.00</td><td class="num"></td><td class="num"></td><td>No</td><td>2026-10-01</td><td>Beta</td><td>★☆☆☆☆</td><td></td><td>Deleted entry</td><td>20.0 kg</td><td>$4.00</td><td>-26</td></tr>
 <tr><td>cherry</td><td></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
 <tr><td></td><td></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></tbody></table><div class="total">Total · Price: <strong>¥15.50</strong></div></body></html>",
@@ -7297,7 +7325,7 @@ line2",
       "2026-10-27",
       "Alpha",
       "★★★★★",
-      "Attachment",
+      "1 attachment",
       "ACME",
       "5.0 kg",
       "$13.50",
@@ -7388,14 +7416,14 @@ exports[`field baseline > displays and exports in fr 1`] = `
 {
   "csv": "﻿Title,Note,Weight,Count,Price,Prix,Other,Done,Day,Kind,Stars,Receipt,Client,Double,Plus,Left,Création
 "Apple, ""red""","line1
-line2",2.5,1234567,12.50,-3.00,1000.00,Oui,27/10/2026,Alpha,5,Pièce jointe,ACME,5,13.5,0,20/10/2026 10:00
+line2",2.5,1234567,12.50,-3.00,1000.00,Oui,27/10/2026,Alpha,5,1 pièce jointe,ACME,5,13.5,0,20/10/2026 10:00
 banana,,10,,3.00,,,Non,01/10/2026,Beta,1,,Entrée supprimée,20,4,-26,21/10/2026 10:00
 cherry,,,,,,,,,,,,,,,,01/01/1970 01:00
 ,,,,,,,,,,,,,,,,22/10/2026 10:00
 ",
   "csvNoLinks": "﻿Title,Note,Weight,Count,Price,Prix,Other,Done,Day,Kind,Stars,Receipt,Client,Double,Plus,Left,Création
 "Apple, ""red""","line1
-line2",2.5,1234567,12.50,-3.00,1000.00,Oui,27/10/2026,Alpha,5,Pièce jointe,,5,13.5,0,20/10/2026 10:00
+line2",2.5,1234567,12.50,-3.00,1000.00,Oui,27/10/2026,Alpha,5,1 pièce jointe,,5,13.5,0,20/10/2026 10:00
 banana,,10,,3.00,,,Non,01/10/2026,Beta,1,,,20,4,-26,21/10/2026 10:00
 cherry,,,,,,,,,,,,,,,,01/01/1970 01:00
 ,,,,,,,,,,,,,,,,22/10/2026 10:00
@@ -7576,15 +7604,15 @@ cherry,,,,,,,,,,,,,,,,01/01/1970 01:00
       "",
       "",
       "",
-      "Pièce jointe",
+      "1 pièce jointe",
       "",
       "",
-      "Pièce jointe",
-      "Pièce jointe",
+      "1 pièce jointe",
+      "1 pièce jointe",
       "",
-      "Pièce jointe",
-      "Pièce jointe",
-      "Pièce jointe",
+      "1 pièce jointe",
+      "1 pièce jointe",
+      "1 pièce jointe",
       "",
       "",
       "",
@@ -7603,15 +7631,15 @@ cherry,,,,,,,,,,,,,,,,01/01/1970 01:00
       "",
       "",
       "",
-      "Pièce jointe",
+      "1 pièce jointe",
       "",
       "",
-      "Pièce jointe",
-      "Pièce jointe",
+      "1 pièce jointe",
+      "1 pièce jointe",
       "",
-      "Pièce jointe",
-      "Pièce jointe",
-      "Pièce jointe",
+      "1 pièce jointe",
+      "1 pièce jointe",
+      "1 pièce jointe",
       "",
       "",
       "",
@@ -8291,7 +8319,7 @@ tr { page-break-inside: avoid; }
 .v { flex: 1; overflow-wrap: anywhere; }
 </style></head><body><header><h1>Report</h1>
 <div class="meta">Items · 4 entrées · 2026-10-27</div></header><table><thead><tr><th>Title</th><th>Note</th><th class="num">Weight</th><th class="num">Count</th><th class="num">Price</th><th class="num">Prix</th><th class="num">Other</th><th>Done</th><th>Day</th><th>Kind</th><th>Stars</th><th>Receipt</th><th>Client</th><th>Double</th><th>Plus</th><th>Left</th></tr></thead><tbody><tr><td>Apple, &quot;red&quot;</td><td>line1
-line2</td><td class="num">2,5 kg</td><td class="num">1 234 567</td><td class="num">12,50 CNY</td><td class="num">-3,00 €</td><td class="num">1 000,00 CHF</td><td>Oui</td><td>27/10/2026</td><td>Alpha</td><td>★★★★★</td><td>Pièce jointe</td><td>ACME</td><td>5,0 kg</td><td>13,50 $US</td><td>0</td></tr>
+line2</td><td class="num">2,5 kg</td><td class="num">1 234 567</td><td class="num">12,50 CNY</td><td class="num">-3,00 €</td><td class="num">1 000,00 CHF</td><td>Oui</td><td>27/10/2026</td><td>Alpha</td><td>★★★★★</td><td>1 pièce jointe</td><td>ACME</td><td>5,0 kg</td><td>13,50 $US</td><td>0</td></tr>
 <tr><td>banana</td><td></td><td class="num">10,0 kg</td><td class="num"></td><td class="num">3,00 CNY</td><td class="num"></td><td class="num"></td><td>Non</td><td>01/10/2026</td><td>Beta</td><td>★☆☆☆☆</td><td></td><td>Entrée supprimée</td><td>20,0 kg</td><td>4,00 $US</td><td>-26</td></tr>
 <tr><td>cherry</td><td></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
 <tr><td></td><td></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></tbody></table></body></html>",
@@ -8315,7 +8343,7 @@ tr { page-break-inside: avoid; }
 .v { flex: 1; overflow-wrap: anywhere; }
 </style></head><body><header><h1>Report</h1>
 <div class="meta">Items · 4 entrées · 2026-10-27</div></header><section class="card"><div class="row"><span class="k">Title</span><span class="v">Apple, &quot;red&quot;</span></div><div class="row"><span class="k">Note</span><span class="v">line1
-line2</span></div><div class="row"><span class="k">Weight</span><span class="v">2,5 kg</span></div><div class="row"><span class="k">Count</span><span class="v">1 234 567</span></div><div class="row"><span class="k">Price</span><span class="v">12,50 CNY</span></div><div class="row"><span class="k">Prix</span><span class="v">-3,00 €</span></div><div class="row"><span class="k">Other</span><span class="v">1 000,00 CHF</span></div><div class="row"><span class="k">Done</span><span class="v">Oui</span></div><div class="row"><span class="k">Day</span><span class="v">27/10/2026</span></div><div class="row"><span class="k">Kind</span><span class="v">Alpha</span></div><div class="row"><span class="k">Stars</span><span class="v">★★★★★</span></div><div class="row"><span class="k">Receipt</span><span class="v">Pièce jointe</span></div><div class="row"><span class="k">Client</span><span class="v">ACME</span></div><div class="row"><span class="k">Double</span><span class="v">5,0 kg</span></div><div class="row"><span class="k">Plus</span><span class="v">13,50 $US</span></div><div class="row"><span class="k">Left</span><span class="v">0</span></div></section>
+line2</span></div><div class="row"><span class="k">Weight</span><span class="v">2,5 kg</span></div><div class="row"><span class="k">Count</span><span class="v">1 234 567</span></div><div class="row"><span class="k">Price</span><span class="v">12,50 CNY</span></div><div class="row"><span class="k">Prix</span><span class="v">-3,00 €</span></div><div class="row"><span class="k">Other</span><span class="v">1 000,00 CHF</span></div><div class="row"><span class="k">Done</span><span class="v">Oui</span></div><div class="row"><span class="k">Day</span><span class="v">27/10/2026</span></div><div class="row"><span class="k">Kind</span><span class="v">Alpha</span></div><div class="row"><span class="k">Stars</span><span class="v">★★★★★</span></div><div class="row"><span class="k">Receipt</span><span class="v">1 pièce jointe</span></div><div class="row"><span class="k">Client</span><span class="v">ACME</span></div><div class="row"><span class="k">Double</span><span class="v">5,0 kg</span></div><div class="row"><span class="k">Plus</span><span class="v">13,50 $US</span></div><div class="row"><span class="k">Left</span><span class="v">0</span></div></section>
 <section class="card"><div class="row"><span class="k">Title</span><span class="v">banana</span></div><div class="row"><span class="k">Note</span><span class="v">—</span></div><div class="row"><span class="k">Weight</span><span class="v">10,0 kg</span></div><div class="row"><span class="k">Count</span><span class="v">—</span></div><div class="row"><span class="k">Price</span><span class="v">3,00 CNY</span></div><div class="row"><span class="k">Prix</span><span class="v">—</span></div><div class="row"><span class="k">Other</span><span class="v">—</span></div><div class="row"><span class="k">Done</span><span class="v">Non</span></div><div class="row"><span class="k">Day</span><span class="v">01/10/2026</span></div><div class="row"><span class="k">Kind</span><span class="v">Beta</span></div><div class="row"><span class="k">Stars</span><span class="v">★☆☆☆☆</span></div><div class="row"><span class="k">Receipt</span><span class="v">—</span></div><div class="row"><span class="k">Client</span><span class="v">Entrée supprimée</span></div><div class="row"><span class="k">Double</span><span class="v">20,0 kg</span></div><div class="row"><span class="k">Plus</span><span class="v">4,00 $US</span></div><div class="row"><span class="k">Left</span><span class="v">-26</span></div></section>
 <section class="card"><div class="row"><span class="k">Title</span><span class="v">cherry</span></div><div class="row"><span class="k">Note</span><span class="v">—</span></div><div class="row"><span class="k">Weight</span><span class="v">—</span></div><div class="row"><span class="k">Count</span><span class="v">—</span></div><div class="row"><span class="k">Price</span><span class="v">—</span></div><div class="row"><span class="k">Prix</span><span class="v">—</span></div><div class="row"><span class="k">Other</span><span class="v">—</span></div><div class="row"><span class="k">Done</span><span class="v">—</span></div><div class="row"><span class="k">Day</span><span class="v">—</span></div><div class="row"><span class="k">Kind</span><span class="v">—</span></div><div class="row"><span class="k">Stars</span><span class="v">—</span></div><div class="row"><span class="k">Receipt</span><span class="v">—</span></div><div class="row"><span class="k">Client</span><span class="v">—</span></div><div class="row"><span class="k">Double</span><span class="v">—</span></div><div class="row"><span class="k">Plus</span><span class="v">—</span></div><div class="row"><span class="k">Left</span><span class="v">—</span></div></section>
 <section class="card"><div class="row"><span class="k">Title</span><span class="v">—</span></div><div class="row"><span class="k">Note</span><span class="v">—</span></div><div class="row"><span class="k">Weight</span><span class="v">—</span></div><div class="row"><span class="k">Count</span><span class="v">—</span></div><div class="row"><span class="k">Price</span><span class="v">—</span></div><div class="row"><span class="k">Prix</span><span class="v">—</span></div><div class="row"><span class="k">Other</span><span class="v">—</span></div><div class="row"><span class="k">Done</span><span class="v">—</span></div><div class="row"><span class="k">Day</span><span class="v">—</span></div><div class="row"><span class="k">Kind</span><span class="v">—</span></div><div class="row"><span class="k">Stars</span><span class="v">—</span></div><div class="row"><span class="k">Receipt</span><span class="v">—</span></div><div class="row"><span class="k">Client</span><span class="v">—</span></div><div class="row"><span class="k">Double</span><span class="v">—</span></div><div class="row"><span class="k">Plus</span><span class="v">—</span></div><div class="row"><span class="k">Left</span><span class="v">—</span></div></section></body></html>",
@@ -8339,7 +8367,7 @@ tr { page-break-inside: avoid; }
 .v { flex: 1; overflow-wrap: anywhere; }
 </style></head><body><header><h1>Report</h1>
 <div class="meta">Items · 4 entrées · 2026-10-27</div></header><table><thead><tr><th>Title</th><th>Note</th><th class="num">Weight</th><th class="num">Count</th><th class="num">Price</th><th class="num">Prix</th><th class="num">Other</th><th>Done</th><th>Day</th><th>Kind</th><th>Stars</th><th>Receipt</th><th>Client</th><th>Double</th><th>Plus</th><th>Left</th></tr></thead><tbody><tr><td>Apple, &quot;red&quot;</td><td>line1
-line2</td><td class="num">2,5 kg</td><td class="num">1 234 567</td><td class="num">12,50 CNY</td><td class="num">-3,00 €</td><td class="num">1 000,00 CHF</td><td>Oui</td><td>27/10/2026</td><td>Alpha</td><td>★★★★★</td><td>Pièce jointe</td><td>ACME</td><td>5,0 kg</td><td>13,50 $US</td><td>0</td></tr>
+line2</td><td class="num">2,5 kg</td><td class="num">1 234 567</td><td class="num">12,50 CNY</td><td class="num">-3,00 €</td><td class="num">1 000,00 CHF</td><td>Oui</td><td>27/10/2026</td><td>Alpha</td><td>★★★★★</td><td>1 pièce jointe</td><td>ACME</td><td>5,0 kg</td><td>13,50 $US</td><td>0</td></tr>
 <tr><td>banana</td><td></td><td class="num">10,0 kg</td><td class="num"></td><td class="num">3,00 CNY</td><td class="num"></td><td class="num"></td><td>Non</td><td>01/10/2026</td><td>Beta</td><td>★☆☆☆☆</td><td></td><td>Entrée supprimée</td><td>20,0 kg</td><td>4,00 $US</td><td>-26</td></tr>
 <tr><td>cherry</td><td></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
 <tr><td></td><td></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></tbody></table><div class="total">Total · Price : <strong>15,50 CNY</strong></div></body></html>",
@@ -8381,7 +8409,7 @@ line2",
       "27/10/2026",
       "Alpha",
       "★★★★★",
-      "Pièce jointe",
+      "1 pièce jointe",
       "ACME",
       "5,0 kg",
       "13,50 $US",
@@ -8472,14 +8500,14 @@ exports[`field baseline > displays and exports in zh 1`] = `
 {
   "csv": "﻿Title,Note,Weight,Count,Price,Prix,Other,Done,Day,Kind,Stars,Receipt,Client,Double,Plus,Left,创建时间
 "Apple, ""red""","line1
-line2",2.5,1234567,12.50,-3.00,1000.00,是,2026-10-27,Alpha,5,附件,ACME,5,13.5,0,2026-10-20 10:00
+line2",2.5,1234567,12.50,-3.00,1000.00,是,2026-10-27,Alpha,5,1 个附件,ACME,5,13.5,0,2026-10-20 10:00
 banana,,10,,3.00,,,否,2026-10-01,Beta,1,,已删除的记录,20,4,-26,2026-10-21 10:00
 cherry,,,,,,,,,,,,,,,,1970-01-01 01:00
 ,,,,,,,,,,,,,,,,2026-10-22 10:00
 ",
   "csvNoLinks": "﻿Title,Note,Weight,Count,Price,Prix,Other,Done,Day,Kind,Stars,Receipt,Client,Double,Plus,Left,创建时间
 "Apple, ""red""","line1
-line2",2.5,1234567,12.50,-3.00,1000.00,是,2026-10-27,Alpha,5,附件,,5,13.5,0,2026-10-20 10:00
+line2",2.5,1234567,12.50,-3.00,1000.00,是,2026-10-27,Alpha,5,1 个附件,,5,13.5,0,2026-10-20 10:00
 banana,,10,,3.00,,,否,2026-10-01,Beta,1,,,20,4,-26,2026-10-21 10:00
 cherry,,,,,,,,,,,,,,,,1970-01-01 01:00
 ,,,,,,,,,,,,,,,,2026-10-22 10:00
@@ -8660,15 +8688,15 @@ cherry,,,,,,,,,,,,,,,,1970-01-01 01:00
       "",
       "",
       "",
-      "附件",
+      "1 个附件",
       "",
       "",
-      "附件",
-      "附件",
+      "1 个附件",
+      "1 个附件",
       "",
-      "附件",
-      "附件",
-      "附件",
+      "1 个附件",
+      "1 个附件",
+      "1 个附件",
       "",
       "",
       "",
@@ -8687,15 +8715,15 @@ cherry,,,,,,,,,,,,,,,,1970-01-01 01:00
       "",
       "",
       "",
-      "附件",
+      "1 个附件",
       "",
       "",
-      "附件",
-      "附件",
+      "1 个附件",
+      "1 个附件",
       "",
-      "附件",
-      "附件",
-      "附件",
+      "1 个附件",
+      "1 个附件",
+      "1 个附件",
       "",
       "",
       "",
@@ -9375,7 +9403,7 @@ tr { page-break-inside: avoid; }
 .v { flex: 1; overflow-wrap: anywhere; }
 </style></head><body><header><h1>Report</h1>
 <div class="meta">Items · 4 条 · 2026-10-27</div></header><table><thead><tr><th>Title</th><th>Note</th><th class="num">Weight</th><th class="num">Count</th><th class="num">Price</th><th class="num">Prix</th><th class="num">Other</th><th>Done</th><th>Day</th><th>Kind</th><th>Stars</th><th>Receipt</th><th>Client</th><th>Double</th><th>Plus</th><th>Left</th></tr></thead><tbody><tr><td>Apple, &quot;red&quot;</td><td>line1
-line2</td><td class="num">2.5 kg</td><td class="num">1,234,567</td><td class="num">¥12.50</td><td class="num">-€3.00</td><td class="num">CHF 1,000.00</td><td>是</td><td>2026-10-27</td><td>Alpha</td><td>★★★★★</td><td>附件</td><td>ACME</td><td>5.0 kg</td><td>$13.50</td><td>0</td></tr>
+line2</td><td class="num">2.5 kg</td><td class="num">1,234,567</td><td class="num">¥12.50</td><td class="num">-€3.00</td><td class="num">CHF 1,000.00</td><td>是</td><td>2026-10-27</td><td>Alpha</td><td>★★★★★</td><td>1 个附件</td><td>ACME</td><td>5.0 kg</td><td>$13.50</td><td>0</td></tr>
 <tr><td>banana</td><td></td><td class="num">10.0 kg</td><td class="num"></td><td class="num">¥3.00</td><td class="num"></td><td class="num"></td><td>否</td><td>2026-10-01</td><td>Beta</td><td>★☆☆☆☆</td><td></td><td>已删除的记录</td><td>20.0 kg</td><td>$4.00</td><td>-26</td></tr>
 <tr><td>cherry</td><td></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
 <tr><td></td><td></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></tbody></table></body></html>",
@@ -9399,7 +9427,7 @@ tr { page-break-inside: avoid; }
 .v { flex: 1; overflow-wrap: anywhere; }
 </style></head><body><header><h1>Report</h1>
 <div class="meta">Items · 4 条 · 2026-10-27</div></header><section class="card"><div class="row"><span class="k">Title</span><span class="v">Apple, &quot;red&quot;</span></div><div class="row"><span class="k">Note</span><span class="v">line1
-line2</span></div><div class="row"><span class="k">Weight</span><span class="v">2.5 kg</span></div><div class="row"><span class="k">Count</span><span class="v">1,234,567</span></div><div class="row"><span class="k">Price</span><span class="v">¥12.50</span></div><div class="row"><span class="k">Prix</span><span class="v">-€3.00</span></div><div class="row"><span class="k">Other</span><span class="v">CHF 1,000.00</span></div><div class="row"><span class="k">Done</span><span class="v">是</span></div><div class="row"><span class="k">Day</span><span class="v">2026-10-27</span></div><div class="row"><span class="k">Kind</span><span class="v">Alpha</span></div><div class="row"><span class="k">Stars</span><span class="v">★★★★★</span></div><div class="row"><span class="k">Receipt</span><span class="v">附件</span></div><div class="row"><span class="k">Client</span><span class="v">ACME</span></div><div class="row"><span class="k">Double</span><span class="v">5.0 kg</span></div><div class="row"><span class="k">Plus</span><span class="v">$13.50</span></div><div class="row"><span class="k">Left</span><span class="v">0</span></div></section>
+line2</span></div><div class="row"><span class="k">Weight</span><span class="v">2.5 kg</span></div><div class="row"><span class="k">Count</span><span class="v">1,234,567</span></div><div class="row"><span class="k">Price</span><span class="v">¥12.50</span></div><div class="row"><span class="k">Prix</span><span class="v">-€3.00</span></div><div class="row"><span class="k">Other</span><span class="v">CHF 1,000.00</span></div><div class="row"><span class="k">Done</span><span class="v">是</span></div><div class="row"><span class="k">Day</span><span class="v">2026-10-27</span></div><div class="row"><span class="k">Kind</span><span class="v">Alpha</span></div><div class="row"><span class="k">Stars</span><span class="v">★★★★★</span></div><div class="row"><span class="k">Receipt</span><span class="v">1 个附件</span></div><div class="row"><span class="k">Client</span><span class="v">ACME</span></div><div class="row"><span class="k">Double</span><span class="v">5.0 kg</span></div><div class="row"><span class="k">Plus</span><span class="v">$13.50</span></div><div class="row"><span class="k">Left</span><span class="v">0</span></div></section>
 <section class="card"><div class="row"><span class="k">Title</span><span class="v">banana</span></div><div class="row"><span class="k">Note</span><span class="v">—</span></div><div class="row"><span class="k">Weight</span><span class="v">10.0 kg</span></div><div class="row"><span class="k">Count</span><span class="v">—</span></div><div class="row"><span class="k">Price</span><span class="v">¥3.00</span></div><div class="row"><span class="k">Prix</span><span class="v">—</span></div><div class="row"><span class="k">Other</span><span class="v">—</span></div><div class="row"><span class="k">Done</span><span class="v">否</span></div><div class="row"><span class="k">Day</span><span class="v">2026-10-01</span></div><div class="row"><span class="k">Kind</span><span class="v">Beta</span></div><div class="row"><span class="k">Stars</span><span class="v">★☆☆☆☆</span></div><div class="row"><span class="k">Receipt</span><span class="v">—</span></div><div class="row"><span class="k">Client</span><span class="v">已删除的记录</span></div><div class="row"><span class="k">Double</span><span class="v">20.0 kg</span></div><div class="row"><span class="k">Plus</span><span class="v">$4.00</span></div><div class="row"><span class="k">Left</span><span class="v">-26</span></div></section>
 <section class="card"><div class="row"><span class="k">Title</span><span class="v">cherry</span></div><div class="row"><span class="k">Note</span><span class="v">—</span></div><div class="row"><span class="k">Weight</span><span class="v">—</span></div><div class="row"><span class="k">Count</span><span class="v">—</span></div><div class="row"><span class="k">Price</span><span class="v">—</span></div><div class="row"><span class="k">Prix</span><span class="v">—</span></div><div class="row"><span class="k">Other</span><span class="v">—</span></div><div class="row"><span class="k">Done</span><span class="v">—</span></div><div class="row"><span class="k">Day</span><span class="v">—</span></div><div class="row"><span class="k">Kind</span><span class="v">—</span></div><div class="row"><span class="k">Stars</span><span class="v">—</span></div><div class="row"><span class="k">Receipt</span><span class="v">—</span></div><div class="row"><span class="k">Client</span><span class="v">—</span></div><div class="row"><span class="k">Double</span><span class="v">—</span></div><div class="row"><span class="k">Plus</span><span class="v">—</span></div><div class="row"><span class="k">Left</span><span class="v">—</span></div></section>
 <section class="card"><div class="row"><span class="k">Title</span><span class="v">—</span></div><div class="row"><span class="k">Note</span><span class="v">—</span></div><div class="row"><span class="k">Weight</span><span class="v">—</span></div><div class="row"><span class="k">Count</span><span class="v">—</span></div><div class="row"><span class="k">Price</span><span class="v">—</span></div><div class="row"><span class="k">Prix</span><span class="v">—</span></div><div class="row"><span class="k">Other</span><span class="v">—</span></div><div class="row"><span class="k">Done</span><span class="v">—</span></div><div class="row"><span class="k">Day</span><span class="v">—</span></div><div class="row"><span class="k">Kind</span><span class="v">—</span></div><div class="row"><span class="k">Stars</span><span class="v">—</span></div><div class="row"><span class="k">Receipt</span><span class="v">—</span></div><div class="row"><span class="k">Client</span><span class="v">—</span></div><div class="row"><span class="k">Double</span><span class="v">—</span></div><div class="row"><span class="k">Plus</span><span class="v">—</span></div><div class="row"><span class="k">Left</span><span class="v">—</span></div></section></body></html>",
@@ -9423,7 +9451,7 @@ tr { page-break-inside: avoid; }
 .v { flex: 1; overflow-wrap: anywhere; }
 </style></head><body><header><h1>Report</h1>
 <div class="meta">Items · 4 条 · 2026-10-27</div></header><table><thead><tr><th>Title</th><th>Note</th><th class="num">Weight</th><th class="num">Count</th><th class="num">Price</th><th class="num">Prix</th><th class="num">Other</th><th>Done</th><th>Day</th><th>Kind</th><th>Stars</th><th>Receipt</th><th>Client</th><th>Double</th><th>Plus</th><th>Left</th></tr></thead><tbody><tr><td>Apple, &quot;red&quot;</td><td>line1
-line2</td><td class="num">2.5 kg</td><td class="num">1,234,567</td><td class="num">¥12.50</td><td class="num">-€3.00</td><td class="num">CHF 1,000.00</td><td>是</td><td>2026-10-27</td><td>Alpha</td><td>★★★★★</td><td>附件</td><td>ACME</td><td>5.0 kg</td><td>$13.50</td><td>0</td></tr>
+line2</td><td class="num">2.5 kg</td><td class="num">1,234,567</td><td class="num">¥12.50</td><td class="num">-€3.00</td><td class="num">CHF 1,000.00</td><td>是</td><td>2026-10-27</td><td>Alpha</td><td>★★★★★</td><td>1 个附件</td><td>ACME</td><td>5.0 kg</td><td>$13.50</td><td>0</td></tr>
 <tr><td>banana</td><td></td><td class="num">10.0 kg</td><td class="num"></td><td class="num">¥3.00</td><td class="num"></td><td class="num"></td><td>否</td><td>2026-10-01</td><td>Beta</td><td>★☆☆☆☆</td><td></td><td>已删除的记录</td><td>20.0 kg</td><td>$4.00</td><td>-26</td></tr>
 <tr><td>cherry</td><td></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
 <tr><td></td><td></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td class="num"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></tbody></table><div class="total">合计 · Price：<strong>¥15.50</strong></div></body></html>",
@@ -9465,7 +9493,7 @@ line2",
       "2026-10-27",
       "Alpha",
       "★★★★★",
-      "附件",
+      "1 个附件",
       "ACME",
       "5.0 kg",
       "$13.50",
@@ -10263,21 +10291,11 @@ exports[`field baseline > filters, sorts and counts 1`] = `
     "f contains thisMonth": [],
     "f contains true": [],
     "f contains undefined": [],
-    "f gt 10": [
-      "r1",
-    ],
-    "f gt 2": [
-      "r1",
-    ],
-    "f gt 2026-10-15": [
-      "r1",
-    ],
-    "f gt Apple": [
-      "r1",
-    ],
-    "f gt a": [
-      "r1",
-    ],
+    "f gt 10": [],
+    "f gt 2": [],
+    "f gt 2026-10-15": [],
+    "f gt Apple": [],
+    "f gt a": [],
     "f gt thisMonth": [],
     "f gt true": [],
     "f gt undefined": [],
@@ -10411,12 +10429,8 @@ exports[`field baseline > filters, sorts and counts 1`] = `
     "f lt 2026-10-15": [],
     "f lt Apple": [],
     "f lt a": [],
-    "f lt thisMonth": [
-      "r1",
-    ],
-    "f lt true": [
-      "r1",
-    ],
+    "f lt thisMonth": [],
+    "f lt true": [],
     "f lt undefined": [],
     "fo contains 10": [],
     "fo contains 2": [],
@@ -12871,15 +12885,27 @@ exports[`field baseline > reads raw values 1`] = `
     "∅",
     "∅",
     "∅",
-    "abc",
+    [
+      "abc",
+    ],
     "∅",
     "∅",
-    "2026-02-30",
-    "2026-10-27",
+    [
+      "2026-02-30",
+    ],
+    [
+      "2026-10-27",
+    ],
     "∅",
-    "a",
-    "zz",
-    "file_1",
+    [
+      "a",
+    ],
+    [
+      "zz",
+    ],
+    [
+      "file_1",
+    ],
     "∅",
     "∅",
     "∅",

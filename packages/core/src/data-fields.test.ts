@@ -79,14 +79,84 @@ describe('formula fields', () => {
 });
 
 describe('attachment fields', () => {
-  it('store a file id and show as an attachment', () => {
-    const prepared = prepareRecordValues(orders, { item: '纸', receipt: 'asset-123' }, null, now);
-    expect(prepared.ok && prepared.values.receipt).toBe('asset-123');
-    expect(prepareRecordValues(orders, { receipt: '../etc/passwd' }, null, now).ok).toBe(false);
-    expect(formatRef(record('r', { receipt: 'asset-123' }), orders, 'receipt', 'zh')).toBe('附件');
-    expect(formatRef(record('r', { receipt: 'asset-123' }), orders, 'receipt', 'en')).toBe(
-      'Attachment',
+  it('store a list of file ids and show how many there are', () => {
+    const prepared = prepareRecordValues(
+      orders,
+      { item: '纸', receipt: ['asset-123', 'asset-456'] },
+      null,
+      now,
     );
+    expect(prepared.ok && prepared.values.receipt).toEqual(['asset-123', 'asset-456']);
+    expect(prepareRecordValues(orders, { receipt: ['../etc/passwd'] }, null, now).ok).toBe(false);
+    const two = record('r', { receipt: ['asset-123', 'asset-456'] });
+    expect(formatRef(two, orders, 'receipt', 'zh')).toBe('2 个附件');
+    expect(formatRef(two, orders, 'receipt', 'en')).toBe('2 attachments');
+    expect(formatRef(two, orders, 'receipt', 'fr')).toBe('2 pièces jointes');
+  });
+
+  it('read an old single id as a list of one, and always write a list', () => {
+    const old = record('r', { receipt: 'asset-123' });
+    expect(recordValue(old, orders, 'receipt')).toEqual(['asset-123']);
+    expect(formatRef(old, orders, 'receipt', 'zh')).toBe('1 个附件');
+    expect(formatRef(old, orders, 'receipt', 'en')).toBe('1 attachment');
+    expect(formatRef(old, orders, 'receipt', 'fr')).toBe('1 pièce jointe');
+    // 改别的字段时，旧的单个 ID 也写成一组。
+    const updated = prepareRecordValues(orders, { item: '笔' }, old.values, now);
+    expect(updated.ok && updated.values.receipt).toEqual(['asset-123']);
+    const single = prepareRecordValues(orders, { receipt: 'asset-9' }, null, now);
+    expect(single.ok && single.values.receipt).toEqual(['asset-9']);
+  });
+
+  it('keep the order, drop duplicates and allow at most 20 files', () => {
+    const ids = Array.from({ length: 20 }, (_, i) => `a${i}`);
+    const full = prepareRecordValues(orders, { receipt: [...ids, 'a0'] }, null, now);
+    expect(full.ok && full.values.receipt).toEqual(ids);
+    expect(prepareRecordValues(orders, { receipt: [...ids, 'a20'] }, null, now)).toEqual({
+      ok: false,
+      issues: [{ fieldId: 'receipt', code: 'tooLong' }],
+    });
+    // 读的时候宽容：多出来的、坏的 ID 不显示。
+    expect(
+      recordValue(record('r', { receipt: [...ids, 'a20', 'bad id'] }), orders, 'receipt'),
+    ).toEqual(ids);
+  });
+
+  it('clear the field when the list is empty', () => {
+    const cleared = prepareRecordValues(orders, { receipt: [] }, { receipt: ['a1'] }, now);
+    expect(cleared.ok && 'receipt' in cleared.values).toBe(false);
+    expect(recordValue(record('r', { receipt: [] }), orders, 'receipt')).toBeUndefined();
+  });
+
+  it('filter by having attachments or a given file, sort by how many, export the count', () => {
+    const none = record('n', { item: '无' });
+    const one = record('o', { item: '一', receipt: 'x1' });
+    const two = record('t', { item: '二', receipt: ['x2', 'x3'] });
+    const ids = (rs: DataRecord[]) => rs.map((r) => r.id);
+    expect(
+      ids(filterRecords([none, one, two], orders, [{ field: 'receipt', op: 'isNotEmpty' }], now)),
+    ).toEqual(['o', 't']);
+    expect(
+      ids(filterRecords([none, one, two], orders, [{ field: 'receipt', op: 'isEmpty' }], now)),
+    ).toEqual(['n']);
+    expect(
+      ids(
+        filterRecords([none, one, two], orders, [{ field: 'receipt', op: 'is', value: 'x3' }], now),
+      ),
+    ).toEqual(['t']);
+    expect(
+      ids(
+        filterRecords(
+          [none, one, two],
+          orders,
+          [{ field: 'receipt', op: 'isNot', value: 'x3' }],
+          now,
+        ),
+      ),
+    ).toEqual(['n', 'o']);
+    expect(
+      ids(sortRecords([one, none, two], orders, { field: 'receipt', direction: 'desc' })),
+    ).toEqual(['t', 'o', 'n']);
+    expect(recordsToCsv(orders, [two], 'en')).toContain(',2 attachments,');
   });
 });
 

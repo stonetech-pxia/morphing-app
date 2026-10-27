@@ -104,14 +104,17 @@ describe('out.addRecord', () => {
     const records = await repo.listRecords('expenses');
     expect(records.map((r) => r.values)).toEqual(
       expect.arrayContaining([
-        { amount: 35.5, date: '2026-10-24', receipt: expect.any(String) },
-        { amount: 12, date: '2026-10-24', note: '打车', receipt: expect.any(String) },
+        { amount: 35.5, date: '2026-10-24', receipt: [expect.any(String)] },
+        { amount: 12, date: '2026-10-24', note: '打车', receipt: [expect.any(String)] },
       ]),
     );
     // 收据存成了 Morph 的文件，授权给这个快捷操作；结果里的文件就是存好的那两个。
     const assets = await repo.listAssets();
     expect(assets.map((a) => a.name).sort()).toEqual(['IMG_1.jpg', 'IMG_2.jpg']);
-    expect(records.map((r) => r.values.receipt).sort()).toEqual(assets.map((a) => a.id).sort());
+    // 附件字段是一组文件 ID（D-263），每条记录一个。
+    expect(records.flatMap((r) => r.values.receipt as string[]).sort()).toEqual(
+      assets.map((a) => a.id).sort(),
+    );
     expect(await repo.hasGrant('workflow:receipts', assets[0]!.id)).toBe(true);
     if (result.status === 'succeeded') expect(result.saved).toHaveLength(2);
     // 结果交给下一步「分享」：两张收据一起分享出去。

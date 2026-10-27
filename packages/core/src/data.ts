@@ -151,7 +151,10 @@ function defaultValue(field: Field, now: Date): FieldValue | undefined {
 }
 
 const isBlank = (v: unknown) =>
-  v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
+  v === undefined ||
+  v === null ||
+  (typeof v === 'string' && v.trim() === '') ||
+  (Array.isArray(v) && v.length === 0);
 
 /**
  * 写入时严格校验：input 只包含要修改的字段（字段 ID → 表单值，空字符串表示清空）。
@@ -197,6 +200,9 @@ export function prepareRecordValues(
 
 function compare(a: FieldValue, b: FieldValue): number {
   if (typeof a === 'number' && typeof b === 'number') return a - b;
+  // 附件（一组文件 ID）按个数比。
+  if (Array.isArray(a) || Array.isArray(b))
+    return (Array.isArray(a) ? a.length : 0) - (Array.isArray(b) ? b.length : 0);
   if (typeof a === 'boolean' && typeof b === 'boolean') return Number(a) - Number(b);
   return String(a).localeCompare(String(b));
 }
@@ -209,6 +215,14 @@ export function matchesCondition(
 ): boolean {
   const value = recordValue(record, collection, condition.field, now);
   const target = condition.value;
+  // 附件（D-263）：一组文件 ID。is / isNot 看有没有这个文件，其他比较都不成立。
+  if (Array.isArray(value)) {
+    const has = typeof target === 'string' && value.includes(target);
+    if (condition.op === 'isNotEmpty') return true;
+    if (condition.op === 'is') return has;
+    if (condition.op === 'isNot') return !has;
+    return false;
+  }
   switch (condition.op) {
     case 'isEmpty':
       return value === undefined || value === '';

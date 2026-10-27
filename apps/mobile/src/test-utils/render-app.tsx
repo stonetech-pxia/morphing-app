@@ -22,6 +22,7 @@ import ChangeRoute from '../app/change';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
 import ReadyRoute from '../app/ready/[workflowId]';
+import RecordRoute from '../app/record/[collectionId]';
 import ReminderRoute from '../app/reminder/[workflowId]';
 import RunRoute from '../app/run/[workflowId]';
 import ShareRoute from '../app/share';
@@ -127,6 +128,7 @@ export async function renderToolsApp(
     'workflow/[id]': WorkflowRoute,
     share: ShareRoute,
     'ready/[workflowId]': ReadyRoute,
+    'record/[collectionId]': RecordRoute,
     welcome: WelcomeRoute,
   });
   return { repo, store, files };
