@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   aggregateRecords,
@@ -30,6 +30,9 @@ process.env.TZ = 'Europe/Paris';
 
 const LOCALES: Locale[] = ['en', 'zh', 'fr'];
 const NOW = new Date(2026, 9, 27, 10, 30);
+// 公式里的 today 读系统时间：固定成 NOW，不然快照每过一天就对不上。
+vi.useFakeTimers({ toFake: ['Date'] });
+vi.setSystemTime(NOW);
 
 const FIELDS: Field[] = [
   { id: 't', name: 'Title', type: 'text', default: 'Untitled' },
