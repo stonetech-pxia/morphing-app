@@ -810,6 +810,58 @@ export const strings = {
     zh: '这张照片超过 {mb} MB。',
     fr: 'Cette photo dépasse {mb} Mo.',
   },
+  fileSlotPlaceholder: {
+    en: 'Tap to choose a file',
+    zh: '点按选择一个文件',
+    fr: 'Touchez pour choisir un fichier',
+  },
+  fileSlotMissing: {
+    en: 'This file is not on this device. Tap to choose another.',
+    zh: '这个文件不在这台设备上，点按换一个。',
+    fr: 'Ce fichier n’est pas sur cet appareil. Touchez pour en choisir un autre.',
+  },
+  fileSlotFromPhotos: { en: 'From Photos', zh: '从相册选', fr: 'Depuis Photos' },
+  fileSlotFromFiles: { en: 'From Files', zh: '从「文件」选', fr: 'Depuis Fichiers' },
+  fileSlotChoose: { en: 'Choose a file', zh: '选择文件', fr: 'Choisir un fichier' },
+  fileSlotReplace: { en: 'Replace file', zh: '更换文件', fr: 'Remplacer le fichier' },
+  fileSlotRemove: { en: 'Remove file', zh: '移除文件', fr: 'Retirer le fichier' },
+  backdropSection: { en: 'Picture background', zh: '图片背景', fr: 'Image de fond' },
+  pageBackdropSection: {
+    en: 'Page background picture',
+    zh: '页面背景图片',
+    fr: 'Image de fond de la page',
+  },
+  backdropChoose: { en: 'Choose a picture', zh: '选择图片', fr: 'Choisir une image' },
+  backdropReplace: { en: 'Replace picture', zh: '更换图片', fr: 'Remplacer l’image' },
+  backdropRemove: { en: 'Remove picture', zh: '移除图片', fr: 'Retirer l’image' },
+  backdropOff: {
+    en: 'Turn off picture background',
+    zh: '关掉图片背景',
+    fr: 'Désactiver l’image de fond',
+  },
+  backdropOverlayLabel: {
+    en: 'Overlay on the picture',
+    zh: '图片上的遮罩',
+    fr: 'Voile sur l’image',
+  },
+  fileSlotSection: { en: 'File', zh: '文件', fr: 'Fichier' },
+  setFileSummary: { en: 'Set a file', zh: '设置文件', fr: 'Définir un fichier' },
+  removeFileSummary: { en: 'Remove a file', zh: '移除文件', fr: 'Retirer un fichier' },
+  fileSlotTooLarge: {
+    en: 'This file is larger than {gb} GB.',
+    zh: '这个文件超过 {gb} GB。',
+    fr: 'Ce fichier dépasse {gb} Go.',
+  },
+  fileSlotNoSpace: {
+    en: 'Not enough free space on this phone to keep a copy of this file.',
+    zh: '手机剩余空间不够，存不下这个文件的副本。',
+    fr: 'Pas assez d’espace libre sur ce téléphone pour garder une copie de ce fichier.',
+  },
+  fileSlotCopyFailed: {
+    en: 'This file could not be copied into Morph.',
+    zh: '这个文件没能复制进 Morph。',
+    fr: 'Impossible de copier ce fichier dans Morph.',
+  },
   openLinkTitle: { en: 'Open link?', zh: '打开链接？', fr: 'Ouvrir le lien ?' },
   openLinkMessage: {
     en: 'This opens {target} outside the app.',
@@ -850,6 +902,95 @@ export const strings = {
     fr: 'Ce tableau de données ne fait plus partie de l’application. Ses entrées sont conservées dans Paramètres → Données.',
   },
   dataTitle: { en: 'Data', zh: '数据', fr: 'Données' },
+  storageTitle: { en: 'Storage', zh: '存储空间', fr: 'Stockage' },
+  storageRowHint: {
+    en: 'Photos and files Morph keeps, and where they are used',
+    zh: 'Morph 保存的照片和文件，用在哪里',
+    fr: 'Photos et fichiers conservés par Morph, et où ils servent',
+  },
+  storageSummary: {
+    en: '{n} files · {size}',
+    zh: '{n} 个文件 · {size}',
+    fr: '{n} fichiers · {size}',
+  },
+  storageEmpty: {
+    en: 'Morph has no saved files yet. Photos and files you add to entries, file slots and pictures are kept here.',
+    zh: 'Morph 里还没有保存的文件。记录里的照片和文件、文件入口和图片用到的文件都存在这里。',
+    fr: 'Morph n’a encore aucun fichier enregistré. Les photos et fichiers ajoutés aux entrées, aux emplacements de fichier et aux images sont conservés ici.',
+  },
+  storageIntro: {
+    en: 'Files Morph keeps on this phone and where they are used. Only you see this page.',
+    zh: 'Morph 存在这台手机上的文件，以及它们用在哪里。这一页只有你能看到。',
+    fr: 'Les fichiers que Morph garde sur ce téléphone et où ils sont utilisés. Vous seul voyez cette page.',
+  },
+  storageCleanup: {
+    en: 'Clean up {n} unused files ({size})',
+    zh: '清理 {n} 个没有在用的文件（{size}）',
+    fr: 'Nettoyer {n} fichiers inutilisés ({size})',
+  },
+  storageCleanupTitle: {
+    en: 'Delete {n} unused files?',
+    zh: '删除 {n} 个没有在用的文件？',
+    fr: 'Supprimer {n} fichiers inutilisés ?',
+  },
+  storageCleanupMessage: {
+    en: 'They take {size}. No entry, page or component uses them now. Files used only by older versions are deleted too, so restoring those versions will not bring them back. Results saved by quick actions are not included. This can’t be undone.',
+    zh: '共 {size}。现在没有任何记录、页面或组件用到它们。只在旧版本里用到的也会删掉，恢复那些旧版本时找不回。快捷操作存的结果不在其中。删除后不能撤销。',
+    fr: 'Ils occupent {size}. Aucune entrée, page ni composant ne les utilise. Les fichiers utilisés seulement par d’anciennes versions sont aussi supprimés : restaurer ces versions ne les fera pas revenir. Les résultats enregistrés par les actions rapides ne sont pas concernés. Action irréversible.',
+  },
+  storageUsedInRecord: {
+    en: '{table} · {title}',
+    zh: '{table} · {title}',
+    fr: '{table} · {title}',
+  },
+  storageUsedInDeletedRecord: {
+    en: '{table} · {title} (recently deleted)',
+    zh: '{table} · {title}（最近删除）',
+    fr: '{table} · {title} (supprimée récemment)',
+  },
+  storageUsedInComponent: {
+    en: '{page} · {component}',
+    zh: '{page} · {component}',
+    fr: '{page} · {component}',
+  },
+  storageUsedAsBackdrop: {
+    en: '{page} · picture background',
+    zh: '{page} · 图片背景',
+    fr: '{page} · image de fond',
+  },
+  storageTableGone: { en: 'Removed table', zh: '已移除的数据表', fr: 'Tableau retiré' },
+  storageOldVersionsOnly: {
+    en: 'Used only by older versions',
+    zh: '只在旧版本里用到',
+    fr: 'Utilisé seulement par d’anciennes versions',
+  },
+  storageUnused: { en: 'Not used anywhere now', zh: '现在没有地方在用', fr: 'Utilisé nulle part' },
+  storageQuickActionResult: {
+    en: 'Saved by a quick action',
+    zh: '快捷操作存的结果',
+    fr: 'Enregistré par une action rapide',
+  },
+  storageKindImage: { en: 'Photo', zh: '图片', fr: 'Photo' },
+  storageKindVideo: { en: 'Video', zh: '视频', fr: 'Vidéo' },
+  storageKindAudio: { en: 'Audio', zh: '音频', fr: 'Audio' },
+  storageKindPdf: { en: 'PDF', zh: 'PDF', fr: 'PDF' },
+  storageKindOther: { en: 'File', zh: '文件', fr: 'Fichier' },
+  storagePreview: { en: 'Preview', zh: '预览', fr: 'Aperçu' },
+  storageDeleteTitle: {
+    en: 'Delete “{name}”?',
+    zh: '删除「{name}」？',
+    fr: 'Supprimer « {name} » ?',
+  },
+  storageDeleteUsed: {
+    en: 'It is used in {n} places. They will show that the file is gone, and restoring an older version will not bring it back. This can’t be undone.',
+    zh: '有 {n} 个地方用到它，删除后那里会显示文件已不在，恢复旧版本也找不回。删除后不能撤销。',
+    fr: 'Il est utilisé à {n} endroits. Ils indiqueront que le fichier n’existe plus, et restaurer une ancienne version ne le fera pas revenir. Action irréversible.',
+  },
+  storageDeleteUnused: {
+    en: 'Restoring an older version will not bring it back. This can’t be undone.',
+    zh: '恢复旧版本也找不回。删除后不能撤销。',
+    fr: 'Restaurer une ancienne version ne le fera pas revenir. Action irréversible.',
+  },
   dataRowHint: {
     en: 'Your entries: export, recently deleted',
     zh: '你记录的数据：导出、最近删除',
@@ -955,6 +1096,11 @@ export const strings = {
   field_text: { en: 'Text', zh: '文字', fr: 'Texte' },
   field_label: { en: 'Button text', zh: '按钮文字', fr: 'Texte du bouton' },
   field_caption: { en: 'Caption', zh: '说明', fr: 'Légende' },
+  field_hint: {
+    en: 'Hint before a file is chosen',
+    zh: '未选文件时的提示',
+    fr: 'Indication avant le choix d’un fichier',
+  },
   field_placeholder: {
     en: 'Hint before a photo is chosen',
     zh: '未选照片时的提示',
@@ -1441,6 +1587,40 @@ export const strings = {
   },
   guideLater: { en: 'Later', zh: '以后再说', fr: 'Plus tard' },
   guideSkipAll: { en: 'Skip the guide', zh: '跳过引导', fr: 'Passer le guide' },
+  // 引导第 3 步：样板 App（D-260）。
+  guideSamplesTitle: { en: 'Step 3', zh: '第 3 步', fr: 'Étape 3' },
+  guideSamplesBody: {
+    en: 'You can also turn Morph into an app of your own. Pick one to try.',
+    zh: '还能把 Morph 变成你自己的 App，选一个试试。',
+    fr: 'Vous pouvez aussi faire de Morph votre propre app. Choisissez-en une pour essayer.',
+  },
+  sampleDraftInput: {
+    en: 'Use the “{name}” sample app',
+    zh: '套用样板「{name}」',
+    fr: 'Utiliser l’app modèle « {name} »',
+  },
+  sampleReadyTitle: {
+    en: '“{name}” is ready',
+    zh: '「{name}」装好了',
+    fr: '« {name} » est prête',
+  },
+  sampleReadyBody: {
+    en: 'To make it your own, ask AI to keep changing it.',
+    zh: '想改成你自己的样子，可以让 AI 接着改。',
+    fr: 'Pour l’adapter à vos besoins, demandez à l’IA de continuer à la modifier.',
+  },
+  sampleReadyChange: { en: 'Change it with AI', zh: '用 AI 接着改', fr: 'Modifier avec l’IA' },
+  sampleReadyDismiss: { en: 'Got it', zh: '知道了', fr: 'Compris' },
+  sampleFailed: {
+    en: 'This sample app could not be added. Please try another one.',
+    zh: '这个样板没能加上，换一个试试。',
+    fr: 'Impossible d’ajouter cette app modèle. Essayez-en une autre.',
+  },
+  sampleContinuePrompt: {
+    en: 'Starting from {name}, change this: ',
+    zh: '在{name}的基础上改：',
+    fr: 'En partant de « {name} », modifier ceci : ',
+  },
   settingsGuide: { en: 'Show the guide again', zh: '重新看新手引导', fr: 'Revoir le guide' },
   settingsGuideHint: {
     en: 'The intro and two short exercises',
@@ -1499,6 +1679,19 @@ export const strings = {
     fr: 'Le fichier a été supprimé',
   },
   removeAttachment: { en: 'Remove', zh: '去掉', fr: 'Retirer' },
+  attachmentAdd: {
+    en: 'Add photos or files',
+    zh: '添加照片或文件',
+    fr: 'Ajouter des photos ou des fichiers',
+  },
+  attachmentTakePhoto: { en: 'Take a photo', zh: '拍照', fr: 'Prendre une photo' },
+  attachmentMoveUp: { en: 'Move up', zh: '上移', fr: 'Monter' },
+  attachmentMoveDown: { en: 'Move down', zh: '下移', fr: 'Descendre' },
+  attachmentsFull: {
+    en: 'At most {n} files',
+    zh: '最多 {n} 个文件',
+    fr: '{n} fichiers au maximum',
+  },
   runError_documentUnsupported: {
     en: '“{name}” is a {format} file. On this phone only Word documents (.docx) can be turned into PDFs.',
     zh: '「{name}」是 {format} 文件。这台手机上只能把 Word 文档（.docx）转成 PDF。',
@@ -1598,6 +1791,17 @@ export const strings = {
   statNoChoice: { en: 'Not set', zh: '未选', fr: 'Non renseigné' },
   // 图表（D-249）
   describeChart: { en: 'chart “{v0}”', zh: '图表「{v0}」', fr: 'graphique « {v0} »' },
+  // D-254：更新的 App 加的组件，这个版本不认识，原样保留。
+  describeUnknownComponent: {
+    en: 'content from a newer version of this app',
+    zh: '新版本 App 才能显示的内容',
+    fr: 'contenu d’une version plus récente de cette app',
+  },
+  unknownComponent: {
+    en: 'This needs a newer version of this app to show.',
+    zh: '需要更新 App 才能显示这里的内容。',
+    fr: 'Une version plus récente de cette app est nécessaire pour afficher ce contenu.',
+  },
   chartOther: { en: 'Other', zh: '其他', fr: 'Autres' },
   chartEmpty: {
     en: 'No entries to show yet',
@@ -1689,12 +1893,45 @@ export const strings = {
     fr: 'Depuis votre rappel',
   },
   reminderOpenRun: { en: 'Start', zh: '开始', fr: 'Démarrer' },
+  // D-256：按钮、快捷入口打开的快捷操作（只摆出来，用户点「开始」才运行）。
+  openQuickActionTitle: { en: 'Quick action', zh: '快捷操作', fr: 'Action rapide' },
+  openQuickActionMissing: {
+    en: 'This quick action is no longer in the app.',
+    zh: '这个快捷操作已经不在了。',
+    fr: 'Cette action rapide n’est plus dans l’app.',
+  },
   reminderOpenMissing: {
     en: 'This reminder’s quick action is no longer in the app.',
     zh: '这个提醒对应的快捷操作已经不在了。',
     fr: 'L’action rapide de ce rappel n’est plus dans l’app.',
   },
   remindersRowHint: { en: '{n} reminders', zh: '{n} 个提醒', fr: '{n} rappels' },
+  // 样板 App（D-260）：放不下时不套用，说明原因。
+  sampleTooManyTables: {
+    en: '“{name}” needs new data tables, but the app is close to the limit of 20. Remove tables you no longer use, then try again.',
+    zh: '「{name}」要新建数据表，可 App 里的数据表快到 20 张的上限了。先移除用不到的表，再来试试。',
+    fr: '« {name} » a besoin de nouveaux tableaux, mais l’app approche de la limite de 20. Supprimez les tableaux inutiles, puis réessayez.',
+  },
+  sampleTooManyPages: {
+    en: '“{name}” needs new pages, but the app is close to the limit of 20. Remove pages you no longer use, then try again.',
+    zh: '「{name}」要新建页面，可 App 里的页面快到 20 个的上限了。先移除用不到的页面，再来试试。',
+    fr: '« {name} » a besoin de nouvelles pages, mais l’app approche de la limite de 20. Supprimez les pages inutiles, puis réessayez.',
+  },
+  sampleTooManyWorkflows: {
+    en: '“{name}” needs new quick actions, but the app is close to the limit of 100. Remove quick actions you no longer use, then try again.',
+    zh: '「{name}」要添加快捷操作，可 App 里的快捷操作快到 100 个的上限了。先移除用不到的，再来试试。',
+    fr: '« {name} » a besoin de nouvelles actions rapides, mais l’app approche de la limite de 100. Supprimez celles que vous n’utilisez plus, puis réessayez.',
+  },
+  sampleTooManyReminders: {
+    en: '“{name}” needs new reminders, but the app is close to the limit of 20. Remove reminders in Settings → Reminders, then try again.',
+    zh: '「{name}」要添加提醒，可 App 里的提醒快到 20 个的上限了。先在「设置 → 提醒」移除一些，再来试试。',
+    fr: '« {name} » a besoin de nouveaux rappels, mais l’app approche de la limite de 20. Supprimez des rappels dans Paramètres → Rappels, puis réessayez.',
+  },
+  sampleHomeFull: {
+    en: '“{name}” needs a spot on the home page, but it is full. Remove something from the home page, then try again.',
+    zh: '「{name}」要在首页放一个入口，可首页已经放满了。先从首页移除一些内容，再来试试。',
+    fr: '« {name} » a besoin d’une place sur l’accueil, mais il est plein. Retirez un élément de l’accueil, puis réessayez.',
+  },
 } satisfies Record<string, Localized>;
 
 export const extractedMessages = {
@@ -1777,6 +2014,11 @@ export const extractedMessages = {
     en: 'shortcut “{v0}”',
     zh: '快捷入口「{v0}」',
     fr: 'raccourci « {v0} »',
+  },
+  describeFileSlot: {
+    en: 'file slot “{v0}”',
+    zh: '文件入口「{v0}」',
+    fr: 'emplacement de fichier « {v0} »',
   },
   describe_notice_f50d5: {
     en: 'notice',
@@ -2033,6 +2275,8 @@ export const extractedMessages = {
     zh: '更换图片',
     fr: 'nouvelle image',
   },
+  describeNewFile: { en: 'new file', zh: '更换文件', fr: 'nouveau fichier' },
+  describeFileRemoved: { en: 'file removed', zh: '移除文件', fr: 'fichier retiré' },
   describe_picture_removed_4fb32: {
     en: 'picture removed',
     zh: '移除图片',
@@ -2203,10 +2447,10 @@ export const extractedMessages = {
     zh: '你的文件不受影响',
     fr: 'Vos fichiers ne sont pas affectés',
   },
-  data_Attachment_6f6cf: {
-    en: 'Attachment',
-    zh: '附件',
-    fr: 'Pièce jointe',
+  data_attachments: {
+    en: '{n} attachments',
+    zh: '{n} 个附件',
+    fr: '{n} pièces jointes',
   },
   data_Yes_1f54e: {
     en: 'Yes',
@@ -2317,216 +2561,6 @@ export const extractedMessages = {
     en: 'Voice memo {date:YYYY-MM-DD_HH.mm}',
     zh: '语音备忘 {date:YYYY-MM-DD_HH.mm}',
     fr: 'Mémo vocal {date:YYYY-MM-DD_HH.mm}',
-  },
-  templates_Expenses_628c1: {
-    en: 'Expenses',
-    zh: '账目',
-    fr: 'Dépenses',
-  },
-  templates_Amount_454fd: {
-    en: 'Amount',
-    zh: '金额',
-    fr: 'Montant',
-  },
-  templates_USD_006d1: {
-    en: 'USD',
-    zh: 'CNY',
-    fr: 'EUR',
-  },
-  templates_Category_74b40: {
-    en: 'Category',
-    zh: '分类',
-    fr: 'Catégorie',
-  },
-  templates_Food_8ab5c: {
-    en: 'Food',
-    zh: '餐饮',
-    fr: 'Restauration',
-  },
-  templates_Transport_a9c49: {
-    en: 'Transport',
-    zh: '交通',
-    fr: 'Transport',
-  },
-  templates_Shopping_5cfd4: {
-    en: 'Shopping',
-    zh: '购物',
-    fr: 'Achats',
-  },
-  templates_Home_38780: {
-    en: 'Home',
-    zh: '居家',
-    fr: 'Maison',
-  },
-  templates_Fun_1e014: {
-    en: 'Fun',
-    zh: '娱乐',
-    fr: 'Loisirs',
-  },
-  templates_Other_82cdf: {
-    en: 'Other',
-    zh: '其他',
-    fr: 'Autre',
-  },
-  templates_Date_a50c7: {
-    en: 'Date',
-    zh: '日期',
-    fr: 'Date',
-  },
-  templates_Note_4f584: {
-    en: 'Note',
-    zh: '备注',
-    fr: 'Remarque',
-  },
-  templates_Budget_b41b1: {
-    en: 'Budget',
-    zh: '记账',
-    fr: 'Budget',
-  },
-  templates_This_month_ef628: {
-    en: 'This month',
-    zh: '本月支出',
-    fr: 'Ce mois-ci',
-  },
-  templates_Entries_3c27f: {
-    en: 'Entries',
-    zh: '本月笔数',
-    fr: 'Saisies',
-  },
-  templates_Add_87da3: {
-    en: 'Add',
-    zh: '记一笔',
-    fr: 'Ajouter',
-  },
-  templates_Nothing_yet_9f2eb: {
-    en: 'Nothing yet',
-    zh: '还没有记录',
-    fr: 'Rien pour l’instant',
-  },
-  templates_To_dos_42048: {
-    en: 'To-dos',
-    zh: '待办',
-    fr: 'À faire',
-  },
-  templates_Task_5fa9b: {
-    en: 'Task',
-    zh: '事项',
-    fr: 'Tâche',
-  },
-  templates_Done_6f135: {
-    en: 'Done',
-    zh: '完成',
-    fr: 'Terminé',
-  },
-  templates_Due_f5da7: {
-    en: 'Due',
-    zh: '截止日期',
-    fr: 'Échéance',
-  },
-  templates_To_do_ca3e9: {
-    en: 'To-do',
-    zh: '待办',
-    fr: 'À faire',
-  },
-  templates_Open_f1cc8: {
-    en: 'Open',
-    zh: '未完成',
-    fr: 'Non terminées',
-  },
-  templates_Add_b7a68: {
-    en: 'Add',
-    zh: '添加',
-    fr: 'Ajouter',
-  },
-  templates_No_tasks_c61dd: {
-    en: 'No tasks',
-    zh: '没有待办事项',
-    fr: 'Aucune tâche',
-  },
-  templates_Books_936cc: {
-    en: 'Books',
-    zh: '书单',
-    fr: 'Livres',
-  },
-  templates_Title_880a4: {
-    en: 'Title',
-    zh: '书名',
-    fr: 'Titre',
-  },
-  templates_Author_746ae: {
-    en: 'Author',
-    zh: '作者',
-    fr: 'Auteur',
-  },
-  templates_Status_d925f: {
-    en: 'Status',
-    zh: '状态',
-    fr: 'Statut',
-  },
-  templates_Want_to_read_a7318: {
-    en: 'Want to read',
-    zh: '想读',
-    fr: 'À lire',
-  },
-  templates_Reading_27c53: {
-    en: 'Reading',
-    zh: '在读',
-    fr: 'En cours',
-  },
-  templates_Finished_08ced: {
-    en: 'Finished',
-    zh: '读完',
-    fr: 'Lu',
-  },
-  templates_Rating_a0ed3: {
-    en: 'Rating',
-    zh: '评分',
-    fr: 'Note',
-  },
-  templates_Notes_17714: {
-    en: 'Notes',
-    zh: '笔记',
-    fr: 'Notes',
-  },
-  templates_Reading_758da: {
-    en: 'Reading',
-    zh: '读书清单',
-    fr: 'Liste de lecture',
-  },
-  templates_Finished_efc6c: {
-    en: 'Finished',
-    zh: '已读完',
-    fr: 'Terminés',
-  },
-  templates_Add_a_book_7ee61: {
-    en: 'Add a book',
-    zh: '添加一本书',
-    fr: 'Ajouter un livre',
-  },
-  templates_No_books_yet_64371: {
-    en: 'No books yet',
-    zh: '还没有书',
-    fr: 'Aucun livre pour l’instant',
-  },
-  templates_Title_5bdb7: {
-    en: 'Title',
-    zh: '标题',
-    fr: 'Titre',
-  },
-  templates_Text_f1abc: {
-    en: 'Text',
-    zh: '正文',
-    fr: 'Texte',
-  },
-  templates_New_note_b5bca: {
-    en: 'New note',
-    zh: '写笔记',
-    fr: 'Nouvelle note',
-  },
-  templates_No_notes_yet_56f53: {
-    en: 'No notes yet',
-    zh: '还没有笔记',
-    fr: 'Aucune note pour l’instant',
   },
   presets_Switch_to_the_style_aedda: {
     en: 'Switch to the {v0} style',
@@ -3351,6 +3385,39 @@ const dynamicMessages = {
     zh: '「{collection}」的字段「{name}」{changes}',
     fr: 'Champ « {name} » de « {collection} » : {changes}',
   },
+  describePageBackdrop: {
+    en: 'Page “{page}”: {change}',
+    zh: '页面「{page}」：{change}',
+    fr: 'Page « {page} » : {change}',
+  },
+  describeBackdropOn: {
+    en: 'picture background on (long-press to choose the picture)',
+    zh: '开启图片背景（长按选择图片）',
+    fr: 'image de fond activée (appui long pour choisir l’image)',
+  },
+  describeBackdropOff: {
+    en: 'picture background off',
+    zh: '关掉图片背景',
+    fr: 'image de fond désactivée',
+  },
+  describeBackdropPicture: {
+    en: 'new background picture',
+    zh: '更换背景图片',
+    fr: 'nouvelle image de fond',
+  },
+  describeBackdropPictureRemoved: {
+    en: 'background picture removed',
+    zh: '移除背景图片',
+    fr: 'image de fond retirée',
+  },
+  describeBackdropOverlay: {
+    en: 'picture overlay {level}',
+    zh: '图片遮罩{level}',
+    fr: 'voile sur l’image {level}',
+  },
+  overlay_light: { en: 'light', zh: '浅', fr: 'léger' },
+  overlay_medium: { en: 'medium', zh: '中', fr: 'moyen' },
+  overlay_strong: { en: 'strong', zh: '深', fr: 'fort' },
   describePageIcon: {
     en: 'Page “{page}” icon → {icon}',
     zh: '页面「{page}」的图标{icon}',
@@ -3417,6 +3484,41 @@ export const MESSAGES = { ...strings, ...extractedMessages, ...dynamicMessages }
 export type StringKey = keyof typeof MESSAGES;
 
 const SINGULAR_MESSAGES: Partial<Record<StringKey, Localized>> = {
+  storageSummary: {
+    en: '{n} file · {size}',
+    zh: '{n} 个文件 · {size}',
+    fr: '{n} fichier · {size}',
+  },
+  storageCleanup: {
+    en: 'Clean up {n} unused file ({size})',
+    zh: '清理 {n} 个没有在用的文件（{size}）',
+    fr: 'Nettoyer {n} fichier inutilisé ({size})',
+  },
+  storageCleanupTitle: {
+    en: 'Delete {n} unused file?',
+    zh: '删除 {n} 个没有在用的文件？',
+    fr: 'Supprimer {n} fichier inutilisé ?',
+  },
+  storageCleanupMessage: {
+    en: 'It takes {size}. No entry, page or component uses it now. A file used only by older versions is deleted too, so restoring those versions will not bring it back. Results saved by quick actions are not included. This can’t be undone.',
+    zh: '共 {size}。现在没有任何记录、页面或组件用到它。只在旧版本里用到的也会删掉，恢复那些旧版本时找不回。快捷操作存的结果不在其中。删除后不能撤销。',
+    fr: 'Il occupe {size}. Aucune entrée, page ni composant ne l’utilise. Un fichier utilisé seulement par d’anciennes versions est aussi supprimé : restaurer ces versions ne le fera pas revenir. Les résultats enregistrés par les actions rapides ne sont pas concernés. Action irréversible.',
+  },
+  storageDeleteUsed: {
+    en: 'It is used in {n} place. It will show that the file is gone, and restoring an older version will not bring it back. This can’t be undone.',
+    zh: '有 {n} 个地方用到它，删除后那里会显示文件已不在，恢复旧版本也找不回。删除后不能撤销。',
+    fr: 'Il est utilisé à {n} endroit. Celui-ci indiquera que le fichier n’existe plus, et restaurer une ancienne version ne le fera pas revenir. Action irréversible.',
+  },
+  attachmentsFull: {
+    en: 'At most {n} file',
+    zh: '最多 {n} 个文件',
+    fr: '{n} fichier au maximum',
+  },
+  data_attachments: {
+    en: '{n} attachment',
+    zh: '{n} 个附件',
+    fr: '{n} pièce jointe',
+  },
   shareSummary: {
     en: '{n} file',
     zh: '{n} 个文件',

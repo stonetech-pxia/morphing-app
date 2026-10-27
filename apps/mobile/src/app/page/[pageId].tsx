@@ -10,6 +10,7 @@ import { Icon } from '@/renderer/Icon';
 import type { RenderEnv } from '@/renderer/components';
 import { usePalette } from '@/renderer/theme';
 import { DraftBar } from '@/draft/DraftBar';
+import { SampleHint } from '@/guide/SampleHint';
 import { directEditEntry } from '@/editing/entry';
 import { Banner, DraftNotice, useShellEnv } from '@/shell/Shell';
 import { Toast } from '@/shell/Toast';
@@ -92,6 +93,7 @@ export default function PageRoute() {
       <View style={[styles.fill, inDraft && palette.backdrop]}>
         {inDraft ? null : <Banner palette={palette} />}
         <DraftNotice palette={palette} />
+        {inDraft || editing ? null : <SampleHint pageId={page.id} palette={palette} />}
         <ErrorBoundary
           key={inDraft ? `${headId}-draft` : headId}
           onError={inDraft ? draftFailed : reportRenderError}

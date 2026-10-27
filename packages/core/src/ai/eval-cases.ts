@@ -146,7 +146,8 @@ const simplifiedMerge = (c: WorkspaceConfig) => {
 /** 首页第 index 个组件是一个还没选照片的图片位（AI 不能替用户选照片）。 */
 const imageSlot = (c: WorkspaceConfig, index: number): string | null => {
   const img = home(c).components[index];
-  if (img?.type !== 'image') return `expected an image at position ${index}, got ${img?.type}`;
+  if (img?.type !== 'image')
+    return `expected an image at position ${index}, got ${String(img?.type)}`;
   return img.props.assetId ? 'the AI must not pick a photo' : null;
 };
 /** 有这个标题的页面，且能从导航栏、浮动按钮或首页的按钮 / 快捷入口打开。 */
@@ -863,6 +864,33 @@ const translatesTo =
       .join(' | ')}`;
   };
 
+/**
+ * W10「扫描文档，压到 300KB，存到文件」：扫描的图片压到 300KB 再存，
+ * 或者扫描 →（找边拉正）→ 做成不超过 0.3 MB 的 PDF，最后一步存文件。创始人 2026-10-27（本地会话）确认两种都算对。
+ */
+const scanDocTo300KB = (c: WorkspaceConfig): string | null => {
+  const compressed = hasWorkflow(
+    ['in.photos', 'image.compress', 'file.save'],
+    (steps) =>
+      param('in.photos', 'source', 'scanner')(steps) ??
+      param('image.compress', 'maxKB', 300)(steps),
+  )(c);
+  if (compressed === null) return null;
+  const asPdf = hasWorkflow(['in.photos', 'pdf.fromImages', 'file.save'], (steps) => {
+    const maxMB = steps.find((s) => s.action === 'pdf.fromImages')?.params.maxMB;
+    return (
+      param('in.photos', 'source', 'scanner')(steps) ??
+      (typeof maxMB === 'number' && maxMB > 0 && maxMB <= 0.3
+        ? null
+        : `pdf.fromImages.maxMB should be at most 0.3, got ${String(maxMB)}`) ??
+      (steps.at(-1)?.action === 'file.save'
+        ? null
+        : `the last step should be file.save, got ${String(steps.at(-1)?.action)}`)
+    );
+  })(c);
+  return asPdf === null ? null : `${compressed}; or as a PDF: ${asPdf}`;
+};
+
 const visaActions = (c: WorkspaceConfig) => visa(c)?.steps.map((s) => s.action) ?? [];
 
 const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
@@ -1008,15 +1036,8 @@ const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
     locale: 'zh',
     setup: 'default',
     mock: true,
-    expect: {
-      kind: 'ops',
-      check: hasWorkflow(
-        ['in.photos', 'image.compress', 'file.save'],
-        (steps) =>
-          param('in.photos', 'source', 'scanner')(steps) ??
-          param('image.compress', 'maxKB', 300)(steps),
-      ),
-    },
+    // 两种理解都算对（D-083 补充）：把扫描的图片压到 300KB，或者先拉正再做成不超过 0.3 MB 的 PDF（scanDocTo300KB）。
+    expect: { kind: 'ops', check: scanDocTo300KB },
   },
   {
     id: 'W10-en',
@@ -2455,6 +2476,20 @@ const logsTo =
     return null;
   };
 
+/**
+ * D-263：给表加附件字段（用户在表单里自己拍照、选文件），不另外搭「记一笔」快捷操作。
+ */
+const attachesTo =
+  (collectionId: string) =>
+  (c: WorkspaceConfig): string | null => {
+    const table = c.collections.find((x) => x.id === collectionId);
+    if (!table?.fields.some((f) => f.type === 'file'))
+      return `${collectionId} should have a file field`;
+    if (userWorkflows(c).some((w) => w.steps.some((s) => s.action === 'out.addRecord')))
+      return 'no out.addRecord quick action is needed: the forms take photos and files';
+    return null;
+  };
+
 const RECORD_EVAL_CASES: readonly EvalCase[] = [
   {
     id: 'RE1',
@@ -2500,7 +2535,11 @@ const RECORD_EVAL_CASES: readonly EvalCase[] = [
     locale: 'zh',
     setup: 'budget',
     mock: false,
-    expect: { kind: 'ops', check: logsTo(true) },
+    // D-263 起表单里就能拍照，只给账目加附件字段也算对；搭了「记一笔」快捷操作也对。
+    expect: {
+      kind: 'ops',
+      check: (c) => (logsTo(true)(c) === null ? null : attachesTo('expenses')(c)),
+    },
   },
   {
     id: 'PRE2-en',
@@ -2528,6 +2567,54 @@ const RECORD_EVAL_CASES: readonly EvalCase[] = [
           : `formula should be amount × 1.06, got ${f.expression}`;
       },
     },
+  },
+  {
+    id: 'AT1',
+    input: '给账目加照片',
+    locale: 'zh',
+    setup: 'budget',
+    mock: true,
+    expect: { kind: 'ops', check: attachesTo('expenses') },
+  },
+  {
+    id: 'AT1-en',
+    input: 'Attach receipts to Expenses',
+    locale: 'en',
+    setup: 'budget',
+    mock: true,
+    expect: { kind: 'ops', check: attachesTo('expenses') },
+  },
+  {
+    id: 'AT2',
+    input: '账目里存发票',
+    locale: 'zh',
+    setup: 'budget',
+    mock: true,
+    expect: { kind: 'ops', check: attachesTo('expenses') },
+  },
+  {
+    id: 'PAT1',
+    input: '记账的时候想顺便附上发票的照片',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: attachesTo('expenses') },
+  },
+  {
+    id: 'PAT2-en',
+    input: 'I want to keep a photo of the receipt with each expense',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: attachesTo('expenses') },
+  },
+  {
+    id: 'PAT3-fr',
+    input: 'Je veux pouvoir joindre des photos à mes dépenses',
+    locale: 'fr',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: attachesTo('expenses') },
   },
   {
     id: 'PRE4',
@@ -3287,7 +3374,7 @@ const LOOK_CASES: EvalCase[] = [
         );
         return button?.type === 'button' && button.props.variant === 'icon' && button.props.icon
           ? null
-          : `manage button is ${JSON.stringify(button?.props)}`;
+          : `manage button is ${JSON.stringify(button)}`;
       },
     },
   },
@@ -3766,6 +3853,67 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
         )
           ? null
           : 'expected a pie chart grouped by a choice field',
+    },
+  },
+  {
+    id: 'BG1',
+    input: '首页用一张照片做背景，遮罩深一点',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        home(c).backdrop?.overlay === 'strong' && !home(c).backdrop?.assetId
+          ? null
+          : 'expected a strong page backdrop on home without a picture',
+    },
+  },
+  {
+    id: 'BG2',
+    input: 'Add a tip card at the top of home saying "Drink water" with a picture background',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        home(c).components.some(
+          (x) => x.type === 'notice' && x.style?.backdrop && !x.style.backdrop.assetId,
+        )
+          ? null
+          : 'expected a notice with style.backdrop and no picture',
+    },
+  },
+  {
+    id: 'FS1',
+    input: '首页放一个租房合同的入口，点一下就能打开合同',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const slots = c.pages.flatMap((p) => allComponents(p)).filter((x) => x.type === 'fileSlot');
+        if (slots.length === 0) return 'expected a fileSlot';
+        return slots.some((x) => x.props.assetId) ? 'the AI must not pick a file' : null;
+      },
+    },
+  },
+  {
+    id: 'FS2',
+    input: 'Add a spot on my home page for my boarding pass so I can open it quickly',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        home(c).components.some(
+          (x) => x.type === 'fileSlot' && !x.props.assetId && /board/i.test(x.props.title),
+        )
+          ? null
+          : 'expected an empty fileSlot on home titled after the boarding pass',
     },
   },
   {

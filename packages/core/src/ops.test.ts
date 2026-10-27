@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from './change';
 import { applyOps } from './ops';
+import type { KnownComponent } from './schema';
 import { apply, registry, workspace } from './test-helpers';
 import { validateWorkspace } from './validate';
 
@@ -249,11 +250,11 @@ describe('applyOps', () => {
         style: { align: 'center' },
       },
     ]);
-    expect(styled.pages[0]!.components[0]!.style).toEqual({ align: 'center' });
+    expect((styled.pages[0]!.components[0] as KnownComponent).style).toEqual({ align: 'center' });
     const reset = apply(styled, [
       { op: 'setComponentStyle', pageId: 'home', componentId: 'welcome', style: { align: null } },
     ]);
-    expect(reset.pages[0]!.components[0]!.style).toBeUndefined();
+    expect((reset.pages[0]!.components[0] as KnownComponent).style).toBeUndefined();
   });
 
   it('installs a tool once: page, workflow and a home card before the catalog link', () => {

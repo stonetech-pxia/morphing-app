@@ -7,7 +7,7 @@ import {
   TOOLBOX_PAGE_ID,
   allComponents,
   pageTarget,
-  type Component,
+  type ComponentOf,
   type Locale,
   type WorkspaceConfig,
 } from './schema';
@@ -68,7 +68,7 @@ export function createStarterWorkspace(locale: Locale, registry: Registry): Work
   const base = createDefaultWorkspace(locale);
   const toolIds = STARTER_TOOL_IDS.filter((id) => registry.tools.has(id));
 
-  const grids: Component[] = TOOLBOX_GROUPS.flatMap((g) => {
+  const grids: ComponentOf<'toolGrid'>[] = TOOLBOX_GROUPS.flatMap((g) => {
     const ids = g.toolIds?.filter((id) => registry.tools.has(id));
     if (ids && ids.length === 0) return [];
     return [

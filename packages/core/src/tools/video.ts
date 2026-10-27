@@ -24,6 +24,7 @@ export const VIDEO_PAGE_ID = 'tool-video';
 export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'video.subtitles',
+    ai: '"Automatic video captions / export SRT subtitles" → this, lang = the spoken language. It DOES NOT burn text into video or return a subtitled video: say this clearly, especially when the user asks to add captions to the picture.',
     label: { en: 'Export SRT captions', zh: '导出 SRT 字幕', fr: 'Exporter les sous-titres SRT' },
     description: {
       en: 'Recognize speech in each video on this device and export a separate UTF-8 .srt file with timestamps. This first version does not burn captions into the picture and does not output a subtitled video. Choose the spoken language; the first run may need a speech model download. Review words and timings, especially long segments, whose split timing is approximate. Video files and recognized words never go to AI.',
@@ -64,6 +65,7 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
 
   {
     id: 'video.speed',
+    ai: '"Speed up / slow motion / 2x" → factor; note that the pitch changes and slow motion is not smooth.',
     label: {
       en: 'Change video speed',
       zh: '视频加速或慢放',
@@ -97,6 +99,7 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'video.crop',
+    ai: '"Crop to portrait / square / 9:16 / 1:1 / 4:5 / 16:9" → ratio.',
     label: {
       en: 'Crop video to a shape',
       zh: '视频裁成指定比例',
@@ -133,6 +136,7 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'video.rotate',
+    ai: '"Rotate / upside-down video" → degrees (270 turns left).',
     label: { en: 'Rotate video', zh: '旋转视频', fr: 'Pivoter la vidéo' },
     description: {
       en: 'Rotate each video clockwise by 90, 180 or 270 degrees, relative to its displayed orientation. iPhone keeps the encoded video and changes its transform; Android re-encodes. Sound and duration are kept.',
@@ -161,6 +165,7 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'video.audio',
+    ai: '"Replace / add background music" → in.videos then this (the music is chosen at run time). Never add a second input action for the music.',
     label: { en: 'Change background music', zh: '换背景音乐', fr: 'Changer la musique de fond' },
     description: {
       en: 'Choose a music file locally when this runs, then use it as the soundtrack for each video. Set how much original sound to keep (0–100%) and whether shorter music repeats. Longer music is trimmed. Output keeps each video’s duration; no file paths or music content go to AI.',
@@ -201,6 +206,7 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'video.mute',
+    ai: '"Remove all sound / mute a video" → in.videos then this.',
     label: { en: 'Remove video sound', zh: '去掉视频声音', fr: 'Supprimer le son de la vidéo' },
     description: {
       en: 'Remove all sound from each video and export an MP4 with no audio track. Video is re-encoded; the source file is kept.',
@@ -215,6 +221,7 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'video.frame',
+    ai: '"Save a photo / grab a frame from a video" → in.videos, this, optionally out.saveToPhotos.',
     label: {
       en: 'Save a video frame',
       zh: '截一帧存成照片',
@@ -234,6 +241,7 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'video.merge',
+    ai: '"Join / merge several video clips" → in.videos (min 2, max 10), file.order, this.',
     label: { en: 'Join videos', zh: '拼接视频', fr: 'Fusionner les vidéos' },
     description: {
       en: 'Join 2–10 videos in order into one MP4. Put file.order before this step so the user can arrange the clips. Uses the first clip’s size and frame rate; other aspect ratios fit inside with black borders. Sound is kept; silent clips stay silent.',
@@ -248,6 +256,7 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'video.compress',
+    ai: '"A video too big to send / make the video smaller / under N MB" → by "size" with maxMB, or by "quality".',
     label: { en: 'Make video smaller', zh: '压缩视频', fr: 'Compresser la vidéo' },
     description: {
       en: 'Make each video smaller: by size (at most N MB; the resolution drops as needed) or by quality (1080p / 720p / 480p). The result is an MP4 that plays everywhere.',
@@ -348,6 +357,7 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'video.convert',
+    ai: '"Others can\'t open it / MOV, HEVC or MKV to MP4".',
     label: { en: 'Convert to MP4', zh: '转成 MP4', fr: 'Convertir en MP4' },
     description: {
       en: 'Convert videos (MOV, HEVC…) to MP4 with H.264 so that other people can open them; quality and resolution stay about the same.',
@@ -373,6 +383,7 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   {
     // D-184：iOS 用系统 ImageIO 写 GIF，Android 用 morph-media 里自己写的编码器（GifEncoder.kt）。
     id: 'video.toGif',
+    ai: '"Turn a video (clip) into a GIF" → in.videos, video.trim, then this.',
     label: { en: 'Video to GIF', zh: '视频转 GIF', fr: 'Vidéo en GIF' },
     description: {
       en: `Turn each video into an animated GIF (at most ${GIF_MAX_SECONDS} seconds; put "Trim" before it for a longer video). GIFs have no sound and get large quickly: a smaller width and fewer frames per second keep them small.`,
@@ -434,6 +445,7 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'video.trim',
+    ai: '"Cut out a part / trim". The result is always MP4.',
     label: { en: 'Trim', zh: '剪一段', fr: 'Couper' },
     description: {
       en: 'The user picks the start and end of each video on the device; only that part is kept (no re-encoding, so it is quick and keeps the quality).',

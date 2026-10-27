@@ -96,7 +96,8 @@ export interface LocalSteps {
    */
   record: { in: { name: string }; out: PickedFile };
   /**
-   * 记一笔（D-187）：按数据表的字段生成表单（附件和公式不用填）。prefill 是预先填好的值（文字、日期），
+   * 记一笔（D-187）：按数据表的字段生成表单（公式不用填；附件里这一步的文件自动放进去，用户可以另外添加，D-263）。
+   * prefill 是预先填好的值（文字、日期），
    * file 是这一笔对应的文件（照片显示出来，其他显示文件名）。返回表单的值，或跳过这一个。
    */
   recordEntry: {

@@ -87,6 +87,32 @@ describe('workflow ops', () => {
     });
   });
 
+  it('keeps a card on a built-in quick action when the user’s copy of it is removed (D-259)', () => {
+    // 用户改过内设的快捷操作，配置里的副本用预设 ID；删掉副本就回到内设的，卡片和按钮一样继续指向内设的（D-256）。
+    const copy = presetWorkflow(WORKFLOW_PRESETS[0]!, 'zh', WORKFLOW_PRESETS[0]!.id);
+    const placed = applyOps(
+      workspace('zh'),
+      [
+        { op: 'addWorkflow', workflow: copy },
+        {
+          op: 'addComponent',
+          pageId: 'home',
+          component: { id: 'run-visa', type: 'workflowRunner', props: { workflowId: copy.id } },
+        },
+      ],
+      ctx,
+    );
+    if (!placed.ok) throw new Error(placed.error);
+    const removed = prepareOps(placed.config, [{ op: 'removeWorkflow', workflowId: copy.id }], ctx);
+    expect(removed.ok).toBe(true);
+    if (!removed.ok) return;
+    expect(removed.after.workflows.some((w) => w.id === copy.id)).toBe(false);
+    expect(removed.after.pages[0]!.components).toContainEqual(
+      expect.objectContaining({ id: 'run-visa', props: { workflowId: copy.id } }),
+    );
+    expect(removed.lines).toEqual(['删除快捷操作「签证 / 证件照」（文件不受影响）']);
+  });
+
   it('renames, adds, moves and removes steps', () => {
     const result = prepareOps(
       withVisa(),

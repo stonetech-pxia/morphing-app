@@ -5,7 +5,7 @@ import {
   formatValue,
   localDate,
   type Collection,
-  type Component,
+  type NewComponent,
   type Locale,
   type Registry,
 } from '@morph/core';
@@ -39,7 +39,7 @@ const expenses: Collection = {
 
 /** 首页放上这些组件，表是 expenses。 */
 const seedWith =
-  (...components: Component[]) =>
+  (...components: NewComponent[]) =>
   (locale: Locale, registry: Registry) => {
     const result = applyOps(
       createDefaultWorkspace(locale),

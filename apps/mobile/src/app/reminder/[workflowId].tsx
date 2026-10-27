@@ -1,4 +1,4 @@
-import { findWorkflow, localize } from '@morph/core';
+import { findWorkflow, findWorkflowTarget, localize } from '@morph/core';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ScrollView, Text } from 'react-native';
 
@@ -10,21 +10,27 @@ import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 /**
  * 点了提醒、提醒要打开一个快捷操作（D-251）：只把它摆出来，用户自己点「开始」才运行。
  * 不能直接打开运行页面：运行页面一打开就开始运行，而提醒绝不自动运行任何东西。
+ * 按钮、快捷入口打开快捷操作（from=entry，D-256）也用这里；指向内设快捷操作、用户改过的，打开副本。
  */
 export default function ReminderRoute() {
-  const { workflowId } = useLocalSearchParams<{ workflowId: string }>();
+  const { workflowId, from } = useLocalSearchParams<{ workflowId: string; from?: string }>();
+  const entry = from === 'entry';
   const { locale, registry } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
   const router = useRouter();
-  const workflow = findWorkflow(config.workflows, workflowId, locale);
+  const workflow = (entry ? findWorkflowTarget : findWorkflow)(
+    config.workflows,
+    workflowId,
+    locale,
+  );
   const body = [palette.font('body', 15), { color: palette.text }];
   return (
     <ScrollView
       testID="reminder-screen"
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 48 }}>
       <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
-        {t(locale, 'reminderOpenTitle')}
+        {t(locale, entry ? 'openQuickActionTitle' : 'reminderOpenTitle')}
       </Text>
       {workflow ? (
         <>
@@ -51,7 +57,7 @@ export default function ReminderRoute() {
         </>
       ) : (
         <Text style={[palette.font('body', 15), { color: palette.muted }]}>
-          {t(locale, 'reminderOpenMissing')}
+          {t(locale, entry ? 'openQuickActionMissing' : 'reminderOpenMissing')}
         </Text>
       )}
     </ScrollView>

@@ -1,6 +1,7 @@
 import {
   t,
   PlanSchema,
+  expandPresetWorkflows,
   prepareOps,
   redactForAI,
   type AIProvider,
@@ -110,9 +111,14 @@ export function createClaudePlanner(options: PlannerOptions): AIProvider {
 
         let issues: string[];
         const json = parseJson(completion.text);
-        const parsed = json.ok ? PlanSchema.safeParse(json.value) : null;
+        // 预设的简写 addWorkflow {presetId, params?} 先展开成完整的快捷操作（D-259）。
+        const expanded = json.ok ? expandPresetWorkflows(json.value, ctx.config, ctx.locale) : null;
+        const parsed =
+          expanded && !expanded.issues.length ? PlanSchema.safeParse(expanded.value) : null;
         if (!json.ok) {
           issues = [json.issue];
+        } else if (expanded!.issues.length) {
+          issues = expanded!.issues;
         } else if (!parsed!.success) {
           issues = parsed!.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
         } else {

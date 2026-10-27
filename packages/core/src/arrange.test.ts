@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { coalesceOps, dropOp, dropSlots, moveStepOp } from './arrange';
 import type { Op } from './ops';
-import type { Page, WorkspaceConfig } from './schema';
+import type { KnownComponent, Page, WorkspaceConfig } from './schema';
 import { apply, registry, workspace } from './test-helpers';
 import { validateWorkspace } from './validate';
 
@@ -143,7 +143,7 @@ describe('setComponentProps', () => {
         props: { title: '新标题', subtitle: null },
       },
     ]);
-    expect(home(c).components[0]!.props).toEqual({ title: '新标题' });
+    expect((home(c).components[0] as KnownComponent).props).toEqual({ title: '新标题' });
     expect(validateWorkspace(c, registry).ok).toBe(true);
   });
 });
@@ -204,5 +204,25 @@ describe('coalesceOps', () => {
       'moveComponent',
     ]);
     expect(apply(arranged(), merged)).toEqual(c);
+  });
+
+  it('picture background changes merge field by field (D-258)', () => {
+    const style = (backdrop: unknown): Op =>
+      ({
+        op: 'setComponentStyle',
+        pageId: 'home',
+        componentId: 'catalog',
+        style: { backdrop },
+      }) as Op;
+    for (const ops of [
+      // 选了图片再调遮罩：图片要留着。
+      [style({ assetId: 'abc123def' }), style({ overlay: 'strong' })],
+      // 关掉以后再打开：不能把关掉之前的图片带回来。
+      [style({ assetId: 'abc123def' }), style(null), style({ overlay: 'light' })],
+      [style({ overlay: 'light' }), style({ assetId: null }), style({ overlay: 'medium' })],
+    ]) {
+      const sequential = ops.reduce((c, op) => run(c, op), arranged());
+      expect(apply(arranged(), coalesceOps(ops)), JSON.stringify(ops)).toEqual(sequential);
+    }
   });
 });

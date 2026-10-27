@@ -1,4 +1,5 @@
 import type { Theme } from './schema';
+import type { Backdrop } from './schema-base';
 
 // 默认风格「Clay」（来自 Docudis 的设计 token：沙色背景、奶油卡片、陶土橙主色、鼠尾草绿次色），
 // 以及根据主题计算最终配色的纯函数。App 渲染和校验器（对比度检查）共用这里的结果。
@@ -230,4 +231,39 @@ export function contrastProblems(theme: Theme): string[] {
     }
   }
   return problems;
+}
+
+/**
+ * 图片背景（D-258）：遮罩是卡片（或页面）原来的底色，盖在图片上的不透明度至少是这个值，
+ * 文字不够清楚时再加深（overlayOpacity）。
+ */
+export const OVERLAY_OPACITY: Record<Backdrop['overlay'], number> = {
+  light: 0.5,
+  medium: 0.7,
+  strong: 0.85,
+};
+
+/**
+ * 不透明度为 opacity 的遮罩盖在任意一张图片上，文字最差的对比度：图片每个通道都在黑和白之间，
+ * 盖上遮罩后的颜色就在「遮罩盖在全黑上」和「盖在全白上」之间，最差的情况在两头；文字的亮度落在中间时为 1。
+ */
+export function overlayContrast(text: string, overlay: string, opacity: number): number {
+  const darkest = mix('#000000', overlay, opacity);
+  const lightest = mix('#FFFFFF', overlay, opacity);
+  const l = luminance(text);
+  if (l > luminance(darkest) && l < luminance(lightest)) return 1;
+  return Math.min(contrast(text, darkest), contrast(text, lightest));
+}
+
+/**
+ * 遮罩实际用的不透明度：从选的深浅开始逐步加深，直到 text 不管图片是什么样都过 MIN_TEXT_CONTRAST
+ * （在纯底色上本来就不到的，不比纯底色上更差）。图片上的文字一律用正文色（App 的 onPicture），
+ * 所以只要算正文色这一种；灰字在图片上要遮罩盖到将近不透明才清楚。
+ */
+export function overlayOpacity(level: Backdrop['overlay'], overlay: string, text: string): number {
+  const need = Math.min(MIN_TEXT_CONTRAST, contrast(text, overlay) - 0.01);
+  for (let step = Math.round(OVERLAY_OPACITY[level] * 100); step < 100; step++) {
+    if (overlayContrast(text, overlay, step / 100) >= need) return step / 100;
+  }
+  return 1;
 }

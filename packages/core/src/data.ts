@@ -1,11 +1,37 @@
-import { localeTag } from './localization';
+import {
+  formatTimestamp,
+  localDate,
+  round,
+  type FieldValue,
+  type LinkResolver,
+} from './field-values';
 import { t } from './messages';
 import { dayNumber, evaluateFormula, parseFormula, type FormulaNode } from './formula';
-import type { Collection, Condition, Field, Locale, Period, SystemField } from './schema';
+import {
+  FIELDS,
+  fieldDefinition,
+  type Collection,
+  type Condition,
+  type Field,
+  type Locale,
+  type Period,
+  type SystemField,
+} from './schema';
 
 // 用户数据（记录）的纯函数：写入校验、宽容读取、筛选、排序、统计、显示格式、CSV 导出。
 // 记录存在配置之外（App 的数据库里），从不进入 WorkspaceConfig，所以也从不发给 AI。
-// 设计见 docs/DATA_DESIGN.md。
+// 设计见 docs/DATA_DESIGN.md。每种字段的读取、写入、显示在 fields/<type>.ts（docs/FIELDS.md）。
+
+export {
+  MAX_ATTACHMENTS,
+  attachmentIds,
+  formatMoney,
+  formatNumber,
+  formatTimestamp,
+  localDate,
+  type FieldValue,
+  type LinkResolver,
+} from './field-values';
 
 export const RECORD_LIMITS = {
   /** 每张表的软上限：超过后不能再添加。 */
@@ -21,23 +47,6 @@ export interface DataRecord {
   values: Record<string, unknown>;
   createdAt: number;
   updatedAt: number;
-}
-
-export type FieldValue = string | number | boolean;
-
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-const pad = (n: number) => String(n).padStart(2, '0');
-
-/** 设备本地日期 YYYY-MM-DD。 */
-export function localDate(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function isValidDate(s: string): boolean {
-  if (!DATE_PATTERN.test(s)) return false;
-  const [y, m, d] = s.split('-').map(Number) as [number, number, number];
-  const date = new Date(y, m - 1, d);
-  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
 }
 
 /** 时间段对应的本地日期范围（含两端）。一周从周一开始。 */
@@ -73,41 +82,10 @@ export function fieldOf(collection: Collection, ref: string): Field | undefined 
   return collection.fields.find((f) => f.id === ref);
 }
 
-const round = (n: number, decimals: number) => {
-  const f = 10 ** decimals;
-  return Math.round(n * f) / f;
-};
-
 /** 宽容读取：值和当前字段定义对不上时返回 undefined（只是不显示，绝不报错）。 */
 export function readValue(field: Field, raw: unknown): FieldValue | undefined {
-  switch (field.type) {
-    case 'text':
-    case 'note':
-      return typeof raw === 'string' && raw.length > 0 ? raw : undefined;
-    case 'number':
-    case 'money':
-      return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined;
-    case 'rating':
-      return typeof raw === 'number' && Number.isInteger(raw) && raw >= 1 && raw <= 5
-        ? raw
-        : undefined;
-    case 'checkbox':
-      return typeof raw === 'boolean' ? raw : undefined;
-    case 'date':
-      return typeof raw === 'string' && isValidDate(raw) ? raw : undefined;
-    case 'choice':
-      return typeof raw === 'string' && field.options.some((o) => o.id === raw) ? raw : undefined;
-    case 'file':
-    case 'link':
-      return typeof raw === 'string' && FILE_ID.test(raw) ? raw : undefined;
-    case 'formula':
-      // 公式不存值（D-188），由 recordValue 现算。
-      return undefined;
-  }
+  return fieldDefinition(field.type).read(field, raw);
 }
-
-/** 附件的值：文件 ID（和配置里的 ID 一样的写法）。 */
-const FILE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
 const formulaCache = new Map<string, FormulaNode | null>();
 function formulaNode(expression: string): FormulaNode | null {
@@ -136,9 +114,10 @@ function formulaValue(
     node,
     (id) => {
       const ref = fieldOf(collection, id);
-      if (!ref || ref.type === 'formula') return undefined;
+      const kind = ref && fieldDefinition(ref.type).formula;
+      if (!ref || !kind) return undefined;
       const v = readValue(ref, record.values[id]);
-      if (ref.type === 'date') return typeof v === 'string' ? dayNumber(v) : undefined;
+      if (kind === 'date') return typeof v === 'string' ? dayNumber(v) : undefined;
       return typeof v === 'number' ? v : undefined;
     },
     dayNumber(localDate(now)),
@@ -166,55 +145,18 @@ export type FieldIssue = { fieldId: string; code: 'required' | 'invalid' | 'tooL
 export type PreparedValues =
   { ok: true; values: Record<string, unknown> } | { ok: false; issues: FieldIssue[] };
 
-type Coerced = { value: FieldValue } | { issue: FieldIssue['code'] };
-
-/** 把表单输入转换成某个字段的值。 */
-function coerce(field: Field, input: unknown): Coerced {
-  switch (field.type) {
-    case 'text':
-    case 'note': {
-      if (typeof input !== 'string') return { issue: 'invalid' };
-      const s = field.type === 'text' ? input.trim() : input.replace(/\s+$/, '');
-      return s.length > (field.type === 'text' ? 200 : 5000) ? { issue: 'tooLong' } : { value: s };
-    }
-    case 'number':
-    case 'money': {
-      const n = typeof input === 'number' ? input : Number(String(input).trim().replace(/,/g, ''));
-      if (!Number.isFinite(n) || Math.abs(n) > 1e12) return { issue: 'invalid' };
-      return { value: round(n, field.type === 'money' ? 2 : (field.decimals ?? 4)) };
-    }
-    case 'rating': {
-      const n = typeof input === 'number' ? input : Number(input);
-      return Number.isInteger(n) && n >= 1 && n <= 5 ? { value: n } : { issue: 'invalid' };
-    }
-    case 'checkbox':
-      return typeof input === 'boolean' ? { value: input } : { issue: 'invalid' };
-    case 'date': {
-      const s = typeof input === 'string' ? input.trim() : '';
-      return isValidDate(s) ? { value: s } : { issue: 'invalid' };
-    }
-    case 'choice':
-      return typeof input === 'string' && field.options.some((o) => o.id === input)
-        ? { value: input }
-        : { issue: 'invalid' };
-    case 'file':
-    case 'link':
-      return typeof input === 'string' && FILE_ID.test(input)
-        ? { value: input }
-        : { issue: 'invalid' };
-    case 'formula':
-      return { issue: 'invalid' };
-  }
-}
-
+/** 新记录的默认值：定义里的 default（日期的 today 换成今天）。 */
 function defaultValue(field: Field, now: Date): FieldValue | undefined {
-  if (!('default' in field) || field.default === undefined) return undefined;
-  if (field.type === 'date') return localDate(now);
-  return field.default;
+  const def = fieldDefinition(field.type);
+  if (def.initial) return def.initial(field, now);
+  return 'default' in field ? field.default : undefined;
 }
 
 const isBlank = (v: unknown) =>
-  v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
+  v === undefined ||
+  v === null ||
+  (typeof v === 'string' && v.trim() === '') ||
+  (Array.isArray(v) && v.length === 0);
 
 /**
  * 写入时严格校验：input 只包含要修改的字段（字段 ID → 表单值，空字符串表示清空）。
@@ -229,8 +171,9 @@ export function prepareRecordValues(
   const values: Record<string, unknown> = { ...previous };
   const issues: FieldIssue[] = [];
   for (const field of collection.fields) {
-    // 公式不存值（D-188）：输入里有也忽略。
-    if (field.type === 'formula') {
+    const def = fieldDefinition(field.type);
+    // 不存值的字段（公式，D-188）：输入里有也忽略。
+    if (!def.write) {
       delete values[field.id];
       continue;
     }
@@ -238,15 +181,16 @@ export function prepareRecordValues(
     if (Object.prototype.hasOwnProperty.call(input, field.id)) raw = input[field.id];
     else if (previous !== null) raw = previous[field.id];
     else raw = defaultValue(field, now);
-    // 新记录里没勾选的勾选框就是 false。
-    if (field.type === 'checkbox' && raw === undefined && previous === null) raw = false;
+    // 新记录里没有值时存的值（没勾选的勾选框是 false）。
+    if (def.emptyNew !== undefined && raw === undefined && previous === null) raw = def.emptyNew;
 
-    const result = isBlank(raw) ? null : coerce(field, raw);
+    const result = isBlank(raw) ? null : def.write(field, raw);
     if (result && 'issue' in result) {
       issues.push({ fieldId: field.id, code: result.issue });
     } else if (result === null || result.value === '') {
       delete values[field.id];
-      if (field.required) issues.push({ fieldId: field.id, code: 'required' });
+      if ('required' in field && field.required)
+        issues.push({ fieldId: field.id, code: 'required' });
     } else {
       values[field.id] = result.value;
     }
@@ -258,6 +202,9 @@ export function prepareRecordValues(
 
 function compare(a: FieldValue, b: FieldValue): number {
   if (typeof a === 'number' && typeof b === 'number') return a - b;
+  // 附件（一组文件 ID）按个数比。
+  if (Array.isArray(a) || Array.isArray(b))
+    return (Array.isArray(a) ? a.length : 0) - (Array.isArray(b) ? b.length : 0);
   if (typeof a === 'boolean' && typeof b === 'boolean') return Number(a) - Number(b);
   return String(a).localeCompare(String(b));
 }
@@ -270,6 +217,14 @@ export function matchesCondition(
 ): boolean {
   const value = recordValue(record, collection, condition.field, now);
   const target = condition.value;
+  // 附件（D-263）：一组文件 ID。is / isNot 看有没有这个文件，其他比较都不成立。
+  if (Array.isArray(value)) {
+    const has = typeof target === 'string' && value.includes(target);
+    if (condition.op === 'isNotEmpty') return true;
+    if (condition.op === 'is') return has;
+    if (condition.op === 'isNot') return !has;
+    return false;
+  }
   switch (condition.op) {
     case 'isEmpty':
       return value === undefined || value === '';
@@ -316,13 +271,12 @@ export function sortRecords(
   const { field, direction } = sort ?? { field: 'createdAt', direction: 'desc' as const };
   const sign = direction === 'asc' ? 1 : -1;
   const def = fieldOf(collection, field);
+  const sortKey = def && fieldDefinition(def.type).sort;
   const key = (r: DataRecord): FieldValue | undefined => {
     if (isSystemField(field)) return r[field];
     const v = recordValue(r, collection, field);
-    if (def?.type === 'choice' && typeof v === 'string') {
-      return def.options.findIndex((o) => o.id === v);
-    }
-    return v;
+    // 有的字段按自己的顺序排（单选按选项顺序）。
+    return def && sortKey && v !== undefined ? sortKey(def, v) : v;
   };
   return [...records].sort((a, b) => {
     const ka = key(a);
@@ -412,54 +366,16 @@ export function groupedAggregate(
 
 // ---- 显示与导出 ----
 
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  CNY: '¥',
-  JPY: '¥',
-  USD: '$',
-  EUR: '€',
-  GBP: '£',
-  HKD: 'HK$',
-  TWD: 'NT$',
-  KRW: '₩',
-};
-
-function groupThousands(n: number, decimals: number): string {
-  const [int, frac] = Math.abs(n).toFixed(decimals).split('.') as [string, string | undefined];
-  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `${n < 0 ? '-' : ''}${grouped}${frac ? `.${frac}` : ''}`;
-}
-
-export function formatMoney(n: number, currency: string, locale: Locale = 'en'): string {
-  if (locale === 'fr')
-    return new Intl.NumberFormat(localeTag(locale), { style: 'currency', currency }).format(n);
-  const symbol = CURRENCY_SYMBOLS[currency];
-  const amount = groupThousands(n, 2);
-  return symbol
-    ? `${n < 0 ? '-' : ''}${symbol}${amount.replace('-', '')}`
-    : `${currency} ${amount}`;
-}
-
-export function formatNumber(n: number, decimals?: number, locale: Locale = 'en'): string {
-  if (locale === 'fr')
-    return new Intl.NumberFormat(localeTag(locale), {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals ?? 4,
-    }).format(n);
-  if (decimals !== undefined) return groupThousands(n, decimals);
-  return groupThousands(n, Number.isInteger(n) ? 0 : Math.min(4, String(n).split('.')[1]!.length));
-}
-
 /**
- * 引用字段（D-250）指向的那条记录的标题；那条记录已经删掉（或那张表的记录还没读出来）时为 null。
- * 由 App 按已经读到的记录提供（makeLinkResolver）；没有时引用字段显示为空。
+ * 一张表在引用里显示哪个字段：按字段定义的 titleRank（第一个文字字段，没有就是第一个长文本、单选、
+ * 数字、金额或日期字段）。
  */
-export type LinkResolver = (collectionId: string, recordId: string) => string | null;
-
-/** 一张表在引用里显示哪个字段：第一个文字字段，没有就是第一个长文本、单选、数字、金额或日期字段。 */
 export function linkTitleField(collection: Collection): Field | undefined {
-  const order = ['text', 'note', 'choice', 'number', 'money', 'date'];
-  for (const type of order) {
-    const f = collection.fields.find((x) => x.type === type);
+  const ranked = FIELDS.flatMap((d) => (d.titleRank === undefined ? [] : [d])).sort(
+    (a, b) => a.titleRank! - b.titleRank!,
+  );
+  for (const def of ranked) {
+    const f = collection.fields.find((x) => x.type === def.type);
     if (f) return f;
   }
   return undefined;
@@ -512,45 +428,9 @@ export function formatValue(
   locale: Locale,
   links?: LinkResolver,
 ): string {
-  const value =
-    field.type === 'formula' ? (typeof raw === 'number' ? raw : undefined) : readValue(field, raw);
-  if (value === undefined) return '';
-  switch (field.type) {
-    case 'formula':
-      return field.currency
-        ? formatMoney(value as number, field.currency, locale)
-        : `${formatNumber(value as number, field.decimals, locale)}${field.unit ? ` ${field.unit}` : ''}`;
-    case 'file':
-      return t(locale, 'data_Attachment_6f6cf');
-    case 'link':
-      return links ? (links(field.collectionId, value as string) ?? t(locale, 'linkDeleted')) : '';
-    case 'money':
-      return formatMoney(value as number, field.currency, locale);
-    case 'number':
-      return `${formatNumber(value as number, field.decimals, locale)}${field.unit ? ` ${field.unit}` : ''}`;
-    case 'rating':
-      return '★'.repeat(value as number) + '☆'.repeat(5 - (value as number));
-    case 'checkbox':
-      return value ? t(locale, 'data_Yes_1f54e') : t(locale, 'data_No_04a4b');
-    case 'date':
-      return locale === 'fr'
-        ? new Intl.DateTimeFormat(localeTag(locale)).format(new Date(`${value}T12:00:00`))
-        : String(value);
-    case 'choice':
-      return field.options.find((o) => o.id === value)?.label ?? '';
-    default:
-      return String(value);
-  }
-}
-
-export function formatTimestamp(ms: number, locale: Locale = 'en'): string {
-  const d = new Date(ms);
-  if (locale === 'fr')
-    return new Intl.DateTimeFormat(localeTag(locale), {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(d);
-  return `${localDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const def = fieldDefinition(field.type);
+  const value = (def.shown ?? def.read)(field, raw);
+  return value === undefined ? '' : def.format(field, value, locale, links);
 }
 
 /** 某个字段引用（包括系统字段）在一条记录上的显示文字。 */
@@ -582,9 +462,8 @@ export function recordsToCsv(
     ...collection.fields.map((f) => {
       const v = recordValue(r, collection, f.id);
       if (v === undefined) return '';
-      if (f.type === 'money') return (v as number).toFixed(2);
-      if (f.type === 'number' || f.type === 'rating' || f.type === 'formula') return String(v);
-      return formatValue(f, v, locale, links);
+      const csv = fieldDefinition(f.type).csv;
+      return csv ? csv(f, v) : formatValue(f, v, locale, links);
     }),
     formatTimestamp(r.createdAt, locale),
   ]);

@@ -5,6 +5,7 @@ import {
   createMockAIProvider,
   createRegistry,
   templateOps,
+  type KnownComponent,
   type Op,
 } from '@morph/core';
 import { act, fireEvent } from '@testing-library/react-native';
@@ -152,7 +153,9 @@ describe('editing the page directly', () => {
     await fireEvent.press(screen.getByTestId('edit-save'));
     expect(await screen.findByText('家庭账本')).toBeTruthy();
     expect(screen.queryByTestId('edit-sheet')).toBeNull();
-    expect(draftHome(store).components[0]!.props).toEqual({ title: '家庭账本' });
+    expect((draftHome(store).components[0]! as KnownComponent).props).toEqual({
+      title: '家庭账本',
+    });
 
     // 外观：面板保持打开，可以连续试。
     await tapInEditor('catalog');
@@ -162,19 +165,21 @@ describe('editing the page directly', () => {
 
     // 还没保存：没有新版本。
     expect(store.getState().head!.id).toBe(headId);
-    expect(home(store).components[0]!.props).toMatchObject({ title: '我的工作台' });
+    expect((home(store).components[0]! as KnownComponent).props).toMatchObject({
+      title: '我的工作台',
+    });
 
     await done(store, '编辑「首页」（2 处修改）');
     expect(store.getState().head!.id).toBe(headId + 1);
-    expect(home(store).components[0]!.props).toEqual({ title: '家庭账本' });
-    expect(home(store).components[1]!.style).toEqual({ tone: 'primary' });
+    expect((home(store).components[0]! as KnownComponent).props).toEqual({ title: '家庭账本' });
+    expect((home(store).components[1]! as KnownComponent).style).toEqual({ tone: 'primary' });
     expect(await screen.findByTestId('component-welcome')).toBeTruthy();
     expect(await repo.getChangeRequest(1)).toMatchObject({ status: 'committed' });
 
     // 一次撤销回到编辑之前。
     await undo(store);
     expect(await screen.findByText('我的工作台')).toBeTruthy();
-    expect(home(store).components[1]!.style).toBeUndefined();
+    expect((home(store).components[1]! as KnownComponent).style).toBeUndefined();
   });
 
   it('a required text cannot be emptied; Cancel without changes just leaves edit mode', async () => {
@@ -204,7 +209,10 @@ describe('editing the page directly', () => {
     await fireEvent.press(screen.getByTestId('edit-close'));
     expect(store.getState().editing!.ops).toHaveLength(1);
     await done(store, '编辑「首页」（1 处修改）');
-    expect(home(store).components[1]!.style).toEqual({ align: 'center', size: 'large' });
+    expect((home(store).components[1]! as KnownComponent).style).toEqual({
+      align: 'center',
+      size: 'large',
+    });
   });
 
   it('hides a part; it stays visible in edit mode and can be shown again', async () => {
@@ -483,8 +491,10 @@ describe('single-component editing', () => {
     expect(store.getState().head!.id).toBe(before + 1);
     expect(store.getState().editing).toBeNull();
     await undo(store);
-    expect(home(store).components[0]!.props).toMatchObject({ title: '我的工作台' });
-    expect(home(store).components[1]!.style).toBeUndefined();
+    expect((home(store).components[0]! as KnownComponent).props).toMatchObject({
+      title: '我的工作台',
+    });
+    expect((home(store).components[1]! as KnownComponent).style).toBeUndefined();
   });
 
   it('keeps a selected group opaque and dims other groups only once', async () => {

@@ -3,6 +3,7 @@ import { DEFAULT_THEME } from './theme';
 
 // Schema 迁移（§7E）：恢复旧快照时逐级升级到当前版本，然后再校验。
 // 每次提升 CURRENT_SCHEMA_VERSION，都必须在 MIGRATIONS 中加入上一版本的迁移函数和测试。
+// 只新增一种组件不提升版本号（D-254），见 schema.ts。
 
 export type Migration = (config: Record<string, unknown>) => Record<string, unknown>;
 
@@ -147,6 +148,18 @@ export const migrateV14toV15: Migration = (config) => ({ ...config, schemaVersio
 /** v15 → v16：新增提醒 reminders（D-251，可以不写，不写就是没有提醒）；只提升版本号。 */
 export const migrateV15toV16: Migration = (config) => ({ ...config, schemaVersion: 16 });
 
+/**
+ * v16 → v17：按钮和快捷入口可以打开一个快捷操作 workflow:<id>（D-256，改了已有组件的结构，按 D-254 提升）；
+ * 已有数据不需要改动，只提升版本号。
+ */
+export const migrateV16toV17: Migration = (config) => ({ ...config, schemaVersion: 17 });
+
+/**
+ * v17 → v18：卡片类组件的 style 和页面可以有图片背景 backdrop（D-258，改了已有结构，按 D-254 提升）；
+ * 已有数据不需要改动，只提升版本号。
+ */
+export const migrateV17toV18: Migration = (config) => ({ ...config, schemaVersion: 18 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -164,6 +177,8 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   13: migrateV13toV14,
   14: migrateV14toV15,
   15: migrateV15toV16,
+  16: migrateV16toV17,
+  17: migrateV17toV18,
 };
 
 export type MigrateResult =

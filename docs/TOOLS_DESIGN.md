@@ -66,6 +66,7 @@ interface ActionDefinition {
   local?: LocalStepKind; // 需要用户在本地操作的步骤（§4）
   pack?: PackId; // 需要的扩展包（§6）
   requires: Permission[];
+  ai?: string; // 给 AI 的提示（英文）：用户怎么说时用它、怎么设参数，随动作目录发给模型（D-259）
 }
 
 interface ParamField {

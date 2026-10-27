@@ -2,6 +2,7 @@ import { localDate, readValue, type DataRecord } from './data';
 import { t } from './messages';
 import {
   pageIdOf,
+  workflowTargetId,
   type Locale,
   type NavTarget,
   type Reminder,
@@ -18,7 +19,7 @@ export const MAX_DATE_NOTIFICATIONS = 48;
 
 /** 快捷操作的提醒目标 workflow:<id> → id；不是时为 null。 */
 export const reminderWorkflowId = (target: ReminderTarget): string | null =>
-  target.startsWith('workflow:') ? target.slice('workflow:'.length) : null;
+  workflowTargetId(target);
 
 /** 提醒的设置有没有问题：时间表需要的参数、要打开的地方、要看的表和日期字段都要在。 */
 export function reminderProblems(r: Reminder, config: WorkspaceConfig): string[] {

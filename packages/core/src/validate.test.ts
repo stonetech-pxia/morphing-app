@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { registry, workspace } from './test-helpers';
 import { validateWorkspace } from './validate';
-import type { WorkspaceConfig } from './schema';
+import type { KnownComponent, WorkspaceConfig } from './schema';
 
 const issuesOf = (config: unknown) => {
   const result = validateWorkspace(config, registry);
@@ -29,7 +29,11 @@ describe('validateWorkspace', () => {
     ).toContain('schema');
     expect(
       issuesOf(
-        mutate((c) => Object.assign(c.pages[0]!.components[0]!.props, { onPress: 'alert(1)' })),
+        mutate((c) =>
+          Object.assign((c.pages[0]!.components[0] as KnownComponent).props, {
+            onPress: 'alert(1)',
+          }),
+        ),
       ),
     ).toContain('schema');
   });

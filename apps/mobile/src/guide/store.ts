@@ -4,13 +4,14 @@ import { create } from 'zustand';
 
 import type { WorkspaceRepo } from '../storage/types';
 
-// 新手引导（D-149、D-231）：划屏介绍 → 第 1 步发一句话加上两个文件入口（直接生效）→ 第 2 步打开图片或文件。
+// 新手引导（D-149、D-231、D-260）：划屏介绍 → 第 1 步发一句话加上两个文件入口（直接生效）→ 第 2 步打开图片或文件
+// → 第 3 步选一个样板 App 整套套用（先进草稿）。
 // 进度存在本机的 app_meta 里；没有记录就是第一次打开。「设置 → 重新看新手引导」从头再来。
 
-/** intro：要显示划屏介绍；look：第 1 步；goal：第 2 步；done：看完或关掉了。 */
-export type GuideStage = 'intro' | 'look' | 'goal' | 'done';
+/** intro：要显示划屏介绍；look：第 1 步；goal：第 2 步；samples：第 3 步（D-260）；done：看完或关掉了。 */
+export type GuideStage = 'intro' | 'look' | 'goal' | 'samples' | 'done';
 
-const STAGES: readonly GuideStage[] = ['intro', 'look', 'goal', 'done'];
+const STAGES: readonly GuideStage[] = ['intro', 'look', 'goal', 'samples', 'done'];
 const META_KEY = 'guide';
 
 interface GuideState {

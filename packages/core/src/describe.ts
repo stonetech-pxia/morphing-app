@@ -8,8 +8,13 @@ import { QUICK_ACTION_CATEGORIES } from './quick-actions';
 import type { Registry } from './registry';
 import { describeParams } from './workflow/format';
 import {
+  FIELDS,
   allComponents,
+  componentDefinition,
+  isKnownComponent,
   pageIdOf,
+  type Backdrop,
+  type BackdropPatch,
   type Component,
   type Locale,
   type NavTarget,
@@ -40,74 +45,8 @@ export function componentLabel(
   config: WorkspaceConfig,
   ctx: DescribeContext,
 ): string {
-  switch (c.type) {
-    case 'header':
-      return t(ctx.locale, 'describe_header_455aa', { v0: c.props.title });
-    case 'text':
-      return t(ctx.locale, 'describe_description_text_fccd4');
-    case 'toolCard': {
-      const name =
-        localize(ctx.registry.tools.get(c.props.toolId)?.name, ctx.locale) ?? c.props.toolId;
-      return t(ctx.locale, 'describe_tool_card_80198', { v0: name });
-    }
-    case 'filePick':
-      return c.props.source === 'media'
-        ? t(ctx.locale, 'describe_Open_photo_library_47a7e')
-        : t(ctx.locale, 'describe_Open_files_3477c');
-    case 'toolGrid':
-      return c.props.title
-        ? t(ctx.locale, 'describe_tool_grid_e987a', { v0: c.props.title })
-        : t(ctx.locale, 'describe_tool_grid_1c74f');
-    case 'catalogLink':
-      return t(ctx.locale, 'describe_link_941e3', { v0: c.props.title });
-    case 'fileList':
-      return t(ctx.locale, 'describe_file_list_a11dd', { v0: c.props.title });
-    case 'workflowRunner': {
-      const wf = config.workflows.find((w) => w.id === c.props.workflowId);
-      return t(ctx.locale, 'describe_quick_action_1fb38', { v0: wf?.name ?? c.props.workflowId });
-    }
-    case 'quickActionList':
-      return c.props.kind
-        ? t(ctx.locale, 'describe_quick_action_list_kind', {
-            v0: localize(QUICK_ACTION_CATEGORIES[c.props.kind].name, ctx.locale) ?? c.props.kind,
-          })
-        : t(ctx.locale, 'describe_quick_action_list');
-    case 'button':
-      return t(ctx.locale, 'describe_button_d79ee', { v0: c.props.label });
-    case 'shortcut':
-      return t(ctx.locale, 'describe_shortcut_b2616', { v0: c.props.title });
-    case 'notice':
-      return t(ctx.locale, 'describe_notice_f50d5');
-    case 'image':
-      return c.props.caption
-        ? t(ctx.locale, 'describe_image_d5072', { v0: c.props.caption })
-        : t(ctx.locale, 'describe_image_df755');
-    case 'divider':
-      return t(ctx.locale, 'describe_divider_7fe10');
-    case 'spacer':
-      return t(ctx.locale, 'describe_spacer_9a646');
-    case 'recordList': {
-      const name = collectionName(c.props.collectionId, config);
-      return t(ctx.locale, 'describe_list_0b528', { v0: name });
-    }
-    case 'recordForm': {
-      const name = collectionName(c.props.collectionId, config);
-      return t(ctx.locale, 'describe_form_f4ef1', { v0: name });
-    }
-    case 'stat':
-      return t(ctx.locale, 'describe_stat_c1587', { v0: c.props.label });
-    case 'chart':
-      return t(ctx.locale, 'describeChart', { v0: c.props.title });
-    case 'group': {
-      const layout = {
-        stack: t(ctx.locale, 'describe_stacked_00ce0'),
-        row: t(ctx.locale, 'describe_row_be7f8'),
-        grid: t(ctx.locale, 'describe_grid_3f0e7'),
-      }[c.props.layout];
-      const name = c.props.title ? t(ctx.locale, 'describe__5caf2', { v0: c.props.title }) : '';
-      return t(ctx.locale, 'describe_group_86cab', { v0: layout, v1: name });
-    }
-  }
+  if (!isKnownComponent(c)) return t(ctx.locale, 'describeUnknownComponent');
+  return componentDefinition(c.type).describe(c, config, ctx);
 }
 
 /** 提醒什么时候响（修改说明用）。 */
@@ -132,23 +71,10 @@ export function reminderWhen(r: Reminder, config: WorkspaceConfig, locale: Local
 
 const truncate = (s: string, max = 40) => (s.length > max ? `${s.slice(0, max)}…` : s);
 
-function collectionName(id: string, config: WorkspaceConfig): string {
-  return config.collections.find((c) => c.id === id)?.name ?? id;
-}
-
-const FIELD_TYPE_NAMES: Record<string, [string, string]> = {
-  text: ['文字', 'text'],
-  note: ['长文本', 'long text'],
-  number: ['数字', 'number'],
-  money: ['金额', 'money'],
-  checkbox: ['勾选', 'checkbox'],
-  date: ['日期', 'date'],
-  choice: ['单选', 'choice'],
-  rating: ['评分', 'rating'],
-  file: ['附件', 'attachment'],
-  formula: ['公式', 'formula'],
-  link: ['引用', 'link to another table'],
-};
+/** 字段类型在修改说明里的名字（字段定义的 label）。 */
+const FIELD_TYPE_NAMES: Record<string, [string, string]> = Object.fromEntries(
+  FIELDS.map((d) => [d.type, d.label]),
+);
 
 type ThemeTokenKey = Exclude<keyof Theme, 'primaryColor' | 'mode' | 'colors' | 'darkColors'>;
 
@@ -447,6 +373,14 @@ export function describeChange(
             : t(ctx.locale, 'describe_Floating_buttons_d071d', { v0: navList(op.items) }),
         );
         break;
+      case 'setPageBackdrop':
+        lines.push(
+          t(ctx.locale, 'describePageBackdrop', {
+            page: pageName(op.pageId),
+            change: backdropChange(op.backdrop, page(op.pageId)?.backdrop, ctx.locale),
+          }),
+        );
+        break;
       case 'setPageIcon':
         lines.push(
           t(ctx.locale, 'describePageIcon', {
@@ -501,6 +435,7 @@ export function describeChange(
           fit: { zh: '填充方式', en: 'fit', fr: 'mode d’ajustement' },
           caption: { zh: '说明', en: 'caption', fr: 'légende' },
           placeholder: { zh: '提示', en: 'placeholder', fr: 'texte indicatif' },
+          hint: { zh: '提示', en: 'hint', fr: 'indication' },
           look: { zh: '样子', en: 'look', fr: 'apparence' },
           kind: { zh: '类别', en: 'category', fr: 'catégorie' },
         };
@@ -532,6 +467,8 @@ export function describeChange(
         const changes = Object.entries(op.props)
           .map(([k, v]) => {
             if (k === 'assetId') {
+              if (findComp(op.pageId, op.componentId)?.type === 'fileSlot')
+                return t(ctx.locale, v ? 'describeNewFile' : 'describeFileRemoved');
               return v
                 ? t(ctx.locale, 'describe_new_picture_bf924')
                 : t(ctx.locale, 'describe_picture_removed_4fb32');
@@ -575,8 +512,10 @@ export function describeChange(
           medium: ['中', 'medium'],
           large: ['大', 'large'],
         };
+        const current = findComp(op.pageId, op.componentId);
+        const backdrop = op.style.backdrop;
         const changes = (Object.entries(op.style) as [string, string | null | undefined][])
-          .filter((e): e is [string, string | null] => e[1] !== undefined)
+          .filter((e): e is [string, string | null] => e[1] !== undefined && e[0] !== 'backdrop')
           .map(([k, v]) => {
             const shown =
               v === null
@@ -589,6 +528,17 @@ export function describeChange(
               value: shown,
             });
           })
+          .concat(
+            backdrop === undefined
+              ? []
+              : [
+                  backdropChange(
+                    backdrop,
+                    current && isKnownComponent(current) ? current.style?.backdrop : undefined,
+                    ctx.locale,
+                  ),
+                ],
+          )
           .join(zh ? '，' : ', ');
         lines.push(
           t(ctx.locale, 'describe_Restyle_0b6e5', {
@@ -793,6 +743,13 @@ export function describeChange(
           v1: collName(note.collectionId),
         }),
       );
+    } else if (note.kind === 'removedWorkflowLinks') {
+      lines.push(
+        t(ctx.locale, 'describe_Also_removes_button_s_or_shortcut_s_th_d4dc1', {
+          v0: note.count,
+          v1: known.workflows.find((w) => w.id === note.workflowId)?.name ?? note.workflowId,
+        }),
+      );
     } else {
       lines.push(
         t(ctx.locale, 'describe_Also_removes_button_s_or_shortcut_s_th_d4dc1', {
@@ -854,4 +811,22 @@ export function describeRestore(
       : t(ctx.locale, 'describe_Your_files_are_not_affected_3c83c'),
   );
   return lines;
+}
+
+/** 图片背景的一次修改（D-258）怎么说。 */
+function backdropChange(
+  patch: BackdropPatch | null,
+  before: Backdrop | undefined,
+  locale: Locale,
+): string {
+  if (patch === null) return t(locale, 'describeBackdropOff');
+  const parts: string[] = [];
+  if (!before && !patch.assetId) parts.push(t(locale, 'describeBackdropOn'));
+  if (patch.assetId) parts.push(t(locale, 'describeBackdropPicture'));
+  else if (patch.assetId === null) parts.push(t(locale, 'describeBackdropPictureRemoved'));
+  if (patch.overlay && patch.overlay !== before?.overlay)
+    parts.push(
+      t(locale, 'describeBackdropOverlay', { level: t(locale, `overlay_${patch.overlay}`) }),
+    );
+  return parts.join(t(locale, 'separatorComma')) || t(locale, 'describeBackdropPicture');
 }

@@ -1,8 +1,9 @@
-import { localize, describeParams } from '@morph/core';
+import { describeParams, findWorkflowTarget, localize, type Backdrop } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
+import { onPicture } from './Backdrop';
 import type { RenderEnv } from './components';
 import { UiIcon } from './Icon';
 import { iconColors } from './theme';
@@ -16,15 +17,20 @@ import { Button, Card, IconTile } from './ui';
 export function WorkflowRunner({
   workflowId,
   look,
+  backdrop,
   env,
 }: {
   workflowId: string;
   look?: 'card' | 'row' | 'tile';
+  /** 图片背景（D-258）。 */
+  backdrop?: Backdrop | undefined;
   env: RenderEnv;
 }) {
   const router = useRouter();
-  const { palette, locale, registry } = env;
-  const workflow = env.config.workflows.find((w) => w.id === workflowId);
+  const { locale, registry } = env;
+  const palette = onPicture(env.palette, backdrop);
+  // 可以指向内设快捷操作的预设 ID；用户改过以后配置里的副本优先（D-259）。
+  const workflow = findWorkflowTarget(env.config.workflows, workflowId, locale);
   if (!workflow) return null;
   const label = (action: string) => localize(registry.actions.get(action)?.label, locale) ?? action;
   // 关键设置（例如「不超过 500 KB」）；每次运行时询问的参数不列出。
@@ -39,7 +45,8 @@ export function WorkflowRunner({
     .join(t(locale, 'separatorSemicolon'));
   const start = () => {
     if (env.locked) return env.locked();
-    if (env.interactive) router.push({ pathname: '/run/[workflowId]', params: { workflowId } });
+    if (env.interactive)
+      router.push({ pathname: '/run/[workflowId]', params: { workflowId: workflow.id } });
   };
 
   const shown = look ?? (env.inCell ? 'tile' : 'card');
@@ -59,6 +66,7 @@ export function WorkflowRunner({
     return (
       <Card
         palette={palette}
+        backdrop={backdrop}
         testID={`run-${workflow.id}`}
         accessibilityLabel={workflow.name}
         onPress={start}
@@ -89,6 +97,7 @@ export function WorkflowRunner({
     return (
       <Card
         palette={palette}
+        backdrop={backdrop}
         testID={`run-${workflow.id}`}
         accessibilityLabel={workflow.name}
         onPress={start}
@@ -108,7 +117,7 @@ export function WorkflowRunner({
   }
 
   return (
-    <Card palette={palette} onLongPress={env.onLongPress}>
+    <Card palette={palette} backdrop={backdrop} onLongPress={env.onLongPress}>
       <Text style={[palette.font('title', 17), { color: palette.text }]}>{workflow.name}</Text>
       <View style={styles.steps}>
         {workflow.steps.map((s, i) => (

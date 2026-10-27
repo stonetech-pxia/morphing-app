@@ -1,8 +1,12 @@
 import {
+  FILE_LIMITS,
   allComponents,
   componentCollection,
+  isKnownComponent,
   moveStepOp,
-  type Component,
+  type Backdrop,
+  type BackdropPatch,
+  type KnownComponent,
   type ComponentStyle,
   type Op,
   type Page,
@@ -22,9 +26,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { t, type StringKey } from '../i18n';
+import { BACKDROP_SIDE } from '../renderer/Backdrop';
+import { chooseSlotFile } from '../renderer/FileSlot';
+import { pickPicture } from '../renderer/pictures';
+import { importSlotFile } from '../renderer/slot-file';
 import type { Palette } from '../renderer/theme';
 import { Button, SectionLabel } from '../renderer/ui';
-import { useWorkspaceContext } from '../workspace/context';
+import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { useEditActions } from './actions';
 import { CAPABILITIES, type StyleKey, type TextField } from './capabilities';
 
@@ -91,7 +99,7 @@ function TextForm({
   onCancel,
   onSave,
 }: {
-  component: Component;
+  component: KnownComponent;
   fields: TextField[];
   palette: Palette;
   onCancel: () => void;
@@ -177,6 +185,85 @@ function TextForm({
   );
 }
 
+/**
+ * 图片背景（D-258）：选、换、移除图片，调遮罩深浅，关掉。选的图片存成用户文件，配置里只写 ID。
+ * prefix 区分组件的（edit-backdrop）和页面的（edit-page-backdrop）。
+ */
+function BackdropSection({
+  title,
+  backdrop,
+  side,
+  prefix,
+  palette,
+  onChange,
+}: {
+  title: string;
+  backdrop: Backdrop | undefined;
+  side: number;
+  prefix: string;
+  palette: Palette;
+  onChange: (patch: BackdropPatch | null, keepOpen?: boolean) => void;
+}) {
+  const { locale, repo, files } = useWorkspaceContext();
+  const bumpAssets = useWorkspace((s) => s.bumpAssets);
+  async function choose() {
+    const picked = await pickPicture(files, repo, side);
+    if (picked.kind === 'tooLarge')
+      Alert.alert(t(locale, 'imageTooLarge', { mb: FILE_LIMITS.maxFileBytes / 1024 / 1024 }));
+    if (picked.kind !== 'saved') return;
+    bumpAssets();
+    onChange({ assetId: picked.assetId });
+  }
+  return (
+    <View style={styles.section}>
+      <SectionLabel palette={palette}>{title}</SectionLabel>
+      <View style={styles.chips}>
+        <Chip
+          palette={palette}
+          testID={`${prefix}-choose`}
+          label={t(locale, backdrop?.assetId ? 'backdropReplace' : 'backdropChoose')}
+          onPress={() => void choose()}
+        />
+        {backdrop?.assetId ? (
+          <Chip
+            palette={palette}
+            testID={`${prefix}-remove`}
+            label={t(locale, 'backdropRemove')}
+            onPress={() => onChange({ assetId: null }, true)}
+          />
+        ) : null}
+        {backdrop ? (
+          <Chip
+            palette={palette}
+            testID={`${prefix}-off`}
+            label={t(locale, 'backdropOff')}
+            onPress={() => onChange(null)}
+          />
+        ) : null}
+      </View>
+      {backdrop ? (
+        <>
+          <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
+            {t(locale, 'backdropOverlayLabel')}
+          </Text>
+          <View style={styles.chips}>
+            {(['light', 'medium', 'strong'] as const).map((level) => (
+              <Chip
+                key={level}
+                palette={palette}
+                testID={`${prefix}-overlay-${level}`}
+                label={t(locale, `overlay_${level}`)}
+                selected={backdrop.overlay === level}
+                onPress={() => backdrop.overlay !== level && onChange({ overlay: level }, true)}
+              />
+            ))}
+          </View>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
 export function EditSheet({
   page,
   componentId,
@@ -188,7 +275,8 @@ export function EditSheet({
   palette: Palette;
   onClose: () => void;
 }) {
-  const { locale } = useWorkspaceContext();
+  const { locale, repo, files } = useWorkspaceContext();
+  const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const { edit, label } = useEditActions(page);
   const insets = useSafeAreaInsets();
   const [editingText, setEditingText] = useState(false);
@@ -201,7 +289,9 @@ export function EditSheet({
 
   if (!component) return null;
   const id = component.id;
-  const caps = CAPABILITIES[component.type];
+  // 更新的 App 加的组件（D-254）只能移动和删除。
+  const known = isKnownComponent(component) ? component : null;
+  const caps = known ? CAPABILITIES[known.type] : { text: [], style: [] };
   const target = { pageId: page.id, componentId: id };
 
   /** 加入编辑草稿。改外观时面板保持打开，方便多试几种。 */
@@ -210,7 +300,7 @@ export function EditSheet({
   }
 
   function setStyle(key: StyleKey, value: string) {
-    const current = component!.style?.[key] ?? DEFAULTS[key];
+    const current = known?.style?.[key] ?? DEFAULTS[key];
     if (current === value) return;
     const style: Record<string, string | null> = { [key]: value === DEFAULTS[key] ? null : value };
     apply([{ op: 'setComponentStyle', ...target, style: style as ComponentStyle }], {
@@ -220,8 +310,8 @@ export function EditSheet({
 
   function confirmDelete() {
     const message =
-      component!.type === 'group' && component!.children.length > 0
-        ? t(locale, 'deleteGroupMessage', { count: component!.children.length })
+      known?.type === 'group' && known.children.length > 0
+        ? t(locale, 'deleteGroupMessage', { count: known.children.length })
         : componentCollection(component!)
           ? t(locale, 'deleteDataMessage')
           : t(locale, 'deleteComponentMessage');
@@ -234,6 +324,17 @@ export function EditSheet({
       },
     ]);
   }
+
+  /** 文件入口（D-257）：选的文件先复制进 App，配置里只写文件 ID。 */
+  async function chooseFile() {
+    const assetId = await chooseSlotFile(locale, label(id), (source) =>
+      importSlotFile(source, files, repo),
+    );
+    if (!assetId) return;
+    bumpAssets();
+    apply([{ op: 'setComponentProps', ...target, props: { assetId } }]);
+  }
+  const assetId = (known?.props as { assetId?: string | null } | undefined)?.assetId;
 
   const up = moveStepOp(page, id, 'up');
   const down = moveStepOp(page, id, 'down');
@@ -263,9 +364,9 @@ export function EditSheet({
             <Text style={[palette.font('title', 18), { color: palette.text }]} numberOfLines={2}>
               {label(id)}
             </Text>
-            {editingText ? (
+            {editingText && known ? (
               <TextForm
-                component={component}
+                component={known}
                 fields={caps.text}
                 palette={palette}
                 onCancel={() => setEditingText(false)}
@@ -285,6 +386,45 @@ export function EditSheet({
                     onPress={() => setEditingText(true)}
                   />
                 ) : null}
+                {caps.asset === 'file' ? (
+                  <View style={styles.section}>
+                    <SectionLabel palette={palette}>{t(locale, 'fileSlotSection')}</SectionLabel>
+                    <View style={styles.chips}>
+                      <Chip
+                        palette={palette}
+                        testID="edit-file-choose"
+                        label={t(locale, assetId ? 'fileSlotReplace' : 'fileSlotChoose')}
+                        onPress={() => void chooseFile()}
+                      />
+                      {assetId ? (
+                        <Chip
+                          palette={palette}
+                          testID="edit-file-remove"
+                          label={t(locale, 'fileSlotRemove')}
+                          onPress={() =>
+                            apply([
+                              { op: 'setComponentProps', ...target, props: { assetId: null } },
+                            ])
+                          }
+                        />
+                      ) : null}
+                    </View>
+                  </View>
+                ) : null}
+                {caps.backdrop && known ? (
+                  <BackdropSection
+                    title={t(locale, 'backdropSection')}
+                    backdrop={known.style?.backdrop}
+                    side={BACKDROP_SIDE.card}
+                    prefix="edit-backdrop"
+                    palette={palette}
+                    onChange={(backdrop, keepOpen) =>
+                      apply([{ op: 'setComponentStyle', ...target, style: { backdrop } }], {
+                        keepOpen,
+                      })
+                    }
+                  />
+                ) : null}
                 {caps.style.map((key) => (
                   <View key={key} style={styles.section}>
                     <SectionLabel palette={palette}>{t(locale, STYLE_TITLES[key])}</SectionLabel>
@@ -295,13 +435,25 @@ export function EditSheet({
                           palette={palette}
                           testID={`edit-${key}-${value}`}
                           label={t(locale, `${key}_${value}` as StringKey)}
-                          selected={(component.style?.[key] ?? DEFAULTS[key]) === value}
+                          selected={(known?.style?.[key] ?? DEFAULTS[key]) === value}
                           onPress={() => setStyle(key, value)}
                         />
                       ))}
                     </View>
                   </View>
                 ))}
+                {page.backdrop ? (
+                  <BackdropSection
+                    title={t(locale, 'pageBackdropSection')}
+                    backdrop={page.backdrop}
+                    side={BACKDROP_SIDE.page}
+                    prefix="edit-page-backdrop"
+                    palette={palette}
+                    onChange={(backdrop, keepOpen) =>
+                      apply([{ op: 'setPageBackdrop', pageId: page.id, backdrop }], { keepOpen })
+                    }
+                  />
+                ) : null}
                 <View style={[styles.chips, styles.section]}>
                   <Chip
                     palette={palette}
@@ -319,14 +471,16 @@ export function EditSheet({
                   />
                 </View>
                 <View style={styles.chips}>
-                  <Chip
-                    palette={palette}
-                    testID="edit-hide"
-                    label={t(locale, component.hidden ? 'show' : 'hide')}
-                    onPress={() =>
-                      apply([{ op: 'setComponentHidden', ...target, hidden: !component.hidden }])
-                    }
-                  />
+                  {known ? (
+                    <Chip
+                      palette={palette}
+                      testID="edit-hide"
+                      label={t(locale, known.hidden ? 'show' : 'hide')}
+                      onPress={() =>
+                        apply([{ op: 'setComponentHidden', ...target, hidden: !known.hidden }])
+                      }
+                    />
+                  ) : null}
                   <Chip
                     palette={palette}
                     testID="edit-delete"

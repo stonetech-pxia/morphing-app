@@ -1,0 +1,461 @@
+{
+  "icon": "person",
+  "name": {
+    "en": "Visa and passport",
+    "zh": "出国办证",
+    "fr": "Visa et passeport"
+  },
+  "summary": {
+    "en": "A checklist of papers to prepare, expiry dates for your IDs, ID photos and translations.",
+    "zh": "要备的材料打勾清单、证件到期提醒，还有证件照、材料包和翻译。",
+    "fr": "Une liste des pièces à préparer, les dates d’expiration de vos papiers, des photos d’identité et des traductions."
+  },
+  "ids": {
+    "$table.checklist": "papers",
+    "$table.documents": "id-documents",
+    "$page.main": "visa",
+    "$page.ids": "my-ids",
+    "$workflow.scanPaper": "scan-paper-log",
+    "$reminder.expiry": "id-expiry",
+    "$reminder.deadline": "paper-deadline"
+  },
+  "tables": [
+    {
+      "id": "$table.checklist",
+      "name": {
+        "en": "Papers to prepare",
+        "zh": "材料清单",
+        "fr": "Pièces à préparer"
+      },
+      "icon": "check",
+      "fields": [
+        {
+          "id": "name",
+          "name": {
+            "en": "Paper",
+            "zh": "材料",
+            "fr": "Pièce"
+          },
+          "type": "text",
+          "required": true
+        },
+        {
+          "id": "ready",
+          "name": {
+            "en": "Ready",
+            "zh": "已备好",
+            "fr": "Prête"
+          },
+          "type": "checkbox"
+        },
+        {
+          "id": "due",
+          "name": {
+            "en": "Deadline",
+            "zh": "截止日期",
+            "fr": "Date limite"
+          },
+          "type": "date"
+        },
+        {
+          "id": "file",
+          "name": {
+            "en": "Attachment",
+            "zh": "附件",
+            "fr": "Pièce jointe"
+          },
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "id": "$table.documents",
+      "name": {
+        "en": "My IDs",
+        "zh": "证件",
+        "fr": "Mes papiers"
+      },
+      "icon": "person",
+      "fields": [
+        {
+          "id": "name",
+          "name": {
+            "en": "Document",
+            "zh": "证件",
+            "fr": "Document"
+          },
+          "type": "text",
+          "required": true
+        },
+        {
+          "id": "expires",
+          "name": {
+            "en": "Expires on",
+            "zh": "到期日",
+            "fr": "Expire le"
+          },
+          "type": "date"
+        }
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "$workflow.scanPaper",
+      "name": {
+        "en": "Scan a paper into the checklist",
+        "zh": "扫描材料记进清单",
+        "fr": "Numériser une pièce dans la liste"
+      },
+      "icon": "scan",
+      "steps": [
+        {
+          "id": "pick",
+          "action": "in.photos",
+          "params": {
+            "source": "scanner",
+            "min": 1,
+            "max": 10
+          }
+        },
+        {
+          "id": "edges",
+          "action": "scan.detect",
+          "params": {}
+        },
+        {
+          "id": "log",
+          "action": "out.addRecord",
+          "params": {
+            "collectionId": "$table.checklist"
+          }
+        }
+      ]
+    },
+    {
+      "id": "$workflow.photo",
+      "presetId": "visa-photo"
+    },
+    {
+      "id": "$workflow.printPhotos",
+      "presetId": "print-id-photos"
+    },
+    {
+      "id": "$workflow.packet",
+      "presetId": "document-packet"
+    },
+    {
+      "id": "$workflow.toEnglish",
+      "presetId": "papers-to-english"
+    },
+    {
+      "id": "$workflow.foreignPdf",
+      "presetId": "foreign-pdf"
+    }
+  ],
+  "pages": [
+    {
+      "id": "$page.main",
+      "title": {
+        "en": "Visa",
+        "zh": "办证",
+        "fr": "Visa"
+      },
+      "icon": "person",
+      "components": [
+        {
+          "id": "title",
+          "type": "header",
+          "props": {
+            "title": {
+              "en": "Visa and passport",
+              "zh": "出国办证",
+              "fr": "Visa et passeport"
+            },
+            "subtitle": {
+              "en": "Tick off each paper as it is ready. Morph reminds you before deadlines.",
+              "zh": "材料一项项备好打勾，截止日期前 Morph 会提醒你。",
+              "fr": "Cochez chaque pièce dès qu’elle est prête. Morph vous prévient avant les dates limites."
+            }
+          }
+        },
+        {
+          "id": "left",
+          "type": "stat",
+          "props": {
+            "collectionId": "$table.checklist",
+            "aggregate": "count",
+            "label": {
+              "en": "Papers still missing",
+              "zh": "还差几项",
+              "fr": "Pièces manquantes"
+            },
+            "filter": [
+              {
+                "field": "ready",
+                "op": "is",
+                "value": false
+              }
+            ]
+          }
+        },
+        {
+          "id": "add",
+          "type": "recordForm",
+          "props": {
+            "collectionId": "$table.checklist",
+            "fieldIds": ["name", "due"],
+            "submitLabel": {
+              "en": "Add",
+              "zh": "添加",
+              "fr": "Ajouter"
+            },
+            "mode": "inline"
+          }
+        },
+        {
+          "id": "papers",
+          "type": "recordList",
+          "props": {
+            "collectionId": "$table.checklist",
+            "display": "checklist",
+            "checkField": "ready",
+            "titleField": "name",
+            "subtitleFields": ["due"],
+            "sort": {
+              "field": "due",
+              "direction": "asc"
+            },
+            "limit": 50,
+            "emptyText": {
+              "en": "Add the papers you need, such as a passport photo or a bank statement.",
+              "zh": "把要准备的材料加进来，例如证件照、银行流水。",
+              "fr": "Ajoutez les pièces à fournir : photo d’identité, relevé bancaire…"
+            }
+          }
+        },
+        {
+          "id": "to-ids",
+          "type": "shortcut",
+          "props": {
+            "title": {
+              "en": "My IDs",
+              "zh": "我的证件",
+              "fr": "Mes papiers"
+            },
+            "subtitle": {
+              "en": "Expiry dates and scans of your passport and ID card",
+              "zh": "护照、身份证的到期日和扫描件",
+              "fr": "Dates d’expiration et copies du passeport et de la carte d’identité"
+            },
+            "icon": "person",
+            "target": "page:$page.ids"
+          }
+        },
+        {
+          "id": "actions",
+          "type": "group",
+          "props": {
+            "title": {
+              "en": "For your application",
+              "zh": "办证用得上",
+              "fr": "Pour votre demande"
+            },
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "run-scan-paper",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.scanPaper",
+                "look": "row"
+              }
+            },
+            {
+              "id": "run-photo",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.photo",
+                "look": "row"
+              }
+            },
+            {
+              "id": "run-print-photos",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.printPhotos",
+                "look": "row"
+              }
+            },
+            {
+              "id": "run-packet",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.packet",
+                "look": "row"
+              }
+            },
+            {
+              "id": "run-to-english",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.toEnglish",
+                "look": "row"
+              }
+            },
+            {
+              "id": "run-foreign-pdf",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.foreignPdf",
+                "look": "row"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "$page.ids",
+      "title": {
+        "en": "My IDs",
+        "zh": "我的证件",
+        "fr": "Mes papiers"
+      },
+      "icon": "person",
+      "components": [
+        {
+          "id": "title",
+          "type": "header",
+          "props": {
+            "title": {
+              "en": "My IDs",
+              "zh": "我的证件",
+              "fr": "Mes papiers"
+            },
+            "subtitle": {
+              "en": "Morph reminds you 30 days before a document expires.",
+              "zh": "证件到期前 30 天，Morph 会提醒你。",
+              "fr": "Morph vous prévient 30 jours avant l’expiration d’un document."
+            }
+          }
+        },
+        {
+          "id": "scans",
+          "type": "group",
+          "props": {
+            "layout": "grid",
+            "columns": 2
+          },
+          "children": [
+            {
+              "id": "passport-scan",
+              "type": "fileSlot",
+              "props": {
+                "title": {
+                  "en": "Passport scan",
+                  "zh": "护照扫描件",
+                  "fr": "Copie du passeport"
+                },
+                "hint": {
+                  "en": "Tap to choose the file",
+                  "zh": "点一下选文件",
+                  "fr": "Touchez pour choisir le fichier"
+                },
+                "icon": "document",
+                "look": "tile"
+              }
+            },
+            {
+              "id": "id-card-scan",
+              "type": "fileSlot",
+              "props": {
+                "title": {
+                  "en": "ID card scan",
+                  "zh": "身份证扫描件",
+                  "fr": "Copie de la carte d’identité"
+                },
+                "hint": {
+                  "en": "Tap to choose the file",
+                  "zh": "点一下选文件",
+                  "fr": "Touchez pour choisir le fichier"
+                },
+                "icon": "document",
+                "look": "tile"
+              }
+            }
+          ]
+        },
+        {
+          "id": "documents",
+          "type": "recordList",
+          "props": {
+            "collectionId": "$table.documents",
+            "display": "list",
+            "titleField": "name",
+            "subtitleFields": ["expires"],
+            "sort": {
+              "field": "expires",
+              "direction": "asc"
+            },
+            "limit": 30,
+            "emptyText": {
+              "en": "Add your passport and visa with their expiry dates.",
+              "zh": "把护照、签证和到期日加进来。",
+              "fr": "Ajoutez votre passeport et votre visa avec leur date d’expiration."
+            }
+          }
+        },
+        {
+          "id": "add",
+          "type": "recordForm",
+          "props": {
+            "collectionId": "$table.documents",
+            "fieldIds": ["name", "expires"],
+            "submitLabel": {
+              "en": "Add a document",
+              "zh": "添加证件",
+              "fr": "Ajouter un document"
+            },
+            "mode": "button"
+          }
+        }
+      ]
+    }
+  ],
+  "main": "$page.main",
+  "entry": "nav",
+  "reminders": [
+    {
+      "id": "$reminder.expiry",
+      "title": {
+        "en": "A document expires soon. Time to renew it.",
+        "zh": "证件快到期了，记得去续办",
+        "fr": "Un document expire bientôt. Pensez à le renouveler."
+      },
+      "enabled": true,
+      "schedule": "dateField",
+      "time": "09:00",
+      "collectionId": "$table.documents",
+      "fieldId": "expires",
+      "daysBefore": 30,
+      "opens": "page:$page.ids"
+    },
+    {
+      "id": "$reminder.deadline",
+      "title": {
+        "en": "A paper is due in 3 days",
+        "zh": "有材料 3 天后截止",
+        "fr": "Une pièce est à rendre dans 3 jours"
+      },
+      "enabled": true,
+      "schedule": "dateField",
+      "time": "09:00",
+      "collectionId": "$table.checklist",
+      "fieldId": "due",
+      "daysBefore": 3,
+      "opens": "page:$page.main"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-import type { IconValue } from '@morph/core';
+import type { Backdrop, IconValue } from '@morph/core';
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -10,6 +10,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
+import { BackdropFill } from './Backdrop';
 import { GlassFill } from './GlassFill';
 import { Icon } from './Icon';
 import { iconColors, type Palette } from './theme';
@@ -28,9 +29,12 @@ export function Card({
   style,
   testID,
   accessibilityLabel,
+  backdrop,
 }: {
   palette: Palette;
   children: ReactNode;
+  /** 图片背景（D-258）：有图片时铺在内容下面，代替底色（和毛玻璃）。 */
+  backdrop?: Backdrop | undefined;
   accessibilityLabel?: string;
   onPress?: () => void;
   /** 页面编辑：长按打开组件的操作面板（D-052）。 */
@@ -41,10 +45,20 @@ export function Card({
   testID?: string;
 }) {
   const base = [palette.cardStyle(background), { padding: palette.pad - 2, gap: 8 }, style];
+  const fill = backdrop?.assetId ? (
+    <BackdropFill
+      backdrop={backdrop}
+      color={background ?? palette.surface}
+      palette={palette}
+      radius={palette.radius}
+    />
+  ) : (
+    <GlassFill palette={palette} />
+  );
   if (!onPress) {
     return (
       <View testID={testID} style={base}>
-        <GlassFill palette={palette} />
+        {fill}
         {children}
       </View>
     );
@@ -58,7 +72,7 @@ export function Card({
       onLongPress={onLongPress}
       disabled={disabled}
       style={({ pressed }) => [base, pressed && { transform: [{ scale: 0.97 }] }]}>
-      <GlassFill palette={palette} />
+      {fill}
       {children}
     </Pressable>
   );

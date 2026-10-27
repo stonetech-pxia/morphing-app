@@ -87,6 +87,7 @@ const NO_FILTER = {
 export const IO_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'in.photos',
+    ai: 'Pictures from the Files app → source "files". To scan paper → source "scanner" followed by scan.detect (it passes pages from the document camera through and straightens camera photos on devices without one).',
     label: { en: 'Choose photos', zh: '选照片', fr: 'Choisir des photos' },
     description: {
       en: 'Pick photos from the library or from the Files app (pictures downloaded or sent from a computer), take them with the camera, or scan paper with the document camera (finds the edges, captures automatically, several pages, already straightened; where it is not available, the camera is used).',
@@ -216,6 +217,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'in.videos',
+    ai: 'Videos start here: source "library" for the photo library, "files" for videos downloaded or copied from a computer (MKV, WEBM, AVI only open on Android).',
     label: { en: 'Choose videos', zh: '选视频', fr: 'Choisir des vidéos' },
     description: {
       en: 'Pick videos from the photo library, or from the Files app (downloaded or copied from a computer: MP4, MOV, and on Android also MKV, WEBM, AVI); up to 10, each up to 4 GB.',
@@ -270,6 +272,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
   {
     // 音频（D-154）：从「文件」选录音或音乐（语音备忘录分享出来的、微信下载的），或者现在录一段。
     id: 'in.audio',
+    ai: 'Audio starts here: source "files" for recordings and music in the Files app, "record" to record now with the microphone; shared recordings fill it either way.',
     label: {
       en: 'Choose or record audio',
       zh: '选音频 / 录音',
@@ -691,6 +694,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
   {
     // D-197：一份报销单越攒越多。默认接上这个快捷操作上次存下的结果；选中的文件只在这次运行里用。
     id: 'file.addExisting',
+    ai: 'To add new pages to a PDF made before ("add this receipt to last time\'s expense report", "keep one growing PDF") → this (position "before") then pdf.merge, after the new pages; the user picks the earlier file when it runs (by default the last result this quick action saved, so end with file.save).',
     label: { en: 'Add an existing file', zh: '加上已有文件', fr: 'Ajouter un fichier existant' },
     description: {
       en: 'Asks which earlier file to add to the files so far: by default the last result this quick action saved, or a PDF or image picked in Files, or none this time. position "before" puts the existing file first. Follow with pdf.merge to grow one PDF run after run (an expense report that gets one more receipt each time).',
@@ -733,6 +737,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'out.share',
+    ai: '"Send to X" (WeChat, WhatsApp, Mail…) → this: it opens the share sheet once with all the files and the user picks. Morph never uploads files or sends them to a contact by itself.',
     label: { en: 'Share', zh: '分享', fr: 'Partager' },
     description: {
       en: 'Open the share sheet once with all the files (WeChat, WhatsApp, Mail, Messages, AirDrop, Files…).',
@@ -747,6 +752,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'out.saveToFolder',
+    ai: '"Put them in my cloud drive / a folder" → this: the user picks a folder in Files, which is also how files reach iCloud Drive, Google Drive or Dropbox.',
     label: { en: 'Save to a folder', zh: '存到文件夹', fr: 'Enregistrer dans un dossier' },
     description: {
       en: 'Copy the files into a folder in Files (on this device, iCloud Drive, Google Drive, Dropbox…). The user picks the folder the first time; after that the same folder is used (it can be changed on the result page). Morph does not upload anything; the cloud app syncs the folder.',

@@ -455,8 +455,11 @@ export interface FilePlatform {
   readonly background: BackgroundPlatform | null;
 
   // ---- 用户文件（assets/<id>/<文件名>，D-019）----
-  /** 从相册选一张照片（图片组件用）；用户取消时返回 null。 */
-  pickImage(): Promise<PickedFile | null>;
+  /**
+   * 从相册选一张照片（图片组件、图片背景用），重新编码成 JPEG，最长边缩到 maxSide（默认 2048）以内，
+   * 解码时就缩小；用户取消时返回 null。
+   */
+  pickImage(maxSide?: number): Promise<PickedFile | null>;
   /** 某个用户文件可以直接显示的地址（图片组件用）。 */
   fileUri(path: string): string;
   importFile(
@@ -464,6 +467,11 @@ export interface FilePlatform {
     assetId: string,
     name: string,
   ): Promise<{ path: string; size: number }>;
+  /**
+   * 删掉一个用户文件在磁盘上的目录 assets/<id>/（「设置 → 存储空间」，D-264）。path 不在 assets/ 下时什么都不做；
+   * 已经不在了也不算错。
+   */
+  removeAssetFile(path: string): Promise<void>;
   readBytes(path: string): Promise<Uint8Array>;
   writeBytes(
     assetId: string,

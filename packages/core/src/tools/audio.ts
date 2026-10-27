@@ -55,6 +55,7 @@ const formatField = {
 export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'audio.denoise',
+    ai: '"Reduce speech noise / noisy voice recording" → this; mention that it is for speech and may suppress music.',
     label: { en: 'Reduce speech noise', zh: '人声降噪', fr: 'Réduire le bruit de la voix' },
     description: {
       en: 'Reduce background noise around speech in audio or video on this device with RNNoise. Best for spoken recordings; music and other wanted sounds can be suppressed. Mono/stereo only. Audio becomes M4A; video keeps its picture (MP4, re-encoded). No speech recognition or upload.',
@@ -70,6 +71,7 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'audio.volume',
+    ai: '"Too quiet / normal volume" → mode "normal", db 0; explicit ±dB → mode "db", db as asked.',
     label: { en: 'Adjust volume', zh: '调整音量', fr: 'Ajuster le volume' },
     description: {
       en: 'Adjust audio or video sound locally. Normal aims for -16 LUFS; manual changes gain in dB. Gain is limited to avoid clipping (-1 dBFS sample peak), so very dynamic material may stay quieter than the target. Audio becomes M4A; video remains video (MP4, picture re-encoded). Silence stays silent.',
@@ -113,6 +115,7 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'audio.transcribe',
+    ai: '"Turn a recording into text / transcribe / notes from a lecture or meeting recording" → lang = the language spoken, usually followed by text.toPdf or text.toFile.',
     label: { en: 'Speech to text', zh: '语音转文字', fr: 'Transcription' },
     description: {
       en: 'Turn recordings into text on this device (one language per run). Words may be wrong, especially with noise or accents. The first use of a language may need a download. The text stays on this device.',
@@ -147,6 +150,7 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'audio.compress',
+    ai: '"A recording too big to send / under N MB" → by "size" with maxMB, or by "quality".',
     label: { en: 'Make audio smaller', zh: '压小音频', fr: 'Réduire la taille de l’audio' },
     description: {
       en: 'Make each recording smaller as an M4A: by size (at most N MB) or by quality (high / standard / voice, mono). M4A plays in WeChat, email, computers and phones.',
@@ -229,6 +233,7 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'audio.convert',
+    ai: '"Convert to M4A / WAV / MP3" → format.',
     label: { en: 'Convert audio', zh: '音频转格式', fr: 'Convertir l’audio' },
     description: {
       en: 'Convert recordings and music (M4A, WAV, MP3, AMR, CAF, FLAC…) to M4A, which plays everywhere, to MP3 (for old players and car stereos), or to uncompressed WAV.',
@@ -248,6 +253,7 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'audio.trim',
+    ai: '"Cut out a part / a ringtone" (local step on a waveform; an iPhone app can\'t set ringtones, so say so in a note when they ask for one).',
     label: { en: 'Trim audio', zh: '剪一段音频', fr: 'Couper l’audio' },
     description: {
       en: 'The user picks the start and end of each recording on a waveform; only that part is kept, as an M4A.',
@@ -263,6 +269,7 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'audio.merge',
+    ai: '"Join several recordings into one" → file.order then this.',
     label: { en: 'Join recordings', zh: '合成一段', fr: 'Fusionner des enregistrements' },
     description: {
       en: 'Join the recordings into one M4A, in their current order (put "Order" before it to change the order).',
@@ -277,6 +284,7 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'audio.fromVideo',
+    ai: '"Keep the sound / music of a video" (also "video to MP3") → in.videos then this (format "mp3" when they say MP3).',
     label: {
       en: 'Get the sound from videos',
       zh: '提取视频里的声音',

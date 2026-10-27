@@ -1,0 +1,388 @@
+{
+  "icon": "lightbulb",
+  "name": {
+    "en": "Study helper",
+    "zh": "学习助手",
+    "fr": "Assistant d’études"
+  },
+  "summary": {
+    "en": "Homework sorted by deadline, plus quick actions for recordings, handouts and notes.",
+    "zh": "作业按截止日期排好，录音转文字、扫讲义、合资料一点就行。",
+    "fr": "Les devoirs triés par date limite, et des actions rapides pour les enregistrements, les polycopiés et les notes."
+  },
+  "ids": {
+    "$table.homework": "homework",
+    "$page.main": "study",
+    "$workflow.photoLog": "homework-photo-log",
+    "$reminder.due": "homework-due",
+    "$reminder.review": "daily-review"
+  },
+  "tables": [
+    {
+      "id": "$table.homework",
+      "name": {
+        "en": "Homework",
+        "zh": "作业",
+        "fr": "Devoirs"
+      },
+      "icon": "bookmark",
+      "fields": [
+        {
+          "id": "title",
+          "name": {
+            "en": "Assignment",
+            "zh": "作业",
+            "fr": "Devoir"
+          },
+          "type": "text",
+          "required": true
+        },
+        {
+          "id": "course",
+          "name": {
+            "en": "Course",
+            "zh": "课程",
+            "fr": "Cours"
+          },
+          "type": "choice",
+          "options": [
+            {
+              "id": "math",
+              "label": {
+                "en": "Math",
+                "zh": "数学",
+                "fr": "Maths"
+              }
+            },
+            {
+              "id": "language",
+              "label": {
+                "en": "English",
+                "zh": "语文",
+                "fr": "Français"
+              }
+            },
+            {
+              "id": "foreign",
+              "label": {
+                "en": "Foreign language",
+                "zh": "外语",
+                "fr": "Langue étrangère"
+              }
+            },
+            {
+              "id": "science",
+              "label": {
+                "en": "Science",
+                "zh": "科学",
+                "fr": "Sciences"
+              }
+            },
+            {
+              "id": "other",
+              "label": {
+                "en": "Other",
+                "zh": "其他",
+                "fr": "Autre"
+              }
+            }
+          ]
+        },
+        {
+          "id": "due",
+          "name": {
+            "en": "Due",
+            "zh": "截止日期",
+            "fr": "À rendre le"
+          },
+          "type": "date"
+        },
+        {
+          "id": "done",
+          "name": {
+            "en": "Done",
+            "zh": "完成",
+            "fr": "Fait"
+          },
+          "type": "checkbox"
+        },
+        {
+          "id": "file",
+          "name": {
+            "en": "Attachment",
+            "zh": "附件",
+            "fr": "Pièce jointe"
+          },
+          "type": "file"
+        }
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "$workflow.photoLog",
+      "name": {
+        "en": "Snap an assignment and add it",
+        "zh": "拍下作业记一项",
+        "fr": "Photographier un devoir et l’ajouter"
+      },
+      "icon": "photo",
+      "steps": [
+        {
+          "id": "pick",
+          "action": "in.photos",
+          "params": {
+            "source": "camera",
+            "min": 1,
+            "max": 5
+          }
+        },
+        {
+          "id": "log",
+          "action": "out.addRecord",
+          "params": {
+            "collectionId": "$table.homework"
+          }
+        }
+      ]
+    },
+    {
+      "id": "$workflow.toText",
+      "presetId": "audio-to-text"
+    },
+    {
+      "id": "$workflow.mergeAudio",
+      "presetId": "merge-recordings"
+    },
+    {
+      "id": "$workflow.archiveAudio",
+      "presetId": "voice-memo-archive"
+    },
+    {
+      "id": "$workflow.scan",
+      "presetId": "scan-document"
+    },
+    {
+      "id": "$workflow.combine",
+      "presetId": "combine-documents"
+    }
+  ],
+  "pages": [
+    {
+      "id": "$page.main",
+      "title": {
+        "en": "Study",
+        "zh": "学习",
+        "fr": "Études"
+      },
+      "icon": "lightbulb",
+      "components": [
+        {
+          "id": "title",
+          "type": "header",
+          "props": {
+            "title": {
+              "en": "Study helper",
+              "zh": "学习助手",
+              "fr": "Assistant d’études"
+            },
+            "subtitle": {
+              "en": "Homework in deadline order. Recordings and handouts sorted in one tap.",
+              "zh": "作业按截止日期排好，录音和讲义一点就整理好。",
+              "fr": "Les devoirs par date limite. Enregistrements et polycopiés rangés en un appui."
+            }
+          }
+        },
+        {
+          "id": "summary",
+          "type": "group",
+          "props": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "open",
+              "type": "stat",
+              "props": {
+                "collectionId": "$table.homework",
+                "aggregate": "count",
+                "label": {
+                  "en": "To do",
+                  "zh": "未完成",
+                  "fr": "À faire"
+                },
+                "filter": [
+                  {
+                    "field": "done",
+                    "op": "is",
+                    "value": false
+                  }
+                ]
+              }
+            },
+            {
+              "id": "done-week",
+              "type": "stat",
+              "props": {
+                "collectionId": "$table.homework",
+                "aggregate": "count",
+                "label": {
+                  "en": "Done this week",
+                  "zh": "本周完成",
+                  "fr": "Faits cette semaine"
+                },
+                "filter": [
+                  {
+                    "field": "done",
+                    "op": "is",
+                    "value": true
+                  },
+                  {
+                    "field": "updatedAt",
+                    "op": "inPeriod",
+                    "value": "thisWeek"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "add",
+          "type": "recordForm",
+          "props": {
+            "collectionId": "$table.homework",
+            "fieldIds": ["title", "due"],
+            "submitLabel": {
+              "en": "Add",
+              "zh": "添加",
+              "fr": "Ajouter"
+            },
+            "mode": "inline"
+          }
+        },
+        {
+          "id": "todo",
+          "type": "recordList",
+          "props": {
+            "collectionId": "$table.homework",
+            "display": "checklist",
+            "checkField": "done",
+            "titleField": "title",
+            "subtitleFields": ["course", "due"],
+            "filter": [
+              {
+                "field": "done",
+                "op": "is",
+                "value": false
+              }
+            ],
+            "sort": {
+              "field": "due",
+              "direction": "asc"
+            },
+            "limit": 50,
+            "emptyText": {
+              "en": "All done. Add the next assignment above.",
+              "zh": "作业都做完了，有新作业就在上面添加。",
+              "fr": "Tout est fait. Ajoutez le prochain devoir ci-dessus."
+            }
+          }
+        },
+        {
+          "id": "actions",
+          "type": "group",
+          "props": {
+            "title": {
+              "en": "Recordings and handouts",
+              "zh": "录音和讲义",
+              "fr": "Enregistrements et polycopiés"
+            },
+            "layout": "stack"
+          },
+          "children": [
+            {
+              "id": "run-photo-log",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.photoLog",
+                "look": "row"
+              }
+            },
+            {
+              "id": "run-to-text",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.toText",
+                "look": "row"
+              }
+            },
+            {
+              "id": "run-merge-audio",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.mergeAudio",
+                "look": "row"
+              }
+            },
+            {
+              "id": "run-archive-audio",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.archiveAudio",
+                "look": "row"
+              }
+            },
+            {
+              "id": "run-scan",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.scan",
+                "look": "row"
+              }
+            },
+            {
+              "id": "run-combine",
+              "type": "workflowRunner",
+              "props": {
+                "workflowId": "$workflow.combine",
+                "look": "row"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "main": "$page.main",
+  "entry": "nav",
+  "reminders": [
+    {
+      "id": "$reminder.due",
+      "title": {
+        "en": "Homework is due tomorrow",
+        "zh": "明天要交作业了",
+        "fr": "Un devoir est à rendre demain"
+      },
+      "enabled": true,
+      "schedule": "dateField",
+      "time": "18:00",
+      "collectionId": "$table.homework",
+      "fieldId": "due",
+      "daysBefore": 1,
+      "opens": "page:$page.main"
+    },
+    {
+      "id": "$reminder.review",
+      "title": {
+        "en": "Take ten minutes to review today’s lessons",
+        "zh": "花十分钟复习一下今天学的",
+        "fr": "Prenez dix minutes pour revoir les cours du jour"
+      },
+      "enabled": true,
+      "schedule": "daily",
+      "time": "21:00",
+      "opens": "page:$page.main"
+    }
+  ]
+}

@@ -30,3 +30,63 @@ describe('eval cases on the mock AI', () => {
     }
   });
 });
+
+// W10 的两种理解（D-083 补充，创始人 2026-10-27 本地会话确认）：压图片，或者拉正后做成 PDF。
+describe('W10 accepts both readings', () => {
+  const w10 = EVAL_CASES.find((c) => c.id === 'W10')!;
+  const check = (steps: [string, Record<string, unknown>][]) => {
+    const config = buildSetup('default', 'zh', registry);
+    const after = {
+      ...config,
+      workflows: [
+        ...config.workflows,
+        {
+          id: 'scan-300',
+          name: 'Scan',
+          steps: steps.map(([action, params], i) => ({ id: `s${i}`, action, params })),
+        },
+      ],
+    };
+    if (w10.expect.kind !== 'ops') throw new Error('W10 should expect ops');
+    return w10.expect.check(after);
+  };
+  const scanner: [string, Record<string, unknown>] = ['in.photos', { source: 'scanner' }];
+
+  it('compresses the scanned images to 300KB', () => {
+    expect(check([scanner, ['image.compress', { maxKB: 300 }], ['file.save', {}]])).toBeNull();
+  });
+
+  it('straightens the pages and makes a PDF of at most 0.3 MB', () => {
+    expect(
+      check([
+        scanner,
+        ['scan.detect', {}],
+        ['scan.enhance', {}],
+        ['pdf.fromImages', { maxMB: 0.3 }],
+        ['file.save', {}],
+      ]),
+    ).toBeNull();
+    expect(
+      check([scanner, ['scan.detect', {}], ['pdf.fromImages', { maxMB: 0.25 }], ['file.save', {}]]),
+    ).toBeNull();
+  });
+
+  it('rejects a PDF that is too big, a missing save or a camera instead of the scanner', () => {
+    expect(
+      check([scanner, ['scan.detect', {}], ['pdf.fromImages', { maxMB: 0.5 }], ['file.save', {}]]),
+    ).not.toBeNull();
+    expect(
+      check([scanner, ['scan.detect', {}], ['pdf.fromImages', {}], ['file.save', {}]]),
+    ).not.toBeNull();
+    expect(
+      check([scanner, ['pdf.fromImages', { maxMB: 0.3 }], ['file.save', {}], ['out.share', {}]]),
+    ).not.toBeNull();
+    expect(
+      check([
+        ['in.photos', { source: 'camera' }],
+        ['pdf.fromImages', { maxMB: 0.3 }],
+        ['file.save', {}],
+      ]),
+    ).not.toBeNull();
+  });
+});

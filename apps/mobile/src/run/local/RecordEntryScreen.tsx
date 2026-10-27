@@ -1,15 +1,16 @@
-import { localDate, prepareRecordValues, type FieldIssue } from '@morph/core';
+import { attachmentIds, localDate, prepareRecordValues, type FieldIssue } from '@morph/core';
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../../i18n';
 import { FieldsForm, toFormValues } from '../../renderer/data';
+import { PENDING_FILE, recordTargets } from '../../runtime/actions/records';
 import type { LocalScreenProps } from '../RunScreen';
 import { LocalFrame } from './LocalFrame';
 
-// 记一笔（D-187）：快捷操作运行到这一步时，按数据表的字段填一条记录。附件由这一步自动放进去，
-// 公式按填的值现算。填的内容直接写进本机的数据表，不进配置，也不发给 AI。
+// 记一笔（D-187）：快捷操作运行到这一步时，按数据表的字段填一条记录。这一步的文件自动放进附件，
+// 用户还可以再拍照、选照片和文件（D-263）；公式按填的值现算。填的内容直接写进本机的数据表，不进配置，也不发给 AI。
 
 export function RecordEntryScreen({
   input,
@@ -19,8 +20,14 @@ export function RecordEntryScreen({
   onCancel,
 }: LocalScreenProps<'recordEntry'>) {
   const { collection, prefill, file, index, total } = input;
-  // 附件由这一步放进去，不显示；公式显示算出来的值。
-  const fieldIds = collection.fields.filter((f) => f.type !== 'file').map((f) => f.id);
+  // 公式显示算出来的值。这一步的文件放在第一个附件字段的最前面（占位值，存好后换成文件 ID），
+  // 表单里只显示用户另外添加的照片和文件（D-263）。
+  const fieldIds = collection.fields.map((f) => f.id);
+  const target = recordTargets(collection).fileField;
+  const fileField =
+    target !== undefined && attachmentIds(prefill[target]).includes(PENDING_FILE)
+      ? target
+      : undefined;
   // 新记录：先套用字段的默认值（日期是今天），再放进预先填好的文字。
   const [values, setValues] = useState<Record<string, unknown>>(() => {
     const defaults: Record<string, unknown> = {};
@@ -38,6 +45,19 @@ export function RecordEntryScreen({
     return { ...base, ...prefill };
   });
   const [issues, setIssues] = useState<FieldIssue[]>([]);
+  const shown =
+    fileField === undefined
+      ? values
+      : {
+          ...values,
+          [fileField]: attachmentIds(values[fileField]).filter((id) => id !== PENDING_FILE),
+        };
+  const change = (next: Record<string, unknown>) =>
+    setValues(
+      fileField === undefined
+        ? next
+        : { ...next, [fileField]: [PENDING_FILE, ...attachmentIds(next[fileField])] },
+    );
 
   function done() {
     const prepared = prepareRecordValues(collection, values, null, new Date());
@@ -81,8 +101,8 @@ export function RecordEntryScreen({
         <FieldsForm
           collection={collection}
           fieldIds={fieldIds}
-          values={values}
-          onChange={setValues}
+          values={shown}
+          onChange={change}
           issues={issues}
           palette={palette}
           locale={locale}

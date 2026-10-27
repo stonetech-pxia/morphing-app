@@ -22,7 +22,8 @@ import {
 } from 'react-native';
 
 import { t } from '../i18n';
-import { ComponentView, type RenderEnv } from '../renderer/components';
+import type { RenderEnv } from '../renderer/components';
+import { ComponentView } from '../renderer/registry';
 import { Pill } from '../renderer/ui';
 
 // 编辑模式（D-052–D-054）：每个组件带拖动把手和 ↑ ↓ 按钮，隐藏的组件也显示出来，点组件打开操作面板。

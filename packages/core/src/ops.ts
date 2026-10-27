@@ -3,8 +3,10 @@ import { z } from 'zod';
 import { THEME_PRESETS, THEME_PRESET_IDS } from './presets';
 import type { Registry } from './registry';
 import {
+  BackdropPatchSchema,
   CollectionSchema,
   ComponentSchema,
+  FIELDS,
   FieldSchema,
   ComponentStyleSchema,
   FONT_CHOICES,
@@ -23,11 +25,15 @@ import {
   allComponents,
   componentCollection,
   componentTarget,
+  isKnownComponent,
   pageTarget,
+  patchBackdrop,
   toolGridToolIds,
+  type BackdropPatch,
   type Collection,
   type Component,
   type GroupComponent,
+  type KnownComponent,
   type Locale,
   type NavTarget,
   type Page,
@@ -37,6 +43,7 @@ import {
   type WorkspaceConfig,
 } from './schema';
 import { DEFAULT_THEME } from './theme';
+import { presetById } from './workflows/presets';
 import { reminderProblems } from './reminders';
 import { REDACTED_TEXT } from './workflow/redact';
 
@@ -78,6 +85,12 @@ export const OpSchema = z.discriminatedUnion('op', [
   z.strictObject({ op: z.literal('setFloatingItems'), items: z.array(NavTargetSchema).max(3) }),
   z.strictObject({ op: z.literal('setPageTitle'), pageId, title: z.string() }),
   z.strictObject({ op: z.literal('setPageIcon'), pageId, icon: IconValueSchema.nullable() }),
+  /** 页面的背景图片（D-258）：只写要改的，合进已有的；null 关掉。 */
+  z.strictObject({
+    op: z.literal('setPageBackdrop'),
+    pageId,
+    backdrop: BackdropPatchSchema.nullable(),
+  }),
   z.strictObject({ op: z.literal('addPage'), page: PageSchema.omit({ toolId: true }) }),
   z.strictObject({ op: z.literal('removePage'), pageId }),
   z.strictObject({
@@ -102,6 +115,8 @@ export const OpSchema = z.discriminatedUnion('op', [
       align: resettable(ComponentStyleSchema.shape.align.unwrap()),
       tone: resettable(ComponentStyleSchema.shape.tone.unwrap()),
       size: resettable(ComponentStyleSchema.shape.size.unwrap()),
+      /** 图片背景（D-258）：只写要改的，合进已有的；null 关掉。 */
+      backdrop: resettable(BackdropPatchSchema),
     }),
   }),
   z.strictObject({ op: z.literal('setComponentHidden'), pageId, componentId, hidden: z.boolean() }),
@@ -210,15 +225,16 @@ export type ApplyNote =
   | { kind: 'removedLinks'; pageId: string; count: number }
   | { kind: 'removedDataComponents'; collectionId: string; count: number }
   | { kind: 'removedRunners'; workflowId: string; count: number }
+  /** 打开这个快捷操作的按钮、快捷入口（D-256）。 */
+  | { kind: 'removedWorkflowLinks'; workflowId: string; count: number }
   /** 提醒要打开的快捷操作 / 页面、要看的表或日期字段被移除了，提醒跟着移除（D-251）。 */
   | { kind: 'removedReminders'; titles: string[] }
   | { kind: 'updatedTool'; toolId: string; workflowIds: string[] };
 
-/** 字段类型只能在这些类型之间互相转换，已有的值仍然能读出来。 */
+/** 字段类型只能在这些类型之间互相转换，已有的值仍然能读出来（字段定义的 convertGroup）。 */
 export const COMPATIBLE_FIELD_TYPES: readonly (readonly string[])[] = [
-  ['text', 'note'],
-  ['number', 'money'],
-];
+  ...new Set(FIELDS.flatMap((d) => (d.convertGroup ? [d.convertGroup] : []))),
+].map((group) => FIELDS.filter((d) => d.convertGroup === group).map((d) => d.type));
 
 export type ApplyResult =
   { ok: true; config: WorkspaceConfig; notes: ApplyNote[] } | { ok: false; error: string };
@@ -262,6 +278,30 @@ function getComponent(page: Page, id: string): Located {
   const found = findComponent(page, id);
   if (!found) throw new OpError(`component ${id} not found on page ${page.id}`);
   return found;
+}
+
+/** 要改属性、外观或隐藏的组件：这个版本不认识的组件（D-254）只能移动和删除。 */
+function getKnownComponent(page: Page, id: string): KnownComponent {
+  const { component } = getComponent(page, id);
+  if (!isKnownComponent(component)) {
+    throw new OpError(
+      `component ${id} needs a newer version of the app; it can only be moved or removed`,
+    );
+  }
+  return component;
+}
+
+/**
+ * 快捷操作移除后，打开它的按钮、快捷入口跟着移除（和页面移除时一样，D-256）。
+ * 同 ID 的内设快捷操作还在时（移除的是预设的副本）按钮仍然有效，不移除。
+ */
+function removeWorkflowLinks(config: WorkspaceConfig, workflowIds: readonly string[]): number {
+  const gone = workflowIds.filter((id) => !presetById(id)).map((id) => `workflow:${id}`);
+  if (gone.length === 0) return 0;
+  return removeEverywhere(config, (c) => {
+    const target = componentTarget(c);
+    return target !== null && gone.includes(target);
+  });
 }
 
 /** 组件要放入的列表：页面顶层，或某个分组的子组件。 */
@@ -382,6 +422,12 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       else page.icon = op.icon;
       return;
     }
+    case 'setPageBackdrop': {
+      const page = getPage(config, op.pageId);
+      if (op.backdrop === null) delete page.backdrop;
+      else page.backdrop = patchBackdrop(page.backdrop, op.backdrop);
+      return;
+    }
     case 'addPage': {
       if (config.pages.some((p) => p.id === op.page.id)) {
         throw new OpError(`page ${op.page.id} already exists`);
@@ -414,7 +460,7 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       return;
     }
     case 'setComponentProps': {
-      const { component } = getComponent(getPage(config, op.pageId), op.componentId);
+      const component = getKnownComponent(getPage(config, op.pageId), op.componentId);
       // 只合并属性，null 表示去掉该属性；类型不能通过此操作改变，合法性由 validateWorkspace 检查。
       const props: Record<string, unknown> = { ...component.props };
       for (const [key, value] of Object.entries(op.props)) {
@@ -425,10 +471,12 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       return;
     }
     case 'setComponentStyle': {
-      const { component } = getComponent(getPage(config, op.pageId), op.componentId);
+      const component = getKnownComponent(getPage(config, op.pageId), op.componentId);
       const style: Record<string, unknown> = { ...component.style };
       for (const [key, value] of Object.entries(op.style)) {
         if (value === null) delete style[key];
+        else if (key === 'backdrop')
+          style.backdrop = patchBackdrop(component.style?.backdrop, value as BackdropPatch);
         else if (value !== undefined) style[key] = value;
       }
       if (Object.keys(style).length === 0) delete component.style;
@@ -436,7 +484,7 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       return;
     }
     case 'setComponentHidden': {
-      const { component } = getComponent(getPage(config, op.pageId), op.componentId);
+      const component = getKnownComponent(getPage(config, op.pageId), op.componentId);
       if (op.hidden) component.hidden = true;
       else delete component.hidden;
       return;
@@ -488,7 +536,9 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       const target = pageTarget(tool.pageId);
       config.tools = config.tools.filter((t) => t.toolId !== op.toolId);
       config.pages = config.pages.filter((p) => p.toolId !== op.toolId);
+      const toolWorkflows = config.workflows.filter((w) => w.toolId === op.toolId).map((w) => w.id);
       config.workflows = config.workflows.filter((w) => w.toolId !== op.toolId);
+      removeWorkflowLinks(config, toolWorkflows);
       removeEverywhere(
         config,
         (c) =>
@@ -561,11 +611,17 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
         );
       }
       config.workflows = config.workflows.filter((w) => w.id !== op.workflowId);
-      const count = removeEverywhere(
-        config,
-        (c) => c.type === 'workflowRunner' && c.props.workflowId === op.workflowId,
-      );
+      // 删的是内设快捷操作的同 ID 副本时，卡片和按钮一样继续指向内设的（D-256、D-259），不移除。
+      const count = presetById(op.workflowId)
+        ? 0
+        : removeEverywhere(
+            config,
+            (c) => c.type === 'workflowRunner' && c.props.workflowId === op.workflowId,
+          );
       if (count > 0) notes.push({ kind: 'removedRunners', workflowId: op.workflowId, count });
+      const links = removeWorkflowLinks(config, [op.workflowId]);
+      if (links > 0)
+        notes.push({ kind: 'removedWorkflowLinks', workflowId: op.workflowId, count: links });
       return;
     }
     case 'renameWorkflow': {

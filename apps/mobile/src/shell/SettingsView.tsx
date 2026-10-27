@@ -96,6 +96,14 @@ export function SettingsView({ env }: { env: RenderEnv }) {
       />
       <ListRow
         palette={palette}
+        testID="settings-storage"
+        icon="folder"
+        label={t(locale, 'storageTitle')}
+        value={t(locale, 'storageRowHint')}
+        onPress={env.locked ?? (() => router.push('/storage'))}
+      />
+      <ListRow
+        palette={palette}
         testID="settings-guide"
         icon="lightbulb"
         label={t(locale, 'settingsGuide')}

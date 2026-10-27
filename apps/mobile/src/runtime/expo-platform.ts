@@ -190,7 +190,7 @@ export const expoFilePlatform: FilePlatform = {
     uri: (id, file) => expoPackFs.uri(speechPacks.path(id, file)),
   }),
 
-  async pickImage() {
+  async pickImage(maxSide = MAX_IMAGE_SIDE) {
     const result = await launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsMultipleSelection: false,
@@ -198,13 +198,15 @@ export const expoFilePlatform: FilePlatform = {
     });
     if (result.canceled || !result.assets[0]) return null;
     const picked = result.assets[0];
-    // 重新编码为 JPEG：统一格式（Android 不能显示 HEIC）、缩小到最长边 2048，并去掉位置等元数据（D-047）。
-    let image = await ImageManipulator.manipulate(picked.uri).renderAsync();
-    if (Math.max(image.width, image.height) > MAX_IMAGE_SIDE) {
+    // 重新编码为 JPEG：统一格式（Android 不能显示 HEIC）、缩小到最长边 maxSide，并去掉位置等元数据（D-047）。
+    // 解码时就缩小（maxWidth / maxHeight）：几千万像素的照片原样解码一份就要几百 MB，Android 上会内存不足。
+    let image = await ImageManipulator.manipulate(picked.uri, {
+      maxWidth: maxSide,
+      maxHeight: maxSide,
+    }).renderAsync();
+    if (Math.max(image.width, image.height) > maxSide) {
       image = await ImageManipulator.manipulate(image)
-        .resize(
-          image.width >= image.height ? { width: MAX_IMAGE_SIDE } : { height: MAX_IMAGE_SIDE },
-        )
+        .resize(image.width >= image.height ? { width: maxSide } : { height: maxSide })
         .renderAsync();
     }
     const saved = await image.saveAsync({ compress: 0.82, format: SaveFormat.JPEG });
@@ -220,9 +222,25 @@ export const expoFilePlatform: FilePlatform = {
   fileUri: (path) => fileAt(path).uri,
 
   async importFile(file, assetId, name) {
-    const dest = new File(assetDir(assetId), name);
-    await new File(file.uri).copy(dest);
+    const dir = assetDir(assetId);
+    const dest = new File(dir, name);
+    // 原生复制，边读边写，大文件也不进 JS 内存（文件入口 D-257 可能是几 GB 的视频）。
+    // 复制失败（空间不够、读不到）时不留下半个文件。
+    try {
+      await new File(file.uri).copy(dest);
+    } catch (e) {
+      if (dir.exists) dir.delete();
+      throw e;
+    }
     return { path: `${ROOT}/${assetId}/${name}`, size: dest.size };
+  },
+
+  async removeAssetFile(path) {
+    // 只删 assets/<id>/ 这一层目录：用户文件都放在自己的目录里（importFile、writeBytes、saveRunFile）。
+    const [root, id] = path.split('/');
+    if (root !== ROOT || !id || id === '.' || id === '..') return;
+    const dir = new Directory(Paths.document, ROOT, id);
+    if (dir.exists) dir.delete();
   },
 
   readBytes: (path) => fileAt(path).bytes(),

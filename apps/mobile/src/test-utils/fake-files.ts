@@ -131,7 +131,10 @@ export class FakeFiles implements FilePlatform {
   printed: string[] = [];
   clipboard = '';
   nextImage: PickedFile | null = null;
-  async pickImage() {
+  /** 每次选照片要求的最长边。 */
+  imageSides: (number | undefined)[] = [];
+  async pickImage(maxSide?: number) {
+    this.imageSides.push(maxSide);
     return this.nextImage;
   }
   nextMedia: PickedFile[] | null = null;
@@ -223,6 +226,12 @@ export class FakeFiles implements FilePlatform {
     const path = `assets/${assetId}/${name}`;
     this.disk.set(path, bytes);
     return { path, size: bytes.length };
+  }
+  async removeAssetFile(path: string) {
+    const [root, id] = path.split('/');
+    if (root !== 'assets' || !id) return;
+    for (const key of [...this.disk.keys()])
+      if (key.startsWith(`assets/${id}/`)) this.disk.delete(key);
   }
   async readBytes(path: string) {
     // 真机上 readBytes 读的是「文档」目录里的相对路径；运行目录在缓存里、要用 readUri 读。

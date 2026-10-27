@@ -13,7 +13,8 @@ import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
 import { renderToolsApp, starterAfterGuide } from '../test-utils/render-app';
 
-// 新手引导（D-149、D-231）：划屏介绍 → 第 1 步加两个文件入口（直接生效）→ 第 2 步打开图片或文件。
+// 新手引导（D-149、D-231）：划屏介绍 → 第 1 步加两个文件入口（直接生效）→ 第 2 步打开图片或文件
+// → 第 3 步样板 App（D-260，另见 sample-apps-test.tsx）。
 
 const TYPED = { timeout: 4000 };
 
@@ -140,21 +141,22 @@ describe('first-run guide', () => {
     expect(await repo.getMeta('guide')).toBe('done');
   });
 
-  it('step 2 ends when the user opens pictures or files', async () => {
+  it('step 2 ends when the user opens pictures or files; step 3 comes next', async () => {
     const { repo, files } = await startGuide('goal', starterAfterGuide);
     expect(await screen.findByTestId('guide-goal')).toHaveTextContent(/简化繁琐的文件处理/);
     files.nextMedia = [files.offerImage('a.jpg', 400, 300)];
     await fireEvent.press(screen.getByTestId('file-pick-media'));
     expect(await screen.findByTestId('share-screen')).toBeTruthy();
-    expect(await repo.getMeta('guide')).toBe('done');
+    expect(await repo.getMeta('guide')).toBe('samples');
   });
 
-  it('“later” on step 2 ends the guide', async () => {
+  it('“later” on step 2 moves on to step 3', async () => {
     const { repo } = await startGuide('goal');
     await fireEvent.press(await screen.findByTestId('guide-later'));
     expect(screen.queryByTestId('guide-goal')).toBeNull();
     expect(screen.queryByTestId('guide-task')).toBeNull();
-    expect(await repo.getMeta('guide')).toBe('done');
+    expect(await screen.findByTestId('guide-samples')).toBeTruthy();
+    expect(await repo.getMeta('guide')).toBe('samples');
   });
 
   it('settings can show the guide again', async () => {

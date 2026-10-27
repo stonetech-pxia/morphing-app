@@ -8,6 +8,7 @@ import { DraftBar } from '../draft/DraftBar';
 import { useDraftUi } from '../draft/ui';
 import { directEditEntry } from '../editing/entry';
 import { GuideCard } from '../guide/GuideCard';
+import { SampleHint } from '../guide/SampleHint';
 import { useGuide } from '../guide/store';
 import { t } from '../i18n';
 import { EditablePage } from '../editing/EditablePage';
@@ -126,6 +127,9 @@ export function Shell() {
       {inDraft ? null : <Banner palette={palette} />}
       <DraftNotice palette={palette} />
       {pageId === HOME_PAGE_ID && !editing && !inDraft ? <GuideCard palette={palette} /> : null}
+      {pageId !== null && !editing && !inDraft ? (
+        <SampleHint pageId={pageId} palette={palette} />
+      ) : null}
       <View style={styles.content}>{content}</View>
 
       {/* 编辑模式的开关（D-053）：导航栏里的页面没有标题栏，放在左下角；编辑模式下隐藏。

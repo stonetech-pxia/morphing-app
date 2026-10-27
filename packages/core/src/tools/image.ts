@@ -73,6 +73,7 @@ const resizeModes = ['longEdge', 'width', 'height', 'percent', 'fit'] as const;
 export const IMAGE_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'image.annotate',
+    ai: '"Draw arrows / outline boxes / write labels / mark up a photo" → this, a local editor when running; the user places marks and types labels on the device, without sending them to AI.',
     label: { en: 'Mark up photo', zh: '标注图片', fr: 'Annoter la photo' },
     description: {
       en: 'A local editor lets the user place text, arrows, outline boxes and freehand strokes on each photo, choose colors and undo. The user types text while running; annotation content never goes to AI. Saves flattened PNG copies; very large images may be reduced to fit the drawing limit. Original photos are kept.',
@@ -90,6 +91,7 @@ export const IMAGE_ACTIONS: readonly ActionDefinition[] = [
 
   {
     id: 'image.adjust',
+    ai: '"Photo too dark / brighten / contrast / saturation / auto improve photo" → this; mode auto ignores the manual values.',
     label: { en: 'Adjust photo', zh: '调整图片', fr: 'Ajuster la photo' },
     description: {
       en: 'Improve photos locally with automatic color adjustment or manual brightness (-100 to 100, neutral 0), contrast and saturation (0 to 200, neutral 100). Automatic results differ across iOS and Android. Keeps dimensions; PNG/WebP inputs become PNG to preserve transparency, other photos become JPG. No face retouching or generative edits.',
@@ -159,6 +161,7 @@ export const IMAGE_ACTIONS: readonly ActionDefinition[] = [
 
   {
     id: 'image.removeBackground',
+    ai: '"Remove a photo background / cut out / white background" → this; mention the iOS 17+ / Google Play services requirement and the first model download. For an ID photo, the background of image.idPhoto replaces this step (rule 38); the user must still check the official requirements.',
     label: { en: 'Remove background', zh: '去背景', fr: 'Supprimer le fond' },
     description: {
       en: 'Keep the main subjects and remove the background locally, producing PNG with transparency or a solid color. Requires iOS 17+ or Android Google Play services (first use downloads a model). Fine hair, transparent objects and unclear subjects may need another editor. Does not guarantee an official ID photo.',
@@ -204,6 +207,7 @@ export const IMAGE_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'image.convert',
+    ai: '"HEIC to JPG" → format "jpeg".',
     label: { en: 'Convert format', zh: '转格式', fr: 'Convertir le format' },
     description: {
       en: 'Convert HEIC, PNG or WebP photos to JPG, PNG or WebP. Never outputs HEIC. Removes location and other photo info.',
@@ -616,6 +620,7 @@ export const IMAGE_COMPOSE_ACTIONS: readonly ActionDefinition[] = [
   {
     // D-184：iOS 用系统 ImageIO 写 GIF，Android 用 morph-media 里自己写的编码器（GifEncoder.kt）。
     id: 'image.toGif',
+    ai: '"Make an animated GIF from photos" → in.photos then this.',
     label: { en: 'Make an animated GIF', zh: '做成动图', fr: 'Créer un GIF animé' },
     description: {
       en: `Turn the images (at most ${GIF_MAX_FRAMES}, in their current order) into one animated GIF that loops, each image shown for the chosen time. Images are fitted into the size of the first one.`,
