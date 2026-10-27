@@ -40,7 +40,7 @@ import {
 import { useLinkResolver, useRecordActions, useRecords } from '../data/records';
 import { useWorkspace } from '../workspace/context';
 import { t } from '../i18n';
-import { AttachmentsInput } from './Attachments';
+import { AttachmentThumb, AttachmentsInput, firstImage, useAssetIndex } from './Attachments';
 import { onPicture } from './Backdrop';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
@@ -543,7 +543,10 @@ export function RecordList({
   const records = useRecords(props.collectionId);
   const actions = useRecordActions();
   const links = useLinkResolver(collection);
+  // 有附件字段的表：每条记录显示附件里第一张图片的缩略图（D-263，自动判断，组件不用设置）。
+  const assetIndex = useAssetIndex();
   if (!collection) return null;
+  const hasFiles = collection.fields.some((f) => f.type === 'file');
   const shown = sortRecords(
     filterRecords(records ?? [], collection, props.filter, new Date()),
     collection,
@@ -570,6 +573,7 @@ export function RecordList({
       ? formatRef(r, collection, props.trailingField, locale, links)
       : '';
     const checked = props.checkField ? r.values[props.checkField] === true : false;
+    const thumb = hasFiles && assetIndex ? firstImage(r, collection, assetIndex) : null;
     const body = (
       <View style={styles.row}>
         {props.display === 'checklist' && props.checkField ? (
@@ -593,6 +597,14 @@ export function RecordList({
             ]}>
             {checked ? <Icon name="check" size={16} color={palette.onPrimary} /> : null}
           </Pressable>
+        ) : null}
+        {thumb ? (
+          <AttachmentThumb
+            asset={thumb}
+            size={props.display === 'cards' ? 56 : 44}
+            radius={Math.min(palette.controlRadius, 10)}
+            testID={`record-thumb-${r.id}`}
+          />
         ) : null}
         <View style={styles.flex}>
           <Text

@@ -268,13 +268,119 @@ describe('the quick-add form on a page takes attachments (D-263)', () => {
     await fireEvent.press(screen.getByTestId('form-add-receipt-add'));
     expect(await screen.findByText('IMG_9.jpg')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('form-add-submit'));
-    await waitFor(async () => expect(await repo.listRecords('expenses')).toHaveLength(1));
+    // 记下以后表单清空。
+    await waitFor(() => expect(screen.queryByText('IMG_9.jpg')).toBeNull());
     const [asset] = await repo.listAssets();
     expect((await repo.listRecords('expenses'))[0]!.values).toEqual({
       item: '咖啡',
       receipt: [asset!.id],
     });
-    expect(screen.queryByText('IMG_9.jpg')).toBeNull();
     expect(screen.getByTestId('form-add-receipt-add')).toBeTruthy();
+  });
+});
+
+describe('thumbnails and previews (D-263)', () => {
+  const withList = (display: 'list' | 'cards') => (locale: Locale, registry: Registry) => {
+    const result = applyOps(
+      seed(locale, registry),
+      [
+        {
+          op: 'addComponent',
+          pageId: 'home',
+          component: {
+            id: 'recent',
+            type: 'recordList',
+            props: { collectionId: 'expenses', display, titleField: 'item', limit: 50 },
+          },
+        },
+      ],
+      { registry, locale },
+    );
+    if (!result.ok) throw new Error(result.error);
+    return result.config;
+  };
+
+  async function listWith(records: Record<string, unknown>, display: 'list' | 'cards' = 'list') {
+    const repo = new MemoryWorkspaceRepo();
+    await repo.addAsset(asset('a1', '发票.jpg'));
+    await repo.addAsset(asset('a2', '小票.pdf', 'application/pdf'));
+    for (const [id, receipt] of Object.entries(records))
+      await repo.insertRecord({
+        id,
+        collectionId: 'expenses',
+        values: { item: id, receipt },
+        createdAt: 1,
+        updatedAt: 1,
+      });
+    const files = new FakeFiles();
+    await renderToolsApp(repo, files, { seed: withList(display) });
+    await screen.findByTestId('record-none', {}, { timeout: 4000 });
+    return files;
+  }
+
+  it('show the first picture of each entry, decoded at the shown size', async () => {
+    const files = await listWith({ pdfFirst: ['a2', 'a1'], old: 'a1', none: [], gone: ['zz'] });
+    const thumb = screen.getByTestId('record-thumb-pdfFirst');
+    expect(thumb.props.source).toEqual([{ uri: files.fileUri('assets/a1/发票.jpg') }]);
+    expect(thumb.props.allowDownscaling).toBe(true);
+    expect(thumb.props.style).toMatchObject({ width: 44, height: 44 });
+    // 旧格式的单个 ID 也显示；没有附件、只有 PDF、文件已经删掉的不显示。
+    expect(screen.getByTestId('record-thumb-old')).toBeTruthy();
+    expect(screen.queryByTestId('record-thumb-none')).toBeNull();
+    expect(screen.queryByTestId('record-thumb-gone')).toBeNull();
+  });
+
+  it('cards show a bigger thumbnail', async () => {
+    await listWith({ one: ['a1'], none: [] }, 'cards');
+    expect(screen.getByTestId('record-thumb-one').props.style).toMatchObject({ width: 56 });
+  });
+
+  it('many photos: only the first one is shown in the list', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    const ids = Array.from({ length: 20 }, (_, i) => `p${i}`);
+    for (const id of ids) await repo.addAsset(asset(id, `${id}.jpg`));
+    await repo.insertRecord({
+      id: 'many',
+      collectionId: 'expenses',
+      values: { item: '很多照片', receipt: ids },
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await renderToolsApp(repo, new FakeFiles(), { seed: withList('list') });
+    expect(
+      (await screen.findByTestId('record-thumb-many', {}, { timeout: 4000 })).props.source[0].uri,
+    ).toContain('p0.jpg');
+    expect(screen.queryAllByTestId(/^record-thumb-/)).toHaveLength(1);
+  });
+
+  it('in the editor, pictures open full screen and swipe; other files open in the system preview', async () => {
+    const repo = await withRecord(['a1', 'a2']);
+    await repo.addAsset(asset('a3', '第二张.jpg'));
+    await repo.updateRecord('r1', { item: '午饭', receipt: ['a1', 'a2', 'a3'] }, 2);
+    const files = new FakeFiles();
+    await openEditor(repo, files);
+    expect(await screen.findByTestId('editor-receipt-thumb-0', {}, { timeout: 4000 })).toBeTruthy();
+    expect(screen.queryByTestId('editor-receipt-thumb-1')).toBeNull();
+
+    await fireEvent.press(screen.getByTestId('editor-receipt-file-2'));
+    // 只翻看照片和视频：两张照片，从第二张开始。
+    expect(await screen.findByTestId('share-viewer')).toBeTruthy();
+    expect(screen.getByTestId('share-viewer-count')).toHaveTextContent('2 / 2');
+    await fireEvent.press(screen.getByTestId('share-viewer-close'));
+
+    await fireEvent.press(screen.getByTestId('editor-receipt-file-1'));
+    expect(files.previewed).toEqual([
+      { uri: files.fileUri('assets/a2/小票.pdf'), mimeType: 'application/pdf' },
+    ]);
+  });
+
+  it('says when the system cannot preview a file', async () => {
+    const repo = await withRecord(['a2']);
+    const files = new FakeFiles();
+    files.previewFails = true;
+    await openEditor(repo, files);
+    const alerts = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    await fireEvent.press(await screen.findByTestId('editor-receipt-file-0'));
+    await waitFor(() => expect(alerts).toHaveBeenCalledWith('收据', expect.any(String)));
   });
 });
