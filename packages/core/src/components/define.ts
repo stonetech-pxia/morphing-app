@@ -1,6 +1,9 @@
 import { z } from 'zod';
 
-import { IdSchema, type FieldType } from '../schema-base';
+import type { DescribeContext } from '../describe';
+import type { Registry } from '../registry';
+import type { Page, WorkspaceConfig } from '../schema';
+import { IdSchema, type Collection, type FieldType } from '../schema-base';
 
 // 组件登记表：每种页面组件一份定义（新增组件的步骤见 docs/COMPONENTS.md），
 // 结构校验、引用检查、草稿说明、长按编辑、提示词都从这里读，不再各写一份按类型的 switch。
@@ -49,18 +52,73 @@ function componentSchema<T extends string, P extends z.ZodObject, E extends z.Zo
   return z.strictObject({ ...componentBase, type: z.literal(type), props, ...extra });
 }
 
+/** 求和、平均等要用的字段类型。 */
+export const NUMERIC_FIELD_TYPES: readonly string[] = ['number', 'money', 'rating', 'formula'];
+
+/** 每条记录都有的系统字段，当作日期。 */
+export const isSystemField = (id: string) => id === 'createdAt' || id === 'updatedAt';
+
+export interface CheckContext {
+  config: WorkspaceConfig;
+  registry: Registry;
+  page: Page;
+  /** 组件引用的数据表。只有引用了数据表的组件有；表不存在时不会调用 check。 */
+  collection?: Collection;
+}
+
+/** 组件自己的检查发现的问题。只写文字时是数据问题（code data，前面加组件 ID）。 */
+export type CheckProblem = string | { code: string; message: string };
+
+type Instance<T extends string, P extends z.ZodObject, E extends z.ZodRawShape> = z.infer<
+  ReturnType<typeof componentSchema<T, P, E>>
+>;
+
 export interface ComponentSpec<T extends string, P extends z.ZodObject, E extends z.ZodRawShape> {
   type: T;
   props: P;
   /** 除了 props 以外的结构，只有分组用（children）。 */
   extra?: E;
+  /**
+   * 通用引用检查会查的属性（validate.ts）：数据表存在，字段存在、类型对，筛选条件合法，
+   * 页面、工具、快捷操作存在。要看别的属性才知道该不该查的引用，写在 check 里。
+   */
   refs?: { readonly [K in keyof z.infer<P>]?: ComponentRef };
+  /**
+   * 通用检查以外的规则。引用了数据表的组件在字段引用之后、筛选条件之前检查，其余组件在页面、工具引用之后。
+   * 问题文字会发给 AI 让它改正，改文字要想清楚。
+   */
+  check?: (c: Instance<T, P, E>, ctx: CheckContext) => CheckProblem[];
+  /** 修改说明里怎么称呼这个组件（例如「标题“记账”」）。 */
+  describe: (c: Instance<T, P, E>, config: WorkspaceConfig, ctx: DescribeContext) => string;
 }
+
+/**
+ * 一份组件定义，加上由它生成的完整结构 schema。
+ * 定义文件里要写明这个类型（回调用到了配置的类型，而配置的类型又由组件定义生成，不写 TypeScript 推不出来）。
+ */
+export type ComponentDefinitionOf<
+  T extends string,
+  P extends z.ZodObject,
+  E extends z.ZodRawShape = Record<never, never>,
+> = ComponentSpec<T, P, E> & { schema: ReturnType<typeof componentSchema<T, P, E>> };
 
 export function defineComponent<
   const T extends string,
   P extends z.ZodObject,
   E extends z.ZodRawShape = Record<never, never>,
->(spec: ComponentSpec<T, P, E>) {
+>(spec: ComponentSpec<T, P, E>): ComponentDefinitionOf<T, P, E> {
   return { ...spec, schema: componentSchema(spec.type, spec.props, spec.extra ?? ({} as E)) };
+}
+
+/** 列表里出现了不止一次的值。 */
+export function duplicates(ids: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const dup = new Set<string>();
+  for (const id of ids) (seen.has(id) ? dup : seen).add(id);
+  return [...dup];
+}
+
+/** 数据表的名字；表不在了就用 ID。 */
+export function collectionName(id: string, config: WorkspaceConfig): string {
+  return config.collections.find((c) => c.id === id)?.name ?? id;
 }

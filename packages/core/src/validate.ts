@@ -1,3 +1,9 @@
+import {
+  NUMERIC_FIELD_TYPES,
+  duplicates,
+  isSystemField,
+  type CheckProblem,
+} from './components/define';
 import { formulaType, parseFormula } from './formula';
 import type { Registry } from './registry';
 import { reminderProblems } from './reminders';
@@ -7,11 +13,14 @@ import {
   WorkspaceConfigSchema,
   PERIODS,
   allComponents,
-  componentTarget,
+  componentCollection,
+  componentDefinition,
   pageIdOf,
   type Collection,
   type Component,
   type Condition,
+  type NavTarget,
+  type Page,
   type WorkspaceConfig,
 } from './schema';
 import { contrastProblems } from './theme';
@@ -28,13 +37,6 @@ export interface ValidationIssue {
 
 export type ValidationResult =
   { ok: true; config: WorkspaceConfig } | { ok: false; issues: ValidationIssue[] };
-
-function duplicates(ids: readonly string[]): string[] {
-  const seen = new Set<string>();
-  const dup = new Set<string>();
-  for (const id of ids) (seen.has(id) ? dup : seen).add(id);
-  return [...dup];
-}
 
 export function validateWorkspace(input: unknown, registry: Registry): ValidationResult {
   const parsed = WorkspaceConfigSchema.safeParse(input);
@@ -98,40 +100,45 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
     }
   }
 
-  // ---- 组件引用 ----
+  // ---- 组件引用（定义里的 refs，见 components/define.ts）----
   const workflowIds = new Set(config.workflows.map((w) => w.id));
+  const componentIssue = (c: Component, problem: CheckProblem) =>
+    typeof problem === 'string'
+      ? issue('data', `${c.id}: ${problem}`)
+      : issue(problem.code, problem.message);
   for (const page of config.pages) {
     for (const c of allComponents(page)) {
-      const target = componentTarget(c);
-      const targetPage = target === null ? null : pageIdOf(target);
-      if (targetPage !== null && !pageIds.has(targetPage)) {
-        issue('unknown-page', `component ${c.id} on page ${page.id} opens missing ${target}`);
-      }
-      if (c.type === 'toolCard' && !installed.has(c.props.toolId)) {
-        issue(
-          'unknown-tool',
-          `component ${c.id} shows tool ${c.props.toolId} which is not installed`,
-        );
-      }
-      if (c.type === 'toolGrid') {
-        for (const toolId of c.props.toolIds ?? []) {
-          if (!registry.tools.has(toolId)) {
-            issue(
-              'unknown-tool',
-              `component ${c.id} lists tool ${toolId} which is not in the catalog`,
-            );
+      const def = componentDefinition(c.type);
+      for (const [prop, ref] of Object.entries(def.refs ?? {})) {
+        const value = (c.props as Record<string, unknown>)[prop];
+        if (!ref || value === undefined) continue;
+        if (ref.to === 'target') {
+          const targetPage = pageIdOf(value as NavTarget);
+          if (targetPage !== null && !pageIds.has(targetPage)) {
+            issue('unknown-page', `component ${c.id} on page ${page.id} opens missing ${value}`);
           }
+        } else if (ref.to === 'tool') {
+          for (const toolId of [value].flat() as string[]) {
+            if (ref.in === 'installed' && !installed.has(toolId)) {
+              issue(
+                'unknown-tool',
+                `component ${c.id} shows tool ${toolId} which is not installed`,
+              );
+            } else if (ref.in === 'catalog' && !registry.tools.has(toolId)) {
+              issue(
+                'unknown-tool',
+                `component ${c.id} lists tool ${toolId} which is not in the catalog`,
+              );
+            }
+          }
+        } else if (ref.to === 'workflow' && !workflowIds.has(value as string)) {
+          issue('unknown-workflow', `component ${c.id} runs missing workflow ${value}`);
         }
-        for (const toolId of duplicates(c.props.toolIds ?? [])) {
-          issue('duplicate', `tool ${toolId} in component ${c.id}`);
-        }
       }
-      if (c.type === 'button' && c.props.variant === 'icon' && !c.props.icon) {
-        issue('schema', `icon button ${c.id} on page ${page.id} needs an icon`);
-      }
-      if (c.type === 'workflowRunner' && !workflowIds.has(c.props.workflowId)) {
-        issue('unknown-workflow', `component ${c.id} runs missing workflow ${c.props.workflowId}`);
-      }
+      // 引用数据表的组件在下面和数据表一起检查。
+      if (componentCollection(c) !== null) continue;
+      for (const problem of def.check?.(c, { config, registry, page }) ?? [])
+        componentIssue(c, problem);
     }
   }
 
@@ -163,7 +170,8 @@ export function validateWorkspace(input: unknown, registry: Registry): Validatio
   }
   for (const page of config.pages) {
     for (const c of allComponents(page)) {
-      for (const problem of dataComponentProblems(c, config)) issue('data', `${c.id}: ${problem}`);
+      for (const problem of dataComponentProblems(c, page, config, registry))
+        componentIssue(c, problem);
     }
   }
 
@@ -260,8 +268,6 @@ function recordStepProblems(
   return problems;
 }
 
-const NUMERIC = ['number', 'money', 'rating', 'formula'];
-
 /**
  * 公式（D-188）：能解析，引用的字段都在这张表里，而且是数字、金额、评分或日期（不引用别的公式）；
  * 日期只能用在 days() 和比较里，结果是数字（D-247）。
@@ -287,87 +293,46 @@ function formulaProblems(expression: string, collection: Collection): string[] {
   return [];
 }
 
-/** 数据组件引用的表、字段和筛选条件是否合法。 */
-function dataComponentProblems(c: Component, config: WorkspaceConfig): string[] {
-  if (c.type !== 'recordList' && c.type !== 'recordForm' && c.type !== 'stat' && c.type !== 'chart')
-    return [];
-  const collection = config.collections.find((x) => x.id === c.props.collectionId);
-  if (!collection) return [`data table ${c.props.collectionId} does not exist`];
-  const problems: string[] = [];
-  const field = (id: string) => collection.fields.find((f) => f.id === id);
-  const ref = (id: string, role: string) => {
-    if (id !== 'createdAt' && id !== 'updatedAt' && !field(id)) {
-      problems.push(`${role} ${id} is not a field of ${collection.id}`);
-    }
-  };
-  switch (c.type) {
-    case 'recordList': {
-      ref(c.props.titleField, 'titleField');
-      for (const f of c.props.subtitleFields ?? []) ref(f, 'subtitleField');
-      if (c.props.trailingField) ref(c.props.trailingField, 'trailingField');
-      if (c.props.display === 'checklist') {
-        const check = c.props.checkField ? field(c.props.checkField) : undefined;
-        if (check?.type !== 'checkbox')
-          problems.push('a checklist needs checkField set to a checkbox field');
-      } else if (c.props.checkField !== undefined) {
-        ref(c.props.checkField, 'checkField');
-      }
-      if (c.props.sort) {
-        ref(c.props.sort.field, 'sort field');
-        if (field(c.props.sort.field)?.type === 'link')
-          problems.push(`can't sort by the link field ${c.props.sort.field}`);
-      }
-      problems.push(...conditionProblems(c.props.filter, collection));
-      break;
-    }
-    case 'recordForm':
-      for (const id of c.props.fieldIds) {
-        const f = field(id);
-        if (!f) problems.push(`form field ${id} does not exist`);
-        // 公式算出来、附件由快捷操作存进来（D-187、D-188）：表单里填不了。
-        else if (f.type === 'formula' || f.type === 'file')
-          problems.push(`form field ${id} is a ${f.type} field and cannot be filled in a form`);
-      }
-      for (const id of duplicates(c.props.fieldIds))
-        problems.push(`form field ${id} is listed twice`);
-      break;
-    case 'stat': {
-      if (c.props.groupBy !== undefined && field(c.props.groupBy)?.type !== 'choice')
-        problems.push(`groupBy ${c.props.groupBy} must be a choice field of ${collection.id}`);
-      if (c.props.aggregate !== 'count') {
-        const f = c.props.fieldId ? field(c.props.fieldId) : undefined;
-        if (!f || !NUMERIC.includes(f.type)) {
+/**
+ * 数据组件：表要存在；refs 里的字段要存在、类型对；然后是组件自己的检查；最后是筛选条件。
+ * 问题文字会发给 AI，顺序和文字都保持稳定。
+ */
+function dataComponentProblems(
+  c: Component,
+  page: Page,
+  config: WorkspaceConfig,
+  registry: Registry,
+): CheckProblem[] {
+  const collectionId = componentCollection(c);
+  if (collectionId === null) return [];
+  const collection = config.collections.find((x) => x.id === collectionId);
+  if (!collection) return [`data table ${collectionId} does not exist`];
+  const def = componentDefinition(c.type);
+  const problems: CheckProblem[] = [];
+  let filter: Condition[] | undefined;
+  for (const [prop, ref] of Object.entries(def.refs ?? {})) {
+    const value = (c.props as Record<string, unknown>)[prop];
+    if (!ref || value === undefined) continue;
+    if (ref.to === 'filter') filter = value as Condition[];
+    if (ref.to !== 'field') continue;
+    const role = ref.role ?? prop;
+    for (const id of [value].flat() as string[]) {
+      const field = collection.fields.find((f) => f.id === id);
+      if (ref.types) {
+        const ok = isSystemField(id)
+          ? ref.types.includes('date')
+          : field !== undefined && ref.types.includes(field.type);
+        if (!ok)
           problems.push(
-            `${c.props.aggregate} needs fieldId set to a number, money, rating or formula field`,
+            `${role} ${id} must be a ${ref.types.join(' or ')} field of ${collection.id}`,
           );
-        }
+      } else if (!isSystemField(id) && !field) {
+        problems.push(`${role} ${id} is not a field of ${collection.id}`);
       }
-      problems.push(...conditionProblems(c.props.filter, collection));
-      break;
-    }
-    // D-249：求和、平均要数字字段；按单选分时要单选字段；按时间分时用日期字段；饼图只能按单选分。
-    case 'chart': {
-      if (c.props.aggregate !== 'count') {
-        const f = c.props.fieldId ? field(c.props.fieldId) : undefined;
-        if (!f || !NUMERIC.includes(f.type))
-          problems.push(
-            `${c.props.aggregate} needs fieldId set to a number, money, rating or formula field`,
-          );
-      }
-      if (c.props.group === 'choice') {
-        if (!c.props.choiceField || field(c.props.choiceField)?.type !== 'choice')
-          problems.push('grouping by choice needs choiceField set to a choice field');
-      } else {
-        if (c.props.kind === 'pie')
-          problems.push('a pie chart can only be grouped by a choice field');
-        const d = c.props.dateField;
-        if (d !== undefined && d !== 'createdAt' && d !== 'updatedAt' && field(d)?.type !== 'date')
-          problems.push(`dateField ${d} must be a date field of ${collection.id}`);
-      }
-      problems.push(...conditionProblems(c.props.filter, collection));
-      break;
     }
   }
+  problems.push(...(def.check?.(c, { config, registry, page, collection }) ?? []));
+  problems.push(...conditionProblems(filter, collection));
   return problems;
 }
 
@@ -406,7 +371,9 @@ function conditionProblems(conditions: Condition[] | undefined, collection: Coll
       case 'gt':
       case 'lt':
         if (
-          NUMERIC.includes(type) ? typeof v !== 'number' : type !== 'date' || typeof v !== 'string'
+          NUMERIC_FIELD_TYPES.includes(type)
+            ? typeof v !== 'number'
+            : type !== 'date' || typeof v !== 'string'
         ) {
           problems.push(`${where}: ${cond.op} needs a number or date field and a matching value`);
         }
@@ -418,7 +385,7 @@ function conditionProblems(conditions: Condition[] | undefined, collection: Coll
             ? f.options.some((o) => o.id === v)
             : type === 'checkbox'
               ? typeof v === 'boolean'
-              : NUMERIC.includes(type)
+              : NUMERIC_FIELD_TYPES.includes(type)
                 ? typeof v === 'number'
                 : typeof v === 'string';
         if (!ok) problems.push(`${where}: value does not match the field type`);

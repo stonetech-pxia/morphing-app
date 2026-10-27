@@ -1,8 +1,12 @@
 import { z } from 'zod';
 
-import { defineComponent } from './define';
+import { t } from '../messages';
+import { type ComponentDefinitionOf, defineComponent } from './define';
 
-export const spacerComponent = defineComponent({
+const props = z.strictObject({ size: z.enum(['small', 'medium', 'large']) });
+
+export const spacerComponent: ComponentDefinitionOf<'spacer', typeof props> = defineComponent({
   type: 'spacer',
-  props: z.strictObject({ size: z.enum(['small', 'medium', 'large']) }),
+  props,
+  describe: (_c, _config, ctx) => t(ctx.locale, 'describe_spacer_9a646'),
 });

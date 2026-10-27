@@ -1,8 +1,12 @@
 import { z } from 'zod';
 
-import { defineComponent } from './define';
+import { t } from '../messages';
+import { type ComponentDefinitionOf, defineComponent } from './define';
 
-export const dividerComponent = defineComponent({
+const props = z.strictObject({});
+
+export const dividerComponent: ComponentDefinitionOf<'divider', typeof props> = defineComponent({
   type: 'divider',
-  props: z.strictObject({}),
+  props,
+  describe: (_c, _config, ctx) => t(ctx.locale, 'describe_divider_7fe10'),
 });

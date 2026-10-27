@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-import type { ComponentRef } from './define';
+import type { DescribeContext } from '../describe';
+import type { WorkspaceConfig } from '../schema';
+import type { CheckContext, CheckProblem, ComponentRef } from './define';
 import { groupComponent } from './group';
 import { LEAF_COMPONENTS, LeafComponentSchema } from './leaves';
 
@@ -25,9 +27,13 @@ export type ComponentOf<T extends ComponentType> = Extract<Component, { type: T 
 export interface ComponentDefinition {
   type: ComponentType;
   refs?: Readonly<Record<string, ComponentRef | undefined>>;
+  check?(c: Component, ctx: CheckContext): CheckProblem[];
+  describe(c: Component, config: WorkspaceConfig, ctx: DescribeContext): string;
 }
 
-const BY_TYPE = new Map<string, ComponentDefinition>(COMPONENTS.map((d) => [d.type, d]));
+const BY_TYPE = new Map<string, ComponentDefinition>(
+  COMPONENTS.map((d) => [d.type, d as unknown as ComponentDefinition]),
+);
 
 /** 这种组件的定义。 */
 export function componentDefinition(type: ComponentType): ComponentDefinition {

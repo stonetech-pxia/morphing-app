@@ -1,10 +1,19 @@
 import { z } from 'zod';
 
+import { localize } from '../localization';
+import { t } from '../messages';
 import { IdSchema } from '../schema-base';
-import { defineComponent, EntryLookSchema } from './define';
+import { type ComponentDefinitionOf, defineComponent, EntryLookSchema } from './define';
 
-export const toolCardComponent = defineComponent({
+const props = z.strictObject({ toolId: IdSchema, look: EntryLookSchema.optional() });
+
+export const toolCardComponent: ComponentDefinitionOf<'toolCard', typeof props> = defineComponent({
   type: 'toolCard',
-  props: z.strictObject({ toolId: IdSchema, look: EntryLookSchema.optional() }),
+  props,
   refs: { toolId: { to: 'tool', in: 'installed' } },
+  describe: (c, _config, ctx) => {
+    const name =
+      localize(ctx.registry.tools.get(c.props.toolId)?.name, ctx.locale) ?? c.props.toolId;
+    return t(ctx.locale, 'describe_tool_card_80198', { v0: name });
+  },
 });

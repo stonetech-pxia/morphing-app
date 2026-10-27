@@ -1,0 +1,243 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`component issues > describes every component in en 1`] = `
+[
+  "button “Go”",
+  "shortcut “Go”",
+  "PDF tool card",
+  "tool grid",
+  "quick action “missing”",
+  "“Spending” list",
+  "“Spending” list",
+  "“nope” list",
+  "“Spending” form",
+  "stat “Sum”",
+  "stat “Avg”",
+  "chart “Chart”",
+  "chart “Chart”",
+  "row group",
+  "header “Hello”",
+  "description text",
+  "Open photo library",
+  "Open files",
+  "tool grid",
+  "“More” link",
+  "file list “Files”",
+  "quick action list",
+  "“Photos” quick action list",
+  "notice",
+  "image",
+  "image “Cap”",
+  "divider",
+  "spacer",
+  "stacked group “Box”",
+  "grid group",
+]
+`;
+
+exports[`component issues > describes every component in fr 1`] = `
+[
+  "bouton « Go »",
+  "raccourci « Go »",
+  "carte d’outil PDF",
+  "grille d’outils",
+  "action rapide « missing »",
+  "liste des entrées « Spending »",
+  "liste des entrées « Spending »",
+  "liste des entrées « nope »",
+  "formulaire d’ajout « Spending »",
+  "statistique « Sum »",
+  "statistique « Avg »",
+  "graphique « Chart »",
+  "graphique « Chart »",
+  "groupe en ligne",
+  "en-tête « Hello »",
+  "texte de description",
+  "Ouvrir la photothèque",
+  "Ouvrir les fichiers",
+  "grille d’outils",
+  "lien « More »",
+  "liste de fichiers « Files »",
+  "liste d’actions rapides",
+  "liste d’actions rapides « Photos »",
+  "encadré",
+  "image",
+  "image « Cap »",
+  "séparateur",
+  "espacement",
+  "groupe empilé « Box »",
+  "groupe en grille",
+]
+`;
+
+exports[`component issues > describes every component in zh 1`] = `
+[
+  "按钮「Go」",
+  "快捷入口「Go」",
+  "「PDF」工具入口",
+  "工具宫格",
+  "快捷操作「missing」",
+  "「Spending」的记录列表",
+  "「Spending」的记录列表",
+  "「nope」的记录列表",
+  "「Spending」的添加表单",
+  "统计「Sum」",
+  "统计「Avg」",
+  "图表「Chart」",
+  "图表「Chart」",
+  "横排分组",
+  "标题「Hello」",
+  "说明文字",
+  "打开相册",
+  "打开文件",
+  "工具宫格",
+  "「More」入口",
+  "文件列表「Files」",
+  "快捷操作列表",
+  "「图片」快捷操作列表",
+  "提示框",
+  "图片",
+  "图片「Cap」",
+  "分隔线",
+  "空白间距",
+  "竖排分组「Box」",
+  "网格分组",
+]
+`;
+
+exports[`component issues > lists every reference problem in a stable order and wording 1`] = `
+[
+  {
+    "code": "unknown-page",
+    "message": "component b1 on page home opens missing page:nope",
+  },
+  {
+    "code": "schema",
+    "message": "icon button b1 on page home needs an icon",
+  },
+  {
+    "code": "unknown-page",
+    "message": "component s1 on page home opens missing page:gone",
+  },
+  {
+    "code": "unknown-tool",
+    "message": "component t1 shows tool pdf which is not installed",
+  },
+  {
+    "code": "unknown-tool",
+    "message": "component g1 lists tool nope which is not in the catalog",
+  },
+  {
+    "code": "duplicate",
+    "message": "tool image in component g1",
+  },
+  {
+    "code": "unknown-workflow",
+    "message": "component w1 runs missing workflow missing",
+  },
+  {
+    "code": "unknown-page",
+    "message": "component b2 on page home opens missing page:none",
+  },
+  {
+    "code": "data",
+    "message": "l1: titleField nope is not a field of spend",
+  },
+  {
+    "code": "data",
+    "message": "l1: subtitleField x1 is not a field of spend",
+  },
+  {
+    "code": "data",
+    "message": "l1: trailingField x2 is not a field of spend",
+  },
+  {
+    "code": "data",
+    "message": "l1: a checklist needs checkField set to a checkbox field",
+  },
+  {
+    "code": "data",
+    "message": "l1: can't sort by the link field parent",
+  },
+  {
+    "code": "data",
+    "message": "l1: filter on parent: a link field can only be filtered with isEmpty or isNotEmpty",
+  },
+  {
+    "code": "data",
+    "message": "l1: filter on title: gt needs a number or date field and a matching value",
+  },
+  {
+    "code": "data",
+    "message": "l1: filter field ghost is not a field of spend",
+  },
+  {
+    "code": "data",
+    "message": "l2: checkField x3 is not a field of spend",
+  },
+  {
+    "code": "data",
+    "message": "l2: sort field x4 is not a field of spend",
+  },
+  {
+    "code": "data",
+    "message": "l3: data table nope does not exist",
+  },
+  {
+    "code": "data",
+    "message": "f1: form field total is a formula field and cannot be filled in a form",
+  },
+  {
+    "code": "data",
+    "message": "f1: form field receipt is a file field and cannot be filled in a form",
+  },
+  {
+    "code": "data",
+    "message": "f1: form field x5 does not exist",
+  },
+  {
+    "code": "data",
+    "message": "f1: form field amount is listed twice",
+  },
+  {
+    "code": "data",
+    "message": "st1: groupBy day must be a choice field of spend",
+  },
+  {
+    "code": "data",
+    "message": "st1: sum needs fieldId set to a number, money, rating or formula field",
+  },
+  {
+    "code": "data",
+    "message": "st1: filter on day: period must be one of today, thisWeek, thisMonth, thisYear, last7days, last30days",
+  },
+  {
+    "code": "data",
+    "message": "st2: groupBy title must be a choice field of spend",
+  },
+  {
+    "code": "data",
+    "message": "st2: avg needs fieldId set to a number, money, rating or formula field",
+  },
+  {
+    "code": "data",
+    "message": "c1: sum needs fieldId set to a number, money, rating or formula field",
+  },
+  {
+    "code": "data",
+    "message": "c1: a pie chart can only be grouped by a choice field",
+  },
+  {
+    "code": "data",
+    "message": "c1: dateField title must be a date field of spend",
+  },
+  {
+    "code": "data",
+    "message": "c1: filter on kind: value does not match the field type",
+  },
+  {
+    "code": "data",
+    "message": "c2: grouping by choice needs choiceField set to a choice field",
+  },
+]
+`;

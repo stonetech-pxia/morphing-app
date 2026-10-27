@@ -1,10 +1,14 @@
 import { z } from 'zod';
 
+import { t } from '../messages';
 import { richText } from '../schema-base';
-import { defineComponent } from './define';
+import { type ComponentDefinitionOf, defineComponent } from './define';
 
-export const textComponent = defineComponent({
+/** 支持粗体、斜体、链接和列表（richtext.ts）。 */
+const props = z.strictObject({ text: richText(1500) });
+
+export const textComponent: ComponentDefinitionOf<'text', typeof props> = defineComponent({
   type: 'text',
-  /** 支持粗体、斜体、链接和列表（richtext.ts）。 */
-  props: z.strictObject({ text: richText(1500) }),
+  props,
+  describe: (_c, _config, ctx) => t(ctx.locale, 'describe_description_text_fccd4'),
 });
