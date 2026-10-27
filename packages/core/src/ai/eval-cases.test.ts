@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
+import type { Op } from '../ops';
 import { registry } from '../test-helpers';
 import { EVAL_CASES, buildSetup, judgeEval, runEvalCase } from './eval-cases';
 import { createMockAIProvider } from './mock';
@@ -57,6 +58,50 @@ describe('asking first (D-256)', () => {
       judgeEval(
         cl('CL3'),
         { kind: 'ops', ops: [{ op: 'setTheme', primaryColor: '#E03131' }] },
+        null,
+      ).pass,
+    ).toBe(false);
+  });
+});
+
+describe('invoices counted per month and category (INV1)', () => {
+  const inv = EVAL_CASES.find((c) => c.id === 'INV1')!;
+  const now = new Date(2026, 9, 27, 9, 0);
+  const judge = (ops: Op[]) => {
+    const config = buildSetup('invoices', 'zh', registry);
+    const prepared = prepareOps(config, ops, { registry, locale: 'zh', now });
+    return judgeEval(inv, { kind: 'ops', ops }, prepared);
+  };
+  const stat = (props: Record<string, unknown>): Op => ({
+    op: 'addComponent',
+    pageId: 'invoices',
+    component: {
+      id: 'by-category',
+      type: 'stat',
+      props: { collectionId: 'invoices', aggregate: 'count', label: '本月各类发票', ...props },
+    } as never,
+  });
+
+  it('passes with a count grouped by category for this month on the reimbursement page', () => {
+    expect(
+      judge([
+        stat({
+          groupBy: 'category',
+          filter: [{ field: 'date', op: 'inPeriod', value: 'thisMonth' }],
+        }),
+      ]),
+    ).toEqual({ pass: true });
+  });
+
+  it('fails without the month, without the grouping, or when the AI answers itself', () => {
+    expect(judge([stat({ groupBy: 'category' })]).pass).toBe(false);
+    expect(
+      judge([stat({ filter: [{ field: 'date', op: 'inPeriod', value: 'thisMonth' }] })]).pass,
+    ).toBe(false);
+    expect(
+      judgeEval(
+        inv,
+        { kind: 'reject', reason: 'userData', message: '这个月有 12 张', examples: [] },
         null,
       ).pass,
     ).toBe(false);

@@ -27,7 +27,15 @@ function sameValue(a: unknown, b: unknown): boolean {
 // ID 与 docs/MOCK_AI_PHRASES.md 对应；P* 是只有真实模型才需要理解的改写说法。
 
 /** starter：新用户的第一个版本（精简首页 + 工具箱，D-181、D-182）。 */
-export type EvalSetup = 'default' | 'pdf' | 'pdfBelowFiles' | 'budget' | 'visa' | 'starter';
+export type EvalSetup =
+  | 'default'
+  | 'pdf'
+  | 'pdfBelowFiles'
+  | 'budget'
+  | 'visa'
+  | 'starter'
+  /** 一张拍发票记下来的报销表（照片、类别、金额、日期）和它的页面，首页有入口。 */
+  | 'invoices';
 
 export type OpsPlan = Extract<Plan, { kind: 'ops' }>;
 
@@ -80,6 +88,8 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
       op: 'addWorkflow',
       workflow: presetWorkflow(presetById('visa-photo')!, locale, 'visa-photo'),
     });
+  } else if (setup === 'invoices') {
+    ops.push(...invoiceSetupOps(locale));
   } else if (setup === 'budget') {
     ops.push(...templateOps('budget', createDefaultWorkspace(locale), locale));
   } else if (setup !== 'default') ops.push({ op: 'installTool', toolId: 'pdf' });
@@ -91,6 +101,67 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
   const result = applyOps(base, ops, { registry, locale });
   if (!result.ok) throw new Error(result.error);
   return result.config;
+}
+
+function invoiceSetupOps(locale: Locale): Op[] {
+  const zh = locale === 'zh';
+  const name = zh ? '报销' : 'Reimbursements';
+  return [
+    {
+      op: 'addCollection',
+      collection: {
+        id: 'invoices',
+        name,
+        fields: [
+          { id: 'photo', name: zh ? '发票' : 'Invoice', type: 'file' },
+          {
+            id: 'category',
+            name: zh ? '类别' : 'Category',
+            type: 'choice',
+            options: [
+              { id: 'meals', label: zh ? '餐饮' : 'Meals' },
+              { id: 'travel', label: zh ? '交通' : 'Travel' },
+              { id: 'hotel', label: zh ? '住宿' : 'Hotel' },
+              { id: 'office', label: zh ? '办公' : 'Office' },
+            ],
+          },
+          { id: 'amount', name: zh ? '金额' : 'Amount', type: 'money', currency: 'CNY' },
+          { id: 'date', name: zh ? '日期' : 'Date', type: 'date' },
+        ],
+      },
+    },
+    {
+      op: 'addPage',
+      page: {
+        id: 'invoices',
+        title: name,
+        components: [
+          { id: 'title', type: 'header', props: { title: name } },
+          {
+            id: 'list',
+            type: 'recordList',
+            props: {
+              collectionId: 'invoices',
+              display: 'list',
+              titleField: 'category',
+              subtitleFields: ['date'],
+              trailingField: 'amount',
+              limit: 50,
+            },
+          },
+        ],
+      },
+    },
+    {
+      op: 'addComponent',
+      pageId: 'home',
+      component: {
+        id: 'shortcut-invoices',
+        type: 'shortcut',
+        props: { title: name, icon: 'document', target: 'page:invoices' },
+      },
+    },
+  ];
 }
 
 const home = (c: WorkspaceConfig) => c.pages.find((p) => p.id === 'home')!;
@@ -3932,6 +4003,53 @@ const CLARIFY_CASES: readonly EvalCase[] = [
   },
 ];
 
+// 发票按月按类别计数（D-248）：在报销表上加按类别分组的计数统计并限定本月；
+// 不是让 AI 自己数出结果（D-036、D-113），AI 看不到记录。
+const monthlyCountByCategory = (c: WorkspaceConfig): string | null => {
+  const reachable = (pageId: string) =>
+    pageId === 'home' ||
+    [...c.shell.nav, ...c.shell.floating].includes(`page:${pageId}`) ||
+    c.pages.some((p) =>
+      allComponents(p).some(
+        (x) =>
+          (x.type === 'shortcut' || x.type === 'button') && x.props.target === `page:${pageId}`,
+      ),
+    );
+  const stats = c.pages.flatMap((p) =>
+    allComponents(p).flatMap((x) =>
+      x.type === 'stat' && x.props.collectionId === 'invoices'
+        ? [{ page: p.id, props: x.props }]
+        : [],
+    ),
+  );
+  if (!stats.length) return 'expected a stat on the reimbursement table';
+  const good = stats.find(
+    (s) =>
+      s.props.aggregate === 'count' &&
+      s.props.groupBy === 'category' &&
+      (s.props.filter ?? []).some(
+        (f) =>
+          f.op === 'inPeriod' &&
+          f.value === 'thisMonth' &&
+          (f.field === 'date' || f.field === 'createdAt'),
+      ),
+  );
+  if (!good)
+    return `expected a count grouped by category for this month, got ${JSON.stringify(stats.map((s) => s.props))}`;
+  return reachable(good.page) ? null : `the stat's page ${good.page} should be reachable`;
+};
+
+const INVOICE_CASES: readonly EvalCase[] = [
+  {
+    id: 'INV1',
+    input: '每个月自动给我汇总一下，我拍的发票一共多少张、分别是哪一类',
+    locale: 'zh',
+    setup: 'invoices',
+    mock: false,
+    expect: { kind: 'ops', check: monthlyCountByCategory },
+  },
+];
+
 const RECORD_TABLE_CASES: readonly EvalCase[] = [
   {
     id: 'RT1',
@@ -3988,6 +4106,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...MODULE_EVAL_CASES,
   ...RECORD_TABLE_CASES,
   ...CLARIFY_CASES,
+  ...INVOICE_CASES,
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };
