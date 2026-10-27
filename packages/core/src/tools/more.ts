@@ -86,6 +86,8 @@ export const ZIP_ACTIONS: readonly ActionDefinition[] = [
     params: z.strictObject(groupParams).refine(groupNeedsSize, { message: 'groupSize is missing' }),
     fields: GROUP_FIELDS,
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [{ match: /^(?:打包|打包成|压缩成)\s*zip$|^(?:zip(?: them)?|make a zip)$/i }],
   },
   {
     id: 'zip.extract',
@@ -323,6 +325,13 @@ export const TEXT_ACTIONS: readonly ActionDefinition[] = [
     params: z.strictObject({}),
     fields: [],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match:
+          /^(?:存成|保存成|存为)(?:文字|文本|txt)(?:文件)?$|^save (?:it )?as (?:a )?(?:text|txt)(?: file)?$/i,
+      },
+    ],
   },
   {
     id: 'text.copy',
@@ -337,6 +346,8 @@ export const TEXT_ACTIONS: readonly ActionDefinition[] = [
     params: z.strictObject({}),
     fields: [],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [{ match: /^复制(?:文字|译文|结果|下来)?$|^copy(?: the)? (?:text|translation)$/i }],
   },
   // ---- 文字加工（D-245）：text → text，文字只在本机处理 ----
   {

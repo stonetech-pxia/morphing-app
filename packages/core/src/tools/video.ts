@@ -354,6 +354,14 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match:
+          /^压缩视频$|^(?:把)?视频压小(?:一点)?$|^compress (?:the )?videos?$|^make (?:the )?videos? smaller$/i,
+        step: () => ({ params: { by: 'size', maxMB: 20, quality: '720p' } }),
+      },
+    ],
   },
   {
     id: 'video.convert',
@@ -379,6 +387,13 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
     ],
     presets: [{ id: 'mp4', label: { en: 'MP4', zh: 'MP4', fr: 'MP4' }, values: { format: 'mp4' } }],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match: /^(?:转|转成|转换成|改成)\s*mp4(?:\s*格式)?$|^convert (?:it |them )?to mp4$/i,
+        step: () => ({ params: { format: 'mp4' } }),
+      },
+    ],
   },
   {
     // D-184：iOS 用系统 ImageIO 写 GIF，Android 用 morph-media 里自己写的编码器（GifEncoder.kt）。
@@ -458,6 +473,8 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
     fields: [],
     local: 'trimMedia',
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [{ match: /^(?:剪一段|剪视频|剪辑|截取一段)$|^trim(?: it| the video)?$/i }],
   },
 ];
 

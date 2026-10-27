@@ -52,6 +52,15 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
     // 语言包依赖识别包：确保语言包就会连同识别包一起下载。系统能识别的语言不需要（engine 的 packNotNeeded）。
     packFor: (params) => ocrPackId(String(params.lang)),
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match: /^(?:识别文字|文字识别|提取文字)$|^(?:recognize|read|extract) (?:the )?text$/i,
+        step: (_m, locale) => ({
+          params: { lang: locale === 'zh' ? 'chi_sim' : locale === 'fr' ? 'fra' : 'eng' },
+        }),
+      },
+    ],
   },
 ];
 

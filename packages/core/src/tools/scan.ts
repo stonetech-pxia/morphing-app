@@ -34,6 +34,8 @@ export const SCAN_ACTIONS: readonly ActionDefinition[] = [
     local: 'corners',
     pack: 'scan',
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [{ match: /^(?:扫描|找边|拉正)$|^(?:scan|straighten)$/i }],
   },
   {
     id: 'scan.enhance',

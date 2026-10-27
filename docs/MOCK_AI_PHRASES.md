@@ -6,7 +6,7 @@ Mock AI 是**基于规则的解析器**，不是语言模型（交接文档 §7F
 - 不在清单里的输入必须回复“暂时无法理解”，并给出示例说法，**不得生成猜测性的修改**。
 - M3 接入真实模型后，本清单作为评测集继续使用。
 
-实现：[packages/core/src/ai/mock.ts](../packages/core/src/ai/mock.ts)；测试：[mock.test.ts](../packages/core/src/ai/mock.test.ts)，每个 ID 一个用例。
+实现：[packages/core/src/ai/mock.ts](../packages/core/src/ai/mock.ts)（步骤说法写在各动作定义的 `phrases` 里，预设的叫法在预设的 `words`、风格的叫法在 `presets.ts` 的 `aliases`）；测试：[mock.test.ts](../packages/core/src/ai/mock.test.ts)，每个 ID 一个用例。
 
 D-265（2026-10-27）删掉了界面上没有入口、用户也不太会这么说的句式：目标句（GW8–GW10）、外观选项（LK1–LK5）、「首页加上 Morph 可以做什么」（QAC1–QAC2）、各种视频 / 音频 / 图片编辑动作的单独步骤句式（截帧、静音、配乐、旋转、裁比例、变速、音量、降噪、去背景、调色、标注、字幕、拼接视频），以及预设的别名（除了拒绝例子里用到的「签证」「发邮件」和放在签证前面的「证件照打印」）。这些预设仍能按名字添加（「添加视频去掉声音快捷操作」）。下面各节里保留的就是内置规则还认的。
 

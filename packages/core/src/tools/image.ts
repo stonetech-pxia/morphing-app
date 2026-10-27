@@ -1,3 +1,4 @@
+import { sizeKB, num } from '../workflow/phrase-words';
 import { t, pairText } from '../messages';
 import { z } from 'zod';
 
@@ -239,6 +240,20 @@ export const IMAGE_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match:
+          /^(?:转|转成|转换成|改成)\s*(jpg|jpeg|png|webp)(?:\s*格式)?$|^convert to (jpg|jpeg|png|webp)$/i,
+        step: (m) => {
+          const f = (m[1] ?? m[2]!).toLowerCase();
+          const format = f === 'jpg' ? 'jpeg' : f;
+          return {
+            params: { format, quality: format === 'png' ? 100 : format === 'webp' ? 80 : 85 },
+          };
+        },
+      },
+    ],
   },
   {
     id: 'image.resize',
@@ -345,6 +360,14 @@ export const IMAGE_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match:
+          /^(?:长边|缩到|改成长边)\s*(\d+)\s*(?:像素|px)?$|^(?:resize to|long side) (\d+)\s*(?:px)?$/i,
+        step: (m) => ({ params: { mode: 'longEdge', px: num(m[1] ?? m[2]!) } }),
+      },
+    ],
   },
   {
     id: 'image.compress',
@@ -403,6 +426,16 @@ export const IMAGE_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match:
+          /^(?:压缩)?(?:压到|压缩到|小于|不超过)\s*(\d+(?:\.\d+)?\s*(?:kb|k|mb|m|兆))\s*(?:以内|以下)?$|^compress (?:it |them |each )?(?:to|under|below) (\d+(?:\.\d+)?\s*(?:kb|mb))$/i,
+        step: (m) => ({
+          params: { maxKB: sizeKB(m[1] ?? m[2]!)!, format: 'jpeg' },
+        }),
+      },
+    ],
   },
   {
     id: 'image.crop',
@@ -428,6 +461,8 @@ export const IMAGE_ACTIONS: readonly ActionDefinition[] = [
     ],
     local: 'crop',
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [{ match: /^(?:裁剪|裁切)$|^crop$/i, step: () => ({ params: { aspect: 'free' } }) }],
   },
   {
     id: 'image.rotate',
@@ -485,6 +520,13 @@ export const IMAGE_ACTIONS: readonly ActionDefinition[] = [
     params: z.strictObject({}),
     fields: [],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match:
+          /^(?:去掉|去除|删除)(?:定位|位置|位置信息|地理位置)$|^remove (?:the )?(?:location|gps)(?: info)?$/i,
+      },
+    ],
   },
 ];
 
@@ -616,6 +658,15 @@ export const IMAGE_COMPOSE_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match: /^拼(?:成)?长图$|^stitch(?: into a long image)?$/i,
+        step: () => ({
+          params: { direction: 'vertical', gapPx: 0, background: '#FFFFFF' },
+        }),
+      },
+    ],
   },
   {
     // D-184：iOS 用系统 ImageIO 写 GIF，Android 用 morph-media 里自己写的编码器（GifEncoder.kt）。
@@ -675,6 +726,15 @@ export const IMAGE_COMPOSE_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      // 动图（D-184）：默认是几张图片做成动图；跟在视频后面时换成视频转 GIF（fitToPrevious）。
+      {
+        match:
+          /^(?:转成|做成|变成|生成|转)\s*(?:gif|动图)(?:\s*动图)?$|^(?:make|turn (?:it |them )?into|convert (?:it |them )?to) (?:an? )?(?:animated )?gif$/i,
+        step: () => ({ params: { delayMs: 500, maxSide: 480 } }),
+      },
+    ],
   },
   {
     id: 'image.grid',
@@ -761,6 +821,13 @@ export const IMAGE_COMPOSE_ACTIONS: readonly ActionDefinition[] = [
     ],
     local: 'redact',
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match: /^打码$|^(?:redact|hide (?:private )?parts)$/i,
+        step: () => ({ params: { style: 'black' } }),
+      },
+    ],
   },
   {
     id: 'image.watermark',
@@ -854,6 +921,13 @@ export const IMAGE_COMPOSE_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'image.idPhoto',
+    // 提示词里只关于这个动作的规则。
+    aiRules: [
+      {
+        n: 38,
+        text: 'ID photos with a background color or framed for the user ("blue background ID photo", "证件照换成白底", "center my face automatically") → set background on image.idPhoto ("white", "blue", "red", "gray", or "custom" with color "#RRGGBB"; "keep" leaves it) and autoCenter: true. This replaces image.removeBackground before image.idPhoto for ID photos. autoCenter only places the crop frame around the face at the head size the spec asks for; the user still confirms it on the device. Mention in a note that the result must still be checked against the official rules, and that the background needs iOS 15+ or Google Play services on Android.',
+      },
+    ],
     label: { en: 'ID photo', zh: '证件照', fr: 'Photo d’identité' },
     description: {
       en: 'The user frames the face at the required shape; the photo is cut to the official size in pixels (300 dpi) as a JPG, and kept under the size limit if the spec has one. background replaces everything but the person with white, blue, red, light grey or a custom color (needs iOS 15+, or Google Play services on Android). autoCenter finds the face on the device and starts the frame with the head at the size the spec asks for; the user still checks and adjusts it. Check the result against the official rules yourself.',

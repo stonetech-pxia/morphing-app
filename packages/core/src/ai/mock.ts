@@ -19,7 +19,7 @@ import {
   type PhraseKind,
   type StepPhrase,
 } from './workflow-phrases';
-import { THEME_PRESETS, THEME_PRESET_IDS, type ThemePresetId } from '../presets';
+import { THEME_PRESETS, THEME_PRESET_IDS } from '../presets';
 import type { ToolDefinition } from '../registry';
 import {
   HOME_PAGE_ID,
@@ -393,22 +393,6 @@ const backdropRule: Rule = (clause) => {
   return [{ op: 'setTheme', backdrop }];
 };
 
-/** 风格预设的叫法（小写比较）。只认整体风格；「卡片改成新粗野」之类只改卡片，见 cardStyleRule。 */
-const PRESET_ALIASES: Record<ThemePresetId, string[]> = {
-  ios: ['ios', 'ios原生', 'ios 原生', '苹果', '苹果原生', 'apple'],
-  material: ['material', 'material you', 'material design', '安卓', '谷歌'],
-  editorial: ['杂志', '报刊', '编辑', 'editorial', 'magazine'],
-  pastel: ['马卡龙', '粉彩', '柔和', 'pastel'],
-  nature: ['自然', '大地', '森林', 'nature', 'earthy'],
-  terminal: ['终端', '极客', '程序员', '代码', 'terminal', 'hacker'],
-  neon: ['霓虹', '赛博', '赛博朋克', '赛博霓虹', 'neon', 'cyberpunk'],
-  claymorphism: ['黏土', '粘土', 'claymorphism', 'claymorphic'],
-  brutalist: ['新粗野', '粗野', '野兽派', 'brutalist', 'neubrutalism', 'neubrutalist'],
-  neumorphism: ['新拟物', '拟物', 'neumorphism', 'neumorphic', 'soft ui'],
-  glass: ['毛玻璃', '玻璃', '液态玻璃', 'liquid glass', 'glass', 'glassmorphism', 'frosted glass'],
-  y2k: ['y2k', 'y2k 千禧', '千禧', '千禧年', '金属', 'chrome'],
-};
-
 const presetRule: Rule = (clause) => {
   const m =
     clause.match(
@@ -423,7 +407,7 @@ const presetRule: Rule = (clause) => {
   const name = m[1]!.trim().toLowerCase();
   const preset = THEME_PRESET_IDS.find(
     (id) =>
-      PRESET_ALIASES[id].includes(name) ||
+      THEME_PRESETS[id].aliases.includes(name) ||
       localize(THEME_PRESETS[id].name, 'fr').toLowerCase() === name,
   );
   return preset ? [{ op: 'applyThemePreset', preset }] : null;

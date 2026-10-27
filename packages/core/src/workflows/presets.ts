@@ -50,6 +50,10 @@ export interface WorkflowPreset {
   /** 需要下载的扩展包（第一次运行时会请用户确认），只用于在预设库里提示。 */
   packs?: readonly string[];
   steps(locale: Locale): Workflow['steps'];
+  /** 内置规则（mock AI）除了名字还认的叫法（「添加签证快捷操作」「把照片发邮件放到首页」），D-265。 */
+  words?: RegExp;
+  /** 别的预设的叫法也认得这个短语时先查它（「证件照打印」不是签证照片）。 */
+  wordsFirst?: boolean;
 }
 
 const photos = (
@@ -87,6 +91,7 @@ const textPdf = { id: 'pdf', action: 'text.toPdf', params: { pageSize: 'a4', fon
 export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   {
     id: 'visa-photo',
+    words: /签证|证件照|visa|id photo|passport photo/i,
     scenario: 'ids',
     name: { en: 'Visa / ID photo', zh: '签证 / 证件照', fr: 'Photo de visa / d’identité' },
     description: {
@@ -131,6 +136,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   },
   {
     id: 'email-photos',
+    words: /发邮件|传网站|email|upload/i,
     scenario: 'photos',
     name: {
       en: 'Photos for email or upload',
@@ -517,6 +523,8 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   },
   {
     id: 'print-id-photos',
+    words: /证件照打印|打印证件照|证件照冲印|print(?:ing)? id photos?|id photos? to print/i,
+    wordsFirst: true,
     scenario: 'ids',
     name: { en: 'ID photos to print', zh: '证件照打印', fr: 'Photos d’identité à imprimer' },
     description: {
