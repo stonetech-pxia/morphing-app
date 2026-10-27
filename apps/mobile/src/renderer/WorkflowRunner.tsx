@@ -1,4 +1,4 @@
-import { localize, describeParams, type Backdrop } from '@morph/core';
+import { describeParams, findWorkflowTarget, localize, type Backdrop } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -29,7 +29,8 @@ export function WorkflowRunner({
   const router = useRouter();
   const { locale, registry } = env;
   const palette = onPicture(env.palette, backdrop);
-  const workflow = env.config.workflows.find((w) => w.id === workflowId);
+  // 可以指向内设快捷操作的预设 ID；用户改过以后配置里的副本优先（D-259）。
+  const workflow = findWorkflowTarget(env.config.workflows, workflowId, locale);
   if (!workflow) return null;
   const label = (action: string) => localize(registry.actions.get(action)?.label, locale) ?? action;
   // 关键设置（例如「不超过 500 KB」）；每次运行时询问的参数不列出。
@@ -44,7 +45,8 @@ export function WorkflowRunner({
     .join(t(locale, 'separatorSemicolon'));
   const start = () => {
     if (env.locked) return env.locked();
-    if (env.interactive) router.push({ pathname: '/run/[workflowId]', params: { workflowId } });
+    if (env.interactive)
+      router.push({ pathname: '/run/[workflowId]', params: { workflowId: workflow.id } });
   };
 
   const shown = look ?? (env.inCell ? 'tile' : 'card');

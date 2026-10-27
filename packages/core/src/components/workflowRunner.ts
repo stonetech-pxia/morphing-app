@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { t } from '../messages';
 import { IdSchema } from '../schema-base';
+import { findWorkflowTarget } from '../workflows/presets';
 import { type ComponentDefinitionOf, defineComponent } from './define';
 
 const props = z.strictObject({
@@ -16,12 +17,12 @@ export const workflowRunnerComponent: ComponentDefinitionOf<'workflowRunner', ty
     props,
     refs: { workflowId: { to: 'workflow' } },
     describe: (c, config, ctx) => {
-      const wf = config.workflows.find((w) => w.id === c.props.workflowId);
+      const wf = findWorkflowTarget(config.workflows, c.props.workflowId, ctx.locale);
       return t(ctx.locale, 'describe_quick_action_1fb38', { v0: wf?.name ?? c.props.workflowId });
     },
     edit: { text: [], style: [], backdrop: true },
     ai: {
-      doc: '{workflowId, look?: "card"|"row"|"tile"}: runs a workflow. card = steps and a Run button, row = one line with a play icon on the right, tile = a small square (side by side two per row). Without look: tile when it sits next to other workflowRunners or in a grid/row group, card otherwise.',
+      doc: '{workflowId, look?: "card"|"row"|"tile"}: runs a workflow; workflowId may also be a preset id (the built-in quick action, nothing to add; once the user changes it, their copy runs). card = steps and a Run button, row = one line with a play icon on the right, tile = a small square (side by side two per row). Without look: tile when it sits next to other workflowRunners or in a grid/row group, card otherwise.',
     },
     example: { props: { workflowId: 'pdf-merge' } },
   });

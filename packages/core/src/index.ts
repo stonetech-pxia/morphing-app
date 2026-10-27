@@ -5,6 +5,7 @@ export * from './ai/eval-cases';
 export * from './ai/goals';
 export * from './ai/kinds';
 export * from './ai/mock';
+export * from './ai/preset-ops';
 export { stepIdFor } from './ai/workflow-phrases';
 export * from './ai/types';
 export * from './arrange';

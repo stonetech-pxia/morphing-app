@@ -7,6 +7,8 @@ import {
   PlanAboutSchema,
   createDefaultWorkspace,
   createRegistry,
+  presetById,
+  presetWorkflow,
 } from '@morph/core';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -213,6 +215,44 @@ describe('Claude planner', () => {
     await expect(
       createClaudePlanner({ complete, registry, now }).plan('主题换成绿色', ctx),
     ).rejects.toThrow('unusable');
+  });
+
+  it('expands addWorkflow {presetId, params} into the preset the user would get (D-259)', async () => {
+    const complete = vi.fn<Complete>().mockResolvedValue(
+      json({
+        kind: 'ops',
+        ops: [{ op: 'addWorkflow', presetId: 'visa-photo', params: { photo: { maxKB: 100 } } }],
+      }),
+    );
+    const result = await createClaudePlanner({ complete, registry, now }).plan('加一个签证照', ctx);
+    const preset = presetWorkflow(presetById('visa-photo')!, 'zh', 'visa-photo');
+    expect(result).toEqual({
+      kind: 'ops',
+      ops: [
+        {
+          op: 'addWorkflow',
+          workflow: {
+            ...preset,
+            steps: preset.steps.map((s) =>
+              s.id === 'photo' ? { ...s, params: { ...s.params, maxKB: 100 } } : s,
+            ),
+          },
+        },
+      ],
+    });
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends a wrong preset id back to the model', async () => {
+    const complete = vi
+      .fn<Complete>()
+      .mockResolvedValueOnce(json({ kind: 'ops', ops: [{ op: 'addWorkflow', presetId: 'visa' }] }))
+      .mockResolvedValueOnce(
+        json({ kind: 'ops', ops: [{ op: 'addWorkflow', presetId: 'visa-photo' }] }),
+      );
+    const result = await createClaudePlanner({ complete, registry, now }).plan('加一个签证照', ctx);
+    expect(result).toMatchObject({ kind: 'ops', ops: [{ workflow: { presetId: 'visa-photo' } }] });
+    expect(String(complete.mock.calls[1]![0][2]!.content)).toContain('unknown preset "visa"');
   });
 
   it('turns a safety refusal into a polite rejection', async () => {

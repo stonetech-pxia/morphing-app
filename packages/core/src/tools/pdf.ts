@@ -230,6 +230,7 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'pdf.compress',
+    ai: 'To make existing PDFs smaller ("PDF too big to upload", "under 2 MB") use this with maxMB — never pdf.toImages followed by pdf.fromImages; it keeps the text selectable and asks the user before turning pages into pictures.',
     label: { en: 'Make PDF smaller', zh: '压缩 PDF', fr: 'Réduire le PDF' },
     description: {
       en: 'Make existing PDFs smaller than a size by recompressing the pictures inside; text stays selectable. If that is not enough, whenTooBig decides: ask the user, turn the pages into pictures (text can no longer be selected), or keep the text and accept a bigger file.',
@@ -623,6 +624,7 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
     // D-186：iOS 用系统的文档预览排版（Word、Excel、PowerPoint、RTF 都能看），Android 系统不会显示
     // 办公文档，只能把 Word（.docx）转成网页再排版，复杂排版会走样。
     id: 'pdf.fromDocument',
+    ai: 'Word, Excel or PowerPoint to PDF → in.files with accept "documents" then this (on Android only Word works; say so in a note when they mention Excel or PowerPoint).',
     label: { en: 'Document to PDF', zh: '文档转 PDF', fr: 'Document vers PDF' },
     description: {
       en: 'Turn Word, Excel and PowerPoint files (also RTF) into PDFs on this device. On Android only Word (.docx) works, and complex layouts may shift.',
@@ -740,6 +742,7 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
 export const PDF_PASSWORD_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'pdf.unlock',
+    ai: 'PDFs that need a password to open (payslips, bank statements; "remove / unlock the password") → right after choosing them, before any other PDF step (the user types each password on the device). iPhone only for now: say so in a note when the user mentions Android.',
     label: {
       en: 'Remove PDF password',
       zh: '去掉 PDF 密码',
@@ -759,6 +762,7 @@ export const PDF_PASSWORD_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'pdf.protect',
+    ai: '"Add a password / protect the PDF" → the last step before sharing or saving (the password is asked on every run and is never a parameter). iPhone only for now: say so in a note when the user mentions Android.',
     label: { en: 'Add a PDF password', zh: '给 PDF 加密码', fr: 'Ajouter un mot de passe au PDF' },
     description: {
       en: 'Adds a password needed to open the PDFs. The password is asked on every run (typed twice) and never saved. Put it last, right before sharing or saving: other PDF steps can’t open a protected PDF. iPhone only for now.',

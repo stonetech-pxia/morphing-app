@@ -165,7 +165,12 @@ export function validateWorkspace(
               );
             }
           }
-        } else if (ref.to === 'workflow' && !workflowIds.has(value as string)) {
+        } else if (
+          ref.to === 'workflow' &&
+          !workflowIds.has(value as string) &&
+          // 内设快捷操作用预设 ID 运行，不用添加（D-236、D-259）。
+          !presetById(value as string)
+        ) {
           issue('unknown-workflow', `component ${c.id} runs missing workflow ${value}`);
         }
       }

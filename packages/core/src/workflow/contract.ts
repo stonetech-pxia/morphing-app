@@ -125,6 +125,11 @@ export interface ActionDefinition {
   /** 扩展包取决于参数时（文字识别的语言包）：返回本次要确保安装的扩展包，它会连同依赖一起下载。 */
   packFor?: (params: Record<string, unknown>) => string;
   requires: readonly Permission[];
+  /**
+   * 给 AI 的提示（英文，随动作目录发给模型）：用户怎么说时用这个动作、怎么设参数、前后接什么、
+   * 要在 notes 里提醒什么。提示词规则 20 只留建工作流的通用规则。改了要跑受影响的评测。
+   */
+  ai?: string;
 }
 
 /** 动作在给定参数和输入类型下的输出类型。 */
