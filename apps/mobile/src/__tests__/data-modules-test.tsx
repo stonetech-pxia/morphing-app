@@ -9,7 +9,7 @@ import {
   type Locale,
   type Registry,
 } from '@morph/core';
-import { fireEvent } from '@testing-library/react-native';
+import { fireEvent, waitFor } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
 
 import { statText } from '../renderer/data';
@@ -319,5 +319,89 @@ describe('stat and chart values follow the interface language', () => {
     expect(statText(1234.5, 'sum', money, 'fr')).toBe(formatValue(money, 1234.5, 'fr'));
     expect(statText(1234.5, 'sum', weight, 'fr')).toBe(formatValue(weight, 1234.5, 'fr'));
     expect(statText(1234, 'count', money, 'fr')).toBe(formatNumber(1234, undefined, 'fr'));
+  });
+});
+
+describe('record list shown as a table (D-255)', () => {
+  const list: Component = {
+    id: 'recent',
+    type: 'recordList',
+    props: {
+      collectionId: 'expenses',
+      display: 'list',
+      titleField: 'category',
+      subtitleFields: ['date'],
+      trailingField: 'amount',
+      limit: 30,
+    },
+  };
+  const values = [
+    { amount: 30, category: 'food', date: '2026-10-20' },
+    { amount: 12.5, category: 'transport', date: '2026-10-21' },
+    { amount: 4 },
+  ];
+
+  /** 屏幕上每条记录显示的文字（按记录 id）。 */
+  const shownTexts = () =>
+    values.map((_, i) => {
+      const texts: string[] = [];
+      const walk = (n: unknown) => {
+        if (typeof n === 'string') texts.push(n);
+        else if (Array.isArray(n)) n.forEach(walk);
+        else if (n && typeof n === 'object' && 'children' in n)
+          walk((n as { children: unknown }).children);
+      };
+      walk(screen.getByTestId(`record-r${i}`).children);
+      return texts.join(' ');
+    });
+
+  it('switches list → table → cards → list without losing records, values or field references', async () => {
+    const repo = await withRecords(values);
+    const { store } = await renderToolsApp(repo, undefined, { seed: seedWith(list) });
+    expect(await screen.findByTestId('record-r0')).toBeTruthy();
+    const before = shownTexts();
+    expect(before.join('|')).toMatch(/餐饮.*2026-10-20.*¥30\.00/);
+
+    for (const display of ['table', 'cards', 'list'] as const) {
+      const result = await store
+        .getState()
+        .proposeOps(
+          [{ op: 'setComponentProps', pageId: 'home', componentId: 'recent', props: { display } }],
+          display,
+        );
+      expect(result.kind).toBe('preview');
+      await store.getState().confirm();
+      await store.getState().markRendered(store.getState().head!.id);
+      await waitFor(() =>
+        expect(screen.queryByTestId('record-table') !== null).toBe(display === 'table'),
+      );
+      // 每个字段值都在，记录一条不少；顺序不变。
+      for (const [i, text] of shownTexts().entries()) {
+        for (const part of before[i]!.split(' ')) expect(text).toContain(part);
+      }
+      expect(screen.queryByTestId('record-r3')).toBeNull();
+      const props = store.getState().config!.pages[0]!.components.find((c) => c.id === 'recent')!
+        .props as Record<string, unknown>;
+      expect(props).toEqual({ ...list.props, display });
+    }
+    expect((await repo.listRecords('expenses')).length).toBe(3);
+  });
+
+  it('a table names its columns after the chosen fields only', async () => {
+    const repo = await withRecords(values);
+    await renderToolsApp(repo, undefined, {
+      seed: seedWith({ ...list, props: { ...list.props, display: 'table' } } as Component),
+    });
+    const table = await screen.findByTestId('record-table');
+    expect(table).toHaveTextContent(/^分类日期金额/);
+    expect(table).not.toHaveTextContent(/创建时间/);
+  });
+
+  it('an empty table shows the empty text, not an empty grid', async () => {
+    await renderToolsApp(new MemoryWorkspaceRepo(), undefined, {
+      seed: seedWith({ ...list, props: { ...list.props, display: 'table' } } as Component),
+    });
+    expect(await screen.findByText('还没有记录')).toBeTruthy();
+    expect(screen.queryByTestId('record-table')).toBeNull();
   });
 });

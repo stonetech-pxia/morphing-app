@@ -3866,6 +3866,39 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+// 记录列表的表格显示（D-255）：只改 display，标题、副标题、右侧字段和排序都不动。
+const recentAsTable = (c: WorkspaceConfig): string | null => {
+  const list = c.pages.flatMap((p) => allComponents(p)).find((x) => x.type === 'recordList');
+  if (!list || list.type !== 'recordList') return 'expected the expense record list';
+  const p = list.props;
+  if (p.display !== 'table') return `the record list should be a table, got ${p.display}`;
+  // 预算模板里原来的字段引用（templates.ts）。
+  const kept = [p.titleField, p.subtitleFields, p.trailingField, p.sort, p.limit];
+  const was = ['category', ['note', 'date'], 'amount', { field: 'date', direction: 'desc' }, 30];
+  return JSON.stringify(kept) === JSON.stringify(was)
+    ? null
+    : `only display should change, got ${JSON.stringify(kept)}`;
+};
+
+const RECORD_TABLE_CASES: readonly EvalCase[] = [
+  {
+    id: 'RT1',
+    input: '账目列表改成表格显示',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: recentAsTable },
+  },
+  {
+    id: 'RT2',
+    input: 'Show my expenses as a table',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: recentAsTable },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,
@@ -3901,6 +3934,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...RECORD_EVAL_CASES,
   ...DRAFT_CHAT_EVAL_CASES,
   ...MODULE_EVAL_CASES,
+  ...RECORD_TABLE_CASES,
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };

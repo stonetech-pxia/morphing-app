@@ -21,7 +21,7 @@ import {
 } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { useLinkResolver, useRecordActions, useRecords } from '../data/records';
 import type { AssetRecord } from '../storage/types';
@@ -558,6 +558,75 @@ export function RecordList({
     );
   }
 
+  const openRecord = (r: DataRecord) =>
+    env.interactive ? (env.locked ?? (() => openEditor(router, collection.id, r.id))) : undefined;
+
+  if (props.display === 'table') {
+    // 表格（D-255）：列就是已经选好的标题、副标题和右侧字段，不另加列；窄屏左右滑动。
+    const columns = [
+      props.titleField,
+      ...(props.subtitleFields ?? []),
+      ...(props.trailingField ? [props.trailingField] : []),
+    ];
+    const columnName = (ref: string) =>
+      ref === 'createdAt'
+        ? t(locale, 'html_Created_1626a')
+        : ref === 'updatedAt'
+          ? t(locale, 'html_Updated_74f0c')
+          : (collection.fields.find((f) => f.id === ref)?.name ?? ref);
+    const cell = (index: number) => [
+      styles.cell,
+      index === 0 && styles.firstCell,
+      props.trailingField && index === columns.length - 1 && styles.trailingCell,
+    ];
+    return (
+      <Card palette={palette} background={background} style={styles.listCard}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} testID="record-table">
+          <View>
+            <View style={styles.tableRow}>
+              {columns.map((ref, i) => (
+                <Text
+                  key={ref}
+                  numberOfLines={1}
+                  style={[cell(i), palette.font('bodyBold', 13), { color: palette.muted }]}>
+                  {columnName(ref)}
+                </Text>
+              ))}
+            </View>
+            {shown.map((r) => {
+              const open = openRecord(r);
+              return (
+                <Pressable
+                  key={r.id}
+                  testID={`record-${r.id}`}
+                  onPress={open}
+                  onLongPress={env.onLongPress}
+                  disabled={!open}
+                  style={[
+                    styles.tableRow,
+                    { borderTopWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
+                  ]}>
+                  {columns.map((ref, i) => (
+                    <Text
+                      key={ref}
+                      numberOfLines={2}
+                      style={[
+                        cell(i),
+                        palette.font(i === 0 ? 'title' : 'body', 14),
+                        { color: palette.text },
+                      ]}>
+                      {formatRef(r, collection, ref, locale, links) || '—'}
+                    </Text>
+                  ))}
+                </Pressable>
+              );
+            })}
+          </View>
+        </ScrollView>
+      </Card>
+    );
+  }
+
   const row = (r: DataRecord, index: number) => {
     const title = formatRef(r, collection, props.titleField, locale, links) || '—';
     const subtitle = (props.subtitleFields ?? [])
@@ -615,9 +684,7 @@ export function RecordList({
         ) : null}
       </View>
     );
-    const open = env.interactive
-      ? (env.locked ?? (() => openEditor(router, collection.id, r.id)))
-      : undefined;
+    const open = openRecord(r);
     if (props.display === 'cards') {
       return (
         <Card
@@ -838,6 +905,10 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   listCard: { paddingVertical: 4, gap: 0 },
   listRow: { paddingVertical: 12 },
+  tableRow: { flexDirection: 'row', paddingVertical: 10 },
+  cell: { width: 120, paddingRight: 12 },
+  firstCell: { width: 150 },
+  trailingCell: { textAlign: 'right' },
   check: {
     width: 26,
     height: 26,

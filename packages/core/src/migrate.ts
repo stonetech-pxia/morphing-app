@@ -147,6 +147,9 @@ export const migrateV14toV15: Migration = (config) => ({ ...config, schemaVersio
 /** v15 → v16：新增提醒 reminders（D-251，可以不写，不写就是没有提醒）；只提升版本号。 */
 export const migrateV15toV16: Migration = (config) => ({ ...config, schemaVersion: 16 });
 
+/** v16 → v17：记录列表新增表格显示 display: table（D-255）；已有数据不需要改动，只提升版本号。 */
+export const migrateV16toV17: Migration = (config) => ({ ...config, schemaVersion: 17 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -164,6 +167,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   13: migrateV13toV14,
   14: migrateV14toV15,
   15: migrateV15toV16,
+  16: migrateV16toV17,
 };
 
 export type MigrateResult =

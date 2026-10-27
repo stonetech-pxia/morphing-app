@@ -6,7 +6,7 @@ import { isEmoji, unsafeLinks } from './richtext';
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 修改本文件中会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
 
-export const CURRENT_SCHEMA_VERSION = 16;
+export const CURRENT_SCHEMA_VERSION = 17;
 
 export type Locale = 'en' | 'zh' | 'fr';
 export type Localized = Record<Locale, string>;
@@ -420,13 +420,13 @@ export const SpacerComponentSchema = z.strictObject({
   props: z.strictObject({ size: z.enum(['small', 'medium', 'large']) }),
 });
 
-/** 记录列表：展示某张数据表的记录；checklist 用一个 checkbox 字段直接打勾。 */
+/** 记录列表：展示某张数据表的记录；checklist 用一个 checkbox 字段直接打勾；table 按标题、副标题、右侧字段排成几列（D-255）。 */
 export const RecordListComponentSchema = z.strictObject({
   ...componentBase,
   type: z.literal('recordList'),
   props: z.strictObject({
     collectionId: IdSchema,
-    display: z.enum(['list', 'cards', 'checklist']),
+    display: z.enum(['list', 'cards', 'checklist', 'table']),
     titleField: FieldRefSchema,
     subtitleFields: z.array(FieldRefSchema).max(2).optional(),
     /** 显示在右侧的字段，例如金额。 */
