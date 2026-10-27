@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { prepareOps } from './change';
 import { createStarterWorkspace } from './starter';
 import type { Op } from './ops';
 import { SAMPLE_APPS, sampleInfo, sampleOps, type SampleApp } from './samples';
@@ -113,6 +114,9 @@ describe.each(SAMPLE_APPS)('sample %s', (sample) => {
       if (!result.ok) return;
       const after = apply(before, result.ops, locale);
       expectValid(after);
+      // App 走的路：一次修改最多 30 个操作，解析、套用、校验都要过（prepareOps）。
+      const prepared = prepareOps(before, result.ops, { registry, locale, now: new Date() });
+      expect(prepared.ok ? [] : prepared.issues).toEqual([]);
 
       // 用户看到的文字都换成了这种语言，没有留下 { en, zh, fr } 或占位符。
       expect(JSON.stringify(after)).not.toMatch(/"en":|"\$|:\$/);

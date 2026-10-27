@@ -1498,6 +1498,40 @@ export const strings = {
   },
   guideLater: { en: 'Later', zh: '以后再说', fr: 'Plus tard' },
   guideSkipAll: { en: 'Skip the guide', zh: '跳过引导', fr: 'Passer le guide' },
+  // 引导第 3 步：样板 App（D-260）。
+  guideSamplesTitle: { en: 'Step 3', zh: '第 3 步', fr: 'Étape 3' },
+  guideSamplesBody: {
+    en: 'You can also turn Morph into an app of your own. Pick one to try.',
+    zh: '还能把 Morph 变成你自己的 App，选一个试试。',
+    fr: 'Vous pouvez aussi faire de Morph votre propre app. Choisissez-en une pour essayer.',
+  },
+  sampleDraftInput: {
+    en: 'Use the “{name}” sample app',
+    zh: '套用样板「{name}」',
+    fr: 'Utiliser l’app modèle « {name} »',
+  },
+  sampleReadyTitle: {
+    en: '“{name}” is ready',
+    zh: '「{name}」装好了',
+    fr: '« {name} » est prête',
+  },
+  sampleReadyBody: {
+    en: 'To make it your own, ask AI to keep changing it.',
+    zh: '想改成你自己的样子，可以让 AI 接着改。',
+    fr: 'Pour l’adapter à vos besoins, demandez à l’IA de continuer à la modifier.',
+  },
+  sampleReadyChange: { en: 'Change it with AI', zh: '用 AI 接着改', fr: 'Modifier avec l’IA' },
+  sampleReadyDismiss: { en: 'Got it', zh: '知道了', fr: 'Compris' },
+  sampleFailed: {
+    en: 'This sample app could not be added. Please try another one.',
+    zh: '这个样板没能加上，换一个试试。',
+    fr: 'Impossible d’ajouter cette app modèle. Essayez-en une autre.',
+  },
+  sampleContinuePrompt: {
+    en: 'Starting from {name}, change this: ',
+    zh: '在{name}的基础上改：',
+    fr: 'En partant de « {name} », modifier ceci : ',
+  },
   settingsGuide: { en: 'Show the guide again', zh: '重新看新手引导', fr: 'Revoir le guide' },
   settingsGuideHint: {
     en: 'The intro and two short exercises',

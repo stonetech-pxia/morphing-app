@@ -9,6 +9,8 @@ import {
   homeEntryOps,
   prepareOps,
   prepareSnapshot,
+  sampleInfo,
+  sampleOps,
   workflowsWithoutEntry,
   type AIProvider,
   type FunctionFirst,
@@ -21,6 +23,7 @@ import {
   type PreparedChange,
   type Registry,
   type RejectReason,
+  type SampleApp,
   type WorkspaceConfig,
 } from '@morph/core';
 import { createStore, type StoreApi } from 'zustand/vanilla';
@@ -108,6 +111,8 @@ export interface DraftStep {
 /** 草稿从哪里开始的：应用后据此带用户回去（从快捷操作或收件页面打开）。 */
 export interface DraftOrigin {
   about?: PlanAbout;
+  /** 新手引导第 3 步套用的样板（D-260）：应用后回到它的主页面，提示可以用 AI 接着改。 */
+  sample?: { id: SampleApp; pageId: string };
 }
 
 /**
@@ -261,6 +266,11 @@ export interface WorkspaceState {
   change(input: string, planner?: AIProvider, origin?: DraftOrigin): Promise<ChangeResult>;
   /** 草稿聊天框的一句话：只改外观，功能类的请求不做。 */
   draftChange(input: string): Promise<ChangeResult>;
+  /**
+   * 套用一个样板 App（D-260）：整套修改（表、快捷操作、页面、提醒）作为草稿的一步，不经过 AI、不发请求；
+   * 用户点「应用」时合成一个版本，可以撤销。放不下时不进草稿，返回原因。
+   */
+  draftSample(sample: SampleApp): Promise<DraftResult>;
   clearNext(): Promise<void>;
   stepBack(): Promise<void>;
   openDraft(): void;
@@ -1137,6 +1147,44 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
         const draft = get().draft;
         // 草稿里唯一的提示是「应用之后才能用」，离开时一起收掉。
         if (draft?.open) set({ draft: { ...draft, open: false }, toast: null });
+      },
+
+      async draftSample(sample) {
+        const { config, head } = get();
+        if (!config || !head) throw new Error('workspace not loaded');
+        let current = get().draft;
+        if (current && !current.open) current = rebaseDraft(current);
+        const base = current?.steps.at(-1)?.config ?? config;
+        const result = sampleOps(sample, base, locale);
+        if (!result.ok) return { kind: 'rejected', message: result.message, examples: [] };
+        const input = msg('sampleDraftInput', { name: sampleInfo(sample, locale).name });
+        const prepared = prepareOps(base, result.ops, { registry, locale, now: deps.now() });
+        if (!prepared.ok) {
+          await failedPlan(input, result.ops, `${prepared.stage}: ${prepared.issues.join('; ')}`);
+          return { kind: 'invalid', issues: prepared.issues };
+        }
+        const changeRequestId = await repo.createChangeRequest({
+          input,
+          plan: result.ops,
+          status: 'previewing',
+          baseRevisionId: head.id,
+        });
+        const step: DraftStep = {
+          input,
+          ops: result.ops,
+          lines: prepared.lines,
+          changeRequestId,
+          config: prepared.after,
+        };
+        const draft: Draft = {
+          steps: [...(current?.steps ?? []), step],
+          replies: current?.replies ?? [],
+          origin: { ...current?.origin, sample: { id: sample, pageId: result.mainPageId } },
+          open: true,
+        };
+        set({ draft, editing: null });
+        await saveDraft(draft);
+        return { kind: 'drafted', step, focusPageId: result.mainPageId };
       },
 
       async applyDraft() {
