@@ -39,7 +39,13 @@ export type EvalExpectation =
       plan?: (plan: OpsPlan) => string | null;
     }
   | { kind: 'restorePrevious' }
-  | { kind: 'reject'; reason?: RejectReason; message?: (message: string) => string | null };
+  | {
+      kind: 'reject';
+      reason?: RejectReason;
+      message?: (message: string) => string | null;
+      /** 检查给用户点的说法（D-256：模糊或矛盾的要求要给 2–3 个具体选项）。 */
+      examples?: (examples: readonly string[]) => string | null;
+    };
 
 export interface EvalCase {
   id: string;
@@ -3880,6 +3886,52 @@ const recentAsTable = (c: WorkspaceConfig): string | null => {
     : `only display should change, got ${JSON.stringify(kept)}`;
 };
 
+// 模糊或自相矛盾的要求先问清楚（D-256）：不改，回 2–3 句可以直接发送的具体说法。
+const twoOrThreeOptions = (examples: readonly string[]) =>
+  examples.length >= 2 && examples.length <= 3 && new Set(examples).size === examples.length
+    ? null
+    : `expected 2-3 different options, got ${JSON.stringify(examples)}`;
+const askFirst: EvalExpectation = {
+  kind: 'reject',
+  reason: 'unclear',
+  examples: twoOrThreeOptions,
+};
+
+const CLARIFY_CASES: readonly EvalCase[] = [
+  {
+    id: 'CL1',
+    input: '让它好看一点',
+    locale: 'zh',
+    setup: 'starter',
+    mock: false,
+    expect: askFirst,
+  },
+  {
+    id: 'CL2',
+    input: 'make it look nicer',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: askFirst,
+  },
+  {
+    id: 'CL3',
+    input: '按钮全改成红色，但整体保持蓝色主题',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: askFirst,
+  },
+  {
+    id: 'CL4',
+    input: 'Mets tous les boutons en rouge, mais garde le thème entièrement bleu',
+    locale: 'fr',
+    setup: 'default',
+    mock: false,
+    expect: askFirst,
+  },
+];
+
 const RECORD_TABLE_CASES: readonly EvalCase[] = [
   {
     id: 'RT1',
@@ -3935,6 +3987,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...DRAFT_CHAT_EVAL_CASES,
   ...MODULE_EVAL_CASES,
   ...RECORD_TABLE_CASES,
+  ...CLARIFY_CASES,
 ];
 
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };
@@ -4013,7 +4066,7 @@ export function judgeEval(
     if (c.expect.reason && plan.reason !== c.expect.reason) {
       return fail(`expected reject reason ${c.expect.reason}, got ${plan.reason}`);
     }
-    const messageProblem = c.expect.message?.(plan.message);
+    const messageProblem = c.expect.message?.(plan.message) ?? c.expect.examples?.(plan.examples);
     return messageProblem ? fail(messageProblem) : { pass: true };
   }
   if (plan.kind !== 'ops')

@@ -11,6 +11,8 @@ import type { Locale, WorkspaceConfig } from '../schema';
  * userData：请求涉及用户记录的内容（读、写、删、统计）。AI 只修改界面，从不接触记录。
  * errand：要 AI 替用户办事、而不是改 App（写邮件、回答问题、总结文件内容……，D-113、D-128）；
  * 说明里告诉用户可以做成什么快捷操作。
+ * unclear：要求太笼统（「好看一点」）或自相矛盾（「按钮全红，但整体保持蓝色」），先不改（D-256）；
+ * message 一句话问清楚或指出冲突，examples 是 2–3 句用户点一下就能发送的具体说法。不是「做不到」，不出需求按钮。
  * unavailable：AI 没能回答（连不上、出错、限额），由 App 自己生成，模型不会用它（D-189：这种拒绝不能当成需求发回来）。
  */
 export type RejectReason =
@@ -21,6 +23,7 @@ export type RejectReason =
   | 'notInstalled'
   | 'noChange'
   | 'errand'
+  | 'unclear'
   | 'unavailable';
 
 export const REJECT_REASONS = [
@@ -31,6 +34,7 @@ export const REJECT_REASONS = [
   'notInstalled',
   'noChange',
   'errand',
+  'unclear',
   'unavailable',
 ] as const satisfies readonly RejectReason[];
 

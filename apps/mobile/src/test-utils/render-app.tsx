@@ -5,6 +5,7 @@ import {
   createRegistry,
   createStarterWorkspace,
   homeFileEntryOps,
+  type AIProvider,
   type Locale,
   type Registry,
   type WorkspaceConfig,
@@ -91,6 +92,8 @@ export async function renderToolsApp(
     registry?: Registry;
     /** 系统语言；用户在「设置 → 语言」里的选择存在 repo 里（D-254）。 */
     locale?: Locale;
+    /** 代替 mock AI 回复（例如模型才会给的回复）。 */
+    provider?: AIProvider;
     /** 「设置 → AI」选了 Morph 服务器。 */
     aiServer?: boolean;
     toolDownloads?: ToolDownloads;
@@ -110,7 +113,7 @@ export async function renderToolsApp(
   if (options.aiServer) await aiSettings.getState().setMode('server');
   const store = createWorkspaceStore({
     repo,
-    provider: createMockAIProvider(),
+    provider: options.provider ?? createMockAIProvider(),
     registry,
     locale,
     now: () => new Date(2026, 9, 22, 9, 0),

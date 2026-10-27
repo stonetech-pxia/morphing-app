@@ -5,6 +5,7 @@ import {
   ICON_NAMES,
   OpSchema,
   PlanAboutSchema,
+  REJECT_REASONS,
   createDefaultWorkspace,
   createRegistry,
 } from '@morph/core';
@@ -62,6 +63,14 @@ describe('system prompt', () => {
     expect(prompt).toContain('translate.text');
     expect(prompt).toContain('Translating files is a job on files');
     expect(prompt).toContain('mailto');
+  });
+
+  it('lists every reject reason the model may use, and asks before guessing (D-256)', () => {
+    const prompt = buildSystemPrompt(registry);
+    for (const reason of REJECT_REASONS.filter((r) => r !== 'unavailable')) {
+      expect(prompt).toContain(`"${reason}"`);
+    }
+    expect(prompt).toMatch(/39\. Vague or contradictory requests/);
   });
 });
 
