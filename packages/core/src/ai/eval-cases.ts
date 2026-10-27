@@ -3770,6 +3770,37 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     },
   },
   {
+    id: 'FS1',
+    input: '首页放一个租房合同的入口，点一下就能打开合同',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const slots = c.pages.flatMap((p) => allComponents(p)).filter((x) => x.type === 'fileSlot');
+        if (slots.length === 0) return 'expected a fileSlot';
+        return slots.some((x) => x.props.assetId) ? 'the AI must not pick a file' : null;
+      },
+    },
+  },
+  {
+    id: 'FS2',
+    input: 'Add a spot on my home page for my boarding pass so I can open it quickly',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        home(c).components.some(
+          (x) => x.type === 'fileSlot' && !x.props.assetId && /board/i.test(x.props.title),
+        )
+          ? null
+          : 'expected an empty fileSlot on home titled after the boarding pass',
+    },
+  },
+  {
     id: 'LK1',
     input: '新建一张「客户」表（名字、电话），给记账表加一个字段，选这笔账是哪个客户的',
     locale: 'zh',

@@ -19,6 +19,7 @@ export function Tile({
   onPress,
   titleColor,
   look,
+  testID,
 }: {
   env: RenderEnv;
   style: ComponentStyle | undefined;
@@ -29,6 +30,7 @@ export function Tile({
   titleColor?: string;
   /** row = 像设置页的一行（浅色图标底、右边有箭头），tile = 大图标块（D-230）。 */
   look: EntryLook;
+  testID?: string;
 }) {
   const { palette } = env;
   const colors = cardColors(palette, style?.tone);
@@ -44,6 +46,7 @@ export function Tile({
       background={colors.background}
       onPress={env.interactive ? onPress : undefined}
       onLongPress={env.onLongPress}
+      testID={testID}
       style={styles.fill}>
       <View style={center ? styles.tileCenter : stacked ? styles.tileStacked : styles.tileRow}>
         <IconTile

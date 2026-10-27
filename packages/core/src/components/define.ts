@@ -86,6 +86,8 @@ export type StyleKey = 'tone' | 'align' | 'size';
 export interface ComponentEdit {
   text: EditableText[];
   style: StyleKey[];
+  /** 长按编辑里能选、换、移除的用户文件（props.assetId，D-257）：file = 照片或「文件」里的任意文件。 */
+  asset?: 'file';
 }
 
 /** 发给 AI 的说明（packages/planner/src/prompt.ts 读它，英文）。改了要跑受影响的评测。 */

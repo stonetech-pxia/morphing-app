@@ -6,6 +6,7 @@ import { chartComponent } from './chart';
 import { dividerComponent } from './divider';
 import { fileListComponent } from './fileList';
 import { filePickComponent } from './filePick';
+import { fileSlotComponent } from './fileSlot';
 import { headerComponent } from './header';
 import { imageComponent } from './image';
 import { noticeComponent } from './notice';
@@ -41,6 +42,7 @@ export const LEAF_COMPONENTS = [
   recordFormComponent,
   statComponent,
   chartComponent,
+  fileSlotComponent,
 ] as const;
 
 type Schemas<D extends readonly { schema: unknown }[]> = {

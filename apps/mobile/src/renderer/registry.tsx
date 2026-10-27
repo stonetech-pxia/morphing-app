@@ -27,6 +27,7 @@ import type { RenderEnv } from './components';
 import { RecordForm, RecordList, Stat } from './data';
 import { FileList } from './FileList';
 import { FilePick } from './FilePick';
+import { FileSlot } from './FileSlot';
 import { ImageView } from './ImageView';
 import { QuickActionList } from './QuickActionList';
 import { RichText } from './RichText';
@@ -181,6 +182,7 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
     <WorkflowRunner workflowId={c.props.workflowId} look={c.props.look} env={env} />
   ),
   quickActionList: (c, env) => <QuickActionList props={c.props} env={env} />,
+  fileSlot: (c, env) => <FileSlot component={c} env={env} />,
 };
 
 export function ComponentView({ component, env }: { component: Component; env: RenderEnv }) {

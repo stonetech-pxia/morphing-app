@@ -810,6 +810,39 @@ export const strings = {
     zh: '这张照片超过 {mb} MB。',
     fr: 'Cette photo dépasse {mb} Mo.',
   },
+  fileSlotPlaceholder: {
+    en: 'Tap to choose a file',
+    zh: '点按选择一个文件',
+    fr: 'Touchez pour choisir un fichier',
+  },
+  fileSlotMissing: {
+    en: 'This file is not on this device. Tap to choose another.',
+    zh: '这个文件不在这台设备上，点按换一个。',
+    fr: 'Ce fichier n’est pas sur cet appareil. Touchez pour en choisir un autre.',
+  },
+  fileSlotFromPhotos: { en: 'From Photos', zh: '从相册选', fr: 'Depuis Photos' },
+  fileSlotFromFiles: { en: 'From Files', zh: '从「文件」选', fr: 'Depuis Fichiers' },
+  fileSlotChoose: { en: 'Choose a file', zh: '选择文件', fr: 'Choisir un fichier' },
+  fileSlotReplace: { en: 'Replace file', zh: '更换文件', fr: 'Remplacer le fichier' },
+  fileSlotRemove: { en: 'Remove file', zh: '移除文件', fr: 'Retirer le fichier' },
+  fileSlotSection: { en: 'File', zh: '文件', fr: 'Fichier' },
+  setFileSummary: { en: 'Set a file', zh: '设置文件', fr: 'Définir un fichier' },
+  removeFileSummary: { en: 'Remove a file', zh: '移除文件', fr: 'Retirer un fichier' },
+  fileSlotTooLarge: {
+    en: 'This file is larger than {gb} GB.',
+    zh: '这个文件超过 {gb} GB。',
+    fr: 'Ce fichier dépasse {gb} Go.',
+  },
+  fileSlotNoSpace: {
+    en: 'Not enough free space on this phone to keep a copy of this file.',
+    zh: '手机剩余空间不够，存不下这个文件的副本。',
+    fr: 'Pas assez d’espace libre sur ce téléphone pour garder une copie de ce fichier.',
+  },
+  fileSlotCopyFailed: {
+    en: 'This file could not be copied into Morph.',
+    zh: '这个文件没能复制进 Morph。',
+    fr: 'Impossible de copier ce fichier dans Morph.',
+  },
   openLinkTitle: { en: 'Open link?', zh: '打开链接？', fr: 'Ouvrir le lien ?' },
   openLinkMessage: {
     en: 'This opens {target} outside the app.',
@@ -955,6 +988,11 @@ export const strings = {
   field_text: { en: 'Text', zh: '文字', fr: 'Texte' },
   field_label: { en: 'Button text', zh: '按钮文字', fr: 'Texte du bouton' },
   field_caption: { en: 'Caption', zh: '说明', fr: 'Légende' },
+  field_hint: {
+    en: 'Hint before a file is chosen',
+    zh: '未选文件时的提示',
+    fr: 'Indication avant le choix d’un fichier',
+  },
   field_placeholder: {
     en: 'Hint before a photo is chosen',
     zh: '未选照片时的提示',
@@ -1796,6 +1834,11 @@ export const extractedMessages = {
     zh: '快捷入口「{v0}」',
     fr: 'raccourci « {v0} »',
   },
+  describeFileSlot: {
+    en: 'file slot “{v0}”',
+    zh: '文件入口「{v0}」',
+    fr: 'emplacement de fichier « {v0} »',
+  },
   describe_notice_f50d5: {
     en: 'notice',
     zh: '提示框',
@@ -2051,6 +2094,8 @@ export const extractedMessages = {
     zh: '更换图片',
     fr: 'nouvelle image',
   },
+  describeNewFile: { en: 'new file', zh: '更换文件', fr: 'nouveau fichier' },
+  describeFileRemoved: { en: 'file removed', zh: '移除文件', fr: 'fichier retiré' },
   describe_picture_removed_4fb32: {
     en: 'picture removed',
     zh: '移除图片',

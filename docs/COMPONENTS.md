@@ -49,7 +49,7 @@ export const chartComponent: ComponentDefinitionOf<'chart', typeof props> = defi
 - **refs**：属性引用了配置里的什么，通用检查会查它：`collection`（数据表要存在）、`field`（这张表的字段要存在；`types` 限定字段类型，`role` 是问题文字里的名字）、`filter`（筛选条件）、`target`（页面或系统入口）、`tool`（`installed` 或 `catalog`）、`workflow`。引用了数据表的组件在提示词里列在「Data components」下，删除数据表时会被一起移出。
 - **check**：通用检查以外、只有这种组件才有的规则，返回问题文字。文字会发给 AI 让它改正：写清楚哪个属性、应该是什么。要看别的属性才知道该不该查的引用（例如 `group` 是 `choice` 时才要 `choiceField`）写在这里。
 - **describe**：修改说明里怎么称呼它（例如「图表“每月花费”」），文案进 `messages.ts`（第 3 步）。
-- **edit**：长按编辑能改的文字属性（`max` 必须和结构里的上限一样）和能调的外观（`tone`、`align`、`size`）。只列渲染器真的会显示的外观；数据组件一般只给 `tone`。
+- **edit**：长按编辑能改的文字属性（`max` 必须和结构里的上限一样）和能调的外观（`tone`、`align`、`size`）。只列渲染器真的会显示的外观；数据组件一般只给 `tone`。组件有用户选的文件（`assetId`）时写 `asset: 'file'`，长按编辑里就有「选择 / 更换 / 移除文件」（文件入口 `fileSlot`，D-257）。
 - **ai.doc**：提示词里组件列表的一行（类型名后面的部分，英文）：属性写法照着已有的行（`?` 表示可以不写，列出可选值和范围），冒号后面一句话说用法。**ai.rule**：需要单独教 AI 的用法写成一条规则，`n` 取现在最后一条规则的编号加 1。
 - **example**：一个能用的例子，测试拿它校验和渲染。只引用样例配置里有的：数据表 `expenses`（记账模版的 `amount`、`category`、`date`、`note`）、已添加的工具 `pdf`、快捷操作 `pdf-merge`。
 

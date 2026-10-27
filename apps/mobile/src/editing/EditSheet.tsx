@@ -23,9 +23,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { t, type StringKey } from '../i18n';
+import { chooseSlotFile } from '../renderer/FileSlot';
+import { importSlotFile } from '../renderer/slot-file';
 import type { Palette } from '../renderer/theme';
 import { Button, SectionLabel } from '../renderer/ui';
-import { useWorkspaceContext } from '../workspace/context';
+import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { useEditActions } from './actions';
 import { CAPABILITIES, type StyleKey, type TextField } from './capabilities';
 
@@ -189,7 +191,8 @@ export function EditSheet({
   palette: Palette;
   onClose: () => void;
 }) {
-  const { locale } = useWorkspaceContext();
+  const { locale, repo, files } = useWorkspaceContext();
+  const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const { edit, label } = useEditActions(page);
   const insets = useSafeAreaInsets();
   const [editingText, setEditingText] = useState(false);
@@ -237,6 +240,17 @@ export function EditSheet({
       },
     ]);
   }
+
+  /** 文件入口（D-257）：选的文件先复制进 App，配置里只写文件 ID。 */
+  async function chooseFile() {
+    const assetId = await chooseSlotFile(locale, label(id), (source) =>
+      importSlotFile(source, files, repo),
+    );
+    if (!assetId) return;
+    bumpAssets();
+    apply([{ op: 'setComponentProps', ...target, props: { assetId } }]);
+  }
+  const assetId = (known?.props as { assetId?: string | null } | undefined)?.assetId;
 
   const up = moveStepOp(page, id, 'up');
   const down = moveStepOp(page, id, 'down');
@@ -287,6 +301,31 @@ export function EditSheet({
                     label={t(locale, 'editText')}
                     onPress={() => setEditingText(true)}
                   />
+                ) : null}
+                {caps.asset === 'file' ? (
+                  <View style={styles.section}>
+                    <SectionLabel palette={palette}>{t(locale, 'fileSlotSection')}</SectionLabel>
+                    <View style={styles.chips}>
+                      <Chip
+                        palette={palette}
+                        testID="edit-file-choose"
+                        label={t(locale, assetId ? 'fileSlotReplace' : 'fileSlotChoose')}
+                        onPress={() => void chooseFile()}
+                      />
+                      {assetId ? (
+                        <Chip
+                          palette={palette}
+                          testID="edit-file-remove"
+                          label={t(locale, 'fileSlotRemove')}
+                          onPress={() =>
+                            apply([
+                              { op: 'setComponentProps', ...target, props: { assetId: null } },
+                            ])
+                          }
+                        />
+                      ) : null}
+                    </View>
+                  </View>
                 ) : null}
                 {caps.style.map((key) => (
                   <View key={key} style={styles.section}>

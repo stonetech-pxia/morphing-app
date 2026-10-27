@@ -220,8 +220,16 @@ export const expoFilePlatform: FilePlatform = {
   fileUri: (path) => fileAt(path).uri,
 
   async importFile(file, assetId, name) {
-    const dest = new File(assetDir(assetId), name);
-    await new File(file.uri).copy(dest);
+    const dir = assetDir(assetId);
+    const dest = new File(dir, name);
+    // 原生复制，边读边写，大文件也不进 JS 内存（文件入口 D-257 可能是几 GB 的视频）。
+    // 复制失败（空间不够、读不到）时不留下半个文件。
+    try {
+      await new File(file.uri).copy(dest);
+    } catch (e) {
+      if (dir.exists) dir.delete();
+      throw e;
+    }
     return { path: `${ROOT}/${assetId}/${name}`, size: dest.size };
   },
 

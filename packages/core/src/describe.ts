@@ -425,6 +425,7 @@ export function describeChange(
           fit: { zh: '填充方式', en: 'fit', fr: 'mode d’ajustement' },
           caption: { zh: '说明', en: 'caption', fr: 'légende' },
           placeholder: { zh: '提示', en: 'placeholder', fr: 'texte indicatif' },
+          hint: { zh: '提示', en: 'hint', fr: 'indication' },
           look: { zh: '样子', en: 'look', fr: 'apparence' },
           kind: { zh: '类别', en: 'category', fr: 'catégorie' },
         };
@@ -456,6 +457,8 @@ export function describeChange(
         const changes = Object.entries(op.props)
           .map(([k, v]) => {
             if (k === 'assetId') {
+              if (findComp(op.pageId, op.componentId)?.type === 'fileSlot')
+                return t(ctx.locale, v ? 'describeNewFile' : 'describeFileRemoved');
               return v
                 ? t(ctx.locale, 'describe_new_picture_bf924')
                 : t(ctx.locale, 'describe_picture_removed_4fb32');
