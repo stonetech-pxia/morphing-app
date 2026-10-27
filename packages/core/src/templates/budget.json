@@ -1,0 +1,219 @@
+{
+  "ids": {
+    "collection": "expenses",
+    "page": "budget"
+  },
+  "collection": {
+    "id": "$collection",
+    "name": {
+      "en": "Expenses",
+      "zh": "账目",
+      "fr": "Dépenses"
+    },
+    "icon": "chart",
+    "fields": [
+      {
+        "id": "amount",
+        "name": {
+          "en": "Amount",
+          "zh": "金额",
+          "fr": "Montant"
+        },
+        "type": "money",
+        "currency": {
+          "en": "USD",
+          "zh": "CNY",
+          "fr": "EUR"
+        },
+        "required": true
+      },
+      {
+        "id": "category",
+        "name": {
+          "en": "Category",
+          "zh": "分类",
+          "fr": "Catégorie"
+        },
+        "type": "choice",
+        "options": [
+          {
+            "id": "food",
+            "label": {
+              "en": "Food",
+              "zh": "餐饮",
+              "fr": "Restauration"
+            }
+          },
+          {
+            "id": "transport",
+            "label": {
+              "en": "Transport",
+              "zh": "交通",
+              "fr": "Transport"
+            }
+          },
+          {
+            "id": "shopping",
+            "label": {
+              "en": "Shopping",
+              "zh": "购物",
+              "fr": "Achats"
+            }
+          },
+          {
+            "id": "home",
+            "label": {
+              "en": "Home",
+              "zh": "居家",
+              "fr": "Maison"
+            }
+          },
+          {
+            "id": "fun",
+            "label": {
+              "en": "Fun",
+              "zh": "娱乐",
+              "fr": "Loisirs"
+            }
+          },
+          {
+            "id": "other",
+            "label": {
+              "en": "Other",
+              "zh": "其他",
+              "fr": "Autre"
+            }
+          }
+        ],
+        "default": "food"
+      },
+      {
+        "id": "date",
+        "name": {
+          "en": "Date",
+          "zh": "日期",
+          "fr": "Date"
+        },
+        "type": "date",
+        "default": "today"
+      },
+      {
+        "id": "note",
+        "name": {
+          "en": "Note",
+          "zh": "备注",
+          "fr": "Remarque"
+        },
+        "type": "text"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Budget",
+      "zh": "记账",
+      "fr": "Budget"
+    },
+    "icon": "chart",
+    "components": [
+      {
+        "id": "title",
+        "type": "header",
+        "props": {
+          "title": {
+            "en": "Budget",
+            "zh": "记账",
+            "fr": "Budget"
+          }
+        }
+      },
+      {
+        "id": "summary",
+        "type": "group",
+        "props": {
+          "layout": "row"
+        },
+        "children": [
+          {
+            "id": "month-total",
+            "type": "stat",
+            "props": {
+              "collectionId": "$collection",
+              "aggregate": "sum",
+              "fieldId": "amount",
+              "label": {
+                "en": "This month",
+                "zh": "本月支出",
+                "fr": "Ce mois-ci"
+              },
+              "filter": [
+                {
+                  "field": "date",
+                  "op": "inPeriod",
+                  "value": "thisMonth"
+                }
+              ]
+            }
+          },
+          {
+            "id": "month-count",
+            "type": "stat",
+            "props": {
+              "collectionId": "$collection",
+              "aggregate": "count",
+              "label": {
+                "en": "Entries",
+                "zh": "本月笔数",
+                "fr": "Saisies"
+              },
+              "filter": [
+                {
+                  "field": "date",
+                  "op": "inPeriod",
+                  "value": "thisMonth"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "id": "add",
+        "type": "recordForm",
+        "props": {
+          "collectionId": "$collection",
+          "fieldIds": ["amount", "category", "note"],
+          "submitLabel": {
+            "en": "Add",
+            "zh": "记一笔",
+            "fr": "Ajouter"
+          },
+          "mode": "inline"
+        }
+      },
+      {
+        "id": "recent",
+        "type": "recordList",
+        "props": {
+          "collectionId": "$collection",
+          "display": "list",
+          "titleField": "category",
+          "subtitleFields": ["note", "date"],
+          "trailingField": "amount",
+          "sort": {
+            "field": "date",
+            "direction": "desc"
+          },
+          "limit": 30,
+          "emptyText": {
+            "en": "Nothing yet",
+            "zh": "还没有记录",
+            "fr": "Rien pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

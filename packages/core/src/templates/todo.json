@@ -1,0 +1,123 @@
+{
+  "ids": {
+    "collection": "todos",
+    "page": "todo"
+  },
+  "collection": {
+    "id": "$collection",
+    "name": {
+      "en": "To-dos",
+      "zh": "待办",
+      "fr": "À faire"
+    },
+    "icon": "check",
+    "fields": [
+      {
+        "id": "title",
+        "name": {
+          "en": "Task",
+          "zh": "事项",
+          "fr": "Tâche"
+        },
+        "type": "text",
+        "required": true
+      },
+      {
+        "id": "done",
+        "name": {
+          "en": "Done",
+          "zh": "完成",
+          "fr": "Terminé"
+        },
+        "type": "checkbox"
+      },
+      {
+        "id": "due",
+        "name": {
+          "en": "Due",
+          "zh": "截止日期",
+          "fr": "Échéance"
+        },
+        "type": "date"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "To-do",
+      "zh": "待办",
+      "fr": "À faire"
+    },
+    "icon": "check",
+    "components": [
+      {
+        "id": "title",
+        "type": "header",
+        "props": {
+          "title": {
+            "en": "To-do",
+            "zh": "待办",
+            "fr": "À faire"
+          }
+        }
+      },
+      {
+        "id": "open-count",
+        "type": "stat",
+        "props": {
+          "collectionId": "$collection",
+          "aggregate": "count",
+          "label": {
+            "en": "Open",
+            "zh": "未完成",
+            "fr": "Non terminées"
+          },
+          "filter": [
+            {
+              "field": "done",
+              "op": "is",
+              "value": false
+            }
+          ]
+        }
+      },
+      {
+        "id": "add",
+        "type": "recordForm",
+        "props": {
+          "collectionId": "$collection",
+          "fieldIds": ["title"],
+          "submitLabel": {
+            "en": "Add",
+            "zh": "添加",
+            "fr": "Ajouter"
+          },
+          "mode": "inline"
+        }
+      },
+      {
+        "id": "tasks",
+        "type": "recordList",
+        "props": {
+          "collectionId": "$collection",
+          "display": "checklist",
+          "checkField": "done",
+          "titleField": "title",
+          "subtitleFields": ["due"],
+          "sort": {
+            "field": "createdAt",
+            "direction": "desc"
+          },
+          "limit": 50,
+          "emptyText": {
+            "en": "No tasks",
+            "zh": "没有待办事项",
+            "fr": "Aucune tâche"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

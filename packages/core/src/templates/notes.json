@@ -1,0 +1,93 @@
+{
+  "ids": {
+    "collection": "notes",
+    "page": "notes"
+  },
+  "collection": {
+    "id": "$collection",
+    "name": {
+      "en": "Notes",
+      "zh": "笔记",
+      "fr": "Notes"
+    },
+    "icon": "document",
+    "fields": [
+      {
+        "id": "title",
+        "name": {
+          "en": "Title",
+          "zh": "标题",
+          "fr": "Titre"
+        },
+        "type": "text",
+        "required": true
+      },
+      {
+        "id": "body",
+        "name": {
+          "en": "Text",
+          "zh": "正文",
+          "fr": "Texte"
+        },
+        "type": "note"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Notes",
+      "zh": "笔记",
+      "fr": "Notes"
+    },
+    "icon": "document",
+    "components": [
+      {
+        "id": "title",
+        "type": "header",
+        "props": {
+          "title": {
+            "en": "Notes",
+            "zh": "笔记",
+            "fr": "Notes"
+          }
+        }
+      },
+      {
+        "id": "add",
+        "type": "recordForm",
+        "props": {
+          "collectionId": "$collection",
+          "fieldIds": ["title", "body"],
+          "submitLabel": {
+            "en": "New note",
+            "zh": "写笔记",
+            "fr": "Nouvelle note"
+          },
+          "mode": "button"
+        }
+      },
+      {
+        "id": "notes",
+        "type": "recordList",
+        "props": {
+          "collectionId": "$collection",
+          "display": "cards",
+          "titleField": "title",
+          "subtitleFields": ["body"],
+          "sort": {
+            "field": "updatedAt",
+            "direction": "desc"
+          },
+          "limit": 50,
+          "emptyText": {
+            "en": "No notes yet",
+            "zh": "还没有笔记",
+            "fr": "Aucune note pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}
