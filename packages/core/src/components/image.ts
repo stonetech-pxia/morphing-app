@@ -24,4 +24,11 @@ export const imageComponent: ComponentDefinitionOf<'image', typeof props> = defi
     c.props.caption
       ? t(ctx.locale, 'describe_image_d5072', { v0: c.props.caption })
       : t(ctx.locale, 'describe_image_df755'),
+  edit: {
+    text: [
+      { prop: 'caption', max: 120, optional: true },
+      { prop: 'placeholder', max: 60, optional: true },
+    ],
+    style: ['align'],
+  },
 });

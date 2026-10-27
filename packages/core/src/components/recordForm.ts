@@ -32,4 +32,5 @@ export const recordFormComponent: ComponentDefinitionOf<'recordForm', typeof pro
     },
     describe: (c, config, ctx) =>
       t(ctx.locale, 'describe_form_f4ef1', { v0: collectionName(c.props.collectionId, config) }),
+    edit: { text: [], style: ['tone'] },
   });

@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { t } from '../messages';
 import { boundedText, IconValueSchema, NavTargetSchema } from '../schema-base';
-import { type ComponentDefinitionOf, defineComponent, EntryLookSchema } from './define';
+import { ALL_STYLES, type ComponentDefinitionOf, defineComponent, EntryLookSchema } from './define';
 
 const props = z.strictObject({
   title: boundedText(1, 40),
@@ -19,4 +19,11 @@ export const shortcutComponent: ComponentDefinitionOf<'shortcut', typeof props> 
   props,
   refs: { target: { to: 'target' } },
   describe: (c, _config, ctx) => t(ctx.locale, 'describe_shortcut_b2616', { v0: c.props.title }),
+  edit: {
+    text: [
+      { prop: 'title', max: 40 },
+      { prop: 'subtitle', max: 80, optional: true },
+    ],
+    style: ALL_STYLES,
+  },
 });

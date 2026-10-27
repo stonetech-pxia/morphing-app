@@ -29,13 +29,16 @@ export {
   componentRefs,
   type Component,
   type ComponentDefinition,
+  type ComponentEdit,
   type ComponentOf,
   type ComponentRef,
   type ComponentStyle,
   type ComponentType,
+  type EditableText,
   type EntryLook,
   type GroupComponent,
   type LeafComponent,
+  type StyleKey,
 } from './components';
 export type QuickActionListComponent = ComponentOf<'quickActionList'>;
 

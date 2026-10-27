@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { t } from '../messages';
 import { boundedText, IconValueSchema, richText } from '../schema-base';
-import { type ComponentDefinitionOf, defineComponent } from './define';
+import { ALL_STYLES, type ComponentDefinitionOf, defineComponent } from './define';
 
 const props = z.strictObject({
   title: boundedText(1, 60).optional(),
@@ -15,4 +15,11 @@ export const noticeComponent: ComponentDefinitionOf<'notice', typeof props> = de
   type: 'notice',
   props,
   describe: (_c, _config, ctx) => t(ctx.locale, 'describe_notice_f50d5'),
+  edit: {
+    text: [
+      { prop: 'title', max: 60, optional: true },
+      { prop: 'text', max: 600, multiline: true, rich: true },
+    ],
+    style: ALL_STYLES,
+  },
 });

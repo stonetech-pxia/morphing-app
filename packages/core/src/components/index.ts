@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import type { DescribeContext } from '../describe';
 import type { WorkspaceConfig } from '../schema';
-import type { CheckContext, CheckProblem, ComponentRef } from './define';
+import type { CheckContext, CheckProblem, ComponentEdit, ComponentRef } from './define';
 import { groupComponent } from './group';
 import { LEAF_COMPONENTS, LeafComponentSchema } from './leaves';
 
@@ -29,6 +29,7 @@ export interface ComponentDefinition {
   refs?: Readonly<Record<string, ComponentRef | undefined>>;
   check?(c: Component, ctx: CheckContext): CheckProblem[];
   describe(c: Component, config: WorkspaceConfig, ctx: DescribeContext): string;
+  edit: ComponentEdit;
 }
 
 const BY_TYPE = new Map<string, ComponentDefinition>(

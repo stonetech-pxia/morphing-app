@@ -15,4 +15,5 @@ export const fileListComponent: ComponentDefinitionOf<'fileList', typeof props> 
   type: 'fileList',
   props,
   describe: (c, _config, ctx) => t(ctx.locale, 'describe_file_list_a11dd', { v0: c.props.title }),
+  edit: { text: [{ prop: 'title', max: 60 }], style: [] },
 });

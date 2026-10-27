@@ -54,4 +54,5 @@ export const chartComponent: ComponentDefinitionOf<'chart', typeof props> = defi
     return problems;
   },
   describe: (c, _config, ctx) => t(ctx.locale, 'describeChart', { v0: c.props.title }),
+  edit: { text: [{ prop: 'title', max: 60 }], style: ['tone'] },
 });

@@ -35,4 +35,5 @@ export const statComponent: ComponentDefinitionOf<'stat', typeof props> = define
       : [];
   },
   describe: (c, _config, ctx) => t(ctx.locale, 'describe_stat_c1587', { v0: c.props.label }),
+  edit: { text: [], style: ['tone'] },
 });

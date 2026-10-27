@@ -21,4 +21,5 @@ export const buttonComponent: ComponentDefinitionOf<'button', typeof props> = de
       ? [{ code: 'schema', message: `icon button ${c.id} on page ${ctx.page.id} needs an icon` }]
       : [],
   describe: (c, _config, ctx) => t(ctx.locale, 'describe_button_d79ee', { v0: c.props.label }),
+  edit: { text: [{ prop: 'label', max: 40 }], style: ['align'] },
 });

@@ -13,4 +13,5 @@ export const filePickComponent: ComponentDefinitionOf<'filePick', typeof props> 
     c.props.source === 'media'
       ? t(ctx.locale, 'describe_Open_photo_library_47a7e')
       : t(ctx.locale, 'describe_Open_files_3477c'),
+  edit: { text: [], style: [] },
 });

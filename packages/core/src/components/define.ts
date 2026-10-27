@@ -66,6 +66,30 @@ export interface CheckContext {
   collection?: Collection;
 }
 
+/** 长按编辑（D-052）里能直接改的一个文字属性。 */
+export interface EditableText {
+  prop: string;
+  /** 与结构里的长度上限一致（components.test.ts 会检查）；超出时校验器也会拦截。 */
+  max: number;
+  optional?: boolean;
+  multiline?: boolean;
+  /** 支持粗体、斜体、链接和列表（richtext.ts）。 */
+  rich?: boolean;
+}
+
+export type StyleKey = 'tone' | 'align' | 'size';
+
+/**
+ * 长按编辑里能改什么（D-052）。只列渲染器真正会显示出来的外观；
+ * 数据组件不能改文字（只调整位置、颜色、隐藏和删除）。
+ */
+export interface ComponentEdit {
+  text: EditableText[];
+  style: StyleKey[];
+}
+
+export const ALL_STYLES: StyleKey[] = ['tone', 'align', 'size'];
+
 /** 组件自己的检查发现的问题。只写文字时是数据问题（code data，前面加组件 ID）。 */
 export type CheckProblem = string | { code: string; message: string };
 
@@ -90,6 +114,7 @@ export interface ComponentSpec<T extends string, P extends z.ZodObject, E extend
   check?: (c: Instance<T, P, E>, ctx: CheckContext) => CheckProblem[];
   /** 修改说明里怎么称呼这个组件（例如「标题“记账”」）。 */
   describe: (c: Instance<T, P, E>, config: WorkspaceConfig, ctx: DescribeContext) => string;
+  edit: ComponentEdit;
 }
 
 /**

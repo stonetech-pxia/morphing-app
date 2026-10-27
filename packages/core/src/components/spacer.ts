@@ -9,4 +9,5 @@ export const spacerComponent: ComponentDefinitionOf<'spacer', typeof props> = de
   type: 'spacer',
   props,
   describe: (_c, _config, ctx) => t(ctx.locale, 'describe_spacer_9a646'),
+  edit: { text: [], style: [] },
 });

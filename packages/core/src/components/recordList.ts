@@ -58,4 +58,5 @@ export const recordListComponent: ComponentDefinitionOf<'recordList', typeof pro
     },
     describe: (c, config, ctx) =>
       t(ctx.locale, 'describe_list_0b528', { v0: collectionName(c.props.collectionId, config) }),
+    edit: { text: [], style: ['tone'] },
   });

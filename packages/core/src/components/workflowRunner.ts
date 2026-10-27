@@ -19,4 +19,5 @@ export const workflowRunnerComponent: ComponentDefinitionOf<'workflowRunner', ty
       const wf = config.workflows.find((w) => w.id === c.props.workflowId);
       return t(ctx.locale, 'describe_quick_action_1fb38', { v0: wf?.name ?? c.props.workflowId });
     },
+    edit: { text: [], style: [] },
   });

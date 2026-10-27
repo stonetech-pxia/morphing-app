@@ -26,4 +26,5 @@ export const quickActionListComponent: ComponentDefinitionOf<'quickActionList', 
             v0: localize(QUICK_ACTION_CATEGORIES[c.props.kind].name, ctx.locale) ?? c.props.kind,
           })
         : t(ctx.locale, 'describe_quick_action_list'),
+    edit: { text: [{ prop: 'title', max: 60, optional: true }], style: [] },
   });

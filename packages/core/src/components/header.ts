@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { t } from '../messages';
 import { boundedText } from '../schema-base';
-import { type ComponentDefinitionOf, defineComponent } from './define';
+import { ALL_STYLES, type ComponentDefinitionOf, defineComponent } from './define';
 
 const props = z.strictObject({
   title: boundedText(1, 60),
@@ -13,4 +13,11 @@ export const headerComponent: ComponentDefinitionOf<'header', typeof props> = de
   type: 'header',
   props,
   describe: (c, _config, ctx) => t(ctx.locale, 'describe_header_455aa', { v0: c.props.title }),
+  edit: {
+    text: [
+      { prop: 'title', max: 60 },
+      { prop: 'subtitle', max: 120, optional: true },
+    ],
+    style: ALL_STYLES,
+  },
 });

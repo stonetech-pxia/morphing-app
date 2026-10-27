@@ -30,4 +30,5 @@ export const groupComponent: ComponentDefinitionOf<'group', typeof props, typeof
       const name = c.props.title ? t(ctx.locale, 'describe__5caf2', { v0: c.props.title }) : '';
       return t(ctx.locale, 'describe_group_86cab', { v0: layout, v1: name });
     },
+    edit: { text: [{ prop: 'title', max: 60, optional: true }], style: ['tone', 'align'] },
   });

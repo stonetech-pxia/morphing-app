@@ -26,4 +26,5 @@ export const toolGridComponent: ComponentDefinitionOf<'toolGrid', typeof props> 
     c.props.title
       ? t(ctx.locale, 'describe_tool_grid_e987a', { v0: c.props.title })
       : t(ctx.locale, 'describe_tool_grid_1c74f'),
+  edit: { text: [{ prop: 'title', max: 60, optional: true }], style: ['align'] },
 });
