@@ -12,6 +12,7 @@ export * from './arrange';
 export * from './change';
 export * from './chart';
 export * from './data';
+export * from './asset-usage';
 export * from './defaults';
 export * from './file-filter';
 export * from './grouping';

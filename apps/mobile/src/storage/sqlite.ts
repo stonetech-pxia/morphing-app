@@ -296,6 +296,18 @@ export class SQLiteWorkspaceRepo implements WorkspaceRepo {
     return rows.map(toAsset);
   }
 
+  async deleteAsset(id: string) {
+    // 授权引用了 assets（外键），先删授权。
+    await this.db.withExclusiveTransactionAsync(async (txn) => {
+      await txn.runAsync('DELETE FROM asset_grants WHERE asset_id = ?', id);
+      await txn.runAsync(
+        'UPDATE tool_runs SET output_asset_id = NULL WHERE output_asset_id = ?',
+        id,
+      );
+      await txn.runAsync('DELETE FROM assets WHERE id = ?', id);
+    });
+  }
+
   async grantAsset(toolId: string, assetId: string) {
     await this.db.runAsync(
       'INSERT OR IGNORE INTO asset_grants (tool_id, asset_id, created_at) VALUES (?, ?, ?)',

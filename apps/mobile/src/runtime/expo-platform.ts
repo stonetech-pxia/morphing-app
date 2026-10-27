@@ -235,6 +235,14 @@ export const expoFilePlatform: FilePlatform = {
     return { path: `${ROOT}/${assetId}/${name}`, size: dest.size };
   },
 
+  async removeAssetFile(path) {
+    // 只删 assets/<id>/ 这一层目录：用户文件都放在自己的目录里（importFile、writeBytes、saveRunFile）。
+    const [root, id] = path.split('/');
+    if (root !== ROOT || !id || id === '.' || id === '..') return;
+    const dir = new Directory(Paths.document, ROOT, id);
+    if (dir.exists) dir.delete();
+  },
+
   readBytes: (path) => fileAt(path).bytes(),
 
   async writeBytes(assetId, name, bytes) {

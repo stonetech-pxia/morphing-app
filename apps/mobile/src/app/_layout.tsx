@@ -145,6 +145,7 @@ function ThemedStack() {
         <Stack.Screen name="page/[pageId]" />
         <Stack.Screen name="ai-settings" options={{ title: t(locale, 'aiSettingsTitle') }} />
         <Stack.Screen name="data" options={{ title: t(locale, 'dataTitle') }} />
+        <Stack.Screen name="storage" options={{ title: t(locale, 'storageTitle') }} />
         <Stack.Screen name="packs" options={{ title: t(locale, 'packsTitle') }} />
         <Stack.Screen name="reminders" options={{ title: t(locale, 'remindersTitle') }} />
         <Stack.Screen name="reminder/[workflowId]" options={{ ...closable, title: '' }} />

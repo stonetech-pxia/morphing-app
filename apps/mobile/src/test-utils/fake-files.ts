@@ -227,6 +227,12 @@ export class FakeFiles implements FilePlatform {
     this.disk.set(path, bytes);
     return { path, size: bytes.length };
   }
+  async removeAssetFile(path: string) {
+    const [root, id] = path.split('/');
+    if (root !== 'assets' || !id) return;
+    for (const key of [...this.disk.keys()])
+      if (key.startsWith(`assets/${id}/`)) this.disk.delete(key);
+  }
   async readBytes(path: string) {
     // 真机上 readBytes 读的是「文档」目录里的相对路径；运行目录在缓存里、要用 readUri 读。
     if (path.startsWith('runs/') || path.includes(':'))

@@ -48,7 +48,10 @@ export interface CommitInput {
   summary: string;
 }
 
-/** 用户文件（§6 UserAsset）：归属工作空间，不随版本恢复，回滚和卸载工具都不会删除。 */
+/**
+ * 用户文件（§6 UserAsset）：归属工作空间，不随版本恢复，回滚和卸载工具都不会删除；
+ * 只有用户在「设置 → 存储空间」里删除（D-264）。
+ */
 export interface AssetRecord {
   id: string;
   name: string;
@@ -108,6 +111,11 @@ export interface WorkspaceRepo {
   getAsset(id: string): Promise<AssetRecord | null>;
   /** 最新的在前。 */
   listAssets(): Promise<AssetRecord[]>;
+  /**
+   * 永久删除一个用户文件的记录和它的授权（「设置 → 存储空间」，D-264）；运行记录里指向它的结果清空。
+   * 磁盘上的文件由 FilePlatform.removeAssetFile 删（storage/user-files.ts 的 deleteUserFiles 两步一起做）。
+   */
+  deleteAsset(id: string): Promise<void>;
 
   /** AssetGrant（§7G）：工具只能读取授权给它的文件。 */
   grantAsset(toolId: string, assetId: string): Promise<void>;

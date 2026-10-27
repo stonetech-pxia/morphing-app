@@ -26,6 +26,7 @@ import RecordRoute from '../app/record/[collectionId]';
 import ReminderRoute from '../app/reminder/[workflowId]';
 import RunRoute from '../app/run/[workflowId]';
 import ShareRoute from '../app/share';
+import StorageRoute from '../app/storage';
 import WelcomeRoute from '../app/welcome';
 import WorkflowRoute from '../app/workflow/[id]';
 import WorkflowsRoute from '../app/workflows';
@@ -127,6 +128,7 @@ export async function renderToolsApp(
     'quick-actions/[kind]': QuickActionCategoryRoute,
     'workflow/[id]': WorkflowRoute,
     share: ShareRoute,
+    storage: StorageRoute,
     'ready/[workflowId]': ReadyRoute,
     'record/[collectionId]': RecordRoute,
     welcome: WelcomeRoute,

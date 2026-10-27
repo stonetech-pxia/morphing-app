@@ -902,6 +902,95 @@ export const strings = {
     fr: 'Ce tableau de données ne fait plus partie de l’application. Ses entrées sont conservées dans Paramètres → Données.',
   },
   dataTitle: { en: 'Data', zh: '数据', fr: 'Données' },
+  storageTitle: { en: 'Storage', zh: '存储空间', fr: 'Stockage' },
+  storageRowHint: {
+    en: 'Photos and files Morph keeps, and where they are used',
+    zh: 'Morph 保存的照片和文件，用在哪里',
+    fr: 'Photos et fichiers conservés par Morph, et où ils servent',
+  },
+  storageSummary: {
+    en: '{n} files · {size}',
+    zh: '{n} 个文件 · {size}',
+    fr: '{n} fichiers · {size}',
+  },
+  storageEmpty: {
+    en: 'Morph has no saved files yet. Photos and files you add to entries, file slots and pictures are kept here.',
+    zh: 'Morph 里还没有保存的文件。记录里的照片和文件、文件入口和图片用到的文件都存在这里。',
+    fr: 'Morph n’a encore aucun fichier enregistré. Les photos et fichiers ajoutés aux entrées, aux emplacements de fichier et aux images sont conservés ici.',
+  },
+  storageIntro: {
+    en: 'Files Morph keeps on this phone and where they are used. Only you see this page.',
+    zh: 'Morph 存在这台手机上的文件，以及它们用在哪里。这一页只有你能看到。',
+    fr: 'Les fichiers que Morph garde sur ce téléphone et où ils sont utilisés. Vous seul voyez cette page.',
+  },
+  storageCleanup: {
+    en: 'Clean up {n} unused files ({size})',
+    zh: '清理 {n} 个没有在用的文件（{size}）',
+    fr: 'Nettoyer {n} fichiers inutilisés ({size})',
+  },
+  storageCleanupTitle: {
+    en: 'Delete {n} unused files?',
+    zh: '删除 {n} 个没有在用的文件？',
+    fr: 'Supprimer {n} fichiers inutilisés ?',
+  },
+  storageCleanupMessage: {
+    en: 'They take {size}. No entry, page or component uses them now. Files used only by older versions are deleted too, so restoring those versions will not bring them back. Results saved by quick actions are not included. This can’t be undone.',
+    zh: '共 {size}。现在没有任何记录、页面或组件用到它们。只在旧版本里用到的也会删掉，恢复那些旧版本时找不回。快捷操作存的结果不在其中。删除后不能撤销。',
+    fr: 'Ils occupent {size}. Aucune entrée, page ni composant ne les utilise. Les fichiers utilisés seulement par d’anciennes versions sont aussi supprimés : restaurer ces versions ne les fera pas revenir. Les résultats enregistrés par les actions rapides ne sont pas concernés. Action irréversible.',
+  },
+  storageUsedInRecord: {
+    en: '{table} · {title}',
+    zh: '{table} · {title}',
+    fr: '{table} · {title}',
+  },
+  storageUsedInDeletedRecord: {
+    en: '{table} · {title} (recently deleted)',
+    zh: '{table} · {title}（最近删除）',
+    fr: '{table} · {title} (supprimée récemment)',
+  },
+  storageUsedInComponent: {
+    en: '{page} · {component}',
+    zh: '{page} · {component}',
+    fr: '{page} · {component}',
+  },
+  storageUsedAsBackdrop: {
+    en: '{page} · picture background',
+    zh: '{page} · 图片背景',
+    fr: '{page} · image de fond',
+  },
+  storageTableGone: { en: 'Removed table', zh: '已移除的数据表', fr: 'Tableau retiré' },
+  storageOldVersionsOnly: {
+    en: 'Used only by older versions',
+    zh: '只在旧版本里用到',
+    fr: 'Utilisé seulement par d’anciennes versions',
+  },
+  storageUnused: { en: 'Not used anywhere now', zh: '现在没有地方在用', fr: 'Utilisé nulle part' },
+  storageQuickActionResult: {
+    en: 'Saved by a quick action',
+    zh: '快捷操作存的结果',
+    fr: 'Enregistré par une action rapide',
+  },
+  storageKindImage: { en: 'Photo', zh: '图片', fr: 'Photo' },
+  storageKindVideo: { en: 'Video', zh: '视频', fr: 'Vidéo' },
+  storageKindAudio: { en: 'Audio', zh: '音频', fr: 'Audio' },
+  storageKindPdf: { en: 'PDF', zh: 'PDF', fr: 'PDF' },
+  storageKindOther: { en: 'File', zh: '文件', fr: 'Fichier' },
+  storagePreview: { en: 'Preview', zh: '预览', fr: 'Aperçu' },
+  storageDeleteTitle: {
+    en: 'Delete “{name}”?',
+    zh: '删除「{name}」？',
+    fr: 'Supprimer « {name} » ?',
+  },
+  storageDeleteUsed: {
+    en: 'It is used in {n} places. They will show that the file is gone, and restoring an older version will not bring it back. This can’t be undone.',
+    zh: '有 {n} 个地方用到它，删除后那里会显示文件已不在，恢复旧版本也找不回。删除后不能撤销。',
+    fr: 'Il est utilisé à {n} endroits. Ils indiqueront que le fichier n’existe plus, et restaurer une ancienne version ne le fera pas revenir. Action irréversible.',
+  },
+  storageDeleteUnused: {
+    en: 'Restoring an older version will not bring it back. This can’t be undone.',
+    zh: '恢复旧版本也找不回。删除后不能撤销。',
+    fr: 'Restaurer une ancienne version ne le fera pas revenir. Action irréversible.',
+  },
   dataRowHint: {
     en: 'Your entries: export, recently deleted',
     zh: '你记录的数据：导出、最近删除',
@@ -3395,6 +3484,31 @@ export const MESSAGES = { ...strings, ...extractedMessages, ...dynamicMessages }
 export type StringKey = keyof typeof MESSAGES;
 
 const SINGULAR_MESSAGES: Partial<Record<StringKey, Localized>> = {
+  storageSummary: {
+    en: '{n} file · {size}',
+    zh: '{n} 个文件 · {size}',
+    fr: '{n} fichier · {size}',
+  },
+  storageCleanup: {
+    en: 'Clean up {n} unused file ({size})',
+    zh: '清理 {n} 个没有在用的文件（{size}）',
+    fr: 'Nettoyer {n} fichier inutilisé ({size})',
+  },
+  storageCleanupTitle: {
+    en: 'Delete {n} unused file?',
+    zh: '删除 {n} 个没有在用的文件？',
+    fr: 'Supprimer {n} fichier inutilisé ?',
+  },
+  storageCleanupMessage: {
+    en: 'It takes {size}. No entry, page or component uses it now. A file used only by older versions is deleted too, so restoring those versions will not bring it back. Results saved by quick actions are not included. This can’t be undone.',
+    zh: '共 {size}。现在没有任何记录、页面或组件用到它。只在旧版本里用到的也会删掉，恢复那些旧版本时找不回。快捷操作存的结果不在其中。删除后不能撤销。',
+    fr: 'Il occupe {size}. Aucune entrée, page ni composant ne l’utilise. Un fichier utilisé seulement par d’anciennes versions est aussi supprimé : restaurer ces versions ne le fera pas revenir. Les résultats enregistrés par les actions rapides ne sont pas concernés. Action irréversible.',
+  },
+  storageDeleteUsed: {
+    en: 'It is used in {n} place. It will show that the file is gone, and restoring an older version will not bring it back. This can’t be undone.',
+    zh: '有 {n} 个地方用到它，删除后那里会显示文件已不在，恢复旧版本也找不回。删除后不能撤销。',
+    fr: 'Il est utilisé à {n} endroit. Celui-ci indiquera que le fichier n’existe plus, et restaurer une ancienne version ne le fera pas revenir. Action irréversible.',
+  },
   attachmentsFull: {
     en: 'At most {n} file',
     zh: '最多 {n} 个文件',

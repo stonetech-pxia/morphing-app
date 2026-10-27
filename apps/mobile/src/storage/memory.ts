@@ -127,6 +127,12 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
     return [...this.assets].reverse();
   }
 
+  async deleteAsset(id: string) {
+    this.assets = this.assets.filter((a) => a.id !== id);
+    for (const key of [...this.grants]) if (key.endsWith(`/${id}`)) this.grants.delete(key);
+    for (const run of this.toolRuns) if (run.outputAssetId === id) run.outputAssetId = null;
+  }
+
   async grantAsset(toolId: string, assetId: string) {
     this.grants.add(`${toolId}/${assetId}`);
   }

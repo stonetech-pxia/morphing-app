@@ -467,6 +467,11 @@ export interface FilePlatform {
     assetId: string,
     name: string,
   ): Promise<{ path: string; size: number }>;
+  /**
+   * 删掉一个用户文件在磁盘上的目录 assets/<id>/（「设置 → 存储空间」，D-264）。path 不在 assets/ 下时什么都不做；
+   * 已经不在了也不算错。
+   */
+  removeAssetFile(path: string): Promise<void>;
   readBytes(path: string): Promise<Uint8Array>;
   writeBytes(
     assetId: string,
