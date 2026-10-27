@@ -36,7 +36,6 @@ export const fileField: FieldDefinitionOf<'file', typeof schema> = defineField({
     return { value: ids };
   },
   format: (_f, v, locale) => t(locale, 'data_attachments', { n: Array.isArray(v) ? v.length : 1 }),
-  inForm: false,
   // is / isNot：有没有这个文件。
   filter: { is: isText },
   // 按文件个数排。

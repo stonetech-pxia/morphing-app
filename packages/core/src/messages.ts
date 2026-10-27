@@ -1590,6 +1590,19 @@ export const strings = {
     fr: 'Le fichier a été supprimé',
   },
   removeAttachment: { en: 'Remove', zh: '去掉', fr: 'Retirer' },
+  attachmentAdd: {
+    en: 'Add photos or files',
+    zh: '添加照片或文件',
+    fr: 'Ajouter des photos ou des fichiers',
+  },
+  attachmentTakePhoto: { en: 'Take a photo', zh: '拍照', fr: 'Prendre une photo' },
+  attachmentMoveUp: { en: 'Move up', zh: '上移', fr: 'Monter' },
+  attachmentMoveDown: { en: 'Move down', zh: '下移', fr: 'Descendre' },
+  attachmentsFull: {
+    en: 'At most {n} files',
+    zh: '最多 {n} 个文件',
+    fr: '{n} fichiers au maximum',
+  },
   runError_documentUnsupported: {
     en: '“{name}” is a {format} file. On this phone only Word documents (.docx) can be turned into PDFs.',
     zh: '「{name}」是 {format} 文件。这台手机上只能把 Word 文档（.docx）转成 PDF。',
@@ -3382,6 +3395,11 @@ export const MESSAGES = { ...strings, ...extractedMessages, ...dynamicMessages }
 export type StringKey = keyof typeof MESSAGES;
 
 const SINGULAR_MESSAGES: Partial<Record<StringKey, Localized>> = {
+  attachmentsFull: {
+    en: 'At most {n} file',
+    zh: '最多 {n} 个文件',
+    fr: '{n} fichier au maximum',
+  },
   data_attachments: {
     en: '{n} attachment',
     zh: '{n} 个附件',

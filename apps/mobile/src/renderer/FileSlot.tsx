@@ -23,10 +23,10 @@ const IMPORT_ERRORS: Record<Exclude<SlotImport['kind'], 'saved' | 'cancelled'>, 
 export function chooseSlotFile(
   locale: RenderEnv['locale'],
   title: string,
-  pick: (source: SlotSource) => Promise<SlotImport>,
+  pick: (source: Exclude<SlotSource, 'camera'>) => Promise<SlotImport>,
 ): Promise<string | null> {
   return new Promise((resolve) => {
-    const run = async (source: SlotSource) => {
+    const run = async (source: Exclude<SlotSource, 'camera'>) => {
       const result = await pick(source).catch((): SlotImport => ({ kind: 'copyFailed' }));
       if (result.kind === 'saved') return resolve(result.assetId);
       if (result.kind !== 'cancelled')

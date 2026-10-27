@@ -1,20 +1,21 @@
+import { MAX_ATTACHMENTS, MEDIA_LIMITS, RunError, attachmentIds } from '@morph/core';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { t } from '../i18n';
+import { runErrorText, t, type StringKey } from '../i18n';
 import type { AssetRecord } from '../storage/types';
-import { useWorkspaceContext } from '../workspace/context';
+import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
+import {
+  importUserFiles,
+  type FilesImport,
+  type ImportProblem,
+  type SlotSource,
+} from './slot-file';
 import type { Palette } from './theme';
 
 // 附件字段（D-187、D-263）：值是一组 Morph 的文件 ID。文件名只在本机显示，不进配置，也不发给 AI。
-
-/** 表单里的值 → 文件 ID 列表（旧数据里的单个 ID 当成一组）。 */
-export function attachmentIds(value: unknown): string[] {
-  if (typeof value === 'string') return value ? [value] : [];
-  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
-}
 
 /** 读一组用户文件。还没读到的是 undefined，不在这台设备上的（已删除）是 null。 */
 export function useAssets(ids: readonly string[]): Map<string, AssetRecord | null> {
@@ -38,8 +39,61 @@ export function useAssets(ids: readonly string[]): Map<string, AssetRecord | nul
   return loaded.key === key ? loaded.assets : new Map();
 }
 
-/** 附件字段的输入：列出每个文件，点一下打开分享面板（用别的 App 看），可以去掉。 */
+const IMPORT_PROBLEMS: Record<ImportProblem, StringKey> = {
+  tooLarge: 'fileSlotTooLarge',
+  noSpace: 'fileSlotNoSpace',
+  copyFailed: 'fileSlotCopyFailed',
+};
+
+/**
+ * 问从哪里选（拍照、相册、「文件」），选好的（最多 max 个，由 pick 限制）复制进 App（和文件入口一样，slot-file.ts）。
+ * 返回存好的文件 ID；取消时为空。出了问题会提示，已经存好的照样返回。
+ */
+export function chooseAttachments(
+  locale: RenderEnv['locale'],
+  title: string,
+  pick: (source: SlotSource) => Promise<FilesImport>,
+): Promise<string[]> {
+  return new Promise((resolve) => {
+    const run = async (source: SlotSource) => {
+      let result: FilesImport;
+      try {
+        result = await pick(source);
+      } catch (e) {
+        // 没有相机、没给权限。
+        Alert.alert(
+          title,
+          e instanceof RunError
+            ? runErrorText(locale, e.code, e.detail)
+            : t(locale, 'fileSlotCopyFailed'),
+        );
+        return resolve([]);
+      }
+      if (result.kind === 'cancelled') return resolve([]);
+      if (result.problem)
+        Alert.alert(
+          title,
+          t(locale, IMPORT_PROBLEMS[result.problem], {
+            gb: MEDIA_LIMITS.maxFileBytes / 1024 / 1024 / 1024,
+          }),
+        );
+      resolve(result.assetIds);
+    };
+    Alert.alert(title, undefined, [
+      { text: t(locale, 'attachmentTakePhoto'), onPress: () => void run('camera') },
+      { text: t(locale, 'fileSlotFromPhotos'), onPress: () => void run('photos') },
+      { text: t(locale, 'fileSlotFromFiles'), onPress: () => void run('files') },
+      { text: t(locale, 'cancel'), style: 'cancel', onPress: () => resolve([]) },
+    ]);
+  });
+}
+
+/**
+ * 附件字段的输入（D-263）：列出每个文件，可以添加（拍照、相册、「文件」）、调整顺序、去掉。
+ * 点文件名打开分享面板（用别的 App 看）。去掉只是不再放在这条记录里，文件本身还在「存储空间」里。
+ */
 export function AttachmentsInput({
+  field,
   value,
   onChange,
   palette,
@@ -47,6 +101,7 @@ export function AttachmentsInput({
   disabled,
   testID,
 }: {
+  field: { name: string };
   value: unknown;
   onChange: (value: unknown) => void;
   palette: Palette;
@@ -54,18 +109,43 @@ export function AttachmentsInput({
   disabled?: boolean | undefined;
   testID: string;
 }) {
-  const { files } = useWorkspaceContext();
+  const { files, repo } = useWorkspaceContext();
+  const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const ids = attachmentIds(value);
   const assets = useAssets(ids);
-  if (ids.length === 0) {
-    return (
-      <Text style={[palette.font('body', 14), { color: palette.caption }]}>
-        {t(locale, 'noAttachment')}
-      </Text>
+  const room = MAX_ATTACHMENTS - ids.length;
+
+  async function add() {
+    const added = await chooseAttachments(locale, field.name, (source) =>
+      importUserFiles(source, room, files, repo),
     );
+    if (added.length === 0) return;
+    bumpAssets();
+    onChange([...ids, ...added].slice(0, MAX_ATTACHMENTS));
   }
+
+  const move = (from: number, to: number) => {
+    const next = [...ids];
+    const [id] = next.splice(from, 1);
+    next.splice(to, 0, id!);
+    onChange(next);
+  };
+  const action = (label: StringKey, id: string, onPress: () => void, show = true) =>
+    show ? (
+      <Pressable testID={id} disabled={disabled} hitSlop={8} onPress={onPress}>
+        <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
+          {t(locale, label)}
+        </Text>
+      </Pressable>
+    ) : null;
+
   return (
     <View style={styles.list}>
+      {ids.length === 0 ? (
+        <Text style={[palette.font('body', 14), { color: palette.caption }]}>
+          {t(locale, 'noAttachment')}
+        </Text>
+      ) : null}
       {ids.map((id, i) => {
         const asset = assets.get(id);
         return (
@@ -82,18 +162,35 @@ export function AttachmentsInput({
                 {asset ? asset.name : asset === null ? t(locale, 'attachmentMissing') : ''}
               </Text>
             </Pressable>
-            <Pressable
-              testID={`${testID}-remove-${i}`}
-              disabled={disabled}
-              hitSlop={8}
-              onPress={() => onChange(ids.filter((x) => x !== id))}>
-              <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
-                {t(locale, 'removeAttachment')}
-              </Text>
-            </Pressable>
+            {action('attachmentMoveUp', `${testID}-up-${i}`, () => move(i, i - 1), i > 0)}
+            {action(
+              'attachmentMoveDown',
+              `${testID}-down-${i}`,
+              () => move(i, i + 1),
+              i < ids.length - 1,
+            )}
+            {action('removeAttachment', `${testID}-remove-${i}`, () =>
+              onChange(ids.filter((x) => x !== id)),
+            )}
           </View>
         );
       })}
+      {room > 0 ? (
+        <Pressable
+          testID={`${testID}-add`}
+          disabled={disabled}
+          onPress={() => void add()}
+          style={styles.row}>
+          <Icon name="plus" size={18} color={palette.primaryText} />
+          <Text style={[palette.font('bodyBold', 14), { color: palette.primaryText }]}>
+            {t(locale, 'attachmentAdd')}
+          </Text>
+        </Pressable>
+      ) : (
+        <Text style={[palette.font('body', 13), { color: palette.caption }]}>
+          {t(locale, 'attachmentsFull', { n: MAX_ATTACHMENTS })}
+        </Text>
+      )}
     </View>
   );
 }

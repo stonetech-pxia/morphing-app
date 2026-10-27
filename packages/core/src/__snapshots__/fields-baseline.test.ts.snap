@@ -14168,7 +14168,6 @@ exports[`field baseline > validates filters, sorts, formulas and field reference
     [],
     [
       "stat: sum needs fieldId set to a number, money, rating or formula field",
-      "form: form field f is a file field and cannot be filled in a form",
     ],
     [
       "list: can't sort by the link field l",

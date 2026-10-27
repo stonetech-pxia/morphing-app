@@ -189,10 +189,6 @@ exports[`component issues > lists every reference problem in a stable order and 
   },
   {
     "code": "data",
-    "message": "f1: form field receipt is a file field and cannot be filled in a form",
-  },
-  {
-    "code": "data",
     "message": "f1: form field x5 does not exist",
   },
   {

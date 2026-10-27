@@ -33,6 +33,12 @@ export const FILE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 /** 一个附件字段最多放几个文件（D-263）。 */
 export const MAX_ATTACHMENTS = 20;
 
+/** 附件字段的值（或表单里的值）→ 文件 ID 列表：旧数据里的单个 ID 当成一组，别的值当成空。 */
+export function attachmentIds(value: unknown): string[] {
+  if (typeof value === 'string') return value ? [value] : [];
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+}
+
 const CURRENCY_SYMBOLS: Record<string, string> = {
   CNY: '¥',
   JPY: '¥',

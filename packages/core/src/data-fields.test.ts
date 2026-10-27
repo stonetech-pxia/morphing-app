@@ -194,7 +194,7 @@ describe('validation', () => {
     expect(bad('{item} * 2')[0]).toMatch(/item, which is not a number/);
   });
 
-  it('keeps formula and attachment fields out of quick-add forms', () => {
+  it('keeps formula fields out of quick-add forms, attachments are allowed (D-263)', () => {
     const result = applyOps(
       withTable(orders),
       [
@@ -216,8 +216,8 @@ describe('validation', () => {
       { registry, locale: 'zh' },
     );
     if (!result.ok) throw new Error(result.error);
-    expect(issues(result.config).join('\n')).toMatch(
-      /total is a formula field[\s\S]*receipt is a file field/,
-    );
+    const found = issues(result.config).join('\n');
+    expect(found).toMatch(/total is a formula field/);
+    expect(found).not.toMatch(/receipt/);
   });
 });

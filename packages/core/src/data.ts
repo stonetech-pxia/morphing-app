@@ -23,6 +23,8 @@ import {
 // 设计见 docs/DATA_DESIGN.md。每种字段的读取、写入、显示在 fields/<type>.ts（docs/FIELDS.md）。
 
 export {
+  MAX_ATTACHMENTS,
+  attachmentIds,
   formatMoney,
   formatNumber,
   formatTimestamp,

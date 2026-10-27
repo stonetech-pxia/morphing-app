@@ -2,6 +2,7 @@ import {
   RECORD_LIMITS,
   RunCancelled,
   RunError,
+  attachmentIds,
   isFileValue,
   prepareRecordValues,
   type ActionImpl,
@@ -71,7 +72,9 @@ export const RECORD_IMPLS: Record<string, Impl> = {
       const values = { ...prefill, ...answer.values };
       if (file && fileField) {
         [file] = await saveItems(ctx.services, [file], ctx);
-        values[fileField] = file!.assetId;
+        // 这一步的文件放在最前面，后面是用户在表单里另外添加的（D-263，已经是用户文件）。
+        const extra = attachmentIds(values[fileField]).filter((id) => id !== PENDING_FILE);
+        values[fileField] = [file!.assetId!, ...extra];
         ctx.saved.push(file!.assetId!);
       }
       const now = ctx.now();

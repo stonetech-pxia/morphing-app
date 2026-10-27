@@ -228,8 +228,9 @@ export const FIELD_EDITORS: { [T in FieldType]: FieldEditor<FieldOf<T>> } = {
     ),
   },
   file: {
-    input: ({ value, onChange, palette, locale, disabled, testID }) => (
+    input: ({ field, value, onChange, palette, locale, disabled, testID }) => (
       <AttachmentsInput
+        field={field}
         value={value}
         onChange={onChange}
         palette={palette}

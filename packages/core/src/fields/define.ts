@@ -70,7 +70,7 @@ export interface FieldSpec<T extends string, S extends z.ZodObject> {
   formula?: 'number' | 'date';
   /** 统计和图表能不能求和、平均（stat、chart 的 fieldId）。 */
   numeric?: true;
-  /** 记录表单里能不能填（公式算出来、附件由快捷操作存进来）。 */
+  /** 记录表单里能不能填（公式是算出来的）。 */
   inForm?: false;
   filter: FieldFilter<Instance<S>>;
   /** 排序：false = 不能按它排；不写就按值排。 */
