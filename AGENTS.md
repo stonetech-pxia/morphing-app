@@ -63,7 +63,7 @@
 
 ## 多语言（en / zh / fr）
 
-- 文案都放进 `packages/core/src/messages.ts`，不要写 `zh ? '…' : '…'`（`npm run check:locales` 会查出来）。
+- 文案都放进 `packages/core/src/messages/` 的 `en.ts`、`zh.ts`、`fr.ts`（三份的键必须一样，少一个就编译不过；带数量的单数写法在 `enSingular` / `frSingular`），不要写 `zh ? '…' : '…'`（`npm run check:locales` 会查出来）。
 - 每条带数量的文案都要有单数写法，并写明用哪个参数判断单复数。法语里 0 和 1 都用单数。
 - 不要把翻译过的词拼成句子，每种语言写完整的句子。法语术语：记录 = entrée，数据表 = tableau，Morph 的设置页 = Paramètres，录音 = enregistrement。
 - 改了界面文案，就把模拟器切成法语，从新装开始走一遍主流程。

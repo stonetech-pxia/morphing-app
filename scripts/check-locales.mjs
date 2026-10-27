@@ -105,6 +105,64 @@ for (const file of [...filesIn('packages'), ...filesIn('apps')]) {
   }
   visit(source);
 }
+// 文案表（packages/core/src/messages/）：三种语言的键要完全一致（TypeScript 也会查），
+// 法语不能为空、占位符要和英文一致。
+const MESSAGES_DIR = 'packages/core/src/messages';
+function tables(lang) {
+  const file = path.join(MESSAGES_DIR, `${lang}.ts`);
+  const source = ts.createSourceFile(
+    file,
+    fs.readFileSync(file, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const found = new Map();
+  for (const statement of source.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      let init = declaration.initializer;
+      while (init && (ts.isSatisfiesExpression(init) || ts.isAsExpression(init)))
+        init = init.expression;
+      if (!init || !ts.isObjectLiteralExpression(init)) continue;
+      const entries = new Map();
+      for (const p of init.properties)
+        if (ts.isPropertyAssignment(p) && ts.isStringLiteralLike(p.initializer))
+          entries.set(p.name.getText(source).replace(/['"]/g, ''), {
+            text: p.initializer.text,
+            line: source.getLineAndCharacterOfPosition(p.getStart()).line + 1,
+          });
+      found.set(declaration.name.getText(source), { file, entries });
+    }
+  }
+  return found;
+}
+const [enTables, zhTables, frTables] = ['en', 'zh', 'fr'].map(tables);
+for (const [enName, otherName, others, lang] of [
+  ['en', 'zh', zhTables, 'zh'],
+  ['en', 'fr', frTables, 'fr'],
+  ['enSingular', 'frSingular', frTables, 'fr'],
+]) {
+  const base = enTables.get(enName);
+  const other = others.get(otherName);
+  if (!base || !other) {
+    errors.push(`${MESSAGES_DIR}: 找不到文案表 ${enName} / ${otherName}`);
+    continue;
+  }
+  for (const [key, { text }] of base.entries) {
+    if (lang === 'fr') total++;
+    const found = other.entries.get(key);
+    if (!found) {
+      missing.push(`${other.file} (${otherName}.${key})`);
+      continue;
+    }
+    const location = `${other.file}:${found.line}`;
+    if (!found.text.trim()) errors.push(`${location}: ${lang === 'fr' ? '法语' : '中文'}文案为空`);
+    if (lang === 'fr' && placeholders(text) !== placeholders(found.text))
+      errors.push(`${location}: 法语占位符不一致`);
+  }
+  for (const key of other.entries.keys())
+    if (!base.entries.has(key)) errors.push(`${other.file}: ${otherName}.${key} 在英文里没有`);
+}
 console.log(`本地化检查：${total} 处文案、${pairs} 处名称对，${missing.length} 处待补法语。`);
 if (list) missing.forEach((line) => console.log(`${line}: 缺少 fr`));
 errors.forEach((line) => console.error(line));

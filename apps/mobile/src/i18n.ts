@@ -1,9 +1,9 @@
-import { localize, MESSAGES, t, type StringKey, type Locale, type Localized } from '@morph/core';
+import { hasMessage, localize, t, type Locale, type Localized } from '@morph/core';
 
 import { getLocales } from 'expo-localization';
 export { t, type StringKey } from '@morph/core';
 
-// 界面文案在 core/messages.ts；英文、简体中文、法语跟随系统语言。
+// 界面文案在 core/messages/（en.ts、zh.ts、fr.ts）；英文、简体中文、法语跟随系统语言。
 // 用户自己的内容（页面标题等）存放在工作空间配置里，不经过这里。
 
 export function getDeviceLocale(): Locale {
@@ -36,8 +36,8 @@ export function runErrorText(
     typeof detail.what === 'string' ? localize(PERMISSION_NAMES[detail.what], locale) : undefined;
   const kind =
     typeof detail.kind === 'string' ? localize(FILE_KIND_NAMES[detail.kind], locale) : undefined;
-  const key = `runError_${code}` as StringKey;
-  if (!(key in MESSAGES)) return t(locale, 'runError_unexpected', { detail: code });
+  const key = `runError_${code}`;
+  if (!hasMessage(key)) return t(locale, 'runError_unexpected', { detail: code });
   return t(locale, key, {
     ...detail,
     ...(what ? { what } : {}),
