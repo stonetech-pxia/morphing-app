@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { fieldDefinition } from '../fields';
 import { t } from '../messages';
 import { boundedText, ConditionSchema, FieldRefSchema, IdSchema, SortSchema } from '../schema-base';
 import {
@@ -51,8 +52,9 @@ export const recordListComponent: ComponentDefinitionOf<'recordList', typeof pro
       }
       if (c.props.sort) {
         ref(c.props.sort.field, 'sort field');
-        if (field(c.props.sort.field)?.type === 'link')
-          problems.push(`can't sort by the link field ${c.props.sort.field}`);
+        const sorted = field(c.props.sort.field);
+        if (sorted && fieldDefinition(sorted.type).sort === false)
+          problems.push(`can't sort by the ${sorted.type} field ${c.props.sort.field}`);
       }
       return problems;
     },

@@ -1,6 +1,7 @@
 import {
   BUILTIN_TOOLS,
   COMPONENTS,
+  FIELDS,
   createDefaultWorkspace,
   createRegistry,
   type Locale,
@@ -27,6 +28,13 @@ describe('prompt baseline', () => {
       expect(prompt).toContain(`\n  - ${def.type} ${def.ai.doc}\n`);
       if (def.ai.rule) expect(prompt).toContain(`\n${def.ai.rule.n}. ${def.ai.rule.text}\n`);
     }
+  });
+
+  it('describes every registered field type', () => {
+    const prompt = buildSystemPrompt(registry);
+    const line = prompt.split('\n').find((l) => l.startsWith('  - ') && l.includes(' · '))!;
+    for (const def of FIELDS)
+      expect(line.slice(4).split(' · ')).toContain(`${def.type} ${def.ai.doc}`);
   });
 
   it('numbers the rules 1..N, component rules included, without gaps', () => {

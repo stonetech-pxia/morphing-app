@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { fieldDefinition } from '../fields';
 import { t } from '../messages';
 import { boundedText, IdSchema } from '../schema-base';
 import { collectionName, type ComponentDefinitionOf, defineComponent, duplicates } from './define';
@@ -22,8 +23,8 @@ export const recordFormComponent: ComponentDefinitionOf<'recordForm', typeof pro
       for (const id of c.props.fieldIds) {
         const f = collection!.fields.find((x) => x.id === id);
         if (!f) problems.push(`form field ${id} does not exist`);
-        // 公式算出来、附件由快捷操作存进来（D-187、D-188）：表单里填不了。
-        else if (f.type === 'formula' || f.type === 'file')
+        // 公式算出来、附件由快捷操作存进来（D-187、D-188）：表单里填不了（字段定义的 inForm）。
+        else if (fieldDefinition(f.type).inForm === false)
           problems.push(`form field ${id} is a ${f.type} field and cannot be filled in a form`);
       }
       for (const id of duplicates(c.props.fieldIds))

@@ -8,6 +8,7 @@ import { QUICK_ACTION_CATEGORIES } from './quick-actions';
 import type { Registry } from './registry';
 import { describeParams } from './workflow/format';
 import {
+  FIELDS,
   allComponents,
   componentDefinition,
   isKnownComponent,
@@ -68,19 +69,10 @@ export function reminderWhen(r: Reminder, config: WorkspaceConfig, locale: Local
 
 const truncate = (s: string, max = 40) => (s.length > max ? `${s.slice(0, max)}…` : s);
 
-const FIELD_TYPE_NAMES: Record<string, [string, string]> = {
-  text: ['文字', 'text'],
-  note: ['长文本', 'long text'],
-  number: ['数字', 'number'],
-  money: ['金额', 'money'],
-  checkbox: ['勾选', 'checkbox'],
-  date: ['日期', 'date'],
-  choice: ['单选', 'choice'],
-  rating: ['评分', 'rating'],
-  file: ['附件', 'attachment'],
-  formula: ['公式', 'formula'],
-  link: ['引用', 'link to another table'],
-};
+/** 字段类型在修改说明里的名字（字段定义的 label）。 */
+const FIELD_TYPE_NAMES: Record<string, [string, string]> = Object.fromEntries(
+  FIELDS.map((d) => [d.type, d.label]),
+);
 
 type ThemeTokenKey = Exclude<keyof Theme, 'primaryColor' | 'mode' | 'colors' | 'darkColors'>;
 

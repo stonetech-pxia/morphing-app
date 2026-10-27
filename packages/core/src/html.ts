@@ -1,14 +1,6 @@
 import { t } from './messages';
-import {
-  aggregateRecords,
-  fieldOf,
-  formatMoney,
-  formatNumber,
-  formatRef,
-  type DataRecord,
-  type LinkResolver,
-} from './data';
-import type { Collection, Locale } from './schema';
+import { aggregateRecords, fieldOf, formatRef, type DataRecord, type LinkResolver } from './data';
+import { fieldDefinition, type Collection, type Field, type Locale } from './schema';
 
 // 文字转 PDF、用记录生成 PDF 的固定 HTML 模板（expo-print 渲染，系统字体，中日韩都能显示）。
 // 用户的文字和记录值一律先转义再在本机填进去；AI 只能选模板、标题和字段名（D-042）。
@@ -95,9 +87,10 @@ export function recordsToHtml(
       : ref === 'updatedAt'
         ? t(locale, 'html_Updated_74f0c')
         : fieldOf(collection, ref)!.name;
+  // 靠右对齐的数字列（字段定义的 print.numeric：数字、金额）。
   const numeric = (ref: string) => {
     const f = fieldOf(collection, ref);
-    return f?.type === 'money' || f?.type === 'number';
+    return f !== undefined && fieldDefinition(f.type).print?.numeric === true;
   };
   const cell = (r: DataRecord, ref: string) =>
     escapeHtml(formatRef(r, collection, ref, locale, opts.links));
@@ -130,15 +123,16 @@ export function recordsToHtml(
       .join('\n');
     let total = '';
     if (opts.template === 'receipt') {
-      const money = collection.fields.find((f) => f.type === 'money' && refs.includes(f.id));
-      const number = collection.fields.find((f) => f.type === 'number' && refs.includes(f.id));
-      const field = money ?? number;
+      // 合计哪个字段：字段定义 print.total 的 rank 小的类型优先（先金额、再数字），同类型取第一个。
+      const candidates = collection.fields.filter(
+        (f) => refs.includes(f.id) && fieldDefinition(f.type).print?.total,
+      );
+      const rank = (f: Field) => fieldDefinition(f.type).print!.total!.rank;
+      const best = Math.min(...candidates.map(rank));
+      const field = candidates.find((f) => rank(f) === best);
       if (field) {
         const sum = aggregateRecords(records, collection, 'sum', field.id) ?? 0;
-        const shown =
-          field.type === 'money'
-            ? formatMoney(sum, field.currency, locale)
-            : formatNumber(sum, field.type === 'number' ? field.decimals : undefined, locale);
+        const shown = fieldDefinition(field.type).print!.total!.format(field, sum, locale);
         // 冒号按语言：中文全角，法语前面带窄不换行空格，英文半角。
         const colon = locale === 'zh' ? '：' : locale === 'fr' ? '\u202f: ' : ': ';
         total = `<div class="total">${t(locale, 'html_Total_08322')} · ${escapeHtml(field.name)}${colon}<strong>${escapeHtml(shown)}</strong></div>`;

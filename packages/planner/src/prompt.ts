@@ -1,6 +1,7 @@
 import {
   t,
   COMPONENTS,
+  FIELDS,
   ICON_NAMES,
   WORKFLOW_PRESETS,
   THEME_PRESETS,
@@ -83,11 +84,27 @@ function describeAction(a: ActionDefinition): string {
  */
 function componentDocs(data: boolean): string {
   const defs = COMPONENTS.filter((d) => componentRefsTo(d, 'collection') === data);
+  return inDocOrder(defs)
+    .map((d) => `  - ${d.type} ${d.ai.doc}`)
+    .join('\n');
+}
+
+/** 字段类型：一行，来自 core 字段定义（fields/<type>.ts）的 ai.doc，用 · 隔开。 */
+function fieldDocs(): string {
+  return inDocOrder(FIELDS)
+    .map((d) => `${d.type} ${d.ai.doc}`)
+    .join(' · ');
+}
+
+/** 登记顺序，写了 ai.docAfter 的挪到那一项后面（后加的类型说明一直写在那里，保持提示词不变）。 */
+function inDocOrder<D extends { type: string; ai: { docAfter?: string } }>(
+  defs: readonly D[],
+): D[] {
   const ordered = defs.filter((d) => !d.ai.docAfter);
   for (const d of defs.filter((x) => x.ai.docAfter)) {
     ordered.splice(ordered.findIndex((x) => x.type === d.ai.docAfter) + 1, 0, d);
   }
-  return ordered.map((d) => `  - ${d.type} ${d.ai.doc}`).join('\n');
+  return ordered;
 }
 
 const componentRefsTo = (d: (typeof COMPONENTS)[number], to: string) =>
@@ -203,7 +220,7 @@ ${themePresets}
 - reminders[]?: the reminders the user has (rule 37).
 - collections[]: the *structure* of the user's own data tables (max 20): {id, name, icon?, fields: Field[] (1-30)}. You only ever see this structure. The records the user enters live outside the config; you never see them and can't read, add, edit, delete, count or summarize them.
   Field = {id, name, required?, type, ...}:
-  - text {default?} (≤200 chars) · note (long text) · number {decimals? 0-4, unit?, default?} · money {currency: ISO code like "CNY"/"USD", default?} · checkbox {default?} · date {default?: "today"} · choice {options: [{id, label}] (1-50), default?: optionId} · rating (1-5) {default?} · file (an attachment: a file saved in Morph, put there by out.addRecord) · formula {expression, decimals? 0-4, unit?, currency?} (computed, never typed in: + - * / and parentheses over {fieldId} of number, money or rating fields of the same table, e.g. "{price} * {qty}"; no required/default) · link {collectionId} (picks one entry of another table, or of the same table; lists show that entry's first text field)
+  - ${fieldDocs()}
   Every record also has the system fields "createdAt" and "updatedAt" (usable wherever a field reference is accepted, as dates).
 - Data components show and collect records of one collection:
 ${componentDocs(true)}

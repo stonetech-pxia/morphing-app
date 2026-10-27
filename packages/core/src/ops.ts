@@ -5,6 +5,7 @@ import type { Registry } from './registry';
 import {
   CollectionSchema,
   ComponentSchema,
+  FIELDS,
   FieldSchema,
   ComponentStyleSchema,
   FONT_CHOICES,
@@ -216,11 +217,10 @@ export type ApplyNote =
   | { kind: 'removedReminders'; titles: string[] }
   | { kind: 'updatedTool'; toolId: string; workflowIds: string[] };
 
-/** 字段类型只能在这些类型之间互相转换，已有的值仍然能读出来。 */
+/** 字段类型只能在这些类型之间互相转换，已有的值仍然能读出来（字段定义的 convertGroup）。 */
 export const COMPATIBLE_FIELD_TYPES: readonly (readonly string[])[] = [
-  ['text', 'note'],
-  ['number', 'money'],
-];
+  ...new Set(FIELDS.flatMap((d) => (d.convertGroup ? [d.convertGroup] : []))),
+].map((group) => FIELDS.filter((d) => d.convertGroup === group).map((d) => d.type));
 
 export type ApplyResult =
   { ok: true; config: WorkspaceConfig; notes: ApplyNote[] } | { ok: false; error: string };

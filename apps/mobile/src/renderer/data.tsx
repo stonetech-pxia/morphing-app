@@ -1,7 +1,7 @@
 import {
   aggregateRecords,
   filterRecords,
-  formatMoney,
+  fieldDefinition,
   formatNumber,
   formatRef,
   formatValue,
@@ -18,10 +18,23 @@ import {
   type DataRecord,
   type Field,
   type FieldIssue,
+  type FieldOf,
+  type FieldType,
+  type FieldValue,
 } from '@morph/core';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import {
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
 
 import { useLinkResolver, useRecordActions, useRecords } from '../data/records';
 import type { AssetRecord } from '../storage/types';
@@ -43,7 +56,8 @@ export function toFormValues(collection: Collection, record: DataRecord | null):
   for (const field of collection.fields) {
     const v = record ? readValue(field, record.values[field.id]) : undefined;
     if (v === undefined) continue;
-    values[field.id] = field.type === 'number' || field.type === 'money' ? String(v) : v;
+    const toForm = (FIELD_EDITORS[field.type] as FieldEditor).toForm;
+    values[field.id] = toForm ? toForm(v) : v;
   }
   return values;
 }
@@ -90,27 +104,68 @@ export function FieldInput({
       backgroundColor: selected ? palette.primaryTint : palette.surface,
     },
   ];
-  switch (field.type) {
-    case 'text':
-    case 'note':
-    case 'number':
-    case 'money':
-      return (
-        <TextInput
-          testID={testID}
-          editable={!disabled}
-          value={typeof value === 'string' ? value : ''}
-          onChangeText={onChange}
-          placeholder={field.type === 'money' ? `${field.name} (${field.currency})` : field.name}
-          placeholderTextColor={palette.caption}
-          multiline={field.type === 'note'}
-          keyboardType={
-            field.type === 'number' || field.type === 'money' ? 'decimal-pad' : 'default'
-          }
-          style={[input, field.type === 'note' && styles.note]}
-        />
-      );
-    case 'date': {
+  const editor = FIELD_EDITORS[field.type] as FieldEditor;
+  return editor.input({ field, value, onChange, palette, locale, disabled, testID, input, chip });
+}
+
+interface FieldInputContext<F extends Field> {
+  field: F;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  palette: Palette;
+  locale: RenderEnv['locale'];
+  disabled: boolean | undefined;
+  testID: string;
+  /** 输入框的样式。 */
+  input: StyleProp<TextStyle>;
+  /** 选项小块的样式。 */
+  chip: (selected: boolean) => StyleProp<ViewStyle>;
+}
+
+/** 一种字段在记录表单里怎么填（字段的结构、读写和显示在 core 的 fields/<type>.ts）。 */
+interface FieldEditor<F extends Field = Field> {
+  /** 输入控件。按函数调用（不是 React 组件），要用 hook 的放进自己的组件里。没有控件时返回 null。 */
+  input: (ctx: FieldInputContext<F>) => ReactNode;
+  /** 记录里的值 → 表单里的值（数字在编辑时是文字）。 */
+  toForm?: (value: FieldValue) => unknown;
+  /** 标签和控件在同一行（勾选）。 */
+  inline?: true;
+  /** 不能填，显示算出来的值（公式，D-188）。 */
+  computed?: true;
+}
+
+/** 文字、长文本、数字、金额：一个输入框。 */
+function textBox<F extends Field>({
+  field,
+  value,
+  onChange,
+  palette,
+  disabled,
+  testID,
+  input,
+}: FieldInputContext<F>) {
+  return (
+    <TextInput
+      testID={testID}
+      editable={!disabled}
+      value={typeof value === 'string' ? value : ''}
+      onChangeText={onChange}
+      placeholder={field.type === 'money' ? `${field.name} (${field.currency})` : field.name}
+      placeholderTextColor={palette.caption}
+      multiline={field.type === 'note'}
+      keyboardType={field.type === 'number' || field.type === 'money' ? 'decimal-pad' : 'default'}
+      style={[input, field.type === 'note' && styles.note]}
+    />
+  );
+}
+
+export const FIELD_EDITORS: { [T in FieldType]: FieldEditor<FieldOf<T>> } = {
+  text: { input: textBox },
+  note: { input: textBox },
+  number: { input: textBox, toForm: String },
+  money: { input: textBox, toForm: String },
+  date: {
+    input: ({ value, onChange, palette, locale, disabled, testID, input, chip }) => {
       const now = new Date();
       const today = localDate(now);
       const yesterday = localDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
@@ -139,82 +194,87 @@ export function FieldInput({
           ))}
         </View>
       );
-    }
-    case 'checkbox':
-      return (
-        <Switch
-          testID={testID}
-          disabled={disabled}
-          value={value === true}
-          onValueChange={onChange}
-          trackColor={{ true: palette.primary, false: palette.border }}
-          thumbColor="#FFFFFF"
-        />
-      );
-    case 'choice':
-      return (
-        <View style={styles.chips}>
-          {field.options.map((o) => (
-            <Pressable
-              key={o.id}
-              testID={`${testID}-${o.id}`}
-              disabled={disabled}
-              onPress={() => onChange(value === o.id ? '' : o.id)}
-              style={chip(value === o.id)}>
-              <Text style={[palette.font('bodyBold', 13), { color: palette.text }]}>{o.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-      );
-    case 'file':
-      return (
-        <AttachmentInput
-          value={value}
-          onChange={onChange}
-          palette={palette}
-          locale={locale}
-          disabled={disabled}
-          testID={testID}
-        />
-      );
-    case 'formula':
-      // 公式不能填，由 FieldsForm 显示算出来的值（D-188）。
-      return null;
-    case 'link':
-      return (
-        <LinkInput
-          field={field}
-          value={value}
-          onChange={onChange}
-          palette={palette}
-          locale={locale}
-          disabled={disabled}
-          testID={testID}
-        />
-      );
-    case 'rating':
-      return (
-        <View style={styles.chips}>
-          {[1, 2, 3, 4, 5].map((n) => (
-            <Pressable
-              key={n}
-              testID={`${testID}-${n}`}
-              disabled={disabled}
-              hitSlop={4}
-              onPress={() => onChange(value === n ? '' : n)}>
-              <Text
-                style={{
-                  fontSize: 26,
-                  color: typeof value === 'number' && n <= value ? palette.primary : palette.border,
-                }}>
-                ★
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      );
-  }
-}
+    },
+  },
+  checkbox: {
+    inline: true,
+    input: ({ value, onChange, palette, disabled, testID }) => (
+      <Switch
+        testID={testID}
+        disabled={disabled}
+        value={value === true}
+        onValueChange={onChange}
+        trackColor={{ true: palette.primary, false: palette.border }}
+        thumbColor="#FFFFFF"
+      />
+    ),
+  },
+  choice: {
+    input: ({ field, value, onChange, palette, disabled, testID, chip }) => (
+      <View style={styles.chips}>
+        {field.options.map((o) => (
+          <Pressable
+            key={o.id}
+            testID={`${testID}-${o.id}`}
+            disabled={disabled}
+            onPress={() => onChange(value === o.id ? '' : o.id)}
+            style={chip(value === o.id)}>
+            <Text style={[palette.font('bodyBold', 13), { color: palette.text }]}>{o.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    ),
+  },
+  file: {
+    input: ({ value, onChange, palette, locale, disabled, testID }) => (
+      <AttachmentInput
+        value={value}
+        onChange={onChange}
+        palette={palette}
+        locale={locale}
+        disabled={disabled}
+        testID={testID}
+      />
+    ),
+  },
+  // 公式不能填，由 FieldsForm 显示算出来的值（D-188）。
+  formula: { computed: true, input: () => null },
+  link: {
+    input: ({ field, value, onChange, palette, locale, disabled, testID }) => (
+      <LinkInput
+        field={field}
+        value={value}
+        onChange={onChange}
+        palette={palette}
+        locale={locale}
+        disabled={disabled}
+        testID={testID}
+      />
+    ),
+  },
+  rating: {
+    input: ({ value, onChange, palette, disabled, testID }) => (
+      <View style={styles.chips}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <Pressable
+            key={n}
+            testID={`${testID}-${n}`}
+            disabled={disabled}
+            hitSlop={4}
+            onPress={() => onChange(value === n ? '' : n)}>
+            <Text
+              style={{
+                fontSize: 26,
+                color: typeof value === 'number' && n <= value ? palette.primary : palette.border,
+              }}>
+              ★
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    ),
+  },
+};
 
 /** 附件（D-187）：显示文件名，点一下打开分享面板（用别的 App 看），可以去掉。换文件要重新「记一笔」。 */
 function AttachmentInput({
@@ -459,7 +519,8 @@ export function FieldsForm({
       {fieldIds.map((id) => {
         const field = collection.fields.find((f) => f.id === id);
         if (!field) return null;
-        if (field.type === 'formula') {
+        const editor = FIELD_EDITORS[field.type] as FieldEditor;
+        if (editor.computed) {
           const shown = formatValue(field, recordValue(computed(), collection, id), locale);
           return (
             <View key={id} style={styles.field}>
@@ -475,7 +536,7 @@ export function FieldsForm({
           );
         }
         const issue = issues.find((i) => i.fieldId === id);
-        const inline = field.type === 'checkbox';
+        const inline = editor.inline === true;
         return (
           <View key={id} style={inline ? styles.inlineField : styles.field}>
             {showLabels || inline ? (
@@ -750,11 +811,9 @@ export function statText(
   locale: RenderEnv['locale'],
 ): string {
   if (value === null) return '—';
-  if (aggregate !== 'count' && field?.type === 'formula') return formatValue(field, value, locale);
-  if (aggregate !== 'count' && field?.type === 'money')
-    return formatMoney(value, field.currency, locale);
-  if (aggregate !== 'count' && field?.type === 'number')
-    return `${formatNumber(value, field.decimals, locale)}${field.unit ? ` ${field.unit}` : ''}`;
+  // 求和、平均按字段的写法显示（金额带货币、数字带单位，字段定义的 formatAmount）。
+  const amount = field && aggregate !== 'count' && fieldDefinition(field.type).formatAmount;
+  if (amount) return amount(field, value, locale);
   return formatNumber(value, undefined, locale);
 }
 

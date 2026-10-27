@@ -1,19 +1,13 @@
 import { z } from 'zod';
 
-import { MAX_FORMULA_LENGTH } from './formula';
+import { FieldSchema } from './fields';
 import { isEmoji, unsafeLinks } from './richtext';
+import { IdSchema, boundedText } from './schema-primitives';
 
 // 配置结构里组件以外的部分（图标、主题、数据表、筛选、导航）。组件定义（components/）要用到这些，
 // 所以单独放一个文件，避免 schema.ts 和组件定义互相引用。对外仍从 schema.ts 导出。
 
-export type Locale = 'en' | 'zh' | 'fr';
-export type Localized = Record<Locale, string>;
-
-const ID_PATTERN = /^[a-z][a-z0-9-]{0,47}$/;
-export const IdSchema = z.string().regex(ID_PATTERN, 'id must be lowercase letters, digits or -');
-
-/** 去掉首尾空白后长度在 min..max 之间的文字。 */
-export const boundedText = (min: number, max: number) => z.string().trim().min(min).max(max);
+export * from './schema-primitives';
 
 export const HexColorSchema = z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'color must be #RRGGBB');
 
@@ -126,67 +120,17 @@ export type Theme = z.infer<typeof ThemeSchema>;
 
 // ---- 用户数据：数据表结构（在配置里，随版本）。记录本身不在配置里，见 docs/DATA_DESIGN.md ----
 
-const fieldBase = {
-  id: IdSchema,
-  name: boundedText(1, 40),
-  required: z.boolean().optional(),
-};
-
-export const ChoiceOptionSchema = z.strictObject({ id: IdSchema, label: boundedText(1, 40) });
-
-export const FieldSchema = z.discriminatedUnion('type', [
-  z.strictObject({
-    ...fieldBase,
-    type: z.literal('text'),
-    default: boundedText(1, 200).optional(),
-  }),
-  z.strictObject({ ...fieldBase, type: z.literal('note') }),
-  z.strictObject({
-    ...fieldBase,
-    type: z.literal('number'),
-    decimals: z.number().int().min(0).max(4).optional(),
-    unit: boundedText(1, 10).optional(),
-    default: z.number().finite().optional(),
-  }),
-  z.strictObject({
-    ...fieldBase,
-    type: z.literal('money'),
-    currency: z.string().regex(/^[A-Z]{3}$/, 'currency must be an ISO code like CNY'),
-    default: z.number().finite().optional(),
-  }),
-  z.strictObject({ ...fieldBase, type: z.literal('checkbox'), default: z.boolean().optional() }),
-  z.strictObject({ ...fieldBase, type: z.literal('date'), default: z.literal('today').optional() }),
-  z.strictObject({
-    ...fieldBase,
-    type: z.literal('choice'),
-    options: z.array(ChoiceOptionSchema).min(1).max(50),
-    default: IdSchema.optional(),
-  }),
-  z.strictObject({
-    ...fieldBase,
-    type: z.literal('rating'),
-    default: z.number().int().min(1).max(5).optional(),
-  }),
-  // D-187：附件，值是 Morph 里一个文件的 ID（快捷操作「记一笔」存进来的收据、照片等）。
-  z.strictObject({ ...fieldBase, type: z.literal('file') }),
-  // D-250：引用另一张表（也可以是自己）的一条记录；值是那条记录的 ID，列表里显示它的标题字段。
-  z.strictObject({ ...fieldBase, type: z.literal('link'), collectionId: IdSchema }),
-  // D-188：公式，由同一张表的数字、金额、评分字段算出来（只有四则运算），不存进记录、不能填。
-  z.strictObject({
-    id: IdSchema,
-    name: boundedText(1, 40),
-    type: z.literal('formula'),
-    expression: boundedText(1, MAX_FORMULA_LENGTH),
-    decimals: z.number().int().min(0).max(4).optional(),
-    unit: boundedText(1, 10).optional(),
-    currency: z
-      .string()
-      .regex(/^[A-Z]{3}$/, 'currency must be an ISO code like CNY')
-      .optional(),
-  }),
-]);
-export type Field = z.infer<typeof FieldSchema>;
-export type FieldType = Field['type'];
+export {
+  ChoiceOptionSchema,
+  FIELDS,
+  FieldSchema,
+  NUMERIC_FIELD_TYPES,
+  fieldDefinition,
+  type Field,
+  type FieldDefinition,
+  type FieldOf,
+  type FieldType,
+} from './fields';
 
 export const CollectionSchema = z.strictObject({
   id: IdSchema,

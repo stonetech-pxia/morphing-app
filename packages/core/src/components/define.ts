@@ -52,8 +52,8 @@ function componentSchema<T extends string, P extends z.ZodObject, E extends z.Zo
   return z.strictObject({ ...componentBase, type: z.literal(type), props, ...extra });
 }
 
-/** 求和、平均等要用的字段类型。 */
-export const NUMERIC_FIELD_TYPES: readonly string[] = ['number', 'money', 'rating', 'formula'];
+/** 求和、平均等要用的字段类型（字段定义里的 numeric）。 */
+export { NUMERIC_FIELD_TYPES } from '../fields';
 
 /** 每条记录都有的系统字段，当作日期。 */
 export const isSystemField = (id: string) => id === 'createdAt' || id === 'updatedAt';

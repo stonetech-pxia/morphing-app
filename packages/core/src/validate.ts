@@ -1,11 +1,5 @@
 import { COMPONENTS } from './components';
-import {
-  NUMERIC_FIELD_TYPES,
-  duplicates,
-  isSystemField,
-  type CheckProblem,
-} from './components/define';
-import { formulaType, parseFormula } from './formula';
+import { duplicates, isSystemField, type CheckProblem } from './components/define';
 import type { Registry } from './registry';
 import { reminderProblems } from './reminders';
 import {
@@ -16,6 +10,7 @@ import {
   allComponents,
   componentCollection,
   componentDefinition,
+  fieldDefinition,
   isKnownComponent,
   pageIdOf,
   type Collection,
@@ -167,23 +162,11 @@ export function validateWorkspace(
     for (const id of duplicates(collection.fields.map((f) => f.id))) {
       issue('duplicate', `field ${id} in ${collection.id}`);
     }
+    // 每种字段自己的检查（公式能算、引用的表存在、选项不重复……），见 fields/<type>.ts。
     for (const field of collection.fields) {
-      if (field.type === 'formula') {
-        for (const problem of formulaProblems(field.expression, collection))
-          issue('data', `${collection.id}.${field.id}: ${problem}`);
-        continue;
-      }
-      // D-250：引用的表要存在。
-      if (field.type === 'link' && !config.collections.some((c) => c.id === field.collectionId)) {
-        issue('data', `${collection.id}.${field.id}: links to missing table ${field.collectionId}`);
-      }
-      if (field.type !== 'choice') continue;
-      for (const id of duplicates(field.options.map((o) => o.id))) {
-        issue('duplicate', `option ${id} in ${collection.id}.${field.id}`);
-      }
-      if (field.default !== undefined && !field.options.some((o) => o.id === field.default)) {
-        issue('data', `${collection.id}.${field.id}: default ${field.default} is not an option`);
-      }
+      for (const problem of fieldDefinition(field.type).check?.(field, { config, collection }) ??
+        [])
+        issue(problem.code, problem.message);
     }
   }
   for (const page of config.pages) {
@@ -354,31 +337,6 @@ function recordStepProblems(
 }
 
 /**
- * 公式（D-188）：能解析，引用的字段都在这张表里，而且是数字、金额、评分或日期（不引用别的公式）；
- * 日期只能用在 days() 和比较里，结果是数字（D-247）。
- */
-function formulaProblems(expression: string, collection: Collection): string[] {
-  const parsed = parseFormula(expression);
-  if (!parsed.ok) return [`formula "${expression}": ${parsed.error}`];
-  const problems: string[] = [];
-  for (const id of parsed.refs) {
-    const ref = collection.fields.find((f) => f.id === id);
-    if (!ref) problems.push(`formula uses ${id}, which is not a field of ${collection.id}`);
-    else if (!['number', 'money', 'rating', 'date'].includes(ref.type))
-      problems.push(`formula uses ${id}, which is not a number, money, rating or date field`);
-  }
-  if (problems.length > 0) return problems;
-  const type = formulaType(parsed.node, (id) => {
-    const ref = collection.fields.find((f) => f.id === id);
-    return ref?.type === 'date' ? 'date' : 'number';
-  });
-  if (typeof type !== 'string') return [`formula "${expression}": ${type.error}`];
-  if (type !== 'number')
-    return [`formula "${expression}" gives a date; use days(from, to) to get a number`];
-  return [];
-}
-
-/**
  * 数据组件：表要存在；refs 里的字段要存在、类型对；然后是组件自己的检查；最后是筛选条件。
  * 问题文字会发给 AI，顺序和文字都保持稳定。
  */
@@ -421,6 +379,7 @@ function dataComponentProblems(
   return problems;
 }
 
+/** 筛选条件：字段存在，操作和值是这种字段支持的（字段定义的 filter）。系统字段当作日期。 */
 function conditionProblems(conditions: Condition[] | undefined, collection: Collection): string[] {
   const problems: string[] = [];
   for (const cond of conditions ?? []) {
@@ -431,11 +390,12 @@ function conditionProblems(conditions: Condition[] | undefined, collection: Coll
       continue;
     }
     const type = system ? 'date' : f!.type;
+    const { filter } = fieldDefinition(type);
     const v = cond.value;
     const where = `filter on ${cond.field}`;
     // 引用字段只能看有没有选（D-250）：记录 ID 对 AI 和用户都没有意义。
-    if (type === 'link' && cond.op !== 'isEmpty' && cond.op !== 'isNotEmpty') {
-      problems.push(`${where}: a link field can only be filtered with isEmpty or isNotEmpty`);
+    if (filter.emptyOnly && cond.op !== 'isEmpty' && cond.op !== 'isNotEmpty') {
+      problems.push(`${where}: a ${type} field can only be filtered with isEmpty or isNotEmpty`);
       continue;
     }
     switch (cond.op) {
@@ -443,36 +403,29 @@ function conditionProblems(conditions: Condition[] | undefined, collection: Coll
       case 'isNotEmpty':
         break;
       case 'inPeriod':
-        if (type !== 'date') problems.push(`${where}: inPeriod needs a date field`);
+        if (!filter.period) problems.push(`${where}: inPeriod needs a date field`);
         else if (!(PERIODS as readonly unknown[]).includes(v)) {
           problems.push(`${where}: period must be one of ${PERIODS.join(', ')}`);
         }
         break;
       case 'contains':
-        if (type !== 'text' && type !== 'note')
-          problems.push(`${where}: contains needs a text field`);
+        if (!filter.contains) problems.push(`${where}: contains needs a text field`);
         else if (typeof v !== 'string') problems.push(`${where}: value must be text`);
         break;
       case 'gt':
       case 'lt':
         if (
-          NUMERIC_FIELD_TYPES.includes(type)
+          filter.compare === 'number'
             ? typeof v !== 'number'
-            : type !== 'date' || typeof v !== 'string'
+            : filter.compare !== 'date' || typeof v !== 'string'
         ) {
           problems.push(`${where}: ${cond.op} needs a number or date field and a matching value`);
         }
         break;
       case 'is':
       case 'isNot': {
-        const ok =
-          f?.type === 'choice'
-            ? f.options.some((o) => o.id === v)
-            : type === 'checkbox'
-              ? typeof v === 'boolean'
-              : NUMERIC_FIELD_TYPES.includes(type)
-                ? typeof v === 'number'
-                : typeof v === 'string';
+        // 系统字段没有定义，按日期（文字）比较。
+        const ok = f ? filter.is(f, v) : typeof v === 'string';
         if (!ok) problems.push(`${where}: value does not match the field type`);
         break;
       }
