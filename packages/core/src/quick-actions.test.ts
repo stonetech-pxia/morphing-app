@@ -6,12 +6,12 @@ import {
   presetKinds,
   workflowKinds,
 } from './quick-actions';
-import { QuickActionListComponentSchema } from './schema';
+import { quickActionListComponent } from './components/quickActionList';
 import { WORKFLOW_PRESETS, presetById, presetWorkflow } from './workflows/presets';
 
 describe('quick-action categories', () => {
   it('quickActionList accepts exactly the quick action kinds', () => {
-    expect(QuickActionListComponentSchema.shape.props.shape.kind.unwrap().options).toEqual([
+    expect(quickActionListComponent.props.shape.kind.unwrap().options).toEqual([
       ...QUICK_ACTION_KINDS,
     ]);
   });
