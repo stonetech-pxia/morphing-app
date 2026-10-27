@@ -24,6 +24,9 @@ import { validateWorkspace } from './validate';
 // 字段类型登记表重构的基线（2026-10-27）：每种字段在读取、写入、显示、导出、打印、筛选、排序、统计、
 // 公式、类型转换、修改说明里的输出。重构只换写法，这些输出必须完全不变。
 
+// 快照里的时间按本地时区显示，固定时区，换台机器（例如云端的 UTC）也一样。
+process.env.TZ = 'Europe/Paris';
+
 const LOCALES: Locale[] = ['en', 'zh', 'fr'];
 const NOW = new Date(2026, 9, 27, 10, 30);
 
