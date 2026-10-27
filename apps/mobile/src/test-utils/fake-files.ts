@@ -131,7 +131,10 @@ export class FakeFiles implements FilePlatform {
   printed: string[] = [];
   clipboard = '';
   nextImage: PickedFile | null = null;
-  async pickImage() {
+  /** 每次选照片要求的最长边。 */
+  imageSides: (number | undefined)[] = [];
+  async pickImage(maxSide?: number) {
+    this.imageSides.push(maxSide);
     return this.nextImage;
   }
   nextMedia: PickedFile[] | null = null;

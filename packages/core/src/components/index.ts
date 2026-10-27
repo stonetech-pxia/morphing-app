@@ -63,6 +63,11 @@ export interface ComponentDefinition {
   props: z.ZodObject;
 }
 
+/** 可以用图片代替底色的卡片类组件（edit.backdrop，D-258）。 */
+export const BACKDROP_TYPES: readonly ComponentType[] = COMPONENTS.filter(
+  (d) => (d.edit as ComponentEdit).backdrop,
+).map((d) => d.type);
+
 const BY_TYPE = new Map<string, ComponentDefinition>(
   COMPONENTS.map((d) => [d.type, d as unknown as ComponentDefinition]),
 );

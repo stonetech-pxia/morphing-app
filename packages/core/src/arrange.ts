@@ -111,7 +111,14 @@ export function coalesceOps(ops: readonly Op[]): Op[] {
         continue;
       }
       if (op.op === 'setComponentStyle' && last.op === 'setComponentStyle') {
-        out[out.length - 1] = { ...op, style: { ...last.style, ...op.style } };
+        // 图片背景（D-258）是逐项合进已有的：两次修改也逐项合并。先关掉再打开不能合：打开时不带关掉前的图片。
+        const [a, b] = [last.style.backdrop, op.style.backdrop];
+        if (a === null && b) {
+          out.push(op);
+          continue;
+        }
+        const backdrop = a && b ? { backdrop: { ...a, ...b } } : {};
+        out[out.length - 1] = { ...op, style: { ...last.style, ...op.style, ...backdrop } };
         continue;
       }
       if (op.op === 'moveComponent' || op.op === 'setComponentHidden') {

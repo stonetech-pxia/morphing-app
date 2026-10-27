@@ -35,7 +35,7 @@ export const statComponent: ComponentDefinitionOf<'stat', typeof props> = define
       : [];
   },
   describe: (c, _config, ctx) => t(ctx.locale, 'describe_stat_c1587', { v0: c.props.label }),
-  edit: { text: [], style: ['tone'] },
+  edit: { text: [], style: ['tone'], backdrop: true },
   ai: {
     doc: '{collectionId, aggregate: "count"|"sum"|"avg"|"min"|"max", fieldId? (a number, money, rating or formula field; not needed for count), filter?, label, groupBy? (a choice field: one row per option, e.g. spending per category)}',
     rule: {

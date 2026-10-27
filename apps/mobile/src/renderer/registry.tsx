@@ -29,6 +29,7 @@ import { FileList } from './FileList';
 import { FilePick } from './FilePick';
 import { FileSlot } from './FileSlot';
 import { ImageView } from './ImageView';
+import { onPicture } from './Backdrop';
 import { QuickActionList } from './QuickActionList';
 import { RichText } from './RichText';
 import { SIZES, textColor } from './style';
@@ -123,7 +124,7 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
     />
   ),
   notice: (c, env) => {
-    const { palette } = env;
+    const palette = onPicture(env.palette, c.style?.backdrop);
     const tone = c.style?.tone;
     const colors = cardColors(palette, tone ?? 'secondary');
     const fg =
@@ -133,7 +134,11 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
           ? palette.onTertiaryTint
           : palette.text;
     return (
-      <Card palette={palette} background={colors.background} style={styles.noticeCard}>
+      <Card
+        palette={palette}
+        background={colors.background}
+        backdrop={c.style?.backdrop}
+        style={styles.noticeCard}>
         <View style={styles.tileRow}>
           {c.props.icon ? (
             <IconTile
@@ -151,7 +156,7 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
             ) : null}
             <RichText
               source={c.props.text}
-              env={env}
+              env={{ ...env, palette }}
               color={fg}
               size={14 * scaleOf(c)}
               align={alignOf(c)}
@@ -173,13 +178,20 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
   recordForm: (c, env) => (
     <RecordForm props={c.props} env={env} componentId={c.id} tone={c.style?.tone} />
   ),
-  stat: (c, env) => <Stat props={c.props} env={env} tone={c.style?.tone} />,
+  stat: (c, env) => (
+    <Stat props={c.props} env={env} tone={c.style?.tone} backdrop={c.style?.backdrop} />
+  ),
   chart: (c, env) => <Chart props={c.props} env={env} tone={c.style?.tone} />,
   fileList: (c, env) => (
     <FileList title={c.props.title} limit={c.props.limit} mimeType={c.props.mimeType} env={env} />
   ),
   workflowRunner: (c, env) => (
-    <WorkflowRunner workflowId={c.props.workflowId} look={c.props.look} env={env} />
+    <WorkflowRunner
+      workflowId={c.props.workflowId}
+      look={c.props.look}
+      backdrop={c.style?.backdrop}
+      env={env}
+    />
   ),
   quickActionList: (c, env) => <QuickActionList props={c.props} env={env} />,
   fileSlot: (c, env) => <FileSlot component={c} env={env} />,

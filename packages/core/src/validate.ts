@@ -9,6 +9,7 @@ import {
   PERIODS,
   allComponents,
   componentCollection,
+  BACKDROP_TYPES,
   componentDefinition,
   fieldDefinition,
   isKnownComponent,
@@ -124,6 +125,12 @@ export function validateWorkspace(
       // 不认识的组件（D-254）原样保留，没有可以检查的引用。
       if (!isKnownComponent(c)) continue;
       const def = componentDefinition(c.type);
+      if (c.style?.backdrop && !def.edit.backdrop) {
+        issue(
+          'style',
+          `component ${c.id} (${c.type}) can't have a picture background: style.backdrop is only for ${BACKDROP_TYPES.join(', ')}`,
+        );
+      }
       for (const [prop, ref] of Object.entries(def.refs ?? {})) {
         const value = (c.props as Record<string, unknown>)[prop];
         if (!ref || value === undefined) continue;

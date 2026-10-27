@@ -13,6 +13,8 @@ import {
   componentDefinition,
   isKnownComponent,
   pageIdOf,
+  type Backdrop,
+  type BackdropPatch,
   type Component,
   type Locale,
   type NavTarget,
@@ -371,6 +373,14 @@ export function describeChange(
             : t(ctx.locale, 'describe_Floating_buttons_d071d', { v0: navList(op.items) }),
         );
         break;
+      case 'setPageBackdrop':
+        lines.push(
+          t(ctx.locale, 'describePageBackdrop', {
+            page: pageName(op.pageId),
+            change: backdropChange(op.backdrop, page(op.pageId)?.backdrop, ctx.locale),
+          }),
+        );
+        break;
       case 'setPageIcon':
         lines.push(
           t(ctx.locale, 'describePageIcon', {
@@ -502,8 +512,10 @@ export function describeChange(
           medium: ['中', 'medium'],
           large: ['大', 'large'],
         };
+        const current = findComp(op.pageId, op.componentId);
+        const backdrop = op.style.backdrop;
         const changes = (Object.entries(op.style) as [string, string | null | undefined][])
-          .filter((e): e is [string, string | null] => e[1] !== undefined)
+          .filter((e): e is [string, string | null] => e[1] !== undefined && e[0] !== 'backdrop')
           .map(([k, v]) => {
             const shown =
               v === null
@@ -516,6 +528,17 @@ export function describeChange(
               value: shown,
             });
           })
+          .concat(
+            backdrop === undefined
+              ? []
+              : [
+                  backdropChange(
+                    backdrop,
+                    current && isKnownComponent(current) ? current.style?.backdrop : undefined,
+                    ctx.locale,
+                  ),
+                ],
+          )
           .join(zh ? '，' : ', ');
         lines.push(
           t(ctx.locale, 'describe_Restyle_0b6e5', {
@@ -788,4 +811,22 @@ export function describeRestore(
       : t(ctx.locale, 'describe_Your_files_are_not_affected_3c83c'),
   );
   return lines;
+}
+
+/** 图片背景的一次修改（D-258）怎么说。 */
+function backdropChange(
+  patch: BackdropPatch | null,
+  before: Backdrop | undefined,
+  locale: Locale,
+): string {
+  if (patch === null) return t(locale, 'describeBackdropOff');
+  const parts: string[] = [];
+  if (!before && !patch.assetId) parts.push(t(locale, 'describeBackdropOn'));
+  if (patch.assetId) parts.push(t(locale, 'describeBackdropPicture'));
+  else if (patch.assetId === null) parts.push(t(locale, 'describeBackdropPictureRemoved'));
+  if (patch.overlay && patch.overlay !== before?.overlay)
+    parts.push(
+      t(locale, 'describeBackdropOverlay', { level: t(locale, `overlay_${patch.overlay}`) }),
+    );
+  return parts.join(t(locale, 'separatorComma')) || t(locale, 'describeBackdropPicture');
 }

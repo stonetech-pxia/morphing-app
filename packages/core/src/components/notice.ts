@@ -21,6 +21,7 @@ export const noticeComponent: ComponentDefinitionOf<'notice', typeof props> = de
       { prop: 'text', max: 600, multiline: true, rich: true },
     ],
     style: ALL_STYLES,
+    backdrop: true,
   },
   ai: { doc: '{title?, text, icon?}: a tinted callout; text is rich text, up to 600 characters' },
   example: { props: { title: 'Tip', text: 'Long-press to edit.', icon: 'lightbulb' } },

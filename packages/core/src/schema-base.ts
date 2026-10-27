@@ -63,6 +63,35 @@ export type IconValue = IconName | (string & {});
 /** 用户文件的 ID（图片组件引用用户选择的照片）。 */
 export const AssetIdSchema = z.string().regex(/^[a-z0-9]{6,40}$/, 'invalid asset id');
 
+/** 图片背景（D-258）的遮罩深浅（不透明度见 theme.ts 的 OVERLAY_OPACITY）。 */
+export const OverlayLevelSchema = z.enum(['light', 'medium', 'strong']);
+
+/**
+ * 图片背景（D-258）：卡片类组件的 style.backdrop 和页面的 backdrop。AI 只能打开（写 overlay）、关掉、调遮罩深浅；
+ * 用哪张图片由用户在长按编辑里选，assetId 和图片组件一样只指向用户文件。没有图片时照常显示底色。
+ */
+export const BackdropSchema = z.strictObject({
+  overlay: OverlayLevelSchema,
+  assetId: AssetIdSchema.optional(),
+});
+export type Backdrop = z.infer<typeof BackdropSchema>;
+
+/** 修改操作里的图片背景：只写要改的；assetId 为 null 时去掉图片（图片背景仍开着）。 */
+export const BackdropPatchSchema = z.strictObject({
+  overlay: OverlayLevelSchema.optional(),
+  assetId: AssetIdSchema.nullable().optional(),
+});
+export type BackdropPatch = z.infer<typeof BackdropPatchSchema>;
+
+/** 套用一次修改：没开时按「中」打开。 */
+export function patchBackdrop(current: Backdrop | undefined, patch: BackdropPatch): Backdrop {
+  const next: Backdrop = { ...(current ?? { overlay: 'medium' }) };
+  if (patch.overlay) next.overlay = patch.overlay;
+  if (patch.assetId === null) delete next.assetId;
+  else if (patch.assetId !== undefined) next.assetId = patch.assetId;
+  return next;
+}
+
 /** 富文本（richtext.ts）：链接只能是 https 或 mailto。 */
 export const richText = (max: number) =>
   boundedText(1, max).refine((s) => unsafeLinks(s).length === 0, {

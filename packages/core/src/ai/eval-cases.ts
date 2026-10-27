@@ -3770,6 +3770,36 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     },
   },
   {
+    id: 'BG1',
+    input: '首页用一张照片做背景，遮罩深一点',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        home(c).backdrop?.overlay === 'strong' && !home(c).backdrop?.assetId
+          ? null
+          : 'expected a strong page backdrop on home without a picture',
+    },
+  },
+  {
+    id: 'BG2',
+    input: 'Add a tip card at the top of home saying "Drink water" with a picture background',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        home(c).components.some(
+          (x) => x.type === 'notice' && x.style?.backdrop && !x.style.backdrop.assetId,
+        )
+          ? null
+          : 'expected a notice with style.backdrop and no picture',
+    },
+  },
+  {
     id: 'FS1',
     input: '首页放一个租房合同的入口，点一下就能打开合同',
     locale: 'zh',

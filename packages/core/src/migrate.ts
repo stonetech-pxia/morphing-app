@@ -154,6 +154,12 @@ export const migrateV15toV16: Migration = (config) => ({ ...config, schemaVersio
  */
 export const migrateV16toV17: Migration = (config) => ({ ...config, schemaVersion: 17 });
 
+/**
+ * v17 → v18：卡片类组件的 style 和页面可以有图片背景 backdrop（D-258，改了已有结构，按 D-254 提升）；
+ * 已有数据不需要改动，只提升版本号。
+ */
+export const migrateV17toV18: Migration = (config) => ({ ...config, schemaVersion: 18 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -172,6 +178,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   14: migrateV14toV15,
   15: migrateV15toV16,
   16: migrateV16toV17,
+  17: migrateV17toV18,
 };
 
 export type MigrateResult =

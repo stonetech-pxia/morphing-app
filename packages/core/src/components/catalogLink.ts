@@ -11,7 +11,7 @@ export const catalogLinkComponent: ComponentDefinitionOf<'catalogLink', typeof p
     type: 'catalogLink',
     props,
     describe: (c, _config, ctx) => t(ctx.locale, 'describe_link_941e3', { v0: c.props.title }),
-    edit: { text: [{ prop: 'title', max: 60 }], style: ALL_STYLES },
+    edit: { text: [{ prop: 'title', max: 60 }], style: ALL_STYLES, backdrop: true },
     ai: { doc: '{title, look?: "row"|"tile"}: entry to the tool catalog' },
     example: { props: { title: 'More tools' } },
   });

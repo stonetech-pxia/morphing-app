@@ -31,6 +31,7 @@ export const fileSlotComponent: ComponentDefinitionOf<'fileSlot', typeof props> 
     ],
     style: ALL_STYLES,
     asset: 'file',
+    backdrop: true,
   },
   ai: {
     doc: '{title, hint?, icon?, look?: "row"|"tile", assetId?}: a slot for one file the user wants at hand (a contract, a ticket, a manual, a scan). You set only the title, hint and look; never choose a file or write assetId — the user taps the empty slot to pick a photo or a file, Morph keeps a copy, and later a tap opens it in the system viewer. You never see which file it is. When the user asks for a place, entry or button for one particular document of theirs ("放一个租房合同的入口", "a spot for my boarding pass"), add an empty fileSlot titled after it; do not use fileList, filePick or a notice instead.',

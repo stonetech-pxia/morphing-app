@@ -9294,6 +9294,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
       "items": {
         "additionalProperties": false,
         "properties": {
+          "backdrop": {
+            "additionalProperties": false,
+            "properties": {
+              "assetId": {
+                "pattern": "^[a-z0-9]{6,40}$",
+                "type": "string",
+              },
+              "overlay": {
+                "enum": [
+                  "light",
+                  "medium",
+                  "strong",
+                ],
+                "type": "string",
+              },
+            },
+            "required": [
+              "overlay",
+            ],
+            "type": "object",
+          },
           "components": {
             "items": {
               "oneOf": [
@@ -9332,6 +9353,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                             "center",
                           ],
                           "type": "string",
+                        },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
                         },
                         "size": {
                           "enum": [
@@ -9405,6 +9447,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                           ],
                           "type": "string",
                         },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
+                        },
                         "size": {
                           "enum": [
                             "small",
@@ -9471,6 +9534,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                             "center",
                           ],
                           "type": "string",
+                        },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
                         },
                         "size": {
                           "enum": [
@@ -9545,6 +9629,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                           ],
                           "type": "string",
                         },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
+                        },
                         "size": {
                           "enum": [
                             "small",
@@ -9617,6 +9722,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                             "center",
                           ],
                           "type": "string",
+                        },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
                         },
                         "size": {
                           "enum": [
@@ -9691,6 +9817,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                             "center",
                           ],
                           "type": "string",
+                        },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
                         },
                         "size": {
                           "enum": [
@@ -9774,6 +9921,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                           ],
                           "type": "string",
                         },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
+                        },
                         "size": {
                           "enum": [
                             "small",
@@ -9848,6 +10016,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                           ],
                           "type": "string",
                         },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
+                        },
                         "size": {
                           "enum": [
                             "small",
@@ -9921,6 +10110,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                             "center",
                           ],
                           "type": "string",
+                        },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
                         },
                         "size": {
                           "enum": [
@@ -10046,6 +10256,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                             "center",
                           ],
                           "type": "string",
+                        },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
                         },
                         "size": {
                           "enum": [
@@ -10175,6 +10406,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                           ],
                           "type": "string",
                         },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
+                        },
                         "size": {
                           "enum": [
                             "small",
@@ -10293,6 +10545,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                           ],
                           "type": "string",
                         },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
+                        },
                         "size": {
                           "enum": [
                             "small",
@@ -10393,6 +10666,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                           ],
                           "type": "string",
                         },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
+                        },
                         "size": {
                           "enum": [
                             "small",
@@ -10450,6 +10744,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                             "center",
                           ],
                           "type": "string",
+                        },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
                         },
                         "size": {
                           "enum": [
@@ -10520,6 +10835,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                             "center",
                           ],
                           "type": "string",
+                        },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
                         },
                         "size": {
                           "enum": [
@@ -10749,6 +11085,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                           ],
                           "type": "string",
                         },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
+                        },
                         "size": {
                           "enum": [
                             "small",
@@ -10838,6 +11195,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                             "center",
                           ],
                           "type": "string",
+                        },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
                         },
                         "size": {
                           "enum": [
@@ -10985,6 +11363,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                             "center",
                           ],
                           "type": "string",
+                        },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
                         },
                         "size": {
                           "enum": [
@@ -11170,6 +11569,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                           ],
                           "type": "string",
                         },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
+                        },
                         "size": {
                           "enum": [
                             "small",
@@ -11306,6 +11726,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                           ],
                           "type": "string",
                         },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
+                        },
                         "size": {
                           "enum": [
                             "small",
@@ -11381,6 +11822,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                     ],
                                     "type": "string",
                                   },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
+                                  },
                                   "size": {
                                     "enum": [
                                       "small",
@@ -11453,6 +11915,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                     ],
                                     "type": "string",
                                   },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
+                                  },
                                   "size": {
                                     "enum": [
                                       "small",
@@ -11519,6 +12002,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                       "center",
                                     ],
                                     "type": "string",
+                                  },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
                                   },
                                   "size": {
                                     "enum": [
@@ -11593,6 +12097,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                     ],
                                     "type": "string",
                                   },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
+                                  },
                                   "size": {
                                     "enum": [
                                       "small",
@@ -11665,6 +12190,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                       "center",
                                     ],
                                     "type": "string",
+                                  },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
                                   },
                                   "size": {
                                     "enum": [
@@ -11739,6 +12285,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                       "center",
                                     ],
                                     "type": "string",
+                                  },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
                                   },
                                   "size": {
                                     "enum": [
@@ -11822,6 +12389,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                     ],
                                     "type": "string",
                                   },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
+                                  },
                                   "size": {
                                     "enum": [
                                       "small",
@@ -11896,6 +12484,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                     ],
                                     "type": "string",
                                   },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
+                                  },
                                   "size": {
                                     "enum": [
                                       "small",
@@ -11969,6 +12578,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                       "center",
                                     ],
                                     "type": "string",
+                                  },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
                                   },
                                   "size": {
                                     "enum": [
@@ -12094,6 +12724,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                       "center",
                                     ],
                                     "type": "string",
+                                  },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
                                   },
                                   "size": {
                                     "enum": [
@@ -12223,6 +12874,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                     ],
                                     "type": "string",
                                   },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
+                                  },
                                   "size": {
                                     "enum": [
                                       "small",
@@ -12341,6 +13013,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                     ],
                                     "type": "string",
                                   },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
+                                  },
                                   "size": {
                                     "enum": [
                                       "small",
@@ -12441,6 +13134,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                     ],
                                     "type": "string",
                                   },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
+                                  },
                                   "size": {
                                     "enum": [
                                       "small",
@@ -12498,6 +13212,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                       "center",
                                     ],
                                     "type": "string",
+                                  },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
                                   },
                                   "size": {
                                     "enum": [
@@ -12568,6 +13303,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                       "center",
                                     ],
                                     "type": "string",
+                                  },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
                                   },
                                   "size": {
                                     "enum": [
@@ -12797,6 +13553,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                     ],
                                     "type": "string",
                                   },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
+                                  },
                                   "size": {
                                     "enum": [
                                       "small",
@@ -12886,6 +13663,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                       "center",
                                     ],
                                     "type": "string",
+                                  },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
                                   },
                                   "size": {
                                     "enum": [
@@ -13033,6 +13831,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                       "center",
                                     ],
                                     "type": "string",
+                                  },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
                                   },
                                   "size": {
                                     "enum": [
@@ -13218,6 +14037,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                     ],
                                     "type": "string",
                                   },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
+                                  },
                                   "size": {
                                     "enum": [
                                       "small",
@@ -13354,6 +14194,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                                     ],
                                     "type": "string",
                                   },
+                                  "backdrop": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "assetId": {
+                                        "pattern": "^[a-z0-9]{6,40}$",
+                                        "type": "string",
+                                      },
+                                      "overlay": {
+                                        "enum": [
+                                          "light",
+                                          "medium",
+                                          "strong",
+                                        ],
+                                        "type": "string",
+                                      },
+                                    },
+                                    "required": [
+                                      "overlay",
+                                    ],
+                                    "type": "object",
+                                  },
                                   "size": {
                                     "enum": [
                                       "small",
@@ -13442,6 +14303,27 @@ exports[`baseline > workspace config JSON Schema 1`] = `
                             "center",
                           ],
                           "type": "string",
+                        },
+                        "backdrop": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "assetId": {
+                              "pattern": "^[a-z0-9]{6,40}$",
+                              "type": "string",
+                            },
+                            "overlay": {
+                              "enum": [
+                                "light",
+                                "medium",
+                                "strong",
+                              ],
+                              "type": "string",
+                            },
+                          },
+                          "required": [
+                            "overlay",
+                          ],
+                          "type": "object",
                         },
                         "size": {
                           "enum": [
@@ -13620,7 +14502,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
       "type": "array",
     },
     "schemaVersion": {
-      "const": 17,
+      "const": 18,
       "type": "number",
     },
     "shell": {
@@ -13987,6 +14869,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
               ],
               "type": "string",
             },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
+            },
             "size": {
               "enum": [
                 "small",
@@ -14059,6 +14962,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
               ],
               "type": "string",
             },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
+            },
             "size": {
               "enum": [
                 "small",
@@ -14125,6 +15049,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                 "center",
               ],
               "type": "string",
+            },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
             },
             "size": {
               "enum": [
@@ -14199,6 +15144,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
               ],
               "type": "string",
             },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
+            },
             "size": {
               "enum": [
                 "small",
@@ -14271,6 +15237,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                 "center",
               ],
               "type": "string",
+            },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
             },
             "size": {
               "enum": [
@@ -14345,6 +15332,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                 "center",
               ],
               "type": "string",
+            },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
             },
             "size": {
               "enum": [
@@ -14428,6 +15436,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
               ],
               "type": "string",
             },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
+            },
             "size": {
               "enum": [
                 "small",
@@ -14502,6 +15531,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
               ],
               "type": "string",
             },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
+            },
             "size": {
               "enum": [
                 "small",
@@ -14575,6 +15625,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                 "center",
               ],
               "type": "string",
+            },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
             },
             "size": {
               "enum": [
@@ -14700,6 +15771,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                 "center",
               ],
               "type": "string",
+            },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
             },
             "size": {
               "enum": [
@@ -14829,6 +15921,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
               ],
               "type": "string",
             },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
+            },
             "size": {
               "enum": [
                 "small",
@@ -14947,6 +16060,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
               ],
               "type": "string",
             },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
+            },
             "size": {
               "enum": [
                 "small",
@@ -15047,6 +16181,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
               ],
               "type": "string",
             },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
+            },
             "size": {
               "enum": [
                 "small",
@@ -15104,6 +16259,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                 "center",
               ],
               "type": "string",
+            },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
             },
             "size": {
               "enum": [
@@ -15174,6 +16350,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                 "center",
               ],
               "type": "string",
+            },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
             },
             "size": {
               "enum": [
@@ -15403,6 +16600,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
               ],
               "type": "string",
             },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
+            },
             "size": {
               "enum": [
                 "small",
@@ -15492,6 +16710,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                 "center",
               ],
               "type": "string",
+            },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
             },
             "size": {
               "enum": [
@@ -15639,6 +16878,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                 "center",
               ],
               "type": "string",
+            },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
             },
             "size": {
               "enum": [
@@ -15824,6 +17084,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
               ],
               "type": "string",
             },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
+            },
             "size": {
               "enum": [
                 "small",
@@ -15960,6 +17241,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
               ],
               "type": "string",
             },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
+            },
             "size": {
               "enum": [
                 "small",
@@ -16035,6 +17337,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                         ],
                         "type": "string",
                       },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
+                      },
                       "size": {
                         "enum": [
                           "small",
@@ -16107,6 +17430,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                         ],
                         "type": "string",
                       },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
+                      },
                       "size": {
                         "enum": [
                           "small",
@@ -16173,6 +17517,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                           "center",
                         ],
                         "type": "string",
+                      },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
                       },
                       "size": {
                         "enum": [
@@ -16247,6 +17612,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                         ],
                         "type": "string",
                       },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
+                      },
                       "size": {
                         "enum": [
                           "small",
@@ -16319,6 +17705,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                           "center",
                         ],
                         "type": "string",
+                      },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
                       },
                       "size": {
                         "enum": [
@@ -16393,6 +17800,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                           "center",
                         ],
                         "type": "string",
+                      },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
                       },
                       "size": {
                         "enum": [
@@ -16476,6 +17904,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                         ],
                         "type": "string",
                       },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
+                      },
                       "size": {
                         "enum": [
                           "small",
@@ -16550,6 +17999,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                         ],
                         "type": "string",
                       },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
+                      },
                       "size": {
                         "enum": [
                           "small",
@@ -16623,6 +18093,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                           "center",
                         ],
                         "type": "string",
+                      },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
                       },
                       "size": {
                         "enum": [
@@ -16748,6 +18239,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                           "center",
                         ],
                         "type": "string",
+                      },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
                       },
                       "size": {
                         "enum": [
@@ -16877,6 +18389,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                         ],
                         "type": "string",
                       },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
+                      },
                       "size": {
                         "enum": [
                           "small",
@@ -16995,6 +18528,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                         ],
                         "type": "string",
                       },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
+                      },
                       "size": {
                         "enum": [
                           "small",
@@ -17095,6 +18649,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                         ],
                         "type": "string",
                       },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
+                      },
                       "size": {
                         "enum": [
                           "small",
@@ -17152,6 +18727,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                           "center",
                         ],
                         "type": "string",
+                      },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
                       },
                       "size": {
                         "enum": [
@@ -17222,6 +18818,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                           "center",
                         ],
                         "type": "string",
+                      },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
                       },
                       "size": {
                         "enum": [
@@ -17451,6 +19068,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                         ],
                         "type": "string",
                       },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
+                      },
                       "size": {
                         "enum": [
                           "small",
@@ -17540,6 +19178,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                           "center",
                         ],
                         "type": "string",
+                      },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
                       },
                       "size": {
                         "enum": [
@@ -17687,6 +19346,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                           "center",
                         ],
                         "type": "string",
+                      },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
                       },
                       "size": {
                         "enum": [
@@ -17872,6 +19552,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                         ],
                         "type": "string",
                       },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
+                      },
                       "size": {
                         "enum": [
                           "small",
@@ -18008,6 +19709,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                         ],
                         "type": "string",
                       },
+                      "backdrop": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "assetId": {
+                            "pattern": "^[a-z0-9]{6,40}$",
+                            "type": "string",
+                          },
+                          "overlay": {
+                            "enum": [
+                              "light",
+                              "medium",
+                              "strong",
+                            ],
+                            "type": "string",
+                          },
+                        },
+                        "required": [
+                          "overlay",
+                        ],
+                        "type": "object",
+                      },
                       "size": {
                         "enum": [
                           "small",
@@ -18096,6 +19818,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
                 "center",
               ],
               "type": "string",
+            },
+            "backdrop": {
+              "additionalProperties": false,
+              "properties": {
+                "assetId": {
+                  "pattern": "^[a-z0-9]{6,40}$",
+                  "type": "string",
+                },
+                "overlay": {
+                  "enum": [
+                    "light",
+                    "medium",
+                    "strong",
+                  ],
+                  "type": "string",
+                },
+              },
+              "required": [
+                "overlay",
+              ],
+              "type": "object",
             },
             "size": {
               "enum": [

@@ -21,6 +21,7 @@ import {
   type FieldOf,
   type FieldType,
   type FieldValue,
+  type Backdrop,
 } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -40,6 +41,7 @@ import { useLinkResolver, useRecordActions, useRecords } from '../data/records';
 import type { AssetRecord } from '../storage/types';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { t } from '../i18n';
+import { onPicture } from './Backdrop';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
 import { cardColors, type Palette } from './theme';
@@ -817,8 +819,18 @@ export function statText(
   return formatNumber(value, undefined, locale);
 }
 
-export function Stat({ props, env, tone }: { props: StatProps; env: RenderEnv; tone?: Tone }) {
-  const { palette } = env;
+export function Stat({
+  props,
+  env,
+  tone,
+  backdrop,
+}: {
+  props: StatProps;
+  env: RenderEnv;
+  tone?: Tone;
+  backdrop?: Backdrop | undefined;
+}) {
+  const palette = onPicture(env.palette, backdrop);
   const collection = useCollection(env, props.collectionId);
   const records = useRecords(props.collectionId);
   if (!collection) return null;
@@ -845,7 +857,7 @@ export function Stat({ props, env, tone }: { props: StatProps; env: RenderEnv; t
             t(env.locale, 'statNoChoice'),
           );
     return (
-      <Card palette={palette} background={background} style={styles.fillCard}>
+      <Card palette={palette} background={background} backdrop={backdrop} style={styles.fillCard}>
         {heading}
         {groups.map((g) => (
           <View key={g.optionId ?? '-'} style={styles.row}>
@@ -867,7 +879,7 @@ export function Stat({ props, env, tone }: { props: StatProps; env: RenderEnv; t
   const value =
     records === null ? null : aggregateRecords(matched, collection, props.aggregate, props.fieldId);
   return (
-    <Card palette={palette} background={background} style={styles.fillCard}>
+    <Card palette={palette} background={background} backdrop={backdrop} style={styles.fillCard}>
       {heading}
       <Text
         testID={`stat-value-${props.collectionId}-${props.label}`}

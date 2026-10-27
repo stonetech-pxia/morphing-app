@@ -6,6 +6,7 @@ import { GestureDetector, type PanGesture } from 'react-native-gesture-handler';
 
 import { FocusToolbar } from '../editing/FocusItem';
 import type { SingleDrag } from '../editing/useSingleDrag';
+import { BackdropFill, onPicture } from './Backdrop';
 import { Item } from './registry';
 import type { Palette } from './theme';
 
@@ -57,15 +58,17 @@ export function PageView({
   /** 额外的滚动设置（编辑后重新挂载时恢复滚动位置）。 */
   scroll?: ScrollViewProps;
 }) {
-  const { palette } = env;
-  const pageEnv = { ...env, pageId: page.id };
+  // 整页的背景图片（D-258）：图片上的文字一律用正文色，组件浮在上面。
+  const picture = page.backdrop?.assetId ? page.backdrop : undefined;
+  const palette = onPicture(env.palette, picture);
+  const pageEnv = { ...env, palette, pageId: page.id };
   const content = (
     <ScrollView
       testID={env.focus ? 'editable-scroll' : undefined}
       ref={(view) => env.focus?.drag?.attachScroll(view)}
       {...scroll}
       // 渐变背景画在外层容器上（和状态栏区域连成一片），页面本身透明。
-      style={palette.hasBackdrop ? undefined : { backgroundColor: palette.background }}
+      style={palette.hasBackdrop || picture ? undefined : { backgroundColor: palette.background }}
       // 数据表单：键盘弹出时可以直接点选项和按钮，并自动把输入框滚到键盘上方。
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets
@@ -112,8 +115,14 @@ export function PageView({
     </ScrollView>
   );
   const drag = env.focus?.drag;
+  // 背景图片画在滚动内容后面，不跟着滚动。
+  const fill = picture ? (
+    <BackdropFill backdrop={picture} color={palette.background} palette={palette} />
+  ) : null;
+  const behind = picture ? { backgroundColor: palette.background } : undefined;
   return drag ? (
-    <View ref={(view) => drag.attachViewport(view)} style={{ flex: 1 }}>
+    <View ref={(view) => drag.attachViewport(view)} style={{ flex: 1, ...behind }}>
+      {fill}
       <GestureDetector gesture={drag.scrollGesture}>{content}</GestureDetector>
       {drag.target ? (
         <View
@@ -131,6 +140,11 @@ export function PageView({
         />
       ) : null}
       {env.focus?.selectedId ? <FocusToolbar env={pageEnv} page={page} pinned /> : null}
+    </View>
+  ) : picture ? (
+    <View style={{ flex: 1, ...behind }}>
+      {fill}
+      {content}
     </View>
   ) : (
     content

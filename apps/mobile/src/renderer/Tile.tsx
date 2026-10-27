@@ -3,6 +3,7 @@ import { localize, pageTarget, type ComponentStyle, type EntryLook } from '@morp
 import { StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
+import { onPicture } from './Backdrop';
 import type { RenderEnv } from './components';
 import { SIZES } from './style';
 import { cardColors, iconColors } from './theme';
@@ -32,7 +33,7 @@ export function Tile({
   look: EntryLook;
   testID?: string;
 }) {
-  const { palette } = env;
+  const palette = onPicture(env.palette, style?.backdrop);
   const colors = cardColors(palette, style?.tone);
   const scale = SIZES[style?.size ?? 'medium'];
   const center = style?.align === 'center';
@@ -44,6 +45,7 @@ export function Tile({
     <Card
       palette={palette}
       background={colors.background}
+      backdrop={style?.backdrop}
       onPress={env.interactive ? onPress : undefined}
       onLongPress={env.onLongPress}
       testID={testID}
@@ -59,7 +61,8 @@ export function Tile({
           <Text
             style={[
               palette.font('title', 16 * scale),
-              { color: titleColor ?? palette.text },
+              // 图片上的文字一律用正文色（D-258）。
+              { color: (!style?.backdrop?.assetId && titleColor) || palette.text },
               center && styles.textCenter,
             ]}>
             {title}

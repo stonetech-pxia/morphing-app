@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { DescribeContext } from '../describe';
 import type { Registry } from '../registry';
 import type { Page, WorkspaceConfig } from '../schema';
-import { IdSchema, type Collection, type FieldType } from '../schema-base';
+import { BackdropSchema, IdSchema, type Collection, type FieldType } from '../schema-base';
 
 // 组件登记表：每种页面组件一份定义（新增组件的步骤见 docs/COMPONENTS.md），
 // 结构校验、引用检查、草稿说明、长按编辑、提示词都从这里读，不再各写一份按类型的 switch。
@@ -13,6 +13,8 @@ export const ComponentStyleSchema = z.strictObject({
   align: z.enum(['start', 'center']).optional(),
   tone: z.enum(['default', 'primary', 'secondary', 'tertiary', 'muted']).optional(),
   size: z.enum(['small', 'medium', 'large']).optional(),
+  /** 用一张图片代替底色（D-258，schemaVersion 18）；只有定义里 edit.backdrop 为 true 的卡片类组件可以用。 */
+  backdrop: BackdropSchema.optional(),
 });
 export type ComponentStyle = z.infer<typeof ComponentStyleSchema>;
 
@@ -88,6 +90,8 @@ export interface ComponentEdit {
   style: StyleKey[];
   /** 长按编辑里能选、换、移除的用户文件（props.assetId，D-257）：file = 照片或「文件」里的任意文件。 */
   asset?: 'file';
+  /** 是有底色的卡片，可以用图片代替底色（style.backdrop，D-258）；渲染器要真的画出来。 */
+  backdrop?: true;
 }
 
 /** 发给 AI 的说明（packages/planner/src/prompt.ts 读它，英文）。改了要跑受影响的评测。 */

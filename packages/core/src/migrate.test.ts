@@ -57,6 +57,15 @@ describe('migrateWorkspace', () => {
       expect(result.after).toEqual({ ...previous, schemaVersion: CURRENT_SCHEMA_VERSION });
     expect(previous.schemaVersion).toBe(10);
   });
+  it('v17 → v18 (picture backgrounds, D-258) only raises the version', () => {
+    const previous = { ...workspace(), schemaVersion: 17 };
+    expect(migrateWorkspace(previous, undefined, 18)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 18 },
+      fromVersion: 17,
+    });
+    expect(prepareSnapshot(previous, registry).ok).toBe(true);
+  });
   it('v16 → v17 (buttons open quick actions, D-256) only raises the version', () => {
     const previous = { ...workspace(), schemaVersion: 16 };
     expect(migrateWorkspace(previous, undefined, 17)).toEqual({

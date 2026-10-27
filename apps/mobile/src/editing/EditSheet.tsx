@@ -1,8 +1,11 @@
 import {
+  FILE_LIMITS,
   allComponents,
   componentCollection,
   isKnownComponent,
   moveStepOp,
+  type Backdrop,
+  type BackdropPatch,
   type KnownComponent,
   type ComponentStyle,
   type Op,
@@ -23,7 +26,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { t, type StringKey } from '../i18n';
+import { BACKDROP_SIDE } from '../renderer/Backdrop';
 import { chooseSlotFile } from '../renderer/FileSlot';
+import { pickPicture } from '../renderer/pictures';
 import { importSlotFile } from '../renderer/slot-file';
 import type { Palette } from '../renderer/theme';
 import { Button, SectionLabel } from '../renderer/ui';
@@ -180,6 +185,85 @@ function TextForm({
   );
 }
 
+/**
+ * 图片背景（D-258）：选、换、移除图片，调遮罩深浅，关掉。选的图片存成用户文件，配置里只写 ID。
+ * prefix 区分组件的（edit-backdrop）和页面的（edit-page-backdrop）。
+ */
+function BackdropSection({
+  title,
+  backdrop,
+  side,
+  prefix,
+  palette,
+  onChange,
+}: {
+  title: string;
+  backdrop: Backdrop | undefined;
+  side: number;
+  prefix: string;
+  palette: Palette;
+  onChange: (patch: BackdropPatch | null, keepOpen?: boolean) => void;
+}) {
+  const { locale, repo, files } = useWorkspaceContext();
+  const bumpAssets = useWorkspace((s) => s.bumpAssets);
+  async function choose() {
+    const picked = await pickPicture(files, repo, side);
+    if (picked.kind === 'tooLarge')
+      Alert.alert(t(locale, 'imageTooLarge', { mb: FILE_LIMITS.maxFileBytes / 1024 / 1024 }));
+    if (picked.kind !== 'saved') return;
+    bumpAssets();
+    onChange({ assetId: picked.assetId });
+  }
+  return (
+    <View style={styles.section}>
+      <SectionLabel palette={palette}>{title}</SectionLabel>
+      <View style={styles.chips}>
+        <Chip
+          palette={palette}
+          testID={`${prefix}-choose`}
+          label={t(locale, backdrop?.assetId ? 'backdropReplace' : 'backdropChoose')}
+          onPress={() => void choose()}
+        />
+        {backdrop?.assetId ? (
+          <Chip
+            palette={palette}
+            testID={`${prefix}-remove`}
+            label={t(locale, 'backdropRemove')}
+            onPress={() => onChange({ assetId: null }, true)}
+          />
+        ) : null}
+        {backdrop ? (
+          <Chip
+            palette={palette}
+            testID={`${prefix}-off`}
+            label={t(locale, 'backdropOff')}
+            onPress={() => onChange(null)}
+          />
+        ) : null}
+      </View>
+      {backdrop ? (
+        <>
+          <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
+            {t(locale, 'backdropOverlayLabel')}
+          </Text>
+          <View style={styles.chips}>
+            {(['light', 'medium', 'strong'] as const).map((level) => (
+              <Chip
+                key={level}
+                palette={palette}
+                testID={`${prefix}-overlay-${level}`}
+                label={t(locale, `overlay_${level}`)}
+                selected={backdrop.overlay === level}
+                onPress={() => backdrop.overlay !== level && onChange({ overlay: level }, true)}
+              />
+            ))}
+          </View>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
 export function EditSheet({
   page,
   componentId,
@@ -327,6 +411,20 @@ export function EditSheet({
                     </View>
                   </View>
                 ) : null}
+                {caps.backdrop && known ? (
+                  <BackdropSection
+                    title={t(locale, 'backdropSection')}
+                    backdrop={known.style?.backdrop}
+                    side={BACKDROP_SIDE.card}
+                    prefix="edit-backdrop"
+                    palette={palette}
+                    onChange={(backdrop, keepOpen) =>
+                      apply([{ op: 'setComponentStyle', ...target, style: { backdrop } }], {
+                        keepOpen,
+                      })
+                    }
+                  />
+                ) : null}
                 {caps.style.map((key) => (
                   <View key={key} style={styles.section}>
                     <SectionLabel palette={palette}>{t(locale, STYLE_TITLES[key])}</SectionLabel>
@@ -344,6 +442,18 @@ export function EditSheet({
                     </View>
                   </View>
                 ))}
+                {page.backdrop ? (
+                  <BackdropSection
+                    title={t(locale, 'pageBackdropSection')}
+                    backdrop={page.backdrop}
+                    side={BACKDROP_SIDE.page}
+                    prefix="edit-page-backdrop"
+                    palette={palette}
+                    onChange={(backdrop, keepOpen) =>
+                      apply([{ op: 'setPageBackdrop', pageId: page.id, backdrop }], { keepOpen })
+                    }
+                  />
+                ) : null}
                 <View style={[styles.chips, styles.section]}>
                   <Chip
                     palette={palette}

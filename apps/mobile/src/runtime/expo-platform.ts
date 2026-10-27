@@ -190,7 +190,7 @@ export const expoFilePlatform: FilePlatform = {
     uri: (id, file) => expoPackFs.uri(speechPacks.path(id, file)),
   }),
 
-  async pickImage() {
+  async pickImage(maxSide = MAX_IMAGE_SIDE) {
     const result = await launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsMultipleSelection: false,
@@ -198,13 +198,15 @@ export const expoFilePlatform: FilePlatform = {
     });
     if (result.canceled || !result.assets[0]) return null;
     const picked = result.assets[0];
-    // 重新编码为 JPEG：统一格式（Android 不能显示 HEIC）、缩小到最长边 2048，并去掉位置等元数据（D-047）。
-    let image = await ImageManipulator.manipulate(picked.uri).renderAsync();
-    if (Math.max(image.width, image.height) > MAX_IMAGE_SIDE) {
+    // 重新编码为 JPEG：统一格式（Android 不能显示 HEIC）、缩小到最长边 maxSide，并去掉位置等元数据（D-047）。
+    // 解码时就缩小（maxWidth / maxHeight）：几千万像素的照片原样解码一份就要几百 MB，Android 上会内存不足。
+    let image = await ImageManipulator.manipulate(picked.uri, {
+      maxWidth: maxSide,
+      maxHeight: maxSide,
+    }).renderAsync();
+    if (Math.max(image.width, image.height) > maxSide) {
       image = await ImageManipulator.manipulate(image)
-        .resize(
-          image.width >= image.height ? { width: MAX_IMAGE_SIDE } : { height: MAX_IMAGE_SIDE },
-        )
+        .resize(image.width >= image.height ? { width: maxSide } : { height: maxSide })
         .renderAsync();
     }
     const saved = await image.saveAsync({ compress: 0.82, format: SaveFormat.JPEG });

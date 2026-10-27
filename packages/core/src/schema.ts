@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { ComponentSchema, componentRefs, type Component, type ComponentOf } from './components';
 import {
+  BackdropSchema,
   CollectionSchema,
   IconValueSchema,
   IdSchema,
@@ -17,10 +18,11 @@ import {
 // 修改已有结构（包括给已有组件加属性）时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移；
 // 只新增一种组件不提升（D-254：老配置照样能读，旧 App 读到新组件时原样保留）。
 
-export const CURRENT_SCHEMA_VERSION = 17;
+export const CURRENT_SCHEMA_VERSION = 18;
 
 export * from './schema-base';
 export {
+  BACKDROP_TYPES,
   COMPONENTS,
   ComponentSchema,
   ComponentStyleSchema,
@@ -57,6 +59,8 @@ export const PageSchema = z.strictObject({
   icon: IconValueSchema.optional(),
   /** 由某个工具创建的页面；卸载该工具时一并移除。 */
   toolId: IdSchema.optional(),
+  /** 整个页面的背景图片（D-258，schemaVersion 18），组件浮在上面。 */
+  backdrop: BackdropSchema.optional(),
   components: z.array(ComponentSchema).max(30),
 });
 /** 页面；组件里可能有这个版本不认识的（D-254，见 UnknownComponent）。 */

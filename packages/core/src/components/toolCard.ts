@@ -16,7 +16,7 @@ export const toolCardComponent: ComponentDefinitionOf<'toolCard', typeof props> 
       localize(ctx.registry.tools.get(c.props.toolId)?.name, ctx.locale) ?? c.props.toolId;
     return t(ctx.locale, 'describe_tool_card_80198', { v0: name });
   },
-  edit: { text: [], style: ALL_STYLES },
+  edit: { text: [], style: ALL_STYLES, backdrop: true },
   ai: { doc: '{toolId, look?: "row"|"tile"}: entry to an installed tool\'s page' },
   example: { props: { toolId: 'pdf' } },
 });

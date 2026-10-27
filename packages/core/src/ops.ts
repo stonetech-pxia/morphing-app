@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { THEME_PRESETS, THEME_PRESET_IDS } from './presets';
 import type { Registry } from './registry';
 import {
+  BackdropPatchSchema,
   CollectionSchema,
   ComponentSchema,
   FIELDS,
@@ -26,7 +27,9 @@ import {
   componentTarget,
   isKnownComponent,
   pageTarget,
+  patchBackdrop,
   toolGridToolIds,
+  type BackdropPatch,
   type Collection,
   type Component,
   type GroupComponent,
@@ -82,6 +85,12 @@ export const OpSchema = z.discriminatedUnion('op', [
   z.strictObject({ op: z.literal('setFloatingItems'), items: z.array(NavTargetSchema).max(3) }),
   z.strictObject({ op: z.literal('setPageTitle'), pageId, title: z.string() }),
   z.strictObject({ op: z.literal('setPageIcon'), pageId, icon: IconValueSchema.nullable() }),
+  /** 页面的背景图片（D-258）：只写要改的，合进已有的；null 关掉。 */
+  z.strictObject({
+    op: z.literal('setPageBackdrop'),
+    pageId,
+    backdrop: BackdropPatchSchema.nullable(),
+  }),
   z.strictObject({ op: z.literal('addPage'), page: PageSchema.omit({ toolId: true }) }),
   z.strictObject({ op: z.literal('removePage'), pageId }),
   z.strictObject({
@@ -106,6 +115,8 @@ export const OpSchema = z.discriminatedUnion('op', [
       align: resettable(ComponentStyleSchema.shape.align.unwrap()),
       tone: resettable(ComponentStyleSchema.shape.tone.unwrap()),
       size: resettable(ComponentStyleSchema.shape.size.unwrap()),
+      /** 图片背景（D-258）：只写要改的，合进已有的；null 关掉。 */
+      backdrop: resettable(BackdropPatchSchema),
     }),
   }),
   z.strictObject({ op: z.literal('setComponentHidden'), pageId, componentId, hidden: z.boolean() }),
@@ -411,6 +422,12 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       else page.icon = op.icon;
       return;
     }
+    case 'setPageBackdrop': {
+      const page = getPage(config, op.pageId);
+      if (op.backdrop === null) delete page.backdrop;
+      else page.backdrop = patchBackdrop(page.backdrop, op.backdrop);
+      return;
+    }
     case 'addPage': {
       if (config.pages.some((p) => p.id === op.page.id)) {
         throw new OpError(`page ${op.page.id} already exists`);
@@ -458,6 +475,8 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       const style: Record<string, unknown> = { ...component.style };
       for (const [key, value] of Object.entries(op.style)) {
         if (value === null) delete style[key];
+        else if (key === 'backdrop')
+          style.backdrop = patchBackdrop(component.style?.backdrop, value as BackdropPatch);
         else if (value !== undefined) style[key] = value;
       }
       if (Object.keys(style).length === 0) delete component.style;

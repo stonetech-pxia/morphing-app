@@ -1,13 +1,13 @@
-import { FILE_LIMITS, sanitizeFileName, uniqueFileName, type Component } from '@morph/core';
+import { FILE_LIMITS, type Component } from '@morph/core';
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
-import { newAssetId } from '../runtime/runner';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
+import { pickPicture } from './pictures';
 
 // 图片组件（D-045）：AI 只放图片位；用户点图片位从相册选照片，照片存成用户文件，
 // 配置里只记录文件 ID。AI 看不到照片内容，也看不到文件名。
@@ -62,29 +62,14 @@ export function ImageView({
   }
 
   async function choose() {
-    const picked = await files.pickImage();
-    if (!picked) return;
-    if ((picked.size ?? 0) > FILE_LIMITS.maxFileBytes) {
+    const picked = await pickPicture(files, repo);
+    if (picked.kind === 'tooLarge') {
       Alert.alert(t(locale, 'imageTooLarge', { mb: FILE_LIMITS.maxFileBytes / 1024 / 1024 }));
       return;
     }
-    const id = newAssetId();
-    const clean = sanitizeFileName(picked.name);
-    const ext = /\.([^.]+)$/.exec(clean)?.[1] ?? 'jpg';
-    const existing = (await repo.listAssets()).map((a) => a.name);
-    const name = uniqueFileName(clean.replace(/\.[^.]+$/, ''), ext, existing);
-    const stored = await files.importFile(picked, id, name);
-    await repo.addAsset({
-      id,
-      name,
-      mimeType: picked.mimeType ?? 'image/jpeg',
-      size: stored.size,
-      path: stored.path,
-      source: 'picked',
-      createdAt: Date.now(),
-    });
+    if (picked.kind !== 'saved') return;
     bumpAssets();
-    await setPicture(id);
+    await setPicture(picked.assetId);
   }
 
   function options() {
