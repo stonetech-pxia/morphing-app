@@ -65,7 +65,7 @@ export function DraftBar({ palette, bottom }: { palette: Palette; bottom: number
           (opts.disabled || pressed) && { opacity: opts.disabled ? 0.35 : 0.7 },
         ]}>
         <UiIcon name={icon} size={20} color={color} />
-        <Text style={[palette.font('bodyBold', 11), { color }]}>{label}</Text>
+        <Text style={[palette.barFont('bodyBold', 11), { color }]}>{label}</Text>
       </Pressable>
     );
   };
@@ -517,9 +517,11 @@ const styles = StyleSheet.create({
   stepReply: { gap: 5 },
   change: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  // 字号调大时圆圈跟着变大，数字不被切掉（D-258）。
   stepNo: {
-    width: 22,
-    height: 22,
+    minWidth: 22,
+    minHeight: 22,
+    paddingHorizontal: 4,
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',

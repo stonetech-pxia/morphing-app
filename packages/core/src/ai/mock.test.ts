@@ -134,8 +134,10 @@ describe('mock AI — style', () => {
     expect(bigger.theme.fontScale).toBe(1.15);
     expect((await change('Bigger text', workspace('en'), 'en')).after.theme.fontScale).toBe(1.15);
     expect((await change('字小一点', workspace())).after.theme.fontScale).toBe(0.9);
-    // 已到上限时不再修改。
-    const max = apply(workspace(), [{ op: 'setTheme', fontScale: 1.3 }]);
+    // 上限是 1.5（D-258）：1.3 还能再大一档，到上限时不再修改。
+    const big = apply(workspace(), [{ op: 'setTheme', fontScale: 1.3 }]);
+    expect((await change('字体大一点', big)).after.theme.fontScale).toBe(1.45);
+    const max = apply(workspace(), [{ op: 'setTheme', fontScale: 1.5 }]);
     expect(await plan('字体大一点', max)).toMatchObject({ kind: 'reject', reason: 'noChange' });
   });
 

@@ -150,6 +150,9 @@ export const migrateV15toV16: Migration = (config) => ({ ...config, schemaVersio
 /** v16 → v17：记录列表新增表格显示 display: table（D-255）；已有数据不需要改动，只提升版本号。 */
 export const migrateV16toV17: Migration = (config) => ({ ...config, schemaVersion: 17 });
 
+/** v17 → v18：字号上限从 1.3 提高到 1.5（D-258）；已有数据都在范围内，只提升版本号。 */
+export const migrateV17toV18: Migration = (config) => ({ ...config, schemaVersion: 18 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -168,6 +171,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   14: migrateV14toV15,
   15: migrateV15toV16,
   16: migrateV16toV17,
+  17: migrateV17toV18,
 };
 
 export type MigrateResult =

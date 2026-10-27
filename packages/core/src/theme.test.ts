@@ -9,6 +9,7 @@ import {
   mix,
   resolveColors,
 } from './theme';
+import { ThemeSchema } from './schema';
 
 describe('resolveColors', () => {
   it('keeps the Clay palette, including its warm shadow, when nothing is overridden', () => {
@@ -114,5 +115,14 @@ describe('contrastProblems', () => {
     };
     expect(contrastProblems(theme).join('\n')).toMatch(/dark mode/);
     expect(contrastProblems({ ...theme, mode: 'light' })).toEqual([]);
+  });
+});
+
+describe('text size range (D-258)', () => {
+  it('goes up to 150%, not beyond', () => {
+    expect(ThemeSchema.shape.fontScale.safeParse(1.5).success).toBe(true);
+    expect(ThemeSchema.shape.fontScale.safeParse(1.51).success).toBe(false);
+    expect(ThemeSchema.shape.fontScale.safeParse(0.85).success).toBe(true);
+    expect(ThemeSchema.shape.fontScale.safeParse(0.84).success).toBe(false);
   });
 });

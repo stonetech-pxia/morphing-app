@@ -57,6 +57,11 @@ export interface Palette extends ResolvedColors {
   gap: number;
   /** 某个角色的字体，size 会乘以主题的字号比例。 */
   font(role: FontRole, size: number): TextStyle;
+  /**
+   * 底部导航栏、草稿栏这种一行排满的条用的字号（D-258）：最多放大到 1.3 倍，
+   * 字号调到 150% 时也不挤出屏幕、不被截断。页面内容用 font，照常放大。
+   */
+  barFont(role: FontRole, size: number): TextStyle;
   /** 卡片的底色、边框和阴影。 */
   cardStyle(background?: string): ViewStyle;
   /** 毛玻璃卡片：卡片里要再铺一层 GlassFill。 */
@@ -68,6 +73,9 @@ export interface Palette extends ResolvedColors {
   /** 底部导航栏的底色（毛玻璃主题下半透明）。 */
   barBackground: string;
 }
+
+/** 一行排满的条（导航栏、草稿栏）字号最多放大到这么多（D-258）。 */
+export const BAR_FONT_SCALE_MAX = 1.3;
 
 const DENSITY = {
   compact: { pad: 14, gap: 8 },
@@ -127,6 +135,10 @@ export function makePalette(theme: Theme, systemDark: boolean): Palette {
       ? { backgroundColor: colors.background, backgroundImage: image }
       : { backgroundColor: colors.background },
     font: (role, size) => ({ ...family(role), fontSize: Math.round(size * theme.fontScale) }),
+    barFont: (role, size) => ({
+      ...family(role),
+      fontSize: Math.round(size * Math.min(theme.fontScale, BAR_FONT_SCALE_MAX)),
+    }),
     cardStyle: (background = colors.surface) => {
       const base: ViewStyle = { backgroundColor: background, borderRadius: radius };
       if (theme.cardStyle === 'outline')

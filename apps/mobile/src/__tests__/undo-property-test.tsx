@@ -110,7 +110,7 @@ function randomOps(r: Rng, c: WorkspaceConfig, n: number): Op[] {
         {
           op: 'setTheme',
           primaryColor: r.pick(COLORS),
-          fontScale: Math.round((0.85 + r.next() * 0.45) * 100) / 100,
+          fontScale: Math.round((0.85 + r.next() * 0.65) * 100) / 100,
           density: r.pick(['compact', 'comfortable', 'spacious'] as const),
         },
       ];

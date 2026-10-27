@@ -219,7 +219,7 @@ export function Shell() {
               {navStyle !== 'icon' ? (
                 <Text
                   numberOfLines={1}
-                  style={[palette.font(isActive ? 'bodyBold' : 'bodyMedium', 12), { color }]}>
+                  style={[palette.barFont(isActive ? 'bodyBold' : 'bodyMedium', 12), { color }]}>
                   {label}
                 </Text>
               ) : null}

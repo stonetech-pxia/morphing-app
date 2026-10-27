@@ -6,7 +6,7 @@ import { isEmoji, unsafeLinks } from './richtext';
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 修改本文件中会影响已存储数据的部分时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移。
 
-export const CURRENT_SCHEMA_VERSION = 17;
+export const CURRENT_SCHEMA_VERSION = 18;
 
 export type Locale = 'en' | 'zh' | 'fr';
 export type Localized = Record<Locale, string>;
@@ -98,7 +98,8 @@ export const ThemeSchema = z.strictObject({
   darkColors: ThemeColorsSchema.optional(),
   /** 字体组合：clay = 标题 Sora + 正文 Karla。 */
   font: z.enum(FONT_CHOICES),
-  fontScale: z.number().min(0.85).max(1.3),
+  /** 字号倍数；最大 1.5（D-258，以前是 1.3）。 */
+  fontScale: z.number().min(0.85).max(1.5),
   /** 卡片圆角（pt）；按钮等控件的圆角随之缩放。 */
   radius: z.number().int().min(0).max(28),
   density: z.enum(['compact', 'comfortable', 'spacious']),

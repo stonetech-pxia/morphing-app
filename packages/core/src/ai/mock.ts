@@ -293,7 +293,7 @@ const fontSizeRule: Rule = (clause, state) => {
   return [
     {
       op: 'setTheme',
-      fontScale: bigger ? Math.min(1.3, round2(scale + 0.15)) : Math.max(0.85, round2(scale - 0.1)),
+      fontScale: bigger ? Math.min(1.5, round2(scale + 0.15)) : Math.max(0.85, round2(scale - 0.1)),
     },
   ];
 };
