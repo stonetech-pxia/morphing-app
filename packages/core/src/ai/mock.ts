@@ -649,6 +649,44 @@ const addFieldRule: Rule = (clause, state) => {
   ];
 };
 
+/**
+ * 「给账目加照片」「账目里存发票」「attach receipts to Expenses」（D-263）：给这张表加一个附件字段，
+ * 用户在表单里自己拍照、选照片和文件。不另外搭「记一笔」快捷操作。已经有附件字段时不用改。
+ */
+const attachRule: Rule = (clause, state) => {
+  const m =
+    clause.match(
+      /^(?:给|在)?"?(.+?)"?(?:里|中|表)?(?:加|添加|加上|附上|存|放)(?:上)?(?:照片|图片|附件|发票|收据|文件)(?:照片|图片)?$/,
+    ) ??
+    clause.match(
+      /^(?:add|attach|save|keep) (?:photos|pictures|images|attachments|files|receipts|invoices) (?:to|in|with) (?:the |my )?"?(.+?)"?$/i,
+    );
+  if (!m) return null;
+  const collection = state.config.collections.find(
+    (c) => c.name.toLowerCase() === m[1]!.trim().toLowerCase(),
+  );
+  if (!collection) return null;
+  const existing = collection.fields.find((f) => f.type === 'file');
+  if (existing)
+    throw new Rejection(
+      'noChange',
+      say(
+        state.ctx.locale,
+        `「${collection.name}」已经有附件「${existing.name}」，添加或编辑记录时就能放照片和文件。`,
+        `“${collection.name}” already has the attachment field “${existing.name}”: add photos and files when you add or edit an entry.`,
+      ),
+    );
+  let id = 'attachments';
+  for (let i = 2; collection.fields.some((f) => f.id === id); i++) id = `attachments-${i}`;
+  return [
+    {
+      op: 'addField',
+      collectionId: collection.id,
+      field: { id, name: say(state.ctx.locale, '附件', 'Attachments'), type: 'file' },
+    },
+  ];
+};
+
 function findPage(rawName: string, state: State): Page | undefined {
   const name = rawName
     .trim()
@@ -1596,6 +1634,7 @@ const RULES: Rule[] = [
   imageRule,
   pageIconRule,
   templateRule,
+  attachRule,
   addFieldRule,
   addPageRule,
   removePageRule,

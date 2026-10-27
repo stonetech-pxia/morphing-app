@@ -2476,6 +2476,20 @@ const logsTo =
     return null;
   };
 
+/**
+ * D-263：给表加附件字段（用户在表单里自己拍照、选文件），不另外搭「记一笔」快捷操作。
+ */
+const attachesTo =
+  (collectionId: string) =>
+  (c: WorkspaceConfig): string | null => {
+    const table = c.collections.find((x) => x.id === collectionId);
+    if (!table?.fields.some((f) => f.type === 'file'))
+      return `${collectionId} should have a file field`;
+    if (userWorkflows(c).some((w) => w.steps.some((s) => s.action === 'out.addRecord')))
+      return 'no out.addRecord quick action is needed: the forms take photos and files';
+    return null;
+  };
+
 const RECORD_EVAL_CASES: readonly EvalCase[] = [
   {
     id: 'RE1',
@@ -2521,7 +2535,11 @@ const RECORD_EVAL_CASES: readonly EvalCase[] = [
     locale: 'zh',
     setup: 'budget',
     mock: false,
-    expect: { kind: 'ops', check: logsTo(true) },
+    // D-263 起表单里就能拍照，只给账目加附件字段也算对；搭了「记一笔」快捷操作也对。
+    expect: {
+      kind: 'ops',
+      check: (c) => (logsTo(true)(c) === null ? null : attachesTo('expenses')(c)),
+    },
   },
   {
     id: 'PRE2-en',
@@ -2549,6 +2567,54 @@ const RECORD_EVAL_CASES: readonly EvalCase[] = [
           : `formula should be amount × 1.06, got ${f.expression}`;
       },
     },
+  },
+  {
+    id: 'AT1',
+    input: '给账目加照片',
+    locale: 'zh',
+    setup: 'budget',
+    mock: true,
+    expect: { kind: 'ops', check: attachesTo('expenses') },
+  },
+  {
+    id: 'AT1-en',
+    input: 'Attach receipts to Expenses',
+    locale: 'en',
+    setup: 'budget',
+    mock: true,
+    expect: { kind: 'ops', check: attachesTo('expenses') },
+  },
+  {
+    id: 'AT2',
+    input: '账目里存发票',
+    locale: 'zh',
+    setup: 'budget',
+    mock: true,
+    expect: { kind: 'ops', check: attachesTo('expenses') },
+  },
+  {
+    id: 'PAT1',
+    input: '记账的时候想顺便附上发票的照片',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: attachesTo('expenses') },
+  },
+  {
+    id: 'PAT2-en',
+    input: 'I want to keep a photo of the receipt with each expense',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: attachesTo('expenses') },
+  },
+  {
+    id: 'PAT3-fr',
+    input: 'Je veux pouvoir joindre des photos à mes dépenses',
+    locale: 'fr',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: attachesTo('expenses') },
   },
   {
     id: 'PRE4',

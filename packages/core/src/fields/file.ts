@@ -41,7 +41,7 @@ export const fileField: FieldDefinitionOf<'file', typeof schema> = defineField({
   // 按文件个数排。
   sort: (_f, v) => (Array.isArray(v) ? v.length : 0),
   ai: {
-    doc: '(an attachment: a file saved in Morph, put there by out.addRecord)',
+    doc: '(attachments: up to 20 photos or files per entry; the user takes or picks them in the entry forms, and out.addRecord puts the file it saves here)',
   },
   example: { id: 'receipt', name: 'Receipt', type: 'file' },
   exampleValue: ['asset1'],

@@ -35,7 +35,7 @@ export const recordFormComponent: ComponentDefinitionOf<'recordForm', typeof pro
       t(ctx.locale, 'describe_form_f4ef1', { v0: collectionName(c.props.collectionId, config) }),
     edit: { text: [], style: ['tone'] },
     ai: {
-      doc: '{collectionId, fieldIds (1-10), submitLabel, mode: "inline"|"button"}: "inline" adds records right on the page; "button" opens the full editor; formula and file fields can\'t be in fieldIds',
+      doc: '{collectionId, fieldIds (1-10), submitLabel, mode: "inline"|"button"}: "inline" adds records right on the page; "button" opens the full editor; formula fields can\'t be in fieldIds; a file field lets the user add photos and files',
     },
     example: {
       props: {

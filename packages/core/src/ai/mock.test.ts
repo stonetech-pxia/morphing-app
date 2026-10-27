@@ -346,6 +346,31 @@ describe('mock AI — data pages (structure only)', () => {
   });
 });
 
+describe('mock AI — attachments (D-263)', () => {
+  it.each([
+    ['给账目加照片', 'zh'],
+    ['账目里存发票', 'zh'],
+    ['给账目加附件', 'zh'],
+    ['Attach receipts to Expenses', 'en'],
+    ['add photos to expenses', 'en'],
+  ] as const)('AT “%s” adds an attachment field and no quick action', async (input, locale) => {
+    const budget = (
+      await changeThenNext(
+        locale === 'zh' ? '新建一个记账页面' : 'Create a budget page',
+        workspace(locale),
+        locale,
+      )
+    ).after;
+    const { after, lines } = await change(input, budget, locale);
+    const fields = after.collections.find((c) => c.id === 'expenses')!.fields;
+    expect(fields.filter((f) => f.type === 'file')).toHaveLength(1);
+    expect(after.workflows).toEqual(budget.workflows);
+    expect(lines.join('\n')).toMatch(locale === 'zh' ? /附件/ : /Attachments/);
+    // 已经有附件字段：不用改，说明在哪里放照片。
+    expect(await plan(input, after, locale)).toMatchObject({ kind: 'reject', reason: 'noChange' });
+  });
+});
+
 describe('mock AI — images and icons', () => {
   it('G1 adds an empty image slot; the user picks the photo later', async () => {
     const { after, lines } = await change('在首页顶部加一张横幅', workspace());
