@@ -1,0 +1,24 @@
+import { BUILTIN_TOOLS, createDefaultWorkspace, createRegistry, type Locale } from '@morph/core';
+import { describe, expect, it } from 'vitest';
+
+import { buildSystemPrompt, buildUserMessage } from './prompt';
+
+// 组件登记表重构的基线（2026-10-27）：发给模型的提示词必须逐字不变。
+// 组件说明和组件规则改为从登记表生成后，这里保证生成结果和原来手写的一样（不用重跑评测）。
+
+const registry = createRegistry(BUILTIN_TOOLS);
+
+describe('prompt baseline', () => {
+  it('system prompt', async () => {
+    await expect(buildSystemPrompt(registry)).toMatchFileSnapshot(
+      './__snapshots__/system-prompt.txt',
+    );
+  });
+
+  for (const locale of ['en', 'zh', 'fr'] as Locale[]) {
+    it(`user message in ${locale}`, async () => {
+      const message = buildUserMessage(createDefaultWorkspace(locale), 'make it green', locale);
+      await expect(message).toMatchFileSnapshot(`./__snapshots__/user-message-${locale}.txt`);
+    });
+  }
+});
