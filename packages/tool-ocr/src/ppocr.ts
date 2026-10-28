@@ -37,6 +37,11 @@ export interface OcrResultLine {
   y: number;
   width: number;
   height: number;
+  /**
+   * 每个字的大致位置（D-272）：at 是 CTC 时间步的中心占这一行的比例（0 最左，1 最右）。
+   * 转 Excel 时按它切开横跨竖线的行。竖排的行（转过 90° 认的）没有。
+   */
+  chars?: { text: string; at: number }[];
 }
 
 export interface OcrOptions {
@@ -224,18 +229,23 @@ function cropShape(quad: readonly Point[]) {
   return { w, h, turned, outW: turned ? h : w, outH: turned ? w : h };
 }
 
-/** 一批框拉正、缩成 48 像素高，排成 [count, 3, 48, width] 的认字输入（BGR，归一化到 -1–1，右边补 0）。 */
+/**
+ * 一批框拉正、缩成 48 像素高，排成 [count, 3, 48, width] 的认字输入（BGR，归一化到 -1–1，右边补 0）。
+ * used 是每一条实际占的宽度（其余是补的 0），用来把时间步换算成字在这一行里的位置。
+ */
 export function recognitionInput(image: RgbaImage, quads: readonly (readonly Point[])[]) {
   const shapes = quads.map(cropShape);
   const ratio = Math.max(...shapes.map((s) => s.outW / s.outH));
   const width = Math.min(REC_MAX_WIDTH, Math.max(REC_MIN_WIDTH, Math.floor(REC_HEIGHT * ratio)));
   const plane = REC_HEIGHT * width;
   const tensor = new Float32Array(quads.length * 3 * plane);
+  const used: number[] = [];
   const { width: iw, height: ih, data: px } = image;
   for (const [n, quad] of quads.entries()) {
     const s = shapes[n]!;
     const [p0, p1, p2, p3] = quad as [Point, Point, Point, Point];
     const resized = Math.min(width, Math.ceil((REC_HEIGHT * s.outW) / s.outH));
+    used.push(resized);
     for (let dy = 0; dy < REC_HEIGHT; dy++) {
       const oy = Math.max(0, ((dy + 0.5) * s.outH) / REC_HEIGHT - 0.5);
       for (let dx = 0; dx < resized; dx++) {
@@ -277,31 +287,42 @@ export function recognitionInput(image: RgbaImage, quads: readonly (readonly Poi
       }
     }
   }
-  return { tensor, width };
+  return { tensor, width, used };
 }
 
-/** CTC 解码：去掉空白（0）和连续重复，类别 i 对应字典第 i - 1 个字；置信度是留下的字的平均概率。 */
+/**
+ * CTC 解码：去掉空白（0）和连续重复，类别 i 对应字典第 i - 1 个字；置信度是留下的字的平均概率。
+ * at 是每个字在第几个时间步（连续重复的几步取中间），和 text 里的字一一对应（字典外的类别不算）。
+ */
 export function ctcDecode(
   index: ArrayLike<number>,
   prob: ArrayLike<number>,
   steps: number,
   row: number,
   dictionary: readonly string[],
-): { text: string; score: number } {
+): { text: string; score: number; at: number[] } {
   let text = '';
   let sum = 0;
   let count = 0;
   let previous = -1;
-  for (let t = 0; t < steps; t++) {
-    const k = index[row * steps + t]!;
+  const at: number[] = [];
+  let start = 0;
+  for (let t = 0; t <= steps; t++) {
+    const k = t < steps ? index[row * steps + t]! : -1;
+    // 上一个字的连续几步结束了。
+    if (previous > 0 && k !== previous && dictionary[previous - 1] !== undefined) {
+      at.push((start + t - 1) / 2);
+    }
+    if (t === steps) break;
     if (k !== 0 && k !== previous) {
       text += dictionary[k - 1] ?? '';
       sum += prob[row * steps + t]!;
       count++;
+      start = t;
     }
     previous = k;
   }
-  return { text, score: count > 0 ? sum / count : 0 };
+  return { text, score: count > 0 ? sum / count : 0, at };
 }
 
 /** 一页图片的识别：找文字行 → 每行拉正 → 认字（按宽度排序成批，宽度相近的放一批）。 */
@@ -318,7 +339,8 @@ export async function recognizePage(
     .map((box, i) => ({ i, ratio: cropShape(box.quad).outW / cropShape(box.quad).outH }))
     .sort((a, b) => a.ratio - b.ratio)
     .map((e) => e.i);
-  const texts: { text: string; score: number }[] = new Array(boxes.length);
+  const texts: { text: string; score: number; chars?: { text: string; at: number }[] }[] =
+    new Array(boxes.length);
   const batch = options.batch ?? 6;
   for (let start = 0; start < order.length; start += batch) {
     const ids = order.slice(start, start + batch);
@@ -328,13 +350,25 @@ export async function recognizePage(
     );
     const out = await models.recognize(input.tensor, ids.length, input.width);
     for (const [row, i] of ids.entries()) {
-      texts[i] = ctcDecode(out.index, out.prob, out.steps, row, dictionary);
+      const decoded = ctcDecode(out.index, out.prob, out.steps, row, dictionary);
+      // 时间步 → 这一行里的位置：每步占输入宽度的 1 / steps，有内容的只有前 used 个像素。
+      const step = input.width / out.steps;
+      const used = input.used[row]!;
+      const chars = cropShape(boxes[i]!.quad).turned
+        ? undefined
+        : Array.from(decoded.text).length === decoded.at.length
+          ? Array.from(decoded.text).map((text, k) => ({
+              text,
+              at: Math.min(1, Math.max(0, ((decoded.at[k]! + 0.5) * step) / used)),
+            }))
+          : undefined;
+      texts[i] = { text: decoded.text, score: decoded.score, ...(chars ? { chars } : {}) };
     }
   }
   const minScore = options.textScore ?? 0.5;
   const lines: OcrResultLine[] = [];
   for (const [i, box] of boxes.entries()) {
-    const { text, score } = texts[i]!;
+    const { text, score, chars } = texts[i]!;
     if (score < minScore || !text.trim()) continue;
     const xs = box.quad.map((p) => p.x);
     const ys = box.quad.map((p) => p.y);
@@ -348,6 +382,7 @@ export async function recognizePage(
       y,
       width: Math.max(...xs) - x,
       height: Math.max(...ys) - y,
+      ...(chars ? { chars } : {}),
     });
   }
   return lines;

@@ -170,6 +170,11 @@ describe('model inputs (D-269)', () => {
     expect(input.tensor[20 * 320]).toBeCloseTo(-1, 1);
     expect(input.tensor[20 * 320 + 100]).toBeCloseTo(1, 1);
     expect(input.tensor[20 * 320 + 300]).toBe(0);
+    // used：每一条实际有内容的宽度，后面都是补的 0（字的位置按它换算，D-272）。
+    const used = input.used[0]!;
+    expect(used).toBeLessThan(320);
+    expect(input.tensor[20 * 320 + used - 1]).not.toBe(0);
+    expect(input.tensor[20 * 320 + used]).toBe(0);
     // 第二条（逆时针转 90°）：原来最左的一列到了最下面一行。
     const second = 3 * plane;
     expect(input.tensor[second + 47 * 320 + 100]).toBeLessThan(0);
@@ -186,7 +191,9 @@ describe('CTC decoding (D-269)', () => {
     const r = ctcDecode(index, prob, 7, 0, dict);
     expect(r.text).toBe('aab');
     expect(r.score).toBeCloseTo((0.9 + 0.7 + 0.6) / 3);
-    expect(ctcDecode([0, 0], [1, 1], 2, 0, dict)).toEqual({ text: '', score: 0 });
+    // 每个字在第几个时间步（连续重复的取中间）：转 Excel 时按它切开横跨竖线的行（D-272）。
+    expect(r.at).toEqual([0.5, 3, 4.5]);
+    expect(ctcDecode([0, 0], [1, 1], 2, 0, dict)).toEqual({ text: '', score: 0, at: [] });
   });
 });
 
@@ -220,5 +227,11 @@ describe('recognizePage (D-269)', () => {
     // 框换算回原图（检测时放大了 736 / 128 倍）。
     expect(lines[0]!.y).toBeLessThan(50);
     expect(lines[0]!.width).toBeGreaterThan(50);
+    // 每个字的大致位置：时间步的中心占这一行的比例（D-272）。
+    expect(lines[0]!.chars!.map((c) => c.text)).toEqual(['你', '好']);
+    const [first, second] = lines[0]!.chars!.map((c) => c.at);
+    expect(first).toBeGreaterThan(0);
+    expect(first).toBeLessThan(second!);
+    expect(second).toBeLessThanOrEqual(1);
   });
 });
