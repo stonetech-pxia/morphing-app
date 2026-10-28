@@ -1,17 +1,33 @@
 import {
+  OFFICE_MIME_BY_EXT,
   RunError,
+  layoutOcrLines,
   polishOcrText,
+  t,
   tidyOcrText,
   type ActionImpl,
   type OcrLanguage,
+  type RunItem,
 } from '@morph/core';
+import { boxesToEnhanced } from '@morph/tool-image';
+import {
+  buildTablePage,
+  pagesWithoutTables,
+  writeXlsx,
+  type OcrBox,
+  type TableDoc,
+  type TablePage,
+} from '@morph/tool-office';
 
+import type { Pixels, RecognizedLine, VisionPlatform } from '../platform';
 import {
   displayName,
   fileItems,
+  freshName,
   imageForPage,
   ocrSourceItem,
   ocrSourceOf,
+  writeItem,
   type RunServices,
 } from './helpers';
 
@@ -49,7 +65,126 @@ function polish(text: string, lang: OcrLanguage): string {
   return polishOcrText(tidyOcrText(text), kind);
 }
 
+/** 识别框按比例换到另一张图的大小上（字的位置是这一行里的比例，不用换）。 */
+function scaleLines(
+  lines: readonly RecognizedLine[],
+  from: { width: number; height: number },
+  to: { width: number; height: number },
+): OcrBox[] {
+  const kx = to.width / from.width;
+  const ky = to.height / from.height;
+  return lines.map((l) => ({
+    ...l,
+    x: l.x * kx,
+    y: l.y * ky,
+    width: l.width * kx,
+    height: l.height * ky,
+  }));
+}
+
+/**
+ * 转 Excel 一页的识别结果，坐标是找线那张图（pixels）的：有增强前的图时在它上面认（D-267，更准），
+ * 框换算到增强后的图上；读不了或宽高比对不上时在这张图上认，直接用找线时解码的像素。
+ */
+async function tableLines(
+  vision: VisionPlatform,
+  item: RunItem,
+  pixels: Pixels,
+  languages: readonly string[],
+): Promise<{ lines: OcrBox[]; enhanced: boolean }> {
+  const source = ocrSourceOf(item);
+  if (source && item.width && item.height) {
+    try {
+      const layer = await vision.recognizeLines(source.uri, languages);
+      const ratio = layer.width / layer.height / (source.width / source.height);
+      if (Math.abs(ratio - 1) < 0.02) {
+        const canvas = { width: item.width, height: item.height };
+        const lines = boxesToEnhanced(layer.lines, layer, source, source.skew, canvas);
+        return { lines: scaleLines(lines, canvas, pixels), enhanced: true };
+      }
+    } catch {
+      // 用这张图认。
+    }
+  }
+  const layer = await vision.recognizeLines(item.uri, languages, pixels);
+  return { lines: scaleLines(layer.lines, layer, pixels), enhanced: source !== null };
+}
+
 export const OCR_IMPLS: Record<string, Impl> = {
+  // 扫描件转 Excel（D-272）：每张图找表格线、认字、组表，做成一个 xlsx（每页一张工作表），
+  // 旁边存一份 TableDoc 给结果页的「查看和编辑」用。识别出的文字只在本机。
+  async 'ocr.toExcel'(input, params, ctx) {
+    const items = fileItems(input);
+    const lang = String(params.lang) as OcrLanguage;
+    const scope = params.scope === 'tables' ? 'tables' : 'all';
+    const languages = VISION_LANGUAGES[lang];
+    const vision = ctx.services.files.vision;
+    // 要每一行的位置：文字识别包（tesseract）只给文字，不能用。
+    if (!vision?.tablePixels || !vision.supportsLanguage(languages[0]!)) {
+      throw new RunError('tableUnsupported');
+    }
+    const pages: TablePage[] = [];
+    for (const [i, item] of items.entries()) {
+      ctx.throwIfCancelled();
+      let pixels: Pixels;
+      try {
+        pixels = await vision.tablePixels(item.uri);
+      } catch {
+        throw new RunError('unreadable', { name: displayName(item) });
+      }
+      let found: Awaited<ReturnType<typeof tableLines>>;
+      try {
+        found = await tableLines(vision, item, pixels, languages);
+      } catch (e) {
+        throw new RunError('unexpected', { detail: String(e instanceof Error ? e.message : e) });
+      }
+      ctx.throwIfCancelled();
+      pages.push(
+        buildTablePage(
+          {
+            image: pixels,
+            lines: found.lines,
+            name: t(ctx.locale, 'tableSheetName', { n: i + 1 }),
+            source: item.uri,
+            // 增强过的图已经按 findSkew 转正；没增强过的照片在这里估倾斜。
+            ...(found.enhanced ? { skew: 0 } : {}),
+          },
+          { joinLines: (lines) => polish(layoutOcrLines(lines), lang) },
+        ),
+      );
+      ctx.progress(i + 1, items.length);
+    }
+    if (pages.every((p) => p.blocks.length === 0)) {
+      throw new RunError('notFound', { name: displayName(items[0]!) });
+    }
+    const doc: TableDoc = { version: 1, scope, pages };
+    const name = items[0]!.name;
+    const xlsx = await writeItem(ctx.services, writeXlsx(doc), {
+      name,
+      ext: 'xlsx',
+      mimeType: OFFICE_MIME_BY_EXT.xlsx!,
+    });
+    const stored = await ctx.services.files.writeRunFile(
+      ctx.services.runId,
+      freshName(name, 'json'),
+      new TextEncoder().encode(JSON.stringify(doc)),
+    );
+    const missing = pagesWithoutTables(doc);
+    return {
+      type: 'files',
+      items: [
+        {
+          ...xlsx,
+          tableDoc: {
+            uri: stored.uri,
+            for: xlsx.uri,
+            ...(missing.length ? { pagesWithoutTables: missing } : {}),
+          },
+        },
+      ],
+    };
+  },
+
   async 'ocr.recognize'(input, params, ctx) {
     const items = fileItems(input);
     const lang = String(params.lang) as OcrLanguage;

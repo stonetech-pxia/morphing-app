@@ -5,7 +5,13 @@ import MorphVision from '../../modules/morph-vision';
 import { expoPackFs, expoSha256 } from '../packs/expo-pack-fs';
 import { PackStore } from '../packs/store';
 import type { VisionPlatform } from './platform';
-import { PPOCR_LANGUAGES, PPOCR_PACK, coversLanguage, createPpocr } from './ppocr';
+import {
+  PPOCR_INPUT_SIDE,
+  PPOCR_LANGUAGES,
+  PPOCR_PACK,
+  coversLanguage,
+  createPpocr,
+} from './ppocr';
 import { ocrPixels } from './skia';
 
 // VisionPlatform 的实现：本地 Expo 模块 MorphVision（iOS：Vision，D-084；Android：ML Kit，D-087）。
@@ -106,24 +112,28 @@ export function expoVision(
       return items.length > 0 ? layoutOcrLines(items) : text;
     },
 
-    async recognizeLines(uri, languages) {
+    async recognizeLines(uri, languages, pixels) {
       if (viaPpocr(languages)) {
-        const { width, height, lines } = await ppocr!.recognize(uri);
+        const { width, height, lines } = await ppocr!.recognize(uri, pixels);
         return {
           width,
           height,
-          lines: lines.map(({ text, x, y, width: w, height: h }) => ({
+          lines: lines.map(({ text, x, y, width: w, height: h, chars }) => ({
             text,
             x,
             y,
             width: w,
             height: h,
+            ...(chars ? { chars } : {}),
           })),
         };
       }
       const { width, height, items } = await native.recognizeText(uri, languages);
       return { width, height, lines: items };
     },
+
+    // 和 PP-OCRv6 识别时解码得一样（同样的大小），找线和认字可以共用一份像素（D-272）。
+    tablePixels: async (uri) => ocrPixels(await new File(uri).bytes(), PPOCR_INPUT_SIDE),
 
     canFindPaper: native.canFindPaper(),
 

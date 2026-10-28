@@ -26,7 +26,10 @@ function setup() {
     write: async (uri, bytes) => void disk.set(uri, bytes.slice()),
     read: async (uri) => disk.get(uri)!,
     // 识别要的大小（32 的倍数，短边至少 736）。
-    pixels: async () => ({ width: 736, height: 736, data: new Uint8Array(736 * 736 * 4) }),
+    pixels: async () => {
+      calls.push('decode');
+      return { width: 736, height: 736, data: new Uint8Array(736 * 736 * 4) };
+    },
   };
   const native: PpocrNative = {
     async ocrLoad(det, rec) {
@@ -74,9 +77,19 @@ describe('PP-OCRv6 glue (D-269)', () => {
     expect(result.width).toBe(736);
     expect(result.lines.map((l) => l.text)).toEqual(['你好']);
     expect(result.lines[0]!.score).toBeCloseTo(0.9);
-    expect(calls).toEqual(['load det.onnx rec.onnx', 'detect', 'recognize']);
+    expect(calls).toEqual(['load det.onnx rec.onnx', 'decode', 'detect', 'recognize']);
     expect(dirs).toEqual([{ uri: 'file:///cache/ocr/0', removed: true }]);
     expect([...disk.keys()]).toEqual([]);
+    // 每个字的大致位置（D-272）。
+    expect(result.lines[0]!.chars?.map((c) => c.text)).toEqual(['你', '好']);
+  });
+
+  it('uses pixels that were already decoded instead of decoding the picture again (D-272)', async () => {
+    const { ppocr, calls } = setup();
+    const pixels = { width: 736, height: 736, data: new Uint8Array(736 * 736 * 4) };
+    const result = await ppocr.recognize('file:///page.jpg', pixels);
+    expect(result.lines.map((l) => l.text)).toEqual(['你好']);
+    expect(calls).not.toContain('decode');
   });
 
   it('removes the temporary files when the model fails, and refuses without the model', async () => {

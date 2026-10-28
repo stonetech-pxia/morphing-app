@@ -172,7 +172,7 @@ export function devicePack(
 ): { pack: string; optional?: boolean } | undefined {
   const model = files.vision?.ocrModel;
   if (!model) return undefined;
-  if (actionId === 'ocr.recognize') {
+  if (actionId === 'ocr.recognize' || actionId === 'ocr.toExcel') {
     const code = VISION_LANGUAGES[params.lang as OcrLanguage]?.[0];
     return code && model.languages.includes(code.split('-')[0]!) ? { pack: model.pack } : undefined;
   }

@@ -1,7 +1,24 @@
 import type { Quad } from '@morph/tool-image';
-import type { TextLayer } from '@morph/tool-pdf';
+import type { TextLayer, TextLine } from '@morph/tool-pdf';
 
 import type { SpeechPlatform } from './speech';
+
+/** 识别出的一行；PP-OCRv6 还给出每个字的大致位置（at：占这一行的比例，D-272）。 */
+export interface RecognizedLine extends TextLine {
+  chars?: readonly { text: string; at: number }[];
+}
+
+/** 一张图识别出的行（width / height 是识别时图片的大小）。 */
+export interface RecognizedLayer extends TextLayer {
+  lines: readonly RecognizedLine[];
+}
+
+/** RGBA 像素（每像素 4 字节）。 */
+export interface Pixels {
+  width: number;
+  height: number;
+  data: Uint8Array;
+}
 
 // 平台能力（App 中由 Expo 模块实现，见 expo-platform.ts；测试中用 test-utils/fake-files.ts 的内存实现）。
 // 动作实现只通过这里接触文件系统和系统界面。
@@ -137,8 +154,17 @@ export interface VisionPlatform {
   readonly ocrModel?: { pack: string; languages: readonly string[] };
   /** 识别文字；languages 是 BCP 47，第一种是用户选的语言。文字只返回给 App。 */
   recognizeText(uri: string, languages: readonly string[]): Promise<string>;
-  /** 识别文字，给出每行的位置（可搜索 PDF 的文字层，D-195）。 */
-  recognizeLines(uri: string, languages: readonly string[]): Promise<TextLayer>;
+  /**
+   * 识别文字，给出每行的位置（可搜索 PDF 的文字层，D-195）。pixels 是同一张图已经解码好的像素
+   * （tablePixels 给的），PP-OCRv6 直接用它，不再解码一次（转 Excel，D-272）。
+   */
+  recognizeLines(
+    uri: string,
+    languages: readonly string[],
+    pixels?: Pixels,
+  ): Promise<RecognizedLayer>;
+  /** 转 Excel（D-272）：解码成识别时的大小（长边 2000 以内），找表格线用；没有 Skia 时没有。 */
+  tablePixels?(uri: string): Promise<Pixels>;
   /** 能不能给照片找边和拉正（findPaper / straighten）；Android 的 ML Kit 不能。 */
   readonly canFindPaper: boolean;
   /** 找纸张的四个角（像素，已按拍摄方向摆正）；没找到返回 null。 */
@@ -563,6 +589,8 @@ export interface FilePlatform {
     bytes: Uint8Array,
   ): Promise<{ uri: string; size: number }>;
   readUri(uri: string): Promise<Uint8Array>;
+  /** 删掉本次运行里的一个临时文件（编辑后的 xlsx 写成了新文件，旧的不要了，D-272）；只删运行目录里的。 */
+  removeRunFile(uri: string): Promise<void>;
   /** 删除本次运行的临时目录。 */
   removeRun(runId: string): Promise<void>;
   /** 启动时清理上次没来得及删除的临时目录。 */

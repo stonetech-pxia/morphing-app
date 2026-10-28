@@ -41,14 +41,18 @@ const bytesOf = (array: Float32Array) =>
 export function createPpocr(native: PpocrNative, io: PpocrIo) {
   let dictionary: readonly string[] | null = null;
   return {
-    /** 识别一张图：返回识别时图片的大小和每一行（像素，原点在左上角）。 */
+    /**
+     * 识别一张图：返回识别时图片的大小和每一行（像素，原点在左上角）。
+     * pixels 是这张图已经按 io.pixels 解码好的像素（转 Excel 找线时解码过，D-272），给了就不再解码。
+     */
     async recognize(
       uri: string,
+      pixels?: RgbaImage,
     ): Promise<{ width: number; height: number; lines: OcrResultLine[] }> {
       if (!(await io.installed())) throw new Error('text recognition model is not installed');
       dictionary ??= JSON.parse(await io.readText(io.modelUri('dictionary.json'))).characters;
       await native.ocrLoad(io.modelUri('det.onnx'), io.modelUri('rec.onnx'));
-      const image = await io.pixels(uri, PPOCR_INPUT_SIDE);
+      const image = pixels ?? (await io.pixels(uri, PPOCR_INPUT_SIDE));
       const dir = io.tempDir();
       try {
         let n = 0;

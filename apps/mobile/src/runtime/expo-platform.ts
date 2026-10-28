@@ -352,6 +352,13 @@ export const expoFilePlatform: FilePlatform = {
     return { uri: dest.uri, size: dest.size };
   },
 
+  async removeRunFile(uri) {
+    // 只删运行目录里的（用户的原件、分享进来的副本不碰）。
+    if (!uri.startsWith(new Directory(Paths.cache, 'runs').uri)) return;
+    const file = new File(uri);
+    if (file.exists) file.delete();
+  },
+
   async writeRunFile(runId, fileName, bytes) {
     const dest = runFile(runId, fileName);
     dest.create();
