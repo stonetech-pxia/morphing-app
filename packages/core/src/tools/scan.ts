@@ -7,8 +7,7 @@ import type { ActionDefinition } from '../workflow/contract';
 
 // 扫描工具的清单（T5）：找边和透视矫正在 iOS 上用系统的 Vision / Core Image（D-086），
 // 其他平台用扫描包（WebView + OpenCV.js + jscanify）；拍照扫描用系统文档相机（iOS 的 VisionKit、Android 的 ML Kit）；四个角由用户在本地调整（找边在背景杂乱或纸张出画时会出错）；
-// 系统文档相机拍的页面已经拉正，直接放行。增强用 Skia，不需要扩展包：先去阴影、拉平光照（D-266），
-// 照片和印章按周围纸张的光照校正、颜色保留，所以去阴影放进「自动」，不另加模式。
+// 系统文档相机拍的页面已经拉正，直接放行。增强用 Skia（D-266：去阴影、纠偏、自动彩色或灰度、黑白用局部阈值），不需要扩展包。
 
 export const SCAN_TOOL_ID = 'scan';
 export const SCAN_PAGE_ID = 'tool-scan';
@@ -42,9 +41,9 @@ export const SCAN_ACTIONS: readonly ActionDefinition[] = [
     id: 'scan.enhance',
     label: { en: 'Enhance', zh: '增强', fr: 'Améliorer' },
     description: {
-      en: 'Makes scanned pages easier to read: brighter (auto), grayscale, or black and white.',
-      zh: '让扫描的页面更清楚：自动提亮、灰度或黑白。',
-      fr: 'Rend les pages numérisées plus lisibles : éclaircies (auto), en niveaux de gris ou en noir et blanc.',
+      en: 'Makes scanned pages easier to read: removes shadows, turns the paper white and straightens slightly tilted text. Auto keeps color only when the page has colored ink; grayscale and black and white are also available.',
+      zh: '让扫描的页面更清楚：去掉阴影，把纸变白，把轻微歪斜的文字转正。「自动」只在页面上有彩色字迹时保留颜色；也可以选灰度或黑白。',
+      fr: 'Rend les pages numérisées plus lisibles : supprime les ombres, blanchit le papier et redresse le texte légèrement penché. Automatique ne garde la couleur que si la page contient de l’encre de couleur ; niveaux de gris et noir et blanc sont aussi proposés.',
     },
     input: ['images'],
     output: 'images',
@@ -55,7 +54,7 @@ export const SCAN_ACTIONS: readonly ActionDefinition[] = [
         label: { en: 'Look', zh: '效果', fr: 'Rendu' },
         kind: 'choice',
         options: [
-          { value: 'auto', label: { en: 'Clean page', zh: '去阴影', fr: 'Page nettoyée' } },
+          { value: 'auto', label: { en: 'Auto', zh: '自动', fr: 'Automatique' } },
           { value: 'gray', label: { en: 'Grayscale', zh: '灰度', fr: 'Niveaux de gris' } },
           { value: 'bw', label: { en: 'Black and white', zh: '黑白', fr: 'Noir et blanc' } },
           { value: 'none', label: { en: 'Original', zh: '原样', fr: 'Original' } },

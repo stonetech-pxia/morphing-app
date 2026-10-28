@@ -1168,7 +1168,7 @@ const workflowToHomeRule: Rule = (clause, state) => {
   return ops;
 };
 
-// ---- 手机桌面（HS，D-269）：「放到桌面 / 主屏幕」是手机桌面；「首页 / 主页」仍是 App 的首页（D-109）----
+// ---- 手机桌面（HS，D-271）：「放到桌面 / 主屏幕」是手机桌面；「首页 / 主页」仍是 App 的首页（D-109）----
 
 const HOME_SCREEN_ZH = '(?:手机)?(?:桌面|主屏幕|主屏)';
 const HOME_SCREEN_EN = "(?:the |my )?(?:phone(?:'s)? )?home ?screen";

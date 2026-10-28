@@ -1,6 +1,6 @@
 import { requireOptionalNativeModule, type EventSubscription } from 'expo';
 
-// 本地 Expo 模块 MorphShortcuts（D-269）：用户标了「放到桌面」的快捷操作出现在长按 Morph 图标的菜单里。
+// 本地 Expo 模块 MorphShortcuts（D-271）：用户标了「放到桌面」的快捷操作出现在长按 Morph 图标的菜单里。
 // iOS 是 ios/MorphShortcutsModule.swift（UIApplicationShortcutItem，点了由 app delegate 订阅者收到；
 // SDK 58 的 ExpoAppSceneDelegate 把冷启动和 App 开着时的点按都转给它）。
 // Android 是 android/…/MorphShortcutsModule.kt（ShortcutManagerCompat 的动态快捷方式；用户点按钮时

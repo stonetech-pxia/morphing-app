@@ -255,7 +255,7 @@ describe('Claude planner', () => {
     expect(String(complete.mock.calls[1]![0][2]!.content)).toContain('unknown preset "visa"');
   });
 
-  it('accepts setWorkflowHomeScreen after adding the preset in the same plan (D-269)', async () => {
+  it('accepts setWorkflowHomeScreen after adding the preset in the same plan (D-271)', async () => {
     const plan = {
       kind: 'ops',
       ops: [

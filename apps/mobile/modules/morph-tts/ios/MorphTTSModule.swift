@@ -1,7 +1,7 @@
 import AVFoundation
 import ExpoModulesCore
 
-// 文字转语音（D-268）：只用 iOS 自带的 AVSpeechSynthesizer，在本机把文字读成音频文件，不播放。
+// 文字转语音（D-270）：只用 iOS 自带的 AVSpeechSynthesizer，在本机把文字读成音频文件，不播放。
 // 每段一个 AVSpeechUtterance，write(_:toBufferCallback:) 交回的 PCM 依次写进同一个 WAV（16 位）。
 // 声音用系统里这种语言质量最好的一个（用户在「设置 → 辅助功能 → 朗读内容 → 声音」里下载的增强 / 高级声音优先），
 // 不用 Albert 这类趣味声音和个人声音。文字只交给系统朗读，不写日志。

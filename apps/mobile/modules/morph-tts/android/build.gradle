@@ -1,4 +1,4 @@
-// 本地 Expo 模块的 Android 部分（D-268）：系统的 TextToSpeech 在本机把文字读成 WAV，没有第三方依赖。
+// 本地 Expo 模块的 Android 部分（D-270）：系统的 TextToSpeech 在本机把文字读成 WAV，没有第三方依赖。
 // 声音由手机上的朗读引擎提供（多数是 Google 的「语音服务」），声音数据由用户在系统设置里下载。
 plugins {
   id 'com.android.library'

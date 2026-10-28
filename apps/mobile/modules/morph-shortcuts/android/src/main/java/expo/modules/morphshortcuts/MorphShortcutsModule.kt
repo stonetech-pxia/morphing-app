@@ -10,7 +10,7 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
 
-// 长按 Morph 图标的菜单和桌面上单独的图标（D-269）。快捷方式的 ID 是快捷操作的 ID；点了打开 App 的主界面，
+// 长按 Morph 图标的菜单和桌面上单独的图标（D-271）。快捷方式的 ID 是快捷操作的 ID；点了打开 App 的主界面，
 // intent 的 action 是 ACTION_OPEN、extra 里是 ID。冷启动时 JS 启动完用 takeLaunched 取，
 // App 开着时（singleTask，走 onNewIntent）发 onOpen。图标用 App 自己的图标。
 

@@ -203,7 +203,7 @@ export function validateWorkspace(
     }
   }
 
-  // ---- 手机桌面（D-269）：长按 Morph 图标的菜单最多放 MAX_HOME_SCREEN 个 ----
+  // ---- 手机桌面（D-271）：长按 Morph 图标的菜单最多放 MAX_HOME_SCREEN 个 ----
   const onHomeScreen = config.workflows.filter((w) => w.homeScreen).map((w) => w.id);
   if (onHomeScreen.length > MAX_HOME_SCREEN) {
     issue(

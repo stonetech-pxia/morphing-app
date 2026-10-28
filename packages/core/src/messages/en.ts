@@ -653,7 +653,7 @@ export const en = {
   speechDownloadFailed: 'the speech model for {lang}',
   speechNote:
     'Recognized on this device — words may be wrong, especially with noise or accents. Check it.',
-  // ---- 文字转语音（D-268）：错误说明拼进「不支持这个步骤：…」----
+  // ---- 文字转语音（D-270）：错误说明拼进「不支持这个步骤：…」----
   speakNoVoice:
     'reading {lang} aloud (this phone has no voice for it; add one in the phone’s settings — iPhone: Accessibility → Spoken Content → Voices; Android: Text-to-speech output)',
   speakNotDownloaded:
@@ -707,7 +707,7 @@ export const en = {
   describeAddReminder: 'Add reminder “{title}” ({when})',
   describeUpdateReminder: 'Change reminder “{title}”',
   describeRemoveReminder: 'Remove reminder “{title}”',
-  // 手机桌面（D-269）
+  // 手机桌面（D-271）
   describeHomeScreenOn:
     'Put “{name}” on the phone’s home screen: long-press the Morph icon to see it',
   describeHomeScreenOff: 'Take “{name}” off the phone’s home screen',
@@ -942,7 +942,7 @@ export const en = {
   scan_Scans_7ac9d: 'Scans',
   ocr_Text_recognition_fe569: 'Text recognition',
   ocr_Runs_on_this_device_the_text_is_never__38fca:
-    'Runs on this device; the text is never uploaded. Most phones use built-in text recognition; otherwise each language is downloaded the first time you use it.',
+    'Runs on this device; the text is never uploaded. The text recognition model (about 30 MB) is downloaded the first time you use it; Korean, Russian and Vietnamese use the phone’s built-in recognition or a separate language download.',
   html_Created_1626a: 'Created',
   html_Updated_74f0c: 'Updated',
   html_records_3f794: '{v0} entries',

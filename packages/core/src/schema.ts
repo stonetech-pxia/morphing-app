@@ -90,13 +90,13 @@ export const MAX_WORKFLOW_STEPS = 12;
 /** 工作流总数上限：装满全部工具约 40 个单功能工作流，再加用户自己的。 */
 export const MAX_WORKFLOWS = 100;
 
-/** 手机桌面上长按 Morph 图标的菜单里最多放几个快捷操作（D-269）：iOS 只显示 4 个，Android 跟着一样。 */
+/** 手机桌面上长按 Morph 图标的菜单里最多放几个快捷操作（D-271）：iOS 只显示 4 个，Android 跟着一样。 */
 export const MAX_HOME_SCREEN = 4;
 
 /**
  * 工作流：线性步骤序列，步骤之间传递一个有类型的值（§7C、D-060，非图灵完备）。
  * toolId：安装工具时创建，卸载时一起移除；presetId：从哪个预设复制来的（D-062，D-236）。
- * homeScreen：放到手机桌面（D-269，schemaVersion 19）：长按 Morph 图标的菜单里有它；没有就是不放。
+ * homeScreen：放到手机桌面（D-271，schemaVersion 19）：长按 Morph 图标的菜单里有它；没有就是不放。
  */
 export const WorkflowSchema = z.strictObject({
   id: IdSchema,

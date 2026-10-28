@@ -207,7 +207,7 @@ describe('mock AI — workflows', () => {
   });
 });
 
-// 手机桌面（HS，D-269）：「放到桌面」是手机桌面，「放到首页」仍是首页。
+// 手机桌面（HS，D-271）：「放到桌面」是手机桌面，「放到首页」仍是首页。
 describe('mock AI — home screen', () => {
   const on = (c: WorkspaceConfig) => c.workflows.filter((w) => w.homeScreen).map((w) => w.id);
 

@@ -1,7 +1,7 @@
 import ExpoModulesCore
 import UIKit
 
-// 长按 Morph 图标的菜单（D-269）：iOS Home Screen Quick Actions。菜单项的 type 是快捷操作的 ID。
+// 长按 Morph 图标的菜单（D-271）：iOS Home Screen Quick Actions。菜单项的 type 是快捷操作的 ID。
 // 点了菜单项：SDK 58 的 ExpoAppSceneDelegate 把冷启动（connectionOptions.shortcutItem）和 App 开着时的点按
 // 都转成 application(_:performActionFor:)，由下面的订阅者收到。JS 还没准备好（冷启动）时先记着，
 // 启动完由 takeLaunched 取走；JS 在听时直接发 onOpen。

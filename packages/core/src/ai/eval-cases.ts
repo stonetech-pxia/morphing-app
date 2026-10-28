@@ -27,7 +27,7 @@ function sameValue(a: unknown, b: unknown): boolean {
 // ID 与 docs/MOCK_AI_PHRASES.md 对应；P* 是只有真实模型才需要理解的改写说法。
 
 /** starter：新用户的第一个版本（精简首页 + 工具箱，D-181、D-182）。 */
-/** visaHomeScreen：visa 再把签证照片放到手机桌面（D-269）。 */
+/** visaHomeScreen：visa 再把签证照片放到手机桌面（D-271）。 */
 export type EvalSetup =
   'default' | 'pdf' | 'pdfBelowFiles' | 'budget' | 'visa' | 'visaHomeScreen' | 'starter';
 
@@ -2104,7 +2104,7 @@ const AUDIO_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
-// ---- 文字转语音（D-268）：PDF、纸质材料读成音频文件，做成快捷操作；要 AI 读一句话给用户听按办事拒绝 ----
+// ---- 文字转语音（D-270）：PDF、纸质材料读成音频文件，做成快捷操作；要 AI 读一句话给用户听按办事拒绝 ----
 // TTS* 是 mock 句式（MOCK_AI_PHRASES TTS），PTTS* 只要求真实模型。
 
 const SPEAK_EVAL_CASES: readonly EvalCase[] = [
@@ -4127,7 +4127,7 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
-// ---- 手机桌面（D-269）：「放到桌面 / 主屏幕 / home screen / écran d'accueil」是手机桌面，「首页」仍是首页（D-109）----
+// ---- 手机桌面（D-271）：「放到桌面 / 主屏幕 / home screen / écran d'accueil」是手机桌面，「首页」仍是首页（D-109）----
 
 const onHomeScreen = (c: WorkspaceConfig) => c.workflows.filter((w) => w.homeScreen);
 const visaOnHomeScreen = (c: WorkspaceConfig) =>

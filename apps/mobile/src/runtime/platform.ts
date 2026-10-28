@@ -25,7 +25,7 @@ export interface PickedFile {
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp';
 
-/** 扫描件增强（Skia 着色器，D-266）：先去阴影、拉平光照，再保留颜色、灰度或黑白。 */
+/** 扫描件增强（D-266，Skia）：自动（去阴影，按页面选彩色或灰度）、灰度、黑白。 */
 export type EnhanceMode = 'auto' | 'gray' | 'bw';
 
 /** 一次图片处理：先裁剪（原图像素坐标），再缩放，再旋转 / 翻转。 */
@@ -128,17 +128,17 @@ export interface VisionPlatform {
   /** replaceBackground 用的是系统自带的人像分割（iOS），不用先确认下载模型（Android 的主体分割要）。 */
   readonly personSegmentation?: boolean;
 
-  /** 这种语言（BCP 47）系统能不能识别。 */
+  /** 这种语言（BCP 47）这台设备能不能识别（PP-OCRv6 的语言要先下载模型，见 ocrModel）。 */
   supportsLanguage(code: string): boolean;
+  /**
+   * 文字识别模型（D-269）：这些语言（BCP 47 的语言部分）用 PP-OCRv6 识别，要先下载 pack 这个扩展包；
+   * 其余语言用系统自带的（iOS Vision、Android 只剩韩文用 ML Kit）。没有原生模型接口的旧版 App 没有这一项。
+   */
+  readonly ocrModel?: { pack: string; languages: readonly string[] };
   /** 识别文字；languages 是 BCP 47，第一种是用户选的语言。文字只返回给 App。 */
   recognizeText(uri: string, languages: readonly string[]): Promise<string>;
-  /**
-   * 识别文字，给出每行的位置（可搜索 PDF 的文字层，D-195）。iOS 还让 Vision 自己判断语言
-   * （languages 只是提示），所以不在单子上的文字（俄文、阿拉伯文等）也认得出来（D-267）。
-   */
+  /** 识别文字，给出每行的位置（可搜索 PDF 的文字层，D-195）。 */
   recognizeLines(uri: string, languages: readonly string[]): Promise<TextLayer>;
-  /** 用户系统里设的语言（BCP 47，按优先顺序），文字层按它选识别语言（D-267）。 */
-  readonly preferredLanguages?: readonly string[];
   /** 能不能给照片找边和拉正（findPaper / straighten）；Android 的 ML Kit 不能。 */
   readonly canFindPaper: boolean;
   /** 找纸张的四个角（像素，已按拍摄方向摆正）；没找到返回 null。 */
@@ -189,7 +189,7 @@ export interface TranslatePlatform {
   translate(texts: readonly string[], from: string, to: string): Promise<string[]>;
 }
 
-/** 朗读失败的原因（modules/morph-tts，D-268）：动作实现按它告诉用户怎么办。 */
+/** 朗读失败的原因（modules/morph-tts，D-270）：动作实现按它告诉用户怎么办。 */
 export type SpeakErrorCode = 'noVoice' | 'notDownloaded' | 'unavailable' | 'cancelled' | 'failed';
 
 export interface SpeakRequest {
@@ -207,7 +207,7 @@ export interface SpeakRequest {
 }
 
 /**
- * 系统声音朗读（modules/morph-tts，D-268）：iOS 是 AVSpeechSynthesizer，Android 是系统的 TextToSpeech。
+ * 系统声音朗读（modules/morph-tts，D-270）：iOS 是 AVSpeechSynthesizer，Android 是系统的 TextToSpeech。
  * 只把文字读成音频文件，不播放。没有原生模块时（Expo Go）为 null。文字只交给系统，不上传、不发给 AI。
  * 出错时抛出带 code（SpeakErrorCode）的错误。
  */
@@ -497,7 +497,7 @@ export interface FilePlatform {
   readonly media: MediaPlatform | null;
   /** 本机语音转文字（D-150、D-151，modules/morph-speech）；没有时（Expo Go）为 null。 */
   readonly speech: SpeechPlatform | null;
-  /** 系统声音把文字读成音频文件（D-268，modules/morph-tts）；没有时（Expo Go）为 null。 */
+  /** 系统声音把文字读成音频文件（D-270，modules/morph-tts）；没有时（Expo Go）为 null。 */
   readonly speaker: SpeakPlatform | null;
   /** 长任务切到后台也继续（D-160）；没有原生模块时（Expo Go）为 null。 */
   readonly background: BackgroundPlatform | null;
@@ -623,13 +623,13 @@ export interface FilePlatform {
     relPath: string,
   ): Promise<EncodedImage>;
 
-  /** 增强一张图片（扫描件），输出 JPG 临时文件。 */
+  /** 增强一张图片（扫描件），输出 JPG 临时文件；skew 和 base 是转正的角度和转正前的大小（D-267）。 */
   enhanceImage(
     uri: string,
     mode: EnhanceMode,
     runId: string,
     relPath: string,
-  ): Promise<EncodedImage>;
+  ): Promise<EncodedImage & { skew: number; base: { width: number; height: number } }>;
 
   /** 离屏合成一张图，编码成本次运行的临时文件。 */
   composeImage(

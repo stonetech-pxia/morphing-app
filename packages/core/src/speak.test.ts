@@ -16,7 +16,7 @@ import { AUDIO_ACTIONS, audioWorkflows } from './tools/audio';
 import { workflowProblems } from './workflow/check';
 import { presetById, presetWorkflow } from './workflows/presets';
 
-// 文字转语音（D-268）：参数、分段、自动选语言，以及预设和步骤说法接得上。
+// 文字转语音（D-270）：参数、分段、自动选语言，以及预设和步骤说法接得上。
 
 const action = AUDIO_ACTIONS.find((a) => a.id === 'audio.fromText')!;
 

@@ -2,7 +2,7 @@ import { RunError } from '@morph/core';
 import { zlibSync } from 'fflate';
 import { PDFDocument } from 'pdf-lib';
 
-import type { Quad } from '@morph/tool-image';
+import { rotatedSize, type Quad } from '@morph/tool-image';
 import type { TextLayer } from '@morph/tool-pdf';
 
 import type {
@@ -111,7 +111,7 @@ export class FakeFiles implements FilePlatform {
   media: MediaPlatform | null = new FakeMedia(this);
   /** 语音转文字：默认没有（像 Expo Go），测试里换成 FakeSpeech。 */
   speech: SpeechPlatform | null = null;
-  /** 系统朗读（D-268）：默认没有（像 Expo Go），测试里换成 FakeSpeaker。 */
+  /** 系统朗读（D-270）：默认没有（像 Expo Go），测试里换成 FakeSpeaker。 */
   speaker: SpeakPlatform | null = null;
   /** 后台继续（D-160）：默认没有（像 Expo Go），测试里换成 FakeBackground。 */
   background: BackgroundPlatform | null = null;
@@ -392,6 +392,10 @@ export class FakeFiles implements FilePlatform {
    * 假的编码器：按像素数和质量估算体积（JPEG 约 0.05–0.5 字节 / 像素，PNG 1.5），
    * 写出相应长度的字节，单调且可预测，足够测试「压到目标大小」的搜索。
    */
+  /** 已经删掉的文件（测试里模拟运行中途被清理）。 */
+  deleted = new Set<string>();
+  /** 每次重新编码用的源图（和 encodes 一一对应）。 */
+  encodedFrom: string[] = [];
   async transformImage(
     uri: string,
     ops: ImageOps,
@@ -399,6 +403,8 @@ export class FakeFiles implements FilePlatform {
     runId: string,
     relPath: string,
   ) {
+    // 和真机一样：文件已经被删掉时读不了。
+    if (this.deleted.has(uri)) throw new Error('missing');
     let { width, height } = await this.imageSize(uri);
     if (ops.crop) ({ width, height } = ops.crop);
     if (ops.resize) ({ width, height } = ops.resize);
@@ -415,6 +421,7 @@ export class FakeFiles implements FilePlatform {
     this.disk.set(dest, bytes);
     this.imageSizes.set(dest, { width, height });
     this.encodes.push({ ops, format: save.format, quality: save.quality, width, height });
+    this.encodedFrom.push(uri);
     return { uri: dest, width, height, size: bytes.length };
   }
   /** 放一张“用户可选择的”假照片。 */
@@ -470,14 +477,18 @@ export class FakeFiles implements FilePlatform {
     return { uri: dest, size: bytes.length, pageCount: 1 };
   }
   enhanced: string[] = [];
+  /** 增强时转正的角度（下一次增强用，按顺序）；转了的话画布按转过之后的大小放大。 */
+  enhanceSkews: number[] = [];
   async enhanceImage(uri: string, mode: string, runId: string, relPath: string) {
     if (!this.disk.has(uri)) throw new Error('missing');
-    const size = this.imageSizes.get(uri) ?? { width: 600, height: 800 };
+    const base = this.imageSizes.get(uri) ?? { width: 600, height: 800 };
+    const skew = this.enhanceSkews.shift() ?? 0;
+    const size = rotatedSize(base, skew);
     const dest = `runs/${runId}/${relPath}`;
     this.disk.set(dest, TINY_JPEG);
     this.imageSizes.set(dest, size);
     this.enhanced.push(mode);
-    return { uri: dest, ...size, size: TINY_JPEG.length };
+    return { uri: dest, ...size, size: TINY_JPEG.length, skew, base };
   }
   signatures: { uri: string; bytes: Uint8Array; aspect: number }[] = [];
   async loadSignatures() {
@@ -1101,8 +1112,6 @@ export class FakeVision implements VisionPlatform {
   canFindPaper = true;
   /** 系统识别不了的语言（BCP 47 主语言），例如 Android 的 ML Kit 不认俄文。 */
   unsupported = new Set<string>();
-  /** 系统里设的语言（D-267）。 */
-  preferredLanguages: string[] | undefined = undefined;
   /** 下一次文档相机拍到的页面；null 表示用户取消。 */
   scanned: PickedFile[] | null = null;
 
@@ -1111,6 +1120,8 @@ export class FakeVision implements VisionPlatform {
   supportsLanguage(code: string) {
     return !this.unsupported.has(code.split('-')[0]!);
   }
+  /** 有文字识别模型的设备（D-269）：设成 { pack, languages } 时这些语言要先下载模型。 */
+  ocrModel?: { pack: string; languages: readonly string[] };
   async recognizeText(uri: string, languages: readonly string[]) {
     this.calls.push({ method: 'recognizeText', uri, args: languages });
     return this.texts.shift() ?? '';

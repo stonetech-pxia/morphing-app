@@ -16,7 +16,7 @@ import type { ActionDefinition } from '../workflow/contract';
 
 // 音频工具（D-152–D-156）：语音转文字、压小 / 转格式、剪一段、几段合成一段、从视频里取声音。
 // 编码在 App 的原生模块 morph-media 里（iOS AVFoundation、Android Media3），语音转文字在 morph-speech 里
-// （iOS 系统识别，Android whisper.cpp，D-150、D-151），文字转语音在 morph-tts 里（系统声音，D-268）。
+// （iOS 系统识别，Android whisper.cpp，D-150、D-151），文字转语音在 morph-tts 里（系统声音，D-270）。
 // 全部在本机处理；识别出的文字、要朗读的文字都不发给 AI（D-036）。
 
 export const AUDIO_TOOL_ID = 'audio';
@@ -393,7 +393,7 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
       { ...formatField, options: formatField.options.filter((o) => o.value !== 'mp3') },
     ],
     requires: [],
-    // 内置规则认的步骤说法（D-265、D-268）。
+    // 内置规则认的步骤说法（D-265、D-270）。
     phrases: [
       {
         match:

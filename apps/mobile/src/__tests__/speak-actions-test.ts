@@ -22,7 +22,7 @@ import {
   makePdf,
 } from '../test-utils/fake-files';
 
-// 文字转语音（D-268）：系统朗读换成 FakeSpeaker（每个字 0.1 秒，写一个 24 kHz 单声道 WAV），
+// 文字转语音（D-270）：系统朗读换成 FakeSpeaker（每个字 0.1 秒，写一个 24 kHz 单声道 WAV），
 // 转 M4A 换成 FakeMedia。检查分段、选声音、语速、格式、错误说明、取消和预设快捷操作。
 
 const registry = createRegistry(BUILTIN_TOOLS);

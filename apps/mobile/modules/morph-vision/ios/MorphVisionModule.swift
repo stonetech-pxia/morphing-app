@@ -93,19 +93,30 @@ public class MorphVisionModule: Module {
       return Self.match(code, in: supported) != nil
     }
 
+    // PP-OCRv6 的两个模型（D-269）：路径是扩展包里的文件；输入、输出都是本次运行的临时文件。
+    AsyncFunction("ocrLoad") { (det: URL, rec: URL) in
+      try OcrRunner.shared.load(det: det.path, rec: rec.path)
+    }
+    AsyncFunction("ocrDetect") { (input: URL, width: Int, height: Int, output: URL) in
+      try OcrRunner.shared.detect(input: input, width: width, height: height, output: output)
+    }
+    AsyncFunction("ocrRecognize") { (input: URL, count: Int, width: Int, output: URL) -> Int in
+      try OcrRunner.shared.recognize(input: input, count: count, width: width, output: output)
+    }
+    AsyncFunction("ocrUnload") {
+      OcrRunner.shared.unload()
+    }
+
     AsyncFunction("supportedLanguages") { () -> [String] in
       try VNRecognizeTextRequest().supportedRecognitionLanguages()
     }
 
     // 识别文字：accurate 级别 + 语言纠错。languages 是 BCP 47 代码，按顺序优先。
-    // automatic：让 Vision 自己判断语言（iOS 16 起，最低版本 16.4），languages 只作提示；
-    // 可搜索 PDF 的文字层用（D-267），扫描件是什么文字事先不知道。
-    AsyncFunction("recognizeText") { (uri: URL, languages: [String], automatic: Bool) -> [String: Any] in
+    AsyncFunction("recognizeText") { (uri: URL, languages: [String]) -> [String: Any] in
       let image = try self.loadImage(uri)
       let request = VNRecognizeTextRequest()
       request.recognitionLevel = .accurate
       request.usesLanguageCorrection = true
-      request.automaticallyDetectsLanguage = automatic
       let supported = try request.supportedRecognitionLanguages()
       var chosen: [String] = []
       for code in languages {

@@ -21,6 +21,7 @@
     "@morph/planner": "*",
     "@morph/tool-archive": "*",
     "@morph/tool-image": "*",
+    "@morph/tool-ocr": "*",
     "@morph/tool-pdf": "*",
     "@morph/tool-qr": "*",
     "@shopify/react-native-skia": "2.14.0",

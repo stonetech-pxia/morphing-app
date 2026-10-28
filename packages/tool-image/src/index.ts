@@ -6,6 +6,6 @@ export * from './formats';
 export * from './geometry';
 export * from './id-photo';
 export * from './layout';
-export * from './paper';
 export * from './size-search';
 export * from './quad';
+export * from './scan-enhance';

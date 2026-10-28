@@ -1,4 +1,4 @@
-# 本地 Expo 模块（D-268）：用 iOS 自带的 AVSpeechSynthesizer 在本机把文字读成音频文件。
+# 本地 Expo 模块（D-270）：用 iOS 自带的 AVSpeechSynthesizer 在本机把文字读成音频文件。
 # 只依赖 Apple 系统框架，没有第三方代码。
 
 Pod::Spec.new do |s|

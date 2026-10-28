@@ -3,6 +3,7 @@ import {
   localize,
   isFileValue,
   runWorkflow,
+  templateReads,
   type AskRequest,
   type Locale,
   type OcrLanguage,
@@ -160,22 +161,65 @@ export function packNotNeeded(
   return false;
 }
 
+/**
+ * 这一步在这台设备上要的文字识别模型（D-269）：识别 PP-OCRv6 认的语言时要它；可搜索 PDF 的文字层、
+ * 按识别出的文字取名不下载也能做（没有文字层、用原来的名字），所以是可选的。
+ */
+export function devicePack(
+  files: FilePlatform,
+  actionId: string,
+  params: Record<string, unknown>,
+): { pack: string; optional?: boolean } | undefined {
+  const model = files.vision?.ocrModel;
+  if (!model) return undefined;
+  if (actionId === 'ocr.recognize') {
+    const code = VISION_LANGUAGES[params.lang as OcrLanguage]?.[0];
+    return code && model.languages.includes(code.split('-')[0]!) ? { pack: model.pack } : undefined;
+  }
+  if (actionId === 'pdf.fromImages' && params.textLayer === true) {
+    return { pack: model.pack, optional: true };
+  }
+  if (
+    actionId === 'file.rename' &&
+    typeof params.template === 'string' &&
+    templateReads(params.template).ocr
+  ) {
+    return { pack: model.pack, optional: true };
+  }
+  return undefined;
+}
+
 /** 这台设备上真正需要下载的扩展包（工作流页的提示用；预设的扫描都从文档相机开始）。 */
 export function packsNeeded(packIds: readonly string[], files: FilePlatform): string[] {
   const { vision } = files;
   const speechNeeded = (id: string) =>
     !id.startsWith('speech-') || files.speech?.engine === 'whisper';
   if (!vision) return packIds.filter(speechNeeded);
-  return packIds.filter((id) => {
-    if (id === 'scan') return !vision.canFindPaper && !vision.documentCamera;
-    if (id === 'ocr') return false;
-    if (id.startsWith('speech-')) return speechNeeded(id);
-    if (id.startsWith('ocr-')) {
-      const languages = VISION_LANGUAGES[id.slice(4).replace('-', '_') as OcrLanguage];
-      return !languages || !vision.supportsLanguage(languages[0]!);
-    }
-    return true;
-  });
+  return packIds
+    .filter((id) => {
+      if (id === 'scan') return !vision.canFindPaper && !vision.documentCamera;
+      if (id === 'ocr') return false;
+      if (id.startsWith('speech-')) return speechNeeded(id);
+      if (id.startsWith('ocr-')) {
+        const languages = VISION_LANGUAGES[id.slice(4).replace('-', '_') as OcrLanguage];
+        return !languages || !vision.supportsLanguage(languages[0]!);
+      }
+      return true;
+    })
+    .concat(
+      // PP-OCRv6 认的语言不要语言包，但要文字识别模型（D-269）。
+      vision.ocrModel &&
+        packIds.some((id) => {
+          const code = VISION_LANGUAGES[id.slice(4).replace('-', '_') as OcrLanguage]?.[0];
+          return (
+            id.startsWith('ocr-') &&
+            !!code &&
+            vision.ocrModel!.languages.includes(code.split('-')[0]!)
+          );
+        })
+        ? [vision.ocrModel.pack]
+        : [],
+    );
 }
 
 /** 第一步用分享进来的文件时，它的「每次运行时问」（来源、个数）没有意义，不问。 */
@@ -233,6 +277,7 @@ export async function startRun(ctx: RunContext): Promise<Run> {
     ...(ctx.askParams ? { askParams: askUnlessShared(ctx, ctx.askParams) } : {}),
     ...(ctx.ensurePack ? { ensurePack: ctx.ensurePack } : {}),
     packNotNeeded: (actionId, params, input) => packNotNeeded(ctx.files, actionId, params, input),
+    devicePack: (actionId, params) => devicePack(ctx.files, actionId, params),
     ...(ctx.signal ? { signal: ctx.signal } : {}),
     ...(onEvent ? { onEvent } : {}),
     record: {

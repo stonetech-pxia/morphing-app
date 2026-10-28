@@ -3,12 +3,14 @@ import {
   RunError,
   fixCjkRadicals,
   groupItems,
+  polishOcrText,
   t,
   type ActionImpl,
   type GroupRule,
+  type Locale,
   type RunItem,
 } from '@morph/core';
-import { searchSharedQuality } from '@morph/tool-image';
+import { boxesToEnhanced, searchSharedQuality } from '@morph/tool-image';
 import {
   PdfError,
   addPageNumbers,
@@ -33,10 +35,17 @@ import {
   type TextLayer,
 } from '@morph/tool-pdf';
 
+import { deviceLanguageTags } from '../../i18n';
 import type { VisionPlatform } from '../platform';
 import { formatBytes } from './image';
-import { fileItems, freshName, readItem, writeItem, type RunServices } from './helpers';
-import { textLayerLanguages } from './ocr';
+import {
+  fileItems,
+  freshName,
+  ocrSourceOf,
+  readItem,
+  writeItem,
+  type RunServices,
+} from './helpers';
 
 // PDF 动作的实现：字节处理全部在 packages/tool-pdf（pdf-lib），这里只负责读写临时文件。
 
@@ -127,6 +136,27 @@ function ruleOf(params: Record<string, unknown>): PageRule {
 }
 
 /** 图片的 JPEG / PNG 字节：pdf-lib 只能嵌入这两种；HEIC、WebP 和很大的 PNG 先转成 JPEG。 */
+/** 文字层识别用的西欧语言（D-195）。 */
+const LATIN_TEXT_LAYER = ['en-US', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'pt-BR'] as const;
+
+/**
+ * 文字层识别用的语言（D-266）：手机的语言列表或界面语言里有中文、日文、韩文时先认它（附带英文，
+ * 这些识别器也认拉丁字母），写进 PDF 用无字形字体；没有时认西欧语言。第一种必须是系统支持的。
+ */
+export function textLayerLanguages(
+  locale: Locale,
+  deviceTags: readonly string[],
+): readonly string[] {
+  for (const tag of [...deviceTags, ...(locale === 'zh' ? ['zh-Hans'] : [])]) {
+    const [lang, ...rest] = tag.split('-');
+    const tail = rest.join('-');
+    if (lang === 'zh') return [/Hant|TW|HK|MO/.test(tail) ? 'zh-Hant' : 'zh-Hans', 'en-US'];
+    if (lang === 'ja') return ['ja-JP', 'en-US'];
+    if (lang === 'ko') return ['ko-KR', 'en-US'];
+  }
+  return LATIN_TEXT_LAYER;
+}
+
 async function imageBytes(
   ctx: Ctx,
   item: RunItem,
@@ -174,25 +204,6 @@ async function imageBytes(
 }
 
 const isImage = (item: RunItem) => item.mimeType.startsWith('image/');
-
-/**
- * 一页的文字层。几种语言放在一起系统不接受时（iOS 的 Vision 对语言组合有限制，没在真机上试全），
- * 退回只用第一种再试一次；还不行这一页就不加。
- */
-async function recognizePage(
-  vision: VisionPlatform,
-  uri: string,
-  languages: readonly string[],
-): Promise<TextLayer | undefined> {
-  for (const attempt of languages.length > 1 ? [languages, languages.slice(0, 1)] : [languages]) {
-    try {
-      return await vision.recognizeLines(uri, attempt);
-    } catch {
-      // 换一组语言再试，或者这一页不加文字层。
-    }
-  }
-  return undefined;
-}
 
 /** 页面上的位置 → stampImage 用的左上角比例坐标。 */
 function stampBox(
@@ -302,6 +313,34 @@ async function mergeGroup(
   return writePdf(ctx, result.bytes, name);
 }
 
+/**
+ * 一页的文字层（D-267）：先在增强前的图上认（更准），框换算到这张图上；
+ * 增强前的图读不了，或者宽高比对不上（例如方向不同）时，在这张图上认。
+ */
+async function pageTextLayer(
+  vision: VisionPlatform,
+  item: RunItem,
+  languages: readonly string[],
+): Promise<TextLayer> {
+  const source = ocrSourceOf(item);
+  if (source && item.width && item.height) {
+    try {
+      const layer = await vision.recognizeLines(source.uri, languages);
+      const ratio = layer.width / layer.height / (source.width / source.height);
+      if (Math.abs(ratio - 1) < 0.02) {
+        const canvas = { width: item.width, height: item.height };
+        return {
+          ...canvas,
+          lines: boxesToEnhanced(layer.lines, layer, source, source.skew, canvas),
+        };
+      }
+    } catch {
+      // 用这张图认。
+    }
+  }
+  return vision.recognizeLines(item.uri, languages);
+}
+
 /** 一组图片排成一个 PDF；大小上限对这一个 PDF 算（D-073）。 */
 async function imagesPdf(
   ctx: Ctx,
@@ -327,8 +366,7 @@ async function imagesPdf(
     const target = maxMB * MB;
     const result = await searchSharedQuality({
       targetBytes: target,
-      // 文字层（D-267）在后面才加：字体和 ToUnicode 一次约 1–4 KB，每页约 1–1.5 KB。
-      overheadBytes: 2048 + items.length * 1024 + (textLayer ? 4096 + items.length * 1536 : 0),
+      overheadBytes: 2048 + items.length * 1024,
       maxQuality: 0.9,
       encodeAll: async (quality, scale) => {
         ctx.throwIfCancelled();
@@ -351,14 +389,28 @@ async function imagesPdf(
       ctx.progress(i + 1, items.length);
     }
   }
-  // 能搜索的 PDF（D-195）：每页识别文字和位置，任何文字都写得进去（D-267）。没有系统自带的识别（Expo Go）
-  // 或一种语言都识别不了时不加；某一页识别失败只是那页不加。
+  // 能搜索的 PDF（D-195）：每页识别文字和位置。没有系统自带的识别（Expo Go）时不加；某一页识别失败只是那页不加。
   const vision = textLayer ? ctx.services.files.vision : null;
-  const languages = vision ? textLayerLanguages(ctx.locale, vision) : [];
-  if (vision && languages.length > 0) {
+  if (vision) {
+    const languages = textLayerLanguages(ctx.locale, deviceLanguageTags());
     for (const [i, item] of items.entries()) {
       ctx.throwIfCancelled();
-      images[i] = { ...images[i]!, text: await recognizePage(vision, item.uri, languages) };
+      // 中日韩识别失败（旧系统不支持）时再按西欧语言认一次；还失败就这一页不加文字层。
+      for (const attempt of languages === LATIN_TEXT_LAYER
+        ? [languages]
+        : [languages, LATIN_TEXT_LAYER]) {
+        try {
+          const layer = await pageTextLayer(vision, item, attempt);
+          // 中文按识别语言整理（D-268）：简体换掉混进来的繁体字，中文用全角标点。
+          const kind =
+            attempt[0] === 'zh-Hans' ? 'zh-Hans' : attempt[0] === 'zh-Hant' ? 'zh-Hant' : 'other';
+          const lines = layer.lines.map((l) => ({ ...l, text: polishOcrText(l.text, kind) }));
+          images[i] = { ...images[i]!, text: { ...layer, lines } };
+          break;
+        } catch {
+          // 换下一组语言。
+        }
+      }
       ctx.progress(i + 1, items.length);
     }
   }

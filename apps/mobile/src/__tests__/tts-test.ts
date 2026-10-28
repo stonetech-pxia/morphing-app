@@ -7,7 +7,7 @@ import type {
 } from '../../modules/morph-tts';
 import { createSpeaker } from '../runtime/expo-tts';
 
-// 文字转语音的 App 一侧（D-268）：用假的原生模块检查输出地址、进度、取消和错误码。
+// 文字转语音的 App 一侧（D-270）：用假的原生模块检查输出地址、进度、取消和错误码。
 
 class FakeTTS implements MorphTTSModule {
   calls: { segments: readonly string[]; options: SynthesizeOptions }[] = [];

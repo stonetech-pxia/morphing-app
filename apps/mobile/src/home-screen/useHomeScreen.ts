@@ -7,7 +7,7 @@ import { iosSymbolName } from '../renderer/Icon';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { HomeScreenEntry, HomeScreenPlatform } from './platform';
 
-// 手机桌面（D-269）：长按 Morph 图标的菜单完全由正式版本的配置算出来（草稿不算）。AI 修改、撤销、恢复、
+// 手机桌面（D-271）：长按 Morph 图标的菜单完全由正式版本的配置算出来（草稿不算）。AI 修改、撤销、恢复、
 // 删除和改名快捷操作之后整份换掉；Android 上不在菜单里的已固定图标停用。
 // 点了菜单项或桌面图标：打开那个快捷操作的运行页面，和点运行卡片一样直接开始（D-108）。
 

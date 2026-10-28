@@ -57,7 +57,7 @@ describe('migrateWorkspace', () => {
       expect(result.after).toEqual({ ...previous, schemaVersion: CURRENT_SCHEMA_VERSION });
     expect(previous.schemaVersion).toBe(10);
   });
-  it('v18 → v19 (quick actions on the phone home screen, D-269) only raises the version', () => {
+  it('v18 → v19 (quick actions on the phone home screen, D-271) only raises the version', () => {
     const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 18 };
     expect(previous.workflows.length).toBeGreaterThan(0);
     expect(migrateWorkspace(previous, undefined, 19)).toEqual({

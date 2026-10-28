@@ -1,4 +1,4 @@
-// 手机桌面（D-269）：长按 Morph 图标的菜单和 Android 桌面上单独的图标。App 里由本地模块 MorphShortcuts
+// 手机桌面（D-271）：长按 Morph 图标的菜单和 Android 桌面上单独的图标。App 里由本地模块 MorphShortcuts
 // 实现（native.ts），测试里换成假的。
 
 export interface HomeScreenEntry {

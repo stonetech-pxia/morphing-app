@@ -7,7 +7,7 @@ import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-// WAV 的读和接（D-268）：TextToSpeech.synthesizeToFile 每段写一个 16 位 PCM 的 WAV，这里把它们按顺序
+// WAV 的读和接（D-270）：TextToSpeech.synthesizeToFile 每段写一个 16 位 PCM 的 WAV，这里把它们按顺序
 // 接成一个。只认 PCM（格式 1）；同一个声音的各段格式相同，不同时报错（不悄悄混在一起变调）。
 // 纯 Kotlin，不依赖 Android，测试见 src/test/…/WavTest.kt。
 

@@ -11,6 +11,11 @@ export function getDeviceLocale(): Locale {
   return primary?.languageCode === 'zh' ? 'zh' : primary?.languageCode === 'fr' ? 'fr' : 'en';
 }
 
+/** 手机设置里的语言（BCP 47，按用户的顺序），例如 ['zh-Hant-TW', 'en-US']。 */
+export function deviceLanguageTags(): string[] {
+  return getLocales().map((l) => l.languageTag);
+}
+
 const PERMISSION_NAMES: Record<string, Localized> = {
   photos: { en: 'Photos', zh: '相册', fr: 'Photos' },
   camera: { en: 'Camera', zh: '相机', fr: 'Appareil photo' },

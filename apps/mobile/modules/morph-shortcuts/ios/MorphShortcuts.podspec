@@ -1,4 +1,4 @@
-# 本地 Expo 模块（D-269）：长按 Morph 图标的菜单（Home Screen Quick Actions）。只依赖 Apple 系统框架。
+# 本地 Expo 模块（D-271）：长按 Morph 图标的菜单（Home Screen Quick Actions）。只依赖 Apple 系统框架。
 
 Pod::Spec.new do |s|
   s.name           = 'MorphShortcuts'

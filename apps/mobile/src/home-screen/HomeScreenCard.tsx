@@ -9,7 +9,7 @@ import { useHomeScreenPlatform } from './context';
 import { iosSymbolName } from '../renderer/Icon';
 
 /**
- * 放到桌面的快捷操作怎么用（D-269）：iOS 只能长按 Morph 图标；Android 另外可以在桌面上单独放一个图标，
+ * 放到桌面的快捷操作怎么用（D-271）：iOS 只能长按 Morph 图标；Android 另外可以在桌面上单独放一个图标，
  * 系统会弹确认框，所以只在用户点了「添加到桌面」之后才请求，绝不在应用修改时自动弹。
  */
 export function HomeScreenCard({ workflow, palette }: { workflow: Workflow; palette: Palette }) {

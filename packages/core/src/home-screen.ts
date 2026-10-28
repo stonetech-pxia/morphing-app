@@ -1,7 +1,7 @@
 import { workflowKinds, QUICK_ACTION_CATEGORIES } from './quick-actions';
 import { MAX_HOME_SCREEN, type IconValue, type WorkspaceConfig } from './schema';
 
-// 手机桌面（D-269）：用户标了「放到桌面」的快捷操作出现在长按 Morph 图标的菜单里（iOS Home Screen Quick Actions、
+// 手机桌面（D-271）：用户标了「放到桌面」的快捷操作出现在长按 Morph 图标的菜单里（iOS Home Screen Quick Actions、
 // Android App Shortcuts）。菜单由配置算出来，每次配置变了（AI 修改、撤销、恢复、删除、改名）整份换掉。
 // 点一下打开 Morph 直接开始那个快捷操作，和点运行卡片一样（D-108）。
 

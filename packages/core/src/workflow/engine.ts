@@ -30,6 +30,12 @@ export interface RunItem {
   straightened?: boolean;
   /** 已经存成用户文件时的文件 ID。 */
   assetId?: string;
+  /**
+   * 识别文字用的图（D-267）：scan.enhance 记下增强前的那张（增强对系统识别没有帮助，黑白还会抹掉淡字）。
+   * 只在 uri 还等于 for 时有效：之后哪一步生成了新图片，uri 就变了，识别退回用当前的图。
+   * width / height 是增强时转正前的大小，skew 是转正转的角度（度），用来把识别框换算到增强后的图上。
+   */
+  ocrSource?: { uri: string; for: string; width: number; height: number; skew: number };
 }
 
 export type RunValue =
@@ -186,6 +192,15 @@ export interface RunOptions<S> {
     params: Record<string, unknown>,
     input: RunValue | null,
   ) => boolean;
+  /**
+   * 这一步在这台设备上要的扩展包（D-269，例如文字识别模型）；有它时代替动作自己的扩展包。
+   * optional：用户不下载也照样做（例如可搜索 PDF 没有文字层），不取消运行。
+   */
+  devicePack?: (
+    actionId: string,
+    params: Record<string, unknown>,
+    input: RunValue | null,
+  ) => { pack: string; optional?: boolean } | undefined;
   /** 界面把 cancelled 设为 true 即可取消。 */
   signal?: { cancelled: boolean };
   onEvent?: (event: RunEvent) => void;
@@ -286,10 +301,18 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
         params = action.params.parse({ ...params, ...rest });
       }
       // 先问参数再确认扩展包：文字识别的语言包由本次选的语言决定。
-      const pack = opts.packNotNeeded?.(action.id, params, value)
-        ? undefined
-        : (action.packFor?.(params) ?? action.pack);
-      if (pack && opts.ensurePack && !(await orCancel(opts.ensurePack(pack)))) {
+      const device = opts.devicePack?.(action.id, params, value);
+      const pack =
+        device?.pack ??
+        (opts.packNotNeeded?.(action.id, params, value)
+          ? undefined
+          : (action.packFor?.(params) ?? action.pack));
+      if (
+        pack &&
+        opts.ensurePack &&
+        !(await orCancel(opts.ensurePack(pack))) &&
+        !device?.optional
+      ) {
         throw new RunCancelled();
       }
       throwIfCancelled();

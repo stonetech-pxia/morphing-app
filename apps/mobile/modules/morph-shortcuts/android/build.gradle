@@ -1,4 +1,4 @@
-// 本地 Expo 模块的 Android 部分（D-269）：ShortcutManagerCompat（androidx.core，随 react-android 带进来）的
+// 本地 Expo 模块的 Android 部分（D-271）：ShortcutManagerCompat（androidx.core，随 react-android 带进来）的
 // 动态快捷方式和固定到桌面的图标。只用系统接口。
 plugins {
   id 'com.android.library'

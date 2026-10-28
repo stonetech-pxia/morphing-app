@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import kotlin.concurrent.thread
 
-// 文字转语音的 Android 实现（D-268）：系统的 TextToSpeech（多数手机是 Google「语音服务」），和 iOS 的 JS 接口相同。
+// 文字转语音的 Android 实现（D-270）：系统的 TextToSpeech（多数手机是 Google「语音服务」），和 iOS 的 JS 接口相同。
 // 每段用 synthesizeToFile 写一个 WAV（中间文件放在输出文件旁边），全部读完后接成一个（Wav.join），
 // 中间文件成功、失败、取消都删掉。声音数据缺了不偷偷下载，报 ERR_TTS_NOT_DOWNLOADED，由用户在系统设置里下载。
 // 文字只交给系统朗读引擎，不写日志。

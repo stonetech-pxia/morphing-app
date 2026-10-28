@@ -391,7 +391,7 @@ export function WorkflowEditor({
               }
             />
           )}
-          {/* 手机桌面（D-269）：长按 Morph 图标的菜单最多 4 个，满了先拿掉一个。 */}
+          {/* 手机桌面（D-271）：长按 Morph 图标的菜单最多 4 个，满了先拿掉一个。 */}
           <Pill
             palette={palette}
             testID="workflow-home-screen"

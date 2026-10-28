@@ -145,7 +145,7 @@ export const OpSchema = z.discriminatedUnion('op', [
   z.strictObject({ op: z.literal('removeWorkflowStep'), workflowId: IdSchema, stepId: IdSchema }),
   /**
    * 新建用户自己的工作流（从预设复制、复制已有的，或 AI 新建）。不能属于工具；
-   * 放到手机桌面只能用 setWorkflowHomeScreen（D-269），这样每次放到桌面都是单独一行说明。
+   * 放到手机桌面只能用 setWorkflowHomeScreen（D-271），这样每次放到桌面都是单独一行说明。
    */
   z.strictObject({
     op: z.literal('addWorkflow'),
@@ -172,7 +172,7 @@ export const OpSchema = z.discriminatedUnion('op', [
     stepId: IdSchema,
     toIndex: z.number().int().min(0),
   }),
-  /** 放到手机桌面（长按 Morph 图标的菜单）或从桌面拿掉（D-269）。工具自带的快捷操作也可以。 */
+  /** 放到手机桌面（长按 Morph 图标的菜单）或从桌面拿掉（D-271）。工具自带的快捷操作也可以。 */
   z.strictObject({
     op: z.literal('setWorkflowHomeScreen'),
     workflowId: IdSchema,

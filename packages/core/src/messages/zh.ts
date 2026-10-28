@@ -612,7 +612,7 @@ export const zh: MessageTable = {
   speechDownload: '下载',
   speechDownloadFailed: '{lang}的语音模型',
   speechNote: '本机自动识别，有噪音或口音时可能有错字，请核对。',
-  // ---- 文字转语音（D-268）：错误说明拼进「不支持这个步骤：…」----
+  // ---- 文字转语音（D-270）：错误说明拼进「不支持这个步骤：…」----
   speakNoVoice:
     '朗读{lang}（这台手机没有这种语言的声音；可以在手机设置里添加：iPhone 在「辅助功能 → 朗读内容 → 声音」，Android 在「文字转语音输出」）',
   speakNotDownloaded:
@@ -663,7 +663,7 @@ export const zh: MessageTable = {
   describeAddReminder: '新建提醒「{title}」（{when}）',
   describeUpdateReminder: '修改提醒「{title}」',
   describeRemoveReminder: '移除提醒「{title}」',
-  // 手机桌面（D-269）
+  // 手机桌面（D-271）
   describeHomeScreenOn: '把「{name}」放到手机桌面：长按 Morph 图标就能看到',
   describeHomeScreenOff: '把「{name}」从手机桌面拿掉',
   homeScreenTitle: '在手机桌面上',
@@ -888,7 +888,7 @@ export const zh: MessageTable = {
   scan_Scans_7ac9d: '扫描件',
   ocr_Text_recognition_fe569: '文字识别',
   ocr_Runs_on_this_device_the_text_is_never__38fca:
-    '在本机识别，文字不会上传。大多数手机用系统自带的识别；不支持的语言第一次用时下载。',
+    '在本机识别，文字不会上传。第一次用时下载文字识别模型（约 30 MB）；韩文、俄文、越南文用手机自带的识别或单独的语言包。',
   html_Created_1626a: '创建时间',
   html_Updated_74f0c: '修改时间',
   html_records_3f794: '{v0} 条',

@@ -691,7 +691,7 @@ export const fr: MessageTable = {
   speechDownloadFailed: 'le modèle vocal pour {lang}',
   speechNote:
     'Reconnaissance effectuée sur cet appareil : des mots peuvent être erronés, surtout en cas de bruit ou d’accent. Vérifiez le texte.',
-  // ---- 文字转语音（D-268）：错误说明拼进「不支持这个步骤：…」----
+  // ---- 文字转语音（D-270）：错误说明拼进「不支持这个步骤：…」----
   speakNoVoice:
     'lecture à voix haute ({lang}) : ce téléphone n’a pas de voix pour cette langue ; ajoutez-en une dans les réglages du téléphone (iPhone : Accessibilité → Contenu énoncé → Voix ; Android : Synthèse vocale)',
   speakNotDownloaded:
@@ -749,7 +749,7 @@ export const fr: MessageTable = {
   describeAddReminder: 'Ajouter le rappel « {title} » ({when})',
   describeUpdateReminder: 'Modifier le rappel « {title} »',
   describeRemoveReminder: 'Retirer le rappel « {title} »',
-  // 手机桌面（D-269）
+  // 手机桌面（D-271）
   describeHomeScreenOn:
     'Mettre « {name} » sur l’écran d’accueil du téléphone : appuyez longuement sur l’icône Morph pour la voir',
   describeHomeScreenOff: 'Retirer « {name} » de l’écran d’accueil du téléphone',
@@ -989,7 +989,7 @@ export const fr: MessageTable = {
   scan_Scans_7ac9d: 'Numérisations',
   ocr_Text_recognition_fe569: 'Reconnaissance de texte',
   ocr_Runs_on_this_device_the_text_is_never__38fca:
-    'S’exécute sur cet appareil ; le texte n’est jamais envoyé. La plupart des téléphones utilisent la reconnaissance intégrée au système ; sinon, chaque langue est téléchargée à la première utilisation.',
+    'S’exécute sur cet appareil ; le texte n’est jamais envoyé. Le modèle de reconnaissance de texte (environ 30 Mo) est téléchargé à la première utilisation ; le coréen, le russe et le vietnamien utilisent la reconnaissance intégrée au téléphone ou un téléchargement séparé.',
   html_Created_1626a: 'Création',
   html_Updated_74f0c: 'Modifié',
   html_records_3f794: '{v0} entrées',

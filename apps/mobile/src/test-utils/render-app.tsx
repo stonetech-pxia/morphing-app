@@ -83,7 +83,7 @@ export async function renderToolsApp(
     toolDownloads?: ToolDownloads;
     /** 第一个版本；不传时是空白工作空间（App 里用 createStarterWorkspace）。 */
     seed?: (locale: Locale, registry: Registry) => WorkspaceConfig;
-    /** 手机桌面（D-269）：假的长按菜单 / 桌面图标；不传时和 Expo Go 一样没有。 */
+    /** 手机桌面（D-271）：假的长按菜单 / 桌面图标；不传时和 Expo Go 一样没有。 */
     homeScreen?: HomeScreenPlatform;
   } = {},
 ) {

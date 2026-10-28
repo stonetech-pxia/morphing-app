@@ -25,6 +25,7 @@ export * from './audio';
 export * from './media';
 export * from './migrate';
 export * from './naming';
+export * from './ocr-text';
 export * from './ops';
 export * from './presets';
 export * from './registry';

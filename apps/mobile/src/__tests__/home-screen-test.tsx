@@ -15,7 +15,7 @@ import type { HomeScreenEntry, HomeScreenPlatform } from '../home-screen/platfor
 import { renderToolsApp } from '../test-utils/render-app';
 import type { WorkspaceStore } from '../workspace/store';
 
-// 手机桌面（D-269）：长按 Morph 图标的菜单跟着正式版本的配置变（AI、撤销、删除、改名）；从桌面打开直接开始；
+// 手机桌面（D-271）：长按 Morph 图标的菜单跟着正式版本的配置变（AI、撤销、删除、改名）；从桌面打开直接开始；
 // Android 的「添加到桌面」只有用户点了才请求（系统会弹确认框）；iOS 只说明长按 Morph 图标。
 
 class FakeHomeScreen implements HomeScreenPlatform {
@@ -83,7 +83,7 @@ const withPresets =
     return { ...config, workflows: [...config.workflows, ...added] };
   };
 
-describe('quick actions on the phone home screen (D-269)', () => {
+describe('quick actions on the phone home screen (D-271)', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('AI puts one there; Android offers “add to home screen” and only asks when tapped', async () => {

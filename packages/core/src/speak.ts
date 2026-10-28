@@ -7,7 +7,7 @@ import {
   splitForTranslation,
 } from './tools/translate';
 
-// 文字转语音（D-268）里和平台无关的部分：语言、分段、自动选语言、预计大小。
+// 文字转语音（D-270）里和平台无关的部分：语言、分段、自动选语言、预计大小。
 // 声音由系统合成（iOS 的 AVSpeechSynthesizer，Android 的 TextToSpeech），在本机生成音频文件，不上传。
 // 这是用户自己运行的步骤；AI 只把它搭进快捷操作，看不到文字（D-036、D-113）。
 

@@ -35,7 +35,7 @@ import { MB, displayName, fileItems, freshName, writeItem, type RunServices } fr
 import { checkSpace, mediaError } from './video';
 
 // 音频工具的动作实现（D-150–D-155）：码率、声道在 core/audio.ts 里算，编码交给原生模块 morph-media，
-// 语音转文字交给 morph-speech（iOS 系统识别，Android whisper.cpp），文字转语音交给 morph-tts（系统声音，D-268）。
+// 语音转文字交给 morph-speech（iOS 系统识别，Android whisper.cpp），文字转语音交给 morph-tts（系统声音，D-270）。
 // 识别出的文字、要朗读的文字只留在本机（D-036）。
 
 type Impl = ActionImpl<RunServices>;
@@ -532,7 +532,7 @@ export const AUDIO_IMPLS: Record<string, Impl> = {
     return { type: 'audio', items: [audioItem(first, result, name)] };
   },
 
-  // 文字转语音（D-268）：系统声音先读成 WAV，要 M4A 时再交给 morph-media 转（和「音频转格式」同样的码率规则）。
+  // 文字转语音（D-270）：系统声音先读成 WAV，要 M4A 时再交给 morph-media 转（和「音频转格式」同样的码率规则）。
   async 'audio.fromText'(input, params, ctx) {
     if (input?.type !== 'text') throw new RunError('emptyText');
     const text = input.text.trim();

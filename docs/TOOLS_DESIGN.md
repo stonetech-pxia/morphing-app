@@ -160,8 +160,8 @@ interface StepContext {
 - **图片**：`image.convert`、`image.resize`、`image.compress`（压到 ≤ N KB）、`image.crop`（本地框选）、`image.rotate`、`image.stripMetadata`、`image.idPhoto`、`image.stitch`、`image.grid`、`image.redact`（本地）、`image.watermark`、`image.printSheet`（证件照排到 4×6 / 5×7 / A4 / Letter 相纸，带裁切线）。（算法：`packages/tool-image`；编码：expo-image-manipulator；合成：Skia 离屏绘制 `composeImage`，画布单边不超过 8192、总像素不超过 1677 万，超出整体缩小，D-079）
 - **视频**（工具 `video`，D-143）：`video.compress`（按大小 ≤ N MB 或按画质 1080p / 720p / 480p）、`video.convert`（转成 MP4，画质基本不变）、`video.trim`（本地 `trimMedia`，不重新编码）。输出一律 MP4（H.264 + AAC）。码率和分辨率在 `core/media.ts` 算，编码在本地模块 `morph-media`（iOS AVFoundation、Android Media3 Transformer，D-141）；输入是 `in.videos`（相册，1–10 个）或 `in.files`（`accept: videos`）。
 - **PDF**：`pdf.fromImages`（A4 / Letter / 跟随图片，可设边距和 ≤ X MB）、`pdf.compress`（把已有 PDF 压到 ≤ X MB：先只压图片、保留文字，不够小时按 `whenTooBig` 问用户 / 转成图片 / 保留文字，D-145）、`pdf.merge`（PDF 和图片混合）、`pdf.pages`（本地选页 / 删页 / 排序 / 旋转）、`pdf.selectPages`（按页码规则：全部 / 奇数 / 偶数 / 范围）、`pdf.rotate`、`pdf.split`、`pdf.pageNumbers`、`pdf.stamp`（文字戳 / 日期戳）、`pdf.sign`（本地）、`pdf.fillForm`（本地）+ 拍平、`pdf.toImages`、`pdf.extractText`。（`packages/tool-pdf`：pdf-lib；`toImages` / `extractText` / 缩略图需要 PDF 预览包）
-- **扫描**（工具 `scan`）：`scan.detect`（找边 → 本地调四角，每张都要确认 → 透视矫正，长边 2400；iOS 用 Vision 找边、Core Image 矫正，Android 和 Expo Go 用扫描包，D-086；文档相机拍的页面直接放行，也不需要扫描包）、`scan.enhance`（去阴影 / 灰度 / 黑白 / 原样；前三种都先去阴影、拉平光照：在小图上估纸张背景，Skia 着色器按原尺寸除以背景，照片和印章的颜色保留，D-266；不需要扩展包）。
-- **文字识别**（工具 `ocr`）：`ocr.recognize`（images → text，参数 `lang` 选 12 种语言之一。iOS 用 Vision 的 `VNRecognizeTextRequest`（accurate + 语言纠错，中日韩等补上英文），不需要下载，D-085；Android 用 ML Kit 文字识别 v2（模型打包进 App），俄文不支持，D-087；系统识别不了时 `packFor` 按语言确保语言包，语言包连同识别包一起下载）。中日文字之间多出来的空格在本机去掉（`tidyOcrText`）。
+- **扫描**（工具 `scan`）：`scan.detect`（找边 → 本地调四角，每张都要确认 → 透视矫正，长边 2400；iOS 用 Vision 找边、Core Image 矫正，Android 和 Expo Go 用扫描包，D-086；文档相机拍的页面直接放行，也不需要扫描包）、`scan.enhance`（自动 / 灰度 / 黑白 / 原样：去阴影、纠偏，自动按页面选彩色或灰度，黑白用局部阈值；Skia 着色器，不需要扩展包，D-266）。
+- **文字识别**（工具 `ocr`）：`ocr.recognize`（images → text，参数 `lang` 选 12 种语言之一。中文、日文、英法德西葡意在 iOS 和 Android 上都用 PP-OCRv6（D-269：扩展包 `ppocr` 约 31 MB，ONNX Runtime 跑模型，前后处理在 `@morph/tool-ocr`）；韩文等其余语言 iOS 用 Vision 的 `VNRecognizeTextRequest`（D-085），Android 只剩韩文用 ML Kit（D-087）；系统也识别不了时 `packFor` 按语言确保语言包，语言包连同识别包一起下载）。中日文字之间多出来的空格在本机去掉（`tidyOcrText`）。
 - **翻译**（工具 `translate`，D-170–D-176）：`translate.text`（text → text，参数 `from`：自动识别或 20 种语言之一，`to`：20 种语言之一，默认每次运行时问）。iOS 用系统的 Translation 框架（iOS 18 起；iOS 26 起已下载的语言直接建会话，要下载或更早的系统时挂一个看不见的 SwiftUI 视图用 `.translationTask`，语言包由系统弹窗下载），NaturalLanguage 识别语言；Android 用 ML Kit 翻译（每种语言模型约 30 MB，第一次用时 App 先问「首次使用需下载约 X MB」再下载，之后离线）和 ML Kit 语言识别（打包进 App）。翻译前在本机把文字拆成段（`splitForTranslation`：空行分段，段里折行的句子接起来，标题、短行、列表项另起），自动识别时每段单独识别语言、按原文语言分组翻，和目标语言相同的段原样保留，再按原来的分段拼回（`joinTranslation`）。只出纯文字（可以接 `text.toPdf` 排成 PDF），不保留原文件排版；结果页写明「本机翻译，适合看懂意思；正式文件请找专业翻译」。一次最多 10 万字。Expo Go 和 iOS 17 及更早报「不支持这个步骤」并说明原因；ML Kit 没有繁体中文。文字不上传、不发给 AI。
 - **文字**（工具 `text`）：`text.copy`、`text.toFile`（.txt）、`text.toPdf`（expo-print，系统字体，中日韩都能显示）；文字加工 `text.tidy`、`text.replace`、`text.extract`、`text.lines`（§14，D-245）。
 - **打包**（工具 `zip`）：`zip.create`、`zip.extract`。（`packages/tool-archive`：fflate，只用同步接口）
@@ -203,7 +203,9 @@ interface StepContext {
 | `com.google.mlkit:language-id`                                                                | 17.0.6           | Android | 闭源，Google ML Kit 条款（P-015） | 识别每段文字的语言，模型打包进 App                            |
 | UIKit（`UIActivityViewController`、`UIDocumentPickerViewController`）、UniformTypeIdentifiers | 系统自带         | iOS     | Apple 系统框架                    | 一次分享多个文件、存到选定文件夹（morph-share，D-119、D-120） |
 | `androidx.core`（FileProvider，随 React Native 已经在 App 里）、存储访问框架                  | 随 RN / 系统自带 | Android | Apache-2.0 / Android 系统接口     | 一次分享多个文件、存到选定文件夹（morph-share）               |
-| `com.google.mlkit:text-recognition`（及 `-chinese`、`-japanese`、`-korean`）                  | 16.0.1           | Android | 闭源，Google ML Kit 条款（P-015） | 文字识别，模型打包进 App                                      |
+| `com.google.mlkit:text-recognition-korean`                                                    | 16.0.1           | Android | 闭源，Google ML Kit 条款（P-015） | 韩文识别，模型打包进 App（D-269）                             |
+| `com.microsoft.onnxruntime:onnxruntime-android`                                               | 1.30.0           | Android | MIT                               | 跑 PP-OCRv6 文字识别模型（D-269）                             |
+| `onnxruntime-objc`（CocoaPods）                                                               | 1.30.0           | iOS     | MIT                               | 跑 PP-OCRv6 文字识别模型（D-269）                             |
 | `com.google.android.gms:play-services-mlkit-document-scanner`                                 | 16.0.0           | Android | 闭源，Google APIs 条款（P-015）   | 文档扫描界面（需要 Google Play 服务）                         |
 | `com.google.android.gms:play-services-base`                                                   | 18.11.1          | Android | 闭源，Google APIs 条款（P-015）   | 检查有没有 Google Play 服务                                   |
 | AVFoundation、CoreMedia、VideoToolbox                                                         | 系统自带         | iOS     | Apple 系统框架                    | 视频压缩、转格式、剪切、取画面（morph-media，D-141）          |
@@ -269,7 +271,7 @@ interface StepContext {
 | `moveWorkflowStep {workflowId, stepId, toIndex}` |                                                                                       |
 | `removeWorkflowStep`、`setStepParams`            | 原有（`setStepParams` 含 `ask`）                                                      |
 | `updateWorkflow {workflowId, name?, steps?}`     | 编辑页一次保存；AI 看到的私有参数是 `<user text>` 占位符，原样传回时保留旧值（D-082） |
-| `setWorkflowHomeScreen {workflowId, homeScreen}` | 放到手机桌面 / 拿掉（D-269）；最多 4 个，`addWorkflow` 不能带这个标记                 |
+| `setWorkflowHomeScreen {workflowId, homeScreen}` | 放到手机桌面 / 拿掉（D-271）；最多 4 个，`addWorkflow` 不能带这个标记                 |
 
 所有修改之后照常跑 `validateWorkspace`（§2），接不上的工作流不会被提交。planner 的提示词包含动作目录（id、输入输出类型、参数结构及枚举和范围、需要的扩展包）、预设清单和规则 20（建工作流）、21（记录做成报表）。
 
@@ -395,7 +397,7 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
 | `audio.trim`       | audio → audio         | 无（本地操作 `trimMedia`，带波形）                                | 重新编码成 M4A，带 `range`                                                        |
 | `audio.merge`      | audio → audio（1 个） | 无                                                                | morph-media `concat`                                                              |
 | `audio.fromVideo`  | video → audio         | `format`                                                          | 没有声音的视频报 `noAudio`                                                        |
-| `audio.fromText`   | text → audio          | `lang`（auto / 20 种）、`rate`（0.5–2）、`format: m4a / wav`      | morph-tts 系统声音读成 WAV，M4A 再交给 morph-media 转（§15，D-268）               |
+| `audio.fromText`   | text → audio          | `lang`（auto / 20 种）、`rate`（0.5–2）、`format: m4a / wav`      | morph-tts 系统声音读成 WAV，M4A 再交给 morph-media 转（§15，D-270）               |
 
 - morph-media 补的部分：iOS `writeAudio`（`AVAssetReaderAudioMixOutput` → AAC `.m4a` / LPCM `.wav`）、`concat`（每段一路合成轨，首尾相接）、`waveform`（8 kHz 单声道峰值）；Android M4A 用 Media3（去掉画面、`ChannelMixingAudioProcessor` + `SonicAudioProcessor` 统一格式；封装用系统的 MediaMuxer，默认的 InAppMp4Muxer 会在文件头预留约 400 KB），WAV 和波形用 `AudioPcm.kt` 自己解码。
 - App：`runtime/actions/audio.ts`、`MediaPlatform.encodeAudio / concatAudio / waveform`、`FilePlatform.speech`、`packNotNeeded`（iPhone 不用下载内容）。
@@ -433,7 +435,7 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
 
 **证件照换底色 + 自动框脸**（D-252）：`image.idPhoto` 的 `background`（keep / white / blue / red / gray / custom + `color`）和 `autoCenter`。换底色在裁剪前对整张照片做：iOS 人像分割（`replacePersonBackground`），Android 主体分割（同去背景，第一次要确认下载模型）。自动框脸：系统人脸检测（`detectFaces`；iOS Vision、Android ML Kit）→ `@morph/tool-image` 的 `faceCrop`（头占照片高度按规格的 `HEAD_RATIO`）→ 作为裁剪界面的初始框，用户仍然确认。
 
-## 15. 文字转语音（D-268）
+## 15. 文字转语音（D-270）
 
 `audio.fromText`：文字 → 一个音频文件。只出文件（后面接 `audio.convert`、`audio.compress`、`out.share`、`out.saveToFolder` 都行），不做阅读器、播放、高亮，也没有 AI 声音（D-113）。
 

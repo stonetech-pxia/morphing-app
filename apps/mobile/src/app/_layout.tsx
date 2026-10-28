@@ -141,7 +141,7 @@ function ThemedStack() {
   return (
     <>
       <StatusBar style={palette.dark ? 'light' : 'dark'} />
-      {/* 手机桌面（D-269）：长按 Morph 图标的菜单跟着配置变；从菜单或桌面图标打开时直接开始那个快捷操作。 */}
+      {/* 手机桌面（D-271）：长按 Morph 图标的菜单跟着配置变；从菜单或桌面图标打开时直接开始那个快捷操作。 */}
       <HomeScreenBridge platform={nativeHomeScreen} />
       <Stack screenOptions={stackScreenOptions(palette)}>
         <Stack.Screen name="index" options={{ headerShown: false }} />

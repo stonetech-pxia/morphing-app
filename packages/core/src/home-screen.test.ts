@@ -35,7 +35,7 @@ function prepared(before: WorkspaceConfig, ops: Op[]): WorkspaceConfig {
   return result.after;
 }
 
-describe('home screen mark (D-269)', () => {
+describe('home screen mark (D-271)', () => {
   it('puts a quick action on the home screen menu and takes it off again', () => {
     const before = setup();
     expect(homeScreenItems(before)).toEqual([]);

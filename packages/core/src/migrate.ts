@@ -161,7 +161,7 @@ export const migrateV16toV17: Migration = (config) => ({ ...config, schemaVersio
 export const migrateV17toV18: Migration = (config) => ({ ...config, schemaVersion: 18 });
 
 /**
- * v18 → v19：快捷操作可以放到手机桌面 homeScreen（D-269，改了已有结构，按 D-254 提升）；
+ * v18 → v19：快捷操作可以放到手机桌面 homeScreen（D-271，改了已有结构，按 D-254 提升）；
  * 已有的快捷操作都不在桌面上，不需要改动，只提升版本号。
  */
 export const migrateV18toV19: Migration = (config) => ({ ...config, schemaVersion: 19 });

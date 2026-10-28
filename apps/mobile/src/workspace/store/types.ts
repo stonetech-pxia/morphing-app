@@ -139,7 +139,7 @@ export type ChangeResult =
 export interface Applied {
   addedWorkflowIds: string[];
   addedCollectionIds: string[];
-  /** 这次新放到手机桌面的快捷操作（D-269）：只有一个时打开它的「做好了」，说明怎么用。 */
+  /** 这次新放到手机桌面的快捷操作（D-271）：只有一个时打开它的「做好了」，说明怎么用。 */
   homeScreenWorkflowIds: string[];
   origin: DraftOrigin;
   /** AI 的说明（D-110），直接应用的功能在「做好了」页面上显示。 */

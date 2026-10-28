@@ -15,7 +15,7 @@ const FUNCTION_OPS: ReadonlySet<Op['op']> = new Set<Op['op']>([
   'removeWorkflowStep',
   'moveWorkflowStep',
   'setStepParams',
-  // 放到手机桌面是功能（D-269）：直接生效、可以撤销；桌面在 App 外面，草稿里看不到。
+  // 放到手机桌面是功能（D-271）：直接生效、可以撤销；桌面在 App 外面，草稿里看不到。
   'setWorkflowHomeScreen',
   'installTool',
   'uninstallTool',

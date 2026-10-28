@@ -1,6 +1,6 @@
 import { requireOptionalNativeModule, type EventSubscription } from 'expo';
 
-// 本地 Expo 模块 MorphTTS（D-268）：用系统自带的声音在本机把文字读成音频文件，不上传。
+// 本地 Expo 模块 MorphTTS（D-270）：用系统自带的声音在本机把文字读成音频文件，不上传。
 // iOS 是 ios/MorphTTSModule.swift（AVSpeechSynthesizer.write），Android 是 android/…/MorphTTSModule.kt
 // （TextToSpeech.synthesizeToFile，每段一个 WAV，再接成一个）。只出文件，不播放。
 // Expo Go 和测试里是 null，调用方报「要在正式版 Morph 里用」。文字只交给系统朗读，不写日志。

@@ -1,7 +1,19 @@
-import { RunError, tidyOcrText, type ActionImpl, type Locale, type OcrLanguage } from '@morph/core';
+import {
+  RunError,
+  polishOcrText,
+  tidyOcrText,
+  type ActionImpl,
+  type OcrLanguage,
+} from '@morph/core';
 
-import type { VisionPlatform } from '../platform';
-import { displayName, fileItems, imageForPage, type RunServices } from './helpers';
+import {
+  displayName,
+  fileItems,
+  imageForPage,
+  ocrSourceItem,
+  ocrSourceOf,
+  type RunServices,
+} from './helpers';
 
 // 文字识别（T5）：系统能识别这种语言时用系统的（iOS 的 Vision，D-085；Android 的 ML Kit，D-087）；
 // 否则每张图片送进文字识别包页面（tesseract.js）。
@@ -31,53 +43,10 @@ export const VISION_LANGUAGES: Record<OcrLanguage, readonly string[]> = {
   vie: ['vi', 'en-US'],
 };
 
-/** 系统语言（BCP 47）→ 识别语言；繁体看文字或地区。没有对应的（如乌克兰文）原样交给系统识别。 */
-function ocrLanguageOf(tag: string): OcrLanguage | null {
-  const [lang, ...rest] = tag.split('-');
-  if (lang === 'zh') {
-    return rest.some((p) => ['Hant', 'TW', 'HK', 'MO'].includes(p)) ? 'chi_tra' : 'chi_sim';
-  }
-  const byCode: Record<string, OcrLanguage> = {
-    en: 'eng',
-    ja: 'jpn',
-    ko: 'kor',
-    fr: 'fra',
-    de: 'deu',
-    es: 'spa',
-    pt: 'por',
-    it: 'ita',
-    ru: 'rus',
-    vi: 'vie',
-  };
-  return byCode[lang!] ?? null;
-}
-
-const UI_OCR_LANGUAGE: Record<Locale, OcrLanguage> = { zh: 'chi_sim', en: 'eng', fr: 'fra' };
-const CJK_OCR: readonly OcrLanguage[] = ['chi_sim', 'chi_tra', 'jpn', 'kor'];
-
-/**
- * 可搜索 PDF 文字层的识别语言（D-267）：用户读得懂的语言——系统里设的语言（按顺序，比界面语言细，
- * 分得出繁体）、界面语言，最后补英文；只留系统识别得了的。中日韩只取第一种，并放在最前面：
- * Android 的 ML Kit 按第一种选识别器，中日韩的识别器也认拉丁字母，反过来不行。iOS 另外让 Vision
- * 自己判断语言（expo-vision 的 recognizeLines），所以俄文、阿拉伯文等扫描件不在这张单子上也认得出来。
- * 一种都识别不了时返回空。
- */
-export function textLayerLanguages(locale: Locale, vision: VisionPlatform): string[] {
-  const tags = vision.preferredLanguages ?? [];
-  const wanted: (OcrLanguage | string)[] = [
-    ...tags.map((tag) => ocrLanguageOf(tag) ?? tag),
-    UI_OCR_LANGUAGE[locale],
-    'eng',
-  ];
-  const cjk = wanted.find((l) => CJK_OCR.includes(l as OcrLanguage));
-  const ordered = [
-    ...(cjk ? [cjk] : []),
-    ...wanted.filter((l) => !CJK_OCR.includes(l as OcrLanguage)),
-  ];
-  const codes = ordered.map((l) =>
-    l in VISION_LANGUAGES ? VISION_LANGUAGES[l as OcrLanguage][0]! : l,
-  );
-  return [...new Set(codes)].filter((code) => vision.supportsLanguage(code));
+/** 识别结果按语言整理（D-268）：简体中文把混进来的繁体字换回简体，中文用全角标点。 */
+function polish(text: string, lang: OcrLanguage): string {
+  const kind = lang === 'chi_sim' ? 'zh-Hans' : lang === 'chi_tra' ? 'zh-Hant' : 'other';
+  return polishOcrText(tidyOcrText(text), kind);
 }
 
 export const OCR_IMPLS: Record<string, Impl> = {
@@ -92,6 +61,24 @@ export const OCR_IMPLS: Record<string, Impl> = {
     const texts: string[] = [];
     for (const [i, original] of items.entries()) {
       ctx.throwIfCancelled();
+      // 系统识别用增强前的图（D-267：增强对它没有帮助，黑白还会抹掉淡字）；读不了时用这张。
+      // 文字识别包（Tesseract）反而在增强后的图上认得更准，照旧。
+      const source = vision ? ocrSourceOf(original) : null;
+      if (source) {
+        try {
+          const page = await imageForPage(
+            ctx.services,
+            ocrSourceItem(original, source),
+            OCR_INPUT_SIDE,
+          );
+          const text = polish(await vision!.recognizeText(page.uri, VISION_LANGUAGES[lang]), lang);
+          if (text) texts.push(text);
+          ctx.progress(i + 1, items.length);
+          continue;
+        } catch {
+          // 退回用增强后的图。
+        }
+      }
       const item = await imageForPage(ctx.services, original, OCR_INPUT_SIDE);
       let raw: string;
       try {
@@ -109,7 +96,7 @@ export const OCR_IMPLS: Record<string, Impl> = {
         const detail = String(e instanceof Error ? e.message : e);
         throw new RunError(vision ? 'unexpected' : 'packFailed', { detail });
       }
-      const text = tidyOcrText(raw);
+      const text = polish(raw, lang);
       if (text) texts.push(text);
       ctx.progress(i + 1, items.length);
     }

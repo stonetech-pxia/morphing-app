@@ -16,7 +16,7 @@ import { Banner } from './Shell';
  * 「快捷操作做好了」（D-125）：AI 新做了一个快捷操作后打开。AI 不替用户运行（D-113），
  * 用户自己点「现在就用一次」；也说明以后在哪里找到它。
  * 功能类修改直接应用（D-191），AI 的说明和「接着改」也在这里。
- * 放到了手机桌面的（D-269）说明怎么用：iOS 长按 Morph 图标，Android 还有「添加到桌面」按钮（点了才弹系统框）。
+ * 放到了手机桌面的（D-271）说明怎么用：iOS 长按 Morph 图标，Android 还有「添加到桌面」按钮（点了才弹系统框）。
  */
 export function ReadyScreen({ workflow, notes = [] }: { workflow: Workflow; notes?: string[] }) {
   const { locale, registry } = useWorkspaceContext();

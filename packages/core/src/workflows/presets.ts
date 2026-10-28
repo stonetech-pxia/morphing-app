@@ -86,7 +86,7 @@ const translateTo = (locale: Locale) => ({
   action: 'translate.text',
   params: { from: 'auto', to: locale === 'zh' ? 'zh-Hans' : locale === 'fr' ? 'fr' : 'en' },
 });
-/** 文字转语音（D-268）：自动识别语言、正常语速、M4A。 */
+/** 文字转语音（D-270）：自动识别语言、正常语速、M4A。 */
 const speak = {
   id: 'speak',
   action: 'audio.fromText',
@@ -714,7 +714,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
       { id: 'save', action: 'out.saveToFolder', params: {} },
     ],
   },
-  // ---- 文字转语音（D-268）：系统声音在本机读成音频文件，只出文件，不做播放器 ----
+  // ---- 文字转语音（D-270）：系统声音在本机读成音频文件，只出文件，不做播放器 ----
   {
     id: 'pdf-to-audio',
     scenario: 'study',
