@@ -273,6 +273,30 @@ describe('tables with only horizontal lines (D-272)', () => {
     expect(cellAt(table!, 4, 2)!.text).toBe('t3');
   });
 
+  it('keeps a three-line table below a ruled grid of the same width as its own table', () => {
+    const xs = [100, 500, 900];
+    const ys = [60, 110, 160, 210];
+    const grid = cellTexts(xs, ys);
+    const rects = [
+      ...gridRects(xs, ys),
+      ...[330, 370, 540].map((y) => ({ x: 100, y, width: 802, height: 2 })),
+    ];
+    const lines = [
+      ...grid.lines,
+      fakeLine('Contacts', { x: 100, y: 280, width: 200, height: 24 }, page1),
+      ...row(0, 340, ['Name', 'Phone', 'Days']),
+      ...[0, 1, 2].flatMap((r) => row(r, 385 + r * 50, [`n${r}`, `p${r}`, `d${r}`])),
+    ];
+    const page = build([...rects, ...grid.marks], lines);
+    const tables = tablesOf(page);
+    expect(tables.map((t) => [t.rows, t.cols])).toEqual([
+      [3, 2],
+      [4, 3],
+    ]);
+    // 两张表中间的标题是表外的文字。
+    expect(page.blocks.map((b) => b.kind)).toEqual(['table', 'text', 'table']);
+  });
+
   it('does not make a table out of aligned fill-in blanks with nothing inside', () => {
     const rects = [200, 250, 300].map((y) => ({ x: 300, y, width: 400, height: 2 }));
     const lines = [200, 250, 300].map((y, i) =>

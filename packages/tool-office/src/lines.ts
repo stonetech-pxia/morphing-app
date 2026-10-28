@@ -353,12 +353,18 @@ export function findTables(page: PageLines): TableLines[] {
   for (const i of order) {
     const h = hs[i]!;
     const chain = chains.find((c) => {
-      const last = hs[c.at(-1)!]!;
-      return (
-        h.pos - last.pos <= maxGap &&
-        Math.abs(h.from - last.from) <= align &&
-        Math.abs(h.to - last.to) <= align
-      );
+      const lastIndex = c.at(-1)!;
+      const last = hs[lastIndex]!;
+      const gap = h.pos - last.pos;
+      if (gap > maxGap || Math.abs(h.from - last.from) > align || Math.abs(h.to - last.to) > align)
+        return false;
+      // 从网格的线接到不在网格里的线（或反过来）：只有间距和上一格差不多（不到 2 倍）时才接，
+      // 例如表头有竖线、下面只有横线的表；网格下面隔着标题的另一张只有横线的表不接上去。
+      if (hOk[i] !== hOk[lastIndex]) {
+        const prev = c.length >= 2 ? last.pos - hs[c.at(-2)!]!.pos : null;
+        return prev !== null && gap <= 2 * prev;
+      }
+      return true;
     });
     if (chain) chain.push(i);
     else chains.push([i]);
