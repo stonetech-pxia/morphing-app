@@ -2,14 +2,26 @@ import {
   AlphaType,
   ClipOp,
   ColorType,
+  FilterMode,
   ImageFormat,
+  MipmapMode,
   Skia,
   TileMode,
   matchFont,
 } from '@shopify/react-native-skia';
 import { Platform } from 'react-native';
 
-import { MAX_SURFACE_SIDE, surfaceScale } from '@morph/tool-image';
+import {
+  MAX_SURFACE_SIDE,
+  SAUVOLA_K,
+  despeckle,
+  planScanEnhance,
+  rotatedSize,
+  surfaceScale,
+  type RgbaImage,
+  type ScanLook,
+  type ScanOutput,
+} from '@morph/tool-image';
 
 import { annotationSvg } from './annotations';
 import type { DrawOp } from './platform';
@@ -60,52 +72,182 @@ export function renderTextPng(
   return { bytes, width, height };
 }
 
-/** 颜色矩阵（4×5，平移量是 0–1）：亮度 L 按 Rec.601 加权。 */
-function enhanceMatrix(mode: 'auto' | 'gray' | 'bw'): number[] {
-  const luminance = (k: number, b: number) => {
-    const row = [0.299 * k, 0.587 * k, 0.114 * k, 0, b];
-    return [...row, ...row, ...row, 0, 0, 0, 1, 0];
-  };
-  switch (mode) {
-    // 提亮：拉高对比度，纸张接近白色，保留颜色。
-    case 'auto': {
-      const k = 1.35;
-      const b = -0.06;
-      return [k, 0, 0, 0, b, 0, k, 0, 0, b, 0, 0, k, 0, b, 0, 0, 0, 1, 0];
-    }
-    case 'gray':
-      return luminance(1.2, -0.05);
-    // 黑白：灰度后以 0.6 为界大幅拉开对比度，字迹变黑、纸张变白。
-    case 'bw':
-      return luminance(4, 0.5 - 4 * 0.6);
+/** 分析图的长边：背景、黑白两端、彩色还是灰度、倾斜角都在这么大的图上算（D-266）。 */
+const ENHANCE_ANALYSIS_SIDE = 800;
+
+// 全分辨率的逐像素运算（D-266）：除以纸张背景（每个通道分开，纸变成中性白）→ 按黑白两端拉伸 →
+// 彩色 / 灰度 / 黑白（Sauvola 局部阈值，按最暗的通道判断，均值和标准差来自分析图）。背景和统计图都很小，按格子中心线性插值。
+const ENHANCE_SKSL = `
+uniform shader image;
+uniform shader background;
+uniform shader stats;
+uniform float lo;
+uniform float hi;
+uniform float mode;
+uniform float k;
+
+half4 main(float2 p) {
+  float3 c = float3(image.eval(p).rgb);
+  float3 b = max(float3(background.eval(p).rgb), float3(0.04));
+  float3 n = clamp((c / b - lo) / (hi - lo), 0.0, 1.0);
+  float y = dot(n, float3(0.299, 0.587, 0.114));
+  if (mode < 1.5) {
+    // 中间调压暗一点（γ 1.3）：纸还是白、黑还是黑，淡的字更清楚。黑白模式不用（阈值是按没压暗的亮度算的）。
+    float3 d = pow(n, float3(1.3));
+    float dy = pow(y, 1.3);
+    if (mode > 0.5) return half4(half3(dy), 1.0);
+    // 接近灰色的像素（纸上的噪点、拍屏幕的摩尔纹）去掉颜色；颜色浓的（红字、印章）保留。
+    float chroma = max(n.r, max(n.g, n.b)) - min(n.r, min(n.g, n.b));
+    return half4(half3(mix(float3(dy), d, smoothstep(0.08, 0.2, chroma))), 1.0);
   }
+  // 黑白：先取 3×3 的平均（压掉拍屏幕的摩尔纹和纸纹，笔画有 3–4 像素宽，影响不大），
+  // 再按三个通道里最暗的那个判断（红字、蓝字也算深色，和分析图上的 leveledInk 一致）。
+  float3 sum = float3(0.0);
+  for (int dx = -1; dx <= 1; dx++) {
+    for (int dy = -1; dy <= 1; dy++) sum += float3(image.eval(p + float2(dx, dy)).rgb);
+  }
+  float3 m3 = clamp((sum / 9.0 / b - lo) / (hi - lo), 0.0, 1.0);
+  float ink = min(m3.r, min(m3.g, m3.b));
+  // stats：R 是均值，G 是标准差 × 2，所以 s / 0.5 正好是 G。
+  float2 ms = float2(stats.eval(p).rg);
+  float t = ms.x * (1.0 + k * (ms.y - 1.0));
+  float v = ink < t ? 0.0 : 1.0;
+  return half4(half3(v), 1.0);
+}
+`;
+
+let enhanceEffect: ReturnType<typeof Skia.RuntimeEffect.Make> | undefined;
+
+/** RGBA 像素做成 Skia 图片（背景格子、统计图）。 */
+function imageFromRgba(img: RgbaImage) {
+  const out = Skia.Image.MakeImage(
+    {
+      width: img.width,
+      height: img.height,
+      colorType: ColorType.RGBA_8888,
+      alphaType: AlphaType.Unpremul,
+    },
+    Skia.Data.fromBytes(img.data),
+    img.width * 4,
+  );
+  if (!out) throw new Error('image could not be created');
+  return out;
 }
 
-/** 扫描件增强（D-078）：Skia 离屏绘制加颜色矩阵，输出 JPG。 */
+/** 把一张图读成 RGBA 像素：缩到 width × height（线性插值，缩小时用 mipmap，免得摩尔纹混进分析）。 */
+function readScaled(image: SkImageLike, width: number, height: number): RgbaImage {
+  const surface = makeSurface(width, height);
+  const canvas = surface.getCanvas();
+  canvas.drawColor(Skia.Color('#FFFFFF'));
+  canvas.drawImageRectOptions(
+    image,
+    Skia.XYWHRect(0, 0, image.width(), image.height()),
+    Skia.XYWHRect(0, 0, width, height),
+    FilterMode.Linear,
+    MipmapMode.Linear,
+  );
+  surface.flush();
+  return { width, height, data: readRgba(surface.makeImageSnapshot(), width, height) };
+}
+
+function readRgba(image: SkImageLike, width: number, height: number): Uint8Array {
+  const data = image.readPixels(0, 0, {
+    width,
+    height,
+    colorType: ColorType.RGBA_8888,
+    alphaType: AlphaType.Unpremul,
+  });
+  if (!(data instanceof Uint8Array)) throw new Error('pixels could not be read');
+  return data;
+}
+
+/**
+ * 扫描件增强（D-266，取代 D-078 的颜色矩阵）：分析图上算出背景、黑白两端、倾斜角和彩色还是灰度，
+ * 再用一个着色器在全分辨率上一次画完（顺带转正倾斜，画布放大到能装下转过的四个角，空出的地方是白色）。
+ * 黑白模式最后在全分辨率上去掉孤立的噪点。输出 JPG。
+ */
 export function enhanceJpeg(
   bytes: Uint8Array,
-  mode: 'auto' | 'gray' | 'bw',
-): { bytes: Uint8Array; width: number; height: number } {
+  look: ScanLook,
+): { bytes: Uint8Array; width: number; height: number; output: ScanOutput; skew: number } {
   const image = Skia.Image.MakeImageFromEncoded(Skia.Data.fromBytes(bytes));
   if (!image) throw new Error('image could not be decoded');
-  // 太大的图先缩到画布放得下。
-  const k = surfaceScale({ width: image.width(), height: image.height() });
-  const width = Math.max(1, Math.floor(image.width() * k));
-  const height = Math.max(1, Math.floor(image.height() * k));
-  const surface = makeSurface(width, height);
-  const paint = Skia.Paint();
-  paint.setColorFilter(Skia.ColorFilter.MakeMatrix(enhanceMatrix(mode)));
-  surface
-    .getCanvas()
-    .drawImageRect(
-      image,
-      Skia.XYWHRect(0, 0, image.width(), image.height()),
-      Skia.XYWHRect(0, 0, width, height),
-      paint,
+  const iw = image.width();
+  const ih = image.height();
+  const a = Math.min(1, ENHANCE_ANALYSIS_SIDE / Math.max(iw, ih));
+  const analysis = readScaled(
+    image,
+    Math.max(1, Math.round(iw * a)),
+    Math.max(1, Math.round(ih * a)),
+  );
+  const plan = planScanEnhance(analysis, look);
+
+  // 转正后的画布不能超过上限：按转过之后的大小算缩放。
+  const k = surfaceScale(rotatedSize({ width: iw, height: ih }, plan.skew));
+  const width = Math.max(1, Math.floor(iw * k));
+  const height = Math.max(1, Math.floor(ih * k));
+  const canvasSize = rotatedSize({ width, height }, plan.skew);
+
+  enhanceEffect ??= Skia.RuntimeEffect.Make(ENHANCE_SKSL);
+  if (!enhanceEffect) throw new Error('enhance shader could not be compiled');
+  const shaderOf = (img: SkImageLike, w: number, h: number, fm: FilterMode) =>
+    img.makeShaderOptions(
+      TileMode.Clamp,
+      TileMode.Clamp,
+      fm,
+      MipmapMode.None,
+      Skia.Matrix().scale(width / w, height / h),
     );
+  const background = imageFromRgba(plan.background);
+  const stats = plan.stats ? imageFromRgba(plan.stats) : background;
+  const mode = plan.output === 'color' ? 0 : plan.output === 'gray' ? 1 : 2;
+  const shader = enhanceEffect.makeShaderWithChildren(
+    [plan.lo, plan.hi, mode, SAUVOLA_K],
+    [
+      shaderOf(image, iw, ih, FilterMode.Linear),
+      shaderOf(background, plan.background.width, plan.background.height, FilterMode.Linear),
+      shaderOf(stats, stats.width(), stats.height(), FilterMode.Linear),
+    ],
+  );
+
+  const surface = makeSurface(canvasSize.width, canvasSize.height);
+  const canvas = surface.getCanvas();
+  canvas.drawColor(Skia.Color('#FFFFFF'));
+  canvas.save();
+  canvas.translate(canvasSize.width / 2, canvasSize.height / 2);
+  canvas.rotate(-plan.skew, 0, 0);
+  canvas.translate(-width / 2, -height / 2);
+  const paint = Skia.Paint();
+  paint.setShader(shader);
+  canvas.drawRect(Skia.XYWHRect(0, 0, width, height), paint);
+  canvas.restore();
   surface.flush();
-  const out = surface.makeImageSnapshot().encodeToBytes(ImageFormat.JPEG, 90);
-  return { bytes: out, width, height };
+  let result = surface.makeImageSnapshot();
+
+  if (plan.output === 'bw') {
+    // 转正时边缘插值出的灰也要变成黑白：去噪点前按 128 二值化（despeckle 也按这个判断）。
+    const px = {
+      width: canvasSize.width,
+      height: canvasSize.height,
+      data: readRgba(result, canvasSize.width, canvasSize.height),
+    };
+    for (let i = 0; i < px.data.length; i += 4) {
+      const v = px.data[i]! < 128 ? 0 : 255;
+      px.data[i] = px.data[i + 1] = px.data[i + 2] = v;
+    }
+    // 约 200 dpi 时：宽高都不超过 3 像素、9 像素内没有字的黑点当作噪点。
+    const maxSide = Math.max(2, Math.round(Math.max(canvasSize.width, canvasSize.height) / 800));
+    despeckle(px, { maxSide, reach: maxSide * 3 });
+    result = imageFromRgba(px);
+  }
+  const out = result.encodeToBytes(ImageFormat.JPEG, 90);
+  return {
+    bytes: out,
+    width: canvasSize.width,
+    height: canvasSize.height,
+    output: plan.output,
+    skew: plan.skew,
+  };
 }
 
 type SkImageLike = NonNullable<ReturnType<typeof Skia.Image.MakeImageFromEncoded>>;
