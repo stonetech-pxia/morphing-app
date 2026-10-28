@@ -98,11 +98,14 @@ public class MorphVisionModule: Module {
     }
 
     // 识别文字：accurate 级别 + 语言纠错。languages 是 BCP 47 代码，按顺序优先。
-    AsyncFunction("recognizeText") { (uri: URL, languages: [String]) -> [String: Any] in
+    // automatic：让 Vision 自己判断语言（iOS 16 起，最低版本 16.4），languages 只作提示；
+    // 可搜索 PDF 的文字层用（D-267），扫描件是什么文字事先不知道。
+    AsyncFunction("recognizeText") { (uri: URL, languages: [String], automatic: Bool) -> [String: Any] in
       let image = try self.loadImage(uri)
       let request = VNRecognizeTextRequest()
       request.recognitionLevel = .accurate
       request.usesLanguageCorrection = true
+      request.automaticallyDetectsLanguage = automatic
       let supported = try request.supportedRecognitionLanguages()
       var chosen: [String] = []
       for code in languages {

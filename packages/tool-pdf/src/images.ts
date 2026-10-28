@@ -1,29 +1,19 @@
 import {
   PDFDocument,
-  type PDFFont,
   type PDFImage,
-  type PDFPage,
   PageSizes,
-  StandardFonts,
-  TextRenderingMode,
-  beginText,
   clip,
   endPath,
-  endText,
-  moveText,
   popGraphicsState,
   pushGraphicsState,
   rectangle,
-  setCharacterSqueeze,
-  setFontAndSize,
-  setTextRenderingMode,
-  showText,
 } from 'pdf-lib';
 
 import { type MergeResult, PdfError, assertNumber } from './core';
+import { InvisibleText } from './text-layer';
 
 // 图片转 PDF：每张图片一页，按页面选项排版并居中。图片带着识别出的文字时，在上面画一层看不见的字
-// （D-195）：PDF 看起来不变，但能搜索、选中、复制。
+// （D-195）：PDF 看起来不变，但能搜索、选中、复制。任何文字都写得进去（D-267，见 text-layer.ts）。
 
 export type ImageKind = 'jpeg' | 'png';
 
@@ -89,47 +79,12 @@ export function assertImagePageOptions(opts: ImagePageOptions): void {
   assertNumber(opts.marginMm, 0, 30);
 }
 
-/**
- * 看不见的文字层（D-195）：每行用文字渲染模式「不可见」画在识别框的位置，横向缩放到框的宽度。
- * 只写 Helvetica 写得出的字（拉丁字母，P-028）；有别的字的那一行跳过。
- */
-function drawTextLayer(
-  page: PDFPage,
-  placement: { x: number; y: number; width: number; height: number },
-  layer: TextLayer,
-  font: PDFFont,
-): void {
-  const charset = new Set(font.getCharacterSet());
-  const key = page.node.newFontDictionary(font.name, font.ref);
-  const sx = placement.width / layer.width;
-  const sy = placement.height / layer.height;
-  for (const line of layer.lines) {
-    const text = line.text.trim();
-    if (!text || ![...text].every((c) => charset.has(c.codePointAt(0)!))) continue;
-    const size = line.height * sy;
-    const natural = font.widthOfTextAtSize(text, size);
-    if (size <= 0 || natural <= 0) continue;
-    // 基线比框的底边高一点（下伸部分约占 0.2 个字高）。
-    const x = placement.x + line.x * sx;
-    const y = placement.y + placement.height - (line.y + line.height) * sy + size * 0.2;
-    page.pushOperators(
-      beginText(),
-      setFontAndSize(key, size),
-      setTextRenderingMode(TextRenderingMode.Invisible),
-      setCharacterSqueeze(((line.width * sx) / natural) * 100),
-      moveText(x, y),
-      showText(font.encodeText(text)),
-      endText(),
-    );
-  }
-}
-
-/** 为一张已嵌入的图片新增一页；带文字时（text 和 font 都给了）加上看不见的文字层。 */
+/** 为一张已嵌入的图片新增一页；带文字时（text 和 writer 都给了）加上看不见的文字层。 */
 export function addImagePage(
   doc: PDFDocument,
   image: PDFImage,
   opts: ImagePageOptions,
-  text?: { layer: TextLayer; font: PDFFont },
+  text?: { layer: TextLayer; writer: InvisibleText },
 ): void {
   const margin = opts.marginMm * PT_PER_MM;
   const { width: iw, height: ih } = image;
@@ -164,7 +119,7 @@ export function addImagePage(
   } else {
     page.drawImage(image, placement);
   }
-  if (text) drawTextLayer(page, placement, text.layer, text.font);
+  if (text) text.writer.drawLines(page, placement, text.layer, text.layer.lines);
 }
 
 /** 按顺序把图片转成 PDF，每张一页。 */
@@ -175,12 +130,11 @@ export async function imagesToPdf(
   if (images.length < 1) throw new PdfError('tooFew');
   assertImagePageOptions(opts);
   const doc = await PDFDocument.create();
-  const font = images.some((i) => i.text?.lines.length)
-    ? await doc.embedFont(StandardFonts.Helvetica)
-    : null;
+  const writer = images.some((i) => i.text?.lines.length) ? new InvisibleText(doc) : null;
   for (const image of images) {
-    const text = image.text && font ? { layer: image.text, font } : undefined;
+    const text = image.text && writer ? { layer: image.text, writer } : undefined;
     addImagePage(doc, await embedImage(doc, image), opts, text);
   }
+  writer?.finish();
   return { bytes: await doc.save(), pageCount: doc.getPageCount() };
 }

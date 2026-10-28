@@ -98,7 +98,8 @@ class MorphVisionModule : Module() {
     }
 
     // languages 是 BCP 47，第一种是用户选的语言，决定用哪个识别器（中日韩识别器也认拉丁字母）。
-    AsyncFunction("recognizeText") { uri: String, languages: List<String> ->
+    // automatic（iOS 让 Vision 自己判断语言，D-267）：ML Kit 不会判断，忽略，仍按第一种语言选。
+    AsyncFunction("recognizeText") { uri: String, languages: List<String>, _: Boolean ->
       val first = languages.firstOrNull() ?: ""
       val recognizer = recognizerFor(first) ?: throw UnsupportedLanguageException(first)
       try {

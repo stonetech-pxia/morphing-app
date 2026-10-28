@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "pdfjs-dist": "^6.4.299",
     "vitest": "^5.0.5"
   },
   "dependencies": {
