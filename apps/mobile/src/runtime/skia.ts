@@ -2,14 +2,24 @@ import {
   AlphaType,
   ClipOp,
   ColorType,
+  FilterMode,
   ImageFormat,
+  MipmapMode,
   Skia,
   TileMode,
   matchFont,
 } from '@shopify/react-native-skia';
 import { Platform } from 'react-native';
 
-import { MAX_SURFACE_SIDE, surfaceScale } from '@morph/tool-image';
+import {
+  ENHANCE_SHADER_MODE,
+  ENHANCE_SKSL,
+  MAX_SURFACE_SIDE,
+  PAPER_SIDE,
+  paperBackground,
+  surfaceScale,
+  type EnhanceLook,
+} from '@morph/tool-image';
 
 import { annotationSvg } from './annotations';
 import type { DrawOp } from './platform';
@@ -60,49 +70,88 @@ export function renderTextPng(
   return { bytes, width, height };
 }
 
-/** 颜色矩阵（4×5，平移量是 0–1）：亮度 L 按 Rec.601 加权。 */
-function enhanceMatrix(mode: 'auto' | 'gray' | 'bw'): number[] {
-  const luminance = (k: number, b: number) => {
-    const row = [0.299 * k, 0.587 * k, 0.114 * k, 0, b];
-    return [...row, ...row, ...row, 0, 0, 0, 1, 0];
-  };
-  switch (mode) {
-    // 提亮：拉高对比度，纸张接近白色，保留颜色。
-    case 'auto': {
-      const k = 1.35;
-      const b = -0.06;
-      return [k, 0, 0, 0, b, 0, k, 0, 0, b, 0, 0, k, 0, b, 0, 0, 0, 1, 0];
-    }
-    case 'gray':
-      return luminance(1.2, -0.05);
-    // 黑白：灰度后以 0.6 为界大幅拉开对比度，字迹变黑、纸张变白。
-    case 'bw':
-      return luminance(4, 0.5 - 4 * 0.6);
-  }
-}
+let enhanceEffect: ReturnType<typeof Skia.RuntimeEffect.Make> | undefined;
 
-/** 扫描件增强（D-078）：Skia 离屏绘制加颜色矩阵，输出 JPG。 */
+/**
+ * 扫描件增强（D-078、D-266）：先去阴影、拉平光照，再按效果出图，输出 JPG。
+ * 整页缩到长边 PAPER_SIDE 读出像素，在 JS 里估出纸张背景（小图，几十毫秒）；
+ * 原尺寸的「除以背景 + 色阶」交给 Skia 着色器在 GPU 上做，背景图按原尺寸双线性放大。
+ */
 export function enhanceJpeg(
   bytes: Uint8Array,
-  mode: 'auto' | 'gray' | 'bw',
+  mode: EnhanceLook,
 ): { bytes: Uint8Array; width: number; height: number } {
   const image = Skia.Image.MakeImageFromEncoded(Skia.Data.fromBytes(bytes));
   if (!image) throw new Error('image could not be decoded');
+  const src = Skia.XYWHRect(0, 0, image.width(), image.height());
   // 太大的图先缩到画布放得下。
   const k = surfaceScale({ width: image.width(), height: image.height() });
   const width = Math.max(1, Math.floor(image.width() * k));
   const height = Math.max(1, Math.floor(image.height() * k));
+  // 小图：用 mipmap 缩小（相当于按面积平均），字迹变成浅灰，估背景更稳。
+  const s = Math.min(1, PAPER_SIDE / Math.max(width, height));
+  const sw = Math.max(1, Math.round(width * s));
+  const sh = Math.max(1, Math.round(height * s));
+  const small = makeSurface(sw, sh);
+  small
+    .getCanvas()
+    .drawImageRectOptions(
+      image,
+      src,
+      Skia.XYWHRect(0, 0, sw, sh),
+      FilterMode.Linear,
+      MipmapMode.Linear,
+    );
+  small.flush();
+  const pixels = small.makeImageSnapshot().readPixels(0, 0, {
+    width: sw,
+    height: sh,
+    colorType: ColorType.RGBA_8888,
+    alphaType: AlphaType.Unpremul,
+  });
+  if (!(pixels instanceof Uint8Array)) throw new Error('pixels could not be read');
+  const bg = paperBackground(pixels, sw, sh);
+  // 背景和纸张图都按原尺寸双线性放大。
+  const scaled = (data: Uint8Array) => {
+    const tiny = Skia.Image.MakeImage(
+      {
+        width: bg.width,
+        height: bg.height,
+        colorType: ColorType.RGBA_8888,
+        alphaType: AlphaType.Unpremul,
+      },
+      Skia.Data.fromBytes(data),
+      bg.width * 4,
+    );
+    if (!tiny) throw new Error('background could not be made');
+    return tiny.makeShaderOptions(
+      TileMode.Clamp,
+      TileMode.Clamp,
+      FilterMode.Linear,
+      MipmapMode.None,
+      Skia.Matrix().scale(width / bg.width, height / bg.height),
+    );
+  };
+  enhanceEffect ??= Skia.RuntimeEffect.Make(ENHANCE_SKSL);
+  if (!enhanceEffect) throw new Error('enhance shader did not compile');
+  const shader = enhanceEffect.makeShaderWithChildren(
+    [ENHANCE_SHADER_MODE[mode]],
+    [
+      image.makeShaderOptions(
+        TileMode.Clamp,
+        TileMode.Clamp,
+        FilterMode.Linear,
+        MipmapMode.None,
+        Skia.Matrix().scale(width / image.width(), height / image.height()),
+      ),
+      scaled(bg.data),
+      scaled(bg.paper),
+    ],
+  );
   const surface = makeSurface(width, height);
   const paint = Skia.Paint();
-  paint.setColorFilter(Skia.ColorFilter.MakeMatrix(enhanceMatrix(mode)));
-  surface
-    .getCanvas()
-    .drawImageRect(
-      image,
-      Skia.XYWHRect(0, 0, image.width(), image.height()),
-      Skia.XYWHRect(0, 0, width, height),
-      paint,
-    );
+  paint.setShader(shader);
+  surface.getCanvas().drawRect(Skia.XYWHRect(0, 0, width, height), paint);
   surface.flush();
   const out = surface.makeImageSnapshot().encodeToBytes(ImageFormat.JPEG, 90);
   return { bytes: out, width, height };

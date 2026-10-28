@@ -25,7 +25,7 @@ export interface PickedFile {
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp';
 
-/** 扫描件增强（Skia 颜色矩阵）：提亮、灰度、黑白。 */
+/** 扫描件增强（Skia 着色器，D-266）：先去阴影、拉平光照，再保留颜色、灰度或黑白。 */
 export type EnhanceMode = 'auto' | 'gray' | 'bw';
 
 /** 一次图片处理：先裁剪（原图像素坐标），再缩放，再旋转 / 翻转。 */
