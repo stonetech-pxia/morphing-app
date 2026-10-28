@@ -1,8 +1,11 @@
 import {
   PDFDocument,
   type PDFFont,
+  type PDFHexString,
   type PDFImage,
+  type PDFName,
   type PDFPage,
+  type PDFRef,
   PageSizes,
   StandardFonts,
   TextRenderingMode,
@@ -21,6 +24,7 @@ import {
 } from 'pdf-lib';
 
 import { type MergeResult, PdfError, assertNumber } from './core';
+import { embedGlyphlessFont, glyphlessText } from './glyphless';
 
 // 图片转 PDF：每张图片一页，按页面选项排版并居中。图片带着识别出的文字时，在上面画一层看不见的字
 // （D-195）：PDF 看起来不变，但能搜索、选中、复制。
@@ -89,26 +93,48 @@ export function assertImagePageOptions(opts: ImagePageOptions): void {
   assertNumber(opts.marginMm, 0, 30);
 }
 
+/** 文字层用的两种字体：Helvetica 写拉丁字母；别的字（中日韩、俄文等）用无字形字体（D-266）。 */
+export interface TextFonts {
+  latin: PDFFont;
+  other: PDFRef;
+}
+
 /**
  * 看不见的文字层（D-195）：每行用文字渲染模式「不可见」画在识别框的位置，横向缩放到框的宽度。
- * 只写 Helvetica 写得出的字（拉丁字母，P-028）；有别的字的那一行跳过。
+ * Helvetica 写得出的行照旧用它；其余的行用无字形字体按 UTF-16 写（D-266，取代 P-028 的「跳过」）。
  */
 function drawTextLayer(
   page: PDFPage,
   placement: { x: number; y: number; width: number; height: number },
   layer: TextLayer,
-  font: PDFFont,
+  fonts: TextFonts,
 ): void {
-  const charset = new Set(font.getCharacterSet());
-  const key = page.node.newFontDictionary(font.name, font.ref);
+  const charset = new Set(fonts.latin.getCharacterSet());
+  const latinKey = page.node.newFontDictionary(fonts.latin.name, fonts.latin.ref);
+  let otherKey: PDFName | null = null;
   const sx = placement.width / layer.width;
   const sy = placement.height / layer.height;
   for (const line of layer.lines) {
     const text = line.text.trim();
-    if (!text || ![...text].every((c) => charset.has(c.codePointAt(0)!))) continue;
+    if (!text) continue;
     const size = line.height * sy;
-    const natural = font.widthOfTextAtSize(text, size);
-    if (size <= 0 || natural <= 0) continue;
+    if (size <= 0) continue;
+    const latin = [...text].every((c) => charset.has(c.codePointAt(0)!));
+    let key: PDFName;
+    let encoded: PDFHexString;
+    let natural: number;
+    if (latin) {
+      key = latinKey;
+      encoded = fonts.latin.encodeText(text);
+      natural = fonts.latin.widthOfTextAtSize(text, size);
+    } else {
+      otherKey ??= page.node.newFontDictionary('GlyphLessFont', fonts.other);
+      key = otherKey;
+      const glyphless = glyphlessText(text);
+      encoded = glyphless.hex;
+      natural = glyphless.ems * size;
+    }
+    if (natural <= 0) continue;
     // 基线比框的底边高一点（下伸部分约占 0.2 个字高）。
     const x = placement.x + line.x * sx;
     const y = placement.y + placement.height - (line.y + line.height) * sy + size * 0.2;
@@ -118,7 +144,7 @@ function drawTextLayer(
       setTextRenderingMode(TextRenderingMode.Invisible),
       setCharacterSqueeze(((line.width * sx) / natural) * 100),
       moveText(x, y),
-      showText(font.encodeText(text)),
+      showText(encoded),
       endText(),
     );
   }
@@ -129,7 +155,7 @@ export function addImagePage(
   doc: PDFDocument,
   image: PDFImage,
   opts: ImagePageOptions,
-  text?: { layer: TextLayer; font: PDFFont },
+  text?: { layer: TextLayer; fonts: TextFonts },
 ): void {
   const margin = opts.marginMm * PT_PER_MM;
   const { width: iw, height: ih } = image;
@@ -164,7 +190,7 @@ export function addImagePage(
   } else {
     page.drawImage(image, placement);
   }
-  if (text) drawTextLayer(page, placement, text.layer, text.font);
+  if (text) drawTextLayer(page, placement, text.layer, text.fonts);
 }
 
 /** 按顺序把图片转成 PDF，每张一页。 */
@@ -175,11 +201,11 @@ export async function imagesToPdf(
   if (images.length < 1) throw new PdfError('tooFew');
   assertImagePageOptions(opts);
   const doc = await PDFDocument.create();
-  const font = images.some((i) => i.text?.lines.length)
-    ? await doc.embedFont(StandardFonts.Helvetica)
+  const fonts: TextFonts | null = images.some((i) => i.text?.lines.length)
+    ? { latin: await doc.embedFont(StandardFonts.Helvetica), other: embedGlyphlessFont(doc) }
     : null;
   for (const image of images) {
-    const text = image.text && font ? { layer: image.text, font } : undefined;
+    const text = image.text && fonts ? { layer: image.text, fonts } : undefined;
     addImagePage(doc, await embedImage(doc, image), opts, text);
   }
   return { bytes: await doc.save(), pageCount: doc.getPageCount() };

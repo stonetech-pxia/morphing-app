@@ -8,6 +8,7 @@ import {
   makePdf,
   makePng,
   pageContent,
+  pageFonts,
   readJpeg,
 } from './test-helpers';
 
@@ -106,7 +107,7 @@ describe('imagesToPdf', () => {
     expect(size?.[1]).toBeCloseTo(50 + 20 * MM);
   });
 
-  it('adds an invisible text layer where the lines were recognised, Latin lines only (D-195, P-028)', async () => {
+  it('adds an invisible text layer where the lines were recognised, CJK lines included (D-195, D-266)', async () => {
     const result = await imagesToPdf(
       [
         {
@@ -120,7 +121,8 @@ describe('imagesToPdf', () => {
             lines: [
               { text: 'Total 12,50 €', x: 60, y: 40, width: 300, height: 30 },
               { text: 'Café, élève, à côté, garçon, cœur', x: 60, y: 100, width: 200, height: 30 },
-              { text: '合计', x: 60, y: 160, width: 100, height: 30 },
+              { text: '合计 128 元', x: 60, y: 160, width: 100, height: 30 },
+              { text: 'お会計 합계', x: 60, y: 220, width: 100, height: 30 },
             ],
           },
         },
@@ -129,12 +131,30 @@ describe('imagesToPdf', () => {
       A4,
     );
     const content = await pageContent(result.bytes, 0);
-    // 渲染模式 3（不可见），两行拉丁字母写进去，中文那行跳过。
-    expect(content.match(/3 Tr/g)).toHaveLength(2);
-    expect(content.match(/\bTj\b/g)).toHaveLength(2);
+    // 渲染模式 3（不可见）：两行拉丁字母用 Helvetica，中日韩那两行用看不见的字体（UTF-16 十六进制）。
+    expect(content.match(/3 Tr/g)).toHaveLength(4);
+    expect(content.match(/\bTj\b/g)).toHaveLength(4);
     expect(content).toMatch(/\d+(\.\d+)? Tz/);
+    const hex = [...content.matchAll(/<([0-9A-Fa-f]+)> Tj/g)].map((m) => m[1]!);
+    const decoded = hex.map((h) =>
+      String.fromCharCode(...(h.match(/..../g) ?? []).map((u) => parseInt(u, 16))),
+    );
+    expect(decoded).toContain('合计 128 元');
+    expect(decoded).toContain('お会計 합계');
+    // 字体是 Type0 + Identity-H，带 ToUnicode（搜索和复制靠它）和嵌入的字体文件。
+    const fonts = await pageFonts(result.bytes, 0);
+    const cjk = fonts.find((f) => f.subtype === 'Type0');
+    expect(cjk).toMatchObject({ encoding: 'Identity-H', toUnicode: true, embedded: true });
     // 第二页没有文字。
     expect(await pageContent(result.bytes, 1)).not.toMatch(/Tr/);
+  });
+
+  it('writes no font when no page has text', async () => {
+    const result = await imagesToPdf(
+      [{ bytes: readJpeg(), kind: 'jpeg', width: 60, height: 40 }],
+      A4,
+    );
+    expect(await pageFonts(result.bytes, 0)).toEqual([]);
   });
 
   it('rejects bad input', async () => {

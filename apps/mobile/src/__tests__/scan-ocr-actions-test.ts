@@ -10,6 +10,7 @@ import type { Quad } from '@morph/tool-image';
 import { PDFDocument, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 
 import type { PackPageId, PackRuntime } from '../packs/bridge';
+import { textLayerLanguages } from '../runtime/actions/pdf';
 import type { LocalKind, LocalUi } from '../runtime/local';
 import { packsNeeded, startRun } from '../runtime/runner';
 import { MemoryWorkspaceRepo } from '../storage/memory';
@@ -19,6 +20,9 @@ import { FakeFiles, FakeVision, TINY_JPEG } from '../test-utils/fake-files';
 // - 没有系统识别（Android、Expo Go）：扫描包 / 文字识别包页面换成假的（找边返回四个角，矫正返回真实的小 JPEG，识别返回文字）；
 // - iOS 的 Vision：换成 FakeVision，不需要扩展包；
 // - Android 的 ML Kit：FakeVision 不能找边、不认俄文，这两种情况退回扩展包。
+
+// 手机的语言列表（文字层按它选识别语言，D-266）；默认没有，由界面语言决定。
+jest.mock('expo-localization', () => ({ getLocales: jest.fn(() => []) }));
 
 const registry = createRegistry(BUILTIN_TOOLS);
 
@@ -291,7 +295,7 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
     });
   });
 
-  it('adds an invisible text layer to scanned PDFs so they can be searched (D-195)', async () => {
+  it('adds an invisible text layer to scanned PDFs so they can be searched, Chinese included (D-195, D-266)', async () => {
     const wf: Workflow = {
       id: 'scan',
       name: 'scan',
@@ -317,16 +321,23 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
       ...files.offerImage(`scan-${n}.jpg`, 1700, 2400),
       straightened: true,
     }));
-    // 第二页识别失败：那一页不加文字层，PDF 照样生成。
+    // 第二页按中文认失败、再按西欧语言认也失败：那一页不加文字层，PDF 照样生成。
     vision.layers = [
       { width: 100, height: 100, lines: [line] },
+      new Error('vision failed'),
       new Error('vision failed'),
       { width: 100, height: 100, lines: [line, { ...line, text: '发票' }] },
     ];
     const result = await run();
-    expect(vision.calls.filter((c) => c.method === 'recognizeLines').map((c) => c.args)).toEqual(
-      Array(3).fill(['en-US', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'pt-BR']),
-    );
+    const zh = ['zh-Hans', 'en-US'];
+    const latin = ['en-US', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'pt-BR'];
+    // 界面是中文：先按中文认（中文识别器也认英文）。
+    expect(vision.calls.filter((c) => c.method === 'recognizeLines').map((c) => c.args)).toEqual([
+      zh,
+      zh,
+      latin,
+      zh,
+    ]);
     const [pdf] =
       result.status === 'succeeded' && result.value && 'items' in result.value
         ? result.value.items
@@ -346,8 +357,9 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
       .enumerateIndirectObjects()
       .map(([, obj]) => decoded(obj))
       .join('\n');
-    // 第一页、第三页各一行拉丁字母；中文那行跳过（P-028）。
-    expect(text.match(/3 Tr/g)).toHaveLength(2);
+    // 第一页一行、第三页两行（中文那行用无字形字体按 UTF-16 写，D-266）。
+    expect(text.match(/3 Tr/g)).toHaveLength(3);
+    expect(text).toContain('<53D17968> Tj');
 
     // 没有系统识别（Expo Go）：不加文字层，PDF 照常。
     const library: Workflow = {
@@ -502,5 +514,24 @@ describe('Android (ML Kit): no edge finding, no Russian', () => {
     // 没有 Google Play 服务：没有文档扫描，扫描包也要下载。
     vision.documentCamera = false;
     expect(packsNeeded(['scan'], files)).toEqual(['scan']);
+  });
+});
+
+describe('text layer languages (D-266)', () => {
+  const latin = ['en-US', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'pt-BR'];
+
+  it('reads Chinese, Japanese or Korean first when the phone or the interface uses it', () => {
+    expect(textLayerLanguages('zh', [])).toEqual(['zh-Hans', 'en-US']);
+    expect(textLayerLanguages('en', ['zh-Hant-TW', 'en-US'])).toEqual(['zh-Hant', 'en-US']);
+    expect(textLayerLanguages('fr', ['zh-HK'])).toEqual(['zh-Hant', 'en-US']);
+    expect(textLayerLanguages('en', ['en-GB', 'ja-JP'])).toEqual(['ja-JP', 'en-US']);
+    expect(textLayerLanguages('fr', ['ko-KR'])).toEqual(['ko-KR', 'en-US']);
+    // 手机语言排在界面语言前面：手机设成繁体时，中文界面也按繁体认。
+    expect(textLayerLanguages('zh', ['zh-Hant-TW'])).toEqual(['zh-Hant', 'en-US']);
+  });
+
+  it('keeps the Western European languages otherwise', () => {
+    expect(textLayerLanguages('en', [])).toEqual(latin);
+    expect(textLayerLanguages('fr', ['fr-FR', 'de-DE'])).toEqual(latin);
   });
 });
