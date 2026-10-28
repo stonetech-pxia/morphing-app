@@ -17,6 +17,7 @@ import type { Palette } from '../renderer/theme';
 import { Card, Pill } from '../renderer/ui';
 import { FileViewer } from '../share/FileViewer';
 import { MediaRow } from './MediaRow';
+import { canEditTable } from './table-edit';
 
 // 结果预览（TOOLS_DESIGN §3）：图片缩略图、PDF 页数和大小、文字全文（只在本机显示）。
 // 结果页始终提供保存、分享、存到文件夹、存到相册（图片）、打印（PDF / 图片）、复制（文字）。
@@ -36,6 +37,8 @@ export interface ResultActions {
   continueProcessing?(): Promise<void>;
   /** 用系统预览打开一个结果文件（PDF 等，D-277）；图片在 App 里全屏看。 */
   preview?(item: RunItem): Promise<void>;
+  /** 转 Excel 的结果：打开查看和编辑（D-272）。 */
+  editTable?(item: RunItem): void;
 }
 
 function ItemRow({
@@ -233,19 +236,41 @@ export function ResultView({
         </Text>
       ) : null}
       {items.slice(0, 30).map((item) => (
-        <ItemRow
-          key={item.uri}
-          item={item}
-          palette={palette}
-          locale={locale}
-          onOpen={
-            mediaKindOf(item.mimeType, item.ext) === 'image'
-              ? () => setViewing(viewable.findIndex((v) => v.uri === item.uri))
-              : actions.preview
-                ? () => void act('preview', () => actions.preview!(item))()
-                : undefined
-          }
-        />
+        <View key={item.uri} style={styles.itemBlock}>
+          <ItemRow
+            item={item}
+            palette={palette}
+            locale={locale}
+            onOpen={
+              mediaKindOf(item.mimeType, item.ext) === 'image'
+                ? () => setViewing(viewable.findIndex((v) => v.uri === item.uri))
+                : actions.preview
+                  ? () => void act('preview', () => actions.preview!(item))()
+                  : undefined
+            }
+          />
+          {/* 转 Excel 的结果（D-272）：没找到带线表格的页按全部内容输出了，说一声；可以查看和编辑。 */}
+          {canEditTable(item) && item.tableDoc!.pagesWithoutTables?.length ? (
+            <Text
+              testID="result-tables-missing"
+              style={[palette.font('body', 13), { color: palette.caption }]}>
+              {t(locale, 'resultTablesMissing', {
+                n: item.tableDoc!.pagesWithoutTables.length,
+                pages: item.tableDoc!.pagesWithoutTables.join(t(locale, 'separatorList')),
+              })}
+            </Text>
+          ) : null}
+          {canEditTable(item) && actions.editTable ? (
+            <View style={styles.actions}>
+              <Pill
+                palette={palette}
+                testID="result-table-edit"
+                label={t(locale, 'resultTableEdit')}
+                onPress={() => actions.editTable!(item)}
+              />
+            </View>
+          ) : null}
+        </View>
       ))}
       {viewing !== null ? (
         <FileViewer
@@ -286,6 +311,7 @@ export function ResultView({
 
 const styles = StyleSheet.create({
   item: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  itemBlock: { gap: 6 },
   thumb: { width: 52, height: 52 },
   icon: { alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1, gap: 2 },
