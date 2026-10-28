@@ -25,6 +25,8 @@ import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.records.Field
+import expo.modules.kotlin.records.Record
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.concurrent.thread
@@ -45,6 +47,11 @@ class DocumentCameraUnavailableException :
   CodedException("The document camera is not available on this device")
 
 private const val SCAN_REQUEST = 0x4d56
+
+class ClassifyOptions : Record {
+  @Field val maxResults: Int = 10
+  @Field val minConfidence: Double = 0.1
+}
 
 /** ML Kit 文字识别 v2 的拉丁字母语言（Morph 用得到的）；俄文等西里尔字母不支持。 */
 private val LATIN = setOf("en", "fr", "de", "es", "pt", "it", "vi")
@@ -74,6 +81,23 @@ class MorphVisionModule : Module() {
 
     // 证件照（D-252）：ML Kit 人脸检测（模型打包进 App）；换底色用上面的主体分割（Google Play 服务的模型）。
     AsyncFunction("detectFaces") { uri: String -> FaceFinder.detect(context, Uri.parse(uri)) }
+
+    // 照片里是什么（没有文字的照片做推荐用）：ML Kit 图像标注，见 ImageClassifier。后台线程跑，取消时轮询结束。
+    AsyncFunction("classifyImage") { taskId: String, uri: String, options: ClassifyOptions, promise: Promise ->
+      thread(name = "morph-classify") {
+        try {
+          promise.resolve(
+            ImageClassifier.classify(context, Uri.parse(uri), taskId, options.maxResults, options.minConfidence)
+          )
+        } catch (e: CodedException) {
+          promise.reject(e)
+        } catch (e: Throwable) {
+          promise.reject(VisionFailedException(e.message))
+        }
+      }
+    }
+
+    Function("cancelClassify") { taskId: String -> ImageClassifier.cancel(taskId) }
 
     AsyncFunction("adjustImage") { uri: String, options: Map<String, Any?>, format: String, output: String ->
       ImageAdjustment.adjust(context, Uri.parse(uri), options, format, File(Uri.parse(output).path!!))

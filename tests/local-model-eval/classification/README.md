@@ -45,3 +45,24 @@ python classification/evaluate_qwen.py --model qwen35-2b --mode fixed --backend 
 向量/NLI 模型来源、revision、权重 SHA-256 在 `classification/models.json`；GGUF 来源与哈希在上级 `models.json`。`classification/download.py` 会下载指定 revision 并核对哈希，放入忽略的 `models/`。这些分类候选都只处理文字；Qwen3 Embedding 的原始 safetensors 约 1.19 GB，BGE-M3 原始权重约 2.27 GB，是否能量化并在手机预算内运行需要原生实测。桌面 GPU 的 GGUF 成绩不能代替手机 RAM、耗时或真实 OCR 成绩。
 
 `evaluate_embedding_gguf.py` 使用 llama.cpp 的 `--embedding --pooling last`，对查询加与浮点版同一英文任务指令，并预计算候选类别向量。`--model q4` 使用第三方 Q4 包，`--model q8` 使用 Qwen 官方 Q8 包；两个版本都必须重新跑同一测试，不能把浮点版成绩直接套用。脚本启动和清理自己的本地服务，默认端口 8096；确保端口空闲。进程工作集采样和分类结果写入忽略的 `results/classification/`。这仍是桌面 CPU 结果，不代表手机原生表现。
+
+## 任务 124：独立样本校准「无法判断」、对上用户的表和快捷操作
+
+报告在 `CLASSIFY_124_REPORT.md`（本目录的上一级）。
+
+- `holdout/cases.jsonl`：114 条新写的虚构 OCR 文字（中英法各 38），由没看过上面 60 条的人单独写成，不是改写。含没有标题的单据、同一商家的不同单据、范围外的文件（kind 为 `none`）、识别残缺的文字、空白和乱码。`split` 分校准集和测试集，同一 `group`（同一商家 / 版式）只在一边。
+- `evaluate_holdout.py`：空白和乱码先由 App 的 `textReadability`（`packages/core/src/text-classify.ts`，经 `ts_features.ts` 调用同一份 TS 代码）拒判；其余用 Qwen3-Embedding GGUF 按维度打分，在校准集上定 `min_score` / `min_margin`，只在测试集上报正确、误分、拒判、误拒判，按语言和样本类型分开。
+- `match/`：`profiles.json`（6 个虚构用户：表是 `CollectionSchema` 格式，快捷操作只有名字）、`presets.json`（`export_presets.ts` 从 `workflows/presets.ts` 导出的 4 个按内容的内设快捷操作）、`docs.jsonl`（90 份文件文字和每个用户可接受的推荐，空 = 不该推荐）。`evaluate_match.py --backend baseline` 不用模型（关键词 + `text-rules` 命中 + 文件类型），`--backend embedding` 用同一个 Embedding；阈值都在校准集上定。
+- `calibrate.py`、`llama_embed.py`：两边共用的校准和 llama-server 管理。`test_calibrate.py` 是它们的单元测试，假向量只用来走通代码，不是成绩。
+
+```bash
+# 仓库根目录先 npm ci（ts_features.ts 要用 tsx）；再从 tests/local-model-eval/ 运行
+python -m unittest discover -s classification -p "test_*.py"
+python classification/evaluate_match.py --backend baseline
+python classification/download.py qwen3-embedding-q8
+MORPH_LLAMA_SERVER_BIN=/abs/llama-server python classification/evaluate_embedding_gguf.py --model q8   # 先复现 49/57、45/57
+MORPH_LLAMA_SERVER_BIN=/abs/llama-server python classification/evaluate_holdout.py --model q8
+MORPH_LLAMA_SERVER_BIN=/abs/llama-server python classification/evaluate_match.py --backend embedding --model q8
+```
+
+`evaluate.py` 的 `import torch` 挪进了只有 NLI 才用的函数里，GGUF 的脚本不再需要装 PyTorch；分类逻辑没变。

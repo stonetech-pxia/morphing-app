@@ -25,6 +25,16 @@ final class DocumentCameraUnavailableException: Exception, @unchecked Sendable {
   override var reason: String { "The document camera is not available on this device" }
 }
 
+/** cancelClassify(taskId) 取消了（JS 按 error.code 认）。 */
+private func classifyCancelled() -> Exception {
+  Exception(name: "VisionCancelled", description: "Cancelled", code: "ERR_VISION_CANCELLED")
+}
+
+struct ClassifyOptions: Record {
+  @Field var maxResults: Int = 10
+  @Field var minConfidence: Double = 0.1
+}
+
 struct PointRecord: Record {
   @Field var x: Double = 0
   @Field var y: Double = 0
@@ -40,6 +50,10 @@ struct QuadRecord: Record {
 public class MorphVisionModule: Module {
   private lazy var ciContext = CIContext(options: [.useSoftwareRenderer: false])
   private var cameraDelegate: DocumentCameraDelegate?
+  /** 正在进行的图像分类，取消用（用 classifyLock 保护）。 */
+  private var classifying: [String: VNRequest] = [:]
+  private var cancelledClassify: Set<String> = []
+  private let classifyLock = NSLock()
 
   public func definition() -> ModuleDefinition {
     Name("MorphVision")
@@ -67,6 +81,16 @@ public class MorphVisionModule: Module {
 
     AsyncFunction("removeBackground") { (uri: URL, background: String, output: URL) -> [String: Any] in
       return try self.removeBackground(uri, background: background, output: output)
+    }
+
+    // 照片里是什么（没有文字的照片做推荐用，还没接进推荐）：Vision 自带的图像分类，不下载模型。
+    // 标签是 Vision 自己的英文标识，和 Android 的 ML Kit 不是一套词。
+    AsyncFunction("classifyImage") { (taskId: String, uri: URL, options: ClassifyOptions) -> [String: Any] in
+      return try self.classifyImage(taskId, uri: uri, options: options)
+    }
+
+    Function("cancelClassify") { (taskId: String) in
+      self.cancelClassify(taskId)
     }
 
     // 证件照（D-252）：人脸框（像素，原点在左上角，已按 EXIF 摆正）和只保留人像、换成纯色背景。
@@ -367,6 +391,70 @@ public class MorphVisionModule: Module {
     try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
     try ciContext.writePNGRepresentation(of: result, to: output, format: .RGBA8, colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
     return ["width": Int(result.extent.width), "height": Int(result.extent.height), "size": (try FileManager.default.attributesOfItem(atPath: output.path)[.size] as? NSNumber)?.intValue ?? 0]
+  }
+
+  /** 分类用的图：长边 1024 足够（模型自己还会再缩小），原图 200 MP 也不用整张解码。 */
+  private static let classifyMaxSide = 1024
+
+  /**
+   * 不写中间文件，缩小的图只在内存里。cancelClassify 取消 Vision 的请求并让这次以 ERR_VISION_CANCELLED 结束；
+   * 还没开始或已经结束的取消不起作用（JS 那边自己先结束 Promise）。
+   */
+  private func classifyImage(_ taskId: String, uri: URL, options: ClassifyOptions) throws -> [String: Any] {
+    let request = VNClassifyImageRequest()
+    classifyLock.lock()
+    classifying[taskId] = request
+    classifyLock.unlock()
+    defer {
+      classifyLock.lock()
+      classifying[taskId] = nil
+      cancelledClassify.remove(taskId)
+      classifyLock.unlock()
+    }
+    let image = try loadThumbnail(uri, maxSide: Self.classifyMaxSide)
+    if isClassifyCancelled(taskId) { throw classifyCancelled() }
+    do {
+      try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+    } catch {
+      if isClassifyCancelled(taskId) { throw classifyCancelled() }
+      throw VisionFailedException(error.localizedDescription)
+    }
+    if isClassifyCancelled(taskId) { throw classifyCancelled() }
+    let labels = (request.results ?? [])
+      .filter { Double($0.confidence) >= options.minConfidence }
+      .sorted { $0.confidence > $1.confidence }
+      .prefix(max(0, options.maxResults))
+      .map { ["id": $0.identifier, "confidence": Double($0.confidence)] as [String: Any] }
+    return ["labels": Array(labels), "width": image.width, "height": image.height]
+  }
+
+  private func cancelClassify(_ taskId: String) {
+    classifyLock.lock()
+    defer { classifyLock.unlock() }
+    guard let request = classifying[taskId] else { return }
+    cancelledClassify.insert(taskId)
+    request.cancel()
+  }
+
+  private func isClassifyCancelled(_ taskId: String) -> Bool {
+    classifyLock.lock()
+    defer { classifyLock.unlock() }
+    return cancelledClassify.contains(taskId)
+  }
+
+  /** 按 EXIF 摆正，并在解码时就缩到长边 maxSide（ImageIO 的缩略图，不先解码整张原图）。 */
+  private func loadThumbnail(_ uri: URL, maxSide: Int) throws -> CGImage {
+    let options = [
+      kCGImageSourceCreateThumbnailFromImageAlways: true,
+      kCGImageSourceCreateThumbnailWithTransform: true,
+      kCGImageSourceThumbnailMaxPixelSize: maxSide,
+      kCGImageSourceShouldCacheImmediately: true,
+    ] as CFDictionary
+    guard let source = CGImageSourceCreateWithURL(uri as CFURL, nil),
+          let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else {
+      throw UnreadableImageException()
+    }
+    return image
   }
 
   private func loadImage(_ uri: URL) throws -> CIImage {

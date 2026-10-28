@@ -23,6 +23,19 @@ export interface NativeImage {
   size: number;
 }
 
+/** 原生端的错误码（error.code）。 */
+export const VISION_ERRORS = {
+  /** cancelClassify(taskId) 取消了。 */
+  cancelled: 'ERR_VISION_CANCELLED',
+} as const;
+
+/** 图像分类的一个标签：id 是平台自己的英文标识（iOS Vision 和 Android ML Kit 的词表不同）。 */
+export interface NativeImageLabel {
+  id: string;
+  /** 0–1。 */
+  confidence: number;
+}
+
 export interface MorphVisionModule {
   adjustImage?(
     uri: string,
@@ -46,6 +59,18 @@ export interface MorphVisionModule {
     height: number;
     faces: { x: number; y: number; width: number; height: number }[];
   }>;
+  /**
+   * 照片里是什么（没有文字的照片做推荐用）：iOS 是 Vision 的 VNClassifyImageRequest，Android 是 ML Kit 图像标注
+   * （基础模型打包进 App）。先缩到长边 1024 再分类，不写中间文件。只返回不低于 minConfidence 的、最多 maxResults 个，
+   * 从高到低；width / height 是分类用的图的大小。taskId 用来 cancelClassify。旧开发构建缺这两个方法。
+   */
+  classifyImage?(
+    taskId: string,
+    uri: string,
+    options: { maxResults: number; minConfidence: number },
+  ): Promise<{ labels: NativeImageLabel[]; width: number; height: number }>;
+  /** 取消正在进行的分类：那次以 ERR_VISION_CANCELLED 结束；还没开始或已经结束的不起作用。 */
+  cancelClassify?(taskId: string): void;
   /** 只保留人像、其余换成纯色（iOS 人像分割，D-252）；Android 没有，用 removeBackground。 */
   replacePersonBackground?(
     uri: string,

@@ -9,7 +9,6 @@ from collections import Counter
 from pathlib import Path
 
 import numpy as np
-import torch
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES = [json.loads(line) for line in (Path(__file__).with_name("cases.jsonl")).read_text(encoding="utf-8").splitlines() if line]
@@ -104,6 +103,8 @@ def evaluate_embeddings(model_dir: Path, facet: str, model_name: str, noise: boo
 
 
 def evaluate_nli(model_dir: Path, facet: str, noise: bool) -> list[dict]:
+    import torch
+
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(str(model_dir), local_files_only=True)

@@ -1034,6 +1034,12 @@ export class FakeVision implements VisionPlatform {
     this.calls.push({ method: 'detectFaces', uri });
     return this.faceResults.shift() ?? { width: 1, height: 1, faces: [] };
   }
+  /** 图像分类：每次的标签（按顺序）。 */
+  labelResults: { id: string; confidence: number }[][] = [];
+  async classifyImage(uri: string) {
+    this.calls.push({ method: 'classifyImage', uri });
+    return this.labelResults.shift() ?? [];
+  }
   /** iOS 的人像分割不用下载模型；改成 false 模拟 Android。 */
   personSegmentation = true;
   async replaceBackground(uri: string, color: string, runId: string, relPath: string) {
