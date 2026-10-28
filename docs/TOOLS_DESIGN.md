@@ -420,6 +420,8 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
 
 **用识别出的文字命名**（D-244）：`{ocr:规则}` / `{qr:规则}`，规则是 `firstLine`、`invoiceNo`、`date`、`amount`、`phone`、`email`、`url`、`number`（`core/text-rules.ts`，不接受正则）。`file.rename` 看到这两种占位符时先在本机识别每张图片：文字用系统识别（界面语言 + 英文；没有时报 `needsRecognition`），二维码用 jsQR。文字只用来取名，不留下，不发给 AI。取不到时这一段不写；什么都不剩用原来的名字。
 
+**「记一笔」预填**（D-244 的扩展，2026-10-28 定方向，原型在 `core/prefill/`，还没接界面）：日期、金额、税额、单号以 `text-rules` 的规则为主，系统识别（iOS DataDetection / NSDataDetector，Android ML Kit 实体识别）只做补充；有版式记忆时先按记忆读，挑不出来就空着，不用大模型预填。评测见 `tests/local-model-eval/PREFILL_REPORT.md`。
+
 **文字加工**（D-245，`core/text-ops.ts`）：都是 text → text，文字只在本机处理。
 
 | 动作           | 参数                                                | 做什么                                                         |

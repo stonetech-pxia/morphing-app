@@ -24,6 +24,8 @@ dependencies {
   implementation "com.google.mlkit:face-detection:16.1.7"
   // 照片里是什么（没有文字的照片做推荐用）：图像标注的基础模型打包进 App。版本没在 Google Maven 上核对过，同步时确认。
   implementation "com.google.mlkit:image-labeling:17.0.9"
+  // 「记一笔」预填的日期和金额（只做规则的补充）：实体识别，每种语言的模型第一次用时下载。版本没在 Google Maven 上核对过。
+  implementation "com.google.mlkit:entity-extraction:16.0.0-beta5"
   implementation "com.google.mlkit:text-recognition:16.0.1"
   implementation "com.google.mlkit:text-recognition-chinese:16.0.1"
   implementation "com.google.mlkit:text-recognition-japanese:16.0.1"

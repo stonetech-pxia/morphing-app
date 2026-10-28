@@ -27,7 +27,17 @@ export interface NativeImage {
 export const VISION_ERRORS = {
   /** cancelClassify(taskId) 取消了。 */
   cancelled: 'ERR_VISION_CANCELLED',
+  /** detectData：Android 这种语言的实体识别模型还没下载（又不许下载，或者没网）。 */
+  needsDownload: 'ERR_VISION_NEEDS_DOWNLOAD',
 } as const;
+
+/** 系统识别出的日期或金额：在整段文字里的位置（UTF-16）；日期的值是 YYYY-MM-DD，金额的值可以没有。 */
+export interface NativeDataMatch {
+  kind: 'amount' | 'date';
+  start: number;
+  end: number;
+  value?: string;
+}
 
 /** 图像分类的一个标签：id 是平台自己的英文标识（iOS Vision 和 Android ML Kit 的词表不同）。 */
 export interface NativeImageLabel {
@@ -69,6 +79,14 @@ export interface MorphVisionModule {
     uri: string,
     options: { maxResults: number; minConfidence: number },
   ): Promise<{ labels: NativeImageLabel[]; width: number; height: number }>;
+  /**
+   * 「记一笔」预填用的系统识别（只做规则的补充）：iOS 26 起 DataDetection（日期、金额），更早的 iOS 用
+   * NSDataDetector（只有日期）；Android 是 ML Kit 实体识别（每种语言的模型第一次用时下载，
+   * allowDownload 为 false 时不下载，以 ERR_VISION_NEEDS_DOWNLOAD 结束）。language 是 BCP 47。
+   */
+  detectData?(text: string, language: string, allowDownload: boolean): Promise<NativeDataMatch[]>;
+  /** ready：能直接用；download：要先下载模型（Android）；unsupported：这种语言不支持。 */
+  dataDetectionStatus?(language: string): Promise<'ready' | 'download' | 'unsupported'> | string;
   /** 取消正在进行的分类：那次以 ERR_VISION_CANCELLED 结束；还没开始或已经结束的不起作用。 */
   cancelClassify?(taskId: string): void;
   /** 只保留人像、其余换成纯色（iOS 人像分割，D-252）；Android 没有，用 removeBackground。 */

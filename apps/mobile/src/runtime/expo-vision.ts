@@ -2,6 +2,7 @@ import { Directory, Paths } from 'expo-file-system';
 
 import MorphVision from '../../modules/morph-vision';
 import { classifyImageWith } from './classify-image';
+import { detectDataWith } from './detect-data';
 import type { VisionPlatform } from './platform';
 
 // VisionPlatform 的实现：本地 Expo 模块 MorphVision（iOS：Vision，D-084；Android：ML Kit，D-087）。
@@ -46,6 +47,12 @@ export function expoVision(
               uri,
               options,
             ),
+        }
+      : {}),
+    ...(native.detectData
+      ? {
+          detectData: (text: string, language: string) =>
+            detectDataWith(native.detectData!.bind(native), text, language),
         }
       : {}),
     personSegmentation: Boolean(native.replacePersonBackground),

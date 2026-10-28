@@ -1,4 +1,7 @@
 import CoreImage
+#if canImport(DataDetection)
+import DataDetection
+#endif
 import ExpoModulesCore
 import ImageIO
 import UIKit
@@ -81,6 +84,16 @@ public class MorphVisionModule: Module {
 
     AsyncFunction("removeBackground") { (uri: URL, background: String, output: URL) -> [String: Any] in
       return try self.removeBackground(uri, background: background, output: output)
+    }
+
+    // 「记一笔」预填用的系统识别，只做规则的补充（D-244）：iOS 26 起 DataDetection 认日期和金额，
+    // 更早的系统用 NSDataDetector，只认日期。不需要下载，language 只是提示。
+    AsyncFunction("detectData") { (text: String, language: String, _: Bool) async -> [[String: Any]] in
+      await Self.detectData(text, language: language)
+    }
+
+    Function("dataDetectionStatus") { (_: String) -> String in
+      "ready"
     }
 
     // 照片里是什么（没有文字的照片做推荐用，还没接进推荐）：Vision 自带的图像分类，不下载模型。
@@ -391,6 +404,52 @@ public class MorphVisionModule: Module {
     try FileManager.default.createDirectory(at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
     try ciContext.writePNGRepresentation(of: result, to: output, format: .RGBA8, colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
     return ["width": Int(result.extent.width), "height": Int(result.extent.height), "size": (try FileManager.default.attributesOfItem(atPath: output.path)[.size] as? NSNumber)?.intValue ?? 0]
+  }
+
+  /**
+   * 位置是 UTF-16（和 JS 字符串一样）；日期按识别出的时区（没有时用本机时区）写成 YYYY-MM-DD，
+   * 金额给系统读出的数（JS 还会按原文再统一一遍）。文字不写日志。
+   */
+  private static func detectData(_ text: String, language: String) async -> [[String: Any]] {
+    #if canImport(DataDetection)
+    if #available(iOS 26.0, *) {
+      var options = DataDetector.Options()
+      if !language.isEmpty { options.documentLanguageCode = Locale.LanguageCode(language) }
+      var out: [[String: Any]] = []
+      for await match in text.dataDetectorMatches([.moneyAmount, .calendarEvent], options: options) {
+        guard let range = match.range else { continue }
+        let start = text.utf16.distance(from: text.utf16.startIndex, to: range.lowerBound)
+        let end = text.utf16.distance(from: text.utf16.startIndex, to: range.upperBound)
+        switch match.details {
+        case .moneyAmount(let money):
+          out.append(["kind": "amount", "start": start, "end": end, "value": "\(money.amount)"])
+        case .calendarEvent(let event):
+          if let date = event.startDate {
+            out.append(["kind": "date", "start": start, "end": end, "value": dayString(date, event.startTimeZone)])
+          }
+        default:
+          break
+        }
+      }
+      return out
+    }
+    #endif
+    guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue) else { return [] }
+    let whole = NSRange(text.startIndex..., in: text)
+    return detector.matches(in: text, range: whole).compactMap { match -> [String: Any]? in
+      guard let date = match.date else { return nil }
+      return [
+        "kind": "date", "start": match.range.location, "end": match.range.location + match.range.length,
+        "value": dayString(date, match.timeZone),
+      ]
+    }
+  }
+
+  private static func dayString(_ date: Date, _ zone: TimeZone?) -> String {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = zone ?? .current
+    let c = calendar.dateComponents([.year, .month, .day], from: date)
+    return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
   }
 
   /** 分类用的图：长边 1024 足够（模型自己还会再缩小），原图 200 MP 也不用整张解码。 */

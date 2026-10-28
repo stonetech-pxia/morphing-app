@@ -99,6 +99,21 @@ class MorphVisionModule : Module() {
 
     Function("cancelClassify") { taskId: String -> ImageClassifier.cancel(taskId) }
 
+    // 「记一笔」预填用的系统识别（ML Kit 实体识别），只做规则的补充，见 DataDetection。
+    AsyncFunction("detectData") { text: String, language: String, allowDownload: Boolean, promise: Promise ->
+      thread(name = "morph-detect-data") {
+        try {
+          promise.resolve(DataDetection.detect(text, language, allowDownload))
+        } catch (e: CodedException) {
+          promise.reject(e)
+        } catch (e: Throwable) {
+          promise.reject(VisionFailedException(e.message))
+        }
+      }
+    }
+
+    AsyncFunction("dataDetectionStatus") { language: String -> DataDetection.status(language) }
+
     AsyncFunction("adjustImage") { uri: String, options: Map<String, Any?>, format: String, output: String ->
       ImageAdjustment.adjust(context, Uri.parse(uri), options, format, File(Uri.parse(output).path!!))
     }

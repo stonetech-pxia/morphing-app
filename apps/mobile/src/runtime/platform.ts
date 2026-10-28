@@ -91,6 +91,14 @@ export interface ImageAdjustSettings {
   saturation: number;
 }
 
+/** 系统识别出的日期或金额（VisionPlatform.detectData），和 @morph/core 预填的 SystemMatch 一样。 */
+export interface SystemDataMatch {
+  kind: 'amount' | 'date';
+  start: number;
+  end: number;
+  value?: string;
+}
+
 /** 图像分类的一个标签（VisionPlatform.classifyImage）。 */
 export interface ImageLabel {
   id: string;
@@ -131,6 +139,11 @@ export interface VisionPlatform {
     uri: string,
     options?: { maxResults?: number; minConfidence?: number; signal?: AbortSignal },
   ): Promise<ImageLabel[]>;
+  /**
+   * 「记一笔」预填用的系统识别（D-244，只做规则的补充，还没接进记一笔）：文字里的日期和金额在哪里。
+   * 不下载模型；系统做不了、模型没下载或者出错时返回空（只用规则）。
+   */
+  detectData?(text: string, language: string): Promise<SystemDataMatch[]>;
   /**
    * 证件照换底色（D-252）：人留下，其余换成纯色，输出 PNG。iOS 用人像分割（iOS 15 起），
    * Android 用主体分割（和去背景同一个模型，要 Google Play 服务）。
