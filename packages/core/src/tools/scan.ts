@@ -7,7 +7,8 @@ import type { ActionDefinition } from '../workflow/contract';
 
 // 扫描工具的清单（T5）：找边和透视矫正在 iOS 上用系统的 Vision / Core Image（D-086），
 // 其他平台用扫描包（WebView + OpenCV.js + jscanify）；拍照扫描用系统文档相机（iOS 的 VisionKit、Android 的 ML Kit）；四个角由用户在本地调整（找边在背景杂乱或纸张出画时会出错）；
-// 系统文档相机拍的页面已经拉正，直接放行。增强用 Skia，不需要扩展包。
+// 系统文档相机拍的页面已经拉正，直接放行。增强用 Skia，不需要扩展包：先去阴影、拉平光照（D-266），
+// 照片和印章按周围纸张的光照校正、颜色保留，所以去阴影放进「自动」，不另加模式。
 
 export const SCAN_TOOL_ID = 'scan';
 export const SCAN_PAGE_ID = 'tool-scan';
@@ -54,7 +55,7 @@ export const SCAN_ACTIONS: readonly ActionDefinition[] = [
         label: { en: 'Look', zh: '效果', fr: 'Rendu' },
         kind: 'choice',
         options: [
-          { value: 'auto', label: { en: 'Brighter', zh: '提亮', fr: 'Éclairci' } },
+          { value: 'auto', label: { en: 'Clean page', zh: '去阴影', fr: 'Page nettoyée' } },
           { value: 'gray', label: { en: 'Grayscale', zh: '灰度', fr: 'Niveaux de gris' } },
           { value: 'bw', label: { en: 'Black and white', zh: '黑白', fr: 'Noir et blanc' } },
           { value: 'none', label: { en: 'Original', zh: '原样', fr: 'Original' } },
