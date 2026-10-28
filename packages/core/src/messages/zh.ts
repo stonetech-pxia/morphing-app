@@ -612,6 +612,13 @@ export const zh: MessageTable = {
   speechDownload: '下载',
   speechDownloadFailed: '{lang}的语音模型',
   speechNote: '本机自动识别，有噪音或口音时可能有错字，请核对。',
+  // ---- 文字转语音（D-268）：错误说明拼进「不支持这个步骤：…」----
+  speakNoVoice:
+    '朗读{lang}（这台手机没有这种语言的声音；可以在手机设置里添加：iPhone 在「辅助功能 → 朗读内容 → 声音」，Android 在「文字转语音输出」）',
+  speakNotDownloaded:
+    '朗读{lang}（这种语言的声音还没下载；请在手机设置的「文字转语音输出」里下载后再试）',
+  speakNoEngine: '朗读（这台手机没有文字转语音引擎；请安装或打开一个，例如 Google 的「语音服务」）',
+  speakLanguageUnknown: '朗读（认不出这段文字是什么语言；请在这一步里选语言）',
   audioMerged: '{name} 等 {n} 段',
   trimWaveformLoading: '正在读取波形…',
   trimRingtone: '存好后，Android 可以在「设置 → 声音」里把它设成铃声；iPhone 不能由 App 设成铃声。',

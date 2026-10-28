@@ -124,6 +124,8 @@ describe('inbox recommendations', () => {
       'sign-return',
       'combine-documents',
       'foreign-pdf',
+      // 不在 D-237 清单里、但接得上 PDF 的内设快捷操作跟在后面（D-268）。
+      'pdf-to-audio',
     ]);
     // 自己做的没用过的仍排在内设的前面；用过的按次数排在最前。
     expect(

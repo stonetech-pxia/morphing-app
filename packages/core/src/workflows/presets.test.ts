@@ -23,11 +23,13 @@ describe('workflow presets', () => {
     expect(new Set(WORKFLOW_PRESETS.map((p) => p.id)).size).toBe(WORKFLOW_PRESETS.length);
   });
 
-  it('puts the audio presets in the study and sound scenarios (D-156)', () => {
+  it('puts the audio presets in the study and sound scenarios (D-156, D-268)', () => {
     expect(presetsIn('study').map((p) => p.id)).toEqual([
       'audio-to-text',
       'merge-recordings',
       'voice-memo-archive',
+      'pdf-to-audio',
+      'paper-to-audio',
     ]);
     expect(presetsIn('sound').map((p) => p.id)).toEqual([
       'normal-audio-volume',

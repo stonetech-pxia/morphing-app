@@ -33,6 +33,7 @@ export * from './schema';
 export * from './starter';
 export * from './share';
 export * from './speech';
+export * from './speak';
 export * from './templates';
 export * from './samples';
 export * from './text-ops';

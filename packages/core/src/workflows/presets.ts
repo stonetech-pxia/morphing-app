@@ -86,6 +86,12 @@ const translateTo = (locale: Locale) => ({
   action: 'translate.text',
   params: { from: 'auto', to: locale === 'zh' ? 'zh-Hans' : locale === 'fr' ? 'fr' : 'en' },
 });
+/** 文字转语音（D-268）：自动识别语言、正常语速、M4A。 */
+const speak = {
+  id: 'speak',
+  action: 'audio.fromText',
+  params: { lang: 'auto', rate: 1, format: 'm4a' },
+};
 const textPdf = { id: 'pdf', action: 'text.toPdf', params: { pageSize: 'a4', fontSize: 12 } };
 
 export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
@@ -706,6 +712,45 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
       { id: 'pick', action: 'in.audio', params: { source: 'record', min: 1, max: 1 } },
       rename(t(locale, 'presets_Voice_memo_d1e75'), false),
       { id: 'save', action: 'out.saveToFolder', params: {} },
+    ],
+  },
+  // ---- 文字转语音（D-268）：系统声音在本机读成音频文件，只出文件，不做播放器 ----
+  {
+    id: 'pdf-to-audio',
+    scenario: 'study',
+    name: { en: 'PDF to audio', zh: 'PDF 转成音频', fr: 'PDF en audio' },
+    description: {
+      en: 'Choose a PDF with text → get its text → read it aloud with the phone’s voice on this device (language detected) → M4A → share. Scanned PDFs without text don’t work.',
+      zh: '选一个有文字的 PDF → 提取文字 → 在本机用手机自带的声音读出来（自动识别语言）→ 存成 M4A → 分享。扫描出来、没有文字的 PDF 不行。',
+      fr: 'Choisissez un PDF contenant du texte → extrayez son texte → lisez-le à voix haute avec la voix du téléphone, sur cet appareil (langue détectée) → M4A → partagez. Les PDF numérisés sans texte ne fonctionnent pas.',
+    },
+    icon: 'audio',
+    packs: ['pdfview'],
+    steps: () => [
+      { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 1 } },
+      { id: 'extract', action: 'pdf.extractText', params: {} },
+      speak,
+      share,
+    ],
+  },
+  {
+    id: 'paper-to-audio',
+    scenario: 'study',
+    name: { en: 'Read paper pages aloud', zh: '拍纸张读成音频', fr: 'Lire des pages papier' },
+    description: {
+      en: 'Scan the pages → recognize the text (choose its language) → read it aloud with the phone’s voice on this device → M4A → share.',
+      zh: '扫描纸质材料 → 识别文字（选原文语言）→ 在本机用手机自带的声音读出来 → 存成 M4A → 分享。',
+      fr: 'Numérisez les pages → reconnaissez le texte (choisissez sa langue) → lisez-le à voix haute avec la voix du téléphone, sur cet appareil → M4A → partagez.',
+    },
+    icon: 'scan',
+    packs: ['scan', 'ocr'],
+    steps: (locale) => [
+      photos(1, 20, 'scanner'),
+      { id: 'edges', action: 'scan.detect', params: {} },
+      // 读的是用户自己的材料：默认按界面语言识别，每次可以换。
+      recognize(locale === 'zh' ? 'chi_sim' : locale === 'fr' ? 'fra' : 'eng'),
+      speak,
+      share,
     ],
   },
   {

@@ -2100,6 +2100,115 @@ const AUDIO_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+// ---- 文字转语音（D-268）：PDF、纸质材料读成音频文件，做成快捷操作；要 AI 读一句话给用户听按办事拒绝 ----
+// TTS* 是 mock 句式（MOCK_AI_PHRASES TTS），PTTS* 只要求真实模型。
+
+const SPEAK_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'TTS1',
+    input: '新建一个快捷操作：选 PDF，提取文字，转成语音，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.files', 'pdf.extractText', 'audio.fromText', 'out.share'],
+        param('audio.fromText', 'lang', 'auto'),
+      ),
+    },
+  },
+  {
+    id: 'TTS2-en',
+    input: 'Create a quick action: scan documents, recognize text, read it aloud, save to a folder',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.photos', 'ocr.recognize', 'audio.fromText', 'out.saveToFolder']),
+    },
+  },
+  {
+    id: 'TTS3',
+    input: '添加 PDF 转成音频快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: presetAdded('pdf-to-audio') },
+  },
+  {
+    id: 'TTS4-en',
+    input: 'Add the read paper pages aloud quick action',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: presetAdded('paper-to-audio') },
+  },
+  {
+    id: 'TTS5',
+    input: '新建一个快捷操作：输入文字，朗读，转成 MP3，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.text', 'audio.fromText', 'audio.convert', 'out.share']),
+    },
+  },
+  {
+    id: 'PTTS1',
+    input: '做一个把 PDF 变成音频的快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['in.files', 'pdf.extractText', 'audio.fromText']) },
+  },
+  {
+    id: 'PTTS2-en',
+    input:
+      'I want to listen to the printed handouts from class on my commute instead of reading them',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['in.photos', 'ocr.recognize', 'audio.fromText']) },
+  },
+  {
+    id: 'PTTS3',
+    input: '用日语慢一点读，做一个把日文 PDF 转成音频的快捷操作',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.files', 'pdf.extractText', 'audio.fromText'], (steps) => {
+        const p = steps.find((st) => st.action === 'audio.fromText')!.params;
+        if (p.lang !== 'ja') return `audio.fromText.lang should be ja, got ${String(p.lang)}`;
+        return Number(p.rate) < 1
+          ? null
+          : `audio.fromText.rate should be < 1, got ${String(p.rate)}`;
+      }),
+    },
+  },
+  {
+    id: 'PTTS4',
+    input: '把这句话读给我听：明天下午三点在三楼开会',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+  {
+    id: 'PTTS5',
+    input: '转成音频',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    about: { kind: 'shared', images: 0, pdfs: 1, others: 0 },
+    expect: { kind: 'ops', check: hasWorkflow(['in.files', 'pdf.extractText', 'audio.fromText']) },
+  },
+];
+
 // 工具箱是用户自己的页面，AI 能改（D-181）。
 
 type ToolGrid = Extract<Component, { type: 'toolGrid' }>;
@@ -4043,6 +4152,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...VIDEO_EVAL_CASES,
   ...TRANSLATE_EVAL_CASES,
   ...AUDIO_EVAL_CASES,
+  ...SPEAK_EVAL_CASES,
   ...TOOLBOX_EVAL_CASES,
 
   ...FORMAT_EVAL_CASES,

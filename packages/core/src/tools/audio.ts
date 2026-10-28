@@ -11,11 +11,13 @@ import {
   SPEECH_MODELS,
   type SpeechModel,
 } from '../speech';
+import { SPEAK_LANGUAGES, SPEAK_LANGUAGE_NAMES, SPEAK_RATE_MAX, SPEAK_RATE_MIN } from '../speak';
 import type { ActionDefinition } from '../workflow/contract';
 
 // 音频工具（D-152–D-156）：语音转文字、压小 / 转格式、剪一段、几段合成一段、从视频里取声音。
 // 编码在 App 的原生模块 morph-media 里（iOS AVFoundation、Android Media3），语音转文字在 morph-speech 里
-// （iOS 系统识别，Android whisper.cpp，D-150、D-151）。全部在本机处理；识别出的文字不发给 AI（D-036）。
+// （iOS 系统识别，Android whisper.cpp，D-150、D-151），文字转语音在 morph-tts 里（系统声音，D-268）。
+// 全部在本机处理；识别出的文字、要朗读的文字都不发给 AI（D-036）。
 
 export const AUDIO_TOOL_ID = 'audio';
 export const AUDIO_PAGE_ID = 'tool-audio';
@@ -351,6 +353,55 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
   },
+  {
+    id: 'audio.fromText',
+    ai: '"Read a PDF / paper document / text aloud as an audio file, listen to it instead of reading, text to speech" → after the step that gets the text (pdf.extractText, scan.detect → ocr.recognize, in.text, translate.text); lang "auto" unless they name the language, rate 1 unless they want it slower or faster, format "m4a" unless they ask for WAV; then out.share or out.saveToFolder. It only makes an audio file with the phone\'s own voice (no player, no highlighting, no AI voices); a sentence they type in the request and want read out is an errand.',
+    label: { en: 'Text to speech', zh: '文字转语音', fr: 'Synthèse vocale' },
+    description: {
+      en: 'Read the text aloud with the phone’s own voice on this device and save it as an audio file (M4A or WAV). Auto picks one language for the whole text; names and numbers may be read wrong. The text stays on this device.',
+      zh: '在本机用手机自带的声音把文字读出来，存成音频文件（M4A 或 WAV）。「自动识别」整段用一种语言读；人名、数字可能读错。文字只留在本机。',
+      fr: 'Lisez le texte à voix haute avec la voix du téléphone, sur cet appareil, et enregistrez-le en fichier audio (M4A ou WAV). La détection automatique choisit une seule langue pour tout le texte ; les noms et les nombres peuvent être mal lus. Le texte reste sur cet appareil.',
+    },
+    input: ['text'],
+    output: 'audio',
+    params: z.strictObject({
+      lang: z.enum(['auto', ...SPEAK_LANGUAGES]),
+      rate: z.number().min(SPEAK_RATE_MIN).max(SPEAK_RATE_MAX),
+      format: z.enum(['m4a', 'wav']),
+    }),
+    fields: [
+      {
+        key: 'lang',
+        label: { en: 'Language', zh: '语言', fr: 'Langue' },
+        kind: 'choice',
+        options: [
+          {
+            value: 'auto',
+            label: { en: 'Auto-detect', zh: '自动识别', fr: 'Détection automatique' },
+          },
+          ...SPEAK_LANGUAGES.map((value) => ({ value, label: SPEAK_LANGUAGE_NAMES[value] })),
+        ],
+      },
+      {
+        key: 'rate',
+        label: { en: 'Speed (1 = normal)', zh: '语速（1 是正常）', fr: 'Vitesse (1 = normale)' },
+        kind: 'number',
+        min: SPEAK_RATE_MIN,
+        max: SPEAK_RATE_MAX,
+        step: 0.1,
+      },
+      { ...formatField, options: formatField.options.filter((o) => o.value !== 'mp3') },
+    ],
+    requires: [],
+    // 内置规则认的步骤说法（D-265、D-268）。
+    phrases: [
+      {
+        match:
+          /^(?:转成|变成|转换成|做成|生成)(?:语音|有声书|朗读音频)$|^(?:文字转语音|朗读|朗读出来|读出来)$|^(?:text to speech|read (?:it |them |the text )?(?:aloud|out loud)|turn (?:it |them |the text )?into (?:speech|an audio file)|convert (?:it |them )?to speech)$/i,
+        step: () => ({ params: { lang: 'auto', rate: 1, format: 'm4a' } }),
+      },
+    ],
+  },
 ];
 
 /** 默认识别语言跟随界面语言。 */
@@ -444,6 +495,19 @@ export function audioWorkflows(locale: Locale): Workflow[] {
       ],
     ),
     wf(
+      'audio-from-text',
+      ['Text to speech', '文字转语音'],
+      [
+        { id: 'type', action: 'in.text', params: { text: '' }, ask: ['text'] },
+        {
+          id: 'run',
+          action: 'audio.fromText',
+          params: { lang: 'auto', rate: 1, format: 'm4a' },
+          ask: ['lang', 'rate'],
+        },
+      ],
+    ),
+    wf(
       'audio-from-video',
       ['Sound from a video', '提取视频里的声音'],
       [
@@ -456,12 +520,12 @@ export function audioWorkflows(locale: Locale): Workflow[] {
 
 export const audioTool: ToolDefinition = {
   id: AUDIO_TOOL_ID,
-  version: '1.2.0',
+  version: '1.3.0',
   name: { en: 'Audio', zh: '音频', fr: 'Audio' },
   description: {
-    en: 'Turn recordings into text, record, make audio smaller, convert, trim and join it, on this device.',
-    zh: '在本机把录音转成文字、录音、压小、转格式、剪一段、几段合成一段。',
-    fr: 'Transcrivez des enregistrements, enregistrez, compressez l’audio, convertissez, coupez et fusionnez, sur cet appareil.',
+    en: 'Turn recordings into text and text into speech, record, make audio smaller, convert, trim and join it, on this device.',
+    zh: '在本机把录音转成文字、把文字读成音频、录音、压小、转格式、剪一段、几段合成一段。',
+    fr: 'Transcrivez des enregistrements, lisez du texte à voix haute, enregistrez, compressez l’audio, convertissez, coupez et fusionnez, sur cet appareil.',
   },
   icon: 'audio',
   aliases: [
@@ -471,11 +535,15 @@ export const audioTool: ToolDefinition = {
     'sound',
     'speech to text',
     'transcribe',
+    'text to speech',
+    'read aloud',
     '音频',
     '录音',
     '语音',
     '声音',
     '语音转文字',
+    '文字转语音',
+    '朗读',
     '音频工具',
   ],
   permissions: ['files.pick', 'files.write', 'microphone'],

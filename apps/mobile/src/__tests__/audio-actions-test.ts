@@ -131,6 +131,7 @@ describe('audio tool', () => {
       '音频转格式',
       '剪一段音频',
       '几段合成一段',
+      '文字转语音',
       '提取视频里的声音',
     ]);
     const page = result.config.pages.find((p) => p.id === 'tool-audio')!;

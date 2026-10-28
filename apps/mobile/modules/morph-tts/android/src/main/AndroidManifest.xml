@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Android 11 起要声明才能连上系统的朗读引擎（软件包可见性），不然 TextToSpeech 初始化失败（D-268）。 -->
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.TTS_SERVICE" />
+    </intent>
+  </queries>
+</manifest>
