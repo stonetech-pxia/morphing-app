@@ -144,6 +144,10 @@ export interface VisionPlatform {
    * 不下载模型；系统做不了、模型没下载或者出错时返回空（只用规则）。
    */
   detectData?(text: string, language: string): Promise<SystemDataMatch[]>;
+  /** 这种语言的系统识别：ready 能用；download 要先下载模型（先问用户）；unsupported 不支持。 */
+  dataDetectionStatus?(language: string): Promise<'ready' | 'download' | 'unsupported'>;
+  /** 下载识别模型（Android）；只在用户同意以后调用。 */
+  downloadDataModel?(language: string): Promise<void>;
   /**
    * 证件照换底色（D-252）：人留下，其余换成纯色，输出 PNG。iOS 用人像分割（iOS 15 起），
    * Android 用主体分割（和去背景同一个模型，要 Google Play 服务）。
@@ -510,6 +514,11 @@ export interface FilePlatform {
   share(path: string, mimeType: string): Promise<void>;
   /** 把一段文字存成临时文件并打开系统分享面板（导出 CSV 用）。不会成为用户文件。 */
   shareText(fileName: string, text: string, mimeType: string): Promise<void>;
+  /**
+   * 读用户从「文件」选的一个文字文件（恢复预填记忆的备份用）。读完删掉选择器放在 App 缓存里的副本
+   * （Caches/DocumentPicker，是 App 自己的）；原件不动。
+   */
+  readPickedText(uri: string): Promise<string>;
 
   // ---- 工作流执行：选择 ----
   /** 从相册混选照片和视频；用户取消时返回 null。 */

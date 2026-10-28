@@ -251,6 +251,22 @@ export const expoFilePlatform: FilePlatform = {
     return { path: `${ROOT}/${assetId}/${name}`, size: dest.size };
   },
 
+  async readPickedText(uri) {
+    const file = new File(uri);
+    try {
+      return await file.text();
+    } finally {
+      // 只删选择器放在缓存里的副本；不在缓存里的（原件、content://）不碰。
+      if (uri.startsWith(Paths.cache.uri) && uri.includes('/DocumentPicker/')) {
+        try {
+          file.delete();
+        } catch {
+          // 已经不在了。
+        }
+      }
+    }
+  },
+
   async shareText(fileName, text, mimeType) {
     const dir = new Directory(Paths.cache, 'exports');
     dir.create({ idempotent: true, intermediates: true });

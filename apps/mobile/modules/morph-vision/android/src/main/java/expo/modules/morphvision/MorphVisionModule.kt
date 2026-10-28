@@ -114,6 +114,20 @@ class MorphVisionModule : Module() {
 
     AsyncFunction("dataDetectionStatus") { language: String -> DataDetection.status(language) }
 
+    // 用户同意以后才下载（JS 先问）。
+    AsyncFunction("downloadDataModel") { language: String, promise: Promise ->
+      thread(name = "morph-data-model") {
+        try {
+          DataDetection.download(language)
+          promise.resolve(null)
+        } catch (e: CodedException) {
+          promise.reject(e)
+        } catch (e: Throwable) {
+          promise.reject(VisionFailedException(e.message))
+        }
+      }
+    }
+
     AsyncFunction("adjustImage") { uri: String, options: Map<String, Any?>, format: String, output: String ->
       ImageAdjustment.adjust(context, Uri.parse(uri), options, format, File(Uri.parse(output).path!!))
     }

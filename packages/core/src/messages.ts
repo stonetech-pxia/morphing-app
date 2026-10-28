@@ -46,6 +46,9 @@ const PLURAL_COUNT_VARIABLE: Partial<Record<StringKey, string>> = {
   WorkflowsScreen_Needs_at_least_files_0ed9b: 'v0',
   WorkflowsScreen_Takes_at_most_files_0fe59: 'v0',
   runError_noneMatched: 'count',
+  prefillMemoryCount: 'count',
+  prefillMemoryRestoreConfirm: 'count',
+  prefillMemoryRestored: 'count',
 };
 
 /**

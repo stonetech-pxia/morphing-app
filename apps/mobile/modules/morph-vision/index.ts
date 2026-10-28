@@ -86,7 +86,9 @@ export interface MorphVisionModule {
    */
   detectData?(text: string, language: string, allowDownload: boolean): Promise<NativeDataMatch[]>;
   /** ready：能直接用；download：要先下载模型（Android）；unsupported：这种语言不支持。 */
-  dataDetectionStatus?(language: string): Promise<'ready' | 'download' | 'unsupported'> | string;
+  dataDetectionStatus?(language: string): Promise<'ready' | 'download' | 'unsupported'>;
+  /** 下载这种语言的识别模型（Android；iOS 什么都不做）。App 先问过用户才调用。 */
+  downloadDataModel?(language: string): Promise<void>;
   /** 取消正在进行的分类：那次以 ERR_VISION_CANCELLED 结束；还没开始或已经结束的不起作用。 */
   cancelClassify?(taskId: string): void;
   /** 只保留人像、其余换成纯色（iOS 人像分割，D-252）；Android 没有，用 removeBackground。 */

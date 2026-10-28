@@ -1,12 +1,12 @@
-// 成对样本（prefill/pairs/cases.jsonl，由没读过规则代码的人写）：同一版式按顺序来 4 张，
-// 第 1、2 张用户保存后学，第 3、4 张（拍歪、模糊、双栏、印章、多一行优惠、商品更多）看读得对不对。
+// 成对样本（prefill/pairs*/cases.jsonl，由没读过规则代码的人写）：同一版式按顺序来几张，
+// 每张都先预填，再按真值保存；保存一次就学会，所以从第 2 张起看读得对不对（第 1 张只用规则）。
 // 每张都先预填、再按真值「保存」（用户改对了），记忆跟着学。和只用规则（没有记忆）比较。
-// 用法（仓库根目录）：npx tsx tests/local-model-eval/prefill/evaluate_pairs.ts [--show-wrong]
+// 用法（仓库根目录）：npx tsx tests/local-model-eval/prefill/evaluate_pairs.ts [pairs|pairs2] [--show-wrong]
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
-  LEARNED_HITS,
+  isLearned,
   learnLayout,
   prefillRecord,
   type LayoutMemory,
@@ -38,12 +38,13 @@ const fieldsFor = (lang: Locale): Field[] => {
   ] as Field[];
 };
 const FIELDS = ['amount', 'date', 'merchant', 'invoiceNo'] as const;
-type Outcome = 'correct' | 'wrong' | 'empty';
+type Outcome = 'correct' | 'wrong' | 'empty' | 'emptyOk' | 'filledNull';
 const same = (field: string, a: unknown, b: unknown) =>
   field === 'amount' ? Math.abs(Number(a) - Number(b)) < 0.005 : a === b;
 
 const show = process.argv.includes('--show-wrong');
-const cases = readFileSync(join(import.meta.dirname, 'pairs', 'cases.jsonl'), 'utf8')
+const set = process.argv.find((a) => a.startsWith('pairs')) ?? 'pairs';
+const cases = readFileSync(join(import.meta.dirname, set, 'cases.jsonl'), 'utf8')
   .split('\n')
   .filter((l) => l.trim())
   .map((l) => JSON.parse(l) as Case);
@@ -52,13 +53,13 @@ for (const c of cases) layouts.set(c.layout, [...(layouts.get(c.layout) ?? []), 
 
 const tally = new Map<string, Record<Outcome, number>>();
 const count = (key: string, o: Outcome) => {
-  const t = tally.get(key) ?? { correct: 0, wrong: 0, empty: 0 };
+  const t = tally.get(key) ?? { correct: 0, wrong: 0, empty: 0, emptyOk: 0, filledNull: 0 };
   t[o]++;
   tally.set(key, t);
 };
 const learned: Record<string, number> = { amount: 0, date: 0, merchant: 0, invoiceNo: 0 };
-let found3 = 0;
-let found4 = 0;
+const found = new Map<number, number>();
+const blockedCount = new Map<string, number>();
 
 for (const [layoutId, docs] of layouts) {
   docs.sort((a, b) => a.seq - b.seq);
@@ -66,9 +67,10 @@ for (const [layoutId, docs] of layouts) {
   for (const doc of docs) {
     const fields = fieldsFor(doc.lang);
     const withMemory = prefillRecord({ text: doc.text, locale: doc.lang, fields, memories });
-    if (doc.seq >= 3) {
-      if (withMemory.layout && doc.seq === 3) found3++;
-      if (withMemory.layout && doc.seq === 4) found4++;
+    if (doc.seq >= 2) {
+      if (withMemory.layout) found.set(doc.seq, (found.get(doc.seq) ?? 0) + 1);
+      for (const reason of Object.values(withMemory.blocked))
+        blockedCount.set(reason, (blockedCount.get(reason) ?? 0) + 1);
       const rulesOnly = prefillRecord({ text: doc.text, locale: doc.lang, fields });
       for (const field of FIELDS) {
         const truth = doc.truth[field];
@@ -77,7 +79,15 @@ for (const [layoutId, docs] of layouts) {
           ['rules', rulesOnly.values[field]?.value],
         ] as const) {
           const o: Outcome =
-            got === undefined ? 'empty' : same(field, truth, got) ? 'correct' : 'wrong';
+            truth === null || truth === undefined
+              ? got === undefined
+                ? 'emptyOk'
+                : 'filledNull'
+              : got === undefined
+                ? 'empty'
+                : same(field, truth, got)
+                  ? 'correct'
+                  : 'wrong';
           for (const key of [
             `${field} ${version} all`,
             `${field} ${version} seq${doc.seq}`,
@@ -85,7 +95,7 @@ for (const [layoutId, docs] of layouts) {
             `${field} ${version} ${doc.lang}`,
           ])
             count(key, o);
-          if (show && version === 'memory' && o === 'wrong')
+          if (show && version === 'memory' && (o === 'wrong' || o === 'filledNull'))
             console.log(
               `WRONG ${doc.id} ${doc.variation} ${field} truth=${truth} got=${got} via=${withMemory.values[field]?.source}`,
             );
@@ -105,13 +115,16 @@ for (const [layoutId, docs] of layouts) {
       layoutId,
     );
     if (memory) memories = [...memories.filter((m) => m.id !== memory.id), memory];
-    if (doc.seq === 2)
-      for (const field of FIELDS)
-        if ((memory?.fields[field]?.hits ?? 0) >= LEARNED_HITS) learned[field]!++;
+    if (doc.seq === 1)
+      for (const field of FIELDS) {
+        const habit = memory?.fields[field];
+        if (habit && isLearned(habit)) learned[field]!++;
+      }
   }
 }
-console.log(`版式数 ${layouts.size}；第 2 张保存后学会的字段：`, learned);
-console.log(`第 3 张认出版式 ${found3}/${layouts.size}，第 4 张 ${found4}/${layouts.size}`);
-console.log('字段 方式 分组 | 对 | 读错 | 空着');
+console.log(`${set}：版式数 ${layouts.size}；第 1 张保存后学会的字段：`, learned);
+console.log('按张认出版式（有把握的）：', Object.fromEntries(found));
+console.log('记忆学过、这次空着的原因：', Object.fromEntries(blockedCount));
+console.log('字段 方式 分组 | 对 | 读错 | 该填没填 | 正确空着 | 不该填却填');
 for (const [key, t] of [...tally].sort())
-  console.log(`${key} | ${t.correct} | ${t.wrong} | ${t.empty}`);
+  console.log(`${key} | ${t.correct} | ${t.wrong} | ${t.empty} | ${t.emptyOk} | ${t.filledNull}`);

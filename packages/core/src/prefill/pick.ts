@@ -31,7 +31,8 @@ export function labelOf(
     .filter((c) => c.line === candidate.line && c.end <= candidate.start)
     .reduce((from, c) => Math.max(from, c.end), 0);
   const same = normalizeLabel(line.slice(before, candidate.start));
-  if (hasWords(same)) return { text: same, offset: 0 };
+  // 同一行前面已经有一个值（表格的一行：数量、单价、金额）：它的标签是表头，不去上一行找。
+  if (hasWords(same) || before > 0) return { text: same, offset: 0 };
   for (let i = candidate.line - 1; i >= 0; i--) {
     const prev = lines[i]!;
     if (!prev.trim()) continue;

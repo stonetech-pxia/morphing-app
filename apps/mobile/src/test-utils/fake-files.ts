@@ -249,6 +249,15 @@ export class FakeFiles implements FilePlatform {
   async share(path: string) {
     this.shared.push(path);
   }
+  /** 选择器给的文字文件：地址 → 内容；读完的副本记在 readPicked 里。 */
+  pickedTexts = new Map<string, string>();
+  readPicked: string[] = [];
+  async readPickedText(uri: string) {
+    this.readPicked.push(uri);
+    const text = this.pickedTexts.get(uri);
+    if (text === undefined) throw new Error('permission denied');
+    return text;
+  }
   /** 导出的文字文件：文件名 → 内容。 */
   sharedTexts = new Map<string, string>();
   async shareText(fileName: string, text: string) {

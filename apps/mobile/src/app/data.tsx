@@ -1,6 +1,14 @@
 import {
+  appConfigFile,
+  appConfigFileName,
   CollectionSchema,
+  LAYOUT_STORE_KEY,
+  layoutCount,
+  layoutStoreFile,
+  parseLayoutStore,
+  readLayoutStoreFile,
   RECORD_LIMITS,
+  serializeLayoutStore,
   formatRef,
   formatTimestamp,
   linkedCollectionIds,
@@ -20,7 +28,8 @@ import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
 /**
  * 「设置 → 数据」：用户记录的管理页，由内核提供，AI 不能修改。
- * 导出 CSV、查看已移出界面的数据表、恢复最近删除的记录（D-037、D-038、D-041）。
+ * 导出 CSV、查看已移出界面的数据表、恢复最近删除的记录（D-037、D-038、D-041）；
+ * 导出 App 配置；预填记忆的导出（也是备份）、从文件恢复、一键清空（D-244）。
  */
 export default function DataRoute() {
   const { repo, files, locale } = useWorkspaceContext();
@@ -35,6 +44,7 @@ export default function DataRoute() {
   >([]);
   const [deleted, setDeleted] = useState<StoredRecord[]>([]);
   const [known, setKnown] = useState<Map<string, Collection>>(new Map());
+  const [layouts, setLayouts] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -74,6 +84,7 @@ export default function DataRoute() {
       const cutoff = Date.now() - RECORD_LIMITS.deletedRetentionDays * 24 * 60 * 60 * 1000;
       setDeleted(deletedRows.filter((r) => r.deletedAt! >= cutoff));
       setKnown(new Map([...found, ...config.collections.map((c) => [c.id, c] as const)]));
+      setLayouts(layoutCount(parseLayoutStore(await repo.getMeta(LAYOUT_STORE_KEY))));
     })();
     return () => {
       alive = false;
@@ -95,6 +106,69 @@ export default function DataRoute() {
       recordsToCsv(collection, records, locale, links),
       'text/csv',
     );
+  }
+
+  /** 文件名里的日期（本地时间），导出几次不会互相覆盖。 */
+  const today = (now: Date) =>
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  async function exportConfig() {
+    const now = new Date();
+    await files.shareText(appConfigFileName(now), appConfigFile(config, now), 'application/json');
+  }
+
+  async function exportMemory() {
+    const now = new Date();
+    const store = parseLayoutStore(await repo.getMeta(LAYOUT_STORE_KEY));
+    await files.shareText(
+      `morph-prefill-memory-${today(now)}.json`,
+      layoutStoreFile(store, now),
+      'application/json',
+    );
+  }
+
+  async function restoreMemory() {
+    const picked = await files.pickDocuments(['application/json', 'text/plain'], false);
+    const file = picked?.[0];
+    if (!file) return;
+    let store = null;
+    try {
+      store = readLayoutStoreFile(await files.readPickedText(file.uri));
+    } catch {
+      store = null;
+    }
+    if (!store) {
+      Alert.alert(t(locale, 'prefillMemoryRestore'), t(locale, 'prefillMemoryRestoreInvalid'));
+      return;
+    }
+    const count = layoutCount(store);
+    Alert.alert(
+      t(locale, 'prefillMemoryRestore'),
+      t(locale, 'prefillMemoryRestoreConfirm', { count }),
+      [
+        { text: t(locale, 'cancel'), style: 'cancel' },
+        {
+          text: t(locale, 'prefillMemoryRestore'),
+          onPress: () =>
+            void repo.setMeta(LAYOUT_STORE_KEY, serializeLayoutStore(store)).then(() => {
+              setLayouts(count);
+              Alert.alert(t(locale, 'prefillMemoryRestored', { count }));
+            }),
+        },
+      ],
+    );
+  }
+
+  function clearMemory() {
+    Alert.alert(t(locale, 'prefillMemoryClear'), t(locale, 'prefillMemoryClearConfirm'), [
+      { text: t(locale, 'cancel'), style: 'cancel' },
+      {
+        text: t(locale, 'prefillMemoryClear'),
+        style: 'destructive',
+        onPress: () =>
+          void repo.setMeta(LAYOUT_STORE_KEY, serializeLayoutStore({})).then(() => setLayouts(0)),
+      },
+    ]);
   }
 
   function deleteForever(id: string, name: string, count: number) {
@@ -137,6 +211,54 @@ export default function DataRoute() {
           </View>
         </Card>
       ))}
+
+      <SectionLabel palette={palette}>{t(locale, 'appConfigTitle')}</SectionLabel>
+      <Card palette={palette} testID="app-config">
+        <Text style={caption}>{t(locale, 'appConfigHint')}</Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Pill
+            palette={palette}
+            testID="export-app-config"
+            label={t(locale, 'exportAppConfig')}
+            onPress={() => void exportConfig()}
+          />
+        </View>
+      </Card>
+
+      <SectionLabel palette={palette}>{t(locale, 'prefillMemoryTitle')}</SectionLabel>
+      <Card palette={palette} testID="prefill-memory">
+        <Text style={[palette.font('title', 15), { color: palette.text }]}>
+          {layouts > 0
+            ? t(locale, 'prefillMemoryCount', { count: layouts })
+            : t(locale, 'prefillMemoryNone')}
+        </Text>
+        <Text style={caption}>{t(locale, 'prefillMemoryHint')}</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {layouts > 0 ? (
+            <Pill
+              palette={palette}
+              testID="export-prefill-memory"
+              label={t(locale, 'prefillMemoryExport')}
+              onPress={() => void exportMemory()}
+            />
+          ) : null}
+          <Pill
+            palette={palette}
+            testID="restore-prefill-memory"
+            label={t(locale, 'prefillMemoryRestore')}
+            onPress={() => void restoreMemory()}
+          />
+          {layouts > 0 ? (
+            <Pill
+              palette={palette}
+              danger
+              testID="clear-prefill-memory"
+              label={t(locale, 'prefillMemoryClear')}
+              onPress={clearMemory}
+            />
+          ) : null}
+        </View>
+      </Card>
 
       {orphans.length > 0 ? (
         <>

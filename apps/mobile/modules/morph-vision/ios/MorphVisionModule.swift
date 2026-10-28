@@ -92,9 +92,12 @@ public class MorphVisionModule: Module {
       await Self.detectData(text, language: language)
     }
 
-    Function("dataDetectionStatus") { (_: String) -> String in
+    AsyncFunction("dataDetectionStatus") { (_: String) -> String in
       "ready"
     }
+
+    // iOS 的识别是系统自带的，不用下载。
+    AsyncFunction("downloadDataModel") { (_: String) in }
 
     // 照片里是什么（没有文字的照片做推荐用，还没接进推荐）：Vision 自带的图像分类，不下载模型。
     // 标签是 Vision 自己的英文标识，和 Android 的 ML Kit 不是一套词。

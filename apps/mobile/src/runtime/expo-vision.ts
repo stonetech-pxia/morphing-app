@@ -53,6 +53,11 @@ export function expoVision(
       ? {
           detectData: (text: string, language: string) =>
             detectDataWith(native.detectData!.bind(native), text, language),
+          dataDetectionStatus: async (language: string) =>
+            (await native.dataDetectionStatus?.(language)) ?? 'unsupported',
+          downloadDataModel: async (language: string) => {
+            await native.downloadDataModel?.(language);
+          },
         }
       : {}),
     personSegmentation: Boolean(native.replacePersonBackground),

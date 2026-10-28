@@ -10,10 +10,28 @@ export {
 } from './candidates';
 export {
   findLayout,
+  isLearned,
   learnLayout,
   LEARNED_HITS,
+  matchLayout,
   type FieldHabit,
   type LayoutMemory,
   type LearnInput,
 } from './memory';
-export { prefillRecord, type PrefillInput, type PrefillResult, type PrefillValue } from './prefill';
+export {
+  prefillRecord,
+  type PrefillBlock,
+  type PrefillInput,
+  type PrefillResult,
+  type PrefillValue,
+} from './prefill';
+export {
+  layoutCount,
+  layoutStoreFile,
+  LAYOUT_STORE_KEY,
+  parseLayoutStore,
+  putLayout,
+  readLayoutStoreFile,
+  serializeLayoutStore,
+  type LayoutStore,
+} from './store';

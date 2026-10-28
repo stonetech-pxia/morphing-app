@@ -178,13 +178,20 @@ const FIELDS = fields([
   ['note', 'Note', 'text'],
 ]);
 
-function save(memory: LayoutMemory | null, text: string, saved: Record<string, unknown>) {
-  const result = prefillRecord({
+// 日期合不合理按这一天算，测试不随真实日期变。
+const NOW = new Date('2026-04-01T12:00:00');
+
+const fill = (text: string, memory: LayoutMemory | null, fieldList = FIELDS) =>
+  prefillRecord({
     text,
     locale: 'en',
-    fields: FIELDS,
+    fields: fieldList,
     memories: memory ? [memory] : [],
+    now: NOW,
   });
+
+function save(memory: LayoutMemory | null, text: string, saved: Record<string, unknown>) {
+  const result = fill(text, memory);
   const prefilled = result.values;
   return {
     prefilled,
@@ -197,14 +204,14 @@ function save(memory: LayoutMemory | null, text: string, saved: Record<string, u
 }
 
 describe('layout memory', () => {
-  it('learns after two consistent saves and then reads a new value', () => {
+  it('learns from one save and reads the next document of the same layout', () => {
     const one = save(null, shop('Milk 4.20', '9.80', '03/02/2026'), {
       amount: 9.8,
       when: '2026-03-02',
       shop: 'Maple Corner Store',
       note: 'weekly',
     });
-    // 第一次：金额在 SUBTOTAL、CARD、TOTAL DUE 三处都是 9.80，标签说得清是 TOTAL DUE；还没学会。
+    // 金额在 SUBTOTAL、CARD、TOTAL DUE 三处都是 9.80，标签说得清是 TOTAL DUE。
     expect(one.memory!.fields.amount).toMatchObject({
       kind: 'amount',
       label: 'total due',
@@ -212,32 +219,75 @@ describe('layout memory', () => {
     });
     // 用户写的备注不在文字里：不学。
     expect(one.memory!.fields.note).toBeUndefined();
-    const two = save(one.memory, shop('Bread 3.10\nEggs 2.90', '6.00', '03/09/2026'), {
+    // 金额和日期不记值本身。
+    expect(JSON.stringify(one.memory)).not.toMatch(/9\.80|2026-03/);
+
+    const secondText = shop('Bread 3.10\nEggs 2.90', '6.00', '03/09/2026');
+    const second = fill(secondText, one.memory);
+    // 金额和日期保存一次就会读；商家只见过一次，不知道是不是每次一样，还不填。
+    expect(second.values).toEqual({
+      amount: { value: 6, source: 'memory' },
+      when: { value: '2026-03-09', source: 'memory' },
+    });
+    expect(second.blocked).toEqual({});
+    const two = save(one.memory, secondText, {
       amount: 6,
       when: '2026-03-09',
       shop: 'Maple Corner Store',
     });
-    expect(two.memory!.fields.amount!.hits).toBe(2);
-    expect(two.memory!.fields.shop).toMatchObject({
-      kind: 'constant',
+    expect(fill(shop('Tea 5.00', '5.00', '03/16/2026'), two.memory).values.shop).toEqual({
       value: 'Maple Corner Store',
-      hits: 2,
+      source: 'memory',
     });
-    // 金额和日期不记值本身。
-    expect(JSON.stringify(two.memory)).not.toMatch(/9\.80|6\.00|2026-03/);
+  });
 
-    const third = shop('Tea 5.00\nJam 3.75\nRice 2.00', '10.75', '03/16/2026');
-    const result = prefillRecord({
-      text: third,
-      locale: 'en',
-      fields: FIELDS,
-      memories: [two.memory!],
+  it('leaves a learned field empty when the layout only partly matches', () => {
+    const { memory } = save(null, shop('Milk 4.20', '9.80', '03/02/2026'), { amount: 9.8 });
+    // 换了店名和结尾，只剩一部分标签行对得上：可能是别的版式，记忆学过的金额宁可空着。
+    const other = shop('Tea 5.00', '5.00', '03/16/2026')
+      .replace('Maple Corner Store', 'Birch Street Market')
+      .replace('Thank you for shopping', 'See you soon');
+    const result = fill(other, memory);
+    expect(result.values.amount).toBeUndefined();
+    expect(result.blocked.amount).toBe('layoutUnsure');
+    expect(result.layout).toBeNull();
+  });
+
+  it('leaves a learned field empty instead of falling back to the rules when memory cannot read it', () => {
+    const { memory } = save(null, shop('Milk 4.20', '9.80', '03/02/2026'), { amount: 9.8 });
+    // 「TOTAL DUE」这一行这次没识别出来（被拍歪截掉了）：规则能从 CARD PAYMENT 猜一个，但不猜。
+    const text = shop('Tea 5.00', '5.00', '03/16/2026').replace('TOTAL DUE 5.00\n', 'TOTAL D\n');
+    const result = fill(text, memory);
+    expect(result.values.amount).toBeUndefined();
+    expect(result.blocked.amount).toBe('memoryUnreadable');
+  });
+
+  it('leaves the amount empty when a discount line appears that the memory never saw', () => {
+    const { memory } = save(null, shop('Milk 4.20', '9.80', '03/02/2026'), {
+      amount: 9.8,
+      when: '2026-03-02',
     });
-    expect(result.values).toEqual({
-      amount: { value: 10.75, source: 'memory' },
-      when: { value: '2026-03-16', source: 'memory' },
-      shop: { value: 'Maple Corner Store', source: 'memory' },
+    const text = shop('Tea 5.00\nCoupon -1.00', '4.00', '03/16/2026');
+    const result = fill(text, memory);
+    expect(result.blocked.amount).toBe('newAdjustment');
+    // 日期不受影响。
+    expect(result.values.when).toEqual({ value: '2026-03-16', source: 'memory' });
+  });
+
+  it('leaves a field empty when memory and rules disagree, or the value is implausible', () => {
+    const cafe = (lines: string) =>
+      `Fern Cafe\n8 Example Lane\nTel 555-0177\n${lines}\nThanks, see you soon`;
+    // 记住的是「TOTAL」那一行；这张多了「Amount paid」（规则里比 TOTAL 更像实付），两边读出的不一样。
+    const { memory } = save(null, cafe('Latte 4.50\nTOTAL 4.50\nDate 03/02/2026'), {
+      amount: 4.5,
+      when: '2026-03-02',
     });
+    const conflict = fill(cafe('Tea 3.00\nTOTAL 5.00\nAmount paid 4.50\nDate 03/16/2026'), memory);
+    expect(conflict.blocked.amount).toBe('conflictsWithRules');
+    // 日期离现在十几年：不合理。
+    expect(fill(cafe('Tea 3.00\nTOTAL 3.00\nDate 03/16/2011'), memory).blocked.when).toBe(
+      'implausible',
+    );
   });
 
   it('does not fill the shop name when the new text does not contain it', () => {
@@ -250,19 +300,13 @@ describe('layout memory', () => {
     expect(readWithLayout(memory.fields.shop!, 'Other Shop\nTOTAL DUE 3.00', [])).toBeNull();
   });
 
-  it('demotes a habit the user corrected', () => {
-    let memory: LayoutMemory | null = null;
-    for (const [total, day] of [
-      ['9.80', '03/02/2026'],
-      ['6.00', '03/09/2026'],
-    ] as const)
-      memory = save(memory, shop('Milk 4.20', total, day), { amount: Number(total) }).memory;
-    expect(memory!.fields.amount!.hits).toBe(2);
+  it('demotes a habit the user corrected: it needs two consistent saves again', () => {
+    const { memory } = save(null, shop('Milk 4.20', '9.80', '03/02/2026'), { amount: 9.8 });
     // 记忆填了 10.75，用户改成 12.00（文字里找不到 12.00）：降级，不再用。
     const text = shop('Tea 5.00', '10.75', '03/16/2026');
-    const result = prefillRecord({ text, locale: 'en', fields: FIELDS, memories: [memory!] });
+    const result = fill(text, memory);
     expect(result.values.amount).toEqual({ value: 10.75, source: 'memory' });
-    const after = learnLayout(
+    const demoted = learnLayout(
       memory,
       {
         text,
@@ -272,8 +316,18 @@ describe('layout memory', () => {
         candidates: result.candidates,
       },
       'x',
-    );
-    expect(after!.fields.amount!.hits).toBe(0);
+    )!;
+    expect(demoted.fields.amount).toMatchObject({ hits: 0, needs: 2 });
+    // 降级以后：再保存一次还不够，两次一致才重新用。
+    const next = shop('Jam 3.00', '3.00', '03/20/2026');
+    const once = save(demoted, next, { amount: 3 }).memory!;
+    // 记忆不用，这个字段照没有记忆时按规则填。
+    expect(fill(shop('Rice 2.00', '2.00', '03/22/2026'), once).values.amount?.source).toBe('rule');
+    const twice = save(once, shop('Rice 2.00', '2.00', '03/22/2026'), { amount: 2 }).memory!;
+    expect(fill(shop('Oil 7.00', '7.00', '03/25/2026'), twice).values.amount).toEqual({
+      value: 7,
+      source: 'memory',
+    });
   });
 
   it('does not learn when the value appears several times with nothing to tell them apart', () => {

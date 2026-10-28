@@ -1,6 +1,6 @@
 import { prefillRecord, type Field } from '@morph/core';
 
-import { detectDataWith } from '../runtime/detect-data';
+import { detectDataWith, prepareDataDetection } from '../runtime/detect-data';
 
 // 系统识别只做规则的补充：出问题时返回空，预填照样用规则。
 
@@ -55,5 +55,61 @@ describe('detectDataWith', () => {
     // 规则没找到的日期由系统补上。
     const result = prefillRecord({ text: TEXT, locale: 'en', fields: FIELDS, system: found });
     expect(result.values.day).toEqual({ value: '2026-03-03', source: 'system' });
+  });
+});
+
+describe('prepareDataDetection', () => {
+  const meta = () => {
+    const data = new Map<string, string>();
+    return {
+      data,
+      getMeta: async (k: string) => data.get(k) ?? null,
+      setMeta: async (k: string, v: string) => void data.set(k, v),
+    };
+  };
+  const vision = (status: 'ready' | 'download' | 'unsupported', fail = false) => {
+    const downloads: string[] = [];
+    return {
+      downloads,
+      dataDetectionStatus: async () => status,
+      downloadDataModel: async (language: string) => {
+        if (fail) throw new Error('offline');
+        downloads.push(language);
+      },
+    };
+  };
+
+  it('does not ask when the system needs no download', async () => {
+    const ask = jest.fn(async () => true);
+    expect(await prepareDataDetection(vision('ready'), 'en', ask, meta())).toBe(true);
+    expect(await prepareDataDetection(vision('unsupported'), 'en', ask, meta())).toBe(false);
+    expect(ask).not.toHaveBeenCalled();
+  });
+
+  it('asks before downloading and downloads only after a yes', async () => {
+    const v = vision('download');
+    const ask = jest.fn(async () => true);
+    expect(await prepareDataDetection(v, 'fr', ask, meta())).toBe(true);
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(v.downloads).toEqual(['fr']);
+  });
+
+  it('remembers a no and does not ask again for that language', async () => {
+    const v = vision('download');
+    const m = meta();
+    const ask = jest.fn(async () => false);
+    expect(await prepareDataDetection(v, 'zh', ask, m)).toBe(false);
+    expect(await prepareDataDetection(v, 'zh', ask, m)).toBe(false);
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(v.downloads).toEqual([]);
+    // 别的语言照样会问。
+    await prepareDataDetection(v, 'en', ask, m);
+    expect(ask).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back to rules when the download fails', async () => {
+    expect(
+      await prepareDataDetection(vision('download', true), 'en', async () => true, meta()),
+    ).toBe(false);
   });
 });

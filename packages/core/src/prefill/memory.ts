@@ -5,8 +5,9 @@ import { amountTier, labelOf, normalizeLabel } from './pick';
 // 版式记忆（D-244 的扩展，原型，没接界面）：从用户「记下」时最终保存的值学（不是从预填的值学），
 // 记住「这个字段的值跟在哪个标签后面、大约在第几行、什么写法」，金额和日期不记值本身；
 // 商家这类每次都一样的文字字段记值，新文件的文字里出现同样的值才填。
-// 值在文字里找不到出处、或者出现几次分不清是哪个时不学；同一个字段两次一致才算学会；
-// 用户改了记忆填的值就降级。按字段 ID 存，字段删了或者类型变了就丢掉。
+// 值在文字里找不到出处、或者出现几次分不清是哪个时不学；保存一次就算学会（创始人 2026-10-28 定），
+// 用户改了记忆填的值就降级：要再两次一致才用。新文件和记忆有任何对不上、不合理的地方，宁可空着（prefill.ts）。
+// 按字段 ID 存，字段删了或者类型变了就丢掉。
 // 认版式主要看标签文字（几次都出现的那些行），行框的位置只在同一个标签下有几个值时用来挑。
 // 只存在本机（存不存、能不能清空、进不进备份见报告的待决定）。
 
@@ -26,14 +27,17 @@ export interface ValueHabit {
   position: number;
   /** 写法：金额是小数点（dot / comma / none），日期是数字换成 9 以后的样子（9/9/9、9年9月9日）。 */
   format: string;
-  /** 连续几次一致；2 次起才用。 */
+  /** 连续几次一致。 */
   hits: number;
+  /** 要几次一致才用；没有时是 LEARNED_HITS，用户改过以后是 2。 */
+  needs?: number;
 }
 
 export interface ConstantHabit {
   kind: 'constant';
   value: string;
   hits: number;
+  needs?: number;
 }
 
 export type FieldHabit = ValueHabit | ConstantHabit;
@@ -46,15 +50,32 @@ export interface LayoutMemory {
   fields: Record<string, FieldHabit>;
 }
 
-/** 学会了的才用。 */
-export const LEARNED_HITS = 2;
+/** 保存一次就算学会。 */
+export const LEARNED_HITS = 1;
+/** 文字字段（商家）要两次保存一样才用：只见过一次分不清它是不是每次都一样。 */
+export const CONSTANT_HITS = 2;
+/** 用户改过记忆填的值以后，要再这么多次一致才用。 */
+export const RELEARN_HITS = 2;
+/** 学会了没有。 */
+export const isLearned = (habit: FieldHabit) => habit.hits >= (habit.needs ?? LEARNED_HITS);
 const MAX_ANCHORS = 40;
-/** 记忆里的标签行至少要在新文件里出现这么多，才算同一个版式。 */
+/** 记忆里的标签行至少要在新文件里出现这么多，才算可能是同一个版式。 */
 export const MIN_LAYOUT_MATCH = 0.6;
+/** 出现这么多以上才按记忆填；介于两者之间是「像又不完全像」：记忆学过的字段宁可空着。 */
+export const SURE_LAYOUT_MATCH = 0.8;
 /** 至少要有这么多个标签行才认版式（太少的什么都像）。 */
 const MIN_ANCHORS = 3;
 
 const squash = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+
+/**
+ * 一行的标签那一段（第一个数字、负号或冒号之前）：「Invoice date: March 3」「客户：王先生」后面每次不一样。
+ * 没有数字和冒号的整行（店名、「谢谢惠顾」）整行算。
+ */
+export function anchorOf(line: string): string {
+  const cut = line.search(/[\d:：]|-\s*[$€£¥￥]?\d/);
+  return normalizeLabel(cut > 0 ? line.slice(0, cut) : line);
+}
 
 /**
  * 这份文字里的标签行：有字的行统一写法后去重。带着没有标签的金额的行（商品行，每次不同）不算；
@@ -67,7 +88,7 @@ export function layoutAnchors(text: string, candidates: readonly ValueCandidate[
     if (out.size >= MAX_ANCHORS) return;
     const items = candidates.filter((c) => c.line === i && c.kind === 'amount');
     if (items.some((c) => amountTier(labelOf(lines, c, candidates).text, false) === 0)) return;
-    const label = normalizeLabel(line);
+    const label = anchorOf(line);
     if (label.length >= 3 || /[\u4e00-\u9fff]{2}/.test(label)) out.add(label);
   });
   return [...out];
@@ -81,18 +102,22 @@ export function layoutScore(memory: LayoutMemory, text: string): number {
   return found / memory.anchors.length;
 }
 
-/** 最像的那个版式；都不够像时为 null。 */
-export function findLayout(memories: readonly LayoutMemory[], text: string): LayoutMemory | null {
-  let best: LayoutMemory | null = null;
-  let bestScore = MIN_LAYOUT_MATCH;
-  for (const m of memories) {
-    const score = layoutScore(m, text);
-    if (score >= bestScore) {
-      best = m;
-      bestScore = score;
-    }
+/** 最像的那个版式和像的程度；都不够像时为 null。 */
+export function matchLayout(
+  memories: readonly LayoutMemory[],
+  text: string,
+): { memory: LayoutMemory; score: number } | null {
+  let best: { memory: LayoutMemory; score: number } | null = null;
+  for (const memory of memories) {
+    const score = layoutScore(memory, text);
+    if (score >= MIN_LAYOUT_MATCH && (!best || score > best.score)) best = { memory, score };
   }
   return best;
+}
+
+/** 最像的那个版式；都不够像时为 null。 */
+export function findLayout(memories: readonly LayoutMemory[], text: string): LayoutMemory | null {
+  return matchLayout(memories, text)?.memory ?? null;
 }
 
 /** 表结构改了：字段没了或者类型变了的记忆丢掉。 */
@@ -205,15 +230,20 @@ export function learnLayout(
         };
       }
     } else if (field.type === 'text' && typeof saved === 'string' && saved.trim()) {
+      // 文字字段只见过一次时不知道它每次是不是一样（商家一样、单号每次不同）：两次一样才用。
       if (squash(input.text).includes(squash(saved)))
-        seen = { kind: 'constant', value: saved.trim(), hits: 1 };
+        seen = { kind: 'constant', value: saved.trim(), hits: 1, needs: CONSTANT_HITS };
     }
     if (corrected) {
-      // 用户改了记忆填的值：降级，从这次看到的重新开始（看不到出处就先不用）。
-      if (seen) fields[field.id] = seen;
-      else if (before) fields[field.id] = { ...before, hits: 0 };
+      // 用户改了记忆填的值：降级，从这次看到的重新开始，要再两次一致才用（看不到出处就先不用）。
+      if (seen) fields[field.id] = { ...seen, needs: RELEARN_HITS };
+      else if (before) fields[field.id] = { ...before, hits: 0, needs: RELEARN_HITS };
     } else if (seen && before && sameHabit(before, seen)) {
-      fields[field.id] = { ...seen, hits: Math.min(before.hits + 1, 9) };
+      fields[field.id] = {
+        ...seen,
+        hits: Math.min(before.hits + 1, 9),
+        ...(before.needs ? { needs: before.needs } : {}),
+      };
     } else if (seen) {
       fields[field.id] = seen;
     }
@@ -233,7 +263,7 @@ export function readWithLayout(
   candidates: readonly ValueCandidate[],
   boxes?: readonly (LineBox | null)[],
 ): string | null {
-  if (habit.hits < LEARNED_HITS) return null;
+  if (!isLearned(habit)) return null;
   if (habit.kind === 'constant')
     return squash(text).includes(squash(habit.value)) ? habit.value : null;
   const lines = splitLines(text);
