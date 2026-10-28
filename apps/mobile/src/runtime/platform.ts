@@ -189,6 +189,47 @@ export interface TranslatePlatform {
   translate(texts: readonly string[], from: string, to: string): Promise<string[]>;
 }
 
+/** 朗读失败的原因（modules/morph-tts，D-268）：动作实现按它告诉用户怎么办。 */
+export type SpeakErrorCode = 'noVoice' | 'notDownloaded' | 'unavailable' | 'cancelled' | 'failed';
+
+export interface SpeakRequest {
+  /** 声音的地区代码（BCP 47：zh-CN、en-US，core 的 SPEAK_VOICE_LOCALES）。 */
+  voice: string;
+  /** 1 是正常语速，0.5–2。 */
+  rate: number;
+  runId: string;
+  /** 输出的 WAV 放在本次运行的临时目录 runs/<runId>/<relPath>。 */
+  relPath: string;
+  /** 0–1。 */
+  onProgress?: (fraction: number) => void;
+  /** 运行页点了「停止」（每 0.3 秒看一次）。 */
+  isCancelled?: () => boolean;
+}
+
+/**
+ * 系统声音朗读（modules/morph-tts，D-268）：iOS 是 AVSpeechSynthesizer，Android 是系统的 TextToSpeech。
+ * 只把文字读成音频文件，不播放。没有原生模块时（Expo Go）为 null。文字只交给系统，不上传、不发给 AI。
+ * 出错时抛出带 code（SpeakErrorCode）的错误。
+ */
+export interface SpeakPlatform {
+  /**
+   * 这种声音能不能用：installed 能用；notDownloaded 声音数据还没下载（Android，要到系统设置里下载）；
+   * unsupported 没有这种语言的声音；noEngine 没有朗读引擎（Android）。
+   */
+  voiceStatus(voice: string): Promise<'installed' | 'notDownloaded' | 'unsupported' | 'noEngine'>;
+  /** 几段文字按顺序读成一个 16 位 PCM 的 WAV；中间文件由原生模块删掉，失败、取消时不留输出文件。 */
+  synthesize(
+    segments: readonly string[],
+    request: SpeakRequest,
+  ): Promise<{
+    uri: string;
+    size: number;
+    durationMs: number;
+    sampleRate: number;
+    channels: number;
+  }>;
+}
+
 /** 存到文件夹的一个文件：本机地址、文件名（不含扩展名）和扩展名。 */
 export interface FolderItem {
   uri: string;
@@ -456,6 +497,8 @@ export interface FilePlatform {
   readonly media: MediaPlatform | null;
   /** 本机语音转文字（D-150、D-151，modules/morph-speech）；没有时（Expo Go）为 null。 */
   readonly speech: SpeechPlatform | null;
+  /** 系统声音把文字读成音频文件（D-268，modules/morph-tts）；没有时（Expo Go）为 null。 */
+  readonly speaker: SpeakPlatform | null;
   /** 长任务切到后台也继续（D-160）；没有原生模块时（Expo Go）为 null。 */
   readonly background: BackgroundPlatform | null;
 

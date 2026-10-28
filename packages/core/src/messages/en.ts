@@ -653,6 +653,15 @@ export const en = {
   speechDownloadFailed: 'the speech model for {lang}',
   speechNote:
     'Recognized on this device — words may be wrong, especially with noise or accents. Check it.',
+  // ---- 文字转语音（D-268）：错误说明拼进「不支持这个步骤：…」----
+  speakNoVoice:
+    'reading {lang} aloud (this phone has no voice for it; add one in the phone’s settings — iPhone: Accessibility → Spoken Content → Voices; Android: Text-to-speech output)',
+  speakNotDownloaded:
+    'reading {lang} aloud (its voice isn’t downloaded yet; download it in the phone’s settings under Text-to-speech output, then try again)',
+  speakNoEngine:
+    'reading aloud (this phone has no text-to-speech engine; install or turn one on, such as Speech Services by Google)',
+  speakLanguageUnknown:
+    'reading aloud (the language of the text wasn’t recognized; choose it in this step)',
   audioMerged: '{name} and {n} more',
   trimWaveformLoading: 'Reading the waveform…',
   trimRingtone:

@@ -394,6 +394,7 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
 | `audio.trim`       | audio → audio         | 无（本地操作 `trimMedia`，带波形）                                | 重新编码成 M4A，带 `range`                                                        |
 | `audio.merge`      | audio → audio（1 个） | 无                                                                | morph-media `concat`                                                              |
 | `audio.fromVideo`  | video → audio         | `format`                                                          | 没有声音的视频报 `noAudio`                                                        |
+| `audio.fromText`   | text → audio          | `lang`（auto / 20 种）、`rate`（0.5–2）、`format: m4a / wav`      | morph-tts 系统声音读成 WAV，M4A 再交给 morph-media 转（§15，D-268）               |
 
 - morph-media 补的部分：iOS `writeAudio`（`AVAssetReaderAudioMixOutput` → AAC `.m4a` / LPCM `.wav`）、`concat`（每段一路合成轨，首尾相接）、`waveform`（8 kHz 单声道峰值）；Android M4A 用 Media3（去掉画面、`ChannelMixingAudioProcessor` + `SonicAudioProcessor` 统一格式；封装用系统的 MediaMuxer，默认的 InAppMp4Muxer 会在文件头预留约 400 KB），WAV 和波形用 `AudioPcm.kt` 自己解码。
 - App：`runtime/actions/audio.ts`、`MediaPlatform.encodeAudio / concatAudio / waveform`、`FilePlatform.speech`、`packNotNeeded`（iPhone 不用下载内容）。
@@ -430,3 +431,18 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
 | `text.lines`   | `mode`：split / join；`separator`                   | 按逗号（含中文逗号、顿号）、分号、空格、制表符拆行，或接成一行 |
 
 **证件照换底色 + 自动框脸**（D-252）：`image.idPhoto` 的 `background`（keep / white / blue / red / gray / custom + `color`）和 `autoCenter`。换底色在裁剪前对整张照片做：iOS 人像分割（`replacePersonBackground`），Android 主体分割（同去背景，第一次要确认下载模型）。自动框脸：系统人脸检测（`detectFaces`；iOS Vision、Android ML Kit）→ `@morph/tool-image` 的 `faceCrop`（头占照片高度按规格的 `HEAD_RATIO`）→ 作为裁剪界面的初始框，用户仍然确认。
+
+## 15. 文字转语音（D-268）
+
+`audio.fromText`：文字 → 一个音频文件。只出文件（后面接 `audio.convert`、`audio.compress`、`out.share`、`out.saveToFolder` 都行），不做阅读器、播放、高亮，也没有 AI 声音（D-113）。
+
+- 参数：`lang`（`auto` 或和翻译相同的 20 种语言，`core/speak.ts` 的 `SPEAK_LANGUAGES`，声音用 `SPEAK_VOICE_LOCALES` 里的地区：zh-Hans → zh-CN、en → en-US…）、`rate`（0.5–2，1 是系统的正常语速）、`format`（`m4a` / `wav`；要 MP3 接「音频转格式」）。
+- 分段（`splitForSpeech`，纯函数）：先用翻译的 `splitForTranslation` 把 PDF、文字识别断开的行接回去（系统读到换行会停顿），再按句子、逗号切，每段不超过 1000 字（Android 一次最多 4000 字），短段落合成一段；只有符号的行不读。一次最多 30 000 字（`MAX_SPEAK_CHARS`，中文约 2 小时）。
+- 自动识别（`chooseSpeakLanguage`）：前 8 段交给系统的语言识别（`TranslatePlatform.detectLanguages`：iOS NaturalLanguage、Android ML Kit），按字数取最多的；认不出时按书写系统猜（假名 → 日文、谚文 → 韩文、汉字 → 简体中文、西里尔 → 俄文…），拉丁字母按界面语言（法语界面读法文，其余读英文）。一次只用一种声音。
+- 原生模块 `modules/morph-tts`（`voiceStatus`、`synthesize(segments, {taskId, voice, rate, output})`、`cancel`、`onProgress`）：
+  - iOS：`AVSpeechSynthesizer.write(_:toBufferCallback:)`，每段一个 `AVSpeechUtterance`，交回的 PCM 依次写进同一个 16 位 WAV（`AVAudioFile`）；空的缓冲区或 `didFinish` 表示这一段读完（只认正在等的那一段）。声音取这种语言质量最好的（增强 / 高级声音优先），不用趣味声音和个人声音；中文不退到 zh-HK（粤语）。语速换算：1 → `AVSpeechUtteranceDefaultSpeechRate`，两边线性。30 秒没有新的声音算卡住、报错。
+  - Android：系统 `TextToSpeech`（多数是 Google「语音服务」；清单里声明 `TTS_SERVICE` 的 `<queries>`，Android 11 起不声明连不上引擎），每段 `synthesizeToFile` 一个 WAV（放在输出文件旁边、以 `.tts-` 开头），全部读完后 `Wav.join` 接成一个（只认 PCM，各段格式不同时报错），中间文件在 `finally` 里删。声音数据缺了（`LANG_MISSING_DATA`）不偷偷下载，报 `notDownloaded`。
+  - 错误码：`ERR_TTS_NO_VOICE`、`ERR_TTS_NOT_DOWNLOADED`、`ERR_TTS_UNAVAILABLE`（没有朗读引擎）、`ERR_TTS_CANCELLED`、`ERR_TTS_FAILED`。失败、取消都删掉输出文件；取消由 App 每 0.3 秒看一次运行页的「停止」（和语音转文字一样），原生停掉系统朗读、结束正在等的那一段，Promise 一定结束。
+- App（`runtime/actions/audio.ts`、`runtime/expo-tts.ts`、`FilePlatform.speaker`）：先检查声音（没有声音、没下载、没有引擎时说明去系统设置哪里添加：iPhone「辅助功能 → 朗读内容 → 声音」，Android「文字转语音输出」），再按 `estimateSpeechBytes` 检查剩余空间，读成 WAV（进度 0–90%），M4A 时用 `planAudioConvert` 交给 morph-media 转（单声道，按 64 kbps 的人声算码率）。文件名跟着文字的来源（PDF 的名字）。
+- 预设：「PDF 转成音频」（选 PDF → 提取文字 → 朗读 → 分享）、「拍纸张读成音频」（扫描 → 找边 → 识别文字 → 朗读 → 分享），在「学习工作」；音频工具页加「文字转语音」（输入文字，每次问语言和语速）。
+- 测试：`core/speak.test.ts`（参数、分段、选语言、预设接得上、步骤说法）、`tts-test.ts`（Expo 模块的包装：输出地址、进度、取消、错误码）、`speak-actions-test.ts`（执行器：选声音、语速、格式、错误说明、取消、空间、预设）、`modules/morph-tts/android/src/test/…/WavTest.kt`（WAV 的读和接）。

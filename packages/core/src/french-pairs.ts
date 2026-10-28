@@ -115,6 +115,7 @@ export const FRENCH_PAIRS: Readonly<Record<string, string>> = {
   'Trim audio': 'Couper l’audio',
   'Join recordings': 'Fusionner des enregistrements',
   'Sound from a video': 'Son d’une vidéo',
+  'Text to speech': 'Synthèse vocale',
   'Export SRT captions': 'Exporter les sous-titres SRT',
   'Change video speed': 'Modifier la vitesse de la vidéo',
   'Crop video to a shape': 'Recadrer la vidéo selon un format',

@@ -691,6 +691,15 @@ export const fr: MessageTable = {
   speechDownloadFailed: 'le modèle vocal pour {lang}',
   speechNote:
     'Reconnaissance effectuée sur cet appareil : des mots peuvent être erronés, surtout en cas de bruit ou d’accent. Vérifiez le texte.',
+  // ---- 文字转语音（D-268）：错误说明拼进「不支持这个步骤：…」----
+  speakNoVoice:
+    'lecture à voix haute ({lang}) : ce téléphone n’a pas de voix pour cette langue ; ajoutez-en une dans les réglages du téléphone (iPhone : Accessibilité → Contenu énoncé → Voix ; Android : Synthèse vocale)',
+  speakNotDownloaded:
+    'lecture à voix haute ({lang}) : la voix n’est pas encore téléchargée ; téléchargez-la dans les réglages du téléphone, sous Synthèse vocale, puis réessayez',
+  speakNoEngine:
+    'lecture à voix haute : ce téléphone n’a pas de moteur de synthèse vocale ; installez-en ou activez-en un, par exemple Services de reconnaissance et de synthèse vocales de Google',
+  speakLanguageUnknown:
+    'lecture à voix haute : la langue du texte n’a pas été reconnue ; choisissez-la dans cette étape',
   audioMerged: '{name} et {n} autres',
   trimWaveformLoading: 'Lecture de la forme d’onde…',
   trimRingtone:

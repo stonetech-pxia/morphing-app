@@ -21,6 +21,9 @@ import type {
   MediaPlatform,
   PdfPasswordPlatform,
   PickedFile,
+  SpeakErrorCode,
+  SpeakPlatform,
+  SpeakRequest,
   TranslatePlatform,
   VideoEncode,
   VisionPlatform,
@@ -108,6 +111,8 @@ export class FakeFiles implements FilePlatform {
   media: MediaPlatform | null = new FakeMedia(this);
   /** 语音转文字：默认没有（像 Expo Go），测试里换成 FakeSpeech。 */
   speech: SpeechPlatform | null = null;
+  /** 系统朗读（D-268）：默认没有（像 Expo Go），测试里换成 FakeSpeaker。 */
+  speaker: SpeakPlatform | null = null;
   /** 后台继续（D-160）：默认没有（像 Expo Go），测试里换成 FakeBackground。 */
   background: BackgroundPlatform | null = null;
   /** 下一次从相册选视频的结果。 */
@@ -957,6 +962,49 @@ export class FakeSpeech implements SpeechPlatform {
           }
         : {}),
     };
+  }
+}
+
+/**
+ * 假的系统朗读（modules/morph-tts）：每个字读 0.1 秒（除以语速），写一个同样大小的 24 kHz 单声道 WAV
+ * 进本次运行的临时目录，并登记成能 probe 的音频（后面可以接 FakeMedia 的转格式）。
+ */
+export class FakeSpeaker implements SpeakPlatform {
+  /** 各声音的状态；没写的是 installed。 */
+  statuses: Record<string, 'installed' | 'notDownloaded' | 'unsupported' | 'noEngine'> = {};
+  calls: { segments: readonly string[]; voice: string; rate: number; relPath: string }[] = [];
+  /** 朗读时抛出的错误码。 */
+  failWith: SpeakErrorCode | null = null;
+  constructor(private files: FakeFiles) {}
+  async voiceStatus(voice: string) {
+    return this.statuses[voice] ?? 'installed';
+  }
+  async synthesize(segments: readonly string[], request: SpeakRequest) {
+    const { voice, rate, relPath } = request;
+    this.calls.push({ segments, voice, rate, relPath });
+    // 像原生模块：每段之前看一次「停止」。
+    for (let i = 0; i < segments.length; i++) {
+      if (request.isCancelled?.())
+        throw Object.assign(new Error('cancelled'), { code: 'cancelled' });
+      request.onProgress?.((i + 1) / segments.length);
+    }
+    if (this.failWith) throw Object.assign(new Error(this.failWith), { code: this.failWith });
+    const sampleRate = 24000;
+    const chars = segments.reduce((n, s) => n + s.length, 0);
+    const durationMs = Math.round((chars * 100) / rate);
+    const bytes = 44 + Math.round((sampleRate * 2 * durationMs) / 1000);
+    const out = await this.files.writeRunFile(request.runId, relPath, new Uint8Array(bytes));
+    this.files.videos.set(out.uri, {
+      kind: 'audio',
+      durationMs,
+      size: out.size,
+      hasVideo: false,
+      hasAudio: true,
+      audioCodec: 'lpcm',
+      channels: 1,
+      sampleRate,
+    });
+    return { uri: out.uri, size: out.size, durationMs, sampleRate, channels: 1 };
   }
 }
 

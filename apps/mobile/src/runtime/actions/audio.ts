@@ -1,8 +1,14 @@
 import {
   localize,
+  MAX_SPEAK_CHARS,
   RunCancelled,
   RunError,
+  SPEAK_VOICE_LOCALES,
   SPEECH_LANGUAGE_NAMES,
+  chooseSpeakLanguage,
+  estimateSpeechBytes,
+  splitForSpeech,
+  translateLanguageName,
   audioSourceKbps,
   planAudioConvert,
   planAudioQuality,
@@ -17,6 +23,7 @@ import {
   type AudioSource,
   type RunItem,
   type RunValue,
+  type SpeakLanguage,
   type SpeechLanguage,
   type SpeechModel,
 } from '@morph/core';
@@ -28,13 +35,19 @@ import { MB, displayName, fileItems, freshName, writeItem, type RunServices } fr
 import { checkSpace, mediaError } from './video';
 
 // 音频工具的动作实现（D-150–D-155）：码率、声道在 core/audio.ts 里算，编码交给原生模块 morph-media，
-// 语音转文字交给 morph-speech（iOS 系统识别，Android whisper.cpp）。识别出的文字只留在本机（D-036）。
+// 语音转文字交给 morph-speech（iOS 系统识别，Android whisper.cpp），文字转语音交给 morph-tts（系统声音，D-268）。
+// 识别出的文字、要朗读的文字只留在本机（D-036）。
 
 type Impl = ActionImpl<RunServices>;
 type Ctx = Parameters<Impl>[2];
 
 /** 压完还超过目标时最多再压几次。 */
 const MAX_RETRIES = 2;
+/** 自动识别语言时看前几段（够判断，又不用把整本书交给系统识别）。 */
+const DETECT_SEGMENTS = 8;
+/** 转成 M4A 时，朗读占进度的多少（转格式很快）。 */
+const SPEAK_SHARE = 0.9;
+
 /** 剪一段界面的波形有多少根。 */
 const WAVEFORM_BUCKETS = 120;
 
@@ -517,6 +530,113 @@ export const AUDIO_IMPLS: Record<string, Impl> = {
     }
     ctx.progress(100, 100, 'percent');
     return { type: 'audio', items: [audioItem(first, result, name)] };
+  },
+
+  // 文字转语音（D-268）：系统声音先读成 WAV，要 M4A 时再交给 morph-media 转（和「音频转格式」同样的码率规则）。
+  async 'audio.fromText'(input, params, ctx) {
+    if (input?.type !== 'text') throw new RunError('emptyText');
+    const text = input.text.trim();
+    if (!text) throw new RunError('emptyText');
+    if (text.length > MAX_SPEAK_CHARS) throw new RunError('textTooLong', { max: MAX_SPEAK_CHARS });
+    const segments = splitForSpeech(text);
+    if (segments.length === 0) throw new RunError('emptyText');
+    const { locale } = ctx;
+    const speaker = ctx.services.files.speaker;
+    if (!speaker) throw new RunError('needsFullApp');
+    const unsupported = (key: Parameters<typeof t>[1], lang?: SpeakLanguage) =>
+      new RunError('unsupportedAction', {
+        action: t(locale, key, lang ? { lang: translateLanguageName(lang, locale) } : {}),
+      });
+
+    let lang = params.lang as SpeakLanguage | 'auto';
+    if (lang === 'auto') {
+      // 先问系统（和翻译同一个语言识别），认不出时按文字的书写系统猜。一次只用一种声音。
+      const sample = segments.slice(0, DETECT_SEGMENTS);
+      const detected = await ctx.services.files.translator
+        ?.detectLanguages(sample)
+        .catch(() => null);
+      const chosen = chooseSpeakLanguage(sample, detected ?? null, locale);
+      if (!chosen) throw unsupported('speakLanguageUnknown');
+      lang = chosen;
+    }
+    const voice = SPEAK_VOICE_LOCALES[lang];
+    const status = await speaker.voiceStatus(voice);
+    if (status === 'noEngine') throw unsupported('speakNoEngine');
+    if (status === 'unsupported') throw unsupported('speakNoVoice', lang);
+    if (status === 'notDownloaded') throw unsupported('speakNotDownloaded', lang);
+
+    const rate = Number(params.rate);
+    const format = params.format === 'wav' ? 'wav' : 'm4a';
+    // WAV 中间文件要放得下；转 M4A 时再加上 M4A（小得多）。
+    const wavBytes = estimateSpeechBytes(text, rate);
+    checkSpace(ctx, format === 'm4a' ? wavBytes * 1.1 : wavBytes);
+    const share = format === 'm4a' ? SPEAK_SHARE : 1;
+    let shown = 0;
+    const progress = (f: number) => {
+      shown = Math.max(shown, Math.min(1, f));
+      ctx.progress(Math.round(shown * 100), 100, 'percent');
+    };
+    const { isCancelled } = jobFor(ctx, 0, 1);
+    progress(0);
+
+    let wav;
+    try {
+      wav = await speaker.synthesize(segments, {
+        voice,
+        rate,
+        runId: ctx.services.runId,
+        relPath: freshName(input.name, 'wav'),
+        onProgress: (f) => progress(f * share),
+        isCancelled,
+      });
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      if (code === 'cancelled') throw new RunCancelled();
+      if (code === 'noVoice') throw unsupported('speakNoVoice', lang);
+      if (code === 'notDownloaded') throw unsupported('speakNotDownloaded', lang);
+      if (code === 'unavailable') throw unsupported('speakNoEngine');
+      throw new RunError('unexpected', { detail: String((e as Error).message ?? e) });
+    }
+    ctx.throwIfCancelled();
+    const spoken: RunItem = {
+      uri: wav.uri,
+      name: input.name,
+      ext: 'wav',
+      mimeType: audioMime('wav'),
+      size: wav.size,
+      durationMs: wav.durationMs,
+    };
+    if (format === 'wav') {
+      progress(1);
+      return { type: 'audio', items: [spoken] };
+    }
+
+    // M4A：朗读是单声道的人声，码率按「音频转格式」的规则（跟着 WAV 走会到上限，这里按语音给）。
+    const media = mediaOf(ctx);
+    const plan = planAudioConvert(
+      {
+        durationMs: wav.durationMs,
+        size: 0,
+        channels: wav.channels,
+        sampleRate: wav.sampleRate,
+        kbps: 64,
+      },
+      'm4a',
+    );
+    let result: MediaOutput;
+    try {
+      result = await media.encodeAudio(
+        wav.uri,
+        encodeOf(plan),
+        ctx.services.runId,
+        freshName(input.name, 'm4a'),
+        { progress: (f) => progress(share + f * (1 - share)), isCancelled },
+      );
+    } catch (e) {
+      throw mediaError(e, spoken);
+    }
+    progress(1);
+    return { type: 'audio', items: [audioItem(spoken, result)] };
   },
 
   async 'audio.transcribe'(input, params, ctx) {

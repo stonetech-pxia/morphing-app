@@ -14,7 +14,7 @@ A phone app you install once and then keep changing by describing what you want:
   - **PDF**: merge, split, compress, add page numbers, add or remove a password (iOS), fill and sign forms, convert Word / Excel / PowerPoint to PDF (Word only on Android). Scanned PDFs get searchable text.
   - **Images**: ID photos and print sheets, remove background, adjust, annotate, blur, watermark, stitch into a long image.
   - **Video**: compress to a target size ("too big to send"), trim, join, grab a frame, remove sound, replace music, rotate, crop to a ratio, speed up or slow down, export SRT subtitles, convert to GIF.
-  - **Audio**: record, speech to text, compress, convert formats (MP3 included), trim, join, extract audio from video, reduce background noise, adjust volume.
+  - **Audio**: record, speech to text, text to speech (system voices, saved as a file), compress, convert formats (MP3 included), trim, join, extract audio from video, reduce background noise, adjust volume.
   - **Scanning, text recognition (OCR), QR codes, translation, ZIP, text and reports.**
 - **Share sheet and inbox.** Share photos, videos or PDFs to Morph (or open them from the home screen buttons). The inbox shows the files and suggests up to five quick actions that fit them, for example "Combine documents" for several PDFs or "Video too big to send" for one video. One tap runs it. Results can be shared, saved to a folder, processed further, or combined into a new quick action.
 - **Change the app by describing it.** "Add Open photo library and Open files buttons", "make the font bigger and remove shadows", "add a page for tracking expenses", "remove the AI entry". Look changes go into a draft first; you can keep refining, step back, apply or leave. Changes to features (quick actions, tools, data tables) are saved right away with an undo bar. Every version is in the change history.
@@ -167,6 +167,7 @@ apps/mobile/modules/         Native modules (Swift + Kotlin):
   morph-vision                 OCR and document scanning (Vision on iOS, ML Kit on Android)
   morph-media                  Video and audio (AVFoundation / Media3), LAME MP3, loudness and noise reduction
   morph-speech                 Speech to text (system on iOS, whisper.cpp on Android)
+  morph-tts                    Text to speech files with the system voices
   morph-translate              Translation (Translation framework on iOS 18+, ML Kit on Android)
   morph-docs                   Office to PDF and PDF passwords (iOS)
   morph-share                  Multi-file sharing and saving to folders

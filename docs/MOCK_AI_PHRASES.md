@@ -149,6 +149,19 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 
 评测：AU1–AU7 内置规则通过；PAU1–PAU6、SH4 只要求真实模型（上课录音变文字笔记、语音备忘超过 10 MB、几段采访拼成一个、视频的背景音乐、总结录音 → 拒绝 errand、剪 30 秒做铃声、分享进来的录音「转成文字」）。
 
+## 文字转语音（D-268）
+
+步骤句式：「转成语音 / 变成语音 / 做成有声书 / 朗读 / 读出来 / 文字转语音」「read it aloud / text to speech / turn it into speech / convert to speech」→ `audio.fromText`（`lang: auto`、`rate: 1`、`format: m4a`），后面的「转成 MP3」是 `audio.convert`。
+
+| ID   | 句式                                                                                   | 结果                                                                  |
+| ---- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| TTS1 | 新建一个快捷操作：选 PDF，提取文字，转成语音，分享                                     | `in.files`（pdf）→ `pdf.extractText` → `audio.fromText` → `out.share` |
+| TTS2 | Create a quick action: scan documents, recognize text, read it aloud, save to a folder | `in.photos`（scanner）→ `ocr.recognize` → `audio.fromText`            |
+| TTS3 | 添加 PDF 转成音频快捷操作 / Add the read paper pages aloud quick action                | 从预设添加（`pdf-to-audio`、`paper-to-audio`）                        |
+| TTS5 | 新建一个快捷操作：输入文字，朗读，转成 MP3，分享                                       | `in.text` → `audio.fromText` → `audio.convert`（mp3）                 |
+
+评测：TTS1、TTS2-en、TTS3、TTS4-en、TTS5 内置规则通过；PTTS1（「做一个把 PDF 变成音频的快捷操作」，目标句，D-265 起内置规则不认）、PTTS2-en（课上发的讲义想在路上听）、PTTS3（日文 PDF、慢一点读）、PTTS4（「把这句话读给我听：…」→ 拒绝 errand）、PTTS5（从收件页面打开，分享了 1 个 PDF：「转成音频」）只要求真实模型。
+
 ## 格式转换（D-183–D-186）
 
 步骤句式：「转成 / 存成 MP3」「convert to MP3」→ `audio.convert`（`format: mp3`），跟在视频后面时是 `audio.fromVideo`（`format: mp3`）；「转成 GIF / 做成动图」「make an animated GIF」→ `image.toGif`，跟在视频后面时是 `video.toGif`；「从文件选视频 / 照片」「choose videos from Files」→ `in.videos` / `in.photos`（`source: files`）；「选 Word 文档 / 选文档 / 选 Excel 表格 / 选 Word 或 PPT」「choose Word documents」→ `in.files`（`accept: documents`），之后的「转成 PDF」是 `pdf.fromDocument`。

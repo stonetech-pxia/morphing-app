@@ -31,10 +31,12 @@ import { expoMedia } from './expo-media';
 import { expoVision } from './expo-vision';
 import MorphShare from '../../modules/morph-share';
 import MorphSpeech from '../../modules/morph-speech';
+import MorphTTS from '../../modules/morph-tts';
 import MorphVision from '../../modules/morph-vision';
 import type { FilePlatform, ImageFormat, PickedFile } from './platform';
 import { composeOnSurface, enhanceJpeg, pixelsOf, renderTextPng } from './skia';
 import { createSpeech } from './speech';
+import { createSpeaker } from './expo-tts';
 import { expoPackFs, expoSha256 } from '../packs/expo-pack-fs';
 import { PackStore } from '../packs/store';
 
@@ -189,6 +191,7 @@ export const expoFilePlatform: FilePlatform = {
     isInstalled: (id) => speechPacks.isInstalled(id),
     uri: (id, file) => expoPackFs.uri(speechPacks.path(id, file)),
   }),
+  speaker: createSpeaker(MorphTTS, (runId, relPath) => runFile(runId, relPath).uri),
 
   async pickImage(maxSide = MAX_IMAGE_SIDE) {
     const result = await launchImageLibraryAsync({
