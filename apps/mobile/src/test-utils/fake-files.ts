@@ -3,7 +3,6 @@ import { zlibSync } from 'fflate';
 import { PDFDocument } from 'pdf-lib';
 
 import { rotatedSize, type Quad } from '@morph/tool-image';
-import type { TextLayer } from '@morph/tool-pdf';
 
 import type {
   AudioEncode,
@@ -12,6 +11,8 @@ import type {
   DocumentPlatform,
   DrawOp,
   FilePlatform,
+  Pixels,
+  RecognizedLayer,
   FolderItem,
   ImageFormat,
   ImageOps,
@@ -282,6 +283,9 @@ export class FakeFiles implements FilePlatform {
     const dest = `runs/${runId}/${fileName}`;
     this.disk.set(dest, bytes);
     return { uri: dest, size: bytes.length };
+  }
+  async removeRunFile(uri: string) {
+    if (uri.startsWith('runs/')) this.disk.delete(uri);
   }
   async readUri(uri: string) {
     const bytes = this.disk.get(uri);
@@ -1163,12 +1167,27 @@ export class FakeVision implements VisionPlatform {
     return this.texts.shift() ?? '';
   }
   /** 每次按行识别的结果（按顺序）；没有时是一张 100×100、没有字的图。 */
-  layers: (TextLayer | Error)[] = [];
-  async recognizeLines(uri: string, languages: readonly string[]) {
+  layers: (RecognizedLayer | Error)[] = [];
+  /** 每次按行识别时有没有带上已经解码的像素（转 Excel 共用找线的像素，D-272）。 */
+  linePixels: (Pixels | undefined)[] = [];
+  async recognizeLines(uri: string, languages: readonly string[], pixels?: Pixels) {
     this.calls.push({ method: 'recognizeLines', uri, args: languages });
+    this.linePixels.push(pixels);
     const next = this.layers.shift() ?? { width: 100, height: 100, lines: [] };
     if (next instanceof Error) throw next;
     return next;
+  }
+  /** 转 Excel 找线用的像素（按顺序）；没有时是一张 100×100 的白图。 */
+  tableImages: Pixels[] = [];
+  async tablePixels(uri: string): Promise<Pixels> {
+    this.calls.push({ method: 'tablePixels', uri });
+    return (
+      this.tableImages.shift() ?? {
+        width: 100,
+        height: 100,
+        data: new Uint8Array(100 * 100 * 4).fill(255),
+      }
+    );
   }
   async findPaper(uri: string) {
     this.calls.push({ method: 'findPaper', uri });

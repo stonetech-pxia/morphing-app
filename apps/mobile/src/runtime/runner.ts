@@ -182,12 +182,17 @@ export function devicePack(
       : undefined;
   }
   const model = files.vision?.ocrModel;
-  if (actionId === 'ocr.recognize') {
+  // 转 Excel（D-272）要每行的位置，只用本机的识别（PP-OCRv6 或系统的），不用文字识别包。
+  if (actionId === 'ocr.recognize' || actionId === 'ocr.toExcel') {
     const lang = resolveOcrLanguage(params.lang, locale);
     const code = VISION_LANGUAGES[lang]?.[0];
     if (model && code && model.languages.includes(code.split('-')[0]!)) return { pack: model.pack };
     // 自动（D-278）选到系统也认不了的语言（Android 的俄文、越南文）：要那种语言的识别包。
-    if (params.lang === 'auto' && !(code && files.vision?.supportsLanguage(code))) {
+    if (
+      actionId === 'ocr.recognize' &&
+      params.lang === 'auto' &&
+      !(code && files.vision?.supportsLanguage(code))
+    ) {
       return { pack: ocrPackId(lang) };
     }
     return undefined;
