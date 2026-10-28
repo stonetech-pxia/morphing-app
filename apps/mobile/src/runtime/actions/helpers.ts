@@ -137,6 +137,17 @@ export async function readItem(services: RunServices, item: RunItem): Promise<Ui
   }
 }
 
+/** 识别文字用的图（D-267）：scan.enhance 记下的增强前的图，只在这张图还是增强出来的那张时有效。 */
+export function ocrSourceOf(item: RunItem): NonNullable<RunItem['ocrSource']> | null {
+  return item.ocrSource && item.ocrSource.for === item.uri ? item.ocrSource : null;
+}
+
+/** 增强前的那张图当作一个运行项（大小未知，用到时再读）。 */
+export function ocrSourceItem(item: RunItem, source: NonNullable<RunItem['ocrSource']>): RunItem {
+  const { width: _w, height: _h, ocrSource: _o, ...rest } = item;
+  return { ...rest, uri: source.uri };
+}
+
 /** 本次运行的临时文件 → 文件名（报错时显示）。 */
 export const displayName = (item: RunItem) => `${item.name}.${item.ext}`;
 

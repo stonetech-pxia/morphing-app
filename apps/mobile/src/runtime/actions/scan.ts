@@ -141,6 +141,14 @@ export const SCAN_IMPLS: Record<string, Impl> = {
         width: encoded.width,
         height: encoded.height,
         ...(takenAt !== undefined ? { takenAt } : {}),
+        // 识别文字用增强前的图（D-267）。
+        ocrSource: {
+          uri: item.uri,
+          for: encoded.uri,
+          width: encoded.base.width,
+          height: encoded.base.height,
+          skew: encoded.skew,
+        },
       });
       ctx.progress(i + 1, items.length);
     }

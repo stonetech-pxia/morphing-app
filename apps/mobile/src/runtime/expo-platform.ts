@@ -510,7 +510,14 @@ export const expoFilePlatform: FilePlatform = {
     const dest = runFile(runId, relPath);
     dest.create();
     await dest.write(out.bytes);
-    return { uri: dest.uri, width: out.width, height: out.height, size: out.bytes.length };
+    return {
+      uri: dest.uri,
+      width: out.width,
+      height: out.height,
+      size: out.bytes.length,
+      skew: out.skew,
+      base: out.base,
+    };
   },
 
   async composeImage(canvas, ops, save, runId, relPath) {

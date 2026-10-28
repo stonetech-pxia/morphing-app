@@ -249,7 +249,7 @@ Each action: id (input → output; start = an input action, same = the type it g
   - audio.fromVideo (video → audio) {format: "m4a"|"wav"|"mp3"}: Get the sound from videos. Save only the sound of each video as an audio file (M4A, MP3, or uncompressed WAV). Use: "Keep the sound / music of a video" (also "video to MP3") → in.videos then this (format "mp3" when they say MP3).
 - scan (“Scanner”): Turn photos of paper into straight, clean pages and PDFs on this device.
   - scan.detect (images → images) {}: Find edges and straighten. Finds the edges of the paper in each photo; the user checks or drags the four corners; then the page is straightened. Pages from the document camera are already straight and pass through. [local: corners; pack: scan]
-  - scan.enhance (images → images) {mode: "auto"|"gray"|"bw"|"none"}: Enhance. Makes scanned pages easier to read: brighter (auto), grayscale, or black and white.
+  - scan.enhance (images → images) {mode: "auto"|"gray"|"bw"|"none"}: Enhance. Makes scanned pages easier to read: removes shadows, turns the paper white and straightens slightly tilted text. Auto keeps color only when the page has colored ink; grayscale and black and white are also available.
 - ocr (“Text recognition”): Get printed text out of photos and scans on this device, in 12 languages.
   - ocr.recognize (images → text) {lang: "eng"|"chi_sim"|"chi_tra"|"jpn"|"kor"|"fra"|"deu"|"spa"|"por"|"ita"|"rus"|"vie"}: Recognize text. Reads printed text in the images (one language per run). Handwriting and receipt amounts may be wrong. The text stays on this device. [pack: ocr]
 - translate (“Translate”): Translate text, photos and PDFs on this device, in 20 languages. Plain text only, for understanding the meaning.

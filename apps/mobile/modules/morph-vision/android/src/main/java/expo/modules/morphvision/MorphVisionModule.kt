@@ -16,10 +16,7 @@ import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
-import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
-import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.functions.Queues
@@ -32,7 +29,8 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-// 文字识别和扫描的 Android 实现（D-087）：Google ML Kit，全部在本机处理。
+// 文字识别和扫描的 Android 实现（D-087）：全部在本机处理。
+// 文字识别主要用 PP-OCRv6（D-269，OcrRunner 跑模型，前后处理在 JS）；ML Kit 只留韩文识别器（PP-OCRv6 不认韩文）。
 // 和 iOS 的 JS 接口相同；ML Kit 没有「给一张照片找四个角」的接口，所以 canFindPaper 是 false，
 // 相册照片的找边退回扫描包。识别出的文字只返回给 App，不写日志。
 
@@ -46,8 +44,6 @@ class DocumentCameraUnavailableException :
 
 private const val SCAN_REQUEST = 0x4d56
 
-/** ML Kit 文字识别 v2 的拉丁字母语言（Morph 用得到的）；俄文等西里尔字母不支持。 */
-private val LATIN = setOf("en", "fr", "de", "es", "pt", "it", "vi")
 
 private class PendingScan(
   val promise: Promise,
@@ -93,8 +89,20 @@ class MorphVisionModule : Module() {
 
     Function("supportsLanguage") { code: String -> recognizerFor(code) != null }
 
+    // PP-OCRv6 的两个模型（D-269）：路径是扩展包里的文件；输入、输出都是本次运行的临时文件。
+    AsyncFunction("ocrLoad") { det: String, rec: String ->
+      OcrRunner.load(fileOf(det).path, fileOf(rec).path)
+    }
+    AsyncFunction("ocrDetect") { input: String, width: Int, height: Int, output: String ->
+      OcrRunner.detect(fileOf(input), width, height, fileOf(output))
+    }
+    AsyncFunction("ocrRecognize") { input: String, count: Int, width: Int, output: String ->
+      OcrRunner.recognize(fileOf(input), count, width, fileOf(output))
+    }
+    AsyncFunction("ocrUnload") { OcrRunner.unload() }
+
     AsyncFunction("supportedLanguages") {
-      LATIN.toList() + listOf("zh-Hans", "zh-Hant", "ja", "ko")
+      listOf("ko")
     }
 
     // languages 是 BCP 47，第一种是用户选的语言，决定用哪个识别器（中日韩识别器也认拉丁字母）。
@@ -177,10 +185,8 @@ class MorphVisionModule : Module() {
   private fun recognizerFor(code: String): TextRecognizer? {
     val lang = code.substringBefore('-')
     return when {
-      lang == "zh" -> TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
-      lang == "ja" -> TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
+      // 其他语言由 JS 用 PP-OCRv6 识别（D-269），不走 ML Kit。
       lang == "ko" -> TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
-      lang in LATIN -> TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
       else -> null
     }
   }
@@ -259,3 +265,6 @@ private fun layout(lines: List<TextLine>): String {
   }
   return out.joinToString("\n")
 }
+
+/** file:// 地址或路径 → 文件。 */
+private fun fileOf(uri: String): File = File(Uri.parse(uri).path ?: uri)

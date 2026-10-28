@@ -25,7 +25,7 @@ export interface PickedFile {
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp';
 
-/** 扫描件增强（Skia 颜色矩阵）：提亮、灰度、黑白。 */
+/** 扫描件增强（D-266，Skia）：自动（去阴影，按页面选彩色或灰度）、灰度、黑白。 */
 export type EnhanceMode = 'auto' | 'gray' | 'bw';
 
 /** 一次图片处理：先裁剪（原图像素坐标），再缩放，再旋转 / 翻转。 */
@@ -128,8 +128,13 @@ export interface VisionPlatform {
   /** replaceBackground 用的是系统自带的人像分割（iOS），不用先确认下载模型（Android 的主体分割要）。 */
   readonly personSegmentation?: boolean;
 
-  /** 这种语言（BCP 47）系统能不能识别。 */
+  /** 这种语言（BCP 47）这台设备能不能识别（PP-OCRv6 的语言要先下载模型，见 ocrModel）。 */
   supportsLanguage(code: string): boolean;
+  /**
+   * 文字识别模型（D-269）：这些语言（BCP 47 的语言部分）用 PP-OCRv6 识别，要先下载 pack 这个扩展包；
+   * 其余语言用系统自带的（iOS Vision、Android 只剩韩文用 ML Kit）。没有原生模型接口的旧版 App 没有这一项。
+   */
+  readonly ocrModel?: { pack: string; languages: readonly string[] };
   /** 识别文字；languages 是 BCP 47，第一种是用户选的语言。文字只返回给 App。 */
   recognizeText(uri: string, languages: readonly string[]): Promise<string>;
   /** 识别文字，给出每行的位置（可搜索 PDF 的文字层，D-195）。 */
@@ -575,13 +580,13 @@ export interface FilePlatform {
     relPath: string,
   ): Promise<EncodedImage>;
 
-  /** 增强一张图片（扫描件），输出 JPG 临时文件。 */
+  /** 增强一张图片（扫描件），输出 JPG 临时文件；skew 和 base 是转正的角度和转正前的大小（D-267）。 */
   enhanceImage(
     uri: string,
     mode: EnhanceMode,
     runId: string,
     relPath: string,
-  ): Promise<EncodedImage>;
+  ): Promise<EncodedImage & { skew: number; base: { width: number; height: number } }>;
 
   /** 离屏合成一张图，编码成本次运行的临时文件。 */
   composeImage(

@@ -8,3 +8,4 @@ export * from './id-photo';
 export * from './layout';
 export * from './size-search';
 export * from './quad';
+export * from './scan-enhance';

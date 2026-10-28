@@ -6,8 +6,9 @@ import type { ToolDefinition } from '../registry';
 import type { Locale, Localized, Workflow } from '../schema';
 import type { ActionDefinition } from '../workflow/contract';
 
-// 文字识别工具的清单（T5）：iOS 用系统的 Vision（D-085）、Android 用 ML Kit（D-087）识别，不需要下载；
-// 系统识别不了的语言（Android 上的俄文）和 Expo Go 用文字识别包里的 tesseract.js（WebView），每种语言一个语言包。
+// 文字识别工具的清单（T5）：中文、日文、英法德西葡意用 PP-OCRv6（D-269，iOS 和 Android 都是，第一次用时下载模型）；
+// 韩文等用系统自带的（iOS Vision，D-085；Android 只剩韩文用 ML Kit，D-087）；
+// 系统也识别不了的语言（Android 上的俄文、越南文）和 Expo Go 用文字识别包里的 tesseract.js（WebView），每种语言一个语言包。
 // 识别出的文字只留在本机（RunValue 'text'）：复制、存成文件、生成 PDF，绝不发给 AI（D-036）。
 
 export const OCR_TOOL_ID = 'ocr';

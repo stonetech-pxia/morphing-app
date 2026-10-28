@@ -229,6 +229,46 @@ describe('runWorkflow', () => {
     expect(asked).toEqual([]);
   });
 
+  it('asks for the pack this device needs instead of the action pack (D-269)', async () => {
+    const wf: Workflow = {
+      id: 'ocr',
+      name: 'OCR',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'scanner', min: 1, max: 5 } },
+        { id: 'read', action: 'ocr.recognize', params: { lang: 'chi_sim' } },
+      ],
+    };
+    const impls = {
+      'in.photos': async () => ({ type: 'images' as const, items: [pdfItem('scan')] }),
+      'ocr.recognize': async () => ({ type: 'text' as const, text: '中文', name: 'scan' }),
+    };
+    const asked: string[] = [];
+    const ok = run(wf, {
+      impls,
+      ensurePack: async (id) => (asked.push(id), true),
+      packNotNeeded: () => true,
+      devicePack: (id) => (id === 'ocr.recognize' ? { pack: 'ppocr' } : undefined),
+    });
+    expect(await ok.promise).toMatchObject({ status: 'succeeded' });
+    expect(asked).toEqual(['ppocr']);
+
+    // 必需的扩展包，用户不下载：取消。
+    const declined = run(wf, {
+      impls,
+      ensurePack: async () => false,
+      devicePack: (id) => (id === 'ocr.recognize' ? { pack: 'ppocr' } : undefined),
+    });
+    expect(await declined.promise).toMatchObject({ status: 'cancelled' });
+
+    // 可选的：不下载也照样做。
+    const optional = run(wf, {
+      impls,
+      ensurePack: async () => false,
+      devicePack: (id) => (id === 'ocr.recognize' ? { pack: 'ppocr', optional: true } : undefined),
+    });
+    expect(await optional.promise).toMatchObject({ status: 'succeeded' });
+  });
+
   it('always asks for passwords and hands them only to that step, never into the params (D-194)', async () => {
     const wf: Workflow = {
       id: 'wifi',

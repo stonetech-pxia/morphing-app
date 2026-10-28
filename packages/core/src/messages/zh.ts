@@ -867,7 +867,7 @@ export const zh: MessageTable = {
   scan_Scans_7ac9d: '扫描件',
   ocr_Text_recognition_fe569: '文字识别',
   ocr_Runs_on_this_device_the_text_is_never__38fca:
-    '在本机识别，文字不会上传。大多数手机用系统自带的识别；不支持的语言第一次用时下载。',
+    '在本机识别，文字不会上传。第一次用时下载文字识别模型（约 30 MB）；韩文、俄文、越南文用手机自带的识别或单独的语言包。',
   html_Created_1626a: '创建时间',
   html_Updated_74f0c: '修改时间',
   html_records_3f794: '{v0} 条',

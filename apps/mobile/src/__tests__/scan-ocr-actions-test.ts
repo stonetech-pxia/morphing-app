@@ -10,6 +10,7 @@ import type { Quad } from '@morph/tool-image';
 import { PDFDocument, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 
 import type { PackPageId, PackRuntime } from '../packs/bridge';
+import { textLayerLanguages } from '../runtime/actions/pdf';
 import type { LocalKind, LocalUi } from '../runtime/local';
 import { packsNeeded, startRun } from '../runtime/runner';
 import { MemoryWorkspaceRepo } from '../storage/memory';
@@ -19,6 +20,9 @@ import { FakeFiles, FakeVision, TINY_JPEG } from '../test-utils/fake-files';
 // - 没有系统识别（Android、Expo Go）：扫描包 / 文字识别包页面换成假的（找边返回四个角，矫正返回真实的小 JPEG，识别返回文字）；
 // - iOS 的 Vision：换成 FakeVision，不需要扩展包；
 // - Android 的 ML Kit：FakeVision 不能找边、不认俄文，这两种情况退回扩展包。
+
+// 手机的语言列表（文字层按它选识别语言，D-266）；默认没有，由界面语言决定。
+jest.mock('expo-localization', () => ({ getLocales: jest.fn(() => []) }));
 
 const registry = createRegistry(BUILTIN_TOOLS);
 
@@ -77,6 +81,8 @@ function setup(
   const packs = new FakePacks();
   const opened: { kind: LocalKind; input: unknown }[] = [];
   const asked: string[] = [];
+  /** 用户不肯下载的扩展包。 */
+  const declined = new Set<string>();
   const ui: LocalUi = {
     confirm: async () => false,
     choose: async () => null,
@@ -98,11 +104,11 @@ function setup(
         newId: () => `id${++ids}`,
         ui,
         packs: { runtime: packs, isInstalled: async () => true },
-        ensurePack: async (id) => (asked.push(id), true),
+        ensurePack: async (id) => (asked.push(id), !declined.has(id)),
         askParams: async (request) => ({ ...request.params, ...answers }),
       })
     ).result;
-  return { files, vision, packs, run, opened, asked };
+  return { files, vision, packs, run, opened, asked, declined };
 }
 
 describe('scanner', () => {
@@ -291,7 +297,7 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
     });
   });
 
-  it('adds an invisible text layer to scanned PDFs so they can be searched (D-195)', async () => {
+  it('adds an invisible text layer to scanned PDFs so they can be searched, Chinese included (D-195, D-266)', async () => {
     const wf: Workflow = {
       id: 'scan',
       name: 'scan',
@@ -317,16 +323,23 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
       ...files.offerImage(`scan-${n}.jpg`, 1700, 2400),
       straightened: true,
     }));
-    // 第二页识别失败：那一页不加文字层，PDF 照样生成。
+    // 第二页按中文认失败、再按西欧语言认也失败：那一页不加文字层，PDF 照样生成。
     vision.layers = [
       { width: 100, height: 100, lines: [line] },
+      new Error('vision failed'),
       new Error('vision failed'),
       { width: 100, height: 100, lines: [line, { ...line, text: '发票' }] },
     ];
     const result = await run();
-    expect(vision.calls.filter((c) => c.method === 'recognizeLines').map((c) => c.args)).toEqual(
-      Array(3).fill(['en-US', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'pt-BR']),
-    );
+    const zh = ['zh-Hans', 'en-US'];
+    const latin = ['en-US', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'pt-BR'];
+    // 界面是中文：先按中文认（中文识别器也认英文）。
+    expect(vision.calls.filter((c) => c.method === 'recognizeLines').map((c) => c.args)).toEqual([
+      zh,
+      zh,
+      latin,
+      zh,
+    ]);
     const [pdf] =
       result.status === 'succeeded' && result.value && 'items' in result.value
         ? result.value.items
@@ -346,8 +359,9 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
       .enumerateIndirectObjects()
       .map(([, obj]) => decoded(obj))
       .join('\n');
-    // 第一页、第三页各一行拉丁字母；中文那行跳过（P-028）。
-    expect(text.match(/3 Tr/g)).toHaveLength(2);
+    // 第一页一行、第三页两行（中文那行用无字形字体按 UTF-16 写，D-266）。
+    expect(text.match(/3 Tr/g)).toHaveLength(3);
+    expect(text).toContain('<53D17968> Tj');
 
     // 没有系统识别（Expo Go）：不加文字层，PDF 照常。
     const library: Workflow = {
@@ -502,5 +516,309 @@ describe('Android (ML Kit): no edge finding, no Russian', () => {
     // 没有 Google Play 服务：没有文档扫描，扫描包也要下载。
     vision.documentCamera = false;
     expect(packsNeeded(['scan'], files)).toEqual(['scan']);
+  });
+});
+
+describe('text layer languages (D-266)', () => {
+  const latin = ['en-US', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'pt-BR'];
+
+  it('reads Chinese, Japanese or Korean first when the phone or the interface uses it', () => {
+    expect(textLayerLanguages('zh', [])).toEqual(['zh-Hans', 'en-US']);
+    expect(textLayerLanguages('en', ['zh-Hant-TW', 'en-US'])).toEqual(['zh-Hant', 'en-US']);
+    expect(textLayerLanguages('fr', ['zh-HK'])).toEqual(['zh-Hant', 'en-US']);
+    expect(textLayerLanguages('en', ['en-GB', 'ja-JP'])).toEqual(['ja-JP', 'en-US']);
+    expect(textLayerLanguages('fr', ['ko-KR'])).toEqual(['ko-KR', 'en-US']);
+    // 手机语言排在界面语言前面：手机设成繁体时，中文界面也按繁体认。
+    expect(textLayerLanguages('zh', ['zh-Hant-TW'])).toEqual(['zh-Hant', 'en-US']);
+  });
+
+  it('keeps the Western European languages otherwise', () => {
+    expect(textLayerLanguages('en', [])).toEqual(latin);
+    expect(textLayerLanguages('fr', ['fr-FR', 'de-DE'])).toEqual(latin);
+  });
+});
+
+describe('recognition reads the page before enhancing (D-267)', () => {
+  /** 文档相机拍两页；返回送进增强的图（增强前）和增强出来的图，运行时填上。 */
+  const scanned = (files: FakeFiles, vision: FakeVision) => {
+    vision.scanned = [1, 2].map((n) => ({
+      ...files.offerImage(`scan-${n}.jpg`, 1700, 2400),
+      straightened: true,
+    }));
+    const pages = { before: [] as string[], after: [] as string[] };
+    const enhance = files.enhanceImage.bind(files);
+    files.enhanceImage = async (uri, ...rest) => {
+      const out = await enhance(uri, ...rest);
+      pages.before.push(uri);
+      pages.after.push(out.uri);
+      return out;
+    };
+    return pages;
+  };
+  const pick = { id: 'pick', action: 'in.photos', params: { source: 'scanner', min: 1, max: 5 } };
+  const bw = { id: 'look', action: 'scan.enhance', params: { mode: 'bw' } };
+  const pdf = {
+    id: 'pdf',
+    action: 'pdf.fromImages',
+    params: {
+      pageSize: 'a4',
+      orientation: 'auto',
+      marginMm: 0,
+      fit: 'contain',
+      maxMB: 0,
+      textLayer: true,
+    },
+  };
+
+  it('recognizes text on the straightened pages, not on the black and white ones', async () => {
+    const wf: Workflow = {
+      id: 'ocr',
+      name: 'ocr',
+      steps: [pick, bw, { id: 'read', action: 'ocr.recognize', params: { lang: 'chi_sim' } }],
+    };
+    const { files, vision, run } = setup(wf, {}, {}, true);
+    const pages = scanned(files, vision);
+    vision.texts = ['第一页', '第二页'];
+    const result = await run();
+    expect(files.enhanced).toEqual(['bw', 'bw']);
+    // 送去识别前重新编码的是增强前的页面，不是黑白图。
+    expect(pages.after).toHaveLength(2);
+    expect(files.encodedFrom).toEqual(pages.before);
+    expect(result).toMatchObject({ value: { type: 'text', text: '第一页\n\n第二页' } });
+  });
+
+  it('falls back to the enhanced page when the page before enhancing is gone', async () => {
+    const wf: Workflow = {
+      id: 'ocr',
+      name: 'ocr',
+      steps: [pick, bw, { id: 'read', action: 'ocr.recognize', params: { lang: 'chi_sim' } }],
+    };
+    const { files, vision, run } = setup(wf, {}, {}, true);
+    const pages = scanned(files, vision);
+    const enhance = files.enhanceImage.bind(files);
+    // 增强完就把原来的页面删掉。
+    files.enhanceImage = async (uri, ...rest) => {
+      const out = await enhance(uri, ...rest);
+      files.disk.delete(uri);
+      files.deleted.add(uri);
+      return out;
+    };
+    vision.texts = ['第一页', '第二页'];
+    expect(await run()).toMatchObject({ value: { type: 'text', text: '第一页\n\n第二页' } });
+    // 增强前的图读不了（没编码成功），每页改用增强后的图。
+    expect(files.encodedFrom).toEqual(pages.after);
+    expect(vision.calls.filter((c) => c.method === 'recognizeText')).toHaveLength(2);
+  });
+
+  it('builds the PDF text layer from the straightened pages and moves the boxes with the deskew', async () => {
+    const wf: Workflow = { id: 'pdf', name: 'pdf', steps: [pick, bw, pdf] };
+    const { files, vision, run } = setup(wf, {}, {}, true);
+    const pages = scanned(files, vision);
+    // 第一页转正了 2°（画布变大），第二页没转。
+    files.enhanceSkews = [2, 0];
+    const line = { text: 'Invoice 42', x: 100, y: 200, width: 300, height: 40 };
+    vision.layers = [
+      { width: 1700, height: 2400, lines: [line] },
+      { width: 1700, height: 2400, lines: [line] },
+    ];
+    expect(await run()).toMatchObject({ status: 'succeeded' });
+    const read = vision.calls.filter((c) => c.method === 'recognizeLines').map((c) => c.uri);
+    expect(read).toEqual(pages.before);
+  });
+
+  it('reads the current page once another step has changed the picture', async () => {
+    const rotate = { id: 'turn', action: 'image.rotate', params: { angle: 90, flip: 'none' } };
+    const wf: Workflow = { id: 'pdf', name: 'pdf', steps: [pick, bw, rotate, pdf] };
+    const { files, vision, run } = setup(wf, {}, {}, true);
+    const pages = scanned(files, vision);
+    expect(await run()).toMatchObject({ status: 'succeeded' });
+    const read = vision.calls.filter((c) => c.method === 'recognizeLines').map((c) => c.uri);
+    expect(read).toHaveLength(2);
+    expect(read.some((uri) => [...pages.before, ...pages.after].includes(uri))).toBe(false);
+  });
+
+  it('keeps the enhanced page for the text recognition pack (Tesseract reads it better)', async () => {
+    const wf: Workflow = {
+      id: 'ocr',
+      name: 'ocr',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+        bw,
+        { id: 'read', action: 'ocr.recognize', params: { lang: 'eng' } },
+      ],
+    };
+    const { files, packs, run } = setup(wf);
+    files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+    packs.texts = ['hello'];
+    expect(await run()).toMatchObject({ value: { type: 'text', text: 'hello' } });
+    expect(files.encodedFrom).toEqual([expect.stringMatching(/^runs\//)]);
+  });
+});
+
+describe('recognized Chinese is tidied (D-268)', () => {
+  it('swaps traditional characters and half-width punctuation in simplified Chinese text', async () => {
+    const wf: Workflow = {
+      id: 'ocr',
+      name: 'ocr',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+        { id: 'read', action: 'ocr.recognize', params: { lang: 'chi_sim' } },
+      ],
+    };
+    const { files, vision, run } = setup(wf, {}, {}, true);
+    files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+    vision.texts = ['模型內部要缩得很厉害,缩小后这些細碎的纹路:差別会小很多.'];
+    expect(await run()).toMatchObject({
+      value: { type: 'text', text: '模型内部要缩得很厉害，缩小后这些细碎的纹路：差别会小很多。' },
+    });
+  });
+
+  it('leaves traditional Chinese characters alone and only fixes the punctuation', async () => {
+    const wf: Workflow = {
+      id: 'ocr',
+      name: 'ocr',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+        { id: 'read', action: 'ocr.recognize', params: { lang: 'chi_tra' } },
+      ],
+    };
+    const { files, vision, run } = setup(wf, {}, {}, true);
+    files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+    vision.texts = ['差別:內部'];
+    expect(await run()).toMatchObject({ value: { type: 'text', text: '差別：內部' } });
+  });
+
+  it('tidies the Chinese lines of the PDF text layer too', async () => {
+    const wf: Workflow = {
+      id: 'pdf',
+      name: 'pdf',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+        {
+          id: 'pdf',
+          action: 'pdf.fromImages',
+          params: {
+            pageSize: 'a4',
+            orientation: 'auto',
+            marginMm: 0,
+            fit: 'contain',
+            maxMB: 0,
+            textLayer: true,
+          },
+        },
+      ],
+    };
+    const { files, vision, run } = setup(wf, {}, {}, true);
+    files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+    vision.layers = [
+      {
+        width: 100,
+        height: 100,
+        lines: [{ text: '差別:內部', x: 10, y: 10, width: 60, height: 8 }],
+      },
+    ];
+    const result = await run();
+    const [pdf] =
+      result.status === 'succeeded' && result.value && 'items' in result.value
+        ? result.value.items
+        : [];
+    const doc = await PDFDocument.load(files.disk.get(pdf!.uri)!);
+    const text = doc.context
+      .enumerateIndirectObjects()
+      .map(([, obj]) => {
+        if (!(obj instanceof PDFRawStream)) return '';
+        try {
+          return new TextDecoder('latin1').decode(decodePDFRawStream(obj).decode());
+        } catch {
+          return '';
+        }
+      })
+      .join('\n');
+    // 「差别：内部」的 UTF-16：5DEE 522B FF1A 5185 90E8。
+    expect(text).toContain('<5DEE522BFF1A518590E8> Tj');
+  });
+});
+
+describe('PP-OCRv6 replaces ML Kit and Vision for the languages it reads (D-269)', () => {
+  const model = { pack: 'ppocr', languages: ['zh', 'ja', 'en', 'fr', 'de', 'es', 'pt', 'it'] };
+  const library = {
+    id: 'pick',
+    action: 'in.photos',
+    params: { source: 'library', min: 1, max: 5 },
+  };
+  const read = (lang: string): Workflow => ({
+    id: 'ocr',
+    name: 'ocr',
+    steps: [library, { id: 'read', action: 'ocr.recognize', params: { lang } }],
+  });
+
+  it('asks for the text recognition model, not a language pack, for Chinese and French', async () => {
+    for (const lang of ['chi_sim', 'fra']) {
+      const { files, vision, run, asked } = setup(read(lang), {}, {}, true);
+      vision.ocrModel = model;
+      files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+      vision.texts = ['text'];
+      expect(await run()).toMatchObject({ status: 'succeeded' });
+      expect(asked).toEqual(['ppocr']);
+    }
+  });
+
+  it('keeps Korean on the system recognizer and needs no model for it', async () => {
+    const { files, vision, run, asked } = setup(read('kor'), {}, {}, true);
+    vision.ocrModel = model;
+    files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+    vision.texts = ['한국어'];
+    expect(await run()).toMatchObject({ status: 'succeeded', value: { text: '한국어' } });
+    expect(asked).toEqual([]);
+  });
+
+  it('stops when the user does not download the model for text recognition', async () => {
+    const { files, vision, run, declined } = setup(read('chi_sim'), {}, {}, true);
+    vision.ocrModel = model;
+    declined.add('ppocr');
+    files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+    expect(await run()).toMatchObject({ status: 'cancelled' });
+  });
+
+  it('still makes the scanned PDF without a text layer when the model is not downloaded', async () => {
+    const wf: Workflow = {
+      id: 'pdf',
+      name: 'pdf',
+      steps: [
+        library,
+        {
+          id: 'pdf',
+          action: 'pdf.fromImages',
+          params: {
+            pageSize: 'a4',
+            orientation: 'auto',
+            marginMm: 0,
+            fit: 'contain',
+            maxMB: 0,
+            textLayer: true,
+          },
+        },
+      ],
+    };
+    const { files, vision, run, asked, declined } = setup(wf, {}, {}, true);
+    vision.ocrModel = model;
+    declined.add('ppocr');
+    files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+    expect(await run()).toMatchObject({ status: 'succeeded', value: { type: 'pdf' } });
+    expect(asked).toEqual(['ppocr']);
+  });
+
+  it('lists the model instead of the language packs it replaces', () => {
+    const files = new FakeFiles();
+    const vision = new FakeVision(files);
+    files.vision = vision;
+    vision.ocrModel = model;
+    vision.unsupported.add('ru');
+    expect(packsNeeded(['ocr', 'ocr-chi-sim', 'ocr-rus', 'pdfview'], files)).toEqual([
+      'ocr-rus',
+      'pdfview',
+      'ppocr',
+    ]);
+    expect(packsNeeded(['ocr', 'ocr-rus'], files)).toEqual(['ocr-rus']);
   });
 });

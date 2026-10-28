@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { deflateSync, inflateSync } from 'node:zlib';
 
-import { PDFArray, PDFDocument, PDFName, PDFRawStream, degrees } from 'pdf-lib';
+import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream, degrees } from 'pdf-lib';
 
 // 仅供测试：生成真实 PDF / PNG，读取 JPEG 样本，解出页面内容流。
 
@@ -153,5 +153,30 @@ export function imageDraws(
   return [...content.matchAll(re)].map((m) => {
     const v = m.slice(1).map(Number);
     return { x: v[0] ?? 0, y: v[1] ?? 0, rot: v.slice(2, 6), w: v[6] ?? 0, h: v[7] ?? 0 };
+  });
+}
+
+/** 一页用到的字体：子类型、编码、有没有 ToUnicode、有没有嵌入字体文件。 */
+export async function pageFonts(
+  bytes: Uint8Array,
+  index: number,
+): Promise<{ subtype: string; encoding: string; toUnicode: boolean; embedded: boolean }[]> {
+  const doc = await PDFDocument.load(bytes);
+  const resources = doc.getPage(index).node.Resources();
+  const fonts = resources?.lookupMaybe(PDFName.of('Font'), PDFDict);
+  if (!fonts) return [];
+  return fonts.values().map((ref) => {
+    const font = doc.context.lookup(ref, PDFDict);
+    const name = (key: string, dict = font) =>
+      dict.lookupMaybe(PDFName.of(key), PDFName)?.decodeText() ?? '';
+    const descendants = font.lookupMaybe(PDFName.of('DescendantFonts'), PDFArray);
+    const cid = descendants ? doc.context.lookup(descendants.get(0), PDFDict) : undefined;
+    const descriptor = (cid ?? font).lookupMaybe(PDFName.of('FontDescriptor'), PDFDict);
+    return {
+      subtype: name('Subtype'),
+      encoding: name('Encoding'),
+      toUnicode: font.has(PDFName.of('ToUnicode')),
+      embedded: !!descriptor?.has(PDFName.of('FontFile2')),
+    };
   });
 }
