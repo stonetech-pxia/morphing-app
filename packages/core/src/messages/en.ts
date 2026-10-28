@@ -707,6 +707,23 @@ export const en = {
   describeAddReminder: 'Add reminder “{title}” ({when})',
   describeUpdateReminder: 'Change reminder “{title}”',
   describeRemoveReminder: 'Remove reminder “{title}”',
+  // 手机桌面（D-269）
+  describeHomeScreenOn:
+    'Put “{name}” on the phone’s home screen: long-press the Morph icon to see it',
+  describeHomeScreenOff: 'Take “{name}” off the phone’s home screen',
+  homeScreenTitle: 'On your phone’s home screen',
+  homeScreenIos:
+    'Long-press the Morph icon on your home screen to see “{name}”. Tap it there to start right away.',
+  homeScreenAndroid:
+    'Long-press the Morph icon to see “{name}”, or give it its own icon on your home screen.',
+  homeScreenPin: 'Add to home screen',
+  homeScreenPinFailed: 'This home screen can’t add the icon. Long-press the Morph icon instead.',
+  homeScreenAdd: 'Put on home screen',
+  homeScreenRemove: 'Take off home screen',
+  homeScreenAdded: 'Put “{name}” on the home screen',
+  homeScreenRemoved: 'Took “{name}” off the home screen',
+  homeScreenFull: 'The home screen menu holds 4 quick actions. Take one off first.',
+  homeScreenGone: 'This quick action is no longer on the home screen.',
   describeRemovedReminders: 'Also removes the reminders that needed it: {names}',
   reminderWhenDaily: 'every day at {time}',
   reminderWhenWeekly: 'every {days} at {time}',

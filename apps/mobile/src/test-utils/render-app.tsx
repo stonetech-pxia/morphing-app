@@ -32,6 +32,9 @@ import WorkflowRoute from '../app/workflow/[id]';
 import WorkflowsRoute from '../app/workflows';
 import QuickActionsRoute from '../app/quick-actions';
 import QuickActionCategoryRoute from '../app/quick-actions/[kind]';
+import { HomeScreenProvider } from '../home-screen/context';
+import type { HomeScreenPlatform } from '../home-screen/platform';
+import { HomeScreenBridge } from '../home-screen/useHomeScreen';
 import { useIncomingShare } from '../share/useIncomingShare';
 import { ToolDownloadsProvider } from '../tool-download/context';
 import type { ToolDownloads } from '../tool-download/state';
@@ -80,6 +83,8 @@ export async function renderToolsApp(
     toolDownloads?: ToolDownloads;
     /** 第一个版本；不传时是空白工作空间（App 里用 createStarterWorkspace）。 */
     seed?: (locale: Locale, registry: Registry) => WorkspaceConfig;
+    /** 手机桌面（D-269）：假的长按菜单 / 桌面图标；不传时和 Expo Go 一样没有。 */
+    homeScreen?: HomeScreenPlatform;
   } = {},
 ) {
   const registry = options.registry ?? testRegistry;
@@ -103,17 +108,20 @@ export async function renderToolsApp(
         <AISettingsProvider store={aiSettings}>
           <WorkspaceProvider value={{ store, repo, files, registry, locale }}>
             <ShareListener files={files} />
-            {options.toolDownloads ? (
-              <ToolDownloadsProvider value={options.toolDownloads}>
-                <Stack />
-                <DraftChatSheet />
-              </ToolDownloadsProvider>
-            ) : (
-              <>
-                <Stack />
-                <DraftChatSheet />
-              </>
-            )}
+            <HomeScreenProvider value={options.homeScreen ?? null}>
+              {options.toolDownloads ? (
+                <ToolDownloadsProvider value={options.toolDownloads}>
+                  <Stack />
+                  <DraftChatSheet />
+                </ToolDownloadsProvider>
+              ) : (
+                <>
+                  <Stack />
+                  <DraftChatSheet />
+                </>
+              )}
+              <HomeScreenBridge platform={options.homeScreen ?? null} />
+            </HomeScreenProvider>
           </WorkspaceProvider>
         </AISettingsProvider>
       </GestureHandlerRootView>

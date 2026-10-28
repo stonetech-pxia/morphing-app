@@ -650,6 +650,13 @@ export function describeChange(
         );
         break;
       }
+      case 'setWorkflowHomeScreen': {
+        const name = wf(op.workflowId)?.name ?? op.workflowId;
+        lines.push(
+          t(ctx.locale, op.homeScreen ? 'describeHomeScreenOn' : 'describeHomeScreenOff', { name }),
+        );
+        break;
+      }
       case 'addWorkflowStep': {
         const name = wf(op.workflowId)?.name ?? op.workflowId;
         const action = ctx.registry.actions.get(op.step.action);

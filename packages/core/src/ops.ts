@@ -143,8 +143,14 @@ export const OpSchema = z.discriminatedUnion('op', [
     ask: z.array(z.string().min(1).max(40)).max(10).optional(),
   }),
   z.strictObject({ op: z.literal('removeWorkflowStep'), workflowId: IdSchema, stepId: IdSchema }),
-  /** 新建用户自己的工作流（从预设复制、复制已有的，或 AI 新建）。不能属于工具。 */
-  z.strictObject({ op: z.literal('addWorkflow'), workflow: WorkflowSchema.omit({ toolId: true }) }),
+  /**
+   * 新建用户自己的工作流（从预设复制、复制已有的，或 AI 新建）。不能属于工具；
+   * 放到手机桌面只能用 setWorkflowHomeScreen（D-269），这样每次放到桌面都是单独一行说明。
+   */
+  z.strictObject({
+    op: z.literal('addWorkflow'),
+    workflow: WorkflowSchema.omit({ toolId: true, homeScreen: true }),
+  }),
   /** 删除用户自己的工作流，连同运行它的组件；工具自带的不能删。 */
   z.strictObject({ op: z.literal('removeWorkflow'), workflowId: IdSchema }),
   z.strictObject({
@@ -165,6 +171,12 @@ export const OpSchema = z.discriminatedUnion('op', [
     workflowId: IdSchema,
     stepId: IdSchema,
     toIndex: z.number().int().min(0),
+  }),
+  /** 放到手机桌面（长按 Morph 图标的菜单）或从桌面拿掉（D-269）。工具自带的快捷操作也可以。 */
+  z.strictObject({
+    op: z.literal('setWorkflowHomeScreen'),
+    workflowId: IdSchema,
+    homeScreen: z.boolean(),
   }),
   /** 整体替换名称和步骤（工作流编辑页保存、恢复预设）。不改 toolId / presetId。 */
   z.strictObject({
@@ -646,6 +658,12 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       if (from < 0) throw new OpError(`step ${op.stepId} not found in ${op.workflowId}`);
       const [step] = wf.steps.splice(from, 1);
       wf.steps.splice(Math.min(op.toIndex, wf.steps.length), 0, step!);
+      return;
+    }
+    case 'setWorkflowHomeScreen': {
+      const wf = getWorkflow(config, op.workflowId);
+      if (op.homeScreen) wf.homeScreen = true;
+      else delete wf.homeScreen;
       return;
     }
     case 'updateWorkflow': {

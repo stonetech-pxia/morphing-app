@@ -3,6 +3,7 @@ import {
   t,
   HOME_PAGE_ID,
   allComponents,
+  homeScreenFull,
   initialParams,
   insertableActions,
   newWorkflowId,
@@ -21,8 +22,18 @@ import {
 
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
+import { HomeScreenCard } from '../home-screen/HomeScreenCard';
 import type { Palette } from '../renderer/theme';
 import { Button, Card, Pill } from '../renderer/ui';
 import { Banner } from '../shell/Shell';
@@ -380,6 +391,31 @@ export function WorkflowEditor({
               }
             />
           )}
+          {/* 手机桌面（D-269）：长按 Morph 图标的菜单最多 4 个，满了先拿掉一个。 */}
+          <Pill
+            palette={palette}
+            testID="workflow-home-screen"
+            label={t(locale, workflow.homeScreen ? 'homeScreenRemove' : 'homeScreenAdd')}
+            onPress={() => {
+              if (!workflow.homeScreen && homeScreenFull(config)) {
+                Alert.alert(t(locale, 'homeScreenFull'));
+                return;
+              }
+              void change(
+                [
+                  ...addIfBuiltIn(),
+                  {
+                    op: 'setWorkflowHomeScreen',
+                    workflowId: workflow.id,
+                    homeScreen: !workflow.homeScreen,
+                  },
+                ],
+                t(locale, workflow.homeScreen ? 'homeScreenRemoved' : 'homeScreenAdded', {
+                  name: workflow.name,
+                }),
+              );
+            }}
+          />
           {preset && stored ? (
             <Pill
               palette={palette}
@@ -418,6 +454,7 @@ export function WorkflowEditor({
             />
           )}
         </View>
+        <HomeScreenCard workflow={workflow} palette={palette} />
       </ScrollView>
 
       {inserting !== null ? (

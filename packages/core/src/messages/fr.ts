@@ -749,6 +749,25 @@ export const fr: MessageTable = {
   describeAddReminder: 'Ajouter le rappel « {title} » ({when})',
   describeUpdateReminder: 'Modifier le rappel « {title} »',
   describeRemoveReminder: 'Retirer le rappel « {title} »',
+  // 手机桌面（D-269）
+  describeHomeScreenOn:
+    'Mettre « {name} » sur l’écran d’accueil du téléphone : appuyez longuement sur l’icône Morph pour la voir',
+  describeHomeScreenOff: 'Retirer « {name} » de l’écran d’accueil du téléphone',
+  homeScreenTitle: 'Sur l’écran d’accueil du téléphone',
+  homeScreenIos:
+    'Appuyez longuement sur l’icône Morph sur l’écran d’accueil pour voir « {name} ». Touchez-la pour la lancer tout de suite.',
+  homeScreenAndroid:
+    'Appuyez longuement sur l’icône Morph pour voir « {name} », ou donnez-lui sa propre icône sur l’écran d’accueil.',
+  homeScreenPin: 'Ajouter à l’écran d’accueil',
+  homeScreenPinFailed:
+    'Cet écran d’accueil ne peut pas ajouter l’icône. Appuyez longuement sur l’icône Morph à la place.',
+  homeScreenAdd: 'Mettre sur l’écran d’accueil',
+  homeScreenRemove: 'Retirer de l’écran d’accueil',
+  homeScreenAdded: '« {name} » ajoutée à l’écran d’accueil',
+  homeScreenRemoved: '« {name} » retirée de l’écran d’accueil',
+  homeScreenFull:
+    'Le menu de l’écran d’accueil contient au plus 4 actions rapides. Retirez-en une d’abord.',
+  homeScreenGone: 'Cette action rapide n’est plus sur l’écran d’accueil.',
   describeRemovedReminders: 'Retire aussi les rappels qui en dépendaient : {names}',
   reminderWhenDaily: 'tous les jours à {time}',
   reminderWhenWeekly: 'chaque {days} à {time}',

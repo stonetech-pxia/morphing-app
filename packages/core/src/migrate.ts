@@ -160,6 +160,12 @@ export const migrateV16toV17: Migration = (config) => ({ ...config, schemaVersio
  */
 export const migrateV17toV18: Migration = (config) => ({ ...config, schemaVersion: 18 });
 
+/**
+ * v18 → v19：快捷操作可以放到手机桌面 homeScreen（D-269，改了已有结构，按 D-254 提升）；
+ * 已有的快捷操作都不在桌面上，不需要改动，只提升版本号。
+ */
+export const migrateV18toV19: Migration = (config) => ({ ...config, schemaVersion: 19 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -179,6 +185,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   15: migrateV15toV16,
   16: migrateV16toV17,
   17: migrateV17toV18,
+  18: migrateV18toV19,
 };
 
 export type MigrateResult =

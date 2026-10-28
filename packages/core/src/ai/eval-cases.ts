@@ -27,7 +27,9 @@ function sameValue(a: unknown, b: unknown): boolean {
 // ID 与 docs/MOCK_AI_PHRASES.md 对应；P* 是只有真实模型才需要理解的改写说法。
 
 /** starter：新用户的第一个版本（精简首页 + 工具箱，D-181、D-182）。 */
-export type EvalSetup = 'default' | 'pdf' | 'pdfBelowFiles' | 'budget' | 'visa' | 'starter';
+/** visaHomeScreen：visa 再把签证照片放到手机桌面（D-269）。 */
+export type EvalSetup =
+  'default' | 'pdf' | 'pdfBelowFiles' | 'budget' | 'visa' | 'visaHomeScreen' | 'starter';
 
 export type OpsPlan = Extract<Plan, { kind: 'ops' }>;
 
@@ -68,12 +70,14 @@ export type EvalEarlier = { input: string; ops: Op[] } | { input: string; notDon
 export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry): WorkspaceConfig {
   if (setup === 'starter') return createStarterWorkspace(locale, registry);
   const ops: Op[] = [];
-  if (setup === 'visa') {
+  if (setup === 'visa' || setup === 'visaHomeScreen') {
     ops.push({ op: 'installTool', toolId: 'pdf' });
     ops.push({
       op: 'addWorkflow',
       workflow: presetWorkflow(presetById('visa-photo')!, locale, 'visa-photo'),
     });
+    if (setup === 'visaHomeScreen')
+      ops.push({ op: 'setWorkflowHomeScreen', workflowId: 'visa-photo', homeScreen: true });
   } else if (setup === 'budget') {
     ops.push(...templateOps('budget', createDefaultWorkspace(locale), locale));
   } else if (setup !== 'default') ops.push({ op: 'installTool', toolId: 'pdf' });
@@ -4123,7 +4127,160 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
   },
 ];
 
+// ---- 手机桌面（D-269）：「放到桌面 / 主屏幕 / home screen / écran d'accueil」是手机桌面，「首页」仍是首页（D-109）----
+
+const onHomeScreen = (c: WorkspaceConfig) => c.workflows.filter((w) => w.homeScreen);
+const visaOnHomeScreen = (c: WorkspaceConfig) =>
+  visa(c)?.homeScreen
+    ? null
+    : `the visa quick action should be on the home screen, got ${
+        onHomeScreen(c)
+          .map((w) => w.id)
+          .join(',') || 'none'
+      }`;
+/** 只放到桌面，没有顺手在首页加卡片。 */
+const noNewHomeRunner = (c: WorkspaceConfig) =>
+  allComponents(home(c)).some(
+    (x) => x.type === 'workflowRunner' && x.props.workflowId === visa(c)?.id,
+  )
+    ? 'the home screen request also put a card on the home page'
+    : null;
+const visaOnHomePageOnly = (c: WorkspaceConfig) =>
+  !allComponents(home(c)).some(
+    (x) => x.type === 'workflowRunner' && x.props.workflowId === visa(c)?.id,
+  )
+    ? 'no runner for the visa quick action on the home page'
+    : onHomeScreen(c).length > 0
+      ? `“home page” must not put anything on the phone home screen, got ${onHomeScreen(c)
+          .map((w) => w.id)
+          .join(',')}`
+      : null;
+
+const HOME_SCREEN_CASES: readonly EvalCase[] = [
+  {
+    id: 'HS1',
+    input: '把签证照片放到桌面',
+    locale: 'zh',
+    setup: 'visa',
+    mock: true,
+    expect: { kind: 'ops', check: all(visaOnHomeScreen, noNewHomeRunner) },
+  },
+  {
+    id: 'HS1-en',
+    input: 'Put the visa photo on the home screen',
+    locale: 'en',
+    setup: 'visa',
+    mock: true,
+    expect: { kind: 'ops', check: all(visaOnHomeScreen, noNewHomeRunner) },
+  },
+  {
+    // 内置规则不认法语（P-037），只要求真实模型。
+    id: 'HS1-fr',
+    input: 'Mets la photo de visa sur l’écran d’accueil',
+    locale: 'fr',
+    setup: 'visa',
+    mock: false,
+    expect: { kind: 'ops', check: all(visaOnHomeScreen, noNewHomeRunner) },
+  },
+  {
+    id: 'HS2',
+    input: '把签证照片放到首页',
+    locale: 'zh',
+    setup: 'visa',
+    mock: true,
+    expect: { kind: 'ops', check: visaOnHomePageOnly },
+  },
+  {
+    id: 'HS2-en',
+    input: 'Put the visa photo on the home page',
+    locale: 'en',
+    setup: 'visa',
+    mock: true,
+    expect: { kind: 'ops', check: visaOnHomePageOnly },
+  },
+  {
+    id: 'HS2-fr',
+    input: 'Mets la photo de visa sur l’accueil',
+    locale: 'fr',
+    setup: 'visa',
+    mock: false,
+    expect: { kind: 'ops', check: visaOnHomePageOnly },
+  },
+  {
+    // 还没添加的预设：先添加，再放到桌面。
+    id: 'HS3',
+    input: '把签证照片放到手机主屏幕',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: visaOnHomeScreen },
+  },
+  {
+    id: 'HS4',
+    input: '把签证照片从桌面拿掉',
+    locale: 'zh',
+    setup: 'visaHomeScreen',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        visa(c) && onHomeScreen(c).length === 0
+          ? null
+          : 'the visa quick action should stay but leave the home screen',
+    },
+  },
+  {
+    id: 'HS4-en',
+    input: 'Remove the visa photo from the home screen',
+    locale: 'en',
+    setup: 'visaHomeScreen',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        visa(c) && onHomeScreen(c).length === 0
+          ? null
+          : 'the visa quick action should stay but leave the home screen',
+    },
+  },
+  {
+    id: 'PHS1',
+    input: '签证照片那个快捷操作，我想在手机桌面上长按 Morph 就能直接用',
+    locale: 'zh',
+    setup: 'visa',
+    mock: false,
+    expect: { kind: 'ops', check: visaOnHomeScreen },
+  },
+  {
+    id: 'PHS2-en',
+    input: 'Pin my visa photo shortcut to my phone’s home screen',
+    locale: 'en',
+    setup: 'visa',
+    mock: false,
+    expect: { kind: 'ops', check: visaOnHomeScreen },
+  },
+  {
+    // 新做的快捷操作放到桌面：新建和放到桌面一起做（都是功能）。
+    id: 'PHS3-fr',
+    input:
+      'Crée une action rapide pour choisir des photos, les compresser à 500 Ko et les partager, et mets-la sur l’écran d’accueil du téléphone',
+    locale: 'fr',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        userWorkflows(c).some(
+          (w) => w.homeScreen && w.steps.some((st) => st.action === 'image.compress'),
+        )
+          ? null
+          : 'expected the new quick action on the home screen',
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...HOME_SCREEN_CASES,
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,
   ...QUICK_ACTION_ENTRY_CASES,

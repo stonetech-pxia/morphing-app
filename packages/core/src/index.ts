@@ -18,6 +18,7 @@ export * from './grouping';
 export * from './describe';
 export * from './habits';
 export * from './home-entry';
+export * from './home-screen';
 export * from './html';
 export * from './limits';
 export * from './audio';

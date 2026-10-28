@@ -269,6 +269,7 @@ interface StepContext {
 | `moveWorkflowStep {workflowId, stepId, toIndex}` |                                                                                       |
 | `removeWorkflowStep`、`setStepParams`            | 原有（`setStepParams` 含 `ask`）                                                      |
 | `updateWorkflow {workflowId, name?, steps?}`     | 编辑页一次保存；AI 看到的私有参数是 `<user text>` 占位符，原样传回时保留旧值（D-082） |
+| `setWorkflowHomeScreen {workflowId, homeScreen}` | 放到手机桌面 / 拿掉（D-269）；最多 4 个，`addWorkflow` 不能带这个标记                 |
 
 所有修改之后照常跑 `validateWorkspace`（§2），接不上的工作流不会被提交。planner 的提示词包含动作目录（id、输入输出类型、参数结构及枚举和范围、需要的扩展包）、预设清单和规则 20（建工作流）、21（记录做成报表）。
 

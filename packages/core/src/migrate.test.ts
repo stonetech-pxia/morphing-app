@@ -57,6 +57,19 @@ describe('migrateWorkspace', () => {
       expect(result.after).toEqual({ ...previous, schemaVersion: CURRENT_SCHEMA_VERSION });
     expect(previous.schemaVersion).toBe(10);
   });
+  it('v18 → v19 (quick actions on the phone home screen, D-269) only raises the version', () => {
+    const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 18 };
+    expect(previous.workflows.length).toBeGreaterThan(0);
+    expect(migrateWorkspace(previous, undefined, 19)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 19 },
+      fromVersion: 18,
+    });
+    const prepared = prepareSnapshot(previous, registry);
+    expect(prepared.ok).toBe(true);
+    // 升级后没有哪个快捷操作在桌面上：用户没说过的不会出现在手机桌面。
+    if (prepared.ok) expect(prepared.after.workflows.some((w) => w.homeScreen)).toBe(false);
+  });
   it('v17 → v18 (picture backgrounds, D-258) only raises the version', () => {
     const previous = { ...workspace(), schemaVersion: 17 };
     expect(migrateWorkspace(previous, undefined, 18)).toEqual({
