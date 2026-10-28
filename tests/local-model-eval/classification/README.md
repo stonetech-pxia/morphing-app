@@ -32,9 +32,16 @@ HF_HOME=tests/local-model-eval/models/kev-hf-cache python tests/local-model-eval
 python classification/download.py qwen3-embedding
 python classification/evaluate.py --model qwen3-embedding --facet kind
 python classification/evaluate.py --model qwen3-embedding --facet topic --noise
+python classification/download.py qwen3-embedding-q8
+MORPH_LLAMA_SERVER_BIN=/absolute/path/to/llama-server \
+python classification/evaluate_embedding_gguf.py --model q8
+MORPH_LLAMA_SERVER_BIN=/absolute/path/to/llama-server \
+python classification/evaluate_embedding_gguf.py --model q8 --noise
 MORPH_LLAMA_SERVER_BIN=/absolute/path/to/llama-server \
 MORPH_CLASSIFIER_GGUF=/absolute/path/to/Qwen3.5-2B-Q4_K_M.gguf \
 python classification/evaluate_qwen.py --model qwen35-2b --mode fixed --backend cpu
 ```
 
 向量/NLI 模型来源、revision、权重 SHA-256 在 `classification/models.json`；GGUF 来源与哈希在上级 `models.json`。`classification/download.py` 会下载指定 revision 并核对哈希，放入忽略的 `models/`。这些分类候选都只处理文字；Qwen3 Embedding 的原始 safetensors 约 1.19 GB，BGE-M3 原始权重约 2.27 GB，是否能量化并在手机预算内运行需要原生实测。桌面 GPU 的 GGUF 成绩不能代替手机 RAM、耗时或真实 OCR 成绩。
+
+`evaluate_embedding_gguf.py` 使用 llama.cpp 的 `--embedding --pooling last`，对查询加与浮点版同一英文任务指令，并预计算候选类别向量。`--model q4` 使用第三方 Q4 包，`--model q8` 使用 Qwen 官方 Q8 包；两个版本都必须重新跑同一测试，不能把浮点版成绩直接套用。脚本启动和清理自己的本地服务，默认端口 8096；确保端口空闲。进程工作集采样和分类结果写入忽略的 `results/classification/`。这仍是桌面 CPU 结果，不代表手机原生表现。

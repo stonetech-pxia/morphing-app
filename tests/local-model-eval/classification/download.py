@@ -12,7 +12,9 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 DEST = {"nli": "cls-minilm-nli", "mdeberta-nli": "cls-mdeberta-nli",
         "e5": "cls-e5-small", "minilm-embedding": "cls-minilm-embedding",
-        "qwen3-embedding": "cls-qwen3-embedding-06b", "bge-m3": "cls-bge-m3"}
+        "qwen3-embedding": "cls-qwen3-embedding-06b", "bge-m3": "cls-bge-m3",
+        "qwen3-embedding-q4": "cls-qwen3-embedding-06b-q4",
+        "qwen3-embedding-q8": "cls-qwen3-embedding-06b-q8"}
 
 
 def main() -> None:
