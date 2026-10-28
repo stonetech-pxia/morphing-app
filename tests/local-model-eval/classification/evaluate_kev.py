@@ -19,6 +19,8 @@ INSTRUCTIONS = {
     "kind": "Which document kind best describes the OCR text? Select format, not subject.",
     "topic": "Which subject best describes the OCR text? Select subject, not format.",
 }
+UNKNOWN = {"zh": "文字不可读或证据不足，无法判断", "en": "Unreadable text or insufficient evidence to determine a category",
+           "fr": "Texte illisible ou preuves insuffisantes pour déterminer une catégorie"}
 
 
 def main() -> None:
@@ -28,11 +30,13 @@ def main() -> None:
     parser.add_argument("--noise", action="store_true")
     parser.add_argument("--english-criteria", action="store_true")
     parser.add_argument("--short-criteria", action="store_true")
+    parser.add_argument("--unknown-option", action="store_true")
     parser.add_argument("--run", default="jaredpalmer/kev-0.8b@v1.0")
     args = parser.parse_args()
     output = ROOT / "results/classification"
     output.mkdir(parents=True, exist_ok=True)
-    suffix = ("-noise" if args.noise else "") + ("-english-criteria" if args.english_criteria else "") + ("-short-criteria" if args.short_criteria else "")
+    suffix = (("-noise" if args.noise else "") + ("-english-criteria" if args.english_criteria else "")
+              + ("-short-criteria" if args.short_criteria else "") + ("-unknown-option" if args.unknown_option else ""))
     path = output / f"kev-08b-{args.facet}{suffix}.jsonl"
     done = {json.loads(line)["id"] for line in path.read_text(encoding="utf-8").splitlines() if line} if path.exists() else set()
     predictor = LocalPredictor(args.run, "cpu")
@@ -50,9 +54,13 @@ def main() -> None:
                 criteria = ({key: names[LANG_INDEX[criteria_lang]] for key, names in
                              (KINDS if args.facet == "kind" else TOPICS).items()}
                             if args.short_criteria else dict(choices(args.facet, criteria_lang)))
+                if args.unknown_option:
+                    criteria["unknown"] = UNKNOWN[criteria_lang]
                 truth = case[args.facet]
+                instruction = INSTRUCTIONS[args.facet] + (" If evidence is unreadable or insufficient, choose unknown."
+                                                        if args.unknown_option else "")
                 record = {"state": state, "questions": {args.facet: {"type": "choice",
-                           "instructions": INSTRUCTIONS[args.facet], "criteria": criteria,
+                           "instructions": instruction, "criteria": criteria,
                            "label": truth if truth in criteria else next(iter(criteria)), "src": "morph-synthetic"}}}
                 t0 = time.monotonic()
                 result = predictor(record)
