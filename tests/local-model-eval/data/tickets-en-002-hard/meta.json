@@ -1,0 +1,14 @@
+{
+  "id": "tickets-en-002-hard",
+  "language": "en",
+  "category": "tickets",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": [
+    "missing_destination",
+    "column_order",
+    "confusable",
+    "spacing",
+    "dropped_character"
+  ]
+}

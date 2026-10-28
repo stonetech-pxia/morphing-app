@@ -1,0 +1,991 @@
+[
+  {
+    "id": "p-zh-1",
+    "locale": "zh",
+    "collections": [
+      {
+        "id": "household-expense",
+        "name": "家庭开支",
+        "fields": [
+          {
+            "id": "date",
+            "name": "日期",
+            "type": "date",
+            "default": "today"
+          },
+          {
+            "id": "amount",
+            "name": "金额",
+            "type": "money",
+            "currency": "CNY"
+          },
+          {
+            "id": "category",
+            "name": "分类",
+            "type": "choice",
+            "options": [
+              {
+                "id": "meal",
+                "label": "餐饮"
+              },
+              {
+                "id": "grocery",
+                "label": "买菜"
+              },
+              {
+                "id": "medicine",
+                "label": "药品"
+              },
+              {
+                "id": "transport",
+                "label": "交通"
+              },
+              {
+                "id": "home",
+                "label": "居家"
+              },
+              {
+                "id": "other",
+                "label": "其他"
+              }
+            ]
+          },
+          {
+            "id": "merchant",
+            "name": "商家",
+            "type": "text"
+          },
+          {
+            "id": "receipt",
+            "name": "小票",
+            "type": "file"
+          }
+        ]
+      },
+      {
+        "id": "kids-school",
+        "name": "孩子学校事项",
+        "fields": [
+          {
+            "id": "title",
+            "name": "事项",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "date",
+            "name": "日期",
+            "type": "date"
+          },
+          {
+            "id": "kid",
+            "name": "孩子",
+            "type": "choice",
+            "options": [
+              {
+                "id": "elder",
+                "label": "哥哥"
+              },
+              {
+                "id": "younger",
+                "label": "妹妹"
+              }
+            ]
+          },
+          {
+            "id": "done",
+            "name": "已处理",
+            "type": "checkbox"
+          },
+          {
+            "id": "attachment",
+            "name": "附件",
+            "type": "file"
+          }
+        ]
+      },
+      {
+        "id": "pet-vet",
+        "name": "猫咪看病",
+        "fields": [
+          {
+            "id": "date",
+            "name": "日期",
+            "type": "date"
+          },
+          {
+            "id": "clinic",
+            "name": "医院",
+            "type": "text"
+          },
+          {
+            "id": "cost",
+            "name": "费用",
+            "type": "money",
+            "currency": "CNY"
+          },
+          {
+            "id": "notes",
+            "name": "医嘱",
+            "type": "note"
+          },
+          {
+            "id": "files",
+            "name": "单据",
+            "type": "file"
+          }
+        ]
+      }
+    ],
+    "workflows": [
+      {
+        "id": "card-to-contacts",
+        "name": "名片存通讯录",
+        "accepts": ["image"]
+      },
+      {
+        "id": "bill-archive",
+        "name": "缴费单存档",
+        "accepts": ["image", "pdf"]
+      }
+    ]
+  },
+  {
+    "id": "p-zh-2",
+    "locale": "zh",
+    "collections": [
+      {
+        "id": "travel-claim",
+        "name": "出差报销",
+        "fields": [
+          {
+            "id": "date",
+            "name": "日期",
+            "type": "date",
+            "default": "today"
+          },
+          {
+            "id": "amount",
+            "name": "金额",
+            "type": "money",
+            "currency": "CNY",
+            "required": true
+          },
+          {
+            "id": "kind",
+            "name": "类型",
+            "type": "choice",
+            "options": [
+              {
+                "id": "transport",
+                "label": "交通"
+              },
+              {
+                "id": "hotel",
+                "label": "住宿"
+              },
+              {
+                "id": "meal",
+                "label": "餐费"
+              },
+              {
+                "id": "other",
+                "label": "其他"
+              }
+            ]
+          },
+          {
+            "id": "project",
+            "name": "项目",
+            "type": "text"
+          },
+          {
+            "id": "submitted",
+            "name": "已提交",
+            "type": "checkbox"
+          },
+          {
+            "id": "invoice",
+            "name": "发票",
+            "type": "file"
+          }
+        ]
+      },
+      {
+        "id": "car-maint",
+        "name": "车辆保养",
+        "fields": [
+          {
+            "id": "date",
+            "name": "日期",
+            "type": "date"
+          },
+          {
+            "id": "mileage",
+            "name": "里程",
+            "type": "number",
+            "decimals": 0,
+            "unit": "km"
+          },
+          {
+            "id": "shop",
+            "name": "门店",
+            "type": "text"
+          },
+          {
+            "id": "cost",
+            "name": "费用",
+            "type": "money",
+            "currency": "CNY"
+          },
+          {
+            "id": "items",
+            "name": "项目",
+            "type": "note"
+          },
+          {
+            "id": "invoice",
+            "name": "单据",
+            "type": "file"
+          }
+        ]
+      },
+      {
+        "id": "warranty",
+        "name": "保修卡与发票",
+        "fields": [
+          {
+            "id": "product",
+            "name": "产品",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "bought",
+            "name": "购买日期",
+            "type": "date"
+          },
+          {
+            "id": "until",
+            "name": "保修到期",
+            "type": "date"
+          },
+          {
+            "id": "photos",
+            "name": "照片",
+            "type": "file"
+          }
+        ]
+      },
+      {
+        "id": "workout",
+        "name": "健身记录",
+        "fields": [
+          {
+            "id": "date",
+            "name": "日期",
+            "type": "date",
+            "default": "today"
+          },
+          {
+            "id": "sport",
+            "name": "项目",
+            "type": "choice",
+            "options": [
+              {
+                "id": "run",
+                "label": "跑步"
+              },
+              {
+                "id": "swim",
+                "label": "游泳"
+              },
+              {
+                "id": "gym",
+                "label": "器械"
+              }
+            ]
+          },
+          {
+            "id": "minutes",
+            "name": "时长",
+            "type": "number",
+            "decimals": 0,
+            "unit": "分钟"
+          },
+          {
+            "id": "feel",
+            "name": "感受",
+            "type": "rating"
+          }
+        ]
+      }
+    ],
+    "workflows": [
+      {
+        "id": "contract-sign-return",
+        "name": "合同签字回传",
+        "accepts": ["pdf"]
+      }
+    ]
+  },
+  {
+    "id": "p-en-1",
+    "locale": "en",
+    "collections": [
+      {
+        "id": "expenses",
+        "name": "Expenses",
+        "fields": [
+          {
+            "id": "date",
+            "name": "Date",
+            "type": "date",
+            "default": "today"
+          },
+          {
+            "id": "amount",
+            "name": "Amount",
+            "type": "money",
+            "currency": "USD",
+            "required": true
+          },
+          {
+            "id": "category",
+            "name": "Category",
+            "type": "choice",
+            "options": [
+              {
+                "id": "food",
+                "label": "Food & dining"
+              },
+              {
+                "id": "groceries",
+                "label": "Groceries"
+              },
+              {
+                "id": "transport",
+                "label": "Transport"
+              },
+              {
+                "id": "health",
+                "label": "Health"
+              },
+              {
+                "id": "pets",
+                "label": "Pets"
+              },
+              {
+                "id": "other",
+                "label": "Other"
+              }
+            ]
+          },
+          {
+            "id": "receipt",
+            "name": "Receipt",
+            "type": "file"
+          }
+        ]
+      },
+      {
+        "id": "reading-log",
+        "name": "Reading log",
+        "fields": [
+          {
+            "id": "title",
+            "name": "Title",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "author",
+            "name": "Author",
+            "type": "text"
+          },
+          {
+            "id": "finished",
+            "name": "Finished on",
+            "type": "date"
+          },
+          {
+            "id": "stars",
+            "name": "Rating",
+            "type": "rating"
+          }
+        ]
+      },
+      {
+        "id": "parcels",
+        "name": "Packages to pick up",
+        "fields": [
+          {
+            "id": "carrier",
+            "name": "Carrier",
+            "type": "choice",
+            "options": [
+              {
+                "id": "post",
+                "label": "Post office"
+              },
+              {
+                "id": "locker",
+                "label": "Parcel locker"
+              },
+              {
+                "id": "courier",
+                "label": "Courier"
+              },
+              {
+                "id": "other",
+                "label": "Other"
+              }
+            ]
+          },
+          {
+            "id": "tracking",
+            "name": "Tracking number",
+            "type": "text"
+          },
+          {
+            "id": "code",
+            "name": "Pickup code",
+            "type": "text"
+          },
+          {
+            "id": "picked",
+            "name": "Picked up",
+            "type": "checkbox"
+          },
+          {
+            "id": "screenshot",
+            "name": "Screenshot",
+            "type": "file"
+          }
+        ]
+      },
+      {
+        "id": "recipes",
+        "name": "Recipes",
+        "fields": [
+          {
+            "id": "name",
+            "name": "Recipe",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "minutes",
+            "name": "Time",
+            "type": "number",
+            "decimals": 0,
+            "unit": "min"
+          },
+          {
+            "id": "ingredients",
+            "name": "Ingredients",
+            "type": "note"
+          },
+          {
+            "id": "photo",
+            "name": "Photo",
+            "type": "file"
+          }
+        ]
+      }
+    ],
+    "workflows": [
+      {
+        "id": "scan-warranty",
+        "name": "Scan warranty card",
+        "accepts": ["image"]
+      },
+      {
+        "id": "save-business-card",
+        "name": "Save business card to contacts",
+        "accepts": ["image"]
+      }
+    ]
+  },
+  {
+    "id": "p-en-2",
+    "locale": "en",
+    "collections": [
+      {
+        "id": "bills",
+        "name": "Bills to pay",
+        "fields": [
+          {
+            "id": "payee",
+            "name": "Payee",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "amount",
+            "name": "Amount",
+            "type": "money",
+            "currency": "GBP"
+          },
+          {
+            "id": "due",
+            "name": "Due date",
+            "type": "date"
+          },
+          {
+            "id": "paid",
+            "name": "Paid",
+            "type": "checkbox"
+          },
+          {
+            "id": "bill",
+            "name": "Bill",
+            "type": "file"
+          }
+        ]
+      },
+      {
+        "id": "medical",
+        "name": "Medical records",
+        "fields": [
+          {
+            "id": "date",
+            "name": "Date",
+            "type": "date"
+          },
+          {
+            "id": "kind",
+            "name": "Type",
+            "type": "choice",
+            "options": [
+              {
+                "id": "rx",
+                "label": "Prescription"
+              },
+              {
+                "id": "lab",
+                "label": "Lab result"
+              },
+              {
+                "id": "visit",
+                "label": "Visit"
+              },
+              {
+                "id": "other",
+                "label": "Other"
+              }
+            ]
+          },
+          {
+            "id": "doctor",
+            "name": "Doctor",
+            "type": "text"
+          },
+          {
+            "id": "notes",
+            "name": "Notes",
+            "type": "note"
+          },
+          {
+            "id": "document",
+            "name": "Document",
+            "type": "file"
+          }
+        ]
+      },
+      {
+        "id": "plants",
+        "name": "Plant care",
+        "fields": [
+          {
+            "id": "plant",
+            "name": "Plant",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "watered",
+            "name": "Last watered",
+            "type": "date"
+          },
+          {
+            "id": "fed",
+            "name": "Fertilised",
+            "type": "checkbox"
+          },
+          {
+            "id": "photo",
+            "name": "Photo",
+            "type": "file"
+          }
+        ]
+      }
+    ],
+    "workflows": [
+      {
+        "id": "forward-prescription",
+        "name": "Forward prescription to pharmacy",
+        "accepts": ["image", "pdf"]
+      },
+      {
+        "id": "sign-email-back",
+        "name": "Sign contract and email back",
+        "accepts": ["pdf"]
+      }
+    ]
+  },
+  {
+    "id": "p-fr-1",
+    "locale": "fr",
+    "collections": [
+      {
+        "id": "depenses",
+        "name": "Dépenses du foyer",
+        "fields": [
+          {
+            "id": "date",
+            "name": "Date",
+            "type": "date",
+            "default": "today"
+          },
+          {
+            "id": "montant",
+            "name": "Montant",
+            "type": "money",
+            "currency": "EUR",
+            "required": true
+          },
+          {
+            "id": "categorie",
+            "name": "Catégorie",
+            "type": "choice",
+            "options": [
+              {
+                "id": "courses",
+                "label": "Courses"
+              },
+              {
+                "id": "resto",
+                "label": "Restaurant"
+              },
+              {
+                "id": "sante",
+                "label": "Santé"
+              },
+              {
+                "id": "transport",
+                "label": "Transport"
+              },
+              {
+                "id": "animaux",
+                "label": "Animaux"
+              },
+              {
+                "id": "autre",
+                "label": "Autre"
+              }
+            ]
+          },
+          {
+            "id": "magasin",
+            "name": "Magasin",
+            "type": "text"
+          },
+          {
+            "id": "ticket",
+            "name": "Ticket",
+            "type": "file"
+          }
+        ]
+      },
+      {
+        "id": "sante",
+        "name": "Santé de la famille",
+        "fields": [
+          {
+            "id": "date",
+            "name": "Date",
+            "type": "date"
+          },
+          {
+            "id": "membre",
+            "name": "Pour qui",
+            "type": "choice",
+            "options": [
+              {
+                "id": "moi",
+                "label": "Moi"
+              },
+              {
+                "id": "conjoint",
+                "label": "Conjoint"
+              },
+              {
+                "id": "enfant",
+                "label": "Enfant"
+              }
+            ]
+          },
+          {
+            "id": "type",
+            "name": "Type",
+            "type": "choice",
+            "options": [
+              {
+                "id": "ordonnance",
+                "label": "Ordonnance"
+              },
+              {
+                "id": "analyses",
+                "label": "Analyses"
+              },
+              {
+                "id": "consultation",
+                "label": "Consultation"
+              },
+              {
+                "id": "pharmacie",
+                "label": "Pharmacie"
+              }
+            ]
+          },
+          {
+            "id": "rembourse",
+            "name": "Remboursé",
+            "type": "checkbox"
+          },
+          {
+            "id": "document",
+            "name": "Document",
+            "type": "file"
+          }
+        ]
+      },
+      {
+        "id": "ecole",
+        "name": "École des enfants",
+        "fields": [
+          {
+            "id": "objet",
+            "name": "Objet",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "date",
+            "name": "Date",
+            "type": "date"
+          },
+          {
+            "id": "enfant",
+            "name": "Enfant",
+            "type": "choice",
+            "options": [
+              {
+                "id": "lea",
+                "label": "Aînée"
+              },
+              {
+                "id": "tom",
+                "label": "Cadet"
+              }
+            ]
+          },
+          {
+            "id": "a-signer",
+            "name": "À signer",
+            "type": "checkbox"
+          },
+          {
+            "id": "piece",
+            "name": "Pièce jointe",
+            "type": "file"
+          }
+        ]
+      }
+    ],
+    "workflows": [
+      {
+        "id": "ordonnance-mutuelle",
+        "name": "Envoyer l'ordonnance à la mutuelle",
+        "accepts": ["image", "pdf"]
+      }
+    ]
+  },
+  {
+    "id": "p-fr-2",
+    "locale": "fr",
+    "collections": [
+      {
+        "id": "contacts",
+        "name": "Cartes de visite",
+        "fields": [
+          {
+            "id": "nom",
+            "name": "Nom",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "societe",
+            "name": "Société",
+            "type": "text"
+          },
+          {
+            "id": "telephone",
+            "name": "Téléphone",
+            "type": "text"
+          },
+          {
+            "id": "email",
+            "name": "E-mail",
+            "type": "text"
+          },
+          {
+            "id": "photo",
+            "name": "Photo de la carte",
+            "type": "file"
+          }
+        ]
+      },
+      {
+        "id": "voiture",
+        "name": "Entretien de la voiture",
+        "fields": [
+          {
+            "id": "date",
+            "name": "Date",
+            "type": "date"
+          },
+          {
+            "id": "km",
+            "name": "Kilométrage",
+            "type": "number",
+            "decimals": 0,
+            "unit": "km"
+          },
+          {
+            "id": "garage",
+            "name": "Garage",
+            "type": "text"
+          },
+          {
+            "id": "montant",
+            "name": "Montant",
+            "type": "money",
+            "currency": "EUR"
+          },
+          {
+            "id": "facture",
+            "name": "Facture",
+            "type": "file"
+          }
+        ]
+      },
+      {
+        "id": "factures",
+        "name": "Factures de la maison",
+        "fields": [
+          {
+            "id": "fournisseur",
+            "name": "Type",
+            "type": "choice",
+            "options": [
+              {
+                "id": "elec",
+                "label": "Électricité"
+              },
+              {
+                "id": "gaz",
+                "label": "Gaz"
+              },
+              {
+                "id": "eau",
+                "label": "Eau"
+              },
+              {
+                "id": "internet",
+                "label": "Internet"
+              },
+              {
+                "id": "autre",
+                "label": "Autre"
+              }
+            ]
+          },
+          {
+            "id": "montant",
+            "name": "Montant",
+            "type": "money",
+            "currency": "EUR"
+          },
+          {
+            "id": "echeance",
+            "name": "Échéance",
+            "type": "date"
+          },
+          {
+            "id": "payee",
+            "name": "Payée",
+            "type": "checkbox"
+          },
+          {
+            "id": "pdf",
+            "name": "Facture",
+            "type": "file"
+          }
+        ]
+      },
+      {
+        "id": "entrainements",
+        "name": "Entraînements",
+        "fields": [
+          {
+            "id": "date",
+            "name": "Date",
+            "type": "date",
+            "default": "today"
+          },
+          {
+            "id": "sport",
+            "name": "Sport",
+            "type": "choice",
+            "options": [
+              {
+                "id": "velo",
+                "label": "Vélo"
+              },
+              {
+                "id": "course",
+                "label": "Course"
+              },
+              {
+                "id": "natation",
+                "label": "Natation"
+              }
+            ]
+          },
+          {
+            "id": "duree",
+            "name": "Durée",
+            "type": "number",
+            "decimals": 0,
+            "unit": "min"
+          }
+        ]
+      }
+    ],
+    "workflows": [
+      {
+        "id": "signer-devis",
+        "name": "Signer et renvoyer un devis",
+        "accepts": ["pdf"]
+      },
+      {
+        "id": "masquer-rib",
+        "name": "Masquer mon RIB",
+        "accepts": ["image"]
+      }
+    ]
+  }
+]

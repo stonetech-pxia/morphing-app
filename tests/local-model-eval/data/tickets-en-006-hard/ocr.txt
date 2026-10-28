@@ -1,0 +1,10 @@
+City Cab
+SAMPLE OCUMENT · TEST ONLY
+18 Sample Street
+To: New York
+Order No: TIC-2O260006
+Date: 07/15/2026
+Amount paid: $108.02
+City Cab
+Tel: 555-0100 · Scan QR for offers
+Thank you

@@ -1,0 +1,14 @@
+Librairie Sable
+DOCUMENT FICTIF · TEST
+18 rue Exemple
+Sous-total HT: 225,63 €
+Remise: 8,50 €
+Monnaie rendue: 5,50 €
+Date: 21/03/2026
+Net à payer: 217,13 €
+Librairie Sable
+Facture n°: INV-20260003
+TVA: 21,71 €
+Type: Autres
+Tél : 01 23 45 67 89 · QR au verso
+Merci de votre visite

@@ -1,0 +1,15 @@
+Librairie Sable
+DOCUMEN FICTIF · TEST
+18 rue Exemple
+Date: 23/1O/2026
+Article A   164,00 €
+Article B   8279 €
+Points fidélité: 60
+Sous-total HT: 246,79 €
+Total TTC payé: 238,29 €
+Monnaie rendue: 5,50 €
+Remise: 8,50 €
+Librairie Sable
+Type: Autres
+Tél : 01 23 45 67 89 · QR au verso
+Merci de votre visite

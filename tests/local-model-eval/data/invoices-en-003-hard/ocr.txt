@@ -1,0 +1,13 @@
+North Market
+SAMPLE OCUMENT · TEST ONLY
+18 Sample Street
+Discount: $8.50
+Total: $289.73
+Subtotal: $298.23
+Change: $5.50
+Date: O3/06/2026
+North Market
+Tax: $28.97
+Type: Other
+Tel: 555-0100 · Scan QR for offers
+Thank you

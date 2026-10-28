@@ -1,0 +1,52 @@
+{
+  "id": "eval-invoices-zh-009",
+  "name": "自动填写测试",
+  "fields": [
+    {
+      "id": "amount",
+      "name": "实付",
+      "type": "money",
+      "currency": "CNY"
+    },
+    {
+      "id": "date",
+      "name": "日期",
+      "type": "date"
+    },
+    {
+      "id": "merchant",
+      "name": "店名",
+      "type": "text"
+    },
+    {
+      "id": "category",
+      "name": "分类",
+      "type": "choice",
+      "options": [
+        {
+          "id": "food",
+          "label": "餐饮"
+        },
+        {
+          "id": "transport",
+          "label": "交通"
+        },
+        {
+          "id": "other",
+          "label": "其他"
+        }
+      ]
+    },
+    {
+      "id": "invoiceNo",
+      "name": "单号",
+      "type": "text"
+    },
+    {
+      "id": "tax",
+      "name": "税额",
+      "type": "money",
+      "currency": "CNY"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+Elm Books
+SAMPLE OCUMENT · TEST ONLY
+18 Sample Street
+Subtotal: $113.12
+Discount: $8.50
+Date: 09/l1/2026
+Amount paid: $104.62
+Change: $5.50
+Elm Books
+InvoiceNo: INV-20260008
+Type: Other
+Tel: 555-0100 · Scan QR for offers
+Thank you

@@ -1,0 +1,58 @@
+[
+  {
+    "id": "receipt-archive",
+    "name": {
+      "en": "Receipt archive",
+      "zh": "收据归档",
+      "fr": "Archive de reçus"
+    },
+    "description": {
+      "en": "Scan a receipt (straightened automatically, or check the corners) → under 500 KB → name it by date → save to files.",
+      "zh": "扫描收据（自动拉正，或确认四个角）→ 压到 500 KB 以内 → 按日期命名 → 存到文件。",
+      "fr": "Numérisez un reçu (redressement automatique, ou vérifiez les coins) → compressez à moins de 500 Ko → nommez-le par date → enregistrez dans les fichiers."
+    },
+    "accepts": ["image"]
+  },
+  {
+    "id": "expense-report",
+    "name": {
+      "en": "Expense report: add a receipt",
+      "zh": "报销单：扫一张加一张",
+      "fr": "Note de frais : ajouter un reçu"
+    },
+    "description": {
+      "en": "Scan receipts → clean up → PDF → add them after the last expense report (or start a new one) → one PDF named by month → save to files.",
+      "zh": "扫描收据 → 变清楚 → 转 PDF → 接到上次的报销单后面（也可以新开一份）→ 合成一份，按月份命名 → 存到文件。",
+      "fr": "Numérisez les reçus → améliorez la lisibilité → convertissez en PDF → ajoutez-les après la dernière note de frais (ou créez-en une nouvelle) → fusionnez en un seul PDF nommé par mois → enregistrez dans les fichiers."
+    },
+    "accepts": ["image"]
+  },
+  {
+    "id": "sign-return",
+    "name": {
+      "en": "Sign and send back",
+      "zh": "签回表格",
+      "fr": "Signer et renvoyer"
+    },
+    "description": {
+      "en": "Choose a PDF → fill in its form fields (skipped when there are none) → sign → share.",
+      "zh": "选一个 PDF → 填写表单（没有表单字段时跳过）→ 签名 → 分享。",
+      "fr": "Choisissez un PDF → remplissez ses champs de formulaire (ignoré s’il n’y en a pas) → signez → partagez."
+    },
+    "accepts": ["pdf"]
+  },
+  {
+    "id": "redact-screenshots",
+    "name": {
+      "en": "Hide parts of screenshots",
+      "zh": "截图打码分享",
+      "fr": "Masquer des parties de captures d’écran"
+    },
+    "description": {
+      "en": "Choose screenshots → stitch into one long image → cover private parts → share.",
+      "zh": "选截图 → 拼成一张长图 → 盖住隐私部分 → 分享。",
+      "fr": "Choisissez des captures d’écran → assemblez-les en une seule image longue → masquez les parties privées → partagez."
+    },
+    "accepts": ["image"]
+  }
+]

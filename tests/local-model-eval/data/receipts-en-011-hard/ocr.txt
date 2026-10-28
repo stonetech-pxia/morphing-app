@@ -1,0 +1,14 @@
+Maple Diner
+SAMPLE OCUMENT · TEST ONLY
+18 Sample Street
+Date: 04/26/2026
+Item A   $28.20
+Item B   $16.83
+Subtotal: $45.03
+Discount: $8.50
+Amount paid: $36.53
+Maple Diner
+Type: Food
+Change:$5.50
+Tel: 555-0100 · Scan QR for offers
+Thank you

@@ -1,0 +1,46 @@
+{
+  "id": "eval-orders-zh-001",
+  "name": "自动填写测试",
+  "fields": [
+    {
+      "id": "amount",
+      "name": "金额",
+      "type": "money",
+      "currency": "CNY"
+    },
+    {
+      "id": "date",
+      "name": "消费日期",
+      "type": "date"
+    },
+    {
+      "id": "merchant",
+      "name": "商家",
+      "type": "text"
+    },
+    {
+      "id": "category",
+      "name": "支出类别",
+      "type": "choice",
+      "options": [
+        {
+          "id": "food",
+          "label": "餐饮"
+        },
+        {
+          "id": "transport",
+          "label": "交通"
+        },
+        {
+          "id": "other",
+          "label": "其他"
+        }
+      ]
+    },
+    {
+      "id": "invoiceNo",
+      "name": "单号",
+      "type": "text"
+    }
+  ]
+}

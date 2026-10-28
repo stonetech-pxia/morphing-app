@@ -368,7 +368,7 @@ export const en = {
   storageDeleteUsed:
     'It is used in {n} places. They will show that the file is gone, and restoring an older version will not bring it back. This can’t be undone.',
   storageDeleteUnused: 'Restoring an older version will not bring it back. This can’t be undone.',
-  dataRowHint: 'Your entries: export, recently deleted',
+  dataRowHint: 'Your entries: export, recently deleted, app design, prefill memory',
   dataPrivacy:
     'Entries are stored only on this phone. The AI only sees the structure of your tables (names and fields), never what you enter.',
   dataTables: 'Data tables',
@@ -385,6 +385,30 @@ export const en = {
   nothingDeleted: 'Nothing deleted recently',
   unknownTable: 'Table {id}',
   pageMissing: 'This page no longer exists.',
+  // Settings → Data: app design export, prefill memory (D-244)
+  appConfigTitle: 'App design',
+  appConfigHint:
+    'Pages, table structures, quick actions and reminders, saved as one file. Your entries and files are not included.',
+  exportAppConfig: 'Export app design',
+  prefillMemoryTitle: 'Prefill memory',
+  prefillMemoryHint:
+    'When you log an entry, Morph remembers the layout of documents you saved: which label a value follows, roughly which line, and the shop name. It does not keep amounts or dates. Stored only on this phone, never sent to the AI. The exported file is also a backup: use “Restore from file” to bring it back.',
+  prefillMemoryCount: 'Remembers {count} document layouts',
+  prefillMemoryNone: 'No document layouts remembered yet',
+  prefillMemoryExport: 'Export',
+  prefillMemoryRestore: 'Restore from file',
+  prefillMemoryClear: 'Clear',
+  prefillMemoryClearConfirm:
+    'Clear all prefill memory? Morph will have to learn again. This can’t be undone.',
+  prefillMemoryRestoreConfirm:
+    'Replace the current prefill memory with the one in this file ({count} layouts)?',
+  prefillMemoryRestoreInvalid:
+    'This file is not prefill memory exported from Morph. Nothing was restored.',
+  prefillMemoryRestored: 'Restored {count} document layouts.',
+  dataModelDownloadAsk: 'Download date and amount recognition?',
+  dataModelDownloadBody:
+    'Google needs to download the recognition model for this language first. Recognition runs on this phone and the text is not uploaded; after the download it works offline. Without it, Morph still prefills using its own rules.',
+  dataModelDownload: 'Download',
 
   // 直接编辑（长按一块、调整顺序）
   editText: 'Edit text',
@@ -1163,6 +1187,10 @@ export const enSingular = {
   packDeleteWithLanguages:
     'Its language is deleted too. You can download it again the next time you need it.',
   recordCount: '{count} entry',
+  prefillMemoryCount: 'Remembers {count} document layout',
+  prefillMemoryRestoreConfirm:
+    'Replace the current prefill memory with the one in this file ({count} layout)?',
+  prefillMemoryRestored: 'Restored {count} document layout.',
   deleteForeverConfirm: 'Delete {count} entry of “{name}”? This can’t be undone.',
   editPageSummary: 'Edit “{page}” ({count} change)',
   deleteGroupMessage:

@@ -91,6 +91,21 @@ export interface ImageAdjustSettings {
   saturation: number;
 }
 
+/** 系统识别出的日期或金额（VisionPlatform.detectData），和 @morph/core 预填的 SystemMatch 一样。 */
+export interface SystemDataMatch {
+  kind: 'amount' | 'date';
+  start: number;
+  end: number;
+  value?: string;
+}
+
+/** 图像分类的一个标签（VisionPlatform.classifyImage）。 */
+export interface ImageLabel {
+  id: string;
+  /** 0–1。 */
+  confidence: number;
+}
+
 export interface VisionPlatform {
   adjustImage(
     uri: string,
@@ -115,6 +130,24 @@ export interface VisionPlatform {
    * 调用方按比例换回原图。没有这个能力时没有这个方法。
    */
   detectFaces?(uri: string): Promise<{ width: number; height: number; faces: Box[] }>;
+  /**
+   * 照片里是什么（没有文字的照片做推荐用，还没接进推荐）：标签是平台自己的英文标识，从高到低，
+   * 只有不低于 minConfidence 的。signal 取消时 Promise 马上以 code 为 cancelled 的错误结束，
+   * 不等原生那边。没有这个能力时（旧开发构建）没有这个方法。
+   */
+  classifyImage?(
+    uri: string,
+    options?: { maxResults?: number; minConfidence?: number; signal?: AbortSignal },
+  ): Promise<ImageLabel[]>;
+  /**
+   * 「记一笔」预填用的系统识别（D-244，只做规则的补充，还没接进记一笔）：文字里的日期和金额在哪里。
+   * 不下载模型；系统做不了、模型没下载或者出错时返回空（只用规则）。
+   */
+  detectData?(text: string, language: string): Promise<SystemDataMatch[]>;
+  /** 这种语言的系统识别：ready 能用；download 要先下载模型（先问用户）；unsupported 不支持。 */
+  dataDetectionStatus?(language: string): Promise<'ready' | 'download' | 'unsupported'>;
+  /** 下载识别模型（Android）；只在用户同意以后调用。 */
+  downloadDataModel?(language: string): Promise<void>;
   /**
    * 证件照换底色（D-252）：人留下，其余换成纯色，输出 PNG。iOS 用人像分割（iOS 15 起），
    * Android 用主体分割（和去背景同一个模型，要 Google Play 服务）。
@@ -529,6 +562,11 @@ export interface FilePlatform {
   share(path: string, mimeType: string): Promise<void>;
   /** 把一段文字存成临时文件并打开系统分享面板（导出 CSV 用）。不会成为用户文件。 */
   shareText(fileName: string, text: string, mimeType: string): Promise<void>;
+  /**
+   * 读用户从「文件」选的一个文字文件（恢复预填记忆的备份用）。读完删掉选择器放在 App 缓存里的副本
+   * （Caches/DocumentPicker，是 App 自己的）；原件不动。
+   */
+  readPickedText(uri: string): Promise<string>;
 
   // ---- 工作流执行：选择 ----
   /** 从相册混选照片和视频；用户取消时返回 null。 */

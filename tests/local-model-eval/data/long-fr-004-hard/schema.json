@@ -1,0 +1,32 @@
+{
+  "id": "eval-long-fr-004",
+  "name": "Essai de préremplissage",
+  "fields": [
+    {
+      "id": "date",
+      "name": "Date",
+      "type": "date"
+    },
+    {
+      "id": "amount",
+      "name": "Montant",
+      "type": "money",
+      "currency": "EUR"
+    },
+    {
+      "id": "merchant",
+      "name": "Commerçant",
+      "type": "text"
+    },
+    {
+      "id": "invoiceNo",
+      "name": "Numéro de facture",
+      "type": "text"
+    },
+    {
+      "id": "email",
+      "name": "Courriel",
+      "type": "text"
+    }
+  ]
+}

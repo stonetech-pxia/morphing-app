@@ -1,0 +1,8 @@
+{
+  "id": "orders-en-006-normal",
+  "language": "en",
+  "category": "orders",
+  "difficulty": "normal",
+  "seed": 20261027,
+  "interference": ["column_order"]
+}

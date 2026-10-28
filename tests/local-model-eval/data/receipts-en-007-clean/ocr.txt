@@ -1,0 +1,15 @@
+Elm Books
+SAMPLE DOCUMENT · TEST ONLY
+18 Sample Street
+Date: 06/01/2026
+Item A   $172.23
+Item B   $132.36
+Subtotal: $304.59
+Discount: $8.50
+Amount paid: $296.09
+Change: $5.50
+Elm Books
+Order No: REC-20260007
+Type: Other
+Tel: 555-0100 · Scan QR for offers
+Thank you

@@ -1,0 +1,15 @@
+Taxi Étoile
+DOCUMEN FICTIF · TEST
+18 rue Exemple
+Article A   1388 €
+Article B   26,84 €
+Points fidélité: 248
+Sous-total HT: 40,72 €
+Remise: 8,50 €
+Net à payer: 32,22 €
+Monnaie rendue: 5,50 €
+Date: 15/01/2026
+Taxi Étoile
+Tél : 01 23 45 67 89 · QR au verso
+Merci de votre visite
+Type: Transport

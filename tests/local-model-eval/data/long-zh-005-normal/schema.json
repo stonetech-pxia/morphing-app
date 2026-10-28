@@ -1,0 +1,32 @@
+{
+  "id": "eval-long-zh-005",
+  "name": "自动填写测试",
+  "fields": [
+    {
+      "id": "date",
+      "name": "日期",
+      "type": "date"
+    },
+    {
+      "id": "amount",
+      "name": "花了多少",
+      "type": "money",
+      "currency": "CNY"
+    },
+    {
+      "id": "merchant",
+      "name": "商家",
+      "type": "text"
+    },
+    {
+      "id": "invoiceNo",
+      "name": "发票号",
+      "type": "text"
+    },
+    {
+      "id": "email",
+      "name": "邮箱",
+      "type": "text"
+    }
+  ]
+}

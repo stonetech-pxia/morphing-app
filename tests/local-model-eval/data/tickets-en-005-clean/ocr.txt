@@ -1,0 +1,11 @@
+Elm Books
+SAMPLE DOCUMENT · TEST ONLY
+18 Sample Street
+Date: 08/09/2026
+From: Boston
+To: New York
+Order No: TIC-20260005
+Amount paid: $199.68
+Elm Books
+Tel: 555-0100 · Scan QR for offers
+Thank you

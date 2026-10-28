@@ -40,6 +40,8 @@ export * from './templates';
 export * from './samples';
 export * from './text-ops';
 export * from './text-rules';
+export * from './prefill';
+export * from './config-file';
 export * from './theme';
 export * from './tools';
 export * from './tools/io';

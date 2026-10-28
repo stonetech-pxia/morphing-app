@@ -1,0 +1,8 @@
+{
+  "id": "long-fr-004-hard",
+  "language": "fr",
+  "category": "long",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": ["missing_invoiceNo", "column_order", "confusable", "dropped_character"]
+}

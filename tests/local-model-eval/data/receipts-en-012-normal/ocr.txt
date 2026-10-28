@@ -1,0 +1,15 @@
+Willow Cafe
+SAMPLE DOCUMENT · TEST ONLY
+18 Sample Street
+Item A   $29.86
+Item B   $86.09
+Loyalty points: 397
+Subtotal: $115.95
+Total: $1O7.45
+Change: $5.50
+Discount: $8.50
+Date: 08/20/2026
+Willow Cafe
+Type: Food
+Tel: 555-0100 · Scan QR for offers
+Thank you

@@ -22,6 +22,8 @@ import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.records.Field
+import expo.modules.kotlin.records.Record
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.concurrent.thread
@@ -43,6 +45,11 @@ class DocumentCameraUnavailableException :
   CodedException("The document camera is not available on this device")
 
 private const val SCAN_REQUEST = 0x4d56
+
+class ClassifyOptions : Record {
+  @Field val maxResults: Int = 10
+  @Field val minConfidence: Double = 0.1
+}
 
 
 private class PendingScan(
@@ -70,6 +77,52 @@ class MorphVisionModule : Module() {
 
     // 证件照（D-252）：ML Kit 人脸检测（模型打包进 App）；换底色用上面的主体分割（Google Play 服务的模型）。
     AsyncFunction("detectFaces") { uri: String -> FaceFinder.detect(context, Uri.parse(uri)) }
+
+    // 照片里是什么（没有文字的照片做推荐用）：ML Kit 图像标注，见 ImageClassifier。后台线程跑，取消时轮询结束。
+    AsyncFunction("classifyImage") { taskId: String, uri: String, options: ClassifyOptions, promise: Promise ->
+      thread(name = "morph-classify") {
+        try {
+          promise.resolve(
+            ImageClassifier.classify(context, Uri.parse(uri), taskId, options.maxResults, options.minConfidence)
+          )
+        } catch (e: CodedException) {
+          promise.reject(e)
+        } catch (e: Throwable) {
+          promise.reject(VisionFailedException(e.message))
+        }
+      }
+    }
+
+    Function("cancelClassify") { taskId: String -> ImageClassifier.cancel(taskId) }
+
+    // 「记一笔」预填用的系统识别（ML Kit 实体识别），只做规则的补充，见 DataDetection。
+    AsyncFunction("detectData") { text: String, language: String, allowDownload: Boolean, promise: Promise ->
+      thread(name = "morph-detect-data") {
+        try {
+          promise.resolve(DataDetection.detect(text, language, allowDownload))
+        } catch (e: CodedException) {
+          promise.reject(e)
+        } catch (e: Throwable) {
+          promise.reject(VisionFailedException(e.message))
+        }
+      }
+    }
+
+    AsyncFunction("dataDetectionStatus") { language: String -> DataDetection.status(language) }
+
+    // 用户同意以后才下载（JS 先问）。
+    AsyncFunction("downloadDataModel") { language: String, promise: Promise ->
+      thread(name = "morph-data-model") {
+        try {
+          DataDetection.download(language)
+          promise.resolve(null)
+        } catch (e: CodedException) {
+          promise.reject(e)
+        } catch (e: Throwable) {
+          promise.reject(VisionFailedException(e.message))
+        }
+      }
+    }
 
     AsyncFunction("adjustImage") { uri: String, options: Map<String, Any?>, format: String, output: String ->
       ImageAdjustment.adjust(context, Uri.parse(uri), options, format, File(Uri.parse(output).path!!))

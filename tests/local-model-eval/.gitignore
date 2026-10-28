@@ -1,0 +1,8 @@
+/models/
+/results/
+/tools/
+/hf-cache/
+__pycache__/
+*.pyc
+/*HANDOFF*.md
+/REPORT.md
