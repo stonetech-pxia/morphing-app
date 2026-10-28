@@ -49,7 +49,7 @@ export function expoVision(
             async write(uri, bytes) {
               const file = new File(uri);
               file.create({ overwrite: true });
-              file.write(bytes);
+              await file.write(bytes);
             },
             read: (uri) => new File(uri).bytes(),
             pixels: async (uri, maxSide) => ocrPixels(await new File(uri).bytes(), maxSide),

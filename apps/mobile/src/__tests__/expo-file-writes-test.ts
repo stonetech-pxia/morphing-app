@@ -4,6 +4,7 @@
 
 import { expoPackFs } from '../packs/expo-pack-fs';
 import { expoFilePlatform } from '../runtime/expo-platform';
+import { expoVision } from '../runtime/expo-vision';
 import { expoToolFs } from '../tool-download/expo-tool-fs';
 
 const mockDisk = new Map<string, Uint8Array | string>();
@@ -48,11 +49,44 @@ jest.mock('expo-file-system', () => {
     async bytes() {
       return mockDisk.get(this.uri) as Uint8Array;
     }
+    async text() {
+      return mockDisk.get(this.uri) as string;
+    }
   }
   return { File, Directory, Paths: { cache: { uri: 'cache' }, document: { uri: 'doc' } } };
 });
 
-beforeEach(() => mockDisk.clear());
+// 文字识别（D-269）：张量写进临时文件交给原生模块。原生只看文件有多大，没写完就报
+// 「input has 0 bytes」（手机上「识别照片里的文字」第 2 步）。
+const mockDetectInputs: number[] = [];
+jest.mock('../../modules/morph-vision', () => ({
+  __esModule: true,
+  default: {
+    canFindPaper: () => false,
+    isDocumentCameraSupported: () => false,
+    supportsLanguage: () => false,
+    ocrLoad: async () => {},
+    async ocrDetect(input: string) {
+      mockDetectInputs.push((mockDisk.get(input) as Uint8Array | undefined)?.length ?? 0);
+      throw new Error('stop after detect');
+    },
+    ocrRecognize: async () => 0,
+  },
+}));
+jest.mock('../packs/store', () => ({
+  PackStore: class {
+    isInstalled = async () => true;
+    path = (id: string, file: string) => `packs/${id}/${file}`;
+  },
+}));
+jest.mock('../runtime/skia', () => ({
+  ocrPixels: async () => ({ width: 64, height: 32, data: new Uint8Array(64 * 32 * 4) }),
+}));
+
+beforeEach(() => {
+  mockDisk.clear();
+  mockDetectInputs.length = 0;
+});
 
 it('writes a run file completely before the next step can read it', async () => {
   const bytes = new Uint8Array([37, 80, 68, 70]);
@@ -66,4 +100,14 @@ it('finishes writing text files for packs and downloaded tools before returning'
   expect(mockDisk.size).toBe(before + 1);
   await expoToolFs.writeText('tools/qr/1/tool.json', '{}');
   expect(mockDisk.size).toBe(before + 2);
+});
+
+it('finishes writing the text recognition input before the model reads it', async () => {
+  mockDisk.set(expoPackFs.uri('packs/ppocr/dictionary.json'), '{"characters":["a"]}');
+  const vision = expoVision((runId, relPath) => `cache/runs/${runId}/${relPath}`)!;
+  await expect(vision.recognizeText('cache/photo.jpg', ['zh-Hans'])).rejects.toThrow(
+    'stop after detect',
+  );
+  expect(mockDetectInputs).toHaveLength(1);
+  expect(mockDetectInputs[0]).toBeGreaterThan(0);
 });
