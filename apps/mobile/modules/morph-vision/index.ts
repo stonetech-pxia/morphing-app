@@ -62,10 +62,14 @@ export interface MorphVisionModule {
   /** 这种语言（BCP 47）系统能不能识别。 */
   supportsLanguage(code: string): boolean;
   supportedLanguages(): Promise<string[]>;
-  /** languages：BCP 47，第一种必须支持，后面的是补充。 */
+  /**
+   * languages：BCP 47，第一种必须支持，后面的是补充。automatic：iOS 让 Vision 自己判断语言
+   * （languages 只是提示，D-267）；Android 的 ML Kit 不会判断，忽略。
+   */
   recognizeText(
     uri: string,
     languages: readonly string[],
+    automatic: boolean,
   ): Promise<{
     text: string;
     lines: number;

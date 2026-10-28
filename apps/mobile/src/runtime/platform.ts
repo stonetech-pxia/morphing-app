@@ -132,8 +132,13 @@ export interface VisionPlatform {
   supportsLanguage(code: string): boolean;
   /** 识别文字；languages 是 BCP 47，第一种是用户选的语言。文字只返回给 App。 */
   recognizeText(uri: string, languages: readonly string[]): Promise<string>;
-  /** 识别文字，给出每行的位置（可搜索 PDF 的文字层，D-195）。 */
+  /**
+   * 识别文字，给出每行的位置（可搜索 PDF 的文字层，D-195）。iOS 还让 Vision 自己判断语言
+   * （languages 只是提示），所以不在单子上的文字（俄文、阿拉伯文等）也认得出来（D-267）。
+   */
   recognizeLines(uri: string, languages: readonly string[]): Promise<TextLayer>;
+  /** 用户系统里设的语言（BCP 47，按优先顺序），文字层按它选识别语言（D-267）。 */
+  readonly preferredLanguages?: readonly string[];
   /** 能不能给照片找边和拉正（findPaper / straighten）；Android 的 ML Kit 不能。 */
   readonly canFindPaper: boolean;
   /** 找纸张的四个角（像素，已按拍摄方向摆正）；没找到返回 null。 */

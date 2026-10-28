@@ -30,10 +30,13 @@ import {
   type ImageKind,
   type ImagePageOptions,
   type PageRule,
+  type TextLayer,
 } from '@morph/tool-pdf';
 
+import type { VisionPlatform } from '../platform';
 import { formatBytes } from './image';
 import { fileItems, freshName, readItem, writeItem, type RunServices } from './helpers';
+import { textLayerLanguages } from './ocr';
 
 // PDF 动作的实现：字节处理全部在 packages/tool-pdf（pdf-lib），这里只负责读写临时文件。
 
@@ -124,9 +127,6 @@ function ruleOf(params: Record<string, unknown>): PageRule {
 }
 
 /** 图片的 JPEG / PNG 字节：pdf-lib 只能嵌入这两种；HEIC、WebP 和很大的 PNG 先转成 JPEG。 */
-/** 文字层识别用的语言：只写拉丁字母（P-028），第一种必须是系统支持的。 */
-const TEXT_LAYER_LANGUAGES = ['en-US', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'pt-BR'];
-
 async function imageBytes(
   ctx: Ctx,
   item: RunItem,
@@ -174,6 +174,25 @@ async function imageBytes(
 }
 
 const isImage = (item: RunItem) => item.mimeType.startsWith('image/');
+
+/**
+ * 一页的文字层。几种语言放在一起系统不接受时（iOS 的 Vision 对语言组合有限制，没在真机上试全），
+ * 退回只用第一种再试一次；还不行这一页就不加。
+ */
+async function recognizePage(
+  vision: VisionPlatform,
+  uri: string,
+  languages: readonly string[],
+): Promise<TextLayer | undefined> {
+  for (const attempt of languages.length > 1 ? [languages, languages.slice(0, 1)] : [languages]) {
+    try {
+      return await vision.recognizeLines(uri, attempt);
+    } catch {
+      // 换一组语言再试，或者这一页不加文字层。
+    }
+  }
+  return undefined;
+}
 
 /** 页面上的位置 → stampImage 用的左上角比例坐标。 */
 function stampBox(
@@ -308,7 +327,8 @@ async function imagesPdf(
     const target = maxMB * MB;
     const result = await searchSharedQuality({
       targetBytes: target,
-      overheadBytes: 2048 + items.length * 1024,
+      // 文字层（D-267）在后面才加：字体和 ToUnicode 一次约 1–4 KB，每页约 1–1.5 KB。
+      overheadBytes: 2048 + items.length * 1024 + (textLayer ? 4096 + items.length * 1536 : 0),
       maxQuality: 0.9,
       encodeAll: async (quality, scale) => {
         ctx.throwIfCancelled();
@@ -331,19 +351,14 @@ async function imagesPdf(
       ctx.progress(i + 1, items.length);
     }
   }
-  // 能搜索的 PDF（D-195）：每页识别文字和位置。没有系统自带的识别（Expo Go）时不加；某一页识别失败只是那页不加。
+  // 能搜索的 PDF（D-195）：每页识别文字和位置，任何文字都写得进去（D-267）。没有系统自带的识别（Expo Go）
+  // 或一种语言都识别不了时不加；某一页识别失败只是那页不加。
   const vision = textLayer ? ctx.services.files.vision : null;
-  if (vision) {
+  const languages = vision ? textLayerLanguages(ctx.locale, vision) : [];
+  if (vision && languages.length > 0) {
     for (const [i, item] of items.entries()) {
       ctx.throwIfCancelled();
-      try {
-        images[i] = {
-          ...images[i]!,
-          text: await vision.recognizeLines(item.uri, TEXT_LAYER_LANGUAGES),
-        };
-      } catch {
-        // 这一页不加文字层。
-      }
+      images[i] = { ...images[i]!, text: await recognizePage(vision, item.uri, languages) };
       ctx.progress(i + 1, items.length);
     }
   }

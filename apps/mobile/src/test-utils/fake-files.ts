@@ -1053,6 +1053,8 @@ export class FakeVision implements VisionPlatform {
   canFindPaper = true;
   /** 系统识别不了的语言（BCP 47 主语言），例如 Android 的 ML Kit 不认俄文。 */
   unsupported = new Set<string>();
+  /** 系统里设的语言（D-267）。 */
+  preferredLanguages: string[] | undefined = undefined;
   /** 下一次文档相机拍到的页面；null 表示用户取消。 */
   scanned: PickedFile[] | null = null;
 

@@ -1,4 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { describe, expect, it } from 'vitest';
 
 import { type ImagePageOptions, imagesToPdf, mergeDocuments } from './index';
@@ -106,7 +107,7 @@ describe('imagesToPdf', () => {
     expect(size?.[1]).toBeCloseTo(50 + 20 * MM);
   });
 
-  it('adds an invisible text layer where the lines were recognised, Latin lines only (D-195, P-028)', async () => {
+  it('adds an invisible text layer where the lines were recognised, in any script (D-195, D-267)', async () => {
     const result = await imagesToPdf(
       [
         {
@@ -129,10 +130,18 @@ describe('imagesToPdf', () => {
       A4,
     );
     const content = await pageContent(result.bytes, 0);
-    // 渲染模式 3（不可见），两行拉丁字母写进去，中文那行跳过。
-    expect(content.match(/3 Tr/g)).toHaveLength(2);
-    expect(content.match(/\bTj\b/g)).toHaveLength(2);
+    // 渲染模式 3（不可见），三行都写进去，中文那行也是（以前 Helvetica 写不出，跳过了）。
+    expect(content.match(/3 Tr/g)).toHaveLength(3);
+    expect(content.match(/\bTj\b/g)).toHaveLength(3);
     expect(content).toMatch(/\d+(\.\d+)? Tz/);
+    const task = getDocument({ data: result.bytes.slice(), verbosity: 0 });
+    const text = await (await (await task.promise).getPage(1)).getTextContent();
+    await task.destroy();
+    expect(text.items.map((i) => ('str' in i ? i.str : '')).filter(Boolean)).toEqual([
+      'Total 12,50 €',
+      'Café, élève, à côté, garçon, cœur',
+      '合计',
+    ]);
     // 第二页没有文字。
     expect(await pageContent(result.bytes, 1)).not.toMatch(/Tr/);
   });

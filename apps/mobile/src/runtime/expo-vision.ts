@@ -1,4 +1,5 @@
 import { Directory, Paths } from 'expo-file-system';
+import { getLocales } from 'expo-localization';
 
 import MorphVision from '../../modules/morph-vision';
 import type { VisionPlatform } from './platform';
@@ -53,13 +54,16 @@ export function expoVision(
     supportsLanguage: (code) => native.supportsLanguage(code),
 
     async recognizeText(uri, languages) {
-      return (await native.recognizeText(uri, languages)).text;
+      return (await native.recognizeText(uri, languages, false)).text;
     },
 
+    // 文字层（D-267）：iOS 让 Vision 自己判断语言；Android 的 ML Kit 不会，按第一种语言选识别器。
     async recognizeLines(uri, languages) {
-      const { width, height, items } = await native.recognizeText(uri, languages);
+      const { width, height, items } = await native.recognizeText(uri, languages, true);
       return { width, height, lines: items };
     },
+
+    preferredLanguages: getLocales().map((l) => l.languageTag),
 
     canFindPaper: native.canFindPaper(),
 

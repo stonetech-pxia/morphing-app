@@ -11,6 +11,7 @@ import { PDFDocument, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 
 import type { PackPageId, PackRuntime } from '../packs/bridge';
 import type { LocalKind, LocalUi } from '../runtime/local';
+import { textLayerLanguages } from '../runtime/actions/ocr';
 import { packsNeeded, startRun } from '../runtime/runner';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, FakeVision, TINY_JPEG } from '../test-utils/fake-files';
@@ -291,7 +292,7 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
     });
   });
 
-  it('adds an invisible text layer to scanned PDFs so they can be searched (D-195)', async () => {
+  it('adds an invisible text layer to scanned PDFs so they can be searched, in any script (D-195, D-267)', async () => {
     const wf: Workflow = {
       id: 'scan',
       name: 'scan',
@@ -313,26 +314,36 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
     };
     const line = { text: 'Invoice 42', x: 10, y: 10, width: 60, height: 8 };
     const { files, vision, run } = setup(wf, {}, {}, true);
-    vision.scanned = [1, 2, 3].map((n) => ({
+    vision.scanned = [1, 2, 3, 4].map((n) => ({
       ...files.offerImage(`scan-${n}.jpg`, 1700, 2400),
       straightened: true,
     }));
-    // 第二页识别失败：那一页不加文字层，PDF 照样生成。
+    // 第二页识别失败（只用第一种语言再试也失败）：那一页不加文字层，PDF 照样生成。
+    // 第四页几种语言一起不行，只用第一种再试就好了。
     vision.layers = [
       { width: 100, height: 100, lines: [line] },
       new Error('vision failed'),
+      new Error('vision failed'),
       { width: 100, height: 100, lines: [line, { ...line, text: '发票' }] },
+      new Error('unsupported language combination'),
+      { width: 100, height: 100, lines: [{ ...line, text: '合计' }] },
     ];
     const result = await run();
-    expect(vision.calls.filter((c) => c.method === 'recognizeLines').map((c) => c.args)).toEqual(
-      Array(3).fill(['en-US', 'fr-FR', 'de-DE', 'es-ES', 'it-IT', 'pt-BR']),
-    );
+    // 界面是中文：中文在前，补英文。
+    expect(vision.calls.filter((c) => c.method === 'recognizeLines').map((c) => c.args)).toEqual([
+      ['zh-Hans', 'en-US'],
+      ['zh-Hans', 'en-US'],
+      ['zh-Hans'],
+      ['zh-Hans', 'en-US'],
+      ['zh-Hans', 'en-US'],
+      ['zh-Hans'],
+    ]);
     const [pdf] =
       result.status === 'succeeded' && result.value && 'items' in result.value
         ? result.value.items
         : [];
     const doc = await PDFDocument.load(files.disk.get(pdf!.uri)!);
-    expect(doc.getPageCount()).toBe(3);
+    expect(doc.getPageCount()).toBe(4);
     // 页面内容是压缩过的：解开所有流再找（图片的 JPEG 流跳过）。
     const decoded = (obj: unknown) => {
       if (!(obj instanceof PDFRawStream)) return '';
@@ -346,8 +357,10 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
       .enumerateIndirectObjects()
       .map(([, obj]) => decoded(obj))
       .join('\n');
-    // 第一页、第三页各一行拉丁字母；中文那行跳过（P-028）。
-    expect(text.match(/3 Tr/g)).toHaveLength(2);
+    // 第一页一行，第三页两行，第四页一行；中文也写进去（ToUnicode 里有「发」U+53D1、「票」U+7968）。
+    expect(text.match(/3 Tr/g)).toHaveLength(4);
+    expect(text).toContain('<53d1>');
+    expect(text).toContain('<7968>');
 
     // 没有系统识别（Expo Go）：不加文字层，PDF 照常。
     const library: Workflow = {
@@ -502,5 +515,46 @@ describe('Android (ML Kit): no edge finding, no Russian', () => {
     // 没有 Google Play 服务：没有文档扫描，扫描包也要下载。
     vision.documentCamera = false;
     expect(packsNeeded(['scan'], files)).toEqual(['scan']);
+  });
+});
+
+describe('textLayerLanguages (D-267)', () => {
+  const vision = (preferred?: string[], unsupported: string[] = []) => {
+    const v = new FakeVision(new FakeFiles());
+    v.preferredLanguages = preferred;
+    v.unsupported = new Set(unsupported);
+    return v;
+  };
+
+  it('uses the system languages, then the interface language, then English', () => {
+    expect(textLayerLanguages('en', vision())).toEqual(['en-US']);
+    expect(textLayerLanguages('fr', vision(['fr-CA', 'de-DE']))).toEqual([
+      'fr-FR',
+      'de-DE',
+      'en-US',
+    ]);
+    // 没有对应识别语言的（乌克兰文）原样交给系统。
+    expect(textLayerLanguages('en', vision(['en-GB', 'uk-UA']))).toEqual(['en-US', 'uk-UA']);
+  });
+
+  it('puts one Chinese, Japanese or Korean language first (its recognizer also reads Latin)', () => {
+    expect(textLayerLanguages('en', vision(['en-GB', 'ja-JP', 'ko-KR']))).toEqual([
+      'ja-JP',
+      'en-US',
+    ]);
+    expect(textLayerLanguages('fr', vision(['ru-RU', 'zh-Hant-TW']))).toEqual([
+      'zh-Hant',
+      'ru-RU',
+      'fr-FR',
+      'en-US',
+    ]);
+    // 系统语言分得出繁体（界面的中文只有简体）。
+    expect(textLayerLanguages('zh', vision(['zh-HK']))).toEqual(['zh-Hant', 'en-US']);
+  });
+
+  it('keeps only what the system can recognise', () => {
+    // Android 的 ML Kit 不认俄文。
+    expect(textLayerLanguages('en', vision(['ru-RU'], ['ru']))).toEqual(['en-US']);
+    expect(textLayerLanguages('en', vision([], ['en']))).toEqual([]);
   });
 });
