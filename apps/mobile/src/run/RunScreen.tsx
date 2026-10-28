@@ -4,6 +4,7 @@ import {
   isFileValue,
   type AskedAnswer,
   type AskRequest,
+  type RunItem,
   type RunResult,
   type Workflow,
 } from '@morph/core';
@@ -37,6 +38,7 @@ import { ChainCard } from './ChainCard';
 import { HabitCard } from './HabitCard';
 import { LOCAL_SCREENS } from './local';
 import { ResultView } from './ResultView';
+import { TableEditor } from './TableEditor';
 
 /** 问话框淡出要多久（毫秒）。 */
 const ASK_DISMISS_MS = 400;
@@ -108,6 +110,8 @@ export function RunScreen({
   // 这次运行里「每次运行时问」的回答，结果页据此提议做成快捷操作（D-127）。
   const answers = useRef<AskedAnswer[]>([]);
   const [runCount, setRunCount] = useState(0);
+  // 正在查看和编辑的转 Excel 结果（D-272）。
+  const [tableItem, setTableItem] = useState<RunItem | null>(null);
   const label = (action: string, index: number) =>
     incoming && index === 0
       ? t(locale, 'shareInputStep', { n: incoming.files.length })
@@ -405,6 +409,8 @@ export function RunScreen({
       ) : null}
       {value ? (
         <ResultView
+          // 编辑后换成了新文件：「已保存」之类的状态从头算。
+          key={isFileValue(value) ? value.items.map((i) => i.uri).join('|') : 'value'}
           value={value}
           inputSize={outcome?.status === 'succeeded' ? outcome.inputSize : 0}
           palette={palette}
@@ -412,6 +418,7 @@ export function RunScreen({
           actions={{
             save: saveResult,
             continueProcessing,
+            editTable: (item) => setTableItem(item),
             share: async () => {
               if (isFileValue(value)) await files.shareUris(value.items);
             },
@@ -429,6 +436,32 @@ export function RunScreen({
             copy: async () => {
               if (value.type === 'text') await files.copyText(value.text);
             },
+          }}
+        />
+      ) : null}
+
+      {tableItem && run.current ? (
+        <TableEditor
+          item={tableItem}
+          files={files}
+          runId={run.current.runId}
+          palette={palette}
+          locale={locale}
+          onClose={() => setTableItem(null)}
+          onSaved={(next) => {
+            const old = tableItem.uri;
+            setOutcome((o) =>
+              o?.status === 'succeeded' && isFileValue(o.value)
+                ? {
+                    ...o,
+                    value: {
+                      ...o.value,
+                      items: o.value.items.map((i) => (i.uri === old ? next : i)),
+                    },
+                  }
+                : o,
+            );
+            setTableItem(null);
           }}
         />
       ) : null}
