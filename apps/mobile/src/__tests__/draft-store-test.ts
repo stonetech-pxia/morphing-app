@@ -89,7 +89,12 @@ describe('AI change drafts (D-190)', () => {
     await say(store, '首页改成文件工作台');
     await say(store, '主题换成绿色');
     const applied = await store.getState().applyDraft();
-    expect(applied).toEqual({ addedWorkflowIds: [], addedCollectionIds: [], origin: {} });
+    expect(applied).toEqual({
+      addedWorkflowIds: [],
+      addedCollectionIds: [],
+      homeScreenWorkflowIds: [],
+      origin: {},
+    });
     expect(store.getState().draft).toBeNull();
     const head = store.getState().head!;
     expect(head.parentId).toBe(baseId);

@@ -206,3 +206,57 @@ describe('mock AI — workflows', () => {
     });
   });
 });
+
+// 手机桌面（HS，D-269）：「放到桌面」是手机桌面，「放到首页」仍是首页。
+describe('mock AI — home screen', () => {
+  const on = (c: WorkspaceConfig) => c.workflows.filter((w) => w.homeScreen).map((w) => w.id);
+
+  it('HS1 puts a quick action on the phone home screen, not on the home page', async () => {
+    const before = withVisa();
+    const { after, lines } = await change('把签证照片放到桌面', before);
+    expect(on(after)).toEqual(['visa-photo']);
+    expect(after.pages).toEqual(before.pages);
+    expect(lines[0]).toContain('手机桌面');
+    const en = await change('Put the visa photo on my home screen', withVisa(), 'en');
+    expect(on(en.after)).toEqual(['visa-photo']);
+  });
+
+  it('HS2 “home page” stays the home page', async () => {
+    const { after } = await change('把签证照片放到主页', withVisa());
+    expect(on(after)).toEqual([]);
+    expect(
+      after.pages[0]!.components.some(
+        (c) => c.type === 'workflowRunner' && c.props.workflowId === 'visa-photo',
+      ),
+    ).toBe(true);
+  });
+
+  it('HS4 taking it off the home screen keeps the quick action', async () => {
+    const marked = apply(withVisa(), [
+      { op: 'setWorkflowHomeScreen', workflowId: 'visa-photo', homeScreen: true },
+    ]);
+    const { after } = await change('把签证照片从桌面拿掉', marked);
+    expect(on(after)).toEqual([]);
+    expect(after.workflows.some((w) => w.id === 'visa-photo')).toBe(true);
+  });
+
+  it('refuses a fifth one and says which four are there', async () => {
+    const full = apply(withVisa(), [
+      ...['visa-photo', 'pdf-merge', 'pdf-split', 'pdf-compress'].map((workflowId) => ({
+        op: 'setWorkflowHomeScreen' as const,
+        workflowId,
+        homeScreen: true,
+      })),
+    ]);
+    const p = await plan('把整理页面放到桌面', full);
+    expect(p).toMatchObject({ kind: 'reject', reason: 'unknown' });
+    expect(p.kind === 'reject' && p.message).toContain('最多放 4 个');
+    // 先拿掉一个就能放。
+    const { after } = await change('把签证照片从桌面拿掉，把整理页面放到桌面', full);
+    expect(on(after).sort()).toEqual(['pdf-arrange', 'pdf-compress', 'pdf-merge', 'pdf-split']);
+  });
+
+  it('an unknown name is refused, never guessed', async () => {
+    expect(await plan('把不存在的东西放到桌面', withVisa())).toMatchObject({ kind: 'reject' });
+  });
+});

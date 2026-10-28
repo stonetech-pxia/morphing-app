@@ -43,6 +43,11 @@ const SYMBOLS: Record<IconName, SymbolName> = {
   note: { ios: 'note.text', android: 'notes' },
 };
 
+/** 系统菜单里用的 SF Symbol 名字（长按 Morph 图标的菜单，D-269）；emoji 没有。 */
+export function iosSymbolName(name: IconValue): string | undefined {
+  return name in SYMBOLS ? SYMBOLS[name as IconName].ios : undefined;
+}
+
 export function Icon({
   name,
   size = 22,

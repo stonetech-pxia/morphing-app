@@ -27,6 +27,9 @@ import { getDeviceId, secureSecretStore } from '@/ai/secure-store';
 import { createAISettingsStore } from '@/ai/settings';
 import { DraftChatSheet } from '@/draft/DraftBar';
 import { useGuide } from '@/guide/store';
+import { HomeScreenProvider } from '@/home-screen/context';
+import { nativeHomeScreen } from '@/home-screen/native';
+import { HomeScreenBridge } from '@/home-screen/useHomeScreen';
 import { getDeviceLocale, t } from '@/i18n';
 import { PackBridge } from '@/packs/bridge';
 import { expoBridgeFiles, expoPackFs, expoSha256 } from '@/packs/expo-pack-fs';
@@ -138,6 +141,8 @@ function ThemedStack() {
   return (
     <>
       <StatusBar style={palette.dark ? 'light' : 'dark'} />
+      {/* 手机桌面（D-269）：长按 Morph 图标的菜单跟着配置变；从菜单或桌面图标打开时直接开始那个快捷操作。 */}
+      <HomeScreenBridge platform={nativeHomeScreen} />
       <Stack screenOptions={stackScreenOptions(palette)}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         {/* AI 修改页不显示标题（D-231），左上角只有「关闭」。 */}
@@ -240,7 +245,9 @@ export default function RootLayout() {
           }}>
           <PackHostProvider value={packs}>
             <ToolDownloadsProvider value={toolDownloads}>
-              <RootStack />
+              <HomeScreenProvider value={nativeHomeScreen}>
+                <RootStack />
+              </HomeScreenProvider>
             </ToolDownloadsProvider>
           </PackHostProvider>
         </WorkspaceProvider>

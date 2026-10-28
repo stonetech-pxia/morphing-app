@@ -3214,7 +3214,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 18
+.schemaVersion 19
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"
@@ -3263,6 +3263,7 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .workflows[].icon? = .pages[].icon
 .workflows[].toolId? string /^[a-z][a-z0-9-]{0,47}$/
 .workflows[].presetId? string /^[a-z][a-z0-9-]{0,47}$/
+.workflows[].homeScreen? true
 .workflows[].steps array items 1..12
 .workflows[].steps[] object
 .workflows[].steps[].id string /^[a-z][a-z0-9-]{0,47}$/

@@ -1,0 +1,21 @@
+// 本地 Expo 模块的 Android 部分（D-269）：ShortcutManagerCompat（androidx.core，随 react-android 带进来）的
+// 动态快捷方式和固定到桌面的图标。只用系统接口。
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.morphshortcuts'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.morphshortcuts"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  implementation 'com.facebook.react:react-android'
+}

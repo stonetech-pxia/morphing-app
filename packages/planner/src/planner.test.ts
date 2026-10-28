@@ -255,6 +255,76 @@ describe('Claude planner', () => {
     expect(String(complete.mock.calls[1]![0][2]!.content)).toContain('unknown preset "visa"');
   });
 
+  it('accepts setWorkflowHomeScreen after adding the preset in the same plan (D-269)', async () => {
+    const plan = {
+      kind: 'ops',
+      ops: [
+        { op: 'addWorkflow', presetId: 'visa-photo' },
+        { op: 'setWorkflowHomeScreen', workflowId: 'visa-photo', homeScreen: true },
+      ],
+    };
+    const complete = vi.fn<Complete>().mockResolvedValue(json(plan));
+    const result = await createClaudePlanner({ complete, registry, now }).plan(
+      '把签证照片放到桌面',
+      ctx,
+    );
+    expect(result).toMatchObject({
+      kind: 'ops',
+      ops: [
+        { op: 'addWorkflow', workflow: { id: 'visa-photo' } },
+        { op: 'setWorkflowHomeScreen', workflowId: 'visa-photo', homeScreen: true },
+      ],
+    });
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends a home screen mark on a missing quick action or inside addWorkflow back to the model', async () => {
+    const fixed = {
+      kind: 'ops',
+      ops: [
+        { op: 'addWorkflow', presetId: 'visa-photo' },
+        { op: 'setWorkflowHomeScreen', workflowId: 'visa-photo', homeScreen: true },
+      ],
+    };
+    const missing = vi
+      .fn<Complete>()
+      .mockResolvedValueOnce(
+        json({
+          kind: 'ops',
+          ops: [{ op: 'setWorkflowHomeScreen', workflowId: 'visa-photo', homeScreen: true }],
+        }),
+      )
+      .mockResolvedValueOnce(json(fixed));
+    await createClaudePlanner({ complete: missing, registry, now }).plan('把签证照片放到桌面', ctx);
+    expect(String(missing.mock.calls[1]![0][2]!.content)).toContain(
+      'workflow visa-photo not found',
+    );
+
+    const inside = vi
+      .fn<Complete>()
+      .mockResolvedValueOnce(
+        json({
+          kind: 'ops',
+          ops: [
+            {
+              op: 'addWorkflow',
+              workflow: {
+                ...presetWorkflow(presetById('visa-photo')!, 'zh', 'visa-photo'),
+                homeScreen: true,
+              },
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(json(fixed));
+    const result = await createClaudePlanner({ complete: inside, registry, now }).plan(
+      '把签证照片放到桌面',
+      ctx,
+    );
+    expect(inside).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ kind: 'ops', ops: [{}, { op: 'setWorkflowHomeScreen' }] });
+  });
+
   it('turns a safety refusal into a polite rejection', async () => {
     const complete = vi.fn<Complete>().mockResolvedValue(reply('', 'refusal'));
     expect(await createClaudePlanner({ complete, registry, now }).plan('……', ctx)).toMatchObject({

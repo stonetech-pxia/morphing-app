@@ -4,6 +4,7 @@ import type { Registry } from './registry';
 import { reminderProblems } from './reminders';
 import {
   HOME_PAGE_ID,
+  MAX_HOME_SCREEN,
   PROTECTED_TARGETS,
   WorkspaceConfigSchema,
   PERIODS,
@@ -202,6 +203,14 @@ export function validateWorkspace(
     }
   }
 
+  // ---- 手机桌面（D-269）：长按 Morph 图标的菜单最多放 MAX_HOME_SCREEN 个 ----
+  const onHomeScreen = config.workflows.filter((w) => w.homeScreen).map((w) => w.id);
+  if (onHomeScreen.length > MAX_HOME_SCREEN) {
+    issue(
+      'homeScreen',
+      `at most ${MAX_HOME_SCREEN} quick actions can be on the phone home screen (now ${onHomeScreen.join(', ')}); take one off first`,
+    );
+  }
   // ---- 提醒（D-251）----
   for (const id of duplicates((config.reminders ?? []).map((r) => r.id)))
     issue('duplicate', `reminder ${id}`);

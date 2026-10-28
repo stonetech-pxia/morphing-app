@@ -7,6 +7,7 @@ import { t } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Button, Card } from '../renderer/ui';
+import { HomeScreenCard } from '../home-screen/HomeScreenCard';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { NextCard } from './NextCard';
 import { Banner } from './Shell';
@@ -15,6 +16,7 @@ import { Banner } from './Shell';
  * 「快捷操作做好了」（D-125）：AI 新做了一个快捷操作后打开。AI 不替用户运行（D-113），
  * 用户自己点「现在就用一次」；也说明以后在哪里找到它。
  * 功能类修改直接应用（D-191），AI 的说明和「接着改」也在这里。
+ * 放到了手机桌面的（D-269）说明怎么用：iOS 长按 Morph 图标，Android 还有「添加到桌面」按钮（点了才弹系统框）。
  */
 export function ReadyScreen({ workflow, notes = [] }: { workflow: Workflow; notes?: string[] }) {
   const { locale, registry } = useWorkspaceContext();
@@ -67,6 +69,7 @@ export function ReadyScreen({ workflow, notes = [] }: { workflow: Workflow; note
           {t(locale, onHome ? 'readyHome' : 'workflowWhere')}
         </Text>
       </Card>
+      <HomeScreenCard workflow={workflow} palette={palette} />
       <Button
         palette={palette}
         testID="ready-run"

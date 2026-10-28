@@ -1,4 +1,5 @@
 import {
+  addedToHomeScreen,
   prepareSnapshot,
   type Locale,
   type Op,
@@ -98,6 +99,7 @@ export function createKernel(deps: WorkspaceDeps, set: Kernel['set'], get: Kerne
     return {
       addedWorkflowIds: after.workflows.filter((w) => !workflows.has(w.id)).map((w) => w.id),
       addedCollectionIds: after.collections.filter((c) => !collections.has(c.id)).map((c) => c.id),
+      homeScreenWorkflowIds: addedToHomeScreen(before, after),
       origin,
     };
   }

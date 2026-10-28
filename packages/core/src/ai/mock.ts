@@ -24,6 +24,7 @@ import type { ToolDefinition } from '../registry';
 import {
   HOME_PAGE_ID,
   IdSchema,
+  MAX_HOME_SCREEN,
   allComponents,
   pageTarget,
   type Component,
@@ -46,6 +47,7 @@ import {
   type DataTemplate,
 } from '../templates';
 import { homeFileEntryOps } from '../starter';
+import { homeScreenFull } from '../home-screen';
 import { splitOps } from './kinds';
 import type { AIProvider, Plan, PlanContext, RejectReason } from './types';
 
@@ -1166,6 +1168,67 @@ const workflowToHomeRule: Rule = (clause, state) => {
   return ops;
 };
 
+// ---- 手机桌面（HS，D-269）：「放到桌面 / 主屏幕」是手机桌面；「首页 / 主页」仍是 App 的首页（D-109）----
+
+const HOME_SCREEN_ZH = '(?:手机)?(?:桌面|主屏幕|主屏)';
+const HOME_SCREEN_EN = "(?:the |my )?(?:phone(?:'s)? )?home ?screen";
+
+const workflowToHomeScreenRule: Rule = (clause, state) => {
+  const add =
+    clause.match(
+      new RegExp(
+        `^(?:把|将)${Q}(.+?)${Q}(?:快捷操作|工作流|流程)?(?:放到|加到|添加到|放在)${HOME_SCREEN_ZH}(?:上)?$`,
+      ),
+    ) ??
+    clause.match(
+      new RegExp(
+        `^(?:put|add|pin) (?:the )?"?(.+?)"?(?: workflow| quick action)? (?:on|to) ${HOME_SCREEN_EN}$`,
+        'i',
+      ),
+    );
+  const remove =
+    clause.match(
+      new RegExp(
+        `^(?:把|将)${Q}(.+?)${Q}(?:快捷操作|工作流|流程)?从${HOME_SCREEN_ZH}(?:上)?(?:移除|拿掉|去掉|删掉|删除)$`,
+      ),
+    ) ??
+    clause.match(
+      new RegExp(
+        `^(?:remove|take) (?:the )?"?(.+?)"?(?: workflow| quick action)? (?:off|from) ${HOME_SCREEN_EN}$`,
+        'i',
+      ),
+    );
+  const m = add ?? remove;
+  if (!m) return null;
+  if (remove) {
+    const wf = requireWorkflow(m[1]!, state);
+    return [{ op: 'setWorkflowHomeScreen', workflowId: wf.id, homeScreen: false }];
+  }
+  const ops: Op[] = [];
+  let wf = workflowNamed(m[1]!, state);
+  if (!wf) {
+    // 还没添加的预设：先添加再放到桌面。
+    const preset = findPreset(m[1]!);
+    if (!preset) return null;
+    wf = presetWorkflow(preset, state.ctx.locale, newWorkflowId(preset.id, state.config.workflows));
+    ops.push({ op: 'addWorkflow', workflow: wf });
+  }
+  if (wf.homeScreen) return ops;
+  if (homeScreenFull(state.config)) {
+    const names = state.config.workflows.filter((w) => w.homeScreen).map((w) => w.name);
+    throw new Rejection(
+      'unknown',
+      say(
+        state.ctx.locale,
+        `手机桌面最多放 ${MAX_HOME_SCREEN} 个快捷操作，现在是「${names.join('」「')}」。先说要拿掉哪一个，例如「把${names[0]}从桌面拿掉」。`,
+        `The home screen holds at most ${MAX_HOME_SCREEN} quick actions: “${names.join('”, “')}”. Say which one to take off first, for example “Remove ${names[0]} from the home screen”.`,
+      ),
+    );
+  }
+  ops.push({ op: 'setWorkflowHomeScreen', workflowId: wf.id, homeScreen: true });
+  return ops;
+};
+
 const OUTPUT_ACTIONS = /^(out\.|file\.save$|file\.rename$)/;
 
 const addStepRule: Rule = (clause, state) => {
@@ -1449,6 +1512,7 @@ const RULES: Rule[] = [
   newWorkflowRule,
   addPresetRule,
   renameWorkflowRule,
+  workflowToHomeScreenRule,
   removeWorkflowRule,
   workflowToHomeRule,
   addStepRule,
