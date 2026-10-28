@@ -3,5 +3,6 @@
   {"id":"mdeberta-nli","repo":"MoritzLaurer/mDeBERTa-v3-base-mnli-xnli","revision":"8adb042d524ecd5c26d3e3ba0e3fbcf7e2d0864c","file":"model.safetensors","sha256":"65af59b1ff4450b09ecbf13ca35c840dbf038b26ff8e10e5ea89ca724828ed1e","license":"MIT"},
   {"id":"e5","repo":"intfloat/multilingual-e5-small","revision":"614241f622f53c4eeff9890bdc4f31cfecc418b3","file":"model.safetensors","sha256":"1a55775f53449dac10a2bcbc312469fac40b96d53198c407081a831f81c98477","license":"MIT"},
   {"id":"minilm-embedding","repo":"sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2","revision":"e8f8c211226b894fcb81acc59f3b34ba3efd5f42","file":"model.safetensors","sha256":"eaa086f0ffee582aeb45b36e34cdd1fe2d6de2bef61f8a559a1bbc9bd955917b","license":"Apache-2.0"},
-  {"id":"qwen3-embedding","repo":"Qwen/Qwen3-Embedding-0.6B","revision":"97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3","file":"model.safetensors","sha256":"0437e45c94563b09e13cb7a64478fc406947a93cb34a7e05870fc8dcd48e23fd","license":"Apache-2.0"}
+  {"id":"qwen3-embedding","repo":"Qwen/Qwen3-Embedding-0.6B","revision":"97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3","file":"model.safetensors","sha256":"0437e45c94563b09e13cb7a64478fc406947a93cb34a7e05870fc8dcd48e23fd","license":"Apache-2.0"},
+  {"id":"bge-m3","repo":"BAAI/bge-m3","revision":"5617a9f61b028005a4858fdac845db406aefb181","file":"pytorch_model.bin","sha256":"b5e0ce3470abf5ef3831aa1bd5553b486803e83251590ab7ff35a117cf6aad38","license":"MIT"}
 ]

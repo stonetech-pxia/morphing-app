@@ -12,7 +12,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 DEST = {"nli": "cls-minilm-nli", "mdeberta-nli": "cls-mdeberta-nli",
         "e5": "cls-e5-small", "minilm-embedding": "cls-minilm-embedding",
-        "qwen3-embedding": "cls-qwen3-embedding-06b"}
+        "qwen3-embedding": "cls-qwen3-embedding-06b", "bge-m3": "cls-bge-m3"}
 
 
 def main() -> None:
@@ -23,7 +23,7 @@ def main() -> None:
     entry = manifest[args.model]
     directory = ROOT / "models" / DEST[args.model]
     snapshot_download(repo_id=entry["repo"], revision=entry["revision"],
-                      allow_patterns=["*.json", "*.model", "*.txt", "*.safetensors"],
+                      allow_patterns=["*.json", "*.model", "*.txt", entry["file"]],
                       ignore_patterns=["onnx/*", "openvino/*", "tf_model.h5"],
                       local_dir=directory)
     weight = directory / entry["file"]

@@ -17,4 +17,4 @@ MORPH_CLASSIFIER_GGUF=/absolute/path/to/Qwen3.5-2B-Q4_K_M.gguf \
 python classification/evaluate_qwen.py --model qwen35-2b --mode fixed --backend cpu
 ```
 
-向量/NLI 模型来源、revision、权重 SHA-256 在 `classification/models.json`；GGUF 来源与哈希在上级 `models.json`。`classification/download.py` 会下载指定 revision 并核对哈希，放入忽略的 `models/`。NLI / E5 / MiniLM 都只处理文字；Qwen3 Embedding 的原始 safetensors 约 1.19 GB，是否能量化并在手机预算内运行需要原生实测。桌面 GPU 的 GGUF 成绩不能代替手机 RAM、耗时或真实 OCR 成绩。
+向量/NLI 模型来源、revision、权重 SHA-256 在 `classification/models.json`；GGUF 来源与哈希在上级 `models.json`。`classification/download.py` 会下载指定 revision 并核对哈希，放入忽略的 `models/`。这些分类候选都只处理文字；Qwen3 Embedding 的原始 safetensors 约 1.19 GB，BGE-M3 原始权重约 2.27 GB，是否能量化并在手机预算内运行需要原生实测。桌面 GPU 的 GGUF 成绩不能代替手机 RAM、耗时或真实 OCR 成绩。

@@ -135,14 +135,15 @@ def evaluate_nli(model_dir: Path, facet: str, noise: bool) -> list[dict]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", choices=("e5", "nli", "mdeberta-nli", "minilm-embedding", "qwen3-embedding"), required=True)
+    parser.add_argument("--model", choices=("e5", "nli", "mdeberta-nli", "minilm-embedding", "qwen3-embedding", "bge-m3"), required=True)
     parser.add_argument("--facet", choices=("kind", "topic"), required=True)
     parser.add_argument("--noise", action="store_true")
     args = parser.parse_args()
     model_dirs = {"e5": ROOT / "models/cls-e5-small", "nli": ROOT / "models/cls-minilm-nli",
                   "mdeberta-nli": ROOT / "models/cls-mdeberta-nli",
                   "minilm-embedding": ROOT / "models/cls-minilm-embedding",
-                  "qwen3-embedding": ROOT / "models/cls-qwen3-embedding-06b"}
+                  "qwen3-embedding": ROOT / "models/cls-qwen3-embedding-06b",
+                  "bge-m3": ROOT / "models/cls-bge-m3"}
     if args.model in ("nli", "mdeberta-nli"):
         rows = evaluate_nli(model_dirs[args.model], args.facet, args.noise)
     else:
