@@ -1,0 +1,14 @@
+Elm Books
+SAMPLE OCUMENT · TEST ONLY
+18 Sample Street
+Date: 06/01/2026
+Item A   $172.23
+Subtotal: $304.59
+Discount: $8.50
+Item B   $132.36
+Amount paid: $296.09
+Change: $5.50
+Elm Books
+Type: Other
+Tel:555-0100 · Scan QR for offers
+Thank you

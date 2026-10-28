@@ -1,0 +1,12 @@
+{
+  "id": "cards-zh-002-hard",
+  "language": "zh",
+  "category": "cards",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": [
+    "missing_email",
+    "spacing",
+    "dropped_character"
+  ]
+}

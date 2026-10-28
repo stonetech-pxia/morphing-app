@@ -1,0 +1,11 @@
+City Cab
+SAMPLE DOCUMENT · TEST ONLY
+18 Sample Street
+Date: 03/10/2026
+From: Boston
+Order No: TIC-20260003
+Amount paid: $150.19
+To: New York
+City Cab
+Tel: 555-0100 · Scan QR for offers
+Thank you

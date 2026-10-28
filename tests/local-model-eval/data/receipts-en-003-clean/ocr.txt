@@ -1,0 +1,14 @@
+Harbor Taxi
+SAMPLE DOCUMENT · TEST ONLY
+18 Sample Street
+Item A   $112.91
+Item B   $240.36
+Subtotal: $353.27
+Discount: $8.50
+Total: $344.77
+Change: $5.50
+Date: 01/06/2026
+Harbor Taxi
+Type: Transport
+Tel: 555-0100 · Scan QR for offers
+Thank you

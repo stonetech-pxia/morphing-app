@@ -1,0 +1,13 @@
+{
+  "id": "tickets-zh-005-hard",
+  "language": "zh",
+  "category": "tickets",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": [
+    "missing_destination",
+    "column_order",
+    "spacing",
+    "dropped_character"
+  ]
+}

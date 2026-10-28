@@ -1,0 +1,13 @@
+River Fuel
+SAMPLE DOCUMENT · TEST ONLY
+18 Sample Street
+Date: O2/13/2026
+Subtotal: $65.50
+Discount: $8.50
+Amount paid: $57.00
+Change: $5.50
+Order No: ORD-20260004
+Type: Transport
+River Fuel
+Tel: 555-0100 · Scan QR for offers
+Thank you

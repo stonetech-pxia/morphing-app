@@ -1,0 +1,46 @@
+{
+  "id": "eval-orders-en-001",
+  "name": "Prefill test",
+  "fields": [
+    {
+      "id": "amount",
+      "name": "Amount",
+      "type": "money",
+      "currency": "USD"
+    },
+    {
+      "id": "date",
+      "name": "Date",
+      "type": "date"
+    },
+    {
+      "id": "merchant",
+      "name": "Store",
+      "type": "text"
+    },
+    {
+      "id": "category",
+      "name": "Expense type",
+      "type": "choice",
+      "options": [
+        {
+          "id": "food",
+          "label": "Food"
+        },
+        {
+          "id": "transport",
+          "label": "Transport"
+        },
+        {
+          "id": "other",
+          "label": "Other"
+        }
+      ]
+    },
+    {
+      "id": "invoiceNo",
+      "name": "Invoice number",
+      "type": "text"
+    }
+  ]
+}

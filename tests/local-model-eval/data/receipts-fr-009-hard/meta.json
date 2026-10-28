@@ -1,0 +1,12 @@
+{
+  "id": "receipts-fr-009-hard",
+  "language": "fr",
+  "category": "receipts",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": [
+    "column_order",
+    "punctuation",
+    "dropped_character"
+  ]
+}

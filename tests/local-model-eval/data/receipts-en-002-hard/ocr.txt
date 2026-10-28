@@ -1,0 +1,15 @@
+Harbor Taxi
+SAMPLEDOCUMENT · TEST ONLY
+18 Sample Street
+Date: 08/06/2026
+Item A   $140.35
+Item B   $143.43
+Loyalty points: 202
+Discount: $8.50
+Amount paid: $275.28
+Subtotal: $283.78
+Change: $5.50
+Harbor Taxi
+Type: Transport
+Tel: 555-0100 · Scan QR for offers
+Thank you

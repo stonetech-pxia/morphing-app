@@ -1,0 +1,15 @@
+VTC Rivière
+DOCUMENT FICTIF · TEST
+18 rue Exemple
+Date: 05/02/2026
+Article A   228,01 €
+Article B   l57,74 €
+Sous-total HT: 385,75 €
+Remise: 8,50 €
+Total TTC payé: 377,25 €
+Monnaie rendue: 5,50 €
+VTC Rivière
+Commande n°: REC-20260005
+Tél : 01 23 45 67 89 · QR au verso
+Merci de votre visite
+Type: Transport

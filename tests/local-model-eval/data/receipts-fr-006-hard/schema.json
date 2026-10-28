@@ -1,0 +1,52 @@
+{
+  "id": "eval-receipts-fr-006",
+  "name": "Essai de préremplissage",
+  "fields": [
+    {
+      "id": "amount",
+      "name": "Payé",
+      "type": "money",
+      "currency": "EUR"
+    },
+    {
+      "id": "date",
+      "name": "Date d'achat",
+      "type": "date"
+    },
+    {
+      "id": "merchant",
+      "name": "Enseigne",
+      "type": "text"
+    },
+    {
+      "id": "category",
+      "name": "Type de dépense",
+      "type": "choice",
+      "options": [
+        {
+          "id": "food",
+          "label": "Restauration"
+        },
+        {
+          "id": "transport",
+          "label": "Transport"
+        },
+        {
+          "id": "other",
+          "label": "Autres"
+        }
+      ]
+    },
+    {
+      "id": "invoiceNo",
+      "name": "Numéro de facture",
+      "type": "text"
+    },
+    {
+      "id": "tax",
+      "name": "TVA",
+      "type": "money",
+      "currency": "EUR"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "orders-zh-005-normal",
+  "language": "zh",
+  "category": "orders",
+  "difficulty": "normal",
+  "seed": 20261027,
+  "interference": [
+    "column_order",
+    "confusable"
+  ]
+}

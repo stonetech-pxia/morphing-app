@@ -1,0 +1,13 @@
+{
+  "id": "receipts-zh-007-hard",
+  "language": "zh",
+  "category": "receipts",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": [
+    "column_order",
+    "confusable",
+    "punctuation",
+    "dropped_character"
+  ]
+}

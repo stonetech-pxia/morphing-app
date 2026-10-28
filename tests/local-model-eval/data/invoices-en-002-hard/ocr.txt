@@ -1,0 +1,13 @@
+Willow Cafe
+SAMPLE OCUMENT · TEST ONLY
+18 Sample Street
+Date: 08/11/2026
+Subtotal: $322.95
+Discount: $8.50
+Amount paid: $314.45
+Willow Cafe
+Invoice No: INV-20260002
+Change: $5.50
+Type: Food
+Tel: 555-0100 · Scan QR for offers
+Thank you

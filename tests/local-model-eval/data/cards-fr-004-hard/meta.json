@@ -1,0 +1,11 @@
+{
+  "id": "cards-fr-004-hard",
+  "language": "fr",
+  "category": "cards",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": [
+    "missing_name",
+    "dropped_character"
+  ]
+}

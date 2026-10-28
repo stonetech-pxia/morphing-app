@@ -1,0 +1,16 @@
+Librairie Sable
+DOCUMENT FICTIF · TEST
+18 rue Exemple
+Article A   7,58 €
+Article B   6,38 €
+Points fidélité: 34
+Sous-total HT: 13,96 €
+Remise: 8,50 €
+Net à payer: 5,46 €
+Date: 27/09/2026
+Librairie Sable
+Monnaie rendue: 5,50 €
+Commande n°: REC-20260012
+Type: Autres
+Tél : 01 23 45 67 89 · QR au verso
+Merci de votre visite

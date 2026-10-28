@@ -1,0 +1,14 @@
+North Market
+SAMPLE DOCUMENT · TEST ONLY
+18 Sample Street
+Subtotal: $298.23
+Discount: $8.50
+Total: $289.73
+Change: $5.50
+Date: 03/06/2026
+North Market
+Invoice No: INV-20260003
+Type: Other
+Tel: 555-0100 · Scan QR for offers
+Tax: $28.97
+Thank you

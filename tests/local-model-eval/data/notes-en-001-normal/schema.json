@@ -1,0 +1,32 @@
+{
+  "id": "eval-notes-en-001",
+  "name": "Prefill test",
+  "fields": [
+    {
+      "id": "date",
+      "name": "Date",
+      "type": "date"
+    },
+    {
+      "id": "amount",
+      "name": "Amount",
+      "type": "money",
+      "currency": "USD"
+    },
+    {
+      "id": "merchant",
+      "name": "Merchant",
+      "type": "text"
+    },
+    {
+      "id": "invoiceNo",
+      "name": "Reference",
+      "type": "text"
+    },
+    {
+      "id": "email",
+      "name": "Email",
+      "type": "text"
+    }
+  ]
+}

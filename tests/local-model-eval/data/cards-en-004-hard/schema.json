@@ -1,0 +1,31 @@
+{
+  "id": "eval-cards-en-004",
+  "name": "Prefill test",
+  "fields": [
+    {
+      "id": "name",
+      "name": "Name",
+      "type": "text"
+    },
+    {
+      "id": "phone",
+      "name": "Phone",
+      "type": "text"
+    },
+    {
+      "id": "email",
+      "name": "Email",
+      "type": "text"
+    },
+    {
+      "id": "company",
+      "name": "Company",
+      "type": "text"
+    },
+    {
+      "id": "date",
+      "name": "Purchase date",
+      "type": "date"
+    }
+  ]
+}

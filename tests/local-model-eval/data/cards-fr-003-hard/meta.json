@@ -1,0 +1,13 @@
+{
+  "id": "cards-fr-003-hard",
+  "language": "fr",
+  "category": "cards",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": [
+    "missing_phone",
+    "confusable",
+    "spacing",
+    "dropped_character"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "tickets-fr-004-hard",
+  "language": "fr",
+  "category": "tickets",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": [
+    "missing_invoiceNo",
+    "column_order",
+    "dropped_character"
+  ]
+}

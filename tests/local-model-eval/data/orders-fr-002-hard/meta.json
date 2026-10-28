@@ -1,0 +1,14 @@
+{
+  "id": "orders-fr-002-hard",
+  "language": "fr",
+  "category": "orders",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": [
+    "missing_invoiceNo",
+    "column_order",
+    "confusable",
+    "punctuation",
+    "dropped_character"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "receipts-en-001-hard",
+  "language": "en",
+  "category": "receipts",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": [
+    "column_order",
+    "punctuation",
+    "spacing",
+    "dropped_character"
+  ]
+}

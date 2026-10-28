@@ -1,0 +1,14 @@
+{
+  "id": "invoices-en-006-hard",
+  "language": "en",
+  "category": "invoices",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": [
+    "missing_invoiceNo",
+    "column_order",
+    "punctuation",
+    "spacing",
+    "dropped_character"
+  ]
+}

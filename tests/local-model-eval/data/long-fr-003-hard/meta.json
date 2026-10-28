@@ -1,0 +1,13 @@
+{
+  "id": "long-fr-003-hard",
+  "language": "fr",
+  "category": "long",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": [
+    "column_order",
+    "confusable",
+    "spacing",
+    "dropped_character"
+  ]
+}

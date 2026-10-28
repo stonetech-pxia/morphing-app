@@ -1,0 +1,13 @@
+City Cab
+SAMPLE DOCUMENT · TEST ONLY
+18 Sample Street
+Subtotal: $280.29
+Discount: $8.50
+Total: $271.79
+Change: $5.50
+Date: 07/23/2026
+Order No: ORD-20260003
+Type: Transport
+City Cab
+Tel: 555-0100 · Scan QR for offers
+Thank you

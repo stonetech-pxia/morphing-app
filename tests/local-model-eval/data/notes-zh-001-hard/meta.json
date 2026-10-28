@@ -1,0 +1,11 @@
+{
+  "id": "notes-zh-001-hard",
+  "language": "zh",
+  "category": "notes",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": [
+    "spacing",
+    "dropped_character"
+  ]
+}

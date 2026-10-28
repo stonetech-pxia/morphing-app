@@ -1,0 +1,31 @@
+{
+  "id": "eval-cards-fr-004",
+  "name": "Essai de préremplissage",
+  "fields": [
+    {
+      "id": "name",
+      "name": "Nom",
+      "type": "text"
+    },
+    {
+      "id": "phone",
+      "name": "Téléphone",
+      "type": "text"
+    },
+    {
+      "id": "email",
+      "name": "Courriel",
+      "type": "text"
+    },
+    {
+      "id": "company",
+      "name": "Société",
+      "type": "text"
+    },
+    {
+      "id": "date",
+      "name": "Date",
+      "type": "date"
+    }
+  ]
+}

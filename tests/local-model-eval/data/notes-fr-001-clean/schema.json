@@ -1,0 +1,32 @@
+{
+  "id": "eval-notes-fr-001",
+  "name": "Essai de préremplissage",
+  "fields": [
+    {
+      "id": "date",
+      "name": "Date",
+      "type": "date"
+    },
+    {
+      "id": "amount",
+      "name": "Payé",
+      "type": "money",
+      "currency": "EUR"
+    },
+    {
+      "id": "merchant",
+      "name": "Commerçant",
+      "type": "text"
+    },
+    {
+      "id": "invoiceNo",
+      "name": "Référence",
+      "type": "text"
+    },
+    {
+      "id": "email",
+      "name": "Courriel",
+      "type": "text"
+    }
+  ]
+}

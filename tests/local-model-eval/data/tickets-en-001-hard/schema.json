@@ -1,0 +1,37 @@
+{
+  "id": "eval-tickets-en-001",
+  "name": "Prefill test",
+  "fields": [
+    {
+      "id": "date",
+      "name": "Purchase date",
+      "type": "date"
+    },
+    {
+      "id": "merchant",
+      "name": "Store",
+      "type": "text"
+    },
+    {
+      "id": "origin",
+      "name": "From",
+      "type": "text"
+    },
+    {
+      "id": "destination",
+      "name": "To",
+      "type": "text"
+    },
+    {
+      "id": "invoiceNo",
+      "name": "Reference",
+      "type": "text"
+    },
+    {
+      "id": "amount",
+      "name": "Paid",
+      "type": "money",
+      "currency": "USD"
+    }
+  ]
+}

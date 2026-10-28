@@ -1,0 +1,10 @@
+{
+  "id": "tickets-en-001-normal",
+  "language": "en",
+  "category": "tickets",
+  "difficulty": "normal",
+  "seed": 20261027,
+  "interference": [
+    "column_order"
+  ]
+}

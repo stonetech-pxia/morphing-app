@@ -1,0 +1,10 @@
+{
+  "id": "invoices-en-002-normal",
+  "language": "en",
+  "category": "invoices",
+  "difficulty": "normal",
+  "seed": 20261027,
+  "interference": [
+    "column_order"
+  ]
+}

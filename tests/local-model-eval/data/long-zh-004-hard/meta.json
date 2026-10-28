@@ -1,0 +1,13 @@
+{
+  "id": "long-zh-004-hard",
+  "language": "zh",
+  "category": "long",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": [
+    "column_order",
+    "confusable",
+    "punctuation",
+    "dropped_character"
+  ]
+}

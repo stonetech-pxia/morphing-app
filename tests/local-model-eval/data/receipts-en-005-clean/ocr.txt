@@ -1,0 +1,14 @@
+North Market
+SAMPLE DOCUMENT · TEST ONLY
+18 Sample Street
+Date: 04/06/2026
+Item A   $57.12
+Item B   $32.07
+Subtotal: $89.19
+Discount: $8.50
+Amount paid: $80.69
+Change: $5.50
+North Market
+Type: Other
+Tel: 555-0100 · Scan QR for offers
+Thank you

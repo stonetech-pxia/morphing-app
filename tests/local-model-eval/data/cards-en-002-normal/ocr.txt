@@ -1,0 +1,9 @@
+Harbor Taxi
+SAMPLE DOCUMENT · TEST ONLY
+18 Sample Street
+Harbor Taxi
+Phone: +33 6 12 34 56 02
+Alex Rowan
+Email: sample2@example.test
+Tel: 555-0100 · Scan QR for offers
+Thank you

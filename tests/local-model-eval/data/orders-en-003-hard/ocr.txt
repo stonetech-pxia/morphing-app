@@ -1,0 +1,12 @@
+City Cab
+SAMPLE OCUMENT · TEST ONLY
+18 Sample Street
+Subtotal: $280.29
+Discount: $8.50
+Total: $271.79
+Change: $S.50
+Date: 07/23/2026
+Type: Transport
+Tel: 555-0100 · Scan QR for offers
+City Cab
+Thank you

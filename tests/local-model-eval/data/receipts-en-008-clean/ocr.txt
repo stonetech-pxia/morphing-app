@@ -1,0 +1,15 @@
+Maple Diner
+SAMPLE DOCUMENT · TEST ONLY
+18 Sample Street
+Date: 08/19/2026
+Item A   $18.45
+Item B   $50.70
+Loyalty points: 228
+Subtotal: $69.15
+Discount: $8.50
+Amount paid: $60.65
+Change: $5.50
+Maple Diner
+Type: Food
+Tel: 555-0100 · Scan QR for offers
+Thank you

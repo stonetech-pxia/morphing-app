@@ -1,0 +1,52 @@
+{
+  "id": "eval-invoices-fr-008",
+  "name": "Essai de préremplissage",
+  "fields": [
+    {
+      "id": "amount",
+      "name": "Montant",
+      "type": "money",
+      "currency": "EUR"
+    },
+    {
+      "id": "date",
+      "name": "Date",
+      "type": "date"
+    },
+    {
+      "id": "merchant",
+      "name": "Enseigne",
+      "type": "text"
+    },
+    {
+      "id": "category",
+      "name": "Catégorie",
+      "type": "choice",
+      "options": [
+        {
+          "id": "food",
+          "label": "Restauration"
+        },
+        {
+          "id": "transport",
+          "label": "Transport"
+        },
+        {
+          "id": "other",
+          "label": "Autres"
+        }
+      ]
+    },
+    {
+      "id": "invoiceNo",
+      "name": "Référence",
+      "type": "text"
+    },
+    {
+      "id": "tax",
+      "name": "TVA",
+      "type": "money",
+      "currency": "EUR"
+    }
+  ]
+}

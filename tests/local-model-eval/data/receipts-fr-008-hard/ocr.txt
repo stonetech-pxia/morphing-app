@@ -1,0 +1,15 @@
+BistroAube
+DOCUMEN FICTIF · TEST
+18 rue Exemple
+Article A   1494 €
+Article B   8,63 €
+Date: 10/03/2026
+Points fidélité: 331
+Sous-total HT: 23,57 €
+Remise: 8,5O €
+Total TTC payé: 15,07 €
+Monnaie rendue: 5,50 €
+Bistro Aube
+Type: Restauration
+Tél : 01 23 45 67 89 · QR au verso
+Merci de votre visite

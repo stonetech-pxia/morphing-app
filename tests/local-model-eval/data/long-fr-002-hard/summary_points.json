@@ -1,0 +1,10 @@
+{
+  "must": [
+    "six mois",
+    "dix jours"
+  ],
+  "must_not": [
+    "renouvellement automatique",
+    "pénalité"
+  ]
+}

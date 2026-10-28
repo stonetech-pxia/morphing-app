@@ -1,0 +1,15 @@
+{
+  "seed": 20261027,
+  "samples": 477,
+  "null_fields": 688,
+  "fields": 2667,
+  "by_category": {
+    "receipts": 150,
+    "invoices": 84,
+    "tickets": 48,
+    "orders": 60,
+    "cards": 48,
+    "long": 54,
+    "notes": 33
+  }
+}

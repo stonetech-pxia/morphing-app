@@ -1,0 +1,10 @@
+{
+  "id": "tickets-zh-001-normal",
+  "language": "zh",
+  "category": "tickets",
+  "difficulty": "normal",
+  "seed": 20261027,
+  "interference": [
+    "column_order"
+  ]
+}

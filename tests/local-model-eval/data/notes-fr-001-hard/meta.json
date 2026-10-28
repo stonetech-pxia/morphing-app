@@ -1,0 +1,10 @@
+{
+  "id": "notes-fr-001-hard",
+  "language": "fr",
+  "category": "notes",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": [
+    "dropped_character"
+  ]
+}

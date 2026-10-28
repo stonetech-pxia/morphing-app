@@ -1,0 +1,10 @@
+{
+  "id": "receipts-en-011-normal",
+  "language": "en",
+  "category": "receipts",
+  "difficulty": "normal",
+  "seed": 20261027,
+  "interference": [
+    "column_order"
+  ]
+}
