@@ -425,16 +425,19 @@ export function TableEditor({
         ) : (
           <ScrollView horizontal style={styles.flex} testID="table-sheet">
             <ScrollView stickyHeaderIndices={[0]} contentContainerStyle={{ width: sheetWidth }}>
-              {/* 列字母（上下滚动时停在顶上）。 */}
+              {/* 列字母（上下滚动时停在顶上）。按位置摆：iOS 上停靠的那一行不按 flexDirection 排。 */}
               <View
                 style={[styles.colHeads, { width: sheetWidth, backgroundColor: palette.surface }]}>
-                <View style={{ width: ROW_HEAD }} />
                 {colPx.map((w, c) => (
                   <Pressable
                     key={c}
                     testID={`table-col-${c}`}
                     onLongPress={() => columnMenu(c)}
-                    style={[styles.head, { width: w, borderColor: palette.border }]}>
+                    style={[
+                      styles.head,
+                      styles.abs,
+                      { left: ROW_HEAD + colAt[c]!, top: 0, width: w, borderColor: palette.border },
+                    ]}>
                     <Text style={[palette.font('bodyBold', 12), { color: palette.muted }]}>
                       {columnName(c)}
                     </Text>
@@ -649,7 +652,7 @@ const styles = StyleSheet.create({
   },
   hint: { paddingHorizontal: 16, paddingVertical: 8 },
   empty: { flex: 1, padding: 24, textAlign: 'center' },
-  colHeads: { flexDirection: 'row', height: COL_HEAD },
+  colHeads: { height: COL_HEAD },
   head: {
     alignItems: 'center',
     justifyContent: 'center',
