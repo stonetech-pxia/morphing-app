@@ -10,8 +10,10 @@ import {
   parseTableDoc,
   pushHistory,
   redo,
+  deleteTextBlock,
   setCellText,
   setScope,
+  setTextBlock,
   startHistory,
   undo,
 } from './edit';
@@ -136,6 +138,15 @@ describe('TableDoc editing (D-272)', () => {
 
   it('ignores edits aimed at a text block', () => {
     expect(insertRow(DOC, { page: 0, block: 0 }, 0)).toBe(DOC);
+  });
+
+  it('edits and deletes text outside tables, but never a whole table', () => {
+    const renamed = setTextBlock(DOC, 0, 0, 'Title');
+    expect(renamed.pages[0]!.blocks[0]).toMatchObject({ kind: 'text', text: 'Title' });
+    expect(setTextBlock(DOC, 0, 1, 'x')).toBe(DOC);
+    const without = deleteTextBlock(DOC, 0, 0);
+    expect(without.pages[0]!.blocks.map((b) => b.kind)).toEqual(['table']);
+    expect(deleteTextBlock(DOC, 0, 1)).toBe(DOC);
   });
 
   it('switches the scope without losing edits', () => {

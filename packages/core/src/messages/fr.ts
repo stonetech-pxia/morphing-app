@@ -1167,6 +1167,34 @@ export const fr: MessageTable = {
   separatorList: ', ',
   separatorComma: ', ',
   separatorSemicolon: ' ; ',
+
+  // 扫描件转 Excel（D-272）
+  runError_tableUnsupported:
+    'Cet appareil ne sait pas encore lire les grilles dans cette langue. Choisissez une autre langue pour « Convertir en classeur Excel ».',
+  resultTableEdit: 'Voir et modifier',
+  resultTablesMissing:
+    'Aucune grille à lignes n’a été trouvée aux pages {pages} : tout leur contenu a été inclus.',
+  tableSheetName: 'Page {n}',
+  tableEditorHint: 'Touchez une cellule pour la sélectionner, touchez-la encore pour la modifier',
+  tableRedo: 'Rétablir',
+  tableEditCell: 'Modifier la cellule',
+  tableEditText: 'Modifier le texte',
+  tableSource: 'Original',
+  tableNoSource: 'Pas d’original pour cette cellule (elle a été ajoutée ici).',
+  tableScopeTables: 'Grilles seulement',
+  tableScopeAll: 'Tout le contenu',
+  tableInsertRowAbove: 'Insérer une ligne au-dessus',
+  tableInsertRowBelow: 'Insérer une ligne en dessous',
+  tableDeleteRow: 'Supprimer cette ligne',
+  tableInsertColumnLeft: 'Insérer une colonne à gauche',
+  tableInsertColumnRight: 'Insérer une colonne à droite',
+  tableDeleteColumn: 'Supprimer cette colonne',
+  tableDeleteText: 'Supprimer ce texte',
+  tableSelectFirst: 'Touchez d’abord une cellule de cette grille.',
+  tableEmpty: 'Rien n’a été reconnu sur cette page.',
+  tableReadOnly:
+    'Cette page compte plus de {max} cellules : ici, elle peut seulement être consultée. Pour la modifier, ouvrez le fichier dans une autre application.',
+  tableSaveFailed: 'Les modifications n’ont pas pu être enregistrées : {error}',
 };
 
 export const frSingular: SingularTable = {
@@ -1229,4 +1257,6 @@ export const frSingular: SingularTable = {
   reminderWhenDate: '{n} jour avant « {field} » dans « {table} », à {time}',
   reminderDueIn: 'Une entrée de « {table} » arrive à échéance dans {n} jour ({date})',
   remindersRowHint: '{n} rappel',
+  resultTablesMissing:
+    'Aucune grille à lignes n’a été trouvée à la page {pages} : tout son contenu a été inclus.',
 };

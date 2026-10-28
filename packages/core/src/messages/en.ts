@@ -1116,6 +1116,34 @@ export const en = {
   separatorList: ', ',
   separatorComma: ', ',
   separatorSemicolon: '; ',
+
+  // 扫描件转 Excel（D-272）
+  runError_tableUnsupported:
+    'This device can’t read tables in this language yet. Choose another language for “Convert to Excel”.',
+  resultTableEdit: 'View and edit',
+  resultTablesMissing:
+    'No ruled table was found on pages {pages}, so everything on them was included.',
+  tableSheetName: 'Page {n}',
+  tableEditorHint: 'Tap a cell to select it, tap it again to edit',
+  tableRedo: 'Redo',
+  tableEditCell: 'Edit cell',
+  tableEditText: 'Edit text',
+  tableSource: 'Original',
+  tableNoSource: 'No original for this cell (it was added here).',
+  tableScopeTables: 'Tables only',
+  tableScopeAll: 'Everything',
+  tableInsertRowAbove: 'Insert a row above',
+  tableInsertRowBelow: 'Insert a row below',
+  tableDeleteRow: 'Delete this row',
+  tableInsertColumnLeft: 'Insert a column to the left',
+  tableInsertColumnRight: 'Insert a column to the right',
+  tableDeleteColumn: 'Delete this column',
+  tableDeleteText: 'Delete this text',
+  tableSelectFirst: 'Tap a cell in the table first.',
+  tableEmpty: 'Nothing was recognized on this page.',
+  tableReadOnly:
+    'This page has more than {max} cells, so it can only be viewed here. To edit it, open the file in another app.',
+  tableSaveFailed: 'The changes couldn’t be saved: {error}',
 };
 
 export type StringKey = keyof typeof en;
@@ -1182,6 +1210,8 @@ export const enSingular = {
   reminderWhenDate: '{n} day before “{field}” in “{table}”, at {time}',
   reminderDueIn: 'An entry in “{table}” is due in {n} day ({date})',
   remindersRowHint: '{n} reminder',
+  resultTablesMissing:
+    'No ruled table was found on page {pages}, so everything on it was included.',
 } satisfies Partial<MessageTable>;
 
 /** 单数表：键必须和 enSingular 完全一致。 */

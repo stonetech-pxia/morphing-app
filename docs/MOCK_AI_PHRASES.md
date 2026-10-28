@@ -173,6 +173,17 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 
 评测：TTS1、TTS2-en、TTS3、TTS4-en、TTS5 内置规则通过；PTTS1（「做一个把 PDF 变成音频的快捷操作」，目标句，D-265 起内置规则不认）、PTTS2-en（课上发的讲义想在路上听）、PTTS3（日文 PDF、慢一点读）、PTTS4（「把这句话读给我听：…」→ 拒绝 errand）、PTTS5（从收件页面打开，分享了 1 个 PDF：「转成音频」）只要求真实模型。
 
+## 扫描件转 Excel（D-272）
+
+步骤句式：「转 Excel / 转成 Excel / 表格转 Excel / 做成 Excel」「convert to Excel / turn it into an Excel file」→ `ocr.toExcel`（`lang` 跟界面语言、`scope: all`）。
+
+| ID   | 句式                                       | 结果                                                |
+| ---- | ------------------------------------------ | --------------------------------------------------- |
+| XLS1 | 新建一个快捷操作：扫描文档，转 Excel，分享 | `in.photos`（scanner）→ `ocr.toExcel` → `out.share` |
+| XLS2 | Add the scan a table to Excel quick action | 从预设添加（`scan-table-excel`）                    |
+
+评测：XLS1、XLS2-en 内置规则通过；PXLS1（纸质银行流水拍下来变成 Excel）、PXLS2-en（价格表截图变成能改的表格）只要求真实模型。
+
 ## 格式转换（D-183–D-186）
 
 步骤句式：「转成 / 存成 MP3」「convert to MP3」→ `audio.convert`（`format: mp3`），跟在视频后面时是 `audio.fromVideo`（`format: mp3`）；「转成 GIF / 做成动图」「make an animated GIF」→ `image.toGif`，跟在视频后面时是 `video.toGif`；「从文件选视频 / 照片」「choose videos from Files」→ `in.videos` / `in.photos`（`source: files`）；「选 Word 文档 / 选文档 / 选 Excel 表格 / 选 Word 或 PPT」「choose Word documents」→ `in.files`（`accept: documents`），之后的「转成 PDF」是 `pdf.fromDocument`。
