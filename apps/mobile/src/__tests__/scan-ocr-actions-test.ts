@@ -652,3 +652,87 @@ describe('recognition reads the page before enhancing (D-267)', () => {
     expect(files.encodedFrom).toEqual([expect.stringMatching(/^runs\//)]);
   });
 });
+
+describe('recognized Chinese is tidied (D-268)', () => {
+  it('swaps traditional characters and half-width punctuation in simplified Chinese text', async () => {
+    const wf: Workflow = {
+      id: 'ocr',
+      name: 'ocr',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+        { id: 'read', action: 'ocr.recognize', params: { lang: 'chi_sim' } },
+      ],
+    };
+    const { files, vision, run } = setup(wf, {}, {}, true);
+    files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+    vision.texts = ['模型內部要缩得很厉害,缩小后这些細碎的纹路:差別会小很多.'];
+    expect(await run()).toMatchObject({
+      value: { type: 'text', text: '模型内部要缩得很厉害，缩小后这些细碎的纹路：差别会小很多。' },
+    });
+  });
+
+  it('leaves traditional Chinese characters alone and only fixes the punctuation', async () => {
+    const wf: Workflow = {
+      id: 'ocr',
+      name: 'ocr',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+        { id: 'read', action: 'ocr.recognize', params: { lang: 'chi_tra' } },
+      ],
+    };
+    const { files, vision, run } = setup(wf, {}, {}, true);
+    files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+    vision.texts = ['差別:內部'];
+    expect(await run()).toMatchObject({ value: { type: 'text', text: '差別：內部' } });
+  });
+
+  it('tidies the Chinese lines of the PDF text layer too', async () => {
+    const wf: Workflow = {
+      id: 'pdf',
+      name: 'pdf',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+        {
+          id: 'pdf',
+          action: 'pdf.fromImages',
+          params: {
+            pageSize: 'a4',
+            orientation: 'auto',
+            marginMm: 0,
+            fit: 'contain',
+            maxMB: 0,
+            textLayer: true,
+          },
+        },
+      ],
+    };
+    const { files, vision, run } = setup(wf, {}, {}, true);
+    files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+    vision.layers = [
+      {
+        width: 100,
+        height: 100,
+        lines: [{ text: '差別:內部', x: 10, y: 10, width: 60, height: 8 }],
+      },
+    ];
+    const result = await run();
+    const [pdf] =
+      result.status === 'succeeded' && result.value && 'items' in result.value
+        ? result.value.items
+        : [];
+    const doc = await PDFDocument.load(files.disk.get(pdf!.uri)!);
+    const text = doc.context
+      .enumerateIndirectObjects()
+      .map(([, obj]) => {
+        if (!(obj instanceof PDFRawStream)) return '';
+        try {
+          return new TextDecoder('latin1').decode(decodePDFRawStream(obj).decode());
+        } catch {
+          return '';
+        }
+      })
+      .join('\n');
+    // 「差别：内部」的 UTF-16：5DEE 522B FF1A 5185 90E8。
+    expect(text).toContain('<5DEE522BFF1A518590E8> Tj');
+  });
+});

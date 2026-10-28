@@ -1,3 +1,4 @@
+import { layoutOcrLines } from '@morph/core';
 import { Directory, Paths } from 'expo-file-system';
 
 import MorphVision from '../../modules/morph-vision';
@@ -53,7 +54,9 @@ export function expoVision(
     supportsLanguage: (code) => native.supportsLanguage(code),
 
     async recognizeText(uri, languages) {
-      return (await native.recognizeText(uri, languages)).text;
+      // 按每行的位置排版，同一段里折行的行接回去（D-268）；没有位置时用原生排好的文字。
+      const { text, items } = await native.recognizeText(uri, languages);
+      return items.length > 0 ? layoutOcrLines(items) : text;
     },
 
     async recognizeLines(uri, languages) {

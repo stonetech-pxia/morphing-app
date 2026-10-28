@@ -1,4 +1,10 @@
-import { RunError, tidyOcrText, type ActionImpl, type OcrLanguage } from '@morph/core';
+import {
+  RunError,
+  polishOcrText,
+  tidyOcrText,
+  type ActionImpl,
+  type OcrLanguage,
+} from '@morph/core';
 
 import {
   displayName,
@@ -37,6 +43,12 @@ export const VISION_LANGUAGES: Record<OcrLanguage, readonly string[]> = {
   vie: ['vi', 'en-US'],
 };
 
+/** 识别结果按语言整理（D-268）：简体中文把混进来的繁体字换回简体，中文用全角标点。 */
+function polish(text: string, lang: OcrLanguage): string {
+  const kind = lang === 'chi_sim' ? 'zh-Hans' : lang === 'chi_tra' ? 'zh-Hant' : 'other';
+  return polishOcrText(tidyOcrText(text), kind);
+}
+
 export const OCR_IMPLS: Record<string, Impl> = {
   async 'ocr.recognize'(input, params, ctx) {
     const items = fileItems(input);
@@ -59,7 +71,7 @@ export const OCR_IMPLS: Record<string, Impl> = {
             ocrSourceItem(original, source),
             OCR_INPUT_SIDE,
           );
-          const text = tidyOcrText(await vision!.recognizeText(page.uri, VISION_LANGUAGES[lang]));
+          const text = polish(await vision!.recognizeText(page.uri, VISION_LANGUAGES[lang]), lang);
           if (text) texts.push(text);
           ctx.progress(i + 1, items.length);
           continue;
@@ -84,7 +96,7 @@ export const OCR_IMPLS: Record<string, Impl> = {
         const detail = String(e instanceof Error ? e.message : e);
         throw new RunError(vision ? 'unexpected' : 'packFailed', { detail });
       }
-      const text = tidyOcrText(raw);
+      const text = polish(raw, lang);
       if (text) texts.push(text);
       ctx.progress(i + 1, items.length);
     }

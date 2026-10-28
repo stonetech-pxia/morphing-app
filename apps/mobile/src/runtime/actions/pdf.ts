@@ -3,6 +3,7 @@ import {
   RunError,
   fixCjkRadicals,
   groupItems,
+  polishOcrText,
   t,
   type ActionImpl,
   type GroupRule,
@@ -399,7 +400,12 @@ async function imagesPdf(
         ? [languages]
         : [languages, LATIN_TEXT_LAYER]) {
         try {
-          images[i] = { ...images[i]!, text: await pageTextLayer(vision, item, attempt) };
+          const layer = await pageTextLayer(vision, item, attempt);
+          // 中文按识别语言整理（D-268）：简体换掉混进来的繁体字，中文用全角标点。
+          const kind =
+            attempt[0] === 'zh-Hans' ? 'zh-Hans' : attempt[0] === 'zh-Hant' ? 'zh-Hant' : 'other';
+          const lines = layer.lines.map((l) => ({ ...l, text: polishOcrText(l.text, kind) }));
+          images[i] = { ...images[i]!, text: { ...layer, lines } };
           break;
         } catch {
           // 换下一组语言。
