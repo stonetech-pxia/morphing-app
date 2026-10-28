@@ -1,0 +1,7 @@
+[
+  {"id":"nli","repo":"MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli","revision":"0a71e92a985b6e1ad1828cf67ce9c459639c1dca","file":"model.safetensors","sha256":"91b323ccf247ec1e3b5925d566230bae7c52de8147e6062b42e250089a3fc80b","license":"MIT"},
+  {"id":"mdeberta-nli","repo":"MoritzLaurer/mDeBERTa-v3-base-mnli-xnli","revision":"8adb042d524ecd5c26d3e3ba0e3fbcf7e2d0864c","file":"model.safetensors","sha256":"65af59b1ff4450b09ecbf13ca35c840dbf038b26ff8e10e5ea89ca724828ed1e","license":"MIT"},
+  {"id":"e5","repo":"intfloat/multilingual-e5-small","revision":"614241f622f53c4eeff9890bdc4f31cfecc418b3","file":"model.safetensors","sha256":"1a55775f53449dac10a2bcbc312469fac40b96d53198c407081a831f81c98477","license":"MIT"},
+  {"id":"minilm-embedding","repo":"sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2","revision":"e8f8c211226b894fcb81acc59f3b34ba3efd5f42","file":"model.safetensors","sha256":"eaa086f0ffee582aeb45b36e34cdd1fe2d6de2bef61f8a559a1bbc9bd955917b","license":"Apache-2.0"},
+  {"id":"qwen3-embedding","repo":"Qwen/Qwen3-Embedding-0.6B","revision":"97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3","file":"model.safetensors","sha256":"0437e45c94563b09e13cb7a64478fc406947a93cb34a7e05870fc8dcd48e23fd","license":"Apache-2.0"}
+]
