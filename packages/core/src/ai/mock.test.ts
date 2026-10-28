@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
 import { THEME_PRESETS, THEME_PRESET_IDS, presetRequest, type ThemePresetId } from '../presets';
-import { allComponents, type Component, type Locale, type WorkspaceConfig } from '../schema';
+import { allComponents, type Locale, type WorkspaceConfig } from '../schema';
 import { createStarterWorkspace } from '../starter';
 import { apply, registry, workspace } from '../test-helpers';
 import { createMockAIProvider } from './mock';
@@ -485,28 +485,9 @@ describe('mock AI — must refuse', () => {
   });
 });
 
-describe('mock AI — looks (D-230)', () => {
+describe('mock AI — guide step 1 (D-231)', () => {
   const starter = (locale: Locale = 'zh') => createStarterWorkspace(locale, registry);
   const homeOf = (c: WorkspaceConfig) => allComponents(home(c));
-
-  it('LK1 icon backgrounds for the whole app', async () => {
-    expect((await change('图标改成浅色底', workspace())).after.theme.iconStyle).toBe('tint');
-    expect(
-      (await change('Use solid icon backgrounds', workspace(), 'en')).after.theme.iconStyle,
-    ).toBe('solid');
-  });
-
-  it('LK2 home entries as tiles or rows', async () => {
-    const isEntry = (c: Component) => c.type === 'toolCard' || c.type === 'catalogLink';
-    const lookOf = (c: Component) => (isEntry(c) ? (c.props as { look?: string }).look : null);
-    const { after, lines } = await change('首页入口改成列表', workspace('zh', { withPdf: true }));
-    expect(lines.join('\n')).toContain('一行');
-    const entries = homeOf(after).filter(isEntry);
-    expect(entries.length).toBeGreaterThan(0);
-    for (const c of entries) expect(lookOf(c)).toBe('row');
-    const back = await change('Make the home shortcuts tiles', after, 'en');
-    for (const c of homeOf(back.after).filter(isEntry)) expect(lookOf(c)).toBe('tile');
-  });
 
   it('GD1 guide step 1 adds both file entries (D-231)', async () => {
     for (const [text, locale] of [
@@ -517,46 +498,29 @@ describe('mock AI — looks (D-230)', () => {
       expect(homeOf(after).filter((c) => c.type === 'filePick')).toHaveLength(2);
     }
   });
+});
 
-  it('LK3 home quick actions as rows', async () => {
-    const withRunner = apply(workspace('zh', { withPdf: true }), [
-      {
-        op: 'addComponent',
-        pageId: 'home',
-        component: { id: 'run-merge', type: 'workflowRunner', props: { workflowId: 'pdf-merge' } },
-      },
-    ]);
-    const { after } = await change('快捷操作改成列表', withRunner);
-    const runner = homeOf(after).find((c) => c.id === 'run-merge')!;
-    expect(runner.type === 'workflowRunner' && runner.props.look).toBe('row');
-  });
-
-  it('LK4 icon-only buttons take the icon of what they open', async () => {
-    const withButton = apply(workspace(), [
-      {
-        op: 'addComponent',
-        pageId: 'home',
-        component: {
-          id: 'open-ai',
-          type: 'button',
-          props: { label: '修改', target: 'ai', variant: 'filled' },
-        },
-      },
-    ]);
-    const { after } = await change('按钮只显示图标', withButton);
-    const button = homeOf(after).find((c) => c.id === 'open-ai')!;
-    expect(button.type === 'button' && button.props).toMatchObject({
-      variant: 'icon',
-      icon: 'sparkles',
+// D-265：界面上没有入口、用户也不太会这么说的句子，内置规则不再认（交给真实模型，评测照旧）。
+describe('mock AI — sentences removed in D-265', () => {
+  it.each([
+    ['图标改成浅色底', 'zh'],
+    ['Use solid icon backgrounds', 'en'],
+    ['首页入口改成列表', 'zh'],
+    ['快捷操作改成列表', 'zh'],
+    ['按钮只显示图标', 'zh'],
+    ['首页加上照片快捷操作', 'zh'],
+    ['Show all quick action categories on home', 'en'],
+    ['首页加上Morph 可以做什么', 'zh'],
+    ['我有一堆旅行照片，想发给朋友', 'zh'],
+    ['I shot a video and it’s too big to send', 'en'],
+    ['我有好几份 PDF 合同，想合成一份加上页码，发邮件给律师', 'zh'],
+    ['新建一个快捷操作：选视频，视频静音，分享', 'zh'],
+    ['Create a quick action: choose photos, remove background, share', 'en'],
+    ['添加收据快捷操作', 'zh'],
+  ] as const)('%s', async (text, locale) => {
+    expect(await plan(text, workspace(locale, { withPdf: true }), locale)).toMatchObject({
+      kind: 'reject',
+      reason: 'unknown',
     });
-  });
-
-  it('LK5 quick action list on home', async () => {
-    const { after } = await change('首页加上照片快捷操作', workspace());
-    expect(homeOf(after).find((c) => c.type === 'quickActionList')).toMatchObject({
-      props: { kind: 'image' },
-    });
-    const all = await change('Show all quick action categories on home', workspace(), 'en');
-    expect(homeOf(all.after).find((c) => c.type === 'quickActionList')?.props).toEqual({});
   });
 });

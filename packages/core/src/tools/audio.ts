@@ -147,6 +147,20 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
     pack: SPEECH_MODEL_PACKS.standard,
     packFor: (params) => SPEECH_MODEL_PACKS[params.model as SpeechModel],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match:
+          /^(?:语音转文字|录音转文字|转成文字|转文字|变成文字|识别语音|听写)$|^(?:transcribe(?: it| them)?|speech to text|turn (?:it|them) into text)$/i,
+        step: (_m, locale) => ({
+          params: {
+            lang: locale === 'zh' ? 'zh' : locale === 'fr' ? 'fr' : 'en',
+            model: 'standard',
+          },
+          ask: ['lang'],
+        }),
+      },
+    ],
   },
   {
     id: 'audio.compress',
@@ -230,6 +244,14 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match:
+          /^(?:压缩|压小)(?:音频|录音|语音)$|^(?:把)?(?:音频|录音|语音)压小(?:一点)?$|^compress (?:the )?(?:audio|recordings?)$|^make (?:the )?(?:audio|recordings?) smaller$/i,
+        step: () => ({ params: { by: 'size', maxMB: 2, quality: 'standard' } }),
+      },
+    ],
   },
   {
     id: 'audio.convert',
@@ -250,6 +272,15 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
       { id: 'mp3', label: { en: 'MP3', zh: 'MP3', fr: 'MP3' }, values: { format: 'mp3' } },
     ],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      // MP3 输出（D-183）；跟在视频后面时换成「提取视频里的声音」（fitToPrevious）。
+      {
+        match:
+          /^(?:转|转成|转换成|改成|存成)\s*(m4a|wav|mp3)(?:\s*格式)?$|^(?:convert (?:it |them )?to|save (?:it |them )?as) (m4a|wav|mp3)$/i,
+        step: (m) => ({ params: { format: (m[1] ?? m[2]!).toLowerCase() } }),
+      },
+    ],
   },
   {
     id: 'audio.trim',
@@ -281,6 +312,13 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
     params: z.strictObject({}),
     fields: [],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match:
+          /^(?:合成|接成|拼成|合并成)(?:一段|一个)(?:录音|音频)?$|^合并录音$|^join (?:them |the recordings )?(?:into one)?$/i,
+      },
+    ],
   },
   {
     id: 'audio.fromVideo',
@@ -304,6 +342,14 @@ export const AUDIO_ACTIONS: readonly ActionDefinition[] = [
       { id: 'mp3', label: { en: 'MP3', zh: 'MP3', fr: 'MP3' }, values: { format: 'mp3' } },
     ],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match:
+          /^(?:提取|取出|只要|存下)(?:视频(?:里|的|里的)?)?(?:声音|音频|背景音乐)$|^(?:extract|keep|get) (?:the )?(?:audio|sound|music)(?: of the video| from the video)?$/i,
+        step: () => ({ params: { format: 'm4a' } }),
+      },
+    ],
   },
 ];
 

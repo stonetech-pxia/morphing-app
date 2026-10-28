@@ -162,6 +162,14 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
       ...GROUP_FIELDS,
     ],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        // 只说「合并成一个」是合成一段录音（audio.merge）。
+        match: /^合并\s*(?:pdf)?$|^合并成一个\s*pdf$|^merge(?: into one pdf)?$/i,
+        step: () => ({ params: { imagePage: 'a4' } }),
+      },
+    ],
   },
   {
     id: 'pdf.fromImages',
@@ -227,6 +235,15 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match: /^(?:合成|转成|生成|做成)\s*(?:一个)?\s*pdf$|^(?:make|create) (?:a |one )?pdf$/i,
+        step: () => ({
+          params: { pageSize: 'a4', orientation: 'auto', marginMm: 10, fit: 'contain', maxMB: 0 },
+        }),
+      },
+    ],
   },
   {
     id: 'pdf.compress',
@@ -301,6 +318,14 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match:
+          /^压缩\s*pdf$|^(?:把)?\s*pdf\s*压小(?:一点)?$|^compress (?:the )?pdfs?$|^make (?:the )?pdfs? smaller$/i,
+        step: () => ({ params: { maxMB: 2, whenTooBig: 'ask' } }),
+      },
+    ],
   },
   {
     id: 'pdf.pages',
@@ -670,6 +695,13 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
     fields: [],
     pack: 'pdfview',
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match:
+          /^提取\s*pdf\s*(?:里的|的)?文字$|^(?:get|extract) (?:the )?text (?:from|of) (?:the )?pdfs?$/i,
+      },
+    ],
   },
   {
     id: 'pdf.sign',
@@ -686,6 +718,8 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
     local: 'sign',
     pack: 'pdfview',
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [{ match: /^(?:签名|签字)$|^sign(?: it)?$/i }],
   },
   {
     id: 'pdf.fillForm',

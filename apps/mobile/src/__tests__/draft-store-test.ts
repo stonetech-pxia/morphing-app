@@ -186,8 +186,8 @@ describe('AI change drafts (D-190)', () => {
   });
 });
 
-async function change(store: WorkspaceStore, input: string) {
-  const result = await store.getState().change(input);
+async function change(store: WorkspaceStore, input: string, planner?: AIProvider) {
+  const result = await store.getState().change(input, planner);
   if (result.kind !== 'applied') throw new Error(`${input}: ${JSON.stringify(result)}`);
   return result.applied;
 }
@@ -196,7 +196,27 @@ describe('function changes go straight in (D-191)', () => {
   it('a new quick action is applied right away, with its home entry, and can be undone', async () => {
     const { store } = await booted();
     const baseId = store.getState().head!.id;
-    const applied = await change(store, '我有一堆旅行照片，想发给朋友');
+    // 带说明（notes）的新快捷操作：内置规则不再有目标句（D-265），用一个固定的计划。
+    const withNotes: AIProvider = {
+      plan: async () => ({
+        kind: 'ops',
+        ops: [
+          {
+            op: 'addWorkflow',
+            workflow: {
+              id: 'trip-photos',
+              name: '发旅行照片给朋友',
+              steps: [
+                { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 50 } },
+                { id: 'share', action: 'out.share', params: {} },
+              ],
+            },
+          },
+        ],
+        notes: ['去掉了照片里的定位。'],
+      }),
+    };
+    const applied = await change(store, '我有一堆旅行照片，想发给朋友', withNotes);
     expect(applied.addedWorkflowIds).toEqual(['trip-photos']);
     expect(applied.notes?.length).toBeGreaterThan(0);
     expect(store.getState().draft).toBeNull();

@@ -67,6 +67,8 @@ interface ActionDefinition {
   pack?: PackId; // 需要的扩展包（§6）
   requires: Permission[];
   ai?: string; // 给 AI 的提示（英文）：用户怎么说时用它、怎么设参数，随动作目录发给模型（D-259）
+  aiRules?: { n: number; text: string }[]; // 只关于这个动作的提示词规则，按编号插进「## Rules」
+  phrases?: { match: RegExp; step?: (m, locale) => { params; ask?; table? } }[]; // 内置规则认的步骤说法（D-265）
 }
 
 interface ParamField {
@@ -85,6 +87,8 @@ interface ParamField {
 ```
 
 测试保证每个动作的 `fields` 和 `params` 的键一一对应，`presets` 都能通过 `params` 校验。
+
+加一个动作时只改它自己的定义：动作目录那一行（`label`、`description`、`ai`）、只关于它的规则（`aiRules`，编号取现在最后一条加 1）和内置规则认的说法（`phrases`，不同动作的说法不能重叠，`ai/workflow-phrases.test.ts` 检查）都从这里生成。快捷操作预设同样：提示词里那一行来自 `name`、`description` 和步骤，内置规则按名字找，另外的叫法写在 `words`。风格预设的叫法在 `presets.ts` 的 `said`（提示词规则 11）和 `aliases`（内置规则）。
 
 ### 工作流（schemaVersion 5）
 

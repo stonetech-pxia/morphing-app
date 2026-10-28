@@ -1,5 +1,4 @@
 import { localize } from '../localization';
-import { t } from '../messages';
 import { checkNameTemplate } from '../naming';
 import { applyOps, topIndex, type Op } from '../ops';
 import { workflowProblems } from '../workflow/check';
@@ -20,16 +19,14 @@ import {
   type PhraseKind,
   type StepPhrase,
 } from './workflow-phrases';
-import { THEME_PRESETS, THEME_PRESET_IDS, type ThemePresetId } from '../presets';
+import { THEME_PRESETS, THEME_PRESET_IDS } from '../presets';
 import type { ToolDefinition } from '../registry';
 import {
   HOME_PAGE_ID,
   IdSchema,
   allComponents,
-  pageIdOf,
   pageTarget,
   type Component,
-  type IconName,
   type Locale,
   type Localized,
   type NavTarget,
@@ -49,7 +46,6 @@ import {
   type DataTemplate,
 } from '../templates';
 import { homeFileEntryOps } from '../starter';
-import { goalPlan } from './goals';
 import { splitOps } from './kinds';
 import type { AIProvider, Plan, PlanContext, RejectReason } from './types';
 
@@ -397,22 +393,6 @@ const backdropRule: Rule = (clause) => {
   return [{ op: 'setTheme', backdrop }];
 };
 
-/** 风格预设的叫法（小写比较）。只认整体风格；「卡片改成新粗野」之类只改卡片，见 cardStyleRule。 */
-const PRESET_ALIASES: Record<ThemePresetId, string[]> = {
-  ios: ['ios', 'ios原生', 'ios 原生', '苹果', '苹果原生', 'apple'],
-  material: ['material', 'material you', 'material design', '安卓', '谷歌'],
-  editorial: ['杂志', '报刊', '编辑', 'editorial', 'magazine'],
-  pastel: ['马卡龙', '粉彩', '柔和', 'pastel'],
-  nature: ['自然', '大地', '森林', 'nature', 'earthy'],
-  terminal: ['终端', '极客', '程序员', '代码', 'terminal', 'hacker'],
-  neon: ['霓虹', '赛博', '赛博朋克', '赛博霓虹', 'neon', 'cyberpunk'],
-  claymorphism: ['黏土', '粘土', 'claymorphism', 'claymorphic'],
-  brutalist: ['新粗野', '粗野', '野兽派', 'brutalist', 'neubrutalism', 'neubrutalist'],
-  neumorphism: ['新拟物', '拟物', 'neumorphism', 'neumorphic', 'soft ui'],
-  glass: ['毛玻璃', '玻璃', '液态玻璃', 'liquid glass', 'glass', 'glassmorphism', 'frosted glass'],
-  y2k: ['y2k', 'y2k 千禧', '千禧', '千禧年', '金属', 'chrome'],
-};
-
 const presetRule: Rule = (clause) => {
   const m =
     clause.match(
@@ -427,7 +407,7 @@ const presetRule: Rule = (clause) => {
   const name = m[1]!.trim().toLowerCase();
   const preset = THEME_PRESET_IDS.find(
     (id) =>
-      PRESET_ALIASES[id].includes(name) ||
+      THEME_PRESETS[id].aliases.includes(name) ||
       localize(THEME_PRESETS[id].name, 'fr').toLowerCase() === name,
   );
   return preset ? [{ op: 'applyThemePreset', preset }] : null;
@@ -1460,155 +1440,8 @@ const filePickRule: Rule = (clause, state) => {
   ];
 };
 
-const quickActionsRule: Rule = (clause, state) => {
-  if (!/^(?:首页加上Morph 可以做什么|Add What Morph can do to home)$/i.test(clause)) return null;
-  const home = page(state, HOME_PAGE_ID);
-  if (
-    allComponents(home).some(
-      (c) =>
-        (c.type === 'shortcut' || c.type === 'button') &&
-        c.props.target === 'quickActions' &&
-        !c.hidden,
-    )
-  )
-    return [];
-  return [
-    {
-      op: 'addComponent',
-      pageId: HOME_PAGE_ID,
-      component: {
-        id: newComponentId('what-morph-can-do', home),
-        type: 'shortcut',
-        props: {
-          title: t(state.ctx.locale, 'mock_What_Morph_can_do_8f4f4'),
-          icon: 'workflow',
-          target: 'quickActions',
-        },
-      },
-    },
-  ];
-};
-
-// ---- 外观选项（D-230）：图标底色、入口和快捷操作的样子、只显示图标的按钮、快捷操作列表 ----
-
-const iconStyleRule: Rule = (clause) => {
-  const m =
-    clause.match(/^图标(?:底色)?(?:改成|换成|用)(浅色|实色)(?:底)?$/) ??
-    clause.match(/^(?:use )?(light|solid) icon backgrounds?$/i);
-  if (!m) return null;
-  return [{ op: 'setTheme', iconStyle: /浅色|light/i.test(m[1]!) ? 'tint' : 'solid' }];
-};
-
-const entryLookRule: Rule = (clause, state) => {
-  const m =
-    clause.match(/^首页(?:的)?入口改成(大图标|列表)(?:样式)?$/) ??
-    clause.match(/^make the home (?:entries|shortcuts) (tiles|rows)$/i);
-  if (!m) return null;
-  const look = /大图标|tiles/i.test(m[1]!) ? 'tile' : 'row';
-  return allComponents(page(state, HOME_PAGE_ID))
-    .filter((c) => c.type === 'shortcut' || c.type === 'toolCard' || c.type === 'catalogLink')
-    .map((c) => ({
-      op: 'setComponentProps' as const,
-      pageId: HOME_PAGE_ID,
-      componentId: c.id,
-      props: { look },
-    }));
-};
-
-const runnerLookRule: Rule = (clause, state) => {
-  const m =
-    clause.match(/^(?:首页(?:的)?)?快捷操作改成(列表|小方块|卡片)(?:样式)?$/) ??
-    clause.match(/^show (?:the )?quick actions as (rows|tiles|cards)$/i);
-  if (!m) return null;
-  const look = /列表|rows/i.test(m[1]!) ? 'row' : /小方块|tiles/i.test(m[1]!) ? 'tile' : 'card';
-  return allComponents(page(state, HOME_PAGE_ID))
-    .filter((c) => c.type === 'workflowRunner')
-    .map((c) => ({
-      op: 'setComponentProps' as const,
-      pageId: HOME_PAGE_ID,
-      componentId: c.id,
-      props: { look },
-    }));
-};
-
-/** 系统入口的图标，和导航栏里的一致。 */
-const TARGET_ICONS: Partial<Record<NavTarget, IconName>> = {
-  tools: 'apps',
-  ai: 'sparkles',
-  history: 'history',
-  settings: 'settings',
-  quickActions: 'workflow',
-};
-
-const iconButtonRule: Rule = (clause, state) => {
-  if (!/^(?:首页(?:的)?)?按钮只显示图标$|^make the (?:home )?buttons icons? only$/i.test(clause))
-    return null;
-  return allComponents(page(state, HOME_PAGE_ID)).flatMap((c) => {
-    if (c.type !== 'button') return [];
-    const targetPage = pageIdOf(c.props.target);
-    const icon =
-      c.props.icon ??
-      (targetPage ? state.config.pages.find((p) => p.id === targetPage)?.icon : undefined) ??
-      TARGET_ICONS[c.props.target as NavTarget] ??
-      'link';
-    return [
-      {
-        op: 'setComponentProps' as const,
-        pageId: HOME_PAGE_ID,
-        componentId: c.id,
-        props: { variant: 'icon', icon },
-      },
-    ];
-  });
-};
-
-const QUICK_ACTION_LIST_KINDS = {
-  照片: 'image',
-  图片: 'image',
-  视频: 'video',
-  音频: 'audio',
-  文档: 'document',
-  其他: 'other',
-  photo: 'image',
-  video: 'video',
-  audio: 'audio',
-  document: 'document',
-  other: 'other',
-} as const;
-
-const quickActionListRule: Rule = (clause, state) => {
-  const m =
-    clause.match(/^首页(?:加上|显示)(照片|图片|视频|音频|文档|其他)(?:的)?快捷操作$/) ??
-    clause.match(/^(?:add|show) (photo|video|audio|document|other) quick actions (?:on|to) home$/i);
-  const all = /^首页显示全部快捷操作分类$|^show all quick action categories on home$/i.test(clause);
-  if (!m && !all) return null;
-  const kind = m
-    ? QUICK_ACTION_LIST_KINDS[m[1]!.toLowerCase() as keyof typeof QUICK_ACTION_LIST_KINDS]
-    : undefined;
-  const home = page(state, HOME_PAGE_ID);
-  if (allComponents(home).some((c) => c.type === 'quickActionList' && c.props.kind === kind))
-    return [];
-  return [
-    {
-      op: 'addComponent',
-      pageId: HOME_PAGE_ID,
-      component: {
-        id: newComponentId(kind ? `quick-actions-${kind}` : 'quick-actions', home),
-        type: 'quickActionList',
-        props: kind ? { kind } : {},
-      },
-    },
-  ];
-};
-
 const RULES: Rule[] = [
   bothFilePicksRule,
-  quickActionsRule,
-  iconStyleRule,
-  entryLookRule,
-  runnerLookRule,
-  iconButtonRule,
-  quickActionListRule,
   filePickRule,
   reportRule,
   translateDocRule,
@@ -1898,9 +1731,6 @@ export function createMockAIProvider(): AIProvider {
           examples: ERRAND_EXAMPLES.map((e) => localize(e, ctx.locale)),
         };
       }
-      // 新手引导里的「我有什么，我想要什么」（D-149）。
-      const goal = goalPlan(whole, ctx);
-      if (goal) return goal;
       if (clauses.some((c) => RESTORE.test(c))) {
         if (clauses.length === 1) return { kind: 'restorePrevious' };
         return {

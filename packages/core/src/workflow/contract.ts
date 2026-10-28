@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 
-import type { Localized } from '../schema';
+import type { Locale, Localized } from '../schema';
 
 // 动作契约（docs/TOOLS_DESIGN.md §2）：每个动作声明「输入类型 → 输出类型」、参数结构和参数的界面元数据。
 // 只有登记过的动作才能出现在工作流里；实现由 tool-* 包和 App 运行时提供，这里只描述契约。
@@ -130,6 +130,31 @@ export interface ActionDefinition {
    * 要在 notes 里提醒什么。提示词规则 20 只留建工作流的通用规则。改了要跑受影响的评测。
    */
   ai?: string;
+  /**
+   * 只和这个动作有关、要单独教 AI 的规则（像组件的 ai.rule）：n 是提示词「## Rules」里的编号，
+   * 取现在最后一条规则的编号加 1。text 是英文，改了要跑受影响的评测。
+   */
+  aiRules?: readonly { n: number; text: string }[];
+  /**
+   * 内置规则（mock AI）认的步骤说法，用在「新建一个快捷操作：选照片，压到 500KB，分享」这类句子里（D-265）。
+   * 整个短语匹配；不同动作的说法不能重叠（workflow-phrases.test.ts 检查）。
+   */
+  phrases?: readonly StepPhraseRule[];
+}
+
+/** 一种步骤说法：match 匹配短语，step 给出参数（不写时参数为空）。 */
+export interface StepPhraseRule {
+  match: RegExp;
+  step?: (
+    m: RegExpMatchArray,
+    locale: Locale,
+  ) => {
+    params: Record<string, unknown>;
+    /** 每次运行时问的参数。 */
+    ask?: string[];
+    /** 记一笔（D-187）：句子里说的表名；空字符串表示没说。 */
+    table?: string;
+  };
 }
 
 /** 动作在给定参数和输入类型下的输出类型。 */

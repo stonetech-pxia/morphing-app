@@ -1,3 +1,4 @@
+import { LANGUAGE_WORD, languageOf } from '../workflow/phrase-words';
 import { localize } from '../localization';
 import { t, pairText } from '../messages';
 import { z } from 'zod';
@@ -109,6 +110,26 @@ export const TRANSLATE_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match: new RegExp(
+          `^(?:翻译|翻|译)成\\s*${LANGUAGE_WORD}$|^translate (?:it |them |the text )?(?:in)?to ${LANGUAGE_WORD}$`,
+          'i',
+        ),
+        step: (m) => ({
+          params: { from: 'auto', to: languageOf(m[1] ?? m[2]!)! },
+        }),
+      },
+      // 只说「翻译」：翻成界面语言，每次运行时可以换。
+      {
+        match: /^翻译(?:一下)?$|^translate(?: it| them)?$/i,
+        step: (_m, locale) => ({
+          params: { from: 'auto', to: locale === 'zh' ? 'zh-Hans' : locale === 'fr' ? 'fr' : 'en' },
+          ask: ['to'],
+        }),
+      },
+    ],
   },
 ];
 

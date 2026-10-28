@@ -1325,7 +1325,7 @@ const GOAL_EVAL_CASES: readonly EvalCase[] = [
     input: '我有一堆旅行照片，想发给朋友',
     locale: 'zh',
     setup: 'default',
-    mock: true,
+    mock: false,
     expect: {
       kind: 'ops',
       // 发给别人：要缩小或压缩。去掉定位是引导里的惊喜点，由内置规则保证（goals.test.ts），真实模型不强求。
@@ -1340,7 +1340,7 @@ const GOAL_EVAL_CASES: readonly EvalCase[] = [
     input: 'I have a bunch of trip photos to send to friends',
     locale: 'en',
     setup: 'default',
-    mock: true,
+    mock: false,
     expect: {
       kind: 'ops',
       check: all(
@@ -1354,7 +1354,7 @@ const GOAL_EVAL_CASES: readonly EvalCase[] = [
     input: '我拍了一段视频，太大了发不出去',
     locale: 'zh',
     setup: 'default',
-    mock: true,
+    mock: false,
     expect: {
       kind: 'ops',
       check: all(hasWorkflow(['in.videos', 'video.compress', 'out.share']), noRunner),
@@ -1365,7 +1365,7 @@ const GOAL_EVAL_CASES: readonly EvalCase[] = [
     input: 'I shot a video and it’s too big to send',
     locale: 'en',
     setup: 'default',
-    mock: true,
+    mock: false,
     expect: {
       kind: 'ops',
       check: all(hasWorkflow(['in.videos', 'video.compress', 'out.share']), noRunner),
@@ -1376,7 +1376,7 @@ const GOAL_EVAL_CASES: readonly EvalCase[] = [
     input: '我有好几份 PDF 合同，想合成一份加上页码，发邮件给律师',
     locale: 'zh',
     setup: 'default',
-    mock: true,
+    mock: false,
     expect: {
       kind: 'ops',
       check: all(hasWorkflow(['in.files', 'pdf.merge', 'pdf.pageNumbers', 'out.share']), noRunner),
@@ -1388,7 +1388,7 @@ const GOAL_EVAL_CASES: readonly EvalCase[] = [
       'I have several PDF contracts to combine into one with page numbers and email to my lawyer',
     locale: 'en',
     setup: 'default',
-    mock: true,
+    mock: false,
     expect: {
       kind: 'ops',
       check: all(hasWorkflow(['in.files', 'pdf.merge', 'pdf.pageNumbers', 'out.share']), noRunner),
@@ -3240,7 +3240,7 @@ const QUICK_ACTION_ENTRY_CASES: EvalCase[] = [
     input: '首页加上Morph 可以做什么',
     locale: 'zh',
     setup: 'default',
-    mock: true,
+    mock: false,
     expect: {
       kind: 'ops',
       check: (c) =>
@@ -3264,7 +3264,7 @@ const QUICK_ACTION_ENTRY_CASES: EvalCase[] = [
     input: 'Add What Morph can do to home',
     locale: 'en',
     setup: 'default',
-    mock: true,
+    mock: false,
     expect: {
       kind: 'ops',
       check: (c) =>
@@ -3307,7 +3307,7 @@ const LOOK_CASES: EvalCase[] = [
     input: '图标改成浅色底',
     locale: 'zh',
     setup: 'default',
-    mock: true,
+    mock: false,
     expect: {
       kind: 'ops',
       check: (c) => (c.theme.iconStyle === 'tint' ? null : `iconStyle ${c.theme.iconStyle}`),
@@ -3318,7 +3318,7 @@ const LOOK_CASES: EvalCase[] = [
     input: 'Use solid icon backgrounds',
     locale: 'en',
     setup: 'default',
-    mock: true,
+    mock: false,
     expect: {
       kind: 'ops',
       check: (c) => (c.theme.iconStyle === 'solid' ? null : `iconStyle ${c.theme.iconStyle}`),
@@ -3329,7 +3329,7 @@ const LOOK_CASES: EvalCase[] = [
     input: '首页入口改成列表',
     locale: 'zh',
     setup: 'pdf',
-    mock: true,
+    mock: false,
     expect: { kind: 'ops', check: entriesLook('row') },
   },
   {
@@ -3383,7 +3383,7 @@ const LOOK_CASES: EvalCase[] = [
     input: '首页加上照片快捷操作',
     locale: 'zh',
     setup: 'default',
-    mock: true,
+    mock: false,
     expect: { kind: 'ops', check: quickActionListOn('image') },
   },
   {

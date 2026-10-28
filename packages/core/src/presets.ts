@@ -25,6 +25,13 @@ export interface ThemePreset {
   name: Localized;
   /** 给模型看的一句话说明。 */
   description: string;
+  /** 提示词规则 11 里用户怎么叫这个风格（英文，几种说法用 / 隔开）。 */
+  said: string;
+  /**
+   * 内置规则认的叫法（小写比较）。只认整体风格；「卡片改成新粗野」之类只改卡片（mock 的 cardStyleRule）。
+   * 法语名字不用写：风格选择器的法语句子按 name.fr 认（D-234）。
+   */
+  aliases: readonly string[];
   theme: Theme;
 }
 
@@ -32,6 +39,8 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
   ios: {
     name: { zh: 'iOS 原生', en: 'iOS', fr: 'iOS natif' },
     description: 'Apple system look: grouped gray background, white cards, system blue',
+    said: 'iOS style',
+    aliases: ['ios', 'ios原生', 'ios 原生', '苹果', '苹果原生', 'apple'],
     theme: {
       primaryColor: '#007AFF',
       mode: 'system',
@@ -60,6 +69,8 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
   material: {
     name: { zh: 'Material You', en: 'Material You', fr: 'Material You' },
     description: 'Google Material 3: tonal purple surfaces, large rounded cards',
+    said: 'Material',
+    aliases: ['material', 'material you', 'material design', '安卓', '谷歌'],
     theme: {
       primaryColor: '#6750A4',
       mode: 'system',
@@ -88,6 +99,8 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
   editorial: {
     name: { zh: '杂志', en: 'Editorial', fr: 'Magazine' },
     description: 'Magazine layout: serif type, paper background, hairline borders, red accent',
+    said: 'magazine',
+    aliases: ['杂志', '报刊', '编辑', 'editorial', 'magazine'],
     theme: {
       primaryColor: '#B3261E',
       mode: 'system',
@@ -116,6 +129,8 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
   pastel: {
     name: { zh: '马卡龙', en: 'Pastel', fr: 'Pastel' },
     description: 'Soft wellness look: peach background, coral and mint, very round cards',
+    said: 'pastel',
+    aliases: ['马卡龙', '粉彩', '柔和', 'pastel'],
     theme: {
       primaryColor: '#F0794F',
       mode: 'system',
@@ -144,6 +159,8 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
   nature: {
     name: { zh: '自然', en: 'Nature', fr: 'Nature' },
     description: 'Earthy biophilic look: fern green, sienna and ochre over a soft gradient',
+    said: 'nature',
+    aliases: ['自然', '大地', '森林', 'nature', 'earthy'],
     theme: {
       primaryColor: '#4F7942',
       mode: 'system',
@@ -173,6 +190,8 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
   terminal: {
     name: { zh: '终端', en: 'Terminal', fr: 'Terminal' },
     description: 'Developer terminal: always dark, monospace, compact, green accent, outlined',
+    said: 'terminal / hacker',
+    aliases: ['终端', '极客', '程序员', '代码', 'terminal', 'hacker'],
     theme: {
       primaryColor: '#22C55E',
       mode: 'dark',
@@ -194,6 +213,8 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
   neon: {
     name: { zh: '赛博霓虹', en: 'Neon', fr: 'Néon cyberpunk' },
     description: 'Cyberpunk: always dark, aurora glow background, cyan neon-glowing cards',
+    said: 'neon / cyberpunk',
+    aliases: ['霓虹', '赛博', '赛博朋克', '赛博霓虹', 'neon', 'cyberpunk'],
     theme: {
       primaryColor: '#22D3EE',
       mode: 'dark',
@@ -216,6 +237,8 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
   claymorphism: {
     name: { zh: '黏土', en: 'Claymorphism', fr: 'Claymorphisme' },
     description: 'Playful 3D clay: lavender pastels, puffy cards with an inner highlight',
+    said: 'claymorphism',
+    aliases: ['黏土', '粘土', 'claymorphism', 'claymorphic'],
     theme: {
       primaryColor: '#8B5CF6',
       mode: 'system',
@@ -244,6 +267,8 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
   brutalist: {
     name: { zh: '新粗野', en: 'Neubrutalism', fr: 'Neubrutalisme' },
     description: 'Neubrutalism: cream background, thick outlines, hard offset shadows, loud colors',
+    said: 'neubrutalism',
+    aliases: ['新粗野', '粗野', '野兽派', 'brutalist', 'neubrutalism', 'neubrutalist'],
     theme: {
       primaryColor: '#FF5C39',
       mode: 'system',
@@ -273,6 +298,8 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
     name: { zh: '新拟物', en: 'Neumorphism', fr: 'Neumorphisme' },
     description:
       'Soft UI: cards the same color as the background, raised by light and dark shadows',
+    said: 'neumorphism',
+    aliases: ['新拟物', '拟物', 'neumorphism', 'neumorphic', 'soft ui'],
     theme: {
       primaryColor: '#5B6CFF',
       mode: 'system',
@@ -302,6 +329,16 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
     name: { zh: '液态玻璃', en: 'Liquid Glass', fr: 'Verre liquide' },
     description:
       'Glassmorphism / Liquid Glass: aurora background behind translucent frosted-glass cards',
+    said: 'glassmorphism / liquid glass',
+    aliases: [
+      '毛玻璃',
+      '玻璃',
+      '液态玻璃',
+      'liquid glass',
+      'glass',
+      'glassmorphism',
+      'frosted glass',
+    ],
     theme: {
       primaryColor: '#6366F1',
       mode: 'system',
@@ -332,6 +369,8 @@ export const THEME_PRESETS: Record<ThemePresetId, ThemePreset> = {
     name: { zh: 'Y2K 千禧', en: 'Y2K', fr: 'Y2K' },
     description:
       'Y2K chrome: pink-to-blue gradient background, glossy metallic cards, hot pink accent',
+    said: 'Y2K / chrome',
+    aliases: ['y2k', 'y2k 千禧', '千禧', '千禧年', '金属', 'chrome'],
     theme: {
       primaryColor: '#FF3EA5',
       mode: 'system',

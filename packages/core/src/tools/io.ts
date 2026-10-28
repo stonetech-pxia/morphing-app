@@ -1,3 +1,4 @@
+import { tableName } from '../workflow/phrase-words';
 import { z } from 'zod';
 
 import { FILTER_KINDS, FILTER_ORIENTATIONS, hasFileCondition } from '../file-filter';
@@ -142,6 +143,29 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: ['files.pick'],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match:
+          /^从文件(?:里|app 里)?(?:选|选择|挑)(?:几张|一张)?(?:照片|图片)$|^(?:choose|pick|select) (?:some |a )?(?:photos?|pictures?|images?) from (?:the )?files(?: app)?$/i,
+        step: () => ({ params: { source: 'files', min: 1, max: 30 } }),
+      },
+      {
+        match:
+          /^(?:从相册)?(?:选|选择|挑)(?:几张|多张|一张)?(?:照片|图片|截图)$|^(?:choose|pick|select) (?:some |a )?(?:photos?|pictures?|images?|screenshots?)$/i,
+        step: () => ({ params: { source: 'library', min: 1, max: 30 } }),
+      },
+      // 文档相机（D-084）：实时找边、自动拍、多页；单说「扫描」仍是找边拉正（scan.detect）。
+      {
+        match:
+          /^(?:用文档相机)?扫描(?:文档|纸张|收据|几页纸?)$|^scan (?:documents?|paper|pages|receipts?)$/i,
+        step: () => ({ params: { source: 'scanner', min: 1, max: 30 } }),
+      },
+      {
+        match: /^拍(?:照|照片|一张|几张)?$|^take (?:a )?(?:photos?|pictures?)$/i,
+        step: () => ({ params: { source: 'camera', min: 1, max: 10 } }),
+      },
+    ],
   },
   {
     id: 'in.files',
@@ -214,6 +238,28 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: ['files.pick'],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      // 办公文档（D-186）。
+      {
+        match:
+          /^(?:选|选择)\s*(?:一个|几个)?\s*(?:(?:word|excel|ppt|powerpoint|office)(?:\s*或\s*(?:word|excel|ppt|powerpoint))?\s*(?:文档|文件|表格|幻灯片)?|文档)$|^(?:choose|pick|select) (?:a |some )?(?:word|excel|powerpoint|office) (?:documents?|files?)$|^(?:choose|pick|select) (?:a |some )?documents?$/i,
+        step: () => ({ params: { accept: 'documents', min: 1, max: 10 } }),
+      },
+      {
+        match:
+          /^(?:选|选择)\s*pdf\s*(?:和|或)\s*(?:图片|照片)$|^(?:choose|pick) pdfs? and (?:images|photos)$/i,
+        step: () => ({ params: { accept: 'pdfOrImages', min: 1, max: 30 } }),
+      },
+      {
+        match: /^(?:选|选择)\s*(?:一个|几个)?\s*pdf$|^(?:choose|pick|select) (?:a |some )?pdfs?$/i,
+        step: () => ({ params: { accept: 'pdf', min: 1, max: 10 } }),
+      },
+      {
+        match: /^(?:选|选择)(?:文件|几个文件)$|^(?:choose|pick|select) (?:some )?files$/i,
+        step: () => ({ params: { accept: 'any', min: 1, max: 30 } }),
+      },
+    ],
   },
   {
     id: 'in.videos',
@@ -268,6 +314,21 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: ['files.pick'],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      // 从「文件」选（D-184、D-185）：电脑传来的、下载的照片和视频。
+      {
+        match:
+          /^从文件(?:里|app 里)?(?:选|选择|挑)(?:几个|一个|一段)?视频$|^(?:choose|pick|select) (?:some |a )?videos? from (?:the )?files(?: app)?$/i,
+        step: () => ({ params: { source: 'files', min: 1, max: 10 } }),
+      },
+      // 视频（D-147）：从相册选；压缩、转成 MP4、剪一段。
+      {
+        match:
+          /^(?:从相册)?(?:选|选择|挑)(?:几个|一个|一段)?视频$|^(?:choose|pick|select) (?:some |a )?videos?$/i,
+        step: () => ({ params: { min: 1, max: 10 } }),
+      },
+    ],
   },
   {
     // 音频（D-154）：从「文件」选录音或音乐（语音备忘录分享出来的、微信下载的），或者现在录一段。
@@ -327,6 +388,18 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: ['files.pick'],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match: /^(?:现在)?录(?:音|一段|一段音|一段录音)$|^record(?: audio| a voice memo| now)?$/i,
+        step: () => ({ params: { source: 'record', min: 1, max: 1 } }),
+      },
+      {
+        match:
+          /^(?:选|选择|挑)(?:几段|一段|几个|一个)?(?:音频|录音|语音|歌|歌曲|音乐)$|^(?:choose|pick|select) (?:some |a )?(?:audio(?: files?)?|recordings?|voice memos?|songs?|music)$/i,
+        step: () => ({ params: { source: 'files', min: 1, max: 10 } }),
+      },
+    ],
   },
   {
     id: 'in.text',
@@ -349,6 +422,14 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match:
+          /^(?:输入|粘贴|输入或粘贴)(?:一段)?文字$|^(?:type|paste|type or paste) (?:some |the )?text$/i,
+        step: () => ({ params: { text: '' }, ask: ['text'] }),
+      },
+    ],
   },
   {
     // D-199：给客人连 Wi-Fi 的二维码。网络名是用户写的（发给 AI 前换成占位符），密码每次运行时问、不保存。
@@ -446,9 +527,33 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     ],
     local: 'recordEntry',
     requires: ['files.write'],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match:
+          /^(?:记一笔|记一条|记下来|记账)(?:到|进)?(.*)$|^(?:记到|记进|写进|写到|加到)(.+?)(?:表|数据表|里)?$/,
+        step: (m) => ({ params: {}, table: tableName(m[1] ?? m[2]) }),
+      },
+      {
+        match:
+          /^(?:add|log) (?:a |one )?(?:record|entry)(?: (?:to|in) (?:the )?(.+?))?(?: table)?$|^(?:log|record) (?:it|them) (?:in|to) (?:the )?(.+?)(?: table)?$/i,
+        step: (m) => ({ params: {}, table: tableName(m[1] ?? m[2]) }),
+      },
+    ],
   },
   {
     id: 'file.rename',
+    // 提示词里只关于这个动作的规则。
+    aiRules: [
+      {
+        n: 15,
+        text: 'Name templates may only use these placeholders: {date} or {date:FORMAT} where FORMAT uses YYYY MM DD HH mm ss and - _ . ; {index}; {seq} (01, 02…); {sourceName}; {taken} or {taken:FORMAT} (the photo\'s capture date). The word "date" / "日期" means {date:YYYY-MM-DD}. Keep the user\'s literal words, e.g. "合并-日期" → "合并-{date:YYYY-MM-DD}", "merged-date" → "merged-{date:YYYY-MM-DD}".',
+      },
+      {
+        n: 30,
+        text: 'Names from what is in the photo ("name each receipt by its invoice number", "用收据上的日期和金额命名", "name the tickets by the phone number in their QR code"): besides the placeholders of rule 15, a file.rename template may use {ocr:RULE} (text recognized in that photo on the device) and {qr:RULE} (its QR code), where RULE is one of firstLine, invoiceNo, date (written as YYYY-MM-DD), amount (the total), phone, email, url, number. Set ask: [] on that step (a name typed at run time replaces the template). Only these rules exist: never invent another rule or write a pattern; you never see the text. When a part isn\'t found it is left out, and the original name is used if nothing is left. Text recognition runs only for photos, not PDFs.',
+      },
+    ],
     label: { en: 'Name the files', zh: '命名', fr: 'Nommer les fichiers' },
     description: {
       en: 'Name the result with a template such as {sourceName}-{date}. {ocr:RULE} / {qr:RULE} put in a part of the text recognized in each photo on the device / of its QR code; RULE is firstLine, invoiceNo, date, amount, phone, email, url or number. When nothing is found that part is left out (the original name if nothing is left).',
@@ -478,6 +583,13 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      {
+        match: /^(?:按|用)?\s*"?(.+?)"?\s*命名$|^name (?:it|them) "?(.+?)"?$/i,
+        step: (m) => ({ params: { template: (m[1] ?? m[2]!).trim() } }),
+      },
+    ],
   },
   {
     id: 'file.order',
@@ -493,10 +605,19 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     fields: [],
     local: 'reorder',
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [{ match: /^(?:排序|排好顺序|调整顺序)$|^(?:put (?:them )?in order|reorder)$/i }],
   },
   {
     // D-242：按固定条件筛选文件（类型、大小、方向、日期、时长），全部满足才保留。没有表达式。
     id: 'file.filter',
+    // 提示词里只关于这个动作的规则。
+    aiRules: [
+      {
+        n: 28,
+        text: 'Keeping only some files ("only the photos from the last 7 days", "skip files over 10 MB", "only landscape photos", "videos shorter than a minute", "只要这个月拍的") → file.filter right after the input step: set only the conditions the user names (kind, size larger/smaller than sizeMB, orientation, date lastDays with days, period (thisWeek, thisMonth… — use it for "this month" so it stays right next month) or between from/to as YYYY-MM-DD, duration longer/shorter than seconds) and leave the rest at "any"; all conditions must hold. whenEmpty "stop" (default) ends the run with a message when nothing is left, "skip" passes every file on unfiltered. It drops files from this run only; it never deletes anything (a request to delete files is still "deleteFiles"). It can\'t look at what is in a file (people, words): reject that part with "unknown".',
+      },
+    ],
     label: { en: 'Keep only some files', zh: '按条件筛选', fr: 'Filtrer les fichiers' },
     description: {
       en: 'Keep only the files that meet every condition set here (the others are dropped from this run, never deleted): kind of file; size larger / smaller than N MB; photo orientation (landscape, portrait, square); date taken (or last modified) in the last N days or between two dates; video or audio length longer / shorter than N seconds. A condition left at "any" is not checked. A file whose date, size in pixels or length can’t be read does not meet that condition. whenEmpty: "stop" ends the run with a message when nothing is left, "skip" passes all the files on unfiltered.',
@@ -734,6 +855,8 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     params: z.strictObject({}),
     fields: [],
     requires: ['files.write'],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [{ match: /^(?:保存|存到文件|存起来)$|^save(?: to files| it)?$/i }],
   },
   {
     id: 'out.share',
@@ -749,6 +872,14 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     params: z.strictObject({}),
     fields: [],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      // 一次分享全部文件（D-119）；发到哪个 App 由用户在分享面板里选，不会自动发给某个人。
+      {
+        match:
+          /^(?:一次|一起|全部|一次性)?分享(?:全部|所有文件|出去)?$|^(?:发|分享)到(?:微信|WhatsApp|QQ|邮件|邮箱)$|^share(?: it| them| them all| all(?: at once)?| all the files)?(?: at once)?$/i,
+      },
+    ],
   },
   {
     id: 'out.saveToFolder',
@@ -764,6 +895,14 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     params: z.strictObject({}),
     fields: [],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [
+      // 存到用户在「文件」里选的文件夹（D-120）：本机、iCloud 云盘、Google Drive、Dropbox 都走系统选择器。
+      {
+        match:
+          /^(?:存到|保存到|存进|放到)\s*(?:icloud\s*(?:云盘|drive)?|google\s*drive|dropbox|onedrive|网盘|云盘)?\s*(?:的|里的)?\s*(?:某个|一个|指定的?|选定的?)?\s*文件夹(?:里)?$|^(?:存到|保存到|存进)\s*(?:icloud\s*(?:云盘|drive)?|google\s*drive|dropbox|onedrive|网盘|云盘)$|^save (?:it |them )?(?:to|into|in) (?:a |the |my )?(?:chosen )?(?:folder|icloud(?: drive)?(?: folder)?|google drive(?: folder)?|dropbox(?: folder)?)$/i,
+      },
+    ],
   },
   {
     id: 'out.saveToPhotos',
@@ -778,6 +917,8 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     params: z.strictObject({}),
     fields: [],
     requires: ['photos.save'],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [{ match: /^存到相册$|^save to photos$/i }],
   },
   {
     id: 'out.print',
@@ -792,5 +933,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     params: z.strictObject({}),
     fields: [],
     requires: [],
+    // 内置规则认的步骤说法（D-265）。
+    phrases: [{ match: /^打印$|^print(?: it)?$/i }],
   },
 ];

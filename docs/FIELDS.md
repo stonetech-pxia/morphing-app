@@ -46,7 +46,7 @@ export const linkField: FieldDefinitionOf<'link', typeof schema> = defineField({
 
 ## 3. 文案、评测、基线
 
-- 显示用到的文字进 `packages/core/src/messages.ts`，en / zh / fr 写完整的句子，带数量的照 AGENTS.md 写单数，跑 `npm run check:locales`。
+- 显示用到的文字进 `packages/core/src/messages/` 的 `en.ts`、`zh.ts`、`fr.ts`，写完整的句子，带数量的照 AGENTS.md 写单数，跑 `npm run check:locales`。
 - 在 `packages/core/src/ai/eval-cases.ts` 照 `LK1` 加一两个用例；提示词变了，只用 Haiku 跑受影响的用例。
 - 配置 JSON Schema（`core/src/__snapshots__/baseline.test.ts.snap`）和提示词（`planner/src/__snapshots__/system-prompt.txt`）会变：确认差异只是新类型，再用 `-u` 更新。`fields-baseline` 的快照锁住已有类型的输出，加新类型时它不应该变。
 - 自动覆盖新类型的测试：`core/src/fields.test.ts`（结构、写入读出显示导出、筛选、表单、排序、统计、公式都和定义一致）、`planner/src/prompt-baseline.test.ts`（提示词里有它的说明）、`mobile/src/__tests__/field-registry-test.tsx`（三种语言都能填、能显示）。这种字段自己的行为另写测试。

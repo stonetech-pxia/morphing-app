@@ -13,7 +13,7 @@ import { MemoryWorkspaceRepo } from '../storage/memory';
 import { renderToolsApp } from '../test-utils/render-app';
 
 // 字段类型登记表重构的基线（2026-10-27）：每种字段的输入控件和在列表里的显示。
-// 重构只换写法，画出来的树必须不变。
+// 重构只换写法，显示的文字必须不变（只快照文字，不快照整棵树）。
 
 const FIELDS: Field[] = [
   { id: 't', name: 'Title', type: 'text' },
@@ -113,5 +113,42 @@ it.each(['zh', 'en', 'fr'] as const)('field inputs and list display in %s', asyn
   await renderToolsApp(await repoWithRecords(), undefined, { seed, locale });
   expect(await screen.findByTestId('component-list-fo')).toBeTruthy();
   expect(await screen.findAllByText('Apple')).toBeTruthy();
-  expect(screen.toJSON()).toMatchSnapshot();
+  expect(visibleText(screen.toJSON())).toMatchSnapshot();
 });
+
+type Node = { type: string; props: Record<string, unknown>; children: (Node | string)[] | null };
+
+/**
+ * 页面上每个组件、表单项和记录显示的文字（一行一个），代替整棵树的快照（架构清理，2026-10-27）：
+ * 字段的输入控件和列表显示在这里锁住；样式和布局由组件、字段登记表的测试管。
+ */
+function visibleText(tree: unknown): string {
+  const lines: string[] = [];
+  const texts = (n: Node | string): string[] => {
+    if (typeof n === 'string') return [n];
+    const own = ['placeholder', 'accessibilityLabel', 'value']
+      .map((k) => n.props[k])
+      .filter((v): v is string => typeof v === 'string' && v !== '')
+      .map((v) => `[${v}]`);
+    const state = n.props.accessibilityState as
+      { selected?: boolean; checked?: boolean } | undefined;
+    if (state?.selected) own.push('[selected]');
+    if (state?.checked) own.push('[checked]');
+    if (typeof n.props.value === 'boolean') own.push(n.props.value ? '[on]' : '[off]');
+    return [...own, ...(n.children ?? []).flatMap(texts)];
+  };
+  const walk = (n: Node | string, scope: string) => {
+    if (typeof n === 'string') return;
+    const id = typeof n.props.testID === 'string' ? n.props.testID : '';
+    let inner = scope;
+    if (/^component-/.test(id)) inner = id.slice('component-'.length);
+    if (
+      /^(?:form-|record-)/.test(id) ||
+      (/^component-/.test(id) && !/^component-(?:list|form)/.test(id))
+    )
+      lines.push(`${inner} ${id} <${n.type}>: ${texts(n).join(' | ')}`);
+    for (const c of n.children ?? []) walk(c, inner);
+  };
+  for (const root of ([] as unknown[]).concat(tree)) walk(root as Node, '');
+  return `\n${lines.join('\n')}\n`;
+}
