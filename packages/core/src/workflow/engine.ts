@@ -30,6 +30,12 @@ export interface RunItem {
   straightened?: boolean;
   /** 已经存成用户文件时的文件 ID。 */
   assetId?: string;
+  /**
+   * 识别文字用的图（D-267）：scan.enhance 记下增强前的那张（增强对系统识别没有帮助，黑白还会抹掉淡字）。
+   * 只在 uri 还等于 for 时有效：之后哪一步生成了新图片，uri 就变了，识别退回用当前的图。
+   * width / height 是增强时转正前的大小，skew 是转正转的角度（度），用来把识别框换算到增强后的图上。
+   */
+  ocrSource?: { uri: string; for: string; width: number; height: number; skew: number };
 }
 
 export type RunValue =

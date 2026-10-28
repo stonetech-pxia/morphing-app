@@ -1,6 +1,13 @@
 import { RunError, tidyOcrText, type ActionImpl, type OcrLanguage } from '@morph/core';
 
-import { displayName, fileItems, imageForPage, type RunServices } from './helpers';
+import {
+  displayName,
+  fileItems,
+  imageForPage,
+  ocrSourceItem,
+  ocrSourceOf,
+  type RunServices,
+} from './helpers';
 
 // 文字识别（T5）：系统能识别这种语言时用系统的（iOS 的 Vision，D-085；Android 的 ML Kit，D-087）；
 // 否则每张图片送进文字识别包页面（tesseract.js）。
@@ -42,6 +49,24 @@ export const OCR_IMPLS: Record<string, Impl> = {
     const texts: string[] = [];
     for (const [i, original] of items.entries()) {
       ctx.throwIfCancelled();
+      // 系统识别用增强前的图（D-267：增强对它没有帮助，黑白还会抹掉淡字）；读不了时用这张。
+      // 文字识别包（Tesseract）反而在增强后的图上认得更准，照旧。
+      const source = vision ? ocrSourceOf(original) : null;
+      if (source) {
+        try {
+          const page = await imageForPage(
+            ctx.services,
+            ocrSourceItem(original, source),
+            OCR_INPUT_SIDE,
+          );
+          const text = tidyOcrText(await vision!.recognizeText(page.uri, VISION_LANGUAGES[lang]));
+          if (text) texts.push(text);
+          ctx.progress(i + 1, items.length);
+          continue;
+        } catch {
+          // 退回用增强后的图。
+        }
+      }
       const item = await imageForPage(ctx.services, original, OCR_INPUT_SIDE);
       let raw: string;
       try {

@@ -169,7 +169,15 @@ function readRgba(image: SkImageLike, width: number, height: number): Uint8Array
 export function enhanceJpeg(
   bytes: Uint8Array,
   look: ScanLook,
-): { bytes: Uint8Array; width: number; height: number; output: ScanOutput; skew: number } {
+): {
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+  output: ScanOutput;
+  skew: number;
+  /** 转正前的大小（画布在它外面放大，D-267 换算识别框用）。 */
+  base: { width: number; height: number };
+} {
   const image = Skia.Image.MakeImageFromEncoded(Skia.Data.fromBytes(bytes));
   if (!image) throw new Error('image could not be decoded');
   const iw = image.width();
@@ -247,6 +255,7 @@ export function enhanceJpeg(
     height: canvasSize.height,
     output: plan.output,
     skew: plan.skew,
+    base: { width, height },
   };
 }
 

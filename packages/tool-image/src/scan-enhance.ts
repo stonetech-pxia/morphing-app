@@ -678,3 +678,30 @@ export function despeckle(
   }
   return removed;
 }
+
+/**
+ * 在增强前的图上识别出的框，换算到增强后的图上（D-267）：增强时先缩放到 base，
+ * 再以中心转 -skew 度、放进 canvas 中间（和 Skia 里画的顺序一样）。转的角度很小，框只移动中心、宽高照旧。
+ */
+export function boxesToEnhanced<T extends { x: number; y: number; width: number; height: number }>(
+  boxes: readonly T[],
+  from: Size,
+  base: Size,
+  skew: number,
+  canvas: Size,
+): T[] {
+  const kx = base.width / from.width;
+  const ky = base.height / from.height;
+  const a = (-skew * Math.PI) / 180;
+  const cos = Math.cos(a);
+  const sin = Math.sin(a);
+  return boxes.map((box) => {
+    const w = box.width * kx;
+    const h = box.height * ky;
+    const cx = (box.x + box.width / 2) * kx - base.width / 2;
+    const cy = (box.y + box.height / 2) * ky - base.height / 2;
+    const x = cx * cos - cy * sin + canvas.width / 2;
+    const y = cx * sin + cy * cos + canvas.height / 2;
+    return { ...box, x: x - w / 2, y: y - h / 2, width: w, height: h };
+  });
+}

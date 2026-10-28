@@ -535,3 +535,120 @@ describe('text layer languages (D-266)', () => {
     expect(textLayerLanguages('fr', ['fr-FR', 'de-DE'])).toEqual(latin);
   });
 });
+
+describe('recognition reads the page before enhancing (D-267)', () => {
+  /** 文档相机拍两页；返回送进增强的图（增强前）和增强出来的图，运行时填上。 */
+  const scanned = (files: FakeFiles, vision: FakeVision) => {
+    vision.scanned = [1, 2].map((n) => ({
+      ...files.offerImage(`scan-${n}.jpg`, 1700, 2400),
+      straightened: true,
+    }));
+    const pages = { before: [] as string[], after: [] as string[] };
+    const enhance = files.enhanceImage.bind(files);
+    files.enhanceImage = async (uri, ...rest) => {
+      const out = await enhance(uri, ...rest);
+      pages.before.push(uri);
+      pages.after.push(out.uri);
+      return out;
+    };
+    return pages;
+  };
+  const pick = { id: 'pick', action: 'in.photos', params: { source: 'scanner', min: 1, max: 5 } };
+  const bw = { id: 'look', action: 'scan.enhance', params: { mode: 'bw' } };
+  const pdf = {
+    id: 'pdf',
+    action: 'pdf.fromImages',
+    params: {
+      pageSize: 'a4',
+      orientation: 'auto',
+      marginMm: 0,
+      fit: 'contain',
+      maxMB: 0,
+      textLayer: true,
+    },
+  };
+
+  it('recognizes text on the straightened pages, not on the black and white ones', async () => {
+    const wf: Workflow = {
+      id: 'ocr',
+      name: 'ocr',
+      steps: [pick, bw, { id: 'read', action: 'ocr.recognize', params: { lang: 'chi_sim' } }],
+    };
+    const { files, vision, run } = setup(wf, {}, {}, true);
+    const pages = scanned(files, vision);
+    vision.texts = ['第一页', '第二页'];
+    const result = await run();
+    expect(files.enhanced).toEqual(['bw', 'bw']);
+    // 送去识别前重新编码的是增强前的页面，不是黑白图。
+    expect(pages.after).toHaveLength(2);
+    expect(files.encodedFrom).toEqual(pages.before);
+    expect(result).toMatchObject({ value: { type: 'text', text: '第一页\n\n第二页' } });
+  });
+
+  it('falls back to the enhanced page when the page before enhancing is gone', async () => {
+    const wf: Workflow = {
+      id: 'ocr',
+      name: 'ocr',
+      steps: [pick, bw, { id: 'read', action: 'ocr.recognize', params: { lang: 'chi_sim' } }],
+    };
+    const { files, vision, run } = setup(wf, {}, {}, true);
+    const pages = scanned(files, vision);
+    const enhance = files.enhanceImage.bind(files);
+    // 增强完就把原来的页面删掉。
+    files.enhanceImage = async (uri, ...rest) => {
+      const out = await enhance(uri, ...rest);
+      files.disk.delete(uri);
+      files.deleted.add(uri);
+      return out;
+    };
+    vision.texts = ['第一页', '第二页'];
+    expect(await run()).toMatchObject({ value: { type: 'text', text: '第一页\n\n第二页' } });
+    // 增强前的图读不了（没编码成功），每页改用增强后的图。
+    expect(files.encodedFrom).toEqual(pages.after);
+    expect(vision.calls.filter((c) => c.method === 'recognizeText')).toHaveLength(2);
+  });
+
+  it('builds the PDF text layer from the straightened pages and moves the boxes with the deskew', async () => {
+    const wf: Workflow = { id: 'pdf', name: 'pdf', steps: [pick, bw, pdf] };
+    const { files, vision, run } = setup(wf, {}, {}, true);
+    const pages = scanned(files, vision);
+    // 第一页转正了 2°（画布变大），第二页没转。
+    files.enhanceSkews = [2, 0];
+    const line = { text: 'Invoice 42', x: 100, y: 200, width: 300, height: 40 };
+    vision.layers = [
+      { width: 1700, height: 2400, lines: [line] },
+      { width: 1700, height: 2400, lines: [line] },
+    ];
+    expect(await run()).toMatchObject({ status: 'succeeded' });
+    const read = vision.calls.filter((c) => c.method === 'recognizeLines').map((c) => c.uri);
+    expect(read).toEqual(pages.before);
+  });
+
+  it('reads the current page once another step has changed the picture', async () => {
+    const rotate = { id: 'turn', action: 'image.rotate', params: { angle: 90, flip: 'none' } };
+    const wf: Workflow = { id: 'pdf', name: 'pdf', steps: [pick, bw, rotate, pdf] };
+    const { files, vision, run } = setup(wf, {}, {}, true);
+    const pages = scanned(files, vision);
+    expect(await run()).toMatchObject({ status: 'succeeded' });
+    const read = vision.calls.filter((c) => c.method === 'recognizeLines').map((c) => c.uri);
+    expect(read).toHaveLength(2);
+    expect(read.some((uri) => [...pages.before, ...pages.after].includes(uri))).toBe(false);
+  });
+
+  it('keeps the enhanced page for the text recognition pack (Tesseract reads it better)', async () => {
+    const wf: Workflow = {
+      id: 'ocr',
+      name: 'ocr',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+        bw,
+        { id: 'read', action: 'ocr.recognize', params: { lang: 'eng' } },
+      ],
+    };
+    const { files, packs, run } = setup(wf);
+    files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+    packs.texts = ['hello'];
+    expect(await run()).toMatchObject({ value: { type: 'text', text: 'hello' } });
+    expect(files.encodedFrom).toEqual([expect.stringMatching(/^runs\//)]);
+  });
+});

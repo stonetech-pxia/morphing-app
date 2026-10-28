@@ -575,13 +575,13 @@ export interface FilePlatform {
     relPath: string,
   ): Promise<EncodedImage>;
 
-  /** 增强一张图片（扫描件），输出 JPG 临时文件。 */
+  /** 增强一张图片（扫描件），输出 JPG 临时文件；skew 和 base 是转正的角度和转正前的大小（D-267）。 */
   enhanceImage(
     uri: string,
     mode: EnhanceMode,
     runId: string,
     relPath: string,
-  ): Promise<EncodedImage>;
+  ): Promise<EncodedImage & { skew: number; base: { width: number; height: number } }>;
 
   /** 离屏合成一张图，编码成本次运行的临时文件。 */
   composeImage(

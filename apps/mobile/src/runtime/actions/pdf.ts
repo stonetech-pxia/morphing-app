@@ -9,7 +9,7 @@ import {
   type Locale,
   type RunItem,
 } from '@morph/core';
-import { searchSharedQuality } from '@morph/tool-image';
+import { boxesToEnhanced, searchSharedQuality } from '@morph/tool-image';
 import {
   PdfError,
   addPageNumbers,
@@ -31,11 +31,20 @@ import {
   type ImageKind,
   type ImagePageOptions,
   type PageRule,
+  type TextLayer,
 } from '@morph/tool-pdf';
 
 import { deviceLanguageTags } from '../../i18n';
+import type { VisionPlatform } from '../platform';
 import { formatBytes } from './image';
-import { fileItems, freshName, readItem, writeItem, type RunServices } from './helpers';
+import {
+  fileItems,
+  freshName,
+  ocrSourceOf,
+  readItem,
+  writeItem,
+  type RunServices,
+} from './helpers';
 
 // PDF 动作的实现：字节处理全部在 packages/tool-pdf（pdf-lib），这里只负责读写临时文件。
 
@@ -303,6 +312,34 @@ async function mergeGroup(
   return writePdf(ctx, result.bytes, name);
 }
 
+/**
+ * 一页的文字层（D-267）：先在增强前的图上认（更准），框换算到这张图上；
+ * 增强前的图读不了，或者宽高比对不上（例如方向不同）时，在这张图上认。
+ */
+async function pageTextLayer(
+  vision: VisionPlatform,
+  item: RunItem,
+  languages: readonly string[],
+): Promise<TextLayer> {
+  const source = ocrSourceOf(item);
+  if (source && item.width && item.height) {
+    try {
+      const layer = await vision.recognizeLines(source.uri, languages);
+      const ratio = layer.width / layer.height / (source.width / source.height);
+      if (Math.abs(ratio - 1) < 0.02) {
+        const canvas = { width: item.width, height: item.height };
+        return {
+          ...canvas,
+          lines: boxesToEnhanced(layer.lines, layer, source, source.skew, canvas),
+        };
+      }
+    } catch {
+      // 用这张图认。
+    }
+  }
+  return vision.recognizeLines(item.uri, languages);
+}
+
 /** 一组图片排成一个 PDF；大小上限对这一个 PDF 算（D-073）。 */
 async function imagesPdf(
   ctx: Ctx,
@@ -362,7 +399,7 @@ async function imagesPdf(
         ? [languages]
         : [languages, LATIN_TEXT_LAYER]) {
         try {
-          images[i] = { ...images[i]!, text: await vision.recognizeLines(item.uri, attempt) };
+          images[i] = { ...images[i]!, text: await pageTextLayer(vision, item, attempt) };
           break;
         } catch {
           // 换下一组语言。

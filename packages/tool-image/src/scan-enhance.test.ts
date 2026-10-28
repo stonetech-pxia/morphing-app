@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  boxesToEnhanced,
   despeckle,
   estimateBackground,
   findSkew,
@@ -291,5 +292,35 @@ describe('scan enhance: black and white', () => {
   it('keeps everything on a page with no specks', () => {
     const img = page(50, 50, () => [255, 255, 255]);
     expect(despeckle(img, { maxSide: 3, reach: 6 })).toBe(0);
+  });
+});
+
+describe('scan enhance: text boxes on the enhanced page (D-267)', () => {
+  const box = (x: number, y: number) => ({ text: 't', x, y, width: 40, height: 10 });
+
+  it('only scales when the page was not rotated', () => {
+    const [b] = boxesToEnhanced(
+      [box(100, 200)],
+      { width: 1000, height: 2000 },
+      { width: 500, height: 1000 },
+      0,
+      { width: 500, height: 1000 },
+    );
+    expect(b).toEqual({ text: 't', x: 50, y: 100, width: 20, height: 5 });
+  });
+
+  it('follows the deskew: words on a line tilted by +3° end up on one horizontal line', () => {
+    const size = { width: 1000, height: 1400 };
+    const canvas = rotatedSize(size, 3);
+    const t = Math.tan((3 * Math.PI) / 180);
+    // 同一行上的三个词：越往右越低（向右下斜 3°）。
+    const words = [100, 450, 800].map((x) => box(x, 600 + (x + 20 - 500) * t));
+    const mapped = boxesToEnhanced(words, size, size, 3, canvas);
+    const centers = mapped.map((b) => b.y + b.height / 2);
+    expect(Math.max(...centers) - Math.min(...centers)).toBeLessThan(0.5);
+    // 页面中心还在画布中心。
+    const [mid] = boxesToEnhanced([box(480, 695)], size, size, 3, canvas);
+    expect(mid!.x + 20).toBeCloseTo(canvas.width / 2, 6);
+    expect(mid!.y + 5).toBeCloseTo(canvas.height / 2, 6);
   });
 });
