@@ -64,8 +64,14 @@ describe('ruleCandidates', () => {
         .map((c) => c.value);
     expect(values('Invoice date: March 2, 2026', 'en')).toEqual(['2026-03-02']);
     expect(values('Émise le 1er avril 2026', 'fr')).toEqual(['2026-04-01']);
-    expect(values('Date 05/03/26', 'fr')).toEqual(['2026-03-05']);
-    expect(values('Date 05/03/26', 'en')).toEqual(['2026-05-03']);
+    expect(values('Date 05/03/26', 'fr')).toEqual(['2026-03-05', '2026-05-03']);
+    expect(values('Date 05/03/26', 'en')).toEqual(['2026-05-03', '2026-03-05']);
+  });
+
+  it('keeps both valid readings of an ambiguous numeric date', () => {
+    const found = ruleCandidates('Date 04/05/2026', 'en').filter((c) => c.kind === 'date');
+    expect(found.map((c) => c.value)).toEqual(['2026-04-05', '2026-05-04']);
+    expect(found.map((c) => c.raw)).toEqual(['04/05/2026', '04/05/2026']);
   });
 
   it('reads French and English thousands', () => {
@@ -110,7 +116,7 @@ describe('system candidates are a supplement to the rules', () => {
     ]);
   });
 
-  it('keeps the rule value when the system reads the same spot differently', () => {
+  it('keeps both rule readings and marks the one corroborated by the system', () => {
     const rules = ruleCandidates('Date 05/03/2026', 'fr');
     const merged = mergeCandidates(
       rules,
@@ -118,7 +124,10 @@ describe('system candidates are a supplement to the rules', () => {
         { kind: 'date', start: 5, end: 15, value: '2026-05-03' },
       ]),
     );
-    expect(merged).toEqual([expect.objectContaining({ value: '2026-03-05', source: 'rule' })]);
+    expect(merged).toEqual([
+      expect.objectContaining({ value: '2026-03-05', source: 'rule' }),
+      expect.objectContaining({ value: '2026-05-03', source: 'rule', confirmed: true }),
+    ]);
     expect(merged[0]!.confirmed).toBeUndefined();
   });
 });
@@ -152,10 +161,16 @@ describe('pick by label', () => {
   });
 
   it('skips due dates and prefers the issue date', () => {
-    expect(pickDate(FACTURE_FR, ruleCandidates(FACTURE_FR, 'fr'))?.value).toBe('2026-03-05');
+    // 05/03 有两种有效解释；即使页面是法语，也不能凭语言猜。
+    expect(pickDate(FACTURE_FR, ruleCandidates(FACTURE_FR, 'fr'))).toBeNull();
     expect(pickDate(INVOICE_EN, ruleCandidates(INVOICE_EN, 'en'))?.value).toBe('2026-03-02');
     const two = 'Visit 03/01/2026\nChecked 03/04/2026';
     expect(pickDate(two, ruleCandidates(two, 'en'))).toBeNull();
+  });
+
+  it('leaves an ambiguous date empty without a confirmed format', () => {
+    const text = 'Invoice date: 04/05/2026';
+    expect(pickDate(text, ruleCandidates(text, 'en'))).toBeNull();
   });
 });
 
@@ -204,6 +219,38 @@ function save(memory: LayoutMemory | null, text: string, saved: Record<string, u
 }
 
 describe('layout memory', () => {
+  it('learns the date order the user confirmed, even when it differs from the locale', () => {
+    const first = save(null, shop('Tea 3.00', '3.00', '04/05/2026'), {
+      when: '2026-05-04',
+    });
+    expect(first.prefilled.when).toBeUndefined();
+    expect(first.memory!.fields.when).toMatchObject({ kind: 'date', dateOrder: 'DMY' });
+    const second = fill(shop('Coffee 4.00', '4.00', '06/07/2026'), first.memory);
+    expect(second.values.when).toEqual({ value: '2026-07-06', source: 'memory' });
+  });
+
+  it('learns the only valid order from an unambiguous saved numeric date', () => {
+    const first = save(null, shop('Tea 3.00', '3.00', '03/16/2026'), {
+      when: '2026-03-16',
+    });
+    expect(first.memory!.fields.when).toMatchObject({ kind: 'date', dateOrder: 'MDY' });
+    const second = fill(shop('Coffee 4.00', '4.00', '04/05/2026'), first.memory);
+    expect(second.values.when).toEqual({ value: '2026-04-05', source: 'memory' });
+  });
+
+  it('keeps old date habits usable when the new date has only one valid reading', () => {
+    const habit = {
+      kind: 'date',
+      label: 'date',
+      offset: 0,
+      position: 0,
+      format: '9/9/9',
+      hits: 1,
+    } as const;
+    const text = 'Date 03/16/2026';
+    expect(readWithLayout(habit, text, ruleCandidates(text, 'en'))).toBe('2026-03-16');
+  });
+
   it('learns from one save and reads the next document of the same layout', () => {
     const one = save(null, shop('Milk 4.20', '9.80', '03/02/2026'), {
       amount: 9.8,
@@ -398,7 +445,7 @@ describe('layout memory', () => {
 });
 
 describe('prefillRecord without memory', () => {
-  it('fills amount, tax, date and number by rules, leaves the rest empty', () => {
+  it('fills clear fields by rules and leaves an ambiguous date empty', () => {
     const result = prefillRecord({
       text: FACTURE_FR,
       locale: 'fr',
@@ -414,7 +461,6 @@ describe('prefillRecord without memory', () => {
     expect(result.values).toEqual({
       montant: { value: 102, source: 'rule' },
       tva: { value: 17, source: 'rule' },
-      jour: { value: '2026-03-05', source: 'rule' },
       numero: { value: 'F2026-118', source: 'rule' },
     });
   });

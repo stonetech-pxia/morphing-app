@@ -139,8 +139,21 @@ export function pickDate(
     .filter((c) => c.kind === 'date')
     .map((c) => ({ c, label: labelOf(lines, c, candidates).text }))
     .filter(({ label }) => !DATE_EXCLUDE.test(label));
+  // 同一段数字文字能解释成两个日期时，不能靠语言设置猜用户要哪一个。
+  const ambiguous = (list: typeof dates) =>
+    list.some(({ c }) =>
+      list.some(
+        ({ c: other }) =>
+          c !== other &&
+          c.line === other.line &&
+          c.start === other.start &&
+          c.end === other.end &&
+          c.value !== other.value,
+      ),
+    );
   const prefer = (list: typeof dates) =>
     list.find(({ c }) => c.source === 'rule')?.c ?? list[0]?.c ?? null;
+  if (ambiguous(dates)) return null;
   if (new Set(dates.map(({ c }) => c.value)).size === 1) return prefer(dates);
   const issued = dates.filter(({ label }) => DATE_ISSUE.test(label));
   return new Set(issued.map(({ c }) => c.value)).size === 1 ? prefer(issued) : null;

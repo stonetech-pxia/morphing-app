@@ -26,6 +26,8 @@ export interface ValueCandidate {
   confirmed?: boolean;
   /** 数字里有识别错的字母（1O7.45、2026年S月），按常见的混淆改回数字才认出来。 */
   repaired?: boolean;
+  /** 年在后的数字日期中，原文已能确定或用户可确认的日月顺序。 */
+  dateOrder?: 'DMY' | 'MDY';
 }
 
 /** 系统识别的结果：在整段文字里的位置（UTF-16）和系统给的值；位置换成行由 systemCandidates 做。 */
@@ -108,17 +110,19 @@ const MONTH_D_Y = new RegExp(
 
 const fullYear = (y: string) => (y.length === 2 ? 2000 + Number(y) : Number(y));
 
-/** 一行里的日期。年在后、日月分不清时英文按月在前，其他语言按日在前（和 text-rules 一样）。 */
+/** 一行里的日期。年在后、日月分不清时保留两种解释；语言只决定展示顺序。 */
 function datesInLine(
   line: string,
   locale: Locale,
-): { start: number; end: number; value: string }[] {
-  const found: { start: number; end: number; value: string }[] = [];
-  const add = (start: number, raw: string, value: string | null) => {
+): { start: number; end: number; value: string; dateOrder?: 'DMY' | 'MDY' }[] {
+  const found: { start: number; end: number; value: string; dateOrder?: 'DMY' | 'MDY' }[] = [];
+  const add = (start: number, raw: string, value: string | null, dateOrder?: 'DMY' | 'MDY') => {
     if (!value) return;
     const end = start + raw.length;
-    if (found.some((f) => start < f.end && end > f.start)) return;
-    found.push({ start, end, value });
+    if (found.some((f) => (f.start !== start || f.end !== end) && start < f.end && end > f.start))
+      return;
+    if (found.some((f) => f.start === start && f.end === end && f.value === value)) return;
+    found.push({ start, end, value, ...(dateOrder ? { dateOrder } : {}) });
   };
   for (const m of line.matchAll(YMD)) {
     add(m.index, m[0].trimEnd(), validDate(Number(m[1]), Number(m[2]), Number(m[3])));
@@ -137,9 +141,21 @@ function datesInLine(
     const a = Number(m[2]);
     const b = Number(m[3]);
     const y = fullYear(m[4]!);
-    const monthFirst = a > 12 ? false : b > 12 ? true : locale === 'en';
     const raw = m[0].slice(m[1]!.length);
-    add(m.index + m[1]!.length, raw, monthFirst ? validDate(y, a, b) : validDate(y, b, a));
+    const at = m.index + m[1]!.length;
+    const dmy = validDate(y, b, a);
+    const mdy = validDate(y, a, b);
+    if (dmy && mdy && dmy !== mdy) {
+      if (locale === 'en') {
+        add(at, raw, mdy, 'MDY');
+        add(at, raw, dmy, 'DMY');
+      } else {
+        add(at, raw, dmy, 'DMY');
+        add(at, raw, mdy, 'MDY');
+      }
+    } else {
+      add(at, raw, dmy ?? mdy, dmy && !mdy ? 'DMY' : mdy && !dmy ? 'MDY' : undefined);
+    }
   }
   return found.sort((x, y) => x.start - y.start);
 }
@@ -250,6 +266,7 @@ export function ruleCandidates(text: string, locale: Locale): ValueCandidate[] {
         start: d.start,
         end: d.end,
         source: 'rule',
+        ...(d.dateOrder ? { dateOrder: d.dateOrder } : {}),
         ...(repaired(d.start, d.end) ? { repaired: true } : {}),
       });
     for (const a of amountsInLine(line, dates, locale))

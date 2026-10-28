@@ -27,6 +27,8 @@ export interface ValueHabit {
   position: number;
   /** 写法：金额是小数点（dot / comma / none），日期是数字换成 9 以后的样子（9/9/9、9年9月9日）。 */
   format: string;
+  /** 用户确认过的模糊数字日期顺序；旧记忆没有时不猜。 */
+  dateOrder?: 'DMY' | 'MDY';
   /** 连续几次一致。 */
   hits: number;
   /** 要几次一致才用；没有时是 LEARNED_HITS，用户改过以后是 2。 */
@@ -152,7 +154,13 @@ function positionOf(
 function sameHabit(a: FieldHabit, b: FieldHabit): boolean {
   if (a.kind === 'constant' || b.kind === 'constant')
     return a.kind === 'constant' && b.kind === 'constant' && a.value === b.value;
-  return a.kind === b.kind && a.label === b.label && a.offset === b.offset && a.format === b.format;
+  return (
+    a.kind === b.kind &&
+    a.label === b.label &&
+    a.offset === b.offset &&
+    a.format === b.format &&
+    a.dateOrder === b.dateOrder
+  );
 }
 
 const sameNumber = (a: unknown, b: string) => Math.abs(Number(a) - Number(b)) < 0.005;
@@ -226,6 +234,7 @@ export function learnLayout(
           offset: label.offset,
           position: positionOf(source, lines.length, input.boxes),
           format: formatOf(source),
+          ...(source.dateOrder ? { dateOrder: source.dateOrder } : {}),
           hits: 1,
         };
       }
@@ -269,6 +278,21 @@ export function readWithLayout(
   const lines = splitLines(text);
   const matches = candidates
     .filter((c) => c.kind === habit.kind && formatOf(c) === habit.format)
+    .filter(
+      (c) =>
+        !c.dateOrder ||
+        c.dateOrder === habit.dateOrder ||
+        (habit.dateOrder === undefined &&
+          !candidates.some(
+            (other) =>
+              other !== c &&
+              other.kind === 'date' &&
+              other.line === c.line &&
+              other.start === c.start &&
+              other.end === c.end &&
+              other.value !== c.value,
+          )),
+    )
     .filter((c) => {
       const label = labelOf(lines, c, candidates);
       return label.offset === habit.offset && label.text === habit.label;
