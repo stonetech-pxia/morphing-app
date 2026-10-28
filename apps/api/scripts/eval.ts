@@ -15,9 +15,11 @@ import { createRelayRuntime, loadRootEnv } from '../src/config';
 import { createApp } from '../src/server';
 
 // 用评测集（packages/core/src/ai/eval-cases.ts）衡量真实模型。会产生 API 费用。
-// 用法：npm run eval -- --model claude-haiku-5-5 [--cases A1,C1] [--effort low] [--transport http]
+// 用法：npm run eval -- --model claude-haiku-5-5 [--cases A1,C1] [--effort low] [--transport http] [--batch]
 //   默认（relay）：和「Morph 服务器」模式完全一样——App 的转发传输层 → 本进程里的 /v1/complete → Claude（D-193）。
 //   --transport http：App 内「自带 key」模式的 HTTP 传输层，直接调用 Claude。
+//   --batch：所有用例同时跑，请求攒成批走批处理 API。半价，但每一轮要等几分钟到几小时；
+//     修复请求是下一批。批处理 API 不接受 fallbacks，所以没有拒答回退。只能配 relay 传输。
 //   --verbose：失败时打印模型给出的计划。计划里的 notes（D-110）总是打印。
 
 const { values } = parseArgs({
@@ -26,6 +28,7 @@ const { values } = parseArgs({
     cases: { type: 'string' },
     effort: { type: 'string' },
     transport: { type: 'string' },
+    batch: { type: 'boolean' },
     verbose: { type: 'boolean' },
   },
 });
@@ -35,7 +38,12 @@ const env = { ...process.env };
 if (values.model) env.MORPH_AI_MODEL = values.model;
 if (values.effort) env.MORPH_AI_EFFORT = values.effort;
 
-const runtime = createRelayRuntime(env);
+const batch = values.batch ?? false;
+if (batch && values.transport === 'http') {
+  console.error('--batch 只能配 relay 传输。');
+  process.exit(1);
+}
+const runtime = createRelayRuntime(env, { batch });
 const apiKey = env.ANTHROPIC_API_KEY?.trim();
 if (!runtime.relay || !apiKey) {
   console.error('未配置 ANTHROPIC_API_KEY，无法评测真实模型。见 docs/API_KEY_SETUP.md。');
@@ -64,16 +72,10 @@ const complete =
     : createRelayCompleter({
         baseUrl: 'http://relay.test',
         registry,
-        timeoutMs: 120_000,
+        // 一批最长 24 小时。
+        timeoutMs: batch ? 24 * 60 * 60_000 : 120_000,
         fetchImpl: ((url: string, init?: RequestInit) => server.request(url, init)) as typeof fetch,
       });
-const provider = createClaudePlanner({
-  complete,
-  registry,
-  now: () => new Date(),
-  onCompletion: (c) => completions.push(c),
-});
-
 const selected = values.cases ? new Set(values.cases.split(',')) : null;
 const cases = EVAL_CASES.filter((c) => !selected || selected.has(c.id));
 const now = new Date();
@@ -81,20 +83,30 @@ let passed = 0;
 const failures: string[] = [];
 
 console.log(
-  `模型：${runtime.model}${env.MORPH_AI_EFFORT ? `（effort ${env.MORPH_AI_EFFORT}）` : ''}，传输：${transport}，用例数：${cases.length}\n`,
+  `模型：${runtime.model}${env.MORPH_AI_EFFORT ? `（effort ${env.MORPH_AI_EFFORT}）` : ''}，传输：${transport}${batch ? '（批处理）' : ''}，用例数：${cases.length}\n`,
 );
 
-for (const c of cases) {
-  const before = completions.length;
+async function runCase(c: (typeof cases)[number]): Promise<string> {
+  // 每个用例一个 planner，批处理时用例同时跑，请求次数也能分开数。
+  let calls = 0;
+  const provider = createClaudePlanner({
+    complete,
+    registry,
+    now: () => new Date(),
+    onCompletion: (completion) => {
+      calls++;
+      completions.push(completion);
+    },
+  });
   const started = Date.now();
   let line: string;
   try {
     const { outcome, plans } = await runEvalCase(c, provider, registry, now);
-    const calls = completions.length - before - (plans.length - 1);
-    const repaired = calls > 1 ? `，修复 ${calls - 1} 次` : '';
+    const repairs = calls - plans.length;
+    const repaired = repairs > 0 ? `，修复 ${repairs} 次` : '';
     if (outcome.pass) {
       passed++;
-      line = `✅ ${c.id}  ${Date.now() - started}ms${repaired}`;
+      line = `✅ ${c.id}${batch ? '' : `  ${Date.now() - started}ms`}${repaired}`;
     } else {
       line = `❌ ${c.id}  ${outcome.reason}${repaired}`;
       if (values.verbose) line += plans.map((p) => `\n   ${JSON.stringify(p)}`).join('');
@@ -109,7 +121,13 @@ for (const c of cases) {
     line = `💥 ${c.id}  ${String(e)}`;
     failures.push(`${c.id}（${c.input}）：${String(e)}`);
   }
-  console.log(line);
+  return line;
+}
+
+if (batch) {
+  for (const line of await Promise.all(cases.map(runCase))) console.log(line);
+} else {
+  for (const c of cases) console.log(await runCase(c));
 }
 
 const total = completions.reduce(
@@ -121,9 +139,11 @@ const total = completions.reduce(
   { input: 0, output: 0, cacheRead: 0 },
 );
 const price = MODELS.find((m) => m.id === runtime.model)?.price;
+// 批处理半价。
 const cost = price
-  ? (total.input * price.input + total.output * price.output + total.cacheRead * price.cacheRead) /
-    1_000_000
+  ? ((total.input * price.input + total.output * price.output + total.cacheRead * price.cacheRead) /
+      1_000_000) *
+    (batch ? 0.5 : 1)
   : null;
 
 console.log(`\n通过：${passed}/${cases.length}`);

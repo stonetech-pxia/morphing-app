@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
 import { DEFAULT_MODEL, MODELS } from '@morph/planner';
 
-import { createSdkRelay } from './claude-provider';
+import { createBatchRelay, createSdkRelay } from './claude-provider';
 import type { Price, Relay } from './server';
 
 // 读取仓库根目录的 .env（见 docs/API_KEY_SETUP.md）。key 只进入进程环境，从不打印。
@@ -25,7 +25,11 @@ export interface RelayRuntime {
   price: Price;
 }
 
-export function createRelayRuntime(env: NodeJS.ProcessEnv): RelayRuntime {
+/** batch 只给评测用：请求走批处理 API（见 createBatchRelay）。 */
+export function createRelayRuntime(
+  env: NodeJS.ProcessEnv,
+  { batch = false }: { batch?: boolean } = {},
+): RelayRuntime {
   const model = env.MORPH_AI_MODEL?.trim() || DEFAULT_MODEL;
   // 限额按金额算，所以只能用已知价格的模型。
   const price = MODELS.find((m) => m.id === model)?.price;
@@ -34,10 +38,10 @@ export function createRelayRuntime(env: NodeJS.ProcessEnv): RelayRuntime {
   if (!apiKey) return { relay: null, model, price };
   const effortEnv = env.MORPH_AI_EFFORT?.trim();
   const effort = EFFORTS.includes(effortEnv as Effort) ? (effortEnv as Effort) : undefined;
-  const relay = createSdkRelay(new Anthropic({ apiKey, timeout: 60_000, maxRetries: 1 }), {
-    model,
-    maxTokens: Number(env.MORPH_MAX_OUTPUT_TOKENS ?? 16_000),
-    effort,
-  });
+  const client = new Anthropic({ apiKey, timeout: 60_000, maxRetries: 1 });
+  const options = { model, maxTokens: Number(env.MORPH_MAX_OUTPUT_TOKENS ?? 16_000), effort };
+  const relay = batch
+    ? createBatchRelay(client, options, { log: console.log })
+    : createSdkRelay(client, options);
   return { relay, model, price };
 }
