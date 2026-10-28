@@ -81,6 +81,8 @@ function setup(
   const packs = new FakePacks();
   const opened: { kind: LocalKind; input: unknown }[] = [];
   const asked: string[] = [];
+  /** 用户不肯下载的扩展包。 */
+  const declined = new Set<string>();
   const ui: LocalUi = {
     confirm: async () => false,
     choose: async () => null,
@@ -102,11 +104,11 @@ function setup(
         newId: () => `id${++ids}`,
         ui,
         packs: { runtime: packs, isInstalled: async () => true },
-        ensurePack: async (id) => (asked.push(id), true),
+        ensurePack: async (id) => (asked.push(id), !declined.has(id)),
         askParams: async (request) => ({ ...request.params, ...answers }),
       })
     ).result;
-  return { files, vision, packs, run, opened, asked };
+  return { files, vision, packs, run, opened, asked, declined };
 }
 
 describe('scanner', () => {
@@ -734,5 +736,89 @@ describe('recognized Chinese is tidied (D-268)', () => {
       .join('\n');
     // 「差别：内部」的 UTF-16：5DEE 522B FF1A 5185 90E8。
     expect(text).toContain('<5DEE522BFF1A518590E8> Tj');
+  });
+});
+
+describe('PP-OCRv6 replaces ML Kit and Vision for the languages it reads (D-269)', () => {
+  const model = { pack: 'ppocr', languages: ['zh', 'ja', 'en', 'fr', 'de', 'es', 'pt', 'it'] };
+  const library = {
+    id: 'pick',
+    action: 'in.photos',
+    params: { source: 'library', min: 1, max: 5 },
+  };
+  const read = (lang: string): Workflow => ({
+    id: 'ocr',
+    name: 'ocr',
+    steps: [library, { id: 'read', action: 'ocr.recognize', params: { lang } }],
+  });
+
+  it('asks for the text recognition model, not a language pack, for Chinese and French', async () => {
+    for (const lang of ['chi_sim', 'fra']) {
+      const { files, vision, run, asked } = setup(read(lang), {}, {}, true);
+      vision.ocrModel = model;
+      files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+      vision.texts = ['text'];
+      expect(await run()).toMatchObject({ status: 'succeeded' });
+      expect(asked).toEqual(['ppocr']);
+    }
+  });
+
+  it('keeps Korean on the system recognizer and needs no model for it', async () => {
+    const { files, vision, run, asked } = setup(read('kor'), {}, {}, true);
+    vision.ocrModel = model;
+    files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+    vision.texts = ['한국어'];
+    expect(await run()).toMatchObject({ status: 'succeeded', value: { text: '한국어' } });
+    expect(asked).toEqual([]);
+  });
+
+  it('stops when the user does not download the model for text recognition', async () => {
+    const { files, vision, run, declined } = setup(read('chi_sim'), {}, {}, true);
+    vision.ocrModel = model;
+    declined.add('ppocr');
+    files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+    expect(await run()).toMatchObject({ status: 'cancelled' });
+  });
+
+  it('still makes the scanned PDF without a text layer when the model is not downloaded', async () => {
+    const wf: Workflow = {
+      id: 'pdf',
+      name: 'pdf',
+      steps: [
+        library,
+        {
+          id: 'pdf',
+          action: 'pdf.fromImages',
+          params: {
+            pageSize: 'a4',
+            orientation: 'auto',
+            marginMm: 0,
+            fit: 'contain',
+            maxMB: 0,
+            textLayer: true,
+          },
+        },
+      ],
+    };
+    const { files, vision, run, asked, declined } = setup(wf, {}, {}, true);
+    vision.ocrModel = model;
+    declined.add('ppocr');
+    files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+    expect(await run()).toMatchObject({ status: 'succeeded', value: { type: 'pdf' } });
+    expect(asked).toEqual(['ppocr']);
+  });
+
+  it('lists the model instead of the language packs it replaces', () => {
+    const files = new FakeFiles();
+    const vision = new FakeVision(files);
+    files.vision = vision;
+    vision.ocrModel = model;
+    vision.unsupported.add('ru');
+    expect(packsNeeded(['ocr', 'ocr-chi-sim', 'ocr-rus', 'pdfview'], files)).toEqual([
+      'ocr-rus',
+      'pdfview',
+      'ppocr',
+    ]);
+    expect(packsNeeded(['ocr', 'ocr-rus'], files)).toEqual(['ocr-rus']);
   });
 });

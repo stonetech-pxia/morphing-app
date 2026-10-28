@@ -128,8 +128,13 @@ export interface VisionPlatform {
   /** replaceBackground 用的是系统自带的人像分割（iOS），不用先确认下载模型（Android 的主体分割要）。 */
   readonly personSegmentation?: boolean;
 
-  /** 这种语言（BCP 47）系统能不能识别。 */
+  /** 这种语言（BCP 47）这台设备能不能识别（PP-OCRv6 的语言要先下载模型，见 ocrModel）。 */
   supportsLanguage(code: string): boolean;
+  /**
+   * 文字识别模型（D-269）：这些语言（BCP 47 的语言部分）用 PP-OCRv6 识别，要先下载 pack 这个扩展包；
+   * 其余语言用系统自带的（iOS Vision、Android 只剩韩文用 ML Kit）。没有原生模型接口的旧版 App 没有这一项。
+   */
+  readonly ocrModel?: { pack: string; languages: readonly string[] };
   /** 识别文字；languages 是 BCP 47，第一种是用户选的语言。文字只返回给 App。 */
   recognizeText(uri: string, languages: readonly string[]): Promise<string>;
   /** 识别文字，给出每行的位置（可搜索 PDF 的文字层，D-195）。 */

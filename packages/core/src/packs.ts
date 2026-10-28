@@ -63,6 +63,49 @@ export const PACKS: readonly PackManifest[] = [
     ],
   },
   {
+    // 文字识别模型（D-269）：PP-OCRv6 small 的两个 ONNX 模型和字典，iOS、Android 都用（韩文、俄文除外）。
+    // 文件来自 npm 上转好格式的包（模型说明里写着从 PaddlePaddle 官方模型转出），按哈希校验。
+    id: 'ppocr',
+    version: '6.0.0',
+    name: {
+      en: 'Text recognition model',
+      zh: '文字识别模型',
+      fr: 'Modèle de reconnaissance de texte',
+    },
+    description: {
+      en: 'Reads printed text in Chinese, English, Japanese and Western European languages on this device (PP-OCRv6).',
+      zh: '在本机识别中文、英文、日文和西欧语言的印刷文字（PP-OCRv6）。',
+      fr: 'Lit le texte imprimé en chinois, anglais, japonais et dans les langues d’Europe de l’Ouest sur cet appareil (PP-OCRv6).',
+    },
+    license: 'Apache-2.0 (PaddleOCR PP-OCRv6 small, ONNX by light-ocr 0.3.4)',
+    files: [
+      f(
+        'det.onnx',
+        'https://cdn.jsdelivr.net/npm/@arcships/light-ocr-model-ppocrv6-small@0.3.4/bundle/det/inference.onnx',
+        9880512,
+        'd73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e',
+      ),
+      f(
+        'rec.onnx',
+        'https://cdn.jsdelivr.net/npm/@arcships/light-ocr-model-ppocrv6-small@0.3.4/bundle/rec/inference.onnx',
+        21159378,
+        '5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634',
+      ),
+      f(
+        'dictionary.json',
+        'https://cdn.jsdelivr.net/npm/@arcships/light-ocr-model-ppocrv6-small@0.3.4/bundle/rec/dictionary.json',
+        112408,
+        '6e93cc028ff774c8bef0801ad08391f8284f7ef897013a9aeb9cbd515db3276d',
+      ),
+      f(
+        'LICENSE',
+        'https://cdn.jsdelivr.net/npm/@arcships/light-ocr-model-ppocrv6-small@0.3.4/bundle/LICENSES/PaddleOCR-Apache-2.0.txt',
+        11376,
+        '3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e',
+      ),
+    ],
+  },
+  {
     id: 'ocr',
     version: '7.0.0',
     name: { en: 'Text recognition', zh: '文字识别', fr: 'Reconnaissance de texte' },

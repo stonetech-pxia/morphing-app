@@ -1,5 +1,5 @@
-// 本地 Expo 模块的 Android 部分（D-087）：Google ML Kit 文字识别（模型打包进 App，不需要 Google Play 服务）
-// 和文档扫描（通过 Google Play 服务）。ML Kit 是闭源的 Google 组件，和 AGPL 的关系见 DECISIONS P-015。
+// 本地 Expo 模块的 Android 部分（D-087）：文字识别用 PP-OCRv6（D-269，ONNX Runtime 跑模型，模型是下载的扩展包），
+// ML Kit 只留韩文识别器（模型打包进 App）；文档扫描通过 Google Play 服务。ML Kit 是闭源的 Google 组件，和 AGPL 的关系见 DECISIONS P-015。
 plugins {
   id 'com.android.library'
   id 'expo-module-gradle-plugin'
@@ -22,10 +22,10 @@ dependencies {
   implementation "com.google.android.gms:play-services-mlkit-subject-segmentation:16.0.0-beta1"
   // 证件照自动框脸（D-252）：模型打包进 App。
   implementation "com.google.mlkit:face-detection:16.1.7"
-  implementation "com.google.mlkit:text-recognition:16.0.1"
-  implementation "com.google.mlkit:text-recognition-chinese:16.0.1"
-  implementation "com.google.mlkit:text-recognition-japanese:16.0.1"
+  // PP-OCRv6 不认韩文，韩文还用 ML Kit（D-269）。
   implementation "com.google.mlkit:text-recognition-korean:16.0.1"
+  // ONNX Runtime（MIT）：跑 PP-OCRv6 的两个模型（D-269）。
+  implementation "com.microsoft.onnxruntime:onnxruntime-android:1.30.0"
   implementation "com.google.android.gms:play-services-mlkit-document-scanner:16.0.0"
   implementation "com.google.android.gms:play-services-base:18.11.1"
 }

@@ -59,8 +59,18 @@ export interface MorphVisionModule {
   isCameraAvailable(): boolean;
   /** 能不能给一张照片找纸张的四个角（iOS 能，Android 的 ML Kit 不能：detectDocument / straighten 不存在）。 */
   canFindPaper(): boolean;
-  /** 这种语言（BCP 47）系统能不能识别。 */
+  /** 这种语言（BCP 47）系统能不能识别（Android 上只剩韩文用 ML Kit，D-269）。 */
   supportsLanguage(code: string): boolean;
+
+  /**
+   * PP-OCRv6（D-269）：载入扩展包里的两个模型；输入、输出都是临时文件（float32 小端）。
+   * ocrDetect 写出每个像素的概率 × 255（width × height 字节）；ocrRecognize 写出 count × steps 个 int32 类别
+   * 再接 count × steps 个 float32 概率，返回 steps。旧版 App（原生模块里没有）时是 undefined。
+   */
+  ocrLoad?(det: string, rec: string): Promise<void>;
+  ocrDetect?(input: string, width: number, height: number, output: string): Promise<void>;
+  ocrRecognize?(input: string, count: number, width: number, output: string): Promise<number>;
+  ocrUnload?(): Promise<void>;
   supportedLanguages(): Promise<string[]>;
   /** languages：BCP 47，第一种必须支持，后面的是补充。 */
   recognizeText(

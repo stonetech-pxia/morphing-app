@@ -1072,6 +1072,8 @@ export class FakeVision implements VisionPlatform {
   supportsLanguage(code: string) {
     return !this.unsupported.has(code.split('-')[0]!);
   }
+  /** 有文字识别模型的设备（D-269）：设成 { pack, languages } 时这些语言要先下载模型。 */
+  ocrModel?: { pack: string; languages: readonly string[] };
   async recognizeText(uri: string, languages: readonly string[]) {
     this.calls.push({ method: 'recognizeText', uri, args: languages });
     return this.texts.shift() ?? '';

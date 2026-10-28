@@ -961,7 +961,7 @@ export const fr: MessageTable = {
   scan_Scans_7ac9d: 'Numérisations',
   ocr_Text_recognition_fe569: 'Reconnaissance de texte',
   ocr_Runs_on_this_device_the_text_is_never__38fca:
-    'S’exécute sur cet appareil ; le texte n’est jamais envoyé. La plupart des téléphones utilisent la reconnaissance intégrée au système ; sinon, chaque langue est téléchargée à la première utilisation.',
+    'S’exécute sur cet appareil ; le texte n’est jamais envoyé. Le modèle de reconnaissance de texte (environ 30 Mo) est téléchargé à la première utilisation ; le coréen, le russe et le vietnamien utilisent la reconnaissance intégrée au téléphone ou un téléchargement séparé.',
   html_Created_1626a: 'Création',
   html_Updated_74f0c: 'Modifié',
   html_records_3f794: '{v0} entrées',

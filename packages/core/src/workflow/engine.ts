@@ -192,6 +192,15 @@ export interface RunOptions<S> {
     params: Record<string, unknown>,
     input: RunValue | null,
   ) => boolean;
+  /**
+   * 这一步在这台设备上要的扩展包（D-269，例如文字识别模型）；有它时代替动作自己的扩展包。
+   * optional：用户不下载也照样做（例如可搜索 PDF 没有文字层），不取消运行。
+   */
+  devicePack?: (
+    actionId: string,
+    params: Record<string, unknown>,
+    input: RunValue | null,
+  ) => { pack: string; optional?: boolean } | undefined;
   /** 界面把 cancelled 设为 true 即可取消。 */
   signal?: { cancelled: boolean };
   onEvent?: (event: RunEvent) => void;
@@ -292,10 +301,18 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
         params = action.params.parse({ ...params, ...rest });
       }
       // 先问参数再确认扩展包：文字识别的语言包由本次选的语言决定。
-      const pack = opts.packNotNeeded?.(action.id, params, value)
-        ? undefined
-        : (action.packFor?.(params) ?? action.pack);
-      if (pack && opts.ensurePack && !(await orCancel(opts.ensurePack(pack)))) {
+      const device = opts.devicePack?.(action.id, params, value);
+      const pack =
+        device?.pack ??
+        (opts.packNotNeeded?.(action.id, params, value)
+          ? undefined
+          : (action.packFor?.(params) ?? action.pack));
+      if (
+        pack &&
+        opts.ensurePack &&
+        !(await orCancel(opts.ensurePack(pack))) &&
+        !device?.optional
+      ) {
         throw new RunCancelled();
       }
       throwIfCancelled();

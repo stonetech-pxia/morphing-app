@@ -22,6 +22,7 @@ import {
   type ScanLook,
   type ScanOutput,
 } from '@morph/tool-image';
+import { detectionSize } from '@morph/tool-ocr';
 
 import { annotationSvg } from './annotations';
 import type { DrawOp } from './platform';
@@ -362,6 +363,21 @@ export async function composeOnSurface(
   );
   out.dispose?.();
   return { bytes, width, height };
+}
+
+/**
+ * 文字识别的输入（D-269）：长边先不超过 maxSide，再缩放到找文字行要的大小（32 的倍数，短边至少 736），
+ * 一次在 Skia 里缩好（线性插值，缩小时用 mipmap），JS 不用再逐像素插值。
+ */
+export function ocrPixels(bytes: Uint8Array, maxSide: number): RgbaImage {
+  const image = Skia.Image.MakeImageFromEncoded(Skia.Data.fromBytes(bytes));
+  if (!image) throw new Error('image could not be decoded');
+  const k = Math.min(1, maxSide / Math.max(image.width(), image.height()));
+  const size = detectionSize(
+    Math.max(1, Math.round(image.width() * k)),
+    Math.max(1, Math.round(image.height() * k)),
+  );
+  return readScaled(image, size.width, size.height);
 }
 
 /** 图片的 RGBA 像素（长边缩到 maxSide 以内）。 */
