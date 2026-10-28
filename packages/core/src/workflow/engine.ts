@@ -36,6 +36,12 @@ export interface RunItem {
    * width / height 是增强时转正前的大小，skew 是转正转的角度（度），用来把识别框换算到增强后的图上。
    */
   ocrSource?: { uri: string; for: string; width: number; height: number; skew: number };
+  /**
+   * 转 Excel 的 TableDoc（D-272）：结果页的「查看和编辑」改它，再重新生成 xlsx。写法和 ocrSource 一样，
+   * 只在 uri 还等于 for 时有效（后面哪一步生成了新文件，就不能再编辑）。
+   * pagesWithoutTables：识别范围是「仅表格内容」、但没找到带线的表格、按全部内容输出的页（从 1 开始）。
+   */
+  tableDoc?: { uri: string; for: string; pagesWithoutTables?: number[] };
 }
 
 export type RunValue =
@@ -107,6 +113,8 @@ export type RunErrorCode =
   | 'formatUnsupported'
   /** 视频太长，做不成 GIF（detail.seconds：最长几秒，D-184）。 */
   | 'tooLong'
+  /** 这台手机不能本机识别这种语言的表格（转 Excel 要每行文字的位置，D-272）。 */
+  | 'tableUnsupported'
   /** 这台手机不能把这种文档转成 PDF（detail.format：XLSX 等；Android 只能转 Word，D-186）。 */
   | 'documentUnsupported'
   | 'unexpected';

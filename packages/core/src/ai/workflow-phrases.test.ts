@@ -68,5 +68,14 @@ describe('step phrases in action definitions', () => {
       params: { template: '合并-{date:YYYY-MM-DD}' },
     });
     expect(parseStepPhrase('翻译', 'fr')).toMatchObject({ action: 'translate.text', ask: ['to'] });
+    // 转 Excel（D-272）：语言跟界面语言，默认全部内容。
+    expect(parseStepPhrase('表格转 Excel', 'zh')).toEqual({
+      action: 'ocr.toExcel',
+      params: { lang: 'chi_sim', scope: 'all' },
+    });
+    expect(parseStepPhrase('convert to an Excel workbook', 'fr')).toEqual({
+      action: 'ocr.toExcel',
+      params: { lang: 'fra', scope: 'all' },
+    });
   });
 });

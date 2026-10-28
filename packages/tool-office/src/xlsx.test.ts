@@ -6,6 +6,7 @@ import {
   cellNumber,
   cleanXmlText,
   columnName,
+  layoutSheet,
   pagesWithoutTables,
   sheetName,
   writeXlsx,
@@ -230,6 +231,32 @@ describe('xlsx writer (D-272)', () => {
     const sheet2 = text('xl/worksheets/sheet2.xml');
     expect(sheet2.match(/<col /g)).toHaveLength(4);
     expect(sheet2).toContain('<mergeCell ref="A1:D1"/>');
+  });
+
+  it('lays out a page the same way for the editor and the file', () => {
+    const p = page('P', [
+      { kind: 'text', text: 'Title', box: box(20) },
+      table(200, [
+        ['a', 'b'],
+        ['c', 'd'],
+      ]),
+    ]);
+    const layout = layoutSheet(p, 'all');
+    // 标题、空行、表格的两行。
+    expect(layout.rows.map((r) => [r.block, r.tableRow])).toEqual([
+      [0, undefined],
+      [null, undefined],
+      [1, 0],
+      [1, 1],
+    ]);
+    expect(layout.cells.find((c) => c.text === 'Title')).toMatchObject({ row: 0, colSpan: 2 });
+    expect(layout.cells.find((c) => c.text === 'd')).toMatchObject({
+      row: 3,
+      col: 1,
+      block: 1,
+      cell: 3,
+    });
+    expect(layoutSheet(p, 'tables').rows).toHaveLength(2);
   });
 
   it('names columns like Excel', () => {

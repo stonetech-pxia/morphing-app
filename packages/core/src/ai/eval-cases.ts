@@ -2160,6 +2160,45 @@ const SPEAK_EVAL_CASES: readonly EvalCase[] = [
       check: hasWorkflow(['in.text', 'audio.fromText', 'audio.convert', 'out.share']),
     },
   },
+  // ---- 扫描件转 Excel（D-272）----
+  {
+    id: 'XLS1',
+    input: '新建一个快捷操作：扫描文档，转 Excel，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(
+        ['in.photos', 'ocr.toExcel', 'out.share'],
+        param('ocr.toExcel', 'scope', 'all'),
+      ),
+    },
+  },
+  {
+    id: 'XLS2-en',
+    input: 'Add the scan a table to Excel quick action',
+    locale: 'en',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: presetAdded('scan-table-excel') },
+  },
+  {
+    id: 'PXLS1',
+    input: '我想把纸质的银行流水拍下来变成 Excel 表格',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['in.photos', 'ocr.toExcel']) },
+  },
+  {
+    id: 'PXLS2-en',
+    input: 'Turn screenshots of a price table into a spreadsheet I can edit',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['in.photos', 'ocr.toExcel']) },
+  },
   {
     id: 'PTTS1',
     input: '做一个把 PDF 变成音频的快捷操作',

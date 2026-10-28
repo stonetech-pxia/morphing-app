@@ -120,6 +120,29 @@ export function deleteColumn(doc: TableDoc, at: TableRef, col: number): TableDoc
   });
 }
 
+/** 改一段表外的文字。 */
+export function setTextBlock(doc: TableDoc, page: number, block: number, text: string): TableDoc {
+  const b = doc.pages[page]?.blocks[block];
+  if (!b || b.kind !== 'text' || b.text === text) return doc;
+  return {
+    ...doc,
+    pages: doc.pages.map((p, i) =>
+      i === page ? { ...p, blocks: p.blocks.map((x, j) => (j === block ? { ...b, text } : x)) } : p,
+    ),
+  };
+}
+
+/** 删掉一段表外的文字（认进来的页眉、页码这类）。表格不能整张删。 */
+export function deleteTextBlock(doc: TableDoc, page: number, block: number): TableDoc {
+  if (doc.pages[page]?.blocks[block]?.kind !== 'text') return doc;
+  return {
+    ...doc,
+    pages: doc.pages.map((p, i) =>
+      i === page ? { ...p, blocks: p.blocks.filter((_, j) => j !== block) } : p,
+    ),
+  };
+}
+
 /** 切换识别范围（只影响写 xlsx 时写不写表外的文字）。 */
 export function setScope(doc: TableDoc, scope: TableScope): TableDoc {
   return doc.scope === scope ? doc : { ...doc, scope };

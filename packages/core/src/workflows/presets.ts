@@ -93,6 +93,16 @@ const speak = {
   params: { lang: 'auto', rate: 1, format: 'm4a' },
 };
 const textPdf = { id: 'pdf', action: 'text.toPdf', params: { pageSize: 'a4', fontSize: 12 } };
+/** 转 Excel（D-272）：默认界面语言、全部内容，每次运行时问语言。 */
+const toExcel = (locale: Locale) => ({
+  id: 'excel',
+  action: 'ocr.toExcel',
+  params: {
+    lang: locale === 'zh' ? 'chi_sim' : locale === 'fr' ? 'fra' : 'eng',
+    scope: 'all',
+  },
+  ask: ['lang'],
+});
 
 export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   {
@@ -219,6 +229,42 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
       rename(t(locale, 'presets_Scan_5b295')),
       share,
     ],
+  },
+  {
+    // D-272：拍纸质表格，做成 Excel；结果页可以查看和修改。
+    id: 'scan-table-excel',
+    scenario: 'paperwork',
+    name: {
+      en: 'Scan a table to Excel',
+      zh: '拍表格转 Excel',
+      fr: 'Numériser une grille en Excel',
+    },
+    description: {
+      en: 'Scan a printed table (straightened automatically, or check the corners) → clean up → Excel workbook, a sheet per page → check and edit it on the result page. Tables with ruled lines work best.',
+      zh: '扫描纸质表格（自动拉正，或确认四个角）→ 变清楚 → 转成 Excel，每页一张工作表 → 在结果页核对和修改。带线的表格效果最好。',
+      fr: 'Numérisez une grille imprimée (redressement automatique, ou vérifiez les coins) → améliorez la lisibilité → classeur Excel, une feuille par page → vérifiez-le et modifiez-le sur la page de résultat. Les grilles à lignes donnent les meilleurs résultats.',
+    },
+    icon: 'scan',
+    packs: ['scan'],
+    steps: (locale) => [
+      photos(1, 20, 'scanner'),
+      { id: 'edges', action: 'scan.detect', params: {} },
+      { id: 'look', action: 'scan.enhance', params: { mode: 'auto' } },
+      toExcel(locale),
+    ],
+  },
+  {
+    // D-272：相册里的表格照片、截图做成 Excel。
+    id: 'image-table-excel',
+    scenario: 'paperwork',
+    name: { en: 'Table picture to Excel', zh: '图片转 Excel', fr: 'Image de grille en Excel' },
+    description: {
+      en: 'Choose photos or screenshots of a table → Excel workbook, a sheet per picture → check and edit it on the result page. Tables with ruled lines work best.',
+      zh: '选表格的照片或截图 → 转成 Excel，每张图一张工作表 → 在结果页核对和修改。带线的表格效果最好。',
+      fr: 'Choisissez des photos ou des captures d’écran d’une grille → classeur Excel, une feuille par image → vérifiez-le et modifiez-le sur la page de résultat. Les grilles à lignes donnent les meilleurs résultats.',
+    },
+    icon: 'photo',
+    steps: (locale) => [photos(1, 20), toExcel(locale)],
   },
   {
     id: 'combine-documents',

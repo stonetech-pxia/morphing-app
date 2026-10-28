@@ -240,91 +240,120 @@ export function sheetColumns(page: TablePage, blocks = page.blocks): number[] {
   );
 }
 
+/** 工作表上的一格（合并格子只有左上角）：表格里的格子记着是哪张表的第几格，表外的文字记着是第几块。 */
+export interface SheetCell {
+  row: number;
+  col: number;
+  rowSpan: number;
+  colSpan: number;
+  text: string;
+  /** 在 page.blocks 里的下标。 */
+  block: number;
+  /** 表格格子在 table.cells 里的下标；表外的文字没有。 */
+  cell?: number;
+}
+
+/** 一页排到工作表上的样子：编辑页照着它画，写 xlsx 也照着它写，两边一样。 */
+export interface SheetLayout {
+  /** 列宽（Excel 的字符宽）。 */
+  colWidths: number[];
+  /** 每一行：估的行数（行高 = 行数 × 15 磅）、属于哪一块（空行是 null）、是那张表的第几行。 */
+  rows: { lines: number; block: number | null; tableRow?: number }[];
+  cells: SheetCell[];
+}
+
+/**
+ * 一页排成工作表：块按顺序往下排，块和块之间空隙超过 1.5 倍行高时空一行（大致保留原来的间距）；
+ * 表格从 A 列开始；表外的文字每段一行，从 A 列合并到最宽那张表的最后一列（没有表时 A–D）。
+ */
+export function layoutSheet(page: TablePage, scope: TableDoc['scope']): SheetLayout {
+  const blocks = pageBlocks(page, scope);
+  const colWidths = sheetColumns(page, blocks);
+  const rows: SheetLayout['rows'] = [];
+  const cells: SheetCell[] = [];
+  let prevBottom: number | null = null;
+  for (const block of blocks) {
+    const index = page.blocks.indexOf(block);
+    if (prevBottom !== null && block.box.y - prevBottom > 1.5 * page.lineHeight) {
+      rows.push({ lines: 1, block: null });
+    }
+    prevBottom = block.box.y + block.box.height;
+    if (block.kind === 'text') {
+      const text = cleanXmlText(block.text);
+      const width = colWidths.reduce((a, b) => a + b, 0);
+      cells.push({
+        row: rows.length,
+        col: 0,
+        rowSpan: 1,
+        colSpan: colWidths.length,
+        text,
+        block: index,
+      });
+      rows.push({ lines: lineCount(text, width), block: index });
+      continue;
+    }
+    const start = rows.length;
+    for (let r = 0; r < block.rows; r++) rows.push({ lines: 1, block: index, tableRow: r });
+    for (const [i, cell] of block.cells.entries()) {
+      const text = cleanXmlText(cell.text).trim();
+      cells.push({ ...cell, row: start + cell.row, text, block: index, cell: i });
+      if (cell.rowSpan === 1 && text) {
+        let width = 0;
+        for (let c = cell.col; c < cell.col + cell.colSpan; c++) width += colWidths[c] ?? 8;
+        const row = rows[start + cell.row]!;
+        row.lines = Math.max(row.lines, lineCount(text, width));
+      }
+    }
+  }
+  return { colWidths, rows, cells };
+}
+
 function sheetXml(
   page: TablePage,
   scope: TableDoc['scope'],
   styles: Styles,
   strings: SharedStrings,
 ): string {
-  const blocks = pageBlocks(page, scope);
-  const widths = sheetColumns(page, blocks);
-  const lastCol = widths.length - 1;
-  const rows: { cells: string[]; lines: number }[] = [];
+  const layout = layoutSheet(page, scope);
+  const rowCells: Map<number, string>[] = layout.rows.map(() => new Map());
   const merges: string[] = [];
-  let prevBottom: number | null = null;
-  for (const block of blocks) {
-    // 块和块之间空隙超过 1.5 倍行高时空一行，大致保留原来的间距。
-    if (prevBottom !== null && block.box.y - prevBottom > 1.5 * page.lineHeight) {
-      rows.push({ cells: [], lines: 1 });
+  for (const cell of layout.cells) {
+    const table = cell.cell !== undefined;
+    const at = ref(cell.row, cell.col);
+    const number = table && cell.text ? cellNumber(cell.text) : null;
+    let xml: string;
+    if (!cell.text) xml = `<c r="${at}" s="${styles.table}"/>`;
+    else if (number)
+      xml = `<c r="${at}" s="${styles.number(number.format)}"><v>${number.value}</v></c>`;
+    else {
+      const style = table ? styles.table : styles.text;
+      xml = `<c r="${at}" s="${style}" t="s"><v>${strings.index(cell.text)}</v></c>`;
     }
-    prevBottom = block.box.y + block.box.height;
-    if (block.kind === 'text') {
-      const r = rows.length;
-      const text = cleanXmlText(block.text);
-      const cells = [
-        `<c r="${ref(r, 0)}" s="${styles.text}" t="s"><v>${strings.index(text)}</v></c>`,
-      ];
-      if (lastCol > 0) merges.push(`${ref(r, 0)}:${ref(r, lastCol)}`);
-      const width = widths.reduce((a, b) => a + b, 0);
-      rows.push({ cells, lines: lineCount(text, width) });
-      continue;
+    rowCells[cell.row]!.set(cell.col, xml);
+    if (cell.rowSpan > 1 || cell.colSpan > 1) {
+      merges.push(`${at}:${ref(cell.row + cell.rowSpan - 1, cell.col + cell.colSpan - 1)}`);
     }
-    const start = rows.length;
-    const table: { cells: string[]; lines: number }[] = Array.from({ length: block.rows }, () => ({
-      cells: [],
-      lines: 1,
-    }));
-    // 合并区域盖住的格子也要写（带边框样式），否则合并后的格子只有左上角有边框。
-    const grid: (string | null)[][] = Array.from({ length: block.rows }, () =>
-      Array.from({ length: block.cols }, () => null),
-    );
-    for (const cell of block.cells) {
-      const r = start + cell.row;
-      const text = cleanXmlText(cell.text).trim();
-      const number = cellNumber(text);
-      let xml: string;
-      if (!text) xml = `<c r="${ref(r, cell.col)}" s="${styles.table}"/>`;
-      else if (number) {
-        xml = `<c r="${ref(r, cell.col)}" s="${styles.number(number.format)}"><v>${number.value}</v></c>`;
-      } else {
-        xml = `<c r="${ref(r, cell.col)}" s="${styles.table}" t="s"><v>${strings.index(text)}</v></c>`;
-      }
-      grid[cell.row]![cell.col] = xml;
-      for (let dr = 0; dr < cell.rowSpan; dr++) {
-        for (let dc = 0; dc < cell.colSpan; dc++) {
-          if (dr === 0 && dc === 0) continue;
-          const rr = cell.row + dr;
-          const cc = cell.col + dc;
-          if (rr < block.rows && cc < block.cols) {
-            grid[rr]![cc] = `<c r="${ref(start + rr, cc)}" s="${styles.table}"/>`;
-          }
-        }
-      }
-      if (cell.rowSpan > 1 || cell.colSpan > 1) {
-        merges.push(
-          `${ref(r, cell.col)}:${ref(r + cell.rowSpan - 1, cell.col + cell.colSpan - 1)}`,
-        );
-      }
-      if (cell.rowSpan === 1 && text) {
-        let width = 0;
-        for (let c = cell.col; c < cell.col + cell.colSpan; c++) width += widths[c] ?? 8;
-        const row = table[cell.row]!;
-        row.lines = Math.max(row.lines, lineCount(text, width));
+    // 合并区域盖住的表格格子也要写（带边框样式），否则合并后的格子只有左上角有边框。
+    if (!table) continue;
+    for (let dr = 0; dr < cell.rowSpan; dr++) {
+      for (let dc = 0; dc < cell.colSpan; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const r = cell.row + dr;
+        const c = cell.col + dc;
+        if (rowCells[r]) rowCells[r]!.set(c, `<c r="${ref(r, c)}" s="${styles.table}"/>`);
       }
     }
-    for (const [r, row] of table.entries())
-      row.cells = grid[r]!.filter((c): c is string => c !== null);
-    rows.push(...table);
   }
-  const cols = widths
+  const cols = layout.colWidths
     .map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`)
     .join('');
-  const data = rows
-    .map((row, r) =>
-      row.cells.length || row.lines > 1
-        ? `<row r="${r + 1}" ht="${row.lines * LINE_POINTS}" customHeight="1">${row.cells.join('')}</row>`
-        : '',
-    )
+  const data = layout.rows
+    .map((row, r) => {
+      const cells = [...rowCells[r]!].sort((a, b) => a[0] - b[0]).map(([, xml]) => xml);
+      return cells.length || row.lines > 1
+        ? `<row r="${r + 1}" ht="${row.lines * LINE_POINTS}" customHeight="1">${cells.join('')}</row>`
+        : '';
+    })
     .join('');
   return (
     HEAD +

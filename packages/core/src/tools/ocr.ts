@@ -12,6 +12,9 @@ import type { ActionDefinition } from '../workflow/contract';
 // 识别出的文字只留在本机（RunValue 'text'）：复制、存成文件、生成 PDF，绝不发给 AI（D-036）。
 
 export const OCR_TOOL_ID = 'ocr';
+
+/** 转 Excel 的识别范围（D-272）：全部内容（默认）或仅表格内容。 */
+export const TABLE_SCOPES = ['all', 'tables'] as const;
 export const OCR_PAGE_ID = 'tool-ocr';
 
 /**
@@ -69,6 +72,54 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
       {
         match: /^(?:识别文字|文字识别|提取文字)$|^(?:recognize|read|extract) (?:the )?text$/i,
         step: () => ({ params: { lang: 'auto' } }),
+      },
+    ],
+  },
+  {
+    // 扫描件转 Excel（D-272）：只认带线的表（加只有横线的表），不加新模型；结果页可以查看和修改。
+    id: 'ocr.toExcel',
+    label: { en: 'Convert to Excel', zh: '转 Excel', fr: 'Convertir en classeur Excel' },
+    description: {
+      en: 'Reads tables with ruled lines in the images (one language per run) and makes one Excel workbook, a sheet per page. You can check and edit it before saving. The text stays on this device.',
+      zh: '识别图片里带线的表格（每次一种语言），做成一个 Excel 文件，每页一张工作表。保存前可以核对和修改。文字只留在本机。',
+      fr: 'Lit les grilles à lignes des images (une langue par exécution) et crée un seul classeur Excel, une feuille par page. Vous pouvez le vérifier et le modifier avant de l’enregistrer. Le texte reste sur cet appareil.',
+    },
+    input: ['images'],
+    output: 'files',
+    params: z.strictObject({ lang: z.enum(OCR_LANGUAGES), scope: z.enum(TABLE_SCOPES) }),
+    fields: [
+      {
+        key: 'lang',
+        label: { en: 'Language', zh: '语言', fr: 'Langue' },
+        kind: 'choice',
+        options: OCR_LANGUAGES.map((value) => ({ value, label: OCR_LANGUAGE_NAMES[value] })),
+      },
+      {
+        key: 'scope',
+        label: { en: 'Content', zh: '识别范围', fr: 'Contenu' },
+        kind: 'choice',
+        options: [
+          { value: 'all', label: { en: 'Everything', zh: '全部内容', fr: 'Tout le contenu' } },
+          {
+            value: 'tables',
+            label: { en: 'Tables only', zh: '仅表格内容', fr: 'Grilles seulement' },
+          },
+        ],
+      },
+    ],
+    // 要每行文字的位置：只用本机的识别（PP-OCRv6 或系统的），不用文字识别包（tesseract 只给文字）。
+    requires: [],
+    ai: '"Photo / scan of a table to Excel, a spreadsheet from a paper table, 表格转 Excel" → in.photos (source "scanner" for paper, then scan.detect → scan.enhance mode "auto"; library photos and screenshots go straight in) → ocr.toExcel; lang is the language of the table (the interface language unless they name one), scope "all" unless they want only the tables. A scanned PDF: in.files accept "pdf" → pdf.toImages first. It makes one .xlsx with a sheet per page, which the user can check and edit on the result page; only tables with ruled lines (or only horizontal rules) become cells, everything else comes out as rows of text. Handwriting and tables without lines are not supported yet.',
+    phrases: [
+      {
+        match:
+          /^(?:(?:表格)?转(?:成)?\s*excel|做成\s*excel(?:\s*表格)?|(?:convert|turn) (?:it |them )?(?:in)?to (?:an )?excel(?: (?:file|workbook|spreadsheet))?)$/i,
+        step: (_m, locale) => ({
+          params: {
+            lang: locale === 'zh' ? 'chi_sim' : locale === 'fr' ? 'fra' : 'eng',
+            scope: 'all',
+          },
+        }),
       },
     ],
   },
