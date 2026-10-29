@@ -51,6 +51,7 @@ import { useCalendar, useWorkspace } from '../workspace/context';
 import { t } from '../i18n';
 import { AttachmentThumb, AttachmentsInput, firstImage, useAssetIndex } from './Attachments';
 import { onPicture } from './Backdrop';
+import { ScheduleInput } from './ScheduleInput';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
 import { cardColors, type Palette } from './theme';
@@ -297,6 +298,20 @@ export const FIELD_EDITORS: { [T in FieldType]: FieldEditor<FieldOf<T>> } = {
   link: {
     input: ({ field, value, onChange, palette, locale, disabled, testID }) => (
       <LinkInput
+        field={field}
+        value={value}
+        onChange={onChange}
+        palette={palette}
+        locale={locale}
+        disabled={disabled}
+        testID={testID}
+      />
+    ),
+  },
+  // D-296：日程，先选重复方式再填数字或日子。
+  schedule: {
+    input: ({ field, value, onChange, palette, locale, disabled, testID }) => (
+      <ScheduleInput
         field={field}
         value={value}
         onChange={onChange}
@@ -699,10 +714,13 @@ export function RecordList({
   const assetIndex = useAssetIndex();
   if (!collection || !view) return null;
   const hasFiles = collection.fields.some((f) => f.type === 'file');
+  const now = new Date();
   const shown = sortRecords(
-    filterRecords(records ?? [], view, props.filter, new Date(), cal),
+    filterRecords(records ?? [], view, props.filter, now, cal),
     view,
     props.sort,
+    now,
+    cal,
   ).slice(0, props.limit);
 
   if (records !== null && shown.length === 0) {
@@ -716,13 +734,13 @@ export function RecordList({
   }
 
   const row = (r: DataRecord, index: number) => {
-    const title = formatRef(r, view, props.titleField, locale, links) || '—';
+    const title = formatRef(r, view, props.titleField, locale, links, now, cal) || '—';
     const subtitle = (props.subtitleFields ?? [])
-      .map((f) => formatRef(r, view, f, locale, links))
+      .map((f) => formatRef(r, view, f, locale, links, now, cal))
       .filter(Boolean)
       .join(' · ');
     const trailing = props.trailingField
-      ? formatRef(r, view, props.trailingField, locale, links)
+      ? formatRef(r, view, props.trailingField, locale, links, now, cal)
       : '';
     const checked = props.checkField ? r.values[props.checkField] === true : false;
     const thumb = hasFiles && assetIndex ? firstImage(r, collection, assetIndex) : null;

@@ -63,6 +63,7 @@
 | `lookup`   | 不存值，引用的那条记录的某个字段（D-287）        | 工时的时薪   |
 | `rollup`   | 不存值，引用了这条的记录的统计（D-288）          | 客户总额     |
 | `previous` | 不存值，同组按日期的上一条的值（D-289）          | 上次里程     |
+| `schedule` | 一份重复规则（白名单 JSON，D-292）               | 浇水、续费   |
 
 每条记录还自带两个系统字段：`createdAt`、`updatedAt`，可以用来排序和筛选。
 
@@ -115,7 +116,7 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 "sort": { "field": "date", "direction": "desc" }
 ```
 
-可用的条件：`is` / `isNot` / `contains` / `gt` / `lt` / `isEmpty` / `isNotEmpty` / `inPeriod`。`inPeriod` 的取值有 `today`、`thisWeek`、`thisMonth`、`thisYear`、`last7days`、`last30days`，D-285 加了 `last14days`、`last90days`、`last365days`、`thisTwoWeeks`（两周一段）、`thisHalfMonth`（1–15 号或 16 号到月底）。「今天」和一周的第一天按「设置 → 日期」（D-286）。
+可用的条件：`is` / `isNot` / `contains` / `gt` / `lt` / `isEmpty` / `isNotEmpty` / `inPeriod`，日程字段还有 `due`（`today` / `overdue` / `thisWeek`，D-294）。`inPeriod` 的取值有 `today`、`thisWeek`、`thisMonth`、`thisYear`、`last7days`、`last30days`，D-285 加了 `last14days`、`last90days`、`last365days`、`thisTwoWeeks`（两周一段）、`thisHalfMonth`（1–15 号或 16 号到月底）。「今天」和一周的第一天按「设置 → 日期」（D-286）。
 
 **记录编辑页**由内核按字段定义自动生成，不可配置：点列表里的一条，或 `recordForm` 的 `button` 模式都会打开它，删除也在这里。
 
@@ -282,3 +283,9 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 - **汇总**（D-288）`rollup {collectionId, linkField, aggregate, …}`：`collectionId` 里 `linkField` 指向这条的记录的计数、求和、平均、最小、最大、最近一条的值，或者 D-284 的按日子算的几种；可以带 `filter`、`period`。
 - **上一条**（D-289）`previous {fieldId, dateField?, groupBy?}`：同一张表、同一组里按日期排在前面、`fieldId` 有值的最近一条的值。
 - **检查**（D-290）：不能绕回自己，最多叠 3 层（P-045）。**性能**（D-291）：每张表每个引用字段建一次索引，不逐条扫表。
+
+## 17. 日程（D-292 起）
+
+- **日程字段**（D-292，schemaVersion 24）：每条记录存一份重复规则 `{repeat, …, perDay?}`（每天、每周几天、每段 N 次、每月几号、每 N 天、每年某天），用户在表单里设；字段的 `default` 是新记录的规则。逻辑在 `core/schedule.ts`。
+- **上次完成**（D-293）：`lastDone` 指向同一张表里的日期或日期时间字段；由规则和它算出下一次、今天该不该做、过期几天。
+- **用在别处**（D-294、D-295）：筛选 `due`；`inPeriod` / `gt` / `lt`、排序和公式都按下一次。提醒还不按日程（P8）。

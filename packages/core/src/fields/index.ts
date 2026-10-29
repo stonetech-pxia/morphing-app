@@ -19,12 +19,14 @@ import { numberField } from './number';
 import { previousField } from './previous';
 import { ratingField } from './rating';
 import { rollupField } from './rollup';
+import { scheduleField } from './schedule';
 import { textField } from './text';
 import { timeField } from './time';
 
 export * from './define';
 export { ChoiceOptionSchema } from './choice';
 export { ROLLUP_AGGREGATES } from './rollup';
+export { SCHEDULE_LAST_DONE_TYPES } from './schedule';
 
 /** 全部字段类型。新类型加在最后（顺序就是配置 JSON Schema 里的顺序）。 */
 export const FIELDS = [
@@ -45,6 +47,7 @@ export const FIELDS = [
   lookupField,
   rollupField,
   previousField,
+  scheduleField,
 ] as const;
 
 type Schemas<D extends readonly { schema: unknown }[]> = {
@@ -84,6 +87,7 @@ export interface FieldDefinition {
     compare?: 'number' | 'date' | 'time';
     period?: true;
     emptyOnly?: true;
+    schedule?: true;
   };
   day?(field: Field, value: FieldValue): string;
   sort?: false | ((field: Field, value: FieldValue) => FieldValue);

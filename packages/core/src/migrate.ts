@@ -227,6 +227,12 @@ export const migrateV21toV22: Migration = (config) => ({ ...config, schemaVersio
  */
 export const migrateV22toV23: Migration = (config) => ({ ...config, schemaVersion: 23 });
 
+/**
+ * v23 → v24：字段多了日程（schedule，D-292、D-293），筛选多了 due（D-294）。已有的字段和筛选都还是合法的，
+ * 只提升版本号。
+ */
+export const migrateV23toV24: Migration = (config) => ({ ...config, schemaVersion: 24 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -251,6 +257,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   20: migrateV20toV21,
   21: migrateV21toV22,
   22: migrateV22toV23,
+  23: migrateV23toV24,
 };
 
 export type MigrateResult =

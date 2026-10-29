@@ -1,11 +1,12 @@
 import { localeTag } from './localization';
+import type { ScheduleRule } from './schedule';
 import type { Locale } from './schema-primitives';
 
 // 字段值的基本写法和显示格式。字段定义（fields/）和记录的纯函数（data.ts）都用；
 // 单独放一个文件，避免字段定义和 data.ts 互相引用。对外从 data.ts 导出。
 
-/** 附件字段（D-187、D-263）的值是一组文件 ID；别的字段是文字、数字或勾选。 */
-export type FieldValue = string | number | boolean | readonly string[];
+/** 附件字段（D-187、D-263）的值是一组文件 ID；日程（D-292）是一份规则；别的字段是文字、数字或勾选。 */
+export type FieldValue = string | number | boolean | readonly string[] | ScheduleRule;
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 export const pad = (n: number) => String(n).padStart(2, '0');

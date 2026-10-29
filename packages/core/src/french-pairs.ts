@@ -13,6 +13,7 @@ export const FRENCH_PAIRS: Readonly<Record<string, string>> = {
   formula: 'formule',
   time: 'heure',
   'date and time': 'date et heure',
+  schedule: 'récurrence',
   duration: 'durée',
   'value from a linked entry': 'valeur d’une entrée liée',
   'summary of linked entries': 'synthèse des entrées liées',

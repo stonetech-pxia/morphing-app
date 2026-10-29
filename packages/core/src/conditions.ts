@@ -1,4 +1,5 @@
 import { isValidTime } from './field-values';
+import { SCHEDULE_DUE } from './schedule';
 import { PERIODS, fieldDefinition, type Collection, type Condition } from './schema';
 
 // 筛选条件的检查：组件的 filter（validate.ts）和汇总字段的 filter（D-288）共用。
@@ -50,6 +51,11 @@ export function conditionProblems(
         ) {
           problems.push(`${where}: ${cond.op} needs a number or date field and a matching value`);
         }
+        break;
+      case 'due':
+        if (!filter.schedule) problems.push(`${where}: due needs a schedule field`);
+        else if (!(SCHEDULE_DUE as readonly unknown[]).includes(v))
+          problems.push(`${where}: due must be one of ${SCHEDULE_DUE.join(', ')}`);
         break;
       case 'is':
       case 'isNot': {

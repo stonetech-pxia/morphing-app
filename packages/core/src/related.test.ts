@@ -5,6 +5,7 @@ import {
   filterRecords,
   formatRef,
   recordValue,
+  scheduleStatusOf,
   sortRecords,
   type DataRecord,
 } from './data';
@@ -693,5 +694,55 @@ describe('many records', () => {
     const t2 = performance.now();
     computeRecords(ALL, 'fuel', new Map([['fuel', fuelRecords]]), NOW);
     expect(performance.now() - t2).toBeLessThan(1000);
+  });
+});
+
+describe('a schedule counting from a rollup (D-288 + D-293)', () => {
+  const chores: Collection = {
+    id: 'chores',
+    name: 'Chores',
+    fields: [
+      { id: 'name', name: 'Name', type: 'text' },
+      {
+        id: 'logged',
+        name: 'Logged',
+        type: 'rollup',
+        collectionId: 'done',
+        linkField: 'chore',
+        aggregate: 'count',
+        dateField: 'date',
+      },
+      { id: 'plan', name: 'Plan', type: 'schedule', lastDone: 'logged' },
+    ],
+  };
+  const doneLog: Collection = {
+    id: 'done',
+    name: 'Done',
+    fields: [
+      { id: 'chore', name: 'Chore', type: 'link', collectionId: 'chores' },
+      { id: 'date', name: 'Date', type: 'date' },
+    ],
+  };
+  const threeAWeek = { repeat: 'times', per: 'week', count: 3 };
+  const status = (days: string[]) => {
+    const records = new Map([
+      ['chores', [rec('chores', 'c1', { name: 'Gym', plan: threeAWeek })]],
+      ['done', days.map((date, i) => rec('done', `d${i}`, { chore: 'c1', date }))],
+    ]);
+    const [row] = computeRecords([chores, doneLog], 'chores', records, NOW);
+    const view = expandCollection([chores, doneLog], chores);
+    const plan = chores.fields.find((f) => f.id === 'plan') as Extract<Field, { type: 'schedule' }>;
+    return scheduleStatusOf(row!, view, plan, NOW);
+  };
+
+  it('is a valid lastDone source', () => {
+    const config = { ...workspace('en'), collections: [chores, doneLog] } as WorkspaceConfig;
+    expect(validateWorkspace(config, registry).ok).toBe(true);
+  });
+
+  it('knows how many days of this week are done, not just the latest one', () => {
+    // 2026-10-29 是周四：周一、周二做了，还差一次；周一到周三都做了，这周够了。
+    expect(status(['2026-10-26', '2026-10-27'])?.dueToday).toBe(true);
+    expect(status(['2026-10-26', '2026-10-27', '2026-10-28'])?.dueToday).toBe(false);
   });
 });

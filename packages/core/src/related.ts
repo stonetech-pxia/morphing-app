@@ -6,12 +6,14 @@ import {
   fieldOf,
   isSystemField,
   matchesCondition,
+  recordDay,
   recordValue,
+  rollupDays,
   type DataRecord,
   type FieldValue,
 } from './data';
 import type { FieldCheckContext } from './fields/define';
-import { parseFormula } from './formula';
+import { dayNumber, parseFormula } from './formula';
 import {
   NUMERIC_FIELD_TYPES,
   type Collection,
@@ -335,6 +337,15 @@ export function computeRecords(
               conditions.every((cond) => matchesCondition(x, sv, cond, now, cal)),
             );
           put(r, f.id, rollupValue(f, linked, sv, dateRef, now, cal));
+          // 日程的「上次完成」指向这个汇总时要用全部日子（D-293）。
+          const days = linked.flatMap((x) => {
+            const day = recordDay(x, sv, dateRef, now, cal);
+            const n = day === undefined ? undefined : dayNumber(day);
+            return n === undefined ? [] : [n];
+          });
+          let byField = rollupDays.get(r);
+          if (!byField) rollupDays.set(r, (byField = new Map()));
+          byField.set(f.id, days);
         }
         return;
       }

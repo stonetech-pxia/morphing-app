@@ -4564,6 +4564,109 @@ const SEQUENCE_CASES: readonly EvalCase[] = [
   },
 ];
 
+/** 日程（D-292–D-296）：有一个日程字段；want 检查它和用到它的列表。 */
+function scheduleProblem(
+  c: WorkspaceConfig,
+  want: {
+    lastDone?: boolean;
+    due?: 'today' | 'overdue' | 'thisWeek';
+    sortAsc?: boolean;
+    rule?: (rule: Record<string, unknown> | undefined) => boolean;
+  },
+): string | null {
+  const table = c.collections.find((t) => t.fields.some((f) => f.type === 'schedule'));
+  const field = table?.fields.find((f) => f.type === 'schedule');
+  if (!table || field?.type !== 'schedule') return 'expected a table with a schedule field';
+  if (want.rule && !want.rule(field.default as Record<string, unknown> | undefined))
+    return `unexpected default rule ${JSON.stringify(field.default)}`;
+  if (want.lastDone) {
+    const source = table.fields.find((f) => f.id === field.lastDone);
+    if (source?.type !== 'date' && source?.type !== 'datetime')
+      return `expected lastDone on a date field, got ${JSON.stringify(field)}`;
+  }
+  const props = c.pages.flatMap((p) =>
+    allComponents(p).flatMap((x) =>
+      x.type === 'recordList' && x.props.collectionId === table.id
+        ? [x.props as Record<string, unknown>]
+        : [],
+    ),
+  );
+  if (
+    want.due &&
+    !props.some((p) =>
+      ((p.filter ?? []) as { field: string; op: string; value?: unknown }[]).some(
+        (f) => f.field === field.id && f.op === 'due' && f.value === want.due,
+      ),
+    )
+  )
+    return `expected a list of ${table.id} filtered with due ${want.due}`;
+  if (
+    want.sortAsc &&
+    !props.some((p) => {
+      const sort = p.sort as { field: string; direction: string } | undefined;
+      return sort?.field === field.id && sort.direction === 'asc';
+    })
+  )
+    return `expected a list of ${table.id} sorted by ${field.id} ascending`;
+  return null;
+}
+
+const SCHEDULE_CASES: readonly EvalCase[] = [
+  {
+    id: 'SC1',
+    input: '做一个浇水的表：每盆植物每 7 天浇一次，首页列出今天该浇的',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    next: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        scheduleProblem(c, {
+          lastDone: true,
+          due: 'today',
+          rule: (r) => r?.repeat === 'interval' && r.every === 7,
+        }),
+    },
+  },
+  {
+    id: 'SC2',
+    input: '做一个订阅的表，订阅按月续费，列表按下次扣费日期排',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    next: true,
+    expect: { kind: 'ops', check: (c) => scheduleProblem(c, { sortAsc: true }) },
+  },
+  {
+    id: 'SC3-en',
+    input:
+      'Make a chores table where each chore repeats on its own schedule, and show the overdue ones on the home page',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    next: true,
+    expect: { kind: 'ops', check: (c) => scheduleProblem(c, { due: 'overdue' }) },
+  },
+  {
+    id: 'SC4-fr',
+    input:
+      'Crée un tableau de tâches ménagères à faire 3 fois par semaine, avec la liste de ce qui est à faire cette semaine',
+    locale: 'fr',
+    setup: 'default',
+    mock: false,
+    next: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        scheduleProblem(c, {
+          due: 'thisWeek',
+          rule: (r) => r?.repeat === 'times' && r.per === 'week' && r.count === 3,
+        }),
+    },
+  },
+];
+
 const HOME_SCREEN_CASES: readonly EvalCase[] = [
   {
     id: 'HS1',
@@ -4855,6 +4958,7 @@ const RELATED_CASES: readonly EvalCase[] = [
 export const EVAL_CASES: readonly EvalCase[] = [
   ...SEQUENCE_CASES,
   ...RELATED_CASES,
+  ...SCHEDULE_CASES,
   ...HOME_SCREEN_CASES,
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,
