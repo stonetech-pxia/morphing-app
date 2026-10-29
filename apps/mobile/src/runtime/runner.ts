@@ -2,6 +2,7 @@ import {
   RunError,
   localize,
   isFileValue,
+  ocrPackId,
   runWorkflow,
   templateReads,
   type AskRequest,
@@ -19,6 +20,7 @@ import type { WorkspaceRepo } from '../storage/types';
 import type { RunServices } from './actions/helpers';
 import { ACTION_IMPLS } from './actions';
 import { VISION_LANGUAGES } from './actions/ocr';
+import { resolveOcrLanguage } from './ocr-language';
 import type { LocalUi } from './local';
 import type { FilePlatform, PickedFile } from './platform';
 
@@ -145,13 +147,14 @@ export function packNotNeeded(
   actionId: string,
   params: Record<string, unknown>,
   input: RunValue | null,
+  locale: Locale = 'en',
 ): boolean {
   const { vision } = files;
   // 语音转文字（D-150、D-151）：iOS 用系统识别，不用下载内容；没有原生模块时动作自己报错，不白下载。
   if (actionId === 'audio.transcribe' || actionId === 'video.subtitles')
     return files.speech?.engine !== 'whisper';
   if (actionId === 'ocr.recognize') {
-    const languages = VISION_LANGUAGES[params.lang as OcrLanguage];
+    const languages = VISION_LANGUAGES[resolveOcrLanguage(params.lang, locale)];
     return !!vision && !!languages && vision.supportsLanguage(languages[0]!);
   }
   if (actionId === 'scan.detect') {
@@ -169,6 +172,7 @@ export function devicePack(
   files: FilePlatform,
   actionId: string,
   params: Record<string, unknown>,
+  locale: Locale = 'en',
 ): { pack: string; optional?: boolean; extra?: boolean } | undefined {
   // 扫描的展平模型（D-274）：在扫描包之外另外问，不下载也照常扫描。
   const flatten = files.vision?.flattenModel;
@@ -178,11 +182,17 @@ export function devicePack(
       : undefined;
   }
   const model = files.vision?.ocrModel;
-  if (!model) return undefined;
   if (actionId === 'ocr.recognize') {
-    const code = VISION_LANGUAGES[params.lang as OcrLanguage]?.[0];
-    return code && model.languages.includes(code.split('-')[0]!) ? { pack: model.pack } : undefined;
+    const lang = resolveOcrLanguage(params.lang, locale);
+    const code = VISION_LANGUAGES[lang]?.[0];
+    if (model && code && model.languages.includes(code.split('-')[0]!)) return { pack: model.pack };
+    // 自动（D-278）选到系统也认不了的语言（Android 的俄文、越南文）：要那种语言的识别包。
+    if (params.lang === 'auto' && !(code && files.vision?.supportsLanguage(code))) {
+      return { pack: ocrPackId(lang) };
+    }
+    return undefined;
   }
+  if (!model) return undefined;
   if (actionId === 'pdf.fromImages' && params.textLayer === true) {
     return { pack: model.pack, optional: true };
   }
@@ -283,8 +293,9 @@ export async function startRun(ctx: RunContext): Promise<Run> {
     newId: ctx.newId,
     ...(ctx.askParams ? { askParams: askUnlessShared(ctx, ctx.askParams) } : {}),
     ...(ctx.ensurePack ? { ensurePack: ctx.ensurePack } : {}),
-    packNotNeeded: (actionId, params, input) => packNotNeeded(ctx.files, actionId, params, input),
-    devicePack: (actionId, params) => devicePack(ctx.files, actionId, params),
+    packNotNeeded: (actionId, params, input) =>
+      packNotNeeded(ctx.files, actionId, params, input, ctx.locale),
+    devicePack: (actionId, params) => devicePack(ctx.files, actionId, params, ctx.locale),
     ...(ctx.signal ? { signal: ctx.signal } : {}),
     ...(onEvent ? { onEvent } : {}),
     record: {

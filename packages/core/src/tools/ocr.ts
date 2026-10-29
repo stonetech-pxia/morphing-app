@@ -14,6 +14,13 @@ import type { ActionDefinition } from '../workflow/contract';
 export const OCR_TOOL_ID = 'ocr';
 export const OCR_PAGE_ID = 'tool-ocr';
 
+/**
+ * 识别语言的参数（D-278）：auto（默认，不问用户）或指定一种。auto 在手机上按手机语言选引擎：
+ * PP-OCRv6 一个模型认中日英法德西葡意（字典里都有），手机是韩文、俄文、越南文时用系统的。
+ */
+export const OCR_LANGUAGE_CHOICES = ['auto', ...OCR_LANGUAGES] as const;
+export type OcrLanguageChoice = (typeof OCR_LANGUAGE_CHOICES)[number];
+
 export const OCR_LANGUAGE_NAMES: Record<(typeof OCR_LANGUAGES)[number], Localized> = {
   eng: { en: 'English', zh: '英文', fr: 'Anglais' },
   chi_sim: { en: 'Chinese (Simplified)', zh: '简体中文', fr: 'Chinois (simplifié)' },
@@ -34,32 +41,34 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
     id: 'ocr.recognize',
     label: { en: 'Recognize text', zh: '识别文字', fr: 'Reconnaître le texte' },
     description: {
-      en: 'Reads printed text in the images (one language per run). Handwriting and receipt amounts may be wrong. The text stays on this device.',
-      zh: '识别图片里的印刷文字（每次一种语言）。手写和收据金额可能认错。文字只留在本机。',
-      fr: 'Reconnaît le texte imprimé des images (une langue par exécution). L’écriture manuscrite et les montants de tickets peuvent être mal lus. Le texte reste sur cet appareil.',
+      en: 'Reads printed text in the images. lang "auto" (the default) reads Chinese, Japanese, English and Western European text with one model and picks by the phone’s language otherwise; set a language only when the user names one. Handwriting and receipt amounts may be wrong. The text stays on this device.',
+      zh: '识别图片里的印刷文字。lang 为 auto（默认）时一个模型认中日英和西欧文字，其他按手机语言选；用户指定语言时才写具体语言。手写和收据金额可能认错。文字只留在本机。',
+      fr: 'Reconnaît le texte imprimé des images. lang « auto » (par défaut) lit le chinois, le japonais, l’anglais et les langues d’Europe de l’Ouest avec un seul modèle, et choisit selon la langue du téléphone sinon ; n’indiquez une langue que si l’utilisateur la précise. L’écriture manuscrite et les montants de tickets peuvent être mal lus. Le texte reste sur cet appareil.',
     },
     input: ['images'],
     output: 'text',
-    params: z.strictObject({ lang: z.enum(OCR_LANGUAGES) }),
+    params: z.strictObject({ lang: z.enum(OCR_LANGUAGE_CHOICES) }),
     fields: [
       {
         key: 'lang',
         label: { en: 'Language', zh: '语言', fr: 'Langue' },
         kind: 'choice',
-        options: OCR_LANGUAGES.map((value) => ({ value, label: OCR_LANGUAGE_NAMES[value] })),
+        options: [
+          { value: 'auto', label: { en: 'Auto', zh: '自动', fr: 'Automatique' } },
+          ...OCR_LANGUAGES.map((value) => ({ value, label: OCR_LANGUAGE_NAMES[value] })),
+        ],
       },
     ],
     pack: 'ocr',
     // 语言包依赖识别包：确保语言包就会连同识别包一起下载。系统能识别的语言不需要（engine 的 packNotNeeded）。
-    packFor: (params) => ocrPackId(String(params.lang)),
+    // auto 时用哪个由手机决定（App 的 devicePack / packNotNeeded），这里退回识别包本身。
+    packFor: (params) => (params.lang === 'auto' ? undefined : ocrPackId(String(params.lang))),
     requires: [],
     // 内置规则认的步骤说法（D-265）。
     phrases: [
       {
         match: /^(?:识别文字|文字识别|提取文字)$|^(?:recognize|read|extract) (?:the )?text$/i,
-        step: (_m, locale) => ({
-          params: { lang: locale === 'zh' ? 'chi_sim' : locale === 'fr' ? 'fra' : 'eng' },
-        }),
+        step: () => ({ params: { lang: 'auto' } }),
       },
     ],
   },
@@ -83,9 +92,8 @@ export function tidyOcrText(text: string): string {
     .trim();
 }
 
-/** 单功能工作流（D-061）。默认语言跟随界面语言。 */
+/** 单功能工作流（D-061）。语言自动（D-278），运行时不问；用户可以在「调整设置」里指定。 */
 export function ocrWorkflows(locale: Locale): Workflow[] {
-  const lang = locale === 'zh' ? 'chi_sim' : locale === 'fr' ? 'fra' : 'eng';
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
     toolId: OCR_TOOL_ID,
@@ -98,7 +106,7 @@ export function ocrWorkflows(locale: Locale): Workflow[] {
       ['Text from photos', '识别照片里的文字'],
       [
         { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 20 } },
-        { id: 'read', action: 'ocr.recognize', params: { lang }, ask: ['lang'] },
+        { id: 'read', action: 'ocr.recognize', params: { lang: 'auto' } },
       ],
     ),
     wf(
@@ -107,7 +115,7 @@ export function ocrWorkflows(locale: Locale): Workflow[] {
       [
         { id: 'shoot', action: 'in.photos', params: { source: 'scanner', min: 1, max: 10 } },
         { id: 'edges', action: 'scan.detect', params: {} },
-        { id: 'read', action: 'ocr.recognize', params: { lang }, ask: ['lang'] },
+        { id: 'read', action: 'ocr.recognize', params: { lang: 'auto' } },
       ],
     ),
   ];

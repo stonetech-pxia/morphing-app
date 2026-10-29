@@ -738,17 +738,17 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     scenario: 'study',
     name: { en: 'Read paper pages aloud', zh: '拍纸张读成音频', fr: 'Lire des pages papier' },
     description: {
-      en: 'Scan the pages → recognize the text (choose its language) → read it aloud with the phone’s voice on this device → M4A → share.',
-      zh: '扫描纸质材料 → 识别文字（选原文语言）→ 在本机用手机自带的声音读出来 → 存成 M4A → 分享。',
-      fr: 'Numérisez les pages → reconnaissez le texte (choisissez sa langue) → lisez-le à voix haute avec la voix du téléphone, sur cet appareil → M4A → partagez.',
+      en: 'Scan the pages → recognize the text → read it aloud with the phone’s voice on this device → M4A → share.',
+      zh: '扫描纸质材料 → 识别文字 → 在本机用手机自带的声音读出来 → 存成 M4A → 分享。',
+      fr: 'Numérisez les pages → reconnaissez le texte → lisez-le à voix haute avec la voix du téléphone, sur cet appareil → M4A → partagez.',
     },
     icon: 'scan',
     packs: ['scan', 'ocr'],
     steps: (locale) => [
       photos(1, 20, 'scanner'),
       { id: 'edges', action: 'scan.detect', params: {} },
-      // 读的是用户自己的材料：默认按界面语言识别，每次可以换。
-      recognize(locale === 'zh' ? 'chi_sim' : locale === 'fr' ? 'fra' : 'eng'),
+      // 读的是用户自己的材料：语言自动识别，运行时不问（D-278）。
+      recognize('auto', false),
       speak,
       share,
     ],

@@ -166,6 +166,49 @@ export const migrateV17toV18: Migration = (config) => ({ ...config, schemaVersio
  */
 export const migrateV18toV19: Migration = (config) => ({ ...config, schemaVersion: 19 });
 
+/**
+ * v19 → v20：识别文字的语言可以选「自动」（D-278，改了已有动作的参数，按 D-254 提升）。
+ * 文字识别工具装进来的两个快捷操作（ocr-photos、ocr-scan）存的是步骤副本，以前每次运行都问语言；
+ * 只有和旧版生成的一模一样（用户没改过）时，把识别那一步改成自动、不再问。用户改过的不动。
+ */
+const OLD_OCR_STEPS: Record<string, (lang: string) => unknown[]> = {
+  'ocr-photos': (lang) => [
+    { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 20 } },
+    { id: 'read', action: 'ocr.recognize', params: { lang }, ask: ['lang'] },
+  ],
+  'ocr-scan': (lang) => [
+    { id: 'shoot', action: 'in.photos', params: { source: 'scanner', min: 1, max: 10 } },
+    { id: 'edges', action: 'scan.detect', params: {} },
+    { id: 'read', action: 'ocr.recognize', params: { lang }, ask: ['lang'] },
+  ],
+};
+
+export const migrateV19toV20: Migration = (config) => {
+  const workflows = Array.isArray(config.workflows) ? config.workflows : [];
+  return {
+    ...config,
+    schemaVersion: 20,
+    workflows: workflows.map((w: unknown) => {
+      const wf = w as { id?: unknown; toolId?: unknown; steps?: unknown[] };
+      const old = typeof wf.id === 'string' ? OLD_OCR_STEPS[wf.id] : undefined;
+      if (!old || wf.toolId !== 'ocr') return w;
+      const same = ['chi_sim', 'fra', 'eng'].some(
+        (lang) => JSON.stringify(wf.steps) === JSON.stringify(old(lang)),
+      );
+      if (!same) return w;
+      return {
+        ...wf,
+        steps: wf.steps!.map((s) => {
+          const step = s as { action?: unknown };
+          return step.action === 'ocr.recognize'
+            ? { id: 'read', action: 'ocr.recognize', params: { lang: 'auto' } }
+            : s;
+        }),
+      };
+    }),
+  };
+};
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -186,6 +229,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   16: migrateV16toV17,
   17: migrateV17toV18,
   18: migrateV18toV19,
+  19: migrateV19toV20,
 };
 
 export type MigrateResult =

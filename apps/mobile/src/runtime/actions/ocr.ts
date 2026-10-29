@@ -14,6 +14,7 @@ import {
   ocrSourceOf,
   type RunServices,
 } from './helpers';
+import { resolveOcrLanguage } from '../ocr-language';
 
 // 文字识别（T5）：系统能识别这种语言时用系统的（iOS 的 Vision，D-085；Android 的 ML Kit，D-087）；
 // 否则每张图片送进文字识别包页面（tesseract.js）。
@@ -52,7 +53,8 @@ function polish(text: string, lang: OcrLanguage): string {
 export const OCR_IMPLS: Record<string, Impl> = {
   async 'ocr.recognize'(input, params, ctx) {
     const items = fileItems(input);
-    const lang = String(params.lang) as OcrLanguage;
+    // 「自动」按手机语言选（D-278）。
+    const lang = resolveOcrLanguage(params.lang, ctx.locale);
     const { packs } = ctx.services;
     // 系统识别不了的语言（Android 的 ML Kit 不认俄文）退回文字识别包。
     const native = ctx.services.files.vision;

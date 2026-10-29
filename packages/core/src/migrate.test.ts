@@ -57,6 +57,62 @@ describe('migrateWorkspace', () => {
       expect(result.after).toEqual({ ...previous, schemaVersion: CURRENT_SCHEMA_VERSION });
     expect(previous.schemaVersion).toBe(10);
   });
+  it('v19 → v20: the text recognition quick actions stop asking the language, unless the user changed them (D-278)', () => {
+    const oldRead = (lang: string) => ({
+      id: 'read',
+      action: 'ocr.recognize',
+      params: { lang },
+      ask: ['lang'],
+    });
+    const photos = (lang: string) => ({
+      id: 'ocr-photos',
+      toolId: 'ocr',
+      name: '识别照片里的文字',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 20 } },
+        oldRead(lang),
+      ],
+    });
+    const scan = {
+      id: 'ocr-scan',
+      toolId: 'ocr',
+      name: '拍照识别文字',
+      steps: [
+        { id: 'shoot', action: 'in.photos', params: { source: 'scanner', min: 1, max: 10 } },
+        { id: 'edges', action: 'scan.detect', params: {} },
+        oldRead('fra'),
+      ],
+    };
+    // 用户改过的：换了语言、改了张数、或者是自己的快捷操作，都不动。
+    const picked = { ...photos('jpn') };
+    const fewer = {
+      ...photos('eng'),
+      id: 'ocr-photos-2',
+      steps: [
+        { ...photos('eng').steps[0]!, params: { source: 'library', min: 1, max: 5 } },
+        oldRead('eng'),
+      ],
+    };
+    const own = { ...photos('chi_sim'), id: 'mine', toolId: undefined };
+    const previous = {
+      ...workspace('zh'),
+      schemaVersion: 19,
+      workflows: [photos('chi_sim'), scan, { ...picked, id: 'x' }, fewer, own],
+    };
+    const result = migrateWorkspace(previous, undefined, 20);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const after = (result.config as { workflows: { id: string; steps: unknown[] }[] }).workflows;
+    const newRead = { id: 'read', action: 'ocr.recognize', params: { lang: 'auto' } };
+    expect(after[0]!.steps[1]).toEqual(newRead);
+    expect(after[1]!.steps[2]).toEqual(newRead);
+    expect(after.slice(2)).toEqual(previous.workflows.slice(2));
+    expect((result.config as { schemaVersion: number }).schemaVersion).toBe(20);
+    // 用户换过语言的 ocr-photos：不动，照样每次按用户选的语言认。
+    const custom = { ...workspace('zh'), schemaVersion: 19, workflows: [picked] };
+    const kept = migrateWorkspace(custom, undefined, 20);
+    expect(kept.ok && (kept.config as { workflows: unknown[] }).workflows).toEqual([picked]);
+  });
   it('v18 → v19 (quick actions on the phone home screen, D-271) only raises the version', () => {
     const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 18 };
     expect(previous.workflows.length).toBeGreaterThan(0);

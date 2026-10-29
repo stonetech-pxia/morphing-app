@@ -125,7 +125,7 @@ export interface ActionDefinition {
   /** 需要的扩展包（D-064）。 */
   pack?: string;
   /** 扩展包取决于参数时（文字识别的语言包）：返回本次要确保安装的扩展包，它会连同依赖一起下载。 */
-  packFor?: (params: Record<string, unknown>) => string;
+  packFor?: (params: Record<string, unknown>) => string | undefined;
   requires: readonly Permission[];
   /**
    * 给 AI 的提示（英文，随动作目录发给模型）：用户怎么说时用这个动作、怎么设参数、前后接什么、

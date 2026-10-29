@@ -35,6 +35,14 @@ function toolWorkflow(toolId: string, id: string, locale: 'zh' | 'en' = 'zh'): W
   return result.config.workflows.find((w) => w.id === id)!;
 }
 
+/** 用户在「调整设置」里指定了识别语言（D-278：内设的快捷操作默认自动、不问）。 */
+function withLang(wf: Workflow, lang: string): Workflow {
+  return {
+    ...wf,
+    steps: wf.steps.map((s) => (s.action === 'ocr.recognize' ? { ...s, params: { lang } } : s)),
+  };
+}
+
 const paper: Quad = {
   tl: { x: 300, y: 400 },
   tr: { x: 2700, y: 350 },
@@ -179,12 +187,8 @@ describe('scanner', () => {
 });
 
 describe('text recognition', () => {
-  it('asks the language, downloads that language pack, and keeps the text on the device', async () => {
-    const { files, packs, run, asked } = setup(
-      toolWorkflow('ocr', 'ocr-photos'),
-      {},
-      { lang: 'jpn' },
-    );
+  it('downloads the language pack of a language set in the settings, and keeps the text on the device', async () => {
+    const { files, packs, run, asked } = setup(withLang(toolWorkflow('ocr', 'ocr-photos'), 'jpn'));
     packs.texts = ['第一页', '  ', 'Page three'];
     files.nextPhotos = [
       files.offerImage('a.jpg', 1000, 1400),
@@ -204,9 +208,9 @@ describe('text recognition', () => {
     });
   });
 
-  it('defaults to the interface language and reports photos without text', async () => {
-    expect(toolWorkflow('ocr', 'ocr-photos', 'en').steps[1]!.params).toEqual({ lang: 'eng' });
-    expect(toolWorkflow('ocr', 'ocr-photos', 'zh').steps[1]!.params).toEqual({ lang: 'chi_sim' });
+  it('defaults to automatic language and reports photos without text', async () => {
+    expect(toolWorkflow('ocr', 'ocr-photos', 'en').steps[1]!.params).toEqual({ lang: 'auto' });
+    expect(toolWorkflow('ocr', 'ocr-photos', 'zh').steps[1]!.params).toEqual({ lang: 'auto' });
     const { files, run } = setup(toolWorkflow('ocr', 'ocr-photos'));
     files.nextPhotos = [files.offerImage('blank.jpg', 1000, 1400)];
     expect(await run()).toMatchObject({
@@ -530,7 +534,7 @@ describe('Android (ML Kit): no edge finding, no Russian', () => {
   };
 
   it('reads Chinese with ML Kit, but downloads the language pack for Russian', async () => {
-    const zh = setup(toolWorkflow('ocr', 'ocr-photos'), {}, { lang: 'chi_sim' }, true);
+    const zh = setup(withLang(toolWorkflow('ocr', 'ocr-photos'), 'chi_sim'), {}, {}, true);
     android(zh.vision);
     zh.vision.texts = ['租约续签通知'];
     zh.files.nextPhotos = [zh.files.offerImage('a.jpg', 1000, 1400)];
@@ -538,13 +542,29 @@ describe('Android (ML Kit): no edge finding, no Russian', () => {
     expect(zh.asked).toEqual([]);
     expect(zh.packs.calls).toEqual([]);
 
-    const ru = setup(toolWorkflow('ocr', 'ocr-photos'), {}, { lang: 'rus' }, true);
+    const ru = setup(withLang(toolWorkflow('ocr', 'ocr-photos'), 'rus'), {}, {}, true);
     android(ru.vision);
     ru.packs.texts = ['Привет'];
     ru.files.nextPhotos = [ru.files.offerImage('a.jpg', 1000, 1400)];
     expect(await ru.run()).toMatchObject({ status: 'succeeded', value: { text: 'Привет' } });
     expect(ru.asked).toEqual(['ocr-rus']);
     expect(ru.vision.calls).toEqual([]);
+  });
+
+  it('auto on a Russian phone downloads the Russian pack where the system cannot read it (D-278)', async () => {
+    const { getLocales } = jest.requireMock('expo-localization') as { getLocales: jest.Mock };
+    getLocales.mockReturnValue([{ languageTag: 'ru-RU', languageCode: 'ru' }]);
+    try {
+      const ru = setup(toolWorkflow('ocr', 'ocr-photos'), {}, {}, true);
+      android(ru.vision);
+      ru.packs.texts = ['Привет'];
+      ru.files.nextPhotos = [ru.files.offerImage('a.jpg', 1000, 1400)];
+      expect(await ru.run()).toMatchObject({ status: 'succeeded', value: { text: 'Привет' } });
+      expect(ru.asked).toEqual(['ocr-rus']);
+      expect(ru.packs.calls[0]!.args).toEqual({ file: 'input', lang: 'rus' });
+    } finally {
+      getLocales.mockReturnValue([]);
+    }
   });
 
   it('finds edges of library photos with the scanner pack', async () => {
@@ -834,6 +854,44 @@ describe('PP-OCRv6 replaces ML Kit and Vision for the languages it reads (D-269)
       vision.texts = ['text'];
       expect(await run()).toMatchObject({ status: 'succeeded' });
       expect(asked).toEqual(['ppocr']);
+    }
+  });
+
+  it('reads text without asking the language: auto uses the model for the languages it reads (D-278)', async () => {
+    const wf = toolWorkflow('ocr', 'ocr-photos');
+    expect(wf.steps.find((st) => st.action === 'ocr.recognize')).toMatchObject({
+      params: { lang: 'auto' },
+    });
+    expect(wf.steps.some((st) => st.ask?.length)).toBe(false);
+    const { files, vision, run, asked } = setup(wf, {}, {}, true);
+    vision.ocrModel = model;
+    files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+    vision.texts = ['文字'];
+    expect(await run()).toMatchObject({ status: 'succeeded', value: { text: '文字' } });
+    expect(asked).toEqual(['ppocr']);
+    // 界面是中文：按简体中文整理（第一种是中文，附英文）。
+    expect(vision.calls.find((c) => c.method === 'recognizeText')!.args).toEqual([
+      'zh-Hans',
+      'en-US',
+    ]);
+  });
+
+  it('auto reads Korean, Russian and Vietnamese phones with the system recognizer (D-278)', async () => {
+    const { getLocales } = jest.requireMock('expo-localization') as { getLocales: jest.Mock };
+    getLocales.mockReturnValue([{ languageTag: 'ko-KR', languageCode: 'ko' }]);
+    try {
+      const { files, vision, run, asked } = setup(read('auto'), {}, {}, true);
+      vision.ocrModel = model;
+      files.nextPhotos = [files.offerImage('a.jpg', 1700, 2400)];
+      vision.texts = ['한국어'];
+      expect(await run()).toMatchObject({ status: 'succeeded', value: { text: '한국어' } });
+      expect(asked).toEqual([]);
+      expect(vision.calls.find((c) => c.method === 'recognizeText')!.args).toEqual([
+        'ko-KR',
+        'en-US',
+      ]);
+    } finally {
+      getLocales.mockReturnValue([]);
     }
   });
 
