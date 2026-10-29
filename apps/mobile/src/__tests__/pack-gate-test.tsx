@@ -1,5 +1,5 @@
 import { createDefaultWorkspace } from '@morph/core';
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import { PackGate } from '../packs/PackGate';
 import { PackStore } from '../packs/store';
@@ -41,5 +41,31 @@ describe('first-use download prompt', () => {
     expect(await screen.findByText(/不下载也能继续/)).toBeTruthy();
     // 取消键写成「不下载，继续」，不让人以为会取消整个快捷操作。
     expect(screen.getByTestId('pack-cancel')).toHaveTextContent('不下载，继续');
+  });
+
+  it('asks again for the next download when one run needs two (scan, then flattening)', async () => {
+    // 同一个运行页里先下载一个、再问下一个时，提示框没有重新挂载：不能停在上一个的「下载中」，
+    // 要重新显示下载键（手机上卡在满格进度条、只能选「不下载，继续」）。
+    const fs = new MemoryPackFs();
+    const lookup = await manifests(fs);
+    const store = new PackStore(fs, sha256, (id) => lookup.get(id));
+    const palette = makePalette(createDefaultWorkspace('zh').theme, false);
+    const done: boolean[] = [];
+    const gate = (packId: string) => (
+      <PackGate
+        packId={packId}
+        store={store}
+        palette={palette}
+        locale="zh"
+        optional
+        onDone={(installed) => done.push(installed)}
+      />
+    );
+    const view = await render(gate('ocr'));
+    await fireEvent.press(await screen.findByTestId('pack-download'));
+    await screen.findByTestId('pack-cancel');
+    expect(done).toEqual([true]);
+    await view.rerender(gate('ocr-eng'));
+    expect(await screen.findByTestId('pack-download')).toBeTruthy();
   });
 });
