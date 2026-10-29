@@ -213,7 +213,7 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 | --------------------------- | ------------------------------------------------ |
 | 表之间的关联（客户 ↔ 订单） | D-250 做了单向引用；反向列表、多选、级联删除不做 |
 | 公式、计算字段              | D-188 / D-246 / D-247 做了受限的公式             |
-| 图表、日历视图              | D-249 做了图表；日历视图仍不做                   |
+| 图表、日历视图              | D-249 做了图表；D-305 做了月历外观               |
 | 重复任务、每日打卡          | 需要“按日期生成记录”的规则，单独设计             |
 | 附件字段（引用用户文件）    | D-187 / D-263 做了；按文件内容搜索、多选筛选不做 |
 | AI 代写记录                 | 见 Q1                                            |
@@ -295,3 +295,10 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 - **挂在哪里**（D-300、D-302，schemaVersion 25）：按钮的 `action`（`create`、`setAll`、`open`，和 `target` 二选一），记录列表每一行的 `rowActions`（`set`、`toggle`、`increment`、`create`、`open`，每行显示第一个 `when` 满足的）。逻辑在 `core/record-ops.ts`。
 - **能写的值**（D-301）：单选项、数字、勾选、`today`、`now`、清空，行按钮的 `create` 里引用字段可以是 `row`；不能写文字。
 - **执行**（D-303）：用户点了才在本机写记录，不经过 AI、不生成版本；每次都能在提示条上撤销。`setAll` 先问、一次最多 200 条。删字段、删表时用到它的操作跟着去掉（D-304）。
+
+## 19. 月历、计时和进度、统计的目标和比较（D-305 起）
+
+- **月历**（D-305，schemaVersion 26）：`recordList.display: "calendar"`，`dateField?`、`colorField?`（单选）。一个月的格子，按条数分深浅或按当天最后一条的选项上色，点某天在下面列出当天的记录。App 只读这个月的记录（`listRecordsInRange`，表里有查找、汇总、上一条时读整张表）。
+- **右侧字段的显示格式**（D-306）：`recordList.trailingFormat`：`elapsed`（开始到结束或到现在，没有结束时每秒在走）、`progress`（值 / 目标，目标是固定数或这条记录的另一个数字类字段）。只是显示，不存值、不进导出。
+- **统计**（D-307、D-308）：`goal` 显示「值 / 目标」和进度；`compare: "previous"` 把筛选里唯一的时间段换成上一段同期再算一次。
+- AI 只配置这些属性，看不到记录和算出来的值（D-042、D-113）。

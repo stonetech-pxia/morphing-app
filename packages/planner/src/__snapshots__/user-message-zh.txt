@@ -1,7 +1,7 @@
 Interface language: Simplified Chinese
 
 <workspace_config>
-{"schemaVersion":25,"theme":{"primaryColor":"#C8623A","mode":"light","colors":{},"font":"clay","fontScale":1,"radius":22,"density":"comfortable","cardStyle":"shadow","navStyle":"iconLabel"},"shell":{"nav":["page:home","tools","ai","history","settings"],"floating":[]},"pages":[{"id":"home","title":"首页","icon":"home","components":[{"id":"welcome","type":"header","props":{"title":"我的工作台","subtitle":"点「AI 修改」，用一句话改造这个 App"}},{"id":"catalog","type":"catalogLink","props":{"title":"添加工具"}},{"id":"recent-files","type":"fileList","props":{"title":"最近文件","limit":5}}]}],"tools":[],"workflows":[],"collections":[]}
+{"schemaVersion":26,"theme":{"primaryColor":"#C8623A","mode":"light","colors":{},"font":"clay","fontScale":1,"radius":22,"density":"comfortable","cardStyle":"shadow","navStyle":"iconLabel"},"shell":{"nav":["page:home","tools","ai","history","settings"],"floating":[]},"pages":[{"id":"home","title":"首页","icon":"home","components":[{"id":"welcome","type":"header","props":{"title":"我的工作台","subtitle":"点「AI 修改」，用一句话改造这个 App"}},{"id":"catalog","type":"catalogLink","props":{"title":"添加工具"}},{"id":"recent-files","type":"fileList","props":{"title":"最近文件","limit":5}}]}],"tools":[],"workflows":[],"collections":[]}
 </workspace_config>
 
 <user_request>

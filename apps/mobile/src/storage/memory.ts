@@ -9,6 +9,7 @@ import {
   type StoredRecord,
   type ToolRunRecord,
   type WorkspaceRepo,
+  type RecordRange,
 } from './types';
 
 // 内存实现：用于测试，语义与 SQLite 实现一致。数据以 JSON 字符串保存，模拟“写入后重新读取”。
@@ -209,6 +210,18 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
   async listRecords(collectionId: string) {
     return this.allRecords()
       .filter((r) => r.collectionId === collectionId && r.deletedAt === null)
+      .map(({ deletedAt: _, ...rest }) => rest);
+  }
+
+  async listRecordsInRange(collectionId: string, range: RecordRange) {
+    return this.allRecords()
+      .filter((r) => {
+        if (r.collectionId !== collectionId || r.deletedAt !== null) return false;
+        if (range.by === 'createdAt' || range.by === 'updatedAt')
+          return r[range.by] >= range.fromMs && r[range.by] < range.untilMs;
+        const v = r.values[range.by];
+        return typeof v === 'string' && v >= range.from && v < range.until;
+      })
       .map(({ deletedAt: _, ...rest }) => rest);
   }
 

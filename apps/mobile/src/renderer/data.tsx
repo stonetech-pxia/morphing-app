@@ -9,7 +9,15 @@ import {
   formatRef,
   formatValue,
   chartDateField,
+  changeLabel,
+  compareChange,
+  elapsedOf,
+  formatElapsed,
   groupRecords,
+  previousFilter,
+  previousLabel,
+  progressOf,
+  recordProgress,
   isSequenceAggregate,
   linkTitle,
   localDateTime,
@@ -56,6 +64,8 @@ import { RowActionButton } from './RecordActions';
 import { ScheduleInput } from './ScheduleInput';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
+import { ProgressBar, ProgressRing } from './Progress';
+import { useTicker } from './ticker';
 import { cardColors, type Palette } from './theme';
 import { Button, Card } from './ui';
 
@@ -679,7 +689,7 @@ export function FieldsForm({
   );
 }
 
-function useCollection(env: RenderEnv, id: string): Collection | undefined {
+export function useCollection(env: RenderEnv, id: string): Collection | undefined {
   return env.config.collections.find((c) => c.id === id);
 }
 
@@ -690,10 +700,11 @@ function openEditor(router: ReturnType<typeof useRouter>, collectionId: string, 
   });
 }
 
-type RecordListProps = Extract<Component, { type: 'recordList' }>['props'];
+export type RecordListProps = Extract<Component, { type: 'recordList' }>['props'];
 
-type Tone = ComponentStyle['tone'];
+export type Tone = ComponentStyle['tone'];
 
+/** 记录列表的 list / cards / checklist；月历（D-305）读法不同，是 MonthCalendar（registry 按 display 选）。 */
 export function RecordList({
   props,
   env,
@@ -704,18 +715,12 @@ export function RecordList({
   tone?: Tone;
 }) {
   const { palette, locale } = env;
-  const background = cardColors(palette, tone).background;
-  const router = useRouter();
   const collection = useCollection(env, props.collectionId);
   const cal = calendarOf(env.config);
   // 查找、汇总、上一条（D-291）：显示、筛选、排序用算好的记录和 view；改记录用原来的表。
   const { view, records } = useComputedRecords(env.config.collections, collection, cal);
-  const actions = useRecordActions();
-  const links = useLinkResolver(view);
-  // 有附件字段的表：每条记录显示附件里第一张图片的缩略图（D-263，自动判断，组件不用设置）。
-  const assetIndex = useAssetIndex();
-  if (!collection || !view) return null;
-  const hasFiles = collection.fields.some((f) => f.type === 'file');
+  const rows = useRecordRows(props, env, tone, collection, view);
+  if (!collection || !view || !rows) return null;
   const now = new Date();
   const shown = sortRecords(
     filterRecords(records ?? [], view, props.filter, now, cal),
@@ -727,13 +732,39 @@ export function RecordList({
 
   if (records !== null && shown.length === 0) {
     return (
-      <Card palette={palette} background={background}>
+      <Card palette={palette} background={rows.background}>
         <Text style={[palette.font('body', 14), { color: palette.caption }]}>
           {props.emptyText ?? t(locale, 'noRecords')}
         </Text>
       </Card>
     );
   }
+  return rows.list(shown);
+}
+
+/**
+ * 记录列表一行的画法（普通列表和月历当天的列表共用）：标题、副标题、右侧字段（带 trailingFormat，D-306）、
+ * 打勾框和缩略图；点一下打开编辑页。
+ */
+export function useRecordRows(
+  props: RecordListProps,
+  env: RenderEnv,
+  tone: Tone | undefined,
+  collection: Collection | undefined,
+  view: Collection | undefined,
+) {
+  const { palette, locale } = env;
+  const background = cardColors(palette, tone).background;
+  const router = useRouter();
+  const actions = useRecordActions();
+  const links = useLinkResolver(view);
+  // 有附件字段的表：每条记录显示附件里第一张图片的缩略图（D-263，自动判断，组件不用设置）。
+  const assetIndex = useAssetIndex();
+  if (!collection || !view) return null;
+  const cal = calendarOf(env.config);
+  const hasFiles = collection.fields.some((f) => f.type === 'file');
+  const cards = props.display === 'cards';
+  const now = new Date();
 
   const row = (r: DataRecord, index: number) => {
     const title = formatRef(r, view, props.titleField, locale, links, now, cal) || '—';
@@ -741,9 +772,6 @@ export function RecordList({
       .map((f) => formatRef(r, view, f, locale, links, now, cal))
       .filter(Boolean)
       .join(' · ');
-    const trailing = props.trailingField
-      ? formatRef(r, view, props.trailingField, locale, links, now, cal)
-      : '';
     const checked = props.checkField ? r.values[props.checkField] === true : false;
     const thumb = hasFiles && assetIndex ? firstImage(r, collection, assetIndex) : null;
     // 一键操作（D-300）：第一个条件满足的按钮。
@@ -775,14 +803,14 @@ export function RecordList({
         {thumb ? (
           <AttachmentThumb
             asset={thumb}
-            size={props.display === 'cards' ? 56 : 44}
+            size={cards ? 56 : 44}
             radius={Math.min(palette.controlRadius, 10)}
             testID={`record-thumb-${r.id}`}
           />
         ) : null}
         <View style={styles.flex}>
           <Text
-            numberOfLines={props.display === 'cards' ? 2 : 1}
+            numberOfLines={cards ? 2 : 1}
             style={[
               palette.font('title', 15),
               { color: checked ? palette.caption : palette.text },
@@ -792,14 +820,20 @@ export function RecordList({
           </Text>
           {subtitle ? (
             <Text
-              numberOfLines={props.display === 'cards' ? 3 : 1}
+              numberOfLines={cards ? 3 : 1}
               style={[palette.font('body', 13), { color: palette.muted }]}>
               {subtitle}
             </Text>
           ) : null}
         </View>
-        {trailing ? (
-          <Text style={[palette.font('title', 15), { color: palette.text }]}>{trailing}</Text>
+        {props.trailingField ? (
+          <Trailing
+            record={r}
+            view={view}
+            props={props}
+            env={env}
+            text={formatRef(r, view, props.trailingField, locale, links, now, cal)}
+          />
         ) : null}
         {rowAction ? (
           <RowActionButton
@@ -815,7 +849,7 @@ export function RecordList({
     const open = env.interactive
       ? (env.locked ?? (() => openEditor(router, collection.id, r.id)))
       : undefined;
-    if (props.display === 'cards') {
+    if (cards) {
       return (
         <Card
           key={r.id}
@@ -844,13 +878,85 @@ export function RecordList({
     );
   };
 
-  if (props.display === 'cards')
-    return <View style={{ gap: palette.gap - 4 }}>{shown.map(row)}</View>;
-  return (
-    <Card palette={palette} background={background} style={styles.listCard}>
-      {shown.map(row)}
-    </Card>
-  );
+  const list = (shown: DataRecord[]) =>
+    cards ? (
+      <View style={{ gap: palette.gap - 4 }}>{shown.map(row)}</View>
+    ) : (
+      <Card palette={palette} background={background} style={styles.listCard}>
+        {shown.map(row)}
+      </Card>
+    );
+  return { row, list, background };
+}
+
+/**
+ * 右侧字段：没有 trailingFormat 时是它的显示文字；elapsed 是开始到结束（或到现在，每秒在走）的时长；
+ * progress 是「值 / 目标」和一个小进度环或进度条（没有值或目标时照常显示文字）。
+ */
+function Trailing({
+  record,
+  view,
+  props,
+  env,
+  text,
+}: {
+  record: DataRecord;
+  view: Collection;
+  props: RecordListProps;
+  env: RenderEnv;
+  text: string;
+}) {
+  const { palette, locale } = env;
+  const format = props.trailingFormat;
+  const style = [palette.font('title', 15), { color: palette.text }];
+  const elapsedFormat = format?.kind === 'elapsed' ? format : undefined;
+  const first = elapsedFormat
+    ? elapsedOf(record, view, props.trailingField!, elapsedFormat.until, new Date())
+    : undefined;
+  const now = useTicker(first?.running === true);
+  if (elapsedFormat) {
+    const e = elapsedOf(record, view, props.trailingField!, elapsedFormat.until, now);
+    if (!e) return null;
+    const time = formatElapsed(e);
+    return (
+      <Text
+        testID={`elapsed-${record.id}`}
+        accessibilityLabel={e.running ? t(locale, 'elapsedRunning', { time }) : undefined}
+        style={[style, styles.tabular, e.running && { color: palette.primaryText }]}>
+        {time}
+      </Text>
+    );
+  }
+  if (format?.kind === 'progress') {
+    const cal = calendarOf(env.config);
+    const progress = recordProgress(record, view, props.trailingField!, format.goal, now, cal);
+    if (progress) {
+      const field = view.fields.find((f) => f.id === props.trailingField);
+      const label = t(locale, 'progressOfGoal', {
+        value: amountText(progress.value, field, locale),
+        goal: amountText(progress.goal, field, locale),
+      });
+      const testID = `progress-ring-${record.id}`;
+      return format.style === 'bar' ? (
+        <View style={styles.progressBar}>
+          <Text style={[style, styles.tabular]}>{label}</Text>
+          <ProgressBar ratio={progress.ratio} palette={palette} testID={testID} />
+        </View>
+      ) : (
+        <View style={styles.progressRow}>
+          <Text style={[style, styles.tabular]}>{label}</Text>
+          <ProgressRing
+            ratio={progress.ratio}
+            size={28}
+            stroke={4}
+            palette={palette}
+            testID={testID}
+          />
+        </View>
+      );
+    }
+  }
+  return text ? <Text style={style}>{text}</Text> : null;
 }
 
 type RecordFormProps = Extract<Component, { type: 'recordForm' }>['props'];
@@ -949,10 +1055,13 @@ export function statText(
 ): string {
   if (isSequenceAggregate(aggregate)) return sequenceText(aggregate, unit, value, locale);
   if (value === null) return '—';
-  // 求和、平均按字段的写法显示（金额带货币、数字带单位，字段定义的 formatAmount）。
-  const amount = field && aggregate !== 'count' && fieldDefinition(field.type).formatAmount;
-  if (amount) return amount(field, value, locale);
-  return formatNumber(value, undefined, locale);
+  return amountText(value, aggregate === 'count' ? undefined : field, locale);
+}
+
+/** 一个数按字段的写法显示（金额带货币、数字带单位，字段定义的 formatAmount）；没有字段时只是数字。 */
+export function amountText(value: number, field: Field | undefined, locale: RenderEnv['locale']) {
+  const amount = field && fieldDefinition(field.type).formatAmount;
+  return amount ? amount(field, value, locale) : formatNumber(value, undefined, locale);
 }
 
 export function Stat({
@@ -1002,6 +1111,34 @@ export function Stat({
           value: statText(v.best, props.aggregate, field, env.locale, props.unit),
         });
   const field = props.fieldId ? collection.fields.find((f) => f.id === props.fieldId) : undefined;
+  // 目标（D-307）：「值 / 目标」和进度。
+  const goalProgress = (v: { value: number | null }) => {
+    const p = props.goal === undefined ? undefined : progressOf(v.value ?? 0, props.goal);
+    return (
+      p && {
+        ratio: p.ratio,
+        label: t(env.locale, 'progressOfGoal', { value: text(v), goal: text({ value: p.goal }) }),
+      }
+    );
+  };
+  // 和上一段同期比（D-308）：把筛选里的时间段换成上一段，再算一次；颜色不分好坏（多花钱和多运动方向相反）。
+  const previous = props.compare ? previousFilter(props.filter, now, cal) : null;
+  const compareText = (current: number | null) => {
+    if (!previous) return null;
+    const before = valueOf(filterRecords(records ?? [], collection, previous.filter, now, cal));
+    const label = previousLabel(previous.period, text(before), env.locale);
+    const changeText = changeLabel(compareChange(current, before.value), env.locale);
+    return (
+      <View style={styles.compareRow} testID={`stat-compare-${props.collectionId}-${props.label}`}>
+        <Text style={[styles.flex, palette.font('body', 13), { color: palette.muted }]}>
+          {label}
+        </Text>
+        {changeText ? (
+          <Text style={[palette.font('bodyBold', 13), { color: palette.text }]}>{changeText}</Text>
+        ) : null}
+      </View>
+    );
+  };
   const background = tone ? cardColors(palette, tone).background : palette.primaryTint;
   const heading = (
     <Text
@@ -1011,10 +1148,21 @@ export function Stat({
   );
   // D-248：按单选字段分组，每个选项一行。
   if (props.groupBy) {
+    const noChoice = t(env.locale, 'statNoChoice');
     const groups =
-      records === null
-        ? []
-        : groupRecords(matched, collection, props.groupBy, t(env.locale, 'statNoChoice'));
+      records === null ? [] : groupRecords(matched, collection, props.groupBy, noChoice);
+    // 和上一段比（D-308）：每个选项和它自己的上一段比。
+    const before =
+      previous && records !== null
+        ? new Map(
+            groupRecords(
+              filterRecords(records, collection, previous.filter, now, cal),
+              collection,
+              props.groupBy,
+              noChoice,
+            ).map((g) => [g.optionId, valueOf(g.records).value]),
+          )
+        : null;
     return (
       <Card palette={palette} background={background} backdrop={backdrop} style={styles.fillCard}>
         {heading}
@@ -1032,10 +1180,23 @@ export function Stat({
                 <Text
                   testID={`stat-group-${props.collectionId}-${g.optionId ?? 'none'}`}
                   style={[palette.font('title', 16), { color: palette.text }]}>
-                  {text(v)}
+                  {goalProgress(v)?.label ?? text(v)}
                 </Text>
                 {best ? (
                   <Text style={[palette.font('body', 12), { color: palette.muted }]}>{best}</Text>
+                ) : null}
+                {goalProgress(v) ? (
+                  <View style={styles.groupBar}>
+                    <ProgressBar ratio={goalProgress(v)!.ratio} palette={palette} />
+                  </View>
+                ) : null}
+                {before ? (
+                  <Text style={[palette.font('bodyBold', 12), { color: palette.muted }]}>
+                    {changeLabel(
+                      compareChange(v.value, before.get(g.optionId) ?? null),
+                      env.locale,
+                    )}
+                  </Text>
                 ) : null}
               </View>
             </View>
@@ -1046,14 +1207,32 @@ export function Stat({
   }
   const v = records === null ? { value: null } : valueOf(matched);
   const best = records === null ? null : bestText(v);
+  const progress = goalProgress(v);
+  const compareLine = records === null ? null : compareText(v.value);
   return (
     <Card palette={palette} background={background} backdrop={backdrop} style={styles.fillCard}>
       {heading}
-      <Text
-        testID={`stat-value-${props.collectionId}-${props.label}`}
-        style={[palette.font('display', 26), { color: palette.text }]}>
-        {text(v)}
-      </Text>
+      <View style={styles.row}>
+        <Text
+          testID={`stat-value-${props.collectionId}-${props.label}`}
+          style={[styles.flex, palette.font('display', 26), { color: palette.text }]}>
+          {progress ? progress.label : text(v)}
+        </Text>
+        {progress ? (
+          <View style={styles.statRing}>
+            <ProgressRing
+              ratio={progress.ratio}
+              size={56}
+              stroke={6}
+              palette={palette}
+              testID={`stat-ring-${props.collectionId}-${props.label}`}
+            />
+            <Text style={[styles.ringLabel, palette.font('bodyBold', 12), { color: palette.text }]}>
+              {t(env.locale, 'progressPercent', { n: Math.round(progress.ratio * 100) })}
+            </Text>
+          </View>
+        ) : null}
+      </View>
       {best ? (
         <Text
           testID={`stat-best-${props.collectionId}-${props.label}`}
@@ -1061,6 +1240,7 @@ export function Stat({
           {best}
         </Text>
       ) : null}
+      {compareLine}
     </Card>
   );
 }
@@ -1095,5 +1275,12 @@ const styles = StyleSheet.create({
   },
   done: { textDecorationLine: 'line-through' },
   fillCard: { flexGrow: 1 },
+  tabular: { fontVariant: ['tabular-nums'] },
+  progressRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  progressBar: { alignItems: 'flex-end', gap: 4, minWidth: 72 },
+  statRing: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
+  ringLabel: { position: 'absolute' },
+  groupBar: { width: 72, marginTop: 4 },
+  compareRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   attachment: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 });

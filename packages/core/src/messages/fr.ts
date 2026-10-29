@@ -1302,6 +1302,26 @@ export const fr: MessageTable = {
   recordActionNothing: 'Aucune entrée à modifier',
   recordActionTooMany: 'Au plus {max} entrées peuvent changer à la fois ; cela en modifierait {n}.',
   recordActionGone: 'Cette entrée a été supprimée.',
+  // 月历、显示格式、统计的目标和比较（D-305–D-308）
+  calendarPrevMonth: 'Mois précédent',
+  calendarNextMonth: 'Mois suivant',
+  calendarToday: 'Aujourd’hui',
+  calendarDayLabel: '{date}, {n} entrées',
+  calendarDayEmpty: 'Aucune entrée ce jour-là.',
+  elapsedRunning: 'En cours depuis {time}',
+  progressOfGoal: '{value} / {goal}',
+  progressPercent: '{n} %',
+  compare_today: 'Hier : {value}',
+  compare_thisWeek: 'Mêmes jours la semaine dernière : {value}',
+  compare_thisTwoWeeks: 'Mêmes jours des deux semaines précédentes : {value}',
+  compare_thisHalfMonth: 'Mêmes jours de la quinzaine précédente : {value}',
+  compare_thisMonth: 'Mêmes jours le mois dernier : {value}',
+  compare_thisYear: 'Même date l’an dernier : {value}',
+  compare_lastDays: 'Les {n} jours d’avant : {value}',
+  compareUp: '↑ {n} %',
+  compareDown: '↓ {n} %',
+  compareUpNoPercent: '↑ en hausse',
+  compareSame: 'Stable',
 };
 
 export const frSingular: SingularTable = {
@@ -1388,4 +1408,5 @@ export const frSingular: SingularTable = {
   recordActionChanged: '{n} entrée modifiée',
   recordActionConfirm: 'Cela modifie {n} entrée. Vous pourrez annuler ensuite.',
   recordActionTooMany: 'Au plus {max} entrées peuvent changer à la fois ; cela en modifierait {n}.',
+  calendarDayLabel: '{date}, {n} entrée',
 };

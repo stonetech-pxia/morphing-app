@@ -25,6 +25,7 @@ import { FocusItem } from '../editing/FocusItem';
 import { Chart } from './Chart';
 import type { RenderEnv } from './components';
 import { RecordForm, RecordList, Stat } from './data';
+import { MonthCalendar } from './MonthCalendar';
 import { FileList } from './FileList';
 import { FilePick } from './FilePick';
 import { FileSlot } from './FileSlot';
@@ -185,7 +186,13 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
   ),
   spacer: (c) => <View style={{ height: { small: 4, medium: 16, large: 32 }[c.props.size] }} />,
   group: (c, env) => <Group component={c} env={env} />,
-  recordList: (c, env) => <RecordList props={c.props} env={env} tone={c.style?.tone} />,
+  // 月历（D-305）只读一个月的记录，是单独的组件。
+  recordList: (c, env) =>
+    c.props.display === 'calendar' ? (
+      <MonthCalendar props={c.props} env={env} tone={c.style?.tone} componentId={c.id} />
+    ) : (
+      <RecordList props={c.props} env={env} tone={c.style?.tone} />
+    ),
   recordForm: (c, env) => (
     <RecordForm props={c.props} env={env} componentId={c.id} tone={c.style?.tone} />
   ),

@@ -3130,7 +3130,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf recordList>.type "recordList"
 <oneOf recordList>.props object
 <oneOf recordList>.props.collectionId string /^[a-z][a-z0-9-]{0,47}$/
-<oneOf recordList>.props.display "list"|"cards"|"checklist"
+<oneOf recordList>.props.display "list"|"cards"|"checklist"|"calendar"
 <oneOf recordList>.props.titleField = <oneOf button>.props.action<oneOf 1>.filter[].field
 <oneOf recordList>.props.subtitleFields? array items ..2
 <oneOf recordList>.props.subtitleFields[] = <oneOf button>.props.action<oneOf 1>.filter[].field
@@ -3178,6 +3178,18 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf recordList>.props.rowActions[]<oneOf 4>.when? array items ..3
 <oneOf recordList>.props.rowActions[]<oneOf 4>.when[] = <oneOf button>.props.action<oneOf 1>.filter[]
 <oneOf recordList>.props.rowActions[]<oneOf 4>.do "open"
+<oneOf recordList>.props.dateField? = <oneOf button>.props.action<oneOf 1>.filter[].field
+<oneOf recordList>.props.colorField? string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf recordList>.props.trailingFormat?
+<oneOf recordList>.props.trailingFormat<oneOf 0> object
+<oneOf recordList>.props.trailingFormat<oneOf 0>.kind "elapsed"
+<oneOf recordList>.props.trailingFormat<oneOf 0>.until? string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf recordList>.props.trailingFormat<oneOf 1> object
+<oneOf recordList>.props.trailingFormat<oneOf 1>.kind "progress"
+<oneOf recordList>.props.trailingFormat<oneOf 1>.goal
+<oneOf recordList>.props.trailingFormat<oneOf 1>.goal<anyOf 0> number ..1000000000 >0
+<oneOf recordList>.props.trailingFormat<oneOf 1>.goal<anyOf 1> string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf recordList>.props.trailingFormat<oneOf 1>.style? "ring"|"bar"
 <oneOf recordForm> object
 <oneOf recordForm>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf recordForm>.hidden? boolean
@@ -3207,6 +3219,8 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf stat>.props.perUnit? integer 1..50
 <oneOf stat>.props.skipField? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf stat>.props.skipOption? string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf stat>.props.goal? number ..1000000000 >0
+<oneOf stat>.props.compare? "previous"
 <oneOf chart> object
 <oneOf chart>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf chart>.hidden? boolean
@@ -3274,7 +3288,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 25
+.schemaVersion 26
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"
