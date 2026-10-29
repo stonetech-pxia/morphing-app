@@ -12,15 +12,19 @@ import { durationField } from './duration';
 import { fileField } from './file';
 import { formulaField } from './formula';
 import { linkField } from './link';
+import { lookupField } from './lookup';
 import { moneyField } from './money';
 import { noteField } from './note';
 import { numberField } from './number';
+import { previousField } from './previous';
 import { ratingField } from './rating';
+import { rollupField } from './rollup';
 import { textField } from './text';
 import { timeField } from './time';
 
 export * from './define';
 export { ChoiceOptionSchema } from './choice';
+export { ROLLUP_AGGREGATES } from './rollup';
 
 /** 全部字段类型。新类型加在最后（顺序就是配置 JSON Schema 里的顺序）。 */
 export const FIELDS = [
@@ -38,6 +42,9 @@ export const FIELDS = [
   timeField,
   datetimeField,
   durationField,
+  lookupField,
+  rollupField,
+  previousField,
 ] as const;
 
 type Schemas<D extends readonly { schema: unknown }[]> = {

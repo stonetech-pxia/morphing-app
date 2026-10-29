@@ -46,7 +46,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { useLinkResolver, useRecordActions, useRecords } from '../data/records';
+import { useComputedRecords, useLinkResolver, useRecordActions, useRecords } from '../data/records';
 import { useCalendar, useWorkspace } from '../workspace/context';
 import { t } from '../i18n';
 import { AttachmentThumb, AttachmentsInput, firstImage, useAssetIndex } from './Attachments';
@@ -290,6 +290,10 @@ export const FIELD_EDITORS: { [T in FieldType]: FieldEditor<FieldOf<T>> } = {
   },
   // 公式不能填，由 FieldsForm 显示算出来的值（D-188）。
   formula: { computed: true, input: () => null },
+  // 查找、汇总、上一条（D-287–D-289）也是算出来的：记录页显示存好的记录算出来的值。
+  lookup: { computed: true, input: () => null },
+  rollup: { computed: true, input: () => null },
+  previous: { computed: true, input: () => null },
   link: {
     input: ({ field, value, onChange, palette, locale, disabled, testID }) => (
       <LinkInput
@@ -559,6 +563,7 @@ export function FieldsForm({
   disabled,
   testPrefix,
   showLabels = true,
+  related,
 }: {
   collection: Collection;
   fieldIds: readonly string[];
@@ -570,17 +575,29 @@ export function FieldsForm({
   disabled?: boolean;
   testPrefix: string;
   showLabels?: boolean;
+  /**
+   * 记录页（D-291）：显示用的表和这条记录存好以后算出来的值（查找、汇总、上一条）；新记录是 null，
+   * 这几种字段存了以后才有值。
+   */
+  related?: { view: Collection; record: DataRecord | null };
 }) {
   const cal = useCalendar();
-  // 公式按表单里现在的值算（D-188）。
+  const view = related?.view ?? collection;
+  // 公式按表单里现在的值算（D-188）；查找、汇总、上一条用存好的那条记录算出来的值。
   const computed = () => {
     const prepared = prepareRecordValues(collection, values, null, new Date(), cal);
+    const saved = related?.record?.values ?? {};
+    const derived = Object.fromEntries(
+      collection.fields
+        .filter((f) => !fieldDefinition(f.type).write && f.id in saved)
+        .map((f) => [f.id, saved[f.id]]),
+    );
     return {
-      id: '',
+      id: related?.record?.id ?? '',
       collectionId: collection.id,
-      values: prepared.ok ? prepared.values : {},
-      createdAt: 0,
-      updatedAt: 0,
+      values: { ...derived, ...(prepared.ok ? prepared.values : {}) },
+      createdAt: related?.record?.createdAt ?? 0,
+      updatedAt: related?.record?.updatedAt ?? 0,
     };
   };
   return (
@@ -591,8 +608,8 @@ export function FieldsForm({
         const editor = FIELD_EDITORS[field.type] as FieldEditor;
         if (editor.computed) {
           const shown = formatValue(
-            field,
-            recordValue(computed(), collection, id, new Date(), cal),
+            view.fields.find((f) => f.id === id) ?? field,
+            recordValue(computed(), view, id, new Date(), cal),
             locale,
           );
           return (
@@ -673,16 +690,18 @@ export function RecordList({
   const background = cardColors(palette, tone).background;
   const router = useRouter();
   const collection = useCollection(env, props.collectionId);
-  const records = useRecords(props.collectionId);
+  const cal = calendarOf(env.config);
+  // 查找、汇总、上一条（D-291）：显示、筛选、排序用算好的记录和 view；改记录用原来的表。
+  const { view, records } = useComputedRecords(env.config.collections, collection, cal);
   const actions = useRecordActions();
-  const links = useLinkResolver(collection);
+  const links = useLinkResolver(view);
   // 有附件字段的表：每条记录显示附件里第一张图片的缩略图（D-263，自动判断，组件不用设置）。
   const assetIndex = useAssetIndex();
-  if (!collection) return null;
+  if (!collection || !view) return null;
   const hasFiles = collection.fields.some((f) => f.type === 'file');
   const shown = sortRecords(
-    filterRecords(records ?? [], collection, props.filter, new Date(), calendarOf(env.config)),
-    collection,
+    filterRecords(records ?? [], view, props.filter, new Date(), cal),
+    view,
     props.sort,
   ).slice(0, props.limit);
 
@@ -697,13 +716,13 @@ export function RecordList({
   }
 
   const row = (r: DataRecord, index: number) => {
-    const title = formatRef(r, collection, props.titleField, locale, links) || '—';
+    const title = formatRef(r, view, props.titleField, locale, links) || '—';
     const subtitle = (props.subtitleFields ?? [])
-      .map((f) => formatRef(r, collection, f, locale, links))
+      .map((f) => formatRef(r, view, f, locale, links))
       .filter(Boolean)
       .join(' · ');
     const trailing = props.trailingField
-      ? formatRef(r, collection, props.trailingField, locale, links)
+      ? formatRef(r, view, props.trailingField, locale, links)
       : '';
     const checked = props.checkField ? r.values[props.checkField] === true : false;
     const thumb = hasFiles && assetIndex ? firstImage(r, collection, assetIndex) : null;
@@ -917,11 +936,12 @@ export function Stat({
   backdrop?: Backdrop | undefined;
 }) {
   const palette = onPicture(env.palette, backdrop);
-  const collection = useCollection(env, props.collectionId);
-  const records = useRecords(props.collectionId);
+  const table = useCollection(env, props.collectionId);
+  const cal = calendarOf(env.config);
+  // 查找、汇总、上一条（D-291）按算好的值统计。
+  const { view: collection, records } = useComputedRecords(env.config.collections, table, cal);
   if (!collection) return null;
   const now = new Date();
-  const cal = calendarOf(env.config);
   const matched = filterRecords(records ?? [], collection, props.filter, now, cal);
   // 按顺序的聚合（D-284）：日期默认用表里第一个日期字段，没有就用创建时间（和图表一样）。
   const sequence = isSequenceAggregate(props.aggregate)

@@ -42,8 +42,9 @@ export const formulaField: FieldDefinitionOf<'formula', typeof schema> = defineF
   numeric: true,
   inForm: false,
   filter: { is: isNumber, compare: 'number' },
-  check: (f, { collection }) =>
-    formulaProblems(f.id, f.expression, collection).map((problem) => ({
+  // 查找、汇总、上一条（D-287–D-289）按它们显示的那种字段算。
+  check: (f, { collection, view }) =>
+    formulaProblems(f.id, f.expression, view).map((problem) => ({
       code: 'data',
       message: `${collection.id}.${f.id}: ${problem}`,
     })),

@@ -1,14 +1,17 @@
 import {
   RECORD_LIMITS,
+  expandCollection,
   linkedCollectionIds,
+  loadComputedRecords,
   loadLinkResolver,
   prepareRecordValues,
+  type Calendar,
   type Collection,
   type DataRecord,
   type FieldIssue,
   type LinkResolver,
 } from '@morph/core';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { t } from '../i18n';
 import { newAssetId } from '../runtime/runner';
@@ -30,6 +33,42 @@ export function useRecords(collectionId: string): DataRecord[] | null {
     };
   }, [repo, collectionId, version]);
   return records;
+}
+
+/**
+ * 一张表的记录，连同查找、汇总、上一条算出来的值（D-291，只在本机算，related.ts），和显示用的表（这几种
+ * 字段换成它们显示的那种字段）。会读它要用到的别的表的记录；增删改后、表的定义变了重新算。
+ * collections、cal 用页面正在显示的那份配置（草稿预览时是草稿）。写记录仍然用原来的表。
+ */
+export function useComputedRecords(
+  collections: readonly Collection[],
+  collection: Collection | undefined,
+  cal: Calendar,
+): { view: Collection | undefined; records: DataRecord[] | null } {
+  const { repo } = useWorkspaceContext();
+  const version = useWorkspace((s) => s.recordsVersion);
+  const [loaded, setLoaded] = useState<{ view: Collection; records: DataRecord[] } | null>(null);
+  const calKey = JSON.stringify(cal);
+  useEffect(() => {
+    if (!collection) return;
+    let alive = true;
+    void loadComputedRecords(
+      (id) => repo.listRecords(id),
+      collections,
+      collection,
+      new Date(),
+      JSON.parse(calKey) as Calendar,
+    ).then((r) => alive && setLoaded(r));
+    return () => {
+      alive = false;
+    };
+  }, [repo, collections, collection, calKey, version]);
+  const view = useMemo(
+    () => collection && expandCollection(collections, collection),
+    [collections, collection],
+  );
+  // 表换了以后，旧的那份不再用。
+  return { view, records: loaded && loaded.view === view ? loaded.records : null };
 }
 
 /**
