@@ -32,6 +32,13 @@ export function PackGate({
   const [error, setError] = useState<string | null>(null);
   const [size, setSize] = useState<number | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
+  // 同一次运行接着问下一个扩展包时提示框不会重新挂载，上一个的进度和错误要清掉。
+  const [shownFor, setShownFor] = useState(packId);
+  if (shownFor !== packId) {
+    setShownFor(packId);
+    setProgress(null);
+    setError(null);
+  }
 
   // 大小要扣掉已安装的依赖；还没装的依赖（语言包要先有文字识别包）一起说明。
   useEffect(() => {
