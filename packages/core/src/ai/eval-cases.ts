@@ -36,6 +36,7 @@ function sameValue(a: unknown, b: unknown): boolean {
 /** starter：新用户的第一个版本（精简首页 + 工具箱，D-181、D-182）。 */
 /** visaHomeScreen：visa 再把签证照片放到手机桌面（D-271）。 */
 /** habits：一张打卡表（习惯、完成 / 跳过、日期）和显示它的页面（D-284）。 */
+/** oneTap：喝水、工时（开始 / 结束）、行李清单、账单四张表，每张一个列表页面（一键记录操作，D-297）。 */
 /** linked：互相引用的表（习惯 ← 打卡、工作 ← 工时、客户 ← 订单）和一张加油表，每张一个页面（D-287–D-289）。 */
 export type EvalSetup =
   | 'default'
@@ -46,7 +47,8 @@ export type EvalSetup =
   | 'visaHomeScreen'
   | 'starter'
   | 'habits'
-  | 'linked';
+  | 'linked'
+  | 'oneTap';
 
 export type OpsPlan = Extract<Plan, { kind: 'ops' }>;
 
@@ -101,6 +103,8 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
     ops.push(...habitOps(locale));
   } else if (setup === 'linked') {
     ops.push(...linkedOps(locale));
+  } else if (setup === 'oneTap') {
+    ops.push(...oneTapOps(locale));
   } else if (setup !== 'default') ops.push({ op: 'installTool', toolId: 'pdf' });
   if (setup === 'pdfBelowFiles') {
     ops.push({ op: 'moveComponent', pageId: 'home', componentId: 'card-pdf', toIndex: 3 });
@@ -328,6 +332,115 @@ function linkedOps(locale: Locale): Op[] {
               collectionId: collection.id,
               display: 'list',
               titleField: title(collection),
+              limit: 50,
+            },
+          },
+        ],
+      },
+    },
+  ]);
+}
+
+/** 一键记录操作的四张表和它们的列表页面（三种语言的名字）。 */
+function oneTapOps(locale: Locale): Op[] {
+  const n = {
+    zh: [
+      '喝水',
+      '日期',
+      '杯数',
+      '工时',
+      '开始',
+      '结束',
+      '行李清单',
+      '物品',
+      '已装',
+      '账单',
+      '名称',
+      '金额',
+      '已付',
+    ],
+    en: [
+      'Water',
+      'Date',
+      'Glasses',
+      'Work log',
+      'Start',
+      'End',
+      'Packing list',
+      'Item',
+      'Packed',
+      'Bills',
+      'Name',
+      'Amount',
+      'Paid',
+    ],
+    fr: [
+      'Eau',
+      'Date',
+      'Verres',
+      'Heures',
+      'Début',
+      'Fin',
+      'Valise',
+      'Objet',
+      'Rangé',
+      'Factures',
+      'Nom',
+      'Montant',
+      'Payé',
+    ],
+  }[locale];
+  const tables: Collection[] = [
+    {
+      id: 'water',
+      name: n[0]!,
+      fields: [
+        { id: 'date', name: n[1]!, type: 'date', default: 'today' },
+        { id: 'glasses', name: n[2]!, type: 'number' },
+      ],
+    },
+    {
+      id: 'worklog',
+      name: n[3]!,
+      fields: [
+        { id: 'start', name: n[4]!, type: 'datetime' },
+        { id: 'end', name: n[5]!, type: 'datetime' },
+      ],
+    },
+    {
+      id: 'packing',
+      name: n[6]!,
+      fields: [
+        { id: 'item', name: n[7]!, type: 'text' },
+        { id: 'packed', name: n[8]!, type: 'checkbox' },
+      ],
+    },
+    {
+      id: 'bills',
+      name: n[9]!,
+      fields: [
+        { id: 'name', name: n[10]!, type: 'text' },
+        { id: 'amount', name: n[11]!, type: 'money', currency: locale === 'zh' ? 'CNY' : 'EUR' },
+        { id: 'paid', name: n[12]!, type: 'checkbox' },
+      ],
+    },
+  ];
+  return tables.flatMap((collection): Op[] => [
+    { op: 'addCollection', collection },
+    {
+      op: 'addPage',
+      page: {
+        id: `page-${collection.id}`,
+        title: collection.name,
+        components: [
+          {
+            id: `list-${collection.id}`,
+            type: 'recordList',
+            props: {
+              collectionId: collection.id,
+              display: 'list',
+              titleField:
+                collection.fields.find((f) => f.type === 'text')?.id ?? collection.fields[0]!.id,
               limit: 50,
             },
           },
@@ -4955,8 +5068,171 @@ const RELATED_CASES: readonly EvalCase[] = [
   },
 ];
 
+type AnyAction = { do: string; [key: string]: unknown };
+
+/** 页面上所有按钮的 action 和记录列表的行按钮（D-297）。 */
+function recordActions(c: WorkspaceConfig): {
+  buttons: AnyAction[];
+  rows: (AnyAction & { list: string })[];
+} {
+  const all = c.pages.flatMap((p) => allComponents(p));
+  return {
+    buttons: all.flatMap((x) =>
+      x.type === 'button' && x.props.action ? [x.props.action as AnyAction] : [],
+    ),
+    rows: all.flatMap((x) =>
+      x.type === 'recordList'
+        ? (x.props.rowActions ?? []).map((a) => ({
+            ...(a as AnyAction),
+            list: x.props.collectionId,
+          }))
+        : [],
+    ),
+  };
+}
+
+const actionCheck =
+  (where: 'buttons' | 'rows', ok: (a: AnyAction & { list?: string }) => boolean, what: string) =>
+  (c: WorkspaceConfig) => {
+    const found = recordActions(c)[where];
+    return found.some(ok) ? null : `expected ${what}, got ${JSON.stringify(found)}`;
+  };
+
+const values = (a: AnyAction) => (a.values ?? {}) as Record<string, unknown>;
+
+const RECORD_ACTION_CASES: readonly EvalCase[] = [
+  {
+    id: 'RA1',
+    input: '首页加一个喝水 +1 按钮',
+    locale: 'zh',
+    setup: 'oneTap',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: actionCheck(
+        'buttons',
+        (a) => a.do === 'create' && a.collectionId === 'water' && values(a).glasses === 1,
+        'a button creating a water entry with glasses 1',
+      ),
+    },
+  },
+  {
+    id: 'RA2',
+    input: '工时列表每行加一个下班按钮，还没下班的才显示',
+    locale: 'zh',
+    setup: 'oneTap',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: actionCheck(
+        'rows',
+        (a) =>
+          a.list === 'worklog' &&
+          a.do === 'set' &&
+          a.fieldId === 'end' &&
+          a.value === 'now' &&
+          ((a.when ?? []) as { field: string; op: string }[]).some(
+            (w) => w.field === 'end' && w.op === 'isEmpty',
+          ),
+        'a row button setting end to now when end is empty',
+      ),
+    },
+  },
+  {
+    id: 'RA3',
+    input: '旅行清单加一个一键清空的按钮，把勾都去掉',
+    locale: 'zh',
+    setup: 'oneTap',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: actionCheck(
+        'buttons',
+        (a) =>
+          a.do === 'setAll' &&
+          a.collectionId === 'packing' &&
+          a.fieldId === 'packed' &&
+          a.value === false,
+        'a setAll button unchecking packed',
+      ),
+    },
+  },
+  {
+    id: 'RA4-en',
+    input: 'Add a Clock in button to the home page that starts a new work log entry now',
+    locale: 'en',
+    setup: 'oneTap',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: actionCheck(
+        'buttons',
+        (a) => a.do === 'create' && a.collectionId === 'worklog' && values(a).start === 'now',
+        'a button creating a work log entry with start now',
+      ),
+    },
+  },
+  {
+    id: 'RA5-fr',
+    input: 'Ajoute un bouton « Payé » sur chaque facture de la liste',
+    locale: 'fr',
+    setup: 'oneTap',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: actionCheck(
+        'rows',
+        (a) =>
+          a.list === 'bills' &&
+          ((a.do === 'set' && a.fieldId === 'paid' && a.value === true) ||
+            (a.do === 'toggle' && a.fieldId === 'paid')),
+        'a row button marking the bill paid',
+      ),
+    },
+  },
+  {
+    id: 'RA6',
+    input: '习惯列表每个习惯旁边加一个「完成」按钮，点一下就记一次今天的打卡',
+    locale: 'zh',
+    setup: 'linked',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: actionCheck(
+        'rows',
+        (a) =>
+          a.list === 'habits' &&
+          a.do === 'create' &&
+          a.collectionId === 'checkins' &&
+          values(a).habit === 'row',
+        'a row button on habits creating a check-in for this row',
+      ),
+    },
+  },
+  {
+    // 文字是用户的内容（D-042）：不能预设一条备注，只能打开表单。
+    id: 'RA7',
+    input: '首页加一个按钮，点一下记一条账单，名称写「房租」',
+    locale: 'zh',
+    setup: 'oneTap',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const bad = recordActions(c).buttons.find(
+          (a) =>
+            a.do === 'create' &&
+            Object.values(values(a)).some((v) => typeof v === 'string' && /房租/.test(v)),
+        );
+        return bad ? `preset text in ${JSON.stringify(bad)}` : null;
+      },
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...SEQUENCE_CASES,
+  ...RECORD_ACTION_CASES,
   ...RELATED_CASES,
   ...SCHEDULE_CASES,
   ...HOME_SCREEN_CASES,

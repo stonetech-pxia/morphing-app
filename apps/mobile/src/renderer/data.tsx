@@ -18,6 +18,7 @@ import {
   recordValue,
   sequenceText,
   sequenceValue,
+  shownRowAction,
   sortRecords,
   todayNumber,
   type Aggregate,
@@ -51,6 +52,7 @@ import { useCalendar, useWorkspace } from '../workspace/context';
 import { t } from '../i18n';
 import { AttachmentThumb, AttachmentsInput, firstImage, useAssetIndex } from './Attachments';
 import { onPicture } from './Backdrop';
+import { RowActionButton } from './RecordActions';
 import { ScheduleInput } from './ScheduleInput';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
@@ -744,6 +746,8 @@ export function RecordList({
       : '';
     const checked = props.checkField ? r.values[props.checkField] === true : false;
     const thumb = hasFiles && assetIndex ? firstImage(r, collection, assetIndex) : null;
+    // 一键操作（D-297）：第一个条件满足的按钮。
+    const rowAction = shownRowAction(props.rowActions, r, view, now, cal);
     const body = (
       <View style={styles.row}>
         {props.display === 'checklist' && props.checkField ? (
@@ -796,6 +800,15 @@ export function RecordList({
         </View>
         {trailing ? (
           <Text style={[palette.font('title', 15), { color: palette.text }]}>{trailing}</Text>
+        ) : null}
+        {rowAction ? (
+          <RowActionButton
+            action={rowAction}
+            record={r}
+            collection={collection}
+            env={env}
+            palette={palette}
+          />
         ) : null}
       </View>
     );

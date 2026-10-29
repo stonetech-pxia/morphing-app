@@ -29,6 +29,7 @@ export * from './naming';
 export * from './ocr-text';
 export * from './ops';
 export * from './presets';
+export * from './record-ops';
 export * from './registry';
 export * from './related';
 export * from './reminders';

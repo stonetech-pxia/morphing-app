@@ -1213,6 +1213,15 @@ export const en = {
   scheduleDecrease: 'Fewer',
   scheduleIncrease: 'More',
   scheduleLastDoneHint: 'Counts from the date in “{field}”.',
+  describeRemovedRecordActions: 'Also removes {n} one-tap buttons that used it',
+  recordActionAdded: 'Added to “{table}”',
+  recordActionDone: '{label}: done',
+  recordActionChanged: 'Changed {n} entries',
+  recordActionConfirm: 'This changes {n} entries. You can undo it afterwards.',
+  recordActionConfirmButton: 'Change',
+  recordActionNothing: 'Nothing to change',
+  recordActionTooMany: 'At most {max} entries can change at once; this would change {n}.',
+  recordActionGone: 'This entry was deleted.',
 };
 
 export type StringKey = keyof typeof en;
@@ -1297,6 +1306,10 @@ export const enSingular = {
   scheduleInterval: 'Every day',
   schedulePerDay: '{rule}, once a day',
   scheduleOverdue: '{n} day overdue',
+  describeRemovedRecordActions: 'Also removes {n} one-tap button that used it',
+  recordActionChanged: 'Changed {n} entry',
+  recordActionConfirm: 'This changes {n} entry. You can undo it afterwards.',
+  recordActionTooMany: 'At most {max} entries can change at once; this would change {n}.',
 } satisfies Partial<MessageTable>;
 
 /** 单数表：键必须和 enSingular 完全一致。 */
