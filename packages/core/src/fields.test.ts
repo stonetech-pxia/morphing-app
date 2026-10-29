@@ -107,7 +107,8 @@ describe.each(FIELDS.map((d) => [d.type, d] as const))('field %s', (_type, def) 
     expect(at({ op: 'inPeriod', value: 'thisMonth' }).length === 0).toBe(
       def.filter.period === true && !def.filter.emptyOnly,
     );
-    const compareValue = def.filter.compare === 'date' ? '2026-10-01' : 1;
+    const compareValue =
+      def.filter.compare === 'date' ? '2026-10-01' : def.filter.compare === 'time' ? '09:00' : 1;
     expect(at({ op: 'gt', value: compareValue }).length === 0).toBe(
       def.filter.compare !== undefined && !def.filter.emptyOnly,
     );
@@ -138,7 +139,12 @@ describe.each(FIELDS.map((d) => [d.type, d] as const))('field %s', (_type, def) 
       id: 'zz',
       name: 'Uses it',
       type: 'formula',
-      expression: def.formula === 'date' ? `days({${field.id}}, today)` : `{${field.id}} + 1`,
+      expression:
+        def.formula === 'date'
+          ? `days({${field.id}}, today)`
+          : def.formula === 'time' || def.formula === 'datetime'
+            ? `hours({${field.id}}, {${field.id}})`
+            : `{${field.id}} + 1`,
     };
     expect(issues(config('en', [], [...table.fields, formula])).length === 0).toBe(
       def.formula !== undefined,

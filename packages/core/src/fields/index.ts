@@ -1,11 +1,14 @@
 import { z } from 'zod';
 
 import type { FieldValue, LinkResolver } from '../field-values';
+import type { FormulaType } from '../formula';
 import type { Locale } from '../schema-primitives';
 import { checkboxField } from './checkbox';
 import { choiceField } from './choice';
 import { dateField } from './date';
+import { datetimeField } from './datetime';
 import type { Coerced, FieldCheckContext } from './define';
+import { durationField } from './duration';
 import { fileField } from './file';
 import { formulaField } from './formula';
 import { linkField } from './link';
@@ -14,6 +17,7 @@ import { noteField } from './note';
 import { numberField } from './number';
 import { ratingField } from './rating';
 import { textField } from './text';
+import { timeField } from './time';
 
 export * from './define';
 export { ChoiceOptionSchema } from './choice';
@@ -31,6 +35,9 @@ export const FIELDS = [
   fileField,
   linkField,
   formulaField,
+  timeField,
+  datetimeField,
+  durationField,
 ] as const;
 
 type Schemas<D extends readonly { schema: unknown }[]> = {
@@ -61,16 +68,17 @@ export interface FieldDefinition {
     numeric?: true;
     total?: { rank: number; format(field: Field, sum: number, locale: Locale): string };
   };
-  formula?: 'number' | 'date';
+  formula?: FormulaType;
   numeric?: true;
   inForm?: false;
   filter: {
     is(field: Field, value: unknown): boolean;
     contains?: true;
-    compare?: 'number' | 'date';
+    compare?: 'number' | 'date' | 'time';
     period?: true;
     emptyOnly?: true;
   };
+  day?(field: Field, value: FieldValue): string;
   sort?: false | ((field: Field, value: FieldValue) => FieldValue);
   titleRank?: number;
   convertGroup?: string;

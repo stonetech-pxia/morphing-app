@@ -46,7 +46,7 @@ describe('parseFormula / evaluateFormula (D-188)', () => {
       '{A B}',
       '{a',
       `${'('.repeat(30)}{a}${')'.repeat(30)}`,
-      `{a}${' + 1'.repeat(60)}`,
+      `{a}${' + 1'.repeat(130)}`,
     ]) {
       expect(parseFormula(bad).ok, bad).toBe(false);
     }
@@ -89,7 +89,7 @@ describe('if(compare, a, b) (D-246)', () => {
       'if {a} > 1, 1, 0',
       'if({a} == 1, 1, 0)',
       'if({a} > 1 > 0, 1, 0)',
-      'max({a}, 1)',
+      'sqrt({a})',
       'IFS({a} > 1, 1, 0)',
       'if({a} > 1, {b} > 2, 0)',
     ]) {

@@ -1,5 +1,6 @@
 import { COMPONENTS } from './components';
 import { duplicates, isSystemField, type CheckProblem } from './components/define';
+import { isValidTime } from './field-values';
 import type { Registry } from './registry';
 import { reminderProblems } from './reminders';
 import {
@@ -452,7 +453,9 @@ function conditionProblems(conditions: Condition[] | undefined, collection: Coll
         if (
           filter.compare === 'number'
             ? typeof v !== 'number'
-            : filter.compare !== 'date' || typeof v !== 'string'
+            : filter.compare === 'time'
+              ? typeof v !== 'string' || !isValidTime(v)
+              : filter.compare !== 'date' || typeof v !== 'string'
         ) {
           problems.push(`${where}: ${cond.op} needs a number or date field and a matching value`);
         }

@@ -2,12 +2,14 @@ import {
   aggregateRecords,
   filterRecords,
   fieldDefinition,
+  formatDuration,
   formatNumber,
   formatRef,
   formatValue,
   groupedAggregate,
   linkTitle,
   localDate,
+  localDateTime,
   prepareRecordValues,
   readValue,
   recordValue,
@@ -80,6 +82,7 @@ export function FieldInput({
   locale,
   disabled,
   testID,
+  labeled = false,
 }: {
   field: Field;
   value: unknown;
@@ -88,6 +91,8 @@ export function FieldInput({
   locale: RenderEnv['locale'];
   disabled?: boolean;
   testID: string;
+  /** 外面已经有字段名的标签（完整编辑页）。 */
+  labeled?: boolean;
 }) {
   const input = [
     styles.input,
@@ -107,7 +112,18 @@ export function FieldInput({
     },
   ];
   const editor = FIELD_EDITORS[field.type] as FieldEditor;
-  return editor.input({ field, value, onChange, palette, locale, disabled, testID, input, chip });
+  return editor.input({
+    field,
+    value,
+    onChange,
+    palette,
+    locale,
+    disabled,
+    testID,
+    labeled,
+    input,
+    chip,
+  });
 }
 
 interface FieldInputContext<F extends Field> {
@@ -118,6 +134,8 @@ interface FieldInputContext<F extends Field> {
   locale: RenderEnv['locale'];
   disabled: boolean | undefined;
   testID: string;
+  /** 外面已经有字段名的标签；没有时控件自己写上字段名（时长）。 */
+  labeled: boolean;
   /** 输入框的样式。 */
   input: StyleProp<TextStyle>;
   /** 选项小块的样式。 */
@@ -197,6 +215,21 @@ export const FIELD_EDITORS: { [T in FieldType]: FieldEditor<FieldOf<T>> } = {
         </View>
       );
     },
+  },
+  // D-279：几点几分，「现在」填上当前时间。
+  time: {
+    input: (ctx) => withNowChip(ctx, 'HH:MM', (now) => localDateTime(now).slice(11)),
+  },
+  // D-279：日期加时间，编辑时写成「2026-10-29 08:30」。
+  datetime: {
+    input: (ctx) =>
+      withNowChip(ctx, 'YYYY-MM-DD HH:MM', (now) => localDateTime(now).replace('T', ' ')),
+    toForm: (v) => String(v).replace('T', ' '),
+  },
+  // D-279：时长，小时和分钟两个框，表单里的值是「h:mm」（一边空着算 0）。
+  duration: {
+    input: (ctx) => <DurationInput {...ctx} />,
+    toForm: (v) => formatDuration(v as number),
   },
   checkbox: {
     inline: true,
@@ -278,6 +311,85 @@ export const FIELD_EDITORS: { [T in FieldType]: FieldEditor<FieldOf<T>> } = {
     ),
   },
 };
+
+/** 时间、日期时间：一个输入框，旁边的「现在」填上当前时间（D-279）。 */
+function withNowChip<F extends Field>(
+  { field, value, onChange, palette, locale, disabled, testID, input, chip }: FieldInputContext<F>,
+  placeholder: string,
+  nowValue: (now: Date) => string,
+) {
+  return (
+    <View style={styles.dateRow}>
+      <TextInput
+        testID={testID}
+        editable={!disabled}
+        value={typeof value === 'string' ? value : ''}
+        onChangeText={onChange}
+        // 快速添加表单里没有标签：占位文字写字段名和格式（和金额的「时薪 (CNY)」一样）。
+        placeholder={`${field.name} (${placeholder})`}
+        placeholderTextColor={palette.caption}
+        keyboardType="numbers-and-punctuation"
+        style={[input, styles.flex]}
+      />
+      <Pressable
+        testID={`${testID}-now`}
+        disabled={disabled}
+        onPress={() => onChange(nowValue(new Date()))}
+        style={chip(false)}>
+        <Text style={[palette.font('bodyBold', 13), { color: palette.text }]}>
+          {t(locale, 'now')}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/** 时长（D-279）：小时、分钟两个数字框，合起来是「h:mm」交给 core 校验（分钟要小于 60）。 */
+function DurationInput({
+  field,
+  value,
+  onChange,
+  palette,
+  locale,
+  disabled,
+  testID,
+  labeled,
+  input,
+}: FieldInputContext<Field>) {
+  const [hours = '', minutes = ''] = typeof value === 'string' ? value.split(':') : [];
+  const change = (h: string, m: string) => onChange(h === '' && m === '' ? '' : `${h}:${m}`);
+  const box = (part: 'hours' | 'minutes') => (
+    <View style={[styles.dateRow, styles.flex]}>
+      <TextInput
+        testID={`${testID}-${part}`}
+        editable={!disabled}
+        value={part === 'hours' ? hours : minutes}
+        onChangeText={(text) => {
+          const digits = text.replace(/\D/g, '');
+          if (part === 'hours') change(digits, minutes);
+          else change(hours, digits.slice(0, 2));
+        }}
+        placeholder="0"
+        placeholderTextColor={palette.caption}
+        keyboardType="number-pad"
+        accessibilityLabel={t(locale, part === 'hours' ? 'durationHours' : 'durationMinutes')}
+        style={[input, styles.flex]}
+      />
+      <Text style={[palette.font('body', 15), { color: palette.muted }]}>
+        {t(locale, part === 'hours' ? 'durationHours' : 'durationMinutes')}
+      </Text>
+    </View>
+  );
+  return (
+    <View testID={testID} style={styles.dateRow}>
+      {labeled ? null : (
+        <Text style={[palette.font('bodyBold', 15), { color: palette.text }]}>{field.name}</Text>
+      )}
+      {box('hours')}
+      {box('minutes')}
+    </View>
+  );
+}
 
 /** 选一条记录时最多列出几条（按最近修改排序，可以搜索）。 */
 const LINK_LIST_LIMIT = 30;
@@ -499,6 +611,7 @@ export function FieldsForm({
               locale={locale}
               disabled={disabled}
               testID={`${testPrefix}-${id}`}
+              labeled={showLabels || inline}
             />
             {issue ? (
               <Text style={[palette.font('bodyMedium', 13), { color: palette.danger }]}>

@@ -6,7 +6,14 @@ import {
   type LinkResolver,
 } from './field-values';
 import { t } from './messages';
-import { dayNumber, evaluateFormula, parseFormula, type FormulaNode } from './formula';
+import {
+  dayNumber,
+  evaluateFormula,
+  minuteNumber,
+  minuteOfDay,
+  parseFormula,
+  type FormulaNode,
+} from './formula';
 import {
   FIELDS,
   fieldDefinition,
@@ -25,10 +32,12 @@ import {
 export {
   MAX_ATTACHMENTS,
   attachmentIds,
+  formatDuration,
   formatMoney,
   formatNumber,
   formatTimestamp,
   localDate,
+  localDateTime,
   type FieldValue,
   type LinkResolver,
 } from './field-values';
@@ -100,29 +109,58 @@ function formulaNode(expression: string): FormulaNode | null {
 
 /**
  * 公式字段在一条记录上的值：引用的字段都有值时才有值，结果按字段的小数位（默认 2 位）取整。
- * 日期字段按天数算，today 是 now 那天（D-247）。
+ * 日期字段按天数算，today 是 now 那天（D-247）；时间、日期时间按分钟数算（D-280）。
+ * 引用的公式（D-281）用它取整以后的值；绕回自己的（校验会挡住，旧数据里可能有）没有值。
  */
 function formulaValue(
   field: Extract<Field, { type: 'formula' }>,
   record: DataRecord,
   collection: Collection,
   now: Date,
+  using: readonly string[] = [],
 ): number | undefined {
   const node = formulaNode(field.expression);
-  if (!node) return undefined;
+  if (!node || using.includes(field.id)) return undefined;
+  const kindOf = (id: string) => {
+    const ref = fieldOf(collection, id);
+    return (ref && fieldDefinition(ref.type).formula) ?? null;
+  };
   const value = evaluateFormula(
     node,
     (id) => {
       const ref = fieldOf(collection, id);
-      const kind = ref && fieldDefinition(ref.type).formula;
+      const kind = kindOf(id);
       if (!ref || !kind) return undefined;
+      if (ref.type === 'formula')
+        return formulaValue(ref, record, collection, now, [...using, field.id]);
       const v = readValue(ref, record.values[id]);
-      if (kind === 'date') return typeof v === 'string' ? dayNumber(v) : undefined;
-      return typeof v === 'number' ? v : undefined;
+      if (typeof v === 'number') return kind === 'number' ? v : undefined;
+      if (typeof v !== 'string') return undefined;
+      if (kind === 'date') return dayNumber(v);
+      if (kind === 'time') return minuteOfDay(v);
+      return kind === 'datetime' ? minuteNumber(v) : undefined;
     },
     dayNumber(localDate(now)),
+    kindOf,
   );
   return value === undefined ? undefined : round(value, field.decimals ?? 2);
+}
+
+/**
+ * 记录上某个日期类字段落在哪一天（本地日期 YYYY-MM-DD）：系统字段、日期是它自己，日期时间是它那一天
+ * （D-279）；别的字段没有。筛选的 inPeriod、日期比较和图表的按时间分组都用它。
+ */
+export function recordDay(
+  record: DataRecord,
+  collection: Collection,
+  ref: string,
+  now: Date = new Date(),
+): string | undefined {
+  const value = recordValue(record, collection, ref, now);
+  const field = fieldOf(collection, ref);
+  const day = field && fieldDefinition(field.type).day;
+  if (value === undefined || !day) return typeof value === 'string' ? value : undefined;
+  return day(field, value);
 }
 
 /** 记录上某个字段（包括系统字段）的值；系统字段的值是本地日期，公式现算（用到 today 时按 now 那天）。 */
@@ -215,8 +253,19 @@ export function matchesCondition(
   condition: Condition,
   now: Date,
 ): boolean {
-  const value = recordValue(record, collection, condition.field, now);
+  const field = fieldOf(collection, condition.field);
   const target = condition.value;
+  // 日期时间（D-279）按它那一天筛选：时间段、日期比较，以及 is / isNot 一个日期。
+  const byDay =
+    field !== undefined &&
+    fieldDefinition(field.type).day !== undefined &&
+    (condition.op === 'inPeriod' ||
+      condition.op === 'gt' ||
+      condition.op === 'lt' ||
+      (typeof target === 'string' && target.length === 10));
+  const value = byDay
+    ? recordDay(record, collection, condition.field, now)
+    : recordValue(record, collection, condition.field, now);
   // 附件（D-263）：一组文件 ID。is / isNot 看有没有这个文件，其他比较都不成立。
   if (Array.isArray(value)) {
     const has = typeof target === 'string' && value.includes(target);
