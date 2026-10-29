@@ -23,6 +23,7 @@
 | D-266 增强       | `scan.enhance` 改成去阴影、纠偏、自动彩色或灰度、黑白用局部阈值。纯算法在 `packages/tool-image/src/scan-enhance.ts`，Skia 着色器在 `apps/mobile/src/runtime/skia.ts`      |
 | D-266 文字层     | 可搜索 PDF 能写中日韩等文字（`packages/tool-pdf/src/glyphless.ts`，无字形字体）；识别语言按手机语言选（`apps/mobile/src/runtime/actions/pdf.ts` 的 `textLayerLanguages`） |
 | D-267 识别用原图 | 识别文字和 PDF 文字层用增强前的图（`RunItem.ocrSource`），框按纠偏角度换算回增强后的图                                                                                    |
+| D-274、D-275     | 扫描展平（拉正后 UVDoc + 按文字行精修，`packages/tool-image/src/flatten.ts`），增强改成 96 格背景和白点软膝；展平打开时「增强前的图」就是展平后的图                       |
 
 识别器：iOS 用 Vision（`apps/mobile/modules/morph-vision/ios/MorphVisionModule.swift`，`recognitionLevel = .accurate`，**`usesLanguageCorrection = true`，已经带了苹果自己的语言纠错**），Android 用 ML Kit Text Recognition v2（拉丁、中文、日文、韩文四个识别器，**没有语言纠错**）。原生接口现在只返回每行最好的一个结果（`topCandidates(1)`），没有返回置信度和备选。
 
