@@ -10,6 +10,7 @@ import {
   insertColumn,
   insertRow,
   layoutSheet,
+  lineCount,
   pageCellCount,
   pushHistory,
   redo,
@@ -58,6 +59,8 @@ const textAlignOf = (cell: SheetCell) =>
 const MIN_COL = 56;
 const MAX_COL = 280;
 const LINE_PX = 20;
+/** 格子左右上下的空白。 */
+const CELL_PAD = 4;
 const MIN_ROW = 32;
 const ROW_HEAD = 40;
 const COL_HEAD = 28;
@@ -175,15 +178,23 @@ export function TableEditor({
       [],
     [layout],
   );
-  const rowPx = useMemo(
-    () => layout?.rows.map((r) => Math.max(MIN_ROW, r.lines * LINE_PX + 10)) ?? [],
-    [layout],
-  );
   const colAt = useMemo(() => {
     const out = [0];
     for (const w of colPx) out.push(out.at(-1)! + w);
     return out;
   }, [colPx]);
+  // 表外的文字整行合并，但不比屏幕宽（表格列多时整行比屏幕宽很多，居中的字会跑到屏幕两边外面）；
+  // 这一行的行高按这个宽度折出来的行数算（按 Excel 列宽估的行数和这里对不上）。
+  const textWidth = Math.max(MIN_COL, Math.min(colAt.at(-1) ?? 0, screenWidth - ROW_HEAD));
+  const rowPx = useMemo(() => {
+    const out = layout?.rows.map((r) => Math.max(MIN_ROW, r.lines * LINE_PX + 10)) ?? [];
+    for (const cell of layout?.cells ?? []) {
+      if (cell.cell !== undefined) continue;
+      const lines = lineCount(cell.text, (textWidth - 2 * CELL_PAD) / CHAR_PX);
+      out[cell.row] = Math.max(MIN_ROW, lines * LINE_PX + 10);
+    }
+    return out;
+  }, [layout, textWidth]);
   const rowAt = useMemo(() => {
     const out = [0];
     for (const h of rowPx) out.push(out.at(-1)! + h);
@@ -466,11 +477,12 @@ export function TableEditor({
                 {layout.cells.map((cell) => {
                   const left = ROW_HEAD + colAt[cell.col]!;
                   const top = rowAt[cell.row]!;
-                  const width =
-                    colAt[Math.min(cell.col + cell.colSpan, colPx.length)]! - colAt[cell.col]!;
+                  const table = cell.cell !== undefined;
+                  const width = table
+                    ? colAt[Math.min(cell.col + cell.colSpan, colPx.length)]! - colAt[cell.col]!
+                    : textWidth;
                   const height = rowAt[Math.min(cell.row + cell.rowSpan, rowPx.length)]! - top;
                   const on = selectedCell === cell;
-                  const table = cell.cell !== undefined;
                   return (
                     <Pressable
                       key={`${cell.block}-${cell.cell ?? 't'}`}
@@ -494,7 +506,9 @@ export function TableEditor({
                         },
                       ]}>
                       <Text
-                        numberOfLines={Math.max(1, Math.floor((height - 8) / LINE_PX))}
+                        {...(table
+                          ? { numberOfLines: Math.max(1, Math.floor((height - 8) / LINE_PX)) }
+                          : {})}
                         style={[
                           palette.font('body', 13),
                           { color: palette.text, textAlign: textAlignOf(cell) },
@@ -659,7 +673,7 @@ const styles = StyleSheet.create({
     height: COL_HEAD,
   },
   abs: { position: 'absolute' },
-  cell: { paddingHorizontal: 4, paddingVertical: 4 },
+  cell: { paddingHorizontal: CELL_PAD, paddingVertical: CELL_PAD },
   bottom: { borderTopWidth: StyleSheet.hairlineWidth, padding: 12, gap: 10 },
   source: { gap: 6 },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'flex-start' },

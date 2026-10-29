@@ -112,8 +112,8 @@ const BUILT_IN_FORMATS: Record<string, number> = {
   '0.00%': 10,
 };
 
-/** 估一段文字在 width 个字符宽的格子里占几行（中日韩文字算两个字符宽）。 */
-function lineCount(text: string, width: number): number {
+/** 估一段文字在 width 个字符宽的格子里占几行（中日韩文字算两个字符宽）。编辑页也用它估行高。 */
+export function lineCount(text: string, width: number): number {
   const avail = Math.max(1, width - 1);
   let lines = 0;
   for (const para of text.split('\n')) {

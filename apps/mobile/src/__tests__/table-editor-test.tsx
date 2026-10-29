@@ -2,7 +2,7 @@ import { createDefaultWorkspace, decodeUtf8, type RunItem } from '@morph/core';
 import { parseTableDoc, type TableBlock, type TableDoc } from '@morph/tool-office';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { strFromU8, unzipSync } from 'fflate';
-import { StyleSheet } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { makePalette } from '../renderer/theme';
@@ -206,6 +206,25 @@ describe('table editor (D-272)', () => {
     expect(alignOf('0')).toBe('center');
     expect(alignOf('note')).toBe('left');
     expect(alignOf('8')).toBe('right');
+  });
+
+  it('wraps a long centred line above the table to the screen, tall enough for every line', async () => {
+    // 2026-10-29 真机（物业账单）：表外的页头整行合并、跟着 16 列的表格比屏幕宽很多，居中的字
+    // 左右都在屏幕外；行高按 Excel 的列宽估，和编辑页上实际折出来的行数对不上。
+    const doc = makeDoc(20);
+    const long = Array.from({ length: 12 }, (_, i) => `Ligne ${i + 1} du relevé de compte`).join(
+      ' ',
+    );
+    doc.pages[0]!.blocks[0] = { kind: 'text', text: long, align: 'center', box: box(0, 0, 1000) };
+    await setup(doc);
+    const screenWidth = Dimensions.get('window').width;
+    const cell = StyleSheet.flatten(screen.getByTestId('table-cell-0-0').props.style);
+    // 不比屏幕（去掉行号那一栏）宽：居中的字不会跑到屏幕两边外面。
+    expect(cell.width).toBeLessThanOrEqual(screenWidth - 40);
+    // 不限行数，行高够放下按这个宽度折出来的每一行（一个字母按 7 点、一行 20 点算）。
+    expect(screen.getByText(long).props.numberOfLines).toBeUndefined();
+    const lines = Math.ceil((long.length * 7) / (cell.width - 8));
+    expect(cell.height).toBeGreaterThanOrEqual(lines * 20);
   });
 
   it('switches to “tables only” and between pages; pages without a table keep everything', async () => {
