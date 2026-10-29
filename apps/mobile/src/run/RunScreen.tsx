@@ -469,6 +469,12 @@ export function RunScreen({
             copy: async () => {
               if (value.type === 'text') await files.copyText(value.text);
             },
+            preview: (item) =>
+              files.previewFile({
+                uri: item.uri,
+                mimeType: item.mimeType,
+                name: `${item.name}.${item.ext}`,
+              }),
           }}
         />
       ) : null}

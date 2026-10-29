@@ -9,12 +9,13 @@ import {
 
 import { Image } from 'expo-image';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { runErrorText, t, type StringKey } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import type { Palette } from '../renderer/theme';
 import { Card, Pill } from '../renderer/ui';
+import { FileViewer } from '../share/FileViewer';
 import { MediaRow } from './MediaRow';
 
 // 结果预览（TOOLS_DESIGN §3）：图片缩略图、PDF 页数和大小、文字全文（只在本机显示）。
@@ -33,9 +34,22 @@ export interface ResultActions {
   print(): Promise<void>;
   copy(): Promise<void>;
   continueProcessing?(): Promise<void>;
+  /** 用系统预览打开一个结果文件（PDF 等，D-277）；图片在 App 里全屏看。 */
+  preview?(item: RunItem): Promise<void>;
 }
 
-function ItemRow({ item, palette, locale }: { item: RunItem; palette: Palette; locale: Locale }) {
+function ItemRow({
+  item,
+  palette,
+  locale,
+  onOpen,
+}: {
+  item: RunItem;
+  palette: Palette;
+  locale: Locale;
+  /** 点缩略图或这一行：全屏看图，其他文件用系统预览（D-277）。 */
+  onOpen?: () => void;
+}) {
   const image = item.mimeType.startsWith('image/');
   const fileName = `${item.name}.${item.ext}`;
   const details = [
@@ -48,36 +62,43 @@ function ItemRow({ item, palette, locale }: { item: RunItem; palette: Palette; l
     return <MediaRow item={item} palette={palette} locale={locale} detail={details.join(' · ')} />;
   }
   return (
-    <View style={styles.item} testID={`result-item-${fileName}`}>
-      {image ? (
-        <Image
-          source={{ uri: item.uri }}
-          style={[styles.thumb, { borderRadius: 8 }]}
-          contentFit="cover"
-        />
-      ) : (
-        <View
-          style={[
-            styles.thumb,
-            styles.icon,
-            { backgroundColor: palette.primaryTint, borderRadius: 8 },
-          ]}>
-          <Icon name="document" size={24} color={palette.primaryText} />
+    <Pressable
+      style={styles.item}
+      testID={`result-open-${fileName}`}
+      accessibilityRole="imagebutton"
+      disabled={!onOpen}
+      onPress={onOpen}>
+      <View style={styles.item} testID={`result-item-${fileName}`}>
+        {image ? (
+          <Image
+            source={{ uri: item.uri }}
+            style={[styles.thumb, { borderRadius: 8 }]}
+            contentFit="cover"
+          />
+        ) : (
+          <View
+            style={[
+              styles.thumb,
+              styles.icon,
+              { backgroundColor: palette.primaryTint, borderRadius: 8 },
+            ]}>
+            <Icon name="document" size={24} color={palette.primaryText} />
+          </View>
+        )}
+        <View style={styles.flex}>
+          <Text numberOfLines={2} style={[palette.font('bodyMedium', 15), { color: palette.text }]}>
+            {item.assetId && item.pageCount
+              ? t(locale, 'runDone', { name: fileName, pages: item.pageCount })
+              : item.assetId
+                ? `${t(locale, 'resultSaved')} · ${fileName}`
+                : fileName}
+          </Text>
+          <Text style={[palette.font('body', 13), { color: palette.muted }]}>
+            {details.join(' · ')}
+          </Text>
         </View>
-      )}
-      <View style={styles.flex}>
-        <Text numberOfLines={2} style={[palette.font('bodyMedium', 15), { color: palette.text }]}>
-          {item.assetId && item.pageCount
-            ? t(locale, 'runDone', { name: fileName, pages: item.pageCount })
-            : item.assetId
-              ? `${t(locale, 'resultSaved')} · ${fileName}`
-              : fileName}
-        </Text>
-        <Text style={[palette.font('body', 13), { color: palette.muted }]}>
-          {details.join(' · ')}
-        </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -98,6 +119,8 @@ export function ResultView({
   const [done, setDone] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [folder, setFolder] = useState(() => actions.rememberedFolder());
+  /** 全屏看的那一张（结果里所有图片中的序号）。 */
+  const [viewing, setViewing] = useState<number | null>(null);
   const act = (key: string, fn: () => Promise<void | boolean>) => async () => {
     setError(null);
     try {
@@ -198,6 +221,10 @@ export function ResultView({
   });
   const printable = images || items.every((i) => i.mimeType === 'application/pdf');
   const outputSize = totalSize(value);
+  // 全屏看图：结果里的全部图片，左右滑（D-277）。
+  const viewable = items
+    .filter((i) => mediaKindOf(i.mimeType, i.ext) === 'image')
+    .map((i) => ({ uri: i.uri, kind: 'image' as const }));
   return (
     <Card palette={palette} testID="run-result">
       {items.length > 1 ? (
@@ -206,8 +233,29 @@ export function ResultView({
         </Text>
       ) : null}
       {items.slice(0, 30).map((item) => (
-        <ItemRow key={item.uri} item={item} palette={palette} locale={locale} />
+        <ItemRow
+          key={item.uri}
+          item={item}
+          palette={palette}
+          locale={locale}
+          onOpen={
+            mediaKindOf(item.mimeType, item.ext) === 'image'
+              ? () => setViewing(viewable.findIndex((v) => v.uri === item.uri))
+              : actions.preview
+                ? () => void act('preview', () => actions.preview!(item))()
+                : undefined
+          }
+        />
       ))}
+      {viewing !== null ? (
+        <FileViewer
+          items={viewable}
+          start={viewing}
+          onClose={() => setViewing(null)}
+          palette={palette}
+          locale={locale}
+        />
+      ) : null}
       {inputSize > 0 && outputSize < inputSize ? (
         <Text
           testID="result-smaller"
