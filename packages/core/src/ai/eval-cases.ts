@@ -3414,6 +3414,23 @@ const quickActionListOn = (kind: string) => (c: WorkspaceConfig) =>
     ? null
     : `missing a ${kind} quickActionList on home`;
 
+/** 工时、睡眠这类表（D-279、D-280）：两个时间或日期时间字段，一个用 hours() / minutes() 算时长的公式。 */
+function workHoursProblem(c: WorkspaceConfig, needsBreak = true): string | null {
+  const table = c.collections.find(
+    (x) => x.fields.filter((f) => f.type === 'time' || f.type === 'datetime').length >= 2,
+  );
+  if (!table)
+    return `expected a table with two time or datetime fields: ${JSON.stringify(c.collections)}`;
+  const formula = table.fields.find(
+    (f) => f.type === 'formula' && /\b(hours|minutes)\(/.test(f.expression),
+  );
+  if (!formula)
+    return `expected a formula using hours() or minutes(): ${JSON.stringify(table.fields)}`;
+  if (needsBreak && !table.fields.some((f) => f.type === 'duration' || f.type === 'number'))
+    return `expected a duration (or number) field for the break: ${JSON.stringify(table.fields)}`;
+  return null;
+}
+
 const LOOK_CASES: EvalCase[] = [
   {
     id: 'LK1',
@@ -3907,6 +3924,38 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
           : `expected days(today, {date}), got ${JSON.stringify(formula)}`;
       },
     },
+  },
+  {
+    id: 'FM3',
+    input: '给记账表加一个公式字段，把金额四舍五入到整数',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const formula = c.collections.flatMap((x) => x.fields).find((f) => f.type === 'formula');
+        return formula?.type === 'formula' && /round\(/.test(formula.expression)
+          ? null
+          : `expected a formula using round(…), got ${JSON.stringify(formula)}`;
+      },
+    },
+  },
+  {
+    id: 'TM1',
+    input: '做一个上下班打卡的表：记上班时间、下班时间和中间休息多久，自动算出每天工作几个小时',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: (c) => workHoursProblem(c) },
+  },
+  {
+    id: 'TM2',
+    input: 'Make a sleep log: when I went to bed, when I woke up, and how many hours I slept',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: (c) => workHoursProblem(c, false) },
   },
   {
     id: 'SG1',

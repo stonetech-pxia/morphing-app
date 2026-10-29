@@ -1,4 +1,11 @@
-import { aggregateRecords, fieldOf, localDate, recordValue, type DataRecord } from './data';
+import {
+  aggregateRecords,
+  fieldOf,
+  localDate,
+  recordDay,
+  recordValue,
+  type DataRecord,
+} from './data';
 import type { Collection } from './schema';
 
 // 图表组件（D-249）：一张表的记录按时间段（日 / 周 / 月）或单选字段分组聚合。
@@ -40,7 +47,10 @@ export interface ChartSpec {
   aggregate: 'count' | 'sum' | 'avg';
   fieldId?: string | undefined;
   group: ChartGroup;
-  /** 按时间分组时用哪个日期（日期字段或 createdAt / updatedAt）；不写时用表里第一个日期字段，没有就用创建时间。 */
+  /**
+   * 按时间分组时用哪个日期（日期、日期时间字段或 createdAt / updatedAt）；不写时用表里第一个日期字段，
+   * 没有就用第一个日期时间字段（D-279），再没有就用创建时间。
+   */
   dateField?: string | undefined;
   /** 按单选字段分组时的字段。 */
   choiceField?: string | undefined;
@@ -51,7 +61,12 @@ const pad = (n: number) => String(n).padStart(2, '0');
 
 /** 时间分组用的日期字段。 */
 export function chartDateField(collection: Collection, spec: ChartSpec): string {
-  return spec.dateField ?? collection.fields.find((f) => f.type === 'date')?.id ?? 'createdAt';
+  return (
+    spec.dateField ??
+    collection.fields.find((f) => f.type === 'date')?.id ??
+    collection.fields.find((f) => f.type === 'datetime')?.id ??
+    'createdAt'
+  );
 }
 
 /** 最近 n 段的开始日期（从早到晚，最后一段包含今天）。一周从周一开始，和数据筛选一样。 */
@@ -116,8 +131,8 @@ export function chartSeries(
   const end = localDate(now);
   const buckets = starts.map(() => [] as DataRecord[]);
   for (const r of records) {
-    const v = recordValue(r, collection, dateRef, now);
-    if (typeof v !== 'string' || v < starts[0]! || v > end) continue;
+    const v = recordDay(r, collection, dateRef, now);
+    if (v === undefined || v < starts[0]! || v > end) continue;
     // 落在最后一个开始日期不晚于它的那一段。
     let i = starts.length - 1;
     while (i > 0 && starts[i]! > v) i--;

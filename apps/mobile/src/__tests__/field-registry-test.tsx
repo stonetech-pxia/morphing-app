@@ -21,11 +21,17 @@ const fillable = FIELDS.filter((d) => d.inForm !== false).map((d) => d.example.i
 
 const seed = (locale: Locale, registry: Registry) => {
   const components: NewComponent[] = [
-    {
-      id: 'form',
+    // 一个表单最多 10 个字段，分成几个表单。
+    ...[0, 10].map((start): NewComponent => ({
+      id: start === 0 ? 'form' : `form${start}`,
       type: 'recordForm',
-      props: { collectionId: 'expenses', fieldIds: fillable, submitLabel: 'Add', mode: 'inline' },
-    },
+      props: {
+        collectionId: 'expenses',
+        fieldIds: fillable.slice(start, start + 10),
+        submitLabel: 'Add',
+        mode: 'inline',
+      },
+    })),
     ...FIELDS.map((d): NewComponent => ({
       id: `list-${d.example.id}`,
       type: 'recordList',
@@ -72,9 +78,10 @@ it.each(['zh', 'en', 'fr'] as const)(
   async (locale) => {
     const { store } = await renderToolsApp(await withExampleValues(), undefined, { seed, locale });
     for (const id of fillable) {
-      const input = screen.queryByTestId(`form-form-${id}`);
+      const form = fillable.indexOf(id) < 10 ? 'form' : 'form10';
+      const input = screen.queryByTestId(`form-${form}-${id}`);
       // 选项和星星是一组按钮，测试 ID 带选项后缀。
-      const parts = screen.queryAllByTestId(new RegExp(`^form-form-${id}-`));
+      const parts = screen.queryAllByTestId(new RegExp(`^form-${form}-${id}-`));
       expect({ id, shown: input !== null || parts.length > 0 }).toEqual({ id, shown: true });
     }
     for (const d of FIELDS) {

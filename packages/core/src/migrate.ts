@@ -166,6 +166,12 @@ export const migrateV17toV18: Migration = (config) => ({ ...config, schemaVersio
  */
 export const migrateV18toV19: Migration = (config) => ({ ...config, schemaVersion: 19 });
 
+/**
+ * v19 → v20：字段多了时间、日期时间、时长三种类型（D-279），公式能用新函数、引用别的公式、最长 500 字
+ * （D-280、D-281）。已有的字段和公式都还是合法的，只提升版本号。
+ */
+export const migrateV19toV20: Migration = (config) => ({ ...config, schemaVersion: 20 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -186,6 +192,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   16: migrateV16toV17,
   17: migrateV17toV18,
   18: migrateV18toV19,
+  19: migrateV19toV20,
 };
 
 export type MigrateResult =

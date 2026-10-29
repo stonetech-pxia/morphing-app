@@ -3214,7 +3214,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 19
+.schemaVersion 20
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"
@@ -3348,10 +3348,27 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .collections[].fields[]<oneOf formula>.id string /^[a-z][a-z0-9-]{0,47}$/
 .collections[].fields[]<oneOf formula>.name string len 1..40
 .collections[].fields[]<oneOf formula>.type "formula"
-.collections[].fields[]<oneOf formula>.expression string len 1..200
+.collections[].fields[]<oneOf formula>.expression string len 1..500
 .collections[].fields[]<oneOf formula>.decimals? integer 0..4
 .collections[].fields[]<oneOf formula>.unit? string len 1..10
 .collections[].fields[]<oneOf formula>.currency? string /^[A-Z]{3}$/
+.collections[].fields[]<oneOf time> object
+.collections[].fields[]<oneOf time>.id string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf time>.name string len 1..40
+.collections[].fields[]<oneOf time>.required? boolean
+.collections[].fields[]<oneOf time>.type "time"
+.collections[].fields[]<oneOf datetime> object
+.collections[].fields[]<oneOf datetime>.id string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf datetime>.name string len 1..40
+.collections[].fields[]<oneOf datetime>.required? boolean
+.collections[].fields[]<oneOf datetime>.type "datetime"
+.collections[].fields[]<oneOf datetime>.default? "now"
+.collections[].fields[]<oneOf duration> object
+.collections[].fields[]<oneOf duration>.id string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf duration>.name string len 1..40
+.collections[].fields[]<oneOf duration>.required? boolean
+.collections[].fields[]<oneOf duration>.type "duration"
+.collections[].fields[]<oneOf duration>.default? integer 0..1000000
 .reminders? array items ..20
 .reminders[] object
 .reminders[].id string /^[a-z][a-z0-9-]{0,47}$/
