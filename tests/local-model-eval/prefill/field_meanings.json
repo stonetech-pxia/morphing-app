@@ -1,0 +1,73 @@
+{
+  "email-reservation-zh": {
+    "date": "顾客到餐厅就餐的日期",
+    "code": "这次餐厅预订的确认编号",
+    "party": "这次预订参加用餐的人数"
+  },
+  "invoice-utility-en": {
+    "date": "Date when this utility invoice was issued",
+    "amount": "Final total the customer has to pay for this utility bill",
+    "tax": "Tax charged as part of the utility bill",
+    "account": "Customer account identifier for the utility service"
+  },
+  "itinerary-fr": {
+    "date": "Date à laquelle le voyageur part pour ce trajet",
+    "origin": "Ville où commence ce trajet",
+    "destination": "Ville où se termine ce trajet",
+    "traveler": "Nom de la personne qui effectue le trajet"
+  },
+  "appointment-zh": {
+    "date": "患者到医院就诊的预约日期",
+    "department": "患者预约就诊的医院科室",
+    "fee": "患者本次预约的挂号费用"
+  },
+  "shipment-en": {
+    "date": "Date when the customer originally placed the order",
+    "tracking": "Identifier used to track this parcel",
+    "recipient": "Person who is receiving this parcel"
+  },
+  "menu-fr": {
+    "amount": "Montant total à payer pour une commande complète, s'il est indiqué",
+    "restaurant": "Nom du restaurant qui propose ce menu"
+  },
+  "contract-zh": {
+    "date": "合同双方签署这份劳动合同的日期",
+    "salary": "员工每月的基本工资金额",
+    "employee": "签署合同的员工姓名"
+  },
+  "bank-statement-en": {
+    "date": "Date when the bank issued this account statement",
+    "balance": "Account balance at the end of the statement period",
+    "account": "Identifier of the bank account covered by the statement"
+  },
+  "school-fr": {
+    "date": "Date à laquelle la sortie scolaire au musée a lieu",
+    "fee": "Somme demandée pour participer à la sortie scolaire",
+    "teacher": "Nom de la personne responsable de la sortie"
+  },
+  "warranty-zh": {
+    "date": "顾客购买这件产品的日期",
+    "serial": "这件产品独有的序列编号",
+    "seller": "出售这件产品的商家名称"
+  },
+  "meeting-en": {
+    "date": "Date when the design review meeting takes place",
+    "subject": "Topic or title of the meeting invitation",
+    "location": "Place where the meeting takes place"
+  },
+  "insurance-fr": {
+    "date": "Date à laquelle le sinistre assuré s'est produit",
+    "amount": "Somme finale que l'assureur va verser après déduction",
+    "claim": "Identifiant du dossier de sinistre"
+  },
+  "government-zh": {
+    "date": "政府部门发出这份通知的日期",
+    "reference": "政府通知文件的文号",
+    "applicant": "这份通知所涉及的申请人姓名"
+  },
+  "email-confirmation-fr": {
+    "date": "Date à laquelle le spectacle réservé a lieu",
+    "amount": "Prix effectivement payé pour la réservation du spectacle",
+    "reference": "Identifiant de la réservation du spectacle"
+  }
+}
