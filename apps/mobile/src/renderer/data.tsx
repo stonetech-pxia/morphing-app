@@ -82,6 +82,7 @@ export function FieldInput({
   locale,
   disabled,
   testID,
+  labeled = false,
 }: {
   field: Field;
   value: unknown;
@@ -90,6 +91,8 @@ export function FieldInput({
   locale: RenderEnv['locale'];
   disabled?: boolean;
   testID: string;
+  /** 外面已经有字段名的标签（完整编辑页）。 */
+  labeled?: boolean;
 }) {
   const input = [
     styles.input,
@@ -109,7 +112,18 @@ export function FieldInput({
     },
   ];
   const editor = FIELD_EDITORS[field.type] as FieldEditor;
-  return editor.input({ field, value, onChange, palette, locale, disabled, testID, input, chip });
+  return editor.input({
+    field,
+    value,
+    onChange,
+    palette,
+    locale,
+    disabled,
+    testID,
+    labeled,
+    input,
+    chip,
+  });
 }
 
 interface FieldInputContext<F extends Field> {
@@ -120,6 +134,8 @@ interface FieldInputContext<F extends Field> {
   locale: RenderEnv['locale'];
   disabled: boolean | undefined;
   testID: string;
+  /** 外面已经有字段名的标签；没有时控件自己写上字段名（时长）。 */
+  labeled: boolean;
   /** 输入框的样式。 */
   input: StyleProp<TextStyle>;
   /** 选项小块的样式。 */
@@ -298,7 +314,7 @@ export const FIELD_EDITORS: { [T in FieldType]: FieldEditor<FieldOf<T>> } = {
 
 /** 时间、日期时间：一个输入框，旁边的「现在」填上当前时间（D-279）。 */
 function withNowChip<F extends Field>(
-  { value, onChange, palette, locale, disabled, testID, input, chip }: FieldInputContext<F>,
+  { field, value, onChange, palette, locale, disabled, testID, input, chip }: FieldInputContext<F>,
   placeholder: string,
   nowValue: (now: Date) => string,
 ) {
@@ -309,7 +325,8 @@ function withNowChip<F extends Field>(
         editable={!disabled}
         value={typeof value === 'string' ? value : ''}
         onChangeText={onChange}
-        placeholder={placeholder}
+        // 快速添加表单里没有标签：占位文字写字段名和格式（和金额的「时薪 (CNY)」一样）。
+        placeholder={`${field.name} (${placeholder})`}
         placeholderTextColor={palette.caption}
         keyboardType="numbers-and-punctuation"
         style={[input, styles.flex]}
@@ -329,12 +346,14 @@ function withNowChip<F extends Field>(
 
 /** 时长（D-279）：小时、分钟两个数字框，合起来是「h:mm」交给 core 校验（分钟要小于 60）。 */
 function DurationInput({
+  field,
   value,
   onChange,
   palette,
   locale,
   disabled,
   testID,
+  labeled,
   input,
 }: FieldInputContext<Field>) {
   const [hours = '', minutes = ''] = typeof value === 'string' ? value.split(':') : [];
@@ -363,6 +382,9 @@ function DurationInput({
   );
   return (
     <View testID={testID} style={styles.dateRow}>
+      {labeled ? null : (
+        <Text style={[palette.font('bodyBold', 15), { color: palette.text }]}>{field.name}</Text>
+      )}
       {box('hours')}
       {box('minutes')}
     </View>
@@ -589,6 +611,7 @@ export function FieldsForm({
               locale={locale}
               disabled={disabled}
               testID={`${testPrefix}-${id}`}
+              labeled={showLabels || inline}
             />
             {issue ? (
               <Text style={[palette.font('bodyMedium', 13), { color: palette.danger }]}>

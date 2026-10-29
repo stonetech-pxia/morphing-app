@@ -94,6 +94,14 @@ it('a new user logs a night shift with a break and sees the worked hours', async
   expect(screen.getByText('0:30')).toBeTruthy();
 });
 
+it('the inline form says which field each box is for', async () => {
+  await renderToolsApp(new MemoryWorkspaceRepo(), undefined, { seed });
+  expect(await screen.findByPlaceholderText('上班 (HH:MM)')).toBeTruthy();
+  expect(screen.getByPlaceholderText('下班 (HH:MM)')).toBeTruthy();
+  expect(screen.getByPlaceholderText('打卡 (YYYY-MM-DD HH:MM)')).toBeTruthy();
+  expect(screen.getByText('休息')).toBeTruthy();
+});
+
 it('the Now button fills in the current time', async () => {
   const repo = new MemoryWorkspaceRepo();
   await renderToolsApp(repo, undefined, { seed, locale: 'en' });
