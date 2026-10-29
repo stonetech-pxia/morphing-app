@@ -1084,6 +1084,7 @@ export const zh: MessageTable = {
   resultTableEdit: '查看和编辑',
   resultTablesMissing: '第 {pages} 页没有找到带线的表格，已按全部内容输出。',
   tableSheetName: '第 {n} 页',
+  tableFileName: '表格-{date}',
   tableEditorHint: '点一下选中，再点一下编辑',
   tableRedo: '重做',
   tableEditCell: '编辑格子',

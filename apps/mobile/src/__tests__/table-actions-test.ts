@@ -167,6 +167,31 @@ describe('ocr.toExcel (D-272)', () => {
     expect(read('xl/workbook.xml')).toContain('<sheet name="第 2 页"');
   });
 
+  it('names the workbook by date when the photo name is a machine id or there are several pages', async () => {
+    // 2026-10-29 真机：分享进来的照片名字是一串编号，表格就叫 b02fdc9e-9ebd-…-1_all_3391.xlsx。
+    const one = setup([pick, excel()]);
+    one.files.nextPhotos = [
+      one.files.offerImage('b02fdc9e-9ebd-4c1a-8e0f-3a9d2b7c6e51-1_all_3391.jpg', 1000, 700),
+    ];
+    one.vision.tableImages = [renderPage(1000, 700, gridRects(XS, YS))];
+    one.vision.layers = [{ width: 1000, height: 700, lines: cellLines() }];
+    expect(resultItem(await one.run())).toMatchObject({ name: '表格-2026-10-28', ext: 'xlsx' });
+
+    // 几页合成一个文件：不用第一页的名字（看起来像只有那一页）。
+    const two = setup([pick, excel()]);
+    two.files.nextPhotos = [
+      two.files.offerImage('账单1.jpg', 1000, 700),
+      two.files.offerImage('账单2.jpg', 1000, 700),
+    ];
+    const page = renderPage(1000, 700, gridRects(XS, YS));
+    two.vision.tableImages = [page, page];
+    two.vision.layers = [
+      { width: 1000, height: 700, lines: cellLines() },
+      { width: 1000, height: 700, lines: cellLines() },
+    ];
+    expect(resultItem(await two.run())).toMatchObject({ name: '表格-2026-10-28', ext: 'xlsx' });
+  });
+
   it('says so when the device can’t read tables in that language', async () => {
     const { files, vision, run } = setup([pick, excel('all', 'rus')]);
     vision.unsupported.add('ru');

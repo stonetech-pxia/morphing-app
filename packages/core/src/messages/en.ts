@@ -1152,6 +1152,7 @@ export const en = {
   resultTablesMissing:
     'No ruled table was found on pages {pages}, so everything on them was included.',
   tableSheetName: 'Page {n}',
+  tableFileName: 'Table {date}',
   tableEditorHint: 'Tap a cell to select it, tap it again to edit',
   tableRedo: 'Redo',
   tableEditCell: 'Edit cell',

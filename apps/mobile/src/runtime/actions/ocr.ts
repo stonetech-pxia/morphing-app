@@ -3,6 +3,7 @@ import {
   RunError,
   layoutOcrLines,
   polishOcrText,
+  renderNameTemplate,
   t,
   tidyOcrText,
   type ActionImpl,
@@ -111,6 +112,9 @@ async function tableLines(
   return { lines: scaleLines(layer.lines, layer, pixels), enhanced: source !== null };
 }
 
+/** 机器起的名字：UUID 或一长串十六进制。 */
+const MACHINE_NAME = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{16}/i;
+
 export const OCR_IMPLS: Record<string, Impl> = {
   // 扫描件转 Excel（D-272）：每张图找表格线、认字、组表，做成一个 xlsx（每页一张工作表），
   // 旁边存一份 TableDoc 给结果页的「查看和编辑」用。识别出的文字只在本机。
@@ -160,7 +164,12 @@ export const OCR_IMPLS: Record<string, Impl> = {
       throw new RunError('notFound', { name: displayName(items[0]!) });
     }
     const doc: TableDoc = { version: 2, scope, pages };
-    const name = items[0]!.name;
+    // 一张照片、名字是人起的就用它；名字是一串编号（分享进来的照片常这样）或几页合成一个文件时
+    // 用「表格-日期」，和扫描的「扫描-日期」一样。
+    const name =
+      items.length === 1 && !MACHINE_NAME.test(items[0]!.name)
+        ? items[0]!.name
+        : renderNameTemplate(t(ctx.locale, 'tableFileName'), { now: ctx.now() });
     const xlsx = await writeItem(ctx.services, writeXlsx(doc), {
       name,
       ext: 'xlsx',

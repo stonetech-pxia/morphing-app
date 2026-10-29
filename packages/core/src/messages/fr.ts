@@ -1204,6 +1204,7 @@ export const fr: MessageTable = {
   resultTablesMissing:
     'Aucune grille à lignes n’a été trouvée aux pages {pages} : tout leur contenu a été inclus.',
   tableSheetName: 'Page {n}',
+  tableFileName: 'Tableau {date}',
   tableEditorHint: 'Touchez une cellule pour la sélectionner, touchez-la encore pour la modifier',
   tableRedo: 'Rétablir',
   tableEditCell: 'Modifier la cellule',
