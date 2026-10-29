@@ -1,17 +1,26 @@
 import {
   aggregateRecords,
+  calendarOf,
+  dateOfDayNumber,
   filterRecords,
   fieldDefinition,
+  formatDuration,
   formatNumber,
   formatRef,
   formatValue,
-  groupedAggregate,
+  chartDateField,
+  groupRecords,
+  isSequenceAggregate,
   linkTitle,
-  localDate,
+  localDateTime,
   prepareRecordValues,
   readValue,
   recordValue,
+  sequenceText,
+  sequenceValue,
   sortRecords,
+  todayNumber,
+  type Aggregate,
   type Collection,
   type Component,
   type ComponentStyle,
@@ -37,11 +46,12 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { useLinkResolver, useRecordActions, useRecords } from '../data/records';
-import { useWorkspace } from '../workspace/context';
+import { useComputedRecords, useLinkResolver, useRecordActions, useRecords } from '../data/records';
+import { useCalendar, useWorkspace } from '../workspace/context';
 import { t } from '../i18n';
 import { AttachmentThumb, AttachmentsInput, firstImage, useAssetIndex } from './Attachments';
 import { onPicture } from './Backdrop';
+import { ScheduleInput } from './ScheduleInput';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
 import { cardColors, type Palette } from './theme';
@@ -80,6 +90,7 @@ export function FieldInput({
   locale,
   disabled,
   testID,
+  labeled = false,
 }: {
   field: Field;
   value: unknown;
@@ -88,6 +99,8 @@ export function FieldInput({
   locale: RenderEnv['locale'];
   disabled?: boolean;
   testID: string;
+  /** 外面已经有字段名的标签（完整编辑页）。 */
+  labeled?: boolean;
 }) {
   const input = [
     styles.input,
@@ -107,7 +120,18 @@ export function FieldInput({
     },
   ];
   const editor = FIELD_EDITORS[field.type] as FieldEditor;
-  return editor.input({ field, value, onChange, palette, locale, disabled, testID, input, chip });
+  return editor.input({
+    field,
+    value,
+    onChange,
+    palette,
+    locale,
+    disabled,
+    testID,
+    labeled,
+    input,
+    chip,
+  });
 }
 
 interface FieldInputContext<F extends Field> {
@@ -118,6 +142,8 @@ interface FieldInputContext<F extends Field> {
   locale: RenderEnv['locale'];
   disabled: boolean | undefined;
   testID: string;
+  /** 外面已经有字段名的标签；没有时控件自己写上字段名（时长）。 */
+  labeled: boolean;
   /** 输入框的样式。 */
   input: StyleProp<TextStyle>;
   /** 选项小块的样式。 */
@@ -161,42 +187,65 @@ function textBox<F extends Field>({
   );
 }
 
+/** 日期：输入框加「今天」「昨天」；今天按一天从几点开始算（D-286）。 */
+function DateInput({
+  value,
+  onChange,
+  palette,
+  locale,
+  disabled,
+  testID,
+  input,
+  chip,
+}: FieldInputContext<FieldOf<'date'>>) {
+  const today = todayNumber(new Date(), useCalendar());
+  return (
+    <View style={styles.dateRow}>
+      <TextInput
+        testID={testID}
+        editable={!disabled}
+        value={typeof value === 'string' ? value : ''}
+        onChangeText={onChange}
+        placeholder="YYYY-MM-DD"
+        placeholderTextColor={palette.caption}
+        style={[input, styles.flex]}
+      />
+      {[
+        [dateOfDayNumber(today), t(locale, 'today')],
+        [dateOfDayNumber(today - 1), t(locale, 'yesterday')],
+      ].map(([date, label]) => (
+        <Pressable
+          key={label}
+          disabled={disabled}
+          onPress={() => onChange(date)}
+          style={chip(value === date)}>
+          <Text style={[palette.font('bodyBold', 13), { color: palette.text }]}>{label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export const FIELD_EDITORS: { [T in FieldType]: FieldEditor<FieldOf<T>> } = {
   text: { input: textBox },
   note: { input: textBox },
   number: { input: textBox, toForm: String },
   money: { input: textBox, toForm: String },
-  date: {
-    input: ({ value, onChange, palette, locale, disabled, testID, input, chip }) => {
-      const now = new Date();
-      const today = localDate(now);
-      const yesterday = localDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
-      return (
-        <View style={styles.dateRow}>
-          <TextInput
-            testID={testID}
-            editable={!disabled}
-            value={typeof value === 'string' ? value : ''}
-            onChangeText={onChange}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={palette.caption}
-            style={[input, styles.flex]}
-          />
-          {[
-            [today, t(locale, 'today')],
-            [yesterday, t(locale, 'yesterday')],
-          ].map(([date, label]) => (
-            <Pressable
-              key={label}
-              disabled={disabled}
-              onPress={() => onChange(date)}
-              style={chip(value === date)}>
-              <Text style={[palette.font('bodyBold', 13), { color: palette.text }]}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
-      );
-    },
+  date: { input: (ctx) => <DateInput {...ctx} /> },
+  // D-279：几点几分，「现在」填上当前时间。
+  time: {
+    input: (ctx) => withNowChip(ctx, 'HH:MM', (now) => localDateTime(now).slice(11)),
+  },
+  // D-279：日期加时间，编辑时写成「2026-10-29 08:30」。
+  datetime: {
+    input: (ctx) =>
+      withNowChip(ctx, 'YYYY-MM-DD HH:MM', (now) => localDateTime(now).replace('T', ' ')),
+    toForm: (v) => String(v).replace('T', ' '),
+  },
+  // D-279：时长，小时和分钟两个框，表单里的值是「h:mm」（一边空着算 0）。
+  duration: {
+    input: (ctx) => <DurationInput {...ctx} />,
+    toForm: (v) => formatDuration(v as number),
   },
   checkbox: {
     inline: true,
@@ -242,9 +291,27 @@ export const FIELD_EDITORS: { [T in FieldType]: FieldEditor<FieldOf<T>> } = {
   },
   // 公式不能填，由 FieldsForm 显示算出来的值（D-188）。
   formula: { computed: true, input: () => null },
+  // 查找、汇总、上一条（D-287–D-289）也是算出来的：记录页显示存好的记录算出来的值。
+  lookup: { computed: true, input: () => null },
+  rollup: { computed: true, input: () => null },
+  previous: { computed: true, input: () => null },
   link: {
     input: ({ field, value, onChange, palette, locale, disabled, testID }) => (
       <LinkInput
+        field={field}
+        value={value}
+        onChange={onChange}
+        palette={palette}
+        locale={locale}
+        disabled={disabled}
+        testID={testID}
+      />
+    ),
+  },
+  // D-296：日程，先选重复方式再填数字或日子。
+  schedule: {
+    input: ({ field, value, onChange, palette, locale, disabled, testID }) => (
+      <ScheduleInput
         field={field}
         value={value}
         onChange={onChange}
@@ -278,6 +345,85 @@ export const FIELD_EDITORS: { [T in FieldType]: FieldEditor<FieldOf<T>> } = {
     ),
   },
 };
+
+/** 时间、日期时间：一个输入框，旁边的「现在」填上当前时间（D-279）。 */
+function withNowChip<F extends Field>(
+  { field, value, onChange, palette, locale, disabled, testID, input, chip }: FieldInputContext<F>,
+  placeholder: string,
+  nowValue: (now: Date) => string,
+) {
+  return (
+    <View style={styles.dateRow}>
+      <TextInput
+        testID={testID}
+        editable={!disabled}
+        value={typeof value === 'string' ? value : ''}
+        onChangeText={onChange}
+        // 快速添加表单里没有标签：占位文字写字段名和格式（和金额的「时薪 (CNY)」一样）。
+        placeholder={`${field.name} (${placeholder})`}
+        placeholderTextColor={palette.caption}
+        keyboardType="numbers-and-punctuation"
+        style={[input, styles.flex]}
+      />
+      <Pressable
+        testID={`${testID}-now`}
+        disabled={disabled}
+        onPress={() => onChange(nowValue(new Date()))}
+        style={chip(false)}>
+        <Text style={[palette.font('bodyBold', 13), { color: palette.text }]}>
+          {t(locale, 'now')}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/** 时长（D-279）：小时、分钟两个数字框，合起来是「h:mm」交给 core 校验（分钟要小于 60）。 */
+function DurationInput({
+  field,
+  value,
+  onChange,
+  palette,
+  locale,
+  disabled,
+  testID,
+  labeled,
+  input,
+}: FieldInputContext<Field>) {
+  const [hours = '', minutes = ''] = typeof value === 'string' ? value.split(':') : [];
+  const change = (h: string, m: string) => onChange(h === '' && m === '' ? '' : `${h}:${m}`);
+  const box = (part: 'hours' | 'minutes') => (
+    <View style={[styles.dateRow, styles.flex]}>
+      <TextInput
+        testID={`${testID}-${part}`}
+        editable={!disabled}
+        value={part === 'hours' ? hours : minutes}
+        onChangeText={(text) => {
+          const digits = text.replace(/\D/g, '');
+          if (part === 'hours') change(digits, minutes);
+          else change(hours, digits.slice(0, 2));
+        }}
+        placeholder="0"
+        placeholderTextColor={palette.caption}
+        keyboardType="number-pad"
+        accessibilityLabel={t(locale, part === 'hours' ? 'durationHours' : 'durationMinutes')}
+        style={[input, styles.flex]}
+      />
+      <Text style={[palette.font('body', 15), { color: palette.muted }]}>
+        {t(locale, part === 'hours' ? 'durationHours' : 'durationMinutes')}
+      </Text>
+    </View>
+  );
+  return (
+    <View testID={testID} style={styles.dateRow}>
+      {labeled ? null : (
+        <Text style={[palette.font('bodyBold', 15), { color: palette.text }]}>{field.name}</Text>
+      )}
+      {box('hours')}
+      {box('minutes')}
+    </View>
+  );
+}
 
 /** 选一条记录时最多列出几条（按最近修改排序，可以搜索）。 */
 const LINK_LIST_LIMIT = 30;
@@ -432,6 +578,7 @@ export function FieldsForm({
   disabled,
   testPrefix,
   showLabels = true,
+  related,
 }: {
   collection: Collection;
   fieldIds: readonly string[];
@@ -443,16 +590,29 @@ export function FieldsForm({
   disabled?: boolean;
   testPrefix: string;
   showLabels?: boolean;
+  /**
+   * 记录页（D-291）：显示用的表和这条记录存好以后算出来的值（查找、汇总、上一条）；新记录是 null，
+   * 这几种字段存了以后才有值。
+   */
+  related?: { view: Collection; record: DataRecord | null };
 }) {
-  // 公式按表单里现在的值算（D-188）。
+  const cal = useCalendar();
+  const view = related?.view ?? collection;
+  // 公式按表单里现在的值算（D-188）；查找、汇总、上一条用存好的那条记录算出来的值。
   const computed = () => {
-    const prepared = prepareRecordValues(collection, values, null, new Date());
+    const prepared = prepareRecordValues(collection, values, null, new Date(), cal);
+    const saved = related?.record?.values ?? {};
+    const derived = Object.fromEntries(
+      collection.fields
+        .filter((f) => !fieldDefinition(f.type).write && f.id in saved)
+        .map((f) => [f.id, saved[f.id]]),
+    );
     return {
-      id: '',
+      id: related?.record?.id ?? '',
       collectionId: collection.id,
-      values: prepared.ok ? prepared.values : {},
-      createdAt: 0,
-      updatedAt: 0,
+      values: { ...derived, ...(prepared.ok ? prepared.values : {}) },
+      createdAt: related?.record?.createdAt ?? 0,
+      updatedAt: related?.record?.updatedAt ?? 0,
     };
   };
   return (
@@ -462,7 +622,11 @@ export function FieldsForm({
         if (!field) return null;
         const editor = FIELD_EDITORS[field.type] as FieldEditor;
         if (editor.computed) {
-          const shown = formatValue(field, recordValue(computed(), collection, id), locale);
+          const shown = formatValue(
+            view.fields.find((f) => f.id === id) ?? field,
+            recordValue(computed(), view, id, new Date(), cal),
+            locale,
+          );
           return (
             <View key={id} style={styles.field}>
               <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
@@ -499,6 +663,7 @@ export function FieldsForm({
               locale={locale}
               disabled={disabled}
               testID={`${testPrefix}-${id}`}
+              labeled={showLabels || inline}
             />
             {issue ? (
               <Text style={[palette.font('bodyMedium', 13), { color: palette.danger }]}>
@@ -540,17 +705,22 @@ export function RecordList({
   const background = cardColors(palette, tone).background;
   const router = useRouter();
   const collection = useCollection(env, props.collectionId);
-  const records = useRecords(props.collectionId);
+  const cal = calendarOf(env.config);
+  // 查找、汇总、上一条（D-291）：显示、筛选、排序用算好的记录和 view；改记录用原来的表。
+  const { view, records } = useComputedRecords(env.config.collections, collection, cal);
   const actions = useRecordActions();
-  const links = useLinkResolver(collection);
+  const links = useLinkResolver(view);
   // 有附件字段的表：每条记录显示附件里第一张图片的缩略图（D-263，自动判断，组件不用设置）。
   const assetIndex = useAssetIndex();
-  if (!collection) return null;
+  if (!collection || !view) return null;
   const hasFiles = collection.fields.some((f) => f.type === 'file');
+  const now = new Date();
   const shown = sortRecords(
-    filterRecords(records ?? [], collection, props.filter, new Date()),
-    collection,
+    filterRecords(records ?? [], view, props.filter, now, cal),
+    view,
     props.sort,
+    now,
+    cal,
   ).slice(0, props.limit);
 
   if (records !== null && shown.length === 0) {
@@ -564,13 +734,13 @@ export function RecordList({
   }
 
   const row = (r: DataRecord, index: number) => {
-    const title = formatRef(r, collection, props.titleField, locale, links) || '—';
+    const title = formatRef(r, view, props.titleField, locale, links, now, cal) || '—';
     const subtitle = (props.subtitleFields ?? [])
-      .map((f) => formatRef(r, collection, f, locale, links))
+      .map((f) => formatRef(r, view, f, locale, links, now, cal))
       .filter(Boolean)
       .join(' · ');
     const trailing = props.trailingField
-      ? formatRef(r, collection, props.trailingField, locale, links)
+      ? formatRef(r, view, props.trailingField, locale, links, now, cal)
       : '';
     const checked = props.checkField ? r.values[props.checkField] === true : false;
     const thumb = hasFiles && assetIndex ? firstImage(r, collection, assetIndex) : null;
@@ -756,13 +926,15 @@ export function RecordForm({
 
 type StatProps = Extract<Component, { type: 'stat' }>['props'];
 
-/** 统计值的显示：金额按币种、数字按单位和小数位，计数和其他字段只显示数字。 */
+/** 统计值的显示：金额按币种、数字按单位和小数位，按日子算的带「天」「周」，计数和其他字段只显示数字。 */
 export function statText(
   value: number | null,
   aggregate: StatProps['aggregate'],
   field: Field | undefined,
   locale: RenderEnv['locale'],
+  unit?: StatProps['unit'],
 ): string {
+  if (isSequenceAggregate(aggregate)) return sequenceText(aggregate, unit, value, locale);
   if (value === null) return '—';
   // 求和、平均按字段的写法显示（金额带货币、数字带单位，字段定义的 formatAmount）。
   const amount = field && aggregate !== 'count' && fieldDefinition(field.type).formatAmount;
@@ -782,10 +954,40 @@ export function Stat({
   backdrop?: Backdrop | undefined;
 }) {
   const palette = onPicture(env.palette, backdrop);
-  const collection = useCollection(env, props.collectionId);
-  const records = useRecords(props.collectionId);
+  const table = useCollection(env, props.collectionId);
+  const cal = calendarOf(env.config);
+  // 查找、汇总、上一条（D-291）按算好的值统计。
+  const { view: collection, records } = useComputedRecords(env.config.collections, table, cal);
   if (!collection) return null;
-  const matched = filterRecords(records ?? [], collection, props.filter, new Date());
+  const now = new Date();
+  const matched = filterRecords(records ?? [], collection, props.filter, now, cal);
+  // 按顺序的聚合（D-284）：日期默认用表里第一个日期字段，没有就用创建时间（和图表一样）。
+  const sequence = isSequenceAggregate(props.aggregate)
+    ? {
+        spec: {
+          aggregate: props.aggregate,
+          unit: props.unit,
+          perUnit: props.perUnit,
+          skip:
+            props.skipField && props.skipOption
+              ? { fieldId: props.skipField, optionId: props.skipOption }
+              : undefined,
+        },
+        ctx: { dateField: chartDateField(collection, props), now, cal },
+      }
+    : null;
+  const valueOf = (list: DataRecord[]) =>
+    sequence
+      ? sequenceValue(list, collection, sequence.spec, sequence.ctx)
+      : { value: aggregateRecords(list, collection, props.aggregate as Aggregate, props.fieldId) };
+  const text = (v: { value: number | null }) =>
+    statText(v.value, props.aggregate, field, env.locale, props.unit);
+  const bestText = (v: { best?: number }) =>
+    v.best === undefined
+      ? null
+      : t(env.locale, 'seqBest', {
+          value: statText(v.best, props.aggregate, field, env.locale, props.unit),
+        });
   const field = props.fieldId ? collection.fields.find((f) => f.id === props.fieldId) : undefined;
   const background = tone ? cardColors(palette, tone).background : palette.primaryTint;
   const heading = (
@@ -799,44 +1001,53 @@ export function Stat({
     const groups =
       records === null
         ? []
-        : groupedAggregate(
-            matched,
-            collection,
-            props.aggregate,
-            props.fieldId,
-            props.groupBy,
-            t(env.locale, 'statNoChoice'),
-          );
+        : groupRecords(matched, collection, props.groupBy, t(env.locale, 'statNoChoice'));
     return (
       <Card palette={palette} background={background} backdrop={backdrop} style={styles.fillCard}>
         {heading}
-        {groups.map((g) => (
-          <View key={g.optionId ?? '-'} style={styles.row}>
-            <Text
-              numberOfLines={1}
-              style={[styles.flex, palette.font('bodyMedium', 15), { color: palette.text }]}>
-              {g.label}
-            </Text>
-            <Text
-              testID={`stat-group-${props.collectionId}-${g.optionId ?? 'none'}`}
-              style={[palette.font('title', 16), { color: palette.text }]}>
-              {statText(g.value, props.aggregate, field, env.locale)}
-            </Text>
-          </View>
-        ))}
+        {groups.map((g) => {
+          const v = valueOf(g.records);
+          const best = bestText(v);
+          return (
+            <View key={g.optionId ?? '-'} style={styles.row}>
+              <Text
+                numberOfLines={1}
+                style={[styles.flex, palette.font('bodyMedium', 15), { color: palette.text }]}>
+                {g.label}
+              </Text>
+              <View style={styles.statValue}>
+                <Text
+                  testID={`stat-group-${props.collectionId}-${g.optionId ?? 'none'}`}
+                  style={[palette.font('title', 16), { color: palette.text }]}>
+                  {text(v)}
+                </Text>
+                {best ? (
+                  <Text style={[palette.font('body', 12), { color: palette.muted }]}>{best}</Text>
+                ) : null}
+              </View>
+            </View>
+          );
+        })}
       </Card>
     );
   }
-  const value =
-    records === null ? null : aggregateRecords(matched, collection, props.aggregate, props.fieldId);
+  const v = records === null ? { value: null } : valueOf(matched);
+  const best = records === null ? null : bestText(v);
   return (
     <Card palette={palette} background={background} backdrop={backdrop} style={styles.fillCard}>
       {heading}
       <Text
         testID={`stat-value-${props.collectionId}-${props.label}`}
         style={[palette.font('display', 26), { color: palette.text }]}>
-        {statText(value, props.aggregate, field, env.locale)}
+        {text(v)}
       </Text>
+      {best ? (
+        <Text
+          testID={`stat-best-${props.collectionId}-${props.label}`}
+          style={[palette.font('body', 13), { color: palette.muted }]}>
+          {best}
+        </Text>
+      ) : null}
     </Card>
   );
 }
@@ -858,6 +1069,7 @@ const styles = StyleSheet.create({
   inlineField: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   flex: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  statValue: { alignItems: 'flex-end' },
   listCard: { paddingVertical: 4, gap: 0 },
   listRow: { paddingVertical: 12 },
   check: {

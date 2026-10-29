@@ -5,8 +5,31 @@ import {
   type FieldValue,
   type LinkResolver,
 } from './field-values';
+import {
+  DEFAULT_CALENDAR,
+  dateOfDayNumber,
+  dayOf,
+  todayNumber,
+  twoWeekStartOf,
+  weekStartOf,
+  type Calendar,
+} from './calendar';
 import { t } from './messages';
-import { dayNumber, evaluateFormula, parseFormula, type FormulaNode } from './formula';
+import {
+  scheduleDue,
+  scheduleStatus,
+  scheduleStatusText,
+  type ScheduleDue,
+  type ScheduleStatus,
+} from './schedule';
+import {
+  dayNumber,
+  evaluateFormula,
+  minuteNumber,
+  minuteOfDay,
+  parseFormula,
+  type FormulaNode,
+} from './formula';
 import {
   FIELDS,
   fieldDefinition,
@@ -25,10 +48,12 @@ import {
 export {
   MAX_ATTACHMENTS,
   attachmentIds,
+  formatDuration,
   formatMoney,
   formatNumber,
   formatTimestamp,
   localDate,
+  localDateTime,
   type FieldValue,
   type LinkResolver,
 } from './field-values';
@@ -49,29 +74,45 @@ export interface DataRecord {
   updatedAt: number;
 }
 
-/** 时间段对应的本地日期范围（含两端）。一周从周一开始。 */
-export function periodRange(period: Period, now: Date): [string, string] {
-  const day = (offset: number) =>
-    localDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset));
-  const today = day(0);
+/**
+ * 时间段对应的本地日期范围（含两端）。「今天」和一周的第一天按 cal（D-286，默认 0 点、周一）。
+ */
+export function periodRange(
+  period: Period,
+  now: Date,
+  cal: Calendar = DEFAULT_CALENDAR,
+): [string, string] {
+  const today = todayNumber(now, cal);
+  const span = (start: number, days: number): [string, string] => [
+    dateOfDayNumber(start),
+    dateOfDayNumber(start + days - 1),
+  ];
+  const [y, m, d] = dateOfDayNumber(today).split('-').map(Number) as [number, number, number];
+  const monthEnd = localDate(new Date(y, m, 0));
+  const ym = `${y}-${String(m).padStart(2, '0')}`;
   switch (period) {
     case 'today':
-      return [today, today];
-    case 'thisWeek': {
-      const sinceMonday = (now.getDay() + 6) % 7;
-      return [day(-sinceMonday), day(6 - sinceMonday)];
-    }
+      return span(today, 1);
+    case 'thisWeek':
+      return span(weekStartOf(today, cal), 7);
+    case 'thisTwoWeeks':
+      return span(twoWeekStartOf(today, cal), 14);
+    case 'thisHalfMonth':
+      return d <= 15 ? [`${ym}-01`, `${ym}-15`] : [`${ym}-16`, monthEnd];
     case 'thisMonth':
-      return [
-        localDate(new Date(now.getFullYear(), now.getMonth(), 1)),
-        localDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
-      ];
+      return [`${ym}-01`, monthEnd];
     case 'thisYear':
-      return [`${now.getFullYear()}-01-01`, `${now.getFullYear()}-12-31`];
+      return [`${y}-01-01`, `${y}-12-31`];
     case 'last7days':
-      return [day(-6), today];
+      return span(today - 6, 7);
+    case 'last14days':
+      return span(today - 13, 14);
     case 'last30days':
-      return [day(-29), today];
+      return span(today - 29, 30);
+    case 'last90days':
+      return span(today - 89, 90);
+    case 'last365days':
+      return span(today - 364, 365);
   }
 }
 
@@ -100,41 +141,118 @@ function formulaNode(expression: string): FormulaNode | null {
 
 /**
  * 公式字段在一条记录上的值：引用的字段都有值时才有值，结果按字段的小数位（默认 2 位）取整。
- * 日期字段按天数算，today 是 now 那天（D-247）。
+ * 日期字段按天数算，today 是 now 那天（D-247；一天从几点开始按 cal，D-286）；时间、日期时间按分钟数算（D-280）。
+ * 引用的公式（D-281）用它取整以后的值；绕回自己的（校验会挡住，旧数据里可能有）没有值。
  */
 function formulaValue(
   field: Extract<Field, { type: 'formula' }>,
   record: DataRecord,
   collection: Collection,
   now: Date,
+  cal: Calendar,
+  using: readonly string[] = [],
 ): number | undefined {
   const node = formulaNode(field.expression);
-  if (!node) return undefined;
+  if (!node || using.includes(field.id)) return undefined;
+  const kindOf = (id: string) => {
+    const ref = fieldOf(collection, id);
+    return (ref && fieldDefinition(ref.type).formula) ?? null;
+  };
   const value = evaluateFormula(
     node,
     (id) => {
       const ref = fieldOf(collection, id);
-      const kind = ref && fieldDefinition(ref.type).formula;
+      const kind = kindOf(id);
       if (!ref || !kind) return undefined;
+      if (ref.type === 'formula')
+        return formulaValue(ref, record, collection, now, cal, [...using, field.id]);
+      // 日程（D-295）在公式里是它的下一次。
+      if (ref.type === 'schedule') return scheduleStatusOf(record, collection, ref, now, cal)?.next;
       const v = readValue(ref, record.values[id]);
-      if (kind === 'date') return typeof v === 'string' ? dayNumber(v) : undefined;
-      return typeof v === 'number' ? v : undefined;
+      if (typeof v === 'number') return kind === 'number' ? v : undefined;
+      if (typeof v !== 'string') return undefined;
+      if (kind === 'date') return dayNumber(v);
+      if (kind === 'time') return minuteOfDay(v);
+      return kind === 'datetime' ? minuteNumber(v) : undefined;
     },
-    dayNumber(localDate(now)),
+    todayNumber(now, cal),
+    kindOf,
   );
   return value === undefined ? undefined : round(value, field.decimals ?? 2);
 }
 
-/** 记录上某个字段（包括系统字段）的值；系统字段的值是本地日期，公式现算（用到 today 时按 now 那天）。 */
+/**
+ * 记录上某个日期类字段落在哪一天（本地日期 YYYY-MM-DD）：系统字段、日期是它自己，日期时间是它那一天
+ * （D-279），钟点早于一天开始的钟点时算前一天（D-286）；别的字段没有。筛选的 inPeriod、日期比较、
+ * 图表的按时间分组和按日子的统计（D-284）都用它。
+ */
+export function recordDay(
+  record: DataRecord,
+  collection: Collection,
+  ref: string,
+  now: Date = new Date(),
+  cal: Calendar = DEFAULT_CALENDAR,
+): string | undefined {
+  const field = fieldOf(collection, ref);
+  // 日程（D-295）落在它的下一次那天。
+  if (field?.type === 'schedule') {
+    const status = scheduleStatusOf(record, collection, field, now, cal);
+    return status && dateOfDayNumber(status.next);
+  }
+  const value = recordValue(record, collection, ref, now, cal);
+  const day = field && fieldDefinition(field.type).day;
+  if (value === undefined || !day) return typeof value === 'string' ? value : undefined;
+  const date = day(field, value);
+  const hour = Number(String(value).slice(11, 13));
+  return hour < cal.dayStartHour ? dateOfDayNumber(dayNumber(date)! - 1) : date;
+}
+
+/**
+ * 一条记录上日程字段的状态（D-292、D-293）：规则读不出来时没有。做过的日子来自 lastDone 指向的日期或
+ * 日期时间字段（按一天从几点开始归到哪一天），或者汇总字段被汇总的那些记录的日子（rollupDays）；
+ * 没有 lastDone 或它没有值时只按规则本身算。
+ */
+/**
+ * 汇总字段（D-288）在每条算好的记录上留下被汇总的那些记录各在哪一天（天数），日程的 lastDone 指向汇总时
+ * 用它（D-293）：「每周 3 次」要知道这周做了几天，只看最近一次不够。只在内存里，不进数据库。
+ */
+export const rollupDays = new WeakMap<DataRecord, Map<string, readonly number[]>>();
+
+export function scheduleStatusOf(
+  record: DataRecord,
+  collection: Collection,
+  field: Extract<Field, { type: 'schedule' }>,
+  now: Date = new Date(),
+  cal: Calendar = DEFAULT_CALENDAR,
+): ScheduleStatus | undefined {
+  const rule = readValue(field, record.values[field.id]);
+  if (rule === undefined) return undefined;
+  const fromRollup = field.lastDone ? rollupDays.get(record)?.get(field.lastDone) : undefined;
+  const last =
+    !fromRollup && field.lastDone && recordDay(record, collection, field.lastDone, now, cal);
+  const day = last ? dayNumber(last) : undefined;
+  return scheduleStatus(
+    rule as Parameters<typeof scheduleStatus>[0],
+    fromRollup ?? (day === undefined ? [] : [day]),
+    todayNumber(now, cal),
+    cal,
+  );
+}
+
+/**
+ * 记录上某个字段（包括系统字段）的值；系统字段的值是本地日期（一天开始的钟点之前算前一天，D-286），
+ * 公式现算（用到 today 时按 now 那天）。
+ */
 export function recordValue(
   record: DataRecord,
   collection: Collection,
   ref: string,
   now: Date = new Date(),
+  cal: Calendar = DEFAULT_CALENDAR,
 ): FieldValue | undefined {
-  if (isSystemField(ref)) return localDate(new Date(record[ref]));
+  if (isSystemField(ref)) return dayOf(new Date(record[ref]), cal);
   const field = fieldOf(collection, ref);
-  if (field?.type === 'formula') return formulaValue(field, record, collection, now);
+  if (field?.type === 'formula') return formulaValue(field, record, collection, now, cal);
   return field ? readValue(field, record.values[ref]) : undefined;
 }
 
@@ -146,9 +264,9 @@ export type PreparedValues =
   { ok: true; values: Record<string, unknown> } | { ok: false; issues: FieldIssue[] };
 
 /** 新记录的默认值：定义里的 default（日期的 today 换成今天）。 */
-function defaultValue(field: Field, now: Date): FieldValue | undefined {
+function defaultValue(field: Field, now: Date, cal: Calendar): FieldValue | undefined {
   const def = fieldDefinition(field.type);
-  if (def.initial) return def.initial(field, now);
+  if (def.initial) return def.initial(field, now, dayOf(now, cal));
   return 'default' in field ? field.default : undefined;
 }
 
@@ -160,13 +278,14 @@ const isBlank = (v: unknown) =>
 
 /**
  * 写入时严格校验：input 只包含要修改的字段（字段 ID → 表单值，空字符串表示清空）。
- * previous 为 null 表示新记录，此时套用默认值。已删除字段的旧值原样保留。
+ * previous 为 null 表示新记录，此时套用默认值（今天按 cal 算）。已删除字段的旧值原样保留。
  */
 export function prepareRecordValues(
   collection: Collection,
   input: Record<string, unknown>,
   previous: Record<string, unknown> | null,
   now: Date,
+  cal: Calendar = DEFAULT_CALENDAR,
 ): PreparedValues {
   const values: Record<string, unknown> = { ...previous };
   const issues: FieldIssue[] = [];
@@ -180,7 +299,7 @@ export function prepareRecordValues(
     let raw: unknown;
     if (Object.prototype.hasOwnProperty.call(input, field.id)) raw = input[field.id];
     else if (previous !== null) raw = previous[field.id];
-    else raw = defaultValue(field, now);
+    else raw = defaultValue(field, now, cal);
     // 新记录里没有值时存的值（没勾选的勾选框是 false）。
     if (def.emptyNew !== undefined && raw === undefined && previous === null) raw = def.emptyNew;
 
@@ -214,9 +333,27 @@ export function matchesCondition(
   collection: Collection,
   condition: Condition,
   now: Date,
+  cal: Calendar = DEFAULT_CALENDAR,
 ): boolean {
-  const value = recordValue(record, collection, condition.field, now);
+  const field = fieldOf(collection, condition.field);
   const target = condition.value;
+  // 日期时间（D-279）按它那一天筛选：时间段、日期比较，以及 is / isNot 一个日期。
+  if (condition.op === 'due') {
+    const status =
+      field?.type === 'schedule' && scheduleStatusOf(record, collection, field, now, cal);
+    return !!status && scheduleDue(status, target as ScheduleDue, todayNumber(now, cal), cal);
+  }
+  // 日程（D-295）按它的下一次筛选。
+  const byDay =
+    field !== undefined &&
+    (fieldDefinition(field.type).day !== undefined || field.type === 'schedule') &&
+    (condition.op === 'inPeriod' ||
+      condition.op === 'gt' ||
+      condition.op === 'lt' ||
+      (typeof target === 'string' && target.length === 10));
+  const value = byDay
+    ? recordDay(record, collection, condition.field, now, cal)
+    : recordValue(record, collection, condition.field, now, cal);
   // 附件（D-263）：一组文件 ID。is / isNot 看有没有这个文件，其他比较都不成立。
   if (Array.isArray(value)) {
     const has = typeof target === 'string' && value.includes(target);
@@ -246,7 +383,7 @@ export function matchesCondition(
       return value !== undefined && target !== undefined && compare(value, target) < 0;
     case 'inPeriod': {
       if (typeof value !== 'string' || typeof target !== 'string') return false;
-      const [start, end] = periodRange(target as Period, now);
+      const [start, end] = periodRange(target as Period, now, cal);
       return value >= start && value <= end;
     }
   }
@@ -257,16 +394,21 @@ export function filterRecords(
   collection: Collection,
   conditions: readonly Condition[] | undefined,
   now: Date,
+  cal: Calendar = DEFAULT_CALENDAR,
 ): DataRecord[] {
   if (!conditions?.length) return [...records];
-  return records.filter((r) => conditions.every((c) => matchesCondition(r, collection, c, now)));
+  return records.filter((r) =>
+    conditions.every((c) => matchesCondition(r, collection, c, now, cal)),
+  );
 }
 
-/** 排序：空值总在最后；单选按选项顺序；默认按创建时间从新到旧。 */
+/** 排序：空值总在最后；单选按选项顺序；日程按下一次（D-295）；默认按创建时间从新到旧。 */
 export function sortRecords(
   records: readonly DataRecord[],
   collection: Collection,
   sort: { field: string; direction: 'asc' | 'desc' } | undefined,
+  now: Date = new Date(),
+  cal: Calendar = DEFAULT_CALENDAR,
 ): DataRecord[] {
   const { field, direction } = sort ?? { field: 'createdAt', direction: 'desc' as const };
   const sign = direction === 'asc' ? 1 : -1;
@@ -274,7 +416,8 @@ export function sortRecords(
   const sortKey = def && fieldDefinition(def.type).sort;
   const key = (r: DataRecord): FieldValue | undefined => {
     if (isSystemField(field)) return r[field];
-    const v = recordValue(r, collection, field);
+    if (def?.type === 'schedule') return scheduleStatusOf(r, collection, def, now, cal)?.next;
+    const v = recordValue(r, collection, field, now, cal);
     // 有的字段按自己的顺序排（单选按选项顺序）。
     return def && sortKey && v !== undefined ? sortKey(def, v) : v;
   };
@@ -338,6 +481,22 @@ export function groupedAggregate(
   groupBy: string,
   noChoice: string,
 ): StatGroup[] {
+  return groupRecords(records, collection, groupBy, noChoice).map(({ records: list, ...g }) => ({
+    ...g,
+    value: aggregateRecords(list, collection, aggregate, fieldId),
+  }));
+}
+
+/**
+ * 按单选字段分组（groupedAggregate 的分组部分）：每组自己算值，例如每个习惯的连续天数（D-284）。
+ * 顺序和「未选」一行同 groupedAggregate。
+ */
+export function groupRecords(
+  records: readonly DataRecord[],
+  collection: Collection,
+  groupBy: string,
+  noChoice: string,
+): (Omit<StatGroup, 'value'> & { records: DataRecord[] })[] {
   const field = fieldOf(collection, groupBy);
   if (field?.type !== 'choice') return [];
   const buckets = new Map<string | null, DataRecord[]>();
@@ -358,7 +517,7 @@ export function groupedAggregate(
                 ? noChoice
                 : (field.options.find((o) => o.id === optionId)?.label ?? noChoice),
             count: list.length,
-            value: aggregateRecords(list, collection, aggregate, fieldId),
+            records: list,
           },
         ],
   );
@@ -440,11 +599,19 @@ export function formatRef(
   ref: string,
   locale: Locale,
   links?: LinkResolver,
+  now: Date = new Date(),
+  cal: Calendar = DEFAULT_CALENDAR,
 ): string {
   if (isSystemField(ref)) return formatTimestamp(record[ref], locale);
   const field = fieldOf(collection, ref);
   if (field?.type === 'formula')
-    return formatValue(field, recordValue(record, collection, ref), locale);
+    return formatValue(field, recordValue(record, collection, ref, now, cal), locale);
+  // 日程（D-292）：规则 · 下一次（今天、明天、过期几天或日期）。
+  if (field?.type === 'schedule') {
+    const status = scheduleStatusOf(record, collection, field, now, cal);
+    const rule = formatValue(field, record.values[ref], locale);
+    return status ? `${rule} · ${scheduleStatusText(status, todayNumber(now, cal), locale)}` : rule;
+  }
   return field ? formatValue(field, record.values[ref], locale, links) : '';
 }
 

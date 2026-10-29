@@ -18,10 +18,12 @@ export const recordFormComponent: ComponentDefinitionOf<'recordForm', typeof pro
     type: 'recordForm',
     props,
     refs: { collectionId: { to: 'collection' } },
-    check: (c, { collection }) => {
+    check: (c, { config, collection }) => {
       const problems: string[] = [];
+      // 用配置里原来的表：查找、汇总在检查别的组件时换成了它们显示的那种字段（D-287）。
+      const table = config.collections.find((x) => x.id === c.props.collectionId) ?? collection!;
       for (const id of c.props.fieldIds) {
-        const f = collection!.fields.find((x) => x.id === id);
+        const f = table.fields.find((x) => x.id === id);
         if (!f) problems.push(`form field ${id} does not exist`);
         // 公式是算出来的（D-188）：表单里填不了（字段定义的 inForm）。附件可以在表单里选（D-263）。
         else if (fieldDefinition(f.type).inForm === false)

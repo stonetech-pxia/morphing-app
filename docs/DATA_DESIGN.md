@@ -57,6 +57,13 @@
 | `file`     | 一组 Morph 文件的 ID，最多 20 个（D-187、D-263） | 收据、照片   |
 | `formula`  | 不存值，按 `expression` 现算（D-188、D-246）     | 小计、含税   |
 | `link`     | 另一张表里一条记录的 ID（D-250）                 | 订单的客户   |
+| `time`     | `HH:mm`，几点几分（D-279）                       | 上班时间     |
+| `datetime` | `YYYY-MM-DDTHH:mm`，设备本地（D-279）            | 打卡、喂奶   |
+| `duration` | 整数分钟，显示 `h:mm`（D-279）                   | 休息、时长   |
+| `lookup`   | 不存值，引用的那条记录的某个字段（D-287）        | 工时的时薪   |
+| `rollup`   | 不存值，引用了这条的记录的统计（D-288）          | 客户总额     |
+| `previous` | 不存值，同组按日期的上一条的值（D-289）          | 上次里程     |
+| `schedule` | 一份重复规则（白名单 JSON，D-292）               | 浇水、续费   |
 
 每条记录还自带两个系统字段：`createdAt`、`updatedAt`，可以用来排序和筛选。
 
@@ -109,7 +116,7 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 "sort": { "field": "date", "direction": "desc" }
 ```
 
-可用的条件：`is` / `isNot` / `contains` / `gt` / `lt` / `isEmpty` / `isNotEmpty` / `inPeriod`。`inPeriod` 的取值有 `today`、`thisWeek`、`thisMonth`、`thisYear`、`last7days`、`last30days`。
+可用的条件：`is` / `isNot` / `contains` / `gt` / `lt` / `isEmpty` / `isNotEmpty` / `inPeriod`，日程字段还有 `due`（`today` / `overdue` / `thisWeek`，D-294）。`inPeriod` 的取值有 `today`、`thisWeek`、`thisMonth`、`thisYear`、`last7days`、`last30days`，D-285 加了 `last14days`、`last90days`、`last365days`、`thisTwoWeeks`（两周一段）、`thisHalfMonth`（1–15 号或 16 号到月底）。「今天」和一周的第一天按「设置 → 日期」（D-286）。
 
 **记录编辑页**由内核按字段定义自动生成，不可配置：点列表里的一条，或 `recordForm` 的 `button` 模式都会打开它，删除也在这里。
 
@@ -246,8 +253,10 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 
 公式字段（D-188）仍然只是解析成小树再计算的固定写法：
 
-- **条件**（D-246）：`if(左边 运算符 右边, 是的时候, 不是的时候)`，运算符 `> < >= <= =`，只能写在 `if` 的第一项；可以嵌套，嵌套层数（20）和长度（200 字）的上限不变。比较的两边有一边没有值时整个公式没有值。例：`if({total} >= 100, {total} * 0.9, {total})`。
+- **条件**（D-246）：`if(左边 运算符 右边, 是的时候, 不是的时候)`，运算符 `> < >= <= =`，只能写在 `if` 的第一项；可以嵌套，嵌套层数（20）和长度（当时 200 字，D-281 起 500 字）的上限不变。比较的两边有一边没有值时整个公式没有值。例：`if({total} >= 100, {total} * 0.9, {total})`。
 - **日期**（D-247）：日期字段 `{due}` 和 `today` 是日期，`days(从, 到)` 是相差的天数（到 − 从），两个日期可以在 `if` 里比较；日期不能加减乘除，结果必须是数字。例：「距离到期还有几天」= `days(today, {due})`，「逾期罚款」= `if({paid} > {due}, days({due}, {paid}) * 5, 0)`。日期字段为空时没有值；用到 `today` 的公式每天的值会变。
+- **函数和时间**（D-280）：`min`、`max`、`round(x, 位数?)`、`abs` 只算数字；`hours(从, 到)` / `minutes(从, 到)` 算两个时间或两个日期时间之间多久，两个时间字段跨午夜（到 < 从）时加 24 小时；`days()` 也认日期时间；时长字段是分钟数。例：「工时」= `hours({start}, {end}) - {break} / 60`。
+- **引用公式**（D-281）：公式可以引用同一张表的别的公式（用取整后的值），不能绕回自己；表达式最长 500 字（暂定，P-044）。
 
 ## 13. 分组统计、图表、表间引用（D-248 起）
 
@@ -260,3 +269,23 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 
 - **样板**（D-260）：`packages/core/src/samples/<id>.json` 一次带来几张数据表、几个页面、快捷操作、首页入口和提醒，只有表结构，**不含任何记录**。套用时按当前配置换成不重复的 ID（已有同名的表加 -2），用户原来的表和记录不动；表之间的引用字段、公式、提醒、按钮和快捷操作卡片都指向换过的 ID。表或页面放不下（各 20 个）时整套不套用。
 - **新手引导第 3 步**（D-261、D-262）：整套修改先进草稿，「应用」后是一个版本，撤销回到套用前；记录不在版本里，套用后记下的记录在撤销后仍留在本机（「撤销不会丢掉刚记的一笔账」，见第 4 节和开头的原则）。
+
+## 15. 按顺序的聚合、时间段、一天和一周从何时开始（D-284 起）
+
+- **按顺序的聚合**（D-284，schemaVersion 20）：`stat.aggregate` 加 `streak`（当前连续和最佳连续，`unit` 天 / 周 / 月，`perUnit` 每单位至少几条，`skipField` + `skipOption` 指定「跳过」的单选项）、`daysSince`、`avgInterval`、`distinctDays`，按 `dateField`（默认第一个日期字段，没有就用创建时间）算日子，可以配合 `groupBy` 每个选项一行。图表只能用 `distinctDays`。纯逻辑在 `core/sequence.ts`，接口是「一组记录 + 日期字段 + 参数 → 值」，以后汇总字段也用它。
+- **时间段**（D-285）：见上面筛选条件的 `inPeriod`；筛选、`in.records`、`file.filter`、统计和图表的筛选共用。
+- **一天、一周从何时开始**（D-286）：配置的 `calendar {dayStartHour? 0–6, weekStart? monday / sunday, twoWeekStart?}`。所有按天、按周归类的计算（时间段、图表分组、连续天数、日期字段默认的今天、创建时间算哪一天）都按它；逻辑在 `core/calendar.ts`。
+
+## 16. 查找、汇总、上一条（D-287 起）
+
+- **值怎么存**：不存。三种字段的定义在配置里（结构），值在手机上读记录时由 `core/related.ts` 算出来（`computeRecords`），放进记录的副本给列表、统计、图表、记录页、CSV 和报表用；写记录时去掉。AI 只能加、改这三种字段的定义（`addField`、`updateField`），看不到、也算不了任何值（D-042、D-113）。
+- **查找**（D-287）`lookup {linkField, fieldId}`：引用字段指向的那条记录的 `fieldId`，按那个字段的类型显示、筛选、排序、进公式和统计（`expandCollection`）。
+- **汇总**（D-288）`rollup {collectionId, linkField, aggregate, …}`：`collectionId` 里 `linkField` 指向这条的记录的计数、求和、平均、最小、最大、最近一条的值，或者 D-284 的按日子算的几种；可以带 `filter`、`period`。
+- **上一条**（D-289）`previous {fieldId, dateField?, groupBy?}`：同一张表、同一组里按日期排在前面、`fieldId` 有值的最近一条的值。
+- **检查**（D-290）：不能绕回自己，最多叠 3 层（P-045）。**性能**（D-291）：每张表每个引用字段建一次索引，不逐条扫表。
+
+## 17. 日程（D-292 起）
+
+- **日程字段**（D-292，schemaVersion 24）：每条记录存一份重复规则 `{repeat, …, perDay?}`（每天、每周几天、每段 N 次、每月几号、每 N 天、每年某天），用户在表单里设；字段的 `default` 是新记录的规则。逻辑在 `core/schedule.ts`。
+- **上次完成**（D-293）：`lastDone` 指向同一张表里的日期或日期时间字段；由规则和它算出下一次、今天该不该做、过期几天。
+- **用在别处**（D-294、D-295）：筛选 `due`；`inPeriod` / `gt` / `lt`、排序和公式都按下一次。提醒还不按日程（P8）。

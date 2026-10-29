@@ -1,5 +1,5 @@
-import type { Locale, Registry } from '@morph/core';
-import { createContext, useContext, type ReactNode } from 'react';
+import { calendarOf, type Calendar, type Locale, type Registry } from '@morph/core';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 
 import type { FilePlatform } from '../runtime/runner';
@@ -35,4 +35,10 @@ export function useWorkspaceContext(): WorkspaceContextValue {
 
 export function useWorkspace<T>(selector: (state: WorkspaceState) => T): T {
   return useStore(useWorkspaceContext().store, selector);
+}
+
+/** 一天、一周从什么时候开始（D-286）：按天、按周归类的计算都用它。 */
+export function useCalendar(): Calendar {
+  const settings = useWorkspace((s) => s.config?.calendar);
+  return useMemo(() => calendarOf({ calendar: settings }), [settings]);
 }

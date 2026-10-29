@@ -1,4 +1,4 @@
-import { CURRENT_SCHEMA_VERSION, HOME_PAGE_ID, pageTarget } from '@morph/core';
+import { CURRENT_SCHEMA_VERSION, HOME_PAGE_ID, calendarOf, pageTarget } from '@morph/core';
 import { MODELS } from '@morph/planner';
 import { useRouter } from 'expo-router';
 import { ScrollView, Text } from 'react-native';
@@ -85,6 +85,18 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         label={t(locale, 'remindersTitle')}
         value={t(locale, 'remindersRowHint', { n: env.config.reminders?.length ?? 0 })}
         onPress={env.locked ?? (() => router.push('/reminders'))}
+      />
+      <ListRow
+        palette={palette}
+        testID="settings-calendar"
+        icon="calendar"
+        label={t(locale, 'calendarTitle')}
+        value={t(
+          locale,
+          calendarOf(env.config).weekStart === 'sunday' ? 'calendarRowSunday' : 'calendarRowMonday',
+          { hour: calendarOf(env.config).dayStartHour },
+        )}
+        onPress={env.locked ?? (() => router.push('/calendar'))}
       />
       <ListRow
         palette={palette}

@@ -301,6 +301,23 @@ export function describeChange(
         lines.push(t(ctx.locale, 'describeRemoveReminder', { title: r?.title ?? op.reminderId }));
         break;
       }
+      case 'setCalendar':
+        if (op.dayStartHour !== undefined)
+          lines.push(t(ctx.locale, 'describeDayStart', { hour: op.dayStartHour ?? 0 }));
+        if (op.weekStart !== undefined)
+          lines.push(
+            t(
+              ctx.locale,
+              op.weekStart === 'sunday' ? 'describeWeekStartSunday' : 'describeWeekStartMonday',
+            ),
+          );
+        if (op.twoWeekStart !== undefined)
+          lines.push(
+            op.twoWeekStart === null
+              ? t(ctx.locale, 'describeTwoWeekStartReset')
+              : t(ctx.locale, 'describeTwoWeekStart', { date: op.twoWeekStart }),
+          );
+        break;
       case 'removeCollection':
         lines.push(
           t(ctx.locale, 'describe_Remove_data_table_from_the_app_records_1a3d2', {

@@ -1,22 +1,32 @@
 import { z } from 'zod';
 
 import type { FieldValue, LinkResolver } from '../field-values';
+import type { FormulaType } from '../formula';
 import type { Locale } from '../schema-primitives';
 import { checkboxField } from './checkbox';
 import { choiceField } from './choice';
 import { dateField } from './date';
+import { datetimeField } from './datetime';
 import type { Coerced, FieldCheckContext } from './define';
+import { durationField } from './duration';
 import { fileField } from './file';
 import { formulaField } from './formula';
 import { linkField } from './link';
+import { lookupField } from './lookup';
 import { moneyField } from './money';
 import { noteField } from './note';
 import { numberField } from './number';
+import { previousField } from './previous';
 import { ratingField } from './rating';
+import { rollupField } from './rollup';
+import { scheduleField } from './schedule';
 import { textField } from './text';
+import { timeField } from './time';
 
 export * from './define';
 export { ChoiceOptionSchema } from './choice';
+export { ROLLUP_AGGREGATES } from './rollup';
+export { SCHEDULE_LAST_DONE_TYPES } from './schedule';
 
 /** 全部字段类型。新类型加在最后（顺序就是配置 JSON Schema 里的顺序）。 */
 export const FIELDS = [
@@ -31,6 +41,13 @@ export const FIELDS = [
   fileField,
   linkField,
   formulaField,
+  timeField,
+  datetimeField,
+  durationField,
+  lookupField,
+  rollupField,
+  previousField,
+  scheduleField,
 ] as const;
 
 type Schemas<D extends readonly { schema: unknown }[]> = {
@@ -52,7 +69,7 @@ export interface FieldDefinition {
   read(field: Field, raw: unknown): FieldValue | undefined;
   shown?(field: Field, raw: unknown): FieldValue | undefined;
   write?(field: Field, input: unknown): Coerced;
-  initial?(field: Field, now: Date): FieldValue | undefined;
+  initial?(field: Field, now: Date, today: string): FieldValue | undefined;
   emptyNew?: FieldValue;
   format(field: Field, value: FieldValue, locale: Locale, links?: LinkResolver): string;
   csv?(field: Field, value: FieldValue): string;
@@ -61,16 +78,18 @@ export interface FieldDefinition {
     numeric?: true;
     total?: { rank: number; format(field: Field, sum: number, locale: Locale): string };
   };
-  formula?: 'number' | 'date';
+  formula?: FormulaType;
   numeric?: true;
   inForm?: false;
   filter: {
     is(field: Field, value: unknown): boolean;
     contains?: true;
-    compare?: 'number' | 'date';
+    compare?: 'number' | 'date' | 'time';
     period?: true;
     emptyOnly?: true;
+    schedule?: true;
   };
+  day?(field: Field, value: FieldValue): string;
   sort?: false | ((field: Field, value: FieldValue) => FieldValue);
   titleRank?: number;
   convertGroup?: string;

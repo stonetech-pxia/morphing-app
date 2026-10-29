@@ -3113,7 +3113,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf recordList>.props.filter? array items ..5
 <oneOf recordList>.props.filter[] object
 <oneOf recordList>.props.filter[].field = <oneOf recordList>.props.titleField
-<oneOf recordList>.props.filter[].op "is"|"isNot"|"contains"|"gt"|"lt"|"isEmpty"|"isNotEmpty"|"inPeriod"
+<oneOf recordList>.props.filter[].op "is"|"isNot"|"contains"|"gt"|"lt"|"isEmpty"|"isNotEmpty"|"inPeriod"|"due"
 <oneOf recordList>.props.filter[].value?
 <oneOf recordList>.props.filter[].value<anyOf 0> string len ..200
 <oneOf recordList>.props.filter[].value<anyOf 1> number
@@ -3141,12 +3141,17 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf stat>.type "stat"
 <oneOf stat>.props object
 <oneOf stat>.props.collectionId string /^[a-z][a-z0-9-]{0,47}$/
-<oneOf stat>.props.aggregate "count"|"sum"|"avg"|"min"|"max"
+<oneOf stat>.props.aggregate "count"|"sum"|"avg"|"min"|"max"|"streak"|"daysSince"|"avgInterval"|"distinctDays"
 <oneOf stat>.props.fieldId? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf stat>.props.filter? array items ..5
 <oneOf stat>.props.filter[] = <oneOf recordList>.props.filter[]
 <oneOf stat>.props.label string len 1..40
 <oneOf stat>.props.groupBy? string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf stat>.props.dateField? = <oneOf recordList>.props.titleField
+<oneOf stat>.props.unit? "day"|"week"|"month"
+<oneOf stat>.props.perUnit? integer 1..50
+<oneOf stat>.props.skipField? string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf stat>.props.skipOption? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf chart> object
 <oneOf chart>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf chart>.hidden? boolean
@@ -3155,7 +3160,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf chart>.props object
 <oneOf chart>.props.collectionId string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf chart>.props.kind "bar"|"line"|"pie"
-<oneOf chart>.props.aggregate "count"|"sum"|"avg"
+<oneOf chart>.props.aggregate "count"|"sum"|"avg"|"streak"|"daysSince"|"avgInterval"|"distinctDays"
 <oneOf chart>.props.fieldId? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf chart>.props.group "day"|"week"|"month"|"choice"
 <oneOf chart>.props.dateField? = <oneOf recordList>.props.titleField
@@ -3214,7 +3219,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 20
+.schemaVersion 24
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"
@@ -3348,10 +3353,100 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .collections[].fields[]<oneOf formula>.id string /^[a-z][a-z0-9-]{0,47}$/
 .collections[].fields[]<oneOf formula>.name string len 1..40
 .collections[].fields[]<oneOf formula>.type "formula"
-.collections[].fields[]<oneOf formula>.expression string len 1..200
+.collections[].fields[]<oneOf formula>.expression string len 1..500
 .collections[].fields[]<oneOf formula>.decimals? integer 0..4
 .collections[].fields[]<oneOf formula>.unit? string len 1..10
 .collections[].fields[]<oneOf formula>.currency? string /^[A-Z]{3}$/
+.collections[].fields[]<oneOf time> object
+.collections[].fields[]<oneOf time>.id string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf time>.name string len 1..40
+.collections[].fields[]<oneOf time>.required? boolean
+.collections[].fields[]<oneOf time>.type "time"
+.collections[].fields[]<oneOf datetime> object
+.collections[].fields[]<oneOf datetime>.id string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf datetime>.name string len 1..40
+.collections[].fields[]<oneOf datetime>.required? boolean
+.collections[].fields[]<oneOf datetime>.type "datetime"
+.collections[].fields[]<oneOf datetime>.default? "now"
+.collections[].fields[]<oneOf duration> object
+.collections[].fields[]<oneOf duration>.id string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf duration>.name string len 1..40
+.collections[].fields[]<oneOf duration>.required? boolean
+.collections[].fields[]<oneOf duration>.type "duration"
+.collections[].fields[]<oneOf duration>.default? integer 0..1000000
+.collections[].fields[]<oneOf lookup> object
+.collections[].fields[]<oneOf lookup>.id string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf lookup>.name string len 1..40
+.collections[].fields[]<oneOf lookup>.type "lookup"
+.collections[].fields[]<oneOf lookup>.linkField string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf lookup>.fieldId string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf rollup> object
+.collections[].fields[]<oneOf rollup>.id string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf rollup>.name string len 1..40
+.collections[].fields[]<oneOf rollup>.type "rollup"
+.collections[].fields[]<oneOf rollup>.collectionId string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf rollup>.linkField string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf rollup>.aggregate "count"|"sum"|"avg"|"min"|"max"|"latest"|"streak"|"daysSince"|"avgInterval"|"distinctDays"
+.collections[].fields[]<oneOf rollup>.fieldId? string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf rollup>.dateField?
+.collections[].fields[]<oneOf rollup>.dateField<anyOf 0> string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf rollup>.dateField<anyOf 1> "createdAt"|"updatedAt"
+.collections[].fields[]<oneOf rollup>.filter? array items ..5
+.collections[].fields[]<oneOf rollup>.filter[] object
+.collections[].fields[]<oneOf rollup>.filter[].field = .collections[].fields[]<oneOf rollup>.dateField
+.collections[].fields[]<oneOf rollup>.filter[].op "is"|"isNot"|"contains"|"gt"|"lt"|"isEmpty"|"isNotEmpty"|"inPeriod"|"due"
+.collections[].fields[]<oneOf rollup>.filter[].value?
+.collections[].fields[]<oneOf rollup>.filter[].value<anyOf 0> string len ..200
+.collections[].fields[]<oneOf rollup>.filter[].value<anyOf 1> number
+.collections[].fields[]<oneOf rollup>.filter[].value<anyOf 2> boolean
+.collections[].fields[]<oneOf rollup>.period? "today"|"thisWeek"|"thisMonth"|"thisYear"|"last7days"|"last30days"|"last14days"|"last90days"|"last365days"|"thisTwoWeeks"|"thisHalfMonth"
+.collections[].fields[]<oneOf rollup>.unit? "day"|"week"|"month"
+.collections[].fields[]<oneOf rollup>.perUnit? integer 1..50
+.collections[].fields[]<oneOf rollup>.skipField? string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf rollup>.skipOption? string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf previous> object
+.collections[].fields[]<oneOf previous>.id string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf previous>.name string len 1..40
+.collections[].fields[]<oneOf previous>.type "previous"
+.collections[].fields[]<oneOf previous>.fieldId string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf previous>.dateField? = .collections[].fields[]<oneOf rollup>.dateField
+.collections[].fields[]<oneOf previous>.groupBy? string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf schedule> object
+.collections[].fields[]<oneOf schedule>.id string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf schedule>.name string len 1..40
+.collections[].fields[]<oneOf schedule>.required? boolean
+.collections[].fields[]<oneOf schedule>.type "schedule"
+.collections[].fields[]<oneOf schedule>.default?
+.collections[].fields[]<oneOf schedule>.default<oneOf 0> object
+.collections[].fields[]<oneOf schedule>.default<oneOf 0>.repeat "daily"
+.collections[].fields[]<oneOf schedule>.default<oneOf 0>.perDay? integer 1..20
+.collections[].fields[]<oneOf schedule>.default<oneOf 1> object
+.collections[].fields[]<oneOf schedule>.default<oneOf 1>.repeat "weekdays"
+.collections[].fields[]<oneOf schedule>.default<oneOf 1>.days array items 1..7
+.collections[].fields[]<oneOf schedule>.default<oneOf 1>.days[] integer 1..7
+.collections[].fields[]<oneOf schedule>.default<oneOf 1>.perDay? integer 1..20
+.collections[].fields[]<oneOf schedule>.default<oneOf 2> object
+.collections[].fields[]<oneOf schedule>.default<oneOf 2>.repeat "times"
+.collections[].fields[]<oneOf schedule>.default<oneOf 2>.per "week"|"twoWeeks"|"month"|"year"
+.collections[].fields[]<oneOf schedule>.default<oneOf 2>.count integer 1..366
+.collections[].fields[]<oneOf schedule>.default<oneOf 2>.perDay? integer 1..20
+.collections[].fields[]<oneOf schedule>.default<oneOf 3> object
+.collections[].fields[]<oneOf schedule>.default<oneOf 3>.repeat "monthDays"
+.collections[].fields[]<oneOf schedule>.default<oneOf 3>.days array items 1..32
+.collections[].fields[]<oneOf schedule>.default<oneOf 3>.days[]
+.collections[].fields[]<oneOf schedule>.default<oneOf 3>.days[]<anyOf 0> integer 1..31
+.collections[].fields[]<oneOf schedule>.default<oneOf 3>.days[]<anyOf 1> -1
+.collections[].fields[]<oneOf schedule>.default<oneOf 3>.perDay? integer 1..20
+.collections[].fields[]<oneOf schedule>.default<oneOf 4> object
+.collections[].fields[]<oneOf schedule>.default<oneOf 4>.repeat "interval"
+.collections[].fields[]<oneOf schedule>.default<oneOf 4>.every integer 1..60
+.collections[].fields[]<oneOf schedule>.default<oneOf 4>.perDay? integer 1..20
+.collections[].fields[]<oneOf schedule>.default<oneOf 5> object
+.collections[].fields[]<oneOf schedule>.default<oneOf 5>.repeat "yearly"
+.collections[].fields[]<oneOf schedule>.default<oneOf 5>.month integer 1..12
+.collections[].fields[]<oneOf schedule>.default<oneOf 5>.day integer 1..31
+.collections[].fields[]<oneOf schedule>.default<oneOf 5>.perDay? integer 1..20
+.collections[].fields[]<oneOf schedule>.lastDone? string /^[a-z][a-z0-9-]{0,47}$/
 .reminders? array items ..20
 .reminders[] object
 .reminders[].id string /^[a-z][a-z0-9-]{0,47}$/
@@ -3365,5 +3460,9 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .reminders[].fieldId? string /^[a-z][a-z0-9-]{0,47}$/
 .reminders[].daysBefore? integer 0..30
 .reminders[].opens
+.calendar? object
+.calendar.dayStartHour? integer 0..6
+.calendar.weekStart? "monday"|"sunday"
+.calendar.twoWeekStart? string
 "
 `;

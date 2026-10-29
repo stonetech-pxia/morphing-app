@@ -4,6 +4,7 @@ import { formatValue, prepareRecordValues, readValue, recordsToCsv, type DataRec
 import {
   FIELDS,
   FieldSchema,
+  fieldDefinition,
   type Collection,
   type Component,
   type Condition,
@@ -11,6 +12,7 @@ import {
   type Locale,
   type WorkspaceConfig,
 } from './schema';
+import { expandCollection } from './related';
 import { registry, workspace } from './test-helpers';
 import { validateWorkspace } from './validate';
 
@@ -61,6 +63,10 @@ it.each(LOCALES)('a table with every field example is valid in %s', (locale) => 
 
 describe.each(FIELDS.map((d) => [d.type, d] as const))('field %s', (_type, def) => {
   const field = def.example as Field;
+  // 查找、汇总、上一条按它们显示的那种字段筛选、排序、统计、进公式（D-287–D-289）。
+  const shown = fieldDefinition(
+    expandCollection([table], table).fields.find((f) => f.id === field.id)!.type,
+  );
 
   it('has a structure, names and an AI doc', () => {
     expect(FieldSchema.safeParse(field).success).toBe(true);
@@ -102,19 +108,26 @@ describe.each(FIELDS.map((d) => [d.type, d] as const))('field %s', (_type, def) 
       issues(config('en', [list({ filter: [{ field: field.id, ...cond } as Condition] })]));
     expect(at({ op: 'isEmpty' })).toEqual([]);
     expect(at({ op: 'contains', value: 'a' }).length === 0).toBe(
-      def.filter.contains === true && !def.filter.emptyOnly,
+      shown.filter.contains === true && !shown.filter.emptyOnly,
     );
     expect(at({ op: 'inPeriod', value: 'thisMonth' }).length === 0).toBe(
-      def.filter.period === true && !def.filter.emptyOnly,
+      shown.filter.period === true && !shown.filter.emptyOnly,
     );
-    const compareValue = def.filter.compare === 'date' ? '2026-10-01' : 1;
+    const compareValue =
+      shown.filter.compare === 'date'
+        ? '2026-10-01'
+        : shown.filter.compare === 'time'
+          ? '09:00'
+          : 1;
     expect(at({ op: 'gt', value: compareValue }).length === 0).toBe(
-      def.filter.compare !== undefined && !def.filter.emptyOnly,
+      shown.filter.compare !== undefined && !shown.filter.emptyOnly,
     );
-    if (def.exampleValue !== undefined) {
+    expect(at({ op: 'due', value: 'today' }).length === 0).toBe(def.filter.schedule === true);
+    // 日程的值是一份规则（D-292），不能拿来比 is。
+    if (def.exampleValue !== undefined && !def.filter.schedule) {
       // 附件的值是一组文件 ID，筛选时比的是其中一个。
       const value = Array.isArray(def.exampleValue) ? def.exampleValue[0] : def.exampleValue;
-      expect(at({ op: 'is', value }).length === 0).toBe(!def.filter.emptyOnly);
+      expect(at({ op: 'is', value }).length === 0).toBe(!shown.filter.emptyOnly);
     }
   });
 
@@ -127,21 +140,26 @@ describe.each(FIELDS.map((d) => [d.type, d] as const))('field %s', (_type, def) 
     expect(issues(config('en', [form])).length === 0).toBe(def.inForm !== false);
     expect(
       issues(config('en', [list({ sort: { field: field.id, direction: 'asc' } })])).length === 0,
-    ).toBe(def.sort !== false);
+    ).toBe(shown.sort !== false);
     const stat = {
       id: 'stat',
       type: 'stat',
       props: { collectionId: 'expenses', aggregate: 'sum', fieldId: field.id, label: 'Sum' },
     } as Component;
-    expect(issues(config('en', [stat])).length === 0).toBe(def.numeric === true);
+    expect(issues(config('en', [stat])).length === 0).toBe(shown.numeric === true);
     const formula: Field = {
       id: 'zz',
       name: 'Uses it',
       type: 'formula',
-      expression: def.formula === 'date' ? `days({${field.id}}, today)` : `{${field.id}} + 1`,
+      expression:
+        shown.formula === 'date'
+          ? `days({${field.id}}, today)`
+          : shown.formula === 'time' || shown.formula === 'datetime'
+            ? `hours({${field.id}}, {${field.id}})`
+            : `{${field.id}} + 1`,
     };
     expect(issues(config('en', [], [...table.fields, formula])).length === 0).toBe(
-      def.formula !== undefined,
+      shown.formula !== undefined,
     );
   });
 });

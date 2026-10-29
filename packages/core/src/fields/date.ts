@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { isValidDate, localDate } from '../field-values';
+import { isValidDate } from '../field-values';
 import { localeTag } from '../localization';
 import { defineField, fieldBase, isText, type FieldDefinitionOf } from './define';
 
@@ -10,7 +10,7 @@ const schema = z.strictObject({
   default: z.literal('today').optional(),
 });
 
-/** 日期 YYYY-MM-DD（设备本地日期）；default today = 新记录填今天。 */
+/** 日期 YYYY-MM-DD（设备本地日期）；default today = 新记录填今天（一天从几点开始见 D-286）。 */
 export const dateField: FieldDefinitionOf<'date', typeof schema> = defineField({
   type: 'date',
   schema,
@@ -20,7 +20,7 @@ export const dateField: FieldDefinitionOf<'date', typeof schema> = defineField({
     const s = typeof input === 'string' ? input.trim() : '';
     return isValidDate(s) ? { value: s } : { issue: 'invalid' };
   },
-  initial: (f, now) => (f.default === undefined ? undefined : localDate(now)),
+  initial: (f, _now, today) => (f.default === undefined ? undefined : today),
   format: (_f, v, locale) =>
     locale === 'fr'
       ? new Intl.DateTimeFormat(localeTag(locale)).format(new Date(`${v}T12:00:00`))

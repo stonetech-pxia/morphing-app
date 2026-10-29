@@ -1,7 +1,14 @@
 import { createDefaultWorkspace } from '../defaults';
 import { applyOps, type Op } from '../ops';
 import type { Registry } from '../registry';
-import { allComponents, type Component, type Locale, type WorkspaceConfig } from '../schema';
+import {
+  allComponents,
+  type Collection,
+  type Component,
+  type Field,
+  type Locale,
+  type WorkspaceConfig,
+} from '../schema';
 import { parseRichText } from '../richtext';
 import { createStarterWorkspace } from '../starter';
 import { templateOps } from '../templates';
@@ -28,8 +35,18 @@ function sameValue(a: unknown, b: unknown): boolean {
 
 /** starter：新用户的第一个版本（精简首页 + 工具箱，D-181、D-182）。 */
 /** visaHomeScreen：visa 再把签证照片放到手机桌面（D-271）。 */
+/** habits：一张打卡表（习惯、完成 / 跳过、日期）和显示它的页面（D-284）。 */
+/** linked：互相引用的表（习惯 ← 打卡、工作 ← 工时、客户 ← 订单）和一张加油表，每张一个页面（D-287–D-289）。 */
 export type EvalSetup =
-  'default' | 'pdf' | 'pdfBelowFiles' | 'budget' | 'visa' | 'visaHomeScreen' | 'starter';
+  | 'default'
+  | 'pdf'
+  | 'pdfBelowFiles'
+  | 'budget'
+  | 'visa'
+  | 'visaHomeScreen'
+  | 'starter'
+  | 'habits'
+  | 'linked';
 
 export type OpsPlan = Extract<Plan, { kind: 'ops' }>;
 
@@ -80,6 +97,10 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
       ops.push({ op: 'setWorkflowHomeScreen', workflowId: 'visa-photo', homeScreen: true });
   } else if (setup === 'budget') {
     ops.push(...templateOps('budget', createDefaultWorkspace(locale), locale));
+  } else if (setup === 'habits') {
+    ops.push(...habitOps(locale));
+  } else if (setup === 'linked') {
+    ops.push(...linkedOps(locale));
   } else if (setup !== 'default') ops.push({ op: 'installTool', toolId: 'pdf' });
   if (setup === 'pdfBelowFiles') {
     ops.push({ op: 'moveComponent', pageId: 'home', componentId: 'card-pdf', toIndex: 3 });
@@ -89,6 +110,231 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
   const result = applyOps(base, ops, { registry, locale });
   if (!result.ok) throw new Error(result.error);
   return result.config;
+}
+
+/** 打卡表和它的页面（三种语言的名字）。 */
+function habitOps(locale: Locale): Op[] {
+  const names: Record<Locale, Record<'table' | 'habit' | 'run' | 'read' | 'status', string>> = {
+    zh: { table: '打卡', habit: '习惯', run: '跑步', read: '读书', status: '状态' },
+    en: { table: 'Check-ins', habit: 'Habit', run: 'Run', read: 'Read', status: 'Status' },
+    fr: { table: 'Pointages', habit: 'Habitude', run: 'Course', read: 'Lecture', status: 'État' },
+  };
+  const more: Record<Locale, Record<'done' | 'skip' | 'date' | 'page', string>> = {
+    zh: { done: '完成', skip: '跳过', date: '日期', page: '习惯' },
+    en: { done: 'Done', skip: 'Skipped', date: 'Date', page: 'Habits' },
+    fr: { done: 'Fait', skip: 'Sauté', date: 'Date', page: 'Habitudes' },
+  };
+  const { table, habit, run, read, status } = names[locale];
+  const { done, skip, date, page } = more[locale];
+  return [
+    {
+      op: 'addCollection',
+      collection: {
+        id: 'checkins',
+        name: table,
+        fields: [
+          {
+            id: 'habit',
+            name: habit,
+            type: 'choice',
+            options: [
+              { id: 'run', label: run },
+              { id: 'read', label: read },
+            ],
+          },
+          {
+            id: 'status',
+            name: status,
+            type: 'choice',
+            options: [
+              { id: 'done', label: done },
+              { id: 'skip', label: skip },
+            ],
+            default: 'done',
+          },
+          { id: 'date', name: date, type: 'date', default: 'today' },
+        ],
+      },
+    },
+    {
+      op: 'addPage',
+      page: {
+        id: 'habits',
+        title: page,
+        components: [
+          {
+            id: 'list',
+            type: 'recordList',
+            props: { collectionId: 'checkins', display: 'list', titleField: 'habit', limit: 20 },
+          },
+        ],
+      },
+    },
+  ];
+}
+
+/** 互相引用的几张表，每张一个列表页面（名字按语言，ID 都一样）。 */
+function linkedOps(locale: Locale): Op[] {
+  const names = {
+    zh: [
+      '习惯',
+      '打卡',
+      '日期',
+      '工作',
+      '时薪',
+      '工时',
+      '小时',
+      '客户',
+      '订单',
+      '金额',
+      '加油',
+      '车',
+      '里程',
+      '名字',
+    ],
+    en: [
+      'Habits',
+      'Check-ins',
+      'Date',
+      'Jobs',
+      'Hourly rate',
+      'Shifts',
+      'Hours',
+      'Clients',
+      'Orders',
+      'Amount',
+      'Fuel',
+      'Car',
+      'Odometer',
+      'Name',
+    ],
+    fr: [
+      'Habitudes',
+      'Pointages',
+      'Date',
+      'Emplois',
+      'Taux horaire',
+      'Heures travaillées',
+      'Heures',
+      'Clients',
+      'Commandes',
+      'Montant',
+      'Pleins',
+      'Voiture',
+      'Kilométrage',
+      'Nom',
+    ],
+  }[locale];
+  const [
+    habits,
+    checkins,
+    date,
+    jobs,
+    rate,
+    shifts,
+    hours,
+    clients,
+    orders,
+    amount,
+    fuel,
+    car,
+    odometer,
+    name,
+  ] = names as [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+  const currency = locale === 'zh' ? 'CNY' : locale === 'fr' ? 'EUR' : 'USD';
+  const tables: Collection[] = [
+    { id: 'habits', name: habits, fields: [{ id: 'name', name, type: 'text' }] },
+    {
+      id: 'checkins',
+      name: checkins,
+      fields: [
+        { id: 'habit', name: habits, type: 'link', collectionId: 'habits' },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+      ],
+    },
+    {
+      id: 'jobs',
+      name: jobs,
+      fields: [
+        { id: 'name', name, type: 'text' },
+        { id: 'rate', name: rate, type: 'money', currency },
+      ],
+    },
+    {
+      id: 'shifts',
+      name: shifts,
+      fields: [
+        { id: 'job', name: jobs, type: 'link', collectionId: 'jobs' },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+        { id: 'hours', name: hours, type: 'number', decimals: 2 },
+      ],
+    },
+    { id: 'clients', name: clients, fields: [{ id: 'name', name, type: 'text' }] },
+    {
+      id: 'orders',
+      name: orders,
+      fields: [
+        { id: 'client', name: clients, type: 'link', collectionId: 'clients' },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+        { id: 'amount', name: amount, type: 'money', currency },
+      ],
+    },
+    {
+      id: 'fuel',
+      name: fuel,
+      fields: [
+        {
+          id: 'car',
+          name: car,
+          type: 'choice',
+          options: [
+            { id: 'car-a', label: 'A' },
+            { id: 'car-b', label: 'B' },
+          ],
+        },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+        { id: 'odometer', name: odometer, type: 'number', unit: 'km' },
+      ],
+    },
+  ];
+  const title = (c: Collection) => c.fields.find((f) => f.type === 'text')?.id ?? 'date';
+  return tables.flatMap((collection): Op[] => [
+    { op: 'addCollection', collection },
+    {
+      op: 'addPage',
+      page: {
+        id: `page-${collection.id}`,
+        title: collection.name,
+        components: [
+          {
+            id: `list-${collection.id}`,
+            type: 'recordList',
+            props: {
+              collectionId: collection.id,
+              display: 'list',
+              titleField: title(collection),
+              limit: 50,
+            },
+          },
+        ],
+      },
+    },
+  ]);
 }
 
 const home = (c: WorkspaceConfig) => c.pages.find((p) => p.id === 'home')!;
@@ -3453,6 +3699,23 @@ const quickActionListOn = (kind: string) => (c: WorkspaceConfig) =>
     ? null
     : `missing a ${kind} quickActionList on home`;
 
+/** 工时、睡眠这类表（D-279、D-280）：两个时间或日期时间字段，一个用 hours() / minutes() 算时长的公式。 */
+function workHoursProblem(c: WorkspaceConfig, needsBreak = true): string | null {
+  const table = c.collections.find(
+    (x) => x.fields.filter((f) => f.type === 'time' || f.type === 'datetime').length >= 2,
+  );
+  if (!table)
+    return `expected a table with two time or datetime fields: ${JSON.stringify(c.collections)}`;
+  const formula = table.fields.find(
+    (f) => f.type === 'formula' && /\b(hours|minutes)\(/.test(f.expression),
+  );
+  if (!formula)
+    return `expected a formula using hours() or minutes(): ${JSON.stringify(table.fields)}`;
+  if (needsBreak && !table.fields.some((f) => f.type === 'duration' || f.type === 'number'))
+    return `expected a duration (or number) field for the break: ${JSON.stringify(table.fields)}`;
+  return null;
+}
+
 const LOOK_CASES: EvalCase[] = [
   {
     id: 'LK1',
@@ -3948,6 +4211,38 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     },
   },
   {
+    id: 'FM3',
+    input: '给记账表加一个公式字段，把金额四舍五入到整数',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const formula = c.collections.flatMap((x) => x.fields).find((f) => f.type === 'formula');
+        return formula?.type === 'formula' && /round\(/.test(formula.expression)
+          ? null
+          : `expected a formula using round(…), got ${JSON.stringify(formula)}`;
+      },
+    },
+  },
+  {
+    id: 'TM1',
+    input: '做一个上下班打卡的表：记上班时间、下班时间和中间休息多久，自动算出每天工作几个小时',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: (c) => workHoursProblem(c) },
+  },
+  {
+    id: 'TM2',
+    input: 'Make a sleep log: when I went to bed, when I woke up, and how many hours I slept',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: (c) => workHoursProblem(c, false) },
+  },
+  {
     id: 'SG1',
     input: '记账页面加一个统计：每个分类一共花了多少',
     locale: 'zh',
@@ -4195,6 +4490,222 @@ const visaOnHomePageOnly = (c: WorkspaceConfig) =>
           .join(',')}`
       : null;
 
+/** 打卡表上的统计（D-284）。 */
+const habitStat =
+  (want: (props: Record<string, unknown>) => boolean, what: string) => (c: WorkspaceConfig) =>
+    c.pages.some((p) =>
+      allComponents(p).some(
+        (x) => x.type === 'stat' && x.props.collectionId === 'checkins' && want(x.props),
+      ),
+    )
+      ? null
+      : `expected a stat on checkins with ${what}`;
+
+const SEQUENCE_CASES: readonly EvalCase[] = [
+  {
+    id: 'ST1',
+    input: '给每个习惯显示连续天数',
+    locale: 'zh',
+    setup: 'habits',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: habitStat(
+        (p) => p.aggregate === 'streak' && p.groupBy === 'habit' && (p.unit ?? 'day') === 'day',
+        'aggregate streak grouped by habit',
+      ),
+    },
+  },
+  {
+    id: 'ST2-en',
+    input:
+      'Show my streak for each habit, where a week counts when I do it at least 3 times; weeks marked Skipped shouldn’t break it',
+    locale: 'en',
+    setup: 'habits',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: habitStat(
+        (p) =>
+          p.aggregate === 'streak' &&
+          p.groupBy === 'habit' &&
+          p.unit === 'week' &&
+          p.perUnit === 3 &&
+          p.skipField === 'status' &&
+          p.skipOption === 'skip',
+        'a weekly streak of 3 per habit, skipping status = skip',
+      ),
+    },
+  },
+  {
+    id: 'ST3-fr',
+    input: 'Affiche depuis combien de jours je n’ai pas fait chaque habitude',
+    locale: 'fr',
+    setup: 'habits',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: habitStat(
+        (p) => p.aggregate === 'daysSince' && p.groupBy === 'habit',
+        'aggregate daysSince grouped by habit',
+      ),
+    },
+  },
+  {
+    id: 'ST4',
+    input: '习惯页面加一个柱状图：最近 8 周每周打卡了几天',
+    locale: 'zh',
+    setup: 'habits',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.pages.some((p) =>
+          allComponents(p).some(
+            (x) =>
+              x.type === 'chart' &&
+              x.props.aggregate === 'distinctDays' &&
+              x.props.group === 'week' &&
+              (x.props.periods ?? 8) === 8,
+          ),
+        )
+          ? null
+          : 'expected a weekly chart of distinctDays',
+    },
+  },
+  {
+    id: 'CAL1',
+    input: '一天从凌晨 2 点开始算',
+    locale: 'zh',
+    setup: 'habits',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.calendar?.dayStartHour === 2
+          ? null
+          : `expected calendar.dayStartHour 2, got ${JSON.stringify(c.calendar)}`,
+    },
+  },
+  {
+    id: 'CAL2-en',
+    input: 'My weeks start on Sunday',
+    locale: 'en',
+    setup: 'habits',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.calendar?.weekStart === 'sunday' && c.calendar.dayStartHour === undefined
+          ? null
+          : `expected only calendar.weekStart sunday, got ${JSON.stringify(c.calendar)}`,
+    },
+  },
+];
+
+/** 日程（D-292–D-296）：有一个日程字段；want 检查它和用到它的列表。 */
+function scheduleProblem(
+  c: WorkspaceConfig,
+  want: {
+    lastDone?: boolean;
+    due?: 'today' | 'overdue' | 'thisWeek';
+    sortAsc?: boolean;
+    rule?: (rule: Record<string, unknown> | undefined) => boolean;
+  },
+): string | null {
+  const table = c.collections.find((t) => t.fields.some((f) => f.type === 'schedule'));
+  const field = table?.fields.find((f) => f.type === 'schedule');
+  if (!table || field?.type !== 'schedule') return 'expected a table with a schedule field';
+  if (want.rule && !want.rule(field.default as Record<string, unknown> | undefined))
+    return `unexpected default rule ${JSON.stringify(field.default)}`;
+  if (want.lastDone) {
+    const source = table.fields.find((f) => f.id === field.lastDone);
+    if (source?.type !== 'date' && source?.type !== 'datetime')
+      return `expected lastDone on a date field, got ${JSON.stringify(field)}`;
+  }
+  const props = c.pages.flatMap((p) =>
+    allComponents(p).flatMap((x) =>
+      x.type === 'recordList' && x.props.collectionId === table.id
+        ? [x.props as Record<string, unknown>]
+        : [],
+    ),
+  );
+  if (
+    want.due &&
+    !props.some((p) =>
+      ((p.filter ?? []) as { field: string; op: string; value?: unknown }[]).some(
+        (f) => f.field === field.id && f.op === 'due' && f.value === want.due,
+      ),
+    )
+  )
+    return `expected a list of ${table.id} filtered with due ${want.due}`;
+  if (
+    want.sortAsc &&
+    !props.some((p) => {
+      const sort = p.sort as { field: string; direction: string } | undefined;
+      return sort?.field === field.id && sort.direction === 'asc';
+    })
+  )
+    return `expected a list of ${table.id} sorted by ${field.id} ascending`;
+  return null;
+}
+
+const SCHEDULE_CASES: readonly EvalCase[] = [
+  {
+    id: 'SC1',
+    input: '做一个浇水的表：每盆植物每 7 天浇一次，首页列出今天该浇的',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    next: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        scheduleProblem(c, {
+          lastDone: true,
+          due: 'today',
+          rule: (r) => r?.repeat === 'interval' && r.every === 7,
+        }),
+    },
+  },
+  {
+    id: 'SC2',
+    input: '做一个订阅的表，订阅按月续费，列表按下次扣费日期排',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    next: true,
+    expect: { kind: 'ops', check: (c) => scheduleProblem(c, { sortAsc: true }) },
+  },
+  {
+    id: 'SC3-en',
+    input:
+      'Make a chores table where each chore repeats on its own schedule, and show the overdue ones on the home page',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    next: true,
+    expect: { kind: 'ops', check: (c) => scheduleProblem(c, { due: 'overdue' }) },
+  },
+  {
+    id: 'SC4-fr',
+    input:
+      'Crée un tableau de tâches ménagères à faire 3 fois par semaine, avec la liste de ce qui est à faire cette semaine',
+    locale: 'fr',
+    setup: 'default',
+    mock: false,
+    next: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        scheduleProblem(c, {
+          due: 'thisWeek',
+          rule: (r) => r?.repeat === 'times' && r.per === 'week' && r.count === 3,
+        }),
+    },
+  },
+];
+
 const HOME_SCREEN_CASES: readonly EvalCase[] = [
   {
     id: 'HS1',
@@ -4318,7 +4829,175 @@ const HOME_SCREEN_CASES: readonly EvalCase[] = [
   },
 ];
 
+/** 一张表上某种计算字段（查找、汇总、上一条）满足 want。 */
+const relatedField =
+  (collectionId: string, want: (f: Field, c: Collection) => boolean, what: string) =>
+  (config: WorkspaceConfig) => {
+    const c = config.collections.find((x) => x.id === collectionId);
+    return c && c.fields.some((f) => want(f, c)) ? null : `expected on ${collectionId}: ${what}`;
+  };
+
+/** 这个字段显示在这张表的某个记录列表里。 */
+const listed = (collectionId: string, type: Field['type']) => (config: WorkspaceConfig) => {
+  const ids = new Set(
+    config.collections
+      .find((x) => x.id === collectionId)
+      ?.fields.filter((f) => f.type === type)
+      .map((f) => f.id),
+  );
+  return config.pages.some((p) =>
+    allComponents(p).some(
+      (x) =>
+        x.type === 'recordList' &&
+        x.props.collectionId === collectionId &&
+        [x.props.titleField, ...(x.props.subtitleFields ?? []), x.props.trailingField].some(
+          (f) => f !== undefined && ids.has(f),
+        ),
+    ),
+  )
+    ? null
+    : `expected a recordList of ${collectionId} showing its ${type} field`;
+};
+
+const RELATED_CASES: readonly EvalCase[] = [
+  {
+    id: 'RL1',
+    input: '给每个习惯显示连续天数',
+    locale: 'zh',
+    setup: 'linked',
+    mock: false,
+    next: true,
+    expect: {
+      kind: 'ops',
+      check: all(
+        relatedField(
+          'habits',
+          (f) =>
+            f.type === 'rollup' &&
+            f.collectionId === 'checkins' &&
+            f.linkField === 'habit' &&
+            f.aggregate === 'streak',
+          'a streak rollup over checkins.habit',
+        ),
+        listed('habits', 'rollup'),
+      ),
+    },
+  },
+  {
+    id: 'RL2',
+    input: '工时按工作的时薪算工资',
+    locale: 'zh',
+    setup: 'linked',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: relatedField(
+        'shifts',
+        (f, c) => {
+          if (f.type !== 'formula') return false;
+          const rate = c.fields.find(
+            (x) => x.type === 'lookup' && x.linkField === 'job' && x.fieldId === 'rate',
+          );
+          return (
+            !!rate && f.expression.includes(`{${rate.id}}`) && f.expression.includes('{hours}')
+          );
+        },
+        'a formula of hours times a lookup of jobs.rate',
+      ),
+    },
+  },
+  {
+    id: 'RL3-en',
+    input: "Show each client's total order amount",
+    locale: 'en',
+    setup: 'linked',
+    mock: false,
+    next: true,
+    expect: {
+      kind: 'ops',
+      check: all(
+        relatedField(
+          'clients',
+          (f) =>
+            f.type === 'rollup' &&
+            f.collectionId === 'orders' &&
+            f.linkField === 'client' &&
+            f.aggregate === 'sum' &&
+            f.fieldId === 'amount',
+          'a sum rollup of orders.amount',
+        ),
+        listed('clients', 'rollup'),
+      ),
+    },
+  },
+  {
+    id: 'RL4-fr',
+    input: 'Affiche pour chaque client la date de sa dernière commande',
+    locale: 'fr',
+    setup: 'linked',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: relatedField(
+        'clients',
+        (f) =>
+          f.type === 'rollup' &&
+          f.collectionId === 'orders' &&
+          f.aggregate === 'latest' &&
+          (f.fieldId === undefined || f.fieldId === 'date'),
+        'a latest rollup of the order date',
+      ),
+    },
+  },
+  {
+    id: 'RL5',
+    input: '每次加油显示和上一次之间开了多少公里，两辆车分开算',
+    locale: 'zh',
+    setup: 'linked',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: relatedField(
+        'fuel',
+        (f, c) => {
+          if (f.type !== 'formula') return false;
+          const prev = c.fields.find(
+            (x) => x.type === 'previous' && x.fieldId === 'odometer' && x.groupBy === 'car',
+          );
+          return (
+            !!prev && f.expression.includes(`{${prev.id}}`) && f.expression.includes('{odometer}')
+          );
+        },
+        'a formula of odometer minus a previous odometer grouped by car',
+      ),
+    },
+  },
+  {
+    id: 'RL6-en',
+    input: 'For each habit show how many times I did it this week',
+    locale: 'en',
+    setup: 'linked',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: relatedField(
+        'habits',
+        (f) =>
+          f.type === 'rollup' &&
+          f.collectionId === 'checkins' &&
+          f.aggregate === 'count' &&
+          (f.period === 'thisWeek' ||
+            (f.filter ?? []).some((x) => x.op === 'inPeriod' && x.value === 'thisWeek')),
+        'a count rollup of this week',
+      ),
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...SEQUENCE_CASES,
+  ...RELATED_CASES,
+  ...SCHEDULE_CASES,
   ...HOME_SCREEN_CASES,
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,

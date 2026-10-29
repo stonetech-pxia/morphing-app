@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import type { Collection, WorkspaceConfig } from '../schema';
 import { formatNumber, round, type FieldValue, type LinkResolver } from '../field-values';
+import type { FormulaType } from '../formula';
 import { IdSchema, boundedText, type Locale } from '../schema-primitives';
 
 // 字段类型登记表：每种字段一份定义（新增字段的步骤见 docs/FIELDS.md）。结构、写入和读取、显示、
@@ -23,18 +24,22 @@ export interface FieldFilter<F> {
   is: (field: F, value: unknown) => boolean;
   /** contains（文字包含）。 */
   contains?: true;
-  /** gt / lt 比较的是数字还是日期（YYYY-MM-DD）。不写：不能比较。 */
-  compare?: 'number' | 'date';
+  /** gt / lt 比较的是数字、日期（YYYY-MM-DD）还是时间（HH:mm）。不写：不能比较。 */
+  compare?: 'number' | 'date' | 'time';
   /** inPeriod（今天、本周……）。 */
   period?: true;
   /** 只能看有没有值（isEmpty / isNotEmpty），例如引用字段（D-250）。 */
   emptyOnly?: true;
+  /** due（今天该做、已过期、这周要做，D-294）：日程字段。 */
+  schedule?: true;
 }
 
 /** 检查这个字段定义本身（validate.ts）。只写文字时是数据问题（code data）。 */
 export interface FieldCheckContext {
   config: WorkspaceConfig;
   collection: Collection;
+  /** 同一张表，查找、汇总、上一条换成它们显示的那种字段（D-287–D-289）：公式按它检查。 */
+  view: Collection;
 }
 
 type Instance<S extends z.ZodObject> = z.infer<S>;
@@ -51,8 +56,8 @@ export interface FieldSpec<T extends string, S extends z.ZodObject> {
   shown?: (field: Instance<S>, raw: unknown) => FieldValue | undefined;
   /** 表单输入 → 字段值（写入时严格校验）。不写：不存进记录（公式，D-188）。 */
   write?: (field: Instance<S>, input: unknown) => Coerced;
-  /** 新记录里的默认值；不写就用定义里的 default。 */
-  initial?: (field: Instance<S>, now: Date) => FieldValue | undefined;
+  /** 新记录里的默认值；不写就用定义里的 default。today 是按「一天从几点开始」算的今天（D-286）。 */
+  initial?: (field: Instance<S>, now: Date, today: string) => FieldValue | undefined;
   /** 新记录里没有值时存这个（没勾选的勾选框是 false）。 */
   emptyNew?: FieldValue;
   /** 显示文字（值已经读过、不为空）。 */
@@ -66,13 +71,18 @@ export interface FieldSpec<T extends string, S extends z.ZodObject> {
     numeric?: true;
     total?: { rank: number; format: (field: Instance<S>, sum: number, locale: Locale) => string };
   };
-  /** 公式里能不能引用它、当作数字还是日期（D-188、D-247）。 */
-  formula?: 'number' | 'date';
+  /** 公式里能不能引用它、当作哪一种值（D-188、D-247、D-280）。 */
+  formula?: FormulaType;
   /** 统计和图表能不能求和、平均（stat、chart 的 fieldId）。 */
   numeric?: true;
   /** 记录表单里能不能填（公式是算出来的）。 */
   inForm?: false;
   filter: FieldFilter<Instance<S>>;
+  /**
+   * 这个值落在哪一天（本地日期 YYYY-MM-DD）。日期时间（D-279）写它：筛选（is、gt / lt、inPeriod）和
+   * 图表的按时间分组都按这一天算。
+   */
+  day?: (field: Instance<S>, value: FieldValue) => string;
   /** 排序：false = 不能按它排；不写就按值排。 */
   sort?: false | ((field: Instance<S>, value: FieldValue) => FieldValue);
   /** 被引用时（D-250）显示哪个字段：数字小的优先，不写的不显示。 */

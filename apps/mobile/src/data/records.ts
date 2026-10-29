@@ -1,18 +1,21 @@
 import {
   RECORD_LIMITS,
+  expandCollection,
   linkedCollectionIds,
+  loadComputedRecords,
   loadLinkResolver,
   prepareRecordValues,
+  type Calendar,
   type Collection,
   type DataRecord,
   type FieldIssue,
   type LinkResolver,
 } from '@morph/core';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { t } from '../i18n';
 import { newAssetId } from '../runtime/runner';
-import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { useCalendar, useWorkspace, useWorkspaceContext } from '../workspace/context';
 
 // 用户记录的读写。只由用户在页面上的操作触发，直接写数据库，不经过 AI、不生成版本
 // （docs/DATA_DESIGN.md）。AI 拿到的只有 WorkspaceConfig，而记录从不进入配置。
@@ -30,6 +33,42 @@ export function useRecords(collectionId: string): DataRecord[] | null {
     };
   }, [repo, collectionId, version]);
   return records;
+}
+
+/**
+ * 一张表的记录，连同查找、汇总、上一条算出来的值（D-291，只在本机算，related.ts），和显示用的表（这几种
+ * 字段换成它们显示的那种字段）。会读它要用到的别的表的记录；增删改后、表的定义变了重新算。
+ * collections、cal 用页面正在显示的那份配置（草稿预览时是草稿）。写记录仍然用原来的表。
+ */
+export function useComputedRecords(
+  collections: readonly Collection[],
+  collection: Collection | undefined,
+  cal: Calendar,
+): { view: Collection | undefined; records: DataRecord[] | null } {
+  const { repo } = useWorkspaceContext();
+  const version = useWorkspace((s) => s.recordsVersion);
+  const [loaded, setLoaded] = useState<{ view: Collection; records: DataRecord[] } | null>(null);
+  const calKey = JSON.stringify(cal);
+  useEffect(() => {
+    if (!collection) return;
+    let alive = true;
+    void loadComputedRecords(
+      (id) => repo.listRecords(id),
+      collections,
+      collection,
+      new Date(),
+      JSON.parse(calKey) as Calendar,
+    ).then((r) => alive && setLoaded(r));
+    return () => {
+      alive = false;
+    };
+  }, [repo, collections, collection, calKey, version]);
+  const view = useMemo(
+    () => collection && expandCollection(collections, collection),
+    [collections, collection],
+  );
+  // 表换了以后，旧的那份不再用。
+  return { view, records: loaded && loaded.view === view ? loaded.records : null };
 }
 
 /**
@@ -66,6 +105,7 @@ export function useRecordActions() {
   const { repo, locale } = useWorkspaceContext();
   const bump = useWorkspace((s) => s.bumpRecords);
   const showToast = useWorkspace((s) => s.showToast);
+  const cal = useCalendar();
 
   return {
     async add(collection: Collection, input: Record<string, unknown>): Promise<SaveResult> {
@@ -73,7 +113,7 @@ export function useRecordActions() {
       const count = counts.find((c) => c.collectionId === collection.id)?.count ?? 0;
       if (count >= RECORD_LIMITS.perCollection) return { ok: false, full: true };
       const now = new Date();
-      const prepared = prepareRecordValues(collection, input, null, now);
+      const prepared = prepareRecordValues(collection, input, null, now, cal);
       if (!prepared.ok) return { ok: false, issues: prepared.issues };
       const id = newAssetId();
       await repo.insertRecord({
@@ -93,7 +133,7 @@ export function useRecordActions() {
       input: Record<string, unknown>,
     ): Promise<SaveResult> {
       const now = new Date();
-      const prepared = prepareRecordValues(collection, input, record.values, now);
+      const prepared = prepareRecordValues(collection, input, record.values, now, cal);
       if (!prepared.ok) return { ok: false, issues: prepared.issues };
       await repo.updateRecord(record.id, prepared.values, now.getTime());
       bump();

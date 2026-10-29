@@ -1,5 +1,7 @@
 import { COMPONENTS } from './components';
 import { duplicates, isSystemField, type CheckProblem } from './components/define';
+import { conditionProblems } from './conditions';
+import { expandCollection, relatedProblems } from './related';
 import type { Registry } from './registry';
 import { reminderProblems } from './reminders';
 import {
@@ -7,7 +9,6 @@ import {
   MAX_HOME_SCREEN,
   PROTECTED_TARGETS,
   WorkspaceConfigSchema,
-  PERIODS,
   allComponents,
   componentCollection,
   BACKDROP_TYPES,
@@ -16,7 +17,6 @@ import {
   isKnownComponent,
   pageIdOf,
   workflowTargetId,
-  type Collection,
   type Component,
   type Condition,
   type OpenTarget,
@@ -190,9 +190,16 @@ export function validateWorkspace(
       issue('duplicate', `field ${id} in ${collection.id}`);
     }
     // 每种字段自己的检查（公式能算、引用的表存在、选项不重复……），见 fields/<type>.ts。
+    const view = expandCollection(config.collections, collection);
     for (const field of collection.fields) {
-      for (const problem of fieldDefinition(field.type).check?.(field, { config, collection }) ??
-        [])
+      for (const problem of fieldDefinition(field.type).check?.(field, {
+        config,
+        collection,
+        view,
+      }) ?? [])
+        issue(problem.code, problem.message);
+      // 查找、汇总、上一条（D-287–D-290）：定义对不对、会不会绕回自己、叠得太深。
+      for (const problem of relatedProblems(field, { config, collection, view }))
         issue(problem.code, problem.message);
     }
   }
@@ -383,8 +390,10 @@ function dataComponentProblems(
 ): CheckProblem[] {
   const collectionId = componentCollection(c);
   if (collectionId === null || !isKnownComponent(c)) return [];
-  const collection = config.collections.find((x) => x.id === collectionId);
-  if (!collection) return [`data table ${collectionId} does not exist`];
+  const table = config.collections.find((x) => x.id === collectionId);
+  if (!table) return [`data table ${collectionId} does not exist`];
+  // 查找、汇总、上一条按它们显示的那种字段检查（D-287–D-289）。
+  const collection = expandCollection(config.collections, table);
   const def = componentDefinition(c.type);
   const problems: CheckProblem[] = [];
   let filter: Condition[] | undefined;
@@ -411,60 +420,5 @@ function dataComponentProblems(
   }
   problems.push(...(def.check?.(c, { config, registry, page, collection }) ?? []));
   problems.push(...conditionProblems(filter, collection));
-  return problems;
-}
-
-/** 筛选条件：字段存在，操作和值是这种字段支持的（字段定义的 filter）。系统字段当作日期。 */
-function conditionProblems(conditions: Condition[] | undefined, collection: Collection): string[] {
-  const problems: string[] = [];
-  for (const cond of conditions ?? []) {
-    const system = cond.field === 'createdAt' || cond.field === 'updatedAt';
-    const f = collection.fields.find((x) => x.id === cond.field);
-    if (!system && !f) {
-      problems.push(`filter field ${cond.field} is not a field of ${collection.id}`);
-      continue;
-    }
-    const type = system ? 'date' : f!.type;
-    const { filter } = fieldDefinition(type);
-    const v = cond.value;
-    const where = `filter on ${cond.field}`;
-    // 引用字段只能看有没有选（D-250）：记录 ID 对 AI 和用户都没有意义。
-    if (filter.emptyOnly && cond.op !== 'isEmpty' && cond.op !== 'isNotEmpty') {
-      problems.push(`${where}: a ${type} field can only be filtered with isEmpty or isNotEmpty`);
-      continue;
-    }
-    switch (cond.op) {
-      case 'isEmpty':
-      case 'isNotEmpty':
-        break;
-      case 'inPeriod':
-        if (!filter.period) problems.push(`${where}: inPeriod needs a date field`);
-        else if (!(PERIODS as readonly unknown[]).includes(v)) {
-          problems.push(`${where}: period must be one of ${PERIODS.join(', ')}`);
-        }
-        break;
-      case 'contains':
-        if (!filter.contains) problems.push(`${where}: contains needs a text field`);
-        else if (typeof v !== 'string') problems.push(`${where}: value must be text`);
-        break;
-      case 'gt':
-      case 'lt':
-        if (
-          filter.compare === 'number'
-            ? typeof v !== 'number'
-            : filter.compare !== 'date' || typeof v !== 'string'
-        ) {
-          problems.push(`${where}: ${cond.op} needs a number or date field and a matching value`);
-        }
-        break;
-      case 'is':
-      case 'isNot': {
-        // 系统字段没有定义，按日期（文字）比较。
-        const ok = f ? filter.is(f, v) : typeof v === 'string';
-        if (!ok) problems.push(`${where}: value does not match the field type`);
-        break;
-      }
-    }
-  }
   return problems;
 }

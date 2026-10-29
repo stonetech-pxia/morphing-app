@@ -1,11 +1,12 @@
 import { localeTag } from './localization';
+import type { ScheduleRule } from './schedule';
 import type { Locale } from './schema-primitives';
 
 // 字段值的基本写法和显示格式。字段定义（fields/）和记录的纯函数（data.ts）都用；
 // 单独放一个文件，避免字段定义和 data.ts 互相引用。对外从 data.ts 导出。
 
-/** 附件字段（D-187、D-263）的值是一组文件 ID；别的字段是文字、数字或勾选。 */
-export type FieldValue = string | number | boolean | readonly string[];
+/** 附件字段（D-187、D-263）的值是一组文件 ID；日程（D-292）是一份规则；别的字段是文字、数字或勾选。 */
+export type FieldValue = string | number | boolean | readonly string[] | ScheduleRule;
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 export const pad = (n: number) => String(n).padStart(2, '0');
@@ -20,6 +21,29 @@ export function isValidDate(s: string): boolean {
   const [y, m, d] = s.split('-').map(Number) as [number, number, number];
   const date = new Date(y, m - 1, d);
   return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
+}
+
+/** 时间 HH:mm（00:00–23:59）。 */
+export const isValidTime = (s: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
+
+/** 填写的时间（「8:05」「08:05」「8：05」，可以带秒）→ HH:mm；认不出时为 undefined。 */
+export function normalizeTime(input: string): string | undefined {
+  const m = /^(\d{1,2})[:：](\d{2})(?:[:：]\d{2})?$/.exec(input.trim());
+  const time = m ? `${pad(Number(m[1]))}:${m[2]}` : '';
+  return isValidTime(time) ? time : undefined;
+}
+
+/** 设备本地日期时间 YYYY-MM-DDTHH:mm（D-279，不带时区）。 */
+export const localDateTime = (d: Date) =>
+  `${localDate(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+export const isValidDateTime = (s: string) =>
+  s.length === 16 && s[10] === 'T' && isValidDate(s.slice(0, 10)) && isValidTime(s.slice(11));
+
+/** 时长（分钟数）→ h:mm（「1:30」「41:05」），不足一分钟的四舍五入（D-279）。 */
+export function formatDuration(minutes: number): string {
+  const total = Math.round(Math.abs(minutes));
+  return `${minutes < 0 && total > 0 ? '-' : ''}${Math.floor(total / 60)}:${pad(total % 60)}`;
 }
 
 export const round = (n: number, decimals: number) => {

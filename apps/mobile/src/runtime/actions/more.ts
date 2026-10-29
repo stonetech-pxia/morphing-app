@@ -5,12 +5,14 @@ import {
   RunError,
   extractText,
   groupItems,
+  expandCollection,
   linkedCollectionIds,
+  loadComputedRecords,
   loadLinkResolver,
   replaceText,
   splitOrJoinLines,
   tidyText,
-  localDate,
+  dayOf,
   periodRange,
   recordsToHtml,
   sortRecords,
@@ -99,13 +101,21 @@ export const MORE_IMPLS: Record<string, Impl> = {
     const collection = ctx.services.collections.find((c) => c.id === params.collectionId);
     if (!collection) throw new RunError('notFound', { name: String(params.collectionId) });
     const period = params.period as 'all' | Period;
-    let records = await ctx.services.repo.listRecords(collection.id);
+    // 查找、汇总、上一条（D-291）带上算出来的值，报表里能印出来。
+    let { records } = await loadComputedRecords(
+      (id) => ctx.services.repo.listRecords(id),
+      ctx.services.collections,
+      collection,
+      ctx.now(),
+      ctx.services.calendar,
+    );
     if (period !== 'all') {
-      const [start, end] = periodRange(period, ctx.now());
-      // 按表里第一个日期字段；没有日期字段就按创建时间。
+      const cal = ctx.services.calendar;
+      const [start, end] = periodRange(period, ctx.now(), cal);
+      // 按表里第一个日期字段；没有日期字段就按创建时间（算哪一天按 D-286）。
       const dateField = collection.fields.find((f) => f.type === 'date');
       records = records.filter((r) => {
-        const raw = dateField ? r.values[dateField.id] : localDate(new Date(r.createdAt));
+        const raw = dateField ? r.values[dateField.id] : dayOf(new Date(r.createdAt), cal);
         return typeof raw === 'string' && raw >= start && raw <= end;
       });
     }
@@ -122,8 +132,10 @@ export const MORE_IMPLS: Record<string, Impl> = {
     if (!input || input.type !== 'records') {
       throw new RunError('unexpected', { detail: 'no records' });
     }
-    const collection = ctx.services.collections.find((c) => c.id === input.collectionId);
-    if (!collection) throw new RunError('notFound', { name: input.name });
+    const table = ctx.services.collections.find((c) => c.id === input.collectionId);
+    if (!table) throw new RunError('notFound', { name: input.name });
+    // 查找、汇总、上一条按它们显示的那种字段印（D-291；值在 in.records 里算好了）。
+    const collection = expandCollection(ctx.services.collections, table);
     const pageSize = params.pageSize as PageSize;
     // 引用字段印出被引用记录的标题（D-250）。
     const links = await loadLinkResolver(

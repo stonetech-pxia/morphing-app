@@ -209,6 +209,30 @@ export const migrateV19toV20: Migration = (config) => {
   };
 };
 
+/**
+ * v20 → v21：字段多了时间、日期时间、时长三种类型（D-279），公式能用新函数、引用别的公式、最长 500 字
+ * （D-280、D-281）。已有的字段和公式都还是合法的，只提升版本号。
+ */
+export const migrateV20toV21: Migration = (config) => ({ ...config, schemaVersion: 21 });
+
+/**
+ * v21 → v22：统计有按顺序的聚合（连续天数等，D-284），时间段多了几种（D-285），配置可以有 calendar
+ * （一天、一周从什么时候开始，D-286）；没有 calendar 就是原来的 0 点、周一，已有数据不需要改动，只提升版本号。
+ */
+export const migrateV21toV22: Migration = (config) => ({ ...config, schemaVersion: 22 });
+
+/**
+ * v22 → v23：字段多了查找、汇总、上一条三种类型（D-287–D-289），值都是算出来的、不存进记录。
+ * 已有的字段都还是合法的，只提升版本号。
+ */
+export const migrateV22toV23: Migration = (config) => ({ ...config, schemaVersion: 23 });
+
+/**
+ * v23 → v24：字段多了日程（schedule，D-292、D-293），筛选多了 due（D-294）。已有的字段和筛选都还是合法的，
+ * 只提升版本号。
+ */
+export const migrateV23toV24: Migration = (config) => ({ ...config, schemaVersion: 24 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -230,6 +254,10 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   17: migrateV17toV18,
   18: migrateV18toV19,
   19: migrateV19toV20,
+  20: migrateV20toV21,
+  21: migrateV21toV22,
+  22: migrateV22toV23,
+  23: migrateV23toV24,
 };
 
 export type MigrateResult =

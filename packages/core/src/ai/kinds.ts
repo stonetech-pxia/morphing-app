@@ -31,6 +31,8 @@ const FUNCTION_OPS: ReadonlySet<Op['op']> = new Set<Op['op']>([
   'addReminder',
   'updateReminder',
   'removeReminder',
+  // 一天、一周从什么时候开始也是功能（D-286）：直接生效、可以撤销。
+  'setCalendar',
 ]);
 
 /** 同一批操作里新建的快捷操作。 */

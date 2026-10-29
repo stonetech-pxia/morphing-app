@@ -3,12 +3,12 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 
-import { useRecordActions } from '@/data/records';
+import { useComputedRecords, useRecordActions } from '@/data/records';
 import { t } from '@/i18n';
 import { FieldsForm, toFormValues } from '@/renderer/data';
 import { usePalette } from '@/renderer/theme';
 import { Button } from '@/renderer/ui';
-import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { useCalendar, useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
 /** 记录编辑页：由内核按数据表的字段自动生成，不可配置（docs/DATA_DESIGN.md §5）。 */
 export default function RecordRoute() {
@@ -22,6 +22,8 @@ export default function RecordRoute() {
   const palette = usePalette(config.theme);
   const actions = useRecordActions();
   const collection = config.collections.find((c) => c.id === collectionId);
+  // 查找、汇总、上一条（D-291）：显示这条记录存好以后算出来的值。
+  const computed = useComputedRecords(config.collections, collection, useCalendar());
   const [record, setRecord] = useState<DataRecord | null | undefined>(recordId ? undefined : null);
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [issues, setIssues] = useState<FieldIssue[]>([]);
@@ -82,6 +84,12 @@ export default function RecordRoute() {
             palette={palette}
             locale={locale}
             testPrefix="editor"
+            related={
+              computed.view && {
+                view: computed.view,
+                record: computed.records?.find((r) => r.id === recordId) ?? null,
+              }
+            }
           />
           <Button
             palette={palette}

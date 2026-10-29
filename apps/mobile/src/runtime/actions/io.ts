@@ -461,7 +461,7 @@ export const IO_IMPLS: Record<string, Impl> = {
       known.push(next);
       ctx.progress(i + 1, items.length);
     }
-    const kept = filterFiles(known, filter, ctx.now());
+    const kept = filterFiles(known, filter, ctx.now(), ctx.services.calendar);
     if (kept.length > 0) return { ...input!, items: kept } as typeof input & { items: RunItem[] };
     if (filter.whenEmpty === 'skip') return input!;
     throw new RunError('noneMatched', { count: items.length });

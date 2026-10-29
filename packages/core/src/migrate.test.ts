@@ -113,6 +113,42 @@ describe('migrateWorkspace', () => {
     const kept = migrateWorkspace(custom, undefined, 20);
     expect(kept.ok && (kept.config as { workflows: unknown[] }).workflows).toEqual([picked]);
   });
+  it('v23 → v24 (schedule fields and the due filter, D-292–D-296) only raises the version', () => {
+    const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 23 };
+    expect(migrateWorkspace(previous, undefined, 24)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 24 },
+      fromVersion: 23,
+    });
+    expect(prepareSnapshot(previous, registry).ok).toBe(true);
+  });
+  it('v22 → v23 (lookup, rollup and previous fields, D-287–D-289) only raises the version', () => {
+    const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 22 };
+    expect(migrateWorkspace(previous, undefined, 23)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 23 },
+      fromVersion: 22,
+    });
+    expect(prepareSnapshot(previous, registry).ok).toBe(true);
+  });
+  it('v21 → v22 (day-based aggregates, new periods and calendar, D-284–D-286) only raises the version', () => {
+    const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 21 };
+    expect(migrateWorkspace(previous, undefined, 22)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 22 },
+      fromVersion: 21,
+    });
+    expect(prepareSnapshot(previous, registry).ok).toBe(true);
+  });
+  it('v20 → v21 (time fields and formula upgrade, D-279–D-281) only raises the version', () => {
+    const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 20 };
+    expect(migrateWorkspace(previous, undefined, 21)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 21 },
+      fromVersion: 20,
+    });
+    expect(prepareSnapshot(previous, registry).ok).toBe(true);
+  });
   it('v18 → v19 (quick actions on the phone home screen, D-271) only raises the version', () => {
     const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 18 };
     expect(previous.workflows.length).toBeGreaterThan(0);

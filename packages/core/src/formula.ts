@@ -5,8 +5,11 @@
 // if 算一层括号，嵌套层数和长度的上限不变。
 // D-247：日期。日期字段 {due} 和 today 是「日期」，只能放进 days(从, 到)（相差几天，到 − 从）或 if 的比较里，
 // 不能加减乘除；公式的结果一定是数字。类型在校验时按字段类型检查（formulaType）。
+// D-280：函数 min、max、round、abs；时间 {time} 和日期时间 {datetime} 只能放进 hours(从, 到) / minutes(从, 到)
+// 或 if 的比较里（时间跨午夜时自动加 24 小时），日期时间也能放进 days()；时长当作分钟数。
+// D-281：公式可以引用别的公式字段（检查时挡住循环引用），最长 500 字。
 
-export const MAX_FORMULA_LENGTH = 200;
+export const MAX_FORMULA_LENGTH = 500;
 
 export type Comparison = '>' | '<' | '>=' | '<=' | '=';
 
@@ -17,6 +20,7 @@ export type FormulaNode =
   | { kind: 'op'; op: '+' | '-' | '*' | '/'; left: FormulaNode; right: FormulaNode }
   | { kind: 'today' }
   | { kind: 'days'; from: FormulaNode; to: FormulaNode }
+  | { kind: 'fn'; fn: FormulaFunction; args: FormulaNode[] }
   | {
       kind: 'if';
       cmp: Comparison;
@@ -34,9 +38,22 @@ type Token =
   | { t: 'ref'; field: string }
   | { t: 'cmp'; cmp: Comparison }
   | { t: 'if' | 'today' | 'days' }
+  | { t: 'fn'; fn: FormulaFunction }
   | { t: '+' | '-' | '*' | '/' | '(' | ')' | ',' };
 
-/** 公式里认识的词：if（D-246）、today 和 days（D-247）。 */
+/** D-280 的函数：参数个数 [最少, 最多]。 */
+const FUNCTIONS = {
+  min: [2, 10],
+  max: [2, 10],
+  round: [1, 2],
+  abs: [1, 1],
+  hours: [2, 2],
+  minutes: [2, 2],
+} as const;
+export type FormulaFunction = keyof typeof FUNCTIONS;
+const isFunction = (word: string): word is FormulaFunction => Object.hasOwn(FUNCTIONS, word);
+
+/** 公式里认识的词：if（D-246）、today 和 days（D-247），以及 FUNCTIONS（D-280）。 */
 const WORDS = new Set(['if', 'today', 'days']);
 
 function tokenize(text: string): Token[] | string {
@@ -64,8 +81,10 @@ function tokenize(text: string): Token[] | string {
       i++;
     } else if (/[a-zA-Z]/.test(c)) {
       const word = /^[a-zA-Z]+/.exec(text.slice(i))![0];
-      if (!WORDS.has(word.toLowerCase())) return `unknown word "${word}"`;
-      tokens.push({ t: word.toLowerCase() as 'if' | 'today' | 'days' });
+      const lower = word.toLowerCase();
+      if (isFunction(lower)) tokens.push({ t: 'fn', fn: lower });
+      else if (WORDS.has(lower)) tokens.push({ t: lower as 'if' | 'today' | 'days' });
+      else return `unknown word "${word}"`;
       i += word.length;
     } else if (c === '×') {
       tokens.push({ t: '*' });
@@ -148,7 +167,29 @@ export function parseFormula(text: string): ParsedFormula {
     if (token.t === 'if') return ifCall();
     if (token.t === 'today') return { kind: 'today' };
     if (token.t === 'days') return daysCall();
-    return `unexpected "${token.t === 'cmp' ? token.cmp : token.t}"`;
+    if (token.t === 'fn') return fnCall(token.fn);
+    return `unexpected "${tokenText(token)}"`;
+  }
+  // min / max / round / abs / hours / minutes：参数用逗号隔开，个数按 FUNCTIONS。
+  function fnCall(fn: FormulaFunction): FormulaNode | string {
+    if (tokens[pos++]?.t !== '(') return `${fn} needs ( after it`;
+    if (++depth > 20) return 'too deeply nested';
+    const args: FormulaNode[] = [];
+    for (;;) {
+      const arg = expr();
+      if (typeof arg === 'string') return arg;
+      args.push(arg);
+      const next = tokens[pos++];
+      if (next?.t === ')') break;
+      if (next?.t !== ',') return 'missing )';
+    }
+    depth--;
+    const [least, most] = FUNCTIONS[fn];
+    if (args.length < least || args.length > most)
+      return least === most
+        ? `${fn} needs ${least} part${least === 1 ? '' : 's'}`
+        : `${fn} needs ${least} to ${most} parts`;
+    return { kind: 'fn', fn, args };
   }
   // days(从, 到)：两个日期相差几天。
   function daysCall(): FormulaNode | string {
@@ -187,8 +228,7 @@ export function parseFormula(text: string): ParsedFormula {
   const node = expr();
   if (typeof node === 'string') return { ok: false, error: node };
   if (pos < tokens.length) {
-    const extra = tokens[pos]!;
-    return { ok: false, error: `unexpected "${extra.t === 'cmp' ? extra.cmp : extra.t}"` };
+    return { ok: false, error: `unexpected "${tokenText(tokens[pos]!)}"` };
   }
   const refs: string[] = [];
   const collect = (n: FormulaNode) => {
@@ -202,6 +242,8 @@ export function parseFormula(text: string): ParsedFormula {
     } else if (n.kind === 'days') {
       collect(n.from);
       collect(n.to);
+    } else if (n.kind === 'fn') {
+      for (const arg of n.args) collect(arg);
     }
   };
   collect(node);
@@ -209,10 +251,21 @@ export function parseFormula(text: string): ParsedFormula {
   return { ok: true, node, refs };
 }
 
-export type FormulaType = 'number' | 'date';
+const tokenText = (token: Token) =>
+  token.t === 'cmp' ? token.cmp : token.t === 'fn' ? token.fn : token.t;
+
+/** 字段在公式里的类型：数字（数字、金额、评分、时长、别的公式）、日期、时间（HH:mm）、日期时间。 */
+export type FormulaType = 'number' | 'date' | 'time' | 'datetime';
+
+/** days()、hours()、minutes() 的参数是什么类型：只有字段和 today 会是日期类（别的式子都算出数字）。 */
+function argType(n: FormulaNode, typeOf: (field: string) => FormulaType | null): FormulaType {
+  if (n.kind === 'today') return 'date';
+  return n.kind === 'ref' ? (typeOf(n.field) ?? 'number') : 'number';
+}
 
 /**
  * 公式的类型（D-247）：日期只能进 days() 和比较，加减乘除、负号和 if 的两个结果都要是数字。
+ * 时间和日期时间（D-280）只能进 hours()、minutes() 和比较，日期时间也能进 days()。
  * typeOf 给出字段的类型（不能用的字段返回 null）；返回值类型，或者一句说明哪里不对。
  */
 export function formulaType(
@@ -235,8 +288,29 @@ export function formulaType(
       return need(node.arg, 'number', 'a minus sign') ?? 'number';
     case 'op':
       return need(node.left, 'number', node.op) ?? need(node.right, 'number', node.op) ?? 'number';
-    case 'days':
-      return need(node.from, 'date', 'days()') ?? need(node.to, 'date', 'days()') ?? 'number';
+    case 'days': {
+      for (const part of [node.from, node.to]) {
+        const got = formulaType(part, typeOf);
+        if (typeof got !== 'string') return got;
+        if (got !== 'date' && got !== 'datetime')
+          return { error: `days() needs a date or datetime, not a ${got}` };
+      }
+      return 'number';
+    }
+    case 'fn': {
+      if (node.fn === 'hours' || node.fn === 'minutes') {
+        const from = formulaType(node.args[0]!, typeOf);
+        if (typeof from !== 'string') return from;
+        if (from !== 'time' && from !== 'datetime')
+          return { error: `${node.fn}() needs two times or two datetimes, not a ${from}` };
+        return need(node.args[1]!, from, `${node.fn}()`) ?? 'number';
+      }
+      for (const arg of node.args) {
+        const bad = need(arg, 'number', `${node.fn}()`);
+        if (bad) return bad;
+      }
+      return 'number';
+    }
     case 'if': {
       const left = formulaType(node.left, typeOf);
       if (typeof left !== 'string') return left;
@@ -256,25 +330,71 @@ export function dayNumber(date: string): number | undefined {
   return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86_400_000 : undefined;
 }
 
+/** 时间 HH:mm → 当天的分钟数；不是时间时为 undefined。 */
+export function minuteOfDay(time: string): number | undefined {
+  const m = /^(\d{2}):(\d{2})$/.exec(time);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : undefined;
+}
+
+/** 本地日期时间 YYYY-MM-DDTHH:mm → 分钟数（按 UTC 算，不受夏令时影响）；不是日期时间时为 undefined。 */
+export function minuteNumber(datetime: string): number | undefined {
+  const day = dayNumber(datetime.slice(0, 10));
+  const minute = datetime[10] === 'T' ? minuteOfDay(datetime.slice(11)) : undefined;
+  return day === undefined || minute === undefined ? undefined : day * 1440 + minute;
+}
+
 /**
  * 计算；有字段没填、除以 0 或结果不是有限数时返回 undefined（不显示，也不计入统计）。
- * 日期字段由 valueOf 给出天数（dayNumber）；today 是今天的天数，没给时用到 today 的公式没有值。
+ * 日期字段由 valueOf 给出天数（dayNumber），时间给出当天的分钟数（minuteOfDay），日期时间给出分钟数
+ * （minuteNumber），时长就是分钟数；today 是今天的天数，没给时用到 today 的公式没有值。
+ * typeOf 给出字段的类型（days() 要把日期时间换成天数，hours() 要知道是不是跨午夜的时间）。
  */
 export function evaluateFormula(
   node: FormulaNode,
   valueOf: (field: string) => number | undefined,
   today?: number,
+  typeOf: (field: string) => FormulaType | null = () => 'number',
 ): number | undefined {
-  const at = (n: FormulaNode) => evaluateFormula(n, valueOf, today);
+  const at = (n: FormulaNode) => evaluateFormula(n, valueOf, today, typeOf);
   switch (node.kind) {
     case 'num':
       return node.value;
     case 'today':
       return today;
     case 'days': {
-      const from = at(node.from);
-      const to = at(node.to);
+      // 日期时间按它那一天算。
+      const day = (n: FormulaNode) => {
+        const v = at(n);
+        return v !== undefined && argType(n, typeOf) === 'datetime' ? Math.floor(v / 1440) : v;
+      };
+      const from = day(node.from);
+      const to = day(node.to);
       return from === undefined || to === undefined ? undefined : to - from;
+    }
+    case 'fn': {
+      const args = node.args.map(at);
+      if (args.some((v) => v === undefined)) return undefined;
+      const [a, b] = args as number[];
+      switch (node.fn) {
+        case 'min':
+          return Math.min(...(args as number[]));
+        case 'max':
+          return Math.max(...(args as number[]));
+        case 'abs':
+          return Math.abs(a!);
+        case 'round': {
+          // 位数取整数、限制在 0–4（和字段的 decimals 一样），四舍五入（负数也往远离 0 的方向）。
+          const f = 10 ** Math.min(4, Math.max(0, Math.round(b ?? 0)));
+          return (Math.sign(a!) * Math.round(Math.abs(a!) * f + 1e-9)) / f;
+        }
+        case 'hours':
+        case 'minutes': {
+          let diff = b! - a!;
+          // 时间只有几点几分：结束比开始早就是跨过了午夜。
+          if (diff < 0 && argType(node.args[0]!, typeOf) === 'time') diff += 1440;
+          return node.fn === 'hours' ? diff / 60 : diff;
+        }
+      }
     }
     case 'ref':
       return valueOf(node.field);

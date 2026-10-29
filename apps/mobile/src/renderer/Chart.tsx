@@ -1,5 +1,6 @@
 import {
   CHART_COLORS,
+  calendarOf,
   chartSeries,
   filterRecords,
   lineScale,
@@ -14,7 +15,7 @@ import { Canvas, Path } from '@shopify/react-native-skia';
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { useRecords } from '../data/records';
+import { useComputedRecords } from '../data/records';
 import { t } from '../i18n';
 import type { RenderEnv } from './components';
 import { statText } from './data';
@@ -40,20 +41,29 @@ export function Chart({
   tone?: ComponentStyle['tone'];
 }) {
   const { palette, locale } = env;
-  const collection = env.config.collections.find((c) => c.id === props.collectionId);
-  const records = useRecords(props.collectionId);
+  const table = env.config.collections.find((c) => c.id === props.collectionId);
+  const cal = calendarOf(env.config);
+  // 查找、汇总、上一条（D-291）按算好的值画。
+  const { view: collection, records } = useComputedRecords(env.config.collections, table, cal);
   const [width, setWidth] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   if (!collection) return null;
   const now = new Date();
   const field = props.fieldId ? collection.fields.find((f) => f.id === props.fieldId) : undefined;
-  const series = chartSeries(
-    filterRecords(records ?? [], collection, props.filter, now),
-    collection,
-    props,
-    now,
-    t(locale, 'statNoChoice'),
-  );
+  // 连续天数这类只有一个值的聚合不能画图（D-284，校验已经挡住）。
+  const series =
+    props.aggregate === 'streak' ||
+    props.aggregate === 'daysSince' ||
+    props.aggregate === 'avgInterval'
+      ? []
+      : chartSeries(
+          filterRecords(records ?? [], collection, props.filter, now, cal),
+          collection,
+          { ...props, aggregate: props.aggregate },
+          now,
+          t(locale, 'statNoChoice'),
+          cal,
+        );
   const points = props.kind === 'pie' ? pieSlices(series, t(locale, 'chartOther')) : series;
   const valueText = (p: ChartPoint) =>
     p.empty ? '—' : statText(p.value, props.aggregate, field, locale);

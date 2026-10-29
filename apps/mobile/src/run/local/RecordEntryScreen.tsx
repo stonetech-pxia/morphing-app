@@ -1,4 +1,4 @@
-import { attachmentIds, localDate, prepareRecordValues, type FieldIssue } from '@morph/core';
+import { attachmentIds, dayOf, prepareRecordValues, type FieldIssue } from '@morph/core';
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { t } from '../../i18n';
 import { FieldsForm, toFormValues } from '../../renderer/data';
 import { PENDING_FILE, recordTargets } from '../../runtime/actions/records';
+import { useCalendar } from '../../workspace/context';
 import type { LocalScreenProps } from '../RunScreen';
 import { LocalFrame } from './LocalFrame';
 
@@ -28,12 +29,13 @@ export function RecordEntryScreen({
     target !== undefined && attachmentIds(prefill[target]).includes(PENDING_FILE)
       ? target
       : undefined;
-  // 新记录：先套用字段的默认值（日期是今天），再放进预先填好的文字。
+  const cal = useCalendar();
+  // 新记录：先套用字段的默认值（日期是今天，按一天从几点开始算，D-286），再放进预先填好的文字。
   const [values, setValues] = useState<Record<string, unknown>>(() => {
     const defaults: Record<string, unknown> = {};
     for (const f of collection.fields) {
       if ('default' in f && f.default !== undefined)
-        defaults[f.id] = f.type === 'date' ? localDate(new Date()) : f.default;
+        defaults[f.id] = f.type === 'date' ? dayOf(new Date(), cal) : f.default;
     }
     const base = toFormValues(collection, {
       id: '',
@@ -60,7 +62,7 @@ export function RecordEntryScreen({
     );
 
   function done() {
-    const prepared = prepareRecordValues(collection, values, null, new Date());
+    const prepared = prepareRecordValues(collection, values, null, new Date(), cal);
     if (!prepared.ok) {
       setIssues(prepared.issues);
       return;

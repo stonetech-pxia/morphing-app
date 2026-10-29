@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
+import { isValidDate } from './field-values';
 import { FieldSchema } from './fields';
 import { isEmoji, unsafeLinks } from './richtext';
-import { IdSchema, boundedText } from './schema-primitives';
+import { FieldRefSchema, IdSchema, boundedText } from './schema-primitives';
 
 // 配置结构里组件以外的部分（图标、主题、数据表、筛选、导航）。组件定义（components/）要用到这些，
 // 所以单独放一个文件，避免 schema.ts 和组件定义互相引用。对外仍从 schema.ts 导出。
@@ -169,28 +170,19 @@ export const CollectionSchema = z.strictObject({
 });
 export type Collection = z.infer<typeof CollectionSchema>;
 
-/** 每条记录都有的系统字段。 */
-export const SYSTEM_FIELDS = ['createdAt', 'updatedAt'] as const;
-export type SystemField = (typeof SYSTEM_FIELDS)[number];
-export const FieldRefSchema = z.union([IdSchema, z.enum(SYSTEM_FIELDS)]);
-
-export const PERIODS = [
-  'today',
-  'thisWeek',
-  'thisMonth',
-  'thisYear',
-  'last7days',
-  'last30days',
-] as const;
-export type Period = (typeof PERIODS)[number];
-
-/** 筛选条件：白名单比较，多个条件之间是“并且”，没有表达式。 */
-export const ConditionSchema = z.strictObject({
-  field: FieldRefSchema,
-  op: z.enum(['is', 'isNot', 'contains', 'gt', 'lt', 'isEmpty', 'isNotEmpty', 'inPeriod']),
-  value: z.union([z.string().max(200), z.number().finite(), z.boolean()]).optional(),
+/**
+ * 一天、一周从什么时候开始（D-286，schemaVersion 20）：dayStartHour 0–6 点，weekStart 周一或周日，
+ * twoWeekStart 是两周一段的锚定日。都不写就是 0 点、周一。
+ */
+export const CalendarSchema = z.strictObject({
+  dayStartHour: z.number().int().min(0).max(6).optional(),
+  weekStart: z.enum(['monday', 'sunday']).optional(),
+  twoWeekStart: z
+    .string()
+    .refine(isValidDate, { message: 'twoWeekStart must be a date like 2026-10-12' })
+    .optional(),
 });
-export type Condition = z.infer<typeof ConditionSchema>;
+export type CalendarSettings = z.infer<typeof CalendarSchema>;
 
 export const SortSchema = z.strictObject({
   field: FieldRefSchema,
