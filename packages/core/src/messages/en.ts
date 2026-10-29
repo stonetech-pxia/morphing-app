@@ -1213,6 +1213,26 @@ export const en = {
   scheduleDecrease: 'Fewer',
   scheduleIncrease: 'More',
   scheduleLastDoneHint: 'Counts from the date in “{field}”.',
+  // 月历、显示格式、统计的目标和比较（D-302–D-305）
+  calendarPrevMonth: 'Previous month',
+  calendarNextMonth: 'Next month',
+  calendarToday: 'Today',
+  calendarDayLabel: '{date}, {n} entries',
+  calendarDayEmpty: 'No entries on this day.',
+  elapsedRunning: 'Running for {time}',
+  progressOfGoal: '{value} / {goal}',
+  progressPercent: '{n}%',
+  compare_today: 'Yesterday: {value}',
+  compare_thisWeek: 'Same days last week: {value}',
+  compare_thisTwoWeeks: 'Same days of the previous two weeks: {value}',
+  compare_thisHalfMonth: 'Same days of the previous half-month: {value}',
+  compare_thisMonth: 'Same days last month: {value}',
+  compare_thisYear: 'Same date last year: {value}',
+  compare_lastDays: 'The {n} days before: {value}',
+  compareUp: '↑ {n}%',
+  compareDown: '↓ {n}%',
+  compareUpNoPercent: '↑ more',
+  compareSame: 'No change',
 };
 
 export type StringKey = keyof typeof en;
@@ -1297,6 +1317,7 @@ export const enSingular = {
   scheduleInterval: 'Every day',
   schedulePerDay: '{rule}, once a day',
   scheduleOverdue: '{n} day overdue',
+  calendarDayLabel: '{date}, {n} entry',
 } satisfies Partial<MessageTable>;
 
 /** 单数表：键必须和 enSingular 完全一致。 */

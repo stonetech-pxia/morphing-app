@@ -36,6 +36,7 @@ function sameValue(a: unknown, b: unknown): boolean {
 /** starter：新用户的第一个版本（精简首页 + 工具箱，D-181、D-182）。 */
 /** visaHomeScreen：visa 再把签证照片放到手机桌面（D-271）。 */
 /** habits：一张打卡表（习惯、完成 / 跳过、日期）和显示它的页面（D-284）。 */
+/** views：心情、上下班（开始和结束的日期时间）、喝水三张表，每张一个列表页面（D-302–D-305）。 */
 /** linked：互相引用的表（习惯 ← 打卡、工作 ← 工时、客户 ← 订单）和一张加油表，每张一个页面（D-287–D-289）。 */
 export type EvalSetup =
   | 'default'
@@ -46,7 +47,8 @@ export type EvalSetup =
   | 'visaHomeScreen'
   | 'starter'
   | 'habits'
-  | 'linked';
+  | 'linked'
+  | 'views';
 
 export type OpsPlan = Extract<Plan, { kind: 'ops' }>;
 
@@ -101,6 +103,8 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
     ops.push(...habitOps(locale));
   } else if (setup === 'linked') {
     ops.push(...linkedOps(locale));
+  } else if (setup === 'views') {
+    ops.push(...viewOps(locale));
   } else if (setup !== 'default') ops.push({ op: 'installTool', toolId: 'pdf' });
   if (setup === 'pdfBelowFiles') {
     ops.push({ op: 'moveComponent', pageId: 'home', componentId: 'card-pdf', toIndex: 3 });
@@ -171,6 +175,133 @@ function habitOps(locale: Locale): Op[] {
       },
     },
   ];
+}
+
+/** 心情、上下班、喝水三张表，每张一个列表页面（名字按语言，ID 都一样）。 */
+function viewOps(locale: Locale): Op[] {
+  const n = {
+    zh: [
+      '心情日记',
+      '心情',
+      '开心',
+      '一般',
+      '难过',
+      '日期',
+      '备注',
+      '上下班',
+      '工作',
+      '上班',
+      '下班',
+      '喝水',
+      '杯数',
+    ],
+    en: [
+      'Mood journal',
+      'Mood',
+      'Happy',
+      'OK',
+      'Sad',
+      'Date',
+      'Note',
+      'Shifts',
+      'Job',
+      'Clock in',
+      'Clock out',
+      'Water',
+      'Cups',
+    ],
+    fr: [
+      'Journal d’humeur',
+      'Humeur',
+      'Content',
+      'Moyen',
+      'Triste',
+      'Date',
+      'Note',
+      'Services',
+      'Travail',
+      'Arrivée',
+      'Départ',
+      'Eau',
+      'Verres',
+    ],
+  }[locale] as string[];
+  const [journal, mood, happy, ok, sad, date, note, shifts, job, clockIn, clockOut, water, cups] =
+    n as [
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+    ];
+  const tables: Collection[] = [
+    {
+      id: 'mood',
+      name: journal,
+      fields: [
+        {
+          id: 'feel',
+          name: mood,
+          type: 'choice',
+          options: [
+            { id: 'happy', label: happy },
+            { id: 'ok', label: ok },
+            { id: 'sad', label: sad },
+          ],
+        },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+        { id: 'note', name: note, type: 'text' },
+      ],
+    },
+    {
+      id: 'shifts',
+      name: shifts,
+      fields: [
+        { id: 'job', name: job, type: 'text' },
+        { id: 'in', name: clockIn, type: 'datetime', default: 'now' },
+        { id: 'out', name: clockOut, type: 'datetime' },
+      ],
+    },
+    {
+      id: 'water',
+      name: water,
+      fields: [
+        { id: 'cups', name: cups, type: 'number' },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+      ],
+    },
+  ];
+  const title = { mood: 'feel', shifts: 'job', water: 'cups' } as const;
+  return tables.flatMap((collection): Op[] => [
+    { op: 'addCollection', collection },
+    {
+      op: 'addPage',
+      page: {
+        id: collection.id,
+        title: collection.name,
+        components: [
+          {
+            id: 'list',
+            type: 'recordList',
+            props: {
+              collectionId: collection.id,
+              display: 'list',
+              titleField: title[collection.id as keyof typeof title],
+              limit: 30,
+            },
+          },
+        ],
+      },
+    },
+  ]);
 }
 
 /** 互相引用的几张表，每张一个列表页面（名字按语言，ID 都一样）。 */
@@ -4667,6 +4798,102 @@ const SCHEDULE_CASES: readonly EvalCase[] = [
   },
 ];
 
+/** 某张表的记录列表和统计（所有页面里的）。 */
+const componentsOf = (c: WorkspaceConfig, type: string, collectionId: string) =>
+  c.pages.flatMap((p) =>
+    allComponents(p).filter(
+      (x) =>
+        x.type === type && (x.props as { collectionId?: string }).collectionId === collectionId,
+    ),
+  ) as { props: Record<string, unknown> }[];
+
+const hasPeriod = (props: Record<string, unknown>, period: string) =>
+  ((props.filter ?? []) as { op: string; value?: unknown }[]).some(
+    (f) => f.op === 'inPeriod' && f.value === period,
+  );
+
+const VIEW_CASES: readonly EvalCase[] = [
+  {
+    id: 'VW1',
+    input: '心情日记用月历显示，按心情给每天上色',
+    locale: 'zh',
+    setup: 'views',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'mood').some(
+          (x) => x.props.display === 'calendar' && x.props.colorField === 'feel',
+        )
+          ? null
+          : 'expected a calendar recordList of mood colored by feel',
+    },
+  },
+  {
+    id: 'VW1-fr',
+    input: 'Affiche mon journal d’humeur sous forme de calendrier du mois',
+    locale: 'fr',
+    setup: 'views',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'mood').some((x) => x.props.display === 'calendar')
+          ? null
+          : 'expected a calendar recordList of mood',
+    },
+  },
+  {
+    id: 'VW2-en',
+    input: 'In the shifts list, show how long I have been working on a shift that is still open',
+    locale: 'en',
+    setup: 'views',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'shifts').some((x) => {
+          const f = x.props.trailingFormat as { kind?: string; until?: string } | undefined;
+          return x.props.trailingField === 'in' && f?.kind === 'elapsed' && f.until === 'out';
+        })
+          ? null
+          : 'expected trailingField in with trailingFormat elapsed until out',
+    },
+  },
+  {
+    id: 'VW3',
+    input: '喝水页面显示今天的进度，目标 8 杯',
+    locale: 'zh',
+    setup: 'views',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'stat', 'water').some(
+          (x) => x.props.goal === 8 && hasPeriod(x.props, 'today'),
+        )
+          ? null
+          : 'expected a water stat filtered today with goal 8',
+    },
+  },
+  {
+    id: 'VW4',
+    input: '记账页面加一个本月支出，和上月比',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'stat', 'expenses').some(
+          (x) => x.props.compare === 'previous' && hasPeriod(x.props, 'thisMonth'),
+        )
+          ? null
+          : 'expected an expenses stat for thisMonth with compare previous',
+    },
+  },
+];
+
 const HOME_SCREEN_CASES: readonly EvalCase[] = [
   {
     id: 'HS1',
@@ -4959,6 +5186,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...SEQUENCE_CASES,
   ...RELATED_CASES,
   ...SCHEDULE_CASES,
+  ...VIEW_CASES,
   ...HOME_SCREEN_CASES,
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,

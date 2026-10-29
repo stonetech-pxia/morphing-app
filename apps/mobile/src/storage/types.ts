@@ -138,6 +138,11 @@ export interface WorkspaceRepo {
   // ---- 用户记录：只由用户在页面上的操作读写，从不经过 AI ----
   /** 某张表未删除的记录（顺序不保证，由调用方排序）。 */
   listRecords(collectionId: string): Promise<DataRecord[]>;
+  /**
+   * 只读一段日子的记录（月历一个月，D-302）：by 是日期或日期时间字段时按存着的文字 from ≤ 值 < until，
+   * 是 createdAt / updatedAt 时按毫秒 fromMs ≤ 时间 < untilMs。
+   */
+  listRecordsInRange(collectionId: string, range: RecordRange): Promise<DataRecord[]>;
   getRecord(id: string): Promise<StoredRecord | null>;
   insertRecord(record: DataRecord): Promise<void>;
   updateRecord(id: string, values: Record<string, unknown>, updatedAt: number): Promise<void>;
@@ -152,4 +157,13 @@ export interface WorkspaceRepo {
   countRecords(): Promise<{ collectionId: string; count: number }[]>;
   /** 用户确认后永久删除一张表的全部记录。 */
   purgeCollection(collectionId: string): Promise<void>;
+}
+
+/** listRecordsInRange 的范围（core 的 monthQueryRange 加上按哪个字段）。 */
+export interface RecordRange {
+  by: string;
+  from: string;
+  until: string;
+  fromMs: number;
+  untilMs: number;
 }

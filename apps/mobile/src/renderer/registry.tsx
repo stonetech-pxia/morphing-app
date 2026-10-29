@@ -174,7 +174,9 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
   ),
   spacer: (c) => <View style={{ height: { small: 4, medium: 16, large: 32 }[c.props.size] }} />,
   group: (c, env) => <Group component={c} env={env} />,
-  recordList: (c, env) => <RecordList props={c.props} env={env} tone={c.style?.tone} />,
+  recordList: (c, env) => (
+    <RecordList props={c.props} env={env} tone={c.style?.tone} componentId={c.id} />
+  ),
   recordForm: (c, env) => (
     <RecordForm props={c.props} env={env} componentId={c.id} tone={c.style?.tone} />
   ),

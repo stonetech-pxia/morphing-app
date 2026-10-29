@@ -233,6 +233,12 @@ export const migrateV22toV23: Migration = (config) => ({ ...config, schemaVersio
  */
 export const migrateV23toV24: Migration = (config) => ({ ...config, schemaVersion: 24 });
 
+/**
+ * v24 → v25：记录列表多了月历外观和右侧字段的显示格式（D-302、D-303），统计多了目标和「和上一段比」
+ * （D-304、D-305）。都是新的可选属性，已有配置照样合法，只提升版本号。
+ */
+export const migrateV24toV25: Migration = (config) => ({ ...config, schemaVersion: 25 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -258,6 +264,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   21: migrateV21toV22,
   22: migrateV22toV23,
   23: migrateV23toV24,
+  24: migrateV24toV25,
 };
 
 export type MigrateResult =

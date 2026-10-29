@@ -1265,6 +1265,26 @@ export const fr: MessageTable = {
   scheduleDecrease: 'Moins',
   scheduleIncrease: 'Plus',
   scheduleLastDoneHint: 'Compté à partir de la date de « {field} ».',
+  // 月历、显示格式、统计的目标和比较（D-302–D-305）
+  calendarPrevMonth: 'Mois précédent',
+  calendarNextMonth: 'Mois suivant',
+  calendarToday: 'Aujourd’hui',
+  calendarDayLabel: '{date}, {n} entrées',
+  calendarDayEmpty: 'Aucune entrée ce jour-là.',
+  elapsedRunning: 'En cours depuis {time}',
+  progressOfGoal: '{value} / {goal}',
+  progressPercent: '{n} %',
+  compare_today: 'Hier : {value}',
+  compare_thisWeek: 'Mêmes jours la semaine dernière : {value}',
+  compare_thisTwoWeeks: 'Mêmes jours des deux semaines précédentes : {value}',
+  compare_thisHalfMonth: 'Mêmes jours de la quinzaine précédente : {value}',
+  compare_thisMonth: 'Mêmes jours le mois dernier : {value}',
+  compare_thisYear: 'Même date l’an dernier : {value}',
+  compare_lastDays: 'Les {n} jours d’avant : {value}',
+  compareUp: '↑ {n} %',
+  compareDown: '↓ {n} %',
+  compareUpNoPercent: '↑ en hausse',
+  compareSame: 'Stable',
 };
 
 export const frSingular: SingularTable = {
@@ -1345,4 +1365,5 @@ export const frSingular: SingularTable = {
   scheduleInterval: 'Tous les jours',
   schedulePerDay: '{rule}, une fois par jour',
   scheduleOverdue: 'En retard de {n} jour',
+  calendarDayLabel: '{date}, {n} entrée',
 };
