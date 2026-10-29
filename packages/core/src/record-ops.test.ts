@@ -314,6 +314,8 @@ describe('removing fields and tables takes the actions that used them', () => {
         { do: 'setAll', collectionId: 'packing', fieldId: 'packed', value: false },
         'b2',
       ) as never,
+      // 上班靠这个按钮添加；没有它，新列表会自动补一个「添加」按钮（D-310）。
+      button({ do: 'open', collectionId: 'shifts' }, 'b3') as never,
       list('shifts', [
         {
           label: 'Out',

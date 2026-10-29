@@ -1242,6 +1242,9 @@ export const en = {
   scheduleIncrease: 'More',
   scheduleLastDoneHint: 'Counts from the date in “{field}”.',
   describeRemovedRecordActions: 'Also removes {n} one-tap buttons that used it',
+  entryFormAdd: 'Add',
+  describeAddedEntryForm:
+    '“{table}” had no way to add entries, so this also adds an “Add” button above the list',
   recordActionAdded: 'Added to “{table}”',
   recordActionDone: '{label}: done',
   recordActionChanged: 'Changed {n} entries',

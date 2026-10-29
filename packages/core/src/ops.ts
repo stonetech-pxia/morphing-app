@@ -43,6 +43,7 @@ import {
   type WorkspaceConfig,
 } from './schema';
 import { DEFAULT_THEME } from './theme';
+import { addMissingEntryForms } from './entry-forms';
 import { presetById } from './workflows/presets';
 import { buttonActionUses, rowActionUses, type Gone } from './record-ops';
 import { reminderProblems } from './reminders';
@@ -251,6 +252,8 @@ export type ApplyNote =
   | { kind: 'removedReminders'; titles: string[] }
   /** 删字段、删表时，用到它的一键记录操作（D-304）：按钮移除，列表里的行按钮去掉。 */
   | { kind: 'removedRecordActions'; count: number }
+  /** 新加的列表所属的表没有添加入口，在列表上方补了一个「添加」按钮（D-310）。 */
+  | { kind: 'addedEntryForm'; collectionId: string }
   | { kind: 'updatedTool'; toolId: string; workflowIds: string[] };
 
 /** 字段类型只能在这些类型之间互相转换，已有的值仍然能读出来（字段定义的 convertGroup）。 */
@@ -888,6 +891,8 @@ export function applyOps(
     if (e instanceof OpError) return { ok: false, error: e.message };
     throw e;
   }
+  for (const collectionId of addMissingEntryForms(config, next, ctx.locale))
+    notes.push({ kind: 'addedEntryForm', collectionId });
   pruneReminders(config, next, notes);
   return { ok: true, config: next, notes };
 }

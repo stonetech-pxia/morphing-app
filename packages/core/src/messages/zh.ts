@@ -1171,6 +1171,8 @@ export const zh: MessageTable = {
   scheduleIncrease: '增加',
   scheduleLastDoneHint: '从「{field}」里的日期算起。',
   describeRemovedRecordActions: '同时移除 {n} 个用到它的一键按钮',
+  entryFormAdd: '添加',
+  describeAddedEntryForm: '「{table}」还没有添加的地方，同时在列表上方加一个「添加」按钮',
   recordActionAdded: '已在「{table}」添加一条',
   recordActionDone: '{label}：已记下',
   recordActionChanged: '已修改 {n} 条记录',

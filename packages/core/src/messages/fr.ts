@@ -1294,6 +1294,9 @@ export const fr: MessageTable = {
   scheduleIncrease: 'Plus',
   scheduleLastDoneHint: 'Compté à partir de la date de « {field} ».',
   describeRemovedRecordActions: 'Supprime aussi {n} boutons en un geste qui l’utilisaient',
+  entryFormAdd: 'Ajouter',
+  describeAddedEntryForm:
+    '« {table} » n’avait aucun moyen d’ajouter des entrées : un bouton « Ajouter » est aussi placé au-dessus de la liste',
   recordActionAdded: 'Ajouté à « {table} »',
   recordActionDone: '{label} : fait',
   recordActionChanged: '{n} entrées modifiées',
