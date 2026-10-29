@@ -264,6 +264,8 @@ export const fr: MessageTable = {
   runTitle: 'Exécuter',
   runCancel: 'Arrêter',
   runProgress: '{done} sur {total}',
+  runItemImage: 'image {n} sur {total}',
+  runItemFile: 'fichier {n} sur {total}',
   runFailedAt: 'Arrêté à l’étape {n}',
   runSucceeded: 'Terminé',
   runEdit: 'Ajuster les réglages',
@@ -1172,6 +1174,8 @@ export const fr: MessageTable = {
 };
 
 export const frSingular: SingularTable = {
+  runItemImage: 'image {n} sur {total}',
+  runItemFile: 'fichier {n} sur {total}',
   storageSummary: '{n} fichier · {size}',
   storageCleanup: 'Nettoyer {n} fichier inutilisé ({size})',
   storageCleanupTitle: 'Supprimer {n} fichier inutilisé ?',

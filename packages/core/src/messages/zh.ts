@@ -232,6 +232,8 @@ export const zh: MessageTable = {
   runTitle: '运行',
   runCancel: '停止',
   runProgress: '{done}/{total}',
+  runItemImage: '第 {n}/{total} 张',
+  runItemFile: '第 {n}/{total} 个',
   runFailedAt: '在第 {n} 步停下',
   runSucceeded: '完成',
   runEdit: '调整设置',

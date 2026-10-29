@@ -11,6 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Platform,
@@ -90,6 +91,8 @@ export function RunScreen({
     done?: number;
     total?: number;
     unit?: 'percent';
+    items?: number;
+    images?: boolean;
   } | null>({
     index: 0,
   });
@@ -144,6 +147,21 @@ export function RunScreen({
       new Promise((resolve) => setLocal({ kind, input, resolve } as unknown as LocalPending)),
   };
 
+  /**
+   * 当前这一步的进度文字（D-276）：按百分比报的写百分比；处理多个文件、进度按文件数报时写「第 n/N 张」
+   * （正在处理的那一张，所以第一张还没做完时就显示第 1 张）；别的计数写「done/total」。
+   */
+  function progressText(c: NonNullable<typeof current>): string {
+    if (c.unit === 'percent' && c.total) {
+      return `  ${t(locale, 'runPercent', { done: c.done ?? 0, total: c.total })}`;
+    }
+    if (c.items && c.items > 1 && (c.total === undefined || c.total === c.items)) {
+      const n = Math.min((c.done ?? 0) + 1, c.items);
+      return ` · ${t(locale, c.images ? 'runItemImage' : 'runItemFile', { n, total: c.items })}`;
+    }
+    return c.total ? `  ${t(locale, 'runProgress', { done: c.done ?? 0, total: c.total })}` : '';
+  }
+
   /** 「再来一次」：清掉上一次的结果再运行。 */
   async function restart() {
     signal.current = { cancelled: false };
@@ -196,10 +214,22 @@ export function RunScreen({
         return answer;
       },
       onEvent: (e) =>
-        setCurrent(
+        setCurrent((prev) =>
           e.kind === 'step'
-            ? { index: e.index }
-            : { index: e.index, done: e.done, total: e.total, ...(e.unit ? { unit: e.unit } : {}) },
+            ? {
+                index: e.index,
+                ...(e.items !== undefined ? { items: e.items, images: e.images === true } : {}),
+              }
+            : {
+                // 同一步里保留这一步要处理几个文件（「第 n/N 张」要用）。
+                ...(prev?.index === e.index && prev.items !== undefined
+                  ? { items: prev.items, images: prev.images }
+                  : {}),
+                index: e.index,
+                done: e.done,
+                total: e.total,
+                ...(e.unit ? { unit: e.unit } : {}),
+              },
         ),
     });
     if (!alive.current) {
@@ -334,10 +364,16 @@ export function RunScreen({
                   { color: state === 'pending' ? palette.muted : palette.text },
                 ]}>
                 {label(s.action, i)}
-                {state === 'current' && current?.total
-                  ? `  ${t(locale, current.unit === 'percent' ? 'runPercent' : 'runProgress', { done: current.done ?? 0, total: current.total })}`
-                  : ''}
+                {state === 'current' && current ? progressText(current) : ''}
               </Text>
+              {state === 'current' && !outcome ? (
+                // 正在处理（D-276）：问参数、等用户确认时也在这一步，转圈只说明还没做完。
+                <ActivityIndicator
+                  testID={`run-busy-${s.id}`}
+                  size="small"
+                  color={palette.primary}
+                />
+              ) : null}
             </View>
           );
         })}

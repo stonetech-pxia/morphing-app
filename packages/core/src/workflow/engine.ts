@@ -149,7 +149,8 @@ export type ActionImpl<S> = (
 ) => Promise<RunValue>;
 
 export type RunEvent =
-  | { kind: 'step'; index: number }
+  /** items：这一步要处理几个文件（输入是文件时），images：是不是图片，运行页据此写「第 n/N 张」（D-276）。 */
+  | { kind: 'step'; index: number; items?: number; images?: boolean }
   | { kind: 'progress'; index: number; done: number; total: number; unit?: 'percent' };
 
 export interface AskRequest {
@@ -277,7 +278,13 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
     for (const [i, step] of workflow.steps.entries()) {
       index = i;
       throwIfCancelled();
-      opts.onEvent?.({ kind: 'step', index: i });
+      opts.onEvent?.({
+        kind: 'step',
+        index: i,
+        ...(i > 0 && isFileValue(value)
+          ? { items: value.items.length, images: value.type === 'images' }
+          : {}),
+      });
       const action = registry.actions.get(step.action)!;
       const impl = opts.impls[step.action];
       if (!impl) throw new RunError('unsupportedAction', { action: step.action });

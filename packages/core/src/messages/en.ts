@@ -247,6 +247,8 @@ export const en = {
   runTitle: 'Run',
   runCancel: 'Stop',
   runProgress: '{done} of {total}',
+  runItemImage: 'image {n} of {total}',
+  runItemFile: 'file {n} of {total}',
   runFailedAt: 'Stopped at step {n}',
   runSucceeded: 'Done',
   runEdit: 'Adjust settings',
@@ -1126,6 +1128,8 @@ export type MessageTable = Record<StringKey, string>;
 
 /** 单数写法（isSingular 为真时用），只放带数量的文案；哪个参数决定单复数见 messages.ts 的 PLURAL_COUNT_VARIABLE。 */
 export const enSingular = {
+  runItemImage: 'image {n} of {total}',
+  runItemFile: 'file {n} of {total}',
   storageSummary: '{n} file · {size}',
   storageCleanup: 'Clean up {n} unused file ({size})',
   storageCleanupTitle: 'Delete {n} unused file?',
