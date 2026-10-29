@@ -106,6 +106,20 @@ describe('text boxes from the probability map (D-269)', () => {
     for (let y = 40; y < 50; y++) for (let x = 40; x < 90; x++) map[y * w + x] = 100;
     expect(textBoxes(map, w, h, { width: w, height: h })).toEqual([]);
   });
+
+  it('keeps a bent line (photo of a curved screen or a book page)', () => {
+    // 一行字，中间比两头低 24 像素，字高 14：外接矩形里一半以上是空白，但这一行本身很清楚。
+    const w = 400;
+    const h = 80;
+    const map = new Uint8Array(w * h);
+    for (let x = 20; x < 380; x++) {
+      const top = Math.round(20 + 24 * (1 - ((x - 200) / 180) ** 2));
+      for (let y = top; y < top + 14; y++) map[y * w + x] = 245;
+    }
+    const boxes = textBoxes(map, w, h, { width: w, height: h });
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]!.score).toBeGreaterThan(0.9);
+  });
 });
 
 describe('model inputs (D-269)', () => {
