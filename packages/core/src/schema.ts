@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ComponentSchema, componentRefs, type Component, type ComponentOf } from './components';
 import {
   BackdropSchema,
+  CalendarSchema,
   CollectionSchema,
   IconValueSchema,
   IdSchema,
@@ -18,7 +19,7 @@ import {
 // 修改已有结构（包括给已有组件加属性）时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移；
 // 只新增一种组件不提升（D-254：老配置照样能读，旧 App 读到新组件时原样保留）。
 
-export const CURRENT_SCHEMA_VERSION = 21;
+export const CURRENT_SCHEMA_VERSION = 22;
 
 export * from './schema-base';
 export {
@@ -157,6 +158,8 @@ export const WorkspaceConfigSchema = z.strictObject({
   collections: z.array(CollectionSchema).max(20),
   /** 提醒（D-251，schemaVersion 16）；没有时就是没有提醒。 */
   reminders: z.array(ReminderSchema).max(MAX_REMINDERS).optional(),
+  /** 一天、一周从什么时候开始（D-286，schemaVersion 20）；没有时是 0 点、周一。 */
+  calendar: CalendarSchema.optional(),
 });
 export type WorkspaceConfig = Omit<z.infer<typeof WorkspaceConfigSchema>, 'pages'> & {
   pages: Page[];

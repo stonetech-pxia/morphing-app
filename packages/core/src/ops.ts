@@ -225,6 +225,13 @@ export const OpSchema = z.discriminatedUnion('op', [
     changes: z.record(z.string(), z.unknown()),
   }),
   z.strictObject({ op: z.literal('removeReminder'), reminderId: IdSchema }),
+  // 一天、一周从什么时候开始（D-286）：只写要改的，null 恢复默认；范围由 validateWorkspace 检查。
+  z.strictObject({
+    op: z.literal('setCalendar'),
+    dayStartHour: resettable(z.number().int()),
+    weekStart: resettable(z.enum(['monday', 'sunday'])),
+    twoWeekStart: resettable(z.string()),
+  }),
 ]);
 export type Op = z.infer<typeof OpSchema>;
 /** 一次修改（一个版本）最多包含的操作数。 */
@@ -781,6 +788,16 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       config.reminders = config.reminders!.map((r) =>
         r.id === op.reminderId ? (next as never) : r,
       );
+      return;
+    }
+    case 'setCalendar': {
+      const next: Record<string, unknown> = { ...config.calendar };
+      for (const key of ['dayStartHour', 'weekStart', 'twoWeekStart'] as const) {
+        if (op[key] === null) delete next[key];
+        else if (op[key] !== undefined) next[key] = op[key];
+      }
+      if (Object.keys(next).length > 0) config.calendar = next as never;
+      else delete config.calendar;
       return;
     }
     case 'removeReminder': {

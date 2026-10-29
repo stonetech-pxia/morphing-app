@@ -113,6 +113,15 @@ describe('migrateWorkspace', () => {
     const kept = migrateWorkspace(custom, undefined, 20);
     expect(kept.ok && (kept.config as { workflows: unknown[] }).workflows).toEqual([picked]);
   });
+  it('v21 → v22 (day-based aggregates, new periods and calendar, D-284–D-286) only raises the version', () => {
+    const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 21 };
+    expect(migrateWorkspace(previous, undefined, 22)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 22 },
+      fromVersion: 21,
+    });
+    expect(prepareSnapshot(previous, registry).ok).toBe(true);
+  });
   it('v20 → v21 (time fields and formula upgrade, D-279–D-281) only raises the version', () => {
     const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 20 };
     expect(migrateWorkspace(previous, undefined, 21)).toEqual({

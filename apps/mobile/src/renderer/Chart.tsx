@@ -1,5 +1,6 @@
 import {
   CHART_COLORS,
+  calendarOf,
   chartSeries,
   filterRecords,
   lineScale,
@@ -46,14 +47,22 @@ export function Chart({
   const [picked, setPicked] = useState<number | null>(null);
   if (!collection) return null;
   const now = new Date();
+  const cal = calendarOf(env.config);
   const field = props.fieldId ? collection.fields.find((f) => f.id === props.fieldId) : undefined;
-  const series = chartSeries(
-    filterRecords(records ?? [], collection, props.filter, now),
-    collection,
-    props,
-    now,
-    t(locale, 'statNoChoice'),
-  );
+  // 连续天数这类只有一个值的聚合不能画图（D-284，校验已经挡住）。
+  const series =
+    props.aggregate === 'streak' ||
+    props.aggregate === 'daysSince' ||
+    props.aggregate === 'avgInterval'
+      ? []
+      : chartSeries(
+          filterRecords(records ?? [], collection, props.filter, now, cal),
+          collection,
+          { ...props, aggregate: props.aggregate },
+          now,
+          t(locale, 'statNoChoice'),
+          cal,
+        );
   const points = props.kind === 'pie' ? pieSlices(series, t(locale, 'chartOther')) : series;
   const valueText = (p: ChartPoint) =>
     p.empty ? '—' : statText(p.value, props.aggregate, field, locale);

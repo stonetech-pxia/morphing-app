@@ -1198,6 +1198,35 @@ export const fr: MessageTable = {
     'Mettre à jour l’outil {tool} : ajoute {names} ; vos modifications sont conservées',
   separatorList: ', ',
   separatorComma: ', ',
+  // 按顺序的聚合（D-284）
+  seqDays: '{n} jours',
+  seqWeeks: '{n} semaines',
+  seqMonths: '{n} mois',
+  seqBest: 'Record : {value}',
+  seqToday: 'Aujourd’hui',
+  seqDaysAgo: 'Il y a {n} jours',
+  seqAvgDays: '{n} jours en moyenne',
+  // 一天、一周从什么时候开始（D-286）
+  describeDayStart: 'Une journée commence à {hour} h',
+  describeWeekStartMonday: 'La semaine commence le lundi',
+  describeWeekStartSunday: 'La semaine commence le dimanche',
+  describeTwoWeekStart: 'Les périodes de deux semaines partent du {date}',
+  describeTwoWeekStartReset: 'Les périodes de deux semaines reprennent leur début par défaut',
+  calendarTitle: 'Jours et semaines',
+  calendarRowMonday: 'La journée commence à {hour} h · semaine du lundi',
+  calendarRowSunday: 'La journée commence à {hour} h · semaine du dimanche',
+  calendarHint:
+    'Détermine à quel jour appartient une entrée et comment les semaines sont comptées : dans les filtres, les graphiques, les séries et la date « aujourd’hui » des nouvelles entrées.',
+  calendarDayStart: 'Une journée commence à',
+  calendarDayStartHint: 'Une entrée faite avant cette heure compte pour la veille.',
+  calendarHour: '{hour} h',
+  calendarWeekStart: 'Une semaine commence le',
+  calendarMonday: 'Lundi',
+  calendarSunday: 'Dimanche',
+  calendarTwoWeeks:
+    'Les périodes de deux semaines (par exemple de paie) partent du {date}. Pour changer cette date, demandez à l’IA.',
+  calendarTwoWeeksDefault:
+    'Les périodes de deux semaines (par exemple de paie) commencent en début de semaine. Pour choisir leur premier jour, demandez à l’IA.',
   separatorSemicolon: ' ; ',
 };
 
@@ -1267,4 +1296,9 @@ export const frSingular: SingularTable = {
   reminderWhenDate: '{n} jour avant « {field} » dans « {table} », à {time}',
   reminderDueIn: 'Une entrée de « {table} » arrive à échéance dans {n} jour ({date})',
   remindersRowHint: '{n} rappel',
+  seqDays: '{n} jour',
+  seqWeeks: '{n} semaine',
+  seqMonths: '{n} mois',
+  seqDaysAgo: 'Il y a {n} jour',
+  seqAvgDays: '{n} jour en moyenne',
 };

@@ -112,7 +112,7 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 "sort": { "field": "date", "direction": "desc" }
 ```
 
-可用的条件：`is` / `isNot` / `contains` / `gt` / `lt` / `isEmpty` / `isNotEmpty` / `inPeriod`。`inPeriod` 的取值有 `today`、`thisWeek`、`thisMonth`、`thisYear`、`last7days`、`last30days`。
+可用的条件：`is` / `isNot` / `contains` / `gt` / `lt` / `isEmpty` / `isNotEmpty` / `inPeriod`。`inPeriod` 的取值有 `today`、`thisWeek`、`thisMonth`、`thisYear`、`last7days`、`last30days`，D-285 加了 `last14days`、`last90days`、`last365days`、`thisTwoWeeks`（两周一段）、`thisHalfMonth`（1–15 号或 16 号到月底）。「今天」和一周的第一天按「设置 → 日期」（D-286）。
 
 **记录编辑页**由内核按字段定义自动生成，不可配置：点列表里的一条，或 `recordForm` 的 `button` 模式都会打开它，删除也在这里。
 
@@ -265,3 +265,9 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 
 - **样板**（D-260）：`packages/core/src/samples/<id>.json` 一次带来几张数据表、几个页面、快捷操作、首页入口和提醒，只有表结构，**不含任何记录**。套用时按当前配置换成不重复的 ID（已有同名的表加 -2），用户原来的表和记录不动；表之间的引用字段、公式、提醒、按钮和快捷操作卡片都指向换过的 ID。表或页面放不下（各 20 个）时整套不套用。
 - **新手引导第 3 步**（D-261、D-262）：整套修改先进草稿，「应用」后是一个版本，撤销回到套用前；记录不在版本里，套用后记下的记录在撤销后仍留在本机（「撤销不会丢掉刚记的一笔账」，见第 4 节和开头的原则）。
+
+## 15. 按顺序的聚合、时间段、一天和一周从何时开始（D-284 起）
+
+- **按顺序的聚合**（D-284，schemaVersion 20）：`stat.aggregate` 加 `streak`（当前连续和最佳连续，`unit` 天 / 周 / 月，`perUnit` 每单位至少几条，`skipField` + `skipOption` 指定「跳过」的单选项）、`daysSince`、`avgInterval`、`distinctDays`，按 `dateField`（默认第一个日期字段，没有就用创建时间）算日子，可以配合 `groupBy` 每个选项一行。图表只能用 `distinctDays`。纯逻辑在 `core/sequence.ts`，接口是「一组记录 + 日期字段 + 参数 → 值」，以后汇总字段也用它。
+- **时间段**（D-285）：见上面筛选条件的 `inPeriod`；筛选、`in.records`、`file.filter`、统计和图表的筛选共用。
+- **一天、一周从何时开始**（D-286）：配置的 `calendar {dayStartHour? 0–6, weekStart? monday / sunday, twoWeekStart?}`。所有按天、按周归类的计算（时间段、图表分组、连续天数、日期字段默认的今天、创建时间算哪一天）都按它；逻辑在 `core/calendar.ts`。

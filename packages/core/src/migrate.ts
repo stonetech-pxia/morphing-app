@@ -215,6 +215,12 @@ export const migrateV19toV20: Migration = (config) => {
  */
 export const migrateV20toV21: Migration = (config) => ({ ...config, schemaVersion: 21 });
 
+/**
+ * v21 → v22：统计有按顺序的聚合（连续天数等，D-284），时间段多了几种（D-285），配置可以有 calendar
+ * （一天、一周从什么时候开始，D-286）；没有 calendar 就是原来的 0 点、周一，已有数据不需要改动，只提升版本号。
+ */
+export const migrateV21toV22: Migration = (config) => ({ ...config, schemaVersion: 22 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -237,6 +243,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   18: migrateV18toV19,
   19: migrateV19toV20,
   20: migrateV20toV21,
+  21: migrateV21toV22,
 };
 
 export type MigrateResult =

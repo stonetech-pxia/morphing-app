@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { isValidDate } from './field-values';
 import { FieldSchema } from './fields';
 import { isEmoji, unsafeLinks } from './richtext';
 import { IdSchema, boundedText } from './schema-primitives';
@@ -174,6 +175,10 @@ export const SYSTEM_FIELDS = ['createdAt', 'updatedAt'] as const;
 export type SystemField = (typeof SYSTEM_FIELDS)[number];
 export const FieldRefSchema = z.union([IdSchema, z.enum(SYSTEM_FIELDS)]);
 
+/**
+ * 时间段（筛选、in.records、file.filter 共用）。最近几天是固定几档（D-285）；thisTwoWeeks 从「设置 → 日期」的
+ * 锚定日起每 14 天一段，thisHalfMonth 是 1–15 号或 16 号到月底。按「今天」算，今天从几点开始见 calendar.ts。
+ */
 export const PERIODS = [
   'today',
   'thisWeek',
@@ -181,8 +186,33 @@ export const PERIODS = [
   'thisYear',
   'last7days',
   'last30days',
+  'last14days',
+  'last90days',
+  'last365days',
+  'thisTwoWeeks',
+  'thisHalfMonth',
 ] as const;
 export type Period = (typeof PERIODS)[number];
+
+/** 按顺序的聚合（D-284，算法在 sequence.ts）：统计都能用，图表只能用 distinctDays。 */
+export const SEQUENCE_AGGREGATES = ['streak', 'daysSince', 'avgInterval', 'distinctDays'] as const;
+export type SequenceAggregate = (typeof SEQUENCE_AGGREGATES)[number];
+export const STREAK_UNITS = ['day', 'week', 'month'] as const;
+export type StreakUnit = (typeof STREAK_UNITS)[number];
+
+/**
+ * 一天、一周从什么时候开始（D-286，schemaVersion 20）：dayStartHour 0–6 点，weekStart 周一或周日，
+ * twoWeekStart 是两周一段的锚定日。都不写就是 0 点、周一。
+ */
+export const CalendarSchema = z.strictObject({
+  dayStartHour: z.number().int().min(0).max(6).optional(),
+  weekStart: z.enum(['monday', 'sunday']).optional(),
+  twoWeekStart: z
+    .string()
+    .refine(isValidDate, { message: 'twoWeekStart must be a date like 2026-10-12' })
+    .optional(),
+});
+export type CalendarSettings = z.infer<typeof CalendarSchema>;
 
 /** 筛选条件：白名单比较，多个条件之间是“并且”，没有表达式。 */
 export const ConditionSchema = z.strictObject({

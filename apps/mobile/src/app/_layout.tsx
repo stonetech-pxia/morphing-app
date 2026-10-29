@@ -160,6 +160,7 @@ function ThemedStack() {
         <Stack.Screen name="storage" options={{ title: t(locale, 'storageTitle') }} />
         <Stack.Screen name="packs" options={{ title: t(locale, 'packsTitle') }} />
         <Stack.Screen name="reminders" options={{ title: t(locale, 'remindersTitle') }} />
+        <Stack.Screen name="calendar" options={{ title: t(locale, 'calendarTitle') }} />
         <Stack.Screen name="reminder/[workflowId]" options={{ ...closable, title: '' }} />
         <Stack.Screen
           name="quick-actions/index"

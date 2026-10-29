@@ -59,7 +59,7 @@ export interface FieldDefinition {
   read(field: Field, raw: unknown): FieldValue | undefined;
   shown?(field: Field, raw: unknown): FieldValue | undefined;
   write?(field: Field, input: unknown): Coerced;
-  initial?(field: Field, now: Date): FieldValue | undefined;
+  initial?(field: Field, now: Date, today: string): FieldValue | undefined;
   emptyNew?: FieldValue;
   format(field: Field, value: FieldValue, locale: Locale, links?: LinkResolver): string;
   csv?(field: Field, value: FieldValue): string;

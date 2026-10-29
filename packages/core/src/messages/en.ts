@@ -1146,6 +1146,35 @@ export const en = {
   describeUpdatedTool: 'Update the {tool} tool: adds {names}; your changes are kept',
   separatorList: ', ',
   separatorComma: ', ',
+  // 按顺序的聚合（D-284）
+  seqDays: '{n} days',
+  seqWeeks: '{n} weeks',
+  seqMonths: '{n} months',
+  seqBest: 'Best: {value}',
+  seqToday: 'Today',
+  seqDaysAgo: '{n} days ago',
+  seqAvgDays: '{n} days on average',
+  // 一天、一周从什么时候开始（D-286）
+  describeDayStart: 'A day starts at {hour}:00',
+  describeWeekStartMonday: 'Weeks start on Monday',
+  describeWeekStartSunday: 'Weeks start on Sunday',
+  describeTwoWeekStart: 'Two-week periods count from {date}',
+  describeTwoWeekStartReset: 'Two-week periods go back to their default start',
+  calendarTitle: 'Days and weeks',
+  calendarRowMonday: 'Day starts at {hour}:00 · week on Monday',
+  calendarRowSunday: 'Day starts at {hour}:00 · week on Sunday',
+  calendarHint:
+    'Decides which day an entry belongs to and how weeks are counted, in filters, charts, streaks and the “today” date of new entries.',
+  calendarDayStart: 'A day starts at',
+  calendarDayStartHint: 'An entry made before this time counts for the day before.',
+  calendarHour: '{hour}:00',
+  calendarWeekStart: 'A week starts on',
+  calendarMonday: 'Monday',
+  calendarSunday: 'Sunday',
+  calendarTwoWeeks:
+    'Two-week periods (for example pay periods) count from {date}. To change it, ask the AI.',
+  calendarTwoWeeksDefault:
+    'Two-week periods (for example pay periods) start on a week start. To set the first day of one, ask the AI.',
   separatorSemicolon: '; ',
 };
 
@@ -1219,6 +1248,11 @@ export const enSingular = {
   reminderWhenDate: '{n} day before “{field}” in “{table}”, at {time}',
   reminderDueIn: 'An entry in “{table}” is due in {n} day ({date})',
   remindersRowHint: '{n} reminder',
+  seqDays: '{n} day',
+  seqWeeks: '{n} week',
+  seqMonths: '{n} month',
+  seqDaysAgo: '{n} day ago',
+  seqAvgDays: '{n} day on average',
 } satisfies Partial<MessageTable>;
 
 /** 单数表：键必须和 enSingular 完全一致。 */

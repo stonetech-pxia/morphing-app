@@ -1,7 +1,13 @@
 import { z } from 'zod';
 
 import { t } from '../messages';
-import { boundedText, ConditionSchema, FieldRefSchema, IdSchema } from '../schema-base';
+import {
+  boundedText,
+  ConditionSchema,
+  FieldRefSchema,
+  IdSchema,
+  SEQUENCE_AGGREGATES,
+} from '../schema-base';
 import {
   type ComponentDefinitionOf,
   defineComponent,
@@ -12,7 +18,8 @@ import {
 const props = z.strictObject({
   collectionId: IdSchema,
   kind: z.enum(['bar', 'line', 'pie']),
-  aggregate: z.enum(['count', 'sum', 'avg']),
+  // 按顺序的聚合（D-284）里只有 distinctDays 能画成图；其余的留在结构里，好在 check 里说明原因。
+  aggregate: z.enum(['count', 'sum', 'avg', ...SEQUENCE_AGGREGATES]),
   fieldId: IdSchema.optional(),
   group: z.enum(['day', 'week', 'month', 'choice']),
   dateField: FieldRefSchema.optional(),
@@ -34,7 +41,12 @@ export const chartComponent: ComponentDefinitionOf<'chart', typeof props> = defi
   check: (c, { collection }) => {
     const problems: string[] = [];
     const field = (id: string) => collection!.fields.find((f) => f.id === id);
-    if (c.props.aggregate !== 'count') {
+    const { aggregate } = c.props;
+    if (aggregate === 'streak' || aggregate === 'daysSince' || aggregate === 'avgInterval')
+      problems.push(
+        `${aggregate} is one value, not a series, so it can't be drawn as a chart: use a stat (with groupBy for one row per option); a chart can count days with entries (aggregate "distinctDays")`,
+      );
+    else if (aggregate !== 'count' && aggregate !== 'distinctDays') {
       const f = c.props.fieldId ? field(c.props.fieldId) : undefined;
       if (!f || !NUMERIC_FIELD_TYPES.includes(f.type))
         problems.push(
@@ -57,7 +69,7 @@ export const chartComponent: ComponentDefinitionOf<'chart', typeof props> = defi
   describe: (c, _config, ctx) => t(ctx.locale, 'describeChart', { v0: c.props.title }),
   edit: { text: [{ prop: 'title', max: 60 }], style: ['tone'] },
   ai: {
-    doc: '{collectionId, kind: "bar"|"line"|"pie", aggregate: "count"|"sum"|"avg", fieldId? (number, money, rating, duration or formula; not for count), group: "day"|"week"|"month"|"choice", dateField? (a date or datetime field or "createdAt"; default: the first date field), choiceField? (a choice field; required for group "choice"), periods? (2-31; default 7 days, 8 weeks, 6 months), filter?, title}: a pie chart needs group "choice"',
+    doc: '{collectionId, kind: "bar"|"line"|"pie", aggregate: "count"|"sum"|"avg"|"distinctDays" (days with at least one entry), fieldId? (number, money, rating, duration or formula; only for sum and avg), group: "day"|"week"|"month"|"choice", dateField? (a date or datetime field or "createdAt"; default: the first date field), choiceField? (a choice field; required for group "choice"), periods? (2-31; default 7 days, 8 weeks, 6 months), filter?, title}: a pie chart needs group "choice"',
     rule: {
       n: 35,
       text: 'Charts ("a chart of spending per month", "每天花了多少的柱状图", "pie chart by category", "trend over the last weeks") → a chart component on the page that shows the table: amounts over time are kind "bar" or "line" with group "day" / "week" / "month" (periods = how many recent days / weeks / months, e.g. 12 for "the last year by month"); shares of a whole are kind "pie" with group "choice". Use aggregate "sum" with the money field for spending, "count" for how many entries. A single total or a per-category list without a picture is a stat (rule 34). You only choose how the chart is built; you never see the values.',

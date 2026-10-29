@@ -78,7 +78,7 @@ export const RECORD_IMPLS: Record<string, Impl> = {
         ctx.saved.push(file!.assetId!);
       }
       const now = ctx.now();
-      const prepared = prepareRecordValues(collection, values, null, now);
+      const prepared = prepareRecordValues(collection, values, null, now, ctx.services.calendar);
       // 表单已经按同样的规则校验过；这里出错说明表结构在运行中变了。
       if (!prepared.ok) throw new RunError('badField', { name: prepared.issues[0]!.fieldId });
       await repo.insertRecord({

@@ -3141,12 +3141,17 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf stat>.type "stat"
 <oneOf stat>.props object
 <oneOf stat>.props.collectionId string /^[a-z][a-z0-9-]{0,47}$/
-<oneOf stat>.props.aggregate "count"|"sum"|"avg"|"min"|"max"
+<oneOf stat>.props.aggregate "count"|"sum"|"avg"|"min"|"max"|"streak"|"daysSince"|"avgInterval"|"distinctDays"
 <oneOf stat>.props.fieldId? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf stat>.props.filter? array items ..5
 <oneOf stat>.props.filter[] = <oneOf recordList>.props.filter[]
 <oneOf stat>.props.label string len 1..40
 <oneOf stat>.props.groupBy? string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf stat>.props.dateField? = <oneOf recordList>.props.titleField
+<oneOf stat>.props.unit? "day"|"week"|"month"
+<oneOf stat>.props.perUnit? integer 1..50
+<oneOf stat>.props.skipField? string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf stat>.props.skipOption? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf chart> object
 <oneOf chart>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf chart>.hidden? boolean
@@ -3155,7 +3160,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf chart>.props object
 <oneOf chart>.props.collectionId string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf chart>.props.kind "bar"|"line"|"pie"
-<oneOf chart>.props.aggregate "count"|"sum"|"avg"
+<oneOf chart>.props.aggregate "count"|"sum"|"avg"|"streak"|"daysSince"|"avgInterval"|"distinctDays"
 <oneOf chart>.props.fieldId? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf chart>.props.group "day"|"week"|"month"|"choice"
 <oneOf chart>.props.dateField? = <oneOf recordList>.props.titleField
@@ -3214,7 +3219,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 21
+.schemaVersion 22
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"
@@ -3382,5 +3387,9 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .reminders[].fieldId? string /^[a-z][a-z0-9-]{0,47}$/
 .reminders[].daysBefore? integer 0..30
 .reminders[].opens
+.calendar? object
+.calendar.dayStartHour? integer 0..6
+.calendar.weekStart? "monday"|"sunday"
+.calendar.twoWeekStart? string
 "
 `;

@@ -524,3 +524,19 @@ describe('mock AI — sentences removed in D-265', () => {
     });
   });
 });
+
+describe('mock AI — record reports (W9)', () => {
+  it('reads the period from the sentence, including the longer ones (D-285)', async () => {
+    const budget = (await changeThenNext('新建一个记账页面', workspace())).after;
+    const name = budget.collections[0]!.name;
+    for (const [words, period] of [
+      ['本月', 'thisMonth'],
+      ['最近 90 天', 'last90days'],
+      ['最近一年', 'last365days'],
+    ]) {
+      const { after } = await change(`把${words}的${name}做成 PDF 报表`, budget);
+      const added = after.workflows.find((w) => !budget.workflows.some((x) => x.id === w.id))!;
+      expect(added.steps[0]!.params).toMatchObject({ period });
+    }
+  });
+});
