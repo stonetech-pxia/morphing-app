@@ -14,7 +14,11 @@ interface Case {
   test: { text: string; truth: Record<string, string | number | null> };
 }
 
-const dataset = process.argv.includes('--absence') ? 'heldout_absence_pairs' : 'heldout_pairs';
+const dataset = process.argv.includes('--evidence')
+  ? 'heldout_evidence_pairs'
+  : process.argv.includes('--absence')
+    ? 'heldout_absence_pairs'
+    : 'heldout_pairs';
 const cases = readFileSync(join(import.meta.dirname, `${dataset}.jsonl`), 'utf8')
   .split('\n')
   .filter(Boolean)

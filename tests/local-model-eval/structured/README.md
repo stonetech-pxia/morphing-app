@@ -60,4 +60,16 @@ python tests/local-model-eval/structured/evaluate_heldout.py --lang fr --absence
 
 逐条输出在忽略的 `../results/structured_eval/heldout*.json`。原始短字段名和逐候选片段规则保持不变；当前没有可靠的空目标判定，结果不能用于自动填写上线判断。
 
+通用“直接依据”门槛实验：只接受 UIE 已选中的来源，并要求用户字段名经过大小写、重音和空白归一后，紧邻该来源且位于同一行或上一行。它不包含某类文件的专门词表，也不宣称理解字段同义词。`heldout_evidence_pairs.jsonl` 在运行模型前写定，专门检验字段名改写、OCR 空格、换行及空目标；不要与先前两批合并成自然分布准确率。
+
+```bash
+npx tsx tests/local-model-eval/prefill/evaluate_heldout.ts --evidence
+python tests/local-model-eval/structured/evaluate_heldout.py --lang zh --dataset heldout_evidence_pairs
+python tests/local-model-eval/structured/evaluate_heldout.py --lang en --dataset heldout_evidence_pairs
+python tests/local-model-eval/structured/evaluate_heldout.py --lang fr --dataset heldout_evidence_pairs
+python tests/local-model-eval/structured/evaluate_evidence_gate.py --dataset heldout_evidence_pairs
+```
+
+同一门槛也可在已有开发样本上运行，分别传 `--dataset heldout_pairs` 和 `--dataset heldout_absence_pairs`。门槛只核对代码找到的直接标签；**它没有让 UIE 输出支持字段的语义关系**。因此这一步只能测试直接依据的准确率和覆盖率代价，不能证明复杂字段关联已经解决。
+
 `run_structured.py` 与 `score_structured.py` 沿用旧 pairs2 的最高分原文片段映射口径；`evaluate_diverse.py` 支持每份文件自有字段。`rerank_pilot.py` 读取 GLiNER2 的逐条输出，使用固定 revision 的 `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` 对最高五个片段重排。各脚本的输出留在忽略的 `../results/`。`PPNLP_HOME` 可指向现有 PaddleNLP 缓存，以免重复下载 1 GB 以上权重。

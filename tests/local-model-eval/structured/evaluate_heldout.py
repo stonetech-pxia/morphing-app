@@ -30,14 +30,16 @@ def source_candidates(row: dict, field: dict) -> list[dict]:
             continue
         at = candidate["line"], candidate["start"], candidate["end"]
         item = grouped.setdefault(at, {"raw": candidate["raw"], "values": set(),
-                                       "line": candidate["line"]})
+                                       "line": candidate["line"],
+                                       "start": candidate["start"], "end": candidate["end"]})
         item["values"].add(candidate["value"])
     sources = []
     for item in grouped.values():
         line = lines[item["line"]]
         snippet = line if len(line.strip()) >= 20 or item["line"] == 0 else lines[item["line"] - 1] + "\n" + line
         sources.append({"raw": item["raw"], "values": sorted(item["values"]),
-                        "line": item["line"], "snippet": snippet})
+                        "line": item["line"], "start": item["start"], "end": item["end"],
+                        "snippet": snippet})
     return sources
 
 
@@ -93,10 +95,9 @@ def failure_stage(result: str, truth: object, sources: list[dict], field: dict,
     return "wrongCandidate"
 
 
-def run(lang: str, absence: bool) -> None:
+def run(lang: str, dataset: str) -> None:
     from paddlenlp import Taskflow
 
-    dataset = "heldout_absence_pairs" if absence else "heldout_pairs"
     source = ROOT / "results" / f"{dataset}_export.json"
     rows = [row for row in json.loads(source.read_text(encoding="utf-8")) if row["lang"] == lang]
     model = Taskflow("information_extraction", schema=["placeholder"], model="uie-m-base",
@@ -176,6 +177,8 @@ def run(lang: str, absence: bool) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--lang", choices=("zh", "en", "fr"), required=True)
+    parser.add_argument("--dataset", choices=("heldout_pairs", "heldout_absence_pairs",
+                                              "heldout_evidence_pairs"))
     parser.add_argument("--absence", action="store_true")
     args = parser.parse_args()
-    run(args.lang, args.absence)
+    run(args.lang, args.dataset or ("heldout_absence_pairs" if args.absence else "heldout_pairs"))
