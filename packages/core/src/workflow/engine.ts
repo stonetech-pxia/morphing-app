@@ -180,6 +180,12 @@ export type RunResult =
   | { status: 'cancelled' }
   | { status: 'failed'; error: RunError; stepIndex: number | null };
 
+/** 一步要的扩展包；optional：不下载这一步也照样做（D-274）。 */
+export interface PackNeed {
+  pack: string;
+  optional: boolean;
+}
+
 export interface RunOptions<S> {
   workflow: Workflow;
   registry: Registry;
@@ -195,6 +201,12 @@ export interface RunOptions<S> {
    * optional：不下载这一步也照样做（D-274），界面据此说明，不让人以为会取消。
    */
   ensurePack?: (packId: string, options?: { optional?: boolean }) => Promise<boolean>;
+  /**
+   * 第一次有步骤要扩展包时，把这一步和后面各步要的一次问完（D-289）：界面只列还没装的，一次下载。
+   * 返回用户没下载的可选扩展包；null 表示必需的没下载，取消运行。没有它时每一步用 ensurePack 分开问。
+   * 后面的步骤按配置里的参数和现在的输入估；估漏的（例如运行时选了别的语言）到那一步再用 ensurePack 问。
+   */
+  ensurePacks?: (needs: readonly PackNeed[]) => Promise<string[] | null>;
   /**
    * 这一步在这台设备上不需要扩展包时返回 true，不调用 ensurePack（D-085–D-087）：
    * 系统自带的识别（iOS 的 Vision、Android 的 ML Kit），或者输入已经是拉正的页面。
@@ -255,6 +267,29 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
     }
     return result;
   };
+
+  // 一步要的扩展包：动作自己的（或设备代替它的），再加另外要的可选的（D-274）。
+  const packNeeds = (
+    action: ActionDefinition,
+    params: Record<string, unknown>,
+    input: RunValue | null,
+  ): PackNeed[] => {
+    const device = opts.devicePack?.(action.id, params, input);
+    const replaces = device && !device.extra ? device : undefined;
+    const pack =
+      replaces?.pack ??
+      (opts.packNotNeeded?.(action.id, params, input)
+        ? undefined
+        : (action.packFor?.(params) ?? action.pack));
+    return [
+      ...(pack ? [{ pack, optional: replaces?.optional === true }] : []),
+      ...(device?.extra ? [{ pack: device.pack, optional: true }] : []),
+    ];
+  };
+  // 这次运行里已经装好的、用户不下载的可选扩展包：不再问。
+  const ready = new Set<string>();
+  const skipped = new Set<string>();
+  let askedAll = false;
 
   // 配置保存前已经校验过；执行前再检查一次（D-020 纵深防御）。
   if (workflowProblems(workflow, registry).length > 0) {
@@ -320,26 +355,31 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
         params = action.params.parse({ ...params, ...rest });
       }
       // 先问参数再确认扩展包：文字识别的语言包由本次选的语言决定。
-      const device = opts.devicePack?.(action.id, params, value);
-      const replaces = device && !device.extra ? device : undefined;
-      const pack =
-        replaces?.pack ??
-        (opts.packNotNeeded?.(action.id, params, value)
-          ? undefined
-          : (action.packFor?.(params) ?? action.pack));
-      if (
-        pack &&
-        opts.ensurePack &&
-        !(await orCancel(
-          opts.ensurePack(pack, replaces?.optional ? { optional: true } : undefined),
-        )) &&
-        !replaces?.optional
-      ) {
-        throw new RunCancelled();
+      const needs = packNeeds(action, params, value);
+      if (needs.length && opts.ensurePacks && !askedAll) {
+        askedAll = true;
+        const later = workflow.steps.slice(i + 1).flatMap((s) => {
+          const a = registry.actions.get(s.action)!;
+          return packNeeds(a, a.params.parse(s.params), value);
+        });
+        // 同一个扩展包只列一次；有一步必需就是必需的。
+        const all: PackNeed[] = [];
+        for (const need of [...needs, ...later]) {
+          const seen = all.find((n) => n.pack === need.pack);
+          if (!seen) all.push({ ...need });
+          else if (!need.optional) seen.optional = false;
+        }
+        const left = await orCancel(opts.ensurePacks(all));
+        if (left === null) throw new RunCancelled();
+        for (const { pack } of all) (left.includes(pack) ? skipped : ready).add(pack);
       }
-      // 另外要的扩展包（可选）：用户不下载也照样做这一步。
-      if (device?.extra && opts.ensurePack) {
-        await orCancel(opts.ensurePack(device.pack, { optional: true }));
+      for (const { pack, optional } of needs) {
+        if (ready.has(pack) || (optional && skipped.has(pack)) || !opts.ensurePack) continue;
+        const ok = await orCancel(opts.ensurePack(pack, optional ? { optional: true } : undefined));
+        if (ok) ready.add(pack);
+        // 可选的不下载也照样做这一步。
+        else if (optional) skipped.add(pack);
+        else throw new RunCancelled();
       }
       throwIfCancelled();
       value = await orCancel(

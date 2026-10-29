@@ -3,6 +3,8 @@ import {
   applyOps,
   createDefaultWorkspace,
   createRegistry,
+  presetById,
+  presetWorkflow,
   type RunResult,
   type Workflow,
 } from '@morph/core';
@@ -952,5 +954,47 @@ describe('PP-OCRv6 replaces ML Kit and Vision for the languages it reads (D-269)
       'ppocr',
     ]);
     expect(packsNeeded(['ocr', 'ocr-rus'], files)).toEqual(['ocr-rus']);
+  });
+});
+
+describe('one download prompt for scan to Excel (D-289)', () => {
+  it('lists edge finding, flattening and text recognition together before scanning a shared photo', async () => {
+    // 2026-10-29 真机（Android、新用户）：找边、展平、认字分三个框问；认字模型要在找边之前装好，
+    // 第一次扫描时展平后的逐行精修（D-274）才能用。
+    const files = new FakeFiles();
+    const vision = new FakeVision(files);
+    files.vision = vision;
+    vision.canFindPaper = false;
+    vision.enableFlatten();
+    vision.ocrModel = { pack: 'ppocr', languages: ['zh', 'en', 'fr'] };
+    const packs = new FakePacks();
+    const batches: unknown[] = [];
+    const single: string[] = [];
+    const preset = presetById('scan-table-excel')!;
+    const { result } = await startRun({
+      workflow: presetWorkflow(preset, 'zh', preset.id),
+      revisionId: 1,
+      repo: new MemoryWorkspaceRepo(),
+      files,
+      registry,
+      locale: 'zh',
+      now: () => new Date(2026, 9, 29),
+      newId: () => `id${++ids}`,
+      ui: { confirm: async () => false, choose: async () => null, open: async () => null },
+      packs: { runtime: packs, isInstalled: async () => true },
+      incoming: [files.offerImage('bill.jpg', 1000, 1400)],
+      ensurePacks: async (needs) => (batches.push([...needs]), null),
+      ensurePack: async (id) => (single.push(id), true),
+    });
+    expect(result).toEqual({ status: 'cancelled' });
+    expect(batches).toEqual([
+      [
+        { pack: 'scan', optional: false },
+        { pack: 'dewarp', optional: true },
+        { pack: 'ppocr', optional: false },
+      ],
+    ]);
+    expect(single).toEqual([]);
+    expect(packs.calls).toEqual([]);
   });
 });

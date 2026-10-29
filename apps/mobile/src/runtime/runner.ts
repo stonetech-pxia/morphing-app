@@ -8,6 +8,7 @@ import {
   type AskRequest,
   type Locale,
   type OcrLanguage,
+  type PackNeed,
   type Registry,
   type RunEvent,
   type RunResult,
@@ -44,6 +45,8 @@ export interface RunContext {
   packs?: RunServices['packs'];
   askParams?: (request: AskRequest) => Promise<Record<string, unknown> | null>;
   ensurePack?: (packId: string, options?: { optional?: boolean }) => Promise<boolean>;
+  /** 一次问完这次运行要的扩展包（D-289）：返回没下载的可选扩展包，null 表示取消。 */
+  ensurePacks?: (needs: readonly PackNeed[]) => Promise<string[] | null>;
   signal?: { cancelled: boolean };
   onEvent?: (event: RunEvent) => void;
   /** 分享进来的文件（D-115）：交给第一步，第一步不再打开选择器，也不问参数。 */
@@ -298,6 +301,7 @@ export async function startRun(ctx: RunContext): Promise<Run> {
     newId: ctx.newId,
     ...(ctx.askParams ? { askParams: askUnlessShared(ctx, ctx.askParams) } : {}),
     ...(ctx.ensurePack ? { ensurePack: ctx.ensurePack } : {}),
+    ...(ctx.ensurePacks ? { ensurePacks: ctx.ensurePacks } : {}),
     packNotNeeded: (actionId, params, input) =>
       packNotNeeded(ctx.files, actionId, params, input, ctx.locale),
     devicePack: (actionId, params) => devicePack(ctx.files, actionId, params, ctx.locale),

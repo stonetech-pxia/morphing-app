@@ -315,6 +315,101 @@ describe('runWorkflow', () => {
     expect(await noScan.promise).toMatchObject({ status: 'cancelled' });
   });
 
+  describe('one download prompt for the whole run (D-289)', () => {
+    // 2026-10-29 真机：新用户「拍表格转 Excel」要连着确认三次（找边 → 展平 → 认字）。
+    const wf: Workflow = {
+      id: 'excel',
+      name: 'Excel',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+        { id: 'edges', action: 'scan.detect', params: { flatten: true } },
+        { id: 'look', action: 'scan.enhance', params: { mode: 'auto' } },
+        { id: 'excel', action: 'ocr.toExcel', params: { lang: 'auto', scope: 'all' } },
+      ],
+    };
+    const log: string[] = [];
+    const impls = {
+      'in.photos': async () => (
+        log.push('pick'),
+        { type: 'images' as const, items: [pdfItem('p')] }
+      ),
+      'scan.detect': async (input: RunValue | null) => (log.push('edges'), input!),
+      'scan.enhance': async (input: RunValue | null) => (log.push('look'), input!),
+      'ocr.toExcel': async () => (log.push('excel'), { type: 'files' as const, items: [] }),
+    };
+    const devicePack = (id: string) =>
+      id === 'scan.detect'
+        ? { pack: 'dewarp', optional: true, extra: true }
+        : id === 'ocr.toExcel'
+          ? { pack: 'ppocr' }
+          : undefined;
+
+    it('lists every pack the run needs before the first step that needs one, and asks once', async () => {
+      log.length = 0;
+      const batches: unknown[] = [];
+      const single: string[] = [];
+      const { promise } = run(wf, {
+        impls,
+        devicePack,
+        ensurePacks: async (needs) => (batches.push([...needs]), log.push('ask'), []),
+        ensurePack: async (id) => (single.push(id), true),
+      });
+      expect(await promise).toMatchObject({ status: 'succeeded' });
+      // 认字模型也在找边之前装好：展平后的逐行精修（D-274）第一次就能用。
+      expect(batches).toEqual([
+        [
+          { pack: 'scan', optional: false },
+          { pack: 'dewarp', optional: true },
+          { pack: 'ppocr', optional: false },
+        ],
+      ]);
+      expect(log).toEqual(['pick', 'ask', 'edges', 'look', 'excel']);
+      expect(single).toEqual([]);
+    });
+
+    it('goes on without an optional pack the user left out and does not ask for it again', async () => {
+      const single: string[] = [];
+      const { promise } = run(wf, {
+        impls,
+        devicePack,
+        ensurePacks: async () => ['dewarp'],
+        ensurePack: async (id) => (single.push(id), true),
+      });
+      expect(await promise).toMatchObject({ status: 'succeeded' });
+      expect(single).toEqual([]);
+    });
+
+    it('cancels before the step when the user does not download what is needed', async () => {
+      log.length = 0;
+      const { promise } = run(wf, { impls, devicePack, ensurePacks: async () => null });
+      expect(await promise).toEqual({ status: 'cancelled' });
+      expect(log).toEqual(['pick']);
+    });
+  });
+
+  it('asks for an optional pack only once per run when two steps could use it', async () => {
+    const wf: Workflow = {
+      id: 'scan',
+      name: 'Scan',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+        { id: 'a', action: 'scan.enhance', params: { mode: 'auto' } },
+        { id: 'b', action: 'scan.enhance', params: { mode: 'auto' } },
+      ],
+    };
+    const asked: string[] = [];
+    const { promise } = run(wf, {
+      impls: {
+        'in.photos': async () => ({ type: 'images' as const, items: [pdfItem('p')] }),
+        'scan.enhance': async (input: RunValue | null) => input!,
+      },
+      devicePack: (id) => (id === 'scan.enhance' ? { pack: 'ppocr', optional: true } : undefined),
+      ensurePack: async (id) => (asked.push(id), false),
+    });
+    expect(await promise).toMatchObject({ status: 'succeeded' });
+    expect(asked).toEqual(['ppocr']);
+  });
+
   it('always asks for passwords and hands them only to that step, never into the params (D-194)', async () => {
     const wf: Workflow = {
       id: 'wifi',

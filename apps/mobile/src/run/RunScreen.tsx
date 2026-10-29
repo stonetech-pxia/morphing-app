@@ -4,6 +4,7 @@ import {
   isFileValue,
   type AskedAnswer,
   type AskRequest,
+  type PackNeed,
   type RunItem,
   type RunResult,
   type Workflow,
@@ -105,7 +106,7 @@ export function RunScreen({
   const [local, setLocal] = useState<LocalPending | null>(null);
   const packs = usePacks();
   const [packAsk, setPackAsk] = useState<
-    ({ packId: string; optional: boolean } & Pending<boolean>) | null
+    ({ needs: readonly PackNeed[] } & Pending<string[] | null>) | null
   >(null);
   const alive = useRef(true);
   const transferring = useRef(false);
@@ -192,13 +193,21 @@ export function RunScreen({
       packs: packs
         ? { runtime: packs.bridge, isInstalled: (id) => packs.store.isInstalled(id) }
         : null,
-      // 需要扩展包时先问用户（D-064）；已安装就直接继续。
+      // 需要扩展包时先问用户（D-064）；已安装就直接继续。第一次要时一次问完这次运行要的（D-289）。
+      ensurePacks: async (needs) => {
+        if (!packs) throw new RunError('packFailed', { detail: needs[0]?.pack });
+        const have = new Set((await packs.store.installed()).map((p) => p.id));
+        const missing = needs.filter((n) => !have.has(n.pack));
+        if (missing.length === 0) return [];
+        return new Promise((resolve) => setPackAsk({ needs: missing, resolve }));
+      },
       ensurePack: async (packId, options) => {
         if (!packs) throw new RunError('packFailed', { detail: packId });
         if (await packs.store.isInstalled(packId)) return true;
-        return new Promise((resolve) =>
-          setPackAsk({ packId, optional: options?.optional === true, resolve }),
+        const left = await new Promise<string[] | null>((resolve) =>
+          setPackAsk({ needs: [{ pack: packId, optional: options?.optional === true }], resolve }),
         );
+        return left !== null && !left.includes(packId);
       },
       signal: signal.current,
       incoming: incoming?.files ?? null,
@@ -593,13 +602,12 @@ export function RunScreen({
       ) : null}
       {packAsk && packs ? (
         <PackGate
-          packId={packAsk.packId}
-          optional={packAsk.optional}
+          needs={packAsk.needs}
           store={packs.store}
           palette={palette}
           locale={locale}
-          onDone={(installed) => {
-            packAsk.resolve(installed);
+          onDone={(left) => {
+            packAsk.resolve(left);
             setPackAsk(null);
           }}
         />
