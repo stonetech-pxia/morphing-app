@@ -434,6 +434,10 @@ export class SQLiteWorkspaceRepo implements WorkspaceRepo {
     await this.db.runAsync('UPDATE records SET deleted_at = NULL WHERE id = ?', id);
   }
 
+  async discardRecord(id: string) {
+    await this.db.runAsync('DELETE FROM records WHERE id = ?', id);
+  }
+
   async listDeletedRecords() {
     const rows = await this.db.getAllAsync<RecordRow>(
       'SELECT * FROM records WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC',

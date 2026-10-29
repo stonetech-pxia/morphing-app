@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { fieldDefinition } from '../fields';
 import { t } from '../messages';
+import { RowActionSchema } from '../record-ops-schema';
 import { boundedText, ConditionSchema, FieldRefSchema, IdSchema, SortSchema } from '../schema-base';
 import {
   collectionName,
@@ -22,6 +23,8 @@ const props = z.strictObject({
   sort: SortSchema.optional(),
   limit: z.number().int().min(1).max(100),
   emptyText: boundedText(1, 80).optional(),
+  /** 每一行右边的按钮（D-300）：第一个 when 都满足的显示出来，点了改这一行或新建一条。 */
+  rowActions: z.array(RowActionSchema).min(1).max(3).optional(),
 });
 
 /** 记录列表：展示某张数据表的记录；checklist 用一个 checkbox 字段直接打勾。 */
@@ -62,7 +65,7 @@ export const recordListComponent: ComponentDefinitionOf<'recordList', typeof pro
       t(ctx.locale, 'describe_list_0b528', { v0: collectionName(c.props.collectionId, config) }),
     edit: { text: [], style: ['tone'] },
     ai: {
-      doc: '{collectionId, display: "list"|"cards"|"checklist", titleField, subtitleFields? (≤2), trailingField? (shown on the right, e.g. an amount), checkField? (a checkbox field; required for "checklist"), filter?, sort? {field, direction: "asc"|"desc"}, limit (1-100), emptyText?}: tapping a record opens the built-in editor',
+      doc: '{collectionId, display: "list"|"cards"|"checklist", titleField, subtitleFields? (≤2), trailingField? (shown on the right, e.g. an amount), checkField? (a checkbox field; required for "checklist"), filter?, sort? {field, direction: "asc"|"desc"}, limit (1-100), emptyText?, rowActions? (1-3, rule 49)}: tapping a record opens the built-in editor',
     },
     example: {
       props: {

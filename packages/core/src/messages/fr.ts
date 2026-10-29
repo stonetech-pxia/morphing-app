@@ -1293,6 +1293,15 @@ export const fr: MessageTable = {
   scheduleDecrease: 'Moins',
   scheduleIncrease: 'Plus',
   scheduleLastDoneHint: 'Compté à partir de la date de « {field} ».',
+  describeRemovedRecordActions: 'Supprime aussi {n} boutons en un geste qui l’utilisaient',
+  recordActionAdded: 'Ajouté à « {table} »',
+  recordActionDone: '{label} : fait',
+  recordActionChanged: '{n} entrées modifiées',
+  recordActionConfirm: 'Cela modifie {n} entrées. Vous pourrez annuler ensuite.',
+  recordActionConfirmButton: 'Modifier',
+  recordActionNothing: 'Aucune entrée à modifier',
+  recordActionTooMany: 'Au plus {max} entrées peuvent changer à la fois ; cela en modifierait {n}.',
+  recordActionGone: 'Cette entrée a été supprimée.',
 };
 
 export const frSingular: SingularTable = {
@@ -1375,4 +1384,8 @@ export const frSingular: SingularTable = {
   scheduleInterval: 'Tous les jours',
   schedulePerDay: '{rule}, une fois par jour',
   scheduleOverdue: 'En retard de {n} jour',
+  describeRemovedRecordActions: 'Supprime aussi {n} bouton en un geste qui l’utilisait',
+  recordActionChanged: '{n} entrée modifiée',
+  recordActionConfirm: 'Cela modifie {n} entrée. Vous pourrez annuler ensuite.',
+  recordActionTooMany: 'Au plus {max} entrées peuvent changer à la fois ; cela en modifierait {n}.',
 };

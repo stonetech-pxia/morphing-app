@@ -289,3 +289,9 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 - **日程字段**（D-292，schemaVersion 24）：每条记录存一份重复规则 `{repeat, …, perDay?}`（每天、每周几天、每段 N 次、每月几号、每 N 天、每年某天），用户在表单里设；字段的 `default` 是新记录的规则。逻辑在 `core/schedule.ts`。
 - **上次完成**（D-293）：`lastDone` 指向同一张表里的日期或日期时间字段；由规则和它算出下一次、今天该不该做、过期几天。
 - **用在别处**（D-294、D-295）：筛选 `due`；`inPeriod` / `gt` / `lt`、排序和公式都按下一次。提醒还不按日程（P8）。
+
+## 18. 一键记录操作（D-300 起）
+
+- **挂在哪里**（D-300、D-302，schemaVersion 25）：按钮的 `action`（`create`、`setAll`、`open`，和 `target` 二选一），记录列表每一行的 `rowActions`（`set`、`toggle`、`increment`、`create`、`open`，每行显示第一个 `when` 满足的）。逻辑在 `core/record-ops.ts`。
+- **能写的值**（D-301）：单选项、数字、勾选、`today`、`now`、清空，行按钮的 `create` 里引用字段可以是 `row`；不能写文字。
+- **执行**（D-303）：用户点了才在本机写记录，不经过 AI、不生成版本；每次都能在提示条上撤销。`setAll` 先问、一次最多 200 条。删字段、删表时用到它的操作跟着去掉（D-304）。

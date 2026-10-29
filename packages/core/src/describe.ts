@@ -767,6 +767,8 @@ export function describeChange(
           v1: collName(note.collectionId),
         }),
       );
+    } else if (note.kind === 'removedRecordActions') {
+      lines.push(t(ctx.locale, 'describeRemovedRecordActions', { n: note.count }));
     } else if (note.kind === 'removedWorkflowLinks') {
       lines.push(
         t(ctx.locale, 'describe_Also_removes_button_s_or_shortcut_s_th_d4dc1', {

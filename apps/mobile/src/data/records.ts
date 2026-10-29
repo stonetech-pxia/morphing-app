@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { t } from '../i18n';
 import { newAssetId } from '../runtime/runner';
 import { useCalendar, useWorkspace, useWorkspaceContext } from '../workspace/context';
+import type { RecordUndo } from '../workspace/store/types';
 
 // 用户记录的读写。只由用户在页面上的操作触发，直接写数据库，不经过 AI、不生成版本
 // （docs/DATA_DESIGN.md）。AI 拿到的只有 WorkspaceConfig，而记录从不进入配置。
@@ -149,6 +150,16 @@ export function useRecordActions() {
 
     async restore(id: string): Promise<void> {
       await repo.restoreRecord(id);
+      bump();
+    },
+
+    /** 撤销一键操作（D-300）：刚建的去掉，改过的改回原来存的值。 */
+    async undo(undo: RecordUndo): Promise<void> {
+      if (undo.kind === 'discard') await repo.discardRecord(undo.id);
+      else {
+        const at = Date.now();
+        for (const r of undo.records) await repo.updateRecord(r.id, r.values, at);
+      }
       bump();
     },
   };

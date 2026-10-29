@@ -1,7 +1,7 @@
 Interface language: French
 
 <workspace_config>
-{"schemaVersion":24,"theme":{"primaryColor":"#C8623A","mode":"light","colors":{},"font":"clay","fontScale":1,"radius":22,"density":"comfortable","cardStyle":"shadow","navStyle":"iconLabel"},"shell":{"nav":["page:home","tools","ai","history","settings"],"floating":[]},"pages":[{"id":"home","title":"Accueil","icon":"home","components":[{"id":"welcome","type":"header","props":{"title":"Mon espace de travail","subtitle":"Touchez « IA » et décrivez en une phrase comment cette app doit changer."}},{"id":"catalog","type":"catalogLink","props":{"title":"Ajouter des outils"}},{"id":"recent-files","type":"fileList","props":{"title":"Fichiers récents","limit":5}}]}],"tools":[],"workflows":[],"collections":[]}
+{"schemaVersion":25,"theme":{"primaryColor":"#C8623A","mode":"light","colors":{},"font":"clay","fontScale":1,"radius":22,"density":"comfortable","cardStyle":"shadow","navStyle":"iconLabel"},"shell":{"nav":["page:home","tools","ai","history","settings"],"floating":[]},"pages":[{"id":"home","title":"Accueil","icon":"home","components":[{"id":"welcome","type":"header","props":{"title":"Mon espace de travail","subtitle":"Touchez « IA » et décrivez en une phrase comment cette app doit changer."}},{"id":"catalog","type":"catalogLink","props":{"title":"Ajouter des outils"}},{"id":"recent-files","type":"fileList","props":{"title":"Fichiers récents","limit":5}}]}],"tools":[],"workflows":[],"collections":[]}
 </workspace_config>
 
 <user_request>

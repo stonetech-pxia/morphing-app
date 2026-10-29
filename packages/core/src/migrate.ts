@@ -233,6 +233,12 @@ export const migrateV22toV23: Migration = (config) => ({ ...config, schemaVersio
  */
 export const migrateV23toV24: Migration = (config) => ({ ...config, schemaVersion: 24 });
 
+/**
+ * v24 → v25：按钮多了 action、target 可以不写，记录列表多了 rowActions（一键记录操作，D-300–D-304）。
+ * 已有的按钮都有 target，仍然合法，只提升版本号。
+ */
+export const migrateV24toV25: Migration = (config) => ({ ...config, schemaVersion: 25 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -258,6 +264,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   21: migrateV21toV22,
   22: migrateV22toV23,
   23: migrateV23toV24,
+  24: migrateV24toV25,
 };
 
 export type MigrateResult =

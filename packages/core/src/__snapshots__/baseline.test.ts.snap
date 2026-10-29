@@ -3044,7 +3044,35 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf button>.type "button"
 <oneOf button>.props object
 <oneOf button>.props.label string len 1..40
-<oneOf button>.props.target
+<oneOf button>.props.target?
+<oneOf button>.props.action?
+<oneOf button>.props.action<oneOf 0> object
+<oneOf button>.props.action<oneOf 0>.do "create"
+<oneOf button>.props.action<oneOf 0>.collectionId string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf button>.props.action<oneOf 0>.values? object record
+<oneOf button>.props.action<oneOf 0>.values{}
+<oneOf button>.props.action<oneOf 0>.values{}<anyOf 0> string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf button>.props.action<oneOf 0>.values{}<anyOf 1> number
+<oneOf button>.props.action<oneOf 0>.values{}<anyOf 2> boolean
+<oneOf button>.props.action<oneOf 0>.values{}<anyOf 3> null
+<oneOf button>.props.action<oneOf 1> object
+<oneOf button>.props.action<oneOf 1>.do "setAll"
+<oneOf button>.props.action<oneOf 1>.collectionId string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf button>.props.action<oneOf 1>.filter? array items ..5
+<oneOf button>.props.action<oneOf 1>.filter[] object
+<oneOf button>.props.action<oneOf 1>.filter[].field
+<oneOf button>.props.action<oneOf 1>.filter[].field<anyOf 0> string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf button>.props.action<oneOf 1>.filter[].field<anyOf 1> "createdAt"|"updatedAt"
+<oneOf button>.props.action<oneOf 1>.filter[].op "is"|"isNot"|"contains"|"gt"|"lt"|"isEmpty"|"isNotEmpty"|"inPeriod"|"due"
+<oneOf button>.props.action<oneOf 1>.filter[].value?
+<oneOf button>.props.action<oneOf 1>.filter[].value<anyOf 0> string len ..200
+<oneOf button>.props.action<oneOf 1>.filter[].value<anyOf 1> number
+<oneOf button>.props.action<oneOf 1>.filter[].value<anyOf 2> boolean
+<oneOf button>.props.action<oneOf 1>.fieldId string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf button>.props.action<oneOf 1>.value = <oneOf button>.props.action<oneOf 0>.values{}
+<oneOf button>.props.action<oneOf 2> object
+<oneOf button>.props.action<oneOf 2>.do "open"
+<oneOf button>.props.action<oneOf 2>.collectionId string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf button>.props.variant "filled"|"outline"|"text"|"icon"
 <oneOf button>.props.icon?
 <oneOf button>.props.icon<anyOf 0> "home"|"apps"|"sparkles"|"history"|"settings"|"document"|"folder"|"star"|"heart"|"bolt"|"calendar"|"bookmark"|"inbox"|"chart"|"check"|"info"|"lightbulb"|"merge"|"link"|"person"|"plus"|"search"|"photo"|"scan"|"text"|"qrcode"|"archive"|"printer"|"signature"|"workflow"|"video"|"audio"|"translate"|"note"
@@ -3103,26 +3131,53 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf recordList>.props object
 <oneOf recordList>.props.collectionId string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf recordList>.props.display "list"|"cards"|"checklist"
-<oneOf recordList>.props.titleField
-<oneOf recordList>.props.titleField<anyOf 0> string /^[a-z][a-z0-9-]{0,47}$/
-<oneOf recordList>.props.titleField<anyOf 1> "createdAt"|"updatedAt"
+<oneOf recordList>.props.titleField = <oneOf button>.props.action<oneOf 1>.filter[].field
 <oneOf recordList>.props.subtitleFields? array items ..2
-<oneOf recordList>.props.subtitleFields[] = <oneOf recordList>.props.titleField
-<oneOf recordList>.props.trailingField? = <oneOf recordList>.props.titleField
+<oneOf recordList>.props.subtitleFields[] = <oneOf button>.props.action<oneOf 1>.filter[].field
+<oneOf recordList>.props.trailingField? = <oneOf button>.props.action<oneOf 1>.filter[].field
 <oneOf recordList>.props.checkField? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf recordList>.props.filter? array items ..5
-<oneOf recordList>.props.filter[] object
-<oneOf recordList>.props.filter[].field = <oneOf recordList>.props.titleField
-<oneOf recordList>.props.filter[].op "is"|"isNot"|"contains"|"gt"|"lt"|"isEmpty"|"isNotEmpty"|"inPeriod"|"due"
-<oneOf recordList>.props.filter[].value?
-<oneOf recordList>.props.filter[].value<anyOf 0> string len ..200
-<oneOf recordList>.props.filter[].value<anyOf 1> number
-<oneOf recordList>.props.filter[].value<anyOf 2> boolean
+<oneOf recordList>.props.filter[] = <oneOf button>.props.action<oneOf 1>.filter[]
 <oneOf recordList>.props.sort? object
-<oneOf recordList>.props.sort.field = <oneOf recordList>.props.titleField
+<oneOf recordList>.props.sort.field = <oneOf button>.props.action<oneOf 1>.filter[].field
 <oneOf recordList>.props.sort.direction "asc"|"desc"
 <oneOf recordList>.props.limit integer 1..100
 <oneOf recordList>.props.emptyText? string len 1..80
+<oneOf recordList>.props.rowActions? array items 1..3
+<oneOf recordList>.props.rowActions[]
+<oneOf recordList>.props.rowActions[]<oneOf 0> object
+<oneOf recordList>.props.rowActions[]<oneOf 0>.label string len 1..20
+<oneOf recordList>.props.rowActions[]<oneOf 0>.when? array items ..3
+<oneOf recordList>.props.rowActions[]<oneOf 0>.when[] = <oneOf button>.props.action<oneOf 1>.filter[]
+<oneOf recordList>.props.rowActions[]<oneOf 0>.do "create"
+<oneOf recordList>.props.rowActions[]<oneOf 0>.collectionId string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf recordList>.props.rowActions[]<oneOf 0>.values? object record
+<oneOf recordList>.props.rowActions[]<oneOf 0>.values{} = <oneOf button>.props.action<oneOf 0>.values{}
+<oneOf recordList>.props.rowActions[]<oneOf 1> object
+<oneOf recordList>.props.rowActions[]<oneOf 1>.label string len 1..20
+<oneOf recordList>.props.rowActions[]<oneOf 1>.when? array items ..3
+<oneOf recordList>.props.rowActions[]<oneOf 1>.when[] = <oneOf button>.props.action<oneOf 1>.filter[]
+<oneOf recordList>.props.rowActions[]<oneOf 1>.do "set"
+<oneOf recordList>.props.rowActions[]<oneOf 1>.fieldId string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf recordList>.props.rowActions[]<oneOf 1>.value = <oneOf button>.props.action<oneOf 0>.values{}
+<oneOf recordList>.props.rowActions[]<oneOf 2> object
+<oneOf recordList>.props.rowActions[]<oneOf 2>.label string len 1..20
+<oneOf recordList>.props.rowActions[]<oneOf 2>.when? array items ..3
+<oneOf recordList>.props.rowActions[]<oneOf 2>.when[] = <oneOf button>.props.action<oneOf 1>.filter[]
+<oneOf recordList>.props.rowActions[]<oneOf 2>.do "toggle"
+<oneOf recordList>.props.rowActions[]<oneOf 2>.fieldId string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf recordList>.props.rowActions[]<oneOf 3> object
+<oneOf recordList>.props.rowActions[]<oneOf 3>.label string len 1..20
+<oneOf recordList>.props.rowActions[]<oneOf 3>.when? array items ..3
+<oneOf recordList>.props.rowActions[]<oneOf 3>.when[] = <oneOf button>.props.action<oneOf 1>.filter[]
+<oneOf recordList>.props.rowActions[]<oneOf 3>.do "increment"
+<oneOf recordList>.props.rowActions[]<oneOf 3>.fieldId string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf recordList>.props.rowActions[]<oneOf 3>.by number
+<oneOf recordList>.props.rowActions[]<oneOf 4> object
+<oneOf recordList>.props.rowActions[]<oneOf 4>.label string len 1..20
+<oneOf recordList>.props.rowActions[]<oneOf 4>.when? array items ..3
+<oneOf recordList>.props.rowActions[]<oneOf 4>.when[] = <oneOf button>.props.action<oneOf 1>.filter[]
+<oneOf recordList>.props.rowActions[]<oneOf 4>.do "open"
 <oneOf recordForm> object
 <oneOf recordForm>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf recordForm>.hidden? boolean
@@ -3144,10 +3199,10 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf stat>.props.aggregate "count"|"sum"|"avg"|"min"|"max"|"streak"|"daysSince"|"avgInterval"|"distinctDays"
 <oneOf stat>.props.fieldId? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf stat>.props.filter? array items ..5
-<oneOf stat>.props.filter[] = <oneOf recordList>.props.filter[]
+<oneOf stat>.props.filter[] = <oneOf button>.props.action<oneOf 1>.filter[]
 <oneOf stat>.props.label string len 1..40
 <oneOf stat>.props.groupBy? string /^[a-z][a-z0-9-]{0,47}$/
-<oneOf stat>.props.dateField? = <oneOf recordList>.props.titleField
+<oneOf stat>.props.dateField? = <oneOf button>.props.action<oneOf 1>.filter[].field
 <oneOf stat>.props.unit? "day"|"week"|"month"
 <oneOf stat>.props.perUnit? integer 1..50
 <oneOf stat>.props.skipField? string /^[a-z][a-z0-9-]{0,47}$/
@@ -3163,11 +3218,11 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf chart>.props.aggregate "count"|"sum"|"avg"|"streak"|"daysSince"|"avgInterval"|"distinctDays"
 <oneOf chart>.props.fieldId? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf chart>.props.group "day"|"week"|"month"|"choice"
-<oneOf chart>.props.dateField? = <oneOf recordList>.props.titleField
+<oneOf chart>.props.dateField? = <oneOf button>.props.action<oneOf 1>.filter[].field
 <oneOf chart>.props.choiceField? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf chart>.props.periods? integer 2..31
 <oneOf chart>.props.filter? array items ..5
-<oneOf chart>.props.filter[] = <oneOf recordList>.props.filter[]
+<oneOf chart>.props.filter[] = <oneOf button>.props.action<oneOf 1>.filter[]
 <oneOf chart>.props.title string len 1..60
 <oneOf fileSlot> object
 <oneOf fileSlot>.id string /^[a-z][a-z0-9-]{0,47}$/
@@ -3219,7 +3274,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 24
+.schemaVersion 25
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"

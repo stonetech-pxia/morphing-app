@@ -44,6 +44,7 @@ import {
 } from './schema';
 import { DEFAULT_THEME } from './theme';
 import { presetById } from './workflows/presets';
+import { buttonActionUses, rowActionUses, type Gone } from './record-ops';
 import { reminderProblems } from './reminders';
 import { REDACTED_TEXT } from './workflow/redact';
 
@@ -248,6 +249,8 @@ export type ApplyNote =
   | { kind: 'removedWorkflowLinks'; workflowId: string; count: number }
   /** 提醒要打开的快捷操作 / 页面、要看的表或日期字段被移除了，提醒跟着移除（D-251）。 */
   | { kind: 'removedReminders'; titles: string[] }
+  /** 删字段、删表时，用到它的一键记录操作（D-304）：按钮移除，列表里的行按钮去掉。 */
+  | { kind: 'removedRecordActions'; count: number }
   | { kind: 'updatedTool'; toolId: string; workflowIds: string[] };
 
 /** 字段类型只能在这些类型之间互相转换，已有的值仍然能读出来（字段定义的 convertGroup）。 */
@@ -321,6 +324,27 @@ function removeWorkflowLinks(config: WorkspaceConfig, workflowIds: readonly stri
     const target = componentTarget(c);
     return target !== null && gone.includes(target);
   });
+}
+
+/**
+ * 删字段、删表后，用到它的一键记录操作（D-304）：按钮跟着移除，记录列表里的行按钮去掉（列表留着）。
+ */
+function pruneRecordActions(config: WorkspaceConfig, gone: Gone, notes: ApplyNote[]): void {
+  let count = removeEverywhere(
+    config,
+    (c) =>
+      c.type === 'button' && c.props.action !== undefined && buttonActionUses(c.props.action, gone),
+  );
+  for (const page of config.pages) {
+    for (const c of allComponents(page)) {
+      if (c.type !== 'recordList' || !c.props.rowActions) continue;
+      const kept = c.props.rowActions.filter((a) => !rowActionUses(a, c.props.collectionId, gone));
+      count += c.props.rowActions.length - kept.length;
+      if (kept.length > 0) c.props.rowActions = kept;
+      else delete c.props.rowActions;
+    }
+  }
+  if (count > 0) notes.push({ kind: 'removedRecordActions', count });
 }
 
 /** 组件要放入的列表：页面顶层，或某个分组的子组件。 */
@@ -764,6 +788,7 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
     case 'removeField': {
       const collection = getCollection(config, op.collectionId);
       collection.fields.splice(getFieldIndex(collection, op.fieldId), 1);
+      pruneRecordActions(config, { collectionId: op.collectionId, fieldId: op.fieldId }, notes);
       return;
     }
     case 'addReminder': {
@@ -826,6 +851,7 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       if (count > 0) {
         notes.push({ kind: 'removedDataComponents', collectionId: op.collectionId, count });
       }
+      pruneRecordActions(config, { collectionId: op.collectionId }, notes);
       return;
     }
   }
