@@ -316,6 +316,149 @@ describe('tables with only horizontal lines (D-272)', () => {
   });
 });
 
+// 用真实扫描件调参时遇到的情况（D-272），每个都从照片里截出最小的合成情形。
+describe('cases from real scans (D-272)', () => {
+  const page1 = { width: W, height: H };
+  /** 一格里的一行字：识别框 + 像字的笔画。 */
+  const word = (text: string, x: number, y: number, width = 120, chars = false) => ({
+    line: fakeLine(text, { x, y, width, height: 20 }, page1, chars),
+    marks: glyphs(x + 4, y + 3, width - 8, 14),
+  });
+  const page = (rects: Rect[], words: ReturnType<typeof word>[]) =>
+    build(
+      [...rects, ...words.flatMap((w) => w.marks)],
+      words.map((w) => w.line),
+    );
+
+  it('keeps two ruled boxes of the same width apart when text sits between them', () => {
+    // 税务表：上面一张 2 列的表，中间一段文字，下面一张列不一样的表；左右两端对齐。
+    const words = [
+      word('nom', 120, 115),
+      word('xia', 520, 115),
+      word('paragraph between', 120, 230, 500),
+      word('pays', 120, 315),
+      word('numero', 320, 315),
+    ];
+    const rects = [
+      ...gridRects([100, 500, 900], [100, 150]),
+      ...gridRects([100, 300, 900], [300, 350]),
+    ];
+    const tables = tablesOf(page(rects, words));
+    expect(tables.map((t) => [t.rows, t.cols])).toEqual([
+      [1, 2],
+      [1, 2],
+    ]);
+    expect(cellAt(tables[1]!, 0, 1)!.text).toBe('numero');
+  });
+
+  it('does not join two boxes 10 pixels apart into one grid', () => {
+    // 工资单：上下挨着的框，列不一样；它们的边不能接成一条线。
+    const words = [
+      word('a1', 120, 115),
+      word('a2', 520, 115),
+      word('b1', 120, 225),
+      word('b2', 320, 225),
+    ];
+    const rects = [
+      ...gridRects([100, 500, 900], [100, 200]),
+      ...gridRects([100, 300, 900], [212, 262]),
+    ];
+    const tables = tablesOf(page(rects, words));
+    expect(tables.map((t) => [t.rows, t.cols])).toEqual([
+      [1, 2],
+      [1, 2],
+    ]);
+  });
+
+  it('reads a table drawn inside a bigger frame (forms)', () => {
+    const words = [
+      word('form title', 120, 80, 320),
+      word('a long note across the whole frame', 100, 500, 800),
+      ...[0, 1].flatMap((r) =>
+        [0, 1, 2].map((c) => word(`r${r}c${c}`, [120, 420, 720][c]!, 315 + r * 50)),
+      ),
+    ];
+    const rects = [
+      ...gridRects([50, 950], [50, 650]),
+      ...gridRects([100, 400, 700, 900], [300, 350, 400]),
+    ];
+    const [table, ...others] = tablesOf(page(rects, words));
+    expect(others).toHaveLength(0);
+    // 小表的每一格单独一格（外面的框不能把里面的字都拿走）。
+    for (let r = 0; r < 2; r++)
+      for (let c = 0; c < 3; c++)
+        expect(table!.cells.some((cell) => cell.text === `r${r}c${c}`)).toBe(true);
+  });
+
+  it('splits a body ruled only by columns into one row per line, ignoring bold labels', () => {
+    // 工资单、账单的表身：竖线到底，行之间没有线；项目名称是粗体（扫描时像一条粗横线）。
+    const xs = [100, 400, 650, 900];
+    const words = [word('label', 120, 110), word('base', 420, 110), word('amount', 670, 110)];
+    const bold: Rect[] = [];
+    for (let r = 0; r < 5; r++) {
+      const y = 160 + r * 32;
+      words.push(word(`item ${r}`, 110, y, 200), word(`${r}00`, 420, y), word(`${r}.5`, 670, y));
+      bold.push({ x: 102, y: y + 5, width: 200, height: 10 });
+    }
+    const rects = [...gridRects(xs, [100, 140, 330]), ...bold];
+    const [table, ...others] = tablesOf(page(rects, words));
+    expect(others).toHaveLength(0);
+    expect([table!.rows, table!.cols]).toEqual([6, 3]);
+    for (let r = 0; r < 5; r++) {
+      expect(cellAt(table!, r + 1, 0)!.text).toBe(`item ${r}`);
+      expect(cellAt(table!, r + 1, 2)!.text).toBe(`${r}.5`);
+    }
+  });
+
+  it('keeps text that wraps inside one cell together', () => {
+    const words = [
+      word('long name', 120, 110, 200),
+      word('wraps here', 120, 132, 200),
+      word('and here', 120, 154, 200),
+      word('42', 420, 132),
+    ];
+    const [table] = tablesOf(page(gridRects([100, 400, 900], [100, 190]), words));
+    expect([table!.rows, table!.cols]).toEqual([1, 2]);
+    expect(cellAt(table!, 0, 0)!.text.split('\n')).toHaveLength(3);
+  });
+
+  it('keeps column lines that start below an unruled header', () => {
+    // 物业账单的批次表：表头有底色、下面没有横线，表头里的竖线断了，只从表身开始。
+    const xs = [100, 300, 500, 700, 900];
+    const words: ReturnType<typeof word>[] = [];
+    for (const [r, y] of [110, 160, 190].entries())
+      for (let c = 0; c < 4; c++) words.push(word(`r${r}c${c}`, xs[c]! + 20, y));
+    const rects = [
+      ...gridRects([100, 700, 900], [100, 250]),
+      ...[300, 500].map((x) => ({ x, y: 145, width: 2, height: 107 })),
+    ];
+    const [table] = tablesOf(page(rects, words));
+    expect([table!.rows, table!.cols]).toEqual([3, 4]);
+    expect(cellAt(table!, 0, 3)!.text).toBe('r0c3');
+    expect(cellAt(table!, 2, 1)!.text).toBe('r2c1');
+  });
+
+  it('finds the column lines of a row only 30 pixels high', () => {
+    const words = [word('prix', 120, 305), word('6 034,00', 420, 305), word('remise', 720, 305)];
+    const [table] = tablesOf(page(gridRects([100, 400, 700, 900], [300, 330]), words));
+    expect([table!.rows, table!.cols]).toEqual([1, 3]);
+    expect(cellAt(table!, 0, 1)!.text).toBe('6 034,00');
+  });
+
+  it('keeps a title whole above a column line that starts below it', () => {
+    // 工资单的日历：标题横跨两列，竖线从第二行才开始。
+    const words = [
+      word('CALENDRIER', 350, 115, 300, true),
+      word('jour', 120, 165),
+      word('incident', 520, 165),
+    ];
+    const rects = gridRects([100, 500, 900], [100, 150, 200], { skipV: [[1, 0]] });
+    const [table] = tablesOf(page(rects, words));
+    expect(cellAt(table!, 0, 0)).toMatchObject({ colSpan: 2, text: 'CALENDRIER' });
+    expect(cellAt(table!, 1, 1)!.text).toBe('incident');
+  });
+});
+
 describe('findTables', () => {
   it('keeps only lines connected to other lines', () => {
     const image = renderPage(W, H, [

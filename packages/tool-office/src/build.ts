@@ -3,6 +3,7 @@ import {
   coveredLength,
   findLines,
   findTables,
+  type PageLines,
   type RuleLine,
   type TableLines,
 } from './lines';
@@ -47,10 +48,16 @@ const MERGE_COVERAGE = 0.5;
 const GAP_ROW_SHARE = 0.6;
 /** 列分隔的空隙至少是行高的这么多倍（比词和词之间的空格宽）。 */
 const GAP_MIN_HEIGHTS = 0.6;
+/** 竖线盖住、没有横线的一段至少有这么多排字才按排分行。 */
+const SPLIT_MIN_ROWS = 3;
 /** 一张表最多这么多格；更多的（方格纸）不当成表。 */
 const MAX_TABLE_CELLS = 5000;
 /** 段落：上下间距不超过 1.2 倍行高的算同一段（和 D-268 一样）。 */
 const PARAGRAPH_GAP = 1.2;
+
+/** 认成线的粗体字：横线在一行字的框里（上下都离框边至少 20% 行高），大半截在框的左右范围里。 */
+const STROKE_INSIDE = 0.2;
+const STROKE_SHARE = 0.7;
 
 const median = (values: readonly number[]) => {
   const sorted = [...values].sort((a, b) => a - b);
@@ -141,6 +148,12 @@ function gapColumns(lines: readonly OcrBox[], left: number, right: number, lineH
   return out;
 }
 
+const indexOf = (bounds: readonly Boundary[], v: number) => {
+  let i = 0;
+  while (i < bounds.length - 2 && v >= bounds[i + 1]!.pos) i++;
+  return i;
+};
+
 /** 一张表的网格：横线定行，竖线定列（没有中间的竖线时按文字空隙分列），边上线不够的两格合并。 */
 function buildGrid(
   table: TableLines,
@@ -179,20 +192,48 @@ function buildGrid(
   const isOpen = (r: number) => firstCovered < 0 || r < firstCovered || r > lastCovered;
   const split: Boundary[] = [ys[0]!];
   const open: boolean[] = [];
+  // 按排分出来的行，竖线够不够长按分之前的那一段算（弯的线、断线在一小行里容易不够一半）。
+  const parentBand: ([number, number] | null)[] = [];
   for (let r = 0; r < ys.length - 1; r++) {
     const a = ys[r]!.pos;
     const b = ys[r + 1]!.pos;
+    const rows = textRows(lines.filter((l) => centerY(l) >= a && centerY(l) < b));
+    // 上下两排字中间的位置。
+    const between = (i: number) =>
+      (Math.max(...rows[i - 1]!.map((l) => l.y + l.height)) +
+        Math.min(...rows[i]!.map((l) => l.y))) /
+      2;
+    let bySplit = false;
     if (isOpen(r)) {
-      const rows = textRows(lines.filter((l) => centerY(l) >= a && centerY(l) < b));
       for (let i = 1; i < rows.length; i++) {
-        const above = Math.max(...rows[i - 1]!.map((l) => l.y + l.height));
-        const below = Math.min(...rows[i]!.map((l) => l.y));
-        split.push({ pos: (above + below) / 2, lined: false });
+        split.push({ pos: between(i), lined: false });
         open.push(true);
+        parentBand.push(null);
+      }
+    } else if (rows.length >= SPLIT_MIN_ROWS) {
+      // 竖线盖住、中间没有横线的一段（工资单、账单的表身）：一半以上有字的列里都有几排字，就按排分行；
+      // 只有个别列里有几排（一格里折行的字）、只有两排（折成两行的表头）不分。
+      const rowsByCol = new Map<number, Set<number>>();
+      for (const [i, row] of rows.entries()) {
+        for (const l of row) {
+          const c = indexOf(xs, centerX(l));
+          if (!rowsByCol.has(c)) rowsByCol.set(c, new Set());
+          rowsByCol.get(c)!.add(i);
+        }
+      }
+      const multi = [...rowsByCol.values()].filter((g) => g.size >= 2).length;
+      if (multi >= 2 && multi > rowsByCol.size / 2) {
+        for (let i = 1; i < rows.length; i++) {
+          split.push({ pos: between(i), lined: false });
+          open.push(false);
+          parentBand.push([a, b]);
+        }
+        bySplit = true;
       }
     }
     split.push(ys[r + 1]!);
     open.push(isOpen(r));
+    parentBand.push(bySplit ? [a, b] : null);
   }
   ys = split;
   if (!inner.length) {
@@ -202,14 +243,24 @@ function buildGrid(
   const rows = ys.length - 1;
   const cols = xs.length - 1;
   if (rows < 1 || cols < 1 || rows * cols > MAX_TABLE_CELLS) return null;
+  const straddled = (r: number, x: number) =>
+    lines.some(
+      (l) =>
+        centerY(l) >= ys[r]!.pos &&
+        centerY(l) < ys[r + 1]!.pos &&
+        x > l.x + l.height * 0.5 &&
+        x < l.x + l.width - l.height * 0.5,
+    );
   // 合并：并查集，每个位置一个。
   const parent = Array.from({ length: rows * cols }, (_, i) => i);
   const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i]!)));
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       // 右边的边（竖线）。
-      if (c + 1 < cols && xs[c + 1]!.lined && !open[r]) {
-        const cov = coverage(vs, xs[c + 1]!.pos, ys[r]!.pos, ys[r + 1]!.pos, tol);
+      // 没有竖线盖住的行只在一行字横跨这条边时合并（表头的大标题），否则按上下的竖线分列。
+      if (c + 1 < cols && xs[c + 1]!.lined && (!open[r] || straddled(r, xs[c + 1]!.pos))) {
+        const [top, bottom] = parentBand[r] ?? [ys[r]!.pos, ys[r + 1]!.pos];
+        const cov = coverage(vs, xs[c + 1]!.pos, top, bottom, tol);
         if (cov < MERGE_COVERAGE) parent[find(r * cols + c)] = find(r * cols + c + 1);
       }
       // 下边的边（横线）。
@@ -265,12 +316,6 @@ function buildGrid(
   return { xs, ys, owner, cells: order.map((o) => o.cell) };
 }
 
-const indexOf = (bounds: readonly Boundary[], v: number) => {
-  let i = 0;
-  while (i < bounds.length - 2 && v >= bounds[i + 1]!.pos) i++;
-  return i;
-};
-
 /**
  * 一行文字放进格子：横跨了竖线（PP-OCR 把相邻两格认成了一行）而且有每个字的位置时，在竖线处切开。
  * 返回切开后的几段，每段按中心点放进一格。
@@ -283,6 +328,8 @@ function piecesOf(line: OcrBox, grid: Grid): { cell: number; piece: OcrBox }[] {
   const cuts: number[] = [];
   if (line.chars?.length) {
     for (let c = 1; c < cols; c++) {
+      // 只在竖线处切；按文字空隙分的列不切（空隙本来就在字和字之间）。
+      if (!grid.xs[c]!.lined) continue;
       const x = grid.xs[c]!.pos;
       if (x > line.x + margin && x < line.x + line.width - margin && cellAt(c - 1) !== cellAt(c))
         cuts.push(x);
@@ -314,6 +361,21 @@ function piecesOf(line: OcrBox, grid: Grid): { cell: number; piece: OcrBox }[] {
     out.push({ cell: cellAt(indexOf(grid.xs, centerX(piece))), piece });
   }
   return out.length ? out : whole();
+}
+
+/**
+ * 去掉落在文字行里面的「横线」：粗体、压扁的字一排连起来，按行扫描时像一条粗线（工资单的项目名称）。
+ * 真的线在字的上下，不会在一行字的中间。
+ */
+function dropTextStrokes(page: PageLines, lines: readonly OcrBox[]): PageLines {
+  const inText = (h: RuleLine) =>
+    lines.some((l) => {
+      const inset = l.height * STROKE_INSIDE;
+      if (h.pos <= l.y + inset || h.pos >= l.y + l.height - inset) return false;
+      const overlap = Math.min(h.to, l.x + l.width) - Math.max(h.from, l.x);
+      return overlap >= STROKE_SHARE * (h.to - h.from);
+    });
+  return { ...page, horizontal: page.horizontal.filter((h) => !inText(h)) };
 }
 
 /** 一页的 TablePage：找线、组表、填字、表外文字分段。 */
@@ -349,7 +411,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
   const lineHeight = median(flat.map((l) => l.height)) || 20;
   const placed = new Set<OcrBox>();
   const tables: { block: TableBlock; flatBox: Box }[] = [];
-  for (const table of findTables(page)) {
+  for (const table of findTables(dropTextStrokes(page, flat))) {
     const { box } = table;
     const members = flat.filter(
       (l) =>

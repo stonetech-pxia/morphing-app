@@ -3,8 +3,8 @@ import { findSkew, localStats, sauvolaThreshold } from '@morph/tool-image';
 import type { Box, RgbaImage } from './types';
 
 // 找表格线（D-272）：局部阈值二值化（和扫描件增强的黑白模式同一个 Sauvola），按行、按列找长的深色段，
-// 相邻的段接成一条线，再只留下和别的线连在一起的：横竖线交成网格的，或者至少 3 条左右对齐的横线
-// （只有横线的表）。单独的横线（文字下面的划线、删除线、分隔线）不算表格线。
+// 相邻的段接成一条线，再只留下和别的线连在一起的：横竖线交成网格的（加上网格里只碰到一条线的 T 字形线），
+// 或者至少 3 条左右对齐的横线（只有横线的表）。单独的横线（文字下面的划线、删除线、分隔线）不算表格线。
 // 照片可能有一点倾斜：按 findSkew 估出的角度斜着扫描，线的坐标都是拉正后的（x' = x + y·t，y' = y − x·t）。
 
 /** 一条线：横线的 pos 是 y、from / to 是 x；竖线反过来。坐标是拉正后的。 */
@@ -37,17 +37,24 @@ export interface TableLines {
 export const LINE_MAX_SIDE = 2000;
 /** 段里允许的断口（像素）。 */
 const MAX_GAP = 3;
-/** 线的最短长度：max(40 像素, 页宽或页高的 3%)。 */
-const MIN_LENGTH = 40;
-const MIN_LENGTH_SHARE = 0.03;
+/**
+ * 线的最短长度：max(24 像素, 页宽或页高的 1.5%)。真实的表单里一行只有 30 像素高，竖线也要认出来；
+ * 粗体字连成的「线」在 build.ts 里按识别框去掉（dropTextStrokes）。
+ */
+const MIN_LENGTH = 24;
+const MIN_LENGTH_SHARE = 0.015;
 /** 粗细超过页面的 1.5% 是色块，不是线。 */
 const MAX_THICKNESS_SHARE = 0.015;
 /** 相邻的段合并成一条线：位置差不超过长边的 0.4%。 */
 const MERGE_SHARE = 0.004;
-/** 同一条线上的两段，中间断开不超过页宽的 1.5% 时接起来（复印件常有断线）。 */
-const JOIN_SHARE = 0.015;
-/** 线和线算连在一起：端点离另一条线不超过长边的 1%。 */
-const TOUCH_SHARE = 0.01;
+/**
+ * 同一条线上的两段，中间断开不超过 max(8 像素, 页宽的 0.5%) 时接起来（复印件常有断线）。
+ * 再大会把上下挨着的两个框（工资单里隔 15–20 像素）的边接成一条。
+ */
+const JOIN_MIN = 8;
+const JOIN_SHARE = 0.005;
+/** 线和线算连在一起：端点离另一条线不超过长边的 0.5%（挨着的两个框不算连在一起）。 */
+const TOUCH_SHARE = 0.005;
 /** 只有横线的表：左右两端对齐的误差（页宽的 2%），相邻两条最远隔页高的 40%（三线表的表身很高）。 */
 const ALIGN_SHARE = 0.02;
 const RULED_GAP_SHARE = 0.4;
@@ -243,7 +250,7 @@ function scan(
   return joinCollinear(
     lines,
     Math.max(2, Math.max(width, height) * MERGE_SHARE),
-    along * JOIN_SHARE,
+    Math.max(JOIN_MIN, along * JOIN_SHARE),
   );
 }
 
@@ -345,30 +352,6 @@ export function findTables(page: PageLines): TableLines[] {
       }
     }
   }
-  // 只有横线的表：按位置从上到下，左右两端都和上一条对齐、离得不远的接成一串。
-  const align = page.width * ALIGN_SHARE;
-  const maxGap = page.height * RULED_GAP_SHARE;
-  const chains: number[][] = [];
-  const order = hs.map((_, i) => i).sort((a, b) => hs[a]!.pos - hs[b]!.pos);
-  for (const i of order) {
-    const h = hs[i]!;
-    const chain = chains.find((c) => {
-      const lastIndex = c.at(-1)!;
-      const last = hs[lastIndex]!;
-      const gap = h.pos - last.pos;
-      if (gap > maxGap || Math.abs(h.from - last.from) > align || Math.abs(h.to - last.to) > align)
-        return false;
-      // 从网格的线接到不在网格里的线（或反过来）：只有间距和上一格差不多（不到 2 倍）时才接，
-      // 例如表头有竖线、下面只有横线的表；网格下面隔着标题的另一张只有横线的表不接上去。
-      if (hOk[i] !== hOk[lastIndex]) {
-        const prev = c.length >= 2 ? last.pos - hs[c.at(-2)!]!.pos : null;
-        return prev !== null && gap <= 2 * prev;
-      }
-      return true;
-    });
-    if (chain) chain.push(i);
-    else chains.push([i]);
-  }
   // 并查集：横线 0..H-1，竖线 H..H+V-1。
   const parent = [...hs, ...vs].map((_, i) => i);
   const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i]!)));
@@ -385,11 +368,115 @@ export function findTables(page: PageLines): TableLines[] {
       }
     }
   }
+  // 只碰到一条线、整条在网格里面的线也算（T 字形：表头里没画到顶的竖线、只画了半行的横线）。
+  const extent = new Map<number, { l: number; r: number; t: number; b: number }>();
+  for (const i of used) {
+    const root = find(i);
+    const e = extent.get(root) ?? { l: Infinity, r: -Infinity, t: Infinity, b: -Infinity };
+    if (i < hs.length) {
+      const h = hs[i]!;
+      e.l = Math.min(e.l, h.from);
+      e.r = Math.max(e.r, h.to);
+      e.t = Math.min(e.t, h.pos);
+      e.b = Math.max(e.b, h.pos);
+    } else {
+      const v = vs[i - hs.length]!;
+      e.l = Math.min(e.l, v.pos);
+      e.r = Math.max(e.r, v.pos);
+      e.t = Math.min(e.t, v.from);
+      e.b = Math.max(e.b, v.to);
+    }
+    extent.set(root, e);
+  }
+  const within = (root: number, x0: number, x1: number, y0: number, y1: number) => {
+    const e = extent.get(root)!;
+    return x0 >= e.l - tol && x1 <= e.r + tol && y0 >= e.t - tol && y1 <= e.b + tol;
+  };
+  for (const [j, v] of vs.entries()) {
+    if (vOk[j]) continue;
+    const i = hs.findIndex((h, k) => hOk[k] && touches(h, v, tol));
+    if (i >= 0 && within(find(i), v.pos, v.pos, v.from, v.to)) {
+      vOk[j] = true;
+      union(hs.length + j, i);
+      used.add(hs.length + j);
+    }
+  }
+  for (const [i, h] of hs.entries()) {
+    if (hOk[i]) continue;
+    const j = vs.findIndex((v, k) => vOk[k] && touches(h, v, tol));
+    if (j >= 0 && within(find(hs.length + j), h.from, h.to, h.pos, h.pos)) {
+      hOk[i] = true;
+      union(i, hs.length + j);
+      used.add(i);
+    }
+  }
+  // 只有横线的表：按位置从上到下，左右两端都和上一条对齐、离得不远的接成一串。
+  const align = page.width * ALIGN_SHARE;
+  const maxGap = page.height * RULED_GAP_SHARE;
+  const chains: number[][] = [];
+  const order = hs.map((_, i) => i).sort((a, b) => hs[a]!.pos - hs[b]!.pos);
+  for (const i of order) {
+    const h = hs[i]!;
+    const chain = chains.find((c) => {
+      const lastIndex = c.at(-1)!;
+      const last = hs[lastIndex]!;
+      const gap = h.pos - last.pos;
+      if (gap > maxGap || Math.abs(h.from - last.from) > align || Math.abs(h.to - last.to) > align)
+        return false;
+      // 两张网格（各自有竖线）宽度一样、上下排着，不接成一张（中间常隔着一段文字）。
+      if (hOk[i] && hOk[lastIndex]) return find(i) === find(lastIndex);
+      // 从网格的线接到不在网格里的线（或反过来）：只有间距和上一格差不多（不到 2 倍）时才接，
+      // 例如表头有竖线、下面只有横线的表；网格下面隔着标题的另一张只有横线的表不接上去。
+      if (hOk[i] !== hOk[lastIndex]) {
+        const prev = c.length >= 2 ? last.pos - hs[c.at(-2)!]!.pos : null;
+        return prev !== null && gap <= 2 * prev;
+      }
+      return true;
+    });
+    if (chain) chain.push(i);
+    else chains.push([i]);
+  }
   for (const chain of chains) {
     if (chain.length < RULED_MIN) continue;
     for (const i of chain) {
       union(i, chain[0]!);
       used.add(i);
+    }
+  }
+  // 一张表套在另一张表里（表单的大框里画着一张小表）：合成一张，不然外面那张会把里面的字都拿走。
+  const boxOf = (members: number[]) => {
+    const th = members.filter((i) => i < hs.length).map((i) => hs[i]!);
+    const tv = members.filter((i) => i >= hs.length).map((i) => vs[i - hs.length]!);
+    return {
+      left: Math.min(...th.map((h) => h.from), ...tv.map((v) => v.pos)),
+      right: Math.max(...th.map((h) => h.to), ...tv.map((v) => v.pos)),
+      top: Math.min(...th.map((h) => h.pos), ...tv.map((v) => v.from)),
+      bottom: Math.max(...th.map((h) => h.pos), ...tv.map((v) => v.to)),
+    };
+  };
+  let merged = true;
+  while (merged) {
+    merged = false;
+    const groups = new Map<number, number[]>();
+    for (const i of used) {
+      const root = find(i);
+      if (!groups.has(root)) groups.set(root, []);
+      groups.get(root)!.push(i);
+    }
+    const list = [...groups.values()].map((m) => ({ root: find(m[0]!), box: boxOf(m) }));
+    for (const a of list) {
+      for (const b of list) {
+        if (a.root === b.root || find(a.root) === find(b.root)) continue;
+        const inside =
+          b.box.left >= a.box.left - tol &&
+          b.box.right <= a.box.right + tol &&
+          b.box.top >= a.box.top - tol &&
+          b.box.bottom <= a.box.bottom + tol;
+        if (inside) {
+          union(b.root, a.root);
+          merged = true;
+        }
+      }
     }
   }
   const groups = new Map<number, number[]>();
