@@ -5,8 +5,9 @@ import MorphVision from '../../modules/morph-vision';
 import { expoPackFs, expoSha256 } from '../packs/expo-pack-fs';
 import { PackStore } from '../packs/store';
 import type { VisionPlatform } from './platform';
+import { DEWARP_PACK, createFlattener } from './flatten';
 import { PPOCR_LANGUAGES, PPOCR_PACK, coversLanguage, createPpocr } from './ppocr';
-import { ocrPixels } from './skia';
+import { ocrPixels, openFlattenPage } from './skia';
 
 // VisionPlatform 的实现：本地 Expo 模块 MorphVision（iOS：Vision，D-084；Android：ML Kit，D-087）。
 // 文字识别用 PP-OCRv6（D-269）：中文、日文、英法德西葡意；其余语言用系统自带的（iOS Vision、Android 只剩韩文用 ML Kit）。
@@ -56,6 +57,40 @@ export function expoVision(
           },
         )
       : null;
+  const { modelRun } = native;
+  // 扫描展平（D-274）：模型在扩展包里；找文字行和文字识别共用 PP-OCRv6 的模型。
+  const flattener = modelRun
+    ? createFlattener(
+        { modelRun, ...(ocrLoad && ocrDetect ? { ocrLoad, ocrDetect } : {}) },
+        {
+          installed: (pack) => ocrPacks.isInstalled(pack),
+          modelUri: (pack, file) => expoPackFs.uri(ocrPacks.path(pack, file)),
+          readFile: (uri) => new File(uri).bytes(),
+          async writeFile(uri, bytes) {
+            const file = new File(uri);
+            file.create({ overwrite: true, intermediates: true });
+            await file.write(bytes);
+            return bytes.length;
+          },
+          tempDir() {
+            const dir = new Directory(Paths.cache, 'flatten', `${Date.now()}-${Math.random()}`);
+            dir.create({ idempotent: true, intermediates: true });
+            return {
+              uri: dir.uri.replace(/\/$/, ''),
+              remove: () => {
+                try {
+                  dir.delete();
+                } catch {
+                  // 已经删掉了。
+                }
+              },
+            };
+          },
+          open: openFlattenPage,
+        },
+        { ocrPack: PPOCR_PACK, quality: QUALITY },
+      )
+    : null;
   /** 这组语言用 PP-OCRv6 识别（第一种是用户选的语言）。 */
   const viaPpocr = (languages: readonly string[]) =>
     ppocr !== null && languages[0] !== undefined && coversLanguage(languages[0]);
@@ -124,6 +159,22 @@ export function expoVision(
       const { width, height, items } = await native.recognizeText(uri, languages);
       return { width, height, lines: items };
     },
+
+    // 展平模型只在配置了扩展包地址时提示下载；没配置但已经装好（模拟器测试）时照样展平。
+    ...(flattener && process.env.EXPO_PUBLIC_MORPH_PACKS_URL
+      ? { flattenModel: { pack: DEWARP_PACK } }
+      : {}),
+    ...(flattener
+      ? {
+          async flatten(uri: string, runId: string, relPath: string) {
+            const output = runFileUri(runId, relPath);
+            const done = await flattener.flatten(uri, output);
+            // 每一步的耗时（开发版的日志里看，测手机上的性能）。
+            if (__DEV__ && done) console.log('[flatten]', JSON.stringify(done.timing));
+            return done && { uri: output, ...done };
+          },
+        }
+      : {}),
 
     canFindPaper: native.canFindPaper(),
 

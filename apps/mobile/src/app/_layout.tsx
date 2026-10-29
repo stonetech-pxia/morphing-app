@@ -51,8 +51,15 @@ import { createNeedSender, createRemoteAIProvider } from '@/workspace/remote-ai'
 import { createWorkspaceStore, type WorkspaceStore } from '@/workspace/store';
 
 const locale = getDeviceLocale();
-// 扩展包：只在用户确认后下载，存在 documentDirectory/packs（D-064）。
-const packStore = new PackStore(expoPackFs, expoSha256);
+// 扩展包：只在用户确认后下载，存在 documentDirectory/packs（D-064）。还没定托管地址的扩展包（展平模型，D-274）
+// 从 EXPO_PUBLIC_MORPH_PACKS_URL 下载，没配置时不提示下载。
+const packStore = new PackStore(
+  expoPackFs,
+  expoSha256,
+  undefined,
+  undefined,
+  process.env.EXPO_PUBLIC_MORPH_PACKS_URL,
+);
 const packs = { store: packStore, bridge: new PackBridge(expoBridgeFiles(packStore)) };
 const registry = createRegistry(BUILTIN_TOOLS);
 // 从服务器下载的工具（D-177、D-178）：目录地址不是秘密；开发版另外信任仓库里的开发公钥。

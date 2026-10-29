@@ -1,5 +1,6 @@
 import {
   AlphaType,
+  BlendMode,
   ClipOp,
   ColorType,
   FilterMode,
@@ -7,6 +8,7 @@ import {
   MipmapMode,
   Skia,
   TileMode,
+  VertexMode,
   matchFont,
 } from '@shopify/react-native-skia';
 import { Platform } from 'react-native';
@@ -23,10 +25,14 @@ import {
   type RgbaImage,
   type ScanLook,
   type ScanOutput,
+  UVDOC_INPUT,
+  type Size,
+  type WarpMesh,
 } from '@morph/tool-image';
 import { detectionSize } from '@morph/tool-ocr';
 
 import { annotationSvg } from './annotations';
+import type { FlattenPage } from './flatten';
 import type { DrawOp } from './platform';
 
 /** 超过 Metal 纹理上限的离屏画布会让 App 直接崩溃（不是 JS 错误），所以先在 JS 里拦住。 */
@@ -416,4 +422,80 @@ export function pixelsOf(
   });
   if (!(data instanceof Uint8Array)) throw new Error('pixels could not be read');
   return { width, height, data };
+}
+
+/**
+ * 扫描展平（D-274）用的一张页面：补边缩小给 UVDoc、按网格画小图找文字行、按网格画原大小的结果。
+ * 结果只用 drawVertices 在原图上画一次（UVDoc、转正、逐行拉直已经合成在一张网格里）。
+ */
+export function openFlattenPage(bytes: Uint8Array): FlattenPage {
+  const image = Skia.Image.MakeImageFromEncoded(Skia.Data.fromBytes(bytes));
+  if (!image) throw new Error('image could not be decoded');
+  const width = image.width();
+  const height = image.height();
+  /** 按网格把原图画到 out 大小的画布上。 */
+  const draw = (mesh: WarpMesh, out: Size, mip: boolean) => {
+    const surface = makeSurface(out.width, out.height);
+    const canvas = surface.getCanvas();
+    canvas.drawColor(Skia.Color('#FFFFFF'));
+    const point = (a: Float32Array) => {
+      const pts = new Array<{ x: number; y: number }>(a.length / 2);
+      for (let i = 0; i < pts.length; i++) pts[i] = { x: a[i * 2]!, y: a[i * 2 + 1]! };
+      return pts;
+    };
+    const vertices = Skia.MakeVertices(
+      VertexMode.Triangles,
+      point(mesh.positions),
+      point(mesh.texcoords),
+      undefined,
+      Array.from(mesh.indices),
+    );
+    const paint = Skia.Paint();
+    paint.setShader(
+      image.makeShaderOptions(
+        TileMode.Clamp,
+        TileMode.Clamp,
+        FilterMode.Linear,
+        mip ? MipmapMode.Linear : MipmapMode.None,
+      ),
+    );
+    // 没有顶点颜色：Dst 表示只用着色器（原图）的颜色。
+    canvas.drawVertices(vertices, BlendMode.Dst, paint);
+    surface.flush();
+    return surface.makeImageSnapshot();
+  };
+  return {
+    width,
+    height,
+    uvdocPixels(margin, padded, gray) {
+      const { width: iw, height: ih } = UVDOC_INPUT;
+      const surface = makeSurface(iw, ih);
+      const canvas = surface.getCanvas();
+      canvas.drawColor(Skia.Color(`rgb(${gray}, ${gray}, ${gray})`));
+      const kx = iw / padded.width;
+      const ky = ih / padded.height;
+      // 和模型里的缩放一样用双线性、不用 mipmap。
+      canvas.drawImageRectOptions(
+        image,
+        Skia.XYWHRect(0, 0, width, height),
+        Skia.XYWHRect(margin * kx, margin * ky, width * kx, height * ky),
+        FilterMode.Linear,
+        MipmapMode.None,
+      );
+      surface.flush();
+      return { width: iw, height: ih, data: readRgba(surface.makeImageSnapshot(), iw, ih) };
+    },
+    render(mesh, out) {
+      return { ...out, data: readRgba(draw(mesh, out, true), out.width, out.height) };
+    },
+    encode(mesh, quality) {
+      return draw(mesh, { width, height }, false).encodeToBytes(
+        ImageFormat.JPEG,
+        Math.round(quality * 100),
+      );
+    },
+    dispose() {
+      image.dispose?.();
+    },
+  };
 }

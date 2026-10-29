@@ -71,6 +71,12 @@ export interface MorphVisionModule {
   ocrDetect?(input: string, width: number, height: number, output: string): Promise<void>;
   ocrRecognize?(input: string, count: number, width: number, output: string): Promise<number>;
   ocrUnload?(): Promise<void>;
+  /**
+   * 跑一个只有一个 float32 输入、一个 float32 输出的模型（D-274：扫描展平的 UVDoc 网格模型）：
+   * 输入、输出都是临时文件（float32 小端），返回输出的形状。旧版 App 里没有时是 undefined。
+   */
+  modelRun?(model: string, input: string, shape: number[], output: string): Promise<number[]>;
+  modelUnload?(): Promise<void>;
   supportedLanguages(): Promise<string[]>;
   /** languages：BCP 47，第一种必须支持，后面的是补充。 */
   recognizeText(

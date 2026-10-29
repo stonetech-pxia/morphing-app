@@ -297,6 +297,80 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
     });
   });
 
+  it('flattens the scanned pages by default and enhances the flattened ones (D-274)', async () => {
+    const { files, vision, run, asked } = setup(toolWorkflow('scan', 'scan-camera'), {}, {}, true);
+    vision.enableFlatten();
+    vision.scanned = [1, 2].map((n) => ({
+      ...files.offerImage(`scan-${n}.jpg`, 1700, 2400),
+      straightened: true,
+    }));
+    const enhancedFrom: string[] = [];
+    const enhance = files.enhanceImage.bind(files);
+    files.enhanceImage = async (uri, ...rest) => (enhancedFrom.push(uri), enhance(uri, ...rest));
+    const result = await run();
+    // 展平模型是另外问的扩展包；文档相机的页面不要扫描包。
+    expect(asked).toEqual(['dewarp']);
+    const flattened = vision.calls.filter((c) => c.method === 'flatten');
+    expect(flattened).toHaveLength(2);
+    // 增强的是展平后的页面，不是相机给的页面（识别文字用增强前的图，也就是展平后的，D-267）。
+    expect(enhancedFrom).toHaveLength(2);
+    for (const [i, uri] of enhancedFrom.entries()) {
+      expect(uri).not.toBe(flattened[i]!.uri);
+      expect(uri).toMatch(/scan-\d\.jpg$/);
+    }
+    expect(result).toMatchObject({ status: 'succeeded', value: { items: [{ pageCount: 2 }] } });
+  });
+
+  it('scans as usual, just not flattened, when the user does not download the model (D-274)', async () => {
+    const { files, vision, run, asked, declined } = setup(
+      toolWorkflow('scan', 'scan-camera'),
+      {},
+      {},
+      true,
+    );
+    vision.enableFlatten();
+    vision.flattenInstalled = false;
+    declined.add('dewarp');
+    vision.scanned = [1, 2].map((n) => ({
+      ...files.offerImage(`scan-${n}.jpg`, 1700, 2400),
+      straightened: true,
+    }));
+    const result = await run();
+    expect(asked).toEqual(['dewarp']);
+    // 第一页就知道模型没装，后面的页不再试。
+    expect(vision.calls.filter((c) => c.method === 'flatten')).toHaveLength(1);
+    expect(result).toMatchObject({ status: 'succeeded', value: { items: [{ pageCount: 2 }] } });
+  });
+
+  it('keeps a page as it is when flattening it fails, and flattens nothing when switched off (D-274)', async () => {
+    const wf = toolWorkflow('scan', 'scan-camera');
+    const first = setup(wf, {}, {}, true);
+    first.vision.enableFlatten();
+    first.vision.scanned = [1, 2].map((n) => ({
+      ...first.files.offerImage(`scan-${n}.jpg`, 1700, 2400),
+      straightened: true,
+    }));
+    first.vision.flattenFails.add(first.vision.scanned[0]!.uri);
+    expect(await first.run()).toMatchObject({ status: 'succeeded' });
+    expect(first.vision.calls.filter((c) => c.method === 'flatten')).toHaveLength(2);
+
+    const off: Workflow = {
+      ...wf,
+      steps: wf.steps.map((s) =>
+        s.action === 'scan.detect' ? { ...s, params: { flatten: false } } : s,
+      ),
+    };
+    const second = setup(off, {}, {}, true);
+    second.vision.enableFlatten();
+    second.vision.scanned = [second.files.offerImage('scan-1.jpg', 1700, 2400)].map((p) => ({
+      ...p,
+      straightened: true,
+    }));
+    expect(await second.run()).toMatchObject({ status: 'succeeded' });
+    expect(second.vision.calls.some((c) => c.method === 'flatten')).toBe(false);
+    expect(second.asked).toEqual([]);
+  });
+
   it('adds an invisible text layer to scanned PDFs so they can be searched, Chinese included (D-195, D-266)', async () => {
     const wf: Workflow = {
       id: 'scan',

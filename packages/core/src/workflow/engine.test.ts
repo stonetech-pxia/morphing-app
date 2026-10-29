@@ -269,6 +269,39 @@ describe('runWorkflow', () => {
     expect(await optional.promise).toMatchObject({ status: 'succeeded' });
   });
 
+  it('asks for an extra optional pack besides the action pack and runs without it (D-274)', async () => {
+    const wf: Workflow = {
+      id: 'scan',
+      name: 'Scan',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+        { id: 'edges', action: 'scan.detect', params: { flatten: true } },
+      ],
+    };
+    const impls = {
+      'in.photos': async () => ({ type: 'images' as const, items: [pdfItem('page')] }),
+      'scan.detect': async (input: RunValue | null) => input!,
+    };
+    const asked: string[] = [];
+    const declined = run(wf, {
+      impls,
+      // 扫描包要下载、展平模型用户不下载：照样扫描。
+      ensurePack: async (id) => (asked.push(id), id === 'scan'),
+      devicePack: (id) =>
+        id === 'scan.detect' ? { pack: 'dewarp', optional: true, extra: true } : undefined,
+    });
+    expect(await declined.promise).toMatchObject({ status: 'succeeded' });
+    expect(asked).toEqual(['scan', 'dewarp']);
+
+    // 动作自己的扩展包仍然是必需的。
+    const noScan = run(wf, {
+      impls,
+      ensurePack: async (id) => id === 'dewarp',
+      devicePack: () => ({ pack: 'dewarp', optional: true, extra: true }),
+    });
+    expect(await noScan.promise).toMatchObject({ status: 'cancelled' });
+  });
+
   it('always asks for passwords and hands them only to that step, never into the params (D-194)', async () => {
     const wf: Workflow = {
       id: 'wifi',

@@ -23,6 +23,18 @@ export interface PackManifest {
   files: readonly PackFile[];
 }
 
+/**
+ * 还没定托管地址的扩展包（D-274 的展平模型）：url 用这个前缀写相对路径，下载时换成 App 配置的扩展包地址
+ * （EXPO_PUBLIC_MORPH_PACKS_URL）；没配置时下载不了（App 也不会提示下载）。
+ */
+export const PACK_HOST = 'morph-packs:/';
+
+/** 文件的下载地址：固定地址原样返回；PACK_HOST 开头的接到 base 后面，没有 base 时是 null。 */
+export function packFileUrl(file: PackFile, base?: string): string | null {
+  if (!file.url.startsWith(PACK_HOST)) return file.url;
+  return base ? `${base.replace(/\/+$/, '')}/${file.url.slice(PACK_HOST.length)}` : null;
+}
+
 const f = (path: string, url: string, size: number, sha256: string): PackFile => ({
   path,
   url,
@@ -100,6 +112,37 @@ export const PACKS: readonly PackManifest[] = [
       f(
         'LICENSE',
         'https://cdn.jsdelivr.net/npm/@arcships/light-ocr-model-ppocrv6-small@0.3.4/bundle/LICENSES/PaddleOCR-Apache-2.0.txt',
+        11376,
+        '3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e',
+      ),
+    ],
+  },
+  {
+    // 扫描展平（D-274）：UVDoc 的网格部分（PaddleOCR 3.x 的 text_image_unwarping，Hugging Face
+    // PaddlePaddle/UVDoc_onnx 提交 3bcf535 的 inference.onnx，截到网格输出、转成 fp16）。托管地址还没定，见 PACK_HOST。
+    id: 'dewarp',
+    version: '1.0.0',
+    name: {
+      en: 'Page flattening model',
+      zh: '页面展平模型',
+      fr: 'Modèle d’aplanissement des pages',
+    },
+    description: {
+      en: 'Flattens curved and creased pages when scanning, so the lines of text come out straight (UVDoc).',
+      zh: '扫描时把弯曲、有折痕的页面展平，文字行变直（UVDoc）。',
+      fr: 'Aplanit les pages courbées ou froissées lors de la numérisation, pour que les lignes de texte soient droites (UVDoc).',
+    },
+    license: 'Apache-2.0 (PaddleOCR UVDoc, ONNX from PaddlePaddle/UVDoc_onnx)',
+    files: [
+      f(
+        'uvdoc.onnx',
+        `${PACK_HOST}dewarp/1.0.0/uvdoc_grid_fp16.onnx`,
+        15867723,
+        '288acd5c3d68a3ddfec7b0036eb3fe400a3bbaf111210307e607ca8890c9799b',
+      ),
+      f(
+        'LICENSE',
+        `${PACK_HOST}dewarp/1.0.0/LICENSE`,
         11376,
         '3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e',
       ),

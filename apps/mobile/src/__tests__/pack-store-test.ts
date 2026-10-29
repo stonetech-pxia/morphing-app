@@ -1,4 +1,4 @@
-import { PACKS } from '@morph/core';
+import { PACKS, PACK_HOST, packFileUrl } from '@morph/core';
 
 import { PackError, PackStore } from '../packs/store';
 import { MemoryPackFs, manifests, sha256, text } from '../test-utils/memory-packs';
@@ -14,6 +14,13 @@ describe('extension packs', () => {
       for (const file of pack.files) {
         expect(file.sha256).toMatch(/^[0-9a-f]{64}$/);
         // 固定版本：jsDelivr 的地址里必须带 @版本号；放不进 jsDelivr 的大文件（语音模型）用 Hugging Face 固定提交的地址。
+        // 还没定托管地址的（展平模型，D-274）写相对路径，路径里带扩展包的 ID 和版本号。
+        if (file.url.startsWith(PACK_HOST)) {
+          expect(file.url).toBe(
+            `${PACK_HOST}${pack.id}/${pack.version}/${file.url.split('/').pop()}`,
+          );
+          continue;
+        }
         expect(file.url).toMatch(
           /^https:\/\/(cdn\.jsdelivr\.net\/npm\/(@[^/]+\/)?[^@/]+@\d|huggingface\.co\/[^/]+\/[^/]+\/resolve\/[0-9a-f]{40}\/)/,
         );
@@ -24,6 +31,40 @@ describe('extension packs', () => {
     expect(ids).toEqual(
       expect.arrayContaining(['scan', 'ocr', 'ocr-eng', 'ocr-chi-sim', 'pdfview']),
     );
+  });
+
+  it('downloads a pack without a fixed address from the configured pack server only (D-274)', async () => {
+    const fs = new MemoryPackFs();
+    const body = text('model');
+    const file = {
+      path: 'uvdoc.onnx',
+      url: `${PACK_HOST}dewarp/1.0.0/uvdoc.onnx`,
+      size: body.length,
+      sha256: await sha256(body),
+    };
+    const pack = { ...PACKS.find((p) => p.id === 'dewarp')!, files: [file] };
+    fs.net.set('https://packs.example/dewarp/1.0.0/uvdoc.onnx', body);
+    expect(packFileUrl(file)).toBeNull();
+    expect(packFileUrl(file, 'https://packs.example/')).toBe(
+      'https://packs.example/dewarp/1.0.0/uvdoc.onnx',
+    );
+    expect(packFileUrl(PACKS[0]!.files[0]!)).toBe(PACKS[0]!.files[0]!.url);
+
+    // 没配置地址：下载不了，不留下半个扩展包。
+    const unconfigured = new PackStore(fs, sha256, () => pack);
+    await expect(unconfigured.install('dewarp')).rejects.toBeInstanceOf(PackError);
+    expect(await unconfigured.isInstalled('dewarp')).toBe(false);
+
+    const store = new PackStore(
+      fs,
+      sha256,
+      () => pack,
+      () => 1,
+      'https://packs.example',
+    );
+    await store.install('dewarp');
+    expect(await store.isInstalled('dewarp')).toBe(true);
+    expect(fs.downloads).toEqual(['https://packs.example/dewarp/1.0.0/uvdoc.onnx']);
   });
 
   it('downloads a pack with its dependency, verifies every file, and works offline afterwards', async () => {

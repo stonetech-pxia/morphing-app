@@ -195,12 +195,13 @@ export interface RunOptions<S> {
   /**
    * 这一步在这台设备上要的扩展包（D-269，例如文字识别模型）；有它时代替动作自己的扩展包。
    * optional：用户不下载也照样做（例如可搜索 PDF 没有文字层），不取消运行。
+   * extra：不代替动作自己的扩展包，而是另外问一次（D-274：扫描的展平模型；只能是 optional）。
    */
   devicePack?: (
     actionId: string,
     params: Record<string, unknown>,
     input: RunValue | null,
-  ) => { pack: string; optional?: boolean } | undefined;
+  ) => { pack: string; optional?: boolean; extra?: boolean } | undefined;
   /** 界面把 cancelled 设为 true 即可取消。 */
   signal?: { cancelled: boolean };
   onEvent?: (event: RunEvent) => void;
@@ -302,8 +303,9 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
       }
       // 先问参数再确认扩展包：文字识别的语言包由本次选的语言决定。
       const device = opts.devicePack?.(action.id, params, value);
+      const replaces = device && !device.extra ? device : undefined;
       const pack =
-        device?.pack ??
+        replaces?.pack ??
         (opts.packNotNeeded?.(action.id, params, value)
           ? undefined
           : (action.packFor?.(params) ?? action.pack));
@@ -311,10 +313,12 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
         pack &&
         opts.ensurePack &&
         !(await orCancel(opts.ensurePack(pack))) &&
-        !device?.optional
+        !replaces?.optional
       ) {
         throw new RunCancelled();
       }
+      // 另外要的扩展包（可选）：用户不下载也照样做这一步。
+      if (device?.extra && opts.ensurePack) await orCancel(opts.ensurePack(device.pack));
       throwIfCancelled();
       value = await orCancel(
         impl(value, params, {

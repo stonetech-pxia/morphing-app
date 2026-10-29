@@ -189,7 +189,7 @@ function FieldInput({
       return (
         <Switch
           testID={testID}
-          value={Boolean(value)}
+          value={Boolean(value ?? field.defaultOn)}
           onValueChange={onChange}
           trackColor={{ true: palette.primary }}
         />

@@ -1087,6 +1087,27 @@ export class FakeVision implements VisionPlatform {
     return { ...out, ...size };
   }
 
+  /**
+   * 扫描展平（D-274）：默认没有（旧版 App）；enableFlatten 打开。flattenInstalled 是展平模型装好没有，
+   * flattenFails 里的页（输入的 uri）展平时出错。
+   */
+  flattenModel?: { pack: string };
+  flatten?: VisionPlatform['flatten'];
+  flattenInstalled = true;
+  flattenFails = new Set<string>();
+  enableFlatten(prompt = true) {
+    if (prompt) this.flattenModel = { pack: 'dewarp' };
+    this.flatten = async (uri, runId, relPath) => {
+      this.calls.push({ method: 'flatten', uri });
+      if (this.flattenFails.has(uri)) throw new Error('model failed');
+      if (!this.flattenInstalled) return null;
+      const size = await this.files.imageSize(uri);
+      const out = await this.files.writeRunFile(runId, relPath, TINY_JPEG);
+      this.files.imageSizes.set(out.uri, size);
+      return { ...out, ...size, refined: true, timing: {} };
+    };
+  }
+
   /** 证件照（D-252）：每次找脸的结果（按顺序；检测图的大小和脸框）。 */
   faceResults: { width: number; height: number; faces: Box[] }[] = [];
   async detectFaces(uri: string) {

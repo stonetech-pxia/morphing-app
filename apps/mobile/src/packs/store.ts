@@ -1,4 +1,4 @@
-import { packById, type PackManifest } from '@morph/core';
+import { packById, packFileUrl, type PackManifest } from '@morph/core';
 
 // 扩展包的下载、校验、存储和删除（D-064，TOOLS_DESIGN §6）。
 // 存在 documentDirectory/packs/<id>/<version>/，不进版本，回滚不受影响；ready.json 写好才算安装完成，
@@ -67,6 +67,8 @@ export class PackStore {
     /** 清单查找（测试里换成测试用的清单）。 */
     private readonly lookup: (id: string) => PackManifest | undefined = packById,
     private readonly now: () => number = Date.now,
+    /** 还没定托管地址的扩展包从这里下载（EXPO_PUBLIC_MORPH_PACKS_URL，D-274）。 */
+    private readonly packsUrl?: string,
   ) {}
 
   async isInstalled(id: string): Promise<boolean> {
@@ -112,10 +114,12 @@ export class PackStore {
       const worker = async () => {
         for (let file = queue.shift(); file; file = queue.shift()) {
           const path = `${dir}/${file.path}`;
+          const url = packFileUrl(file, this.packsUrl);
+          if (!url) throw new PackError('download', file.path);
           let got: { size: number; sha256: string | null; bytes?: Uint8Array };
           try {
             if (file.size > LARGE_FILE && this.fs.downloadLarge) {
-              got = await this.fs.downloadLarge(file.url, path, (bytes) =>
+              got = await this.fs.downloadLarge(url, path, (bytes) =>
                 onProgress?.({
                   packId: id,
                   doneBytes: done + Math.min(bytes, file.size),
@@ -123,7 +127,7 @@ export class PackStore {
                 }),
               );
             } else {
-              const bytes = await this.fs.download(file.url, path);
+              const bytes = await this.fs.download(url, path);
               got = { size: bytes.length, sha256: null, bytes };
             }
           } catch {

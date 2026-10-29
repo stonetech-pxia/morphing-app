@@ -94,6 +94,8 @@ export interface ParamField {
   private?: boolean;
   /** secret 要输两遍、一样才行（给 PDF 加密码，D-194）。 */
   confirm?: boolean;
+  /** toggle 没写这个参数时显示成打开（动作把「不写」当成打开，例如扫描的展平，D-274）。 */
+  defaultOn?: boolean;
 }
 
 /** 常用规格：一键填入一组参数，例如「护照 35×45」「4 MB」。 */

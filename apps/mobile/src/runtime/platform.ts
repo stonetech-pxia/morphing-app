@@ -91,6 +91,17 @@ export interface ImageAdjustSettings {
   saturation: number;
 }
 
+/** 展平后的页面（D-274）：和输入一样大；refined 是按文字行精修过（装了文字识别模型、文字行够多）。 */
+export interface FlattenResult {
+  uri: string;
+  width: number;
+  height: number;
+  size: number;
+  refined: boolean;
+  /** 每一步的耗时（毫秒），测性能用。 */
+  timing: Record<string, number>;
+}
+
 export interface VisionPlatform {
   adjustImage(
     uri: string,
@@ -139,6 +150,16 @@ export interface VisionPlatform {
   recognizeText(uri: string, languages: readonly string[]): Promise<string>;
   /** 识别文字，给出每行的位置（可搜索 PDF 的文字层，D-195）。 */
   recognizeLines(uri: string, languages: readonly string[]): Promise<TextLayer>;
+  /**
+   * 扫描展平的模型（D-274）：配置了扩展包下载地址时才有，扫描时提示下载 pack 这个扩展包（不下载也照样扫描）。
+   * 没配置下载地址但已经装好时（模拟器测试），flatten 照样能用，只是不提示下载。
+   */
+  readonly flattenModel?: { pack: string };
+  /**
+   * 展平一张拉正后的页面（D-274）：UVDoc 估计弯曲，装了文字识别模型时再按文字行精修，只重采样一次。
+   * 展平模型没装时返回 null（照常扫描，只是不展平）。
+   */
+  flatten?(uri: string, runId: string, relPath: string): Promise<FlattenResult | null>;
   /** 能不能给照片找边和拉正（findPaper / straighten）；Android 的 ML Kit 不能。 */
   readonly canFindPaper: boolean;
   /** 找纸张的四个角（像素，已按拍摄方向摆正）；没找到返回 null。 */

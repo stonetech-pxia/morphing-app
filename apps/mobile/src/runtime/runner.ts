@@ -169,7 +169,14 @@ export function devicePack(
   files: FilePlatform,
   actionId: string,
   params: Record<string, unknown>,
-): { pack: string; optional?: boolean } | undefined {
+): { pack: string; optional?: boolean; extra?: boolean } | undefined {
+  // 扫描的展平模型（D-274）：在扫描包之外另外问，不下载也照常扫描。
+  const flatten = files.vision?.flattenModel;
+  if (actionId === 'scan.detect') {
+    return flatten && params.flatten !== false
+      ? { pack: flatten.pack, optional: true, extra: true }
+      : undefined;
+  }
   const model = files.vision?.ocrModel;
   if (!model) return undefined;
   if (actionId === 'ocr.recognize') {

@@ -25,12 +25,51 @@ export const SCAN_OUTPUT_SIDE = 2400;
 /** 找到的纸张小于照片的 1/10 时当作没找到（多半是噪点）。 */
 const MIN_PAPER_SHARE = 0.1;
 
+/**
+ * 展平拉正后的页面（D-274，参数 flatten 不写成 false 就做）：展平模型没装（用户没下载）时原样返回，照常扫描。
+ * 某一页展平失败也只是这一页不展平，不让整个扫描失败。
+ */
+async function flattenPages(
+  items: RunItem[],
+  params: Record<string, unknown>,
+  ctx: Parameters<Impl>[2],
+): Promise<RunItem[]> {
+  const vision = ctx.services.files.vision;
+  if (params.flatten === false || !vision?.flatten) return items;
+  const out: RunItem[] = [];
+  for (const [i, item] of items.entries()) {
+    ctx.throwIfCancelled();
+    let page;
+    try {
+      page = await vision.flatten(item.uri, ctx.services.runId, freshName(item.name, 'jpg'));
+    } catch {
+      out.push(item);
+      continue;
+    }
+    // 模型没装：后面的页也一样，原样返回。
+    if (!page) return [...out, ...items.slice(i)];
+    const { takenAt } = item;
+    out.push({
+      uri: page.uri,
+      name: item.name,
+      ext: 'jpg',
+      mimeType: 'image/jpeg',
+      size: page.size,
+      width: page.width,
+      height: page.height,
+      ...(takenAt !== undefined ? { takenAt } : {}),
+    });
+    ctx.progress(i + 1, items.length);
+  }
+  return out;
+}
+
 export const SCAN_IMPLS: Record<string, Impl> = {
-  async 'scan.detect'(input, _params, ctx) {
+  async 'scan.detect'(input, params, ctx) {
     const items = fileItems(input);
-    // 文档相机拍的页面已经拉正；全部是这样的页面时不需要找边，也不打开四角界面。
+    // 文档相机拍的页面已经拉正；全部是这样的页面时不需要找边，也不打开四角界面（展平照样做）。
     const todo = items.filter((item) => !item.straightened);
-    if (todo.length === 0) return { type: 'images', items };
+    if (todo.length === 0) return { type: 'images', items: await flattenPages(items, params, ctx) };
     const { packs } = ctx.services;
     // Android 的 ML Kit 不能给照片找边，退回扫描包。
     const native = ctx.services.files.vision;
@@ -110,7 +149,7 @@ export const SCAN_IMPLS: Record<string, Impl> = {
     }
     // 按原来的顺序放回（已经拉正的页面原样保留）。
     const out = items.map((item) => (item.straightened ? item : straightened.shift()!));
-    return { type: 'images', items: out };
+    return { type: 'images', items: await flattenPages(out, params, ctx) };
   },
 
   async 'scan.enhance'(input, params, ctx) {

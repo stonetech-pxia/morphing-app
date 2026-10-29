@@ -7,7 +7,7 @@ import type { ActionDefinition } from '../workflow/contract';
 
 // 扫描工具的清单（T5）：找边和透视矫正在 iOS 上用系统的 Vision / Core Image（D-086），
 // 其他平台用扫描包（WebView + OpenCV.js + jscanify）；拍照扫描用系统文档相机（iOS 的 VisionKit、Android 的 ML Kit）；四个角由用户在本地调整（找边在背景杂乱或纸张出画时会出错）；
-// 系统文档相机拍的页面已经拉正，直接放行。增强用 Skia（D-266：去阴影、纠偏、自动彩色或灰度、黑白用局部阈值），不需要扩展包。
+// 系统文档相机拍的页面已经拉正，直接放行；展平（D-274，默认打开）对两种页面都做，要下载展平模型。增强用 Skia（D-266：去阴影、纠偏、自动彩色或灰度、黑白用局部阈值），不需要扩展包。
 
 export const SCAN_TOOL_ID = 'scan';
 export const SCAN_PAGE_ID = 'tool-scan';
@@ -23,14 +23,26 @@ export const SCAN_ACTIONS: readonly ActionDefinition[] = [
       fr: 'Trouver les bords et redresser',
     },
     description: {
-      en: 'Finds the edges of the paper in each photo; the user checks or drags the four corners; then the page is straightened. Pages from the document camera are already straight and pass through.',
-      zh: '在每张照片里找到纸张的边，用户确认或拖动四个角，然后把页面拉正。文档相机扫描的页面已经拉正，直接通过。',
-      fr: 'Recherche les bords du papier dans chaque photo ; vous vérifiez ou faites glisser les quatre coins, puis la page est redressée. Les pages de la caméra de document sont déjà droites et sont conservées telles quelles.',
+      en: 'Finds the edges of the paper in each photo; the user checks or drags the four corners; then the page is straightened. Pages from the document camera are already straight and pass through. flatten (on unless false) also flattens curved or creased pages so the lines of text come out straight (needs a one-time model download; scanning works without it).',
+      zh: '在每张照片里找到纸张的边，用户确认或拖动四个角，然后把页面拉正。文档相机扫描的页面已经拉正，直接通过。flatten（不写成 false 就打开）还会把弯曲、有折痕的页面展平，文字行变直（要下载一次模型，不下载也照常扫描）。',
+      fr: 'Recherche les bords du papier dans chaque photo ; vous vérifiez ou faites glisser les quatre coins, puis la page est redressée. Les pages de la caméra de document sont déjà droites et sont conservées telles quelles. flatten (activé sauf s’il vaut false) aplanit aussi les pages courbées ou froissées pour que les lignes de texte soient droites (un modèle à télécharger une fois ; la numérisation fonctionne sans lui).',
     },
     input: ['images'],
     output: 'images',
-    params: z.strictObject({}),
-    fields: [],
+    // D-274：展平默认打开（不写 = 打开），旧配置不用迁移。
+    params: z.strictObject({ flatten: z.boolean().optional() }),
+    fields: [
+      {
+        key: 'flatten',
+        label: {
+          en: 'Flatten curved pages',
+          zh: '展平弯曲的页面',
+          fr: 'Aplanir les pages courbées',
+        },
+        kind: 'toggle',
+        defaultOn: true,
+      },
+    ],
     local: 'corners',
     pack: 'scan',
     requires: [],
@@ -90,7 +102,7 @@ export function scanWorkflows(locale: Locale): Workflow[] {
       ['Scan to PDF', '扫描成 PDF'],
       [
         { id: 'shoot', action: 'in.photos', params: { source: 'scanner', min: 1, max: 30 } },
-        { id: 'edges', action: 'scan.detect', params: {} },
+        { id: 'edges', action: 'scan.detect', params: { flatten: true } },
         { id: 'look', action: 'scan.enhance', params: { mode: 'auto' }, ask: ['mode'] },
         toPdf,
         name,
@@ -101,7 +113,7 @@ export function scanWorkflows(locale: Locale): Workflow[] {
       ['Scan photos to PDF', '照片扫描成 PDF'],
       [
         { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 30 } },
-        { id: 'edges', action: 'scan.detect', params: {} },
+        { id: 'edges', action: 'scan.detect', params: { flatten: true } },
         { id: 'look', action: 'scan.enhance', params: { mode: 'auto' }, ask: ['mode'] },
         toPdf,
         name,
@@ -112,7 +124,7 @@ export function scanWorkflows(locale: Locale): Workflow[] {
       ['Straighten photos of paper', '拉正纸张照片'],
       [
         { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 30 } },
-        { id: 'edges', action: 'scan.detect', params: {} },
+        { id: 'edges', action: 'scan.detect', params: { flatten: true } },
       ],
     ),
   ];

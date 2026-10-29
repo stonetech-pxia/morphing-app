@@ -107,6 +107,14 @@ public class MorphVisionModule: Module {
       OcrRunner.shared.unload()
     }
 
+    // 扫描展平的 UVDoc 网格模型（D-274）：一个 float32 输入、一个 float32 输出，都走临时文件，返回输出的形状。
+    AsyncFunction("modelRun") { (model: URL, input: URL, shape: [Int], output: URL) -> [Int] in
+      try ModelRunner.shared.run(model: model.path, input: input, shape: shape, output: output)
+    }
+    AsyncFunction("modelUnload") {
+      ModelRunner.shared.unload()
+    }
+
     AsyncFunction("supportedLanguages") { () -> [String] in
       try VNRecognizeTextRequest().supportedRecognitionLanguages()
     }
