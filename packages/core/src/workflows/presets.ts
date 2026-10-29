@@ -94,15 +94,12 @@ const speak = {
 };
 const textPdf = { id: 'pdf', action: 'text.toPdf', params: { pageSize: 'a4', fontSize: 12 } };
 /** 转 Excel（D-272）：默认界面语言、全部内容，每次运行时问语言。 */
-const toExcel = (locale: Locale) => ({
+// 语言自动识别，运行时不问（D-278）。
+const toExcel = {
   id: 'excel',
   action: 'ocr.toExcel',
-  params: {
-    lang: locale === 'zh' ? 'chi_sim' : locale === 'fr' ? 'fra' : 'eng',
-    scope: 'all',
-  },
-  ask: ['lang'],
-});
+  params: { lang: 'auto', scope: 'all' },
+};
 
 export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   {
@@ -246,11 +243,11 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     },
     icon: 'scan',
     packs: ['scan'],
-    steps: (locale) => [
+    steps: () => [
       photos(1, 20, 'scanner'),
       { id: 'edges', action: 'scan.detect', params: {} },
       { id: 'look', action: 'scan.enhance', params: { mode: 'auto' } },
-      toExcel(locale),
+      toExcel,
     ],
   },
   {
@@ -264,7 +261,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
       fr: 'Choisissez des photos ou des captures d’écran d’une grille → classeur Excel, une feuille par image → vérifiez-le et modifiez-le sur la page de résultat. Les grilles à lignes donnent les meilleurs résultats.',
     },
     icon: 'photo',
-    steps: (locale) => [photos(1, 20), toExcel(locale)],
+    steps: () => [photos(1, 20), toExcel],
   },
   {
     id: 'combine-documents',

@@ -116,7 +116,8 @@ export const OCR_IMPLS: Record<string, Impl> = {
   // 旁边存一份 TableDoc 给结果页的「查看和编辑」用。识别出的文字只在本机。
   async 'ocr.toExcel'(input, params, ctx) {
     const items = fileItems(input);
-    const lang = String(params.lang) as OcrLanguage;
+    // 「自动」按手机语言选（D-278）。
+    const lang = resolveOcrLanguage(params.lang, ctx.locale);
     const scope = params.scope === 'tables' ? 'tables' : 'all';
     const languages = VISION_LANGUAGES[lang];
     const vision = ctx.services.files.vision;

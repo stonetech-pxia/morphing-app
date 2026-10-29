@@ -80,19 +80,23 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
     id: 'ocr.toExcel',
     label: { en: 'Convert to Excel', zh: '转 Excel', fr: 'Convertir en classeur Excel' },
     description: {
-      en: 'Reads tables with ruled lines in the images (one language per run) and makes one Excel workbook, a sheet per page. You can check and edit it before saving. The text stays on this device.',
-      zh: '识别图片里带线的表格（每次一种语言），做成一个 Excel 文件，每页一张工作表。保存前可以核对和修改。文字只留在本机。',
-      fr: 'Lit les grilles à lignes des images (une langue par exécution) et crée un seul classeur Excel, une feuille par page. Vous pouvez le vérifier et le modifier avant de l’enregistrer. Le texte reste sur cet appareil.',
+      en: 'Reads tables with ruled lines in the images and makes one Excel workbook, a sheet per page. You can check and edit it before saving. The text stays on this device.',
+      zh: '识别图片里带线的表格，做成一个 Excel 文件，每页一张工作表。保存前可以核对和修改。文字只留在本机。',
+      fr: 'Lit les grilles à lignes des images et crée un seul classeur Excel, une feuille par page. Vous pouvez le vérifier et le modifier avant de l’enregistrer. Le texte reste sur cet appareil.',
     },
     input: ['images'],
     output: 'files',
-    params: z.strictObject({ lang: z.enum(OCR_LANGUAGES), scope: z.enum(TABLE_SCOPES) }),
+    // 语言和「识别文字」一样，默认 auto、不问（D-278）。
+    params: z.strictObject({ lang: z.enum(OCR_LANGUAGE_CHOICES), scope: z.enum(TABLE_SCOPES) }),
     fields: [
       {
         key: 'lang',
         label: { en: 'Language', zh: '语言', fr: 'Langue' },
         kind: 'choice',
-        options: OCR_LANGUAGES.map((value) => ({ value, label: OCR_LANGUAGE_NAMES[value] })),
+        options: [
+          { value: 'auto', label: { en: 'Auto', zh: '自动', fr: 'Automatique' } },
+          ...OCR_LANGUAGES.map((value) => ({ value, label: OCR_LANGUAGE_NAMES[value] })),
+        ],
       },
       {
         key: 'scope',
@@ -109,17 +113,12 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
     ],
     // 要每行文字的位置：只用本机的识别（PP-OCRv6 或系统的），不用文字识别包（tesseract 只给文字）。
     requires: [],
-    ai: '"Photo / scan of a table to Excel, a spreadsheet from a paper table, 表格转 Excel" → in.photos (source "scanner" for paper, then scan.detect → scan.enhance mode "auto"; library photos and screenshots go straight in) → ocr.toExcel; lang is the language of the table (the interface language unless they name one), scope "all" unless they want only the tables. A scanned PDF: in.files accept "pdf" → pdf.toImages first. It makes one .xlsx with a sheet per page, which the user can check and edit on the result page; only tables with ruled lines (or only horizontal rules) become cells, everything else comes out as rows of text. Handwriting and tables without lines are not supported yet.',
+    ai: '"Photo / scan of a table to Excel, a spreadsheet from a paper table, 表格转 Excel" → in.photos (source "scanner" for paper, then scan.detect → scan.enhance mode "auto"; library photos and screenshots go straight in) → ocr.toExcel; lang "auto" unless they name the language of the table, scope "all" unless they want only the tables. A scanned PDF: in.files accept "pdf" → pdf.toImages first. It makes one .xlsx with a sheet per page, which the user can check and edit on the result page; only tables with ruled lines (or only horizontal rules) become cells, everything else comes out as rows of text. Handwriting and tables without lines are not supported yet.',
     phrases: [
       {
         match:
           /^(?:(?:表格)?转(?:成)?\s*excel|做成\s*excel(?:\s*表格)?|(?:convert|turn) (?:it |them )?(?:in)?to (?:an )?excel(?: (?:file|workbook|spreadsheet))?)$/i,
-        step: (_m, locale) => ({
-          params: {
-            lang: locale === 'zh' ? 'chi_sim' : locale === 'fr' ? 'fra' : 'eng',
-            scope: 'all',
-          },
-        }),
+        step: () => ({ params: { lang: 'auto', scope: 'all' } }),
       },
     ],
   },

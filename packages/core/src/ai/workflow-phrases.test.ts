@@ -71,11 +71,11 @@ describe('step phrases in action definitions', () => {
     // 转 Excel（D-272）：语言跟界面语言，默认全部内容。
     expect(parseStepPhrase('表格转 Excel', 'zh')).toEqual({
       action: 'ocr.toExcel',
-      params: { lang: 'chi_sim', scope: 'all' },
+      params: { lang: 'auto', scope: 'all' },
     });
     expect(parseStepPhrase('convert to an Excel workbook', 'fr')).toEqual({
       action: 'ocr.toExcel',
-      params: { lang: 'fra', scope: 'all' },
+      params: { lang: 'auto', scope: 'all' },
     });
   });
 });

@@ -6,6 +6,7 @@ import {
   type RunResult,
   type Workflow,
 } from '@morph/core';
+import { getLocales } from 'expo-localization';
 import { parseTableDoc, type TableBlock } from '@morph/tool-office';
 import { gridRects, renderPage } from '@morph/tool-office/src/test-helpers';
 import { strFromU8, unzipSync } from 'fflate';
@@ -177,6 +178,36 @@ describe('ocr.toExcel (D-272)', () => {
       status: 'failed',
       error: { code: 'tableUnsupported' },
     });
+  });
+
+  it('picks the language by the phone’s languages when lang is auto (D-278)', async () => {
+    const phone = (languageTag: string) =>
+      jest
+        .mocked(getLocales)
+        .mockReturnValue([{ languageTag } as ReturnType<typeof getLocales>[number]]);
+    try {
+      phone('ja-JP');
+      const ja = setup([pick, excel('all', 'auto')]);
+      ja.files.nextPhotos = [ja.files.offerImage('a.jpg', 1000, 700)];
+      ja.vision.tableImages = [renderPage(1000, 700, gridRects(XS, YS))];
+      ja.vision.layers = [{ width: 1000, height: 700, lines: cellLines() }];
+      resultItem(await ja.run());
+      expect(ja.vision.calls.find((c) => c.method === 'recognizeLines')?.args).toEqual([
+        'ja-JP',
+        'en-US',
+      ]);
+      // 手机是俄文、系统也认不了：说清楚不支持，不去下载文字识别包（它不给每行的位置）。
+      phone('ru-RU');
+      const ru = setup([pick, excel('all', 'auto')]);
+      ru.vision.unsupported.add('ru');
+      ru.files.nextPhotos = [ru.files.offerImage('a.jpg', 1000, 700)];
+      expect(await ru.run()).toMatchObject({
+        status: 'failed',
+        error: { code: 'tableUnsupported' },
+      });
+    } finally {
+      jest.mocked(getLocales).mockReturnValue([] as unknown as ReturnType<typeof getLocales>);
+    }
   });
 
   it('fails with “nothing found” when no page has any text', async () => {

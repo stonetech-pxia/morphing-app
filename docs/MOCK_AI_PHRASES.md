@@ -175,7 +175,7 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 
 ## 扫描件转 Excel（D-272）
 
-步骤句式：「转 Excel / 转成 Excel / 表格转 Excel / 做成 Excel」「convert to Excel / turn it into an Excel file」→ `ocr.toExcel`（`lang` 跟界面语言、`scope: all`）。
+步骤句式：「转 Excel / 转成 Excel / 表格转 Excel / 做成 Excel」「convert to Excel / turn it into an Excel file」→ `ocr.toExcel`（`lang: auto`、`scope: all`）。
 
 | ID   | 句式                                       | 结果                                                |
 | ---- | ------------------------------------------ | --------------------------------------------------- |
