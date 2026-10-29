@@ -1099,7 +1099,6 @@ export const zh: MessageTable = {
   tableInsertColumnRight: '在右边插入一列',
   tableDeleteColumn: '删除这一列',
   tableDeleteText: '删除这段文字',
-  tableSelectFirst: '先点一下这张表里的一格。',
   tableEmpty: '这一页没有识别出内容。',
   tableReadOnly: '这一页超过 {max} 个格子，这里只能查看。要修改，请用别的 App 打开这个文件。',
   tableSaveFailed: '改动没能保存：{error}',

@@ -1,6 +1,8 @@
 import type { Locale, RunItem } from '@morph/core';
 import {
   EDITABLE_CELLS,
+  canDeleteColumn,
+  cellNumber,
   columnName,
   deleteColumn,
   deleteRow,
@@ -50,6 +52,9 @@ import { loadTableDoc, saveTableEdits } from './table-edit';
 
 /** Excel 的一个字符宽大约这么多点；列宽和行高都限制在手指点得到、又不会太宽的范围。 */
 const CHAR_PX = 8;
+/** 和 xlsx 一样：没有判断出对齐时是「常规」，数字靠右、文字靠左。 */
+const textAlignOf = (cell: SheetCell) =>
+  cell.align ?? (cell.cell !== undefined && cellNumber(cell.text) ? 'right' : 'left');
 const MIN_COL = 56;
 const MAX_COL = 280;
 const LINE_PX = 20;
@@ -141,7 +146,6 @@ export function TableEditor({
     null,
   );
   const [menu, setMenu] = useState<{ title: string; options: MenuOption[] } | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -190,7 +194,6 @@ export function TableEditor({
     if (!history) return;
     setHistory(pushHistory(history, next));
     if (!keepSelection) setSelected(null);
-    setHint(null);
   };
 
   const selectedCell =
@@ -205,7 +208,6 @@ export function TableEditor({
   }
 
   function pressCell(cell: SheetCell) {
-    setHint(null);
     const same = selected?.block === cell.block && selected.cell === cell.cell;
     if (same && !readOnly) {
       setEditing({
@@ -268,31 +270,25 @@ export function TableEditor({
 
   function columnMenu(c: number) {
     if (readOnly || !doc || !page) return;
-    // 一页里可能有几张表：用选中的格子所在的那张；只有一张表时就是它。
-    const tables = page.blocks.flatMap((b, i) => (b.kind === 'table' ? [i] : []));
-    const target =
-      selected?.cell !== undefined ? selected.block : tables.length === 1 ? tables[0]! : null;
-    const table = target !== null ? page.blocks[target] : undefined;
-    if (target === null || !table || table.kind !== 'table') {
-      setHint(t(locale, 'tableSelectFirst'));
-      return;
-    }
-    if (c >= table.cols) return;
-    const at = { page: pageIndex, block: target };
+    // 一页的列是各张表共用的（D-272）：插入和删除对整页，经过这一列的每张表都跟着变。
+    if (!page.blocks.some((b) => b.kind === 'table') || c >= page.colWidths.length) return;
     setMenu({
       title: columnName(c),
       options: [
-        { label: t(locale, 'tableInsertColumnLeft'), run: () => apply(insertColumn(doc, at, c)) },
+        {
+          label: t(locale, 'tableInsertColumnLeft'),
+          run: () => apply(insertColumn(doc, pageIndex, c)),
+        },
         {
           label: t(locale, 'tableInsertColumnRight'),
-          run: () => apply(insertColumn(doc, at, c + 1)),
+          run: () => apply(insertColumn(doc, pageIndex, c + 1)),
         },
-        ...(table.cols > 1
+        ...(canDeleteColumn(page, c)
           ? [
               {
                 label: t(locale, 'tableDeleteColumn'),
                 danger: true,
-                run: () => apply(deleteColumn(doc, at, c)),
+                run: () => apply(deleteColumn(doc, pageIndex, c)),
               },
             ]
           : []),
@@ -402,7 +398,7 @@ export function TableEditor({
           ]}>
           {readOnly
             ? t(locale, 'tableReadOnly', { max: EDITABLE_CELLS })
-            : (hint ?? t(locale, 'tableEditorHint'))}
+            : t(locale, 'tableEditorHint')}
         </Text>
         {error ? (
           <Text
@@ -499,7 +495,10 @@ export function TableEditor({
                       ]}>
                       <Text
                         numberOfLines={Math.max(1, Math.floor((height - 8) / LINE_PX))}
-                        style={[palette.font('body', 13), { color: palette.text }]}>
+                        style={[
+                          palette.font('body', 13),
+                          { color: palette.text, textAlign: textAlignOf(cell) },
+                        ]}>
                         {cell.text}
                       </Text>
                     </Pressable>

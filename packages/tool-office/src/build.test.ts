@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildTablePage } from './build';
+import { buildTablePage, sharedColumns } from './build';
 import { findLines, findTables } from './lines';
 import { fakeLine, glyphs, gridRects, renderPage, type Rect } from './test-helpers';
 import type { OcrBox, TableBlock, TablePage } from './types';
@@ -10,6 +10,8 @@ const H = 700;
 
 const tablesOf = (page: TablePage) =>
   page.blocks.filter((b): b is TableBlock => b.kind === 'table');
+/** 行数和第一行有几格（列对齐到整页共用的列以后，cols 是共用列的个数，不是一行的格数）。 */
+const shapeOf = (t: TableBlock) => [t.rows, t.cells.filter((c) => c.row === 0).length];
 const cellAt = (t: TableBlock, row: number, col: number) =>
   t.cells.find(
     (c) => c.row <= row && row < c.row + c.rowSpan && c.col <= col && col < c.col + c.colSpan,
@@ -63,7 +65,7 @@ describe('table structure from ruled lines (D-272)', () => {
     for (let r = 0; r < 3; r++)
       for (let c = 0; c < 4; c++) expect(cellAt(table!, r, c)!.text).toBe(`r${r}c${c}`);
     // 列宽是原图像素（每列 200）。
-    for (const w of table!.colWidths) expect(Math.abs(w - 200)).toBeLessThan(6);
+    for (const w of page.colWidths) expect(Math.abs(w - 200)).toBeLessThan(6);
     // 没有表外的文字。
     expect(page.blocks.filter((b) => b.kind === 'text')).toHaveLength(0);
   });
@@ -210,7 +212,7 @@ describe('table structure from ruled lines (D-272)', () => {
       [...a.lines, ...b.lines],
     );
     const tables = tablesOf(page);
-    expect(tables.map((t) => [t.rows, t.cols])).toEqual([
+    expect(tables.map(shapeOf)).toEqual([
       [2, 2],
       [3, 3],
     ]);
@@ -289,7 +291,7 @@ describe('tables with only horizontal lines (D-272)', () => {
     ];
     const page = build([...rects, ...grid.marks], lines);
     const tables = tablesOf(page);
-    expect(tables.map((t) => [t.rows, t.cols])).toEqual([
+    expect(tables.map(shapeOf)).toEqual([
       [3, 2],
       [4, 3],
     ]);
@@ -344,7 +346,7 @@ describe('cases from real scans (D-272)', () => {
       ...gridRects([100, 300, 900], [300, 350]),
     ];
     const tables = tablesOf(page(rects, words));
-    expect(tables.map((t) => [t.rows, t.cols])).toEqual([
+    expect(tables.map(shapeOf)).toEqual([
       [1, 2],
       [1, 2],
     ]);
@@ -364,7 +366,7 @@ describe('cases from real scans (D-272)', () => {
       ...gridRects([100, 300, 900], [212, 262]),
     ];
     const tables = tablesOf(page(rects, words));
-    expect(tables.map((t) => [t.rows, t.cols])).toEqual([
+    expect(tables.map(shapeOf)).toEqual([
       [1, 2],
       [1, 2],
     ]);
@@ -456,6 +458,162 @@ describe('cases from real scans (D-272)', () => {
     const [table] = tablesOf(page(rects, words));
     expect(cellAt(table!, 0, 0)).toMatchObject({ colSpan: 2, text: 'CALENDRIER' });
     expect(cellAt(table!, 1, 1)!.text).toBe('incident');
+  });
+});
+
+describe('one grid for the whole page (D-272)', () => {
+  const page1 = { width: W, height: H };
+  const word = (text: string, x: number, y: number, width = 120) => ({
+    line: fakeLine(text, { x, y, width, height: 20 }, page1),
+    marks: glyphs(x + 4, y + 3, width - 8, 14),
+  });
+  const page = (rects: Rect[], words: ReturnType<typeof word>[]) =>
+    build(
+      [...rects, ...words.flatMap((w) => w.marks)],
+      words.map((w) => w.line),
+    );
+  /** 一张表每一格在整页共用列上的位置：[页上的第一列, 跨几列, 文字]。 */
+  const placed = (t: TableBlock) => t.cells.map((c) => [t.col + c.col, c.colSpan, c.text]);
+
+  it('lines up column lines a few pixels apart in two tables on one column', () => {
+    const words = [
+      word('a', 120, 115),
+      word('b', 420, 115),
+      word('c', 125, 315),
+      word('d', 425, 315),
+    ];
+    const rects = [
+      ...gridRects([100, 400, 700], [100, 150]),
+      ...gridRects([105, 404, 696], [300, 350]),
+    ];
+    const p = page(rects, words);
+    const tables = tablesOf(p);
+    expect(tables.map(placed)).toEqual([
+      [
+        [0, 1, 'a'],
+        [1, 1, 'b'],
+      ],
+      [
+        [0, 1, 'c'],
+        [1, 1, 'd'],
+      ],
+    ]);
+    expect(p.colWidths).toHaveLength(2);
+    for (const w of p.colWidths) expect(Math.abs(w - 298)).toBeLessThan(8);
+  });
+
+  it('spans the shared columns when one table’s columns are a subset of another’s', () => {
+    // 上面 2 列，下面 4 列，下面多出来的竖线把上面的每格分成跨 2 列；格子的内容和合并都不变。
+    const words = [
+      word('left', 120, 115),
+      word('right', 420, 115),
+      ...[0, 1, 2, 3].map((c) => word(`x${c}`, 110 + c * 150, 315, 100)),
+    ];
+    const rects = [
+      ...gridRects([100, 400, 700], [100, 150]),
+      ...gridRects([100, 250, 400, 550, 700], [300, 350]),
+    ];
+    const p = page(rects, words);
+    const [top, bottom] = tablesOf(p);
+    expect(placed(top!)).toEqual([
+      [0, 2, 'left'],
+      [2, 2, 'right'],
+    ]);
+    expect(placed(bottom!)).toEqual([0, 1, 2, 3].map((c) => [c, 1, `x${c}`]));
+    expect(p.colWidths).toHaveLength(4);
+  });
+
+  it('starts a narrower table at its own column of the page grid', () => {
+    // 下面的表只占右半边：从第 2 列开始。表外的文字横跨整页的列。
+    const words = [
+      word('a', 120, 115),
+      word('b', 420, 115),
+      word('note', 120, 220, 200),
+      word('c', 420, 315),
+      word('d', 570, 315),
+    ];
+    const rects = [
+      ...gridRects([100, 400, 700], [100, 150]),
+      ...gridRects([400, 550, 700], [300, 350]),
+    ];
+    const p = page(rects, words);
+    const [top, bottom] = tablesOf(p);
+    expect(placed(top!)).toEqual([
+      [0, 1, 'a'],
+      [1, 2, 'b'],
+    ]);
+    expect(placed(bottom!)).toEqual([
+      [1, 1, 'c'],
+      [2, 1, 'd'],
+    ]);
+    expect([bottom!.col, bottom!.cols]).toEqual([1, 2]);
+  });
+
+  it('never folds two column lines of the same table into one', () => {
+    // 同一张表 100 和 110 两条线（容差 20 以内）各算一条；别的表的 104 并进 100。
+    const { pos, maps } = sharedColumns(
+      [
+        [100, 110, 300],
+        [104, 300],
+      ],
+      20,
+    );
+    expect(pos.map(Math.round)).toEqual([102, 110, 300]);
+    expect(maps).toEqual([
+      [0, 1, 2],
+      [0, 2],
+    ]);
+  });
+});
+
+describe('horizontal alignment (D-272)', () => {
+  const page1 = { width: W, height: H };
+  const word = (text: string, x: number, y: number, width = 80) => ({
+    line: fakeLine(text, { x, y, width, height: 20 }, page1),
+    marks: glyphs(x + 4, y + 3, width - 8, 14),
+  });
+  const page = (rects: Rect[], words: ReturnType<typeof word>[]) =>
+    build(
+      [...rects, ...words.flatMap((w) => w.marks)],
+      words.map((w) => w.line),
+    );
+
+  it('reads left, centred and right text from where it sits in the cell', () => {
+    // 每列 300 宽：靠左（离左边 8）、居中、靠右（离右边 8）。
+    const words = [word('left', 108, 115), word('mid', 510, 115), word('right', 912, 115)];
+    const [table] = tablesOf(page(gridRects([100, 400, 700, 1000 - 2], [100, 150]), words));
+    expect(table!.cells.map((c) => [c.text, c.align])).toEqual([
+      ['left', 'left'],
+      ['mid', 'center'],
+      ['right', 'right'],
+    ]);
+  });
+
+  it('goes with most lines in a wrapped cell and skips lines that fill it', () => {
+    const words = [
+      // 第一格：三排，两排居中、一排几乎占满。
+      word('title one', 200, 110, 100),
+      word('a line that fills the cell', 104, 132, 292),
+      word('title two', 200, 154, 100),
+      word('x', 420, 132),
+    ];
+    const [table] = tablesOf(page(gridRects([100, 400, 700], [100, 190]), words));
+    expect(cellAt(table!, 0, 0)!.align).toBe('center');
+  });
+
+  it('puts amounts on the right when the position does not tell', () => {
+    // 字占满了格子，看不出对齐：金额靠右，文字不写（常规）。
+    const words = [word('1 954,54', 104, 115, 192), word('Assurance', 304, 115, 192)];
+    const [table] = tablesOf(page(gridRects([100, 300, 500], [100, 150]), words));
+    expect(cellAt(table!, 0, 0)!.align).toBe('right');
+    expect(cellAt(table!, 0, 1)!.align).toBeUndefined();
+  });
+
+  it('centres a title above the table over the page’s columns', () => {
+    const words = [word('BON DE COMMANDE', 350, 40, 300), word('a', 120, 115), word('b', 520, 115)];
+    const p = page(gridRects([100, 500, 900], [100, 150]), words);
+    const title = p.blocks.find((b) => b.kind === 'text');
+    expect(title).toMatchObject({ text: 'BON DE COMMANDE', align: 'center' });
   });
 });
 

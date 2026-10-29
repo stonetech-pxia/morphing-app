@@ -2,6 +2,7 @@ import { createDefaultWorkspace, decodeUtf8, type RunItem } from '@morph/core';
 import { parseTableDoc, type TableBlock, type TableDoc } from '@morph/tool-office';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { strFromU8, unzipSync } from 'fflate';
+import { StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { makePalette } from '../renderer/theme';
@@ -20,8 +21,8 @@ function makeDoc(cells = 2): TableDoc {
   const table: TableBlock = {
     kind: 'table',
     rows: cells,
+    col: 0,
     cols: cells,
-    colWidths: Array(cells).fill(200),
     box: box(0, 30, 400, 40),
     cells: Array.from({ length: cells * cells }, (_, i) => ({
       row: Math.floor(i / cells),
@@ -33,7 +34,7 @@ function makeDoc(cells = 2): TableDoc {
     })),
   };
   return {
-    version: 1,
+    version: 2,
     scope: 'all',
     pages: [
       {
@@ -42,6 +43,7 @@ function makeDoc(cells = 2): TableDoc {
         width: 1000,
         height: 1400,
         lineHeight: 20,
+        colWidths: Array(cells).fill(200),
         blocks: [{ kind: 'text', text: '标题', box: box(0, 0) }, table],
       },
       {
@@ -50,6 +52,7 @@ function makeDoc(cells = 2): TableDoc {
         width: 1000,
         height: 1400,
         lineHeight: 20,
+        colWidths: [250, 250, 250, 250],
         blocks: [{ kind: 'text', text: '只有文字', box: box(0, 0) }],
       },
     ],
@@ -176,7 +179,7 @@ describe('table editor (D-272)', () => {
     expect(screen.getByText('在上方插入一行')).toBeTruthy();
     await fireEvent.press(screen.getByText('在下方插入一行'));
     expect(screen.getByTestId('table-cell-3-0')).toBeTruthy();
-    // 这一页只有一张表：长按列字母不用先选中。删除 A 列。
+    // 列是整页共用的：长按列字母不用先选中。删除 A 列。
     await fireEvent(screen.getByTestId('table-col-0'), 'longPress');
     await fireEvent.press(screen.getByText('删除这一列'));
     // 第 1 行是表外的文字：只能删掉它。
@@ -190,6 +193,19 @@ describe('table editor (D-272)', () => {
     const table = blocks[0] as TableBlock;
     expect([table.rows, table.cols]).toEqual([3, 1]);
     expect(table.cells.map((c) => c.text)).toEqual(['b', '', 'd']);
+  });
+
+  it('aligns each cell like the original: centred, or numbers on the right when not known', async () => {
+    const doc = makeDoc(3);
+    const table = doc.pages[0]!.blocks[1] as TableBlock;
+    table.cells[0]!.align = 'center';
+    table.cells[1]!.text = 'note';
+    await setup(doc);
+    const alignOf = (text: string) =>
+      StyleSheet.flatten(screen.getByText(text).props.style).textAlign;
+    expect(alignOf('0')).toBe('center');
+    expect(alignOf('note')).toBe('left');
+    expect(alignOf('8')).toBe('right');
   });
 
   it('switches to “tables only” and between pages; pages without a table keep everything', async () => {

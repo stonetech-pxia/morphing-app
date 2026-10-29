@@ -1,6 +1,7 @@
-import type { TableBlock, TableCell, TableDoc, TableScope } from './types';
+import type { TableBlock, TableCell, TableDoc, TablePage, TableScope } from './types';
 
 // 编辑页对 TableDoc 的修改（D-272）：改格子、插入和删除行列（合并区域跟着动）、切换识别范围。
+// 一页的列是各张表共用的，所以插入和删除列是对整页的：这一列经过的每张表都跟着变。
 // 每个操作都返回新的 TableDoc（不改原来的），撤销和重做只是在几份之间切换，最多记 100 步。
 
 /** 一张表在 TableDoc 里的位置。 */
@@ -82,42 +83,77 @@ export function deleteRow(doc: TableDoc, at: TableRef, row: number): TableDoc {
   });
 }
 
-/** 在第 at 列（0 到 cols）的位置插入一列，宽度和左边一列一样。 */
-export function insertColumn(doc: TableDoc, at: TableRef, col: number): TableDoc {
-  return updateTable(doc, at, (t) => {
-    if (col < 0 || col > t.cols) return t;
-    const covered = new Set<number>();
-    const cells = t.cells.map((c) => {
-      if (c.col >= col) return { ...c, col: c.col + 1 };
-      if (c.col + c.colSpan > col) {
-        for (let k = c.row; k < c.row + c.rowSpan; k++) covered.add(k);
-        return { ...c, colSpan: c.colSpan + 1 };
-      }
-      return c;
-    });
-    for (let row = 0; row < t.rows; row++) {
-      if (!covered.has(row)) cells.push({ row, col, rowSpan: 1, colSpan: 1, text: '' });
+/** 表内第 col 列（0 到 cols）的位置插入一列：横跨它的合并格子变宽，其余行是新的空格子。 */
+function insertTableColumn(t: TableBlock, col: number): TableBlock {
+  const covered = new Set<number>();
+  const cells = t.cells.map((c) => {
+    if (c.col >= col) return { ...c, col: c.col + 1 };
+    if (c.col + c.colSpan > col) {
+      for (let k = c.row; k < c.row + c.rowSpan; k++) covered.add(k);
+      return { ...c, colSpan: c.colSpan + 1 };
     }
-    const width = t.colWidths[Math.max(0, col - 1)] ?? 100;
-    const colWidths = [...t.colWidths.slice(0, col), width, ...t.colWidths.slice(col)];
-    return { ...t, cols: t.cols + 1, colWidths, cells: sortCells(cells) };
+    return c;
   });
+  for (let row = 0; row < t.rows; row++) {
+    if (!covered.has(row)) cells.push({ row, col, rowSpan: 1, colSpan: 1, text: '' });
+  }
+  return { ...t, cols: t.cols + 1, cells: sortCells(cells) };
 }
 
-/** 删除一列（至少留一列）。 */
-export function deleteColumn(doc: TableDoc, at: TableRef, col: number): TableDoc {
-  return updateTable(doc, at, (t) => {
-    if (t.cols <= 1 || col < 0 || col >= t.cols) return t;
-    const cells: TableCell[] = [];
-    for (const c of t.cells) {
-      if (c.col > col) cells.push({ ...c, col: c.col - 1 });
-      else if (c.col + c.colSpan > col) {
-        if (c.colSpan > 1) cells.push({ ...c, colSpan: c.colSpan - 1 });
-      } else cells.push(c);
-    }
-    const colWidths = t.colWidths.filter((_, i) => i !== col);
-    return { ...t, cols: t.cols - 1, colWidths, cells: sortCells(cells) };
+/** 删除表内的第 col 列：只占这一列的格子删掉，跨过它的合并格子变窄。 */
+function deleteTableColumn(t: TableBlock, col: number): TableBlock {
+  const cells: TableCell[] = [];
+  for (const c of t.cells) {
+    if (c.col > col) cells.push({ ...c, col: c.col - 1 });
+    else if (c.col + c.colSpan > col) {
+      if (c.colSpan > 1) cells.push({ ...c, colSpan: c.colSpan - 1 });
+    } else cells.push(c);
+  }
+  return { ...t, cols: t.cols - 1, cells: sortCells(cells) };
+}
+
+function updatePage(doc: TableDoc, page: number, next: TablePage): TableDoc {
+  return { ...doc, pages: doc.pages.map((p, i) => (i === page ? next : p)) };
+}
+
+/**
+ * 在这一页的第 col 列（0 到列数）的位置插入一列，宽度和左边一列一样。
+ * 这个位置在一张表里面或者边上时，这张表多一列；在表的左边时，整张表右移一列。
+ */
+export function insertColumn(doc: TableDoc, page: number, col: number): TableDoc {
+  const p = doc.pages[page];
+  if (!p || col < 0 || col > p.colWidths.length) return doc;
+  const blocks = p.blocks.map((b) => {
+    if (b.kind !== 'table') return b;
+    if (col < b.col) return { ...b, col: b.col + 1 };
+    if (col <= b.col + b.cols) return insertTableColumn(b, col - b.col);
+    return b;
   });
+  const width = p.colWidths[Math.max(0, col - 1)] ?? 100;
+  const colWidths = [...p.colWidths.slice(0, col), width, ...p.colWidths.slice(col)];
+  return updatePage(doc, page, { ...p, colWidths, blocks });
+}
+
+/** 能不能删这一页的第 col 列：至少留一列，经过它的表也都至少留一列（表格不能整张删）。 */
+export function canDeleteColumn(page: TablePage, col: number): boolean {
+  if (page.colWidths.length <= 1 || col < 0 || col >= page.colWidths.length) return false;
+  return page.blocks.every(
+    (b) => b.kind !== 'table' || b.cols > 1 || col < b.col || col >= b.col + b.cols,
+  );
+}
+
+/** 删除这一页的第 col 列。 */
+export function deleteColumn(doc: TableDoc, page: number, col: number): TableDoc {
+  const p = doc.pages[page];
+  if (!p || !canDeleteColumn(p, col)) return doc;
+  const blocks = p.blocks.map((b) => {
+    if (b.kind !== 'table') return b;
+    if (col < b.col) return { ...b, col: b.col - 1 };
+    if (col < b.col + b.cols) return deleteTableColumn(b, col - b.col);
+    return b;
+  });
+  const colWidths = p.colWidths.filter((_, i) => i !== col);
+  return updatePage(doc, page, { ...p, colWidths, blocks });
 }
 
 /** 改一段表外的文字。 */
@@ -192,7 +228,7 @@ export const EDITABLE_CELLS = 2000;
 export function parseTableDoc(json: string): TableDoc | null {
   try {
     const doc = JSON.parse(json) as TableDoc;
-    if (doc?.version !== 1 || !Array.isArray(doc.pages)) return null;
+    if (doc?.version !== 2 || !Array.isArray(doc.pages)) return null;
     if (doc.scope !== 'all' && doc.scope !== 'tables') return null;
     return doc;
   } catch {

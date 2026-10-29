@@ -38,21 +38,26 @@ function table(
   return {
     kind: 'table',
     rows,
+    col: 0,
     cols,
-    colWidths: Array(cols).fill(200),
     cells,
     box: box(y, rows * 40),
   };
 }
 
-const page = (name: string, blocks: TablePage['blocks']): TablePage => ({
-  name,
-  source: 'file:///p.jpg',
-  width: 1000,
-  height: 1400,
-  lineHeight: 20,
-  blocks,
-});
+/** 共用的列：有表时每列 200 像素、够最宽的表用；没有表时平分成 4 列。 */
+const page = (name: string, blocks: TablePage['blocks']): TablePage => {
+  const cols = Math.max(0, ...blocks.map((b) => (b.kind === 'table' ? b.col + b.cols : 0)));
+  return {
+    name,
+    source: 'file:///p.jpg',
+    width: 1000,
+    height: 1400,
+    lineHeight: 20,
+    colWidths: cols ? Array(cols).fill(200) : [250, 250, 250, 250],
+    blocks,
+  };
+};
 
 function unpack(doc: TableDoc) {
   const files = unzipSync(writeXlsx(doc));
@@ -63,7 +68,7 @@ function unpack(doc: TableDoc) {
 describe('xlsx writer (D-272)', () => {
   it('writes the parts Excel, Numbers and WPS need', () => {
     const { files, text } = unpack({
-      version: 1,
+      version: 2,
       scope: 'all',
       pages: [page('Page 1', [table(100, [['a']])])],
     });
@@ -82,7 +87,7 @@ describe('xlsx writer (D-272)', () => {
 
   it('writes one sheet per page with cleaned, unique names', () => {
     const { text } = unpack({
-      version: 1,
+      version: 2,
       scope: 'all',
       pages: [
         page('第 1 页', []),
@@ -98,7 +103,7 @@ describe('xlsx writer (D-272)', () => {
 
   it('stores numbers as numbers and keeps codes, long numbers and dates as text', () => {
     const { text } = unpack({
-      version: 1,
+      version: 2,
       scope: 'all',
       pages: [
         page('P', [
@@ -149,7 +154,7 @@ describe('xlsx writer (D-272)', () => {
         { row: 1, col: 0, rowSpan: 2, colSpan: 1 },
       ],
     );
-    const { text } = unpack({ version: 1, scope: 'all', pages: [page('P', [t])] });
+    const { text } = unpack({ version: 2, scope: 'all', pages: [page('P', [t])] });
     const sheet = text('xl/worksheets/sheet1.xml');
     expect(sheet).toContain(
       '<mergeCells count="2"><mergeCell ref="A1:B1"/><mergeCell ref="A2:A3"/></mergeCells>',
@@ -160,7 +165,7 @@ describe('xlsx writer (D-272)', () => {
 
   it('escapes XML and drops control characters', () => {
     const t = table(100, [['a & b < c > "d"', 'bad\u0001\u0008char￾', 'lone\uD800 surrogate']]);
-    const { text } = unpack({ version: 1, scope: 'all', pages: [page('P&Q', [t])] });
+    const { text } = unpack({ version: 2, scope: 'all', pages: [page('P&Q', [t])] });
     const strings = text('xl/sharedStrings.xml');
     expect(strings).toContain('<t>a &amp; b &lt; c &gt; &quot;d&quot;</t>');
     expect(strings).toContain('<t>badchar</t>');
@@ -171,7 +176,7 @@ describe('xlsx writer (D-272)', () => {
 
   it('keeps line breaks inside a cell', () => {
     const { text } = unpack({
-      version: 1,
+      version: 2,
       scope: 'all',
       pages: [page('P', [table(100, [['one\ntwo']])])],
     });
@@ -182,7 +187,7 @@ describe('xlsx writer (D-272)', () => {
 
   it('writes text outside tables as merged rows, with a blank row for big gaps', () => {
     const doc: TableDoc = {
-      version: 1,
+      version: 2,
       scope: 'all',
       pages: [
         page('P', [
@@ -204,7 +209,7 @@ describe('xlsx writer (D-272)', () => {
 
   it('leaves out text outside tables for “tables only”, except on pages without a table', () => {
     const doc: TableDoc = {
-      version: 1,
+      version: 2,
       scope: 'tables',
       pages: [
         page('P1', [{ kind: 'text', text: 'Title', box: box(20) }, table(200, [['a']])]),
@@ -218,12 +223,12 @@ describe('xlsx writer (D-272)', () => {
     expect(pagesWithoutTables({ ...doc, scope: 'all' })).toEqual([]);
   });
 
-  it('sets column widths from the table and spreads text-only pages over A–D', () => {
-    const t = { ...table(100, [['a', 'b']]), colWidths: [100, 500] };
+  it('sets column widths from the shared page columns and spreads text-only pages over A–D', () => {
+    const p = { ...page('P', [table(100, [['a', 'b']])]), colWidths: [100, 500] };
     const { text } = unpack({
-      version: 1,
+      version: 2,
       scope: 'all',
-      pages: [page('P', [t]), page('Q', [{ kind: 'text', text: 'x', box: box(0) }])],
+      pages: [p, page('Q', [{ kind: 'text', text: 'x', box: box(0) }])],
     });
     expect(text('xl/worksheets/sheet1.xml')).toContain(
       '<col min="1" max="1" width="11" customWidth="1"/><col min="2" max="2" width="55" customWidth="1"/>',
@@ -231,6 +236,42 @@ describe('xlsx writer (D-272)', () => {
     const sheet2 = text('xl/worksheets/sheet2.xml');
     expect(sheet2.match(/<col /g)).toHaveLength(4);
     expect(sheet2).toContain('<mergeCell ref="A1:D1"/>');
+  });
+
+  it('writes each cell’s horizontal alignment, and leaves the rest as General', () => {
+    const t = table(100, [['Title', '12.50', 'note']]);
+    t.cells[0]!.align = 'center';
+    t.cells[1]!.align = 'right';
+    const { text } = unpack({
+      version: 2,
+      scope: 'all',
+      pages: [page('P', [{ kind: 'text', text: 'Head', align: 'center', box: box(20) }, t])],
+    });
+    const styles = text('xl/styles.xml');
+    // cellXfs 里的每个 xf（下标就是样式编号）。
+    const xfs = /<cellXfs[^>]*>(.*)<\/cellXfs>/.exec(styles)![1]!.split('<xf ').slice(1);
+    const sheet = text('xl/worksheets/sheet1.xml');
+    const styleOf = (at: string) =>
+      xfs[Number(new RegExp(`<c r="${at}" s="(\\d+)"`).exec(sheet)![1])]!;
+    expect(styleOf('A1')).toContain('horizontal="center"');
+    expect(styleOf('A1')).not.toContain('borderId="1"');
+    expect(styleOf('A3')).toContain('horizontal="center"');
+    expect(styleOf('B3')).toMatch(/numFmtId="2".*horizontal="right"/);
+    expect(styleOf('C3')).not.toContain('horizontal');
+    expect(styles).toContain(`<cellXfs count="${xfs.length}">`);
+    expect(xfs[0]).not.toContain('alignment');
+  });
+
+  it('puts a table at its first shared column and text across all of them', () => {
+    const t = { ...table(200, [['c', 'd']]), col: 2 };
+    const p = { ...page('P', [{ kind: 'text' as const, text: 'Title', box: box(20) }, t]) };
+    const layout = layoutSheet(p, 'all');
+    expect(layout.colWidths).toHaveLength(4);
+    expect(layout.cells.find((c) => c.text === 'Title')).toMatchObject({ col: 0, colSpan: 4 });
+    expect(layout.cells.find((c) => c.text === 'd')).toMatchObject({ col: 3, cell: 1 });
+    const sheet = unpack({ version: 2, scope: 'all', pages: [p] }).text('xl/worksheets/sheet1.xml');
+    expect(sheet).toMatch(/<c r="C3" s="\d+" t="s">/);
+    expect(sheet).not.toMatch(/<c r="A3"/);
   });
 
   it('lays out a page the same way for the editor and the file', () => {

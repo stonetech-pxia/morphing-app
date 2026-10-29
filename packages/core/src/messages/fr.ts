@@ -1219,7 +1219,6 @@ export const fr: MessageTable = {
   tableInsertColumnRight: 'Insérer une colonne à droite',
   tableDeleteColumn: 'Supprimer cette colonne',
   tableDeleteText: 'Supprimer ce texte',
-  tableSelectFirst: 'Touchez d’abord une cellule de cette grille.',
   tableEmpty: 'Rien n’a été reconnu sur cette page.',
   tableReadOnly:
     'Cette page compte plus de {max} cellules : ici, elle peut seulement être consultée. Pour la modifier, ouvrez le fichier dans une autre application.',

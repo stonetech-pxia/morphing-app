@@ -7,7 +7,16 @@ import {
   type RuleLine,
   type TableLines,
 } from './lines';
-import type { Block, Box, OcrBox, RgbaImage, TableBlock, TableCell, TablePage } from './types';
+import type {
+  Block,
+  Box,
+  CellAlign,
+  OcrBox,
+  RgbaImage,
+  TableBlock,
+  TableCell,
+  TablePage,
+} from './types';
 
 // 一页：线 → 表格区域 → 网格和合并单元格 → 文字行放进格子 → 表外的文字分段（D-272）。
 // 都在拉正后的坐标里算（x' = x + y·t，y' = y − x·t），存进 TablePage 前换回原图的坐标（截图核对用）。
@@ -54,6 +63,15 @@ const SPLIT_MIN_ROWS = 3;
 const MAX_TABLE_CELLS = 5000;
 /** 段落：上下间距不超过 1.2 倍行高的算同一段（和 D-268 一样）。 */
 const PARAGRAPH_GAP = 1.2;
+
+/** 各张表的列线相差不到长边的这么多（1%）就对齐成整页共用的同一条列线（比单张表里去重的 0.8% 稍宽）。 */
+const SHARED_COLUMN_SHARE = 0.01;
+/** 没有表时，表外的文字从 A 列合并到 D 列。 */
+const TEXT_ONLY_COLS = 4;
+/** 对齐：文字两边的空白加起来不到一个行高时（字差不多占满格子）看不出对齐。 */
+const ALIGN_MIN_SLACK = 1;
+/** 左右空白之差占两边空白之和的比例超过这么多算靠一边，不到算居中。 */
+const ALIGN_SIDE_SHARE = 0.35;
 
 /** 认成线的粗体字：横线在一行字的框里（上下都离框边至少 20% 行高），大半截在框的左右范围里。 */
 const STROKE_INSIDE = 0.2;
@@ -378,6 +396,62 @@ function dropTextStrokes(page: PageLines, lines: readonly OcrBox[]): PageLines {
   return { ...page, horizontal: page.horizontal.filter((h) => !inText(h)) };
 }
 
+/** 金额一类的纯数字（可以带正负号、货币符号、千分位的空格或逗号、百分号）：判断不出对齐时靠右。 */
+const AMOUNT = /^[-−+(]?\s?[$€£¥￥]?\s?\d[\d\s.,'’]*%?\s?[$€£¥￥元]?\)?$/;
+
+/**
+ * 水平对齐：每排字看它离格子左右边的空白（left、right 是格子的左右边），多数排怎么放就是什么；
+ * 字占满格子的排不算。都判断不出时，金额靠右，别的不写（Excel 的「常规」：文字靠左）。
+ */
+function alignOf(
+  pieces: readonly OcrBox[],
+  left: number,
+  right: number,
+  lineHeight: number,
+  text: string,
+): CellAlign | undefined {
+  const votes: Record<CellAlign, number> = { left: 0, center: 0, right: 0 };
+  for (const row of textRows(pieces)) {
+    const l = Math.min(...row.map((p) => p.x)) - left;
+    const r = right - Math.max(...row.map((p) => p.x + p.width));
+    const slack = l + r;
+    if (slack < ALIGN_MIN_SLACK * lineHeight) continue;
+    const d = (l - r) / slack;
+    votes[d < -ALIGN_SIDE_SHARE ? 'left' : d > ALIGN_SIDE_SHARE ? 'right' : 'center']++;
+  }
+  const best = (['left', 'center', 'right'] as const).reduce((a, b) =>
+    votes[b] > votes[a] ? b : a,
+  );
+  if (votes[best] > 0) return best;
+  return AMOUNT.test(text.trim()) ? 'right' : undefined;
+}
+
+/**
+ * 整页共用的列线（D-272）：各张表的列边界从左到右排开，相差不到 tol 的并成一条（取平均）；
+ * 同一张表的两条边界不并在一起（那样会少一列）。返回共用列线的位置，和每张表的每条边界对应第几条共用列线。
+ */
+export function sharedColumns(
+  tables: readonly (readonly number[])[],
+  tol: number,
+): { pos: number[]; maps: number[][] } {
+  const items = tables
+    .flatMap((xs, t) => xs.map((x, i) => ({ x, t, i })))
+    .sort((a, b) => a.x - b.x);
+  const groups: { sum: number; members: { t: number; i: number }[] }[] = [];
+  for (const item of items) {
+    const g = groups.at(-1);
+    if (g && item.x - g.sum / g.members.length <= tol && !g.members.some((m) => m.t === item.t)) {
+      g.sum += item.x;
+      g.members.push(item);
+    } else groups.push({ sum: item.x, members: [item] });
+  }
+  const maps = tables.map((xs) => xs.map(() => 0));
+  groups.forEach((g, k) => {
+    for (const m of g.members) maps[m.t]![m.i] = k;
+  });
+  return { pos: groups.map((g) => g.sum / g.members.length), maps };
+}
+
 /** 一页的 TablePage：找线、组表、填字、表外文字分段。 */
 export function buildTablePage(input: PageInput, options: BuildOptions = {}): TablePage {
   const join = options.joinLines ?? defaultJoin;
@@ -410,7 +484,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
   };
   const lineHeight = median(flat.map((l) => l.height)) || 20;
   const placed = new Set<OcrBox>();
-  const tables: { block: TableBlock; flatBox: Box }[] = [];
+  const tables: { block: TableBlock; flatBox: Box; xs: number[] }[] = [];
   for (const table of findTables(dropTextStrokes(page, flat))) {
     const { box } = table;
     const members = flat.filter(
@@ -433,11 +507,14 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     const rowsWithText = new Set(grid.cells.filter((_, i) => texts[i]!.length).map((c) => c.row));
     if (!table.vs.length && (rowsWithText.size < 2 || grid.xs.length < 3)) continue;
     for (const line of members) placed.add(line);
-    const cells = grid.cells.map((cell, i) => ({
-      ...cell,
-      text: texts[i]!.length ? join(texts[i]!).trim() : '',
-      box: back(cell.box!),
-    }));
+    const cells = grid.cells.map((cell, i) => {
+      const text = texts[i]!.length ? join(texts[i]!).trim() : '';
+      const flatCell = cell.box!;
+      const align = text
+        ? alignOf(texts[i]!, flatCell.x, flatCell.x + flatCell.width, lineHeight, text)
+        : undefined;
+      return { ...cell, text, ...(align ? { align } : {}), box: back(flatCell) };
+    });
     const flatBox: Box = {
       x: grid.xs[0]!.pos,
       y: grid.ys[0]!.pos,
@@ -446,16 +523,36 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     };
     tables.push({
       flatBox,
+      xs: grid.xs.map((x) => x.pos),
       block: {
         kind: 'table',
         rows: grid.ys.length - 1,
+        col: 0,
         cols: grid.xs.length - 1,
-        colWidths: grid.xs.slice(1).map((x, c) => Math.round(x.pos - grid.xs[c]!.pos)),
         cells,
         box: back(flatBox),
       },
     });
   }
+  // 整页共用的列：每张表的格子换成共用列上的位置，原来一格跨过几条共用列线就是 colSpan 几。
+  const shared = sharedColumns(
+    tables.map((tb) => tb.xs),
+    Math.max(tol, Math.max(image.width, image.height) * SHARED_COLUMN_SHARE),
+  );
+  tables.forEach((tb, k) => {
+    const map = shared.maps[k]!;
+    const first = map[0]!;
+    tb.block.col = first;
+    tb.block.cols = map.at(-1)! - first;
+    tb.block.cells = tb.block.cells.map((cell) => ({
+      ...cell,
+      col: map[cell.col]! - first,
+      colSpan: map[cell.col + cell.colSpan]! - map[cell.col]!,
+    }));
+  });
+  const colWidths = tables.length
+    ? shared.pos.slice(1).map((x, c) => Math.round(x - shared.pos[c]!))
+    : Array.from({ length: TEXT_ONLY_COLS }, () => Math.round(image.width / TEXT_ONLY_COLS));
   // 表外的文字：按排从上到下，间距超过 1.2 倍行高、或者中间隔着一张表的地方分段。
   const rest = textRows(flat.filter((l) => !placed.has(l)));
   const paragraphs: OcrBox[][] = [];
@@ -482,7 +579,15 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
         width: Math.max(...lines.map((l) => l.x + l.width)) - x,
         height: Math.max(...lines.map((l) => l.y + l.height)) - y,
       };
-      return { y, block: { kind: 'text' as const, text: join(lines).trim(), box: back(box) } };
+      const text = join(lines).trim();
+      // 表外的文字按整页共用列的左右边判断对齐（居中的标题）；没有表时看不出，不写。
+      const align = tables.length
+        ? alignOf(lines, shared.pos[0]!, shared.pos.at(-1)!, lineHeight, text)
+        : undefined;
+      return {
+        y,
+        block: { kind: 'text' as const, text, ...(align ? { align } : {}), box: back(box) },
+      };
     }),
   ];
   return {
@@ -491,6 +596,7 @@ export function buildTablePage(input: PageInput, options: BuildOptions = {}): Ta
     width: image.width,
     height: image.height,
     lineHeight: Math.round(lineHeight),
+    colWidths,
     blocks: blocks
       .filter((b) => b.block.kind === 'table' || b.block.text)
       .sort((a, b) => a.y - b.y)

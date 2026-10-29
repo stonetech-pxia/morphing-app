@@ -1,10 +1,11 @@
 import { strToU8, zipSync, type Zippable } from 'fflate';
 
-import type { TableBlock, TableDoc, TablePage } from './types';
+import type { CellAlign, TableDoc, TablePage } from './types';
 
 // 写 xlsx（D-272）：自己写 XML，用 fflate 的同步 API 打包（Hermes 没有 Worker，也没有 Node 的 stream）。
 // 每页一张工作表；字符串放 sharedStrings（Numbers 和 WPS 对它的支持比 inlineStr 稳）；
-// 样式只有三类：表格格（细边框、自动换行、靠上）、表外的文字（自动换行、无边框）、数字（表格格加数字格式）。
+// 样式按需要生成：表格格（细边框、自动换行、靠上）、表外的文字（自动换行、无边框）、数字（表格格加数字格式），
+// 再按对齐（左、居中、右；没有时是「常规」）分开。
 
 const NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 const REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -15,8 +16,6 @@ const HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 const MAX_CELL_CHARS = 32767;
 /** 原图的整页宽度大约等于这么多个字符宽（Excel 的列宽单位）。 */
 const PAGE_CHARS = 110;
-/** 没有表格时，表外的文字从 A 列合并到 D 列。 */
-const TEXT_ONLY_COLS = 4;
 /** 一行字的高度（磅，11 号字）。 */
 const LINE_POINTS = 15;
 
@@ -126,18 +125,23 @@ function lineCount(text: string, width: number): number {
   return lines;
 }
 
+interface StyleKey {
+  /** 表格格：细边框；表外的文字没有边框。 */
+  border: boolean;
+  /** 数字格式；文字没有（文字自动换行，数字不换）。 */
+  format?: string;
+  align?: CellAlign;
+}
+
 interface Styles {
-  /** 表格格（文字）。 */
-  table: number;
-  /** 表外的文字。 */
-  text: number;
-  /** 数字格式 → 样式编号。 */
-  number(format: string): number;
+  /** 样式编号（cellXfs 里的下标）；0 是默认样式。 */
+  style(key: StyleKey): number;
   xml(): string;
 }
 
 function createStyles(): Styles {
-  const formats: string[] = [];
+  const keys: StyleKey[] = [];
+  const ids = new Map<string, number>();
   const custom = new Map<string, number>();
   const formatId = (code: string) => {
     if (BUILT_IN_FORMATS[code] !== undefined) return BUILT_IN_FORMATS[code]!;
@@ -145,19 +149,27 @@ function createStyles(): Styles {
     return custom.get(code)!;
   };
   return {
-    table: 1,
-    text: 2,
-    number(format) {
-      let i = formats.indexOf(format);
-      if (i < 0) i = formats.push(format) - 1;
-      formatId(format);
-      return 3 + i;
+    style(key) {
+      const id = `${key.border}|${key.format ?? ''}|${key.align ?? ''}`;
+      if (!ids.has(id)) {
+        if (key.format) formatId(key.format);
+        ids.set(id, keys.push(key));
+      }
+      return ids.get(id)!;
     },
     xml() {
-      const numberXfs = formats.map(
-        (f) =>
-          `<xf numFmtId="${formatId(f)}" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment vertical="top"/></xf>`,
-      );
+      const xfs = keys.map((k) => {
+        const align =
+          (k.align ? ` horizontal="${k.align}"` : '') +
+          ' vertical="top"' +
+          (k.format ? '' : ' wrapText="1"');
+        return (
+          `<xf numFmtId="${k.format ? formatId(k.format) : 0}" fontId="0" fillId="0" borderId="${k.border ? 1 : 0}" xfId="0"` +
+          (k.format ? ' applyNumberFormat="1"' : '') +
+          (k.border ? ' applyBorder="1"' : '') +
+          ` applyAlignment="1"><alignment${align}/></xf>`
+        );
+      });
       const numFmts = custom.size
         ? `<numFmts count="${custom.size}">${[...custom]
             .map(([code, id]) => `<numFmt numFmtId="${id}" formatCode="${escapeXml(code)}"/>`)
@@ -171,11 +183,9 @@ function createStyles(): Styles {
         '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>' +
         '<border><left style="thin"><color auto="1"/></left><right style="thin"><color auto="1"/></right><top style="thin"><color auto="1"/></top><bottom style="thin"><color auto="1"/></bottom><diagonal/></border></borders>' +
         '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-        `<cellXfs count="${3 + numberXfs.length}">` +
+        `<cellXfs count="${1 + xfs.length}">` +
         '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
-        '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>' +
-        '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>' +
-        numberXfs.join('') +
+        xfs.join('') +
         '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
         '</styleSheet>'
       );
@@ -226,18 +236,11 @@ export function pagesWithoutTables(doc: TableDoc): number[] {
   return doc.pages.flatMap((p, i) => (p.blocks.some((b) => b.kind === 'table') ? [] : [i + 1]));
 }
 
-/** 一张工作表的列宽（字符）：每一列取这一页各张表里同一列最宽的；没有表时 A–D 平分页宽。 */
-export function sheetColumns(page: TablePage, blocks = page.blocks): number[] {
-  const tables = blocks.filter((b): b is TableBlock => b.kind === 'table');
+/** 一张工作表的列宽（字符）：整页共用的列（D-272），原图像素按页宽换算。 */
+export function sheetColumns(page: TablePage): number[] {
   const toChars = (px: number) =>
     Math.round(Math.min(120, Math.max(4, (px / Math.max(1, page.width)) * PAGE_CHARS)) * 10) / 10;
-  if (!tables.length) {
-    return Array.from({ length: TEXT_ONLY_COLS }, () => toChars(page.width / TEXT_ONLY_COLS));
-  }
-  const cols = Math.max(...tables.map((t) => t.cols));
-  return Array.from({ length: cols }, (_, c) =>
-    toChars(Math.max(...tables.map((t) => t.colWidths[c] ?? 0))),
-  );
+  return page.colWidths.map(toChars);
 }
 
 /** 工作表上的一格（合并格子只有左上角）：表格里的格子记着是哪张表的第几格，表外的文字记着是第几块。 */
@@ -247,6 +250,7 @@ export interface SheetCell {
   rowSpan: number;
   colSpan: number;
   text: string;
+  align?: CellAlign;
   /** 在 page.blocks 里的下标。 */
   block: number;
   /** 表格格子在 table.cells 里的下标；表外的文字没有。 */
@@ -264,11 +268,11 @@ export interface SheetLayout {
 
 /**
  * 一页排成工作表：块按顺序往下排，块和块之间空隙超过 1.5 倍行高时空一行（大致保留原来的间距）；
- * 表格从 A 列开始；表外的文字每段一行，从 A 列合并到最宽那张表的最后一列（没有表时 A–D）。
+ * 整页一套列（D-272），表格从它的第一列（TableBlock.col）开始；表外的文字每段一行，从第一列合并到最后一列。
  */
 export function layoutSheet(page: TablePage, scope: TableDoc['scope']): SheetLayout {
   const blocks = pageBlocks(page, scope);
-  const colWidths = sheetColumns(page, blocks);
+  const colWidths = sheetColumns(page);
   const rows: SheetLayout['rows'] = [];
   const cells: SheetCell[] = [];
   let prevBottom: number | null = null;
@@ -287,6 +291,7 @@ export function layoutSheet(page: TablePage, scope: TableDoc['scope']): SheetLay
         rowSpan: 1,
         colSpan: colWidths.length,
         text,
+        ...(block.align ? { align: block.align } : {}),
         block: index,
       });
       rows.push({ lines: lineCount(text, width), block: index });
@@ -296,10 +301,12 @@ export function layoutSheet(page: TablePage, scope: TableDoc['scope']): SheetLay
     for (let r = 0; r < block.rows; r++) rows.push({ lines: 1, block: index, tableRow: r });
     for (const [i, cell] of block.cells.entries()) {
       const text = cleanXmlText(cell.text).trim();
-      cells.push({ ...cell, row: start + cell.row, text, block: index, cell: i });
+      const { box: _box, ...rest } = cell;
+      const col = block.col + cell.col;
+      cells.push({ ...rest, row: start + cell.row, col, text, block: index, cell: i });
       if (cell.rowSpan === 1 && text) {
         let width = 0;
-        for (let c = cell.col; c < cell.col + cell.colSpan; c++) width += colWidths[c] ?? 8;
+        for (let c = col; c < col + cell.colSpan; c++) width += colWidths[c] ?? 8;
         const row = rows[start + cell.row]!;
         row.lines = Math.max(row.lines, lineCount(text, width));
       }
@@ -321,13 +328,16 @@ function sheetXml(
     const table = cell.cell !== undefined;
     const at = ref(cell.row, cell.col);
     const number = table && cell.text ? cellNumber(cell.text) : null;
+    const align = cell.align ? { align: cell.align } : {};
+    const empty = styles.style({ border: true });
     let xml: string;
-    if (!cell.text) xml = `<c r="${at}" s="${styles.table}"/>`;
-    else if (number)
-      xml = `<c r="${at}" s="${styles.number(number.format)}"><v>${number.value}</v></c>`;
-    else {
-      const style = table ? styles.table : styles.text;
-      xml = `<c r="${at}" s="${style}" t="s"><v>${strings.index(cell.text)}</v></c>`;
+    if (!cell.text) xml = `<c r="${at}" s="${empty}"/>`;
+    else if (number) {
+      const s = styles.style({ border: true, format: number.format, ...align });
+      xml = `<c r="${at}" s="${s}"><v>${number.value}</v></c>`;
+    } else {
+      const s = styles.style({ border: table, ...align });
+      xml = `<c r="${at}" s="${s}" t="s"><v>${strings.index(cell.text)}</v></c>`;
     }
     rowCells[cell.row]!.set(cell.col, xml);
     if (cell.rowSpan > 1 || cell.colSpan > 1) {
@@ -340,7 +350,7 @@ function sheetXml(
         if (dr === 0 && dc === 0) continue;
         const r = cell.row + dr;
         const c = cell.col + dc;
-        if (rowCells[r]) rowCells[r]!.set(c, `<c r="${ref(r, c)}" s="${styles.table}"/>`);
+        if (rowCells[r]) rowCells[r]!.set(c, `<c r="${ref(r, c)}" s="${empty}"/>`);
       }
     }
   }
@@ -383,7 +393,17 @@ export function writeXlsx(doc: TableDoc): Uint8Array {
   // 至少要有一张工作表。
   const pages = doc.pages.length
     ? doc.pages
-    : [{ name: 'Sheet1', source: '', width: 1, height: 1, lineHeight: 20, blocks: [] }];
+    : [
+        {
+          name: 'Sheet1',
+          source: '',
+          width: 1,
+          height: 1,
+          lineHeight: 20,
+          colWidths: [1, 1, 1, 1],
+          blocks: [],
+        },
+      ];
   if (!doc.pages.length) names.push('Sheet1');
   const sheets = pages.map((p) => sheetXml(p, doc.scope, styles, strings));
   const n = sheets.length;

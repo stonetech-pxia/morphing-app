@@ -159,7 +159,7 @@ export const OCR_IMPLS: Record<string, Impl> = {
     if (pages.every((p) => p.blocks.length === 0)) {
       throw new RunError('notFound', { name: displayName(items[0]!) });
     }
-    const doc: TableDoc = { version: 1, scope, pages };
+    const doc: TableDoc = { version: 2, scope, pages };
     const name = items[0]!.name;
     const xlsx = await writeItem(ctx.services, writeXlsx(doc), {
       name,

@@ -1167,7 +1167,6 @@ export const en = {
   tableInsertColumnRight: 'Insert a column to the right',
   tableDeleteColumn: 'Delete this column',
   tableDeleteText: 'Delete this text',
-  tableSelectFirst: 'Tap a cell in the table first.',
   tableEmpty: 'Nothing was recognized on this page.',
   tableReadOnly:
     'This page has more than {max} cells, so it can only be viewed here. To edit it, open the file in another app.',

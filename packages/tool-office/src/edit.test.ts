@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  canDeleteColumn,
   cellOwners,
   deleteColumn,
   deleteRow,
@@ -26,8 +27,8 @@ import type { TableBlock, TableDoc } from './types';
 const TABLE: TableBlock = {
   kind: 'table',
   rows: 3,
+  col: 0,
   cols: 3,
-  colWidths: [100, 200, 300],
   box: { x: 0, y: 0, width: 600, height: 120 },
   cells: [
     { row: 0, col: 0, rowSpan: 1, colSpan: 2, text: 'head' },
@@ -41,7 +42,7 @@ const TABLE: TableBlock = {
 };
 
 const DOC: TableDoc = {
-  version: 1,
+  version: 2,
   scope: 'all',
   pages: [
     {
@@ -50,6 +51,7 @@ const DOC: TableDoc = {
       width: 1000,
       height: 1000,
       lineHeight: 20,
+      colWidths: [100, 200, 300],
       blocks: [{ kind: 'text', text: 'title', box: { x: 0, y: 0, width: 10, height: 10 } }, TABLE],
     },
   ],
@@ -108,20 +110,64 @@ describe('TableDoc editing (D-272)', () => {
     expect(t.cells.find((c) => c.text === 'tall')).toMatchObject({ row: 1, rowSpan: 1 });
   });
 
-  it('inserts and deletes columns, with column widths following', () => {
-    const wider = tableOf(insertColumn(DOC, AT, 1));
+  it('inserts and deletes columns, with the page’s column widths following', () => {
+    const widerDoc = insertColumn(DOC, 0, 1);
+    const wider = tableOf(widerDoc);
     expectTiled(wider);
     expect(picture(wider)[0]).toEqual(['head', 'head', 'head', 'c']);
     expect(picture(wider)[1]).toEqual(['tall', '', 'e', 'f']);
-    expect(wider.colWidths).toEqual([100, 100, 200, 300]);
-    const narrower = tableOf(deleteColumn(DOC, AT, 0));
+    expect(widerDoc.pages[0]!.colWidths).toEqual([100, 100, 200, 300]);
+    const narrowerDoc = deleteColumn(DOC, 0, 0);
+    const narrower = tableOf(narrowerDoc);
     expectTiled(narrower);
     expect(picture(narrower)).toEqual([
       ['head', 'c'],
       ['e', 'f'],
       ['h', 'i'],
     ]);
-    expect(narrower.colWidths).toEqual([200, 300]);
+    expect(narrowerDoc.pages[0]!.colWidths).toEqual([200, 300]);
+  });
+
+  it('inserts and deletes a column across every table on the page', () => {
+    // 第二张表只占共用的第 2、3 列（C、D）；页上一共 4 列。
+    const narrow: TableBlock = {
+      kind: 'table',
+      rows: 1,
+      col: 2,
+      cols: 2,
+      box: { x: 0, y: 200, width: 600, height: 40 },
+      cells: [
+        { row: 0, col: 0, rowSpan: 1, colSpan: 1, text: 'x' },
+        { row: 0, col: 1, rowSpan: 1, colSpan: 1, text: 'y' },
+      ],
+    };
+    const doc: TableDoc = {
+      ...DOC,
+      pages: [{ ...DOC.pages[0]!, colWidths: [100, 200, 300, 400], blocks: [TABLE, narrow] }],
+    };
+    const blocksOf = (d: TableDoc) => d.pages[0]!.blocks as TableBlock[];
+    // 在 B 前面插入：第一张表多一列，第二张表整张右移。
+    const inserted = insertColumn(doc, 0, 1);
+    const [a, b] = blocksOf(inserted);
+    expect(picture(a!)[1]).toEqual(['tall', '', 'e', 'f']);
+    expect([b!.col, b!.cols]).toEqual([3, 2]);
+    expect(picture(b!)).toEqual([['x', 'y']]);
+    expect(inserted.pages[0]!.colWidths).toEqual([100, 100, 200, 300, 400]);
+    // 删掉 C：两张表都经过它，各少一列。
+    const deleted = deleteColumn(doc, 0, 2);
+    const [c, d] = blocksOf(deleted);
+    expect(picture(c!)).toEqual([
+      ['head', 'head'],
+      ['tall', 'e'],
+      ['tall', 'h'],
+    ]);
+    expect([d!.col, d!.cols]).toEqual([2, 1]);
+    expect(picture(d!)).toEqual([['y']]);
+    expect(deleted.pages[0]!.colWidths).toEqual([100, 200, 400]);
+    // 第二张表只剩一列时，不能删它所在的列（表格不能整张删）。
+    expect(canDeleteColumn(deleted.pages[0]!, 2)).toBe(false);
+    expect(deleteColumn(deleted, 0, 2)).toBe(deleted);
+    expect(canDeleteColumn(deleted.pages[0]!, 0)).toBe(true);
   });
 
   it('keeps at least one row and one column', () => {
@@ -130,9 +176,9 @@ describe('TableDoc editing (D-272)', () => {
     doc = deleteRow(doc, AT, 0);
     expect(tableOf(doc).rows).toBe(1);
     expect(deleteRow(doc, AT, 0)).toBe(doc);
-    doc = deleteColumn(doc, AT, 0);
-    doc = deleteColumn(doc, AT, 0);
-    expect(deleteColumn(doc, AT, 0)).toBe(doc);
+    doc = deleteColumn(doc, 0, 0);
+    doc = deleteColumn(doc, 0, 0);
+    expect(deleteColumn(doc, 0, 0)).toBe(doc);
     expectTiled(tableOf(doc));
   });
 
@@ -193,6 +239,7 @@ describe('undo and redo', () => {
   it('reads back a saved document and rejects broken files', () => {
     expect(parseTableDoc(JSON.stringify(DOC))).toEqual(DOC);
     expect(parseTableDoc('{')).toBeNull();
-    expect(parseTableDoc('{"version":2,"scope":"all","pages":[]}')).toBeNull();
+    // 旧版本（每张表各自的列）不再读。
+    expect(parseTableDoc('{"version":1,"scope":"all","pages":[]}')).toBeNull();
   });
 });
