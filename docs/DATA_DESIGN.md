@@ -60,6 +60,7 @@
 | `time`     | `HH:mm`，几点几分（D-279）                       | 上班时间     |
 | `datetime` | `YYYY-MM-DDTHH:mm`，设备本地（D-279）            | 打卡、喂奶   |
 | `duration` | 整数分钟，显示 `h:mm`（D-279）                   | 休息、时长   |
+| `schedule` | 一份重复规则（白名单 JSON，D-292）               | 浇水、续费   |
 
 每条记录还自带两个系统字段：`createdAt`、`updatedAt`，可以用来排序和筛选。
 
@@ -112,7 +113,7 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 "sort": { "field": "date", "direction": "desc" }
 ```
 
-可用的条件：`is` / `isNot` / `contains` / `gt` / `lt` / `isEmpty` / `isNotEmpty` / `inPeriod`。`inPeriod` 的取值有 `today`、`thisWeek`、`thisMonth`、`thisYear`、`last7days`、`last30days`，D-285 加了 `last14days`、`last90days`、`last365days`、`thisTwoWeeks`（两周一段）、`thisHalfMonth`（1–15 号或 16 号到月底）。「今天」和一周的第一天按「设置 → 日期」（D-286）。
+可用的条件：`is` / `isNot` / `contains` / `gt` / `lt` / `isEmpty` / `isNotEmpty` / `inPeriod`，日程字段还有 `due`（`today` / `overdue` / `thisWeek`，D-294）。`inPeriod` 的取值有 `today`、`thisWeek`、`thisMonth`、`thisYear`、`last7days`、`last30days`，D-285 加了 `last14days`、`last90days`、`last365days`、`thisTwoWeeks`（两周一段）、`thisHalfMonth`（1–15 号或 16 号到月底）。「今天」和一周的第一天按「设置 → 日期」（D-286）。
 
 **记录编辑页**由内核按字段定义自动生成，不可配置：点列表里的一条，或 `recordForm` 的 `button` 模式都会打开它，删除也在这里。
 
@@ -271,3 +272,9 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 - **按顺序的聚合**（D-284，schemaVersion 20）：`stat.aggregate` 加 `streak`（当前连续和最佳连续，`unit` 天 / 周 / 月，`perUnit` 每单位至少几条，`skipField` + `skipOption` 指定「跳过」的单选项）、`daysSince`、`avgInterval`、`distinctDays`，按 `dateField`（默认第一个日期字段，没有就用创建时间）算日子，可以配合 `groupBy` 每个选项一行。图表只能用 `distinctDays`。纯逻辑在 `core/sequence.ts`，接口是「一组记录 + 日期字段 + 参数 → 值」，以后汇总字段也用它。
 - **时间段**（D-285）：见上面筛选条件的 `inPeriod`；筛选、`in.records`、`file.filter`、统计和图表的筛选共用。
 - **一天、一周从何时开始**（D-286）：配置的 `calendar {dayStartHour? 0–6, weekStart? monday / sunday, twoWeekStart?}`。所有按天、按周归类的计算（时间段、图表分组、连续天数、日期字段默认的今天、创建时间算哪一天）都按它；逻辑在 `core/calendar.ts`。
+
+## 16. 日程（D-292 起）
+
+- **日程字段**（D-292，schemaVersion 23）：每条记录存一份重复规则 `{repeat, …, perDay?}`（每天、每周几天、每段 N 次、每月几号、每 N 天、每年某天），用户在表单里设；字段的 `default` 是新记录的规则。逻辑在 `core/schedule.ts`。
+- **上次完成**（D-293）：`lastDone` 指向同一张表里的日期或日期时间字段；由规则和它算出下一次、今天该不该做、过期几天。
+- **用在别处**（D-294、D-295）：筛选 `due`；`inPeriod` / `gt` / `lt`、排序和公式都按下一次。提醒还不按日程（P8）。

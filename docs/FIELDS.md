@@ -32,7 +32,7 @@ export const linkField: FieldDefinitionOf<'link', typeof schema> = defineField({
 - **write**：表单输入 → 存的值，严格校验，返回 `{ value }` 或 `{ issue: 'invalid' | 'tooLong' }`。不写就是不存值（公式）。**initial**：新记录的默认值（不写用定义里的 `default`）；**emptyNew**：新记录没有值时存什么（勾选框是 `false`）。
 - **format**：显示文字（列表、记录页、导出、报表都用它）。**csv**：CSV 里要更机器可读的写法时才写（金额两位小数）。**formatAmount**：合计、平均怎么显示（金额带货币、数字带单位）。**print**：报表里是不是靠右的数字列、收据合计用不用它。
 - **formula**：公式里能不能引用、当作 `number` 还是 `date`。**numeric**：统计和图表能不能求和、平均。**inForm: false**：记录表单里不能填。
-- **filter**：筛选支持什么：`is`（值对不对得上）、`contains`、`compare`（`number` 或 `date`）、`period`、`emptyOnly`（只能看有没有值）。**sort: false** 不能排序；也可以给一个函数按自己的顺序排（单选按选项顺序）。
+- **filter**：筛选支持什么：`is`（值对不对得上）、`contains`、`compare`（`number` 或 `date`）、`period`、`emptyOnly`（只能看有没有值）、`schedule`（筛选 due，日程字段，D-294）。**sort: false** 不能排序；也可以给一个函数按自己的顺序排（单选按选项顺序）。
 - **titleRank**：被引用时用哪个字段当标题（数字小的优先）。**convertGroup**：同一组的类型可以互相改（文字和长文本、数字和金额）。
 - **check**：字段定义本身的检查（引用的表要存在、选项不重复），问题文字会发给 AI。
 - **ai.doc**：提示词里 `Field = …` 那一行的一段（类型名后面的部分，英文）；**docAfter** 只有为了不改动已有提示词的顺序才写。

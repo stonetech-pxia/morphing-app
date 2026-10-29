@@ -112,7 +112,9 @@ describe.each(FIELDS.map((d) => [d.type, d] as const))('field %s', (_type, def) 
     expect(at({ op: 'gt', value: compareValue }).length === 0).toBe(
       def.filter.compare !== undefined && !def.filter.emptyOnly,
     );
-    if (def.exampleValue !== undefined) {
+    expect(at({ op: 'due', value: 'today' }).length === 0).toBe(def.filter.schedule === true);
+    // 日程的值是一份规则（D-292），不能拿来比 is。
+    if (def.exampleValue !== undefined && !def.filter.schedule) {
       // 附件的值是一组文件 ID，筛选时比的是其中一个。
       const value = Array.isArray(def.exampleValue) ? def.exampleValue[0] : def.exampleValue;
       expect(at({ op: 'is', value }).length === 0).toBe(!def.filter.emptyOnly);

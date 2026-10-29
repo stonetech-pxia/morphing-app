@@ -217,7 +217,7 @@ export type CalendarSettings = z.infer<typeof CalendarSchema>;
 /** 筛选条件：白名单比较，多个条件之间是“并且”，没有表达式。 */
 export const ConditionSchema = z.strictObject({
   field: FieldRefSchema,
-  op: z.enum(['is', 'isNot', 'contains', 'gt', 'lt', 'isEmpty', 'isNotEmpty', 'inPeriod']),
+  op: z.enum(['is', 'isNot', 'contains', 'gt', 'lt', 'isEmpty', 'isNotEmpty', 'inPeriod', 'due']),
   value: z.union([z.string().max(200), z.number().finite(), z.boolean()]).optional(),
 });
 export type Condition = z.infer<typeof ConditionSchema>;

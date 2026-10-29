@@ -13,6 +13,7 @@ export const FRENCH_PAIRS: Readonly<Record<string, string>> = {
   formula: 'formule',
   time: 'heure',
   'date and time': 'date et heure',
+  schedule: 'récurrence',
   duration: 'durée',
   'the default fonts (Sora + Karla)': 'la police par défaut (Sora + Karla)',
   'the system font': 'la police du système',

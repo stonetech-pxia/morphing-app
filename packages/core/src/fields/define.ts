@@ -30,6 +30,8 @@ export interface FieldFilter<F> {
   period?: true;
   /** 只能看有没有值（isEmpty / isNotEmpty），例如引用字段（D-250）。 */
   emptyOnly?: true;
+  /** due（今天该做、已过期、这周要做，D-294）：日程字段。 */
+  schedule?: true;
 }
 
 /** 检查这个字段定义本身（validate.ts）。只写文字时是数据问题（code data）。 */

@@ -39,6 +39,7 @@ export * from './speech';
 export * from './speak';
 export * from './templates';
 export * from './samples';
+export * from './schedule';
 export * from './sequence';
 export * from './text-ops';
 export * from './text-rules';
