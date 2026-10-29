@@ -1,5 +1,14 @@
 import { RunCancelled, RunError, type ActionImpl, type RunItem } from '@morph/core';
-import { clampQuad, isConvexQuad, quadArea, warpSize, type Quad } from '@morph/tool-image';
+import {
+  clampQuad,
+  isConvexQuad,
+  orderQuad,
+  pickPaper,
+  quadArea,
+  warpSize,
+  type Point,
+  type Quad,
+} from '@morph/tool-image';
 
 import type { EnhanceMode } from '../platform';
 import {
@@ -24,6 +33,17 @@ const SCAN_INPUT_SIDE = 4096;
 export const SCAN_OUTPUT_SIDE = 2400;
 /** 找到的纸张小于照片的 1/10 时当作没找到（多半是噪点）。 */
 const MIN_PAPER_SHARE = 0.1;
+
+/** 能当作纸张的四边形：凸的、不小于照片的 1/10。 */
+function usableQuad(quad: Quad, size: { width: number; height: number }): boolean {
+  return isConvexQuad(quad) && quadArea(quad) >= size.width * size.height * MIN_PAPER_SHARE;
+}
+
+/** 扫描包页面的找边结果：几个候选（每个四个点）和一张小灰度图，由 pickPaper 挑（D-300）。 */
+interface PackDetect {
+  candidates: Point[][];
+  gray: { width: number; height: number; data: string };
+}
 
 /**
  * 展平拉正后的页面（D-274，参数 flatten 不写成 false 就做）：展平模型没装（用户没下载）时原样返回，照常扫描。
@@ -82,23 +102,26 @@ export const SCAN_IMPLS: Record<string, Impl> = {
       const size = { width: item.width!, height: item.height! };
       let detected: Quad | null;
       try {
-        detected = vision
-          ? await vision.findPaper(item.uri)
-          : (
-              await packs!.runtime.call<{ quad: Quad | null }>(
-                'scan',
-                'detect',
-                { file: 'input', maxSide: 1000 },
-                { input: item.uri },
-              )
-            ).quad;
+        if (vision) {
+          detected = await vision.findPaper(item.uri);
+        } else {
+          const { candidates, gray } = await packs!.runtime.call<PackDetect>(
+            'scan',
+            'detect',
+            { file: 'input', maxSide: 1000 },
+            { input: item.uri },
+          );
+          const quads = candidates
+            .map((pts) => clampQuad(orderQuad(pts), size))
+            .filter((q) => usableQuad(q, size));
+          detected = pickPaper(quads, size, { ...gray, data: fromBase64(gray.data) });
+        }
       } catch (e) {
         const detail = String(e instanceof Error ? e.message : e);
         throw new RunError(vision ? 'unexpected' : 'packFailed', { detail });
       }
       const quad = detected ? clampQuad(detected, size) : null;
-      const usable =
-        quad && isConvexQuad(quad) && quadArea(quad) >= size.width * size.height * MIN_PAPER_SHARE;
+      const usable = quad && usableQuad(quad, size);
       found.push({ item, quad: usable ? quad : null });
       ctx.progress(i + 1, todo.length);
     }
