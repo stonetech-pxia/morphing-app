@@ -353,7 +353,7 @@ export const zh: MessageTable = {
   storageDeleteUsed:
     '有 {n} 个地方用到它，删除后那里会显示文件已不在，恢复旧版本也找不回。删除后不能撤销。',
   storageDeleteUnused: '恢复旧版本也找不回。删除后不能撤销。',
-  dataRowHint: '你记录的数据：导出、最近删除',
+  dataRowHint: '你记录的数据：导出、最近删除、App 配置、预填记忆',
   dataPrivacy:
     '记录只保存在这台手机上。AI 只能看到数据表的结构（表名和字段），永远看不到你填写的内容。',
   dataTables: '数据表',
@@ -369,6 +369,26 @@ export const zh: MessageTable = {
   nothingDeleted: '最近没有删除的记录',
   unknownTable: '数据表 {id}',
   pageMissing: '这个页面已不存在。',
+  // 「设置 → 数据」：App 配置导出、预填记忆（D-244）
+  appConfigTitle: 'App 配置',
+  appConfigHint: '页面、数据表的结构、快捷操作和提醒，存成一个文件。不含你的记录和文件。',
+  exportAppConfig: '导出 App 配置',
+  prefillMemoryTitle: '预填记忆',
+  prefillMemoryHint:
+    '「记一笔」时，Morph 会记住你保存过的单据版式：值跟在哪个标签后面、大约在哪一行、商家名，不记金额和日期。只在这台手机上，不发给 AI。导出的文件也是备份，可以用「从文件恢复」放回来。',
+  prefillMemoryCount: '记住了 {count} 种单据版式',
+  prefillMemoryNone: '还没有记住单据版式',
+  prefillMemoryExport: '导出',
+  prefillMemoryRestore: '从文件恢复',
+  prefillMemoryClear: '清空',
+  prefillMemoryClearConfirm: '清空全部预填记忆？以后要重新学。此操作无法撤销。',
+  prefillMemoryRestoreConfirm: '用这个文件里的预填记忆（{count} 种版式）替换现在的？',
+  prefillMemoryRestoreInvalid: '这个文件不是 Morph 导出的预填记忆，没有恢复。',
+  prefillMemoryRestored: '已恢复 {count} 种单据版式。',
+  dataModelDownloadAsk: '下载日期和金额识别？',
+  dataModelDownloadBody:
+    'Google 需要先下载这种语言的识别模型。识别在这台手机上进行，文字不会上传；下载后没网也能用。不下载也能预填，只用 Morph 自带的规则。',
+  dataModelDownload: '下载',
 
   // 直接编辑（长按一块、调整顺序）
   editText: '改文字',

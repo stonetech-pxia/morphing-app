@@ -391,7 +391,8 @@ export const fr: MessageTable = {
     'Il est utilisé à {n} endroits. Ils indiqueront que le fichier n’existe plus, et restaurer une ancienne version ne le fera pas revenir. Action irréversible.',
   storageDeleteUnused:
     'Restaurer une ancienne version ne le fera pas revenir. Action irréversible.',
-  dataRowHint: 'Vos données : exporter, supprimées récemment',
+  dataRowHint:
+    'Vos données : exporter, supprimées récemment, configuration de l’app, mémoire de pré-remplissage',
   dataPrivacy:
     'Les entrées sont stockées uniquement sur ce téléphone. L’IA ne voit que la structure de vos tableaux (noms et champs), jamais ce que vous saisissez.',
   dataTables: 'Tableaux de données',
@@ -409,6 +410,30 @@ export const fr: MessageTable = {
   nothingDeleted: 'Aucune suppression récente',
   unknownTable: 'Tableau {id}',
   pageMissing: 'Cette page n’existe plus.',
+  // Paramètres → Données : export de la configuration, mémoire de pré-remplissage (D-244)
+  appConfigTitle: 'Configuration de l’app',
+  appConfigHint:
+    'Pages, structure des tableaux, actions rapides et rappels, dans un seul fichier. Vos entrées et vos fichiers n’y sont pas.',
+  exportAppConfig: 'Exporter la configuration de l’app',
+  prefillMemoryTitle: 'Mémoire de pré-remplissage',
+  prefillMemoryHint:
+    'Quand vous ajoutez une entrée, Morph retient la mise en page des documents enregistrés : après quelle étiquette se trouve une valeur, à peu près sur quelle ligne, et le nom du commerce. Les montants et les dates ne sont pas conservés. Stockée uniquement sur ce téléphone, jamais envoyée à l’IA. Le fichier exporté sert aussi de sauvegarde : « Restaurer depuis un fichier » la remet en place.',
+  prefillMemoryCount: '{count} mises en page de documents mémorisées',
+  prefillMemoryNone: 'Aucune mise en page mémorisée pour l’instant',
+  prefillMemoryExport: 'Exporter',
+  prefillMemoryRestore: 'Restaurer depuis un fichier',
+  prefillMemoryClear: 'Effacer',
+  prefillMemoryClearConfirm:
+    'Effacer toute la mémoire de pré-remplissage ? Morph devra tout réapprendre. Cette action est irréversible.',
+  prefillMemoryRestoreConfirm:
+    'Remplacer la mémoire de pré-remplissage actuelle par celle de ce fichier ({count} mises en page) ?',
+  prefillMemoryRestoreInvalid:
+    'Ce fichier n’est pas une mémoire de pré-remplissage exportée par Morph. Rien n’a été restauré.',
+  prefillMemoryRestored: '{count} mises en page restaurées.',
+  dataModelDownloadAsk: 'Télécharger la reconnaissance des dates et des montants ?',
+  dataModelDownloadBody:
+    'Google doit d’abord télécharger le modèle de reconnaissance pour cette langue. La reconnaissance se fait sur ce téléphone et le texte n’est pas envoyé ; après le téléchargement, elle fonctionne hors ligne. Sans ce modèle, Morph pré-remplit quand même avec ses propres règles.',
+  dataModelDownload: 'Télécharger',
 
   // 直接编辑（长按一块、调整顺序）
   editText: 'Modifier le texte',
@@ -1216,6 +1241,10 @@ export const frSingular: SingularTable = {
   packDeleteWithLanguages:
     'Sa langue sera aussi supprimée. Vous pourrez la télécharger à nouveau la prochaine fois que vous en aurez besoin.',
   recordCount: '{count} entrée',
+  prefillMemoryCount: '{count} mise en page de document mémorisée',
+  prefillMemoryRestoreConfirm:
+    'Remplacer la mémoire de pré-remplissage actuelle par celle de ce fichier ({count} mise en page) ?',
+  prefillMemoryRestored: '{count} mise en page restaurée.',
   deleteForeverConfirm: 'Supprimer {count} entrée de « {name} » ? Cette action est irréversible.',
   editPageSummary: 'Modifier « {page} » ({count} modification)',
   deleteGroupMessage:

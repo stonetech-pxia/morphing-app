@@ -1,0 +1,32 @@
+{
+  "id": "eval-long-en-006",
+  "name": "Prefill test",
+  "fields": [
+    {
+      "id": "date",
+      "name": "Date",
+      "type": "date"
+    },
+    {
+      "id": "amount",
+      "name": "Paid",
+      "type": "money",
+      "currency": "USD"
+    },
+    {
+      "id": "merchant",
+      "name": "Store",
+      "type": "text"
+    },
+    {
+      "id": "invoiceNo",
+      "name": "Invoice number",
+      "type": "text"
+    },
+    {
+      "id": "email",
+      "name": "Email",
+      "type": "text"
+    }
+  ]
+}

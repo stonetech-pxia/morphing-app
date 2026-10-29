@@ -1,0 +1,8 @@
+{
+  "id": "tickets-en-003-hard",
+  "language": "en",
+  "category": "tickets",
+  "difficulty": "hard",
+  "seed": 20261027,
+  "interference": ["missing_invoiceNo", "column_order", "dropped_character"]
+}

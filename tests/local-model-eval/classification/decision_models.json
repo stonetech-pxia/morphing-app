@@ -1,0 +1,29 @@
+[
+  {
+    "id": "laya-multilingual",
+    "repo": "convaiinnovations/laya-multilingual",
+    "revision": "1720e3e3357cfe1e281542e223f8273b0890ca34",
+    "license": "Apache-2.0",
+    "runtime": "laya 0.4.16",
+    "weights_bytes": 643835514
+  },
+  {
+    "id": "kev-0.8b",
+    "repo": "jaredpalmer/kev-0.8b",
+    "tag": "v1.0",
+    "revision": "bf75a6a8848ea6960ff2ed108d9ed44c2941174f",
+    "base_repo": "Qwen/Qwen3.5-0.8B-Base",
+    "base_revision": "dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68",
+    "license": "Apache-2.0",
+    "runtime_repo": "https://github.com/jaredpalmer/kev",
+    "runtime_revision": "2074cc44256200bb37540103fa4572901faa10f3"
+  },
+  {
+    "id": "nimble-9b",
+    "repo": "bespokelabs/Bespoke-Nimble-9B",
+    "base_repo": "Qwen/Qwen3.5-9B",
+    "license": "Apache-2.0",
+    "tested": false,
+    "reason": "Official BF16 setup requires a CUDA GPU with substantially more than 10 GB VRAM; quantized 9B is beyond the phone weight budget."
+  }
+]

@@ -1,0 +1,14 @@
+Bistro Aube
+DOCUMEN FICTIF · TEST
+18 rue Exemple
+Date: 09/08/2026
+Article A   2842 €
+Article B   14,97 €
+Sous-total HT: 43,39 €
+Remise: 8,50 €
+Monnaie rendue: 5,50 €
+Bistro Aube
+Total TTC payé: 34,89 €
+Type: Restauration
+Tél : 01 23 4S 67 89 · QR au verso
+Merci de votre visite

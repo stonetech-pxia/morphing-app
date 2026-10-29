@@ -1,6 +1,7 @@
 import type { Locale } from './schema';
 
-// 从一段文字里取出固定几种内容（D-244）：命名模板的 {ocr:规则} / {qr:规则} 和「提取文字」动作共用。
+// 从一段文字里取出固定几种内容（D-244）：命名模板的 {ocr:规则} / {qr:规则} 和「提取文字」动作共用，
+// 「记一笔」预填（prefill/）也用这里的日期和数字写法。
 // 规则只能从这里选，不接受用户或 AI 写的正则；文字只在本机处理，AI 只能看到规则的名字。
 // 不用后行断言（Hermes 的老版本不支持），前面的边界用捕获组处理。
 
@@ -22,7 +23,7 @@ export type ExtractKind = (typeof EXTRACT_KINDS)[number];
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-function validDate(y: number, m: number, d: number): string | null {
+export function validDate(y: number, m: number, d: number): string | null {
   const date = new Date(y, m - 1, d);
   if (y < 1900 || y > 2200) return null;
   return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d
@@ -98,7 +99,7 @@ const trimUrl = (s: string) => s.replace(/[.,;:!?)\]}>]+$/, '');
  * 数字统一成 1234.56：逗号和点都有时后出现的是小数点；只有一种分隔符时，出现不止一次或后面正好 3 位数
  * 是千位分隔（1,234、1.234.567），否则是小数点（12,5、3.50）。
  */
-function normalizeNumber(raw: string): string {
+export function normalizeNumber(raw: string): string {
   const s = raw.replace(/[\u00a0\u202f ]/g, '');
   const comma = s.lastIndexOf(',');
   const dot = s.lastIndexOf('.');

@@ -1,0 +1,15 @@
+VTC Rivière
+DOCUMENT FICTIF · TEST
+l8 rue Exemple
+Date: 03/03/2026
+Article A   204,99 €
+Article B   178,98 €
+Sous-total HT: 383,97 €
+Remise: 8,50 €
+Points fidélité: 173
+Total TTC payé: 375,47 €
+Monnaie rendue: 5,50 €
+VTC Rivière
+Type: Transport
+Tél : 01 23 45 67 89 · QR au verso
+Merci de votre visite

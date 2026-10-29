@@ -1,0 +1,10 @@
+City Cab
+SAMPLE OCUMENT · TEST ONLY
+18 Sample Street
+Date: 03/10/2026
+From: Boston
+To: New York
+Amount paid: $150.19
+Tel: 555-0100 · Scan QR for offers
+Thank you
+City Cab

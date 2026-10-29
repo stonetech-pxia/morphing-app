@@ -17,6 +17,8 @@ Pod::Spec.new do |s|
   s.dependency 'ExpoModulesCore'
   s.dependency 'onnxruntime-objc', '1.30.0'
   s.frameworks = 'Vision', 'VisionKit', 'CoreImage', 'ImageIO'
+  # DataDetection 是 iOS 26 才有的（预填用的日期和金额识别）：弱链接，更早的系统上不加载，退回 NSDataDetector。
+  s.weak_frameworks = 'DataDetection'
 
   s.source_files = '**/*.{h,m,swift}'
   s.pod_target_xcconfig = {

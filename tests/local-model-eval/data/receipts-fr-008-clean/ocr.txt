@@ -1,0 +1,16 @@
+Bistro Aube
+DOCUMENT FICTIF · TEST
+18 rue Exemple
+Date: 10/03/2026
+Article A   14,94 €
+Article B   8,63 €
+Points fidélité: 331
+Sous-total HT: 23,57 €
+Remise: 8,50 €
+Total TTC payé: 15,07 €
+Monnaie rendue: 5,50 €
+Bistro Aube
+Commande n°: REC-20260008
+Type: Restauration
+Tél : 01 23 45 67 89 · QR au verso
+Merci de votre visite

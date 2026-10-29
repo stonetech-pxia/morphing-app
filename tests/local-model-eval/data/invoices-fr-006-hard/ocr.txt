@@ -1,0 +1,12 @@
+Librairie Sable
+DOCUMEN FICTIF · TEST
+18 rue Exemple
+Sous-totalHT: 333,05 €
+Remise: 850 €
+Net à payer: 324,55 €
+Monnaie rendue: 5,50 €
+Librairie Sable
+Type: Autres
+Date: 21/07/2026
+Tél : 01 23 45 67 89 · QR au verso
+Merci de votre visite

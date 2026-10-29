@@ -1,0 +1,12 @@
+Willow Cafe
+SAMPLEDOCUMENT · TEST ONLY
+18 Sample Street
+Date: 05/27/2026
+Subtotal: $33.27
+Discount: $8.50
+Amount paid: $24.77
+Change: $5.50
+Willow Cafe
+Tel: 555-0100 · Scan QR for offers
+Thank you
+Type: Food

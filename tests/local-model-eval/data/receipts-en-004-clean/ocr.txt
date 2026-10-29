@@ -1,0 +1,16 @@
+North Market
+SAMPLE DOCUMENT · TEST ONLY
+18 Sample Street
+Date: 09/25/2026
+Item A   $90.43
+Item B   $124.53
+Loyalty points: 236
+Subtotal: $214.96
+Discount: $8.50
+Amount paid: $206.46
+Change: $5.50
+North Market
+Order No: REC-20260004
+Type: Other
+Tel: 555-0100 · Scan QR for offers
+Thank you

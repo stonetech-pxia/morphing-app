@@ -1,0 +1,37 @@
+{
+  "id": "eval-tickets-fr-001",
+  "name": "Essai de préremplissage",
+  "fields": [
+    {
+      "id": "date",
+      "name": "Date d'achat",
+      "type": "date"
+    },
+    {
+      "id": "merchant",
+      "name": "Enseigne",
+      "type": "text"
+    },
+    {
+      "id": "origin",
+      "name": "Départ",
+      "type": "text"
+    },
+    {
+      "id": "destination",
+      "name": "Arrivée",
+      "type": "text"
+    },
+    {
+      "id": "invoiceNo",
+      "name": "Référence",
+      "type": "text"
+    },
+    {
+      "id": "amount",
+      "name": "Montant",
+      "type": "money",
+      "currency": "EUR"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "long-fr-003-normal",
+  "language": "fr",
+  "category": "long",
+  "difficulty": "normal",
+  "seed": 20261027,
+  "interference": ["column_order"]
+}

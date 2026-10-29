@@ -1,0 +1,31 @@
+{
+  "id": "eval-cards-zh-006",
+  "name": "自动填写测试",
+  "fields": [
+    {
+      "id": "name",
+      "name": "姓名",
+      "type": "text"
+    },
+    {
+      "id": "phone",
+      "name": "电话",
+      "type": "text"
+    },
+    {
+      "id": "email",
+      "name": "邮箱",
+      "type": "text"
+    },
+    {
+      "id": "company",
+      "name": "公司",
+      "type": "text"
+    },
+    {
+      "id": "date",
+      "name": "消费日期",
+      "type": "date"
+    }
+  ]
+}

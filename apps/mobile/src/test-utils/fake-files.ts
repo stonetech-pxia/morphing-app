@@ -254,6 +254,15 @@ export class FakeFiles implements FilePlatform {
   async share(path: string) {
     this.shared.push(path);
   }
+  /** 选择器给的文字文件：地址 → 内容；读完的副本记在 readPicked 里。 */
+  pickedTexts = new Map<string, string>();
+  readPicked: string[] = [];
+  async readPickedText(uri: string) {
+    this.readPicked.push(uri);
+    const text = this.pickedTexts.get(uri);
+    if (text === undefined) throw new Error('permission denied');
+    return text;
+  }
   /** 导出的文字文件：文件名 → 内容。 */
   sharedTexts = new Map<string, string>();
   async shareText(fileName: string, text: string) {
@@ -1113,6 +1122,12 @@ export class FakeVision implements VisionPlatform {
   async detectFaces(uri: string) {
     this.calls.push({ method: 'detectFaces', uri });
     return this.faceResults.shift() ?? { width: 1, height: 1, faces: [] };
+  }
+  /** 图像分类：每次的标签（按顺序）。 */
+  labelResults: { id: string; confidence: number }[][] = [];
+  async classifyImage(uri: string) {
+    this.calls.push({ method: 'classifyImage', uri });
+    return this.labelResults.shift() ?? [];
   }
   /** iOS 的人像分割不用下载模型；改成 false 模拟 Android。 */
   personSegmentation = true;

@@ -1,0 +1,37 @@
+{
+  "id": "eval-tickets-zh-001",
+  "name": "自动填写测试",
+  "fields": [
+    {
+      "id": "date",
+      "name": "日期",
+      "type": "date"
+    },
+    {
+      "id": "merchant",
+      "name": "店名",
+      "type": "text"
+    },
+    {
+      "id": "origin",
+      "name": "出发地",
+      "type": "text"
+    },
+    {
+      "id": "destination",
+      "name": "目的地",
+      "type": "text"
+    },
+    {
+      "id": "invoiceNo",
+      "name": "发票号",
+      "type": "text"
+    },
+    {
+      "id": "amount",
+      "name": "金额",
+      "type": "money",
+      "currency": "CNY"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "invoices-fr-001-clean",
+  "language": "fr",
+  "category": "invoices",
+  "difficulty": "clean",
+  "seed": 20261027,
+  "interference": []
+}

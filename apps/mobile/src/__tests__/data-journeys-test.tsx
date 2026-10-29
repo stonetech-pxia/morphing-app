@@ -2,6 +2,10 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
   BUILTIN_TOOLS,
   createMockAIProvider,
+  LAYOUT_STORE_KEY,
+  layoutStoreFile,
+  parseLayoutStore,
+  type LayoutMemory,
   createRegistry,
   templateOps,
   type AIProvider,
@@ -10,7 +14,7 @@ import { createClaudePlanner, type PlannerMessage } from '@morph/planner';
 import { fireEvent } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
 import { renderRouter, screen, testRouter } from 'expo-router/testing-library';
-import { Alert } from 'react-native';
+import { Alert, type AlertButton } from 'react-native';
 
 import { AISettingsProvider } from '../ai/context';
 import { createAISettingsStore, type SecretStore } from '../ai/settings';
@@ -236,6 +240,124 @@ describe('user data (UI)', () => {
     await fireEvent.press(screen.getByTestId('change-submit'));
     expect(await screen.findByText(/AI 只修改界面，不会读取或改动你记录的数据/)).toBeTruthy();
     expect(screen.queryByTestId('draft-bar')).toBeNull();
+  });
+});
+
+describe('Settings → Data: app design and prefill memory', () => {
+  const memory = (id: string): LayoutMemory => ({
+    id,
+    anchors: ['青禾小馆', '实付', '谢谢惠顾'],
+    fieldTypes: { amount: 'money' },
+    fields: {
+      amount: { kind: 'amount', label: '实付', offset: 0, position: 0.7, format: 'dot', hits: 1 },
+    },
+  });
+  const openData = async () => {
+    await fireEvent.press(await screen.findByTestId('nav-settings'));
+    await fireEvent.press(await screen.findByTestId('settings-data'));
+  };
+  const answer = (pick: (buttons: AlertButton[]) => AlertButton | undefined) =>
+    jest.spyOn(Alert, 'alert').mockImplementationOnce((_t, _m, buttons) => {
+      pick(buttons ?? [])?.onPress?.();
+    });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('exports the app design as a file without any entries', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    const { files, store } = await renderApp({ repo });
+    await store.getState().proposeOps(templateOps('notes', store.getState().config!, 'zh'), '笔记');
+    await store.getState().confirm();
+    await repo.insertRecord({
+      id: 'n1',
+      collectionId: 'notes',
+      values: { title: '秘密想法' },
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await openData();
+    await fireEvent.press(await screen.findByTestId('export-app-config'));
+    const [[name, text]] = [...files.sharedTexts];
+    expect(name).toMatch(/^morph-config-\d{4}-\d{2}-\d{2}\.json$/);
+    const file = JSON.parse(text!);
+    expect(file.format).toBe('morph-app-config');
+    expect(file.config.collections.map((c: { id: string }) => c.id)).toContain('notes');
+    expect(text).not.toContain('秘密想法');
+  });
+
+  it('a new user has nothing to export or clear, but can restore a backup', async () => {
+    const { repo, files } = await renderApp();
+    await openData();
+    expect(await screen.findByText('还没有记住单据版式')).toBeTruthy();
+    expect(screen.queryByTestId('export-prefill-memory')).toBeNull();
+    expect(screen.queryByTestId('clear-prefill-memory')).toBeNull();
+
+    const backup = layoutStoreFile({ expenses: [memory('a'), memory('b')] }, new Date());
+    files.nextPick = [
+      {
+        uri: 'file:///cache/DocumentPicker/backup.json',
+        name: 'backup.json',
+        size: 1,
+        mimeType: 'application/json',
+      },
+    ];
+    files.pickedTexts.set('file:///cache/DocumentPicker/backup.json', backup);
+    const alert = jest.spyOn(Alert, 'alert');
+    alert.mockImplementationOnce((_t, message, buttons) => {
+      expect(message).toBe('用这个文件里的预填记忆（2 种版式）替换现在的？');
+      buttons?.find((b) => b.style !== 'cancel')?.onPress?.();
+    });
+    await fireEvent.press(await screen.findByTestId('restore-prefill-memory'));
+    expect(await screen.findByText('记住了 2 种单据版式')).toBeTruthy();
+    expect(parseLayoutStore(await repo.getMeta(LAYOUT_STORE_KEY)).expenses).toHaveLength(2);
+    expect(files.readPicked).toEqual(['file:///cache/DocumentPicker/backup.json']);
+  });
+
+  it('exports the memory as a backup and clears it after confirmation', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    await repo.setMeta(LAYOUT_STORE_KEY, JSON.stringify({ expenses: [memory('a')] }));
+    const { files } = await renderApp({ repo });
+    await openData();
+    expect(await screen.findByText('记住了 1 种单据版式')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('export-prefill-memory'));
+    const [[name, text]] = [...files.sharedTexts];
+    expect(name).toMatch(/^morph-prefill-memory-.*\.json$/);
+    expect(JSON.parse(text!).tables.expenses[0].id).toBe('a');
+
+    // 取消：什么都不变。
+    answer((b) => b.find((x) => x.style === 'cancel'));
+    await fireEvent.press(screen.getByTestId('clear-prefill-memory'));
+    expect(parseLayoutStore(await repo.getMeta(LAYOUT_STORE_KEY)).expenses).toHaveLength(1);
+    answer((b) => b.find((x) => x.style === 'destructive'));
+    await fireEvent.press(screen.getByTestId('clear-prefill-memory'));
+    expect(await screen.findByText('还没有记住单据版式')).toBeTruthy();
+    expect(parseLayoutStore(await repo.getMeta(LAYOUT_STORE_KEY))).toEqual({});
+  });
+
+  it('refuses a file that is not a prefill memory backup and keeps the current memory', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    await repo.setMeta(LAYOUT_STORE_KEY, JSON.stringify({ expenses: [memory('a')] }));
+    const { files } = await renderApp({ repo });
+    await openData();
+    files.nextPick = [
+      {
+        uri: 'file:///cache/DocumentPicker/notes.json',
+        name: 'notes.json',
+        size: 1,
+        mimeType: 'application/json',
+      },
+    ];
+    files.pickedTexts.set(
+      'file:///cache/DocumentPicker/notes.json',
+      '{"format":"morph-app-config"}',
+    );
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await fireEvent.press(await screen.findByTestId('restore-prefill-memory'));
+    expect(alert).toHaveBeenCalledWith(
+      '从文件恢复',
+      '这个文件不是 Morph 导出的预填记忆，没有恢复。',
+    );
+    expect(parseLayoutStore(await repo.getMeta(LAYOUT_STORE_KEY)).expenses).toHaveLength(1);
   });
 });
 

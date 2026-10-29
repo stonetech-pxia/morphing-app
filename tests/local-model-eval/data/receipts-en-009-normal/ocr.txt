@@ -1,0 +1,15 @@
+River Fuel
+SAMPLE DOCUMENT · TEST ONLY
+18 Sample Street
+Item A   $81.48
+Subtotal: $199.92
+Discount: $8.50
+Item B   $118.44
+Total: $191.42
+Change: $S.50
+Date: 03/13/2026
+River Fuel
+Order No: REC-20260009
+Type: Transport
+Tel: 555-0100 · Scan QR for offers
+Thank you

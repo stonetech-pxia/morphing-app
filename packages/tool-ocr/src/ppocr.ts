@@ -129,44 +129,9 @@ export function detectionInput(image: RgbaImage, limit = 736) {
   return { tensor, ...size };
 }
 
-/** 框里（凸四边形）平均的文字概率（DB 的 box_score_fast）。 */
-function boxScore(prob: Uint8Array, width: number, height: number, quad: readonly Point[]): number {
-  const xs = quad.map((p) => p.x);
-  const ys = quad.map((p) => p.y);
-  const xmin = Math.min(Math.max(Math.floor(Math.min(...xs)), 0), width - 1);
-  const xmax = Math.min(Math.max(Math.ceil(Math.max(...xs)), 0), width - 1);
-  const ymin = Math.min(Math.max(Math.floor(Math.min(...ys)), 0), height - 1);
-  const ymax = Math.min(Math.max(Math.ceil(Math.max(...ys)), 0), height - 1);
-  let sum = 0;
-  let count = 0;
-  for (let y = ymin; y <= ymax; y++) {
-    // 这一行和四边形的交点。
-    let left = Infinity;
-    let right = -Infinity;
-    for (let i = 0; i < 4; i++) {
-      const a = quad[i]!;
-      const b = quad[(i + 1) % 4]!;
-      if ((a.y <= y && b.y >= y) || (b.y <= y && a.y >= y)) {
-        const x = a.y === b.y ? Math.min(a.x, b.x) : a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y);
-        const x2 = a.y === b.y ? Math.max(a.x, b.x) : x;
-        left = Math.min(left, x);
-        right = Math.max(right, x2);
-      }
-    }
-    if (left > right) continue;
-    const from = Math.max(xmin, Math.ceil(left - 0.5));
-    const to = Math.min(xmax, Math.floor(right + 0.5));
-    for (let x = from; x <= to; x++) {
-      sum += prob[y * width + x]!;
-      count++;
-    }
-  }
-  return count > 0 ? sum / count / 255 : 0;
-}
-
 /**
- * 概率图 → 文字框（DB 后处理）：超过门槛的像素按 8 连通分块，每块取最小外接矩形，
- * 框里平均概率太低的丢掉，往外扩一点，换算到原图大小，按从上到下、从左到右排。
+ * 概率图 → 文字框（DB 后处理）：超过门槛的像素按 8 连通分块，每块平均概率太低的丢掉，
+ * 取最小外接矩形，往外扩一点，换算到原图大小，按从上到下、从左到右排。
  */
 export function textBoxes(
   prob: Uint8Array,
@@ -189,6 +154,8 @@ export function textBoxes(
     // 一块：每行只需要最左、最右的像素（凸包只看它们）。
     const firstRow = (start - (start % width)) / width;
     let lastRow = firstRow;
+    let sum = 0;
+    let count = 0;
     seen[start] = 1;
     stack.push(start);
     while (stack.length) {
@@ -198,6 +165,8 @@ export function textBoxes(
       if (x < rowMin[y]!) rowMin[y] = x;
       if (x > rowMax[y]!) rowMax[y] = x;
       if (y > lastRow) lastRow = y;
+      sum += prob[p]!;
+      count++;
       for (let dy = -1; dy <= 1; dy++) {
         const ny = y + dy;
         if (ny < 0 || ny >= height) continue;
@@ -222,7 +191,9 @@ export function textBoxes(
     }
     const rect = minAreaRect(points);
     if (Math.min(rect.w, rect.h) < MIN_BOX_SIDE) continue;
-    const score = boxScore(prob, width, height, rectCorners(rect));
+    // 用这一块自己的像素打分（PaddleOCR 的 score_mode=slow），不用外接矩形：拍屏幕、拍书页时文字行是弯的，
+    // 矩形里一半是空白，平均概率会掉到门槛以下，整行就丢了。
+    const score = sum / count / 255;
     if (score < boxThreshold) continue;
     const grown = unclipRect(rect, unclip);
     if (Math.min(grown.w, grown.h) < MIN_BOX_SIDE + 2) continue;

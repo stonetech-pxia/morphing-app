@@ -4,6 +4,8 @@ import { Directory, File, Paths } from 'expo-file-system';
 import MorphVision from '../../modules/morph-vision';
 import { expoPackFs, expoSha256 } from '../packs/expo-pack-fs';
 import { PackStore } from '../packs/store';
+import { classifyImageWith } from './classify-image';
+import { detectDataWith } from './detect-data';
 import type { VisionPlatform } from './platform';
 import { DEWARP_PACK, createFlattener } from './flatten';
 import { PPOCR_LANGUAGES, PPOCR_PACK, coversLanguage, createPpocr } from './ppocr';
@@ -115,6 +117,27 @@ export function expoVision(
     ...(native.detectFaces
       ? {
           detectFaces: (uri: string) => native.detectFaces!(uri),
+        }
+      : {}),
+    ...(native.classifyImage
+      ? {
+          classifyImage: (uri: string, options?: Parameters<typeof classifyImageWith>[2]) =>
+            classifyImageWith(
+              { classifyImage: native.classifyImage!, cancelClassify: native.cancelClassify },
+              uri,
+              options,
+            ),
+        }
+      : {}),
+    ...(native.detectData
+      ? {
+          detectData: (text: string, language: string) =>
+            detectDataWith(native.detectData!.bind(native), text, language),
+          dataDetectionStatus: async (language: string) =>
+            (await native.dataDetectionStatus?.(language)) ?? 'unsupported',
+          downloadDataModel: async (language: string) => {
+            await native.downloadDataModel?.(language);
+          },
         }
       : {}),
     personSegmentation: Boolean(native.replacePersonBackground),

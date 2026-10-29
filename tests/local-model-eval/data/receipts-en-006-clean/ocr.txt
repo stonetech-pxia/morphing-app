@@ -1,0 +1,16 @@
+City Cab
+SAMPLE DOCUMENT · TEST ONLY
+18 Sample Street
+Item A   $162.59
+Item B   $157.38
+Loyalty points: 346
+Subtotal: $319.97
+Discount: $8.50
+Total: $311.47
+Change: $5.50
+Date: 01/07/2026
+City Cab
+Order No: REC-20260006
+Type: Transport
+Tel: 555-0100 · Scan QR for offers
+Thank you

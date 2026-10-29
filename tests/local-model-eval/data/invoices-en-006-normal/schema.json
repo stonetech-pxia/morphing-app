@@ -1,0 +1,52 @@
+{
+  "id": "eval-invoices-en-006",
+  "name": "Prefill test",
+  "fields": [
+    {
+      "id": "amount",
+      "name": "Paid",
+      "type": "money",
+      "currency": "USD"
+    },
+    {
+      "id": "date",
+      "name": "Date",
+      "type": "date"
+    },
+    {
+      "id": "merchant",
+      "name": "Merchant",
+      "type": "text"
+    },
+    {
+      "id": "category",
+      "name": "Expense type",
+      "type": "choice",
+      "options": [
+        {
+          "id": "food",
+          "label": "Food"
+        },
+        {
+          "id": "transport",
+          "label": "Transport"
+        },
+        {
+          "id": "other",
+          "label": "Other"
+        }
+      ]
+    },
+    {
+      "id": "invoiceNo",
+      "name": "Reference",
+      "type": "text"
+    },
+    {
+      "id": "tax",
+      "name": "Tax",
+      "type": "money",
+      "currency": "USD"
+    }
+  ]
+}
