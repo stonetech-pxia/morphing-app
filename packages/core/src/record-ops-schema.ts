@@ -2,11 +2,11 @@ import { z } from 'zod';
 
 import { ConditionSchema, IdSchema, boundedText } from './schema-primitives';
 
-// 一键记录操作（D-297，方案 P6）的写法。只放结构：按钮和记录列表的定义引用它；
+// 一键记录操作（D-300，方案 P6）的写法。只放结构：按钮和记录列表的定义引用它；
 // 检查和执行在 record-ops.ts（会用到数据和筛选，组件定义不能引用，否则加载会绕圈）。
 
 /**
- * 操作里能写的值（D-298，待创始人确认）：单选项 ID、数字、勾选（true / false）、
+ * 操作里能写的值（D-301，待创始人确认）：单选项 ID、数字、勾选（true / false）、
  * "today"（日期字段）、"now"（时间、日期时间字段）、null（清空）；"row" 只在列表每一行的 create 里，
  * 表示「这一行」（引用字段）。按字段类型解释，不能写文字：文字是用户的内容（D-042）。
  */
@@ -73,5 +73,5 @@ export type RowAction = z.infer<typeof RowActionSchema>;
 
 export type RecordAction = ButtonAction | RowAction;
 
-/** setAll 一次最多改几条（D-300）。 */
+/** setAll 一次最多改几条（D-303）。 */
 export const MAX_SET_ALL = 200;

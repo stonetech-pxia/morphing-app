@@ -23,7 +23,7 @@ const props = z.strictObject({
   sort: SortSchema.optional(),
   limit: z.number().int().min(1).max(100),
   emptyText: boundedText(1, 80).optional(),
-  /** 每一行右边的按钮（D-297）：第一个 when 都满足的显示出来，点了改这一行或新建一条。 */
+  /** 每一行右边的按钮（D-300）：第一个 when 都满足的显示出来，点了改这一行或新建一条。 */
   rowActions: z.array(RowActionSchema).min(1).max(3).optional(),
 });
 

@@ -8,13 +8,13 @@ import { type ComponentDefinitionOf, defineComponent } from './define';
 const props = z.strictObject({
   label: boundedText(1, 40),
   target: openTargetSchema('target must be a page, a system entry or workflow:<id>').optional(),
-  /** 一键记录操作（D-297）：和 target 二选一，点了在本机改记录，可以撤销。 */
+  /** 一键记录操作（D-300）：和 target 二选一，点了在本机改记录，可以撤销。 */
   action: ButtonActionSchema.optional(),
   variant: z.enum(['filled', 'outline', 'text', 'icon']),
   icon: IconValueSchema.optional(),
 });
 
-/** 按钮：点击后打开一个页面或系统入口，或者执行一个记录操作（action，D-297）。icon 显示在文字前面；variant 为 icon 时只显示圆形图标，文字留给读屏（D-230）。 */
+/** 按钮：点击后打开一个页面或系统入口，或者执行一个记录操作（action，D-300）。icon 显示在文字前面；variant 为 icon 时只显示圆形图标，文字留给读屏（D-230）。 */
 export const buttonComponent: ComponentDefinitionOf<'button', typeof props> = defineComponent({
   type: 'button',
   props,

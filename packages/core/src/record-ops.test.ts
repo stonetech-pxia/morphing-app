@@ -14,7 +14,7 @@ import {
 import type { Collection, WorkspaceConfig } from './schema';
 import { apply, registry } from './test-helpers';
 
-// 一键记录操作（D-297–D-301）。
+// 一键记录操作（D-300–D-304）。
 process.env.TZ = 'Europe/Paris';
 
 const now = new Date(2026, 9, 29, 18, 5);

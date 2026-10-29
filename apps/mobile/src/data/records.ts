@@ -153,7 +153,7 @@ export function useRecordActions() {
       bump();
     },
 
-    /** 撤销一键操作（D-297）：刚建的去掉，改过的改回原来存的值。 */
+    /** 撤销一键操作（D-300）：刚建的去掉，改过的改回原来存的值。 */
     async undo(undo: RecordUndo): Promise<void> {
       if (undo.kind === 'discard') await repo.discardRecord(undo.id);
       else {

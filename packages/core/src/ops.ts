@@ -249,7 +249,7 @@ export type ApplyNote =
   | { kind: 'removedWorkflowLinks'; workflowId: string; count: number }
   /** 提醒要打开的快捷操作 / 页面、要看的表或日期字段被移除了，提醒跟着移除（D-251）。 */
   | { kind: 'removedReminders'; titles: string[] }
-  /** 删字段、删表时，用到它的一键记录操作（D-301）：按钮移除，列表里的行按钮去掉。 */
+  /** 删字段、删表时，用到它的一键记录操作（D-304）：按钮移除，列表里的行按钮去掉。 */
   | { kind: 'removedRecordActions'; count: number }
   | { kind: 'updatedTool'; toolId: string; workflowIds: string[] };
 
@@ -327,7 +327,7 @@ function removeWorkflowLinks(config: WorkspaceConfig, workflowIds: readonly stri
 }
 
 /**
- * 删字段、删表后，用到它的一键记录操作（D-301）：按钮跟着移除，记录列表里的行按钮去掉（列表留着）。
+ * 删字段、删表后，用到它的一键记录操作（D-304）：按钮跟着移除，记录列表里的行按钮去掉（列表留着）。
  */
 function pruneRecordActions(config: WorkspaceConfig, gone: Gone, notes: ApplyNote[]): void {
   let count = removeEverywhere(

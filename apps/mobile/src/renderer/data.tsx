@@ -746,7 +746,7 @@ export function RecordList({
       : '';
     const checked = props.checkField ? r.values[props.checkField] === true : false;
     const thumb = hasFiles && assetIndex ? firstImage(r, collection, assetIndex) : null;
-    // 一键操作（D-297）：第一个条件满足的按钮。
+    // 一键操作（D-300）：第一个条件满足的按钮。
     const rowAction = shownRowAction(props.rowActions, r, view, now, cal);
     const body = (
       <View style={styles.row}>

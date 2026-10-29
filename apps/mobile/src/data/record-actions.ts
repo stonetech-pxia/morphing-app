@@ -19,7 +19,7 @@ import { t } from '../i18n';
 import { useCalendar, useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { useRecordActions } from './records';
 
-// 一键记录操作（D-297–D-301）：用户点了按钮或列表里的行按钮才执行，直接写数据库（和表单一样不经过 AI、
+// 一键记录操作（D-300–D-304）：用户点了按钮或列表里的行按钮才执行，直接写数据库（和表单一样不经过 AI、
 // 不生成版本），每次都弹可以撤销的提示条。操作由 AI 配置，值在这里按当时的时间和记录算出来。
 
 // 一次只执行一个：连点几下 +1 时一个接一个算，不会两次都从同一个旧值加。

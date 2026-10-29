@@ -144,7 +144,7 @@ export interface WorkspaceRepo {
   /** 软删除：可以撤销，「最近删除」里保留 30 天。 */
   deleteRecord(id: string, deletedAt: number): Promise<void>;
   restoreRecord(id: string): Promise<void>;
-  /** 撤销一键操作刚建的记录（D-297）：直接去掉，不进「最近删除」。 */
+  /** 撤销一键操作刚建的记录（D-300）：直接去掉，不进「最近删除」。 */
   discardRecord(id: string): Promise<void>;
   /** 最近删除的在前。 */
   listDeletedRecords(): Promise<StoredRecord[]>;

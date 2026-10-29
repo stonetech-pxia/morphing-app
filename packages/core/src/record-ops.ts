@@ -20,13 +20,13 @@ import type { ButtonAction, RecordAction, RecordActionValue, RowAction } from '.
 
 export * from './record-ops-schema';
 
-// 一键记录操作（D-297–D-301，方案 P6）：检查（validate.ts 调）、执行前算出要写的值（App 调）、
+// 一键记录操作（D-300–D-304，方案 P6）：检查（validate.ts 调）、执行前算出要写的值（App 调）、
 // 删字段删表时找出用到它的操作（ops.ts 调）。AI 只配置操作；值在用户点了以后才在本机写进记录。
 
-/** increment 能用的字段（D-299）。 */
+/** increment 能用的字段（D-302）。 */
 export const INCREMENT_FIELD_TYPES: readonly FieldType[] = ['number', 'money', 'duration'];
 
-/** 每种字段能预设成什么（D-298）。不在这里的类型不能预设：文字是用户的内容，算出来的字段不能写。 */
+/** 每种字段能预设成什么（D-301）。不在这里的类型不能预设：文字是用户的内容，算出来的字段不能写。 */
 const PRESET_RULES: Partial<Record<FieldType, { expect: string; ok: (v: unknown) => boolean }>> = {
   date: { expect: '"today" or null', ok: (v) => v === 'today' },
   datetime: { expect: '"now" or null', ok: (v) => v === 'now' },

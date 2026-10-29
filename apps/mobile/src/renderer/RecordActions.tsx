@@ -6,7 +6,7 @@ import type { RenderEnv } from './components';
 import type { Palette } from './theme';
 import { Button } from './ui';
 
-// 一键记录操作（D-297）的两种按钮：页面上的按钮（button 的 action）和记录列表每一行右边的小按钮。
+// 一键记录操作（D-300）的两种按钮：页面上的按钮（button 的 action）和记录列表每一行右边的小按钮。
 // 草稿里（D-190）点了只提示应用之后才能用。
 
 export function ActionButton({

@@ -113,7 +113,7 @@ describe('migrateWorkspace', () => {
     const kept = migrateWorkspace(custom, undefined, 20);
     expect(kept.ok && (kept.config as { workflows: unknown[] }).workflows).toEqual([picked]);
   });
-  it('v24 → v25 (one-tap record actions, D-297–D-301) only raises the version', () => {
+  it('v24 → v25 (one-tap record actions, D-300–D-304) only raises the version', () => {
     const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 24 };
     expect(migrateWorkspace(previous, undefined, 25)).toEqual({
       ok: true,

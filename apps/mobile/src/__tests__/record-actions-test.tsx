@@ -14,7 +14,7 @@ import { Alert } from 'react-native';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { renderToolsApp } from '../test-utils/render-app';
 
-// 一键记录操作（D-297–D-301）：习惯打卡、喝水 +1、上下班、旅行清单一键清空。
+// 一键记录操作（D-300–D-304）：习惯打卡、喝水 +1、上下班、旅行清单一键清空。
 
 const checkins: Collection = {
   id: 'checkins',
