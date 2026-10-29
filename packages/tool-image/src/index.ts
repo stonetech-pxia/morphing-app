@@ -2,6 +2,7 @@
 // expo-image-manipulator 和 Skia 完成，这里在 Node 中可直接测试。
 
 export * from './exif';
+export * from './flatten';
 export * from './formats';
 export * from './geometry';
 export * from './id-photo';
