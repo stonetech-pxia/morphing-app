@@ -1,4 +1,5 @@
 import {
+  calendarOf,
   localize,
   RunError,
   isFileValue,
@@ -79,6 +80,7 @@ export function RunScreen({
   const { repo, files, registry, locale } = useWorkspaceContext();
   const theme = useWorkspace((s) => s.config!.theme);
   const collections = useWorkspace((s) => s.config!.collections);
+  const calendarSettings = useWorkspace((s) => s.config!.calendar);
   const revisionId = useWorkspace((s) => s.head!.id);
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const bumpRecords = useWorkspace((s) => s.bumpRecords);
@@ -165,6 +167,7 @@ export function RunScreen({
       newId: newAssetId,
       ui,
       collections,
+      calendar: calendarOf({ calendar: calendarSettings }),
       packs: packs
         ? { runtime: packs.bridge, isInstalled: (id) => packs.store.isInstalled(id) }
         : null,

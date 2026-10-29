@@ -7,6 +7,7 @@ import {
   mediaKindOf,
   isFileValue,
   sanitizeFileName,
+  type Calendar,
   type Collection,
   type RunItem,
   type RunValue,
@@ -30,6 +31,8 @@ export interface RunServices {
   ui: LocalUi;
   /** 当前配置里的数据表（读取记录、生成报表用）。 */
   collections: readonly Collection[];
+  /** 一天、一周从什么时候开始（D-286）；没有时是 0 点、周一。 */
+  calendar?: Calendar;
   /** 扩展包（WebView 里的 pdf.js、OpenCV、tesseract）；没有时为 null。 */
   packs: { runtime: PackRuntime; isInstalled(id: string): Promise<boolean> } | null;
   /**

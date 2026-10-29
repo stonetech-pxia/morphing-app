@@ -28,8 +28,9 @@ function sameValue(a: unknown, b: unknown): boolean {
 
 /** starter：新用户的第一个版本（精简首页 + 工具箱，D-181、D-182）。 */
 /** visaHomeScreen：visa 再把签证照片放到手机桌面（D-271）。 */
+/** habits：一张打卡表（习惯、完成 / 跳过、日期）和显示它的页面（D-284）。 */
 export type EvalSetup =
-  'default' | 'pdf' | 'pdfBelowFiles' | 'budget' | 'visa' | 'visaHomeScreen' | 'starter';
+  'default' | 'pdf' | 'pdfBelowFiles' | 'budget' | 'visa' | 'visaHomeScreen' | 'starter' | 'habits';
 
 export type OpsPlan = Extract<Plan, { kind: 'ops' }>;
 
@@ -80,6 +81,8 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
       ops.push({ op: 'setWorkflowHomeScreen', workflowId: 'visa-photo', homeScreen: true });
   } else if (setup === 'budget') {
     ops.push(...templateOps('budget', createDefaultWorkspace(locale), locale));
+  } else if (setup === 'habits') {
+    ops.push(...habitOps(locale));
   } else if (setup !== 'default') ops.push({ op: 'installTool', toolId: 'pdf' });
   if (setup === 'pdfBelowFiles') {
     ops.push({ op: 'moveComponent', pageId: 'home', componentId: 'card-pdf', toIndex: 3 });
@@ -89,6 +92,67 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
   const result = applyOps(base, ops, { registry, locale });
   if (!result.ok) throw new Error(result.error);
   return result.config;
+}
+
+/** 打卡表和它的页面（三种语言的名字）。 */
+function habitOps(locale: Locale): Op[] {
+  const names: Record<Locale, Record<'table' | 'habit' | 'run' | 'read' | 'status', string>> = {
+    zh: { table: '打卡', habit: '习惯', run: '跑步', read: '读书', status: '状态' },
+    en: { table: 'Check-ins', habit: 'Habit', run: 'Run', read: 'Read', status: 'Status' },
+    fr: { table: 'Pointages', habit: 'Habitude', run: 'Course', read: 'Lecture', status: 'État' },
+  };
+  const more: Record<Locale, Record<'done' | 'skip' | 'date' | 'page', string>> = {
+    zh: { done: '完成', skip: '跳过', date: '日期', page: '习惯' },
+    en: { done: 'Done', skip: 'Skipped', date: 'Date', page: 'Habits' },
+    fr: { done: 'Fait', skip: 'Sauté', date: 'Date', page: 'Habitudes' },
+  };
+  const { table, habit, run, read, status } = names[locale];
+  const { done, skip, date, page } = more[locale];
+  return [
+    {
+      op: 'addCollection',
+      collection: {
+        id: 'checkins',
+        name: table,
+        fields: [
+          {
+            id: 'habit',
+            name: habit,
+            type: 'choice',
+            options: [
+              { id: 'run', label: run },
+              { id: 'read', label: read },
+            ],
+          },
+          {
+            id: 'status',
+            name: status,
+            type: 'choice',
+            options: [
+              { id: 'done', label: done },
+              { id: 'skip', label: skip },
+            ],
+            default: 'done',
+          },
+          { id: 'date', name: date, type: 'date', default: 'today' },
+        ],
+      },
+    },
+    {
+      op: 'addPage',
+      page: {
+        id: 'habits',
+        title: page,
+        components: [
+          {
+            id: 'list',
+            type: 'recordList',
+            props: { collectionId: 'checkins', display: 'list', titleField: 'habit', limit: 20 },
+          },
+        ],
+      },
+    },
+  ];
 }
 
 const home = (c: WorkspaceConfig) => c.pages.find((p) => p.id === 'home')!;
@@ -4156,6 +4220,119 @@ const visaOnHomePageOnly = (c: WorkspaceConfig) =>
           .join(',')}`
       : null;
 
+/** 打卡表上的统计（D-284）。 */
+const habitStat =
+  (want: (props: Record<string, unknown>) => boolean, what: string) => (c: WorkspaceConfig) =>
+    c.pages.some((p) =>
+      allComponents(p).some(
+        (x) => x.type === 'stat' && x.props.collectionId === 'checkins' && want(x.props),
+      ),
+    )
+      ? null
+      : `expected a stat on checkins with ${what}`;
+
+const SEQUENCE_CASES: readonly EvalCase[] = [
+  {
+    id: 'ST1',
+    input: '给每个习惯显示连续天数',
+    locale: 'zh',
+    setup: 'habits',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: habitStat(
+        (p) => p.aggregate === 'streak' && p.groupBy === 'habit' && (p.unit ?? 'day') === 'day',
+        'aggregate streak grouped by habit',
+      ),
+    },
+  },
+  {
+    id: 'ST2-en',
+    input:
+      'Show my streak for each habit, where a week counts when I do it at least 3 times; weeks marked Skipped shouldn’t break it',
+    locale: 'en',
+    setup: 'habits',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: habitStat(
+        (p) =>
+          p.aggregate === 'streak' &&
+          p.groupBy === 'habit' &&
+          p.unit === 'week' &&
+          p.perUnit === 3 &&
+          p.skipField === 'status' &&
+          p.skipOption === 'skip',
+        'a weekly streak of 3 per habit, skipping status = skip',
+      ),
+    },
+  },
+  {
+    id: 'ST3-fr',
+    input: 'Affiche depuis combien de jours je n’ai pas fait chaque habitude',
+    locale: 'fr',
+    setup: 'habits',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: habitStat(
+        (p) => p.aggregate === 'daysSince' && p.groupBy === 'habit',
+        'aggregate daysSince grouped by habit',
+      ),
+    },
+  },
+  {
+    id: 'ST4',
+    input: '习惯页面加一个柱状图：最近 8 周每周打卡了几天',
+    locale: 'zh',
+    setup: 'habits',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.pages.some((p) =>
+          allComponents(p).some(
+            (x) =>
+              x.type === 'chart' &&
+              x.props.aggregate === 'distinctDays' &&
+              x.props.group === 'week' &&
+              (x.props.periods ?? 8) === 8,
+          ),
+        )
+          ? null
+          : 'expected a weekly chart of distinctDays',
+    },
+  },
+  {
+    id: 'CAL1',
+    input: '一天从凌晨 2 点开始算',
+    locale: 'zh',
+    setup: 'habits',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.calendar?.dayStartHour === 2
+          ? null
+          : `expected calendar.dayStartHour 2, got ${JSON.stringify(c.calendar)}`,
+    },
+  },
+  {
+    id: 'CAL2-en',
+    input: 'My weeks start on Sunday',
+    locale: 'en',
+    setup: 'habits',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.calendar?.weekStart === 'sunday' && c.calendar.dayStartHour === undefined
+          ? null
+          : `expected only calendar.weekStart sunday, got ${JSON.stringify(c.calendar)}`,
+    },
+  },
+];
+
 const HOME_SCREEN_CASES: readonly EvalCase[] = [
   {
     id: 'HS1',
@@ -4280,6 +4457,7 @@ const HOME_SCREEN_CASES: readonly EvalCase[] = [
 ];
 
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...SEQUENCE_CASES,
   ...HOME_SCREEN_CASES,
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,

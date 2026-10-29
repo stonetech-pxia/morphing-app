@@ -1,17 +1,24 @@
 import {
   aggregateRecords,
+  calendarOf,
+  dateOfDayNumber,
   filterRecords,
   fieldDefinition,
   formatNumber,
   formatRef,
   formatValue,
-  groupedAggregate,
+  chartDateField,
+  groupRecords,
+  isSequenceAggregate,
   linkTitle,
-  localDate,
   prepareRecordValues,
   readValue,
   recordValue,
+  sequenceText,
+  sequenceValue,
   sortRecords,
+  todayNumber,
+  type Aggregate,
   type Collection,
   type Component,
   type ComponentStyle,
@@ -38,7 +45,7 @@ import {
 } from 'react-native';
 
 import { useLinkResolver, useRecordActions, useRecords } from '../data/records';
-import { useWorkspace } from '../workspace/context';
+import { useCalendar, useWorkspace } from '../workspace/context';
 import { t } from '../i18n';
 import { AttachmentThumb, AttachmentsInput, firstImage, useAssetIndex } from './Attachments';
 import { onPicture } from './Backdrop';
@@ -161,43 +168,51 @@ function textBox<F extends Field>({
   );
 }
 
+/** 日期：输入框加「今天」「昨天」；今天按一天从几点开始算（D-286）。 */
+function DateInput({
+  value,
+  onChange,
+  palette,
+  locale,
+  disabled,
+  testID,
+  input,
+  chip,
+}: FieldInputContext<FieldOf<'date'>>) {
+  const today = todayNumber(new Date(), useCalendar());
+  return (
+    <View style={styles.dateRow}>
+      <TextInput
+        testID={testID}
+        editable={!disabled}
+        value={typeof value === 'string' ? value : ''}
+        onChangeText={onChange}
+        placeholder="YYYY-MM-DD"
+        placeholderTextColor={palette.caption}
+        style={[input, styles.flex]}
+      />
+      {[
+        [dateOfDayNumber(today), t(locale, 'today')],
+        [dateOfDayNumber(today - 1), t(locale, 'yesterday')],
+      ].map(([date, label]) => (
+        <Pressable
+          key={label}
+          disabled={disabled}
+          onPress={() => onChange(date)}
+          style={chip(value === date)}>
+          <Text style={[palette.font('bodyBold', 13), { color: palette.text }]}>{label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export const FIELD_EDITORS: { [T in FieldType]: FieldEditor<FieldOf<T>> } = {
   text: { input: textBox },
   note: { input: textBox },
   number: { input: textBox, toForm: String },
   money: { input: textBox, toForm: String },
-  date: {
-    input: ({ value, onChange, palette, locale, disabled, testID, input, chip }) => {
-      const now = new Date();
-      const today = localDate(now);
-      const yesterday = localDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
-      return (
-        <View style={styles.dateRow}>
-          <TextInput
-            testID={testID}
-            editable={!disabled}
-            value={typeof value === 'string' ? value : ''}
-            onChangeText={onChange}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={palette.caption}
-            style={[input, styles.flex]}
-          />
-          {[
-            [today, t(locale, 'today')],
-            [yesterday, t(locale, 'yesterday')],
-          ].map(([date, label]) => (
-            <Pressable
-              key={label}
-              disabled={disabled}
-              onPress={() => onChange(date)}
-              style={chip(value === date)}>
-              <Text style={[palette.font('bodyBold', 13), { color: palette.text }]}>{label}</Text>
-            </Pressable>
-          ))}
-        </View>
-      );
-    },
-  },
+  date: { input: (ctx) => <DateInput {...ctx} /> },
   checkbox: {
     inline: true,
     input: ({ value, onChange, palette, disabled, testID }) => (
@@ -444,9 +459,10 @@ export function FieldsForm({
   testPrefix: string;
   showLabels?: boolean;
 }) {
+  const cal = useCalendar();
   // 公式按表单里现在的值算（D-188）。
   const computed = () => {
-    const prepared = prepareRecordValues(collection, values, null, new Date());
+    const prepared = prepareRecordValues(collection, values, null, new Date(), cal);
     return {
       id: '',
       collectionId: collection.id,
@@ -462,7 +478,11 @@ export function FieldsForm({
         if (!field) return null;
         const editor = FIELD_EDITORS[field.type] as FieldEditor;
         if (editor.computed) {
-          const shown = formatValue(field, recordValue(computed(), collection, id), locale);
+          const shown = formatValue(
+            field,
+            recordValue(computed(), collection, id, new Date(), cal),
+            locale,
+          );
           return (
             <View key={id} style={styles.field}>
               <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
@@ -548,7 +568,7 @@ export function RecordList({
   if (!collection) return null;
   const hasFiles = collection.fields.some((f) => f.type === 'file');
   const shown = sortRecords(
-    filterRecords(records ?? [], collection, props.filter, new Date()),
+    filterRecords(records ?? [], collection, props.filter, new Date(), calendarOf(env.config)),
     collection,
     props.sort,
   ).slice(0, props.limit);
@@ -756,13 +776,15 @@ export function RecordForm({
 
 type StatProps = Extract<Component, { type: 'stat' }>['props'];
 
-/** 统计值的显示：金额按币种、数字按单位和小数位，计数和其他字段只显示数字。 */
+/** 统计值的显示：金额按币种、数字按单位和小数位，按日子算的带「天」「周」，计数和其他字段只显示数字。 */
 export function statText(
   value: number | null,
   aggregate: StatProps['aggregate'],
   field: Field | undefined,
   locale: RenderEnv['locale'],
+  unit?: StatProps['unit'],
 ): string {
+  if (isSequenceAggregate(aggregate)) return sequenceText(aggregate, unit, value, locale);
   if (value === null) return '—';
   // 求和、平均按字段的写法显示（金额带货币、数字带单位，字段定义的 formatAmount）。
   const amount = field && aggregate !== 'count' && fieldDefinition(field.type).formatAmount;
@@ -785,7 +807,36 @@ export function Stat({
   const collection = useCollection(env, props.collectionId);
   const records = useRecords(props.collectionId);
   if (!collection) return null;
-  const matched = filterRecords(records ?? [], collection, props.filter, new Date());
+  const now = new Date();
+  const cal = calendarOf(env.config);
+  const matched = filterRecords(records ?? [], collection, props.filter, now, cal);
+  // 按顺序的聚合（D-284）：日期默认用表里第一个日期字段，没有就用创建时间（和图表一样）。
+  const sequence = isSequenceAggregate(props.aggregate)
+    ? {
+        spec: {
+          aggregate: props.aggregate,
+          unit: props.unit,
+          perUnit: props.perUnit,
+          skip:
+            props.skipField && props.skipOption
+              ? { fieldId: props.skipField, optionId: props.skipOption }
+              : undefined,
+        },
+        ctx: { dateField: chartDateField(collection, props), now, cal },
+      }
+    : null;
+  const valueOf = (list: DataRecord[]) =>
+    sequence
+      ? sequenceValue(list, collection, sequence.spec, sequence.ctx)
+      : { value: aggregateRecords(list, collection, props.aggregate as Aggregate, props.fieldId) };
+  const text = (v: { value: number | null }) =>
+    statText(v.value, props.aggregate, field, env.locale, props.unit);
+  const bestText = (v: { best?: number }) =>
+    v.best === undefined
+      ? null
+      : t(env.locale, 'seqBest', {
+          value: statText(v.best, props.aggregate, field, env.locale, props.unit),
+        });
   const field = props.fieldId ? collection.fields.find((f) => f.id === props.fieldId) : undefined;
   const background = tone ? cardColors(palette, tone).background : palette.primaryTint;
   const heading = (
@@ -799,44 +850,53 @@ export function Stat({
     const groups =
       records === null
         ? []
-        : groupedAggregate(
-            matched,
-            collection,
-            props.aggregate,
-            props.fieldId,
-            props.groupBy,
-            t(env.locale, 'statNoChoice'),
-          );
+        : groupRecords(matched, collection, props.groupBy, t(env.locale, 'statNoChoice'));
     return (
       <Card palette={palette} background={background} backdrop={backdrop} style={styles.fillCard}>
         {heading}
-        {groups.map((g) => (
-          <View key={g.optionId ?? '-'} style={styles.row}>
-            <Text
-              numberOfLines={1}
-              style={[styles.flex, palette.font('bodyMedium', 15), { color: palette.text }]}>
-              {g.label}
-            </Text>
-            <Text
-              testID={`stat-group-${props.collectionId}-${g.optionId ?? 'none'}`}
-              style={[palette.font('title', 16), { color: palette.text }]}>
-              {statText(g.value, props.aggregate, field, env.locale)}
-            </Text>
-          </View>
-        ))}
+        {groups.map((g) => {
+          const v = valueOf(g.records);
+          const best = bestText(v);
+          return (
+            <View key={g.optionId ?? '-'} style={styles.row}>
+              <Text
+                numberOfLines={1}
+                style={[styles.flex, palette.font('bodyMedium', 15), { color: palette.text }]}>
+                {g.label}
+              </Text>
+              <View style={styles.statValue}>
+                <Text
+                  testID={`stat-group-${props.collectionId}-${g.optionId ?? 'none'}`}
+                  style={[palette.font('title', 16), { color: palette.text }]}>
+                  {text(v)}
+                </Text>
+                {best ? (
+                  <Text style={[palette.font('body', 12), { color: palette.muted }]}>{best}</Text>
+                ) : null}
+              </View>
+            </View>
+          );
+        })}
       </Card>
     );
   }
-  const value =
-    records === null ? null : aggregateRecords(matched, collection, props.aggregate, props.fieldId);
+  const v = records === null ? { value: null } : valueOf(matched);
+  const best = records === null ? null : bestText(v);
   return (
     <Card palette={palette} background={background} backdrop={backdrop} style={styles.fillCard}>
       {heading}
       <Text
         testID={`stat-value-${props.collectionId}-${props.label}`}
         style={[palette.font('display', 26), { color: palette.text }]}>
-        {statText(value, props.aggregate, field, env.locale)}
+        {text(v)}
       </Text>
+      {best ? (
+        <Text
+          testID={`stat-best-${props.collectionId}-${props.label}`}
+          style={[palette.font('body', 13), { color: palette.muted }]}>
+          {best}
+        </Text>
+      ) : null}
     </Card>
   );
 }
@@ -858,6 +918,7 @@ const styles = StyleSheet.create({
   inlineField: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   flex: { flex: 1 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  statValue: { alignItems: 'flex-end' },
   listCard: { paddingVertical: 4, gap: 0 },
   listRow: { paddingVertical: 12 },
   check: {

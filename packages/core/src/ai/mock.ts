@@ -1357,6 +1357,9 @@ const PERIOD_WORDS: [RegExp, string][] = [
   [/今天|today/i, 'today'],
   [/最近\s*7\s*天|last 7 days/i, 'last7days'],
   [/最近\s*30\s*天|last 30 days/i, 'last30days'],
+  [/最近\s*14\s*天|last 14 days/i, 'last14days'],
+  [/最近\s*90\s*天|last 90 days/i, 'last90days'],
+  [/最近\s*365\s*天|最近一年|last 365 days|past year/i, 'last365days'],
 ];
 
 /** W9：用某张数据表的记录生成 PDF 报表（新建工作流；AI 不读记录，记录在本机填进模板）。 */

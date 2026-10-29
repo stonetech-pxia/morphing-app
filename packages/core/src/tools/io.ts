@@ -68,6 +68,27 @@ const RECORD_PERIOD_OPTIONS = [
     value: 'last30days',
     label: { en: 'Last 30 days', zh: '最近 30 天', fr: '30 derniers jours' },
   },
+  {
+    value: 'last14days',
+    label: { en: 'Last 14 days', zh: '最近 14 天', fr: '14 derniers jours' },
+  },
+  {
+    value: 'last90days',
+    label: { en: 'Last 90 days', zh: '最近 90 天', fr: '90 derniers jours' },
+  },
+  {
+    value: 'last365days',
+    label: { en: 'Last 365 days', zh: '最近 365 天', fr: '365 derniers jours' },
+  },
+  // D-285：两周一段从「设置 → 日期」的起算日算，半月是 1–15 号或 16 号到月底。
+  {
+    value: 'thisTwoWeeks',
+    label: { en: 'These two weeks', zh: '这两周', fr: 'Ces deux semaines' },
+  },
+  {
+    value: 'thisHalfMonth',
+    label: { en: 'This half-month', zh: '这半个月', fr: 'Cette quinzaine' },
+  },
 ];
 
 export const MAX_PICK = 50;

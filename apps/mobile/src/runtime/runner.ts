@@ -5,6 +5,7 @@ import {
   runWorkflow,
   templateReads,
   type AskRequest,
+  type Calendar,
   type Locale,
   type OcrLanguage,
   type Registry,
@@ -39,6 +40,7 @@ export interface RunContext {
   ui: LocalUi;
   /** 当前配置里的数据表（读取记录用）。 */
   collections?: RunServices['collections'];
+  calendar?: Calendar;
   packs?: RunServices['packs'];
   askParams?: (request: AskRequest) => Promise<Record<string, unknown> | null>;
   ensurePack?: (packId: string) => Promise<boolean>;
@@ -267,6 +269,7 @@ export async function startRun(ctx: RunContext): Promise<Run> {
       grantee: granteeOf(ctx.workflow),
       ui: ctx.ui,
       collections: ctx.collections ?? [],
+      ...(ctx.calendar ? { calendar: ctx.calendar } : {}),
       packs: ctx.packs ?? null,
       incoming: ctx.incoming ?? null,
       ...(ctx.ensurePack ? { ensurePack: ctx.ensurePack } : {}),

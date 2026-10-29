@@ -1,3 +1,4 @@
+import { DEFAULT_CALENDAR, type Calendar } from './calendar';
 import { localDate, periodRange } from './data';
 import { isOfficeFile, mediaKindOf } from './media';
 import type { Period } from './schema';
@@ -88,7 +89,12 @@ function kindMatches(kind: FileFilter['kind'], item: FilterableItem): boolean {
  * 一个文件是否满足全部条件。读不到的信息（没有拍摄 / 修改日期、没有宽高、不是视频音频没有时长）
  * 算不满足这一条：「最近 7 天的照片」不会把不知道日期的照片也留下。
  */
-export function matchesFileFilter(item: FilterableItem, f: FileFilter, now: Date): boolean {
+export function matchesFileFilter(
+  item: FilterableItem,
+  f: FileFilter,
+  now: Date,
+  cal: Calendar = DEFAULT_CALENDAR,
+): boolean {
   if (!kindMatches(f.kind, item)) return false;
   if (f.size !== 'any') {
     const limit = (f.sizeMB ?? 0) * 1024 * 1024;
@@ -109,7 +115,8 @@ export function matchesFileFilter(item: FilterableItem, f: FileFilter, now: Date
       );
       if (day < start || day > localDay(now.getTime())) return false;
     } else if (f.date === 'period') {
-      const [start, end] = periodRange(f.period ?? 'today', now);
+      // 日历上的一段按「一天、一周从什么时候开始」（D-286）。
+      const [start, end] = periodRange(f.period ?? 'today', now, cal);
       if (day < start || day > end) return false;
     } else if (day < (f.from ?? '') || day > (f.to ?? '9999-12-31')) return false;
   }
@@ -126,6 +133,7 @@ export function filterFiles<T extends FilterableItem>(
   items: readonly T[],
   f: FileFilter,
   now: Date,
+  cal: Calendar = DEFAULT_CALENDAR,
 ) {
-  return items.filter((item) => matchesFileFilter(item, f, now));
+  return items.filter((item) => matchesFileFilter(item, f, now, cal));
 }

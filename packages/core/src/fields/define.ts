@@ -51,8 +51,8 @@ export interface FieldSpec<T extends string, S extends z.ZodObject> {
   shown?: (field: Instance<S>, raw: unknown) => FieldValue | undefined;
   /** 表单输入 → 字段值（写入时严格校验）。不写：不存进记录（公式，D-188）。 */
   write?: (field: Instance<S>, input: unknown) => Coerced;
-  /** 新记录里的默认值；不写就用定义里的 default。 */
-  initial?: (field: Instance<S>, now: Date) => FieldValue | undefined;
+  /** 新记录里的默认值；不写就用定义里的 default。today 是按「一天从几点开始」算的今天（D-286）。 */
+  initial?: (field: Instance<S>, now: Date, today: string) => FieldValue | undefined;
   /** 新记录里没有值时存这个（没勾选的勾选框是 false）。 */
   emptyNew?: FieldValue;
   /** 显示文字（值已经读过、不为空）。 */

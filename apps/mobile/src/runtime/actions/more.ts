@@ -10,7 +10,7 @@ import {
   replaceText,
   splitOrJoinLines,
   tidyText,
-  localDate,
+  dayOf,
   periodRange,
   recordsToHtml,
   sortRecords,
@@ -101,11 +101,12 @@ export const MORE_IMPLS: Record<string, Impl> = {
     const period = params.period as 'all' | Period;
     let records = await ctx.services.repo.listRecords(collection.id);
     if (period !== 'all') {
-      const [start, end] = periodRange(period, ctx.now());
-      // 按表里第一个日期字段；没有日期字段就按创建时间。
+      const cal = ctx.services.calendar;
+      const [start, end] = periodRange(period, ctx.now(), cal);
+      // 按表里第一个日期字段；没有日期字段就按创建时间（算哪一天按 D-286）。
       const dateField = collection.fields.find((f) => f.type === 'date');
       records = records.filter((r) => {
-        const raw = dateField ? r.values[dateField.id] : localDate(new Date(r.createdAt));
+        const raw = dateField ? r.values[dateField.id] : dayOf(new Date(r.createdAt), cal);
         return typeof raw === 'string' && raw >= start && raw <= end;
       });
     }

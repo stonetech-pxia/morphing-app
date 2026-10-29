@@ -5,6 +5,15 @@ import {
   type FieldValue,
   type LinkResolver,
 } from './field-values';
+import {
+  DEFAULT_CALENDAR,
+  dateOfDayNumber,
+  dayOf,
+  todayNumber,
+  twoWeekStartOf,
+  weekStartOf,
+  type Calendar,
+} from './calendar';
 import { t } from './messages';
 import { dayNumber, evaluateFormula, parseFormula, type FormulaNode } from './formula';
 import {
@@ -49,29 +58,45 @@ export interface DataRecord {
   updatedAt: number;
 }
 
-/** 时间段对应的本地日期范围（含两端）。一周从周一开始。 */
-export function periodRange(period: Period, now: Date): [string, string] {
-  const day = (offset: number) =>
-    localDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset));
-  const today = day(0);
+/**
+ * 时间段对应的本地日期范围（含两端）。「今天」和一周的第一天按 cal（D-286，默认 0 点、周一）。
+ */
+export function periodRange(
+  period: Period,
+  now: Date,
+  cal: Calendar = DEFAULT_CALENDAR,
+): [string, string] {
+  const today = todayNumber(now, cal);
+  const span = (start: number, days: number): [string, string] => [
+    dateOfDayNumber(start),
+    dateOfDayNumber(start + days - 1),
+  ];
+  const [y, m, d] = dateOfDayNumber(today).split('-').map(Number) as [number, number, number];
+  const monthEnd = localDate(new Date(y, m, 0));
+  const ym = `${y}-${String(m).padStart(2, '0')}`;
   switch (period) {
     case 'today':
-      return [today, today];
-    case 'thisWeek': {
-      const sinceMonday = (now.getDay() + 6) % 7;
-      return [day(-sinceMonday), day(6 - sinceMonday)];
-    }
+      return span(today, 1);
+    case 'thisWeek':
+      return span(weekStartOf(today, cal), 7);
+    case 'thisTwoWeeks':
+      return span(twoWeekStartOf(today, cal), 14);
+    case 'thisHalfMonth':
+      return d <= 15 ? [`${ym}-01`, `${ym}-15`] : [`${ym}-16`, monthEnd];
     case 'thisMonth':
-      return [
-        localDate(new Date(now.getFullYear(), now.getMonth(), 1)),
-        localDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
-      ];
+      return [`${ym}-01`, monthEnd];
     case 'thisYear':
-      return [`${now.getFullYear()}-01-01`, `${now.getFullYear()}-12-31`];
+      return [`${y}-01-01`, `${y}-12-31`];
     case 'last7days':
-      return [day(-6), today];
+      return span(today - 6, 7);
+    case 'last14days':
+      return span(today - 13, 14);
     case 'last30days':
-      return [day(-29), today];
+      return span(today - 29, 30);
+    case 'last90days':
+      return span(today - 89, 90);
+    case 'last365days':
+      return span(today - 364, 365);
   }
 }
 
@@ -100,13 +125,14 @@ function formulaNode(expression: string): FormulaNode | null {
 
 /**
  * 公式字段在一条记录上的值：引用的字段都有值时才有值，结果按字段的小数位（默认 2 位）取整。
- * 日期字段按天数算，today 是 now 那天（D-247）。
+ * 日期字段按天数算，today 是 now 那天（D-247；一天从几点开始按 cal，D-286）。
  */
 function formulaValue(
   field: Extract<Field, { type: 'formula' }>,
   record: DataRecord,
   collection: Collection,
   now: Date,
+  cal: Calendar,
 ): number | undefined {
   const node = formulaNode(field.expression);
   if (!node) return undefined;
@@ -120,21 +146,25 @@ function formulaValue(
       if (kind === 'date') return typeof v === 'string' ? dayNumber(v) : undefined;
       return typeof v === 'number' ? v : undefined;
     },
-    dayNumber(localDate(now)),
+    todayNumber(now, cal),
   );
   return value === undefined ? undefined : round(value, field.decimals ?? 2);
 }
 
-/** 记录上某个字段（包括系统字段）的值；系统字段的值是本地日期，公式现算（用到 today 时按 now 那天）。 */
+/**
+ * 记录上某个字段（包括系统字段）的值；系统字段的值是本地日期（一天开始的钟点之前算前一天，D-286），
+ * 公式现算（用到 today 时按 now 那天）。
+ */
 export function recordValue(
   record: DataRecord,
   collection: Collection,
   ref: string,
   now: Date = new Date(),
+  cal: Calendar = DEFAULT_CALENDAR,
 ): FieldValue | undefined {
-  if (isSystemField(ref)) return localDate(new Date(record[ref]));
+  if (isSystemField(ref)) return dayOf(new Date(record[ref]), cal);
   const field = fieldOf(collection, ref);
-  if (field?.type === 'formula') return formulaValue(field, record, collection, now);
+  if (field?.type === 'formula') return formulaValue(field, record, collection, now, cal);
   return field ? readValue(field, record.values[ref]) : undefined;
 }
 
@@ -146,9 +176,9 @@ export type PreparedValues =
   { ok: true; values: Record<string, unknown> } | { ok: false; issues: FieldIssue[] };
 
 /** 新记录的默认值：定义里的 default（日期的 today 换成今天）。 */
-function defaultValue(field: Field, now: Date): FieldValue | undefined {
+function defaultValue(field: Field, now: Date, cal: Calendar): FieldValue | undefined {
   const def = fieldDefinition(field.type);
-  if (def.initial) return def.initial(field, now);
+  if (def.initial) return def.initial(field, now, dayOf(now, cal));
   return 'default' in field ? field.default : undefined;
 }
 
@@ -160,13 +190,14 @@ const isBlank = (v: unknown) =>
 
 /**
  * 写入时严格校验：input 只包含要修改的字段（字段 ID → 表单值，空字符串表示清空）。
- * previous 为 null 表示新记录，此时套用默认值。已删除字段的旧值原样保留。
+ * previous 为 null 表示新记录，此时套用默认值（今天按 cal 算）。已删除字段的旧值原样保留。
  */
 export function prepareRecordValues(
   collection: Collection,
   input: Record<string, unknown>,
   previous: Record<string, unknown> | null,
   now: Date,
+  cal: Calendar = DEFAULT_CALENDAR,
 ): PreparedValues {
   const values: Record<string, unknown> = { ...previous };
   const issues: FieldIssue[] = [];
@@ -180,7 +211,7 @@ export function prepareRecordValues(
     let raw: unknown;
     if (Object.prototype.hasOwnProperty.call(input, field.id)) raw = input[field.id];
     else if (previous !== null) raw = previous[field.id];
-    else raw = defaultValue(field, now);
+    else raw = defaultValue(field, now, cal);
     // 新记录里没有值时存的值（没勾选的勾选框是 false）。
     if (def.emptyNew !== undefined && raw === undefined && previous === null) raw = def.emptyNew;
 
@@ -214,8 +245,9 @@ export function matchesCondition(
   collection: Collection,
   condition: Condition,
   now: Date,
+  cal: Calendar = DEFAULT_CALENDAR,
 ): boolean {
-  const value = recordValue(record, collection, condition.field, now);
+  const value = recordValue(record, collection, condition.field, now, cal);
   const target = condition.value;
   // 附件（D-263）：一组文件 ID。is / isNot 看有没有这个文件，其他比较都不成立。
   if (Array.isArray(value)) {
@@ -246,7 +278,7 @@ export function matchesCondition(
       return value !== undefined && target !== undefined && compare(value, target) < 0;
     case 'inPeriod': {
       if (typeof value !== 'string' || typeof target !== 'string') return false;
-      const [start, end] = periodRange(target as Period, now);
+      const [start, end] = periodRange(target as Period, now, cal);
       return value >= start && value <= end;
     }
   }
@@ -257,9 +289,12 @@ export function filterRecords(
   collection: Collection,
   conditions: readonly Condition[] | undefined,
   now: Date,
+  cal: Calendar = DEFAULT_CALENDAR,
 ): DataRecord[] {
   if (!conditions?.length) return [...records];
-  return records.filter((r) => conditions.every((c) => matchesCondition(r, collection, c, now)));
+  return records.filter((r) =>
+    conditions.every((c) => matchesCondition(r, collection, c, now, cal)),
+  );
 }
 
 /** 排序：空值总在最后；单选按选项顺序；默认按创建时间从新到旧。 */
@@ -338,6 +373,22 @@ export function groupedAggregate(
   groupBy: string,
   noChoice: string,
 ): StatGroup[] {
+  return groupRecords(records, collection, groupBy, noChoice).map(({ records: list, ...g }) => ({
+    ...g,
+    value: aggregateRecords(list, collection, aggregate, fieldId),
+  }));
+}
+
+/**
+ * 按单选字段分组（groupedAggregate 的分组部分）：每组自己算值，例如每个习惯的连续天数（D-284）。
+ * 顺序和「未选」一行同 groupedAggregate。
+ */
+export function groupRecords(
+  records: readonly DataRecord[],
+  collection: Collection,
+  groupBy: string,
+  noChoice: string,
+): (Omit<StatGroup, 'value'> & { records: DataRecord[] })[] {
   const field = fieldOf(collection, groupBy);
   if (field?.type !== 'choice') return [];
   const buckets = new Map<string | null, DataRecord[]>();
@@ -358,7 +409,7 @@ export function groupedAggregate(
                 ? noChoice
                 : (field.options.find((o) => o.id === optionId)?.label ?? noChoice),
             count: list.length,
-            value: aggregateRecords(list, collection, aggregate, fieldId),
+            records: list,
           },
         ],
   );

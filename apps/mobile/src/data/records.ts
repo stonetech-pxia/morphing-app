@@ -12,7 +12,7 @@ import { useEffect, useState } from 'react';
 
 import { t } from '../i18n';
 import { newAssetId } from '../runtime/runner';
-import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { useCalendar, useWorkspace, useWorkspaceContext } from '../workspace/context';
 
 // 用户记录的读写。只由用户在页面上的操作触发，直接写数据库，不经过 AI、不生成版本
 // （docs/DATA_DESIGN.md）。AI 拿到的只有 WorkspaceConfig，而记录从不进入配置。
@@ -66,6 +66,7 @@ export function useRecordActions() {
   const { repo, locale } = useWorkspaceContext();
   const bump = useWorkspace((s) => s.bumpRecords);
   const showToast = useWorkspace((s) => s.showToast);
+  const cal = useCalendar();
 
   return {
     async add(collection: Collection, input: Record<string, unknown>): Promise<SaveResult> {
@@ -73,7 +74,7 @@ export function useRecordActions() {
       const count = counts.find((c) => c.collectionId === collection.id)?.count ?? 0;
       if (count >= RECORD_LIMITS.perCollection) return { ok: false, full: true };
       const now = new Date();
-      const prepared = prepareRecordValues(collection, input, null, now);
+      const prepared = prepareRecordValues(collection, input, null, now, cal);
       if (!prepared.ok) return { ok: false, issues: prepared.issues };
       const id = newAssetId();
       await repo.insertRecord({
@@ -93,7 +94,7 @@ export function useRecordActions() {
       input: Record<string, unknown>,
     ): Promise<SaveResult> {
       const now = new Date();
-      const prepared = prepareRecordValues(collection, input, record.values, now);
+      const prepared = prepareRecordValues(collection, input, record.values, now, cal);
       if (!prepared.ok) return { ok: false, issues: prepared.issues };
       await repo.updateRecord(record.id, prepared.values, now.getTime());
       bump();

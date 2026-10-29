@@ -1,5 +1,13 @@
+import {
+  DEFAULT_CALENDAR,
+  dateOfDayNumber,
+  todayNumber,
+  weekStartOf,
+  type Calendar,
+} from './calendar';
 import { aggregateRecords, fieldOf, localDate, recordValue, type DataRecord } from './data';
 import type { Collection } from './schema';
+import { distinctDays } from './sequence';
 
 // 图表组件（D-249）：一张表的记录按时间段（日 / 周 / 月）或单选字段分组聚合。
 // 这里是纯逻辑：分组、数值和画图用的几何（SVG 路径字符串，Skia 的 Path 直接认），App 只负责画。
@@ -37,7 +45,8 @@ export interface ChartPoint {
 }
 
 export interface ChartSpec {
-  aggregate: 'count' | 'sum' | 'avg';
+  /** distinctDays：这一段里有记录的天数（D-284）。 */
+  aggregate: 'count' | 'sum' | 'avg' | 'distinctDays';
   fieldId?: string | undefined;
   group: ChartGroup;
   /** 按时间分组时用哪个日期（日期字段或 createdAt / updatedAt）；不写时用表里第一个日期字段，没有就用创建时间。 */
@@ -49,22 +58,31 @@ export interface ChartSpec {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-/** 时间分组用的日期字段。 */
-export function chartDateField(collection: Collection, spec: ChartSpec): string {
+/** 时间分组用的日期字段（统计按日子算时也用，D-284）。 */
+export function chartDateField(
+  collection: Collection,
+  spec: { dateField?: string | undefined },
+): string {
   return spec.dateField ?? collection.fields.find((f) => f.type === 'date')?.id ?? 'createdAt';
 }
 
-/** 最近 n 段的开始日期（从早到晚，最后一段包含今天）。一周从周一开始，和数据筛选一样。 */
-function periodStarts(group: Exclude<ChartGroup, 'choice'>, n: number, now: Date): Date[] {
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+/**
+ * 最近 n 段的开始日期（从早到晚，最后一段包含今天）。今天和一周的第一天按 cal（D-286），和数据筛选一样。
+ */
+function periodStarts(
+  group: Exclude<ChartGroup, 'choice'>,
+  n: number,
+  now: Date,
+  cal: Calendar,
+): Date[] {
+  const todayNum = todayNumber(now, cal);
+  const [y, m, d] = dateOfDayNumber(todayNum).split('-').map(Number) as [number, number, number];
+  const weekStart = d - (todayNum - weekStartOf(todayNum, cal));
   const starts: Date[] = [];
   for (let i = n - 1; i >= 0; i--) {
-    if (group === 'day')
-      starts.push(new Date(today.getFullYear(), today.getMonth(), today.getDate() - i));
-    else if (group === 'week') {
-      const monday = today.getDate() - ((today.getDay() + 6) % 7);
-      starts.push(new Date(today.getFullYear(), today.getMonth(), monday - 7 * i));
-    } else starts.push(new Date(today.getFullYear(), today.getMonth() - i, 1));
+    if (group === 'day') starts.push(new Date(y, m - 1, d - i));
+    else if (group === 'week') starts.push(new Date(y, m - 1, weekStart - 7 * i));
+    else starts.push(new Date(y, m - 1 - i, 1));
   }
   return starts;
 }
@@ -84,9 +102,14 @@ export function chartSeries(
   spec: ChartSpec,
   now: Date,
   noChoice: string,
+  cal: Calendar = DEFAULT_CALENDAR,
 ): ChartPoint[] {
+  const dateRef = chartDateField(collection, spec);
   const point = (key: string | null, label: string, list: DataRecord[]): ChartPoint => {
-    const value = aggregateRecords(list, collection, spec.aggregate, spec.fieldId);
+    const value =
+      spec.aggregate === 'distinctDays'
+        ? distinctDays(list, collection, { dateField: dateRef, now, cal })
+        : aggregateRecords(list, collection, spec.aggregate, spec.fieldId);
     return { key, label, value: value ?? 0, empty: value === null };
   };
   if (spec.group === 'choice') {
@@ -94,7 +117,7 @@ export function chartSeries(
     if (field?.type !== 'choice') return [];
     const buckets = new Map<string | null, DataRecord[]>(field.options.map((o) => [o.id, []]));
     for (const r of records) {
-      const v = recordValue(r, collection, field.id, now);
+      const v = recordValue(r, collection, field.id, now, cal);
       const key = typeof v === 'string' && buckets.has(v) ? v : null;
       buckets.set(key, [...(buckets.get(key) ?? []), r]);
     }
@@ -111,12 +134,11 @@ export function chartSeries(
     );
   }
   const n = Math.min(MAX_PERIODS, spec.periods ?? DEFAULT_PERIODS[spec.group]);
-  const starts = periodStarts(spec.group, n, now).map(localDate);
-  const dateRef = chartDateField(collection, spec);
-  const end = localDate(now);
+  const starts = periodStarts(spec.group, n, now, cal).map(localDate);
+  const end = dateOfDayNumber(todayNumber(now, cal));
   const buckets = starts.map(() => [] as DataRecord[]);
   for (const r of records) {
-    const v = recordValue(r, collection, dateRef, now);
+    const v = recordValue(r, collection, dateRef, now, cal);
     if (typeof v !== 'string' || v < starts[0]! || v > end) continue;
     // 落在最后一个开始日期不晚于它的那一段。
     let i = starts.length - 1;
