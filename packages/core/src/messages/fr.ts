@@ -1103,6 +1103,8 @@ export const fr: MessageTable = {
     'Ensuite, vous pouvez l’utiliser hors connexion. Le Wi-Fi est recommandé.',
   PackGate_License_ff05c: 'Licence : {v0}',
   PackGate_Cancel_bd576: 'Annuler',
+  packOptionalHint: 'Vous pouvez aussi continuer sans ; cette étape s’en passe simplement.',
+  packSkip: 'Continuer sans',
   io_Add_which_existing_file_a4bbf: 'Ajouter quel fichier existant ?',
   io_It_goes_together_with_this_run_s_files_03244:
     'Il sera regroupé avec les fichiers de ce traitement.',

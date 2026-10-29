@@ -994,6 +994,8 @@ export const zh: MessageTable = {
   PackGate_After_that_it_works_offline_Wi_Fi_is_r_77ca7: '之后不联网也能用。建议连接 Wi-Fi。',
   PackGate_License_ff05c: '许可证：{v0}',
   PackGate_Cancel_bd576: '取消',
+  packOptionalHint: '不下载也能继续，这一步只是不用它。',
+  packSkip: '不下载，继续',
   io_Add_which_existing_file_a4bbf: '加上哪个已有的文件？',
   io_It_goes_together_with_this_run_s_files_03244: '会和这次的文件合在一起。',
   io_Last_one_15660: '上次的「{v0}」',

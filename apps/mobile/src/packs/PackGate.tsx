@@ -8,16 +8,19 @@ import { formatBytes } from '../run/ResultView';
 import type { PackStore } from './store';
 
 // 需要扩展包时的确认框（D-064）：显示名称、用途、大小，建议用 Wi-Fi。只有用户点「下载」才会下载；
-// 取消则本次运行取消。AI 和工作流都不能自己触发下载。
+// 取消则本次运行取消；可选的（D-274，例如扫描的展平模型）不下载也照样做，提示和按钮都这样说。AI 和工作流都不能自己触发下载。
 
 export function PackGate({
   packId,
   store,
   palette,
   locale,
+  optional = false,
   onDone,
 }: {
   packId: string;
+  /** 不下载这一步也照样做（D-274）。 */
+  optional?: boolean;
   store: PackStore;
   palette: Palette;
   locale: Locale;
@@ -91,6 +94,7 @@ export function PackGate({
               .flatMap((p) => (p ? [localize(p.description, locale)] : []))
               .join(zh ? '' : ' '),
           )}
+          {optional ? text('body', t(locale, 'packOptionalHint')) : null}
           {text('body', t(locale, 'PackGate_License_ff05c', { v0: pack.license }), {
             fontSize: 12,
           })}
@@ -113,7 +117,7 @@ export function PackGate({
           <View style={styles.actions}>
             <Pressable testID="pack-cancel" onPress={() => onDone(false)} hitSlop={8}>
               <Text style={[palette.font('bodyBold', 16), { color: palette.muted }]}>
-                {t(locale, 'PackGate_Cancel_bd576')}
+                {t(locale, optional ? 'packSkip' : 'PackGate_Cancel_bd576')}
               </Text>
             </Pressable>
             {progress === null ? (

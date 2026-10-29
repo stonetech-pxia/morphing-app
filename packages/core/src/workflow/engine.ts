@@ -181,8 +181,11 @@ export interface RunOptions<S> {
   newId: () => string;
   /** 运行时询问参数；返回本次使用的参数，null 表示用户取消。不写回配置。 */
   askParams?: (request: AskRequest) => Promise<Record<string, unknown> | null>;
-  /** 步骤需要扩展包时调用：已安装或用户确认下载并完成后返回 true；用户拒绝返回 false（D-064）。 */
-  ensurePack?: (packId: string) => Promise<boolean>;
+  /**
+   * 步骤需要扩展包时调用：已安装或用户确认下载并完成后返回 true；用户拒绝返回 false（D-064）。
+   * optional：不下载这一步也照样做（D-274），界面据此说明，不让人以为会取消。
+   */
+  ensurePack?: (packId: string, options?: { optional?: boolean }) => Promise<boolean>;
   /**
    * 这一步在这台设备上不需要扩展包时返回 true，不调用 ensurePack（D-085–D-087）：
    * 系统自带的识别（iOS 的 Vision、Android 的 ML Kit），或者输入已经是拉正的页面。
@@ -312,13 +315,17 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
       if (
         pack &&
         opts.ensurePack &&
-        !(await orCancel(opts.ensurePack(pack))) &&
+        !(await orCancel(
+          opts.ensurePack(pack, replaces?.optional ? { optional: true } : undefined),
+        )) &&
         !replaces?.optional
       ) {
         throw new RunCancelled();
       }
       // 另外要的扩展包（可选）：用户不下载也照样做这一步。
-      if (device?.extra && opts.ensurePack) await orCancel(opts.ensurePack(device.pack));
+      if (device?.extra && opts.ensurePack) {
+        await orCancel(opts.ensurePack(device.pack, { optional: true }));
+      }
       throwIfCancelled();
       value = await orCancel(
         impl(value, params, {

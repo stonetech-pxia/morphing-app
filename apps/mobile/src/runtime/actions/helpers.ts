@@ -36,7 +36,7 @@ export interface RunServices {
    * 动作执行到一半才知道要不要下载内容时用（压缩 PDF 转成图片要 PDF 预览，D-145）：
    * 已下载或用户确认下载完成返回 true，用户拒绝返回 false。
    */
-  ensurePack?: (packId: string) => Promise<boolean>;
+  ensurePack?: (packId: string, options?: { optional?: boolean }) => Promise<boolean>;
   /** 从别的 App 分享进来的文件：第一步（in.photos / in.files）直接用它们，不打开选择器（D-115）。 */
   incoming?: readonly PickedFile[] | null;
 }

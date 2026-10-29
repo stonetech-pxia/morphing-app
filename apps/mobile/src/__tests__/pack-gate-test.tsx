@@ -21,4 +21,25 @@ describe('first-use download prompt', () => {
     expect(screen.getByText(/之后不联网也能用/)).toBeTruthy();
     expect(screen.getByTestId('pack-gate')).not.toHaveTextContent(/扩展包|包/);
   });
+
+  it('says the step goes on without the download when it is optional (D-274)', async () => {
+    const fs = new MemoryPackFs();
+    const lookup = await manifests(fs);
+    const store = new PackStore(fs, sha256, (id) => lookup.get(id));
+    const palette = makePalette(createDefaultWorkspace('zh').theme, false);
+    const done: boolean[] = [];
+    await render(
+      <PackGate
+        packId="pdfview"
+        store={store}
+        palette={palette}
+        locale="zh"
+        optional
+        onDone={(installed) => done.push(installed)}
+      />,
+    );
+    expect(await screen.findByText(/不下载也能继续/)).toBeTruthy();
+    // 取消键写成「不下载，继续」，不让人以为会取消整个快捷操作。
+    expect(screen.getByTestId('pack-cancel')).toHaveTextContent('不下载，继续');
+  });
 });

@@ -293,6 +293,19 @@ describe('runWorkflow', () => {
     expect(await declined.promise).toMatchObject({ status: 'succeeded' });
     expect(asked).toEqual(['scan', 'dewarp']);
 
+    // 问可选的扩展包时告诉界面「不下载也照样做」，界面才能说清楚。
+    const options: unknown[] = [];
+    await run(wf, {
+      impls,
+      ensurePack: async (id, o) => (options.push([id, o]), true),
+      devicePack: (id) =>
+        id === 'scan.detect' ? { pack: 'dewarp', optional: true, extra: true } : undefined,
+    }).promise;
+    expect(options).toEqual([
+      ['scan', undefined],
+      ['dewarp', { optional: true }],
+    ]);
+
     // 动作自己的扩展包仍然是必需的。
     const noScan = run(wf, {
       impls,

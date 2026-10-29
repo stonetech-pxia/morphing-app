@@ -99,7 +99,9 @@ export function RunScreen({
   );
   const [local, setLocal] = useState<LocalPending | null>(null);
   const packs = usePacks();
-  const [packAsk, setPackAsk] = useState<({ packId: string } & Pending<boolean>) | null>(null);
+  const [packAsk, setPackAsk] = useState<
+    ({ packId: string; optional: boolean } & Pending<boolean>) | null
+  >(null);
   const alive = useRef(true);
   const transferring = useRef(false);
   const [transferBusy, setTransferBusy] = useState(false);
@@ -169,10 +171,12 @@ export function RunScreen({
         ? { runtime: packs.bridge, isInstalled: (id) => packs.store.isInstalled(id) }
         : null,
       // 需要扩展包时先问用户（D-064）；已安装就直接继续。
-      ensurePack: async (packId) => {
+      ensurePack: async (packId, options) => {
         if (!packs) throw new RunError('packFailed', { detail: packId });
         if (await packs.store.isInstalled(packId)) return true;
-        return new Promise((resolve) => setPackAsk({ packId, resolve }));
+        return new Promise((resolve) =>
+          setPackAsk({ packId, optional: options?.optional === true, resolve }),
+        );
       },
       signal: signal.current,
       incoming: incoming?.files ?? null,
@@ -515,6 +519,7 @@ export function RunScreen({
       {packAsk && packs ? (
         <PackGate
           packId={packAsk.packId}
+          optional={packAsk.optional}
           store={packs.store}
           palette={palette}
           locale={locale}

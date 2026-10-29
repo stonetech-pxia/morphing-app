@@ -41,7 +41,7 @@ export interface RunContext {
   collections?: RunServices['collections'];
   packs?: RunServices['packs'];
   askParams?: (request: AskRequest) => Promise<Record<string, unknown> | null>;
-  ensurePack?: (packId: string) => Promise<boolean>;
+  ensurePack?: (packId: string, options?: { optional?: boolean }) => Promise<boolean>;
   signal?: { cancelled: boolean };
   onEvent?: (event: RunEvent) => void;
   /** 分享进来的文件（D-115）：交给第一步，第一步不再打开选择器，也不问参数。 */

@@ -1055,6 +1055,8 @@ export const en = {
     'After that it works offline. Wi-Fi is recommended.',
   PackGate_License_ff05c: 'License: {v0}',
   PackGate_Cancel_bd576: 'Cancel',
+  packOptionalHint: 'You can also go on without it; this step then just skips it.',
+  packSkip: 'Continue without',
   io_Add_which_existing_file_a4bbf: 'Add which existing file?',
   io_It_goes_together_with_this_run_s_files_03244: 'It goes together with this run’s files.',
   io_Last_one_15660: 'Last one: “{v0}”',
