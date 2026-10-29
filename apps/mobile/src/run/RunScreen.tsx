@@ -193,7 +193,7 @@ export function RunScreen({
       packs: packs
         ? { runtime: packs.bridge, isInstalled: (id) => packs.store.isInstalled(id) }
         : null,
-      // 需要扩展包时先问用户（D-064）；已安装就直接继续。第一次要时一次问完这次运行要的（D-289）。
+      // 需要扩展包时先问用户（D-064）；已安装就直接继续。第一次要时一次问完这次运行要的（D-299）。
       ensurePacks: async (needs) => {
         if (!packs) throw new RunError('packFailed', { detail: needs[0]?.pack });
         const have = new Set((await packs.store.installed()).map((p) => p.id));

@@ -7,7 +7,7 @@ import { makePalette } from '../renderer/theme';
 import { MemoryPackFs, manifests, sha256 } from '../test-utils/memory-packs';
 
 // 第一次用到需要下载的功能时的提示（D-112）：说要下载多少、之后能离线用，不出现「扩展包」。
-// 一次运行要的都在一个提示里（D-289）。
+// 一次运行要的都在一个提示里（D-299）。
 
 async function setup(needs: PackNeed[]) {
   const fs = new MemoryPackFs();
@@ -51,7 +51,7 @@ describe('first-use download prompt', () => {
     expect(done).toEqual([['pdfview']]);
   });
 
-  it('lists everything a quick action needs in one prompt with the total size (D-289)', async () => {
+  it('lists everything a quick action needs in one prompt with the total size (D-299)', async () => {
     // 新用户「拍表格转 Excel」：找边、展平（可选）、认字，一次说清楚，不连着弹三次。
     const { done } = await setup([
       { pack: 'scan', optional: false },

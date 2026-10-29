@@ -202,7 +202,7 @@ export interface RunOptions<S> {
    */
   ensurePack?: (packId: string, options?: { optional?: boolean }) => Promise<boolean>;
   /**
-   * 第一次有步骤要扩展包时，把这一步和后面各步要的一次问完（D-289）：界面只列还没装的，一次下载。
+   * 第一次有步骤要扩展包时，把这一步和后面各步要的一次问完（D-299）：界面只列还没装的，一次下载。
    * 返回用户没下载的可选扩展包；null 表示必需的没下载，取消运行。没有它时每一步用 ensurePack 分开问。
    * 后面的步骤按配置里的参数和现在的输入估；估漏的（例如运行时选了别的语言）到那一步再用 ensurePack 问。
    */

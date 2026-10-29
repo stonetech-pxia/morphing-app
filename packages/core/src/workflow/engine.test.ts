@@ -315,7 +315,7 @@ describe('runWorkflow', () => {
     expect(await noScan.promise).toMatchObject({ status: 'cancelled' });
   });
 
-  describe('one download prompt for the whole run (D-289)', () => {
+  describe('one download prompt for the whole run (D-299)', () => {
     // 2026-10-29 真机：新用户「拍表格转 Excel」要连着确认三次（找边 → 展平 → 认字）。
     const wf: Workflow = {
       id: 'excel',

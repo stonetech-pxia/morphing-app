@@ -957,7 +957,7 @@ describe('PP-OCRv6 replaces ML Kit and Vision for the languages it reads (D-269)
   });
 });
 
-describe('one download prompt for scan to Excel (D-289)', () => {
+describe('one download prompt for scan to Excel (D-299)', () => {
   it('lists edge finding, flattening and text recognition together before scanning a shared photo', async () => {
     // 2026-10-29 真机（Android、新用户）：找边、展平、认字分三个框问；认字模型要在找边之前装好，
     // 第一次扫描时展平后的逐行精修（D-274）才能用。

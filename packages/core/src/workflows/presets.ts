@@ -1047,7 +1047,7 @@ export function presetWorkflow(preset: WorkflowPreset, locale: Locale, id: strin
 
 // 收件页面没用过时先推荐哪几个（D-237）：按文件类型、一个还是多个，最常见的排前面。
 // 依据是 Smallpdf、iLovePDF、iLoveIMG 的热门工具和国内常见场景，还没有访谈验证。
-// 一张照片：扫描、转 Excel 排第二、第三（D-287）。不看照片内容，只按类型和个数。
+// 一张照片：扫描、转 Excel 排第二、第三（D-297）。不看照片内容，只按类型和个数。
 const SHARE_ORDER: Partial<Record<MediaKind, { one: string[]; many: string[] }>> = {
   image: {
     one: ['email-photos', 'scan-document', 'scan-table-excel', 'document-packet', 'visa-photo'],

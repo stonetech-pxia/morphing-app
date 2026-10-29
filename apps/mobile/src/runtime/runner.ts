@@ -45,7 +45,7 @@ export interface RunContext {
   packs?: RunServices['packs'];
   askParams?: (request: AskRequest) => Promise<Record<string, unknown> | null>;
   ensurePack?: (packId: string, options?: { optional?: boolean }) => Promise<boolean>;
-  /** 一次问完这次运行要的扩展包（D-289）：返回没下载的可选扩展包，null 表示取消。 */
+  /** 一次问完这次运行要的扩展包（D-299）：返回没下载的可选扩展包，null 表示取消。 */
   ensurePacks?: (needs: readonly PackNeed[]) => Promise<string[] | null>;
   signal?: { cancelled: boolean };
   onEvent?: (event: RunEvent) => void;
