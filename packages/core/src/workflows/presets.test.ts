@@ -119,12 +119,14 @@ describe('inbox order for each kind of file (D-237)', () => {
     Array.from({ length: n }, (_, i) => ({ name: `f${i}`, mimeType, size: 1 }));
 
   it('puts the most common actions first for one photo, many photos, videos, PDFs and audio', () => {
+    // 一张照片常常是拍的纸质文件或表格：扫描、转 Excel 排在第二、第三（2026-10-29 真机：物业账单照片
+    // 推荐里没有转 Excel，要点「查看全部」才找到）。
     expect(sharePresetOrder(files('image/jpeg', 1))).toEqual([
       'email-photos',
+      'scan-document',
+      'scan-table-excel',
       'document-packet',
       'visa-photo',
-      'mark-up-photos',
-      'remove-photo-background',
     ]);
     expect(sharePresetOrder(files('image/heic', 3))[0]).toBe('document-packet');
     expect(sharePresetOrder(files('video/mp4', 1))[0]).toBe('video-too-big');

@@ -114,10 +114,10 @@ describe('inbox recommendations', () => {
       shareRecommendations([], files, new Map(), 'zh').recommended.map((x) => x.wf.id);
     expect(ids(infos)).toEqual([
       'email-photos',
+      'scan-document',
+      'scan-table-excel',
       'document-packet',
       'visa-photo',
-      'mark-up-photos',
-      'remove-photo-background',
     ]);
     expect(ids([{ name: 'a.pdf', mimeType: 'application/pdf', size: 1 }])).toEqual([
       'pdf-too-big',

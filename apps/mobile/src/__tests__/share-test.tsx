@@ -413,10 +413,10 @@ describe('share journeys (UI)', () => {
       .map((n) => n.props.testID as string);
     expect(ids).toEqual([
       'share-workflow-email-photos',
+      'share-workflow-scan-document',
+      'share-workflow-scan-table-excel',
       'share-workflow-document-packet',
       'share-workflow-visa-photo',
-      'share-workflow-mark-up-photos',
-      'share-workflow-remove-photo-background',
       'share-see-all',
       'share-ask-ai',
     ]);
