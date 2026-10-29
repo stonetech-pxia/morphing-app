@@ -184,35 +184,41 @@ export function setScope(doc: TableDoc, scope: TableScope): TableDoc {
   return doc.scope === scope ? doc : { ...doc, scope };
 }
 
-/** 撤销和重做：只在内存里。 */
-export interface TableHistory {
-  past: readonly TableDoc[];
-  present: TableDoc;
-  future: readonly TableDoc[];
+/** 撤销和重做：只在内存里（转 Excel 的 TableDoc、转 Word 的 DocDoc 共用）。 */
+export interface History<T> {
+  past: readonly T[];
+  present: T;
+  future: readonly T[];
 }
+
+export type TableHistory = History<TableDoc>;
 
 export const HISTORY_LIMIT = 100;
 
-export const startHistory = (doc: TableDoc): TableHistory => ({
+export const startHistory = <T>(doc: T): History<T> => ({
   past: [],
   present: doc,
   future: [],
 });
 
 /** 记下一次修改（没变时不记）。 */
-export function pushHistory(h: TableHistory, next: TableDoc): TableHistory {
+export function pushHistory<T>(h: History<T>, next: T): History<T> {
   if (next === h.present) return h;
   return { past: [...h.past, h.present].slice(-HISTORY_LIMIT), present: next, future: [] };
 }
 
-export function undo(h: TableHistory): TableHistory {
+export function undo<T>(h: History<T>): History<T> {
   const prev = h.past.at(-1);
-  return prev ? { past: h.past.slice(0, -1), present: prev, future: [h.present, ...h.future] } : h;
+  return prev !== undefined
+    ? { past: h.past.slice(0, -1), present: prev, future: [h.present, ...h.future] }
+    : h;
 }
 
-export function redo(h: TableHistory): TableHistory {
+export function redo<T>(h: History<T>): History<T> {
   const next = h.future[0];
-  return next ? { past: [...h.past, h.present], present: next, future: h.future.slice(1) } : h;
+  return next !== undefined
+    ? { past: [...h.past, h.present], present: next, future: h.future.slice(1) }
+    : h;
 }
 
 /** 一页的格子总数（编辑页超过 2000 格只读）。 */
