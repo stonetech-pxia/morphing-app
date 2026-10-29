@@ -6,6 +6,7 @@ import {
   pickPaper,
   quadArea,
   warpSize,
+  type GrayImage,
   type Point,
   type Quad,
 } from '@morph/tool-image';
@@ -22,7 +23,8 @@ import {
 } from './helpers';
 
 // 扫描（T5）：找边 → 用户在本地确认或拖动四个角 → 透视矫正；增强用 Skia。
-// 找边和矫正在 iOS 上用系统的 Vision / Core Image（D-086），其他平台用扫描包页面（OpenCV.js）。
+// 找边和矫正在 iOS 上用系统的 Vision / Core Image（D-086），其他平台用扫描包页面（OpenCV.js）；
+// 两边都只给候选，选哪个是同一套 pickPaper（D-301）。
 // 系统文档相机拍的页面已经拉正，直接放行。
 
 type Impl = ActionImpl<RunServices>;
@@ -102,8 +104,10 @@ export const SCAN_IMPLS: Record<string, Impl> = {
       const size = { width: item.width!, height: item.height! };
       let detected: Quad | null;
       try {
+        // 找边只给候选和灰度图，两个平台都用 pickPaper 挑（D-300、D-301）。
+        let paper: { candidates: Point[][]; gray: GrayImage };
         if (vision) {
-          detected = await vision.findPaper(item.uri);
+          paper = await vision.findPaper(item.uri);
         } else {
           const { candidates, gray } = await packs!.runtime.call<PackDetect>(
             'scan',
@@ -111,11 +115,12 @@ export const SCAN_IMPLS: Record<string, Impl> = {
             { file: 'input', maxSide: 1000 },
             { input: item.uri },
           );
-          const quads = candidates
-            .map((pts) => clampQuad(orderQuad(pts), size))
-            .filter((q) => usableQuad(q, size));
-          detected = pickPaper(quads, size, { ...gray, data: fromBase64(gray.data) });
+          paper = { candidates, gray: { ...gray, data: fromBase64(gray.data) } };
         }
+        const quads = paper.candidates
+          .map((pts) => clampQuad(orderQuad(pts), size))
+          .filter((q) => usableQuad(q, size));
+        detected = pickPaper(quads, size, paper.gray);
       } catch (e) {
         const detail = String(e instanceof Error ? e.message : e);
         throw new RunError(vision ? 'unexpected' : 'packFailed', { detail });

@@ -211,7 +211,9 @@ export function expoVision(
     canFindPaper: native.canFindPaper(),
 
     async findPaper(uri) {
-      return (await native.detectDocument(uri)).quad;
+      const { candidates, gray } = await native.detectDocument(uri);
+      const data = Uint8Array.from(atob(gray.data), (c) => c.charCodeAt(0));
+      return { candidates, gray: { width: gray.width, height: gray.height, data } };
     },
 
     async straighten(uri, quad, size, runId, relPath) {

@@ -203,14 +203,15 @@ public class MorphVisionModule: Module {
       ]
     }
 
-    // 找纸张的四个角：文档分割（专门找纸张）和矩形检测都做一遍再挑（见 pickPaper）。没找到时 quad 为 null。
+    // 找纸张的候选（D-301）：文档分割（专门找纸张）的四边形和矩形检测的几个四边形，加一张长边约 500 的灰度图。
+    // 选哪个由 App 的 pickPaper 决定，和 Android 的扫描包同一套判断（D-300）。
     AsyncFunction("detectDocument") { (uri: URL) -> [String: Any] in
       let image = try self.loadImage(uri)
       let size = image.extent.size
       let handler = VNImageRequestHandler(ciImage: image, options: [:])
       let segmentation = VNDetectDocumentSegmentationRequest()
       let rectangles = VNDetectRectanglesRequest()
-      rectangles.maximumObservations = 1
+      rectangles.maximumObservations = 5
       rectangles.minimumSize = 0.2
       rectangles.minimumConfidence = 0.5
       rectangles.minimumAspectRatio = 0.2
@@ -218,27 +219,16 @@ public class MorphVisionModule: Module {
       rectangles.quadratureTolerance = 30
       _ = try? handler.perform([segmentation])
       _ = try? handler.perform([rectangles])
-      let (found, method) = Self.pickPaper(
-        segmentation: segmentation.results?.first.flatMap { $0.confidence >= 0.5 ? $0 : nil },
-        rectangle: rectangles.results?.first)
-      var result: [String: Any] = [
-        "confidence": Double(found?.confidence ?? 0),
+      let found = (segmentation.results ?? []).filter { $0.confidence >= 0.5 } + (rectangles.results ?? [])
+      let p = { (n: CGPoint) -> [String: Double] in
+        ["x": Double(n.x * size.width), "y": Double((1 - n.y) * size.height)]
+      }
+      return [
         "width": Int(size.width.rounded()),
         "height": Int(size.height.rounded()),
-        "method": method,
+        "candidates": found.map { [p($0.topLeft), p($0.topRight), p($0.bottomRight), p($0.bottomLeft)] },
+        "gray": try self.grayThumbnail(image, maxSide: 500),
       ]
-      if let obs = found {
-        let p = { (n: CGPoint) -> [String: Double] in
-          ["x": Double(n.x * size.width), "y": Double((1 - n.y) * size.height)]
-        }
-        result["quad"] = [
-          "tl": p(obs.topLeft), "tr": p(obs.topRight),
-          "br": p(obs.bottomRight), "bl": p(obs.bottomLeft),
-        ]
-      } else {
-        result["quad"] = NSNull()
-      }
-      return result
     }
 
     // 按四个角拉正（Core Image 透视矫正），缩放到 width × height，存成 JPG。
@@ -309,27 +299,6 @@ public class MorphVisionModule: Module {
   }
 
   // MARK: - Helpers
-
-  /**
-   挑一个结果：一般用文档分割的；但如果它有两个以上的角贴着照片边缘，而矩形检测找到的框在照片里面，
-   就用矩形的。模拟器上文档分割常常给出贴着照片底边的一条（置信度还很高），在 Mac 上同一张图是对的。
-   */
-  static func pickPaper(
-    segmentation: VNRectangleObservation?, rectangle: VNRectangleObservation?
-  ) -> (VNRectangleObservation?, String) {
-    func onBorder(_ o: VNRectangleObservation) -> Int {
-      let corners: [CGPoint] = [o.topLeft, o.topRight, o.bottomRight, o.bottomLeft]
-      var count = 0
-      for p in corners where min(p.x, p.y) < 0.01 || max(p.x, p.y) > 0.99 { count += 1 }
-      return count
-    }
-    if let seg = segmentation {
-      if let rect = rectangle, onBorder(seg) >= 2, onBorder(rect) < 2 { return (rect, "rectangles") }
-      return (seg, "segmentation")
-    }
-    if let rect = rectangle { return (rect, "rectangles") }
-    return (nil, "none")
-  }
 
   private func adjustImage(_ uri: URL, options: [String: Any], format: String, output: URL) throws -> [String: Any] {
     let image = try loadImage(uri)
@@ -539,6 +508,24 @@ public class MorphVisionModule: Module {
       throw UnreadableImageException()
     }
     return image
+  }
+
+  /** 给 pickPaper 的小灰度图（D-301）：长边 maxSide，每像素一个字节，第一行是图的顶上，base64。 */
+  private func grayThumbnail(_ image: CIImage, maxSide: Int) throws -> [String: Any] {
+    let k = min(1, CGFloat(maxSide) / max(image.extent.width, image.extent.height))
+    let w = max(1, Int((image.extent.width * k).rounded()))
+    let h = max(1, Int((image.extent.height * k).rounded()))
+    let small = image.transformed(by: CGAffineTransform(scaleX: k, y: k))
+    guard let cg = ciContext.createCGImage(small, from: CGRect(x: 0, y: 0, width: w, height: h)),
+          let context = CGContext(
+            data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w,
+            space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue),
+          let pixels = context.data else {
+      throw VisionFailedException("gray thumbnail")
+    }
+    context.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+    let data = Data(bytes: pixels, count: w * h)
+    return ["width": w, "height": h, "data": data.base64EncodedString()]
   }
 
   private func loadImage(_ uri: URL) throws -> CIImage {

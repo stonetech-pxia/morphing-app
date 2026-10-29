@@ -1066,6 +1066,38 @@ export class FakeBackground implements BackgroundPlatform {
   }
 }
 
+/** 点在凸四边形里（顺时针的角）。 */
+function insideQuad(q: Quad, x: number, y: number): boolean {
+  const pts = [q.tl, q.tr, q.br, q.bl];
+  return pts.every((a, i) => {
+    const b = pts[(i + 1) % 4]!;
+    return (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x) >= 0;
+  });
+}
+
+/**
+ * 找边给 pickPaper 的小灰度图（原图的 1/10，D-300）：draw 不给时按候选画，第一个候选里是纸（亮），外面是桌面（暗）。
+ */
+export function paperGray(
+  candidates: readonly Quad[],
+  size: { width: number; height: number },
+  draw?: ((size: { width: number; height: number }) => Uint8Array) | null,
+): { width: number; height: number; data: Uint8Array } {
+  const width = Math.round(size.width / 10);
+  const height = Math.round(size.height / 10);
+  let data = draw?.({ width, height });
+  if (!data) {
+    data = new Uint8Array(width * height).fill(60);
+    const sheet = candidates[0];
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (sheet && insideQuad(sheet, x * 10, y * 10)) data[y * width + x] = 210;
+      }
+    }
+  }
+  return { width, height, data };
+}
+
 /** 假的系统文字识别和扫描（iOS 的 Vision；Android 的 ML Kit 设 canFindPaper = false）：按顺序返回找到的角和识别的文字，拉正写一张真实的小 JPEG。 */
 export class FakeVision implements VisionPlatform {
   async adjustImage(
@@ -1145,8 +1177,10 @@ export class FakeVision implements VisionPlatform {
   }
 
   calls: { method: string; uri: string; args?: unknown }[] = [];
-  /** 每次找边的结果（按顺序）。 */
-  found: (Quad | null)[] = [];
+  /** 每次找边的候选（按顺序）：一个四边形是深色桌面上的一张纸，null 是没找到（D-301）。 */
+  found: (Quad | Quad[] | null)[] = [];
+  /** 找边给的小灰度图；不设时按候选画（见 paperGray）。 */
+  gray: ((size: { width: number; height: number }) => Uint8Array) | null = null;
   texts: string[] = [];
   documentCamera = true;
   canFindPaper = true;
@@ -1191,7 +1225,12 @@ export class FakeVision implements VisionPlatform {
   }
   async findPaper(uri: string) {
     this.calls.push({ method: 'findPaper', uri });
-    return this.found.shift() ?? null;
+    const found = this.found.shift() ?? null;
+    const candidates = found === null ? [] : Array.isArray(found) ? found : [found];
+    return {
+      candidates: candidates.map((q) => [q.tl, q.tr, q.br, q.bl]),
+      gray: paperGray(candidates, await this.files.imageSize(uri), this.gray),
+    };
   }
   async straighten(
     uri: string,
