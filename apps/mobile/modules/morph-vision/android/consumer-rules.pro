@@ -4,3 +4,7 @@
 -keep class com.google.android.gms.internal.mlkit_** { *; }
 # ONNX Runtime（D-269）：原生代码按名字找 Java 类和方法，R8 不能改名或删掉。
 -keep class ai.onnxruntime.** { *; }
+# ML Kit 实体识别（预填日期和金额）带进了 WorkManager：它用 Room 按名字反射创建 WorkDatabase_Impl，
+# R8 删掉后 App 一启动就崩（Failed to create an instance of androidx.work.impl.WorkDatabase）。
+-keep class * extends androidx.room.RoomDatabase { <init>(); }
+-keep class androidx.work.impl.WorkDatabase_Impl { *; }
