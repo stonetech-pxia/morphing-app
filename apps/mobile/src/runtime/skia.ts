@@ -14,6 +14,8 @@ import { Platform } from 'react-native';
 import {
   MAX_SURFACE_SIDE,
   SAUVOLA_K,
+  SCAN_KNEE,
+  SCAN_MIDTONE_GAMMA,
   despeckle,
   planScanEnhance,
   rotatedSize,
@@ -76,7 +78,7 @@ export function renderTextPng(
 /** 分析图的长边：背景、黑白两端、彩色还是灰度、倾斜角都在这么大的图上算（D-266）。 */
 const ENHANCE_ANALYSIS_SIDE = 800;
 
-// 全分辨率的逐像素运算（D-266）：除以纸张背景（每个通道分开，纸变成中性白）→ 按黑白两端拉伸 →
+// 全分辨率的逐像素运算（D-266）：除以纸张背景（每个通道分开，纸变成中性白）→ 按黑白两端拉伸（白点附近软膝，D-275）→
 // 彩色 / 灰度 / 黑白（Sauvola 局部阈值，按最暗的通道判断，均值和标准差来自分析图）。背景和统计图都很小，按格子中心线性插值。
 const ENHANCE_SKSL = `
 uniform shader image;
@@ -86,16 +88,21 @@ uniform float lo;
 uniform float hi;
 uniform float mode;
 uniform float k;
+uniform float gamma;
+uniform float knee;
 
 half4 main(float2 p) {
   float3 c = float3(image.eval(p).rgb);
   float3 b = max(float3(background.eval(p).rgb), float3(0.04));
-  float3 n = clamp((c / b - lo) / (hi - lo), 0.0, 1.0);
+  // 软膝（scanTone，D-275）：接近纸色的淡字不被一刀切成白，纸仍然是纯白。黑白模式不用 n。
+  float3 u = min((c / b - lo) / (hi - lo), float3(1.0 + knee));
+  float3 kn = u - (u - (1.0 - knee)) * (u - (1.0 - knee)) / (4.0 * knee);
+  float3 n = clamp(mix(u, kn, step(float3(1.0 - knee), u)), 0.0, 1.0);
   float y = dot(n, float3(0.299, 0.587, 0.114));
   if (mode < 1.5) {
-    // 中间调压暗一点（γ 1.3）：纸还是白、黑还是黑，淡的字更清楚。黑白模式不用（阈值是按没压暗的亮度算的）。
-    float3 d = pow(n, float3(1.3));
-    float dy = pow(y, 1.3);
+    // 中间调压暗一点（γ = SCAN_MIDTONE_GAMMA）：纸还是白、黑还是黑，淡的字更清楚。黑白模式不用（阈值是按没压暗的亮度算的）。
+    float3 d = pow(n, float3(gamma));
+    float dy = pow(y, gamma);
     if (mode > 0.5) return half4(half3(dy), 1.0);
     // 接近灰色的像素（纸上的噪点、拍屏幕的摩尔纹）去掉颜色；颜色浓的（红字、印章）保留。
     float chroma = max(n.r, max(n.g, n.b)) - min(n.r, min(n.g, n.b));
@@ -211,7 +218,7 @@ export function enhanceJpeg(
   const stats = plan.stats ? imageFromRgba(plan.stats) : background;
   const mode = plan.output === 'color' ? 0 : plan.output === 'gray' ? 1 : 2;
   const shader = enhanceEffect.makeShaderWithChildren(
-    [plan.lo, plan.hi, mode, SAUVOLA_K],
+    [plan.lo, plan.hi, mode, SAUVOLA_K, SCAN_MIDTONE_GAMMA, SCAN_KNEE],
     [
       shaderOf(image, iw, ih, FilterMode.Linear),
       shaderOf(background, plan.background.width, plan.background.height, FilterMode.Linear),

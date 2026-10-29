@@ -13,6 +13,7 @@ import {
   planScanEnhance,
   rotatedSize,
   sauvolaThreshold,
+  scanTone,
   type RgbaImage,
 } from './scan-enhance';
 
@@ -97,6 +98,17 @@ describe('scan enhance: background', () => {
     expect(darkInShadow).toBeLessThan(0.3);
   });
 
+  it('removes a sharp shadow edge (book gutter, hand) right up to the edge, not in a wide gray band', () => {
+    // 左边 1/3 在很深的阴影里（120），右边是纸（230），交界是一条直线（实验里 2–4 号书页的左上角）。
+    // 分析图长边 800 时，交界两边 16 像素以外的纸都应该和别处一样白（误差 5% 以内）。
+    const img = page(600, 800, (x) => (x < 200 ? [120, 120, 120] : [230, 230, 230]));
+    const norm = normalizeByBackground(img, estimateBackground(img));
+    for (const d of [16, 24, 48]) {
+      expect(lumaAt(norm, 600, 200 - d, 400)).toBeGreaterThan(0.95);
+      expect(lumaAt(norm, 600, 200 + d, 400)).toBeLessThan(1.05);
+    }
+  });
+
   it('turns tinted paper (a bluish screen) neutral white', () => {
     const img = page(400, 500, () => [150, 165, 175]);
     textLines(img);
@@ -179,6 +191,34 @@ describe('scan enhance: levels and color', () => {
     expect(bw.output).toBe('bw');
     expect(bw.stats).not.toBeNull();
     expect(planScanEnhance(img, 'auto').stats).toBeNull();
+  });
+});
+
+describe('scan enhance: tone near white (D-275)', () => {
+  it('keeps paper pure white and ink unchanged', () => {
+    // 纸在白点稍上面（白点取纸色的 94%，纸约 1.06）：至少 253 / 255，比纸亮的地方 255。
+    expect(scanTone(1.064)).toBeGreaterThanOrEqual(0.99);
+    expect(scanTone(1.12)).toBe(1);
+    expect(scanTone(1.2)).toBe(1);
+    expect(scanTone(0)).toBe(0);
+    expect(scanTone(0.5)).toBe(0.5);
+  });
+
+  it('does not cut faint text just under the paper to white', () => {
+    // 只比纸暗 4%（反光里的淡字）：一刀切时是 1（看不见），软膝后仍比纸暗。
+    const faint = 1.064 * 0.96;
+    expect(scanTone(faint)).toBeLessThan(0.98);
+    expect(scanTone(faint)).toBeLessThan(scanTone(1.064) - 0.01);
+  });
+
+  it('is continuous and never gets lighter for darker input', () => {
+    let previous = -1;
+    for (let t = -0.2; t <= 1.4; t += 0.001) {
+      const v = scanTone(t);
+      expect(v).toBeGreaterThanOrEqual(previous - 1e-9);
+      if (previous >= 0) expect(v - previous).toBeLessThan(0.002);
+      previous = v;
+    }
   });
 });
 

@@ -32,8 +32,27 @@ export interface ScanPlan {
   stats: RgbaImage | null;
 }
 
-/** 背景格子的长边格数。分析图长边 800 时每格约 17 像素，比字大、比阴影的变化小。 */
-const GRID_LONG = 48;
+/**
+ * 背景格子的长边格数。分析图长边 800 时每格约 8 像素：比笔画宽，又能贴着阴影的硬边（书页、手的影子）；
+ * 48 格时硬边两侧会留下约 50 像素宽的灰带（D-275 的实验）。字太密、整格都是字的格子由下面的去离群补上。
+ */
+const GRID_LONG = 96;
+/** 彩色和灰度把中间调压暗一点（γ），淡字更清楚。着色器里用同一个值。 */
+export const SCAN_MIDTONE_GAMMA = 1.3;
+/**
+ * 接近白点的软膝（D-275）：拉伸后 1 − knee 以下照旧，往上用二次曲线在 1 + knee 处平滑地接到 1。
+ * 纸（约 1.06）仍然是纯白，但只比纸暗一点的淡字（反光里的红字、细小的字）不会被一刀切成白；
+ * 实验里这样增强后的错字比增强前少（拍屏幕那页 2 → 0），一刀切时反而多（2 → 8）。
+ */
+export const SCAN_KNEE = 0.12;
+
+/** 按黑白两端拉伸之后（t：0 是黑点、1 是白点）的软膝曲线，结果在 0–1。着色器里是同一个公式。 */
+export function scanTone(t: number, knee = SCAN_KNEE): number {
+  const a = 1 - knee;
+  const u = Math.min(t, 1 + knee);
+  const v = u < a ? u : u - ((u - a) * (u - a)) / (4 * knee);
+  return clamp(v, 0, 1);
+}
 /** 每格里取亮度排前 10% 的像素当纸张（字是暗的，而且一般只占一小部分）。 */
 const PAPER_SHARE = 0.1;
 /** 比周围的纸暗一半以上的格子当作图片或大块深色，用周围的纸色补上；没那么暗的当作阴影，照常拉白。 */
@@ -142,12 +161,18 @@ function maskedMedian(
     const yb = Math.min(height - 1, y + radius);
     hist.fill(0);
     let count = 0;
+    // 滑动中值（Huang）：记着当前的候选值 m 和比它小的个数 below，窗口每移一格只做少量调整，
+    // 不用每格从 0 数到中值（格子多了以后这一步最费时）。结果和从头数一样。
+    let m = 0;
+    let below = 0;
     const column = (xx: number, d: number) => {
       for (let yy = ya; yy <= yb; yy++) {
         const j = yy * width + xx;
         if (weights[j]! > 0) {
-          hist[bin(j)]! += d;
+          const v = bin(j);
+          hist[v]! += d;
           count += d;
+          if (v < m) below += d;
         }
       }
     };
@@ -161,13 +186,17 @@ function maskedMedian(
         out[y * width + x] = NaN;
         continue;
       }
-      let need = (count >> 1) + 1;
-      let v = 0;
-      for (; v < 255; v++) {
-        need -= hist[v]!;
-        if (need <= 0) break;
+      const need = (count >> 1) + 1;
+      // 中值是累计个数第一次到 need 的那个值（最大到 255）。
+      while (m > 0 && below >= need) {
+        m--;
+        below -= hist[m]!;
       }
-      out[y * width + x] = v;
+      while (m < 255 && below + hist[m]! < need) {
+        below += hist[m]!;
+        m++;
+      }
+      out[y * width + x] = m;
     }
   }
   return out;
