@@ -36,7 +36,7 @@ function sameValue(a: unknown, b: unknown): boolean {
 /** starter：新用户的第一个版本（精简首页 + 工具箱，D-181、D-182）。 */
 /** visaHomeScreen：visa 再把签证照片放到手机桌面（D-271）。 */
 /** habits：一张打卡表（习惯、完成 / 跳过、日期）和显示它的页面（D-284）。 */
-/** views：心情、上下班（开始和结束的日期时间）、喝水三张表，每张一个列表页面（D-302–D-305）。 */
+/** views：心情、上下班（开始和结束的日期时间）、喝水三张表，每张一个列表页面（D-305–D-308）。 */
 /** linked：互相引用的表（习惯 ← 打卡、工作 ← 工时、客户 ← 订单）和一张加油表，每张一个页面（D-287–D-289）。 */
 export type EvalSetup =
   | 'default'

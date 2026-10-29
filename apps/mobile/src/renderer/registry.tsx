@@ -175,7 +175,7 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
   ),
   spacer: (c) => <View style={{ height: { small: 4, medium: 16, large: 32 }[c.props.size] }} />,
   group: (c, env) => <Group component={c} env={env} />,
-  // 月历（D-302）只读一个月的记录，是单独的组件。
+  // 月历（D-305）只读一个月的记录，是单独的组件。
   recordList: (c, env) =>
     c.props.display === 'calendar' ? (
       <MonthCalendar props={c.props} env={env} tone={c.style?.tone} componentId={c.id} />

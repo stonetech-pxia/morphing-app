@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
-// 正在走的计时（D-303 的 elapsed）每秒刷新一次。所有正在走的行共用一个计时器：没有正在走的行时不跑，
+// 正在走的计时（D-306 的 elapsed）每秒刷新一次。所有正在走的行共用一个计时器：没有正在走的行时不跑，
 // App 退到后台时也停（回到前台马上刷新一次），省电。只有显示出来的、没有结束时间的行才订阅。
 
 const listeners = new Set<() => void>();

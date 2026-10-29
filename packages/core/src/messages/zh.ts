@@ -1145,7 +1145,7 @@ export const zh: MessageTable = {
   scheduleDecrease: '减少',
   scheduleIncrease: '增加',
   scheduleLastDoneHint: '从「{field}」里的日期算起。',
-  // 月历、显示格式、统计的目标和比较（D-302–D-305）
+  // 月历、显示格式、统计的目标和比较（D-305–D-308）
   calendarPrevMonth: '上个月',
   calendarNextMonth: '下个月',
   calendarToday: '今天',

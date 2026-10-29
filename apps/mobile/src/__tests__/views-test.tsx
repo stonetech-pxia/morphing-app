@@ -19,7 +19,7 @@ import { MemoryWorkspaceRepo } from '../storage/memory';
 import { SQLiteWorkspaceRepo } from '../storage/sqlite';
 import { renderToolsApp } from '../test-utils/render-app';
 
-// 阶段 C2（方案 P7）：月历外观（D-302）、右侧字段的 elapsed / progress（D-303）、统计的目标和比较（D-304、D-305）。
+// 阶段 C2（方案 P7）：月历外观（D-305）、右侧字段的 elapsed / progress（D-306）、统计的目标和比较（D-307、D-308）。
 
 const tables: Collection[] = [
   {

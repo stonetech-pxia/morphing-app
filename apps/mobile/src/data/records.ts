@@ -73,7 +73,7 @@ export function useComputedRecords(
 }
 
 /**
- * 月历（D-302）一个月的记录：只读这个月（多读一天，见 monthQueryRange）。表里有查找、汇总、上一条时，
+ * 月历（D-305）一个月的记录：只读这个月（多读一天，见 monthQueryRange）。表里有查找、汇总、上一条时，
  * 要别的记录才能算，就读整张表再算（和 useComputedRecords 一样）；dateField 不是存着的日期、日期时间或系统字段时
  * 也读整张表。落在哪天、筛选由调用方按 recordDay 再精确地分。
  */

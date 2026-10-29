@@ -1213,7 +1213,7 @@ export const en = {
   scheduleDecrease: 'Fewer',
   scheduleIncrease: 'More',
   scheduleLastDoneHint: 'Counts from the date in “{field}”.',
-  // 月历、显示格式、统计的目标和比较（D-302–D-305）
+  // 月历、显示格式、统计的目标和比较（D-305–D-308）
   calendarPrevMonth: 'Previous month',
   calendarNextMonth: 'Next month',
   calendarToday: 'Today',

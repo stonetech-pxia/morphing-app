@@ -65,7 +65,7 @@ const sunday: Calendar = { ...DEFAULT_CALENDAR, weekStart: 'sunday' };
 const twoAm: Calendar = { ...DEFAULT_CALENDAR, dayStartHour: 2 };
 const day = (s: string) => dayNumber(s)!;
 
-describe('month calendar (D-302)', () => {
+describe('month calendar (D-305)', () => {
   it('lays out whole weeks, Monday or Sunday first', () => {
     // 2026-10-01 是周四，10-31 是周六。
     const mon = monthWeeks('2026-10', DEFAULT_CALENDAR);
@@ -199,7 +199,7 @@ describe('month calendar (D-302)', () => {
   });
 });
 
-describe('display formats elapsed and progress (D-303)', () => {
+describe('display formats elapsed and progress (D-306)', () => {
   const now = new Date(2026, 9, 29, 10, 15, 30);
 
   it('a start without an end is a running timer', () => {
@@ -253,7 +253,7 @@ describe('display formats elapsed and progress (D-303)', () => {
   });
 });
 
-describe('stat compared with the previous period (D-305)', () => {
+describe('stat compared with the previous period (D-308)', () => {
   const now = new Date(2026, 9, 29, 12); // 周四
 
   it('the same part of the previous period', () => {
@@ -335,7 +335,7 @@ describe('stat compared with the previous period (D-305)', () => {
   });
 });
 
-describe('component checks (D-302–D-305)', () => {
+describe('component checks (D-305–D-308)', () => {
   const add = (component: NewComponent) =>
     prepareOps(
       createDefaultWorkspace('en'),

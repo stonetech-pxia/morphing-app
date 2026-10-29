@@ -139,7 +139,7 @@ export interface WorkspaceRepo {
   /** 某张表未删除的记录（顺序不保证，由调用方排序）。 */
   listRecords(collectionId: string): Promise<DataRecord[]>;
   /**
-   * 只读一段日子的记录（月历一个月，D-302）：by 是日期或日期时间字段时按存着的文字 from ≤ 值 < until，
+   * 只读一段日子的记录（月历一个月，D-305）：by 是日期或日期时间字段时按存着的文字 from ≤ 值 < until，
    * 是 createdAt / updatedAt 时按毫秒 fromMs ≤ 时间 < untilMs。
    */
   listRecordsInRange(collectionId: string, range: RecordRange): Promise<DataRecord[]>;

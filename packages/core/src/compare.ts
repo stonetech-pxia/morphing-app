@@ -4,7 +4,7 @@ import { dayNumber } from './formula';
 import { t } from './messages';
 import type { Condition, Locale, Period } from './schema';
 
-// 统计的「和上一段时间比」（D-305）：统计的筛选里有一个 inPeriod 条件时，把它换成上一段，再算一次。
+// 统计的「和上一段时间比」（D-308）：统计的筛选里有一个 inPeriod 条件时，把它换成上一段，再算一次。
 // 按日历的时间段（本周、本月、今年……）比上一段的同期：本月到 29 号就比上个月 1–29 号，
 // 不然月中总是「比上月少一半」；今天比昨天一整天；最近 N 天比再往前的 N 天。一天和一周的开始按 D-286。
 

@@ -1265,7 +1265,7 @@ export const fr: MessageTable = {
   scheduleDecrease: 'Moins',
   scheduleIncrease: 'Plus',
   scheduleLastDoneHint: 'Compté à partir de la date de « {field} ».',
-  // 月历、显示格式、统计的目标和比较（D-302–D-305）
+  // 月历、显示格式、统计的目标和比较（D-305–D-308）
   calendarPrevMonth: 'Mois précédent',
   calendarNextMonth: 'Mois suivant',
   calendarToday: 'Aujourd’hui',

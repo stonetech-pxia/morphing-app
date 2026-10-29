@@ -23,9 +23,9 @@ const props = z.strictObject({
   perUnit: z.number().int().min(1).max(50).optional(),
   skipField: IdSchema.optional(),
   skipOption: IdSchema.optional(),
-  /** 目标（D-304）：显示「3 / 5」和进度。 */
+  /** 目标（D-307）：显示「3 / 5」和进度。 */
   goal: z.number().positive().max(1_000_000_000).optional(),
-  /** 和上一段同期比（D-305）：筛选里唯一的 inPeriod 条件换成上一段。 */
+  /** 和上一段同期比（D-308）：筛选里唯一的 inPeriod 条件换成上一段。 */
   compare: z.literal('previous').optional(),
 });
 
@@ -36,7 +36,7 @@ const SEQUENCE: readonly string[] = SEQUENCE_AGGREGATES;
  * groupBy（D-248）：按一个单选字段分组，每个选项一行（没选的记录另算一行）。
  * 按顺序的聚合（D-284）：streak（当前连续，下面写最佳连续）、daysSince、avgInterval、distinctDays，
  * 按 dateField（默认第一个日期字段，没有就用创建时间）算日子；unit、perUnit、skipField + skipOption 只给 streak。
- * goal（D-304）显示「值 / 目标」和进度；compare（D-305）和上一段同期比（compare.ts）。
+ * goal（D-307）显示「值 / 目标」和进度；compare（D-308）和上一段同期比（compare.ts）。
  */
 export const statComponent: ComponentDefinitionOf<'stat', typeof props> = defineComponent({
   type: 'stat',

@@ -113,7 +113,7 @@ describe('migrateWorkspace', () => {
     const kept = migrateWorkspace(custom, undefined, 20);
     expect(kept.ok && (kept.config as { workflows: unknown[] }).workflows).toEqual([picked]);
   });
-  it('v24 → v25 (calendar list, trailing formats, stat goal and compare, D-302–D-306) only raises the version', () => {
+  it('v24 → v25 (calendar list, trailing formats, stat goal and compare, D-305–D-309) only raises the version', () => {
     const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 24 };
     expect(migrateWorkspace(previous, undefined, 25)).toEqual({
       ok: true,

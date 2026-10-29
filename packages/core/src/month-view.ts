@@ -4,7 +4,7 @@ import { dayNumber } from './formula';
 import { localeTag } from './localization';
 import type { Collection, Locale } from './schema';
 
-// 记录列表的月历外观（D-302）：一个月的格子，每天有几条记录、按一个单选字段上什么颜色。
+// 记录列表的月历外观（D-305）：一个月的格子，每天有几条记录、按一个单选字段上什么颜色。
 // 纯逻辑：哪几周、每天的记录、深浅几档、月份和星期的名字；App 只负责画格子。
 // 日子用天数（dayNumber）比较，记录落在哪天用 recordDay（一天从几点开始，D-286）。
 

@@ -702,7 +702,7 @@ export type RecordListProps = Extract<Component, { type: 'recordList' }>['props'
 
 export type Tone = ComponentStyle['tone'];
 
-/** 记录列表的 list / cards / checklist；月历（D-302）读法不同，是 MonthCalendar（registry 按 display 选）。 */
+/** 记录列表的 list / cards / checklist；月历（D-305）读法不同，是 MonthCalendar（registry 按 display 选）。 */
 export function RecordList({
   props,
   env,
@@ -741,7 +741,7 @@ export function RecordList({
 }
 
 /**
- * 记录列表一行的画法（普通列表和月历当天的列表共用）：标题、副标题、右侧字段（带 trailingFormat，D-303）、
+ * 记录列表一行的画法（普通列表和月历当天的列表共用）：标题、副标题、右侧字段（带 trailingFormat，D-306）、
  * 打勾框和缩略图；点一下打开编辑页。
  */
 export function useRecordRows(
@@ -1098,7 +1098,7 @@ export function Stat({
           value: statText(v.best, props.aggregate, field, env.locale, props.unit),
         });
   const field = props.fieldId ? collection.fields.find((f) => f.id === props.fieldId) : undefined;
-  // 目标（D-304）：「值 / 目标」和进度。
+  // 目标（D-307）：「值 / 目标」和进度。
   const goalProgress = (v: { value: number | null }) => {
     const p = props.goal === undefined ? undefined : progressOf(v.value ?? 0, props.goal);
     return (
@@ -1108,7 +1108,7 @@ export function Stat({
       }
     );
   };
-  // 和上一段同期比（D-305）：把筛选里的时间段换成上一段，再算一次；颜色不分好坏（多花钱和多运动方向相反）。
+  // 和上一段同期比（D-308）：把筛选里的时间段换成上一段，再算一次；颜色不分好坏（多花钱和多运动方向相反）。
   const previous = props.compare ? previousFilter(props.filter, now, cal) : null;
   const compareText = (current: number | null) => {
     if (!previous) return null;
@@ -1138,7 +1138,7 @@ export function Stat({
     const noChoice = t(env.locale, 'statNoChoice');
     const groups =
       records === null ? [] : groupRecords(matched, collection, props.groupBy, noChoice);
-    // 和上一段比（D-305）：每个选项和它自己的上一段比。
+    // 和上一段比（D-308）：每个选项和它自己的上一段比。
     const before =
       previous && records !== null
         ? new Map(

@@ -3,7 +3,7 @@ import { fieldOf, recordValue, type DataRecord } from './data';
 import { formatDuration } from './field-values';
 import type { Collection } from './schema';
 
-// 记录列表右侧字段的显示格式（D-303，recordList 的 trailingFormat）：
+// 记录列表右侧字段的显示格式（D-306，recordList 的 trailingFormat）：
 // - elapsed：从一个日期时间（或创建时间）到现在，或到另一个日期时间字段。没有结束时间的就是正在走的计时器。
 // - progress：一个数值和目标（固定数或这条记录的另一个字段）的比例，画成环或条。
 // 只是显示方式，不存值、不进导出；纯逻辑在这里，App 负责每秒刷新和画环。

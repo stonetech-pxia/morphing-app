@@ -12,7 +12,7 @@ import {
 } from './define';
 
 /**
- * 右侧字段的显示格式（D-303）：elapsed = 从这个日期时间（或创建时间）到现在、或到 until，没有 until 的值时每秒在走；
+ * 右侧字段的显示格式（D-306）：elapsed = 从这个日期时间（或创建时间）到现在、或到 until，没有 until 的值时每秒在走；
  * progress = 这个数值和目标（固定数或这条记录的另一个数字类字段）的比例，画成环（默认）或条。
  */
 const TrailingFormatSchema = z.discriminatedUnion('kind', [
@@ -36,7 +36,7 @@ const props = z.strictObject({
   sort: SortSchema.optional(),
   limit: z.number().int().min(1).max(100),
   emptyText: boundedText(1, 80).optional(),
-  /** 月历（D-302）按哪个日期放进格子：日期、日期时间字段或系统字段；不写同图表的默认。 */
+  /** 月历（D-305）按哪个日期放进格子：日期、日期时间字段或系统字段；不写同图表的默认。 */
   dateField: FieldRefSchema.optional(),
   /** 月历按这个单选字段给每天上色（这一天最后一条的选项）。 */
   colorField: IdSchema.optional(),
@@ -45,7 +45,7 @@ const props = z.strictObject({
 
 /**
  * 记录列表：展示某张数据表的记录；checklist 用一个 checkbox 字段直接打勾；
- * calendar（D-302）是一个月的格子，点某一天列出当天的记录（limit 条，按 sort 排）。
+ * calendar（D-305）是一个月的格子，点某一天列出当天的记录（limit 条，按 sort 排）。
  */
 export const recordListComponent: ComponentDefinitionOf<'recordList', typeof props> =
   defineComponent({
