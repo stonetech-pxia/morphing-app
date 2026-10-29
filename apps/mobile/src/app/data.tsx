@@ -11,7 +11,9 @@ import {
   serializeLayoutStore,
   formatRef,
   formatTimestamp,
+  calendarOf,
   linkedCollectionIds,
+  loadComputedRecords,
   loadLinkResolver,
   recordsToCsv,
   type Collection,
@@ -92,18 +94,25 @@ export default function DataRoute() {
   }, [repo, config, version]);
 
   async function exportCsv(collection: Collection) {
-    const records = await repo.listRecords(collection.id);
+    // 查找、汇总、上一条导出算出来的值（D-291）。
+    const { view, records } = await loadComputedRecords(
+      (id) => repo.listRecords(id),
+      config.collections,
+      collection,
+      new Date(),
+      calendarOf(config),
+    );
     records.sort((a, b) => a.createdAt - b.createdAt);
     // 引用字段导出被引用记录的标题（D-250）。
     const links = await loadLinkResolver(
       (id) => repo.listRecords(id),
       config.collections,
-      linkedCollectionIds(collection),
+      linkedCollectionIds(view),
       locale,
     );
     await files.shareText(
       `${collection.name}.csv`,
-      recordsToCsv(collection, records, locale, links),
+      recordsToCsv(view, records, locale, links),
       'text/csv',
     );
   }

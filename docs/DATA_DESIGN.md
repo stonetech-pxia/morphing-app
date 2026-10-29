@@ -60,6 +60,9 @@
 | `time`     | `HH:mm`，几点几分（D-279）                       | 上班时间     |
 | `datetime` | `YYYY-MM-DDTHH:mm`，设备本地（D-279）            | 打卡、喂奶   |
 | `duration` | 整数分钟，显示 `h:mm`（D-279）                   | 休息、时长   |
+| `lookup`   | 不存值，引用的那条记录的某个字段（D-287）        | 工时的时薪   |
+| `rollup`   | 不存值，引用了这条的记录的统计（D-288）          | 客户总额     |
+| `previous` | 不存值，同组按日期的上一条的值（D-289）          | 上次里程     |
 
 每条记录还自带两个系统字段：`createdAt`、`updatedAt`，可以用来排序和筛选。
 
@@ -271,3 +274,11 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 - **按顺序的聚合**（D-284，schemaVersion 20）：`stat.aggregate` 加 `streak`（当前连续和最佳连续，`unit` 天 / 周 / 月，`perUnit` 每单位至少几条，`skipField` + `skipOption` 指定「跳过」的单选项）、`daysSince`、`avgInterval`、`distinctDays`，按 `dateField`（默认第一个日期字段，没有就用创建时间）算日子，可以配合 `groupBy` 每个选项一行。图表只能用 `distinctDays`。纯逻辑在 `core/sequence.ts`，接口是「一组记录 + 日期字段 + 参数 → 值」，以后汇总字段也用它。
 - **时间段**（D-285）：见上面筛选条件的 `inPeriod`；筛选、`in.records`、`file.filter`、统计和图表的筛选共用。
 - **一天、一周从何时开始**（D-286）：配置的 `calendar {dayStartHour? 0–6, weekStart? monday / sunday, twoWeekStart?}`。所有按天、按周归类的计算（时间段、图表分组、连续天数、日期字段默认的今天、创建时间算哪一天）都按它；逻辑在 `core/calendar.ts`。
+
+## 16. 查找、汇总、上一条（D-287 起）
+
+- **值怎么存**：不存。三种字段的定义在配置里（结构），值在手机上读记录时由 `core/related.ts` 算出来（`computeRecords`），放进记录的副本给列表、统计、图表、记录页、CSV 和报表用；写记录时去掉。AI 只能加、改这三种字段的定义（`addField`、`updateField`），看不到、也算不了任何值（D-042、D-113）。
+- **查找**（D-287）`lookup {linkField, fieldId}`：引用字段指向的那条记录的 `fieldId`，按那个字段的类型显示、筛选、排序、进公式和统计（`expandCollection`）。
+- **汇总**（D-288）`rollup {collectionId, linkField, aggregate, …}`：`collectionId` 里 `linkField` 指向这条的记录的计数、求和、平均、最小、最大、最近一条的值，或者 D-284 的按日子算的几种；可以带 `filter`、`period`。
+- **上一条**（D-289）`previous {fieldId, dateField?, groupBy?}`：同一张表、同一组里按日期排在前面、`fieldId` 有值的最近一条的值。
+- **检查**（D-290）：不能绕回自己，最多叠 3 层（P-045）。**性能**（D-291）：每张表每个引用字段建一次索引，不逐条扫表。

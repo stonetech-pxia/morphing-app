@@ -30,6 +30,7 @@ export * from './ocr-text';
 export * from './ops';
 export * from './presets';
 export * from './registry';
+export * from './related';
 export * from './reminders';
 export * from './richtext';
 export * from './schema';

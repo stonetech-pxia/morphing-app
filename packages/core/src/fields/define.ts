@@ -36,6 +36,8 @@ export interface FieldFilter<F> {
 export interface FieldCheckContext {
   config: WorkspaceConfig;
   collection: Collection;
+  /** 同一张表，查找、汇总、上一条换成它们显示的那种字段（D-287–D-289）：公式按它检查。 */
+  view: Collection;
 }
 
 type Instance<S extends z.ZodObject> = z.infer<S>;

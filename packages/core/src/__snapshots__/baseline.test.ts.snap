@@ -3219,7 +3219,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 22
+.schemaVersion 23
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"
@@ -3374,6 +3374,43 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .collections[].fields[]<oneOf duration>.required? boolean
 .collections[].fields[]<oneOf duration>.type "duration"
 .collections[].fields[]<oneOf duration>.default? integer 0..1000000
+.collections[].fields[]<oneOf lookup> object
+.collections[].fields[]<oneOf lookup>.id string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf lookup>.name string len 1..40
+.collections[].fields[]<oneOf lookup>.type "lookup"
+.collections[].fields[]<oneOf lookup>.linkField string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf lookup>.fieldId string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf rollup> object
+.collections[].fields[]<oneOf rollup>.id string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf rollup>.name string len 1..40
+.collections[].fields[]<oneOf rollup>.type "rollup"
+.collections[].fields[]<oneOf rollup>.collectionId string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf rollup>.linkField string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf rollup>.aggregate "count"|"sum"|"avg"|"min"|"max"|"latest"|"streak"|"daysSince"|"avgInterval"|"distinctDays"
+.collections[].fields[]<oneOf rollup>.fieldId? string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf rollup>.dateField?
+.collections[].fields[]<oneOf rollup>.dateField<anyOf 0> string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf rollup>.dateField<anyOf 1> "createdAt"|"updatedAt"
+.collections[].fields[]<oneOf rollup>.filter? array items ..5
+.collections[].fields[]<oneOf rollup>.filter[] object
+.collections[].fields[]<oneOf rollup>.filter[].field = .collections[].fields[]<oneOf rollup>.dateField
+.collections[].fields[]<oneOf rollup>.filter[].op "is"|"isNot"|"contains"|"gt"|"lt"|"isEmpty"|"isNotEmpty"|"inPeriod"
+.collections[].fields[]<oneOf rollup>.filter[].value?
+.collections[].fields[]<oneOf rollup>.filter[].value<anyOf 0> string len ..200
+.collections[].fields[]<oneOf rollup>.filter[].value<anyOf 1> number
+.collections[].fields[]<oneOf rollup>.filter[].value<anyOf 2> boolean
+.collections[].fields[]<oneOf rollup>.period? "today"|"thisWeek"|"thisMonth"|"thisYear"|"last7days"|"last30days"|"last14days"|"last90days"|"last365days"|"thisTwoWeeks"|"thisHalfMonth"
+.collections[].fields[]<oneOf rollup>.unit? "day"|"week"|"month"
+.collections[].fields[]<oneOf rollup>.perUnit? integer 1..50
+.collections[].fields[]<oneOf rollup>.skipField? string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf rollup>.skipOption? string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf previous> object
+.collections[].fields[]<oneOf previous>.id string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf previous>.name string len 1..40
+.collections[].fields[]<oneOf previous>.type "previous"
+.collections[].fields[]<oneOf previous>.fieldId string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf previous>.dateField? = .collections[].fields[]<oneOf rollup>.dateField
+.collections[].fields[]<oneOf previous>.groupBy? string /^[a-z][a-z0-9-]{0,47}$/
 .reminders? array items ..20
 .reminders[] object
 .reminders[].id string /^[a-z][a-z0-9-]{0,47}$/

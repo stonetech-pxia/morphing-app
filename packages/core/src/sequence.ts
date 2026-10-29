@@ -2,21 +2,13 @@ import { DEFAULT_CALENDAR, todayNumber, weekStartOf, type Calendar } from './cal
 import { readValue, recordDay, fieldOf, type DataRecord } from './data';
 import { round } from './field-values';
 import { dayNumber } from './formula';
-import { t } from './messages';
-import {
-  SEQUENCE_AGGREGATES,
-  type Collection,
-  type Locale,
-  type SequenceAggregate,
-  type StreakUnit,
-} from './schema';
+import { type Collection, type SequenceAggregate, type StreakUnit } from './schema';
 
 // 按顺序的聚合（D-284）：看记录落在哪些日子上，而不是把数值加起来。纯逻辑，接口是
 // 「一组记录 + 日期字段 + 参数 → 值」：统计、图表现在用，以后汇总字段（P3）也照样用。
 // 日子都换成天数（dayNumber）来比较，按「一天从几点开始、一周从周几开始」（D-286）归类。
 
-export const isSequenceAggregate = (a: string): a is SequenceAggregate =>
-  (SEQUENCE_AGGREGATES as readonly string[]).includes(a);
+export { isSequenceAggregate, sequenceText } from './sequence-text';
 
 /** 连续的规则：每个单位（天 / 周 / 月）至少 perUnit 条才算做到；skip 那个选项的记录算「跳过」。 */
 export interface StreakRule {
@@ -150,27 +142,5 @@ export function sequenceValue(
       return { value: avgInterval(records, collection, ctx) };
     case 'distinctDays':
       return { value: distinctDays(records, collection, ctx) };
-  }
-}
-
-/** 统计里显示的文字（带单位，单复数按 isSingular）；没有值时是「—」。 */
-export function sequenceText(
-  aggregate: SequenceAggregate,
-  unit: StreakUnit | undefined,
-  value: number | null,
-  locale: Locale,
-): string {
-  if (value === null) return '—';
-  switch (aggregate) {
-    case 'streak':
-      return t(locale, unit === 'week' ? 'seqWeeks' : unit === 'month' ? 'seqMonths' : 'seqDays', {
-        n: value,
-      });
-    case 'daysSince':
-      return value === 0 ? t(locale, 'seqToday') : t(locale, 'seqDaysAgo', { n: value });
-    case 'avgInterval':
-      return t(locale, 'seqAvgDays', { n: value });
-    case 'distinctDays':
-      return t(locale, 'seqDays', { n: value });
   }
 }

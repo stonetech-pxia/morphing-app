@@ -1,7 +1,14 @@
 import { createDefaultWorkspace } from '../defaults';
 import { applyOps, type Op } from '../ops';
 import type { Registry } from '../registry';
-import { allComponents, type Component, type Locale, type WorkspaceConfig } from '../schema';
+import {
+  allComponents,
+  type Collection,
+  type Component,
+  type Field,
+  type Locale,
+  type WorkspaceConfig,
+} from '../schema';
 import { parseRichText } from '../richtext';
 import { createStarterWorkspace } from '../starter';
 import { templateOps } from '../templates';
@@ -29,8 +36,17 @@ function sameValue(a: unknown, b: unknown): boolean {
 /** starter：新用户的第一个版本（精简首页 + 工具箱，D-181、D-182）。 */
 /** visaHomeScreen：visa 再把签证照片放到手机桌面（D-271）。 */
 /** habits：一张打卡表（习惯、完成 / 跳过、日期）和显示它的页面（D-284）。 */
+/** linked：互相引用的表（习惯 ← 打卡、工作 ← 工时、客户 ← 订单）和一张加油表，每张一个页面（D-287–D-289）。 */
 export type EvalSetup =
-  'default' | 'pdf' | 'pdfBelowFiles' | 'budget' | 'visa' | 'visaHomeScreen' | 'starter' | 'habits';
+  | 'default'
+  | 'pdf'
+  | 'pdfBelowFiles'
+  | 'budget'
+  | 'visa'
+  | 'visaHomeScreen'
+  | 'starter'
+  | 'habits'
+  | 'linked';
 
 export type OpsPlan = Extract<Plan, { kind: 'ops' }>;
 
@@ -83,6 +99,8 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
     ops.push(...templateOps('budget', createDefaultWorkspace(locale), locale));
   } else if (setup === 'habits') {
     ops.push(...habitOps(locale));
+  } else if (setup === 'linked') {
+    ops.push(...linkedOps(locale));
   } else if (setup !== 'default') ops.push({ op: 'installTool', toolId: 'pdf' });
   if (setup === 'pdfBelowFiles') {
     ops.push({ op: 'moveComponent', pageId: 'home', componentId: 'card-pdf', toIndex: 3 });
@@ -153,6 +171,170 @@ function habitOps(locale: Locale): Op[] {
       },
     },
   ];
+}
+
+/** 互相引用的几张表，每张一个列表页面（名字按语言，ID 都一样）。 */
+function linkedOps(locale: Locale): Op[] {
+  const names = {
+    zh: [
+      '习惯',
+      '打卡',
+      '日期',
+      '工作',
+      '时薪',
+      '工时',
+      '小时',
+      '客户',
+      '订单',
+      '金额',
+      '加油',
+      '车',
+      '里程',
+      '名字',
+    ],
+    en: [
+      'Habits',
+      'Check-ins',
+      'Date',
+      'Jobs',
+      'Hourly rate',
+      'Shifts',
+      'Hours',
+      'Clients',
+      'Orders',
+      'Amount',
+      'Fuel',
+      'Car',
+      'Odometer',
+      'Name',
+    ],
+    fr: [
+      'Habitudes',
+      'Pointages',
+      'Date',
+      'Emplois',
+      'Taux horaire',
+      'Heures travaillées',
+      'Heures',
+      'Clients',
+      'Commandes',
+      'Montant',
+      'Pleins',
+      'Voiture',
+      'Kilométrage',
+      'Nom',
+    ],
+  }[locale];
+  const [
+    habits,
+    checkins,
+    date,
+    jobs,
+    rate,
+    shifts,
+    hours,
+    clients,
+    orders,
+    amount,
+    fuel,
+    car,
+    odometer,
+    name,
+  ] = names as [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+  const currency = locale === 'zh' ? 'CNY' : locale === 'fr' ? 'EUR' : 'USD';
+  const tables: Collection[] = [
+    { id: 'habits', name: habits, fields: [{ id: 'name', name, type: 'text' }] },
+    {
+      id: 'checkins',
+      name: checkins,
+      fields: [
+        { id: 'habit', name: habits, type: 'link', collectionId: 'habits' },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+      ],
+    },
+    {
+      id: 'jobs',
+      name: jobs,
+      fields: [
+        { id: 'name', name, type: 'text' },
+        { id: 'rate', name: rate, type: 'money', currency },
+      ],
+    },
+    {
+      id: 'shifts',
+      name: shifts,
+      fields: [
+        { id: 'job', name: jobs, type: 'link', collectionId: 'jobs' },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+        { id: 'hours', name: hours, type: 'number', decimals: 2 },
+      ],
+    },
+    { id: 'clients', name: clients, fields: [{ id: 'name', name, type: 'text' }] },
+    {
+      id: 'orders',
+      name: orders,
+      fields: [
+        { id: 'client', name: clients, type: 'link', collectionId: 'clients' },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+        { id: 'amount', name: amount, type: 'money', currency },
+      ],
+    },
+    {
+      id: 'fuel',
+      name: fuel,
+      fields: [
+        {
+          id: 'car',
+          name: car,
+          type: 'choice',
+          options: [
+            { id: 'car-a', label: 'A' },
+            { id: 'car-b', label: 'B' },
+          ],
+        },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+        { id: 'odometer', name: odometer, type: 'number', unit: 'km' },
+      ],
+    },
+  ];
+  const title = (c: Collection) => c.fields.find((f) => f.type === 'text')?.id ?? 'date';
+  return tables.flatMap((collection): Op[] => [
+    { op: 'addCollection', collection },
+    {
+      op: 'addPage',
+      page: {
+        id: `page-${collection.id}`,
+        title: collection.name,
+        components: [
+          {
+            id: `list-${collection.id}`,
+            type: 'recordList',
+            props: {
+              collectionId: collection.id,
+              display: 'list',
+              titleField: title(collection),
+              limit: 50,
+            },
+          },
+        ],
+      },
+    },
+  ]);
 }
 
 const home = (c: WorkspaceConfig) => c.pages.find((p) => p.id === 'home')!;
@@ -4505,8 +4687,174 @@ const HOME_SCREEN_CASES: readonly EvalCase[] = [
   },
 ];
 
+/** 一张表上某种计算字段（查找、汇总、上一条）满足 want。 */
+const relatedField =
+  (collectionId: string, want: (f: Field, c: Collection) => boolean, what: string) =>
+  (config: WorkspaceConfig) => {
+    const c = config.collections.find((x) => x.id === collectionId);
+    return c && c.fields.some((f) => want(f, c)) ? null : `expected on ${collectionId}: ${what}`;
+  };
+
+/** 这个字段显示在这张表的某个记录列表里。 */
+const listed = (collectionId: string, type: Field['type']) => (config: WorkspaceConfig) => {
+  const ids = new Set(
+    config.collections
+      .find((x) => x.id === collectionId)
+      ?.fields.filter((f) => f.type === type)
+      .map((f) => f.id),
+  );
+  return config.pages.some((p) =>
+    allComponents(p).some(
+      (x) =>
+        x.type === 'recordList' &&
+        x.props.collectionId === collectionId &&
+        [x.props.titleField, ...(x.props.subtitleFields ?? []), x.props.trailingField].some(
+          (f) => f !== undefined && ids.has(f),
+        ),
+    ),
+  )
+    ? null
+    : `expected a recordList of ${collectionId} showing its ${type} field`;
+};
+
+const RELATED_CASES: readonly EvalCase[] = [
+  {
+    id: 'RL1',
+    input: '给每个习惯显示连续天数',
+    locale: 'zh',
+    setup: 'linked',
+    mock: false,
+    next: true,
+    expect: {
+      kind: 'ops',
+      check: all(
+        relatedField(
+          'habits',
+          (f) =>
+            f.type === 'rollup' &&
+            f.collectionId === 'checkins' &&
+            f.linkField === 'habit' &&
+            f.aggregate === 'streak',
+          'a streak rollup over checkins.habit',
+        ),
+        listed('habits', 'rollup'),
+      ),
+    },
+  },
+  {
+    id: 'RL2',
+    input: '工时按工作的时薪算工资',
+    locale: 'zh',
+    setup: 'linked',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: relatedField(
+        'shifts',
+        (f, c) => {
+          if (f.type !== 'formula') return false;
+          const rate = c.fields.find(
+            (x) => x.type === 'lookup' && x.linkField === 'job' && x.fieldId === 'rate',
+          );
+          return (
+            !!rate && f.expression.includes(`{${rate.id}}`) && f.expression.includes('{hours}')
+          );
+        },
+        'a formula of hours times a lookup of jobs.rate',
+      ),
+    },
+  },
+  {
+    id: 'RL3-en',
+    input: "Show each client's total order amount",
+    locale: 'en',
+    setup: 'linked',
+    mock: false,
+    next: true,
+    expect: {
+      kind: 'ops',
+      check: all(
+        relatedField(
+          'clients',
+          (f) =>
+            f.type === 'rollup' &&
+            f.collectionId === 'orders' &&
+            f.linkField === 'client' &&
+            f.aggregate === 'sum' &&
+            f.fieldId === 'amount',
+          'a sum rollup of orders.amount',
+        ),
+        listed('clients', 'rollup'),
+      ),
+    },
+  },
+  {
+    id: 'RL4-fr',
+    input: 'Affiche pour chaque client la date de sa dernière commande',
+    locale: 'fr',
+    setup: 'linked',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: relatedField(
+        'clients',
+        (f) =>
+          f.type === 'rollup' &&
+          f.collectionId === 'orders' &&
+          f.aggregate === 'latest' &&
+          (f.fieldId === undefined || f.fieldId === 'date'),
+        'a latest rollup of the order date',
+      ),
+    },
+  },
+  {
+    id: 'RL5',
+    input: '每次加油显示和上一次之间开了多少公里，两辆车分开算',
+    locale: 'zh',
+    setup: 'linked',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: relatedField(
+        'fuel',
+        (f, c) => {
+          if (f.type !== 'formula') return false;
+          const prev = c.fields.find(
+            (x) => x.type === 'previous' && x.fieldId === 'odometer' && x.groupBy === 'car',
+          );
+          return (
+            !!prev && f.expression.includes(`{${prev.id}}`) && f.expression.includes('{odometer}')
+          );
+        },
+        'a formula of odometer minus a previous odometer grouped by car',
+      ),
+    },
+  },
+  {
+    id: 'RL6-en',
+    input: 'For each habit show how many times I did it this week',
+    locale: 'en',
+    setup: 'linked',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: relatedField(
+        'habits',
+        (f) =>
+          f.type === 'rollup' &&
+          f.collectionId === 'checkins' &&
+          f.aggregate === 'count' &&
+          (f.period === 'thisWeek' ||
+            (f.filter ?? []).some((x) => x.op === 'inPeriod' && x.value === 'thisWeek')),
+        'a count rollup of this week',
+      ),
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...SEQUENCE_CASES,
+  ...RELATED_CASES,
   ...HOME_SCREEN_CASES,
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,
