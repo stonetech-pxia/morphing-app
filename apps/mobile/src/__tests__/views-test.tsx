@@ -56,6 +56,15 @@ const tables: Collection[] = [
     fields: [
       { id: 'amount', name: '金额', type: 'money', currency: 'CNY' },
       { id: 'date', name: '日期', type: 'date', default: 'today' },
+      {
+        id: 'cat',
+        name: '分类',
+        type: 'choice',
+        options: [
+          { id: 'food', label: '吃饭' },
+          { id: 'trip', label: '交通' },
+        ],
+      },
     ],
   },
 ];
@@ -256,6 +265,33 @@ it('a stat with a goal and compared with the same days last month', async () => 
   expect(screen.getByText('63%')).toBeTruthy();
   expect(await screen.findByText('上月同期：¥100.00')).toBeTruthy();
   expect(screen.getByText('↑ 50%')).toBeTruthy();
+});
+
+it('a grouped stat compares each option with the same days last month', async () => {
+  const repo = new MemoryWorkspaceRepo();
+  const lastMonth = shiftMonth(today().slice(0, 7), -1);
+  await put(repo, 'spend', { amount: 150, cat: 'food', date: today() });
+  await put(repo, 'spend', { amount: 100, cat: 'food', date: `${lastMonth}-01` });
+  await put(repo, 'spend', { amount: 40, cat: 'trip', date: today() });
+  await renderToolsApp(repo, undefined, {
+    locale: 'zh',
+    seed: seedWith({
+      id: 'bycat',
+      type: 'stat',
+      props: {
+        collectionId: 'spend',
+        aggregate: 'sum',
+        fieldId: 'amount',
+        label: '本月各类',
+        groupBy: 'cat',
+        filter: [{ field: 'date', op: 'inPeriod', value: 'thisMonth' }],
+        compare: 'previous',
+      },
+    }),
+  });
+  expect(await screen.findByText('↑ 50%')).toBeTruthy();
+  // 交通上月同期是 0：只写「增加」。
+  expect(screen.getByText('↑ 增加')).toBeTruthy();
 });
 
 it('SQLite reads one month by the stored date, or by created time', async () => {

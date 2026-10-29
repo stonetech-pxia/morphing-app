@@ -62,7 +62,6 @@ import { onPicture } from './Backdrop';
 import { ScheduleInput } from './ScheduleInput';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
-import { MonthCalendar } from './MonthCalendar';
 import { ProgressBar, ProgressRing } from './Progress';
 import { useTicker } from './ticker';
 import { cardColors, type Palette } from './theme';
@@ -703,17 +702,8 @@ export type RecordListProps = Extract<Component, { type: 'recordList' }>['props'
 
 export type Tone = ComponentStyle['tone'];
 
-export function RecordList(p: {
-  props: RecordListProps;
-  env: RenderEnv;
-  tone?: Tone;
-  componentId: string;
-}) {
-  // 月历（D-302）只读一个月的记录，读法不同，分成两个组件（hook 不能按条件调用）。
-  return p.props.display === 'calendar' ? <MonthCalendar {...p} /> : <PlainRecordList {...p} />;
-}
-
-function PlainRecordList({
+/** 记录列表的 list / cards / checklist；月历（D-302）读法不同，是 MonthCalendar（registry 按 display 选）。 */
+export function RecordList({
   props,
   env,
   tone,
@@ -721,7 +711,6 @@ function PlainRecordList({
   props: RecordListProps;
   env: RenderEnv;
   tone?: Tone;
-  componentId: string;
 }) {
   const { palette, locale } = env;
   const collection = useCollection(env, props.collectionId);
@@ -1146,10 +1135,21 @@ export function Stat({
   );
   // D-248：按单选字段分组，每个选项一行。
   if (props.groupBy) {
+    const noChoice = t(env.locale, 'statNoChoice');
     const groups =
-      records === null
-        ? []
-        : groupRecords(matched, collection, props.groupBy, t(env.locale, 'statNoChoice'));
+      records === null ? [] : groupRecords(matched, collection, props.groupBy, noChoice);
+    // 和上一段比（D-305）：每个选项和它自己的上一段比。
+    const before =
+      previous && records !== null
+        ? new Map(
+            groupRecords(
+              filterRecords(records, collection, previous.filter, now, cal),
+              collection,
+              props.groupBy,
+              noChoice,
+            ).map((g) => [g.optionId, valueOf(g.records).value]),
+          )
+        : null;
     return (
       <Card palette={palette} background={background} backdrop={backdrop} style={styles.fillCard}>
         {heading}
@@ -1176,6 +1176,14 @@ export function Stat({
                   <View style={styles.groupBar}>
                     <ProgressBar ratio={goalProgress(v)!.ratio} palette={palette} />
                   </View>
+                ) : null}
+                {before ? (
+                  <Text style={[palette.font('bodyBold', 12), { color: palette.muted }]}>
+                    {changeLabel(
+                      compareChange(v.value, before.get(g.optionId) ?? null),
+                      env.locale,
+                    )}
+                  </Text>
                 ) : null}
               </View>
             </View>
