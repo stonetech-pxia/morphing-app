@@ -24,8 +24,8 @@ export interface PackManifest {
 }
 
 /**
- * 还没定托管地址的扩展包（D-274 的展平模型）：url 用这个前缀写相对路径，下载时换成 App 配置的扩展包地址
- * （EXPO_PUBLIC_MORPH_PACKS_URL）；没配置时下载不了（App 也不会提示下载）。
+ * 放在我们自己服务器上的扩展包（D-274 的展平模型，R2：https://morph-tools.stonetech.dev/packs）：url 用这个前缀
+ * 写相对路径，下载时接到 App 打包时配置的 EXPO_PUBLIC_MORPH_PACKS_URL 后面；没配置时下载不了（App 也不会提示下载）。
  */
 export const PACK_HOST = 'morph-packs:/';
 
@@ -119,7 +119,8 @@ export const PACKS: readonly PackManifest[] = [
   },
   {
     // 扫描展平（D-274）：UVDoc 的网格部分（PaddleOCR 3.x 的 text_image_unwarping，Hugging Face
-    // PaddlePaddle/UVDoc_onnx 提交 3bcf535 的 inference.onnx，截到网格输出、转成 fp16）。托管地址还没定，见 PACK_HOST。
+    // PaddlePaddle/UVDoc_onnx 提交 3bcf535 的 inference.onnx，截到网格输出、转成 fp16）。放在我们自己的 R2
+    // （morph-tools.stonetech.dev/packs/，见 PACK_HOST）。LICENSE 里是 Apache-2.0 全文和 UVDoc、两个数据集的 MIT 声明。
     id: 'dewarp',
     version: '1.0.0',
     name: {
@@ -132,19 +133,20 @@ export const PACKS: readonly PackManifest[] = [
       zh: '扫描时把弯曲、有折痕的页面展平，文字行变直（UVDoc）。',
       fr: 'Aplanit les pages courbées ou froissées lors de la numérisation, pour que les lignes de texte soient droites (UVDoc).',
     },
-    license: 'Apache-2.0 (PaddleOCR UVDoc, ONNX from PaddlePaddle/UVDoc_onnx)',
+    license:
+      'Apache-2.0 (PaddlePaddle/UVDoc_onnx) + MIT (UVDoc by Tanguy Magne; UVDoc and Doc3D datasets)',
     files: [
       f(
         'uvdoc.onnx',
-        `${PACK_HOST}dewarp/1.0.0/uvdoc_grid_fp16.onnx`,
+        `${PACK_HOST}dewarp/1.0.0/uvdoc.onnx`,
         15867723,
         '288acd5c3d68a3ddfec7b0036eb3fe400a3bbaf111210307e607ca8890c9799b',
       ),
       f(
         'LICENSE',
         `${PACK_HOST}dewarp/1.0.0/LICENSE`,
-        11376,
-        '3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e',
+        15529,
+        'bfc00d639edbcbf3d0e4c1252118ba1aa55d0716231427dca78d1b6e150ee6b8',
       ),
     ],
   },

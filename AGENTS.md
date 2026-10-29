@@ -37,12 +37,13 @@
   cd apps/mobile && npx expo prebuild --platform android --no-install
   cd android && EXPO_PUBLIC_MORPH_API_URL=https://morph-api.stonetech.dev \
     EXPO_PUBLIC_MORPH_TOOLS_URL=https://morph-tools.stonetech.dev \
+    EXPO_PUBLIC_MORPH_PACKS_URL=https://morph-tools.stonetech.dev/packs \
     EXPO_PUBLIC_MORPH_CLIENT_TOKEN="$(grep '^MORPH_CLIENT_TOKEN=' ~/projects/morph-prod/.env | cut -d= -f2-)" \
     ./gradlew app:assembleRelease -PreactNativeArchitectures=arm64-v8a
   adb -s <序列号> install -r app/build/outputs/apk/release/app-release.apk
   ```
 
-  三个环境变量都会打包进 App。漏掉一个，AI 或下载工具在手机上就用不了，而模拟器和单元测试都发现不了。令牌不是秘密（D-132），但不要打印到日志里。
+  四个环境变量都会打包进 App。漏掉一个，AI、下载工具或扫描展平（D-274，漏掉 `PACKS_URL` 时扫描不会提示下载展平模型，页面照常扫出来但不展平）在手机上就用不了，而模拟器和单元测试都发现不了。令牌不是秘密（D-132），但不要打印到日志里。
 
 - adb 的毛病：在命令沙盒里 adb server 会崩，要在沙盒外后台跑 `adb nodaemon server`。别的会话也在用 adb 时，换一个端口（`ANDROID_ADB_SERVER_PORT=5038`）。每条命令都带 `-s <序列号>`，失败了就重试。`adb devices` 显示 offline（usb_read e00002eb）时，只能重新插线，或者在手机上关掉再打开 USB 调试。
 - 装完打开一次，确认 App 能启动、AI 修改能用。然后在汇报和项目记忆里写下：手机上现在是哪个分支、哪个提交，备份放在哪里。

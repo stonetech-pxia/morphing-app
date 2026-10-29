@@ -142,7 +142,7 @@ The first starts the relay on `http://127.0.0.1:8787`; the second builds the app
 | `MORPH_NEEDS_FILE`                                                            | Where "Tell us you need this" sentences go (default `data/needs.jsonl`)        |
 | `MORPH_REQUESTS_FILE`                                                         | Off by default; if set, every relayed request is stored there                  |
 
-App build variables: `EXPO_PUBLIC_MORPH_API_URL` (relay address), `EXPO_PUBLIC_MORPH_CLIENT_TOKEN` (if the relay checks one) and `EXPO_PUBLIC_MORPH_TOOLS_URL` (optional catalog of signed downloadable tools; without it the app uses only its built-in tools).
+App build variables: `EXPO_PUBLIC_MORPH_API_URL` (relay address), `EXPO_PUBLIC_MORPH_CLIENT_TOKEN` (if the relay checks one) `EXPO_PUBLIC_MORPH_TOOLS_URL` (optional catalog of signed downloadable tools; without it the app uses only its built-in tools) and `EXPO_PUBLIC_MORPH_PACKS_URL` (where the page flattening model for scanning is downloaded from, `https://morph-tools.stonetech.dev/packs`; without it scans are not flattened).
 
 ### Commands
 

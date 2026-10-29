@@ -43,7 +43,7 @@ cd android && EXPO_PUBLIC_MORPH_API_URL=https://morph-api.stonetech.dev \
 adb -s <序列号> install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-下载的工具（D-177–D-179）：打包时再设 `EXPO_PUBLIC_MORPH_TOOLS_URL=<R2 上目录的地址>`。服务器不用知道下载的工具（提示词由 App 写，D-193）；发布步骤见 [TOOL_DOWNLOAD_DESIGN.md](TOOL_DOWNLOAD_DESIGN.md) §13。
+下载的工具（D-177–D-179）：打包时再设 `EXPO_PUBLIC_MORPH_TOOLS_URL=<R2 上目录的地址>`。扫描展平的模型（D-274）：打包时设 `EXPO_PUBLIC_MORPH_PACKS_URL=https://morph-tools.stonetech.dev/packs`（R2 桶 `morph-tools` 的 `packs/`，路径带扩展包 ID 和版本，只新增不覆盖；换模型时改 `packages/core/src/packs.ts` 的版本、大小和哈希）。服务器不用知道下载的工具（提示词由 App 写，D-193）；发布步骤见 [TOOL_DOWNLOAD_DESIGN.md](TOOL_DOWNLOAD_DESIGN.md) §13。
 
 客户端令牌会打包进 App，不是秘密（D-132）。换令牌会让旧版本 App 全部 401，所以只在被滥用时才换。
 
