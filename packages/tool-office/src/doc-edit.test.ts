@@ -5,12 +5,21 @@ import {
   blockAt,
   blockText,
   deleteBlock,
+  editDocTable,
   parseDocDoc,
   setBlockText,
   setTableFrom,
   tableDocOf,
 } from './doc-edit';
-import { pushHistory, redo, setCellText, startHistory, undo } from './edit';
+import {
+  insertColumn,
+  insertRow,
+  pushHistory,
+  redo,
+  setCellText,
+  startHistory,
+  undo,
+} from './edit';
 
 const box = { x: 0, y: 0, width: 100, height: 20 };
 
@@ -138,5 +147,32 @@ describe('DocDoc edits', () => {
     expect(blockAt(d, at)).toMatchObject({ text: 'r' });
     d = deleteBlock(deleteBlock(d, at), left);
     expect(d.pages[0]!.blocks).toEqual([]);
+  });
+});
+
+describe('文档里的表格就地改（file-room R2，D-345）', () => {
+  const at = { page: 0, block: 2 };
+  const table = (d: DocDoc) => {
+    const b = blockAt(d, at);
+    if (b?.kind !== 'table') throw new Error('not a table');
+    return b;
+  };
+
+  it('改格子、插入行和列，表格块直接变，别的块不动', () => {
+    let next = editDocTable(doc, at, (t) => setCellText(t, { page: 0, block: 0 }, 1, 'z'));
+    expect(table(next).table.cells.map((c) => c.text)).toEqual(['x', 'z']);
+    next = editDocTable(next, at, (t) => insertRow(t, { page: 0, block: 0 }, 1));
+    expect(table(next).table.rows).toBe(2);
+    next = editDocTable(next, at, (t) => insertColumn(t, 0, 2));
+    expect(table(next).table.cols).toBe(3);
+    expect(table(next).colWidths).toHaveLength(3);
+    expect(next.pages[0]!.blocks[0]).toBe(doc.pages[0]!.blocks[0]);
+  });
+
+  it('没变时还是原来那份（撤销历史不多记一步）；不是表格时不变', () => {
+    expect(editDocTable(doc, at, (t) => t)).toBe(doc);
+    expect(
+      editDocTable(doc, { page: 0, block: 0 }, (t) => insertRow(t, { page: 0, block: 0 }, 0)),
+    ).toBe(doc);
   });
 });

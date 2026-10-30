@@ -122,6 +122,17 @@ export function setTableFrom(doc: DocDoc, at: DocRef, edited: TableDoc): DocDoc 
   return replaceBlock(doc, at, next);
 }
 
+/**
+ * 在文档里直接改一张表（file-room R2，D-345）：表格块换成只有这张表的 TableDoc，交给转 Excel 的编辑函数
+ * （改格子、插删行列，edit.ts），再换回来；不再弹出一个只有这张表的编辑页。没变时返回原来的 doc。
+ */
+export function editDocTable(doc: DocDoc, at: DocRef, fn: (table: TableDoc) => TableDoc): DocDoc {
+  const before = tableDocOf(doc, at, '');
+  if (!before) return doc;
+  const after = fn(before);
+  return after === before ? doc : setTableFrom(doc, at, after);
+}
+
 /** DocDoc 的 JSON 读回来时检查一下大概的形状（文件是自己写的，只防坏文件）。 */
 export function parseDocDoc(json: string): DocDoc | null {
   try {
