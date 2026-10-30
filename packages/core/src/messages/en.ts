@@ -1204,7 +1204,7 @@ export const en = {
   tableReadOnly:
     'This page has more than {max} cells, so it can only be viewed here. To edit it, open the file in another app.',
   tableSaveFailed: 'The changes couldn’t be saved: {error}',
-  // 扫描件转 Word（D-310）
+  // 扫描件转 Word（D-328）
   runError_wordUnsupported:
     'This device can’t read documents in this language yet. Choose another language for “Convert to Word”.',
   wordFileName: 'Document {date}',

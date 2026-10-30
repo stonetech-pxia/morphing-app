@@ -151,7 +151,7 @@ export const PACKS: readonly PackManifest[] = [
     ],
   },
   {
-    // 扫描件转 Word 的版面分析（D-310）：PP-DocLayout-S（Hugging Face PaddlePaddle/PP-DocLayout-S 的 Paddle 模型，
+    // 扫描件转 Word 的版面分析（D-328）：PP-DocLayout-S（Hugging Face PaddlePaddle/PP-DocLayout-S 的 Paddle 模型，
     // paddle2onnx 2.1.0 转成 ONNX，scale_factor 固定为 [1, 1]、只留第一个输出，权重存成 fp16）。
     // 放在我们自己的 R2（见 PACK_HOST）；还没上传，等创始人确认（文件在 side-session-notes/scan-to-office/word-exp/pack）。
     id: 'layout',

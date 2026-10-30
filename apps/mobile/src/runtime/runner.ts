@@ -188,7 +188,7 @@ export function devicePack(
       : undefined;
   }
   const model = files.vision?.ocrModel;
-  // 转 Word（D-310）：和转 Excel 一样要认字的模型，另外可选版面分析模型（不下载也照样转）。
+  // 转 Word（D-328）：和转 Excel 一样要认字的模型，另外可选版面分析模型（不下载也照样转）。
   if (actionId === 'ocr.toWord') {
     const ocr = devicePack(files, 'ocr.toExcel', params, locale) as DevicePack | undefined;
     const layout = files.vision?.layoutModel;

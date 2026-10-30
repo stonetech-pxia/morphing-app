@@ -100,7 +100,7 @@ const toExcel = {
   action: 'ocr.toExcel',
   params: { lang: 'auto', scope: 'all' },
 };
-/** 转 Word（D-310）：语言自动识别，运行时不问。 */
+/** 转 Word（D-328）：语言自动识别，运行时不问。 */
 const toWord = { id: 'word', action: 'ocr.toWord', params: { lang: 'auto' } };
 
 export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
@@ -266,7 +266,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     steps: () => [photos(1, 20), toExcel],
   },
   {
-    // D-310：拍纸质文档（信件、书页、表单），做成 Word；结果页可以查看和修改。
+    // D-328：拍纸质文档（信件、书页、表单），做成 Word；结果页可以查看和修改。
     id: 'scan-doc-word',
     scenario: 'paperwork',
     name: {
@@ -289,7 +289,7 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
-    // D-310：相册里的文档照片、截图做成 Word。
+    // D-328：相册里的文档照片、截图做成 Word。
     id: 'image-doc-word',
     scenario: 'paperwork',
     name: { en: 'Document picture to Word', zh: '图片转 Word', fr: 'Image de document en Word' },

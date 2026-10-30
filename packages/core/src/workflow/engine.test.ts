@@ -315,7 +315,7 @@ describe('runWorkflow', () => {
     expect(await noScan.promise).toMatchObject({ status: 'cancelled' });
   });
 
-  it('asks for every pack one step needs on this device: the required one and an extra optional one (D-310)', async () => {
+  it('asks for every pack one step needs on this device: the required one and an extra optional one (D-328)', async () => {
     const wf: Workflow = {
       id: 'word',
       name: 'Word',

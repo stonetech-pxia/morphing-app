@@ -77,7 +77,7 @@ describe('step phrases in action definitions', () => {
       action: 'ocr.toExcel',
       params: { lang: 'auto', scope: 'all' },
     });
-    // 转 Word（D-310）：语言自动。
+    // 转 Word（D-328）：语言自动。
     expect(parseStepPhrase('转成 Word', 'zh')).toEqual({
       action: 'ocr.toWord',
       params: { lang: 'auto' },

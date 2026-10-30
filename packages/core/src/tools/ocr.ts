@@ -123,7 +123,7 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
     ],
   },
   {
-    // 扫描件转 Word（D-310）：版面分析（扩展包 layout，不下载也能转，只是不分标题和图片）+ 认字 + 带线的表格，
+    // 扫描件转 Word（D-328）：版面分析（扩展包 layout，不下载也能转，只是不分标题和图片）+ 认字 + 带线的表格，
     // 做成一个 docx；结果页可以查看和修改。和电子版 PDF 转 Word（D-186 不做）不是一回事。
     id: 'ocr.toWord',
     label: { en: 'Convert to Word', zh: '转 Word', fr: 'Convertir en document Word' },

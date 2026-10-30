@@ -1,6 +1,6 @@
 import type { Box, OcrBox, RgbaImage } from './types';
 
-// 扫描件转 Word（D-310）的版面分析：PP-DocLayout-S（扩展包 layout）的前后处理和区域整理，阅读顺序。
+// 扫描件转 Word（D-328）的版面分析：PP-DocLayout-S（扩展包 layout）的前后处理和区域整理，阅读顺序。
 // 模型改成了一个 float32 输入（1×3×480×480，不保持宽高比缩放，ImageNet 归一化）、一个 float32 输出
 // （N×6：类别、分数、x1、y1、x2、y2，坐标在 480×480 的输入里；NMS 在图里做好了），App 的 modelRun 直接能跑。
 
@@ -137,7 +137,7 @@ const IMAGE_MAX_CHARS = 30;
 const IMAGE_MAX_PAGE_SHARE = 0.5;
 
 /**
- * 整理模型给的区域（D-310）：图片里字太多、或者大得占了半页的不当图片（那些字按正文排）；
+ * 整理模型给的区域（D-328）：图片里字太多、或者大得占了半页的不当图片（那些字按正文排）；
  * 模型的表格不用（表格只认带线的，和转 Excel 一样，D-272；无线表留给第三期），里面的字按正文排；
  * 一行字只能属于一个区域。
  */

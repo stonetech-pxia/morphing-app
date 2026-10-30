@@ -1123,7 +1123,7 @@ export class FakeVision implements VisionPlatform {
   }
 
   /**
-   * 转 Word 的版面分析（D-310）：默认没有（旧版 App）；enableLayout 打开。layoutRegions 是每页的结果
+   * 转 Word 的版面分析（D-328）：默认没有（旧版 App）；enableLayout 打开。layoutRegions 是每页的结果
    * （按顺序，null 是模型没装），layoutFails 时版面分析出错。
    */
   layoutModel?: { pack: string };

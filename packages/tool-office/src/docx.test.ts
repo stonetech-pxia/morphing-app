@@ -62,7 +62,7 @@ describe('writeDocx', () => {
     };
     const xml = unzip(writeDocx(doc)).text('word/document.xml');
     expect(xml).toContain('<w:pStyle w:val="Heading1"/>');
-    // 每个 run 都写字号（D-317：苹果的预览不读默认样式里的字号，一律当 12 磅）；标题是标题样式的字号。
+    // 每个 run 都写字号（D-335：苹果的预览不读默认样式里的字号，一律当 12 磅）；标题是标题样式的字号。
     expect(xml).toContain(
       '<w:b/><w:bCs/><w:sz w:val="35"/><w:szCs w:val="35"/></w:rPr><w:t xml:space="preserve">Titre</w:t>',
     );
@@ -138,7 +138,7 @@ describe('writeDocx', () => {
     expect(rows[1]).toContain('<w:jc w:val="right"/>');
   });
 
-  it('scales table text with the table and shrinks the whole table until the longest word fits (D-317)', () => {
+  it('scales table text with the table and shrinks the whole table until the longest word fits (D-335)', () => {
     const table = (colWidths: number[], texts: string[], size: number): DocDoc => ({
       version: 1,
       pages: [
@@ -175,7 +175,7 @@ describe('writeDocx', () => {
     expect(sizes(table([100, 900], ['REFRIGERATEURS', 'b'], 10))).toEqual([5, 5]);
   });
 
-  it('writes each page’s text at that page’s body size (D-317)', () => {
+  it('writes each page’s text at that page’s body size (D-335)', () => {
     const doc: DocDoc = {
       version: 1,
       pages: [
@@ -252,7 +252,7 @@ describe('writeDocx', () => {
     );
   });
 
-  it('uses sans-serif fonts by default and bold headings (D-312)', () => {
+  it('uses sans-serif fonts by default and bold headings (D-330)', () => {
     const zip = unzip(writeDocx({ version: 1, pages: [page([])] }));
     const styles = zip.text('word/styles.xml');
     expect(styles).toContain(
@@ -272,7 +272,7 @@ describe('writeDocx', () => {
     expect(zip.text('[Content_Types].xml')).toContain('PartName="/word/fontTable.xml"');
   });
 
-  it('writes the first-line indent in twips (D-312)', () => {
+  it('writes the first-line indent in twips (D-330)', () => {
     const xml = unzip(
       writeDocx({ version: 1, pages: [page([{ kind: 'paragraph', text: 'p', indent: 50, box }])] }),
     ).text('word/document.xml');
@@ -280,7 +280,7 @@ describe('writeDocx', () => {
     expect(xml).toContain('<w:ind w:firstLine="595"/>');
   });
 
-  it('writes a row of side-by-side blocks as a borderless layout table with nested content (D-313)', () => {
+  it('writes a row of side-by-side blocks as a borderless layout table with nested content (D-331)', () => {
     const table = {
       kind: 'table' as const,
       colWidths: [200, 200],
@@ -329,7 +329,7 @@ describe('writeDocx', () => {
     expect(xml).toContain('>left</w:t>');
   });
 
-  it('writes form label and value pairs as a borderless two-column table, one pair per row (D-314)', () => {
+  it('writes form label and value pairs as a borderless two-column table, one pair per row (D-332)', () => {
     const xml = unzip(
       writeDocx({
         version: 1,

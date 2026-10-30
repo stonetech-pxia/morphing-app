@@ -100,7 +100,7 @@ export function expoVision(
         { ocrPack: PPOCR_PACK, quality: QUALITY },
       )
     : null;
-  // 转 Word 的版面分析（D-310）：和展平一样用 modelRun 跑扩展包里的模型。
+  // 转 Word 的版面分析（D-328）：和展平一样用 modelRun 跑扩展包里的模型。
   const layout = modelRun
     ? createLayoutDetector(
         { modelRun },

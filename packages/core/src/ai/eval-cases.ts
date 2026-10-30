@@ -2445,7 +2445,7 @@ const SPEAK_EVAL_CASES: readonly EvalCase[] = [
     mock: false,
     expect: { kind: 'ops', check: hasWorkflow(['in.photos', 'ocr.toExcel']) },
   },
-  // ---- 扫描件转 Word（D-310）----
+  // ---- 扫描件转 Word（D-328）----
   {
     id: 'DOC1',
     input: '新建一个快捷操作：扫描文档，转 Word，分享',

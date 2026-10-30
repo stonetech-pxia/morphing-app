@@ -40,7 +40,7 @@ export interface ResultActions {
   preview?(item: RunItem): Promise<void>;
   /** 转 Excel 的结果：打开查看和编辑（D-272）。 */
   editTable?(item: RunItem): void;
-  /** 转 Word 的结果：打开查看和编辑（D-310）。 */
+  /** 转 Word 的结果：打开查看和编辑（D-328）。 */
   editWord?(item: RunItem): void;
 }
 

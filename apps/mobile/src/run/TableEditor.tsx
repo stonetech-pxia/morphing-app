@@ -73,7 +73,7 @@ interface MenuOption {
   run: () => void;
 }
 
-/** 原图里一格的截图：整张图按比例放大，只露出这一格（四周多留一点）。转 Word 的编辑页也用（D-310）。 */
+/** 原图里一格的截图：整张图按比例放大，只露出这一格（四周多留一点）。转 Word 的编辑页也用（D-328）。 */
 export function Crop({
   page,
   box,
@@ -139,7 +139,7 @@ export function TableEditor({
   /** 改过、已经写好新的 xlsx：换掉结果里的这一项。 */
   onSaved: (next: RunItem) => void;
   /**
-   * 转 Word 的表格（D-310）：编辑内存里的这份 TableDoc（只有一张表），不读写文件；
+   * 转 Word 的表格（D-328）：编辑内存里的这份 TableDoc（只有一张表），不读写文件；
    * 改过时点「完成」交回 onDone（不调用 onSaved）。
    */
   inMemory?: { doc: TableDoc; onDone: (doc: TableDoc) => void };

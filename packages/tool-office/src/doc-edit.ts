@@ -1,14 +1,14 @@
 import type { DocBlock, DocDoc, DocLeaf, DocTable } from './doc';
 import type { TableBlock, TableDoc } from './types';
 
-// 转 Word 的编辑（D-310）：DocDoc 不可变地改，每次返回新的（撤销、重做用 edit.ts 的 History）。
+// 转 Word 的编辑（D-328）：DocDoc 不可变地改，每次返回新的（撤销、重做用 edit.ts 的 History）。
 // 段落改文字；列表一行一项；表格交给转 Excel 的编辑页（换成只有这一张表的 TableDoc，改完换回来）；
-// 任何块都能删除。并排行（D-313）里的块用 cell、item 指明，和别的块一样改；整行不能直接改，格子都空了就删掉。
+// 任何块都能删除。并排行（D-331）里的块用 cell、item 指明，和别的块一样改；整行不能直接改，格子都空了就删掉。
 
 export interface DocRef {
   page: number;
   block: number;
-  /** 并排行里的第几格、格子里的第几个块（D-313）；没有时指整个块。 */
+  /** 并排行里的第几格、格子里的第几个块（D-331）；没有时指整个块。 */
   cell?: number;
   item?: number;
 }

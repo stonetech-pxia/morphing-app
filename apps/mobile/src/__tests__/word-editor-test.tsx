@@ -10,7 +10,7 @@ import { WordEditor } from '../run/WordEditor';
 import { canEditWord } from '../run/word-edit';
 import { FakeFiles } from '../test-utils/fake-files';
 
-// 转 Word 的查看和编辑（D-310）：按块显示，点一下选中（显示原图截图）、再点一下编辑；列表一行一项；
+// 转 Word 的查看和编辑（D-328）：按块显示，点一下选中（显示原图截图）、再点一下编辑；列表一行一项；
 // 删除块；表格交给转 Excel 的编辑页；撤销重做；完成时改过才写新的 docx（换掉结果里的地址），旧的删掉。
 
 const box = (x: number, y: number, width = 400, height = 30) => ({ x, y, width, height });
@@ -117,7 +117,7 @@ const saved = async (files: FakeFiles, next: RunItem) => ({
   xml: strFromU8(unzipSync(await files.readUri(next.uri))['word/document.xml']!),
 });
 
-describe('word editor (D-310)', () => {
+describe('word editor (D-328)', () => {
   it('selects on the first tap, edits on the second, and writes a new docx when done', async () => {
     const { files, item, onSaved, onClose } = await setup();
     expect(screen.getByText('点一下选中，再点一下编辑')).toBeTruthy();
@@ -229,7 +229,7 @@ describe('word editor (D-310)', () => {
   });
 });
 
-describe('side-by-side rows in the word editor (D-313)', () => {
+describe('side-by-side rows in the word editor (D-331)', () => {
   /** 一行并排：左边一段，右边一张表和一段；下面一张剪好的图片在另一行的右格里。 */
   function rowDoc(src?: string): DocDoc {
     const doc = makeDoc(src);
@@ -312,7 +312,7 @@ describe('side-by-side rows in the word editor (D-313)', () => {
   });
 });
 
-describe('form label and value pairs in the word editor (D-314)', () => {
+describe('form label and value pairs in the word editor (D-332)', () => {
   it('shows each label next to its value and edits them as text with tabs', async () => {
     const doc = makeDoc();
     doc.pages[0]!.blocks[1] = {
@@ -343,7 +343,7 @@ describe('form label and value pairs in the word editor (D-314)', () => {
   });
 });
 
-describe('result page for Word conversions (D-310)', () => {
+describe('result page for Word conversions (D-328)', () => {
   const actions = {
     save: jest.fn(),
     share: jest.fn(),

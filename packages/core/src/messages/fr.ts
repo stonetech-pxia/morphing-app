@@ -1256,7 +1256,7 @@ export const fr: MessageTable = {
   tableReadOnly:
     'Cette page compte plus de {max} cellules : ici, elle peut seulement être consultée. Pour la modifier, ouvrez le fichier dans une autre application.',
   tableSaveFailed: 'Les modifications n’ont pas pu être enregistrées : {error}',
-  // 扫描件转 Word（D-310）
+  // 扫描件转 Word（D-328）
   runError_wordUnsupported:
     'Cet appareil ne sait pas encore lire les documents dans cette langue. Choisissez une autre langue pour « Convertir en document Word ».',
   wordFileName: 'Document {date}',

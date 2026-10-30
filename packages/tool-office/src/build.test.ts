@@ -426,7 +426,7 @@ describe('cases from real scans (D-272)', () => {
 
   it('keeps a form cell of several lines together when only one column has them', () => {
     // 能耗诊断的表头框：左右两格各是几行地址、日期，中间没有横线；只有前两排左右都有字，
-    // 下面几排只有左边一列有续行。按排分行会把一格拆成好几行（D-315）。
+    // 下面几排只有左边一列有续行。按排分行会把一格拆成好几行（D-333）。
     const words = [
       word('Logement F44', 120, 110, 200),
       word('Date 21/02', 420, 110, 200),

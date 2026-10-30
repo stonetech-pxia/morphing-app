@@ -15,7 +15,7 @@ import { devicePack, startRun } from '../runtime/runner';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, FakeVision } from '../test-utils/fake-files';
 
-// 扫描件转 Word（D-310）的执行：像素只解码一次（认字、找线、版面分析共用）；版面分析模型没装或出错时
+// 扫描件转 Word（D-328）的执行：像素只解码一次（认字、找线、版面分析共用）；版面分析模型没装或出错时
 // 只按位置分段；图片区域按比例从原图剪下来嵌进 docx；结果是一个 docx，旁边存一份 DocDoc。
 
 jest.mock('expo-localization', () => ({ getLocales: jest.fn(() => []) }));
@@ -93,7 +93,7 @@ function onePage(vision: FakeVision) {
   vision.layers = [{ width: W, height: H, lines }];
 }
 
-describe('ocr.toWord (D-310)', () => {
+describe('ocr.toWord (D-328)', () => {
   it('makes one docx with a heading, a paragraph, a ruled table and a cropped picture', async () => {
     const { files, vision, run } = setup([pick, word()]);
     vision.enableLayout();

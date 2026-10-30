@@ -2,9 +2,9 @@ import { buildTablePage, type BuildOptions } from './build';
 import { assignLines, cleanRegions, readingOrder, type LayoutRegion } from './layout';
 import type { Box, OcrBox, RgbaImage, TableBlock, TableCell } from './types';
 
-// 扫描件转 Word（D-310）：一页的识别结果 + 版面分析的区域 → DocDoc（编辑页改它，docx 每次从它重新生成）。
+// 扫描件转 Word（D-328）：一页的识别结果 + 版面分析的区域 → DocDoc（编辑页改它，docx 每次从它重新生成）。
 // 带线的表格和转 Excel 用同一套找线、组表（D-272）；其余的字按区域（没有区域的按位置聚成块）分段，
-// 段落按 D-268 的规则接行；字号看行高，粗体看笔画粗细，颜色看文字像素。上下重叠、左右分开的块放进并排行（D-313）。删除线、文字下面的划线不画（只取字）。
+// 段落按 D-268 的规则接行；字号看行高，粗体看笔画粗细，颜色看文字像素。上下重叠、左右分开的块放进并排行（D-331）。删除线、文字下面的划线不画（只取字）。
 
 /** 段落的样式：字号（磅）、粗体、颜色（RRGGBB）、对齐；没有的用文档默认的。 */
 export interface DocStyle {
@@ -21,10 +21,10 @@ export interface DocParagraph extends DocStyle {
   heading?: 1 | 2;
   /** 和上一段之间原来空着（分段的空隙），写成段前间距。 */
   spaced?: boolean;
-  /** 首行缩进（原图像素，D-312）：第一行比这一块其他行靠右多少。 */
+  /** 首行缩进（原图像素，D-330）：第一行比这一块其他行靠右多少。 */
   indent?: number;
   /**
-   * 表单里配好的标签和值（D-314）：text 每行是「标签\t值」，tab 是值相对标签左边的位置（原图像素），
+   * 表单里配好的标签和值（D-332）：text 每行是「标签\t值」，tab 是值相对标签左边的位置（原图像素），
    * docx 里写成一个制表位。
    */
   tab?: number;
@@ -50,7 +50,7 @@ export interface DocTable {
   kind: 'table';
   table: TableBlock;
   colWidths: number[];
-  /** 表里字的字号（磅，按表里文字的行高，D-317）；没有时用正文字号。写 docx 时随表的缩小一起缩小。 */
+  /** 表里字的字号（磅，按表里文字的行高，D-335）；没有时用正文字号。写 docx 时随表的缩小一起缩小。 */
   size?: number;
   box: Box;
 }
@@ -72,7 +72,7 @@ export interface DocRowCell {
 }
 
 /**
- * 并排的一行（D-313）：上下范围重叠、左右分开的几块（左右两栏文字、并排的几张表、表单的左右两块），
+ * 并排的一行（D-331）：上下范围重叠、左右分开的几块（左右两栏文字、并排的几张表、表单的左右两块），
  * docx 里写成一张无边框的排版表格的一行，每格里放各自的段落、表格。
  */
 export interface DocRow {
@@ -124,7 +124,7 @@ export const A4_WIDTH_PT = 595;
 const BOX_TO_FONT = 0.9;
 /**
  * 正文字号限制在这个范围：照片里的纸不一定是 A4（书页窄，按 A4 换算字会偏大），
- * 其他段落按和正文行高的比例算字号。表单页（D-317）按原图比例，最小到 6 磅，一页原件尽量还是一页；
+ * 其他段落按和正文行高的比例算字号。表单页（D-335）按原图比例，最小到 6 磅，一页原件尽量还是一页；
  * 正文页（一半以上的字在长行里：书页、条款页）不小于 9 磅，字太小不好读，多排几页没关系。
  */
 const BODY_MIN = 9;
@@ -141,7 +141,7 @@ const SHORT_TEXT = 6;
 const HEADING_RATIO = 1.3;
 const HEADING1_RATIO = 1.8;
 /**
- * 不当标题的段落（D-312）：引号开头的（对话），句号结尾而且字母数字超过 20 个的（一句话），
+ * 不当标题的段落（D-330）：引号开头的（对话），句号结尾而且字母数字超过 20 个的（一句话），
  * 或者字母数字超过 100 个的。版面模型和字号都可能把这些认成标题。
  */
 const QUOTE_START = /^\s*[“"«「『‘'„]/;
@@ -150,7 +150,7 @@ const notHeading = (text: string) => {
   const n = text.match(/[\p{L}\p{N}]/gu)?.length ?? 0;
   return QUOTE_START.test(text) || (SENTENCE_END.test(text) && n > 20) || n > 100;
 };
-/** 首行缩进（D-312）：至少 0.8 个行高，最多 4 个行高、这一块宽度的一半（再多是居中、靠右或另一栏的短行）。 */
+/** 首行缩进（D-330）：至少 0.8 个行高，最多 4 个行高、这一块宽度的一半（再多是居中、靠右或另一栏的短行）。 */
 const INDENT_MIN = 0.8;
 const INDENT_MAX = 0.5;
 const INDENT_LINES = 4;
@@ -366,7 +366,7 @@ export function textColor(image: RgbaImage, box: Box): string | undefined {
     .toUpperCase();
 }
 
-/** 页边碎片（D-316）：不超过这么多个字（不算空格）。 */
+/** 页边碎片（D-334）：不超过这么多个字（不算空格）。 */
 const STRAY_CHARS = 3;
 /** 离别的字至少这么多个行高才算孤立。 */
 const STRAY_GAP = 3;
@@ -377,7 +377,7 @@ const STRAY_TALL = 2;
 const STRAY_EDGE = 0.01;
 
 /**
- * 页边碎片（D-316）：很短、孤立（离别的字至少 3 个行高），而且贴着页边、置信度低或者框比正文高得多的，
+ * 页边碎片（D-334）：很短、孤立（离别的字至少 3 个行高），而且贴着页边、置信度低或者框比正文高得多的，
  * 是页边的污点、装订孔、签名认成的字（条款页顶上的「00」），不写进文件。认得准、和正文一样高的短字照样留下。
  */
 function isStray(
@@ -422,7 +422,7 @@ function listMarker(text: string): { ordered: boolean; format?: string; start?: 
 const stripMarker = (text: string) => text.replace(ORDERED, '').replace(BULLET, '').trim();
 
 /**
- * 整列都空着的格子并进左边的格子（D-310）：转 Excel 时整页共用一套列线（D-272），一张表会多出只有别的表才有的列，
+ * 整列都空着的格子并进左边的格子（D-328）：转 Excel 时整页共用一套列线（D-272），一张表会多出只有别的表才有的列，
  * 在 Word 里就是一列空格子。只并没有跨行的格子；列线不变（格子用 colSpan 跨过去）。
  */
 export function foldEmptyColumns(table: TableBlock): TableBlock {
@@ -480,7 +480,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
       source: input.source,
       ...(input.skew !== undefined ? { skew: input.skew } : {}),
     },
-    // 格子里的字按原图一排一行（D-315）：表单一格里的地址、日期各占一行，不接成一段（Word 里格子宽按原图，字号按比例）。
+    // 格子里的字按原图一排一行（D-333）：表单一格里的地址、日期各占一行，不接成一段（Word 里格子宽按原图，字号按比例）。
     {
       ...options,
       joinLines: (cell) =>
@@ -503,7 +503,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   const tables: DocTable[] = sheet.blocks
     .filter((b): b is TableBlock => b.kind === 'table')
     .map((table) => {
-      // 表里的字号按表里文字的行高（D-317），和正文分开算。
+      // 表里的字号按表里文字的行高（D-335），和正文分开算。
       const h = median(lines.filter((l) => inBox(l, table.box)).map((l) => l.height));
       return {
         kind: 'table',
@@ -548,7 +548,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   )) {
     groups.push({ lines: cluster, title: 0, box: unionBox(cluster) });
   }
-  // 表单：左边一列标签、右边一列值的两块按行配好（D-314）。
+  // 表单：左边一列标签、右边一列值的两块按行配好（D-332）。
   groups = pairForms(groups, lineHeight);
   // 字号和笔画：先量出整页的正文字号和笔画粗细，再和它比。
   const strokes = new Map<OcrBox, number>();
@@ -558,7 +558,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     groups.filter((g) => !g.title).flatMap((g) => g.lines.map((l) => l.height)),
   );
   const bodyH = bodyHeight || lineHeight;
-  // 正文页还是表单页（D-317）：数长行（至少四成页宽）里的字占整页（含表格）的多少。
+  // 正文页还是表单页（D-335）：数长行（至少四成页宽）里的字占整页（含表格）的多少。
   const charsOf = (ls: readonly OcrBox[]) => ls.reduce((n, l) => n + l.text.length, 0);
   const prose =
     charsOf(lines.filter((l) => l.width >= PROSE_LINE * image.width)) >=
@@ -573,7 +573,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     ...free.map((l) => l.x + l.width),
     ...tables.map((t) => t.box.x + t.box.width),
   );
-  // 整页的左边距：四分之一的行从这里或更左开始（页边上零星的字、页码不算，D-312）。
+  // 整页的左边距：四分之一的行从这里或更左开始（页边上零星的字、页码不算，D-330）。
   const pageLeft =
     [...free.map((l) => l.x)].sort((a, b) => a - b)[Math.floor(free.length / 4)] ?? 0;
   // 先排好块（区域、表格、图片）的阅读顺序，块里的段落保持从上到下。
@@ -600,7 +600,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     const blocks: DocLeaf[] = [];
     units.push({ box: group.box, blocks });
     if (group.pairs) {
-      // 一行一对：标签、制表符、值（D-314）。
+      // 一行一对：标签、制表符、值（D-332）。
       const text = group.pairs
         .map(([label, value]) => `${join(label).trim()}\t${join(value).trim()}`)
         .join('\n');
@@ -656,7 +656,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
         continue;
       }
       list = null;
-      // 标题：模型说是标题（字不比正文小），或者字明显比正文大、不超过两行；对话和整句不算（D-312）。
+      // 标题：模型说是标题（字不比正文小），或者字明显比正文大、不超过两行；对话和整句不算（D-330）。
       const big = !short && size >= HEADING_RATIO * bodySize && para.rows.length <= 2;
       const titled = group.title > 0 && size >= bodySize;
       const headingLike = (titled || big) && !notHeading(text);
@@ -673,7 +673,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
         Math.abs(leftGap - rightGap) < 0.2 * (leftGap + rightGap);
       const right = !centered && leftGap > 6 * h && rightGap < 1.5 * h && para.rows.length <= 2;
       // 首行缩进：第一行的左边和其他行比；只有一行时和这一块里最靠左的行比，这一块只有这一行时和整页的左边距比
-      // （书页里一句对话常常单独是一个区域）。最多 4 个行高（D-312）。
+      // （书页里一句对话常常单独是一个区域）。最多 4 个行高（D-330）。
       const first = para.rows[0]!.box.x;
       const base =
         para.rows.length > 1
@@ -709,7 +709,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   };
 }
 
-/** 一块字（区域或按位置聚成的块）；pairs 是配好的表单标签和值（D-314）。 */
+/** 一块字（区域或按位置聚成的块）；pairs 是配好的表单标签和值（D-332）。 */
 interface Group {
   lines: OcrBox[];
   title: 0 | 1 | 2;
@@ -717,12 +717,12 @@ interface Group {
   pairs?: [OcrBox[], OcrBox[]][];
 }
 
-/** 标签：冒号结尾，或者在一列左对齐、不超过这么多个字的短文字（D-314）。 */
+/** 标签：冒号结尾，或者在一列左对齐、不超过这么多个字的短文字（D-332）。 */
 const LABEL_MAX = 30;
 const LABEL_COLON = /[:：]\s*$/;
 
 /**
- * 表单的标签和值（D-314）：一块（标签）的连续几行和右边另一块（值）的连续几行一行对一行（上下重叠、值在标签右边），
+ * 表单的标签和值（D-332）：一块（标签）的连续几行和右边另一块（值）的连续几行一行对一行（上下重叠、值在标签右边），
  * 标签都是冒号结尾，或者有两对以上、标签左对齐、不超过 30 个字、每行单独成段（不是折行的正文）时，
  * 这几行配成一块；两块里没配上的行（上面、下面）各自另成一块。
  */
@@ -797,11 +797,11 @@ interface Unit {
   blocks: DocLeaf[];
 }
 
-/** 上下范围重叠超过矮的那块高度的这么多，算并排（D-313）。 */
+/** 上下范围重叠超过矮的那块高度的这么多，算并排（D-331）。 */
 const SIDE_OVERLAP = 0.5;
 
 /**
- * 块排成文件里的顺序（D-313）：上下范围明显重叠的块连成一带，一带一带从上到下；
+ * 块排成文件里的顺序（D-331）：上下范围明显重叠的块连成一带，一带一带从上到下；
  * 一带里左右能分成几栏（左右不重叠，并排的表格之间常常只隔一个行高）的写成并排行，每格里按阅读顺序；分不开的按阅读顺序排。
  */
 export function arrangeUnits(units: readonly Unit[], lineHeight: number): DocBlock[] {

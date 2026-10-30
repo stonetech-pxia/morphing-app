@@ -39,12 +39,12 @@ import type { FilePlatform } from '../runtime/platform';
 import { Crop, TableEditor } from './TableEditor';
 import { loadDocDoc, saveWordEdits } from './word-edit';
 
-// 转 Word 的查看和编辑（D-310）：按块显示（标题、段落、列表、表格、图片），点一下选中、再点一下编辑；
+// 转 Word 的查看和编辑（D-328）：按块显示（标题、段落、列表、表格、图片），点一下选中、再点一下编辑；
 // 选中时底部显示原图里这一块的截图（和转 Excel 的编辑页一样）。段落和列表改文字（列表一行一项），
 // 表格交给转 Excel 的编辑页（只有这一张表），任何块都能删除。撤销只在内存里（最多 100 步）。
 // 点「完成」或返回时，改过就重新生成 docx（新文件）并写回 DocDoc。
-// 表单配好的标签和值（D-314）每行左右两段显示，编辑时是「标签、制表符、值」。
-// 并排行（D-313）按原图的列宽左右排开，每格里的块和别的块一样点选、编辑、删除；整行本身不能选。
+// 表单配好的标签和值（D-332）每行左右两段显示，编辑时是「标签、制表符、值」。
+// 并排行（D-331）按原图的列宽左右排开，每格里的块和别的块一样点选、编辑、删除；整行本身不能选。
 
 /** 正文在编辑页里的字号（点）；标题和别的字号按和正文的比例放大缩小。 */
 const BODY_PX = 15;
@@ -81,7 +81,7 @@ function BlockView({
         { color: block.color ? `#${block.color}` : palette.text },
       ];
       if (block.tab) {
-        // 表单的标签和值（D-314）：每行一对，值从原图里的位置开始。
+        // 表单的标签和值（D-332）：每行一对，值从原图里的位置开始。
         const labelWidth = Math.min(0.6, block.tab / Math.max(1, block.box.width)) * maxWidth;
         return (
           <View>

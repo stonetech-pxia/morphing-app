@@ -10,7 +10,7 @@ import {
 import { freshName } from '../runtime/actions/helpers';
 import type { FilePlatform } from '../runtime/platform';
 
-// 转 Word 的编辑页（D-310）读写 DocDoc：和转 Excel 一样（table-edit.ts），改过以后重新生成 docx，
+// 转 Word 的编辑页（D-328）读写 DocDoc：和转 Excel 一样（table-edit.ts），改过以后重新生成 docx，
 // 写成新文件（换掉结果里的地址和大小），同时写一份新的 DocDoc，再删掉旧的两个文件。
 // 剪好的图片留在运行目录里，新的 docx 再嵌一次；关闭运行页面时和整个运行目录一起删。
 

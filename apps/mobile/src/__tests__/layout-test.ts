@@ -2,7 +2,7 @@ import { LAYOUT_LABELS } from '@morph/tool-office';
 
 import { createLayoutDetector, type LayoutIo } from '../runtime/layout';
 
-// 转 Word 的版面分析（D-310）：扩展包没装时不跑；输入、输出走临时文件，用完不管成功失败都删掉；
+// 转 Word 的版面分析（D-328）：扩展包没装时不跑；输入、输出走临时文件，用完不管成功失败都删掉；
 // 输出的框按找线那张图的大小换算回来。
 
 function setup(output: number[], shape: number[], installed = true) {
@@ -37,7 +37,7 @@ function setup(output: number[], shape: number[], installed = true) {
 
 const pixels = { width: 960, height: 1440, data: new Uint8Array(960 * 1440 * 4).fill(255) };
 
-describe('layout detector (D-310)', () => {
+describe('layout detector (D-328)', () => {
   it('runs the pack’s model and maps the boxes to the picture', async () => {
     const text = LAYOUT_LABELS.indexOf('text');
     const { detector, calls, removed } = setup([text, 0.9, 48, 48, 240, 96], [1, 6]);

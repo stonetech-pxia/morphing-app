@@ -3,9 +3,9 @@ import { strToU8, zipSync, type Zippable } from 'fflate';
 import type { DocDoc, DocLeaf, DocList, DocPage, DocStyle, DocTable } from './doc';
 import { cleanXmlText } from './xlsx';
 
-// 写 docx（D-310）：自己写最少的 OOXML，用 fflate 的同步 API 打包（和写 xlsx 一样，D-272）。
-// 无衬线的默认字体（D-312），段落（标题用加粗的 Heading1 / Heading2 样式，首行缩进）、run 的粗体 / 颜色 / 字号、编号列表（numbering.xml）、
-// 表格（gridSpan / vMerge 合并）、图片（内嵌 JPG）、并排行（无边框的排版表格，D-313）。A4 纵向，每页原图之间分页。
+// 写 docx（D-328）：自己写最少的 OOXML，用 fflate 的同步 API 打包（和写 xlsx 一样，D-272）。
+// 无衬线的默认字体（D-330），段落（标题用加粗的 Heading1 / Heading2 样式，首行缩进）、run 的粗体 / 颜色 / 字号、编号列表（numbering.xml）、
+// 表格（gridSpan / vMerge 合并）、图片（内嵌 JPG）、并排行（无边框的排版表格，D-331）。A4 纵向，每页原图之间分页。
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -26,7 +26,7 @@ const CELL_PAD = 80;
 const SPACED_BEFORE = 160;
 
 /**
- * 默认字体（D-312）：无衬线，和 CamScanner 一样。西文 Arial，中文微软雅黑（Windows 和 Mac 版 Office 都带）；
+ * 默认字体（D-330）：无衬线，和 CamScanner 一样。西文 Arial，中文微软雅黑（Windows 和 Mac 版 Office 都带）；
  * 字体表写明是无衬线（swiss），没有这个字体的电脑换成别的无衬线字体（Mac 上是 Helvetica、苹方）。
  */
 const LATIN_FONT = 'Arial';
@@ -63,8 +63,8 @@ const escapeXml = (text: string) =>
 const HEADING_SCALE: Record<string, number> = { Heading1: 1.6, Heading2: 1.3 };
 
 /**
- * 一段文字的 run：换行写成 <w:br/>，制表符写成 <w:tab/>（D-314），前后的空格保留。
- * 每个 run 都写字号（D-317）：苹果的预览不读默认样式里的字号（一律当 12 磅），只认 run 上的；
+ * 一段文字的 run：换行写成 <w:br/>，制表符写成 <w:tab/>（D-332），前后的空格保留。
+ * 每个 run 都写字号（D-335）：苹果的预览不读默认样式里的字号（一律当 12 磅），只认 run 上的；
  * 没有自己字号的用标题样式或正文的字号。
  */
 function sizeXml(style: DocStyle, bodySize: number, styleId?: string): string {
@@ -120,23 +120,23 @@ function paragraphXml(
     (style.align && style.align !== 'left'
       ? `<w:jc w:val="${style.align === 'center' ? 'center' : 'right'}"/>`
       : '') +
-    // 段落标记的字号（D-317）：空段落、空格子的高度按它算。
+    // 段落标记的字号（D-335）：空段落、空格子的高度按它算。
     `<w:rPr>${sizeXml(style, bodySize, extra.styleId)}</w:rPr>`;
   return `<w:p><w:pPr>${pPr}</w:pPr>${runXml(text, style, bodySize, extra.styleId)}</w:p>`;
 }
 
-/** 空段落（表格后面的分隔、空格子）：段落标记也写字号（D-317），不然按默认样式（苹果的预览按 12 磅）撑高。 */
+/** 空段落（表格后面的分隔、空格子）：段落标记也写字号（D-335），不然按默认样式（苹果的预览按 12 磅）撑高。 */
 function blankXml(size: number): string {
   return `<w:p><w:pPr><w:rPr>${sizeXml({}, size)}</w:rPr></w:pPr></w:p>`;
 }
 
 /** 表格格子左右的边距加起来（磅，默认表格样式每边 80 twip）。 */
 const TABLE_CELL_PAD_PT = 8;
-/** 表里的字为了放下最长的词最多缩到这么小（磅，D-317）。 */
+/** 表里的字为了放下最长的词最多缩到这么小（磅，D-335）。 */
 const TABLE_MIN_SIZE = 5;
 
 /**
- * 一个词在 Arial 里大概多宽（以字号为单位，D-317）：大写字母约 0.7，小写约 0.52，数字 0.56，
+ * 一个词在 Arial 里大概多宽（以字号为单位，D-335）：大写字母约 0.7，小写约 0.52，数字 0.56，
  * 中日韩的字 1（每个字都能断行，单独算一个词），其他符号 0.35。宁可估宽一点（宽了只是字小一点，窄了会把词拆开）。
  */
 function longestWordEm(text: string): number {
@@ -169,7 +169,7 @@ function longestWordEm(text: string): number {
 }
 
 /**
- * 原图像素 → twip：整页宽度按 A4 宽算，放不下时按内容区等比缩小。表里的字号（D-317）按表自己的字号跟着一起缩小，
+ * 原图像素 → twip：整页宽度按 A4 宽算，放不下时按内容区等比缩小。表里的字号（D-335）按表自己的字号跟着一起缩小，
  * 哪一格最长的词放不下时整张表再一起缩小，最小 5 磅（取到半磅）。
  */
 function tableXml(block: DocTable, page: DocPage, bodySize: number, maxWidth = CONTENT_W): string {
@@ -243,7 +243,7 @@ function fitWidths(raw: readonly number[], maxWidth: number): number[] {
   return raw.map((w) => Math.max(200, Math.round(w * k)));
 }
 
-/** 无边框的排版表格（D-313、D-314）：rows 是每行每格里的 XML 片段；每格以段落结尾（Word 要求）。 */
+/** 无边框的排版表格（D-331、D-332）：rows 是每行每格里的 XML 片段；每格以段落结尾（Word 要求）。 */
 function layoutTableXml(
   widths: readonly number[],
   rows: readonly (readonly string[])[],
@@ -335,7 +335,7 @@ function stylesXml(bodySize: number): string {
 
 /**
  * 写 docx。images 按图片块的 src 给剪好的图片字节；没有的图片块跳过。
- * 默认样式的正文字号用第一页的；每个 run 都写自己那一页的字号（D-317）。
+ * 默认样式的正文字号用第一页的；每个 run 都写自己那一页的字号（D-335）。
  */
 export function writeDocx(
   doc: DocDoc,
@@ -346,7 +346,7 @@ export function writeDocx(
   const media: { name: string; rid: string; bytes: Uint8Array }[] = [];
   const body: string[] = [];
   doc.pages.forEach((page, p) => {
-    // 每页的字按这一页的正文字号写（D-317：表单页和正文页的正文字号可能差很多）。
+    // 每页的字按这一页的正文字号写（D-335：表单页和正文页的正文字号可能差很多）。
     const bodySize = page.bodySize ?? docSize;
     let first = p > 0;
     const pageBreak = () => {
@@ -360,7 +360,7 @@ export function writeDocx(
       switch (block.kind) {
         case 'paragraph':
           if (block.tab) {
-            // 表单的标签和值（D-314）：两列无边框的表，一行一对（制表位在标签比原图长时会跳到下一个制表位、把值挤到下一行）。
+            // 表单的标签和值（D-332）：两列无边框的表，一行一对（制表位在标签比原图长时会跳到下一个制表位、把值挤到下一行）。
             // 标签一列按原图里值的位置（最多六成），值一列占到能放的右边。
             const label = Math.round(Math.min(twip(block.tab), 0.6 * maxWidth));
             const widths = [label, Math.max(200, maxWidth - label)];
@@ -424,7 +424,7 @@ export function writeDocx(
         body.push(...leafXml(block, CONTENT_W));
         continue;
       }
-      // 并排行（D-313）：无边框的排版表格，一行，每格的宽按原图位置，放不下时等比缩小。
+      // 并排行（D-331）：无边框的排版表格，一行，每格的宽按原图位置，放不下时等比缩小。
       if (pageBreak()) body.push(paragraphXml('', {}, bodySize, { pageBreak: true }));
       const widths = fitWidths(
         block.cells.map((c) => twip(c.width)),

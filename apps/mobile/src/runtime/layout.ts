@@ -6,7 +6,7 @@ import {
   type RgbaImage,
 } from '@morph/tool-office';
 
-// 转 Word 的版面分析（D-310）：PP-DocLayout-S 在扩展包 layout 里，用展平同一个原生方法 modelRun 跑
+// 转 Word 的版面分析（D-328）：PP-DocLayout-S 在扩展包 layout 里，用展平同一个原生方法 modelRun 跑
 // （一个 float32 输入、一个 float32 输出，D-274），前后处理在 @morph/tool-office。
 // 输入、输出走临时文件，用完不管成功失败都删掉。
 

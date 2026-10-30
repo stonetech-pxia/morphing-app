@@ -102,7 +102,7 @@ describe('DocDoc edits', () => {
     expect(parseDocDoc('not json')).toBeNull();
   });
 
-  it('edits, deletes and opens tables inside a side-by-side row (D-313)', () => {
+  it('edits, deletes and opens tables inside a side-by-side row (D-331)', () => {
     const table = doc.pages[0]!.blocks[2]!;
     const rowDoc: DocDoc = {
       version: 1,

@@ -221,7 +221,7 @@ export interface VisionPlatform {
    */
   flatten?(uri: string, runId: string, relPath: string): Promise<FlattenResult | null>;
   /**
-   * 转 Word 的版面分析模型（D-310）：配置了扩展包下载地址时才有，转 Word 时提示下载 pack 这个扩展包
+   * 转 Word 的版面分析模型（D-328）：配置了扩展包下载地址时才有，转 Word 时提示下载 pack 这个扩展包
    * （可选：不下载也照样转，只是不分标题和图片）。
    */
   readonly layoutModel?: { pack: string };

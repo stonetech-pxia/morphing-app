@@ -42,7 +42,7 @@ export interface RunItem {
    * pagesWithoutTables：识别范围是「仅表格内容」、但没找到带线的表格、按全部内容输出的页（从 1 开始）。
    */
   tableDoc?: { uri: string; for: string; pagesWithoutTables?: number[] };
-  /** 转 Word 的 DocDoc（D-310）：结果页的「查看和编辑」改它，再重新生成 docx。写法和 tableDoc 一样。 */
+  /** 转 Word 的 DocDoc（D-328）：结果页的「查看和编辑」改它，再重新生成 docx。写法和 tableDoc 一样。 */
   docDoc?: { uri: string; for: string };
 }
 
@@ -117,7 +117,7 @@ export type RunErrorCode =
   | 'tooLong'
   /** 这台手机不能本机识别这种语言的表格（转 Excel 要每行文字的位置，D-272）。 */
   | 'tableUnsupported'
-  /** 这台手机不能本机识别这种语言的文档（转 Word 要每行文字的位置，D-310）。 */
+  /** 这台手机不能本机识别这种语言的文档（转 Word 要每行文字的位置，D-328）。 */
   | 'wordUnsupported'
   /** 这台手机不能把这种文档转成 PDF（detail.format：XLSX 等；Android 只能转 Word，D-186）。 */
   | 'documentUnsupported'
@@ -231,7 +231,7 @@ export interface RunOptions<S> {
    * 这一步在这台设备上要的扩展包（D-269，例如文字识别模型）；有它时代替动作自己的扩展包。
    * optional：用户不下载也照样做（例如可搜索 PDF 没有文字层），不取消运行。
    * extra：不代替动作自己的扩展包，而是另外问一次（D-274：扫描的展平模型；只能是 optional）。
-   * 一步要几个时给数组（D-310：转 Word 要文字识别模型，另外可选版面分析模型）。
+   * 一步要几个时给数组（D-328：转 Word 要文字识别模型，另外可选版面分析模型）。
    */
   devicePack?: (
     actionId: string,

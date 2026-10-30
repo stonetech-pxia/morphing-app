@@ -203,7 +203,7 @@ export const OCR_IMPLS: Record<string, Impl> = {
     };
   },
 
-  // 扫描件转 Word（D-310）：每张图认字、版面分析（模型没装时只按位置分段）、找带线的表格，
+  // 扫描件转 Word（D-328）：每张图认字、版面分析（模型没装时只按位置分段）、找带线的表格，
   // 图片区域从原图剪下来，做成一个 docx（每张图一页），旁边存一份 DocDoc 给结果页的「查看和编辑」用。
   // 识别出的文字只在本机。
   async 'ocr.toWord'(input, params, ctx) {
@@ -254,7 +254,7 @@ export const OCR_IMPLS: Record<string, Impl> = {
         { joinLines: (lines) => polish(layoutOcrLines(lines), lang) },
       );
       // 图片区域：按比例换到原图上剪下来（JPG，本次运行的文件）。
-      // 并排行（D-313）里的图片也要剪。
+      // 并排行（D-331）里的图片也要剪。
       const pictures = leafBlocks(page).filter((b) => b.kind === 'image');
       if (pictures.length) {
         const size =

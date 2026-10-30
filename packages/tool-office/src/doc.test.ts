@@ -273,7 +273,7 @@ describe('buildDocPage', () => {
     expect(doc.blocks.map((b) => b.kind)).toEqual(['paragraph']);
   });
 
-  it('does not take a quoted line of dialogue or a long sentence for a heading (D-312)', () => {
+  it('does not take a quoted line of dialogue or a long sentence for a heading (D-330)', () => {
     const { image, lines } = textPage([
       { text: 'Chapter One', x: 100, y: 60, width: 300, h: 30 },
       { text: '“Why not, then?”', x: 140, y: 150, width: 300, h: 30 },
@@ -321,7 +321,7 @@ describe('buildDocPage', () => {
     ]);
   });
 
-  it('keeps the first-line indent of a paragraph (D-312)', () => {
+  it('keeps the first-line indent of a paragraph (D-330)', () => {
     const { image, lines } = textPage([
       {
         text: 'Indented first line of a paragraph that runs on to the',
@@ -351,7 +351,7 @@ describe('buildDocPage', () => {
     ]);
   });
 
-  it('puts side-by-side tables and text columns into one row, the rest top to bottom (D-313)', () => {
+  it('puts side-by-side tables and text columns into one row, the rest top to bottom (D-331)', () => {
     const { image, lines } = textPage(
       [
         { text: 'Report', x: 100, y: 40, width: 200, h: 30 },
@@ -389,7 +389,7 @@ describe('buildDocPage', () => {
     ]);
   });
 
-  it('drops short stray marks at the page edge or far from the text, keeps short real text (D-316)', () => {
+  it('drops short stray marks at the page edge or far from the text, keeps short real text (D-334)', () => {
     const { image, lines } = textPage([
       // 页角的污点认成「00」：贴着页边，框比正文行高很多。
       { text: '00', x: 4, y: 0, width: 40, h: 90 },
@@ -414,7 +414,7 @@ describe('buildDocPage', () => {
     expect(texts[0]).toBe('GENERAL CONDITIONS');
   });
 
-  it('sizes a form in proportion to the page, down to about 6 pt; prose stays at 9 pt or more (D-317)', () => {
+  it('sizes a form in proportion to the page, down to about 6 pt; prose stays at 9 pt or more (D-335)', () => {
     // 原图 1000 像素宽按 A4 595 磅换算：行高 13 像素的字约 7 磅。
     const form = textPage(
       Array.from({ length: 8 }, (_, i) => [
@@ -443,7 +443,7 @@ describe('buildDocPage', () => {
     expect(buildDocPage({ ...prose, source: 's', skew: 0 }).bodySize).toBe(9);
   });
 
-  it('gives a ruled table the size of its own text (D-317)', () => {
+  it('gives a ruled table the size of its own text (D-335)', () => {
     const { image, lines } = textPage(
       [
         {
@@ -465,7 +465,7 @@ describe('buildDocPage', () => {
     expect(table).toMatchObject({ size: 7 });
   });
 
-  it('keeps each line of a table cell on its own line in Word (D-315)', () => {
+  it('keeps each line of a table cell on its own line in Word (D-333)', () => {
     const { image, lines } = textPage(
       [
         { text: 'Logement F44', x: 120, y: 110, width: 200 },
@@ -488,7 +488,7 @@ describe('buildDocPage', () => {
     );
   });
 
-  it('pairs form labels with their values row by row (D-314)', () => {
+  it('pairs form labels with their values row by row (D-332)', () => {
     const { image, lines } = textPage([
       // 右边一块的上面还有一行（和值连成了一块），不参加配对。
       { text: 'IN EUROS', x: 830, y: 120, width: 120 },
