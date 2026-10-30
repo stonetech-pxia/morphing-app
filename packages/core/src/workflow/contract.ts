@@ -90,7 +90,7 @@ export interface ParamField {
   showIf?: { key: string; equals: readonly (string | number | boolean)[] };
   /**
    * false：默认值就是对的、不用每次问（例如识别语言「自动」，D-278）。房间里单用这个动作时，
-   * 参数都是 false 就直接跑、不弹参数面板（D-342，desk/tools.ts 的 deskToolAsks）。
+   * 参数都是 false 就直接跑、不弹参数面板（D-363，desk/tools.ts 的 deskToolAsks）。
    */
   ask?: boolean;
   /** 用户自己写的文字（水印、文字戳）：发给 AI 前替换成占位符（D-065）。 */

@@ -58,7 +58,7 @@ export function AskPanel({
   locale: Locale;
   now: Date;
   onAnswer: (values: Record<string, unknown> | null) => void;
-  /** 确定按钮的字（文件房间的工具面板是「应用」，D-339）。 */
+  /** 确定按钮的字（文件房间的工具面板是「应用」，D-360）。 */
   okLabel?: string;
 }) {
   const [values, setValues] = useState(() => initialAnswers(request, now));

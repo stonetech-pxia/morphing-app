@@ -37,7 +37,7 @@ export interface ResultActions {
   continueProcessing?(): Promise<void>;
   /** 用系统预览打开一个结果文件（PDF 等，D-277）；图片在 App 里全屏看。 */
   preview?(item: RunItem): Promise<void>;
-  /** 转 Excel、转 Word 的结果：放到桌上改（D-345，代替原来的「查看和编辑」）。 */
+  /** 转 Excel、转 Word 的结果：放到桌上改（D-366，代替原来的「查看和编辑」）。 */
   putOnDesk?(item: RunItem): Promise<void>;
 }
 

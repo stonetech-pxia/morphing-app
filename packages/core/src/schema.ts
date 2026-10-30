@@ -196,7 +196,7 @@ export const WorkspaceConfigSchema = z.strictObject({
     .optional(),
   /** 一天、一周从什么时候开始（D-286，schemaVersion 20）；没有时是 0 点、周一。 */
   calendar: CalendarSchema.optional(),
-  /** 文件房间的布局（D-337，schemaVersion 29）；没有时是默认布局（预览居中、工具栏在底部）。 */
+  /** 文件房间的布局（D-358，schemaVersion 29）；没有时是默认布局（预览居中、工具栏在底部）。 */
   desk: DeskLayoutSchema.optional(),
 });
 export type WorkspaceConfig = Omit<z.infer<typeof WorkspaceConfigSchema>, 'pages'> & {

@@ -80,7 +80,7 @@ handlers.render = async ({ file, pages, maxSide, quality }) => {
     await doc.close();
   }
 };
-// 文件房间的大预览（D-339）：一次只画要看的几页，同时告诉 App 一共几页。
+// 文件房间的大预览（D-360）：一次只画要看的几页，同时告诉 App 一共几页。
 handlers.preview = async ({ file, pages, maxSide, quality }) => {
   const doc = await open(file);
   try {

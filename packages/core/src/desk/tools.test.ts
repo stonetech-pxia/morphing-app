@@ -16,7 +16,7 @@ import {
   deskWorkflowFits,
 } from './tools';
 
-// 房间的工具栏和布局配置（file-room DESIGN §4、§5，D-337、D-338）。
+// 房间的工具栏和布局配置（file-room DESIGN §4、§5，D-358、D-359）。
 
 const registry = createRegistry(BUILTIN_TOOLS);
 
@@ -154,7 +154,7 @@ describe('用一个工具 = 输入 + 这个工具', () => {
   });
 });
 
-describe('单工具：哪些要先弹参数面板（D-342）', () => {
+describe('单工具：哪些要先弹参数面板（D-363）', () => {
   const asks = (id: string) => deskToolAsks(registry.actions.get(id)!);
 
   it('识别类（转 Excel、转 Word、识别文字）和文档转 PDF 不问，直接跑（D-278：语言自动）', () => {
@@ -174,7 +174,7 @@ describe('单工具：哪些要先弹参数面板（D-342）', () => {
   });
 });
 
-describe('工具栏的图标（D-343）', () => {
+describe('工具栏的图标（D-364）', () => {
   it('同一个工具的不同动作图标不一样（旋转、裁剪、压缩、标注、转 PDF……）', () => {
     for (const kind of ['image', 'pdf', 'video', 'audio'] as const) {
       const ids = defaultDeskTools(kind, registry, [], 'zh').flatMap((g) =>

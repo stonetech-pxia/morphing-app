@@ -179,7 +179,7 @@ function ThemedStack() {
         <Stack.Screen name="record/[collectionId]" options={closable} />
         <Stack.Screen name="run/[workflowId]" options={closable} />
         <Stack.Screen name="share" options={closable} />
-        {/* 文件房间（D-339）：全屏，自己画顶栏。 */}
+        {/* 文件房间（D-360）：全屏，自己画顶栏。 */}
         <Stack.Screen
           name="desk/[deskId]"
           options={{ presentation: 'fullScreenModal', headerShown: false }}

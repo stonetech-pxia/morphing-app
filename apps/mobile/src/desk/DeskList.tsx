@@ -10,7 +10,7 @@ import { Card, Pill, SectionLabel } from '../renderer/ui';
 import type { FilePlatform } from '../runtime/platform';
 import { clearDesk, deskSummary, listDesks } from './store';
 
-// 「设置 → 存储空间」里的桌面（D-336）：离开房间后从这里回到桌上；放了 7 天没动的提示可以清掉
+// 「设置 → 存储空间」里的桌面（D-357）：离开房间后从这里回到桌上；放了 7 天没动的提示可以清掉
 // （创始人 2026-10-30 确认：只提示，不自动删）。文件名只在本机显示。
 
 export function DeskList({

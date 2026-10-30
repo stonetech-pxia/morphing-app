@@ -123,7 +123,7 @@ export function setTableFrom(doc: DocDoc, at: DocRef, edited: TableDoc): DocDoc 
 }
 
 /**
- * 在文档里直接改一张表（file-room R2，D-345）：表格块换成只有这张表的 TableDoc，交给转 Excel 的编辑函数
+ * 在文档里直接改一张表（file-room R2，D-366）：表格块换成只有这张表的 TableDoc，交给转 Excel 的编辑函数
  * （改格子、插删行列，edit.ts），再换回来；不再弹出一个只有这张表的编辑页。没变时返回原来的 doc。
  */
 export function editDocTable(doc: DocDoc, at: DocRef, fn: (table: TableDoc) => TableDoc): DocDoc {

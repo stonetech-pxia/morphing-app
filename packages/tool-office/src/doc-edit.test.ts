@@ -150,7 +150,7 @@ describe('DocDoc edits', () => {
   });
 });
 
-describe('文档里的表格就地改（file-room R2，D-345）', () => {
+describe('文档里的表格就地改（file-room R2，D-366）', () => {
   const at = { page: 0, block: 2 };
   const table = (d: DocDoc) => {
     const b = blockAt(d, at);

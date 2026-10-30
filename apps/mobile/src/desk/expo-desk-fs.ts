@@ -2,7 +2,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 
 import type { DeskFs } from './fs';
 
-// DeskFs 的 Expo 实现：App 文档目录下的 desk/（file-room DESIGN §3 建议的位置，D-336）。
+// DeskFs 的 Expo 实现：App 文档目录下的 desk/（file-room DESIGN §3 建议的位置，D-357）。
 
 const ROOT = 'desk';
 

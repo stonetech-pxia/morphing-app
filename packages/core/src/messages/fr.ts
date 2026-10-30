@@ -1358,7 +1358,7 @@ export const fr: MessageTable = {
     'Cet écran d’accueil ne permet pas d’ajouter un widget depuis Morph. Maintenez le doigt sur l’écran d’accueil, choisissez Widgets et ajoutez Morph.',
   widgetDone: '{n} appuis du widget enregistrés',
   widgetSkipped: '{n} appuis sur le widget n’ont pas été enregistrés, car la page a changé',
-  // 文件房间（D-336–D-339）。
+  // 文件房间（D-357–D-360）。
   deskPlace: 'Poser sur le bureau',
   deskPlaceAbout: 'Modifiez outil par outil, voyez chaque changement, annulez à tout moment',
   deskGone: 'Ce bureau a été vidé.',

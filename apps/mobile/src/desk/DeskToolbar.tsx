@@ -20,10 +20,10 @@ import { t, type StringKey } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import type { Palette } from '../renderer/theme';
 
-// 房间的工具栏（file-room DESIGN §4、§5，D-338）：一行横向滑动的图标加文字，按组排开。
+// 房间的工具栏（file-room DESIGN §4、§5，D-359）：一行横向滑动的图标加文字，按组排开。
 // 组和工具来自布局配置（没写时由注册表按文件种类生成，见 @morph/core 的 deskToolbar）。
 // 接不上桌上这些文件的项变灰、点不了。按钮只在用户点的时候才执行（D-113）。
-// 最后固定一组「文件」（分享、保存、系统预览，D-342）：房间自己的事，不在配置里，每种文件都有，工具栏不会是空的。
+// 最后固定一组「文件」（分享、保存、系统预览，D-363）：房间自己的事，不在配置里，每种文件都有，工具栏不会是空的。
 
 const GROUP_TITLE: Record<DeskGroupId, StringKey> = {
   edit: 'deskGroupEdit',

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { ComponentSchema, type Component } from '../components';
 import { IdSchema, boundedText } from '../schema-primitives';
 
-// 房间的布局（file-room DESIGN §4、§5，D-337）：创始人 2026-10-30 在会话里确认，默认预览居中、工具栏在底部，
+// 房间的布局（file-room DESIGN §4、§5，D-358）：创始人 2026-10-30 在会话里确认，默认预览居中、工具栏在底部，
 // 但这是一份配置，以后 AI 修改能改（R3 接上提示词和评测）。能改的只有下面这几样：
 // 工具栏放在上面还是下面、预览占多大、要不要缩略图条、预览上下放几个说明性的组件、每种文件的工具栏放哪些工具。
 // 改不了的（结构里根本没有）：预览本身（不能去掉）、桌上的文件（D-113：AI 不碰文件内容）、

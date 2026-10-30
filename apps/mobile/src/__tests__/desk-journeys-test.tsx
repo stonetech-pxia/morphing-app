@@ -17,7 +17,7 @@ import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, TINY_JPEG } from '../test-utils/fake-files';
 import { renderToolsApp } from '../test-utils/render-app';
 
-// 文件房间 R1（file-room DESIGN §9，D-336–D-340）：收件页面「放到桌上」做第一项；房间里预览、工具栏、
+// 文件房间 R1（file-room DESIGN §9，D-357–D-361）：收件页面「放到桌上」做第一项；房间里预览、工具栏、
 // 用一个工具生成新版本、撤销重做、快捷操作作用到桌上、「完成」里清空桌面；布局来自配置。
 // 三种状态：新用户（空白工作空间、没有桌面）、有数据（转 Excel 的结果在桌上）、边界（很多份、没有工具的文件、桌面已清空）。
 
@@ -154,7 +154,7 @@ describe('房间里的工具', () => {
     ]);
   });
 
-  it('识别类（转 Excel）不问语言、不弹面板，直接跑；跑失败时显示原因，桌上不变（D-278、D-342）', async () => {
+  it('识别类（转 Excel）不问语言、不弹面板，直接跑；跑失败时显示原因，桌上不变（D-278、D-363）', async () => {
     const { files } = await renderToolsApp();
     await openShare(files, ['IMG_1.jpg']);
     await fireEvent.press(await screen.findByTestId('share-desk-open'));
@@ -337,7 +337,7 @@ describe('边界', () => {
   });
 });
 
-describe('布局配置（D-337）', () => {
+describe('布局配置（D-358）', () => {
   const seed = (locale: Locale, registry: Registry) => ({
     ...createStarterWorkspace(locale, registry),
     desk: {

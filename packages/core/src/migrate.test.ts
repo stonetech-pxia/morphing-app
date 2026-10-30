@@ -113,7 +113,7 @@ describe('migrateWorkspace', () => {
     const kept = migrateWorkspace(custom, undefined, 20);
     expect(kept.ok && (kept.config as { workflows: unknown[] }).workflows).toEqual([picked]);
   });
-  it('v28 → v29 (file room layout, D-337) only raises the version; the room uses its default layout', () => {
+  it('v28 → v29 (file room layout, D-358) only raises the version; the room uses its default layout', () => {
     const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 28 };
     expect(migrateWorkspace(previous, undefined, 29)).toEqual({
       ok: true,

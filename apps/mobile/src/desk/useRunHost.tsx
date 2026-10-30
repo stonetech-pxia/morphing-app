@@ -12,7 +12,7 @@ import type { LocalScreenProps } from '../run/RunScreen';
 import type { LocalKind, LocalSteps, LocalUi } from '../runtime/local';
 import type { RunContext } from '../runtime/runner';
 
-// 房间里跑工具和快捷操作时要的系统界面（file-room DESIGN §4，D-339）：运行时询问、扩展包下载、
+// 房间里跑工具和快捷操作时要的系统界面（file-room DESIGN §4，D-360）：运行时询问、扩展包下载、
 // 本地操作界面（裁剪、找边、签名……照旧弹出原来的界面）。做法和运行页（RunScreen）一样，
 // 只是结果交回房间，不打开结果页。
 

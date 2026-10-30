@@ -10,7 +10,7 @@ import { Card } from '../renderer/ui';
 import { useWorkspaceContext } from '../workspace/context';
 import { listDesks } from './store';
 
-// 首页的「继续上次的桌面」（D-344，创始人 2026-10-30 同意）：内核自己放在首页最上面，不是页面上的组件，
+// 首页的「继续上次的桌面」（D-365，创始人 2026-10-30 同意）：内核自己放在首页最上面，不是页面上的组件，
 // 不改用户的页面配置（和引导卡片一样）。只在有桌面时出现，点一下回到最近动过的那个桌面。
 // 文件名只在本机显示，AI 看不到。
 

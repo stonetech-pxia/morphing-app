@@ -104,7 +104,7 @@ export function makePng(width: number, height: number): Uint8Array {
 
 /** 内存中的“文件系统”。 */
 /**
- * 桌面目录（D-336）的内存实现：和 FakeFiles 共用一个 disk，地址是 desk/<路径>（运行能直接读）。
+ * 桌面目录（D-357）的内存实现：和 FakeFiles 共用一个 disk，地址是 desk/<路径>（运行能直接读）。
  * 原件（picker://、content://、file:///group/）只能复制；移动只用于运行目录 runs/ 里的文件。
  */
 export class FakeDeskFs implements DeskFs {
@@ -157,7 +157,7 @@ export class FakeDeskFs implements DeskFs {
 
 export class FakeFiles implements FilePlatform {
   disk = new Map<string, Uint8Array>();
-  /** 文件房间的桌面目录（D-336）。 */
+  /** 文件房间的桌面目录（D-357）。 */
   desk = new FakeDeskFs(this);
   /** 办公文档转 PDF：默认像 Android，只能转 .docx（iOS 的测试换成全部格式）。 */
   documents: FakeDocuments = new FakeDocuments(this);

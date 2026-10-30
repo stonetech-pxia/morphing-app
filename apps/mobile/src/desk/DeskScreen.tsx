@@ -61,11 +61,11 @@ import {
 import { useDeskEdit } from './useDeskEdit';
 import { useRunHost } from './useRunHost';
 
-// 文件房间（file-room DESIGN §4，D-339）：中间是桌上文件的大预览，底部（或顶部）一排工具。
+// 文件房间（file-room DESIGN §4，D-360）：中间是桌上文件的大预览，底部（或顶部）一排工具。
 // 用一个工具或一个快捷操作，结果成为桌上的新版本，顶部能撤销、重做；「完成」里保存、分享或清空桌面。
-// 布局来自配置（WorkspaceConfig.desk，D-337），没写的用默认（预览居中、工具栏在底部）。
+// 布局来自配置（WorkspaceConfig.desk，D-358），没写的用默认（预览居中、工具栏在底部）。
 // 工具作用到桌上和正在看的这份同一种的全部文件（多选在 R6）。文件只在本机，AI 看不到。
-// 转 Excel、转 Word 的结果在桌上就是编辑器（R2，D-345）：选中东西时工具栏收起、换成编辑层；连续的编辑在
+// 转 Excel、转 Word 的结果在桌上就是编辑器（R2，D-366）：选中东西时工具栏收起、换成编辑层；连续的编辑在
 // 用工具、打开「完成」、离开、切文件、App 进后台时合成一个版本，顶部只有一组撤销（useDeskEdit）。
 
 /** 现在的时间（毫秒）：放在组件外面，只在点了以后的处理里用。 */
@@ -294,8 +294,8 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     const preset = item.preset ? action.presets?.find((p) => p.id === item.preset) : undefined;
     const params = preset ? { ...preset.values } : initialParams(action);
     const keys = deskToolAsks(action);
-    // 有要问的参数、又不是要亲手操作的工具：先弹出参数面板，点「应用」才跑（跑完才知道结果，D-339）。
-    // 参数都不用问的（识别类，D-278）直接跑（D-342）。
+    // 有要问的参数、又不是要亲手操作的工具：先弹出参数面板，点「应用」才跑（跑完才知道结果，D-360）。
+    // 参数都不用问的（识别类，D-278）直接跑（D-363）。
     if (!preset && !action.local && keys.length > 0) {
       setPanel({
         entry,
@@ -327,7 +327,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
       size: f.size,
     }));
 
-  /** 存成用户文件；转 Excel、转 Word 的结果带着中间格式和原图，以后还能放回桌上改（D-346）。 */
+  /** 存成用户文件；转 Excel、转 Word 的结果带着中间格式和原图，以后还能放回桌上改（D-367）。 */
   async function save() {
     const d = deskRef.current;
     if (!d) return;

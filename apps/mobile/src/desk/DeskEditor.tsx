@@ -33,7 +33,7 @@ import { Crop } from '../run/Crop';
 import { DocView, same } from '../run/DocView';
 import { SheetView } from '../run/SheetView';
 
-// 桌上的 Excel、Word 就是编辑器（file-room §11.3，D-345）：大预览就是表格视图、文档视图，点一下选中、
+// 桌上的 Excel、Word 就是编辑器（file-room §11.3，D-366）：大预览就是表格视图、文档视图，点一下选中、
 // 再点一下编辑。选中时下面换成编辑层：原图里这一块的截图，加上对它有用的操作（编辑、插删行列、删除）；
 // 房间的工具栏这时收起来（编辑层不进工具栏配置，AI 改不了）。docx 里的表格就地改，不再弹出一个编辑页。
 // 一页超过 2000 格时只能看（D-272）。改动交给 onApply，记撤销、合成版本的是房间（useDeskEdit）。

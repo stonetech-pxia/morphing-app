@@ -35,7 +35,7 @@ import {
 import { baseName, extOf, extOfMime, mimeOf } from '../runtime/actions/helpers';
 import type { FilePlatform, PickedFile } from '../runtime/platform';
 
-// 桌面的存储（file-room DESIGN §3、§11.1，D-336）：版本栈的逻辑在 @morph/core 的 desk/model.ts，
+// 桌面的存储（file-room DESIGN §3、§11.1，D-357）：版本栈的逻辑在 @morph/core 的 desk/model.ts，
 // 这里按它算出来的结果复制、移动、删除文件，并把桌面写成 desk/<deskId>/desk.json。
 // 文件的归属（AGENTS.md）：放上桌时原件只复制；工具的结果是运行目录里的临时文件，直接移进来；
 // 中间格式（TableDoc / DocDoc）引用的图片放进 assets/，JSON 里写桌面里的相对路径，各版本共用一份。
@@ -333,7 +333,7 @@ export function deskPicked(files: Files, desk: Desk, list: readonly DeskFile[]):
 }
 
 /**
- * 结果页的「放到桌上」（D-345，代替原来的「查看和编辑」）：把这几份结果复制进一个新桌面，中间格式和图片一起。
+ * 结果页的「放到桌上」（D-366，代替原来的「查看和编辑」）：把这几份结果复制进一个新桌面，中间格式和图片一起。
  * 只复制、不移动：结果页还显示着它们（运行页关掉时运行目录才删）。
  */
 export async function placeResultsOnDesk(
@@ -430,7 +430,7 @@ async function docxImages(files: Files, desk: Desk, doc: DocDoc) {
 }
 
 /**
- * 合上一段编辑（file-room §11.2，D-345）：改过的中间格式写成这一版的 JSON，按它生成一次 xlsx / docx，
+ * 合上一段编辑（file-room §11.2，D-366）：改过的中间格式写成这一版的 JSON，按它生成一次 xlsx / docx，
  * 桌上这一份换成新的（新 ID），整段编辑是一个版本（撤销时一起退）。没有中间格式时不变。
  * 返回新的桌面和这份文件的新 ID。
  */

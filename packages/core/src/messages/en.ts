@@ -1305,7 +1305,7 @@ export const en = {
     'This home screen can’t add a widget from Morph. Touch and hold the home screen, choose Widgets and add Morph.',
   widgetDone: 'Recorded {n} taps from the Home Screen widget',
   widgetSkipped: '{n} taps on the widget weren’t recorded because the page changed',
-  // 文件房间（D-336–D-339）。
+  // 文件房间（D-357–D-360）。
   deskPlace: 'Put on the desk',
   deskPlaceAbout: 'Edit tool by tool, see each change, undo any time',
   deskGone: 'This desk has been cleared.',

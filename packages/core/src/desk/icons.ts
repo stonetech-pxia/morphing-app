@@ -2,7 +2,7 @@ import type { Registry } from '../registry';
 import type { IconName } from '../schema';
 import type { ActionDefinition } from '../workflow/contract';
 
-// 房间工具栏的图标（D-343）：一个工具（例如「图片处理」）有很多动作，用工具的图标时一整排都一样。
+// 房间工具栏的图标（D-364）：一个工具（例如「图片处理」）有很多动作，用工具的图标时一整排都一样。
 // 这里按动作给图标：先看完整的动作 ID，再看动作名（点后面那段，旋转、压缩这类各工具通用），都没有时用工具的图标。
 // 这些图标只在房间里用，不在 ICON_NAMES（配置和 AI 能写的白名单）里，AI 改不了也看不到。
 

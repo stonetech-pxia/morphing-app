@@ -22,8 +22,8 @@ import { ZoomImage } from '../share/ZoomImage';
 import type { FilePlatform } from '../runtime/platform';
 import { deskFileUri } from './store';
 
-// 房间的大预览（file-room DESIGN §4、§11.3，D-339）：图片能双指放大；PDF 一页一页左右翻（用「PDF 预览」
-// 扩展包把页面画成图，不加原生依赖）；转 Excel / 转 Word 的结果不在这里画，房间直接用编辑器（DeskEditor，D-345）；
+// 房间的大预览（file-room DESIGN §4、§11.3，D-360）：图片能双指放大；PDF 一页一页左右翻（用「PDF 预览」
+// 扩展包把页面画成图，不加原生依赖）；转 Excel / 转 Word 的结果不在这里画，房间直接用编辑器（DeskEditor，D-366）；
 // 视频直接播放；别的文件（外来的 Word、Excel 等）用系统预览看（§8：第一版不读外来的办公文档）。
 // 全部只在本机显示，不发给 AI。
 

@@ -14,7 +14,7 @@ import {
 } from '../desk/store';
 import { FakeFiles } from '../test-utils/fake-files';
 
-// 桌面的存储（file-room DESIGN §3、§11.1，D-336）：原件只复制；运行目录的结果移进来；
+// 桌面的存储（file-room DESIGN §3、§11.1，D-357）：原件只复制；运行目录的结果移进来；
 // 中间格式的图片搬进 assets/、JSON 写相对路径；撤销重做存下来；超过上限的旧版本的文件删掉。
 
 const bytes = (n: number) => new Uint8Array(n).fill(7);

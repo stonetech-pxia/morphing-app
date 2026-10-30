@@ -1231,7 +1231,7 @@ export const zh: MessageTable = {
   widgetPinFailed: '这个桌面不能从 Morph 直接添加小组件。请长按桌面，选「小组件」，添加 Morph。',
   widgetDone: '记下了桌面小组件上的 {n} 次点按',
   widgetSkipped: '页面改过了，小组件上的 {n} 次点按没有记下',
-  // 文件房间（D-336–D-339）。
+  // 文件房间（D-357–D-360）。
   deskPlace: '放到桌上',
   deskPlaceAbout: '一个一个工具地改，边改边看，能撤销',
   deskGone: '这个桌面已经清空了。',

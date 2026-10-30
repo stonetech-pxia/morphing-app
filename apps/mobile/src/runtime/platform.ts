@@ -593,7 +593,7 @@ export interface FilePlatform {
   readonly speaker: SpeakPlatform | null;
   /** 长任务切到后台也继续（D-160）；没有原生模块时（Expo Go）为 null。 */
   readonly background: BackgroundPlatform | null;
-  /** 文件房间的桌面目录（D-336，文档目录下的 desk/）。 */
+  /** 文件房间的桌面目录（D-357，文档目录下的 desk/）。 */
   readonly desk: DeskFs;
 
   // ---- 用户文件（assets/<id>/<文件名>，D-019）----

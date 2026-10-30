@@ -23,7 +23,7 @@ import {
   type DeskFile,
 } from './model';
 
-// 桌上的工作文件和版本栈（file-room DESIGN §3、§11.1，D-336）。
+// 桌上的工作文件和版本栈（file-room DESIGN §3、§11.1，D-357）。
 
 const MB = 1024 * 1024;
 const DAY = 24 * 60 * 60 * 1000;

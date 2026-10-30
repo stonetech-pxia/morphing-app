@@ -43,7 +43,7 @@ const SYMBOLS: Record<IconName, SymbolName> = {
   note: { ios: 'note.text', android: 'notes' },
 };
 
-/** 房间工具栏的动作图标（core 的 TOOL_ICON_NAMES，D-343）：不在白名单里，配置和 AI 用不到。 */
+/** 房间工具栏的动作图标（core 的 TOOL_ICON_NAMES，D-364）：不在白名单里，配置和 AI 用不到。 */
 const TOOL_SYMBOLS: Record<ToolIconName, SymbolName> = {
   rotate: { ios: 'rotate.right', android: 'rotate_right' },
   crop: { ios: 'crop', android: 'crop' },

@@ -124,7 +124,7 @@ const MACHINE_NAME = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 
 export const OCR_IMPLS: Record<string, Impl> = {
   // 扫描件转 Excel（D-272）：每张图找表格线、认字、组表，做成一个 xlsx（每页一张工作表），
-  // 旁边存一份 TableDoc 给结果页的「放到桌上」和文件房间的编辑用（D-345）。识别出的文字只在本机。
+  // 旁边存一份 TableDoc 给结果页的「放到桌上」和文件房间的编辑用（D-366）。识别出的文字只在本机。
   async 'ocr.toExcel'(input, params, ctx) {
     const items = fileItems(input);
     // 「自动」按手机语言选（D-278）。
@@ -204,7 +204,7 @@ export const OCR_IMPLS: Record<string, Impl> = {
   },
 
   // 扫描件转 Word（D-328）：每张图认字、版面分析（模型没装时只按位置分段）、找带线的表格，
-  // 图片区域从原图剪下来，做成一个 docx（每张图一页），旁边存一份 DocDoc 给结果页的「放到桌上」和文件房间的编辑用（D-345）。
+  // 图片区域从原图剪下来，做成一个 docx（每张图一页），旁边存一份 DocDoc 给结果页的「放到桌上」和文件房间的编辑用（D-366）。
   // 识别出的文字只在本机。
   async 'ocr.toWord'(input, params, ctx) {
     const items = fileItems(input);

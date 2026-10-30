@@ -467,7 +467,7 @@ export function RunScreen({
           actions={{
             save: saveResult,
             continueProcessing,
-            // 放到桌上改（D-345）：复制一份进新桌面，结果页上的这一份不动。
+            // 放到桌上改（D-366）：复制一份进新桌面，结果页上的这一份不动。
             putOnDesk: async (item) => {
               const desk = await placeResultsOnDesk(files, [item], Date.now());
               router.push({ pathname: '/desk/[deskId]', params: { deskId: desk.id } });

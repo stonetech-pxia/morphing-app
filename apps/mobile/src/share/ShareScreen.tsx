@@ -264,7 +264,7 @@ export function ShareScreen() {
   }
 
   /**
-   * 放到桌上（D-340，创始人 2026-10-30 在会话里确认：做第一项，快捷操作推荐留在下面）：复制一份工作副本，
+   * 放到桌上（D-361，创始人 2026-10-30 在会话里确认：做第一项，快捷操作推荐留在下面）：复制一份工作副本，
    * 进入文件房间。原件和收件这一批照旧（离开收件页面时释放），桌上的是自己的副本。
    */
   async function placeAndOpen() {
@@ -394,7 +394,7 @@ export function ShareScreen() {
         </Card>
       ) : (
         <>
-          {/* 放到桌上做第一项（D-340）。 */}
+          {/* 放到桌上做第一项（D-361）。 */}
           <Card palette={palette} style={styles.list}>
             <View testID="share-desk" style={styles.row}>
               <View style={styles.flex}>

@@ -19,7 +19,7 @@ import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
 import { renderToolsApp } from '../test-utils/render-app';
 
-// 文件房间 R2（file-room DESIGN §9、§11，D-345、D-346）：桌上的 Excel、Word 就是编辑器（点一下选中、
+// 文件房间 R2（file-room DESIGN §9、§11，D-366、D-367）：桌上的 Excel、Word 就是编辑器（点一下选中、
 // 再点一下编辑，选中时工具栏换成编辑层）；连续的编辑合成一个版本，撤销先一步步退编辑、合上后整段退；
 // 存成用户文件时带着中间格式和原图，从存储空间放回桌上还能改；结果页的「放到桌上」代替「查看和编辑」。
 
@@ -167,7 +167,7 @@ async function editTo(id: string, text: string) {
   await fireEvent.press(screen.getByTestId('desk-edit-ok'));
 }
 
-describe('放到桌上：结果页和存储（D-345）', () => {
+describe('放到桌上：结果页和存储（D-366）', () => {
   it('结果页的转 Excel、转 Word 结果有「放到桌上」（代替「查看和编辑」）；后面的步骤生成了别的文件时没有', async () => {
     const putOnDesk = jest.fn(async () => undefined);
     const item: RunItem = {
@@ -272,7 +272,7 @@ describe('Excel 在桌上就是表格编辑器', () => {
     await openOnDesk('table', tableDoc(), files);
     await editTo('table-cell-1-1', '改过');
     await fireEvent.press(screen.getByTestId('desk-deselect'));
-    // 用别的工具前先合上编辑；文档转 PDF 不问纸张，直接跑（D-342）。
+    // 用别的工具前先合上编辑；文档转 PDF 不问纸张，直接跑（D-363）。
     await fireEvent.press(screen.getByTestId('desk-tool-pdf.fromDocument'));
     await waitFor(() => expect(screen.getByTestId('desk-preview-pdf')).toBeTruthy());
     expect((await deskNow(files)).versions.map((v) => v.by.kind)).toEqual([
@@ -417,7 +417,7 @@ describe('Word 在桌上就是文档编辑器', () => {
   });
 });
 
-describe('存成用户文件以后还能放回桌上改（D-346）', () => {
+describe('存成用户文件以后还能放回桌上改（D-367）', () => {
   it('保存时中间格式和原图跟着存；存储空间里算在这个文件上，能放回桌上改；删文件一起删', async () => {
     const { files, repo } = await openOnDesk('table', tableDoc());
     await editTo('table-cell-1-0', '存之前改的');

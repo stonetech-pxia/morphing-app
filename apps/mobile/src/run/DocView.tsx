@@ -9,7 +9,7 @@ import { Crop } from './Crop';
 
 // 文档视图（D-328，file-room DESIGN §11.4）：按块画一份 DocDoc（标题、段落、列表、表格、图片、并排行、
 // 标签和值）。从转 Word 的编辑页拆出来：编辑页和文件房间的大预览共用。只管画和选中，改内容的是用它的那一方；
-// 没有传 onPress 时只能看。文件房间里（R2，D-345）表格的格子也能点选，就地改这张表（不再弹出转 Excel 的编辑页）。
+// 没有传 onPress 时只能看。文件房间里（R2，D-366）表格的格子也能点选，就地改这张表（不再弹出转 Excel 的编辑页）。
 
 /** 正文在编辑页里的字号（点）；标题和别的字号按和正文的比例放大缩小。 */
 const BODY_PX = 15;
@@ -179,7 +179,7 @@ export function DocView({
   /** 选中的块是表格时，选中的是哪一格（table.cells 的下标）。 */
   selectedCell?: number | null;
   onPress?: (at: DocRef) => void;
-  /** 点了表格里的一格（就地改，D-345）。 */
+  /** 点了表格里的一格（就地改，D-366）。 */
   onPressCell?: (at: DocRef, cell: number) => void;
 }) {
   return (

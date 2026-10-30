@@ -41,7 +41,7 @@ interface Loaded {
   /** 记录所在的表（当前的和只在旧版本里的）。 */
   tables: Map<string, Collection>;
   records: Map<string, DataRecord>;
-  /** 带着中间格式的 Excel、Word（能放回桌上改，D-346）：中间格式和原图一共多大，算在这个文件上。 */
+  /** 带着中间格式的 Excel、Word（能放回桌上改，D-367）：中间格式和原图一共多大，算在这个文件上。 */
   sources: Map<string, number>;
 }
 
@@ -192,7 +192,7 @@ export default function StorageRoute() {
     );
   }
 
-  /** 放回桌上改（D-346）：复制一份进新桌面，这个文件不动。 */
+  /** 放回桌上改（D-367）：复制一份进新桌面，这个文件不动。 */
   async function putOnDesk(a: AssetRecord) {
     try {
       const desk = await placeAssetOnDesk(files, a, nowMs());
@@ -238,7 +238,7 @@ export default function StorageRoute() {
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 48 }}>
       <PageTitle palette={palette}>{t(locale, 'storageTitle')}</PageTitle>
       <Text style={caption}>{t(locale, 'storageIntro')}</Text>
-      {/* 桌上的文件（D-336）：从这里回到房间，放久了提示清掉。 */}
+      {/* 桌上的文件（D-357）：从这里回到房间，放久了提示清掉。 */}
       <DeskList files={files} palette={palette} locale={locale} />
       {assets.length === 0 ? (
         <Card palette={palette}>

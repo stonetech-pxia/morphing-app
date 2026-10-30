@@ -10,7 +10,7 @@ import { builtInWorkflows, sharePresetOrder } from '../workflows/presets';
 import type { DeskTool, DeskToolsConfig } from './layout';
 import { deskKindOf, type DeskFile, type DeskKind } from './model';
 
-// 房间的工具栏（file-room DESIGN §4、§5，D-338）：没有配置时按桌上文件的种类从动作注册表生成，不写死。
+// 房间的工具栏（file-room DESIGN §4、§5，D-359）：没有配置时按桌上文件的种类从动作注册表生成，不写死。
 // 用一个工具 = 一个两步的工作流（输入 + 这个工具），桌上的文件当作分享进来的文件交给第一步（D-115），
 // 执行照用现有的执行器；快捷操作按钮也一样，把整个快捷操作作用到桌上的文件。
 
@@ -186,7 +186,7 @@ export function deskToolWorkflow(
 }
 
 /**
- * 房间里单用一个工具时，先弹出参数面板问哪些参数（D-342）。规则只有一条：
+ * 房间里单用一个工具时，先弹出参数面板问哪些参数（D-363）。规则只有一条：
  * 参数写了 `ask: false`（默认值就是对的，例如识别语言「自动」，D-278）的不问；密码不在面板里（执行器跑的时候问）；
  * 剩下的都问。一个都不用问、而且默认参数能用时返回 []：直接跑，不弹面板。
  * 默认参数不能用（例如文字戳要写字）时，就算都写了 ask: false 也问全部，免得跑一个必然失败的工具。
