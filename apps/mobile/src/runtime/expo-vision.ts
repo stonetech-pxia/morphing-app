@@ -6,8 +6,9 @@ import { expoPackFs, expoSha256 } from '../packs/expo-pack-fs';
 import { PackStore } from '../packs/store';
 import { classifyImageWith } from './classify-image';
 import { detectDataWith } from './detect-data';
-import type { VisionPlatform } from './platform';
+import type { Pixels, VisionPlatform } from './platform';
 import { DEWARP_PACK, createFlattener } from './flatten';
+import { LAYOUT_PACK, createLayoutDetector } from './layout';
 import {
   PPOCR_INPUT_SIDE,
   PPOCR_LANGUAGES,
@@ -97,6 +98,36 @@ export function expoVision(
           open: openFlattenPage,
         },
         { ocrPack: PPOCR_PACK, quality: QUALITY },
+      )
+    : null;
+  // 转 Word 的版面分析（D-310）：和展平一样用 modelRun 跑扩展包里的模型。
+  const layout = modelRun
+    ? createLayoutDetector(
+        { modelRun },
+        {
+          installed: (pack) => ocrPacks.isInstalled(pack),
+          modelUri: (pack, file) => expoPackFs.uri(ocrPacks.path(pack, file)),
+          readFile: (uri) => new File(uri).bytes(),
+          async writeFile(uri, bytes) {
+            const file = new File(uri);
+            file.create({ overwrite: true, intermediates: true });
+            await file.write(bytes);
+          },
+          tempDir() {
+            const dir = new Directory(Paths.cache, 'layout', `${Date.now()}-${Math.random()}`);
+            dir.create({ idempotent: true, intermediates: true });
+            return {
+              uri: dir.uri.replace(/\/$/, ''),
+              remove: () => {
+                try {
+                  dir.delete();
+                } catch {
+                  // 已经删掉了。
+                }
+              },
+            };
+          },
+        },
       )
     : null;
   /** 这组语言用 PP-OCRv6 识别（第一种是用户选的语言）。 */
@@ -205,6 +236,11 @@ export function expoVision(
           },
         }
       : {}),
+    // 版面分析模型和展平模型一样，只在配置了扩展包地址时提示下载；没配置但已经装好时照样用。
+    ...(layout && process.env.EXPO_PUBLIC_MORPH_PACKS_URL
+      ? { layoutModel: { pack: LAYOUT_PACK } }
+      : {}),
+    ...(layout ? { detectLayout: (pixels: Pixels) => layout.detect(pixels) } : {}),
     // 和 PP-OCRv6 识别时解码得一样（同样的大小），找线和认字可以共用一份像素（D-272）。
     tablePixels: async (uri) => ocrPixels(await new File(uri).bytes(), PPOCR_INPUT_SIDE),
 

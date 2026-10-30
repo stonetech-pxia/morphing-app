@@ -3,6 +3,7 @@ import { zlibSync } from 'fflate';
 import { PDFDocument } from 'pdf-lib';
 
 import { rotatedSize, type Quad } from '@morph/tool-image';
+import type { LayoutRegion } from '@morph/tool-office';
 
 import type {
   AudioEncode,
@@ -1118,6 +1119,23 @@ export class FakeVision implements VisionPlatform {
       const out = await this.files.writeRunFile(runId, relPath, TINY_JPEG);
       this.files.imageSizes.set(out.uri, size);
       return { ...out, ...size, refined: true, timing: {} };
+    };
+  }
+
+  /**
+   * 转 Word 的版面分析（D-310）：默认没有（旧版 App）；enableLayout 打开。layoutRegions 是每页的结果
+   * （按顺序，null 是模型没装），layoutFails 时版面分析出错。
+   */
+  layoutModel?: { pack: string };
+  detectLayout?: VisionPlatform['detectLayout'];
+  layoutRegions: (LayoutRegion[] | null)[] = [];
+  layoutFails = false;
+  enableLayout(prompt = true) {
+    if (prompt) this.layoutModel = { pack: 'layout' };
+    this.detectLayout = async () => {
+      this.calls.push({ method: 'detectLayout', uri: '' });
+      if (this.layoutFails) throw new Error('model failed');
+      return this.layoutRegions.shift() ?? null;
     };
   }
 

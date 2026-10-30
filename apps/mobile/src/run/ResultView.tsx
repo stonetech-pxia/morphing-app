@@ -18,6 +18,7 @@ import { Card, Pill } from '../renderer/ui';
 import { FileViewer } from '../share/FileViewer';
 import { MediaRow } from './MediaRow';
 import { canEditTable } from './table-edit';
+import { canEditWord } from './word-edit';
 
 // 结果预览（TOOLS_DESIGN §3）：图片缩略图、PDF 页数和大小、文字全文（只在本机显示）。
 // 结果页始终提供保存、分享、存到文件夹、存到相册（图片）、打印（PDF / 图片）、复制（文字）。
@@ -39,6 +40,8 @@ export interface ResultActions {
   preview?(item: RunItem): Promise<void>;
   /** 转 Excel 的结果：打开查看和编辑（D-272）。 */
   editTable?(item: RunItem): void;
+  /** 转 Word 的结果：打开查看和编辑（D-310）。 */
+  editWord?(item: RunItem): void;
 }
 
 function ItemRow({
@@ -267,6 +270,16 @@ export function ResultView({
                 testID="result-table-edit"
                 label={t(locale, 'resultTableEdit')}
                 onPress={() => actions.editTable!(item)}
+              />
+            </View>
+          ) : null}
+          {canEditWord(item) && actions.editWord ? (
+            <View style={styles.actions}>
+              <Pill
+                palette={palette}
+                testID="result-word-edit"
+                label={t(locale, 'resultTableEdit')}
+                onPress={() => actions.editWord!(item)}
               />
             </View>
           ) : null}

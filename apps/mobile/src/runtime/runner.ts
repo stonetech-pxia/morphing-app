@@ -7,6 +7,7 @@ import {
   templateReads,
   type AskRequest,
   type Calendar,
+  type DevicePack,
   type Locale,
   type OcrLanguage,
   type PackNeed,
@@ -178,7 +179,7 @@ export function devicePack(
   actionId: string,
   params: Record<string, unknown>,
   locale: Locale = 'en',
-): { pack: string; optional?: boolean; extra?: boolean } | undefined {
+): DevicePack | DevicePack[] | undefined {
   // 扫描的展平模型（D-274）：在扫描包之外另外问，不下载也照常扫描。
   const flatten = files.vision?.flattenModel;
   if (actionId === 'scan.detect') {
@@ -187,6 +188,13 @@ export function devicePack(
       : undefined;
   }
   const model = files.vision?.ocrModel;
+  // 转 Word（D-310）：和转 Excel 一样要认字的模型，另外可选版面分析模型（不下载也照样转）。
+  if (actionId === 'ocr.toWord') {
+    const ocr = devicePack(files, 'ocr.toExcel', params, locale) as DevicePack | undefined;
+    const layout = files.vision?.layoutModel;
+    const extra = layout ? [{ pack: layout.pack, optional: true, extra: true }] : [];
+    return ocr || extra.length ? [...(ocr ? [ocr] : []), ...extra] : undefined;
+  }
   // 转 Excel（D-272）要每行的位置，只用本机的识别（PP-OCRv6 或系统的），不用文字识别包。
   if (actionId === 'ocr.recognize' || actionId === 'ocr.toExcel') {
     const lang = resolveOcrLanguage(params.lang, locale);

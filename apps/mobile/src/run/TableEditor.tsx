@@ -73,14 +73,14 @@ interface MenuOption {
   run: () => void;
 }
 
-/** 原图里一格的截图：整张图按比例放大，只露出这一格（四周多留一点）。 */
-function Crop({
+/** 原图里一格的截图：整张图按比例放大，只露出这一格（四周多留一点）。转 Word 的编辑页也用（D-310）。 */
+export function Crop({
   page,
   box,
   maxWidth,
   palette,
 }: {
-  page: TablePage;
+  page: Pick<TablePage, 'source' | 'width' | 'height'>;
   box: Box;
   maxWidth: number;
   palette: Palette;
@@ -127,6 +127,7 @@ export function TableEditor({
   locale,
   onClose,
   onSaved,
+  inMemory,
 }: {
   item: RunItem;
   files: FilePlatform;
@@ -137,6 +138,11 @@ export function TableEditor({
   onClose: () => void;
   /** 改过、已经写好新的 xlsx：换掉结果里的这一项。 */
   onSaved: (next: RunItem) => void;
+  /**
+   * 转 Word 的表格（D-310）：编辑内存里的这份 TableDoc（只有一张表），不读写文件；
+   * 改过时点「完成」交回 onDone（不调用 onSaved）。
+   */
+  inMemory?: { doc: TableDoc; onDone: (doc: TableDoc) => void };
 }) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
@@ -153,7 +159,7 @@ export function TableEditor({
 
   useEffect(() => {
     let alive = true;
-    loadTableDoc(files, item)
+    (inMemory ? Promise.resolve(inMemory.doc) : loadTableDoc(files, item))
       .then((doc) => {
         if (!alive) return;
         setOriginal(doc);
@@ -311,6 +317,10 @@ export function TableEditor({
     if (saving) return;
     if (!history || !original || history.present === original) {
       onClose();
+      return;
+    }
+    if (inMemory) {
+      inMemory.onDone(history.present);
       return;
     }
     setSaving(true);
@@ -575,7 +585,8 @@ export function TableEditor({
                   })()}
                 </View>
               ) : null}
-              {doc ? (
+              {/* 转 Word 的表格只有这一张表，没有表外的文字，不用切换识别范围。 */}
+              {doc && !inMemory ? (
                 <View style={styles.row}>
                   {toggle(
                     'table-scope-tables',
