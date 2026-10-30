@@ -251,6 +251,12 @@ export const migrateV25toV26: Migration = (config) => ({ ...config, schemaVersio
  */
 export const migrateV26toV27: Migration = (config) => ({ ...config, schemaVersion: 27 });
 
+/**
+ * v27 → v28：提醒多了按记录的日程排的 scheduleField 和它的 unless、done、snoozeMinutes（D-316–D-318）。
+ * 都是新的可选值，已有配置照样合法，只提升版本号。
+ */
+export const migrateV27toV28: Migration = (config) => ({ ...config, schemaVersion: 28 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -279,6 +285,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   24: migrateV24toV25,
   25: migrateV25toV26,
   26: migrateV26toV27,
+  27: migrateV27toV28,
 };
 
 export type MigrateResult =

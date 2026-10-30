@@ -3289,7 +3289,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 27
+.schemaVersion 28
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"
@@ -3517,12 +3517,12 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .collections[].fields[]<oneOf schedule>.default<oneOf 5>.day integer 1..31
 .collections[].fields[]<oneOf schedule>.default<oneOf 5>.perDay? integer 1..20
 .collections[].fields[]<oneOf schedule>.lastDone? string /^[a-z][a-z0-9-]{0,47}$/
-.reminders? array items ..20
+.reminders? array items ..30
 .reminders[] object
 .reminders[].id string /^[a-z][a-z0-9-]{0,47}$/
 .reminders[].title string len 1..60
 .reminders[].enabled boolean
-.reminders[].schedule "daily"|"weekly"|"dateField"
+.reminders[].schedule "daily"|"weekly"|"dateField"|"scheduleField"
 .reminders[].time string /^([01]\\d|2[0-3]):[0-5]\\d$/
 .reminders[].weekdays? array items 1..7
 .reminders[].weekdays[] integer 1..7
@@ -3530,6 +3530,32 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .reminders[].fieldId? string /^[a-z][a-z0-9-]{0,47}$/
 .reminders[].daysBefore? integer 0..30
 .reminders[].opens
+.reminders[].unless? object
+.reminders[].unless.collectionId string /^[a-z][a-z0-9-]{0,47}$/
+.reminders[].unless.filter? array items ..5
+.reminders[].unless.filter[] = .collections[].fields[]<oneOf rollup>.filter[]
+.reminders[].unless.within "day"|"week"|"month"
+.reminders[].unless.dateField? = .collections[].fields[]<oneOf rollup>.dateField
+.reminders[].unless.link? string /^[a-z][a-z0-9-]{0,47}$/
+.reminders[].done?
+.reminders[].done<oneOf 0> object
+.reminders[].done<oneOf 0>.do "create"
+.reminders[].done<oneOf 0>.collectionId string /^[a-z][a-z0-9-]{0,47}$/
+.reminders[].done<oneOf 0>.values? object record
+.reminders[].done<oneOf 0>.values{}
+.reminders[].done<oneOf 0>.values{}<anyOf 0> string /^[a-z][a-z0-9-]{0,47}$/
+.reminders[].done<oneOf 0>.values{}<anyOf 1> number
+.reminders[].done<oneOf 0>.values{}<anyOf 2> boolean
+.reminders[].done<oneOf 0>.values{}<anyOf 3> null
+.reminders[].done<oneOf 1> object
+.reminders[].done<oneOf 1>.do "set"
+.reminders[].done<oneOf 1>.fieldId string /^[a-z][a-z0-9-]{0,47}$/
+.reminders[].done<oneOf 1>.value = .reminders[].done<oneOf 0>.values{}
+.reminders[].done<oneOf 2> object
+.reminders[].done<oneOf 2>.do "increment"
+.reminders[].done<oneOf 2>.fieldId string /^[a-z][a-z0-9-]{0,47}$/
+.reminders[].done<oneOf 2>.by number
+.reminders[].snoozeMinutes? integer 5..240
 .calendar? object
 .calendar.dayStartHour? integer 0..6
 .calendar.weekStart? "monday"|"sunday"

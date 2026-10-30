@@ -19,6 +19,7 @@ import {
   PageSchema,
   ReminderSchema,
   MAX_REMINDERS,
+  MAX_RECORD_REMINDERS,
   ThemeSchema,
   WorkflowSchema,
   WorkflowStepSchema,
@@ -798,8 +799,15 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       const reminders = (config.reminders ??= []);
       if (reminders.some((r) => r.id === op.reminder.id))
         throw new OpError(`reminder ${op.reminder.id} already exists`);
-      if (reminders.length >= MAX_REMINDERS)
-        throw new OpError(`at most ${MAX_REMINDERS} reminders`);
+      // 按记录排的提醒另算，不占 20 个的名额（D-316）。
+      const perRecord = op.reminder.schedule === 'scheduleField';
+      const max = perRecord ? MAX_RECORD_REMINDERS : MAX_REMINDERS;
+      if (reminders.filter((r) => (r.schedule === 'scheduleField') === perRecord).length >= max)
+        throw new OpError(
+          perRecord
+            ? `at most ${MAX_RECORD_REMINDERS} scheduleField reminders`
+            : `at most ${MAX_REMINDERS} reminders`,
+        );
       reminders.push(op.reminder);
       return;
     }

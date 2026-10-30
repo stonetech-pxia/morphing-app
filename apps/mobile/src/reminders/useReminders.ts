@@ -1,5 +1,7 @@
 import {
+  calendarOf,
   hasActiveReminders,
+  loadComputedRecords,
   planNotifications,
   reminderCollections,
   reminderWorkflowId,
@@ -13,9 +15,11 @@ import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { create } from 'zustand';
 
+import { t } from '../i18n';
 import { useNavigate } from '../shell/navigation';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { NotificationPermission, NotificationPlatform } from './platform';
+import type { ReminderActionResult } from './reminder-actions';
 
 // 提醒（D-251）：配置或记录有变化时重新排本地通知；点提醒只打开页面或快捷操作，绝不运行。
 
@@ -42,9 +46,22 @@ export async function syncReminders(
   let permission = await platform.permission();
   if (permission === 'undetermined') permission = (await platform.request()) ? 'granted' : 'denied';
   if (permission !== 'granted') return permission;
+  // 算好的记录：日程的「上次完成」可能是汇总，unless 的筛选可能用查找来的值（D-316、D-317）。
   const records = new Map<string, DataRecord[]>();
-  for (const id of reminderCollections(config)) records.set(id, await listRecords(id));
-  await platform.replaceAll(planNotifications(config, records, now, locale));
+  for (const id of reminderCollections(config)) {
+    const collection = config.collections.find((c) => c.id === id);
+    if (!collection) continue;
+    const loaded = await loadComputedRecords(
+      listRecords,
+      config.collections,
+      collection,
+      now,
+      calendarOf(config),
+    );
+    records.set(id, loaded.records);
+  }
+  const reserved = await platform.snoozed();
+  await platform.replaceAll(planNotifications(config, records, now, locale, { reserved }));
   return permission;
 }
 
@@ -88,4 +105,23 @@ export function useReminderOpen(platform: NotificationPlatform | null) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [platform]);
+}
+
+/**
+ * 界面开着时点了提醒上的「完成」（D-318）：记录列表刷新，提示一下写了哪条。onAction 是入口里
+ * background.ts 的 onReminderAction。
+ */
+export function useReminderActionFeedback(
+  onAction: (listener: (result: ReminderActionResult) => void) => () => void,
+) {
+  const { locale } = useWorkspaceContext();
+  const bump = useWorkspace((s) => s.bumpRecords);
+  const showToast = useWorkspace((s) => s.showToast);
+  useEffect(() => {
+    return onAction((result) => {
+      if (result.kind !== 'done') return;
+      bump();
+      showToast({ message: t(locale, 'reminderDoneToast', { title: result.title }) });
+    });
+  }, [onAction, locale, bump, showToast]);
 }

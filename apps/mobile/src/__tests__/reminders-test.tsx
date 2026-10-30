@@ -5,8 +5,6 @@ import {
   createMockAIProvider,
   createRegistry,
   type Op,
-  type PlannedNotification,
-  type ReminderTarget,
   type WorkspaceConfig,
 } from '@morph/core';
 import { fireEvent } from '@testing-library/react-native';
@@ -15,37 +13,16 @@ import { renderRouter, screen } from 'expo-router/testing-library';
 
 import ReminderRoute from '../app/reminder/[workflowId]';
 import RunRoute from '../app/run/[workflowId]';
-import type { NotificationPermission, NotificationPlatform } from '../reminders/platform';
 import { reminderDestination, syncReminders } from '../reminders/useReminders';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
+import { FakeNotifications } from '../test-utils/fake-notifications';
 import { WorkspaceProvider } from '../workspace/context';
 import { createWorkspaceStore } from '../workspace/store';
 
 // 提醒（D-251）：本地通知只按配置和本机的记录排；第一次真有提醒时才问权限；点提醒绝不运行快捷操作。
 
 const registry = createRegistry(BUILTIN_TOOLS);
-
-class FakeNotifications implements NotificationPlatform {
-  status: NotificationPermission = 'undetermined';
-  answer = true;
-  requests = 0;
-  scheduled: PlannedNotification[] | null = null;
-  async permission() {
-    return this.status;
-  }
-  async request() {
-    this.requests++;
-    this.status = this.answer ? 'granted' : 'denied';
-    return this.answer;
-  }
-  async replaceAll(planned: readonly PlannedNotification[]) {
-    this.scheduled = [...planned];
-  }
-  onOpen(_listener: (opens: ReminderTarget) => void) {
-    return () => {};
-  }
-}
 
 const withOps = (ops: Op[]): WorkspaceConfig => {
   const r = applyOps(createDefaultWorkspace('zh'), ops, { registry, locale: 'zh' });

@@ -1,21 +1,40 @@
-import { ReminderTargetSchema, type ReminderTarget } from '@morph/core';
+import {
+  ReminderTargetSchema,
+  t,
+  type Locale,
+  type NotificationButtons,
+  type PlannedNotification,
+  type ReminderTarget,
+} from '@morph/core';
 import {
   addNotificationResponseReceivedListener,
   AndroidImportance,
-  cancelAllScheduledNotificationsAsync,
+  cancelScheduledNotificationAsync,
   clearLastNotificationResponse,
+  DEFAULT_ACTION_IDENTIFIER,
+  dismissNotificationAsync,
+  getAllScheduledNotificationsAsync,
   getLastNotificationResponse,
   getPermissionsAsync,
   requestPermissionsAsync,
   SchedulableTriggerInputTypes,
   scheduleNotificationAsync,
+  setNotificationCategoryAsync,
   setNotificationChannelAsync,
   setNotificationHandler,
+  type NotificationResponse,
   type SchedulableNotificationTriggerInput,
 } from 'expo-notifications';
 import { Platform } from 'react-native';
 
-import { OPENS_KEY, type NotificationPlatform } from './platform';
+import {
+  DONE_ACTION,
+  OPENS_KEY,
+  RECORD_KEY,
+  SNOOZE_ACTION,
+  type NotificationPlatform,
+  type ReminderAction,
+} from './platform';
 
 // NotificationPlatform 的实现：expo-notifications 的本地通知（D-251）。不取推送令牌、不连服务器。
 
@@ -42,11 +61,110 @@ function ensureChannel(name: string) {
   return channelReady;
 }
 
+/** 稍后提醒的 ID 前缀（core 的 snoozeId）：重排时保留。 */
+const SNOOZE_PREFIX = 'snooze-';
+
+const categoryOf = (buttons: NotificationButtons) => `morph-${buttons}`;
+
+/**
+ * 通知上的按钮（D-318）：完成、稍后提醒两种，按提醒的设置组成三个分类。按钮不把 App 打开到前台：
+ * iOS 在后台拉起 App 处理，Android 由后台任务处理（App 没在运行时也行，见 background.ts）。
+ */
+export async function setupReminderButtons(locale: Locale) {
+  const done = {
+    identifier: DONE_ACTION,
+    buttonTitle: t(locale, 'reminderDoneButton'),
+    options: { opensAppToForeground: false },
+  };
+  const later = {
+    identifier: SNOOZE_ACTION,
+    buttonTitle: t(locale, 'reminderSnoozeButton'),
+    options: { opensAppToForeground: false },
+  };
+  await setNotificationCategoryAsync(categoryOf('done'), [done]);
+  await setNotificationCategoryAsync(categoryOf('snooze'), [later]);
+  await setNotificationCategoryAsync(categoryOf('doneSnooze'), [done, later]);
+}
+
+/** 通知里带的数据（Android 后台任务里有时是 JSON 文字）。 */
+function dataOf(response: NotificationResponse): Record<string, unknown> {
+  const data = response.notification?.request?.content?.data as
+    Record<string, unknown> | null | undefined;
+  if (typeof data?.dataString === 'string') {
+    try {
+      return JSON.parse(data.dataString) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  }
+  return data ?? {};
+}
+
 const opensOf = (data: unknown): ReminderTarget | null => {
   const raw = (data as Record<string, unknown> | null | undefined)?.[OPENS_KEY];
   const parsed = ReminderTargetSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
 };
+
+/** 按钮的点击 → ReminderAction；不是 Morph 的按钮时为 null。 */
+export function reminderActionOf(response: NotificationResponse): ReminderAction | null {
+  const id = response.actionIdentifier;
+  if (id !== DONE_ACTION && id !== SNOOZE_ACTION) return null;
+  const raw = dataOf(response)[RECORD_KEY] as Record<string, unknown> | undefined;
+  if (typeof raw?.reminderId !== 'string' || typeof raw.recordId !== 'string') return null;
+  const notificationId = response.notification.request.identifier;
+  return {
+    button: id === DONE_ACTION ? 'done' : 'snooze',
+    reminderId: raw.reminderId,
+    recordId: raw.recordId,
+    notificationId,
+    key: `${notificationId}:${response.notification.date}:${id}`,
+  };
+}
+
+const isTap = (response: NotificationResponse) =>
+  response.actionIdentifier === DEFAULT_ACTION_IDENTIFIER;
+
+function triggerOf(n: PlannedNotification): SchedulableNotificationTriggerInput {
+  const channelId = CHANNEL;
+  return n.trigger.kind === 'daily'
+    ? {
+        type: SchedulableTriggerInputTypes.DAILY,
+        hour: n.trigger.hour,
+        minute: n.trigger.minute,
+        channelId,
+      }
+    : n.trigger.kind === 'weekly'
+      ? {
+          type: SchedulableTriggerInputTypes.WEEKLY,
+          // core 里 1 = 周一 … 7 = 周日；expo-notifications 里 1 = 周日。
+          weekday: (n.trigger.weekday % 7) + 1,
+          hour: n.trigger.hour,
+          minute: n.trigger.minute,
+          channelId,
+        }
+      : {
+          type: SchedulableTriggerInputTypes.DATE,
+          date: n.trigger.at,
+          channelId,
+        };
+}
+
+function schedule(n: PlannedNotification) {
+  return scheduleNotificationAsync({
+    identifier: n.id,
+    content: {
+      title: n.title,
+      body: n.body,
+      data: {
+        [OPENS_KEY]: n.opens,
+        ...(n.recordId ? { [RECORD_KEY]: { reminderId: n.reminderId, recordId: n.recordId } } : {}),
+      },
+      ...(n.buttons ? { categoryIdentifier: categoryOf(n.buttons) } : {}),
+    },
+    trigger: triggerOf(n),
+  });
+}
 
 export function expoReminders(channelName: string): NotificationPlatform {
   return {
@@ -63,49 +181,54 @@ export function expoReminders(channelName: string): NotificationPlatform {
     async replaceAll(planned) {
       await ensureChannel(channelName);
       // Morph 只用 expo-notifications 排提醒（长任务的进度通知走 morph-background，不受影响）。
-      await cancelAllScheduledNotificationsAsync();
-      for (const n of planned) {
-        const channelId = CHANNEL;
-        const trigger: SchedulableNotificationTriggerInput =
-          n.trigger.kind === 'daily'
-            ? {
-                type: SchedulableTriggerInputTypes.DAILY,
-                hour: n.trigger.hour,
-                minute: n.trigger.minute,
-                channelId,
-              }
-            : n.trigger.kind === 'weekly'
-              ? {
-                  type: SchedulableTriggerInputTypes.WEEKLY,
-                  // core 里 1 = 周一 … 7 = 周日；expo-notifications 里 1 = 周日。
-                  weekday: (n.trigger.weekday % 7) + 1,
-                  hour: n.trigger.hour,
-                  minute: n.trigger.minute,
-                  channelId,
-                }
-              : {
-                  type: SchedulableTriggerInputTypes.DATE,
-                  date: n.trigger.at,
-                  channelId,
-                };
-        await scheduleNotificationAsync({
-          identifier: n.id,
-          content: { title: n.title, body: n.body, data: { [OPENS_KEY]: n.opens } },
-          trigger,
-        });
-      }
+      // 还在等的稍后提醒是用户点出来的，保留（D-318）。
+      for (const n of await getAllScheduledNotificationsAsync())
+        if (!n.identifier.startsWith(SNOOZE_PREFIX))
+          await cancelScheduledNotificationAsync(n.identifier);
+      for (const n of planned) await schedule(n);
+    },
+    async snoozed() {
+      return (await getAllScheduledNotificationsAsync()).filter((n) =>
+        n.identifier.startsWith(SNOOZE_PREFIX),
+      ).length;
+    },
+    async snooze(planned) {
+      await ensureChannel(channelName);
+      await schedule(planned);
+    },
+    async cancel(id) {
+      await cancelScheduledNotificationAsync(id);
+    },
+    async dismiss(notificationId) {
+      await dismissNotificationAsync(notificationId);
     },
     onOpen(listener) {
-      // 从提醒冷启动：最后一次点的那条。
+      // 从提醒冷启动：最后一次点的那条（按钮的点击由 onAction 处理）。
       const last = getLastNotificationResponse();
-      const lastOpens = last ? opensOf(last.notification.request.content.data) : null;
+      const lastOpens =
+        last && isTap(last) ? opensOf(last.notification.request.content.data) : null;
       if (lastOpens) {
         listener(lastOpens);
         clearLastNotificationResponse();
       }
       const sub = addNotificationResponseReceivedListener((response) => {
+        if (!isTap(response)) return;
         const opens = opensOf(response.notification.request.content.data);
         if (opens) listener(opens);
+      });
+      return () => sub.remove();
+    },
+    onAction(listener) {
+      // iOS 在后台拉起 App 时，点击可能比这里的监听先到：先看最后一次。
+      const last = getLastNotificationResponse();
+      const lastAction = last && reminderActionOf(last);
+      if (lastAction) {
+        listener(lastAction);
+        clearLastNotificationResponse();
+      }
+      const sub = addNotificationResponseReceivedListener((response) => {
+        const action = reminderActionOf(response);
+        if (action) listener(action);
       });
       return () => sub.remove();
     },

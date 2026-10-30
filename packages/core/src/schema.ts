@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { ComponentSchema, componentRefs, type Component, type ComponentOf } from './components';
+import { ReminderDoneSchema } from './record-ops-schema';
 import {
   BackdropSchema,
   CalendarSchema,
@@ -13,13 +14,14 @@ import {
   openTargetSchema,
   type OpenTarget,
 } from './schema-base';
+import { ConditionSchema, FieldRefSchema } from './schema-primitives';
 
 // 可变层（交接文档 §5.2）的唯一定义。渲染器只认识这里列出的组件和属性。
 // 组件的定义在 components/（每种一个文件，见 docs/COMPONENTS.md），其余部分在 schema-base.ts。
 // 修改已有结构（包括给已有组件加属性）时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移；
 // 只新增一种组件不提升（D-254：老配置照样能读，旧 App 读到新组件时原样保留）。
 
-export const CURRENT_SCHEMA_VERSION = 27;
+export const CURRENT_SCHEMA_VERSION = 28;
 
 export * from './schema-base';
 export {
@@ -124,6 +126,7 @@ export const ReminderTargetSchema = openTargetSchema(
 /**
  * 提醒（D-251）：daily 每天、weekly 每周几（weekdays：1 = 周一 … 7 = 周日）在 time 提醒；
  * dateField 在一张表的日期字段到期前 daysBefore 天的 time 提醒（每条记录一次）。
+ * scheduleField 按一张表的日程字段（D-292）给每条记录各排各的（D-316）。
  * 点通知只打开 opens，绝不自动运行任何东西。title 是通知的标题（配置里的文字，AI 能看到）；
  * dateField 提醒的正文在本机按记录生成（记录内容不进配置，不发给 AI）。
  */
@@ -131,17 +134,40 @@ export const ReminderSchema = z.strictObject({
   id: IdSchema,
   title: boundedText(1, 60),
   enabled: z.boolean(),
-  schedule: z.enum(['daily', 'weekly', 'dateField']),
+  schedule: z.enum(['daily', 'weekly', 'dateField', 'scheduleField']),
   time: TimeOfDaySchema,
   weekdays: z.array(z.number().int().min(1).max(7)).min(1).max(7).optional(),
   collectionId: IdSchema.optional(),
   fieldId: IdSchema.optional(),
   daysBefore: z.number().int().min(0).max(30).optional(),
   opens: ReminderTargetSchema,
+  /**
+   * 只有 scheduleField（D-317）：那天所在的这一天 / 这一周 / 这个月里，collectionId 表里已经有符合 filter
+   * 的记录就不提醒。日子按 dateField（不写是创建时间）；是同一张表时只看这条记录自己，link 是那张表里
+   * 指向这张表的引用字段时只看指向这条记录的。
+   */
+  unless: z
+    .strictObject({
+      collectionId: IdSchema,
+      filter: z.array(ConditionSchema).max(5).optional(),
+      within: z.enum(['day', 'week', 'month']),
+      dateField: FieldRefSchema.optional(),
+      link: IdSchema.optional(),
+    })
+    .optional(),
+  /** 只有 scheduleField（D-318）：通知上的「完成」按钮对这条记录做的一键操作（只写记录）。 */
+  done: ReminderDoneSchema.optional(),
+  /** 只有 scheduleField（D-318）：通知上的「稍后提醒」按钮，过几分钟再提醒一次。 */
+  snoozeMinutes: z.number().int().min(5).max(240).optional(),
 });
 export type Reminder = z.infer<typeof ReminderSchema>;
 
+/** 每天、每周、到期提醒最多几个（D-251）。 */
 export const MAX_REMINDERS = 20;
+/** 按记录排的提醒（scheduleField）最多几个，另算，不占上面 20 个的名额（D-316）。 */
+export const MAX_RECORD_REMINDERS = 10;
+
+const isRecordReminder = (r: Reminder) => r.schedule === 'scheduleField';
 
 export const HOME_PAGE_ID = 'home';
 /** 新用户的工具箱页面（D-181）。是用户自己的页面，可以改、也可以删；「设置 → 工具」始终列出全部工具。 */
@@ -157,7 +183,16 @@ export const WorkspaceConfigSchema = z.strictObject({
   /** 数据表结构。记录内容不在配置里，也从不发给 AI。 */
   collections: z.array(CollectionSchema).max(20),
   /** 提醒（D-251，schemaVersion 16）；没有时就是没有提醒。 */
-  reminders: z.array(ReminderSchema).max(MAX_REMINDERS).optional(),
+  reminders: z
+    .array(ReminderSchema)
+    .max(MAX_REMINDERS + MAX_RECORD_REMINDERS)
+    .refine((list) => list.filter((r) => !isRecordReminder(r)).length <= MAX_REMINDERS, {
+      message: `at most ${MAX_REMINDERS} daily, weekly or dateField reminders`,
+    })
+    .refine((list) => list.filter(isRecordReminder).length <= MAX_RECORD_REMINDERS, {
+      message: `at most ${MAX_RECORD_REMINDERS} scheduleField reminders`,
+    })
+    .optional(),
   /** 一天、一周从什么时候开始（D-286，schemaVersion 20）；没有时是 0 点、周一。 */
   calendar: CalendarSchema.optional(),
 });
