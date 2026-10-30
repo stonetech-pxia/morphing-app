@@ -1,4 +1,10 @@
-import { HABIT_RUNS, WORKFLOW_PRESETS, allComponents, presetWorkflow } from '@morph/core';
+import {
+  allComponents,
+  HABIT_RUNS,
+  presetWorkflow,
+  quickActionsOf,
+  WORKFLOW_PRESETS,
+} from '@morph/core';
 import { act, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
@@ -19,7 +25,7 @@ async function askAi(text: string) {
 
 async function addVisa(store: WorkspaceStore) {
   const wf = presetWorkflow(WORKFLOW_PRESETS[0]!, 'zh', 'visa-photo');
-  await store.getState().proposeOps([{ op: 'addWorkflow', workflow: wf }], 'add');
+  await store.getState().proposeOps([{ op: 'addTool', tool: wf }], 'add');
   await store.getState().confirm();
 }
 
@@ -41,7 +47,7 @@ describe('AI changes the app, the user runs it (UI)', () => {
     files.nextPhotos = [files.offerImage('me.jpg', 1200, 1600)];
     await fireEvent.press(screen.getByTestId('ready-run'));
     expect(await screen.findByTestId('run-screen')).toBeTruthy();
-    expect(store.getState().config!.workflows.map((w) => w.id)).toContain('visa-photo');
+    expect(quickActionsOf(store.getState().config!).map((w) => w.id)).toContain('visa-photo');
   });
 
   it('“ask AI to change it” opens AI about that quick action; 这个 means it (D-126)', async () => {
@@ -59,7 +65,7 @@ describe('AI changes the app, the user runs it (UI)', () => {
     await fireEvent.press(screen.getByTestId('change-submit'));
     // 改快捷操作直接生效（D-191），打开它的「做好了」页面，现在就能再用一次。
     expect(await screen.findByTestId('ready-name')).toHaveTextContent('签证 / 证件照');
-    const visa = store.getState().config!.workflows.find((w) => w.id === 'visa-photo')!;
+    const visa = quickActionsOf(store.getState().config!).find((w) => w.id === 'visa-photo')!;
     expect(visa.steps.find((s) => s.action === 'image.idPhoto')!.params.maxKB).toBe(200);
   });
 
@@ -109,15 +115,16 @@ describe('AI changes the app, the user runs it (UI)', () => {
     expect(await screen.findByTestId('habit-made')).toBeTruthy();
 
     const config = store.getState().config!;
-    const made = config.workflows.find((w) => !w.toolId)!;
+    const made = quickActionsOf(config).find((w) => !w.package)!;
     expect(made.name).toBe('压缩图片 · 500 KB');
     const step = made.steps.find((s) => s.action === 'image.compress')!;
     expect(step.params.maxKB).toBe(500);
     expect(step.ask ?? []).not.toContain('maxKB');
-    const home = config.pages.find((p) => p.id === 'home')!;
+    const home = config.containers.pages.find((p) => p.id === 'home')!;
     expect(
       allComponents(home).some(
-        (c) => c.type === 'workflowRunner' && c.props.workflowId === made.id,
+        (c) =>
+          c.look === 'action' && (c as { tools: { tool: string }[] }).tools[0]!.tool === made.id,
       ),
     ).toBe(true);
   });
@@ -166,12 +173,12 @@ describe('AI changes the app, the user runs it (UI)', () => {
     // 直接做好（D-191），回到收件页面，新做的排在最前面、标「刚做好」，不会自己运行。
     // 给分享的文件做的不放首页，在收件页面运行。
     const made = await waitFor(() =>
-      store.getState().config!.workflows.find((w) => !w.toolId && !w.presetId)!,
+      quickActionsOf(store.getState().config!).find((w) => !w.package && !w.preset)!,
     );
     expect(await screen.findByTestId(`share-workflow-${made.id}`)).toHaveTextContent(/刚做好/);
     expect(store.getState().draft).toBeNull();
-    const home = store.getState().config!.pages.find((p) => p.id === 'home')!;
-    expect(home.components.some((c) => c.type === 'workflowRunner')).toBe(false);
+    const home = store.getState().config!.containers.pages.find((p) => p.id === 'home')!;
+    expect(home.blocks.some((c) => c.look === 'action')).toBe(false);
     expect(screen.queryByTestId('ready-screen')).toBeNull();
     expect(screen.queryByTestId('run-screen')).toBeNull();
   });
@@ -184,7 +191,9 @@ describe('AI changes the app, the user runs it (UI)', () => {
     await act(() => router.push('/share'));
     await fireEvent.press(await screen.findByTestId('share-run-visa-photo'));
     expect(await screen.findByTestId('run-screen')).toBeTruthy();
-    expect(store.getState().config!.workflows.some((w) => w.presetId === 'visa-photo')).toBe(false);
+    expect(quickActionsOf(store.getState().config!).some((w) => w.preset === 'visa-photo')).toBe(
+      false,
+    );
     expect(store.getState().head!.id).toBe(head);
     expect(screen.getByText('分享进来的文件（1 个）')).toBeTruthy();
   });

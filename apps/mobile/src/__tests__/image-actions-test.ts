@@ -1,9 +1,10 @@
 import {
-  BUILTIN_TOOLS,
   applyOps,
+  type AskRequest,
+  BUILTIN_TOOLS,
   createDefaultWorkspace,
   createRegistry,
-  type AskRequest,
+  quickActionsOf,
   type Workflow,
 } from '@morph/core';
 import { readExif } from '@morph/tool-image';
@@ -17,15 +18,24 @@ const registry = createRegistry(BUILTIN_TOOLS);
 
 /** 安装图片工具后的单功能工作流。 */
 function toolWorkflow(id: string): Workflow {
-  const result = applyOps(createDefaultWorkspace('zh'), [{ op: 'installTool', toolId: 'image' }], {
-    registry,
-    locale: 'zh',
-  });
+  const result = applyOps(
+    createDefaultWorkspace('zh'),
+    [{ op: 'setPackage', package: 'image', do: 'add' }],
+    {
+      registry,
+      locale: 'zh',
+    },
+  );
   if (!result.ok) throw new Error(result.error);
-  return result.config.workflows.find((w) => w.id === id)!;
+  return quickActionsOf(result.config).find((w) => w.id === id)!;
 }
 
-const custom = (steps: Workflow['steps']): Workflow => ({ id: 'mine', name: '我的', steps });
+const custom = (steps: Workflow['steps']): Workflow => ({
+  kind: 'quickAction',
+  id: 'mine',
+  name: '我的',
+  steps,
+});
 const pick = { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 10 } };
 
 let ids = 0;
@@ -75,13 +85,13 @@ describe('image tool workflows', () => {
   it('installs image tool workflows that all validate', () => {
     const result = applyOps(
       createDefaultWorkspace('en'),
-      [{ op: 'installTool', toolId: 'image' }],
+      [{ op: 'setPackage', package: 'image', do: 'add' }],
       {
         registry,
         locale: 'en',
       },
     );
-    expect(result.ok && result.config.workflows.map((w) => w.id)).toEqual([
+    expect(result.ok && quickActionsOf(result.config).map((w) => w.id)).toEqual([
       'image-annotate',
       'image-adjust',
       'image-removebackground',

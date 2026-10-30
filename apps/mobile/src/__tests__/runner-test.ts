@@ -1,6 +1,7 @@
 import {
   BUILTIN_TOOLS,
   applyOps,
+  quickActionsOf,
   createDefaultWorkspace,
   createRegistry,
   type AskRequest,
@@ -21,7 +22,7 @@ const now = () => new Date(2026, 9, 22, 9, 0);
 function pdfWorkspace(extraOps: Op[] = []) {
   const result = applyOps(
     createDefaultWorkspace('zh'),
-    [{ op: 'installTool', toolId: 'pdf' }, ...extraOps],
+    [{ op: 'setPackage', package: 'pdf', do: 'add' }, ...extraOps],
     { registry, locale: 'zh' },
   );
   if (!result.ok) throw new Error(result.error);
@@ -74,9 +75,14 @@ function setup(workflow: Workflow, answer: string | null = '我的合并') {
   return { repo, files, asked, confirms, choices, offered, locals, opened, run };
 }
 
-const mergeWorkflow = (ops: Op[] = []) => pdfWorkspace(ops).workflows[0]!;
+const mergeWorkflow = (ops: Op[] = []) => quickActionsOf(pdfWorkspace(ops))[0]!;
 
-const custom = (steps: Workflow['steps']): Workflow => ({ id: 'mine', name: '我的', steps });
+const custom = (steps: Workflow['steps']): Workflow => ({
+  kind: 'quickAction',
+  id: 'mine',
+  name: '我的',
+  steps,
+});
 
 describe('PDF passwords (D-194)', () => {
   const unlock = custom([
@@ -273,11 +279,10 @@ describe('PDF merge workflow (migrated to typed steps)', () => {
   it('C: after simplification it saves automatically as 合并-日期, never overwriting', async () => {
     const simplified = mergeWorkflow([
       {
-        op: 'setStepParams',
-        workflowId: 'pdf-merge',
-        stepId: 'name',
-        params: { template: '合并-{date:YYYY-MM-DD}' },
-        ask: [],
+        op: 'updateTool',
+        tool: 'pdf-merge',
+        step: 'name',
+        changes: { params: { template: '合并-{date:YYYY-MM-DD}' }, ask: [] },
       },
     ]);
     const { files, asked, repo, run } = setup(simplified);

@@ -18,7 +18,9 @@ describe('starter home and toolbox (UI)', () => {
   it('starts with an empty home page (D-231)', async () => {
     const { store } = await start();
     await screen.findByTestId('nav-settings');
-    expect(store.getState().config!.pages.find((p) => p.id === 'home')!.components).toEqual([]);
+    expect(store.getState().config!.containers.pages.find((p) => p.id === 'home')!.blocks).toEqual(
+      [],
+    );
     expect(screen.queryByTestId('file-pick-media')).toBeNull();
     expect(screen.queryByText('Morph 可以做什么')).toBeNull();
     expect(screen.queryByTestId('nav-tools')).toBeNull();
@@ -36,10 +38,10 @@ describe('starter home and toolbox (UI)', () => {
     await fireEvent.press(screen.getByTestId('toolgrid-zip'));
     expect(await screen.findByTestId('run-zip-files')).toBeTruthy();
     const config = store.getState().config!;
-    expect(config.tools.some((t) => t.toolId === 'zip')).toBe(true);
+    expect(config.packages.some((p) => p.id === 'zip')).toBe(true);
     // 工具箱里已经有它：首页不多出工具入口。
-    const home = config.pages.find((p) => p.id === 'home')!;
-    expect(JSON.stringify(home)).not.toContain('toolCard');
+    const home = config.containers.pages.find((p) => p.id === 'home')!;
+    expect(JSON.stringify(home)).not.toContain('package:zip');
   });
 });
 

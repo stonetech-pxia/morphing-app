@@ -1,9 +1,10 @@
 import {
-  BUILTIN_TOOLS,
   applyOps,
+  type AskRequest,
+  BUILTIN_TOOLS,
   createDefaultWorkspace,
   createRegistry,
-  type AskRequest,
+  quickActionsOf,
   type RunItem,
   type Workflow,
 } from '@morph/core';
@@ -17,15 +18,24 @@ import { FakeFiles, makePdf } from '../test-utils/fake-files';
 const registry = createRegistry(BUILTIN_TOOLS);
 
 function toolWorkflow(id: string): Workflow {
-  const result = applyOps(createDefaultWorkspace('zh'), [{ op: 'installTool', toolId: 'pdf' }], {
-    registry,
-    locale: 'zh',
-  });
+  const result = applyOps(
+    createDefaultWorkspace('zh'),
+    [{ op: 'setPackage', package: 'pdf', do: 'add' }],
+    {
+      registry,
+      locale: 'zh',
+    },
+  );
   if (!result.ok) throw new Error(result.error);
-  return result.config.workflows.find((w) => w.id === id)!;
+  return quickActionsOf(result.config).find((w) => w.id === id)!;
 }
 
-const custom = (steps: Workflow['steps']): Workflow => ({ id: 'mine', name: '我的', steps });
+const custom = (steps: Workflow['steps']): Workflow => ({
+  kind: 'quickAction',
+  id: 'mine',
+  name: '我的',
+  steps,
+});
 
 let ids = 0;
 function setup(
@@ -82,11 +92,15 @@ const widths = (doc: PDFDocument) => doc.getPages().map((p) => p.getWidth());
 
 describe('PDF tool workflows', () => {
   it('installs seventeen single-tool workflows that all validate', () => {
-    const result = applyOps(createDefaultWorkspace('en'), [{ op: 'installTool', toolId: 'pdf' }], {
-      registry,
-      locale: 'en',
-    });
-    expect(result.ok && result.config.workflows).toHaveLength(17);
+    const result = applyOps(
+      createDefaultWorkspace('en'),
+      [{ op: 'setPackage', package: 'pdf', do: 'add' }],
+      {
+        registry,
+        locale: 'en',
+      },
+    );
+    expect(result.ok && quickActionsOf(result.config)).toHaveLength(17);
   });
 
   it('merges PDFs and images in order; images become A4 pages', async () => {

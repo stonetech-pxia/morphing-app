@@ -75,11 +75,11 @@ const seedWith =
     const result = applyOps(
       createDefaultWorkspace(locale),
       [
-        ...tables.map((collection) => ({ op: 'addCollection' as const, collection })),
-        ...components.map((component) => ({
-          op: 'addComponent' as const,
-          pageId: 'home',
-          component,
+        ...tables.map((table) => ({ op: 'addData' as const, table })),
+        ...components.map((block) => ({
+          op: 'addContainer' as const,
+          page: 'home',
+          block,
         })),
       ],
       { registry, locale },
@@ -90,15 +90,9 @@ const seedWith =
 
 const calendar: NewComponent = {
   id: 'cal',
-  type: 'recordList',
-  props: {
-    collectionId: 'mood',
-    display: 'calendar',
-    titleField: 'feel',
-    subtitleFields: ['note'],
-    colorField: 'feel',
-    limit: 20,
-  },
+  look: 'calendar',
+  source: { table: 'mood', group: { by: 'date', unit: 'day' }, limit: 20 },
+  show: { title: 'feel', subtitles: ['note'], color: 'feel' },
 };
 
 let seq = 0;
@@ -178,15 +172,9 @@ it('a shift with no end is a running timer; a finished one shows its length', as
     await renderToolsApp(repo, undefined, {
       seed: seedWith({
         id: 'work',
-        type: 'recordList',
-        props: {
-          collectionId: 'shifts',
-          display: 'list',
-          titleField: 'job',
-          trailingField: 'in',
-          trailingFormat: { kind: 'elapsed', until: 'out' },
-          limit: 10,
-        },
+        look: 'list',
+        source: { table: 'shifts', limit: 10 },
+        show: { title: 'job', trailing: 'in', format: { kind: 'elapsed', until: 'out' } },
       }),
     });
     expect(await screen.findByText('8:30')).toBeTruthy();
@@ -208,15 +196,9 @@ it('progress against another field of the entry', async () => {
   await renderToolsApp(repo, undefined, {
     seed: seedWith({
       id: 'water',
-      type: 'recordList',
-      props: {
-        collectionId: 'shifts',
-        display: 'list',
-        titleField: 'job',
-        trailingField: 'cups',
-        trailingFormat: { kind: 'progress', goal: 'goal' },
-        limit: 10,
-      },
+      look: 'list',
+      source: { table: 'shifts', limit: 10 },
+      show: { title: 'job', trailing: 'cups', format: { kind: 'progress', goal: 'goal' } },
     }),
   });
   expect(await screen.findByText('6 / 8')).toBeTruthy();
@@ -237,24 +219,24 @@ it('a stat with a goal and compared with the same days last month', async () => 
     seed: seedWith(
       {
         id: 'cups',
-        type: 'stat',
-        props: {
-          collectionId: 'shifts',
+        look: 'number',
+        show: { label: '今天喝水' },
+        source: {
+          table: 'shifts',
           aggregate: 'sum',
-          fieldId: 'cups',
-          label: '今天喝水',
+          field: 'cups',
           filter: [{ field: 'createdAt', op: 'inPeriod', value: 'today' }],
           goal: 8,
         },
       },
       {
         id: 'month',
-        type: 'stat',
-        props: {
-          collectionId: 'spend',
+        look: 'number',
+        show: { label: '本月支出' },
+        source: {
+          table: 'spend',
           aggregate: 'sum',
-          fieldId: 'amount',
-          label: '本月支出',
+          field: 'amount',
           filter: [{ field: 'date', op: 'inPeriod', value: 'thisMonth' }],
           compare: 'previous',
         },
@@ -277,13 +259,13 @@ it('a grouped stat compares each option with the same days last month', async ()
     locale: 'zh',
     seed: seedWith({
       id: 'bycat',
-      type: 'stat',
-      props: {
-        collectionId: 'spend',
+      look: 'number',
+      show: { label: '本月各类' },
+      source: {
+        table: 'spend',
         aggregate: 'sum',
-        fieldId: 'amount',
-        label: '本月各类',
-        groupBy: 'cat',
+        field: 'amount',
+        group: { by: 'cat' },
         filter: [{ field: 'date', op: 'inPeriod', value: 'thisMonth' }],
         compare: 'previous',
       },

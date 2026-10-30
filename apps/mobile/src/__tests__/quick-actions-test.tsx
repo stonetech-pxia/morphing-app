@@ -20,7 +20,7 @@ describe('quick-action categories (UI)', () => {
       await store
         .getState()
         .proposeOps(
-          [{ op: 'setNavItems', items: ['page:home', 'quickActions', 'settings'] }],
+          [{ op: 'updateContainer', nav: { bar: ['page:home', 'quickActions', 'settings'] } }],
           'setup',
         );
       await store.getState().confirm();
@@ -36,17 +36,22 @@ describe('quick-action categories (UI)', () => {
       await store.getState().proposeOps(
         [
           {
-            op: 'addComponent',
-            pageId: 'home',
-            component: { id: 'photos', type: 'quickActionList', props: { kind: 'image' } },
+            op: 'addContainer',
+            page: 'home',
+            block: {
+              id: 'photos',
+              look: 'library',
+              source: { catalog: 'quickActions', kind: 'image' },
+            },
           },
           {
-            op: 'addComponent',
-            pageId: 'home',
-            component: {
+            op: 'addContainer',
+            page: 'home',
+            block: {
               id: 'open-ai',
-              type: 'button',
-              props: { label: '修改这个 App', target: 'ai', variant: 'icon', icon: 'sparkles' },
+              look: 'button',
+              show: { label: '修改这个 App', variant: 'icon', icon: 'sparkles' },
+              opens: 'ai',
             },
           },
         ],
@@ -110,8 +115,9 @@ describe('quick-action categories (UI)', () => {
     await renderToolsApp(repo, new FakeFiles(), {
       seed: (locale, registry) => {
         const config = createStarterWorkspace(locale, registry);
-        config.workflows.push(presetWorkflow(presetById('email-photos')!, locale, 'email-photos'));
-        config.workflows.unshift({
+        config.tools.push(presetWorkflow(presetById('email-photos')!, locale, 'email-photos'));
+        config.tools.unshift({
+          kind: 'quickAction',
           id: 'unused',
           name: 'Unused',
           steps: [

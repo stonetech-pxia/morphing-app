@@ -1,4 +1,4 @@
-import { applyOps, createDefaultWorkspace, type Locale, type Op, type Registry } from '@morph/core';
+import { applyOps, createDefaultWorkspace, type Locale, type Registry } from '@morph/core';
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
@@ -13,34 +13,35 @@ import type { WidgetPlatform, WidgetSnapshot } from '../widgets/types';
 // 桌面小组件在 App 里（D-323、D-325）：打开 App 时执行小组件上点了的操作，一起撤销；
 // 长按组件「放到桌面」只记在本机，画面跟着写出去；不支持的组件说明能放哪几种。
 
-const action = { do: 'create', collectionId: 'water', values: { day: 'today' } };
+const action = { do: 'create', table: 'water', values: { day: 'today' } } as const;
 const seed = (locale: Locale, registry: Registry) => {
   const result = applyOps(
     createDefaultWorkspace(locale),
     [
       {
-        op: 'addCollection',
-        collection: {
+        op: 'addData',
+        table: {
           id: 'water',
           name: '喝水',
           fields: [{ id: 'day', name: '日期', type: 'date' }],
         },
       },
       {
-        op: 'addComponent',
-        pageId: 'home',
-        component: {
+        op: 'addContainer',
+        page: 'home',
+        block: {
           id: 'drink',
-          type: 'button',
-          props: { label: '+1 杯水', variant: 'filled', action },
+          look: 'button',
+          show: { label: '+1 杯水', variant: 'filled' },
+          tools: [action],
         },
       },
       {
-        op: 'addComponent',
-        pageId: 'home',
-        component: { id: 'hello', type: 'text', props: { text: '你好' } },
+        op: 'addContainer',
+        page: 'home',
+        block: { id: 'hello', look: 'text', show: { text: '你好' } },
       },
-    ] as unknown as Op[],
+    ],
     { registry, locale },
   );
   if (!result.ok) throw new Error(result.error);
@@ -137,7 +138,7 @@ it('taps queued on the widget are recorded when Morph opens, and one undo takes 
   const tap = JSON.stringify({
     op: 'b:drink',
     component: 'drink',
-    hash: actionHash(action as never),
+    hash: actionHash(action),
     at,
   });
   const widgets = fakeWidgets([tap, tap]);

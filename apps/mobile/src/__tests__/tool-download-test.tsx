@@ -1,9 +1,10 @@
 import {
   BUILTIN_TOOLS,
-  ToolDownloadError,
   createDefaultWorkspace,
   createMockAIProvider,
   createRegistry,
+  quickActionsOf,
+  ToolDownloadError,
   type ToolManifest,
 } from '@morph/core';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
@@ -199,7 +200,7 @@ describe('downloaded tools in the app (UI)', () => {
     await fireEvent.press(await screen.findByTestId('open-job-apply'));
     expect(await screen.findByText('简历和证书合成一个 PDF')).toBeTruthy();
     expect(screen.getByText('头像压到 200 KB')).toBeTruthy();
-    expect(store.getState().config!.tools.map((t) => t.toolId)).toContain('job-apply');
+    expect(store.getState().config!.packages.map((t) => t.id)).toContain('job-apply');
     expect(fs.files.has('job-apply/1.0.0/ready.json')).toBe(true);
   });
 
@@ -220,7 +221,7 @@ describe('downloaded tools in the app (UI)', () => {
       '「求职材料」没有添加',
       '下载的内容没有通过安全检查，什么都没有改。',
     );
-    expect(app.store.getState().config!.tools.map((t) => t.toolId)).not.toContain('job-apply');
+    expect(app.store.getState().config!.packages.map((t) => t.id)).not.toContain('job-apply');
     expect(tools.registry.tools.has('job-apply')).toBe(false);
   });
 
@@ -236,8 +237,8 @@ describe('downloaded tools in the app (UI)', () => {
     expect(await screen.findByTestId('open-job-apply')).toBeTruthy();
     expect(registry.tools.get('job-apply')?.version).toBe('1.1.0');
     const config = store.getState().config!;
-    expect(config.tools.find((t) => t.toolId === 'job-apply')?.version).toBe('1.1.0');
-    expect(config.workflows.map((w) => w.id)).toEqual(
+    expect(config.packages.find((t) => t.id === 'job-apply')?.version).toBe('1.1.0');
+    expect(quickActionsOf(config).map((w) => w.id)).toEqual(
       expect.arrayContaining(['job-apply-docs', 'job-apply-photo', 'job-apply-letter']),
     );
   });
@@ -256,7 +257,9 @@ describe('downloaded tools in the app (UI)', () => {
     expect(await screen.findByTestId('run-revoked')).toHaveTextContent(
       '「求职材料」暂时停用了，这个快捷操作现在不能用。过一阵再试试。',
     );
-    expect(store.getState().config!.workflows.some((w) => w.id === 'job-apply-docs')).toBe(true);
+    expect(quickActionsOf(store.getState().config!).some((w) => w.id === 'job-apply-docs')).toBe(
+      true,
+    );
   });
 });
 
@@ -277,11 +280,13 @@ describe('restoring a version that used a downloaded tool', () => {
     await first.getState().boot();
     const added = await first
       .getState()
-      .proposeOps([{ op: 'installTool', toolId: 'job-apply' }], '添加求职材料');
+      .proposeOps([{ op: 'setPackage', package: 'job-apply', do: 'add' }], '添加求职材料');
     expect(added.kind).toBe('preview');
     await first.getState().confirm();
     const withTool = first.getState().head!.id;
-    await first.getState().proposeOps([{ op: 'uninstallTool', toolId: 'job-apply' }], '移除');
+    await first
+      .getState()
+      .proposeOps([{ op: 'setPackage', package: 'job-apply', do: 'remove' }], '移除');
     await first.getState().confirm();
 
     // 换一台手机：没有这个工具，但目录里查得到它的名字。

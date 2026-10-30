@@ -26,11 +26,10 @@ const receipts: Collection = {
 };
 
 const seed = (locale: Locale, registry: Registry) => {
-  const result = applyOps(
-    createDefaultWorkspace(locale),
-    [{ op: 'addCollection', collection: receipts }],
-    { registry, locale },
-  );
+  const result = applyOps(createDefaultWorkspace(locale), [{ op: 'addData', table: receipts }], {
+    registry,
+    locale,
+  });
   if (!result.ok) throw new Error(result.error);
   return result.config;
 };
@@ -238,17 +237,21 @@ describe('the quick-add form on a page takes attachments (D-263)', () => {
       seed(locale, registry),
       [
         {
-          op: 'addComponent',
-          pageId: 'home',
-          component: {
+          op: 'addContainer',
+          page: 'home',
+          block: {
             id: 'add',
-            type: 'recordForm',
-            props: {
-              collectionId: 'expenses',
-              fieldIds: ['item', 'receipt'],
-              submitLabel: '记下',
-              mode: 'inline',
-            },
+            look: 'form',
+            show: { mode: 'inline' },
+            tools: [
+              {
+                as: 'submit',
+                label: '记下',
+                do: 'create',
+                table: 'expenses',
+                ask: ['item', 'receipt'],
+              },
+            ],
           },
         },
       ],
@@ -285,12 +288,13 @@ describe('thumbnails and previews (D-263)', () => {
       seed(locale, registry),
       [
         {
-          op: 'addComponent',
-          pageId: 'home',
-          component: {
+          op: 'addContainer',
+          page: 'home',
+          block: {
             id: 'recent',
-            type: 'recordList',
-            props: { collectionId: 'expenses', display, titleField: 'item', limit: 50 },
+            look: display,
+            source: { table: 'expenses', limit: 50 },
+            show: { title: 'item' },
           },
         },
       ],

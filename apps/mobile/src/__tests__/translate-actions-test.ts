@@ -1,10 +1,11 @@
 import {
-  BUILTIN_TOOLS,
   applyOps,
+  BUILTIN_TOOLS,
   createDefaultWorkspace,
   createRegistry,
   presetById,
   presetWorkflow,
+  quickActionsOf,
   type RunResult,
   type Workflow,
 } from '@morph/core';
@@ -23,11 +24,11 @@ const registry = createRegistry(BUILTIN_TOOLS);
 function toolWorkflow(id: string, locale: 'zh' | 'en' = 'zh'): Workflow {
   const result = applyOps(
     createDefaultWorkspace(locale),
-    [{ op: 'installTool', toolId: 'translate' }],
+    [{ op: 'setPackage', package: 'translate', do: 'add' }],
     { registry, locale },
   );
   if (!result.ok) throw new Error(result.error);
-  return result.config.workflows.find((w) => w.id === id)!;
+  return quickActionsOf(result.config).find((w) => w.id === id)!;
 }
 
 class PdfTextPack implements PackRuntime {

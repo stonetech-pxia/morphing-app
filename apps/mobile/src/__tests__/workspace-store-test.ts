@@ -3,6 +3,7 @@ import {
   createMockAIProvider,
   createRegistry,
   createStarterWorkspace,
+  quickActionsOf,
   type WorkspaceConfig,
 } from '@morph/core';
 
@@ -40,13 +41,13 @@ async function applyText(store: WorkspaceStore, input: string) {
 async function installPdf(store: WorkspaceStore) {
   const result = await store
     .getState()
-    .proposeOps([{ op: 'installTool', toolId: 'pdf' }], '安装 PDF');
+    .proposeOps([{ op: 'setPackage', package: 'pdf', do: 'add' }], '安装 PDF');
   expect(result.kind).toBe('preview');
   await store.getState().confirm();
   await store.getState().markRendered(store.getState().head!.id);
 }
 
-const nav = (store: WorkspaceStore) => store.getState().config!.shell.nav;
+const nav = (store: WorkspaceStore) => store.getState().config!.nav.bar;
 
 describe('workspace store', () => {
   it('seeds the default workspace on first launch', async () => {
@@ -68,7 +69,7 @@ describe('workspace store', () => {
     });
     await store.getState().boot();
     const config = store.getState().config!;
-    expect(config.tools.map((t) => t.toolId)).toEqual([
+    expect(config.packages.map((t) => t.id)).toEqual([
       'image',
       'pdf',
       'video',
@@ -76,7 +77,7 @@ describe('workspace store', () => {
       'ocr',
       'qr',
     ]);
-    expect(config.shell.nav).toEqual(['page:home', 'ai', 'settings']);
+    expect(config.nav.bar).toEqual(['page:home', 'ai', 'settings']);
     expect((await repo.listRevisions(10)).map((r) => r.source)).toEqual(['seed']);
   });
 
@@ -91,7 +92,7 @@ describe('workspace store', () => {
     await store.getState().confirm();
     await store.getState().markRendered(store.getState().head!.id);
     expect(nav(store)).toEqual(['page:home', 'tools', 'settings']);
-    expect(store.getState().config!.shell.floating).toEqual([]);
+    expect(store.getState().config!.nav.floating).toEqual([]);
     expect(store.getState().banner).toMatchObject({ kind: 'applied', undoTo: 1 });
     expect(await repo.getChangeRequest(1)).toMatchObject({
       status: 'committed',
@@ -131,7 +132,7 @@ describe('workspace store', () => {
       provider: {
         plan: async () => ({
           kind: 'ops',
-          ops: [{ op: 'setNavItems', items: ['page:missing'] }],
+          ops: [{ op: 'updateContainer', nav: { bar: ['page:missing'] } }],
         }),
       },
     });
@@ -166,7 +167,7 @@ describe('workspace store', () => {
     await store.getState().markRendered(store.getState().head!.id);
 
     expect(nav(store)).toEqual(['page:home', 'tools', 'ai', 'history', 'settings']);
-    expect(store.getState().config!.tools.map((t) => t.toolId)).toEqual(['pdf']);
+    expect(store.getState().config!.packages.map((t) => t.id)).toEqual(['pdf']);
     expect(store.getState().head).toMatchObject({ id: 4, parentId: 3, source: 'restore' });
     expect((await repo.listRevisions(10)).map((r) => r.source)).toEqual([
       'restore',
@@ -185,7 +186,7 @@ describe('workspace store', () => {
       expect(result.proposal.lines.some((l) => l.includes('文件都会保留'))).toBe(true);
     }
     await store.getState().confirm();
-    expect(store.getState().config!.tools).toEqual([]);
+    expect(store.getState().config!.packages).toEqual([]);
   });
 
   it.each([
@@ -236,21 +237,21 @@ describe('workspace store', () => {
     expect(store.getState().status).toBe('ready');
     expect(store.getState().banner).toMatchObject({ kind: 'recovered' });
     expect(store.getState().head).toMatchObject({ source: 'recovery', parentId: 2 });
-    expect(store.getState().config!.pages[0]!.id).toBe('home');
+    expect(store.getState().config!.containers.pages[0]!.id).toBe('home');
   });
 
   describe('home entry for workflows the AI creates (D-109)', () => {
     const runners = (config: WorkspaceConfig) =>
-      config.pages
-        .flatMap((p) => p.components)
-        .filter((c) => c.type === 'workflowRunner')
-        .map((c) => c.props.workflowId);
+      config.containers.pages
+        .flatMap((p) => p.blocks)
+        .filter((c) => c.look === 'action')
+        .map((c) => (c as { tools: { tool: string }[] }).tools[0]!.tool);
 
     it('offers it ticked; unticking keeps the workflow off every page', async () => {
       const { store } = await booted();
       const result = await store.getState().propose('添加签证照片工作流');
       if (result.kind !== 'preview') throw new Error(JSON.stringify(result));
-      const id = result.proposal.after.workflows[0]!.id;
+      const id = quickActionsOf(result.proposal.after)[0]!.id;
       expect(result.proposal.homeEntry).toEqual({ workflowIds: [id], on: true });
       expect(result.proposal.focusPageId).toBe('home');
       expect(runners(result.proposal.after)).toEqual([id]);

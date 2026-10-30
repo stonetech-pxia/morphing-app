@@ -5,6 +5,7 @@ import type { SucceededRuns } from '../storage/types';
 
 const infos: SharedFileInfo[] = [{ name: 'x.jpg', mimeType: 'image/jpeg', size: 10 }];
 const wf = (id: string, options: Partial<Workflow> = {}): Workflow => ({
+  kind: 'quickAction',
   id,
   name: id,
   steps: [{ id: 'in', action: 'in.photos', params: { min: 1, max: 50 } }],
@@ -55,14 +56,14 @@ describe('inbox recommendations', () => {
   });
   it('fills fewer than three used actions: own, built-in, then tool actions', () => {
     const result = shareRecommendations(
-      [wf('tool', { toolId: 'image' }), wf('own'), wf('used')],
+      [wf('tool', { package: 'image' }), wf('own'), wf('used')],
       infos,
       usage(['used', 1, 1]),
       'zh',
     );
     expect(result.recommended).toHaveLength(5);
     expect(result.all.slice(0, 2).map((x) => x.wf.id)).toEqual(['used', 'own']);
-    expect(result.all[2]!.wf.presetId).toBeDefined();
+    expect(result.all[2]!.wf.preset).toBeDefined();
     expect(result.all.at(-1)!.wf.id).toBe('tool');
   });
   it('does not fill once three used actions exist, and puts a newly made action first', () => {
@@ -85,7 +86,7 @@ describe('inbox recommendations', () => {
     const wrong = wf('wrong', {
       steps: [{ id: 'in', action: 'in.files', params: { accept: 'pdf' } }],
     });
-    const workflows = [tooFew, wrong, wf('added', { presetId: 'visa-photo' })];
+    const workflows = [tooFew, wrong, wf('added', { preset: 'visa-photo' })];
     const empty = shareRecommendations(workflows, infos, new Map(), 'zh').all;
     expect(
       empty.some((x) => x.wf.id === 'few' || x.wf.id === 'wrong' || x.wf.id === 'visa-photo'),
@@ -136,7 +137,7 @@ describe('inbox recommendations', () => {
   });
   it('ranks a tool action that has the same id as a listed built-in one (video-frame) (D-237)', () => {
     const toolFrame = wf('video-frame', {
-      toolId: 'video',
+      package: 'video',
       steps: [{ id: 'pick', action: 'in.videos', params: { min: 1, max: 10 } }],
     });
     const ids = shareRecommendations(

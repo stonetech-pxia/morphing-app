@@ -3,7 +3,6 @@ import {
   createDefaultWorkspace,
   type Collection,
   type Locale,
-  type Op,
   type Registry,
 } from '@morph/core';
 import { fireEvent } from '@testing-library/react-native';
@@ -45,41 +44,33 @@ const seed = (locale: Locale, registry: Registry) => {
   const result = applyOps(
     createDefaultWorkspace(locale),
     [
-      { op: 'addCollection', collection: habits },
-      { op: 'addCollection', collection: tasks },
+      { op: 'addData', table: habits },
+      { op: 'addData', table: tasks },
       {
-        op: 'addComponent',
-        pageId: 'home',
-        component: {
+        op: 'addContainer',
+        page: 'home',
+        block: {
           id: 'grid',
-          type: 'recordList',
-          props: {
-            collectionId: 'habits',
-            display: 'tiles',
-            titleField: 'name',
-            trailingField: 'today',
-            trailingFormat: { kind: 'progress', goal: 'goal' },
-            limit: 100,
-            rowActions: [{ label: '打卡', do: 'increment', fieldId: 'today', by: 1 }],
-          },
+          look: 'tiles',
+          source: { table: 'habits', limit: 100 },
+          show: { title: 'name', trailing: 'today', format: { kind: 'progress', goal: 'goal' } },
+          tools: [
+            { as: 'tap', label: '打卡', do: 'increment', table: 'habits', field: 'today', by: 1 },
+          ],
         },
       },
       {
-        op: 'addComponent',
-        pageId: 'home',
-        component: {
+        op: 'addContainer',
+        page: 'home',
+        block: {
           id: 'board',
-          type: 'recordList',
-          props: {
-            collectionId: 'tasks',
-            display: 'board',
-            groupField: 'status',
-            titleField: 'title',
-            limit: 30,
-          },
+          look: 'board',
+          source: { table: 'tasks', group: { by: 'status' }, limit: 30 },
+          show: { title: 'title' },
+          tools: [{ as: 'drag', do: 'set', table: 'tasks', field: 'status', value: '$group' }],
         },
       },
-    ] as unknown as Op[],
+    ],
     { registry, locale },
   );
   if (!result.ok) throw new Error(result.error);

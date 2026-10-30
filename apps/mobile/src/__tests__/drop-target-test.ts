@@ -1,8 +1,8 @@
 import { dropOp, type Page } from '@morph/core';
 import { findDropTarget, type ItemBox } from '../editing/drop-target';
 
-const text = (id: string) => ({ id, type: 'text' as const, props: { text: id } });
-const page: Page = { id: 'home', title: 'Home', components: [text('a'), text('b'), text('c')] };
+const text = (id: string) => ({ id, look: 'text' as const, show: { text: id } });
+const page: Page = { id: 'home', title: 'Home', blocks: [text('a'), text('b'), text('c')] };
 const box = (x: number, y: number, inCell = false): ItemBox => ({
   x,
   y,
@@ -26,7 +26,7 @@ describe('single-component drop geometry', () => {
   });
   it('uses y for full-width rows and keeps indices around hidden components', () => {
     const hidden = { ...text('hidden'), hidden: true };
-    const p = { ...page, components: [text('a'), hidden, text('b')] };
+    const p = { ...page, blocks: [text('a'), hidden, text('b')] };
     const boxes = new Map([
       ['a', box(0, 0)],
       ['b', box(0, 100)],
@@ -39,11 +39,11 @@ describe('single-component drop geometry', () => {
   it('enters and leaves groups, including empty groups, and excludes full groups', () => {
     const group = {
       id: 'g',
-      type: 'group' as const,
-      props: { layout: 'stack' as const },
+      look: 'group' as const,
+      show: { layout: 'stack' as const },
       children: [text('b')],
     };
-    const p = { ...page, components: [text('a'), group, text('c')] };
+    const p = { ...page, blocks: [text('a'), group, text('c')] };
     const boxes = new Map([
       ['a', box(0, 0)],
       ['g', { ...box(0, 100), height: 120 }],
@@ -57,14 +57,14 @@ describe('single-component drop geometry', () => {
     expect(dropOp(p, 'b', findDropTarget(p, 'b', boxes, { x: 50, y: 300 })!.slot)).toMatchObject({
       toIndex: 3,
     });
-    const empty = { ...p, components: [text('a'), { ...group, children: [] }] };
+    const empty = { ...p, blocks: [text('a'), { ...group, children: [] }] };
     expect(findDropTarget(empty, 'a', boxes, { x: 50, y: 160 })!.slot).toEqual({
       parentId: 'g',
       index: 0,
     });
     const full = {
       ...p,
-      components: [
+      blocks: [
         text('a'),
         { ...group, children: Array.from({ length: 12 }, (_, i) => text(`child-${i}`)) },
       ],

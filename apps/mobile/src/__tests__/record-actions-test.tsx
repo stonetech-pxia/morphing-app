@@ -57,59 +57,59 @@ const packing: Collection = {
   ],
 };
 
-const button = (id: string, label: string, action: unknown) => ({
-  op: 'addComponent' as const,
-  pageId: 'home',
-  component: { id, type: 'button' as const, props: { label, variant: 'filled', action } },
-});
-const list = (id: string, collectionId: string, titleField: string, rowActions?: unknown) => ({
-  op: 'addComponent' as const,
-  pageId: 'home',
-  component: {
-    id,
-    type: 'recordList' as const,
-    props: { collectionId, display: 'list', titleField, limit: 100, rowActions },
-  },
-});
+const button = (id: string, label: string, action: object): Op =>
+  ({
+    op: 'addContainer',
+    page: 'home',
+    block: { id, look: 'button', show: { label, variant: 'filled' }, tools: [action] },
+  }) as Op;
+const list = (id: string, table: string, title: string, tools?: object[]): Op =>
+  ({
+    op: 'addContainer',
+    page: 'home',
+    block: { id, look: 'list', source: { table, limit: 100 }, show: { title }, tools },
+  }) as Op;
 
 const seed = (locale: Locale, registry: Registry) => {
   const result = applyOps(
     createDefaultWorkspace(locale),
     [
-      ...[checkins, water, shifts, packing].map((collection) => ({
-        op: 'addCollection' as const,
-        collection,
+      ...[checkins, water, shifts, packing].map((table) => ({
+        op: 'addData' as const,
+        table,
       })),
       button('check', '打卡跑步', {
         do: 'create',
-        collectionId: 'checkins',
+        table: 'checkins',
         values: { habit: 'run', day: 'today' },
       }),
       button('clock-in', '上班', {
         do: 'create',
-        collectionId: 'shifts',
+        table: 'shifts',
         values: { start: 'now' },
       }),
       button('unpack', '全部取消', {
         do: 'setAll',
-        collectionId: 'packing',
-        fieldId: 'packed',
+        table: 'packing',
+        field: 'packed',
         value: false,
       }),
       list('water-list', 'water', 'day', [
-        { label: '+1', do: 'increment', fieldId: 'glasses', by: 1 },
+        { as: 'button', label: '+1', do: 'increment', table: 'water', field: 'glasses', by: 1 },
       ]),
       list('shift-list', 'shifts', 'start', [
         {
+          as: 'button',
           label: '下班',
           do: 'set',
-          fieldId: 'end',
+          table: 'shifts',
+          field: 'end',
           value: 'now',
           when: [{ field: 'end', op: 'isEmpty' }],
         },
       ]),
       list('checkin-list', 'checkins', 'day'),
-    ] as unknown as Op[],
+    ],
     { registry, locale },
   );
   if (!result.ok) throw new Error(result.error);

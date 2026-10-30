@@ -33,7 +33,7 @@ const FIELDS: Field[] = [
   },
   { id: 'r', name: 'Stars', type: 'rating' },
   { id: 'f', name: 'Receipt', type: 'file' },
-  { id: 'l', name: 'Parent', type: 'link', collectionId: 'items' },
+  { id: 'l', name: 'Parent', type: 'link', table: 'items' },
   { id: 'fo', name: 'Double', type: 'formula', expression: '{num} * 2', unit: 'kg' },
 ];
 
@@ -44,29 +44,29 @@ const seed = (locale: Locale, registry: Registry) => {
   const components: NewComponent[] = [
     {
       id: 'form',
-      type: 'recordForm',
-      props: { collectionId: 'items', fieldIds: fillable, submitLabel: 'Add', mode: 'inline' },
+      look: 'form',
+      show: { mode: 'inline' },
+      tools: [{ as: 'submit', label: 'Add', do: 'create', table: 'items', ask: fillable }],
     },
     ...FIELDS.map((f): NewComponent => ({
       id: `list-${f.id}`,
-      type: 'recordList',
-      props: {
-        collectionId: 'items',
-        display: 'list',
-        titleField: f.id,
+      look: 'list',
+      source: {
+        table: 'items',
         ...(f.type === 'link' ? {} : { sort: { field: 'createdAt', direction: 'asc' } }),
         limit: 5,
       },
+      show: { title: f.id },
     })),
   ];
   const result = applyOps(
     createDefaultWorkspace(locale),
     [
-      { op: 'addCollection', collection: items },
-      ...components.map((component) => ({
-        op: 'addComponent' as const,
-        pageId: 'home',
-        component,
+      { op: 'addData', table: items },
+      ...components.map((block) => ({
+        op: 'addContainer' as const,
+        page: 'home',
+        block,
       })),
     ],
     { registry, locale },

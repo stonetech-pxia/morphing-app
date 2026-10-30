@@ -30,7 +30,7 @@ const tables: Collection[] = [
     fields: [
       { id: 'amount', name: '金额', type: 'money', currency: 'CNY', required: true },
       { id: 'date', name: '日期', type: 'date', default: 'today' },
-      { id: 'category', name: '分类', type: 'link', collectionId: 'categories', required: true },
+      { id: 'category', name: '分类', type: 'link', table: 'categories', required: true },
     ],
   },
   {
@@ -49,7 +49,7 @@ const tables: Collection[] = [
           { id: 'in', label: '收入' },
         ],
       },
-      { id: 'category', name: '分类', type: 'link', collectionId: 'categories' },
+      { id: 'category', name: '分类', type: 'link', table: 'categories' },
     ],
   },
 ];
@@ -57,62 +57,59 @@ const tables: Collection[] = [
 const components: NewComponent[] = [
   {
     id: 'rta',
-    type: 'stat',
-    props: {
-      collectionId: 'ledger',
+    look: 'number',
+    show: { label: '待分配' },
+    source: {
+      table: 'ledger',
       aggregate: 'sum',
-      fieldId: 'amount',
+      field: 'amount',
       filter: [{ field: 'kind', op: 'is', value: 'in' }],
-      label: '待分配',
-      minus: { collectionId: 'assigned', aggregate: 'sum', fieldId: 'amount' },
+      minus: { table: 'assigned', aggregate: 'sum', field: 'amount' },
     },
   },
   {
     id: 'bycat',
-    type: 'stat',
-    props: {
-      collectionId: 'ledger',
+    look: 'number',
+    show: { label: '本月各分类' },
+    source: {
+      table: 'ledger',
       aggregate: 'sum',
-      fieldId: 'amount',
+      field: 'amount',
       filter: [
         { field: 'kind', op: 'is', value: 'out' },
         { field: 'date', op: 'inPeriod', value: 'thisMonth' },
       ],
-      label: '本月各分类',
-      groupBy: 'category',
+      group: { by: 'category' },
       compare: 'previous',
     },
   },
   {
     id: 'cats',
-    type: 'recordList',
-    props: {
-      collectionId: 'categories',
-      display: 'list',
-      titleField: 'name',
-      limit: 20,
-      rowActions: [
-        {
-          label: '分配',
-          do: 'create',
-          collectionId: 'assigned',
-          values: { category: 'row', date: 'today' },
-          form: true,
-        },
-      ],
-    },
+    look: 'list',
+    source: { table: 'categories', limit: 20 },
+    show: { title: 'name' },
+    tools: [
+      {
+        as: 'button',
+        label: '分配',
+        do: 'create',
+        table: 'assigned',
+        values: { category: '$row', date: 'today' },
+        ask: 'all',
+      },
+    ],
   },
-] as NewComponent[];
+];
 
 const seed = (locale: Locale, registry: Registry) => {
   const result = applyOps(
     createDefaultWorkspace(locale),
     [
-      ...tables.map((collection) => ({ op: 'addCollection' as const, collection })),
-      ...components.map((component) => ({
-        op: 'addComponent' as const,
-        pageId: 'home',
-        component,
+      ...tables.map((table) => ({ op: 'addData' as const, table })),
+      ...components.map((block) => ({
+        op: 'addContainer' as const,
+        page: 'home',
+        block,
       })),
     ],
     { registry, locale },

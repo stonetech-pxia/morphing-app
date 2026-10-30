@@ -30,14 +30,15 @@ const seed = (locale: Locale, registry: Registry) => {
   const result = applyOps(
     createDefaultWorkspace(locale),
     [
-      { op: 'addCollection', collection: receipts },
+      { op: 'addData', table: receipts },
       {
-        op: 'addComponent',
-        pageId: 'home',
-        component: {
+        op: 'addContainer',
+        page: 'home',
+        block: {
           id: 'lease',
-          type: 'fileSlot',
-          props: { title: '租房合同', assetId: 'slot01' },
+          look: 'entry',
+          show: { title: '租房合同' },
+          opens: { file: 'slot01' },
         },
       },
     ],
@@ -172,10 +173,10 @@ describe('storage page (D-264)', () => {
       const result = await store.getState().proposeOps(
         [
           {
-            op: 'setComponentProps',
-            pageId: 'home',
-            componentId: 'lease',
-            props: { assetId: 'orphan' },
+            op: 'updateContainer',
+            page: 'home',
+            block: 'lease',
+            changes: { opens: { file: 'orphan' } },
           },
         ],
         '换文件',

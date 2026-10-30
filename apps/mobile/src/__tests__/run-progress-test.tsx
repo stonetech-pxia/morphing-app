@@ -9,6 +9,7 @@ import { renderToolsApp } from '../test-utils/render-app';
 // 运行页上正在做的那一步（D-276）：有「正在处理」的转圈，处理多张时写出是第几张。
 
 const wf: Workflow = {
+  kind: 'quickAction',
   id: 'resize',
   name: '缩小照片',
   steps: [
@@ -29,7 +30,7 @@ it('shows a spinner and which image is being processed, from the first one on', 
         new Promise((resolve) => gates.push(() => resolve(transform(...args)))),
     );
   await renderToolsApp(undefined, files, {
-    seed: (locale) => ({ ...createDefaultWorkspace(locale), workflows: [wf] }),
+    seed: (locale) => ({ ...createDefaultWorkspace(locale), tools: [wf] }),
   });
   files.nextPhotos = [1, 2, 3].map((n) => files.offerImage(`p${n}.jpg`, 3000, 2000));
   await act(async () =>

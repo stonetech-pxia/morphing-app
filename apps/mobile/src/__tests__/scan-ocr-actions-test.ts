@@ -1,10 +1,11 @@
 import {
-  BUILTIN_TOOLS,
   applyOps,
+  BUILTIN_TOOLS,
   createDefaultWorkspace,
   createRegistry,
   presetById,
   presetWorkflow,
+  quickActionsOf,
   type RunResult,
   type Workflow,
 } from '@morph/core';
@@ -29,12 +30,16 @@ jest.mock('expo-localization', () => ({ getLocales: jest.fn(() => []) }));
 const registry = createRegistry(BUILTIN_TOOLS);
 
 function toolWorkflow(toolId: string, id: string, locale: 'zh' | 'en' = 'zh'): Workflow {
-  const result = applyOps(createDefaultWorkspace(locale), [{ op: 'installTool', toolId }], {
-    registry,
-    locale,
-  });
+  const result = applyOps(
+    createDefaultWorkspace(locale),
+    [{ op: 'setPackage', package: toolId, do: 'add' }],
+    {
+      registry,
+      locale,
+    },
+  );
   if (!result.ok) throw new Error(result.error);
-  return result.config.workflows.find((w) => w.id === id)!;
+  return quickActionsOf(result.config).find((w) => w.id === id)!;
 }
 
 /** 用户在「调整设置」里指定了识别语言（D-278：内设的快捷操作默认自动、不问）。 */
@@ -482,6 +487,7 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
 
   it('adds an invisible text layer to scanned PDFs so they can be searched, Chinese included (D-195, D-266)', async () => {
     const wf: Workflow = {
+      kind: 'quickAction',
       id: 'scan',
       name: 'scan',
       steps: [
@@ -771,6 +777,7 @@ describe('recognition reads the page before enhancing (D-267)', () => {
 
   it('recognizes text on the straightened pages, not on the black and white ones', async () => {
     const wf: Workflow = {
+      kind: 'quickAction',
       id: 'ocr',
       name: 'ocr',
       steps: [pick, bw, { id: 'read', action: 'ocr.recognize', params: { lang: 'chi_sim' } }],
@@ -788,6 +795,7 @@ describe('recognition reads the page before enhancing (D-267)', () => {
 
   it('falls back to the enhanced page when the page before enhancing is gone', async () => {
     const wf: Workflow = {
+      kind: 'quickAction',
       id: 'ocr',
       name: 'ocr',
       steps: [pick, bw, { id: 'read', action: 'ocr.recognize', params: { lang: 'chi_sim' } }],
@@ -810,7 +818,7 @@ describe('recognition reads the page before enhancing (D-267)', () => {
   });
 
   it('builds the PDF text layer from the straightened pages and moves the boxes with the deskew', async () => {
-    const wf: Workflow = { id: 'pdf', name: 'pdf', steps: [pick, bw, pdf] };
+    const wf: Workflow = { kind: 'quickAction', id: 'pdf', name: 'pdf', steps: [pick, bw, pdf] };
     const { files, vision, run } = setup(wf, {}, {}, true);
     const pages = scanned(files, vision);
     // 第一页转正了 2°（画布变大），第二页没转。
@@ -827,7 +835,12 @@ describe('recognition reads the page before enhancing (D-267)', () => {
 
   it('reads the current page once another step has changed the picture', async () => {
     const rotate = { id: 'turn', action: 'image.rotate', params: { angle: 90, flip: 'none' } };
-    const wf: Workflow = { id: 'pdf', name: 'pdf', steps: [pick, bw, rotate, pdf] };
+    const wf: Workflow = {
+      kind: 'quickAction',
+      id: 'pdf',
+      name: 'pdf',
+      steps: [pick, bw, rotate, pdf],
+    };
     const { files, vision, run } = setup(wf, {}, {}, true);
     const pages = scanned(files, vision);
     expect(await run()).toMatchObject({ status: 'succeeded' });
@@ -838,6 +851,7 @@ describe('recognition reads the page before enhancing (D-267)', () => {
 
   it('keeps the enhanced page for the text recognition pack (Tesseract reads it better)', async () => {
     const wf: Workflow = {
+      kind: 'quickAction',
       id: 'ocr',
       name: 'ocr',
       steps: [
@@ -857,6 +871,7 @@ describe('recognition reads the page before enhancing (D-267)', () => {
 describe('recognized Chinese is tidied (D-268)', () => {
   it('swaps traditional characters and half-width punctuation in simplified Chinese text', async () => {
     const wf: Workflow = {
+      kind: 'quickAction',
       id: 'ocr',
       name: 'ocr',
       steps: [
@@ -874,6 +889,7 @@ describe('recognized Chinese is tidied (D-268)', () => {
 
   it('leaves traditional Chinese characters alone and only fixes the punctuation', async () => {
     const wf: Workflow = {
+      kind: 'quickAction',
       id: 'ocr',
       name: 'ocr',
       steps: [
@@ -889,6 +905,7 @@ describe('recognized Chinese is tidied (D-268)', () => {
 
   it('tidies the Chinese lines of the PDF text layer too', async () => {
     const wf: Workflow = {
+      kind: 'quickAction',
       id: 'pdf',
       name: 'pdf',
       steps: [
@@ -946,6 +963,7 @@ describe('PP-OCRv6 replaces ML Kit and Vision for the languages it reads (D-269)
     params: { source: 'library', min: 1, max: 5 },
   };
   const read = (lang: string): Workflow => ({
+    kind: 'quickAction',
     id: 'ocr',
     name: 'ocr',
     steps: [library, { id: 'read', action: 'ocr.recognize', params: { lang } }],
@@ -1019,6 +1037,7 @@ describe('PP-OCRv6 replaces ML Kit and Vision for the languages it reads (D-269)
 
   it('still makes the scanned PDF without a text layer when the model is not downloaded', async () => {
     const wf: Workflow = {
+      kind: 'quickAction',
       id: 'pdf',
       name: 'pdf',
       steps: [

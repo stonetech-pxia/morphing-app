@@ -4,9 +4,10 @@ import {
   BUILTIN_TOOLS,
   createMockAIProvider,
   createRegistry,
-  templateOps,
   type KnownComponent,
   type Op,
+  quickActionsOf,
+  templateOps,
 } from '@morph/core';
 import { act, fireEvent } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
@@ -80,10 +81,10 @@ async function renderApp() {
   return { repo, store };
 }
 
-const home = (store: WorkspaceStore) => store.getState().config!.pages[0]!;
+const home = (store: WorkspaceStore) => store.getState().config!.containers.pages[0]!;
 const order = (store: WorkspaceStore) =>
-  home(store).components.map((c) =>
-    c.type === 'group' ? `${c.id}[${c.children.map((x) => x.id).join(',')}]` : c.id,
+  home(store).blocks.map((c) =>
+    c.look === 'group' ? `${c.id}[${c.children.map((x) => x.id).join(',')}]` : c.id,
   );
 
 /** 用 store 直接准备页面，等新版本渲染出来。 */
@@ -116,9 +117,9 @@ async function done(store: WorkspaceStore, summary: string) {
   expect(store.getState().head).toMatchObject({ source: 'user', summary });
 }
 
-const draftHome = (store: WorkspaceStore) => store.getState().editing!.config.pages[0]!;
+const draftHome = (store: WorkspaceStore) => store.getState().editing!.config.containers.pages[0]!;
 const draftHomeOrHome = (store: WorkspaceStore) =>
-  store.getState().editing?.config.pages[0] ?? home(store);
+  store.getState().editing?.config.containers.pages[0] ?? home(store);
 
 /** 撤销最近一次修改（提示条上的「撤销」）。 */
 async function undo(store: WorkspaceStore) {
@@ -153,7 +154,7 @@ describe('editing the page directly', () => {
     await fireEvent.press(screen.getByTestId('edit-save'));
     expect(await screen.findByText('家庭账本')).toBeTruthy();
     expect(screen.queryByTestId('edit-sheet')).toBeNull();
-    expect((draftHome(store).components[0]! as KnownComponent).props).toEqual({
+    expect((draftHome(store).blocks[0]! as { show: object }).show).toEqual({
       title: '家庭账本',
     });
 
@@ -165,21 +166,21 @@ describe('editing the page directly', () => {
 
     // 还没保存：没有新版本。
     expect(store.getState().head!.id).toBe(headId);
-    expect((home(store).components[0]! as KnownComponent).props).toMatchObject({
+    expect((home(store).blocks[0]! as { show: object }).show).toMatchObject({
       title: '我的工作台',
     });
 
     await done(store, '编辑「首页」（2 处修改）');
     expect(store.getState().head!.id).toBe(headId + 1);
-    expect((home(store).components[0]! as KnownComponent).props).toEqual({ title: '家庭账本' });
-    expect((home(store).components[1]! as KnownComponent).style).toEqual({ tone: 'primary' });
+    expect((home(store).blocks[0]! as { show: object }).show).toEqual({ title: '家庭账本' });
+    expect((home(store).blocks[1]! as KnownComponent).style).toEqual({ tone: 'primary' });
     expect(await screen.findByTestId('component-welcome')).toBeTruthy();
     expect(await repo.getChangeRequest(1)).toMatchObject({ status: 'committed' });
 
     // 一次撤销回到编辑之前。
     await undo(store);
     expect(await screen.findByText('我的工作台')).toBeTruthy();
-    expect((home(store).components[1]! as KnownComponent).style).toBeUndefined();
+    expect((home(store).blocks[1]! as KnownComponent).style).toBeUndefined();
   });
 
   it('a required text cannot be emptied; Cancel without changes just leaves edit mode', async () => {
@@ -209,7 +210,7 @@ describe('editing the page directly', () => {
     await fireEvent.press(screen.getByTestId('edit-close'));
     expect(store.getState().editing!.ops).toHaveLength(1);
     await done(store, '编辑「首页」（1 处修改）');
-    expect((home(store).components[1]! as KnownComponent).style).toEqual({
+    expect((home(store).blocks[1]! as KnownComponent).style).toEqual({
       align: 'center',
       size: 'large',
     });
@@ -267,14 +268,14 @@ describe('editing the page directly', () => {
       store,
       [
         {
-          op: 'addComponent',
-          pageId: 'home',
+          op: 'addContainer',
+          page: 'home',
           index: 1,
-          component: {
+          block: {
             id: 'row',
-            type: 'group',
-            props: { layout: 'row' },
-            children: [{ id: 'go', type: 'divider', props: {} }],
+            look: 'group',
+            show: { layout: 'row' },
+            children: [{ id: 'go', look: 'divider' }],
           },
         },
       ],
@@ -289,8 +290,8 @@ describe('editing the page directly', () => {
     expect(screen.queryByTestId('page-edit')).toBeNull();
 
     const draftOrder = () =>
-      draftHome(store).components.map((c) =>
-        c.type === 'group' ? `${c.id}[${c.children.map((x) => x.id).join(',')}]` : c.id,
+      draftHome(store).blocks.map((c) =>
+        c.look === 'group' ? `${c.id}[${c.children.map((x) => x.id).join(',')}]` : c.id,
       );
     const step = async (testID: string, expected: string[]) => {
       await fireEvent.press(await screen.findByTestId(testID));
@@ -323,9 +324,9 @@ describe('editing the page directly', () => {
   it('data components: no text editing; color and deleting keep the records', async () => {
     const { store, repo } = await renderApp();
     await commit(store, templateOps('todo', store.getState().config!, 'zh'), '添加待办');
-    const page = store.getState().config!.pages.find((p) => p.id !== 'home')!;
-    const list = page.components.find((c) => c.type === 'recordList')!;
-    const collectionId = store.getState().config!.collections[0]!.id;
+    const page = store.getState().config!.containers.pages.find((p) => p.id !== 'home')!;
+    const list = page.blocks.find((c) => c.look === 'checklist')!;
+    const collectionId = store.getState().config!.data.tables[0]!.id;
     await repo.insertRecord({
       id: 'r1',
       collectionId,
@@ -356,24 +357,25 @@ describe('editing the page directly', () => {
     await commit(
       store,
       [
-        { op: 'addPage', page: { id: 'notes', title: '笔记', components: [] } },
+        { op: 'addContainer', page: { id: 'notes', title: '笔记', blocks: [] } },
         {
-          op: 'addComponent',
-          pageId: 'notes',
-          component: { id: 'a', type: 'header', props: { title: '第一' } },
+          op: 'addContainer',
+          page: 'notes',
+          block: { id: 'a', look: 'header', show: { title: '第一' } },
         },
         {
-          op: 'addComponent',
-          pageId: 'notes',
-          component: { id: 'b', type: 'text', props: { text: '第二' } },
+          op: 'addContainer',
+          page: 'notes',
+          block: { id: 'b', look: 'text', show: { text: '第二' } },
         },
         {
-          op: 'addComponent',
-          pageId: 'home',
-          component: {
+          op: 'addContainer',
+          page: 'home',
+          block: {
             id: 'open-notes',
-            type: 'button',
-            props: { label: '打开笔记', target: 'page:notes', variant: 'filled' },
+            look: 'button',
+            show: { label: '打开笔记', variant: 'filled' },
+            opens: 'page:notes',
           },
         },
       ],
@@ -388,8 +390,8 @@ describe('editing the page directly', () => {
     await fireEvent.changeText(screen.getByTestId('edit-field-text'), '**改好了**');
     await fireEvent.press(screen.getByTestId('edit-save'));
     await done(store, '编辑「笔记」（2 处修改）');
-    const notes = store.getState().config!.pages.find((p) => p.id === 'notes')!;
-    expect(notes.components.map((c) => c.id)).toEqual(['b', 'a']);
+    const notes = store.getState().config!.containers.pages.find((p) => p.id === 'notes')!;
+    expect(notes.blocks.map((c) => c.id)).toEqual(['b', 'a']);
     expect(await screen.findByText('改好了')).toBeTruthy();
     expect(screen.getByTestId('page-edit')).toBeTruthy();
   });
@@ -400,12 +402,13 @@ describe('editing the page directly', () => {
       store,
       [
         {
-          op: 'addComponent',
-          pageId: 'home',
-          component: {
+          op: 'addContainer',
+          page: 'home',
+          block: {
             id: 'go-tools',
-            type: 'button',
-            props: { label: '去工具', target: 'tools', variant: 'filled' },
+            look: 'button',
+            show: { label: '去工具', variant: 'filled' },
+            opens: 'tools',
           },
         },
       ],
@@ -428,15 +431,22 @@ describe('editing the page directly', () => {
     const { store } = await renderApp();
     store.getState().startEditing('home');
     expect(
-      store
-        .getState()
-        .editOps([
-          { op: 'setComponentProps', pageId: 'home', componentId: 'welcome', props: { title: '' } },
-        ]),
+      store.getState().editOps([
+        {
+          op: 'updateContainer',
+          page: 'home',
+          block: 'welcome',
+          changes: { show: { title: '' } },
+        },
+      ]),
     ).toMatchObject({ ok: false, issues: expect.any(Array) });
     expect(store.getState().editing!.ops).toHaveLength(0);
     const toggle = (componentId: string, hidden: boolean) =>
-      store.getState().editOps([{ op: 'setComponentHidden', pageId: 'home', componentId, hidden }]);
+      store
+        .getState()
+        .editOps([
+          { op: 'updateContainer', page: 'home', block: componentId, changes: { hidden } },
+        ]);
     for (let i = 0; i < 15; i++) {
       expect(toggle('welcome', i % 2 === 0)).toEqual({ ok: true });
       expect(toggle('catalog', i % 2 === 0)).toEqual({ ok: true });
@@ -491,10 +501,10 @@ describe('single-component editing', () => {
     expect(store.getState().head!.id).toBe(before + 1);
     expect(store.getState().editing).toBeNull();
     await undo(store);
-    expect((home(store).components[0]! as KnownComponent).props).toMatchObject({
+    expect((home(store).blocks[0]! as { show: object }).show).toMatchObject({
       title: '我的工作台',
     });
-    expect((home(store).components[1]! as KnownComponent).style).toBeUndefined();
+    expect((home(store).blocks[1]! as KnownComponent).style).toBeUndefined();
   });
 
   it('keeps a selected group opaque and dims other groups only once', async () => {
@@ -503,13 +513,13 @@ describe('single-component editing', () => {
       store,
       [
         {
-          op: 'addComponent',
-          pageId: 'home',
-          component: {
+          op: 'addContainer',
+          page: 'home',
+          block: {
             id: 'group',
-            type: 'group',
-            props: { layout: 'stack', title: '分组' },
-            children: [{ id: 'child', type: 'text', props: { text: '组里的文字' } }],
+            look: 'group',
+            show: { layout: 'stack', title: '分组' },
+            children: [{ id: 'child', look: 'text', show: { text: '组里的文字' } }],
           },
         },
       ],
@@ -545,7 +555,7 @@ describe('single-component editing', () => {
     await fireEvent.press(screen.getByTestId('edit-close'));
     await fireEvent.press(screen.getByTestId('single-done-welcome'));
     expect(await screen.findByText('已改好：编辑「首页」（1 处修改）')).toBeTruthy();
-    expect(home(store).components.find((c) => c.id === 'welcome')!.hidden).toBe(true);
+    expect(home(store).blocks.find((c) => c.id === 'welcome')!.hidden).toBe(true);
   });
 });
 
@@ -588,7 +598,7 @@ describe('single-component gesture sessions', () => {
     await gestureAct(() => gesture.update({ absoluteX: 100, absoluteY: 420, translationY: 280 }));
     expect(screen.getByTestId('single-drop-line')).toBeTruthy();
     await gestureAct(() => gesture.end());
-    expect(draftHome(store).components.map((c) => c.id)).toEqual([
+    expect(draftHome(store).blocks.map((c) => c.id)).toEqual([
       'catalog',
       'recent-files',
       'welcome',
@@ -604,23 +614,23 @@ describe('single-component gesture sessions', () => {
 
   it('swaps both sides of a rendered workflow grid and keeps one draft', async () => {
     const { store } = await renderApp();
-    await commit(store, [{ op: 'installTool', toolId: 'pdf' }], '准备 PDF');
-    const workflows = store.getState().config!.workflows;
+    await commit(store, [{ op: 'setPackage', package: 'pdf', do: 'add' }], '准备 PDF');
+    const workflows = quickActionsOf(store.getState().config!);
     await commit(
       store,
       [
-        ...home(store).components.map((c) => ({
-          op: 'removeComponent' as const,
-          pageId: 'home',
-          componentId: c.id,
+        ...home(store).blocks.map((c) => ({
+          op: 'removeContainer' as const,
+          page: 'home',
+          block: c.id,
         })),
         ...['left', 'right'].map((id, i) => ({
-          op: 'addComponent' as const,
-          pageId: 'home',
-          component: {
+          op: 'addContainer' as const,
+          page: 'home',
+          block: {
             id,
-            type: 'workflowRunner' as const,
-            props: { workflowId: workflows[i]!.id },
+            look: 'action' as const,
+            tools: [{ tool: workflows[i]!.id }],
           },
         })),
       ],
@@ -632,7 +642,7 @@ describe('single-component gesture sessions', () => {
       callback: (x: number, y: number, w: number, h: number) => void,
     ) {
       const id = this.props.testID;
-      const ids = draftHomeOrHome(store).components.map((c) => `single-frame-${c.id}`);
+      const ids = draftHomeOrHome(store).blocks.map((c) => `single-frame-${c.id}`);
       const i = ids.indexOf(id ?? '');
       if (i >= 0) callback(20 + i * 160, 100, 140, 110);
       else callback(0, 0, 360, 600);
@@ -644,7 +654,7 @@ describe('single-component gesture sessions', () => {
     });
     await gestureAct(() => gesture.update({ absoluteX: 300, absoluteY: 150, translationX: 220 }));
     await gestureAct(() => gesture.end());
-    expect(draftHome(store).components.map((c) => c.id)).toEqual(['right', 'left']);
+    expect(draftHome(store).blocks.map((c) => c.id)).toEqual(['right', 'left']);
     expect(screen.getByTestId('single-toolbar-left')).toBeTruthy();
     // 重排使宫格的 React 行变化，新的 detector 仍然能继续拖。
     const again = createGestureController('single-drag-left');
@@ -654,7 +664,7 @@ describe('single-component gesture sessions', () => {
     });
     await gestureAct(() => again.update({ absoluteX: 30, absoluteY: 150, translationX: -210 }));
     await gestureAct(() => again.end());
-    expect(draftHome(store).components.map((c) => c.id)).toEqual(['left', 'right']);
+    expect(draftHome(store).blocks.map((c) => c.id)).toEqual(['left', 'right']);
     await fireEvent.press(screen.getByTestId('single-done-left'));
     expect(store.getState().editing).toBeNull();
   });
@@ -734,7 +744,7 @@ describe('quick gesture release', () => {
         gesture.update({ absoluteX: 100, absoluteY: 420, translationY: 280 });
         gesture.end();
       });
-      expect(draftHome(store).components.map((c) => c.id)).toEqual([
+      expect(draftHome(store).blocks.map((c) => c.id)).toEqual([
         'catalog',
         'recent-files',
         'welcome',

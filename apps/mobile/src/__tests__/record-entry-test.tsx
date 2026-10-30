@@ -44,6 +44,7 @@ const expenses: Collection = {
 };
 
 const receiptWorkflow: Workflow = {
+  kind: 'quickAction',
   id: 'receipts',
   name: '拍收据记账',
   steps: [
@@ -159,6 +160,7 @@ describe('out.addRecord', () => {
 
   it('puts text into the long-text field', async () => {
     const workflow: Workflow = {
+      kind: 'quickAction',
       id: 'memo',
       name: '记一句',
       steps: [

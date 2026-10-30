@@ -1,8 +1,9 @@
 import {
-  BUILTIN_TOOLS,
   applyOps,
+  BUILTIN_TOOLS,
   createDefaultWorkspace,
   createRegistry,
+  quickActionsOf,
   type RunResult,
   type Workflow,
 } from '@morph/core';
@@ -20,12 +21,16 @@ import { FakeFiles, TINY_JPEG, makePdf, makePng } from '../test-utils/fake-files
 const registry = createRegistry(BUILTIN_TOOLS);
 
 function toolWorkflow(id: string): Workflow {
-  const result = applyOps(createDefaultWorkspace('en'), [{ op: 'installTool', toolId: 'pdf' }], {
-    registry,
-    locale: 'en',
-  });
+  const result = applyOps(
+    createDefaultWorkspace('en'),
+    [{ op: 'setPackage', package: 'pdf', do: 'add' }],
+    {
+      registry,
+      locale: 'en',
+    },
+  );
   if (!result.ok) throw new Error(result.error);
-  return result.config.workflows.find((w) => w.id === id)!;
+  return quickActionsOf(result.config).find((w) => w.id === id)!;
 }
 
 /** 假的扩展包页面：记录每次调用和允许页面读取的文件。 */
@@ -200,6 +205,7 @@ describe('PDF actions that need the preview pack or a local screen', () => {
   it('keeps the form editable without flattening, and rejects PDFs without fields', async () => {
     const keep = setup(
       {
+        kind: 'quickAction',
         id: 'mine',
         name: 'Mine',
         steps: [

@@ -1,11 +1,12 @@
 import {
-  BUILTIN_TOOLS,
-  MAX_SPEAK_CHARS,
   applyOps,
+  BUILTIN_TOOLS,
   createDefaultWorkspace,
   createRegistry,
+  MAX_SPEAK_CHARS,
   presetById,
   presetWorkflow,
+  quickActionsOf,
   type RunResult,
   type Workflow,
 } from '@morph/core';
@@ -28,16 +29,21 @@ import {
 const registry = createRegistry(BUILTIN_TOOLS);
 
 function toolWorkflow(id: string): Workflow {
-  const result = applyOps(createDefaultWorkspace('zh'), [{ op: 'installTool', toolId: 'audio' }], {
-    registry,
-    locale: 'zh',
-  });
+  const result = applyOps(
+    createDefaultWorkspace('zh'),
+    [{ op: 'setPackage', package: 'audio', do: 'add' }],
+    {
+      registry,
+      locale: 'zh',
+    },
+  );
   if (!result.ok) throw new Error(result.error);
-  return result.config.workflows.find((w) => w.id === id)!;
+  return quickActionsOf(result.config).find((w) => w.id === id)!;
 }
 
 /** 选 PDF → 提取文字 → 朗读：手打的文字最多 5000 字，长文字从 PDF 来。 */
 const fromPdf: Workflow = {
+  kind: 'quickAction',
   id: 'pdf-speak',
   name: 'PDF speak',
   steps: [
@@ -48,6 +54,7 @@ const fromPdf: Workflow = {
 };
 
 const typed = (params: Record<string, unknown> = {}): Workflow => ({
+  kind: 'quickAction',
   id: 'speak',
   name: 'Speak',
   steps: [

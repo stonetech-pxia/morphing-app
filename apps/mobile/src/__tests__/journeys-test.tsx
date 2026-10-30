@@ -1,10 +1,11 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
+  type AIProvider,
   BUILTIN_TOOLS,
-  THEME_PRESETS,
   createMockAIProvider,
   createRegistry,
-  type AIProvider,
+  quickActionsOf,
+  THEME_PRESETS,
 } from '@morph/core';
 import { act, fireEvent, within } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
@@ -116,7 +117,7 @@ describe('user journeys (UI)', () => {
     expect(await screen.findByTestId('draft-bar')).toBeTruthy();
     expect(screen.getAllByText('文件工作台').length).toBeGreaterThan(0);
     expect(screen.queryByTestId('nav-ai')).toBeNull();
-    expect(store.getState().config!.shell.nav).toHaveLength(5);
+    expect(store.getState().config!.nav.bar).toHaveLength(5);
     expect(screen.getByTestId('draft-reply')).toHaveTextContent(/改好了/);
     // 修改内容显示时界面淡下去；收起后不再淡化，留一个小按钮能再打开。
     expect(screen.getByTestId('draft-dim')).toBeTruthy();
@@ -182,7 +183,7 @@ describe('user journeys (UI)', () => {
     ).toHaveTextContent(/撤销/);
     expect(store.getState().draft).toBeNull();
     expect(store.getState().tab).toBe('page:home');
-    const id = store.getState().config!.workflows[0]!.id;
+    const id = quickActionsOf(store.getState().config!)[0]!.id;
     await fireEvent.press(screen.getByTestId('ready-later'));
     expect(await screen.findByTestId(`run-${id}`)).toBeTruthy();
     // 顶部照常可以撤销。
@@ -227,7 +228,7 @@ describe('user journeys (UI)', () => {
     const { store } = await renderApp();
     await askAi('添加签证照片工作流');
     await fireEvent.press(await screen.findByTestId('ready-later'));
-    const id = store.getState().config!.workflows[0]!.id;
+    const id = quickActionsOf(store.getState().config!)[0]!.id;
     await askAi('主题换成绿色');
     await screen.findByTestId('draft-bar');
     await fireEvent.press(screen.getByTestId(`run-${id}`));
@@ -237,7 +238,7 @@ describe('user journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('nav-tools'));
     expect(await screen.findByTestId('install-pdf')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('install-pdf'));
-    expect(store.getState().config!.tools.map((t) => t.toolId)).not.toContain('pdf');
+    expect(store.getState().config!.packages.map((t) => t.id)).not.toContain('pdf');
   });
 
   it('notes from the AI appear in the reply (D-110)', async () => {
@@ -343,7 +344,9 @@ describe('user journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('draft-chat-close'));
     await applyDraft();
     expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
-    expect(store.getState().config!.pages.find((p) => p.id === 'home')!.title).toBe('文件工作台');
+    expect(store.getState().config!.containers.pages.find((p) => p.id === 'home')!.title).toBe(
+      '文件工作台',
+    );
   });
 
   /** 设置里选的 AI（这里假装是远程模型）：什么都拒绝，用来确认风格选择器的原句没有交给它。 */
@@ -491,8 +494,10 @@ describe('user journeys (UI)', () => {
     expect(await screen.findByTestId('banner')).toHaveTextContent(/撤销/);
     expect(await screen.findByTestId('run-pdf-merge')).toBeTruthy();
     expect(store.getState().draft).toBeNull();
-    expect(store.getState().config!.tools).toHaveLength(1);
-    expect(store.getState().config!.workflows.filter((w) => w.id === 'pdf-merge')).toHaveLength(1);
+    expect(store.getState().config!.packages).toHaveLength(1);
+    expect(
+      quickActionsOf(store.getState().config!).filter((w) => w.id === 'pdf-merge'),
+    ).toHaveLength(1);
 
     files.nextPick = [
       files.offer('a.pdf', await makePdf(1)),
@@ -518,7 +523,7 @@ describe('user journeys (UI)', () => {
     await fireEvent.changeText(await screen.findByTestId('change-input'), '撤销刚才的修改');
     await fireEvent.press(screen.getByTestId('change-submit'));
     expect(await screen.findByTestId('nav-ai')).toBeTruthy();
-    expect(store.getState().config!.shell.nav).toContain('history');
+    expect(store.getState().config!.nav.bar).toContain('history');
     expect(store.getState().draft).toBeNull();
   });
 
@@ -546,39 +551,42 @@ describe('user journeys (UI)', () => {
     const result = await store.getState().proposeOps(
       [
         {
-          op: 'addPage',
+          op: 'addContainer',
           page: {
             id: 'notes',
             title: '笔记',
             icon: 'bookmark',
-            components: [
-              { id: 'notes-title', type: 'header', props: { title: '笔记' } },
+            blocks: [
+              { id: 'notes-title', look: 'header', show: { title: '笔记' } },
               {
                 id: 'to-settings',
-                type: 'button',
-                props: { label: '打开设置', target: 'settings', variant: 'outline' },
+                look: 'button',
+                show: { label: '打开设置', variant: 'outline' },
+                opens: 'settings',
               },
             ],
           },
         },
         {
-          op: 'addComponent',
-          pageId: 'home',
+          op: 'addContainer',
+          page: 'home',
           index: 1,
-          component: {
+          block: {
             id: 'quick',
-            type: 'group',
-            props: { layout: 'grid', columns: 2 },
+            look: 'group',
+            show: { layout: 'grid', columns: 2 },
             children: [
               {
                 id: 'go-notes',
-                type: 'shortcut',
-                props: { title: '去笔记', icon: 'bookmark', target: 'page:notes' },
+                look: 'entry',
+                show: { title: '去笔记', icon: 'bookmark' },
+                opens: 'page:notes',
               },
               {
                 id: 'go-history',
-                type: 'shortcut',
-                props: { title: '看历史', icon: 'history', target: 'history' },
+                look: 'entry',
+                show: { title: '看历史', icon: 'history' },
+                opens: 'history',
               },
             ],
           },

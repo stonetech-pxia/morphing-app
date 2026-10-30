@@ -19,6 +19,8 @@ describe('changing the interface language', () => {
     const french = createWorkspaceStore({ ...deps, locale: 'fr' });
     await french.getState().boot();
     expect(french.getState().config).toEqual(saved);
-    expect(french.getState().config!.pages.find((p) => p.id === 'home')!.title).toBe('Home');
+    expect(french.getState().config!.containers.pages.find((p) => p.id === 'home')!.title).toBe(
+      'Home',
+    );
   });
 });

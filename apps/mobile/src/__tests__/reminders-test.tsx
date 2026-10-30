@@ -31,22 +31,23 @@ const withOps = (ops: Op[]): WorkspaceConfig => {
   return r.config;
 };
 const quick: Op = {
-  op: 'addWorkflow',
-  workflow: {
+  op: 'addTool',
+  tool: {
+    kind: 'quickAction',
     id: 'log',
     name: '记一笔',
     steps: [{ id: 'in', action: 'in.photos', params: { source: 'camera', min: 1, max: 1 } }],
   },
 };
 const daily: Op = {
-  op: 'addReminder',
-  reminder: {
+  op: 'addTool',
+  tool: {
     id: 'r',
+    kind: 'reminder',
     title: '记账',
     enabled: true,
-    schedule: 'daily',
-    time: '09:00',
-    opens: 'workflow:log',
+    when: { every: 'day', at: '09:00' },
+    opens: 'tool:log',
   },
 };
 const listNothing = async () => [];
@@ -64,7 +65,7 @@ describe('syncing reminders', () => {
     const platform = new FakeNotifications();
     const config = withOps([quick, daily]);
     expect(await syncReminders(platform, config, listNothing, 'zh', now)).toBe('granted');
-    expect(platform.scheduled!.map((n) => [n.id, n.opens])).toEqual([['r', 'workflow:log']]);
+    expect(platform.scheduled!.map((n) => [n.id, n.opens])).toEqual([['r', 'tool:log']]);
     await syncReminders(platform, config, listNothing, 'zh', now);
     expect(platform.requests).toBe(1);
   });
@@ -82,7 +83,7 @@ describe('syncing reminders', () => {
     const off = withOps([
       quick,
       daily,
-      { op: 'updateReminder', reminderId: 'r', changes: { enabled: false } },
+      { op: 'updateTool', tool: 'r', changes: { enabled: false } },
     ]);
     await syncReminders(allowed, off, listNothing, 'zh', now);
     expect(allowed.scheduled).toEqual([]);
@@ -93,8 +94,8 @@ describe('syncing reminders', () => {
     platform.status = 'granted';
     const config = withOps([
       {
-        op: 'addCollection',
-        collection: {
+        op: 'addData',
+        table: {
           id: 'bills',
           name: '账单',
           fields: [
@@ -104,16 +105,13 @@ describe('syncing reminders', () => {
         },
       },
       {
-        op: 'addReminder',
-        reminder: {
+        op: 'addTool',
+        tool: {
           id: 'due',
+          kind: 'reminder',
           title: '快到期了',
           enabled: true,
-          schedule: 'dateField',
-          time: '08:00',
-          collectionId: 'bills',
-          fieldId: 'due',
-          daysBefore: 1,
+          when: { before: { table: 'bills', field: 'due' }, days: 1, at: '08:00' },
           opens: 'page:home',
         },
       },
@@ -158,7 +156,11 @@ describe('syncing reminders', () => {
     const weekly = withOps([
       quick,
       daily,
-      { op: 'updateReminder', reminderId: 'r', changes: { schedule: 'weekly', weekdays: [1, 2] } },
+      {
+        op: 'updateTool',
+        tool: 'r',
+        changes: { when: { every: 'week', days: [1, 2], at: '09:00' } },
+      },
     ]);
     await Promise.all([
       syncReminders(platform, weekly, listNothing, 'zh', now),
@@ -170,7 +172,7 @@ describe('syncing reminders', () => {
 
 describe('opening a reminder', () => {
   it('a quick action reminder goes to its reminder page, never to the run page', () => {
-    expect(reminderDestination('workflow:log')).toEqual({ kind: 'workflow', workflowId: 'log' });
+    expect(reminderDestination('tool:log')).toEqual({ kind: 'workflow', workflowId: 'log' });
     expect(reminderDestination('page:home')).toEqual({ kind: 'target', target: 'page:home' });
   });
 

@@ -84,9 +84,9 @@ describe('pictures', () => {
     const { repo, store, files } = await renderApp();
     await askAi('在首页顶部加一张横幅');
     expect(await screen.findByText('点按选择一张照片')).toBeTruthy();
-    expect(store.getState().config!.pages[0]!.components[1]).toMatchObject({
-      type: 'image',
-      props: { aspect: 'wide' },
+    expect(store.getState().config!.containers.pages[0]!.blocks[1]).toMatchObject({
+      look: 'image',
+      show: { aspect: 'wide' },
     });
 
     // 选照片：照片成为用户文件，配置里只记录文件 ID，这次修改记为“手动修改”。
@@ -95,8 +95,8 @@ describe('pictures', () => {
     expect(await screen.findByTestId('image-image-1')).toBeTruthy();
     const [asset] = await repo.listAssets();
     expect(asset).toMatchObject({ name: 'IMG_0001.jpg', mimeType: 'image/jpeg', source: 'picked' });
-    expect(store.getState().config!.pages[0]!.components[1]).toMatchObject({
-      props: { assetId: asset!.id },
+    expect(store.getState().config!.containers.pages[0]!.blocks[1]).toMatchObject({
+      show: { asset: asset!.id },
     });
     expect(store.getState().head).toMatchObject({ source: 'user', summary: '设置图片' });
     // 文件列表只显示文档，不列出界面用的照片。
@@ -142,9 +142,9 @@ describe('pictures', () => {
     await store.getState().proposeOps(
       [
         {
-          op: 'addComponent',
-          pageId: 'home',
-          component: { id: 'pic', type: 'image', props: { aspect: 'square', fit: 'cover' } },
+          op: 'addContainer',
+          page: 'home',
+          block: { id: 'pic', look: 'image', show: { aspect: 'square', fit: 'cover' } },
         },
       ],
       '图片位',
@@ -157,7 +157,7 @@ describe('pictures', () => {
     expect((await store.getState().propose('圆角小一点')).kind).toBe('preview');
     expect(sent).toHaveLength(1);
     const request = String(sent[0]![0]!.content);
-    expect(request).toContain('"type":"image"');
+    expect(request).toContain('"look":"image"');
     for (const secret of ['全家福', '王小明', 'SECRET', '.jpg'])
       expect(request).not.toContain(secret);
   });
@@ -171,18 +171,18 @@ describe('rich text and emoji icons', () => {
     await store.getState().proposeOps(
       [
         {
-          op: 'addComponent',
-          pageId: 'home',
+          op: 'addContainer',
+          page: 'home',
           index: 1,
-          component: {
+          block: {
             id: 'intro',
-            type: 'text',
-            props: {
+            look: 'text',
+            show: {
               text: '全部**在本机**处理。\n- 不上传\n- 不联网\n\n见[帮助](https://example.com/help)',
             },
           },
         },
-        { op: 'setPageIcon', pageId: 'home', icon: '🏡' },
+        { op: 'updateContainer', page: 'home', changes: { icon: '🏡' } },
       ],
       '介绍',
     );

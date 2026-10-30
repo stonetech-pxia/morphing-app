@@ -22,7 +22,7 @@ async function run(files: FakeFiles, template: string, locale: 'zh' | 'en' = 'zh
     open: async () => null as never,
   };
   const { result } = await startRun({
-    workflow: { id: 'mine', name: '命名', steps: steps(template) },
+    workflow: { kind: 'quickAction', id: 'mine', name: '命名', steps: steps(template) },
     revisionId: 1,
     repo: new MemoryWorkspaceRepo(),
     files,

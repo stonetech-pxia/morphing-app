@@ -78,9 +78,9 @@ async function renderApp(provider: AIProvider = createMockAIProvider()) {
 }
 
 const SLOT: Op = {
-  op: 'addComponent',
-  pageId: 'home',
-  component: { id: 'lease', type: 'fileSlot', props: { title: '租房合同' } },
+  op: 'addContainer',
+  page: 'home',
+  block: { id: 'lease', look: 'entry', show: { title: '租房合同' }, opens: { file: null } },
 };
 
 async function commit(store: WorkspaceStore, ops: Op[], summary: string) {
@@ -89,12 +89,11 @@ async function commit(store: WorkspaceStore, ops: Op[], summary: string) {
   expect(await screen.findByText(`已改好：${summary}`)).toBeTruthy();
 }
 
-const slotProps = (store: WorkspaceStore) =>
-  (
-    store.getState().config!.pages[0]!.components.find((c) => c.id === 'lease') as {
-      props: Record<string, unknown>;
-    }
-  ).props;
+const slotBlock = (store: WorkspaceStore) =>
+  store.getState().config!.containers.pages[0]!.blocks.find((c) => c.id === 'lease') as {
+    show: Record<string, unknown>;
+    opens: { file: string | null };
+  };
 
 /** 系统弹窗：依次点名字为 labels 的按钮（每个弹窗一个）。 */
 function pressInAlerts(...labels: string[]) {
@@ -138,7 +137,8 @@ describe('file slot', () => {
     expect(files.disk.get(asset!.path)).toEqual(pdf);
     expect(files.disk.has('picker://合同 2026.pdf')).toBe(false);
     // 配置里只有文件 ID，没有文件名；这次修改是用户的手动修改。
-    expect(slotProps(store)).toEqual({ title: '租房合同', assetId: asset!.id });
+    expect(slotBlock(store).show).toEqual({ title: '租房合同' });
+    expect(slotBlock(store).opens).toEqual({ file: asset!.id });
     expect(JSON.stringify(store.getState().config)).not.toContain('合同 2026');
     expect(store.getState().head).toMatchObject({ source: 'user', summary: '设置文件' });
 
@@ -159,7 +159,7 @@ describe('file slot', () => {
     const [asset] = await repo.listAssets();
     // 不像图片组件那样重新编码：原样保存。
     expect(asset).toMatchObject({ name: 'IMG_0042.HEIC', mimeType: 'image/heic' });
-    expect(slotProps(store).assetId).toBe(asset!.id);
+    expect(slotBlock(store).opens.file).toBe(asset!.id);
   });
 
   it('cancelling, a file over the limit or a full phone change nothing', async () => {
@@ -208,7 +208,7 @@ describe('file slot', () => {
     pressInAlerts('从「文件」选');
     await fireEvent.press(await screen.findByTestId('file-slot-lease'));
     await slotShows('v1.pdf');
-    const first = slotProps(store).assetId;
+    const first = slotBlock(store).opens.file;
 
     // 长按 → 编辑 → 更换文件。
     await fireEvent(screen.getByTestId('file-slot-lease'), 'longPress');
@@ -219,7 +219,7 @@ describe('file slot', () => {
     await slotShows('v2.pdf');
     await fireEvent.press(screen.getByTestId('single-done-lease'));
     expect(await screen.findByText('已改好：编辑「首页」（1 处修改）')).toBeTruthy();
-    const second = slotProps(store).assetId;
+    const second = slotBlock(store).opens.file;
     expect(second).not.toBe(first);
 
     // 移除文件：回到空位；两个副本都还在（和图片组件一样，用户文件不随版本删除）。
@@ -228,7 +228,7 @@ describe('file slot', () => {
     await fireEvent.press(screen.getByTestId('edit-file-remove'));
     await fireEvent.press(screen.getByTestId('single-done-lease'));
     await slotShows('点按选择一个文件');
-    expect(slotProps(store).assetId).toBeUndefined();
+    expect(slotBlock(store).opens.file).toBeNull();
     expect((await repo.listAssets()).map((a) => a.id).sort()).toEqual([first, second].sort());
 
     // 撤销：文件回来。
@@ -237,7 +237,7 @@ describe('file slot', () => {
 
     // 删掉组件、再恢复那个版本：副本还在，入口照样能打开。
     const withFile = store.getState().head!.id;
-    await commit(store, [{ op: 'removeComponent', pageId: 'home', componentId: 'lease' }], '删');
+    await commit(store, [{ op: 'removeContainer', page: 'home', block: 'lease' }], '删');
     expect(await repo.listAssets()).toHaveLength(2);
     expect((await store.getState().proposeRestore(withFile)).kind).toBe('preview');
     await store.getState().confirm();
@@ -247,12 +247,13 @@ describe('file slot', () => {
   it('a slot whose copy is not on this device says so and lets the user pick again', async () => {
     const { store } = await renderApp();
     const missing: Op = {
-      op: 'addComponent',
-      pageId: 'home',
-      component: {
+      op: 'addContainer',
+      page: 'home',
+      block: {
         id: 'lease',
-        type: 'fileSlot',
-        props: { title: '租房合同', assetId: 'abcdef123' },
+        look: 'entry',
+        show: { title: '租房合同' },
+        opens: { file: 'abcdef123' },
       },
     };
     await commit(store, [missing], '加文件入口');
@@ -285,7 +286,10 @@ describe('file slot', () => {
 
     expect((await store.getState().propose('圆角小一点')).kind).toBe('preview');
     const all = JSON.stringify(sent);
-    expect(all).toContain('fileSlot');
+    // v34 里文件入口是 opens 为 { file } 的 entry：模型看得到入口和文件 ID，看不到文件名。
+    expect(all).toContain('租房合同');
+    expect(all).toContain('opens');
+    expect(all).toContain(slotBlock(store).opens.file!);
     expect(all).not.toContain('私人合同');
   });
 });

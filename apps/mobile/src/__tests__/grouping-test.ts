@@ -22,7 +22,7 @@ async function run(files: FakeFiles, steps: Workflow['steps']): Promise<RunResul
   };
   return (
     await startRun({
-      workflow: { id: 'mine', name: '分组', steps },
+      workflow: { kind: 'quickAction', id: 'mine', name: '分组', steps },
       revisionId: 1,
       repo: new MemoryWorkspaceRepo(),
       files,

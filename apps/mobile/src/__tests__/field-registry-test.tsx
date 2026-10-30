@@ -24,28 +24,33 @@ const seed = (locale: Locale, registry: Registry) => {
     // 一个表单最多 10 个字段，分成几个表单。
     ...[0, 10].map((start): NewComponent => ({
       id: start === 0 ? 'form' : `form${start}`,
-      type: 'recordForm',
-      props: {
-        collectionId: 'expenses',
-        fieldIds: fillable.slice(start, start + 10),
-        submitLabel: 'Add',
-        mode: 'inline',
-      },
+      look: 'form',
+      show: { mode: 'inline' },
+      tools: [
+        {
+          as: 'submit',
+          label: 'Add',
+          do: 'create',
+          table: 'expenses',
+          ask: fillable.slice(start, start + 10),
+        },
+      ],
     })),
     ...FIELDS.map((d): NewComponent => ({
       id: `list-${d.example.id}`,
-      type: 'recordList',
-      props: { collectionId: 'expenses', display: 'list', titleField: d.example.id, limit: 5 },
+      look: 'list',
+      source: { table: 'expenses', limit: 5 },
+      show: { title: d.example.id },
     })),
   ];
   const result = applyOps(
     createDefaultWorkspace(locale),
     [
-      { op: 'addCollection', collection: { id: 'expenses', name: 'Expenses', fields } },
-      ...components.map((component) => ({
-        op: 'addComponent' as const,
-        pageId: 'home',
-        component,
+      { op: 'addData', table: { id: 'expenses', name: 'Expenses', fields } },
+      ...components.map((block) => ({
+        op: 'addContainer' as const,
+        page: 'home',
+        block,
       })),
     ],
     { registry, locale },
