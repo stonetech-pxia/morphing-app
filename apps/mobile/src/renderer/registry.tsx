@@ -1,4 +1,5 @@
 import {
+  bindRecord,
   isKnownComponent,
   workflowTargetId,
   type Component,
@@ -312,10 +313,12 @@ export function Item({
   env: RenderEnv;
   style?: StyleProp<ViewStyle>;
 }) {
+  // D-342：只在画的时候换 "$record"，编辑和长按面板仍用配置里原来的组件。
+  const shown = env.recordId ? bindRecord(component, env.recordId) : component;
   if (env.focus) {
     return (
       <FocusItem component={component} env={env} style={style}>
-        {(itemEnv) => <ComponentView component={component} env={itemEnv} />}
+        {(itemEnv) => <ComponentView component={shown} env={itemEnv} />}
       </FocusItem>
     );
   }
@@ -323,7 +326,7 @@ export function Item({
   if (!edit) {
     return (
       <View testID={`component-${component.id}`} style={style}>
-        <ComponentView component={component} env={env} />
+        <ComponentView component={shown} env={env} />
       </View>
     );
   }
@@ -335,7 +338,7 @@ export function Item({
       accessible={false}
       onLongPress={open}
       delayLongPress={LONG_PRESS_MS}>
-      <ComponentView component={component} env={{ ...env, onLongPress: open }} />
+      <ComponentView component={shown} env={{ ...env, onLongPress: open }} />
     </Pressable>
   );
 }

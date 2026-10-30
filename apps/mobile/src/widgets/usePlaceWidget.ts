@@ -5,7 +5,7 @@ import { t } from '../i18n';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { useWidgetPlatform } from './context';
 import { useWidgetPlacement } from './placed';
-import { widgetName, widgetSupported } from './snapshot';
+import { onRecordPage, widgetName, widgetSupported } from './snapshot';
 
 /**
  * 长按组件的「放到桌面」（D-325）：用户自己点才放，AI 不能放。Android 弹系统的确认框（桌面支持时）；
@@ -24,6 +24,11 @@ export function usePlaceWidget() {
     if (isPlaced(component.id)) return store.remove(component.id);
     if (!widgetSupported(component)) {
       Alert.alert(t(locale, 'widgetUnsupportedTitle'), t(locale, 'widgetUnsupportedHelp'));
+      return;
+    }
+    // D-342：这一页跟着某一条记录打开，桌面上不知道显示哪一条。
+    if (config && onRecordPage(component, config)) {
+      Alert.alert(t(locale, 'widgetUnsupportedTitle'), t(locale, 'widgetRecordPageHelp'));
       return;
     }
     await store.add(component.id, Date.now());

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { fieldDefinition } from '../fields';
 import { t } from '../messages';
+import { GROUP_BY_TYPES, GROUP_UNITS } from '../list-groups-schema';
 import { RowActionSchema } from '../record-ops-schema';
 import { boundedText, ConditionSchema, FieldRefSchema, IdSchema, SortSchema } from '../schema-base';
 import {
@@ -44,8 +45,27 @@ const props = z.strictObject({
   /** 月历按这个单选字段给每天上色（这一天最后一条的选项）。 */
   colorField: IdSchema.optional(),
   trailingFormat: TrailingFormatSchema.optional(),
-  /** 看板（D-313）按这个单选字段分栏：每个选项一栏，再加一栏「未分」。只给 board 用。 */
+  /**
+   * 看板（D-313）按这个单选字段分栏：每个选项一栏，再加一栏「未分」。只给 board 用。D-351 起也可以是引用字段：
+   * 被引用的表里每条一栏，groupFilter 先筛这些栏（例如只要这个项目的版块，可以用 "$record"）。
+   */
   groupField: IdSchema.optional(),
+  groupFilter: z.array(ConditionSchema).max(5).optional(),
+  /** 点一条打开这个页面（D-342，page.recordOf 是这张表），不是编辑页。 */
+  opens: IdSchema.optional(),
+  /**
+   * 分段（D-347，list / cards / checklist）：单选、引用每个选项一段，日期类按 groupUnit 分，日程按下一次分。
+   * 每段一个标题和条数，点标题折叠；limit 是每段最多几条。
+   */
+  groupBy: FieldRefSchema.optional(),
+  groupUnit: z.enum(GROUP_UNITS).optional(),
+  /** 单选、引用分段时没有记录的段也列出（版块）。 */
+  showEmpty: z.literal(true).optional(),
+  /**
+   * 就地添加（D-349）：每段标题、月历选中的那天、看板每栏下面有「添加」，打开新记录的表单，预设这一段的值
+   * 和列表筛选里的「等于」条件；不分段的列表在最下面有一个。
+   */
+  addHere: z.literal(true).optional(),
 });
 
 /**
@@ -64,12 +84,21 @@ export const recordListComponent: ComponentDefinitionOf<'recordList', typeof pro
       subtitleFields: { to: 'field', role: 'subtitleField' },
       trailingField: { to: 'field' },
       filter: { to: 'filter' },
-      dateField: { to: 'field', types: ['date', 'datetime'] },
+      dateField: { to: 'field', types: ['date', 'datetime', 'schedule'] },
       colorField: { to: 'field', types: ['choice'] },
-      groupField: { to: 'field', types: ['choice'] },
+      groupField: { to: 'field', types: ['choice', 'link'] },
+      groupBy: { to: 'field' },
     },
-    check: (c, { collection }) => {
+    check: (c, { collection, config }) => {
       const problems: string[] = [];
+      if (c.props.opens !== undefined) {
+        const target = config.pages.find((p) => p.id === c.props.opens);
+        if (!target) problems.push(`opens ${c.props.opens} is not a page`);
+        else if (target.recordOf !== c.props.collectionId)
+          problems.push(
+            `opens ${c.props.opens} must be a page for one entry of ${c.props.collectionId} (recordOf: "${c.props.collectionId}")`,
+          );
+      }
       const field = (id: string) => collection!.fields.find((f) => f.id === id);
       const ref = (id: string, role: string) => {
         if (!isSystemField(id) && !field(id))
@@ -85,7 +114,8 @@ export const recordListComponent: ComponentDefinitionOf<'recordList', typeof pro
       if (c.props.display !== 'calendar' && (c.props.dateField || c.props.colorField))
         problems.push('dateField and colorField only apply to display "calendar"');
       if (c.props.display === 'board') {
-        if (!c.props.groupField) problems.push('a board needs groupField set to a choice field');
+        if (!c.props.groupField)
+          problems.push('a board needs groupField set to a choice or link field');
       } else if (c.props.groupField !== undefined) {
         problems.push('groupField only applies to display "board"');
       }
@@ -117,6 +147,30 @@ export const recordListComponent: ComponentDefinitionOf<'recordList', typeof pro
             `trailingFormat goal ${format.goal} must be a number or a number field of ${collection!.id}`,
           );
       }
+      if (c.props.groupBy !== undefined) {
+        const by = c.props.groupBy;
+        const type = isSystemField(by) ? 'date' : field(by)?.type;
+        if (!['list', 'cards', 'checklist'].includes(c.props.display))
+          problems.push('groupBy only applies to display "list", "cards" or "checklist"');
+        else if (type && !GROUP_BY_TYPES.includes(type))
+          problems.push(
+            `groupBy ${by} must be a ${GROUP_BY_TYPES.join(', ')} field or createdAt / updatedAt`,
+          );
+        const dated = type !== 'choice' && type !== 'link';
+        if (c.props.groupUnit && !dated)
+          problems.push('groupUnit only applies when grouping by a date or schedule field');
+        if (c.props.showEmpty && dated)
+          problems.push('showEmpty only applies when grouping by a choice or link field');
+      } else if (c.props.groupUnit || c.props.showEmpty) {
+        problems.push('groupUnit and showEmpty need groupBy');
+      }
+      if (
+        c.props.groupFilter &&
+        (c.props.display !== 'board' || field(c.props.groupField ?? '')?.type !== 'link')
+      )
+        problems.push('groupFilter only applies to a board whose groupField is a link field');
+      if (c.props.addHere && c.props.display === 'tiles')
+        problems.push('addHere does not apply to display "tiles"');
       if (c.props.sort) {
         ref(c.props.sort.field, 'sort field');
         const sorted = field(c.props.sort.field);
@@ -129,7 +183,7 @@ export const recordListComponent: ComponentDefinitionOf<'recordList', typeof pro
       t(ctx.locale, 'describe_list_0b528', { v0: collectionName(c.props.collectionId, config) }),
     edit: { text: [], style: ['tone'] },
     ai: {
-      doc: '{collectionId, display: "list"|"cards"|"checklist"|"calendar"|"tiles"|"board", titleField, subtitleFields? (≤2), trailingField? (shown on the right, e.g. an amount), trailingFormat? (rule 51), checkField? (a checkbox field; required for "checklist"), dateField? + colorField? (calendar only, rule 50), groupField? (a choice field; required for "board", board only, rule 54), filter?, sort? {field, direction: "asc"|"desc"}, limit (1-100; tiles show at most 24, board per column), emptyText?, rowActions? (1-3, rule 49; tiles: rule 53)}: tapping a record opens the built-in editor',
+      doc: '{collectionId, display: "list"|"cards"|"checklist"|"calendar"|"tiles"|"board", titleField, subtitleFields? (≤2), trailingField? (shown on the right, e.g. an amount), trailingFormat? (rule 51), checkField? (a checkbox field; required for "checklist"), dateField? + colorField? (calendar only, rule 50), groupField? (a choice or link field; required for "board", board only, rule 54; link: rule 64) + groupFilter?, groupBy? + groupUnit? ("day"|"week"|"month") + showEmpty? (list/cards/checklist sections, rule 61), addHere? (rule 63), filter?, sort? {field, direction: "asc"|"desc"}, limit (1-100; tiles show at most 24, board per column), emptyText?, rowActions? (1-3, rule 49; tiles: rule 53)}: tapping a record opens the built-in editor',
     },
     example: {
       props: {

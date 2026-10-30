@@ -48,7 +48,7 @@ const slot = z
   .optional();
 
 /**
- * 房间的布局（WorkspaceConfig.desk，schemaVersion 29）。每一项都可以不写，不写就是默认（DEFAULT_DESK_LAYOUT）。
+ * 房间的布局（WorkspaceConfig.desk，schemaVersion 33）。每一项都可以不写，不写就是默认（DEFAULT_DESK_LAYOUT）。
  * tools 按文件种类分开写：没写的种类用注册表生成的默认工具栏（defaultDeskTools）。
  */
 export const DeskLayoutSchema = z.strictObject({

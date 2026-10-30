@@ -1,4 +1,5 @@
 import {
+  allComponents,
   MAX_TILES,
   aggregateRecords,
   calendarOf,
@@ -12,6 +13,7 @@ import {
   isSequenceAggregate,
   linkedCollectionIds,
   loadComputedRecords,
+  minusValue,
   loadLinkResolver,
   previousFilter,
   previousLabel,
@@ -65,6 +67,13 @@ export const REPEATS = 4;
 /** 小组件最多画几行 / 几个圆（大尺寸）。 */
 const MAX_ROWS = 7;
 const WIDGET_TILES = Math.min(8, MAX_TILES);
+
+/**
+ * 组件在给一条记录用的页面上（D-342）：小组件不知道是哪一条，放不到桌面。
+ */
+export function onRecordPage(c: Component, config: WorkspaceConfig): boolean {
+  return config.pages.some((p) => p.recordOf && allComponents(p).some((x) => x.id === c.id));
+}
 
 /** 能放到桌面的组件：统计、按钮、记录列表（月历和看板除外）。 */
 export function widgetSupported(c: Component): boolean {
@@ -154,7 +163,18 @@ async function statView(
   const previous = props.compare ? previousFilter(props.filter, now, cal) : null;
   const base = { kind: 'stat' as const, title: props.label, link: componentLink(c.id) };
   if (props.groupBy) {
-    const groups = groupRecords(matched, view, props.groupBy, t(locale, 'statNoChoice'));
+    // 按引用字段分组（D-336）：被引用的表里每条记录一行。
+    const groupField = view.fields.find((f) => f.id === props.groupBy);
+    const target =
+      groupField?.type === 'link'
+        ? config.collections.find((x) => x.id === groupField.collectionId)
+        : undefined;
+    const linked = target && {
+      collection: target,
+      records: ctx.records.get(target.id) ?? [],
+      locale,
+    };
+    const groups = groupRecords(matched, view, props.groupBy, t(locale, 'statNoChoice'), linked);
     return {
       ...base,
       value: '',
@@ -171,6 +191,19 @@ async function statView(
     };
   }
   const v = valueOf(matched);
+  // 减去另一个合计（D-337）。
+  const minusTable =
+    props.minus && config.collections.find((x) => x.id === props.minus!.collectionId);
+  if (props.minus && minusTable) {
+    const other = await loadComputedRecords(
+      lister(ctx.records),
+      config.collections,
+      minusTable,
+      now,
+      cal,
+    );
+    v.value = minusValue(v.value, props.minus, other.view, other.records, now, cal);
+  }
   const p = goal(v.value);
   let note: string | undefined;
   if (v.best !== undefined) note = t(locale, 'seqBest', { value: text(v.best) });
@@ -272,7 +305,7 @@ async function listView(
 async function viewOf(c: Component | undefined, ctx: Ctx, name: string): Promise<WidgetView> {
   const gone: WidgetView = { kind: 'message', title: name, note: t(ctx.locale, 'widgetGone') };
   if (!c) return gone;
-  if (!widgetSupported(c))
+  if (!widgetSupported(c) || onRecordPage(c, ctx.config))
     return {
       kind: 'message',
       title: name,

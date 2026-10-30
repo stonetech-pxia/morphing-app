@@ -197,7 +197,7 @@ exports[`component issues > lists every reference problem in a stable order and 
   },
   {
     "code": "data",
-    "message": "st1: groupBy day must be a choice field of spend",
+    "message": "st1: groupBy day must be a choice or link field of spend",
   },
   {
     "code": "data",
@@ -209,7 +209,7 @@ exports[`component issues > lists every reference problem in a stable order and 
   },
   {
     "code": "data",
-    "message": "st2: groupBy title must be a choice field of spend",
+    "message": "st2: groupBy title must be a choice or link field of spend",
   },
   {
     "code": "data",
@@ -221,7 +221,7 @@ exports[`component issues > lists every reference problem in a stable order and 
   },
   {
     "code": "data",
-    "message": "c1: a pie chart can only be grouped by a choice field",
+    "message": "c1: a pie chart can only be grouped by a choice or link field",
   },
   {
     "code": "data",
@@ -233,7 +233,7 @@ exports[`component issues > lists every reference problem in a stable order and 
   },
   {
     "code": "data",
-    "message": "c2: grouping by choice needs choiceField set to a choice field",
+    "message": "c2: grouping by choice needs choiceField set to a choice or link field (a link field: one point per entry of the linked table)",
   },
 ]
 `;

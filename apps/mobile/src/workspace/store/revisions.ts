@@ -340,6 +340,7 @@ export function createRevisions(k: Kernel) {
       set({ banner: null });
       // 撤销了那次功能修改，剩下的那句也就接不上了。
       await get().clearNext();
+      await get().clearSuggest();
       if (result.kind === 'preview') {
         set({ proposal: { ...result.proposal, summary: msg('undoSummary') } });
         await get().confirm();

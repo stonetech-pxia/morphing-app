@@ -42,6 +42,8 @@ function sameValue(a: unknown, b: unknown): boolean {
 /** boards：习惯 ← 打卡、任务（状态是单选）两组表，习惯和任务各一个列表页面（大圆块和看板，D-311–D-314）。 */
 /** scheduled：植物（日程 + 上次浇水）、习惯（日程）← 打卡三张表，植物和习惯各一个列表页面（按记录排的提醒，D-316–D-318）。 */
 /** linked：互相引用的表（习惯 ← 打卡、工作 ← 工时、客户 ← 订单）和一张加油表，每张一个页面（D-287–D-289）。 */
+/** envelopes：零基预算的分类 ← 分配、分类 ← 流水（支出 / 收入）三张表，分类和流水各一个列表页面（D-336–D-338）。 */
+/** todos：项目 ← 任务（日程默认「一次」，lastDone 是完成记录的汇总）← 完成记录三张表，任务和项目各一个列表页面（D-340–D-344）。 */
 export type EvalSetup =
   | 'default'
   | 'pdf'
@@ -55,7 +57,9 @@ export type EvalSetup =
   | 'oneTap'
   | 'views'
   | 'boards'
-  | 'scheduled';
+  | 'scheduled'
+  | 'envelopes'
+  | 'todos';
 
 export type OpsPlan = Extract<Plan, { kind: 'ops' }>;
 
@@ -118,6 +122,10 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
     ops.push(...boardOps(locale));
   } else if (setup === 'scheduled') {
     ops.push(...scheduledOps(locale));
+  } else if (setup === 'envelopes') {
+    ops.push(...envelopeOps(locale));
+  } else if (setup === 'todos') {
+    ops.push(...todoOps(locale));
   } else if (setup !== 'default') ops.push({ op: 'installTool', toolId: 'pdf' });
   if (setup === 'pdfBelowFiles') {
     ops.push({ op: 'moveComponent', pageId: 'home', componentId: 'card-pdf', toIndex: 3 });
@@ -507,6 +515,216 @@ function scheduledOps(locale: Locale): Op[] {
     ...tables.map((collection): Op => ({ op: 'addCollection', collection })),
     listPage(tables[0]!),
     listPage(tables[1]!),
+  ];
+}
+
+/** 零基预算的三张表：分类 ← 分配、分类 ← 流水（名字按语言，ID 都一样），分类和流水各一个列表页面。 */
+function envelopeOps(locale: Locale): Op[] {
+  const n = {
+    zh: ['分类', '名称', '每月目标', '分配', '金额', '日期', '流水', '类型', '支出', '收入'],
+    en: [
+      'Categories',
+      'Name',
+      'Monthly target',
+      'Assigned',
+      'Amount',
+      'Date',
+      'Transactions',
+      'Type',
+      'Spending',
+      'Income',
+    ],
+    fr: [
+      'Catégories',
+      'Nom',
+      'Objectif mensuel',
+      'Attributions',
+      'Montant',
+      'Date',
+      'Opérations',
+      'Type',
+      'Dépense',
+      'Revenu',
+    ],
+  }[locale] as string[];
+  const [cats, name, target, assigned, amount, date, ledger, kind, out, income] = n as [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+  const currency = { zh: 'CNY', en: 'USD', fr: 'EUR' }[locale];
+  const tables: Collection[] = [
+    {
+      id: 'categories',
+      name: cats,
+      fields: [
+        { id: 'name', name, type: 'text', required: true },
+        { id: 'target', name: target, type: 'money', currency },
+      ],
+    },
+    {
+      id: 'assigned',
+      name: assigned,
+      fields: [
+        { id: 'amount', name: amount, type: 'money', currency, required: true },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+        { id: 'category', name: cats, type: 'link', collectionId: 'categories', required: true },
+      ],
+    },
+    {
+      id: 'ledger',
+      name: ledger,
+      fields: [
+        { id: 'amount', name: amount, type: 'money', currency, required: true },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+        {
+          id: 'kind',
+          name: kind,
+          type: 'choice',
+          default: 'out',
+          options: [
+            { id: 'out', label: out },
+            { id: 'in', label: income },
+          ],
+        },
+        { id: 'category', name: cats, type: 'link', collectionId: 'categories' },
+      ],
+    },
+  ];
+  const listPage = (collection: Collection, titleField: string): Op => ({
+    op: 'addPage',
+    page: {
+      id: collection.id,
+      title: collection.name,
+      components: [
+        {
+          id: `${collection.id}-list`,
+          type: 'recordList',
+          props: { collectionId: collection.id, display: 'list', titleField, limit: 30 },
+        },
+      ],
+    },
+  });
+  return [
+    ...tables.map((collection): Op => ({ op: 'addCollection', collection })),
+    listPage(tables[0]!, 'name'),
+    listPage(tables[2]!, 'amount'),
+  ];
+}
+
+/** 待办的三张表：项目 ← 任务 ← 完成记录（名字按语言，ID 都一样），任务和项目各一个列表页面。 */
+function todoOps(locale: Locale): Op[] {
+  const [projects, name, tasks, title, plan, last, priority, done, date] = {
+    zh: ['项目', '名称', '任务', '标题', '日程', '最后完成', '优先级', '完成记录', '日期'],
+    en: [
+      'Projects',
+      'Name',
+      'Tasks',
+      'Title',
+      'Schedule',
+      'Last done',
+      'Priority',
+      'Completions',
+      'Date',
+    ],
+    fr: [
+      'Projets',
+      'Nom',
+      'Tâches',
+      'Titre',
+      'Échéance',
+      'Dernière fois',
+      'Priorité',
+      'Réalisations',
+      'Date',
+    ],
+  }[locale] as [string, string, string, string, string, string, string, string, string];
+  const tables: Collection[] = [
+    {
+      id: 'projects',
+      name: projects,
+      fields: [{ id: 'name', name, type: 'text', required: true }],
+    },
+    {
+      id: 'tasks',
+      name: tasks,
+      fields: [
+        { id: 'title', name: title, type: 'text', required: true },
+        { id: 'plan', name: plan, type: 'schedule', default: { repeat: 'once' }, lastDone: 'last' },
+        { id: 'project', name: projects, type: 'link', collectionId: 'projects' },
+        {
+          id: 'priority',
+          name: priority,
+          type: 'choice',
+          default: 'p4',
+          options: ['p1', 'p2', 'p3', 'p4'].map((id) => ({ id, label: id.toUpperCase() })),
+        },
+      ],
+    },
+    {
+      id: 'completions',
+      name: done,
+      fields: [
+        { id: 'task', name: tasks, type: 'link', collectionId: 'tasks', required: true },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+      ],
+    },
+  ];
+  const lastDone: Op = {
+    op: 'addField',
+    collectionId: 'tasks',
+    field: {
+      id: 'last',
+      name: last,
+      type: 'rollup',
+      collectionId: 'completions',
+      linkField: 'task',
+      aggregate: 'latest',
+      fieldId: 'date',
+    },
+  };
+  const listPage = (collection: Collection, titleField: string): Op => ({
+    op: 'addPage',
+    page: {
+      id: collection.id,
+      title: collection.name,
+      components: [
+        {
+          id: `${collection.id}-list`,
+          type: 'recordList',
+          props: { collectionId: collection.id, display: 'list', titleField, limit: 30 },
+        },
+      ],
+    },
+  });
+  // 任务的 lastDone 指向汇总字段，汇总要等完成记录表在：先建不带 lastDone 的，再补上。
+  const [projectTable, taskTable, completionTable] = tables as [Collection, Collection, Collection];
+  const taskWithout = {
+    ...taskTable,
+    fields: taskTable.fields.map((f) =>
+      f.type === 'schedule' ? { id: f.id, name: f.name, type: f.type, default: f.default } : f,
+    ),
+  } as Collection;
+  return [
+    { op: 'addCollection', collection: projectTable },
+    { op: 'addCollection', collection: taskWithout },
+    { op: 'addCollection', collection: completionTable },
+    lastDone,
+    {
+      op: 'updateField',
+      collectionId: 'tasks',
+      fieldId: 'plan',
+      changes: { lastDone: 'last' },
+    } as Op,
+    listPage(taskTable, 'title'),
+    listPage(projectTable, 'name'),
   ];
 }
 
@@ -5413,6 +5631,480 @@ const RECORD_REMINDER_CASES: readonly EvalCase[] = [
   },
 ];
 
+/** 零基预算（D-336–D-338）：统计相减、按引用分组、新建并打开表单。 */
+const ENVELOPE_CASES: readonly EvalCase[] = [
+  {
+    id: 'ZB1',
+    input: '加一个「待分配」，显示收入里还有多少钱没分到各个分类',
+    locale: 'zh',
+    setup: 'envelopes',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'stat', 'ledger').some((x) => {
+          const m = x.props.minus as
+            { collectionId?: string; aggregate?: string; fieldId?: string } | undefined;
+          const filter = (x.props.filter ?? []) as { field: string; value?: unknown }[];
+          return (
+            x.props.aggregate === 'sum' &&
+            m?.collectionId === 'assigned' &&
+            m.aggregate === 'sum' &&
+            m.fieldId === 'amount' &&
+            filter.some((f) => f.field === 'kind' && f.value === 'in')
+          );
+        })
+          ? null
+          : 'expected a stat: income from ledger minus the sum of assigned amounts',
+    },
+  },
+  {
+    id: 'ZB2-en',
+    input: 'Put an "Assign" button on each category; I type the amount myself',
+    locale: 'en',
+    setup: 'envelopes',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'categories').some((x) =>
+          ((x.props.rowActions ?? []) as Record<string, unknown>[]).some(
+            (a) =>
+              a.do === 'create' &&
+              a.collectionId === 'assigned' &&
+              a.form === true &&
+              (a.values as Record<string, unknown> | undefined)?.category === 'row',
+          ),
+        )
+          ? null
+          : 'expected a row action on categories creating an assignment with category row and form true',
+    },
+  },
+  {
+    id: 'ZB3-fr',
+    input: 'Montre les dépenses de ce mois par catégorie, comparées au mois dernier',
+    locale: 'fr',
+    setup: 'envelopes',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'stat', 'ledger').some(
+          (x) =>
+            x.props.groupBy === 'category' &&
+            x.props.compare === 'previous' &&
+            hasPeriod(x.props, 'thisMonth'),
+        )
+          ? null
+          : 'expected a stat on ledger grouped by category, this month, compared with the previous one',
+    },
+  },
+  {
+    id: 'ZB4',
+    input: '画一个饼图，看每个分类花了多少',
+    locale: 'zh',
+    setup: 'envelopes',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'chart', 'ledger').some(
+          (x) => x.props.kind === 'pie' && x.props.choiceField === 'category',
+        )
+          ? null
+          : 'expected a pie chart of ledger grouped by the category link',
+    },
+  },
+];
+
+/** 待办（D-340–D-344）：今天、收件箱、给一条记录用的页面、本机认日期、提前完成。 */
+const TODO_CASES: readonly EvalCase[] = [
+  {
+    id: 'TD1',
+    input: '做一个「今天」页面：今天要做的任务，每条旁边一个「完成」',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'tasks').some(
+          (x) =>
+            ((x.props.filter ?? []) as { field: string; op: string; value?: unknown }[]).some(
+              (f) => f.field === 'plan' && f.op === 'due' && f.value === 'today',
+            ) &&
+            ((x.props.rowActions ?? []) as Record<string, unknown>[]).some(
+              (a) =>
+                a.do === 'create' &&
+                a.collectionId === 'completions' &&
+                (a.values as Record<string, unknown> | undefined)?.task === 'row',
+            ),
+        )
+          ? null
+          : 'expected a tasks list filtered by plan due today with a row button that logs a completion for the row',
+    },
+  },
+  {
+    id: 'TD2-en',
+    input: 'Tapping a project should open a page with just that project’s tasks',
+    locale: 'en',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const page = c.pages.find((p) => p.recordOf === 'projects');
+        if (!page) return 'expected a page with recordOf projects';
+        const lists = allComponents(page).filter(
+          (x) => x.type === 'recordList' && x.props.collectionId === 'tasks',
+        ) as { props: Record<string, unknown> }[];
+        if (
+          !lists.some((x) =>
+            ((x.props.filter ?? []) as { field: string; op: string; value?: unknown }[]).some(
+              (f) => f.field === 'project' && f.op === 'is' && f.value === '$record',
+            ),
+          )
+        )
+          return 'expected a tasks list on that page filtered by project is $record';
+        return componentsOf(c, 'recordList', 'projects').some((x) => x.props.opens === page.id)
+          ? null
+          : 'expected the projects list to open that page (opens)';
+      },
+    },
+  },
+  {
+    id: 'TD3-fr',
+    input: 'Je veux taper « appeler Paul demain 15h » et que la date soit reconnue toute seule',
+    locale: 'fr',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordForm', 'tasks').some((x) => {
+          const smart = x.props.smartDate as { from?: string; to?: string } | undefined;
+          return x.props.mode === 'inline' && smart?.from === 'title' && smart.to === 'plan';
+        })
+          ? null
+          : 'expected an inline task form with smartDate from title to plan',
+    },
+  },
+  {
+    id: 'TD4',
+    input: '加一个收件箱：还没分项目、也还没做完的任务',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'tasks').some((x) => {
+          const filter = (x.props.filter ?? []) as { field: string; op: string; value?: unknown }[];
+          return (
+            filter.some((f) => f.field === 'project' && f.op === 'isEmpty') &&
+            filter.some((f) => f.field === 'plan' && f.op === 'due' && f.value === 'pending')
+          );
+        })
+          ? null
+          : 'expected a tasks list with project isEmpty and plan due pending',
+    },
+  },
+  {
+    id: 'TD5',
+    input: '每周的任务提前做了也要算这一周做过了，不要还挂在明天',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const plan = c.collections
+          .find((x) => x.id === 'tasks')
+          ?.fields.find((f) => f.id === 'plan') as { countEarly?: boolean } | undefined;
+        return plan?.countEarly === true ? null : 'expected countEarly: true on tasks.plan';
+      },
+    },
+  },
+];
+
+/** 待办第二批（D-346–D-349）：分段、月历认日程、就地添加、按记录自己的钟点提醒。 */
+const TODO_VIEW_CASES: readonly EvalCase[] = [
+  {
+    id: 'TD6',
+    input: '任务列表按项目分开显示，每个项目一段',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'tasks').some((x) => x.props.groupBy === 'project')
+          ? null
+          : 'expected a tasks list with groupBy project',
+    },
+  },
+  {
+    id: 'TD7-en',
+    input: 'Show my tasks grouped by day, overdue first',
+    locale: 'en',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'tasks').some(
+          (x) => x.props.groupBy === 'plan' && (x.props.groupUnit ?? 'day') === 'day',
+        )
+          ? null
+          : 'expected a tasks list grouped by plan per day',
+    },
+  },
+  {
+    id: 'TD8-fr',
+    input: 'Je veux voir mes tâches dans un calendrier du mois',
+    locale: 'fr',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'tasks').some(
+          (x) => x.props.display === 'calendar' && x.props.dateField === 'plan',
+        )
+          ? null
+          : 'expected a tasks calendar on the plan schedule field',
+    },
+  },
+  {
+    id: 'TD9',
+    input: '任务按项目分段，在每段下面能直接添加任务',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'tasks').some(
+          (x) => x.props.groupBy === 'project' && x.props.addHere === true,
+        )
+          ? null
+          : 'expected a tasks list grouped by project with addHere',
+    },
+  },
+  {
+    id: 'TD10',
+    input: '每个任务到了它自己设的时间就提醒我，通知上可以直接点完成',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        (c.reminders ?? []).some(
+          (r) =>
+            r.schedule === 'scheduleField' &&
+            r.collectionId === 'tasks' &&
+            r.fieldId === 'plan' &&
+            r.done?.do === 'create' &&
+            r.done.collectionId === 'completions',
+        )
+          ? null
+          : 'expected a per-entry reminder on tasks.plan whose done logs a completion',
+    },
+  },
+];
+
+/** 待办第三批（D-351、D-352）：项目自己的版块看板、浮动添加。 */
+const TODO_BOARD_CASES: readonly EvalCase[] = [
+  {
+    id: 'TD11',
+    input: '每个项目有自己的版块，点开项目用看板按版块显示它的任务',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const sections = c.collections.find(
+          (x) =>
+            x.id !== 'projects' &&
+            x.fields.some((f) => f.type === 'link' && f.collectionId === 'projects') &&
+            c.collections
+              .find((t) => t.id === 'tasks')
+              ?.fields.some((f) => f.type === 'link' && f.collectionId === x.id),
+        );
+        if (!sections) return 'expected a sections table linked to projects and linked from tasks';
+        const page = c.pages.find((p) => p.recordOf === 'projects');
+        if (!page) return 'expected a page for one project';
+        const board = allComponents(page).find(
+          (x) =>
+            x.type === 'recordList' &&
+            x.props.collectionId === 'tasks' &&
+            x.props.display === 'board',
+        ) as { props: Record<string, unknown> } | undefined;
+        if (!board) return 'expected a tasks board on the project page';
+        const link = c.collections
+          .find((t) => t.id === 'tasks')!
+          .fields.find((f) => f.id === board.props.groupField);
+        if (link?.type !== 'link' || link.collectionId !== sections.id)
+          return 'expected the board grouped by the link to sections';
+        return ((board.props.groupFilter ?? []) as { op: string; value?: unknown }[]).some(
+          (f) => f.op === 'is' && f.value === '$record',
+        )
+          ? null
+          : "expected groupFilter with $record so only this project's sections show";
+      },
+    },
+    next: true,
+  },
+  {
+    id: 'TD12-en',
+    input: 'Add a + button at the bottom right that opens a quick add sheet for tasks',
+    locale: 'en',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordForm', 'tasks').some((x) => x.props.mode === 'sheet')
+          ? null
+          : 'expected a tasks recordForm with mode sheet',
+    },
+  },
+];
+
+/** 用 AI 真搭 Todoist 样板时搭错的地方（D-354）和建议的下一步（D-355）。 */
+const TODO_ACCEPT_CASES: readonly EvalCase[] = [
+  {
+    id: 'TD13',
+    input: '帮我记要做的事，有些事每周都要做一次，做完了就排到下一周',
+    locale: 'zh',
+    setup: 'starter',
+    mock: false,
+    // 「完成」按钮不能做过一次就消失（校验会拦，见 record-ops）；这里只要能点完成。
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const table = c.collections.find((t) =>
+          t.fields.some((f) => f.type === 'schedule' && f.lastDone),
+        );
+        if (!table) return 'expected a table with a schedule field that has lastDone';
+        return componentsOf(c, 'recordList', table.id).some(
+          (x) => ((x.props.rowActions ?? []) as unknown[]).length > 0,
+        )
+          ? null
+          : 'expected a done row button on the to-do list';
+      },
+    },
+    next: true,
+  },
+  {
+    id: 'TD14',
+    input: '做一个看板',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'tasks').some(
+          (x) =>
+            x.props.display === 'board' &&
+            ((x.props.filter ?? []) as { field: string; op: string; value?: unknown }[]).some(
+              (f) => f.field === 'plan' && f.op === 'due' && f.value === 'pending',
+            ),
+        )
+          ? null
+          : 'expected a tasks board that filters plan due pending (finished tasks leave)',
+    },
+  },
+  {
+    id: 'TD15',
+    input: '加子任务',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const tasks = c.collections.find((t) => t.id === 'tasks')!;
+        const parent = tasks.fields.find((f) => f.type === 'link' && f.collectionId === 'tasks');
+        if (!parent) return 'expected a parent link on tasks';
+        if (!tasks.fields.some((f) => f.type === 'rollup' && f.collectionId === 'tasks'))
+          return 'expected a subtask count rollup on tasks';
+        const top = c.pages
+          .filter((p) => !p.recordOf)
+          .flatMap((p) => allComponents(p))
+          .filter(
+            (x) =>
+              x.type === 'recordList' &&
+              (x.props as { collectionId?: string }).collectionId === 'tasks',
+          ) as { props: Record<string, unknown> }[];
+        return top.length > 0 &&
+          top.every((x) =>
+            ((x.props.filter ?? []) as { field: string; op: string }[]).some(
+              (f) => f.field === parent.id && f.op === 'isEmpty',
+            ),
+          )
+          ? null
+          : 'expected every top-level tasks list to filter out subtasks (parent isEmpty)';
+      },
+    },
+    next: true,
+  },
+  {
+    id: 'TD16',
+    input: '到点提醒我',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        (c.reminders ?? []).some(
+          (r) =>
+            r.schedule === 'scheduleField' &&
+            r.collectionId === 'tasks' &&
+            r.done?.do === 'create' &&
+            r.done.collectionId === 'completions',
+        )
+          ? null
+          : 'expected a per-entry reminder on tasks whose done logs a completion',
+    },
+  },
+  {
+    id: 'TD17',
+    input:
+      '我想要一个像 Todoist 那样的待办：分项目，打开就看到今天要做的，重复的事做完了自动排到下一次。',
+    locale: 'zh',
+    setup: 'starter',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.collections.some((t) => t.fields.some((f) => f.type === 'schedule' && f.lastDone))
+          ? null
+          : 'expected a tasks table with a schedule field',
+      plan: (p) =>
+        p.suggest?.length ? null : 'expected suggest (after the look turn) for a to-do app',
+    },
+    next: true,
+  },
+  {
+    id: 'TD17-en',
+    input: 'I want a habit tracker',
+    locale: 'en',
+    setup: 'starter',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: () => null,
+      plan: (p) => (p.suggest?.length ? null : 'expected suggest with a next step'),
+    },
+    next: true,
+  },
+];
+
 const HOME_SCREEN_CASES: readonly EvalCase[] = [
   {
     id: 'HS1',
@@ -5871,6 +6563,11 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...VIEW_CASES,
   ...BOARD_CASES,
   ...RECORD_REMINDER_CASES,
+  ...ENVELOPE_CASES,
+  ...TODO_CASES,
+  ...TODO_VIEW_CASES,
+  ...TODO_BOARD_CASES,
+  ...TODO_ACCEPT_CASES,
   ...HOME_SCREEN_CASES,
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,
@@ -5965,7 +6662,8 @@ export async function runEvalCase(
       return { outcome: fail(`next “${plan.next}” should only change the look`), plans };
     prepared = prepareOps(prepared.after, second.ops, ctx);
   }
-  return { outcome: judgeEval(c, plan, prepared), plans };
+  // 计划本身的检查（例如建议的下一步，D-355）看最后一轮。
+  return { outcome: judgeEval(c, plans.at(-1)!, prepared), plans };
 }
 
 /** 判定一个计划是否符合用例预期。afterOrIssues 来自 prepareOps。 */

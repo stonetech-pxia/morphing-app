@@ -31,6 +31,17 @@ import type {
 // 草稿聊天框带上之前说过的话（D-207）；「接着改」的预设（next）。
 
 export const NEXT_META_KEY = 'next';
+export const SUGGEST_META_KEY = 'suggest';
+
+/** 存着的建议（JSON 数组）；坏了或没有就是空的。 */
+export function parseSuggest(stored: string | null): string[] {
+  try {
+    const v: unknown = stored ? JSON.parse(stored) : [];
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 export function createAIChange(
   k: Kernel,
@@ -158,6 +169,8 @@ export function createAIChange(
         await failedPlan(input, plan.ops, `${prepared.stage}: ${prepared.issues.join('; ')}`);
         return { kind: 'invalid', issues: prepared.issues };
       }
+      // 建议的下一步（D-355）：给了新的就换掉；没给就只去掉刚说的这一句（点了的那条），其余留着。
+      await saveSuggest(plan.suggest ?? get().suggest.filter((x) => x !== input));
       // 功能先做（D-191）：直接应用到正式的版本，不进草稿；草稿里只改外观。
       const first = functionFirst(base, plan.ops, ctx);
       if (first.kind === 'function') {
@@ -278,7 +291,14 @@ export function createAIChange(
     };
   }
 
-  const actions: Pick<WorkspaceState, 'change' | 'draftChange' | 'clearNext'> = {
+  async function saveSuggest(suggest: string[]) {
+    const old = get().suggest;
+    if (suggest.length === old.length && suggest.every((x, i) => x === old[i])) return;
+    set({ suggest });
+    await repo.setMeta(SUGGEST_META_KEY, suggest.length ? JSON.stringify(suggest) : '');
+  }
+
+  const actions: Pick<WorkspaceState, 'change' | 'draftChange' | 'clearNext' | 'clearSuggest'> = {
     change: (input, planner = deps.provider, origin = {}) =>
       aiChange(input, planner, origin, false),
 
@@ -302,6 +322,8 @@ export function createAIChange(
       set({ next: null });
       await repo.setMeta(NEXT_META_KEY, '');
     },
+
+    clearSuggest: () => saveSuggest([]),
   };
   return { actions };
 }

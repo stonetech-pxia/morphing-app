@@ -113,14 +113,46 @@ describe('migrateWorkspace', () => {
     const kept = migrateWorkspace(custom, undefined, 20);
     expect(kept.ok && (kept.config as { workflows: unknown[] }).workflows).toEqual([picked]);
   });
-  it('v28 → v29 (file room layout, D-358) only raises the version; the room uses its default layout', () => {
+  it('v32 → v33 (file room layout, D-358) only raises the version; the room uses its default layout', () => {
+    const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 32 };
+    expect(migrateWorkspace(previous, undefined, 33)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 33 },
+      fromVersion: 32,
+    });
+    expect(prepareSnapshot(previous, registry).ok).toBe(true);
+  });
+  it('v31 → v32 (board by a link, sheet quick add, D-351–D-352) only raises the version', () => {
+    const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 31 };
+    expect(migrateWorkspace(previous, undefined, 32)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 32 },
+      fromVersion: 31,
+    });
+  });
+  it('v30 → v31 (schedule time, list sections, calendar on a schedule, add here, D-346–D-349) only raises the version', () => {
+    const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 30 };
+    expect(migrateWorkspace(previous, undefined, 31)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 31 },
+      fromVersion: 30,
+    });
+  });
+  it('v29 → v30 (once, countEarly, record pages, form presets and smartDate, D-340–D-344) only raises the version', () => {
+    const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 29 };
+    expect(migrateWorkspace(previous, undefined, 30)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 30 },
+      fromVersion: 29,
+    });
+  });
+  it('v28 → v29 (group by link, stat minus, create with form, D-336–D-338) only raises the version', () => {
     const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 28 };
     expect(migrateWorkspace(previous, undefined, 29)).toEqual({
       ok: true,
       config: { ...previous, schemaVersion: 29 },
       fromVersion: 28,
     });
-    expect(prepareSnapshot(previous, registry).ok).toBe(true);
   });
   it('v27 → v28 (reminders per entry, D-316–D-318) only raises the version and keeps reminders', () => {
     const daily = {

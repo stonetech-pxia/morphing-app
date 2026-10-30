@@ -495,6 +495,10 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       if (config.shell.nav.length === 0) config.shell.nav = [pageTarget(HOME_PAGE_ID)];
       const count = removeEverywhere(config, (c) => componentTarget(c) === target);
       if (count > 0) notes.push({ kind: 'removedLinks', pageId: op.pageId, count });
+      // D-342：点一条打开这一页的列表改回打开编辑页。
+      for (const page of config.pages)
+        for (const c of allComponents(page))
+          if (c.type === 'recordList' && c.props.opens === op.pageId) delete c.props.opens;
       return;
     }
     case 'moveComponent': {
@@ -857,8 +861,21 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
           `table ${op.collectionId} is linked from ${linking.join(', ')}; remove those fields (and the components that show them) first`,
         );
       }
+      // D-342：给这张表的一条记录用的页面要先移除。
+      const recordPages = config.pages.filter((p) => p.recordOf === op.collectionId);
+      if (recordPages.length > 0) {
+        throw new OpError(
+          `pages ${recordPages.map((p) => p.id).join(', ')} show one entry of ${op.collectionId}; remove them first`,
+        );
+      }
       config.collections = config.collections.filter((c) => c.id !== op.collectionId);
-      const count = removeEverywhere(config, (c) => componentCollection(c) === op.collectionId);
+      // 减去这张表合计的统计（D-337）也一起移除：只留前一半会显示错的数。
+      const count = removeEverywhere(
+        config,
+        (c) =>
+          componentCollection(c) === op.collectionId ||
+          (c.type === 'stat' && c.props.minus?.collectionId === op.collectionId),
+      );
       if (count > 0) {
         notes.push({ kind: 'removedDataComponents', collectionId: op.collectionId, count });
       }

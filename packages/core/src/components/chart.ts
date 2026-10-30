@@ -31,7 +31,7 @@ const props = z.strictObject({
 
 /**
  * 图表（D-249）：一张表的记录按时间段（最近几天 / 周 / 月）或单选字段分组，柱状、折线或饼图。
- * 饼图只能按单选字段分。只有固定几种画法和聚合，没有表达式；记录只在本机读取。
+ * 饼图只能按单选字段分。D-336：单选分组也可以是引用字段，被引用的表里每条记录一个点。只有固定几种画法和聚合，没有表达式；记录只在本机读取。
  */
 export const chartComponent: ComponentDefinitionOf<'chart', typeof props> = defineComponent({
   type: 'chart',
@@ -54,11 +54,14 @@ export const chartComponent: ComponentDefinitionOf<'chart', typeof props> = defi
         );
     }
     if (c.props.group === 'choice') {
-      if (!c.props.choiceField || field(c.props.choiceField)?.type !== 'choice')
-        problems.push('grouping by choice needs choiceField set to a choice field');
+      const type = c.props.choiceField ? field(c.props.choiceField)?.type : undefined;
+      if (type !== 'choice' && type !== 'link')
+        problems.push(
+          'grouping by choice needs choiceField set to a choice or link field (a link field: one point per entry of the linked table)',
+        );
     } else {
       if (c.props.kind === 'pie')
-        problems.push('a pie chart can only be grouped by a choice field');
+        problems.push('a pie chart can only be grouped by a choice or link field');
       const d = c.props.dateField;
       const dType = d === undefined ? undefined : field(d)?.type;
       if (d !== undefined && !isSystemField(d) && dType !== 'date' && dType !== 'datetime')
@@ -69,7 +72,7 @@ export const chartComponent: ComponentDefinitionOf<'chart', typeof props> = defi
   describe: (c, _config, ctx) => t(ctx.locale, 'describeChart', { v0: c.props.title }),
   edit: { text: [{ prop: 'title', max: 60 }], style: ['tone'] },
   ai: {
-    doc: '{collectionId, kind: "bar"|"line"|"pie", aggregate: "count"|"sum"|"avg"|"distinctDays" (days with at least one entry), fieldId? (number, money, rating, duration or formula; only for sum and avg), group: "day"|"week"|"month"|"choice", dateField? (a date or datetime field or "createdAt"; default: the first date field), choiceField? (a choice field; required for group "choice"), periods? (2-31; default 7 days, 8 weeks, 6 months), filter?, title}: a pie chart needs group "choice"',
+    doc: '{collectionId, kind: "bar"|"line"|"pie", aggregate: "count"|"sum"|"avg"|"distinctDays" (days with at least one entry), fieldId? (number, money, rating, duration or formula; only for sum and avg), group: "day"|"week"|"month"|"choice", dateField? (a date or datetime field or "createdAt"; default: the first date field), choiceField? (a choice field, or a link field for one point per entry of the linked table, e.g. per category; required for group "choice"), periods? (2-31; default 7 days, 8 weeks, 6 months), filter?, title}: a pie chart needs group "choice"',
     rule: {
       n: 35,
       text: 'Charts ("a chart of spending per month", "每天花了多少的柱状图", "pie chart by category", "trend over the last weeks") → a chart component on the page that shows the table: amounts over time are kind "bar" or "line" with group "day" / "week" / "month" (periods = how many recent days / weeks / months, e.g. 12 for "the last year by month"); shares of a whole are kind "pie" with group "choice". Use aggregate "sum" with the money field for spending, "count" for how many entries. A single total or a per-category list without a picture is a stat (rule 34). You only choose how the chart is built; you never see the values.',

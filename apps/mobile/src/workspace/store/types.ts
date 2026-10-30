@@ -192,6 +192,8 @@ export interface WorkspaceState {
    * 下一次功能修改换掉它，用掉或撤销时清掉。
    */
   next: string | null;
+  /** AI 建议的下一步（D-355），存在本机：下一次修改给了新的就换掉，没给就去掉点过的那条；撤销时清掉。 */
+  suggest: string[];
 
   boot(): Promise<void>;
   /**
@@ -237,6 +239,7 @@ export interface WorkspaceState {
    */
   draftSample(sample: SampleApp): Promise<DraftResult>;
   clearNext(): Promise<void>;
+  clearSuggest(): Promise<void>;
   stepBack(): Promise<void>;
   openDraft(): void;
   closeDraft(): void;

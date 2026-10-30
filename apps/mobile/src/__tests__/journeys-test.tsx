@@ -118,6 +118,17 @@ describe('user journeys (UI)', () => {
     expect(screen.queryByTestId('nav-ai')).toBeNull();
     expect(store.getState().config!.shell.nav).toHaveLength(5);
     expect(screen.getByTestId('draft-reply')).toHaveTextContent(/改好了/);
+    // 修改内容显示时界面淡下去；收起后不再淡化，留一个小按钮能再打开。
+    expect(screen.getByTestId('draft-dim')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('draft-reply-hide'));
+    expect(screen.queryByTestId('draft-reply')).toBeNull();
+    expect(screen.queryByTestId('draft-dim')).toBeNull();
+    await fireEvent.press(screen.getByTestId('draft-reply-show'));
+    expect(screen.getByTestId('draft-reply')).toHaveTextContent(/改好了/);
+    // 点淡下去的界面也是收起。
+    await fireEvent.press(screen.getByTestId('draft-dim'));
+    expect(screen.queryByTestId('draft-reply')).toBeNull();
+    expect(screen.getByTestId('draft-reply-show')).toHaveTextContent('看修改内容');
 
     await applyDraft();
 
@@ -245,6 +256,34 @@ describe('user journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('ready-later'));
     await askAi('主题换成绿色');
     expect(await screen.findByTestId('draft-note-0')).toHaveTextContent(/每月需要你自己点一次/);
+  });
+
+  it('the AI’s suggested next steps show on the AI page and go away on undo (D-355)', async () => {
+    const mock = createMockAIProvider();
+    const { repo, store } = await renderApp(undefined, undefined, {
+      plan: async (input, ctx) => {
+        const plan = await mock.plan(input, ctx);
+        return plan.kind === 'ops' && input === '添加签证照片工作流'
+          ? { ...plan, suggest: ['主题换成绿色', '做一个看板'] }
+          : plan;
+      },
+    });
+    await askAi('添加签证照片工作流');
+    await fireEvent.press(await screen.findByTestId('ready-later'));
+    expect(store.getState().suggest).toEqual(['主题换成绿色', '做一个看板']);
+    expect(await repo.getMeta('suggest')).toBe(JSON.stringify(['主题换成绿色', '做一个看板']));
+    await fireEvent.press(await screen.findByTestId('nav-ai'));
+    await fireEvent.press(await screen.findByTestId('change-suggest-0'));
+    expect(screen.getByTestId('change-input').props.value).toBe('主题换成绿色');
+
+    // 点了一条、这次没给新的建议：只去掉点过的那条，另一条留着。
+    await fireEvent.press(screen.getByTestId('change-submit'));
+    await applyDraft();
+    expect(store.getState().suggest).toEqual(['做一个看板']);
+
+    await act(() => store.getState().undo());
+    expect(store.getState().suggest).toEqual([]);
+    expect(await repo.getMeta('suggest')).toBe('');
   });
 
   it('leave keeps the draft; the AI page continues or deletes it', async () => {

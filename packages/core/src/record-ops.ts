@@ -9,6 +9,7 @@ import {
 import { localDateTime, round } from './field-values';
 import { expandCollection } from './related';
 import {
+  RECORD_REF,
   fieldDefinition,
   type Collection,
   type Component,
@@ -54,6 +55,8 @@ interface Where {
   rowOf?: Collection;
   /** 是新建（create）：null 没有意义。 */
   creating?: boolean;
+  /** 组件所在页面给哪张表的一条记录用（D-342）："$record" 指那条记录。 */
+  recordOf?: string;
 }
 
 function valueProblem(
@@ -71,7 +74,17 @@ function valueProblem(
     const ok = where.rowOf
       ? value === 'row' && where.creating && field.collectionId === where.rowOf.id
       : false;
-    if (ok || (value === null && !where.creating)) return null;
+    // D-342：给一条记录用的页面上，新建时引用字段可以设成这条记录。
+    const page =
+      value === RECORD_REF &&
+      where.creating === true &&
+      where.recordOf !== undefined &&
+      field.collectionId === where.recordOf;
+    if (ok || page || (value === null && !where.creating)) return null;
+    if (value === RECORD_REF)
+      return where.recordOf
+        ? `${where.label}: link field ${name} can be "${RECORD_REF}" only when creating and only if it points at ${where.recordOf}`
+        : `${where.label}: "${RECORD_REF}" only works on a page for one entry of a table (page.recordOf)`;
     return where.rowOf && where.creating
       ? `${where.label}: link field ${name} can only be "row" (the entry of this row) and must point at ${where.rowOf.id}`
       : `${where.label}: link field ${name} can't be preset; only a row button's create can use "row"`;
@@ -98,6 +111,7 @@ function createProblems(
   collectionId: string,
   values: Record<string, RecordActionValue> | undefined,
   where: Where,
+  form?: boolean,
 ): string[] {
   const collection = config.collections.find((c) => c.id === collectionId);
   if (!collection) return [`${where.label}: data table ${collectionId} does not exist`];
@@ -106,14 +120,15 @@ function createProblems(
     const p = valueProblem(collection, id, v, { ...where, creating: true });
     if (p) problems.push(p);
   }
-  // 必填、又没有默认值的字段：点一下存不进去。
+  // 必填、又没有默认值的字段：点一下存不进去。打开表单的（D-338）由用户填。
+  if (form) return problems;
   for (const f of collection.fields) {
     const def = fieldDefinition(f.type);
     if (!('required' in f) || !f.required || !def.write || values?.[f.id] !== undefined) continue;
     const hasDefault = ('default' in f && f.default !== undefined) || def.emptyNew !== undefined;
     if (!hasDefault) {
       problems.push(
-        `${where.label}: creates an entry in ${collectionId} but required field ${f.id} would be empty; preset it, make it not required, or use do "open" so the user fills the form`,
+        `${where.label}: creates an entry in ${collectionId} but required field ${f.id} would be empty; preset it, make it not required, or add form: true so the user fills in the rest`,
       );
     }
   }
@@ -143,7 +158,13 @@ export function recordActionProblems(
   const row = where.rowOf;
   switch (action.do) {
     case 'create':
-      return createProblems(config, action.collectionId, action.values, where);
+      return createProblems(
+        config,
+        action.collectionId,
+        action.values,
+        where,
+        'form' in action && action.form,
+      );
     case 'open':
       if ('collectionId' in action && !config.collections.some((c) => c.id === action.collectionId))
         return [`${where.label}: data table ${action.collectionId} does not exist`];
@@ -156,9 +177,11 @@ export function recordActionProblems(
       });
       return [
         ...(p ? [p] : []),
-        ...conditionProblems(action.filter, expandCollection(config.collections, collection)).map(
-          (x) => `${where.label}: ${x}`,
-        ),
+        ...conditionProblems(
+          action.filter,
+          expandCollection(config.collections, collection),
+          where.recordOf,
+        ).map((x) => `${where.label}: ${x}`),
       ];
     }
     case 'set': {
@@ -177,24 +200,58 @@ export function recordActionProblems(
 }
 
 /** 按钮和记录列表上的操作的问题（validate.ts 对每个组件调）。 */
-export function componentActionProblems(c: Component, config: WorkspaceConfig): string[] {
+export function componentActionProblems(
+  c: Component,
+  config: WorkspaceConfig,
+  /** 组件所在页面给哪张表的一条记录用（D-342）。 */
+  recordOf?: string,
+): string[] {
   if (c.type === 'button') {
     const { target, action } = c.props;
     if ((target === undefined) === (action === undefined))
       return [
         `button ${c.id} needs exactly one of target (open something) or action (change entries)`,
       ];
-    return action ? recordActionProblems(action, config, { label: `button ${c.id} action` }) : [];
+    return action
+      ? recordActionProblems(action, config, {
+          label: `button ${c.id} action`,
+          ...(recordOf ? { recordOf } : {}),
+        })
+      : [];
   }
+  // D-343：快速添加表单的预设值和新建一样检查（用户填其余的，所以必填不管）。
+  if (c.type === 'recordForm')
+    return c.props.values
+      ? recordActionProblems(
+          { do: 'create', collectionId: c.props.collectionId, values: c.props.values, form: true },
+          config,
+          { label: `form ${c.id} values`, ...(recordOf ? { recordOf } : {}) },
+        )
+      : [];
   if (c.type !== 'recordList' || !c.props.rowActions) return [];
   const table = config.collections.find((x) => x.id === c.props.collectionId);
   if (!table) return [];
   const view = expandCollection(config.collections, table);
   return c.props.rowActions.flatMap((a) => {
-    const where = { label: `list ${c.id} row button "${a.label}"`, rowOf: table };
+    const where = {
+      label: `list ${c.id} row button "${a.label}"`,
+      rowOf: table,
+      ...(recordOf ? { recordOf } : {}),
+    };
+    // 写的是日程的「上次完成」时，「为空才显示」会让按钮做过一次就消失，重复的事下次没法完成。
+    const written = a.do === 'set' ? a.fieldId : undefined;
+    const schedule =
+      written !== undefined && (a.when ?? []).some((w) => w.field === written && w.op === 'isEmpty')
+        ? table.fields.find((f) => f.type === 'schedule' && f.lastDone === written)
+        : undefined;
     return [
       ...recordActionProblems(a, config, where),
-      ...conditionProblems(a.when, view).map((x) => `${where.label} when: ${x}`),
+      ...conditionProblems(a.when, view, recordOf).map((x) => `${where.label} when: ${x}`),
+      ...(schedule
+        ? [
+            `${where.label}: ${written} is the last-done date of ${schedule.id}, so "when ${written} is empty" hides the button for good after the first time and a repeating entry can never be done again; drop the when (the schedule already shows what is due)`,
+          ]
+        : []),
     ];
   });
 }

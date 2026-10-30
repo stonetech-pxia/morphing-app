@@ -258,9 +258,33 @@ export const migrateV26toV27: Migration = (config) => ({ ...config, schemaVersio
 export const migrateV27toV28: Migration = (config) => ({ ...config, schemaVersion: 28 });
 
 /**
- * v28 → v29：多了文件房间的布局 desk（D-358）。是新的可选值，已有配置照样合法，只提升版本号。
+ * v28 → v29：统计和图表可以按引用字段分组（D-336），统计可以减去另一个合计（minus，D-337），
+ * 一键操作的新建可以打开表单（form，D-338）。都是新的可选值，只提升版本号。
  */
 export const migrateV28toV29: Migration = (config) => ({ ...config, schemaVersion: 29 });
+
+/**
+ * v29 → v30：日程的「一次」和 countEarly（D-340、D-341）、给一条记录用的页面（recordOf、recordList.opens、
+ * "$record"，D-342）、快速添加表单的预设值和 smartDate（D-343、D-344）。都是新的可选值，只提升版本号。
+ */
+export const migrateV29toV30: Migration = (config) => ({ ...config, schemaVersion: 30 });
+
+/**
+ * v30 → v31：日程规则的钟点（D-346）、记录列表分段（groupBy、groupUnit、showEmpty，D-347）、月历认日程
+ * （D-348）、就地添加（addHere，D-349）。都是新的可选值，只提升版本号。
+ */
+export const migrateV30toV31: Migration = (config) => ({ ...config, schemaVersion: 31 });
+
+/**
+ * v31 → v32：看板按引用字段分栏和 groupFilter（D-351）、快速添加表单的 sheet 模式（D-352）。都是新的可选值，
+ * 只提升版本号。
+ */
+export const migrateV31toV32: Migration = (config) => ({ ...config, schemaVersion: 32 });
+
+/**
+ * v32 → v33：多了文件房间的布局 desk（D-358）。是新的可选值，已有配置照样合法，只提升版本号。
+ */
+export const migrateV32toV33: Migration = (config) => ({ ...config, schemaVersion: 33 });
 
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
@@ -292,6 +316,10 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   26: migrateV26toV27,
   27: migrateV27toV28,
   28: migrateV28toV29,
+  29: migrateV29toV30,
+  30: migrateV30toV31,
+  31: migrateV31toV32,
+  32: migrateV32toV33,
 };
 
 export type MigrateResult =

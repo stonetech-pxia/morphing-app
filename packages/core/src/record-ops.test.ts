@@ -257,8 +257,31 @@ describe('checking record actions', () => {
     expect(
       problems([button({ do: 'create', collectionId: 'checkins', values: { habit: 'run' } })]),
     ).toMatch(
-      /required field day would be empty; preset it, make it not required, or use do "open"/,
+      /required field day would be empty; preset it, make it not required, or add form: true/,
     );
+  });
+
+  it('create with form: true opens the form with the presets, so required fields may stay empty', () => {
+    expect(
+      problems([
+        button({ do: 'create', collectionId: 'checkins', values: { habit: 'run' }, form: true }),
+        list('habits', [
+          {
+            label: 'Log',
+            do: 'create',
+            collectionId: 'logs',
+            values: { habit: 'row' },
+            form: true,
+          },
+        ]),
+      ]),
+    ).toBe('');
+    // 预设的值照样检查。
+    expect(
+      problems([
+        button({ do: 'create', collectionId: 'checkins', values: { habit: 'swim' }, form: true }),
+      ]),
+    ).toMatch(/must be one of its option ids/);
   });
 
   it('"row" is only for a row button’s create, on a link to the list’s table', () => {
@@ -299,6 +322,38 @@ describe('checking record actions', () => {
         ]),
       ]),
     ).toMatch(/row button "Out" when: filter field nope/);
+  });
+
+  it('a done button on a schedule’s last-done date must not hide once it is set', () => {
+    // 每周的事点过一次就不再有按钮，下周没法完成（真搭 Todoist 样板时 AI 写过）。
+    const todos = apply(base(), [
+      {
+        op: 'addCollection',
+        collection: {
+          id: 'todos',
+          name: 'To-dos',
+          fields: [
+            { id: 'title', name: 'Title', type: 'text', required: true },
+            { id: 'done', name: 'Done on', type: 'date' },
+            {
+              id: 'plan',
+              name: 'Plan',
+              type: 'schedule',
+              default: { repeat: 'once' },
+              lastDone: 'done',
+            },
+          ],
+        },
+      },
+    ]);
+    const done = (when?: unknown) =>
+      list('todos', [
+        { label: 'Done', do: 'set', fieldId: 'done', value: 'today', ...(when ? { when } : {}) },
+      ]);
+    expect(problems([done([{ field: 'done', op: 'isEmpty' }])], todos)).toMatch(
+      /row button "Done": done is the last-done date of plan.*drop the when/,
+    );
+    expect(problems([done()], todos)).toBe('');
   });
 });
 

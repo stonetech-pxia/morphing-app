@@ -1,16 +1,20 @@
 import {
   dateOfDayNumber,
+  findDatePhrase,
   monthName,
+  normalizeTime,
   readSchedule,
   scheduleText,
   todayNumber,
+  weekStartOf,
   weekdayName,
   type Field,
   type ScheduleRule,
   type SchedulePer,
   type StringKey,
 } from '@morph/core';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { t } from '../i18n';
 import { useCalendar, useWorkspace } from '../workspace/context';
@@ -18,11 +22,13 @@ import type { RenderEnv } from './components';
 import type { Palette } from './theme';
 
 // 日程（D-296）：先选一种重复方式，再按这种方式填几个数字或点几个日子；下面一行用一句话写出现在的规则。
-// 所有按钮至少 44 高，方便点。值是 core 的规则（readSchedule 校验），不重复时是空。
+// 所有按钮至少 44 高，方便点。值是 core 的规则（readSchedule 校验），不设时是空。
+// D-340：「一次」放在最前面，选今天、明天、下周、不定日期，或者在框里写日期（也认「下周五」这类说法，D-344）。
 
 type Repeat = ScheduleRule['repeat'];
 
 const KINDS: [Repeat, StringKey][] = [
+  ['once', 'scheduleKindOnce'],
   ['daily', 'scheduleKindDaily'],
   ['weekdays', 'scheduleKindWeekdays'],
   ['times', 'scheduleKindTimes'],
@@ -72,14 +78,17 @@ export function ScheduleInput({
   const today = dateOfDayNumber(todayNumber(new Date(), cal));
   const [month, dom] = [Number(today.slice(5, 7)), Number(today.slice(8, 10))];
   const isoWeekday = ((new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7) + 1;
-  const perDay = rule?.perDay;
+  const perDay = rule && rule.repeat !== 'once' ? rule.perDay : undefined;
   const set = (next: ScheduleRule) => {
+    if (next.repeat === 'once') return onChange(next);
     const { perDay: _, ...rest } = next;
     onChange(perDay ? { ...rest, perDay } : rest);
   };
   // 换一种方式时，从今天推一个合理的起点。
   const start = (repeat: Repeat): ScheduleRule => {
     switch (repeat) {
+      case 'once':
+        return { repeat };
       case 'daily':
         return { repeat };
       case 'weekdays':
@@ -172,6 +181,38 @@ export function ScheduleInput({
   const details = () => {
     if (!rule) return null;
     switch (rule.repeat) {
+      case 'once': {
+        const todayN = todayNumber(new Date(), cal);
+        const picks: [string, string | undefined, string][] = [
+          ['today', dateOfDayNumber(todayN), t(locale, 'scheduleToday')],
+          ['tomorrow', dateOfDayNumber(todayN + 1), t(locale, 'scheduleTomorrow')],
+          [
+            'next-week',
+            dateOfDayNumber(weekStartOf(todayN, cal) + 7),
+            t(locale, 'scheduleNextWeek'),
+          ],
+          ['no-date', undefined, t(locale, 'scheduleNoDate')],
+        ];
+        return (
+          <View style={styles.group}>
+            <View style={styles.chips}>
+              {picks.map(([key, date, text]) =>
+                chip(`once-${key}`, text, rule.date === date, () =>
+                  set(date ? { repeat: 'once', date } : { repeat: 'once' }),
+                ),
+              )}
+            </View>
+            <OnceDateBox
+              date={rule.date}
+              onDate={(date) => set(date ? { repeat: 'once', date } : { repeat: 'once' })}
+              palette={palette}
+              disabled={disabled}
+              testID={`${testID}-once-date`}
+              today={todayN}
+            />
+          </View>
+        );
+      }
       case 'daily':
         return null;
       case 'weekdays': {
@@ -255,7 +296,9 @@ export function ScheduleInput({
       <View style={styles.chips}>
         {KINDS.map(([repeat, key]) =>
           chip(repeat, t(locale, key), rule?.repeat === repeat, () =>
-            rule?.repeat === repeat ? undefined : set(start(repeat)),
+            rule?.repeat === repeat
+              ? undefined
+              : set({ ...start(repeat), ...(rule?.time ? { time: rule.time } : {}) }),
           ),
         )}
         {chip('none', t(locale, 'scheduleNone'), rule === undefined, () => onChange(''))}
@@ -263,9 +306,24 @@ export function ScheduleInput({
       {details()}
       {rule ? (
         <View style={styles.line}>
+          {caption(t(locale, 'scheduleTimeLabel'))}
+          <TimeBox
+            time={rule.time}
+            onTime={(time) => {
+              const { time: _, ...rest } = rule;
+              onChange(time ? { ...rest, time } : rest);
+            }}
+            palette={palette}
+            disabled={disabled}
+            testID={`${testID}-time`}
+          />
+        </View>
+      ) : null}
+      {rule && rule.repeat !== 'once' ? (
+        <View style={styles.line}>
           {caption(t(locale, 'scheduleTimesPerDay'))}
           {stepper('perDay', perDay ?? 1, 1, 20, (n) => {
-            const { perDay: _, ...rest } = rule;
+            const { perDay: _, ...rest } = rule as Exclude<ScheduleRule, { repeat: 'once' }>;
             onChange(n > 1 ? { ...rest, perDay: n } : rest);
           })}
         </View>
@@ -286,7 +344,115 @@ export function ScheduleInput({
   );
 }
 
+/**
+ * 几点（D-346）：写 8:05、08:05、8：05；离开输入框时整理成 HH:mm，清空就是不设，认不出来就恢复原来的。
+ */
+function TimeBox({
+  time,
+  onTime,
+  palette,
+  disabled,
+  testID,
+}: {
+  time: string | undefined;
+  onTime: (time: string | undefined) => void;
+  palette: Palette;
+  disabled?: boolean | undefined;
+  testID: string;
+}) {
+  const [text, setText] = useState(time ?? '');
+  const [shownFor, setShownFor] = useState(time);
+  if (time !== shownFor) {
+    setShownFor(time);
+    setText(time ?? '');
+  }
+  const commit = () => {
+    const typed = text.trim();
+    if (typed === '') return onTime(undefined);
+    const normal = normalizeTime(typed);
+    if (normal) onTime(normal);
+    else setText(time ?? '');
+  };
+  return (
+    <TextInput
+      testID={testID}
+      editable={!disabled}
+      value={text}
+      onChangeText={setText}
+      onEndEditing={commit}
+      onSubmitEditing={commit}
+      placeholder="HH:MM"
+      keyboardType="numbers-and-punctuation"
+      placeholderTextColor={palette.caption}
+      style={[
+        palette.font('bodyMedium', 15),
+        styles.dateBox,
+        styles.timeBox,
+        { color: palette.text, borderColor: palette.border, backgroundColor: palette.surface },
+      ]}
+    />
+  );
+}
+
+/**
+ * 「一次」的日期框：写 YYYY-MM-DD，或者「明天」「下周五」「Nov 5」这类说法（本机识别，D-344）；
+ * 离开输入框时换成日期，认不出来就恢复原来的。
+ */
+function OnceDateBox({
+  date,
+  onDate,
+  palette,
+  disabled,
+  testID,
+  today,
+}: {
+  date: string | undefined;
+  onDate: (date: string | undefined) => void;
+  palette: Palette;
+  disabled?: boolean | undefined;
+  testID: string;
+  today: number;
+}) {
+  const cal = useCalendar();
+  const [text, setText] = useState(date ?? '');
+  // 外面换了日期（点了今天、明天）时框里跟着换。
+  const [shownFor, setShownFor] = useState(date);
+  if (date !== shownFor) {
+    setShownFor(date);
+    setText(date ?? '');
+  }
+  const commit = () => {
+    const typed = text.trim();
+    if (typed === '') return onDate(undefined);
+    // 规则自己校验日期是不是真的（2 月 30 日不行）。
+    const exact = readSchedule({ repeat: 'once', date: typed });
+    if (exact?.repeat === 'once' && exact.date) return onDate(exact.date);
+    const found = findDatePhrase(typed, today, cal)?.value;
+    if (found?.kind === 'date') return onDate(found.date);
+    setText(date ?? '');
+  };
+  return (
+    <TextInput
+      testID={testID}
+      editable={!disabled}
+      value={text}
+      onChangeText={setText}
+      onEndEditing={commit}
+      onSubmitEditing={commit}
+      placeholder="YYYY-MM-DD"
+      placeholderTextColor={palette.caption}
+      style={[
+        palette.font('bodyMedium', 15),
+        styles.dateBox,
+        { color: palette.text, borderColor: palette.border, backgroundColor: palette.surface },
+      ]}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
+  dateBox: { borderWidth: 1, borderRadius: 12, minHeight: 44, paddingHorizontal: 12 },
+  timeBox: { width: 110, textAlign: 'center' },
   group: { gap: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {

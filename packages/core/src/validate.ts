@@ -2,6 +2,7 @@ import { COMPONENTS } from './components';
 import { duplicates, isSystemField, type CheckProblem } from './components/define';
 import { conditionProblems } from './conditions';
 import { componentActionProblems } from './record-ops';
+import { statMinusProblems } from './stat-minus';
 import { expandCollection, relatedProblems } from './related';
 import type { Registry } from './registry';
 import { reminderProblems } from './reminders';
@@ -88,6 +89,15 @@ export function validateWorkspace(
   for (const target of entries) {
     const pageId = pageIdOf(target);
     if (pageId !== null && !pageIds.has(pageId)) issue('unknown-page', `nav entry ${target}`);
+    const problem = recordPageTargetProblem(config, target);
+    if (problem) issue('record-page', `nav entry ${problem}`);
+  }
+  // ---- 给一条记录用的页面（D-342）----
+  for (const page of config.pages) {
+    if (page.recordOf === undefined) continue;
+    if (page.id === HOME_PAGE_ID) issue('record-page', 'the home page cannot have recordOf');
+    if (!config.collections.some((c) => c.id === page.recordOf))
+      issue('record-page', `page ${page.id}: recordOf ${page.recordOf} is not a data table`);
   }
   for (const target of PROTECTED_TARGETS) {
     if (!entries.includes(target)) {
@@ -141,6 +151,8 @@ export function validateWorkspace(
           if (targetPage !== null && !pageIds.has(targetPage)) {
             issue('unknown-page', `component ${c.id} on page ${page.id} opens missing ${value}`);
           }
+          const problem = recordPageTargetProblem(config, value as OpenTarget);
+          if (problem) issue('record-page', `component ${c.id} on page ${page.id}: ${problem}`);
           // D-256：快捷操作是配置里的，或者内设的（预设 ID）。
           const targetWorkflow = workflowTargetId(value as OpenTarget);
           if (
@@ -210,7 +222,8 @@ export function validateWorkspace(
         componentIssue(c, problem);
       // 一键记录操作（D-300–D-304）：按钮和记录列表每一行。
       if (isKnownComponent(c))
-        for (const problem of componentActionProblems(c, config)) componentIssue(c, problem);
+        for (const problem of componentActionProblems(c, config, page.recordOf))
+          componentIssue(c, problem);
     }
   }
 
@@ -423,6 +436,38 @@ function dataComponentProblems(
     }
   }
   problems.push(...(def.check?.(c, { config, registry, page, collection }) ?? []));
-  problems.push(...conditionProblems(filter, collection));
+  problems.push(...conditionProblems(filter, collection, page.recordOf));
+  // 看板按引用分栏（D-351）：groupFilter 筛的是被引用的那张表。
+  if (c.type === 'recordList' && c.props.groupFilter) {
+    const link = collection.fields.find((f) => f.id === c.props.groupField);
+    const other =
+      link?.type === 'link'
+        ? config.collections.find((x) => x.id === link.collectionId)
+        : undefined;
+    if (other)
+      problems.push(
+        ...conditionProblems(
+          c.props.groupFilter,
+          expandCollection(config.collections, other),
+          page.recordOf,
+        ).map((p) => `groupFilter: ${p}`),
+      );
+  }
+  // 统计相减（D-337）：被减的那张表和它的筛选。
+  if (c.type === 'stat') problems.push(...statMinusProblems(c, collection, config, page.recordOf));
   return problems;
+}
+
+/**
+ * 给一条记录用的页面（D-342）不能直接打开：不知道是哪一条。导航栏、按钮、快捷入口、提醒打开它时报错，
+ * 文字发给 AI（改用这张表的记录列表的 opens）。
+ */
+export function recordPageTargetProblem(
+  config: WorkspaceConfig,
+  target: OpenTarget,
+): string | null {
+  const pageId = pageIdOf(target);
+  const page = pageId === null ? undefined : config.pages.find((p) => p.id === pageId);
+  if (!page?.recordOf) return null;
+  return `${target} opens page ${page.id}, which shows one entry of ${page.recordOf}; it can only be opened from a list of ${page.recordOf} (recordList.opens)`;
 }

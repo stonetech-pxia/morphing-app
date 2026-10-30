@@ -1,4 +1,10 @@
 import {
+  filterPresets,
+  listGroups,
+  findDatePhrase,
+  createInput,
+  smartDateOf,
+  withoutPhrase,
   aggregateRecords,
   calendarOf,
   dateOfDayNumber,
@@ -34,16 +40,21 @@ import {
   type Component,
   type ComponentStyle,
   type DataRecord,
+  type LinkedGroups,
   type Field,
   type FieldIssue,
   type FieldOf,
   type FieldType,
   type FieldValue,
   type Backdrop,
+  minusValue,
 } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Switch,
@@ -63,7 +74,7 @@ import { onPicture } from './Backdrop';
 import { RowActionButton } from './RecordActions';
 import { ScheduleInput } from './ScheduleInput';
 import type { RenderEnv } from './components';
-import { Icon } from './Icon';
+import { Icon, UiIcon } from './Icon';
 import { ProgressBar, ProgressRing } from './Progress';
 import { useTicker } from './ticker';
 import { cardColors, type Palette } from './theme';
@@ -79,6 +90,28 @@ export function toFormValues(collection: Collection, record: DataRecord | null):
   const values: FormValues = {};
   for (const field of collection.fields) {
     const v = record ? readValue(field, record.values[field.id]) : undefined;
+    if (v === undefined) continue;
+    const toForm = (FIELD_EDITORS[field.type] as FieldEditor).toForm;
+    values[field.id] = toForm ? toForm(v) : v;
+  }
+  return values;
+}
+
+/**
+ * 一键操作打开的新记录表单（D-338）：预设的值（createInput 的输入，JSON）换成表单的写法。
+ * 读不出来的、字段已经不在的不填。
+ */
+export function prefillFormValues(collection: Collection, json: string): FormValues {
+  let input: unknown;
+  try {
+    input = JSON.parse(json);
+  } catch {
+    return {};
+  }
+  if (typeof input !== 'object' || input === null) return {};
+  const values: FormValues = {};
+  for (const field of collection.fields) {
+    const v = readValue(field, (input as Record<string, unknown>)[field.id]);
     if (v === undefined) continue;
     const toForm = (FIELD_EDITORS[field.type] as FieldEditor).toForm;
     values[field.id] = toForm ? toForm(v) : v;
@@ -103,6 +136,8 @@ export function FieldInput({
   disabled,
   testID,
   labeled = false,
+  onSubmit,
+  autoFocus,
 }: {
   field: Field;
   value: unknown;
@@ -113,6 +148,10 @@ export function FieldInput({
   testID: string;
   /** 外面已经有字段名的标签（完整编辑页）。 */
   labeled?: boolean;
+  /** 快速添加（D-352）：单行文字框按键盘上的「完成 / 发送」就是添加。 */
+  onSubmit?: (() => void) | undefined;
+  /** 底部弹出的添加框打开时，第一个文字框直接弹出键盘（D-352）。 */
+  autoFocus?: boolean | undefined;
 }) {
   const input = [
     styles.input,
@@ -143,6 +182,8 @@ export function FieldInput({
     labeled,
     input,
     chip,
+    onSubmit,
+    autoFocus,
   });
 }
 
@@ -160,6 +201,8 @@ interface FieldInputContext<F extends Field> {
   input: StyleProp<TextStyle>;
   /** 选项小块的样式。 */
   chip: (selected: boolean) => StyleProp<ViewStyle>;
+  onSubmit?: (() => void) | undefined;
+  autoFocus?: boolean | undefined;
 }
 
 /** 一种字段在记录表单里怎么填（字段的结构、读写和显示在 core 的 fields/<type>.ts）。 */
@@ -183,13 +226,25 @@ function textBox<F extends Field>({
   disabled,
   testID,
   input,
+  onSubmit,
+  autoFocus,
 }: FieldInputContext<F>) {
+  // 快速添加里的单行文字框：按键盘上的「完成」就添加（D-352），键盘不收起，接着写下一条。
+  const submits = onSubmit !== undefined && field.type === 'text';
   return (
     <TextInput
       testID={testID}
       editable={!disabled}
       value={typeof value === 'string' ? value : ''}
       onChangeText={onChange}
+      autoFocus={autoFocus === true && field.type === 'text'}
+      {...(submits
+        ? {
+            returnKeyType: 'done' as const,
+            onSubmitEditing: onSubmit,
+            submitBehavior: 'submit' as const,
+          }
+        : {})}
       placeholder={field.type === 'money' ? `${field.name} (${field.currency})` : field.name}
       placeholderTextColor={palette.caption}
       multiline={field.type === 'note'}
@@ -199,7 +254,10 @@ function textBox<F extends Field>({
   );
 }
 
-/** 日期：输入框加「今天」「昨天」；今天按一天从几点开始算（D-286）。 */
+/**
+ * 日期：输入框加「今天」「明天」「昨天」；今天按一天从几点开始算（D-286）。框里也可以写「下周五」「Nov 5」
+ * 「demain」，离开输入框时在本机换成日期（D-344）。
+ */
 function DateInput({
   value,
   onChange,
@@ -210,7 +268,13 @@ function DateInput({
   input,
   chip,
 }: FieldInputContext<FieldOf<'date'>>) {
-  const today = todayNumber(new Date(), useCalendar());
+  const cal = useCalendar();
+  const today = todayNumber(new Date(), cal);
+  const recognise = () => {
+    if (typeof value !== 'string' || /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return;
+    const found = findDatePhrase(value, today, cal)?.value;
+    if (found?.kind === 'date') onChange(found.date);
+  };
   return (
     <View style={styles.dateRow}>
       <TextInput
@@ -218,12 +282,14 @@ function DateInput({
         editable={!disabled}
         value={typeof value === 'string' ? value : ''}
         onChangeText={onChange}
+        onEndEditing={recognise}
         placeholder="YYYY-MM-DD"
         placeholderTextColor={palette.caption}
         style={[input, styles.flex]}
       />
       {[
         [dateOfDayNumber(today), t(locale, 'today')],
+        [dateOfDayNumber(today + 1), t(locale, 'scheduleTomorrow')],
         [dateOfDayNumber(today - 1), t(locale, 'yesterday')],
       ].map(([date, label]) => (
         <Pressable
@@ -591,6 +657,8 @@ export function FieldsForm({
   testPrefix,
   showLabels = true,
   related,
+  onSubmit,
+  autoFocus,
 }: {
   collection: Collection;
   fieldIds: readonly string[];
@@ -607,8 +675,15 @@ export function FieldsForm({
    * 这几种字段存了以后才有值。
    */
   related?: { view: Collection; record: DataRecord | null };
+  /** 快速添加（D-352）：单行文字框按「完成」就添加。 */
+  onSubmit?: (() => void) | undefined;
+  /** 第一个文字框直接弹出键盘（底部弹出的添加框）。 */
+  autoFocus?: boolean | undefined;
 }) {
   const cal = useCalendar();
+  const firstText = fieldIds.find(
+    (id) => collection.fields.find((f) => f.id === id)?.type === 'text',
+  );
   const view = related?.view ?? collection;
   // 公式按表单里现在的值算（D-188）；查找、汇总、上一条用存好的那条记录算出来的值。
   const computed = () => {
@@ -676,6 +751,8 @@ export function FieldsForm({
               disabled={disabled}
               testID={`${testPrefix}-${id}`}
               labeled={showLabels || inline}
+              onSubmit={onSubmit}
+              autoFocus={autoFocus === true && id === firstText}
             />
             {issue ? (
               <Text style={[palette.font('bodyMedium', 13), { color: palette.danger }]}>
@@ -693,6 +770,24 @@ export function useCollection(env: RenderEnv, id: string): Collection | undefine
   return env.config.collections.find((c) => c.id === id);
 }
 
+/**
+ * 按引用字段分组（D-336）：被引用的那张表和它的记录。不是引用字段时 undefined，还没读完时 null。
+ */
+export function useLinkedGroups(
+  env: RenderEnv,
+  view: Collection | undefined,
+  fieldId: string | undefined,
+): LinkedGroups | null | undefined {
+  const field = fieldId ? view?.fields.find((f) => f.id === fieldId) : undefined;
+  const target =
+    field?.type === 'link'
+      ? env.config.collections.find((c) => c.id === field.collectionId)
+      : undefined;
+  const { records } = useComputedRecords(env.config.collections, target, calendarOf(env.config));
+  if (!target) return undefined;
+  return records === null ? null : { collection: target, records, locale: env.locale };
+}
+
 export function openEditor(
   router: ReturnType<typeof useRouter>,
   collectionId: string,
@@ -705,6 +800,18 @@ export function openEditor(
 }
 
 export type RecordListProps = Extract<Component, { type: 'recordList' }>['props'];
+
+/** 点列表里的一条：有 opens 时打开给这条记录用的页面（D-342），否则打开编辑页。 */
+export function openRow(
+  router: ReturnType<typeof useRouter>,
+  props: Pick<RecordListProps, 'opens'>,
+  collectionId: string,
+  recordId: string,
+) {
+  if (props.opens)
+    router.push({ pathname: '/page/[pageId]', params: { pageId: props.opens, record: recordId } });
+  else openEditor(router, collectionId, recordId);
+}
 
 export type Tone = ComponentStyle['tone'];
 
@@ -719,21 +826,155 @@ export function RecordList({
   tone?: Tone;
 }) {
   const { palette, locale } = env;
+  const router = useRouter();
   const { collection, view, loaded, sorted } = useListRecords(props, env);
   const rows = useRecordRows(props, env, tone, collection, view);
+  const linked = useLinkedGroups(env, view, props.groupBy);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   if (!collection || !view || !rows) return null;
-  const shown = sorted.slice(0, props.limit);
-
-  if (loaded && shown.length === 0) {
+  const add = (preset?: Record<string, unknown>) =>
+    env.interactive
+      ? (env.locked ?? (() => openAddHere(router, collection, view, props, preset)))
+      : undefined;
+  // D-347：分段。引用字段要等被引用的表读出来（linked 是 null 时还在读）。
+  if (props.groupBy && linked !== null) {
+    const groups = listGroups(sorted, view, props.groupBy, {
+      locale,
+      now: new Date(),
+      cal: calendarOf(env.config),
+      unit: props.groupUnit,
+      linked: linked ?? undefined,
+      showEmpty: props.showEmpty,
+    });
+    if (loaded && groups.length === 0) return <Empty props={props} env={env} rows={rows} />;
     return (
-      <Card palette={palette} background={rows.background}>
-        <Text style={[palette.font('body', 14), { color: palette.caption }]}>
-          {props.emptyText ?? t(locale, 'noRecords')}
-        </Text>
-      </Card>
+      <View style={{ gap: palette.gap - 4 }}>
+        {groups.map((g) => {
+          const closed = collapsed.has(g.key);
+          const toggle = () =>
+            setCollapsed((s) => {
+              const next = new Set(s);
+              if (closed) next.delete(g.key);
+              else next.add(g.key);
+              return next;
+            });
+          return (
+            <View key={g.key} style={{ gap: 6 }}>
+              <View style={styles.groupHeader}>
+                <Pressable
+                  testID={`group-${g.key}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: !closed }}
+                  accessibilityLabel={`${g.label} ${g.records.length}`}
+                  onPress={toggle}
+                  onLongPress={env.onLongPress}
+                  style={styles.groupTitle}>
+                  <UiIcon
+                    name={closed ? 'chevronRight' : 'chevronDown'}
+                    size={14}
+                    color={palette.muted}
+                  />
+                  <Text
+                    style={[palette.font('bodyBold', 15), { color: palette.text }]}
+                    numberOfLines={1}>
+                    {g.label}
+                  </Text>
+                  <Text style={[palette.font('bodyMedium', 13), { color: palette.caption }]}>
+                    {g.records.length}
+                  </Text>
+                </Pressable>
+                {props.addHere && g.key !== 'overdue' ? (
+                  <Pressable
+                    testID={`group-add-${g.key}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={t(locale, 'groupAdd', { group: g.label })}
+                    onPress={add(g.preset === undefined ? {} : { [props.groupBy!]: g.preset })}
+                    hitSlop={8}
+                    style={styles.groupAdd}>
+                    <UiIcon name="add" size={18} color={palette.primaryText} />
+                  </Pressable>
+                ) : null}
+              </View>
+              {closed || g.records.length === 0 ? null : rows.list(g.records.slice(0, props.limit))}
+            </View>
+          );
+        })}
+      </View>
     );
   }
-  return rows.list(shown);
+  const shown = sorted.slice(0, props.limit);
+  if (loaded && shown.length === 0)
+    return <Empty props={props} env={env} rows={rows} add={add()} />;
+  return props.addHere ? (
+    <View style={{ gap: 6 }}>
+      {rows.list(shown)}
+      <AddHere label={t(locale, 'entryFormAdd')} onPress={add()} palette={palette} />
+    </View>
+  ) : (
+    rows.list(shown)
+  );
+}
+
+function Empty({
+  props,
+  env,
+  rows,
+  add,
+}: {
+  props: RecordListProps;
+  env: RenderEnv;
+  rows: { background: string };
+  add?: (() => void) | undefined;
+}) {
+  const { palette, locale } = env;
+  return (
+    <Card palette={palette} background={rows.background}>
+      <Text style={[palette.font('body', 14), { color: palette.caption }]}>
+        {props.emptyText ?? t(locale, 'noRecords')}
+      </Text>
+      {props.addHere ? (
+        <AddHere label={t(locale, 'entryFormAdd')} onPress={add} palette={palette} />
+      ) : null}
+    </Card>
+  );
+}
+
+/** 列表、月历当天下面的「+ 添加」（D-349）。 */
+export function AddHere({
+  label,
+  onPress,
+  palette,
+  testID = 'list-add-here',
+}: {
+  label: string;
+  onPress: (() => void) | undefined;
+  palette: Palette;
+  testID?: string;
+}) {
+  return (
+    <Pressable testID={testID} accessibilityRole="button" onPress={onPress} style={styles.addHere}>
+      <UiIcon name="add" size={18} color={palette.primaryText} />
+      <Text style={[palette.font('bodyBold', 14), { color: palette.primaryText }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/**
+ * 就地添加（D-349）：打开新记录的表单，预设列表筛选里的「等于」条件（给一条记录用的页面上已经换成这条，
+ * D-342）和这一段、这一天的值。用户补完再保存。
+ */
+export function openAddHere(
+  router: ReturnType<typeof useRouter>,
+  collection: Collection,
+  view: Collection,
+  props: Pick<RecordListProps, 'filter'>,
+  preset: Record<string, unknown> = {},
+) {
+  const prefill = { ...filterPresets(view, props.filter), ...preset };
+  router.push({
+    pathname: '/record/[collectionId]',
+    params: { collectionId: collection.id, prefill: JSON.stringify(prefill) },
+  });
 }
 
 /** 记录列表要显示的记录：筛选、排好序，还没截到 limit 条（看板按栏截，D-313）。 */
@@ -860,7 +1101,7 @@ export function useRecordRows(
       </View>
     );
     const open = env.interactive
-      ? (env.locked ?? (() => openEditor(router, collection.id, r.id)))
+      ? (env.locked ?? (() => openRow(router, props, collection.id, r.id)))
       : undefined;
     if (cards) {
       return (
@@ -992,7 +1233,20 @@ export function RecordForm({
   const [values, setValues] = useState<FormValues>({});
   const [issues, setIssues] = useState<FieldIssue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const cal = useCalendar();
+  // D-344：在本机认出文字里的日期；用户点掉后，这段文字不再认（改了文字再认）。
+  const [dismissed, setDismissed] = useState<string | null>(null);
+  // D-352：底部弹出的添加框开着没有。
+  const [open, setOpen] = useState(false);
   if (!collection) return null;
+  const smart = props.smartDate;
+  const smartField = smart ? collection.fields.find((f) => f.id === smart.to) : undefined;
+  const typed = smart ? values[smart.from] : undefined;
+  const userSet = smart ? values[smart.to] !== undefined && values[smart.to] !== '' : false;
+  const found =
+    smart && smartField && typeof typed === 'string' && typed !== dismissed && !userSet
+      ? smartDateOf(typed, smartField, todayNumber(new Date(), cal), locale, cal)
+      : undefined;
 
   if (props.mode === 'button') {
     return (
@@ -1011,11 +1265,21 @@ export function RecordForm({
   async function submit() {
     if (!collection || !env.interactive) return;
     if (env.locked) return env.locked();
-    const result = await actions.add(collection, values);
+    // D-343：不显示的预设值（"$record" 在画之前已经换成这条记录）；D-344：认出来的日期填进去，文字里去掉。
+    const preset = createInput(collection, props.values, { now: new Date(), cal });
+    const recognised =
+      found && smart
+        ? {
+            [smart.from]: withoutPhrase(typed as string, found.phrase) || (typed as string),
+            [smart.to]: found.input,
+          }
+        : {};
+    const result = await actions.add(collection, { ...preset, ...values, ...recognised });
     if (result.ok) {
       setValues({});
       setIssues([]);
       setMessage(null);
+      setDismissed(null);
     } else if ('full' in result) {
       setMessage(t(locale, 'tableFull'));
     } else {
@@ -1027,8 +1291,9 @@ export function RecordForm({
     }
   }
 
-  return (
-    <Card palette={palette} background={cardColors(palette, tone).background}>
+  const sheet = props.mode === 'sheet';
+  const body = (
+    <>
       <FieldsForm
         collection={collection}
         fieldIds={props.fieldIds}
@@ -1040,7 +1305,29 @@ export function RecordForm({
         disabled={!env.interactive}
         testPrefix={`form-${componentId}`}
         showLabels={false}
+        onSubmit={() => void submit()}
+        autoFocus={sheet}
       />
+      {found ? (
+        <View style={styles.smartDate} testID={`form-${componentId}-smart`}>
+          <Icon name="calendar" size={16} color={palette.primaryText} />
+          <Text style={[palette.font('bodyMedium', 13), styles.flex, { color: palette.text }]}>
+            {t(locale, 'smartDateFound', {
+              text: (typed as string).slice(found.phrase.start, found.phrase.end),
+              value: found.preview,
+            })}
+          </Text>
+          <Pressable
+            testID={`form-${componentId}-smart-dismiss`}
+            accessibilityRole="button"
+            accessibilityLabel={t(locale, 'smartDateDismiss')}
+            hitSlop={12}
+            onPress={() => setDismissed(typed as string)}
+            style={styles.smartDismiss}>
+            <UiIcon name="close" size={16} color={palette.muted} />
+          </Pressable>
+        </View>
+      ) : null}
       {message ? (
         <Text style={[palette.font('bodyMedium', 13), { color: palette.danger }]}>{message}</Text>
       ) : null}
@@ -1052,7 +1339,56 @@ export function RecordForm({
         onLongPress={env.onLongPress}
         disabled={!env.interactive}
       />
-    </Card>
+    </>
+  );
+  if (!sheet) {
+    return (
+      <Card palette={palette} background={cardColors(palette, tone).background}>
+        {body}
+      </Card>
+    );
+  }
+  // D-352：右下角一个圆形的「+」（页面把它放在滚动内容外面，PageView），点了从底部弹出添加框；
+  // 添加以后框留着、文字清空，可以接着写下一条，点外面或「关闭」收起。
+  return (
+    <>
+      <Pressable
+        testID={`form-${componentId}`}
+        accessibilityRole="button"
+        accessibilityLabel={props.submitLabel}
+        onPress={env.interactive ? (env.locked ?? (() => setOpen(true))) : undefined}
+        onLongPress={env.onLongPress}
+        style={[styles.fab, { backgroundColor: palette.primary }]}>
+        <UiIcon name="add" size={28} color={palette.onPrimary} />
+      </Pressable>
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+        <KeyboardAvoidingView
+          style={styles.sheetRoot}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <Pressable
+            testID={`form-${componentId}-backdrop`}
+            accessibilityRole="button"
+            accessibilityLabel={t(locale, 'close')}
+            style={styles.sheetBackdrop}
+            onPress={() => setOpen(false)}
+          />
+          <View
+            testID={`form-${componentId}-sheet`}
+            style={[
+              styles.sheet,
+              {
+                backgroundColor: palette.surface,
+                borderTopLeftRadius: palette.radius,
+                borderTopRightRadius: palette.radius,
+                padding: palette.pad,
+                gap: palette.gap - 4,
+              },
+            ]}>
+            {body}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </>
   );
 }
 
@@ -1093,6 +1429,13 @@ export function Stat({
   const cal = calendarOf(env.config);
   // 查找、汇总、上一条（D-291）按算好的值统计。
   const { view: collection, records } = useComputedRecords(env.config.collections, table, cal);
+  // 按引用字段分组（D-336）要被引用的表的记录；减去另一个合计（D-337）要那张表的记录。
+  const linked = useLinkedGroups(env, collection, props.groupBy);
+  const minus = useComputedRecords(
+    env.config.collections,
+    env.config.collections.find((c) => c.id === props.minus?.collectionId),
+    cal,
+  );
   if (!collection) return null;
   const now = new Date();
   const matched = filterRecords(records ?? [], collection, props.filter, now, cal);
@@ -1115,6 +1458,12 @@ export function Stat({
     sequence
       ? sequenceValue(list, collection, sequence.spec, sequence.ctx)
       : { value: aggregateRecords(list, collection, props.aggregate as Aggregate, props.fieldId) };
+  // 还没读完被减的那张表时先不显示数（和自己的表没读完一样）。
+  const loading = records === null || (props.minus !== undefined && minus.records === null);
+  const minusOf = (value: number | null) =>
+    props.minus && minus.view && minus.records
+      ? minusValue(value, props.minus, minus.view, minus.records, now, cal)
+      : value;
   const text = (v: { value: number | null }) =>
     statText(v.value, props.aggregate, field, env.locale, props.unit);
   const bestText = (v: { best?: number }) =>
@@ -1163,7 +1512,9 @@ export function Stat({
   if (props.groupBy) {
     const noChoice = t(env.locale, 'statNoChoice');
     const groups =
-      records === null ? [] : groupRecords(matched, collection, props.groupBy, noChoice);
+      records === null || linked === null
+        ? []
+        : groupRecords(matched, collection, props.groupBy, noChoice, linked);
     // 和上一段比（D-308）：每个选项和它自己的上一段比。
     const before =
       previous && records !== null
@@ -1173,6 +1524,7 @@ export function Stat({
               collection,
               props.groupBy,
               noChoice,
+              linked ?? undefined,
             ).map((g) => [g.optionId, valueOf(g.records).value]),
           )
         : null;
@@ -1218,10 +1570,11 @@ export function Stat({
       </Card>
     );
   }
-  const v = records === null ? { value: null } : valueOf(matched);
-  const best = records === null ? null : bestText(v);
+  const own = loading ? { value: null } : valueOf(matched);
+  const v = props.minus ? { value: minusOf(own.value) } : own;
+  const best = loading ? null : bestText(v);
   const progress = goalProgress(v);
-  const compareLine = records === null ? null : compareText(v.value);
+  const compareLine = loading ? null : compareText(v.value);
   return (
     <Card palette={palette} background={background} backdrop={backdrop} style={styles.fillCard}>
       {heading}
@@ -1262,6 +1615,33 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
   note: { minHeight: 110, textAlignVertical: 'top' },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  smartDate: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+  groupHeader: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
+  fab: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
+  },
+  sheetRoot: { flex: 1, justifyContent: 'flex-end' },
+  sheetBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.3)' },
+  sheet: { paddingBottom: 28 },
+  groupTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+  groupAdd: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  addHere: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    minHeight: 44,
+  },
+  smartDismiss: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     borderWidth: 1,

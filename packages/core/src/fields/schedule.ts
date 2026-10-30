@@ -15,6 +15,8 @@ const schema = z.strictObject({
   type: z.literal('schedule'),
   default: ScheduleRuleSchema.optional(),
   lastDone: IdSchema.optional(),
+  /** 提前做了算这一次（D-341），待办、家务用；账单不用（提前付了下个月仍要付）。 */
+  countEarly: z.literal(true).optional(),
 });
 
 /**
@@ -48,7 +50,7 @@ export const scheduleField: FieldDefinitionOf<'schedule', typeof schema> = defin
     ];
   },
   ai: {
-    doc: '{default?: Rule, lastDone?: fieldId of a date, datetime or rollup field} (a repeat rule each entry keeps; rule 48)',
+    doc: '{default?: Rule, lastDone?: fieldId of a date, datetime or rollup field, countEarly?: true} (a repeat rule each entry keeps; rule 48; once and countEarly: rule 58; a time on a rule: rule 62)',
   },
   example: {
     id: 'plan',

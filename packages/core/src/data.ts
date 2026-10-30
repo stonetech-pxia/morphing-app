@@ -20,6 +20,7 @@ import {
   scheduleStatus,
   scheduleStatusText,
   type ScheduleDue,
+  type ScheduleOptions,
   type ScheduleStatus,
 } from './schedule';
 import {
@@ -54,6 +55,7 @@ export {
   formatTimestamp,
   localDate,
   localDateTime,
+  normalizeTime,
   type FieldValue,
   type LinkResolver,
 } from './field-values';
@@ -196,8 +198,8 @@ export function recordDay(
   const field = fieldOf(collection, ref);
   // 日程（D-295）落在它的下一次那天。
   if (field?.type === 'schedule') {
-    const status = scheduleStatusOf(record, collection, field, now, cal);
-    return status && dateOfDayNumber(status.next);
+    const next = scheduleStatusOf(record, collection, field, now, cal)?.next;
+    return next === undefined ? undefined : dateOfDayNumber(next);
   }
   const value = recordValue(record, collection, ref, now, cal);
   const day = field && fieldDefinition(field.type).day;
@@ -232,7 +234,19 @@ export function scheduleStatusOf(
     scheduleDoneDays(record, collection, field, now, cal),
     todayNumber(now, cal),
     cal,
+    scheduleOptionsOf(record, field, cal),
   );
+}
+
+/** 日程字段的 countEarly（D-341）从记录创建那天开始数。 */
+export function scheduleOptionsOf(
+  record: DataRecord,
+  field: Extract<Field, { type: 'schedule' }>,
+  cal: Calendar = DEFAULT_CALENDAR,
+): ScheduleOptions {
+  return field.countEarly
+    ? { countEarly: true, since: dayNumber(dayOf(new Date(record.createdAt), cal))! }
+    : {};
 }
 
 /** 一条记录上日程字段做过的日子（天数）：来自 lastDone 指向的字段或汇总（见 scheduleStatusOf）。 */
@@ -427,7 +441,12 @@ export function sortRecords(
   const sortKey = def && fieldDefinition(def.type).sort;
   const key = (r: DataRecord): FieldValue | undefined => {
     if (isSystemField(field)) return r[field];
-    if (def?.type === 'schedule') return scheduleStatusOf(r, collection, def, now, cal)?.next;
+    if (def?.type === 'schedule') {
+      // 同一天的按钟点排（D-346），没有钟点的排在那天最后。
+      const next = scheduleStatusOf(r, collection, def, now, cal)?.next;
+      const time = (readValue(def, r.values[def.id]) as { time?: string } | undefined)?.time;
+      return next === undefined ? undefined : next + (time ? minuteOfDay(time)! / 1440 : 0.9999);
+    }
     const v = recordValue(r, collection, field, now, cal);
     // 有的字段按自己的顺序排（单选按选项顺序）。
     return def && sortKey && v !== undefined ? sortKey(def, v) : v;
@@ -491,30 +510,47 @@ export function groupedAggregate(
   fieldId: string | undefined,
   groupBy: string,
   noChoice: string,
+  linked?: LinkedGroups,
 ): StatGroup[] {
-  return groupRecords(records, collection, groupBy, noChoice).map(({ records: list, ...g }) => ({
-    ...g,
-    value: aggregateRecords(list, collection, aggregate, fieldId),
-  }));
+  return groupRecords(records, collection, groupBy, noChoice, linked).map(
+    ({ records: list, ...g }) => ({
+      ...g,
+      value: aggregateRecords(list, collection, aggregate, fieldId),
+    }),
+  );
+}
+
+/** 按引用字段分组（D-336）时，被引用的那张表和它的记录：每条一组，标题同引用里显示的。 */
+export interface LinkedGroups {
+  collection: Collection;
+  records: readonly DataRecord[];
+  locale: Locale;
 }
 
 /**
- * 按单选字段分组（groupedAggregate 的分组部分）：每组自己算值，例如每个习惯的连续天数（D-284）。
- * 顺序和「未选」一行同 groupedAggregate。
+ * 按单选或引用字段分组（groupedAggregate 的分组部分）：每组自己算值，例如每个习惯的连续天数（D-284）。
+ * 顺序和「未选」一行同 groupedAggregate。引用字段（D-336）要 linked：被引用的表里每条记录一组
+ * （按创建时间从旧到新，没有记录的也列出），没选的、指向已删除记录的算「未选」；没有 linked 时没有组。
  */
 export function groupRecords(
   records: readonly DataRecord[],
   collection: Collection,
   groupBy: string,
   noChoice: string,
+  linked?: LinkedGroups,
 ): (Omit<StatGroup, 'value'> & { records: DataRecord[] })[] {
   const field = fieldOf(collection, groupBy);
-  if (field?.type !== 'choice') return [];
+  const labels = new Map<string, string>();
+  if (field?.type === 'choice') for (const o of field.options) labels.set(o.id, o.label);
+  else if (field?.type === 'link' && linked) {
+    for (const r of [...linked.records].sort((a, b) => a.createdAt - b.createdAt))
+      labels.set(r.id, linkTitle(r, linked.collection, linked.locale));
+  } else return [];
   const buckets = new Map<string | null, DataRecord[]>();
-  for (const o of field.options) buckets.set(o.id, []);
+  for (const id of labels.keys()) buckets.set(id, []);
   for (const r of records) {
     const v = readValue(field, r.values[groupBy]);
-    const key = typeof v === 'string' ? v : null;
+    const key = typeof v === 'string' && labels.has(v) ? v : null;
     buckets.set(key, [...(buckets.get(key) ?? []), r]);
   }
   return [...buckets.entries()].flatMap(([optionId, list]) =>
@@ -523,10 +559,7 @@ export function groupRecords(
       : [
           {
             optionId,
-            label:
-              optionId === null
-                ? noChoice
-                : (field.options.find((o) => o.id === optionId)?.label ?? noChoice),
+            label: optionId === null ? noChoice : labels.get(optionId)!,
             count: list.length,
             records: list,
           },
@@ -621,7 +654,16 @@ export function formatRef(
   if (field?.type === 'schedule') {
     const status = scheduleStatusOf(record, collection, field, now, cal);
     const rule = formatValue(field, record.values[ref], locale);
-    return status ? `${rule} · ${scheduleStatusText(status, todayNumber(now, cal), locale)}` : rule;
+    if (!status) return rule;
+    // 「一次」（D-340）只写日期或状态（明天、11月5日、已完成），不再重复「一次」。
+    const read = readValue(field, record.values[ref]) as { repeat: string; time?: string };
+    const once = read.repeat === 'once';
+    const text = scheduleStatusText(status, todayNumber(now, cal), locale, once);
+    // 「一次」带钟点时跟在日子后面（明天 03:00，D-346）；重复的规则文字里已经有钟点。
+    if (!once) return `${rule} · ${text}`;
+    return read.time && status.next !== undefined
+      ? t(locale, 'scheduleAtTime', { rule: text, time: read.time })
+      : text;
   }
   return field ? formatValue(field, record.values[ref], locale, links) : '';
 }

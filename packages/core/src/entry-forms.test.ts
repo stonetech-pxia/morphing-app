@@ -151,6 +151,11 @@ describe('a new list of a table that has no way to add entries (D-310)', () => {
     });
   });
 
+  it('a list that adds right where it is (addHere, D-349) is already a way to add', () => {
+    const { page } = prepare(base(), addTo('habits-page', list('habits', { addHere: true })));
+    expect(types(page('habits-page').components)).toEqual(['recordList']);
+  });
+
   it('leaves lists that were already there alone, so a form the user removed stays removed', () => {
     const withList = apply(base(), addTo('habits-page', list('habits'), form('habits', ['name'])));
     const { page } = prepare(withList, [

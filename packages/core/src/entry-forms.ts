@@ -6,7 +6,7 @@ import { allComponents, type Component, type Locale, type WorkspaceConfig } from
 // 新用户只能看到「还没有记录」。这时在列表上方补一个「添加」按钮，打开完整的添加页。
 // 只看这次新加的列表：用户以后自己移除了这个按钮，别的修改不会再把它加回来。
 
-/** 能给这张表添加记录的地方：添加表单、新建或打开添加页的按钮、列表每一行的新建、记一笔的快捷操作。 */
+/** 能给这张表添加记录的地方：添加表单、新建或打开添加页的按钮、列表每一行的新建、就地添加的列表、记一笔的快捷操作。 */
 function addsTo(config: WorkspaceConfig, collectionId: string): boolean {
   const inComponent = (c: Component) =>
     (c.type === 'recordForm' && c.props.collectionId === collectionId) ||
@@ -15,7 +15,11 @@ function addsTo(config: WorkspaceConfig, collectionId: string): boolean {
       c.props.action.do !== 'setAll' &&
       c.props.action.collectionId === collectionId) ||
     (c.type === 'recordList' &&
-      (c.props.rowActions ?? []).some((a) => a.do === 'create' && a.collectionId === collectionId));
+      (c.props.rowActions ?? []).some(
+        (a) => a.do === 'create' && a.collectionId === collectionId,
+      )) ||
+    // 就地添加（D-349）的列表自己就能添加。
+    (c.type === 'recordList' && c.props.addHere === true && c.props.collectionId === collectionId);
   return (
     config.pages.some((page) => allComponents(page).some(inComponent)) ||
     config.workflows.some((wf) =>
