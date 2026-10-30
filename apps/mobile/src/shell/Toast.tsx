@@ -22,12 +22,14 @@ export function Toast({ palette, bottom }: { palette: Palette; bottom: number })
       <Text style={[styles.flex, palette.font('bodyMedium', 14), { color: palette.surface }]}>
         {toast.message}
       </Text>
-      {toast.restoreRecordId ? (
+      {toast.restoreRecordId || toast.undo ? (
         <Pressable
           testID="toast-undo"
-          hitSlop={8}
+          accessibilityRole="button"
+          style={styles.action}
           onPress={() => {
-            void actions.restore(toast.restoreRecordId!);
+            if (toast.undo) void actions.undo(toast.undo);
+            else void actions.restore(toast.restoreRecordId!);
             dismiss();
           }}>
           <Text style={[palette.font('bodyBold', 14), { color: palette.surface }]}>
@@ -35,7 +37,11 @@ export function Toast({ palette, bottom }: { palette: Palette; bottom: number })
           </Text>
         </Pressable>
       ) : null}
-      <Pressable onPress={dismiss} hitSlop={8} accessibilityLabel={t(locale, 'close')}>
+      <Pressable
+        onPress={dismiss}
+        style={styles.action}
+        accessibilityRole="button"
+        accessibilityLabel={t(locale, 'close')}>
         <Text style={[palette.font('bodyBold', 14), { color: palette.surface }]}>✕</Text>
       </Pressable>
     </View>
@@ -49,9 +55,12 @@ const styles = StyleSheet.create({
     right: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    gap: 6,
+    paddingLeft: 16,
+    paddingRight: 4,
+    paddingVertical: 4,
   },
+  // 撤销和关闭至少 44 见方，好点。
+  action: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   flex: { flex: 1 },
 });

@@ -114,7 +114,8 @@
           "enableBackgroundRecording": true,
           "enableBackgroundPlayback": false
         }
-      ]
+      ],
+      "@bacons/apple-targets"
     ],
     "experiments": {
       "reactCompiler": true

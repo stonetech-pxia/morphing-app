@@ -7,6 +7,7 @@ import {
   type Component,
   type Field,
   type Locale,
+  type Reminder,
   type WorkspaceConfig,
 } from '../schema';
 import { parseRichText } from '../richtext';
@@ -36,6 +37,10 @@ function sameValue(a: unknown, b: unknown): boolean {
 /** starter：新用户的第一个版本（精简首页 + 工具箱，D-181、D-182）。 */
 /** visaHomeScreen：visa 再把签证照片放到手机桌面（D-271）。 */
 /** habits：一张打卡表（习惯、完成 / 跳过、日期）和显示它的页面（D-284）。 */
+/** oneTap：喝水、工时（开始 / 结束）、行李清单、账单四张表，每张一个列表页面（一键记录操作，D-300）。 */
+/** views：心情、上下班（开始和结束的日期时间）、喝水三张表，每张一个列表页面（D-305–D-308）。 */
+/** boards：习惯 ← 打卡、任务（状态是单选）两组表，习惯和任务各一个列表页面（大圆块和看板，D-311–D-314）。 */
+/** scheduled：植物（日程 + 上次浇水）、习惯（日程）← 打卡三张表，植物和习惯各一个列表页面（按记录排的提醒，D-316–D-318）。 */
 /** linked：互相引用的表（习惯 ← 打卡、工作 ← 工时、客户 ← 订单）和一张加油表，每张一个页面（D-287–D-289）。 */
 export type EvalSetup =
   | 'default'
@@ -46,7 +51,11 @@ export type EvalSetup =
   | 'visaHomeScreen'
   | 'starter'
   | 'habits'
-  | 'linked';
+  | 'linked'
+  | 'oneTap'
+  | 'views'
+  | 'boards'
+  | 'scheduled';
 
 export type OpsPlan = Extract<Plan, { kind: 'ops' }>;
 
@@ -101,6 +110,14 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
     ops.push(...habitOps(locale));
   } else if (setup === 'linked') {
     ops.push(...linkedOps(locale));
+  } else if (setup === 'oneTap') {
+    ops.push(...oneTapOps(locale));
+  } else if (setup === 'views') {
+    ops.push(...viewOps(locale));
+  } else if (setup === 'boards') {
+    ops.push(...boardOps(locale));
+  } else if (setup === 'scheduled') {
+    ops.push(...scheduledOps(locale));
   } else if (setup !== 'default') ops.push({ op: 'installTool', toolId: 'pdf' });
   if (setup === 'pdfBelowFiles') {
     ops.push({ op: 'moveComponent', pageId: 'home', componentId: 'card-pdf', toIndex: 3 });
@@ -170,6 +187,326 @@ function habitOps(locale: Locale): Op[] {
         ],
       },
     },
+  ];
+}
+
+/** 心情、上下班、喝水三张表，每张一个列表页面（名字按语言，ID 都一样）。 */
+function viewOps(locale: Locale): Op[] {
+  const n = {
+    zh: [
+      '心情日记',
+      '心情',
+      '开心',
+      '一般',
+      '难过',
+      '日期',
+      '备注',
+      '上下班',
+      '工作',
+      '上班',
+      '下班',
+      '喝水',
+      '杯数',
+    ],
+    en: [
+      'Mood journal',
+      'Mood',
+      'Happy',
+      'OK',
+      'Sad',
+      'Date',
+      'Note',
+      'Shifts',
+      'Job',
+      'Clock in',
+      'Clock out',
+      'Water',
+      'Cups',
+    ],
+    fr: [
+      'Journal d’humeur',
+      'Humeur',
+      'Content',
+      'Moyen',
+      'Triste',
+      'Date',
+      'Note',
+      'Services',
+      'Travail',
+      'Arrivée',
+      'Départ',
+      'Eau',
+      'Verres',
+    ],
+  }[locale] as string[];
+  const [journal, mood, happy, ok, sad, date, note, shifts, job, clockIn, clockOut, water, cups] =
+    n as [
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+    ];
+  const tables: Collection[] = [
+    {
+      id: 'mood',
+      name: journal,
+      fields: [
+        {
+          id: 'feel',
+          name: mood,
+          type: 'choice',
+          options: [
+            { id: 'happy', label: happy },
+            { id: 'ok', label: ok },
+            { id: 'sad', label: sad },
+          ],
+        },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+        { id: 'note', name: note, type: 'text' },
+      ],
+    },
+    {
+      id: 'shifts',
+      name: shifts,
+      fields: [
+        { id: 'job', name: job, type: 'text' },
+        { id: 'in', name: clockIn, type: 'datetime', default: 'now' },
+        { id: 'out', name: clockOut, type: 'datetime' },
+      ],
+    },
+    {
+      id: 'water',
+      name: water,
+      fields: [
+        { id: 'cups', name: cups, type: 'number' },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+      ],
+    },
+  ];
+  const title = { mood: 'feel', shifts: 'job', water: 'cups' } as const;
+  return tables.flatMap((collection): Op[] => [
+    { op: 'addCollection', collection },
+    {
+      op: 'addPage',
+      page: {
+        id: collection.id,
+        title: collection.name,
+        components: [
+          {
+            id: 'list',
+            type: 'recordList',
+            props: {
+              collectionId: collection.id,
+              display: 'list',
+              titleField: title[collection.id as keyof typeof title],
+              limit: 30,
+            },
+          },
+        ],
+      },
+    },
+  ]);
+}
+
+/** 习惯 ← 打卡、任务两组表；习惯和任务各一个普通列表页面（名字按语言，ID 都一样）。 */
+function boardOps(locale: Locale): Op[] {
+  const n = {
+    zh: [
+      '习惯',
+      '名字',
+      '每天目标',
+      '打卡',
+      '日期',
+      '任务',
+      '标题',
+      '状态',
+      '待办',
+      '进行中',
+      '完成',
+    ],
+    en: [
+      'Habits',
+      'Name',
+      'Daily goal',
+      'Check-ins',
+      'Date',
+      'Tasks',
+      'Title',
+      'Status',
+      'To do',
+      'Doing',
+      'Done',
+    ],
+    fr: [
+      'Habitudes',
+      'Nom',
+      'Objectif du jour',
+      'Pointages',
+      'Date',
+      'Tâches',
+      'Titre',
+      'Statut',
+      'À faire',
+      'En cours',
+      'Terminé',
+    ],
+  }[locale] as string[];
+  const [habits, name, goal, checkins, date, tasks, title, status, todo, doing, done] = n as [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+  const tables: Collection[] = [
+    {
+      id: 'habits',
+      name: habits,
+      fields: [
+        { id: 'name', name, type: 'text' },
+        { id: 'goal', name: goal, type: 'number' },
+      ],
+    },
+    {
+      id: 'checkins',
+      name: checkins,
+      fields: [
+        { id: 'habit', name: habits, type: 'link', collectionId: 'habits' },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+      ],
+    },
+    {
+      id: 'tasks',
+      name: tasks,
+      fields: [
+        { id: 'title', name: title, type: 'text' },
+        {
+          id: 'status',
+          name: status,
+          type: 'choice',
+          options: [
+            { id: 'todo', label: todo },
+            { id: 'doing', label: doing },
+            { id: 'done', label: done },
+          ],
+        },
+        { id: 'due', name: date, type: 'date' },
+      ],
+    },
+  ];
+  const listPage = (collection: Collection, titleField: string): Op => ({
+    op: 'addPage',
+    page: {
+      id: collection.id,
+      title: collection.name,
+      components: [
+        {
+          id: 'list',
+          type: 'recordList',
+          props: { collectionId: collection.id, display: 'list', titleField, limit: 30 },
+        },
+      ],
+    },
+  });
+  return [
+    ...tables.map((collection): Op => ({ op: 'addCollection', collection })),
+    listPage(tables[0]!, 'name'),
+    listPage(tables[2]!, 'title'),
+  ];
+}
+
+/** 有日程字段的植物和习惯表、习惯的打卡表，植物和习惯各一个列表页面（名字按语言，ID 都一样）。 */
+function scheduledOps(locale: Locale): Op[] {
+  const n = {
+    zh: ['植物', '名字', '浇水日程', '上次浇水', '习惯', '日程', '打卡', '日期'],
+    en: ['Plants', 'Name', 'Watering', 'Last watered', 'Habits', 'Schedule', 'Check-ins', 'Date'],
+    fr: [
+      'Plantes',
+      'Nom',
+      'Arrosage',
+      'Dernier arrosage',
+      'Habitudes',
+      'Programme',
+      'Pointages',
+      'Date',
+    ],
+  }[locale] as string[];
+  const [plants, name, watering, watered, habits, plan, checkins, date] = n as [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+  const tables: Collection[] = [
+    {
+      id: 'plants',
+      name: plants,
+      fields: [
+        { id: 'name', name, type: 'text' },
+        {
+          id: 'plan',
+          name: watering,
+          type: 'schedule',
+          default: { repeat: 'interval', every: 7 },
+          lastDone: 'watered',
+        },
+        { id: 'watered', name: watered, type: 'date' },
+      ],
+    },
+    {
+      id: 'habits',
+      name: habits,
+      fields: [
+        { id: 'name', name, type: 'text' },
+        { id: 'plan', name: plan, type: 'schedule', default: { repeat: 'daily' } },
+      ],
+    },
+    {
+      id: 'checkins',
+      name: checkins,
+      fields: [
+        { id: 'habit', name: habits, type: 'link', collectionId: 'habits' },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+      ],
+    },
+  ];
+  const listPage = (collection: Collection): Op => ({
+    op: 'addPage',
+    page: {
+      id: collection.id,
+      title: collection.name,
+      components: [
+        {
+          id: 'list',
+          type: 'recordList',
+          props: { collectionId: collection.id, display: 'list', titleField: 'name', limit: 30 },
+        },
+      ],
+    },
+  });
+  return [
+    ...tables.map((collection): Op => ({ op: 'addCollection', collection })),
+    listPage(tables[0]!),
+    listPage(tables[1]!),
   ];
 }
 
@@ -328,6 +665,115 @@ function linkedOps(locale: Locale): Op[] {
               collectionId: collection.id,
               display: 'list',
               titleField: title(collection),
+              limit: 50,
+            },
+          },
+        ],
+      },
+    },
+  ]);
+}
+
+/** 一键记录操作的四张表和它们的列表页面（三种语言的名字）。 */
+function oneTapOps(locale: Locale): Op[] {
+  const n = {
+    zh: [
+      '喝水',
+      '日期',
+      '杯数',
+      '工时',
+      '开始',
+      '结束',
+      '行李清单',
+      '物品',
+      '已装',
+      '账单',
+      '名称',
+      '金额',
+      '已付',
+    ],
+    en: [
+      'Water',
+      'Date',
+      'Glasses',
+      'Work log',
+      'Start',
+      'End',
+      'Packing list',
+      'Item',
+      'Packed',
+      'Bills',
+      'Name',
+      'Amount',
+      'Paid',
+    ],
+    fr: [
+      'Eau',
+      'Date',
+      'Verres',
+      'Heures',
+      'Début',
+      'Fin',
+      'Valise',
+      'Objet',
+      'Rangé',
+      'Factures',
+      'Nom',
+      'Montant',
+      'Payé',
+    ],
+  }[locale];
+  const tables: Collection[] = [
+    {
+      id: 'water',
+      name: n[0]!,
+      fields: [
+        { id: 'date', name: n[1]!, type: 'date', default: 'today' },
+        { id: 'glasses', name: n[2]!, type: 'number' },
+      ],
+    },
+    {
+      id: 'worklog',
+      name: n[3]!,
+      fields: [
+        { id: 'start', name: n[4]!, type: 'datetime' },
+        { id: 'end', name: n[5]!, type: 'datetime' },
+      ],
+    },
+    {
+      id: 'packing',
+      name: n[6]!,
+      fields: [
+        { id: 'item', name: n[7]!, type: 'text' },
+        { id: 'packed', name: n[8]!, type: 'checkbox' },
+      ],
+    },
+    {
+      id: 'bills',
+      name: n[9]!,
+      fields: [
+        { id: 'name', name: n[10]!, type: 'text' },
+        { id: 'amount', name: n[11]!, type: 'money', currency: locale === 'zh' ? 'CNY' : 'EUR' },
+        { id: 'paid', name: n[12]!, type: 'checkbox' },
+      ],
+    },
+  ];
+  return tables.flatMap((collection): Op[] => [
+    { op: 'addCollection', collection },
+    {
+      op: 'addPage',
+      page: {
+        id: `page-${collection.id}`,
+        title: collection.name,
+        components: [
+          {
+            id: `list-${collection.id}`,
+            type: 'recordList',
+            props: {
+              collectionId: collection.id,
+              display: 'list',
+              titleField:
+                collection.fields.find((f) => f.type === 'text')?.id ?? collection.fields[0]!.id,
               limit: 50,
             },
           },
@@ -4706,6 +5152,242 @@ const SCHEDULE_CASES: readonly EvalCase[] = [
   },
 ];
 
+/** 某张表的记录列表和统计（所有页面里的）。 */
+const componentsOf = (c: WorkspaceConfig, type: string, collectionId: string) =>
+  c.pages.flatMap((p) =>
+    allComponents(p).filter(
+      (x) =>
+        x.type === type && (x.props as { collectionId?: string }).collectionId === collectionId,
+    ),
+  ) as { props: Record<string, unknown> }[];
+
+const hasPeriod = (props: Record<string, unknown>, period: string) =>
+  ((props.filter ?? []) as { op: string; value?: unknown }[]).some(
+    (f) => f.op === 'inPeriod' && f.value === period,
+  );
+
+const VIEW_CASES: readonly EvalCase[] = [
+  {
+    id: 'VW1',
+    input: '心情日记用月历显示，按心情给每天上色',
+    locale: 'zh',
+    setup: 'views',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'mood').some(
+          (x) => x.props.display === 'calendar' && x.props.colorField === 'feel',
+        )
+          ? null
+          : 'expected a calendar recordList of mood colored by feel',
+    },
+  },
+  {
+    id: 'VW1-fr',
+    input: 'Affiche mon journal d’humeur sous forme de calendrier du mois',
+    locale: 'fr',
+    setup: 'views',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'mood').some((x) => x.props.display === 'calendar')
+          ? null
+          : 'expected a calendar recordList of mood',
+    },
+  },
+  {
+    id: 'VW2-en',
+    input: 'In the shifts list, show how long I have been working on a shift that is still open',
+    locale: 'en',
+    setup: 'views',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'shifts').some((x) => {
+          const f = x.props.trailingFormat as { kind?: string; until?: string } | undefined;
+          return x.props.trailingField === 'in' && f?.kind === 'elapsed' && f.until === 'out';
+        })
+          ? null
+          : 'expected trailingField in with trailingFormat elapsed until out',
+    },
+  },
+  {
+    id: 'VW3',
+    input: '喝水页面显示今天的进度，目标 8 杯',
+    locale: 'zh',
+    setup: 'views',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'stat', 'water').some(
+          (x) => x.props.goal === 8 && hasPeriod(x.props, 'today'),
+        )
+          ? null
+          : 'expected a water stat filtered today with goal 8',
+    },
+  },
+  {
+    id: 'VW4',
+    input: '记账页面加一个本月支出，和上月比',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'stat', 'expenses').some(
+          (x) => x.props.compare === 'previous' && hasPeriod(x.props, 'thisMonth'),
+        )
+          ? null
+          : 'expected an expenses stat for thisMonth with compare previous',
+    },
+  },
+];
+
+const isTiles = (x: { props: Record<string, unknown> }) => x.props.display === 'tiles';
+const boardByStatus = (c: WorkspaceConfig) =>
+  componentsOf(c, 'recordList', 'tasks').some(
+    (x) => x.props.display === 'board' && x.props.groupField === 'status',
+  )
+    ? null
+    : 'expected a board recordList of tasks grouped by status';
+
+const BOARD_CASES: readonly EvalCase[] = [
+  {
+    id: 'TB1',
+    input: '习惯做成大圆块，点一下打卡',
+    locale: 'zh',
+    setup: 'boards',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'habits').some(
+          (x) => isTiles(x) && ((x.props.rowActions as unknown[] | undefined)?.length ?? 0) > 0,
+        )
+          ? null
+          : 'expected a tiles recordList of habits with a row action',
+    },
+  },
+  {
+    id: 'TB2-en',
+    input: 'Show my habits as a grid of big circles',
+    locale: 'en',
+    setup: 'boards',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'habits').some(isTiles)
+          ? null
+          : 'expected a tiles recordList of habits',
+    },
+  },
+  {
+    id: 'TB3',
+    input: '任务看板按状态分栏',
+    locale: 'zh',
+    setup: 'boards',
+    mock: false,
+    expect: { kind: 'ops', check: boardByStatus },
+  },
+  {
+    id: 'TB3-fr',
+    input: 'Affiche mes tâches en colonnes par statut, comme un kanban',
+    locale: 'fr',
+    setup: 'boards',
+    mock: false,
+    expect: { kind: 'ops', check: boardByStatus },
+  },
+];
+
+/** 按记录排的提醒（D-316）：表 collectionId 的日程字段 plan、time 对上；extra 再查别的。 */
+const recordReminder =
+  (collectionId: string, time: string, extra?: (r: Reminder) => string | null) =>
+  (c: WorkspaceConfig): string | null => {
+    const found = (c.reminders ?? []).filter(
+      (r) =>
+        r.schedule === 'scheduleField' &&
+        r.collectionId === collectionId &&
+        r.fieldId === 'plan' &&
+        r.time === time &&
+        r.enabled,
+    );
+    if (found.length === 0)
+      return `expected a scheduleField reminder on ${collectionId}.plan at ${time}, got ${JSON.stringify(c.reminders)}`;
+    return extra ? (found.map(extra).find((x) => x === null) ?? extra(found[0]!)) : null;
+  };
+
+const RECORD_REMINDER_CASES: readonly EvalCase[] = [
+  {
+    id: 'RR1',
+    input: '每盆植物到了该浇水的那天晚上 7 点提醒我，通知上加一个「浇好了」按钮',
+    locale: 'zh',
+    setup: 'scheduled',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: recordReminder('plants', '19:00', (r) =>
+        r.done?.do === 'set' && r.done.fieldId === 'watered' && r.done.value === 'today'
+          ? null
+          : `expected done set watered today, got ${JSON.stringify(r.done)}`,
+      ),
+    },
+  },
+  {
+    id: 'RR2-en',
+    input: 'Remind me of each habit at 8pm on its days, but not if I already checked in today',
+    locale: 'en',
+    setup: 'scheduled',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: recordReminder('habits', '20:00', (r) =>
+        r.unless?.collectionId === 'checkins' &&
+        r.unless.within === 'day' &&
+        r.unless.link === 'habit'
+          ? null
+          : `expected unless check-ins within day by link habit, got ${JSON.stringify(r.unless)}`,
+      ),
+    },
+  },
+  {
+    id: 'RR3-fr',
+    input:
+      'Rappelle-moi chaque habitude à 9 h selon son programme, avec un bouton pour me le rappeler plus tard',
+    locale: 'fr',
+    setup: 'scheduled',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: recordReminder('habits', '09:00', (r) =>
+        r.snoozeMinutes !== undefined ? null : 'expected snoozeMinutes',
+      ),
+    },
+  },
+  {
+    id: 'RR4',
+    input: '每个习惯按自己的日程早上 8 点提醒，通知上点「完成」就记一次打卡',
+    locale: 'zh',
+    setup: 'scheduled',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: recordReminder('habits', '08:00', (r) =>
+        r.done?.do === 'create' &&
+        r.done.collectionId === 'checkins' &&
+        r.done.values?.habit === 'row'
+          ? null
+          : `expected done create a check-in with habit row, got ${JSON.stringify(r.done)}`,
+      ),
+    },
+  },
+];
+
 const HOME_SCREEN_CASES: readonly EvalCase[] = [
   {
     id: 'HS1',
@@ -4994,10 +5676,176 @@ const RELATED_CASES: readonly EvalCase[] = [
   },
 ];
 
+type AnyAction = { do: string; [key: string]: unknown };
+
+/** 页面上所有按钮的 action 和记录列表的行按钮（D-300）。 */
+function recordActions(c: WorkspaceConfig): {
+  buttons: AnyAction[];
+  rows: (AnyAction & { list: string })[];
+} {
+  const all = c.pages.flatMap((p) => allComponents(p));
+  return {
+    buttons: all.flatMap((x) =>
+      x.type === 'button' && x.props.action ? [x.props.action as AnyAction] : [],
+    ),
+    rows: all.flatMap((x) =>
+      x.type === 'recordList'
+        ? (x.props.rowActions ?? []).map((a) => ({
+            ...(a as AnyAction),
+            list: x.props.collectionId,
+          }))
+        : [],
+    ),
+  };
+}
+
+const actionCheck =
+  (where: 'buttons' | 'rows', ok: (a: AnyAction & { list?: string }) => boolean, what: string) =>
+  (c: WorkspaceConfig) => {
+    const found = recordActions(c)[where];
+    return found.some(ok) ? null : `expected ${what}, got ${JSON.stringify(found)}`;
+  };
+
+const values = (a: AnyAction) => (a.values ?? {}) as Record<string, unknown>;
+
+const RECORD_ACTION_CASES: readonly EvalCase[] = [
+  {
+    id: 'RA1',
+    input: '首页加一个喝水 +1 按钮',
+    locale: 'zh',
+    setup: 'oneTap',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: actionCheck(
+        'buttons',
+        (a) => a.do === 'create' && a.collectionId === 'water' && values(a).glasses === 1,
+        'a button creating a water entry with glasses 1',
+      ),
+    },
+  },
+  {
+    id: 'RA2',
+    input: '工时列表每行加一个下班按钮，还没下班的才显示',
+    locale: 'zh',
+    setup: 'oneTap',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: actionCheck(
+        'rows',
+        (a) =>
+          a.list === 'worklog' &&
+          a.do === 'set' &&
+          a.fieldId === 'end' &&
+          a.value === 'now' &&
+          ((a.when ?? []) as { field: string; op: string }[]).some(
+            (w) => w.field === 'end' && w.op === 'isEmpty',
+          ),
+        'a row button setting end to now when end is empty',
+      ),
+    },
+  },
+  {
+    id: 'RA3',
+    input: '旅行清单加一个一键清空的按钮，把勾都去掉',
+    locale: 'zh',
+    setup: 'oneTap',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: actionCheck(
+        'buttons',
+        (a) =>
+          a.do === 'setAll' &&
+          a.collectionId === 'packing' &&
+          a.fieldId === 'packed' &&
+          a.value === false,
+        'a setAll button unchecking packed',
+      ),
+    },
+  },
+  {
+    id: 'RA4-en',
+    input: 'Add a Clock in button to the home page that starts a new work log entry now',
+    locale: 'en',
+    setup: 'oneTap',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: actionCheck(
+        'buttons',
+        (a) => a.do === 'create' && a.collectionId === 'worklog' && values(a).start === 'now',
+        'a button creating a work log entry with start now',
+      ),
+    },
+  },
+  {
+    id: 'RA5-fr',
+    input: 'Ajoute un bouton « Payé » sur chaque facture de la liste',
+    locale: 'fr',
+    setup: 'oneTap',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: actionCheck(
+        'rows',
+        (a) =>
+          a.list === 'bills' &&
+          ((a.do === 'set' && a.fieldId === 'paid' && a.value === true) ||
+            (a.do === 'toggle' && a.fieldId === 'paid')),
+        'a row button marking the bill paid',
+      ),
+    },
+  },
+  {
+    id: 'RA6',
+    input: '习惯列表每个习惯旁边加一个「完成」按钮，点一下就记一次今天的打卡',
+    locale: 'zh',
+    setup: 'linked',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: actionCheck(
+        'rows',
+        (a) =>
+          a.list === 'habits' &&
+          a.do === 'create' &&
+          a.collectionId === 'checkins' &&
+          values(a).habit === 'row',
+        'a row button on habits creating a check-in for this row',
+      ),
+    },
+  },
+  {
+    // 文字是用户的内容（D-042）：不能预设一条备注，只能打开表单。
+    id: 'RA7',
+    input: '首页加一个按钮，点一下记一条账单，名称写「房租」',
+    locale: 'zh',
+    setup: 'oneTap',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const bad = recordActions(c).buttons.find(
+          (a) =>
+            a.do === 'create' &&
+            Object.values(values(a)).some((v) => typeof v === 'string' && /房租/.test(v)),
+        );
+        return bad ? `preset text in ${JSON.stringify(bad)}` : null;
+      },
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
   ...SEQUENCE_CASES,
+  ...RECORD_ACTION_CASES,
   ...RELATED_CASES,
   ...SCHEDULE_CASES,
+  ...VIEW_CASES,
+  ...BOARD_CASES,
+  ...RECORD_REMINDER_CASES,
   ...HOME_SCREEN_CASES,
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,

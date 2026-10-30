@@ -32,6 +32,7 @@ import { pickPicture } from '../renderer/pictures';
 import { importSlotFile } from '../renderer/slot-file';
 import type { Palette } from '../renderer/theme';
 import { Button, SectionLabel } from '../renderer/ui';
+import { usePlaceWidget } from '../widgets/usePlaceWidget';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { useEditActions } from './actions';
 import { CAPABILITIES, type StyleKey, type TextField } from './capabilities';
@@ -280,6 +281,7 @@ export function EditSheet({
   const { edit, label } = useEditActions(page);
   const insets = useSafeAreaInsets();
   const [editingText, setEditingText] = useState(false);
+  const widget = usePlaceWidget();
   const component = componentId ? allComponents(page).find((c) => c.id === componentId) : undefined;
 
   function close() {
@@ -479,6 +481,15 @@ export function EditSheet({
                       onPress={() =>
                         apply([{ op: 'setComponentHidden', ...target, hidden: !known.hidden }])
                       }
+                    />
+                  ) : null}
+                  {widget.available ? (
+                    <Chip
+                      palette={palette}
+                      testID="edit-widget"
+                      label={t(locale, widget.isPlaced(id) ? 'widgetRemove' : 'widgetAdd')}
+                      selected={widget.isPlaced(id)}
+                      onPress={() => void widget.toggle(component)}
                     />
                   ) : null}
                   <Chip

@@ -1,6 +1,7 @@
 import { COMPONENTS } from './components';
 import { duplicates, isSystemField, type CheckProblem } from './components/define';
 import { conditionProblems } from './conditions';
+import { componentActionProblems } from './record-ops';
 import { expandCollection, relatedProblems } from './related';
 import type { Registry } from './registry';
 import { reminderProblems } from './reminders';
@@ -207,6 +208,9 @@ export function validateWorkspace(
     for (const c of allComponents(page)) {
       for (const problem of dataComponentProblems(c, page, config, registry))
         componentIssue(c, problem);
+      // 一键记录操作（D-300–D-304）：按钮和记录列表每一行。
+      if (isKnownComponent(c))
+        for (const problem of componentActionProblems(c, config)) componentIssue(c, problem);
     }
   }
 

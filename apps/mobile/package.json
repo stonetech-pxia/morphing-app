@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "license": "AGPL-3.0-only",
-  "main": "expo-router/entry",
+  "main": "index.ts",
   "scripts": {
     "start": "expo start",
     "ios": "expo run:ios",
@@ -58,6 +58,7 @@
     "expo-status-bar": "~58.0.4",
     "expo-symbols": "~58.0.4",
     "expo-system-ui": "~58.0.6",
+    "expo-task-manager": "~58.0.12",
     "expo-video": "~58.0.12",
     "expo-web-browser": "~58.0.6",
     "mammoth": "1.13.0",
@@ -75,6 +76,7 @@
     "zustand": "^5.0.16"
   },
   "devDependencies": {
+    "@bacons/apple-targets": "5.0.0",
     "@testing-library/react-native": "^14.1.0",
     "@types/jest": "30.0.0",
     "@types/react": "~19.3.0",
@@ -100,5 +102,12 @@
     "setupFilesAfterEnv": [
       "<rootDir>/jest.animation-setup.js"
     ]
+  },
+  "expo": {
+    "autolinking": {
+      "exclude": [
+        "@bacons/apple-targets"
+      ]
+    }
   }
 }

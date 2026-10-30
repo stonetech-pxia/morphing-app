@@ -227,16 +227,27 @@ export function scheduleStatusOf(
 ): ScheduleStatus | undefined {
   const rule = readValue(field, record.values[field.id]);
   if (rule === undefined) return undefined;
-  const fromRollup = field.lastDone ? rollupDays.get(record)?.get(field.lastDone) : undefined;
-  const last =
-    !fromRollup && field.lastDone && recordDay(record, collection, field.lastDone, now, cal);
-  const day = last ? dayNumber(last) : undefined;
   return scheduleStatus(
     rule as Parameters<typeof scheduleStatus>[0],
-    fromRollup ?? (day === undefined ? [] : [day]),
+    scheduleDoneDays(record, collection, field, now, cal),
     todayNumber(now, cal),
     cal,
   );
+}
+
+/** 一条记录上日程字段做过的日子（天数）：来自 lastDone 指向的字段或汇总（见 scheduleStatusOf）。 */
+export function scheduleDoneDays(
+  record: DataRecord,
+  collection: Collection,
+  field: Extract<Field, { type: 'schedule' }>,
+  now: Date = new Date(),
+  cal: Calendar = DEFAULT_CALENDAR,
+): readonly number[] {
+  const fromRollup = field.lastDone ? rollupDays.get(record)?.get(field.lastDone) : undefined;
+  if (fromRollup) return fromRollup;
+  const last = field.lastDone && recordDay(record, collection, field.lastDone, now, cal);
+  const day = last ? dayNumber(last) : undefined;
+  return day === undefined ? [] : [day];
 }
 
 /**

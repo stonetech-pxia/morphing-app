@@ -61,6 +61,12 @@ export function reminderWhen(r: Reminder, config: WorkspaceConfig, locale: Local
   }
   const collection = config.collections.find((c) => c.id === r.collectionId);
   const field = collection?.fields.find((f) => f.id === r.fieldId);
+  if (r.schedule === 'scheduleField')
+    return t(locale, 'reminderWhenSchedule', {
+      field: field?.name ?? String(r.fieldId),
+      table: collection?.name ?? String(r.collectionId),
+      time: r.time,
+    });
   return t(locale, 'reminderWhenDate', {
     field: field?.name ?? String(r.fieldId),
     table: collection?.name ?? String(r.collectionId),
@@ -767,6 +773,10 @@ export function describeChange(
           v1: collName(note.collectionId),
         }),
       );
+    } else if (note.kind === 'addedEntryForm') {
+      lines.push(t(ctx.locale, 'describeAddedEntryForm', { table: collName(note.collectionId) }));
+    } else if (note.kind === 'removedRecordActions') {
+      lines.push(t(ctx.locale, 'describeRemovedRecordActions', { n: note.count }));
     } else if (note.kind === 'removedWorkflowLinks') {
       lines.push(
         t(ctx.locale, 'describe_Also_removes_button_s_or_shortcut_s_th_d4dc1', {

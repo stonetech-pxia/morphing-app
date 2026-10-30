@@ -1,0 +1,16 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!-- Morph 的桌面小组件（D-321）。点按、放到桌面后的绑定、跨天的定时都发给它自己（不导出）。 -->
+    <receiver
+      android:name="expo.modules.morphwidgets.MorphWidgetProvider"
+      android:exported="false"
+      android:label="@string/morph_widget_label">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/morph_widget_info" />
+    </receiver>
+  </application>
+</manifest>

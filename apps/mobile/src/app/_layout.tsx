@@ -16,7 +16,6 @@ import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { openDatabaseAsync } from 'expo-sqlite';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -35,8 +34,12 @@ import { PackBridge } from '@/packs/bridge';
 import { expoBridgeFiles, expoPackFs, expoSha256 } from '@/packs/expo-pack-fs';
 import { PackHostProvider } from '@/packs/PackHost';
 import { PackStore } from '@/packs/store';
-import { expoReminders } from '@/reminders/expo-reminders';
-import { useReminderOpen, useReminderSync } from '@/reminders/useReminders';
+import { onReminderAction, reminders } from '@/reminders/background';
+import {
+  useReminderActionFeedback,
+  useReminderOpen,
+  useReminderSync,
+} from '@/reminders/useReminders';
 import { expoFilePlatform } from '@/runtime/expo-platform';
 import { closeButtonOption, stackScreenOptions } from '@/shell/header';
 import { CLAY_FONTS, usePalette } from '@/renderer/theme';
@@ -45,10 +48,14 @@ import { ToolDownloadsProvider } from '@/tool-download/context';
 import { expoToolFs } from '@/tool-download/expo-tool-fs';
 import { createToolDownloads } from '@/tool-download/state';
 import { ToolDownloadStore } from '@/tool-download/store';
-import { SQLiteWorkspaceRepo, migrateDatabase } from '@/storage/sqlite';
+import { openRepo } from '@/storage/open';
+import type { SQLiteWorkspaceRepo } from '@/storage/sqlite';
 import { WorkspaceProvider, useWorkspace } from '@/workspace/context';
 import { createNeedSender, createRemoteAIProvider } from '@/workspace/remote-ai';
 import { createWorkspaceStore, type WorkspaceStore } from '@/workspace/store';
+import { WidgetProvider } from '@/widgets/context';
+import { nativeWidgets } from '@/widgets/native';
+import { WidgetBridge } from '@/widgets/useWidgets';
 
 const locale = getDeviceLocale();
 // 扩展包：只在用户确认后下载，存在 documentDirectory/packs（D-064）。还没定托管地址的扩展包（展平模型，D-274）
@@ -111,9 +118,6 @@ const provider = createAIRouter({
   now: () => new Date(),
 });
 
-// 提醒（D-251）：expo-notifications 的本地通知。频道名跟随界面语言。
-const reminders = expoReminders(t(locale, 'remindersTitle'));
-
 function Centered({ children }: { children: ReactNode }) {
   return <View style={styles.center}>{children}</View>;
 }
@@ -143,6 +147,7 @@ function ThemedStack() {
   // 提醒：配置或记录变了就重排；点提醒只打开页面或快捷操作（D-251）。
   useReminderSync(reminders);
   useReminderOpen(reminders);
+  useReminderActionFeedback(onReminderAction);
   const palette = usePalette(theme);
   const closable = { presentation: 'modal', ...closeButtonOption(palette) } as const;
   return (
@@ -150,6 +155,8 @@ function ThemedStack() {
       <StatusBar style={palette.dark ? 'light' : 'dark'} />
       {/* 手机桌面（D-271）：长按 Morph 图标的菜单跟着配置变；从菜单或桌面图标打开时直接开始那个快捷操作。 */}
       <HomeScreenBridge platform={nativeHomeScreen} />
+      {/* 桌面小组件（D-321–D-323）：取走小组件上点了的操作，配置或记录变了就重算画面。 */}
+      <WidgetBridge platform={nativeWidgets} />
       <Stack screenOptions={stackScreenOptions(palette)}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         {/* AI 修改页不显示标题（D-231），左上角只有「关闭」。 */}
@@ -174,6 +181,10 @@ function ThemedStack() {
         <Stack.Screen name="share" options={closable} />
         <Stack.Screen name="ready/[workflowId]" options={{ ...closable, title: '' }} />
         <Stack.Screen name="table-ready/[collectionId]" options={{ ...closable, title: '' }} />
+        <Stack.Screen
+          name="widget/[componentId]"
+          options={{ headerShown: false, animation: 'none' }}
+        />
         <Stack.Screen
           name="welcome"
           options={{ presentation: 'fullScreenModal', headerShown: false, gestureEnabled: false }}
@@ -204,9 +215,7 @@ export default function RootLayout() {
   useEffect(() => {
     (async () => {
       await aiSettings.getState().load();
-      const db = await openDatabaseAsync('morph.db');
-      await migrateDatabase(db);
-      const repo = new SQLiteWorkspaceRepo(db);
+      const repo = await openRepo();
       // 先把本机下载过的工具注册进来，用到它们的配置才校验得过。
       await toolDownloads.getState().load();
       const created = createWorkspaceStore({
@@ -254,7 +263,9 @@ export default function RootLayout() {
           <PackHostProvider value={packs}>
             <ToolDownloadsProvider value={toolDownloads}>
               <HomeScreenProvider value={nativeHomeScreen}>
-                <RootStack />
+                <WidgetProvider value={nativeWidgets}>
+                  <RootStack />
+                </WidgetProvider>
               </HomeScreenProvider>
             </ToolDownloadsProvider>
           </PackHostProvider>

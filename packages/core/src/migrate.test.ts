@@ -113,6 +113,54 @@ describe('migrateWorkspace', () => {
     const kept = migrateWorkspace(custom, undefined, 20);
     expect(kept.ok && (kept.config as { workflows: unknown[] }).workflows).toEqual([picked]);
   });
+  it('v27 → v28 (reminders per entry, D-316–D-318) only raises the version and keeps reminders', () => {
+    const daily = {
+      id: 'log',
+      title: '记账',
+      enabled: true,
+      schedule: 'daily',
+      time: '09:00',
+      opens: 'page:home',
+    };
+    const previous = {
+      ...workspace('zh', { withPdf: true }),
+      schemaVersion: 27,
+      reminders: [daily],
+    };
+    expect(migrateWorkspace(previous, undefined, 28)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 28 },
+      fromVersion: 27,
+    });
+    expect(prepareSnapshot(previous, registry).ok).toBe(true);
+  });
+  it('v26 → v27 (tiles and board lists, D-311–D-314) only raises the version', () => {
+    const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 26 };
+    expect(migrateWorkspace(previous, undefined, 27)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 27 },
+      fromVersion: 26,
+    });
+    expect(prepareSnapshot(previous, registry).ok).toBe(true);
+  });
+  it('v25 → v26 (calendar list, trailing formats, stat goal and compare, D-305–D-309) only raises the version', () => {
+    const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 25 };
+    expect(migrateWorkspace(previous, undefined, 26)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 26 },
+      fromVersion: 25,
+    });
+    expect(prepareSnapshot(previous, registry).ok).toBe(true);
+  });
+  it('v24 → v25 (one-tap record actions, D-300–D-304) only raises the version', () => {
+    const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 24 };
+    expect(migrateWorkspace(previous, undefined, 25)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 25 },
+      fromVersion: 24,
+    });
+    expect(prepareSnapshot(previous, registry).ok).toBe(true);
+  });
   it('v23 → v24 (schedule fields and the due filter, D-292–D-296) only raises the version', () => {
     const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 23 };
     expect(migrateWorkspace(previous, undefined, 24)).toEqual({
