@@ -539,6 +539,8 @@ export const zh: MessageTable = {
   draftLeave: '离开',
   draftLocked: '这是草稿，应用之后才能用。',
   draftReplyTitle: '改好了，这是改完后的样子',
+  draftReplyHide: '收起',
+  draftReplyShow: '看修改内容',
   draftChatTitle: '修改草稿',
   draftChatClose: '收起',
   draftChatPlaceholder: '再说一句…',

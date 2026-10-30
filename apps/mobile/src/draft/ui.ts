@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 
-// 草稿模式的界面状态（D-190），外壳和推入的页面共用：聊天框开着没有、最新一步的回复关掉没有。
+// 草稿模式的界面状态（D-190），外壳和推入的页面共用：聊天框开着没有、最新一步的回复收起没有。
 
 interface DraftUiState {
   chatOpen: boolean;
-  /** 关掉了回复的那一步（changeRequestId）；最新一步不是它时显示最新一步的回复。 */
+  /** 收起了回复的那一步（changeRequestId）；最新一步不是它时显示最新一步的回复。null = 再打开。 */
   seenStep: number | null;
   setChatOpen(open: boolean): void;
-  markSeen(changeRequestId: number): void;
+  markSeen(changeRequestId: number | null): void;
 }
 
 export const useDraftUi = create<DraftUiState>()((set) => ({

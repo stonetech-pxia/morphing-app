@@ -5948,6 +5948,138 @@ const TODO_BOARD_CASES: readonly EvalCase[] = [
   },
 ];
 
+/** 用 AI 真搭 Todoist 样板时搭错的地方（D-344）和建议的下一步（D-345）。 */
+const TODO_ACCEPT_CASES: readonly EvalCase[] = [
+  {
+    id: 'TD13',
+    input: '帮我记要做的事，有些事每周都要做一次，做完了就排到下一周',
+    locale: 'zh',
+    setup: 'starter',
+    mock: false,
+    // 「完成」按钮不能做过一次就消失（校验会拦，见 record-ops）；这里只要能点完成。
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const table = c.collections.find((t) =>
+          t.fields.some((f) => f.type === 'schedule' && f.lastDone),
+        );
+        if (!table) return 'expected a table with a schedule field that has lastDone';
+        return componentsOf(c, 'recordList', table.id).some(
+          (x) => ((x.props.rowActions ?? []) as unknown[]).length > 0,
+        )
+          ? null
+          : 'expected a done row button on the to-do list';
+      },
+    },
+    next: true,
+  },
+  {
+    id: 'TD14',
+    input: '做一个看板',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'tasks').some(
+          (x) =>
+            x.props.display === 'board' &&
+            ((x.props.filter ?? []) as { field: string; op: string; value?: unknown }[]).some(
+              (f) => f.field === 'plan' && f.op === 'due' && f.value === 'pending',
+            ),
+        )
+          ? null
+          : 'expected a tasks board that filters plan due pending (finished tasks leave)',
+    },
+  },
+  {
+    id: 'TD15',
+    input: '加子任务',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const tasks = c.collections.find((t) => t.id === 'tasks')!;
+        const parent = tasks.fields.find((f) => f.type === 'link' && f.collectionId === 'tasks');
+        if (!parent) return 'expected a parent link on tasks';
+        if (!tasks.fields.some((f) => f.type === 'rollup' && f.collectionId === 'tasks'))
+          return 'expected a subtask count rollup on tasks';
+        const top = c.pages
+          .filter((p) => !p.recordOf)
+          .flatMap((p) => allComponents(p))
+          .filter(
+            (x) =>
+              x.type === 'recordList' &&
+              (x.props as { collectionId?: string }).collectionId === 'tasks',
+          ) as { props: Record<string, unknown> }[];
+        return top.length > 0 &&
+          top.every((x) =>
+            ((x.props.filter ?? []) as { field: string; op: string }[]).some(
+              (f) => f.field === parent.id && f.op === 'isEmpty',
+            ),
+          )
+          ? null
+          : 'expected every top-level tasks list to filter out subtasks (parent isEmpty)';
+      },
+    },
+    next: true,
+  },
+  {
+    id: 'TD16',
+    input: '到点提醒我',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        (c.reminders ?? []).some(
+          (r) =>
+            r.schedule === 'scheduleField' &&
+            r.collectionId === 'tasks' &&
+            r.done?.do === 'create' &&
+            r.done.collectionId === 'completions',
+        )
+          ? null
+          : 'expected a per-entry reminder on tasks whose done logs a completion',
+    },
+  },
+  {
+    id: 'TD17',
+    input:
+      '我想要一个像 Todoist 那样的待办：分项目，打开就看到今天要做的，重复的事做完了自动排到下一次。',
+    locale: 'zh',
+    setup: 'starter',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.collections.some((t) => t.fields.some((f) => f.type === 'schedule' && f.lastDone))
+          ? null
+          : 'expected a tasks table with a schedule field',
+      plan: (p) =>
+        p.suggest?.length ? null : 'expected suggest (after the look turn) for a to-do app',
+    },
+    next: true,
+  },
+  {
+    id: 'TD17-en',
+    input: 'I want a habit tracker',
+    locale: 'en',
+    setup: 'starter',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: () => null,
+      plan: (p) => (p.suggest?.length ? null : 'expected suggest with a next step'),
+    },
+    next: true,
+  },
+];
+
 const HOME_SCREEN_CASES: readonly EvalCase[] = [
   {
     id: 'HS1',
@@ -6410,6 +6542,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...TODO_CASES,
   ...TODO_VIEW_CASES,
   ...TODO_BOARD_CASES,
+  ...TODO_ACCEPT_CASES,
   ...HOME_SCREEN_CASES,
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,
@@ -6504,7 +6637,8 @@ export async function runEvalCase(
       return { outcome: fail(`next “${plan.next}” should only change the look`), plans };
     prepared = prepareOps(prepared.after, second.ops, ctx);
   }
-  return { outcome: judgeEval(c, plan, prepared), plans };
+  // 计划本身的检查（例如建议的下一步，D-345）看最后一轮。
+  return { outcome: judgeEval(c, plans.at(-1)!, prepared), plans };
 }
 
 /** 判定一个计划是否符合用例预期。afterOrIssues 来自 prepareOps。 */

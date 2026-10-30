@@ -53,6 +53,11 @@ export type Plan =
        * 做完后变成一条「接着改」的预设，点一下进草稿。
        */
       next?: string;
+      /**
+       * AI 建议的下一步（D-345）：这个 App 接下来常加的一两样（功能或外观都行），界面语言的短句，
+       * 在 AI 修改页显示成可以点的句子，点了填进输入框。不替用户做事，只建议改 App。
+       */
+      suggest?: string[];
     }
   | { kind: 'restorePrevious' }
   | { kind: 'reject'; reason: RejectReason; message: string; examples: string[] };
@@ -64,6 +69,7 @@ export const PlanSchema: z.ZodType<Plan> = z.discriminatedUnion('kind', [
     homeEntry: z.boolean().optional(),
     notes: z.array(z.string().min(1).max(200)).max(4).optional(),
     next: z.string().min(1).max(200).optional(),
+    suggest: z.array(z.string().min(1).max(80)).max(2).optional(),
   }),
   z.strictObject({ kind: z.literal('restorePrevious') }),
   z.strictObject({

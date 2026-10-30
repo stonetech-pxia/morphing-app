@@ -65,6 +65,7 @@ export function ChangeScreen() {
   const busy = useWorkspace((s) => s.busy);
   const change = useWorkspace((s) => s.change);
   const next = useWorkspace((s) => s.next);
+  const suggest = useWorkspace((s) => s.suggest);
   const afterApply = useAfterApply();
   const openDraft = useWorkspace((s) => s.openDraft);
   const deleteDraft = useWorkspace((s) => s.deleteDraft);
@@ -434,6 +435,16 @@ export function ChangeScreen() {
                 onPress={() => setInput(next)}
               />
             ) : null}
+            {/* AI 建议的下一步（D-345）：上一次修改时 AI 给的，点了填进输入框。 */}
+            {suggest.map((text, i) => (
+              <Chip
+                key={text}
+                testID={`change-suggest-${i}`}
+                label={text}
+                palette={palette}
+                onPress={() => setInput(text)}
+              />
+            ))}
             {about ? null : (
               <Chip
                 testID="change-pick-style"

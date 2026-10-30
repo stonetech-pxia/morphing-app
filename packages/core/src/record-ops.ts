@@ -238,9 +238,20 @@ export function componentActionProblems(
       rowOf: table,
       ...(recordOf ? { recordOf } : {}),
     };
+    // 写的是日程的「上次完成」时，「为空才显示」会让按钮做过一次就消失，重复的事下次没法完成。
+    const written = a.do === 'set' ? a.fieldId : undefined;
+    const schedule =
+      written !== undefined && (a.when ?? []).some((w) => w.field === written && w.op === 'isEmpty')
+        ? table.fields.find((f) => f.type === 'schedule' && f.lastDone === written)
+        : undefined;
     return [
       ...recordActionProblems(a, config, where),
       ...conditionProblems(a.when, view, recordOf).map((x) => `${where.label} when: ${x}`),
+      ...(schedule
+        ? [
+            `${where.label}: ${written} is the last-done date of ${schedule.id}, so "when ${written} is empty" hides the button for good after the first time and a repeating entry can never be done again; drop the when (the schedule already shows what is due)`,
+          ]
+        : []),
     ];
   });
 }

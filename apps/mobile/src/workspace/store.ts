@@ -1,7 +1,7 @@
 import { type WorkspaceConfig } from '@morph/core';
 import { createStore } from 'zustand/vanilla';
 
-import { NEXT_META_KEY, createAIChange } from './store/ai-change';
+import { NEXT_META_KEY, SUGGEST_META_KEY, createAIChange, parseSuggest } from './store/ai-change';
 import { createDraft } from './store/draft';
 import { createEditing } from './store/editing';
 import { createKernel } from './store/kernel';
@@ -70,12 +70,16 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       draft: null,
       draftNotice: null,
       next: null,
+      suggest: [],
 
       async boot() {
         await revisions.bootHead();
         if (get().status !== 'ready') return;
         await draft.loadDraft();
-        set({ next: (await repo.getMeta(NEXT_META_KEY)) || null });
+        set({
+          next: (await repo.getMeta(NEXT_META_KEY)) || null,
+          suggest: parseSuggest(await repo.getMeta(SUGGEST_META_KEY)),
+        });
       },
 
       ...revisions.actions,

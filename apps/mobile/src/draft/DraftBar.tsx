@@ -37,8 +37,13 @@ export function DraftBar({ palette, bottom }: { palette: Palette; bottom: number
   const stepBack = useWorkspace((s) => s.stepBack);
   const closeDraft = useWorkspace((s) => s.closeDraft);
   const setChatOpen = useDraftUi((s) => s.setChatOpen);
+  const chatOpen = useDraftUi((s) => s.chatOpen);
+  const seenStep = useDraftUi((s) => s.seenStep);
+  const markSeen = useDraftUi((s) => s.markSeen);
   const apply = useApplyDraft();
   if (!draft?.open) return null;
+  const last = draft.steps.at(-1)!;
+  const replyShown = !chatOpen && seenStep !== last.changeRequestId;
   const canStepBack = draft.steps.length > 1;
 
   const button = (
@@ -71,8 +76,34 @@ export function DraftBar({ palette, bottom }: { palette: Palette; bottom: number
 
   return (
     <>
+      {/* 修改内容显示时界面淡下去，点一下收起（收起后不再淡化）。 */}
+      {replyShown ? (
+        <Pressable
+          testID="draft-dim"
+          accessibilityLabel={t(locale, 'draftReplyHide')}
+          style={[StyleSheet.absoluteFill, styles.dim]}
+          onPress={() => markSeen(last.changeRequestId)}
+        />
+      ) : null}
       <View pointerEvents="box-none" style={[styles.wrap, { bottom }]}>
-        <DraftReply draft={draft} palette={palette} />
+        {replyShown ? (
+          <DraftReply draft={draft} palette={palette} />
+        ) : chatOpen ? null : (
+          <Pressable
+            testID="draft-reply-show"
+            accessibilityRole="button"
+            onPress={() => markSeen(null)}
+            style={({ pressed }) => [
+              styles.show,
+              palette.cardStyle(palette.surface),
+              { borderColor: palette.border, borderRadius: 999 },
+              pressed && { opacity: 0.7 },
+            ]}>
+            <Text style={[palette.font('bodyBold', 13), { color: palette.primaryText }]}>
+              {t(locale, 'draftReplyShow')}
+            </Text>
+          </Pressable>
+        )}
         <View
           testID="draft-bar"
           style={[
@@ -118,14 +149,11 @@ function addedWorkflow(draft: Draft, index: number): Workflow | undefined {
   return id ? step.config.workflows.find((w) => w.id === id) : undefined;
 }
 
-/** 最新一步的回复：改了什么（新做的快捷操作列出步骤，一条一条长出来）和 AI 的说明。可以关掉。 */
+/** 最新一步的回复：改了什么（新做的快捷操作列出步骤，一条一条长出来）和 AI 的说明。可以收起、再打开。 */
 function DraftReply({ draft, palette }: { draft: Draft; palette: Palette }) {
   const { locale } = useWorkspaceContext();
-  const seenStep = useDraftUi((s) => s.seenStep);
   const markSeen = useDraftUi((s) => s.markSeen);
-  const chatOpen = useDraftUi((s) => s.chatOpen);
   const last = draft.steps.at(-1)!;
-  if (chatOpen || seenStep === last.changeRequestId) return null;
   return (
     <View
       testID="draft-reply"
@@ -139,11 +167,13 @@ function DraftReply({ draft, palette }: { draft: Draft; palette: Palette }) {
           {t(locale, 'draftReplyTitle')}
         </Text>
         <Pressable
-          testID="draft-reply-close"
-          accessibilityLabel={t(locale, 'close')}
+          testID="draft-reply-hide"
+          accessibilityRole="button"
           hitSlop={10}
           onPress={() => markSeen(last.changeRequestId)}>
-          <Text style={[palette.font('bodyBold', 14), { color: palette.muted }]}>✕</Text>
+          <Text style={[palette.font('bodyBold', 14), { color: palette.primaryText }]}>
+            {t(locale, 'draftReplyHide')}
+          </Text>
         </Pressable>
       </View>
       <StepReply draft={draft} index={draft.steps.length - 1} palette={palette} />
@@ -436,6 +466,8 @@ const styles = StyleSheet.create({
     minWidth: 68,
   },
   reply: { alignSelf: 'stretch', gap: 6 },
+  dim: { backgroundColor: 'rgba(0,0,0,0.35)' },
+  show: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 14, paddingVertical: 7 },
   replyHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stepReply: { gap: 5 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 8 },
