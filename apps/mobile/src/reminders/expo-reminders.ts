@@ -150,6 +150,11 @@ function triggerOf(n: PlannedNotification): SchedulableNotificationTriggerInput 
         };
 }
 
+/** 通知里记着排它时的全部设置：下次重排时一样就不动它（D-319）。 */
+const PLAN_KEY = 'morphPlan';
+const planOf = (n: PlannedNotification) =>
+  JSON.stringify([n.title, n.body, n.trigger, n.opens, n.recordId ?? null, n.buttons ?? null]);
+
 function schedule(n: PlannedNotification) {
   return scheduleNotificationAsync({
     identifier: n.id,
@@ -158,6 +163,7 @@ function schedule(n: PlannedNotification) {
       body: n.body,
       data: {
         [OPENS_KEY]: n.opens,
+        [PLAN_KEY]: planOf(n),
         ...(n.recordId ? { [RECORD_KEY]: { reminderId: n.reminderId, recordId: n.recordId } } : {}),
       },
       ...(n.buttons ? { categoryIdentifier: categoryOf(n.buttons) } : {}),
@@ -181,11 +187,17 @@ export function expoReminders(channelName: string): NotificationPlatform {
     async replaceAll(planned) {
       await ensureChannel(channelName);
       // Morph 只用 expo-notifications 排提醒（长任务的进度通知走 morph-background，不受影响）。
-      // 还在等的稍后提醒是用户点出来的，保留（D-318）。
+      // 按通知 ID 做差（D-319）：只取消不再要的、只排新的或设置变了的（同一个 ID 再排就是替换）。每一条都要
+      // 过一次桥，App 在后台时随时会被挂起；这样中途停下，还要的提醒一条也不会少。先取消再排，免得新旧加起来
+      // 超过 iOS 的 64 条被系统丢掉。还在等的稍后提醒是用户点出来的，保留（D-318）。
+      const wanted = new Set(planned.map((n) => n.id));
+      const existing = new Map<string, unknown>();
       for (const n of await getAllScheduledNotificationsAsync())
-        if (!n.identifier.startsWith(SNOOZE_PREFIX))
-          await cancelScheduledNotificationAsync(n.identifier);
-      for (const n of planned) await schedule(n);
+        existing.set(n.identifier, (n.content.data as Record<string, unknown> | null)?.[PLAN_KEY]);
+      for (const id of existing.keys())
+        if (!wanted.has(id) && !id.startsWith(SNOOZE_PREFIX))
+          await cancelScheduledNotificationAsync(id);
+      for (const n of planned) if (existing.get(n.id) !== planOf(n)) await schedule(n);
     },
     async snoozed() {
       return (await getAllScheduledNotificationsAsync()).filter((n) =>
