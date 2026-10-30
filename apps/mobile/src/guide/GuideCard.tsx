@@ -51,7 +51,7 @@ export function GuideCard({ palette }: { palette: Palette }) {
         }
         await setStage('done');
         const target = pageTarget(result.focusPageId);
-        if (result.step.config.shell.nav.includes(target)) selectTab(target);
+        if (result.step.config.nav.bar.includes(target)) selectTab(target);
         else router.push({ pathname: '/page/[pageId]', params: { pageId: result.focusPageId } });
       } finally {
         setBusy(false);

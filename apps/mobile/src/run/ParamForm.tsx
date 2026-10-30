@@ -290,7 +290,7 @@ function CollectionInput({
   palette: Palette;
   testID: string;
 }) {
-  const collections = useWorkspace((s) => s.config?.collections ?? []);
+  const collections = useWorkspace((s) => s.config?.data.tables ?? []);
   return (
     <View style={styles.wrap}>
       {collections.map((c) => (

@@ -1,7 +1,6 @@
 import {
   appConfigFile,
   appConfigFileName,
-  CollectionSchema,
   LAYOUT_STORE_KEY,
   layoutCount,
   layoutStoreFile,
@@ -27,6 +26,7 @@ import { Card, PageTitle, Pill, SectionLabel } from '@/renderer/ui';
 import { usePalette } from '@/renderer/theme';
 import type { StoredRecord } from '@/storage/types';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { revisionTables } from '@/workspace/revision-tables';
 
 /**
  * 「设置 → 数据」：用户记录的管理页，由内核提供，AI 不能修改。
@@ -56,18 +56,14 @@ export default function DataRoute() {
       // 已移出界面的数据表：从历史版本里找回它的结构（版本只追加、不删除）。
       const missing = new Set(
         [...rows.map((r) => r.collectionId), ...deletedRows.map((r) => r.collectionId)].filter(
-          (id) => !config.collections.some((c) => c.id === id),
+          (id) => !config.data.tables.some((c) => c.id === id),
         ),
       );
       const found = new Map<string, Collection>();
       if (missing.size > 0) {
         for (const rev of await repo.listRevisions(1000)) {
-          const list = (rev.config as { collections?: unknown[] } | null)?.collections ?? [];
-          for (const raw of list) {
-            const parsed = CollectionSchema.safeParse(raw);
-            if (parsed.success && missing.has(parsed.data.id) && !found.has(parsed.data.id)) {
-              found.set(parsed.data.id, parsed.data);
-            }
+          for (const table of revisionTables(rev.config)) {
+            if (missing.has(table.id) && !found.has(table.id)) found.set(table.id, table);
           }
         }
       }
@@ -85,7 +81,7 @@ export default function DataRoute() {
       // 超过保留期、但还没到下次启动清除的记录不再显示。
       const cutoff = Date.now() - RECORD_LIMITS.deletedRetentionDays * 24 * 60 * 60 * 1000;
       setDeleted(deletedRows.filter((r) => r.deletedAt! >= cutoff));
-      setKnown(new Map([...found, ...config.collections.map((c) => [c.id, c] as const)]));
+      setKnown(new Map([...found, ...config.data.tables.map((c) => [c.id, c] as const)]));
       setLayouts(layoutCount(parseLayoutStore(await repo.getMeta(LAYOUT_STORE_KEY))));
     })();
     return () => {
@@ -97,7 +93,7 @@ export default function DataRoute() {
     // 查找、汇总、上一条导出算出来的值（D-291）。
     const { view, records } = await loadComputedRecords(
       (id) => repo.listRecords(id),
-      config.collections,
+      config.data.tables,
       collection,
       new Date(),
       calendarOf(config),
@@ -106,7 +102,7 @@ export default function DataRoute() {
     // 引用字段导出被引用记录的标题（D-250）。
     const links = await loadLinkResolver(
       (id) => repo.listRecords(id),
-      config.collections,
+      config.data.tables,
       linkedCollectionIds(view),
       locale,
     );
@@ -206,7 +202,7 @@ export default function DataRoute() {
       </Card>
 
       <SectionLabel palette={palette}>{t(locale, 'dataTables')}</SectionLabel>
-      {config.collections.map((c) => (
+      {config.data.tables.map((c) => (
         <Card key={c.id} palette={palette} testID={`table-${c.id}`}>
           <Text style={[palette.font('title', 16), { color: palette.text }]}>{c.name}</Text>
           <Text style={caption}>{t(locale, 'recordCount', { count: counts.get(c.id) ?? 0 })}</Text>

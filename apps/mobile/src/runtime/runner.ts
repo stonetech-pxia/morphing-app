@@ -142,7 +142,7 @@ async function keepAlive(ctx: RunContext) {
 }
 
 /** 保存的文件授权给谁：工具自带的工作流给工具，用户自己的工作流给它自己。 */
-export const granteeOf = (workflow: Workflow) => workflow.toolId ?? `workflow:${workflow.id}`;
+export const granteeOf = (workflow: Workflow) => workflow.package ?? `workflow:${workflow.id}`;
 
 /**
  * 这一步在这台设备上不需要扩展包（D-085–D-087）：系统能识别这种语言；系统能找边，
@@ -321,7 +321,7 @@ export async function startRun(ctx: RunContext): Promise<Run> {
     record: {
       start: () =>
         ctx.repo.startToolRun({
-          toolId: ctx.workflow.toolId ?? 'workflow',
+          toolId: ctx.workflow.package ?? 'workflow',
           workflowId: ctx.workflow.id,
           revisionId: ctx.revisionId,
         }),

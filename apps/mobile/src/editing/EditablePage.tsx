@@ -38,7 +38,7 @@ export function EditablePage({
   const editing = useWorkspace((s) => (s.editing?.pageId === page.id ? s.editing : null));
   const draft = editing?.config;
   const startEditing = useWorkspace((s) => s.startEditing);
-  const shown = draft?.pages.find((p) => p.id === page.id) ?? page;
+  const shown = draft?.containers.pages.find((p) => p.id === page.id) ?? page;
   const { edit, finish, cancel } = useEditActions(shown);
   const [selected, setSelected] = useState<string | null>(null);
   const [sheetId, setSheetId] = useState<string | null>(null);

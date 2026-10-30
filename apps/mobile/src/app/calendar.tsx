@@ -24,12 +24,12 @@ export default function CalendarRoute() {
 
   const setDayStart = (hour: number) =>
     change(
-      [{ op: 'setCalendar', dayStartHour: hour === 0 ? null : hour }],
+      [{ op: 'updateData', calendar: { dayStartHour: hour === 0 ? null : hour } }],
       t(locale, 'describeDayStart', { hour }),
     );
   const setWeekStart = (weekStart: Calendar['weekStart']) =>
     change(
-      [{ op: 'setCalendar', weekStart: weekStart === 'monday' ? null : weekStart }],
+      [{ op: 'updateData', calendar: { weekStart: weekStart === 'monday' ? null : weekStart } }],
       t(locale, weekStart === 'sunday' ? 'describeWeekStartSunday' : 'describeWeekStartMonday'),
     );
 

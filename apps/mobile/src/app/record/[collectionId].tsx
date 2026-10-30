@@ -23,9 +23,9 @@ export default function RecordRoute() {
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
   const actions = useRecordActions();
-  const collection = config.collections.find((c) => c.id === collectionId);
+  const collection = config.data.tables.find((c) => c.id === collectionId);
   // 查找、汇总、上一条（D-291）：显示这条记录存好以后算出来的值。
-  const computed = useComputedRecords(config.collections, collection, useCalendar());
+  const computed = useComputedRecords(config.data.tables, collection, useCalendar());
   const [record, setRecord] = useState<DataRecord | null | undefined>(recordId ? undefined : null);
   const [values, setValues] = useState<Record<string, unknown>>(() =>
     !recordId && prefill && collection ? prefillFormValues(collection, prefill) : {},

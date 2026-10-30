@@ -1,13 +1,14 @@
 import {
-  PlanSchema,
-  RECORD_LIMITS,
   createDefaultWorkspace,
   describeRestore,
   homeEntryOps,
+  migrateWorkspace,
+  type Op,
+  PlanSchema,
   prepareOps,
   prepareSnapshot,
+  RECORD_LIMITS,
   workflowsWithoutEntry,
-  type Op,
   type WorkspaceConfig,
 } from '@morph/core';
 
@@ -124,9 +125,10 @@ export function createRevisions(k: Kernel) {
     // 这个版本用到了本机没有的下载工具（换了手机、删了下载的内容）：先下载才能恢复（D-177）。
     // 旧版本（schemaVersion < 34）先升级，再看 packages。
     const migrated = target ? migrateWorkspace(target.config) : null;
-    const missing = (migrated?.ok ? migrated.config.packages : [])
-      .map((p) => p.id)
-      .filter((id) => !registry.tools.has(id));
+    const packages = migrated?.ok
+      ? ((migrated.config as { packages?: { id: string }[] }).packages ?? [])
+      : [];
+    const missing = packages.map((p) => p.id).filter((id) => !registry.tools.has(id));
     if (target && missing.length > 0) {
       const names = missing.map((id) => deps.toolName?.(id) ?? id).join(msg('listSeparator'));
       return { kind: 'invalid', issues: [msg('restoreNeedsTool', { names })] };

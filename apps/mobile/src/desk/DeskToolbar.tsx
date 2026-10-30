@@ -58,7 +58,7 @@ export function toolEntries(
   return groups.map((g) => ({
     title: g.title ?? (g.id ? t(locale, GROUP_TITLE[g.id]) : ''),
     entries: g.items.flatMap((item, i): ToolEntry[] => {
-      if ('action' in item) {
+      if (typeof item === 'object') {
         const action = registry.actions.get(item.action);
         if (!action) return [];
         const preset = item.preset ? action.presets?.find((p) => p.id === item.preset) : undefined;
@@ -78,7 +78,7 @@ export function toolEntries(
           },
         ];
       }
-      const workflow = findWorkflow(workflows, item.workflowId, locale);
+      const workflow = findWorkflow(workflows, item, locale);
       if (!workflow) return [];
       return [
         {
@@ -177,9 +177,9 @@ export function DeskToolbar({
 const toolTestId = (entry: ToolEntry) =>
   entry.room
     ? `room-${entry.room}`
-    : entry.item && 'action' in entry.item
+    : typeof entry.item === 'object'
       ? entry.item.action
-      : (entry.item?.workflowId ?? entry.key);
+      : (entry.item ?? entry.key);
 
 const styles = StyleSheet.create({
   row: { paddingHorizontal: 8, paddingVertical: 6, alignItems: 'flex-start' },

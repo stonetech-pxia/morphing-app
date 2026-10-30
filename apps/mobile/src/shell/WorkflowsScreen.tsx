@@ -1,15 +1,16 @@
 import {
-  localize,
-  QUICK_ACTION_KINDS,
-  QUICK_ACTION_CATEGORIES,
   builtInWorkflows,
-  presetById,
-  workflowKinds,
-  shareFit,
-  type QuickActionKind,
   type Locale,
+  localize,
+  presetById,
+  QUICK_ACTION_CATEGORIES,
+  QUICK_ACTION_KINDS,
+  type QuickActionKind,
+  quickActionsOf,
   type Registry,
+  shareFit,
   type Workflow,
+  workflowKinds,
 } from '@morph/core';
 
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -88,12 +89,12 @@ export function WorkflowsScreen({
     }, [repo]),
   );
   const inCategory = (w: Workflow) => !kind || workflowKinds(w).includes(kind);
-  const builtIn = builtInWorkflows(config.workflows, locale);
+  const builtIn = builtInWorkflows(quickActionsOf(config), locale);
   // 没用过的按：自己的、内设的、工具带的。
   const all = [
-    ...config.workflows.filter((w) => !w.toolId),
+    ...quickActionsOf(config).filter((w) => !w.package),
     ...builtIn,
-    ...config.workflows.filter((w) => w.toolId),
+    ...quickActionsOf(config).filter((w) => w.package),
   ]
     .filter(inCategory)
     .sort((a, b) => {
@@ -135,9 +136,9 @@ export function WorkflowsScreen({
     if (!blocked()) router.push({ pathname: '/workflow/[id]', params: { id: wf.id } });
   };
   const row = (wf: Workflow) => {
-    const preset = builtIn.includes(wf) ? presetById(wf.presetId!) : undefined;
-    const toolName = wf.toolId
-      ? (localize(registry.tools.get(wf.toolId)?.name, locale) ?? wf.toolId)
+    const preset = builtIn.includes(wf) ? presetById(wf.preset!) : undefined;
+    const toolName = wf.package
+      ? (localize(registry.tools.get(wf.package)?.name, locale) ?? wf.package)
       : undefined;
     // 内设的有一句说明，就不再列步骤（说明里已经讲了这几步）。
     const description = preset && localize(preset.description, locale);

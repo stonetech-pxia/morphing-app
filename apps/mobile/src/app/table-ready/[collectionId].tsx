@@ -13,7 +13,7 @@ export default function TableReadyRoute() {
   const { locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
-  const collection = config.collections.find((c) => c.id === collectionId);
+  const collection = config.data.tables.find((c) => c.id === collectionId);
   if (!collection) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>

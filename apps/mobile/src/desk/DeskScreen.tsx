@@ -1,19 +1,20 @@
 import {
+  type AskRequest,
   calendarOf,
   canRedo,
   canUndo,
   currentFiles,
-  deskKindOf,
-  deskToolAsks,
-  deskToolWorkflow,
-  deskToolbar,
-  initialParams,
-  localize,
-  resolveDeskLayout,
-  type AskRequest,
   type Desk,
   type DeskFile,
+  deskKindOf,
   type DeskStep,
+  deskToolAsks,
+  deskToolbar,
+  deskToolWorkflow,
+  initialParams,
+  localize,
+  quickActionsOf,
+  resolveDeskLayout,
   type RunEvent,
   type Workflow,
 } from '@morph/core';
@@ -132,7 +133,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     };
   }, [files, deskId]);
 
-  const layout = useMemo(() => resolveDeskLayout(config.desk), [config.desk]);
+  const layout = useMemo(() => resolveDeskLayout(config.containers.desk), [config.containers.desk]);
   const list = desk && desk !== 'gone' ? currentFiles(desk) : [];
   const shown = list.find((f) => f.id === shownId) ?? list[0] ?? null;
   const kind = shown ? deskKindOf(shown) : 'other';
@@ -141,15 +142,15 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   const tools = useMemo(
     () =>
       toolEntries(
-        deskToolbar(kind, layout.tools, registry, config.workflows, locale),
+        deskToolbar(kind, layout.tools, registry, quickActionsOf(config), locale),
         targets,
         registry,
-        config.workflows,
+        quickActionsOf(config),
         locale,
       ),
     // targets 跟着 list 和 kind 变。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [kind, layout.tools, registry, config.workflows, locale, list],
+    [kind, layout.tools, registry, config.tools, locale, list],
   );
   const groups = useMemo(() => [...tools, roomEntries(locale)], [tools, locale]);
 
@@ -228,8 +229,8 @@ export function DeskScreen({ deskId }: { deskId: string }) {
       now: () => new Date(),
       newId: newAssetId,
       ui: host.ui,
-      collections: config.collections,
-      calendar: calendarOf({ calendar: config.calendar }),
+      collections: config.data.tables,
+      calendar: calendarOf(config),
       packs: host.packs ?? null,
       ...(host.askParams ? { askParams: host.askParams } : {}),
       ...(host.ensurePack ? { ensurePack: host.ensurePack } : {}),
@@ -289,7 +290,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
       return;
     }
     const item = entry.item;
-    if (!item || !('action' in item)) return;
+    if (typeof item !== 'object') return;
     const action = registry.actions.get(item.action)!;
     const preset = item.preset ? action.presets?.find((p) => p.id === item.preset) : undefined;
     const params = preset ? { ...preset.values } : initialParams(action);

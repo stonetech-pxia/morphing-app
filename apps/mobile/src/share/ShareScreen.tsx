@@ -1,9 +1,10 @@
 import {
-  localize,
-  mediaKindOf,
-  sharedSizeProblem,
   type IconName,
+  localize,
   type MediaKind,
+  mediaKindOf,
+  quickActionsOf,
+  sharedSizeProblem,
   type ShareFit,
   type Workflow,
 } from '@morph/core';
@@ -92,12 +93,18 @@ export function ShareScreen() {
   // AI 的修改在草稿里应用（D-190），应用后重新打开这个页面，带着新做的那个（made）。
   const { made } = useLocalSearchParams<{ made?: string }>();
   const [knownIds, setKnownIds] = useState<Set<string> | null>(() =>
-    made ? new Set(config.workflows.filter((w) => w.id !== made).map((w) => w.id)) : null,
+    made
+      ? new Set(
+          quickActionsOf(config)
+            .filter((w) => w.id !== made)
+            .map((w) => w.id),
+        )
+      : null,
   );
   const scroll = useRef<ScrollViewInstance>(null);
   // AI 做好回到这里时，新的排在最前：滚到顶上让用户看到（否则还停在「让 AI 搭一个」那里）。
   const newest = knownIds
-    ? config.workflows.find((w) => !w.toolId && !knownIds.has(w.id))?.id
+    ? quickActionsOf(config).find((w) => !w.package && !knownIds.has(w.id))?.id
     : undefined;
   useEffect(() => {
     if (newest) scroll.current?.scrollTo({ y: 0, animated: true });
@@ -193,7 +200,7 @@ export function ShareScreen() {
   }
   const counts = usage ?? new Map();
   const { all, recommended, anyUsed } = shareRecommendations(
-    config.workflows,
+    quickActionsOf(config),
     infos,
     counts,
     locale,
@@ -203,7 +210,7 @@ export function ShareScreen() {
   const candidates = usage === null ? [] : showAll ? all : recommended;
 
   function isNew(wf: Workflow) {
-    return knownIds !== null && !wf.toolId && !knownIds.has(wf.id);
+    return knownIds !== null && !wf.package && !knownIds.has(wf.id);
   }
 
   // 一个快捷操作一行（D-237）：名字（法语长名字可以折成两行）和一行说明，右边「运行」；
@@ -227,7 +234,7 @@ export function ShareScreen() {
           {fit.ok
             ? [
                 counts.has(wf.id) ? t(locale, 'shareUsed', { n: counts.get(wf.id)!.count }) : null,
-                wf.toolId ? localize(registry.tools.get(wf.toolId)?.name, locale) : null,
+                wf.package ? localize(registry.tools.get(wf.package)?.name, locale) : null,
                 stepChain(wf, registry, locale),
               ]
                 .filter(Boolean)
@@ -287,7 +294,7 @@ export function ShareScreen() {
 
   /** 让 AI 搭一个：AI 只知道文件的类型和个数（D-124）。做好后回到这里，新的排在最前面。 */
   function askAI() {
-    setKnownIds(new Set(config.workflows.map((w) => w.id)));
+    setKnownIds(new Set(quickActionsOf(config).map((w) => w.id)));
     // AI 的修改先进草稿、这个页面会关掉（D-190）：分享的文件留着，应用后回到这里还能用。
     handed.current = true;
     router.push({ pathname: '/change', params: { shared: String(share!.id) } });

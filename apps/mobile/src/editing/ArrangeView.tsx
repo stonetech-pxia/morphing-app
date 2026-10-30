@@ -155,9 +155,9 @@ function Row({
           onPress={() => onEdit(id)}
           style={[styles.content, component.hidden && styles.hidden]}>
           <View pointerEvents="none">
-            {component.type === 'group' ? (
+            {component.look === 'group' ? (
               <Text style={[palette.font('bodyBold', 12), { color: palette.caption }]}>
-                {(component.props.title ?? t(locale, 'groupLabel')).toUpperCase()}
+                {(component.show.title ?? t(locale, 'groupLabel')).toUpperCase()}
               </Text>
             ) : (
               <ComponentView component={component} env={env} />
@@ -270,8 +270,8 @@ export function ArrangeView({
       const group =
         slot.parentId === undefined
           ? null
-          : page.components.find((c) => c.id === slot.parentId && c.type === 'group');
-      const list = group && group.type === 'group' ? group.children : page.components;
+          : page.blocks.find((c) => c.id === slot.parentId && c.look === 'group');
+      const list = group && group.look === 'group' ? group.children : page.blocks;
       const y = edge(list, slot.index, slot.parentId ?? id);
       if (y !== null) result.push({ slot, y });
     }
@@ -342,7 +342,7 @@ export function ArrangeView({
         onDragMove={moveDrag}
         onDragEnd={endDrag}
         register={register}>
-        {c.type === 'group' ? (
+        {c.look === 'group' ? (
           <View style={[styles.children, { gap: palette.gap }]}>
             {c.children.length === 0 ? (
               <View
@@ -408,7 +408,7 @@ export function ArrangeView({
             gap: palette.gap,
             paddingBottom: 24 + bottomInset,
           }}>
-          {rows(page.components)}
+          {rows(page.blocks)}
         </ScrollView>
       </View>
     </View>

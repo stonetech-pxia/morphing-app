@@ -1,19 +1,20 @@
 import {
+  type AskedAnswer,
   dismissHabit,
   habitKey,
   habitLabel,
+  type HabitRecord,
   habitWorkflow,
   hasSameWorkflow,
   homeEntryOps,
   newWorkflowId,
+  quickActionsOf,
   recordHabit,
   rememberedAnswers,
   shouldSuggest,
-  type AskedAnswer,
-  type HabitRecord,
   type Workflow,
 } from '@morph/core';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
@@ -60,7 +61,8 @@ export function HabitCard({
   palette: Palette;
 }) {
   const { repo, registry, locale } = useWorkspaceContext();
-  const workflows = useWorkspace((s) => s.config!.workflows);
+  const tools = useWorkspace((s) => s.config!.tools);
+  const workflows = useMemo(() => quickActionsOf({ tools }), [tools]);
   const change = useWorkflowChange();
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const [made, setMade] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export function HabitCard({
   async function make() {
     const wf = suggestion!.workflow;
     const ok = await change(
-      [{ op: 'addWorkflow', workflow: wf }, ...homeEntryOps(config, [wf.id])],
+      [{ op: 'addTool', tool: wf }, ...homeEntryOps(config, [wf.id])],
       t(locale, 'habitMade', { name: wf.name }),
     );
     if (ok) setMade(wf.name);

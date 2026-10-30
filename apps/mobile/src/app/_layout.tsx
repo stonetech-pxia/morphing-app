@@ -1,9 +1,10 @@
 import {
-  localize,
   BUILTIN_TOOLS,
   createMockAIProvider,
   createRegistry,
   createStarterWorkspace,
+  localize,
+  quickActionsOf,
   trustedToolKeys,
 } from '@morph/core';
 import { Karla_400Regular } from '@expo-google-fonts/karla/400Regular';
@@ -242,7 +243,7 @@ export default function RootLayout() {
       await expoFilePlatform.removeStalePickerCopies().catch(() => undefined);
       // 已经删掉的快捷操作不再记着文件夹（D-196）。
       const booted = created.getState().config;
-      if (booted) expoFilePlatform.forgetFolders(booted.workflows.map((w) => w.id));
+      if (booted) expoFilePlatform.forgetFolders(quickActionsOf(booted).map((w) => w.id));
       setRuntime({ store: created, repo });
     })().catch((e) => setError(String(e)));
   }, []);

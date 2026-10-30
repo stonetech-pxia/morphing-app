@@ -2,12 +2,13 @@ import {
   FILE_LIMITS,
   allComponents,
   componentCollection,
+  isFileTarget,
   isKnownComponent,
   moveStepOp,
   type Backdrop,
+  type BlockChanges,
   type BackdropPatch,
   type KnownComponent,
-  type ComponentStyle,
   type Op,
   type Page,
 } from '@morph/core';
@@ -35,7 +36,7 @@ import { Button, SectionLabel } from '../renderer/ui';
 import { usePlaceWidget } from '../widgets/usePlaceWidget';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { useEditActions } from './actions';
-import { CAPABILITIES, type StyleKey, type TextField } from './capabilities';
+import { capabilitiesOf, type StyleKey, type TextField } from './capabilities';
 
 // 长按组件弹出的操作面板（D-052）：改文字、颜色、对齐、大小、位置、隐藏、删除。
 // 每个操作先校验并加入编辑草稿；「完成」时整份草稿生成一个可撤销版本（D-054、D-235）。
@@ -107,7 +108,7 @@ function TextForm({
   onSave: (props: Record<string, string | null>) => void;
 }) {
   const { locale } = useWorkspaceContext();
-  const current = component.props as Record<string, unknown>;
+  const current = ('show' in component ? (component.show ?? {}) : {}) as Record<string, unknown>;
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(fields.map((f) => [f.prop, String(current[f.prop] ?? '')])),
   );
@@ -293,8 +294,13 @@ export function EditSheet({
   const id = component.id;
   // 更新的 App 加的组件（D-254）只能移动和删除。
   const known = isKnownComponent(component) ? component : null;
-  const caps = known ? CAPABILITIES[known.type] : { text: [], style: [] };
-  const target = { pageId: page.id, componentId: id };
+  const caps = known ? capabilitiesOf(known) : { text: [], style: [] };
+  const update = (changes: BlockChanges): Op => ({
+    op: 'updateContainer',
+    page: page.id,
+    block: id,
+    changes,
+  });
 
   /** 加入编辑草稿。改外观时面板保持打开，方便多试几种。 */
   function apply(ops: Op[], { keepOpen = false } = {}) {
@@ -305,14 +311,14 @@ export function EditSheet({
     const current = known?.style?.[key] ?? DEFAULTS[key];
     if (current === value) return;
     const style: Record<string, string | null> = { [key]: value === DEFAULTS[key] ? null : value };
-    apply([{ op: 'setComponentStyle', ...target, style: style as ComponentStyle }], {
+    apply([update({ style: style as BlockChanges['style'] })], {
       keepOpen: true,
     });
   }
 
   function confirmDelete() {
     const message =
-      known?.type === 'group' && known.children.length > 0
+      known?.look === 'group' && known.children.length > 0
         ? t(locale, 'deleteGroupMessage', { count: known.children.length })
         : componentCollection(component!)
           ? t(locale, 'deleteDataMessage')
@@ -322,7 +328,7 @@ export function EditSheet({
       {
         text: t(locale, 'delete'),
         style: 'destructive',
-        onPress: () => apply([{ op: 'removeComponent', ...target }]),
+        onPress: () => apply([{ op: 'removeContainer', page: page.id, block: id }]),
       },
     ]);
   }
@@ -334,9 +340,9 @@ export function EditSheet({
     );
     if (!assetId) return;
     bumpAssets();
-    apply([{ op: 'setComponentProps', ...target, props: { assetId } }]);
+    apply([update({ opens: { file: assetId } })]);
   }
-  const assetId = (known?.props as { assetId?: string | null } | undefined)?.assetId;
+  const assetId = known?.look === 'entry' && isFileTarget(known.opens) ? known.opens.file : null;
 
   const up = moveStepOp(page, id, 'up');
   const down = moveStepOp(page, id, 'down');
@@ -374,7 +380,7 @@ export function EditSheet({
                 onCancel={() => setEditingText(false)}
                 onSave={(props) => {
                   if (Object.keys(props).length === 0) close();
-                  else apply([{ op: 'setComponentProps', ...target, props }]);
+                  else apply([update({ show: props })]);
                 }}
               />
             ) : (
@@ -403,11 +409,7 @@ export function EditSheet({
                           palette={palette}
                           testID="edit-file-remove"
                           label={t(locale, 'fileSlotRemove')}
-                          onPress={() =>
-                            apply([
-                              { op: 'setComponentProps', ...target, props: { assetId: null } },
-                            ])
-                          }
+                          onPress={() => apply([update({ opens: { file: null } })])}
                         />
                       ) : null}
                     </View>
@@ -421,7 +423,7 @@ export function EditSheet({
                     prefix="edit-backdrop"
                     palette={palette}
                     onChange={(backdrop, keepOpen) =>
-                      apply([{ op: 'setComponentStyle', ...target, style: { backdrop } }], {
+                      apply([update({ style: { backdrop } })], {
                         keepOpen,
                       })
                     }
@@ -452,7 +454,9 @@ export function EditSheet({
                     prefix="edit-page-backdrop"
                     palette={palette}
                     onChange={(backdrop, keepOpen) =>
-                      apply([{ op: 'setPageBackdrop', pageId: page.id, backdrop }], { keepOpen })
+                      apply([{ op: 'updateContainer', page: page.id, changes: { backdrop } }], {
+                        keepOpen,
+                      })
                     }
                   />
                 ) : null}
@@ -478,9 +482,7 @@ export function EditSheet({
                       palette={palette}
                       testID="edit-hide"
                       label={t(locale, known.hidden ? 'show' : 'hide')}
-                      onPress={() =>
-                        apply([{ op: 'setComponentHidden', ...target, hidden: !known.hidden }])
-                      }
+                      onPress={() => apply([update({ hidden: !known.hidden })])}
                     />
                   ) : null}
                   {widget.available ? (

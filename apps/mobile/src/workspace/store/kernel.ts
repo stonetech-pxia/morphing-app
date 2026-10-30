@@ -51,7 +51,7 @@ export interface Kernel {
 export function focusPage(ops: readonly Op[], config: WorkspaceConfig): string {
   for (const op of ops) {
     if ('page' in op && typeof op.page === 'string') return op.page;
-    if ('page' in op && op.page) return op.page.id;
+    if ('page' in op && op.page && typeof op.page === 'object') return op.page.id;
     if ('tool' in op) {
       const id = typeof op.tool === 'string' ? op.tool : op.tool.id;
       const owner = config.containers.pages.find((p) =>

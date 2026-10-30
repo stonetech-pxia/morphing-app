@@ -1,4 +1,4 @@
-import { allComponents, type Component, type Page } from '@morph/core';
+import { allComponents, childrenOf, type Component, type Page } from '@morph/core';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
@@ -26,8 +26,12 @@ export function FocusItem({
   const focus = env.focus!;
   const active = focus.selectedId !== null;
   const selected = focus.selectedId === component.id;
+  // 分组里（包括里面那层分组里）选中了别的块。
   const contains =
-    component.type === 'group' && component.children.some((c) => c.id === focus.selectedId);
+    component.look === 'group' &&
+    childrenOf(component).some(
+      (c) => c.id === focus.selectedId || childrenOf(c).some((x) => x.id === focus.selectedId),
+    );
   const dimmed = active && !selected && !contains && !env.focusWithinSelected;
   const open = () => env.edit?.(component.id);
   const { palette } = env;
@@ -99,7 +103,7 @@ export function FocusItem({
             }}>
             <View
               testID={`single-content-${id}`}
-              pointerEvents={active && component.type !== 'group' ? 'none' : 'auto'}
+              pointerEvents={active && component.look !== 'group' ? 'none' : 'auto'}
               style={{
                 opacity: dimmed && !env.focusWithinDimmed ? 0.5 : 1,
               }}>
@@ -133,11 +137,9 @@ export function FocusItem({
 }
 /** 选中的组件现在是否画在页面上（隐藏了或删掉了就没有）。 */
 function shownOnPage(page: Page, id: string): boolean {
-  return page.components.some(
-    (c) =>
-      !c.hidden &&
-      (c.id === id || (c.type === 'group' && c.children.some((x) => x.id === id && !x.hidden))),
-  );
+  const shown = (list: readonly Component[]): boolean =>
+    list.some((c) => !c.hidden && (c.id === id || (c.look === 'group' && shown(c.children))));
+  return shown(page.blocks);
 }
 
 /**

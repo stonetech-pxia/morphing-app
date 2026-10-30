@@ -1,14 +1,17 @@
 import {
-  localize,
+  allComponents,
+  type CatalogEntry,
+  compareVersions,
   HOME_PAGE_ID,
   HOST_API,
-  ToolDownloadError,
-  allComponents,
-  compareVersions,
+  isKnownComponent,
   isRevoked,
-  pageTarget,
-  type CatalogEntry,
+  localize,
   type Op,
+  packageTarget,
+  packageTargetId,
+  pageTarget,
+  ToolDownloadError,
 } from '@morph/core';
 
 import { useRouter } from 'expo-router';
@@ -38,7 +41,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
   const proposeOps = useWorkspace((s) => s.proposeOps);
   const confirm = useWorkspace((s) => s.confirm);
   const cancel = useWorkspace((s) => s.cancel);
-  const home = config.pages.find((p) => p.id === HOME_PAGE_ID)!;
+  const home = config.containers.pages.find((p) => p.id === HOME_PAGE_ID)!;
   const catalog = useToolDownloads((s) => s.catalog);
   const busy = useToolDownloads((s) => s.busy);
   const refresh = useToolDownloads((s) => s.refresh);
@@ -106,9 +109,9 @@ export function ToolsView({ env }: { env: RenderEnv }) {
         onPress={env.locked ?? (() => router.push('/quick-actions'))}
       />
       {[...registry.tools.values()].map((tool) => {
-        const installed = config.tools.find((x) => x.toolId === tool.id);
+        const installed = config.packages.find((x) => x.id === tool.id);
         const card = allComponents(home).find(
-          (c) => c.type === 'toolCard' && c.props.toolId === tool.id,
+          (c) => isKnownComponent(c) && c.look === 'entry' && packageTargetId(c.opens) === tool.id,
         );
         const name = localize(tool.name, locale);
         const entry = tool.origin === 'download' ? offered(tool.id) : undefined;
@@ -157,7 +160,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
                   async () => {
                     if (newer && !(await fetchTool(newer))) return;
                     await change(
-                      [{ op: 'installTool', toolId: tool.id }],
+                      [{ op: 'setPackage', package: tool.id, do: 'add' }],
                       t(locale, 'installSummary', { name }),
                     );
                   },
@@ -167,7 +170,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
                 [
                   button(
                     t(locale, 'open'),
-                    () => env.navigate(pageTarget(installed.pageId)),
+                    () => env.navigate(pageTarget(installed.page)),
                     `open-${tool.id}`,
                   ),
                   installed.version !== tool.version || newer
@@ -176,7 +179,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
                         async () => {
                           if (newer && !(await fetchTool(newer))) return;
                           await change(
-                            [{ op: 'updateTool', toolId: tool.id }],
+                            [{ op: 'setPackage', package: tool.id, do: 'update' }],
                             t(locale, 'updateSummary', { name }),
                           );
                         },
@@ -190,9 +193,9 @@ export function ToolsView({ env }: { env: RenderEnv }) {
                           change(
                             [
                               {
-                                op: 'removeComponent',
-                                pageId: HOME_PAGE_ID,
-                                componentId: card.id,
+                                op: 'removeContainer',
+                                page: HOME_PAGE_ID,
+                                block: card.id,
                               },
                             ],
                             t(locale, 'removeCardSummary', { name }),
@@ -205,13 +208,13 @@ export function ToolsView({ env }: { env: RenderEnv }) {
                           change(
                             [
                               {
-                                op: 'addComponent',
-                                pageId: HOME_PAGE_ID,
+                                op: 'addContainer',
+                                page: HOME_PAGE_ID,
                                 index: 1,
-                                component: {
+                                block: {
                                   id: `card-${tool.id}`,
-                                  type: 'toolCard',
-                                  props: { toolId: tool.id },
+                                  look: 'entry',
+                                  opens: packageTarget(tool.id),
                                 },
                               },
                             ],
@@ -223,7 +226,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
                     t(locale, 'uninstall'),
                     () =>
                       change(
-                        [{ op: 'uninstallTool', toolId: tool.id }],
+                        [{ op: 'setPackage', package: tool.id, do: 'remove' }],
                         t(locale, 'uninstallSummary', { name }),
                         t(locale, 'uninstallTitle', { name }),
                       ),
@@ -276,7 +279,7 @@ export function ToolsView({ env }: { env: RenderEnv }) {
                       onPress={async () => {
                         if (!(await fetchTool(entry))) return;
                         await change(
-                          [{ op: 'installTool', toolId: entry.id }],
+                          [{ op: 'setPackage', package: entry.id, do: 'add' }],
                           t(locale, 'installSummary', { name }),
                         );
                       }}

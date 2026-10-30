@@ -139,7 +139,7 @@ export function useMonthRecords(
 export function useLinkResolver(collection: Collection | undefined): LinkResolver | undefined {
   const { repo, locale } = useWorkspaceContext();
   const version = useWorkspace((s) => s.recordsVersion);
-  const collections = useWorkspace((s) => s.config?.collections);
+  const collections = useWorkspace((s) => s.config?.data.tables);
   const targets = collection ? linkedCollectionIds(collection).join(',') : '';
   // 记下是为哪几张表读的：表换了以后旧的不再用。
   const [loaded, setLoaded] = useState<{ targets: string; resolver: LinkResolver } | null>(null);

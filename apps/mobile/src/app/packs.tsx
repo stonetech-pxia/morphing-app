@@ -12,7 +12,7 @@ import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 export default function PacksRoute() {
   const { locale, files, registry } = useWorkspaceContext();
   const theme = useWorkspace((s) => s.config!.theme);
-  const added = useWorkspace((s) => s.config!.tools);
+  const added = useWorkspace((s) => s.config!.packages);
   const downloaded = useToolDownloads((s) => s.downloaded);
   const removeTool = useToolDownloads((s) => s.remove);
   const tools = Object.entries(downloaded).map(([id, d]) => ({
@@ -20,7 +20,7 @@ export default function PacksRoute() {
     name: localize(registry.tools.get(id)?.name, locale) ?? id,
     version: d.version,
     bytes: d.bytes,
-    added: added.some((x) => x.toolId === id),
+    added: added.some((x) => x.id === id),
   }));
   const palette = usePalette(theme);
   const packs = usePacks();
