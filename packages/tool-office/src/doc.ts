@@ -23,6 +23,11 @@ export interface DocParagraph extends DocStyle {
   spaced?: boolean;
   /** 首行缩进（原图像素，D-312）：第一行比这一块其他行靠右多少。 */
   indent?: number;
+  /**
+   * 表单里配好的标签和值（D-314）：text 每行是「标签\t值」，tab 是值相对标签左边的位置（原图像素），
+   * docx 里写成一个制表位。
+   */
+  tab?: number;
   box: Box;
 }
 
@@ -465,7 +470,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   );
   const owner = assignLines(free, regions);
   // 区域里的行；页码区域的字不要；图片区域里的少量字（标志、照片里的字）也不要。
-  const groups: Group[] = [];
+  let groups: Group[] = [];
   const images: DocImage[] = [];
   for (const [i, region] of regions.entries()) {
     const members = free.filter((_, k) => owner[k] === i);
@@ -486,6 +491,8 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   )) {
     groups.push({ lines: cluster, title: 0, box: unionBox(cluster) });
   }
+  // 表单：左边一列标签、右边一列值的两块按行配好（D-314）。
+  groups = pairForms(groups, lineHeight);
   // 字号和笔画：先量出整页的正文字号和笔画粗细，再和它比。
   const strokes = new Map<OcrBox, number>();
   for (const l of free) strokes.set(l, strokeRatio(image, l));
@@ -527,6 +534,23 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   for (const group of groups) {
     const blocks: DocLeaf[] = [];
     units.push({ box: group.box, blocks });
+    if (group.pairs) {
+      // 一行一对：标签、制表符、值（D-314）。
+      const text = group.pairs
+        .map(([label, value]) => `${join(label).trim()}\t${join(value).trim()}`)
+        .join('\n');
+      const left = Math.min(...group.pairs.flatMap(([label]) => label.map((l) => l.x)));
+      const valueLeft = Math.min(...group.pairs.flatMap(([, value]) => value.map((l) => l.x)));
+      blocks.push({
+        kind: 'paragraph',
+        text,
+        ...styleOf(group.lines, text, 0).style,
+        tab: Math.round(valueLeft - left),
+        spaced: true,
+        box: group.box,
+      });
+      continue;
+    }
     const paragraphs = paragraphsOf(group.lines);
     // 一块的第一段和前面的块之间原来就空着。
     if (paragraphs[0]) paragraphs[0].spaced = true;
@@ -620,11 +644,86 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   };
 }
 
-/** 一块字（区域或按位置聚成的块）。 */
+/** 一块字（区域或按位置聚成的块）；pairs 是配好的表单标签和值（D-314）。 */
 interface Group {
   lines: OcrBox[];
   title: 0 | 1 | 2;
   box: Box;
+  pairs?: [OcrBox[], OcrBox[]][];
+}
+
+/** 标签：冒号结尾，或者在一列左对齐、不超过这么多个字的短文字（D-314）。 */
+const LABEL_MAX = 30;
+const LABEL_COLON = /[:：]\s*$/;
+
+/**
+ * 表单的标签和值（D-314）：一块（标签）的连续几行和右边另一块（值）的连续几行一行对一行（上下重叠、值在标签右边），
+ * 标签都是冒号结尾，或者有两对以上、标签左对齐、不超过 30 个字、每行单独成段（不是折行的正文）时，
+ * 这几行配成一块；两块里没配上的行（上面、下面）各自另成一块。
+ */
+function pairForms(groups: readonly Group[], lineHeight: number): Group[] {
+  let out = [...groups];
+  for (;;) {
+    let next: Group[] | null = null;
+    for (const left of out) {
+      for (const right of out) {
+        if (left === right || left.title || right.title || left.pairs || right.pairs) continue;
+        const found = pairRows(left.lines, right.lines, lineHeight);
+        if (found) {
+          next = [...out.filter((g) => g !== left && g !== right), ...found];
+          break;
+        }
+      }
+      if (next) break;
+    }
+    if (!next) return out;
+    out = next;
+  }
+}
+
+function pairRows(
+  labelLines: readonly OcrBox[],
+  valueLines: readonly OcrBox[],
+  lineHeight: number,
+): Group[] | null {
+  const labels = rowsOf(labelLines);
+  const values = rowsOf(valueLines);
+  const matchOf = (i: number) =>
+    values.findIndex((v) => {
+      const a = labels[i]!.box;
+      const b = v.box;
+      const ov = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+      return ov >= 0.5 * Math.min(a.height, b.height) && b.x > a.x + a.width;
+    });
+  // 第一段连续配上的行。
+  const a = labels.findIndex((_, i) => matchOf(i) >= 0);
+  if (a < 0) return null;
+  const c = matchOf(a);
+  let n = 1;
+  while (a + n < labels.length && matchOf(a + n) === c + n) n++;
+  const pairedLabels = labels.slice(a, a + n);
+  const colon = pairedLabels.every((r) => LABEL_COLON.test(r.text));
+  const column =
+    n >= 2 &&
+    pairedLabels.every(
+      (r) =>
+        [...r.text].length <= LABEL_MAX && Math.abs(r.box.x - pairedLabels[0]!.box.x) <= lineHeight,
+    ) &&
+    paragraphsOf(pairedLabels.flatMap((r) => r.lines)).length === n;
+  if (!colon && !column) return null;
+  const pairs = pairedLabels.map((r, k): [OcrBox[], OcrBox[]] => [r.lines, values[c + k]!.lines]);
+  const lines = pairs.flat(2);
+  const group = (rows: Row[]): Group[] => {
+    const ls = rows.flatMap((r) => r.lines);
+    return ls.length ? [{ lines: ls, title: 0, box: unionBox(ls) }] : [];
+  };
+  return [
+    { lines, title: 0, box: unionBox(lines), pairs },
+    ...group(labels.slice(0, a)),
+    ...group(labels.slice(a + n)),
+    ...group(values.slice(0, c)),
+    ...group(values.slice(c + n)),
+  ];
 }
 
 /** 一块（区域、表格、图片）和它排好的块。 */

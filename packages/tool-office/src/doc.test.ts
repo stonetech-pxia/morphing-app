@@ -388,4 +388,43 @@ describe('buildDocPage', () => {
       'paragraph',
     ]);
   });
+
+  it('pairs form labels with their values row by row (D-314)', () => {
+    const { image, lines } = textPage([
+      // 右边一块的上面还有一行（和值连成了一块），不参加配对。
+      { text: 'IN EUROS', x: 830, y: 120, width: 120 },
+      // 左边：地址；右边：一列标签、一列值（隔得远，分成了两块）。
+      { text: 'ACME SARL', x: 80, y: 150, width: 160 },
+      { text: '12 RUE DE PARIS', x: 80, y: 175, width: 220 },
+      { text: '75003 PARIS', x: 80, y: 200, width: 160 },
+      { text: 'START OF PERIOD', x: 560, y: 150, width: 160 },
+      { text: 'END OF PERIOD', x: 560, y: 175, width: 140 },
+      { text: 'HIRED ON', x: 560, y: 200, width: 100 },
+      { text: 'SOCIAL SECURITY NO', x: 560, y: 225, width: 190 },
+      { text: '1 MARCH 2019', x: 830, y: 150, width: 140 },
+      { text: '31 MARCH 2019', x: 830, y: 175, width: 140 },
+      { text: '2 MAY 2017', x: 830, y: 200, width: 120 },
+      { text: '1 85 03 75 115 042', x: 830, y: 225, width: 160 },
+      // 冒号结尾的标签，一行也配。
+      { text: 'Date :', x: 100, y: 600, width: 80 },
+      { text: '12 mars 2019', x: 500, y: 600, width: 150 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    expect(doc.blocks.map((b) => b.kind)).toEqual(['paragraph', 'row', 'paragraph']);
+    expect((doc.blocks[0] as DocParagraph).text).toBe('IN EUROS');
+    const row = doc.blocks[1] as DocRow;
+    expect(row.cells).toHaveLength(2);
+    const form = row.cells[1]!.blocks[0] as DocParagraph;
+    expect(form.text).toBe(
+      [
+        'START OF PERIOD\t1 MARCH 2019',
+        'END OF PERIOD\t31 MARCH 2019',
+        'HIRED ON\t2 MAY 2017',
+        'SOCIAL SECURITY NO\t1 85 03 75 115 042',
+      ].join('\n'),
+    );
+    // 值的位置：相对标签左边的距离（原图像素）。
+    expect(form.tab).toBe(270);
+    expect(doc.blocks[2]).toMatchObject({ text: 'Date :\t12 mars 2019', tab: 400 });
+  });
 });

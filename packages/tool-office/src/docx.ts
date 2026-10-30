@@ -59,7 +59,7 @@ const escapeXml = (text: string) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
-/** 一段文字的 run：换行写成 <w:br/>，前后的空格保留。 */
+/** 一段文字的 run：换行写成 <w:br/>，制表符写成 <w:tab/>（D-314），前后的空格保留。 */
 function runXml(text: string, style: DocStyle, bodySize: number): string {
   const props =
     RUN_FONTS +
@@ -73,7 +73,12 @@ function runXml(text: string, style: DocStyle, bodySize: number): string {
     .split('\n')
     .map(
       (part, i) =>
-        `<w:r>${rPr}${i ? '<w:br/>' : ''}<w:t xml:space="preserve">${escapeXml(part)}</w:t></w:r>`,
+        `<w:r>${rPr}${i ? '<w:br/>' : ''}` +
+        part
+          .split('\t')
+          .map((seg) => `<w:t xml:space="preserve">${escapeXml(seg)}</w:t>`)
+          .join('<w:tab/>') +
+        '</w:r>',
     )
     .join('');
 }
@@ -164,7 +169,7 @@ function fitWidths(raw: readonly number[], maxWidth: number): number[] {
   return raw.map((w) => Math.max(200, Math.round(w * k)));
 }
 
-/** 无边框的排版表格（D-313）：rows 是每行每格里的 XML 片段；每格以段落结尾（Word 要求）。 */
+/** 无边框的排版表格（D-313、D-314）：rows 是每行每格里的 XML 片段；每格以段落结尾（Word 要求）。 */
 function layoutTableXml(widths: readonly number[], rows: readonly (readonly string[])[]): string {
   const none = (side: string) => `<w:${side} w:val="nil"/>`;
   const tr = (cells: readonly string[]) =>
@@ -274,6 +279,21 @@ export function writeDocx(
     const leafXml = (block: DocLeaf, maxWidth: number): string[] => {
       switch (block.kind) {
         case 'paragraph':
+          if (block.tab) {
+            // 表单的标签和值（D-314）：两列无边框的表，一行一对（制表位在标签比原图长时会跳到下一个制表位、把值挤到下一行）。
+            // 标签一列按原图里值的位置（最多六成），值一列占到能放的右边。
+            const label = Math.round(Math.min(twip(block.tab), 0.6 * maxWidth));
+            const widths = [label, Math.max(200, maxWidth - label)];
+            const rows = block.text.split('\n').map((line) => {
+              const [label = '', ...rest] = line.split('\t');
+              return [label, rest.join(' ')].map((t) => paragraphXml(t, block, bodySize));
+            });
+            return [
+              ...(pageBreak() ? [paragraphXml('', {}, bodySize, { pageBreak: true })] : []),
+              layoutTableXml(widths, rows),
+              '<w:p/>',
+            ];
+          }
           return [
             paragraphXml(block.text, block, bodySize, {
               ...(block.heading ? { styleId: `Heading${block.heading}` } : {}),

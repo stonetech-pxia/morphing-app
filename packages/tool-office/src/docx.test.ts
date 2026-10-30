@@ -240,4 +240,22 @@ describe('writeDocx', () => {
       expect(cell).toMatch(/(<w:p\/>|<\/w:p>)<\/w:tc>$/);
     expect(xml).toContain('>left</w:t>');
   });
+
+  it('writes form label and value pairs as a borderless two-column table, one pair per row (D-314)', () => {
+    const xml = unzip(
+      writeDocx({
+        version: 1,
+        pages: [
+          page([{ kind: 'paragraph', text: 'A\t1\nBB\t2', tab: 300, box: { ...box, width: 500 } }]),
+        ],
+      }),
+    ).text('word/document.xml');
+    // 标签一列到值的左边（300 像素），值一列占到内容区的右边（9638 - 3572）。
+    expect(xml).toContain('<w:gridCol w:w="3572"/><w:gridCol w:w="6066"/>');
+    expect(xml).toContain('<w:tblBorders><w:top w:val="nil"/>');
+    const rows = xml.match(/<w:tr>.*?<\/w:tr>/g)!;
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatch(/>A<\/w:t>.*<\/w:tc><w:tc>.*>1<\/w:t>/);
+    expect(rows[1]).toMatch(/>BB<\/w:t>.*<\/w:tc><w:tc>.*>2<\/w:t>/);
+  });
 });

@@ -312,6 +312,37 @@ describe('side-by-side rows in the word editor (D-313)', () => {
   });
 });
 
+describe('form label and value pairs in the word editor (D-314)', () => {
+  it('shows each label next to its value and edits them as text with tabs', async () => {
+    const doc = makeDoc();
+    doc.pages[0]!.blocks[1] = {
+      kind: 'paragraph',
+      text: '开始日期\t2019-03-01\n结束日期\t2019-03-31',
+      tab: 300,
+      box: box(100, 120, 600, 60),
+    };
+    const { files, onSaved } = await setup(doc);
+    // 标签和值各是一段字，排在同一行。
+    expect(screen.getByText('开始日期')).toBeTruthy();
+    expect(screen.getByText('2019-03-31')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('word-block-0-1'));
+    await fireEvent.press(screen.getByTestId('word-block-0-1'));
+    expect(screen.getByTestId('word-edit-input').props.value).toBe(
+      '开始日期\t2019-03-01\n结束日期\t2019-03-31',
+    );
+    await fireEvent.changeText(
+      screen.getByTestId('word-edit-input'),
+      '开始日期\t2019-04-01\n结束日期\t2019-03-31',
+    );
+    await fireEvent.press(screen.getByTestId('word-edit-ok'));
+    expect(screen.getByText('2019-04-01')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('word-done'));
+    const { xml } = await saved(files, onSaved.mock.calls[0]![0] as RunItem);
+    // docx 里一对是两列表格的一行。
+    expect(xml).toMatch(/>开始日期<\/w:t>.*?<\/w:tc><w:tc>.*?>2019-04-01<\/w:t>/);
+  });
+});
+
 describe('result page for Word conversions (D-310)', () => {
   const actions = {
     save: jest.fn(),
