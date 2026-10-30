@@ -6,7 +6,6 @@ import {
   deleteBlock,
   parseDocDoc,
   setBlockText,
-  setHeading,
   setTableFrom,
   tableDocOf,
 } from './doc-edit';
@@ -67,15 +66,6 @@ describe('DocDoc edits', () => {
     const d = deleteBlock(doc, { page: 0, block: 3 });
     expect(d.pages[0]!.blocks.map((b) => b.kind)).toEqual(['paragraph', 'list', 'table']);
     expect(deleteBlock(doc, { page: 0, block: 9 })).toBe(doc);
-  });
-
-  it('switches a paragraph between body text and headings', () => {
-    const body = setHeading(doc, { page: 0, block: 0 }, 0);
-    expect(body.pages[0]!.blocks[0]).not.toHaveProperty('heading');
-    expect(setHeading(body, { page: 0, block: 0 }, 2).pages[0]!.blocks[0]).toMatchObject({
-      heading: 2,
-    });
-    expect(setHeading(doc, { page: 0, block: 0 }, 1)).toBe(doc);
   });
 
   it('round-trips a table block through the Excel editor’s TableDoc', () => {

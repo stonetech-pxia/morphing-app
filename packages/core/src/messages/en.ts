@@ -1204,6 +1204,15 @@ export const en = {
   tableReadOnly:
     'This page has more than {max} cells, so it can only be viewed here. To edit it, open the file in another app.',
   tableSaveFailed: 'The changes couldn’t be saved: {error}',
+  // 扫描件转 Word（D-310）
+  runError_wordUnsupported:
+    'This device can’t read documents in this language yet. Choose another language for “Convert to Word”.',
+  wordFileName: 'Document {date}',
+  wordEditorHint: 'Tap a block to select it, tap it again to edit',
+  wordEditText: 'Edit text',
+  wordEditTable: 'Edit table',
+  wordDeleteBlock: 'Delete',
+  wordEmpty: 'Nothing was recognized.',
   // 日程（D-292–D-296）
   scheduleDaily: 'Every day',
   scheduleWeekdays: 'Every {days}',

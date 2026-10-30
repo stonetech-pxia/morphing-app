@@ -100,6 +100,8 @@ const toExcel = {
   action: 'ocr.toExcel',
   params: { lang: 'auto', scope: 'all' },
 };
+/** 转 Word（D-310）：语言自动识别，运行时不问。 */
+const toWord = { id: 'word', action: 'ocr.toWord', params: { lang: 'auto' } };
 
 export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   {
@@ -262,6 +264,42 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     },
     icon: 'photo',
     steps: () => [photos(1, 20), toExcel],
+  },
+  {
+    // D-310：拍纸质文档（信件、书页、表单），做成 Word；结果页可以查看和修改。
+    id: 'scan-doc-word',
+    scenario: 'paperwork',
+    name: {
+      en: 'Scan a document to Word',
+      zh: '拍文档转 Word',
+      fr: 'Numériser un document en Word',
+    },
+    description: {
+      en: 'Scan printed pages (straightened automatically, or check the corners) → clean up → one Word document with headings, paragraphs, lists, ruled tables and pictures → check and edit it on the result page.',
+      zh: '扫描纸质文档（自动拉正，或确认四个角）→ 变清楚 → 转成一个 Word 文件，有标题、段落、列表、带线的表格和图片 → 在结果页核对和修改。',
+      fr: 'Numérisez des pages imprimées (redressement automatique, ou vérifiez les coins) → améliorez la lisibilité → un document Word avec titres, paragraphes, listes, grilles à lignes et images → vérifiez-le et modifiez-le sur la page de résultat.',
+    },
+    icon: 'scan',
+    packs: ['scan'],
+    steps: () => [
+      photos(1, 20, 'scanner'),
+      { id: 'edges', action: 'scan.detect', params: {} },
+      { id: 'look', action: 'scan.enhance', params: { mode: 'auto' } },
+      toWord,
+    ],
+  },
+  {
+    // D-310：相册里的文档照片、截图做成 Word。
+    id: 'image-doc-word',
+    scenario: 'paperwork',
+    name: { en: 'Document picture to Word', zh: '图片转 Word', fr: 'Image de document en Word' },
+    description: {
+      en: 'Choose photos or screenshots of printed pages → one Word document, a page per picture → check and edit it on the result page.',
+      zh: '选文档的照片或截图 → 转成一个 Word 文件，每张图一页 → 在结果页核对和修改。',
+      fr: 'Choisissez des photos ou des captures d’écran de pages imprimées → un document Word, une page par image → vérifiez-le et modifiez-le sur la page de résultat.',
+    },
+    icon: 'photo',
+    steps: () => [photos(1, 20), toWord],
   },
   {
     id: 'combine-documents',

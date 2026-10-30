@@ -315,6 +315,43 @@ describe('runWorkflow', () => {
     expect(await noScan.promise).toMatchObject({ status: 'cancelled' });
   });
 
+  it('asks for every pack one step needs on this device: the required one and an extra optional one (D-310)', async () => {
+    const wf: Workflow = {
+      id: 'word',
+      name: 'Word',
+      steps: [
+        { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+        { id: 'word', action: 'ocr.toWord', params: { lang: 'auto' } },
+      ],
+    };
+    let converted = 0;
+    const impls = {
+      'in.photos': async () => ({ type: 'images' as const, items: [pdfItem('page')] }),
+      'ocr.toWord': async () => (converted++, { type: 'files' as const, items: [] }),
+    };
+    const devicePack = (id: string) =>
+      id === 'ocr.toWord'
+        ? [{ pack: 'ppocr' }, { pack: 'layout', optional: true, extra: true }]
+        : undefined;
+    const options: unknown[] = [];
+    // 版面分析模型不下载：照样转。
+    const ok = run(wf, {
+      impls,
+      ensurePack: async (id, o) => (options.push([id, o]), id === 'ppocr'),
+      devicePack,
+    });
+    expect(await ok.promise).toMatchObject({ status: 'succeeded' });
+    expect(options).toEqual([
+      ['ppocr', undefined],
+      ['layout', { optional: true }],
+    ]);
+    expect(converted).toBe(1);
+    // 文字识别模型是必需的。
+    const declined = run(wf, { impls, ensurePack: async (id) => id === 'layout', devicePack });
+    expect(await declined.promise).toMatchObject({ status: 'cancelled' });
+    expect(converted).toBe(1);
+  });
+
   describe('one download prompt for the whole run (D-299)', () => {
     // 2026-10-29 真机：新用户「拍表格转 Excel」要连着确认三次（找边 → 展平 → 认字）。
     const wf: Workflow = {

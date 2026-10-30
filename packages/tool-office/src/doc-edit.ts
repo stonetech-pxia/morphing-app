@@ -56,14 +56,6 @@ export function deleteBlock(doc: DocDoc, at: DocRef): DocDoc {
   return replaceBlock(doc, at, null);
 }
 
-/** 段落在正文、二级标题、一级标题之间切换。 */
-export function setHeading(doc: DocDoc, at: DocRef, heading: 0 | 1 | 2): DocDoc {
-  const block = doc.pages[at.page]?.blocks[at.block];
-  if (block?.kind !== 'paragraph' || (block.heading ?? 0) === heading) return doc;
-  const { heading: _old, ...rest } = block;
-  return replaceBlock(doc, at, heading ? { ...rest, heading } : rest);
-}
-
 /** 表格块换成转 Excel 编辑页能打开的 TableDoc（一页、只有这一张表）。 */
 export function tableDocOf(doc: DocDoc, at: DocRef, name: string): TableDoc | null {
   const page = doc.pages[at.page];

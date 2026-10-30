@@ -182,6 +182,14 @@ AI 修改先进草稿（D-190）：没有草稿时，这几句直接回到上一
 | XLS1 | 新建一个快捷操作：扫描文档，转 Excel，分享 | `in.photos`（scanner）→ `ocr.toExcel` → `out.share` |
 | XLS2 | Add the scan a table to Excel quick action | 从预设添加（`scan-table-excel`）                    |
 
+## 扫描件转 Word（D-310）
+
+步骤句式：「转 Word / 转成 Word / 文档转 Word / 图片转 Word / 做成 Word 文档」「convert to Word / turn it into a Word document」→ `ocr.toWord`（`lang: auto`）。
+
+| ID   | 句式                                      | 结果                                               |
+| ---- | ----------------------------------------- | -------------------------------------------------- |
+| DOC1 | 新建一个快捷操作：扫描文档，转 Word，分享 | `in.photos`（scanner）→ `ocr.toWord` → `out.share` |
+
 评测：XLS1、XLS2-en 内置规则通过；PXLS1（纸质银行流水拍下来变成 Excel）、PXLS2-en（价格表截图变成能改的表格）只要求真实模型。
 
 ## 格式转换（D-183–D-186）
