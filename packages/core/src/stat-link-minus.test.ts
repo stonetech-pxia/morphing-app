@@ -8,7 +8,7 @@ import type { Collection, NewComponent } from './schema';
 import { minusValue } from './stat-minus';
 import { registry } from './test-helpers';
 
-// 统计和图表按引用字段分组（D-326）、统计相减（D-327）。例子是零基预算：分类、分配、流水三张表。
+// 统计和图表按引用字段分组（D-336）、统计相减（D-337）。例子是零基预算：分类、分配、流水三张表。
 
 const categories: Collection = {
   id: 'categories',
@@ -78,7 +78,7 @@ const issues = (component: NewComponent, extra: Op[] = []) => {
   return r.ok ? '' : r.issues.join('\n');
 };
 
-describe('grouping by a link field (D-326)', () => {
+describe('grouping by a link field (D-336)', () => {
   const spending = [
     rec('ledger', { amount: 30, category: 'food' }),
     rec('ledger', { amount: 12.5, category: 'food' }),
@@ -132,7 +132,7 @@ describe('grouping by a link field (D-326)', () => {
   });
 });
 
-describe('stat minus another total (D-327)', () => {
+describe('stat minus another total (D-337)', () => {
   const readyToAssign = (minus: unknown, extra: Record<string, unknown> = {}): NewComponent =>
     ({
       id: 'rta',

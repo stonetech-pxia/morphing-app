@@ -15,7 +15,7 @@ const schema = z.strictObject({
   type: z.literal('schedule'),
   default: ScheduleRuleSchema.optional(),
   lastDone: IdSchema.optional(),
-  /** 提前做了算这一次（D-331），待办、家务用；账单不用（提前付了下个月仍要付）。 */
+  /** 提前做了算这一次（D-341），待办、家务用；账单不用（提前付了下个月仍要付）。 */
   countEarly: z.literal(true).optional(),
 });
 

@@ -46,15 +46,15 @@ const props = z.strictObject({
   colorField: IdSchema.optional(),
   trailingFormat: TrailingFormatSchema.optional(),
   /**
-   * 看板（D-313）按这个单选字段分栏：每个选项一栏，再加一栏「未分」。只给 board 用。D-341 起也可以是引用字段：
+   * 看板（D-313）按这个单选字段分栏：每个选项一栏，再加一栏「未分」。只给 board 用。D-351 起也可以是引用字段：
    * 被引用的表里每条一栏，groupFilter 先筛这些栏（例如只要这个项目的版块，可以用 "$record"）。
    */
   groupField: IdSchema.optional(),
   groupFilter: z.array(ConditionSchema).max(5).optional(),
-  /** 点一条打开这个页面（D-332，page.recordOf 是这张表），不是编辑页。 */
+  /** 点一条打开这个页面（D-342，page.recordOf 是这张表），不是编辑页。 */
   opens: IdSchema.optional(),
   /**
-   * 分段（D-337，list / cards / checklist）：单选、引用每个选项一段，日期类按 groupUnit 分，日程按下一次分。
+   * 分段（D-347，list / cards / checklist）：单选、引用每个选项一段，日期类按 groupUnit 分，日程按下一次分。
    * 每段一个标题和条数，点标题折叠；limit 是每段最多几条。
    */
   groupBy: FieldRefSchema.optional(),
@@ -62,7 +62,7 @@ const props = z.strictObject({
   /** 单选、引用分段时没有记录的段也列出（版块）。 */
   showEmpty: z.literal(true).optional(),
   /**
-   * 就地添加（D-339）：每段标题、月历选中的那天、看板每栏下面有「添加」，打开新记录的表单，预设这一段的值
+   * 就地添加（D-349）：每段标题、月历选中的那天、看板每栏下面有「添加」，打开新记录的表单，预设这一段的值
    * 和列表筛选里的「等于」条件；不分段的列表在最下面有一个。
    */
   addHere: z.literal(true).optional(),

@@ -77,7 +77,7 @@ export function MonthCalendar({
   const rows = useRecordRows(props, env, tone, collection, view);
   const router = useRouter();
   if (!collection || !view || !rows) return null;
-  // 在选中的那天添加（D-339）：日期字段填这天，日程是「一次，这天」；日期时间、系统字段不预设。
+  // 在选中的那天添加（D-349）：日期字段填这天，日程是「一次，这天」；日期时间、系统字段不预设。
   const dateType = view.fields.find((f) => f.id === dateRef)?.type;
   const dayPreset = (day: number): Record<string, unknown> => {
     const date = dateOfDayNumber(day);

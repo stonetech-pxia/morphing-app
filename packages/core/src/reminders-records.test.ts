@@ -266,7 +266,7 @@ describe('planNotifications per entry (D-316, D-319)', () => {
     expect(times).toEqual([...times].sort((a, b) => a - b));
   });
 
-  it('an entry with its own time is reminded then, not at the reminder time (D-336)', () => {
+  it('an entry with its own time is reminded then, not at the reminder time (D-346)', () => {
     const records = new Map([
       [
         'habits',

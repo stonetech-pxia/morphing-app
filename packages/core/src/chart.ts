@@ -61,7 +61,7 @@ export interface ChartSpec {
    * 没有就用第一个日期时间字段（D-279），再没有就用创建时间。
    */
   dateField?: string | undefined;
-  /** 按单选或引用字段（D-326）分组时的字段。 */
+  /** 按单选或引用字段（D-336）分组时的字段。 */
   choiceField?: string | undefined;
   periods?: number | undefined;
 }
@@ -110,7 +110,7 @@ const periodLabel = (group: ChartGroup, d: Date) =>
 /**
  * 图表的数据。时间分组：最近 periods 段，每段一个点（没有记录的段是 0）。
  * 单选分组：每个选项一个点（按选项顺序），没选的记录有的话另算一个点（label 用 noChoice）。
- * 引用字段也走这里（D-326）：被引用的表里每条记录一个点，要 linked。
+ * 引用字段也走这里（D-336）：被引用的表里每条记录一个点，要 linked。
  */
 export function chartSeries(
   records: readonly DataRecord[],

@@ -5,7 +5,7 @@ import { dayNumber } from './formula';
 import { smartDateOf } from './smart-date';
 import type { Field } from './schema';
 
-// D-334：快速添加表单在本机认出日期，按要填的字段换成表单输入。2026-10-30 是周五。
+// D-344：快速添加表单在本机认出日期，按要填的字段换成表单输入。2026-10-30 是周五。
 const today = dayNumber('2026-10-30')!;
 const date: Field = { id: 'due', name: 'Due', type: 'date' };
 const at: Field = { id: 'at', name: 'At', type: 'datetime' };
@@ -14,7 +14,7 @@ const plan: Field = { id: 'plan', name: 'Plan', type: 'schedule' };
 describe('smart dates for a form field', () => {
   it('a schedule field takes a one-off day or a repeat rule', () => {
     const friday = smartDateOf('周五下午3点交报告', plan, today, 'zh')!;
-    // 钟点一起填（D-336）。
+    // 钟点一起填（D-346）。
     expect(friday.input).toEqual({ repeat: 'once', date: '2026-10-30', time: '15:00' });
     expect(friday.preview).toBe('10月30日 15:00');
     expect(smartDateOf('每周一早上9点开会', plan, today, 'zh')!.input).toEqual({

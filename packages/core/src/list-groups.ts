@@ -14,9 +14,9 @@ import { shortDate, weekdayName } from './schedule';
 import type { GroupUnit } from './list-groups-schema';
 import type { Collection, Locale } from './schema';
 
-// 记录列表分段（D-337）：按单选、引用分（每个选项 / 被引用的每条一段，顺序同 D-326 的分组），或者按日子分
+// 记录列表分段（D-347）：按单选、引用分（每个选项 / 被引用的每条一段，顺序同 D-336 的分组），或者按日子分
 // （日期、日期时间、系统字段按天 / 周 / 月；日程按下一次，过期的合成一段放最前，没有下一次的放最后）。
-// 纯逻辑：每段的标题、记录和「在这一段添加」时预设的值（A10，D-339）；App 只画标题、折叠和行。
+// 纯逻辑：每段的标题、记录和「在这一段添加」时预设的值（A10，D-349）；App 只画标题、折叠和行。
 
 export interface ListGroup {
   /** 稳定的键：折叠状态按它记。 */
@@ -65,7 +65,7 @@ export function listGroups(
     now: Date;
     cal: Calendar;
     unit?: GroupUnit | undefined;
-    /** 引用字段：被引用的那张表和它的记录（D-326）。 */
+    /** 引用字段：被引用的那张表和它的记录（D-336）。 */
     linked?: LinkedGroups | undefined;
     /** 单选、引用：没有记录的段也列出（版块）。 */
     showEmpty?: boolean | undefined;
@@ -145,8 +145,8 @@ export function listGroups(
 }
 
 /**
- * 在一个列表里新建时从它的筛选能带上的值（A10，D-339）：单选 is 某个选项、引用 is 某条（给一条记录用的页面上
- * 已经换成这条，D-332）、勾选框 is true / false。只认「等于」，别的条件（时间段、包含……）带不上。
+ * 在一个列表里新建时从它的筛选能带上的值（A10，D-349）：单选 is 某个选项、引用 is 某条（给一条记录用的页面上
+ * 已经换成这条，D-342）、勾选框 is true / false。只认「等于」，别的条件（时间段、包含……）带不上。
  */
 export function filterPresets(
   collection: Collection,

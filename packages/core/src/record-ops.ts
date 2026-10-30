@@ -55,7 +55,7 @@ interface Where {
   rowOf?: Collection;
   /** 是新建（create）：null 没有意义。 */
   creating?: boolean;
-  /** 组件所在页面给哪张表的一条记录用（D-332）："$record" 指那条记录。 */
+  /** 组件所在页面给哪张表的一条记录用（D-342）："$record" 指那条记录。 */
   recordOf?: string;
 }
 
@@ -74,7 +74,7 @@ function valueProblem(
     const ok = where.rowOf
       ? value === 'row' && where.creating && field.collectionId === where.rowOf.id
       : false;
-    // D-332：给一条记录用的页面上，新建时引用字段可以设成这条记录。
+    // D-342：给一条记录用的页面上，新建时引用字段可以设成这条记录。
     const page =
       value === RECORD_REF &&
       where.creating === true &&
@@ -120,7 +120,7 @@ function createProblems(
     const p = valueProblem(collection, id, v, { ...where, creating: true });
     if (p) problems.push(p);
   }
-  // 必填、又没有默认值的字段：点一下存不进去。打开表单的（D-328）由用户填。
+  // 必填、又没有默认值的字段：点一下存不进去。打开表单的（D-338）由用户填。
   if (form) return problems;
   for (const f of collection.fields) {
     const def = fieldDefinition(f.type);
@@ -203,7 +203,7 @@ export function recordActionProblems(
 export function componentActionProblems(
   c: Component,
   config: WorkspaceConfig,
-  /** 组件所在页面给哪张表的一条记录用（D-332）。 */
+  /** 组件所在页面给哪张表的一条记录用（D-342）。 */
   recordOf?: string,
 ): string[] {
   if (c.type === 'button') {
@@ -219,7 +219,7 @@ export function componentActionProblems(
         })
       : [];
   }
-  // D-333：快速添加表单的预设值和新建一样检查（用户填其余的，所以必填不管）。
+  // D-343：快速添加表单的预设值和新建一样检查（用户填其余的，所以必填不管）。
   if (c.type === 'recordForm')
     return c.props.values
       ? recordActionProblems(

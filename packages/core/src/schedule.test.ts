@@ -515,7 +515,7 @@ describe('checking schedule fields and filters', () => {
   });
 });
 
-// D-330：「一次」——只做一次，可以不定日期；做过一次就结束。
+// D-340：「一次」——只做一次，可以不定日期；做过一次就结束。
 describe('a once rule', () => {
   const once = (date?: string): ScheduleRule =>
     date ? { repeat: 'once', date } : { repeat: 'once' };
@@ -568,7 +568,7 @@ describe('a once rule', () => {
   });
 });
 
-// D-331：countEarly——提前做了算这一次（Todoist 的重复任务）。
+// D-341：countEarly——提前做了算这一次（Todoist 的重复任务）。
 describe('counting an early completion', () => {
   const monday: ScheduleRule = { repeat: 'weekdays', days: [1] };
   // 2026-10-19 周一建的，2026-10-26 和 11-02 也是周一。
@@ -679,7 +679,7 @@ describe('once and pending on records', () => {
   });
 });
 
-// D-336：每种规则都可以带钟点。
+// D-346：每种规则都可以带钟点。
 describe('a time on a schedule', () => {
   it('reads and validates the time on any rule', () => {
     expect(readSchedule({ repeat: 'once', date: '2026-11-05', time: '15:00' })).toEqual({

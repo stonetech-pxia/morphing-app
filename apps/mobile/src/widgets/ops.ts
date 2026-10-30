@@ -42,7 +42,7 @@ export function findComponent(config: WorkspaceConfig, id: string): Component | 
 /** 按钮的操作能不能在小组件上直接执行。 */
 export function widgetButtonAction(c: Component): Extract<ButtonAction, { do: 'create' }> | null {
   if (c.type !== 'button' || !c.props.action) return null;
-  // 打开表单的新建（D-328）要用户填，和 open 一样只打开 App。
+  // 打开表单的新建（D-338）要用户填，和 open 一样只打开 App。
   return c.props.action.do === 'create' && !c.props.action.form ? c.props.action : null;
 }
 

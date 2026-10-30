@@ -45,7 +45,7 @@ export function Chart({
   const cal = calendarOf(env.config);
   // 查找、汇总、上一条（D-291）按算好的值画。
   const { view: collection, records } = useComputedRecords(env.config.collections, table, cal);
-  // 按引用字段分组（D-326）：被引用的表里每条记录一个点。
+  // 按引用字段分组（D-336）：被引用的表里每条记录一个点。
   const linked = useLinkedGroups(
     env,
     collection,

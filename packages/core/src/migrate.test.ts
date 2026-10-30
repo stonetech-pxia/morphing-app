@@ -113,7 +113,7 @@ describe('migrateWorkspace', () => {
     const kept = migrateWorkspace(custom, undefined, 20);
     expect(kept.ok && (kept.config as { workflows: unknown[] }).workflows).toEqual([picked]);
   });
-  it('v31 → v32 (board by a link, sheet quick add, D-341–D-342) only raises the version', () => {
+  it('v31 → v32 (board by a link, sheet quick add, D-351–D-352) only raises the version', () => {
     const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 31 };
     expect(migrateWorkspace(previous, undefined, 32)).toEqual({
       ok: true,
@@ -121,7 +121,7 @@ describe('migrateWorkspace', () => {
       fromVersion: 31,
     });
   });
-  it('v30 → v31 (schedule time, list sections, calendar on a schedule, add here, D-336–D-339) only raises the version', () => {
+  it('v30 → v31 (schedule time, list sections, calendar on a schedule, add here, D-346–D-349) only raises the version', () => {
     const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 30 };
     expect(migrateWorkspace(previous, undefined, 31)).toEqual({
       ok: true,
@@ -129,7 +129,7 @@ describe('migrateWorkspace', () => {
       fromVersion: 30,
     });
   });
-  it('v29 → v30 (once, countEarly, record pages, form presets and smartDate, D-330–D-334) only raises the version', () => {
+  it('v29 → v30 (once, countEarly, record pages, form presets and smartDate, D-340–D-344) only raises the version', () => {
     const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 29 };
     expect(migrateWorkspace(previous, undefined, 30)).toEqual({
       ok: true,
@@ -137,7 +137,7 @@ describe('migrateWorkspace', () => {
       fromVersion: 29,
     });
   });
-  it('v28 → v29 (group by link, stat minus, create with form, D-326–D-328) only raises the version', () => {
+  it('v28 → v29 (group by link, stat minus, create with form, D-336–D-338) only raises the version', () => {
     const previous = { ...workspace('zh', { withPdf: true }), schemaVersion: 28 };
     expect(migrateWorkspace(previous, undefined, 29)).toEqual({
       ok: true,

@@ -116,7 +116,7 @@ export function Board({
 
   const linkedAll = useLinkedGroups(env, view, props.groupField);
   const field = collection ? boardField(collection, props.groupField) : undefined;
-  // 引用字段分栏（D-341）要等被引用的表读出来；groupFilter 先筛出要哪几栏。
+  // 引用字段分栏（D-351）要等被引用的表读出来；groupFilter 先筛出要哪几栏。
   if (!collection || !view || !field || linkedAll === null) return null;
   const linked = linkedAll && {
     ...linkedAll,

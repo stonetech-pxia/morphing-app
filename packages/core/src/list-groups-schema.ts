@@ -1,4 +1,4 @@
-// 记录列表分段（D-337）的写法。只放常量：组件定义引用它；分段的计算在 list-groups.ts（会用到数据，
+// 记录列表分段（D-347）的写法。只放常量：组件定义引用它；分段的计算在 list-groups.ts（会用到数据，
 // 组件定义不能引用，否则加载会绕圈）。
 
 export const GROUP_UNITS = ['day', 'week', 'month'] as const;

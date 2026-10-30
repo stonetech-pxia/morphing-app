@@ -18,7 +18,7 @@ function addsTo(config: WorkspaceConfig, collectionId: string): boolean {
       (c.props.rowActions ?? []).some(
         (a) => a.do === 'create' && a.collectionId === collectionId,
       )) ||
-    // 就地添加（D-339）的列表自己就能添加。
+    // 就地添加（D-349）的列表自己就能添加。
     (c.type === 'recordList' && c.props.addHere === true && c.props.collectionId === collectionId);
   return (
     config.pages.some((page) => allComponents(page).some(inComponent)) ||

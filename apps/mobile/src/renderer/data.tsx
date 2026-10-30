@@ -98,7 +98,7 @@ export function toFormValues(collection: Collection, record: DataRecord | null):
 }
 
 /**
- * 一键操作打开的新记录表单（D-328）：预设的值（createInput 的输入，JSON）换成表单的写法。
+ * 一键操作打开的新记录表单（D-338）：预设的值（createInput 的输入，JSON）换成表单的写法。
  * 读不出来的、字段已经不在的不填。
  */
 export function prefillFormValues(collection: Collection, json: string): FormValues {
@@ -148,9 +148,9 @@ export function FieldInput({
   testID: string;
   /** 外面已经有字段名的标签（完整编辑页）。 */
   labeled?: boolean;
-  /** 快速添加（D-342）：单行文字框按键盘上的「完成 / 发送」就是添加。 */
+  /** 快速添加（D-352）：单行文字框按键盘上的「完成 / 发送」就是添加。 */
   onSubmit?: (() => void) | undefined;
-  /** 底部弹出的添加框打开时，第一个文字框直接弹出键盘（D-342）。 */
+  /** 底部弹出的添加框打开时，第一个文字框直接弹出键盘（D-352）。 */
   autoFocus?: boolean | undefined;
 }) {
   const input = [
@@ -229,7 +229,7 @@ function textBox<F extends Field>({
   onSubmit,
   autoFocus,
 }: FieldInputContext<F>) {
-  // 快速添加里的单行文字框：按键盘上的「完成」就添加（D-342），键盘不收起，接着写下一条。
+  // 快速添加里的单行文字框：按键盘上的「完成」就添加（D-352），键盘不收起，接着写下一条。
   const submits = onSubmit !== undefined && field.type === 'text';
   return (
     <TextInput
@@ -256,7 +256,7 @@ function textBox<F extends Field>({
 
 /**
  * 日期：输入框加「今天」「明天」「昨天」；今天按一天从几点开始算（D-286）。框里也可以写「下周五」「Nov 5」
- * 「demain」，离开输入框时在本机换成日期（D-334）。
+ * 「demain」，离开输入框时在本机换成日期（D-344）。
  */
 function DateInput({
   value,
@@ -675,7 +675,7 @@ export function FieldsForm({
    * 这几种字段存了以后才有值。
    */
   related?: { view: Collection; record: DataRecord | null };
-  /** 快速添加（D-342）：单行文字框按「完成」就添加。 */
+  /** 快速添加（D-352）：单行文字框按「完成」就添加。 */
   onSubmit?: (() => void) | undefined;
   /** 第一个文字框直接弹出键盘（底部弹出的添加框）。 */
   autoFocus?: boolean | undefined;
@@ -771,7 +771,7 @@ export function useCollection(env: RenderEnv, id: string): Collection | undefine
 }
 
 /**
- * 按引用字段分组（D-326）：被引用的那张表和它的记录。不是引用字段时 undefined，还没读完时 null。
+ * 按引用字段分组（D-336）：被引用的那张表和它的记录。不是引用字段时 undefined，还没读完时 null。
  */
 export function useLinkedGroups(
   env: RenderEnv,
@@ -801,7 +801,7 @@ export function openEditor(
 
 export type RecordListProps = Extract<Component, { type: 'recordList' }>['props'];
 
-/** 点列表里的一条：有 opens 时打开给这条记录用的页面（D-332），否则打开编辑页。 */
+/** 点列表里的一条：有 opens 时打开给这条记录用的页面（D-342），否则打开编辑页。 */
 export function openRow(
   router: ReturnType<typeof useRouter>,
   props: Pick<RecordListProps, 'opens'>,
@@ -836,7 +836,7 @@ export function RecordList({
     env.interactive
       ? (env.locked ?? (() => openAddHere(router, collection, view, props, preset)))
       : undefined;
-  // D-337：分段。引用字段要等被引用的表读出来（linked 是 null 时还在读）。
+  // D-347：分段。引用字段要等被引用的表读出来（linked 是 null 时还在读）。
   if (props.groupBy && linked !== null) {
     const groups = listGroups(sorted, view, props.groupBy, {
       locale,
@@ -939,7 +939,7 @@ function Empty({
   );
 }
 
-/** 列表、月历当天下面的「+ 添加」（D-339）。 */
+/** 列表、月历当天下面的「+ 添加」（D-349）。 */
 export function AddHere({
   label,
   onPress,
@@ -960,8 +960,8 @@ export function AddHere({
 }
 
 /**
- * 就地添加（D-339）：打开新记录的表单，预设列表筛选里的「等于」条件（给一条记录用的页面上已经换成这条，
- * D-332）和这一段、这一天的值。用户补完再保存。
+ * 就地添加（D-349）：打开新记录的表单，预设列表筛选里的「等于」条件（给一条记录用的页面上已经换成这条，
+ * D-342）和这一段、这一天的值。用户补完再保存。
  */
 export function openAddHere(
   router: ReturnType<typeof useRouter>,
@@ -1234,9 +1234,9 @@ export function RecordForm({
   const [issues, setIssues] = useState<FieldIssue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const cal = useCalendar();
-  // D-334：在本机认出文字里的日期；用户点掉后，这段文字不再认（改了文字再认）。
+  // D-344：在本机认出文字里的日期；用户点掉后，这段文字不再认（改了文字再认）。
   const [dismissed, setDismissed] = useState<string | null>(null);
-  // D-342：底部弹出的添加框开着没有。
+  // D-352：底部弹出的添加框开着没有。
   const [open, setOpen] = useState(false);
   if (!collection) return null;
   const smart = props.smartDate;
@@ -1265,7 +1265,7 @@ export function RecordForm({
   async function submit() {
     if (!collection || !env.interactive) return;
     if (env.locked) return env.locked();
-    // D-333：不显示的预设值（"$record" 在画之前已经换成这条记录）；D-334：认出来的日期填进去，文字里去掉。
+    // D-343：不显示的预设值（"$record" 在画之前已经换成这条记录）；D-344：认出来的日期填进去，文字里去掉。
     const preset = createInput(collection, props.values, { now: new Date(), cal });
     const recognised =
       found && smart
@@ -1348,7 +1348,7 @@ export function RecordForm({
       </Card>
     );
   }
-  // D-342：右下角一个圆形的「+」（页面把它放在滚动内容外面，PageView），点了从底部弹出添加框；
+  // D-352：右下角一个圆形的「+」（页面把它放在滚动内容外面，PageView），点了从底部弹出添加框；
   // 添加以后框留着、文字清空，可以接着写下一条，点外面或「关闭」收起。
   return (
     <>
@@ -1429,7 +1429,7 @@ export function Stat({
   const cal = calendarOf(env.config);
   // 查找、汇总、上一条（D-291）按算好的值统计。
   const { view: collection, records } = useComputedRecords(env.config.collections, table, cal);
-  // 按引用字段分组（D-326）要被引用的表的记录；减去另一个合计（D-327）要那张表的记录。
+  // 按引用字段分组（D-336）要被引用的表的记录；减去另一个合计（D-337）要那张表的记录。
   const linked = useLinkedGroups(env, collection, props.groupBy);
   const minus = useComputedRecords(
     env.config.collections,

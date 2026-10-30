@@ -27,7 +27,7 @@ const props = z.strictObject({
   goal: z.number().positive().max(1_000_000_000).optional(),
   /** 和上一段同期比（D-308）：筛选里唯一的 inPeriod 条件换成上一段。 */
   compare: z.literal('previous').optional(),
-  /** 减去另一个合计（D-327）：可以是另一张表，例如收入 − 分配出去的钱。检查在 stat-minus.ts。 */
+  /** 减去另一个合计（D-337）：可以是另一张表，例如收入 − 分配出去的钱。检查在 stat-minus.ts。 */
   minus: z
     .strictObject({
       collectionId: IdSchema,
@@ -46,7 +46,7 @@ const SEQUENCE: readonly string[] = SEQUENCE_AGGREGATES;
  * 按顺序的聚合（D-284）：streak（当前连续，下面写最佳连续）、daysSince、avgInterval、distinctDays，
  * 按 dateField（默认第一个日期字段，没有就用创建时间）算日子；unit、perUnit、skipField + skipOption 只给 streak。
  * goal（D-307）显示「值 / 目标」和进度；compare（D-308）和上一段同期比（compare.ts）。
- * minus（D-327）：显示「这个合计 − 另一个合计」，只有计数和求和（stat-minus.ts）。
+ * minus（D-337）：显示「这个合计 − 另一个合计」，只有计数和求和（stat-minus.ts）。
  */
 export const statComponent: ComponentDefinitionOf<'stat', typeof props> = defineComponent({
   type: 'stat',
@@ -100,7 +100,7 @@ export const statComponent: ComponentDefinitionOf<'stat', typeof props> = define
     doc: '{collectionId, aggregate: "count"|"sum"|"avg"|"min"|"max"|"streak"|"daysSince"|"avgInterval"|"distinctDays", fieldId? (a number, money, rating, duration or formula field; only for sum, avg, min, max), filter?, label, groupBy? (a choice field: one row per option, e.g. spending per category), dateField? (for the day-based aggregates rule 44: a date or datetime field or "createdAt"; default: the first date field), unit?: "day"|"week"|"month", perUnit? (1-50), skipField? + skipOption? (unit, perUnit and skip: streak only), goal? (a number: shows "3 / 5" and progress), compare?: "previous" (rule 52), minus? ({collectionId, aggregate: "count"|"sum", fieldId?, filter?}: shows this total minus that one, rule 56)}',
     rule: {
       n: 34,
-      text: 'Totals per category ("how much per category", "每个分类花了多少", "count of tasks by status") → a stat with groupBy set to that choice field (aggregate count, sum or avg as asked); it lists every option with its own value and a "not set" row for entries without one. A link field works too (D-326): one row per entry of the linked table, e.g. spending per category when categories are their own table. Grouping by other fields is not possible in a stat.',
+      text: 'Totals per category ("how much per category", "每个分类花了多少", "count of tasks by status") → a stat with groupBy set to that choice field (aggregate count, sum or avg as asked); it lists every option with its own value and a "not set" row for entries without one. A link field works too (D-336): one row per entry of the linked table, e.g. spending per category when categories are their own table. Grouping by other fields is not possible in a stat.',
     },
   },
   example: {

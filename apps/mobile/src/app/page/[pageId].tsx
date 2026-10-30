@@ -23,7 +23,7 @@ import { shownConfig } from '@/workspace/store';
 export default function PageRoute() {
   const { pageId, record: recordId } = useLocalSearchParams<{
     pageId: string;
-    /** 给一条记录用的页面（D-332）：从列表点开的那条记录。 */
+    /** 给一条记录用的页面（D-342）：从列表点开的那条记录。 */
     record?: string;
   }>();
   const { registry, locale, repo } = useWorkspaceContext();

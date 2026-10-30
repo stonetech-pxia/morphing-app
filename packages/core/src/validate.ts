@@ -92,7 +92,7 @@ export function validateWorkspace(
     const problem = recordPageTargetProblem(config, target);
     if (problem) issue('record-page', `nav entry ${problem}`);
   }
-  // ---- 给一条记录用的页面（D-332）----
+  // ---- 给一条记录用的页面（D-342）----
   for (const page of config.pages) {
     if (page.recordOf === undefined) continue;
     if (page.id === HOME_PAGE_ID) issue('record-page', 'the home page cannot have recordOf');
@@ -437,7 +437,7 @@ function dataComponentProblems(
   }
   problems.push(...(def.check?.(c, { config, registry, page, collection }) ?? []));
   problems.push(...conditionProblems(filter, collection, page.recordOf));
-  // 看板按引用分栏（D-341）：groupFilter 筛的是被引用的那张表。
+  // 看板按引用分栏（D-351）：groupFilter 筛的是被引用的那张表。
   if (c.type === 'recordList' && c.props.groupFilter) {
     const link = collection.fields.find((f) => f.id === c.props.groupField);
     const other =
@@ -453,13 +453,13 @@ function dataComponentProblems(
         ).map((p) => `groupFilter: ${p}`),
       );
   }
-  // 统计相减（D-327）：被减的那张表和它的筛选。
+  // 统计相减（D-337）：被减的那张表和它的筛选。
   if (c.type === 'stat') problems.push(...statMinusProblems(c, collection, config, page.recordOf));
   return problems;
 }
 
 /**
- * 给一条记录用的页面（D-332）不能直接打开：不知道是哪一条。导航栏、按钮、快捷入口、提醒打开它时报错，
+ * 给一条记录用的页面（D-342）不能直接打开：不知道是哪一条。导航栏、按钮、快捷入口、提醒打开它时报错，
  * 文字发给 AI（改用这张表的记录列表的 opens）。
  */
 export function recordPageTargetProblem(

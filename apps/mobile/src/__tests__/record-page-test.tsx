@@ -16,7 +16,7 @@ import { renderToolsApp } from '../test-utils/render-app';
 
 type Router = Awaited<ReturnType<typeof renderToolsApp>>['router'];
 
-// 给一条记录用的页面（D-332）和快速添加的预设值（D-333）：点一个项目打开它的页面。
+// 给一条记录用的页面（D-342）和快速添加的预设值（D-343）：点一个项目打开它的页面。
 
 const tables: Collection[] = [
   {

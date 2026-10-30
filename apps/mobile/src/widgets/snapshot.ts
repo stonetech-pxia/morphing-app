@@ -69,7 +69,7 @@ const MAX_ROWS = 7;
 const WIDGET_TILES = Math.min(8, MAX_TILES);
 
 /**
- * 组件在给一条记录用的页面上（D-332）：小组件不知道是哪一条，放不到桌面。
+ * 组件在给一条记录用的页面上（D-342）：小组件不知道是哪一条，放不到桌面。
  */
 export function onRecordPage(c: Component, config: WorkspaceConfig): boolean {
   return config.pages.some((p) => p.recordOf && allComponents(p).some((x) => x.id === c.id));
@@ -163,7 +163,7 @@ async function statView(
   const previous = props.compare ? previousFilter(props.filter, now, cal) : null;
   const base = { kind: 'stat' as const, title: props.label, link: componentLink(c.id) };
   if (props.groupBy) {
-    // 按引用字段分组（D-326）：被引用的表里每条记录一行。
+    // 按引用字段分组（D-336）：被引用的表里每条记录一行。
     const groupField = view.fields.find((f) => f.id === props.groupBy);
     const target =
       groupField?.type === 'link'
@@ -191,7 +191,7 @@ async function statView(
     };
   }
   const v = valueOf(matched);
-  // 减去另一个合计（D-327）。
+  // 减去另一个合计（D-337）。
   const minusTable =
     props.minus && config.collections.find((x) => x.id === props.minus!.collectionId);
   if (props.minus && minusTable) {

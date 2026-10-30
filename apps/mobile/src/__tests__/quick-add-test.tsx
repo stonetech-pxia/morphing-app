@@ -12,7 +12,7 @@ import { screen } from 'expo-router/testing-library';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { renderToolsApp } from '../test-utils/render-app';
 
-// 浮动「+」和底部弹出的添加框（D-342）、看板按引用分栏和每栏添加（D-341）。
+// 浮动「+」和底部弹出的添加框（D-352）、看板按引用分栏和每栏添加（D-351）。
 
 const sections: Collection = {
   id: 'sections',

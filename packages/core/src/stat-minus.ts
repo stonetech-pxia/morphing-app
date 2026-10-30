@@ -6,7 +6,7 @@ import { round } from './field-values';
 import { expandCollection } from './related';
 import type { Collection, Component, WorkspaceConfig } from './schema';
 
-// 统计相减（D-327）：「这个合计 − 另一个合计」，另一个可以在别的表。例如待分配 = 收入 − 分配出去的钱、
+// 统计相减（D-337）：「这个合计 − 另一个合计」，另一个可以在别的表。例如待分配 = 收入 − 分配出去的钱、
 // 余额 = 收入 − 支出、净资产 = 资产 − 负债。只有计数和求和：平均、最小、最大相减没有意义。
 // 检查放在这里而不是 stat 的定义里：要用到筛选条件的检查（conditions.ts），组件定义引用它会让加载绕圈。
 
@@ -18,7 +18,7 @@ export function statMinusProblems(
   c: StatComponent,
   collection: Collection,
   config: WorkspaceConfig,
-  /** 组件所在页面给哪张表的一条记录用（D-332）。 */
+  /** 组件所在页面给哪张表的一条记录用（D-342）。 */
   recordOf?: string,
 ): string[] {
   const minus = c.props.minus;

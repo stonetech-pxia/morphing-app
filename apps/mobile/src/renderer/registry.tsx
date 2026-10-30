@@ -313,7 +313,7 @@ export function Item({
   env: RenderEnv;
   style?: StyleProp<ViewStyle>;
 }) {
-  // D-332：只在画的时候换 "$record"，编辑和长按面板仍用配置里原来的组件。
+  // D-342：只在画的时候换 "$record"，编辑和长按面板仍用配置里原来的组件。
   const shown = env.recordId ? bindRecord(component, env.recordId) : component;
   if (env.focus) {
     return (

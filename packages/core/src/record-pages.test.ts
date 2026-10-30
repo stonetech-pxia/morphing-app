@@ -8,7 +8,7 @@ import { bindRecord } from './record-pages';
 import type { Collection, Component, WorkspaceConfig } from './schema';
 import { registry } from './test-helpers';
 
-// 给一条记录用的页面（D-332）：项目页列出这个项目的任务，任务页列出它的子任务。
+// 给一条记录用的页面（D-342）：项目页列出这个项目的任务，任务页列出它的子任务。
 
 const projects: Collection = {
   id: 'projects',
@@ -264,7 +264,7 @@ describe('binding the entry when the page opens', () => {
   });
 });
 
-// D-342：底部弹出的添加框（浮动的「+」）一页一个，不能放进分组。
+// D-352：底部弹出的添加框（浮动的「+」）一页一个，不能放进分组。
 describe('a floating add', () => {
   const sheet = (id: string, extra: Record<string, unknown> = {}) => ({
     id,

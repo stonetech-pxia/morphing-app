@@ -258,25 +258,25 @@ export const migrateV26toV27: Migration = (config) => ({ ...config, schemaVersio
 export const migrateV27toV28: Migration = (config) => ({ ...config, schemaVersion: 28 });
 
 /**
- * v28 → v29：统计和图表可以按引用字段分组（D-326），统计可以减去另一个合计（minus，D-327），
- * 一键操作的新建可以打开表单（form，D-328）。都是新的可选值，只提升版本号。
+ * v28 → v29：统计和图表可以按引用字段分组（D-336），统计可以减去另一个合计（minus，D-337），
+ * 一键操作的新建可以打开表单（form，D-338）。都是新的可选值，只提升版本号。
  */
 export const migrateV28toV29: Migration = (config) => ({ ...config, schemaVersion: 29 });
 
 /**
- * v29 → v30：日程的「一次」和 countEarly（D-330、D-331）、给一条记录用的页面（recordOf、recordList.opens、
- * "$record"，D-332）、快速添加表单的预设值和 smartDate（D-333、D-334）。都是新的可选值，只提升版本号。
+ * v29 → v30：日程的「一次」和 countEarly（D-340、D-341）、给一条记录用的页面（recordOf、recordList.opens、
+ * "$record"，D-342）、快速添加表单的预设值和 smartDate（D-343、D-344）。都是新的可选值，只提升版本号。
  */
 export const migrateV29toV30: Migration = (config) => ({ ...config, schemaVersion: 30 });
 
 /**
- * v30 → v31：日程规则的钟点（D-336）、记录列表分段（groupBy、groupUnit、showEmpty，D-337）、月历认日程
- * （D-338）、就地添加（addHere，D-339）。都是新的可选值，只提升版本号。
+ * v30 → v31：日程规则的钟点（D-346）、记录列表分段（groupBy、groupUnit、showEmpty，D-347）、月历认日程
+ * （D-348）、就地添加（addHere，D-349）。都是新的可选值，只提升版本号。
  */
 export const migrateV30toV31: Migration = (config) => ({ ...config, schemaVersion: 31 });
 
 /**
- * v31 → v32：看板按引用字段分栏和 groupFilter（D-341）、快速添加表单的 sheet 模式（D-342）。都是新的可选值，
+ * v31 → v32：看板按引用字段分栏和 groupFilter（D-351）、快速添加表单的 sheet 模式（D-352）。都是新的可选值，
  * 只提升版本号。
  */
 export const migrateV31toV32: Migration = (config) => ({ ...config, schemaVersion: 32 });

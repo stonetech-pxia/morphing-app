@@ -42,8 +42,8 @@ function sameValue(a: unknown, b: unknown): boolean {
 /** boards：习惯 ← 打卡、任务（状态是单选）两组表，习惯和任务各一个列表页面（大圆块和看板，D-311–D-314）。 */
 /** scheduled：植物（日程 + 上次浇水）、习惯（日程）← 打卡三张表，植物和习惯各一个列表页面（按记录排的提醒，D-316–D-318）。 */
 /** linked：互相引用的表（习惯 ← 打卡、工作 ← 工时、客户 ← 订单）和一张加油表，每张一个页面（D-287–D-289）。 */
-/** envelopes：零基预算的分类 ← 分配、分类 ← 流水（支出 / 收入）三张表，分类和流水各一个列表页面（D-326–D-328）。 */
-/** todos：项目 ← 任务（日程默认「一次」，lastDone 是完成记录的汇总）← 完成记录三张表，任务和项目各一个列表页面（D-330–D-334）。 */
+/** envelopes：零基预算的分类 ← 分配、分类 ← 流水（支出 / 收入）三张表，分类和流水各一个列表页面（D-336–D-338）。 */
+/** todos：项目 ← 任务（日程默认「一次」，lastDone 是完成记录的汇总）← 完成记录三张表，任务和项目各一个列表页面（D-340–D-344）。 */
 export type EvalSetup =
   | 'default'
   | 'pdf'
@@ -5606,7 +5606,7 @@ const RECORD_REMINDER_CASES: readonly EvalCase[] = [
   },
 ];
 
-/** 零基预算（D-326–D-328）：统计相减、按引用分组、新建并打开表单。 */
+/** 零基预算（D-336–D-338）：统计相减、按引用分组、新建并打开表单。 */
 const ENVELOPE_CASES: readonly EvalCase[] = [
   {
     id: 'ZB1',
@@ -5692,7 +5692,7 @@ const ENVELOPE_CASES: readonly EvalCase[] = [
   },
 ];
 
-/** 待办（D-330–D-334）：今天、收件箱、给一条记录用的页面、本机认日期、提前完成。 */
+/** 待办（D-340–D-344）：今天、收件箱、给一条记录用的页面、本机认日期、提前完成。 */
 const TODO_CASES: readonly EvalCase[] = [
   {
     id: 'TD1',
@@ -5802,7 +5802,7 @@ const TODO_CASES: readonly EvalCase[] = [
   },
 ];
 
-/** 待办第二批（D-336–D-339）：分段、月历认日程、就地添加、按记录自己的钟点提醒。 */
+/** 待办第二批（D-346–D-349）：分段、月历认日程、就地添加、按记录自己的钟点提醒。 */
 const TODO_VIEW_CASES: readonly EvalCase[] = [
   {
     id: 'TD6',
@@ -5889,7 +5889,7 @@ const TODO_VIEW_CASES: readonly EvalCase[] = [
   },
 ];
 
-/** 待办第三批（D-341、D-342）：项目自己的版块看板、浮动添加。 */
+/** 待办第三批（D-351、D-352）：项目自己的版块看板、浮动添加。 */
 const TODO_BOARD_CASES: readonly EvalCase[] = [
   {
     id: 'TD11',
@@ -5948,7 +5948,7 @@ const TODO_BOARD_CASES: readonly EvalCase[] = [
   },
 ];
 
-/** 用 AI 真搭 Todoist 样板时搭错的地方（D-344）和建议的下一步（D-345）。 */
+/** 用 AI 真搭 Todoist 样板时搭错的地方（D-354）和建议的下一步（D-355）。 */
 const TODO_ACCEPT_CASES: readonly EvalCase[] = [
   {
     id: 'TD13',
@@ -6637,7 +6637,7 @@ export async function runEvalCase(
       return { outcome: fail(`next “${plan.next}” should only change the look`), plans };
     prepared = prepareOps(prepared.after, second.ops, ctx);
   }
-  // 计划本身的检查（例如建议的下一步，D-345）看最后一轮。
+  // 计划本身的检查（例如建议的下一步，D-355）看最后一轮。
   return { outcome: judgeEval(c, plans.at(-1)!, prepared), plans };
 }
 

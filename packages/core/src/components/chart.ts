@@ -31,7 +31,7 @@ const props = z.strictObject({
 
 /**
  * 图表（D-249）：一张表的记录按时间段（最近几天 / 周 / 月）或单选字段分组，柱状、折线或饼图。
- * 饼图只能按单选字段分。D-326：单选分组也可以是引用字段，被引用的表里每条记录一个点。只有固定几种画法和聚合，没有表达式；记录只在本机读取。
+ * 饼图只能按单选字段分。D-336：单选分组也可以是引用字段，被引用的表里每条记录一个点。只有固定几种画法和聚合，没有表达式；记录只在本机读取。
  */
 export const chartComponent: ComponentDefinitionOf<'chart', typeof props> = defineComponent({
   type: 'chart',

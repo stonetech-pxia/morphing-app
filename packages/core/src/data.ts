@@ -238,7 +238,7 @@ export function scheduleStatusOf(
   );
 }
 
-/** 日程字段的 countEarly（D-331）从记录创建那天开始数。 */
+/** 日程字段的 countEarly（D-341）从记录创建那天开始数。 */
 export function scheduleOptionsOf(
   record: DataRecord,
   field: Extract<Field, { type: 'schedule' }>,
@@ -442,7 +442,7 @@ export function sortRecords(
   const key = (r: DataRecord): FieldValue | undefined => {
     if (isSystemField(field)) return r[field];
     if (def?.type === 'schedule') {
-      // 同一天的按钟点排（D-336），没有钟点的排在那天最后。
+      // 同一天的按钟点排（D-346），没有钟点的排在那天最后。
       const next = scheduleStatusOf(r, collection, def, now, cal)?.next;
       const time = (readValue(def, r.values[def.id]) as { time?: string } | undefined)?.time;
       return next === undefined ? undefined : next + (time ? minuteOfDay(time)! / 1440 : 0.9999);
@@ -520,7 +520,7 @@ export function groupedAggregate(
   );
 }
 
-/** 按引用字段分组（D-326）时，被引用的那张表和它的记录：每条一组，标题同引用里显示的。 */
+/** 按引用字段分组（D-336）时，被引用的那张表和它的记录：每条一组，标题同引用里显示的。 */
 export interface LinkedGroups {
   collection: Collection;
   records: readonly DataRecord[];
@@ -529,7 +529,7 @@ export interface LinkedGroups {
 
 /**
  * 按单选或引用字段分组（groupedAggregate 的分组部分）：每组自己算值，例如每个习惯的连续天数（D-284）。
- * 顺序和「未选」一行同 groupedAggregate。引用字段（D-326）要 linked：被引用的表里每条记录一组
+ * 顺序和「未选」一行同 groupedAggregate。引用字段（D-336）要 linked：被引用的表里每条记录一组
  * （按创建时间从旧到新，没有记录的也列出），没选的、指向已删除记录的算「未选」；没有 linked 时没有组。
  */
 export function groupRecords(
@@ -655,11 +655,11 @@ export function formatRef(
     const status = scheduleStatusOf(record, collection, field, now, cal);
     const rule = formatValue(field, record.values[ref], locale);
     if (!status) return rule;
-    // 「一次」（D-330）只写日期或状态（明天、11月5日、已完成），不再重复「一次」。
+    // 「一次」（D-340）只写日期或状态（明天、11月5日、已完成），不再重复「一次」。
     const read = readValue(field, record.values[ref]) as { repeat: string; time?: string };
     const once = read.repeat === 'once';
     const text = scheduleStatusText(status, todayNumber(now, cal), locale, once);
-    // 「一次」带钟点时跟在日子后面（明天 03:00，D-336）；重复的规则文字里已经有钟点。
+    // 「一次」带钟点时跟在日子后面（明天 03:00，D-346）；重复的规则文字里已经有钟点。
     if (!once) return `${rule} · ${text}`;
     return read.time && status.next !== undefined
       ? t(locale, 'scheduleAtTime', { rule: text, time: read.time })

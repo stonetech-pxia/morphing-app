@@ -54,7 +54,7 @@ export function useRecordActionRunner() {
     form?: boolean,
   ) {
     const input = createInput(collection, values, { now: new Date(), cal, rowId });
-    // D-328：打开新记录的表单，预设的值先填好，用户补完再保存（表单自己保存，不弹提示条）。
+    // D-338：打开新记录的表单，预设的值先填好，用户补完再保存（表单自己保存，不弹提示条）。
     if (form) return void openNew(collection.id, input);
     const result = await actions.add(collection, input);
     if (result.ok) {

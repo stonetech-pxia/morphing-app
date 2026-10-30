@@ -14,7 +14,7 @@ import { screen } from 'expo-router/testing-library';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { renderToolsApp } from '../test-utils/render-app';
 
-// 日程的「一次」（D-330）、给一条记录用的页面（D-332）、快速添加的预设值（D-333）和本机认日期（D-334）。
+// 日程的「一次」（D-340）、给一条记录用的页面（D-342）、快速添加的预设值（D-343）和本机认日期（D-344）。
 // 例子是待办：项目、任务两张表；这些能力不只给待办用。
 
 const tables: Collection[] = [

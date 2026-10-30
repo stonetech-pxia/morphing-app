@@ -435,7 +435,7 @@ export function ChangeScreen() {
                 onPress={() => setInput(next)}
               />
             ) : null}
-            {/* AI 建议的下一步（D-345）：上一次修改时 AI 给的，点了填进输入框。 */}
+            {/* AI 建议的下一步（D-355）：上一次修改时 AI 给的，点了填进输入框。 */}
             {suggest.map((text, i) => (
               <Chip
                 key={text}

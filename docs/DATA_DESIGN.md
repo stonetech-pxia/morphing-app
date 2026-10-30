@@ -211,7 +211,7 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 
 | 不做                        | 原因 / 以后怎么做                                                  |
 | --------------------------- | ------------------------------------------------------------------ |
-| 表之间的关联（客户 ↔ 订单） | D-250 做了单向引用，D-332 用页面列出属于一条的；多选、级联删除不做 |
+| 表之间的关联（客户 ↔ 订单） | D-250 做了单向引用，D-342 用页面列出属于一条的；多选、级联删除不做 |
 | 公式、计算字段              | D-188 / D-246 / D-247 做了受限的公式                               |
 | 图表、日历视图              | D-249 做了图表；D-305 做了月历外观                                 |
 | 重复任务、每日打卡          | 需要“按日期生成记录”的规则，单独设计                               |
@@ -262,7 +262,7 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 
 - **分组统计**（D-248，schemaVersion 13）：`stat.groupBy` 是一个单选字段，每个选项一行（按选项顺序，没有记录的也列出），没选的记录放在最后「未选」。
 - **图表**（D-249，schemaVersion 14）：`chart {collectionId, kind: bar / line / pie, aggregate: count / sum / avg, fieldId?, group: day / week / month / choice, dateField?, choiceField?, periods?, filter?, title}`。按时间分组显示最近几段（默认 7 天、8 周、6 个月），按单选字段分组每个选项一个点；饼图只能按单选分，超过 7 块合成「其他」。分组和几何在 `core/chart.ts`，App 用 View 画柱子、Skia `Path` 画折线和饼图。
-- **表间引用**（D-250，schemaVersion 15）：字段 `link {collectionId}`，值是那条记录的 ID，显示它的标题字段（第一个文字字段）。被引用的记录删掉时值保留、显示「已删除的记录」，恢复后显示回来；别的表还引用一张表时不能移除它（先移除引用字段）。筛选只有「有没有选」（给一条记录用的页面上可以等于这条，D-332），不能按它排序。不做多选和级联删除。
+- **表间引用**（D-250，schemaVersion 15）：字段 `link {collectionId}`，值是那条记录的 ID，显示它的标题字段（第一个文字字段）。被引用的记录删掉时值保留、显示「已删除的记录」，恢复后显示回来；别的表还引用一张表时不能移除它（先移除引用字段）。筛选只有「有没有选」（给一条记录用的页面上可以等于这条，D-342），不能按它排序。不做多选和级联删除。
 - **到期提醒**（D-251，schemaVersion 16）：`reminders` 里 `schedule: dateField` 的提醒按一张表的日期字段，在到期前 `daysBefore` 天的 `time` 用本地通知提醒；记录在本机读、正文在本机生成且只写表名（会出现在锁屏上，不写记录标题，P-043 ②），配置里只有设置。点提醒只打开页面或快捷操作，不运行。
 
 ## 14. 样板 App（D-260 起）
@@ -289,7 +289,7 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 - **日程字段**（D-292，schemaVersion 24）：每条记录存一份重复规则 `{repeat, …, perDay?}`（每天、每周几天、每段 N 次、每月几号、每 N 天、每年某天），用户在表单里设；字段的 `default` 是新记录的规则。逻辑在 `core/schedule.ts`。
 - **上次完成**（D-293）：`lastDone` 指向同一张表里的日期或日期时间字段；由规则和它算出下一次、今天该不该做、过期几天。
 - **用在别处**（D-294、D-295）：筛选 `due`；`inPeriod` / `gt` / `lt`、排序和公式都按下一次。按记录排的提醒见 D-316。
-- **一次**（D-330，schemaVersion 30）：`{repeat: once, date?}` 只做一次，做过就结束；筛选 `due: pending` 是还没做完的。**提前做了算这一次**（D-331）：字段的 `countEarly`。
+- **一次**（D-340，schemaVersion 30）：`{repeat: once, date?}` 只做一次，做过就结束；筛选 `due: pending` 是还没做完的。**提前做了算这一次**（D-341）：字段的 `countEarly`。
 
 ## 18. 一键记录操作（D-300 起）
 
@@ -310,16 +310,16 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 - **看板**（D-313、D-314）：`recordList.display: "board"` + `groupField`（单选）。每个选项一栏，再加「未分」；拖到另一栏或点卡片选「移到…」，等于一键操作的 `set`，可以撤销。
 - AI 只配置外观，看不到记录（D-042、D-113）；移动卡片是用户自己做的修改，和表单一样直接写数据库，不生成版本。
 
-## 21. 给一条记录用的页面、本机认日期（D-330 起）
+## 21. 给一条记录用的页面、本机认日期（D-340 起）
 
-- **给一条记录用的页面**（D-332，schemaVersion 30）：页面的 `recordOf` + 列表的 `opens`；组件里的 `"$record"` 打开时在本机换成那条记录的 ID（`core/record-pages.ts`），配置里只有占位值，AI 看不到 ID。快速添加表单的 `values`（D-333）可以把引用设成它。
-- **本机认日期**（D-334）：`core/date-phrases.ts` 按规则认三种语言的日期、时间和重复，`core/smart-date.ts` 换成要填的字段。快速添加表单的 `smartDate`、日期框都在手机上认，文字不发给 AI。
+- **给一条记录用的页面**（D-342，schemaVersion 30）：页面的 `recordOf` + 列表的 `opens`；组件里的 `"$record"` 打开时在本机换成那条记录的 ID（`core/record-pages.ts`），配置里只有占位值，AI 看不到 ID。快速添加表单的 `values`（D-343）可以把引用设成它。
+- **本机认日期**（D-344）：`core/date-phrases.ts` 按规则认三种语言的日期、时间和重复，`core/smart-date.ts` 换成要填的字段。快速添加表单的 `smartDate`、日期框都在手机上认，文字不发给 AI。
 
-## 22. 分段、钟点、月历认日程、就地添加（D-336 起）
+## 22. 分段、钟点、月历认日程、就地添加（D-346 起）
 
-- **钟点**（D-336，schemaVersion 31）：日程规则的 `time`，按记录排的提醒用它。
-- **分段**（D-337）：`recordList.groupBy` + `groupUnit` + `showEmpty`，逻辑在 `core/list-groups.ts`。
-- **月历认日程**（D-338）：月历的 `dateField` 可以是日程，记录落在接下来的每一次。
-- **就地添加**（D-339）：`recordList.addHere`，打开新记录的表单，预设这一段的值和列表筛选里的「等于」条件。
-- **看板按引用分栏**（D-341，schemaVersion 32）：`groupField` 可以是引用字段，`groupFilter` 筛出要哪几栏。
-- **底部弹出的快速添加**（D-342）：`recordForm.mode: "sheet"`，页面右下角的「+」。
+- **钟点**（D-346，schemaVersion 31）：日程规则的 `time`，按记录排的提醒用它。
+- **分段**（D-347）：`recordList.groupBy` + `groupUnit` + `showEmpty`，逻辑在 `core/list-groups.ts`。
+- **月历认日程**（D-348）：月历的 `dateField` 可以是日程，记录落在接下来的每一次。
+- **就地添加**（D-349）：`recordList.addHere`，打开新记录的表单，预设这一段的值和列表筛选里的「等于」条件。
+- **看板按引用分栏**（D-351，schemaVersion 32）：`groupField` 可以是引用字段，`groupFilter` 筛出要哪几栏。
+- **底部弹出的快速添加**（D-352）：`recordForm.mode: "sheet"`，页面右下角的「+」。

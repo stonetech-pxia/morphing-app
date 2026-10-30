@@ -44,7 +44,7 @@ export interface RenderEnv {
    * 会真的做事的操作改为调用它（提示「应用之后才能用」）。
    */
   locked?: () => void;
-  /** 给一条记录用的页面（D-332）：组件里的 "$record" 换成这条记录的 ID 再画。 */
+  /** 给一条记录用的页面（D-342）：组件里的 "$record" 换成这条记录的 ID 再画。 */
   recordId?: string;
 }
 
@@ -64,7 +64,7 @@ export function PageView({
   const picture = page.backdrop?.assetId ? page.backdrop : undefined;
   const palette = onPicture(env.palette, picture);
   const pageEnv = { ...env, palette, pageId: page.id };
-  // D-342：底部弹出的添加框是右下角的浮动「+」，不跟着内容滚动。
+  // D-352：底部弹出的添加框是右下角的浮动「+」，不跟着内容滚动。
   const floats = (c: Component) =>
     c.type === 'recordForm' && (c.props as { mode?: string }).mode === 'sheet';
   const floating = page.components.filter((c) => !c.hidden && floats(c));
@@ -82,7 +82,7 @@ export function PageView({
         flexGrow: 1,
         padding: palette.pad,
         gap: palette.gap,
-        // 有浮动的「+」时多留出它的高度，最下面的内容不被盖住（D-342）。
+        // 有浮动的「+」时多留出它的高度，最下面的内容不被盖住（D-352）。
         paddingBottom: 24 + bottomInset + (floating.length > 0 ? 80 : 0),
       }}>
       {env.focus?.selectedId ? (

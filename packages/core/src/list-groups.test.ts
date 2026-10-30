@@ -10,7 +10,7 @@ import { monthDays } from './month-view';
 import type { Collection } from './schema';
 import { registry } from './test-helpers';
 
-// 记录列表分段（D-337）、月历认日程（D-338）、就地添加带上的值（D-339）。2026-10-30 是周五。
+// 记录列表分段（D-347）、月历认日程（D-348）、就地添加带上的值（D-349）。2026-10-30 是周五。
 const now = new Date(2026, 9, 30, 9);
 const cal = DEFAULT_CALENDAR;
 

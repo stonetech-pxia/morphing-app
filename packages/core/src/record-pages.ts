@@ -1,6 +1,6 @@
 import { RECORD_REF, type Component } from './schema';
 
-// 给一条记录用的页面（D-332）：配置里写的是 "$record"，打开页面时在本机换成那条记录的 ID。
+// 给一条记录用的页面（D-342）：配置里写的是 "$record"，打开页面时在本机换成那条记录的 ID。
 // 只换组件里正好等于 "$record" 的值（筛选的 value、新建的预设值），别的不动；AI 看不到 ID（D-042）。
 
 function bind(value: unknown, recordId: string): unknown {

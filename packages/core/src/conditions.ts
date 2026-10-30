@@ -8,7 +8,7 @@ import { PERIODS, RECORD_REF, fieldDefinition, type Collection, type Condition }
 export function conditionProblems(
   conditions: Condition[] | undefined,
   collection: Collection,
-  /** 组件所在页面给哪张表的一条记录用（D-332）：引用字段可以 is / isNot "$record"。 */
+  /** 组件所在页面给哪张表的一条记录用（D-342）：引用字段可以 is / isNot "$record"。 */
   recordOf?: string,
 ): string[] {
   const problems: string[] = [];
@@ -23,7 +23,7 @@ export function conditionProblems(
     const { filter } = fieldDefinition(type);
     const v = cond.value;
     const where = `filter on ${cond.field}`;
-    // D-332：给一条记录用的页面上，指向那张表的引用字段可以等于（不等于）这条记录。
+    // D-342：给一条记录用的页面上，指向那张表的引用字段可以等于（不等于）这条记录。
     if (v === RECORD_REF) {
       if (
         f?.type === 'link' &&

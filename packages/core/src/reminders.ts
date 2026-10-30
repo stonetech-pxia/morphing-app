@@ -70,7 +70,7 @@ export function reminderProblems(r: Reminder, config: WorkspaceConfig): string[]
     const pageId = pageIdOf(r.opens as NavTarget);
     const page = pageId === null ? undefined : config.pages.find((p) => p.id === pageId);
     if (pageId !== null && !page) problems.push(`${where}: opens missing page ${pageId}`);
-    // D-332：给一条记录用的页面不知道打开哪一条。
+    // D-342：给一条记录用的页面不知道打开哪一条。
     if (page?.recordOf)
       problems.push(
         `${where}: opens page ${pageId}, which shows one entry of ${page.recordOf}; open another page`,
@@ -305,7 +305,7 @@ function planRecordReminder(
   for (const record of records.get(collection.id) ?? []) {
     const rule = readValue(field, record.values[field.id]) as ScheduleRule | undefined;
     if (!rule) continue;
-    // 记录自己的钟点优先（D-336），没有时用提醒的 time。
+    // 记录自己的钟点优先（D-346），没有时用提醒的 time。
     const { hour, minute } = hm(rule.time ?? r.time);
     const done = scheduleDoneDays(record, collection, field, now, cal);
     // 多算一次：今天的时间已经过了时用后面的补上。

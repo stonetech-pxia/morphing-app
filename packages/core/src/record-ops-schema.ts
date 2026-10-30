@@ -12,7 +12,7 @@ import { ConditionSchema, IdSchema, RECORD_REF, boundedText } from './schema-pri
  */
 export const RecordActionValueSchema = z.union([
   IdSchema,
-  // D-332：给一条记录用的页面上，引用字段可以设成这条记录。
+  // D-342：给一条记录用的页面上，引用字段可以设成这条记录。
   z.literal(RECORD_REF),
   z.number().finite(),
   z.boolean(),
@@ -30,7 +30,7 @@ const create = {
   /** 字段 ID → 预设值；其余字段按表单的默认值。 */
   values: presets.optional(),
 };
-/** 按钮和列表每一行的 create 还可以打开表单（D-328）：预设值先填好，用户补完再保存（例如金额要自己填）。 */
+/** 按钮和列表每一行的 create 还可以打开表单（D-338）：预设值先填好，用户补完再保存（例如金额要自己填）。 */
 const createInApp = { ...create, form: z.literal(true).optional() };
 const set = { do: z.literal('set'), fieldId: IdSchema, value: RecordActionValueSchema };
 const toggle = { do: z.literal('toggle'), fieldId: IdSchema };

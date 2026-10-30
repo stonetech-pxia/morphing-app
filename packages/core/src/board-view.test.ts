@@ -170,7 +170,7 @@ describe('tiles and board checks (D-311, D-313)', () => {
   });
 });
 
-// D-341：看板按引用字段分栏（每个项目自己的版块）。
+// D-351：看板按引用字段分栏（每个项目自己的版块）。
 describe('a board by a link field', () => {
   const sections: Collection = {
     id: 'sections',

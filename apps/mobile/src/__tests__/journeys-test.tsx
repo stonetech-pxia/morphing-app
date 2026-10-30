@@ -258,7 +258,7 @@ describe('user journeys (UI)', () => {
     expect(await screen.findByTestId('draft-note-0')).toHaveTextContent(/每月需要你自己点一次/);
   });
 
-  it('the AI’s suggested next steps show on the AI page and go away on undo (D-345)', async () => {
+  it('the AI’s suggested next steps show on the AI page and go away on undo (D-355)', async () => {
     const mock = createMockAIProvider();
     const { repo, store } = await renderApp(undefined, undefined, {
       plan: async (input, ctx) => {

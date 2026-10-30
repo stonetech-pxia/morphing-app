@@ -65,7 +65,7 @@ export const PageSchema = z.strictObject({
   /** 整个页面的背景图片（D-258，schemaVersion 18），组件浮在上面。 */
   backdrop: BackdropSchema.optional(),
   /**
-   * 给某张表的一条记录用的页面（D-332）：从这张表的记录列表（recordList.opens）点一条打开，组件里的
+   * 给某张表的一条记录用的页面（D-342）：从这张表的记录列表（recordList.opens）点一条打开，组件里的
    * "$record" 指那条记录。不能放进导航栏，也不能从按钮、快捷入口、提醒直接打开。
    */
   recordOf: IdSchema.optional(),

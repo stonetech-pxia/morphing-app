@@ -15,7 +15,7 @@ export default function RecordRoute() {
   const { collectionId, recordId, prefill } = useLocalSearchParams<{
     collectionId: string;
     recordId?: string;
-    /** 一键操作打开的新记录表单（D-328）：预设的值，JSON。 */
+    /** 一键操作打开的新记录表单（D-338）：预设的值，JSON。 */
     prefill?: string;
   }>();
   const { repo, locale } = useWorkspaceContext();

@@ -15,7 +15,7 @@ import { screen } from 'expo-router/testing-library';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { renderToolsApp } from '../test-utils/render-app';
 
-// 统计和图表按引用字段分组（D-326）、统计相减（D-327）、新建并打开表单（D-328）。
+// 统计和图表按引用字段分组（D-336）、统计相减（D-337）、新建并打开表单（D-338）。
 // 例子是零基预算：分类、分配、流水三张表；这些能力不只给预算用。
 
 const tables: Collection[] = [

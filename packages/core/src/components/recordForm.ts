@@ -10,24 +10,24 @@ const props = z.strictObject({
   collectionId: IdSchema,
   fieldIds: z.array(IdSchema).min(1).max(10),
   submitLabel: boundedText(1, 30),
-  /** sheet（D-342）：页面右下角一个「+」，点了从底部弹出添加框。 */
+  /** sheet（D-352）：页面右下角一个「+」，点了从底部弹出添加框。 */
   mode: z.enum(['inline', 'button', 'sheet']),
   /**
-   * 不在表单里显示、保存时一起填上的值（D-333），写法同一键操作的预设值（D-301）；给一条记录用的页面上
-   * 引用字段可以是 "$record"（D-332）。
+   * 不在表单里显示、保存时一起填上的值（D-343），写法同一键操作的预设值（D-301）；给一条记录用的页面上
+   * 引用字段可以是 "$record"（D-342）。
    */
   values: z
     .record(IdSchema, RecordActionValueSchema)
     .refine((v) => Object.keys(v).length <= 10, 'at most 10 preset values')
     .optional(),
   /**
-   * 在本机认出文字里说的日期（D-334）：from 是表单里的一个文字字段，to 是日期、日期时间或日程字段。
+   * 在本机认出文字里说的日期（D-344）：from 是表单里的一个文字字段，to 是日期、日期时间或日程字段。
    * 认出来的部分高亮、可以点掉；保存时从文字里去掉，填进 to（用户自己填了 to 时不动）。只给 inline 用。
    */
   smartDate: z.strictObject({ from: IdSchema, to: IdSchema }).optional(),
 });
 
-/** smartDate 能填的字段（D-334）。 */
+/** smartDate 能填的字段（D-344）。 */
 export const SMART_DATE_TYPES: readonly string[] = ['date', 'datetime', 'schedule'];
 
 /** 快速添加表单：inline 直接在页面上填，button 打开完整的记录编辑页。 */
@@ -62,7 +62,7 @@ export const recordFormComponent: ComponentDefinitionOf<'recordForm', typeof pro
             `smartDate.to ${smart.to} must be a date, datetime or schedule field of ${table.id}`,
           );
       }
-      // D-342：浮动的「+」放在页面右下角，一页一个，不能放进分组。
+      // D-352：浮动的「+」放在页面右下角，一页一个，不能放进分组。
       if (c.props.mode === 'sheet' && page) {
         if (!page.components.some((x) => x.id === c.id))
           problems.push(

@@ -14,7 +14,7 @@ import { screen } from 'expo-router/testing-library';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { renderToolsApp } from '../test-utils/render-app';
 
-// 列表分段（D-337）、月历认日程（D-338）、就地添加（D-339）。例子是待办，这些能力不只给待办用。
+// 列表分段（D-347）、月历认日程（D-348）、就地添加（D-349）。例子是待办，这些能力不只给待办用。
 
 type Router = Awaited<ReturnType<typeof renderToolsApp>>['router'];
 

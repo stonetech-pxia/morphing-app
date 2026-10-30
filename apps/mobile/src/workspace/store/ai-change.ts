@@ -169,7 +169,7 @@ export function createAIChange(
         await failedPlan(input, plan.ops, `${prepared.stage}: ${prepared.issues.join('; ')}`);
         return { kind: 'invalid', issues: prepared.issues };
       }
-      // 建议的下一步（D-345）：给了新的就换掉；没给就只去掉刚说的这一句（点了的那条），其余留着。
+      // 建议的下一步（D-355）：给了新的就换掉；没给就只去掉刚说的这一句（点了的那条），其余留着。
       await saveSuggest(plan.suggest ?? get().suggest.filter((x) => x !== input));
       // 功能先做（D-191）：直接应用到正式的版本，不进草稿；草稿里只改外观。
       const first = functionFirst(base, plan.ops, ctx);

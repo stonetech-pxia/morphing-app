@@ -15,10 +15,10 @@ import type { Locale } from './schema-primitives';
 // 日程（D-292–D-296）：每条记录存一份重复规则（每天、每周几天、每周 N 次、每月几号、每 N 天、每年某天），
 // 由规则和「做过的日子」算出下一次、今天该不该做、过期几天。纯逻辑：日子用天数（dayNumber）来加减，
 // 「今天」和「这周」按 calendar（D-286）。规则是小的白名单 JSON，不是 rrule 字符串。
-// D-330 加「一次」（once）：只做一次，可以定在某天、也可以不定日期；做过一次就结束（finished）。
+// D-340 加「一次」（once）：只做一次，可以定在某天、也可以不定日期；做过一次就结束（finished）。
 
 const perDay = z.number().int().min(1).max(20).optional();
-/** 几点（D-336）：每种规则都可以带，「明天 03:00」「每周一 09:00」；按记录排的提醒用它。 */
+/** 几点（D-346）：每种规则都可以带，「明天 03:00」「每周一 09:00」；按记录排的提醒用它。 */
 const time = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
@@ -48,7 +48,7 @@ const OnceDate = z
   );
 
 export const ScheduleRuleSchema = z.discriminatedUnion('repeat', [
-  // D-330：只做一次，date 不写 = 不定日期（有空再做）。没有 perDay。
+  // D-340：只做一次，date 不写 = 不定日期（有空再做）。没有 perDay。
   z.strictObject({ repeat: z.literal('once'), date: OnceDate.optional(), time }),
   z.strictObject({ repeat: z.literal('daily'), perDay, time }),
   z.strictObject({
@@ -174,20 +174,20 @@ function periodOf(per: SchedulePer, today: number, cal: Calendar): [number, numb
 
 export interface ScheduleStatus {
   /**
-   * 下一次（天数）：还没做的那一次，过期了就是过期的那天。「一次」不定日期、或者已经做完时没有（D-330）。
+   * 下一次（天数）：还没做的那一次，过期了就是过期的那天。「一次」不定日期、或者已经做完时没有（D-340）。
    */
   next: number | undefined;
   /** 今天该做（包括已经过期的）。 */
   dueToday: boolean;
   /** 过期几天（0 = 没过期）。「N 次」的规则不算过期。 */
   overdueDays: number;
-  /** 「一次」已经做过了（D-330）：不再有下一次，筛选 due pending 不算它。 */
+  /** 「一次」已经做过了（D-340）：不再有下一次，筛选 due pending 不算它。 */
   finished?: true;
 }
 
 export interface ScheduleOptions {
   /**
-   * 提前做了算这一次（D-331，日程字段的 countEarly）：只影响固定的日子（每天、每周几天、每月几号、每年某天）。
+   * 提前做了算这一次（D-341，日程字段的 countEarly）：只影响固定的日子（每天、每周几天、每月几号、每年某天）。
    * 不开时照 D-293：下一次 = 上次做过之后第一个规则里的日子，提前做了不算（28 号付了 1 号的账，1 号仍要付）。
    */
   countEarly?: boolean;
@@ -197,7 +197,7 @@ export interface ScheduleOptions {
 
 /**
  * 规则在今天的状态。done 是做过的日子（天数，做了几次就有几个；今天以后的不算）。
- * - 一次（D-330）：做过就结束；没做过时下一次是它的日子，不定日期就没有下一次。
+ * - 一次（D-340）：做过就结束；没做过时下一次是它的日子，不定日期就没有下一次。
  * - 每 N 天：上次做过之后 N 天；没做过就是今天。
  * - 固定的日子：上次做过之后第一个规则里的日子（可能已经过了 = 过期）；没做过就是今天起第一个。
  *   countEarly 时按 Todoist 的算法：从 since 起第一个规则里的日子是「该做的那一次」，每做一次（不管早晚）
@@ -253,7 +253,7 @@ export function scheduleStatus(
 /**
  * 接下来 count 次（天数，从今天起，D-316）：第一次是 scheduleStatus 的下一次（过期了就是今天），之后假设每次
  * 都按时做了（那天做够 perDay 次）再往后算。按记录排提醒用：用户真的做了、记录变了会重新算。
- * 「一次」最多一次（D-330）：定了日子、还没做时就是那天（过期了是今天）。
+ * 「一次」最多一次（D-340）：定了日子、还没做时就是那天（过期了是今天）。
  */
 export function scheduleOccurrences(
   rule: ScheduleRule,
@@ -362,7 +362,7 @@ export function shortDate(day: number, today: number, locale: Locale): string {
 }
 
 /**
- * 下一次的说明：今天、明天、过期几天，或者下次的日期（不是今年的带年份）。「一次」（D-330）写日期本身
+ * 下一次的说明：今天、明天、过期几天，或者下次的日期（不是今年的带年份）。「一次」（D-340）写日期本身
  * （不写「下次」），做完了写「已完成」，不定日期写「不定日期」。
  */
 export function scheduleStatusText(
@@ -382,7 +382,7 @@ export function scheduleStatusText(
 
 /**
  * 筛选 due 的值（D-294）：今天该做（包括已过期的）、已过期、这周要做（到这周最后一天为止，包括已过期的）；
- * pending（D-330）= 还没做完：有规则、不是做完了的「一次」（不定日期的也算）。
+ * pending（D-340）= 还没做完：有规则、不是做完了的「一次」（不定日期的也算）。
  */
 export const SCHEDULE_DUE = ['today', 'overdue', 'thisWeek', 'pending'] as const;
 export type ScheduleDue = (typeof SCHEDULE_DUE)[number];

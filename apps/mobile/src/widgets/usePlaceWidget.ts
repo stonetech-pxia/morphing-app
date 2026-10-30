@@ -26,7 +26,7 @@ export function usePlaceWidget() {
       Alert.alert(t(locale, 'widgetUnsupportedTitle'), t(locale, 'widgetUnsupportedHelp'));
       return;
     }
-    // D-332：这一页跟着某一条记录打开，桌面上不知道显示哪一条。
+    // D-342：这一页跟着某一条记录打开，桌面上不知道显示哪一条。
     if (config && onRecordPage(component, config)) {
       Alert.alert(t(locale, 'widgetUnsupportedTitle'), t(locale, 'widgetRecordPageHelp'));
       return;
