@@ -29,7 +29,7 @@ type Repo = Pick<WorkspaceRepo, 'listRecords' | 'insertRecord' | 'updateRecord'>
 
 async function allRecords(repo: Repo, config: WorkspaceConfig) {
   const map = new Map<string, DataRecord[]>();
-  for (const c of config.collections) map.set(c.id, await repo.listRecords(c.id));
+  for (const c of config.data.tables) map.set(c.id, await repo.listRecords(c.id));
   return map;
 }
 

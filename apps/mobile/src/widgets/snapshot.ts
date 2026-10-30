@@ -1,29 +1,24 @@
 import {
   allComponents,
   MAX_TILES,
-  aggregateRecords,
   calendarOf,
   changeLabel,
-  chartDateField,
   compareChange,
   componentLabel,
   filterRecords,
   formatRef,
-  groupRecords,
-  isSequenceAggregate,
   linkedCollectionIds,
   loadComputedRecords,
-  minusValue,
   loadLinkResolver,
-  previousFilter,
   previousLabel,
   progressOf,
   recordProgress,
   resolveColors,
-  sequenceValue,
   shownRowAction,
   sortRecords,
-  type Aggregate,
+  isKnownComponent,
+  readNumber,
+  type BlockOf,
   type Calendar,
   type Component,
   type DataRecord,
@@ -34,7 +29,12 @@ import {
 } from '@morph/core';
 
 import { t } from '../i18n';
-import { amountText, statText } from '../renderer/data';
+import {
+  amountText,
+  isRecordBlock as isRecordLook,
+  statText,
+  type RecordBlock,
+} from '../renderer/data';
 import { iosSymbolName } from '../renderer/Icon';
 import {
   actionHash,
@@ -72,13 +72,14 @@ const WIDGET_TILES = Math.min(8, MAX_TILES);
  * 组件在给一条记录用的页面上（D-342）：小组件不知道是哪一条，放不到桌面。
  */
 export function onRecordPage(c: Component, config: WorkspaceConfig): boolean {
-  return config.pages.some((p) => p.recordOf && allComponents(p).some((x) => x.id === c.id));
+  return config.containers.pages.some(
+    (p) => p.of !== undefined && allComponents(p).some((x) => x.id === c.id),
+  );
 }
 
 /** 能放到桌面的组件：统计、按钮、记录列表（月历和看板除外）。 */
 export function widgetSupported(c: Component): boolean {
-  if (c.type === 'recordList') return c.props.display !== 'calendar' && c.props.display !== 'board';
-  return c.type === 'stat' || c.type === 'button';
+  return ['list', 'cards', 'checklist', 'tiles', 'number', 'button'].includes(c.look as string);
 }
 
 /** 小组件和「编辑小组件」列表里的名字：统计、按钮用它自己的文字，列表用表名，其它用组件的说明。 */
@@ -88,9 +89,10 @@ export function widgetName(
   registry: Registry,
   locale: Locale,
 ): string {
-  if (c.type === 'stat' || c.type === 'button') return c.props.label;
-  if (c.type === 'recordList') {
-    const table = config.collections.find((x) => x.id === c.props.collectionId);
+  if (!isKnownComponent(c)) return componentLabel(c, config, { registry, locale, now: new Date() });
+  if (c.look === 'number' || c.look === 'button') return c.show.label;
+  if (isRecordLook(c)) {
+    const table = config.data.tables.find((x) => x.id === c.source.table);
     if (table) return table.name;
   }
   return componentLabel(c, config, { registry, locale, now: new Date() });
@@ -115,44 +117,17 @@ interface Ctx {
 
 const lister = (records: RecordsByTable) => async (id: string) => [...(records.get(id) ?? [])];
 
-async function statView(
-  c: Extract<Component, { type: 'stat' }>,
-  ctx: Ctx,
-): Promise<WidgetView | null> {
+async function statView(c: BlockOf<'number'>, ctx: Ctx): Promise<WidgetView | null> {
   const { config, locale, cal, now } = ctx;
-  const props = c.props;
-  const table = config.collections.find((x) => x.id === props.collectionId);
-  if (!table) return null;
-  const { view, records } = await loadComputedRecords(
-    lister(ctx.records),
-    config.collections,
-    table,
-    now,
-    cal,
-  );
-  const field = props.fieldId ? view.fields.find((f) => f.id === props.fieldId) : undefined;
-  const matched = filterRecords(records, view, props.filter, now, cal);
-  const sequence = isSequenceAggregate(props.aggregate)
-    ? {
-        spec: {
-          aggregate: props.aggregate,
-          unit: props.unit,
-          perUnit: props.perUnit,
-          skip:
-            props.skipField && props.skipOption
-              ? { fieldId: props.skipField, optionId: props.skipOption }
-              : undefined,
-        },
-        ctx: { dateField: chartDateField(view, props), now, cal },
-      }
-    : null;
-  const valueOf = (list: DataRecord[]): { value: number | null; best?: number } =>
-    sequence
-      ? sequenceValue(list, view, sequence.spec, sequence.ctx)
-      : { value: aggregateRecords(list, view, props.aggregate as Aggregate, props.fieldId) };
-  const text = (v: number | null) => statText(v, props.aggregate, field, locale, props.unit);
+  const source = c.source;
+  // 和页面上的数字块同一份读法（core 的 readNumber）。
+  const read = readNumber(source, { config, records: ctx.records, now, cal, locale });
+  if (!read) return null;
+  const field = source.field ? read.view.fields.find((f) => f.id === source.field) : undefined;
+  const text = (v: number | null) =>
+    statText(v, source.aggregate, field, locale, source.days?.unit);
   const goal = (v: number | null) => {
-    const p = props.goal === undefined ? undefined : progressOf(v ?? 0, props.goal);
+    const p = source.goal === undefined ? undefined : progressOf(v ?? 0, source.goal);
     return (
       p && {
         ratio: p.ratio,
@@ -160,63 +135,34 @@ async function statView(
       }
     );
   };
-  const previous = props.compare ? previousFilter(props.filter, now, cal) : null;
-  const base = { kind: 'stat' as const, title: props.label, link: componentLink(c.id) };
-  if (props.groupBy) {
-    // 按引用字段分组（D-336）：被引用的表里每条记录一行。
-    const groupField = view.fields.find((f) => f.id === props.groupBy);
-    const target =
-      groupField?.type === 'link'
-        ? config.collections.find((x) => x.id === groupField.collectionId)
-        : undefined;
-    const linked = target && {
-      collection: target,
-      records: ctx.records.get(target.id) ?? [],
-      locale,
-    };
-    const groups = groupRecords(matched, view, props.groupBy, t(locale, 'statNoChoice'), linked);
+  const base = { kind: 'stat' as const, title: c.show.label, link: componentLink(c.id) };
+  if (read.groups) {
     return {
       ...base,
       value: '',
-      rows: groups.map((g) => {
-        const v = valueOf(g.records).value;
-        const p = goal(v);
+      rows: read.groups.map((g) => {
+        const p = goal(g.value);
         return {
           id: g.optionId ?? '-',
           title: g.label,
-          trailing: p?.label ?? text(v),
+          trailing: p?.label ?? text(g.value),
           ...(p ? { ratio: p.ratio } : {}),
         };
       }),
     };
   }
-  const v = valueOf(matched);
-  // 减去另一个合计（D-337）。
-  const minusTable =
-    props.minus && config.collections.find((x) => x.id === props.minus!.collectionId);
-  if (props.minus && minusTable) {
-    const other = await loadComputedRecords(
-      lister(ctx.records),
-      config.collections,
-      minusTable,
-      now,
-      cal,
-    );
-    v.value = minusValue(v.value, props.minus, other.view, other.records, now, cal);
-  }
-  const p = goal(v.value);
+  const p = goal(read.value);
   let note: string | undefined;
-  if (v.best !== undefined) note = t(locale, 'seqBest', { value: text(v.best) });
-  else if (previous) {
-    const before = valueOf(filterRecords(records, view, previous.filter, now, cal));
-    const change = changeLabel(compareChange(v.value, before.value), locale);
-    note = [previousLabel(previous.period, text(before.value), locale), change]
+  if (read.best !== undefined) note = t(locale, 'seqBest', { value: text(read.best) });
+  else if (read.previous) {
+    const change = changeLabel(compareChange(read.value, read.previous.value), locale);
+    note = [previousLabel(read.previous.period, text(read.previous.value), locale), change]
       .filter(Boolean)
       .join(' · ');
   }
   return {
     ...base,
-    value: p ? p.label : text(v.value),
+    value: p ? p.label : text(read.value),
     ...(p
       ? { ratio: p.ratio, percent: t(locale, 'progressPercent', { n: Math.round(p.ratio * 100) }) }
       : {}),
@@ -224,68 +170,63 @@ async function statView(
   };
 }
 
-function buttonView(c: Extract<Component, { type: 'button' }>, ctx: Ctx): WidgetView {
-  const icon = c.props.icon ? iosSymbolName(c.props.icon) : undefined;
-  const base = { kind: 'button' as const, title: c.props.label, ...(icon ? { icon } : {}) };
+function buttonView(c: BlockOf<'button'>, ctx: Ctx): WidgetView {
+  const icon = c.show.icon ? iosSymbolName(c.show.icon) : undefined;
+  const base = { kind: 'button' as const, title: c.show.label, ...(icon ? { icon } : {}) };
   const action = widgetButtonAction(c);
   if (action) {
     const key = buttonOpKey(c.id);
     ctx.ops[key] = { component: c.id, hash: actionHash(action) };
     return { ...base, op: key };
   }
-  // 打开表单、筛出来一起改（要先确认）、打开页面：在 App 里做。
-  if (c.props.action?.do === 'open')
-    return { ...base, link: recordLink(c.props.action.collectionId) };
+  // 打开表单（预设值在 App 里填，Q6）、筛出来一起改（要先确认）、打开页面：在 App 里做。
   return { ...base, link: componentLink(c.id) };
 }
 
-async function listView(
-  c: Extract<Component, { type: 'recordList' }>,
-  ctx: Ctx,
-): Promise<WidgetView | null> {
+async function listView(c: RecordBlock, ctx: Ctx): Promise<WidgetView | null> {
   const { config, locale, cal, now } = ctx;
-  const props = c.props;
-  const table = config.collections.find((x) => x.id === props.collectionId);
+  const { source, show } = c;
+  const table = config.data.tables.find((x) => x.id === source.table);
   if (!table) return null;
   const { view, records } = await loadComputedRecords(
     lister(ctx.records),
-    config.collections,
+    config.data.tables,
     table,
     now,
     cal,
   );
   const targets = linkedCollectionIds(view);
   const links = targets.length
-    ? await loadLinkResolver(lister(ctx.records), config.collections, targets, locale)
+    ? await loadLinkResolver(lister(ctx.records), config.data.tables, targets, locale)
     : undefined;
-  const tiles = props.display === 'tiles';
+  const tiles = c.look === 'tiles';
   const sorted = sortRecords(
-    filterRecords(records, view, props.filter, now, cal),
+    filterRecords(records, view, source.filter, now, cal),
     view,
-    props.sort,
+    source.sort,
     now,
     cal,
   );
-  const shown = sorted.slice(0, Math.min(props.limit, tiles ? WIDGET_TILES : MAX_ROWS));
-  const format = props.trailingFormat;
-  const trailingField = view.fields.find((f) => f.id === props.trailingField);
+  const shown = sorted.slice(0, Math.min(source.limit, tiles ? WIDGET_TILES : MAX_ROWS));
+  const format = show.format;
+  const trailingField = view.fields.find((f) => f.id === show.trailing);
   const rows = shown.map((r): WidgetRow => {
-    const title = formatRef(r, view, props.titleField, locale, links, now, cal) || '—';
+    const title = formatRef(r, view, show.title, locale, links, now, cal) || '—';
     const progress =
-      format?.kind === 'progress' && props.trailingField
-        ? recordProgress(r, view, props.trailingField, format.goal, now, cal)
+      format?.kind === 'progress' && show.trailing
+        ? recordProgress(r, view, show.trailing, format.goal, now, cal)
         : undefined;
     const trailing = progress
       ? t(locale, 'progressOfGoal', {
           value: amountText(progress.value, trailingField, locale),
           goal: amountText(progress.goal, trailingField, locale),
         })
-      : props.trailingField
-        ? formatRef(r, view, props.trailingField, locale, links, now, cal)
+      : show.trailing
+        ? formatRef(r, view, show.trailing, locale, links, now, cal)
         : '';
     const row: WidgetRow = { id: r.id, title, ...(trailing ? { trailing } : {}) };
     if (!tiles) return { ...row, link: recordLink(table.id, r.id) };
-    const action = widgetRowAction(shownRowAction(props.rowActions, r, view, now, cal));
+    const action = widgetRowAction(shownRowAction(c.tools, r, view, now, cal));
     const extra = progress ? { ratio: progress.ratio, full: progress.ratio >= 1 } : {};
     if (!action) return { ...row, ...extra, link: recordLink(table.id, r.id) };
     const key = rowOpKey(c.id, r.id);
@@ -297,7 +238,7 @@ async function listView(
     title: widgetName(c, config, ctx.registry, locale),
     display: tiles ? 'tiles' : 'list',
     rows,
-    empty: props.emptyText ?? t(locale, 'noRecords'),
+    empty: show.emptyText ?? t(locale, 'noRecords'),
     link: componentLink(c.id),
   };
 }
@@ -312,12 +253,13 @@ async function viewOf(c: Component | undefined, ctx: Ctx, name: string): Promise
       note: t(ctx.locale, 'widgetUnsupported'),
       link: componentLink(c.id),
     };
-  const view =
-    c.type === 'stat'
+  const view = !isKnownComponent(c)
+    ? null
+    : c.look === 'number'
       ? await statView(c, ctx)
-      : c.type === 'button'
+      : c.look === 'button'
         ? buttonView(c, ctx)
-        : c.type === 'recordList'
+        : isRecordLook(c)
           ? await listView(c, ctx)
           : null;
   return view ?? gone;

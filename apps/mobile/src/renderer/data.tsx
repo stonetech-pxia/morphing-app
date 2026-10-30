@@ -36,7 +36,10 @@ import {
   todayNumber,
   type Aggregate,
   type Collection,
+  RECORD_LOOKS,
+  isKnownComponent,
   type BlockOf,
+  type Component,
   type Calendar,
   type OpenUse,
   type RecordLook,
@@ -792,6 +795,9 @@ export function useLinkedGroups(
 
 /** 记录块（list cards checklist tiles board calendar）：source 读哪张表，show 每条的卡片，tools 每条上的工具。 */
 export type RecordBlock = BlockOf<RecordLook>;
+
+export const isRecordBlock = (c: Component): c is RecordBlock =>
+  isKnownComponent(c) && (RECORD_LOOKS as readonly string[]).includes(c.look);
 
 /** 每一段 / 每一天 / 每一栏下面的「添加」（as addHere，D-349）。 */
 export const addHereOf = (block: RecordBlock) => block.tools?.find((u) => u.as === 'addHere');
