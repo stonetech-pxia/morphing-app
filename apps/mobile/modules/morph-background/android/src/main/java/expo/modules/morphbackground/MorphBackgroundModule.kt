@@ -83,6 +83,9 @@ class MorphBackgroundModule : Module() {
       }
     }
 
+    // 提醒按钮的后台处理（D-318）在 Android 上由 expo-task-manager 的后台任务管，这里不用做什么。
+    Function("releaseLaunch") {}
+
     Function("end") { done: DoneNotice? ->
       if (active) MorphBackgroundService.stop(context)
       active = false

@@ -15,6 +15,11 @@ export interface MorphBackgroundModule {
   update(text: string, fraction: number | null): void;
   /** 结束保活；done 不为 null 时发一条完成通知（只有 Android）。 */
   end(done: { title: string; body: string } | null): void;
+  /**
+   * iOS：系统在后台拉起 App（提醒通知上的按钮，D-318）时模块先要了一段后台时间，处理完调这个还掉。
+   * Android 什么也不做。
+   */
+  releaseLaunch(): void;
 }
 
 export default requireOptionalNativeModule<MorphBackgroundModule>('MorphBackground');

@@ -7,6 +7,7 @@ import {
   type Component,
   type Field,
   type Locale,
+  type Reminder,
   type WorkspaceConfig,
 } from '../schema';
 import { parseRichText } from '../richtext';
@@ -39,6 +40,7 @@ function sameValue(a: unknown, b: unknown): boolean {
 /** oneTap：喝水、工时（开始 / 结束）、行李清单、账单四张表，每张一个列表页面（一键记录操作，D-300）。 */
 /** views：心情、上下班（开始和结束的日期时间）、喝水三张表，每张一个列表页面（D-305–D-308）。 */
 /** boards：习惯 ← 打卡、任务（状态是单选）两组表，习惯和任务各一个列表页面（大圆块和看板，D-311–D-314）。 */
+/** scheduled：植物（日程 + 上次浇水）、习惯（日程）← 打卡三张表，植物和习惯各一个列表页面（按记录排的提醒，D-316–D-318）。 */
 /** linked：互相引用的表（习惯 ← 打卡、工作 ← 工时、客户 ← 订单）和一张加油表，每张一个页面（D-287–D-289）。 */
 export type EvalSetup =
   | 'default'
@@ -52,7 +54,8 @@ export type EvalSetup =
   | 'linked'
   | 'oneTap'
   | 'views'
-  | 'boards';
+  | 'boards'
+  | 'scheduled';
 
 export type OpsPlan = Extract<Plan, { kind: 'ops' }>;
 
@@ -113,6 +116,8 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
     ops.push(...viewOps(locale));
   } else if (setup === 'boards') {
     ops.push(...boardOps(locale));
+  } else if (setup === 'scheduled') {
+    ops.push(...scheduledOps(locale));
   } else if (setup !== 'default') ops.push({ op: 'installTool', toolId: 'pdf' });
   if (setup === 'pdfBelowFiles') {
     ops.push({ op: 'moveComponent', pageId: 'home', componentId: 'card-pdf', toIndex: 3 });
@@ -422,6 +427,86 @@ function boardOps(locale: Locale): Op[] {
     ...tables.map((collection): Op => ({ op: 'addCollection', collection })),
     listPage(tables[0]!, 'name'),
     listPage(tables[2]!, 'title'),
+  ];
+}
+
+/** 有日程字段的植物和习惯表、习惯的打卡表，植物和习惯各一个列表页面（名字按语言，ID 都一样）。 */
+function scheduledOps(locale: Locale): Op[] {
+  const n = {
+    zh: ['植物', '名字', '浇水日程', '上次浇水', '习惯', '日程', '打卡', '日期'],
+    en: ['Plants', 'Name', 'Watering', 'Last watered', 'Habits', 'Schedule', 'Check-ins', 'Date'],
+    fr: [
+      'Plantes',
+      'Nom',
+      'Arrosage',
+      'Dernier arrosage',
+      'Habitudes',
+      'Programme',
+      'Pointages',
+      'Date',
+    ],
+  }[locale] as string[];
+  const [plants, name, watering, watered, habits, plan, checkins, date] = n as [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+  const tables: Collection[] = [
+    {
+      id: 'plants',
+      name: plants,
+      fields: [
+        { id: 'name', name, type: 'text' },
+        {
+          id: 'plan',
+          name: watering,
+          type: 'schedule',
+          default: { repeat: 'interval', every: 7 },
+          lastDone: 'watered',
+        },
+        { id: 'watered', name: watered, type: 'date' },
+      ],
+    },
+    {
+      id: 'habits',
+      name: habits,
+      fields: [
+        { id: 'name', name, type: 'text' },
+        { id: 'plan', name: plan, type: 'schedule', default: { repeat: 'daily' } },
+      ],
+    },
+    {
+      id: 'checkins',
+      name: checkins,
+      fields: [
+        { id: 'habit', name: habits, type: 'link', collectionId: 'habits' },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+      ],
+    },
+  ];
+  const listPage = (collection: Collection): Op => ({
+    op: 'addPage',
+    page: {
+      id: collection.id,
+      title: collection.name,
+      components: [
+        {
+          id: 'list',
+          type: 'recordList',
+          props: { collectionId: collection.id, display: 'list', titleField: 'name', limit: 30 },
+        },
+      ],
+    },
+  });
+  return [
+    ...tables.map((collection): Op => ({ op: 'addCollection', collection })),
+    listPage(tables[0]!),
+    listPage(tables[1]!),
   ];
 }
 
@@ -5220,6 +5305,89 @@ const BOARD_CASES: readonly EvalCase[] = [
   },
 ];
 
+/** 按记录排的提醒（D-316）：表 collectionId 的日程字段 plan、time 对上；extra 再查别的。 */
+const recordReminder =
+  (collectionId: string, time: string, extra?: (r: Reminder) => string | null) =>
+  (c: WorkspaceConfig): string | null => {
+    const found = (c.reminders ?? []).filter(
+      (r) =>
+        r.schedule === 'scheduleField' &&
+        r.collectionId === collectionId &&
+        r.fieldId === 'plan' &&
+        r.time === time &&
+        r.enabled,
+    );
+    if (found.length === 0)
+      return `expected a scheduleField reminder on ${collectionId}.plan at ${time}, got ${JSON.stringify(c.reminders)}`;
+    return extra ? (found.map(extra).find((x) => x === null) ?? extra(found[0]!)) : null;
+  };
+
+const RECORD_REMINDER_CASES: readonly EvalCase[] = [
+  {
+    id: 'RR1',
+    input: '每盆植物到了该浇水的那天晚上 7 点提醒我，通知上加一个「浇好了」按钮',
+    locale: 'zh',
+    setup: 'scheduled',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: recordReminder('plants', '19:00', (r) =>
+        r.done?.do === 'set' && r.done.fieldId === 'watered' && r.done.value === 'today'
+          ? null
+          : `expected done set watered today, got ${JSON.stringify(r.done)}`,
+      ),
+    },
+  },
+  {
+    id: 'RR2-en',
+    input: 'Remind me of each habit at 8pm on its days, but not if I already checked in today',
+    locale: 'en',
+    setup: 'scheduled',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: recordReminder('habits', '20:00', (r) =>
+        r.unless?.collectionId === 'checkins' &&
+        r.unless.within === 'day' &&
+        r.unless.link === 'habit'
+          ? null
+          : `expected unless check-ins within day by link habit, got ${JSON.stringify(r.unless)}`,
+      ),
+    },
+  },
+  {
+    id: 'RR3-fr',
+    input:
+      'Rappelle-moi chaque habitude à 9 h selon son programme, avec un bouton pour me le rappeler plus tard',
+    locale: 'fr',
+    setup: 'scheduled',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: recordReminder('habits', '09:00', (r) =>
+        r.snoozeMinutes !== undefined ? null : 'expected snoozeMinutes',
+      ),
+    },
+  },
+  {
+    id: 'RR4',
+    input: '每个习惯按自己的日程早上 8 点提醒，通知上点「完成」就记一次打卡',
+    locale: 'zh',
+    setup: 'scheduled',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: recordReminder('habits', '08:00', (r) =>
+        r.done?.do === 'create' &&
+        r.done.collectionId === 'checkins' &&
+        r.done.values?.habit === 'row'
+          ? null
+          : `expected done create a check-in with habit row, got ${JSON.stringify(r.done)}`,
+      ),
+    },
+  },
+];
+
 const HOME_SCREEN_CASES: readonly EvalCase[] = [
   {
     id: 'HS1',
@@ -5677,6 +5845,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...SCHEDULE_CASES,
   ...VIEW_CASES,
   ...BOARD_CASES,
+  ...RECORD_REMINDER_CASES,
   ...HOME_SCREEN_CASES,
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,

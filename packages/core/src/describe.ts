@@ -61,6 +61,12 @@ export function reminderWhen(r: Reminder, config: WorkspaceConfig, locale: Local
   }
   const collection = config.collections.find((c) => c.id === r.collectionId);
   const field = collection?.fields.find((f) => f.id === r.fieldId);
+  if (r.schedule === 'scheduleField')
+    return t(locale, 'reminderWhenSchedule', {
+      field: field?.name ?? String(r.fieldId),
+      table: collection?.name ?? String(r.collectionId),
+      time: r.time,
+    });
   return t(locale, 'reminderWhenDate', {
     field: field?.name ?? String(r.fieldId),
     table: collection?.name ?? String(r.collectionId),

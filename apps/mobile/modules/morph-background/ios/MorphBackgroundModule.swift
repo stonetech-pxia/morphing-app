@@ -1,5 +1,6 @@
 import BackgroundTasks
 import ExpoModulesCore
+import UIKit
 
 // 长任务切到后台也继续的 iOS 部分（D-163）：iOS 26 的 BGContinuedProcessingTask。用户点了运行之后提交，
 // 系统在锁屏和灵动岛上显示进度，切到别的 App 也给时间继续跑；系统收回时间时让 morph-media 按「切到后台」中断。
@@ -25,8 +26,21 @@ public class MorphBackgroundModule: Module {
   private var task: AnyObject?
   private var title = ""
 
+  /** 后台启动时要的那段后台时间（D-318）；还了之后是 .invalid。 */
+  private var launchTask: UIBackgroundTaskIdentifier = .invalid
+
   public func definition() -> ModuleDefinition {
     Name("MorphBackground")
+
+    // 提醒通知上的按钮（D-318）不打开 App：系统在后台拉起 App，expo-notifications 一收到点击就回复系统，
+    // 之后 App 随时可能被挂起，JS 来不及写记录。后台启动时先要一段后台时间，JS 处理完调 releaseLaunch 还掉。
+    OnCreate {
+      DispatchQueue.main.async { self.holdLaunch() }
+    }
+
+    Function("releaseLaunch") {
+      DispatchQueue.main.async { self.releaseLaunch() }
+    }
 
     Constant("continuesInBackground") { Self.available }
 
@@ -44,6 +58,21 @@ public class MorphBackgroundModule: Module {
     Function("end") { (_: DoneNotice?) in
       self.end()
     }
+  }
+
+  private func holdLaunch() {
+    guard UIApplication.shared.applicationState == .background, launchTask == .invalid else {
+      return
+    }
+    launchTask = UIApplication.shared.beginBackgroundTask(withName: "morph-reminder-action") {
+      [weak self] in self?.releaseLaunch()
+    }
+  }
+
+  private func releaseLaunch() {
+    guard launchTask != .invalid else { return }
+    UIApplication.shared.endBackgroundTask(launchTask)
+    launchTask = .invalid
   }
 
   private static var available: Bool {

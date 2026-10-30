@@ -71,7 +71,18 @@ export const RowActionSchema = z.discriminatedUnion('do', [
 ]);
 export type RowAction = z.infer<typeof RowActionSchema>;
 
-export type RecordAction = ButtonAction | RowAction;
+export type RecordAction = ButtonAction | RowAction | ReminderDone;
 
 /** setAll 一次最多改几条（D-303）。 */
 export const MAX_SET_ALL = 200;
+
+/**
+ * 提醒通知上的「完成」按钮（D-318）：对通知说的那条记录做一个操作，和列表每一行的写法一样，只是没有文字和
+ * 显示条件（按钮文字是固定的「完成」）。只写记录，不运行快捷操作、不打开 AI。
+ */
+export const ReminderDoneSchema = z.discriminatedUnion('do', [
+  z.strictObject(create),
+  z.strictObject(set),
+  z.strictObject(increment),
+]);
+export type ReminderDone = z.infer<typeof ReminderDoneSchema>;
