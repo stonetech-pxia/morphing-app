@@ -24,6 +24,7 @@ import {
   shareAll,
   type ShareDeps,
 } from './expo-share';
+import { expoDeskFs } from '../desk/expo-desk-fs';
 import { expoDocuments } from './expo-documents';
 import { expoTranslate } from './expo-translate';
 import { expoBackground } from './expo-background';
@@ -186,6 +187,7 @@ export const expoFilePlatform: FilePlatform = {
   translator: expoTranslate(),
   media: expoMedia((runId, relPath) => runFile(runId, relPath).uri),
   background: expoBackground(),
+  desk: expoDeskFs,
   // Android 的识别模型在下载内容里（D-151）；iOS 用系统识别，不用下载内容。
   speech: createSpeech(MorphSpeech, {
     isInstalled: (id) => speechPacks.isInstalled(id),

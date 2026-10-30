@@ -2,6 +2,7 @@ import type { GrayImage, Point, Quad } from '@morph/tool-image';
 import type { LayoutRegion } from '@morph/tool-office';
 import type { TextLayer, TextLine } from '@morph/tool-pdf';
 
+import type { DeskFs } from '../desk/fs';
 import type { SpeechPlatform } from './speech';
 
 /** 识别出的一行；PP-OCRv6 还给出每个字的大致位置（at：占这一行的比例，D-272）。 */
@@ -592,6 +593,8 @@ export interface FilePlatform {
   readonly speaker: SpeakPlatform | null;
   /** 长任务切到后台也继续（D-160）；没有原生模块时（Expo Go）为 null。 */
   readonly background: BackgroundPlatform | null;
+  /** 文件房间的桌面目录（D-336，文档目录下的 desk/）。 */
+  readonly desk: DeskFs;
 
   // ---- 用户文件（assets/<id>/<文件名>，D-019）----
   /**

@@ -2,7 +2,6 @@ import type { Locale, RunItem } from '@morph/core';
 import {
   EDITABLE_CELLS,
   canDeleteColumn,
-  cellNumber,
   columnName,
   deleteColumn,
   deleteRow,
@@ -10,7 +9,6 @@ import {
   insertColumn,
   insertRow,
   layoutSheet,
-  lineCount,
   pageCellCount,
   pushHistory,
   redo,
@@ -44,6 +42,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t } from '../i18n';
 import type { Palette } from '../renderer/theme';
 import type { FilePlatform } from '../runtime/platform';
+import { SheetView } from './SheetView';
 import { loadTableDoc, saveTableEdits } from './table-edit';
 
 // 转 Excel 的查看和编辑（D-272，设计稿 §5）：照着 xlsx 的样子画（列字母、行号、合并格子），
@@ -51,19 +50,8 @@ import { loadTableDoc, saveTableEdits } from './table-edit';
 // 长按行号插入或删除行，长按列字母插入或删除列；可以切换识别范围、切换页。撤销只在内存里（最多 100 步）。
 // 点「完成」或返回时，改过就重新生成 xlsx（新文件）并写回 TableDoc。一页超过 2000 格时只能查看。
 
-/** Excel 的一个字符宽大约这么多点；列宽和行高都限制在手指点得到、又不会太宽的范围。 */
-const CHAR_PX = 8;
-/** 和 xlsx 一样：没有判断出对齐时是「常规」，数字靠右、文字靠左。 */
-const textAlignOf = (cell: SheetCell) =>
-  cell.align ?? (cell.cell !== undefined && cellNumber(cell.text) ? 'right' : 'left');
-const MIN_COL = 56;
-const MAX_COL = 280;
-const LINE_PX = 20;
-/** 格子左右上下的空白。 */
-const CELL_PAD = 4;
-const MIN_ROW = 32;
-const ROW_HEAD = 40;
-const COL_HEAD = 28;
+// 画格子的部分在 SheetView（文件房间的大预览也用它，file-room DESIGN §11.4）。
+
 /** 原图截图最高这么多点。 */
 const CROP_HEIGHT = 140;
 
@@ -177,35 +165,6 @@ export function TableEditor({
   const page = doc?.pages[pageIndex] ?? null;
   const layout = useMemo(() => (doc && page ? layoutSheet(page, doc.scope) : null), [doc, page]);
   const readOnly = doc ? pageCellCount(doc, pageIndex) > EDITABLE_CELLS : false;
-
-  const colPx = useMemo(
-    () =>
-      layout?.colWidths.map((w) => Math.round(Math.min(MAX_COL, Math.max(MIN_COL, w * CHAR_PX)))) ??
-      [],
-    [layout],
-  );
-  const colAt = useMemo(() => {
-    const out = [0];
-    for (const w of colPx) out.push(out.at(-1)! + w);
-    return out;
-  }, [colPx]);
-  // 表外的文字整行合并，但不比屏幕宽（表格列多时整行比屏幕宽很多，居中的字会跑到屏幕两边外面）；
-  // 这一行的行高按这个宽度折出来的行数算（按 Excel 列宽估的行数和这里对不上）。
-  const textWidth = Math.max(MIN_COL, Math.min(colAt.at(-1) ?? 0, screenWidth - ROW_HEAD));
-  const rowPx = useMemo(() => {
-    const out = layout?.rows.map((r) => Math.max(MIN_ROW, r.lines * LINE_PX + 10)) ?? [];
-    for (const cell of layout?.cells ?? []) {
-      if (cell.cell !== undefined) continue;
-      const lines = lineCount(cell.text, (textWidth - 2 * CELL_PAD) / CHAR_PX);
-      out[cell.row] = Math.max(MIN_ROW, lines * LINE_PX + 10);
-    }
-    return out;
-  }, [layout, textWidth]);
-  const rowAt = useMemo(() => {
-    const out = [0];
-    for (const h of rowPx) out.push(out.at(-1)! + h);
-    return out;
-  }, [rowPx]);
 
   const apply = (next: TableDoc, keepSelection = false) => {
     if (!history) return;
@@ -377,9 +336,6 @@ export function TableEditor({
     </Pressable>
   );
 
-  const sheetWidth = ROW_HEAD + (colAt.at(-1) ?? 0);
-  const sheetHeight = COL_HEAD + (rowAt.at(-1) ?? 0);
-
   return (
     <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={finish}>
       <KeyboardAvoidingView
@@ -440,97 +396,14 @@ export function TableEditor({
             {t(locale, 'tableEmpty')}
           </Text>
         ) : (
-          <ScrollView horizontal style={styles.flex} testID="table-sheet">
-            <ScrollView stickyHeaderIndices={[0]} contentContainerStyle={{ width: sheetWidth }}>
-              {/* 列字母（上下滚动时停在顶上）。按位置摆：iOS 上停靠的那一行不按 flexDirection 排。 */}
-              <View
-                style={[styles.colHeads, { width: sheetWidth, backgroundColor: palette.surface }]}>
-                {colPx.map((w, c) => (
-                  <Pressable
-                    key={c}
-                    testID={`table-col-${c}`}
-                    onLongPress={() => columnMenu(c)}
-                    style={[
-                      styles.head,
-                      styles.abs,
-                      { left: ROW_HEAD + colAt[c]!, top: 0, width: w, borderColor: palette.border },
-                    ]}>
-                    <Text style={[palette.font('bodyBold', 12), { color: palette.muted }]}>
-                      {columnName(c)}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-              <View style={{ width: sheetWidth, height: sheetHeight - COL_HEAD }}>
-                {rowPx.map((h, r) => (
-                  <Pressable
-                    key={`r${r}`}
-                    testID={`table-row-${r}`}
-                    onLongPress={() => rowMenu(r)}
-                    style={[
-                      styles.head,
-                      styles.abs,
-                      {
-                        left: 0,
-                        top: rowAt[r]!,
-                        width: ROW_HEAD,
-                        height: h,
-                        borderColor: palette.border,
-                        backgroundColor: palette.surface,
-                      },
-                    ]}>
-                    <Text style={[palette.font('bodyBold', 12), { color: palette.muted }]}>
-                      {r + 1}
-                    </Text>
-                  </Pressable>
-                ))}
-                {layout.cells.map((cell) => {
-                  const left = ROW_HEAD + colAt[cell.col]!;
-                  const top = rowAt[cell.row]!;
-                  const table = cell.cell !== undefined;
-                  const width = table
-                    ? colAt[Math.min(cell.col + cell.colSpan, colPx.length)]! - colAt[cell.col]!
-                    : textWidth;
-                  const height = rowAt[Math.min(cell.row + cell.rowSpan, rowPx.length)]! - top;
-                  const on = selectedCell === cell;
-                  return (
-                    <Pressable
-                      key={`${cell.block}-${cell.cell ?? 't'}`}
-                      testID={`table-cell-${cell.row}-${cell.col}`}
-                      onPress={() => pressCell(cell)}
-                      style={[
-                        styles.abs,
-                        styles.cell,
-                        {
-                          left,
-                          top,
-                          width,
-                          height,
-                          borderColor: on
-                            ? palette.primary
-                            : table
-                              ? palette.border
-                              : 'transparent',
-                          borderWidth: on ? 2 : StyleSheet.hairlineWidth,
-                          backgroundColor: palette.surface,
-                        },
-                      ]}>
-                      <Text
-                        {...(table
-                          ? { numberOfLines: Math.max(1, Math.floor((height - 8) / LINE_PX)) }
-                          : {})}
-                        style={[
-                          palette.font('body', 13),
-                          { color: palette.text, textAlign: textAlignOf(cell) },
-                        ]}>
-                        {cell.text}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </ScrollView>
-          </ScrollView>
+          <SheetView
+            layout={layout}
+            palette={palette}
+            selected={selectedCell}
+            onPressCell={pressCell}
+            onLongPressRow={rowMenu}
+            onLongPressColumn={columnMenu}
+          />
         )}
 
         <View
@@ -676,15 +549,6 @@ const styles = StyleSheet.create({
   },
   hint: { paddingHorizontal: 16, paddingVertical: 8 },
   empty: { flex: 1, padding: 24, textAlign: 'center' },
-  colHeads: { height: COL_HEAD },
-  head: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    height: COL_HEAD,
-  },
-  abs: { position: 'absolute' },
-  cell: { paddingHorizontal: CELL_PAD, paddingVertical: CELL_PAD },
   bottom: { borderTopWidth: StyleSheet.hairlineWidth, padding: 12, gap: 10 },
   source: { gap: 6 },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'flex-start' },

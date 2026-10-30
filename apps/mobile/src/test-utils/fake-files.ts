@@ -5,6 +5,8 @@ import { PDFDocument } from 'pdf-lib';
 import { rotatedSize, type Quad } from '@morph/tool-image';
 import type { LayoutRegion } from '@morph/tool-office';
 
+import type { DeskFs } from '../desk/fs';
+
 import type {
   AudioEncode,
   BackgroundPlatform,
@@ -101,8 +103,60 @@ export function makePng(width: number, height: number): Uint8Array {
 }
 
 /** 内存中的“文件系统”。 */
+/**
+ * 桌面目录（D-336）的内存实现：和 FakeFiles 共用一个 disk，地址是 desk/<路径>（运行能直接读）。
+ * 原件（picker://、content://、file:///group/）只能复制；移动只用于运行目录 runs/ 里的文件。
+ */
+export class FakeDeskFs implements DeskFs {
+  constructor(private readonly files: FakeFiles) {}
+  /** 每次移进来的原地址（测试检查原件没有被移走）。 */
+  moved: string[] = [];
+  uri = (path: string) => `desk/${path}`;
+  isRunFile = (uri: string) => uri.startsWith('runs/');
+  pathOf = (uri: string) => (uri.startsWith('desk/') ? uri.slice('desk/'.length) : null);
+  async copyIn(uri: string, path: string) {
+    const bytes = this.files.disk.get(uri);
+    if (!bytes) throw new Error(`missing ${uri}`);
+    this.files.disk.set(this.uri(path), bytes);
+    const size = this.files.imageSizes.get(uri);
+    if (size) this.files.imageSizes.set(this.uri(path), size);
+    return bytes.length;
+  }
+  async moveIn(uri: string, path: string) {
+    if (!this.isRunFile(uri)) throw new Error(`only run files can be moved: ${uri}`);
+    const size = await this.copyIn(uri, path);
+    this.files.disk.delete(uri);
+    this.moved.push(uri);
+    return size;
+  }
+  async writeText(path: string, text: string) {
+    const bytes = new TextEncoder().encode(text);
+    this.files.disk.set(this.uri(path), bytes);
+    return bytes.length;
+  }
+  async readText(path: string) {
+    const bytes = this.files.disk.get(this.uri(path));
+    return bytes ? new TextDecoder().decode(bytes) : null;
+  }
+  async remove(paths: readonly string[]) {
+    for (const path of paths) this.files.disk.delete(this.uri(path));
+  }
+  async removeDesk(deskId: string) {
+    for (const key of [...this.files.disk.keys()])
+      if (key.startsWith(`desk/${deskId}/`)) this.files.disk.delete(key);
+  }
+  async list() {
+    const ids = new Set<string>();
+    for (const key of this.files.disk.keys())
+      if (key.startsWith('desk/')) ids.add(key.split('/')[1]!);
+    return [...ids];
+  }
+}
+
 export class FakeFiles implements FilePlatform {
   disk = new Map<string, Uint8Array>();
+  /** 文件房间的桌面目录（D-336）。 */
+  desk = new FakeDeskFs(this);
   /** 办公文档转 PDF：默认像 Android，只能转 .docx（iOS 的测试换成全部格式）。 */
   documents: FakeDocuments = new FakeDocuments(this);
   /** 系统文字识别和扫描：默认没有（像 Android / Expo Go），测试里换成 FakeVision。 */
