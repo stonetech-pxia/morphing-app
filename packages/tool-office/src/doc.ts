@@ -21,6 +21,8 @@ export interface DocParagraph extends DocStyle {
   heading?: 1 | 2;
   /** 和上一段之间原来空着（分段的空隙），写成段前间距。 */
   spaced?: boolean;
+  /** 首行缩进（原图像素，D-312）：第一行比这一块其他行靠右多少。 */
+  indent?: number;
   box: Box;
 }
 
@@ -101,6 +103,20 @@ const SHORT_TEXT = 6;
 /** 比正文大这么多倍、不超过两行的段落是标题；大这么多倍是一级标题。 */
 const HEADING_RATIO = 1.3;
 const HEADING1_RATIO = 1.8;
+/**
+ * 不当标题的段落（D-312）：引号开头的（对话），句号结尾而且字母数字超过 20 个的（一句话），
+ * 或者字母数字超过 100 个的。版面模型和字号都可能把这些认成标题。
+ */
+const QUOTE_START = /^\s*[“"«「『‘'„]/;
+const SENTENCE_END = /[.。!！?？]\s*$/;
+const notHeading = (text: string) => {
+  const n = text.match(/[\p{L}\p{N}]/gu)?.length ?? 0;
+  return QUOTE_START.test(text) || (SENTENCE_END.test(text) && n > 20) || n > 100;
+};
+/** 首行缩进（D-312）：至少 0.8 个行高，最多 4 个行高、这一块宽度的一半（再多是居中、靠右或另一栏的短行）。 */
+const INDENT_MIN = 0.8;
+const INDENT_MAX = 0.5;
+const INDENT_LINES = 4;
 /** 笔画比这一页的中位数粗这么多倍算粗体。 */
 const BOLD_RATIO = 1.35;
 /** 文字像素的色度（最大、最小通道之差）超过这么多算有颜色。 */
@@ -472,6 +488,8 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     // 一块的第一段和前面的块之间原来就空着。
     if (paragraphs[0]) paragraphs[0].spaced = true;
     let list: DocList | null = null;
+    const groupLeft = Math.min(...group.lines.map((l) => l.x));
+    const groupWidth = Math.max(...group.lines.map((l) => l.x + l.width)) - groupLeft;
     for (const para of paragraphs) {
       const paraLines = para.rows.flatMap((r) => r.lines);
       const box = unionBox(paraLines);
@@ -518,15 +536,15 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
         continue;
       }
       list = null;
-      // 标题：模型说是标题（字不比正文小），或者字明显比正文大、不超过两行。
+      // 标题：模型说是标题（字不比正文小），或者字明显比正文大、不超过两行；对话和整句不算（D-312）。
       const big = !short && size >= HEADING_RATIO * bodySize && para.rows.length <= 2;
       const titled = group.title > 0 && size >= bodySize;
-      const heading: 0 | 1 | 2 =
-        titled || big
-          ? (titled && group.title === 1) || size >= HEADING1_RATIO * bodySize
-            ? 1
-            : 2
-          : 0;
+      const headingLike = (titled || big) && !notHeading(text);
+      const heading: 0 | 1 | 2 = headingLike
+        ? (titled && group.title === 1) || size >= HEADING1_RATIO * bodySize
+          ? 1
+          : 2
+        : 0;
       const leftGap = box.x - textLeft;
       const rightGap = textRight - (box.x + box.width);
       const centered =
@@ -534,6 +552,22 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
         rightGap > 2 * h &&
         Math.abs(leftGap - rightGap) < 0.2 * (leftGap + rightGap);
       const right = !centered && leftGap > 6 * h && rightGap < 1.5 * h && para.rows.length <= 2;
+      // 首行缩进：第一行的左边和其他行比；只有一行时和这一块里最靠左的行比，这一块只有这一行时和整页文字的左边比
+      // （书页里一句对话常常单独是一个区域）。最多 4 个行高（D-312）。
+      const first = para.rows[0]!.box.x;
+      const base =
+        para.rows.length > 1
+          ? Math.min(...para.rows.slice(1).map((r) => r.box.x))
+          : groupLeft < first
+            ? groupLeft
+            : textLeft;
+      const indent = Math.round(first - base);
+      const indented =
+        !heading &&
+        !centered &&
+        !right &&
+        indent >= INDENT_MIN * h &&
+        indent <= Math.min(INDENT_MAX * groupWidth, INDENT_LINES * h);
       blocks.push({
         kind: 'paragraph',
         text,
@@ -541,6 +575,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
         ...style,
         ...(centered ? { align: 'center' as const } : right ? { align: 'right' as const } : {}),
         ...(para.spaced ? { spaced: true } : {}),
+        ...(indented ? { indent } : {}),
         box,
       });
     }

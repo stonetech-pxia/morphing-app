@@ -270,4 +270,78 @@ describe('buildDocPage', () => {
     });
     expect(doc.blocks.map((b) => b.kind)).toEqual(['paragraph']);
   });
+
+  it('does not take a quoted line of dialogue or a long sentence for a heading (D-312)', () => {
+    const { image, lines } = textPage([
+      { text: 'Chapter One', x: 100, y: 60, width: 300, h: 30 },
+      { text: '“Why not, then?”', x: 140, y: 150, width: 300, h: 30 },
+      {
+        text: 'This sentence is printed a little larger than the rest of the page.',
+        x: 100,
+        y: 230,
+        width: 800,
+        h: 30,
+      },
+      {
+        text: 'Body text of the page goes here and runs on to the right',
+        x: 100,
+        y: 330,
+        width: 800,
+      },
+      {
+        text: 'edge of the block before it wraps, and goes on for a few more',
+        x: 100,
+        y: 355,
+        width: 800,
+      },
+      {
+        text: 'lines so that the body size is clear from the median line',
+        x: 100,
+        y: 380,
+        width: 800,
+      },
+      { text: 'height.', x: 100, y: 405, width: 100 },
+    ]);
+    const doc = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      skew: 0,
+      // 版面模型说对话是标题（实验里的书页就是这样）。
+      regions: regions([['title', 'paragraph_title', { x: 130, y: 140, width: 320, height: 50 }]]),
+    });
+    const paras = doc.blocks as DocParagraph[];
+    expect(paras.map((p) => [p.text.slice(0, 12), p.heading])).toEqual([
+      ['Chapter One', 2],
+      ['“Why not, th', undefined],
+      ['This sentenc', undefined],
+      ['Body text of', undefined],
+    ]);
+  });
+
+  it('keeps the first-line indent of a paragraph (D-312)', () => {
+    const { image, lines } = textPage([
+      {
+        text: 'Indented first line of a paragraph that runs on to the',
+        x: 160,
+        y: 100,
+        width: 740,
+      },
+      { text: 'right edge and wraps back to the left margin.', x: 100, y: 125, width: 600 },
+      // 一行的段落：和这一块其他行的左边比。
+      { text: 'A short indented line.', x: 160, y: 150, width: 300 },
+      { text: 'Next paragraph without an indent runs on to the right', x: 100, y: 175, width: 800 },
+      { text: 'edge as well.', x: 100, y: 200, width: 200 },
+      // 单独一块的一行（书页里单独一个区域的对话）：和整页文字的左边比。
+      { text: '“A line of dialogue on its own.”', x: 160, y: 300, width: 400 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const paras = doc.blocks as DocParagraph[];
+    expect(paras.map((p) => [p.text.slice(0, 10), p.indent])).toEqual([
+      ['Indented f', 60],
+      ['A short in', 60],
+      ['Next parag', undefined],
+      ['“A line of', 60],
+    ]);
+  });
 });

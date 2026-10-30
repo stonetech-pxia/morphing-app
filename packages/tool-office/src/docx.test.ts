@@ -27,6 +27,7 @@ describe('writeDocx', () => {
       '_rels/.rels',
       'word/_rels/document.xml.rels',
       'word/document.xml',
+      'word/fontTable.xml',
       'word/numbering.xml',
       'word/styles.xml',
     ]);
@@ -61,14 +62,16 @@ describe('writeDocx', () => {
     };
     const xml = unzip(writeDocx(doc)).text('word/document.xml');
     expect(xml).toContain('<w:pStyle w:val="Heading1"/>');
-    expect(xml).toContain('<w:rPr><w:b/><w:bCs/></w:rPr><w:t xml:space="preserve">Titre</w:t>');
+    expect(xml).toContain('<w:b/><w:bCs/></w:rPr><w:t xml:space="preserve">Titre</w:t>');
     expect(xml).toContain('<w:color w:val="172094"/><w:sz w:val="28"/>');
     expect(xml).toContain('<w:jc w:val="center"/>');
     expect(xml).toContain('<w:spacing w:before="160"/>');
     expect(xml).toContain('A &lt; B &amp; &quot;C&quot;');
     expect(xml).toContain('<w:br/><w:t xml:space="preserve">second line</w:t>');
     // 和正文一样大的不单独写字号；不画下划线和删除线。
-    expect(xml).toContain('<w:r><w:t xml:space="preserve">body size</w:t></w:r>');
+    expect(xml).toMatch(
+      /<w:rPr><w:rFonts [^>]*\/><\/w:rPr><w:t xml:space="preserve">body size<\/w:t>/,
+    );
     expect(xml).not.toMatch(/<w:u |<w:strike/);
   });
 
@@ -156,6 +159,36 @@ describe('writeDocx', () => {
     // 半页宽（5953 twip）→ EMU；高按图片的宽高比。
     expect(xml).toContain('<wp:extent cx="3780155" cy="1890078"/>');
     expect(xml.match(/<w:drawing>/g)).toHaveLength(1);
-    expect(xml).toContain('<w:pageBreakBefore/></w:pPr><w:r><w:t xml:space="preserve">page two');
+    expect(xml).toMatch(
+      /<w:pageBreakBefore\/><\/w:pPr><w:r><w:rPr>.*?<\/w:rPr><w:t xml:space="preserve">page two/,
+    );
+  });
+
+  it('uses sans-serif fonts by default and bold headings (D-312)', () => {
+    const zip = unzip(writeDocx({ version: 1, pages: [page([])] }));
+    const styles = zip.text('word/styles.xml');
+    expect(styles).toContain(
+      '<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:eastAsia="Microsoft YaHei" w:cs="Arial"/>',
+    );
+    expect(styles).toMatch(/w:styleId="Heading1">.*<w:rPr><w:b\/><w:bCs\/>/);
+    // 字体表写明是无衬线（没有这个字体的电脑换成别的无衬线字体）。
+    const fonts = zip.text('word/fontTable.xml');
+    expect(fonts).toContain('<w:font w:name="Microsoft YaHei"><w:altName w:val="PingFang SC"/>');
+    expect(fonts).toContain('<w:family w:val="swiss"/>');
+    // 每个 run 也写字体（苹果的预览不读默认样式里的字体）。
+    const xml = unzip(
+      writeDocx({ version: 1, pages: [page([{ kind: 'paragraph', text: 'x', box }])] }),
+    ).text('word/document.xml');
+    expect(xml).toContain('<w:r><w:rPr><w:rFonts w:ascii="Arial"');
+    expect(zip.text('word/_rels/document.xml.rels')).toContain('Target="fontTable.xml"');
+    expect(zip.text('[Content_Types].xml')).toContain('PartName="/word/fontTable.xml"');
+  });
+
+  it('writes the first-line indent in twips (D-312)', () => {
+    const xml = unzip(
+      writeDocx({ version: 1, pages: [page([{ kind: 'paragraph', text: 'p', indent: 50, box }])] }),
+    ).text('word/document.xml');
+    // 原图宽 1000 像素 = A4 宽 11906 twip。
+    expect(xml).toContain('<w:ind w:firstLine="595"/>');
   });
 });

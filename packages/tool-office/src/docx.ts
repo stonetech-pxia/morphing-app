@@ -4,7 +4,7 @@ import type { DocBlock, DocDoc, DocList, DocPage, DocParagraph, DocStyle, DocTab
 import { cleanXmlText } from './xlsx';
 
 // 写 docx（D-310）：自己写最少的 OOXML，用 fflate 的同步 API 打包（和写 xlsx 一样，D-272）。
-// 段落（标题用 Heading1 / Heading2 样式）、run 的粗体 / 颜色 / 字号、编号列表（numbering.xml）、
+// 无衬线的默认字体（D-312），段落（标题用加粗的 Heading1 / Heading2 样式，首行缩进）、run 的粗体 / 颜色 / 字号、编号列表（numbering.xml）、
 // 表格（gridSpan / vMerge 合并）、图片（内嵌 JPG）。A4 纵向，每页原图之间分页。
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -23,6 +23,26 @@ const EMU_PER_TWIP = 635;
 /** 分段的空隙写成段前间距（twip）。 */
 const SPACED_BEFORE = 160;
 
+/**
+ * 默认字体（D-312）：无衬线，和 CamScanner 一样。西文 Arial，中文微软雅黑（Windows 和 Mac 版 Office 都带）；
+ * 字体表写明是无衬线（swiss），没有这个字体的电脑换成别的无衬线字体（Mac 上是 Helvetica、苹方）。
+ */
+const LATIN_FONT = 'Arial';
+const CJK_FONT = 'Microsoft YaHei';
+/** 每个 run 也写一遍字体：苹果的预览（Mac、iPhone 的「文件」）不读默认样式里的字体，只认 run 上的。 */
+const RUN_FONTS = `<w:rFonts w:ascii="${LATIN_FONT}" w:hAnsi="${LATIN_FONT}" w:eastAsia="${CJK_FONT}" w:cs="${LATIN_FONT}"/>`;
+
+function fontTableXml(): string {
+  return (
+    `${HEAD}<w:fonts xmlns:w="${W_NS}">` +
+    `<w:font w:name="${LATIN_FONT}"><w:altName w:val="Helvetica"/><w:charset w:val="00"/>` +
+    '<w:family w:val="swiss"/><w:pitch w:val="variable"/></w:font>' +
+    `<w:font w:name="${CJK_FONT}"><w:altName w:val="PingFang SC"/><w:charset w:val="86"/>` +
+    '<w:family w:val="swiss"/><w:pitch w:val="variable"/></w:font>' +
+    '</w:fonts>'
+  );
+}
+
 /** 一张剪好的图片：JPG 字节和像素大小。 */
 export interface DocxImage {
   bytes: Uint8Array;
@@ -40,12 +60,13 @@ const escapeXml = (text: string) =>
 /** 一段文字的 run：换行写成 <w:br/>，前后的空格保留。 */
 function runXml(text: string, style: DocStyle, bodySize: number): string {
   const props =
+    RUN_FONTS +
     (style.bold ? '<w:b/><w:bCs/>' : '') +
     (style.color ? `<w:color w:val="${style.color}"/>` : '') +
     (style.size && style.size !== bodySize
       ? `<w:sz w:val="${Math.round(style.size * 2)}"/><w:szCs w:val="${Math.round(style.size * 2)}"/>`
       : '');
-  const rPr = props ? `<w:rPr>${props}</w:rPr>` : '';
+  const rPr = `<w:rPr>${props}</w:rPr>`;
   return text
     .split('\n')
     .map(
@@ -59,13 +80,21 @@ function paragraphXml(
   text: string,
   style: DocStyle,
   bodySize: number,
-  extra: { styleId?: string; spaced?: boolean; numId?: number; pageBreak?: boolean } = {},
+  extra: {
+    styleId?: string;
+    spaced?: boolean;
+    numId?: number;
+    pageBreak?: boolean;
+    /** 首行缩进（twip）。 */
+    indent?: number;
+  } = {},
 ): string {
   const pPr =
     (extra.styleId ? `<w:pStyle w:val="${extra.styleId}"/>` : '') +
     (extra.pageBreak ? '<w:pageBreakBefore/>' : '') +
     (extra.numId ? `<w:numPr><w:ilvl w:val="0"/><w:numId w:val="${extra.numId}"/></w:numPr>` : '') +
     (extra.spaced ? `<w:spacing w:before="${SPACED_BEFORE}"/>` : '') +
+    (extra.indent ? `<w:ind w:firstLine="${extra.indent}"/>` : '') +
     (style.align && style.align !== 'left'
       ? `<w:jc w:val="${style.align === 'center' ? 'center' : 'right'}"/>`
       : '');
@@ -171,10 +200,11 @@ function stylesXml(bodySize: number): string {
     `<w:style w:type="paragraph" w:styleId="${id}"><w:name w:val="${name}"/><w:basedOn w:val="Normal"/>` +
     `<w:next w:val="Normal"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="240" w:after="120"/>` +
     `<w:outlineLvl w:val="${id === 'Heading1' ? 0 : 1}"/></w:pPr>` +
-    `<w:rPr><w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr></w:style>`;
+    `<w:rPr><w:b/><w:bCs/><w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr></w:style>`;
   return (
     `${HEAD}<w:styles xmlns:w="${W_NS}">` +
     '<w:docDefaults><w:rPrDefault><w:rPr>' +
+    RUN_FONTS +
     `<w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr></w:rPrDefault>` +
     '<w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault>' +
     '</w:docDefaults>' +
@@ -215,6 +245,7 @@ export function writeDocx(
           body.push(
             paragraphXml(para.text, para, bodySize, {
               ...(para.heading ? { styleId: `Heading${para.heading}` } : {}),
+              ...(para.indent ? { indent: Math.round((para.indent / page.width) * PAGE_W) } : {}),
               ...(para.spaced ? { spaced: true } : {}),
               ...(pageBreak() ? { pageBreak: true } : {}),
             }),
@@ -278,6 +309,7 @@ export function writeDocx(
         '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
         '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
         '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' +
+        '<Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>' +
         '</Types>',
     ),
     '_rels/.rels': strToU8(
@@ -291,6 +323,7 @@ export function writeDocx(
         `<Relationships xmlns="${PKG_REL}">` +
         `<Relationship Id="rId1" Type="${R_NS}/styles" Target="styles.xml"/>` +
         `<Relationship Id="rId2" Type="${R_NS}/numbering" Target="numbering.xml"/>` +
+        `<Relationship Id="rId3" Type="${R_NS}/fontTable" Target="fontTable.xml"/>` +
         media
           .map((m) => `<Relationship Id="${m.rid}" Type="${R_NS}/image" Target="media/${m.name}"/>`)
           .join('') +
@@ -299,6 +332,7 @@ export function writeDocx(
     'word/document.xml': strToU8(documentXml),
     'word/styles.xml': strToU8(stylesXml(bodySize)),
     'word/numbering.xml': strToU8(numberingXml(lists)),
+    'word/fontTable.xml': strToU8(fontTableXml()),
     ...Object.fromEntries(media.map((m) => [`word/media/${m.name}`, [m.bytes, { level: 0 }]])),
   };
   return zipSync(files, { level: 6 });
