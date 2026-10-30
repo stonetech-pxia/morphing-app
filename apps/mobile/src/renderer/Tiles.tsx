@@ -1,11 +1,4 @@
-import {
-  MAX_TILES,
-  calendarOf,
-  formatRef,
-  recordProgress,
-  shownRowAction,
-  type DataRecord,
-} from '@morph/core';
+import { MAX_TILES, calendarOf, formatRef, recordProgress, type DataRecord } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -18,11 +11,12 @@ import type { RenderEnv } from './components';
 import {
   Trailing,
   amountText,
-  openRow,
+  rowToolOf,
   useListRecords,
-  type RecordListProps,
+  type RecordBlock,
   type Tone,
 } from './data';
+import { openRow } from './open-row';
 import { ProgressRing } from './Progress';
 import { cardColors } from './theme';
 import { Card } from './ui';
@@ -36,44 +30,37 @@ const SIZE = 84;
 const HOLD_MS = LONG_PRESS_MS - 150;
 const STROKE = 6;
 
-export function Tiles({
-  props,
-  env,
-  tone,
-}: {
-  props: RecordListProps;
-  env: RenderEnv;
-  tone?: Tone;
-}) {
+export function Tiles({ block, env, tone }: { block: RecordBlock; env: RenderEnv; tone?: Tone }) {
   const { palette, locale } = env;
   const router = useRouter();
   const runner = useRecordActionRunner();
-  const { collection, view, loaded, sorted } = useListRecords(props, env);
+  const { collection, view, loaded, sorted } = useListRecords(block, env);
   const links = useLinkResolver(view);
   if (!collection || !view) return null;
   const background = cardColors(palette, tone).background;
-  const shown = sorted.slice(0, Math.min(props.limit, MAX_TILES));
+  const shown = sorted.slice(0, Math.min(block.source.limit, MAX_TILES));
   if (loaded && shown.length === 0) {
     return (
       <Card palette={palette} background={background}>
         <Text style={[palette.font('body', 14), { color: palette.caption }]}>
-          {props.emptyText ?? t(locale, 'noRecords')}
+          {block.show.emptyText ?? t(locale, 'noRecords')}
         </Text>
       </Card>
     );
   }
   const cal = calendarOf(env.config);
   const now = new Date();
-  const format = props.trailingFormat;
+  const { show } = block;
+  const format = show.format;
 
   const tile = (r: DataRecord) => {
-    const title = formatRef(r, view, props.titleField, locale, links, now, cal) || '—';
-    const action = shownRowAction(props.rowActions, r, view, now, cal);
+    const title = formatRef(r, view, show.title, locale, links, now, cal) || '—';
+    const action = rowToolOf(block, r, view, now, cal);
     const progress =
       format?.kind === 'progress'
-        ? recordProgress(r, view, props.trailingField!, format.goal, now, cal)
+        ? recordProgress(r, view, show.trailing!, format.goal, now, cal)
         : undefined;
-    const field = view.fields.find((f) => f.id === props.trailingField);
+    const field = view.fields.find((f) => f.id === show.trailing);
     const full = progress !== undefined && progress.ratio >= 1;
     const inside = progress
       ? t(locale, 'progressOfGoal', {
@@ -81,11 +68,9 @@ export function Tiles({
           goal: amountText(progress.goal, field, locale),
         })
       : undefined;
-    const text = props.trailingField
-      ? formatRef(r, view, props.trailingField, locale, links, now, cal)
-      : '';
-    const open = () => openRow(router, props, collection.id, r.id);
-    const run = action ? () => void runner.runRow(action, r, collection) : open;
+    const text = show.trailing ? formatRef(r, view, show.trailing, locale, links, now, cal) : '';
+    const open = () => openRow(router, block.opens, collection.id, r.id);
+    const run = action ? () => void runner.runRow(action, r) : open;
     // 打开记录后这一块可能等不到松手（onPressOut），过了页面长按编辑的时间再放开。
     const holdOpen = () => {
       open();
@@ -155,8 +140,8 @@ export function Tiles({
                   ]}>
                   {inside}
                 </Text>
-              ) : props.trailingField ? (
-                <Trailing record={r} view={view} props={props} env={env} text={text} />
+              ) : show.trailing ? (
+                <Trailing record={r} view={view} show={show} env={env} text={text} />
               ) : action ? (
                 <Text
                   numberOfLines={2}

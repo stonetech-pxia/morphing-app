@@ -8,7 +8,7 @@ import { EditablePage } from '@/editing/EditablePage';
 import { t } from '@/i18n';
 import { ErrorBoundary } from '@/renderer/ErrorBoundary';
 import { Icon, UiIcon } from '@/renderer/Icon';
-import { openEditor } from '@/renderer/data';
+import { openEditor } from '@/renderer/open-row';
 import type { RenderEnv } from '@/renderer/components';
 import { usePalette } from '@/renderer/theme';
 import { DraftBar } from '@/draft/DraftBar';

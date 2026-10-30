@@ -1,6 +1,7 @@
 import {
   boardColumns,
   boardField,
+  boardDragTool,
   boardMoveAction,
   boardTargets,
   calendarOf,
@@ -39,13 +40,14 @@ import { t } from '../i18n';
 import type { RenderEnv } from './components';
 import {
   AddHere,
+  addHereOf,
   openAddHere,
-  openRow,
   useLinkedGroups,
   useListRecords,
-  type RecordListProps,
+  type RecordBlock,
   type Tone,
 } from './data';
+import { openRow } from './open-row';
 import { cardColors, type Palette } from './theme';
 
 // 记录列表的看板外观（D-313）：按一个单选字段分栏，每个选项一栏，再加「未分」；栏横向滚动。
@@ -71,19 +73,11 @@ function measure(view: HostInstance | undefined): Promise<{ x: number; width: nu
   });
 }
 
-export function Board({
-  props,
-  env,
-  tone,
-}: {
-  props: RecordListProps;
-  env: RenderEnv;
-  tone?: Tone;
-}) {
+export function Board({ block, env, tone }: { block: RecordBlock; env: RenderEnv; tone?: Tone }) {
   const { palette, locale } = env;
   const router = useRouter();
   const runner = useRecordActionRunner();
-  const { collection, view, sorted } = useListRecords(props, env);
+  const { collection, view, sorted } = useListRecords(block, env);
   const links = useLinkResolver(view);
   const [menu, setMenu] = useState<{ record: DataRecord; from: string | null } | null>(null);
   const [dragging, setDragging] = useState<{ id: string; from: string } | null>(null);
@@ -114,8 +108,11 @@ export function Board({
     [],
   );
 
-  const linkedAll = useLinkedGroups(env, view, props.groupField);
-  const field = collection ? boardField(collection, props.groupField) : undefined;
+  const group = block.source.group;
+  const linkedAll = useLinkedGroups(env, view, group?.by);
+  const field = collection ? boardField(collection, group?.by) : undefined;
+  // 拖到另一栏是块上的拖动工具（as drag）；没有它看板只能看（v33 迁移来的看板都有）。
+  const drag = boardDragTool(block.tools);
   // 引用字段分栏（D-351）要等被引用的表读出来；groupFilter 先筛出要哪几栏。
   if (!collection || !view || !field || linkedAll === null) return null;
   const linked = linkedAll && {
@@ -123,28 +120,26 @@ export function Board({
     records: filterRecords(
       linkedAll.records,
       linkedAll.collection,
-      props.groupFilter,
+      group?.filter,
       new Date(),
       calendarOf(env.config),
     ),
   };
-  const columns = boardColumns(field, sorted, props.limit, linked);
+  const columns = boardColumns(field, sorted, block.source.limit, linked);
   const background = cardColors(palette, tone).background;
   const cal = calendarOf(env.config);
   const now = new Date();
   const columnLabel = (c: BoardColumn) => c.label ?? t(locale, 'boardNotSet');
   // 单组件编辑选中了某个组件时不能拖（那时长按拖的是组件本身）。
-  const canDrag = env.interactive && !env.focus?.selectedId;
+  const canDrag = env.interactive && !env.focus?.selectedId && drag !== undefined;
 
   function move(record: DataRecord, to: BoardColumn) {
     if (env.locked) return env.locked();
+    if (!drag) return;
     const label = columnLabel(to);
-    void runner.runRow(
-      boardMoveAction(field!, to.option, label),
-      record,
-      collection!,
-      t(locale, 'boardMoved', { column: label }),
-    );
+    void runner.runRow(boardMoveAction(drag, to.option, label), record, {
+      message: t(locale, 'boardMoved', { column: label }),
+    });
   }
 
   function hoverAt(fingerX: number) {
@@ -302,8 +297,8 @@ export function Board({
                     key={r.id}
                     record={r}
                     env={env}
-                    title={formatRef(r, view, props.titleField, locale, links, now, cal) || '—'}
-                    subtitle={(props.subtitleFields ?? [])
+                    title={formatRef(r, view, block.show.title, locale, links, now, cal) || '—'}
+                    subtitle={(block.show.subtitles ?? [])
                       .map((f) => formatRef(r, view, f, locale, links, now, cal))
                       .filter(Boolean)
                       .join(' · ')}
@@ -327,7 +322,7 @@ export function Board({
                   />
                 ))
               )}
-              {props.addHere ? (
+              {addHereOf(block) ? (
                 <AddHere
                   testID={`board-add-${key || 'none'}`}
                   label={t(locale, 'entryFormAdd')}
@@ -340,7 +335,7 @@ export function Board({
                             router,
                             collection,
                             view,
-                            props,
+                            block.source,
                             column.option === null ? {} : { [field.id]: column.option },
                           )))
                       : undefined
@@ -355,10 +350,10 @@ export function Board({
         <MoveMenu
           palette={palette}
           locale={locale}
-          title={formatRef(menu.record, view, props.titleField, locale, links, now, cal) || '—'}
+          title={formatRef(menu.record, view, block.show.title, locale, links, now, cal) || '—'}
           options={[
             { key: 'open', label: t(locale, 'open') },
-            ...boardTargets(field, columns, menu.from).map((c) => ({
+            ...(drag ? boardTargets(field, columns, menu.from) : []).map((c) => ({
               key: `to:${columnKey(c)}`,
               label: t(locale, 'boardMoveTo', { column: columnLabel(c) }),
             })),
@@ -367,7 +362,7 @@ export function Board({
           onPick={(key) => {
             const { record, from } = menu;
             setMenu(null);
-            if (key === 'open') return openRow(router, props, collection.id, record.id);
+            if (key === 'open') return openRow(router, block.opens, collection.id, record.id);
             const to = boardTargets(field, columns, from).find((c) => `to:${columnKey(c)}` === key);
             if (to) move(record, to);
           }}

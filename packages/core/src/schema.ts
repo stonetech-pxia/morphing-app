@@ -44,6 +44,8 @@ export {
   UNKNOWN_LOOK,
   componentDefinition,
   componentRefs,
+  entryEditableText,
+  entryKind,
   isKnownComponent,
   type BlockOf,
   type Component,

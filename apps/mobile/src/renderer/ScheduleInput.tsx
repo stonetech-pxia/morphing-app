@@ -68,7 +68,7 @@ export function ScheduleInput({
   const lastDone = useWorkspace((s) =>
     field.lastDone === undefined
       ? undefined
-      : s.config?.collections
+      : s.config?.data.tables
           .find((c) => c.fields.includes(field))
           ?.fields.find((f) => f.id === field.lastDone)?.name,
   );

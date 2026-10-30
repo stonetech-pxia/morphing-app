@@ -39,6 +39,6 @@ export function useWorkspace<T>(selector: (state: WorkspaceState) => T): T {
 
 /** 一天、一周从什么时候开始（D-286）：按天、按周归类的计算都用它。 */
 export function useCalendar(): Calendar {
-  const settings = useWorkspace((s) => s.config?.calendar);
-  return useMemo(() => calendarOf({ calendar: settings }), [settings]);
+  const settings = useWorkspace((s) => s.config?.data.calendar);
+  return useMemo(() => calendarOf({ data: { tables: [], calendar: settings } }), [settings]);
 }

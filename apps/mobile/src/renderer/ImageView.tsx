@@ -1,4 +1,4 @@
-import { FILE_LIMITS, type Component } from '@morph/core';
+import { FILE_LIMITS, type BlockOf } from '@morph/core';
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -12,7 +12,7 @@ import { pickPicture } from './pictures';
 // 图片组件（D-045）：AI 只放图片位；用户点图片位从相册选照片，照片存成用户文件，
 // 配置里只记录文件 ID。AI 看不到照片内容，也看不到文件名。
 
-type ImageProps = Extract<Component, { type: 'image' }>['props'];
+type ImageProps = BlockOf<'image'>['show'];
 
 const ASPECT = { wide: 16 / 9, landscape: 4 / 3, square: 1, portrait: 3 / 4 } as const;
 
@@ -34,23 +34,28 @@ export function ImageView({
   const confirm = useWorkspace((s) => s.confirm);
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
   // undefined：读取中；null：文件不存在（例如来自另一台设备的版本）。
-  const [uri, setUri] = useState<string | null | undefined>(props.assetId ? undefined : null);
+  const [uri, setUri] = useState<string | null | undefined>(props.asset ? undefined : null);
 
   useEffect(() => {
-    if (!props.assetId) return;
+    if (!props.asset) return;
     let alive = true;
-    void repo
-      .getAsset(props.assetId)
-      .then((a) => alive && setUri(a ? files.fileUri(a.path) : null));
+    void repo.getAsset(props.asset).then((a) => alive && setUri(a ? files.fileUri(a.path) : null));
     return () => {
       alive = false;
     };
-  }, [repo, files, props.assetId]);
+  }, [repo, files, props.asset]);
 
   async function setPicture(assetId: string | null) {
     if (!env.pageId) return;
     const result = await proposeOps(
-      [{ op: 'setComponentProps', pageId: env.pageId, componentId, props: { assetId } }],
+      [
+        {
+          op: 'updateContainer',
+          page: env.pageId,
+          block: componentId,
+          changes: { show: { asset: assetId } },
+        },
+      ],
       t(locale, assetId ? 'setImageSummary' : 'removeImageSummary'),
     );
     if (result.kind === 'preview') await confirm();
@@ -102,7 +107,7 @@ export function ImageView({
     );
   } else {
     const hint =
-      uri === null && props.assetId
+      uri === null && props.asset
         ? t(locale, 'imageMissing')
         : (props.placeholder ?? t(locale, 'imagePlaceholder'));
     body = (

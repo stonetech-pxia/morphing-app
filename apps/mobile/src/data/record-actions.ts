@@ -6,16 +6,18 @@ import {
   rowUpdateInput,
   setAllChanges,
   expandCollection,
-  type ButtonAction,
-  type Collection,
+  isOpenUse,
+  recordToolOf,
   type DataRecord,
-  type RecordActionValue,
-  type RowAction,
+  type OpenUse,
+  type RecordTool,
+  type RecordToolUse,
 } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { Alert } from 'react-native';
 
 import { t } from '../i18n';
+import { openRow } from '../renderer/open-row';
 import { useCalendar, useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { useRecordActions } from './records';
 
@@ -48,14 +50,15 @@ export function useRecordActionRunner() {
     router.push({ pathname: '/record/[collectionId]', params: { collectionId, recordId } });
 
   async function create(
-    collection: Collection,
-    values: Record<string, RecordActionValue> | undefined,
-    rowId?: string,
-    form?: boolean,
+    tool: Extract<RecordTool, { do: 'create' }>,
+    ctx: { rowId?: string | undefined; recordId?: string | undefined },
   ) {
-    const input = createInput(collection, values, { now: new Date(), cal, rowId });
+    const collection = config?.data.tables.find((c) => c.id === tool.table);
+    if (!collection) return;
+    const input = createInput(collection, tool.values, { now: new Date(), cal, ...ctx });
     // D-338：打开新记录的表单，预设的值先填好，用户补完再保存（表单自己保存，不弹提示条）。
-    if (form) return void openNew(collection.id, input);
+    // Q6：按钮模式的「添加」（原 recordForm button）也预填预设值。
+    if (tool.ask !== undefined) return void openNew(collection.id, input);
     const result = await actions.add(collection, input);
     if (result.ok) {
       showToast({
@@ -70,19 +73,19 @@ export function useRecordActionRunner() {
     }
   }
 
-  async function setAll(action: Extract<ButtonAction, { do: 'setAll' }>, label: string) {
-    const collection = config?.collections.find((c) => c.id === action.collectionId);
+  async function setAll(tool: Extract<RecordTool, { do: 'setAll' }>, label: string) {
+    const collection = config?.data.tables.find((c) => c.id === tool.table);
     if (!config || !collection) return;
     const now = new Date();
     const { records } = await loadComputedRecords(
       (id) => repo.listRecords(id),
-      config.collections,
+      config.data.tables,
       collection,
       now,
       cal,
     );
-    const view = expandCollection(config.collections, collection);
-    const changes = setAllChanges(action, collection, view, records, { now, cal });
+    const view = expandCollection(config.data.tables, collection);
+    const changes = setAllChanges(tool, collection, view, records, { now, cal });
     if (changes.length === 0) {
       showToast({ message: t(locale, 'recordActionNothing') });
       return;
@@ -113,33 +116,32 @@ export function useRecordActionRunner() {
   }
 
   return {
-    /** 按钮上的操作。 */
-    runButton(action: ButtonAction, label: string): Promise<void> {
+    /** 块本身的工具（button 的 tools[0]）：不作用在某一条上。 */
+    runButton(use: RecordToolUse, label: string): Promise<void> {
       return serial(async () => {
-        if (action.do === 'open') return void openNew(action.collectionId);
-        if (action.do === 'setAll') return setAll(action, label);
-        const collection = config?.collections.find((c) => c.id === action.collectionId);
-        if (collection) await create(collection, action.values, undefined, action.form);
+        const tool = recordToolOf(use);
+        if (tool.do === 'setAll') return setAll(tool, label);
+        if (tool.do === 'create') await create(tool, {});
       });
     },
 
     /**
-     * 列表里某一行的按钮。record 是列表上显示的那条（可能已经不在了，按 ID 重新读）。
+     * 一条记录上的工具（button、tap、check、drag）。record 是列表上显示的那条（可能已经不在了，按 ID 重新读）；
+     * 写哪张表看工具自己的 table（关系规则 12）。group 是拖到的那一栏（"$group"）。
      * message 换掉提示条上的「{label}：已记下」（看板移动卡片用，D-314）。
      */
     runRow(
-      action: RowAction,
+      use: RecordToolUse | OpenUse,
       record: DataRecord,
-      collection: Collection,
-      message?: string,
+      options: { message?: string; group?: string | null } = {},
     ): Promise<void> {
       return serial(async () => {
-        if (action.do === 'open') return void openRecord(collection.id, record.id);
-        if (action.do === 'create') {
-          const target = config?.collections.find((c) => c.id === action.collectionId);
-          if (target) await create(target, action.values, record.id, action.form);
-          return;
-        }
+        if (isOpenUse(use)) return void openRow(router, use.opens, record.collectionId, record.id);
+        const tool = recordToolOf(use);
+        if (tool.do === 'create') return create(tool, { rowId: record.id });
+        if (tool.do === 'setAll') return setAll(tool, use.label ?? '');
+        const collection = config?.data.tables.find((c) => c.id === tool.table);
+        if (!collection) return;
         const stored = await repo.getRecord(record.id);
         if (!stored || stored.deletedAt !== null) {
           showToast({ message: t(locale, 'recordActionGone') });
@@ -147,14 +149,19 @@ export function useRecordActionRunner() {
           return;
         }
         const now = new Date();
-        const input = rowUpdateInput(action, collection, stored.values, { now, cal });
+        const input = rowUpdateInput(tool, collection, stored.values, {
+          now,
+          cal,
+          rowId: record.id,
+          group: options.group,
+        });
         if (!input) return;
         const prepared = prepareRecordValues(collection, input, stored.values, now, cal);
         if (!prepared.ok) return void openRecord(collection.id, record.id);
         await repo.updateRecord(record.id, prepared.values, now.getTime());
         bump();
         showToast({
-          message: message ?? t(locale, 'recordActionDone', { label: action.label }),
+          message: options.message ?? t(locale, 'recordActionDone', { label: use.label ?? '' }),
           undo: { kind: 'revert', records: [{ id: record.id, values: stored.values }] },
         });
       });

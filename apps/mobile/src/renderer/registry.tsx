@@ -1,7 +1,11 @@
 import {
   bindRecord,
+  entryKind,
   isKnownComponent,
-  workflowTargetId,
+  isRecordToolUse,
+  isToolRefUse,
+  packageTargetId,
+  toolTargetId,
   type Component,
   type ComponentOf,
   type ComponentType,
@@ -55,14 +59,16 @@ export type Renderer<T extends ComponentType> = (
 
 /** 打开按钮、快捷入口的目标。草稿里（D-190）快捷操作打不开：打开后就能运行，草稿能看不能用。 */
 const open = (env: RenderEnv, target: OpenTarget) =>
-  env.locked && workflowTargetId(target) !== null ? env.locked() : env.navigate(target);
+  env.locked && toolTargetId(target) !== null ? env.locked() : env.navigate(target);
 
 const scaleOf = (c: KnownComponent) => SIZES[c.style?.size ?? 'medium'];
 const alignOf = (c: KnownComponent): TextStyle | undefined =>
   c.style?.align === 'center' ? styles.textCenter : undefined;
 
 export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
-  filePick: (c, env) => <FilePick source={c.props.source} env={env} />,
+  picker: (c, env) => (
+    <FilePick source={pickToolOf(c) === '$pick.files' ? 'files' : 'media'} env={env} />
+  ),
   header: (c, { palette }) => (
     <View style={styles.header}>
       <Text
@@ -71,73 +77,75 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
           { color: textColor(palette, c.style?.tone, palette.text), letterSpacing: -0.5 },
           alignOf(c),
         ]}>
-        {c.props.title}
+        {c.show.title}
       </Text>
-      {c.props.subtitle ? (
+      {c.show.subtitle ? (
         <Text style={[palette.font('body', 15 * scaleOf(c)), { color: palette.muted }, alignOf(c)]}>
-          {c.props.subtitle}
+          {c.show.subtitle}
         </Text>
       ) : null}
     </View>
   ),
   text: (c, env) => (
     <RichText
-      source={c.props.text}
+      source={c.show.text}
       env={env}
       color={textColor(env.palette, c.style?.tone, env.palette.muted)}
       size={15 * scaleOf(c)}
       align={alignOf(c)}
     />
   ),
-  toolCard: (c, env) => (
-    <ToolCard toolId={c.props.toolId} look={c.props.look} style={c.style} env={env} />
-  ),
-  toolGrid: (c, env) => (
-    <ToolGrid grid={c} page={env.config.pages.find((p) => p.id === env.pageId)} env={env} />
-  ),
-  catalogLink: (c, env) => (
-    <Tile
+  // 入口（v34 合并 shortcut、catalogLink、toolCard、fileSlot）：按 opens 分。
+  entry: (c, env) => {
+    const kind = entryKind(c);
+    if (kind === 'file') return <FileSlot component={c} env={env} />;
+    const packageId = packageTargetId(c.opens);
+    if (packageId !== null)
+      return <ToolCard toolId={packageId} look={c.show?.shape} style={c.style} env={env} />;
+    const show = c.show ?? {};
+    return (
+      <Tile
+        env={env}
+        style={c.style}
+        icon={show.icon ?? 'apps'}
+        title={show.title ?? ''}
+        subtitle={show.subtitle}
+        titleColor={show.accent ? env.palette.primaryText : undefined}
+        onPress={() => open(env, c.opens)}
+        look={show.shape ?? 'row'}
+      />
+    );
+  },
+  packages: (c, env) => (
+    <ToolGrid
+      grid={c}
+      page={env.config.containers.pages.find((p) => p.id === env.pageId)}
       env={env}
-      style={c.style}
-      icon="plus"
-      title={c.props.title}
-      titleColor={env.palette.primaryText}
-      onPress={() => env.navigate('tools')}
-      look={c.props.look ?? 'tile'}
     />
   ),
-  shortcut: (c, env) => (
-    <Tile
-      env={env}
-      style={c.style}
-      icon={c.props.icon}
-      title={c.props.title}
-      subtitle={c.props.subtitle}
-      onPress={() => open(env, c.props.target)}
-      look={c.props.look ?? 'row'}
-    />
-  ),
-  button: (c, env) =>
-    c.props.action ? (
+  button: (c, env) => {
+    const use = c.tools?.[0];
+    return use && isRecordToolUse(use) ? (
       <ActionButton
-        action={c.props.action}
-        label={c.props.label}
-        variant={c.props.variant}
-        icon={c.props.icon}
+        action={use}
+        label={c.show.label}
+        variant={c.show.variant}
+        icon={c.show.icon}
         env={env}
         style={c.style?.align === 'center' ? styles.centerSelf : undefined}
       />
     ) : (
       <Button
         palette={env.palette}
-        label={c.props.label}
-        variant={c.props.variant}
-        icon={c.props.icon}
-        onPress={env.interactive && c.props.target ? () => open(env, c.props.target!) : undefined}
+        label={c.show.label}
+        variant={c.show.variant}
+        icon={c.show.icon}
+        onPress={env.interactive && c.opens ? () => open(env, c.opens!) : undefined}
         onLongPress={env.onLongPress}
         style={c.style?.align === 'center' ? styles.centerSelf : undefined}
       />
-    ),
+    );
+  },
   notice: (c, env) => {
     const palette = onPicture(env.palette, c.style?.backdrop);
     const tone = c.style?.tone;
@@ -155,22 +163,22 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
         backdrop={c.style?.backdrop}
         style={styles.noticeCard}>
         <View style={styles.tileRow}>
-          {c.props.icon ? (
+          {c.show.icon ? (
             <IconTile
               palette={palette}
-              icon={c.props.icon}
+              icon={c.show.icon}
               size={36}
               {...iconColors(palette, 'solid', tone ?? 'secondary')}
             />
           ) : null}
           <View style={styles.flexText}>
-            {c.props.title ? (
+            {c.show.title ? (
               <Text style={[palette.font('title', 15 * scaleOf(c)), { color: fg }, alignOf(c)]}>
-                {c.props.title}
+                {c.show.title}
               </Text>
             ) : null}
             <RichText
-              source={c.props.text}
+              source={c.show.text}
               env={{ ...env, palette }}
               color={fg}
               size={14 * scaleOf(c)}
@@ -182,49 +190,51 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
     );
   },
   image: (c, env) => (
-    <ImageView props={c.props} env={env} componentId={c.id} center={c.style?.align === 'center'} />
+    <ImageView props={c.show} env={env} componentId={c.id} center={c.style?.align === 'center'} />
   ),
   divider: (_c, { palette }) => (
     <View style={[styles.divider, { backgroundColor: palette.border }]} />
   ),
-  spacer: (c) => <View style={{ height: { small: 4, medium: 16, large: 32 }[c.props.size] }} />,
+  spacer: (c) => <View style={{ height: { small: 4, medium: 16, large: 32 }[c.show.size] }} />,
   group: (c, env) => <Group component={c} env={env} />,
   // 月历（D-305）只读一个月的记录，大圆块（D-311）和看板（D-313）画法不同，都是单独的组件。
-  recordList: (c, env) =>
-    c.props.display === 'calendar' ? (
-      <MonthCalendar props={c.props} env={env} tone={c.style?.tone} componentId={c.id} />
-    ) : c.props.display === 'tiles' ? (
-      <Tiles props={c.props} env={env} tone={c.style?.tone} />
-    ) : c.props.display === 'board' ? (
-      <Board props={c.props} env={env} tone={c.style?.tone} />
-    ) : (
-      <RecordList props={c.props} env={env} tone={c.style?.tone} />
-    ),
-  recordForm: (c, env) => (
-    <RecordForm props={c.props} env={env} componentId={c.id} tone={c.style?.tone} />
+  list: (c, env) => <RecordList block={c} env={env} tone={c.style?.tone} />,
+  cards: (c, env) => <RecordList block={c} env={env} tone={c.style?.tone} />,
+  checklist: (c, env) => <RecordList block={c} env={env} tone={c.style?.tone} />,
+  calendar: (c, env) => (
+    <MonthCalendar block={c} env={env} tone={c.style?.tone} componentId={c.id} />
   ),
-  stat: (c, env) => (
-    <Stat props={c.props} env={env} tone={c.style?.tone} backdrop={c.style?.backdrop} />
+  tiles: (c, env) => <Tiles block={c} env={env} tone={c.style?.tone} />,
+  board: (c, env) => <Board block={c} env={env} tone={c.style?.tone} />,
+  form: (c, env) => <RecordForm block={c} env={env} tone={c.style?.tone} />,
+  number: (c, env) => (
+    <Stat block={c} env={env} tone={c.style?.tone} backdrop={c.style?.backdrop} />
   ),
-  chart: (c, env) => <Chart props={c.props} env={env} tone={c.style?.tone} />,
-  fileList: (c, env) => (
-    <FileList title={c.props.title} limit={c.props.limit} mimeType={c.props.mimeType} env={env} />
-  ),
-  workflowRunner: (c, env) => (
-    <WorkflowRunner
-      workflowId={c.props.workflowId}
-      look={c.props.look}
-      backdrop={c.style?.backdrop}
-      env={env}
-    />
-  ),
-  quickActionList: (c, env) => <QuickActionList props={c.props} env={env} />,
-  fileSlot: (c, env) => <FileSlot component={c} env={env} />,
+  chart: (c, env) => <Chart block={c} env={env} tone={c.style?.tone} />,
+  files: (c, env) => <FileList block={c} env={env} />,
+  action: (c, env) => {
+    const use = c.tools[0];
+    return use && isToolRefUse(use) ? (
+      <WorkflowRunner
+        workflowId={use.tool}
+        look={c.show?.shape}
+        backdrop={c.style?.backdrop}
+        env={env}
+      />
+    ) : null;
+  },
+  library: (c, env) => <QuickActionList block={c} env={env} />,
+};
+
+/** 打开相册还是打开文件（picker 的 tools[0]）。 */
+const pickToolOf = (c: ComponentOf<'picker'>) => {
+  const use = c.tools[0];
+  return use && isToolRefUse(use) ? use.tool : undefined;
 };
 
 export function ComponentView({ component, env }: { component: Component; env: RenderEnv }) {
   if (!isKnownComponent(component)) return <UnknownComponentView env={env} />;
-  return (RENDERERS[component.type] as Renderer<ComponentType>)(component, env);
+  return (RENDERERS[component.look] as Renderer<ComponentType>)(component, env);
 }
 
 /** 更新的 App 加的组件（D-254）：配置里原样保留，这里只说明要更新 App 才能显示。 */
@@ -241,7 +251,7 @@ function UnknownComponentView({ env }: { env: RenderEnv }) {
 function Group({ component, env }: { component: ComponentOf<'group'>; env: RenderEnv }) {
   const { palette } = env;
   const children = component.children.filter((c) => !c.hidden);
-  const { layout, title } = component.props;
+  const { layout, title } = component.show;
   const item = (c: Component) => (
     <Item
       key={c.id}
@@ -256,7 +266,7 @@ function Group({ component, env }: { component: ComponentOf<'group'>; env: Rende
   } else if (layout === 'row') {
     body = <View style={[styles.row, { gap: palette.gap - 4 }]}>{children.map(item)}</View>;
   } else {
-    const columns = component.props.columns ?? 2;
+    const columns = component.show.columns ?? 2;
     const rows: Component[][] = [];
     for (let i = 0; i < children.length; i += columns) rows.push(children.slice(i, i + columns));
     body = (

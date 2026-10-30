@@ -14,7 +14,6 @@ import {
   formatNumber,
   formatRef,
   formatValue,
-  chartDateField,
   changeLabel,
   compareChange,
   elapsedOf,
@@ -37,7 +36,13 @@ import {
   todayNumber,
   type Aggregate,
   type Collection,
-  type Component,
+  type BlockOf,
+  type Calendar,
+  type OpenUse,
+  type RecordLook,
+  type RecordToolUse,
+  isOpenUse,
+  isRecordToolUse,
   type ComponentStyle,
   type DataRecord,
   type LinkedGroups,
@@ -71,6 +76,7 @@ import { useCalendar, useWorkspace } from '../workspace/context';
 import { t } from '../i18n';
 import { AttachmentThumb, AttachmentsInput, firstImage, useAssetIndex } from './Attachments';
 import { onPicture } from './Backdrop';
+import { openRow } from './open-row';
 import { RowActionButton } from './RecordActions';
 import { ScheduleInput } from './ScheduleInput';
 import type { RenderEnv } from './components';
@@ -527,10 +533,8 @@ function LinkInput({
   disabled?: boolean | undefined;
   testID: string;
 }) {
-  const target = useWorkspace((s) =>
-    s.config?.collections.find((c) => c.id === field.collectionId),
-  );
-  const records = useRecords(field.collectionId);
+  const target = useWorkspace((s) => s.config?.data.tables.find((c) => c.id === field.table));
+  const records = useRecords(field.table);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   if (!target) return null;
@@ -767,7 +771,7 @@ export function FieldsForm({
 }
 
 export function useCollection(env: RenderEnv, id: string): Collection | undefined {
-  return env.config.collections.find((c) => c.id === id);
+  return env.config.data.tables.find((c) => c.id === id);
 }
 
 /**
@@ -780,73 +784,74 @@ export function useLinkedGroups(
 ): LinkedGroups | null | undefined {
   const field = fieldId ? view?.fields.find((f) => f.id === fieldId) : undefined;
   const target =
-    field?.type === 'link'
-      ? env.config.collections.find((c) => c.id === field.collectionId)
-      : undefined;
-  const { records } = useComputedRecords(env.config.collections, target, calendarOf(env.config));
+    field?.type === 'link' ? env.config.data.tables.find((c) => c.id === field.table) : undefined;
+  const { records } = useComputedRecords(env.config.data.tables, target, calendarOf(env.config));
   if (!target) return undefined;
   return records === null ? null : { collection: target, records, locale: env.locale };
 }
 
-export function openEditor(
-  router: ReturnType<typeof useRouter>,
-  collectionId: string,
-  recordId?: string,
-) {
-  router.push({
-    pathname: '/record/[collectionId]',
-    params: recordId ? { collectionId, recordId } : { collectionId },
-  });
+/** 记录块（list cards checklist tiles board calendar）：source 读哪张表，show 每条的卡片，tools 每条上的工具。 */
+export type RecordBlock = BlockOf<RecordLook>;
+
+/** 每一段 / 每一天 / 每一栏下面的「添加」（as addHere，D-349）。 */
+export const addHereOf = (block: RecordBlock) => block.tools?.find((u) => u.as === 'addHere');
+
+/** 清单的勾（as check）：勾的是哪个勾选框字段。 */
+export function checkOf(block: RecordBlock): { table: string; field: string } | undefined {
+  const use = block.look === 'checklist' ? block.tools?.find((u) => u.as === 'check') : undefined;
+  return use && isRecordToolUse(use) && use.do === 'toggle'
+    ? { table: use.table, field: use.field }
+    : undefined;
 }
 
-export type RecordListProps = Extract<Component, { type: 'recordList' }>['props'];
-
-/** 点列表里的一条：有 opens 时打开给这条记录用的页面（D-342），否则打开编辑页。 */
-export function openRow(
-  router: ReturnType<typeof useRouter>,
-  props: Pick<RecordListProps, 'opens'>,
-  collectionId: string,
-  recordId: string,
-) {
-  if (props.opens)
-    router.push({ pathname: '/page/[pageId]', params: { pageId: props.opens, record: recordId } });
-  else openEditor(router, collectionId, recordId);
+/** 这一条右边显示的按钮（第一个 when 满足的 button / tap）：一键记录工具或「打开」。 */
+export function rowToolOf(
+  block: RecordBlock,
+  record: DataRecord,
+  view: Collection,
+  now: Date,
+  cal: Calendar,
+): RecordToolUse | OpenUse | undefined {
+  const use = shownRowAction(block.tools, record, view, now, cal);
+  return use && (isRecordToolUse(use) || isOpenUse(use)) ? use : undefined;
 }
 
 export type Tone = ComponentStyle['tone'];
 
 /** 记录列表的 list / cards / checklist；月历（D-305）读法不同，是 MonthCalendar（registry 按 display 选）。 */
 export function RecordList({
-  props,
+  block,
   env,
   tone,
 }: {
-  props: RecordListProps;
+  block: RecordBlock;
   env: RenderEnv;
   tone?: Tone;
 }) {
   const { palette, locale } = env;
   const router = useRouter();
-  const { collection, view, loaded, sorted } = useListRecords(props, env);
-  const rows = useRecordRows(props, env, tone, collection, view);
-  const linked = useLinkedGroups(env, view, props.groupBy);
+  const { collection, view, loaded, sorted } = useListRecords(block, env);
+  const rows = useRecordRows(block, env, tone, collection, view);
+  const group = block.source.group;
+  const linked = useLinkedGroups(env, view, group?.by);
+  const addHere = addHereOf(block) !== undefined;
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   if (!collection || !view || !rows) return null;
   const add = (preset?: Record<string, unknown>) =>
     env.interactive
-      ? (env.locked ?? (() => openAddHere(router, collection, view, props, preset)))
+      ? (env.locked ?? (() => openAddHere(router, collection, view, block.source, preset)))
       : undefined;
   // D-347：分段。引用字段要等被引用的表读出来（linked 是 null 时还在读）。
-  if (props.groupBy && linked !== null) {
-    const groups = listGroups(sorted, view, props.groupBy, {
+  const groupBy = group?.by;
+  if (group && groupBy && linked !== null) {
+    const groups = listGroups(sorted, view, group, {
       locale,
       now: new Date(),
       cal: calendarOf(env.config),
-      unit: props.groupUnit,
       linked: linked ?? undefined,
-      showEmpty: props.showEmpty,
     });
-    if (loaded && groups.length === 0) return <Empty props={props} env={env} rows={rows} />;
+    if (loaded && groups.length === 0)
+      return <Empty block={block} env={env} rows={rows} addHere={addHere} />;
     return (
       <View style={{ gap: palette.gap - 4 }}>
         {groups.map((g) => {
@@ -883,29 +888,31 @@ export function RecordList({
                     {g.records.length}
                   </Text>
                 </Pressable>
-                {props.addHere && g.key !== 'overdue' ? (
+                {addHere && g.key !== 'overdue' ? (
                   <Pressable
                     testID={`group-add-${g.key}`}
                     accessibilityRole="button"
                     accessibilityLabel={t(locale, 'groupAdd', { group: g.label })}
-                    onPress={add(g.preset === undefined ? {} : { [props.groupBy!]: g.preset })}
+                    onPress={add(g.preset === undefined ? {} : { [groupBy]: g.preset })}
                     hitSlop={8}
                     style={styles.groupAdd}>
                     <UiIcon name="add" size={18} color={palette.primaryText} />
                   </Pressable>
                 ) : null}
               </View>
-              {closed || g.records.length === 0 ? null : rows.list(g.records.slice(0, props.limit))}
+              {closed || g.records.length === 0
+                ? null
+                : rows.list(g.records.slice(0, block.source.limit))}
             </View>
           );
         })}
       </View>
     );
   }
-  const shown = sorted.slice(0, props.limit);
+  const shown = sorted.slice(0, block.source.limit);
   if (loaded && shown.length === 0)
-    return <Empty props={props} env={env} rows={rows} add={add()} />;
-  return props.addHere ? (
+    return <Empty block={block} env={env} rows={rows} addHere={addHere} add={add()} />;
+  return addHere ? (
     <View style={{ gap: 6 }}>
       {rows.list(shown)}
       <AddHere label={t(locale, 'entryFormAdd')} onPress={add()} palette={palette} />
@@ -916,23 +923,25 @@ export function RecordList({
 }
 
 function Empty({
-  props,
+  block,
   env,
   rows,
+  addHere,
   add,
 }: {
-  props: RecordListProps;
+  block: RecordBlock;
   env: RenderEnv;
   rows: { background: string };
+  addHere: boolean;
   add?: (() => void) | undefined;
 }) {
   const { palette, locale } = env;
   return (
     <Card palette={palette} background={rows.background}>
       <Text style={[palette.font('body', 14), { color: palette.caption }]}>
-        {props.emptyText ?? t(locale, 'noRecords')}
+        {block.show.emptyText ?? t(locale, 'noRecords')}
       </Text>
-      {props.addHere ? (
+      {addHere ? (
         <AddHere label={t(locale, 'entryFormAdd')} onPress={add} palette={palette} />
       ) : null}
     </Card>
@@ -967,10 +976,10 @@ export function openAddHere(
   router: ReturnType<typeof useRouter>,
   collection: Collection,
   view: Collection,
-  props: Pick<RecordListProps, 'filter'>,
+  source: Pick<RecordBlock['source'], 'filter'>,
   preset: Record<string, unknown> = {},
 ) {
-  const prefill = { ...filterPresets(view, props.filter), ...preset };
+  const prefill = { ...filterPresets(view, source.filter), ...preset };
   router.push({
     pathname: '/record/[collectionId]',
     params: { collectionId: collection.id, prefill: JSON.stringify(prefill) },
@@ -978,17 +987,17 @@ export function openAddHere(
 }
 
 /** 记录列表要显示的记录：筛选、排好序，还没截到 limit 条（看板按栏截，D-313）。 */
-export function useListRecords(props: RecordListProps, env: RenderEnv) {
-  const collection = useCollection(env, props.collectionId);
+export function useListRecords(block: RecordBlock, env: RenderEnv) {
+  const collection = useCollection(env, block.source.table);
   const cal = calendarOf(env.config);
   // 查找、汇总、上一条（D-291）：显示、筛选、排序用算好的记录和 view；改记录用原来的表。
-  const { view, records } = useComputedRecords(env.config.collections, collection, cal);
+  const { view, records } = useComputedRecords(env.config.data.tables, collection, cal);
   const now = new Date();
   const sorted = view
     ? sortRecords(
-        filterRecords(records ?? [], view, props.filter, now, cal),
+        filterRecords(records ?? [], view, block.source.filter, now, cal),
         view,
-        props.sort,
+        block.source.sort,
         now,
         cal,
       )
@@ -1001,7 +1010,7 @@ export function useListRecords(props: RecordListProps, env: RenderEnv) {
  * 打勾框和缩略图；点一下打开编辑页。
  */
 export function useRecordRows(
-  props: RecordListProps,
+  block: RecordBlock,
   env: RenderEnv,
   tone: Tone | undefined,
   collection: Collection | undefined,
@@ -1017,32 +1026,36 @@ export function useRecordRows(
   if (!collection || !view) return null;
   const cal = calendarOf(env.config);
   const hasFiles = collection.fields.some((f) => f.type === 'file');
-  const cards = props.display === 'cards';
+  // 勾的写在工具自己的表（关系规则 12），通常就是列表这张表。
+  const toggle = (c: { table: string; field: string }, r: DataRecord, next: boolean) => {
+    const table = env.config.data.tables.find((x) => x.id === c.table);
+    if (table) void actions.update(table, r, { [c.field]: next });
+  };
+  const cards = block.look === 'cards';
+  const { show } = block;
+  const check = checkOf(block);
   const now = new Date();
 
   const row = (r: DataRecord, index: number) => {
-    const title = formatRef(r, view, props.titleField, locale, links, now, cal) || '—';
-    const subtitle = (props.subtitleFields ?? [])
+    const title = formatRef(r, view, show.title, locale, links, now, cal) || '—';
+    const subtitle = (show.subtitles ?? [])
       .map((f) => formatRef(r, view, f, locale, links, now, cal))
       .filter(Boolean)
       .join(' · ');
-    const checked = props.checkField ? r.values[props.checkField] === true : false;
+    const checked = check ? r.values[check.field] === true : false;
     const thumb = hasFiles && assetIndex ? firstImage(r, collection, assetIndex) : null;
-    // 一键操作（D-300）：第一个条件满足的按钮。
-    const rowAction = shownRowAction(props.rowActions, r, view, now, cal);
+    // 一键记录工具（D-300）：第一个条件满足的按钮。
+    const rowAction = rowToolOf(block, r, view, now, cal);
     const body = (
       <View style={styles.row}>
-        {props.display === 'checklist' && props.checkField ? (
+        {check ? (
           <Pressable
             testID={`check-${r.id}`}
             accessibilityRole="checkbox"
             accessibilityState={{ checked }}
             disabled={!env.interactive}
             hitSlop={8}
-            onPress={
-              env.locked ??
-              (() => void actions.update(collection, r, { [props.checkField!]: !checked }))
-            }
+            onPress={env.locked ?? (() => void toggle(check, r, !checked))}
             onLongPress={env.onLongPress}
             style={[
               styles.check,
@@ -1080,28 +1093,22 @@ export function useRecordRows(
             </Text>
           ) : null}
         </View>
-        {props.trailingField ? (
+        {show.trailing ? (
           <Trailing
             record={r}
             view={view}
-            props={props}
+            show={show}
             env={env}
-            text={formatRef(r, view, props.trailingField, locale, links, now, cal)}
+            text={formatRef(r, view, show.trailing, locale, links, now, cal)}
           />
         ) : null}
         {rowAction ? (
-          <RowActionButton
-            action={rowAction}
-            record={r}
-            collection={collection}
-            env={env}
-            palette={palette}
-          />
+          <RowActionButton action={rowAction} record={r} env={env} palette={palette} />
         ) : null}
       </View>
     );
     const open = env.interactive
-      ? (env.locked ?? (() => openRow(router, props, collection.id, r.id)))
+      ? (env.locked ?? (() => openRow(router, block.opens, collection.id, r.id)))
       : undefined;
     if (cards) {
       return (
@@ -1150,26 +1157,26 @@ export function useRecordRows(
 export function Trailing({
   record,
   view,
-  props,
+  show,
   env,
   text,
 }: {
   record: DataRecord;
   view: Collection;
-  props: RecordListProps;
+  show: RecordBlock['show'];
   env: RenderEnv;
   text: string;
 }) {
   const { palette, locale } = env;
-  const format = props.trailingFormat;
+  const format = show.format;
   const style = [palette.font('title', 15), { color: palette.text }];
   const elapsedFormat = format?.kind === 'elapsed' ? format : undefined;
   const first = elapsedFormat
-    ? elapsedOf(record, view, props.trailingField!, elapsedFormat.until, new Date())
+    ? elapsedOf(record, view, show.trailing!, elapsedFormat.until, new Date())
     : undefined;
   const now = useTicker(first?.running === true);
   if (elapsedFormat) {
-    const e = elapsedOf(record, view, props.trailingField!, elapsedFormat.until, now);
+    const e = elapsedOf(record, view, show.trailing!, elapsedFormat.until, now);
     if (!e) return null;
     const time = formatElapsed(e);
     return (
@@ -1183,9 +1190,9 @@ export function Trailing({
   }
   if (format?.kind === 'progress') {
     const cal = calendarOf(env.config);
-    const progress = recordProgress(record, view, props.trailingField!, format.goal, now, cal);
+    const progress = recordProgress(record, view, show.trailing!, format.goal, now, cal);
     if (progress) {
-      const field = view.fields.find((f) => f.id === props.trailingField);
+      const field = view.fields.find((f) => f.id === show.trailing);
       const label = t(locale, 'progressOfGoal', {
         value: amountText(progress.value, field, locale),
         goal: amountText(progress.goal, field, locale),
@@ -1213,22 +1220,29 @@ export function Trailing({
   return text ? <Text style={style}>{text}</Text> : null;
 }
 
-type RecordFormProps = Extract<Component, { type: 'recordForm' }>['props'];
+/** 表单的提交工具：{as: "submit", do: "create", table, ask: [字段], values?, smartDate?}。 */
+type SubmitTool = Extract<RecordToolUse, { do: 'create' }>;
 
+/**
+ * 表单（原 recordForm 的 inline / sheet）：问 ask 里的字段，提交 = 按 tools[0] 新建一条。
+ * 按钮模式（打开完整表单）是 button 块（RecordActions.tsx 的 ActionButton）。
+ */
 export function RecordForm({
-  props,
+  block,
   env,
-  componentId,
   tone,
 }: {
-  props: RecordFormProps;
+  block: BlockOf<'form'>;
   env: RenderEnv;
-  componentId: string;
   tone?: Tone;
 }) {
   const { palette, locale } = env;
-  const router = useRouter();
-  const collection = useCollection(env, props.collectionId);
+  const componentId = block.id;
+  const use = block.tools[0];
+  const submitTool = isRecordToolUse(use) && use.do === 'create' ? (use as SubmitTool) : undefined;
+  const fieldIds = Array.isArray(submitTool?.ask) ? submitTool.ask : [];
+  const submitLabel = submitTool?.label ?? t(locale, 'entryFormAdd');
+  const collection = useCollection(env, submitTool?.table ?? '');
   const actions = useRecordActions();
   const [values, setValues] = useState<FormValues>({});
   const [issues, setIssues] = useState<FieldIssue[]>([]);
@@ -1239,7 +1253,7 @@ export function RecordForm({
   // D-352：底部弹出的添加框开着没有。
   const [open, setOpen] = useState(false);
   if (!collection) return null;
-  const smart = props.smartDate;
+  const smart = submitTool?.smartDate;
   const smartField = smart ? collection.fields.find((f) => f.id === smart.to) : undefined;
   const typed = smart ? values[smart.from] : undefined;
   const userSet = smart ? values[smart.to] !== undefined && values[smart.to] !== '' : false;
@@ -1248,25 +1262,11 @@ export function RecordForm({
       ? smartDateOf(typed, smartField, todayNumber(new Date(), cal), locale, cal)
       : undefined;
 
-  if (props.mode === 'button') {
-    return (
-      <Button
-        palette={palette}
-        testID={`form-${componentId}`}
-        label={props.submitLabel}
-        onPress={
-          env.interactive ? (env.locked ?? (() => openEditor(router, collection.id))) : undefined
-        }
-        onLongPress={env.onLongPress}
-      />
-    );
-  }
-
   async function submit() {
     if (!collection || !env.interactive) return;
     if (env.locked) return env.locked();
     // D-343：不显示的预设值（"$record" 在画之前已经换成这条记录）；D-344：认出来的日期填进去，文字里去掉。
-    const preset = createInput(collection, props.values, { now: new Date(), cal });
+    const preset = createInput(collection, submitTool?.values, { now: new Date(), cal });
     const recognised =
       found && smart
         ? {
@@ -1283,20 +1283,20 @@ export function RecordForm({
     } else if ('full' in result) {
       setMessage(t(locale, 'tableFull'));
     } else {
-      setIssues(result.issues.filter((i) => props.fieldIds.includes(i.fieldId)));
+      setIssues(result.issues.filter((i) => fieldIds.includes(i.fieldId)));
       // 不在这个表单里的必填字段：提示用完整表单添加。
-      if (result.issues.some((i) => !props.fieldIds.includes(i.fieldId))) {
+      if (result.issues.some((i) => !fieldIds.includes(i.fieldId))) {
         setMessage(t(locale, 'useFullForm'));
       }
     }
   }
 
-  const sheet = props.mode === 'sheet';
+  const sheet = block.show.mode === 'sheet';
   const body = (
     <>
       <FieldsForm
         collection={collection}
-        fieldIds={props.fieldIds}
+        fieldIds={fieldIds}
         values={values}
         onChange={setValues}
         issues={issues}
@@ -1334,7 +1334,7 @@ export function RecordForm({
       <Button
         palette={palette}
         testID={`form-${componentId}-submit`}
-        label={props.submitLabel}
+        label={submitLabel}
         onPress={() => void submit()}
         onLongPress={env.onLongPress}
         disabled={!env.interactive}
@@ -1355,7 +1355,7 @@ export function RecordForm({
       <Pressable
         testID={`form-${componentId}`}
         accessibilityRole="button"
-        accessibilityLabel={props.submitLabel}
+        accessibilityLabel={submitLabel}
         onPress={env.interactive ? (env.locked ?? (() => setOpen(true))) : undefined}
         onLongPress={env.onLongPress}
         style={[styles.fab, { backgroundColor: palette.primary }]}>
@@ -1392,15 +1392,15 @@ export function RecordForm({
   );
 }
 
-type StatProps = Extract<Component, { type: 'stat' }>['props'];
+type NumberSource = BlockOf<'number'>['source'];
 
 /** 统计值的显示：金额按币种、数字按单位和小数位，按日子算的带「天」「周」，计数和其他字段只显示数字。 */
 export function statText(
   value: number | null,
-  aggregate: StatProps['aggregate'],
+  aggregate: NumberSource['aggregate'],
   field: Field | undefined,
   locale: RenderEnv['locale'],
-  unit?: StatProps['unit'],
+  unit?: NonNullable<NumberSource['days']>['unit'],
 ): string {
   if (isSequenceAggregate(aggregate)) return sequenceText(aggregate, unit, value, locale);
   if (value === null) return '—';
@@ -1414,68 +1414,57 @@ export function amountText(value: number, field: Field | undefined, locale: Rend
 }
 
 export function Stat({
-  props,
+  block,
   env,
   tone,
   backdrop,
 }: {
-  props: StatProps;
+  block: BlockOf<'number'>;
   env: RenderEnv;
   tone?: Tone;
   backdrop?: Backdrop | undefined;
 }) {
   const palette = onPicture(env.palette, backdrop);
-  const table = useCollection(env, props.collectionId);
+  const src = block.source;
+  const label = block.show.label;
+  const table = useCollection(env, src.table);
   const cal = calendarOf(env.config);
   // 查找、汇总、上一条（D-291）按算好的值统计。
-  const { view: collection, records } = useComputedRecords(env.config.collections, table, cal);
+  const { view: collection, records } = useComputedRecords(env.config.data.tables, table, cal);
   // 按引用字段分组（D-336）要被引用的表的记录；减去另一个合计（D-337）要那张表的记录。
-  const linked = useLinkedGroups(env, collection, props.groupBy);
+  const linked = useLinkedGroups(env, collection, src.group?.by);
   const minus = useComputedRecords(
-    env.config.collections,
-    env.config.collections.find((c) => c.id === props.minus?.collectionId),
+    env.config.data.tables,
+    env.config.data.tables.find((c) => c.id === src.minus?.table),
     cal,
   );
   if (!collection) return null;
   const now = new Date();
-  const matched = filterRecords(records ?? [], collection, props.filter, now, cal);
+  const matched = filterRecords(records ?? [], collection, src.filter, now, cal);
   // 按顺序的聚合（D-284）：日期默认用表里第一个日期字段，没有就用创建时间（和图表一样）。
-  const sequence = isSequenceAggregate(props.aggregate)
-    ? {
-        spec: {
-          aggregate: props.aggregate,
-          unit: props.unit,
-          perUnit: props.perUnit,
-          skip:
-            props.skipField && props.skipOption
-              ? { fieldId: props.skipField, optionId: props.skipOption }
-              : undefined,
-        },
-        ctx: { dateField: chartDateField(collection, props), now, cal },
-      }
-    : null;
+  const aggregate = src.aggregate;
   const valueOf = (list: DataRecord[]) =>
-    sequence
-      ? sequenceValue(list, collection, sequence.spec, sequence.ctx)
-      : { value: aggregateRecords(list, collection, props.aggregate as Aggregate, props.fieldId) };
+    isSequenceAggregate(aggregate)
+      ? sequenceValue(list, collection, aggregate, src.days, now, cal)
+      : { value: aggregateRecords(list, collection, aggregate as Aggregate, src.field) };
   // 还没读完被减的那张表时先不显示数（和自己的表没读完一样）。
-  const loading = records === null || (props.minus !== undefined && minus.records === null);
+  const loading = records === null || (src.minus !== undefined && minus.records === null);
   const minusOf = (value: number | null) =>
-    props.minus && minus.view && minus.records
-      ? minusValue(value, props.minus, minus.view, minus.records, now, cal)
+    src.minus && minus.view && minus.records
+      ? minusValue(value, src.minus, minus.view, minus.records, now, cal)
       : value;
   const text = (v: { value: number | null }) =>
-    statText(v.value, props.aggregate, field, env.locale, props.unit);
+    statText(v.value, aggregate, field, env.locale, src.days?.unit);
   const bestText = (v: { best?: number }) =>
     v.best === undefined
       ? null
       : t(env.locale, 'seqBest', {
-          value: statText(v.best, props.aggregate, field, env.locale, props.unit),
+          value: statText(v.best, aggregate, field, env.locale, src.days?.unit),
         });
-  const field = props.fieldId ? collection.fields.find((f) => f.id === props.fieldId) : undefined;
+  const field = src.field ? collection.fields.find((f) => f.id === src.field) : undefined;
   // 目标（D-307）：「值 / 目标」和进度。
   const goalProgress = (v: { value: number | null }) => {
-    const p = props.goal === undefined ? undefined : progressOf(v.value ?? 0, props.goal);
+    const p = src.goal === undefined ? undefined : progressOf(v.value ?? 0, src.goal);
     return (
       p && {
         ratio: p.ratio,
@@ -1484,14 +1473,14 @@ export function Stat({
     );
   };
   // 和上一段同期比（D-308）：把筛选里的时间段换成上一段，再算一次；颜色不分好坏（多花钱和多运动方向相反）。
-  const previous = props.compare ? previousFilter(props.filter, now, cal) : null;
+  const previous = src.compare ? previousFilter(src.filter, now, cal) : null;
   const compareText = (current: number | null) => {
     if (!previous) return null;
     const before = valueOf(filterRecords(records ?? [], collection, previous.filter, now, cal));
     const label = previousLabel(previous.period, text(before), env.locale);
     const changeText = changeLabel(compareChange(current, before.value), env.locale);
     return (
-      <View style={styles.compareRow} testID={`stat-compare-${props.collectionId}-${props.label}`}>
+      <View style={styles.compareRow} testID={`stat-compare-${src.table}-${label}`}>
         <Text style={[styles.flex, palette.font('body', 13), { color: palette.muted }]}>
           {label}
         </Text>
@@ -1505,16 +1494,17 @@ export function Stat({
   const heading = (
     <Text
       style={[palette.font('bodyBold', 12), { color: palette.primaryText, letterSpacing: 0.5 }]}>
-      {props.label.toUpperCase()}
+      {label.toUpperCase()}
     </Text>
   );
   // D-248：按单选字段分组，每个选项一行。
-  if (props.groupBy) {
+  const groupBy = src.group?.by;
+  if (groupBy) {
     const noChoice = t(env.locale, 'statNoChoice');
     const groups =
       records === null || linked === null
         ? []
-        : groupRecords(matched, collection, props.groupBy, noChoice, linked);
+        : groupRecords(matched, collection, groupBy, noChoice, linked);
     // 和上一段比（D-308）：每个选项和它自己的上一段比。
     const before =
       previous && records !== null
@@ -1522,7 +1512,7 @@ export function Stat({
             groupRecords(
               filterRecords(records, collection, previous.filter, now, cal),
               collection,
-              props.groupBy,
+              groupBy,
               noChoice,
               linked ?? undefined,
             ).map((g) => [g.optionId, valueOf(g.records).value]),
@@ -1543,7 +1533,7 @@ export function Stat({
               </Text>
               <View style={styles.statValue}>
                 <Text
-                  testID={`stat-group-${props.collectionId}-${g.optionId ?? 'none'}`}
+                  testID={`stat-group-${src.table}-${g.optionId ?? 'none'}`}
                   style={[palette.font('title', 16), { color: palette.text }]}>
                   {goalProgress(v)?.label ?? text(v)}
                 </Text>
@@ -1571,7 +1561,7 @@ export function Stat({
     );
   }
   const own = loading ? { value: null } : valueOf(matched);
-  const v = props.minus ? { value: minusOf(own.value) } : own;
+  const v = src.minus ? { value: minusOf(own.value) } : own;
   const best = loading ? null : bestText(v);
   const progress = goalProgress(v);
   const compareLine = loading ? null : compareText(v.value);
@@ -1580,7 +1570,7 @@ export function Stat({
       {heading}
       <View style={styles.row}>
         <Text
-          testID={`stat-value-${props.collectionId}-${props.label}`}
+          testID={`stat-value-${src.table}-${label}`}
           style={[styles.flex, palette.font('display', 26), { color: palette.text }]}>
           {progress ? progress.label : text(v)}
         </Text>
@@ -1591,7 +1581,7 @@ export function Stat({
               size={56}
               stroke={6}
               palette={palette}
-              testID={`stat-ring-${props.collectionId}-${props.label}`}
+              testID={`stat-ring-${src.table}-${label}`}
             />
             <Text style={[styles.ringLabel, palette.font('bodyBold', 12), { color: palette.text }]}>
               {t(env.locale, 'progressPercent', { n: Math.round(progress.ratio * 100) })}
@@ -1601,7 +1591,7 @@ export function Stat({
       </View>
       {best ? (
         <Text
-          testID={`stat-best-${props.collectionId}-${props.label}`}
+          testID={`stat-best-${src.table}-${label}`}
           style={[palette.font('body', 13), { color: palette.muted }]}>
           {best}
         </Text>
