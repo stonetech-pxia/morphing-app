@@ -392,15 +392,20 @@ describe('removeData', () => {
     ]);
   });
 
-  it('refuses a table another table links to, or one with pages for one entry', () => {
-    expect(errorOf(tasksConfig(), [{ op: 'removeData', table: 'projects' }])).toBe(
-      'table projects is linked from tasks.project; remove those fields (and the blocks that show them) first',
-    );
+  it('removes the pages for one entry together with the table (founder 2026-10-30, option B)', () => {
     const withPage = apply(tasksConfig(), [
       { op: 'addContainer', page: { id: 'task', title: '任务', of: 'tasks', blocks: [] } },
     ]);
-    expect(errorOf(withPage, [{ op: 'removeData', table: 'tasks' }])).toBe(
-      'pages task show one entry of tasks; remove them first',
+    const result = tryOps(withPage, [{ op: 'removeData', table: 'tasks' }]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.config.containers.pages.map((p) => p.id)).not.toContain('task');
+    expect(result.notes).toContainEqual({ kind: 'removedRecordPages', titles: ['任务'] });
+  });
+
+  it('refuses a table another table links to', () => {
+    expect(errorOf(tasksConfig(), [{ op: 'removeData', table: 'projects' }])).toBe(
+      'table projects is linked from tasks.project; remove those fields (and the blocks that show them) first',
     );
     expect(errorOf(tasksConfig(), [{ op: 'removeData', table: 'nope' }])).toBe(
       'table nope not found',

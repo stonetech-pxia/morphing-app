@@ -765,6 +765,7 @@ export const en = {
   homeScreenFull: 'The home screen menu holds 4 quick actions. Take one off first.',
   homeScreenGone: 'This quick action is no longer on the home screen.',
   describeRemovedReminders: 'Also removes the reminders that needed it: {names}',
+  describeRemovedRecordPages: 'Also removes the pages for one entry of it: {names}',
   reminderWhenDaily: 'every day at {time}',
   reminderWhenWeekly: 'every {days} at {time}',
   reminderWhenDate: '{n} days before “{field}” in “{table}”, at {time}',

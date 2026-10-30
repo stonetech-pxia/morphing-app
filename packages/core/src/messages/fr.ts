@@ -811,6 +811,7 @@ export const fr: MessageTable = {
     'Le menu de l’écran d’accueil contient au plus 4 actions rapides. Retirez-en une d’abord.',
   homeScreenGone: 'Cette action rapide n’est plus sur l’écran d’accueil.',
   describeRemovedReminders: 'Retire aussi les rappels qui en dépendaient : {names}',
+  describeRemovedRecordPages: 'Retire aussi les pages d’une entrée de ce tableau : {names}',
   reminderWhenDaily: 'tous les jours à {time}',
   reminderWhenWeekly: 'chaque {days} à {time}',
   reminderWhenDate: '{n} jours avant « {field} » dans « {table} », à {time}',

@@ -797,6 +797,12 @@ export function describeChange(
           v1: collName(note.table),
         }),
       );
+    } else if (note.kind === 'removedRecordPages') {
+      lines.push(
+        t(ctx.locale, 'describeRemovedRecordPages', {
+          names: note.titles.join(t(ctx.locale, 'separatorList')),
+        }),
+      );
     } else if (note.kind === 'addedEntryForm') {
       lines.push(t(ctx.locale, 'describeAddedEntryForm', { table: collName(note.table) }));
     } else if (note.kind === 'removedRecordActions') {

@@ -151,7 +151,7 @@ describe('a page for one entry', () => {
     );
   });
 
-  it('removing the page lets the list open the editor again; the table needs its pages gone first', () => {
+  it('removing the page lets the list open the editor again; removing the table removes its pages', () => {
     const made = run([projectPage([]), addHome(list('all', 'projects', { opens: 'project' }))]);
     expect(made.ok).toBe(true);
     const config = (made as { after: WorkspaceConfig }).after;
@@ -175,9 +175,12 @@ describe('a page for one entry', () => {
       ],
       { registry, locale: 'en', now },
     );
-    expect(gone.ok ? [] : gone.issues.map(String)).toEqual([
-      expect.stringMatching(/pages project show one entry of projects; remove them first/),
-    ]);
+    expect(gone.ok).toBe(true);
+    const after = (gone as { after: WorkspaceConfig }).after;
+    expect(after.containers.pages.map((p) => p.id)).not.toContain('project');
+    expect((gone as { lines: string[] }).lines).toContain(
+      'Also removes the pages for one entry of it: Project',
+    );
   });
 });
 

@@ -71,6 +71,8 @@ export type ApplyNote =
    * 勾的工具没了清单退成列表，拖动的工具没了看板只能看。
    */
   | { kind: 'removedRecordActions'; count: number }
+  /** 移出表时，给它的一条记录用的页面（page.of，D-342）跟着移除。 */
+  | { kind: 'removedRecordPages'; titles: string[] }
   /** 新加的记录块所属的表没有添加的地方，在它上方补了一个「添加」按钮（D-310）。 */
   | { kind: 'addedEntryForm'; table: string }
   /** 工具包升级到当前版本，新增了这些快捷操作。 */
@@ -501,13 +503,11 @@ function removeData(config: WorkspaceConfig, op: OpOf<'removeData'>, notes: Appl
       `table ${op.table} is linked from ${linking.join(', ')}; remove those fields (and the blocks that show them) first`,
     );
   }
-  // D-342：给这张表的一条记录用的页面要先移除。
+  // D-342：给这张表的一条记录用的页面一起移除（创始人 2026-10-30 定的方案 B），和移除页面一样清理打开它的地方。
   const recordPages = config.containers.pages.filter((p) => p.of === op.table);
-  if (recordPages.length > 0) {
-    throw new OpError(
-      `pages ${recordPages.map((p) => p.id).join(', ')} show one entry of ${op.table}; remove them first`,
-    );
-  }
+  for (const p of recordPages) removePage(config, p.id, notes);
+  if (recordPages.length > 0)
+    notes.push({ kind: 'removedRecordPages', titles: recordPages.map((p) => p.title) });
   // 把数据表移出界面：记录保留，可在「设置 → 数据」里导出或由用户永久删除。
   config.data.tables = config.data.tables.filter((c) => c.id !== op.table);
   // 减去这张表合计的数字（D-337）也一起移除：只留前一半会显示错的数。

@@ -714,6 +714,7 @@ export const zh: MessageTable = {
   homeScreenFull: '桌面菜单最多放 4 个快捷操作，先拿掉一个。',
   homeScreenGone: '这个快捷操作已经不在桌面上了。',
   describeRemovedReminders: '同时移除用到它的提醒：{names}',
+  describeRemovedRecordPages: '记录页 {names} 会一起去掉',
   reminderWhenDaily: '每天 {time}',
   reminderWhenWeekly: '每{days} {time}',
   reminderWhenDate: '「{table}」的「{field}」前 {n} 天的 {time}',
