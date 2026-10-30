@@ -5,15 +5,15 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
 import type { Palette } from '../renderer/theme';
-import { Crop } from './TableEditor';
+import { Crop } from './Crop';
 
 // 文档视图（D-328，file-room DESIGN §11.4）：按块画一份 DocDoc（标题、段落、列表、表格、图片、并排行、
 // 标签和值）。从转 Word 的编辑页拆出来：编辑页和文件房间的大预览共用。只管画和选中，改内容的是用它的那一方；
-// 没有传 onPress 时只能看（房间里 R1 只读）。
+// 没有传 onPress 时只能看。文件房间里（R2，D-345）表格的格子也能点选，就地改这张表（不再弹出转 Excel 的编辑页）。
 
 /** 正文在编辑页里的字号（点）；标题和别的字号按和正文的比例放大缩小。 */
 const BODY_PX = 15;
-/** 原图截图最高这么多点（和 TableEditor 一样）。 */
+/** 文档里还没剪好的图片块最高这么多点。 */
 const IMAGE_HEIGHT = 160;
 
 export const same = (a: DocRef | null, b: DocRef) =>
@@ -28,11 +28,18 @@ function BlockView({
   page,
   maxWidth,
   palette,
+  cellTestId,
+  selectedCell = null,
+  onPressCell,
 }: {
   block: DocLeaf;
   page: DocPage;
   maxWidth: number;
   palette: Palette;
+  cellTestId?: string;
+  /** 选中的表格格子（table.cells 的下标）。 */
+  selectedCell?: number | null;
+  onPressCell?: (cell: number) => void;
 }) {
   const scale = (size: number | undefined) =>
     Math.round((BODY_PX * (size ?? page.bodySize)) / page.bodySize);
@@ -108,19 +115,30 @@ function BlockView({
           {Array.from({ length: table.rows }, (_, r) => (
             <View key={r} style={styles.tableRow}>
               {table.cells
-                .filter((c) => c.row <= r && r < c.row + c.rowSpan)
-                .map((c) => (
-                  <View
-                    key={`${c.row}-${c.col}`}
-                    style={[
-                      styles.tableCell,
-                      { width: width(c.col, c.colSpan), borderColor: palette.border },
-                    ]}>
-                    <Text style={[palette.font('body', 12), { color: palette.text }]}>
-                      {c.row === r ? c.text : ''}
-                    </Text>
-                  </View>
-                ))}
+                .map((c, i) => ({ c, i }))
+                .filter(({ c }) => c.row <= r && r < c.row + c.rowSpan)
+                .map(({ c, i }) => {
+                  const on = selectedCell === i;
+                  return (
+                    <Pressable
+                      key={`${c.row}-${c.col}`}
+                      testID={c.row === r ? `${cellTestId}-${i}` : undefined}
+                      disabled={!onPressCell}
+                      {...(onPressCell ? { onPress: () => onPressCell(i) } : {})}
+                      style={[
+                        styles.tableCell,
+                        {
+                          width: width(c.col, c.colSpan),
+                          borderColor: palette.border,
+                          ...(on ? { backgroundColor: palette.primaryTint } : {}),
+                        },
+                      ]}>
+                      <Text style={[palette.font('body', 12), { color: palette.text }]}>
+                        {c.row === r ? c.text : ''}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
             </View>
           ))}
         </View>
@@ -148,7 +166,9 @@ export function DocView({
   locale,
   contentWidth,
   selected = null,
+  selectedCell = null,
   onPress,
+  onPressCell,
 }: {
   doc: DocDoc;
   palette: Palette;
@@ -156,7 +176,11 @@ export function DocView({
   /** 内容区的宽（点）。 */
   contentWidth: number;
   selected?: DocRef | null;
+  /** 选中的块是表格时，选中的是哪一格（table.cells 的下标）。 */
+  selectedCell?: number | null;
   onPress?: (at: DocRef) => void;
+  /** 点了表格里的一格（就地改，D-345）。 */
+  onPressCell?: (at: DocRef, cell: number) => void;
 }) {
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.pages} testID="word-blocks">
@@ -183,7 +207,17 @@ export function DocView({
                       backgroundColor: on ? palette.primaryTint : 'transparent',
                     },
                   ]}>
-                  <BlockView block={inner} page={page} maxWidth={maxWidth} palette={palette} />
+                  <BlockView
+                    block={inner}
+                    page={page}
+                    maxWidth={maxWidth}
+                    palette={palette}
+                    cellTestId={`word-cell-${refId(at)}`}
+                    selectedCell={on ? selectedCell : null}
+                    {...(onPressCell
+                      ? { onPressCell: (cell: number) => onPressCell(at, cell) }
+                      : {})}
+                  />
                 </Pressable>
               );
             };

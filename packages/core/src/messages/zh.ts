@@ -1115,11 +1115,9 @@ export const zh: MessageTable = {
 
   // 扫描件转 Excel（D-272）
   runError_tableUnsupported: '这台设备还不能识别这种语言的表格。请给「转 Excel」换一种语言。',
-  resultTableEdit: '查看和编辑',
   resultTablesMissing: '第 {pages} 页没有找到带线的表格，已按全部内容输出。',
   tableSheetName: '第 {n} 页',
   tableFileName: '表格-{date}',
-  tableEditorHint: '点一下选中，再点一下编辑',
   tableRedo: '重做',
   tableEditCell: '编辑格子',
   tableEditText: '编辑文字',
@@ -1136,13 +1134,10 @@ export const zh: MessageTable = {
   tableDeleteText: '删除这段文字',
   tableEmpty: '这一页没有识别出内容。',
   tableReadOnly: '这一页超过 {max} 个格子，这里只能查看。要修改，请用别的 App 打开这个文件。',
-  tableSaveFailed: '改动没能保存：{error}',
   // 扫描件转 Word（D-328）
   runError_wordUnsupported: '这台设备还不能识别这种语言的文档。请给「转 Word」换一种语言。',
   wordFileName: '文档-{date}',
-  wordEditorHint: '点一下选中，再点一下编辑',
   wordEditText: '编辑文字',
-  wordEditTable: '编辑表格',
   wordDeleteBlock: '删除',
   wordEmpty: '没有识别出内容。',
   // 日程（D-292–D-296）
@@ -1250,6 +1245,7 @@ export const zh: MessageTable = {
   deskGroupFile: '文件',
   deskToolPreview: '系统预览',
   deskResume: '继续上次的桌面',
+  deskDeselect: '取消选中',
   deskSystemPreview: '用系统预览看',
   deskPdfNeedsPack: '在这里翻页看 PDF 要先下载「PDF 预览」扩展包。也可以用系统预览看。',
   deskDownload: '下载',

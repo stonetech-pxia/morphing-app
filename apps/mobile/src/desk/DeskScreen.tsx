@@ -18,11 +18,14 @@ import {
   type Workflow,
 } from '@morph/core';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -38,19 +41,35 @@ import { Item } from '../renderer/registry';
 import { usePalette, type Palette } from '../renderer/theme';
 import { Button } from '../renderer/ui';
 import { AskPanel } from '../run/AskPanel';
-import { saveItems } from '../runtime/actions/io';
 import { newAssetId, startRun } from '../runtime/runner';
 import { useShellEnv } from '../shell/Shell';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { DeskEditor } from './DeskEditor';
 import { DeskPreview } from './DeskPreview';
 import { DeskToolbar, roomEntries, toolEntries, type ToolEntry } from './DeskToolbar';
-import { clearDesk, commitRun, deskFileUri, deskPicked, loadDesk, redo, undo } from './store';
+import { saveDeskFiles } from './saved-source';
+import {
+  clearDesk,
+  commitRun,
+  deskFileUri,
+  deskPicked,
+  loadDesk,
+  recoverEditDraft,
+  redo,
+  undo,
+} from './store';
+import { useDeskEdit } from './useDeskEdit';
 import { useRunHost } from './useRunHost';
 
 // 文件房间（file-room DESIGN §4，D-339）：中间是桌上文件的大预览，底部（或顶部）一排工具。
 // 用一个工具或一个快捷操作，结果成为桌上的新版本，顶部能撤销、重做；「完成」里保存、分享或清空桌面。
 // 布局来自配置（WorkspaceConfig.desk，D-337），没写的用默认（预览居中、工具栏在底部）。
 // 工具作用到桌上和正在看的这份同一种的全部文件（多选在 R6）。文件只在本机，AI 看不到。
+// 转 Excel、转 Word 的结果在桌上就是编辑器（R2，D-345）：选中东西时工具栏收起、换成编辑层；连续的编辑在
+// 用工具、打开「完成」、离开、切文件、App 进后台时合成一个版本，顶部只有一组撤销（useDeskEdit）。
+
+/** 现在的时间（毫秒）：放在组件外面，只在点了以后的处理里用。 */
+const nowMs = () => Date.now();
 
 /** 预览占屏幕高度的比例（布局 preview 不是 fill 时）。 */
 const PREVIEW_SHARE = { large: 0.62, medium: 0.45 } as const;
@@ -71,7 +90,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   const palette = usePalette(config.theme);
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { height: screenHeight } = useWindowDimensions();
+  const { height: screenHeight, width: screenWidth } = useWindowDimensions();
   const host = useRunHost(palette, locale);
   const { navigate, locked } = useShellEnv();
 
@@ -88,19 +107,25 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   const [panel, setPanel] = useState<(AskRequest & { entry: ToolEntry }) | null>(null);
   const [sheet, setSheet] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [selecting, setSelecting] = useState(false);
   const signal = useRef({ cancelled: false });
   const alive = useRef(true);
+  /** 清空了桌面：离开时不再合上编辑。 */
+  const cleared = useRef(false);
 
   useEffect(() => {
     alive.current = true;
-    void loadDesk(files, deskId).then(
-      (d) => {
-        if (!alive.current) return;
-        if (d) setDesk(d);
-        else setDeskState('gone');
-      },
-      () => alive.current && setDeskState('gone'),
-    );
+    void loadDesk(files, deskId)
+      // 上次没合上的编辑（App 被关掉）合成一个版本。
+      .then((d) => (d ? recoverEditDraft(files, d, Date.now()) : null))
+      .then(
+        (d) => {
+          if (!alive.current) return;
+          if (d) setDesk(d);
+          else setDeskState('gone');
+        },
+        () => alive.current && setDeskState('gone'),
+      );
     return () => {
       alive.current = false;
       signal.current.cancelled = true;
@@ -127,6 +152,31 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     [kind, layout.tools, registry, config.workflows, locale, list],
   );
   const groups = useMemo(() => [...tools, roomEntries(locale)], [tools, locale]);
+
+  const edit = useDeskEdit({
+    files,
+    desk: deskRef,
+    file: shown,
+    onSealed: (next, fileId) => {
+      setDesk(next);
+      setShownId(fileId);
+    },
+  });
+  // 离开房间、App 进后台时合上编辑（用最新的 edit：它的 seal 只读 ref）。
+  const editRef = useRef(edit);
+  useEffect(() => {
+    editRef.current = edit;
+  });
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active' && !cleared.current) void editRef.current.seal();
+    });
+    return () => {
+      sub.remove();
+      if (!cleared.current) void editRef.current.seal();
+    };
+  }, []);
+  const onSelecting = useCallback((on: boolean) => setSelecting(on), []);
 
   if (desk === null) {
     return <ActivityIndicator style={[styles.flex, { backgroundColor: palette.background }]} />;
@@ -198,7 +248,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
           on.map((f) => f.id),
           result.value,
           by,
-          Date.now(),
+          nowMs(),
         );
         if (!alive.current) return;
         if (commit.desk !== current) {
@@ -221,12 +271,21 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     }
   }
 
-  function press(entry: ToolEntry) {
+  /** 合上编辑以后桌上现在的、和正在看的同一种的文件（工具作用到它们）。 */
+  async function sealedTargets(): Promise<DeskFile[]> {
+    const d = (await edit.seal()) ?? deskRef.current;
+    return d ? currentFiles(d).filter((f) => deskKindOf(f) === kind) : [];
+  }
+
+  async function press(entry: ToolEntry) {
+    if (busy) return;
+    // 用别的工具、保存、分享前先把编辑合成一个版本（§11.2）。
+    const on = await sealedTargets();
     if (entry.room === 'share') return void act(() => files.shareUris(items()));
     if (entry.room === 'save') return void act(save);
     if (entry.room === 'preview') return systemPreview();
     if (entry.workflow) {
-      void run(entry.workflow, { kind: 'workflow', workflowId: entry.workflow.id }, targets);
+      void run(entry.workflow, { kind: 'workflow', workflowId: entry.workflow.id }, on);
       return;
     }
     const item = entry.item;
@@ -248,17 +307,19 @@ export function DeskScreen({ deskId }: { deskId: string }) {
       });
       return;
     }
-    applyTool(action.id, params);
+    void applyTool(action.id, params);
   }
 
-  function applyTool(actionId: string, params: Record<string, unknown>) {
-    const workflow = deskToolWorkflow(actionId, targets, registry, params);
+  async function applyTool(actionId: string, params: Record<string, unknown>) {
+    const on = await sealedTargets();
+    const workflow = deskToolWorkflow(actionId, on, registry, params);
     if (!workflow) return;
-    void run(workflow, { kind: 'action', action: actionId }, targets);
+    void run(workflow, { kind: 'action', action: actionId }, on);
   }
 
+  const nowFiles = () => (deskRef.current ? currentFiles(deskRef.current) : list);
   const items = () =>
-    list.map((f) => ({
+    nowFiles().map((f) => ({
       uri: deskFileUri(files, desk, f.path),
       name: f.name,
       ext: f.ext,
@@ -266,13 +327,22 @@ export function DeskScreen({ deskId }: { deskId: string }) {
       size: f.size,
     }));
 
+  /** 存成用户文件；转 Excel、转 Word 的结果带着中间格式和原图，以后还能放回桌上改（D-346）。 */
   async function save() {
-    await saveItems({ files, repo, grantee: 'desk' }, items(), {
+    const d = deskRef.current;
+    if (!d) return;
+    await saveDeskFiles(files, repo, d, currentFiles(d), {
       now: () => new Date(),
       newId: newAssetId,
     });
     bumpAssets();
     setSaved(true);
+  }
+
+  /** 合上编辑再离开。 */
+  async function leave() {
+    await edit.seal();
+    router.back();
   }
 
   async function act(fn: () => Promise<void>) {
@@ -307,6 +377,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
         style: 'destructive',
         onPress: () =>
           void act(async () => {
+            cleared.current = true;
             await clearDesk(files, deskId);
             setSheet(false);
             router.back();
@@ -334,26 +405,6 @@ export function DeskScreen({ deskId }: { deskId: string }) {
         ))}
       </View>
     ) : null;
-
-  const headerButton = (
-    id: string,
-    text: string,
-    onPress: () => void,
-    disabled = false,
-    bold = false,
-  ) => (
-    <Pressable
-      testID={id}
-      accessibilityRole="button"
-      hitSlop={8}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => ({ opacity: disabled ? 0.35 : pressed ? 0.6 : 1 })}>
-      <Text style={[palette.font(bold ? 'bodyBold' : 'body', 16), { color: palette.primaryText }]}>
-        {text}
-      </Text>
-    </Pressable>
-  );
 
   const toolbar = (
     <View
@@ -383,42 +434,90 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     </View>
   );
 
+  // 顶部只有一组撤销（§10 第 4 题）：编辑没合上时一步步退编辑，否则退整个版本。
+  const editHistory = edit.session?.history;
+  const editUndo = (editHistory?.past.length ?? 0) > 0;
+  const editRedo = (editHistory?.future.length ?? 0) > 0;
+  const showToolbar = !selecting;
+  const preview = !shown ? null : shown.source && edit.session !== null ? (
+    edit.session === undefined ? (
+      <ActivityIndicator style={styles.flex} color={palette.primary} />
+    ) : (
+      <DeskEditor
+        key={edit.session.fileId}
+        kind={edit.session.kind}
+        doc={edit.session.history.present}
+        palette={palette}
+        locale={locale}
+        width={screenWidth}
+        onApply={edit.apply}
+        onSelecting={onSelecting}
+      />
+    )
+  ) : (
+    <DeskPreview
+      desk={desk}
+      file={shown}
+      files={files}
+      palette={palette}
+      locale={locale}
+      onSystemPreview={systemPreview}
+    />
+  );
+
   return (
-    <View
+    <KeyboardAvoidingView
       testID="desk-screen"
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={[styles.flex, { backgroundColor: palette.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderColor: palette.border }]}>
-        {headerButton('desk-close', '‹', () => router.back(), busy !== null, true)}
+        <HeaderButton
+          id="desk-close"
+          text="‹"
+          palette={palette}
+          onPress={() => void leave()}
+          disabled={busy !== null}
+          bold
+        />
         <Text
           numberOfLines={1}
           style={[palette.font('title', 16), styles.flex, { color: palette.text }]}>
           {shown ? `${shown.name}.${shown.ext}` : ''}
         </Text>
-        {headerButton(
-          'desk-undo',
-          t(locale, 'undo'),
-          () => void undo(files, desk, Date.now()).then(setDesk),
-          busy !== null || !canUndo(desk),
-        )}
-        {headerButton(
-          'desk-redo',
-          t(locale, 'tableRedo'),
-          () => void redo(files, desk, Date.now()).then(setDesk),
-          busy !== null || !canRedo(desk),
-        )}
-        {headerButton(
-          'desk-done',
-          t(locale, 'done'),
-          () => {
-            setSaved(false);
-            setSheet(true);
-          },
-          busy !== null,
-          true,
-        )}
+        <HeaderButton
+          id="desk-undo"
+          text={t(locale, 'undo')}
+          palette={palette}
+          onPress={() =>
+            editUndo ? edit.undo() : void undo(files, desk, Date.now()).then(setDesk)
+          }
+          disabled={busy !== null || !(editUndo || canUndo(desk))}
+        />
+        <HeaderButton
+          id="desk-redo"
+          text={t(locale, 'tableRedo')}
+          palette={palette}
+          onPress={() =>
+            editRedo ? edit.redo() : void redo(files, desk, Date.now()).then(setDesk)
+          }
+          disabled={busy !== null || !(editRedo || (!edit.dirty && canRedo(desk)))}
+        />
+        <HeaderButton
+          id="desk-done"
+          text={t(locale, 'done')}
+          palette={palette}
+          onPress={() =>
+            void edit.seal().then(() => {
+              setSaved(false);
+              setSheet(true);
+            })
+          }
+          disabled={busy !== null}
+          bold
+        />
       </View>
 
-      {layout.toolbar === 'top' ? toolbar : null}
+      {layout.toolbar === 'top' && showToolbar ? toolbar : null}
       {slot(layout.above, 'desk-above')}
       <View
         style={
@@ -426,16 +525,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
             ? styles.flex
             : { height: Math.round(screenHeight * PREVIEW_SHARE[layout.preview]) }
         }>
-        {shown ? (
-          <DeskPreview
-            desk={desk}
-            file={shown}
-            files={files}
-            palette={palette}
-            locale={locale}
-            onSystemPreview={systemPreview}
-          />
-        ) : null}
+        {preview}
         {busy ? (
           <BusyCover
             busy={busy}
@@ -473,7 +563,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
               <Pressable
                 key={f.id}
                 testID={`desk-file-${i}`}
-                onPress={() => setShownId(f.id)}
+                onPress={() => void edit.seal().then(() => setShownId(f.id))}
                 style={[
                   styles.chip,
                   {
@@ -493,7 +583,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
       ) : null}
       {slot(layout.below, 'desk-below')}
       {layout.preview === 'fill' ? null : <View style={styles.flex} />}
-      {layout.toolbar === 'bottom' ? toolbar : null}
+      {layout.toolbar === 'bottom' && showToolbar ? toolbar : null}
 
       {panel ? (
         <AskPanel
@@ -539,18 +629,19 @@ export function DeskScreen({ deskId }: { deskId: string }) {
                 {t(locale, 'resultTextNote')}
               </Text>
               <View style={styles.actions}>
-                {headerButton(
-                  'desk-text-copy',
-                  t(locale, 'resultCopy'),
-                  () => void act(() => files.copyText(text)),
-                )}
-                {headerButton(
-                  'desk-text-close',
-                  t(locale, 'close'),
-                  () => setText(null),
-                  false,
-                  true,
-                )}
+                <HeaderButton
+                  id="desk-text-copy"
+                  text={t(locale, 'resultCopy')}
+                  palette={palette}
+                  onPress={() => void act(() => files.copyText(text))}
+                />
+                <HeaderButton
+                  id="desk-text-close"
+                  text={t(locale, 'close')}
+                  palette={palette}
+                  onPress={() => setText(null)}
+                  bold
+                />
               </View>
             </View>
           </View>
@@ -622,7 +713,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
                 palette={palette}
                 onPress={() => {
                   setSheet(false);
-                  router.back();
+                  void leave();
                 }}
               />
               <SheetRow
@@ -636,7 +727,37 @@ export function DeskScreen({ deskId }: { deskId: string }) {
           </View>
         </Modal>
       ) : null}
-    </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+function HeaderButton({
+  id,
+  text,
+  palette,
+  onPress,
+  disabled = false,
+  bold = false,
+}: {
+  id: string;
+  text: string;
+  palette: Palette;
+  onPress: () => void;
+  disabled?: boolean;
+  bold?: boolean;
+}) {
+  return (
+    <Pressable
+      testID={id}
+      accessibilityRole="button"
+      hitSlop={8}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({ opacity: disabled ? 0.35 : pressed ? 0.6 : 1 })}>
+      <Text style={[palette.font(bold ? 'bodyBold' : 'body', 16), { color: palette.primaryText }]}>
+        {text}
+      </Text>
+    </Pressable>
   );
 }
 

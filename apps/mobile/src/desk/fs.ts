@@ -15,6 +15,8 @@ export interface DeskFs {
   /** 移进桌面目录（只用于运行目录里的临时文件），返回大小。 */
   moveIn(uri: string, path: string): Promise<number>;
   writeText(path: string, text: string): Promise<number>;
+  /** 写一个文件（编辑合上时生成的 xlsx / docx，D-345），返回大小。 */
+  writeBytes(path: string, bytes: Uint8Array): Promise<number>;
   /** 读不到时返回 null。 */
   readText(path: string): Promise<string | null>;
   /** 删掉几个文件；只删桌面目录里的，已经不在了不算错。 */

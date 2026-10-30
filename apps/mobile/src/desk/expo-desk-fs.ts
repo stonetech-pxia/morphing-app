@@ -19,6 +19,14 @@ function fileAt(path: string, create = false): File {
   return new File(Paths.document, ROOT, ...parts);
 }
 
+async function writeBytes(path: string, bytes: Uint8Array): Promise<number> {
+  const dest = fileAt(path, true);
+  if (!dest.exists) dest.create();
+  // write 是异步的（release-build-gotchas）：一定要等它写完。
+  await dest.write(bytes);
+  return bytes.length;
+}
+
 const runsUri = () => new Directory(Paths.cache, 'runs').uri;
 
 export const expoDeskFs: DeskFs = {
@@ -49,14 +57,9 @@ export const expoDeskFs: DeskFs = {
     return size;
   },
 
-  async writeText(path, text) {
-    const dest = fileAt(path, true);
-    if (!dest.exists) dest.create();
-    const bytes = new TextEncoder().encode(text);
-    // write 是异步的（release-build-gotchas）：一定要等它写完。
-    await dest.write(bytes);
-    return bytes.length;
-  },
+  writeText: (path, text) => writeBytes(path, new TextEncoder().encode(text)),
+
+  writeBytes,
 
   async readText(path) {
     const file = fileAt(path);

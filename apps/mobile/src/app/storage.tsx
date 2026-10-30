@@ -13,11 +13,13 @@ import {
   type DataRecord,
   type StringKey,
 } from '@morph/core';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { runErrorText, t } from '@/i18n';
 import { DeskList } from '@/desk/DeskList';
+import { placeAssetOnDesk, savedSourceBytes } from '@/desk/saved-source';
 import { AttachmentThumb } from '@/renderer/Attachments';
 import { Icon } from '@/renderer/Icon';
 import { usePalette } from '@/renderer/theme';
@@ -39,6 +41,8 @@ interface Loaded {
   /** 记录所在的表（当前的和只在旧版本里的）。 */
   tables: Map<string, Collection>;
   records: Map<string, DataRecord>;
+  /** 带着中间格式的 Excel、Word（能放回桌上改，D-346）：中间格式和原图一共多大，算在这个文件上。 */
+  sources: Map<string, number>;
 }
 
 const KIND: [string, StringKey][] = [
@@ -55,6 +59,9 @@ const kindOf = (a: AssetRecord): StringKey =>
 const cleanable = (a: AssetRecord, usage: Map<string, AssetUsage>) =>
   a.source !== 'generated' && isUnused(usage.get(a.id));
 
+/** 现在的时间（毫秒）：只在点了以后的处理里用。 */
+const nowMs = () => Date.now();
+
 export default function StorageRoute() {
   const { repo, files, locale, registry } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
@@ -64,6 +71,7 @@ export default function StorageRoute() {
   const palette = usePalette(config.theme);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [viewing, setViewing] = useState<ViewerItem | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     let alive = true;
@@ -97,21 +105,34 @@ export default function StorageRoute() {
         revisions,
         now: new Date(),
       });
+      const sources = new Map<string, number>();
+      for (const a of assets) {
+        const bytes = await savedSourceBytes(files, a);
+        if (bytes !== null) sources.set(a.id, bytes);
+      }
       if (alive)
-        setLoaded({ assets, usage, tables, records: new Map(records.map((r) => [r.id, r])) });
+        setLoaded({
+          assets,
+          usage,
+          tables,
+          records: new Map(records.map((r) => [r.id, r])),
+          sources,
+        });
     })();
     return () => {
       alive = false;
     };
-  }, [repo, config, recordsVersion, assetsVersion]);
+  }, [repo, files, config, recordsVersion, assetsVersion]);
 
   const caption = [palette.font('body', 13), { color: palette.muted }];
   if (!loaded) return <View style={{ flex: 1, backgroundColor: palette.background }} />;
 
-  const { assets, usage, tables, records } = loaded;
-  const total = assets.reduce((n, a) => n + a.size, 0);
+  const { assets, usage, tables, records, sources } = loaded;
+  /** 存储空间里的大小：带着中间格式时加上它和原图。 */
+  const sizeOf = (a: AssetRecord) => a.size + (sources.get(a.id) ?? 0);
+  const total = assets.reduce((n, a) => n + sizeOf(a), 0);
   const unused = assets.filter((a) => cleanable(a, usage));
-  const unusedSize = unused.reduce((n, a) => n + a.size, 0);
+  const unusedSize = unused.reduce((n, a) => n + sizeOf(a), 0);
   const size = (bytes: number) => formatFileSize(bytes, locale);
 
   function where(use: AssetUse): string {
@@ -171,8 +192,24 @@ export default function StorageRoute() {
     );
   }
 
+  /** 放回桌上改（D-346）：复制一份进新桌面，这个文件不动。 */
+  async function putOnDesk(a: AssetRecord) {
+    try {
+      const desk = await placeAssetOnDesk(files, a, nowMs());
+      if (desk) router.push({ pathname: '/desk/[deskId]', params: { deskId: desk.id } });
+    } catch (e) {
+      Alert.alert(
+        a.name,
+        e instanceof RunError ? runErrorText(locale, e.code, e.detail) : String(e),
+      );
+    }
+  }
+
   function options(a: AssetRecord) {
     Alert.alert(a.name, undefined, [
+      ...(sources.has(a.id)
+        ? [{ text: t(locale, 'deskPlace'), onPress: () => void putOnDesk(a) }]
+        : []),
       { text: t(locale, 'storagePreview'), onPress: () => void preview(a) },
       { text: t(locale, 'delete'), style: 'destructive', onPress: () => askDelete(a) },
       { text: t(locale, 'cancel'), style: 'cancel' },
@@ -227,7 +264,7 @@ export default function StorageRoute() {
         </>
       )}
       {[...assets]
-        .sort((a, b) => b.size - a.size)
+        .sort((a, b) => sizeOf(b) - sizeOf(a))
         .map((a) => {
           const u = usage.get(a.id);
           const lines = u?.uses.length
@@ -269,7 +306,7 @@ export default function StorageRoute() {
                     style={[palette.font('bodyMedium', 15), { color: palette.text }]}>
                     {a.name}
                   </Text>
-                  <Text style={caption}>{`${t(locale, kindOf(a))} · ${size(a.size)}`}</Text>
+                  <Text style={caption}>{`${t(locale, kindOf(a))} · ${size(sizeOf(a))}`}</Text>
                   {lines.map((line, i) => (
                     <Text
                       key={i}

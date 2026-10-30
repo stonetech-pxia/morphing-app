@@ -1184,12 +1184,10 @@ export const en = {
   // 扫描件转 Excel（D-272）
   runError_tableUnsupported:
     'This device can’t read tables in this language yet. Choose another language for “Convert to Excel”.',
-  resultTableEdit: 'View and edit',
   resultTablesMissing:
     'No ruled table was found on pages {pages}, so everything on them was included.',
   tableSheetName: 'Page {n}',
   tableFileName: 'Table {date}',
-  tableEditorHint: 'Tap a cell to select it, tap it again to edit',
   tableRedo: 'Redo',
   tableEditCell: 'Edit cell',
   tableEditText: 'Edit text',
@@ -1207,14 +1205,11 @@ export const en = {
   tableEmpty: 'Nothing was recognized on this page.',
   tableReadOnly:
     'This page has more than {max} cells, so it can only be viewed here. To edit it, open the file in another app.',
-  tableSaveFailed: 'The changes couldn’t be saved: {error}',
   // 扫描件转 Word（D-328）
   runError_wordUnsupported:
     'This device can’t read documents in this language yet. Choose another language for “Convert to Word”.',
   wordFileName: 'Document {date}',
-  wordEditorHint: 'Tap a block to select it, tap it again to edit',
   wordEditText: 'Edit text',
-  wordEditTable: 'Edit table',
   wordDeleteBlock: 'Delete',
   wordEmpty: 'Nothing was recognized.',
   // 日程（D-292–D-296）
@@ -1324,6 +1319,7 @@ export const en = {
   deskGroupFile: 'File',
   deskToolPreview: 'Preview',
   deskResume: 'Back to your desk',
+  deskDeselect: 'Deselect',
   deskSystemPreview: 'Open in system preview',
   deskPdfNeedsPack:
     'To page through the PDF here, download the “PDF preview” pack first. You can also open it in the system preview.',

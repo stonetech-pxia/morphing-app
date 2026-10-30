@@ -17,8 +17,7 @@ import type { Palette } from '../renderer/theme';
 import { Card, Pill } from '../renderer/ui';
 import { FileViewer } from '../share/FileViewer';
 import { MediaRow } from './MediaRow';
-import { canEditTable } from './table-edit';
-import { canEditWord } from './word-edit';
+import { canEditTable, canEditWord } from './office-items';
 
 // 结果预览（TOOLS_DESIGN §3）：图片缩略图、PDF 页数和大小、文字全文（只在本机显示）。
 // 结果页始终提供保存、分享、存到文件夹、存到相册（图片）、打印（PDF / 图片）、复制（文字）。
@@ -38,10 +37,8 @@ export interface ResultActions {
   continueProcessing?(): Promise<void>;
   /** 用系统预览打开一个结果文件（PDF 等，D-277）；图片在 App 里全屏看。 */
   preview?(item: RunItem): Promise<void>;
-  /** 转 Excel 的结果：打开查看和编辑（D-272）。 */
-  editTable?(item: RunItem): void;
-  /** 转 Word 的结果：打开查看和编辑（D-328）。 */
-  editWord?(item: RunItem): void;
+  /** 转 Excel、转 Word 的结果：放到桌上改（D-345，代替原来的「查看和编辑」）。 */
+  putOnDesk?(item: RunItem): Promise<void>;
 }
 
 function ItemRow({
@@ -252,7 +249,7 @@ export function ResultView({
                   : undefined
             }
           />
-          {/* 转 Excel 的结果（D-272）：没找到带线表格的页按全部内容输出了，说一声；可以查看和编辑。 */}
+          {/* 转 Excel 的结果（D-272）：没找到带线表格的页按全部内容输出了，说一声；可以放到桌上改。 */}
           {canEditTable(item) && item.tableDoc!.pagesWithoutTables?.length ? (
             <Text
               testID="result-tables-missing"
@@ -263,23 +260,13 @@ export function ResultView({
               })}
             </Text>
           ) : null}
-          {canEditTable(item) && actions.editTable ? (
+          {(canEditTable(item) || canEditWord(item)) && actions.putOnDesk ? (
             <View style={styles.actions}>
               <Pill
                 palette={palette}
-                testID="result-table-edit"
-                label={t(locale, 'resultTableEdit')}
-                onPress={() => actions.editTable!(item)}
-              />
-            </View>
-          ) : null}
-          {canEditWord(item) && actions.editWord ? (
-            <View style={styles.actions}>
-              <Pill
-                palette={palette}
-                testID="result-word-edit"
-                label={t(locale, 'resultTableEdit')}
-                onPress={() => actions.editWord!(item)}
+                testID="result-desk"
+                label={t(locale, 'deskPlace')}
+                onPress={() => void act('desk', () => actions.putOnDesk!(item))()}
               />
             </View>
           ) : null}

@@ -1,6 +1,7 @@
 import {
   RunError,
   commitVersion,
+  sealEdit,
   currentFiles,
   decodeUtf8,
   isFileValue,
@@ -21,9 +22,13 @@ import {
 } from '@morph/core';
 import {
   leafBlocks,
+  pagesWithoutTables,
   parseDocDoc,
   parseTableDoc,
+  writeDocx,
+  writeXlsx,
   type DocDoc,
+  type DocxImage,
   type TableDoc,
 } from '@morph/tool-office';
 
@@ -35,9 +40,11 @@ import type { FilePlatform, PickedFile } from '../runtime/platform';
 // 文件的归属（AGENTS.md）：放上桌时原件只复制；工具的结果是运行目录里的临时文件，直接移进来；
 // 中间格式（TableDoc / DocDoc）引用的图片放进 assets/，JSON 里写桌面里的相对路径，各版本共用一份。
 
-type Files = Pick<FilePlatform, 'desk' | 'readUri' | 'freeDiskBytes'>;
+type Files = Pick<FilePlatform, 'desk' | 'readUri' | 'freeDiskBytes' | 'imageSize'>;
 
 const JSON_NAME = 'desk.json';
+/** 还没合上的一段编辑（防丢，§11.2）：每改一下写一次，合上时删掉。 */
+const DRAFT_NAME = 'editing.json';
 
 /** 桌面里的相对路径 → desk/ 下的路径。 */
 const inDesk = (desk: Pick<Desk, 'id'>, path: string) => `${desk.id}/${path}`;
@@ -133,7 +140,13 @@ export async function placeOnDesk(
 }
 
 /** 运行交回的文件放进桌面：桌面里原有的直接用，运行目录里的移进来，别的复制。 */
-async function adopt(files: Files, desk: Desk, uri: string, path: string): Promise<DeskBlob> {
+async function adopt(
+  files: Files,
+  desk: Desk,
+  uri: string,
+  path: string,
+  copy = false,
+): Promise<DeskBlob> {
   const own = files.desk.pathOf(uri);
   const prefix = `${desk.id}/`;
   if (own?.startsWith(prefix)) {
@@ -144,9 +157,10 @@ async function adopt(files: Files, desk: Desk, uri: string, path: string): Promi
       .find((b) => b.path === rel);
     if (known) return { path: rel, size: known.size };
   }
-  const size = files.desk.isRunFile(uri)
-    ? await files.desk.moveIn(uri, inDesk(desk, path))
-    : await files.desk.copyIn(uri, inDesk(desk, path));
+  const size =
+    !copy && files.desk.isRunFile(uri)
+      ? await files.desk.moveIn(uri, inDesk(desk, path))
+      : await files.desk.copyIn(uri, inDesk(desk, path));
   return { path, size };
 }
 
@@ -157,6 +171,7 @@ async function adoptSource(
   item: RunItem,
   path: string,
   tag: string,
+  copy = false,
 ): Promise<DeskSource | undefined> {
   const kind =
     item.tableDoc?.for === item.uri ? 'table' : item.docDoc?.for === item.uri ? 'doc' : null;
@@ -180,6 +195,7 @@ async function adoptSource(
       desk,
       uri,
       `assets/${tag}-${assets.size}.${cleanExt(extOf(uri.split('?')[0]!)) || 'jpg'}`,
+      copy,
     );
     assets.set(uri, blob);
     return blob.path;
@@ -314,4 +330,193 @@ export function deskPicked(files: Files, desk: Desk, list: readonly DeskFile[]):
     ...(f.width && f.height ? { width: f.width, height: f.height } : {}),
     ...(f.durationMs ? { durationMs: f.durationMs } : {}),
   }));
+}
+
+/**
+ * 结果页的「放到桌上」（D-345，代替原来的「查看和编辑」）：把这几份结果复制进一个新桌面，中间格式和图片一起。
+ * 只复制、不移动：结果页还显示着它们（运行页关掉时运行目录才删）。
+ */
+export async function placeResultsOnDesk(
+  files: Files,
+  items: readonly RunItem[],
+  now: number,
+  deskId = newDeskId(),
+): Promise<Desk> {
+  checkSpace(
+    files,
+    items.reduce((n, i) => n + i.size, 0),
+  );
+  const empty = newDesk(deskId, [], now);
+  const placed: DeskFile[] = [];
+  try {
+    for (const [i, item] of items.entries()) {
+      const ext = cleanExt(item.ext);
+      const blob = await adopt(files, empty, item.uri, `v1-${i}.${ext}`, true);
+      const source = await adoptSource(files, empty, item, `v1-${i}.json`, `v1-${i}`, true);
+      placed.push({
+        id: `f1-${i}`,
+        name: item.name,
+        ext,
+        mimeType: item.mimeType,
+        size: blob.size,
+        path: blob.path,
+        ...(item.width && item.height ? { width: item.width, height: item.height } : {}),
+        ...(item.pageCount ? { pageCount: item.pageCount } : {}),
+        ...(source ? { source } : {}),
+      });
+    }
+    const desk = newDesk(deskId, placed, now);
+    await saveDesk(files, desk);
+    return desk;
+  } catch (error) {
+    await files.desk.removeDesk(deskId);
+    throw error;
+  }
+}
+
+/** 一份文件的中间格式（显示时图片是现在的地址，存回去时是桌面里的相对路径）。 */
+export type DeskSourceDoc = { kind: 'table'; doc: TableDoc } | { kind: 'doc'; doc: DocDoc };
+
+/** 中间格式里的图片路径换一遍（不改原来的）。 */
+export function mapSourcePaths(source: DeskSourceDoc, fn: (path: string) => string): DeskSourceDoc {
+  if (source.kind === 'table') {
+    return {
+      kind: 'table',
+      doc: { ...source.doc, pages: source.doc.pages.map((p) => ({ ...p, source: fn(p.source) })) },
+    };
+  }
+  const doc = JSON.parse(JSON.stringify(source.doc)) as DocDoc;
+  for (const page of doc.pages) {
+    page.source = fn(page.source);
+    for (const block of leafBlocks(page)) {
+      if (block.kind === 'image' && block.src) block.src = fn(block.src);
+    }
+  }
+  return { kind: 'doc', doc };
+}
+
+/** 中间格式用到的图片（原图截图的页面、剪下来的图片）。 */
+export function sourcePaths(source: DeskSourceDoc): Set<string> {
+  const out = new Set<string>();
+  mapSourcePaths(source, (path) => {
+    if (path) out.add(path);
+    return path;
+  });
+  return out;
+}
+
+/** 显示用的地址换回桌面里的相对路径。 */
+const relativeSource = (files: Files, desk: Desk, source: DeskSourceDoc) =>
+  mapSourcePaths(source, (path) => {
+    const own = files.desk.pathOf(path);
+    return own?.startsWith(`${desk.id}/`) ? own.slice(desk.id.length + 1) : path;
+  });
+
+/** docx 里嵌的图片（剪下来的那些）：按中间格式里写的路径读。 */
+async function docxImages(files: Files, desk: Desk, doc: DocDoc) {
+  const out = new Map<string, DocxImage>();
+  for (const page of doc.pages) {
+    for (const block of leafBlocks(page)) {
+      if (block.kind !== 'image' || !block.src || out.has(block.src)) continue;
+      try {
+        const uri = deskFileUri(files, desk, block.src);
+        out.set(block.src, { bytes: await files.readUri(uri), ...(await files.imageSize(uri)) });
+      } catch {
+        // 读不了的图片不写进文件。
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * 合上一段编辑（file-room §11.2，D-345）：改过的中间格式写成这一版的 JSON，按它生成一次 xlsx / docx，
+ * 桌上这一份换成新的（新 ID），整段编辑是一个版本（撤销时一起退）。没有中间格式时不变。
+ * 返回新的桌面和这份文件的新 ID。
+ */
+export async function commitEdit(
+  files: Files,
+  desk: Desk,
+  fileId: string,
+  edited: DeskSourceDoc,
+  now: number,
+): Promise<{ desk: Desk; fileId: string }> {
+  const list = currentFiles(desk);
+  const file = list.find((f) => f.id === fileId);
+  if (!file?.source) return { desk, fileId };
+  const source = relativeSource(files, desk, edited);
+  const n = desk.nextN;
+  const path = `v${n}-0.${file.ext}`;
+  const json = `v${n}-0.json`;
+  const bytes =
+    source.kind === 'table'
+      ? writeXlsx(source.doc)
+      : writeDocx(source.doc, await docxImages(files, desk, source.doc));
+  const size = await files.desk.writeBytes(inDesk(desk, path), bytes);
+  const jsonSize = await files.desk.writeText(inDesk(desk, json), JSON.stringify(source.doc));
+  const used = sourcePaths(source);
+  const missing = source.kind === 'table' ? pagesWithoutTables(source.doc) : [];
+  const next: DeskFile = {
+    ...file,
+    id: `f${n}-0`,
+    path,
+    size,
+    source: {
+      kind: source.kind,
+      path: json,
+      size: jsonSize,
+      assets: file.source.assets.filter((a) => used.has(a.path)),
+      ...(missing.length ? { pagesWithoutTables: missing } : {}),
+    },
+  };
+  const change = commitVersion(
+    desk,
+    list.map((f) => (f.id === fileId ? next : f)),
+    { kind: 'edit' },
+    now,
+  );
+  const sealed = sealEdit(change.desk);
+  await saveDesk(files, sealed);
+  await files.desk.remove([...change.drop, DRAFT_NAME].map((p) => inDesk(desk, p)));
+  return { desk: sealed, fileId: next.id };
+}
+
+/** 还没合上的编辑写进桌面（防丢）：App 被关掉时，下次打开房间先把它合成一个版本。 */
+export async function writeEditDraft(
+  files: Files,
+  desk: Desk,
+  fileId: string,
+  edited: DeskSourceDoc,
+): Promise<void> {
+  const source = relativeSource(files, desk, edited);
+  await files.desk.writeText(inDesk(desk, DRAFT_NAME), JSON.stringify({ fileId, ...source }));
+}
+
+export const dropEditDraft = (files: Files, desk: Desk) =>
+  files.desk.remove([inDesk(desk, DRAFT_NAME)]);
+
+/** 打开房间时：上次没合上的编辑合成一个版本（撤销能退回去）。读不出来、文件已经不在桌上时丢掉。 */
+export async function recoverEditDraft(files: Files, desk: Desk, now: number): Promise<Desk> {
+  const text = await files.desk.readText(inDesk(desk, DRAFT_NAME));
+  if (text === null) return desk;
+  type Draft = { fileId?: string; kind?: string; doc?: unknown } | null;
+  let draft: Draft;
+  try {
+    draft = JSON.parse(text) as Draft;
+  } catch {
+    draft = null;
+  }
+  const raw = JSON.stringify(draft?.doc ?? null);
+  const source: DeskSourceDoc | null =
+    draft?.kind === 'table'
+      ? ((doc) => (doc ? { kind: 'table' as const, doc } : null))(parseTableDoc(raw))
+      : draft?.kind === 'doc'
+        ? ((doc) => (doc ? { kind: 'doc' as const, doc } : null))(parseDocDoc(raw))
+        : null;
+  const file = currentFiles(desk).find((f) => f.id === draft?.fileId);
+  if (!source || !file || file.source?.kind !== source.kind) {
+    await dropEditDraft(files, desk);
+    return desk;
+  }
+  return (await commitEdit(files, desk, file.id, source, now)).desk;
 }

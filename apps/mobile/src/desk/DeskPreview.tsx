@@ -1,17 +1,8 @@
 import { deskKindOf, type Desk, type DeskFile, type Locale } from '@morph/core';
-import {
-  EDITABLE_CELLS,
-  layoutSheet,
-  pageCellCount,
-  type DocDoc,
-  type TableDoc,
-} from '@morph/tool-office';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -26,15 +17,13 @@ import { Button } from '../renderer/ui';
 import { t } from '../i18n';
 import { PackGate } from '../packs/PackGate';
 import { usePacks } from '../packs/PackHost';
-import { DocView } from '../run/DocView';
-import { SheetView } from '../run/SheetView';
 import { InlineVideo } from '../share/FileViewer';
 import { ZoomImage } from '../share/ZoomImage';
 import type { FilePlatform } from '../runtime/platform';
-import { deskFileUri, loadDeskSource } from './store';
+import { deskFileUri } from './store';
 
 // 房间的大预览（file-room DESIGN §4、§11.3，D-339）：图片能双指放大；PDF 一页一页左右翻（用「PDF 预览」
-// 扩展包把页面画成图，不加原生依赖）；转 Excel / 转 Word 的结果用表格视图、文档视图（R1 只读，R2 能改）；
+// 扩展包把页面画成图，不加原生依赖）；转 Excel / 转 Word 的结果不在这里画，房间直接用编辑器（DeskEditor，D-345）；
 // 视频直接播放；别的文件（外来的 Word、Excel 等）用系统预览看（§8：第一版不读外来的办公文档）。
 // 全部只在本机显示，不发给 AI。
 
@@ -87,19 +76,6 @@ export function DeskPreview({
       );
     } else if (kind === 'video') {
       body = <InlineVideo key={uri} uri={uri} height={size.height} />;
-    } else if (file.source) {
-      body = (
-        <SourcePreview
-          key={file.path}
-          desk={desk}
-          file={file}
-          files={files}
-          width={size.width}
-          palette={palette}
-          locale={locale}
-          onSystemPreview={onSystemPreview}
-        />
-      );
     } else {
       body = (
         <Generic file={file} palette={palette} locale={locale} onSystemPreview={onSystemPreview} />
@@ -299,103 +275,10 @@ function PdfPages({
   );
 }
 
-/** 转 Excel、转 Word 的结果：读中间格式，用表格视图、文档视图只读显示（R1）。 */
-function SourcePreview({
-  desk,
-  file,
-  files,
-  width,
-  palette,
-  locale,
-  onSystemPreview,
-}: {
-  desk: Desk;
-  file: DeskFile;
-  files: FilePlatform;
-  width: number;
-  palette: Palette;
-  locale: Locale;
-  onSystemPreview: () => void;
-}) {
-  const [source, setSource] = useState<
-    { kind: 'table'; doc: TableDoc } | { kind: 'doc'; doc: DocDoc } | null | undefined
-  >(undefined);
-  const [pageIndex, setPageIndex] = useState(0);
-  useEffect(() => {
-    let alive = true;
-    loadDeskSource(files, desk, file).then(
-      (s) => alive && setSource(s),
-      () => alive && setSource(null),
-    );
-    return () => {
-      alive = false;
-    };
-  }, [files, desk, file]);
-  const table = source?.kind === 'table' ? source.doc : null;
-  const page = table?.pages[pageIndex] ?? null;
-  const layout = useMemo(
-    () => (table && page ? layoutSheet(page, table.scope) : null),
-    [table, page],
-  );
-
-  if (source === undefined)
-    return <ActivityIndicator style={styles.flex} color={palette.primary} />;
-  if (source === null) {
-    return (
-      <Generic file={file} palette={palette} locale={locale} onSystemPreview={onSystemPreview} />
-    );
-  }
-  if (source.kind === 'doc') {
-    return <DocView doc={source.doc} palette={palette} locale={locale} contentWidth={width - 20} />;
-  }
-  return (
-    <View style={styles.flex}>
-      {table && pageCellCount(table, pageIndex) > EDITABLE_CELLS ? (
-        <Text style={[palette.font('body', 13), styles.hint, { color: palette.muted }]}>
-          {t(locale, 'tableReadOnly', { max: EDITABLE_CELLS })}
-        </Text>
-      ) : null}
-      {layout && layout.cells.length > 0 ? (
-        <SheetView layout={layout} palette={palette} />
-      ) : (
-        <Text style={[palette.font('body', 15), styles.note, { color: palette.muted }]}>
-          {t(locale, 'tableEmpty')}
-        </Text>
-      )}
-      {table && table.pages.length > 1 ? (
-        <ScrollView horizontal contentContainerStyle={styles.tabs}>
-          {table.pages.map((p, i) => (
-            <Pressable
-              key={i}
-              testID={`desk-sheet-page-${i}`}
-              onPress={() => setPageIndex(i)}
-              style={[
-                styles.tab,
-                {
-                  borderColor: i === pageIndex ? palette.primary : palette.border,
-                  backgroundColor: i === pageIndex ? palette.primaryTint : palette.surface,
-                },
-              ]}>
-              <Text
-                style={[
-                  palette.font(i === pageIndex ? 'bodyBold' : 'body', 13),
-                  { color: palette.text },
-                ]}>
-                {p.name}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      ) : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
   note: { textAlign: 'center' },
-  hint: { paddingHorizontal: 12, paddingVertical: 6 },
   counter: {
     position: 'absolute',
     bottom: 10,
@@ -404,13 +287,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 4,
     opacity: 0.9,
-  },
-  tabs: { flexDirection: 'row', gap: 8, padding: 8 },
-  tab: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    minHeight: 32,
-    justifyContent: 'center',
   },
 });

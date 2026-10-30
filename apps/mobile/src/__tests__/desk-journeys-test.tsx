@@ -168,7 +168,7 @@ describe('房间里的工具', () => {
 });
 
 describe('有数据：转 Excel 的结果在桌上', () => {
-  it('xlsx 用表格视图只读显示（R1 不能改），工具栏只有转 PDF', async () => {
+  it('xlsx 用表格视图显示（R2 起能改，见 desk-edit-test），工具栏有转 PDF 和「文件」一组', async () => {
     const repo = new MemoryWorkspaceRepo();
     const files = new FakeFiles();
     files.disk.set('picker://photo.jpg', TINY_JPEG);
@@ -239,8 +239,7 @@ describe('有数据：转 Excel 的结果在桌上', () => {
     await act(() => router.push({ pathname: '/desk/[deskId]', params: { deskId: desk.id } }));
     expect(await screen.findByTestId('table-sheet')).toBeTruthy();
     expect(screen.getByText('品名')).toBeTruthy();
-    // 只读：格子点不了。
-    expect(screen.getByTestId('table-cell-0-0')).toBeDisabled();
+    expect(screen.getByTestId('desk-editor')).toBeTruthy();
     // 工具栏：转 PDF，加上文件这一组（分享、保存、系统预览），不是空的。
     const toolbar = screen.getByTestId('desk-toolbar');
     expect(

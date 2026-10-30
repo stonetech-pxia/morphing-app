@@ -130,7 +130,9 @@ export class FakeDeskFs implements DeskFs {
     return size;
   }
   async writeText(path: string, text: string) {
-    const bytes = new TextEncoder().encode(text);
+    return this.writeBytes(path, new TextEncoder().encode(text));
+  }
+  async writeBytes(path: string, bytes: Uint8Array) {
     this.files.disk.set(this.uri(path), bytes);
     return bytes.length;
   }

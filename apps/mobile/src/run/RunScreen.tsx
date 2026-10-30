@@ -6,7 +6,6 @@ import {
   type AskedAnswer,
   type AskRequest,
   type PackNeed,
-  type RunItem,
   type RunResult,
   type Workflow,
 } from '@morph/core';
@@ -36,13 +35,12 @@ import { PackGate } from '../packs/PackGate';
 import { copyResults, releaseShare, useIncoming, type IncomingShare } from '../share/incoming';
 import { usePacks } from '../packs/PackHost';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { placeResultsOnDesk } from '../desk/store';
 import { AskPanel } from './AskPanel';
 import { ChainCard } from './ChainCard';
 import { HabitCard } from './HabitCard';
 import { LOCAL_SCREENS } from './local';
 import { ResultView } from './ResultView';
-import { TableEditor } from './TableEditor';
-import { WordEditor } from './WordEditor';
 
 /** 问话框淡出要多久（毫秒）。 */
 const ASK_DISMISS_MS = 400;
@@ -119,9 +117,6 @@ export function RunScreen({
   // 这次运行里「每次运行时问」的回答，结果页据此提议做成快捷操作（D-127）。
   const answers = useRef<AskedAnswer[]>([]);
   const [runCount, setRunCount] = useState(0);
-  // 正在查看和编辑的转 Excel 结果（D-272）。
-  const [tableItem, setTableItem] = useState<RunItem | null>(null);
-  const [wordItem, setWordItem] = useState<RunItem | null>(null);
   const label = (action: string, index: number) =>
     incoming && index === 0
       ? t(locale, 'shareInputStep', { n: incoming.files.length })
@@ -472,8 +467,11 @@ export function RunScreen({
           actions={{
             save: saveResult,
             continueProcessing,
-            editTable: (item) => setTableItem(item),
-            editWord: (item) => setWordItem(item),
+            // 放到桌上改（D-345）：复制一份进新桌面，结果页上的这一份不动。
+            putOnDesk: async (item) => {
+              const desk = await placeResultsOnDesk(files, [item], Date.now());
+              router.push({ pathname: '/desk/[deskId]', params: { deskId: desk.id } });
+            },
             share: async () => {
               if (isFileValue(value)) await files.shareUris(value.items);
             },
@@ -497,57 +495,6 @@ export function RunScreen({
                 mimeType: item.mimeType,
                 name: `${item.name}.${item.ext}`,
               }),
-          }}
-        />
-      ) : null}
-
-      {tableItem && run.current ? (
-        <TableEditor
-          item={tableItem}
-          files={files}
-          runId={run.current.runId}
-          palette={palette}
-          locale={locale}
-          onClose={() => setTableItem(null)}
-          onSaved={(next) => {
-            const old = tableItem.uri;
-            setOutcome((o) =>
-              o?.status === 'succeeded' && isFileValue(o.value)
-                ? {
-                    ...o,
-                    value: {
-                      ...o.value,
-                      items: o.value.items.map((i) => (i.uri === old ? next : i)),
-                    },
-                  }
-                : o,
-            );
-            setTableItem(null);
-          }}
-        />
-      ) : null}
-      {wordItem && run.current ? (
-        <WordEditor
-          item={wordItem}
-          files={files}
-          runId={run.current.runId}
-          palette={palette}
-          locale={locale}
-          onClose={() => setWordItem(null)}
-          onSaved={(next) => {
-            const old = wordItem.uri;
-            setOutcome((o) =>
-              o?.status === 'succeeded' && isFileValue(o.value)
-                ? {
-                    ...o,
-                    value: {
-                      ...o.value,
-                      items: o.value.items.map((i) => (i.uri === old ? next : i)),
-                    },
-                  }
-                : o,
-            );
-            setWordItem(null);
           }}
         />
       ) : null}

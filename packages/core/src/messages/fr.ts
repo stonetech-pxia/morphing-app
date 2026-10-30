@@ -1236,12 +1236,10 @@ export const fr: MessageTable = {
   // 扫描件转 Excel（D-272）
   runError_tableUnsupported:
     'Cet appareil ne sait pas encore lire les grilles dans cette langue. Choisissez une autre langue pour « Convertir en classeur Excel ».',
-  resultTableEdit: 'Voir et modifier',
   resultTablesMissing:
     'Aucune grille à lignes n’a été trouvée aux pages {pages} : tout leur contenu a été inclus.',
   tableSheetName: 'Page {n}',
   tableFileName: 'Tableau {date}',
-  tableEditorHint: 'Touchez une cellule pour la sélectionner, touchez-la encore pour la modifier',
   tableRedo: 'Rétablir',
   tableEditCell: 'Modifier la cellule',
   tableEditText: 'Modifier le texte',
@@ -1259,14 +1257,11 @@ export const fr: MessageTable = {
   tableEmpty: 'Rien n’a été reconnu sur cette page.',
   tableReadOnly:
     'Cette page compte plus de {max} cellules : ici, elle peut seulement être consultée. Pour la modifier, ouvrez le fichier dans une autre application.',
-  tableSaveFailed: 'Les modifications n’ont pas pu être enregistrées : {error}',
   // 扫描件转 Word（D-328）
   runError_wordUnsupported:
     'Cet appareil ne sait pas encore lire les documents dans cette langue. Choisissez une autre langue pour « Convertir en document Word ».',
   wordFileName: 'Document {date}',
-  wordEditorHint: 'Touchez un bloc pour le sélectionner, touchez-le encore pour le modifier',
   wordEditText: 'Modifier le texte',
-  wordEditTable: 'Modifier la grille',
   wordDeleteBlock: 'Supprimer',
   wordEmpty: 'Rien n’a été reconnu.',
   // 日程（D-292–D-296）
@@ -1378,6 +1373,7 @@ export const fr: MessageTable = {
   deskGroupFile: 'Fichier',
   deskToolPreview: 'Aperçu',
   deskResume: 'Reprendre le bureau',
+  deskDeselect: 'Désélectionner',
   deskSystemPreview: 'Ouvrir dans l’aperçu du système',
   deskPdfNeedsPack:
     'Pour feuilleter le PDF ici, téléchargez d’abord le pack « Aperçu PDF ». Vous pouvez aussi l’ouvrir dans l’aperçu du système.',
