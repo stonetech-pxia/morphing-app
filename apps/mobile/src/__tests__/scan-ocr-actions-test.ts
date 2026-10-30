@@ -16,7 +16,7 @@ import { textLayerLanguages } from '../runtime/actions/pdf';
 import type { LocalKind, LocalUi } from '../runtime/local';
 import { packsNeeded, startRun } from '../runtime/runner';
 import { MemoryWorkspaceRepo } from '../storage/memory';
-import { FakeFiles, FakeVision, TINY_JPEG } from '../test-utils/fake-files';
+import { FakeFiles, FakeVision, TINY_JPEG, paperGray } from '../test-utils/fake-files';
 
 // 扫描和文字识别有两条路径（D-084）：
 // - 没有系统识别（Android、Expo Go）：扫描包 / 文字识别包页面换成假的（找边返回四个角，矫正返回真实的小 JPEG，识别返回文字）；
@@ -53,10 +53,13 @@ const paper: Quad = {
 };
 
 class FakePacks implements PackRuntime {
+  constructor(private readonly files: FakeFiles) {}
   calls: { page: PackPageId; method: string; args: Record<string, unknown>; files: string[] }[] =
     [];
-  /** 每次找边的结果（按顺序）。 */
-  detected: (Quad | null)[] = [];
+  /** 每次找边的候选（按顺序）：一个四边形是深色桌面上的一张纸，null 是没找到。 */
+  detected: (Quad | Quad[] | null)[] = [];
+  /** 找边页面给的小灰度图；不设时按候选画（见 paperGray）。 */
+  gray: ((size: { width: number; height: number }) => Uint8Array) | null = null;
   texts: string[] = [];
   async call<T>(
     page: PackPageId,
@@ -65,7 +68,23 @@ class FakePacks implements PackRuntime {
     files: Record<string, string> = {},
   ): Promise<T> {
     this.calls.push({ page, method, args, files: Object.values(files) });
-    if (method === 'detect') return { quad: this.detected.shift() ?? null } as T;
+    if (method === 'detect') {
+      const found = this.detected.shift() ?? null;
+      const candidates = found === null ? [] : Array.isArray(found) ? found : [found];
+      const { width, height, data } = paperGray(
+        candidates,
+        await this.files.imageSize(Object.values(files)[0]!),
+        this.gray,
+      );
+      return {
+        candidates: candidates.map((q) => [q.tl, q.tr, q.br, q.bl]),
+        gray: {
+          width,
+          height,
+          data: btoa(Array.from(data, (c) => String.fromCharCode(c)).join('')),
+        },
+      } as T;
+    }
     if (method === 'warp') {
       return {
         width: args.width,
@@ -88,7 +107,7 @@ function setup(
   const files = new FakeFiles();
   const vision = new FakeVision(files);
   if (native) files.vision = vision;
-  const packs = new FakePacks();
+  const packs = new FakePacks(files);
   const opened: { kind: LocalKind; input: unknown }[] = [];
   const asked: string[] = [];
   /** 用户不肯下载的扩展包。 */
@@ -151,13 +170,14 @@ describe('scanner', () => {
     });
   });
 
-  it('treats a tiny or crossed outline as "not found"', async () => {
+  it('treats a tiny or dented outline as "not found"', async () => {
     const { files, packs, run, opened } = setup(toolWorkflow('scan', 'scan-straighten'), {
       corners: [paper, paper],
     });
     packs.detected = [
       { tl: { x: 0, y: 0 }, tr: { x: 50, y: 0 }, br: { x: 50, y: 50 }, bl: { x: 0, y: 50 } },
-      { ...paper, tr: paper.br, br: paper.tr },
+      // 页面给的四个点顺序不定，App 自己排（D-326）；有一个点凹进去时排不成凸四边形。
+      { ...paper, bl: { x: 1500, y: 1500 } },
     ];
     files.nextPhotos = [
       files.offerImage('a.jpg', 3000, 4000),
@@ -166,6 +186,54 @@ describe('scanner', () => {
     expect((await run()).status).toBe('succeeded');
     const input = opened[0]!.input as { items: { quad: Quad | null }[] };
     expect(input.items.map((i) => i.quad)).toEqual([null, null]);
+  });
+
+  it('starts from the whole photo, not the table, when the page fills the photo (D-326)', async () => {
+    // 2026-10-29 真机：物业账单占满画面，找边只找到中间那张大表格的外框。
+    const { files, packs, run, opened } = setup(toolWorkflow('scan', 'scan-straighten'), {
+      corners: [paper],
+    });
+    const frame: Quad = {
+      tl: { x: 250, y: 1400 },
+      tr: { x: 2750, y: 1400 },
+      br: { x: 2750, y: 3450 },
+      bl: { x: 250, y: 3450 },
+    };
+    packs.detected = [frame];
+    // 整张都是纸，表格框只是几条线。
+    packs.gray = ({ width, height }) => {
+      const data = new Uint8Array(width * height).fill(205);
+      for (let y = 140; y < 345; y++) for (const x of [25, 26, 274, 275]) data[y * width + x] = 40;
+      for (let x = 25; x < 276; x++) for (const y of [140, 141, 343, 344]) data[y * width + x] = 40;
+      return data;
+    };
+    files.nextPhotos = [files.offerImage('bill.jpg', 3000, 4000)];
+    expect((await run()).status).toBe('succeeded');
+    const input = opened[0]!.input as { items: { quad: Quad | null }[] };
+    expect(input.items[0]!.quad).toEqual({
+      tl: { x: 0, y: 0 },
+      tr: { x: 3000, y: 0 },
+      br: { x: 3000, y: 4000 },
+      bl: { x: 0, y: 4000 },
+    });
+  });
+
+  it('takes the sheet, not a box printed on it, when the page finds both (D-326)', async () => {
+    const { files, packs, run, opened } = setup(toolWorkflow('scan', 'scan-straighten'), {
+      corners: [paper],
+    });
+    const box: Quad = {
+      tl: { x: 800, y: 1500 },
+      tr: { x: 2200, y: 1500 },
+      br: { x: 2200, y: 2500 },
+      bl: { x: 800, y: 2500 },
+    };
+    // 第一个候选是纸（假页面按它画灰度图），表格框在后面。
+    packs.detected = [[paper, box]];
+    files.nextPhotos = [files.offerImage('a.jpg', 3000, 4000)];
+    expect((await run()).status).toBe('succeeded');
+    const input = opened[0]!.input as { items: { quad: Quad | null }[] };
+    expect(input.items[0]!.quad).toEqual(paper);
   });
 
   it('cancels when the corner screen is closed, and shrinks huge photos for the WebView', async () => {
@@ -276,6 +344,41 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
       status: 'succeeded',
       value: { type: 'pdf', items: [{ name: '扫描-2026-10-22', pageCount: 2 }] },
     });
+  });
+
+  it('takes the page, not the table frame, when Vision segmentation touches the photo edges (D-327)', async () => {
+    // 以前 iOS 原生的偏好：文档分割有两个以上的角贴边、矩形检测的框在照片里面时用矩形，纸占满画面时正好选中表格框。
+    const { files, vision, run, opened } = setup(
+      toolWorkflow('scan', 'scan-straighten'),
+      { corners: [paper] },
+      {},
+      true,
+    );
+    const page: Quad = {
+      tl: { x: 20, y: 30 },
+      tr: { x: 2990, y: 10 },
+      br: { x: 3000, y: 3990 },
+      bl: { x: 5, y: 4000 },
+    };
+    const frame: Quad = {
+      tl: { x: 250, y: 1400 },
+      tr: { x: 2750, y: 1400 },
+      br: { x: 2750, y: 3450 },
+      bl: { x: 250, y: 3450 },
+    };
+    // 原生给的顺序：文档分割的在前，矩形检测的在后。
+    vision.found = [[page, frame]];
+    // 整张都是纸，表格框只是几条线。
+    vision.gray = ({ width, height }) => {
+      const data = new Uint8Array(width * height).fill(205);
+      for (let y = 140; y < 345; y++) for (const x of [25, 26, 274, 275]) data[y * width + x] = 40;
+      for (let x = 25; x < 276; x++) for (const y of [140, 141, 343, 344]) data[y * width + x] = 40;
+      return data;
+    };
+    files.nextPhotos = [files.offerImage('bill.jpg', 3000, 4000)];
+    expect((await run()).status).toBe('succeeded');
+    const input = opened[0]!.input as { items: { quad: Quad | null }[] };
+    expect(input.items[0]!.quad).toEqual(page);
   });
 
   it('scans with the document camera: pages are already straight, so no corner screen', async () => {
@@ -967,7 +1070,7 @@ describe('one download prompt for scan to Excel (D-299)', () => {
     vision.canFindPaper = false;
     vision.enableFlatten();
     vision.ocrModel = { pack: 'ppocr', languages: ['zh', 'en', 'fr'] };
-    const packs = new FakePacks();
+    const packs = new FakePacks(files);
     const batches: unknown[] = [];
     const single: string[] = [];
     const preset = presetById('scan-table-excel')!;

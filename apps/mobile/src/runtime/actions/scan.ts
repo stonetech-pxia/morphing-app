@@ -1,5 +1,15 @@
 import { RunCancelled, RunError, type ActionImpl, type RunItem } from '@morph/core';
-import { clampQuad, isConvexQuad, quadArea, warpSize, type Quad } from '@morph/tool-image';
+import {
+  clampQuad,
+  isConvexQuad,
+  orderQuad,
+  pickPaper,
+  quadArea,
+  warpSize,
+  type GrayImage,
+  type Point,
+  type Quad,
+} from '@morph/tool-image';
 
 import type { EnhanceMode } from '../platform';
 import {
@@ -13,7 +23,8 @@ import {
 } from './helpers';
 
 // 扫描（T5）：找边 → 用户在本地确认或拖动四个角 → 透视矫正；增强用 Skia。
-// 找边和矫正在 iOS 上用系统的 Vision / Core Image（D-086），其他平台用扫描包页面（OpenCV.js）。
+// 找边和矫正在 iOS 上用系统的 Vision / Core Image（D-086），其他平台用扫描包页面（OpenCV.js）；
+// 两边都只给候选，选哪个是同一套 pickPaper（D-327）。
 // 系统文档相机拍的页面已经拉正，直接放行。
 
 type Impl = ActionImpl<RunServices>;
@@ -24,6 +35,17 @@ const SCAN_INPUT_SIDE = 4096;
 export const SCAN_OUTPUT_SIDE = 2400;
 /** 找到的纸张小于照片的 1/10 时当作没找到（多半是噪点）。 */
 const MIN_PAPER_SHARE = 0.1;
+
+/** 能当作纸张的四边形：凸的、不小于照片的 1/10。 */
+function usableQuad(quad: Quad, size: { width: number; height: number }): boolean {
+  return isConvexQuad(quad) && quadArea(quad) >= size.width * size.height * MIN_PAPER_SHARE;
+}
+
+/** 扫描包页面的找边结果：几个候选（每个四个点）和一张小灰度图，由 pickPaper 挑（D-326）。 */
+interface PackDetect {
+  candidates: Point[][];
+  gray: { width: number; height: number; data: string };
+}
 
 /**
  * 展平拉正后的页面（D-274，参数 flatten 不写成 false 就做）：展平模型没装（用户没下载）时原样返回，照常扫描。
@@ -82,23 +104,29 @@ export const SCAN_IMPLS: Record<string, Impl> = {
       const size = { width: item.width!, height: item.height! };
       let detected: Quad | null;
       try {
-        detected = vision
-          ? await vision.findPaper(item.uri)
-          : (
-              await packs!.runtime.call<{ quad: Quad | null }>(
-                'scan',
-                'detect',
-                { file: 'input', maxSide: 1000 },
-                { input: item.uri },
-              )
-            ).quad;
+        // 找边只给候选和灰度图，两个平台都用 pickPaper 挑（D-326、D-327）。
+        let paper: { candidates: Point[][]; gray: GrayImage };
+        if (vision) {
+          paper = await vision.findPaper(item.uri);
+        } else {
+          const { candidates, gray } = await packs!.runtime.call<PackDetect>(
+            'scan',
+            'detect',
+            { file: 'input', maxSide: 1000 },
+            { input: item.uri },
+          );
+          paper = { candidates, gray: { ...gray, data: fromBase64(gray.data) } };
+        }
+        const quads = paper.candidates
+          .map((pts) => clampQuad(orderQuad(pts), size))
+          .filter((q) => usableQuad(q, size));
+        detected = pickPaper(quads, size, paper.gray);
       } catch (e) {
         const detail = String(e instanceof Error ? e.message : e);
         throw new RunError(vision ? 'unexpected' : 'packFailed', { detail });
       }
       const quad = detected ? clampQuad(detected, size) : null;
-      const usable =
-        quad && isConvexQuad(quad) && quadArea(quad) >= size.width * size.height * MIN_PAPER_SHARE;
+      const usable = quad && usableQuad(quad, size);
       found.push({ item, quad: usable ? quad : null });
       ctx.progress(i + 1, todo.length);
     }

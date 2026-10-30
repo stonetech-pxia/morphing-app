@@ -3109,6 +3109,31 @@ const SPEAK_EVAL_CASES: readonly EvalCase[] = [
     mock: false,
     expect: { kind: 'ops', check: hasWorkflow(['in.photos', 'ocr.toExcel']) },
   },
+  // ---- 扫描件转 Word（D-328）----
+  {
+    id: 'DOC1',
+    input: '新建一个快捷操作：扫描文档，转 Word，分享',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: { kind: 'ops', check: hasWorkflow(['in.photos', 'ocr.toWord', 'out.share']) },
+  },
+  {
+    id: 'PDOC1',
+    input: '我想把纸质合同拍下来变成可以修改的 Word 文档',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['in.photos', 'ocr.toWord']) },
+  },
+  {
+    id: 'PDOC2-fr',
+    input: 'Transformer des photos de pages d’un livre en document Word modifiable',
+    locale: 'fr',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: hasWorkflow(['in.photos', 'ocr.toWord']) },
+  },
   {
     id: 'PTTS1',
     input: '做一个把 PDF 变成音频的快捷操作',

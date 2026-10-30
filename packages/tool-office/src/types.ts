@@ -18,6 +18,8 @@ export interface RgbaImage {
 /** 识别出的一行（和找线那张图同一个坐标系）。 */
 export interface OcrBox extends Box {
   text: string;
+  /** 识别的平均置信度（0–1，PP-OCRv6 有；系统识别没有）。 */
+  score?: number;
   /**
    * 每个字的大致位置（PP-OCRv6 的 CTC 时间步，D-272）：at 是字的中心在这一行里从左到右的比例（0–1）。
    * 没有时（系统识别）横跨竖线的行不能按字切开，整行按中心放进一格。

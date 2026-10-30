@@ -42,6 +42,7 @@ import { HabitCard } from './HabitCard';
 import { LOCAL_SCREENS } from './local';
 import { ResultView } from './ResultView';
 import { TableEditor } from './TableEditor';
+import { WordEditor } from './WordEditor';
 
 /** 问话框淡出要多久（毫秒）。 */
 const ASK_DISMISS_MS = 400;
@@ -120,6 +121,7 @@ export function RunScreen({
   const [runCount, setRunCount] = useState(0);
   // 正在查看和编辑的转 Excel 结果（D-272）。
   const [tableItem, setTableItem] = useState<RunItem | null>(null);
+  const [wordItem, setWordItem] = useState<RunItem | null>(null);
   const label = (action: string, index: number) =>
     incoming && index === 0
       ? t(locale, 'shareInputStep', { n: incoming.files.length })
@@ -471,6 +473,7 @@ export function RunScreen({
             save: saveResult,
             continueProcessing,
             editTable: (item) => setTableItem(item),
+            editWord: (item) => setWordItem(item),
             share: async () => {
               if (isFileValue(value)) await files.shareUris(value.items);
             },
@@ -520,6 +523,31 @@ export function RunScreen({
                 : o,
             );
             setTableItem(null);
+          }}
+        />
+      ) : null}
+      {wordItem && run.current ? (
+        <WordEditor
+          item={wordItem}
+          files={files}
+          runId={run.current.runId}
+          palette={palette}
+          locale={locale}
+          onClose={() => setWordItem(null)}
+          onSaved={(next) => {
+            const old = wordItem.uri;
+            setOutcome((o) =>
+              o?.status === 'succeeded' && isFileValue(o.value)
+                ? {
+                    ...o,
+                    value: {
+                      ...o.value,
+                      items: o.value.items.map((i) => (i.uri === old ? next : i)),
+                    },
+                  }
+                : o,
+            );
+            setWordItem(null);
           }}
         />
       ) : null}

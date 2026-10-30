@@ -12,9 +12,16 @@ import {
 } from '@morph/core';
 import { boxesToEnhanced } from '@morph/tool-image';
 import {
+  buildDocPage,
   buildTablePage,
+  leafBlocks,
   pagesWithoutTables,
+  writeDocx,
   writeXlsx,
+  type DocDoc,
+  type DocPage,
+  type DocxImage,
+  type LayoutRegion,
   type OcrBox,
   type TableDoc,
   type TablePage,
@@ -194,6 +201,119 @@ export const OCR_IMPLS: Record<string, Impl> = {
         },
       ],
     };
+  },
+
+  // 扫描件转 Word（D-328）：每张图认字、版面分析（模型没装时只按位置分段）、找带线的表格，
+  // 图片区域从原图剪下来，做成一个 docx（每张图一页），旁边存一份 DocDoc 给结果页的「查看和编辑」用。
+  // 识别出的文字只在本机。
+  async 'ocr.toWord'(input, params, ctx) {
+    const items = fileItems(input);
+    // 「自动」按手机语言选（D-278）。
+    const lang = resolveOcrLanguage(params.lang, ctx.locale);
+    const languages = VISION_LANGUAGES[lang];
+    const { files } = ctx.services;
+    const vision = files.vision;
+    // 要每一行的位置：文字识别包（tesseract）只给文字，不能用。
+    if (!vision?.tablePixels || !vision.supportsLanguage(languages[0]!)) {
+      throw new RunError('wordUnsupported');
+    }
+    const pages: DocPage[] = [];
+    const images = new Map<string, DocxImage>();
+    for (const [i, item] of items.entries()) {
+      ctx.throwIfCancelled();
+      let pixels: Pixels;
+      try {
+        pixels = await vision.tablePixels(item.uri);
+      } catch {
+        throw new RunError('unreadable', { name: displayName(item) });
+      }
+      let found: Awaited<ReturnType<typeof tableLines>>;
+      try {
+        found = await tableLines(vision, item, pixels, languages);
+      } catch (e) {
+        throw new RunError('unexpected', { detail: String(e instanceof Error ? e.message : e) });
+      }
+      ctx.throwIfCancelled();
+      // 版面分析出错时不让整个运行失败：只按位置分段。
+      let regions: LayoutRegion[] | null = null;
+      try {
+        regions = (await vision.detectLayout?.(pixels)) ?? null;
+      } catch {
+        regions = null;
+      }
+      ctx.throwIfCancelled();
+      const page = buildDocPage(
+        {
+          image: pixels,
+          lines: found.lines,
+          ...(regions ? { regions } : {}),
+          source: item.uri,
+          // 增强过的图已经按 findSkew 转正；没增强过的照片在这里估倾斜。
+          ...(found.enhanced ? { skew: 0 } : {}),
+        },
+        { joinLines: (lines) => polish(layoutOcrLines(lines), lang) },
+      );
+      // 图片区域：按比例换到原图上剪下来（JPG，本次运行的文件）。
+      // 并排行（D-331）里的图片也要剪。
+      const pictures = leafBlocks(page).filter((b) => b.kind === 'image');
+      if (pictures.length) {
+        const size =
+          item.width && item.height
+            ? { width: item.width, height: item.height }
+            : await files.imageSize(item.uri);
+        const kx = size.width / page.width;
+        const ky = size.height / page.height;
+        for (const [k, block] of pictures.entries()) {
+          const x = Math.max(0, Math.round(block.box.x * kx));
+          const y = Math.max(0, Math.round(block.box.y * ky));
+          const crop = {
+            x,
+            y,
+            width: Math.max(1, Math.min(size.width - x, Math.round(block.box.width * kx))),
+            height: Math.max(1, Math.min(size.height - y, Math.round(block.box.height * ky))),
+          };
+          try {
+            const out = await files.transformImage(
+              item.uri,
+              { crop },
+              { format: 'jpeg', quality: 0.85 },
+              ctx.services.runId,
+              `word/${i + 1}-${k + 1}.jpg`,
+            );
+            block.src = out.uri;
+            images.set(out.uri, {
+              bytes: await files.readUri(out.uri),
+              width: out.width,
+              height: out.height,
+            });
+          } catch {
+            // 剪不出来的图片不写进文件（块留着，编辑页能看到原图里的位置）。
+          }
+        }
+      }
+      pages.push(page);
+      ctx.progress(i + 1, items.length);
+    }
+    if (pages.every((p) => p.blocks.length === 0)) {
+      throw new RunError('notFound', { name: displayName(items[0]!) });
+    }
+    const doc: DocDoc = { version: 1, pages };
+    // 文件名和转 Excel 一样（D-298）：一张照片、名字是人起的就用它，否则「文档-日期」。
+    const name =
+      items.length === 1 && !MACHINE_NAME.test(items[0]!.name)
+        ? items[0]!.name
+        : renderNameTemplate(t(ctx.locale, 'wordFileName'), { now: ctx.now() });
+    const docx = await writeItem(ctx.services, writeDocx(doc, images), {
+      name,
+      ext: 'docx',
+      mimeType: OFFICE_MIME_BY_EXT.docx!,
+    });
+    const stored = await files.writeRunFile(
+      ctx.services.runId,
+      freshName(name, 'json'),
+      new TextEncoder().encode(JSON.stringify(doc)),
+    );
+    return { type: 'files', items: [{ ...docx, docDoc: { uri: stored.uri, for: docx.uri } }] };
   },
 
   async 'ocr.recognize'(input, params, ctx) {

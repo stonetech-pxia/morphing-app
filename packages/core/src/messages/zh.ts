@@ -1141,6 +1141,14 @@ export const zh: MessageTable = {
   tableEmpty: '这一页没有识别出内容。',
   tableReadOnly: '这一页超过 {max} 个格子，这里只能查看。要修改，请用别的 App 打开这个文件。',
   tableSaveFailed: '改动没能保存：{error}',
+  // 扫描件转 Word（D-328）
+  runError_wordUnsupported: '这台设备还不能识别这种语言的文档。请给「转 Word」换一种语言。',
+  wordFileName: '文档-{date}',
+  wordEditorHint: '点一下选中，再点一下编辑',
+  wordEditText: '编辑文字',
+  wordEditTable: '编辑表格',
+  wordDeleteBlock: '删除',
+  wordEmpty: '没有识别出内容。',
   // 日程（D-292–D-296）
   scheduleDaily: '每天',
   scheduleWeekdays: '每{days}',

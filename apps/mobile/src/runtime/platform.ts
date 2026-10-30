@@ -1,4 +1,5 @@
-import type { Quad } from '@morph/tool-image';
+import type { GrayImage, Point, Quad } from '@morph/tool-image';
+import type { LayoutRegion } from '@morph/tool-office';
 import type { TextLayer, TextLine } from '@morph/tool-pdf';
 
 import type { SpeechPlatform } from './speech';
@@ -219,10 +220,20 @@ export interface VisionPlatform {
    * 展平模型没装时返回 null（照常扫描，只是不展平）。
    */
   flatten?(uri: string, runId: string, relPath: string): Promise<FlattenResult | null>;
+  /**
+   * 转 Word 的版面分析模型（D-328）：配置了扩展包下载地址时才有，转 Word 时提示下载 pack 这个扩展包
+   * （可选：不下载也照样转，只是不分标题和图片）。
+   */
+  readonly layoutModel?: { pack: string };
+  /** 一页的版面区域（坐标和 pixels 一样，pixels 是 tablePixels 给的）；模型没装时返回 null。 */
+  detectLayout?(pixels: Pixels): Promise<LayoutRegion[] | null>;
   /** 能不能给照片找边和拉正（findPaper / straighten）；Android 的 ML Kit 不能。 */
   readonly canFindPaper: boolean;
-  /** 找纸张的四个角（像素，已按拍摄方向摆正）；没找到返回 null。 */
-  findPaper(uri: string): Promise<Quad | null>;
+  /**
+   * 找纸张的候选四边形（像素，已按拍摄方向摆正；四个点顺序不定）和一张小灰度图，
+   * 挑哪个由 App 的 pickPaper 决定，和扫描包一样（D-326、D-327）。
+   */
+  findPaper(uri: string): Promise<{ candidates: Point[][]; gray: GrayImage }>;
   /** 按四个角拉正，缩放到 size，存成本次运行的 JPG 临时文件。 */
   straighten(
     uri: string,

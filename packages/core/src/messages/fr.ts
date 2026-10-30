@@ -1265,6 +1265,15 @@ export const fr: MessageTable = {
   tableReadOnly:
     'Cette page compte plus de {max} cellules : ici, elle peut seulement être consultée. Pour la modifier, ouvrez le fichier dans une autre application.',
   tableSaveFailed: 'Les modifications n’ont pas pu être enregistrées : {error}',
+  // 扫描件转 Word（D-328）
+  runError_wordUnsupported:
+    'Cet appareil ne sait pas encore lire les documents dans cette langue. Choisissez une autre langue pour « Convertir en document Word ».',
+  wordFileName: 'Document {date}',
+  wordEditorHint: 'Touchez un bloc pour le sélectionner, touchez-le encore pour le modifier',
+  wordEditText: 'Modifier le texte',
+  wordEditTable: 'Modifier la grille',
+  wordDeleteBlock: 'Supprimer',
+  wordEmpty: 'Rien n’a été reconnu.',
   // 日程（D-292–D-296）
   scheduleDaily: 'Tous les jours',
   scheduleWeekdays: 'Chaque semaine : {days}',

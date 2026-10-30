@@ -151,6 +151,38 @@ export const PACKS: readonly PackManifest[] = [
     ],
   },
   {
+    // 扫描件转 Word 的版面分析（D-328）：PP-DocLayout-S（Hugging Face PaddlePaddle/PP-DocLayout-S 的 Paddle 模型，
+    // paddle2onnx 2.1.0 转成 ONNX，scale_factor 固定为 [1, 1]、只留第一个输出，权重存成 fp16）。
+    // 放在我们自己的 R2（见 PACK_HOST）；还没上传，等创始人确认（文件在 side-session-notes/scan-to-office/word-exp/pack）。
+    id: 'layout',
+    version: '1.0.0',
+    name: {
+      en: 'Page layout model',
+      zh: '版面分析模型',
+      fr: 'Modèle d’analyse de mise en page',
+    },
+    description: {
+      en: 'Finds headings, paragraphs, pictures and page numbers on a page when converting to Word (PP-DocLayout-S).',
+      zh: '转 Word 时找出页面上的标题、段落、图片和页码（PP-DocLayout-S）。',
+      fr: 'Repère les titres, paragraphes, images et numéros de page lors de la conversion en Word (PP-DocLayout-S).',
+    },
+    license: 'Apache-2.0 (PaddlePaddle/PP-DocLayout-S)',
+    files: [
+      f(
+        'layout.onnx',
+        `${PACK_HOST}layout/1.0.0/layout.onnx`,
+        2652491,
+        '5e6a75b1157d7b39cae252c6db414f1910f27716ae80e0f156f65b6d191d2417',
+      ),
+      f(
+        'LICENSE',
+        `${PACK_HOST}layout/1.0.0/LICENSE`,
+        11828,
+        'b09c3d6924fd208c5d4f93791a89abfe6cb0d81d58e10a3d257be733c9a1e813',
+      ),
+    ],
+  },
+  {
     id: 'ocr',
     version: '7.0.0',
     name: { en: 'Text recognition', zh: '文字识别', fr: 'Reconnaissance de texte' },

@@ -122,6 +122,42 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
       },
     ],
   },
+  {
+    // 扫描件转 Word（D-328）：版面分析（扩展包 layout，不下载也能转，只是不分标题和图片）+ 认字 + 带线的表格，
+    // 做成一个 docx；结果页可以查看和修改。和电子版 PDF 转 Word（D-186 不做）不是一回事。
+    id: 'ocr.toWord',
+    label: { en: 'Convert to Word', zh: '转 Word', fr: 'Convertir en document Word' },
+    description: {
+      en: 'Reads the printed pages in the images and makes one Word document: headings, paragraphs, lists, tables with ruled lines and pictures, a page per image. You can check and edit it before saving. The text stays on this device.',
+      zh: '识别图片里的印刷页面，做成一个 Word 文件：标题、段落、列表、带线的表格和图片，每张图一页。保存前可以核对和修改。文字只留在本机。',
+      fr: 'Lit les pages imprimées des images et crée un seul document Word : titres, paragraphes, listes, grilles à lignes et images, une page par image. Vous pouvez le vérifier et le modifier avant de l’enregistrer. Le texte reste sur cet appareil.',
+    },
+    input: ['images'],
+    output: 'files',
+    // 语言和「识别文字」一样，默认 auto、不问（D-278）。
+    params: z.strictObject({ lang: z.enum(OCR_LANGUAGE_CHOICES) }),
+    fields: [
+      {
+        key: 'lang',
+        label: { en: 'Language', zh: '语言', fr: 'Langue' },
+        kind: 'choice',
+        options: [
+          { value: 'auto', label: { en: 'Auto', zh: '自动', fr: 'Automatique' } },
+          ...OCR_LANGUAGES.map((value) => ({ value, label: OCR_LANGUAGE_NAMES[value] })),
+        ],
+      },
+    ],
+    // 要每行文字的位置：只用本机的识别（和转 Excel 一样）；版面分析模型由 App 另外问（可选）。
+    requires: [],
+    ai: '"Photo / scan of a document, letter or book page to Word, 拍文档转 Word, 图片转 Word" → in.photos (source "scanner" for paper, then scan.detect → scan.enhance mode "auto"; library photos and screenshots go straight in) → ocr.toWord; lang "auto" unless they name the language. A scanned PDF: in.files accept "pdf" → pdf.toImages first. It makes one .docx (a page per image) that the user can check and edit on the result page. A digital PDF to an editable Word file keeping its layout is not supported.',
+    phrases: [
+      {
+        match:
+          /^(?:(?:文档|图片)?转(?:成)?\s*word(?:\s*文档)?|做成\s*word(?:\s*文档)?|(?:convert|turn) (?:it |them )?(?:in)?to (?:a )?word(?: (?:file|document))?)$/i,
+        step: () => ({ params: { lang: 'auto' } }),
+      },
+    ],
+  },
 ];
 
 const CJK = '\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff00-\uffef';
