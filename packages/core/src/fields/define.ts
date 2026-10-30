@@ -103,12 +103,23 @@ export interface FieldSpec<T extends string, S extends z.ZodObject> {
  * 一份字段定义。定义文件里要写明这个类型（回调用到了数据表的类型，而数据表的类型又由字段定义生成，
  * 不写 TypeScript 推不出来）。
  */
-export type FieldDefinitionOf<T extends string, S extends z.ZodObject> = FieldSpec<T, S>;
+export type FieldDefinitionOf<T extends string, S extends z.ZodObject> = FieldSpec<T, S> &
+  RegistryKind;
+
+/**
+ * 登记表的归类（v34「数据 · 容器 · 工具」）：字段都是数据、作用在值上；存下来的能写，算出来的（不写 write：
+ * 公式、查找、汇总、上一条）只读。
+ */
+export interface RegistryKind {
+  kind: 'data';
+  layer: 'value';
+  access: 'write' | 'read';
+}
 
 export function defineField<const T extends string, S extends z.ZodObject>(
   spec: FieldSpec<T, S>,
 ): FieldDefinitionOf<T, S> {
-  return spec;
+  return { ...spec, kind: 'data', layer: 'value', access: spec.write ? 'write' : 'read' };
 }
 
 /** is / isNot 的值是文字、数字。 */

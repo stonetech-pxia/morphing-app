@@ -1,32 +1,49 @@
 import { z } from 'zod';
 
 import { t } from '../messages';
-import { ButtonActionSchema } from '../record-ops-schema';
+import { ToolUseSchema } from '../record-ops-schema';
 import { boundedText, IconValueSchema, openTargetSchema } from '../schema-base';
-import { type ComponentDefinitionOf, defineComponent } from './define';
+import { type LookDefinitionOf, defineLook } from './define';
 
-const props = z.strictObject({
-  label: boundedText(1, 40),
-  target: openTargetSchema('target must be a page, a system entry or workflow:<id>').optional(),
-  /** 一键记录操作（D-300）：和 target 二选一，点了在本机改记录，可以撤销。 */
-  action: ButtonActionSchema.optional(),
-  variant: z.enum(['filled', 'outline', 'text', 'icon']),
-  icon: IconValueSchema.optional(),
-});
+const shape = {
+  show: z.strictObject({
+    label: boundedText(1, 40),
+    variant: z.enum(['filled', 'outline', 'text', 'icon']),
+    icon: IconValueSchema.optional(),
+  }),
+  /** 一个就地的一键记录工具（D-300，原 action）：和 opens 二选一，点了在本机改记录，可以撤销。 */
+  tools: z.array(ToolUseSchema).min(1).max(1).optional(),
+  opens: openTargetSchema('opens must be a page, a system entry or tool:<id>', ['tool']).optional(),
+};
 
-/** 按钮：点击后打开一个页面或系统入口，或者执行一个记录操作（action，D-300）。icon 显示在文字前面；variant 为 icon 时只显示圆形图标，文字留给读屏（D-230）。 */
-export const buttonComponent: ComponentDefinitionOf<'button', typeof props> = defineComponent({
-  type: 'button',
-  props,
-  refs: { target: { to: 'target' } },
-  check: (c, ctx) =>
-    c.props.variant === 'icon' && !c.props.icon
-      ? [{ code: 'schema', message: `icon button ${c.id} on page ${ctx.page.id} needs an icon` }]
-      : [],
-  describe: (c, _config, ctx) => t(ctx.locale, 'describe_button_d79ee', { v0: c.props.label }),
+/**
+ * 按钮：点击后打开一个页面、系统入口或快捷操作（opens），或者执行一个一键记录工具（tools，D-300）。
+ * icon 显示在文字前面；variant 为 icon 时只显示圆形图标，文字留给读屏（D-230）。
+ */
+export const buttonComponent: LookDefinitionOf<'button', typeof shape> = defineLook({
+  look: 'button',
+  shape,
+  kind: 'container',
+  layer: 'record',
+  reads: 'none',
+  writes: true,
+  tools: { as: ['self'], do: ['create', 'setAll'], max: 1 },
+  refs: { opens: { to: 'target' } },
+  check: (c, ctx) => {
+    const problems = [];
+    if (c.show.variant === 'icon' && !c.show.icon)
+      problems.push({
+        code: 'schema',
+        message: `icon button ${c.id} on page ${ctx.page.id} needs an icon`,
+      });
+    if (c.tools && c.opens !== undefined)
+      problems.push(`a button either opens something or has a tool, not both`);
+    return problems;
+  },
+  describe: (c, _config, ctx) => t(ctx.locale, 'describe_button_d79ee', { v0: c.show.label }),
   edit: { text: [{ prop: 'label', max: 40 }], style: ['align'] },
   ai: {
-    doc: '{label, target, variant: "filled"|"outline"|"text"|"icon", icon?}: opens target. icon shows before the label; variant "icon" shows only a round icon (needs icon; the label is still read by screen readers). target may also be "workflow:<id>" (a quick action in workflows[] or a built-in preset id) for "a button that opens my receipt quick action": tapping shows that quick action and the user taps Start; it never runs by itself. Or, instead of target, action (rule 49) changes entries when tapped.',
+    doc: 'show {label, variant: "filled"|"outline"|"text"|"icon", icon?}, opens? (a page, a system entry or "tool:<id>") or tools? [one record tool]: icon shows before the label; variant "icon" shows only a round icon (needs icon; the label is still read by screen readers). opens "tool:<id>" (a quick action in tools[] or a built-in preset id) shows that quick action and the user taps Start; it never runs by itself. Instead of opens, tools: [{do: "create", table, values?, ask?: "all"}] or [{do: "setAll", table, filter?, field, value}] changes entries when tapped (rule 49).',
   },
-  example: { props: { label: 'Settings', target: 'settings', variant: 'filled' } },
+  example: { show: { label: 'Settings', variant: 'filled' }, opens: 'settings' },
 });

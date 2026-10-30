@@ -2,13 +2,11 @@ import { z } from 'zod';
 
 import { formatNumber } from '../field-values';
 import {
-  ConditionSchema,
-  FieldRefSchema,
+  DaysSchema,
   IdSchema,
-  PERIODS,
   SEQUENCE_AGGREGATES,
-  STREAK_UNITS,
   boundedText,
+  filterSchema,
 } from '../schema-primitives';
 import { isSequenceAggregate, sequenceText } from '../sequence-text';
 import { defineField, isNumber, readNumber, type FieldDefinitionOf } from './define';
@@ -28,23 +26,20 @@ const schema = z.strictObject({
   id: IdSchema,
   name: boundedText(1, 40),
   type: z.literal('rollup'),
-  collectionId: IdSchema,
-  linkField: IdSchema,
+  table: IdSchema,
+  via: IdSchema,
   aggregate: z.enum(ROLLUP_AGGREGATES),
-  fieldId: IdSchema.optional(),
-  dateField: FieldRefSchema.optional(),
-  filter: z.array(ConditionSchema).max(5).optional(),
-  period: z.enum(PERIODS).optional(),
-  unit: z.enum(STREAK_UNITS).optional(),
-  perUnit: z.number().int().min(1).max(50).optional(),
-  skipField: IdSchema.optional(),
-  skipOption: IdSchema.optional(),
+  field: IdSchema.optional(),
+  // v33 的 period 迁移成这里末尾的一条 inPeriod，所以最多 6 条（M3）。
+  filter: filterSchema(6).optional(),
+  days: DaysSchema.optional(),
 });
 
 /**
- * D-288：汇总。统计另一张表（collectionId）里引用字段 linkField 指向这条记录的那些记录（可以再按 filter、
- * period 筛），不存进记录、不能填。计数和按日子算的值是数字（连续天数显示「3 天」）；求和、平均、最小、最大
- * 和 latest 按 fieldId 的类型显示（related.ts 的 expandCollection），latest 不写 fieldId 时取日期。
+ * D-288：汇总。统计另一张表（table）里引用字段 via 指向这条记录的那些记录（可以再按 filter 筛，
+ * 时间段也写在 filter 里），不存进记录、不能填。计数和按日子算的值是数字（连续天数显示「3 天」）；求和、平均、
+ * 最小、最大和 latest 按 field 的类型显示（related.ts 的 expandCollection），latest 不写 field 时取日期。
+ * 按日子算的参数在 days 里（和数字块共用一种写法）。
  */
 export const rollupField: FieldDefinitionOf<'rollup', typeof schema> = defineField({
   type: 'rollup',
@@ -53,22 +48,22 @@ export const rollupField: FieldDefinitionOf<'rollup', typeof schema> = defineFie
   read: readNumber,
   format: (f, v, locale) =>
     isSequenceAggregate(f.aggregate)
-      ? sequenceText(f.aggregate, f.unit, v as number, locale)
+      ? sequenceText(f.aggregate, f.days?.unit, v as number, locale)
       : formatNumber(v as number, undefined, locale),
   formula: 'number',
   numeric: true,
   inForm: false,
   filter: { is: isNumber, compare: 'number' },
   ai: {
-    doc: '{collectionId, linkField, aggregate: "count"|"sum"|"avg"|"min"|"max"|"latest"|"streak"|"daysSince"|"avgInterval"|"distinctDays", fieldId?, filter?, period?, dateField?, unit?, perUnit?, skipField? + skipOption?} (computed: sums up the entries of table collectionId whose link field linkField picks this entry; rule 46)',
+    doc: '{table, via, aggregate: "count"|"sum"|"avg"|"min"|"max"|"latest"|"streak"|"daysSince"|"avgInterval"|"distinctDays", field?, filter? (≤6; a period is an inPeriod condition), days? {date?, unit?, perUnit?, skip? {field, option}}} (computed: sums up the entries of `table` whose link field `via` picks this entry; rule 46)',
   },
   example: {
     id: 'children',
     name: 'Children',
     type: 'rollup',
-    collectionId: 'expenses',
-    linkField: 'parent',
+    table: 'expenses',
+    via: 'parent',
     aggregate: 'sum',
-    fieldId: 'weight',
+    field: 'weight',
   },
 });

@@ -1,3 +1,4 @@
+import { migrateV33toV34 as migrateShapeV33toV34 } from './migrate-v34';
 import { CURRENT_SCHEMA_VERSION } from './schema';
 import { DEFAULT_THEME } from './theme';
 
@@ -286,6 +287,13 @@ export const migrateV31toV32: Migration = (config) => ({ ...config, schemaVersio
  */
 export const migrateV32toV33: Migration = (config) => ({ ...config, schemaVersion: 33 });
 
+/**
+ * v33 → v34：「数据 · 容器 · 工具」（NEW_FORMAT_DRAFT，创始人 2026-10-30 定）：collections → data.tables，
+ * pages → containers.pages（组件 → 块：look / show / source / tools / opens），workflows 和 reminders → tools，
+ * shell → nav，tools → packages，desk → containers.desk。ID 不改；见 migrate-v34.ts。
+ */
+export const migrateV33toV34: Migration = (config) => migrateShapeV33toV34(config);
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -320,6 +328,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   30: migrateV30toV31,
   31: migrateV31toV32,
   32: migrateV32toV33,
+  33: migrateV33toV34,
 };
 
 export type MigrateResult =

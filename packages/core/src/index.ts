@@ -26,6 +26,17 @@ export * from './limits';
 export * from './audio';
 export * from './media';
 export * from './migrate';
+export {
+  migrateComponentV33,
+  migrateFieldV33,
+  migratePageV33,
+  migrateReminderV33,
+  migrateTableV33,
+  migrateWorkflowV33,
+  v33Tables,
+  type V33Tables,
+} from './migrate-v34';
+export * from './files-table';
 export * from './naming';
 export * from './ocr-text';
 export * from './ops';

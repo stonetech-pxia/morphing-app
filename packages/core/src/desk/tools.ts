@@ -94,7 +94,7 @@ export function defaultDeskTools(
     const quick = [...own, ...[...builtIns].sort((a, b) => rank(a) - rank(b))].filter(
       (wf) => shareFit(wf, [sample]).ok,
     );
-    groups.quick = quick.slice(0, MAX_QUICK).map((wf) => ({ workflowId: wf.id }));
+    groups.quick = quick.slice(0, MAX_QUICK).map((wf) => wf.id);
   }
   return (['edit', 'adjust', 'convert', 'quick'] as const)
     .filter((id) => groups[id].length > 0)
@@ -223,7 +223,7 @@ export function deskToolbar(
     .map((g) => ({
       ...(g.title ? { title: g.title } : {}),
       items: g.items.filter((item) =>
-        'action' in item ? registry.actions.has(item.action) : known.has(item.workflowId),
+        typeof item === 'object' ? registry.actions.has(item.action) : known.has(item),
       ),
     }))
     .filter((g) => g.items.length > 0);

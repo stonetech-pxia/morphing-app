@@ -1,15 +1,18 @@
 import { z } from 'zod';
 
 import { t } from '../messages';
-import { type ComponentDefinitionOf, defineComponent } from './define';
+import { type LookDefinitionOf, defineLook } from './define';
 
-const props = z.strictObject({ size: z.enum(['small', 'medium', 'large']) });
+const shape = { show: z.strictObject({ size: z.enum(['small', 'medium', 'large']) }) };
 
-export const spacerComponent: ComponentDefinitionOf<'spacer', typeof props> = defineComponent({
-  type: 'spacer',
-  props,
+export const spacerComponent: LookDefinitionOf<'spacer', typeof shape> = defineLook({
+  look: 'spacer',
+  shape,
+  kind: 'container',
+  reads: 'none',
+  writes: false,
   describe: (_c, _config, ctx) => t(ctx.locale, 'describe_spacer_9a646'),
   edit: { text: [], style: [] },
-  ai: { doc: '{size: "small"|"medium"|"large"}' },
-  example: { props: { size: 'medium' } },
+  ai: { doc: 'show {size: "small"|"medium"|"large"}' },
+  example: { show: { size: 'medium' } },
 });

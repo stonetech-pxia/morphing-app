@@ -98,6 +98,9 @@ export interface FieldDefinition {
   example: Field;
   exampleValue?: FieldValue;
   schema: z.ZodObject;
+  kind: 'data';
+  layer: 'value';
+  access: 'write' | 'read';
 }
 
 const BY_TYPE = new Map<string, FieldDefinition>(

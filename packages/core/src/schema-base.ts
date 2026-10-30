@@ -162,6 +162,7 @@ export {
   type FieldType,
 } from './fields';
 
+/** 数据表（v34 data.tables，原 collections）。 */
 export const CollectionSchema = z.strictObject({
   id: IdSchema,
   name: boundedText(1, 40),
@@ -169,6 +170,8 @@ export const CollectionSchema = z.strictObject({
   fields: z.array(FieldSchema).min(1).max(30),
 });
 export type Collection = z.infer<typeof CollectionSchema>;
+export const TableSchema = CollectionSchema;
+export type Table = Collection;
 
 /**
  * 一天、一周从什么时候开始（D-286，schemaVersion 20）：dayStartHour 0–6 点，weekStart 周一或周日，
@@ -214,26 +217,56 @@ export const NavTargetSchema = z.custom<NavTarget>(
 export const pageTarget = (pageId: string): PageTarget => `page:${pageId}`;
 
 /**
- * 打开哪里：页面或系统入口，或者一个快捷操作 workflow:<id>。快捷操作只打开、摆出来，用户点「开始」才运行
- * （提醒 D-251、P-043；按钮和快捷入口 D-256）。id 是配置里的快捷操作，按钮还可以是内设快捷操作的预设 ID。
+ * 打开哪里（v34 opens，导航，不写东西）：页面或系统入口；tool:<id> 把快捷操作摆出来，用户点「开始」才运行
+ * （提醒 D-251、P-043；按钮和快捷入口 D-256，id 是配置里的快捷操作，按钮还可以是内设快捷操作的预设 ID）；
+ * package:<id> 是一个工具包的页面（原 toolCard，标题、图标按工具包现取）；{file} 是一个用户文件（原 fileSlot，
+ * null = 空位，用户点了自己选，AI 不写，D-257）。
  */
-export type OpenTarget = NavTarget | `workflow:${string}`;
-const WORKFLOW_TARGET = /^workflow:[a-z][a-z0-9-]{0,47}$/;
-export const openTargetSchema = (message: string) =>
+export type ToolTarget = `tool:${string}`;
+export type PackageTarget = `package:${string}`;
+export type FileTarget = { file: string | null };
+export type OpenTarget = NavTarget | ToolTarget | PackageTarget | FileTarget;
+const TOOL_TARGET = /^tool:[a-z][a-z0-9-]{0,47}$/;
+const PACKAGE_TARGET = /^package:[a-z][a-z0-9-]{0,47}$/;
+export const FileTargetSchema = z.strictObject({ file: AssetIdSchema.nullable() });
+
+/** 打开的目标；kinds 限定能写哪几种（提醒不能打开工具包、文件）。 */
+export const openTargetSchema = (
+  message: string,
+  kinds: readonly ('tool' | 'package' | 'file')[] = ['tool', 'package', 'file'],
+) =>
   z.custom<OpenTarget>(
     (v) =>
-      NavTargetSchema.safeParse(v).success || (typeof v === 'string' && WORKFLOW_TARGET.test(v)),
+      NavTargetSchema.safeParse(v).success ||
+      (kinds.includes('tool') && typeof v === 'string' && TOOL_TARGET.test(v)) ||
+      (kinds.includes('package') && typeof v === 'string' && PACKAGE_TARGET.test(v)) ||
+      (kinds.includes('file') && FileTargetSchema.safeParse(v).success),
     { message },
   );
 
-/** workflow:<id> → id；不是快捷操作时为 null。 */
-export const workflowTargetId = (target: OpenTarget): string | null =>
-  target.startsWith('workflow:') ? target.slice('workflow:'.length) : null;
-export const pageIdOf = (target: NavTarget | `workflow:${string}`): string | null =>
-  target.startsWith('page:') ? target.slice('page:'.length) : null;
+/** tool:<id> → id；不是快捷操作时为 null。 */
+export const toolTargetId = (target: OpenTarget): string | null =>
+  typeof target === 'string' && target.startsWith('tool:') ? target.slice('tool:'.length) : null;
+/** package:<id> → id。 */
+export const packageTargetId = (target: OpenTarget): string | null =>
+  typeof target === 'string' && target.startsWith('package:')
+    ? target.slice('package:'.length)
+    : null;
+export const pageIdOf = (target: OpenTarget): string | null =>
+  typeof target === 'string' && target.startsWith('page:') ? target.slice('page:'.length) : null;
+export const toolTarget = (id: string): ToolTarget => `tool:${id}`;
+export const packageTarget = (id: string): PackageTarget => `package:${id}`;
+export const isFileTarget = (target: OpenTarget): target is FileTarget =>
+  typeof target === 'object' && target !== null;
 
-export const ShellSchema = z.strictObject({
-  nav: z.array(NavTargetSchema).min(1).max(5),
+/**
+ * 导航（v34 也是容器，NEW_FORMAT §3.6）：bar 导航栏（1–5，原 shell.nav）、floating 浮动入口（≤3）、
+ * phoneHomeScreen 长按 Morph 图标的菜单里的快捷操作（≤4，D-271，原 workflow.homeScreen）。
+ */
+export const NavSchema = z.strictObject({
+  bar: z.array(NavTargetSchema).min(1).max(5),
   floating: z.array(NavTargetSchema).max(3),
+  /** 上限 MAX_HOME_SCREEN 在 validate.ts 里查（给 AI 一句能照着改的话）。 */
+  phoneHomeScreen: z.array(IdSchema).max(100).optional(),
 });
-export type Shell = z.infer<typeof ShellSchema>;
+export type Nav = z.infer<typeof NavSchema>;
