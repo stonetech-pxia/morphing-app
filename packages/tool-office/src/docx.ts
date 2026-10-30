@@ -59,15 +59,30 @@ const escapeXml = (text: string) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
-/** 一段文字的 run：换行写成 <w:br/>，制表符写成 <w:tab/>（D-314），前后的空格保留。 */
-function runXml(text: string, style: DocStyle, bodySize: number): string {
+/** 标题样式比正文大多少（Heading1、Heading2）。 */
+const HEADING_SCALE: Record<string, number> = { Heading1: 1.6, Heading2: 1.3 };
+
+/**
+ * 一段文字的 run：换行写成 <w:br/>，制表符写成 <w:tab/>（D-314），前后的空格保留。
+ * 每个 run 都写字号（D-317）：苹果的预览不读默认样式里的字号（一律当 12 磅），只认 run 上的；
+ * 没有自己字号的用标题样式或正文的字号。
+ */
+function sizeXml(style: DocStyle, bodySize: number, styleId?: string): string {
+  const body = Math.round(bodySize * 2);
+  const half = style.size
+    ? Math.round(style.size * 2)
+    : styleId && HEADING_SCALE[styleId]
+      ? Math.round(body * HEADING_SCALE[styleId])
+      : body;
+  return `<w:sz w:val="${half}"/><w:szCs w:val="${half}"/>`;
+}
+
+function runXml(text: string, style: DocStyle, bodySize: number, styleId?: string): string {
   const props =
     RUN_FONTS +
     (style.bold ? '<w:b/><w:bCs/>' : '') +
     (style.color ? `<w:color w:val="${style.color}"/>` : '') +
-    (style.size && style.size !== bodySize
-      ? `<w:sz w:val="${Math.round(style.size * 2)}"/><w:szCs w:val="${Math.round(style.size * 2)}"/>`
-      : '');
+    sizeXml(style, bodySize, styleId);
   const rPr = `<w:rPr>${props}</w:rPr>`;
   return text
     .split('\n')
@@ -104,17 +119,74 @@ function paragraphXml(
     (extra.indent ? `<w:ind w:firstLine="${extra.indent}"/>` : '') +
     (style.align && style.align !== 'left'
       ? `<w:jc w:val="${style.align === 'center' ? 'center' : 'right'}"/>`
-      : '');
-  return `<w:p>${pPr ? `<w:pPr>${pPr}</w:pPr>` : ''}${runXml(text, style, bodySize)}</w:p>`;
+      : '') +
+    // 段落标记的字号（D-317）：空段落、空格子的高度按它算。
+    `<w:rPr>${sizeXml(style, bodySize, extra.styleId)}</w:rPr>`;
+  return `<w:p><w:pPr>${pPr}</w:pPr>${runXml(text, style, bodySize, extra.styleId)}</w:p>`;
 }
 
-/** 原图像素 → twip：整页宽度按 A4 宽算，放不下时按内容区等比缩小。 */
+/** 空段落（表格后面的分隔、空格子）：段落标记也写字号（D-317），不然按默认样式（苹果的预览按 12 磅）撑高。 */
+function blankXml(size: number): string {
+  return `<w:p><w:pPr><w:rPr>${sizeXml({}, size)}</w:rPr></w:pPr></w:p>`;
+}
+
+/** 表格格子左右的边距加起来（磅，默认表格样式每边 80 twip）。 */
+const TABLE_CELL_PAD_PT = 8;
+/** 表里的字为了放下最长的词最多缩到这么小（磅，D-317）。 */
+const TABLE_MIN_SIZE = 5;
+
+/**
+ * 一个词在 Arial 里大概多宽（以字号为单位，D-317）：大写字母约 0.7，小写约 0.52，数字 0.56，
+ * 中日韩的字 1（每个字都能断行，单独算一个词），其他符号 0.35。宁可估宽一点（宽了只是字小一点，窄了会把词拆开）。
+ */
+function longestWordEm(text: string): number {
+  let best = 0;
+  let cur = 0;
+  for (const ch of text) {
+    if (/\s/.test(ch)) {
+      cur = 0;
+      continue;
+    }
+    if (
+      /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\uFF00-\uFFEF]/u.test(
+        ch,
+      )
+    ) {
+      cur = 0;
+      best = Math.max(best, 1);
+      continue;
+    }
+    cur += /[A-Z\u00C0-\u00DE]/.test(ch)
+      ? 0.7
+      : /[a-z\u00DF-\u00FF]/.test(ch)
+        ? 0.52
+        : /\d/.test(ch)
+          ? 0.56
+          : 0.35;
+    best = Math.max(best, cur);
+  }
+  return best;
+}
+
+/**
+ * 原图像素 → twip：整页宽度按 A4 宽算，放不下时按内容区等比缩小。表里的字号（D-317）按表自己的字号跟着一起缩小，
+ * 哪一格最长的词放不下时整张表再一起缩小，最小 5 磅（取到半磅）。
+ */
 function tableXml(block: DocTable, page: DocPage, bodySize: number, maxWidth = CONTENT_W): string {
   const { table, colWidths } = block;
   const raw = colWidths.map((w) => (w / page.width) * PAGE_W);
   const total = raw.reduce((a, b) => a + b, 0) || 1;
   const k = Math.min(1, maxWidth / total);
   const widths = raw.map((w) => Math.max(200, Math.round(w * k)));
+  let size = (block.size ?? bodySize) * k;
+  for (const cell of table.cells) {
+    const em = longestWordEm(cell.text);
+    if (!em) continue;
+    const span = Math.max(1, Math.min(cell.colSpan, table.cols - cell.col));
+    const w = widths.slice(cell.col, cell.col + span).reduce((a, b) => a + b, 0) / 20;
+    size = Math.min(size, (w - TABLE_CELL_PAD_PT) / em);
+  }
+  size = Math.max(TABLE_MIN_SIZE, Math.floor(size * 2) / 2);
   // 每个位置属于哪一格（合并格子的左上角以外的位置写成 vMerge 的续格）。
   const at = new Map<string, number>();
   table.cells.forEach((c, i) => {
@@ -129,7 +201,9 @@ function tableXml(block: DocTable, page: DocPage, bodySize: number, maxWidth = C
       const cell = i === undefined ? undefined : table.cells[i];
       if (!cell) {
         // 网格里没有格子的位置（编辑出错的文件）：补一个空格子。
-        cells.push(`<w:tc><w:tcPr><w:tcW w:w="${widths[c]}" w:type="dxa"/></w:tcPr><w:p/></w:tc>`);
+        cells.push(
+          `<w:tc><w:tcPr><w:tcW w:w="${widths[c]}" w:type="dxa"/></w:tcPr>${blankXml(size)}</w:tc>`,
+        );
         c++;
         continue;
       }
@@ -140,14 +214,14 @@ function tableXml(block: DocTable, page: DocPage, bodySize: number, maxWidth = C
         `<w:tcW w:w="${w}" w:type="dxa"/>` +
         (span > 1 ? `<w:gridSpan w:val="${span}"/>` : '') +
         (cell.rowSpan > 1 ? (first ? '<w:vMerge w:val="restart"/>' : '<w:vMerge/>') : '');
-      const style = cell.align ? { align: cell.align } : {};
+      const style = { size, ...(cell.align ? { align: cell.align } : {}) };
       const body = first
         ? cell.text
             .split('\n')
             .map((line) => paragraphXml(line, style, bodySize))
             .join('')
-        : '<w:p/>';
-      cells.push(`<w:tc><w:tcPr>${tcPr}</w:tcPr>${body || '<w:p/>'}</w:tc>`);
+        : blankXml(size);
+      cells.push(`<w:tc><w:tcPr>${tcPr}</w:tcPr>${body || blankXml(size)}</w:tc>`);
       c += span;
     }
     rows.push(`<w:tr>${cells.join('')}</w:tr>`);
@@ -170,14 +244,18 @@ function fitWidths(raw: readonly number[], maxWidth: number): number[] {
 }
 
 /** 无边框的排版表格（D-313、D-314）：rows 是每行每格里的 XML 片段；每格以段落结尾（Word 要求）。 */
-function layoutTableXml(widths: readonly number[], rows: readonly (readonly string[])[]): string {
+function layoutTableXml(
+  widths: readonly number[],
+  rows: readonly (readonly string[])[],
+  size: number,
+): string {
   const none = (side: string) => `<w:${side} w:val="nil"/>`;
   const tr = (cells: readonly string[]) =>
     '<w:tr>' +
     cells
       .map((inner, i) => {
-        const ends = inner.endsWith('</w:p>') || inner.endsWith('<w:p/>');
-        return `<w:tc><w:tcPr><w:tcW w:w="${widths[i]}" w:type="dxa"/></w:tcPr>${inner}${ends ? '' : '<w:p/>'}</w:tc>`;
+        const ends = inner.endsWith('</w:p>');
+        return `<w:tc><w:tcPr><w:tcW w:w="${widths[i]}" w:type="dxa"/></w:tcPr>${inner}${ends ? '' : blankXml(size)}</w:tc>`;
       })
       .join('') +
     '</w:tr>';
@@ -245,8 +323,8 @@ function stylesXml(bodySize: number): string {
     '<w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault>' +
     '</w:docDefaults>' +
     '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>' +
-    heading('Heading1', 'heading 1', Math.round(sz * 1.6)) +
-    heading('Heading2', 'heading 2', Math.round(sz * 1.3)) +
+    heading('Heading1', 'heading 1', Math.round(sz * HEADING_SCALE.Heading1!)) +
+    heading('Heading2', 'heading 2', Math.round(sz * HEADING_SCALE.Heading2!)) +
     '<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/>' +
     '<w:basedOn w:val="Normal"/><w:qFormat/></w:style>' +
     '<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/>' +
@@ -257,17 +335,19 @@ function stylesXml(bodySize: number): string {
 
 /**
  * 写 docx。images 按图片块的 src 给剪好的图片字节；没有的图片块跳过。
- * 整篇的正文字号用第一页的（每页的正文字号差不多，单独不同的段落写自己的字号）。
+ * 默认样式的正文字号用第一页的；每个 run 都写自己那一页的字号（D-317）。
  */
 export function writeDocx(
   doc: DocDoc,
   images: ReadonlyMap<string, DocxImage> = new Map(),
 ): Uint8Array {
-  const bodySize = doc.pages[0]?.bodySize ?? 11;
+  const docSize = doc.pages[0]?.bodySize ?? 11;
   const lists: DocList[] = [];
   const media: { name: string; rid: string; bytes: Uint8Array }[] = [];
   const body: string[] = [];
   doc.pages.forEach((page, p) => {
+    // 每页的字按这一页的正文字号写（D-317：表单页和正文页的正文字号可能差很多）。
+    const bodySize = page.bodySize ?? docSize;
     let first = p > 0;
     const pageBreak = () => {
       const b = first;
@@ -290,8 +370,8 @@ export function writeDocx(
             });
             return [
               ...(pageBreak() ? [paragraphXml('', {}, bodySize, { pageBreak: true })] : []),
-              layoutTableXml(widths, rows),
-              '<w:p/>',
+              layoutTableXml(widths, rows, bodySize),
+              blankXml(bodySize),
             ];
           }
           return [
@@ -319,7 +399,7 @@ export function writeDocx(
             ...(pageBreak() ? [paragraphXml('', {}, bodySize, { pageBreak: true })] : []),
             tableXml(block, page, bodySize, maxWidth),
             // 两张表紧挨着时 Word 会把它们并成一张：后面补一个空段落。
-            '<w:p/>',
+            blankXml(bodySize),
           ];
         case 'image': {
           const image = block.src ? images.get(block.src) : undefined;
@@ -354,7 +434,7 @@ export function writeDocx(
       const cells = block.cells.map((cell, i) =>
         cell.blocks.flatMap((b) => leafXml(b, widths[i]! - 2 * CELL_PAD)).join(''),
       );
-      body.push(layoutTableXml(widths, [cells]), '<w:p/>');
+      body.push(layoutTableXml(widths, [cells], bodySize), blankXml(bodySize));
     }
   });
   const documentXml =
@@ -395,7 +475,7 @@ export function writeDocx(
         '</Relationships>',
     ),
     'word/document.xml': strToU8(documentXml),
-    'word/styles.xml': strToU8(stylesXml(bodySize)),
+    'word/styles.xml': strToU8(stylesXml(docSize)),
     'word/numbering.xml': strToU8(numberingXml(lists)),
     'word/fontTable.xml': strToU8(fontTableXml()),
     ...Object.fromEntries(media.map((m) => [`word/media/${m.name}`, [m.bytes, { level: 0 }]])),

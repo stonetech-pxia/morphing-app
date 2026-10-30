@@ -50,6 +50,8 @@ export interface DocTable {
   kind: 'table';
   table: TableBlock;
   colWidths: number[];
+  /** 表里字的字号（磅，按表里文字的行高，D-317）；没有时用正文字号。写 docx 时随表的缩小一起缩小。 */
+  size?: number;
   box: Box;
 }
 
@@ -122,10 +124,15 @@ export const A4_WIDTH_PT = 595;
 const BOX_TO_FONT = 0.9;
 /**
  * 正文字号限制在这个范围：照片里的纸不一定是 A4（书页窄，按 A4 换算字会偏大），
- * 其他段落按和正文行高的比例算字号。
+ * 其他段落按和正文行高的比例算字号。表单页（D-317）按原图比例，最小到 6 磅，一页原件尽量还是一页；
+ * 正文页（一半以上的字在长行里：书页、条款页）不小于 9 磅，字太小不好读，多排几页没关系。
  */
 const BODY_MIN = 9;
+const FORM_MIN = 6;
 const BODY_MAX = 12;
+/** 一页里至少这么多比例的字在长行（至少这么多比例的页宽）里，就是正文页（表单的标签、值、表格里的字都短）。 */
+const PROSE_SHARE = 0.5;
+const PROSE_LINE = 0.4;
 /** 字号和正文差不到这么多（比例）就当正文（中文的引号让识别框高出一截，差 20% 很常见）。 */
 const BODY_SNAP = 0.25;
 /** 字母、数字少于这么多个的段落（「孩子。”」）行高不准，不单独算字号、不当标题（模型说是标题的除外）。 */
@@ -476,25 +483,30 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     options,
   );
   const tol = lineHeight * 0.3;
+  const inBox = (l: Box, box: Box) => {
+    const cx = l.x + l.width / 2;
+    const cy = l.y + l.height / 2;
+    return (
+      cx >= box.x - tol &&
+      cx <= box.x + box.width + tol &&
+      cy >= box.y - tol &&
+      cy <= box.y + box.height + tol
+    );
+  };
   const tables: DocTable[] = sheet.blocks
     .filter((b): b is TableBlock => b.kind === 'table')
-    .map((table) => ({
-      kind: 'table',
-      table: foldEmptyColumns({ ...table, col: 0 }),
-      colWidths: sheet.colWidths.slice(table.col, table.col + table.cols),
-      box: table.box,
-    }));
-  const inTable = (l: Box) =>
-    tables.some(({ box }) => {
-      const cx = l.x + l.width / 2;
-      const cy = l.y + l.height / 2;
-      return (
-        cx >= box.x - tol &&
-        cx <= box.x + box.width + tol &&
-        cy >= box.y - tol &&
-        cy <= box.y + box.height + tol
-      );
+    .map((table) => {
+      // 表里的字号按表里文字的行高（D-317），和正文分开算。
+      const h = median(lines.filter((l) => inBox(l, table.box)).map((l) => l.height));
+      return {
+        kind: 'table',
+        table: foldEmptyColumns({ ...table, col: 0 }),
+        colWidths: sheet.colWidths.slice(table.col, table.col + table.cols),
+        ...(h ? { size: Math.min(BODY_MAX, Math.max(FORM_MIN, fontSizeOf(h, image.width))) } : {}),
+        box: table.box,
+      };
     });
+  const inTable = (l: Box) => tables.some(({ box }) => inBox(l, box));
   const free = lines.filter((l) => !inTable(l) && !isStray(l, lines, lineHeight, image));
   const size = { width: image.width, height: image.height };
   const regions = cleanRegions(input.regions ?? [], free, size).filter(
@@ -539,7 +551,15 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     groups.filter((g) => !g.title).flatMap((g) => g.lines.map((l) => l.height)),
   );
   const bodyH = bodyHeight || lineHeight;
-  const bodySize = Math.min(BODY_MAX, Math.max(BODY_MIN, fontSizeOf(bodyH, image.width)));
+  // 正文页还是表单页（D-317）：数长行（至少四成页宽）里的字占整页（含表格）的多少。
+  const charsOf = (ls: readonly OcrBox[]) => ls.reduce((n, l) => n + l.text.length, 0);
+  const prose =
+    charsOf(lines.filter((l) => l.width >= PROSE_LINE * image.width)) >=
+    PROSE_SHARE * charsOf(lines);
+  const bodySize = Math.min(
+    BODY_MAX,
+    Math.max(prose ? BODY_MIN : FORM_MIN, fontSizeOf(bodyH, image.width)),
+  );
   // 整页文字的左右边（判断居中）。
   const textLeft = Math.min(...free.map((l) => l.x), ...tables.map((t) => t.box.x));
   const textRight = Math.max(

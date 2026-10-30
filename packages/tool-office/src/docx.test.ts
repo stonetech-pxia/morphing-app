@@ -62,15 +62,18 @@ describe('writeDocx', () => {
     };
     const xml = unzip(writeDocx(doc)).text('word/document.xml');
     expect(xml).toContain('<w:pStyle w:val="Heading1"/>');
-    expect(xml).toContain('<w:b/><w:bCs/></w:rPr><w:t xml:space="preserve">Titre</w:t>');
+    // 每个 run 都写字号（D-317：苹果的预览不读默认样式里的字号，一律当 12 磅）；标题是标题样式的字号。
+    expect(xml).toContain(
+      '<w:b/><w:bCs/><w:sz w:val="35"/><w:szCs w:val="35"/></w:rPr><w:t xml:space="preserve">Titre</w:t>',
+    );
     expect(xml).toContain('<w:color w:val="172094"/><w:sz w:val="28"/>');
     expect(xml).toContain('<w:jc w:val="center"/>');
     expect(xml).toContain('<w:spacing w:before="160"/>');
     expect(xml).toContain('A &lt; B &amp; &quot;C&quot;');
     expect(xml).toContain('<w:br/><w:t xml:space="preserve">second line</w:t>');
-    // 和正文一样大的不单独写字号；不画下划线和删除线。
+    // 和正文一样大的也写正文字号；不画下划线和删除线。
     expect(xml).toMatch(
-      /<w:rPr><w:rFonts [^>]*\/><\/w:rPr><w:t xml:space="preserve">body size<\/w:t>/,
+      /<w:rPr><w:rFonts [^>]*\/><w:sz w:val="22"\/><w:szCs w:val="22"\/><\/w:rPr><w:t xml:space="preserve">body size<\/w:t>/,
     );
     expect(xml).not.toMatch(/<w:u |<w:strike/);
   });
@@ -135,6 +138,91 @@ describe('writeDocx', () => {
     expect(rows[1]).toContain('<w:jc w:val="right"/>');
   });
 
+  it('scales table text with the table and shrinks the whole table until the longest word fits (D-317)', () => {
+    const table = (colWidths: number[], texts: string[], size: number): DocDoc => ({
+      version: 1,
+      pages: [
+        page([
+          {
+            kind: 'table',
+            colWidths,
+            size,
+            box,
+            table: {
+              kind: 'table',
+              rows: 1,
+              col: 0,
+              cols: texts.length,
+              box,
+              cells: texts.map((text, col) => ({ row: 0, col, rowSpan: 1, colSpan: 1, text })),
+            },
+          },
+        ]),
+      ],
+    });
+    const sizes = (doc: DocDoc) =>
+      [
+        ...unzip(writeDocx(doc))
+          .text('word/document.xml')
+          // 只数 run 上的字号（段落标记上的另算）。
+          .matchAll(/<w:sz w:val="(\d+)"\/><w:szCs [^>]*><\/w:rPr><w:t /g),
+      ].map((m) => Number(m[1]) / 2);
+    // 整页宽的表按内容区缩小（11906 → 9638 twip，约 0.81）：10 磅的字跟着变成 8 磅。
+    expect(sizes(table([500, 500], ['a', 'b'], 10))).toEqual([8, 8]);
+    // 窄的一列（约 48 磅宽，去掉格子边距 40 磅）放不下「MARQUEUR」：整张表一起缩到 7 磅。
+    expect(sizes(table([100, 900], ['MARQUEUR', 'b'], 10))).toEqual([7, 7]);
+    // 再长的词也不小于 5 磅。
+    expect(sizes(table([100, 900], ['REFRIGERATEURS', 'b'], 10))).toEqual([5, 5]);
+  });
+
+  it('writes each page’s text at that page’s body size (D-317)', () => {
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        page(
+          [
+            { kind: 'paragraph', text: 'form', box },
+            {
+              kind: 'table',
+              colWidths: [100, 100],
+              box,
+              table: {
+                kind: 'table',
+                rows: 2,
+                col: 0,
+                cols: 2,
+                box,
+                cells: [
+                  { row: 0, col: 0, rowSpan: 2, colSpan: 1, text: 'a' },
+                  { row: 0, col: 1, rowSpan: 1, colSpan: 1, text: '' },
+                  { row: 1, col: 1, rowSpan: 1, colSpan: 1, text: 'b' },
+                ],
+              },
+            },
+            {
+              kind: 'row',
+              box,
+              cells: [{ width: 300, blocks: [{ kind: 'image', box }] }],
+            },
+          ],
+          7,
+        ),
+        page([{ kind: 'paragraph', text: 'prose', box }], 10),
+      ],
+    };
+    const xml = unzip(writeDocx(doc)).text('word/document.xml');
+    expect(xml).toMatch(
+      /<w:sz w:val="14"\/><w:szCs w:val="14"\/><\/w:rPr><w:t xml:space="preserve">form</,
+    );
+    expect(xml).toMatch(
+      /<w:sz w:val="20"\/><w:szCs w:val="20"\/><\/w:rPr><w:t xml:space="preserve">prose</,
+    );
+    // 段落标记也写字号：空段落、空格子的行高跟着字号走，苹果的预览也按它算行高。
+    expect(xml).toContain('<w:pPr><w:rPr><w:sz w:val="14"/><w:szCs w:val="14"/></w:rPr></w:pPr>');
+    // 表格后面、空格子、并排行里的空段落也都带字号（没有光秃秃的 <w:p/>）。
+    expect(xml).not.toContain('<w:p/>');
+  });
+
   it('embeds cropped images and skips image blocks without one; each page starts on a new page', () => {
     const jpg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
     const doc: DocDoc = {
@@ -160,7 +248,7 @@ describe('writeDocx', () => {
     expect(xml).toContain('<wp:extent cx="3780155" cy="1890078"/>');
     expect(xml.match(/<w:drawing>/g)).toHaveLength(1);
     expect(xml).toMatch(
-      /<w:pageBreakBefore\/><\/w:pPr><w:r><w:rPr>.*?<\/w:rPr><w:t xml:space="preserve">page two/,
+      /<w:pageBreakBefore\/>(<w:rPr>.*?<\/w:rPr>)?<\/w:pPr><w:r><w:rPr>.*?<\/w:rPr><w:t xml:space="preserve">page two/,
     );
   });
 

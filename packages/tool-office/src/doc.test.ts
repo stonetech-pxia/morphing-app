@@ -414,6 +414,57 @@ describe('buildDocPage', () => {
     expect(texts[0]).toBe('GENERAL CONDITIONS');
   });
 
+  it('sizes a form in proportion to the page, down to about 6 pt; prose stays at 9 pt or more (D-317)', () => {
+    // 原图 1000 像素宽按 A4 595 磅换算：行高 13 像素的字约 7 磅。
+    const form = textPage(
+      Array.from({ length: 8 }, (_, i) => [
+        { text: `LABEL ${i}`, x: 80, y: 100 + i * 30, width: 90, h: 13 },
+        { text: `${i}0,00`, x: 700, y: 100 + i * 30, width: 50, h: 13 },
+      ]).flat(),
+    );
+    expect(buildDocPage({ ...form, source: 's', skew: 0 }).bodySize).toBe(7);
+    const tiny = textPage([
+      { text: 'NAME', x: 80, y: 100, width: 40, h: 9 },
+      { text: 'DATE', x: 80, y: 130, width: 40, h: 9 },
+    ]);
+    expect(buildDocPage({ ...tiny, source: 's', skew: 0 }).bodySize).toBe(6);
+    // 条款页：一样小的字，但都是折行的长段落：正文不小于 9 磅。
+    const prose = textPage(
+      Array.from({ length: 4 }, (_, p) =>
+        [0, 1, 2].map((r) => ({
+          text: `Paragraph ${p} line ${r} of small print that runs across the whole page width`,
+          x: 80,
+          y: 100 + p * 80 + r * 18,
+          width: r === 2 ? 400 : 840,
+          h: 13,
+        })),
+      ).flat(),
+    );
+    expect(buildDocPage({ ...prose, source: 's', skew: 0 }).bodySize).toBe(9);
+  });
+
+  it('gives a ruled table the size of its own text (D-317)', () => {
+    const { image, lines } = textPage(
+      [
+        {
+          text: 'Some body text that wraps across the page width here',
+          x: 100,
+          y: 100,
+          width: 800,
+        },
+        { text: 'and ends on this line.', x: 100, y: 125, width: 300 },
+        { text: 'Name', x: 120, y: 712, width: 60, h: 13 },
+        { text: 'Total', x: 420, y: 712, width: 60, h: 13 },
+        { text: 'Alice', x: 120, y: 752, width: 60, h: 13 },
+        { text: '12', x: 420, y: 752, width: 20, h: 13 },
+      ],
+      gridRects([100, 400, 700], [700, 740, 780]),
+    );
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const table = leafBlocks(doc).find((b) => b.kind === 'table');
+    expect(table).toMatchObject({ size: 7 });
+  });
+
   it('pairs form labels with their values row by row (D-314)', () => {
     const { image, lines } = textPage([
       // 右边一块的上面还有一行（和值连成了一块），不参加配对。
