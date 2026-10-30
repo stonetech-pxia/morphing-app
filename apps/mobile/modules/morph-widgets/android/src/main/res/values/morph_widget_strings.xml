@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="morph_widget_label">Morph</string>
+  <string name="morph_widget_description">A stat, button or list from your Morph pages.</string>
+  <string name="morph_widget_empty">In Morph, long-press a stat, button or list and choose Add to Home Screen.</string>
+</resources>

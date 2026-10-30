@@ -49,6 +49,9 @@ import { SQLiteWorkspaceRepo, migrateDatabase } from '@/storage/sqlite';
 import { WorkspaceProvider, useWorkspace } from '@/workspace/context';
 import { createNeedSender, createRemoteAIProvider } from '@/workspace/remote-ai';
 import { createWorkspaceStore, type WorkspaceStore } from '@/workspace/store';
+import { WidgetProvider } from '@/widgets/context';
+import { nativeWidgets } from '@/widgets/native';
+import { WidgetBridge } from '@/widgets/useWidgets';
 
 const locale = getDeviceLocale();
 // 扩展包：只在用户确认后下载，存在 documentDirectory/packs（D-064）。还没定托管地址的扩展包（展平模型，D-274）
@@ -150,6 +153,8 @@ function ThemedStack() {
       <StatusBar style={palette.dark ? 'light' : 'dark'} />
       {/* 手机桌面（D-271）：长按 Morph 图标的菜单跟着配置变；从菜单或桌面图标打开时直接开始那个快捷操作。 */}
       <HomeScreenBridge platform={nativeHomeScreen} />
+      {/* 桌面小组件（D-321–D-323）：取走小组件上点了的操作，配置或记录变了就重算画面。 */}
+      <WidgetBridge platform={nativeWidgets} />
       <Stack screenOptions={stackScreenOptions(palette)}>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         {/* AI 修改页不显示标题（D-231），左上角只有「关闭」。 */}
@@ -174,6 +179,10 @@ function ThemedStack() {
         <Stack.Screen name="share" options={closable} />
         <Stack.Screen name="ready/[workflowId]" options={{ ...closable, title: '' }} />
         <Stack.Screen name="table-ready/[collectionId]" options={{ ...closable, title: '' }} />
+        <Stack.Screen
+          name="widget/[componentId]"
+          options={{ headerShown: false, animation: 'none' }}
+        />
         <Stack.Screen
           name="welcome"
           options={{ presentation: 'fullScreenModal', headerShown: false, gestureEnabled: false }}
@@ -254,7 +263,9 @@ export default function RootLayout() {
           <PackHostProvider value={packs}>
             <ToolDownloadsProvider value={toolDownloads}>
               <HomeScreenProvider value={nativeHomeScreen}>
-                <RootStack />
+                <WidgetProvider value={nativeWidgets}>
+                  <RootStack />
+                </WidgetProvider>
               </HomeScreenProvider>
             </ToolDownloadsProvider>
           </PackHostProvider>

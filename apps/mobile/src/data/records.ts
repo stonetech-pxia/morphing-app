@@ -218,6 +218,7 @@ export function useRecordActions() {
       if (undo.kind === 'discard') await repo.discardRecord(undo.id);
       else {
         const at = Date.now();
+        if (undo.kind === 'batch') for (const id of undo.discard) await repo.discardRecord(id);
         for (const r of undo.records) await repo.updateRecord(r.id, r.values, at);
       }
       bump();

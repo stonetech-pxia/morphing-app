@@ -146,10 +146,18 @@ export interface Applied {
   notes?: string[];
 }
 
-/** 记录提示条上的撤销：删除了的恢复，一键操作（D-300）刚建的去掉、改过的改回去。 */
+/**
+ * 记录提示条上的撤销：删除了的恢复，一键操作（D-300）刚建的去掉、改过的改回去；
+ * 桌面小组件上点的一批（D-323）两样都有。
+ */
 export type RecordUndo =
   | { kind: 'discard'; id: string }
-  | { kind: 'revert'; records: { id: string; values: Record<string, unknown> }[] };
+  | { kind: 'revert'; records: { id: string; values: Record<string, unknown> }[] }
+  | {
+      kind: 'batch';
+      discard: string[];
+      records: { id: string; values: Record<string, unknown> }[];
+    };
 
 export interface RecordToast {
   message: string;
