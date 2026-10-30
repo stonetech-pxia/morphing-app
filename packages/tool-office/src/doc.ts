@@ -359,6 +359,44 @@ export function textColor(image: RgbaImage, box: Box): string | undefined {
     .toUpperCase();
 }
 
+/** 页边碎片（D-316）：不超过这么多个字（不算空格）。 */
+const STRAY_CHARS = 3;
+/** 离别的字至少这么多个行高才算孤立。 */
+const STRAY_GAP = 3;
+/** 置信度低于这个，或者框比正文行高这么多倍（污点、签名），就不像字。 */
+const STRAY_SCORE = 0.7;
+const STRAY_TALL = 2;
+/** 贴着页边：离图的边不到长边的这么多（1%）。 */
+const STRAY_EDGE = 0.01;
+
+/**
+ * 页边碎片（D-316）：很短、孤立（离别的字至少 3 个行高），而且贴着页边、置信度低或者框比正文高得多的，
+ * 是页边的污点、装订孔、签名认成的字（条款页顶上的「00」），不写进文件。认得准、和正文一样高的短字照样留下。
+ */
+function isStray(
+  line: OcrBox,
+  all: readonly OcrBox[],
+  lineHeight: number,
+  page: { width: number; height: number },
+): boolean {
+  if (line.text.replace(/\s/g, '').length > STRAY_CHARS) return false;
+  const edge = Math.max(page.width, page.height) * STRAY_EDGE;
+  const atEdge =
+    line.x <= edge ||
+    line.y <= edge ||
+    line.x + line.width >= page.width - edge ||
+    line.y + line.height >= page.height - edge;
+  const unsure = line.score !== undefined && line.score < STRAY_SCORE;
+  const tall = line.height > STRAY_TALL * lineHeight;
+  if (!atEdge && !unsure && !tall) return false;
+  return all.every((o) => {
+    if (o === line) return true;
+    const dx = Math.max(0, Math.max(o.x, line.x) - Math.min(o.x + o.width, line.x + line.width));
+    const dy = Math.max(0, Math.max(o.y, line.y) - Math.min(o.y + o.height, line.y + line.height));
+    return Math.max(dx, dy) > STRAY_GAP * lineHeight;
+  });
+}
+
 /** 按行高估字号（磅，取到半磅）。 */
 export function fontSizeOf(lineHeightPx: number, pageWidthPx: number): number {
   const pt = (lineHeightPx * A4_WIDTH_PT * BOX_TO_FONT) / pageWidthPx;
@@ -457,7 +495,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
         cy <= box.y + box.height + tol
       );
     });
-  const free = lines.filter((l) => !inTable(l));
+  const free = lines.filter((l) => !inTable(l) && !isStray(l, lines, lineHeight, image));
   const size = { width: image.width, height: image.height };
   const regions = cleanRegions(input.regions ?? [], free, size).filter(
     // 和表格重叠一大半的区域（表格的标题行、表格里认成正文的）不要。

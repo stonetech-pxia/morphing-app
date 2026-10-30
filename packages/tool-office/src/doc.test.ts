@@ -389,6 +389,31 @@ describe('buildDocPage', () => {
     ]);
   });
 
+  it('drops short stray marks at the page edge or far from the text, keeps short real text (D-316)', () => {
+    const { image, lines } = textPage([
+      // 页角的污点认成「00」：贴着页边，框比正文行高很多。
+      { text: '00', x: 4, y: 0, width: 40, h: 90 },
+      { text: 'GENERAL CONDITIONS', x: 300, y: 150, width: 400, h: 30 },
+      { text: 'Never put a hot pan directly on the worktop, use a', x: 100, y: 250, width: 800 },
+      { text: 'trivet.', x: 100, y: 275, width: 100 },
+      // 签名认成「Q」：离别的字很远，没把握。
+      { text: 'Q', x: 600, y: 500, width: 40, h: 50 },
+      // 离得远、但认得准、和正文一样高的编号（「②」）照样留下。
+      { text: '(2)', x: 100, y: 700, width: 30 },
+      { text: 'Ok', x: 100, y: 900, width: 30 },
+    ]);
+    const scored = lines.map((l) =>
+      l.text === 'Q' ? { ...l, score: 0.6 } : { ...l, score: l.text === '00' ? 0.95 : 0.99 },
+    );
+    const doc = buildDocPage({ image, lines: scored, source: 's', skew: 0 });
+    const texts = leafBlocks(doc).map((b) => (b.kind === 'paragraph' ? b.text : ''));
+    expect(texts).not.toContain('00');
+    expect(texts).not.toContain('Q');
+    expect(texts).toContain('(2)');
+    expect(texts).toContain('Ok');
+    expect(texts[0]).toBe('GENERAL CONDITIONS');
+  });
+
   it('pairs form labels with their values row by row (D-314)', () => {
     const { image, lines } = textPage([
       // 右边一块的上面还有一行（和值连成了一块），不参加配对。
