@@ -424,6 +424,43 @@ describe('cases from real scans (D-272)', () => {
     expect(cellAt(table!, 0, 0)!.text.split('\n')).toHaveLength(3);
   });
 
+  it('keeps a form cell of several lines together when only one column has them', () => {
+    // 能耗诊断的表头框：左右两格各是几行地址、日期，中间没有横线；只有前两排左右都有字，
+    // 下面几排只有左边一列有续行。按排分行会把一格拆成好几行（D-315）。
+    const words = [
+      word('Logement F44', 120, 110, 200),
+      word('Date 21/02', 420, 110, 200),
+      word('No 2093N', 120, 135, 200),
+      word('Diagnostiqueur', 420, 136, 200),
+      word('Valable 2030', 120, 160, 200),
+      word('Type Habitation', 120, 185, 200),
+      word('Annee 2019', 120, 210, 200),
+      word('Surface 62 m2', 120, 260, 200),
+      word('Cage C=3', 120, 285, 200),
+    ];
+    const [table, ...others] = tablesOf(page(gridRects([100, 400, 900], [100, 320]), words));
+    expect(others).toHaveLength(0);
+    expect([table!.rows, table!.cols]).toEqual([1, 2]);
+    expect(cellAt(table!, 0, 0)!.text.split('\n')).toHaveLength(7);
+    expect(cellAt(table!, 0, 1)!.text.split('\n')).toEqual(['Date 21/02', 'Diagnostiqueur']);
+  });
+
+  it('still splits a body where some rows only have a section label', () => {
+    // 工资单：「URSSAF」「Retraite」这种小标题一排只有一格，其他排每列都有字。
+    const xs = [100, 400, 650, 900];
+    const words = [word('label', 120, 110), word('base', 420, 110), word('amount', 670, 110)];
+    const rows = ['URSSAF', 'item 1', 'item 2', 'Retraite', 'item 4'];
+    rows.forEach((text, r) => {
+      const y = 160 + r * 32;
+      words.push(word(text, 110, y, 200));
+      if (text.startsWith('item')) words.push(word(`${r}00`, 420, y), word(`${r}.5`, 670, y));
+    });
+    const [table] = tablesOf(page(gridRects(xs, [100, 140, 330]), words));
+    expect([table!.rows, table!.cols]).toEqual([6, 3]);
+    expect(cellAt(table!, 1, 0)!.text).toBe('URSSAF');
+    expect(cellAt(table!, 2, 2)!.text).toBe('1.5');
+  });
+
   it('keeps column lines that start below an unruled header', () => {
     // 物业账单的批次表：表头有底色、下面没有横线，表头里的竖线断了，只从表身开始。
     const xs = [100, 300, 500, 700, 900];

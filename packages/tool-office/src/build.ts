@@ -229,18 +229,24 @@ function buildGrid(
         parentBand.push(null);
       }
     } else if (rows.length >= SPLIT_MIN_ROWS) {
-      // 竖线盖住、中间没有横线的一段（工资单、账单的表身）：一半以上有字的列里都有几排字，就按排分行；
-      // 只有个别列里有几排（一格里折行的字）、只有两排（折成两行的表头）不分。
+      // 竖线盖住、中间没有横线的一段（工资单、账单的表身）：一半以上有字的列里都有几排字，
+      // 而且至少一半的排在两列以上有字（一排一项），就按排分行。
+      // 只有个别列里有几排（一格里折行的字）、只有两排（折成两行的表头）、
+      // 多数排只有一列有字（表单一格里的几行地址，别的列空着，D-315）不分。
       const rowsByCol = new Map<number, Set<number>>();
+      let wide = 0;
       for (const [i, row] of rows.entries()) {
+        const cols = new Set<number>();
         for (const l of row) {
           const c = indexOf(xs, centerX(l));
+          cols.add(c);
           if (!rowsByCol.has(c)) rowsByCol.set(c, new Set());
           rowsByCol.get(c)!.add(i);
         }
+        if (cols.size >= 2) wide++;
       }
       const multi = [...rowsByCol.values()].filter((g) => g.size >= 2).length;
-      if (multi >= 2 && multi > rowsByCol.size / 2) {
+      if (multi >= 2 && multi > rowsByCol.size / 2 && wide >= rows.length / 2) {
         for (let i = 1; i < rows.length; i++) {
           split.push({ pos: between(i), lined: false });
           open.push(false);
