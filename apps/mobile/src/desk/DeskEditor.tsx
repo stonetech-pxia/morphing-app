@@ -444,9 +444,12 @@ export function DeskEditor({
         </View>
       ) : table &&
         (pages > 1 || table.pages.some((p) => p.blocks.some((b) => b.kind === 'text'))) ? (
-        // 没选中东西：识别范围（只影响写不写表外的文字）和页签。
+        // 没选中东西：识别范围（只影响写不写表外的文字）和页签。一行普通高度：横向 ScrollView 默认
+        // flexGrow: 1，不压住会和表格平分高度，按钮被撑成大竖条（三星真机，2026-10-30）。
         <ScrollView
           horizontal
+          testID="desk-scope-bar"
+          style={styles.bar}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabs}>
           {(['tables', 'all'] as const).map((scope) => {
@@ -518,7 +521,8 @@ const styles = StyleSheet.create({
     padding: 8,
     textAlignVertical: 'top',
   },
-  tabs: { flexDirection: 'row', gap: 8, padding: 8 },
+  bar: { flexGrow: 0, flexShrink: 0 },
+  tabs: { flexDirection: 'row', gap: 8, padding: 8, alignItems: 'center' },
   tab: {
     borderWidth: 1,
     borderRadius: 999,
