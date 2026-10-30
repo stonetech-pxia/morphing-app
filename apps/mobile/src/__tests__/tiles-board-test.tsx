@@ -151,3 +151,17 @@ it('a screen reader can move a card straight from its actions', async () => {
   await screen.findByText('已移到「完成」');
   expect((await repo.getRecord('t1'))?.values.status).toBe('done');
 });
+
+it('in French: "Non classé", the move menu and the undo toast', async () => {
+  const repo = new MemoryWorkspaceRepo();
+  await put(repo, 't1', 'tasks', { title: 'Rapport', status: 'todo' });
+  await renderToolsApp(repo, undefined, { seed, locale: 'fr' });
+  expect(await screen.findByText('Non classé')).toBeTruthy();
+  expect(screen.getAllByText('Aucune entrée dans cette colonne')).toHaveLength(3);
+  await fireEvent.press(await screen.findByTestId('board-card-t1'));
+  expect(screen.getByTestId('board-menu-open')).toHaveTextContent('Ouvrir');
+  expect(screen.getByTestId('board-menu-to:doing')).toHaveTextContent('Déplacer dans « 进行中 »');
+  await fireEvent.press(screen.getByTestId('board-menu-to:doing'));
+  expect(await screen.findByTestId('toast')).toHaveTextContent(/Déplacé dans « 进行中 »/);
+  expect(await screen.findByText('Annuler')).toBeTruthy();
+});
