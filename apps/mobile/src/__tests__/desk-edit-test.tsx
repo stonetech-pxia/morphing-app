@@ -12,9 +12,11 @@ import { screen } from 'expo-router/testing-library';
 import { strFromU8, unzipSync } from 'fflate';
 import { Alert, Dimensions, StyleSheet } from 'react-native';
 
+import { placeAssetOnDesk, savedSourceBytes } from '../desk/saved-source';
 import { loadDesk, placeResultsOnDesk, writeEditDraft } from '../desk/store';
 import { makePalette } from '../renderer/theme';
 import { ResultView } from '../run/ResultView';
+import { saveItems } from '../runtime/actions/io';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
 import { renderToolsApp } from '../test-utils/render-app';
@@ -459,6 +461,50 @@ describe('存成用户文件以后还能放回桌上改（D-367）', () => {
 
     await files.removeAssetFile(asset!.path);
     expect([...files.disk.keys()].filter((k) => k.startsWith(`assets/${asset!.id}/`))).toEqual([]);
+  });
+
+  it('结果页的「保存」、快捷操作的保存步骤也带中间格式和原图（D-377）：存储空间能放回桌上改', async () => {
+    const files = new FakeFiles();
+    const repo = new MemoryWorkspaceRepo();
+    // 转 Word 的结果：页面原图和剪下来的图片各一张。
+    files.disk.set('runs/r1/cut.png', new Uint8Array([7, 7]));
+    const word = runResult(files, 'doc', wordDoc('runs/r1/cut.png'));
+    const [saved] = await saveItems({ files, repo, grantee: 'w1' }, [word], {
+      now: () => new Date(1),
+      newId: () => 'a1',
+    });
+    expect(saved!.assetId).toBe('a1');
+    const [asset] = await repo.listAssets();
+    expect([...files.disk.keys()].filter((k) => k.startsWith('assets/a1/')).sort()).toEqual(
+      [
+        'assets/a1/明细.docx',
+        'assets/a1/morph-source-0.jpg',
+        'assets/a1/morph-source-1.png',
+        'assets/a1/morph-source.json',
+      ].sort(),
+    );
+    // 运行目录里的结果不动（运行页关掉时才删）。
+    expect(files.disk.has('runs/r1/明细.json')).toBe(true);
+    // 存储空间里算在这个文件上：两张图 + 中间格式。
+    expect(await savedSourceBytes(files, asset!)).toBeGreaterThan(4);
+    const desk = await placeAssetOnDesk(files, asset!, 2, 'backdesk');
+    expect(desk).not.toBeNull();
+    const file = currentFiles(desk!)[0]!;
+    expect(file.source?.kind).toBe('doc');
+    expect(file.source!.assets).toHaveLength(2);
+    const doc = parseDocDoc(decodeUtf8(files.disk.get(`desk/backdesk/${file.source!.path}`)!))!;
+    expect(doc.pages[0]!.blocks.map((b) => b.kind)).toContain('table');
+
+    // 后面的步骤改过文件（中间格式不再对应它）、普通文件：只存文件。
+    const renamed = { ...runResult(files, 'table', tableDoc()), uri: 'runs/r1/明细.xlsx' };
+    renamed.tableDoc = { ...renamed.tableDoc!, for: 'runs/r1/别的.xlsx' };
+    await saveItems({ files, repo, grantee: 'w1' }, [renamed], {
+      now: () => new Date(1),
+      newId: () => 'a2',
+    });
+    expect([...files.disk.keys()].filter((k) => k.startsWith('assets/a2/'))).toEqual([
+      'assets/a2/明细.xlsx',
+    ]);
   });
 
   it('普通文件（没有中间格式）在存储空间里没有「放到桌上」', async () => {

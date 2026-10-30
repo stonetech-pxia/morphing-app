@@ -24,6 +24,7 @@ import {
 
 import { decodeQr, downscaleRgba } from '@morph/tool-qr';
 
+import { saveRunItemSource } from '../../desk/saved-source-file';
 import type { PickedFile } from '../platform';
 import {
   baseName,
@@ -223,6 +224,8 @@ export async function saveItems(
     });
     // 工作流产生的文件授权给它（§7G）。
     await repo.grantAsset(grantee, id);
+    // 转 Excel、转 Word 的结果：中间格式和原图跟着存，以后还能从存储空间放到桌上改（D-377）。
+    await saveRunItemSource(files, item, id);
     saved.push({ ...item, assetId: id, name: baseName(name) });
     ctx.progress?.(i + 1, items.length);
   }

@@ -5,6 +5,7 @@ import { saveItems } from '../runtime/actions/io';
 import { baseName, extOf } from '../runtime/actions/helpers';
 import type { FilePlatform } from '../runtime/platform';
 import type { AssetRecord, WorkspaceRepo } from '../storage/types';
+import { SOURCE_NAME, writeSavedSource, type SavedSource } from './saved-source-file';
 import {
   deskFileUri,
   mapSourcePaths,
@@ -12,25 +13,12 @@ import {
   saveDesk,
   sourcePaths,
   loadDeskSource,
-  type DeskSourceDoc,
 } from './store';
 
 // 存成用户文件以后还能放回桌上改（file-room §10 第 6 题，创始人 2026-10-30 同意在 R2 做，D-367）：
 // 存 xlsx / docx 时，把中间格式和它用到的图片放在这个用户文件自己的目录 assets/<id>/ 里，
 // 「设置 → 存储空间」把它们算在这个文件上，删文件时整个目录一起删（removeAssetFile）。
 // 从存储空间「放到桌上」时复制一份回桌上（用户文件不动）。中间格式里有识别出的文字，只在本机，AI 看不到。
-
-/** 中间格式的文件名（和用户文件放在同一个目录里）。 */
-const SOURCE_NAME = 'morph-source.json';
-
-interface SavedSource {
-  version: 1;
-  kind: DeskSourceDoc['kind'];
-  doc: unknown;
-  pagesWithoutTables?: number[];
-  /** 中间格式和图片一共多大（存储空间里加在这个文件上）。 */
-  bytes: number;
-}
 
 type Files = Pick<
   FilePlatform,
@@ -69,29 +57,7 @@ export async function saveDeskFiles(
     if (!file.source || !assetId) continue;
     const source = await loadDeskSource(files, desk, file);
     if (!source) continue;
-    // 图片换成同一个目录里的文件名，各复制一份。
-    const names = new Map<string, string>();
-    let bytes = 0;
-    for (const [k, path] of [...sourcePaths(source)].entries()) {
-      const ext = extOf(path.split('?')[0]!) || 'jpg';
-      const name = `morph-source-${k}.${ext}`;
-      const written = await files.writeBytes(assetId, name, await files.readUri(path));
-      bytes += written.size;
-      names.set(path, name);
-    }
-    const doc = mapSourcePaths(source, (path) => names.get(path) ?? '').doc;
-    const docJson = JSON.stringify(doc);
-    const body: SavedSource = {
-      version: 1,
-      kind: source.kind,
-      doc,
-      ...(file.source.pagesWithoutTables?.length
-        ? { pagesWithoutTables: file.source.pagesWithoutTables }
-        : {}),
-      // 图片加上中间格式本身（JSON 外面的几个字段不算）。
-      bytes: bytes + new TextEncoder().encode(docJson).length,
-    };
-    await files.writeBytes(assetId, SOURCE_NAME, new TextEncoder().encode(JSON.stringify(body)));
+    await writeSavedSource(files, assetId, source, file.source.pagesWithoutTables);
   }
 }
 
