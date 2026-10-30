@@ -104,7 +104,7 @@ export function presetKinds(preset: WorkflowPreset): readonly QuickActionKind[] 
 /** 预设输入类型没改时保留跨分类；改过输入后按实际类型分类。 */
 export function workflowKinds(workflow: Workflow): readonly QuickActionKind[] {
   const kind = inferQuickActionKind(workflow);
-  const preset = WORKFLOW_PRESETS.find((p) => p.id === workflow.presetId);
+  const preset = WORKFLOW_PRESETS.find((p) => p.id === workflow.preset);
   return preset && inferQuickActionKind({ steps: preset.steps('en') }) === kind
     ? presetKinds(preset)
     : [kind];

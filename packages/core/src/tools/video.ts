@@ -2,6 +2,7 @@ import { t, pairText } from '../messages';
 import { z } from 'zod';
 
 import { GIF_MAX_SECONDS, VIDEO_QUALITIES } from '../media';
+import { FILES_TABLE } from '../files-table';
 import type { ToolDefinition } from '../registry';
 import type { Locale, Workflow } from '../schema';
 import {
@@ -482,7 +483,8 @@ export const VIDEO_ACTIONS: readonly ActionDefinition[] = [
 export function videoWorkflows(locale: Locale): Workflow[] {
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
-    toolId: VIDEO_TOOL_ID,
+    kind: 'quickAction',
+    package: VIDEO_TOOL_ID,
     name: pairText(locale, name),
     steps,
   });
@@ -627,29 +629,34 @@ export const videoTool: ToolDefinition = {
     id: VIDEO_PAGE_ID,
     title: t(locale, 'video_Video_19238'),
     icon: 'video',
-    toolId: VIDEO_TOOL_ID,
-    components: [
+    package: VIDEO_TOOL_ID,
+    blocks: [
       {
         id: 'video-header',
-        type: 'header',
-        props: { title: t(locale, 'video_Video_tools_632fd') },
+        look: 'header',
+        show: { title: t(locale, 'video_Video_tools_632fd') },
       },
       {
         id: 'video-intro',
-        type: 'text',
-        props: {
+        look: 'text',
+        show: {
           text: t(locale, 'video_Everything_runs_on_this_device_nothing_d4b96'),
         },
       },
       ...videoWorkflows(locale).map((wf) => ({
         id: `${wf.id}-runner`,
-        type: 'workflowRunner' as const,
-        props: { workflowId: wf.id },
+        look: 'action' as const,
+        tools: [{ tool: wf.id }],
       })),
       {
         id: 'video-files',
-        type: 'fileList',
-        props: { title: t(locale, 'video_Videos_0f33c'), limit: 10, mimeType: 'video/*' },
+        look: 'files',
+        show: { title: t(locale, 'video_Videos_0f33c') },
+        source: {
+          table: FILES_TABLE,
+          filter: [{ field: 'kind', op: 'is', value: 'video' }],
+          limit: 10,
+        },
       },
     ],
   }),

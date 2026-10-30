@@ -1,6 +1,7 @@
 import { t, pairText } from '../messages';
 import { z } from 'zod';
 
+import { FILES_TABLE } from '../files-table';
 import type { ToolDefinition } from '../registry';
 import type { Locale, Workflow } from '../schema';
 import type { ActionDefinition } from '../workflow/contract';
@@ -87,7 +88,8 @@ const toPdf = {
 export function scanWorkflows(locale: Locale): Workflow[] {
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
-    toolId: SCAN_TOOL_ID,
+    kind: 'quickAction',
+    package: SCAN_TOOL_ID,
     name: pairText(locale, name),
     steps,
   });
@@ -147,28 +149,29 @@ export const scanTool: ToolDefinition = {
     id: SCAN_PAGE_ID,
     title: t(locale, 'scan_Scanner_08f22'),
     icon: 'scan',
-    toolId: SCAN_TOOL_ID,
-    components: [
-      { id: 'scan-header', type: 'header', props: { title: t(locale, 'scan_Scanner_08f22') } },
+    package: SCAN_TOOL_ID,
+    blocks: [
+      { id: 'scan-header', look: 'header', show: { title: t(locale, 'scan_Scanner_08f22') } },
       {
         id: 'scan-intro',
-        type: 'text',
-        props: {
+        look: 'text',
+        show: {
           text: t(locale, 'scan_Everything_runs_on_this_device_nothing_09e42'),
         },
       },
       ...scanWorkflows(locale).map((wf) => ({
         id: `${wf.id}-runner`,
-        type: 'workflowRunner' as const,
-        props: { workflowId: wf.id },
+        look: 'action' as const,
+        tools: [{ tool: wf.id }],
       })),
       {
         id: 'scan-files',
-        type: 'fileList',
-        props: {
-          title: t(locale, 'scan_Scans_7ac9d'),
+        look: 'files',
+        show: { title: t(locale, 'scan_Scans_7ac9d') },
+        source: {
+          table: FILES_TABLE,
+          filter: [{ field: 'kind', op: 'is', value: 'pdf' }],
           limit: 10,
-          mimeType: 'application/pdf',
         },
       },
     ],

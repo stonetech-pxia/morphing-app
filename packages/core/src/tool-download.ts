@@ -4,6 +4,7 @@ import { sha512 } from '@noble/hashes/sha2.js';
 import { z } from 'zod';
 
 import { createDefaultWorkspace } from './defaults';
+import { migratePageV33, migrateWorkflowV33, v33Tables } from './migrate-v34';
 import { applyOps } from './ops';
 import type { Registry, ToolDefinition } from './registry';
 import {
@@ -13,7 +14,7 @@ import {
   WorkflowStepSchema,
   type Locale,
   type Page,
-  type Workflow,
+  type QuickAction,
 } from './schema';
 import { validateWorkspace } from './validate';
 import { PERMISSIONS } from './workflow/contract';
@@ -128,49 +129,65 @@ export type ToolManifest = z.infer<typeof ToolManifestSchema>;
 
 const pick = (locale: Locale, text: { en: string; zh: string }) => localize(text, locale);
 
-/** 把清单变成注册表里的工具：工具页和 simpleTool 的排法一样（标题、说明、每个快捷操作一个运行卡片）。 */
+/**
+ * 把清单变成注册表里的工具：工具页和 simpleTool 的排法一样（标题、说明、每个快捷操作一个运行卡片）。
+ * 服务器上的清单（format 1）是 v33 写法：先照 v33 拼出页面和工作流，再用 v34 的迁移转过来
+ * （migrate-v34.ts，和本机配置、模版用同一套转换；fileList 的 mimeType 变成 $files 的 kind 筛选）。
+ */
 export function toolFromManifest(manifest: ToolManifest): ToolDefinition {
   const pageId = `tool-${manifest.id}`;
-  const createWorkflows = (locale: Locale): Workflow[] =>
-    manifest.workflows.map((wf) => ({
-      id: wf.id,
-      name: pick(locale, wf.name),
-      ...(wf.icon ? { icon: wf.icon } : {}),
-      toolId: manifest.id,
-      steps: JSON.parse(JSON.stringify(wf.steps)) as Workflow['steps'],
-    }));
-  const createPage = (locale: Locale): Page => ({
-    id: pageId,
-    title: pick(locale, manifest.name),
-    icon: manifest.icon,
-    toolId: manifest.id,
-    components: [
+  const createWorkflows = (locale: Locale): QuickAction[] =>
+    manifest.workflows.map(
+      (wf) =>
+        migrateWorkflowV33({
+          id: wf.id,
+          name: pick(locale, wf.name),
+          ...(wf.icon ? { icon: wf.icon } : {}),
+          toolId: manifest.id,
+          steps: JSON.parse(JSON.stringify(wf.steps)) as QuickAction['steps'],
+        }) as QuickAction,
+    );
+  const createPage = (locale: Locale): Page =>
+    migratePageV33(
       {
-        id: `${manifest.id}-header`,
-        type: 'header',
-        props: { title: pick(locale, manifest.name) },
+        id: pageId,
+        title: pick(locale, manifest.name),
+        icon: manifest.icon,
+        toolId: manifest.id,
+        components: [
+          {
+            id: `${manifest.id}-header`,
+            type: 'header',
+            props: { title: pick(locale, manifest.name) },
+          },
+          {
+            id: `${manifest.id}-intro`,
+            type: 'text',
+            props: { text: pick(locale, manifest.intro) },
+          },
+          ...manifest.workflows.map((wf) => ({
+            id: `${wf.id}-runner`,
+            type: 'workflowRunner',
+            props: { workflowId: wf.id },
+          })),
+          ...(manifest.fileList
+            ? [
+                {
+                  id: `${manifest.id}-files`,
+                  type: 'fileList',
+                  props: {
+                    title: pick(locale, manifest.fileList.title),
+                    limit: manifest.fileList.limit,
+                    ...(manifest.fileList.mimeType ? { mimeType: manifest.fileList.mimeType } : {}),
+                  },
+                },
+              ]
+            : []),
+        ],
       },
-      { id: `${manifest.id}-intro`, type: 'text', props: { text: pick(locale, manifest.intro) } },
-      ...manifest.workflows.map((wf) => ({
-        id: `${wf.id}-runner`,
-        type: 'workflowRunner' as const,
-        props: { workflowId: wf.id },
-      })),
-      ...(manifest.fileList
-        ? [
-            {
-              id: `${manifest.id}-files`,
-              type: 'fileList' as const,
-              props: {
-                title: pick(locale, manifest.fileList.title),
-                limit: manifest.fileList.limit,
-                ...(manifest.fileList.mimeType ? { mimeType: manifest.fileList.mimeType } : {}),
-              },
-            },
-          ]
-        : []),
-    ],
-  });
+      // 工具页上没有读表的块。
+      v33Tables([]),
+    ) as Page;
   return {
     id: manifest.id,
     version: manifest.version,
@@ -218,7 +235,7 @@ export function checkToolManifest(manifest: ToolManifest, registry: Registry): s
   for (const locale of ['en', 'zh'] as const) {
     const applied = applyOps(
       createDefaultWorkspace(locale),
-      [{ op: 'installTool', toolId: tool.id }],
+      [{ op: 'setPackage', package: tool.id, do: 'add' }],
       { registry: scratch, locale },
     );
     if (!applied.ok) {

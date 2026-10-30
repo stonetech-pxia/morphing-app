@@ -62,6 +62,7 @@ export * from './list-groups-schema';
 export * from './sequence';
 export * from './month-view';
 export * from './board-view';
+export * from './source';
 export * from './display-format';
 export * from './compare';
 export * from './text-ops';

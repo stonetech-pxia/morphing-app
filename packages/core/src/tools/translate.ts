@@ -287,7 +287,8 @@ export function translateWorkflows(locale: Locale): Workflow[] {
   const ocrLang = locale === 'zh' ? 'eng' : locale === 'fr' ? 'eng' : 'chi_sim';
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
-    toolId: TRANSLATE_TOOL_ID,
+    kind: 'quickAction',
+    package: TRANSLATE_TOOL_ID,
     name: pairText(locale, name),
     steps,
   });
@@ -338,24 +339,24 @@ export const translateTool: ToolDefinition = {
     id: `tool-${TRANSLATE_TOOL_ID}`,
     title: t(locale, 'translate_Translate_6c51b'),
     icon: 'translate',
-    toolId: TRANSLATE_TOOL_ID,
-    components: [
+    package: TRANSLATE_TOOL_ID,
+    blocks: [
       {
         id: 'translate-header',
-        type: 'header',
-        props: { title: t(locale, 'translate_Translate_6c51b') },
+        look: 'header',
+        show: { title: t(locale, 'translate_Translate_6c51b') },
       },
       {
         id: 'translate-intro',
-        type: 'text',
-        props: {
+        look: 'text',
+        show: {
           text: t(locale, 'translate_Translates_on_this_device_the_text_is__027c8'),
         },
       },
       ...translateWorkflows(locale).map((wf) => ({
         id: `${wf.id}-runner`,
-        type: 'workflowRunner' as const,
-        props: { workflowId: wf.id },
+        look: 'action' as const,
+        tools: [{ tool: wf.id }],
       })),
     ],
   }),

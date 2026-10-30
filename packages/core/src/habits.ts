@@ -113,7 +113,7 @@ export function habitLabel(
 
 /**
  * 做成的新快捷操作：复制原来的步骤，把回答写进参数、不再问这几项（其余照问，例如文件名）。
- * 是用户自己的快捷操作（没有 toolId），移除工具时不会跟着消失。
+ * 是用户自己的快捷操作（没有 package），移除工具时不会跟着消失。
  */
 export function habitWorkflow(
   workflow: Workflow,
@@ -123,6 +123,7 @@ export function habitWorkflow(
 ): Workflow {
   return {
     id,
+    kind: 'quickAction',
     name,
     ...(workflow.icon ? { icon: workflow.icon } : {}),
     steps: workflow.steps.map((step) => {
@@ -143,5 +144,5 @@ export function habitWorkflow(
 export function hasSameWorkflow(workflows: readonly Workflow[], candidate: Workflow): boolean {
   const shape = (w: Workflow) =>
     JSON.stringify(w.steps.map((s) => [s.action, s.params, s.ask ?? []]));
-  return workflows.some((w) => !w.toolId && shape(w) === shape(candidate));
+  return workflows.some((w) => !w.package && shape(w) === shape(candidate));
 }

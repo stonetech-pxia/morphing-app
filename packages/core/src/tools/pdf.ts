@@ -2,6 +2,7 @@ import { t, pairText } from '../messages';
 import { z } from 'zod';
 
 import { GROUP_FIELDS, groupNeedsSize, groupParams } from '../grouping';
+import { FILES_TABLE } from '../files-table';
 import type { ToolDefinition } from '../registry';
 import type { Locale, Workflow } from '../schema';
 import type { ActionDefinition, ParamField } from '../workflow/contract';
@@ -830,7 +831,8 @@ const pickPdf = (min: number, max: number) => ({
 export function pdfWorkflows(locale: Locale): Workflow[] {
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
-    toolId: PDF_TOOL_ID,
+    kind: 'quickAction',
+    package: PDF_TOOL_ID,
     name: pairText(locale, name),
     steps,
   });
@@ -1028,32 +1030,33 @@ export const pdfTool: ToolDefinition = {
     id: PDF_PAGE_ID,
     title: 'PDF',
     icon: 'document',
-    toolId: PDF_TOOL_ID,
-    components: [
+    package: PDF_TOOL_ID,
+    blocks: [
       {
         id: 'pdf-header',
-        type: 'header',
-        props: { title: t(locale, 'pdf_PDF_tools_d81ee') },
+        look: 'header',
+        show: { title: t(locale, 'pdf_PDF_tools_d81ee') },
       },
       {
         id: 'pdf-intro',
-        type: 'text',
-        props: {
+        look: 'text',
+        show: {
           text: t(locale, 'pdf_Everything_runs_on_this_device_nothing_d4b96'),
         },
       },
       ...pdfWorkflows(locale).map((wf) => ({
         id: wf.id === PDF_MERGE_WORKFLOW_ID ? 'pdf-runner' : `${wf.id}-runner`,
-        type: 'workflowRunner' as const,
-        props: { workflowId: wf.id },
+        look: 'action' as const,
+        tools: [{ tool: wf.id }],
       })),
       {
         id: 'pdf-files',
-        type: 'fileList',
-        props: {
-          title: t(locale, 'pdf_PDF_files_2d348'),
+        look: 'files',
+        show: { title: t(locale, 'pdf_PDF_files_2d348') },
+        source: {
+          table: FILES_TABLE,
+          filter: [{ field: 'kind', op: 'is', value: 'pdf' }],
           limit: 10,
-          mimeType: 'application/pdf',
         },
       },
     ],

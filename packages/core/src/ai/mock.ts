@@ -3,7 +3,7 @@ import { checkNameTemplate } from '../naming';
 import { applyOps, topIndex, type Op } from '../ops';
 import { workflowProblems } from '../workflow/check';
 import { outputTypeOf, type ValueType } from '../workflow/contract';
-import { newWorkflowId, presetWorkflow } from '../workflows/presets';
+import { findWorkflowTarget, newWorkflowId, presetWorkflow } from '../workflows/presets';
 import { TRANSLATE_LANGUAGE_NAMES, type TranslateLanguage } from '../tools/translate';
 import {
   LANGUAGE_WORD,
@@ -26,8 +26,12 @@ import {
   IdSchema,
   MAX_HOME_SCREEN,
   allComponents,
+  isKnownComponent,
+  packageTarget,
   pageTarget,
+  quickActionsOf,
   type Component,
+  type KnownComponent,
   type Locale,
   type Localized,
   type NavTarget,
@@ -38,6 +42,7 @@ import {
   ICON_NAMES,
 } from '../schema';
 import { isEmoji } from '../richtext';
+import { entryKind } from '../components';
 
 import {
   entryOps,
@@ -52,6 +57,7 @@ import { splitOps } from './kinds';
 import type { AIProvider, Plan, PlanContext, RejectReason } from './types';
 
 // 基于规则的 mock AI（§7F）。不是语言模型：只认识 docs/MOCK_AI_PHRASES.md 中的句式。
+// v34（2026-10-30）：读 v34 配置、出 14 种新操作；句式没有改（第三阶段再按 MAPPING_V33.md C1 整理）。
 // 一句话按标点拆成若干子句；任何一个子句无法理解，整句都拒绝，绝不生成猜测性修改。
 
 const EXAMPLES: Localized[] = [
@@ -145,7 +151,7 @@ function findTool(text: string, ctx: PlanContext): ToolDefinition | undefined {
 }
 
 function requireInstalled(tool: ToolDefinition, state: State): void {
-  if (!state.config.tools.some((t) => t.toolId === tool.id)) {
+  if (!state.config.packages.some((t) => t.id === tool.id)) {
     throw new Rejection(
       'notInstalled',
       say(
@@ -158,7 +164,7 @@ function requireInstalled(tool: ToolDefinition, state: State): void {
 }
 
 function page(state: State, id: string): Page {
-  return state.config.pages.find((p) => p.id === id)!;
+  return state.config.containers.pages.find((p) => p.id === id)!;
 }
 
 function resolveComponent(rawName: string, target: Page, state: State): Component {
@@ -169,19 +175,24 @@ function resolveComponent(rawName: string, target: Page, state: State): Componen
     .replace(/\s*(卡片|入口|模块|区域|card|section)$/i, '')
     .trim();
   const tool = findTool(name, state.ctx);
-  const find = (pred: (c: Component) => boolean) => target.components.find(pred);
+  const find = (pred: (c: KnownComponent) => boolean) =>
+    target.blocks.find((c) => isKnownComponent(c) && pred(c));
   let found: Component | undefined;
   if (tool) {
     requireInstalled(tool, state);
-    found = find((c) => c.type === 'toolCard' && c.props.toolId === tool.id);
+    // 工具包的入口（原 toolCard）：look entry、opens package:<id>。
+    found = find((c) => c.look === 'entry' && c.opens === packageTarget(tool.id));
   } else if (/欢迎|标题|welcome|header|title/i.test(name)) {
-    found = find((c) => c.type === 'header');
+    found = find((c) => c.look === 'header');
   } else if (/工具目录|添加工具|catalog|add tools/i.test(name)) {
-    found = find((c) => c.type === 'catalogLink');
+    // 「添加工具」入口（原 catalogLink）：主色标题的 entry。
+    found = find(
+      (c) => c.look === 'entry' && entryKind(c as Parameters<typeof entryKind>[0]) === 'link',
+    );
   } else if (/文件|files?|recent/i.test(name)) {
-    found = find((c) => c.type === 'fileList');
+    found = find((c) => c.look === 'files');
   } else if (/说明|介绍|intro|description/i.test(name)) {
-    found = find((c) => c.type === 'text');
+    found = find((c) => c.look === 'text');
   }
   if (!found) {
     throw new Rejection(
@@ -196,9 +207,9 @@ function resolveComponent(rawName: string, target: Page, state: State): Componen
   return found;
 }
 
-/** 把 componentId 移到 index 时，以“移出该组件后的列表”为参照。 */
+/** 把块移到 index 时，以“移出该块后的列表”为参照。 */
 function withoutComponent(p: Page, componentId: string): Page {
-  return { ...p, components: p.components.filter((c) => c.id !== componentId) };
+  return { ...p, blocks: p.blocks.filter((c) => c.id !== componentId) };
 }
 
 function findNavItem(rawName: string, state: State): NavTarget | null {
@@ -213,7 +224,7 @@ function findNavItem(rawName: string, state: State): NavTarget | null {
   if (/^(设置|settings?)$/.test(name)) return 'settings';
   if (/^(改动记录|历史|历史记录|历史版本|change history|history)$/.test(name)) return 'history';
   if (/^(ai|ai\s*修改)$/.test(name)) return 'ai';
-  const p = state.config.pages.find((x) => x.title.toLowerCase() === name);
+  const p = state.config.containers.pages.find((x) => x.title.toLowerCase() === name);
   if (p) return pageTarget(p.id);
   return null;
 }
@@ -225,11 +236,11 @@ function resolveNavItem(rawName: string, state: State): NavTarget {
   if (/^(设置|settings?)$/.test(name)) return 'settings';
   if (/^(改动记录|历史|历史记录|change history|history)$/.test(name)) return 'history';
   if (/^(ai|ai\s*修改)$/.test(name)) return 'ai';
-  const p = state.config.pages.find((x) => x.title.toLowerCase() === name);
+  const p = state.config.containers.pages.find((x) => x.title.toLowerCase() === name);
   if (p) return pageTarget(p.id);
   const tool = findTool(name, state.ctx);
-  const installed = tool && state.config.tools.find((t) => t.toolId === tool.id);
-  if (installed) return pageTarget(installed.pageId);
+  const installed = tool && state.config.packages.find((t) => t.id === tool.id);
+  if (installed) return pageTarget(installed.page);
   throw new Rejection(
     'unknown',
     say(
@@ -253,7 +264,7 @@ const navRule: Rule = (clause, state) => {
     .map((s) => s.trim())
     .filter(Boolean)
     .map((s) => resolveNavItem(s, state));
-  return [{ op: 'setNavItems', items }];
+  return [{ op: 'updateContainer', nav: { bar: items } }];
 };
 
 const navStyleRule: Rule = (clause) => {
@@ -412,14 +423,14 @@ const presetRule: Rule = (clause) => {
       THEME_PRESETS[id].aliases.includes(name) ||
       localize(THEME_PRESETS[id].name, 'fr').toLowerCase() === name,
   );
-  return preset ? [{ op: 'applyThemePreset', preset }] : null;
+  return preset ? [{ op: 'setTheme', preset }] : null;
 };
 
 const resetStyleRule: Rule = (clause) =>
   /^(?:恢复|还原)(?:成|到|为)?默认(?:的)?(?:样式|风格|主题|外观)$|^(?:样式|风格|主题)(?:恢复|还原)(?:成|到|为)?默认$|^reset (?:the )?(?:style|theme|look)$/i.test(
     clause,
   )
-    ? [{ op: 'resetTheme' }]
+    ? [{ op: 'setTheme', reset: true }]
     : null;
 
 const PROTECTED_MESSAGE = (locale: Locale) =>
@@ -443,7 +454,7 @@ const removeEntryRule: Rule = (clause, state) => {
   const target = findNavItem(m[1]!, state);
   if (target === null) return null;
   if (target === 'settings') throw new Rejection('protected', PROTECTED_MESSAGE(state.ctx.locale));
-  const { nav, floating } = state.config.shell;
+  const { bar: nav, floating } = state.config.nav;
   const ops: Op[] = [];
   if (nav.includes(target)) {
     const items = nav.filter((t) => t !== target);
@@ -457,10 +468,10 @@ const removeEntryRule: Rule = (clause, state) => {
         ),
       );
     }
-    ops.push({ op: 'setNavItems', items });
+    ops.push({ op: 'updateContainer', nav: { bar: items } });
   }
   if (floating.includes(target)) {
-    ops.push({ op: 'setFloatingItems', items: floating.filter((t) => t !== target) });
+    ops.push({ op: 'updateContainer', nav: { floating: floating.filter((t) => t !== target) } });
   }
   return ops;
 };
@@ -472,7 +483,7 @@ const floatingRule: Rule = (clause, state) => {
   if (!m) return null;
   const target = findNavItem(m[1]!, state);
   if (target === null) return null;
-  const { floating } = state.config.shell;
+  const { floating } = state.config.nav;
   if (floating.includes(target)) return [];
   if (floating.length >= 3) {
     throw new Rejection(
@@ -484,13 +495,13 @@ const floatingRule: Rule = (clause, state) => {
       ),
     );
   }
-  return [{ op: 'setFloatingItems', items: [...floating, target] }];
+  return [{ op: 'updateContainer', nav: { floating: [...floating, target] } }];
 };
 
 function newPageId(state: State): string {
   for (let n = 1; ; n++) {
     const id = `page-${n}`;
-    if (!state.config.pages.some((p) => p.id === id)) return id;
+    if (!state.config.containers.pages.some((p) => p.id === id)) return id;
   }
 }
 
@@ -503,7 +514,7 @@ const addPageRule: Rule = (clause, state) => {
   if (!m) return null;
   const title = m[1]!.trim();
   if (title.length === 0 || title.length > 40) return null;
-  if (state.config.pages.some((p) => p.title === title)) {
+  if (state.config.containers.pages.some((p) => p.title === title)) {
     throw new Rejection(
       'noChange',
       say(
@@ -517,12 +528,12 @@ const addPageRule: Rule = (clause, state) => {
   IdSchema.parse(id);
   const ops: Op[] = [
     {
-      op: 'addPage',
+      op: 'addContainer',
       page: {
         id,
         title,
         icon: 'star',
-        components: [{ id: 'header', type: 'header', props: { title } }],
+        blocks: [{ id: 'header', look: 'header', show: { title } }],
       },
     },
   ];
@@ -537,7 +548,7 @@ const removePageRule: Rule = (clause, state) => {
     clause.match(/^(?:delete|remove) (?:the )?(.+?) page$/i);
   if (!m) return null;
   const name = m[1]!.replace(/"/g, '').trim().toLowerCase();
-  const target = state.config.pages.find((p) => p.title.toLowerCase() === name);
+  const target = state.config.containers.pages.find((p) => p.title.toLowerCase() === name);
   if (!target) return null;
   if (target.id === HOME_PAGE_ID) {
     throw new Rejection(
@@ -549,7 +560,7 @@ const removePageRule: Rule = (clause, state) => {
       ),
     );
   }
-  if (target.toolId !== undefined) {
+  if (target.package !== undefined) {
     throw new Rejection(
       'unknown',
       say(
@@ -559,7 +570,7 @@ const removePageRule: Rule = (clause, state) => {
       ),
     );
   }
-  return [{ op: 'removePage', pageId: target.id }];
+  return [{ op: 'removeContainer', page: target.id }];
 };
 
 const TEMPLATE_WORDS: [RegExp, DataTemplate][] = [
@@ -609,7 +620,7 @@ const addFieldRule: Rule = (clause, state) => {
     ) ?? clause.match(/^add (?:a )?"?(.+?)"? field to (?:the )?"?(.+?)"?$/i);
   if (!m) return null;
   const [table, name] = /^add/i.test(clause) ? [m[2]!, m[1]!] : [m[1]!, m[2]!];
-  const collection = state.config.collections.find(
+  const collection = state.config.data.tables.find(
     (c) => c.name.toLowerCase() === table.trim().toLowerCase(),
   );
   if (!collection) {
@@ -624,8 +635,8 @@ const addFieldRule: Rule = (clause, state) => {
   }
   return [
     {
-      op: 'addField',
-      collectionId: collection.id,
+      op: 'addData',
+      table: collection.id,
       field: { id: newFieldId(collection.fields), name: name.trim(), type: 'text' },
     },
   ];
@@ -644,7 +655,7 @@ const attachRule: Rule = (clause, state) => {
       /^(?:add|attach|save|keep) (?:photos|pictures|images|attachments|files|receipts|invoices) (?:to|in|with) (?:the |my )?"?(.+?)"?$/i,
     );
   if (!m) return null;
-  const collection = state.config.collections.find(
+  const collection = state.config.data.tables.find(
     (c) => c.name.toLowerCase() === m[1]!.trim().toLowerCase(),
   );
   if (!collection) return null;
@@ -662,8 +673,8 @@ const attachRule: Rule = (clause, state) => {
   for (let i = 2; collection.fields.some((f) => f.id === id); i++) id = `attachments-${i}`;
   return [
     {
-      op: 'addField',
-      collectionId: collection.id,
+      op: 'addData',
+      table: collection.id,
       field: { id, name: say(state.ctx.locale, '附件', 'Attachments'), type: 'file' },
     },
   ];
@@ -677,15 +688,11 @@ function findPage(rawName: string, state: State): Page | undefined {
     .toLowerCase();
   if (/^(?:首页|主页|home)(?: ?page)?$/.test(name)) return page(state, HOME_PAGE_ID);
   const title = name.replace(/\s*(?:页面|页|page)$/i, '').trim();
-  return state.config.pages.find((p) => [name, title].includes(p.title.toLowerCase()));
+  return state.config.containers.pages.find((p) => [name, title].includes(p.title.toLowerCase()));
 }
 
 function newComponentId(prefix: string, p: Page): string {
-  const ids = new Set(
-    p.components.flatMap((c) =>
-      c.type === 'group' ? [c.id, ...c.children.map((x) => x.id)] : [c.id],
-    ),
-  );
+  const ids = new Set(allComponents(p).map((c) => c.id));
   for (let n = 1; ; n++) if (!ids.has(`${prefix}-${n}`)) return `${prefix}-${n}`;
 }
 
@@ -705,13 +712,13 @@ const imageRule: Rule = (clause, state) => {
   const wide = zh ? /横幅|头图|封面/.test(zh[3]!) : /banner/i.test(clause);
   return [
     {
-      op: 'addComponent',
-      pageId: target.id,
-      index: top ? topIndex(target) : target.components.length,
-      component: {
+      op: 'addContainer',
+      page: target.id,
+      index: top ? topIndex(target) : target.blocks.length,
+      block: {
         id: newComponentId('image', target),
-        type: 'image',
-        props: {
+        look: 'image',
+        show: {
           aspect: wide || top ? 'wide' : 'landscape',
           fit: 'cover',
           placeholder: say(state.ctx.locale, '点按选择一张照片', 'Tap to choose a photo'),
@@ -740,7 +747,7 @@ const pageIconRule: Rule = (clause, state) => {
       ),
     );
   }
-  return [{ op: 'setPageIcon', pageId: target.id, icon }];
+  return [{ op: 'updateContainer', page: target.id, changes: { icon } }];
 };
 
 const STEP_KEYWORDS: [RegExp, string[]][] = [
@@ -755,10 +762,10 @@ function toolForWorkflowClause(clause: string, state: State): ToolDefinition {
     requireInstalled(tool, state);
     return tool;
   }
-  const withWorkflows = state.config.tools.filter((t) =>
-    state.config.workflows.some((w) => w.toolId === t.toolId),
+  const withWorkflows = state.config.packages.filter((t) =>
+    quickActionsOf(state.config).some((w) => w.package === t.id),
   );
-  if (withWorkflows.length === 1) return state.ctx.registry.tools.get(withWorkflows[0]!.toolId)!;
+  if (withWorkflows.length === 1) return state.ctx.registry.tools.get(withWorkflows[0]!.id)!;
   throw new Rejection(
     'unknown',
     say(
@@ -777,8 +784,8 @@ const simplifyRule: Rule = (clause, state) => {
   const ops: Op[] = [];
   // 只改含有这些步骤的工作流（例如「上传和合并」只改合并流程，不动拆分、加页码等单功能工作流）。
   const core = [...keep].filter((id) => !id.startsWith('in.') && id !== 'file.rename');
-  const targets = state.config.workflows.filter(
-    (w) => w.toolId === tool.id && core.every((id) => w.steps.some((s) => s.action === id)),
+  const targets = quickActionsOf(state.config).filter(
+    (w) => w.package === tool.id && core.every((id) => w.steps.some((s) => s.action === id)),
   );
   for (const wf of targets) {
     for (const step of wf.steps) {
@@ -786,10 +793,10 @@ const simplifyRule: Rule = (clause, state) => {
       // 命名和保存是自动完成的，不算用户可见的步骤：命名保留，只是不再询问。
       if (step.action === 'file.rename') {
         if (step.ask?.length) {
-          ops.push({ op: 'setStepParams', workflowId: wf.id, stepId: step.id, ask: [] });
+          ops.push({ op: 'updateTool', tool: wf.id, step: step.id, changes: { ask: [] } });
         }
       } else {
-        ops.push({ op: 'removeWorkflowStep', workflowId: wf.id, stepId: step.id });
+        ops.push({ op: 'removeTool', tool: wf.id, step: step.id });
       }
     }
   }
@@ -821,15 +828,14 @@ const namingRule: Rule = (clause, state) => {
   const tool = toolForWorkflowClause(clause, state);
   const ops: Op[] = [];
   const automatic = /自动|不用问|不要问|automatic|without asking/i.test(clause);
-  for (const wf of state.config.workflows.filter((w) => w.toolId === tool.id)) {
+  for (const wf of quickActionsOf(state.config).filter((w) => w.package === tool.id)) {
     for (const step of wf.steps) {
       if (step.action !== 'file.rename') continue;
       ops.push({
-        op: 'setStepParams',
-        workflowId: wf.id,
-        stepId: step.id,
-        params: { template },
-        ...(automatic && step.ask?.length ? { ask: [] } : {}),
+        op: 'updateTool',
+        tool: wf.id,
+        step: step.id,
+        changes: { params: { template }, ...(automatic && step.ask?.length ? { ask: [] } : {}) },
       });
     }
   }
@@ -873,8 +879,9 @@ const moveTopRule: Rule = (clause, state) => {
   if (!m) return null;
   const home = page(state, HOME_PAGE_ID);
   const c = resolveComponent(m[1]!, home, state);
-  const toIndex = c.type === 'header' ? 0 : topIndex(withoutComponent(home, c.id));
-  return [{ op: 'moveComponent', pageId: home.id, componentId: c.id, toIndex }];
+  const toIndex =
+    isKnownComponent(c) && c.look === 'header' ? 0 : topIndex(withoutComponent(home, c.id));
+  return [{ op: 'moveContainer', page: home.id, block: c.id, toIndex }];
 };
 
 const moveRelativeRule: Rule = (clause, state) => {
@@ -889,14 +896,14 @@ const moveRelativeRule: Rule = (clause, state) => {
   const home = page(state, HOME_PAGE_ID);
   const moving = resolveComponent(subject, home, state);
   const rest = withoutComponent(home, moving.id);
-  const anchorIndex = rest.components.findIndex(
+  const anchorIndex = rest.blocks.findIndex(
     (c) => c.id === resolveComponent(anchor, home, state).id,
   );
   return [
     {
-      op: 'moveComponent',
-      pageId: home.id,
-      componentId: moving.id,
+      op: 'moveContainer',
+      page: home.id,
+      block: moving.id,
       toIndex: before ? anchorIndex : anchorIndex + 1,
     },
   ];
@@ -909,7 +916,7 @@ const visibilityRule: Rule = (clause, state) => {
   const home = page(state, HOME_PAGE_ID);
   const c = resolveComponent(m[2]!, home, state);
   const hidden = /^(隐藏|不显示|hide)$/i.test(m[1]!);
-  return [{ op: 'setComponentHidden', pageId: home.id, componentId: c.id, hidden }];
+  return [{ op: 'updateContainer', page: home.id, block: c.id, changes: { hidden } }];
 };
 
 const titleRule: Rule = (clause, state) => {
@@ -919,14 +926,14 @@ const titleRule: Rule = (clause, state) => {
   if (!m) return null;
   const title = m[1]!.replace(/"/g, '').trim();
   const home = page(state, HOME_PAGE_ID);
-  const ops: Op[] = [{ op: 'setPageTitle', pageId: home.id, title }];
-  const header = home.components.find((c) => c.type === 'header');
+  const ops: Op[] = [{ op: 'updateContainer', page: home.id, changes: { title } }];
+  const header = home.blocks.find((c) => isKnownComponent(c) && c.look === 'header');
   if (header)
     ops.push({
-      op: 'setComponentProps',
-      pageId: home.id,
-      componentId: header.id,
-      props: { title },
+      op: 'updateContainer',
+      page: home.id,
+      block: header.id,
+      changes: { show: { title } },
     });
   return ops;
 };
@@ -940,12 +947,12 @@ function workflowNamed(rawName: string, state: State): Workflow | undefined {
   // 从一个快捷操作打开 AI 时（D-124），「这个」「它」就是那个快捷操作。
   const about = state.ctx.about;
   if (about?.kind === 'workflow' && THIS.test(rawName.replace(/"/g, '').trim())) {
-    return state.config.workflows.find((w) => w.id === about.workflowId);
+    return quickActionsOf(state.config).find((w) => w.id === about.workflowId);
   }
   const byName = findWorkflowByName(rawName, state.config);
   if (byName) return byName;
   const preset = findPreset(rawName);
-  return preset ? state.config.workflows.find((w) => w.presetId === preset.id) : undefined;
+  return preset ? quickActionsOf(state.config).find((w) => w.preset === preset.id) : undefined;
 }
 
 function requireWorkflow(rawName: string, state: State): Workflow {
@@ -980,7 +987,7 @@ function stepPhrases(text: string, state: State, before: PhraseKind | null = nul
  */
 function withTable(step: StepPhrase, state: State): StepPhrase {
   const name = step.table!.toLowerCase();
-  const all = state.config.collections;
+  const all = state.config.data.tables;
   const collection = name
     ? (all.find((c) => c.name.toLowerCase() === name) ??
       all.find((c) => c.name.toLowerCase().includes(name) || name.includes(c.name.toLowerCase())))
@@ -1013,13 +1020,13 @@ function recordFieldOps(steps: readonly WorkflowStep[], state: State): Op[] {
   for (const step of steps) {
     const action = state.ctx.registry.actions.get(step.action);
     if (step.action === 'out.addRecord' && value !== 'text' && value !== null) {
-      const collection = state.config.collections.find((c) => c.id === step.params.collectionId);
+      const collection = state.config.data.tables.find((c) => c.id === step.params.collectionId);
       if (collection && !collection.fields.some((f) => f.type === 'file')) {
         let id = 'attachment';
         for (let i = 2; collection.fields.some((f) => f.id === id); i++) id = `attachment-${i}`;
         ops.push({
-          op: 'addField',
-          collectionId: collection.id,
+          op: 'addData',
+          table: collection.id,
           field: { id, name: say(state.ctx.locale, '附件', 'Attachment'), type: 'file' },
         });
       }
@@ -1061,9 +1068,9 @@ const addPresetRule: Rule = (clause, state) => {
   const preset = findPreset(m[1]!);
   if (!preset) return null;
   // 已经添加过就不再重复（整句没有修改时会提示「已经是这样了」）。
-  if (state.config.workflows.some((w) => w.presetId === preset.id)) return [];
-  const id = newWorkflowId(preset.id, state.config.workflows);
-  return [{ op: 'addWorkflow', workflow: presetWorkflow(preset, state.ctx.locale, id) }];
+  if (quickActionsOf(state.config).some((w) => w.preset === preset.id)) return [];
+  const id = newWorkflowId(preset.id, state.config.tools);
+  return [{ op: 'addTool', tool: presetWorkflow(preset, state.ctx.locale, id) }];
 };
 
 const newWorkflowRule: Rule = (clause, state) => {
@@ -1077,19 +1084,20 @@ const newWorkflowRule: Rule = (clause, state) => {
   if (!m) return null;
   const steps = stepsFrom(stepPhrases(m[2]!, state));
   let name = m[1]?.trim() || say(state.ctx.locale, '我的快捷操作', 'My quick action');
-  for (let i = 2; state.config.workflows.some((w) => w.name === name); i++) {
+  for (let i = 2; quickActionsOf(state.config).some((w) => w.name === name); i++) {
     name = `${m[1]?.trim() || say(state.ctx.locale, '我的快捷操作', 'My quick action')} ${i}`;
   }
   const wf: Workflow = {
-    id: newWorkflowId(m[1] ?? 'my-workflow', state.config.workflows),
+    id: newWorkflowId(m[1] ?? 'my-workflow', state.config.tools),
+    kind: 'quickAction',
     name,
     steps,
   };
   if (!/^[a-z]/.test(wf.id) || wf.id === 'workflow') {
-    wf.id = newWorkflowId('my-workflow', state.config.workflows);
+    wf.id = newWorkflowId('my-workflow', state.config.tools);
   }
   requireWorkable(wf, state);
-  return [...recordFieldOps(steps, state), { op: 'addWorkflow', workflow: wf }];
+  return [...recordFieldOps(steps, state), { op: 'addTool', tool: wf }];
 };
 
 const renameWorkflowRule: Rule = (clause, state) => {
@@ -1102,7 +1110,7 @@ const renameWorkflowRule: Rule = (clause, state) => {
   if (!m) return null;
   const wf = workflowNamed(m[1]!, state);
   if (!wf) return null;
-  return [{ op: 'renameWorkflow', workflowId: wf.id, name: m[2]!.replace(/"/g, '').trim() }];
+  return [{ op: 'updateTool', tool: wf.id, changes: { name: m[2]!.replace(/"/g, '').trim() } }];
 };
 
 const removeWorkflowRule: Rule = (clause, state) => {
@@ -1116,7 +1124,7 @@ const removeWorkflowRule: Rule = (clause, state) => {
     clause.match(/^(?:delete|remove) (?:the )?"?(.+?)"? (?:workflow|quick action)$/i);
   if (!m) return null;
   const wf = requireWorkflow(m[1]!, state);
-  if (wf.toolId) {
+  if (wf.package) {
     throw new Rejection(
       'unknown',
       say(
@@ -1126,7 +1134,7 @@ const removeWorkflowRule: Rule = (clause, state) => {
       ),
     );
   }
-  return [{ op: 'removeWorkflow', workflowId: wf.id }];
+  return [{ op: 'removeTool', tool: wf.id }];
 };
 
 const workflowToHomeRule: Rule = (clause, state) => {
@@ -1146,23 +1154,29 @@ const workflowToHomeRule: Rule = (clause, state) => {
     // 还没添加的预设：先添加再放到首页。
     const preset = findPreset(m[1]!);
     if (!preset) return null;
-    wf = presetWorkflow(preset, state.ctx.locale, newWorkflowId(preset.id, state.config.workflows));
-    ops.push({ op: 'addWorkflow', workflow: wf });
+    wf = presetWorkflow(preset, state.ctx.locale, newWorkflowId(preset.id, state.config.tools));
+    ops.push({ op: 'addTool', tool: wf });
   }
   const home = page(state, HOME_PAGE_ID);
+  const id = wf.id;
   if (
-    allComponents(home).some((c) => c.type === 'workflowRunner' && c.props.workflowId === wf.id)
+    allComponents(home).some(
+      (c) =>
+        isKnownComponent(c) &&
+        c.look === 'action' &&
+        c.tools.some((u) => 'tool' in u && u.tool === id),
+    )
   ) {
     return ops;
   }
   ops.push({
-    op: 'addComponent',
-    pageId: HOME_PAGE_ID,
+    op: 'addContainer',
+    page: HOME_PAGE_ID,
     index: topIndex(home),
-    component: {
+    block: {
       id: newComponentId(`run-${wf.id}`.slice(0, 40), home),
-      type: 'workflowRunner',
-      props: { workflowId: wf.id },
+      look: 'action',
+      tools: [{ tool: wf.id }],
     },
   });
   return ops;
@@ -1200,9 +1214,15 @@ const workflowToHomeScreenRule: Rule = (clause, state) => {
     );
   const m = add ?? remove;
   if (!m) return null;
+  const onScreen = state.config.nav.phoneHomeScreen ?? [];
   if (remove) {
     const wf = requireWorkflow(m[1]!, state);
-    return [{ op: 'setWorkflowHomeScreen', workflowId: wf.id, homeScreen: false }];
+    return [
+      {
+        op: 'updateContainer',
+        nav: { phoneHomeScreen: onScreen.filter((id) => id !== wf.id) },
+      },
+    ];
   }
   const ops: Op[] = [];
   let wf = workflowNamed(m[1]!, state);
@@ -1210,12 +1230,14 @@ const workflowToHomeScreenRule: Rule = (clause, state) => {
     // 还没添加的预设：先添加再放到桌面。
     const preset = findPreset(m[1]!);
     if (!preset) return null;
-    wf = presetWorkflow(preset, state.ctx.locale, newWorkflowId(preset.id, state.config.workflows));
-    ops.push({ op: 'addWorkflow', workflow: wf });
+    wf = presetWorkflow(preset, state.ctx.locale, newWorkflowId(preset.id, state.config.tools));
+    ops.push({ op: 'addTool', tool: wf });
   }
-  if (wf.homeScreen) return ops;
+  if (onScreen.includes(wf.id)) return ops;
   if (homeScreenFull(state.config)) {
-    const names = state.config.workflows.filter((w) => w.homeScreen).map((w) => w.name);
+    const names = onScreen.map(
+      (id) => findWorkflowTarget(quickActionsOf(state.config), id, state.ctx.locale)?.name ?? id,
+    );
     throw new Rejection(
       'unknown',
       say(
@@ -1225,7 +1247,11 @@ const workflowToHomeScreenRule: Rule = (clause, state) => {
       ),
     );
   }
-  ops.push({ op: 'setWorkflowHomeScreen', workflowId: wf.id, homeScreen: true });
+  // 按快捷操作在 tools[] 里的顺序排（同 v33 的 homeScreen；刚加的排在最后）。
+  const order = quickActionsOf(state.config).map((w) => w.id);
+  const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length);
+  const next = [...onScreen, wf.id].sort((a, b) => rank(a) - rank(b));
+  ops.push({ op: 'updateContainer', nav: { phoneHomeScreen: next } });
   return ops;
 };
 
@@ -1254,7 +1280,7 @@ const addStepRule: Rule = (clause, state) => {
     } else index = steps.length;
     const step = { id: stepIdFor(p.action, steps), action: p.action, params: p.params };
     steps.splice(index, 0, step);
-    ops.push({ op: 'addWorkflowStep', workflowId: wf.id, step, index });
+    ops.push({ op: 'addTool', tool: wf.id, step, index });
     index++;
   }
   requireWorkable({ ...wf, steps }, state);
@@ -1282,18 +1308,18 @@ const setSizeRule: Rule = (clause, state) => {
   for (const step of wf.steps) {
     if (step.action === 'image.compress' || step.action === 'image.idPhoto') {
       const maxKB = Math.round(isMB ? value * 1024 : value);
-      ops.push({ op: 'setStepParams', workflowId: wf.id, stepId: step.id, params: { maxKB } });
+      ops.push({ op: 'updateTool', tool: wf.id, step: step.id, changes: { params: { maxKB } } });
     } else if (step.action === 'pdf.fromImages' || step.action === 'pdf.compress') {
       const mb = isMB ? value : Math.round((value / 1024) * 100) / 100;
       const maxMB = step.action === 'pdf.compress' ? Math.max(0.1, mb) : mb;
-      ops.push({ op: 'setStepParams', workflowId: wf.id, stepId: step.id, params: { maxMB } });
+      ops.push({ op: 'updateTool', tool: wf.id, step: step.id, changes: { params: { maxMB } } });
     } else if (step.action === 'video.compress') {
       const maxMB = Math.max(1, Math.round(isMB ? value : value / 1024));
       ops.push({
-        op: 'setStepParams',
-        workflowId: wf.id,
-        stepId: step.id,
-        params: { by: 'size', maxMB },
+        op: 'updateTool',
+        tool: wf.id,
+        step: step.id,
+        changes: { params: { by: 'size', maxMB } },
       });
     }
   }
@@ -1347,7 +1373,7 @@ const removeStepRule: Rule = (clause, state) => {
   const steps = wf.steps.filter((s) => s.id !== step.id);
   if (steps.length === 0) return null;
   requireWorkable({ ...wf, steps }, state);
-  return [{ op: 'removeWorkflowStep', workflowId: wf.id, stepId: step.id }];
+  return [{ op: 'removeTool', tool: wf.id, step: step.id }];
 };
 
 const PERIOD_WORDS: [RegExp, string][] = [
@@ -1370,7 +1396,7 @@ const reportRule: Rule = (clause, state) => {
     ) ?? clause.match(/^(?:make|turn) (.+?) (?:into |as )?(?:a )?pdf(?: report| list)?$/i);
   if (!m) return null;
   const words = m[1]!.replace(/"/g, '');
-  const collection = state.config.collections.find(
+  const collection = state.config.data.tables.find(
     (c) => words.includes(c.name) || words.toLowerCase().includes(c.name.toLowerCase()),
   );
   if (!collection) return null;
@@ -1378,7 +1404,8 @@ const reportRule: Rule = (clause, state) => {
   const hasMoney = collection.fields.some((f) => f.type === 'money');
   const name = say(state.ctx.locale, `${collection.name}报表`, `${collection.name} report`);
   const wf: Workflow = {
-    id: newWorkflowId(`${collection.id}-report`, state.config.workflows),
+    id: newWorkflowId(`${collection.id}-report`, state.config.tools),
+    kind: 'quickAction',
     name,
     steps: [
       { id: 'read', action: 'in.records', params: { collectionId: collection.id, period } },
@@ -1395,7 +1422,7 @@ const reportRule: Rule = (clause, state) => {
     ],
   };
   requireWorkable(wf, state);
-  return [{ op: 'addWorkflow', workflow: wf }];
+  return [{ op: 'addTool', tool: wf }];
 };
 
 // ---- 翻译文件（D-171、D-174）：「把这份合同翻译成英文」是文件上的事，做一个翻译快捷操作 ----
@@ -1460,16 +1487,17 @@ const translateDocRule: Rule = (clause, state) => {
     `Translate ${doc} into ${language}`,
   );
   let name = base.slice(0, 36);
-  for (let i = 2; state.config.workflows.some((w) => w.name === name); i++) {
+  for (let i = 2; quickActionsOf(state.config).some((w) => w.name === name); i++) {
     name = `${base.slice(0, 36)} ${i}`;
   }
   const wf: Workflow = {
-    id: newWorkflowId(`translate-to-${to}`, state.config.workflows),
+    id: newWorkflowId(`translate-to-${to}`, state.config.tools),
+    kind: 'quickAction',
     name,
     steps,
   };
   requireWorkable(wf, state);
-  return [{ op: 'addWorkflow', workflow: wf }];
+  return [{ op: 'addTool', tool: wf }];
 };
 
 /** 新手引导第 1 步的句子（D-231）：两个文件入口一起加，并排放。 */
@@ -1488,9 +1516,14 @@ const filePickRule: Rule = (clause, state) => {
   const files = /^(?:首页加上打开文件|Add a file picker to home)$/i.test(clause);
   if (!media && !files) return null;
   const source = media ? 'media' : 'files';
+  const pick = media ? '$pick.media' : '$pick.files';
   if (
     allComponents(page(state, HOME_PAGE_ID)).some(
-      (c) => c.type === 'filePick' && c.props.source === source && !c.hidden,
+      (c) =>
+        isKnownComponent(c) &&
+        c.look === 'picker' &&
+        c.tools.some((u) => 'tool' in u && u.tool === pick) &&
+        !c.hidden,
     )
   )
     return [];
@@ -1499,9 +1532,9 @@ const filePickRule: Rule = (clause, state) => {
   for (let n = 2; ids.has(id); n++) id = `pick-${source}-${n}`;
   return [
     {
-      op: 'addComponent',
-      pageId: HOME_PAGE_ID,
-      component: { id, type: 'filePick', props: { source } },
+      op: 'addContainer',
+      page: HOME_PAGE_ID,
+      block: { id, look: 'picker', tools: [{ tool: pick }] },
     },
   ];
 };

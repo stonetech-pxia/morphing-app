@@ -1059,7 +1059,8 @@ function single(
   const id = `image-${action.split('.')[1]!.toLowerCase()}`;
   return {
     id,
-    toolId: IMAGE_TOOL_ID,
+    kind: 'quickAction',
+    package: IMAGE_TOOL_ID,
     name: pairText(locale, name),
     steps: [
       { id: 'pick', action: 'in.photos', params: { source: 'library', ...pick } },
@@ -1098,7 +1099,8 @@ export function imageWorkflows(locale: Locale): Workflow[] {
     // D-184：iPhone 照片（HEIC）转 JPG。功能和「转格式」一样，单独一个名字好找；每次问从相册还是「文件」选。
     {
       id: 'image-heic',
-      toolId: IMAGE_TOOL_ID,
+      kind: 'quickAction',
+      package: IMAGE_TOOL_ID,
       name: t(locale, 'image_HEIC_to_JPG_64d8f'),
       steps: [
         {
@@ -1175,7 +1177,8 @@ export function imageWorkflows(locale: Locale): Workflow[] {
     ),
     {
       id: 'image-printsheet',
-      toolId: IMAGE_TOOL_ID,
+      kind: 'quickAction',
+      package: IMAGE_TOOL_ID,
       name: t(locale, 'image_ID_photos_to_print_5dd87'),
       steps: [
         { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 1 } },
@@ -1225,24 +1228,24 @@ export const imageTool: ToolDefinition = {
     id: IMAGE_PAGE_ID,
     title: t(locale, 'image_Images_edfbd'),
     icon: 'photo',
-    toolId: IMAGE_TOOL_ID,
-    components: [
+    package: IMAGE_TOOL_ID,
+    blocks: [
       {
         id: 'image-header',
-        type: 'header',
-        props: { title: t(locale, 'image_Image_tools_2d55f') },
+        look: 'header',
+        show: { title: t(locale, 'image_Image_tools_2d55f') },
       },
       {
         id: 'image-intro',
-        type: 'text',
-        props: {
+        look: 'text',
+        show: {
           text: t(locale, 'image_Everything_runs_on_this_device_Results_3f5b4'),
         },
       },
       ...imageWorkflows(locale).map((wf) => ({
         id: `${wf.id}-runner`,
-        type: 'workflowRunner' as const,
-        props: { workflowId: wf.id },
+        look: 'action' as const,
+        tools: [{ tool: wf.id }],
       })),
     ],
   }),

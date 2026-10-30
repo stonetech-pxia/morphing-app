@@ -39,8 +39,8 @@ export type Plan =
       kind: 'ops';
       ops: Op[];
       /**
-       * 新建的工作流要不要在首页放入口（D-109）：false = 用户说了不要放；省略 = 由用户在预览里勾选，
-       * 默认勾上。用户要放到首页时，AI 直接加 workflowRunner，不用这个字段。
+       * 新建的快捷操作要不要在首页放入口（D-109）：false = 用户说了不要放；省略 = 由用户在预览里勾选，
+       * 默认勾上。用户要放到首页时，AI 直接加 look "action" 的块，不用这个字段。
        */
       homeEntry?: boolean;
       /**

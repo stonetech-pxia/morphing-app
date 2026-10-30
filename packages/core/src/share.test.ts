@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Workflow } from './schema';
+import { quickActionsOf, type Workflow } from './schema';
 import { acceptsSharedFile, shareFit, sharedSizeProblem, type SharedFileInfo } from './share';
 import { workspace } from './test-helpers';
 import { WORKFLOW_PRESETS, presetWorkflow } from './workflows/presets';
@@ -34,9 +34,11 @@ const preset = (id: string) =>
     'zh',
     id,
   );
-const merge = () => workspace('zh', { withPdf: true }).workflows.find((w) => w.toolId === 'pdf')!;
+const merge = () =>
+  quickActionsOf(workspace('zh', { withPdf: true })).find((w) => w.package === 'pdf')!;
 const withFirst = (action: string, params: Record<string, unknown>): Workflow => ({
   id: 'w',
+  kind: 'quickAction',
   name: 'w',
   steps: [{ id: 's', action, params }],
 });

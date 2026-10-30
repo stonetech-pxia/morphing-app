@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { applyOps } from './ops';
 import { createRegistry, registerTool, registryRevision } from './registry';
 import { createDefaultWorkspace } from './defaults';
+import { quickActionsOf } from './schema';
 import {
   HOST_API,
   ToolDownloadError,
@@ -46,7 +47,7 @@ describe('tool manifests (D-177)', () => {
     registerTool(registry, tool);
     const result = applyOps(
       createDefaultWorkspace('fr'),
-      [{ op: 'installTool', toolId: tool.id }],
+      [{ op: 'setPackage', package: tool.id, do: 'add' }],
       { registry, locale: 'fr' },
     );
     expect(result.ok).toBe(true);
@@ -63,16 +64,62 @@ describe('tool manifests (D-177)', () => {
     expect(tool.origin).toBe('download');
     expect(tool.actions).toEqual([]);
     expect(tool.createPage('zh').title).toBe('求职材料');
-    expect(tool.createPage('en').components.map((c) => c.type)).toEqual([
-      'header',
-      'text',
-      'workflowRunner',
-      'workflowRunner',
+    const page = tool.createPage('en');
+    expect(page.package).toBe('job-apply');
+    expect(page.blocks.map((c) => c.look)).toEqual(['header', 'text', 'action', 'action']);
+    expect(page.blocks[2]).toEqual({
+      id: 'job-apply-docs-runner',
+      look: 'action',
+      tools: [{ tool: 'job-apply-docs' }],
+    });
+    expect(tool.createWorkflows('zh').map((w) => [w.kind, w.name, w.package])).toEqual([
+      ['quickAction', '简历和证书合成一个 PDF', 'job-apply'],
+      ['quickAction', '头像压到 200 KB', 'job-apply'],
     ]);
-    expect(tool.createWorkflows('zh').map((w) => [w.name, w.toolId])).toEqual([
-      ['简历和证书合成一个 PDF', 'job-apply'],
-      ['头像压到 200 KB', 'job-apply'],
-    ]);
+  });
+
+  it('turns a v33-shaped manifest (format 1 on the server) into v34 blocks and quick actions', () => {
+    // 服务器上的清单是 v33 写法：fileList 的 mimeType 变成 $files 的 kind 筛选，工作流带 kind 和 package。
+    const manifest: ToolManifest = {
+      ...example(),
+      workflows: [{ ...example().workflows[0]!, icon: 'document' }],
+      fileList: { title: { en: 'Videos', zh: '视频' }, limit: 5, mimeType: 'video/*' },
+    };
+    const tool = toolFromManifest(manifest);
+    const page = tool.createPage('zh');
+    expect(page).toMatchObject({ id: 'tool-job-apply', package: 'job-apply', icon: manifest.icon });
+    expect(page).not.toHaveProperty('toolId');
+    expect(page).not.toHaveProperty('components');
+    expect(page.blocks[0]).toEqual({
+      id: 'job-apply-header',
+      look: 'header',
+      show: { title: '求职材料' },
+    });
+    expect(page.blocks.at(-1)).toEqual({
+      id: 'job-apply-files',
+      look: 'files',
+      show: { title: '视频' },
+      source: { table: '$files', filter: [{ field: 'kind', op: 'is', value: 'video' }], limit: 5 },
+    });
+    const [wf] = tool.createWorkflows('en');
+    expect(wf).toEqual({
+      id: manifest.workflows[0]!.id,
+      kind: 'quickAction',
+      name: manifest.workflows[0]!.name.en,
+      icon: 'document',
+      package: 'job-apply',
+      steps: manifest.workflows[0]!.steps,
+    });
+    expect(wf).not.toHaveProperty('toolId');
+    // 不写 mimeType：列出不是图片的文件（同 v33 的 FileList）。
+    const any = toolFromManifest({
+      ...manifest,
+      fileList: { ...manifest.fileList!, mimeType: undefined },
+    });
+    expect(any.createPage('en').blocks.at(-1)).toMatchObject({
+      source: { filter: [{ field: 'kind', op: 'isNot', value: 'image' }] },
+    });
+    expect(checkToolManifest(manifest, freshRegistry())).toEqual([]);
   });
 
   it('can be added, updated and removed like a built-in tool', () => {
@@ -83,7 +130,7 @@ describe('tool manifests (D-177)', () => {
 
     const added = applyOps(
       createDefaultWorkspace('zh'),
-      [{ op: 'installTool', toolId: 'job-apply' }],
+      [{ op: 'setPackage', package: 'job-apply', do: 'add' }],
       {
         registry,
         locale: 'zh',
@@ -91,10 +138,10 @@ describe('tool manifests (D-177)', () => {
     );
     if (!added.ok) throw new Error(added.error);
     expect(validateWorkspace(added.config, registry).ok).toBe(true);
-    expect(added.config.tools).toContainEqual({
-      toolId: 'job-apply',
+    expect(added.config.packages).toContainEqual({
+      id: 'job-apply',
       version: '1.0.0',
-      pageId: 'tool-job-apply',
+      page: 'tool-job-apply',
     });
 
     // 新版本多了一个快捷操作：「更新」补上它，保留用户的修改。
@@ -109,20 +156,28 @@ describe('tool manifests (D-177)', () => {
       ],
     });
     registerTool(registry, toolFromManifest(next));
-    const updated = applyOps(added.config, [{ op: 'updateTool', toolId: 'job-apply' }], {
-      registry,
-      locale: 'zh',
-    });
+    const updated = applyOps(
+      added.config,
+      [{ op: 'setPackage', package: 'job-apply', do: 'update' }],
+      {
+        registry,
+        locale: 'zh',
+      },
+    );
     if (!updated.ok) throw new Error(updated.error);
-    expect(updated.config.workflows.map((w) => w.id)).toContain('job-apply-letter');
-    expect(updated.config.tools.find((t) => t.toolId === 'job-apply')?.version).toBe('1.1.0');
+    expect(quickActionsOf(updated.config).map((w) => w.id)).toContain('job-apply-letter');
+    expect(updated.config.packages.find((t) => t.id === 'job-apply')?.version).toBe('1.1.0');
 
-    const removed = applyOps(updated.config, [{ op: 'uninstallTool', toolId: 'job-apply' }], {
-      registry,
-      locale: 'zh',
-    });
+    const removed = applyOps(
+      updated.config,
+      [{ op: 'setPackage', package: 'job-apply', do: 'remove' }],
+      {
+        registry,
+        locale: 'zh',
+      },
+    );
     if (!removed.ok) throw new Error(removed.error);
-    expect(removed.config.workflows.some((w) => w.toolId === 'job-apply')).toBe(false);
+    expect(quickActionsOf(removed.config).some((w) => w.package === 'job-apply')).toBe(false);
     expect(validateWorkspace(removed.config, registry).ok).toBe(true);
   });
 
@@ -131,7 +186,7 @@ describe('tool manifests (D-177)', () => {
     registerTool(registry, toolFromManifest(example()));
     const added = applyOps(
       createDefaultWorkspace('en'),
-      [{ op: 'installTool', toolId: 'job-apply' }],
+      [{ op: 'setPackage', package: 'job-apply', do: 'add' }],
       {
         registry,
         locale: 'en',

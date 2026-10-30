@@ -7,6 +7,7 @@ import {
   planAudioQuality,
   planAudioSize,
 } from './audio';
+import { quickActionsOf } from './schema';
 import { shareFitsInput } from './share';
 import { apply, registry, workspace } from './test-helpers';
 import { AUDIO_ACTIONS, audioTool, audioWorkflows } from './tools/audio';
@@ -141,8 +142,8 @@ describe('audio tool', () => {
     for (const locale of ['zh', 'en'] as const) {
       for (const wf of audioWorkflows(locale)) expect(workflowProblems(wf, registry)).toEqual([]);
     }
-    const config = apply(workspace(), [{ op: 'installTool', toolId: 'audio' }]);
-    expect(config.workflows.filter((w) => w.toolId === 'audio')).toHaveLength(
+    const config = apply(workspace(), [{ op: 'setPackage', package: 'audio', do: 'add' }]);
+    expect(quickActionsOf(config).filter((w) => w.package === 'audio')).toHaveLength(
       audioTool.createWorkflows!('zh').length,
     );
     expect(audioTool.actions).toBe(AUDIO_ACTIONS);
@@ -163,7 +164,7 @@ describe('audio tool', () => {
         params: { by: 'size', maxMB: 2, quality: 'standard' },
       },
     ];
-    expect(workflowProblems({ id: 'x', name: 'x', steps }, registry)).toEqual([
+    expect(workflowProblems({ id: 'x', kind: 'quickAction', name: 'x', steps }, registry)).toEqual([
       expect.objectContaining({ code: 'binding' }),
     ]);
   });

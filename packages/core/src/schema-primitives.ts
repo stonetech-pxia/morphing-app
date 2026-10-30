@@ -82,7 +82,7 @@ export const AGGREGATES = [
   'latest',
   ...SEQUENCE_AGGREGATES,
 ] as const;
-export type Aggregate = (typeof AGGREGATES)[number];
+export type AggregateKind = (typeof AGGREGATES)[number];
 
 /**
  * 按日子算的参数（v33 在 stat 和 rollup 上各写一遍 dateField / unit / perUnit / skipField / skipOption）。

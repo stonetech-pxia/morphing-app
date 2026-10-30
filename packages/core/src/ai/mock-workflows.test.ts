@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
-import type { Locale, WorkspaceConfig } from '../schema';
+import {
+  isKnownComponent,
+  quickActionsOf,
+  type Component,
+  type Locale,
+  type WorkspaceConfig,
+} from '../schema';
 import { apply, registry, workspace } from '../test-helpers';
 import { WORKFLOW_PRESETS, presetWorkflow } from '../workflows/presets';
 import { createMockAIProvider } from './mock';
@@ -25,21 +31,26 @@ async function change(input: string, config: WorkspaceConfig, locale: Locale = '
 
 const withVisa = () =>
   apply(workspace('zh', { withPdf: true }), [
-    { op: 'addWorkflow', workflow: presetWorkflow(WORKFLOW_PRESETS[0]!, 'zh', 'visa-photo') },
+    { op: 'addTool', tool: presetWorkflow(WORKFLOW_PRESETS[0]!, 'zh', 'visa-photo') },
   ]);
+/** 首页上运行这个快捷操作的块（look action）。 */
+const runs = (c: Component, id: string) =>
+  isKnownComponent(c) && c.look === 'action' && c.tools.some((u) => 'tool' in u && u.tool === id);
 const actions = (c: WorkspaceConfig, id: string) =>
-  c.workflows.find((w) => w.id === id)!.steps.map((s) => s.action);
+  quickActionsOf(c)
+    .find((w) => w.id === id)!
+    .steps.map((s) => s.action);
 
 describe('mock AI — workflows', () => {
   it('W1 adds a preset by name or by a word in it, once', async () => {
     const { after, lines } = await change('添加签证照片工作流', workspace('zh'));
-    expect(after.workflows.at(-1)).toMatchObject({ id: 'visa-photo', presetId: 'visa-photo' });
+    expect(quickActionsOf(after).at(-1)).toMatchObject({ id: 'visa-photo', preset: 'visa-photo' });
     expect(lines[0]).toContain('新建快捷操作「签证 / 证件照」（现成的）');
     const en = await change('Add the scan a document preset', workspace('en'), 'en');
-    expect(en.after.workflows.at(-1)!.presetId).toBe('scan-document');
+    expect(quickActionsOf(en.after).at(-1)!.preset).toBe('scan-document');
     // AI 修改页「可以试试」里的英文例句。
     const example = await change('Add the visa photo workflow', workspace('en'), 'en');
-    expect(example.after.workflows.at(-1)!.presetId).toBe('visa-photo');
+    expect(quickActionsOf(example.after).at(-1)!.preset).toBe('visa-photo');
     expect(await plan('添加签证照片工作流', withVisa())).toMatchObject({
       kind: 'reject',
       reason: 'noChange',
@@ -51,7 +62,7 @@ describe('mock AI — workflows', () => {
       '新建一个叫「发给房东」的工作流：选照片，长边 1600，压到 500KB，分享',
       workspace('zh'),
     );
-    const wf = after.workflows.at(-1)!;
+    const wf = quickActionsOf(after).at(-1)!;
     expect(wf.name).toBe('发给房东');
     expect(wf.steps.map((s) => [s.action, s.params])).toEqual([
       ['in.photos', { source: 'library', min: 1, max: 30 }],
@@ -64,7 +75,11 @@ describe('mock AI — workflows', () => {
       workspace('en'),
       'en',
     );
-    expect(en.after.workflows.at(-1)!.steps.map((s) => s.params)).toContainEqual({
+    expect(
+      quickActionsOf(en.after)
+        .at(-1)!
+        .steps.map((s) => s.params),
+    ).toContainEqual({
       template: 'Visa docs {date:YYYY-MM-DD}',
     });
   });
@@ -84,25 +99,19 @@ describe('mock AI — workflows', () => {
 
   it('W3–W5 renames, deletes and puts a workflow on the home page', async () => {
     const renamed = await change('把签证 / 证件照改名为美签照片', withVisa());
-    expect(renamed.after.workflows.find((w) => w.id === 'visa-photo')!.name).toBe('美签照片');
+    expect(quickActionsOf(renamed.after).find((w) => w.id === 'visa-photo')!.name).toBe('美签照片');
 
     const placed = await change('把签证照片放到首页', withVisa());
-    expect(
-      placed.after.pages[0]!.components.some(
-        (c) => c.type === 'workflowRunner' && c.props.workflowId === 'visa-photo',
-      ),
-    ).toBe(true);
+    expect(placed.after.containers.pages[0]!.blocks.some((c) => runs(c, 'visa-photo'))).toBe(true);
     // 还没添加的预设：一句话里先添加再放上去。
     const fresh = await change('把扫描文档放到首页', workspace('zh'));
-    expect(fresh.after.workflows.at(-1)!.presetId).toBe('scan-document');
+    expect(quickActionsOf(fresh.after).at(-1)!.preset).toBe('scan-document');
 
     const removed = await change('删除签证照片工作流', placed.after);
-    expect(removed.after.workflows.some((w) => w.id === 'visa-photo')).toBe(false);
+    expect(quickActionsOf(removed.after).some((w) => w.id === 'visa-photo')).toBe(false);
     // visa-photo 是内设快捷操作的 ID：删掉副本就回到内设的，首页卡片继续指向内设的（D-259）。
     expect(
-      removed.after.pages[0]!.components.filter(
-        (c) => c.type === 'workflowRunner' && c.props.workflowId === 'visa-photo',
-      ),
+      removed.after.containers.pages[0]!.blocks.filter((c) => runs(c, 'visa-photo')),
     ).toHaveLength(1);
     expect(await plan('删除合并 PDF 工作流', withVisa())).toMatchObject({
       kind: 'reject',
@@ -124,13 +133,13 @@ describe('mock AI — workflows', () => {
 
   it('W11 shares everything at once or saves to a folder in Files (iCloud Drive, Google Drive…)', async () => {
     const { after } = await change('新建工作流：选照片，压到 500KB，一次分享', workspace('zh'));
-    expect(actions(after, after.workflows.at(-1)!.id)).toEqual([
+    expect(actions(after, quickActionsOf(after).at(-1)!.id)).toEqual([
       'in.photos',
       'image.compress',
       'out.share',
     ]);
     const icloud = await change('新建工作流：选照片，存到 iCloud 的某个文件夹', workspace('zh'));
-    expect(actions(icloud.after, icloud.after.workflows.at(-1)!.id).at(-1)).toBe(
+    expect(actions(icloud.after, quickActionsOf(icloud.after).at(-1)!.id).at(-1)).toBe(
       'out.saveToFolder',
     );
     const en = await change(
@@ -138,7 +147,7 @@ describe('mock AI — workflows', () => {
       workspace('en'),
       'en',
     );
-    expect(actions(en.after, en.after.workflows.at(-1)!.id).at(-1)).toBe('out.saveToFolder');
+    expect(actions(en.after, quickActionsOf(en.after).at(-1)!.id).at(-1)).toBe('out.saveToFolder');
     const added = await change('在签证照片最后加一步存到 Google Drive', withVisa());
     expect(actions(added.after, 'visa-photo').at(-1)).toBe('out.saveToFolder');
     // 只有分享面板和文件夹选择器，没有「自动发给某个人」。
@@ -150,13 +159,15 @@ describe('mock AI — workflows', () => {
   it('W7 changes the size limit; W8 removes a step', async () => {
     const sized = await change('把签证照片的大小改成 200KB', withVisa());
     expect(
-      sized.after.workflows.find((w) => w.id === 'visa-photo')!.steps[1]!.params,
+      quickActionsOf(sized.after).find((w) => w.id === 'visa-photo')!.steps[1]!.params,
     ).toMatchObject({ maxKB: 200 });
     const packet = apply(workspace('zh'), [
-      { op: 'addWorkflow', workflow: presetWorkflow(WORKFLOW_PRESETS[1]!, 'zh', 'packet') },
+      { op: 'addTool', tool: presetWorkflow(WORKFLOW_PRESETS[1]!, 'zh', 'packet') },
     ]);
     const pdf = await change('把材料包改成 2MB', packet);
-    expect(pdf.after.workflows.find((w) => w.id === 'packet')!.steps[3]!.params).toMatchObject({
+    expect(
+      quickActionsOf(pdf.after).find((w) => w.id === 'packet')!.steps[3]!.params,
+    ).toMatchObject({
       maxMB: 2,
     });
     const noShare = await change('把材料包的分享这一步去掉', packet);
@@ -173,7 +184,7 @@ describe('mock AI — workflows', () => {
 
   it('W12–W14 videos and PDF compression: 「压到 N MB」 follows what the quick action holds', async () => {
     const { after } = await change('新建一个快捷操作：选视频，压到 50MB，分享', workspace('zh'));
-    const wf = after.workflows.at(-1)!;
+    const wf = quickActionsOf(after).at(-1)!;
     expect(wf.steps.map((s) => [s.action, s.params])).toEqual([
       ['in.videos', { min: 1, max: 10 }],
       ['video.compress', { by: 'size', maxMB: 50, quality: '720p' }],
@@ -188,19 +199,21 @@ describe('mock AI — workflows', () => {
       'out.share',
     ]);
     const resized = await change(`把「${wf.name}」的大小改成 30MB`, after);
-    expect(resized.after.workflows.find((w) => w.id === wf.id)!.steps[1]!.params).toMatchObject({
+    expect(
+      quickActionsOf(resized.after).find((w) => w.id === wf.id)!.steps[1]!.params,
+    ).toMatchObject({
       by: 'size',
       maxMB: 30,
     });
 
     const pdf = await change('新建一个快捷操作：选 PDF，压到 500KB', workspace('zh'));
-    expect(pdf.after.workflows.at(-1)!.steps[1]).toMatchObject({
+    expect(quickActionsOf(pdf.after).at(-1)!.steps[1]).toMatchObject({
       action: 'pdf.compress',
       params: { maxMB: 0.5, whenTooBig: 'ask' },
     });
     // 照片照旧压图片。
     const photos = await change('新建一个快捷操作：选照片，压到 1MB', workspace('zh'));
-    expect(photos.after.workflows.at(-1)!.steps[1]).toMatchObject({
+    expect(quickActionsOf(photos.after).at(-1)!.steps[1]).toMatchObject({
       action: 'image.compress',
       params: { maxKB: 1024 },
     });
@@ -209,13 +222,13 @@ describe('mock AI — workflows', () => {
 
 // 手机桌面（HS，D-271）：「放到桌面」是手机桌面，「放到首页」仍是首页。
 describe('mock AI — home screen', () => {
-  const on = (c: WorkspaceConfig) => c.workflows.filter((w) => w.homeScreen).map((w) => w.id);
+  const on = (c: WorkspaceConfig) => c.nav.phoneHomeScreen ?? [];
 
   it('HS1 puts a quick action on the phone home screen, not on the home page', async () => {
     const before = withVisa();
     const { after, lines } = await change('把签证照片放到桌面', before);
     expect(on(after)).toEqual(['visa-photo']);
-    expect(after.pages).toEqual(before.pages);
+    expect(after.containers.pages).toEqual(before.containers.pages);
     expect(lines[0]).toContain('手机桌面');
     const en = await change('Put the visa photo on my home screen', withVisa(), 'en');
     expect(on(en.after)).toEqual(['visa-photo']);
@@ -224,29 +237,24 @@ describe('mock AI — home screen', () => {
   it('HS2 “home page” stays the home page', async () => {
     const { after } = await change('把签证照片放到主页', withVisa());
     expect(on(after)).toEqual([]);
-    expect(
-      after.pages[0]!.components.some(
-        (c) => c.type === 'workflowRunner' && c.props.workflowId === 'visa-photo',
-      ),
-    ).toBe(true);
+    expect(after.containers.pages[0]!.blocks.some((c) => runs(c, 'visa-photo'))).toBe(true);
   });
 
   it('HS4 taking it off the home screen keeps the quick action', async () => {
     const marked = apply(withVisa(), [
-      { op: 'setWorkflowHomeScreen', workflowId: 'visa-photo', homeScreen: true },
+      { op: 'updateContainer', nav: { phoneHomeScreen: ['visa-photo'] } },
     ]);
     const { after } = await change('把签证照片从桌面拿掉', marked);
     expect(on(after)).toEqual([]);
-    expect(after.workflows.some((w) => w.id === 'visa-photo')).toBe(true);
+    expect(quickActionsOf(after).some((w) => w.id === 'visa-photo')).toBe(true);
   });
 
   it('refuses a fifth one and says which four are there', async () => {
     const full = apply(withVisa(), [
-      ...['visa-photo', 'pdf-merge', 'pdf-split', 'pdf-compress'].map((workflowId) => ({
-        op: 'setWorkflowHomeScreen' as const,
-        workflowId,
-        homeScreen: true,
-      })),
+      {
+        op: 'updateContainer',
+        nav: { phoneHomeScreen: ['visa-photo', 'pdf-merge', 'pdf-split', 'pdf-compress'] },
+      },
     ]);
     const p = await plan('把整理页面放到桌面', full);
     expect(p).toMatchObject({ kind: 'reject', reason: 'unknown' });

@@ -90,7 +90,7 @@ export function defaultDeskTools(
       const i = order.indexOf(wf.id);
       return i < 0 ? order.length : i;
     };
-    const own = workflows.filter((wf) => !wf.toolId);
+    const own = workflows.filter((wf) => !wf.package);
     const quick = [...own, ...[...builtIns].sort((a, b) => rank(a) - rank(b))].filter(
       (wf) => shareFit(wf, [sample]).ok,
     );
@@ -172,6 +172,7 @@ export function deskToolWorkflow(
   if (!action || !isDeskAction(action) || files.length === 0) return null;
   const workflow: Workflow = {
     id: 'desk-tool',
+    kind: 'quickAction',
     name: actionId,
     steps: [
       deskInputStep(files),

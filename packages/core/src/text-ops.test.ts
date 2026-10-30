@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createDefaultWorkspace } from './defaults';
 import { applyOps } from './ops';
 import { createRegistry } from './registry';
+import { quickActionsOf } from './schema';
 import { replaceText, splitOrJoinLines, tidyText, extractText } from './text-ops';
 import { BUILTIN_TOOLS } from './tools';
 import { REDACTED_TEXT, redactForAI } from './workflow/redact';
@@ -54,9 +55,10 @@ describe('text.replace words are private', () => {
       createDefaultWorkspace('zh'),
       [
         {
-          op: 'addWorkflow',
-          workflow: {
+          op: 'addTool',
+          tool: {
             id: 'fix',
+            kind: 'quickAction',
             name: '改名字',
             steps: [
               { id: 'in', action: 'in.text', params: { text: '' }, ask: ['text'] },
@@ -72,7 +74,7 @@ describe('text.replace words are private', () => {
       ctx,
     );
     if (!added.ok) throw new Error(added.error);
-    const seen = redactForAI(added.config, registry).workflows.find((w) => w.id === 'fix')!;
+    const seen = quickActionsOf(redactForAI(added.config, registry)).find((w) => w.id === 'fix')!;
     expect(seen.steps[1]!.params).toEqual({
       find: REDACTED_TEXT,
       replaceWith: REDACTED_TEXT,
@@ -80,13 +82,15 @@ describe('text.replace words are private', () => {
     });
     const back = applyOps(
       added.config,
-      [{ op: 'updateWorkflow', workflowId: 'fix', steps: seen.steps }],
+      [{ op: 'updateTool', tool: 'fix', changes: { steps: seen.steps } }],
       ctx,
     );
     if (!back.ok) throw new Error(back.error);
-    expect(back.config.workflows.find((w) => w.id === 'fix')!.steps[1]!.params).toMatchObject({
-      find: '王小明',
-      replaceWith: '张三',
-    });
+    expect(quickActionsOf(back.config).find((w) => w.id === 'fix')!.steps[1]!.params).toMatchObject(
+      {
+        find: '王小明',
+        replaceWith: '张三',
+      },
+    );
   });
 });

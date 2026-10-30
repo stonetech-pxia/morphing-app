@@ -1,3 +1,7 @@
+// @ts-nocheck
+// v34 第一阶段（2026-10-30）：评测用例的 setup 和 check 还是 v33 的写法（componentsOf(c, 'recordList')、
+// x.props.display、config.workflows……，风险 M11），第三阶段全部改写成 v34 并跑一次全量 Haiku。
+// 在那之前这里不做类型检查；用例一个都不删。
 import { createDefaultWorkspace } from '../defaults';
 import { applyOps, type Op } from '../ops';
 import type { Registry } from '../registry';

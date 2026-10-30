@@ -1,9 +1,11 @@
 import { IO_ACTIONS } from './tools/io';
-import type { IconName, Locale, Localized, Page, Workflow } from './schema';
+import type { IconName, Locale, Localized, Page, QuickAction } from './schema';
 import type { ActionDefinition, Permission } from './workflow/contract';
 
 // 动作与工具的登记表（§6 ActionDefinition / ToolDefinition，§7B Tool Manifest）。
 // 只有登记过的动作才能出现在工作流里；动作的实现由 tool-* 包和 App 运行时提供，这里只描述契约。
+// v34 里这里的「工具」是工具包（配置的 packages，界面上照旧叫「工具」）；工具包的页面写在 containers.pages，
+// 快捷操作写在 tools[]（kind "quickAction"，package 是工具包 ID）。
 
 export interface ToolDefinition {
   id: string;
@@ -15,9 +17,10 @@ export interface ToolDefinition {
   aliases: readonly string[];
   permissions: readonly Permission[];
   actions: readonly ActionDefinition[];
+  /** 工具包的页面（v34 的块，page.package 是工具包 ID）。 */
   createPage(locale: Locale): Page;
-  /** 安装时写进配置的工作流（单功能工作流和工具自带的流程，D-061）。 */
-  createWorkflows(locale: Locale): Workflow[];
+  /** 安装时写进配置 tools[] 的快捷操作（单功能工作流和工具自带的流程，D-061；package 是工具包 ID）。 */
+  createWorkflows(locale: Locale): QuickAction[];
   /** 从服务器下载的工具（D-177）；没有这一项的是随 App 发布的内置工具。 */
   origin?: 'download';
 }
