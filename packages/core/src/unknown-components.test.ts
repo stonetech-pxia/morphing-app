@@ -4,29 +4,30 @@ import { prepareOps, prepareSnapshot } from './change';
 import { componentLabel, describeChange } from './describe';
 import type { Op } from './ops';
 import type { Locale, WorkspaceConfig } from './schema';
-import { registry, workspace } from './test-helpers';
+import { registry, v33Fixture, workspace } from './test-helpers';
 import { validateWorkspace } from './validate';
 
-// D-254：更新的 App 加的组件，这个版本不认识。读取时原样保留、保存时写回；AI 不能新加或改动它们。
+// D-254：更新的 App 加的外观（look），这个版本不认识。读取时原样保留、保存时写回；AI 不能新加或改动它们。
 
 const calendar = {
   id: 'cal',
-  type: 'calendar',
-  props: { collectionId: 'events', view: 'month', future: { nested: [1, 2, 3] } },
+  look: 'timeline',
+  source: { table: 'events', view: 'month' },
+  show: { future: { nested: [1, 2, 3] } },
   style: { tone: 'primary' },
 };
-const inGroup = { id: 'map', type: 'map', props: { zoom: 3 }, hidden: true };
+const inGroup = { id: 'map', look: 'map', show: { zoom: 3 }, hidden: true };
 
 /** 一份更新的 App 存下来的配置：首页上有一个不认识的组件，分组里还有一个。 */
 function stored(locale: Locale = 'en'): unknown {
   const config = JSON.parse(JSON.stringify(workspace(locale))) as {
-    pages: { components: unknown[] }[];
+    containers: { pages: { blocks: unknown[] }[] };
   };
-  config.pages[0]!.components.push(calendar, {
+  config.containers.pages[0]!.blocks.push(calendar, {
     id: 'box',
-    type: 'group',
-    props: { layout: 'row' },
-    children: [{ id: 'hi', type: 'header', props: { title: 'Hi' } }, inGroup],
+    look: 'group',
+    show: { layout: 'row' },
+    children: [{ id: 'hi', look: 'header', show: { title: 'Hi' } }, inGroup],
   });
   return config;
 }
@@ -43,12 +44,13 @@ function change(config: WorkspaceConfig, ops: unknown[]) {
   return prepareOps(config, ops, ctx);
 }
 
-describe('components from a newer app (D-254)', () => {
+const homeBlocks = (c: WorkspaceConfig) => c.containers.pages[0]!.blocks;
+
+describe('blocks from a newer app (D-254)', () => {
   it('loads a stored config that has them, top level and inside a group', () => {
     const config = load();
-    const home = config.pages[0]!;
-    expect(home.components.at(-2)).toEqual(calendar);
-    expect(home.components.at(-1)).toMatchObject({ children: [{ id: 'hi' }, inGroup] });
+    expect(homeBlocks(config).at(-2)).toEqual(calendar);
+    expect(homeBlocks(config).at(-1)).toMatchObject({ children: [{ id: 'hi' }, inGroup] });
   });
 
   it('saves them back exactly as they were', () => {
@@ -63,8 +65,8 @@ describe('components from a newer app (D-254)', () => {
   });
 
   it('still checks the parts it can read: id and hidden', () => {
-    const raw = stored() as { pages: { components: Record<string, unknown>[] }[] };
-    raw.pages[0]!.components.push({ id: 'Bad Id', type: 'calendar', props: {} });
+    const raw = stored() as { containers: { pages: { blocks: Record<string, unknown>[] }[] } };
+    raw.containers.pages[0]!.blocks.push({ id: 'Bad Id', look: 'timeline' });
     expect(prepareSnapshot(raw, registry).ok).toBe(false);
   });
 
@@ -72,29 +74,27 @@ describe('components from a newer app (D-254)', () => {
     const result = change(load(), [{ op: 'setTheme', primaryColor: '#2F9E44' }]);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.after.pages[0]!.components).toContainEqual(calendar);
+    expect(homeBlocks(result.after)).toContainEqual(calendar);
     expect(JSON.parse(JSON.stringify(result.after))).toMatchObject({
-      pages: [{ components: expect.arrayContaining([calendar]) }],
+      containers: { pages: [{ blocks: expect.arrayContaining([calendar]) }] },
     });
   });
 
   it('can be moved, also into a group, and removed', () => {
     const config = load();
-    const moved = change(config, [
-      { op: 'moveComponent', pageId: 'home', componentId: 'cal', toIndex: 0 },
-    ]);
-    expect(moved.ok && moved.after.pages[0]!.components[0]).toEqual(calendar);
+    const moved = change(config, [{ op: 'moveContainer', page: 'home', block: 'cal', toIndex: 0 }]);
+    expect(moved.ok && homeBlocks(moved.after)[0]).toEqual(calendar);
     const grouped = change(config, [
-      { op: 'moveComponent', pageId: 'home', componentId: 'cal', toIndex: 0, parentId: 'box' },
+      { op: 'moveContainer', page: 'home', block: 'cal', toIndex: 0, parent: 'box' },
     ]);
     expect(grouped.ok).toBe(true);
     const removed = change(config, [
-      { op: 'removeComponent', pageId: 'home', componentId: 'cal' },
-      { op: 'removeComponent', pageId: 'home', componentId: 'map' },
+      { op: 'removeContainer', page: 'home', block: 'cal' },
+      { op: 'removeContainer', page: 'home', block: 'map' },
     ]);
     expect(removed.ok).toBe(true);
     if (!removed.ok) return;
-    expect(JSON.stringify(removed.after)).not.toContain('calendar');
+    expect(JSON.stringify(removed.after)).not.toContain('timeline');
     expect(removed.lines).toEqual([
       'Remove content from a newer version of this app from “Home”',
       'Remove content from a newer version of this app from “Home”',
@@ -103,16 +103,19 @@ describe('components from a newer app (D-254)', () => {
 
   it('can not be changed', () => {
     const config = load();
-    for (const op of [
-      { op: 'setComponentProps', pageId: 'home', componentId: 'cal', props: { view: 'week' } },
-      { op: 'setComponentStyle', pageId: 'home', componentId: 'cal', style: { tone: null } },
-      { op: 'setComponentHidden', pageId: 'home', componentId: 'cal', hidden: true },
+    for (const changes of [
+      { show: { view: 'week' } },
+      { source: { table: 'other' } },
+      { style: { tone: null } },
+      { hidden: true },
     ]) {
-      const result = change(config, [op]);
+      const result = change(config, [
+        { op: 'updateContainer', page: 'home', block: 'cal', changes },
+      ]);
       expect(result).toEqual({
         ok: false,
         stage: 'apply',
-        issues: ['component cal needs a newer version of the app; it can only be moved or removed'],
+        issues: ['block cal needs a newer version of the app; it can only be moved or removed'],
       });
     }
   });
@@ -120,14 +123,11 @@ describe('components from a newer app (D-254)', () => {
   it('can not be added by the AI', () => {
     const config = load();
     const add = change(config, [
-      { op: 'addComponent', pageId: 'home', component: { ...calendar, id: 'cal2' } },
+      { op: 'addContainer', page: 'home', block: { ...calendar, id: 'cal2' } },
     ]);
     expect(add.ok ? null : add.stage).toBe('parse');
     const page = change(config, [
-      {
-        op: 'addPage',
-        page: { id: 'p', title: 'P', components: [{ ...calendar, id: 'cal2' }] },
-      },
+      { op: 'addContainer', page: { id: 'p', title: 'P', blocks: [{ ...calendar, id: 'cal2' }] } },
     ]);
     expect(page.ok ? null : page.stage).toBe('parse');
   });
@@ -135,10 +135,10 @@ describe('components from a newer app (D-254)', () => {
   it('a modified or new one is rejected by validation even if an op let it through', () => {
     const before = load();
     const changed = JSON.parse(JSON.stringify(before)) as WorkspaceConfig;
-    (changed.pages[0]!.components.at(-2) as unknown as typeof calendar).props.view = 'week';
+    (homeBlocks(changed).at(-2) as unknown as typeof calendar).source.view = 'week';
     expect(validateWorkspace(changed, registry, { unknownComponents: before }).ok).toBe(false);
-    const added = JSON.parse(JSON.stringify(before)) as { pages: { components: unknown[] }[] };
-    added.pages[0]!.components.push({ ...calendar, id: 'cal2' });
+    const added = JSON.parse(JSON.stringify(before)) as WorkspaceConfig;
+    (homeBlocks(added) as unknown[]).push({ ...calendar, id: 'cal2' });
     expect(validateWorkspace(added, registry, { unknownComponents: before }).ok).toBe(false);
     expect(validateWorkspace(before, registry, { unknownComponents: before }).ok).toBe(true);
   });
@@ -146,7 +146,7 @@ describe('components from a newer app (D-254)', () => {
   it('describes them in every language', () => {
     for (const locale of ['en', 'zh', 'fr'] as Locale[]) {
       const config = load(stored(locale));
-      const label = componentLabel(config.pages[0]!.components.at(-2)!, config, {
+      const label = componentLabel(homeBlocks(config).at(-2)!, config, {
         ...ctx,
         locale,
       });
@@ -157,8 +157,20 @@ describe('components from a newer app (D-254)', () => {
           fr: 'contenu d’une version plus récente de cette app',
         }[locale],
       );
-      const ops: Op[] = [{ op: 'removeComponent', pageId: 'home', componentId: 'cal' }];
+      const ops: Op[] = [{ op: 'removeContainer', page: 'home', block: 'cal' }];
       expect(describeChange(ops, config, [], { ...ctx, locale })[0]).toContain(label);
     }
+  });
+
+  it('a v33 component this app never knew is kept through the migration and can be removed', () => {
+    const v33 = JSON.parse(JSON.stringify(v33Fixture('default-en'))) as {
+      pages: { components: unknown[] }[];
+    };
+    const future = { id: 'cal', type: 'calendar', props: { view: 'month' } };
+    v33.pages[0]!.components.push(future);
+    const config = load(v33);
+    expect(homeBlocks(config).at(-1)).toEqual({ id: 'cal', look: '$unknown', raw: future });
+    const removed = change(config, [{ op: 'removeContainer', page: 'home', block: 'cal' }]);
+    expect(removed.ok && homeBlocks(removed.after).some((c) => c.id === 'cal')).toBe(false);
   });
 });

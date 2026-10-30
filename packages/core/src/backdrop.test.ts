@@ -16,7 +16,7 @@ import {
 } from './theme';
 import { validateWorkspace } from './validate';
 
-// 图片背景（D-258）：卡片类组件的 style.backdrop 和页面的 backdrop。
+// 图片背景（D-258）：卡片类块的 style.backdrop 和页面的 backdrop（v34：updateContainer 的 changes）。
 
 function apply(config: WorkspaceConfig, ops: Op[]): WorkspaceConfig {
   const result = applyOps(config, ops, { registry, locale: 'en' });
@@ -26,14 +26,22 @@ function apply(config: WorkspaceConfig, ops: Op[]): WorkspaceConfig {
 const ctx = (locale: 'en' | 'zh' | 'fr') => ({ registry, locale, now: new Date(2026, 9, 27) });
 
 const NOTE: Op = {
-  op: 'addComponent',
-  pageId: 'home',
-  component: { id: 'tip', type: 'notice', props: { text: 'Hello' } },
+  op: 'addContainer',
+  page: 'home',
+  block: { id: 'tip', look: 'notice', show: { text: 'Hello' } },
 };
 const style = (backdrop: unknown): Op =>
-  ({ op: 'setComponentStyle', pageId: 'home', componentId: 'tip', style: { backdrop } }) as Op;
+  ({
+    op: 'updateContainer',
+    page: 'home',
+    block: 'tip',
+    changes: { style: { backdrop } },
+  }) as Op;
+const pageBackdrop = (backdrop: unknown): Op =>
+  ({ op: 'updateContainer', page: 'home', changes: { backdrop } }) as Op;
+const home = (c: WorkspaceConfig) => c.containers.pages[0]!;
 const tip = (c: WorkspaceConfig) =>
-  c.pages[0]!.components.find((x) => x.id === 'tip') as { style?: Record<string, unknown> };
+  home(c).blocks.find((x) => x.id === 'tip') as { style?: Record<string, unknown> };
 
 describe('backdrop ops', () => {
   it('AI turns it on and sets the overlay; the picture the user chose stays', () => {
@@ -59,26 +67,26 @@ describe('backdrop ops', () => {
     expect(tip(picked).style).toEqual({ backdrop: { overlay: 'medium', assetId: 'abc123def' } });
   });
 
-  it('pages: setPageBackdrop merges the same way', () => {
-    const op = (backdrop: unknown) => ({ op: 'setPageBackdrop', pageId: 'home', backdrop }) as Op;
+  it('pages: the page backdrop merges the same way', () => {
+    const op = pageBackdrop;
     const on = apply(workspace('en'), [op({ overlay: 'light' })]);
-    expect(on.pages[0]!.backdrop).toEqual({ overlay: 'light' });
+    expect(home(on).backdrop).toEqual({ overlay: 'light' });
     const picked = apply(on, [op({ assetId: 'abc123def' })]);
-    expect(apply(picked, [op({ overlay: 'strong' })]).pages[0]!.backdrop).toEqual({
+    expect(home(apply(picked, [op({ overlay: 'strong' })])).backdrop).toEqual({
       overlay: 'strong',
       assetId: 'abc123def',
     });
-    expect(apply(picked, [op(null)]).pages[0]!.backdrop).toBeUndefined();
+    expect(home(apply(picked, [op(null)])).backdrop).toBeUndefined();
     expect(validateWorkspace(picked, registry).ok).toBe(true);
   });
 
-  it('only card components can have one; a bad overlay or a file name is refused', () => {
+  it('only card blocks can have one; a bad overlay or a file name is refused', () => {
     const header = apply(workspace('en'), [
       {
-        op: 'setComponentStyle',
-        pageId: 'home',
-        componentId: 'welcome',
-        style: { backdrop: { overlay: 'medium' } },
+        op: 'updateContainer',
+        page: 'home',
+        block: 'welcome',
+        changes: { style: { backdrop: { overlay: 'medium' } } },
       },
     ]);
     const result = validateWorkspace(header, registry);
@@ -88,9 +96,7 @@ describe('backdrop ops', () => {
     );
     for (const bad of [{ overlay: 'black' }, { assetId: 'photo.jpg' }, { color: '#000000' }]) {
       expect(OpSchema.safeParse(style(bad)).success, JSON.stringify(bad)).toBe(false);
-      expect(
-        OpSchema.safeParse({ op: 'setPageBackdrop', pageId: 'home', backdrop: bad }).success,
-      ).toBe(false);
+      expect(OpSchema.safeParse(pageBackdrop(bad)).success).toBe(false);
     }
   });
 
@@ -106,14 +112,9 @@ describe('backdrop ops', () => {
     expect(describeChange([style(null)], on, [], ctx('fr'))[0]).toContain(
       'image de fond désactivée',
     );
-    expect(
-      describeChange(
-        [{ op: 'setPageBackdrop', pageId: 'home', backdrop: { assetId: 'abc123def' } }],
-        on,
-        [],
-        ctx('zh'),
-      )[0],
-    ).toMatch(/^页面「.*」：更换背景图片$/);
+    expect(describeChange([pageBackdrop({ assetId: 'abc123def' })], on, [], ctx('zh'))[0]).toMatch(
+      /^页面「.*」：更换背景图片$/,
+    );
   });
 });
 

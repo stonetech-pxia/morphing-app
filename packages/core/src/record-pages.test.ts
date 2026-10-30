@@ -5,7 +5,7 @@ import { filterRecords, type DataRecord } from './data';
 import { createDefaultWorkspace } from './defaults';
 import { createInput } from './record-ops';
 import { bindRecord } from './record-pages';
-import type { Collection, Component, WorkspaceConfig } from './schema';
+import type { BlockOf, Collection, WorkspaceConfig } from './schema';
 import { registry } from './test-helpers';
 
 // 给一条记录用的页面（D-342）：项目页列出这个项目的任务，任务页列出它的子任务。
@@ -20,33 +20,34 @@ const tasks: Collection = {
   name: 'Tasks',
   fields: [
     { id: 'title', name: 'Title', type: 'text', required: true },
-    { id: 'project', name: 'Project', type: 'link', collectionId: 'projects' },
-    { id: 'parent', name: 'Parent', type: 'link', collectionId: 'tasks' },
+    { id: 'project', name: 'Project', type: 'link', table: 'projects' },
+    { id: 'parent', name: 'Parent', type: 'link', table: 'tasks' },
   ],
 };
 
-const list = (id: string, collectionId: string, extra: Record<string, unknown> = {}) => ({
+const list = (
+  id: string,
+  table: string,
+  { filter, ...extra }: { filter?: unknown[]; [key: string]: unknown } = {},
+) => ({
   id,
-  type: 'recordList',
-  props: {
-    collectionId,
-    display: 'list',
-    titleField: collectionId === 'tasks' ? 'title' : 'name',
-    limit: 30,
-    ...extra,
-  },
+  look: 'list',
+  source: { table, limit: 30, ...(filter ? { filter } : {}) },
+  show: { title: table === 'tasks' ? 'title' : 'name' },
+  ...extra,
 });
 
-const projectPage = (components: unknown[], recordOf = 'projects') => ({
-  op: 'addPage',
-  page: { id: 'project', title: 'Project', recordOf, components },
+const projectPage = (blocks: unknown[], of = 'projects') => ({
+  op: 'addContainer',
+  page: { id: 'project', title: 'Project', of, blocks },
 });
+const addHome = (block: unknown) => ({ op: 'addContainer', page: 'home', block });
 
 const now = new Date(2026, 9, 30, 9);
 function run(ops: unknown[]) {
   const base = [
-    { op: 'addCollection', collection: projects },
-    { op: 'addCollection', collection: tasks },
+    { op: 'addData', table: projects },
+    { op: 'addData', table: tasks },
   ];
   return prepareOps(createDefaultWorkspace('en'), [...base, ...ops], {
     registry,
@@ -68,11 +69,7 @@ describe('a page for one entry', () => {
             filter: [{ field: 'project', op: 'is', value: '$record' }],
           }),
         ]),
-        {
-          op: 'addComponent',
-          pageId: 'home',
-          component: list('all', 'projects', { opens: 'project' }),
-        },
+        addHome(list('all', 'projects', { opens: 'project' })),
       ]),
     ).toEqual([]);
   });
@@ -81,12 +78,12 @@ describe('a page for one entry', () => {
     expect(
       problems([
         {
-          op: 'addPage',
+          op: 'addContainer',
           page: {
             id: 'task',
             title: 'Task',
-            recordOf: 'tasks',
-            components: [
+            of: 'tasks',
+            blocks: [
               list('subs', 'tasks', { filter: [{ field: 'parent', op: 'is', value: '$record' }] }),
             ],
           },
@@ -96,12 +93,9 @@ describe('a page for one entry', () => {
   });
 
   it('$record needs a page for that table and a link field pointing at it', () => {
-    const filter = (field: string, recordOf = 'projects') =>
+    const filter = (field: string, of = 'projects') =>
       problems([
-        projectPage(
-          [list('l', 'tasks', { filter: [{ field, op: 'is', value: '$record' }] })],
-          recordOf,
-        ),
+        projectPage([list('l', 'tasks', { filter: [{ field, op: 'is', value: '$record' }] })], of),
       ]).join();
     // 父任务指向任务表，不是项目。
     expect(filter('parent')).toMatch(
@@ -110,13 +104,7 @@ describe('a page for one entry', () => {
     expect(filter('title')).toMatch(/points at projects/);
     expect(
       problems([
-        {
-          op: 'addComponent',
-          pageId: 'home',
-          component: list('l', 'tasks', {
-            filter: [{ field: 'project', op: 'is', value: '$record' }],
-          }),
-        },
+        addHome(list('l', 'tasks', { filter: [{ field: 'project', op: 'is', value: '$record' }] })),
       ]).join(),
     ).toMatch(/only works on a page for one entry of a table/);
   });
@@ -124,12 +112,9 @@ describe('a page for one entry', () => {
   it('new entries made on the page can point at the entry', () => {
     const button = (values: Record<string, unknown>) => ({
       id: 'add',
-      type: 'button',
-      props: {
-        label: 'Add task',
-        variant: 'filled',
-        action: { do: 'create', collectionId: 'tasks', values, form: true },
-      },
+      look: 'button',
+      show: { label: 'Add task', variant: 'filled' },
+      tools: [{ do: 'create', table: 'tasks', values, ask: 'all' }],
     });
     expect(problems([projectPage([button({ project: '$record' })])])).toEqual([]);
     expect(problems([projectPage([button({ parent: '$record' })])]).join()).toMatch(
@@ -141,68 +126,52 @@ describe('a page for one entry', () => {
     expect(
       problems([
         projectPage([]),
-        { op: 'setNavItems', items: ['page:home', 'page:project', 'ai', 'settings'] },
+        { op: 'updateContainer', nav: { bar: ['page:home', 'page:project', 'ai', 'settings'] } },
       ]).join(),
     ).toMatch(/shows one entry of projects; it can only be opened from a list of projects/);
     expect(
       problems([
         projectPage([]),
-        {
-          op: 'addComponent',
-          pageId: 'home',
-          component: {
-            id: 'b',
-            type: 'button',
-            props: { label: 'Go', variant: 'filled', target: 'page:project' },
-          },
-        },
+        addHome({
+          id: 'b',
+          look: 'button',
+          show: { label: 'Go', variant: 'filled' },
+          opens: 'page:project',
+        }),
       ]).join(),
-    ).toMatch(/recordList.opens/);
+    ).toMatch(/shows one entry of projects; it can only be opened from a list of projects/);
   });
 
   it('a list can only open a page for its own table', () => {
     expect(
-      problems([
-        projectPage([]),
-        { op: 'addComponent', pageId: 'home', component: list('l', 'tasks', { opens: 'project' }) },
-      ]).join(),
+      problems([projectPage([]), addHome(list('l', 'tasks', { opens: 'project' }))]).join(),
     ).toMatch(/opens project must be a page for one entry of tasks/);
-    expect(
-      problems([
-        { op: 'addComponent', pageId: 'home', component: list('l', 'tasks', { opens: 'nope' }) },
-      ]).join(),
-    ).toMatch(/opens nope is not a page/);
+    expect(problems([addHome(list('l', 'tasks', { opens: 'nope' }))]).join()).toMatch(
+      /opens nope is not a page/,
+    );
   });
 
   it('removing the page lets the list open the editor again; the table needs its pages gone first', () => {
-    const made = run([
-      projectPage([]),
-      {
-        op: 'addComponent',
-        pageId: 'home',
-        component: list('all', 'projects', { opens: 'project' }),
-      },
-    ]);
+    const made = run([projectPage([]), addHome(list('all', 'projects', { opens: 'project' }))]);
     expect(made.ok).toBe(true);
     const config = (made as { after: WorkspaceConfig }).after;
-    const removed = prepareOps(config, [{ op: 'removePage', pageId: 'project' }], {
+    const removed = prepareOps(config, [{ op: 'removeContainer', page: 'project' }], {
       registry,
       locale: 'en',
       now,
     });
     expect(removed.ok).toBe(true);
-    const home = (removed as { after: WorkspaceConfig }).after.pages.find((p) => p.id === 'home')!;
-    const all = home.components.find((c) => c.id === 'all') as Extract<
-      Component,
-      { type: 'recordList' }
-    >;
-    expect(all.props.opens).toBeUndefined();
+    const home = (removed as { after: WorkspaceConfig }).after.containers.pages.find(
+      (p) => p.id === 'home',
+    )!;
+    const all = home.blocks.find((c) => c.id === 'all') as BlockOf<'list'>;
+    expect(all.opens).toBeUndefined();
     const gone = prepareOps(
       config,
       [
-        { op: 'removeComponent', pageId: 'home', componentId: 'all' },
-        { op: 'removeField', collectionId: 'tasks', fieldId: 'project' },
-        { op: 'removeCollection', collectionId: 'projects' },
+        { op: 'removeContainer', page: 'home', block: 'all' },
+        { op: 'removeData', table: 'tasks', field: 'project' },
+        { op: 'removeData', table: 'projects' },
       ],
       { registry, locale: 'en', now },
     );
@@ -227,26 +196,32 @@ describe('binding the entry when the page opens', () => {
   ];
 
   it('replaces $record in filters and presets, nothing else', () => {
-    const c = list('l', 'tasks', {
-      emptyText: 'No tasks',
-      filter: [{ field: 'project', op: 'is', value: '$record' }],
-      rowActions: [
+    const c = {
+      ...list('l', 'tasks', { filter: [{ field: 'project', op: 'is', value: '$record' }] }),
+      show: { title: 'title', emptyText: 'No tasks' },
+      tools: [
         {
+          as: 'button',
           label: 'Sub',
           do: 'create',
-          collectionId: 'tasks',
-          values: { parent: 'row', project: '$record' },
-          form: true,
+          table: 'tasks',
+          values: { parent: '$row', project: '$record' },
+          ask: 'all',
+          when: [{ field: 'project', op: 'is', value: '$record' }],
         },
       ],
-    }) as unknown as Extract<Component, { type: 'recordList' }>;
+    } as unknown as BlockOf<'list'>;
     const bound = bindRecord(c, 'p1');
-    expect(bound.props.filter).toEqual([{ field: 'project', op: 'is', value: 'p1' }]);
-    expect(bound.props.emptyText).toBe('No tasks');
-    expect(c.props.filter![0]!.value).toBe('$record');
-    const titles = filterRecords(all, tasks, bound.props.filter, now).map((r) => r.values.title);
+    expect(bound.source.filter).toEqual([{ field: 'project', op: 'is', value: 'p1' }]);
+    expect(bound.show.emptyText).toBe('No tasks');
+    expect(c.source.filter![0]!.value).toBe('$record');
+    const titles = filterRecords(all, tasks, bound.source.filter, now).map((r) => r.values.title);
     expect(titles).toEqual(['Write', 'Draft']);
-    const action = bound.props.rowActions![0]! as unknown as { values: Record<string, never> };
+    const action = bound.tools![0]! as unknown as {
+      values: Record<string, never>;
+      when: unknown;
+    };
+    expect(action.when).toEqual([{ field: 'project', op: 'is', value: 'p1' }]);
     expect(createInput(tasks, action.values, { now, rowId: 't1' })).toEqual({
       parent: 't1',
       project: 'p1',
@@ -268,16 +243,13 @@ describe('binding the entry when the page opens', () => {
 describe('a floating add', () => {
   const sheet = (id: string, extra: Record<string, unknown> = {}) => ({
     id,
-    type: 'recordForm',
-    props: {
-      collectionId: 'tasks',
-      fieldIds: ['title'],
-      submitLabel: 'Add task',
-      mode: 'sheet',
-      ...extra,
-    },
+    look: 'form',
+    show: { mode: 'sheet' },
+    tools: [
+      { as: 'submit', label: 'Add task', do: 'create', table: 'tasks', ask: ['title'], ...extra },
+    ],
   });
-  const add = (component: unknown) => ({ op: 'addComponent', pageId: 'home', component });
+  const add = addHome;
 
   it('is fine once per page, with a smart date', () => {
     expect(
@@ -294,8 +266,8 @@ describe('a floating add', () => {
       problems([
         add({
           id: 'g',
-          type: 'group',
-          props: { layout: 'stack' },
+          look: 'group',
+          show: { layout: 'stack' },
           children: [sheet('inside')],
         }),
       ]).join(),
