@@ -64,4 +64,5 @@ if (Platform.OS === 'android') registerTaskAsync(TASK).catch(() => undefined);
 setupReminderButtons(locale).catch(() => undefined);
 // App 在后台启动、却不是因为按钮（或点击已经处理完）：morph-background 先要的后台时间几秒后还掉。
 setTimeout(release, 8000);
-reminders.onAction((action) => void run(action).catch(() => undefined));
+// 打 release 包时 Expo 会在 web 上把路由先跑一遍，web 没有通知按钮，一听就抛错、打包失败。
+if (Platform.OS !== 'web') reminders.onAction((action) => void run(action).catch(() => undefined));
