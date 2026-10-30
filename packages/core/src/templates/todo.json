@@ -1,10 +1,10 @@
 {
   "ids": {
-    "collection": "todos",
+    "table": "todos",
     "page": "todo"
   },
-  "collection": {
-    "id": "$collection",
+  "table": {
+    "id": "$table",
     "name": {
       "en": "To-dos",
       "zh": "待办",
@@ -50,11 +50,11 @@
       "fr": "À faire"
     },
     "icon": "check",
-    "components": [
+    "blocks": [
       {
         "id": "title",
-        "type": "header",
-        "props": {
+        "look": "header",
+        "show": {
           "title": {
             "en": "To-do",
             "zh": "待办",
@@ -64,15 +64,17 @@
       },
       {
         "id": "open-count",
-        "type": "stat",
-        "props": {
-          "collectionId": "$collection",
-          "aggregate": "count",
+        "look": "number",
+        "show": {
           "label": {
             "en": "Open",
             "zh": "未完成",
             "fr": "Non terminées"
-          },
+          }
+        },
+        "source": {
+          "table": "$table",
+          "aggregate": "count",
           "filter": [
             {
               "field": "done",
@@ -84,38 +86,52 @@
       },
       {
         "id": "add",
-        "type": "recordForm",
-        "props": {
-          "collectionId": "$collection",
-          "fieldIds": ["title"],
-          "submitLabel": {
-            "en": "Add",
-            "zh": "添加",
-            "fr": "Ajouter"
-          },
+        "look": "form",
+        "show": {
           "mode": "inline"
-        }
+        },
+        "tools": [
+          {
+            "as": "submit",
+            "label": {
+              "en": "Add",
+              "zh": "添加",
+              "fr": "Ajouter"
+            },
+            "do": "create",
+            "table": "$table",
+            "ask": ["title"]
+          }
+        ]
       },
       {
         "id": "tasks",
-        "type": "recordList",
-        "props": {
-          "collectionId": "$collection",
-          "display": "checklist",
-          "checkField": "done",
-          "titleField": "title",
-          "subtitleFields": ["due"],
+        "look": "checklist",
+        "source": {
+          "table": "$table",
           "sort": {
             "field": "createdAt",
             "direction": "desc"
           },
-          "limit": 50,
+          "limit": 50
+        },
+        "show": {
+          "title": "title",
+          "subtitles": ["due"],
           "emptyText": {
             "en": "No tasks",
             "zh": "没有待办事项",
             "fr": "Aucune tâche"
           }
-        }
+        },
+        "tools": [
+          {
+            "as": "check",
+            "do": "toggle",
+            "table": "$table",
+            "field": "done"
+          }
+        ]
       }
     ]
   },

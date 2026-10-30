@@ -1,10 +1,10 @@
 {
   "ids": {
-    "collection": "expenses",
+    "table": "expenses",
     "page": "budget"
   },
-  "collection": {
-    "id": "$collection",
+  "table": {
+    "id": "$table",
     "name": {
       "en": "Expenses",
       "zh": "账目",
@@ -116,11 +116,11 @@
       "fr": "Budget"
     },
     "icon": "chart",
-    "components": [
+    "blocks": [
       {
         "id": "title",
-        "type": "header",
-        "props": {
+        "look": "header",
+        "show": {
           "title": {
             "en": "Budget",
             "zh": "记账",
@@ -130,23 +130,25 @@
       },
       {
         "id": "summary",
-        "type": "group",
-        "props": {
+        "look": "group",
+        "show": {
           "layout": "row"
         },
         "children": [
           {
             "id": "month-total",
-            "type": "stat",
-            "props": {
-              "collectionId": "$collection",
-              "aggregate": "sum",
-              "fieldId": "amount",
+            "look": "number",
+            "show": {
               "label": {
                 "en": "This month",
                 "zh": "本月支出",
                 "fr": "Ce mois-ci"
-              },
+              }
+            },
+            "source": {
+              "table": "$table",
+              "aggregate": "sum",
+              "field": "amount",
               "filter": [
                 {
                   "field": "date",
@@ -158,15 +160,17 @@
           },
           {
             "id": "month-count",
-            "type": "stat",
-            "props": {
-              "collectionId": "$collection",
-              "aggregate": "count",
+            "look": "number",
+            "show": {
               "label": {
                 "en": "Entries",
                 "zh": "本月笔数",
                 "fr": "Saisies"
-              },
+              }
+            },
+            "source": {
+              "table": "$table",
+              "aggregate": "count",
               "filter": [
                 {
                   "field": "date",
@@ -180,32 +184,39 @@
       },
       {
         "id": "add",
-        "type": "recordForm",
-        "props": {
-          "collectionId": "$collection",
-          "fieldIds": ["amount", "category", "note"],
-          "submitLabel": {
-            "en": "Add",
-            "zh": "记一笔",
-            "fr": "Ajouter"
-          },
+        "look": "form",
+        "show": {
           "mode": "inline"
-        }
+        },
+        "tools": [
+          {
+            "as": "submit",
+            "label": {
+              "en": "Add",
+              "zh": "记一笔",
+              "fr": "Ajouter"
+            },
+            "do": "create",
+            "table": "$table",
+            "ask": ["amount", "category", "note"]
+          }
+        ]
       },
       {
         "id": "recent",
-        "type": "recordList",
-        "props": {
-          "collectionId": "$collection",
-          "display": "list",
-          "titleField": "category",
-          "subtitleFields": ["note", "date"],
-          "trailingField": "amount",
+        "look": "list",
+        "source": {
+          "table": "$table",
           "sort": {
             "field": "date",
             "direction": "desc"
           },
-          "limit": 30,
+          "limit": 30
+        },
+        "show": {
+          "title": "category",
+          "subtitles": ["note", "date"],
+          "trailing": "amount",
           "emptyText": {
             "en": "Nothing yet",
             "zh": "还没有记录",

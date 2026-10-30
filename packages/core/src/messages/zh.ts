@@ -676,6 +676,13 @@ export const zh: MessageTable = {
   describeChart: '图表「{v0}」',
   // D-254：更新的 App 加的组件，这个版本不认识，原样保留。
   describeUnknownComponent: '新版本 App 才能显示的内容',
+  // v34 修改说明（describe.ts）
+  v34descDeskAddAbove: '在桌上的预览上方加上{v0}',
+  v34descDeskAddBelow: '在桌上的预览下方加上{v0}',
+  v34descDeskRemove: '从桌上移除{v0}',
+  v34descDeskLayout: '调整桌上的布局',
+  v34descQuickActionIcon: '快捷操作「{name}」换图标',
+  v34descToolsChanged: '调整一键按钮',
   unknownComponent: '需要更新 App 才能显示这里的内容。',
   chartOther: '其他',
   chartEmpty: '还没有可以显示的记录',

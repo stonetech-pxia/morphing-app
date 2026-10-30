@@ -68,7 +68,7 @@ function values(vs: unknown, table: Json | undefined): Json | undefined {
   return Object.fromEntries(Object.entries(vs).map(([k, v]) => [k, value(v, table, k)]));
 }
 
-/** 汇总按哪个日期（related.ts 的 rollupDate = chartDateField）：dateField，第一个日期、日期时间字段，创建时间。 */
+/** 汇总按哪个日期（related.ts 的 rollupDate = dateFieldOf）：dateField，第一个日期、日期时间字段，创建时间。 */
 function defaultDate(table: Json | undefined, dateField: unknown): string {
   if (typeof dateField === 'string') return dateField;
   const fields = (table?.fields as Json[] | undefined) ?? [];

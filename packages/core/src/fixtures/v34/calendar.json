@@ -1,0 +1,267 @@
+{
+  "schemaVersion": 34,
+  "theme": {
+    "primaryColor": "#C8623A",
+    "mode": "light",
+    "colors": {},
+    "font": "clay",
+    "fontScale": 1,
+    "radius": 22,
+    "density": "comfortable",
+    "cardStyle": "shadow",
+    "navStyle": "iconLabel"
+  },
+  "nav": {
+    "bar": ["page:home", "tools", "ai", "history", "settings"],
+    "floating": []
+  },
+  "data": {
+    "tables": [
+      {
+        "id": "events",
+        "name": "日程",
+        "icon": "calendar",
+        "fields": [
+          {
+            "id": "title",
+            "name": "事情",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "when",
+            "name": "时间",
+            "type": "schedule",
+            "default": {
+              "repeat": "once"
+            },
+            "lastDone": "done-on"
+          },
+          {
+            "id": "done-on",
+            "name": "完成于",
+            "type": "date"
+          },
+          {
+            "id": "kind",
+            "name": "类别",
+            "type": "choice",
+            "default": "personal",
+            "options": [
+              {
+                "id": "work",
+                "label": "工作"
+              },
+              {
+                "id": "personal",
+                "label": "个人"
+              },
+              {
+                "id": "family",
+                "label": "家人"
+              },
+              {
+                "id": "health",
+                "label": "看病"
+              }
+            ]
+          },
+          {
+            "id": "length",
+            "name": "多久",
+            "type": "duration"
+          },
+          {
+            "id": "place",
+            "name": "地点",
+            "type": "text"
+          },
+          {
+            "id": "note",
+            "name": "备注",
+            "type": "note"
+          },
+          {
+            "id": "files",
+            "name": "附件",
+            "type": "file"
+          }
+        ]
+      }
+    ]
+  },
+  "containers": {
+    "pages": [
+      {
+        "id": "home",
+        "title": "首页",
+        "icon": "home",
+        "blocks": [
+          {
+            "id": "welcome",
+            "look": "header",
+            "show": {
+              "title": "我的工作台",
+              "subtitle": "点「AI 修改」，用一句话改造这个 App"
+            }
+          },
+          {
+            "id": "catalog",
+            "look": "entry",
+            "show": {
+              "title": "添加工具",
+              "icon": "plus",
+              "shape": "tile",
+              "accent": true
+            },
+            "opens": "tools"
+          },
+          {
+            "id": "recent-files",
+            "look": "files",
+            "show": {
+              "title": "最近文件"
+            },
+            "source": {
+              "table": "$files",
+              "filter": [
+                {
+                  "field": "kind",
+                  "op": "isNot",
+                  "value": "image"
+                }
+              ],
+              "limit": 5
+            }
+          }
+        ]
+      },
+      {
+        "id": "calendar",
+        "title": "日历",
+        "icon": "calendar",
+        "blocks": [
+          {
+            "id": "title",
+            "look": "header",
+            "show": {
+              "title": "日历"
+            }
+          },
+          {
+            "id": "month",
+            "look": "calendar",
+            "source": {
+              "table": "events",
+              "sort": {
+                "field": "when",
+                "direction": "asc"
+              },
+              "limit": 30,
+              "group": {
+                "by": "when",
+                "unit": "day"
+              }
+            },
+            "show": {
+              "title": "title",
+              "subtitles": ["place"],
+              "color": "kind"
+            },
+            "tools": [
+              {
+                "as": "addHere",
+                "do": "create",
+                "table": "events",
+                "ask": "all",
+                "values": "$here"
+              }
+            ]
+          },
+          {
+            "id": "week",
+            "look": "list",
+            "source": {
+              "table": "events",
+              "filter": [
+                {
+                  "field": "when",
+                  "op": "due",
+                  "value": "thisWeek"
+                }
+              ],
+              "sort": {
+                "field": "when",
+                "direction": "asc"
+              },
+              "limit": 20,
+              "group": {
+                "by": "when",
+                "unit": "day"
+              }
+            },
+            "show": {
+              "title": "title",
+              "subtitles": ["place", "when"],
+              "emptyText": "这周没有安排"
+            },
+            "tools": [
+              {
+                "as": "button",
+                "label": "完成",
+                "do": "set",
+                "table": "events",
+                "field": "done-on",
+                "value": "today"
+              }
+            ]
+          },
+          {
+            "id": "quick-add",
+            "look": "form",
+            "show": {
+              "mode": "sheet"
+            },
+            "tools": [
+              {
+                "as": "submit",
+                "label": "添加",
+                "do": "create",
+                "table": "events",
+                "ask": ["title", "kind"],
+                "smartDate": {
+                  "from": "title",
+                  "to": "when"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "tools": [
+    {
+      "id": "event-reminder",
+      "kind": "reminder",
+      "title": "日程提醒",
+      "enabled": true,
+      "when": {
+        "each": {
+          "table": "events",
+          "field": "when"
+        },
+        "at": "09:00"
+      },
+      "opens": "page:calendar",
+      "done": {
+        "do": "set",
+        "table": "events",
+        "field": "done-on",
+        "value": "today"
+      },
+      "snoozeMinutes": 15
+    }
+  ],
+  "packages": []
+}

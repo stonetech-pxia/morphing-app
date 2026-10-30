@@ -767,6 +767,13 @@ export const fr: MessageTable = {
   describeChart: 'graphique « {v0} »',
   // D-254：更新的 App 加的组件，这个版本不认识，原样保留。
   describeUnknownComponent: 'contenu d’une version plus récente de cette app',
+  // v34 修改说明（describe.ts）
+  v34descDeskAddAbove: 'Ajouter {v0} au-dessus de l’aperçu sur le bureau',
+  v34descDeskAddBelow: 'Ajouter {v0} sous l’aperçu sur le bureau',
+  v34descDeskRemove: 'Retirer {v0} du bureau',
+  v34descDeskLayout: 'Modifier la disposition du bureau',
+  v34descQuickActionIcon: 'Changer l’icône de l’action rapide « {name} »',
+  v34descToolsChanged: 'modifier les boutons en un geste',
   unknownComponent:
     'Une version plus récente de cette app est nécessaire pour afficher ce contenu.',
   chartOther: 'Autres',

@@ -16,8 +16,8 @@
     "$page.main": "shop",
     "$page.customers": "customers",
     "$page.sales": "sales",
-    "$workflow.print": "print-orders",
-    "$reminder.open": "shop-opening"
+    "$tool.print": "print-orders",
+    "$tool.open": "shop-opening"
   },
   "tables": [
     {
@@ -86,7 +86,7 @@
             "fr": "Client"
           },
           "type": "link",
-          "collectionId": "$table.customers"
+          "table": "$table.customers"
         },
         {
           "id": "qty",
@@ -176,9 +176,10 @@
       ]
     }
   ],
-  "workflows": [
+  "tools": [
     {
-      "id": "$workflow.print",
+      "id": "$tool.print",
+      "kind": "quickAction",
       "name": {
         "en": "Print today’s orders as cards",
         "zh": "把今天的订单打印成卡片",
@@ -220,16 +221,31 @@
       ]
     },
     {
-      "id": "$workflow.cutout",
-      "presetId": "remove-photo-background"
+      "id": "$tool.cutout",
+      "preset": "remove-photo-background"
     },
     {
-      "id": "$workflow.brighten",
-      "presetId": "brighten-photos"
+      "id": "$tool.brighten",
+      "preset": "brighten-photos"
     },
     {
-      "id": "$workflow.send",
-      "presetId": "send-photos"
+      "id": "$tool.send",
+      "preset": "send-photos"
+    },
+    {
+      "id": "$tool.open",
+      "kind": "reminder",
+      "title": {
+        "en": "Before you open: check today’s orders",
+        "zh": "开店前看看今天的订单",
+        "fr": "Avant d’ouvrir : regardez les commandes du jour"
+      },
+      "enabled": true,
+      "when": {
+        "every": "day",
+        "at": "08:30"
+      },
+      "opens": "page:$page.main"
     }
   ],
   "pages": [
@@ -241,11 +257,11 @@
         "fr": "Boutique"
       },
       "icon": "star",
-      "components": [
+      "blocks": [
         {
           "id": "title",
-          "type": "header",
-          "props": {
+          "look": "header",
+          "show": {
             "title": {
               "en": "Small shop orders",
               "zh": "小店接单",
@@ -260,23 +276,25 @@
         },
         {
           "id": "month",
-          "type": "group",
-          "props": {
+          "look": "group",
+          "show": {
             "layout": "row"
           },
           "children": [
             {
               "id": "month-sales",
-              "type": "stat",
-              "props": {
-                "collectionId": "$table.orders",
-                "aggregate": "sum",
-                "fieldId": "amount",
+              "look": "number",
+              "show": {
                 "label": {
                   "en": "Sales this month",
                   "zh": "本月营业额",
                   "fr": "Ventes du mois"
-                },
+                }
+              },
+              "source": {
+                "table": "$table.orders",
+                "aggregate": "sum",
+                "field": "amount",
                 "filter": [
                   {
                     "field": "date",
@@ -288,15 +306,17 @@
             },
             {
               "id": "month-orders",
-              "type": "stat",
-              "props": {
-                "collectionId": "$table.orders",
-                "aggregate": "count",
+              "look": "number",
+              "show": {
                 "label": {
                   "en": "Orders this month",
                   "zh": "本月订单",
                   "fr": "Commandes du mois"
-                },
+                }
+              },
+              "source": {
+                "table": "$table.orders",
+                "aggregate": "count",
                 "filter": [
                   {
                     "field": "date",
@@ -310,46 +330,56 @@
         },
         {
           "id": "by-status",
-          "type": "stat",
-          "props": {
-            "collectionId": "$table.orders",
-            "aggregate": "count",
+          "look": "number",
+          "show": {
             "label": {
               "en": "Orders by status",
               "zh": "订单状态",
               "fr": "Commandes par statut"
-            },
-            "groupBy": "status"
+            }
+          },
+          "source": {
+            "table": "$table.orders",
+            "aggregate": "count",
+            "group": {
+              "by": "status"
+            }
           }
         },
         {
           "id": "add",
-          "type": "recordForm",
-          "props": {
-            "collectionId": "$table.orders",
-            "fieldIds": ["item", "customer", "qty", "price", "status", "date"],
-            "submitLabel": {
+          "look": "button",
+          "show": {
+            "label": {
               "en": "New order",
               "zh": "记一单",
               "fr": "Nouvelle commande"
             },
-            "mode": "button"
-          }
+            "variant": "filled"
+          },
+          "tools": [
+            {
+              "do": "create",
+              "table": "$table.orders",
+              "ask": "all"
+            }
+          ]
         },
         {
           "id": "recent",
-          "type": "recordList",
-          "props": {
-            "collectionId": "$table.orders",
-            "display": "list",
-            "titleField": "item",
-            "subtitleFields": ["customer", "status"],
-            "trailingField": "amount",
+          "look": "list",
+          "source": {
+            "table": "$table.orders",
             "sort": {
               "field": "date",
               "direction": "desc"
             },
-            "limit": 30,
+            "limit": 30
+          },
+          "show": {
+            "title": "item",
+            "subtitles": ["customer", "status"],
+            "trailing": "amount",
             "emptyText": {
               "en": "No orders yet. Tap “New order” to log the first one.",
               "zh": "还没有订单，点「记一单」记下第一单。",
@@ -359,46 +389,46 @@
         },
         {
           "id": "more",
-          "type": "group",
-          "props": {
+          "look": "group",
+          "show": {
             "layout": "grid",
             "columns": 2
           },
           "children": [
             {
               "id": "to-customers",
-              "type": "shortcut",
-              "props": {
+              "look": "entry",
+              "show": {
                 "title": {
                   "en": "Customers",
                   "zh": "客户",
                   "fr": "Clients"
                 },
                 "icon": "person",
-                "target": "page:$page.customers",
-                "look": "tile"
-              }
+                "shape": "tile"
+              },
+              "opens": "page:$page.customers"
             },
             {
               "id": "to-sales",
-              "type": "shortcut",
-              "props": {
+              "look": "entry",
+              "show": {
                 "title": {
                   "en": "Sales",
                   "zh": "营业额",
                   "fr": "Ventes"
                 },
                 "icon": "chart",
-                "target": "page:$page.sales",
-                "look": "tile"
-              }
+                "shape": "tile"
+              },
+              "opens": "page:$page.sales"
             }
           ]
         },
         {
           "id": "actions",
-          "type": "group",
-          "props": {
+          "look": "group",
+          "show": {
             "title": {
               "en": "Product photos and orders",
               "zh": "商品照片和订单",
@@ -410,35 +440,51 @@
           "children": [
             {
               "id": "run-cutout",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.cutout",
-                "look": "tile"
-              }
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.cutout"
+                }
+              ]
             },
             {
               "id": "run-brighten",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.brighten",
-                "look": "tile"
-              }
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.brighten"
+                }
+              ]
             },
             {
               "id": "run-send",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.send",
-                "look": "tile"
-              }
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.send"
+                }
+              ]
             },
             {
               "id": "run-print",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.print",
-                "look": "tile"
-              }
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.print"
+                }
+              ]
             }
           ]
         }
@@ -452,11 +498,11 @@
         "fr": "Clients"
       },
       "icon": "person",
-      "components": [
+      "blocks": [
         {
           "id": "title",
-          "type": "header",
-          "props": {
+          "look": "header",
+          "show": {
             "title": {
               "en": "Customers",
               "zh": "客户",
@@ -471,31 +517,37 @@
         },
         {
           "id": "add",
-          "type": "recordForm",
-          "props": {
-            "collectionId": "$table.customers",
-            "fieldIds": ["name", "phone", "address"],
-            "submitLabel": {
+          "look": "button",
+          "show": {
+            "label": {
               "en": "Add a customer",
               "zh": "添加客户",
               "fr": "Ajouter un client"
             },
-            "mode": "button"
-          }
+            "variant": "filled"
+          },
+          "tools": [
+            {
+              "do": "create",
+              "table": "$table.customers",
+              "ask": "all"
+            }
+          ]
         },
         {
           "id": "list",
-          "type": "recordList",
-          "props": {
-            "collectionId": "$table.customers",
-            "display": "list",
-            "titleField": "name",
-            "subtitleFields": ["phone", "address"],
+          "look": "list",
+          "source": {
+            "table": "$table.customers",
             "sort": {
               "field": "name",
               "direction": "asc"
             },
-            "limit": 100,
+            "limit": 100
+          },
+          "show": {
+            "title": "name",
+            "subtitles": ["phone", "address"],
             "emptyText": {
               "en": "No customers yet",
               "zh": "还没有客户",
@@ -513,11 +565,11 @@
         "fr": "Ventes"
       },
       "icon": "chart",
-      "components": [
+      "blocks": [
         {
           "id": "title",
-          "type": "header",
-          "props": {
+          "look": "header",
+          "show": {
             "title": {
               "en": "Sales",
               "zh": "营业额",
@@ -532,16 +584,18 @@
         },
         {
           "id": "year-sales",
-          "type": "stat",
-          "props": {
-            "collectionId": "$table.orders",
-            "aggregate": "sum",
-            "fieldId": "amount",
+          "look": "number",
+          "show": {
             "label": {
               "en": "Sales this year",
               "zh": "今年营业额",
               "fr": "Ventes de l’année"
-            },
+            }
+          },
+          "source": {
+            "table": "$table.orders",
+            "aggregate": "sum",
+            "field": "amount",
             "filter": [
               {
                 "field": "date",
@@ -553,19 +607,23 @@
         },
         {
           "id": "monthly",
-          "type": "chart",
-          "props": {
-            "collectionId": "$table.orders",
+          "look": "chart",
+          "show": {
             "kind": "bar",
-            "aggregate": "sum",
-            "fieldId": "amount",
-            "group": "month",
-            "dateField": "date",
-            "periods": 6,
             "title": {
               "en": "Sales by month",
               "zh": "每月营业额",
               "fr": "Ventes par mois"
+            }
+          },
+          "source": {
+            "table": "$table.orders",
+            "aggregate": "sum",
+            "field": "amount",
+            "group": {
+              "by": "date",
+              "unit": "month",
+              "last": 6
             }
           }
         }
@@ -573,19 +631,5 @@
     }
   ],
   "main": "$page.main",
-  "entry": "nav",
-  "reminders": [
-    {
-      "id": "$reminder.open",
-      "title": {
-        "en": "Before you open: check today’s orders",
-        "zh": "开店前看看今天的订单",
-        "fr": "Avant d’ouvrir : regardez les commandes du jour"
-      },
-      "enabled": true,
-      "schedule": "daily",
-      "time": "08:30",
-      "opens": "page:$page.main"
-    }
-  ]
+  "entry": "nav"
 }

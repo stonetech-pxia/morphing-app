@@ -2,7 +2,8 @@ import { localize } from './localization';
 import { t, pairText, type StringKey } from './messages';
 import { SYSTEM_TARGET_LABELS } from './defaults';
 import { plainText } from './richtext';
-import { shownInToolGrid, type ApplyNote, type Op } from './ops';
+import { shownInToolGrid, type ApplyNote } from './ops';
+import type { BlockChanges, Op } from './ops-schema';
 import { THEME_PRESETS } from './presets';
 import { QUICK_ACTION_CATEGORIES } from './quick-actions';
 import type { Registry } from './registry';
@@ -11,16 +12,24 @@ import {
   FIELDS,
   allComponents,
   componentDefinition,
+  isFileTarget,
   isKnownComponent,
   pageIdOf,
+  quickActionsOf,
+  remindersOf,
   type Backdrop,
   type BackdropPatch,
   type Component,
   type Locale,
+  type Localized,
   type NavTarget,
+  type OpenTarget,
+  type Page,
+  type QuickAction,
   type Reminder,
   type Theme,
   type WorkspaceConfig,
+  type WorkflowStep,
 } from './schema';
 
 // 把修改操作翻译成用户能看懂的说明（§4：将新增、删除或调整哪些页面/操作）。
@@ -37,7 +46,7 @@ export function navTargetLabel(target: NavTarget, config: WorkspaceConfig, local
   const pageId = pageIdOf(target);
   if (pageId === null)
     return localize(SYSTEM_TARGET_LABELS[target as keyof typeof SYSTEM_TARGET_LABELS], locale);
-  return config.pages.find((p) => p.id === pageId)?.title ?? pageId;
+  return config.containers.pages.find((p) => p.id === pageId)?.title ?? pageId;
 }
 
 export function componentLabel(
@@ -46,32 +55,35 @@ export function componentLabel(
   ctx: DescribeContext,
 ): string {
   if (!isKnownComponent(c)) return t(ctx.locale, 'describeUnknownComponent');
-  return componentDefinition(c.type).describe(c, config, ctx);
+  return componentDefinition(c.look).describe(c, config, ctx);
 }
 
 /** 提醒什么时候响（修改说明用）。 */
 export function reminderWhen(r: Reminder, config: WorkspaceConfig, locale: Locale): string {
-  if (r.schedule === 'daily') return t(locale, 'reminderWhenDaily', { time: r.time });
-  if (r.schedule === 'weekly') {
-    const days = [...new Set(r.weekdays ?? [])]
+  const when = r.when;
+  if ('every' in when && when.every === 'day')
+    return t(locale, 'reminderWhenDaily', { time: when.at });
+  if ('every' in when) {
+    const days = [...new Set(when.days)]
       .sort()
       .map((d) => t(locale, `weekday${d}` as StringKey))
       .join(t(locale, 'separatorList'));
-    return t(locale, 'reminderWhenWeekly', { days, time: r.time });
+    return t(locale, 'reminderWhenWeekly', { days, time: when.at });
   }
-  const collection = config.collections.find((c) => c.id === r.collectionId);
-  const field = collection?.fields.find((f) => f.id === r.fieldId);
-  if (r.schedule === 'scheduleField')
+  const on = 'each' in when ? when.each : when.before;
+  const table = config.data.tables.find((c) => c.id === on.table);
+  const field = table?.fields.find((f) => f.id === on.field);
+  if ('each' in when)
     return t(locale, 'reminderWhenSchedule', {
-      field: field?.name ?? String(r.fieldId),
-      table: collection?.name ?? String(r.collectionId),
-      time: r.time,
+      field: field?.name ?? on.field,
+      table: table?.name ?? on.table,
+      time: when.at,
     });
   return t(locale, 'reminderWhenDate', {
-    field: field?.name ?? String(r.fieldId),
-    table: collection?.name ?? String(r.collectionId),
-    n: r.daysBefore ?? 0,
-    time: r.time,
+    field: field?.name ?? on.field,
+    table: table?.name ?? on.table,
+    n: when.days,
+    time: when.at,
   });
 }
 
@@ -149,19 +161,29 @@ export function describeChange(
   ctx: DescribeContext,
 ): string[] {
   const zh = ctx.locale === 'zh';
-  // 同一次修改里新建的数据表也要能用名字称呼。
-  const addedCollections = ops.flatMap((op) => (op.op === 'addCollection' ? [op.collection] : []));
-  // 同一次修改里新建的页面也一样（例如新建页面后把它放进导航栏）。
-  const addedPages = ops.flatMap((op) => (op.op === 'addPage' ? [op.page] : []));
+  // 同一次修改里新建的数据表、页面也要能用名字称呼（例如新建页面后把它放进导航栏）。
+  const addedTables = ops.flatMap((op) =>
+    op.op === 'addData' && typeof op.table !== 'string' ? [op.table] : [],
+  );
+  const addedPages = ops.flatMap((op) =>
+    op.op === 'addContainer' && typeof op.page === 'object' ? [op.page as Page] : [],
+  );
+  // 同一次修改里新建的快捷操作、提醒也要能找到名字（新建后接着加步骤）。
+  const addedTools = ops.flatMap((op) =>
+    op.op === 'addTool' && typeof op.tool !== 'string' ? [op.tool] : [],
+  );
   const known: WorkspaceConfig = {
     ...before,
-    pages: [...before.pages, ...addedPages],
-    collections: [...before.collections, ...addedCollections],
+    data: { ...before.data, tables: [...before.data.tables, ...addedTables] },
+    containers: { ...before.containers, pages: [...before.containers.pages, ...addedPages] },
+    tools: [...before.tools, ...addedTools],
   };
-  const page = (id: string) => known.pages.find((p) => p.id === id);
+  const page = (id: string) => known.containers.pages.find((p) => p.id === id);
   const pageName = (id: string) => page(id)?.title ?? id;
-  // 同一次修改里新加的组件（例如先加分组再把卡片移进去）也要能用名字称呼。
-  const added = ops.flatMap((op) => (op.op === 'addComponent' ? [op.component] : []));
+  // 同一次修改里新加的块（例如先加分组再把卡片移进去）也要能用名字称呼。
+  const added = ops.flatMap((op) =>
+    op.op === 'addContainer' && op.block ? [op.block as Component] : [],
+  );
   const findComp = (pageId: string, id: string) => {
     const p = page(pageId);
     return (
@@ -172,11 +194,16 @@ export function describeChange(
     const c = findComp(pageId, id);
     return c ? componentLabel(c, known, ctx) : id;
   };
+  const deskBlock = (id: string) => {
+    const desk = known.containers.desk;
+    const c = [...(desk?.above ?? []), ...(desk?.below ?? []), ...added].find((x) => x.id === id);
+    return c ? componentLabel(c as Component, known, ctx) : id;
+  };
   const toolName = (id: string) => localize(ctx.registry.tools.get(id)?.name, ctx.locale) ?? id;
-  // 同一次修改里新建的工作流也要能找到名字（新建后接着加步骤）。
-  const addedWorkflows = ops.flatMap((o) => (o.op === 'addWorkflow' ? [o.workflow] : []));
-  const wf = (id: string) =>
-    before.workflows.find((w) => w.id === id) ?? addedWorkflows.find((w) => w.id === id);
+  const wf = (id: string): QuickAction | undefined =>
+    quickActionsOf(known).find((w) => w.id === id);
+  const reminder = (id: string): Reminder | undefined =>
+    remindersOf(known).find((r) => r.id === id);
   const actionLabel = (action: string) =>
     localize(ctx.registry.actions.get(action)?.label, ctx.locale) ?? action;
   const stepLabel = (wfId: string, stepId: string) => {
@@ -205,10 +232,10 @@ export function describeChange(
     return t(ctx.locale, 'describe_on_43dea', { v0: comp(pageId, parentId), v1: pageName(pageId) });
   };
 
-  const coll = (id: string) => known.collections.find((c) => c.id === id);
+  const coll = (id: string) => known.data.tables.find((c) => c.id === id);
   const collName = (id: string) => coll(id)?.name ?? id;
-  const fieldName = (collectionId: string, fieldId: string) =>
-    coll(collectionId)?.fields.find((f) => f.id === fieldId)?.name ?? fieldId;
+  const fieldName = (tableId: string, fieldId: string) =>
+    coll(tableId)?.fields.find((f) => f.id === fieldId)?.name ?? fieldId;
   const typeName = (type: unknown) =>
     FIELD_TYPE_NAMES[String(type)]
       ? pairText(ctx.locale, [
@@ -218,120 +245,454 @@ export function describeChange(
       : String(type);
   const list = (items: string[]) => items.join(t(ctx.locale, 'separatorList'));
 
+  /** 改了快捷操作的一步：参数（合并）、每次问什么（整个换）。 */
+  const describeStep = (
+    wfId: string,
+    stepId: string,
+    params: Record<string, unknown> | undefined,
+    ask: string[] | undefined,
+  ) => {
+    const name = wf(wfId)?.name ?? wfId;
+    const step = stepLabel(wfId, stepId);
+    const action = ctx.registry.actions.get(
+      wf(wfId)?.steps.find((s) => s.id === stepId)?.action ?? '',
+    );
+    const shown = params && action ? describeParams(action, params, ctx.locale, ctx.now) : '';
+    if (shown) {
+      lines.push(t(ctx.locale, 'describe__3ca25', { v0: name, v1: step, v2: shown }));
+    } else if (params) {
+      lines.push(t(ctx.locale, 'describe_Update_c2f66', { v0: name, v1: step }));
+    }
+    if (ask !== undefined) {
+      const asked =
+        action && ask.length > 0
+          ? action.fields
+              .filter((f) => ask.includes(f.key))
+              .map((f) => localize(f.label, ctx.locale))
+              .join(t(ctx.locale, 'separatorList'))
+          : '';
+      lines.push(
+        asked
+          ? t(ctx.locale, 'describe_asks_for_on_every_run_708a8', { v0: name, v1: asked })
+          : t(ctx.locale, 'describe_no_longer_asks_it_uses_the_saved_setti_a3369', {
+              v0: name,
+              v1: step,
+            }),
+      );
+    }
+  };
+
+  /** 块的 show / source / tools / opens 的修改（原 setComponentProps：一个属性一段）。 */
+  const blockChanges = (pageId: string, blockId: string, changes: BlockChanges): string[] => {
+    const current = findComp(pageId, blockId);
+    const parts: string[] = [];
+    for (const [k, v] of Object.entries(changes.show ?? {})) {
+      if (k === 'asset') {
+        parts.push(
+          v
+            ? t(ctx.locale, 'describe_new_picture_bf924')
+            : t(ctx.locale, 'describe_picture_removed_4fb32'),
+        );
+        continue;
+      }
+      parts.push(propChange(k, v));
+    }
+    for (const [k, v] of Object.entries(changes.source ?? {})) parts.push(propChange(k, v));
+    if (changes.tools !== undefined)
+      parts.push(
+        changes.tools === null
+          ? t(ctx.locale, 'describe_removed_d5c25', {
+              v0: localize(PROP_NAMES.tools!, ctx.locale),
+            })
+          : t(ctx.locale, 'v34descToolsChanged'),
+      );
+    if (changes.opens !== undefined) {
+      const opens = changes.opens as OpenTarget | null;
+      const wasFile =
+        current && isKnownComponent(current) && 'opens' in current
+          ? isFileTarget(current.opens as OpenTarget)
+          : false;
+      if ((opens !== null && isFileTarget(opens)) || (opens === null && wasFile))
+        parts.push(
+          t(
+            ctx.locale,
+            opens !== null && isFileTarget(opens) && opens.file
+              ? 'describeNewFile'
+              : 'describeFileRemoved',
+          ),
+        );
+      else parts.push(propChange('opens', opens));
+    }
+    return parts;
+  };
+  /** 一个属性改成什么（名字、取值都写成人话，D-230；富文本显示成纯文字，太长时截断）。 */
+  const propChange = (k: string, v: unknown) => {
+    const name = localize(PROP_NAMES[k], ctx.locale) ?? k;
+    if (v === null) return t(ctx.locale, 'describe_removed_d5c25', { v0: name });
+    const named = typeof v === 'string' ? localize(PROP_VALUES[k]?.[v], ctx.locale) : null;
+    if (named) return t(ctx.locale, 'describe__41054', { v0: name, v1: named });
+    const shown = typeof v === 'string' && k === 'text' ? truncate(plainText(v)) : v;
+    const value =
+      typeof shown === 'string'
+        ? t(ctx.locale, 'describe__441c2', { v0: shown })
+        : JSON.stringify(shown);
+    return t(ctx.locale, 'describe__41054', { v0: name, v1: value });
+  };
+
   const lines: string[] = [];
   for (const op of ops) {
     switch (op.op) {
-      case 'addCollection':
-        lines.push(
-          t(ctx.locale, 'describe_Add_data_table_f79c6', {
-            v0: op.collection.name,
-            v1: list(op.collection.fields.map((f) => f.name)),
-          }),
-        );
-        break;
-      case 'updateCollection':
-        if (op.name !== undefined)
+      // ---- 数据 ----
+      case 'addData':
+        if (typeof op.table !== 'string')
           lines.push(
-            t(ctx.locale, 'describe_Rename_data_table_to_c585f', {
-              v0: collName(op.collectionId),
-              v1: op.name,
+            t(ctx.locale, 'describe_Add_data_table_f79c6', {
+              v0: op.table.name,
+              v1: list(op.table.fields.map((f) => f.name)),
             }),
           );
-        if (op.icon !== undefined)
+        else if (op.field)
           lines.push(
-            t(ctx.locale, 'describe_Change_the_icon_of_9c456', { v0: collName(op.collectionId) }),
+            t(ctx.locale, 'describe_Add_field_to_b8810', {
+              v0: op.field.name,
+              v1: typeName(op.field.type),
+              v2: collName(op.table),
+            }),
           );
         break;
-      case 'addField':
-        lines.push(
-          t(ctx.locale, 'describe_Add_field_to_b8810', {
-            v0: op.field.name,
-            v1: typeName(op.field.type),
-            v2: collName(op.collectionId),
-          }),
-        );
-        break;
-      case 'updateField': {
-        const name = fieldName(op.collectionId, op.fieldId);
+      case 'updateData': {
+        if (op.calendar) {
+          const c = op.calendar;
+          if (c.dayStartHour !== undefined)
+            lines.push(t(ctx.locale, 'describeDayStart', { hour: c.dayStartHour ?? 0 }));
+          if (c.weekStart !== undefined)
+            lines.push(
+              t(
+                ctx.locale,
+                c.weekStart === 'sunday' ? 'describeWeekStartSunday' : 'describeWeekStartMonday',
+              ),
+            );
+          if (c.twoWeekStart !== undefined)
+            lines.push(
+              c.twoWeekStart === null
+                ? t(ctx.locale, 'describeTwoWeekStartReset')
+                : t(ctx.locale, 'describeTwoWeekStart', { date: c.twoWeekStart }),
+            );
+          break;
+        }
+        const table = op.table!;
+        const changes = op.changes ?? {};
+        if (op.field === undefined) {
+          if (typeof changes.name === 'string')
+            lines.push(
+              t(ctx.locale, 'describe_Rename_data_table_to_c585f', {
+                v0: collName(table),
+                v1: changes.name,
+              }),
+            );
+          if (changes.icon !== undefined)
+            lines.push(t(ctx.locale, 'describe_Change_the_icon_of_9c456', { v0: collName(table) }));
+          break;
+        }
+        const name = fieldName(table, op.field);
         const parts: string[] = [];
-        if (typeof op.changes.name === 'string')
-          parts.push(t(ctx.locale, 'describe_rename_to_08deb', { v0: op.changes.name }));
-        if (op.changes.type !== undefined)
-          parts.push(t(ctx.locale, 'describe_type_7382b', { v0: typeName(op.changes.type) }));
-        if (Array.isArray(op.changes.options)) {
-          const labels = (op.changes.options as { label?: unknown }[]).map((o) => String(o.label));
+        if (typeof changes.name === 'string')
+          parts.push(t(ctx.locale, 'describe_rename_to_08deb', { v0: changes.name }));
+        if (changes.type !== undefined)
+          parts.push(t(ctx.locale, 'describe_type_7382b', { v0: typeName(changes.type) }));
+        if (Array.isArray(changes.options)) {
+          const labels = (changes.options as { label?: unknown }[]).map((o) => String(o.label));
           parts.push(t(ctx.locale, 'describe_options_64e79', { v0: list(labels) }));
         }
         if (parts.length === 0) parts.push(t(ctx.locale, 'describe_update_settings_2aaf6'));
         lines.push(
           t(ctx.locale, 'describeFieldChange', {
-            collection: collName(op.collectionId),
+            collection: collName(table),
             name,
             changes: parts.join(t(ctx.locale, 'separatorComma')),
           }),
         );
         break;
       }
-      case 'moveField':
+      case 'removeData':
+        lines.push(
+          op.field === undefined
+            ? t(ctx.locale, 'describe_Remove_data_table_from_the_app_records_1a3d2', {
+                v0: collName(op.table),
+              })
+            : t(ctx.locale, 'describe_Hide_field_of_existing_data_is_kept_4f9d1', {
+                v0: fieldName(op.table, op.field),
+                v1: collName(op.table),
+              }),
+        );
+        break;
+      case 'moveData':
         lines.push(
           t(ctx.locale, 'describe_Move_field_of_to_position_aa798', {
-            v0: fieldName(op.collectionId, op.fieldId),
-            v1: collName(op.collectionId),
+            v0: fieldName(op.table, op.field),
+            v1: collName(op.table),
             v2: op.toIndex + 1,
           }),
         );
         break;
-      case 'removeField':
-        lines.push(
-          t(ctx.locale, 'describe_Hide_field_of_existing_data_is_kept_4f9d1', {
-            v0: fieldName(op.collectionId, op.fieldId),
-            v1: collName(op.collectionId),
-          }),
-        );
-        break;
-      case 'addReminder':
-        lines.push(
-          t(ctx.locale, 'describeAddReminder', {
-            title: op.reminder.title,
-            when: reminderWhen(op.reminder, known, ctx.locale),
-          }),
-        );
-        break;
-      case 'updateReminder': {
-        const r = known.reminders?.find((x: Reminder) => x.id === op.reminderId);
-        lines.push(t(ctx.locale, 'describeUpdateReminder', { title: r?.title ?? op.reminderId }));
-        break;
-      }
-      case 'removeReminder': {
-        const r = known.reminders?.find((x: Reminder) => x.id === op.reminderId);
-        lines.push(t(ctx.locale, 'describeRemoveReminder', { title: r?.title ?? op.reminderId }));
-        break;
-      }
-      case 'setCalendar':
-        if (op.dayStartHour !== undefined)
-          lines.push(t(ctx.locale, 'describeDayStart', { hour: op.dayStartHour ?? 0 }));
-        if (op.weekStart !== undefined)
+
+      // ---- 容器 ----
+      case 'addContainer':
+        if (op.desk !== undefined && op.block)
           lines.push(
-            t(
-              ctx.locale,
-              op.weekStart === 'sunday' ? 'describeWeekStartSunday' : 'describeWeekStartMonday',
-            ),
+            t(ctx.locale, op.desk === 'above' ? 'v34descDeskAddAbove' : 'v34descDeskAddBelow', {
+              v0: componentLabel(op.block as Component, known, ctx),
+            }),
           );
-        if (op.twoWeekStart !== undefined)
+        else if (typeof op.page === 'object' && op.page !== null)
           lines.push(
-            op.twoWeekStart === null
-              ? t(ctx.locale, 'describeTwoWeekStartReset')
-              : t(ctx.locale, 'describeTwoWeekStart', { date: op.twoWeekStart }),
+            t(ctx.locale, 'describe_Add_page_blocks_80d1f', {
+              v0: op.page.title,
+              v1: op.page.blocks.length,
+            }),
+          );
+        else if (typeof op.page === 'string' && op.block)
+          lines.push(
+            t(ctx.locale, 'describe_Add_to_f2026', {
+              v0: componentLabel(op.block as Component, known, ctx),
+              v1: where(op.page, op.parent),
+            }),
           );
         break;
-      case 'removeCollection':
+      case 'updateContainer': {
+        if (op.nav) {
+          const nav = op.nav;
+          if (nav.bar)
+            lines.push(
+              t(ctx.locale, 'describe_Navigation_was_7f9d5', {
+                v0: navList(nav.bar),
+                v1: navList(before.nav.bar),
+              }),
+            );
+          if (nav.floating)
+            lines.push(
+              nav.floating.length === 0
+                ? t(ctx.locale, 'describe_Remove_all_floating_buttons_0029b')
+                : t(ctx.locale, 'describe_Floating_buttons_d071d', { v0: navList(nav.floating) }),
+            );
+          if (nav.phoneHomeScreen) {
+            // 整个列表：多出来的放上手机桌面，少了的拿掉（D-271）。
+            const was = before.nav.phoneHomeScreen ?? [];
+            for (const id of nav.phoneHomeScreen)
+              if (!was.includes(id))
+                lines.push(t(ctx.locale, 'describeHomeScreenOn', { name: wf(id)?.name ?? id }));
+            for (const id of was)
+              if (!nav.phoneHomeScreen.includes(id))
+                lines.push(t(ctx.locale, 'describeHomeScreenOff', { name: wf(id)?.name ?? id }));
+          }
+          break;
+        }
+        if (op.desk) {
+          lines.push(t(ctx.locale, 'v34descDeskLayout'));
+          break;
+        }
+        const pageId = op.page!;
+        if (op.block === undefined) {
+          const changes = (op.changes ?? {}) as {
+            title?: string;
+            icon?: string | null;
+            backdrop?: BackdropPatch | null;
+          };
+          if (changes.title !== undefined)
+            lines.push(
+              t(ctx.locale, 'describe_Rename_page_to_5e2cc', {
+                v0: pageName(pageId),
+                v1: changes.title,
+              }),
+            );
+          if (changes.icon !== undefined)
+            lines.push(
+              t(ctx.locale, 'describePageIcon', {
+                page: pageName(pageId),
+                icon: changes.icon
+                  ? t(ctx.locale, 'describeNewIcon', { icon: changes.icon })
+                  : t(ctx.locale, 'describeNoIcon'),
+              }),
+            );
+          if (changes.backdrop !== undefined)
+            lines.push(
+              t(ctx.locale, 'describePageBackdrop', {
+                page: pageName(pageId),
+                change: backdropChange(changes.backdrop, page(pageId)?.backdrop, ctx.locale),
+              }),
+            );
+          break;
+        }
+        const changes = (op.changes ?? {}) as BlockChanges;
+        const label = comp(pageId, op.block);
+        if (changes.hidden !== undefined)
+          lines.push(
+            t(ctx.locale, changes.hidden ? 'describeHideComponent' : 'describeShowComponent', {
+              component: label,
+            }),
+          );
+        if (changes.style) {
+          const current = findComp(pageId, op.block);
+          lines.push(
+            t(ctx.locale, 'describe_Restyle_0b6e5', {
+              v0: label,
+              v1: styleChanges(
+                changes.style,
+                current && isKnownComponent(current) ? current.style?.backdrop : undefined,
+                ctx.locale,
+                zh,
+              ),
+            }),
+          );
+        }
+        const parts = blockChanges(pageId, op.block, changes);
+        if (parts.length > 0)
+          lines.push(
+            t(ctx.locale, 'describe_Update_75049', {
+              v0: label,
+              v1: parts.join(t(ctx.locale, 'separatorComma')),
+            }),
+          );
+        break;
+      }
+      case 'removeContainer':
+        if (op.desk !== undefined)
+          lines.push(t(ctx.locale, 'v34descDeskRemove', { v0: deskBlock(op.block!) }));
+        else if (op.block === undefined)
+          lines.push(
+            t(ctx.locale, 'describe_Remove_page_files_are_not_affected_5abad', {
+              v0: pageName(op.page!),
+            }),
+          );
+        else
+          lines.push(
+            t(ctx.locale, 'describe_Remove_from_c2717', {
+              v0: comp(op.page!, op.block),
+              v1: pageName(op.page!),
+            }),
+          );
+        break;
+      case 'moveContainer':
         lines.push(
-          t(ctx.locale, 'describe_Remove_data_table_from_the_app_records_1a3d2', {
-            v0: collName(op.collectionId),
+          t(ctx.locale, 'describe_Move_to_position_in_7eb22', {
+            v0: comp(op.page, op.block),
+            v1: op.toIndex + 1,
+            v2: where(op.page, op.parent),
           }),
         );
         break;
+
+      // ---- 工具 ----
+      case 'addTool': {
+        if (typeof op.tool === 'string') {
+          const step = op.step as WorkflowStep;
+          const name = wf(op.tool)?.name ?? op.tool;
+          const action = ctx.registry.actions.get(step.action);
+          const params = action ? describeParams(action, step.params, ctx.locale, ctx.now) : '';
+          lines.push(
+            t(ctx.locale, 'describeAddStep', {
+              name,
+              label: actionLabel(step.action),
+              params: params ? t(ctx.locale, 'describeStepParameters', { params }) : '',
+            }),
+          );
+        } else if (op.tool.kind === 'reminder') {
+          lines.push(
+            t(ctx.locale, 'describeAddReminder', {
+              title: op.tool.title,
+              when: reminderWhen(op.tool, known, ctx.locale),
+            }),
+          );
+        } else {
+          const from = op.tool.preset ? t(ctx.locale, 'describe_ready_made_61047') : '';
+          lines.push(
+            t(ctx.locale, 'describe_New_quick_action_b4026', {
+              v0: op.tool.name,
+              v1: from,
+              v2: stepChain(op.tool.steps),
+            }),
+          );
+        }
+        break;
+      }
+      case 'updateTool': {
+        const changes = op.changes;
+        if (op.step !== undefined) {
+          describeStep(
+            op.tool,
+            op.step,
+            changes.params as Record<string, unknown> | undefined,
+            changes.ask as string[] | undefined,
+          );
+          break;
+        }
+        const r = reminder(op.tool);
+        if (r) {
+          lines.push(t(ctx.locale, 'describeUpdateReminder', { title: r.title }));
+          break;
+        }
+        const name = wf(op.tool)?.name ?? op.tool;
+        const newName = typeof changes.name === 'string' ? changes.name : undefined;
+        const steps = changes.steps as { action: string }[] | undefined;
+        if (steps) {
+          // 整体换步骤（原 updateWorkflow：快捷操作编辑页保存、恢复预设）。
+          if (newName !== undefined && newName !== name)
+            lines.push(t(ctx.locale, 'describe_Rename_to_decb3', { v0: name, v1: newName }));
+          lines.push(
+            t(ctx.locale, 'describe_Steps_of_591ff', { v0: newName ?? name, v1: stepChain(steps) }),
+          );
+        } else if (newName !== undefined) {
+          lines.push(
+            t(ctx.locale, 'describe_Rename_the_quick_action_to_e45a1', { v0: name, v1: newName }),
+          );
+        } else if (changes.icon !== undefined) {
+          lines.push(t(ctx.locale, 'v34descQuickActionIcon', { name }));
+        }
+        break;
+      }
+      case 'removeTool': {
+        if (op.step !== undefined) {
+          lines.push(
+            t(ctx.locale, 'describe_Remove_step_from_8750c', {
+              v0: stepLabel(op.tool, op.step),
+              v1: wf(op.tool)?.name ?? op.tool,
+            }),
+          );
+          break;
+        }
+        const r = reminder(op.tool);
+        lines.push(
+          r
+            ? t(ctx.locale, 'describeRemoveReminder', { title: r.title })
+            : t(ctx.locale, 'describe_Delete_the_quick_action_files_are_kept_deaf1', {
+                v0: wf(op.tool)?.name ?? op.tool,
+              }),
+        );
+        break;
+      }
+      case 'moveTool':
+        lines.push(
+          t(ctx.locale, 'describe_Move_to_step_in_885bf', {
+            v0: stepLabel(op.tool, op.step),
+            v1: op.toIndex + 1,
+            v2: wf(op.tool)?.name ?? op.tool,
+          }),
+        );
+        break;
+
+      // ---- 主题 ----
       case 'setTheme': {
+        if (op.preset) {
+          const name = localize(THEME_PRESETS[op.preset].name, ctx.locale);
+          lines.push(
+            t(ctx.locale, 'describe_Switch_the_style_to_colors_fonts_corne_60590', { v0: name }),
+          );
+          break;
+        }
+        if (op.reset) {
+          lines.push(t(ctx.locale, 'describe_Reset_the_style_to_the_default_colors__162af'));
+          break;
+        }
         if (op.primaryColor)
           lines.push(t(ctx.locale, 'describe_Theme_color_8ee07', { v0: op.primaryColor }));
         if (op.mode)
@@ -371,365 +732,28 @@ export function describeChange(
         }
         break;
       }
-      case 'applyThemePreset': {
-        const name = localize(THEME_PRESETS[op.preset].name, ctx.locale);
-        lines.push(
-          t(ctx.locale, 'describe_Switch_the_style_to_colors_fonts_corne_60590', { v0: name }),
-        );
-        break;
-      }
-      case 'resetTheme':
-        lines.push(t(ctx.locale, 'describe_Reset_the_style_to_the_default_colors__162af'));
-        break;
-      case 'setNavItems':
-        lines.push(
-          t(ctx.locale, 'describe_Navigation_was_7f9d5', {
-            v0: navList(op.items),
-            v1: navList(before.shell.nav),
-          }),
-        );
-        break;
-      case 'setFloatingItems':
-        lines.push(
-          op.items.length === 0
-            ? t(ctx.locale, 'describe_Remove_all_floating_buttons_0029b')
-            : t(ctx.locale, 'describe_Floating_buttons_d071d', { v0: navList(op.items) }),
-        );
-        break;
-      case 'setPageBackdrop':
-        lines.push(
-          t(ctx.locale, 'describePageBackdrop', {
-            page: pageName(op.pageId),
-            change: backdropChange(op.backdrop, page(op.pageId)?.backdrop, ctx.locale),
-          }),
-        );
-        break;
-      case 'setPageIcon':
-        lines.push(
-          t(ctx.locale, 'describePageIcon', {
-            page: pageName(op.pageId),
-            icon: op.icon
-              ? t(ctx.locale, 'describeNewIcon', { icon: op.icon })
-              : t(ctx.locale, 'describeNoIcon'),
-          }),
-        );
-        break;
-      case 'addPage':
-        lines.push(
-          t(ctx.locale, 'describe_Add_page_blocks_80d1f', {
-            v0: op.page.title,
-            v1: op.page.components.length,
-          }),
-        );
-        break;
-      case 'removePage':
-        lines.push(
-          t(ctx.locale, 'describe_Remove_page_files_are_not_affected_5abad', {
-            v0: pageName(op.pageId),
-          }),
-        );
-        break;
-      case 'setPageTitle':
-        lines.push(
-          t(ctx.locale, 'describe_Rename_page_to_5e2cc', { v0: pageName(op.pageId), v1: op.title }),
-        );
-        break;
-      case 'moveComponent':
-        lines.push(
-          t(ctx.locale, 'describe_Move_to_position_in_7eb22', {
-            v0: comp(op.pageId, op.componentId),
-            v1: op.toIndex + 1,
-            v2: where(op.pageId, op.parentId),
-          }),
-        );
-        break;
-      case 'setComponentProps': {
-        const propNames: Record<string, import('./schema').Localized> = {
-          title: { zh: '标题', en: 'title', fr: 'titre' },
-          subtitle: { zh: '副标题', en: 'subtitle', fr: 'sous-titre' },
-          text: { zh: '文字', en: 'text', fr: 'texte' },
-          label: { zh: '文字', en: 'label', fr: 'texte' },
-          layout: { zh: '排列方式', en: 'layout', fr: 'disposition' },
-          columns: { zh: '列数', en: 'columns', fr: 'colonnes' },
-          icon: { zh: '图标', en: 'icon', fr: 'icône' },
-          target: { zh: '打开的页面', en: 'target', fr: 'page ouverte' },
-          variant: { zh: '样式', en: 'variant', fr: 'variante' },
-          aspect: { zh: '比例', en: 'aspect', fr: 'proportions' },
-          fit: { zh: '填充方式', en: 'fit', fr: 'mode d’ajustement' },
-          caption: { zh: '说明', en: 'caption', fr: 'légende' },
-          placeholder: { zh: '提示', en: 'placeholder', fr: 'texte indicatif' },
-          hint: { zh: '提示', en: 'hint', fr: 'indication' },
-          look: { zh: '样子', en: 'look', fr: 'apparence' },
-          kind: { zh: '类别', en: 'category', fr: 'catégorie' },
-        };
-        // 取值也写成人话（D-230）。
-        const propValues: Record<string, Record<string, import('./schema').Localized>> = {
-          look: {
-            row: {
-              zh: '一行（右边有箭头）',
-              en: 'a row with an arrow',
-              fr: 'une ligne avec flèche',
-            },
-            tile: { zh: '大图标块', en: 'a large icon tile', fr: 'une grande tuile' },
-            card: {
-              zh: '卡片加「运行」按钮',
-              en: 'a card with a Run button',
-              fr: 'une carte avec bouton Exécuter',
-            },
-          },
-          variant: {
-            filled: { zh: '实心', en: 'filled', fr: 'plein' },
-            outline: { zh: '描边', en: 'outlined', fr: 'contour' },
-            text: { zh: '只有文字', en: 'text only', fr: 'texte seul' },
-            icon: { zh: '只显示图标', en: 'icon only', fr: 'icône seule' },
-          },
-          kind: Object.fromEntries(
-            Object.entries(QUICK_ACTION_CATEGORIES).map(([k, v]) => [k, v.name]),
-          ),
-        };
-        const changes = Object.entries(op.props)
-          .map(([k, v]) => {
-            if (k === 'assetId') {
-              if (findComp(op.pageId, op.componentId)?.type === 'fileSlot')
-                return t(ctx.locale, v ? 'describeNewFile' : 'describeFileRemoved');
-              return v
-                ? t(ctx.locale, 'describe_new_picture_bf924')
-                : t(ctx.locale, 'describe_picture_removed_4fb32');
-            }
-            const name = localize(propNames[k], ctx.locale) ?? k;
-            if (v === null) return t(ctx.locale, 'describe_removed_d5c25', { v0: name });
-            const named = typeof v === 'string' ? localize(propValues[k]?.[v], ctx.locale) : null;
-            if (named) return t(ctx.locale, 'describe__41054', { v0: name, v1: named });
-            // 富文本显示成纯文字，太长时截断。
-            const shown = typeof v === 'string' && k === 'text' ? truncate(plainText(v)) : v;
-            const value =
-              typeof shown === 'string'
-                ? t(ctx.locale, 'describe__441c2', { v0: shown })
-                : JSON.stringify(shown);
-            return t(ctx.locale, 'describe__41054', { v0: name, v1: value });
-          })
-          .join(t(ctx.locale, 'separatorComma'));
-        lines.push(
-          t(ctx.locale, 'describe_Update_75049', {
-            v0: comp(op.pageId, op.componentId),
-            v1: changes,
-          }),
-        );
-        break;
-      }
-      case 'setComponentStyle': {
-        const names: Record<string, [string, string]> = {
-          align: ['对齐', 'alignment'],
-          tone: ['颜色', 'color'],
-          size: ['大小', 'size'],
-        };
-        const values: Record<string, [string, string]> = {
-          start: ['靠左', 'left'],
-          center: ['居中', 'centered'],
-          default: ['默认', 'default'],
-          primary: ['主色', 'primary'],
-          secondary: ['辅助色', 'secondary'],
-          tertiary: ['第三色', 'tertiary'],
-          muted: ['弱化', 'muted'],
-          small: ['小', 'small'],
-          medium: ['中', 'medium'],
-          large: ['大', 'large'],
-        };
-        const current = findComp(op.pageId, op.componentId);
-        const backdrop = op.style.backdrop;
-        const changes = (Object.entries(op.style) as [string, string | null | undefined][])
-          .filter((e): e is [string, string | null] => e[1] !== undefined && e[0] !== 'backdrop')
-          .map(([k, v]) => {
-            const shown =
-              v === null
-                ? t(ctx.locale, 'describe_default_9ef5c')
-                : values[v]
-                  ? pairText(ctx.locale, [values[v]![1], values[v]![0]])
-                  : v;
-            return t(ctx.locale, 'describeStyleChange', {
-              name: pairText(ctx.locale, [names[k]![1], names[k]![0]]),
-              value: shown,
-            });
-          })
-          .concat(
-            backdrop === undefined
-              ? []
-              : [
-                  backdropChange(
-                    backdrop,
-                    current && isKnownComponent(current) ? current.style?.backdrop : undefined,
-                    ctx.locale,
-                  ),
-                ],
-          )
-          .join(zh ? '，' : ', ');
-        lines.push(
-          t(ctx.locale, 'describe_Restyle_0b6e5', {
-            v0: comp(op.pageId, op.componentId),
-            v1: changes,
-          }),
-        );
-        break;
-      }
-      case 'setComponentHidden':
-        lines.push(
-          t(ctx.locale, op.hidden ? 'describeHideComponent' : 'describeShowComponent', {
-            component: comp(op.pageId, op.componentId),
-          }),
-        );
-        break;
-      case 'addComponent':
-        lines.push(
-          t(ctx.locale, 'describe_Add_to_f2026', {
-            v0: componentLabel(op.component, known, ctx),
-            v1: where(op.pageId, op.parentId),
-          }),
-        );
-        break;
-      case 'removeComponent':
-        lines.push(
-          t(ctx.locale, 'describe_Remove_from_c2717', {
-            v0: comp(op.pageId, op.componentId),
-            v1: pageName(op.pageId),
-          }),
-        );
-        break;
-      case 'installTool':
-        // 工具箱里已经有这个工具时不再往首页放入口（D-181）。
-        lines.push(
-          shownInToolGrid(known, op.toolId, [...ctx.registry.tools.keys()])
-            ? t(ctx.locale, 'describe_Add_the_tool_adds_its_page_7a595', {
-                v0: toolName(op.toolId),
-              })
-            : t(ctx.locale, 'describe_Add_the_tool_adds_its_page_and_a_home__ec774', {
-                v0: toolName(op.toolId),
-              }),
-        );
-        break;
-      case 'updateTool':
-        // 说明在 notes 里（列出新增的功能）。
-        break;
-      case 'uninstallTool':
-        lines.push(
-          t(ctx.locale, 'describe_Remove_the_tool_removes_its_card_page__2fb97', {
-            v0: toolName(op.toolId),
-          }),
-        );
-        break;
-      case 'setStepParams': {
-        const name = wf(op.workflowId)?.name ?? op.workflowId;
-        const step = stepLabel(op.workflowId, op.stepId);
-        const action = ctx.registry.actions.get(
-          wf(op.workflowId)?.steps.find((s) => s.id === op.stepId)?.action ?? '',
-        );
-        const params =
-          op.params && action ? describeParams(action, op.params, ctx.locale, ctx.now) : '';
-        if (params) {
-          lines.push(t(ctx.locale, 'describe__3ca25', { v0: name, v1: step, v2: params }));
-        } else if (op.params) {
-          lines.push(t(ctx.locale, 'describe_Update_c2f66', { v0: name, v1: step }));
-        }
-        if (op.ask !== undefined) {
-          const asked =
-            action && op.ask.length > 0
-              ? action.fields
-                  .filter((f) => op.ask!.includes(f.key))
-                  .map((f) => localize(f.label, ctx.locale))
-                  .join(t(ctx.locale, 'separatorList'))
-              : '';
+
+      // ---- 工具包（界面上叫「工具」）----
+      case 'setPackage':
+        if (op.do === 'add')
+          // 工具箱里已经有这个工具时不再往首页放入口（D-181）。
           lines.push(
-            asked
-              ? t(ctx.locale, 'describe_asks_for_on_every_run_708a8', { v0: name, v1: asked })
-              : t(ctx.locale, 'describe_no_longer_asks_it_uses_the_saved_setti_a3369', {
-                  v0: name,
-                  v1: step,
+            shownInToolGrid(known, op.package, [...ctx.registry.tools.keys()])
+              ? t(ctx.locale, 'describe_Add_the_tool_adds_its_page_7a595', {
+                  v0: toolName(op.package),
+                })
+              : t(ctx.locale, 'describe_Add_the_tool_adds_its_page_and_a_home__ec774', {
+                  v0: toolName(op.package),
                 }),
           );
-        }
-        break;
-      }
-      case 'addWorkflow': {
-        const from = op.workflow.presetId ? t(ctx.locale, 'describe_ready_made_61047') : '';
-        lines.push(
-          t(ctx.locale, 'describe_New_quick_action_b4026', {
-            v0: op.workflow.name,
-            v1: from,
-            v2: stepChain(op.workflow.steps),
-          }),
-        );
-        break;
-      }
-      case 'removeWorkflow': {
-        const name = wf(op.workflowId)?.name ?? op.workflowId;
-        lines.push(
-          t(ctx.locale, 'describe_Delete_the_quick_action_files_are_kept_deaf1', { v0: name }),
-        );
-        break;
-      }
-      case 'renameWorkflow': {
-        const name = wf(op.workflowId)?.name ?? op.workflowId;
-        lines.push(
-          t(ctx.locale, 'describe_Rename_the_quick_action_to_e45a1', { v0: name, v1: op.name }),
-        );
-        break;
-      }
-      case 'setWorkflowHomeScreen': {
-        const name = wf(op.workflowId)?.name ?? op.workflowId;
-        lines.push(
-          t(ctx.locale, op.homeScreen ? 'describeHomeScreenOn' : 'describeHomeScreenOff', { name }),
-        );
-        break;
-      }
-      case 'addWorkflowStep': {
-        const name = wf(op.workflowId)?.name ?? op.workflowId;
-        const action = ctx.registry.actions.get(op.step.action);
-        const params = action ? describeParams(action, op.step.params, ctx.locale, ctx.now) : '';
-        const label = actionLabel(op.step.action);
-        lines.push(
-          t(ctx.locale, 'describeAddStep', {
-            name,
-            label,
-            params: params ? t(ctx.locale, 'describeStepParameters', { params }) : '',
-          }),
-        );
-        break;
-      }
-      case 'moveWorkflowStep': {
-        const name = wf(op.workflowId)?.name ?? op.workflowId;
-        lines.push(
-          t(ctx.locale, 'describe_Move_to_step_in_885bf', {
-            v0: stepLabel(op.workflowId, op.stepId),
-            v1: op.toIndex + 1,
-            v2: name,
-          }),
-        );
-        break;
-      }
-      case 'updateWorkflow': {
-        const name = wf(op.workflowId)?.name ?? op.workflowId;
-        if (op.name !== undefined && op.name !== name) {
-          lines.push(t(ctx.locale, 'describe_Rename_to_decb3', { v0: name, v1: op.name }));
-        }
-        if (op.steps) {
+        else if (op.do === 'remove')
           lines.push(
-            t(ctx.locale, 'describe_Steps_of_591ff', {
-              v0: op.name ?? name,
-              v1: stepChain(op.steps),
+            t(ctx.locale, 'describe_Remove_the_tool_removes_its_card_page__2fb97', {
+              v0: toolName(op.package),
             }),
           );
-        }
+        // update：说明在 notes 里（列出新增的功能）。
         break;
-      }
-      case 'removeWorkflowStep': {
-        const name = wf(op.workflowId)?.name ?? op.workflowId;
-        lines.push(
-          t(ctx.locale, 'describe_Remove_step_from_8750c', {
-            v0: stepLabel(op.workflowId, op.stepId),
-            v1: name,
-          }),
-        );
-        break;
-      }
     }
   }
   for (const note of notes) {
@@ -739,20 +763,20 @@ export function describeChange(
         t(ctx.locale, 'describe_can_t_be_removed_it_holds_the_AI_and_C_e58da', { v0: label }),
       );
     } else if (note.kind === 'updatedTool') {
-      const def = ctx.registry.tools.get(note.toolId);
+      const def = ctx.registry.tools.get(note.package);
       const names = def
         ? def
             .createWorkflows(ctx.locale)
-            .filter((w) => note.workflowIds.includes(w.id))
+            .filter((w) => note.tools.includes(w.id))
             .map((w) => w.name)
-        : note.workflowIds;
+        : note.tools;
       lines.push(
         names.length === 0
           ? t(ctx.locale, 'describe_Update_the_tool_to_the_latest_version__b20b4', {
-              v0: toolName(note.toolId),
+              v0: toolName(note.package),
             })
           : t(ctx.locale, 'describeUpdatedTool', {
-              tool: toolName(note.toolId),
+              tool: toolName(note.package),
               names: names.join(t(ctx.locale, 'separatorList')),
             }),
       );
@@ -770,18 +794,18 @@ export function describeChange(
       lines.push(
         t(ctx.locale, 'describe_Also_removes_block_s_that_showed_a7a30', {
           v0: note.count,
-          v1: collName(note.collectionId),
+          v1: collName(note.table),
         }),
       );
     } else if (note.kind === 'addedEntryForm') {
-      lines.push(t(ctx.locale, 'describeAddedEntryForm', { table: collName(note.collectionId) }));
+      lines.push(t(ctx.locale, 'describeAddedEntryForm', { table: collName(note.table) }));
     } else if (note.kind === 'removedRecordActions') {
       lines.push(t(ctx.locale, 'describeRemovedRecordActions', { n: note.count }));
     } else if (note.kind === 'removedWorkflowLinks') {
       lines.push(
         t(ctx.locale, 'describe_Also_removes_button_s_or_shortcut_s_th_d4dc1', {
           v0: note.count,
-          v1: known.workflows.find((w) => w.id === note.workflowId)?.name ?? note.workflowId,
+          v1: wf(note.tool)?.name ?? note.tool,
         }),
       );
     } else {
@@ -804,8 +828,8 @@ export function describeRestore(
   ctx: Pick<DescribeContext, 'registry' | 'locale'>,
 ): string[] {
   const toolName = (id: string) => localize(ctx.registry.tools.get(id)?.name, ctx.locale) ?? id;
-  const beforeTools = new Set(before.tools.map((t) => t.toolId));
-  const afterTools = new Set(after.tools.map((t) => t.toolId));
+  const beforeTools = new Set(before.packages.map((t) => t.id));
+  const afterTools = new Set(after.packages.map((t) => t.id));
   const lines = [
     t(ctx.locale, 'describe_Go_back_to_when_happened_pages_navigat_cbdc3', {
       v0: revision.summary,
@@ -825,26 +849,110 @@ export function describeRestore(
       lines.push(t(ctx.locale, 'describe_The_tool_comes_back_205fb', { v0: toolName(id) }));
     }
   }
-  const tables = (c: WorkspaceConfig) => new Set(c.collections.map((x) => x.id));
+  const tables = (c: WorkspaceConfig) => new Set(c.data.tables.map((x) => x.id));
   const [beforeTables, afterTables] = [tables(before), tables(after)];
-  for (const c of before.collections) {
+  for (const c of before.data.tables) {
     if (!afterTables.has(c.id)) {
       lines.push(
         t(ctx.locale, 'describe_The_table_leaves_the_app_its_entries_s_29282', { v0: c.name }),
       );
     }
   }
-  for (const c of after.collections) {
+  for (const c of after.data.tables) {
     if (!beforeTables.has(c.id)) {
       lines.push(t(ctx.locale, 'describe_The_table_comes_back_dd301', { v0: c.name }));
     }
   }
   lines.push(
-    before.collections.length + after.collections.length > 0
+    before.data.tables.length + after.data.tables.length > 0
       ? t(ctx.locale, 'describe_Your_files_and_entries_are_not_affecte_c87ef')
       : t(ctx.locale, 'describe_Your_files_are_not_affected_3c83c'),
   );
   return lines;
+}
+
+/** 块的 show / source 里的键在修改说明里的名字（原组件 props 的名字；look → shape，target → opens）。 */
+const PROP_NAMES: Record<string, Localized> = {
+  title: { zh: '标题', en: 'title', fr: 'titre' },
+  subtitle: { zh: '副标题', en: 'subtitle', fr: 'sous-titre' },
+  text: { zh: '文字', en: 'text', fr: 'texte' },
+  label: { zh: '文字', en: 'label', fr: 'texte' },
+  layout: { zh: '排列方式', en: 'layout', fr: 'disposition' },
+  columns: { zh: '列数', en: 'columns', fr: 'colonnes' },
+  icon: { zh: '图标', en: 'icon', fr: 'icône' },
+  opens: { zh: '打开的页面', en: 'target', fr: 'page ouverte' },
+  variant: { zh: '样式', en: 'variant', fr: 'variante' },
+  aspect: { zh: '比例', en: 'aspect', fr: 'proportions' },
+  fit: { zh: '填充方式', en: 'fit', fr: 'mode d’ajustement' },
+  caption: { zh: '说明', en: 'caption', fr: 'légende' },
+  placeholder: { zh: '提示', en: 'placeholder', fr: 'texte indicatif' },
+  hint: { zh: '提示', en: 'hint', fr: 'indication' },
+  shape: { zh: '样子', en: 'look', fr: 'apparence' },
+  kind: { zh: '类别', en: 'category', fr: 'catégorie' },
+  tools: { zh: '一键按钮', en: 'one-tap buttons', fr: 'boutons en un geste' },
+};
+
+/** 取值也写成人话（D-230）。 */
+const PROP_VALUES: Record<string, Record<string, Localized>> = {
+  shape: {
+    row: { zh: '一行（右边有箭头）', en: 'a row with an arrow', fr: 'une ligne avec flèche' },
+    tile: { zh: '大图标块', en: 'a large icon tile', fr: 'une grande tuile' },
+    card: {
+      zh: '卡片加「运行」按钮',
+      en: 'a card with a Run button',
+      fr: 'une carte avec bouton Exécuter',
+    },
+  },
+  variant: {
+    filled: { zh: '实心', en: 'filled', fr: 'plein' },
+    outline: { zh: '描边', en: 'outlined', fr: 'contour' },
+    text: { zh: '只有文字', en: 'text only', fr: 'texte seul' },
+    icon: { zh: '只显示图标', en: 'icon only', fr: 'icône seule' },
+  },
+  kind: Object.fromEntries(Object.entries(QUICK_ACTION_CATEGORIES).map(([k, v]) => [k, v.name])),
+};
+
+/** 块的样式修改（对齐、颜色、大小、图片背景）怎么说。 */
+function styleChanges(
+  style: NonNullable<BlockChanges['style']>,
+  before: Backdrop | undefined,
+  locale: Locale,
+  zh: boolean,
+): string {
+  const names: Record<string, [string, string]> = {
+    align: ['对齐', 'alignment'],
+    tone: ['颜色', 'color'],
+    size: ['大小', 'size'],
+  };
+  const values: Record<string, [string, string]> = {
+    start: ['靠左', 'left'],
+    center: ['居中', 'centered'],
+    default: ['默认', 'default'],
+    primary: ['主色', 'primary'],
+    secondary: ['辅助色', 'secondary'],
+    tertiary: ['第三色', 'tertiary'],
+    muted: ['弱化', 'muted'],
+    small: ['小', 'small'],
+    medium: ['中', 'medium'],
+    large: ['大', 'large'],
+  };
+  const backdrop = style.backdrop;
+  return (Object.entries(style) as [string, string | null | undefined][])
+    .filter((e): e is [string, string | null] => e[1] !== undefined && e[0] !== 'backdrop')
+    .map(([k, v]) => {
+      const shown =
+        v === null
+          ? t(locale, 'describe_default_9ef5c')
+          : values[v]
+            ? pairText(locale, [values[v]![1], values[v]![0]])
+            : v;
+      return t(locale, 'describeStyleChange', {
+        name: pairText(locale, [names[k]![1], names[k]![0]]),
+        value: shown,
+      });
+    })
+    .concat(backdrop === undefined ? [] : [backdropChange(backdrop, before, locale)])
+    .join(zh ? '，' : ', ');
 }
 
 /** 图片背景的一次修改（D-258）怎么说。 */

@@ -1,11 +1,13 @@
 import { t, pairText } from './messages';
 import { createDefaultWorkspace } from './defaults';
-import { applyOps, type Op } from './ops';
+import { applyOps } from './ops';
+import type { Op } from './ops-schema';
 import type { Registry } from './registry';
 import {
   HOME_PAGE_ID,
   TOOLBOX_PAGE_ID,
   allComponents,
+  isKnownComponent,
   pageTarget,
   type ComponentOf,
   type Locale,
@@ -37,21 +39,22 @@ const TOOLBOX_GROUPS: { id: string; title: [string, string]; toolIds?: string[] 
  * 首页已经有文件入口时不再加。
  */
 export function homeFileEntryOps(config: WorkspaceConfig): Op[] {
-  const home = config.pages.find((p) => p.id === HOME_PAGE_ID);
-  if (!home || allComponents(home).some((c) => c.type === 'filePick')) return [];
+  const home = config.containers.pages.find((p) => p.id === HOME_PAGE_ID);
+  if (!home || allComponents(home).some((c) => isKnownComponent(c) && c.look === 'picker'))
+    return [];
   const ids = new Set(allComponents(home).map((c) => c.id));
   const free = (id: string) => (ids.has(id) ? `${id}-2` : id);
   return [
     {
-      op: 'addComponent',
-      pageId: HOME_PAGE_ID,
-      component: {
+      op: 'addContainer',
+      page: HOME_PAGE_ID,
+      block: {
         id: free('file-entries'),
-        type: 'group',
-        props: { layout: 'grid', columns: 2 },
+        look: 'group',
+        show: { layout: 'grid', columns: 2 },
         children: [
-          { id: free('open-media'), type: 'filePick', props: { source: 'media' } },
-          { id: free('open-files'), type: 'filePick', props: { source: 'files' } },
+          { id: free('open-media'), look: 'picker', tools: [{ tool: '$pick.media' }] },
+          { id: free('open-files'), look: 'picker', tools: [{ tool: '$pick.files' }] },
         ],
       },
     },
@@ -68,14 +71,15 @@ export function createStarterWorkspace(locale: Locale, registry: Registry): Work
   const base = createDefaultWorkspace(locale);
   const toolIds = STARTER_TOOL_IDS.filter((id) => registry.tools.has(id));
 
-  const grids: ComponentOf<'toolGrid'>[] = TOOLBOX_GROUPS.flatMap((g) => {
+  const grids: ComponentOf<'packages'>[] = TOOLBOX_GROUPS.flatMap((g) => {
     const ids = g.toolIds?.filter((id) => registry.tools.has(id));
     if (ids && ids.length === 0) return [];
     return [
       {
         id: `tools-${g.id}`,
-        type: 'toolGrid' as const,
-        props: { title: pick(g.title), ...(ids ? { toolIds: ids } : {}) },
+        look: 'packages' as const,
+        show: { title: pick(g.title) },
+        source: { catalog: 'packages' as const, ...(ids ? { ids } : {}) },
       },
     ];
   });
@@ -83,34 +87,31 @@ export function createStarterWorkspace(locale: Locale, registry: Registry): Work
     id: TOOLBOX_PAGE_ID,
     title: t(locale, 'starter_Toolbox_802f3'),
     icon: 'apps' as const,
-    components: [
+    blocks: [
       {
         id: 'toolbox-header',
-        type: 'header' as const,
-        props: { title: t(locale, 'starter_Toolbox_802f3') },
+        look: 'header' as const,
+        show: { title: t(locale, 'starter_Toolbox_802f3') },
       },
       ...grids,
       {
         id: 'toolbox-manage',
-        type: 'button' as const,
-        props: {
-          label: t(locale, 'starter_Manage_tools_f1487'),
-          target: 'tools' as const,
-          variant: 'text' as const,
-        },
+        look: 'button' as const,
+        show: { label: t(locale, 'starter_Manage_tools_f1487'), variant: 'text' as const },
+        opens: 'tools' as const,
       },
     ],
   };
 
   const ops: Op[] = [
-    // 先放工具箱：添加工具时它已经显示这些工具，首页就不会多出工具入口（D-181）。
-    { op: 'addPage', page: toolbox },
-    ...toolIds.map((toolId) => ({ op: 'installTool' as const, toolId })),
+    // 先放工具箱：添加工具包时它已经显示这些工具包，首页就不会多出入口（D-181）。
+    { op: 'addContainer', page: toolbox },
+    ...toolIds.map((id) => ({ op: 'setPackage' as const, package: id, do: 'add' as const })),
     // 首页从空白开始（D-231）：新手引导第 1 步让用户自己加上「打开相册」「打开文件」。
-    { op: 'removeComponent', pageId: HOME_PAGE_ID, componentId: 'welcome' },
-    { op: 'removeComponent', pageId: HOME_PAGE_ID, componentId: 'catalog' },
-    { op: 'removeComponent', pageId: HOME_PAGE_ID, componentId: 'recent-files' },
-    { op: 'setNavItems', items: [pageTarget(HOME_PAGE_ID), 'ai', 'settings'] },
+    { op: 'removeContainer', page: HOME_PAGE_ID, block: 'welcome' },
+    { op: 'removeContainer', page: HOME_PAGE_ID, block: 'catalog' },
+    { op: 'removeContainer', page: HOME_PAGE_ID, block: 'recent-files' },
+    { op: 'updateContainer', nav: { bar: [pageTarget(HOME_PAGE_ID), 'ai', 'settings'] } },
   ];
   const applied = applyOps(base, ops, { registry, locale });
   if (!applied.ok) return base;

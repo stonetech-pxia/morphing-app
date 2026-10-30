@@ -724,6 +724,13 @@ export const en = {
   describeChart: 'chart “{v0}”',
   // D-254：更新的 App 加的组件，这个版本不认识，原样保留。
   describeUnknownComponent: 'content from a newer version of this app',
+  // v34 修改说明（describe.ts）
+  v34descDeskAddAbove: 'Add {v0} above the preview on the desk',
+  v34descDeskAddBelow: 'Add {v0} below the preview on the desk',
+  v34descDeskRemove: 'Remove {v0} from the desk',
+  v34descDeskLayout: 'Change the desk layout',
+  v34descQuickActionIcon: 'Change the icon of the quick action “{name}”',
+  v34descToolsChanged: 'change the one-tap buttons',
   unknownComponent: 'This needs a newer version of this app to show.',
   chartOther: 'Other',
   chartEmpty: 'No entries to show yet',

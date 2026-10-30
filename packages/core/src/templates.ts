@@ -1,5 +1,5 @@
 import { localize } from './localization';
-import type { Op } from './ops';
+import type { Op, OpOf } from './ops-schema';
 import {
   HOME_PAGE_ID,
   allComponents,
@@ -17,10 +17,10 @@ import todo from './templates/todo.json';
 // 内置的数据页面模版（D-040）：mock AI 用它们理解「新建一个记账页面」这类说法，
 // 评测集也用它们准备初始状态。模版只生成数据表结构和页面，不含任何记录；还没有给用户直接选（D-255）。
 //
-// 每个模版是 templates/<名字>.json（D-255）：
+// 每个模版是 templates/<名字>.json（D-255，v34 写法）：
 // - ids：数据表和页面的基本 ID；配置里已经有同名的就加 -2、-3……
-// - collection、page：addCollection、addPage 的内容。ID 写成占位符 $collection、$page，
-//   组件里引用这张表的地方（collectionId）也写 $collection，生成时一起换成真正的 ID。
+// - table、page：addData {table}、addContainer {page} 的内容。ID 写成占位符 $table、$page，
+//   块里引用这张表的地方（source.table、就地工具的 table）也写 $table，生成时一起换成真正的 ID。
 // - 给用户看的文字写成 { en, zh, fr }，按界面语言取一种。
 // - entry：页面的入口。现在只有 nav：放进导航栏（设置之前），导航栏满了就在首页加一个快捷入口。
 
@@ -28,8 +28,8 @@ export const DATA_TEMPLATES = ['budget', 'todo', 'reading', 'notes'] as const;
 export type DataTemplate = (typeof DATA_TEMPLATES)[number];
 
 interface TemplateJson {
-  ids: { collection: string; page: string };
-  collection: unknown;
+  ids: { table: string; page: string };
+  table: unknown;
   page: unknown;
   entry: 'nav';
 }
@@ -41,8 +41,10 @@ const TEMPLATES: Record<DataTemplate, TemplateJson> = {
   notes: notes as TemplateJson,
 };
 
-type AddCollection = Extract<Op, { op: 'addCollection' }>;
-type AddPage = Extract<Op, { op: 'addPage' }>;
+type AddTable = OpOf<'addData'> & { table: Exclude<OpOf<'addData'>['table'], string> };
+type AddPage = OpOf<'addContainer'> & {
+  page: Exclude<NonNullable<OpOf<'addContainer'>['page']>, string>;
+};
 
 const isLocalized = (v: object) => {
   const keys = Object.keys(v).sort();
@@ -74,21 +76,22 @@ export function entryOps(
   title: string,
   icon: Page['icon'],
 ): Op[] {
-  const nav = config.shell.nav;
+  const nav = config.nav.bar;
   if (nav.length < 5) {
     const at = nav.indexOf('settings');
-    const items = [...nav];
-    items.splice(at < 0 ? items.length : at, 0, pageTarget(pageId));
-    return [{ op: 'setNavItems', items }];
+    const bar = [...nav];
+    bar.splice(at < 0 ? bar.length : at, 0, pageTarget(pageId));
+    return [{ op: 'updateContainer', nav: { bar } }];
   }
   return [
     {
-      op: 'addComponent',
-      pageId: HOME_PAGE_ID,
-      component: {
+      op: 'addContainer',
+      page: HOME_PAGE_ID,
+      block: {
         id: `shortcut-${pageId}`,
-        type: 'shortcut',
-        props: { title, icon: icon ?? 'star', target: pageTarget(pageId) },
+        look: 'entry',
+        show: { title, icon: icon ?? 'star' },
+        opens: pageTarget(pageId),
       },
     },
   ];
@@ -97,7 +100,7 @@ export function entryOps(
 /** 生成某个模板的修改操作：新建数据表、新建页面，并给页面一个入口。 */
 export function templateOps(template: DataTemplate, config: WorkspaceConfig, locale: Locale): Op[] {
   const op = templateCollectionOp(template, config, locale);
-  return [op, ...templatePageOps(template, config, locale, op.collection.id)];
+  return [op, ...templatePageOps(template, config, locale, op.table.id)];
 }
 
 /** 只建模板的数据表（功能，D-191）；页面之后单独加（外观，先进草稿）。 */
@@ -105,13 +108,11 @@ export function templateCollectionOp(
   template: DataTemplate,
   config: WorkspaceConfig,
   locale: Locale,
-): AddCollection {
+): AddTable {
   const json = TEMPLATES[template];
-  const collectionId = uniqueId(json.ids.collection, (id) =>
-    config.collections.some((c) => c.id === id),
-  );
-  const collection = fill(json.collection, locale, { $collection: collectionId });
-  return { op: 'addCollection', collection: collection as AddCollection['collection'] };
+  const tableId = uniqueId(json.ids.table, (id) => config.data.tables.some((c) => c.id === id));
+  const table = fill(json.table, locale, { $table: tableId });
+  return { op: 'addData', table: table as AddTable['table'] };
 }
 
 /** 给已有的模板数据表建页面，并给页面一个入口。 */
@@ -119,15 +120,15 @@ export function templatePageOps(
   template: DataTemplate,
   config: WorkspaceConfig,
   locale: Locale,
-  collectionId: string,
+  tableId: string,
 ): Op[] {
   const json = TEMPLATES[template];
-  const pageId = uniqueId(json.ids.page, (id) => config.pages.some((p) => p.id === id));
+  const pageId = uniqueId(json.ids.page, (id) => config.containers.pages.some((p) => p.id === id));
   const page = fill(json.page, locale, {
-    $collection: collectionId,
+    $table: tableId,
     $page: pageId,
   }) as AddPage['page'];
-  return [{ op: 'addPage', page }, ...entryOps(config, pageId, page.title, page.icon)];
+  return [{ op: 'addContainer', page }, ...entryOps(config, pageId, page.title, page.icon)];
 }
 
 /** 这个模板建好、但还没有页面用到的数据表（先做了功能、页面还没加，D-191）。 */
@@ -135,16 +136,16 @@ export function templateCollectionWithoutPage(
   template: DataTemplate,
   config: WorkspaceConfig,
 ): string | undefined {
-  const base = TEMPLATES[template].ids.collection;
+  const base = TEMPLATES[template].ids.table;
   const shown = new Set(
-    config.pages.flatMap((p) =>
+    config.containers.pages.flatMap((p) =>
       allComponents(p).flatMap((c) => {
         const id = componentCollection(c);
         return id === null ? [] : [id];
       }),
     ),
   );
-  return config.collections.find(
+  return config.data.tables.find(
     (c) => (c.id === base || c.id.startsWith(`${base}-`)) && !shown.has(c.id),
   )?.id;
 }
