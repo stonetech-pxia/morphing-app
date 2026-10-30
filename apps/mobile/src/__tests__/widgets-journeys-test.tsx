@@ -1,10 +1,4 @@
-import {
-  applyOps,
-  createDefaultWorkspace,
-  type Locale,
-  type Op,
-  type Registry,
-} from '@morph/core';
+import { applyOps, createDefaultWorkspace, type Locale, type Op, type Registry } from '@morph/core';
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
@@ -140,7 +134,12 @@ it('without the native module (Expo Go, web) there is no Add to Home Screen', as
 it('taps queued on the widget are recorded when Morph opens, and one undo takes them all back', async () => {
   const repo = new MemoryWorkspaceRepo();
   const at = Date.now() - 60_000;
-  const tap = JSON.stringify({ op: 'b:drink', component: 'drink', hash: actionHash(action as never), at });
+  const tap = JSON.stringify({
+    op: 'b:drink',
+    component: 'drink',
+    hash: actionHash(action as never),
+    at,
+  });
   const widgets = fakeWidgets([tap, tap]);
   await renderToolsApp(repo, undefined, { seed, widgets });
   expect(await screen.findByTestId('toast')).toHaveTextContent(/记下了桌面小组件上的 2 次点按/);
