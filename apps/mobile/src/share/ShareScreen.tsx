@@ -25,6 +25,7 @@ import { formatSize } from '../renderer/FileList';
 import { Icon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Button, Card, Pill, SectionLabel } from '../renderer/ui';
+import { placeOnDesk } from '../desk/store';
 import { mimeOf } from '../runtime/actions/helpers';
 import { formatTime } from '../run/local/TrimScreen';
 import { stepChain } from '../shell/WorkflowsScreen';
@@ -62,6 +63,8 @@ export function ShareScreen() {
   // 全屏看的照片或视频是第几个（D-238）；null 时没打开。
   const [viewing, setViewing] = useState<number | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  // 正在复制到桌上（大视频要一会儿）。
+  const [placing, setPlacing] = useState(false);
   useEffect(() => {
     let alive = true;
     void repo
@@ -260,6 +263,28 @@ export function ShareScreen() {
     });
   }
 
+  /**
+   * 放到桌上（D-340，创始人 2026-10-30 在会话里确认：做第一项，快捷操作推荐留在下面）：复制一份工作副本，
+   * 进入文件房间。原件和收件这一批照旧（离开收件页面时释放），桌上的是自己的副本。
+   */
+  async function placeAndOpen() {
+    if (placing) return;
+    setPlacing(true);
+    setPreviewError(null);
+    try {
+      const desk = await placeOnDesk(files, share!.files, Date.now());
+      router.replace({ pathname: '/desk/[deskId]', params: { deskId: desk.id } });
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      setPreviewError(
+        code
+          ? runErrorText(locale, code, (e as { detail?: Record<string, string> }).detail)
+          : String(e),
+      );
+      setPlacing(false);
+    }
+  }
+
   /** 让 AI 搭一个：AI 只知道文件的类型和个数（D-124）。做好后回到这里，新的排在最前面。 */
   function askAI() {
     setKnownIds(new Set(config.workflows.map((w) => w.id)));
@@ -369,6 +394,27 @@ export function ShareScreen() {
         </Card>
       ) : (
         <>
+          {/* 放到桌上做第一项（D-340）。 */}
+          <Card palette={palette} style={styles.list}>
+            <View testID="share-desk" style={styles.row}>
+              <View style={styles.flex}>
+                <Text
+                  numberOfLines={2}
+                  style={[palette.font('title', 15), { color: palette.text }]}>
+                  {t(locale, 'deskPlace')}
+                </Text>
+                <Text numberOfLines={2} style={caption}>
+                  {t(locale, 'deskPlaceAbout')}
+                </Text>
+              </View>
+              <Pill
+                palette={palette}
+                testID="share-desk-open"
+                label={placing ? '…' : t(locale, 'open')}
+                onPress={() => void placeAndOpen()}
+              />
+            </View>
+          </Card>
           {candidates.length > 0 ? (
             <SectionLabel palette={palette}>
               {t(locale, anyUsed ? 'shareRecent' : 'shareSuggested')}
