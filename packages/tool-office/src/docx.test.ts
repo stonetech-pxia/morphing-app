@@ -191,4 +191,53 @@ describe('writeDocx', () => {
     // 原图宽 1000 像素 = A4 宽 11906 twip。
     expect(xml).toContain('<w:ind w:firstLine="595"/>');
   });
+
+  it('writes a row of side-by-side blocks as a borderless layout table with nested content (D-313)', () => {
+    const table = {
+      kind: 'table' as const,
+      colWidths: [200, 200],
+      box,
+      table: {
+        kind: 'table' as const,
+        rows: 1,
+        col: 0,
+        cols: 2,
+        box,
+        cells: [
+          { row: 0, col: 0, rowSpan: 1, colSpan: 1, text: 'x' },
+          { row: 0, col: 1, rowSpan: 1, colSpan: 1, text: 'y' },
+        ],
+      },
+    };
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        page([
+          {
+            kind: 'row',
+            box,
+            cells: [
+              { width: 400, blocks: [{ kind: 'paragraph', text: 'left', box }] },
+              { width: 350, blocks: [table] },
+            ],
+          },
+        ]),
+      ],
+    };
+    const xml = unzip(writeDocx(doc)).text('word/document.xml');
+    const tables = xml.match(/<w:tbl>/g)!;
+    expect(tables).toHaveLength(2);
+    // 外面那张：没有边框，两列按原图宽度换算（1000 像素 = 11906 twip）。
+    expect(xml).toMatch(
+      /<w:body><w:tbl><w:tblPr><w:tblW [^>]*><w:tblLayout [^>]*><w:tblBorders><w:top w:val="nil"\/>/,
+    );
+    expect(xml).toContain('<w:gridCol w:w="4762"/><w:gridCol w:w="4167"/>');
+    // 里面的表照常有边框，按它那一格的宽（减去左右边距）缩小：2381 → 2004。
+    expect(xml).toContain('<w:gridCol w:w="2004"/><w:gridCol w:w="2004"/>');
+    expect(xml).toContain('<w:top w:val="single"');
+    // 每一格以段落结尾（Word 要求）。
+    for (const cell of xml.match(/<w:tc>(?:(?!<w:tc>)[^])*?<\/w:tc>/g)!)
+      expect(cell).toMatch(/(<w:p\/>|<\/w:p>)<\/w:tc>$/);
+    expect(xml).toContain('>left</w:t>');
+  });
 });

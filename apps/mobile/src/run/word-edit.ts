@@ -1,5 +1,11 @@
 import { decodeUtf8, type RunItem } from '@morph/core';
-import { parseDocDoc, writeDocx, type DocDoc, type DocxImage } from '@morph/tool-office';
+import {
+  leafBlocks,
+  parseDocDoc,
+  writeDocx,
+  type DocDoc,
+  type DocxImage,
+} from '@morph/tool-office';
 
 import { freshName } from '../runtime/actions/helpers';
 import type { FilePlatform } from '../runtime/platform';
@@ -23,7 +29,7 @@ export async function loadDocDoc(files: FilePlatform, item: RunItem): Promise<Do
 async function imagesOf(files: FilePlatform, doc: DocDoc): Promise<Map<string, DocxImage>> {
   const out = new Map<string, DocxImage>();
   for (const page of doc.pages) {
-    for (const block of page.blocks) {
+    for (const block of leafBlocks(page)) {
       if (block.kind !== 'image' || !block.src || out.has(block.src)) continue;
       try {
         const size = await files.imageSize(block.src);

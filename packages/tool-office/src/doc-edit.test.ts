@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { DocDoc } from './doc';
 import {
+  blockAt,
   blockText,
   deleteBlock,
   parseDocDoc,
@@ -99,5 +100,43 @@ describe('DocDoc edits', () => {
     expect(parseDocDoc('{"version":2,"pages":[]}')).toBeNull();
     expect(parseDocDoc('{"version":1,"pages":[{}]}')).toBeNull();
     expect(parseDocDoc('not json')).toBeNull();
+  });
+
+  it('edits, deletes and opens tables inside a side-by-side row (D-313)', () => {
+    const table = doc.pages[0]!.blocks[2]!;
+    const rowDoc: DocDoc = {
+      version: 1,
+      pages: [
+        {
+          ...doc.pages[0]!,
+          blocks: [
+            {
+              kind: 'row',
+              box,
+              cells: [
+                { width: 500, blocks: [{ kind: 'paragraph', text: 'left', box }] },
+                { width: 500, blocks: [table as never, { kind: 'paragraph', text: 'r', box }] },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const left = { page: 0, block: 0, cell: 0, item: 0 };
+    expect(blockAt(rowDoc, left)).toMatchObject({ text: 'left' });
+    const edited = setBlockText(rowDoc, left, 'gauche');
+    expect(blockAt(edited, left)).toMatchObject({ text: 'gauche' });
+    expect(blockAt(rowDoc, left)).toMatchObject({ text: 'left' });
+    // 里面的表交给转 Excel 的编辑页，改完换回这一格。
+    const at = { page: 0, block: 0, cell: 1, item: 0 };
+    const tdoc = tableDocOf(rowDoc, at, 'Sheet')!;
+    const back = setTableFrom(rowDoc, at, setCellText(tdoc, { page: 0, block: 0 }, 0, 'z'));
+    const inner = blockAt(back, at);
+    expect(inner?.kind === 'table' && inner.table.cells[0]!.text).toBe('z');
+    // 删掉一格里的块；所有格子都空了就删掉整行。
+    let d = deleteBlock(rowDoc, at);
+    expect(blockAt(d, at)).toMatchObject({ text: 'r' });
+    d = deleteBlock(deleteBlock(d, at), left);
+    expect(d.pages[0]!.blocks).toEqual([]);
   });
 });

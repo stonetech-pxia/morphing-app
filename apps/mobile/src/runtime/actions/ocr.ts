@@ -14,6 +14,7 @@ import { boxesToEnhanced } from '@morph/tool-image';
 import {
   buildDocPage,
   buildTablePage,
+  leafBlocks,
   pagesWithoutTables,
   writeDocx,
   writeXlsx,
@@ -253,7 +254,8 @@ export const OCR_IMPLS: Record<string, Impl> = {
         { joinLines: (lines) => polish(layoutOcrLines(lines), lang) },
       );
       // 图片区域：按比例换到原图上剪下来（JPG，本次运行的文件）。
-      const pictures = page.blocks.filter((b) => b.kind === 'image');
+      // 并排行（D-313）里的图片也要剪。
+      const pictures = leafBlocks(page).filter((b) => b.kind === 'image');
       if (pictures.length) {
         const size =
           item.width && item.height

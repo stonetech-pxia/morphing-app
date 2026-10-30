@@ -4,7 +4,7 @@ import type { Box, OcrBox, RgbaImage, TableBlock, TableCell } from './types';
 
 // 扫描件转 Word（D-310）：一页的识别结果 + 版面分析的区域 → DocDoc（编辑页改它，docx 每次从它重新生成）。
 // 带线的表格和转 Excel 用同一套找线、组表（D-272）；其余的字按区域（没有区域的按位置聚成块）分段，
-// 段落按 D-268 的规则接行；字号看行高，粗体看笔画粗细，颜色看文字像素。删除线、文字下面的划线不画（只取字）。
+// 段落按 D-268 的规则接行；字号看行高，粗体看笔画粗细，颜色看文字像素。上下重叠、左右分开的块放进并排行（D-313）。删除线、文字下面的划线不画（只取字）。
 
 /** 段落的样式：字号（磅）、粗体、颜色（RRGGBB）、对齐；没有的用文档默认的。 */
 export interface DocStyle {
@@ -55,7 +55,32 @@ export interface DocImage {
   src?: string;
 }
 
-export type DocBlock = DocParagraph | DocList | DocTable | DocImage;
+/** 能单独放的块；并排行的格子里只放这些（不再套并排行）。 */
+export type DocLeaf = DocParagraph | DocList | DocTable | DocImage;
+
+/** 并排行的一格：width 是它在原图里的宽（像素，到下一格的左边为止），blocks 按阅读顺序。 */
+export interface DocRowCell {
+  width: number;
+  blocks: DocLeaf[];
+}
+
+/**
+ * 并排的一行（D-313）：上下范围重叠、左右分开的几块（左右两栏文字、并排的几张表、表单的左右两块），
+ * docx 里写成一张无边框的排版表格的一行，每格里放各自的段落、表格。
+ */
+export interface DocRow {
+  kind: 'row';
+  /** 从左到右。 */
+  cells: DocRowCell[];
+  box: Box;
+}
+
+export type DocBlock = DocLeaf | DocRow;
+
+/** 一页里所有能单独放的块（并排行展开成格子里的块），按顺序。 */
+export function leafBlocks(page: { blocks: readonly DocBlock[] }): DocLeaf[] {
+  return page.blocks.flatMap((b) => (b.kind === 'row' ? b.cells.flatMap((c) => c.blocks) : [b]));
+}
 
 export interface DocPage {
   /** 截原图核对用的那张图的 uri。 */
@@ -440,7 +465,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   );
   const owner = assignLines(free, regions);
   // 区域里的行；页码区域的字不要；图片区域里的少量字（标志、照片里的字）也不要。
-  const groups: { lines: OcrBox[]; title: 0 | 1 | 2; box: Box }[] = [];
+  const groups: Group[] = [];
   const images: DocImage[] = [];
   for (const [i, region] of regions.entries()) {
     const members = free.filter((_, k) => owner[k] === i);
@@ -476,13 +501,31 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     ...free.map((l) => l.x + l.width),
     ...tables.map((t) => t.box.x + t.box.width),
   );
+  // 整页的左边距：四分之一的行从这里或更左开始（页边上零星的字、页码不算，D-312）。
+  const pageLeft =
+    [...free.map((l) => l.x)].sort((a, b) => a - b)[Math.floor(free.length / 4)] ?? 0;
   // 先排好块（区域、表格、图片）的阅读顺序，块里的段落保持从上到下。
-  const units: { box: Box; blocks: DocBlock[] }[] = [
-    ...tables.map((t) => ({ box: t.box, blocks: [t] as DocBlock[] })),
-    ...images.map((im) => ({ box: im.box, blocks: [im] as DocBlock[] })),
+  const units: Unit[] = [
+    ...tables.map((t) => ({ box: t.box, blocks: [t] as DocLeaf[] })),
+    ...images.map((im) => ({ box: im.box, blocks: [im] as DocLeaf[] })),
   ];
+  const styleOf = (paraLines: readonly OcrBox[], text: string, title: number) => {
+    const h = median(paraLines.map((l) => l.height));
+    const short = (text.match(/[\p{L}\p{N}]/gu)?.length ?? 0) < SHORT_TEXT && !title;
+    let size = Math.min(48, Math.max(6, Math.round(((bodySize * h) / bodyH) * 2) / 2));
+    if (short || Math.abs(size - bodySize) <= BODY_SNAP * bodySize) size = bodySize;
+    const bold =
+      pageStroke > 0 && median(paraLines.map((l) => strokes.get(l) ?? 0)) > BOLD_RATIO * pageStroke;
+    const color = textColor(image, paraLines[0]!);
+    const style: DocStyle = {
+      ...(size !== bodySize ? { size } : {}),
+      ...(bold ? { bold: true } : {}),
+      ...(color ? { color } : {}),
+    };
+    return { h, short, size, style };
+  };
   for (const group of groups) {
-    const blocks: DocBlock[] = [];
+    const blocks: DocLeaf[] = [];
     units.push({ box: group.box, blocks });
     const paragraphs = paragraphsOf(group.lines);
     // 一块的第一段和前面的块之间原来就空着。
@@ -493,21 +536,9 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     for (const para of paragraphs) {
       const paraLines = para.rows.flatMap((r) => r.lines);
       const box = unionBox(paraLines);
-      const h = median(paraLines.map((l) => l.height));
       const text = join(paraLines).trim();
       if (!text) continue;
-      const short = (text.match(/[\p{L}\p{N}]/gu)?.length ?? 0) < SHORT_TEXT && !group.title;
-      let size = Math.min(48, Math.max(6, Math.round(((bodySize * h) / bodyH) * 2) / 2));
-      if (short || Math.abs(size - bodySize) <= BODY_SNAP * bodySize) size = bodySize;
-      const bold =
-        pageStroke > 0 &&
-        median(paraLines.map((l) => strokes.get(l) ?? 0)) > BOLD_RATIO * pageStroke;
-      const color = textColor(image, paraLines[0]!);
-      const style: DocStyle = {
-        ...(size !== bodySize ? { size } : {}),
-        ...(bold ? { bold: true } : {}),
-        ...(color ? { color } : {}),
-      };
+      const { h, short, size, style } = styleOf(paraLines, text, group.title);
       // 去掉编号以后没有字的（「(3).」）不当列表项。
       if (para.list && /[\p{L}\p{N}]/u.test(stripMarker(text))) {
         const marker = listMarker(para.rows[0]!.text);
@@ -552,7 +583,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
         rightGap > 2 * h &&
         Math.abs(leftGap - rightGap) < 0.2 * (leftGap + rightGap);
       const right = !centered && leftGap > 6 * h && rightGap < 1.5 * h && para.rows.length <= 2;
-      // 首行缩进：第一行的左边和其他行比；只有一行时和这一块里最靠左的行比，这一块只有这一行时和整页文字的左边比
+      // 首行缩进：第一行的左边和其他行比；只有一行时和这一块里最靠左的行比，这一块只有这一行时和整页的左边距比
       // （书页里一句对话常常单独是一个区域）。最多 4 个行高（D-312）。
       const first = para.rows[0]!.box.x;
       const base =
@@ -560,7 +591,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
           ? Math.min(...para.rows.slice(1).map((r) => r.box.x))
           : groupLeft < first
             ? groupLeft
-            : textLeft;
+            : pageLeft;
       const indent = Math.round(first - base);
       const indented =
         !heading &&
@@ -585,6 +616,81 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     width: image.width,
     height: image.height,
     bodySize,
-    blocks: readingOrder(units, lineHeight * 0.3).flatMap((u) => u.blocks),
+    blocks: arrangeUnits(units, lineHeight),
   };
+}
+
+/** 一块字（区域或按位置聚成的块）。 */
+interface Group {
+  lines: OcrBox[];
+  title: 0 | 1 | 2;
+  box: Box;
+}
+
+/** 一块（区域、表格、图片）和它排好的块。 */
+interface Unit {
+  box: Box;
+  blocks: DocLeaf[];
+}
+
+/** 上下范围重叠超过矮的那块高度的这么多，算并排（D-313）。 */
+const SIDE_OVERLAP = 0.5;
+
+/**
+ * 块排成文件里的顺序（D-313）：上下范围明显重叠的块连成一带，一带一带从上到下；
+ * 一带里左右能分成几栏（左右不重叠，并排的表格之间常常只隔一个行高）的写成并排行，每格里按阅读顺序；分不开的按阅读顺序排。
+ */
+export function arrangeUnits(units: readonly Unit[], lineHeight: number): DocBlock[] {
+  const parent = units.map((_, i) => i);
+  const root = (i: number): number => (parent[i] === i ? i : (parent[i] = root(parent[i]!)));
+  for (let i = 0; i < units.length; i++) {
+    for (let j = i + 1; j < units.length; j++) {
+      const a = units[i]!.box;
+      const b = units[j]!.box;
+      const ov = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+      if (ov > SIDE_OVERLAP * Math.min(a.height, b.height)) parent[root(i)] = root(j);
+    }
+  }
+  const bands = new Map<number, Unit[]>();
+  units.forEach((u, i) => {
+    const r = root(i);
+    bands.set(r, [...(bands.get(r) ?? []), u]);
+  });
+  const top = (band: Unit[]) => Math.min(...band.map((u) => u.box.y));
+  const gap = lineHeight * 0.3;
+  return [...bands.values()]
+    .sort((a, b) => top(a) - top(b))
+    .flatMap((band): DocBlock[] => {
+      const cols = columnsOf(band, gap);
+      if (cols.length < 2) return readingOrder(band, gap).flatMap((u) => u.blocks);
+      const lefts = cols.map((c) => Math.min(...c.map((u) => u.box.x)));
+      const right = Math.max(...cols.at(-1)!.map((u) => u.box.x + u.box.width));
+      return [
+        {
+          kind: 'row',
+          cells: cols.map((c, k) => ({
+            width: (lefts[k + 1] ?? right) - lefts[k]!,
+            blocks: readingOrder(c, gap).flatMap((u) => u.blocks),
+          })),
+          box: unionBox(band.map((u) => u.box)),
+        },
+      ];
+    });
+}
+
+/** 按左右范围分栏：和前一栏左右不重叠、隔开至少 gap 的另起一栏。 */
+function columnsOf(units: readonly Unit[], gap: number): Unit[][] {
+  const cols: Unit[][] = [];
+  let end = -Infinity;
+  for (const u of [...units].sort((a, b) => a.box.x - b.box.x)) {
+    const right = u.box.x + u.box.width;
+    if (cols.length && u.box.x < end + gap) {
+      cols.at(-1)!.push(u);
+      end = Math.max(end, right);
+    } else {
+      cols.push([u]);
+      end = right;
+    }
+  }
+  return cols;
 }

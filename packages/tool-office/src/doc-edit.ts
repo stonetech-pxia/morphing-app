@@ -1,27 +1,56 @@
-import type { DocBlock, DocDoc, DocTable } from './doc';
+import type { DocBlock, DocDoc, DocLeaf, DocTable } from './doc';
 import type { TableBlock, TableDoc } from './types';
 
 // 转 Word 的编辑（D-310）：DocDoc 不可变地改，每次返回新的（撤销、重做用 edit.ts 的 History）。
 // 段落改文字；列表一行一项；表格交给转 Excel 的编辑页（换成只有这一张表的 TableDoc，改完换回来）；
-// 任何块都能删除。
+// 任何块都能删除。并排行（D-313）里的块用 cell、item 指明，和别的块一样改；整行不能直接改，格子都空了就删掉。
 
 export interface DocRef {
   page: number;
   block: number;
+  /** 并排行里的第几格、格子里的第几个块（D-313）；没有时指整个块。 */
+  cell?: number;
+  item?: number;
+}
+
+const inRow = (at: DocRef) => at.cell !== undefined && at.item !== undefined;
+
+/** 指到的块：页里的块，或者并排行格子里的块。 */
+export function blockAt(doc: DocDoc, at: DocRef): DocBlock | undefined {
+  const block = doc.pages[at.page]?.blocks[at.block];
+  if (!inRow(at)) return block;
+  return block?.kind === 'row' ? block.cells[at.cell!]?.blocks[at.item!] : undefined;
 }
 
 function replaceBlock(doc: DocDoc, at: DocRef, next: DocBlock | null): DocDoc {
-  return {
-    ...doc,
-    pages: doc.pages.map((page, p) =>
-      p !== at.page
-        ? page
+  const page = doc.pages[at.page]!;
+  const row = page.blocks[at.block];
+  let value: DocBlock | null = next;
+  if (inRow(at) && row?.kind === 'row') {
+    const cells = row.cells.map((cell, c) =>
+      c !== at.cell
+        ? cell
         : {
-            ...page,
+            ...cell,
             blocks:
               next === null
-                ? page.blocks.filter((_, b) => b !== at.block)
-                : page.blocks.map((block, b) => (b === at.block ? next : block)),
+                ? cell.blocks.filter((_, i) => i !== at.item)
+                : cell.blocks.map((b, i) => (i === at.item ? (next as DocLeaf) : b)),
+          },
+    );
+    value = cells.some((c) => c.blocks.length) ? { ...row, cells } : null;
+  }
+  return {
+    ...doc,
+    pages: doc.pages.map((pg, p) =>
+      p !== at.page
+        ? pg
+        : {
+            ...pg,
+            blocks:
+              value === null
+                ? pg.blocks.filter((_, b) => b !== at.block)
+                : pg.blocks.map((block, b) => (b === at.block ? value : block)),
           },
     ),
   };
@@ -36,7 +65,7 @@ export function blockText(block: DocBlock): string | null {
 
 /** 改一个段落或列表的文字（列表按行分项，空行去掉；改成空的就删掉这个块）。没变时返回原来的 doc。 */
 export function setBlockText(doc: DocDoc, at: DocRef, text: string): DocDoc {
-  const block = doc.pages[at.page]?.blocks[at.block];
+  const block = blockAt(doc, at);
   if (!block || blockText(block) === text) return doc;
   if (block.kind === 'paragraph') {
     return replaceBlock(doc, at, text.trim() ? { ...block, text } : null);
@@ -52,14 +81,14 @@ export function setBlockText(doc: DocDoc, at: DocRef, text: string): DocDoc {
 }
 
 export function deleteBlock(doc: DocDoc, at: DocRef): DocDoc {
-  if (!doc.pages[at.page]?.blocks[at.block]) return doc;
+  if (!blockAt(doc, at)) return doc;
   return replaceBlock(doc, at, null);
 }
 
 /** 表格块换成转 Excel 编辑页能打开的 TableDoc（一页、只有这一张表）。 */
 export function tableDocOf(doc: DocDoc, at: DocRef, name: string): TableDoc | null {
   const page = doc.pages[at.page];
-  const block = page?.blocks[at.block];
+  const block = blockAt(doc, at);
   if (!page || block?.kind !== 'table') return null;
   return {
     version: 2,
@@ -80,7 +109,7 @@ export function tableDocOf(doc: DocDoc, at: DocRef, name: string): TableDoc | nu
 
 /** 编辑页改过的 TableDoc 换回表格块；表被删光了就删掉这个块。 */
 export function setTableFrom(doc: DocDoc, at: DocRef, edited: TableDoc): DocDoc {
-  const block = doc.pages[at.page]?.blocks[at.block];
+  const block = blockAt(doc, at);
   const page = edited.pages[0];
   if (block?.kind !== 'table' || !page) return doc;
   const table = page.blocks.find((b): b is TableBlock => b.kind === 'table');

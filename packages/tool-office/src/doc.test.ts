@@ -4,11 +4,13 @@ import {
   buildDocPage,
   clusterLines,
   foldEmptyColumns,
+  leafBlocks,
   paragraphsOf,
   strokeRatio,
   textColor,
   type DocList,
   type DocParagraph,
+  type DocRow,
 } from './doc';
 import type { LayoutRegion } from './layout';
 import { fakeLine, glyphs, gridRects, renderPage, type Rect } from './test-helpers';
@@ -332,8 +334,10 @@ describe('buildDocPage', () => {
       { text: 'A short indented line.', x: 160, y: 150, width: 300 },
       { text: 'Next paragraph without an indent runs on to the right', x: 100, y: 175, width: 800 },
       { text: 'edge as well.', x: 100, y: 200, width: 200 },
-      // 单独一块的一行（书页里单独一个区域的对话）：和整页文字的左边比。
+      // 单独一块的一行（书页里单独一个区域的对话）：和整页的左边距比；页边上零星的字不算左边距。
       { text: '“A line of dialogue on its own.”', x: 160, y: 300, width: 400 },
+      { text: 'A line on its own at the margin.', x: 100, y: 400, width: 400 },
+      { text: '00', x: 20, y: 600, width: 30 },
     ]);
     const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
     const paras = doc.blocks as DocParagraph[];
@@ -342,6 +346,46 @@ describe('buildDocPage', () => {
       ['A short in', 60],
       ['Next parag', undefined],
       ['“A line of', 60],
+      ['A line on ', undefined],
+      ['00', undefined],
+    ]);
+  });
+
+  it('puts side-by-side tables and text columns into one row, the rest top to bottom (D-313)', () => {
+    const { image, lines } = textPage(
+      [
+        { text: 'Report', x: 100, y: 40, width: 200, h: 30 },
+        // 左右两张表，上下范围重叠。
+        { text: 'A', x: 120, y: 110, width: 40 },
+        { text: '1', x: 320, y: 110, width: 20 },
+        { text: 'B', x: 620, y: 110, width: 40 },
+        { text: '2', x: 820, y: 110, width: 20 },
+        // 左右两栏文字。
+        { text: 'Left column first line of text that runs', x: 100, y: 300, width: 380 },
+        { text: 'on to a second line.', x: 100, y: 325, width: 200 },
+        { text: 'Right column first line of text that runs', x: 600, y: 300, width: 380 },
+        { text: 'on to a second line too.', x: 600, y: 325, width: 220 },
+        { text: 'Closing line across the page.', x: 100, y: 500, width: 600 },
+      ],
+      [...gridRects([100, 300, 400], [100, 140]), ...gridRects([600, 800, 900], [100, 140])],
+    );
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    expect(doc.blocks.map((b) => b.kind)).toEqual(['paragraph', 'row', 'row', 'paragraph']);
+    const tables = doc.blocks[1] as DocRow;
+    expect(tables.cells.map((c) => c.blocks.map((b) => b.kind))).toEqual([['table'], ['table']]);
+    // 列宽按原图位置：第一格到第二格的左边，最后一格到它的右边。
+    expect(tables.cells.map((c) => Math.round(c.width))).toEqual([500, 300]);
+    const columns = doc.blocks[2] as DocRow;
+    expect(
+      columns.cells.map((c) => c.blocks.map((b) => (b as DocParagraph).text.slice(0, 5))),
+    ).toEqual([['Left '], ['Right']]);
+    expect(leafBlocks(doc).map((b) => b.kind)).toEqual([
+      'paragraph',
+      'table',
+      'table',
+      'paragraph',
+      'paragraph',
+      'paragraph',
     ]);
   });
 });

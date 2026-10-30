@@ -1,11 +1,11 @@
 import { strToU8, zipSync, type Zippable } from 'fflate';
 
-import type { DocBlock, DocDoc, DocList, DocPage, DocParagraph, DocStyle, DocTable } from './doc';
+import type { DocDoc, DocLeaf, DocList, DocPage, DocStyle, DocTable } from './doc';
 import { cleanXmlText } from './xlsx';
 
 // 写 docx（D-310）：自己写最少的 OOXML，用 fflate 的同步 API 打包（和写 xlsx 一样，D-272）。
 // 无衬线的默认字体（D-312），段落（标题用加粗的 Heading1 / Heading2 样式，首行缩进）、run 的粗体 / 颜色 / 字号、编号列表（numbering.xml）、
-// 表格（gridSpan / vMerge 合并）、图片（内嵌 JPG）。A4 纵向，每页原图之间分页。
+// 表格（gridSpan / vMerge 合并）、图片（内嵌 JPG）、并排行（无边框的排版表格，D-313）。A4 纵向，每页原图之间分页。
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -20,6 +20,8 @@ const CONTENT_W = PAGE_W - 2 * MARGIN;
 const CONTENT_H = PAGE_H - 2 * MARGIN;
 /** 1 twip = 635 EMU。 */
 const EMU_PER_TWIP = 635;
+/** 并排行每格左右的边距（twip）。 */
+const CELL_PAD = 80;
 /** 分段的空隙写成段前间距（twip）。 */
 const SPACED_BEFORE = 160;
 
@@ -102,11 +104,11 @@ function paragraphXml(
 }
 
 /** 原图像素 → twip：整页宽度按 A4 宽算，放不下时按内容区等比缩小。 */
-function tableXml(block: DocTable, page: DocPage, bodySize: number): string {
+function tableXml(block: DocTable, page: DocPage, bodySize: number, maxWidth = CONTENT_W): string {
   const { table, colWidths } = block;
   const raw = colWidths.map((w) => (w / page.width) * PAGE_W);
   const total = raw.reduce((a, b) => a + b, 0) || 1;
-  const k = Math.min(1, CONTENT_W / total);
+  const k = Math.min(1, maxWidth / total);
   const widths = raw.map((w) => Math.max(200, Math.round(w * k)));
   // 每个位置属于哪一格（合并格子的左上角以外的位置写成 vMerge 的续格）。
   const at = new Map<string, number>();
@@ -153,6 +155,35 @@ function tableXml(block: DocTable, page: DocPage, bodySize: number): string {
     '</w:tblBorders></w:tblPr><w:tblGrid>' +
     widths.map((w) => `<w:gridCol w:w="${w}"/>`).join('') +
     `</w:tblGrid>${rows.join('')}</w:tbl>`
+  );
+}
+
+/** 列宽放不下时等比缩小，每列至少 200 twip。 */
+function fitWidths(raw: readonly number[], maxWidth: number): number[] {
+  const k = Math.min(1, maxWidth / (raw.reduce((a, b) => a + b, 0) || 1));
+  return raw.map((w) => Math.max(200, Math.round(w * k)));
+}
+
+/** 无边框的排版表格（D-313）：rows 是每行每格里的 XML 片段；每格以段落结尾（Word 要求）。 */
+function layoutTableXml(widths: readonly number[], rows: readonly (readonly string[])[]): string {
+  const none = (side: string) => `<w:${side} w:val="nil"/>`;
+  const tr = (cells: readonly string[]) =>
+    '<w:tr>' +
+    cells
+      .map((inner, i) => {
+        const ends = inner.endsWith('</w:p>') || inner.endsWith('<w:p/>');
+        return `<w:tc><w:tcPr><w:tcW w:w="${widths[i]}" w:type="dxa"/></w:tcPr>${inner}${ends ? '' : '<w:p/>'}</w:tc>`;
+      })
+      .join('') +
+    '</w:tr>';
+  return (
+    `<w:tbl><w:tblPr><w:tblW w:w="${widths.reduce((a, b) => a + b, 0)}" w:type="dxa"/>` +
+    '<w:tblLayout w:type="fixed"/><w:tblBorders>' +
+    ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(none).join('') +
+    `</w:tblBorders><w:tblCellMar><w:left w:w="${CELL_PAD}" w:type="dxa"/>` +
+    `<w:right w:w="${CELL_PAD}" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>` +
+    widths.map((w) => `<w:gridCol w:w="${w}"/>`).join('') +
+    `</w:tblGrid>${rows.map(tr).join('')}</w:tbl>`
   );
 }
 
@@ -238,59 +269,73 @@ export function writeDocx(
       first = false;
       return b;
     };
-    page.blocks.forEach((block: DocBlock) => {
+    const twip = (px: number) => Math.round((px / page.width) * PAGE_W);
+    // 一个块的 XML；maxWidth 是能放的宽（twip）：整页的内容区，或者并排行的一格。
+    const leafXml = (block: DocLeaf, maxWidth: number): string[] => {
       switch (block.kind) {
-        case 'paragraph': {
-          const para = block as DocParagraph;
-          body.push(
-            paragraphXml(para.text, para, bodySize, {
-              ...(para.heading ? { styleId: `Heading${para.heading}` } : {}),
-              ...(para.indent ? { indent: Math.round((para.indent / page.width) * PAGE_W) } : {}),
-              ...(para.spaced ? { spaced: true } : {}),
+        case 'paragraph':
+          return [
+            paragraphXml(block.text, block, bodySize, {
+              ...(block.heading ? { styleId: `Heading${block.heading}` } : {}),
+              ...(block.indent ? { indent: twip(block.indent) } : {}),
+              ...(block.spaced ? { spaced: true } : {}),
               ...(pageBreak() ? { pageBreak: true } : {}),
             }),
-          );
-          break;
-        }
+          ];
         case 'list': {
           lists.push(block);
           const numId = lists.length;
-          block.items.forEach((item, i) =>
-            body.push(
-              paragraphXml(item, block, bodySize, {
-                styleId: 'ListParagraph',
-                numId,
-                ...(i === 0 && block.spaced ? { spaced: true } : {}),
-                ...(i === 0 && pageBreak() ? { pageBreak: true } : {}),
-              }),
-            ),
+          return block.items.map((item, i) =>
+            paragraphXml(item, block, bodySize, {
+              styleId: 'ListParagraph',
+              numId,
+              ...(i === 0 && block.spaced ? { spaced: true } : {}),
+              ...(i === 0 && pageBreak() ? { pageBreak: true } : {}),
+            }),
           );
-          break;
         }
         case 'table':
-          if (pageBreak()) body.push(paragraphXml('', {}, bodySize, { pageBreak: true }));
-          body.push(tableXml(block, page, bodySize));
-          // 两张表紧挨着时 Word 会把它们并成一张：后面补一个空段落。
-          body.push('<w:p/>');
-          break;
+          return [
+            ...(pageBreak() ? [paragraphXml('', {}, bodySize, { pageBreak: true })] : []),
+            tableXml(block, page, bodySize, maxWidth),
+            // 两张表紧挨着时 Word 会把它们并成一张：后面补一个空段落。
+            '<w:p/>',
+          ];
         case 'image': {
           const image = block.src ? images.get(block.src) : undefined;
-          if (!image) break;
-          if (pageBreak()) body.push(paragraphXml('', {}, bodySize, { pageBreak: true }));
+          if (!image) return [];
+          const out = pageBreak() ? [paragraphXml('', {}, bodySize, { pageBreak: true })] : [];
           const n = media.length + 1;
           const rid = `rIdImg${n}`;
           media.push({ name: `image${n}.jpg`, rid, bytes: image.bytes });
           // 大小按它在原图里占的宽度，放不下时等比缩小。
           let w = (block.box.width / page.width) * PAGE_W;
           let h = (w * image.height) / Math.max(1, image.width);
-          const k = Math.min(1, CONTENT_W / w, (CONTENT_H * 0.9) / h);
+          const k = Math.min(1, maxWidth / w, (CONTENT_H * 0.9) / h);
           w *= k;
           h *= k;
-          body.push(imageXml(rid, n, Math.round(w * EMU_PER_TWIP), Math.round(h * EMU_PER_TWIP)));
-          break;
+          out.push(imageXml(rid, n, Math.round(w * EMU_PER_TWIP), Math.round(h * EMU_PER_TWIP)));
+          return out;
         }
       }
-    });
+    };
+    for (const block of page.blocks) {
+      if (block.kind !== 'row') {
+        body.push(...leafXml(block, CONTENT_W));
+        continue;
+      }
+      // 并排行（D-313）：无边框的排版表格，一行，每格的宽按原图位置，放不下时等比缩小。
+      if (pageBreak()) body.push(paragraphXml('', {}, bodySize, { pageBreak: true }));
+      const widths = fitWidths(
+        block.cells.map((c) => twip(c.width)),
+        CONTENT_W,
+      );
+      // 格子里留一点边距，里面的表格、图片按格子的宽缩小。
+      const cells = block.cells.map((cell, i) =>
+        cell.blocks.flatMap((b) => leafXml(b, widths[i]! - 2 * CELL_PAD)).join(''),
+      );
+      body.push(layoutTableXml(widths, [cells]), '<w:p/>');
+    }
   });
   const documentXml =
     `${HEAD}<w:document xmlns:w="${W_NS}" xmlns:r="${R_NS}" ` +

@@ -1,5 +1,5 @@
 import { createDefaultWorkspace, decodeUtf8, type RunItem } from '@morph/core';
-import { parseDocDoc, type DocDoc } from '@morph/tool-office';
+import { parseDocDoc, type DocDoc, type DocLeaf } from '@morph/tool-office';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { strFromU8, unzipSync } from 'fflate';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -224,6 +224,89 @@ describe('word editor (D-310)', () => {
     await fireEvent.press(screen.getByTestId('word-done'));
     const first = onSaved.mock.calls[0]![0] as RunItem;
     expect(Object.keys(unzipSync(await files.readUri(first.uri)))).toContain(
+      'word/media/image1.jpg',
+    );
+  });
+});
+
+describe('side-by-side rows in the word editor (D-313)', () => {
+  /** 一行并排：左边一段，右边一张表和一段；下面一张剪好的图片在另一行的右格里。 */
+  function rowDoc(src?: string): DocDoc {
+    const doc = makeDoc(src);
+    const [, , , table, image] = doc.pages[0]!.blocks as DocLeaf[];
+    doc.pages[0]!.blocks = [
+      {
+        kind: 'row',
+        box: box(100, 120, 800, 220),
+        cells: [
+          {
+            width: 450,
+            blocks: [{ kind: 'paragraph', text: '左栏的一段。', box: box(100, 120, 400, 60) }],
+          },
+          {
+            width: 350,
+            blocks: [table!, { kind: 'paragraph', text: '右栏', box: box(560, 360) }],
+          },
+        ],
+      },
+      {
+        kind: 'row',
+        box: box(100, 400, 800, 200),
+        cells: [
+          { width: 400, blocks: [{ kind: 'paragraph', text: '图注', box: box(100, 400) }] },
+          { width: 400, blocks: [image!] },
+        ],
+      },
+    ];
+    return doc;
+  }
+
+  it('shows each cell’s blocks and edits them like any other block', async () => {
+    const { files, onSaved } = await setup(rowDoc());
+    expect(screen.getByText('左栏的一段。')).toBeTruthy();
+    expect(screen.getByText('右栏')).toBeTruthy();
+    // 格子里的块：点一下选中，再点一下编辑。
+    await fireEvent.press(screen.getByTestId('word-block-0-0-1-1'));
+    await fireEvent.press(screen.getByTestId('word-block-0-0-1-1'));
+    await fireEvent.changeText(screen.getByTestId('word-edit-input'), '右栏改过');
+    await fireEvent.press(screen.getByTestId('word-edit-ok'));
+    expect(screen.getByText('右栏改过')).toBeTruthy();
+    // 格子里的表格照样交给转 Excel 的编辑页。
+    await fireEvent.press(screen.getByTestId('word-block-0-0-1-0'));
+    await fireEvent.press(screen.getByTestId('word-block-0-0-1-0'));
+    expect(await screen.findByTestId('table-editor')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('table-done'));
+    // 删除格子里的块。
+    await fireEvent.press(screen.getByTestId('word-block-0-0-0-0'));
+    await fireEvent.press(screen.getByTestId('word-delete'));
+    expect(screen.queryByText('左栏的一段。')).toBeNull();
+    await fireEvent.press(screen.getByTestId('word-done'));
+    const { doc, xml } = await saved(files, onSaved.mock.calls[0]![0] as RunItem);
+    const row = doc.pages[0]!.blocks[0]!;
+    expect(row.kind === 'row' && row.cells.map((c) => c.blocks.map((b) => b.kind))).toEqual([
+      [],
+      ['table', 'paragraph'],
+    ]);
+    expect(xml).toContain('右栏改过');
+  });
+
+  it('embeds a cropped picture that sits in a row again', async () => {
+    const files0 = new FakeFiles();
+    const crop = await files0.transformImage(
+      files0.offerImage('p.jpg', 600, 400).uri,
+      {},
+      { format: 'jpeg', quality: 0.85 },
+      'r1',
+      'word/1-1.jpg',
+    );
+    const { files, onSaved } = await setup(rowDoc(crop.uri));
+    files.disk.set(crop.uri, await files0.readUri(crop.uri));
+    files.imageSizes.set(crop.uri, { width: 600, height: 400 });
+    await fireEvent.press(screen.getByTestId('word-block-0-1-0-0'));
+    await fireEvent.press(screen.getByTestId('word-delete'));
+    await fireEvent.press(screen.getByTestId('word-done'));
+    const next = onSaved.mock.calls[0]![0] as RunItem;
+    expect(Object.keys(unzipSync(await files.readUri(next.uri)))).toContain(
       'word/media/image1.jpg',
     );
   });

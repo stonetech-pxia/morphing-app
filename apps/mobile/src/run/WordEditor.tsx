@@ -1,5 +1,6 @@
 import type { Locale, RunItem } from '@morph/core';
 import {
+  blockAt,
   blockText,
   deleteBlock,
   pushHistory,
@@ -9,8 +10,8 @@ import {
   startHistory,
   tableDocOf,
   undo,
-  type DocBlock,
   type DocDoc,
+  type DocLeaf,
   type DocPage,
   type DocRef,
   type History,
@@ -42,13 +43,18 @@ import { loadDocDoc, saveWordEdits } from './word-edit';
 // 选中时底部显示原图里这一块的截图（和转 Excel 的编辑页一样）。段落和列表改文字（列表一行一项），
 // 表格交给转 Excel 的编辑页（只有这一张表），任何块都能删除。撤销只在内存里（最多 100 步）。
 // 点「完成」或返回时，改过就重新生成 docx（新文件）并写回 DocDoc。
+// 并排行（D-313）按原图的列宽左右排开，每格里的块和别的块一样点选、编辑、删除；整行本身不能选。
 
 /** 正文在编辑页里的字号（点）；标题和别的字号按和正文的比例放大缩小。 */
 const BODY_PX = 15;
 /** 原图截图最高这么多点（和 TableEditor 一样）。 */
 const IMAGE_HEIGHT = 160;
 
-const same = (a: DocRef | null, b: DocRef) => a?.page === b.page && a.block === b.block;
+const same = (a: DocRef | null, b: DocRef) =>
+  a?.page === b.page && a.block === b.block && a.cell === b.cell && a.item === b.item;
+
+const refId = (at: DocRef) =>
+  [at.page, at.block, ...(at.cell !== undefined ? [at.cell, at.item] : [])].join('-');
 
 /** 一个块在编辑页里的样子。 */
 function BlockView({
@@ -57,7 +63,7 @@ function BlockView({
   maxWidth,
   palette,
 }: {
-  block: DocBlock;
+  block: DocLeaf;
   page: DocPage;
   maxWidth: number;
   palette: Palette;
@@ -69,6 +75,10 @@ function BlockView({
       const size = block.heading
         ? Math.max(scale(block.size), block.heading === 1 ? 22 : 18)
         : scale(block.size);
+      const textStyle = [
+        palette.font(block.heading || block.bold ? 'bodyBold' : 'body', size),
+        { color: block.color ? `#${block.color}` : palette.text },
+      ];
       return (
         <Text
           style={[
@@ -196,7 +206,7 @@ export function WordEditor({
 
   const doc = history?.present ?? null;
   const contentWidth = screenWidth - 32;
-  const selectedBlock = selected && doc ? doc.pages[selected.page]?.blocks[selected.block] : null;
+  const selectedBlock = selected && doc ? blockAt(doc, selected) : null;
 
   const apply = (next: DocDoc) => {
     if (!history) return;
@@ -206,7 +216,8 @@ export function WordEditor({
 
   function edit(at: DocRef) {
     if (!doc) return;
-    const block = doc.pages[at.page]!.blocks[at.block]!;
+    const block = blockAt(doc, at);
+    if (!block) return;
     if (block.kind === 'table') {
       const tdoc = tableDocOf(doc, at, t(locale, 'tableSheetName', { n: at.page + 1 }));
       if (tdoc) setTable({ at, doc: tdoc });
@@ -331,27 +342,47 @@ export function WordEditor({
                   </Text>
                 ) : null}
                 {page.blocks.map((block, b) => {
-                  const at = { page: p, block: b };
-                  const on = same(selected, at);
+                  const leaf = (inner: DocLeaf, at: DocRef, maxWidth: number) => {
+                    const on = same(selected, at);
+                    return (
+                      <Pressable
+                        key={refId(at)}
+                        testID={`word-block-${refId(at)}`}
+                        onPress={() => press(at)}
+                        style={[
+                          styles.block,
+                          {
+                            borderColor: on ? palette.primary : 'transparent',
+                            backgroundColor: on ? palette.primaryTint : 'transparent',
+                          },
+                        ]}>
+                        <BlockView
+                          block={inner}
+                          page={page}
+                          maxWidth={maxWidth}
+                          palette={palette}
+                        />
+                      </Pressable>
+                    );
+                  };
+                  if (block.kind !== 'row') {
+                    return leaf(block, { page: p, block: b }, contentWidth - 12);
+                  }
+                  // 并排行：每格的宽按原图里的比例。
+                  const total = block.cells.reduce((a, c) => a + c.width, 0) || 1;
                   return (
-                    <Pressable
-                      key={b}
-                      testID={`word-block-${p}-${b}`}
-                      onPress={() => press(at)}
-                      style={[
-                        styles.block,
-                        {
-                          borderColor: on ? palette.primary : 'transparent',
-                          backgroundColor: on ? palette.primaryTint : 'transparent',
-                        },
-                      ]}>
-                      <BlockView
-                        block={block}
-                        page={page}
-                        maxWidth={contentWidth - 12}
-                        palette={palette}
-                      />
-                    </Pressable>
+                    <View key={b} testID={`word-block-${p}-${b}`} style={styles.sideBySide}>
+                      {block.cells.map((cell, c) => {
+                        const width = ((contentWidth - 12) * cell.width) / total;
+                        return (
+                          <View key={c} style={{ width }}>
+                            {cell.blocks.map((inner, i) =>
+                              leaf(inner, { page: p, block: b, cell: c, item: i }, width - 12),
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
                   );
                 })}
               </View>
@@ -476,6 +507,7 @@ const styles = StyleSheet.create({
   },
   bottom: { borderTopWidth: StyleSheet.hairlineWidth, padding: 12, gap: 10 },
   row: { flexDirection: 'row', gap: 16, alignItems: 'center' },
+  sideBySide: { flexDirection: 'row', alignItems: 'flex-start' },
   input: {
     minHeight: 80,
     maxHeight: 200,
