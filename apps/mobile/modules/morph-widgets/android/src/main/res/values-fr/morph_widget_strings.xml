@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="morph_widget_label">Morph</string>
+  <string name="morph_widget_description">Une statistique, un bouton ou une liste de vos pages Morph.</string>
+  <string name="morph_widget_empty">Dans Morph, appuyez longuement sur une statistique, un bouton ou une liste et choisissez Ajouter à l’écran d’accueil.</string>
+</resources>

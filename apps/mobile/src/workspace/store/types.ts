@@ -146,6 +146,25 @@ export interface Applied {
   notes?: string[];
 }
 
+/**
+ * 记录提示条上的撤销：删除了的恢复，一键操作（D-300）刚建的去掉、改过的改回去；
+ * 桌面小组件上点的一批（D-323）两样都有。
+ */
+export type RecordUndo =
+  | { kind: 'discard'; id: string }
+  | { kind: 'revert'; records: { id: string; values: Record<string, unknown> }[] }
+  | {
+      kind: 'batch';
+      discard: string[];
+      records: { id: string; values: Record<string, unknown> }[];
+    };
+
+export interface RecordToast {
+  message: string;
+  restoreRecordId?: string;
+  undo?: RecordUndo;
+}
+
 export interface WorkspaceState {
   status: 'loading' | 'ready' | 'error';
   error: string | null;
@@ -161,7 +180,7 @@ export interface WorkspaceState {
   /** 记录的刷新信号：增删改记录后递增。 */
   recordsVersion: number;
   /** 记录操作后的提示（例如删除后可以撤销）。与版本提示条分开：记录不属于任何版本。 */
-  toast: { message: string; restoreRecordId?: string } | null;
+  toast: RecordToast | null;
   /** 编辑模式（直接编辑，D-052–D-054）；为 null 时不在编辑模式。 */
   editing: EditDraft | null;
   /** AI 修改的草稿（D-190）。 */
@@ -201,7 +220,7 @@ export interface WorkspaceState {
   /** 「取消」：放弃草稿。 */
   cancelEditing(): void;
   bumpRecords(): void;
-  showToast(toast: { message: string; restoreRecordId?: string }): void;
+  showToast(toast: RecordToast): void;
   dismissToast(): void;
   listRevisions(limit?: number): Promise<RevisionRecord[]>;
   bumpAssets(): void;

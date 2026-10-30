@@ -186,6 +186,29 @@ export function scheduleStatus(
   return { next, dueToday: next <= today, overdueDays: Math.max(0, today - next) };
 }
 
+/**
+ * 接下来 count 次（天数，从今天起，D-316）：第一次是 scheduleStatus 的下一次（过期了就是今天），之后假设每次
+ * 都按时做了（那天做够 perDay 次）再往后算。按记录排提醒用：用户真的做了、记录变了会重新算。
+ */
+export function scheduleOccurrences(
+  rule: ScheduleRule,
+  done: readonly number[],
+  today: number,
+  count: number,
+  cal: Calendar = DEFAULT_CALENDAR,
+): number[] {
+  const assumed = [...done];
+  const days: number[] = [];
+  let from = today;
+  for (let i = 0; i < count; i++) {
+    const day = Math.max(scheduleStatus(rule, assumed, from, cal).next, from);
+    days.push(day);
+    for (let k = 0; k < (rule.perDay ?? 1); k++) assumed.push(day);
+    from = day;
+  }
+  return days;
+}
+
 // ---- 显示 ----
 
 /** 规则的一句话（三种语言各写完整的句子，单复数按 isSingular）。 */

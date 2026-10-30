@@ -1,4 +1,4 @@
-import type { Quad } from '@morph/tool-image';
+import type { GrayImage, Point, Quad } from '@morph/tool-image';
 import type { LayoutRegion } from '@morph/tool-office';
 import type { TextLayer, TextLine } from '@morph/tool-pdf';
 
@@ -229,8 +229,11 @@ export interface VisionPlatform {
   detectLayout?(pixels: Pixels): Promise<LayoutRegion[] | null>;
   /** 能不能给照片找边和拉正（findPaper / straighten）；Android 的 ML Kit 不能。 */
   readonly canFindPaper: boolean;
-  /** 找纸张的四个角（像素，已按拍摄方向摆正）；没找到返回 null。 */
-  findPaper(uri: string): Promise<Quad | null>;
+  /**
+   * 找纸张的候选四边形（像素，已按拍摄方向摆正；四个点顺序不定）和一张小灰度图，
+   * 挑哪个由 App 的 pickPaper 决定，和扫描包一样（D-326、D-327）。
+   */
+  findPaper(uri: string): Promise<{ candidates: Point[][]; gray: GrayImage }>;
   /** 按四个角拉正，缩放到 size，存成本次运行的 JPG 临时文件。 */
   straighten(
     uri: string,

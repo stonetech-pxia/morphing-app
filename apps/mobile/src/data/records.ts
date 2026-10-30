@@ -4,6 +4,7 @@ import {
   linkedCollectionIds,
   loadComputedRecords,
   loadLinkResolver,
+  monthQueryRange,
   prepareRecordValues,
   type Calendar,
   type Collection,
@@ -16,6 +17,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { t } from '../i18n';
 import { newAssetId } from '../runtime/runner';
 import { useCalendar, useWorkspace, useWorkspaceContext } from '../workspace/context';
+import type { RecordUndo } from '../workspace/store/types';
 
 // 用户记录的读写。只由用户在页面上的操作触发，直接写数据库，不经过 AI、不生成版本
 // （docs/DATA_DESIGN.md）。AI 拿到的只有 WorkspaceConfig，而记录从不进入配置。
@@ -69,6 +71,65 @@ export function useComputedRecords(
   );
   // 表换了以后，旧的那份不再用。
   return { view, records: loaded && loaded.view === view ? loaded.records : null };
+}
+
+/**
+ * 月历（D-305）一个月的记录：只读这个月（多读一天，见 monthQueryRange）。表里有查找、汇总、上一条时，
+ * 要别的记录才能算，就读整张表再算（和 useComputedRecords 一样）；dateField 不是存着的日期、日期时间或系统字段时
+ * 也读整张表。落在哪天、筛选由调用方按 recordDay 再精确地分。
+ */
+export function useMonthRecords(
+  collections: readonly Collection[],
+  collection: Collection | undefined,
+  dateField: string,
+  month: string,
+  cal: Calendar,
+): { view: Collection | undefined; records: DataRecord[] | null } {
+  const { repo } = useWorkspaceContext();
+  const version = useWorkspace((s) => s.recordsVersion);
+  const [loaded, setLoaded] = useState<{
+    key: string;
+    view: Collection;
+    records: DataRecord[];
+  } | null>(null);
+  const calKey = JSON.stringify(cal);
+  const key = `${month}|${dateField}`;
+  useEffect(() => {
+    if (!collection) return;
+    let alive = true;
+    const stored =
+      dateField === 'createdAt' ||
+      dateField === 'updatedAt' ||
+      collection.fields.some(
+        (f) => f.id === dateField && (f.type === 'date' || f.type === 'datetime'),
+      );
+    // 查找、汇总、上一条要别的记录（上一条可能在上个月）；公式只看自己这条，可以只读这个月。
+    const whole =
+      !stored ||
+      collection.fields.some(
+        (f) => f.type === 'lookup' || f.type === 'rollup' || f.type === 'previous',
+      );
+    const range = { by: dateField, ...monthQueryRange(month) };
+    void loadComputedRecords(
+      (id) =>
+        whole || id !== collection.id ? repo.listRecords(id) : repo.listRecordsInRange(id, range),
+      collections,
+      collection,
+      new Date(),
+      JSON.parse(calKey) as Calendar,
+    ).then((r) => alive && setLoaded({ key, ...r }));
+    return () => {
+      alive = false;
+    };
+  }, [repo, collections, collection, calKey, version, key, dateField, month]);
+  const view = useMemo(
+    () => collection && expandCollection(collections, collection),
+    [collections, collection],
+  );
+  return {
+    view,
+    records: loaded && loaded.view === view && loaded.key === key ? loaded.records : null,
+  };
 }
 
 /**
@@ -149,6 +210,17 @@ export function useRecordActions() {
 
     async restore(id: string): Promise<void> {
       await repo.restoreRecord(id);
+      bump();
+    },
+
+    /** 撤销一键操作（D-300）：刚建的去掉，改过的改回原来存的值。 */
+    async undo(undo: RecordUndo): Promise<void> {
+      if (undo.kind === 'discard') await repo.discardRecord(undo.id);
+      else {
+        const at = Date.now();
+        if (undo.kind === 'batch') for (const id of undo.discard) await repo.discardRecord(id);
+        for (const r of undo.records) await repo.updateRecord(r.id, r.values, at);
+      }
       bump();
     },
   };

@@ -14,6 +14,15 @@ function measure(view: HostInstance | null | undefined): Promise<ItemBox | null>
   });
 }
 
+/**
+ * 组件里面自己的长按功能正在进行时（看板拖卡片 D-314、长按大圆块打开记录 D-311），外层的长按选中组件
+ * 不生效，功能优先：两个长按手势在 iOS 上互相阻止不住（RNGH 的 block 没有拦下外层），这里在 JS 侧挡一下。
+ */
+let innerGesture = false;
+export function setInnerGesture(active: boolean) {
+  innerGesture = active;
+}
+
 /** 测量的是没有 transform 的外框；UI 线程上的跟手位移不会污染落点坐标。 */
 export function useSingleDrag(
   page: Page,
@@ -100,7 +109,7 @@ export function useSingleDrag(
     frame.current = requestAnimationFrame(autoScroll);
   }
   function begin(id: string, x: number, y: number) {
-    if (session.current) return;
+    if (session.current || innerGesture) return;
     latest.current.onSelect(id);
     const current = {
       id,

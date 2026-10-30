@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <color name="morph_widget_background">#1F1D1B</color>
+  <color name="morph_widget_text">#F4EFEA</color>
+  <color name="morph_widget_muted">#A8A099</color>
+</resources>

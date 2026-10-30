@@ -19,6 +19,7 @@ import {
   PageSchema,
   ReminderSchema,
   MAX_REMINDERS,
+  MAX_RECORD_REMINDERS,
   ThemeSchema,
   WorkflowSchema,
   WorkflowStepSchema,
@@ -43,7 +44,9 @@ import {
   type WorkspaceConfig,
 } from './schema';
 import { DEFAULT_THEME } from './theme';
+import { addMissingEntryForms } from './entry-forms';
 import { presetById } from './workflows/presets';
+import { buttonActionUses, rowActionUses, type Gone } from './record-ops';
 import { reminderProblems } from './reminders';
 import { REDACTED_TEXT } from './workflow/redact';
 
@@ -248,6 +251,10 @@ export type ApplyNote =
   | { kind: 'removedWorkflowLinks'; workflowId: string; count: number }
   /** 提醒要打开的快捷操作 / 页面、要看的表或日期字段被移除了，提醒跟着移除（D-251）。 */
   | { kind: 'removedReminders'; titles: string[] }
+  /** 删字段、删表时，用到它的一键记录操作（D-304）：按钮移除，列表里的行按钮去掉。 */
+  | { kind: 'removedRecordActions'; count: number }
+  /** 新加的列表所属的表没有添加入口，在列表上方补了一个「添加」按钮（D-310）。 */
+  | { kind: 'addedEntryForm'; collectionId: string }
   | { kind: 'updatedTool'; toolId: string; workflowIds: string[] };
 
 /** 字段类型只能在这些类型之间互相转换，已有的值仍然能读出来（字段定义的 convertGroup）。 */
@@ -321,6 +328,27 @@ function removeWorkflowLinks(config: WorkspaceConfig, workflowIds: readonly stri
     const target = componentTarget(c);
     return target !== null && gone.includes(target);
   });
+}
+
+/**
+ * 删字段、删表后，用到它的一键记录操作（D-304）：按钮跟着移除，记录列表里的行按钮去掉（列表留着）。
+ */
+function pruneRecordActions(config: WorkspaceConfig, gone: Gone, notes: ApplyNote[]): void {
+  let count = removeEverywhere(
+    config,
+    (c) =>
+      c.type === 'button' && c.props.action !== undefined && buttonActionUses(c.props.action, gone),
+  );
+  for (const page of config.pages) {
+    for (const c of allComponents(page)) {
+      if (c.type !== 'recordList' || !c.props.rowActions) continue;
+      const kept = c.props.rowActions.filter((a) => !rowActionUses(a, c.props.collectionId, gone));
+      count += c.props.rowActions.length - kept.length;
+      if (kept.length > 0) c.props.rowActions = kept;
+      else delete c.props.rowActions;
+    }
+  }
+  if (count > 0) notes.push({ kind: 'removedRecordActions', count });
 }
 
 /** 组件要放入的列表：页面顶层，或某个分组的子组件。 */
@@ -764,14 +792,22 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
     case 'removeField': {
       const collection = getCollection(config, op.collectionId);
       collection.fields.splice(getFieldIndex(collection, op.fieldId), 1);
+      pruneRecordActions(config, { collectionId: op.collectionId, fieldId: op.fieldId }, notes);
       return;
     }
     case 'addReminder': {
       const reminders = (config.reminders ??= []);
       if (reminders.some((r) => r.id === op.reminder.id))
         throw new OpError(`reminder ${op.reminder.id} already exists`);
-      if (reminders.length >= MAX_REMINDERS)
-        throw new OpError(`at most ${MAX_REMINDERS} reminders`);
+      // 按记录排的提醒另算，不占 20 个的名额（D-316）。
+      const perRecord = op.reminder.schedule === 'scheduleField';
+      const max = perRecord ? MAX_RECORD_REMINDERS : MAX_REMINDERS;
+      if (reminders.filter((r) => (r.schedule === 'scheduleField') === perRecord).length >= max)
+        throw new OpError(
+          perRecord
+            ? `at most ${MAX_RECORD_REMINDERS} scheduleField reminders`
+            : `at most ${MAX_REMINDERS} reminders`,
+        );
       reminders.push(op.reminder);
       return;
     }
@@ -826,6 +862,7 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
       if (count > 0) {
         notes.push({ kind: 'removedDataComponents', collectionId: op.collectionId, count });
       }
+      pruneRecordActions(config, { collectionId: op.collectionId }, notes);
       return;
     }
   }
@@ -862,6 +899,8 @@ export function applyOps(
     if (e instanceof OpError) return { ok: false, error: e.message };
     throw e;
   }
+  for (const collectionId of addMissingEntryForms(config, next, ctx.locale))
+    notes.push({ kind: 'addedEntryForm', collectionId });
   pruneReminders(config, next, notes);
   return { ok: true, config: next, notes };
 }

@@ -233,6 +233,30 @@ export const migrateV22toV23: Migration = (config) => ({ ...config, schemaVersio
  */
 export const migrateV23toV24: Migration = (config) => ({ ...config, schemaVersion: 24 });
 
+/**
+ * v24 → v25：按钮多了 action、target 可以不写，记录列表多了 rowActions（一键记录操作，D-300–D-304）。
+ * 已有的按钮都有 target，仍然合法，只提升版本号。
+ */
+export const migrateV24toV25: Migration = (config) => ({ ...config, schemaVersion: 25 });
+
+/**
+ * v25 → v26：记录列表多了月历外观和右侧字段的显示格式（D-305、D-306），统计多了目标和「和上一段比」
+ * （D-307、D-308）。都是新的可选属性，已有配置照样合法，只提升版本号。
+ */
+export const migrateV25toV26: Migration = (config) => ({ ...config, schemaVersion: 26 });
+
+/**
+ * v26 → v27：记录列表多了大圆块 tiles 和看板 board 两种外观、看板分栏用的 groupField（D-311–D-314）。
+ * 都是新的可选值，已有配置照样合法，只提升版本号。
+ */
+export const migrateV26toV27: Migration = (config) => ({ ...config, schemaVersion: 27 });
+
+/**
+ * v27 → v28：提醒多了按记录的日程排的 scheduleField 和它的 unless、done、snoozeMinutes（D-316–D-318）。
+ * 都是新的可选值，已有配置照样合法，只提升版本号。
+ */
+export const migrateV27toV28: Migration = (config) => ({ ...config, schemaVersion: 28 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -258,6 +282,10 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   21: migrateV21toV22,
   22: migrateV22toV23,
   23: migrateV23toV24,
+  24: migrateV24toV25,
+  25: migrateV25toV26,
+  26: migrateV26toV27,
+  27: migrateV27toV28,
 };
 
 export type MigrateResult =

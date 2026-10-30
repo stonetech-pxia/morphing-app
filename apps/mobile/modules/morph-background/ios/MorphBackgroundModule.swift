@@ -1,5 +1,7 @@
 import BackgroundTasks
 import ExpoModulesCore
+import ExpoNotifications
+import UIKit
 
 // 长任务切到后台也继续的 iOS 部分（D-163）：iOS 26 的 BGContinuedProcessingTask。用户点了运行之后提交，
 // 系统在锁屏和灵动岛上显示进度，切到别的 App 也给时间继续跑；系统收回时间时让 morph-media 按「切到后台」中断。
@@ -25,8 +27,31 @@ public class MorphBackgroundModule: Module {
   private var task: AnyObject?
   private var title = ""
 
+  /** 提醒按钮的后台时间（D-318）。 */
+  private let actionHold = ReminderActionHold()
+
   public func definition() -> ModuleDefinition {
     Name("MorphBackground")
+
+    // 提醒通知上的按钮（D-318）不打开 App：系统在后台拉起或唤醒 App，expo-notifications 一收到点击就回复系统，
+    // 之后 App 随时可能被挂起，JS 来不及写记录。所以先要一段后台时间，JS 处理完调 releaseActionTime 还掉：
+    // App 挂在后台时收到 Morph 的按钮就要（代理）；App 没在运行、被系统在后台拉起时，点击可能在代理挂上之前
+    // 就被 expo-notifications 收走了，所以模块创建时 App 在后台也先要（JS 几秒内没收到点击就还）。
+    OnCreate {
+      NotificationCenterManager.shared.addDelegate(self.actionHold)
+      DispatchQueue.main.async {
+        if UIApplication.shared.applicationState == .background { self.actionHold.hold() }
+      }
+    }
+
+    OnDestroy {
+      NotificationCenterManager.shared.removeDelegate(self.actionHold)
+      self.actionHold.release()
+    }
+
+    Function("releaseActionTime") {
+      DispatchQueue.main.async { self.actionHold.release() }
+    }
 
     Constant("continuesInBackground") { Self.available }
 
@@ -142,5 +167,36 @@ public class MorphBackgroundModule: Module {
     if #available(iOS 26.0, *), let task = task as? BGContinuedProcessingTask {
       task.setTaskCompleted(success: false)
     }
+  }
+}
+
+/** 和 reminders/platform.ts 的 DONE_ACTION、SNOOZE_ACTION 一样。 */
+private let reminderActions: Set<String> = ["morph-done", "morph-snooze"]
+
+/**
+ * 收到提醒按钮的点击就向系统要一段后台时间（D-318）。不算处理了这条点击（返回 false），点击照样交给
+ * expo-notifications 送到 JS。
+ */
+final class ReminderActionHold: NSObject, NotificationDelegate {
+  private var task: UIBackgroundTaskIdentifier = .invalid
+
+  func didReceive(_ response: UNNotificationResponse, completionHandler: @escaping () -> Void) -> Bool {
+    if reminderActions.contains(response.actionIdentifier) {
+      if Thread.isMainThread { hold() } else { DispatchQueue.main.async { self.hold() } }
+    }
+    return false
+  }
+
+  func hold() {
+    guard task == .invalid else { return }
+    task = UIApplication.shared.beginBackgroundTask(withName: "morph-reminder-action") {
+      [weak self] in self?.release()
+    }
+  }
+
+  func release() {
+    guard task != .invalid else { return }
+    UIApplication.shared.endBackgroundTask(task)
+    task = .invalid
   }
 }

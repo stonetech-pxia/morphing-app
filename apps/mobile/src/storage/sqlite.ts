@@ -10,6 +10,7 @@ import {
   type StoredRecord,
   type ToolRunRecord,
   type WorkspaceRepo,
+  type RecordRange,
 } from './types';
 
 // SQLite 实现。数据库结构用 PRAGMA user_version 管理，每个元素是一次升级。
@@ -401,6 +402,29 @@ export class SQLiteWorkspaceRepo implements WorkspaceRepo {
     return rows.map(toStoredRecord);
   }
 
+  async listRecordsInRange(collectionId: string, range: RecordRange) {
+    const base = 'SELECT * FROM records WHERE collection_id = ? AND deleted_at IS NULL';
+    const column = { createdAt: 'created_at', updatedAt: 'updated_at' }[range.by];
+    const rows =
+      column !== undefined
+        ? await this.db.getAllAsync<RecordRow>(
+            `${base} AND ${column} >= ? AND ${column} < ?`,
+            collectionId,
+            range.fromMs,
+            range.untilMs,
+          )
+        : await this.db.getAllAsync<RecordRow>(
+            // 字段 ID 只有小写字母、数字和 -，放进 JSON 路径时加引号。
+            `${base} AND json_extract(values_json, ?) >= ? AND json_extract(values_json, ?) < ?`,
+            collectionId,
+            `$."${range.by}"`,
+            range.from,
+            `$."${range.by}"`,
+            range.until,
+          );
+    return rows.map(toStoredRecord);
+  }
+
   async getRecord(id: string) {
     const row = await this.db.getFirstAsync<RecordRow>('SELECT * FROM records WHERE id = ?', id);
     return row ? toStoredRecord(row) : null;
@@ -432,6 +456,10 @@ export class SQLiteWorkspaceRepo implements WorkspaceRepo {
 
   async restoreRecord(id: string) {
     await this.db.runAsync('UPDATE records SET deleted_at = NULL WHERE id = ?', id);
+  }
+
+  async discardRecord(id: string) {
+    await this.db.runAsync('DELETE FROM records WHERE id = ?', id);
   }
 
   async listDeletedRecords() {
