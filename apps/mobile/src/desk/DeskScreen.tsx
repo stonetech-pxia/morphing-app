@@ -24,6 +24,7 @@ import {
   ActivityIndicator,
   Alert,
   AppState,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -178,6 +179,15 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     };
   }, []);
   const onSelecting = useCallback((on: boolean) => setSelecting(on), []);
+  // 键盘开着时导航栏在键盘下面，底部不用再让出它的高度。
+  const [keyboard, setKeyboard] = useState(false);
+  useEffect(() => {
+    const subs = [
+      Keyboard.addListener('keyboardDidShow', () => setKeyboard(true)),
+      Keyboard.addListener('keyboardDidHide', () => setKeyboard(false)),
+    ];
+    return () => subs.forEach((s) => s.remove());
+  }, []);
 
   if (desk === null) {
     return <ActivityIndicator style={[styles.flex, { backgroundColor: palette.background }]} />;
@@ -440,6 +450,9 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   const editUndo = (editHistory?.past.length ?? 0) > 0;
   const editRedo = (editHistory?.future.length ?? 0) > 0;
   const showToolbar = !selecting;
+  // 底部工具栏不在时（选中了东西换成编辑层、工具栏在顶部），房间最下面让出系统导航栏（三星真机，2026-10-30）。
+  const bottomInset =
+    (layout.toolbar !== 'bottom' || !showToolbar) && !keyboard ? insets.bottom : 0;
   const preview = !shown ? null : shown.source && edit.session !== null ? (
     edit.session === undefined ? (
       <ActivityIndicator style={styles.flex} color={palette.primary} />
@@ -587,6 +600,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
       {slot(layout.below, 'desk-below')}
       {layout.preview === 'fill' ? null : <View style={styles.flex} />}
       {layout.toolbar === 'bottom' && showToolbar ? toolbar : null}
+      {bottomInset > 0 ? <View testID="desk-bottom-inset" style={{ height: bottomInset }} /> : null}
 
       {panel ? (
         <AskPanel
