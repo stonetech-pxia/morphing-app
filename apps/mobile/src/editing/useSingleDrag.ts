@@ -14,6 +14,15 @@ function measure(view: HostInstance | null | undefined): Promise<ItemBox | null>
   });
 }
 
+/**
+ * 组件里面自己的拖动（看板拖卡片，D-314）正在进行时，外层的长按选中组件不生效：
+ * 两个长按手势在 iOS 上互相阻止不住（RNGH 的 block 没有拦下外层），这里在 JS 侧挡一下。
+ */
+let innerDrag = false;
+export function setInnerDrag(active: boolean) {
+  innerDrag = active;
+}
+
 /** 测量的是没有 transform 的外框；UI 线程上的跟手位移不会污染落点坐标。 */
 export function useSingleDrag(
   page: Page,
@@ -100,7 +109,7 @@ export function useSingleDrag(
     frame.current = requestAnimationFrame(autoScroll);
   }
   function begin(id: string, x: number, y: number) {
-    if (session.current) return;
+    if (session.current || innerDrag) return;
     latest.current.onSelect(id);
     const current = {
       id,

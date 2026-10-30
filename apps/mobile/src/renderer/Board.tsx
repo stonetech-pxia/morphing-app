@@ -32,6 +32,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { useRecordActionRunner } from '../data/record-actions';
 import { useLinkResolver } from '../data/records';
 import { edgeSpeed } from '../editing/ArrangeView';
+import { setInnerDrag } from '../editing/useSingleDrag';
 import { LONG_PRESS_MS } from '../editing/entry';
 import { t } from '../i18n';
 import type { RenderEnv } from './components';
@@ -111,7 +112,8 @@ export function Board({
   const cal = calendarOf(env.config);
   const now = new Date();
   const columnLabel = (c: BoardColumn) => c.label ?? t(locale, 'boardNotSet');
-  const canDrag = env.interactive && !env.focus;
+  // 单组件编辑选中了某个组件时不能拖（那时长按拖的是组件本身）。
+  const canDrag = env.interactive && !env.focus?.selectedId;
 
   function move(record: DataRecord, to: BoardColumn) {
     if (env.locked) return env.locked();
@@ -221,7 +223,9 @@ export function Board({
         }}
         onLayout={(e) => void (content.current.viewport = e.nativeEvent.layout.width)}
         onContentSizeChange={(w) => void (content.current.width = w)}
-        contentContainerStyle={{ gap: palette.gap - 4, paddingRight: 4 }}>
+        // 底下留出栏的阴影，不被横向滚动的边界切掉。
+        style={styles.scroll}
+        contentContainerStyle={{ gap: palette.gap - 4, paddingRight: 4, paddingBottom: 12 }}>
         {columns.map((column) => {
           const key = columnKey(column);
           const label = columnLabel(column);
@@ -374,7 +378,12 @@ function BoardCard({
     maxPointers: 1,
     cancelsTouchesInView: true,
     cancelsJSResponder: true,
+    // 拖卡片比页面的长按编辑（D-235）先开始；外层的手势照样会激活，由 setInnerDrag 让它不选中组件。
+    onFinalize: () => {
+      scheduleOnRN(setInnerDrag, false);
+    },
     onActivate: (e) => {
+      scheduleOnRN(setInnerDrag, true);
       x.value = 0;
       y.value = 0;
       scheduleOnRN(onBegin, e.absoluteX);
@@ -517,6 +526,7 @@ function MoveMenu({
 }
 
 const styles = StyleSheet.create({
+  scroll: { marginBottom: -12 },
   column: { width: COLUMN_WIDTH, gap: 8, alignSelf: 'flex-start' },
   header: {
     flexDirection: 'row',
