@@ -480,7 +480,14 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
       source: input.source,
       ...(input.skew !== undefined ? { skew: input.skew } : {}),
     },
-    options,
+    // 格子里的字按原图一排一行（D-315）：表单一格里的地址、日期各占一行，不接成一段（Word 里格子宽按原图，字号按比例）。
+    {
+      ...options,
+      joinLines: (cell) =>
+        rowsOf(cell)
+          .map((r) => join(r.lines).trim())
+          .join('\n'),
+    },
   );
   const tol = lineHeight * 0.3;
   const inBox = (l: Box, box: Box) => {

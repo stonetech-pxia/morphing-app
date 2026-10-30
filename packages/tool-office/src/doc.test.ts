@@ -465,6 +465,29 @@ describe('buildDocPage', () => {
     expect(table).toMatchObject({ size: 7 });
   });
 
+  it('keeps each line of a table cell on its own line in Word (D-315)', () => {
+    const { image, lines } = textPage(
+      [
+        { text: 'Logement F44', x: 120, y: 110, width: 200 },
+        { text: 'Valable 2030', x: 120, y: 135, width: 200 },
+        { text: 'Type Habitation', x: 120, y: 160, width: 200 },
+        { text: 'Date 21/02', x: 420, y: 110, width: 200 },
+      ],
+      gridRects([100, 400, 900], [100, 200]),
+    );
+    // App 的接法（D-268）会把够长的几行接成一段；表格的格子里按原图换行。
+    const join = (ls: readonly OcrBox[]) =>
+      [...ls]
+        .sort((a, b) => a.y - b.y)
+        .map((l) => l.text)
+        .join(' ');
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 }, { joinLines: join });
+    const table = leafBlocks(doc).find((b) => b.kind === 'table');
+    expect(table?.kind === 'table' && table.table.cells[0]!.text).toBe(
+      'Logement F44\nValable 2030\nType Habitation',
+    );
+  });
+
   it('pairs form labels with their values row by row (D-314)', () => {
     const { image, lines } = textPage([
       // 右边一块的上面还有一行（和值连成了一块），不参加配对。
