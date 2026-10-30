@@ -2741,7 +2741,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 10>.source.sort? object
 <oneOf 10>.source.sort.field = <oneOf 6>.tools[]<anyOf 0>.when[].field
 <oneOf 10>.source.sort.direction "asc"|"desc"
-<oneOf 10>.source.limit integer 1..100
+<oneOf 10>.source.limit integer 1..100 default 30
 <oneOf 10>.source.group? object
 <oneOf 10>.source.group.by? = <oneOf 6>.tools[]<anyOf 0>.when[].field
 <oneOf 10>.source.group.unit? "day"|"week"|"month"

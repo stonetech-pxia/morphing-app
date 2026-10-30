@@ -41,7 +41,8 @@ export const RecordSourceSchema = z.strictObject({
   table: IdSchema,
   filter: filterSchema().optional(),
   sort: SortSchema.optional(),
-  limit: z.number().int().min(1).max(100),
+  // 不写时 30 条（模型偶尔漏写，不该因此拒绝整份修改）。
+  limit: z.number().int().min(1).max(100).default(30),
   group: GroupingSchema.optional(),
 });
 export type RecordSource = z.infer<typeof RecordSourceSchema>;
@@ -170,7 +171,7 @@ function recordProblems(c: RecordBlock, { collection, config }: CheckContext): C
  * limit 是每段 / 每栏 / 每天最多几条。
  */
 export const RECORD_LOOK_DOC =
-  'source {table, filter?, sort? {field, direction: "asc"|"desc"}, limit (1-100; per section, column or day when grouped), group?}, show {title, subtitles? (≤2), trailing? (shown on the right, e.g. an amount), format? (rule 46), color? (calendar only), emptyText?}, tools?, opens? (a page for one entry, rule 48)';
+  'source {table, filter?, sort? {field, direction: "asc"|"desc"}, limit? (1-100, default 30; per section, column or day when grouped), group?}, show {title, subtitles? (≤2), trailing? (shown on the right, e.g. an amount), format? (rule 46), color? (calendar only), emptyText?}, tools?, opens? (a page for one entry, rule 48)';
 
 const DOCS: Record<RecordLook, string> = {
   list: 'rows; tapping a row opens the built-in editor (or the page in opens)',
