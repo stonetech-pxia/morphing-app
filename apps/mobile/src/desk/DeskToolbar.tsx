@@ -1,9 +1,11 @@
 import {
+  deskToolIcon,
   deskToolWorkflow,
   deskWorkflowFits,
   findWorkflow,
   localize,
   type DeskFile,
+  type DeskIcon,
   type DeskGroup,
   type DeskGroupId,
   type DeskTool,
@@ -21,6 +23,7 @@ import type { Palette } from '../renderer/theme';
 // 房间的工具栏（file-room DESIGN §4、§5，D-338）：一行横向滑动的图标加文字，按组排开。
 // 组和工具来自布局配置（没写时由注册表按文件种类生成，见 @morph/core 的 deskToolbar）。
 // 接不上桌上这些文件的项变灰、点不了。按钮只在用户点的时候才执行（D-113）。
+// 最后固定一组「文件」（分享、保存、系统预览，D-342）：房间自己的事，不在配置里，每种文件都有，工具栏不会是空的。
 
 const GROUP_TITLE: Record<DeskGroupId, StringKey> = {
   edit: 'deskGroupEdit',
@@ -29,11 +32,16 @@ const GROUP_TITLE: Record<DeskGroupId, StringKey> = {
   quick: 'deskGroupQuick',
 };
 
+/** 「文件」这一组：房间自己的按钮。 */
+export type RoomTool = 'share' | 'save' | 'preview';
+
 export interface ToolEntry {
   key: string;
-  item: DeskTool;
+  /** 工具、快捷操作；「文件」这一组的按钮没有。 */
+  item?: DeskTool;
+  room?: RoomTool;
   label: string;
-  icon: IconValue;
+  icon: IconValue | DeskIcon;
   /** 快捷操作（工作流）；工具时没有。 */
   workflow?: Workflow;
   enabled: boolean;
@@ -54,13 +62,12 @@ export function toolEntries(
         const action = registry.actions.get(item.action);
         if (!action) return [];
         const preset = item.preset ? action.presets?.find((p) => p.id === item.preset) : undefined;
-        const owner = registry.tools.get(registry.actionOwner.get(action.id) ?? '');
         return [
           {
             key: `${item.action}-${item.preset ?? ''}-${i}`,
             item,
             label: localize(preset?.label ?? action.label, locale) ?? action.id,
-            icon: owner?.icon ?? 'bolt',
+            icon: deskToolIcon(action, registry),
             enabled:
               deskToolWorkflow(
                 action.id,
@@ -85,6 +92,25 @@ export function toolEntries(
       ];
     }),
   }));
+}
+
+/** 「文件」这一组（每种文件都有）。 */
+export function roomEntries(locale: Locale): { title: string; entries: ToolEntry[] } {
+  const entry = (room: RoomTool, label: StringKey, icon: DeskIcon): ToolEntry => ({
+    key: `room-${room}`,
+    room,
+    label: t(locale, label),
+    icon,
+    enabled: true,
+  });
+  return {
+    title: t(locale, 'deskGroupFile'),
+    entries: [
+      entry('share', 'resultShare', 'share'),
+      entry('save', 'resultSave', 'save'),
+      entry('preview', 'deskToolPreview', 'preview'),
+    ],
+  };
 }
 
 export function DeskToolbar({
@@ -123,7 +149,7 @@ export function DeskToolbar({
               return (
                 <Pressable
                   key={entry.key}
-                  testID={`desk-tool-${'action' in entry.item ? entry.item.action : entry.item.workflowId}`}
+                  testID={`desk-tool-${toolTestId(entry)}`}
                   accessibilityRole="button"
                   accessibilityState={{ disabled: off }}
                   disabled={off}
@@ -147,6 +173,13 @@ export function DeskToolbar({
     </ScrollView>
   );
 }
+
+const toolTestId = (entry: ToolEntry) =>
+  entry.room
+    ? `room-${entry.room}`
+    : entry.item && 'action' in entry.item
+      ? entry.item.action
+      : (entry.item?.workflowId ?? entry.key);
 
 const styles = StyleSheet.create({
   row: { paddingHorizontal: 8, paddingVertical: 6, alignItems: 'flex-start' },

@@ -374,4 +374,20 @@ describe('清理提示和读回', () => {
     expect(deskKindOf({ ext: 'm4a', mimeType: 'audio/mp4' })).toBe('audio');
     expect(deskKindOf({ ext: 'zip', mimeType: 'application/zip' })).toBe('other');
   });
+
+  it('名字里没有扩展名的办公文档（Android 别的 App 分享过来常这样）：按 MIME 认出 Excel、Word', () => {
+    expect(
+      deskKindOf({
+        ext: 'bin',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      }),
+    ).toBe('sheet');
+    expect(
+      deskKindOf({
+        ext: 'bin',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      }),
+    ).toBe('doc');
+    expect(deskKindOf({ ext: 'bin', mimeType: 'application/octet-stream' })).toBe('other');
+  });
 });

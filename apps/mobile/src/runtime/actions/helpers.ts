@@ -64,6 +64,9 @@ const MIME_BY_EXT: Record<string, string> = {
 export const extOf = (name: string) => /\.([^./]+)$/.exec(name)?.[1]?.toLowerCase() ?? '';
 export const baseName = (name: string) => name.replace(/\.[^./]+$/, '');
 export const mimeOfExt = (ext: string) => MIME_BY_EXT[ext] ?? 'application/octet-stream';
+/** MIME 对应的扩展名（名字里没有扩展名时用）；认不出时是空的。 */
+export const extOfMime = (mime: string | null | undefined) =>
+  Object.keys(MIME_BY_EXT).find((ext) => MIME_BY_EXT[ext] === mime?.toLowerCase()) ?? '';
 
 export function mimeOf(name: string, given: string | null): string {
   if (given && given !== 'application/octet-stream') return given;

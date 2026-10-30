@@ -4,6 +4,7 @@ import {
   canUndo,
   currentFiles,
   deskKindOf,
+  deskToolAsks,
   deskToolWorkflow,
   deskToolbar,
   initialParams,
@@ -42,7 +43,7 @@ import { newAssetId, startRun } from '../runtime/runner';
 import { useShellEnv } from '../shell/Shell';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { DeskPreview } from './DeskPreview';
-import { DeskToolbar, toolEntries, type ToolEntry } from './DeskToolbar';
+import { DeskToolbar, roomEntries, toolEntries, type ToolEntry } from './DeskToolbar';
 import { clearDesk, commitRun, deskFileUri, deskPicked, loadDesk, redo, undo } from './store';
 import { useRunHost } from './useRunHost';
 
@@ -112,7 +113,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   const kind = shown ? deskKindOf(shown) : 'other';
   // 工具作用到和正在看的这份同一种的全部文件（例如 5 张照片一起转成一个 PDF）。
   const targets = shown ? list.filter((f) => deskKindOf(f) === kind) : [];
-  const groups = useMemo(
+  const tools = useMemo(
     () =>
       toolEntries(
         deskToolbar(kind, layout.tools, registry, config.workflows, locale),
@@ -125,6 +126,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [kind, layout.tools, registry, config.workflows, locale, list],
   );
+  const groups = useMemo(() => [...tools, roomEntries(locale)], [tools, locale]);
 
   if (desk === null) {
     return <ActivityIndicator style={[styles.flex, { backgroundColor: palette.background }]} />;
@@ -149,6 +151,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     const current = deskRef.current;
     if (!current || busy) return;
     setError(null);
+    setSaved(false);
     const steps = workflow.steps;
     setBusy({ label: label(steps[Math.min(1, steps.length - 1)]!) });
     signal.current = { cancelled: false };
@@ -219,17 +222,21 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   }
 
   function press(entry: ToolEntry) {
+    if (entry.room === 'share') return void act(() => files.shareUris(items()));
+    if (entry.room === 'save') return void act(save);
+    if (entry.room === 'preview') return systemPreview();
     if (entry.workflow) {
       void run(entry.workflow, { kind: 'workflow', workflowId: entry.workflow.id }, targets);
       return;
     }
     const item = entry.item;
-    if (!('action' in item)) return;
+    if (!item || !('action' in item)) return;
     const action = registry.actions.get(item.action)!;
     const preset = item.preset ? action.presets?.find((p) => p.id === item.preset) : undefined;
     const params = preset ? { ...preset.values } : initialParams(action);
-    const keys = action.fields.filter((f) => f.kind !== 'secret').map((f) => f.key);
-    // 有参数、又不是要亲手操作的工具：先弹出参数面板，点「应用」才跑（跑完才知道结果，D-339）。
+    const keys = deskToolAsks(action);
+    // 有要问的参数、又不是要亲手操作的工具：先弹出参数面板，点「应用」才跑（跑完才知道结果，D-339）。
+    // 参数都不用问的（识别类，D-278）直接跑（D-342）。
     if (!preset && !action.local && keys.length > 0) {
       setPanel({
         entry,
@@ -258,6 +265,15 @@ export function DeskScreen({ deskId }: { deskId: string }) {
       mimeType: f.mimeType,
       size: f.size,
     }));
+
+  async function save() {
+    await saveItems({ files, repo, grantee: 'desk' }, items(), {
+      now: () => new Date(),
+      newId: newAssetId,
+    });
+    bumpAssets();
+    setSaved(true);
+  }
 
   async function act(fn: () => Promise<void>) {
     setError(null);
@@ -356,15 +372,14 @@ export function DeskScreen({ deskId }: { deskId: string }) {
           {t(locale, 'deskTargets', { n: targets.length })}
         </Text>
       ) : null}
-      {groups.length > 0 ? (
-        <DeskToolbar groups={groups} palette={palette} disabled={busy !== null} onPress={press} />
-      ) : (
+      {tools.length === 0 ? (
         <Text
           testID="desk-no-tools"
           style={[palette.font('body', 13), styles.targets, { color: palette.muted }]}>
           {t(locale, 'deskNoTools')}
         </Text>
-      )}
+      ) : null}
+      <DeskToolbar groups={groups} palette={palette} disabled={busy !== null} onPress={press} />
     </View>
   );
 
@@ -437,6 +452,13 @@ export function DeskScreen({ deskId }: { deskId: string }) {
           testID="desk-error"
           style={[palette.font('bodyMedium', 14), styles.error, { color: palette.danger }]}>
           {error}
+        </Text>
+      ) : null}
+      {saved && !sheet ? (
+        <Text
+          testID="desk-saved"
+          style={[palette.font('bodyMedium', 14), styles.error, { color: palette.caption }]}>
+          {t(locale, 'resultSaved')}
         </Text>
       ) : null}
       {layout.strip && list.length > 1 ? (
@@ -557,16 +579,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
                 label={t(locale, saved ? 'resultSaved' : 'resultSave')}
                 palette={palette}
                 disabled={saved}
-                onPress={() =>
-                  void act(async () => {
-                    await saveItems({ files, repo, grantee: 'desk' }, items(), {
-                      now: () => new Date(),
-                      newId: newAssetId,
-                    });
-                    bumpAssets();
-                    setSaved(true);
-                  })
-                }
+                onPress={() => void act(save)}
               />
               <SheetRow
                 id="desk-share"

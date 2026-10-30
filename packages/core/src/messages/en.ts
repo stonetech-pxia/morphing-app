@@ -1320,7 +1320,10 @@ export const en = {
   deskGroupQuick: 'Quick actions',
   deskApply: 'Apply',
   deskTargets: 'Tools apply to these {n} files',
-  deskNoTools: 'There are no tools for this kind of file yet. You can share or save it from Done.',
+  deskNoTools: 'There are no tools for this kind of file yet. You can still share or save it.',
+  deskGroupFile: 'File',
+  deskToolPreview: 'Preview',
+  deskResume: 'Back to your desk',
   deskSystemPreview: 'Open in system preview',
   deskPdfNeedsPack:
     'To page through the PDF here, download the “PDF preview” pack first. You can also open it in the system preview.',

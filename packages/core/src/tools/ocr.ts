@@ -56,6 +56,8 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
         key: 'lang',
         label: { en: 'Language', zh: '语言', fr: 'Langue' },
         kind: 'choice',
+        // 自动就对，不问（D-278、D-342）。
+        ask: false,
         options: [
           { value: 'auto', label: { en: 'Auto', zh: '自动', fr: 'Automatique' } },
           ...OCR_LANGUAGES.map((value) => ({ value, label: OCR_LANGUAGE_NAMES[value] })),
@@ -93,6 +95,8 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
         key: 'lang',
         label: { en: 'Language', zh: '语言', fr: 'Langue' },
         kind: 'choice',
+        // 自动就对，不问（D-278、D-342）。
+        ask: false,
         options: [
           { value: 'auto', label: { en: 'Auto', zh: '自动', fr: 'Automatique' } },
           ...OCR_LANGUAGES.map((value) => ({ value, label: OCR_LANGUAGE_NAMES[value] })),
@@ -102,6 +106,7 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
         key: 'scope',
         label: { en: 'Content', zh: '识别范围', fr: 'Contenu' },
         kind: 'choice',
+        ask: false,
         options: [
           { value: 'all', label: { en: 'Everything', zh: '全部内容', fr: 'Tout le contenu' } },
           {
@@ -141,6 +146,8 @@ export const OCR_ACTIONS: readonly ActionDefinition[] = [
         key: 'lang',
         label: { en: 'Language', zh: '语言', fr: 'Langue' },
         kind: 'choice',
+        // 自动就对，不问（D-278、D-342）。
+        ask: false,
         options: [
           { value: 'auto', label: { en: 'Auto', zh: '自动', fr: 'Automatique' } },
           ...OCR_LANGUAGES.map((value) => ({ value, label: OCR_LANGUAGE_NAMES[value] })),

@@ -27,7 +27,7 @@ import {
   type TableDoc,
 } from '@morph/tool-office';
 
-import { baseName, extOf, mimeOf } from '../runtime/actions/helpers';
+import { baseName, extOf, extOfMime, mimeOf } from '../runtime/actions/helpers';
 import type { FilePlatform, PickedFile } from '../runtime/platform';
 
 // 桌面的存储（file-room DESIGN §3、§11.1，D-336）：版本栈的逻辑在 @morph/core 的 desk/model.ts，
@@ -108,7 +108,8 @@ export async function placeOnDesk(
   const placed: DeskFile[] = [];
   try {
     for (const [i, f] of picked.entries()) {
-      const ext = cleanExt(extOf(f.name));
+      // 名字里没有扩展名（Android 别的 App 分享过来常这样）时按 MIME 补上：转 PDF 这类工具按扩展名认格式。
+      const ext = cleanExt(extOf(f.name) || extOfMime(f.mimeType));
       const path = `v1-${i}.${ext}`;
       const size = await files.desk.copyIn(f.uri, `${deskId}/${path}`);
       placed.push({

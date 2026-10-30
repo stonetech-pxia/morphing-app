@@ -4,11 +4,13 @@ import { createRegistry } from '../registry';
 import { WorkspaceConfigSchema, type Workflow } from '../schema';
 import { BUILTIN_TOOLS } from '../tools';
 import { workspace } from '../test-helpers';
+import { deskToolIcon } from './icons';
 import { DEFAULT_DESK_LAYOUT, DeskLayoutSchema, resolveDeskLayout } from './layout';
 import type { DeskFile } from './model';
 import {
   defaultDeskTools,
   deskInputStep,
+  deskToolAsks,
   deskToolWorkflow,
   deskToolbar,
   deskWorkflowFits,
@@ -149,6 +151,44 @@ describe('用一个工具 = 输入 + 这个工具', () => {
     expect(deskWorkflowFits(photos, [jpg])).toBe(true);
     expect(deskWorkflowFits(photos, [pdf])).toBe(false);
     expect(deskWorkflowFits(photos, [])).toBe(false);
+  });
+});
+
+describe('单工具：哪些要先弹参数面板（D-342）', () => {
+  const asks = (id: string) => deskToolAsks(registry.actions.get(id)!);
+
+  it('识别类（转 Excel、转 Word、识别文字）和文档转 PDF 不问，直接跑（D-278：语言自动）', () => {
+    for (const id of ['ocr.toExcel', 'ocr.toWord', 'ocr.recognize', 'pdf.fromDocument']) {
+      expect([id, asks(id)]).toEqual([id, []]);
+    }
+  });
+
+  it('要调参数的工具照旧弹面板：旋转问角度，文字戳问文字，压缩问大小', () => {
+    expect(asks('image.rotate')).toContain('angle');
+    expect(asks('pdf.stamp')).toContain('text');
+    expect(asks('image.compress').length).toBeGreaterThan(0);
+  });
+
+  it('密码不在面板里（执行器跑的时候问）', () => {
+    expect(asks('pdf.protect')).not.toContain('password');
+  });
+});
+
+describe('工具栏的图标（D-343）', () => {
+  it('同一个工具的不同动作图标不一样（旋转、裁剪、压缩、标注、转 PDF……）', () => {
+    for (const kind of ['image', 'pdf', 'video', 'audio'] as const) {
+      const ids = defaultDeskTools(kind, registry, [], 'zh').flatMap((g) =>
+        g.items.flatMap((i) => ('action' in i ? [i.action] : [])),
+      );
+      const icons = ids.map((id) => deskToolIcon(registry.actions.get(id)!, registry));
+      // 大部分不一样：只有少数几个共用（例如两种「转成文字」）。
+      expect(new Set(icons).size).toBeGreaterThanOrEqual(Math.ceil(ids.length * 0.75));
+    }
+    const icon = (id: string) => deskToolIcon(registry.actions.get(id)!, registry);
+    expect(icon('image.rotate')).toBe(icon('pdf.rotate'));
+    expect(icon('image.rotate')).not.toBe(icon('image.crop'));
+    expect(icon('image.compress')).not.toBe(icon('image.resize'));
+    expect(icon('ocr.toExcel')).not.toBe(icon('ocr.toWord'));
   });
 });
 

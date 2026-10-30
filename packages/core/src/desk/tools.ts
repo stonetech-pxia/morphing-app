@@ -185,6 +185,19 @@ export function deskToolWorkflow(
   return problems.length === 0 ? workflow : null;
 }
 
+/**
+ * 房间里单用一个工具时，先弹出参数面板问哪些参数（D-342）。规则只有一条：
+ * 参数写了 `ask: false`（默认值就是对的，例如识别语言「自动」，D-278）的不问；密码不在面板里（执行器跑的时候问）；
+ * 剩下的都问。一个都不用问、而且默认参数能用时返回 []：直接跑，不弹面板。
+ * 默认参数不能用（例如文字戳要写字）时，就算都写了 ask: false 也问全部，免得跑一个必然失败的工具。
+ */
+export function deskToolAsks(action: ActionDefinition): string[] {
+  const shown = action.fields.filter((f) => f.kind !== 'secret');
+  const asked = shown.filter((f) => f.ask !== false).map((f) => f.key);
+  if (asked.length > 0) return asked;
+  return action.params.safeParse(initialParams(action)).success ? [] : shown.map((f) => f.key);
+}
+
 /** 快捷操作能不能作用到桌上这几份文件（看它的第一步，和收件页面一样）。 */
 export const deskWorkflowFits = (workflow: Workflow, files: readonly DeskFile[]) =>
   files.length > 0 && shareFit(workflow, deskShareInfos(files)).ok;

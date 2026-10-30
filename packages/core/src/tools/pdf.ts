@@ -665,6 +665,8 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
         key: 'pageSize',
         label: { en: 'Page size', zh: '纸张', fr: 'Format du papier' },
         kind: 'choice',
+        // 工具自己的「Word / Excel / PPT 转 PDF」也不问（D-342）。
+        ask: false,
         options: [
           { value: 'a4', label: { en: 'A4', zh: 'A4', fr: 'A4' } },
           { value: 'letter', label: { en: 'Letter', zh: 'Letter', fr: 'Letter' } },

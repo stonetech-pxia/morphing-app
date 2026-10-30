@@ -1374,7 +1374,10 @@ export const fr: MessageTable = {
   deskApply: 'Appliquer',
   deskTargets: 'Les outils s’appliquent à ces {n} fichiers',
   deskNoTools:
-    'Aucun outil pour ce type de fichier pour l’instant. Vous pouvez le partager ou l’enregistrer depuis Terminé.',
+    'Aucun outil pour ce type de fichier pour l’instant. Vous pouvez quand même le partager ou l’enregistrer.',
+  deskGroupFile: 'Fichier',
+  deskToolPreview: 'Aperçu',
+  deskResume: 'Reprendre le bureau',
   deskSystemPreview: 'Ouvrir dans l’aperçu du système',
   deskPdfNeedsPack:
     'Pour feuilleter le PDF ici, téléchargez d’abord le pack « Aperçu PDF ». Vous pouvez aussi l’ouvrir dans l’aperçu du système.',

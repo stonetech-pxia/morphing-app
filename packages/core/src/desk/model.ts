@@ -244,9 +244,15 @@ export const DESK_KINDS: readonly DeskKind[] = [
 export function deskKindOf(file: Pick<DeskFile, 'mimeType' | 'ext'>): DeskKind {
   const kind = mediaKindOf(file.mimeType, file.ext);
   if (kind === 'image' || kind === 'pdf' || kind === 'video' || kind === 'audio') return kind;
-  const ext = file.ext.toLowerCase();
+  // 名字里没有扩展名时（Android 别的 App 分享过来常这样）按 MIME 认。
+  const mime = file.mimeType.toLowerCase();
+  const ext =
+    file.ext.toLowerCase() in OFFICE_MIME_BY_EXT
+      ? file.ext.toLowerCase()
+      : (Object.keys(OFFICE_MIME_BY_EXT).find((e) => OFFICE_MIME_BY_EXT[e] === mime) ??
+        (mime === 'application/rtf' ? 'rtf' : ''));
   if (ext === 'xlsx' || ext === 'xls') return 'sheet';
-  if (ext in OFFICE_MIME_BY_EXT) return 'doc';
+  if (ext) return 'doc';
   return 'other';
 }
 

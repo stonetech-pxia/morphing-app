@@ -154,14 +154,14 @@ describe('房间里的工具', () => {
     ]);
   });
 
-  it('跑失败时显示原因，桌上不变', async () => {
+  it('识别类（转 Excel）不问语言、不弹面板，直接跑；跑失败时显示原因，桌上不变（D-278、D-342）', async () => {
     const { files } = await renderToolsApp();
     await openShare(files, ['IMG_1.jpg']);
     await fireEvent.press(await screen.findByTestId('share-desk-open'));
     // 测试里没有系统文字识别：转 Excel 报「这台手机不能本机识别」。
     await fireEvent.press(await screen.findByTestId('desk-tool-ocr.toExcel'));
-    await fireEvent.press(await screen.findByTestId('prompt-ok'));
     expect(await screen.findByTestId('desk-error')).toBeTruthy();
+    expect(screen.queryByTestId('prompt-ok')).toBeNull();
     const desk = await onlyDesk(files);
     expect(desk.versions).toHaveLength(1);
   });
@@ -241,15 +241,76 @@ describe('有数据：转 Excel 的结果在桌上', () => {
     expect(screen.getByText('品名')).toBeTruthy();
     // 只读：格子点不了。
     expect(screen.getByTestId('table-cell-0-0')).toBeDisabled();
+    // 工具栏：转 PDF，加上文件这一组（分享、保存、系统预览），不是空的。
     const toolbar = screen.getByTestId('desk-toolbar');
     expect(
       within(toolbar)
         .queryAllByTestId(/^desk-tool-/)
         .map((n) => n.props.testID),
-    ).toEqual(['desk-tool-pdf.fromDocument']);
+    ).toEqual([
+      'desk-tool-pdf.fromDocument',
+      'desk-tool-room-share',
+      'desk-tool-room-save',
+      'desk-tool-room-preview',
+    ]);
     // 撤销回到照片。
     await fireEvent.press(screen.getByTestId('desk-undo'));
     expect(await screen.findByTestId('desk-preview-image')).toBeTruthy();
+  });
+});
+
+describe('Word 文档在桌上', () => {
+  it('名字里没有扩展名的 docx（Android 别的 App 分享过来）：认得出是 Word，能转 PDF、能分享', async () => {
+    const { files } = await renderToolsApp();
+    await openShare(
+      files,
+      ['合同'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    );
+    await fireEvent.press(await screen.findByTestId('share-desk-open'));
+    const toolbar = await screen.findByTestId('desk-toolbar');
+    expect(screen.queryByTestId('desk-no-tools')).toBeNull();
+    expect(within(toolbar).getByTestId('desk-tool-pdf.fromDocument')).not.toBeDisabled();
+    expect(within(toolbar).getByTestId('desk-tool-room-share')).toBeTruthy();
+    const placed = await onlyDesk(files);
+    expect(currentFiles(placed)[0]!.ext).toBe('docx');
+    // 转 PDF 不问纸张，直接跑。
+    await fireEvent.press(within(toolbar).getByTestId('desk-tool-pdf.fromDocument'));
+    await waitFor(() => expect(screen.getByTestId('desk-preview-pdf')).toBeTruthy());
+    expect(files.documents.converted.map((c) => c.ext)).toEqual(['docx']);
+  });
+
+  it('工具栏里的「分享」把桌上的文件交给系统分享', async () => {
+    const { files } = await renderToolsApp();
+    await openShare(files, ['IMG_1.jpg']);
+    await fireEvent.press(await screen.findByTestId('share-desk-open'));
+    await fireEvent.press(await screen.findByTestId('desk-tool-room-share'));
+    await waitFor(() => expect(files.shared).toHaveLength(1));
+  });
+});
+
+describe('首页「继续上次的桌面」（创始人 2026-10-30 同意）', () => {
+  it('有桌面时首页有入口，点一下回到最近动过的那个桌面', async () => {
+    const files = new FakeFiles();
+    files.disk.set('picker://a.jpg', TINY_JPEG);
+    files.disk.set('picker://b.pdf', TINY_JPEG);
+    const jpg = { uri: 'picker://a.jpg', name: 'a.jpg', size: 4, mimeType: 'image/jpeg' };
+    const pdf = { uri: 'picker://b.pdf', name: 'b.pdf', size: 4, mimeType: 'application/pdf' };
+    await placeOnDesk(files, [jpg], Date.now() - 60_000, 'olderdesk');
+    await placeOnDesk(files, [pdf], Date.now(), 'newerdesk');
+    await renderToolsApp(new MemoryWorkspaceRepo(), files);
+    const resume = await screen.findByTestId('desk-resume');
+    expect(resume).toHaveTextContent(/继续上次的桌面/);
+    expect(resume).toHaveTextContent(/b\.pdf/);
+    await fireEvent.press(resume);
+    expect(await screen.findByTestId('desk-preview-pdf')).toBeTruthy();
+  });
+
+  it('新用户（没有桌面）：首页没有这个入口', async () => {
+    await renderToolsApp();
+    await waitFor(() => expect(screen.queryAllByTestId(/^nav-/).length).toBeGreaterThan(0));
+    await act(async () => undefined);
+    expect(screen.queryByTestId('desk-resume')).toBeNull();
   });
 });
 
@@ -301,7 +362,14 @@ describe('布局配置（D-337）', () => {
       within(toolbar)
         .queryAllByTestId(/^desk-tool-/)
         .map((n) => n.props.testID),
-    ).toEqual(['desk-tool-image.rotate', 'desk-tool-pdf.fromImages']);
+    ).toEqual([
+      'desk-tool-image.rotate',
+      'desk-tool-pdf.fromImages',
+      // 「文件」这一组是房间自己的，不在配置里，总在最后。
+      'desk-tool-room-share',
+      'desk-tool-room-save',
+      'desk-tool-room-preview',
+    ]);
     expect(screen.getByTestId('desk-above')).toHaveTextContent(/先旋转再转 PDF/);
     // 工具栏在预览上面。
     const order = screen.queryAllByTestId(/^(desk-toolbar|desk-preview-image)$/);

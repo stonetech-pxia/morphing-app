@@ -1,4 +1,4 @@
-import type { IconName, IconValue } from '@morph/core';
+import type { IconName, IconValue, ToolIconName } from '@morph/core';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { Text } from 'react-native';
 
@@ -43,6 +43,45 @@ const SYMBOLS: Record<IconName, SymbolName> = {
   note: { ios: 'note.text', android: 'notes' },
 };
 
+/** 房间工具栏的动作图标（core 的 TOOL_ICON_NAMES，D-343）：不在白名单里，配置和 AI 用不到。 */
+const TOOL_SYMBOLS: Record<ToolIconName, SymbolName> = {
+  rotate: { ios: 'rotate.right', android: 'rotate_right' },
+  crop: { ios: 'crop', android: 'crop' },
+  pencil: { ios: 'pencil.tip', android: 'edit' },
+  redact: { ios: 'eye.slash.fill', android: 'visibility_off' },
+  tune: { ios: 'slider.horizontal.3', android: 'tune' },
+  wand: { ios: 'wand.and.stars', android: 'auto_fix_high' },
+  convert: { ios: 'arrow.triangle.2.circlepath', android: 'sync_alt' },
+  resize: { ios: 'arrow.up.left.and.arrow.down.right', android: 'open_in_full' },
+  compress: { ios: 'arrow.down.right.and.arrow.up.left', android: 'compress' },
+  privacy: { ios: 'location.slash.fill', android: 'location_off' },
+  stitch: { ios: 'rectangle.split.1x2.fill', android: 'view_agenda' },
+  gif: { ios: 'photo.stack.fill', android: 'gif_box' },
+  grid: { ios: 'square.grid.3x3.fill', android: 'grid_on' },
+  watermark: { ios: 'drop.fill', android: 'water_drop' },
+  enhance: { ios: 'camera.filters', android: 'filter' },
+  pdf: { ios: 'doc.richtext.fill', android: 'picture_as_pdf' },
+  table: { ios: 'tablecells', android: 'table_chart' },
+  pages: { ios: 'doc.on.doc.fill', android: 'auto_stories' },
+  form: { ios: 'list.bullet.rectangle.fill', android: 'edit_note' },
+  select: { ios: 'checklist', android: 'checklist' },
+  split: { ios: 'square.split.2x1.fill', android: 'call_split' },
+  number: { ios: 'number', android: 'format_list_numbered' },
+  stamp: { ios: 'seal.fill', android: 'approval' },
+  lock: { ios: 'lock.fill', android: 'lock' },
+  camera: { ios: 'camera.viewfinder', android: 'photo_camera' },
+  trim: { ios: 'scissors', android: 'content_cut' },
+  speed: { ios: 'hare.fill', android: 'speed' },
+  music: { ios: 'music.note', android: 'music_note' },
+  mute: { ios: 'speaker.slash.fill', android: 'volume_off' },
+  denoise: { ios: 'ear', android: 'hearing' },
+  volume: { ios: 'speaker.wave.2.fill', android: 'volume_up' },
+  captions: { ios: 'captions.bubble.fill', android: 'closed_caption' },
+  share: { ios: 'square.and.arrow.up', android: 'share' },
+  save: { ios: 'square.and.arrow.down', android: 'download' },
+  preview: { ios: 'eye.fill', android: 'visibility' },
+};
+
 /** 系统菜单里用的 SF Symbol 名字（长按 Morph 图标的菜单，D-271）；emoji 没有。 */
 export function iosSymbolName(name: IconValue): string | undefined {
   return name in SYMBOLS ? SYMBOLS[name as IconName].ios : undefined;
@@ -53,12 +92,18 @@ export function Icon({
   size = 22,
   color,
 }: {
-  name: IconValue;
+  name: IconValue | ToolIconName;
   size?: number;
   color: string;
 }) {
+  const symbol =
+    name in SYMBOLS
+      ? SYMBOLS[name as IconName]
+      : name in TOOL_SYMBOLS
+        ? TOOL_SYMBOLS[name as ToolIconName]
+        : null;
   // 不是内置图标名的就是 emoji（schema 已校验），按原样显示。
-  if (!(name in SYMBOLS)) {
+  if (!symbol) {
     return (
       <Text
         allowFontScaling={false}
@@ -74,7 +119,7 @@ export function Icon({
   }
   return (
     <SymbolView
-      name={SYMBOLS[name as IconName]}
+      name={symbol}
       size={size}
       tintColor={color}
       // 平台不支持系统图标时（例如 Web），用一个圆点占位，保证布局不变。
