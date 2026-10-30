@@ -1,9 +1,9 @@
 import type { RunItem } from '@morph/core';
 import type { TableDoc } from '@morph/tool-office';
-import { act } from '@testing-library/react-native';
+import { act, fireEvent } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
-import { StyleSheet } from 'react-native';
+import { DeviceEventEmitter, StyleSheet } from 'react-native';
 
 import { placeResultsOnDesk } from '../desk/store';
 import { MemoryWorkspaceRepo } from '../storage/memory';
@@ -13,6 +13,8 @@ import { renderToolsApp } from '../test-utils/render-app';
 // 文件房间 R2 在三星 SM-S948B（底部手势导航条）上的布局问题（2026-10-30）：
 // 识别范围的两个按钮被撑成大竖条；选中格子后的编辑层、输入框下的按钮压在导航栏下面；键盘挡住输入框。
 
+/** 底部导航栏的高度：房间底部的东西要让出这么多。 */
+const BOTTOM = 34;
 jest.mock('react-native-safe-area-context', () => {
   const actual = jest.requireActual('react-native-safe-area-context');
   const insets = { top: 20, bottom: 34, left: 0, right: 0 };
@@ -87,5 +89,30 @@ describe('房间的布局（三星真机，2026-10-30）', () => {
     expect(screen.getByTestId('table-scope-tables')).toBeTruthy();
     expect(styleOf('desk-strip').flexGrow).toBe(0);
     expect(styleOf('desk-scope-bar').flexGrow).toBe(0);
+  });
+
+  it('选中格子、编辑时工具栏收起：底部让出导航栏的高度', async () => {
+    await openXlsx();
+    // 没选中：工具栏自己让出。
+    expect(screen.queryByTestId('desk-bottom-inset')).toBeNull();
+    await fireEvent.press(screen.getByTestId('table-cell-1-0'));
+    expect(screen.getByTestId('desk-edit-bar')).toBeTruthy();
+    expect(styleOf('desk-bottom-inset').height).toBe(BOTTOM);
+    await fireEvent.press(screen.getByTestId('table-cell-1-0'));
+    expect(screen.getByTestId('desk-edit-panel')).toBeTruthy();
+    expect(styleOf('desk-bottom-inset').height).toBe(BOTTOM);
+    // 键盘弹出时导航栏在键盘下面：不再多让。
+    await act(() => {
+      DeviceEventEmitter.emit('keyboardDidShow', {
+        endCoordinates: { screenX: 0, screenY: 500, width: 400, height: 300 },
+      });
+    });
+    expect(screen.queryByTestId('desk-bottom-inset')).toBeNull();
+    await act(() => {
+      DeviceEventEmitter.emit('keyboardDidHide', {
+        endCoordinates: { screenX: 0, screenY: 800, width: 400, height: 0 },
+      });
+    });
+    expect(styleOf('desk-bottom-inset').height).toBe(BOTTOM);
   });
 });
