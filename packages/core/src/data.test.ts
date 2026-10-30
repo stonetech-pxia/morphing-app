@@ -12,15 +12,12 @@ import {
   type DataRecord,
 } from './data';
 import type { Collection } from './schema';
-import { apply, workspace } from './test-helpers';
-import { templateOps } from './templates';
+import { fromV33, v33Fixture } from './test-helpers';
 
 const now = new Date(2026, 9, 22, 9, 0); // 2026-10-22，周四
 
-const expenses = (): Collection => {
-  const config = apply(workspace(), templateOps('budget', workspace(), 'zh'));
-  return config.collections[0]!;
-};
+/** 记账模版的表（v33 代码存下来的模版配置，迁移到 v34）。 */
+const expenses = (): Collection => fromV33(v33Fixture('template-budget')).data.tables[0]!;
 
 let seq = 0;
 const record = (values: Record<string, unknown>, createdAt = Date.now()): DataRecord => ({

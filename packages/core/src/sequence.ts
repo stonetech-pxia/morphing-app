@@ -2,7 +2,7 @@ import { DEFAULT_CALENDAR, todayNumber, weekStartOf, type Calendar } from './cal
 import { readValue, recordDay, fieldOf, type DataRecord } from './data';
 import { round } from './field-values';
 import { dayNumber } from './formula';
-import { type Collection, type SequenceAggregate, type StreakUnit } from './schema';
+import { type Collection, type Days, type SequenceAggregate, type StreakUnit } from './schema';
 
 // 按顺序的聚合（D-284）：看记录落在哪些日子上，而不是把数值加起来。纯逻辑，接口是
 // 「一组记录 + 日期字段 + 参数 → 值」：统计、图表现在用，以后汇总字段（P3）也照样用。
@@ -14,7 +14,20 @@ export { isSequenceAggregate, sequenceText } from './sequence-text';
 export interface StreakRule {
   unit: StreakUnit;
   perUnit: number;
-  skip?: { fieldId: string; optionId: string } | undefined;
+  skip?: Days['skip'];
+}
+
+/**
+ * 按日子算用哪个日期（Days.date，图表按时间分组时是 group.by，月历是 group.by）：写了就用它；不写是表里第一个
+ * 日期字段，没有就第一个日期时间字段（D-279），再没有就创建时间。
+ */
+export function dateFieldOf(collection: Collection, date: string | undefined): string {
+  return (
+    date ??
+    collection.fields.find((f) => f.type === 'date')?.id ??
+    collection.fields.find((f) => f.type === 'datetime')?.id ??
+    'createdAt'
+  );
 }
 
 export interface SequenceContext {
@@ -54,7 +67,7 @@ export function streakOf(
 ): { current: number; best: number } {
   const cal = ctx.cal ?? DEFAULT_CALENDAR;
   const today = todayNumber(ctx.now, cal);
-  const skipField = rule.skip ? fieldOf(collection, rule.skip.fieldId) : undefined;
+  const skipField = rule.skip ? fieldOf(collection, rule.skip.field) : undefined;
   const done = new Map<number, number>();
   const skipped = new Set<number>();
   for (const { record, day } of recordDays(records, collection, ctx)) {
@@ -62,7 +75,7 @@ export function streakOf(
     const unit = unitOf(day, rule.unit, cal);
     const isSkip =
       skipField !== undefined &&
-      readValue(skipField, record.values[skipField.id]) === rule.skip!.optionId;
+      readValue(skipField, record.values[skipField.id]) === rule.skip!.option;
     if (isSkip) skipped.add(unit);
     else done.set(unit, (done.get(unit) ?? 0) + 1);
   }
@@ -116,23 +129,24 @@ export const distinctDays = (
   ctx: SequenceContext,
 ): number => distinctDayList(records, collection, ctx).length;
 
-export interface SequenceSpec {
-  aggregate: SequenceAggregate;
-  unit?: StreakUnit | undefined;
-  perUnit?: number | undefined;
-  skip?: StreakRule['skip'];
-}
-
-/** 统计显示的值：streak 是当前连续，另给 best；其余只有 value。 */
+/**
+ * 数字块、汇总字段显示的值：streak 是当前连续，另给 best；其余只有 value。日期按 days.date（dateFieldOf），
+ * days.unit、perUnit、skip 只给 streak。
+ */
 export function sequenceValue(
   records: readonly DataRecord[],
   collection: Collection,
-  spec: SequenceSpec,
-  ctx: SequenceContext,
+  aggregate: SequenceAggregate,
+  days: Days | undefined,
+  now: Date,
+  cal: Calendar = DEFAULT_CALENDAR,
 ): { value: number | null; best?: number } {
-  switch (spec.aggregate) {
+  const ctx: SequenceContext = { dateField: dateFieldOf(collection, days?.date), now, cal };
+  switch (aggregate) {
     case 'streak': {
-      const rule = { unit: spec.unit ?? 'day', perUnit: spec.perUnit ?? 1, skip: spec.skip };
+      // skip 要选项和字段都写了才算（同 v33）。
+      const skip = days?.skip?.field && days.skip.option ? days.skip : undefined;
+      const rule = { unit: days?.unit ?? 'day', perUnit: days?.perUnit ?? 1, skip };
       const { current, best } = streakOf(records, collection, rule, ctx);
       return { value: current, best };
     }

@@ -13,18 +13,17 @@ import {
   type DataRecord,
   type LinkedGroups,
 } from './data';
-import type { Collection } from './schema';
-import { distinctDays } from './sequence';
+import type { ChartSource } from './components/chart';
+import type { Collection, GroupUnit } from './schema';
+import { dateFieldOf, distinctDays } from './sequence';
 
-// 图表组件（D-249）：一张表的记录按时间段（日 / 周 / 月）或单选字段分组聚合。
+// 图表（D-249）：一张表的记录按时间段（日 / 周 / 月）或单选、引用字段分组聚合（v34 的 Grouping）。
 // 这里是纯逻辑：分组、数值和画图用的几何（SVG 路径字符串，Skia 的 Path 直接认），App 只负责画。
 
 export const CHART_KINDS = ['bar', 'line', 'pie'] as const;
-export const CHART_GROUPS = ['day', 'week', 'month', 'choice'] as const;
-export type ChartGroup = (typeof CHART_GROUPS)[number];
 
-/** 不写 periods 时显示最近几段：7 天、8 周、6 个月。 */
-export const DEFAULT_PERIODS: Record<Exclude<ChartGroup, 'choice'>, number> = {
+/** 不写 group.last 时显示最近几段：7 天、8 周、6 个月。 */
+export const DEFAULT_PERIODS: Record<GroupUnit, number> = {
   day: 7,
   week: 8,
   month: 6,
@@ -51,45 +50,18 @@ export interface ChartPoint {
   empty: boolean;
 }
 
-export interface ChartSpec {
-  /** distinctDays：这一段里有记录的天数（D-284）。 */
-  aggregate: 'count' | 'sum' | 'avg' | 'distinctDays';
-  fieldId?: string | undefined;
-  group: ChartGroup;
-  /**
-   * 按时间分组时用哪个日期（日期、日期时间字段或 createdAt / updatedAt）；不写时用表里第一个日期字段，
-   * 没有就用第一个日期时间字段（D-279），再没有就用创建时间。
-   */
-  dateField?: string | undefined;
-  /** 按单选或引用字段（D-336）分组时的字段。 */
-  choiceField?: string | undefined;
-  periods?: number | undefined;
-}
+/**
+ * 图表怎么算（图表块的 source 去掉表和筛选）：group 有 unit 时按时间分（by 是日期字段，不写用 dateFieldOf 的默认），
+ * 没有 unit 时按单选或引用字段 by 分（D-336）；distinctDays 在按字段分时按 days.date 数日子。
+ */
+export type ChartSpec = Pick<ChartSource, 'aggregate' | 'field' | 'group' | 'days'>;
 
 const pad = (n: number) => String(n).padStart(2, '0');
-
-/** 时间分组用的日期字段（统计按日子算时也用，D-284）。 */
-export function chartDateField(
-  collection: Collection,
-  spec: { dateField?: string | undefined },
-): string {
-  return (
-    spec.dateField ??
-    collection.fields.find((f) => f.type === 'date')?.id ??
-    collection.fields.find((f) => f.type === 'datetime')?.id ??
-    'createdAt'
-  );
-}
 
 /**
  * 最近 n 段的开始日期（从早到晚，最后一段包含今天）。今天和一周的第一天按 cal（D-286），和数据筛选一样。
  */
-function periodStarts(
-  group: Exclude<ChartGroup, 'choice'>,
-  n: number,
-  now: Date,
-  cal: Calendar,
-): Date[] {
+function periodStarts(group: GroupUnit, n: number, now: Date, cal: Calendar): Date[] {
   const todayNum = todayNumber(now, cal);
   const [y, m, d] = dateOfDayNumber(todayNum).split('-').map(Number) as [number, number, number];
   const weekStart = d - (todayNum - weekStartOf(todayNum, cal));
@@ -102,13 +74,13 @@ function periodStarts(
   return starts;
 }
 
-const periodLabel = (group: ChartGroup, d: Date) =>
+const periodLabel = (group: GroupUnit, d: Date) =>
   group === 'month'
     ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}`
     : `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 /**
- * 图表的数据。时间分组：最近 periods 段，每段一个点（没有记录的段是 0）。
+ * 图表的数据。时间分组：最近 group.last 段，每段一个点（没有记录的段是 0）。
  * 单选分组：每个选项一个点（按选项顺序），没选的记录有的话另算一个点（label 用 noChoice）。
  * 引用字段也走这里（D-336）：被引用的表里每条记录一个点，要 linked。
  */
@@ -121,22 +93,24 @@ export function chartSeries(
   cal: Calendar = DEFAULT_CALENDAR,
   linked?: LinkedGroups,
 ): ChartPoint[] {
-  const dateRef = chartDateField(collection, spec);
+  const { group } = spec;
+  const unit = group.unit;
+  const dateRef = dateFieldOf(collection, unit ? group.by : spec.days?.date);
   const point = (key: string | null, label: string, list: DataRecord[]): ChartPoint => {
     const value =
       spec.aggregate === 'distinctDays'
         ? distinctDays(list, collection, { dateField: dateRef, now, cal })
-        : aggregateRecords(list, collection, spec.aggregate, spec.fieldId);
+        : aggregateRecords(list, collection, spec.aggregate, spec.field);
     return { key, label, value: value ?? 0, empty: value === null };
   };
-  if (spec.group === 'choice') {
-    if (!spec.choiceField) return [];
-    return groupRecords(records, collection, spec.choiceField, noChoice, linked).map((g) =>
+  if (!unit) {
+    if (!group.by) return [];
+    return groupRecords(records, collection, group.by, noChoice, linked).map((g) =>
       point(g.optionId, g.label, g.records),
     );
   }
-  const n = Math.min(MAX_PERIODS, spec.periods ?? DEFAULT_PERIODS[spec.group]);
-  const starts = periodStarts(spec.group, n, now, cal).map(localDate);
+  const n = Math.min(MAX_PERIODS, group.last ?? DEFAULT_PERIODS[unit]);
+  const starts = periodStarts(unit, n, now, cal).map(localDate);
   const end = dateOfDayNumber(todayNumber(now, cal));
   const buckets = starts.map(() => [] as DataRecord[]);
   for (const r of records) {
@@ -149,7 +123,7 @@ export function chartSeries(
   }
   return starts.map((start, i) => {
     const [y, m, d] = start.split('-').map(Number) as [number, number, number];
-    return point(start, periodLabel(spec.group, new Date(y, m - 1, d)), buckets[i]!);
+    return point(start, periodLabel(unit, new Date(y, m - 1, d)), buckets[i]!);
   });
 }
 

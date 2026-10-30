@@ -112,7 +112,7 @@ describe('month calendar (D-305)', () => {
     const { days, max } = monthDays(
       records,
       mood,
-      { dateField: 'date', colorField: 'feel' },
+      { date: 'date', color: 'feel' },
       '2026-10',
       now,
       DEFAULT_CALENDAR,
@@ -127,9 +127,9 @@ describe('month calendar (D-305)', () => {
   it('a datetime before the day start counts on the day before, also at the month edge', () => {
     const now = new Date(2026, 10, 5);
     const records = [rec({ at: '2026-11-01T01:30', feel: 'ok' }), rec({ at: '2026-10-31T23:00' })];
-    const oct = monthDays(records, mood, { dateField: 'at' }, '2026-10', now, twoAm);
+    const oct = monthDays(records, mood, { date: 'at' }, '2026-10', now, twoAm);
     expect(oct.days.get(day('2026-10-31'))?.count).toBe(2);
-    const plain = monthDays(records, mood, { dateField: 'at' }, '2026-10', now, DEFAULT_CALENDAR);
+    const plain = monthDays(records, mood, { date: 'at' }, '2026-10', now, DEFAULT_CALENDAR);
     expect(plain.days.get(day('2026-10-31'))?.count).toBe(1);
     // 同一天按日期时间排：较晚的那条在前。
     const sameDay = [
@@ -139,7 +139,7 @@ describe('month calendar (D-305)', () => {
     const { days } = monthDays(
       sameDay,
       mood,
-      { dateField: 'at', colorField: 'feel' },
+      { date: 'at', color: 'feel' },
       '2026-10',
       now,
       DEFAULT_CALENDAR,
@@ -152,7 +152,7 @@ describe('month calendar (D-305)', () => {
     const { days } = monthDays(
       records,
       mood,
-      { dateField: 'createdAt' },
+      { date: 'createdAt' },
       '2026-10',
       new Date(2026, 9, 8),
       DEFAULT_CALENDAR,
@@ -168,7 +168,7 @@ describe('month calendar (D-305)', () => {
     const { days } = monthDays(
       many,
       mood,
-      { dateField: 'date', colorField: 'feel' },
+      { date: 'date', color: 'feel' },
       '2026-10',
       new Date(2026, 9, 29),
       DEFAULT_CALENDAR,
@@ -335,50 +335,56 @@ describe('stat compared with the previous period (D-308)', () => {
   });
 });
 
-describe('component checks (D-305–D-308)', () => {
-  const add = (component: NewComponent) =>
+describe('block checks (D-305–D-308)', () => {
+  const add = (block: NewComponent) =>
     prepareOps(
       createDefaultWorkspace('en'),
       [
-        { op: 'addCollection', collection: mood },
-        { op: 'addComponent', pageId: 'home', component },
+        { op: 'addData', table: mood },
+        { op: 'addContainer', page: 'home', block },
       ],
       { registry, locale: 'en', now: new Date(2026, 9, 29) },
     );
-  const problems = (component: NewComponent) => {
-    const result = add(component);
+  const problems = (block: NewComponent) => {
+    const result = add(block);
     return result.ok ? [] : result.issues;
   };
-  const list = (props: Record<string, unknown>): NewComponent =>
+  const list = (
+    show: Record<string, unknown> = {},
+    look = 'list',
+    group?: Record<string, unknown>,
+  ): NewComponent =>
     ({
       id: 'l',
-      type: 'recordList',
-      props: { collectionId: 'mood', display: 'list', titleField: 'feel', limit: 30, ...props },
+      look,
+      source: { table: 'mood', limit: 30, ...(group ? { group } : {}) },
+      show: { title: 'feel', ...show },
     }) as NewComponent;
-  const stat = (props: Record<string, unknown>): NewComponent =>
+  const calendar = (show: Record<string, unknown> = {}, by?: string) =>
+    list(show, 'calendar', { unit: 'day', ...(by ? { by } : {}) });
+  const number = (source: Record<string, unknown>): NewComponent =>
     ({
       id: 's',
-      type: 'stat',
-      props: { collectionId: 'mood', aggregate: 'sum', fieldId: 'cups', label: 'Cups', ...props },
+      look: 'number',
+      show: { label: 'Cups' },
+      source: { table: 'mood', aggregate: 'sum', field: 'cups', ...source },
     }) as NewComponent;
 
   it('accepts the four example apps', () => {
-    expect(problems(list({ display: 'calendar', dateField: 'date', colorField: 'feel' }))).toEqual(
+    expect(problems(calendar({ color: 'feel' }, 'date'))).toEqual([]);
+    expect(problems(calendar())).toEqual([]);
+    expect(problems(list({ trailing: 'at', format: { kind: 'elapsed', until: 'end' } }))).toEqual(
       [],
     );
-    expect(problems(list({ display: 'calendar' }))).toEqual([]);
     expect(
-      problems(list({ trailingField: 'at', trailingFormat: { kind: 'elapsed', until: 'end' } })),
+      problems(list({ trailing: 'cups', format: { kind: 'progress', goal: 'goal' } })),
     ).toEqual([]);
     expect(
-      problems(list({ trailingField: 'cups', trailingFormat: { kind: 'progress', goal: 'goal' } })),
-    ).toEqual([]);
-    expect(
-      problems(stat({ goal: 8, filter: [{ field: 'date', op: 'inPeriod', value: 'today' }] })),
+      problems(number({ goal: 8, filter: [{ field: 'date', op: 'inPeriod', value: 'today' }] })),
     ).toEqual([]);
     expect(
       problems(
-        stat({
+        number({
           compare: 'previous',
           filter: [{ field: 'date', op: 'inPeriod', value: 'thisMonth' }],
         }),
@@ -388,38 +394,36 @@ describe('component checks (D-305–D-308)', () => {
 
   it('explains what is wrong', () => {
     const text = (c: NewComponent) => problems(c).join(' | ');
-    expect(text(list({ display: 'calendar', colorField: 'note' }))).toMatch(
-      /colorField note must be a choice field/,
+    expect(text(calendar({ color: 'note' }))).toMatch(/color.*note.*choice/);
+    expect(text(calendar({}, 'cups'))).toMatch(/source.group.by cups must be a date or datetime/);
+    expect(text(list({ color: 'feel' }))).toMatch(/show.color only applies to look "calendar"/);
+    expect(text(list({ format: { kind: 'elapsed' } }))).toMatch(/needs show.trailing/);
+    expect(text(list({ trailing: 'cups', format: { kind: 'elapsed' } }))).toMatch(
+      /elapsed needs show.trailing set to a datetime field/,
     );
-    expect(text(list({ display: 'calendar', dateField: 'cups' }))).toMatch(
-      /dateField cups must be a date or datetime/,
+    expect(text(list({ trailing: 'at', format: { kind: 'elapsed', until: 'note' } }))).toMatch(
+      /until must be a datetime field/,
     );
-    expect(text(list({ colorField: 'feel' }))).toMatch(/only apply to display "calendar"/);
-    expect(text(list({ trailingFormat: { kind: 'elapsed' } }))).toMatch(/needs trailingField/);
-    expect(text(list({ trailingField: 'cups', trailingFormat: { kind: 'elapsed' } }))).toMatch(
-      /elapsed needs trailingField set to a datetime field/,
+    expect(text(list({ trailing: 'note', format: { kind: 'progress', goal: 5 } }))).toMatch(
+      /progress needs show.trailing set to a number/,
     );
-    expect(
-      text(list({ trailingField: 'at', trailingFormat: { kind: 'elapsed', until: 'note' } })),
-    ).toMatch(/until must be a datetime field/);
-    expect(
-      text(list({ trailingField: 'note', trailingFormat: { kind: 'progress', goal: 5 } })),
-    ).toMatch(/progress needs trailingField set to a number/);
-    expect(
-      text(list({ trailingField: 'cups', trailingFormat: { kind: 'progress', goal: 'note' } })),
-    ).toMatch(/goal note must be a number/);
-    expect(text(stat({ compare: 'previous' }))).toMatch(/compare needs a filter with one inPeriod/);
+    expect(text(list({ trailing: 'cups', format: { kind: 'progress', goal: 'note' } }))).toMatch(
+      /goal note must be a number/,
+    );
+    expect(text(number({ compare: 'previous' }))).toMatch(
+      /compare needs a filter with one inPeriod/,
+    );
     expect(
       text(
-        stat({
+        number({
           aggregate: 'streak',
-          fieldId: undefined,
+          field: undefined,
           compare: 'previous',
           filter: [{ field: 'date', op: 'inPeriod', value: 'thisMonth' }],
         }),
       ),
     ).toMatch(/compare can't be used with streak/);
-    expect(text(stat({ aggregate: 'daysSince', fieldId: undefined, goal: 3 }))).toMatch(
+    expect(text(number({ aggregate: 'daysSince', field: undefined, goal: 3 }))).toMatch(
       /goal can't be used with daysSince/,
     );
   });

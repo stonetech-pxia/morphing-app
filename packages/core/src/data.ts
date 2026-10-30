@@ -618,7 +618,7 @@ export async function loadLinkResolver(
 
 /** 一张表的引用字段指向哪些表（读记录时要连它们一起读）。 */
 export const linkedCollectionIds = (collection: Collection): string[] => [
-  ...new Set(collection.fields.flatMap((f) => (f.type === 'link' ? [f.collectionId] : []))),
+  ...new Set(collection.fields.flatMap((f) => (f.type === 'link' ? [f.table] : []))),
 ];
 
 /**

@@ -15,7 +15,8 @@ import type { Collection, Locale } from './schema';
 // 记录列表的月历外观（D-305）：一个月的格子，每天有几条记录、按一个单选字段上什么颜色。
 // 纯逻辑：哪几周、每天的记录、深浅几档、月份和星期的名字；App 只负责画格子。
 // 日子用天数（dayNumber）比较，记录落在哪天用 recordDay（一天从几点开始，D-286）。
-// D-348：dateField 也可以是日程字段，一条记录落在它接下来的每一次（过期的落在今天，做完的「一次」不显示）。
+// v34：日期是块的 source.group.by（不写用 dateFieldOf 的默认），上色是 show.color。
+// D-348：日期也可以是日程字段，一条记录落在它接下来的每一次（过期的落在今天，做完的「一次」不显示）。
 
 /** 日程在月历里最多往后排几次（每天一次的规则大约一年）。 */
 const MAX_OCCURRENCES = 370;
@@ -108,21 +109,21 @@ export interface MonthDay {
   records: DataRecord[];
 }
 
-/** 这个月每天的记录（只有有记录的日子），和记录最多的那天有几条。 */
+/** 这个月每天的记录（只有有记录的日子），和记录最多的那天有几条。date 是日期字段，color 是上色的单选字段。 */
 export function monthDays(
   records: readonly DataRecord[],
   collection: Collection,
-  spec: { dateField: string; colorField?: string | undefined },
+  spec: { date: string; color?: string | undefined },
   month: string,
   now: Date,
   cal: Calendar,
 ): { days: Map<number, MonthDay>; max: number } {
   const [first, last] = monthBounds(month);
-  const color = spec.colorField ? fieldOf(collection, spec.colorField) : undefined;
+  const color = spec.color ? fieldOf(collection, spec.color) : undefined;
   const byDay = new Map<number, { record: DataRecord; key: string }[]>();
   for (const record of records) {
     // 同一天的先后：日期时间字段按它的值，日程按钟点，其余按创建时间。
-    const raw = record.values[spec.dateField];
+    const raw = record.values[spec.date];
     const at =
       typeof raw === 'string'
         ? raw
@@ -130,7 +131,7 @@ export function monthDays(
           ? (raw as { time: string }).time
           : '';
     const key = `${at}|${String(record.createdAt).padStart(15, '0')}`;
-    for (const n of daysOf(record, collection, spec.dateField, first, last, now, cal)) {
+    for (const n of daysOf(record, collection, spec.date, first, last, now, cal)) {
       const list = byDay.get(n);
       if (list) list.push({ record, key });
       else byDay.set(n, [{ record, key }]);

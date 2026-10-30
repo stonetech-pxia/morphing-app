@@ -4,7 +4,7 @@ import { prepareOps } from './change';
 import { chartSeries, linePath, piePaths, pieSlices, type ChartPoint } from './chart';
 import type { DataRecord } from './data';
 import { createDefaultWorkspace } from './defaults';
-import type { Collection, Component } from './schema';
+import type { Collection, NewComponent } from './schema';
 import { registry } from './test-helpers';
 
 const expenses: Collection = {
@@ -47,7 +47,7 @@ describe('chartSeries (D-249)', () => {
     const points = chartSeries(
       records,
       expenses,
-      { aggregate: 'sum', fieldId: 'amount', group: 'day' },
+      { aggregate: 'sum', field: 'amount', group: { unit: 'day' } },
       now,
       '-',
     );
@@ -66,7 +66,7 @@ describe('chartSeries (D-249)', () => {
     const weeks = chartSeries(
       records,
       expenses,
-      { aggregate: 'count', group: 'week', periods: 2 },
+      { aggregate: 'count', group: { unit: 'week', last: 2 } },
       now,
       '-',
     );
@@ -77,7 +77,7 @@ describe('chartSeries (D-249)', () => {
     const months = chartSeries(
       records,
       expenses,
-      { aggregate: 'sum', fieldId: 'amount', group: 'month', periods: 3 },
+      { aggregate: 'sum', field: 'amount', group: { unit: 'month', last: 3 } },
       now,
       '-',
     );
@@ -93,7 +93,7 @@ describe('chartSeries (D-249)', () => {
     const points = chartSeries(
       created,
       expenses,
-      { aggregate: 'count', group: 'day', dateField: 'createdAt', periods: 2 },
+      { aggregate: 'count', group: { unit: 'day', by: 'createdAt', last: 2 } },
       now,
       '-',
     );
@@ -107,7 +107,7 @@ describe('chartSeries (D-249)', () => {
     const points = chartSeries(
       records,
       expenses,
-      { aggregate: 'sum', fieldId: 'amount', group: 'choice', choiceField: 'category' },
+      { aggregate: 'sum', field: 'amount', group: { by: 'category' } },
       now,
       '未选',
     );
@@ -122,7 +122,7 @@ describe('chartSeries (D-249)', () => {
     const points = chartSeries(
       [],
       expenses,
-      { aggregate: 'avg', fieldId: 'amount', group: 'month', periods: 2 },
+      { aggregate: 'avg', field: 'amount', group: { unit: 'month', last: 2 } },
       now,
       '-',
     );
@@ -170,40 +170,37 @@ describe('pie and line geometry', () => {
 
 describe('chart validation', () => {
   const ctx = { registry, locale: 'zh' as const, now };
-  const check = (props: Partial<Extract<Component, { type: 'chart' }>['props']>) =>
+  const check = (source: Record<string, unknown>, show: Record<string, unknown> = {}) =>
     prepareOps(
       createDefaultWorkspace('zh'),
       [
-        { op: 'addCollection', collection: expenses },
+        { op: 'addData', table: expenses },
         {
-          op: 'addComponent',
-          pageId: 'home',
-          component: {
+          op: 'addContainer',
+          page: 'home',
+          block: {
             id: 'c',
-            type: 'chart',
-            props: {
-              collectionId: 'expenses',
-              kind: 'bar',
-              aggregate: 'count',
-              group: 'month',
-              title: '每月',
-              ...props,
-            },
-          },
+            look: 'chart',
+            show: { kind: 'bar', title: '每月', ...show },
+            source: { table: 'expenses', aggregate: 'count', group: { unit: 'month' }, ...source },
+          } as NewComponent,
         },
       ],
       ctx,
     ).ok;
   it('accepts sensible charts and refuses the rest', () => {
     expect(check({})).toBe(true);
-    expect(check({ kind: 'pie', group: 'choice', choiceField: 'category' })).toBe(true);
+    expect(check({ group: { by: 'category' } }, { kind: 'pie' })).toBe(true);
     expect(
-      check({ kind: 'line', aggregate: 'sum', fieldId: 'amount', group: 'day', dateField: 'date' }),
+      check(
+        { aggregate: 'sum', field: 'amount', group: { unit: 'day', by: 'date' } },
+        { kind: 'line' },
+      ),
     ).toBe(true);
-    expect(check({ kind: 'pie' })).toBe(false);
-    expect(check({ group: 'choice', choiceField: 'amount' })).toBe(false);
+    expect(check({}, { kind: 'pie' })).toBe(false);
+    expect(check({ group: { by: 'amount' } })).toBe(false);
     expect(check({ aggregate: 'sum' })).toBe(false);
-    expect(check({ dateField: 'amount' })).toBe(false);
-    expect(check({ collectionId: 'missing' })).toBe(false);
+    expect(check({ group: { unit: 'month', by: 'amount' } })).toBe(false);
+    expect(check({ table: 'missing' })).toBe(false);
   });
 });

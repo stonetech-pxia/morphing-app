@@ -8,7 +8,7 @@ import { filterRecords, periodRange, prepareRecordValues, type DataRecord } from
 import { describeChange } from './describe';
 import { migrateWorkspace } from './migrate';
 import type { Collection } from './schema';
-import { registry, workspace } from './test-helpers';
+import { registry, v33Fixture, workspace } from './test-helpers';
 
 // 2026-10-22 是星期四。
 const thursday = new Date(2026, 9, 22, 9, 0);
@@ -127,7 +127,7 @@ describe('when a day and a week start (D-286)', () => {
       updatedAt: 0,
     });
     const records = ['2026-10-18', '2026-10-19', '2026-10-19', '2026-10-21'].map(rec);
-    const spec = { aggregate: 'distinctDays' as const, group: 'week' as const, periods: 2 };
+    const spec = { aggregate: 'distinctDays' as const, group: { unit: 'week' as const, last: 2 } };
     expect(chartSeries(records, c, spec, thursday, '-').map((p) => [p.key, p.value])).toEqual([
       ['2026-10-12', 1],
       ['2026-10-19', 2],
@@ -148,35 +148,45 @@ describe('calendar settings in the config (D-286)', () => {
     expect(calendarOf(workspace())).toEqual(DEFAULT_CALENDAR);
   });
 
-  it('setCalendar changes only the given settings; null goes back to the default', () => {
+  it('updateData {calendar} changes only the given settings; null goes back to the default', () => {
     const set = prepareOps(
       workspace(),
-      [{ op: 'setCalendar', dayStartHour: 2, weekStart: 'sunday' }],
+      [{ op: 'updateData', calendar: { dayStartHour: 2, weekStart: 'sunday' } }],
       ctx,
     );
     expect(set.ok).toBe(true);
     if (!set.ok) return;
     expect(calendarOf(set.after)).toEqual({ dayStartHour: 2, weekStart: 'sunday' });
-    const reset = prepareOps(set.after, [{ op: 'setCalendar', dayStartHour: null }], ctx);
+    const reset = prepareOps(
+      set.after,
+      [{ op: 'updateData', calendar: { dayStartHour: null } }],
+      ctx,
+    );
     expect(reset.ok && calendarOf(reset.after)).toEqual({ dayStartHour: 0, weekStart: 'sunday' });
     expect(
-      describeChange([{ op: 'setCalendar', weekStart: 'sunday' }], set.after, [], ctx),
+      describeChange([{ op: 'updateData', calendar: { weekStart: 'sunday' } }], set.after, [], ctx),
     ).toEqual(['一周从周日开始']);
   });
 
   it('rejects a day start after 6 am and a bad anchor date', () => {
-    expect(prepareOps(workspace(), [{ op: 'setCalendar', dayStartHour: 7 }], ctx).ok).toBe(false);
     expect(
-      prepareOps(workspace(), [{ op: 'setCalendar', twoWeekStart: '2026-02-30' }], ctx).ok,
+      prepareOps(workspace(), [{ op: 'updateData', calendar: { dayStartHour: 7 } }], ctx).ok,
+    ).toBe(false);
+    expect(
+      prepareOps(workspace(), [{ op: 'updateData', calendar: { twoWeekStart: '2026-02-30' } }], ctx)
+        .ok,
     ).toBe(false);
   });
 
   it('is a function change (applied at once, can be undone)', () => {
-    expect(splitOps([{ op: 'setCalendar', weekStart: 'sunday' }]).function).toHaveLength(1);
+    expect(
+      splitOps([{ op: 'updateData', calendar: { weekStart: 'sunday' } }]).function,
+    ).toHaveLength(1);
   });
 
   it('v19 → v20 only raises the version', () => {
-    const previous = { ...workspace(), schemaVersion: 19 };
+    // 旧版本的形状（v33 存下来的默认配置），不是 v34 的。
+    const previous = { ...v33Fixture('default-en'), schemaVersion: 19 };
     expect(migrateWorkspace(previous, undefined, 20)).toEqual({
       ok: true,
       config: { ...previous, schemaVersion: 20 },
