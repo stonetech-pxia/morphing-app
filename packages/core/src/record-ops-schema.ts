@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { ConditionSchema, IdSchema, boundedText } from './schema-primitives';
+import { ConditionSchema, IdSchema, RECORD_REF, boundedText } from './schema-primitives';
 
 // 一键记录操作（D-300，方案 P6）的写法。只放结构：按钮和记录列表的定义引用它；
 // 检查和执行在 record-ops.ts（会用到数据和筛选，组件定义不能引用，否则加载会绕圈）。
@@ -12,6 +12,8 @@ import { ConditionSchema, IdSchema, boundedText } from './schema-primitives';
  */
 export const RecordActionValueSchema = z.union([
   IdSchema,
+  // D-332：给一条记录用的页面上，引用字段可以设成这条记录。
+  z.literal(RECORD_REF),
   z.number().finite(),
   z.boolean(),
   z.null(),

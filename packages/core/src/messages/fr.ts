@@ -412,6 +412,9 @@ export const fr: MessageTable = {
   restore: 'Restaurer',
   nothingDeleted: 'Aucune suppression récente',
   unknownTable: 'Tableau {id}',
+  recordPageMissing:
+    'Cette entrée a été supprimée, ou cette page s’ouvre depuis une entrée d’une liste.',
+  recordPageEdit: 'Modifier cette entrée',
   pageMissing: 'Cette page n’existe plus.',
   // Paramètres → Données : export de la configuration, mémoire de pré-remplissage (D-244)
   appConfigTitle: 'Configuration de l’app',
@@ -1293,7 +1296,15 @@ export const fr: MessageTable = {
   scheduleMonth: 'Mois',
   scheduleDayOfMonth: 'Jour',
   scheduleLastDayShort: 'Dernier',
-  scheduleNone: 'Pas de répétition',
+  scheduleKindOnce: 'Une fois',
+  scheduleOnceOn: 'Une fois : {date}',
+  scheduleOnceAnytime: 'Une fois, sans date',
+  scheduleNoDate: 'Sans date',
+  scheduleFinished: 'Terminé',
+  scheduleNextWeek: 'Semaine prochaine',
+  smartDateFound: '« {text} » reconnu : {value}',
+  smartDateDismiss: 'Ne pas utiliser cette date',
+  scheduleNone: 'Aucun',
   scheduleDecrease: 'Moins',
   scheduleIncrease: 'Plus',
   scheduleLastDoneHint: 'Compté à partir de la date de « {field} ».',
@@ -1341,6 +1352,8 @@ export const fr: MessageTable = {
   widgetAdd: 'Ajouter à l’écran d’accueil',
   widgetRemove: 'Retirer de l’écran d’accueil',
   widgetUnsupportedTitle: 'Ce composant ne peut pas encore aller sur l’écran d’accueil',
+  widgetRecordPageHelp:
+    'Cette page s’ouvre pour une entrée précise : un widget ne saurait pas laquelle afficher. Placez le même composant sur une page ordinaire et ajoutez celui-là.',
   widgetUnsupportedHelp:
     'Les widgets peuvent afficher une statistique, un bouton ou une liste d’entrées (aspect liste, cartes, liste à cocher ou tuiles).',
   widgetUnsupported: 'Un widget ne peut pas afficher ce composant. Touchez pour ouvrir Morph.',

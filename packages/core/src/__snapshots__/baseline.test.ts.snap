@@ -3052,9 +3052,10 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf button>.props.action<oneOf 0>.values? object record
 <oneOf button>.props.action<oneOf 0>.values{}
 <oneOf button>.props.action<oneOf 0>.values{}<anyOf 0> string /^[a-z][a-z0-9-]{0,47}$/
-<oneOf button>.props.action<oneOf 0>.values{}<anyOf 1> number
-<oneOf button>.props.action<oneOf 0>.values{}<anyOf 2> boolean
-<oneOf button>.props.action<oneOf 0>.values{}<anyOf 3> null
+<oneOf button>.props.action<oneOf 0>.values{}<anyOf 1> "$record"
+<oneOf button>.props.action<oneOf 0>.values{}<anyOf 2> number
+<oneOf button>.props.action<oneOf 0>.values{}<anyOf 3> boolean
+<oneOf button>.props.action<oneOf 0>.values{}<anyOf 4> null
 <oneOf button>.props.action<oneOf 0>.form? true
 <oneOf button>.props.action<oneOf 1> object
 <oneOf button>.props.action<oneOf 1>.do "setAll"
@@ -3193,6 +3194,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf recordList>.props.trailingFormat<oneOf 1>.goal<anyOf 1> string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf recordList>.props.trailingFormat<oneOf 1>.style? "ring"|"bar"
 <oneOf recordList>.props.groupField? string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf recordList>.props.opens? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf recordForm> object
 <oneOf recordForm>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf recordForm>.hidden? boolean
@@ -3204,6 +3206,11 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf recordForm>.props.fieldIds[] string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf recordForm>.props.submitLabel string len 1..30
 <oneOf recordForm>.props.mode "inline"|"button"
+<oneOf recordForm>.props.values? object record
+<oneOf recordForm>.props.values{} = <oneOf button>.props.action<oneOf 0>.values{}
+<oneOf recordForm>.props.smartDate? object
+<oneOf recordForm>.props.smartDate.from string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf recordForm>.props.smartDate.to string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf stat> object
 <oneOf stat>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf stat>.hidden? boolean
@@ -3297,7 +3304,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 29
+.schemaVersion 30
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"
@@ -3332,6 +3339,7 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .pages[].backdrop? object
 .pages[].backdrop.overlay "light"|"medium"|"strong"
 .pages[].backdrop.assetId? string /^[a-z0-9]{6,40}$/
+.pages[].recordOf? string /^[a-z][a-z0-9-]{0,47}$/
 .pages[].components array items ..30
 .pages[].components[] <Component>
 .tools array
@@ -3496,35 +3504,39 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .collections[].fields[]<oneOf schedule>.type "schedule"
 .collections[].fields[]<oneOf schedule>.default?
 .collections[].fields[]<oneOf schedule>.default<oneOf 0> object
-.collections[].fields[]<oneOf schedule>.default<oneOf 0>.repeat "daily"
-.collections[].fields[]<oneOf schedule>.default<oneOf 0>.perDay? integer 1..20
+.collections[].fields[]<oneOf schedule>.default<oneOf 0>.repeat "once"
+.collections[].fields[]<oneOf schedule>.default<oneOf 0>.date? string /^\\d{4}-\\d{2}-\\d{2}$/
 .collections[].fields[]<oneOf schedule>.default<oneOf 1> object
-.collections[].fields[]<oneOf schedule>.default<oneOf 1>.repeat "weekdays"
-.collections[].fields[]<oneOf schedule>.default<oneOf 1>.days array items 1..7
-.collections[].fields[]<oneOf schedule>.default<oneOf 1>.days[] integer 1..7
+.collections[].fields[]<oneOf schedule>.default<oneOf 1>.repeat "daily"
 .collections[].fields[]<oneOf schedule>.default<oneOf 1>.perDay? integer 1..20
 .collections[].fields[]<oneOf schedule>.default<oneOf 2> object
-.collections[].fields[]<oneOf schedule>.default<oneOf 2>.repeat "times"
-.collections[].fields[]<oneOf schedule>.default<oneOf 2>.per "week"|"twoWeeks"|"month"|"year"
-.collections[].fields[]<oneOf schedule>.default<oneOf 2>.count integer 1..366
+.collections[].fields[]<oneOf schedule>.default<oneOf 2>.repeat "weekdays"
+.collections[].fields[]<oneOf schedule>.default<oneOf 2>.days array items 1..7
+.collections[].fields[]<oneOf schedule>.default<oneOf 2>.days[] integer 1..7
 .collections[].fields[]<oneOf schedule>.default<oneOf 2>.perDay? integer 1..20
 .collections[].fields[]<oneOf schedule>.default<oneOf 3> object
-.collections[].fields[]<oneOf schedule>.default<oneOf 3>.repeat "monthDays"
-.collections[].fields[]<oneOf schedule>.default<oneOf 3>.days array items 1..32
-.collections[].fields[]<oneOf schedule>.default<oneOf 3>.days[]
-.collections[].fields[]<oneOf schedule>.default<oneOf 3>.days[]<anyOf 0> integer 1..31
-.collections[].fields[]<oneOf schedule>.default<oneOf 3>.days[]<anyOf 1> -1
+.collections[].fields[]<oneOf schedule>.default<oneOf 3>.repeat "times"
+.collections[].fields[]<oneOf schedule>.default<oneOf 3>.per "week"|"twoWeeks"|"month"|"year"
+.collections[].fields[]<oneOf schedule>.default<oneOf 3>.count integer 1..366
 .collections[].fields[]<oneOf schedule>.default<oneOf 3>.perDay? integer 1..20
 .collections[].fields[]<oneOf schedule>.default<oneOf 4> object
-.collections[].fields[]<oneOf schedule>.default<oneOf 4>.repeat "interval"
-.collections[].fields[]<oneOf schedule>.default<oneOf 4>.every integer 1..60
+.collections[].fields[]<oneOf schedule>.default<oneOf 4>.repeat "monthDays"
+.collections[].fields[]<oneOf schedule>.default<oneOf 4>.days array items 1..32
+.collections[].fields[]<oneOf schedule>.default<oneOf 4>.days[]
+.collections[].fields[]<oneOf schedule>.default<oneOf 4>.days[]<anyOf 0> integer 1..31
+.collections[].fields[]<oneOf schedule>.default<oneOf 4>.days[]<anyOf 1> -1
 .collections[].fields[]<oneOf schedule>.default<oneOf 4>.perDay? integer 1..20
 .collections[].fields[]<oneOf schedule>.default<oneOf 5> object
-.collections[].fields[]<oneOf schedule>.default<oneOf 5>.repeat "yearly"
-.collections[].fields[]<oneOf schedule>.default<oneOf 5>.month integer 1..12
-.collections[].fields[]<oneOf schedule>.default<oneOf 5>.day integer 1..31
+.collections[].fields[]<oneOf schedule>.default<oneOf 5>.repeat "interval"
+.collections[].fields[]<oneOf schedule>.default<oneOf 5>.every integer 1..60
 .collections[].fields[]<oneOf schedule>.default<oneOf 5>.perDay? integer 1..20
+.collections[].fields[]<oneOf schedule>.default<oneOf 6> object
+.collections[].fields[]<oneOf schedule>.default<oneOf 6>.repeat "yearly"
+.collections[].fields[]<oneOf schedule>.default<oneOf 6>.month integer 1..12
+.collections[].fields[]<oneOf schedule>.default<oneOf 6>.day integer 1..31
+.collections[].fields[]<oneOf schedule>.default<oneOf 6>.perDay? integer 1..20
 .collections[].fields[]<oneOf schedule>.lastDone? string /^[a-z][a-z0-9-]{0,47}$/
+.collections[].fields[]<oneOf schedule>.countEarly? true
 .reminders? array items ..30
 .reminders[] object
 .reminders[].id string /^[a-z][a-z0-9-]{0,47}$/
@@ -3552,9 +3564,10 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .reminders[].done<oneOf 0>.values? object record
 .reminders[].done<oneOf 0>.values{}
 .reminders[].done<oneOf 0>.values{}<anyOf 0> string /^[a-z][a-z0-9-]{0,47}$/
-.reminders[].done<oneOf 0>.values{}<anyOf 1> number
-.reminders[].done<oneOf 0>.values{}<anyOf 2> boolean
-.reminders[].done<oneOf 0>.values{}<anyOf 3> null
+.reminders[].done<oneOf 0>.values{}<anyOf 1> "$record"
+.reminders[].done<oneOf 0>.values{}<anyOf 2> number
+.reminders[].done<oneOf 0>.values{}<anyOf 3> boolean
+.reminders[].done<oneOf 0>.values{}<anyOf 4> null
 .reminders[].done<oneOf 1> object
 .reminders[].done<oneOf 1>.do "set"
 .reminders[].done<oneOf 1>.fieldId string /^[a-z][a-z0-9-]{0,47}$/

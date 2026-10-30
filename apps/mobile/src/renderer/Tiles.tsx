@@ -18,7 +18,7 @@ import type { RenderEnv } from './components';
 import {
   Trailing,
   amountText,
-  openEditor,
+  openRow,
   useListRecords,
   type RecordListProps,
   type Tone,
@@ -84,7 +84,7 @@ export function Tiles({
     const text = props.trailingField
       ? formatRef(r, view, props.trailingField, locale, links, now, cal)
       : '';
-    const open = () => openEditor(router, collection.id, r.id);
+    const open = () => openRow(router, props, collection.id, r.id);
     const run = action ? () => void runner.runRow(action, r, collection) : open;
     // 打开记录后这一块可能等不到松手（onPressOut），过了页面长按编辑的时间再放开。
     const holdOpen = () => {

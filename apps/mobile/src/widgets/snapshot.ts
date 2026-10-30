@@ -1,4 +1,5 @@
 import {
+  allComponents,
   MAX_TILES,
   aggregateRecords,
   calendarOf,
@@ -66,6 +67,13 @@ export const REPEATS = 4;
 /** 小组件最多画几行 / 几个圆（大尺寸）。 */
 const MAX_ROWS = 7;
 const WIDGET_TILES = Math.min(8, MAX_TILES);
+
+/**
+ * 组件在给一条记录用的页面上（D-332）：小组件不知道是哪一条，放不到桌面。
+ */
+export function onRecordPage(c: Component, config: WorkspaceConfig): boolean {
+  return config.pages.some((p) => p.recordOf && allComponents(p).some((x) => x.id === c.id));
+}
 
 /** 能放到桌面的组件：统计、按钮、记录列表（月历和看板除外）。 */
 export function widgetSupported(c: Component): boolean {
@@ -297,7 +305,7 @@ async function listView(
 async function viewOf(c: Component | undefined, ctx: Ctx, name: string): Promise<WidgetView> {
   const gone: WidgetView = { kind: 'message', title: name, note: t(ctx.locale, 'widgetGone') };
   if (!c) return gone;
-  if (!widgetSupported(c))
+  if (!widgetSupported(c) || onRecordPage(c, ctx.config))
     return {
       kind: 'message',
       title: name,

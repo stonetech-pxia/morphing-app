@@ -8,6 +8,7 @@ import {
   readValue,
   recordDay,
   scheduleDoneDays,
+  scheduleOptionsOf,
   type DataRecord,
 } from './data';
 import { dayNumber } from './formula';
@@ -67,8 +68,13 @@ export function reminderProblems(r: Reminder, config: WorkspaceConfig): string[]
       problems.push(`${where}: opens missing quick action ${workflowId}`);
   } else {
     const pageId = pageIdOf(r.opens as NavTarget);
-    if (pageId !== null && !config.pages.some((p) => p.id === pageId))
-      problems.push(`${where}: opens missing page ${pageId}`);
+    const page = pageId === null ? undefined : config.pages.find((p) => p.id === pageId);
+    if (pageId !== null && !page) problems.push(`${where}: opens missing page ${pageId}`);
+    // D-332：给一条记录用的页面不知道打开哪一条。
+    if (page?.recordOf)
+      problems.push(
+        `${where}: opens page ${pageId}, which shows one entry of ${page.recordOf}; open another page`,
+      );
   }
   return problems;
 }
@@ -302,7 +308,14 @@ function planRecordReminder(
     if (!rule) continue;
     const done = scheduleDoneDays(record, collection, field, now, cal);
     // 多算一次：今天的时间已经过了时用后面的补上。
-    const days = scheduleOccurrences(rule, done, today, RECORD_OCCURRENCES + 1, cal);
+    const days = scheduleOccurrences(
+      rule,
+      done,
+      today,
+      RECORD_OCCURRENCES + 1,
+      cal,
+      scheduleOptionsOf(record, field, cal),
+    );
     const title = linkTitle(record, collection, locale);
     let added = 0;
     for (const day of days) {

@@ -36,7 +36,7 @@ import { setInnerGesture } from '../editing/useSingleDrag';
 import { LONG_PRESS_MS } from '../editing/entry';
 import { t } from '../i18n';
 import type { RenderEnv } from './components';
-import { openEditor, useListRecords, type RecordListProps, type Tone } from './data';
+import { openRow, useListRecords, type RecordListProps, type Tone } from './data';
 import { cardColors, type Palette } from './theme';
 
 // 记录列表的看板外观（D-313）：按一个单选字段分栏，每个选项一栏，再加「未分」；栏横向滚动。
@@ -326,7 +326,7 @@ export function Board({
           onPick={(key) => {
             const { record, from } = menu;
             setMenu(null);
-            if (key === 'open') return openEditor(router, collection.id, record.id);
+            if (key === 'open') return openRow(router, props, collection.id, record.id);
             const to = boardTargets(field, columns, from).find((c) => `to:${columnKey(c)}` === key);
             if (to) move(record, to);
           }}

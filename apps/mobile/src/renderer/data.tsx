@@ -1,4 +1,8 @@
 import {
+  findDatePhrase,
+  createInput,
+  smartDateOf,
+  withoutPhrase,
   aggregateRecords,
   calendarOf,
   dateOfDayNumber,
@@ -223,7 +227,10 @@ function textBox<F extends Field>({
   );
 }
 
-/** 日期：输入框加「今天」「昨天」；今天按一天从几点开始算（D-286）。 */
+/**
+ * 日期：输入框加「今天」「明天」「昨天」；今天按一天从几点开始算（D-286）。框里也可以写「下周五」「Nov 5」
+ * 「demain」，离开输入框时在本机换成日期（D-334）。
+ */
 function DateInput({
   value,
   onChange,
@@ -234,7 +241,13 @@ function DateInput({
   input,
   chip,
 }: FieldInputContext<FieldOf<'date'>>) {
-  const today = todayNumber(new Date(), useCalendar());
+  const cal = useCalendar();
+  const today = todayNumber(new Date(), cal);
+  const recognise = () => {
+    if (typeof value !== 'string' || /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return;
+    const found = findDatePhrase(value, today, cal)?.value;
+    if (found?.kind === 'date') onChange(found.date);
+  };
   return (
     <View style={styles.dateRow}>
       <TextInput
@@ -242,12 +255,14 @@ function DateInput({
         editable={!disabled}
         value={typeof value === 'string' ? value : ''}
         onChangeText={onChange}
+        onEndEditing={recognise}
         placeholder="YYYY-MM-DD"
         placeholderTextColor={palette.caption}
         style={[input, styles.flex]}
       />
       {[
         [dateOfDayNumber(today), t(locale, 'today')],
+        [dateOfDayNumber(today + 1), t(locale, 'scheduleTomorrow')],
         [dateOfDayNumber(today - 1), t(locale, 'yesterday')],
       ].map(([date, label]) => (
         <Pressable
@@ -748,6 +763,18 @@ export function openEditor(
 
 export type RecordListProps = Extract<Component, { type: 'recordList' }>['props'];
 
+/** 点列表里的一条：有 opens 时打开给这条记录用的页面（D-332），否则打开编辑页。 */
+export function openRow(
+  router: ReturnType<typeof useRouter>,
+  props: Pick<RecordListProps, 'opens'>,
+  collectionId: string,
+  recordId: string,
+) {
+  if (props.opens)
+    router.push({ pathname: '/page/[pageId]', params: { pageId: props.opens, record: recordId } });
+  else openEditor(router, collectionId, recordId);
+}
+
 export type Tone = ComponentStyle['tone'];
 
 /** 记录列表的 list / cards / checklist；月历（D-305）读法不同，是 MonthCalendar（registry 按 display 选）。 */
@@ -902,7 +929,7 @@ export function useRecordRows(
       </View>
     );
     const open = env.interactive
-      ? (env.locked ?? (() => openEditor(router, collection.id, r.id)))
+      ? (env.locked ?? (() => openRow(router, props, collection.id, r.id)))
       : undefined;
     if (cards) {
       return (
@@ -1034,7 +1061,18 @@ export function RecordForm({
   const [values, setValues] = useState<FormValues>({});
   const [issues, setIssues] = useState<FieldIssue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const cal = useCalendar();
+  // D-334：在本机认出文字里的日期；用户点掉后，这段文字不再认（改了文字再认）。
+  const [dismissed, setDismissed] = useState<string | null>(null);
   if (!collection) return null;
+  const smart = props.smartDate;
+  const smartField = smart ? collection.fields.find((f) => f.id === smart.to) : undefined;
+  const typed = smart ? values[smart.from] : undefined;
+  const userSet = smart ? values[smart.to] !== undefined && values[smart.to] !== '' : false;
+  const found =
+    smart && smartField && typeof typed === 'string' && typed !== dismissed && !userSet
+      ? smartDateOf(typed, smartField, todayNumber(new Date(), cal), locale, cal)
+      : undefined;
 
   if (props.mode === 'button') {
     return (
@@ -1053,11 +1091,21 @@ export function RecordForm({
   async function submit() {
     if (!collection || !env.interactive) return;
     if (env.locked) return env.locked();
-    const result = await actions.add(collection, values);
+    // D-333：不显示的预设值（"$record" 在画之前已经换成这条记录）；D-334：认出来的日期填进去，文字里去掉。
+    const preset = createInput(collection, props.values, { now: new Date(), cal });
+    const recognised =
+      found && smart
+        ? {
+            [smart.from]: withoutPhrase(typed as string, found.phrase) || (typed as string),
+            [smart.to]: found.input,
+          }
+        : {};
+    const result = await actions.add(collection, { ...preset, ...values, ...recognised });
     if (result.ok) {
       setValues({});
       setIssues([]);
       setMessage(null);
+      setDismissed(null);
     } else if ('full' in result) {
       setMessage(t(locale, 'tableFull'));
     } else {
@@ -1083,6 +1131,26 @@ export function RecordForm({
         testPrefix={`form-${componentId}`}
         showLabels={false}
       />
+      {found ? (
+        <View style={styles.smartDate} testID={`form-${componentId}-smart`}>
+          <Icon name="calendar" size={16} color={palette.primaryText} />
+          <Text style={[palette.font('bodyMedium', 13), styles.flex, { color: palette.text }]}>
+            {t(locale, 'smartDateFound', {
+              text: (typed as string).slice(found.phrase.start, found.phrase.end),
+              value: found.preview,
+            })}
+          </Text>
+          <Pressable
+            testID={`form-${componentId}-smart-dismiss`}
+            accessibilityRole="button"
+            accessibilityLabel={t(locale, 'smartDateDismiss')}
+            hitSlop={12}
+            onPress={() => setDismissed(typed as string)}
+            style={styles.smartDismiss}>
+            <Icon name="close" size={16} color={palette.muted} />
+          </Pressable>
+        </View>
+      ) : null}
       {message ? (
         <Text style={[palette.font('bodyMedium', 13), { color: palette.danger }]}>{message}</Text>
       ) : null}
@@ -1321,6 +1389,8 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
   note: { minHeight: 110, textAlignVertical: 'top' },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  smartDate: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+  smartDismiss: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     borderWidth: 1,

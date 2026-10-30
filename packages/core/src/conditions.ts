@@ -1,6 +1,6 @@
 import { isValidTime } from './field-values';
 import { SCHEDULE_DUE } from './schedule';
-import { PERIODS, fieldDefinition, type Collection, type Condition } from './schema';
+import { PERIODS, RECORD_REF, fieldDefinition, type Collection, type Condition } from './schema';
 
 // 筛选条件的检查：组件的 filter（validate.ts）和汇总字段的 filter（D-288）共用。
 
@@ -8,6 +8,8 @@ import { PERIODS, fieldDefinition, type Collection, type Condition } from './sch
 export function conditionProblems(
   conditions: Condition[] | undefined,
   collection: Collection,
+  /** 组件所在页面给哪张表的一条记录用（D-332）：引用字段可以 is / isNot "$record"。 */
+  recordOf?: string,
 ): string[] {
   const problems: string[] = [];
   for (const cond of conditions ?? []) {
@@ -21,6 +23,21 @@ export function conditionProblems(
     const { filter } = fieldDefinition(type);
     const v = cond.value;
     const where = `filter on ${cond.field}`;
+    // D-332：给一条记录用的页面上，指向那张表的引用字段可以等于（不等于）这条记录。
+    if (v === RECORD_REF) {
+      if (
+        f?.type === 'link' &&
+        f.collectionId === recordOf &&
+        (cond.op === 'is' || cond.op === 'isNot')
+      )
+        continue;
+      problems.push(
+        recordOf
+          ? `${where}: "${RECORD_REF}" only works with is / isNot on a link field that points at ${recordOf}`
+          : `${where}: "${RECORD_REF}" only works on a page for one entry of a table (page.recordOf)`,
+      );
+      continue;
+    }
     // 引用字段只能看有没有选（D-250）：记录 ID 对 AI 和用户都没有意义。
     if (filter.emptyOnly && cond.op !== 'isEmpty' && cond.op !== 'isNotEmpty') {
       problems.push(`${where}: a ${type} field can only be filtered with isEmpty or isNotEmpty`);

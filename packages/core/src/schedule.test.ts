@@ -12,7 +12,13 @@ import {
 } from './data';
 import { createDefaultWorkspace } from './defaults';
 import { dayNumber } from './formula';
-import { readSchedule, scheduleStatus, scheduleText, type ScheduleRule } from './schedule';
+import {
+  readSchedule,
+  scheduleOccurrences,
+  scheduleStatus,
+  scheduleText,
+  type ScheduleRule,
+} from './schedule';
 import type { Collection, NewComponent } from './schema';
 import { registry } from './test-helpers';
 
@@ -26,7 +32,11 @@ const sunday: Calendar = { ...DEFAULT_CALENDAR, weekStart: 'sunday' };
 /** 规则在 today 那天的「下一次」（日期）、今天该不该做、过期几天。 */
 function status(rule: ScheduleRule, done: string[], today: string, cal = DEFAULT_CALENDAR) {
   const s = scheduleStatus(rule, done.map(d), d(today), cal);
-  return { next: date(s.next), due: s.dueToday, overdue: s.overdueDays };
+  return {
+    next: s.next === undefined ? undefined : date(s.next),
+    due: s.dueToday,
+    overdue: s.overdueDays,
+  };
 }
 
 describe('schedule rules without a last-done source', () => {
@@ -497,10 +507,174 @@ describe('checking schedule fields and filters', () => {
     ];
     expect(problems(add([{ field: 'plan', op: 'due', value: 'today' }]))).toEqual([]);
     expect(problems(add([{ field: 'plan', op: 'due', value: 'soon' }])).join()).toMatch(
-      /today, overdue, thisWeek/,
+      /today, overdue, thisWeek, pending/,
     );
     expect(problems(add([{ field: 'watered', op: 'due', value: 'today' }])).join()).toMatch(
       /due needs a schedule field/,
     );
+  });
+});
+
+// D-330：「一次」——只做一次，可以不定日期；做过一次就结束。
+describe('a once rule', () => {
+  const once = (date?: string): ScheduleRule =>
+    date ? { repeat: 'once', date } : { repeat: 'once' };
+
+  it('is due on its date, overdue after it, and has no next date once done', () => {
+    expect(status(once('2026-10-25'), [], '2026-10-22')).toEqual({
+      next: '2026-10-25',
+      due: false,
+      overdue: 0,
+    });
+    expect(status(once('2026-10-20'), [], '2026-10-22')).toEqual({
+      next: '2026-10-20',
+      due: true,
+      overdue: 2,
+    });
+    // 提前做了也算做完。
+    const done = scheduleStatus(once('2026-10-25'), [d('2026-10-21')], d('2026-10-22'));
+    expect(done).toEqual({ next: undefined, dueToday: false, overdueDays: 0, finished: true });
+  });
+
+  it('without a date it is never due, but still pending until done', () => {
+    expect(status(once(), [], '2026-10-22')).toEqual({ next: undefined, due: false, overdue: 0 });
+    expect(scheduleOccurrences(once(), [], d('2026-10-22'), 7)).toEqual([]);
+    // 有日子时只排一次；过期了排今天。
+    expect(scheduleOccurrences(once('2026-10-25'), [], d('2026-10-22'), 7)).toEqual([
+      d('2026-10-25'),
+    ]);
+    expect(scheduleOccurrences(once('2026-10-20'), [], d('2026-10-22'), 7)).toEqual([
+      d('2026-10-22'),
+    ]);
+    expect(scheduleOccurrences(once('2026-10-25'), [d('2026-10-22')], d('2026-10-22'), 7)).toEqual(
+      [],
+    );
+  });
+
+  it('reads leniently and rejects dates that do not exist or a per-day count', () => {
+    expect(readSchedule({ repeat: 'once' })).toEqual({ repeat: 'once' });
+    expect(readSchedule({ repeat: 'once', date: '2026-11-05', perDay: 3 })).toEqual({
+      repeat: 'once',
+      date: '2026-11-05',
+    });
+    expect(readSchedule({ repeat: 'once', date: '2026-02-30' })).toBeUndefined();
+    expect(readSchedule({ repeat: 'once', date: 'tomorrow' })).toBeUndefined();
+  });
+
+  it('says once and the date in each language', () => {
+    expect(scheduleText(once('2026-11-05'), 'zh')).toBe('一次：11月5日');
+    expect(scheduleText(once('2026-11-05'), 'en')).toBe('Once: Nov 5');
+    expect(scheduleText(once(), 'fr')).toBe('Une fois, sans date');
+  });
+});
+
+// D-331：countEarly——提前做了算这一次（Todoist 的重复任务）。
+describe('counting an early completion', () => {
+  const monday: ScheduleRule = { repeat: 'weekdays', days: [1] };
+  // 2026-10-19 周一建的，2026-10-26 和 11-02 也是周一。
+  const early = (done: string[], today: string, since = '2026-10-19') => {
+    const s = scheduleStatus(monday, done.map(d), d(today), DEFAULT_CALENDAR, {
+      countEarly: true,
+      since: d(since),
+    });
+    return { next: date(s.next!), overdue: s.overdueDays };
+  };
+
+  it('done on the Sunday before counts for that Monday', () => {
+    // 19 号那次周一做了，25 号（周日）提前做了 26 号那次 → 下一次 11-02。
+    expect(early(['2026-10-19', '2026-10-25'], '2026-10-25')).toEqual({
+      next: '2026-11-02',
+      overdue: 0,
+    });
+    // 不开 countEarly 时（D-293）仍是 26 号。
+    expect(status(monday, ['2026-10-19', '2026-10-25'], '2026-10-25').next).toBe('2026-10-26');
+  });
+
+  it('done late on Tuesday still moves to the next Monday, not the one after', () => {
+    expect(early(['2026-10-20'], '2026-10-20')).toEqual({ next: '2026-10-26', overdue: 0 });
+  });
+
+  it('done long after it was due moves to the first Monday after that day', () => {
+    // 19 号到期，30 号才做 → 11-02，不会排出一个已经过去的周一。
+    expect(early(['2026-10-30'], '2026-10-30')).toEqual({ next: '2026-11-02', overdue: 0 });
+  });
+
+  it('never done keeps the old behaviour: the next matching day from today', () => {
+    const s = scheduleStatus(monday, [], d('2026-10-22'), DEFAULT_CALENDAR, {
+      countEarly: true,
+      since: d('2026-10-01'),
+    });
+    expect(date(s.next!)).toBe('2026-10-26');
+  });
+
+  it('every day: done today moves to tomorrow either way', () => {
+    const s = scheduleStatus({ repeat: 'daily' }, [d('2026-10-22')], d('2026-10-22'), undefined, {
+      countEarly: true,
+      since: d('2026-10-01'),
+    });
+    expect(date(s.next!)).toBe('2026-10-23');
+  });
+});
+
+describe('once and pending on records', () => {
+  const tasks: Collection = {
+    id: 'tasks',
+    name: 'Tasks',
+    fields: [
+      { id: 'title', name: 'Title', type: 'text' },
+      { id: 'plan', name: 'Plan', type: 'schedule', lastDone: 'done', countEarly: true },
+      { id: 'done', name: 'Done', type: 'date' },
+    ],
+  };
+  const task = (title: string, plan: unknown, done?: string): DataRecord => ({
+    id: title,
+    collectionId: 'tasks',
+    values: { title, plan, ...(done ? { done } : {}) },
+    createdAt: new Date(2026, 9, 1).getTime(),
+    updatedAt: 0,
+  });
+  const list = [
+    task('Report', { repeat: 'once', date: '2026-10-22' }),
+    task('Someday', { repeat: 'once' }),
+    task('Finished', { repeat: 'once', date: '2026-10-20' }, '2026-10-21'),
+    task('Weekly', { repeat: 'weekdays', days: [4] }, '2026-10-15'),
+    task('Plain', undefined),
+  ];
+  const filtered = (value: string) =>
+    list
+      .filter(
+        (r) => filterRecords([r], tasks, [{ field: 'plan', op: 'due', value }], now).length > 0,
+      )
+      .map((r) => r.values.title);
+
+  it('pending is everything with a rule that is not a finished once', () => {
+    expect(filtered('pending')).toEqual(['Report', 'Someday', 'Weekly']);
+    expect(filtered('today')).toEqual(['Report', 'Weekly']);
+    expect(filtered('thisWeek')).toEqual(['Report', 'Weekly']);
+  });
+
+  it('a once shows the date or its state, not the word once', () => {
+    const shown = list.map((r) => formatRef(r, tasks, 'plan', 'zh', undefined, now));
+    expect(shown).toEqual(['今天', '不定日期', '已完成', '每周四 · 今天', '']);
+    expect(
+      formatRef(
+        task('Later', { repeat: 'once', date: '2026-11-05' }),
+        tasks,
+        'plan',
+        'en',
+        undefined,
+        now,
+      ),
+    ).toBe('Nov 5');
+  });
+
+  it('sorts dated tasks first, undated and finished ones last', () => {
+    const sorted = sortRecords(list, tasks, { field: 'plan', direction: 'asc' }, now);
+    expect(
+      sorted
+        .slice(0, 2)
+        .map((r) => r.values.title)
+        .sort(),
+    ).toEqual(['Report', 'Weekly']);
   });
 });

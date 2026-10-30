@@ -107,7 +107,7 @@ export async function renderToolsApp(
     ...(options.seed ? { seed: options.seed } : {}),
   });
   await store.getState().boot();
-  await renderRouter({
+  const router = await renderRouter({
     _layout: () => (
       <GestureHandlerRootView style={{ flex: 1 }}>
         <AISettingsProvider store={aiSettings}>
@@ -149,7 +149,7 @@ export async function renderToolsApp(
     'record/[collectionId]': RecordRoute,
     welcome: WelcomeRoute,
   });
-  return { repo, store, files };
+  return { repo, store, files, router };
 }
 
 /** 系统确认框：直接点非取消的按钮（例如「应用更改」）。 */

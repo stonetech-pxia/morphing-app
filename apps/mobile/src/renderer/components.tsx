@@ -44,6 +44,8 @@ export interface RenderEnv {
    * 会真的做事的操作改为调用它（提示「应用之后才能用」）。
    */
   locked?: () => void;
+  /** 给一条记录用的页面（D-332）：组件里的 "$record" 换成这条记录的 ID 再画。 */
+  recordId?: string;
 }
 
 export function PageView({

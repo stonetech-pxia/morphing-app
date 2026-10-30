@@ -20,6 +20,7 @@ import {
   scheduleStatus,
   scheduleStatusText,
   type ScheduleDue,
+  type ScheduleOptions,
   type ScheduleStatus,
 } from './schedule';
 import {
@@ -196,8 +197,8 @@ export function recordDay(
   const field = fieldOf(collection, ref);
   // 日程（D-295）落在它的下一次那天。
   if (field?.type === 'schedule') {
-    const status = scheduleStatusOf(record, collection, field, now, cal);
-    return status && dateOfDayNumber(status.next);
+    const next = scheduleStatusOf(record, collection, field, now, cal)?.next;
+    return next === undefined ? undefined : dateOfDayNumber(next);
   }
   const value = recordValue(record, collection, ref, now, cal);
   const day = field && fieldDefinition(field.type).day;
@@ -232,7 +233,19 @@ export function scheduleStatusOf(
     scheduleDoneDays(record, collection, field, now, cal),
     todayNumber(now, cal),
     cal,
+    scheduleOptionsOf(record, field, cal),
   );
+}
+
+/** 日程字段的 countEarly（D-331）从记录创建那天开始数。 */
+export function scheduleOptionsOf(
+  record: DataRecord,
+  field: Extract<Field, { type: 'schedule' }>,
+  cal: Calendar = DEFAULT_CALENDAR,
+): ScheduleOptions {
+  return field.countEarly
+    ? { countEarly: true, since: dayNumber(dayOf(new Date(record.createdAt), cal))! }
+    : {};
 }
 
 /** 一条记录上日程字段做过的日子（天数）：来自 lastDone 指向的字段或汇总（见 scheduleStatusOf）。 */
@@ -635,7 +648,11 @@ export function formatRef(
   if (field?.type === 'schedule') {
     const status = scheduleStatusOf(record, collection, field, now, cal);
     const rule = formatValue(field, record.values[ref], locale);
-    return status ? `${rule} · ${scheduleStatusText(status, todayNumber(now, cal), locale)}` : rule;
+    if (!status) return rule;
+    // 「一次」（D-330）只写日期或状态（明天、11月5日、已完成），不再重复「一次」。
+    const once = (readValue(field, record.values[ref]) as { repeat: string }).repeat === 'once';
+    const text = scheduleStatusText(status, todayNumber(now, cal), locale, once);
+    return once ? text : `${rule} · ${text}`;
   }
   return field ? formatValue(field, record.values[ref], locale, links) : '';
 }

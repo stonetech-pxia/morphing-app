@@ -7,6 +7,12 @@ export type Locale = 'en' | 'zh' | 'fr';
 export type Localized = Record<Locale, string>;
 
 const ID_PATTERN = /^[a-z][a-z0-9-]{0,47}$/;
+/**
+ * 「这一条记录」（D-332）：只能写在给某张表的一条记录用的页面（page.recordOf）上，筛选里引用字段 is / isNot
+ * 它、新建时引用字段设成它；打开页面时换成那条记录的 ID（record-pages.ts 的 bindRecord）。
+ */
+export const RECORD_REF = '$record';
+
 export const IdSchema = z.string().regex(ID_PATTERN, 'id must be lowercase letters, digits or -');
 
 /** 去掉首尾空白后长度在 min..max 之间的文字。 */

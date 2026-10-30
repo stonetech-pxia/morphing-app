@@ -46,6 +46,8 @@ const props = z.strictObject({
   trailingFormat: TrailingFormatSchema.optional(),
   /** 看板（D-313）按这个单选字段分栏：每个选项一栏，再加一栏「未分」。只给 board 用。 */
   groupField: IdSchema.optional(),
+  /** 点一条打开这个页面（D-332，page.recordOf 是这张表），不是编辑页。 */
+  opens: IdSchema.optional(),
 });
 
 /**
@@ -68,8 +70,16 @@ export const recordListComponent: ComponentDefinitionOf<'recordList', typeof pro
       colorField: { to: 'field', types: ['choice'] },
       groupField: { to: 'field', types: ['choice'] },
     },
-    check: (c, { collection }) => {
+    check: (c, { collection, config }) => {
       const problems: string[] = [];
+      if (c.props.opens !== undefined) {
+        const target = config.pages.find((p) => p.id === c.props.opens);
+        if (!target) problems.push(`opens ${c.props.opens} is not a page`);
+        else if (target.recordOf !== c.props.collectionId)
+          problems.push(
+            `opens ${c.props.opens} must be a page for one entry of ${c.props.collectionId} (recordOf: "${c.props.collectionId}")`,
+          );
+      }
       const field = (id: string) => collection!.fields.find((f) => f.id === id);
       const ref = (id: string, role: string) => {
         if (!isSystemField(id) && !field(id))

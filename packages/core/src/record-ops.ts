@@ -9,6 +9,7 @@ import {
 import { localDateTime, round } from './field-values';
 import { expandCollection } from './related';
 import {
+  RECORD_REF,
   fieldDefinition,
   type Collection,
   type Component,
@@ -54,6 +55,8 @@ interface Where {
   rowOf?: Collection;
   /** 是新建（create）：null 没有意义。 */
   creating?: boolean;
+  /** 组件所在页面给哪张表的一条记录用（D-332）："$record" 指那条记录。 */
+  recordOf?: string;
 }
 
 function valueProblem(
@@ -71,7 +74,17 @@ function valueProblem(
     const ok = where.rowOf
       ? value === 'row' && where.creating && field.collectionId === where.rowOf.id
       : false;
-    if (ok || (value === null && !where.creating)) return null;
+    // D-332：给一条记录用的页面上，新建时引用字段可以设成这条记录。
+    const page =
+      value === RECORD_REF &&
+      where.creating === true &&
+      where.recordOf !== undefined &&
+      field.collectionId === where.recordOf;
+    if (ok || page || (value === null && !where.creating)) return null;
+    if (value === RECORD_REF)
+      return where.recordOf
+        ? `${where.label}: link field ${name} can be "${RECORD_REF}" only when creating and only if it points at ${where.recordOf}`
+        : `${where.label}: "${RECORD_REF}" only works on a page for one entry of a table (page.recordOf)`;
     return where.rowOf && where.creating
       ? `${where.label}: link field ${name} can only be "row" (the entry of this row) and must point at ${where.rowOf.id}`
       : `${where.label}: link field ${name} can't be preset; only a row button's create can use "row"`;
@@ -164,9 +177,11 @@ export function recordActionProblems(
       });
       return [
         ...(p ? [p] : []),
-        ...conditionProblems(action.filter, expandCollection(config.collections, collection)).map(
-          (x) => `${where.label}: ${x}`,
-        ),
+        ...conditionProblems(
+          action.filter,
+          expandCollection(config.collections, collection),
+          where.recordOf,
+        ).map((x) => `${where.label}: ${x}`),
       ];
     }
     case 'set': {
@@ -185,24 +200,47 @@ export function recordActionProblems(
 }
 
 /** 按钮和记录列表上的操作的问题（validate.ts 对每个组件调）。 */
-export function componentActionProblems(c: Component, config: WorkspaceConfig): string[] {
+export function componentActionProblems(
+  c: Component,
+  config: WorkspaceConfig,
+  /** 组件所在页面给哪张表的一条记录用（D-332）。 */
+  recordOf?: string,
+): string[] {
   if (c.type === 'button') {
     const { target, action } = c.props;
     if ((target === undefined) === (action === undefined))
       return [
         `button ${c.id} needs exactly one of target (open something) or action (change entries)`,
       ];
-    return action ? recordActionProblems(action, config, { label: `button ${c.id} action` }) : [];
+    return action
+      ? recordActionProblems(action, config, {
+          label: `button ${c.id} action`,
+          ...(recordOf ? { recordOf } : {}),
+        })
+      : [];
   }
+  // D-333：快速添加表单的预设值和新建一样检查（用户填其余的，所以必填不管）。
+  if (c.type === 'recordForm')
+    return c.props.values
+      ? recordActionProblems(
+          { do: 'create', collectionId: c.props.collectionId, values: c.props.values, form: true },
+          config,
+          { label: `form ${c.id} values`, ...(recordOf ? { recordOf } : {}) },
+        )
+      : [];
   if (c.type !== 'recordList' || !c.props.rowActions) return [];
   const table = config.collections.find((x) => x.id === c.props.collectionId);
   if (!table) return [];
   const view = expandCollection(config.collections, table);
   return c.props.rowActions.flatMap((a) => {
-    const where = { label: `list ${c.id} row button "${a.label}"`, rowOf: table };
+    const where = {
+      label: `list ${c.id} row button "${a.label}"`,
+      rowOf: table,
+      ...(recordOf ? { recordOf } : {}),
+    };
     return [
       ...recordActionProblems(a, config, where),
-      ...conditionProblems(a.when, view).map((x) => `${where.label} when: ${x}`),
+      ...conditionProblems(a.when, view, recordOf).map((x) => `${where.label} when: ${x}`),
     ];
   });
 }

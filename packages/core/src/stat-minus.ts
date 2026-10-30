@@ -18,6 +18,8 @@ export function statMinusProblems(
   c: StatComponent,
   collection: Collection,
   config: WorkspaceConfig,
+  /** 组件所在页面给哪张表的一条记录用（D-332）。 */
+  recordOf?: string,
 ): string[] {
   const minus = c.props.minus;
   if (!minus) return [];
@@ -46,7 +48,7 @@ export function statMinusProblems(
         );
     }
   }
-  problems.push(...conditionProblems(minus.filter, other).map((p) => `minus: ${p}`));
+  problems.push(...conditionProblems(minus.filter, other, recordOf).map((p) => `minus: ${p}`));
   return problems;
 }
 
