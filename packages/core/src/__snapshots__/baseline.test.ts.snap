@@ -3195,6 +3195,10 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf recordList>.props.trailingFormat<oneOf 1>.style? "ring"|"bar"
 <oneOf recordList>.props.groupField? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf recordList>.props.opens? string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf recordList>.props.groupBy? = <oneOf button>.props.action<oneOf 1>.filter[].field
+<oneOf recordList>.props.groupUnit? "day"|"week"|"month"
+<oneOf recordList>.props.showEmpty? true
+<oneOf recordList>.props.addHere? true
 <oneOf recordForm> object
 <oneOf recordForm>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf recordForm>.hidden? boolean
@@ -3304,7 +3308,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 30
+.schemaVersion 31
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"
@@ -3506,19 +3510,23 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .collections[].fields[]<oneOf schedule>.default<oneOf 0> object
 .collections[].fields[]<oneOf schedule>.default<oneOf 0>.repeat "once"
 .collections[].fields[]<oneOf schedule>.default<oneOf 0>.date? string /^\\d{4}-\\d{2}-\\d{2}$/
+.collections[].fields[]<oneOf schedule>.default<oneOf 0>.time? string /^([01]\\d|2[0-3]):[0-5]\\d$/
 .collections[].fields[]<oneOf schedule>.default<oneOf 1> object
 .collections[].fields[]<oneOf schedule>.default<oneOf 1>.repeat "daily"
 .collections[].fields[]<oneOf schedule>.default<oneOf 1>.perDay? integer 1..20
+.collections[].fields[]<oneOf schedule>.default<oneOf 1>.time? string /^([01]\\d|2[0-3]):[0-5]\\d$/
 .collections[].fields[]<oneOf schedule>.default<oneOf 2> object
 .collections[].fields[]<oneOf schedule>.default<oneOf 2>.repeat "weekdays"
 .collections[].fields[]<oneOf schedule>.default<oneOf 2>.days array items 1..7
 .collections[].fields[]<oneOf schedule>.default<oneOf 2>.days[] integer 1..7
 .collections[].fields[]<oneOf schedule>.default<oneOf 2>.perDay? integer 1..20
+.collections[].fields[]<oneOf schedule>.default<oneOf 2>.time? string /^([01]\\d|2[0-3]):[0-5]\\d$/
 .collections[].fields[]<oneOf schedule>.default<oneOf 3> object
 .collections[].fields[]<oneOf schedule>.default<oneOf 3>.repeat "times"
 .collections[].fields[]<oneOf schedule>.default<oneOf 3>.per "week"|"twoWeeks"|"month"|"year"
 .collections[].fields[]<oneOf schedule>.default<oneOf 3>.count integer 1..366
 .collections[].fields[]<oneOf schedule>.default<oneOf 3>.perDay? integer 1..20
+.collections[].fields[]<oneOf schedule>.default<oneOf 3>.time? string /^([01]\\d|2[0-3]):[0-5]\\d$/
 .collections[].fields[]<oneOf schedule>.default<oneOf 4> object
 .collections[].fields[]<oneOf schedule>.default<oneOf 4>.repeat "monthDays"
 .collections[].fields[]<oneOf schedule>.default<oneOf 4>.days array items 1..32
@@ -3526,15 +3534,18 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .collections[].fields[]<oneOf schedule>.default<oneOf 4>.days[]<anyOf 0> integer 1..31
 .collections[].fields[]<oneOf schedule>.default<oneOf 4>.days[]<anyOf 1> -1
 .collections[].fields[]<oneOf schedule>.default<oneOf 4>.perDay? integer 1..20
+.collections[].fields[]<oneOf schedule>.default<oneOf 4>.time? string /^([01]\\d|2[0-3]):[0-5]\\d$/
 .collections[].fields[]<oneOf schedule>.default<oneOf 5> object
 .collections[].fields[]<oneOf schedule>.default<oneOf 5>.repeat "interval"
 .collections[].fields[]<oneOf schedule>.default<oneOf 5>.every integer 1..60
 .collections[].fields[]<oneOf schedule>.default<oneOf 5>.perDay? integer 1..20
+.collections[].fields[]<oneOf schedule>.default<oneOf 5>.time? string /^([01]\\d|2[0-3]):[0-5]\\d$/
 .collections[].fields[]<oneOf schedule>.default<oneOf 6> object
 .collections[].fields[]<oneOf schedule>.default<oneOf 6>.repeat "yearly"
 .collections[].fields[]<oneOf schedule>.default<oneOf 6>.month integer 1..12
 .collections[].fields[]<oneOf schedule>.default<oneOf 6>.day integer 1..31
 .collections[].fields[]<oneOf schedule>.default<oneOf 6>.perDay? integer 1..20
+.collections[].fields[]<oneOf schedule>.default<oneOf 6>.time? string /^([01]\\d|2[0-3]):[0-5]\\d$/
 .collections[].fields[]<oneOf schedule>.lastDone? string /^[a-z][a-z0-9-]{0,47}$/
 .collections[].fields[]<oneOf schedule>.countEarly? true
 .reminders? array items ..30

@@ -5802,6 +5802,93 @@ const TODO_CASES: readonly EvalCase[] = [
   },
 ];
 
+/** 待办第二批（D-336–D-339）：分段、月历认日程、就地添加、按记录自己的钟点提醒。 */
+const TODO_VIEW_CASES: readonly EvalCase[] = [
+  {
+    id: 'TD6',
+    input: '任务列表按项目分开显示，每个项目一段',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'tasks').some((x) => x.props.groupBy === 'project')
+          ? null
+          : 'expected a tasks list with groupBy project',
+    },
+  },
+  {
+    id: 'TD7-en',
+    input: 'Show my tasks grouped by day, overdue first',
+    locale: 'en',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'tasks').some(
+          (x) => x.props.groupBy === 'plan' && (x.props.groupUnit ?? 'day') === 'day',
+        )
+          ? null
+          : 'expected a tasks list grouped by plan per day',
+    },
+  },
+  {
+    id: 'TD8-fr',
+    input: 'Je veux voir mes tâches dans un calendrier du mois',
+    locale: 'fr',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'tasks').some(
+          (x) => x.props.display === 'calendar' && x.props.dateField === 'plan',
+        )
+          ? null
+          : 'expected a tasks calendar on the plan schedule field',
+    },
+  },
+  {
+    id: 'TD9',
+    input: '任务按项目分段，在每段下面能直接添加任务',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'tasks').some(
+          (x) => x.props.groupBy === 'project' && x.props.addHere === true,
+        )
+          ? null
+          : 'expected a tasks list grouped by project with addHere',
+    },
+  },
+  {
+    id: 'TD10',
+    input: '每个任务到了它自己设的时间就提醒我，通知上可以直接点完成',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        (c.reminders ?? []).some(
+          (r) =>
+            r.schedule === 'scheduleField' &&
+            r.collectionId === 'tasks' &&
+            r.fieldId === 'plan' &&
+            r.done?.do === 'create' &&
+            r.done.collectionId === 'completions',
+        )
+          ? null
+          : 'expected a per-entry reminder on tasks.plan whose done logs a completion',
+    },
+  },
+];
+
 const HOME_SCREEN_CASES: readonly EvalCase[] = [
   {
     id: 'HS1',
@@ -6262,6 +6349,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...RECORD_REMINDER_CASES,
   ...ENVELOPE_CASES,
   ...TODO_CASES,
+  ...TODO_VIEW_CASES,
   ...HOME_SCREEN_CASES,
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,

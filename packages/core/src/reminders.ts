@@ -299,13 +299,14 @@ function planRecordReminder(
     Collection['fields'][number],
     { type: 'schedule' }
   >;
-  const { hour, minute } = hm(r.time);
   const today = todayNumber(now, cal);
   const buttons = reminderButtons(r);
   const out: PlannedNotification[] = [];
   for (const record of records.get(collection.id) ?? []) {
     const rule = readValue(field, record.values[field.id]) as ScheduleRule | undefined;
     if (!rule) continue;
+    // 记录自己的钟点优先（D-336），没有时用提醒的 time。
+    const { hour, minute } = hm(rule.time ?? r.time);
     const done = scheduleDoneDays(record, collection, field, now, cal);
     // 多算一次：今天的时间已经过了时用后面的补上。
     const days = scheduleOccurrences(

@@ -314,3 +314,10 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 
 - **给一条记录用的页面**（D-332，schemaVersion 30）：页面的 `recordOf` + 列表的 `opens`；组件里的 `"$record"` 打开时在本机换成那条记录的 ID（`core/record-pages.ts`），配置里只有占位值，AI 看不到 ID。快速添加表单的 `values`（D-333）可以把引用设成它。
 - **本机认日期**（D-334）：`core/date-phrases.ts` 按规则认三种语言的日期、时间和重复，`core/smart-date.ts` 换成要填的字段。快速添加表单的 `smartDate`、日期框都在手机上认，文字不发给 AI。
+
+## 22. 分段、钟点、月历认日程、就地添加（D-336 起）
+
+- **钟点**（D-336，schemaVersion 31）：日程规则的 `time`，按记录排的提醒用它。
+- **分段**（D-337）：`recordList.groupBy` + `groupUnit` + `showEmpty`，逻辑在 `core/list-groups.ts`。
+- **月历认日程**（D-338）：月历的 `dateField` 可以是日程，记录落在接下来的每一次。
+- **就地添加**（D-339）：`recordList.addHere`，打开新记录的表单，预设这一段的值和列表筛选里的「等于」条件。

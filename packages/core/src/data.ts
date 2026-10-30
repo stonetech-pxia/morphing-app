@@ -55,6 +55,7 @@ export {
   formatTimestamp,
   localDate,
   localDateTime,
+  normalizeTime,
   type FieldValue,
   type LinkResolver,
 } from './field-values';
@@ -440,7 +441,12 @@ export function sortRecords(
   const sortKey = def && fieldDefinition(def.type).sort;
   const key = (r: DataRecord): FieldValue | undefined => {
     if (isSystemField(field)) return r[field];
-    if (def?.type === 'schedule') return scheduleStatusOf(r, collection, def, now, cal)?.next;
+    if (def?.type === 'schedule') {
+      // 同一天的按钟点排（D-336），没有钟点的排在那天最后。
+      const next = scheduleStatusOf(r, collection, def, now, cal)?.next;
+      const time = (readValue(def, r.values[def.id]) as { time?: string } | undefined)?.time;
+      return next === undefined ? undefined : next + (time ? minuteOfDay(time)! / 1440 : 0.9999);
+    }
     const v = recordValue(r, collection, field, now, cal);
     // 有的字段按自己的顺序排（单选按选项顺序）。
     return def && sortKey && v !== undefined ? sortKey(def, v) : v;
@@ -650,9 +656,14 @@ export function formatRef(
     const rule = formatValue(field, record.values[ref], locale);
     if (!status) return rule;
     // 「一次」（D-330）只写日期或状态（明天、11月5日、已完成），不再重复「一次」。
-    const once = (readValue(field, record.values[ref]) as { repeat: string }).repeat === 'once';
+    const read = readValue(field, record.values[ref]) as { repeat: string; time?: string };
+    const once = read.repeat === 'once';
     const text = scheduleStatusText(status, todayNumber(now, cal), locale, once);
-    return once ? text : `${rule} · ${text}`;
+    // 「一次」带钟点时跟在日子后面（明天 03:00，D-336）；重复的规则文字里已经有钟点。
+    if (!once) return `${rule} · ${text}`;
+    return read.time && status.next !== undefined
+      ? t(locale, 'scheduleAtTime', { rule: text, time: read.time })
+      : text;
   }
   return field ? formatValue(field, record.values[ref], locale, links) : '';
 }

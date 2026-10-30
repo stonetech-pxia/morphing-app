@@ -1,12 +1,54 @@
 import { dateOfDayNumber, todayNumber, weekStartOf, type Calendar } from './calendar';
-import { fieldOf, readValue, recordDay, type DataRecord } from './data';
+import {
+  fieldOf,
+  readValue,
+  recordDay,
+  scheduleDoneDays,
+  scheduleOptionsOf,
+  type DataRecord,
+} from './data';
 import { dayNumber } from './formula';
 import { localeTag } from './localization';
+import { scheduleOccurrences, type ScheduleRule } from './schedule';
 import type { Collection, Locale } from './schema';
 
 // 记录列表的月历外观（D-305）：一个月的格子，每天有几条记录、按一个单选字段上什么颜色。
 // 纯逻辑：哪几周、每天的记录、深浅几档、月份和星期的名字；App 只负责画格子。
 // 日子用天数（dayNumber）比较，记录落在哪天用 recordDay（一天从几点开始，D-286）。
+// D-338：dateField 也可以是日程字段，一条记录落在它接下来的每一次（过期的落在今天，做完的「一次」不显示）。
+
+/** 日程在月历里最多往后排几次（每天一次的规则大约一年）。 */
+const MAX_OCCURRENCES = 370;
+
+/** 一条记录在 [first, last] 里落在哪几天。 */
+function daysOf(
+  record: DataRecord,
+  collection: Collection,
+  dateField: string,
+  first: number,
+  last: number,
+  now: Date,
+  cal: Calendar,
+): number[] {
+  const field = fieldOf(collection, dateField);
+  if (field?.type !== 'schedule') {
+    const date = recordDay(record, collection, dateField, now, cal);
+    const n = date === undefined ? undefined : dayNumber(date);
+    return n === undefined || n < first || n > last ? [] : [n];
+  }
+  const rule = readValue(field, record.values[field.id]) as ScheduleRule | undefined;
+  const today = todayNumber(now, cal);
+  if (!rule || last < today) return [];
+  const done = scheduleDoneDays(record, collection, field, now, cal);
+  const options = scheduleOptionsOf(record, field, cal);
+  const days: number[] = [];
+  // 一次排一批，排到这个月最后一天为止。
+  for (const day of scheduleOccurrences(rule, done, today, MAX_OCCURRENCES, cal, options)) {
+    if (day > last) break;
+    if (day >= first) days.push(day);
+  }
+  return days;
+}
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -79,15 +121,20 @@ export function monthDays(
   const color = spec.colorField ? fieldOf(collection, spec.colorField) : undefined;
   const byDay = new Map<number, { record: DataRecord; key: string }[]>();
   for (const record of records) {
-    const date = recordDay(record, collection, spec.dateField, now, cal);
-    const n = date === undefined ? undefined : dayNumber(date);
-    if (n === undefined || n < first || n > last) continue;
-    // 同一天的先后：日期时间字段按它的值，其余按创建时间。
+    // 同一天的先后：日期时间字段按它的值，日程按钟点，其余按创建时间。
     const raw = record.values[spec.dateField];
-    const key = `${typeof raw === 'string' ? raw : ''}|${String(record.createdAt).padStart(15, '0')}`;
-    const list = byDay.get(n);
-    if (list) list.push({ record, key });
-    else byDay.set(n, [{ record, key }]);
+    const at =
+      typeof raw === 'string'
+        ? raw
+        : typeof (raw as { time?: unknown } | undefined)?.time === 'string'
+          ? (raw as { time: string }).time
+          : '';
+    const key = `${at}|${String(record.createdAt).padStart(15, '0')}`;
+    for (const n of daysOf(record, collection, spec.dateField, first, last, now, cal)) {
+      const list = byDay.get(n);
+      if (list) list.push({ record, key });
+      else byDay.set(n, [{ record, key }]);
+    }
   }
   const days = new Map<number, MonthDay>();
   let max = 0;

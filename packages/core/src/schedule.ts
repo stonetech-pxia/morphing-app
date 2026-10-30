@@ -18,6 +18,11 @@ import type { Locale } from './schema-primitives';
 // D-330 加「一次」（once）：只做一次，可以定在某天、也可以不定日期；做过一次就结束（finished）。
 
 const perDay = z.number().int().min(1).max(20).optional();
+/** 几点（D-336）：每种规则都可以带，「明天 03:00」「每周一 09:00」；按记录排的提醒用它。 */
+const time = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+  .optional();
 
 /** 一周里的几天：1 = 周一 … 7 = 周日（ISO）。 */
 const Weekday = z.number().int().min(1).max(7);
@@ -44,12 +49,13 @@ const OnceDate = z
 
 export const ScheduleRuleSchema = z.discriminatedUnion('repeat', [
   // D-330：只做一次，date 不写 = 不定日期（有空再做）。没有 perDay。
-  z.strictObject({ repeat: z.literal('once'), date: OnceDate.optional() }),
-  z.strictObject({ repeat: z.literal('daily'), perDay }),
+  z.strictObject({ repeat: z.literal('once'), date: OnceDate.optional(), time }),
+  z.strictObject({ repeat: z.literal('daily'), perDay, time }),
   z.strictObject({
     repeat: z.literal('weekdays'),
     days: z.array(Weekday).min(1).max(7),
     perDay,
+    time,
   }),
   z
     .strictObject({
@@ -57,6 +63,7 @@ export const ScheduleRuleSchema = z.discriminatedUnion('repeat', [
       per: z.enum(['week', 'twoWeeks', 'month', 'year']),
       count: z.number().int().min(1).max(366),
       perDay,
+      time,
     })
     .refine((r) => r.count <= TIMES_LIMIT[r.per], {
       message: 'count can be at most 7 a week, 14 every two weeks, 31 a month, 366 a year',
@@ -65,14 +72,21 @@ export const ScheduleRuleSchema = z.discriminatedUnion('repeat', [
     repeat: z.literal('monthDays'),
     days: z.array(MonthDay).min(1).max(32),
     perDay,
+    time,
   }),
-  z.strictObject({ repeat: z.literal('interval'), every: z.number().int().min(1).max(60), perDay }),
+  z.strictObject({
+    repeat: z.literal('interval'),
+    every: z.number().int().min(1).max(60),
+    perDay,
+    time,
+  }),
   z
     .strictObject({
       repeat: z.literal('yearly'),
       month: z.number().int().min(1).max(12),
       day: z.number().int().min(1).max(31),
       perDay,
+      time,
     })
     .refine((r) => r.day <= DAYS_IN_MONTH[r.month - 1]!, { message: 'no such day in that month' }),
 ]);
@@ -106,6 +120,7 @@ export function readSchedule(raw: unknown): ScheduleRule | undefined {
       : v;
   }
   if (r.perDay !== undefined && r.perDay !== 1 && r.repeat !== 'once') picked.perDay = r.perDay;
+  if (typeof r.time === 'string' && r.time !== '') picked.time = r.time;
   const parsed = ScheduleRuleSchema.safeParse(picked);
   return parsed.success ? parsed.data : undefined;
 }
@@ -266,7 +281,8 @@ export function scheduleOccurrences(
 
 /** 规则的一句话（三种语言各写完整的句子，单复数按 isSingular）。 */
 export function scheduleText(rule: ScheduleRule, locale: Locale): string {
-  const text = ruleText(rule, locale);
+  const base = ruleText(rule, locale);
+  const text = rule.time ? t(locale, 'scheduleAtTime', { rule: base, time: rule.time }) : base;
   return rule.repeat !== 'once' && rule.perDay
     ? t(locale, 'schedulePerDay', { rule: text, n: rule.perDay })
     : text;

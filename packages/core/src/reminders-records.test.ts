@@ -266,6 +266,25 @@ describe('planNotifications per entry (D-316, D-319)', () => {
     expect(times).toEqual([...times].sort((a, b) => a - b));
   });
 
+  it('an entry with its own time is reminded then, not at the reminder time (D-336)', () => {
+    const records = new Map([
+      [
+        'habits',
+        [
+          habit('pill', '吃药', { plan: { repeat: 'daily', time: '13:30' } }),
+          habit('call', '打电话', { plan: { repeat: 'once', date: '2026-10-24', time: '08:15' } }),
+        ],
+      ],
+    ]);
+    const planned = planNotifications(c, records, now, 'zh');
+    const pill = planned.filter((n) => n.recordId === 'pill');
+    expect(pill[0]!.trigger).toEqual({ kind: 'date', at: atLocal('2026-10-22', '13:30') });
+    // 一次：只排那一次。
+    expect(planned.filter((n) => n.recordId === 'call').map((n) => n.trigger)).toEqual([
+      { kind: 'date', at: atLocal('2026-10-24', '08:15') },
+    ]);
+  });
+
   it('skips today when the time has passed, and does not count it', () => {
     const late = new Date(2026, 9, 22, 21);
     const records = new Map([['habits', [habit('run', '跑步', { plan: { repeat: 'daily' } })]]]);

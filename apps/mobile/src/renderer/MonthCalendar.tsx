@@ -17,13 +17,21 @@ import {
   todayNumber,
   weekdayLabels,
 } from '@morph/core';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useMonthRecords } from '../data/records';
 import { t } from '../i18n';
 import type { RenderEnv } from './components';
-import { useCollection, useRecordRows, type RecordListProps, type Tone } from './data';
+import {
+  AddHere,
+  openAddHere,
+  useCollection,
+  useRecordRows,
+  type RecordListProps,
+  type Tone,
+} from './data';
 import { UiIcon } from './Icon';
 import { Card } from './ui';
 
@@ -67,7 +75,16 @@ export function MonthCalendar({
     cal,
   );
   const rows = useRecordRows(props, env, tone, collection, view);
+  const router = useRouter();
   if (!collection || !view || !rows) return null;
+  // 在选中的那天添加（D-339）：日期字段填这天，日程是「一次，这天」；日期时间、系统字段不预设。
+  const dateType = view.fields.find((f) => f.id === dateRef)?.type;
+  const dayPreset = (day: number): Record<string, unknown> => {
+    const date = dateOfDayNumber(day);
+    if (dateType === 'date') return { [dateRef]: date };
+    if (dateType === 'schedule') return { [dateRef]: { repeat: 'once', date } };
+    return {};
+  };
 
   const matched = filterRecords(records ?? [], view, props.filter, now, cal);
   const { days, max } = monthDays(
@@ -243,6 +260,19 @@ export function MonthCalendar({
               </Text>
             </Card>
           )}
+          {props.addHere ? (
+            <AddHere
+              testID="calendar-add-here"
+              label={t(locale, 'groupAdd', { group: dayTitle(selected, locale) })}
+              palette={palette}
+              onPress={
+                env.interactive
+                  ? (env.locked ??
+                    (() => openAddHere(router, collection, view, props, dayPreset(selected))))
+                  : undefined
+              }
+            />
+          ) : null}
         </>
       ) : null}
     </View>

@@ -678,3 +678,59 @@ describe('once and pending on records', () => {
     ).toEqual(['Report', 'Weekly']);
   });
 });
+
+// D-336：每种规则都可以带钟点。
+describe('a time on a schedule', () => {
+  it('reads and validates the time on any rule', () => {
+    expect(readSchedule({ repeat: 'once', date: '2026-11-05', time: '15:00' })).toEqual({
+      repeat: 'once',
+      date: '2026-11-05',
+      time: '15:00',
+    });
+    expect(readSchedule({ repeat: 'weekdays', days: [1], time: '09:30' })).toEqual({
+      repeat: 'weekdays',
+      days: [1],
+      time: '09:30',
+    });
+    expect(readSchedule({ repeat: 'daily', time: '24:00' })).toBeUndefined();
+    expect(readSchedule({ repeat: 'daily', time: '' })).toEqual({ repeat: 'daily' });
+  });
+
+  it('says the time in each language', () => {
+    const rule: ScheduleRule = { repeat: 'weekdays', days: [1], time: '09:00' };
+    expect(scheduleText(rule, 'zh')).toBe('每周一 09:00');
+    expect(scheduleText(rule, 'en')).toBe('Every Mon at 09:00');
+    expect(scheduleText(rule, 'fr')).toMatch(/à 09:00$/);
+  });
+
+  it('a once shows its day and time; the same day sorts by time, no time last', () => {
+    const tasks: Collection = {
+      id: 'tasks',
+      name: 'Tasks',
+      fields: [
+        { id: 'title', name: 'Title', type: 'text' },
+        { id: 'plan', name: 'Plan', type: 'schedule' },
+      ],
+    };
+    const task = (title: string, plan: unknown): DataRecord => ({
+      id: title,
+      collectionId: 'tasks',
+      values: { title, plan },
+      createdAt: 0,
+      updatedAt: 0,
+    });
+    const at = new Date(2026, 9, 22, 9);
+    const late = task('Late', { repeat: 'once', date: '2026-10-23', time: '18:00' });
+    const early = task('Early', { repeat: 'once', date: '2026-10-23', time: '08:00' });
+    const anytime = task('Anytime', { repeat: 'once', date: '2026-10-23' });
+    expect(formatRef(late, tasks, 'plan', 'zh', undefined, at)).toBe('明天 18:00');
+    expect(formatRef(late, tasks, 'plan', 'en', undefined, at)).toBe('Tomorrow at 18:00');
+    const sorted = sortRecords(
+      [anytime, late, early],
+      tasks,
+      { field: 'plan', direction: 'asc' },
+      at,
+    );
+    expect(sorted.map((r) => r.values.title)).toEqual(['Early', 'Late', 'Anytime']);
+  });
+});

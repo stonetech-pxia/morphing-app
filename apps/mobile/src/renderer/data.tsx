@@ -1,4 +1,6 @@
 import {
+  filterPresets,
+  listGroups,
   findDatePhrase,
   createInput,
   smartDateOf,
@@ -788,21 +790,155 @@ export function RecordList({
   tone?: Tone;
 }) {
   const { palette, locale } = env;
+  const router = useRouter();
   const { collection, view, loaded, sorted } = useListRecords(props, env);
   const rows = useRecordRows(props, env, tone, collection, view);
+  const linked = useLinkedGroups(env, view, props.groupBy);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   if (!collection || !view || !rows) return null;
-  const shown = sorted.slice(0, props.limit);
-
-  if (loaded && shown.length === 0) {
+  const add = (preset?: Record<string, unknown>) =>
+    env.interactive
+      ? (env.locked ?? (() => openAddHere(router, collection, view, props, preset)))
+      : undefined;
+  // D-337：分段。引用字段要等被引用的表读出来（linked 是 null 时还在读）。
+  if (props.groupBy && linked !== null) {
+    const groups = listGroups(sorted, view, props.groupBy, {
+      locale,
+      now: new Date(),
+      cal: calendarOf(env.config),
+      unit: props.groupUnit,
+      linked: linked ?? undefined,
+      showEmpty: props.showEmpty,
+    });
+    if (loaded && groups.length === 0) return <Empty props={props} env={env} rows={rows} />;
     return (
-      <Card palette={palette} background={rows.background}>
-        <Text style={[palette.font('body', 14), { color: palette.caption }]}>
-          {props.emptyText ?? t(locale, 'noRecords')}
-        </Text>
-      </Card>
+      <View style={{ gap: palette.gap - 4 }}>
+        {groups.map((g) => {
+          const closed = collapsed.has(g.key);
+          const toggle = () =>
+            setCollapsed((s) => {
+              const next = new Set(s);
+              if (closed) next.delete(g.key);
+              else next.add(g.key);
+              return next;
+            });
+          return (
+            <View key={g.key} style={{ gap: 6 }}>
+              <View style={styles.groupHeader}>
+                <Pressable
+                  testID={`group-${g.key}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: !closed }}
+                  accessibilityLabel={`${g.label} ${g.records.length}`}
+                  onPress={toggle}
+                  onLongPress={env.onLongPress}
+                  style={styles.groupTitle}>
+                  <UiIcon
+                    name={closed ? 'chevronRight' : 'chevronDown'}
+                    size={14}
+                    color={palette.muted}
+                  />
+                  <Text
+                    style={[palette.font('bodyBold', 15), { color: palette.text }]}
+                    numberOfLines={1}>
+                    {g.label}
+                  </Text>
+                  <Text style={[palette.font('bodyMedium', 13), { color: palette.caption }]}>
+                    {g.records.length}
+                  </Text>
+                </Pressable>
+                {props.addHere && g.key !== 'overdue' ? (
+                  <Pressable
+                    testID={`group-add-${g.key}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={t(locale, 'groupAdd', { group: g.label })}
+                    onPress={add(g.preset === undefined ? {} : { [props.groupBy!]: g.preset })}
+                    hitSlop={8}
+                    style={styles.groupAdd}>
+                    <UiIcon name="add" size={18} color={palette.primaryText} />
+                  </Pressable>
+                ) : null}
+              </View>
+              {closed || g.records.length === 0 ? null : rows.list(g.records.slice(0, props.limit))}
+            </View>
+          );
+        })}
+      </View>
     );
   }
-  return rows.list(shown);
+  const shown = sorted.slice(0, props.limit);
+  if (loaded && shown.length === 0)
+    return <Empty props={props} env={env} rows={rows} add={add()} />;
+  return props.addHere ? (
+    <View style={{ gap: 6 }}>
+      {rows.list(shown)}
+      <AddHere label={t(locale, 'entryFormAdd')} onPress={add()} palette={palette} />
+    </View>
+  ) : (
+    rows.list(shown)
+  );
+}
+
+function Empty({
+  props,
+  env,
+  rows,
+  add,
+}: {
+  props: RecordListProps;
+  env: RenderEnv;
+  rows: { background: string };
+  add?: (() => void) | undefined;
+}) {
+  const { palette, locale } = env;
+  return (
+    <Card palette={palette} background={rows.background}>
+      <Text style={[palette.font('body', 14), { color: palette.caption }]}>
+        {props.emptyText ?? t(locale, 'noRecords')}
+      </Text>
+      {props.addHere ? (
+        <AddHere label={t(locale, 'entryFormAdd')} onPress={add} palette={palette} />
+      ) : null}
+    </Card>
+  );
+}
+
+/** 列表、月历当天下面的「+ 添加」（D-339）。 */
+export function AddHere({
+  label,
+  onPress,
+  palette,
+  testID = 'list-add-here',
+}: {
+  label: string;
+  onPress: (() => void) | undefined;
+  palette: Palette;
+  testID?: string;
+}) {
+  return (
+    <Pressable testID={testID} accessibilityRole="button" onPress={onPress} style={styles.addHere}>
+      <UiIcon name="add" size={18} color={palette.primaryText} />
+      <Text style={[palette.font('bodyBold', 14), { color: palette.primaryText }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/**
+ * 就地添加（D-339）：打开新记录的表单，预设列表筛选里的「等于」条件（给一条记录用的页面上已经换成这条，
+ * D-332）和这一段、这一天的值。用户补完再保存。
+ */
+export function openAddHere(
+  router: ReturnType<typeof useRouter>,
+  collection: Collection,
+  view: Collection,
+  props: Pick<RecordListProps, 'filter'>,
+  preset: Record<string, unknown> = {},
+) {
+  const prefill = { ...filterPresets(view, props.filter), ...preset };
+  router.push({
+    pathname: '/record/[collectionId]',
+    params: { collectionId: collection.id, prefill: JSON.stringify(prefill) },
+  });
 }
 
 /** 记录列表要显示的记录：筛选、排好序，还没截到 limit 条（看板按栏截，D-313）。 */
@@ -1390,6 +1526,16 @@ const styles = StyleSheet.create({
   note: { minHeight: 110, textAlignVertical: 'top' },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   smartDate: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+  groupHeader: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
+  groupTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+  groupAdd: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  addHere: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    minHeight: 44,
+  },
   smartDismiss: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {

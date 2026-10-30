@@ -50,7 +50,7 @@ export const scheduleField: FieldDefinitionOf<'schedule', typeof schema> = defin
     ];
   },
   ai: {
-    doc: '{default?: Rule, lastDone?: fieldId of a date, datetime or rollup field, countEarly?: true} (a repeat rule each entry keeps; rule 48; once and countEarly: rule 58)',
+    doc: '{default?: Rule, lastDone?: fieldId of a date, datetime or rollup field, countEarly?: true} (a repeat rule each entry keeps; rule 48; once and countEarly: rule 58; a time on a rule: rule 62)',
   },
   example: {
     id: 'plan',

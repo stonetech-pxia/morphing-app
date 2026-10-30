@@ -269,6 +269,12 @@ export const migrateV28toV29: Migration = (config) => ({ ...config, schemaVersio
  */
 export const migrateV29toV30: Migration = (config) => ({ ...config, schemaVersion: 30 });
 
+/**
+ * v30 → v31：日程规则的钟点（D-336）、记录列表分段（groupBy、groupUnit、showEmpty，D-337）、月历认日程
+ * （D-338）、就地添加（addHere，D-339）。都是新的可选值，只提升版本号。
+ */
+export const migrateV30toV31: Migration = (config) => ({ ...config, schemaVersion: 31 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -300,6 +306,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   27: migrateV27toV28,
   28: migrateV28toV29,
   29: migrateV29toV30,
+  30: migrateV30toV31,
 };
 
 export type MigrateResult =

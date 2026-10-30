@@ -2,6 +2,7 @@ import {
   dateOfDayNumber,
   findDatePhrase,
   monthName,
+  normalizeTime,
   readSchedule,
   scheduleText,
   todayNumber,
@@ -295,12 +296,29 @@ export function ScheduleInput({
       <View style={styles.chips}>
         {KINDS.map(([repeat, key]) =>
           chip(repeat, t(locale, key), rule?.repeat === repeat, () =>
-            rule?.repeat === repeat ? undefined : set(start(repeat)),
+            rule?.repeat === repeat
+              ? undefined
+              : set({ ...start(repeat), ...(rule?.time ? { time: rule.time } : {}) }),
           ),
         )}
         {chip('none', t(locale, 'scheduleNone'), rule === undefined, () => onChange(''))}
       </View>
       {details()}
+      {rule ? (
+        <View style={styles.line}>
+          {caption(t(locale, 'scheduleTimeLabel'))}
+          <TimeBox
+            time={rule.time}
+            onTime={(time) => {
+              const { time: _, ...rest } = rule;
+              onChange(time ? { ...rest, time } : rest);
+            }}
+            palette={palette}
+            disabled={disabled}
+            testID={`${testID}-time`}
+          />
+        </View>
+      ) : null}
       {rule && rule.repeat !== 'once' ? (
         <View style={styles.line}>
           {caption(t(locale, 'scheduleTimesPerDay'))}
@@ -323,6 +341,56 @@ export function ScheduleInput({
         </Text>
       ) : null}
     </View>
+  );
+}
+
+/**
+ * 几点（D-336）：写 8:05、08:05、8：05；离开输入框时整理成 HH:mm，清空就是不设，认不出来就恢复原来的。
+ */
+function TimeBox({
+  time,
+  onTime,
+  palette,
+  disabled,
+  testID,
+}: {
+  time: string | undefined;
+  onTime: (time: string | undefined) => void;
+  palette: Palette;
+  disabled?: boolean | undefined;
+  testID: string;
+}) {
+  const [text, setText] = useState(time ?? '');
+  const [shownFor, setShownFor] = useState(time);
+  if (time !== shownFor) {
+    setShownFor(time);
+    setText(time ?? '');
+  }
+  const commit = () => {
+    const typed = text.trim();
+    if (typed === '') return onTime(undefined);
+    const normal = normalizeTime(typed);
+    if (normal) onTime(normal);
+    else setText(time ?? '');
+  };
+  return (
+    <TextInput
+      testID={testID}
+      editable={!disabled}
+      value={text}
+      onChangeText={setText}
+      onEndEditing={commit}
+      onSubmitEditing={commit}
+      placeholder="HH:MM"
+      keyboardType="numbers-and-punctuation"
+      placeholderTextColor={palette.caption}
+      style={[
+        palette.font('bodyMedium', 15),
+        styles.dateBox,
+        styles.timeBox,
+        { color: palette.text, borderColor: palette.border, backgroundColor: palette.surface },
+      ]}
+    />
   );
 }
 
@@ -384,6 +452,7 @@ function OnceDateBox({
 
 const styles = StyleSheet.create({
   dateBox: { borderWidth: 1, borderRadius: 12, minHeight: 44, paddingHorizontal: 12 },
+  timeBox: { width: 110, textAlign: 'center' },
   group: { gap: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
