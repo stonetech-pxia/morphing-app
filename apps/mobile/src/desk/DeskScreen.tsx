@@ -556,6 +556,8 @@ export function DeskScreen({ deskId }: { deskId: string }) {
         <ScrollView
           horizontal
           testID="desk-strip"
+          // 一行普通高度（横向 ScrollView 默认 flexGrow: 1，会被撑开）。
+          style={styles.bar}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.strip}>
           {list.map((f, i) => {
@@ -851,7 +853,14 @@ const styles = StyleSheet.create({
   targets: { paddingHorizontal: 14, paddingTop: 6 },
   slot: { paddingHorizontal: 12, paddingVertical: 8 },
   error: { paddingHorizontal: 16, paddingVertical: 6 },
-  strip: { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  bar: { flexGrow: 0, flexShrink: 0 },
+  strip: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
   chip: {
     borderWidth: 1,
     borderRadius: 999,
