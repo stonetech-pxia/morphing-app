@@ -203,8 +203,8 @@ public class MorphVisionModule: Module {
       ]
     }
 
-    // 找纸张的候选（D-301）：文档分割（专门找纸张）的四边形和矩形检测的几个四边形，加一张长边约 500 的灰度图。
-    // 选哪个由 App 的 pickPaper 决定，和 Android 的扫描包同一套判断（D-300）。
+    // 找纸张的候选（D-327）：文档分割（专门找纸张）的四边形和矩形检测的几个四边形，加一张长边约 500 的灰度图。
+    // 选哪个由 App 的 pickPaper 决定，和 Android 的扫描包同一套判断（D-326）。
     AsyncFunction("detectDocument") { (uri: URL) -> [String: Any] in
       let image = try self.loadImage(uri)
       let size = image.extent.size
@@ -510,7 +510,7 @@ public class MorphVisionModule: Module {
     return image
   }
 
-  /** 给 pickPaper 的小灰度图（D-301）：长边 maxSide，每像素一个字节，第一行是图的顶上，base64。 */
+  /** 给 pickPaper 的小灰度图（D-327）：长边 maxSide，每像素一个字节，第一行是图的顶上，base64。 */
   private func grayThumbnail(_ image: CIImage, maxSide: Int) throws -> [String: Any] {
     let k = min(1, CGFloat(maxSide) / max(image.extent.width, image.extent.height))
     let w = max(1, Int((image.extent.width * k).rounded()))

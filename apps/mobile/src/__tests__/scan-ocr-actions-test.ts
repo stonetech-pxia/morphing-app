@@ -176,7 +176,7 @@ describe('scanner', () => {
     });
     packs.detected = [
       { tl: { x: 0, y: 0 }, tr: { x: 50, y: 0 }, br: { x: 50, y: 50 }, bl: { x: 0, y: 50 } },
-      // 页面给的四个点顺序不定，App 自己排（D-300）；有一个点凹进去时排不成凸四边形。
+      // 页面给的四个点顺序不定，App 自己排（D-326）；有一个点凹进去时排不成凸四边形。
       { ...paper, bl: { x: 1500, y: 1500 } },
     ];
     files.nextPhotos = [
@@ -188,7 +188,7 @@ describe('scanner', () => {
     expect(input.items.map((i) => i.quad)).toEqual([null, null]);
   });
 
-  it('starts from the whole photo, not the table, when the page fills the photo (D-300)', async () => {
+  it('starts from the whole photo, not the table, when the page fills the photo (D-326)', async () => {
     // 2026-10-29 真机：物业账单占满画面，找边只找到中间那张大表格的外框。
     const { files, packs, run, opened } = setup(toolWorkflow('scan', 'scan-straighten'), {
       corners: [paper],
@@ -218,7 +218,7 @@ describe('scanner', () => {
     });
   });
 
-  it('takes the sheet, not a box printed on it, when the page finds both (D-300)', async () => {
+  it('takes the sheet, not a box printed on it, when the page finds both (D-326)', async () => {
     const { files, packs, run, opened } = setup(toolWorkflow('scan', 'scan-straighten'), {
       corners: [paper],
     });
@@ -346,7 +346,7 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
     });
   });
 
-  it('takes the page, not the table frame, when Vision segmentation touches the photo edges (D-301)', async () => {
+  it('takes the page, not the table frame, when Vision segmentation touches the photo edges (D-327)', async () => {
     // 以前 iOS 原生的偏好：文档分割有两个以上的角贴边、矩形检测的框在照片里面时用矩形，纸占满画面时正好选中表格框。
     const { files, vision, run, opened } = setup(
       toolWorkflow('scan', 'scan-straighten'),

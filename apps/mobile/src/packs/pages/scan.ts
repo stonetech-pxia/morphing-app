@@ -2,7 +2,7 @@ import { packPage } from './common';
 
 // 扫描包页面（T5）：OpenCV.js 4.7.0 + jscanify 1.4.3，都是经典 UMD 脚本，从 blob: 地址插入 <script>。
 // OpenCV 的配置对象要在加载前放到 window.Module；不能 await cv（它是会无限循环的 thenable）。
-// 找边在缩到 1000 像素的副本上做，候选的角坐标换算回原图，连同一张小灰度图交给 App 挑（D-300）；透视矫正在原图上做（App 已把原图缩到 1677 万像素以内）。
+// 找边在缩到 1000 像素的副本上做，候选的角坐标换算回原图，连同一张小灰度图交给 App 挑（D-326）；透视矫正在原图上做（App 已把原图缩到 1677 万像素以内）。
 
 const SCRIPT = String.raw`
 let scanner = null;
@@ -23,7 +23,7 @@ function canvasOf(img, maxSide) {
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
   return { canvas: c, k };
 }
-// 找边的候选四边形（D-300）：jscanify 找到的最大轮廓，加上最大的亮区域（纸通常比背景亮：Otsu 二值、
+// 找边的候选四边形（D-326）：jscanify 找到的最大轮廓，加上最大的亮区域（纸通常比背景亮：Otsu 二值、
 // 闭运算后最大的外轮廓，凸包近似成四边形）。挑哪个由 App 决定（@morph/tool-image 的 pickPaper），
 // 每个候选是四个点（顺序不定），坐标在 mat 上。
 function paperCandidates(s, mat) {

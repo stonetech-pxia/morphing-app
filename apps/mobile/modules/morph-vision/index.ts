@@ -137,7 +137,7 @@ export interface MorphVisionModule {
     items: { text: string; x: number; y: number; width: number; height: number }[];
   }>;
   /**
-   * 找纸张的候选（D-301）：文档分割的四边形和矩形检测的几个四边形（像素，四个点 tl/tr/br/bl），
+   * 找纸张的候选（D-327）：文档分割的四边形和矩形检测的几个四边形（像素，四个点 tl/tr/br/bl），
    * 加一张长边约 500 的灰度图（每像素一个字节，base64）。选哪个由 App 的 pickPaper 决定。
    */
   detectDocument(uri: string): Promise<{

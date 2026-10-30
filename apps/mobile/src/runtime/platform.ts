@@ -223,7 +223,7 @@ export interface VisionPlatform {
   readonly canFindPaper: boolean;
   /**
    * 找纸张的候选四边形（像素，已按拍摄方向摆正；四个点顺序不定）和一张小灰度图，
-   * 挑哪个由 App 的 pickPaper 决定，和扫描包一样（D-300、D-301）。
+   * 挑哪个由 App 的 pickPaper 决定，和扫描包一样（D-326、D-327）。
    */
   findPaper(uri: string): Promise<{ candidates: Point[][]; gray: GrayImage }>;
   /** 按四个角拉正，缩放到 size，存成本次运行的 JPG 临时文件。 */

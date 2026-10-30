@@ -24,7 +24,7 @@ import {
 
 // 扫描（T5）：找边 → 用户在本地确认或拖动四个角 → 透视矫正；增强用 Skia。
 // 找边和矫正在 iOS 上用系统的 Vision / Core Image（D-086），其他平台用扫描包页面（OpenCV.js）；
-// 两边都只给候选，选哪个是同一套 pickPaper（D-301）。
+// 两边都只给候选，选哪个是同一套 pickPaper（D-327）。
 // 系统文档相机拍的页面已经拉正，直接放行。
 
 type Impl = ActionImpl<RunServices>;
@@ -41,7 +41,7 @@ function usableQuad(quad: Quad, size: { width: number; height: number }): boolea
   return isConvexQuad(quad) && quadArea(quad) >= size.width * size.height * MIN_PAPER_SHARE;
 }
 
-/** 扫描包页面的找边结果：几个候选（每个四个点）和一张小灰度图，由 pickPaper 挑（D-300）。 */
+/** 扫描包页面的找边结果：几个候选（每个四个点）和一张小灰度图，由 pickPaper 挑（D-326）。 */
 interface PackDetect {
   candidates: Point[][];
   gray: { width: number; height: number; data: string };
@@ -104,7 +104,7 @@ export const SCAN_IMPLS: Record<string, Impl> = {
       const size = { width: item.width!, height: item.height! };
       let detected: Quad | null;
       try {
-        // 找边只给候选和灰度图，两个平台都用 pickPaper 挑（D-300、D-301）。
+        // 找边只给候选和灰度图，两个平台都用 pickPaper 挑（D-326、D-327）。
         let paper: { candidates: Point[][]; gray: GrayImage };
         if (vision) {
           paper = await vision.findPaper(item.uri);
