@@ -72,7 +72,7 @@ export const formComponent: LookDefinitionOf<'form', typeof shape> = defineLook(
   },
   edit: { text: [], style: ['tone'] },
   ai: {
-    doc: 'show {mode: "inline"|"sheet" (rule 64)}, tools: [{as: "submit", label, do: "create", table, ask: [field ids, 1-10], values? (preset values not shown; rule 59), smartDate? {from: a text field in ask, to: a date|datetime|schedule field} (rule 60)}]: "inline" adds records right on the page; "sheet" is a floating "+" (one per page, not in a group). Formula fields can\'t be asked; a file field lets the user add photos and files. A button that opens the full editor is a button with tools [{do: "create", table, ask: "all"}].',
+    doc: 'show {mode: "inline"|"sheet" (rule 45)}, tools: [{as: "submit", label, do: "create", table, ask: [field ids, 1-10], values? (preset values not shown; rule 48), smartDate? {from: a text field in ask, to: a date|datetime|schedule field} (rule 49)}]: "inline" adds records right on the page; "sheet" is a floating "+" (one per page, not in a group). Formula fields can\'t be asked; a file field lets the user add photos and files. A button that opens the full editor is a button with tools [{do: "create", table, ask: "all"}].',
   },
   example: {
     show: { mode: 'inline' },

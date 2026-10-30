@@ -55,7 +55,7 @@ export const rollupField: FieldDefinitionOf<'rollup', typeof schema> = defineFie
   inForm: false,
   filter: { is: isNumber, compare: 'number' },
   ai: {
-    doc: '{table, via, aggregate: "count"|"sum"|"avg"|"min"|"max"|"latest"|"streak"|"daysSince"|"avgInterval"|"distinctDays", field?, filter? (≤6; a period is an inPeriod condition), days? {date?, unit?, perUnit?, skip? {field, option}}} (computed: sums up the entries of `table` whose link field `via` picks this entry; rule 46)',
+    doc: '{table, via, aggregate: "count"|"sum"|"avg"|"min"|"max"|"latest"|"streak"|"daysSince"|"avgInterval"|"distinctDays", field?, filter? (≤6; a period is an inPeriod condition), days? {date?, unit?, perUnit?, skip? {field, option}}} (computed: sums up the entries of `table` whose link field `via` picks this entry; rule 42)',
   },
   example: {
     id: 'children',

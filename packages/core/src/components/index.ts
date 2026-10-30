@@ -20,6 +20,7 @@ export { LEAF_COMPONENTS, LeafComponentSchema } from './leaves';
 export { entryKind, entryEditableText } from './entry';
 export {
   RECORD_LOOKS,
+  RECORD_LOOK_DOC,
   RecordSourceSchema,
   TrailingFormatSchema,
   type RecordLook,

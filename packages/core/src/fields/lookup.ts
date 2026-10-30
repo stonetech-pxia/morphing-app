@@ -26,7 +26,7 @@ export const lookupField: FieldDefinitionOf<'lookup', typeof schema> = defineFie
   filter: { is: () => false, emptyOnly: true },
   sort: false,
   ai: {
-    doc: '{via, field} (computed, never typed in: the value of field `field` of the entry that the link field `via` of this table picks, shown, filtered, sorted and usable in formulas and stats like that field; rule 46)',
+    doc: '{via, field} (computed, never typed in: the value of field `field` of the entry that the link field `via` of this table picks, shown, filtered, sorted and usable in formulas and stats like that field; rule 42)',
   },
   example: {
     id: 'looked',

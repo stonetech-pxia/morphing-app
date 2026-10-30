@@ -43,7 +43,7 @@ export const buttonComponent: LookDefinitionOf<'button', typeof shape> = defineL
   describe: (c, _config, ctx) => t(ctx.locale, 'describe_button_d79ee', { v0: c.show.label }),
   edit: { text: [{ prop: 'label', max: 40 }], style: ['align'] },
   ai: {
-    doc: 'show {label, variant: "filled"|"outline"|"text"|"icon", icon?}, opens? (a page, a system entry or "tool:<id>") or tools? [one record tool]: icon shows before the label; variant "icon" shows only a round icon (needs icon; the label is still read by screen readers). opens "tool:<id>" (a quick action in tools[] or a built-in preset id) shows that quick action and the user taps Start; it never runs by itself. Instead of opens, tools: [{do: "create", table, values?, ask?: "all"}] or [{do: "setAll", table, filter?, field, value}] changes entries when tapped (rule 49).',
+    doc: 'show {label, variant: "filled"|"outline"|"text"|"icon", icon?}, opens? (a page, a system entry or "tool:<id>") or tools? [one record tool]: icon shows before the label; variant "icon" shows only a round icon (needs icon; the label is still read by screen readers). opens "tool:<id>" (a quick action in tools[] or a built-in preset id) shows that quick action and the user taps Start; it never runs by itself. Instead of opens, tools: [{do: "create", table, values?, ask?: "all"}] or [{do: "setAll", table, filter?, field, value}] changes entries when tapped (rule 44).',
   },
   example: { show: { label: 'Settings', variant: 'filled' }, opens: 'settings' },
 });

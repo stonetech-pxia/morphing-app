@@ -27,7 +27,7 @@ export const previousField: FieldDefinitionOf<'previous', typeof schema> = defin
   filter: { is: () => false, emptyOnly: true },
   sort: false,
   ai: {
-    doc: '{field, date?, within?} (computed: the value of `field` on the entry just before this one by date in the same table, or in the same group when `within` names a choice or link field; rule 47)',
+    doc: '{field, date?, within?} (computed: the value of `field` on the entry just before this one by date in the same table, or in the same group when `within` names a choice or link field; rule 42)',
   },
   example: { id: 'before', name: 'Before', type: 'previous', field: 'weight' },
 });

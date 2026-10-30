@@ -35,8 +35,8 @@ describe('system prompt', () => {
   it('describes the output format, the protected rule and every registered action', () => {
     const prompt = buildSystemPrompt(registry);
     for (const word of [
-      'setNavItems',
-      'removeWorkflowStep',
+      'updateContainer',
+      'removeTool',
       'restorePrevious',
       'protected',
       'pdf.merge',
@@ -54,7 +54,7 @@ describe('system prompt', () => {
     const prompt = buildSystemPrompt(registry);
     for (const option of OpSchema.options) expect(prompt).toContain(`"${option.shape.op.value}"`);
     for (const option of ComponentSchema.options) {
-      expect(prompt).toContain(`- ${option.shape.type.value} `);
+      expect(prompt).toContain(`- ${option.shape.look.value} `);
     }
     for (const icon of ICON_NAMES) expect(prompt).toContain(icon);
     for (const type of FieldSchema.options) expect(prompt).toContain(type.shape.type.value);
@@ -81,9 +81,19 @@ describe('user message context (D-124)', () => {
   it('carries both ordered workflow definitions for composition without file context', () => {
     const workspace = {
       ...config,
-      workflows: [
-        { id: 'first', name: 'First', steps: [{ id: 'pick', action: 'in.photos', params: {} }] },
-        { id: 'second', name: 'Second', steps: [{ id: 'pick', action: 'in.photos', params: {} }] },
+      tools: [
+        {
+          id: 'first',
+          kind: 'quickAction',
+          name: 'First',
+          steps: [{ id: 'pick', action: 'in.photos', params: {} }],
+        },
+        {
+          id: 'second',
+          kind: 'quickAction',
+          name: 'Second',
+          steps: [{ id: 'pick', action: 'in.photos', params: {} }],
+        },
       ],
     } as typeof config;
     const message = buildUserMessage(workspace, 'combine', 'en', {
@@ -102,7 +112,7 @@ describe('user message context (D-124)', () => {
   it('names the quick action the user opened AI from', () => {
     const withWf = {
       ...config,
-      workflows: [{ id: 'visa', name: '签证照片', steps: [] }],
+      tools: [{ id: 'visa', kind: 'quickAction', name: '签证照片', steps: [] }],
     } as unknown as typeof config;
     const message = buildUserMessage(withWf, '再小一点', 'zh', {
       kind: 'workflow',
@@ -157,12 +167,12 @@ describe('Claude planner', () => {
     const complete = vi
       .fn<Complete>()
       .mockResolvedValueOnce(
-        json({ kind: 'ops', ops: [{ op: 'setNavItems', items: ['page:missing'] }] }),
+        json({ kind: 'ops', ops: [{ op: 'updateContainer', nav: { bar: ['page:missing'] } }] }),
       )
       .mockResolvedValueOnce(
         json({
           kind: 'ops',
-          ops: [{ op: 'setNavItems', items: ['page:home', 'tools', 'settings'] }],
+          ops: [{ op: 'updateContainer', nav: { bar: ['page:home', 'tools', 'settings'] } }],
         }),
       );
     const result = await createClaudePlanner({ complete, registry, now }).plan(
@@ -171,7 +181,7 @@ describe('Claude planner', () => {
     );
     expect(result).toMatchObject({
       kind: 'ops',
-      ops: [{ op: 'setNavItems', items: ['page:home', 'tools', 'settings'] }],
+      ops: [{ op: 'updateContainer', nav: { bar: ['page:home', 'tools', 'settings'] } }],
     });
     const secondCall = complete.mock.calls[1]![0];
     expect(secondCall.map((m) => m.role)).toEqual(['user', 'assistant', 'user']);
@@ -199,7 +209,7 @@ describe('Claude planner', () => {
   it('after one repair, returns an invalid-but-well-formed plan for the app to reject', async () => {
     const bad = json({
       kind: 'ops',
-      ops: [{ op: 'removeComponent', pageId: 'home', componentId: 'nope' }],
+      ops: [{ op: 'removeContainer', page: 'home', block: 'nope' }],
     });
     const complete = vi.fn<Complete>().mockResolvedValue(bad);
     expect(
@@ -217,11 +227,11 @@ describe('Claude planner', () => {
     ).rejects.toThrow('unusable');
   });
 
-  it('expands addWorkflow {presetId, params} into the preset the user would get (D-259)', async () => {
+  it('expands addTool {tool: {preset, params}} into the preset the user would get (D-259)', async () => {
     const complete = vi.fn<Complete>().mockResolvedValue(
       json({
         kind: 'ops',
-        ops: [{ op: 'addWorkflow', presetId: 'visa-photo', params: { photo: { maxKB: 100 } } }],
+        ops: [{ op: 'addTool', tool: { preset: 'visa-photo', params: { photo: { maxKB: 100 } } } }],
       }),
     );
     const result = await createClaudePlanner({ complete, registry, now }).plan('加一个签证照', ctx);
@@ -230,8 +240,8 @@ describe('Claude planner', () => {
       kind: 'ops',
       ops: [
         {
-          op: 'addWorkflow',
-          workflow: {
+          op: 'addTool',
+          tool: {
             ...preset,
             steps: preset.steps.map((s) =>
               s.id === 'photo' ? { ...s, params: { ...s.params, maxKB: 100 } } : s,
@@ -246,21 +256,23 @@ describe('Claude planner', () => {
   it('sends a wrong preset id back to the model', async () => {
     const complete = vi
       .fn<Complete>()
-      .mockResolvedValueOnce(json({ kind: 'ops', ops: [{ op: 'addWorkflow', presetId: 'visa' }] }))
       .mockResolvedValueOnce(
-        json({ kind: 'ops', ops: [{ op: 'addWorkflow', presetId: 'visa-photo' }] }),
+        json({ kind: 'ops', ops: [{ op: 'addTool', tool: { preset: 'visa' } }] }),
+      )
+      .mockResolvedValueOnce(
+        json({ kind: 'ops', ops: [{ op: 'addTool', tool: { preset: 'visa-photo' } }] }),
       );
     const result = await createClaudePlanner({ complete, registry, now }).plan('加一个签证照', ctx);
-    expect(result).toMatchObject({ kind: 'ops', ops: [{ workflow: { presetId: 'visa-photo' } }] });
+    expect(result).toMatchObject({ kind: 'ops', ops: [{ tool: { preset: 'visa-photo' } }] });
     expect(String(complete.mock.calls[1]![0][2]!.content)).toContain('unknown preset "visa"');
   });
 
-  it('accepts setWorkflowHomeScreen after adding the preset in the same plan (D-271)', async () => {
+  it('accepts the phone home screen after adding the preset in the same plan (D-271)', async () => {
     const plan = {
       kind: 'ops',
       ops: [
-        { op: 'addWorkflow', presetId: 'visa-photo' },
-        { op: 'setWorkflowHomeScreen', workflowId: 'visa-photo', homeScreen: true },
+        { op: 'addTool', tool: { preset: 'visa-photo' } },
+        { op: 'updateContainer', nav: { phoneHomeScreen: ['visa-photo'] } },
       ],
     };
     const complete = vi.fn<Complete>().mockResolvedValue(json(plan));
@@ -271,19 +283,19 @@ describe('Claude planner', () => {
     expect(result).toMatchObject({
       kind: 'ops',
       ops: [
-        { op: 'addWorkflow', workflow: { id: 'visa-photo' } },
-        { op: 'setWorkflowHomeScreen', workflowId: 'visa-photo', homeScreen: true },
+        { op: 'addTool', tool: { id: 'visa-photo' } },
+        { op: 'updateContainer', nav: { phoneHomeScreen: ['visa-photo'] } },
       ],
     });
     expect(complete).toHaveBeenCalledTimes(1);
   });
 
-  it('sends a home screen mark on a missing quick action or inside addWorkflow back to the model', async () => {
+  it('sends a home screen mark on a missing quick action or inside addTool back to the model', async () => {
     const fixed = {
       kind: 'ops',
       ops: [
-        { op: 'addWorkflow', presetId: 'visa-photo' },
-        { op: 'setWorkflowHomeScreen', workflowId: 'visa-photo', homeScreen: true },
+        { op: 'addTool', tool: { preset: 'visa-photo' } },
+        { op: 'updateContainer', nav: { phoneHomeScreen: ['visa-photo'] } },
       ],
     };
     const missing = vi
@@ -291,14 +303,12 @@ describe('Claude planner', () => {
       .mockResolvedValueOnce(
         json({
           kind: 'ops',
-          ops: [{ op: 'setWorkflowHomeScreen', workflowId: 'visa-photo', homeScreen: true }],
+          ops: [{ op: 'updateContainer', nav: { phoneHomeScreen: ['visa-photo'] } }],
         }),
       )
       .mockResolvedValueOnce(json(fixed));
     await createClaudePlanner({ complete: missing, registry, now }).plan('把签证照片放到桌面', ctx);
-    expect(String(missing.mock.calls[1]![0][2]!.content)).toContain(
-      'workflow visa-photo not found',
-    );
+    expect(String(missing.mock.calls[1]![0][2]!.content)).toContain('tool visa-photo not found');
 
     const inside = vi
       .fn<Complete>()
@@ -307,8 +317,8 @@ describe('Claude planner', () => {
           kind: 'ops',
           ops: [
             {
-              op: 'addWorkflow',
-              workflow: {
+              op: 'addTool',
+              tool: {
                 ...presetWorkflow(presetById('visa-photo')!, 'zh', 'visa-photo'),
                 homeScreen: true,
               },
@@ -322,7 +332,10 @@ describe('Claude planner', () => {
       ctx,
     );
     expect(inside).toHaveBeenCalledTimes(2);
-    expect(result).toMatchObject({ kind: 'ops', ops: [{}, { op: 'setWorkflowHomeScreen' }] });
+    expect(result).toMatchObject({
+      kind: 'ops',
+      ops: [{}, { op: 'updateContainer', nav: { phoneHomeScreen: ['visa-photo'] } }],
+    });
   });
 
   it('turns a safety refusal into a polite rejection', async () => {

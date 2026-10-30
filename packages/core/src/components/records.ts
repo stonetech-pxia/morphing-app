@@ -165,17 +165,24 @@ function recordProblems(c: RecordBlock, { collection, config }: CheckContext): C
   return problems;
 }
 
+/**
+ * 六种记录块共用的写法（提示词里写一次，每种外观的 ai.doc 只写自己的部分）。
+ * limit 是每段 / 每栏 / 每天最多几条。
+ */
+export const RECORD_LOOK_DOC =
+  'source {table, filter?, sort? {field, direction: "asc"|"desc"}, limit (1-100; per section, column or day when grouped), group?}, show {title, subtitles? (≤2), trailing? (shown on the right, e.g. an amount), format? (rule 46), color? (calendar only), emptyText?}, tools?, opens? (a page for one entry, rule 48)';
+
 const DOCS: Record<RecordLook, string> = {
-  list: 'rows; tapping a record opens the built-in editor (or opens, a page for one entry)',
+  list: 'rows; tapping a row opens the built-in editor (or the page in opens)',
   cards: 'cards, one per entry',
   checklist:
     'rows with a check box: needs one tool {as: "check", do: "toggle", table, field: <a checkbox field>}',
   tiles:
-    'big round tiles (at most 24 shown): {as: "tap", …} is what a tap does (rule 53); without one a tap opens the entry',
+    'a grid of big circles, one per entry, show.title under each (at most 24 shown) ("习惯做成大圆块，点一下打卡", "Streaks-style habit grid"): a tap runs the first {as: "tap", label, when?, …} tool whose when matches (rule 44; e.g. on a habits table {as: "tap", label: "Done", do: "create", table: "check-ins", values: {habit: "$row"}}, or an increment); without one a tap opens the entry. show.trailing + show.format progress (rule 46) draws a ring around the circle that fills at the goal (e.g. a rollup "done today" with goal "daily-goal"); otherwise the trailing value is shown inside. Tiles never change entries by themselves',
   board:
-    'a board with one column per option of source.group.by (a choice or link field; link: rule 64) plus "not set"; dragging a card needs {as: "drag", do: "set", table, field: <the same field>, value: "$group"}, without it the board is read-only (rule 54)',
+    'a board with one column per option of source.group.by (a choice or link field; link: rule 45) plus "not set"; dragging a card needs {as: "drag", do: "set", table, field: <the same field>, value: "$group"}, without it the board is read-only (rule 45)',
   calendar:
-    'a month calendar: source.group {unit: "day", by?: a date, datetime or schedule field}, show.color? a choice field (rule 50)',
+    'a month calendar: source.group {unit: "day", by?: a date, datetime or schedule field}, show.color? a choice field (rule 45)',
 };
 
 const META: Record<RecordLook, NonNullable<LookMeta['tools']>> = {
@@ -227,7 +234,7 @@ function recordLook<L extends RecordLook>(look: L): LookDefinitionOf<L, typeof s
       t(ctx.locale, 'describe_list_0b528', { v0: collectionName(c.source.table, config) }),
     edit: { text: [], style: ['tone'] },
     ai: {
-      doc: `source {table, filter?, sort? {field, direction: "asc"|"desc"}, limit (1-100${look === 'tiles' ? '; at most 24 shown' : look === 'board' ? ', per column' : ''}), group?}, show {title, subtitles? (≤2), trailing? (shown on the right, e.g. an amount), format? (rule 51)${look === 'calendar' ? ', color?' : ''}, emptyText?}, tools?, opens?: ${DOCS[look]}`,
+      doc: DOCS[look],
     },
     example: {
       source: {

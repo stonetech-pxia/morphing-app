@@ -22,7 +22,7 @@ export const timeField: FieldDefinitionOf<'time', typeof schema> = defineField({
   format: (_f, v) => String(v),
   formula: 'time',
   filter: { is: (_f, v) => readTime(_f, v) !== undefined, compare: 'time' },
-  ai: { doc: '(a time of day "HH:mm"; rule 42)' },
+  ai: { doc: '(a time of day "HH:mm"; rule 40)' },
   example: { id: 'start', name: 'Start', type: 'time' },
   exampleValue: '08:30',
 });

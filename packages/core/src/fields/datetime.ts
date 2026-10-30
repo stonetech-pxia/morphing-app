@@ -50,7 +50,7 @@ export const datetimeField: FieldDefinitionOf<'datetime', typeof schema> = defin
   },
   day: (_f, v) => String(v).slice(0, 10),
   titleRank: 7,
-  ai: { doc: '{default?: "now"} (a date with a time of day; rule 42)' },
+  ai: { doc: '{default?: "now"} (a date with a time of day; rule 40)' },
   example: { id: 'when', name: 'When', type: 'datetime', default: 'now' },
   exampleValue: '2026-10-27T21:45',
 });

@@ -41,6 +41,7 @@ export {
   EntryLookSchema,
   GROUP_MAX_CHILDREN,
   RECORD_LOOKS,
+  RECORD_LOOK_DOC,
   UNKNOWN_LOOK,
   componentDefinition,
   componentRefs,

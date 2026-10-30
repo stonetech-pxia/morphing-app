@@ -111,7 +111,7 @@ export function createClaudePlanner(options: PlannerOptions): AIProvider {
 
         let issues: string[];
         const json = parseJson(completion.text);
-        // 预设的简写 addWorkflow {presetId, params?} 先展开成完整的快捷操作（D-259）。
+        // 预设的简写 addTool {tool: {preset, params?}} 先展开成完整的快捷操作（D-259）。
         const expanded = json.ok ? expandPresetWorkflows(json.value, ctx.config, ctx.locale) : null;
         const parsed =
           expanded && !expanded.issues.length ? PlanSchema.safeParse(expanded.value) : null;

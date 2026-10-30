@@ -162,7 +162,7 @@ export const IMAGE_ACTIONS: readonly ActionDefinition[] = [
 
   {
     id: 'image.removeBackground',
-    ai: '"Remove a photo background / cut out / white background" → this; mention the iOS 17+ / Google Play services requirement and the first model download. For an ID photo, the background of image.idPhoto replaces this step (rule 38); the user must still check the official requirements.',
+    ai: '"Remove a photo background / cut out / white background" → this; mention the iOS 17+ / Google Play services requirement and the first model download. For an ID photo, the background of image.idPhoto replaces this step (rule 36); the user must still check the official requirements.',
     label: { en: 'Remove background', zh: '去背景', fr: 'Supprimer le fond' },
     description: {
       en: 'Keep the main subjects and remove the background locally, producing PNG with transparency or a solid color. Requires iOS 17+ or Android Google Play services (first use downloads a model). Fine hair, transparent objects and unclear subjects may need another editor. Does not guarantee an official ID photo.',
@@ -924,7 +924,7 @@ export const IMAGE_COMPOSE_ACTIONS: readonly ActionDefinition[] = [
     // 提示词里只关于这个动作的规则。
     aiRules: [
       {
-        n: 38,
+        n: 36,
         text: 'ID photos with a background color or framed for the user ("blue background ID photo", "证件照换成白底", "center my face automatically") → set background on image.idPhoto ("white", "blue", "red", "gray", or "custom" with color "#RRGGBB"; "keep" leaves it) and autoCenter: true. This replaces image.removeBackground before image.idPhoto for ID photos. autoCenter only places the crop frame around the face at the head size the spec asks for; the user still confirms it on the device. Mention in a note that the result must still be checked against the official rules, and that the background needs iOS 15+ or Google Play services on Android.',
       },
     ],

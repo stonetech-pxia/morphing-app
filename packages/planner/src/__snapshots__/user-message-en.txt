@@ -1,7 +1,7 @@
 Interface language: English
 
 <workspace_config>
-{"schemaVersion":33,"theme":{"primaryColor":"#C8623A","mode":"light","colors":{},"font":"clay","fontScale":1,"radius":22,"density":"comfortable","cardStyle":"shadow","navStyle":"iconLabel"},"shell":{"nav":["page:home","tools","ai","history","settings"],"floating":[]},"pages":[{"id":"home","title":"Home","icon":"home","components":[{"id":"welcome","type":"header","props":{"title":"My workspace","subtitle":"Tap AI and describe how this app should change"}},{"id":"catalog","type":"catalogLink","props":{"title":"Add tools"}},{"id":"recent-files","type":"fileList","props":{"title":"Recent files","limit":5}}]}],"tools":[],"workflows":[],"collections":[]}
+{"schemaVersion":34,"theme":{"primaryColor":"#C8623A","mode":"light","colors":{},"font":"clay","fontScale":1,"radius":22,"density":"comfortable","cardStyle":"shadow","navStyle":"iconLabel"},"nav":{"bar":["page:home","tools","ai","history","settings"],"floating":[]},"data":{"tables":[]},"containers":{"pages":[{"id":"home","title":"Home","icon":"home","blocks":[{"id":"welcome","look":"header","show":{"title":"My workspace","subtitle":"Tap AI and describe how this app should change"}},{"id":"catalog","look":"entry","show":{"title":"Add tools","icon":"plus","shape":"tile","accent":true},"opens":"tools"},{"id":"recent-files","look":"files","show":{"title":"Recent files"},"source":{"table":"$files","filter":[{"field":"kind","op":"isNot","value":"image"}],"limit":5}}]}]},"tools":[],"packages":[]}
 </workspace_config>
 
 <user_request>
