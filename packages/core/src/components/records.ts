@@ -178,7 +178,7 @@ const DOCS: Record<RecordLook, string> = {
     'a month calendar: source.group {unit: "day", by?: a date, datetime or schedule field}, show.color? a choice field (rule 50)',
 };
 
-const META: Record<RecordLook, LookMeta['tools']> = {
+const META: Record<RecordLook, NonNullable<LookMeta['tools']>> = {
   list: {
     as: ['button', 'addHere'],
     do: ['create', 'set', 'toggle', 'increment'],

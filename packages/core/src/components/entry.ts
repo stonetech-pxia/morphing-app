@@ -34,7 +34,10 @@ const shape = {
 type EntryKind = 'shortcut' | 'link' | 'package' | 'file';
 
 /** 入口是哪一种（说明文字、编辑项按它分）：文件位、工具包的入口、「添加工具」那种主色入口、普通快捷入口。 */
-export function entryKind(c: { show?: { accent?: true } | undefined; opens: unknown }): EntryKind {
+export function entryKind(c: {
+  show?: { accent?: true | undefined } | undefined;
+  opens: unknown;
+}): EntryKind {
   const opens = c.opens as Parameters<typeof isFileTarget>[0];
   if (isFileTarget(opens)) return 'file';
   if (packageTargetId(opens) !== null) return 'package';
@@ -98,7 +101,10 @@ export const entryComponent: LookDefinitionOf<'entry', typeof shape> = defineLoo
 });
 
 /** 长按编辑里这个入口能改的文字（工具包的入口没有，文件位多一个提示）。 */
-export function entryEditableText(c: { show?: { accent?: true } | undefined; opens: unknown }) {
+export function entryEditableText(c: {
+  show?: { accent?: true | undefined } | undefined;
+  opens: unknown;
+}) {
   const kind = entryKind(c);
   if (kind === 'package') return [];
   const max = kind === 'link' ? 60 : 40;

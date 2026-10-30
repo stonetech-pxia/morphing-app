@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from './change';
 import type { DataRecord } from './data';
-import { createDefaultWorkspace } from './defaults';
 import { dayNumber } from './formula';
 import type { Op } from './ops';
 import {
@@ -18,11 +17,12 @@ import { scheduleOccurrences } from './schedule';
 import {
   MAX_RECORD_REMINDERS,
   MAX_REMINDERS,
+  remindersOf,
   type Collection,
   type Reminder,
   type WorkspaceConfig,
 } from './schema';
-import { registry } from './test-helpers';
+import { fromV33, registry, v33Fixture } from './test-helpers';
 
 // 按记录排的提醒（D-316–D-319）。
 
@@ -40,20 +40,21 @@ const checkins: Collection = {
   id: 'checkins',
   name: '打卡',
   fields: [
-    { id: 'habit', name: '习惯', type: 'link', collectionId: 'habits' },
+    { id: 'habit', name: '习惯', type: 'link', table: 'habits' },
     { id: 'day', name: '日期', type: 'date' },
   ],
 };
 const perHabit: Reminder = {
   id: 'habit',
+  kind: 'reminder',
   title: '该做了',
   enabled: true,
-  schedule: 'scheduleField',
-  time: '20:00',
-  collectionId: 'habits',
-  fieldId: 'plan',
+  when: { each: { table: 'habits', field: 'plan' }, at: '20:00' },
   opens: 'page:home',
 };
+const each = (table: string, field: string, at = '20:00') => ({
+  when: { each: { table, field }, at },
+});
 // 2026-10-22 是周四，中午。
 const now = new Date(2026, 9, 22, 12);
 const today = dayNumber('2026-10-22')!;
@@ -61,12 +62,8 @@ const ctx = { registry, locale: 'zh' as const, now };
 
 function prepare(ops: Op[]) {
   return prepareOps(
-    createDefaultWorkspace('zh'),
-    [
-      { op: 'addCollection', collection: habits },
-      { op: 'addCollection', collection: checkins },
-      ...ops,
-    ],
+    fromV33(v33Fixture('default-zh')),
+    [{ op: 'addData', table: habits }, { op: 'addData', table: checkins }, ...ops],
     ctx,
   );
 }
@@ -131,91 +128,90 @@ describe('reminder settings per entry (D-316)', () => {
   it('can be added with unless, done and snooze; described with the table and field', () => {
     const r: Reminder = {
       ...perHabit,
-      unless: { collectionId: 'checkins', within: 'day', link: 'habit' },
-      done: { do: 'create', collectionId: 'checkins', values: { habit: 'row', day: 'today' } },
+      unless: { table: 'checkins', within: 'day', link: 'habit' },
+      done: { do: 'create', table: 'checkins', values: { habit: '$row', day: 'today' } },
       snoozeMinutes: 10,
     };
-    const added = prepare([{ op: 'addReminder', reminder: r }]);
+    const added = prepare([{ op: 'addTool', tool: r }]);
     expect(added.ok).toBe(true);
     if (!added.ok) return;
-    expect(added.after.reminders).toEqual([r]);
+    expect(added.after.tools).toEqual([r]);
     expect(added.lines).toContain(
       '新建提醒「该做了」（「习惯」每条记录按自己的「日程」，在 20:00）',
     );
   });
 
   it('refuses settings that can’t work', () => {
-    const bad = (r: Partial<Reminder>) =>
-      prepare([{ op: 'addReminder', reminder: { ...perHabit, ...r } as Reminder }]).ok;
+    const bad = (r: Partial<Reminder> | Record<string, unknown>) =>
+      prepare([{ op: 'addTool', tool: { ...perHabit, ...r } as Reminder }]).ok;
     expect(bad({})).toBe(true);
-    expect(bad({ fieldId: 'last' })).toBe(false); // 不是日程字段
-    expect(bad({ collectionId: 'missing' })).toBe(false);
-    expect(bad({ unless: { collectionId: 'missing', within: 'day' } })).toBe(false);
-    expect(bad({ unless: { collectionId: 'checkins', within: 'day', link: 'day' } })).toBe(false);
-    expect(bad({ unless: { collectionId: 'checkins', within: 'day', dateField: 'habit' } })).toBe(
-      false,
-    );
+    expect(bad(each('habits', 'last'))).toBe(false); // 不是日程字段
+    expect(bad(each('missing', 'plan'))).toBe(false);
+    expect(bad({ unless: { table: 'missing', within: 'day' } })).toBe(false);
+    expect(bad({ unless: { table: 'checkins', within: 'day', link: 'day' } })).toBe(false);
+    expect(bad({ unless: { table: 'checkins', within: 'day', date: 'habit' } })).toBe(false);
     expect(
       bad({
         unless: {
-          collectionId: 'checkins',
+          table: 'checkins',
           within: 'week',
           filter: [{ field: 'nope', op: 'isNotEmpty' }],
         },
       }),
     ).toBe(false);
     // 「完成」不能写文字，increment 要数字字段。
-    expect(bad({ done: { do: 'set', fieldId: 'name', value: 'x' } })).toBe(false);
-    expect(bad({ done: { do: 'increment', fieldId: 'last', by: 1 } })).toBe(false);
-    expect(bad({ done: { do: 'set', fieldId: 'last', value: 'today' } })).toBe(true);
-    // 「完成」不能运行快捷操作，也不能打开表单。
-    expect(bad({ done: { do: 'open', collectionId: 'habits' } as never })).toBe(false);
+    expect(bad({ done: { do: 'set', table: 'habits', field: 'name', value: 'x' } })).toBe(false);
+    expect(bad({ done: { do: 'increment', table: 'habits', field: 'last', by: 1 } })).toBe(false);
+    expect(bad({ done: { do: 'set', table: 'habits', field: 'last', value: 'today' } })).toBe(true);
+    // 「完成」不能运行快捷操作，也不能打开表单（关系规则 13）。
+    expect(bad({ done: { tool: 'pdf-merge' } })).toBe(false);
+    expect(bad({ done: { do: 'create', table: 'checkins', ask: 'all' } })).toBe(false);
+    // 关系规则 12：在别的表新建要连回这一条。
+    expect(bad({ done: { do: 'create', table: 'checkins', values: { day: 'today' } } })).toBe(
+      false,
+    );
     expect(bad({ snoozeMinutes: 2 })).toBe(false);
-    // unless、done、snoozeMinutes 只用在 scheduleField 上。
-    expect(bad({ schedule: 'daily', snoozeMinutes: 10 })).toBe(false);
+    // unless、done、snoozeMinutes 只用在 when.each 上。
+    expect(bad({ when: { every: 'day', at: '09:00' }, snoozeMinutes: 10 })).toBe(false);
   });
 
   it('has its own limit and does not take the 20 places of other reminders', () => {
     const daily = (i: number): Reminder => ({
       id: `d${i}`,
+      kind: 'reminder',
       title: '记账',
       enabled: true,
-      schedule: 'daily',
-      time: '09:00',
+      when: { every: 'day', at: '09:00' },
       opens: 'page:home',
     });
     const full = Array.from({ length: MAX_REMINDERS }, (_, i) => ({
-      op: 'addReminder' as const,
-      reminder: daily(i),
+      op: 'addTool' as const,
+      tool: daily(i),
     }));
-    expect(prepare([...full, { op: 'addReminder', reminder: perHabit }]).ok).toBe(true);
-    expect(prepare([...full, { op: 'addReminder', reminder: daily(99) }]).ok).toBe(false);
+    expect(prepare([...full, { op: 'addTool', tool: perHabit }]).ok).toBe(true);
+    expect(prepare([...full, { op: 'addTool', tool: daily(99) }]).ok).toBe(false);
     const perEntry = Array.from({ length: MAX_RECORD_REMINDERS + 1 }, (_, i) => ({
-      op: 'addReminder' as const,
-      reminder: { ...perHabit, id: `h${i}` },
+      op: 'addTool' as const,
+      tool: { ...perHabit, id: `h${i}` },
     }));
     expect(prepare(perEntry.slice(0, MAX_RECORD_REMINDERS)).ok).toBe(true);
     expect(prepare(perEntry).ok).toBe(false);
   });
 
   it('removing the schedule field removes the reminder, and says so', () => {
-    const before = config([{ op: 'addReminder', reminder: perHabit }]);
-    const result = prepareOps(
-      before,
-      [{ op: 'removeField', collectionId: 'habits', fieldId: 'plan' }],
-      ctx,
-    );
+    const before = config([{ op: 'addTool', tool: perHabit }]);
+    const result = prepareOps(before, [{ op: 'removeData', table: 'habits', field: 'plan' }], ctx);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.after.reminders).toEqual([]);
+    expect(result.after.tools).toEqual([]);
     expect(result.lines.join('\n')).toContain('该做了');
   });
 
   it('reads the reminder table and the unless table', () => {
     const c = config([
       {
-        op: 'addReminder',
-        reminder: { ...perHabit, unless: { collectionId: 'checkins', within: 'day' } },
+        op: 'addTool',
+        tool: { ...perHabit, unless: { table: 'checkins', within: 'day' } },
       },
     ]);
     expect(reminderCollections(c)).toEqual(['habits', 'checkins']);
@@ -225,10 +221,10 @@ describe('reminder settings per entry (D-316)', () => {
 describe('planNotifications per entry (D-316, D-319)', () => {
   const c = config([
     {
-      op: 'addReminder',
-      reminder: {
+      op: 'addTool',
+      tool: {
         ...perHabit,
-        done: { do: 'set', fieldId: 'last', value: 'today' },
+        done: { do: 'set', table: 'habits', field: 'last', value: 'today' },
         snoozeMinutes: 15,
       },
     },
@@ -303,8 +299,8 @@ describe('planNotifications per entry (D-316, D-319)', () => {
 
   it('a time before the day starts falls on the next calendar date', () => {
     const night = config([
-      { op: 'setCalendar', dayStartHour: 4 },
-      { op: 'addReminder', reminder: { ...perHabit, time: '01:30' } },
+      { op: 'updateData', calendar: { dayStartHour: 4 } },
+      { op: 'addTool', tool: { ...perHabit, ...each('habits', 'plan', '01:30') } },
     ]);
     const records = new Map([['habits', [habit('run', '跑步', { plan: { repeat: 'daily' } })]]]);
     const planned = planNotifications(night, records, now, 'zh');
@@ -312,7 +308,7 @@ describe('planNotifications per entry (D-316, D-319)', () => {
   });
 
   it('turned off or broken reminders plan nothing', () => {
-    const off = config([{ op: 'addReminder', reminder: { ...perHabit, enabled: false } }]);
+    const off = config([{ op: 'addTool', tool: { ...perHabit, enabled: false } }]);
     const records = new Map([['habits', [habit('run', '跑步', { plan: { repeat: 'daily' } })]]]);
     expect(planNotifications(off, records, now, 'zh')).toEqual([]);
   });
@@ -330,16 +326,15 @@ describe('planNotifications per entry (D-316, D-319)', () => {
 
   it('counts daily and weekly reminders, date reminders and snoozes against the 64', () => {
     const withOthers = config([
-      { op: 'addReminder', reminder: perHabit },
+      { op: 'addTool', tool: perHabit },
       ...Array.from({ length: 10 }, (_, i) => ({
-        op: 'addReminder' as const,
-        reminder: {
+        op: 'addTool' as const,
+        tool: {
           id: `w${i}`,
+          kind: 'reminder' as const,
           title: '周报',
           enabled: true,
-          schedule: 'weekly' as const,
-          weekdays: [1, 2],
-          time: '09:00',
+          when: { every: 'week' as const, days: [1, 2], at: '09:00' },
           opens: 'page:home' as const,
         },
       })),
@@ -363,10 +358,10 @@ describe('planNotifications per entry (D-316, D-319)', () => {
 describe('unless (D-317)', () => {
   const linked = config([
     {
-      op: 'addReminder',
-      reminder: {
+      op: 'addTool',
+      tool: {
         ...perHabit,
-        unless: { collectionId: 'checkins', within: 'day', link: 'habit' },
+        unless: { table: 'checkins', within: 'day', link: 'habit' },
       },
     },
   ]);
@@ -389,14 +384,14 @@ describe('unless (D-317)', () => {
   it('within a week skips the rest of that week', () => {
     const weekly = config([
       {
-        op: 'addReminder',
-        reminder: {
+        op: 'addTool',
+        tool: {
           ...perHabit,
-          unless: { collectionId: 'checkins', within: 'week', link: 'habit' },
+          unless: { table: 'checkins', within: 'week', link: 'habit' },
         },
       },
     ]);
-    const r = weekly.reminders![0]!;
+    const r = remindersOf(weekly)[0]!;
     const records = new Map([['checkins', [checkin('c1', 'run', new Date(2026, 9, 20, 8))]]]);
     // 周二打过卡：这周（到周日 10-25）都不提醒，下周一照常。
     expect(reminderSkipped(r, run, today, weekly, records, now)).toBe(true);
@@ -407,19 +402,19 @@ describe('unless (D-317)', () => {
   it('uses the filter and the date field; without link any entry of the table counts', () => {
     const anyCheckin = config([
       {
-        op: 'addReminder',
-        reminder: {
+        op: 'addTool',
+        tool: {
           ...perHabit,
           unless: {
-            collectionId: 'checkins',
+            table: 'checkins',
             within: 'day',
-            dateField: 'day',
+            date: 'day',
             filter: [{ field: 'day', op: 'isNotEmpty' }],
           },
         },
       },
     ]);
-    const r = anyCheckin.reminders![0]!;
+    const r = remindersOf(anyCheckin)[0]!;
     const dated = (day?: string): DataRecord => ({
       ...checkin('c', 'other', new Date(2026, 0, 1)),
       values: { habit: 'other', ...(day ? { day } : {}) },
@@ -436,14 +431,14 @@ describe('unless (D-317)', () => {
   it('on the same table only looks at this entry itself', () => {
     const self = config([
       {
-        op: 'addReminder',
-        reminder: {
+        op: 'addTool',
+        tool: {
           ...perHabit,
-          unless: { collectionId: 'habits', within: 'day', dateField: 'last' },
+          unless: { table: 'habits', within: 'day', date: 'last' },
         },
       },
     ]);
-    const r = self.reminders![0]!;
+    const r = remindersOf(self)[0]!;
     const doneRun = habit('run', '跑步', { plan: { repeat: 'daily' }, last: '2026-10-22' });
     const records = new Map([['habits', [doneRun, read]]]);
     expect(reminderSkipped(r, doneRun, today, self, records, now)).toBe(true);
@@ -459,7 +454,7 @@ describe('reminderDoneInput (D-318)', () => {
   it('create makes a new entry linked to this one', () => {
     expect(
       reminderDoneInput(
-        { do: 'create', collectionId: 'checkins', values: { habit: 'row', day: 'today' } },
+        { do: 'create', table: 'checkins', values: { habit: '$row', day: 'today' } },
         c,
         habits,
         run,
@@ -467,26 +462,42 @@ describe('reminderDoneInput (D-318)', () => {
       ),
     ).toEqual({
       kind: 'create',
-      collection: c.collections.find((x) => x.id === 'checkins'),
+      collection: c.data.tables.find((x) => x.id === 'checkins'),
       input: { habit: 'run', day: '2026-10-22' },
     });
   });
 
   it('set and increment change this entry', () => {
     expect(
-      reminderDoneInput({ do: 'set', fieldId: 'last', value: 'today' }, c, habits, run, at),
+      reminderDoneInput(
+        { do: 'set', table: 'habits', field: 'last', value: 'today' },
+        c,
+        habits,
+        run,
+        at,
+      ),
     ).toEqual({ kind: 'update', input: { last: '2026-10-22' } });
     expect(
-      reminderDoneInput({ do: 'increment', fieldId: 'count', by: 1 }, c, habits, run, at),
+      reminderDoneInput(
+        { do: 'increment', table: 'habits', field: 'count', by: 1 },
+        c,
+        habits,
+        run,
+        at,
+      ),
     ).toEqual({ kind: 'update', input: { count: 3 } });
   });
 
   it('a field or table that is gone writes nothing', () => {
-    expect(reminderDoneInput({ do: 'set', fieldId: 'gone', value: 1 }, c, habits, run, at)).toBe(
-      null,
-    );
-    expect(reminderDoneInput({ do: 'create', collectionId: 'gone' }, c, habits, run, at)).toBe(
-      null,
-    );
+    expect(
+      reminderDoneInput(
+        { do: 'set', table: 'habits', field: 'gone', value: 1 },
+        c,
+        habits,
+        run,
+        at,
+      ),
+    ).toBe(null);
+    expect(reminderDoneInput({ do: 'create', table: 'gone' }, c, habits, run, at)).toBe(null);
   });
 });

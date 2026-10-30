@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { createDefaultWorkspace } from '../defaults';
+import { quickActionsOf } from '../schema';
 import { apply, registry, workspace } from '../test-helpers';
 import {
   defaultParams,
@@ -12,7 +13,7 @@ import {
 } from './check';
 import { acceptsType } from './contract';
 
-const merge = () => workspace('zh', { withPdf: true }).workflows[0]!;
+const merge = () => quickActionsOf(workspace('zh', { withPdf: true }))[0]!;
 
 describe('action contracts', () => {
   it.each([...registry.actions.values()].map((a) => [a.id, a] as const))(
@@ -42,10 +43,10 @@ describe('built-in tools', () => {
       for (const locale of ['zh', 'en'] as const) {
         const config = apply(
           createDefaultWorkspace(locale),
-          [{ op: 'installTool', toolId }],
+          [{ op: 'setPackage', package: toolId, do: 'add' }],
           locale,
         );
-        const own = config.workflows.filter((w) => w.toolId === toolId);
+        const own = quickActionsOf(config).filter((w) => w.package === toolId);
         // 报表工具没有自带的工作流（要先有数据表）。
         if (toolId !== 'print') expect(own.length).toBeGreaterThan(0);
         for (const wf of own) expect(workflowProblems(wf, registry)).toEqual([]);
@@ -99,7 +100,7 @@ describe('types', () => {
       { id: 'pick', action: 'in.videos', params: { min: 1, max: 2 } },
       { id: 'merge', action: 'pdf.merge', params: {} },
     ];
-    const wf = { id: 'v', name: 'v', steps };
+    const wf = { id: 'v', kind: 'quickAction' as const, name: 'v', steps };
     expect(workflowProblems(wf, registry)).toEqual([
       expect.objectContaining({
         code: 'binding',

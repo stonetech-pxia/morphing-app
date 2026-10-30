@@ -1,5 +1,4 @@
 import { DEFAULT_CALENDAR, type Calendar } from './calendar';
-import { chartDateField } from './chart';
 import { conditionProblems } from './conditions';
 import {
   aggregateRecords,
@@ -50,22 +49,24 @@ const tableOf = (collections: readonly Collection[], id: string) =>
 /** 引用字段指向的表。 */
 function linkTarget(collections: readonly Collection[], collection: Collection, linkId: string) {
   const link = fieldOf(collection, linkId);
-  return link?.type === 'link' ? tableOf(collections, link.collectionId) : undefined;
+  return link?.type === 'link' ? tableOf(collections, link.table) : undefined;
 }
 
-/** 汇总按哪个日期算（latest、按日子的聚合、period）：同统计和图表，默认第一个日期字段。 */
-const rollupDate = (source: Collection, f: FieldOf<'rollup'>) => chartDateField(source, f);
+/** 写了的日期，没写就是第一个日期字段，再没有就是第一个日期时间字段、创建时间（同统计和图表）。 */
+const dateOr = (collection: Collection, date: string | undefined): string =>
+  date ??
+  collection.fields.find((f) => f.type === 'date')?.id ??
+  collection.fields.find((f) => f.type === 'datetime')?.id ??
+  'createdAt';
+
+/** 汇总按哪个日期算（latest、按日子的聚合）：days.date，默认同上。 */
+const rollupDate = (source: Collection, f: FieldOf<'rollup'>) => dateOr(source, f.days?.date);
 
 /** 上一条按哪个日期排。 */
-const previousDate = (collection: Collection, f: FieldOf<'previous'>) =>
-  chartDateField(collection, f);
+const previousDate = (collection: Collection, f: FieldOf<'previous'>) => dateOr(collection, f.date);
 
-/** 汇总要满足的条件：filter 加上 period（按日期字段落在这段时间里）。 */
-function rollupConditions(source: Collection, f: FieldOf<'rollup'>): Condition[] {
-  const conditions = [...(f.filter ?? [])];
-  if (f.period) conditions.push({ field: rollupDate(source, f), op: 'inPeriod', value: f.period });
-  return conditions;
-}
+/** 汇总要满足的条件（v34：v33 的 period 迁移成了 filter 里的一条 inPeriod）。 */
+const rollupConditions = (f: FieldOf<'rollup'>): Condition[] => f.filter ?? [];
 
 /**
  * 一个字段直接用到哪些字段（同一张表或别的表）：查循环、算层数、决定先算哪个都用它。
@@ -83,21 +84,21 @@ function depsOf(
       return { refs: parsed.ok ? parsed.refs.map(here) : [], hop: false };
     }
     case 'lookup': {
-      const target = linkTarget(collections, collection, field.linkField);
-      const refs = [here(field.linkField)];
-      if (target) refs.push({ collectionId: target.id, fieldId: field.fieldId });
+      const target = linkTarget(collections, collection, field.via);
+      const refs = [here(field.via)];
+      if (target) refs.push({ collectionId: target.id, fieldId: field.field });
       return { refs, hop: true };
     }
     case 'rollup': {
-      const source = tableOf(collections, field.collectionId);
+      const source = tableOf(collections, field.table);
       if (!source) return { refs: [], hop: true };
       const there = (fieldId: string): Ref => ({ collectionId: source.id, fieldId });
       const ids = [
-        field.linkField,
-        field.fieldId,
+        field.via,
+        field.field,
         rollupDate(source, field),
-        field.skipField,
-        ...rollupConditions(source, field).map((c) => c.field),
+        field.days?.skip?.field,
+        ...rollupConditions(field).map((c) => c.field),
       ];
       return {
         refs: ids.flatMap((id) => (id && !isSystemField(id) ? [there(id)] : [])),
@@ -105,7 +106,7 @@ function depsOf(
       };
     }
     case 'previous': {
-      const ids = [field.fieldId, previousDate(collection, field), field.groupBy];
+      const ids = [field.field, previousDate(collection, field), field.within];
       return {
         refs: ids.flatMap((id) => (id && !isSystemField(id) ? [here(id)] : [])),
         hop: true,
@@ -162,25 +163,25 @@ function viewField(
   };
   switch (field.type) {
     case 'lookup': {
-      const target = linkTarget(collections, collection, field.linkField);
-      const src = target && valueOf({ collectionId: target.id, fieldId: field.fieldId });
+      const target = linkTarget(collections, collection, field.via);
+      const src = target && valueOf({ collectionId: target.id, fieldId: field.field });
       return src && renamed(src, field);
     }
     case 'previous': {
-      const src = valueOf({ collectionId: collection.id, fieldId: field.fieldId });
+      const src = valueOf({ collectionId: collection.id, fieldId: field.field });
       return src && renamed(src, field);
     }
     case 'rollup': {
-      const source = tableOf(collections, field.collectionId);
+      const source = tableOf(collections, field.table);
       if (!source) return undefined;
       if (field.aggregate === 'count' || isSequenceAggregate(field.aggregate)) return field;
       if (field.aggregate === 'latest') {
-        const ref = field.fieldId ?? rollupDate(source, field);
+        const ref = field.field ?? rollupDate(source, field);
         if (isSystemField(ref)) return { id: field.id, name: field.name, type: 'date' };
         const src = valueOf({ collectionId: source.id, fieldId: ref });
         return src && renamed(src, field);
       }
-      const src = field.fieldId && valueOf({ collectionId: source.id, fieldId: field.fieldId });
+      const src = field.field && valueOf({ collectionId: source.id, fieldId: field.field });
       if (!src || !NUMERIC_FIELD_TYPES.includes(src.type)) return undefined;
       // 评分的合计、平均不再是 1–5 的评分。
       if (src.type === 'rating') return { id: field.id, name: field.name, type: 'number' };
@@ -315,20 +316,20 @@ export function computeRecords(
     const list = rows(c.id);
     switch (f.type) {
       case 'lookup': {
-        const target = linkTarget(collections, c, f.linkField);
+        const target = linkTarget(collections, c, f.via);
         for (const r of list) {
-          const to = r.values[f.linkField];
+          const to = r.values[f.via];
           const linked = target && typeof to === 'string' ? recordById(target.id, to) : undefined;
-          put(r, f.id, linked && recordValue(linked, view(target!), f.fieldId, now, cal));
+          put(r, f.id, linked && recordValue(linked, view(target!), f.field, now, cal));
         }
         return;
       }
       case 'rollup': {
-        const source = tableOf(collections, f.collectionId);
+        const source = tableOf(collections, f.table);
         if (!source) return list.forEach((r) => put(r, f.id, undefined));
         const sv = view(source);
-        const index = linkIndex(source.id, f.linkField);
-        const conditions = rollupConditions(source, f);
+        const index = linkIndex(source.id, f.via);
+        const conditions = rollupConditions(f);
         const dateRef = rollupDate(source, f);
         for (const r of list) {
           let linked = index.get(r.id) ?? [];
@@ -357,7 +358,7 @@ export function computeRecords(
           put(r, f.id, undefined);
           const key = dateKey(r, cv, dateRef, now, cal);
           if (key === undefined) continue;
-          const g = f.groupBy ? r.values[f.groupBy] : '';
+          const g = f.within ? r.values[f.within] : '';
           const group = typeof g === 'string' ? g : '';
           const items = groups.get(group);
           if (items) items.push({ key, record: r });
@@ -366,7 +367,7 @@ export function computeRecords(
         for (const items of groups.values()) {
           let last: FieldValue | undefined;
           for (const { record } of items.sort(byDate)) {
-            const own = recordValue(record, cv, f.fieldId, now, cal);
+            const own = recordValue(record, cv, f.field, now, cal);
             put(record, f.id, last);
             if (own !== undefined) last = own;
           }
@@ -428,9 +429,9 @@ function rollupValue(
     case 'avg':
     case 'min':
     case 'max':
-      return aggregateRecords(linked, source, f.aggregate, f.fieldId) ?? undefined;
+      return aggregateRecords(linked, source, f.aggregate, f.field) ?? undefined;
     case 'latest': {
-      const ref = f.fieldId ?? dateRef;
+      const ref = f.field ?? dateRef;
       let best: { key: number | string; record: DataRecord; value: FieldValue } | undefined;
       for (const record of linked) {
         const key = dateKey(record, source, dateRef, now, cal);
@@ -441,20 +442,9 @@ function rollupValue(
       }
       return best?.value;
     }
-    default: {
-      const spec = {
-        aggregate: f.aggregate,
-        unit: f.unit,
-        perUnit: f.perUnit,
-        skip:
-          f.skipField && f.skipOption
-            ? { fieldId: f.skipField, optionId: f.skipOption }
-            : undefined,
-      };
-      return (
-        sequenceValue(linked, source, spec, { dateField: dateRef, now, cal }).value ?? undefined
-      );
-    }
+    default:
+      // 日期 = days.date（默认同 rollupDate），unit、perUnit、skip 也在 days 里。
+      return sequenceValue(linked, source, f.aggregate, f.days, now, cal).value ?? undefined;
   }
 }
 
@@ -468,7 +458,7 @@ export function relatedProblems(
   { config, collection }: FieldCheckContext,
 ): { code: string; message: string }[] {
   if (!isComputed(field)) return [];
-  const collections = config.collections;
+  const collections = config.data.tables;
   const problems = shapeProblems(collections, collection, field);
   if (problems.length === 0) {
     const start = { collectionId: collection.id, fieldId: field.id };
@@ -495,32 +485,32 @@ function shapeProblems(
 ): string[] {
   const missing = (c: Collection, id: string) =>
     `${id} is not a field of ${c.id} (fields: ${c.fields.map((f) => f.id).join(', ')})`;
-  const dateProblem = (c: Collection, id: string | undefined) => {
+  const dateProblem = (c: Collection, id: string | undefined, key: string) => {
     if (id === undefined || isSystemField(id)) return [];
     const f = fieldOf(expandCollection(collections, c), id);
     return f && DATE_TYPES.includes(f.type)
       ? []
-      : [`dateField ${id} must be a date or datetime field of ${c.id} or "createdAt"`];
+      : [`${key} ${id} must be a date or datetime field of ${c.id} or "createdAt"`];
   };
   switch (field.type) {
     case 'lookup': {
-      const link = fieldOf(collection, field.linkField);
+      const link = fieldOf(collection, field.via);
       if (link?.type !== 'link')
-        return [`linkField ${field.linkField} must be a link field of ${collection.id}`];
-      const target = tableOf(collections, link.collectionId);
+        return [`via ${field.via} must be a link field of ${collection.id}`];
+      const target = tableOf(collections, link.table);
       // 引用的表不存在：引用字段自己会报。
       if (!target) return [];
-      return fieldOf(target, field.fieldId) ? [] : [missing(target, field.fieldId)];
+      return fieldOf(target, field.field) ? [] : [missing(target, field.field)];
     }
     case 'previous': {
       const problems: string[] = [];
-      if (!fieldOf(collection, field.fieldId)) problems.push(missing(collection, field.fieldId));
-      problems.push(...dateProblem(collection, field.dateField));
-      if (field.groupBy !== undefined) {
-        const g = fieldOf(collection, field.groupBy);
+      if (!fieldOf(collection, field.field)) problems.push(missing(collection, field.field));
+      problems.push(...dateProblem(collection, field.date, 'date'));
+      if (field.within !== undefined) {
+        const g = fieldOf(collection, field.within);
         if (g?.type !== 'choice' && g?.type !== 'link')
           problems.push(
-            `groupBy ${field.groupBy} must be a choice or link field of ${collection.id}`,
+            `within ${field.within} must be a choice or link field of ${collection.id}`,
           );
       }
       return problems;
@@ -535,16 +525,15 @@ function rollupProblems(
   collection: Collection,
   f: FieldOf<'rollup'>,
   missing: (c: Collection, id: string) => string,
-  dateProblem: (c: Collection, id: string | undefined) => string[],
+  dateProblem: (c: Collection, id: string | undefined, key: string) => string[],
 ): string[] {
-  const source = tableOf(collections, f.collectionId);
-  if (!source) return [`collectionId ${f.collectionId} is not a data table`];
-  const link = fieldOf(source, f.linkField);
-  if (link?.type !== 'link')
-    return [`linkField ${f.linkField} must be a link field of ${source.id}`];
-  if (link.collectionId !== collection.id)
+  const source = tableOf(collections, f.table);
+  if (!source) return [`table ${f.table} is not a data table`];
+  const link = fieldOf(source, f.via);
+  if (link?.type !== 'link') return [`via ${f.via} must be a link field of ${source.id}`];
+  if (link.table !== collection.id)
     return [
-      `${source.id}.${f.linkField} links to ${link.collectionId}, not to ${collection.id}; a rollup counts the entries of ${source.id} whose link field points at this table`,
+      `${source.id}.${f.via} links to ${link.table}, not to ${collection.id}; a rollup counts the entries of ${source.id} whose link field points at this table`,
     ];
   const sv = expandCollection(collections, source);
   const problems: string[] = [];
@@ -554,34 +543,28 @@ function rollupProblems(
     f.aggregate === 'min' ||
     f.aggregate === 'max';
   if (numeric) {
-    const target = f.fieldId ? fieldOf(sv, f.fieldId) : undefined;
+    const target = f.field ? fieldOf(sv, f.field) : undefined;
     if (!target || !NUMERIC_FIELD_TYPES.includes(target.type))
       problems.push(
-        `${f.aggregate} needs fieldId set to a number, money, rating, duration or formula field of ${source.id}`,
+        `${f.aggregate} needs field set to a number, money, rating, duration or formula field of ${source.id}`,
       );
   } else if (f.aggregate === 'latest') {
-    if (f.fieldId && !fieldOf(sv, f.fieldId)) problems.push(missing(source, f.fieldId));
-  } else if (f.fieldId !== undefined)
-    problems.push('fieldId only applies to aggregate sum, avg, min, max and latest');
-  problems.push(...dateProblem(source, f.dateField));
+    if (f.field && !fieldOf(sv, f.field)) problems.push(missing(source, f.field));
+  } else if (f.field !== undefined)
+    problems.push('field only applies to aggregate sum, avg, min, max and latest');
+  const days = f.days;
+  problems.push(...dateProblem(source, days?.date, 'days.date'));
   if (f.aggregate !== 'streak') {
-    if (f.unit !== undefined || f.perUnit !== undefined || f.skipField || f.skipOption)
-      problems.push('unit, perUnit, skipField and skipOption only apply to aggregate "streak"');
-  } else {
-    if ((f.skipField === undefined) !== (f.skipOption === undefined))
+    if (days?.unit !== undefined || days?.perUnit !== undefined || days?.skip)
+      problems.push('days.unit, days.perUnit and days.skip only apply to aggregate "streak"');
+  } else if (days?.skip) {
+    const { field: skipId, option } = days.skip;
+    const skip = fieldOf(source, skipId);
+    if (skip?.type !== 'choice')
+      problems.push(`days.skip.field ${skipId} must be a choice field of ${source.id}`);
+    else if (!skip.options.some((o) => o.id === option))
       problems.push(
-        'skipField and skipOption go together: a choice field and one of its option ids',
-      );
-    const skip = f.skipField ? fieldOf(source, f.skipField) : undefined;
-    if (f.skipField && skip?.type !== 'choice')
-      problems.push(`skipField ${f.skipField} must be a choice field of ${source.id}`);
-    else if (
-      skip?.type === 'choice' &&
-      f.skipOption &&
-      !skip.options.some((o) => o.id === f.skipOption)
-    )
-      problems.push(
-        `skipOption must be an option id of ${skip.id}: ${skip.options.map((o) => o.id).join(', ')}`,
+        `days.skip.option must be an option id of ${skip.id}: ${skip.options.map((o) => o.id).join(', ')}`,
       );
   }
   problems.push(...conditionProblems(f.filter, sv));

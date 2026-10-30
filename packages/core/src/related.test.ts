@@ -11,8 +11,10 @@ import {
 } from './data';
 import { computeRecords, expandCollection, relatedCollectionIds } from './related';
 import type { Collection, Field, WorkspaceConfig } from './schema';
-import { registry, workspace } from './test-helpers';
+import { fromV33, registry, v33Fixture } from './test-helpers';
 import { validateWorkspace } from './validate';
+
+const workspace = (locale: 'en') => fromV33(v33Fixture(`default-${locale}`));
 
 // 查找、汇总、上一条（D-287–D-289）：值只在本机由记录算出来，配置里只有结构。
 
@@ -39,9 +41,9 @@ const shifts: Collection = {
   id: 'shifts',
   name: 'Shifts',
   fields: [
-    { id: 'job', name: 'Job', type: 'link', collectionId: 'jobs' },
+    { id: 'job', name: 'Job', type: 'link', table: 'jobs' },
     { id: 'hours', name: 'Hours', type: 'number', decimals: 1 },
-    { id: 'rate', name: 'Rate', type: 'lookup', linkField: 'job', fieldId: 'rate' },
+    { id: 'rate', name: 'Rate', type: 'lookup', via: 'job', field: 'rate' },
     { id: 'pay', name: 'Pay', type: 'formula', expression: '{hours} * {rate}', currency: 'EUR' },
   ],
 };
@@ -55,30 +57,28 @@ const habits: Collection = {
       id: 'streak',
       name: 'Streak',
       type: 'rollup',
-      collectionId: 'checkins',
-      linkField: 'habit',
+      table: 'checkins',
+      via: 'habit',
       aggregate: 'streak',
-      dateField: 'date',
-      skipField: 'status',
-      skipOption: 'skip',
+      days: { date: 'date', skip: { field: 'status', option: 'skip' } },
     },
     {
       id: 'last',
       name: 'Last time',
       type: 'rollup',
-      collectionId: 'checkins',
-      linkField: 'habit',
+      table: 'checkins',
+      via: 'habit',
       aggregate: 'latest',
-      fieldId: 'date',
+      field: 'date',
     },
     {
       id: 'times',
       name: 'Times',
       type: 'rollup',
-      collectionId: 'checkins',
-      linkField: 'habit',
+      table: 'checkins',
+      via: 'habit',
       aggregate: 'count',
-      period: 'thisWeek',
+      filter: [{ field: 'date', op: 'inPeriod', value: 'thisWeek' }],
     },
   ],
 };
@@ -86,7 +86,7 @@ const checkins: Collection = {
   id: 'checkins',
   name: 'Check-ins',
   fields: [
-    { id: 'habit', name: 'Habit', type: 'link', collectionId: 'habits' },
+    { id: 'habit', name: 'Habit', type: 'link', table: 'habits' },
     { id: 'date', name: 'Date', type: 'date' },
     {
       id: 'status',
@@ -115,7 +115,7 @@ const fuel: Collection = {
     },
     { id: 'date', name: 'Date', type: 'date' },
     { id: 'odo', name: 'Odometer', type: 'number', unit: 'km' },
-    { id: 'prev', name: 'Last', type: 'previous', fieldId: 'odo', groupBy: 'car' },
+    { id: 'prev', name: 'Last', type: 'previous', field: 'odo', within: 'car' },
     { id: 'km', name: 'Distance', type: 'formula', expression: '{odo} - {prev}', unit: 'km' },
   ],
 };
@@ -264,29 +264,29 @@ describe('rollup (D-288)', () => {
           id: 'total',
           name: 'Total',
           type: 'rollup',
-          collectionId: 'orders',
-          linkField: 'client',
+          table: 'orders',
+          via: 'client',
           aggregate: 'sum',
-          fieldId: 'amount',
+          field: 'amount',
         },
         {
           id: 'paid',
           name: 'Paid',
           type: 'rollup',
-          collectionId: 'orders',
-          linkField: 'client',
+          table: 'orders',
+          via: 'client',
           aggregate: 'sum',
-          fieldId: 'amount',
+          field: 'amount',
           filter: [{ field: 'paid', op: 'is', value: true }],
         },
         {
           id: 'avg',
           name: 'Average',
           type: 'rollup',
-          collectionId: 'orders',
-          linkField: 'client',
+          table: 'orders',
+          via: 'client',
           aggregate: 'avg',
-          fieldId: 'amount',
+          field: 'amount',
         },
       ],
     };
@@ -294,7 +294,7 @@ describe('rollup (D-288)', () => {
       id: 'orders',
       name: 'Orders',
       fields: [
-        { id: 'client', name: 'Client', type: 'link', collectionId: 'clients' },
+        { id: 'client', name: 'Client', type: 'link', table: 'clients' },
         { id: 'amount', name: 'Amount', type: 'money', currency: 'CNY' },
         { id: 'paid', name: 'Paid', type: 'checkbox' },
       ],
@@ -331,10 +331,10 @@ describe('rollup (D-288)', () => {
           id: 'days',
           name: 'Days',
           type: 'rollup',
-          collectionId: 'checkins',
-          linkField: 'habit',
+          table: 'checkins',
+          via: 'habit',
           aggregate: 'distinctDays',
-          dateField: 'at',
+          days: { date: 'at' },
         },
       ],
     };
@@ -401,14 +401,14 @@ describe('previous (D-289)', () => {
     ).toBe('1,000 km');
   });
 
-  it('without groupBy uses the whole table, ordered by the first date field', () => {
+  it('without within uses the whole table, ordered by the first date field', () => {
     const weight: Collection = {
       id: 'weight',
       name: 'Weight',
       fields: [
         { id: 'at', name: 'At', type: 'datetime' },
         { id: 'kg', name: 'kg', type: 'number', decimals: 1 },
-        { id: 'before', name: 'Before', type: 'previous', fieldId: 'kg' },
+        { id: 'before', name: 'Before', type: 'previous', field: 'kg' },
         {
           id: 'change',
           name: 'Change',
@@ -454,8 +454,8 @@ describe('what has to be loaded', () => {
       id: 'tips',
       name: 'Tips',
       fields: [
-        { id: 'shift', name: 'Shift', type: 'link', collectionId: 'shifts' },
-        { id: 'rate', name: 'Rate', type: 'lookup', linkField: 'shift', fieldId: 'rate' },
+        { id: 'shift', name: 'Shift', type: 'link', table: 'shifts' },
+        { id: 'rate', name: 'Rate', type: 'lookup', via: 'shift', field: 'rate' },
       ],
     };
     expect(relatedCollectionIds([...ALL, tips], tips).sort()).toEqual(['jobs', 'shifts', 'tips']);
@@ -477,10 +477,10 @@ describe('what has to be loaded', () => {
 });
 
 describe('checks (D-290)', () => {
-  const config = (collections: Collection[]): WorkspaceConfig => ({
-    ...workspace('en'),
-    collections,
-  });
+  const config = (collections: Collection[]): WorkspaceConfig => {
+    const c = workspace('en');
+    return { ...c, data: { ...c.data, tables: collections } };
+  };
   const problems = (collections: Collection[]) => {
     const r = validateWorkspace(config(collections), registry);
     return r.ok ? [] : r.issues.map((i) => i.message);
@@ -494,7 +494,7 @@ describe('checks (D-290)', () => {
     expect(problems(ALL)).toEqual([]);
   });
 
-  it('lookup: linkField must be a link field, fieldId a field of the linked table', () => {
+  it('lookup: via must be a link field, field a field of the linked table', () => {
     expect(
       problems([
         jobs,
@@ -502,11 +502,11 @@ describe('checks (D-290)', () => {
           id: 'x',
           name: 'X',
           type: 'lookup',
-          linkField: 'hours',
-          fieldId: 'rate',
+          via: 'hours',
+          field: 'rate',
         }),
       ]),
-    ).toEqual(['shifts.x: linkField hours must be a link field of shifts']);
+    ).toEqual(['shifts.x: via hours must be a link field of shifts']);
     expect(
       problems([
         jobs,
@@ -514,8 +514,8 @@ describe('checks (D-290)', () => {
           id: 'x',
           name: 'X',
           type: 'lookup',
-          linkField: 'job',
-          fieldId: 'nope',
+          via: 'job',
+          field: 'nope',
         }),
       ]),
     ).toEqual(['shifts.x: nope is not a field of jobs (fields: name, rate)']);
@@ -526,8 +526,8 @@ describe('checks (D-290)', () => {
       id: 'x',
       name: 'X',
       type: 'rollup',
-      collectionId: 'checkins',
-      linkField: 'habit',
+      table: 'checkins',
+      via: 'habit',
       aggregate: 'count',
     });
     expect(problems([bad, shifts, habits, checkins])).toEqual([
@@ -537,20 +537,20 @@ describe('checks (D-290)', () => {
       id: 'x',
       name: 'X',
       type: 'rollup',
-      collectionId: 'shifts',
-      linkField: 'job',
+      table: 'shifts',
+      via: 'job',
       aggregate: 'sum',
-      fieldId: 'job',
+      field: 'job',
     });
     expect(problems([sum, shifts])).toEqual([
-      'jobs.x: sum needs fieldId set to a number, money, rating, duration or formula field of shifts',
+      'jobs.x: sum needs field set to a number, money, rating, duration or formula field of shifts',
     ]);
     const filtered = withField(jobs, {
       id: 'x',
       name: 'X',
       type: 'rollup',
-      collectionId: 'shifts',
-      linkField: 'job',
+      table: 'shifts',
+      via: 'job',
       aggregate: 'count',
       filter: [{ field: 'hours', op: 'contains', value: 'a' }],
     });
@@ -559,14 +559,93 @@ describe('checks (D-290)', () => {
     ]);
   });
 
+  it('rollup: the day parameters live in days; unit, perUnit and skip are for streak only', () => {
+    const rollup = (extra: Record<string, unknown>): Field =>
+      ({ id: 'x', name: 'X', type: 'rollup', table: 'checkins', via: 'habit', ...extra }) as Field;
+    const others = [shifts, jobs, checkins];
+    expect(
+      problems([
+        withField(habits, rollup({ aggregate: 'count', days: { unit: 'week' } })),
+        ...others,
+      ]),
+    ).toEqual(['habits.x: days.unit, days.perUnit and days.skip only apply to aggregate "streak"']);
+    expect(
+      problems([
+        withField(
+          habits,
+          rollup({ aggregate: 'streak', days: { skip: { field: 'date', option: 'x' } } }),
+        ),
+        ...others,
+      ]),
+    ).toEqual(['habits.x: days.skip.field date must be a choice field of checkins']);
+    expect(
+      problems([
+        withField(
+          habits,
+          rollup({ aggregate: 'streak', days: { skip: { field: 'status', option: 'x' } } }),
+        ),
+        ...others,
+      ]),
+    ).toEqual(['habits.x: days.skip.option must be an option id of status: done, skip']);
+    expect(
+      problems([
+        withField(habits, rollup({ aggregate: 'distinctDays', days: { date: 'habit' } })),
+        ...others,
+      ]),
+    ).toEqual([
+      'habits.x: days.date habit must be a date or datetime field of checkins or "createdAt"',
+    ]);
+    // v33 的 period 迁移成 filter 里的一条 inPeriod：汇总字段没有 period 这个键了。
+    expect(
+      problems([withField(habits, rollup({ aggregate: 'count', period: 'thisWeek' })), ...others]),
+    ).not.toEqual([]);
+  });
+
+  it('rollup date: days.date, else the first date, else the first datetime, else createdAt', () => {
+    const logs = (fields: Field[]): Collection => ({
+      id: 'logs',
+      name: 'Logs',
+      fields: [{ id: 'habit', name: 'Habit', type: 'link', table: 'habits' }, ...fields],
+    });
+    const latest = (source: Collection, days?: Record<string, unknown>) => {
+      const h: Collection = {
+        id: 'habits',
+        name: 'Habits',
+        fields: [
+          { id: 'name', name: 'Name', type: 'text' },
+          {
+            id: 'last',
+            name: 'Last',
+            type: 'rollup',
+            table: 'logs',
+            via: 'habit',
+            aggregate: 'latest',
+            ...(days ? { days } : {}),
+          } as Field,
+        ],
+      };
+      const records = new Map([
+        ['habits', [rec('habits', 'h1', { name: 'Run' })]],
+        ['logs', [rec('logs', 'l1', { habit: 'h1', at: '2026-10-20T08:00', day: '2026-10-21' })]],
+      ]);
+      return computeRecords([h, source], 'habits', records, NOW)[0]!.values.last;
+    };
+    const at: Field = { id: 'at', name: 'At', type: 'datetime' };
+    const day: Field = { id: 'day', name: 'Day', type: 'date' };
+    expect(latest(logs([at, day]))).toBe('2026-10-21');
+    expect(latest(logs([at]))).toBe('2026-10-20T08:00');
+    expect(latest(logs([at, day]), { date: 'at' })).toBe('2026-10-20T08:00');
+    expect(latest(logs([]))).toMatch(/^2026-/);
+  });
+
   it('pay from a looked-up rate is a valid formula', () => {
     expect(problems([jobs, shifts])).toEqual([]);
     const text = withField(shifts, {
       id: 'x',
       name: 'X',
       type: 'lookup',
-      linkField: 'job',
-      fieldId: 'name',
+      via: 'job',
+      field: 'name',
     });
     const bad = withField(text, {
       id: 'y',
@@ -584,16 +663,16 @@ describe('checks (D-290)', () => {
       id: 'a',
       name: 'A',
       fields: [
-        { id: 'b', name: 'B', type: 'link', collectionId: 'b' },
-        { id: 'x', name: 'X', type: 'lookup', linkField: 'b', fieldId: 'y' },
+        { id: 'b', name: 'B', type: 'link', table: 'b' },
+        { id: 'x', name: 'X', type: 'lookup', via: 'b', field: 'y' },
       ],
     };
     const b: Collection = {
       id: 'b',
       name: 'B',
       fields: [
-        { id: 'a', name: 'A', type: 'link', collectionId: 'a' },
-        { id: 'y', name: 'Y', type: 'lookup', linkField: 'a', fieldId: 'x' },
+        { id: 'a', name: 'A', type: 'link', table: 'a' },
+        { id: 'y', name: 'Y', type: 'lookup', via: 'a', field: 'x' },
       ],
     };
     expect(problems([a, b])).toEqual([
@@ -623,8 +702,8 @@ describe('checks (D-290)', () => {
         id: `t${i}`,
         name: `T${i}`,
         fields: [
-          { id: 'up', name: 'Up', type: 'link', collectionId: `t${i - 1}` },
-          { id: 'l', name: 'L', type: 'lookup', linkField: 'up', fieldId: i === 2 ? 'v' : 'l' },
+          { id: 'up', name: 'Up', type: 'link', table: `t${i - 1}` },
+          { id: 'l', name: 'L', type: 'lookup', via: 'up', field: i === 2 ? 'v' : 'l' },
         ],
       });
     expect(problems(chain.slice(0, 4))).toEqual([]);
@@ -633,26 +712,31 @@ describe('checks (D-290)', () => {
     ]);
   });
 
-  it('previous: fieldId in this table, groupBy a choice or link field', () => {
+  it('previous: field in this table, within a choice or link field', () => {
     const bad = withField(fuel, {
       id: 'x',
       name: 'X',
       type: 'previous',
-      fieldId: 'odo',
-      groupBy: 'odo',
+      field: 'odo',
+      within: 'odo',
     });
-    expect(problems([bad])).toEqual(['fuel.x: groupBy odo must be a choice or link field of fuel']);
+    expect(problems([bad])).toEqual(['fuel.x: within odo must be a choice or link field of fuel']);
   });
 
   it('can’t be in a form', () => {
     const c = config([jobs, shifts]);
     const form = {
       id: 'form',
-      type: 'recordForm',
-      props: { collectionId: 'shifts', fieldIds: ['rate'], submitLabel: 'Add', mode: 'inline' },
+      look: 'form',
+      show: { mode: 'inline' },
+      tools: [{ as: 'submit', label: 'Add', do: 'create', table: 'shifts', ask: ['rate'] }],
     };
+    const pages = c.containers.pages;
     const r = validateWorkspace(
-      { ...c, pages: [{ ...c.pages[0]!, components: [form as never] }, ...c.pages.slice(1)] },
+      {
+        ...c,
+        containers: { pages: [{ ...pages[0]!, blocks: [form as never] }, ...pages.slice(1)] },
+      },
       registry,
     );
     expect(r.ok ? [] : r.issues.map((i) => i.message)).toContain(
@@ -707,10 +791,10 @@ describe('a schedule counting from a rollup (D-288 + D-293)', () => {
         id: 'logged',
         name: 'Logged',
         type: 'rollup',
-        collectionId: 'done',
-        linkField: 'chore',
+        table: 'done',
+        via: 'chore',
         aggregate: 'count',
-        dateField: 'date',
+        days: { date: 'date' },
       },
       { id: 'plan', name: 'Plan', type: 'schedule', lastDone: 'logged' },
     ],
@@ -719,7 +803,7 @@ describe('a schedule counting from a rollup (D-288 + D-293)', () => {
     id: 'done',
     name: 'Done',
     fields: [
-      { id: 'chore', name: 'Chore', type: 'link', collectionId: 'chores' },
+      { id: 'chore', name: 'Chore', type: 'link', table: 'chores' },
       { id: 'date', name: 'Date', type: 'date' },
     ],
   };
@@ -736,7 +820,8 @@ describe('a schedule counting from a rollup (D-288 + D-293)', () => {
   };
 
   it('is a valid lastDone source', () => {
-    const config = { ...workspace('en'), collections: [chores, doneLog] } as WorkspaceConfig;
+    const base = workspace('en');
+    const config = { ...base, data: { tables: [chores, doneLog] } } as WorkspaceConfig;
     expect(validateWorkspace(config, registry).ok).toBe(true);
   });
 

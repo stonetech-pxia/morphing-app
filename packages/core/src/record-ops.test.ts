@@ -1,20 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { prepareOps } from './change';
 import { prepareRecordValues, type DataRecord } from './data';
-import { createDefaultWorkspace } from './defaults';
 import {
   MAX_SET_ALL,
   createInput,
+  createPrefill,
   rowUpdateInput,
   setAllChanges,
   shownRowAction,
-  type RowAction,
+  type RecordTool,
+  type ToolUse,
 } from './record-ops';
 import type { Collection, WorkspaceConfig } from './schema';
-import { apply, registry } from './test-helpers';
+import { fromV33, registry, v33Fixture } from './test-helpers';
+import { validateWorkspace } from './validate';
 
-// 一键记录操作（D-300–D-304）。
+// 一键记录工具（D-300–D-304，v34 就地的工具）。
 process.env.TZ = 'Europe/Paris';
 
 const now = new Date(2026, 9, 29, 18, 5);
@@ -83,120 +84,104 @@ const linkedCheckins: Collection = {
   id: 'logs',
   name: 'Logs',
   fields: [
-    { id: 'habit', name: 'Habit', type: 'link', collectionId: 'habits' },
+    { id: 'habit', name: 'Habit', type: 'link', table: 'habits' },
     { id: 'day', name: 'Day', type: 'date' },
   ],
 };
 
-const base = () =>
-  apply(createDefaultWorkspace('en'), [
-    ...[habits, water, shifts, packing, habitList, linkedCheckins].map((collection) => ({
-      op: 'addCollection' as const,
-      collection,
-    })),
-  ]);
+const TABLES = [habits, water, shifts, packing, habitList, linkedCheckins];
 
-const button = (action: unknown, id = 'b1') => ({
-  op: 'addComponent',
-  pageId: 'home',
-  component: { id, type: 'button', props: { label: 'Go', variant: 'filled', action } },
+const base = (): WorkspaceConfig => {
+  const config = fromV33(v33Fixture('default-en'));
+  config.data.tables.push(...structuredClone(TABLES));
+  return config;
+};
+
+const button = (tool: unknown, id = 'b1') => ({
+  id,
+  look: 'button',
+  show: { label: 'Go', variant: 'filled' },
+  tools: [tool],
 });
-const list = (collectionId: string, rowActions: unknown, id = 'l1') => ({
-  op: 'addComponent',
-  pageId: 'home',
-  component: {
-    id,
-    type: 'recordList',
-    props: {
-      collectionId,
-      display: 'list',
-      titleField: collectionId === 'packing' ? 'item' : 'createdAt',
-      limit: 30,
-      rowActions,
-    },
-  },
+const list = (table: string, tools: unknown[], id = 'l1', look = 'list') => ({
+  id,
+  look,
+  source: { table, limit: 30 },
+  show: { title: table === 'packing' ? 'item' : 'createdAt' },
+  tools,
 });
 
-function problems(ops: unknown[], config: WorkspaceConfig = base()): string {
-  const r = prepareOps(config, ops, { registry, locale: 'en', now });
-  return r.ok ? '' : r.issues.join('\n');
+/** 把块放到首页（或者 page 指定的页面）上，返回校验问题的文字。 */
+function problems(blocks: unknown[], config: WorkspaceConfig = base(), pageId = 'home'): string {
+  const copy = structuredClone(config);
+  copy.containers.pages.find((p) => p.id === pageId)!.blocks.push(...(blocks as never[]));
+  const r = validateWorkspace(copy, registry);
+  return r.ok ? '' : r.issues.map((i) => i.message).join('\n');
 }
 
-describe('checking record actions', () => {
+describe('checking record tools', () => {
   it('accepts the typical set-ups', () => {
     expect(
       problems([
         // 一键打卡、喝水 +1、上班、旅行清单一键清空、打开新记录表单。
-        button({ do: 'create', collectionId: 'checkins', values: { habit: 'run', day: 'today' } }),
-        button({ do: 'create', collectionId: 'water', values: { glasses: 1 } }, 'b2'),
-        button({ do: 'create', collectionId: 'shifts', values: { start: 'now' } }, 'b3'),
+        button({ do: 'create', table: 'checkins', values: { habit: 'run', day: 'today' } }),
+        button({ do: 'create', table: 'water', values: { glasses: 1 } }, 'b2'),
+        button({ do: 'create', table: 'shifts', values: { start: 'now' } }, 'b3'),
         button(
           {
             do: 'setAll',
-            collectionId: 'packing',
+            table: 'packing',
             filter: [{ field: 'bag', op: 'is', value: 'carry' }],
-            fieldId: 'packed',
+            field: 'packed',
             value: false,
           },
           'b4',
         ),
-        button({ do: 'open', collectionId: 'checkins' }, 'b5'),
-        // 下班（结束为空时）、+1、标记、打卡这一行的习惯。
+        button({ do: 'create', table: 'checkins', ask: 'all' }, 'b5'),
+        // 下班（结束为空时）、+1、标记、打卡这一行的习惯、打开这一条。
         list('shifts', [
           {
+            as: 'button',
             label: 'Clock out',
             do: 'set',
-            fieldId: 'end',
+            table: 'shifts',
+            field: 'end',
             value: 'now',
             when: [{ field: 'end', op: 'isEmpty' }],
           },
-          { label: '+15 min', do: 'increment', fieldId: 'break', by: 15 },
+          {
+            as: 'button',
+            label: '+15 min',
+            do: 'increment',
+            table: 'shifts',
+            field: 'break',
+            by: 15,
+          },
+          { as: 'button', label: 'Edit', opens: 'record' },
+          { as: 'addHere', do: 'create', table: 'shifts', ask: 'all', values: '$here' },
         ]),
-        list('packing', [{ label: 'Packed', do: 'toggle', fieldId: 'packed' }], 'l2'),
+        list(
+          'packing',
+          [{ as: 'check', do: 'toggle', table: 'packing', field: 'packed' }],
+          'l2',
+          'checklist',
+        ),
         list(
           'habits',
           [
             {
+              as: 'tap',
               label: 'Done',
               do: 'create',
-              collectionId: 'logs',
-              values: { habit: 'row', day: 'today' },
+              table: 'logs',
+              values: { habit: '$row', day: 'today' },
             },
           ],
           'l3',
+          'tiles',
         ),
       ]),
     ).toBe('');
-  });
-
-  it('a button has exactly one of target or action', () => {
-    expect(
-      problems([
-        {
-          op: 'addComponent',
-          pageId: 'home',
-          component: { id: 'b', type: 'button', props: { label: 'Go', variant: 'filled' } },
-        },
-      ]),
-    ).toMatch(/needs exactly one of target .* or action/);
-    expect(
-      problems([
-        {
-          op: 'addComponent',
-          pageId: 'home',
-          component: {
-            id: 'b',
-            type: 'button',
-            props: {
-              label: 'Go',
-              variant: 'filled',
-              target: 'settings',
-              action: { do: 'open', collectionId: 'water' },
-            },
-          },
-        },
-      ]),
-    ).toMatch(/exactly one/);
   });
 
   it('text is never preset: it is the user’s content (D-042)', () => {
@@ -204,74 +189,78 @@ describe('checking record actions', () => {
       problems([
         button({
           do: 'create',
-          collectionId: 'checkins',
+          table: 'checkins',
           values: { habit: 'run', day: 'today', note: 'x' },
         }),
       ]),
     ).toMatch(/checkins\.note is a text field and can't be set by a button/);
     // 结构上就不允许任意文字（不是 ID 的写法）。
     expect(
-      problems([
-        button({ do: 'create', collectionId: 'water', values: { glasses: 'Two glasses!' } }),
-      ]),
+      problems([button({ do: 'create', table: 'water', values: { glasses: 'Two glasses!' } })]),
     ).not.toBe('');
   });
 
   it('values must match the field type, with messages the AI can act on', () => {
     const p = problems([
-      button({ do: 'create', collectionId: 'checkins', values: { habit: 'swim', day: 'now' } }),
+      button({ do: 'create', table: 'checkins', values: { habit: 'swim', day: 'now' } }),
     ]);
     expect(p).toMatch(
       /checkins\.habit is a choice field; the value must be one of its option ids \(run, read\)/,
     );
     expect(p).toMatch(/checkins\.day is a date field, so the value must be "today" or null/);
-    expect(
-      problems([list('shifts', [{ label: 'Out', do: 'set', fieldId: 'clock', value: 'today' }])]),
-    ).toMatch(/shifts\.clock is a time field, so the value must be "now" or null/);
-    expect(
-      problems([list('shifts', [{ label: 'Pay', do: 'set', fieldId: 'hours', value: 3 }])]),
-    ).toMatch(/hours is a formula field and can't be set/);
-    expect(problems([button({ do: 'create', collectionId: 'nope' })])).toMatch(
+    const set = (field: string, value: unknown) =>
+      problems([
+        list('shifts', [{ as: 'button', label: 'X', do: 'set', table: 'shifts', field, value }]),
+      ]);
+    expect(set('clock', 'today')).toMatch(
+      /shifts\.clock is a time field, so the value must be "now" or null/,
+    );
+    expect(set('hours', 3)).toMatch(/hours is a formula field and can't be set/);
+    expect(set('gone', 1)).toMatch(/gone is not a field of shifts \(fields: start, end/);
+    expect(set('pay', '$row')).toMatch(
+      /"\$row" only works on a link field, but shifts\.pay is a money field/,
+    );
+    expect(problems([button({ do: 'create', table: 'nope' })])).toMatch(
       /data table nope does not exist/,
     );
-    expect(
-      problems([list('shifts', [{ label: 'X', do: 'set', fieldId: 'gone', value: 1 }])]),
-    ).toMatch(/gone is not a field of shifts \(fields: start, end/);
   });
 
   it('increment only works on number, money and duration; toggle only on a checkbox', () => {
-    expect(
-      problems([list('packing', [{ label: '+1', do: 'increment', fieldId: 'packed', by: 1 }])]),
-    ).toMatch(
+    const one = (tool: Record<string, unknown>) =>
+      problems([list('packing', [{ as: 'button', label: 'X', table: 'packing', ...tool }])]);
+    expect(one({ do: 'increment', field: 'packed', by: 1 })).toMatch(
       /increment needs a number or money or duration field, but packing\.packed is checkbox/,
     );
-    expect(problems([list('packing', [{ label: 'T', do: 'toggle', fieldId: 'bag' }])])).toMatch(
-      /toggle needs a checkbox field/,
-    );
+    expect(one({ do: 'toggle', field: 'bag' })).toMatch(/toggle needs a checkbox field/);
     expect(
-      problems([list('shifts', [{ label: '0', do: 'increment', fieldId: 'pay', by: 0 }])]),
+      problems([
+        list('shifts', [
+          { as: 'button', label: '0', do: 'increment', table: 'shifts', field: 'pay', by: 0 },
+        ]),
+      ]),
     ).not.toBe('');
   });
 
   it('a create that would leave a required field empty is rejected', () => {
     expect(
-      problems([button({ do: 'create', collectionId: 'checkins', values: { habit: 'run' } })]),
+      problems([button({ do: 'create', table: 'checkins', values: { habit: 'run' } })]),
     ).toMatch(
-      /required field day would be empty; preset it, make it not required, or add form: true/,
+      /required field day would be empty; preset it, make it not required, or add ask: "all"/,
     );
   });
 
-  it('create with form: true opens the form with the presets, so required fields may stay empty', () => {
+  it('create with ask "all" opens the form with the presets, so required fields may stay empty', () => {
     expect(
       problems([
-        button({ do: 'create', collectionId: 'checkins', values: { habit: 'run' }, form: true }),
+        button({ do: 'create', table: 'checkins', values: { habit: 'run' }, ask: 'all' }),
         list('habits', [
           {
+            as: 'button',
             label: 'Log',
             do: 'create',
-            collectionId: 'logs',
-            values: { habit: 'row' },
-            form: true,
+            table: 'logs',
+            values: { habit: '$row' },
+            ask: 'all',
           },
         ]),
       ]),
@@ -279,32 +268,70 @@ describe('checking record actions', () => {
     // 预设的值照样检查。
     expect(
       problems([
-        button({ do: 'create', collectionId: 'checkins', values: { habit: 'swim' }, form: true }),
+        button({ do: 'create', table: 'checkins', values: { habit: 'swim' }, ask: 'all' }),
       ]),
     ).toMatch(/must be one of its option ids/);
   });
 
-  it('"row" is only for a row button’s create, on a link to the list’s table', () => {
+  it('ask: [fields] and smartDate only work in a form block', () => {
+    expect(problems([button({ do: 'create', table: 'shifts', ask: ['start'] })])).toMatch(
+      /ask: \[fields\] only works in a form block; use ask: "all"/,
+    );
     expect(
-      problems([button({ do: 'create', collectionId: 'logs', values: { habit: 'row' } })]),
-    ).toMatch(/link field logs\.habit can't be preset/);
+      problems([
+        button({
+          do: 'create',
+          table: 'shifts',
+          ask: 'all',
+          smartDate: { from: 'pay', to: 'start' },
+        }),
+      ]),
+    ).toMatch(/smartDate only works in a form block/);
+    const form = (smartDate: unknown) => ({
+      id: 'f1',
+      look: 'form',
+      show: { mode: 'inline' },
+      tools: [
+        { as: 'submit', label: 'Add', do: 'create', table: 'packing', ask: ['item'], smartDate },
+      ],
+    });
+    expect(problems([form({ from: 'item', to: 'bag' })])).toMatch(
+      /smartDate\.to bag must be a date, datetime or schedule field of packing/,
+    );
+    expect(problems([form({ from: 'bag', to: 'bag' })])).toMatch(
+      /smartDate\.from bag must be a text field listed in ask/,
+    );
+  });
+
+  it('"$row" is only for a create on each entry, on a link to the block’s table', () => {
+    expect(problems([button({ do: 'create', table: 'logs', values: { habit: '$row' } })])).toMatch(
+      /link field logs\.habit can't be preset/,
+    );
     expect(
       problems([
         list('water', [
-          { label: 'Log', do: 'create', collectionId: 'logs', values: { habit: 'row' } },
+          { as: 'button', label: 'Log', do: 'create', table: 'logs', values: { habit: '$row' } },
         ]),
       ]),
     ).toMatch(/must point at water/);
   });
 
-  it('setAll filters and row conditions are checked like component filters', () => {
+  it('"$record" works on a page for one entry, for a link to that table', () => {
+    const withPage = base();
+    withPage.containers.pages.push({ id: 'habit', title: 'Habit', of: 'habits', blocks: [] });
+    const log = button({ do: 'create', table: 'logs', values: { habit: '$record', day: 'today' } });
+    expect(problems([log], withPage, 'habit')).toBe('');
+    expect(problems([log])).toMatch(/"\$record" only works on a page for one entry/);
+  });
+
+  it('setAll filters and button conditions are checked like block filters', () => {
     expect(
       problems([
         button({
           do: 'setAll',
-          collectionId: 'packing',
+          table: 'packing',
           filter: [{ field: 'bag', op: 'is', value: 'boot' }],
-          fieldId: 'packed',
+          field: 'packed',
           value: false,
         }),
       ]),
@@ -313,124 +340,361 @@ describe('checking record actions', () => {
       problems([
         list('shifts', [
           {
+            as: 'button',
             label: 'Out',
             do: 'set',
-            fieldId: 'end',
+            table: 'shifts',
+            field: 'end',
             value: 'now',
             when: [{ field: 'nope', op: 'isEmpty' }],
           },
         ]),
       ]),
-    ).toMatch(/row button "Out" when: filter field nope/);
+    ).toMatch(/list l1 button "Out" when: filter field nope/);
   });
 
   it('a done button on a schedule’s last-done date must not hide once it is set', () => {
     // 每周的事点过一次就不再有按钮，下周没法完成（真搭 Todoist 样板时 AI 写过）。
-    const todos = apply(base(), [
-      {
-        op: 'addCollection',
-        collection: {
-          id: 'todos',
-          name: 'To-dos',
-          fields: [
-            { id: 'title', name: 'Title', type: 'text', required: true },
-            { id: 'done', name: 'Done on', type: 'date' },
-            {
-              id: 'plan',
-              name: 'Plan',
-              type: 'schedule',
-              default: { repeat: 'once' },
-              lastDone: 'done',
-            },
-          ],
+    const todos = base();
+    todos.data.tables.push({
+      id: 'todos',
+      name: 'To-dos',
+      fields: [
+        { id: 'title', name: 'Title', type: 'text', required: true },
+        { id: 'done', name: 'Done on', type: 'date' },
+        {
+          id: 'plan',
+          name: 'Plan',
+          type: 'schedule',
+          default: { repeat: 'once' },
+          lastDone: 'done',
         },
-      },
-    ]);
+      ],
+    });
     const done = (when?: unknown) =>
       list('todos', [
-        { label: 'Done', do: 'set', fieldId: 'done', value: 'today', ...(when ? { when } : {}) },
+        {
+          as: 'button',
+          label: 'Done',
+          do: 'set',
+          table: 'todos',
+          field: 'done',
+          value: 'today',
+          ...(when ? { when } : {}),
+        },
       ]);
     expect(problems([done([{ field: 'done', op: 'isEmpty' }])], todos)).toMatch(
-      /row button "Done": done is the last-done date of plan.*drop the when/,
+      /button "Done": done is the last-done date of plan.*drop the when/,
     );
     expect(problems([done()], todos)).toBe('');
   });
+
+  it('labels: a button or tap on each entry needs one (≤20); a form submit may have 30', () => {
+    const set = { do: 'toggle', table: 'packing', field: 'packed' };
+    expect(problems([list('packing', [{ as: 'button', ...set }])])).toMatch(/needs a label/);
+    expect(
+      problems([list('packing', [{ as: 'button', label: 'A label that is too long', ...set }])]),
+    ).toMatch(/label can be at most 20 characters/);
+    const form = (label: string) => ({
+      id: 'f1',
+      look: 'form',
+      show: { mode: 'inline' },
+      tools: [{ as: 'submit', label, do: 'create', table: 'packing', ask: ['item'] }],
+    });
+    expect(problems([form('Add it to the packing list')])).toBe('');
+  });
+
+  it('when only applies to a button or tap on each entry', () => {
+    expect(
+      problems([
+        button({
+          do: 'create',
+          table: 'water',
+          values: { glasses: 1 },
+          when: [{ field: 'glasses', op: 'isEmpty' }],
+        }),
+      ]),
+    ).toMatch(/when only applies to a button or tap/);
+  });
+
+  it('each look takes only its own kinds of tools, and how many (registry metadata)', () => {
+    // 按钮上不能 toggle（没有「这一条」），列表上不能 setAll。
+    expect(problems([button({ do: 'toggle', table: 'packing', field: 'packed' })])).toMatch(
+      /a button block can't have a toggle tool \(allowed: create, setAll\)/,
+    );
+    expect(
+      problems([
+        list('packing', [
+          {
+            as: 'button',
+            label: 'All',
+            do: 'setAll',
+            table: 'packing',
+            field: 'packed',
+            value: false,
+          },
+        ]),
+      ]),
+    ).toMatch(/a list block can't have a setAll tool/);
+    // 列表上没有 check、drag。
+    expect(
+      problems([
+        list('packing', [{ as: 'check', do: 'toggle', table: 'packing', field: 'packed' }]),
+      ]),
+    ).toMatch(/as "check" doesn't fit a list block/);
+    // 每一条右边最多 3 个按钮；就地添加最多 1 个。
+    const b = (label: string) => ({
+      as: 'button',
+      label,
+      do: 'toggle',
+      table: 'packing',
+      field: 'packed',
+    });
+    expect(problems([list('packing', [b('a'), b('b'), b('c'), b('d')])])).toMatch(
+      /at most 3 tools as "button" \(now 4\)/,
+    );
+    const here = { as: 'addHere', do: 'create', table: 'packing', ask: 'all', values: '$here' };
+    expect(problems([list('packing', [here, here])])).toMatch(/at most 1 tool as "addHere"/);
+  });
+
+  it('a checklist has exactly one check toggling a checkbox; a board drags into its group field', () => {
+    expect(
+      problems([
+        list(
+          'packing',
+          [{ as: 'button', label: 'Pack', do: 'toggle', table: 'packing', field: 'packed' }],
+          'c1',
+          'checklist',
+        ),
+      ]),
+    ).toMatch(/a checklist needs exactly one tool \{as: "check"/);
+    expect(
+      problems([
+        list(
+          'packing',
+          [{ as: 'check', do: 'set', table: 'packing', field: 'packed', value: true }],
+          'c1',
+          'checklist',
+        ),
+      ]),
+    ).toMatch(/the check of a checklist is \{do: "toggle"/);
+    const board = (tool: unknown) => ({
+      id: 'k1',
+      look: 'board',
+      source: { table: 'packing', limit: 30, group: { by: 'bag' } },
+      show: { title: 'item' },
+      tools: [tool],
+    });
+    expect(
+      problems([board({ as: 'drag', do: 'set', table: 'packing', field: 'bag', value: '$group' })]),
+    ).toBe('');
+    expect(
+      problems([board({ as: 'drag', do: 'set', table: 'packing', field: 'packed', value: true })]),
+    ).toMatch(
+      /dragging a card to another column is \{as: "drag", do: "set", table, field: bag, value: "\$group"\}/,
+    );
+    // $group 只给拖动。
+    expect(
+      problems([
+        board({
+          as: 'button',
+          label: 'X',
+          do: 'set',
+          table: 'packing',
+          field: 'bag',
+          value: '$group',
+        }),
+      ]),
+    ).toMatch(/"\$group" .* only works in a board's/);
+  });
+
+  it('addHere is a create in the block’s table with values "$here"; "$here" is only for addHere', () => {
+    expect(
+      problems([list('packing', [{ as: 'addHere', do: 'create', table: 'packing', ask: 'all' }])]),
+    ).toMatch(/addHere adds an entry right in this section/);
+    expect(
+      problems([button({ do: 'create', table: 'packing', ask: 'all', values: '$here' })]),
+    ).toMatch(/values "\$here" only works with as: "addHere"/);
+  });
+
+  it('a row button that opens an entry opens its editor or a page for one entry of that table', () => {
+    const withPage = base();
+    withPage.containers.pages.push({ id: 'shift', title: 'Shift', of: 'shifts', blocks: [] });
+    const open = (opens: string, table = 'shifts') =>
+      list(table, [{ as: 'button', label: 'Open', opens }]);
+    expect(problems([open('record')], withPage)).toBe('');
+    expect(problems([open('shift')], withPage)).toBe('');
+    expect(problems([open('home')], withPage)).toMatch(
+      /opens home must be a page for one entry of shifts/,
+    );
+    expect(problems([open('nope')], withPage)).toMatch(/opens nope is not a page/);
+  });
 });
 
-describe('removing fields and tables takes the actions that used them', () => {
-  const withActions = () =>
-    apply(base(), [
-      button({
-        do: 'create',
-        collectionId: 'checkins',
-        values: { habit: 'run', day: 'today' },
-      }) as never,
-      button(
-        { do: 'setAll', collectionId: 'packing', fieldId: 'packed', value: false },
-        'b2',
-      ) as never,
-      // 上班靠这个按钮添加；没有它，新列表会自动补一个「添加」按钮（D-310）。
-      button({ do: 'open', collectionId: 'shifts' }, 'b3') as never,
-      list('shifts', [
-        {
-          label: 'Out',
-          do: 'set',
-          fieldId: 'end',
-          value: 'now',
-          when: [{ field: 'end', op: 'isEmpty' }],
-        },
-        { label: '+15', do: 'increment', fieldId: 'break', by: 15 },
-      ]) as never,
-    ]);
-  const ids = (config: WorkspaceConfig) =>
-    config.pages.find((p) => p.id === 'home')!.components.map((c) => c.id);
-
-  it('removing a field drops the row buttons and buttons that used it, with a note', () => {
-    const r = prepareOps(
-      withActions(),
-      [{ op: 'removeField', collectionId: 'shifts', fieldId: 'end' }],
-      {
-        registry,
-        locale: 'en',
-        now,
-      },
-    );
-    expect(r.ok ? '' : r.issues.join()).toBe('');
-    if (!r.ok) return;
-    const l1 = r.after.pages[0]!.components.find((c) => c.id === 'l1');
-    expect(l1?.type === 'recordList' && l1.props.rowActions?.map((a) => a.label)).toEqual(['+15']);
-    expect(r.lines.join('\n')).toMatch(/Also removes 1 one-tap button that used it/);
-
-    const r2 = prepareOps(
-      withActions(),
-      [{ op: 'removeField', collectionId: 'packing', fieldId: 'packed' }],
-      {
-        registry,
-        locale: 'zh',
-        now,
-      },
-    );
-    expect(r2.ok && ids(r2.after)).not.toContain('b2');
-    expect(r2.ok && r2.lines.join('\n')).toMatch(/同时移除 1 个用到它的一键按钮/);
-  });
-
-  it('a list with no row buttons left keeps showing its records', () => {
-    const r = apply(withActions(), [
-      { op: 'removeField', collectionId: 'shifts', fieldId: 'end' },
-      { op: 'removeField', collectionId: 'shifts', fieldId: 'break' },
-    ]);
-    const l1 = r.pages[0]!.components.find((c) => c.id === 'l1');
-    expect(l1?.type === 'recordList' && 'rowActions' in l1.props).toBe(false);
-  });
-
-  it('removing a table removes the buttons that change its entries', () => {
-    const r = prepareOps(withActions(), [{ op: 'removeCollection', collectionId: 'checkins' }], {
-      registry,
-      locale: 'fr',
-      now,
+describe('relation rule 12: a tool on a block writes the block’s own table', () => {
+  it('rejects a check that toggles a field of another table', () => {
+    const todos = base();
+    todos.data.tables.push({
+      id: 'todos',
+      name: 'To-dos',
+      fields: [
+        { id: 'title', name: 'Title', type: 'text' },
+        { id: 'done', name: 'Done', type: 'checkbox' },
+      ],
     });
-    expect(r.ok && ids(r.after)).not.toContain('b1');
-    expect(r.ok && r.lines.join('\n')).toMatch(/Supprime aussi 1 bouton en un geste/);
+    expect(
+      problems(
+        [
+          list(
+            'todos',
+            [{ as: 'check', do: 'toggle', table: 'packing', field: 'packed' }],
+            'c1',
+            'checklist',
+          ),
+        ],
+        todos,
+      ),
+    ).toMatch(
+      /toggle changes this entry \("\$row", an entry of todos\), so table must be todos, not packing/,
+    );
+    expect(
+      problems(
+        [
+          list(
+            'todos',
+            [{ as: 'check', do: 'toggle', table: 'todos', field: 'done' }],
+            'c1',
+            'checklist',
+          ),
+        ],
+        todos,
+      ),
+    ).toBe('');
+  });
+
+  it('set and increment act on this entry, so their table is the source table', () => {
+    expect(
+      problems([
+        list('water', [
+          { as: 'button', label: '+1', do: 'increment', table: 'shifts', field: 'pay', by: 1 },
+        ]),
+      ]),
+    ).toMatch(/so table must be water, not shifts/);
+  });
+
+  it('a create in another table is allowed only when it links back to this entry', () => {
+    expect(
+      problems([
+        list(
+          'habits',
+          [
+            {
+              as: 'tap',
+              label: 'Run',
+              do: 'create',
+              table: 'checkins',
+              values: { habit: 'run', day: 'today' },
+            },
+          ],
+          'l1',
+          'tiles',
+        ),
+      ]),
+    ).toMatch(/creates an entry in checkins, but this block shows habits/);
+    expect(
+      problems([
+        list(
+          'habits',
+          [{ as: 'tap', label: 'Done', do: 'create', table: 'logs', values: { habit: '$row' } }],
+          'l1',
+          'tiles',
+        ),
+      ]),
+    ).toBe('');
+  });
+
+  it('on a page for one entry, a block may create in another table linked to "$record"', () => {
+    const withPage = base();
+    withPage.containers.pages.push({ id: 'habit', title: 'Habit', of: 'habits', blocks: [] });
+    const block = list('water', [
+      {
+        as: 'button',
+        label: 'Log',
+        do: 'create',
+        table: 'logs',
+        values: { habit: '$record' },
+        ask: 'all',
+      },
+    ]);
+    expect(problems([block], withPage, 'habit')).toBe('');
+  });
+
+  it('a button or a form has no source: it writes its own table', () => {
+    expect(problems([button({ do: 'create', table: 'water', values: { glasses: 1 } })])).toBe('');
+    expect(
+      problems([
+        {
+          id: 'f1',
+          look: 'form',
+          show: { mode: 'sheet' },
+          tools: [{ as: 'submit', label: 'Add', do: 'create', table: 'packing', ask: ['item'] }],
+        },
+      ]),
+    ).toBe('');
+  });
+});
+
+describe('Q6: the "add" button prefills its preset values', () => {
+  it('a v33 recordForm in button mode keeps its values and v34 prefills them', () => {
+    const config = fromV33({
+      ...v33Fixture('default-en'),
+      collections: [
+        {
+          id: 'checkins',
+          name: 'Check-ins',
+          fields: [
+            { id: 'habit', name: 'Habit', type: 'choice', options: [{ id: 'run', label: 'Run' }] },
+            { id: 'day', name: 'Day', type: 'date' },
+          ],
+        },
+      ],
+      pages: [
+        {
+          id: 'home',
+          title: 'Home',
+          components: [
+            {
+              id: 'add',
+              type: 'recordForm',
+              props: {
+                collectionId: 'checkins',
+                fieldIds: ['habit'],
+                submitLabel: 'Log a run',
+                mode: 'button',
+                values: { habit: 'run', day: 'today' },
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(validateWorkspace(config, registry).ok).toBe(true);
+    const block = config.containers.pages[0]!.blocks[0] as { look: string; tools: RecordTool[] };
+    expect(block.look).toBe('button');
+    const tool = block.tools[0]!;
+    if (tool.do !== 'create') throw new Error('expected a create');
+    // v33 的按钮模式打开的是空表单（忽略 values）；v34 先填好。
+    expect(createPrefill(tool, { config, now })).toEqual({ habit: 'run', day: '2026-10-29' });
+  });
+
+  it('prefills nothing for "$here" (the app fills the section values) or a missing table', () => {
+    const config = base();
+    expect(
+      createPrefill({ do: 'create', table: 'water', ask: 'all', values: '$here' }, { config, now }),
+    ).toEqual({});
+    expect(
+      createPrefill({ do: 'create', table: 'gone', ask: 'all', values: { x: 1 } }, { config, now }),
+    ).toEqual({});
   });
 });
 
@@ -463,65 +727,52 @@ describe('running record actions', () => {
         { now: late, cal: { dayStartHour: 4, weekStart: 'monday' } },
       ),
     ).toEqual({ day: '2026-10-29' });
-    // 「这一行」。
-    expect(createInput(linkedCheckins, { habit: 'row' }, { now, rowId: 'h1abcdef' })).toEqual({
+    // 「这一条」（$row）和记录页的那一条（$record）。
+    expect(createInput(linkedCheckins, { habit: '$row' }, { now, rowId: 'h1abcdef' })).toEqual({
       habit: 'h1abcdef',
     });
   });
 
   it('set now, set null, toggle and increment', () => {
     expect(
-      rowUpdateInput(
-        { label: 'Out', do: 'set', fieldId: 'end', value: 'now' },
-        shifts,
-        {},
-        { now },
-      ),
+      rowUpdateInput({ do: 'set', table: 'x', field: 'end', value: 'now' }, shifts, {}, { now }),
     ).toEqual({
       end: '2026-10-29T18:05',
     });
     expect(
-      rowUpdateInput(
-        { label: 'At', do: 'set', fieldId: 'clock', value: 'now' },
-        shifts,
-        {},
-        { now },
-      ),
+      rowUpdateInput({ do: 'set', table: 'x', field: 'clock', value: 'now' }, shifts, {}, { now }),
     ).toEqual({
       clock: '18:05',
     });
     expect(
-      rowUpdateInput(
-        { label: 'Clear', do: 'set', fieldId: 'end', value: null },
-        shifts,
-        {},
-        { now },
-      ),
+      rowUpdateInput({ do: 'set', table: 'x', field: 'end', value: null }, shifts, {}, { now }),
     ).toEqual({
       end: '',
     });
     expect(
-      rowUpdateInput({ label: 'T', do: 'toggle', fieldId: 'packed' }, packing, {}, { now }),
+      rowUpdateInput({ do: 'toggle', table: 'x', field: 'packed' }, packing, {}, { now }),
     ).toEqual({
       packed: true,
     });
     expect(
       rowUpdateInput(
-        { label: 'T', do: 'toggle', fieldId: 'packed' },
+        { do: 'toggle', table: 'x', field: 'packed' },
         packing,
         { packed: true },
         { now },
       ),
     ).toEqual({ packed: false });
     const inc = (fieldId: string, by: number, values: Record<string, unknown>) =>
-      rowUpdateInput({ label: '+', do: 'increment', fieldId, by }, shifts, values, { now });
+      rowUpdateInput({ do: 'increment', table: 'shifts', field: fieldId, by }, shifts, values, {
+        now,
+      });
     // 空的从 0 开始；金额两位小数；时长不会减成负数。
     expect(inc('pay', 0.1, {})).toEqual({ pay: 0.1 });
     expect(inc('pay', 0.2, { pay: 0.1 })).toEqual({ pay: 0.3 });
     expect(inc('break', -15, { break: 10 })).toEqual({ break: 0 });
     expect(
       rowUpdateInput(
-        { label: '+1', do: 'increment', fieldId: 'glasses', by: 1 },
+        { do: 'increment', table: 'x', field: 'glasses', by: 1 },
         water,
         { glasses: 7 },
         { now },
@@ -529,20 +780,23 @@ describe('running record actions', () => {
     ).toEqual({ glasses: 8 });
     // 字段已经不在了（旧配置）：什么也不做。
     expect(
-      rowUpdateInput({ label: 'X', do: 'toggle', fieldId: 'gone' }, packing, {}, { now }),
+      rowUpdateInput({ do: 'toggle', table: 'x', field: 'gone' }, packing, {}, { now }),
     ).toBeNull();
   });
 
   it('a row shows the first button whose conditions match', () => {
-    const actions: RowAction[] = [
+    const actions: ToolUse[] = [
+      { as: 'addHere', do: 'create', table: 'shifts', ask: 'all', values: '$here' },
       {
+        as: 'button',
         label: 'Clock out',
         do: 'set',
-        fieldId: 'end',
+        table: 'shifts',
+        field: 'end',
         value: 'now',
         when: [{ field: 'end', op: 'isEmpty' }],
       },
-      { label: 'Edit', do: 'open', when: [{ field: 'end', op: 'isNotEmpty' }] },
+      { as: 'button', label: 'Edit', opens: 'record', when: [{ field: 'end', op: 'isNotEmpty' }] },
     ];
     expect(shownRowAction(actions, record({ start: '2026-10-29T09:00' }), shifts, now)?.label).toBe(
       'Clock out',
@@ -556,7 +810,7 @@ describe('running record actions', () => {
       )?.label,
     ).toBe('Edit');
     expect(
-      shownRowAction([actions[0]!], record({ end: '2026-10-29T17:00' }), shifts, now),
+      shownRowAction([actions[1]!], record({ end: '2026-10-29T17:00' }), shifts, now),
     ).toBeUndefined();
     expect(shownRowAction(undefined, record({}), shifts, now)).toBeUndefined();
   });
@@ -571,9 +825,9 @@ describe('running record actions', () => {
     const changes = setAllChanges(
       {
         do: 'setAll',
-        collectionId: 'packing',
+        table: 'packing',
         filter: [{ field: 'bag', op: 'is', value: 'carry' }],
-        fieldId: 'packed',
+        field: 'packed',
         value: false,
       },
       packing,
@@ -591,7 +845,7 @@ describe('running record actions', () => {
     // 不写筛选：整张表。
     expect(
       setAllChanges(
-        { do: 'setAll', collectionId: 'packing', fieldId: 'packed', value: true },
+        { do: 'setAll', table: 'packing', field: 'packed', value: true },
         packing,
         packing,
         records,

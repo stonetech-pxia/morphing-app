@@ -4,44 +4,44 @@ import { conditionProblems } from './conditions';
 import { aggregateRecords, filterRecords, type DataRecord } from './data';
 import { round } from './field-values';
 import { expandCollection } from './related';
-import type { Collection, Component, WorkspaceConfig } from './schema';
+import type { Collection, ComponentOf, WorkspaceConfig } from './schema';
 
 // 统计相减（D-337）：「这个合计 − 另一个合计」，另一个可以在别的表。例如待分配 = 收入 − 分配出去的钱、
 // 余额 = 收入 − 支出、净资产 = 资产 − 负债。只有计数和求和：平均、最小、最大相减没有意义。
-// 检查放在这里而不是 stat 的定义里：要用到筛选条件的检查（conditions.ts），组件定义引用它会让加载绕圈。
+// 检查放在这里而不是数字块的定义里：要用到筛选条件的检查（conditions.ts），组件定义引用它会让加载绕圈。
 
-type StatComponent = Extract<Component, { type: 'stat' }>;
-export type StatMinus = NonNullable<StatComponent['props']['minus']>;
+type NumberBlock = ComponentOf<'number'>;
+export type StatMinus = NonNullable<NumberBlock['source']['minus']>;
 
-/** stat 的 minus 的问题（文字发给 AI）。collection 是 stat 自己的表（换过查找、汇总的）。 */
+/** 数字块 source.minus 的问题（文字发给 AI）。collection 是数字块自己的表（换过查找、汇总的）。 */
 export function statMinusProblems(
-  c: StatComponent,
+  c: NumberBlock,
   collection: Collection,
   config: WorkspaceConfig,
-  /** 组件所在页面给哪张表的一条记录用（D-342）。 */
+  /** 块所在页面给哪张表的一条记录用（D-342，page.of）。 */
   recordOf?: string,
 ): string[] {
-  const minus = c.props.minus;
+  const { minus, aggregate, field, group, compare } = c.source;
   if (!minus) return [];
   const problems: string[] = [];
-  if (c.props.aggregate !== 'count' && c.props.aggregate !== 'sum')
-    problems.push(`minus only works with aggregate count or sum, not ${c.props.aggregate}`);
-  if (c.props.groupBy)
-    problems.push("minus can't be used with groupBy: there is one total to subtract from");
-  if (c.props.compare) problems.push("minus can't be used with compare");
-  const table = config.collections.find((x) => x.id === minus.collectionId);
-  if (!table) return [...problems, `minus: data table ${minus.collectionId} does not exist`];
-  const other = expandCollection(config.collections, table);
+  if (aggregate !== 'count' && aggregate !== 'sum')
+    problems.push(`source.minus only works with aggregate count or sum, not ${aggregate}`);
+  if (group)
+    problems.push(
+      "source.minus can't be used with source.group: there is one total to subtract from",
+    );
+  if (compare) problems.push("source.minus can't be used with compare");
+  const table = config.data.tables.find((x) => x.id === minus.table);
+  if (!table) return [...problems, `minus: data table ${minus.table} does not exist`];
+  const other = expandCollection(config.data.tables, table);
   if (minus.aggregate === 'sum') {
-    const f = minus.fieldId ? other.fields.find((x) => x.id === minus.fieldId) : undefined;
+    const f = minus.field ? other.fields.find((x) => x.id === minus.field) : undefined;
     if (!f || !NUMERIC_FIELD_TYPES.includes(f.type)) {
       problems.push(
-        `minus: sum needs fieldId set to a number, money, rating, duration or formula field of ${other.id}`,
+        `minus: sum needs field set to a number, money, rating, duration or formula field of ${other.id}`,
       );
     } else {
-      const own = c.props.fieldId
-        ? collection.fields.find((x) => x.id === c.props.fieldId)
-        : undefined;
+      const own = field ? collection.fields.find((x) => x.id === field) : undefined;
       if (own?.type === 'money' && f.type === 'money' && own.currency !== f.currency)
         problems.push(
           `minus: ${other.id}.${f.id} is in ${f.currency} but ${collection.id}.${own.id} is in ${own.currency}`,
@@ -63,6 +63,6 @@ export function minusValue(
 ): number | null {
   if (value === null) return null;
   const matched = filterRecords(records, collection, minus.filter, now, cal);
-  const other = aggregateRecords(matched, collection, minus.aggregate, minus.fieldId) ?? 0;
+  const other = aggregateRecords(matched, collection, minus.aggregate, minus.field) ?? 0;
   return round(value - other, 4);
 }

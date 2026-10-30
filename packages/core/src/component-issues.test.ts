@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import { componentLabel } from './describe';
 import type { Component, Locale, WorkspaceConfig } from './schema';
-import { registry, workspace } from './test-helpers';
+import { fromV33, registry, v33Fixture } from './test-helpers';
 import { validateWorkspace } from './validate';
 
-// 每种组件的引用问题和修改说明（组件登记表重构时存的基线）。问题文字会发给 AI 让它改正，
-// 说明文字给用户看；这里锁住文字和顺序。
+// 每种外观的引用问题和修改说明（组件登记表重构时存的基线，v34 按块的新写法重写）。问题文字会发给 AI
+// 让它改正，说明文字给用户看；这里锁住文字和顺序。
 
 const table = {
   id: 'spend',
@@ -19,26 +19,26 @@ const table = {
     { id: 'day', name: 'Day', type: 'date' },
     { id: 'total', name: 'Total', type: 'formula', expression: '{amount} * 2' },
     { id: 'receipt', name: 'Receipt', type: 'file' },
-    { id: 'parent', name: 'Parent', type: 'link', collectionId: 'spend' },
+    { id: 'parent', name: 'Parent', type: 'link', table: 'spend' },
   ],
 };
 
-const BAD: Component[] = [
-  { id: 'b1', type: 'button', props: { label: 'Go', target: 'page:nope', variant: 'icon' } },
-  { id: 's1', type: 'shortcut', props: { title: 'Go', icon: 'star', target: 'page:gone' } },
-  { id: 't1', type: 'toolCard', props: { toolId: 'pdf' } },
-  { id: 'g1', type: 'toolGrid', props: { toolIds: ['image', 'nope', 'image'] } },
-  { id: 'w1', type: 'workflowRunner', props: { workflowId: 'missing' } },
+const BAD = [
+  {
+    id: 'b1',
+    look: 'button',
+    show: { label: 'Go', variant: 'icon' },
+    opens: 'page:nope',
+  },
+  { id: 's1', look: 'entry', show: { title: 'Go', icon: 'star' }, opens: 'page:gone' },
+  { id: 't1', look: 'entry', opens: 'package:pdf' },
+  { id: 'g1', look: 'packages', source: { catalog: 'packages', ids: ['image', 'nope', 'image'] } },
+  { id: 'w1', look: 'action', tools: [{ tool: 'missing' }] },
   {
     id: 'l1',
-    type: 'recordList',
-    props: {
-      collectionId: 'spend',
-      display: 'checklist',
-      titleField: 'nope',
-      subtitleFields: ['createdAt', 'x1'],
-      trailingField: 'x2',
-      checkField: 'title',
+    look: 'checklist',
+    source: {
+      table: 'spend',
       sort: { field: 'parent', direction: 'asc' },
       filter: [
         { field: 'parent', op: 'is', value: 'a' },
@@ -47,92 +47,99 @@ const BAD: Component[] = [
       ],
       limit: 10,
     },
+    show: { title: 'nope', subtitles: ['createdAt', 'x1'], trailing: 'x2' },
+    tools: [{ as: 'check', do: 'toggle', table: 'spend', field: 'title' }],
   },
   {
     id: 'l2',
-    type: 'recordList',
-    props: {
-      collectionId: 'spend',
-      display: 'list',
-      titleField: 'title',
-      checkField: 'x3',
-      sort: { field: 'x4', direction: 'asc' },
-      limit: 10,
-    },
+    look: 'list',
+    source: { table: 'spend', sort: { field: 'x4', direction: 'asc' }, limit: 10 },
+    show: { title: 'title' },
+    tools: [{ as: 'check', do: 'toggle', table: 'spend', field: 'x3' }],
   },
-  {
-    id: 'l3',
-    type: 'recordList',
-    props: { collectionId: 'nope', display: 'list', titleField: 'title', limit: 10 },
-  },
+  { id: 'l3', look: 'list', source: { table: 'nope', limit: 10 }, show: { title: 'title' } },
   {
     id: 'f1',
-    type: 'recordForm',
-    props: {
-      collectionId: 'spend',
-      fieldIds: ['amount', 'total', 'receipt', 'x5', 'amount'],
-      submitLabel: 'Add',
-      mode: 'inline',
-    },
+    look: 'form',
+    show: { mode: 'inline' },
+    tools: [
+      {
+        as: 'submit',
+        label: 'Add',
+        do: 'create',
+        table: 'spend',
+        ask: ['amount', 'total', 'receipt', 'x5', 'amount'],
+      },
+    ],
   },
   {
     id: 'st1',
-    type: 'stat',
-    props: {
-      collectionId: 'spend',
+    look: 'number',
+    show: { label: 'Sum' },
+    source: {
+      table: 'spend',
       aggregate: 'sum',
-      fieldId: 'title',
-      label: 'Sum',
-      groupBy: 'day',
+      field: 'title',
+      group: { by: 'day' },
       filter: [{ field: 'day', op: 'inPeriod', value: 'someday' }],
     },
   },
   {
     id: 'st2',
-    type: 'stat',
-    props: { collectionId: 'spend', aggregate: 'avg', label: 'Avg', groupBy: 'title' },
+    look: 'number',
+    show: { label: 'Avg' },
+    source: { table: 'spend', aggregate: 'avg', group: { by: 'title' } },
   },
   {
     id: 'c1',
-    type: 'chart',
-    props: {
-      collectionId: 'spend',
-      kind: 'pie',
+    look: 'chart',
+    show: { kind: 'pie', title: 'Chart' },
+    source: {
+      table: 'spend',
       aggregate: 'sum',
-      group: 'week',
-      dateField: 'title',
-      title: 'Chart',
+      group: { unit: 'week', by: 'title' },
       filter: [{ field: 'kind', op: 'is', value: 'nope' }],
     },
   },
   {
     id: 'c2',
-    type: 'chart',
-    props: {
-      collectionId: 'spend',
-      kind: 'bar',
-      aggregate: 'count',
-      group: 'choice',
-      choiceField: 'title',
-      title: 'Chart',
-    },
+    look: 'chart',
+    show: { kind: 'bar', title: 'Chart' },
+    source: { table: 'spend', aggregate: 'count', group: { by: 'title' } },
   },
   {
     id: 'grp',
-    type: 'group',
-    props: { layout: 'row' },
+    look: 'group',
+    show: { layout: 'row' },
     children: [
-      { id: 'b2', type: 'button', props: { label: 'Go', target: 'page:none', variant: 'text' } },
+      { id: 'b2', look: 'button', show: { label: 'Go', variant: 'text' }, opens: 'page:none' },
     ],
   },
-] as Component[];
+  {
+    id: 'k1',
+    look: 'board',
+    source: { table: 'spend', limit: 10, group: { by: 'kind' } },
+    show: { title: 'title' },
+    tools: [
+      { as: 'drag', do: 'set', table: 'spend', field: 'day', value: '$group' },
+      { as: 'addHere', do: 'create', table: 'spend', ask: 'all' },
+    ],
+  },
+  {
+    id: 'fl1',
+    look: 'files',
+    show: { title: 'Files' },
+    source: { table: '$files', filter: [{ field: 'kind', op: 'is', value: 'zip' }], limit: 5 },
+  },
+] as unknown as Component[];
 
 function withComponents(components: Component[]): WorkspaceConfig {
-  const config = workspace('en');
+  const config = fromV33(v33Fixture('default-en'));
+  const [home, ...rest] = config.containers.pages;
   return {
     ...config,
-    collections: [table],
-    pages: [{ ...config.pages[0]!, components: [...config.pages[0]!.components, ...components] }],
+    data: { tables: [table] },
+    containers: { pages: [{ ...home!, blocks: [...home!.blocks, ...components] }, ...rest] },
   } as WorkspaceConfig;
 }
 
@@ -147,25 +154,31 @@ describe('component issues', () => {
     it(`describes every component in ${locale}`, () => {
       const config = withComponents([]);
       const ctx = { registry, locale, now: new Date(2026, 9, 27) };
-      const samples: Component[] = [
+      const samples = [
         ...BAD,
-        { id: 'h', type: 'header', props: { title: 'Hello' } },
-        { id: 'tx', type: 'text', props: { text: 'Hi' } },
-        { id: 'fp', type: 'filePick', props: { source: 'media' } },
-        { id: 'fp2', type: 'filePick', props: { source: 'files' } },
-        { id: 'tg', type: 'toolGrid', props: {} },
-        { id: 'cl', type: 'catalogLink', props: { title: 'More' } },
-        { id: 'fl', type: 'fileList', props: { title: 'Files', limit: 3 } },
-        { id: 'q1', type: 'quickActionList', props: {} },
-        { id: 'q2', type: 'quickActionList', props: { kind: 'image' } },
-        { id: 'n', type: 'notice', props: { text: 'Note' } },
-        { id: 'i1', type: 'image', props: { aspect: 'wide', fit: 'cover' } },
-        { id: 'i2', type: 'image', props: { aspect: 'wide', fit: 'cover', caption: 'Cap' } },
-        { id: 'd', type: 'divider', props: {} },
-        { id: 'sp', type: 'spacer', props: { size: 'small' } },
-        { id: 'gs', type: 'group', props: { layout: 'stack', title: 'Box' }, children: [] },
-        { id: 'gg', type: 'group', props: { layout: 'grid' }, children: [] },
-      ];
+        { id: 'h', look: 'header', show: { title: 'Hello' } },
+        { id: 'tx', look: 'text', show: { text: 'Hi' } },
+        { id: 'fp', look: 'picker', tools: [{ tool: '$pick.media' }] },
+        { id: 'fp2', look: 'picker', tools: [{ tool: '$pick.files' }] },
+        { id: 'tg', look: 'packages', source: { catalog: 'packages' } },
+        {
+          id: 'cl',
+          look: 'entry',
+          show: { title: 'More', icon: 'plus', shape: 'tile', accent: true },
+          opens: 'tools',
+        },
+        { id: 'slot', look: 'entry', show: { title: 'Passport' }, opens: { file: null } },
+        { id: 'q1', look: 'library', source: { catalog: 'quickActions' } },
+        { id: 'q2', look: 'library', source: { catalog: 'quickActions', kind: 'image' } },
+        { id: 'n', look: 'notice', show: { text: 'Note' } },
+        { id: 'i1', look: 'image', show: { aspect: 'wide', fit: 'cover' } },
+        { id: 'i2', look: 'image', show: { aspect: 'wide', fit: 'cover', caption: 'Cap' } },
+        { id: 'd', look: 'divider' },
+        { id: 'sp', look: 'spacer', show: { size: 'small' } },
+        { id: 'gs', look: 'group', show: { layout: 'stack', title: 'Box' }, children: [] },
+        { id: 'gg', look: 'group', show: { layout: 'grid' }, children: [] },
+        { id: 'u', look: '$unknown', raw: { id: 'u', type: 'future' } },
+      ] as unknown as Component[];
       expect(samples.map((c) => componentLabel(c, config, ctx))).toMatchSnapshot();
     });
   }

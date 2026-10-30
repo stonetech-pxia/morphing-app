@@ -2,11 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from './change';
 import { groupRecords, groupedAggregate, type DataRecord } from './data';
-import { createDefaultWorkspace } from './defaults';
 import type { Op } from './ops';
 import type { Collection, NewComponent } from './schema';
 import { minusValue } from './stat-minus';
-import { registry } from './test-helpers';
+import { fromV33, registry, v33Fixture } from './test-helpers';
 
 // 统计和图表按引用字段分组（D-336）、统计相减（D-337）。例子是零基预算：分类、分配、流水三张表。
 
@@ -21,7 +20,7 @@ const assigned: Collection = {
   fields: [
     { id: 'amount', name: 'Amount', type: 'money', currency: 'USD', required: true },
     { id: 'day', name: 'Day', type: 'date', default: 'today' },
-    { id: 'category', name: 'Category', type: 'link', collectionId: 'categories' },
+    { id: 'category', name: 'Category', type: 'link', table: 'categories' },
   ],
 };
 const ledger: Collection = {
@@ -39,7 +38,7 @@ const ledger: Collection = {
         { id: 'in', label: 'Income' },
       ],
     },
-    { id: 'category', name: 'Category', type: 'link', collectionId: 'categories' },
+    { id: 'category', name: 'Category', type: 'link', table: 'categories' },
     { id: 'euros', name: 'Euros', type: 'money', currency: 'EUR' },
     { id: 'note', name: 'Note', type: 'text' },
   ],
@@ -62,14 +61,11 @@ const targets = { collection: categories, records: [rent, food, fun], locale: 'e
 const ctx = { registry, locale: 'en' as const, now: new Date(2026, 9, 30) };
 const withComponent = (component: NewComponent, extra: Op[] = []) =>
   prepareOps(
-    createDefaultWorkspace('en'),
+    fromV33(v33Fixture('default-en')),
     [
-      ...[categories, assigned, ledger].map((collection) => ({
-        op: 'addCollection' as const,
-        collection,
-      })),
+      ...[categories, assigned, ledger].map((table) => ({ op: 'addData' as const, table })),
       ...extra,
-      { op: 'addComponent', pageId: 'home', component },
+      { op: 'addContainer', page: 'home', block: component },
     ],
     ctx,
   );
@@ -106,29 +102,23 @@ describe('grouping by a link field (D-336)', () => {
   });
 
   it('a stat and a chart may group by a link field; a text field still is not allowed', () => {
-    const stat = (groupBy: string): NewComponent => ({
+    const stat = (by: string): NewComponent => ({
       id: 's',
-      type: 'stat',
-      props: { collectionId: 'ledger', aggregate: 'sum', fieldId: 'amount', label: 'By', groupBy },
+      look: 'number',
+      show: { label: 'By' },
+      source: { table: 'ledger', aggregate: 'sum', field: 'amount', group: { by } },
     });
     expect(issues(stat('category'))).toBe('');
     expect(issues(stat('note'))).toMatch(/groupBy note must be a choice or link field of ledger/);
-    const chart = (choiceField: string, kind: 'bar' | 'pie' = 'pie'): NewComponent => ({
+    const chart = (by: string, kind: 'bar' | 'pie' = 'pie'): NewComponent => ({
       id: 'c',
-      type: 'chart',
-      props: {
-        collectionId: 'ledger',
-        kind,
-        aggregate: 'sum',
-        fieldId: 'amount',
-        group: 'choice',
-        choiceField,
-        title: 'Spending',
-      },
+      look: 'chart',
+      show: { kind, title: 'Spending' },
+      source: { table: 'ledger', aggregate: 'sum', field: 'amount', group: { by } },
     });
     expect(issues(chart('category'))).toBe('');
     expect(issues(chart('category', 'bar'))).toBe('');
-    expect(issues(chart('note'))).toMatch(/choiceField set to a choice or link field/);
+    expect(issues(chart('note'))).toMatch(/\{by: a choice or link field\}/);
   });
 });
 
@@ -136,18 +126,18 @@ describe('stat minus another total (D-337)', () => {
   const readyToAssign = (minus: unknown, extra: Record<string, unknown> = {}): NewComponent =>
     ({
       id: 'rta',
-      type: 'stat',
-      props: {
-        collectionId: 'ledger',
+      look: 'number',
+      show: { label: 'Ready to assign' },
+      source: {
+        table: 'ledger',
         aggregate: 'sum',
-        fieldId: 'amount',
+        field: 'amount',
         filter: [{ field: 'kind', op: 'is', value: 'in' }],
-        label: 'Ready to assign',
         minus,
         ...extra,
       },
     }) as NewComponent;
-  const allAssigned = { collectionId: 'assigned', aggregate: 'sum', fieldId: 'amount' };
+  const allAssigned = { table: 'assigned', aggregate: 'sum', field: 'amount' };
 
   it('income minus everything assigned', () => {
     expect(issues(readyToAssign(allAssigned))).toBe('');
@@ -169,39 +159,33 @@ describe('stat minus another total (D-337)', () => {
     ).toBe(2199.75);
     // 计数相减：没有被减的记录时就是原来的数。
     expect(
-      minusValue(
-        4,
-        { collectionId: 'assigned', aggregate: 'count' } as never,
-        assigned,
-        [],
-        ctx.now,
-      ),
+      minusValue(4, { table: 'assigned', aggregate: 'count' } as never, assigned, [], ctx.now),
     ).toBe(4);
     expect(minusValue(null, allAssigned as never, assigned, records, ctx.now)).toBeNull();
   });
 
   it('only count and sum can be subtracted, in the same unit', () => {
     expect(issues(readyToAssign(allAssigned, { aggregate: 'avg' }))).toMatch(
-      /minus only works with aggregate count or sum/,
+      /source\.minus only works with aggregate count or sum/,
     );
     expect(issues(readyToAssign({ ...allAssigned, aggregate: 'avg' }))).not.toBe('');
-    expect(issues(readyToAssign({ collectionId: 'assigned', aggregate: 'sum' }))).toMatch(
-      /minus: sum needs fieldId set to a number, money, rating, duration or formula field of assigned/,
+    expect(issues(readyToAssign({ table: 'assigned', aggregate: 'sum' }))).toMatch(
+      /minus: sum needs field set to a number, money, rating, duration or formula field of assigned/,
     );
-    expect(issues(readyToAssign({ ...allAssigned, collectionId: 'nope' }))).toMatch(
+    expect(issues(readyToAssign({ ...allAssigned, table: 'nope' }))).toMatch(
       /minus: data table nope does not exist/,
     );
-    expect(
-      issues(readyToAssign({ ...allAssigned, fieldId: 'euros', collectionId: 'ledger' })),
-    ).toMatch(/minus: ledger\.euros is in EUR but ledger\.amount is in USD/);
+    expect(issues(readyToAssign({ ...allAssigned, field: 'euros', table: 'ledger' }))).toMatch(
+      /minus: ledger\.euros is in EUR but ledger\.amount is in USD/,
+    );
     expect(
       issues(readyToAssign({ ...allAssigned, filter: [{ field: 'nope', op: 'isEmpty' }] })),
     ).toMatch(/minus: .*nope/);
-    expect(issues(readyToAssign(allAssigned, { groupBy: 'category' }))).toMatch(
-      /minus can't be used with groupBy/,
+    expect(issues(readyToAssign(allAssigned, { group: { by: 'category' } }))).toMatch(
+      /source\.minus can't be used with source\.group/,
     );
     expect(issues(readyToAssign(allAssigned, { compare: 'previous' }))).toMatch(
-      /minus can't be used with compare/,
+      /source\.minus can't be used with compare/,
     );
   });
 
@@ -209,9 +193,9 @@ describe('stat minus another total (D-337)', () => {
     const r = withComponent(readyToAssign(allAssigned), []);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    const after = prepareOps(r.after, [{ op: 'removeCollection', collectionId: 'assigned' }], ctx);
+    const after = prepareOps(r.after, [{ op: 'removeData', table: 'assigned' }], ctx);
     expect(after.ok).toBe(true);
     if (!after.ok) return;
-    expect(JSON.stringify(after.after.pages)).not.toContain('"rta"');
+    expect(JSON.stringify(after.after.containers.pages)).not.toContain('"rta"');
   });
 });

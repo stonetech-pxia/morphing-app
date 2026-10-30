@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from './change';
 import type { DataRecord } from './data';
-import { createDefaultWorkspace } from './defaults';
 import type { Op } from './ops';
 import { planNotifications } from './reminders';
 import type { Collection, Reminder, WorkspaceConfig } from './schema';
-import { registry } from './test-helpers';
+import { fromV33, registry, v33Fixture } from './test-helpers';
+import { validateWorkspace } from './validate';
 
 const bills: Collection = {
   id: 'bills',
@@ -18,30 +18,29 @@ const bills: Collection = {
 };
 const daily: Reminder = {
   id: 'log',
+  kind: 'reminder',
   title: '记账',
   enabled: true,
-  schedule: 'daily',
-  time: '09:00',
+  when: { every: 'day', at: '09:00' },
   opens: 'page:home',
 };
 const dueSoon: Reminder = {
   id: 'due',
+  kind: 'reminder',
   title: '账单快到期了',
   enabled: true,
-  schedule: 'dateField',
-  time: '08:30',
-  collectionId: 'bills',
-  fieldId: 'due',
-  daysBefore: 3,
+  when: { before: { table: 'bills', field: 'due' }, days: 3, at: '08:30' },
   opens: 'page:home',
 };
+const before = (days: number): Reminder =>
+  ({ ...dueSoon, when: { ...dueSoon.when, days } }) as Reminder;
 const now = new Date(2026, 9, 22, 12);
 const ctx = { registry, locale: 'zh' as const, now };
 
 function setup(ops: Op[]) {
   return prepareOps(
-    createDefaultWorkspace('zh'),
-    [{ op: 'addCollection', collection: bills }, ...ops],
+    fromV33(v33Fixture('default-zh')),
+    [{ op: 'addData', table: bills }, ...ops],
     ctx,
   );
 }
@@ -60,53 +59,70 @@ const bill = (id: string, name: string, due?: string): DataRecord => ({
 
 describe('reminder settings (D-251)', () => {
   it('can be added, changed and removed as an undoable change, and described', () => {
-    const added = setup([{ op: 'addReminder', reminder: daily }]);
+    const added = setup([{ op: 'addTool', tool: daily }]);
     expect(added.ok).toBe(true);
     if (!added.ok) return;
-    expect(added.after.reminders).toEqual([daily]);
+    expect(added.after.tools).toEqual([daily]);
     expect(added.lines).toContain('新建提醒「记账」（每天 09:00）');
 
     const changed = prepareOps(
       added.after,
-      [{ op: 'updateReminder', reminderId: 'log', changes: { time: '21:30', enabled: false } }],
+      [
+        {
+          op: 'updateTool',
+          tool: 'log',
+          changes: { when: { every: 'day', at: '21:30' }, enabled: false },
+        },
+      ],
       ctx,
     );
-    expect(changed.ok && changed.after.reminders![0]).toMatchObject({
-      time: '21:30',
+    expect(changed.ok && changed.after.tools[0]).toMatchObject({
+      when: { at: '21:30' },
       enabled: false,
     });
-    const removed = prepareOps(added.after, [{ op: 'removeReminder', reminderId: 'log' }], ctx);
-    expect(removed.ok && removed.after.reminders).toEqual([]);
+    const removed = prepareOps(added.after, [{ op: 'removeTool', tool: 'log' }], ctx);
+    expect(removed.ok && removed.after.tools).toEqual([]);
   });
 
   it('refuses settings that can’t work', () => {
-    const bad = (r: Partial<Reminder>) =>
-      setup([{ op: 'addReminder', reminder: { ...daily, ...r } as Reminder }]).ok;
-    expect(bad({ time: '9:00' })).toBe(false);
-    expect(bad({ schedule: 'weekly' })).toBe(false);
-    expect(bad({ schedule: 'weekly', weekdays: [1, 8] })).toBe(false);
-    expect(bad({ opens: 'workflow:missing' })).toBe(false);
-    expect(bad({ opens: 'page:missing' })).toBe(false);
-    expect(bad({ ...dueSoon, fieldId: 'name' })).toBe(false);
-    expect(bad({ ...dueSoon, daysBefore: undefined })).toBe(false);
+    const withBills = fromV33(v33Fixture('default-zh'));
+    withBills.data.tables.push(bills);
+    const ok = (r: Partial<Reminder> | Record<string, unknown>) =>
+      validateWorkspace({ ...withBills, tools: [{ ...daily, ...r }] }, registry).ok;
+    expect(ok({})).toBe(true);
+    expect(ok(dueSoon)).toBe(true);
+    expect(ok({ when: { every: 'day', at: '9:00' } })).toBe(false);
+    expect(ok({ when: { every: 'week', at: '09:00' } })).toBe(false);
+    expect(ok({ when: { every: 'week', days: [1, 8], at: '09:00' } })).toBe(false);
+    expect(ok({ opens: 'tool:missing' })).toBe(false);
+    expect(ok({ opens: 'page:missing' })).toBe(false);
+    expect(
+      ok({ ...dueSoon, when: { ...dueSoon.when, before: { table: 'bills', field: 'name' } } }),
+    ).toBe(false);
+    expect(
+      ok({ ...dueSoon, when: { before: { table: 'bills', field: 'due' }, at: '08:30' } }),
+    ).toBe(false);
+    // 只有 when.each 能有「完成」「稍后提醒」「除非」。
+    expect(ok({ snoozeMinutes: 10 })).toBe(false);
     // 不能带任何「运行」之类的设置。
-    expect(bad({ run: true } as Partial<Reminder>)).toBe(false);
+    expect(ok({ run: true })).toBe(false);
   });
 
   it('removing the quick action a reminder opens removes the reminder too, and says so', () => {
     const wf = {
       id: 'logit',
+      kind: 'quickAction' as const,
       name: '记一笔',
       steps: [{ id: 'in', action: 'in.text', params: { text: '' } }],
     };
-    const before = config([
-      { op: 'addWorkflow', workflow: wf },
-      { op: 'addReminder', reminder: { ...daily, opens: 'workflow:logit' } },
+    const start = config([
+      { op: 'addTool', tool: wf },
+      { op: 'addTool', tool: { ...daily, opens: 'tool:logit' } },
     ]);
-    const result = prepareOps(before, [{ op: 'removeWorkflow', workflowId: 'logit' }], ctx);
+    const result = prepareOps(start, [{ op: 'removeTool', tool: 'logit' }], ctx);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.after.reminders).toEqual([]);
+    expect(result.after.tools).toEqual([]);
     expect(result.lines.join('\n')).toContain('同时移除用到它的提醒：记账');
   });
 });
@@ -114,12 +130,17 @@ describe('reminder settings (D-251)', () => {
 describe('planNotifications', () => {
   it('daily and weekly reminders repeat; weekly ones once per weekday', () => {
     const c = config([
-      { op: 'addReminder', reminder: daily },
+      { op: 'addTool', tool: daily },
       {
-        op: 'addReminder',
-        reminder: { ...daily, id: 'gym', title: '健身', schedule: 'weekly', weekdays: [5, 1, 1] },
+        op: 'addTool',
+        tool: {
+          ...daily,
+          id: 'gym',
+          title: '健身',
+          when: { every: 'week', days: [5, 1, 1], at: '09:00' },
+        },
       },
-      { op: 'addReminder', reminder: { ...daily, id: 'off', enabled: false } },
+      { op: 'addTool', tool: { ...daily, id: 'off', enabled: false } },
     ]);
     expect(planNotifications(c, new Map(), now, 'zh').map((n) => [n.id, n.trigger])).toEqual([
       ['log', { kind: 'daily', hour: 9, minute: 0 }],
@@ -129,7 +150,7 @@ describe('planNotifications', () => {
   });
 
   it('date reminders fire N days before each due date, skip past ones and entries without a date', () => {
-    const c = config([{ op: 'addReminder', reminder: dueSoon }]);
+    const c = config([{ op: 'addTool', tool: dueSoon }]);
     const records = new Map([
       [
         'bills',
@@ -158,7 +179,7 @@ describe('planNotifications', () => {
   });
 
   it('one day before uses the singular in every language', () => {
-    const c = config([{ op: 'addReminder', reminder: { ...dueSoon, daysBefore: 1 } }]);
+    const c = config([{ op: 'addTool', tool: before(1) }]);
     const records = new Map([['bills', [bill('rent', 'Rent', '2026-11-01')]]]);
     expect(planNotifications(c, records, now, 'en')[0]!.body).toBe(
       'An entry in “账单” is due in 1 day (2026-11-01)',
@@ -169,7 +190,7 @@ describe('planNotifications', () => {
   });
 
   it('a reminder on the due day itself says so', () => {
-    const c = config([{ op: 'addReminder', reminder: { ...dueSoon, daysBefore: 0 } }]);
+    const c = config([{ op: 'addTool', tool: before(0) }]);
     const [n] = planNotifications(
       c,
       new Map([['bills', [bill('rent', 'Loyer', '2026-11-01')]]]),

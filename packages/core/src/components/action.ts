@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 import { t } from '../messages';
 import { ToolUseSchema } from '../record-ops-schema';
-import { quickActionsOf } from '../schema';
+// 只引用类型：值从 '../schema' 引会成环（schema → components → action → schema），PageSchema 的块会是 undefined。
+import type { QuickAction } from '../schema';
 import { findWorkflowTarget } from '../workflows/presets';
 import { type LookDefinitionOf, defineLook } from './define';
 
@@ -24,7 +25,11 @@ export const actionComponent: LookDefinitionOf<'action', typeof shape> = defineL
   describe: (c, config, ctx) => {
     const use = c.tools[0]!;
     const id = 'tool' in use ? use.tool : '';
-    const wf = findWorkflowTarget(quickActionsOf(config), id, ctx.locale);
+    const wf = findWorkflowTarget(
+      config.tools.filter((x): x is QuickAction => x.kind === 'quickAction'),
+      id,
+      ctx.locale,
+    );
     return t(ctx.locale, 'describe_quick_action_1fb38', { v0: wf?.name ?? id });
   },
   edit: { text: [], style: [], backdrop: true },

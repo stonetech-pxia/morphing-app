@@ -10,9 +10,10 @@ import {
   type DataRecord,
 } from './data';
 import type { Op } from './ops';
-import { createDefaultWorkspace } from './defaults';
 import type { Collection, NewComponent } from './schema';
-import { registry } from './test-helpers';
+import { fromV33, registry, v33Fixture } from './test-helpers';
+
+const createDefaultWorkspace = (locale: 'zh') => fromV33(v33Fixture(`default-${locale}`));
 
 // 数据组件的新能力（D-248 起）：纯逻辑和校验。
 
@@ -45,8 +46,8 @@ const withComponent = (component: NewComponent) =>
   prepareOps(
     createDefaultWorkspace('zh'),
     [
-      { op: 'addCollection', collection: tasks },
-      { op: 'addComponent', pageId: 'home', component },
+      { op: 'addData', table: tasks },
+      { op: 'addContainer', page: 'home', block: component },
     ],
     ctx,
   );
@@ -67,10 +68,11 @@ describe('groupedAggregate (D-248)', () => {
   });
 
   it('only groups by a choice field', () => {
-    const stat = (groupBy: string): NewComponent => ({
+    const stat = (by: string): NewComponent => ({
       id: 's',
-      type: 'stat',
-      props: { collectionId: 'tasks', aggregate: 'count', label: '数量', groupBy },
+      look: 'number',
+      show: { label: '数量' },
+      source: { table: 'tasks', aggregate: 'count', group: { by } },
     });
     expect(withComponent(stat('status')).ok).toBe(true);
     expect(withComponent(stat('title')).ok).toBe(false);
@@ -93,7 +95,7 @@ const orders: Collection = {
   name: '订单',
   fields: [
     { id: 'item', name: '商品', type: 'text' },
-    { id: 'client', name: '客户', type: 'link', collectionId: 'clients' },
+    { id: 'client', name: '客户', type: 'link', table: 'clients' },
   ],
 };
 const clientRec = (id: string, name: string): DataRecord => ({
@@ -115,11 +117,7 @@ describe('link fields (D-250)', () => {
   const tables = (extra: Op[] = []) =>
     prepareOps(
       createDefaultWorkspace('zh'),
-      [
-        { op: 'addCollection', collection: clients },
-        { op: 'addCollection', collection: orders },
-        ...extra,
-      ],
+      [{ op: 'addData', table: clients }, { op: 'addData', table: orders }, ...extra],
       ctx,
     );
 
@@ -147,39 +145,33 @@ describe('link fields (D-250)', () => {
     expect(tables().ok).toBe(true);
     const broken = prepareOps(
       createDefaultWorkspace('zh'),
-      [{ op: 'addCollection', collection: orders }],
+      [{ op: 'addData', table: orders }],
       ctx,
     );
     expect(broken.ok).toBe(false);
   });
 
   it('a linked-to table can only be removed after the link field is removed', () => {
-    const refused = tables([{ op: 'removeCollection', collectionId: 'clients' }]);
+    const refused = tables([{ op: 'removeData', table: 'clients' }]);
     expect(refused.ok).toBe(false);
     if (!refused.ok) expect(refused.issues.join(' ')).toMatch(/linked from orders\.client/);
     expect(
       tables([
-        { op: 'removeField', collectionId: 'orders', fieldId: 'client' },
-        { op: 'removeCollection', collectionId: 'clients' },
+        { op: 'removeData', table: 'orders', field: 'client' },
+        { op: 'removeData', table: 'clients' },
       ]).ok,
     ).toBe(true);
   });
 
   it('a link field can be shown and filtered by whether it is set, not sorted or compared', () => {
-    const list = (props: Record<string, unknown>): Op => ({
-      op: 'addComponent',
-      pageId: 'home',
-      component: {
+    const list = (source: Record<string, unknown>): Op => ({
+      op: 'addContainer',
+      page: 'home',
+      block: {
         id: 'l',
-        type: 'recordList',
-        props: {
-          collectionId: 'orders',
-          display: 'list',
-          titleField: 'item',
-          subtitleFields: ['client'],
-          limit: 20,
-          ...props,
-        },
+        look: 'list',
+        source: { table: 'orders', limit: 20, ...source },
+        show: { title: 'item', subtitles: ['client'] },
       } as NewComponent,
     });
     expect(tables([list({ filter: [{ field: 'client', op: 'isNotEmpty' }] })]).ok).toBe(true);

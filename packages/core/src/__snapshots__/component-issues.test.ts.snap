@@ -16,13 +16,15 @@ exports[`component issues > describes every component in en 1`] = `
   "chart “Chart”",
   "chart “Chart”",
   "row group",
+  "“Spending” list",
+  "file list “Files”",
   "header “Hello”",
   "description text",
   "Open photo library",
   "Open files",
   "tool grid",
   "“More” link",
-  "file list “Files”",
+  "file slot “Passport”",
   "quick action list",
   "“Photos” quick action list",
   "notice",
@@ -32,6 +34,7 @@ exports[`component issues > describes every component in en 1`] = `
   "spacer",
   "stacked group “Box”",
   "grid group",
+  "content from a newer version of this app",
 ]
 `;
 
@@ -51,13 +54,15 @@ exports[`component issues > describes every component in fr 1`] = `
   "graphique « Chart »",
   "graphique « Chart »",
   "groupe en ligne",
+  "liste des entrées « Spending »",
+  "liste de fichiers « Files »",
   "en-tête « Hello »",
   "texte de description",
   "Ouvrir la photothèque",
   "Ouvrir les fichiers",
   "grille d’outils",
   "lien « More »",
-  "liste de fichiers « Files »",
+  "emplacement de fichier « Passport »",
   "liste d’actions rapides",
   "liste d’actions rapides « Photos »",
   "encadré",
@@ -67,6 +72,7 @@ exports[`component issues > describes every component in fr 1`] = `
   "espacement",
   "groupe empilé « Box »",
   "groupe en grille",
+  "contenu d’une version plus récente de cette app",
 ]
 `;
 
@@ -86,13 +92,15 @@ exports[`component issues > describes every component in zh 1`] = `
   "图表「Chart」",
   "图表「Chart」",
   "横排分组",
+  "「Spending」的记录列表",
+  "文件列表「Files」",
   "标题「Hello」",
   "说明文字",
   "打开相册",
   "打开文件",
   "工具宫格",
   "「More」入口",
-  "文件列表「Files」",
+  "文件入口「Passport」",
   "快捷操作列表",
   "「图片」快捷操作列表",
   "提示框",
@@ -102,6 +110,7 @@ exports[`component issues > describes every component in zh 1`] = `
   "空白间距",
   "竖排分组「Box」",
   "网格分组",
+  "新版本 App 才能显示的内容",
 ]
 `;
 
@@ -121,7 +130,7 @@ exports[`component issues > lists every reference problem in a stable order and 
   },
   {
     "code": "unknown-tool",
-    "message": "component t1 shows tool pdf which is not installed",
+    "message": "component t1 on page home opens tool pdf which is not installed",
   },
   {
     "code": "unknown-tool",
@@ -133,15 +142,11 @@ exports[`component issues > lists every reference problem in a stable order and 
   },
   {
     "code": "unknown-workflow",
-    "message": "component w1 runs missing workflow missing",
-  },
-  {
-    "code": "unknown-page",
-    "message": "component b2 on page home opens missing page:none",
+    "message": "component w1 runs missing quick action missing",
   },
   {
     "code": "data",
-    "message": "l1: titleField nope is not a field of spend",
+    "message": "l1: show.title nope is not a field of spend",
   },
   {
     "code": "data",
@@ -150,10 +155,6 @@ exports[`component issues > lists every reference problem in a stable order and 
   {
     "code": "data",
     "message": "l1: trailingField x2 is not a field of spend",
-  },
-  {
-    "code": "data",
-    "message": "l1: a checklist needs checkField set to a checkbox field",
   },
   {
     "code": "data",
@@ -173,11 +174,15 @@ exports[`component issues > lists every reference problem in a stable order and 
   },
   {
     "code": "data",
-    "message": "l2: checkField x3 is not a field of spend",
+    "message": "l1: checklist l1 check: toggle needs a checkbox field, but spend.title is text",
   },
   {
     "code": "data",
     "message": "l2: sort field x4 is not a field of spend",
+  },
+  {
+    "code": "data",
+    "message": "l2: list l2 check: as "check" doesn't fit a list block (allowed: button, addHere)",
   },
   {
     "code": "data",
@@ -201,7 +206,7 @@ exports[`component issues > lists every reference problem in a stable order and 
   },
   {
     "code": "data",
-    "message": "st1: sum needs fieldId set to a number, money, rating or formula field",
+    "message": "st1: sum needs field set to a number, money, rating or formula field",
   },
   {
     "code": "data",
@@ -213,11 +218,11 @@ exports[`component issues > lists every reference problem in a stable order and 
   },
   {
     "code": "data",
-    "message": "st2: avg needs fieldId set to a number, money, rating or formula field",
+    "message": "st2: avg needs field set to a number, money, rating or formula field",
   },
   {
     "code": "data",
-    "message": "c1: sum needs fieldId set to a number, money, rating or formula field",
+    "message": "c1: sum needs field set to a number, money, rating or formula field",
   },
   {
     "code": "data",
@@ -225,7 +230,7 @@ exports[`component issues > lists every reference problem in a stable order and 
   },
   {
     "code": "data",
-    "message": "c1: dateField title must be a date field of spend",
+    "message": "c1: source.group.by title must be a date field of spend",
   },
   {
     "code": "data",
@@ -233,7 +238,23 @@ exports[`component issues > lists every reference problem in a stable order and 
   },
   {
     "code": "data",
-    "message": "c2: grouping by choice needs choiceField set to a choice or link field (a link field: one point per entry of the linked table)",
+    "message": "c2: a chart needs source.group {unit: "day"|"week"|"month", by?: a date field} or {by: a choice or link field} (a link field: one point per entry of the linked table)",
+  },
+  {
+    "code": "unknown-page",
+    "message": "component b2 on page home opens missing page:none",
+  },
+  {
+    "code": "data",
+    "message": "k1: board k1 drag 1: dragging a card to another column is {as: "drag", do: "set", table, field: kind, value: "$group"}",
+  },
+  {
+    "code": "data",
+    "message": "k1: board k1 addHere 2: addHere adds an entry right in this section: {as: "addHere", do: "create", table: spend, ask?: "all", values: "$here"}",
+  },
+  {
+    "code": "data",
+    "message": "fl1: $files filter on kind: value does not match the field type",
   },
 ]
 `;

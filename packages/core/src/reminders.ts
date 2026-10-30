@@ -13,15 +13,16 @@ import {
 } from './data';
 import { dayNumber } from './formula';
 import { t } from './messages';
-import { createInput, recordActionProblems, rowUpdateInput, type ReminderDone } from './record-ops';
+import { createInput, recordToolProblems, rowUpdateInput, type RecordTool } from './record-ops';
 import { expandCollection } from './related';
 import { scheduleOccurrences, type ScheduleRule } from './schedule';
 import {
   pageIdOf,
-  workflowTargetId,
+  quickActionsOf,
+  remindersOf,
+  toolTargetId,
   type Collection,
   type Locale,
-  type NavTarget,
   type Reminder,
   type ReminderTarget,
   type WorkspaceConfig,
@@ -29,7 +30,8 @@ import {
 
 // 提醒（D-251）：用本地通知，不用推送、不需要服务器。配置里只有提醒的设置（AI 能新建、修改）；
 // 到期提醒要的记录在本机读，正文在本机生成，记录内容不进配置、不发给 AI。
-// 点通知只打开对应的页面或快捷操作，绝不自动运行任何东西（收件页面不自动运行的规则不变）。
+// 点通知只打开对应的页面或快捷操作，绝不自动运行任何东西（收件页面不自动运行的规则不变；关系规则 13、14：
+// 提醒没有步骤，不能触发别的工具，也不能把数据带出 App。「完成」只是作用在这一条（$row）上的一键记录工具）。
 
 /** iOS 最多同时排 64 条本地通知：到期提醒最多排这么多条（最近的先排），每次打开 App 再补上后面的。 */
 export const MAX_DATE_NOTIFICATIONS = 48;
@@ -40,81 +42,86 @@ export const MAX_RECORD_NOTIFICATIONS = 40;
 /** 每条记录最多往后排几次（之后的等 App 下次重排）。 */
 export const RECORD_OCCURRENCES = 7;
 
-/** 快捷操作的提醒目标 workflow:<id> → id；不是时为 null。 */
-export const reminderWorkflowId = (target: ReminderTarget): string | null =>
-  workflowTargetId(target);
+/** 打开快捷操作的提醒目标 tool:<id> → id（只把它摆出来，不运行）；不是时为 null。 */
+export const reminderToolId = (target: ReminderTarget): string | null => toolTargetId(target);
 
-/** 提醒的设置有没有问题：时间表需要的参数、要打开的地方、要看的表和日期字段都要在。 */
+/** 到期提醒（when.before）、按记录的提醒（when.each）看的表和字段。 */
+export const reminderTable = (r: Reminder): { table: string; field: string } | undefined =>
+  'before' in r.when ? r.when.before : 'each' in r.when ? r.when.each : undefined;
+
+/** 提醒的设置有没有问题：要打开的地方、要看的表和日期字段都要在。 */
 export function reminderProblems(r: Reminder, config: WorkspaceConfig): string[] {
   const problems: string[] = [];
   const where = `reminder ${r.id}`;
-  if (r.schedule === 'weekly' && !r.weekdays?.length)
-    problems.push(`${where}: weekly needs weekdays`);
-  if (r.schedule === 'dateField') {
-    const collection = config.collections.find((c) => c.id === r.collectionId);
-    if (!collection) problems.push(`${where}: data table ${String(r.collectionId)} does not exist`);
-    else if (collection.fields.find((f) => f.id === r.fieldId)?.type !== 'date')
-      problems.push(`${where}: fieldId must be a date field of ${collection.id}`);
-    if (r.daysBefore === undefined) problems.push(`${where}: dateField needs daysBefore`);
+  const when = r.when;
+  if ('before' in when) {
+    const collection = config.data.tables.find((c) => c.id === when.before.table);
+    if (!collection) problems.push(`${where}: data table ${when.before.table} does not exist`);
+    else if (collection.fields.find((f) => f.id === when.before.field)?.type !== 'date')
+      problems.push(`${where}: when.before.field must be a date field of ${collection.id}`);
   }
-  if (r.schedule === 'scheduleField') problems.push(...recordReminderProblems(r, config));
+  if ('each' in when) problems.push(...recordReminderProblems(r, when.each, config));
   else if (r.unless || r.done || r.snoozeMinutes !== undefined)
-    problems.push(
-      `${where}: unless, done and snoozeMinutes only work with schedule "scheduleField"`,
-    );
-  const workflowId = reminderWorkflowId(r.opens);
-  if (workflowId !== null) {
-    if (!config.workflows.some((w) => w.id === workflowId))
-      problems.push(`${where}: opens missing quick action ${workflowId}`);
+    problems.push(`${where}: unless, done and snoozeMinutes only work with when.each`);
+  const toolId = reminderToolId(r.opens);
+  if (toolId !== null) {
+    if (!quickActionsOf(config).some((w) => w.id === toolId))
+      problems.push(`${where}: opens missing quick action ${toolId}`);
   } else {
-    const pageId = pageIdOf(r.opens as NavTarget);
-    const page = pageId === null ? undefined : config.pages.find((p) => p.id === pageId);
+    const pageId = pageIdOf(r.opens);
+    const page = pageId === null ? undefined : config.containers.pages.find((p) => p.id === pageId);
     if (pageId !== null && !page) problems.push(`${where}: opens missing page ${pageId}`);
     // D-342：给一条记录用的页面不知道打开哪一条。
-    if (page?.recordOf)
+    if (page?.of)
       problems.push(
-        `${where}: opens page ${pageId}, which shows one entry of ${page.recordOf}; open another page`,
+        `${where}: opens page ${pageId}, which shows one entry of ${page.of}; open another page`,
       );
   }
   return problems;
 }
 
-/** 按记录排的提醒（D-316–D-318）：日程字段、unless 条件、「完成」按钮的操作。 */
-function recordReminderProblems(r: Reminder, config: WorkspaceConfig): string[] {
+/** 按记录排的提醒（D-316–D-318）：日程字段、unless 条件、「完成」按钮的工具。 */
+function recordReminderProblems(
+  r: Reminder,
+  each: { table: string; field: string },
+  config: WorkspaceConfig,
+): string[] {
   const where = `reminder ${r.id}`;
-  const collection = config.collections.find((c) => c.id === r.collectionId);
-  if (!collection) return [`${where}: data table ${String(r.collectionId)} does not exist`];
+  const collection = config.data.tables.find((c) => c.id === each.table);
+  if (!collection) return [`${where}: data table ${each.table} does not exist`];
   const problems: string[] = [];
-  if (collection.fields.find((f) => f.id === r.fieldId)?.type !== 'schedule')
-    problems.push(`${where}: fieldId must be a schedule field of ${collection.id}`);
+  if (collection.fields.find((f) => f.id === each.field)?.type !== 'schedule')
+    problems.push(`${where}: when.each.field must be a schedule field of ${collection.id}`);
   const u = r.unless;
   if (u) {
-    const other = config.collections.find((c) => c.id === u.collectionId);
-    if (!other) problems.push(`${where} unless: data table ${u.collectionId} does not exist`);
+    const other = config.data.tables.find((c) => c.id === u.table);
+    if (!other) problems.push(`${where} unless: data table ${u.table} does not exist`);
     else {
       problems.push(
-        ...conditionProblems(u.filter, expandCollection(config.collections, other)).map(
+        ...conditionProblems(u.filter, expandCollection(config.data.tables, other)).map(
           (x) => `${where} unless: ${x}`,
         ),
       );
-      const date = u.dateField;
+      const date = u.date;
       const dateType = date && other.fields.find((f) => f.id === date)?.type;
       if (date && !isSystemField(date) && dateType !== 'date' && dateType !== 'datetime')
-        problems.push(`${where} unless: dateField must be a date or datetime field of ${other.id}`);
+        problems.push(`${where} unless: date must be a date or datetime field of ${other.id}`);
       if (u.link !== undefined) {
         const link = other.fields.find((f) => f.id === u.link);
-        if (link?.type !== 'link' || link.collectionId !== collection.id)
+        if (link?.type !== 'link' || link.table !== collection.id)
           problems.push(
             `${where} unless: link must be a link field of ${other.id} pointing to ${collection.id}`,
           );
       }
     }
   }
+  // 关系规则 12、13：「完成」作用在这一条（$row，when.each.table 的一条）上，只是一键记录工具。
   if (r.done)
     problems.push(
-      ...recordActionProblems(r.done, config, {
+      ...recordToolProblems(r.done, config, {
         label: `${where} done`,
         rowOf: collection,
+        direct: true,
       }),
     );
   return problems;
@@ -175,16 +182,19 @@ export function planNotifications(
   const dated: PlannedNotification[] = [];
   const perRecord: PlannedNotification[] = [];
   const cal = calendarOf(config);
-  for (const r of config.reminders ?? []) {
+  for (const r of remindersOf(config)) {
     if (!r.enabled || reminderProblems(r, config).length > 0) continue;
-    const { hour, minute } = hm(r.time);
+    const when = r.when;
+    const { hour, minute } = hm(when.at);
     const base = { reminderId: r.id, title: r.title, opens: r.opens };
-    if (r.schedule === 'scheduleField') {
-      perRecord.push(...planRecordReminder(r, config, records, now, locale, cal));
-    } else if (r.schedule === 'daily') {
+    if ('each' in when) {
+      perRecord.push(
+        ...planRecordReminder(r, { ...when.each, at: when.at }, config, records, now, locale, cal),
+      );
+    } else if ('every' in when && when.every === 'day') {
       repeating.push({ ...base, id: r.id, body: '', trigger: { kind: 'daily', hour, minute } });
-    } else if (r.schedule === 'weekly') {
-      for (const weekday of [...new Set(r.weekdays)].sort()) {
+    } else if ('every' in when) {
+      for (const weekday of [...new Set(when.days)].sort()) {
         repeating.push({
           ...base,
           id: `${r.id}-${weekday}`,
@@ -193,9 +203,9 @@ export function planNotifications(
         });
       }
     } else {
-      const collection = config.collections.find((c) => c.id === r.collectionId)!;
-      const field = collection.fields.find((f) => f.id === r.fieldId)!;
-      const before = r.daysBefore ?? 0;
+      const collection = config.data.tables.find((c) => c.id === when.before.table)!;
+      const field = collection.fields.find((f) => f.id === when.before.field)!;
+      const before = when.days;
       for (const record of records.get(collection.id) ?? []) {
         const due = readValue(field, record.values[field.id]);
         if (typeof due !== 'string') continue;
@@ -265,37 +275,38 @@ export function reminderSkipped(
 ): boolean {
   const u = r.unless;
   if (!u) return false;
-  const table = config.collections.find((c) => c.id === u.collectionId);
+  const table = config.data.tables.find((c) => c.id === u.table);
   if (!table) return false;
   const cal = calendarOf(config);
-  const view = expandCollection(config.collections, table);
+  const view = expandCollection(config.data.tables, table);
   const [from, to] = periodAround(day, u.within, cal);
   const candidates = (records.get(table.id) ?? []).filter((x) =>
-    table.id === r.collectionId
+    table.id === reminderTable(r)?.table
       ? x.id === record.id
       : u.link === undefined || x.values[u.link] === record.id,
   );
   return filterRecords(candidates, view, u.filter, now, cal).some((x) => {
-    const date = recordDay(x, view, u.dateField ?? 'createdAt', now, cal);
+    const date = recordDay(x, view, u.date ?? 'createdAt', now, cal);
     const n = date === undefined ? undefined : dayNumber(date);
     return n !== undefined && n >= from && n <= to;
   });
 }
 
 /**
- * 一个 scheduleField 提醒要排的通知（D-316）：每条记录按自己的日程接下来几次，每次在 time；已经过去的、
+ * 一个 when.each 提醒要排的通知（D-316）：每条记录按自己的日程接下来几次，每次在 at；已经过去的、
  * unless 说要跳过的不排。标题是记录的标题，在本机拼出来（AI 看不到记录），正文是提醒的 title。
  */
 function planRecordReminder(
   r: Reminder,
+  each: { table: string; field: string; at: string },
   config: WorkspaceConfig,
   records: ReadonlyMap<string, readonly DataRecord[]>,
   now: Date,
   locale: Locale,
   cal: Calendar,
 ): PlannedNotification[] {
-  const collection = config.collections.find((c) => c.id === r.collectionId)!;
-  const field = collection.fields.find((f) => f.id === r.fieldId) as Extract<
+  const collection = config.data.tables.find((c) => c.id === each.table)!;
+  const field = collection.fields.find((f) => f.id === each.field) as Extract<
     Collection['fields'][number],
     { type: 'schedule' }
   >;
@@ -305,8 +316,8 @@ function planRecordReminder(
   for (const record of records.get(collection.id) ?? []) {
     const rule = readValue(field, record.values[field.id]) as ScheduleRule | undefined;
     if (!rule) continue;
-    // 记录自己的钟点优先（D-346），没有时用提醒的 time。
-    const { hour, minute } = hm(rule.time ?? r.time);
+    // 记录自己的钟点优先（D-346），没有时用提醒的 at。
+    const { hour, minute } = hm(rule.time ?? each.at);
     const done = scheduleDoneDays(record, collection, field, now, cal);
     // 多算一次：今天的时间已经过了时用后面的补上。
     const days = scheduleOccurrences(
@@ -340,11 +351,11 @@ function planRecordReminder(
 }
 
 /**
- * 「完成」按钮要写什么（D-318）：create 是新记录的表单输入（"row" 指这条），set / increment 是这条记录要改的值。
- * 字段已经不在了时为 null。结果再交给 prepareRecordValues。
+ * 「完成」按钮要写什么（D-318）：create 是新记录的表单输入（"$row" 指这条），set / toggle / increment 是
+ * 这条记录要改的值。字段、表已经不在了（或者是检查不让用的 setAll）时为 null。结果再交给 prepareRecordValues。
  */
 export function reminderDoneInput(
-  done: ReminderDone,
+  done: RecordTool,
   config: WorkspaceConfig,
   collection: Collection,
   record: DataRecord,
@@ -355,7 +366,7 @@ export function reminderDoneInput(
   | null {
   const cal = calendarOf(config);
   if (done.do === 'create') {
-    const target = config.collections.find((c) => c.id === done.collectionId);
+    const target = config.data.tables.find((c) => c.id === done.table);
     if (!target) return null;
     return {
       kind: 'create',
@@ -363,7 +374,8 @@ export function reminderDoneInput(
       input: createInput(target, done.values, { now, cal, rowId: record.id }),
     };
   }
-  const input = rowUpdateInput({ ...done, label: 'done' }, collection, record.values, { now, cal });
+  if (done.do === 'setAll') return null;
+  const input = rowUpdateInput(done, collection, record.values, { now, cal, rowId: record.id });
   return input ? { kind: 'update', input } : null;
 }
 
@@ -377,15 +389,14 @@ export const snoozeId = (reminderId: string, recordId: string) =>
  */
 export const reminderCollections = (config: WorkspaceConfig): string[] => [
   ...new Set(
-    (config.reminders ?? []).flatMap((r) => {
-      if (!r.enabled || !r.collectionId) return [];
-      if (r.schedule === 'dateField') return [r.collectionId];
-      if (r.schedule !== 'scheduleField') return [];
-      return r.unless ? [r.collectionId, r.unless.collectionId] : [r.collectionId];
+    remindersOf(config).flatMap((r) => {
+      const on = reminderTable(r);
+      if (!r.enabled || !on) return [];
+      return r.unless && 'each' in r.when ? [on.table, r.unless.table] : [on.table];
     }),
   ),
 ];
 
 /** 有没有开着的提醒（没有时不申请通知权限）。 */
 export const hasActiveReminders = (config: WorkspaceConfig) =>
-  (config.reminders ?? []).some((r) => r.enabled);
+  remindersOf(config).some((r) => r.enabled);

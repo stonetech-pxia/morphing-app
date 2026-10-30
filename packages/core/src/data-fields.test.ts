@@ -10,9 +10,8 @@ import {
   sortRecords,
   type DataRecord,
 } from './data';
-import { applyOps } from './ops';
 import type { Collection, WorkspaceConfig } from './schema';
-import { registry, workspace } from './test-helpers';
+import { fromV33, registry, v33Fixture } from './test-helpers';
 import { validateWorkspace } from './validate';
 
 // 附件和公式字段（D-187、D-188）。
@@ -162,12 +161,9 @@ describe('attachment fields', () => {
 
 describe('validation', () => {
   const withTable = (collection: Collection): WorkspaceConfig => {
-    const result = applyOps(workspace(), [{ op: 'addCollection', collection }], {
-      registry,
-      locale: 'zh',
-    });
-    if (!result.ok) throw new Error(result.error);
-    return result.config;
+    const config = fromV33(v33Fixture('default-zh'));
+    config.data.tables.push(collection);
+    return config;
   };
   const issues = (config: WorkspaceConfig) => {
     const r = validateWorkspace(config, registry);
@@ -195,28 +191,22 @@ describe('validation', () => {
   });
 
   it('keeps formula fields out of quick-add forms, attachments are allowed (D-263)', () => {
-    const result = applyOps(
-      withTable(orders),
-      [
+    const config = withTable(orders);
+    config.containers.pages[0]!.blocks.push({
+      id: 'add-order',
+      look: 'form',
+      show: { mode: 'inline' },
+      tools: [
         {
-          op: 'addComponent',
-          pageId: 'home',
-          component: {
-            id: 'add-order',
-            type: 'recordForm',
-            props: {
-              collectionId: 'orders',
-              fieldIds: ['item', 'total', 'receipt'],
-              submitLabel: '添加',
-              mode: 'inline',
-            },
-          },
+          as: 'submit',
+          label: '添加',
+          do: 'create',
+          table: 'orders',
+          ask: ['item', 'total', 'receipt'],
         },
       ],
-      { registry, locale: 'zh' },
-    );
-    if (!result.ok) throw new Error(result.error);
-    const found = issues(result.config).join('\n');
+    });
+    const found = issues(config).join('\n');
     expect(found).toMatch(/total is a formula field/);
     expect(found).not.toMatch(/receipt/);
   });
