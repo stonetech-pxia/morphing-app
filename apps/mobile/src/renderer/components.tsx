@@ -82,7 +82,8 @@ export function PageView({
         flexGrow: 1,
         padding: palette.pad,
         gap: palette.gap,
-        paddingBottom: 24 + bottomInset,
+        // 有浮动的「+」时多留出它的高度，最下面的内容不被盖住（D-342）。
+        paddingBottom: 24 + bottomInset + (floating.length > 0 ? 80 : 0),
       }}>
       {env.focus?.selectedId ? (
         <Pressable
