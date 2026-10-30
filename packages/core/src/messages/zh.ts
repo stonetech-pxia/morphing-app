@@ -1201,4 +1201,11 @@ export const zh: MessageTable = {
   compareDown: '↓ {n}%',
   compareUpNoPercent: '↑ 增加',
   compareSame: '持平',
+  // 大圆块和看板（D-311–D-314）
+  boardNotSet: '未分',
+  boardMoveTitle: '移到哪一栏？',
+  boardMoveTo: '移到「{column}」',
+  boardMoved: '已移到「{column}」',
+  boardColumnEmpty: '这一栏没有记录',
+  boardCardHint: '轻点可以打开或移到另一栏，长按可以拖动',
 };

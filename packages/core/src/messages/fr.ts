@@ -1325,6 +1325,14 @@ export const fr: MessageTable = {
   compareDown: '↓ {n} %',
   compareUpNoPercent: '↑ en hausse',
   compareSame: 'Stable',
+  // Pastilles et tableau en colonnes (D-311–D-314)
+  boardNotSet: 'Non classé',
+  boardMoveTitle: 'Déplacer dans quelle colonne ?',
+  boardMoveTo: 'Déplacer dans « {column} »',
+  boardMoved: 'Déplacé dans « {column} »',
+  boardColumnEmpty: 'Aucune entrée dans cette colonne',
+  boardCardHint:
+    'Touchez pour ouvrir ou déplacer dans une autre colonne. Maintenez pour faire glisser.',
 };
 
 export const frSingular: SingularTable = {

@@ -119,8 +119,16 @@ export function useRecordActionRunner() {
       });
     },
 
-    /** 列表里某一行的按钮。record 是列表上显示的那条（可能已经不在了，按 ID 重新读）。 */
-    runRow(action: RowAction, record: DataRecord, collection: Collection): Promise<void> {
+    /**
+     * 列表里某一行的按钮。record 是列表上显示的那条（可能已经不在了，按 ID 重新读）。
+     * message 换掉提示条上的「{label}：已记下」（看板移动卡片用，D-314）。
+     */
+    runRow(
+      action: RowAction,
+      record: DataRecord,
+      collection: Collection,
+      message?: string,
+    ): Promise<void> {
       return serial(async () => {
         if (action.do === 'open') return void openRecord(collection.id, record.id);
         if (action.do === 'create') {
@@ -142,7 +150,7 @@ export function useRecordActionRunner() {
         await repo.updateRecord(record.id, prepared.values, now.getTime());
         bump();
         showToast({
-          message: t(locale, 'recordActionDone', { label: action.label }),
+          message: message ?? t(locale, 'recordActionDone', { label: action.label }),
           undo: { kind: 'revert', records: [{ id: record.id, values: stored.values }] },
         });
       });

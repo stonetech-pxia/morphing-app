@@ -38,6 +38,7 @@ function sameValue(a: unknown, b: unknown): boolean {
 /** habits：一张打卡表（习惯、完成 / 跳过、日期）和显示它的页面（D-284）。 */
 /** oneTap：喝水、工时（开始 / 结束）、行李清单、账单四张表，每张一个列表页面（一键记录操作，D-300）。 */
 /** views：心情、上下班（开始和结束的日期时间）、喝水三张表，每张一个列表页面（D-305–D-308）。 */
+/** boards：习惯 ← 打卡、任务（状态是单选）两组表，习惯和任务各一个列表页面（大圆块和看板，D-311–D-314）。 */
 /** linked：互相引用的表（习惯 ← 打卡、工作 ← 工时、客户 ← 订单）和一张加油表，每张一个页面（D-287–D-289）。 */
 export type EvalSetup =
   | 'default'
@@ -50,7 +51,8 @@ export type EvalSetup =
   | 'habits'
   | 'linked'
   | 'oneTap'
-  | 'views';
+  | 'views'
+  | 'boards';
 
 export type OpsPlan = Extract<Plan, { kind: 'ops' }>;
 
@@ -109,6 +111,8 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
     ops.push(...oneTapOps(locale));
   } else if (setup === 'views') {
     ops.push(...viewOps(locale));
+  } else if (setup === 'boards') {
+    ops.push(...boardOps(locale));
   } else if (setup !== 'default') ops.push({ op: 'installTool', toolId: 'pdf' });
   if (setup === 'pdfBelowFiles') {
     ops.push({ op: 'moveComponent', pageId: 'home', componentId: 'card-pdf', toIndex: 3 });
@@ -306,6 +310,119 @@ function viewOps(locale: Locale): Op[] {
       },
     },
   ]);
+}
+
+/** 习惯 ← 打卡、任务两组表；习惯和任务各一个普通列表页面（名字按语言，ID 都一样）。 */
+function boardOps(locale: Locale): Op[] {
+  const n = {
+    zh: [
+      '习惯',
+      '名字',
+      '每天目标',
+      '打卡',
+      '日期',
+      '任务',
+      '标题',
+      '状态',
+      '待办',
+      '进行中',
+      '完成',
+    ],
+    en: [
+      'Habits',
+      'Name',
+      'Daily goal',
+      'Check-ins',
+      'Date',
+      'Tasks',
+      'Title',
+      'Status',
+      'To do',
+      'Doing',
+      'Done',
+    ],
+    fr: [
+      'Habitudes',
+      'Nom',
+      'Objectif du jour',
+      'Pointages',
+      'Date',
+      'Tâches',
+      'Titre',
+      'Statut',
+      'À faire',
+      'En cours',
+      'Terminé',
+    ],
+  }[locale] as string[];
+  const [habits, name, goal, checkins, date, tasks, title, status, todo, doing, done] = n as [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+  const tables: Collection[] = [
+    {
+      id: 'habits',
+      name: habits,
+      fields: [
+        { id: 'name', name, type: 'text' },
+        { id: 'goal', name: goal, type: 'number' },
+      ],
+    },
+    {
+      id: 'checkins',
+      name: checkins,
+      fields: [
+        { id: 'habit', name: habits, type: 'link', collectionId: 'habits' },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+      ],
+    },
+    {
+      id: 'tasks',
+      name: tasks,
+      fields: [
+        { id: 'title', name: title, type: 'text' },
+        {
+          id: 'status',
+          name: status,
+          type: 'choice',
+          options: [
+            { id: 'todo', label: todo },
+            { id: 'doing', label: doing },
+            { id: 'done', label: done },
+          ],
+        },
+        { id: 'due', name: date, type: 'date' },
+      ],
+    },
+  ];
+  const listPage = (collection: Collection, titleField: string): Op => ({
+    op: 'addPage',
+    page: {
+      id: collection.id,
+      title: collection.name,
+      components: [
+        {
+          id: 'list',
+          type: 'recordList',
+          props: { collectionId: collection.id, display: 'list', titleField, limit: 30 },
+        },
+      ],
+    },
+  });
+  return [
+    ...tables.map((collection): Op => ({ op: 'addCollection', collection })),
+    listPage(tables[0]!, 'name'),
+    listPage(tables[2]!, 'title'),
+  ];
 }
 
 /** 互相引用的几张表，每张一个列表页面（名字按语言，ID 都一样）。 */
@@ -5046,6 +5163,63 @@ const VIEW_CASES: readonly EvalCase[] = [
   },
 ];
 
+const isTiles = (x: { props: Record<string, unknown> }) => x.props.display === 'tiles';
+const boardByStatus = (c: WorkspaceConfig) =>
+  componentsOf(c, 'recordList', 'tasks').some(
+    (x) => x.props.display === 'board' && x.props.groupField === 'status',
+  )
+    ? null
+    : 'expected a board recordList of tasks grouped by status';
+
+const BOARD_CASES: readonly EvalCase[] = [
+  {
+    id: 'TB1',
+    input: '习惯做成大圆块，点一下打卡',
+    locale: 'zh',
+    setup: 'boards',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'habits').some(
+          (x) => isTiles(x) && ((x.props.rowActions as unknown[] | undefined)?.length ?? 0) > 0,
+        )
+          ? null
+          : 'expected a tiles recordList of habits with a row action',
+    },
+  },
+  {
+    id: 'TB2-en',
+    input: 'Show my habits as a grid of big circles',
+    locale: 'en',
+    setup: 'boards',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'habits').some(isTiles)
+          ? null
+          : 'expected a tiles recordList of habits',
+    },
+  },
+  {
+    id: 'TB3',
+    input: '任务看板按状态分栏',
+    locale: 'zh',
+    setup: 'boards',
+    mock: false,
+    expect: { kind: 'ops', check: boardByStatus },
+  },
+  {
+    id: 'TB3-fr',
+    input: 'Affiche mes tâches en colonnes par statut, comme un kanban',
+    locale: 'fr',
+    setup: 'boards',
+    mock: false,
+    expect: { kind: 'ops', check: boardByStatus },
+  },
+];
+
 const HOME_SCREEN_CASES: readonly EvalCase[] = [
   {
     id: 'HS1',
@@ -5502,6 +5676,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...RELATED_CASES,
   ...SCHEDULE_CASES,
   ...VIEW_CASES,
+  ...BOARD_CASES,
   ...HOME_SCREEN_CASES,
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,

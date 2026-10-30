@@ -44,6 +44,7 @@ export * from './samples';
 export * from './schedule';
 export * from './sequence';
 export * from './month-view';
+export * from './board-view';
 export * from './display-format';
 export * from './compare';
 export * from './text-ops';

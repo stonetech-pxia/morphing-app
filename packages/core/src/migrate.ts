@@ -245,6 +245,12 @@ export const migrateV24toV25: Migration = (config) => ({ ...config, schemaVersio
  */
 export const migrateV25toV26: Migration = (config) => ({ ...config, schemaVersion: 26 });
 
+/**
+ * v26 → v27：记录列表多了大圆块 tiles 和看板 board 两种外观、看板分栏用的 groupField（D-311–D-314）。
+ * 都是新的可选值，已有配置照样合法，只提升版本号。
+ */
+export const migrateV26toV27: Migration = (config) => ({ ...config, schemaVersion: 27 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -272,6 +278,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   23: migrateV23toV24,
   24: migrateV24toV25,
   25: migrateV25toV26,
+  26: migrateV26toV27,
 };
 
 export type MigrateResult =

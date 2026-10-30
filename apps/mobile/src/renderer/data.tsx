@@ -693,7 +693,11 @@ export function useCollection(env: RenderEnv, id: string): Collection | undefine
   return env.config.collections.find((c) => c.id === id);
 }
 
-function openEditor(router: ReturnType<typeof useRouter>, collectionId: string, recordId?: string) {
+export function openEditor(
+  router: ReturnType<typeof useRouter>,
+  collectionId: string,
+  recordId?: string,
+) {
   router.push({
     pathname: '/record/[collectionId]',
     params: recordId ? { collectionId, recordId } : { collectionId },
@@ -715,22 +719,12 @@ export function RecordList({
   tone?: Tone;
 }) {
   const { palette, locale } = env;
-  const collection = useCollection(env, props.collectionId);
-  const cal = calendarOf(env.config);
-  // 查找、汇总、上一条（D-291）：显示、筛选、排序用算好的记录和 view；改记录用原来的表。
-  const { view, records } = useComputedRecords(env.config.collections, collection, cal);
+  const { collection, view, loaded, sorted } = useListRecords(props, env);
   const rows = useRecordRows(props, env, tone, collection, view);
   if (!collection || !view || !rows) return null;
-  const now = new Date();
-  const shown = sortRecords(
-    filterRecords(records ?? [], view, props.filter, now, cal),
-    view,
-    props.sort,
-    now,
-    cal,
-  ).slice(0, props.limit);
+  const shown = sorted.slice(0, props.limit);
 
-  if (records !== null && shown.length === 0) {
+  if (loaded && shown.length === 0) {
     return (
       <Card palette={palette} background={rows.background}>
         <Text style={[palette.font('body', 14), { color: palette.caption }]}>
@@ -740,6 +734,25 @@ export function RecordList({
     );
   }
   return rows.list(shown);
+}
+
+/** 记录列表要显示的记录：筛选、排好序，还没截到 limit 条（看板按栏截，D-313）。 */
+export function useListRecords(props: RecordListProps, env: RenderEnv) {
+  const collection = useCollection(env, props.collectionId);
+  const cal = calendarOf(env.config);
+  // 查找、汇总、上一条（D-291）：显示、筛选、排序用算好的记录和 view；改记录用原来的表。
+  const { view, records } = useComputedRecords(env.config.collections, collection, cal);
+  const now = new Date();
+  const sorted = view
+    ? sortRecords(
+        filterRecords(records ?? [], view, props.filter, now, cal),
+        view,
+        props.sort,
+        now,
+        cal,
+      )
+    : [];
+  return { collection, view, loaded: records !== null, sorted };
 }
 
 /**
@@ -893,7 +906,7 @@ export function useRecordRows(
  * 右侧字段：没有 trailingFormat 时是它的显示文字；elapsed 是开始到结束（或到现在，每秒在走）的时长；
  * progress 是「值 / 目标」和一个小进度环或进度条（没有值或目标时照常显示文字）。
  */
-function Trailing({
+export function Trailing({
   record,
   view,
   props,

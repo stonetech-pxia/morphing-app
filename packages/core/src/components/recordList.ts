@@ -27,7 +27,7 @@ const TrailingFormatSchema = z.discriminatedUnion('kind', [
 
 const props = z.strictObject({
   collectionId: IdSchema,
-  display: z.enum(['list', 'cards', 'checklist', 'calendar']),
+  display: z.enum(['list', 'cards', 'checklist', 'calendar', 'tiles', 'board']),
   titleField: FieldRefSchema,
   subtitleFields: z.array(FieldRefSchema).max(2).optional(),
   /** 显示在右侧的字段，例如金额。 */
@@ -44,11 +44,15 @@ const props = z.strictObject({
   /** 月历按这个单选字段给每天上色（这一天最后一条的选项）。 */
   colorField: IdSchema.optional(),
   trailingFormat: TrailingFormatSchema.optional(),
+  /** 看板（D-313）按这个单选字段分栏：每个选项一栏，再加一栏「未分」。只给 board 用。 */
+  groupField: IdSchema.optional(),
 });
 
 /**
  * 记录列表：展示某张数据表的记录；checklist 用一个 checkbox 字段直接打勾；
- * calendar（D-305）是一个月的格子，点某一天列出当天的记录（limit 条，按 sort 排）。
+ * calendar（D-305）是一个月的格子，点某一天列出当天的记录（limit 条，按 sort 排）；
+ * tiles（D-311）是大圆块网格，点一下执行这一块的行操作；board（D-313）是按 groupField 分栏的看板，
+ * 拖到另一栏就是改这个字段。
  */
 export const recordListComponent: ComponentDefinitionOf<'recordList', typeof props> =
   defineComponent({
@@ -62,6 +66,7 @@ export const recordListComponent: ComponentDefinitionOf<'recordList', typeof pro
       filter: { to: 'filter' },
       dateField: { to: 'field', types: ['date', 'datetime'] },
       colorField: { to: 'field', types: ['choice'] },
+      groupField: { to: 'field', types: ['choice'] },
     },
     check: (c, { collection }) => {
       const problems: string[] = [];
@@ -79,6 +84,11 @@ export const recordListComponent: ComponentDefinitionOf<'recordList', typeof pro
       }
       if (c.props.display !== 'calendar' && (c.props.dateField || c.props.colorField))
         problems.push('dateField and colorField only apply to display "calendar"');
+      if (c.props.display === 'board') {
+        if (!c.props.groupField) problems.push('a board needs groupField set to a choice field');
+      } else if (c.props.groupField !== undefined) {
+        problems.push('groupField only applies to display "board"');
+      }
       const format = c.props.trailingFormat;
       const trailing = c.props.trailingField;
       const trailingType = trailing
@@ -119,7 +129,7 @@ export const recordListComponent: ComponentDefinitionOf<'recordList', typeof pro
       t(ctx.locale, 'describe_list_0b528', { v0: collectionName(c.props.collectionId, config) }),
     edit: { text: [], style: ['tone'] },
     ai: {
-      doc: '{collectionId, display: "list"|"cards"|"checklist"|"calendar", titleField, subtitleFields? (≤2), trailingField? (shown on the right, e.g. an amount), trailingFormat? (rule 51), checkField? (a checkbox field; required for "checklist"), dateField? + colorField? (calendar only, rule 50), filter?, sort? {field, direction: "asc"|"desc"}, limit (1-100), emptyText?, rowActions? (1-3, rule 49)}: tapping a record opens the built-in editor',
+      doc: '{collectionId, display: "list"|"cards"|"checklist"|"calendar"|"tiles"|"board", titleField, subtitleFields? (≤2), trailingField? (shown on the right, e.g. an amount), trailingFormat? (rule 51), checkField? (a checkbox field; required for "checklist"), dateField? + colorField? (calendar only, rule 50), groupField? (a choice field; required for "board", board only, rule 54), filter?, sort? {field, direction: "asc"|"desc"}, limit (1-100; tiles show at most 24, board per column), emptyText?, rowActions? (1-3, rule 49; tiles: rule 53)}: tapping a record opens the built-in editor',
     },
     example: {
       props: {

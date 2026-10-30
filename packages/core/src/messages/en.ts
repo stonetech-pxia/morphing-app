@@ -1273,6 +1273,13 @@ export const en = {
   compareDown: '↓ {n}%',
   compareUpNoPercent: '↑ more',
   compareSame: 'No change',
+  // Tiles and board (D-311–D-314)
+  boardNotSet: 'Not set',
+  boardMoveTitle: 'Move to which column?',
+  boardMoveTo: 'Move to “{column}”',
+  boardMoved: 'Moved to “{column}”',
+  boardColumnEmpty: 'Nothing in this column',
+  boardCardHint: 'Tap to open or move to another column. Touch and hold to drag.',
 };
 
 export type StringKey = keyof typeof en;
