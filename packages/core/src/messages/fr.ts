@@ -1363,6 +1363,36 @@ export const fr: MessageTable = {
     'Cet écran d’accueil ne permet pas d’ajouter un widget depuis Morph. Maintenez le doigt sur l’écran d’accueil, choisissez Widgets et ajoutez Morph.',
   widgetDone: '{n} appuis du widget enregistrés',
   widgetSkipped: '{n} appuis sur le widget n’ont pas été enregistrés, car la page a changé',
+  // 文件房间（D-336–D-339）。
+  deskPlace: 'Poser sur le bureau',
+  deskPlaceAbout: 'Modifiez outil par outil, voyez chaque changement, annulez à tout moment',
+  deskGone: 'Ce bureau a été vidé.',
+  deskGroupEdit: 'Modifier',
+  deskGroupAdjust: 'Ajuster',
+  deskGroupConvert: 'Convertir',
+  deskGroupQuick: 'Actions rapides',
+  deskApply: 'Appliquer',
+  deskTargets: 'Les outils s’appliquent à ces {n} fichiers',
+  deskNoTools:
+    'Aucun outil pour ce type de fichier pour l’instant. Vous pouvez le partager ou l’enregistrer depuis Terminé.',
+  deskSystemPreview: 'Ouvrir dans l’aperçu du système',
+  deskPdfNeedsPack:
+    'Pour feuilleter le PDF ici, téléchargez d’abord le pack « Aperçu PDF ». Vous pouvez aussi l’ouvrir dans l’aperçu du système.',
+  deskDownload: 'Télécharger',
+  deskPageFailed: 'Impossible d’afficher cette page ici.',
+  deskNoPreview:
+    'Impossible d’afficher ce fichier ici. Vous pouvez l’ouvrir dans l’aperçu du système.',
+  deskLeave: 'Laisser sur le bureau',
+  deskClear: 'Vider le bureau',
+  deskClearTitle: 'Vider le bureau ?',
+  deskClearMessage:
+    'Les fichiers du bureau et toutes leurs versions seront supprimés. Les fichiers enregistrés et les fichiers d’origine ne sont pas concernés.',
+  deskTextTitle: 'Résultat',
+  deskBusy: 'Traitement…',
+  deskStorageTitle: 'Sur le bureau',
+  deskStorageAbout:
+    'Fichiers en cours de modification et leurs versions (les 20 dernières, 500 Mo au plus).',
+  deskStale: 'Inutilisé depuis {n} jours, vous pouvez le vider',
 };
 
 export const frSingular: SingularTable = {
@@ -1452,4 +1482,6 @@ export const frSingular: SingularTable = {
   calendarDayLabel: '{date}, {n} entrée',
   widgetDone: '{n} appui du widget enregistré',
   widgetSkipped: '{n} appui sur le widget n’a pas été enregistré, car la page a changé',
+  deskTargets: 'Les outils s’appliquent à {n} fichier',
+  deskStale: 'Inutilisé depuis {n} jour, vous pouvez le vider',
 };

@@ -1310,6 +1310,34 @@ export const en = {
     'This home screen can’t add a widget from Morph. Touch and hold the home screen, choose Widgets and add Morph.',
   widgetDone: 'Recorded {n} taps from the Home Screen widget',
   widgetSkipped: '{n} taps on the widget weren’t recorded because the page changed',
+  // 文件房间（D-336–D-339）。
+  deskPlace: 'Put on the desk',
+  deskPlaceAbout: 'Edit tool by tool, see each change, undo any time',
+  deskGone: 'This desk has been cleared.',
+  deskGroupEdit: 'Edit',
+  deskGroupAdjust: 'Adjust',
+  deskGroupConvert: 'Convert',
+  deskGroupQuick: 'Quick actions',
+  deskApply: 'Apply',
+  deskTargets: 'Tools apply to these {n} files',
+  deskNoTools: 'There are no tools for this kind of file yet. You can share or save it from Done.',
+  deskSystemPreview: 'Open in system preview',
+  deskPdfNeedsPack:
+    'To page through the PDF here, download the “PDF preview” pack first. You can also open it in the system preview.',
+  deskDownload: 'Download',
+  deskPageFailed: 'This page can’t be shown here.',
+  deskNoPreview: 'This file can’t be shown here. You can open it in the system preview.',
+  deskLeave: 'Leave it on the desk',
+  deskClear: 'Clear the desk',
+  deskClearTitle: 'Clear the desk?',
+  deskClearMessage:
+    'The files on the desk and all their versions will be deleted. Files you saved and the original files are not affected.',
+  deskTextTitle: 'Result',
+  deskBusy: 'Working…',
+  deskStorageTitle: 'On the desk',
+  deskStorageAbout:
+    'Files you are editing in the room, with their versions (the last 20, at most 500 MB).',
+  deskStale: 'Untouched for {n} days, you can clear it',
 };
 
 export type StringKey = keyof typeof en;
@@ -1403,6 +1431,8 @@ export const enSingular = {
   calendarDayLabel: '{date}, {n} entry',
   widgetDone: 'Recorded {n} tap from the Home Screen widget',
   widgetSkipped: '{n} tap on the widget wasn’t recorded because the page changed',
+  deskTargets: 'Tools apply to {n} file',
+  deskStale: 'Untouched for {n} day, you can clear it',
 } satisfies Partial<MessageTable>;
 
 /** 单数表：键必须和 enSingular 完全一致。 */

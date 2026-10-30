@@ -51,12 +51,15 @@ export function AskPanel({
   locale,
   now,
   onAnswer,
+  okLabel,
 }: {
   request: AskRequest;
   palette: Palette;
   locale: Locale;
   now: Date;
   onAnswer: (values: Record<string, unknown> | null) => void;
+  /** 确定按钮的字（文件房间的工具面板是「应用」，D-339）。 */
+  okLabel?: string;
 }) {
   const [values, setValues] = useState(() => initialAnswers(request, now));
   const [error, setError] = useState<string | null>(null);
@@ -151,7 +154,7 @@ export function AskPanel({
             </Pressable>
             <Pressable testID="prompt-ok" onPress={submit} hitSlop={8}>
               <Text style={[palette.font('bodyBold', 16), { color: palette.primaryText }]}>
-                {t(locale, 'ok')}
+                {okLabel ?? t(locale, 'ok')}
               </Text>
             </Pressable>
           </View>

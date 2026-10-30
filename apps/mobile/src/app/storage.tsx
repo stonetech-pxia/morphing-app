@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { runErrorText, t } from '@/i18n';
+import { DeskList } from '@/desk/DeskList';
 import { AttachmentThumb } from '@/renderer/Attachments';
 import { Icon } from '@/renderer/Icon';
 import { usePalette } from '@/renderer/theme';
@@ -200,6 +201,8 @@ export default function StorageRoute() {
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 48 }}>
       <PageTitle palette={palette}>{t(locale, 'storageTitle')}</PageTitle>
       <Text style={caption}>{t(locale, 'storageIntro')}</Text>
+      {/* 桌上的文件（D-336）：从这里回到房间，放久了提示清掉。 */}
+      <DeskList files={files} palette={palette} locale={locale} />
       {assets.length === 0 ? (
         <Card palette={palette}>
           <Text testID="storage-empty" style={caption}>

@@ -43,36 +43,49 @@ async function open(file) {
 }
 // iOS WebView 的 canvas 上限约 1677 万像素。
 const MAX_PIXELS = 16000000;
+async function renderList(doc, list, maxSide, quality) {
+  const out = [];
+  for (const index of list) {
+    const page = await doc.getPage(index + 1);
+    const base = page.getViewport({ scale: 1 });
+    let scale = maxSide / Math.max(base.width, base.height);
+    if (base.width * base.height * scale * scale > MAX_PIXELS) {
+      scale = Math.sqrt(MAX_PIXELS / (base.width * base.height));
+    }
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    out.push({
+      index,
+      width: canvas.width,
+      height: canvas.height,
+      data: canvas.toDataURL('image/jpeg', quality).split(',')[1],
+    });
+    page.cleanup();
+    canvas.width = canvas.height = 0;
+  }
+  return out;
+}
 handlers.render = async ({ file, pages, maxSide, quality }) => {
   const doc = await open(file);
   try {
     const list = pages && pages.length ? pages : Array.from({ length: doc.numPages }, (_, i) => i);
-    const out = [];
-    for (const index of list) {
-      const page = await doc.getPage(index + 1);
-      const base = page.getViewport({ scale: 1 });
-      let scale = maxSide / Math.max(base.width, base.height);
-      if (base.width * base.height * scale * scale > MAX_PIXELS) {
-        scale = Math.sqrt(MAX_PIXELS / (base.width * base.height));
-      }
-      const viewport = page.getViewport({ scale });
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.floor(viewport.width);
-      canvas.height = Math.floor(viewport.height);
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      await page.render({ canvasContext: ctx, viewport }).promise;
-      out.push({
-        index,
-        width: canvas.width,
-        height: canvas.height,
-        data: canvas.toDataURL('image/jpeg', quality).split(',')[1],
-      });
-      page.cleanup();
-      canvas.width = canvas.height = 0;
-    }
-    return out;
+    return await renderList(doc, list, maxSide, quality);
+  } finally {
+    await doc.close();
+  }
+};
+// 文件房间的大预览（D-339）：一次只画要看的几页，同时告诉 App 一共几页。
+handlers.preview = async ({ file, pages, maxSide, quality }) => {
+  const doc = await open(file);
+  try {
+    const list = (pages || []).filter((i) => i >= 0 && i < doc.numPages);
+    return { count: doc.numPages, pages: await renderList(doc, list, maxSide, quality) };
   } finally {
     await doc.close();
   }

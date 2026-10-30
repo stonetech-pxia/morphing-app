@@ -19,6 +19,7 @@ import { DraftChatSheet } from '../draft/DraftBar';
 import { useDraftUi } from '../draft/ui';
 import { createAISettingsStore, type SecretStore } from '../ai/settings';
 import ChangeRoute from '../app/change';
+import DeskRoute from '../app/desk/[deskId]';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
 import ReadyRoute from '../app/ready/[workflowId]';
@@ -144,6 +145,7 @@ export async function renderToolsApp(
     'quick-actions/[kind]': QuickActionCategoryRoute,
     'workflow/[id]': WorkflowRoute,
     share: ShareRoute,
+    'desk/[deskId]': DeskRoute,
     storage: StorageRoute,
     'ready/[workflowId]': ReadyRoute,
     'record/[collectionId]': RecordRoute,
