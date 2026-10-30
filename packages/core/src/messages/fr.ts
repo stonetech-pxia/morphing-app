@@ -1337,6 +1337,23 @@ export const fr: MessageTable = {
   boardColumnEmpty: 'Aucune entrée dans cette colonne',
   boardCardHint:
     'Touchez pour ouvrir ou déplacer dans une autre colonne. Maintenez pour faire glisser.',
+  // Widgets de l’écran d’accueil (D-321–D-325).
+  widgetAdd: 'Ajouter à l’écran d’accueil',
+  widgetRemove: 'Retirer de l’écran d’accueil',
+  widgetUnsupportedTitle: 'Ce composant ne peut pas encore aller sur l’écran d’accueil',
+  widgetUnsupportedHelp:
+    'Les widgets peuvent afficher une statistique, un bouton ou une liste d’entrées (aspect liste, cartes, liste à cocher ou tuiles).',
+  widgetUnsupported: 'Un widget ne peut pas afficher ce composant. Touchez pour ouvrir Morph.',
+  widgetGone: 'Ce composant a été retiré de Morph.',
+  widgetAdded: 'Enregistré',
+  widgetStale: 'Ouvrez Morph pour mettre à jour',
+  widgetIosTitle: 'Ajouté à la liste des widgets',
+  widgetIosHow:
+    'Sur l’écran d’accueil, maintenez le doigt sur un espace vide, touchez le bouton en haut à gauche, choisissez Ajouter un widget, puis Morph. Si vous avez ajouté plusieurs composants, maintenez le doigt sur le widget, choisissez Modifier le widget et sélectionnez « {name} ».',
+  widgetPinFailed:
+    'Cet écran d’accueil ne permet pas d’ajouter un widget depuis Morph. Maintenez le doigt sur l’écran d’accueil, choisissez Widgets et ajoutez Morph.',
+  widgetDone: '{n} appuis du widget enregistrés',
+  widgetSkipped: '{n} appuis sur le widget n’ont pas été enregistrés, car la page a changé',
 };
 
 export const frSingular: SingularTable = {
@@ -1424,4 +1441,6 @@ export const frSingular: SingularTable = {
   recordActionConfirm: 'Cela modifie {n} entrée. Vous pourrez annuler ensuite.',
   recordActionTooMany: 'Au plus {max} entrées peuvent changer à la fois ; cela en modifierait {n}.',
   calendarDayLabel: '{date}, {n} entrée',
+  widgetDone: '{n} appui du widget enregistré',
+  widgetSkipped: '{n} appui sur le widget n’a pas été enregistré, car la page a changé',
 };

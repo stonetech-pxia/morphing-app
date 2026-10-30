@@ -22,9 +22,9 @@ import { useRecordActions } from './records';
 // 一键记录操作（D-300–D-304）：用户点了按钮或列表里的行按钮才执行，直接写数据库（和表单一样不经过 AI、
 // 不生成版本），每次都弹可以撤销的提示条。操作由 AI 配置，值在这里按当时的时间和记录算出来。
 
-// 一次只执行一个：连点几下 +1 时一个接一个算，不会两次都从同一个旧值加。
+// 一次只执行一个：连点几下 +1 时一个接一个算，不会两次都从同一个旧值加。桌面小组件的点按也排在这里（D-323）。
 let queue: Promise<unknown> = Promise.resolve();
-function serial<T>(task: () => Promise<T>): Promise<T> {
+export function serial<T>(task: () => Promise<T>): Promise<T> {
   const next = queue.then(task, task);
   queue = next.catch(() => undefined);
   return next;

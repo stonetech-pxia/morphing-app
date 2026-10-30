@@ -39,6 +39,9 @@ import { useIncomingShare } from '../share/useIncomingShare';
 import { ToolDownloadsProvider } from '../tool-download/context';
 import type { ToolDownloads } from '../tool-download/state';
 import { MemoryWorkspaceRepo } from '../storage/memory';
+import { WidgetProvider } from '../widgets/context';
+import type { WidgetPlatform } from '../widgets/types';
+import { WidgetBridge } from '../widgets/useWidgets';
 import { WorkspaceProvider } from '../workspace/context';
 import { createWorkspaceStore } from '../workspace/store';
 import { FakeFiles } from './fake-files';
@@ -85,6 +88,8 @@ export async function renderToolsApp(
     seed?: (locale: Locale, registry: Registry) => WorkspaceConfig;
     /** 手机桌面（D-271）：假的长按菜单 / 桌面图标；不传时和 Expo Go 一样没有。 */
     homeScreen?: HomeScreenPlatform;
+    /** 桌面小组件（D-321）：假的平台；不传时和 Expo Go 一样没有。 */
+    widgets?: WidgetPlatform;
   } = {},
 ) {
   const registry = options.registry ?? testRegistry;
@@ -109,18 +114,21 @@ export async function renderToolsApp(
           <WorkspaceProvider value={{ store, repo, files, registry, locale }}>
             <ShareListener files={files} />
             <HomeScreenProvider value={options.homeScreen ?? null}>
-              {options.toolDownloads ? (
-                <ToolDownloadsProvider value={options.toolDownloads}>
-                  <Stack />
-                  <DraftChatSheet />
-                </ToolDownloadsProvider>
-              ) : (
-                <>
-                  <Stack />
-                  <DraftChatSheet />
-                </>
-              )}
-              <HomeScreenBridge platform={options.homeScreen ?? null} />
+              <WidgetProvider value={options.widgets ?? null}>
+                {options.toolDownloads ? (
+                  <ToolDownloadsProvider value={options.toolDownloads}>
+                    <Stack />
+                    <DraftChatSheet />
+                  </ToolDownloadsProvider>
+                ) : (
+                  <>
+                    <Stack />
+                    <DraftChatSheet />
+                  </>
+                )}
+                <HomeScreenBridge platform={options.homeScreen ?? null} />
+                <WidgetBridge platform={options.widgets ?? null} />
+              </WidgetProvider>
             </HomeScreenProvider>
           </WorkspaceProvider>
         </AISettingsProvider>

@@ -76,6 +76,7 @@
     "zustand": "^5.0.16"
   },
   "devDependencies": {
+    "@bacons/apple-targets": "5.0.0",
     "@testing-library/react-native": "^14.1.0",
     "@types/jest": "30.0.0",
     "@types/react": "~19.3.0",
@@ -101,5 +102,12 @@
     "setupFilesAfterEnv": [
       "<rootDir>/jest.animation-setup.js"
     ]
+  },
+  "expo": {
+    "autolinking": {
+      "exclude": [
+        "@bacons/apple-targets"
+      ]
+    }
   }
 }

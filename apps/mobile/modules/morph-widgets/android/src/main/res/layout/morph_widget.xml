@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 桌面小组件（D-321）：标题；统计的值和进度环；按钮；列表的几行或几个圆；说明；「打开 Morph 后更新」。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/widget_root"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:background="@drawable/morph_widget_bg"
+  android:orientation="vertical"
+  android:padding="12dp">
+
+  <TextView
+    android:id="@+id/widget_title"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:ellipsize="end"
+    android:maxLines="2"
+    android:text="@string/morph_widget_label"
+    android:textColor="@color/morph_widget_text"
+    android:textSize="12sp"
+    android:textStyle="bold" />
+
+  <LinearLayout
+    android:id="@+id/widget_stat"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:visibility="gone">
+
+    <TextView
+      android:id="@+id/widget_value"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:ellipsize="end"
+      android:maxLines="2"
+      android:textColor="@color/morph_widget_text"
+      android:textSize="24sp"
+      android:textStyle="bold" />
+
+    <ImageView
+      android:id="@+id/widget_ring"
+      android:layout_width="48dp"
+      android:layout_height="48dp"
+      android:visibility="gone" />
+  </LinearLayout>
+
+  <TextView
+    android:id="@+id/widget_button"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_marginTop="6dp"
+    android:layout_weight="1"
+    android:background="@drawable/morph_widget_button"
+    android:ellipsize="end"
+    android:gravity="center"
+    android:maxLines="2"
+    android:padding="8dp"
+    android:textSize="16sp"
+    android:textStyle="bold"
+    android:visibility="gone" />
+
+  <LinearLayout
+    android:id="@+id/widget_rows"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="4dp"
+    android:orientation="vertical"
+    android:visibility="gone" />
+
+  <LinearLayout
+    android:id="@+id/widget_tiles"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="4dp"
+    android:orientation="vertical"
+    android:visibility="gone" />
+
+  <TextView
+    android:id="@+id/widget_note"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:ellipsize="end"
+    android:maxLines="3"
+    android:text="@string/morph_widget_empty"
+    android:textColor="@color/morph_widget_muted"
+    android:textSize="12sp" />
+
+  <TextView
+    android:id="@+id/widget_stale"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:maxLines="1"
+    android:textColor="@color/morph_widget_muted"
+    android:textSize="11sp"
+    android:visibility="gone" />
+</LinearLayout>

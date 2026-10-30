@@ -1212,4 +1212,20 @@ export const zh: MessageTable = {
   boardMoved: '已移到「{column}」',
   boardColumnEmpty: '这一栏没有记录',
   boardCardHint: '轻点可以打开或移到另一栏，长按可以拖动',
+  // 桌面小组件（D-321–D-325）。
+  widgetAdd: '放到桌面',
+  widgetRemove: '从桌面移除',
+  widgetUnsupportedTitle: '这个组件还不能放到桌面',
+  widgetUnsupportedHelp:
+    '桌面小组件目前可以显示统计、按钮和记录列表（列表、卡片、清单、大圆块外观）。',
+  widgetUnsupported: '小组件显示不了这个组件，点一下打开 Morph。',
+  widgetGone: '这个组件已经从 Morph 里移除了。',
+  widgetAdded: '已记下',
+  widgetStale: '打开 Morph 后更新',
+  widgetIosTitle: '已加进小组件列表',
+  widgetIosHow:
+    '在手机桌面上长按空白处，点左上角的按钮，选「添加小组件」，再选 Morph。放了几个组件时，长按小组件选「编辑小组件」，再选「{name}」。',
+  widgetPinFailed: '这个桌面不能从 Morph 直接添加小组件。请长按桌面，选「小组件」，添加 Morph。',
+  widgetDone: '记下了桌面小组件上的 {n} 次点按',
+  widgetSkipped: '页面改过了，小组件上的 {n} 次点按没有记下',
 };

@@ -1284,6 +1284,23 @@ export const en = {
   boardMoved: 'Moved to “{column}”',
   boardColumnEmpty: 'Nothing in this column',
   boardCardHint: 'Tap to open or move to another column. Touch and hold to drag.',
+  // 桌面小组件（D-321–D-325）。
+  widgetAdd: 'Add to Home Screen',
+  widgetRemove: 'Remove from Home Screen',
+  widgetUnsupportedTitle: 'This can’t go on the Home Screen yet',
+  widgetUnsupportedHelp:
+    'Home Screen widgets can show a stat, a button or a list of entries (list, cards, checklist or tiles look).',
+  widgetUnsupported: 'A widget can’t show this component. Tap to open Morph.',
+  widgetGone: 'This component was removed from Morph.',
+  widgetAdded: 'Recorded',
+  widgetStale: 'Open Morph to update',
+  widgetIosTitle: 'Added to the widget list',
+  widgetIosHow:
+    'On the Home Screen, touch and hold an empty spot, tap the button at the top left, choose Add Widget, then Morph. If you added several components, touch and hold the widget, choose Edit Widget and pick “{name}”.',
+  widgetPinFailed:
+    'This home screen can’t add a widget from Morph. Touch and hold the home screen, choose Widgets and add Morph.',
+  widgetDone: 'Recorded {n} taps from the Home Screen widget',
+  widgetSkipped: '{n} taps on the widget weren’t recorded because the page changed',
 };
 
 export type StringKey = keyof typeof en;
@@ -1375,6 +1392,8 @@ export const enSingular = {
   recordActionConfirm: 'This changes {n} entry. You can undo it afterwards.',
   recordActionTooMany: 'At most {max} entries can change at once; this would change {n}.',
   calendarDayLabel: '{date}, {n} entry',
+  widgetDone: 'Recorded {n} tap from the Home Screen widget',
+  widgetSkipped: '{n} tap on the widget wasn’t recorded because the page changed',
 } satisfies Partial<MessageTable>;
 
 /** 单数表：键必须和 enSingular 完全一致。 */
