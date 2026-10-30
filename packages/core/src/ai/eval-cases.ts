@@ -1,16 +1,23 @@
-// @ts-nocheck
-// v34 第一阶段（2026-10-30）：评测用例的 setup 和 check 还是 v33 的写法（componentsOf(c, 'recordList')、
-// x.props.display、config.workflows……，风险 M11），第三阶段全部改写成 v34 并跑一次全量 Haiku。
-// 在那之前这里不做类型检查；用例一个都不删。
 import { createDefaultWorkspace } from '../defaults';
 import { applyOps, type Op } from '../ops';
 import type { Registry } from '../registry';
+import type { NumberSource } from '../components';
+import type { ToolUse } from '../record-ops-schema';
 import {
+  RECORD_LOOKS,
   allComponents,
+  entryKind,
+  isFileTarget,
+  isKnownComponent,
+  quickActionsOf,
+  remindersOf,
   type Collection,
   type Component,
+  type ComponentOf,
+  type Condition,
   type Field,
   type Locale,
+  type RecordLook,
   type Reminder,
   type WorkspaceConfig,
 } from '../schema';
@@ -105,13 +112,13 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
   if (setup === 'starter') return createStarterWorkspace(locale, registry);
   const ops: Op[] = [];
   if (setup === 'visa' || setup === 'visaHomeScreen') {
-    ops.push({ op: 'installTool', toolId: 'pdf' });
+    ops.push({ op: 'setPackage', package: 'pdf', do: 'add' });
     ops.push({
-      op: 'addWorkflow',
-      workflow: presetWorkflow(presetById('visa-photo')!, locale, 'visa-photo'),
+      op: 'addTool',
+      tool: presetWorkflow(presetById('visa-photo')!, locale, 'visa-photo'),
     });
     if (setup === 'visaHomeScreen')
-      ops.push({ op: 'setWorkflowHomeScreen', workflowId: 'visa-photo', homeScreen: true });
+      ops.push({ op: 'updateContainer', nav: { phoneHomeScreen: ['visa-photo'] } });
   } else if (setup === 'budget') {
     ops.push(...templateOps('budget', createDefaultWorkspace(locale), locale));
   } else if (setup === 'habits') {
@@ -130,9 +137,9 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
     ops.push(...envelopeOps(locale));
   } else if (setup === 'todos') {
     ops.push(...todoOps(locale));
-  } else if (setup !== 'default') ops.push({ op: 'installTool', toolId: 'pdf' });
+  } else if (setup !== 'default') ops.push({ op: 'setPackage', package: 'pdf', do: 'add' });
   if (setup === 'pdfBelowFiles') {
-    ops.push({ op: 'moveComponent', pageId: 'home', componentId: 'card-pdf', toIndex: 3 });
+    ops.push({ op: 'moveContainer', page: 'home', block: 'card-pdf', toIndex: 3 });
   }
   const base = createDefaultWorkspace(locale);
   if (ops.length === 0) return base;
@@ -157,8 +164,8 @@ function habitOps(locale: Locale): Op[] {
   const { done, skip, date, page } = more[locale];
   return [
     {
-      op: 'addCollection',
-      collection: {
+      op: 'addData',
+      table: {
         id: 'checkins',
         name: table,
         fields: [
@@ -186,15 +193,16 @@ function habitOps(locale: Locale): Op[] {
       },
     },
     {
-      op: 'addPage',
+      op: 'addContainer',
       page: {
         id: 'habits',
         title: page,
-        components: [
+        blocks: [
           {
             id: 'list',
-            type: 'recordList',
-            props: { collectionId: 'checkins', display: 'list', titleField: 'habit', limit: 20 },
+            look: 'list',
+            source: { table: 'checkins', limit: 20 },
+            show: { title: 'habit' },
           },
         ],
       },
@@ -305,23 +313,19 @@ function viewOps(locale: Locale): Op[] {
     },
   ];
   const title = { mood: 'feel', shifts: 'job', water: 'cups' } as const;
-  return tables.flatMap((collection): Op[] => [
-    { op: 'addCollection', collection },
+  return tables.flatMap((table): Op[] => [
+    { op: 'addData', table },
     {
-      op: 'addPage',
+      op: 'addContainer',
       page: {
-        id: collection.id,
-        title: collection.name,
-        components: [
+        id: table.id,
+        title: table.name,
+        blocks: [
           {
             id: 'list',
-            type: 'recordList',
-            props: {
-              collectionId: collection.id,
-              display: 'list',
-              titleField: title[collection.id as keyof typeof title],
-              limit: 30,
-            },
+            look: 'list',
+            source: { table: table.id, limit: 30 },
+            show: { title: title[table.id as keyof typeof title] },
           },
         ],
       },
@@ -398,7 +402,7 @@ function boardOps(locale: Locale): Op[] {
       id: 'checkins',
       name: checkins,
       fields: [
-        { id: 'habit', name: habits, type: 'link', collectionId: 'habits' },
+        { id: 'habit', name: habits, type: 'link', table: 'habits' },
         { id: 'date', name: date, type: 'date', default: 'today' },
       ],
     },
@@ -421,22 +425,23 @@ function boardOps(locale: Locale): Op[] {
       ],
     },
   ];
-  const listPage = (collection: Collection, titleField: string): Op => ({
-    op: 'addPage',
+  const listPage = (table: Collection, titleField: string): Op => ({
+    op: 'addContainer',
     page: {
-      id: collection.id,
-      title: collection.name,
-      components: [
+      id: table.id,
+      title: table.name,
+      blocks: [
         {
           id: 'list',
-          type: 'recordList',
-          props: { collectionId: collection.id, display: 'list', titleField, limit: 30 },
+          look: 'list',
+          source: { table: table.id, limit: 30 },
+          show: { title: titleField },
         },
       ],
     },
   });
   return [
-    ...tables.map((collection): Op => ({ op: 'addCollection', collection })),
+    ...tables.map((table): Op => ({ op: 'addData', table })),
     listPage(tables[0]!, 'name'),
     listPage(tables[2]!, 'title'),
   ];
@@ -496,27 +501,28 @@ function scheduledOps(locale: Locale): Op[] {
       id: 'checkins',
       name: checkins,
       fields: [
-        { id: 'habit', name: habits, type: 'link', collectionId: 'habits' },
+        { id: 'habit', name: habits, type: 'link', table: 'habits' },
         { id: 'date', name: date, type: 'date', default: 'today' },
       ],
     },
   ];
-  const listPage = (collection: Collection): Op => ({
-    op: 'addPage',
+  const listPage = (table: Collection): Op => ({
+    op: 'addContainer',
     page: {
-      id: collection.id,
-      title: collection.name,
-      components: [
+      id: table.id,
+      title: table.name,
+      blocks: [
         {
           id: 'list',
-          type: 'recordList',
-          props: { collectionId: collection.id, display: 'list', titleField: 'name', limit: 30 },
+          look: 'list',
+          source: { table: table.id, limit: 30 },
+          show: { title: 'name' },
         },
       ],
     },
   });
   return [
-    ...tables.map((collection): Op => ({ op: 'addCollection', collection })),
+    ...tables.map((table): Op => ({ op: 'addData', table })),
     listPage(tables[0]!),
     listPage(tables[1]!),
   ];
@@ -579,7 +585,7 @@ function envelopeOps(locale: Locale): Op[] {
       fields: [
         { id: 'amount', name: amount, type: 'money', currency, required: true },
         { id: 'date', name: date, type: 'date', default: 'today' },
-        { id: 'category', name: cats, type: 'link', collectionId: 'categories', required: true },
+        { id: 'category', name: cats, type: 'link', table: 'categories', required: true },
       ],
     },
     {
@@ -598,26 +604,27 @@ function envelopeOps(locale: Locale): Op[] {
             { id: 'in', label: income },
           ],
         },
-        { id: 'category', name: cats, type: 'link', collectionId: 'categories' },
+        { id: 'category', name: cats, type: 'link', table: 'categories' },
       ],
     },
   ];
-  const listPage = (collection: Collection, titleField: string): Op => ({
-    op: 'addPage',
+  const listPage = (table: Collection, titleField: string): Op => ({
+    op: 'addContainer',
     page: {
-      id: collection.id,
-      title: collection.name,
-      components: [
+      id: table.id,
+      title: table.name,
+      blocks: [
         {
-          id: `${collection.id}-list`,
-          type: 'recordList',
-          props: { collectionId: collection.id, display: 'list', titleField, limit: 30 },
+          id: `${table.id}-list`,
+          look: 'list',
+          source: { table: table.id, limit: 30 },
+          show: { title: titleField },
         },
       ],
     },
   });
   return [
-    ...tables.map((collection): Op => ({ op: 'addCollection', collection })),
+    ...tables.map((table): Op => ({ op: 'addData', table })),
     listPage(tables[0]!, 'name'),
     listPage(tables[2]!, 'amount'),
   ];
@@ -662,7 +669,7 @@ function todoOps(locale: Locale): Op[] {
       fields: [
         { id: 'title', name: title, type: 'text', required: true },
         { id: 'plan', name: plan, type: 'schedule', default: { repeat: 'once' }, lastDone: 'last' },
-        { id: 'project', name: projects, type: 'link', collectionId: 'projects' },
+        { id: 'project', name: projects, type: 'link', table: 'projects' },
         {
           id: 'priority',
           name: priority,
@@ -676,34 +683,35 @@ function todoOps(locale: Locale): Op[] {
       id: 'completions',
       name: done,
       fields: [
-        { id: 'task', name: tasks, type: 'link', collectionId: 'tasks', required: true },
+        { id: 'task', name: tasks, type: 'link', table: 'tasks', required: true },
         { id: 'date', name: date, type: 'date', default: 'today' },
       ],
     },
   ];
   const lastDone: Op = {
-    op: 'addField',
-    collectionId: 'tasks',
+    op: 'addData',
+    table: 'tasks',
     field: {
       id: 'last',
       name: last,
       type: 'rollup',
-      collectionId: 'completions',
-      linkField: 'task',
+      table: 'completions',
+      via: 'task',
       aggregate: 'latest',
-      fieldId: 'date',
+      field: 'date',
     },
   };
-  const listPage = (collection: Collection, titleField: string): Op => ({
-    op: 'addPage',
+  const listPage = (table: Collection, titleField: string): Op => ({
+    op: 'addContainer',
     page: {
-      id: collection.id,
-      title: collection.name,
-      components: [
+      id: table.id,
+      title: table.name,
+      blocks: [
         {
-          id: `${collection.id}-list`,
-          type: 'recordList',
-          props: { collectionId: collection.id, display: 'list', titleField, limit: 30 },
+          id: `${table.id}-list`,
+          look: 'list',
+          source: { table: table.id, limit: 30 },
+          show: { title: titleField },
         },
       ],
     },
@@ -717,16 +725,11 @@ function todoOps(locale: Locale): Op[] {
     ),
   } as Collection;
   return [
-    { op: 'addCollection', collection: projectTable },
-    { op: 'addCollection', collection: taskWithout },
-    { op: 'addCollection', collection: completionTable },
+    { op: 'addData', table: projectTable },
+    { op: 'addData', table: taskWithout },
+    { op: 'addData', table: completionTable },
     lastDone,
-    {
-      op: 'updateField',
-      collectionId: 'tasks',
-      fieldId: 'plan',
-      changes: { lastDone: 'last' },
-    } as Op,
+    { op: 'updateData', table: 'tasks', field: 'plan', changes: { lastDone: 'last' } },
     listPage(taskTable, 'title'),
     listPage(projectTable, 'name'),
   ];
@@ -822,7 +825,7 @@ function linkedOps(locale: Locale): Op[] {
       id: 'checkins',
       name: checkins,
       fields: [
-        { id: 'habit', name: habits, type: 'link', collectionId: 'habits' },
+        { id: 'habit', name: habits, type: 'link', table: 'habits' },
         { id: 'date', name: date, type: 'date', default: 'today' },
       ],
     },
@@ -838,7 +841,7 @@ function linkedOps(locale: Locale): Op[] {
       id: 'shifts',
       name: shifts,
       fields: [
-        { id: 'job', name: jobs, type: 'link', collectionId: 'jobs' },
+        { id: 'job', name: jobs, type: 'link', table: 'jobs' },
         { id: 'date', name: date, type: 'date', default: 'today' },
         { id: 'hours', name: hours, type: 'number', decimals: 2 },
       ],
@@ -848,7 +851,7 @@ function linkedOps(locale: Locale): Op[] {
       id: 'orders',
       name: orders,
       fields: [
-        { id: 'client', name: clients, type: 'link', collectionId: 'clients' },
+        { id: 'client', name: clients, type: 'link', table: 'clients' },
         { id: 'date', name: date, type: 'date', default: 'today' },
         { id: 'amount', name: amount, type: 'money', currency },
       ],
@@ -872,23 +875,19 @@ function linkedOps(locale: Locale): Op[] {
     },
   ];
   const title = (c: Collection) => c.fields.find((f) => f.type === 'text')?.id ?? 'date';
-  return tables.flatMap((collection): Op[] => [
-    { op: 'addCollection', collection },
+  return tables.flatMap((table): Op[] => [
+    { op: 'addData', table },
     {
-      op: 'addPage',
+      op: 'addContainer',
       page: {
-        id: `page-${collection.id}`,
-        title: collection.name,
-        components: [
+        id: `page-${table.id}`,
+        title: table.name,
+        blocks: [
           {
-            id: `list-${collection.id}`,
-            type: 'recordList',
-            props: {
-              collectionId: collection.id,
-              display: 'list',
-              titleField: title(collection),
-              limit: 50,
-            },
+            id: `list-${table.id}`,
+            look: 'list',
+            source: { table: table.id, limit: 50 },
+            show: { title: title(table) },
           },
         ],
       },
@@ -980,24 +979,19 @@ function oneTapOps(locale: Locale): Op[] {
       ],
     },
   ];
-  return tables.flatMap((collection): Op[] => [
-    { op: 'addCollection', collection },
+  return tables.flatMap((table): Op[] => [
+    { op: 'addData', table },
     {
-      op: 'addPage',
+      op: 'addContainer',
       page: {
-        id: `page-${collection.id}`,
-        title: collection.name,
-        components: [
+        id: `page-${table.id}`,
+        title: table.name,
+        blocks: [
           {
-            id: `list-${collection.id}`,
-            type: 'recordList',
-            props: {
-              collectionId: collection.id,
-              display: 'list',
-              titleField:
-                collection.fields.find((f) => f.type === 'text')?.id ?? collection.fields[0]!.id,
-              limit: 50,
-            },
+            id: `list-${table.id}`,
+            look: 'list',
+            source: { table: table.id, limit: 50 },
+            show: { title: table.fields.find((f) => f.type === 'text')?.id ?? table.fields[0]!.id },
           },
         ],
       },
@@ -1005,10 +999,72 @@ function oneTapOps(locale: Locale): Op[] {
   ]);
 }
 
-const home = (c: WorkspaceConfig) => c.pages.find((p) => p.id === 'home')!;
-const homeIds = (c: WorkspaceConfig) => home(c).components.map((x) => x.id);
+const home = (c: WorkspaceConfig) => c.containers.pages.find((p) => p.id === 'home')!;
+const homeIds = (c: WorkspaceConfig) => home(c).blocks.map((x) => x.id);
+/** 运行卡片（look action，原 workflowRunner）运行的快捷操作 ID；别的块是 null。 */
+const runsTool = (x: Component): string | null => {
+  if (!isKnownComponent(x) || x.look !== 'action') return null;
+  const use = x.tools[0];
+  return use && 'tool' in use ? use.tool : null;
+};
+/** 文件位（look entry，opens {file}，原 fileSlot）。 */
+const isFileSlot = (x: Component): x is ComponentOf<'entry'> =>
+  x.look === 'entry' && entryKind(x) === 'file';
+/** 文件位选好的文件（原 fileSlot 的 assetId）；还没选是 null。 */
+const fileOf = (x: ComponentOf<'entry'>) => (isFileTarget(x.opens) ? x.opens.file : null);
+/** 记录块（look list / cards / checklist / tiles / board / calendar，原 recordList）。 */
+type RecordBlock = ComponentOf<RecordLook>;
+const isRecordBlock = (x: Component): x is RecordBlock =>
+  isKnownComponent(x) && (RECORD_LOOKS as readonly string[]).includes(x.look);
+/** 所有页面里读这张表的记录块。 */
+const recordBlocksOf = (c: WorkspaceConfig, table: string): RecordBlock[] =>
+  c.containers.pages
+    .flatMap((p) => allComponents(p))
+    .filter((x): x is RecordBlock => isRecordBlock(x) && x.source.table === table);
+/** 所有页面里这张表的数字块（原 stat）。 */
+const numbersOf = (c: WorkspaceConfig, table: string) =>
+  c.containers.pages
+    .flatMap((p) => allComponents(p))
+    .filter((x): x is ComponentOf<'number'> => x.look === 'number' && x.source.table === table);
+/** 所有页面里这张表的图表。 */
+const chartsOf = (c: WorkspaceConfig, table: string) =>
+  c.containers.pages
+    .flatMap((p) => allComponents(p))
+    .filter((x): x is ComponentOf<'chart'> => x.look === 'chart' && x.source.table === table);
+/** 所有页面里往这张表添加记录的表单块（原 recordForm 的 inline / sheet）。 */
+const formsOf = (c: WorkspaceConfig, table: string) =>
+  c.containers.pages
+    .flatMap((p) => allComponents(p))
+    .filter(
+      (x): x is ComponentOf<'form'> =>
+        x.look === 'form' && x.tools.some((t) => 'do' in t && t.table === table),
+    );
+/** 记录块每一条上的工具（原 rowActions：一般是 button，大圆块上是 tap）。 */
+const rowToolsOf = (x: RecordBlock): ToolUse[] =>
+  (x.tools ?? []).filter((t) => t.as === 'button' || t.as === 'tap');
+/** 就地新建记录的工具里的预设值（"$here" 不算）。 */
+const valuesOf = (t: ToolUse): Record<string, unknown> =>
+  'do' in t && t.do === 'create' && typeof t.values === 'object' ? t.values : {};
+/** 列表的分段（原 recordList.groupBy / groupUnit）；看板的分栏、月历的日子不算。 */
+const groupByOf = (x: RecordBlock) =>
+  x.look === 'board' || x.look === 'calendar' ? undefined : x.source.group;
+/** 表里的一个字段。 */
+
+const fieldOf = (c: WorkspaceConfig, table: string, field: string | undefined) =>
+  c.data.tables.find((t) => t.id === table)?.fields.find((f) => f.id === field);
+/** 「打开相册 / 打开文件」块（look picker，原 filePick）选的是 media 还是 files；别的块是 null。 */
+
+const pickSource = (x: Component): 'media' | 'files' | null => {
+  if (!isKnownComponent(x) || x.look !== 'picker') return null;
+  const use = x.tools[0];
+  const tool = use && 'tool' in use ? use.tool : null;
+  return tool === '$pick.media' ? 'media' : tool === '$pick.files' ? 'files' : null;
+};
+/** 工具包的入口（look entry，opens package:<id>，原 toolCard）。 */
+
+const isToolCard = (x: Component) => x.look === 'entry' && entryKind(x) === 'package';
 const mergeSteps = (c: WorkspaceConfig) =>
-  c.workflows.find((w) => w.id === 'pdf-merge')?.steps ?? [];
+  quickActionsOf(c).find((w) => w.id === 'pdf-merge')?.steps ?? [];
 
 /** 每个检查返回 null 表示通过，否则返回失败原因。 */
 const all =
@@ -1022,14 +1078,14 @@ const pdfFirst = (c: WorkspaceConfig) =>
     : `PDF card should be right after the header, got ${homeIds(c).join(',')}`;
 /** PDF 工具页上「合并 PDF」的卡片排在标题后面的第一个。 */
 const mergeRunnerFirst = (c: WorkspaceConfig) => {
-  const page = c.pages.find((p) => p.id === 'tool-pdf');
-  const first = page?.components.find((x) => x.type !== 'header');
+  const page = c.containers.pages.find((p) => p.id === 'tool-pdf');
+  const first = page?.blocks.find((x) => x.look !== 'header');
   return first?.id === 'pdf-runner';
 };
 const navHomeToolsSettings = (c: WorkspaceConfig) =>
-  JSON.stringify(c.shell.nav) === JSON.stringify(['page:home', 'tools', 'settings'])
+  JSON.stringify(c.nav.bar) === JSON.stringify(['page:home', 'tools', 'settings'])
     ? null
-    : `nav should be home/tools/settings, got ${c.shell.nav.join(',')}`;
+    : `nav should be home/tools/settings, got ${c.nav.bar.join(',')}`;
 const titled = (title: string) => (c: WorkspaceConfig) =>
   home(c).title === title ? null : `home title should be ${title}, got ${home(c).title}`;
 const color = (hex: string) => (c: WorkspaceConfig) =>
@@ -1045,9 +1101,9 @@ const savesWithDate = (c: WorkspaceConfig) => {
     : `the file.rename template should contain the date, got ${template}`;
 };
 const singlePdfTool = (c: WorkspaceConfig) =>
-  c.tools.length === 1 &&
-  c.workflows.filter((w) => w.id === 'pdf-merge').length === 1 &&
-  new Set(c.workflows.map((w) => w.id)).size === c.workflows.length
+  c.packages.length === 1 &&
+  quickActionsOf(c).filter((w) => w.id === 'pdf-merge').length === 1 &&
+  new Set(quickActionsOf(c).map((w) => w.id)).size === quickActionsOf(c).length
     ? null
     : 'must keep exactly one PDF tool and one merge workflow';
 /** 用户看得到的步骤只剩选文件和合并：命名、保存可以保留，但不再询问。 */
@@ -1063,20 +1119,20 @@ const simplifiedMerge = (c: WorkspaceConfig) => {
 };
 /** 首页第 index 个组件是一个还没选照片的图片位（AI 不能替用户选照片）。 */
 const imageSlot = (c: WorkspaceConfig, index: number): string | null => {
-  const img = home(c).components[index];
-  if (img?.type !== 'image')
-    return `expected an image at position ${index}, got ${String(img?.type)}`;
-  return img.props.assetId ? 'the AI must not pick a photo' : null;
+  const img = home(c).blocks[index];
+  if (img?.look !== 'image')
+    return `expected an image at position ${index}, got ${String(img?.look)}`;
+  return img.show.asset ? 'the AI must not pick a photo' : null;
 };
 /** 有这个标题的页面，且能从导航栏、浮动按钮或首页的按钮 / 快捷入口打开。 */
 const reachablePage = (title: string) => (c: WorkspaceConfig) => {
-  const page = c.pages.find((p) => p.title === title);
+  const page = c.containers.pages.find((p) => p.title === title);
   if (!page) return `expected a page titled ${title}`;
   const target = `page:${page.id}`;
   const linked =
-    [...c.shell.nav, ...c.shell.floating].includes(target as never) ||
+    [...c.nav.bar, ...c.nav.floating].includes(target as never) ||
     allComponents(home(c)).some(
-      (x) => (x.type === 'shortcut' || x.type === 'button') && x.props.target === target,
+      (x) => (x.look === 'entry' || x.look === 'button') && x.opens === target,
     );
   return linked ? null : `page ${title} should be reachable`;
 };
@@ -1090,15 +1146,13 @@ const darkBackground = (c: WorkspaceConfig) => {
 const dataPage =
   (fieldType: string, usage: 'sum' | 'checklist') =>
   (c: WorkspaceConfig): string | null => {
-    const table = c.collections.find((t) => t.fields.some((f) => f.type === fieldType));
+    const table = c.data.tables.find((t) => t.fields.some((f) => f.type === fieldType));
     if (!table) return `expected a data table with a ${fieldType} field`;
-    const page = c.pages.find((p) =>
+    const page = c.containers.pages.find((p) =>
       allComponents(p).some((x) =>
         usage === 'sum'
-          ? x.type === 'stat' && x.props.collectionId === table.id && x.props.aggregate === 'sum'
-          : x.type === 'recordList' &&
-            x.props.collectionId === table.id &&
-            x.props.display === 'checklist',
+          ? x.look === 'number' && x.source.table === table.id && x.source.aggregate === 'sum'
+          : x.look === 'checklist' && x.source.table === table.id,
       ),
     );
     if (!page) return `expected a page with a ${usage} for ${table.id}`;
@@ -1187,7 +1241,7 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     mock: true,
     expect: {
       kind: 'ops',
-      check: (c) => (home(c).components[0]?.hidden ? null : 'welcome header should be hidden'),
+      check: (c) => (home(c).blocks[0]?.hidden ? null : 'welcome header should be hidden'),
     },
   },
   {
@@ -1342,9 +1396,9 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        !c.shell.nav.includes('ai') && !c.shell.floating.includes('ai')
+        !c.nav.bar.includes('ai') && !c.nav.floating.includes('ai')
           ? null
-          : `AI should be gone from nav and floating, got ${c.shell.nav.join(',')} / ${c.shell.floating.join(',')}`,
+          : `AI should be gone from nav and floating, got ${c.nav.bar.join(',')} / ${c.nav.floating.join(',')}`,
     },
   },
   {
@@ -1374,7 +1428,7 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.collections[0]?.fields.some((f) => f.name === '支付方式')
+        c.data.tables[0]?.fields.some((f) => f.name === '支付方式')
           ? null
           : 'expenses should get a 支付方式 field',
     },
@@ -1413,7 +1467,7 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.pages.find((p) => p.id === 'budget')?.icon === '💰'
+        c.containers.pages.find((p) => p.id === 'budget')?.icon === '💰'
           ? null
           : 'budget page icon should be 💰',
     },
@@ -1526,10 +1580,10 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const group = home(c).components.find((x) => x.type === 'group');
-        if (!group || group.type !== 'group') return 'expected a group on the home page';
-        if (group.props.layout !== 'grid')
-          return `group layout should be grid, got ${group.props.layout}`;
+        const group = home(c).blocks.find((x) => x.look === 'group');
+        if (!group || group.look !== 'group') return 'expected a group on the home page';
+        if (group.show.layout !== 'grid')
+          return `group layout should be grid, got ${group.show.layout}`;
         const ids = group.children.map((x) => x.id);
         return ids.includes('card-pdf') && ids.includes('catalog')
           ? null
@@ -1555,10 +1609,10 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const entries = [...c.shell.nav, ...c.shell.floating];
+        const entries = [...c.nav.bar, ...c.nav.floating];
         if (entries.includes('ai') || entries.includes('history'))
           return `AI and History should be gone, got ${entries.join(',')}`;
-        return c.shell.floating.includes('settings') ? null : 'settings should be floating';
+        return c.nav.floating.includes('settings') ? null : 'settings should be floating';
       },
     },
   },
@@ -1571,12 +1625,11 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const page = c.pages.find((p) => /notes/i.test(p.title));
+        const page = c.containers.pages.find((p) => /notes/i.test(p.title));
         if (!page) return 'expected a Notes page';
-        if (!page.components.some((x) => x.type === 'text')) return 'Notes page should have text';
+        if (!page.blocks.some((x) => x.look === 'text')) return 'Notes page should have text';
         const shortcut = allComponents(home(c)).find(
-          (x) =>
-            (x.type === 'shortcut' || x.type === 'button') && x.props.target === `page:${page.id}`,
+          (x) => (x.look === 'entry' || x.look === 'button') && x.opens === `page:${page.id}`,
         );
         return shortcut ? null : 'home should link to the Notes page';
       },
@@ -1609,7 +1662,7 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const f = c.collections[0]?.fields.find(
+        const f = c.data.tables[0]?.fields.find(
           (x) => x.type === 'choice' && x.name.includes('支付'),
         );
         if (!f || f.type !== 'choice') return 'expected a choice field for 支付方式';
@@ -1635,8 +1688,8 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.pages.some((p) => p.id === 'budget') &&
-        [...c.shell.nav, ...c.shell.floating].includes('page:budget')
+        c.containers.pages.some((p) => p.id === 'budget') &&
+        [...c.nav.bar, ...c.nav.floating].includes('page:budget')
           ? 'the budget page should be gone or unreachable'
           : null,
     },
@@ -1651,10 +1704,10 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
       kind: 'ops',
       check: (c) => {
         const t = allComponents(home(c)).find(
-          (x) => (x.type === 'text' || x.type === 'notice') && /\*\*[^*]+\*\*/.test(x.props.text),
+          (x) => (x.look === 'text' || x.look === 'notice') && /\*\*[^*]+\*\*/.test(x.show.text),
         );
-        if (!t || (t.type !== 'text' && t.type !== 'notice')) return 'expected text with **bold**';
-        const blocks = parseRichText(t.props.text);
+        if (!t || (t.look !== 'text' && t.look !== 'notice')) return 'expected text with **bold**';
+        const blocks = parseRichText(t.show.text);
         const list = blocks.find((b) => b.type === 'list');
         return list && list.type === 'list' && list.items.length >= 3
           ? null
@@ -1673,8 +1726,8 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
       check: (c) => {
         const problem = imageSlot(c, 1);
         if (problem) return problem;
-        const img = home(c).components[1]!;
-        return img.type === 'image' && img.props.caption === 'Our family'
+        const img = home(c).blocks[1]!;
+        return img.look === 'image' && img.show.caption === 'Our family'
           ? null
           : 'caption should be “Our family”';
       },
@@ -1691,8 +1744,8 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
       check: (c) =>
         allComponents(home(c)).some(
           (x) =>
-            (x.type === 'text' || x.type === 'notice') &&
-            parseRichText(x.props.text).some(
+            (x.look === 'text' || x.look === 'notice') &&
+            parseRichText(x.show.text).some(
               (b) =>
                 b.type === 'paragraph' && b.spans.some((s) => s.url === 'https://example.com/help'),
             ),
@@ -1712,11 +1765,11 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        if (!home(c).components.some((x) => x.type === 'image' && !x.props.assetId))
+        if (!home(c).blocks.some((x) => x.look === 'image' && !x.show.asset))
           return 'expected an empty image slot on the home page';
         if (home(c).icon !== '🏡') return `home icon should be 🏡, got ${home(c).icon}`;
         const t = allComponents(home(c)).find(
-          (x) => (x.type === 'text' || x.type === 'notice') && /\*\*[^*]+\*\*/.test(x.props.text),
+          (x) => (x.look === 'text' || x.look === 'notice') && /\*\*[^*]+\*\*/.test(x.show.text),
         );
         return t ? null : 'expected an intro with **bold**';
       },
@@ -1735,9 +1788,9 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
 // ---- 工作流（T7）----
 
 /** 用户自己的工作流（不属于工具）。 */
-const userWorkflows = (c: WorkspaceConfig) => c.workflows.filter((w) => !w.toolId);
+const userWorkflows = (c: WorkspaceConfig) => quickActionsOf(c).filter((w) => !w.package);
 const visa = (c: WorkspaceConfig) =>
-  c.workflows.find((w) => w.id === 'visa-photo' || w.presetId === 'visa-photo');
+  quickActionsOf(c).find((w) => w.id === 'visa-photo' || w.preset === 'visa-photo');
 /** 有一个用户工作流按顺序包含这些动作（中间可以有别的步骤），参数满足 check。 */
 const hasWorkflow =
   (
@@ -1888,9 +1941,7 @@ const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        allComponents(home(c)).some(
-          (x) => x.type === 'workflowRunner' && x.props.workflowId === visa(c)?.id,
-        )
+        allComponents(home(c)).some((x) => runsTool(x) === visa(c)?.id)
           ? null
           : 'no runner for the visa workflow on the home page',
     },
@@ -2046,9 +2097,7 @@ const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
       check: (c) => {
         const wf = userWorkflows(c).find((w) => w.steps.some((s) => s.action === 'scan.detect'));
         if (!wf) return 'no scanning workflow';
-        return allComponents(home(c)).some(
-          (x) => x.type === 'workflowRunner' && x.props.workflowId === wf.id,
-        )
+        return allComponents(home(c)).some((x) => runsTool(x) === wf.id)
           ? null
           : 'the scanning workflow is not on the home page';
       },
@@ -2099,8 +2148,8 @@ const WORKFLOW_EVAL_CASES: readonly EvalCase[] = [
 
 /** 没有任何页面上的运行卡片（用户没说要放首页）。 */
 const noRunner = (c: WorkspaceConfig) => {
-  const runners = c.pages.flatMap((p) =>
-    allComponents(p).filter((x) => x.type === 'workflowRunner'),
+  const runners = c.containers.pages.flatMap((p) =>
+    allComponents(p).filter((x) => x.look === 'action'),
   );
   return runners.length === 0 ? null : `added a runner on a page without being asked`;
 };
@@ -2316,11 +2365,9 @@ const GOAL_EVAL_CASES: readonly EvalCase[] = [
 
 // 新说法（D-112）：「快捷操作 / quick action」「添加 / 移除工具」「改动记录」，旧说法仍然能用（W*、P7）。
 
-const toolIds = (c: WorkspaceConfig) => c.tools.map((t) => t.toolId);
+const toolIds = (c: WorkspaceConfig) => c.packages.map((t) => t.id);
 const onHome = (c: WorkspaceConfig) =>
-  allComponents(home(c)).some(
-    (x) => x.type === 'workflowRunner' && x.props.workflowId === visa(c)?.id,
-  )
+  allComponents(home(c)).some((x) => runsTool(x) === visa(c)?.id)
     ? null
     : 'no runner for the visa quick action on the home page';
 
@@ -2372,8 +2419,8 @@ const WORDING_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.shell.nav.includes('history')
-          ? `History should leave the bar, got ${c.shell.nav.join(',')}`
+        c.nav.bar.includes('history')
+          ? `History should leave the bar, got ${c.nav.bar.join(',')}`
           : null,
     },
   },
@@ -2563,7 +2610,7 @@ const firstPdf = (steps: { action: string; params: Record<string, unknown> }[]) 
     : `first step should pick PDFs, got ${first?.action} ${String(first?.params.accept)}`;
 };
 const presetAdded = (id: string) => (c: WorkspaceConfig) =>
-  userWorkflows(c).some((w) => w.presetId === id) ? null : `the ${id} preset was not added`;
+  userWorkflows(c).some((w) => w.preset === id) ? null : `the ${id} preset was not added`;
 
 const VIDEO_EVAL_CASES: readonly EvalCase[] = [
   {
@@ -2782,7 +2829,7 @@ const TRANSLATE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) => w.presetId === 'screenshot-translate')
+        quickActionsOf(c).some((w) => w.preset === 'screenshot-translate')
           ? null
           : 'expected the screenshot-translate preset',
     },
@@ -3193,14 +3240,14 @@ const SPEAK_EVAL_CASES: readonly EvalCase[] = [
 
 // 工具箱是用户自己的页面，AI 能改（D-181）。
 
-type ToolGrid = Extract<Component, { type: 'toolGrid' }>;
-const toolbox = (c: WorkspaceConfig) => c.pages.find((p) => p.id === 'toolbox');
+type ToolGrid = ComponentOf<'packages'>;
+const toolbox = (c: WorkspaceConfig) => c.containers.pages.find((p) => p.id === 'toolbox');
 const grids = (c: WorkspaceConfig) =>
-  (toolbox(c)?.components ?? []).filter((x): x is ToolGrid => x.type === 'toolGrid');
+  (toolbox(c)?.blocks ?? []).filter((x): x is ToolGrid => x.look === 'packages');
 const gridWith = (c: WorkspaceConfig, toolId: string) =>
-  grids(c).filter((g) => g.props.toolIds?.includes(toolId));
+  grids(c).filter((g) => g.source.ids?.includes(toolId));
 const gridTitled = (c: WorkspaceConfig, title: RegExp) =>
-  grids(c).find((g) => title.test(g.props.title ?? ''));
+  grids(c).find((g) => title.test(g.show?.title ?? ''));
 
 const TOOLBOX_EVAL_CASES: readonly EvalCase[] = [
   {
@@ -3216,9 +3263,9 @@ const TOOLBOX_EVAL_CASES: readonly EvalCase[] = [
         if (found.length !== 1)
           return `translate should be in exactly one grid, got ${found.length}`;
         const g = found[0]!;
-        return g.props.toolIds?.includes('image')
+        return g.source.ids?.includes('image')
           ? null
-          : `translate is not in the photos grid: ${JSON.stringify(g.props)}`;
+          : `translate is not in the photos grid: ${JSON.stringify(g.source)}`;
       },
     },
   },
@@ -3233,9 +3280,9 @@ const TOOLBOX_EVAL_CASES: readonly EvalCase[] = [
       check: (c) => {
         const g = gridTitled(c, /常用/);
         if (!g) return 'no 常用 grid';
-        if (!(g.props.toolIds?.includes('image') && g.props.toolIds.includes('pdf')))
-          return `常用 should list image and pdf, got ${JSON.stringify(g.props.toolIds)}`;
-        const first = toolbox(c)!.components.find((x) => x.type !== 'header');
+        if (!(g.source.ids?.includes('image') && g.source.ids.includes('pdf')))
+          return `常用 should list image and pdf, got ${JSON.stringify(g.source.ids)}`;
+        const first = toolbox(c)!.blocks.find((x) => x.look !== 'header');
         return first === g ? null : '常用 should be the first group';
       },
     },
@@ -3261,9 +3308,9 @@ const TOOLBOX_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.shell.nav.includes('page:toolbox')
+        c.nav.bar.includes('page:toolbox')
           ? null
-          : `toolbox not in the bar: ${c.shell.nav.join(',')}`,
+          : `toolbox not in the bar: ${c.nav.bar.join(',')}`,
     },
   },
   {
@@ -3275,8 +3322,8 @@ const TOOLBOX_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.tools.some((t) => t.toolId === 'zip')
-          ? allComponents(home(c)).some((x) => x.type === 'toolCard')
+        c.packages.some((t) => t.id === 'zip')
+          ? allComponents(home(c)).some(isToolCard)
             ? 'the toolbox already shows zip, so home should get no tool card'
             : null
           : 'zip not added',
@@ -3285,11 +3332,11 @@ const TOOLBOX_EVAL_CASES: readonly EvalCase[] = [
 ];
 
 const toolInFront = (toolId: string) => (c: WorkspaceConfig) => {
-  const page = c.pages.find((p) => p.toolId === toolId);
+  const page = c.containers.pages.find((p) => p.package === toolId);
   if (!page) return `the ${toolId} tool should be added`;
-  return c.shell.nav[0] === `page:${page.id}`
+  return c.nav.bar[0] === `page:${page.id}`
     ? null
-    : `the ${toolId} tool should be first in the bottom bar, got ${c.shell.nav.join(',')}`;
+    : `the ${toolId} tool should be first in the bottom bar, got ${c.nav.bar.join(',')}`;
 };
 
 // 功能和外观分开改（D-191）：一句话两样都有时先做功能，外观留作下一句。
@@ -3538,12 +3585,12 @@ const FORMAT_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) => {
+        quickActionsOf(c).some((w) => {
           const i = w.steps.findIndex((s) => s.action === 'in.wifi');
           return i === 0 && w.steps.slice(1).some((s) => s.action === 'qr.generate');
         })
           ? null
-          : `expected in.wifi → qr.generate, got ${c.workflows
+          : `expected in.wifi → qr.generate, got ${quickActionsOf(c)
               .map((w) => w.steps.map((s) => s.action).join(' → '))
               .join(' | ')}`,
     },
@@ -3561,7 +3608,7 @@ const logsTo =
       w.steps.some((s) => s.action === 'out.addRecord' && s.params.collectionId === 'expenses'),
     );
     if (!wf) return 'expected a quick action with out.addRecord into expenses';
-    const table = c.collections.find((x) => x.id === 'expenses');
+    const table = c.data.tables.find((x) => x.id === 'expenses');
     if (needsFile && !table?.fields.some((f) => f.type === 'file'))
       return 'expenses should have a file field for the receipts';
     return null;
@@ -3573,7 +3620,7 @@ const logsTo =
 const attachesTo =
   (collectionId: string) =>
   (c: WorkspaceConfig): string | null => {
-    const table = c.collections.find((x) => x.id === collectionId);
+    const table = c.data.tables.find((x) => x.id === collectionId);
     if (!table?.fields.some((f) => f.type === 'file'))
       return `${collectionId} should have a file field`;
     if (userWorkflows(c).some((w) => w.steps.some((s) => s.action === 'out.addRecord')))
@@ -3649,7 +3696,7 @@ const RECORD_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const f = c.collections
+        const f = c.data.tables
           .find((x) => x.id === 'expenses')
           ?.fields.find((x) => x.type === 'formula');
         if (!f || f.type !== 'formula') return 'expected a formula field in expenses';
@@ -3805,7 +3852,7 @@ const DRAFT_CHAT_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: all(color('#2F9E44'), (c) =>
-        c.workflows.length === 0 ? null : 'the quick action should not be added in the draft',
+        quickActionsOf(c).length === 0 ? null : 'the quick action should not be added in the draft',
       ),
     },
   },
@@ -3823,9 +3870,7 @@ const FILE_ENTRY_CASES: EvalCase[] = [
   expect: {
     kind: 'ops',
     check: (c) =>
-      allComponents(home(c)).some(
-        (x) => x.type === 'filePick' && x.props.source === source && !x.hidden,
-      )
+      allComponents(home(c)).some((x) => pickSource(x) === source && !x.hidden)
         ? null
         : 'missing file picker entry',
   },
@@ -3841,7 +3886,7 @@ const VIDEO_MERGE_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some(
+        quickActionsOf(c).some(
           (w) =>
             w.steps.some((s) => s.action === 'file.order') &&
             w.steps.some((s) => s.action === 'video.merge'),
@@ -3860,7 +3905,7 @@ const VIDEO_MERGE_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some(
+        quickActionsOf(c).some(
           (w) =>
             w.steps[0]?.action === 'in.videos' &&
             w.steps.findIndex((s) => s.action === 'file.order') > 0 &&
@@ -3883,7 +3928,7 @@ const VIDEO_FRAME_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.frame'))
+        quickActionsOf(c).some((w) => w.steps.some((s) => s.action === 'video.frame'))
           ? null
           : 'missing video.frame',
     },
@@ -3897,7 +3942,7 @@ const VIDEO_FRAME_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some(
+        quickActionsOf(c).some(
           (w) =>
             w.steps[0]?.action === 'in.videos' &&
             w.steps.some((s) => s.action === 'video.frame') &&
@@ -3918,7 +3963,7 @@ const VIDEO_MUTE_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.mute'))
+        quickActionsOf(c).some((w) => w.steps.some((s) => s.action === 'video.mute'))
           ? null
           : 'missing video.mute',
     },
@@ -3932,7 +3977,7 @@ const VIDEO_MUTE_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some(
+        quickActionsOf(c).some(
           (w) =>
             w.steps[0]?.action === 'in.videos' && w.steps.some((s) => s.action === 'video.mute'),
         )
@@ -3951,7 +3996,7 @@ const VIDEO_MUSIC_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.audio'))
+        quickActionsOf(c).some((w) => w.steps.some((s) => s.action === 'video.audio'))
           ? null
           : 'missing video.audio',
     },
@@ -3966,7 +4011,7 @@ const VIDEO_MUSIC_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some(
+        quickActionsOf(c).some(
           (w) =>
             w.steps.filter((s) => s.action.startsWith('in.')).length === 1 &&
             w.steps.some(
@@ -3991,7 +4036,7 @@ const VIDEO_ROTATE_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.rotate'))
+        quickActionsOf(c).some((w) => w.steps.some((s) => s.action === 'video.rotate'))
           ? null
           : 'missing video.rotate',
     },
@@ -4005,7 +4050,7 @@ const VIDEO_ROTATE_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) =>
+        quickActionsOf(c).some((w) =>
           w.steps.some((s) => s.action === 'video.rotate' && s.params.degrees === 180),
         )
           ? null
@@ -4023,7 +4068,7 @@ const VIDEO_CROP_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.crop'))
+        quickActionsOf(c).some((w) => w.steps.some((s) => s.action === 'video.crop'))
           ? null
           : 'missing video.crop',
     },
@@ -4037,7 +4082,7 @@ const VIDEO_CROP_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) =>
+        quickActionsOf(c).some((w) =>
           w.steps.some((s) => s.action === 'video.crop' && s.params.ratio === '1:1'),
         )
           ? null
@@ -4055,7 +4100,7 @@ const VIDEO_SPEED_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.speed'))
+        quickActionsOf(c).some((w) => w.steps.some((s) => s.action === 'video.speed'))
           ? null
           : 'missing video.speed',
     },
@@ -4069,7 +4114,7 @@ const VIDEO_SPEED_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) =>
+        quickActionsOf(c).some((w) =>
           w.steps.some((s) => s.action === 'video.speed' && s.params.factor === 0.5),
         )
           ? null
@@ -4087,7 +4132,7 @@ const AUDIO_VOLUME_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) =>
+        quickActionsOf(c).some((w) =>
           w.steps.some((s) => s.action === 'audio.volume' && s.params.mode === 'normal'),
         )
           ? null
@@ -4104,7 +4149,7 @@ const AUDIO_VOLUME_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some(
+        quickActionsOf(c).some(
           (w) =>
             w.steps[0]?.action === 'in.videos' &&
             w.steps.some((s) => s.action === 'audio.volume' && s.params.mode === 'normal') &&
@@ -4123,7 +4168,7 @@ const AUDIO_VOLUME_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) =>
+        quickActionsOf(c).some((w) =>
           w.steps.some(
             (s) => s.action === 'audio.volume' && s.params.mode === 'db' && s.params.db === 6,
           ),
@@ -4143,7 +4188,7 @@ const AUDIO_DENOISE_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) => w.steps.some((s) => s.action === 'audio.denoise'))
+        quickActionsOf(c).some((w) => w.steps.some((s) => s.action === 'audio.denoise'))
           ? null
           : 'missing speech noise reduction',
     },
@@ -4158,7 +4203,7 @@ const AUDIO_DENOISE_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some(
+        quickActionsOf(c).some(
           (w) =>
             w.steps[0]?.action === 'in.videos' &&
             w.steps.some((s) => s.action === 'audio.denoise') &&
@@ -4179,7 +4224,7 @@ const IMAGE_BACKGROUND_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) =>
+        quickActionsOf(c).some((w) =>
           w.steps.some(
             (s) => s.action === 'image.removeBackground' && s.params.background === 'transparent',
           ),
@@ -4198,7 +4243,7 @@ const IMAGE_BACKGROUND_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) =>
+        quickActionsOf(c).some((w) =>
           w.steps.some(
             (s) =>
               s.action === 'image.removeBackground' &&
@@ -4221,7 +4266,7 @@ const IMAGE_ADJUST_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) =>
+        quickActionsOf(c).some((w) =>
           w.steps.some(
             (s) =>
               s.action === 'image.adjust' &&
@@ -4243,7 +4288,7 @@ const IMAGE_ADJUST_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) =>
+        quickActionsOf(c).some((w) =>
           w.steps.some(
             (s) =>
               s.action === 'image.adjust' &&
@@ -4268,7 +4313,7 @@ const IMAGE_ANNOTATE_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) => w.steps.some((s) => s.action === 'image.annotate'))
+        quickActionsOf(c).some((w) => w.steps.some((s) => s.action === 'image.annotate'))
           ? null
           : 'missing local photo annotations',
     },
@@ -4283,7 +4328,7 @@ const IMAGE_ANNOTATE_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) => w.steps.some((s) => s.action === 'image.annotate'))
+        quickActionsOf(c).some((w) => w.steps.some((s) => s.action === 'image.annotate'))
           ? null
           : 'missing local annotation editor',
     },
@@ -4299,7 +4344,7 @@ const VIDEO_SUBTITLE_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some((w) => w.steps.some((s) => s.action === 'video.subtitles'))
+        quickActionsOf(c).some((w) => w.steps.some((s) => s.action === 'video.subtitles'))
           ? null
           : 'missing SRT captions',
     },
@@ -4314,7 +4359,7 @@ const VIDEO_SUBTITLE_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some(
+        quickActionsOf(c).some(
           (w) =>
             w.steps[0]?.action === 'in.videos' &&
             w.steps.some((s) => s.action === 'video.subtitles' && s.params.lang === 'en') &&
@@ -4335,15 +4380,14 @@ const QUICK_ACTION_ENTRY_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.pages.some(
+        c.containers.pages.some(
           (p) =>
             p.id === 'home' &&
             allComponents(p).some(
               (x) =>
-                ((x.type === 'shortcut' || x.type === 'button') &&
-                  x.props.target === 'quickActions') ||
+                ((x.look === 'entry' || x.look === 'button') && x.opens === 'quickActions') ||
                 // 把分类入口直接放在首页也算（D-230）。
-                (x.type === 'quickActionList' && !x.props.kind),
+                (x.look === 'library' && !x.source.kind),
             ),
         )
           ? null
@@ -4359,15 +4403,14 @@ const QUICK_ACTION_ENTRY_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.pages.some(
+        c.containers.pages.some(
           (p) =>
             p.id === 'home' &&
             allComponents(p).some(
               (x) =>
-                ((x.type === 'shortcut' || x.type === 'button') &&
-                  x.props.target === 'quickActions') ||
+                ((x.look === 'entry' || x.look === 'button') && x.opens === 'quickActions') ||
                 // 把分类入口直接放在首页也算（D-230）。
-                (x.type === 'quickActionList' && !x.props.kind),
+                (x.look === 'library' && !x.source.kind),
             ),
         )
           ? null
@@ -4378,27 +4421,28 @@ const QUICK_ACTION_ENTRY_CASES: EvalCase[] = [
 // ---- 外观选项（D-230）----
 const homeEntries = (c: WorkspaceConfig) =>
   allComponents(home(c)).filter(
-    (x) => x.type === 'shortcut' || x.type === 'toolCard' || x.type === 'catalogLink',
+    // 入口（原 shortcut、toolCard、catalogLink）；文件位（原 fileSlot）不算。
+    (x): x is ComponentOf<'entry'> => x.look === 'entry' && entryKind(x) !== 'file',
   );
 /** 首页所有入口卡片都是这个样子（至少有一个）。 */
 const entriesLook = (look: 'row' | 'tile') => (c: WorkspaceConfig) => {
   const entries = homeEntries(c);
-  return entries.length > 0 && entries.every((x) => (x.props as { look?: string }).look === look)
+  return entries.length > 0 && entries.every((x) => x.show?.shape === look)
     ? null
-    : `home entries should all be ${look}: ${JSON.stringify(entries.map((x) => x.props))}`;
+    : `home entries should all be ${look}: ${JSON.stringify(entries.map((x) => x.show))}`;
 };
 const quickActionListOn = (kind: string) => (c: WorkspaceConfig) =>
-  allComponents(home(c)).some((x) => x.type === 'quickActionList' && x.props.kind === kind)
+  allComponents(home(c)).some((x) => x.look === 'library' && x.source.kind === kind)
     ? null
     : `missing a ${kind} quickActionList on home`;
 
 /** 工时、睡眠这类表（D-279、D-280）：两个时间或日期时间字段，一个用 hours() / minutes() 算时长的公式。 */
 function workHoursProblem(c: WorkspaceConfig, needsBreak = true): string | null {
-  const table = c.collections.find(
+  const table = c.data.tables.find(
     (x) => x.fields.filter((f) => f.type === 'time' || f.type === 'datetime').length >= 2,
   );
   if (!table)
-    return `expected a table with two time or datetime fields: ${JSON.stringify(c.collections)}`;
+    return `expected a table with two time or datetime fields: ${JSON.stringify(c.data.tables)}`;
   const formula = table.fields.find(
     (f) => f.type === 'formula' && /\b(hours|minutes)\(/.test(f.expression),
   );
@@ -4458,11 +4502,11 @@ const LOOK_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const runners = allComponents(c.pages.find((p) => p.id === 'tool-pdf')!).filter(
-          (x) => x.type === 'workflowRunner',
+        const runners = allComponents(c.containers.pages.find((p) => p.id === 'tool-pdf')!).filter(
+          (x) => x.look === 'action',
         );
         return runners.length > 0 &&
-          runners.every((x) => x.type === 'workflowRunner' && x.props.look === 'row')
+          runners.every((x) => x.look === 'action' && x.show?.shape === 'row')
           ? null
           : 'PDF quick actions should all be rows';
       },
@@ -4477,10 +4521,10 @@ const LOOK_CASES: EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const button = allComponents(c.pages.find((p) => p.id === 'toolbox')!).find(
+        const button = allComponents(c.containers.pages.find((p) => p.id === 'toolbox')!).find(
           (x) => x.id === 'toolbox-manage',
         );
-        return button?.type === 'button' && button.props.variant === 'icon' && button.props.icon
+        return button?.look === 'button' && button.show.variant === 'icon' && button.show.icon
           ? null
           : `manage button is ${JSON.stringify(button)}`;
       },
@@ -4505,8 +4549,8 @@ const LOOK_CASES: EvalCase[] = [
 ];
 // 新手引导第 1 步（D-231）：空白首页上加两个文件入口。中英文走内置规则，法语交给模型。
 const twoFilePicks = (c: WorkspaceConfig) => {
-  const picks = allComponents(home(c)).filter((x) => x.type === 'filePick');
-  const sources = picks.map((x) => (x.type === 'filePick' ? x.props.source : '')).sort();
+  const picks = allComponents(home(c)).filter((x) => x.look === 'picker');
+  const sources = picks.map((x) => pickSource(x) ?? '').sort();
   return sources.join(',') === 'files,media' ? null : `file pickers on home: ${sources.join(',')}`;
 };
 const GUIDE_STEP_CASES: EvalCase[] = [
@@ -4538,7 +4582,7 @@ const FRENCH_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.workflows.some(
+        quickActionsOf(c).some(
           (w) =>
             (w.steps[0]?.action === 'in.photos' ||
               (w.steps[0]?.action === 'in.files' && w.steps[0]?.params.accept === 'images')) &&
@@ -4597,7 +4641,7 @@ const FRENCH_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.collections.some((collection) =>
+        c.data.tables.some((collection) =>
           collection.fields.some((f) => f.type === 'money' && f.currency === 'EUR'),
         )
           ? null
@@ -4664,9 +4708,10 @@ const EXPERIENCE_CASES: readonly EvalCase[] = [
         input: '添加两个快捷操作',
         ops: [
           {
-            op: 'addWorkflow',
-            workflow: {
+            op: 'addTool',
+            tool: {
               id: 'resize-first',
+              kind: 'quickAction',
               name: '照片缩小',
               steps: [
                 {
@@ -4679,9 +4724,10 @@ const EXPERIENCE_CASES: readonly EvalCase[] = [
             },
           },
           {
-            op: 'addWorkflow',
-            workflow: {
+            op: 'addTool',
+            tool: {
               id: 'pdf-second',
+              kind: 'quickAction',
               name: '照片转 PDF',
               steps: [
                 {
@@ -4711,11 +4757,11 @@ const EXPERIENCE_CASES: readonly EvalCase[] = [
       plan: (p) => (p.homeEntry === false ? null : 'must not add a home entry'),
       check: (c) => {
         if (
-          !c.workflows.some((w) => w.id === 'resize-first') ||
-          !c.workflows.some((w) => w.id === 'pdf-second')
+          !quickActionsOf(c).some((w) => w.id === 'resize-first') ||
+          !quickActionsOf(c).some((w) => w.id === 'pdf-second')
         )
           return 'original actions must remain';
-        const added = c.workflows.find((w) => !['resize-first', 'pdf-second'].includes(w.id));
+        const added = quickActionsOf(c).find((w) => !['resize-first', 'pdf-second'].includes(w.id));
         return added &&
           added.steps.filter((step) => step.action.startsWith('in.')).length === 1 &&
           added.steps[0]?.action === 'in.photos' &&
@@ -4878,7 +4924,7 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const formula = c.collections.flatMap((x) => x.fields).find((f) => f.type === 'formula');
+        const formula = c.data.tables.flatMap((x) => x.fields).find((f) => f.type === 'formula');
         return formula?.type === 'formula' && /^\s*if\(/.test(formula.expression)
           ? null
           : `expected a formula field using if(…), got ${JSON.stringify(formula)}`;
@@ -4895,7 +4941,7 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const formula = c.collections.flatMap((x) => x.fields).find((f) => f.type === 'formula');
+        const formula = c.data.tables.flatMap((x) => x.fields).find((f) => f.type === 'formula');
         return formula?.type === 'formula' &&
           /days\(\s*today\s*,\s*\{[a-z0-9-]+\}\s*\)/.test(formula.expression)
           ? null
@@ -4912,7 +4958,7 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const formula = c.collections.flatMap((x) => x.fields).find((f) => f.type === 'formula');
+        const formula = c.data.tables.flatMap((x) => x.fields).find((f) => f.type === 'formula');
         return formula?.type === 'formula' && /round\(/.test(formula.expression)
           ? null
           : `expected a formula using round(…), got ${JSON.stringify(formula)}`;
@@ -4944,10 +4990,12 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.pages.some((p) =>
+        c.containers.pages.some((p) =>
           allComponents(p).some(
             (x) =>
-              x.type === 'stat' && x.props.groupBy !== undefined && x.props.aggregate === 'sum',
+              x.look === 'number' &&
+              x.source.group?.by !== undefined &&
+              x.source.aggregate === 'sum',
           ),
         )
           ? null
@@ -4963,14 +5011,14 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.pages.some((p) =>
+        c.containers.pages.some((p) =>
           allComponents(p).some(
             (x) =>
-              x.type === 'chart' &&
-              x.props.kind === 'bar' &&
-              x.props.group === 'month' &&
-              x.props.aggregate === 'sum' &&
-              x.props.periods === 12,
+              x.look === 'chart' &&
+              x.show.kind === 'bar' &&
+              x.source.group.unit === 'month' &&
+              x.source.aggregate === 'sum' &&
+              x.source.group.last === 12,
           ),
         )
           ? null
@@ -4986,9 +5034,13 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.pages.some((p) =>
+        c.containers.pages.some((p) =>
           allComponents(p).some(
-            (x) => x.type === 'chart' && x.props.kind === 'pie' && x.props.group === 'choice',
+            (x) =>
+              x.look === 'chart' &&
+              x.show.kind === 'pie' &&
+              x.source.group.unit === undefined &&
+              fieldOf(c, x.source.table, x.source.group.by)?.type === 'choice',
           ),
         )
           ? null
@@ -5018,8 +5070,8 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        home(c).components.some(
-          (x) => x.type === 'notice' && x.style?.backdrop && !x.style.backdrop.assetId,
+        home(c).blocks.some(
+          (x) => x.look === 'notice' && x.style?.backdrop && !x.style.backdrop.assetId,
         )
           ? null
           : 'expected a notice with style.backdrop and no picture',
@@ -5034,9 +5086,9 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const slots = c.pages.flatMap((p) => allComponents(p)).filter((x) => x.type === 'fileSlot');
+        const slots = c.containers.pages.flatMap((p) => allComponents(p)).filter(isFileSlot);
         if (slots.length === 0) return 'expected a fileSlot';
-        return slots.some((x) => x.props.assetId) ? 'the AI must not pick a file' : null;
+        return slots.some((x) => fileOf(x)) ? 'the AI must not pick a file' : null;
       },
     },
   },
@@ -5049,8 +5101,8 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        home(c).components.some(
-          (x) => x.type === 'fileSlot' && !x.props.assetId && /board/i.test(x.props.title),
+        home(c).blocks.some(
+          (x) => isFileSlot(x) && !fileOf(x) && /board/i.test(x.show?.title ?? ''),
         )
           ? null
           : 'expected an empty fileSlot on home titled after the boarding pass',
@@ -5065,8 +5117,8 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const link = c.collections.flatMap((x) => x.fields).find((f) => f.type === 'link');
-        return link?.type === 'link' && c.collections.some((x) => x.id === link.collectionId)
+        const link = c.data.tables.flatMap((x) => x.fields).find((f) => f.type === 'link');
+        return link?.type === 'link' && c.data.tables.some((x) => x.id === link.table)
           ? null
           : 'expected a link field pointing at the new clients table';
       },
@@ -5081,9 +5133,11 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        (c.reminders ?? []).some((r) => r.schedule === 'daily' && r.time === '21:00' && r.enabled)
+        remindersOf(c).some(
+          (r) => 'every' in r.when && r.when.every === 'day' && r.when.at === '21:00' && r.enabled,
+        )
           ? null
-          : `expected a daily 21:00 reminder, got ${JSON.stringify(c.reminders)}`,
+          : `expected a daily 21:00 reminder, got ${JSON.stringify(remindersOf(c))}`,
     },
   },
   {
@@ -5095,11 +5149,9 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        (c.reminders ?? []).some(
-          (r) => r.schedule === 'dateField' && r.daysBefore === 3 && r.time === '08:00',
-        )
+        remindersOf(c).some((r) => 'before' in r.when && r.when.days === 3 && r.when.at === '08:00')
           ? null
-          : `expected a dateField reminder 3 days before at 08:00, got ${JSON.stringify(c.reminders)}`,
+          : `expected a dateField reminder 3 days before at 08:00, got ${JSON.stringify(remindersOf(c))}`,
     },
   },
   {
@@ -5112,7 +5164,10 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        (c.reminders ?? []).some((r) => r.opens.startsWith('workflow:') && r.time === '08:00')
+        remindersOf(c).some(
+          (r) =>
+            typeof r.opens === 'string' && r.opens.startsWith('tool:') && r.when.at === '08:00',
+        )
           ? null
           : 'expected a reminder that opens the quick action at 08:00',
       plan: (p) =>
@@ -5156,9 +5211,13 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
 
 // ---- 手机桌面（D-271）：「放到桌面 / 主屏幕 / home screen / écran d'accueil」是手机桌面，「首页」仍是首页（D-109）----
 
-const onHomeScreen = (c: WorkspaceConfig) => c.workflows.filter((w) => w.homeScreen);
+/** 放在手机桌面上的快捷操作（nav.phoneHomeScreen，原 workflow.homeScreen）。 */
+const onPhoneHomeScreen = (c: WorkspaceConfig, id: string) =>
+  c.nav.phoneHomeScreen?.includes(id) ?? false;
+const onHomeScreen = (c: WorkspaceConfig) =>
+  quickActionsOf(c).filter((w) => onPhoneHomeScreen(c, w.id));
 const visaOnHomeScreen = (c: WorkspaceConfig) =>
-  visa(c)?.homeScreen
+  visa(c) && onPhoneHomeScreen(c, visa(c)!.id)
     ? null
     : `the visa quick action should be on the home screen, got ${
         onHomeScreen(c)
@@ -5167,15 +5226,11 @@ const visaOnHomeScreen = (c: WorkspaceConfig) =>
       }`;
 /** 只放到桌面，没有顺手在首页加卡片。 */
 const noNewHomeRunner = (c: WorkspaceConfig) =>
-  allComponents(home(c)).some(
-    (x) => x.type === 'workflowRunner' && x.props.workflowId === visa(c)?.id,
-  )
+  allComponents(home(c)).some((x) => runsTool(x) === visa(c)?.id)
     ? 'the home screen request also put a card on the home page'
     : null;
 const visaOnHomePageOnly = (c: WorkspaceConfig) =>
-  !allComponents(home(c)).some(
-    (x) => x.type === 'workflowRunner' && x.props.workflowId === visa(c)?.id,
-  )
+  !allComponents(home(c)).some((x) => runsTool(x) === visa(c)?.id)
     ? 'no runner for the visa quick action on the home page'
     : onHomeScreen(c).length > 0
       ? `“home page” must not put anything on the phone home screen, got ${onHomeScreen(c)
@@ -5185,10 +5240,10 @@ const visaOnHomePageOnly = (c: WorkspaceConfig) =>
 
 /** 打卡表上的统计（D-284）。 */
 const habitStat =
-  (want: (props: Record<string, unknown>) => boolean, what: string) => (c: WorkspaceConfig) =>
-    c.pages.some((p) =>
+  (want: (source: NumberSource) => boolean, what: string) => (c: WorkspaceConfig) =>
+    c.containers.pages.some((p) =>
       allComponents(p).some(
-        (x) => x.type === 'stat' && x.props.collectionId === 'checkins' && want(x.props),
+        (x) => x.look === 'number' && x.source.table === 'checkins' && want(x.source),
       ),
     )
       ? null
@@ -5204,7 +5259,8 @@ const SEQUENCE_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: habitStat(
-        (p) => p.aggregate === 'streak' && p.groupBy === 'habit' && (p.unit ?? 'day') === 'day',
+        (p) =>
+          p.aggregate === 'streak' && p.group?.by === 'habit' && (p.days?.unit ?? 'day') === 'day',
         'aggregate streak grouped by habit',
       ),
     },
@@ -5221,11 +5277,11 @@ const SEQUENCE_CASES: readonly EvalCase[] = [
       check: habitStat(
         (p) =>
           p.aggregate === 'streak' &&
-          p.groupBy === 'habit' &&
-          p.unit === 'week' &&
-          p.perUnit === 3 &&
-          p.skipField === 'status' &&
-          p.skipOption === 'skip',
+          p.group?.by === 'habit' &&
+          p.days?.unit === 'week' &&
+          p.days.perUnit === 3 &&
+          p.days.skip?.field === 'status' &&
+          p.days.skip.option === 'skip',
         'a weekly streak of 3 per habit, skipping status = skip',
       ),
     },
@@ -5239,7 +5295,7 @@ const SEQUENCE_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: habitStat(
-        (p) => p.aggregate === 'daysSince' && p.groupBy === 'habit',
+        (p) => p.aggregate === 'daysSince' && p.group?.by === 'habit',
         'aggregate daysSince grouped by habit',
       ),
     },
@@ -5253,13 +5309,13 @@ const SEQUENCE_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.pages.some((p) =>
+        c.containers.pages.some((p) =>
           allComponents(p).some(
             (x) =>
-              x.type === 'chart' &&
-              x.props.aggregate === 'distinctDays' &&
-              x.props.group === 'week' &&
-              (x.props.periods ?? 8) === 8,
+              x.look === 'chart' &&
+              x.source.aggregate === 'distinctDays' &&
+              x.source.group.unit === 'week' &&
+              (x.source.group.last ?? 8) === 8,
           ),
         )
           ? null
@@ -5275,9 +5331,9 @@ const SEQUENCE_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.calendar?.dayStartHour === 2
+        c.data.calendar?.dayStartHour === 2
           ? null
-          : `expected calendar.dayStartHour 2, got ${JSON.stringify(c.calendar)}`,
+          : `expected calendar.dayStartHour 2, got ${JSON.stringify(c.data.calendar)}`,
     },
   },
   {
@@ -5289,9 +5345,9 @@ const SEQUENCE_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.calendar?.weekStart === 'sunday' && c.calendar.dayStartHour === undefined
+        c.data.calendar?.weekStart === 'sunday' && c.data.calendar.dayStartHour === undefined
           ? null
-          : `expected only calendar.weekStart sunday, got ${JSON.stringify(c.calendar)}`,
+          : `expected only calendar.weekStart sunday, got ${JSON.stringify(c.data.calendar)}`,
     },
   },
 ];
@@ -5306,7 +5362,7 @@ function scheduleProblem(
     rule?: (rule: Record<string, unknown> | undefined) => boolean;
   },
 ): string | null {
-  const table = c.collections.find((t) => t.fields.some((f) => f.type === 'schedule'));
+  const table = c.data.tables.find((t) => t.fields.some((f) => f.type === 'schedule'));
   const field = table?.fields.find((f) => f.type === 'schedule');
   if (!table || field?.type !== 'schedule') return 'expected a table with a schedule field';
   if (want.rule && !want.rule(field.default as Record<string, unknown> | undefined))
@@ -5316,28 +5372,17 @@ function scheduleProblem(
     if (source?.type !== 'date' && source?.type !== 'datetime')
       return `expected lastDone on a date field, got ${JSON.stringify(field)}`;
   }
-  const props = c.pages.flatMap((p) =>
-    allComponents(p).flatMap((x) =>
-      x.type === 'recordList' && x.props.collectionId === table.id
-        ? [x.props as Record<string, unknown>]
-        : [],
-    ),
-  );
+  const sources = recordBlocksOf(c, table.id).map((x) => x.source);
   if (
     want.due &&
-    !props.some((p) =>
-      ((p.filter ?? []) as { field: string; op: string; value?: unknown }[]).some(
-        (f) => f.field === field.id && f.op === 'due' && f.value === want.due,
-      ),
+    !sources.some((p) =>
+      (p.filter ?? []).some((f) => f.field === field.id && f.op === 'due' && f.value === want.due),
     )
   )
     return `expected a list of ${table.id} filtered with due ${want.due}`;
   if (
     want.sortAsc &&
-    !props.some((p) => {
-      const sort = p.sort as { field: string; direction: string } | undefined;
-      return sort?.field === field.id && sort.direction === 'asc';
-    })
+    !sources.some((p) => p.sort?.field === field.id && p.sort.direction === 'asc')
   )
     return `expected a list of ${table.id} sorted by ${field.id} ascending`;
   return null;
@@ -5399,19 +5444,8 @@ const SCHEDULE_CASES: readonly EvalCase[] = [
   },
 ];
 
-/** 某张表的记录列表和统计（所有页面里的）。 */
-const componentsOf = (c: WorkspaceConfig, type: string, collectionId: string) =>
-  c.pages.flatMap((p) =>
-    allComponents(p).filter(
-      (x) =>
-        x.type === type && (x.props as { collectionId?: string }).collectionId === collectionId,
-    ),
-  ) as { props: Record<string, unknown> }[];
-
-const hasPeriod = (props: Record<string, unknown>, period: string) =>
-  ((props.filter ?? []) as { op: string; value?: unknown }[]).some(
-    (f) => f.op === 'inPeriod' && f.value === period,
-  );
+const hasPeriod = (filter: readonly Condition[] | undefined, period: string) =>
+  (filter ?? []).some((f) => f.op === 'inPeriod' && f.value === period);
 
 const VIEW_CASES: readonly EvalCase[] = [
   {
@@ -5423,9 +5457,7 @@ const VIEW_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'recordList', 'mood').some(
-          (x) => x.props.display === 'calendar' && x.props.colorField === 'feel',
-        )
+        recordBlocksOf(c, 'mood').some((x) => x.look === 'calendar' && x.show.color === 'feel')
           ? null
           : 'expected a calendar recordList of mood colored by feel',
     },
@@ -5439,7 +5471,7 @@ const VIEW_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'recordList', 'mood').some((x) => x.props.display === 'calendar')
+        recordBlocksOf(c, 'mood').some((x) => x.look === 'calendar')
           ? null
           : 'expected a calendar recordList of mood',
     },
@@ -5453,9 +5485,14 @@ const VIEW_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'recordList', 'shifts').some((x) => {
-          const f = x.props.trailingFormat as { kind?: string; until?: string } | undefined;
-          return x.props.trailingField === 'in' && f?.kind === 'elapsed' && f.until === 'out';
+        recordBlocksOf(c, 'shifts').some((x) => {
+          const f = x.show.format;
+          return (
+            x.show.trailing === 'in' &&
+            typeof f === 'object' &&
+            f.kind === 'elapsed' &&
+            f.until === 'out'
+          );
         })
           ? null
           : 'expected trailingField in with trailingFormat elapsed until out',
@@ -5470,8 +5507,8 @@ const VIEW_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'stat', 'water').some(
-          (x) => x.props.goal === 8 && hasPeriod(x.props, 'today'),
+        numbersOf(c, 'water').some(
+          (x) => x.source.goal === 8 && hasPeriod(x.source.filter, 'today'),
         )
           ? null
           : 'expected a water stat filtered today with goal 8',
@@ -5486,8 +5523,8 @@ const VIEW_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'stat', 'expenses').some(
-          (x) => x.props.compare === 'previous' && hasPeriod(x.props, 'thisMonth'),
+        numbersOf(c, 'expenses').some(
+          (x) => x.source.compare === 'previous' && hasPeriod(x.source.filter, 'thisMonth'),
         )
           ? null
           : 'expected an expenses stat for thisMonth with compare previous',
@@ -5495,11 +5532,9 @@ const VIEW_CASES: readonly EvalCase[] = [
   },
 ];
 
-const isTiles = (x: { props: Record<string, unknown> }) => x.props.display === 'tiles';
+const isTiles = (x: RecordBlock) => x.look === 'tiles';
 const boardByStatus = (c: WorkspaceConfig) =>
-  componentsOf(c, 'recordList', 'tasks').some(
-    (x) => x.props.display === 'board' && x.props.groupField === 'status',
-  )
+  recordBlocksOf(c, 'tasks').some((x) => x.look === 'board' && x.source.group?.by === 'status')
     ? null
     : 'expected a board recordList of tasks grouped by status';
 
@@ -5513,9 +5548,7 @@ const BOARD_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'recordList', 'habits').some(
-          (x) => isTiles(x) && ((x.props.rowActions as unknown[] | undefined)?.length ?? 0) > 0,
-        )
+        recordBlocksOf(c, 'habits').some((x) => isTiles(x) && rowToolsOf(x).length > 0)
           ? null
           : 'expected a tiles recordList of habits with a row action',
     },
@@ -5529,9 +5562,7 @@ const BOARD_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'recordList', 'habits').some(isTiles)
-          ? null
-          : 'expected a tiles recordList of habits',
+        recordBlocksOf(c, 'habits').some(isTiles) ? null : 'expected a tiles recordList of habits',
     },
   },
   {
@@ -5552,20 +5583,21 @@ const BOARD_CASES: readonly EvalCase[] = [
   },
 ];
 
+/** 按记录排的提醒（when.each，原 scheduleField）在哪张表的哪个字段上；别的提醒是 null。 */
+const eachOf = (r: Reminder) => ('each' in r.when ? r.when.each : null);
 /** 按记录排的提醒（D-316）：表 collectionId 的日程字段 plan、time 对上；extra 再查别的。 */
 const recordReminder =
   (collectionId: string, time: string, extra?: (r: Reminder) => string | null) =>
   (c: WorkspaceConfig): string | null => {
-    const found = (c.reminders ?? []).filter(
+    const found = remindersOf(c).filter(
       (r) =>
-        r.schedule === 'scheduleField' &&
-        r.collectionId === collectionId &&
-        r.fieldId === 'plan' &&
-        r.time === time &&
+        eachOf(r)?.table === collectionId &&
+        eachOf(r)?.field === 'plan' &&
+        r.when.at === time &&
         r.enabled,
     );
     if (found.length === 0)
-      return `expected a scheduleField reminder on ${collectionId}.plan at ${time}, got ${JSON.stringify(c.reminders)}`;
+      return `expected a scheduleField reminder on ${collectionId}.plan at ${time}, got ${JSON.stringify(remindersOf(c))}`;
     return extra ? (found.map(extra).find((x) => x === null) ?? extra(found[0]!)) : null;
   };
 
@@ -5579,7 +5611,7 @@ const RECORD_REMINDER_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: recordReminder('plants', '19:00', (r) =>
-        r.done?.do === 'set' && r.done.fieldId === 'watered' && r.done.value === 'today'
+        r.done?.do === 'set' && r.done.field === 'watered' && r.done.value === 'today'
           ? null
           : `expected done set watered today, got ${JSON.stringify(r.done)}`,
       ),
@@ -5594,9 +5626,7 @@ const RECORD_REMINDER_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: recordReminder('habits', '20:00', (r) =>
-        r.unless?.collectionId === 'checkins' &&
-        r.unless.within === 'day' &&
-        r.unless.link === 'habit'
+        r.unless?.table === 'checkins' && r.unless.within === 'day' && r.unless.link === 'habit'
           ? null
           : `expected unless check-ins within day by link habit, got ${JSON.stringify(r.unless)}`,
       ),
@@ -5626,8 +5656,9 @@ const RECORD_REMINDER_CASES: readonly EvalCase[] = [
       kind: 'ops',
       check: recordReminder('habits', '08:00', (r) =>
         r.done?.do === 'create' &&
-        r.done.collectionId === 'checkins' &&
-        r.done.values?.habit === 'row'
+        r.done.table === 'checkins' &&
+        typeof r.done.values === 'object' &&
+        r.done.values.habit === '$row'
           ? null
           : `expected done create a check-in with habit row, got ${JSON.stringify(r.done)}`,
       ),
@@ -5646,16 +5677,14 @@ const ENVELOPE_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'stat', 'ledger').some((x) => {
-          const m = x.props.minus as
-            { collectionId?: string; aggregate?: string; fieldId?: string } | undefined;
-          const filter = (x.props.filter ?? []) as { field: string; value?: unknown }[];
+        numbersOf(c, 'ledger').some((x) => {
+          const m = x.source.minus;
           return (
-            x.props.aggregate === 'sum' &&
-            m?.collectionId === 'assigned' &&
+            x.source.aggregate === 'sum' &&
+            m?.table === 'assigned' &&
             m.aggregate === 'sum' &&
-            m.fieldId === 'amount' &&
-            filter.some((f) => f.field === 'kind' && f.value === 'in')
+            m.field === 'amount' &&
+            (x.source.filter ?? []).some((f) => f.field === 'kind' && f.value === 'in')
           );
         })
           ? null
@@ -5671,13 +5700,14 @@ const ENVELOPE_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'recordList', 'categories').some((x) =>
-          ((x.props.rowActions ?? []) as Record<string, unknown>[]).some(
+        recordBlocksOf(c, 'categories').some((x) =>
+          rowToolsOf(x).some(
             (a) =>
+              'do' in a &&
               a.do === 'create' &&
-              a.collectionId === 'assigned' &&
-              a.form === true &&
-              (a.values as Record<string, unknown> | undefined)?.category === 'row',
+              a.table === 'assigned' &&
+              a.ask === 'all' &&
+              valuesOf(a).category === '$row',
           ),
         )
           ? null
@@ -5693,11 +5723,11 @@ const ENVELOPE_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'stat', 'ledger').some(
+        numbersOf(c, 'ledger').some(
           (x) =>
-            x.props.groupBy === 'category' &&
-            x.props.compare === 'previous' &&
-            hasPeriod(x.props, 'thisMonth'),
+            x.source.group?.by === 'category' &&
+            x.source.compare === 'previous' &&
+            hasPeriod(x.source.filter, 'thisMonth'),
         )
           ? null
           : 'expected a stat on ledger grouped by category, this month, compared with the previous one',
@@ -5712,8 +5742,11 @@ const ENVELOPE_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'chart', 'ledger').some(
-          (x) => x.props.kind === 'pie' && x.props.choiceField === 'category',
+        chartsOf(c, 'ledger').some(
+          (x) =>
+            x.show.kind === 'pie' &&
+            x.source.group.unit === undefined &&
+            x.source.group.by === 'category',
         )
           ? null
           : 'expected a pie chart of ledger grouped by the category link',
@@ -5732,16 +5765,17 @@ const TODO_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'recordList', 'tasks').some(
+        recordBlocksOf(c, 'tasks').some(
           (x) =>
-            ((x.props.filter ?? []) as { field: string; op: string; value?: unknown }[]).some(
+            (x.source.filter ?? []).some(
               (f) => f.field === 'plan' && f.op === 'due' && f.value === 'today',
             ) &&
-            ((x.props.rowActions ?? []) as Record<string, unknown>[]).some(
+            rowToolsOf(x).some(
               (a) =>
+                'do' in a &&
                 a.do === 'create' &&
-                a.collectionId === 'completions' &&
-                (a.values as Record<string, unknown> | undefined)?.task === 'row',
+                a.table === 'completions' &&
+                valuesOf(a).task === '$row',
             ),
         )
           ? null
@@ -5757,20 +5791,20 @@ const TODO_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const page = c.pages.find((p) => p.recordOf === 'projects');
+        const page = c.containers.pages.find((p) => p.of === 'projects');
         if (!page) return 'expected a page with recordOf projects';
         const lists = allComponents(page).filter(
-          (x) => x.type === 'recordList' && x.props.collectionId === 'tasks',
-        ) as { props: Record<string, unknown> }[];
+          (x): x is RecordBlock => isRecordBlock(x) && x.source.table === 'tasks',
+        );
         if (
           !lists.some((x) =>
-            ((x.props.filter ?? []) as { field: string; op: string; value?: unknown }[]).some(
+            (x.source.filter ?? []).some(
               (f) => f.field === 'project' && f.op === 'is' && f.value === '$record',
             ),
           )
         )
           return 'expected a tasks list on that page filtered by project is $record';
-        return componentsOf(c, 'recordList', 'projects').some((x) => x.props.opens === page.id)
+        return recordBlocksOf(c, 'projects').some((x) => x.opens === page.id)
           ? null
           : 'expected the projects list to open that page (opens)';
       },
@@ -5785,9 +5819,10 @@ const TODO_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'recordForm', 'tasks').some((x) => {
-          const smart = x.props.smartDate as { from?: string; to?: string } | undefined;
-          return x.props.mode === 'inline' && smart?.from === 'title' && smart.to === 'plan';
+        formsOf(c, 'tasks').some((x) => {
+          const submit = x.tools[0]!;
+          const smart = 'do' in submit && submit.do === 'create' ? submit.smartDate : undefined;
+          return x.show.mode === 'inline' && smart?.from === 'title' && smart.to === 'plan';
         })
           ? null
           : 'expected an inline task form with smartDate from title to plan',
@@ -5802,8 +5837,8 @@ const TODO_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'recordList', 'tasks').some((x) => {
-          const filter = (x.props.filter ?? []) as { field: string; op: string; value?: unknown }[];
+        recordBlocksOf(c, 'tasks').some((x) => {
+          const filter = x.source.filter ?? [];
           return (
             filter.some((f) => f.field === 'project' && f.op === 'isEmpty') &&
             filter.some((f) => f.field === 'plan' && f.op === 'due' && f.value === 'pending')
@@ -5822,7 +5857,7 @@ const TODO_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const plan = c.collections
+        const plan = c.data.tables
           .find((x) => x.id === 'tasks')
           ?.fields.find((f) => f.id === 'plan') as { countEarly?: boolean } | undefined;
         return plan?.countEarly === true ? null : 'expected countEarly: true on tasks.plan';
@@ -5842,7 +5877,7 @@ const TODO_VIEW_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'recordList', 'tasks').some((x) => x.props.groupBy === 'project')
+        recordBlocksOf(c, 'tasks').some((x) => groupByOf(x)?.by === 'project')
           ? null
           : 'expected a tasks list with groupBy project',
     },
@@ -5856,8 +5891,8 @@ const TODO_VIEW_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'recordList', 'tasks').some(
-          (x) => x.props.groupBy === 'plan' && (x.props.groupUnit ?? 'day') === 'day',
+        recordBlocksOf(c, 'tasks').some(
+          (x) => groupByOf(x)?.by === 'plan' && (groupByOf(x)?.unit ?? 'day') === 'day',
         )
           ? null
           : 'expected a tasks list grouped by plan per day',
@@ -5872,8 +5907,8 @@ const TODO_VIEW_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'recordList', 'tasks').some(
-          (x) => x.props.display === 'calendar' && x.props.dateField === 'plan',
+        recordBlocksOf(c, 'tasks').some(
+          (x) => x.look === 'calendar' && x.source.group?.by === 'plan',
         )
           ? null
           : 'expected a tasks calendar on the plan schedule field',
@@ -5888,8 +5923,8 @@ const TODO_VIEW_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'recordList', 'tasks').some(
-          (x) => x.props.groupBy === 'project' && x.props.addHere === true,
+        recordBlocksOf(c, 'tasks').some(
+          (x) => groupByOf(x)?.by === 'project' && (x.tools ?? []).some((t) => t.as === 'addHere'),
         )
           ? null
           : 'expected a tasks list grouped by project with addHere',
@@ -5904,13 +5939,12 @@ const TODO_VIEW_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        (c.reminders ?? []).some(
+        remindersOf(c).some(
           (r) =>
-            r.schedule === 'scheduleField' &&
-            r.collectionId === 'tasks' &&
-            r.fieldId === 'plan' &&
+            eachOf(r)?.table === 'tasks' &&
+            eachOf(r)?.field === 'plan' &&
             r.done?.do === 'create' &&
-            r.done.collectionId === 'completions',
+            r.done.table === 'completions',
         )
           ? null
           : 'expected a per-entry reminder on tasks.plan whose done logs a completion',
@@ -5929,30 +5963,27 @@ const TODO_BOARD_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const sections = c.collections.find(
+        const sections = c.data.tables.find(
           (x) =>
             x.id !== 'projects' &&
-            x.fields.some((f) => f.type === 'link' && f.collectionId === 'projects') &&
-            c.collections
+            x.fields.some((f) => f.type === 'link' && f.table === 'projects') &&
+            c.data.tables
               .find((t) => t.id === 'tasks')
-              ?.fields.some((f) => f.type === 'link' && f.collectionId === x.id),
+              ?.fields.some((f) => f.type === 'link' && f.table === x.id),
         );
         if (!sections) return 'expected a sections table linked to projects and linked from tasks';
-        const page = c.pages.find((p) => p.recordOf === 'projects');
+        const page = c.containers.pages.find((p) => p.of === 'projects');
         if (!page) return 'expected a page for one project';
         const board = allComponents(page).find(
-          (x) =>
-            x.type === 'recordList' &&
-            x.props.collectionId === 'tasks' &&
-            x.props.display === 'board',
-        ) as { props: Record<string, unknown> } | undefined;
+          (x): x is ComponentOf<'board'> => x.look === 'board' && x.source.table === 'tasks',
+        );
         if (!board) return 'expected a tasks board on the project page';
-        const link = c.collections
+        const link = c.data.tables
           .find((t) => t.id === 'tasks')!
-          .fields.find((f) => f.id === board.props.groupField);
-        if (link?.type !== 'link' || link.collectionId !== sections.id)
+          .fields.find((f) => f.id === board.source.group?.by);
+        if (link?.type !== 'link' || link.table !== sections.id)
           return 'expected the board grouped by the link to sections';
-        return ((board.props.groupFilter ?? []) as { op: string; value?: unknown }[]).some(
+        return (board.source.group?.filter ?? []).some(
           (f) => f.op === 'is' && f.value === '$record',
         )
           ? null
@@ -5970,7 +6001,7 @@ const TODO_BOARD_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'recordForm', 'tasks').some((x) => x.props.mode === 'sheet')
+        formsOf(c, 'tasks').some((x) => x.show.mode === 'sheet')
           ? null
           : 'expected a tasks recordForm with mode sheet',
     },
@@ -5989,13 +6020,11 @@ const TODO_ACCEPT_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const table = c.collections.find((t) =>
+        const table = c.data.tables.find((t) =>
           t.fields.some((f) => f.type === 'schedule' && f.lastDone),
         );
         if (!table) return 'expected a table with a schedule field that has lastDone';
-        return componentsOf(c, 'recordList', table.id).some(
-          (x) => ((x.props.rowActions ?? []) as unknown[]).length > 0,
-        )
+        return recordBlocksOf(c, table.id).some((x) => rowToolsOf(x).length > 0)
           ? null
           : 'expected a done row button on the to-do list';
       },
@@ -6011,10 +6040,10 @@ const TODO_ACCEPT_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        componentsOf(c, 'recordList', 'tasks').some(
+        recordBlocksOf(c, 'tasks').some(
           (x) =>
-            x.props.display === 'board' &&
-            ((x.props.filter ?? []) as { field: string; op: string; value?: unknown }[]).some(
+            x.look === 'board' &&
+            (x.source.filter ?? []).some(
               (f) => f.field === 'plan' && f.op === 'due' && f.value === 'pending',
             ),
         )
@@ -6031,24 +6060,18 @@ const TODO_ACCEPT_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) => {
-        const tasks = c.collections.find((t) => t.id === 'tasks')!;
-        const parent = tasks.fields.find((f) => f.type === 'link' && f.collectionId === 'tasks');
+        const tasks = c.data.tables.find((t) => t.id === 'tasks')!;
+        const parent = tasks.fields.find((f) => f.type === 'link' && f.table === 'tasks');
         if (!parent) return 'expected a parent link on tasks';
-        if (!tasks.fields.some((f) => f.type === 'rollup' && f.collectionId === 'tasks'))
+        if (!tasks.fields.some((f) => f.type === 'rollup' && f.table === 'tasks'))
           return 'expected a subtask count rollup on tasks';
-        const top = c.pages
-          .filter((p) => !p.recordOf)
+        const top = c.containers.pages
+          .filter((p) => !p.of)
           .flatMap((p) => allComponents(p))
-          .filter(
-            (x) =>
-              x.type === 'recordList' &&
-              (x.props as { collectionId?: string }).collectionId === 'tasks',
-          ) as { props: Record<string, unknown> }[];
+          .filter((x): x is RecordBlock => isRecordBlock(x) && x.source.table === 'tasks');
         return top.length > 0 &&
           top.every((x) =>
-            ((x.props.filter ?? []) as { field: string; op: string }[]).some(
-              (f) => f.field === parent.id && f.op === 'isEmpty',
-            ),
+            (x.source.filter ?? []).some((f) => f.field === parent.id && f.op === 'isEmpty'),
           )
           ? null
           : 'expected every top-level tasks list to filter out subtasks (parent isEmpty)';
@@ -6065,12 +6088,11 @@ const TODO_ACCEPT_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        (c.reminders ?? []).some(
+        remindersOf(c).some(
           (r) =>
-            r.schedule === 'scheduleField' &&
-            r.collectionId === 'tasks' &&
+            eachOf(r)?.table === 'tasks' &&
             r.done?.do === 'create' &&
-            r.done.collectionId === 'completions',
+            r.done.table === 'completions',
         )
           ? null
           : 'expected a per-entry reminder on tasks whose done logs a completion',
@@ -6086,7 +6108,7 @@ const TODO_ACCEPT_CASES: readonly EvalCase[] = [
     expect: {
       kind: 'ops',
       check: (c) =>
-        c.collections.some((t) => t.fields.some((f) => f.type === 'schedule' && f.lastDone))
+        c.data.tables.some((t) => t.fields.some((f) => f.type === 'schedule' && f.lastDone))
           ? null
           : 'expected a tasks table with a schedule field',
       plan: (p) =>
@@ -6224,7 +6246,7 @@ const HOME_SCREEN_CASES: readonly EvalCase[] = [
       kind: 'ops',
       check: (c) =>
         userWorkflows(c).some(
-          (w) => w.homeScreen && w.steps.some((st) => st.action === 'image.compress'),
+          (w) => onPhoneHomeScreen(c, w.id) && w.steps.some((st) => st.action === 'image.compress'),
         )
           ? null
           : 'expected the new quick action on the home screen',
@@ -6236,26 +6258,21 @@ const HOME_SCREEN_CASES: readonly EvalCase[] = [
 const relatedField =
   (collectionId: string, want: (f: Field, c: Collection) => boolean, what: string) =>
   (config: WorkspaceConfig) => {
-    const c = config.collections.find((x) => x.id === collectionId);
+    const c = config.data.tables.find((x) => x.id === collectionId);
     return c && c.fields.some((f) => want(f, c)) ? null : `expected on ${collectionId}: ${what}`;
   };
 
 /** 这个字段显示在这张表的某个记录列表里。 */
 const listed = (collectionId: string, type: Field['type']) => (config: WorkspaceConfig) => {
   const ids = new Set(
-    config.collections
+    config.data.tables
       .find((x) => x.id === collectionId)
       ?.fields.filter((f) => f.type === type)
       .map((f) => f.id),
   );
-  return config.pages.some((p) =>
-    allComponents(p).some(
-      (x) =>
-        x.type === 'recordList' &&
-        x.props.collectionId === collectionId &&
-        [x.props.titleField, ...(x.props.subtitleFields ?? []), x.props.trailingField].some(
-          (f) => f !== undefined && ids.has(f),
-        ),
+  return recordBlocksOf(config, collectionId).some((x) =>
+    [x.show.title, ...(x.show.subtitles ?? []), x.show.trailing].some(
+      (f) => f !== undefined && ids.has(f),
     ),
   )
     ? null
@@ -6277,8 +6294,8 @@ const RELATED_CASES: readonly EvalCase[] = [
           'habits',
           (f) =>
             f.type === 'rollup' &&
-            f.collectionId === 'checkins' &&
-            f.linkField === 'habit' &&
+            f.table === 'checkins' &&
+            f.via === 'habit' &&
             f.aggregate === 'streak',
           'a streak rollup over checkins.habit',
         ),
@@ -6299,7 +6316,7 @@ const RELATED_CASES: readonly EvalCase[] = [
         (f, c) => {
           if (f.type !== 'formula') return false;
           const rate = c.fields.find(
-            (x) => x.type === 'lookup' && x.linkField === 'job' && x.fieldId === 'rate',
+            (x) => x.type === 'lookup' && x.via === 'job' && x.field === 'rate',
           );
           return (
             !!rate && f.expression.includes(`{${rate.id}}`) && f.expression.includes('{hours}')
@@ -6323,10 +6340,10 @@ const RELATED_CASES: readonly EvalCase[] = [
           'clients',
           (f) =>
             f.type === 'rollup' &&
-            f.collectionId === 'orders' &&
-            f.linkField === 'client' &&
+            f.table === 'orders' &&
+            f.via === 'client' &&
             f.aggregate === 'sum' &&
-            f.fieldId === 'amount',
+            f.field === 'amount',
           'a sum rollup of orders.amount',
         ),
         listed('clients', 'rollup'),
@@ -6345,9 +6362,9 @@ const RELATED_CASES: readonly EvalCase[] = [
         'clients',
         (f) =>
           f.type === 'rollup' &&
-          f.collectionId === 'orders' &&
+          f.table === 'orders' &&
           f.aggregate === 'latest' &&
-          (f.fieldId === undefined || f.fieldId === 'date'),
+          (f.field === undefined || f.field === 'date'),
         'a latest rollup of the order date',
       ),
     },
@@ -6365,7 +6382,7 @@ const RELATED_CASES: readonly EvalCase[] = [
         (f, c) => {
           if (f.type !== 'formula') return false;
           const prev = c.fields.find(
-            (x) => x.type === 'previous' && x.fieldId === 'odometer' && x.groupBy === 'car',
+            (x) => x.type === 'previous' && x.field === 'odometer' && x.within === 'car',
           );
           return (
             !!prev && f.expression.includes(`{${prev.id}}`) && f.expression.includes('{odometer}')
@@ -6387,34 +6404,29 @@ const RELATED_CASES: readonly EvalCase[] = [
         'habits',
         (f) =>
           f.type === 'rollup' &&
-          f.collectionId === 'checkins' &&
+          f.table === 'checkins' &&
           f.aggregate === 'count' &&
-          (f.period === 'thisWeek' ||
-            (f.filter ?? []).some((x) => x.op === 'inPeriod' && x.value === 'thisWeek')),
+          // v33 的 period 在 v34 是 filter 里的一条 inPeriod。
+          (f.filter ?? []).some((x) => x.op === 'inPeriod' && x.value === 'thisWeek'),
         'a count rollup of this week',
       ),
     },
   },
 ];
 
-type AnyAction = { do: string; [key: string]: unknown };
+type AnyAction = { do?: string; [key: string]: unknown };
 
-/** 页面上所有按钮的 action 和记录列表的行按钮（D-300）。 */
+/** 页面上所有按钮的一键记录工具（原 action）和记录列表每一条上的工具（原 rowActions，D-300）。 */
 function recordActions(c: WorkspaceConfig): {
   buttons: AnyAction[];
   rows: (AnyAction & { list: string })[];
 } {
-  const all = c.pages.flatMap((p) => allComponents(p));
+  const all = c.containers.pages.flatMap((p) => allComponents(p));
   return {
-    buttons: all.flatMap((x) =>
-      x.type === 'button' && x.props.action ? [x.props.action as AnyAction] : [],
-    ),
+    buttons: all.flatMap((x) => (x.look === 'button' && x.tools ? (x.tools as AnyAction[]) : [])),
     rows: all.flatMap((x) =>
-      x.type === 'recordList'
-        ? (x.props.rowActions ?? []).map((a) => ({
-            ...(a as AnyAction),
-            list: x.props.collectionId,
-          }))
+      isRecordBlock(x)
+        ? rowToolsOf(x).map((a) => ({ ...(a as AnyAction), list: x.source.table }))
         : [],
     ),
   };
@@ -6427,7 +6439,8 @@ const actionCheck =
     return found.some(ok) ? null : `expected ${what}, got ${JSON.stringify(found)}`;
   };
 
-const values = (a: AnyAction) => (a.values ?? {}) as Record<string, unknown>;
+const values = (a: AnyAction) =>
+  (typeof a.values === 'object' && a.values !== null ? a.values : {}) as Record<string, unknown>;
 
 const RECORD_ACTION_CASES: readonly EvalCase[] = [
   {
@@ -6440,7 +6453,7 @@ const RECORD_ACTION_CASES: readonly EvalCase[] = [
       kind: 'ops',
       check: actionCheck(
         'buttons',
-        (a) => a.do === 'create' && a.collectionId === 'water' && values(a).glasses === 1,
+        (a) => a.do === 'create' && a.table === 'water' && values(a).glasses === 1,
         'a button creating a water entry with glasses 1',
       ),
     },
@@ -6458,7 +6471,7 @@ const RECORD_ACTION_CASES: readonly EvalCase[] = [
         (a) =>
           a.list === 'worklog' &&
           a.do === 'set' &&
-          a.fieldId === 'end' &&
+          a.field === 'end' &&
           a.value === 'now' &&
           ((a.when ?? []) as { field: string; op: string }[]).some(
             (w) => w.field === 'end' && w.op === 'isEmpty',
@@ -6478,10 +6491,7 @@ const RECORD_ACTION_CASES: readonly EvalCase[] = [
       check: actionCheck(
         'buttons',
         (a) =>
-          a.do === 'setAll' &&
-          a.collectionId === 'packing' &&
-          a.fieldId === 'packed' &&
-          a.value === false,
+          a.do === 'setAll' && a.table === 'packing' && a.field === 'packed' && a.value === false,
         'a setAll button unchecking packed',
       ),
     },
@@ -6496,7 +6506,7 @@ const RECORD_ACTION_CASES: readonly EvalCase[] = [
       kind: 'ops',
       check: actionCheck(
         'buttons',
-        (a) => a.do === 'create' && a.collectionId === 'worklog' && values(a).start === 'now',
+        (a) => a.do === 'create' && a.table === 'worklog' && values(a).start === 'now',
         'a button creating a work log entry with start now',
       ),
     },
@@ -6513,8 +6523,8 @@ const RECORD_ACTION_CASES: readonly EvalCase[] = [
         'rows',
         (a) =>
           a.list === 'bills' &&
-          ((a.do === 'set' && a.fieldId === 'paid' && a.value === true) ||
-            (a.do === 'toggle' && a.fieldId === 'paid')),
+          ((a.do === 'set' && a.field === 'paid' && a.value === true) ||
+            (a.do === 'toggle' && a.field === 'paid')),
         'a row button marking the bill paid',
       ),
     },
@@ -6532,8 +6542,9 @@ const RECORD_ACTION_CASES: readonly EvalCase[] = [
         (a) =>
           a.list === 'habits' &&
           a.do === 'create' &&
-          a.collectionId === 'checkins' &&
-          values(a).habit === 'row',
+          a.table === 'checkins' &&
+          values(a).habit === '$row',
+
         'a row button on habits creating a check-in for this row',
       ),
     },

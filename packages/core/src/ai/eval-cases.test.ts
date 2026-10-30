@@ -1,15 +1,37 @@
 import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
-import { registry } from '../test-helpers';
-import { EVAL_CASES, buildSetup, runEvalCase } from './eval-cases';
+import { fromV33, registry, v33Fixture } from '../test-helpers';
+import { EVAL_CASES, buildSetup, runEvalCase, type EvalSetup } from './eval-cases';
 import { createMockAIProvider } from './mock';
 
-// v34 第一阶段（2026-10-30）：eval-cases.ts 的 setup 和 check 还是 v33 的写法（风险 M11），
-// 第三阶段改写成 v34 后去掉这两处 skip（并跑一次全量 Haiku）。
+// 评测的 setup 用 v34 的操作重写过（v34 第三阶段）：和 v33 代码存下来的配置迁移后一模一样。
+describe('eval setups are the same as the v33 ones', () => {
+  const setups: EvalSetup[] = [
+    'default',
+    'starter',
+    'pdf',
+    'pdfBelowFiles',
+    'budget',
+    'visa',
+    'visaHomeScreen',
+    'habits',
+    'linked',
+    'oneTap',
+    'views',
+    'boards',
+    'scheduled',
+    'envelopes',
+    'todos',
+  ];
+  it.each(setups)('%s', (setup) => {
+    const name = setup === 'default' || setup === 'starter' ? `${setup}-zh` : `setup-${setup}-zh`;
+    expect(buildSetup(setup, 'zh', registry)).toStrictEqual(fromV33(v33Fixture(name)));
+  });
+});
 
 // mock AI 必须通过评测集中所有标记为 mock 的用例；改写用例（P*）留给真实模型。
-describe.skip('eval cases on the mock AI', () => {
+describe('eval cases on the mock AI', () => {
   const ai = createMockAIProvider();
   const now = new Date(2026, 9, 22, 9, 0);
 
@@ -35,7 +57,7 @@ describe.skip('eval cases on the mock AI', () => {
 });
 
 // W10 的两种理解（D-083 补充，创始人 2026-10-27 本地会话确认）：压图片，或者拉正后做成 PDF。
-describe.skip('W10 accepts both readings', () => {
+describe('W10 accepts both readings', () => {
   const w10 = EVAL_CASES.find((c) => c.id === 'W10')!;
   const check = (steps: [string, Record<string, unknown>][]) => {
     const config = buildSetup('default', 'zh', registry);
