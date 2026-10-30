@@ -3,6 +3,8 @@ import {
   BUILTIN_TOOLS,
   createDefaultWorkspace,
   createRegistry,
+  migrateReminderV33,
+  v33Tables,
   type DataRecord,
   type Op,
   type Reminder,
@@ -108,6 +110,29 @@ describe('the Done button (D-318)', () => {
     expect(platform.cancelled).toContain(snoozeId('habit', 'run'));
     // 重排了：今天的已经过了，下一次是明天 20:00。
     expect(platform.scheduled![0]!.id).toBe('habit-run-20749');
+  });
+
+  it('a reminder saved by the v33 app (scheduleField, done set) marks the entry done after migration', async () => {
+    // v33 写法：schedule + collectionId + fieldId，done 没有 table（作用在提醒的那张表上）。
+    const v33 = {
+      id: 'habit',
+      title: '该做了',
+      enabled: true,
+      schedule: 'scheduleField',
+      collectionId: 'habits',
+      fieldId: 'plan',
+      time: '20:00',
+      opens: 'page:home',
+      done: { do: 'set', fieldId: 'last', value: 'today' },
+    };
+    const migrated = migrateReminderV33(v33, v33Tables([{ id: 'habits', fields: [] }]));
+    const { repo, deps } = await setup(migrated as Partial<Reminder>);
+    expect(await handleReminderAction(press('done'), deps)).toEqual({
+      kind: 'done',
+      title: '跑步',
+    });
+    // 写的是提醒那张表里的这一条（v34 的 done 带 table：habits）。
+    expect((await repo.getRecord('run'))!.values.last).toBe('2026-10-22');
   });
 
   it('increment adds to this entry; the same tap arriving twice counts once', async () => {

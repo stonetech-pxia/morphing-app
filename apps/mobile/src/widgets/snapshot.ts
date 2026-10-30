@@ -21,7 +21,6 @@ import {
   type BlockOf,
   type Calendar,
   type Component,
-  type DataRecord,
   type Locale,
   type Registry,
   type Theme,
