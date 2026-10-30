@@ -2,6 +2,7 @@ import { COMPONENTS } from './components';
 import { duplicates, isSystemField, type CheckProblem } from './components/define';
 import { conditionProblems } from './conditions';
 import { componentActionProblems } from './record-ops';
+import { statMinusProblems } from './stat-minus';
 import { expandCollection, relatedProblems } from './related';
 import type { Registry } from './registry';
 import { reminderProblems } from './reminders';
@@ -424,5 +425,7 @@ function dataComponentProblems(
   }
   problems.push(...(def.check?.(c, { config, registry, page, collection }) ?? []));
   problems.push(...conditionProblems(filter, collection));
+  // 统计相减（D-327）：被减的那张表和它的筛选。
+  if (c.type === 'stat') problems.push(...statMinusProblems(c, collection, config));
   return problems;
 }

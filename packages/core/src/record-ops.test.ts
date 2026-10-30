@@ -257,8 +257,31 @@ describe('checking record actions', () => {
     expect(
       problems([button({ do: 'create', collectionId: 'checkins', values: { habit: 'run' } })]),
     ).toMatch(
-      /required field day would be empty; preset it, make it not required, or use do "open"/,
+      /required field day would be empty; preset it, make it not required, or add form: true/,
     );
+  });
+
+  it('create with form: true opens the form with the presets, so required fields may stay empty', () => {
+    expect(
+      problems([
+        button({ do: 'create', collectionId: 'checkins', values: { habit: 'run' }, form: true }),
+        list('habits', [
+          {
+            label: 'Log',
+            do: 'create',
+            collectionId: 'logs',
+            values: { habit: 'row' },
+            form: true,
+          },
+        ]),
+      ]),
+    ).toBe('');
+    // 预设的值照样检查。
+    expect(
+      problems([
+        button({ do: 'create', collectionId: 'checkins', values: { habit: 'swim' }, form: true }),
+      ]),
+    ).toMatch(/must be one of its option ids/);
   });
 
   it('"row" is only for a row button’s create, on a link to the list’s table', () => {

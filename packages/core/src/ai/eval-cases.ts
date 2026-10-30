@@ -42,6 +42,7 @@ function sameValue(a: unknown, b: unknown): boolean {
 /** boards：习惯 ← 打卡、任务（状态是单选）两组表，习惯和任务各一个列表页面（大圆块和看板，D-311–D-314）。 */
 /** scheduled：植物（日程 + 上次浇水）、习惯（日程）← 打卡三张表，植物和习惯各一个列表页面（按记录排的提醒，D-316–D-318）。 */
 /** linked：互相引用的表（习惯 ← 打卡、工作 ← 工时、客户 ← 订单）和一张加油表，每张一个页面（D-287–D-289）。 */
+/** envelopes：零基预算的分类 ← 分配、分类 ← 流水（支出 / 收入）三张表，分类和流水各一个列表页面（D-326–D-328）。 */
 export type EvalSetup =
   | 'default'
   | 'pdf'
@@ -55,7 +56,8 @@ export type EvalSetup =
   | 'oneTap'
   | 'views'
   | 'boards'
-  | 'scheduled';
+  | 'scheduled'
+  | 'envelopes';
 
 export type OpsPlan = Extract<Plan, { kind: 'ops' }>;
 
@@ -118,6 +120,8 @@ export function buildSetup(setup: EvalSetup, locale: Locale, registry: Registry)
     ops.push(...boardOps(locale));
   } else if (setup === 'scheduled') {
     ops.push(...scheduledOps(locale));
+  } else if (setup === 'envelopes') {
+    ops.push(...envelopeOps(locale));
   } else if (setup !== 'default') ops.push({ op: 'installTool', toolId: 'pdf' });
   if (setup === 'pdfBelowFiles') {
     ops.push({ op: 'moveComponent', pageId: 'home', componentId: 'card-pdf', toIndex: 3 });
@@ -507,6 +511,107 @@ function scheduledOps(locale: Locale): Op[] {
     ...tables.map((collection): Op => ({ op: 'addCollection', collection })),
     listPage(tables[0]!),
     listPage(tables[1]!),
+  ];
+}
+
+/** 零基预算的三张表：分类 ← 分配、分类 ← 流水（名字按语言，ID 都一样），分类和流水各一个列表页面。 */
+function envelopeOps(locale: Locale): Op[] {
+  const n = {
+    zh: ['分类', '名称', '每月目标', '分配', '金额', '日期', '流水', '类型', '支出', '收入'],
+    en: [
+      'Categories',
+      'Name',
+      'Monthly target',
+      'Assigned',
+      'Amount',
+      'Date',
+      'Transactions',
+      'Type',
+      'Spending',
+      'Income',
+    ],
+    fr: [
+      'Catégories',
+      'Nom',
+      'Objectif mensuel',
+      'Attributions',
+      'Montant',
+      'Date',
+      'Opérations',
+      'Type',
+      'Dépense',
+      'Revenu',
+    ],
+  }[locale] as string[];
+  const [cats, name, target, assigned, amount, date, ledger, kind, out, income] = n as [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
+  const currency = { zh: 'CNY', en: 'USD', fr: 'EUR' }[locale];
+  const tables: Collection[] = [
+    {
+      id: 'categories',
+      name: cats,
+      fields: [
+        { id: 'name', name, type: 'text', required: true },
+        { id: 'target', name: target, type: 'money', currency },
+      ],
+    },
+    {
+      id: 'assigned',
+      name: assigned,
+      fields: [
+        { id: 'amount', name: amount, type: 'money', currency, required: true },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+        { id: 'category', name: cats, type: 'link', collectionId: 'categories', required: true },
+      ],
+    },
+    {
+      id: 'ledger',
+      name: ledger,
+      fields: [
+        { id: 'amount', name: amount, type: 'money', currency, required: true },
+        { id: 'date', name: date, type: 'date', default: 'today' },
+        {
+          id: 'kind',
+          name: kind,
+          type: 'choice',
+          default: 'out',
+          options: [
+            { id: 'out', label: out },
+            { id: 'in', label: income },
+          ],
+        },
+        { id: 'category', name: cats, type: 'link', collectionId: 'categories' },
+      ],
+    },
+  ];
+  const listPage = (collection: Collection, titleField: string): Op => ({
+    op: 'addPage',
+    page: {
+      id: collection.id,
+      title: collection.name,
+      components: [
+        {
+          id: `${collection.id}-list`,
+          type: 'recordList',
+          props: { collectionId: collection.id, display: 'list', titleField, limit: 30 },
+        },
+      ],
+    },
+  });
+  return [
+    ...tables.map((collection): Op => ({ op: 'addCollection', collection })),
+    listPage(tables[0]!, 'name'),
+    listPage(tables[2]!, 'amount'),
   ];
 }
 
@@ -5388,6 +5493,92 @@ const RECORD_REMINDER_CASES: readonly EvalCase[] = [
   },
 ];
 
+/** 零基预算（D-326–D-328）：统计相减、按引用分组、新建并打开表单。 */
+const ENVELOPE_CASES: readonly EvalCase[] = [
+  {
+    id: 'ZB1',
+    input: '加一个「待分配」，显示收入里还有多少钱没分到各个分类',
+    locale: 'zh',
+    setup: 'envelopes',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'stat', 'ledger').some((x) => {
+          const m = x.props.minus as
+            { collectionId?: string; aggregate?: string; fieldId?: string } | undefined;
+          const filter = (x.props.filter ?? []) as { field: string; value?: unknown }[];
+          return (
+            x.props.aggregate === 'sum' &&
+            m?.collectionId === 'assigned' &&
+            m.aggregate === 'sum' &&
+            m.fieldId === 'amount' &&
+            filter.some((f) => f.field === 'kind' && f.value === 'in')
+          );
+        })
+          ? null
+          : 'expected a stat: income from ledger minus the sum of assigned amounts',
+    },
+  },
+  {
+    id: 'ZB2-en',
+    input: 'Put an "Assign" button on each category; I type the amount myself',
+    locale: 'en',
+    setup: 'envelopes',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordList', 'categories').some((x) =>
+          ((x.props.rowActions ?? []) as Record<string, unknown>[]).some(
+            (a) =>
+              a.do === 'create' &&
+              a.collectionId === 'assigned' &&
+              a.form === true &&
+              (a.values as Record<string, unknown> | undefined)?.category === 'row',
+          ),
+        )
+          ? null
+          : 'expected a row action on categories creating an assignment with category row and form true',
+    },
+  },
+  {
+    id: 'ZB3-fr',
+    input: 'Montre les dépenses de ce mois par catégorie, comparées au mois dernier',
+    locale: 'fr',
+    setup: 'envelopes',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'stat', 'ledger').some(
+          (x) =>
+            x.props.groupBy === 'category' &&
+            x.props.compare === 'previous' &&
+            hasPeriod(x.props, 'thisMonth'),
+        )
+          ? null
+          : 'expected a stat on ledger grouped by category, this month, compared with the previous one',
+    },
+  },
+  {
+    id: 'ZB4',
+    input: '画一个饼图，看每个分类花了多少',
+    locale: 'zh',
+    setup: 'envelopes',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'chart', 'ledger').some(
+          (x) => x.props.kind === 'pie' && x.props.choiceField === 'category',
+        )
+          ? null
+          : 'expected a pie chart of ledger grouped by the category link',
+    },
+  },
+];
+
 const HOME_SCREEN_CASES: readonly EvalCase[] = [
   {
     id: 'HS1',
@@ -5846,6 +6037,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...VIEW_CASES,
   ...BOARD_CASES,
   ...RECORD_REMINDER_CASES,
+  ...ENVELOPE_CASES,
   ...HOME_SCREEN_CASES,
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,

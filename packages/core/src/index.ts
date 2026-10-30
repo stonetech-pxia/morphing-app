@@ -72,3 +72,4 @@ export * from './quick-actions';
 export * from './messages';
 
 export * from './localization';
+export * from './stat-minus';

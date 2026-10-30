@@ -12,6 +12,7 @@ import {
   isSequenceAggregate,
   linkedCollectionIds,
   loadComputedRecords,
+  minusValue,
   loadLinkResolver,
   previousFilter,
   previousLabel,
@@ -154,7 +155,18 @@ async function statView(
   const previous = props.compare ? previousFilter(props.filter, now, cal) : null;
   const base = { kind: 'stat' as const, title: props.label, link: componentLink(c.id) };
   if (props.groupBy) {
-    const groups = groupRecords(matched, view, props.groupBy, t(locale, 'statNoChoice'));
+    // 按引用字段分组（D-326）：被引用的表里每条记录一行。
+    const groupField = view.fields.find((f) => f.id === props.groupBy);
+    const target =
+      groupField?.type === 'link'
+        ? config.collections.find((x) => x.id === groupField.collectionId)
+        : undefined;
+    const linked = target && {
+      collection: target,
+      records: ctx.records.get(target.id) ?? [],
+      locale,
+    };
+    const groups = groupRecords(matched, view, props.groupBy, t(locale, 'statNoChoice'), linked);
     return {
       ...base,
       value: '',
@@ -171,6 +183,19 @@ async function statView(
     };
   }
   const v = valueOf(matched);
+  // 减去另一个合计（D-327）。
+  const minusTable =
+    props.minus && config.collections.find((x) => x.id === props.minus!.collectionId);
+  if (props.minus && minusTable) {
+    const other = await loadComputedRecords(
+      lister(ctx.records),
+      config.collections,
+      minusTable,
+      now,
+      cal,
+    );
+    v.value = minusValue(v.value, props.minus, other.view, other.records, now, cal);
+  }
   const p = goal(v.value);
   let note: string | undefined;
   if (v.best !== undefined) note = t(locale, 'seqBest', { value: text(v.best) });

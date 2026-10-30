@@ -34,12 +34,14 @@ import {
   type Component,
   type ComponentStyle,
   type DataRecord,
+  type LinkedGroups,
   type Field,
   type FieldIssue,
   type FieldOf,
   type FieldType,
   type FieldValue,
   type Backdrop,
+  minusValue,
 } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
@@ -79,6 +81,28 @@ export function toFormValues(collection: Collection, record: DataRecord | null):
   const values: FormValues = {};
   for (const field of collection.fields) {
     const v = record ? readValue(field, record.values[field.id]) : undefined;
+    if (v === undefined) continue;
+    const toForm = (FIELD_EDITORS[field.type] as FieldEditor).toForm;
+    values[field.id] = toForm ? toForm(v) : v;
+  }
+  return values;
+}
+
+/**
+ * 一键操作打开的新记录表单（D-328）：预设的值（createInput 的输入，JSON）换成表单的写法。
+ * 读不出来的、字段已经不在的不填。
+ */
+export function prefillFormValues(collection: Collection, json: string): FormValues {
+  let input: unknown;
+  try {
+    input = JSON.parse(json);
+  } catch {
+    return {};
+  }
+  if (typeof input !== 'object' || input === null) return {};
+  const values: FormValues = {};
+  for (const field of collection.fields) {
+    const v = readValue(field, (input as Record<string, unknown>)[field.id]);
     if (v === undefined) continue;
     const toForm = (FIELD_EDITORS[field.type] as FieldEditor).toForm;
     values[field.id] = toForm ? toForm(v) : v;
@@ -693,6 +717,24 @@ export function useCollection(env: RenderEnv, id: string): Collection | undefine
   return env.config.collections.find((c) => c.id === id);
 }
 
+/**
+ * 按引用字段分组（D-326）：被引用的那张表和它的记录。不是引用字段时 undefined，还没读完时 null。
+ */
+export function useLinkedGroups(
+  env: RenderEnv,
+  view: Collection | undefined,
+  fieldId: string | undefined,
+): LinkedGroups | null | undefined {
+  const field = fieldId ? view?.fields.find((f) => f.id === fieldId) : undefined;
+  const target =
+    field?.type === 'link'
+      ? env.config.collections.find((c) => c.id === field.collectionId)
+      : undefined;
+  const { records } = useComputedRecords(env.config.collections, target, calendarOf(env.config));
+  if (!target) return undefined;
+  return records === null ? null : { collection: target, records, locale: env.locale };
+}
+
 export function openEditor(
   router: ReturnType<typeof useRouter>,
   collectionId: string,
@@ -1093,6 +1135,13 @@ export function Stat({
   const cal = calendarOf(env.config);
   // 查找、汇总、上一条（D-291）按算好的值统计。
   const { view: collection, records } = useComputedRecords(env.config.collections, table, cal);
+  // 按引用字段分组（D-326）要被引用的表的记录；减去另一个合计（D-327）要那张表的记录。
+  const linked = useLinkedGroups(env, collection, props.groupBy);
+  const minus = useComputedRecords(
+    env.config.collections,
+    env.config.collections.find((c) => c.id === props.minus?.collectionId),
+    cal,
+  );
   if (!collection) return null;
   const now = new Date();
   const matched = filterRecords(records ?? [], collection, props.filter, now, cal);
@@ -1115,6 +1164,12 @@ export function Stat({
     sequence
       ? sequenceValue(list, collection, sequence.spec, sequence.ctx)
       : { value: aggregateRecords(list, collection, props.aggregate as Aggregate, props.fieldId) };
+  // 还没读完被减的那张表时先不显示数（和自己的表没读完一样）。
+  const loading = records === null || (props.minus !== undefined && minus.records === null);
+  const minusOf = (value: number | null) =>
+    props.minus && minus.view && minus.records
+      ? minusValue(value, props.minus, minus.view, minus.records, now, cal)
+      : value;
   const text = (v: { value: number | null }) =>
     statText(v.value, props.aggregate, field, env.locale, props.unit);
   const bestText = (v: { best?: number }) =>
@@ -1163,7 +1218,9 @@ export function Stat({
   if (props.groupBy) {
     const noChoice = t(env.locale, 'statNoChoice');
     const groups =
-      records === null ? [] : groupRecords(matched, collection, props.groupBy, noChoice);
+      records === null || linked === null
+        ? []
+        : groupRecords(matched, collection, props.groupBy, noChoice, linked);
     // 和上一段比（D-308）：每个选项和它自己的上一段比。
     const before =
       previous && records !== null
@@ -1173,6 +1230,7 @@ export function Stat({
               collection,
               props.groupBy,
               noChoice,
+              linked ?? undefined,
             ).map((g) => [g.optionId, valueOf(g.records).value]),
           )
         : null;
@@ -1218,10 +1276,11 @@ export function Stat({
       </Card>
     );
   }
-  const v = records === null ? { value: null } : valueOf(matched);
-  const best = records === null ? null : bestText(v);
+  const own = loading ? { value: null } : valueOf(matched);
+  const v = props.minus ? { value: minusOf(own.value) } : own;
+  const best = loading ? null : bestText(v);
   const progress = goalProgress(v);
-  const compareLine = records === null ? null : compareText(v.value);
+  const compareLine = loading ? null : compareText(v.value);
   return (
     <Card palette={palette} background={background} backdrop={backdrop} style={styles.fillCard}>
       {heading}

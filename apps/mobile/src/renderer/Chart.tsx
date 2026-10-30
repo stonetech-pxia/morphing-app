@@ -18,7 +18,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useComputedRecords } from '../data/records';
 import { t } from '../i18n';
 import type { RenderEnv } from './components';
-import { statText } from './data';
+import { statText, useLinkedGroups } from './data';
 import { cardColors } from './theme';
 import { Card } from './ui';
 
@@ -45,6 +45,12 @@ export function Chart({
   const cal = calendarOf(env.config);
   // 查找、汇总、上一条（D-291）按算好的值画。
   const { view: collection, records } = useComputedRecords(env.config.collections, table, cal);
+  // 按引用字段分组（D-326）：被引用的表里每条记录一个点。
+  const linked = useLinkedGroups(
+    env,
+    collection,
+    props.group === 'choice' ? props.choiceField : undefined,
+  );
   const [width, setWidth] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   if (!collection) return null;
@@ -63,11 +69,12 @@ export function Chart({
           now,
           t(locale, 'statNoChoice'),
           cal,
+          linked ?? undefined,
         );
   const points = props.kind === 'pie' ? pieSlices(series, t(locale, 'chartOther')) : series;
   const valueText = (p: ChartPoint) =>
     p.empty ? '—' : statText(p.value, props.aggregate, field, locale);
-  const nothing = records !== null && points.every((p) => p.value === 0);
+  const nothing = records !== null && linked !== null && points.every((p) => p.value === 0);
   // 默认显示最后一段（时间）或最大的一块（单选）。
   const fallback =
     props.group === 'choice'

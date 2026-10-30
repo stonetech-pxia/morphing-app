@@ -28,6 +28,8 @@ const create = {
   /** 字段 ID → 预设值；其余字段按表单的默认值。 */
   values: presets.optional(),
 };
+/** 按钮和列表每一行的 create 还可以打开表单（D-328）：预设值先填好，用户补完再保存（例如金额要自己填）。 */
+const createInApp = { ...create, form: z.literal(true).optional() };
 const set = { do: z.literal('set'), fieldId: IdSchema, value: RecordActionValueSchema };
 const toggle = { do: z.literal('toggle'), fieldId: IdSchema };
 const increment = {
@@ -48,7 +50,7 @@ const setAll = {
 
 /** 按钮上的操作：新建一条、筛出来的一起设、打开新记录的表单。 */
 export const ButtonActionSchema = z.discriminatedUnion('do', [
-  z.strictObject(create),
+  z.strictObject(createInApp),
   z.strictObject(setAll),
   z.strictObject({ do: z.literal('open'), collectionId: IdSchema }),
 ]);
@@ -63,7 +65,7 @@ const rowItem = {
 
 /** 记录列表每一行的操作：改这一行（set / toggle / increment）、以这一行新建（create）、打开它。 */
 export const RowActionSchema = z.discriminatedUnion('do', [
-  z.strictObject({ ...rowItem, ...create }),
+  z.strictObject({ ...rowItem, ...createInApp }),
   z.strictObject({ ...rowItem, ...set }),
   z.strictObject({ ...rowItem, ...toggle }),
   z.strictObject({ ...rowItem, ...increment }),

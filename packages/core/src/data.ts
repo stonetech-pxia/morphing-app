@@ -491,30 +491,47 @@ export function groupedAggregate(
   fieldId: string | undefined,
   groupBy: string,
   noChoice: string,
+  linked?: LinkedGroups,
 ): StatGroup[] {
-  return groupRecords(records, collection, groupBy, noChoice).map(({ records: list, ...g }) => ({
-    ...g,
-    value: aggregateRecords(list, collection, aggregate, fieldId),
-  }));
+  return groupRecords(records, collection, groupBy, noChoice, linked).map(
+    ({ records: list, ...g }) => ({
+      ...g,
+      value: aggregateRecords(list, collection, aggregate, fieldId),
+    }),
+  );
+}
+
+/** 按引用字段分组（D-326）时，被引用的那张表和它的记录：每条一组，标题同引用里显示的。 */
+export interface LinkedGroups {
+  collection: Collection;
+  records: readonly DataRecord[];
+  locale: Locale;
 }
 
 /**
- * 按单选字段分组（groupedAggregate 的分组部分）：每组自己算值，例如每个习惯的连续天数（D-284）。
- * 顺序和「未选」一行同 groupedAggregate。
+ * 按单选或引用字段分组（groupedAggregate 的分组部分）：每组自己算值，例如每个习惯的连续天数（D-284）。
+ * 顺序和「未选」一行同 groupedAggregate。引用字段（D-326）要 linked：被引用的表里每条记录一组
+ * （按创建时间从旧到新，没有记录的也列出），没选的、指向已删除记录的算「未选」；没有 linked 时没有组。
  */
 export function groupRecords(
   records: readonly DataRecord[],
   collection: Collection,
   groupBy: string,
   noChoice: string,
+  linked?: LinkedGroups,
 ): (Omit<StatGroup, 'value'> & { records: DataRecord[] })[] {
   const field = fieldOf(collection, groupBy);
-  if (field?.type !== 'choice') return [];
+  const labels = new Map<string, string>();
+  if (field?.type === 'choice') for (const o of field.options) labels.set(o.id, o.label);
+  else if (field?.type === 'link' && linked) {
+    for (const r of [...linked.records].sort((a, b) => a.createdAt - b.createdAt))
+      labels.set(r.id, linkTitle(r, linked.collection, linked.locale));
+  } else return [];
   const buckets = new Map<string | null, DataRecord[]>();
-  for (const o of field.options) buckets.set(o.id, []);
+  for (const id of labels.keys()) buckets.set(id, []);
   for (const r of records) {
     const v = readValue(field, r.values[groupBy]);
-    const key = typeof v === 'string' ? v : null;
+    const key = typeof v === 'string' && labels.has(v) ? v : null;
     buckets.set(key, [...(buckets.get(key) ?? []), r]);
   }
   return [...buckets.entries()].flatMap(([optionId, list]) =>
@@ -523,10 +540,7 @@ export function groupRecords(
       : [
           {
             optionId,
-            label:
-              optionId === null
-                ? noChoice
-                : (field.options.find((o) => o.id === optionId)?.label ?? noChoice),
+            label: optionId === null ? noChoice : labels.get(optionId)!,
             count: list.length,
             records: list,
           },

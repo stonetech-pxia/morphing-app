@@ -3055,6 +3055,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf button>.props.action<oneOf 0>.values{}<anyOf 1> number
 <oneOf button>.props.action<oneOf 0>.values{}<anyOf 2> boolean
 <oneOf button>.props.action<oneOf 0>.values{}<anyOf 3> null
+<oneOf button>.props.action<oneOf 0>.form? true
 <oneOf button>.props.action<oneOf 1> object
 <oneOf button>.props.action<oneOf 1>.do "setAll"
 <oneOf button>.props.action<oneOf 1>.collectionId string /^[a-z][a-z0-9-]{0,47}$/
@@ -3153,6 +3154,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf recordList>.props.rowActions[]<oneOf 0>.collectionId string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf recordList>.props.rowActions[]<oneOf 0>.values? object record
 <oneOf recordList>.props.rowActions[]<oneOf 0>.values{} = <oneOf button>.props.action<oneOf 0>.values{}
+<oneOf recordList>.props.rowActions[]<oneOf 0>.form? true
 <oneOf recordList>.props.rowActions[]<oneOf 1> object
 <oneOf recordList>.props.rowActions[]<oneOf 1>.label string len 1..20
 <oneOf recordList>.props.rowActions[]<oneOf 1>.when? array items ..3
@@ -3222,6 +3224,12 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf stat>.props.skipOption? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf stat>.props.goal? number ..1000000000 >0
 <oneOf stat>.props.compare? "previous"
+<oneOf stat>.props.minus? object
+<oneOf stat>.props.minus.collectionId string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf stat>.props.minus.aggregate "count"|"sum"
+<oneOf stat>.props.minus.fieldId? string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf stat>.props.minus.filter? array items ..5
+<oneOf stat>.props.minus.filter[] = <oneOf button>.props.action<oneOf 1>.filter[]
 <oneOf chart> object
 <oneOf chart>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf chart>.hidden? boolean
@@ -3289,7 +3297,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 28
+.schemaVersion 29
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"

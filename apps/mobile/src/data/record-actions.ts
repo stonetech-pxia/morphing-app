@@ -39,8 +39,11 @@ export function useRecordActionRunner() {
   const cal = useCalendar();
   const router = useRouter();
 
-  const openNew = (collectionId: string) =>
-    router.push({ pathname: '/record/[collectionId]', params: { collectionId } });
+  const openNew = (collectionId: string, prefill?: Record<string, unknown>) =>
+    router.push({
+      pathname: '/record/[collectionId]',
+      params: { collectionId, ...(prefill ? { prefill: JSON.stringify(prefill) } : {}) },
+    });
   const openRecord = (collectionId: string, recordId: string) =>
     router.push({ pathname: '/record/[collectionId]', params: { collectionId, recordId } });
 
@@ -48,11 +51,12 @@ export function useRecordActionRunner() {
     collection: Collection,
     values: Record<string, RecordActionValue> | undefined,
     rowId?: string,
+    form?: boolean,
   ) {
-    const result = await actions.add(
-      collection,
-      createInput(collection, values, { now: new Date(), cal, rowId }),
-    );
+    const input = createInput(collection, values, { now: new Date(), cal, rowId });
+    // D-328：打开新记录的表单，预设的值先填好，用户补完再保存（表单自己保存，不弹提示条）。
+    if (form) return void openNew(collection.id, input);
+    const result = await actions.add(collection, input);
     if (result.ok) {
       showToast({
         message: t(locale, 'recordActionAdded', { table: collection.name }),
@@ -115,7 +119,7 @@ export function useRecordActionRunner() {
         if (action.do === 'open') return void openNew(action.collectionId);
         if (action.do === 'setAll') return setAll(action, label);
         const collection = config?.collections.find((c) => c.id === action.collectionId);
-        if (collection) await create(collection, action.values);
+        if (collection) await create(collection, action.values, undefined, action.form);
       });
     },
 
@@ -133,7 +137,7 @@ export function useRecordActionRunner() {
         if (action.do === 'open') return void openRecord(collection.id, record.id);
         if (action.do === 'create') {
           const target = config?.collections.find((c) => c.id === action.collectionId);
-          if (target) await create(target, action.values, record.id);
+          if (target) await create(target, action.values, record.id, action.form);
           return;
         }
         const stored = await repo.getRecord(record.id);

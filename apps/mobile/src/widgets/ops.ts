@@ -42,14 +42,15 @@ export function findComponent(config: WorkspaceConfig, id: string): Component | 
 /** 按钮的操作能不能在小组件上直接执行。 */
 export function widgetButtonAction(c: Component): Extract<ButtonAction, { do: 'create' }> | null {
   if (c.type !== 'button' || !c.props.action) return null;
-  return c.props.action.do === 'create' ? c.props.action : null;
+  // 打开表单的新建（D-328）要用户填，和 open 一样只打开 App。
+  return c.props.action.do === 'create' && !c.props.action.form ? c.props.action : null;
 }
 
 /** 行操作能不能在小组件上直接执行（open 打开 App）。 */
 export function widgetRowAction(
   a: RowAction | undefined,
 ): Exclude<RowAction, { do: 'open' }> | undefined {
-  return a !== undefined && a.do !== 'open' ? a : undefined;
+  return a !== undefined && a.do !== 'open' && !(a.do === 'create' && a.form) ? a : undefined;
 }
 
 export const buttonOpKey = (componentId: string) => `b:${componentId}`;

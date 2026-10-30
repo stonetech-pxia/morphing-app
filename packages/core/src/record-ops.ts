@@ -98,6 +98,7 @@ function createProblems(
   collectionId: string,
   values: Record<string, RecordActionValue> | undefined,
   where: Where,
+  form?: boolean,
 ): string[] {
   const collection = config.collections.find((c) => c.id === collectionId);
   if (!collection) return [`${where.label}: data table ${collectionId} does not exist`];
@@ -106,14 +107,15 @@ function createProblems(
     const p = valueProblem(collection, id, v, { ...where, creating: true });
     if (p) problems.push(p);
   }
-  // 必填、又没有默认值的字段：点一下存不进去。
+  // 必填、又没有默认值的字段：点一下存不进去。打开表单的（D-328）由用户填。
+  if (form) return problems;
   for (const f of collection.fields) {
     const def = fieldDefinition(f.type);
     if (!('required' in f) || !f.required || !def.write || values?.[f.id] !== undefined) continue;
     const hasDefault = ('default' in f && f.default !== undefined) || def.emptyNew !== undefined;
     if (!hasDefault) {
       problems.push(
-        `${where.label}: creates an entry in ${collectionId} but required field ${f.id} would be empty; preset it, make it not required, or use do "open" so the user fills the form`,
+        `${where.label}: creates an entry in ${collectionId} but required field ${f.id} would be empty; preset it, make it not required, or add form: true so the user fills in the rest`,
       );
     }
   }
@@ -143,7 +145,13 @@ export function recordActionProblems(
   const row = where.rowOf;
   switch (action.do) {
     case 'create':
-      return createProblems(config, action.collectionId, action.values, where);
+      return createProblems(
+        config,
+        action.collectionId,
+        action.values,
+        where,
+        'form' in action && action.form,
+      );
     case 'open':
       if ('collectionId' in action && !config.collections.some((c) => c.id === action.collectionId))
         return [`${where.label}: data table ${action.collectionId} does not exist`];

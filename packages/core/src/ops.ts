@@ -858,7 +858,13 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
         );
       }
       config.collections = config.collections.filter((c) => c.id !== op.collectionId);
-      const count = removeEverywhere(config, (c) => componentCollection(c) === op.collectionId);
+      // 减去这张表合计的统计（D-327）也一起移除：只留前一半会显示错的数。
+      const count = removeEverywhere(
+        config,
+        (c) =>
+          componentCollection(c) === op.collectionId ||
+          (c.type === 'stat' && c.props.minus?.collectionId === op.collectionId),
+      );
       if (count > 0) {
         notes.push({ kind: 'removedDataComponents', collectionId: op.collectionId, count });
       }
