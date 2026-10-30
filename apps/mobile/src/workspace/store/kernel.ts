@@ -1,6 +1,9 @@
 import {
   addedToHomeScreen,
+  allComponents,
+  isKnownComponent,
   prepareSnapshot,
+  quickActionsOf,
   type Locale,
   type Op,
   type Registry,
@@ -47,11 +50,16 @@ export interface Kernel {
 
 export function focusPage(ops: readonly Op[], config: WorkspaceConfig): string {
   for (const op of ops) {
-    if ('pageId' in op) return op.pageId;
-    if ('workflowId' in op) {
-      const owner = config.pages.find((p) =>
-        p.components.some(
-          (c) => c.type === 'workflowRunner' && c.props.workflowId === op.workflowId,
+    if ('page' in op && typeof op.page === 'string') return op.page;
+    if ('page' in op && op.page) return op.page.id;
+    if ('tool' in op) {
+      const id = typeof op.tool === 'string' ? op.tool : op.tool.id;
+      const owner = config.containers.pages.find((p) =>
+        allComponents(p).some(
+          (c) =>
+            isKnownComponent(c) &&
+            c.look === 'action' &&
+            c.tools.some((u) => 'tool' in u && u.tool === id),
         ),
       );
       if (owner) return owner.id;
@@ -94,11 +102,13 @@ export function createKernel(deps: WorkspaceDeps, set: Kernel['set'], get: Kerne
   }
 
   function addedBy(before: WorkspaceConfig, after: WorkspaceConfig, origin: DraftOrigin): Applied {
-    const workflows = new Set(before.workflows.map((w) => w.id));
-    const collections = new Set(before.collections.map((c) => c.id));
+    const workflows = new Set(quickActionsOf(before).map((w) => w.id));
+    const collections = new Set(before.data.tables.map((c) => c.id));
     return {
-      addedWorkflowIds: after.workflows.filter((w) => !workflows.has(w.id)).map((w) => w.id),
-      addedCollectionIds: after.collections.filter((c) => !collections.has(c.id)).map((c) => c.id),
+      addedWorkflowIds: quickActionsOf(after)
+        .filter((w) => !workflows.has(w.id))
+        .map((w) => w.id),
+      addedCollectionIds: after.data.tables.filter((c) => !collections.has(c.id)).map((c) => c.id),
       homeScreenWorkflowIds: addedToHomeScreen(before, after),
       origin,
     };

@@ -1,3 +1,4 @@
+import { quickActionsOf } from '@morph/core';
 import { useLocalSearchParams } from 'expo-router';
 import { Text, View } from 'react-native';
 
@@ -13,7 +14,7 @@ export default function ReadyRoute() {
   const { locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
-  const workflow = config.workflows.find((w) => w.id === workflowId);
+  const workflow = quickActionsOf(config).find((w) => w.id === workflowId);
   if (!workflow) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>

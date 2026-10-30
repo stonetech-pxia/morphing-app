@@ -4,7 +4,7 @@ import {
   loadComputedRecords,
   planNotifications,
   reminderCollections,
-  reminderWorkflowId,
+  reminderToolId,
   type DataRecord,
   type Locale,
   type NavTarget,
@@ -65,11 +65,11 @@ async function sync(
   // 算好的记录：日程的「上次完成」可能是汇总，unless 的筛选可能用查找来的值（D-316、D-317）。
   const records = new Map<string, DataRecord[]>();
   for (const id of reminderCollections(config)) {
-    const collection = config.collections.find((c) => c.id === id);
+    const collection = config.data.tables.find((c) => c.id === id);
     if (!collection) continue;
     const loaded = await loadComputedRecords(
       listRecords,
-      config.collections,
+      config.data.tables,
       collection,
       now,
       calendarOf(config),
@@ -86,7 +86,8 @@ export function useReminderSync(platform: NotificationPlatform | null) {
   const { repo, locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config);
   const recordsVersion = useWorkspace((s) => s.recordsVersion);
-  const reminders = config?.reminders;
+  // remindersOf 每次给新数组：依赖 tools（提醒在里面）。
+  const tools = config?.tools;
   useEffect(() => {
     if (!platform || !config) return;
     syncReminders(platform, config, (id) => repo.listRecords(id), locale, new Date())
@@ -94,14 +95,14 @@ export function useReminderSync(platform: NotificationPlatform | null) {
       .catch(() => undefined);
     // 只在提醒的设置、用到的表或记录变了时重排（config 里其他部分变了不用）。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [platform, reminders, config?.collections, recordsVersion, repo, locale]);
+  }, [platform, tools, config?.data.tables, recordsVersion, repo, locale]);
 }
 
 /** 点了提醒去哪里：快捷操作去它的提醒页（不是运行页，运行页一打开就开始运行），其他照常打开。 */
 export function reminderDestination(
   opens: ReminderTarget,
 ): { kind: 'workflow'; workflowId: string } | { kind: 'target'; target: NavTarget } {
-  const workflowId = reminderWorkflowId(opens);
+  const workflowId = reminderToolId(opens);
   return workflowId !== null
     ? { kind: 'workflow', workflowId }
     : { kind: 'target', target: opens as NavTarget };

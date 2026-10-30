@@ -15,6 +15,7 @@ import {
   type PlanEarlier,
   type Registry,
   type WorkspaceConfig,
+  quickActionsOf,
 } from '@morph/core';
 
 import { z } from 'zod';
@@ -97,26 +98,28 @@ function describePreset(p: (typeof WORKFLOW_PRESETS)[number]): string {
  * 引用了数据表的组件在「Data components」下，其余在「Components」下。
  */
 function componentDocs(data: boolean): string {
-  const defs = COMPONENTS.filter((d) => componentRefsTo(d, 'collection') === data);
-  return inDocOrder(defs)
-    .map((d) => `  - ${d.type} ${d.ai.doc}`)
+  // phase 2 只换到 v34 的键名，提示词正文在 phase 3 重写。
+  const defs = COMPONENTS.filter((d) => componentRefsTo(d, 'table') === data);
+  return inDocOrder(defs as readonly (typeof COMPONENTS)[number][], (d) => d.look)
+    .map((d) => `  - ${d.look} ${(d.ai as { doc: string }).doc}`)
     .join('\n');
 }
 
 /** 字段类型：一行，来自 core 字段定义（fields/<type>.ts）的 ai.doc，用 · 隔开。 */
 function fieldDocs(): string {
-  return inDocOrder(FIELDS)
+  return inDocOrder(FIELDS, (d) => d.type)
     .map((d) => `${d.type} ${d.ai.doc}`)
     .join(' · ');
 }
 
 /** 登记顺序，写了 ai.docAfter 的挪到那一项后面（后加的类型说明一直写在那里，保持提示词不变）。 */
-function inDocOrder<D extends { type: string; ai: { docAfter?: string } }>(
+function inDocOrder<D extends { ai: { docAfter?: string } }>(
   defs: readonly D[],
+  name: (d: D) => string,
 ): D[] {
   const ordered = defs.filter((d) => !d.ai.docAfter);
   for (const d of defs.filter((x) => x.ai.docAfter)) {
-    ordered.splice(ordered.findIndex((x) => x.type === d.ai.docAfter) + 1, 0, d);
+    ordered.splice(ordered.findIndex((x) => name(x) === d.ai.docAfter) + 1, 0, d);
   }
   return ordered;
 }
@@ -348,14 +351,14 @@ function describeEarlier(earlier: readonly PlanEarlier[] | undefined): string {
 function describeAbout(config: WorkspaceConfig, about: PlanAbout | undefined): string {
   if (!about) return '';
   if (about.kind === 'chain') {
-    const first = config.workflows.find((w) => w.id === about.first);
-    const second = config.workflows.find((w) => w.id === about.second);
+    const first = quickActionsOf(config).find((w) => w.id === about.first);
+    const second = quickActionsOf(config).find((w) => w.id === about.second);
     return first && second
       ? `\n\n<context>combine quick actions: first "${first.id}", then "${second.id}". Create a NEW quick action, keeping the originals. Keep the first input, use its processed output instead of the second input (never pick files again in between), preserve processing parameters and runtime questions. Remove intermediate save/share/export outputs unless explicitly requested; keep the second action’s final outputs. Give all steps unique IDs and update parameter references. If these types cannot be chained, reject with unknown and explain why. Set homeEntry false. Only workflow configuration is context; no files or record contents are provided.</context>`
       : '';
   }
   if (about.kind === 'workflow') {
-    const wf = config.workflows.find((w) => w.id === about.workflowId);
+    const wf = quickActionsOf(config).find((w) => w.id === about.workflowId);
     return wf ? `\n\n<context>quick action "${wf.id}" (“${wf.name}”)</context>` : '';
   }
   const kinds = [

@@ -122,8 +122,10 @@ export function createRevisions(k: Kernel) {
     if (!config || !head) throw new Error('workspace not loaded');
     const target = await repo.getRevision(revisionId);
     // 这个版本用到了本机没有的下载工具（换了手机、删了下载的内容）：先下载才能恢复（D-177）。
-    const missing = ((target?.config as { tools?: { toolId: string }[] } | undefined)?.tools ?? [])
-      .map((tool) => tool.toolId)
+    // 旧版本（schemaVersion < 34）先升级，再看 packages。
+    const migrated = target ? migrateWorkspace(target.config) : null;
+    const missing = (migrated?.ok ? migrated.config.packages : [])
+      .map((p) => p.id)
       .filter((id) => !registry.tools.has(id));
     if (target && missing.length > 0) {
       const names = missing.map((id) => deps.toolName?.(id) ?? id).join(msg('listSeparator'));
@@ -306,9 +308,9 @@ export function createRevisions(k: Kernel) {
         };
         set({ proposal: null });
         // 被移除的工具失去文件授权；文件本身保留（§7G）。
-        const remaining = new Set(proposal.after.tools.map((t) => t.toolId));
-        for (const tool of proposal.before.tools) {
-          if (!remaining.has(tool.toolId)) await repo.revokeToolGrants(tool.toolId);
+        const remaining = new Set(proposal.after.packages.map((t) => t.id));
+        for (const tool of proposal.before.packages) {
+          if (!remaining.has(tool.id)) await repo.revokeToolGrants(tool.id);
         }
         await reload();
         return true;

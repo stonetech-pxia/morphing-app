@@ -205,9 +205,9 @@ export function createDraft(k: Kernel) {
         set({ draft: null, toast: null });
         await saveDraft(null);
         // 被移除的工具失去文件授权；文件本身保留（§7G）。
-        const remaining = new Set(after.tools.map((t) => t.toolId));
-        for (const tool of config.tools) {
-          if (!remaining.has(tool.toolId)) await repo.revokeToolGrants(tool.toolId);
+        const remaining = new Set(after.packages.map((t) => t.id));
+        for (const tool of config.packages) {
+          if (!remaining.has(tool.id)) await repo.revokeToolGrants(tool.id);
         }
         await reload();
         return addedBy(config, after, draft.origin);

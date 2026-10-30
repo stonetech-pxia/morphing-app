@@ -278,9 +278,9 @@ export function createAIChange(
     set({ next, ...(draft?.open ? { draft: { ...draft, open: false }, toast: null } : {}) });
     await repo.setMeta(NEXT_META_KEY, next ?? '');
     // 被移除的工具失去文件授权；文件本身保留（§7G）。
-    const remaining = new Set(after.after.tools.map((t) => t.toolId));
-    for (const tool of config!.tools) {
-      if (!remaining.has(tool.toolId)) await repo.revokeToolGrants(tool.toolId);
+    const remaining = new Set(after.after.packages.map((t) => t.id));
+    for (const tool of config!.packages) {
+      if (!remaining.has(tool.id)) await repo.revokeToolGrants(tool.id);
     }
     await reload();
     const applied = addedBy(config!, after.after, origin);

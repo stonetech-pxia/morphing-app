@@ -34,8 +34,8 @@ const BAR_HEIGHT = { iconLabel: 64, label: 52, icon: 56 } as const;
 
 export function firstTab(config: WorkspaceConfig): NavTarget {
   return (
-    config.shell.nav.find((n) => n !== 'ai') ??
-    config.shell.floating.find((n) => n !== 'ai') ??
+    config.nav.bar.find((n) => n !== 'ai') ??
+    config.nav.floating.find((n) => n !== 'ai') ??
     'settings'
   );
 }
@@ -44,7 +44,7 @@ export function firstTab(config: WorkspaceConfig): NavTarget {
 function canShow(target: NavTarget | null, config: WorkspaceConfig): target is NavTarget {
   if (target === null || target === 'ai') return false;
   const pageId = pageIdOf(target);
-  return pageId === null || config.pages.some((p) => p.id === pageId);
+  return pageId === null || config.containers.pages.some((p) => p.id === pageId);
 }
 
 /** 外壳给页面的环境（D-190）：在草稿模式里打开页面照常，「AI 修改」打开聊天框，真的做事的操作只提示。 */
@@ -111,7 +111,7 @@ export function Shell() {
   let content;
   const pageId = pageIdOf(active);
   if (pageId !== null) {
-    const page = config.pages.find((p) => p.id === pageId)!;
+    const page = config.containers.pages.find((p) => p.id === pageId)!;
     content = <EditablePage page={page} env={env} bottomInset={barSpace + (editing ? 0 : 64)} />;
   } else if (active === 'tools') {
     content = <ToolsView env={env} />;
@@ -158,9 +158,9 @@ export function Shell() {
         </Pressable>
       ) : null}
 
-      {config.shell.floating.length > 0 && !editing && !inDraft ? (
+      {config.nav.floating.length > 0 && !editing && !inDraft ? (
         <View style={[styles.floating, { bottom: barSpace + 16 }]}>
-          {config.shell.floating.map((target) => {
+          {config.nav.floating.map((target) => {
             const accent = target === 'ai';
             const fg = accent ? palette.onPrimary : palette.text;
             return (
@@ -200,7 +200,7 @@ export function Shell() {
           },
         ]}>
         <GlassFill palette={palette} radius={0} />
-        {config.shell.nav.map((target) => {
+        {config.nav.bar.map((target) => {
           const isActive = target === active;
           const color = isActive || target === 'ai' ? palette.primaryText : palette.caption;
           const label = targetLabel(target, config, locale);

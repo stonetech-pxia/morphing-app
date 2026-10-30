@@ -1,4 +1,4 @@
-import { findWorkflow, localize } from '@morph/core';
+import { findWorkflow, localize, quickActionsOf } from '@morph/core';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
@@ -23,13 +23,13 @@ export default function RunRoute() {
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
   const router = useRouter();
-  const workflow = findWorkflow(config.workflows, workflowId, locale);
+  const workflow = findWorkflow(quickActionsOf(config), workflowId, locale);
   // 下载的工具被停用了（D-178）：它的快捷操作不能运行，配置和文件都留着。
   const revoked = useToolDownloads(
-    (s) => workflow?.toolId !== undefined && toolRevoked(s, workflow.toolId),
+    (s) => workflow?.package !== undefined && toolRevoked(s, workflow.package),
   );
   if (workflow && revoked) {
-    const name = localize(registry.tools.get(workflow.toolId!)?.name, locale) ?? workflow.toolId!;
+    const name = localize(registry.tools.get(workflow.package!)?.name, locale) ?? workflow.package!;
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <Stack.Screen options={{ title: workflow.name }} />
@@ -58,7 +58,7 @@ export default function RunRoute() {
         {...(incoming ? { incoming } : {})}
         onEdit={() => router.push({ pathname: '/workflow/[id]', params: { id: workflow.id } })}
         // AI 只看得到配置里的快捷操作；内设的先在编辑页改一次（D-236）。
-        {...(config.workflows.some((w) => w.id === workflow.id)
+        {...(quickActionsOf(config).some((w) => w.id === workflow.id)
           ? {
               onAskAI: () =>
                 router.push({ pathname: '/change', params: { workflow: workflow.id } }),

@@ -1,4 +1,4 @@
-import { findWorkflow, findWorkflowTarget, localize } from '@morph/core';
+import { findWorkflow, findWorkflowTarget, localize, quickActionsOf } from '@morph/core';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ScrollView, Text } from 'react-native';
 
@@ -20,7 +20,7 @@ export default function ReminderRoute() {
   const palette = usePalette(config.theme);
   const router = useRouter();
   const workflow = (entry ? findWorkflowTarget : findWorkflow)(
-    config.workflows,
+    quickActionsOf(config),
     workflowId,
     locale,
   );
