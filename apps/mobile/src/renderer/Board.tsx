@@ -32,7 +32,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { useRecordActionRunner } from '../data/record-actions';
 import { useLinkResolver } from '../data/records';
 import { edgeSpeed } from '../editing/ArrangeView';
-import { setInnerDrag } from '../editing/useSingleDrag';
+import { setInnerGesture } from '../editing/useSingleDrag';
 import { LONG_PRESS_MS } from '../editing/entry';
 import { t } from '../i18n';
 import type { RenderEnv } from './components';
@@ -378,12 +378,12 @@ function BoardCard({
     maxPointers: 1,
     cancelsTouchesInView: true,
     cancelsJSResponder: true,
-    // 拖卡片比页面的长按编辑（D-235）先开始；外层的手势照样会激活，由 setInnerDrag 让它不选中组件。
+    // 拖卡片比页面的长按编辑（D-235）先开始；外层的手势照样会激活，由 setInnerGesture 让它不选中组件。
     onFinalize: () => {
-      scheduleOnRN(setInnerDrag, false);
+      scheduleOnRN(setInnerGesture, false);
     },
     onActivate: (e) => {
-      scheduleOnRN(setInnerDrag, true);
+      scheduleOnRN(setInnerGesture, true);
       x.value = 0;
       y.value = 0;
       scheduleOnRN(onBegin, e.absoluteX);

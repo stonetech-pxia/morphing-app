@@ -112,6 +112,26 @@ it('tapping a tile runs its row action, fills the circle at the goal, and undo p
   expect((await repo.getRecord('run'))?.values.today).toBe(1);
 });
 
+it('long-pressing a tile with a row action opens its entry instead of editing the page (D-311)', async () => {
+  const repo = new MemoryWorkspaceRepo();
+  await put(repo, 'run', 'habits', { name: '跑步', today: 1, goal: 2 });
+  await renderToolsApp(repo, undefined, { seed });
+  await fireEvent(await screen.findByTestId('tile-run'), 'longPress');
+  expect(await screen.findByDisplayValue('跑步')).toBeTruthy();
+  expect(screen.queryByTestId('single-toolbar-grid')).toBeNull();
+  // 长按只是打开，不打卡。
+  expect((await repo.getRecord('run'))?.values.today).toBe(1);
+});
+
+it('long-pressing the tiles outside a circle still edits the component (D-235)', async () => {
+  const repo = new MemoryWorkspaceRepo();
+  await put(repo, 'run', 'habits', { name: '跑步', today: 1, goal: 2 });
+  await renderToolsApp(repo, undefined, { seed });
+  await screen.findByTestId('tile-run');
+  await fireEvent(screen.getByTestId('component-grid'), 'longPress');
+  expect(await screen.findByTestId('single-toolbar-grid')).toBeTruthy();
+});
+
 it('shows at most 24 tiles (D-312)', async () => {
   const repo = new MemoryWorkspaceRepo();
   for (let i = 0; i < 30; i++) await put(repo, `h${i}`, 'habits', { name: `习惯${i}`, goal: 1 });

@@ -305,6 +305,6 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 
 ## 20. 大圆块和看板（D-311 起）
 
-- **大圆块**（D-311，schemaVersion 27）：`recordList.display: "tiles"`，每条记录一个大圆，点一下执行这一块的行操作（D-300），没有行操作时打开记录；`trailingFormat: progress` 画成圆外的进度环。最多显示 24 个（D-312）。
+- **大圆块**（D-311，schemaVersion 27）：`recordList.display: "tiles"`，每条记录一个大圆，点一下执行这一块的行操作（D-300），没有行操作时打开记录，有行操作时长按打开记录（单组件编辑让路）；`trailingFormat: progress` 画成圆外的进度环。最多显示 24 个（D-312）。
 - **看板**（D-313、D-314）：`recordList.display: "board"` + `groupField`（单选）。每个选项一栏，再加「未分」；拖到另一栏或点卡片选「移到…」，等于一键操作的 `set`，可以撤销。
 - AI 只配置外观，看不到记录（D-042、D-113）；移动卡片是用户自己做的修改，和表单一样直接写数据库，不生成版本。
