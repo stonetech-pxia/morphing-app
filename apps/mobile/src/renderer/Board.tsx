@@ -4,6 +4,7 @@ import {
   boardMoveAction,
   boardTargets,
   calendarOf,
+  filterRecords,
   formatRef,
   type BoardColumn,
   type DataRecord,
@@ -36,7 +37,15 @@ import { setInnerGesture } from '../editing/useSingleDrag';
 import { LONG_PRESS_MS } from '../editing/entry';
 import { t } from '../i18n';
 import type { RenderEnv } from './components';
-import { openRow, useListRecords, type RecordListProps, type Tone } from './data';
+import {
+  AddHere,
+  openAddHere,
+  openRow,
+  useLinkedGroups,
+  useListRecords,
+  type RecordListProps,
+  type Tone,
+} from './data';
 import { cardColors, type Palette } from './theme';
 
 // 记录列表的看板外观（D-313）：按一个单选字段分栏，每个选项一栏，再加「未分」；栏横向滚动。
@@ -105,9 +114,21 @@ export function Board({
     [],
   );
 
+  const linkedAll = useLinkedGroups(env, view, props.groupField);
   const field = collection ? boardField(collection, props.groupField) : undefined;
-  if (!collection || !view || !field) return null;
-  const columns = boardColumns(field, sorted, props.limit);
+  // 引用字段分栏（D-341）要等被引用的表读出来；groupFilter 先筛出要哪几栏。
+  if (!collection || !view || !field || linkedAll === null) return null;
+  const linked = linkedAll && {
+    ...linkedAll,
+    records: filterRecords(
+      linkedAll.records,
+      linkedAll.collection,
+      props.groupFilter,
+      new Date(),
+      calendarOf(env.config),
+    ),
+  };
+  const columns = boardColumns(field, sorted, props.limit, linked);
   const background = cardColors(palette, tone).background;
   const cal = calendarOf(env.config);
   const now = new Date();
@@ -306,6 +327,26 @@ export function Board({
                   />
                 ))
               )}
+              {props.addHere ? (
+                <AddHere
+                  testID={`board-add-${key || 'none'}`}
+                  label={t(locale, 'entryFormAdd')}
+                  palette={palette}
+                  onPress={
+                    env.interactive
+                      ? (env.locked ??
+                        (() =>
+                          openAddHere(
+                            router,
+                            collection,
+                            view,
+                            props,
+                            column.option === null ? {} : { [field.id]: column.option },
+                          )))
+                      : undefined
+                  }
+                />
+              ) : null}
             </View>
           );
         })}

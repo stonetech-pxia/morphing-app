@@ -3194,6 +3194,8 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf recordList>.props.trailingFormat<oneOf 1>.goal<anyOf 1> string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf recordList>.props.trailingFormat<oneOf 1>.style? "ring"|"bar"
 <oneOf recordList>.props.groupField? string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf recordList>.props.groupFilter? array items ..5
+<oneOf recordList>.props.groupFilter[] = <oneOf button>.props.action<oneOf 1>.filter[]
 <oneOf recordList>.props.opens? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf recordList>.props.groupBy? = <oneOf button>.props.action<oneOf 1>.filter[].field
 <oneOf recordList>.props.groupUnit? "day"|"week"|"month"
@@ -3209,7 +3211,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf recordForm>.props.fieldIds array items 1..10
 <oneOf recordForm>.props.fieldIds[] string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf recordForm>.props.submitLabel string len 1..30
-<oneOf recordForm>.props.mode "inline"|"button"
+<oneOf recordForm>.props.mode "inline"|"button"|"sheet"
 <oneOf recordForm>.props.values? object record
 <oneOf recordForm>.props.values{} = <oneOf button>.props.action<oneOf 0>.values{}
 <oneOf recordForm>.props.smartDate? object
@@ -3308,7 +3310,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 31
+.schemaVersion 32
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"

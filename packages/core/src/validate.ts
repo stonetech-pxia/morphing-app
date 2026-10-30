@@ -437,6 +437,22 @@ function dataComponentProblems(
   }
   problems.push(...(def.check?.(c, { config, registry, page, collection }) ?? []));
   problems.push(...conditionProblems(filter, collection, page.recordOf));
+  // 看板按引用分栏（D-341）：groupFilter 筛的是被引用的那张表。
+  if (c.type === 'recordList' && c.props.groupFilter) {
+    const link = collection.fields.find((f) => f.id === c.props.groupField);
+    const other =
+      link?.type === 'link'
+        ? config.collections.find((x) => x.id === link.collectionId)
+        : undefined;
+    if (other)
+      problems.push(
+        ...conditionProblems(
+          c.props.groupFilter,
+          expandCollection(config.collections, other),
+          page.recordOf,
+        ).map((p) => `groupFilter: ${p}`),
+      );
+  }
   // 统计相减（D-327）：被减的那张表和它的筛选。
   if (c.type === 'stat') problems.push(...statMinusProblems(c, collection, config, page.recordOf));
   return problems;

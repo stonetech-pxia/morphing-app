@@ -10,7 +10,8 @@ const props = z.strictObject({
   collectionId: IdSchema,
   fieldIds: z.array(IdSchema).min(1).max(10),
   submitLabel: boundedText(1, 30),
-  mode: z.enum(['inline', 'button']),
+  /** sheet（D-342）：页面右下角一个「+」，点了从底部弹出添加框。 */
+  mode: z.enum(['inline', 'button', 'sheet']),
   /**
    * 不在表单里显示、保存时一起填上的值（D-333），写法同一键操作的预设值（D-301）；给一条记录用的页面上
    * 引用字段可以是 "$record"（D-332）。
@@ -35,7 +36,7 @@ export const recordFormComponent: ComponentDefinitionOf<'recordForm', typeof pro
     type: 'recordForm',
     props,
     refs: { collectionId: { to: 'collection' } },
-    check: (c, { config, collection }) => {
+    check: (c, { config, collection, page }) => {
       const problems: string[] = [];
       // 用配置里原来的表：查找、汇总在检查别的组件时换成了它们显示的那种字段（D-287）。
       const table = config.collections.find((x) => x.id === c.props.collectionId) ?? collection!;
@@ -52,12 +53,27 @@ export const recordFormComponent: ComponentDefinitionOf<'recordForm', typeof pro
       if (smart) {
         const from = table.fields.find((x) => x.id === smart.from);
         const to = table.fields.find((x) => x.id === smart.to);
-        if (c.props.mode !== 'inline') problems.push('smartDate only works with mode "inline"');
+        if (c.props.mode === 'button')
+          problems.push('smartDate only works with mode "inline" or "sheet"');
         if (from?.type !== 'text' || !c.props.fieldIds.includes(smart.from))
           problems.push(`smartDate.from ${smart.from} must be a text field listed in fieldIds`);
         if (!to || !SMART_DATE_TYPES.includes(to.type))
           problems.push(
             `smartDate.to ${smart.to} must be a date, datetime or schedule field of ${table.id}`,
+          );
+      }
+      // D-342：浮动的「+」放在页面右下角，一页一个，不能放进分组。
+      if (c.props.mode === 'sheet' && page) {
+        if (!page.components.some((x) => x.id === c.id))
+          problems.push(
+            'a recordForm with mode "sheet" floats over the page; put it on the page itself, not in a group',
+          );
+        const sheets = page.components.filter(
+          (x) => x.type === 'recordForm' && (x.props as { mode?: string }).mode === 'sheet',
+        );
+        if (sheets.length > 1 && sheets[0]!.id !== c.id)
+          problems.push(
+            `page ${page.id} already has a floating add button (${sheets[0]!.id}); one per page`,
           );
       }
       for (const id of Object.keys(c.props.values ?? {}))
@@ -69,7 +85,7 @@ export const recordFormComponent: ComponentDefinitionOf<'recordForm', typeof pro
       t(ctx.locale, 'describe_form_f4ef1', { v0: collectionName(c.props.collectionId, config) }),
     edit: { text: [], style: ['tone'] },
     ai: {
-      doc: '{collectionId, fieldIds (1-10), submitLabel, mode: "inline"|"button", values? (preset values not shown, like a create action\'s; rule 59), smartDate? {from: text field in fieldIds, to: date|datetime|schedule field} (inline only; rule 60)}: "inline" adds records right on the page; "button" opens the full editor; formula fields can\'t be in fieldIds; a file field lets the user add photos and files',
+      doc: '{collectionId, fieldIds (1-10), submitLabel, mode: "inline"|"button"|"sheet" (rule 64), values? (preset values not shown, like a create action\'s; rule 59), smartDate? {from: text field in fieldIds, to: date|datetime|schedule field} (inline or sheet; rule 60)}: "inline" adds records right on the page; "button" opens the full editor; formula fields can\'t be in fieldIds; a file field lets the user add photos and files',
     },
     example: {
       props: {

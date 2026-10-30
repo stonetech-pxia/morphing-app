@@ -321,3 +321,5 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 - **分段**（D-337）：`recordList.groupBy` + `groupUnit` + `showEmpty`，逻辑在 `core/list-groups.ts`。
 - **月历认日程**（D-338）：月历的 `dateField` 可以是日程，记录落在接下来的每一次。
 - **就地添加**（D-339）：`recordList.addHere`，打开新记录的表单，预设这一段的值和列表筛选里的「等于」条件。
+- **看板按引用分栏**（D-341，schemaVersion 32）：`groupField` 可以是引用字段，`groupFilter` 筛出要哪几栏。
+- **底部弹出的快速添加**（D-342）：`recordForm.mode: "sheet"`，页面右下角的「+」。

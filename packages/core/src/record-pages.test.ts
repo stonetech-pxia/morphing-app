@@ -263,3 +263,42 @@ describe('binding the entry when the page opens', () => {
     expect(titles).toEqual(['Call']);
   });
 });
+
+// D-342：底部弹出的添加框（浮动的「+」）一页一个，不能放进分组。
+describe('a floating add', () => {
+  const sheet = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    type: 'recordForm',
+    props: {
+      collectionId: 'tasks',
+      fieldIds: ['title'],
+      submitLabel: 'Add task',
+      mode: 'sheet',
+      ...extra,
+    },
+  });
+  const add = (component: unknown) => ({ op: 'addComponent', pageId: 'home', component });
+
+  it('is fine once per page, with a smart date', () => {
+    expect(
+      problems([add(sheet('quick', { smartDate: { from: 'title', to: 'title' } }))]).join(),
+    ).toMatch(/smartDate.to title must be a date, datetime or schedule field/);
+    expect(problems([add(sheet('quick'))])).toEqual([]);
+  });
+
+  it('a second one on the same page or one in a group is refused', () => {
+    expect(problems([add(sheet('one')), add(sheet('two'))]).join()).toMatch(
+      /already has a floating add button \(one\); one per page/,
+    );
+    expect(
+      problems([
+        add({
+          id: 'g',
+          type: 'group',
+          props: { layout: 'stack' },
+          children: [sheet('inside')],
+        }),
+      ]).join(),
+    ).toMatch(/not in a group/);
+  });
+});

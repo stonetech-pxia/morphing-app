@@ -64,6 +64,10 @@ export function PageView({
   const picture = page.backdrop?.assetId ? page.backdrop : undefined;
   const palette = onPicture(env.palette, picture);
   const pageEnv = { ...env, palette, pageId: page.id };
+  // D-342：底部弹出的添加框是右下角的浮动「+」，不跟着内容滚动。
+  const floats = (c: Component) =>
+    c.type === 'recordForm' && (c.props as { mode?: string }).mode === 'sheet';
+  const floating = page.components.filter((c) => !c.hidden && floats(c));
   const content = (
     <ScrollView
       testID={env.focus ? 'editable-scroll' : undefined}
@@ -88,7 +92,7 @@ export function PageView({
           onPress={env.focus.onDone}
         />
       ) : null}
-      {runnerGrid(page.components.filter((c) => !c.hidden)).map((block) =>
+      {runnerGrid(page.components.filter((c) => !c.hidden && !floats(c))).map((block) =>
         Array.isArray(block) ? (
           <View
             key={block[0]!.id}
@@ -122,6 +126,14 @@ export function PageView({
     <BackdropFill backdrop={picture} color={palette.background} palette={palette} />
   ) : null;
   const behind = picture ? { backgroundColor: palette.background } : undefined;
+  const fab =
+    floating.length > 0 ? (
+      <View pointerEvents="box-none" style={[styles.fab, { bottom: 20 + bottomInset }]}>
+        {floating.map((c) => (
+          <Item key={c.id} component={c} env={pageEnv} />
+        ))}
+      </View>
+    ) : null;
   return drag ? (
     <View ref={(view) => drag.attachViewport(view)} style={{ flex: 1, ...behind }}>
       {fill}
@@ -142,11 +154,13 @@ export function PageView({
         />
       ) : null}
       {env.focus?.selectedId ? <FocusToolbar env={pageEnv} page={page} pinned /> : null}
+      {fab}
     </View>
-  ) : picture ? (
+  ) : picture || fab ? (
     <View style={{ flex: 1, ...behind }}>
       {fill}
       {content}
+      {fab}
     </View>
   ) : (
     content
@@ -183,4 +197,5 @@ function runnerGrid(components: readonly Component[]): (Component | Component[])
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'stretch' },
   cell: { flex: 1 },
+  fab: { position: 'absolute', right: 20, alignItems: 'flex-end' },
 });

@@ -52,6 +52,9 @@ import {
 import { useRouter } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Switch,
@@ -133,6 +136,8 @@ export function FieldInput({
   disabled,
   testID,
   labeled = false,
+  onSubmit,
+  autoFocus,
 }: {
   field: Field;
   value: unknown;
@@ -143,6 +148,10 @@ export function FieldInput({
   testID: string;
   /** 外面已经有字段名的标签（完整编辑页）。 */
   labeled?: boolean;
+  /** 快速添加（D-342）：单行文字框按键盘上的「完成 / 发送」就是添加。 */
+  onSubmit?: (() => void) | undefined;
+  /** 底部弹出的添加框打开时，第一个文字框直接弹出键盘（D-342）。 */
+  autoFocus?: boolean | undefined;
 }) {
   const input = [
     styles.input,
@@ -173,6 +182,8 @@ export function FieldInput({
     labeled,
     input,
     chip,
+    onSubmit,
+    autoFocus,
   });
 }
 
@@ -190,6 +201,8 @@ interface FieldInputContext<F extends Field> {
   input: StyleProp<TextStyle>;
   /** 选项小块的样式。 */
   chip: (selected: boolean) => StyleProp<ViewStyle>;
+  onSubmit?: (() => void) | undefined;
+  autoFocus?: boolean | undefined;
 }
 
 /** 一种字段在记录表单里怎么填（字段的结构、读写和显示在 core 的 fields/<type>.ts）。 */
@@ -213,13 +226,25 @@ function textBox<F extends Field>({
   disabled,
   testID,
   input,
+  onSubmit,
+  autoFocus,
 }: FieldInputContext<F>) {
+  // 快速添加里的单行文字框：按键盘上的「完成」就添加（D-342），键盘不收起，接着写下一条。
+  const submits = onSubmit !== undefined && field.type === 'text';
   return (
     <TextInput
       testID={testID}
       editable={!disabled}
       value={typeof value === 'string' ? value : ''}
       onChangeText={onChange}
+      autoFocus={autoFocus === true && field.type === 'text'}
+      {...(submits
+        ? {
+            returnKeyType: 'done' as const,
+            onSubmitEditing: onSubmit,
+            submitBehavior: 'submit' as const,
+          }
+        : {})}
       placeholder={field.type === 'money' ? `${field.name} (${field.currency})` : field.name}
       placeholderTextColor={palette.caption}
       multiline={field.type === 'note'}
@@ -632,6 +657,8 @@ export function FieldsForm({
   testPrefix,
   showLabels = true,
   related,
+  onSubmit,
+  autoFocus,
 }: {
   collection: Collection;
   fieldIds: readonly string[];
@@ -648,8 +675,15 @@ export function FieldsForm({
    * 这几种字段存了以后才有值。
    */
   related?: { view: Collection; record: DataRecord | null };
+  /** 快速添加（D-342）：单行文字框按「完成」就添加。 */
+  onSubmit?: (() => void) | undefined;
+  /** 第一个文字框直接弹出键盘（底部弹出的添加框）。 */
+  autoFocus?: boolean | undefined;
 }) {
   const cal = useCalendar();
+  const firstText = fieldIds.find(
+    (id) => collection.fields.find((f) => f.id === id)?.type === 'text',
+  );
   const view = related?.view ?? collection;
   // 公式按表单里现在的值算（D-188）；查找、汇总、上一条用存好的那条记录算出来的值。
   const computed = () => {
@@ -717,6 +751,8 @@ export function FieldsForm({
               disabled={disabled}
               testID={`${testPrefix}-${id}`}
               labeled={showLabels || inline}
+              onSubmit={onSubmit}
+              autoFocus={autoFocus === true && id === firstText}
             />
             {issue ? (
               <Text style={[palette.font('bodyMedium', 13), { color: palette.danger }]}>
@@ -1200,6 +1236,8 @@ export function RecordForm({
   const cal = useCalendar();
   // D-334：在本机认出文字里的日期；用户点掉后，这段文字不再认（改了文字再认）。
   const [dismissed, setDismissed] = useState<string | null>(null);
+  // D-342：底部弹出的添加框开着没有。
+  const [open, setOpen] = useState(false);
   if (!collection) return null;
   const smart = props.smartDate;
   const smartField = smart ? collection.fields.find((f) => f.id === smart.to) : undefined;
@@ -1253,8 +1291,9 @@ export function RecordForm({
     }
   }
 
-  return (
-    <Card palette={palette} background={cardColors(palette, tone).background}>
+  const sheet = props.mode === 'sheet';
+  const body = (
+    <>
       <FieldsForm
         collection={collection}
         fieldIds={props.fieldIds}
@@ -1266,6 +1305,8 @@ export function RecordForm({
         disabled={!env.interactive}
         testPrefix={`form-${componentId}`}
         showLabels={false}
+        onSubmit={() => void submit()}
+        autoFocus={sheet}
       />
       {found ? (
         <View style={styles.smartDate} testID={`form-${componentId}-smart`}>
@@ -1298,7 +1339,56 @@ export function RecordForm({
         onLongPress={env.onLongPress}
         disabled={!env.interactive}
       />
-    </Card>
+    </>
+  );
+  if (!sheet) {
+    return (
+      <Card palette={palette} background={cardColors(palette, tone).background}>
+        {body}
+      </Card>
+    );
+  }
+  // D-342：右下角一个圆形的「+」（页面把它放在滚动内容外面，PageView），点了从底部弹出添加框；
+  // 添加以后框留着、文字清空，可以接着写下一条，点外面或「关闭」收起。
+  return (
+    <>
+      <Pressable
+        testID={`form-${componentId}`}
+        accessibilityRole="button"
+        accessibilityLabel={props.submitLabel}
+        onPress={env.interactive ? (env.locked ?? (() => setOpen(true))) : undefined}
+        onLongPress={env.onLongPress}
+        style={[styles.fab, { backgroundColor: palette.primary }]}>
+        <UiIcon name="add" size={28} color={palette.onPrimary} />
+      </Pressable>
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+        <KeyboardAvoidingView
+          style={styles.sheetRoot}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <Pressable
+            testID={`form-${componentId}-backdrop`}
+            accessibilityRole="button"
+            accessibilityLabel={t(locale, 'close')}
+            style={styles.sheetBackdrop}
+            onPress={() => setOpen(false)}
+          />
+          <View
+            testID={`form-${componentId}-sheet`}
+            style={[
+              styles.sheet,
+              {
+                backgroundColor: palette.surface,
+                borderTopLeftRadius: palette.radius,
+                borderTopRightRadius: palette.radius,
+                padding: palette.pad,
+                gap: palette.gap - 4,
+              },
+            ]}>
+            {body}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </>
   );
 }
 
@@ -1527,6 +1617,21 @@ const styles = StyleSheet.create({
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   smartDate: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
   groupHeader: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
+  fab: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
+  },
+  sheetRoot: { flex: 1, justifyContent: 'flex-end' },
+  sheetBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.3)' },
+  sheet: { paddingBottom: 28 },
   groupTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
   groupAdd: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   addHere: {

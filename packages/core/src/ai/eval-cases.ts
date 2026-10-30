@@ -5889,6 +5889,65 @@ const TODO_VIEW_CASES: readonly EvalCase[] = [
   },
 ];
 
+/** 待办第三批（D-341、D-342）：项目自己的版块看板、浮动添加。 */
+const TODO_BOARD_CASES: readonly EvalCase[] = [
+  {
+    id: 'TD11',
+    input: '每个项目有自己的版块，点开项目用看板按版块显示它的任务',
+    locale: 'zh',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const sections = c.collections.find(
+          (x) =>
+            x.id !== 'projects' &&
+            x.fields.some((f) => f.type === 'link' && f.collectionId === 'projects') &&
+            c.collections
+              .find((t) => t.id === 'tasks')
+              ?.fields.some((f) => f.type === 'link' && f.collectionId === x.id),
+        );
+        if (!sections) return 'expected a sections table linked to projects and linked from tasks';
+        const page = c.pages.find((p) => p.recordOf === 'projects');
+        if (!page) return 'expected a page for one project';
+        const board = allComponents(page).find(
+          (x) =>
+            x.type === 'recordList' &&
+            x.props.collectionId === 'tasks' &&
+            x.props.display === 'board',
+        ) as { props: Record<string, unknown> } | undefined;
+        if (!board) return 'expected a tasks board on the project page';
+        const link = c.collections
+          .find((t) => t.id === 'tasks')!
+          .fields.find((f) => f.id === board.props.groupField);
+        if (link?.type !== 'link' || link.collectionId !== sections.id)
+          return 'expected the board grouped by the link to sections';
+        return ((board.props.groupFilter ?? []) as { op: string; value?: unknown }[]).some(
+          (f) => f.op === 'is' && f.value === '$record',
+        )
+          ? null
+          : "expected groupFilter with $record so only this project's sections show";
+      },
+    },
+    next: true,
+  },
+  {
+    id: 'TD12-en',
+    input: 'Add a + button at the bottom right that opens a quick add sheet for tasks',
+    locale: 'en',
+    setup: 'todos',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        componentsOf(c, 'recordForm', 'tasks').some((x) => x.props.mode === 'sheet')
+          ? null
+          : 'expected a tasks recordForm with mode sheet',
+    },
+  },
+];
+
 const HOME_SCREEN_CASES: readonly EvalCase[] = [
   {
     id: 'HS1',
@@ -6350,6 +6409,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   ...ENVELOPE_CASES,
   ...TODO_CASES,
   ...TODO_VIEW_CASES,
+  ...TODO_BOARD_CASES,
   ...HOME_SCREEN_CASES,
   ...EXPERIENCE_CASES,
   ...FRENCH_CASES,
