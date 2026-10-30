@@ -5,6 +5,7 @@ import {
   createMockAIProvider,
   createRegistry,
   type Op,
+  type PlannedNotification,
   type WorkspaceConfig,
 } from '@morph/core';
 import { fireEvent } from '@testing-library/react-native';
@@ -135,6 +136,35 @@ describe('syncing reminders', () => {
     expect(platform.scheduled!.map((n) => n.body)).toEqual([
       '「账单」里有一条记录还有 1 天到期（2026-11-01）',
     ]);
+  });
+
+  it('two syncs at the same time never mix: the later one wins and nothing old is left', async () => {
+    // 像系统那样一条一条取消、一条一条排（每一步都会让出），两次同时开始时会交错。
+    class SlowNotifications extends FakeNotifications {
+      pending = new Set<string>();
+      override async replaceAll(planned: readonly PlannedNotification[]) {
+        for (const id of [...this.pending]) {
+          await Promise.resolve();
+          this.pending.delete(id);
+        }
+        for (const n of planned) {
+          await Promise.resolve();
+          this.pending.add(n.id);
+        }
+      }
+    }
+    const platform = new SlowNotifications();
+    platform.status = 'granted';
+    const weekly = withOps([
+      quick,
+      daily,
+      { op: 'updateReminder', reminderId: 'r', changes: { schedule: 'weekly', weekdays: [1, 2] } },
+    ]);
+    await Promise.all([
+      syncReminders(platform, weekly, listNothing, 'zh', now),
+      syncReminders(platform, withOps([quick, daily]), listNothing, 'zh', now),
+    ]);
+    expect([...platform.pending]).toEqual(['r']);
   });
 });
 

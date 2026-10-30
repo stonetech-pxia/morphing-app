@@ -28,11 +28,27 @@ export const useNotificationState = create<{ permission: NotificationPermission 
   permission: null,
 }));
 
+let syncing: Promise<unknown> = Promise.resolve();
+
 /**
  * 重新排提醒。没有开着的提醒时只清掉已排的，不问权限；第一次真的有提醒要排时才弹系统的权限请求，
  * 用户拒绝了就不排（设置页说明怎么打开）。返回权限状态（没有提醒时为 null）。
+ * 一次排完再排下一次：界面和提醒按钮（D-318）可能同时要重排，交错着取消和排会留下旧的通知。
  */
-export async function syncReminders(
+export function syncReminders(
+  platform: NotificationPlatform,
+  config: WorkspaceConfig,
+  listRecords: (collectionId: string) => Promise<DataRecord[]>,
+  locale: Locale,
+  now: Date,
+): Promise<NotificationPermission | null> {
+  const run = () => sync(platform, config, listRecords, locale, now);
+  const next = syncing.then(run, run);
+  syncing = next.catch(() => undefined);
+  return next;
+}
+
+async function sync(
   platform: NotificationPlatform,
   config: WorkspaceConfig,
   listRecords: (collectionId: string) => Promise<DataRecord[]>,
