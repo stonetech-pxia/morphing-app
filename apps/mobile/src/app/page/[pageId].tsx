@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EditablePage } from '@/editing/EditablePage';
 import { t } from '@/i18n';
 import { ErrorBoundary } from '@/renderer/ErrorBoundary';
-import { Icon } from '@/renderer/Icon';
+import { Icon, UiIcon } from '@/renderer/Icon';
 import { openEditor } from '@/renderer/data';
 import type { RenderEnv } from '@/renderer/components';
 import { usePalette } from '@/renderer/theme';
@@ -97,7 +97,7 @@ export default function PageRoute() {
                     accessibilityLabel={t(locale, 'recordPageEdit')}
                     onPress={() => openEditor(router, opened.collectionId, opened.id)}
                     hitSlop={10}>
-                    <Icon name="edit" size={20} color={palette.primaryText} />
+                    <UiIcon name="edit" size={20} color={palette.primaryText} />
                   </Pressable>
                 ) : null}
                 {/* 「编辑」进入整页编辑模式（D-053），入口继续关闭；长按单组件编辑另外开放（D-235，editing/entry.ts）。 */}

@@ -69,7 +69,7 @@ import { onPicture } from './Backdrop';
 import { RowActionButton } from './RecordActions';
 import { ScheduleInput } from './ScheduleInput';
 import type { RenderEnv } from './components';
-import { Icon } from './Icon';
+import { Icon, UiIcon } from './Icon';
 import { ProgressBar, ProgressRing } from './Progress';
 import { useTicker } from './ticker';
 import { cardColors, type Palette } from './theme';
@@ -1147,7 +1147,7 @@ export function RecordForm({
             hitSlop={12}
             onPress={() => setDismissed(typed as string)}
             style={styles.smartDismiss}>
-            <Icon name="close" size={16} color={palette.muted} />
+            <UiIcon name="close" size={16} color={palette.muted} />
           </Pressable>
         </View>
       ) : null}
