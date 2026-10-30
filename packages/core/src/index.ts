@@ -17,6 +17,7 @@ export * from './defaults';
 export * from './file-filter';
 export * from './grouping';
 export * from './describe';
+export * from './desk';
 export * from './habits';
 export * from './home-entry';
 export * from './home-screen';

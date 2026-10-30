@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { ComponentSchema, componentRefs, type Component, type ComponentOf } from './components';
+import { DeskLayoutSchema } from './desk/layout';
 import { ReminderDoneSchema } from './record-ops-schema';
 import {
   BackdropSchema,
@@ -21,7 +22,7 @@ import { ConditionSchema, FieldRefSchema } from './schema-primitives';
 // 修改已有结构（包括给已有组件加属性）时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移；
 // 只新增一种组件不提升（D-254：老配置照样能读，旧 App 读到新组件时原样保留）。
 
-export const CURRENT_SCHEMA_VERSION = 28;
+export const CURRENT_SCHEMA_VERSION = 29;
 
 export * from './schema-base';
 export {
@@ -195,6 +196,8 @@ export const WorkspaceConfigSchema = z.strictObject({
     .optional(),
   /** 一天、一周从什么时候开始（D-286，schemaVersion 20）；没有时是 0 点、周一。 */
   calendar: CalendarSchema.optional(),
+  /** 文件房间的布局（D-337，schemaVersion 29）；没有时是默认布局（预览居中、工具栏在底部）。 */
+  desk: DeskLayoutSchema.optional(),
 });
 export type WorkspaceConfig = Omit<z.infer<typeof WorkspaceConfigSchema>, 'pages'> & {
   pages: Page[];

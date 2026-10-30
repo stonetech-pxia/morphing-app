@@ -257,6 +257,11 @@ export const migrateV26toV27: Migration = (config) => ({ ...config, schemaVersio
  */
 export const migrateV27toV28: Migration = (config) => ({ ...config, schemaVersion: 28 });
 
+/**
+ * v28 → v29：多了文件房间的布局 desk（D-337）。是新的可选值，已有配置照样合法，只提升版本号。
+ */
+export const migrateV28toV29: Migration = (config) => ({ ...config, schemaVersion: 29 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -286,6 +291,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   25: migrateV25toV26,
   26: migrateV26toV27,
   27: migrateV27toV28,
+  28: migrateV28toV29,
 };
 
 export type MigrateResult =

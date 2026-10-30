@@ -3289,7 +3289,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 28
+.schemaVersion 29
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"
@@ -3560,5 +3560,36 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .calendar.dayStartHour? integer 0..6
 .calendar.weekStart? "monday"|"sunday"
 .calendar.twoWeekStart? string
+.desk? object
+.desk.toolbar? "bottom"|"top"
+.desk.preview? "fill"|"large"|"medium"
+.desk.strip? boolean
+.desk.above? array items ..2
+.desk.above[] <Component>
+.desk.below? array items ..2
+.desk.below[] <Component>
+.desk.tools? object
+.desk.tools.image? array items 1..6
+.desk.tools.image[] object
+.desk.tools.image[].title? string len 1..24
+.desk.tools.image[].items array items 1..20
+.desk.tools.image[].items[]
+.desk.tools.image[].items[]<anyOf 0> object
+.desk.tools.image[].items[]<anyOf 0>.action string /^[a-z]+\\.[a-zA-Z0-9]+$/
+.desk.tools.image[].items[]<anyOf 0>.preset? string /^[a-z][a-z0-9-]{0,47}$/
+.desk.tools.image[].items[]<anyOf 1> object
+.desk.tools.image[].items[]<anyOf 1>.workflowId string /^[a-z][a-z0-9-]{0,47}$/
+.desk.tools.pdf? array items 1..6
+.desk.tools.pdf[] = .desk.tools.image[]
+.desk.tools.sheet? array items 1..6
+.desk.tools.sheet[] = .desk.tools.image[]
+.desk.tools.doc? array items 1..6
+.desk.tools.doc[] = .desk.tools.image[]
+.desk.tools.video? array items 1..6
+.desk.tools.video[] = .desk.tools.image[]
+.desk.tools.audio? array items 1..6
+.desk.tools.audio[] = .desk.tools.image[]
+.desk.tools.other? array items 1..6
+.desk.tools.other[] = .desk.tools.image[]
 "
 `;
