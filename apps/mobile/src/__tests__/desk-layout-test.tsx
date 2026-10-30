@@ -3,7 +3,7 @@ import type { TableDoc } from '@morph/tool-office';
 import { act, fireEvent } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
-import { DeviceEventEmitter, StyleSheet } from 'react-native';
+import { DeviceEventEmitter, Platform, StyleSheet } from 'react-native';
 
 import { placeResultsOnDesk } from '../desk/store';
 import { MemoryWorkspaceRepo } from '../storage/memory';
@@ -114,5 +114,30 @@ describe('房间的布局（三星真机，2026-10-30）', () => {
       });
     });
     expect(styleOf('desk-bottom-inset').height).toBe(BOTTOM);
+  });
+
+  describe('Android', () => {
+    const os = Platform.OS;
+    beforeEach(() =>
+      Object.defineProperty(Platform, 'OS', { get: () => 'android', configurable: true }),
+    );
+    afterEach(() => Object.defineProperty(Platform, 'OS', { get: () => os, configurable: true }));
+
+    it('键盘弹出时房间下面让出键盘的高度，输入框在键盘上方（全屏页面的窗口不跟着键盘缩小）', async () => {
+      await openXlsx();
+      await fireEvent.press(screen.getByTestId('table-cell-1-0'));
+      await fireEvent.press(screen.getByTestId('table-cell-1-0'));
+      expect(screen.getByTestId('desk-edit-input')).toBeTruthy();
+      await fireEvent(screen.getByTestId('desk-screen'), 'layout', {
+        nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 800 } },
+        persist: () => {},
+      });
+      await act(() => {
+        DeviceEventEmitter.emit('keyboardDidShow', {
+          endCoordinates: { screenX: 0, screenY: 500, width: 400, height: 300 },
+        });
+      });
+      expect(styleOf('desk-screen').paddingBottom).toBe(300);
+    });
   });
 });

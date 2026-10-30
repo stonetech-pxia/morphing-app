@@ -27,7 +27,6 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -480,9 +479,11 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   );
 
   return (
+    // Android 也要 padding：全屏页面的窗口不跟着键盘缩小，三星键盘会盖住编辑输入框（同 AskPanel）。
+    // 窗口真的缩小了时，键盘不再和页面重叠，padding 是 0。
     <KeyboardAvoidingView
       testID="desk-screen"
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior="padding"
       style={[styles.flex, { backgroundColor: palette.background, paddingTop: insets.top }]}>
       <View style={[styles.header, { borderColor: palette.border }]}>
         <HeaderButton
