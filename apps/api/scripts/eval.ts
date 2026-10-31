@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
 import { BUILTIN_TOOLS, EVAL_CASES, createRegistry, runEvalCase } from '@morph/core';
@@ -21,6 +22,7 @@ import { createApp } from '../src/server';
 //   --batch：所有用例同时跑，请求攒成批走批处理 API。半价，但每一轮要等几分钟到几小时；
 //     修复请求是下一批。批处理 API 不接受 fallbacks，所以没有拒答回退。只能配 relay 传输。
 //   --verbose：失败时打印模型给出的计划。计划里的 notes（D-110）总是打印。
+//   --dump <文件>：把每个用例的计划（含通过的）和结果写成 JSON，给提示词路由的测试取「需要哪些部分」。
 
 const { values } = parseArgs({
   options: {
@@ -30,6 +32,7 @@ const { values } = parseArgs({
     transport: { type: 'string' },
     batch: { type: 'boolean' },
     verbose: { type: 'boolean' },
+    dump: { type: 'string' },
   },
 });
 
@@ -81,6 +84,7 @@ const cases = EVAL_CASES.filter((c) => !selected || selected.has(c.id));
 const now = new Date();
 let passed = 0;
 const failures: string[] = [];
+const dumped: Record<string, { pass: boolean; plans: unknown[] }> = {};
 
 console.log(
   `模型：${runtime.model}${env.MORPH_AI_EFFORT ? `（effort ${env.MORPH_AI_EFFORT}）` : ''}，传输：${transport}${batch ? '（批处理）' : ''}，用例数：${cases.length}\n`,
@@ -102,6 +106,7 @@ async function runCase(c: (typeof cases)[number]): Promise<string> {
   let line: string;
   try {
     const { outcome, plans } = await runEvalCase(c, provider, registry, now);
+    dumped[c.id] = { pass: outcome.pass, plans };
     const repairs = calls - plans.length;
     const repaired = repairs > 0 ? `，修复 ${repairs} 次` : '';
     if (outcome.pass) {
@@ -156,4 +161,5 @@ const served = new Set(completions.map((c) => c.model));
 if (served.size > 1 || (served.size === 1 && runtime.model && !served.has(runtime.model))) {
   console.log(`实际响应模型：${[...served].join(', ')}（可能触发了拒答回退）`);
 }
+if (values.dump) writeFileSync(values.dump, JSON.stringify(dumped, null, 1));
 if (failures.length > 0) console.log(`\n失败详情：\n${failures.map((f) => `- ${f}`).join('\n')}`);
