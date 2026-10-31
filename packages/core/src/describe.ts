@@ -70,6 +70,13 @@ export function reminderWhen(r: Reminder, config: WorkspaceConfig, locale: Local
       .join(t(locale, 'separatorList'));
     return t(locale, 'reminderWhenWeekly', { days, time: when.at });
   }
+  if ('after' in when) {
+    const table = config.data.tables.find((c) => c.id === when.after.table);
+    return t(locale, 'reminderWhenAfterAdd', {
+      table: table?.name ?? when.after.table,
+      n: when.minutes,
+    });
+  }
   const on = 'each' in when ? when.each : when.before;
   const table = config.data.tables.find((c) => c.id === on.table);
   const field = table?.fields.find((f) => f.id === on.field);

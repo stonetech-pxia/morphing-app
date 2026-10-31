@@ -200,3 +200,56 @@ describe('planNotifications', () => {
     expect(n!.body).toBe('Une entrée de « 账单 » arrive à échéance aujourd’hui');
   });
 });
+
+// 加完一条记录过几分钟提醒一次（创始人 2026-10-31：「给账单的记录增加两分钟的提醒」，选了「加完两分钟后提醒」）。
+describe('a reminder some minutes after each entry is added', () => {
+  const afterAdd = (minutes: number): Reminder =>
+    ({
+      id: 'after',
+      kind: 'reminder',
+      title: '看看刚记的账单',
+      enabled: true,
+      when: { after: { table: 'bills' }, minutes },
+      opens: 'page:home',
+    }) as Reminder;
+  const added = (id: string, msAgo: number): DataRecord => ({
+    ...bill(id, 'Rent'),
+    createdAt: now.getTime() - msAgo,
+  });
+
+  it('is a valid setting and is described in the draft', () => {
+    const r = setup([{ op: 'addTool', tool: afterAdd(2) }]);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.lines).toContain('新建提醒「看看刚记的账单」（「账单」每加一条，2 分钟后提醒）');
+    const withBills = fromV33(v33Fixture('default-zh'));
+    withBills.data.tables.push(bills);
+    const ok = (tool: Reminder) => validateWorkspace({ ...withBills, tools: [tool] }, registry).ok;
+    expect(ok(afterAdd(0))).toBe(false);
+    expect(
+      ok({ ...afterAdd(2), when: { after: { table: 'missing' }, minutes: 2 } } as Reminder),
+    ).toBe(false);
+  });
+
+  it('fires once, the given minutes after the entry was added; not for older entries', () => {
+    const c = config([{ op: 'addTool', tool: afterAdd(2) }]);
+    const records = new Map([['bills', [added('fresh', 30_000), added('old', 10 * 60_000)]]]);
+    const planned = planNotifications(c, records, now, 'zh');
+    expect(planned).toEqual([
+      expect.objectContaining({
+        id: 'after-fresh',
+        reminderId: 'after',
+        title: '看看刚记的账单',
+        body: '「账单」里 2 分钟前加了一条记录',
+        trigger: { kind: 'date', at: now.getTime() - 30_000 + 2 * 60_000 },
+      }),
+    ]);
+    expect(planNotifications(c, new Map([['bills', [added('a', 0)]]]), now, 'en')[0]!.body).toBe(
+      'An entry was added to “账单” 2 minutes ago',
+    );
+    const one = config([{ op: 'addTool', tool: afterAdd(1) }]);
+    expect(planNotifications(one, new Map([['bills', [added('a', 0)]]]), now, 'fr')[0]!.body).toBe(
+      'Une entrée a été ajoutée à « 账单 » il y a 1 minute',
+    );
+  });
+});

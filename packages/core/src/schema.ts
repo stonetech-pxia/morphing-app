@@ -169,7 +169,7 @@ const tableField = z.strictObject({ table: IdSchema, field: IdSchema });
 /**
  * 提醒什么时候响：every day / week（days：1 = 周一 … 7 = 周日）在 at 提醒；before 在一张表的日期字段
  * 到期前 days 天的 at 提醒（每条记录一次，原 dateField）；each 按一张表的日程字段给每条记录各排各的
- * （D-316，原 scheduleField）。
+ * （D-316，原 scheduleField）；after 在一张表每加一条记录后 minutes 分钟提醒一次（D-391）。
  */
 export const ReminderWhenSchema = z.union([
   z.strictObject({ every: z.literal('day'), at: TimeOfDaySchema }),
@@ -184,6 +184,10 @@ export const ReminderWhenSchema = z.union([
     at: TimeOfDaySchema,
   }),
   z.strictObject({ each: tableField, at: TimeOfDaySchema }),
+  z.strictObject({
+    after: z.strictObject({ table: IdSchema }),
+    minutes: z.number().int().min(1).max(1440),
+  }),
 ]);
 export type ReminderWhen = z.infer<typeof ReminderWhenSchema>;
 

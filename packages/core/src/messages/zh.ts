@@ -723,6 +723,7 @@ export const zh: MessageTable = {
   describeRemovedQuickAction: '快捷操作「{name}」没有这张表就用不了，也会移除',
   reminderWhenDaily: '每天 {time}',
   reminderWhenWeekly: '每{days} {time}',
+  reminderWhenAfterAdd: '「{table}」每加一条，{n} 分钟后提醒',
   reminderWhenDate: '「{table}」的「{field}」前 {n} 天的 {time}',
   reminderWhenSchedule: '「{table}」每条记录按自己的「{field}」，在 {time}',
   reminderDoneButton: '完成',
@@ -736,6 +737,7 @@ export const zh: MessageTable = {
   weekday6: '周六',
   weekday7: '周日',
   reminderDueToday: '「{table}」里有一条记录今天到期',
+  reminderAddedAgo: '「{table}」里 {n} 分钟前加了一条记录',
   reminderDueIn: '「{table}」里有一条记录还有 {n} 天到期（{date}）',
   remindersTitle: '提醒',
   remindersHint:

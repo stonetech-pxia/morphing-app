@@ -821,6 +821,7 @@ export const fr: MessageTable = {
     'L’action rapide « {name} » ne peut plus fonctionner sans ce tableau et est retirée aussi',
   reminderWhenDaily: 'tous les jours à {time}',
   reminderWhenWeekly: 'chaque {days} à {time}',
+  reminderWhenAfterAdd: '{n} minutes après chaque nouvelle entrée de « {table} »',
   reminderWhenDate: '{n} jours avant « {field} » dans « {table} », à {time}',
   reminderWhenSchedule: 'Chaque entrée de « {table} » selon son « {field} », à {time}',
   reminderDoneButton: 'Fait',
@@ -834,6 +835,7 @@ export const fr: MessageTable = {
   weekday6: 'samedi',
   weekday7: 'dimanche',
   reminderDueToday: 'Une entrée de « {table} » arrive à échéance aujourd’hui',
+  reminderAddedAgo: 'Une entrée a été ajoutée à « {table} » il y a {n} minutes',
   reminderDueIn: 'Une entrée de « {table} » arrive à échéance dans {n} jours ({date})',
   remindersTitle: 'Rappels',
   remindersHint:
@@ -1497,7 +1499,9 @@ export const frSingular: SingularTable = {
   WorkflowsScreen_Needs_at_least_files_0ed9b: 'Au moins {v0} fichier requis',
   WorkflowsScreen_Takes_at_most_files_0fe59: 'Maximum {v0} fichier',
   runError_noneMatched: 'Le fichier ne remplit pas les conditions de « Filtrer les fichiers ».',
+  reminderWhenAfterAdd: '{n} minute après chaque nouvelle entrée de « {table} »',
   reminderWhenDate: '{n} jour avant « {field} » dans « {table} », à {time}',
+  reminderAddedAgo: 'Une entrée a été ajoutée à « {table} » il y a {n} minute',
   reminderDueIn: 'Une entrée de « {table} » arrive à échéance dans {n} jour ({date})',
   remindersRowHint: '{n} rappel',
   resultTablesMissing:

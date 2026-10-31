@@ -775,6 +775,7 @@ export const en = {
     'The quick action “{name}” can’t work without this table and is removed too',
   reminderWhenDaily: 'every day at {time}',
   reminderWhenWeekly: 'every {days} at {time}',
+  reminderWhenAfterAdd: '{n} minutes after each new entry in “{table}”',
   reminderWhenDate: '{n} days before “{field}” in “{table}”, at {time}',
   reminderWhenSchedule: 'Each entry in “{table}” on its own “{field}”, at {time}',
   reminderDoneButton: 'Done',
@@ -788,6 +789,7 @@ export const en = {
   weekday6: 'Saturday',
   weekday7: 'Sunday',
   reminderDueToday: 'An entry in “{table}” is due today',
+  reminderAddedAgo: 'An entry was added to “{table}” {n} minutes ago',
   reminderDueIn: 'An entry in “{table}” is due in {n} days ({date})',
   remindersTitle: 'Reminders',
   remindersHint:
@@ -1445,7 +1447,9 @@ export const enSingular = {
   WorkflowsScreen_Needs_at_least_files_0ed9b: 'Needs at least {v0} file',
   WorkflowsScreen_Takes_at_most_files_0fe59: 'Takes at most {v0} file',
   runError_noneMatched: 'The file doesn’t meet the conditions of “Keep only some files”.',
+  reminderWhenAfterAdd: '{n} minute after each new entry in “{table}”',
   reminderWhenDate: '{n} day before “{field}” in “{table}”, at {time}',
+  reminderAddedAgo: 'An entry was added to “{table}” {n} minute ago',
   reminderDueIn: 'An entry in “{table}” is due in {n} day ({date})',
   remindersRowHint: '{n} reminder',
   resultTablesMissing:
