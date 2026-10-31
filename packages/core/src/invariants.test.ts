@@ -34,7 +34,7 @@ import {
 import { REDACTED_FILE, REDACTED_TEXT, redactForAI } from './workflow/redact';
 import { presetById } from './workflows/presets';
 
-// Morph 的 18 条底线（AGENTS.md「底线」，创始人 2026-10-31 在对话里暂定）。每条一个 describe，测行为，
+// Morph 的 19 条底线（AGENTS.md「底线」，创始人 2026-10-31 在对话里暂定，同一天改了 3、7、11、16，加了 19）。每条一个 describe，测行为，
 // 不测实现细节。要在 App 里才测得到的（发给 AI 的请求、记录、文件、渲染）在
 // apps/mobile/src/__tests__/invariants-test.tsx 和 invariants-files-test.ts；已经有专门测试的，这里写明在哪里。
 // 测出真的违反时不改代码：用 it.fails 标出来，注释写「违反底线 N，待创始人决定：…」。
