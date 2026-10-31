@@ -39,11 +39,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { runErrorText, t } from '../i18n';
 import type { RenderEnv } from '../renderer/components';
 import { Item } from '../renderer/registry';
+import {
+  deskReturnChoices,
+  deskReturnOf,
+  endDeskReturn,
+  type DeskReturn,
+  type DeskReturnMode,
+} from '../renderer/attachment-desk';
 import { usePalette, type Palette } from '../renderer/theme';
 import { Button } from '../renderer/ui';
 import { AskPanel } from '../run/AskPanel';
 import { newAssetId, startRun } from '../runtime/runner';
 import { useShellEnv } from '../shell/Shell';
+import { deleteUserFiles } from '../storage/user-files';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { DeskEditor } from './DeskEditor';
 import { DeskPreview } from './DeskPreview';
@@ -370,6 +378,61 @@ export function DeskScreen({ deskId }: { deskId: string }) {
       }),
     );
 
+  /**
+   * 从记录的附件放上来的桌面（D-392）：「完成」每次都问「加成新附件」还是「替换原件」；取消时照常打开「完成」，
+   * 记录不变。附件满了只能替换。表单已经关掉时就是普通的桌面。
+   */
+  function finish() {
+    const back = deskReturnOf(deskId);
+    const d = deskRef.current;
+    const ids = back?.ids();
+    if (!back || !ids || !d) return setSheet(true);
+    const can = deskReturnChoices(ids, back.assetId, currentFiles(d).length);
+    Alert.alert(
+      t(locale, 'deskBackTitle'),
+      t(locale, can.add ? 'deskBackMessage' : can.replace ? 'deskBackFull' : 'deskBackNoRoom'),
+      [
+        ...(can.add
+          ? [
+              {
+                text: t(locale, 'deskBackAdd'),
+                onPress: () => void act(() => giveBack(back, 'add')),
+              },
+            ]
+          : []),
+        ...(can.replace
+          ? [
+              {
+                text: t(locale, 'deskBackReplace'),
+                onPress: () => void act(() => giveBack(back, 'replace')),
+              },
+            ]
+          : []),
+        { text: t(locale, 'cancel'), style: 'cancel' as const, onPress: () => setSheet(true) },
+      ],
+    );
+  }
+
+  /** 桌上的文件存成用户文件交回表单（还要用户点保存），然后清掉这个桌面、回到表单。 */
+  async function giveBack(back: DeskReturn, mode: DeskReturnMode) {
+    const d = deskRef.current;
+    if (!d) return;
+    const fresh = await saveDeskFiles(files, repo, d, currentFiles(d), {
+      now: () => new Date(),
+      newId: newAssetId,
+    });
+    bumpAssets();
+    // 表单在这期间关掉了：刚存的文件没人用，删掉；桌面留着。
+    if (!back.deliver(mode, fresh)) {
+      await deleteUserFiles(fresh, repo, files);
+      return;
+    }
+    endDeskReturn(deskId);
+    cleared.current = true;
+    await clearDesk(files, deskId);
+    router.back();
+  }
+
   function confirmClear() {
     Alert.alert(t(locale, 'deskClearTitle'), t(locale, 'deskClearMessage'), [
       { text: t(locale, 'cancel'), style: 'cancel' },
@@ -510,7 +573,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
           onPress={() =>
             void edit.seal().then(() => {
               setSaved(false);
-              setSheet(true);
+              finish();
             })
           }
           disabled={busy !== null}

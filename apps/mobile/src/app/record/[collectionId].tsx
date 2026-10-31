@@ -8,6 +8,7 @@ import { useComputedRecords, useRecordActions } from '@/data/records';
 import { t } from '@/i18n';
 import { PackGate } from '@/packs/PackGate';
 import { usePacks } from '@/packs/PackHost';
+import { FormFilesContext } from '@/renderer/Attachments';
 import { FieldsForm, prefillFormValues, toFormValues } from '@/renderer/data';
 import { usePalette } from '@/renderer/theme';
 import { Button, Pill } from '@/renderer/ui';
@@ -43,19 +44,23 @@ export default function RecordRoute() {
   // （iOS 模拟器 2026-10-31）；和字段的值一样的那个标成已选。
   const packs = usePacks();
   const suggest = useFieldSuggestions({ enabled: !recordId, collection, values, locale });
-  // 收件页面复制来的文件（D-386）：离开这一页时，没存进这条记录的删掉（没保存就离开时全部删掉）。
-  // 它们是这张表单自己的副本，原件和收件那一批不动。
+  // 收件页面复制来的文件（D-386）和桌上改好交回来的附件（D-392）：离开这一页时，没存进这条记录的删掉
+  // （没保存就离开时全部删掉）。它们是这张表单自己新建的，原件、收件那一批和记录里原来的文件不动。
   const [copied] = useState(() => (recordId ? [] : takeFormCopies(copies)));
+  const owned = useRef<Set<string>>(new Set(copied));
+  const [formFiles] = useState(() => ({
+    hold: (ids: readonly string[]) => ids.forEach((id) => owned.current.add(id)),
+  }));
   const kept = useRef<Set<string>>(new Set());
   useEffect(
     () => () => {
-      const unused = copied.filter((id) => !kept.current.has(id));
+      const unused = [...owned.current].filter((id) => !kept.current.has(id));
       if (unused.length === 0) return;
       void deleteUserFiles(unused, repo, files)
         .then(bumpAssets)
         .catch(() => undefined);
     },
-    [copied, repo, files, bumpAssets],
+    [repo, files, bumpAssets],
   );
 
   useEffect(() => {
@@ -129,24 +134,26 @@ export default function RecordRoute() {
               {t(locale, 'suggestionsWorking')}
             </Text>
           ) : null}
-          <FieldsForm
-            collection={collection}
-            fieldIds={collection.fields.map((f) => f.id)}
-            values={values}
-            onChange={setValues}
-            suggestions={record ? undefined : suggest.suggestions}
-            onSuggestion={suggest.remember}
-            issues={issues}
-            palette={palette}
-            locale={locale}
-            testPrefix="editor"
-            related={
-              computed.view && {
-                view: computed.view,
-                record: computed.records?.find((r) => r.id === recordId) ?? null,
+          <FormFilesContext.Provider value={formFiles}>
+            <FieldsForm
+              collection={collection}
+              fieldIds={collection.fields.map((f) => f.id)}
+              values={values}
+              onChange={setValues}
+              suggestions={record ? undefined : suggest.suggestions}
+              onSuggestion={suggest.remember}
+              issues={issues}
+              palette={palette}
+              locale={locale}
+              testPrefix="editor"
+              related={
+                computed.view && {
+                  view: computed.view,
+                  record: computed.records?.find((r) => r.id === recordId) ?? null,
+                }
               }
-            }
-          />
+            />
+          </FormFilesContext.Provider>
           <Button
             palette={palette}
             testID="editor-save"

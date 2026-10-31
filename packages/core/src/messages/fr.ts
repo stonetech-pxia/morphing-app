@@ -718,6 +718,15 @@ export const fr: MessageTable = {
   attachmentMoveUp: 'Monter',
   attachmentMoveDown: 'Descendre',
   attachmentsFull: '{n} fichiers au maximum',
+  // ---- 附件的「…」和放回记录（D-392）----
+  attachmentMore: 'Plus d’options pour « {name} »',
+  deskBackTitle: 'Revenir à l’entrée',
+  deskBackMessage: 'Comment ajouter le fichier du bureau à cette entrée ?',
+  deskBackAdd: 'Ajouter comme nouvelle pièce jointe',
+  deskBackReplace: 'Remplacer l’original',
+  deskBackFull:
+    'Cette entrée ne peut plus recevoir de pièces jointes : vous pouvez seulement remplacer l’original.',
+  deskBackNoRoom: 'Il y a trop de fichiers sur le bureau pour cette entrée.',
   runError_documentUnsupported:
     '« {name} » est un fichier {format}. Sur ce téléphone, seuls les documents Word (.docx) peuvent être convertis en PDF.',
   runError_tooLong:

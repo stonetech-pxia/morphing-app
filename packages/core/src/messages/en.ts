@@ -678,6 +678,14 @@ export const en = {
   attachmentMoveUp: 'Move up',
   attachmentMoveDown: 'Move down',
   attachmentsFull: 'At most {n} files',
+  // ---- 附件的「…」和放回记录（D-392）----
+  attachmentMore: 'More for “{name}”',
+  deskBackTitle: 'Back to the entry',
+  deskBackMessage: 'How should the file on the desk go into this entry?',
+  deskBackAdd: 'Add as a new attachment',
+  deskBackReplace: 'Replace the original',
+  deskBackFull: 'This entry can’t hold more attachments, so you can only replace the original.',
+  deskBackNoRoom: 'There are too many files on the desk for this entry.',
   runError_documentUnsupported:
     '“{name}” is a {format} file. On this phone only Word documents (.docx) can be turned into PDFs.',
   runError_tooLong: '“{name}” is too long for a GIF (at most {seconds} seconds). Trim it first.',

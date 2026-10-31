@@ -636,6 +636,14 @@ export const zh: MessageTable = {
   attachmentMoveUp: '上移',
   attachmentMoveDown: '下移',
   attachmentsFull: '最多 {n} 个文件',
+  // ---- 附件的「…」和放回记录（D-392）----
+  attachmentMore: '「{name}」的更多操作',
+  deskBackTitle: '放回记录',
+  deskBackMessage: '桌上的文件要怎么放进这条记录？',
+  deskBackAdd: '加成新附件',
+  deskBackReplace: '替换原件',
+  deskBackFull: '这条记录的附件已经满了，只能替换原件。',
+  deskBackNoRoom: '桌上的文件太多，这条记录放不下。',
   runError_documentUnsupported:
     '「{name}」是 {format} 文件。这台手机上只能把 Word 文档（.docx）转成 PDF。',
   runError_tooLong: '「{name}」太长了，做不成 GIF（最长 {seconds} 秒）。请先剪一段。',

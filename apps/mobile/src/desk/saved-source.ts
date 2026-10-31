@@ -45,6 +45,7 @@ const assetDirOf = (asset: Pick<AssetRecord, 'path'>) => {
 
 /**
  * 「完成 → 存到文件」、工具栏的「保存」：桌上这几份存成用户文件；有中间格式的再把中间格式和图片存在旁边。
+ * 返回存好的文件 ID（按顺序；放回记录的附件用，D-392）。
  */
 export async function saveDeskFiles(
   files: Files,
@@ -52,7 +53,7 @@ export async function saveDeskFiles(
   desk: Desk,
   list: readonly DeskFile[],
   ctx: { now(): Date; newId(): string },
-): Promise<void> {
+): Promise<string[]> {
   const saved = await saveItems(
     { files: files as FilePlatform, repo, grantee: 'desk' },
     list.map((f) => ({
@@ -93,6 +94,7 @@ export async function saveDeskFiles(
     };
     await files.writeBytes(assetId, SOURCE_NAME, new TextEncoder().encode(JSON.stringify(body)));
   }
+  return saved.flatMap((item) => (item.assetId ? [item.assetId] : []));
 }
 
 async function readSaved(files: Pick<FilePlatform, 'readBytes'>, asset: AssetRecord) {
