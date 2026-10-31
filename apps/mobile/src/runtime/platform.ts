@@ -279,6 +279,8 @@ export interface TranslatePlatform {
    * 翻译，一段对一段。iOS 需要下载时系统会弹窗；用户取消时抛出 code 为 cancelled 的错误。
    */
   translate(texts: readonly string[], from: string, to: string): Promise<string[]>;
+  /** 先下载好一对语言（只有 iOS：系统弹窗确认；用户取消时 code 是 cancelled）。 */
+  prepare?(from: string, to: string): Promise<void>;
 }
 
 /** 朗读失败的原因（modules/morph-tts，D-270）：动作实现按它告诉用户怎么办。 */

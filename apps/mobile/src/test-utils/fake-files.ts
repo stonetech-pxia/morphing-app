@@ -1364,6 +1364,17 @@ export class FakeTranslator implements TranslatePlatform {
   get downloadBytes() {
     return this.android ? 30 * 1024 * 1024 : undefined;
   }
+  /** iOS：系统弹窗下载一对语言（Android 用 download）。 */
+  prepare = async (from: string, to: string) => {
+    this.calls.push({ method: 'prepare', args: [from, to] });
+    if (this.failWith) {
+      const code = this.failWith;
+      this.failWith = null;
+      throw Object.assign(new Error(code), { code });
+    }
+    this.missing.delete(from);
+    this.missing.delete(to);
+  };
   /** 下载过的语言（「设置 → 已下载内容」列出）。 */
   downloaded = new Set<string>();
   download = async (language: string) => {

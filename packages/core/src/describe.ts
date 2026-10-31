@@ -816,6 +816,8 @@ export function describeChange(
         );
     } else if (note.kind === 'addedEntryForm') {
       lines.push(t(ctx.locale, 'describeAddedEntryForm', { table: collName(note.table) }));
+    } else if (note.kind === 'addedPageEntry') {
+      lines.push(t(ctx.locale, 'describeAddedPageEntry', { page: note.page }));
     } else if (note.kind === 'removedRecordActions') {
       lines.push(t(ctx.locale, 'describeRemovedRecordActions', { n: note.count }));
     } else if (note.kind === 'removedWorkflowLinks') {

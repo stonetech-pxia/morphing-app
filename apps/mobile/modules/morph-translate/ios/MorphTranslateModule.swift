@@ -81,7 +81,9 @@ public class MorphTranslateModule: Module {
           let session = TranslationSession(installedSource: source, target: target)
           responses = try await session.translations(from: requests)
         } else {
-          responses = try await self.translateWithHost(requests, source: source, target: target)
+          responses = try await self.withSession(source: source, target: target) { session in
+            try await session.translations(from: requests)
+          }
         }
         var out = texts
         for response in responses {
@@ -104,6 +106,24 @@ public class MorphTranslateModule: Module {
           throw TranslateUnsupportedException("\(from) → \(to)")
         }
         throw TranslateFailedException(error.localizedDescription)
+      }
+    }
+
+    // 提前下载这一对语言（系统弹下载确认并显示进度）：用户添加翻译、或翻译前确认下载时调用（D-170）。
+    AsyncFunction("prepare") { (from: String, to: String) async throws in
+      guard #available(iOS 18.0, *) else { throw TranslateUnsupportedException("iOS < 18") }
+      guard let (source, target) = await Self.resolve(from, to) else {
+        throw TranslateUnsupportedException("\(from) → \(to)")
+      }
+      if await LanguageAvailability().status(from: source, to: target) == .installed { return }
+      do {
+        try await self.withSession(source: source, target: target) { session in
+          try await session.prepareTranslation()
+        }
+      } catch {
+        if await LanguageAvailability().status(from: source, to: target) != .installed {
+          throw TranslateCancelledException()
+        }
       }
     }
   }
@@ -131,14 +151,14 @@ public class MorphTranslateModule: Module {
     return (source, target)
   }
 
-  /** 挂一个看不见的 SwiftUI 视图拿到会话（需要下载时系统从这里弹窗），翻完移除。 */
+  /** 挂一个看不见的 SwiftUI 视图拿到会话（需要下载时系统从这里弹窗），做完移除。 */
   @available(iOS 18.0, *)
   @MainActor
-  private func translateWithHost(
-    _ requests: [TranslationSession.Request],
+  private func withSession<T: Sendable>(
     source: Locale.Language,
-    target: Locale.Language
-  ) async throws -> [TranslationSession.Response] {
+    target: Locale.Language,
+    _ body: @escaping (TranslationSession) async throws -> T
+  ) async throws -> T {
     guard let parent = appContext?.utilities?.currentViewController() else {
       throw TranslateFailedException("no view controller")
     }
@@ -155,7 +175,7 @@ public class MorphTranslateModule: Module {
         configuration: TranslationSession.Configuration(source: source, target: target),
         work: { session in
           do {
-            once.resume(.success(try await session.translations(from: requests)))
+            once.resume(.success(try await body(session)))
           } catch {
             once.resume(.failure(error))
           }

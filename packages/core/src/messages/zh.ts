@@ -469,6 +469,9 @@ export const zh: MessageTable = {
   translateDownloadAsk: '首次使用需下载约 {mb} MB',
   translateDownloadBody: '翻译语言：{langs}。之后不联网也能用，建议连接 Wi-Fi。',
   translateDownload: '下载',
+  translateSystemDownloadAsk: '第一次翻译要下载语言包',
+  translateSystemDownloadBody:
+    '要下载的语言：{langs}。接下来 iPhone 会弹窗确认，下载可能要几分钟，请留在 Morph 里。以后也可以先在 iPhone 的「设置 → App → 翻译」里下好。',
   translateDownloadFailed: '{langs}的翻译语言（请检查网络后再试）',
   translateLanguageTitle: '翻译语言：{name}',
   translateLanguageHint: '约 30 MB，用来在本机翻译（Google ML Kit）。',
@@ -1210,6 +1213,7 @@ export const zh: MessageTable = {
   scheduleLastDoneHint: '从「{field}」里的日期算起。',
   describeRemovedRecordActions: '同时移除 {n} 个用到它的一键按钮',
   entryFormAdd: '添加',
+  describeAddedPageEntry: '「{page}」这一页没有打开的地方，同时在首页最后加一个入口',
   describeAddedEntryForm: '「{table}」还没有添加的地方，同时在列表上方加一个「添加」按钮',
   recordActionAdded: '已在「{table}」添加一条',
   recordActionDone: '{label}：已记下',

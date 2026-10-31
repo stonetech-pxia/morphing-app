@@ -22,6 +22,8 @@ export interface MorphTranslateModule {
   downloadBytes?: number;
   /** 下载一种语言的模型（只有 Android）。 */
   download?(language: string): Promise<void>;
+  /** 提前下载一对语言（只有 iOS：系统弹下载确认；用户取消时报 ERR_TRANSLATE_CANCELLED）。 */
+  prepare?(from: string, to: string): Promise<void>;
   /** 一段对一段；iOS 需要下载时系统会弹窗问用户。 */
   translate(texts: readonly string[], from: string, to: string): Promise<string[]>;
   /** 已下载的语言模型（只有 Android；iOS 的语言由系统「设置 → 翻译」管理）。 */

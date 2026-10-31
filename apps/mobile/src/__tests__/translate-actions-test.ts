@@ -152,15 +152,34 @@ describe('translate.text', () => {
     ).toBe(false);
   });
 
-  it('lets iOS ask for the download itself, and stops when the user cancels it', async () => {
-    const { translator, run, confirms } = setup(toolWorkflow('translate-typed'), {
-      text: 'Hello',
-      to: 'ja',
-    });
-    translator.missing = new Set(['ja']);
-    translator.failWith = 'cancelled';
-    expect((await run()).status).toBe('cancelled');
-    expect(confirms).toEqual([]);
+  it('iOS: explains the system download first, then downloads before translating', async () => {
+    // 创始人 2026-10-31：苹果语言包下载太久，先说明（a），翻译前先把语言包下好（b）。
+    const ok = setup(toolWorkflow('translate-typed'), { text: 'Hello', to: 'ja' });
+    ok.translator.missing = new Set(['ja']);
+    expect((await ok.run()).status).toBe('succeeded');
+    expect(ok.confirms).toEqual([
+      '第一次翻译要下载语言包｜要下载的语言：英文、日文。接下来 iPhone 会弹窗确认，下载可能要几分钟，请留在 Morph 里。以后也可以先在 iPhone 的「设置 → App → 翻译」里下好。',
+    ]);
+    const order = ok.translator.calls
+      .filter((c) => c.method === 'prepare' || c.method === 'translate')
+      .map((c) => c.method);
+    expect(order).toEqual(['prepare', 'translate']);
+    expect(ok.translator.calls.find((c) => c.method === 'prepare')!.args).toEqual(['en', 'ja']);
+
+    // 在我们的说明里点了取消：不下载也不翻译。
+    const no = setup(toolWorkflow('translate-typed'), { text: 'Hello', to: 'ja' }, false);
+    no.translator.missing = new Set(['ja']);
+    expect((await no.run()).status).toBe('cancelled');
+    expect(no.translator.calls.some((c) => c.method === 'prepare' || c.method === 'translate')).toBe(
+      false,
+    );
+
+    // 在系统的下载弹窗里取消。
+    const sys = setup(toolWorkflow('translate-typed'), { text: 'Hello', to: 'ja' });
+    sys.translator.missing = new Set(['ja']);
+    sys.translator.failWith = 'cancelled';
+    expect((await sys.run()).status).toBe('cancelled');
+    expect(sys.translator.calls.some((c) => c.method === 'translate')).toBe(false);
   });
 
   it('explains when translation is not possible here', async () => {

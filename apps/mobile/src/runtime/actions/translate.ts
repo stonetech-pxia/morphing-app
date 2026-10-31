@@ -55,6 +55,8 @@ export const TRANSLATE_IMPLS: Record<string, Impl> = {
 
     // 先确认每一对语言都能翻；Android 要下载的语言一次问完（D-064、D-112：只说要下多少、之后能离线用）。
     const missing = new Set<string>();
+    // iOS 不给缺哪种语言，由系统按一对语言下载。
+    const systemPairs: string[] = [];
     for (const source of groups.keys()) {
       const status = await translator.status(source, to);
       if (status.status === 'unsupported') {
@@ -62,7 +64,32 @@ export const TRANSLATE_IMPLS: Record<string, Impl> = {
           action: t(locale, 'translatePairUnsupported', { from: name(source), to: name(to) }),
         });
       }
-      if (status.status === 'download') for (const l of status.missing ?? []) missing.add(l);
+      if (status.status === 'download') {
+        if (status.missing) for (const l of status.missing) missing.add(l);
+        else systemPairs.push(source);
+      }
+    }
+    // iOS：先说明系统要下载语言包（可能要几分钟），再让系统下载好，翻译中途不再停下来等下载。
+    if (systemPairs.length > 0 && translator.prepare) {
+      const langs = names([...systemPairs, to]);
+      const ok = await ctx.services.ui.confirm(
+        t(locale, 'translateSystemDownloadAsk'),
+        t(locale, 'translateDownload'),
+        t(locale, 'cancel'),
+        t(locale, 'translateSystemDownloadBody', { langs }),
+      );
+      if (!ok) throw new RunCancelled();
+      for (const source of systemPairs) {
+        ctx.throwIfCancelled();
+        try {
+          await translator.prepare(source, to);
+        } catch (e) {
+          if (codeOf(e) === 'cancelled') throw new RunCancelled();
+          throw new RunError('packFailed', {
+            detail: t(locale, 'translateDownloadFailed', { langs: names([source, to]) }),
+          });
+        }
+      }
     }
     if (missing.size > 0 && translator.download) {
       const langs = names([...missing]);

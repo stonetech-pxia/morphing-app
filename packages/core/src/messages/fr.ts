@@ -523,6 +523,9 @@ export const fr: MessageTable = {
   translateDownloadBody:
     'Langues de traduction : {langs}. Ensuite, la traduction fonctionne hors connexion. Le Wi-Fi est conseillé.',
   translateDownload: 'Télécharger',
+  translateSystemDownloadAsk: 'La traduction doit d’abord télécharger des langues',
+  translateSystemDownloadBody:
+    'Langues à télécharger : {langs}. Votre iPhone va vous demander de confirmer, et le téléchargement peut prendre quelques minutes : restez dans Morph. La prochaine fois, vous pourrez les télécharger d’avance dans Réglages → Apps → Traduire sur l’iPhone.',
   translateDownloadFailed: 'les fichiers de langue {langs} (vérifiez la connexion, puis réessayez)',
   translateLanguageTitle: 'Langue de traduction : {name}',
   translateLanguageHint: 'Environ 30 Mo, pour traduire sur cet appareil (Google ML Kit).',
@@ -1336,6 +1339,7 @@ export const fr: MessageTable = {
   scheduleLastDoneHint: 'Compté à partir de la date de « {field} ».',
   describeRemovedRecordActions: 'Supprime aussi {n} boutons en un geste qui l’utilisaient',
   entryFormAdd: 'Ajouter',
+  describeAddedPageEntry: 'Rien n’ouvre encore la page « {page} » : une entrée vers elle est aussi ajoutée à la fin de l’accueil',
   describeAddedEntryForm:
     '« {table} » n’avait aucun moyen d’ajouter des entrées : un bouton « Ajouter » est aussi placé au-dessus de la liste',
   recordActionAdded: 'Ajouté à « {table} »',

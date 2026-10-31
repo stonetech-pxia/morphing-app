@@ -5,10 +5,10 @@ import UIKit
 
 // 长任务切到后台也继续的 iOS 部分（D-163）：iOS 26 的 BGContinuedProcessingTask。用户点了运行之后提交，
 // 系统在锁屏和灵动岛上显示进度，切到别的 App 也给时间继续跑；系统收回时间时让 morph-media 按「切到后台」中断。
-// 视频编码器和语音识别在后台能不能用要真机确认，所以默认关着：关着时什么都不做，iOS 和 D-148 一样要留在 Morph 里。
+// 关着时什么都不做，iOS 和 D-148 一样要留在 Morph 里。2026-10-31 创始人要求在 iPhone 真机上打开试。
 
-/** 实验开关（D-163）。真机确认之前保持 false。 */
-private let continuedProcessingEnabled = false
+/** 开关（D-163）。 */
+private let continuedProcessingEnabled = true
 
 /** 和 morph-media 约定的通知名（两个模块互相看不到对方的代码）。 */
 private let changedNotification = Notification.Name("MorphContinuedProcessingChanged")

@@ -5,6 +5,7 @@ import { OpListSchema, applyOps } from './ops';
 import type { Registry } from './registry';
 import type { Locale, WorkspaceConfig } from './schema';
 import { validateWorkspace } from './validate';
+import { addMissingPageEntries } from './page-entries';
 
 // ChangeRequest → Plan → Validate → Preview（§5.3）中与平台无关的部分。
 // 无论修改来自 mock AI、真实模型还是界面按钮，都走这里。
@@ -38,6 +39,14 @@ export function prepareOps(
   if (!applied.ok) return { ok: false, stage: 'apply', issues: [applied.error] };
   // AI 看到的文件 ID 是占位符；原样写回来的换回原来的文件。
   const config = restoreFileRefs(before, applied.config);
+  // 修改里新加的页面没有任何地方能打开时，在首页补一个入口（AI 常忘了加）。
+  const notes = [
+    ...applied.notes,
+    ...addMissingPageEntries(before, config).map((page) => ({
+      kind: 'addedPageEntry' as const,
+      page,
+    })),
+  ];
   if (ctx.fromAI) {
     const added = newFileRefs(before, config);
     if (added.length > 0)
@@ -57,7 +66,7 @@ export function prepareOps(
   return {
     ok: true,
     after: valid.config,
-    lines: describeChange(parsed.data, before, applied.notes, ctx),
+    lines: describeChange(parsed.data, before, notes, ctx),
   };
 }
 

@@ -82,6 +82,7 @@ export type ApplyNote =
   | { kind: 'prunedSteps'; name: string; steps: string[]; trimmed: string[]; removed: boolean }
   /** 新加的记录块所属的表没有添加的地方，在它上方补了一个「添加」按钮（D-310）。 */
   | { kind: 'addedEntryForm'; table: string }
+  | { kind: 'addedPageEntry'; page: string }
   /** 工具包升级到当前版本，新增了这些快捷操作。 */
   | { kind: 'updatedTool'; package: string; tools: string[] };
 

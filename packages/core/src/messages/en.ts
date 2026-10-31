@@ -494,6 +494,9 @@ export const en = {
   translateDownloadBody:
     'Translation languages: {langs}. After that it works offline. Wi-Fi is recommended.',
   translateDownload: 'Download',
+  translateSystemDownloadAsk: 'Translating needs language downloads first',
+  translateSystemDownloadBody:
+    'Languages to download: {langs}. Your iPhone will ask you to confirm next, and the download may take a few minutes, so stay in Morph. Next time you can download them first in the iPhone’s Settings → Apps → Translate.',
   translateDownloadFailed: 'the {langs} language files (check the connection and try again)',
   translateLanguageTitle: 'Translation: {name}',
   translateLanguageHint: 'About 30 MB, for translating on this device (Google ML Kit).',
@@ -1283,6 +1286,7 @@ export const en = {
   scheduleLastDoneHint: 'Counts from the date in “{field}”.',
   describeRemovedRecordActions: 'Also removes {n} one-tap buttons that used it',
   entryFormAdd: 'Add',
+  describeAddedPageEntry: 'Nothing opens the “{page}” page yet, so an entry to it is also added at the end of the home page',
   describeAddedEntryForm:
     '“{table}” had no way to add entries, so this also adds an “Add” button above the list',
   recordActionAdded: 'Added to “{table}”',
