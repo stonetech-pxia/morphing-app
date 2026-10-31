@@ -170,9 +170,9 @@ describe('translate.text', () => {
     const no = setup(toolWorkflow('translate-typed'), { text: 'Hello', to: 'ja' }, false);
     no.translator.missing = new Set(['ja']);
     expect((await no.run()).status).toBe('cancelled');
-    expect(no.translator.calls.some((c) => c.method === 'prepare' || c.method === 'translate')).toBe(
-      false,
-    );
+    expect(
+      no.translator.calls.some((c) => c.method === 'prepare' || c.method === 'translate'),
+    ).toBe(false);
 
     // 在系统的下载弹窗里取消。
     const sys = setup(toolWorkflow('translate-typed'), { text: 'Hello', to: 'ja' });

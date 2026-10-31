@@ -1286,7 +1286,8 @@ export const en = {
   scheduleLastDoneHint: 'Counts from the date in “{field}”.',
   describeRemovedRecordActions: 'Also removes {n} one-tap buttons that used it',
   entryFormAdd: 'Add',
-  describeAddedPageEntry: 'Nothing opens the “{page}” page yet, so an entry to it is also added at the end of the home page',
+  describeAddedPageEntry:
+    'Nothing opens the “{page}” page yet, so an entry to it is also added at the end of the home page',
   describeAddedEntryForm:
     '“{table}” had no way to add entries, so this also adds an “Add” button above the list',
   recordActionAdded: 'Added to “{table}”',
