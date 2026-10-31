@@ -17,9 +17,13 @@ const CSP = [
   'font-src blob: data:',
 ].join('; ');
 
-/** pdf.js legacy 版本直接调用 Promise.withResolvers（iOS 17.4 以下没有）。 */
-export const WITH_RESOLVERS_POLYFILL =
-  'if(!Promise.withResolvers){Promise.withResolvers=function(){let resolve,reject;const promise=new this((a,b)=>{resolve=a;reject=b});return{promise,resolve,reject}}}';
+/**
+ * pdf.js legacy 版本要的补丁：Promise.withResolvers（iOS 17.4 以下没有）；
+ * 读文字时 for await 遍历 ReadableStream（iOS 的 WebView 不能遍历，2026-10-31 真机）。
+ */
+export const PDFJS_POLYFILLS =
+  'if(!Promise.withResolvers){Promise.withResolvers=function(){let resolve,reject;const promise=new this((a,b)=>{resolve=a;reject=b});return{promise,resolve,reject}}}\n' +
+  "if(typeof ReadableStream!=='undefined'&&!ReadableStream.prototype[Symbol.asyncIterator]){ReadableStream.prototype[Symbol.asyncIterator]=async function*(){const r=this.getReader();try{for(;;){const{done,value}=await r.read();if(done)return;yield value}}finally{r.releaseLock()}}}";
 
 const BRIDGE = String.raw`
 const post = (m) => window.ReactNativeWebView.postMessage(JSON.stringify(m));
@@ -100,7 +104,7 @@ export function packPage(script: string): string {
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${CSP}">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<script>${WITH_RESOLVERS_POLYFILL}</script></head><body><script>
+<script>${PDFJS_POLYFILLS}</script></head><body><script>
 ${BRIDGE}
 ${script}
 post({ t: 'ready' });

@@ -85,7 +85,10 @@ export function MediaRow({
         onPress={() => setOpen(true)}
       />
       {open ? (
-        <Modal animationType="slide" onRequestClose={() => setOpen(false)}>
+        <Modal
+          animationType="slide"
+          presentationStyle="overFullScreen"
+          onRequestClose={() => setOpen(false)}>
           <Player item={item} onClose={() => setOpen(false)} palette={palette} locale={locale} />
         </Modal>
       ) : null}
