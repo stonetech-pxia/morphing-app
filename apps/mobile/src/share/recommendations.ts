@@ -7,6 +7,7 @@ import {
   type Workflow,
 } from '@morph/core';
 
+import { runsHere } from '../runtime/device-support';
 import type { SucceededRuns } from '../storage/types';
 
 export function shareRecommendations(
@@ -19,6 +20,7 @@ export function shareRecommendations(
   // 内设的快捷操作（D-236）排在配置里的后面：没用过时先补自己的，再补内设的和工具带的。
   const builtIns = builtInWorkflows(workflows, locale);
   const existing = [...workflows, ...builtIns]
+    .filter(runsHere)
     .map((wf) => ({ wf, fit: shareFit(wf, infos) }))
     .filter(({ wf, fit }) => fit.ok || (fit.reason !== 'type' && usage.has(wf.id)));
   const fresh = existing.filter(({ wf }) => wf.id === newest);
