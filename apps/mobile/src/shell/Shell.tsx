@@ -91,7 +91,10 @@ export function Shell() {
   const guideStage = useGuide((s) => s.stage);
   const router = useRouter();
   useEffect(() => {
-    if (guideStage === 'intro') router.push('/welcome');
+    // 外壳随版本重新挂载（例如收件页面建了一张表）时，介绍可能已经开着，不再推一次。
+    if (guideStage !== 'intro' || useGuide.getState().introOpen) return;
+    useGuide.setState({ introOpen: true });
+    router.push('/welcome');
   }, [guideStage, router]);
 
   const active = canShow(tab, config) ? tab : firstTab(config);

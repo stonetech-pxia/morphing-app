@@ -7,6 +7,7 @@ import {
   calendarOf,
   filterRecords,
   formatRef,
+  untitledRecordTitle,
   type BoardColumn,
   type DataRecord,
 } from '@morph/core';
@@ -297,7 +298,10 @@ export function Board({ block, env, tone }: { block: RecordBlock; env: RenderEnv
                     key={r.id}
                     record={r}
                     env={env}
-                    title={formatRef(r, view, block.show.title, locale, links, now, cal) || '—'}
+                    title={
+                      formatRef(r, view, block.show.title, locale, links, now, cal) ||
+                      untitledRecordTitle(r, collection, locale, now, cal)
+                    }
                     subtitle={(block.show.subtitles ?? [])
                       .map((f) => formatRef(r, view, f, locale, links, now, cal))
                       .filter(Boolean)
@@ -350,7 +354,10 @@ export function Board({ block, env, tone }: { block: RecordBlock; env: RenderEnv
         <MoveMenu
           palette={palette}
           locale={locale}
-          title={formatRef(menu.record, view, block.show.title, locale, links, now, cal) || '—'}
+          title={
+            formatRef(menu.record, view, block.show.title, locale, links, now, cal) ||
+            untitledRecordTitle(menu.record, collection, locale, now, cal)
+          }
           options={[
             { key: 'open', label: t(locale, 'open') },
             ...(drag ? boardTargets(field, columns, menu.from) : []).map((c) => ({

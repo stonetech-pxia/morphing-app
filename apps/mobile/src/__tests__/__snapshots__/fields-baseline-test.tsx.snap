@@ -24,25 +24,25 @@ list-t record-r0 <View>: Apple
 list-t record-r1 <View>: Pear
 list-n record-r0 <View>: two
 lines
-list-n record-r1 <View>: —
+list-n record-r1 <View>: Items · Oct 21
 list-num record-r0 <View>: 2.5 kg
-list-num record-r1 <View>: —
+list-num record-r1 <View>: Items · Oct 21
 list-m record-r0 <View>: €1,234.50
 list-m record-r1 <View>: -€3.00
 list-cb record-r0 <View>: Yes
 list-cb record-r1 <View>: No
 list-d record-r0 <View>: 2026-10-20
-list-d record-r1 <View>: —
+list-d record-r1 <View>: Items · Oct 21
 list-ch record-r0 <View>: Alpha
-list-ch record-r1 <View>: —
+list-ch record-r1 <View>: Items · Oct 21
 list-r record-r0 <View>: ★★★★☆
-list-r record-r1 <View>: —
+list-r record-r1 <View>: Items · Oct 21
 list-f record-r0 <View>: 1 attachment
-list-f record-r1 <View>: —
+list-f record-r1 <View>: Items · Oct 21
 list-l record-r1 <View>: Deleted entry
 list-l record-r0 <View>: Pear
 list-fo record-r0 <View>: 5 kg
-list-fo record-r1 <View>: —
+list-fo record-r1 <View>: Items · Oct 21
 "
 `;
 
@@ -70,25 +70,25 @@ list-t record-r0 <View>: Apple
 list-t record-r1 <View>: Pear
 list-n record-r0 <View>: two
 lines
-list-n record-r1 <View>: —
+list-n record-r1 <View>: Items · 21 oct.
 list-num record-r0 <View>: 2,5 kg
-list-num record-r1 <View>: —
+list-num record-r1 <View>: Items · 21 oct.
 list-m record-r0 <View>: 1 234,50 €
 list-m record-r1 <View>: -3,00 €
 list-cb record-r0 <View>: Oui
 list-cb record-r1 <View>: Non
 list-d record-r0 <View>: 20/10/2026
-list-d record-r1 <View>: —
+list-d record-r1 <View>: Items · 21 oct.
 list-ch record-r0 <View>: Alpha
-list-ch record-r1 <View>: —
+list-ch record-r1 <View>: Items · 21 oct.
 list-r record-r0 <View>: ★★★★☆
-list-r record-r1 <View>: —
+list-r record-r1 <View>: Items · 21 oct.
 list-f record-r0 <View>: 1 pièce jointe
-list-f record-r1 <View>: —
+list-f record-r1 <View>: Items · 21 oct.
 list-l record-r1 <View>: Entrée supprimée
 list-l record-r0 <View>: Pear
 list-fo record-r0 <View>: 5 kg
-list-fo record-r1 <View>: —
+list-fo record-r1 <View>: Items · 21 oct.
 "
 `;
 
@@ -116,24 +116,24 @@ list-t record-r0 <View>: Apple
 list-t record-r1 <View>: Pear
 list-n record-r0 <View>: two
 lines
-list-n record-r1 <View>: —
+list-n record-r1 <View>: Items · 10月21日
 list-num record-r0 <View>: 2.5 kg
-list-num record-r1 <View>: —
+list-num record-r1 <View>: Items · 10月21日
 list-m record-r0 <View>: €1,234.50
 list-m record-r1 <View>: -€3.00
 list-cb record-r0 <View>: 是
 list-cb record-r1 <View>: 否
 list-d record-r0 <View>: 2026-10-20
-list-d record-r1 <View>: —
+list-d record-r1 <View>: Items · 10月21日
 list-ch record-r0 <View>: Alpha
-list-ch record-r1 <View>: —
+list-ch record-r1 <View>: Items · 10月21日
 list-r record-r0 <View>: ★★★★☆
-list-r record-r1 <View>: —
+list-r record-r1 <View>: Items · 10月21日
 list-f record-r0 <View>: 1 个附件
-list-f record-r1 <View>: —
+list-f record-r1 <View>: Items · 10月21日
 list-l record-r1 <View>: 已删除的记录
 list-l record-r0 <View>: Pear
 list-fo record-r0 <View>: 5 kg
-list-fo record-r1 <View>: —
+list-fo record-r1 <View>: Items · 10月21日
 "
 `;

@@ -27,7 +27,7 @@ import { renderToolsApp } from '../test-utils/render-app';
 
 afterEach(() => {
   useIncoming.getState().clear();
-  useGuide.setState({ stage: null, repo: null });
+  useGuide.setState({ stage: null, repo: null, introOpen: false });
 });
 
 /** 有附件字段的「收据」表和没有附件字段的「账目」表（记账模版）。 */
@@ -153,6 +153,26 @@ describe('收件页面 → 存成记录', () => {
     });
   });
 
+  it('建过的预设不再列在「新建一张表」里（只在「你的表」里），「空白」一直在；没填标题的记录显示表名和日子', async () => {
+    const { files } = await render();
+    await openShare(files, ['IMG_1.jpg']);
+    await choose('preset-purchase');
+    expect(await screen.findByTestId('editor-attachments-file-0')).toBeTruthy();
+    // 商家（标题）不填就保存。
+    await save();
+    await fireEvent.press(screen.getByTestId('share-record-choose'));
+    expect(listIds()).toEqual([
+      'share-record-table-purchases',
+      'share-record-preset-bill',
+      'share-record-preset-contract',
+      'share-record-preset-reimbursement',
+      'share-record-preset-blank',
+    ]);
+    await act(() => router.push('/page/purchases'));
+    expect(await screen.findByText(/^购物凭证 · \d{1,2}月\d{1,2}日$/)).toBeTruthy();
+    expect(screen.queryByText('—')).toBeNull();
+  });
+
   it('有数据：只列出有附件字段的表，在预设表前面；选它不改配置，文件放进它的附件字段', async () => {
     const { files, repo, store } = await render(seeded);
     await openShare(files, ['IMG_1.jpg']);
@@ -225,5 +245,24 @@ describe('收件页面 → 存成记录', () => {
     expect(await repo.listRecords('bills')).toEqual([]);
     expect(store.getState().config!.data.tables.map((c) => c.id)).toEqual(['bills']);
     expect(files.disk.has(photo!.uri)).toBe(true);
+  });
+
+  it('新用户还没看完介绍：建表让外壳重新挂载，也不再推一次欢迎页；关掉表单回到收件页面', async () => {
+    // 真机上（2026-10-31）：首页推了欢迎页，收件页面盖在上面；建表后外壳按新版本重新挂载又推了一次，
+    // 关掉表单落到第二个欢迎页上。
+    const repo = new MemoryWorkspaceRepo();
+    await act(() => useGuide.getState().load(repo));
+    expect(useGuide.getState().stage).toBe('intro');
+    const { files } = await renderToolsApp(repo, new FakeFiles());
+    expect(await screen.findByTestId('welcome')).toBeTruthy();
+    await openShare(files, ['IMG_1.jpg']);
+    await choose('preset-purchase');
+    expect(await screen.findByTestId('editor-attachments-file-0')).toBeTruthy();
+    await act(() => router.back());
+    expect(await screen.findByTestId('share-screen')).toBeTruthy();
+    expect(screen.queryByTestId('welcome')).toBeNull();
+    // 再关掉收件页面，才是原来那个欢迎页。
+    await act(() => router.back());
+    expect(await screen.findByTestId('welcome')).toBeTruthy();
   });
 });

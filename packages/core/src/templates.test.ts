@@ -7,6 +7,7 @@ import {
   templateCollectionOp,
   templateOps,
   templateTableName,
+  templateTableOf,
 } from './templates';
 import { apply, fromV33, registry, v33Fixture, workspace } from './test-helpers';
 import { validateWorkspace } from './validate';
@@ -117,5 +118,23 @@ describe('file record presets', () => {
 
   it('are not templates the mock AI or the evals know', () => {
     for (const p of FILE_RECORD_PRESETS) expect(DATA_TEMPLATES).not.toContain(p);
+  });
+
+  it('know which existing table each preset built (also with -2), and stop knowing after it is removed', () => {
+    const blank = workspace('zh');
+    expect(templateTableOf('purchase', blank)).toBeUndefined();
+    const once = apply(blank, templateOps('purchase', blank, 'zh'));
+    expect(templateTableOf('purchase', once)).toBe('purchases');
+    expect(templateTableOf('bill', once)).toBeUndefined();
+    const renamed = apply(once, [
+      { op: 'addData', table: { id: 'purchases-2', name: '另一张', fields: [] } },
+      { op: 'removeData', table: 'purchases' },
+    ]);
+    expect(templateTableOf('purchase', renamed)).toBe('purchases-2');
+    // 只是 ID 开头一样的表不算。
+    const other = apply(blank, [
+      { op: 'addData', table: { id: 'purchases-old', name: '旧的', fields: [] } },
+    ]);
+    expect(templateTableOf('purchase', other)).toBeUndefined();
   });
 });

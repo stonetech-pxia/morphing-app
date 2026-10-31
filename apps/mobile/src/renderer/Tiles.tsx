@@ -1,4 +1,11 @@
-import { MAX_TILES, calendarOf, formatRef, recordProgress, type DataRecord } from '@morph/core';
+import {
+  MAX_TILES,
+  calendarOf,
+  formatRef,
+  recordProgress,
+  untitledRecordTitle,
+  type DataRecord,
+} from '@morph/core';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -54,7 +61,9 @@ export function Tiles({ block, env, tone }: { block: RecordBlock; env: RenderEnv
   const format = show.format;
 
   const tile = (r: DataRecord) => {
-    const title = formatRef(r, view, show.title, locale, links, now, cal) || '—';
+    const title =
+      formatRef(r, view, show.title, locale, links, now, cal) ||
+      untitledRecordTitle(r, collection, locale, now, cal);
     const action = rowToolOf(block, r, view, now, cal);
     const progress =
       format?.kind === 'progress'

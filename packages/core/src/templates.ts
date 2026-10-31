@@ -161,6 +161,15 @@ export function templateTableName(template: Template, locale: Locale): string {
   return localize((TEMPLATES[template].table as { name: Record<Locale, string> }).name, locale);
 }
 
+/** 由这个模板建出来、现在还在的数据表（ID 是基本 ID 或加了 -2、-3……）；没有时 undefined。 */
+export function templateTableOf(template: Template, config: WorkspaceConfig): string | undefined {
+  const base = TEMPLATES[template].ids.table;
+  return config.data.tables.find(
+    (c) =>
+      c.id === base || (c.id.startsWith(`${base}-`) && /^\d+$/.test(c.id.slice(base.length + 1))),
+  )?.id;
+}
+
 /** 这个模板建好、但还没有页面用到的数据表（先做了功能、页面还没加，D-191）。 */
 export function templateCollectionWithoutPage(
   template: DataTemplate,

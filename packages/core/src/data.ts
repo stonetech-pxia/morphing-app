@@ -18,6 +18,7 @@ import { t } from './messages';
 import {
   scheduleDue,
   scheduleStatus,
+  shortDate,
   scheduleStatusText,
   type ScheduleDue,
   type ScheduleOptions,
@@ -589,6 +590,21 @@ export function linkTitle(record: DataRecord, collection: Collection, locale: Lo
   const field = linkTitleField(collection);
   const title = field ? formatValue(field, record.values[field.id], locale) : '';
   return title || formatTimestamp(record.createdAt, locale);
+}
+
+/**
+ * 列表、卡片、看板上标题为空时显示的：表名 · 存的那天（「购物凭证 · 10月31日」，不是今年的带年份）。
+ * 只是显示，不写进标题字段；用户填了标题就显示填的（D-386 真机反馈，创始人 2026-10-31 在对话里选定）。
+ */
+export function untitledRecordTitle(
+  record: DataRecord,
+  collection: Collection,
+  locale: Locale,
+  now: Date,
+  cal: Calendar = DEFAULT_CALENDAR,
+): string {
+  const day = dayNumber(dayOf(new Date(record.createdAt), cal))!;
+  return `${collection.name} · ${shortDate(day, todayNumber(now, cal), locale)}`;
 }
 
 /** 按读到的记录（表 ID → 没删的记录）查引用的标题。 */

@@ -9,6 +9,7 @@ import {
   readValue,
   recordsToCsv,
   sortRecords,
+  untitledRecordTitle,
   type DataRecord,
 } from './data';
 import type { Collection } from './schema';
@@ -162,6 +163,34 @@ describe('formatting and CSV', () => {
     );
     expect(csv).toBe(
       '﻿金额,分类,日期,备注,创建时间\r\n5.00,餐饮,2026-10-22,"a, ""b""",2026-10-22 08:05\r\n',
+    );
+  });
+});
+
+describe('untitledRecordTitle', () => {
+  it('shows the table name and the day the record was saved; other years carry the year', () => {
+    const table = { ...expenses(), name: '购物凭证' };
+    const now = new Date(2026, 9, 31, 12);
+    const record = (at: Date) => ({
+      id: 'r',
+      collectionId: 'expenses',
+      values: {},
+      createdAt: at.getTime(),
+      updatedAt: 0,
+    });
+    expect(untitledRecordTitle(record(new Date(2026, 9, 31, 9)), table, 'zh', now)).toBe(
+      '购物凭证 · 10月31日',
+    );
+    expect(
+      untitledRecordTitle(
+        record(new Date(2026, 2, 5, 9)),
+        { ...table, name: 'Receipts' },
+        'en',
+        now,
+      ),
+    ).toBe('Receipts · Mar 5');
+    expect(untitledRecordTitle(record(new Date(2025, 2, 5, 9)), table, 'fr', now)).toBe(
+      '购物凭证 · 5 mars 2025',
     );
   });
 });

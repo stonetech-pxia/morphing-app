@@ -1,5 +1,6 @@
 import {
   FILE_RECORD_PRESETS,
+  templateTableOf,
   templateTableName,
   type FileRecordPreset,
   type Locale,
@@ -18,7 +19,10 @@ export function recordChoices(config: WorkspaceConfig, locale: Locale): RecordCh
     .filter((c) => c.fields.some((f) => f.type === 'file'))
     .map((c): RecordChoice => ({ kind: 'table', tableId: c.id, name: c.name }));
   // 「空白」排在最后（FILE_RECORD_PRESETS 里它就在最后）；名字由界面写成「空白」。
-  const presets = FILE_RECORD_PRESETS.map((preset): RecordChoice => ({
+  // 已经建过、表还在的预设不再列（它在上面的表里）；「空白」一直在，想要第二张同类的表用它。
+  const presets = FILE_RECORD_PRESETS.filter(
+    (preset) => preset === 'blank' || templateTableOf(preset, config) === undefined,
+  ).map((preset): RecordChoice => ({
     kind: 'preset',
     preset,
     name: templateTableName(preset, locale),

@@ -13,6 +13,7 @@ import {
   formatDuration,
   formatNumber,
   formatRef,
+  untitledRecordTitle,
   formatValue,
   changeLabel,
   compareChange,
@@ -1043,7 +1044,9 @@ export function useRecordRows(
   const now = new Date();
 
   const row = (r: DataRecord, index: number) => {
-    const title = formatRef(r, view, show.title, locale, links, now, cal) || '—';
+    const title =
+      formatRef(r, view, show.title, locale, links, now, cal) ||
+      untitledRecordTitle(r, collection, locale, now, cal);
     const subtitle = (show.subtitles ?? [])
       .map((f) => formatRef(r, view, f, locale, links, now, cal))
       .filter(Boolean)
