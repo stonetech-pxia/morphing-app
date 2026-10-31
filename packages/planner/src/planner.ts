@@ -163,6 +163,7 @@ export function createClaudePlanner(options: PlannerOptions): AIProvider {
             registry: options.registry,
             locale: ctx.locale,
             now: options.now(),
+            fromAI: true,
           });
           if (prepared.ok) return plan;
           issues = prepared.issues;

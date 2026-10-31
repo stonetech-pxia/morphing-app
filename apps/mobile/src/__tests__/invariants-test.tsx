@@ -1,6 +1,7 @@
 import {
   BUILTIN_TOOLS,
   DATA_TEMPLATES,
+  REDACTED_FILE,
   applyOps,
   createDefaultWorkspace,
   createRegistry,
@@ -180,9 +181,13 @@ describe('底线 1 / 2：AI 的请求里没有数据内容（记录、文件名�
       expect(body).not.toContain(SENTINEL);
       expect(body).not.toContain('识别出的文字');
     }
-    // 配置本身是发了的（AI 要看结构），文件位只是一个随机 ID。
+    // 配置本身是发了的（AI 要看结构）；文件位里只有占位符，连随机的文件 ID 也不发（底线 3）。
     expect(bodies[0]).toContain('notes');
-    expect(bodies[0]).toContain(ASSET);
+    for (const body of bodies) {
+      expect(body).not.toContain(ASSET);
+      expect(body).not.toContain(OTHER_ASSET);
+    }
+    expect(bodies[0]).toContain(REDACTED_FILE);
   });
 
   it('bring-your-own-key mode sends no data either', async () => {
@@ -205,27 +210,23 @@ describe('底线 1 / 2：AI 的请求里没有数据内容（记录、文件名�
 });
 
 describe('底线 3：AI 永远不碰文件', () => {
-  // 违反底线 3，待创始人决定：AI 能在修改里写 {file: <文件 ID>} 或图片的 asset，让一个文件位指向用户的另一个
-  // 文件（AI 看得到配置里的文件 ID）。prepareOps 不分来源，AI 那一路没有「新出现的文件 ID 一律拒绝」的检查。
-  it.failing(
-    'AI cannot point a file slot at one of the user’s files; only the user picks it',
-    async () => {
-      const plan: Plan = {
-        kind: 'ops',
-        ops: [
-          {
-            op: 'updateContainer',
-            page: 'home',
-            block: 'slot',
-            changes: { opens: { file: OTHER_ASSET } },
-          },
-        ],
-      };
-      const { store } = await bootedStore(fixedPlanner(plan));
-      const result = await store.getState().change('换成另一个文件', fixedPlanner(plan));
-      expect(['rejected', 'invalid']).toContain(result.kind);
-    },
-  );
+  // 创始人 2026-10-31（对话）：AI 的修改一律不能写文件引用，只有用户在长按编辑里选。
+  it('AI cannot point a file slot at one of the user’s files; only the user picks it', async () => {
+    const plan: Plan = {
+      kind: 'ops',
+      ops: [
+        {
+          op: 'updateContainer',
+          page: 'home',
+          block: 'slot',
+          changes: { opens: { file: OTHER_ASSET } },
+        },
+      ],
+    };
+    const { store } = await bootedStore(fixedPlanner(plan));
+    const result = await store.getState().change('换成另一个文件', fixedPlanner(plan));
+    expect(['rejected', 'invalid']).toContain(result.kind);
+  });
 
   it('AI can add an empty file slot (the user picks the file)', async () => {
     const plan: Plan = {

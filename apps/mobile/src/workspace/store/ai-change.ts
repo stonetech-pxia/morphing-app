@@ -70,7 +70,7 @@ export function createAIChange(
     const homeless = wantHome ? workflowsWithoutEntry(ops, prepared.after) : [];
     if (homeless.length === 0) return { ops, prepared };
     const withEntry = [...ops, ...homeEntryOps(prepared.after, homeless)];
-    const full = prepareOps(before, withEntry, { registry, locale, now: deps.now() });
+    const full = prepareOps(before, withEntry, { registry, locale, now: deps.now(), fromAI: true });
     return full.ok ? { ops: withEntry, prepared: full } : { ops, prepared };
   }
 
@@ -163,7 +163,7 @@ export function createAIChange(
         await get().confirm();
         return { kind: 'restored' };
       }
-      const ctx = { registry, locale, now: deps.now() };
+      const ctx = { registry, locale, now: deps.now(), fromAI: true };
       const prepared = prepareOps(base, plan.ops, ctx);
       if (!prepared.ok) {
         await failedPlan(input, plan.ops, `${prepared.stage}: ${prepared.issues.join('; ')}`);
@@ -231,7 +231,7 @@ export function createAIChange(
     origin: DraftOrigin,
   ): Promise<ChangeResult> {
     const { config, head, draft } = get();
-    const ctx = { registry, locale, now: deps.now() };
+    const ctx = { registry, locale, now: deps.now(), fromAI: true };
     const prepared = prepareOps(config!, first.ops, ctx);
     if (!prepared.ok) {
       await failedPlan(input, first.ops, `${prepared.stage}: ${prepared.issues.join('; ')}`);

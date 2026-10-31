@@ -23,7 +23,7 @@ import {
 import { createStarterWorkspace } from './starter';
 import { fromV33, registry, v33Fixture } from './test-helpers';
 import { validateWorkspace } from './validate';
-import { REDACTED_TEXT, redactForAI } from './workflow/redact';
+import { REDACTED_FILE, REDACTED_TEXT, redactForAI } from './workflow/redact';
 import { presetById } from './workflows/presets';
 
 // Morph 的 18 条底线（AGENTS.md「底线」，创始人 2026-10-31 在对话里暂定）。每条一个 describe，测行为，
@@ -214,6 +214,143 @@ describe('底线 3：AI 永远不碰文件', () => {
       ctx,
     );
     expect(ok.ok ? [] : ok.issues).toEqual([]);
+  });
+
+  // 创始人 2026-10-31（对话）：AI 的修改一律不能写文件引用；文件 ID 不再发给 AI。
+  describe('only the user picks a file: AI changes never write a reference to one', () => {
+    const A = 'useraaaa01';
+    const B = 'userbbbb02';
+    /** 首页上一个指向 A 的文件位、一张指向 B 的图片（带图片背景），首页的背景也是 B。 */
+    function withFiles(): WorkspaceConfig {
+      const r = applyOps(
+        createDefaultWorkspace('zh'),
+        [
+          {
+            op: 'addContainer',
+            page: 'home',
+            block: { id: 'slot', look: 'entry', show: { title: '合同' }, opens: { file: A } },
+          },
+          {
+            op: 'addContainer',
+            page: 'home',
+            block: { id: 'pic', look: 'image', show: { asset: B, aspect: 'wide', fit: 'cover' } },
+          },
+          {
+            op: 'updateContainer',
+            page: 'home',
+            changes: { backdrop: { overlay: 'medium', assetId: B } },
+          },
+        ],
+        ctx,
+      );
+      if (!r.ok) throw new Error(r.error);
+      return r.config;
+    }
+    const ai = { ...ctx, fromAI: true };
+
+    it.each<[string, unknown[]]>([
+      [
+        'pointing a file slot at another file',
+        [
+          {
+            op: 'updateContainer',
+            page: 'home',
+            block: 'slot',
+            changes: { opens: { file: B } },
+          },
+        ],
+      ],
+      [
+        'adding a file slot that already points at a file',
+        [
+          {
+            op: 'addContainer',
+            page: 'home',
+            block: { id: 'slot2', look: 'entry', show: { title: 'x' }, opens: { file: A } },
+          },
+        ],
+      ],
+      [
+        'adding an image of a user file',
+        [
+          {
+            op: 'addContainer',
+            page: 'home',
+            block: { id: 'pic2', look: 'image', show: { asset: B, aspect: 'wide', fit: 'cover' } },
+          },
+        ],
+      ],
+      [
+        'changing the photo of an image',
+        [{ op: 'updateContainer', page: 'home', block: 'pic', changes: { show: { asset: A } } }],
+      ],
+      [
+        'putting a user file behind a page',
+        [
+          {
+            op: 'updateContainer',
+            page: 'home',
+            changes: { backdrop: { overlay: 'light', assetId: A } },
+          },
+        ],
+      ],
+    ])('%s is refused', (_name, ops) => {
+      const r = prepareOps(withFiles(), ops, ai);
+      expect(r.ok).toBe(false);
+      // 用户自己在长按编辑里选文件，走的是同一个 prepareOps（不带 fromAI），照常能存。
+      expect(prepareOps(withFiles(), ops, ctx).ok).toBe(true);
+    });
+
+    it('clearing a file slot and moving or restyling a block with a file still work', () => {
+      const config = withFiles();
+      for (const ops of [
+        [
+          {
+            op: 'updateContainer',
+            page: 'home',
+            block: 'slot',
+            changes: { opens: { file: null } },
+          },
+        ],
+        [{ op: 'updateContainer', page: 'home', block: 'pic', changes: { show: { asset: null } } }],
+        [{ op: 'updateContainer', page: 'home', changes: { backdrop: null } }],
+        [
+          {
+            op: 'updateContainer',
+            page: 'home',
+            block: 'pic',
+            changes: { show: { caption: '图' } },
+          },
+        ],
+        [{ op: 'moveContainer', page: 'home', block: 'slot', toIndex: 0 }],
+        [{ op: 'removeContainer', page: 'home', block: 'pic' }],
+      ]) {
+        const r = prepareOps(config, ops, ai);
+        expect(r.ok ? [] : r.issues).toEqual([]);
+      }
+    });
+
+    it('AI sees a placeholder instead of the file IDs, and handing the placeholder back keeps the file', () => {
+      const config = withFiles();
+      const sent = JSON.stringify(redactForAI(config, registry));
+      expect(sent).not.toContain(A);
+      expect(sent).not.toContain(B);
+      expect(sent).toContain(REDACTED_FILE);
+      const r = prepareOps(
+        config,
+        [
+          {
+            op: 'updateContainer',
+            page: 'home',
+            block: 'slot',
+            changes: { opens: { file: REDACTED_FILE }, show: { title: '租房合同' } },
+          },
+        ],
+        ai,
+      );
+      expect(r.ok ? [] : r.issues).toEqual([]);
+      if (r.ok) expect(JSON.stringify(r.after)).toContain(A);
+    });
   });
 });
 

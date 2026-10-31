@@ -4,6 +4,7 @@ import {
   createMockAIProvider,
   createRegistry,
   MEDIA_LIMITS,
+  REDACTED_FILE,
   type AIProvider,
   type Op,
 } from '@morph/core';
@@ -286,10 +287,11 @@ describe('file slot', () => {
 
     expect((await store.getState().propose('圆角小一点')).kind).toBe('preview');
     const all = JSON.stringify(sent);
-    // v34 里文件入口是 opens 为 { file } 的 entry：模型看得到入口和文件 ID，看不到文件名。
+    // v34 里文件入口是 opens 为 { file } 的 entry：模型看得到入口，文件 ID 换成占位符（底线 3），看不到文件名。
     expect(all).toContain('租房合同');
     expect(all).toContain('opens');
-    expect(all).toContain(slotBlock(store).opens.file!);
+    expect(all).toContain(REDACTED_FILE);
+    expect(all).not.toContain(slotBlock(store).opens.file!);
     expect(all).not.toContain('私人合同');
   });
 });

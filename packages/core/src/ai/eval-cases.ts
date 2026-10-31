@@ -6662,7 +6662,9 @@ export async function runEvalCase(
   if (first.kind === 'function' && first.deferred.length > 0) {
     return { outcome: fail('the plan mixes function and look ops (D-191)'), plans };
   }
-  let prepared: PreparedChange = prepareOps(config, plan.ops, ctx);
+  // AI 的计划和 App 里一样检查（底线 3：不能多出指向用户文件的引用）。
+  const aiCtx = { ...ctx, fromAI: true };
+  let prepared: PreparedChange = prepareOps(config, plan.ops, aiCtx);
   if (c.next && prepared.ok) {
     if (first.kind !== 'function')
       return { outcome: fail('the first turn should do the function part'), plans };
@@ -6675,7 +6677,7 @@ export async function runEvalCase(
     }
     if (hasFunctionOps(second.ops))
       return { outcome: fail(`next “${plan.next}” should only change the look`), plans };
-    prepared = prepareOps(prepared.after, second.ops, ctx);
+    prepared = prepareOps(prepared.after, second.ops, aiCtx);
   }
   // 计划本身的检查（例如建议的下一步，D-355）看最后一轮。
   return { outcome: judgeEval(c, plans.at(-1)!, prepared), plans };

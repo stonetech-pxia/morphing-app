@@ -1,4 +1,5 @@
 import { describeChange } from './describe';
+import { newFileRefs, restoreFileRefs } from './file-refs';
 import { migrateWorkspace } from './migrate';
 import { OpListSchema, applyOps } from './ops';
 import type { Registry } from './registry';
@@ -12,6 +13,11 @@ export interface ChangeContext {
   registry: Registry;
   locale: Locale;
   now: Date;
+  /**
+   * 修改来自 AI（底线 3）：不能多出指向用户文件的引用（文件位、图片、图片背景只能由用户自己选）。
+   * 用户在界面上的修改不带这一项。
+   */
+  fromAI?: boolean;
 }
 
 export type PreparedChange =
@@ -30,8 +36,22 @@ export function prepareOps(
   }
   const applied = applyOps(before, parsed.data, ctx);
   if (!applied.ok) return { ok: false, stage: 'apply', issues: [applied.error] };
+  // AI 看到的文件 ID 是占位符；原样写回来的换回原来的文件。
+  const config = restoreFileRefs(before, applied.config);
+  if (ctx.fromAI) {
+    const added = newFileRefs(before, config);
+    if (added.length > 0)
+      return {
+        ok: false,
+        stage: 'validate',
+        issues: added.map(
+          (place) =>
+            `${place}: only the user picks a file (a file slot's opens.file, an image's show.asset, a backdrop's assetId); leave it as it is or null`,
+        ),
+      };
+  }
   // 修改前就有的、这个版本不认识的组件（D-254）原样留着；修改不能新加或改动它们。
-  const valid = validateWorkspace(applied.config, ctx.registry, { unknownComponents: before });
+  const valid = validateWorkspace(config, ctx.registry, { unknownComponents: before });
   if (!valid.ok)
     return { ok: false, stage: 'validate', issues: valid.issues.map((i) => i.message) };
   return {
