@@ -18,11 +18,19 @@ import {
   ReminderSchema,
   WorkflowStepSchema,
   WorkspaceConfigSchema,
+  type Workflow,
   type WorkspaceConfig,
 } from './schema';
 import { createStarterWorkspace } from './starter';
 import { fromV33, registry, v33Fixture } from './test-helpers';
 import { validateWorkspace } from './validate';
+import { defaultParams, initialParams, typesAlong, workflowProblems } from './workflow/check';
+import {
+  actionAccepts,
+  isSourceAction,
+  outputTypeOf,
+  type ActionDefinition,
+} from './workflow/contract';
 import { REDACTED_FILE, REDACTED_TEXT, redactForAI } from './workflow/redact';
 import { presetById } from './workflows/presets';
 
@@ -776,5 +784,73 @@ describe('底线 18：配置永远自洽', () => {
   it('starting points (new user, default) are self-consistent', () => {
     for (const config of [createStarterWorkspace('zh', registry), createDefaultWorkspace('en')])
       expect(danglingRefs(config)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// 用户要的事
+// ---------------------------------------------------------------------------------------------
+
+describe('底线 19：用户要的事都能做到', () => {
+  // 创始人 2026-10-31（对话）：快捷操作处理文件，最后交给页面（新记录表单、记录页）由用户确认保存；类型对得上的
+  // 动作都能串；AI 不能因为「不合理」拒绝做得到的组合（提示词那一半在 planner 的 prompt-baseline.test.ts）。
+  // 还是直链，每步只拿上一步的输出（底线 9 不变）。
+  const paramsOf = (a: ActionDefinition) => {
+    const p = { ...(defaultParams(a) ?? initialParams(a)) };
+    if ('collectionId' in p) p.collectionId = 'notes';
+    return p;
+  };
+
+  const variants = (a: ActionDefinition) => {
+    const base = paramsOf(a);
+    const out = [base];
+    for (const f of a.fields)
+      if (f.kind === 'choice')
+        for (const o of f.options ?? []) {
+          const p = { ...base, [f.key]: o.value };
+          if (a.params.safeParse(p).success) out.push(p);
+        }
+    return out;
+  };
+
+  it('any two catalog actions whose types fit chain into a quick action that passes the checks', () => {
+    const actions = [...registry.actions.values()];
+    const sources = actions.filter(isSourceAction);
+    const problems: string[] = [];
+    let pairs = 0;
+    for (const a of actions) {
+      // a 前面接一个能喂它的输入动作（a 本身是输入动作时它就是第一步）。
+      // 输入动作的输出可能看参数（in.files 的 accept）：每个选项都试。
+      const feed = isSourceAction(a)
+        ? []
+        : sources
+            .flatMap((s) => variants(s).map((params) => ({ s, params })))
+            .filter(({ s, params }) => {
+              const out = outputTypeOf(s, params, null);
+              return out !== null && actionAccepts(a, out);
+            })
+            .slice(0, 1)
+            .map(({ s, params }) => ({ id: 'in', action: s.id, params }));
+      if (!isSourceAction(a) && feed.length === 0) {
+        problems.push(`${a.id}: no input action gives it something it accepts`);
+        continue;
+      }
+      const head = [...feed, { id: 'a', action: a.id, params: paramsOf(a) }];
+      const out = typesAlong(head, registry).at(-1);
+      expect(out, a.id).toBeTruthy();
+      for (const b of actions) {
+        if (isSourceAction(b) || !actionAccepts(b, out!)) continue;
+        const wf = {
+          id: 'qa',
+          kind: 'quickAction',
+          name: 'x',
+          steps: [...head, { id: 'next', action: b.id, params: paramsOf(b) }],
+        } as Workflow;
+        problems.push(...workflowProblems(wf, registry).map((p) => p.message));
+        pairs++;
+      }
+    }
+    expect(problems).toEqual([]);
+    expect(pairs).toBeGreaterThan(1000);
   });
 });
