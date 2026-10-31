@@ -192,6 +192,95 @@ describe('suggestValues', () => {
   });
 });
 
+describe('suggestValues: iOS simulator findings (2026-10-31)', () => {
+  it('a free-text field with no concept (备注) gets nothing from unlabeled rows; 事由 only from its own label', () => {
+    const doc = page([
+      '青禾餐馆',
+      '样例单据 · 仅供测试',
+      [['地址：青云路 18 号', 20]],
+      [
+        ['实付:', 20],
+        ['¥90.25', 300],
+      ],
+      [
+        ['用途:', 20],
+        ['餐饮', 300],
+      ],
+      '感谢惠顾',
+    ]);
+    const r = suggestValues({
+      fields: [text('note', '备注'), text('purpose', '事由')],
+      pages: [doc],
+      locale: 'zh',
+      now: NOW,
+    });
+    expect(values(r, 'note')).toEqual([]);
+    expect(values(r, 'purpose')).toEqual(['餐饮']);
+  });
+
+  it('values only under exclusion labels (优惠, 找零) are not offered; 感谢惠顾 is not a shop name', () => {
+    const doc = page([
+      '青禾餐馆',
+      [
+        ['小计:', 20],
+        ['¥98.75', 300],
+      ],
+      [
+        ['优惠:', 20],
+        ['¥8.50', 300],
+      ],
+      [
+        ['实付:', 20],
+        ['¥90.25', 300],
+      ],
+      [
+        ['找零:', 20],
+        ['¥5.50', 300],
+      ],
+      '感谢惠顾',
+    ]);
+    const r = suggestValues({
+      fields: [money('amount', '金额'), text('merchant', '商家')],
+      pages: [doc],
+      locale: 'zh',
+      now: NOW,
+    });
+    expect(values(r, 'amount')[0]).toBe('90.25');
+    expect(values(r, 'amount')).not.toContain('8.50');
+    expect(values(r, 'amount')).not.toContain('5.50');
+    expect(values(r, 'merchant')).toEqual(['青禾餐馆']);
+  });
+
+  it('address lines (postcode, state, country) never rank above the shop name, also with a remembered top-row pick', () => {
+    const doc = page([
+      'LIGHTROOM GALLERY SDN BHD',
+      'NO: 28, JALAN ASTANA 1C,',
+      'BANDAR BUKIT RAJA, 41050',
+      'KLANG SELANGOR D.E, MALAYSIA',
+      [
+        ['Tel:', 20],
+        ['03-3362 4395', 300],
+      ],
+      'TAX INVOICE',
+      [
+        ['TOTAL:', 20],
+        ['73.00', 400],
+      ],
+    ]);
+    const merchant = text('merchant', '商家');
+    for (const picks of [undefined, { merchant: { label: '', relY: 0.03 } }]) {
+      const r = suggestValues({
+        fields: [merchant],
+        pages: [doc],
+        locale: 'en',
+        now: NOW,
+        ...(picks ? { picks } : {}),
+      });
+      expect(values(r, 'merchant')).toEqual(['LIGHTROOM GALLERY SDN BHD']);
+    }
+  });
+});
+
 describe('conceptOf for the D-386 presets', () => {
   const expected: Record<string, Record<string, string | null>> = {
     purchase: { merchant: 'merchant', date: 'issueDate', amount: 'amount', note: null },

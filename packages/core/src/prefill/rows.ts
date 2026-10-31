@@ -161,9 +161,14 @@ export function pageOccurrences(
     return { cells, text: cells.join(' '), relY: (top + bottom) / 2 / pageH };
   });
   const occ: Occurrence[] = [];
-  // 只有标签的一排：自己没有类型值，短（≤4 个词），以冒号结尾的才算「一定是标签」。
+  // 只有标签的一排：自己没有类型值，短（≤4 个词），冒号后面没有字（「用途: 餐饮」已经有值了），
+  // 以冒号结尾的才算「一定是标签」。
   const labelOnly = info.map(
-    (r) => !looksTyped(r.text, locale) && wordCount(r.text) <= 4 && r.text.length <= 30,
+    (r) =>
+      !looksTyped(r.text, locale) &&
+      wordCount(r.text) <= 4 &&
+      r.text.length <= 30 &&
+      !/[:：]\s*\S/.test(r.text),
   );
   const sureLabel = info.map((r, i) => labelOnly[i] && /[:：]\s*$/.test(r.text));
   info.forEach((r, ri) => {
@@ -204,7 +209,8 @@ export function pageOccurrences(
       const t = typed(right, locale);
       if (!t.some((v) => v.kind !== 'id') && !hasColon && /\p{L}/u.test(cell))
         prevText = cleanLabel(cell);
-      else if (hasColon) prevText = '';
+      // 「用途:」「TOTAL :」这样冒号后面空着的格子，值在右边的格子里：它就是右边的标签。
+      else if (hasColon) prevText = right.trim() ? '' : left;
     }
   });
   return { rows: info.map((r) => ({ text: r.text, relY: r.relY })), occ };

@@ -153,7 +153,7 @@ describe('新记录表单的候选值', () => {
     expect(runsLeft(files)).toEqual([]);
   });
 
-  it('装了文字识别：自动识别，空字段下面有候选，没有自动填；点了才填，那个字段的候选消失', async () => {
+  it('装了文字识别：自动识别，空字段下面有候选，没有自动填；点了才填，候选留在原地、点中的那个标出来', async () => {
     const { files, vision, repo } = await render();
     vision.layers.push(layer(RECEIPT));
     await shareInto(files, [{ name: 'receipt.jpg', mime: 'image/jpeg' }]);
@@ -162,18 +162,32 @@ describe('新记录表单的候选值', () => {
     // 实付排第一，不是小计；日期、商家也有。
     expect(chipTexts('amount')[0]).toMatch(/178\.23/);
     expect(chipTexts('date')[0]).toMatch(/「日期」/);
+    // 日期写出月份（日月分不清时两个候选才分得开），不是 2026-10-12 这种只有数字的写法。
+    expect(chipTexts('date')[0]).toMatch(/\d{4}年\d{1,2}月\d{1,2}日/);
     expect(chipTexts('merchant')[0]).toBe('把 Maple Corner 填进「商家」');
     // 一个都没有自动填。
     for (const id of ['merchant', 'date', 'amount'])
       expect(screen.getByTestId(`editor-${id}`).props.value ?? '').toBe('');
 
+    const before = chipTexts('amount');
     await fireEvent.press(screen.getByTestId('editor-amount-suggestion-0'));
     expect(screen.getByTestId('editor-amount').props.value).toBe('178.23');
-    expect(chipTexts('amount')).toEqual([]);
-    // 别的字段的候选还在；手动输入的字段候选也消失，不学。
-    expect(chipTexts('date').length).toBeGreaterThan(0);
+    // 候选不消失（下面的字段不会往上跳，iOS 模拟器 2026-10-31），点中的那个标成已选。
+    expect(chipTexts('amount')).toEqual(before);
+    const selected = (id: string) =>
+      screen
+        .queryAllByTestId(new RegExp(`^editor-${id}-suggestion-\\d$`))
+        .map((c) =>
+          Boolean(
+            (c.props as { accessibilityState?: { selected?: boolean } }).accessibilityState
+              ?.selected,
+          ),
+        );
+    expect(selected('amount')).toEqual(before.map((_, i) => i === 0));
+    // 手动输入的字段：候选还在，一个都不标；不学。
     await fireEvent.changeText(screen.getByTestId('editor-merchant'), '枫叶小店');
-    expect(chipTexts('merchant')).toEqual([]);
+    expect(chipTexts('merchant').length).toBeGreaterThan(0);
+    expect(selected('merchant').some(Boolean)).toBe(false);
     await save();
     const [record] = await repo.listRecords('purchases');
     expect(record!.values).toMatchObject({ amount: 178.23, merchant: '枫叶小店' });

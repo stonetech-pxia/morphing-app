@@ -97,6 +97,11 @@ export function labelScore(
   return Math.max(0, Math.min(1, p - e));
 }
 
+/** 标签明明白白是这个字段的排除词（覆盖 ≥ 0.75，和 labelScore 整个减掉的门槛一样）：小计、找零、优惠。 */
+export function isExcludedLabel(label: string, exclude: readonly string[]): boolean {
+  return !!label && exclude.some((k) => charCover(label, k) >= 0.75);
+}
+
 /** 两段文字有多像（0..1，编辑距离）；单选的选项比对用（difflib 的近似）。 */
 export function ratio(a: string, b: string): number {
   if (a === b) return 1;

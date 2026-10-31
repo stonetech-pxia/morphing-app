@@ -47,6 +47,7 @@ import {
   type RecordToolUse,
   isOpenUse,
   isRecordToolUse,
+  localeTag,
   type ComponentStyle,
   type DataRecord,
   type ValueSuggestion,
@@ -656,13 +657,27 @@ function LinkInput({
 /** 一组字段的输入，带名称和错误提示。记录编辑页和 inline 表单共用。 */
 const isEmptyValue = (v: unknown) => v === undefined || v === null || v === '';
 
+/** 候选里的日期写出月份（2026年8月11日、Aug 11, 2026、11 août 2026）：日月分不清的两个候选才分得开。 */
+function suggestionDate(iso: string, locale: RenderEnv['locale']): string {
+  const at = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(at.getTime())) return iso;
+  return new Intl.DateTimeFormat(localeTag(locale), {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(at);
+}
+
 /**
- * 一个空字段下面的候选值（D-388）：安静的小按钮，显示整理过的值（金额带货币、日期按语言），
- * 太长时截断；点了才填，从不自动填。
+ * 字段下面的候选值（D-388）：安静的小按钮，显示整理过的值（金额带货币、日期写出月份），
+ * 太长时截断；点了才填，从不自动填。点了以后候选留在原地（下面的字段不往上跳），和字段里的值
+ * 一样的那个标成已选，点另一个就换成另一个。
  */
 function SuggestionChips({
   field,
   list,
+  current,
   palette,
   locale,
   disabled,
@@ -671,22 +686,27 @@ function SuggestionChips({
 }: {
   field: Field;
   list: readonly ValueSuggestion[];
+  /** 字段现在的值（和某个候选一样时那个候选标成已选）。 */
+  current: unknown;
   palette: Palette;
   locale: RenderEnv['locale'];
   disabled?: boolean | undefined;
   testID: string;
   onPick: (s: ValueSuggestion) => void;
 }) {
+  const numeric = field.type === 'money' || field.type === 'number';
   const shown = (s: ValueSuggestion) =>
-    formatValue(
-      field,
-      field.type === 'money' || field.type === 'number' ? Number(s.value) : s.value,
-      locale,
-    ) || s.value;
+    field.type === 'date'
+      ? suggestionDate(s.value, locale)
+      : formatValue(field, numeric ? Number(s.value) : s.value, locale) || s.value;
+  const isCurrent = (s: ValueSuggestion) =>
+    !isEmptyValue(current) &&
+    (numeric ? Number(current) === Number(s.value) : String(current) === s.value);
   return (
     <View testID={testID} style={styles.suggestions}>
       {list.map((s, i) => {
         const value = shown(s);
+        const selected = isCurrent(s);
         return (
           <Pressable
             key={`${s.value}-${i}`}
@@ -694,16 +714,23 @@ function SuggestionChips({
             disabled={disabled}
             onPress={() => onPick(s)}
             accessibilityRole="button"
+            accessibilityState={{ selected }}
             accessibilityLabel={t(locale, 'suggestionFill', { field: field.name, value })}
             hitSlop={4}
             style={[
               styles.suggestion,
-              { borderColor: palette.border, borderRadius: palette.radius / 2 },
+              {
+                borderColor: selected ? palette.primary : palette.border,
+                borderRadius: palette.radius / 2,
+              },
             ]}>
             <Text
               numberOfLines={1}
               ellipsizeMode="tail"
-              style={[palette.font('body', 13), { color: palette.muted }]}>
+              style={[
+                palette.font(selected ? 'bodyMedium' : 'body', 13),
+                { color: selected ? palette.primary : palette.muted },
+              ]}>
               {value}
             </Text>
           </Pressable>
@@ -828,10 +855,11 @@ export function FieldsForm({
               onSubmit={onSubmit}
               autoFocus={autoFocus === true && id === firstText}
             />
-            {suggestions?.[id]?.length && isEmptyValue(values[id]) ? (
+            {suggestions?.[id]?.length ? (
               <SuggestionChips
                 field={field}
                 list={suggestions[id]!}
+                current={values[id]}
                 palette={palette}
                 locale={locale}
                 disabled={disabled}

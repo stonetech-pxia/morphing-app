@@ -1,7 +1,7 @@
 import type { Field, Locale } from '../schema';
 import { CONCEPTS, fieldTerms, type ConceptId, type ValueKind } from './concepts';
 import { looksTyped, pageOccurrences, type Occurrence, type TextPage } from './rows';
-import { charSim, labelScore, norm, ratio } from './similarity';
+import { charSim, isExcludedLabel, labelScore, norm, ratio } from './similarity';
 
 // 新记录表单的候选值（D-388）：每个空字段最多给 3 个候选，用户点了才填，从不自动填
 // （创始人 2026-10-31：「宁可不填，不能乱填」，两次测量都找不到 0 错的门槛）。
@@ -73,6 +73,8 @@ const GENERIC = [
   '收据',
   '小票',
   '谢谢惠顾',
+  '感谢惠顾',
+  '欢迎再次光临',
   '合同',
   '账单',
   '样本',
@@ -89,6 +91,9 @@ const isGeneric = (n: string) =>
   GENERIC.some((g) => n === g || (n.includes(g) && n.length <= g.length + 4));
 const ADDRESS =
   /\b(street|st|road|rd|jalan|jln|lorong|taman|avenue|ave|rue|bd|boulevard|no|lot|blok|block)\b|[路街号巷弄区]/i;
+/** 没有门牌字样也认得出的地址行：带逗号又有邮编（4–6 位数字），或者写了国家、州名（真实小票上排在店名前面过）。 */
+const ADDRESS_ONLY =
+  /(,.*\b\d{4,6}\b|\b\d{4,6}\b.*,)|\b(malaysia|singapore|selangor|johor|kuala lumpur|china|france|usa|united states|canada|australia|cedex)\b|中国|[省市县]/i;
 
 /** 位置分要是 0 的字：通用的单据字样、太短太长、地址、数字多、网址邮箱、看起来是别的种类。 */
 function positionZero(text: string, locale: Locale): boolean {
@@ -96,6 +101,7 @@ function positionZero(text: string, locale: Locale): boolean {
   if (isGeneric(n)) return true;
   if (n.length <= 2 || text.split(/\s+/).length > 8 || text.length > 45) return true;
   if (/\d/.test(text) && ADDRESS.test(text)) return true;
+  if (ADDRESS_ONLY.test(text)) return true;
   if ([...n].filter((c) => /\d/.test(c)).length > 0.3 * n.length) return true;
   if (/@|www\.|https?:|\.com\b/i.test(text)) return true;
   return looksTyped(text, locale);
@@ -233,6 +239,8 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
     const pick = input.picks?.[field.id];
     const position = concept !== null && CONCEPTS[concept].position === true;
     for (const c of cands) {
+      // 每一处都在排除词后面（小计、优惠、找零）的值不给：它们明白地不是这个字段要的。
+      if (c.occ.every((o) => isExcludedLabel(o.label, exclude))) continue;
       const L = Math.max(...c.occ.map((o) => labelScore(o.label, keywords, exclude)));
       const U = 1 / n;
       let P = 1;
@@ -243,10 +251,18 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
       let M = 0;
       if (pick) {
         for (const o of c.occ) {
+          // 上次点的是没有标签的一排（店名）时，只认同样没有标签、又不是地址这类的排。
           const ls =
-            !pick.label && !o.label ? 1 : pick.label && o.label ? charSim(o.label, pick.label) : 0;
+            !pick.label && !o.label
+              ? want === 'text' && positionZero(rowText(o), input.locale)
+                ? 0
+                : 1
+              : pick.label && o.label
+                ? charSim(o.label, pick.label)
+                : 0;
           const ps = Math.max(0, 1 - Math.abs(o.relY - pick.relY) / 0.1);
-          let m = 0.5 * ls + 0.5 * ps;
+          // 文字只靠「高度差不多」不算记得：标签一点都对不上就不给记忆分。
+          let m = want === 'text' && ls === 0 ? 0 : 0.5 * ls + 0.5 * ps;
           if (pick.order && c.order && pick.order !== c.order) m *= 0.5;
           M = Math.max(M, m);
         }
@@ -266,7 +282,9 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
           } else if (o.page === 0 && o.row < 3) X = Math.max(X, (3 - o.row) / 3);
         }
       }
-      c.score = 3 * L + 3 * M + U + P + X;
+      // 文字字段只靠「唯一」和「合理」不够：标签、记忆、位置一样都不沾边的排不给（「备注」「事由」
+      // 下面列出店名、地址这类没用的候选，iOS 模拟器上 2026-10-31 发现）。
+      c.score = want === 'text' && L === 0 && M === 0 && X === 0 ? 0 : 3 * L + 3 * M + U + P + X;
       c.first = Math.min(...c.occ.map((o) => o.page * 10000 + o.row));
     }
     cands.sort((a, b) => b.score - a.score || a.first - b.first);
