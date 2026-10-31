@@ -1427,6 +1427,17 @@ export const fr: MessageTable = {
   deskStorageAbout:
     'Fichiers en cours de modification et leurs versions (les 20 dernières, 500 Mo au plus).',
   deskStale: 'Inutilisé depuis {n} jours, vous pouvez le vider',
+  // 收件页面「存成记录」（D-386）。
+  shareRecord: 'Enregistrer comme entrée',
+  shareRecordAbout: 'Rangez les fichiers dans un tableau et remplissez le reste vous-même',
+  shareRecordChoose: 'Choisir',
+  shareRecordHide: 'Masquer',
+  shareRecordTables: 'Vos tableaux',
+  shareRecordPresets: 'Nouveau tableau',
+  shareRecordBlank: 'Vide',
+  shareRecordBlankAbout: 'Un titre et les fichiers. Vous pourrez renommer le tableau plus tard.',
+  shareRecordTooMany: 'Une entrée contient au plus {n} fichiers : seuls les {n} premiers y vont.',
+  shareRecordNewTable: 'Ajouter le tableau « {name} »',
 };
 
 export const frSingular: SingularTable = {
@@ -1518,4 +1529,5 @@ export const frSingular: SingularTable = {
   widgetSkipped: '{n} appui sur le widget n’a pas été enregistré, car la page a changé',
   deskTargets: 'Les outils s’appliquent à {n} fichier',
   deskStale: 'Inutilisé depuis {n} jour, vous pouvez le vider',
+  shareRecordTooMany: 'Une entrée contient au plus {n} fichier : seul le premier y va.',
 };

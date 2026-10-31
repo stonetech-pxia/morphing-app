@@ -1,0 +1,157 @@
+{
+  "ids": {
+    "table": "reimbursements",
+    "page": "reimbursements"
+  },
+  "table": {
+    "id": "$table",
+    "name": {
+      "en": "Reimbursements",
+      "zh": "报销",
+      "fr": "Remboursements"
+    },
+    "icon": "chart",
+    "fields": [
+      {
+        "id": "reason",
+        "name": {
+          "en": "Purpose",
+          "zh": "事由",
+          "fr": "Motif"
+        },
+        "type": "text"
+      },
+      {
+        "id": "date",
+        "name": {
+          "en": "Date",
+          "zh": "日期",
+          "fr": "Date"
+        },
+        "type": "date"
+      },
+      {
+        "id": "amount",
+        "name": {
+          "en": "Amount",
+          "zh": "金额",
+          "fr": "Montant"
+        },
+        "type": "money",
+        "currency": {
+          "en": "USD",
+          "zh": "CNY",
+          "fr": "EUR"
+        }
+      },
+      {
+        "id": "status",
+        "name": {
+          "en": "Status",
+          "zh": "状态",
+          "fr": "Statut"
+        },
+        "type": "choice",
+        "options": [
+          {
+            "id": "todo",
+            "label": {
+              "en": "To submit",
+              "zh": "待提交",
+              "fr": "À soumettre"
+            }
+          },
+          {
+            "id": "submitted",
+            "label": {
+              "en": "Submitted",
+              "zh": "已提交",
+              "fr": "Soumis"
+            }
+          },
+          {
+            "id": "paid",
+            "label": {
+              "en": "Reimbursed",
+              "zh": "已报销",
+              "fr": "Remboursé"
+            }
+          }
+        ]
+      },
+      {
+        "id": "attachments",
+        "name": {
+          "en": "Attachments",
+          "zh": "附件",
+          "fr": "Pièces jointes"
+        },
+        "type": "file"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Reimbursements",
+      "zh": "报销",
+      "fr": "Remboursements"
+    },
+    "icon": "chart",
+    "blocks": [
+      {
+        "id": "title",
+        "look": "header",
+        "show": {
+          "title": {
+            "en": "Reimbursements",
+            "zh": "报销",
+            "fr": "Remboursements"
+          }
+        }
+      },
+      {
+        "id": "add",
+        "look": "button",
+        "show": {
+          "label": {
+            "en": "Add",
+            "zh": "添加",
+            "fr": "Ajouter"
+          },
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
+      },
+      {
+        "id": "entries",
+        "look": "list",
+        "source": {
+          "table": "$table",
+          "sort": {
+            "field": "date",
+            "direction": "desc"
+          },
+          "limit": 50
+        },
+        "show": {
+          "title": "reason",
+          "subtitles": ["status", "date"],
+          "trailing": "amount",
+          "emptyText": {
+            "en": "Nothing yet",
+            "zh": "还没有记录",
+            "fr": "Rien pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

@@ -45,44 +45,55 @@ export async function importUserFiles(
 ): Promise<FilesImport> {
   const picked = (await pick(source, max, files))?.slice(0, max);
   if (!picked || picked.length === 0) return { kind: 'cancelled' };
-  const assetIds: string[] = [];
   try {
-    for (const file of picked) {
-      const size = file.size ?? 0;
-      if (size > MEDIA_LIMITS.maxFileBytes) return { kind: 'done', assetIds, problem: 'tooLarge' };
-      // 每复制一个都重新查一次剩余空间（前面的已经占了地方）。
-      const free = files.freeDiskBytes();
-      if (free !== null && size + SPACE_MARGIN > free)
-        return { kind: 'done', assetIds, problem: 'noSpace' };
-      const clean = sanitizeFileName(file.name);
-      // 扩展名照原样保留（大小写也不改）。
-      const ext = /\.([^./]+)$/.exec(clean)?.[1] ?? 'bin';
-      const existing = (await repo.listAssets()).map((a) => a.name);
-      const name = uniqueFileName(clean.replace(/\.[^.]+$/, '') || 'untitled', ext, existing);
-      const id = newAssetId();
-      let stored;
-      try {
-        // 原生复制失败时自己删掉半个文件（expo-platform 的 importFile）。
-        stored = await files.importFile(file, id, name);
-      } catch {
-        return { kind: 'done', assetIds, problem: 'copyFailed' };
-      }
-      await repo.addAsset({
-        id,
-        name,
-        mimeType: mimeOf(name, file.mimeType),
-        size: stored.size,
-        path: stored.path,
-        source: 'picked',
-        createdAt: Date.now(),
-      });
-      assetIds.push(id);
-    }
-    return { kind: 'done', assetIds };
+    return { kind: 'done', ...(await copyUserFiles(picked, files, repo)) };
   } finally {
     // 选择器复制进缓存的那份（视频可能很大）用完就删；相册原件、content:// 不在缓存里，不会动。
     await files.removePickedCopies(picked.map((p) => p.uri)).catch(() => undefined);
   }
+}
+
+/**
+ * 把几个文件逐个复制成用户文件，原件不动、也不删（收件那一批的副本由收件页面释放时删，D-386）。
+ * 存好的按顺序；中间出了问题就停在那里，problem 说明原因。
+ */
+export async function copyUserFiles(
+  picked: readonly PickedFile[],
+  files: FilePlatform,
+  repo: WorkspaceRepo,
+): Promise<{ assetIds: string[]; problem?: ImportProblem }> {
+  const assetIds: string[] = [];
+  for (const file of picked) {
+    const size = file.size ?? 0;
+    if (size > MEDIA_LIMITS.maxFileBytes) return { assetIds, problem: 'tooLarge' };
+    // 每复制一个都重新查一次剩余空间（前面的已经占了地方）。
+    const free = files.freeDiskBytes();
+    if (free !== null && size + SPACE_MARGIN > free) return { assetIds, problem: 'noSpace' };
+    const clean = sanitizeFileName(file.name);
+    // 扩展名照原样保留（大小写也不改）。
+    const ext = /\.([^./]+)$/.exec(clean)?.[1] ?? 'bin';
+    const existing = (await repo.listAssets()).map((a) => a.name);
+    const name = uniqueFileName(clean.replace(/\.[^.]+$/, '') || 'untitled', ext, existing);
+    const id = newAssetId();
+    let stored;
+    try {
+      // 原生复制失败时自己删掉半个文件（expo-platform 的 importFile）。
+      stored = await files.importFile(file, id, name);
+    } catch {
+      return { assetIds, problem: 'copyFailed' };
+    }
+    await repo.addAsset({
+      id,
+      name,
+      mimeType: mimeOf(name, file.mimeType),
+      size: stored.size,
+      path: stored.path,
+      source: 'picked',
+      createdAt: Date.now(),
+    });
+    assetIds.push(id);
+  }
+  return { assetIds };
 }
 
 /** 文件入口：选一个文件复制进 App。 */

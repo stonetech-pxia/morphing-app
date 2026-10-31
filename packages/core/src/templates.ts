@@ -9,13 +9,18 @@ import {
   type Page,
   type WorkspaceConfig,
 } from './schema';
+import bill from './templates/bill.json';
+import blank from './templates/blank.json';
 import budget from './templates/budget.json';
+import contract from './templates/contract.json';
 import notes from './templates/notes.json';
+import purchase from './templates/purchase.json';
 import reading from './templates/reading.json';
+import reimbursement from './templates/reimbursement.json';
 import todo from './templates/todo.json';
 
 // 内置的数据页面模版（D-040）：mock AI 用它们理解「新建一个记账页面」这类说法，
-// 评测集也用它们准备初始状态。模版只生成数据表结构和页面，不含任何记录；还没有给用户直接选（D-255）。
+// 评测集也用它们准备初始状态。模版只生成数据表结构和页面，不含任何记录；这四个还没有给用户直接选（D-255），收件页面的预设表见下面（D-386）。
 //
 // 每个模版是 templates/<名字>.json（D-255，v34 写法）：
 // - ids：数据表和页面的基本 ID；配置里已经有同名的就加 -2、-3……
@@ -27,6 +32,21 @@ import todo from './templates/todo.json';
 export const DATA_TEMPLATES = ['budget', 'todo', 'reading', 'notes'] as const;
 export type DataTemplate = (typeof DATA_TEMPLATES)[number];
 
+/**
+ * 收件页面「存成记录」给用户选的预设表（D-386）：每个都有一个附件字段（attachments），字段之后都能改。
+ * 和上面四个分开列：mock AI 和评测只认上面四个，这几个只给用户在收件页面选。blank 是「空白」：
+ * 一个标题字段加附件字段，表名先用默认的名字，用户之后自己改。
+ */
+export const FILE_RECORD_PRESETS = [
+  'purchase',
+  'bill',
+  'contract',
+  'reimbursement',
+  'blank',
+] as const;
+export type FileRecordPreset = (typeof FILE_RECORD_PRESETS)[number];
+type Template = DataTemplate | FileRecordPreset;
+
 interface TemplateJson {
   ids: { table: string; page: string };
   table: unknown;
@@ -34,11 +54,16 @@ interface TemplateJson {
   entry: 'nav';
 }
 
-const TEMPLATES: Record<DataTemplate, TemplateJson> = {
+const TEMPLATES: Record<Template, TemplateJson> = {
   budget: budget as TemplateJson,
   todo: todo as TemplateJson,
   reading: reading as TemplateJson,
   notes: notes as TemplateJson,
+  purchase: purchase as TemplateJson,
+  bill: bill as TemplateJson,
+  contract: contract as TemplateJson,
+  reimbursement: reimbursement as TemplateJson,
+  blank: blank as TemplateJson,
 };
 
 type AddTable = OpOf<'addData'> & { table: Exclude<OpOf<'addData'>['table'], string> };
@@ -98,14 +123,14 @@ export function entryOps(
 }
 
 /** 生成某个模板的修改操作：新建数据表、新建页面，并给页面一个入口。 */
-export function templateOps(template: DataTemplate, config: WorkspaceConfig, locale: Locale): Op[] {
+export function templateOps(template: Template, config: WorkspaceConfig, locale: Locale): Op[] {
   const op = templateCollectionOp(template, config, locale);
   return [op, ...templatePageOps(template, config, locale, op.table.id)];
 }
 
 /** 只建模板的数据表（功能，D-191）；页面之后单独加（外观，先进草稿）。 */
 export function templateCollectionOp(
-  template: DataTemplate,
+  template: Template,
   config: WorkspaceConfig,
   locale: Locale,
 ): AddTable {
@@ -117,7 +142,7 @@ export function templateCollectionOp(
 
 /** 给已有的模板数据表建页面，并给页面一个入口。 */
 export function templatePageOps(
-  template: DataTemplate,
+  template: Template,
   config: WorkspaceConfig,
   locale: Locale,
   tableId: string,
@@ -129,6 +154,11 @@ export function templatePageOps(
     $page: pageId,
   }) as AddPage['page'];
   return [{ op: 'addContainer', page }, ...entryOps(config, pageId, page.title, page.icon)];
+}
+
+/** 预设表在这种语言下的名字（收件页面「存成记录」的列表里显示）。 */
+export function templateTableName(template: Template, locale: Locale): string {
+  return localize((TEMPLATES[template].table as { name: Record<Locale, string> }).name, locale);
 }
 
 /** 这个模板建好、但还没有页面用到的数据表（先做了功能、页面还没加，D-191）。 */

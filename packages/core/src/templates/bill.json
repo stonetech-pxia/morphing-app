@@ -1,0 +1,131 @@
+{
+  "ids": {
+    "table": "bills",
+    "page": "bills"
+  },
+  "table": {
+    "id": "$table",
+    "name": {
+      "en": "Bills",
+      "zh": "账单",
+      "fr": "Factures"
+    },
+    "icon": "calendar",
+    "fields": [
+      {
+        "id": "issuer",
+        "name": {
+          "en": "From",
+          "zh": "出具方",
+          "fr": "Émetteur"
+        },
+        "type": "text"
+      },
+      {
+        "id": "due",
+        "name": {
+          "en": "Due date",
+          "zh": "到期日",
+          "fr": "Échéance"
+        },
+        "type": "date"
+      },
+      {
+        "id": "amount",
+        "name": {
+          "en": "Amount",
+          "zh": "金额",
+          "fr": "Montant"
+        },
+        "type": "money",
+        "currency": {
+          "en": "USD",
+          "zh": "CNY",
+          "fr": "EUR"
+        }
+      },
+      {
+        "id": "paid",
+        "name": {
+          "en": "Paid",
+          "zh": "已付",
+          "fr": "Payée"
+        },
+        "type": "checkbox"
+      },
+      {
+        "id": "attachments",
+        "name": {
+          "en": "Attachments",
+          "zh": "附件",
+          "fr": "Pièces jointes"
+        },
+        "type": "file"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Bills",
+      "zh": "账单",
+      "fr": "Factures"
+    },
+    "icon": "calendar",
+    "blocks": [
+      {
+        "id": "title",
+        "look": "header",
+        "show": {
+          "title": {
+            "en": "Bills",
+            "zh": "账单",
+            "fr": "Factures"
+          }
+        }
+      },
+      {
+        "id": "add",
+        "look": "button",
+        "show": {
+          "label": {
+            "en": "Add",
+            "zh": "添加",
+            "fr": "Ajouter"
+          },
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
+      },
+      {
+        "id": "entries",
+        "look": "list",
+        "source": {
+          "table": "$table",
+          "sort": {
+            "field": "due",
+            "direction": "desc"
+          },
+          "limit": 50
+        },
+        "show": {
+          "title": "issuer",
+          "subtitles": ["due", "paid"],
+          "trailing": "amount",
+          "emptyText": {
+            "en": "Nothing yet",
+            "zh": "还没有记录",
+            "fr": "Rien pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

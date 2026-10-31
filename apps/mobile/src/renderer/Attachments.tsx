@@ -111,7 +111,7 @@ export function AttachmentThumb({
   );
 }
 
-const IMPORT_PROBLEMS: Record<ImportProblem, StringKey> = {
+export const IMPORT_PROBLEMS: Record<ImportProblem, StringKey> = {
   tooLarge: 'fileSlotTooLarge',
   noSpace: 'fileSlotNoSpace',
   copyFailed: 'fileSlotCopyFailed',

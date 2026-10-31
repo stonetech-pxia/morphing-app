@@ -1,6 +1,6 @@
-import type { DataRecord, FieldIssue } from '@morph/core';
+import { attachmentIds, type DataRecord, type FieldIssue } from '@morph/core';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 
 import { useComputedRecords, useRecordActions } from '@/data/records';
@@ -8,17 +8,22 @@ import { t } from '@/i18n';
 import { FieldsForm, prefillFormValues, toFormValues } from '@/renderer/data';
 import { usePalette } from '@/renderer/theme';
 import { Button } from '@/renderer/ui';
+import { takeFormCopies } from '@/share/save-as-record';
+import { deleteUserFiles } from '@/storage/user-files';
 import { useCalendar, useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
 /** 记录编辑页：由内核按数据表的字段自动生成，不可配置（docs/DATA_DESIGN.md §5）。 */
 export default function RecordRoute() {
-  const { collectionId, recordId, prefill } = useLocalSearchParams<{
+  const { collectionId, recordId, prefill, copies } = useLocalSearchParams<{
     collectionId: string;
     recordId?: string;
     /** 一键操作打开的新记录表单（D-338）：预设的值，JSON。 */
     prefill?: string;
+    /** 收件页面「存成记录」（D-386）：为这张表单复制出来的用户文件的键（share/save-as-record.ts）。 */
+    copies?: string;
   }>();
-  const { repo, locale } = useWorkspaceContext();
+  const { repo, files, locale } = useWorkspaceContext();
+  const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const router = useRouter();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
@@ -31,6 +36,20 @@ export default function RecordRoute() {
     !recordId && prefill && collection ? prefillFormValues(collection, prefill) : {},
   );
   const [issues, setIssues] = useState<FieldIssue[]>([]);
+  // 收件页面复制来的文件（D-386）：离开这一页时，没存进这条记录的删掉（没保存就离开时全部删掉）。
+  // 它们是这张表单自己的副本，原件和收件那一批不动。
+  const [copied] = useState(() => (recordId ? [] : takeFormCopies(copies)));
+  const kept = useRef<Set<string>>(new Set());
+  useEffect(
+    () => () => {
+      const unused = copied.filter((id) => !kept.current.has(id));
+      if (unused.length === 0) return;
+      void deleteUserFiles(unused, repo, files)
+        .then(bumpAssets)
+        .catch(() => undefined);
+    },
+    [copied, repo, files, bumpAssets],
+  );
 
   useEffect(() => {
     if (!recordId || !collection) return;
@@ -56,8 +75,12 @@ export default function RecordRoute() {
     const result = record
       ? await actions.update(collection, record, values)
       : await actions.add(collection, values);
-    if (result.ok) router.back();
-    else if ('issues' in result) setIssues(result.issues);
+    if (result.ok) {
+      kept.current = new Set(
+        collection.fields.flatMap((f) => (f.type === 'file' ? attachmentIds(values[f.id]) : [])),
+      );
+      router.back();
+    } else if ('issues' in result) setIssues(result.issues);
   }
 
   async function remove() {

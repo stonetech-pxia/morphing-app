@@ -1,0 +1,131 @@
+{
+  "ids": {
+    "table": "purchases",
+    "page": "purchases"
+  },
+  "table": {
+    "id": "$table",
+    "name": {
+      "en": "Receipts",
+      "zh": "购物凭证",
+      "fr": "Justificatifs d’achat"
+    },
+    "icon": "archive",
+    "fields": [
+      {
+        "id": "merchant",
+        "name": {
+          "en": "Store",
+          "zh": "商家",
+          "fr": "Commerçant"
+        },
+        "type": "text"
+      },
+      {
+        "id": "date",
+        "name": {
+          "en": "Date",
+          "zh": "日期",
+          "fr": "Date"
+        },
+        "type": "date"
+      },
+      {
+        "id": "amount",
+        "name": {
+          "en": "Amount",
+          "zh": "金额",
+          "fr": "Montant"
+        },
+        "type": "money",
+        "currency": {
+          "en": "USD",
+          "zh": "CNY",
+          "fr": "EUR"
+        }
+      },
+      {
+        "id": "note",
+        "name": {
+          "en": "Note",
+          "zh": "备注",
+          "fr": "Remarque"
+        },
+        "type": "text"
+      },
+      {
+        "id": "attachments",
+        "name": {
+          "en": "Attachments",
+          "zh": "附件",
+          "fr": "Pièces jointes"
+        },
+        "type": "file"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Receipts",
+      "zh": "购物凭证",
+      "fr": "Justificatifs d’achat"
+    },
+    "icon": "archive",
+    "blocks": [
+      {
+        "id": "title",
+        "look": "header",
+        "show": {
+          "title": {
+            "en": "Receipts",
+            "zh": "购物凭证",
+            "fr": "Justificatifs d’achat"
+          }
+        }
+      },
+      {
+        "id": "add",
+        "look": "button",
+        "show": {
+          "label": {
+            "en": "Add",
+            "zh": "添加",
+            "fr": "Ajouter"
+          },
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
+      },
+      {
+        "id": "entries",
+        "look": "list",
+        "source": {
+          "table": "$table",
+          "sort": {
+            "field": "date",
+            "direction": "desc"
+          },
+          "limit": 50
+        },
+        "show": {
+          "title": "merchant",
+          "subtitles": ["date", "note"],
+          "trailing": "amount",
+          "emptyText": {
+            "en": "Nothing yet",
+            "zh": "还没有记录",
+            "fr": "Rien pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

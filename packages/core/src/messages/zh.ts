@@ -1293,4 +1293,15 @@ export const zh: MessageTable = {
   deskStorageTitle: '桌上的文件',
   deskStorageAbout: '房间里正在改的文件和它们的版本（最近 20 个，最多 500 MB）。',
   deskStale: '{n} 天没动了，可以清掉',
+  // 收件页面「存成记录」（D-386）。
+  shareRecord: '存成记录',
+  shareRecordAbout: '放进一张表，其余的自己填',
+  shareRecordChoose: '选择',
+  shareRecordHide: '收起',
+  shareRecordTables: '你的表',
+  shareRecordPresets: '新建一张表',
+  shareRecordBlank: '空白',
+  shareRecordBlankAbout: '一个标题加这些文件，表名之后可以改。',
+  shareRecordTooMany: '一条记录最多放 {n} 个文件，只放前 {n} 个。',
+  shareRecordNewTable: '新建数据表「{name}」',
 };

@@ -1371,6 +1371,17 @@ export const en = {
   deskStorageAbout:
     'Files you are editing in the room, with their versions (the last 20, at most 500 MB).',
   deskStale: 'Untouched for {n} days, you can clear it',
+  // 收件页面「存成记录」（D-386）。
+  shareRecord: 'Save as an entry',
+  shareRecordAbout: 'Put the files in a table and fill in the rest yourself',
+  shareRecordChoose: 'Choose',
+  shareRecordHide: 'Hide',
+  shareRecordTables: 'Your tables',
+  shareRecordPresets: 'New table',
+  shareRecordBlank: 'Blank',
+  shareRecordBlankAbout: 'A title and the files. You can rename the table later.',
+  shareRecordTooMany: 'An entry holds at most {n} files: only the first {n} go in.',
+  shareRecordNewTable: 'Add the table “{name}”',
 };
 
 export type StringKey = keyof typeof en;
@@ -1466,6 +1477,7 @@ export const enSingular = {
   widgetSkipped: '{n} tap on the widget wasn’t recorded because the page changed',
   deskTargets: 'Tools apply to {n} file',
   deskStale: 'Untouched for {n} day, you can clear it',
+  shareRecordTooMany: 'An entry holds at most {n} file: only the first one goes in.',
 } satisfies Partial<MessageTable>;
 
 /** 单数表：键必须和 enSingular 完全一致。 */
