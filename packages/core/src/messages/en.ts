@@ -766,6 +766,10 @@ export const en = {
   homeScreenGone: 'This quick action is no longer on the home screen.',
   describeRemovedReminders: 'Also removes the reminders that needed it: {names}',
   describeRemovedRecordPages: 'Also removes the pages for one entry of it: {names}',
+  describeRemovedStep: 'The step “{step}” in the quick action “{name}” is removed too',
+  describeTrimmedStep: 'The step “{step}” in the quick action “{name}” no longer lists this field',
+  describeRemovedQuickAction:
+    'The quick action “{name}” can’t work without this table and is removed too',
   reminderWhenDaily: 'every day at {time}',
   reminderWhenWeekly: 'every {days} at {time}',
   reminderWhenDate: '{n} days before “{field}” in “{table}”, at {time}',

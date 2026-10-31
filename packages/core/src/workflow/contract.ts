@@ -65,7 +65,9 @@ export interface ParamField {
   key: string;
   label: Localized;
   /**
-   * collection：选一张数据表（选项来自配置）；fields：选这张表的几个字段（编辑页按前面「读取记录」步骤的表列出）。
+   * collection：选一张数据表（选项来自配置）；fields：选这张表的几个字段（同一步有 collection 参数时是那张表，
+   * 否则是传进来的记录所在的表；编辑页按前面「读取记录」步骤的表列出）。这两种就是参数引用配置的声明
+   * （CHAIN_AUDIT A3）：检查和删表、删字段时的清理按它们来（workflow/refs.ts），不按动作 ID 写死。
    * secret：密码（D-194、D-199）。不在参数结构里，配置存不进去、AI 看不到；每次运行时都问，
    * 只交给这一次运行（StepContext.secrets），不进运行记录。
    */
@@ -79,6 +81,11 @@ export interface ParamField {
     | 'collection'
     | 'fields'
     | 'secret';
+  /**
+   * collection 参数：这一步把传进来的值存进这张表（记一笔，D-187）。表里要有放它的字段：文件要有附件字段，
+   * 文字要有长文本或文字字段。
+   */
+  receives?: boolean;
   /** 多行文字（文字转 PDF、二维码内容）。 */
   multiline?: boolean;
   unit?: ParamUnit;

@@ -803,6 +803,17 @@ export function describeChange(
           names: note.titles.join(t(ctx.locale, 'separatorList')),
         }),
       );
+    } else if (note.kind === 'prunedSteps') {
+      if (note.removed)
+        lines.push(t(ctx.locale, 'describeRemovedQuickAction', { name: note.name }));
+      for (const step of note.steps)
+        lines.push(
+          t(ctx.locale, 'describeRemovedStep', { name: note.name, step: actionLabel(step) }),
+        );
+      for (const step of note.trimmed)
+        lines.push(
+          t(ctx.locale, 'describeTrimmedStep', { name: note.name, step: actionLabel(step) }),
+        );
     } else if (note.kind === 'addedEntryForm') {
       lines.push(t(ctx.locale, 'describeAddedEntryForm', { table: collName(note.table) }));
     } else if (note.kind === 'removedRecordActions') {

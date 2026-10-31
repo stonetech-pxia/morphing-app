@@ -43,13 +43,12 @@ import {
   type KnownComponent,
   type OpenTarget,
   type Page,
-  type QuickAction,
   type WorkspaceConfig,
 } from './schema';
 import { contrastProblems } from './theme';
 import { presetById } from './workflows/presets';
 import { workflowProblems } from './workflow/check';
-import { outputTypeOf, type ValueType } from './workflow/contract';
+import { stepRefProblems } from './workflow/refs';
 
 // 变更校验（§7D）：结构 → 引用 → 受保护元素 → 可读性 → 工具与权限 → 快捷操作的数据流。
 // 任何配置在保存或渲染之前都必须通过这里。v34「数据 · 容器 · 工具」：块的引用按登记表里的路径查（refs），
@@ -231,7 +230,7 @@ export function validateWorkspace(
     for (const id of duplicates(wf.steps.map((s) => s.id)))
       issue('duplicate', `step ${id} in ${wf.id}`);
     for (const problem of workflowProblems(wf, registry)) issue(problem.code, problem.message);
-    for (const message of recordStepProblems(wf, config, registry)) issue('data', message);
+    for (const message of stepRefProblems(wf, config, registry)) issue('data', message);
     // 工具包自带的快捷操作只能用该工具包声明过的权限；用户自己的快捷操作由用户逐步确认。
     if (!toolDef) continue;
     for (const step of wf.steps) {
@@ -598,60 +597,6 @@ function setAsideUnknown(
       return config;
     },
   };
-}
-
-/**
- * 读取记录的步骤要指向存在的数据表；生成 PDF 的字段要是这张表的字段（D-042）。
- * 记一笔（D-187）：表要存在；收文件时表里要有附件字段，收文字时要有长文本或文字字段。
- * 参数名 collectionId 是动作目录（in.records、out.addRecord）的写法，不是配置结构，v34 不改。
- */
-function recordStepProblems(
-  wf: QuickAction,
-  config: WorkspaceConfig,
-  registry: Registry,
-): string[] {
-  const problems: string[] = [];
-  let collection: Collection | undefined;
-  let value: ValueType | null = null;
-  const tables = config.data.tables;
-  for (const step of wf.steps) {
-    const action = registry.actions.get(step.action);
-    if (step.action === 'out.addRecord') {
-      const target = tables.find((c) => c.id === step.params.collectionId);
-      if (!target) {
-        problems.push(
-          `${wf.id}/${step.id}: data table ${String(step.params.collectionId)} does not exist`,
-        );
-      } else if (value === 'text') {
-        if (!target.fields.some((f) => f.type === 'note' || f.type === 'text'))
-          problems.push(
-            `${wf.id}/${step.id}: ${target.id} needs a text or long text field for the text`,
-          );
-      } else if (value !== null && !target.fields.some((f) => f.type === 'file')) {
-        problems.push(
-          `${wf.id}/${step.id}: ${target.id} needs an attachment (file) field for the files`,
-        );
-      }
-    }
-    if (action) value = outputTypeOf(action, step.params, value);
-    if (step.action === 'in.records') {
-      collection = tables.find((c) => c.id === step.params.collectionId);
-      if (!collection) {
-        problems.push(
-          `${wf.id}/${step.id}: data table ${String(step.params.collectionId)} does not exist`,
-        );
-      }
-    }
-    if (step.action === 'print.records' && collection && Array.isArray(step.params.fields)) {
-      for (const ref of step.params.fields as unknown[]) {
-        const ok =
-          ref === 'createdAt' || ref === 'updatedAt' || collection.fields.some((f) => f.id === ref);
-        if (!ok)
-          problems.push(`${wf.id}/${step.id}: ${String(ref)} is not a field of ${collection.id}`);
-      }
-    }
-  }
-  return problems;
 }
 
 /**

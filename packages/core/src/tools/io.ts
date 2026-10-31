@@ -544,6 +544,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
         key: 'collectionId',
         label: { en: 'Data table', zh: '数据表', fr: 'Table de données' },
         kind: 'collection',
+        receives: true,
       },
     ],
     local: 'recordEntry',

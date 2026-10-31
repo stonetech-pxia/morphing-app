@@ -706,6 +706,21 @@ function danglingRefs(config: WorkspaceConfig): string[] {
   walk(config.data, 'data');
   for (const id of config.nav.phoneHomeScreen ?? [])
     if (!tools.has(id)) out.push(`nav.phoneHomeScreen: ${id}`);
+  // 快捷操作的步骤：参数里的表（collectionId），和记录生成 PDF 列出的字段（属于前面读取记录的那张表）。
+  for (const wf of config.tools) {
+    if (wf.kind !== 'quickAction') continue;
+    let read: string | null = null;
+    for (const step of wf.steps) {
+      const at = `tools.${wf.id}.${step.id}`;
+      const table = step.params.collectionId;
+      if (typeof table === 'string' && !tables.has(table)) out.push(`${at}.collectionId: ${table}`);
+      if (step.action === 'in.records') read = typeof table === 'string' ? table : null;
+      if (Array.isArray(step.params.fields) && read && tables.has(read))
+        for (const f of step.params.fields as string[])
+          if (!tables.get(read)!.has(f) && !/^(createdAt|updatedAt)$/.test(f))
+            out.push(`${at}.fields: ${read}.${f}`);
+    }
+  }
   return out;
 }
 
@@ -744,11 +759,30 @@ describe('底线 18：配置永远自洽', () => {
   it('every frozen config starts without a dangling reference (the checker itself)', () => {
     for (const [name, config] of CONFIGS)
       expect({ name, refs: danglingRefs(config) }).toEqual({ name, refs: [] });
-    // 检查器本身认得出坏引用。
+    // 检查器本身认得出坏引用（包括快捷操作步骤里的表和字段）。
     const broken = structuredClone(v34Fixture('tasks'));
     broken.nav.bar = ['page:nope', 'settings'];
     expect(danglingRefs(broken)).toEqual(['nav.bar[0]: page:nope']);
+    const steps = structuredClone(fromV33(v33Fixture('sample-expense-helper-zh')));
+    steps.data.tables = [];
+    expect(danglingRefs(steps).filter((r) => r.startsWith('tools.')).length).toBeGreaterThan(0);
   });
+
+  it.each(CONFIGS.map(([n]) => n))(
+    '%s: removing a table or field that quick-action steps use cleans up those steps instead of being refused for them',
+    (name) => {
+      const config = CONFIGS.find(([n]) => n === name)![1];
+      for (const op of removals(config).filter((o) => o.op === 'removeData')) {
+        const r = prepareOps(config, [op], ctx);
+        if (r.ok) continue;
+        // 别的原因（被别的表引用、表单问的字段）照常拒绝；不能因为快捷操作的步骤拒绝。
+        expect({ op, issues: r.issues.filter((i) => /^[\w-]+\/[\w-]+: /.test(i)) }).toEqual({
+          op,
+          issues: [],
+        });
+      }
+    },
+  );
 
   it.each(CONFIGS.map(([n]) => n))(
     '%s: removing any one table, field, page, block, tool, step or package either cleans up or is refused',

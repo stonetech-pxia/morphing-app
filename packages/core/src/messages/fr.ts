@@ -812,6 +812,10 @@ export const fr: MessageTable = {
   homeScreenGone: 'Cette action rapide n’est plus sur l’écran d’accueil.',
   describeRemovedReminders: 'Retire aussi les rappels qui en dépendaient : {names}',
   describeRemovedRecordPages: 'Retire aussi les pages d’une entrée de ce tableau : {names}',
+  describeRemovedStep: 'L’étape « {step} » de l’action rapide « {name} » est retirée aussi',
+  describeTrimmedStep: 'L’étape « {step} » de l’action rapide « {name} » ne liste plus ce champ',
+  describeRemovedQuickAction:
+    'L’action rapide « {name} » ne peut plus fonctionner sans ce tableau et est retirée aussi',
   reminderWhenDaily: 'tous les jours à {time}',
   reminderWhenWeekly: 'chaque {days} à {time}',
   reminderWhenDate: '{n} jours avant « {field} » dans « {table} », à {time}',

@@ -44,7 +44,9 @@ import {
   type WorkspaceConfig,
 } from './schema';
 import { DEFAULT_THEME } from './theme';
+import { workflowProblems } from './workflow/check';
 import { REDACTED_TEXT } from './workflow/redact';
+import { missingPlace, stepRefs } from './workflow/refs';
 import { presetById } from './workflows/presets';
 
 export * from './ops-schema';
@@ -73,6 +75,11 @@ export type ApplyNote =
   | { kind: 'removedRecordActions'; count: number }
   /** 移出表时，给它的一条记录用的页面（page.of，D-342）跟着移除。 */
   | { kind: 'removedRecordPages'; titles: string[] }
+  /**
+   * 删表、删字段时快捷操作里用到它的步骤（CHAIN_AUDIT A3）：steps 是去掉的步骤、trimmed 是只拿掉了这个字段的
+   * 步骤（动作 ID）；removed：剩下的步骤用不了，整个快捷操作跟着移除。
+   */
+  | { kind: 'prunedSteps'; name: string; steps: string[]; trimmed: string[]; removed: boolean }
   /** 新加的记录块所属的表没有添加的地方，在它上方补了一个「添加」按钮（D-310）。 */
   | { kind: 'addedEntryForm'; table: string }
   /** 工具包升级到当前版本，新增了这些快捷操作。 */
@@ -482,12 +489,93 @@ function updateData(config: WorkspaceConfig, op: OpOf<'updateData'>): void {
   table.fields[index] = merge(next, changes) as never;
 }
 
-function removeData(config: WorkspaceConfig, op: OpOf<'removeData'>, notes: ApplyNote[]): void {
+/**
+ * 删表、删字段后，快捷操作里用到它的步骤（参数按动作目录的声明引用表和字段，workflow/refs.ts）：引用这张表的
+ * 步骤去掉；只列出了这个字段的，从列表里拿掉这个字段（拿掉后参数不合法就去掉这一步）。剩下的步骤用不了
+ * （空了、第一步不是输入动作、类型接不上）时整个快捷操作跟着移除，和读这张表的块一样；工具包带来的快捷操作
+ * 不能移除，这时拒绝。
+ */
+function pruneSteps(
+  config: WorkspaceConfig,
+  gone: Gone,
+  registry: Registry,
+  notes: ApplyNote[],
+): void {
+  const removedIds: string[] = [];
+  for (const wf of config.tools) {
+    if (wf.kind !== 'quickAction') continue;
+    // 删字段时，把值存进这张表的步骤（记一笔）如果没了放值的字段，也算用到了它。
+    const table = config.data.tables.find((c) => c.id === gone.table);
+    const refs = stepRefs(wf, registry)
+      .filter(
+        (r) =>
+          r.table === gone.table &&
+          (gone.field === undefined ||
+            r.field === gone.field ||
+            (r.field === undefined &&
+              table !== undefined &&
+              missingPlace(table, r.receives) !== null)),
+      )
+      .map((r) => (r.field === gone.field ? r : { ...r, field: undefined }));
+    if (refs.length === 0) continue;
+    const dropped = new Set<number>();
+    const trimmed = new Set<number>();
+    const steps = wf.steps.map((step, index) => {
+      const mine = refs.filter((r) => r.index === index);
+      if (mine.length === 0) return step;
+      if (mine.some((r) => r.field === undefined)) {
+        dropped.add(index);
+        return step;
+      }
+      const params = { ...step.params };
+      for (const r of mine)
+        params[r.key] = (params[r.key] as unknown[]).filter((id) => id !== r.field);
+      if (!registry.actions.get(step.action)!.params.safeParse(params).success) {
+        dropped.add(index);
+        return step;
+      }
+      trimmed.add(index);
+      return { ...step, params };
+    });
+    const left = steps.filter((_, i) => !dropped.has(i));
+    const works =
+      left.length > 0 && workflowProblems({ ...wf, steps: left }, registry).length === 0;
+    const ids = (set: Set<number>) => [...set].map((i) => wf.steps[i]!.action);
+    if (!works && wf.package !== undefined) {
+      const what =
+        gone.field === undefined ? `table ${gone.table}` : `field ${gone.table}.${gone.field}`;
+      throw new OpError(`${wf.id} belongs to tool ${wf.package} and its steps need ${what}`);
+    }
+    notes.push({
+      kind: 'prunedSteps',
+      name: wf.name,
+      steps: works ? ids(dropped) : [],
+      trimmed: works ? ids(trimmed) : [],
+      removed: !works,
+    });
+    if (works) wf.steps = left;
+    else removedIds.push(wf.id);
+  }
+  if (removedIds.length === 0) return;
+  config.tools = config.tools.filter((t) => !removedIds.includes(t.id));
+  for (const [id, { runners, links }] of removeQuickActionUses(config, removedIds)) {
+    if (runners > 0) notes.push({ kind: 'removedRunners', tool: id, count: runners });
+    if (links > 0) notes.push({ kind: 'removedWorkflowLinks', tool: id, count: links });
+  }
+}
+
+function removeData(
+  config: WorkspaceConfig,
+  op: OpOf<'removeData'>,
+  registry: Registry,
+  notes: ApplyNote[],
+): void {
   const table = getTable(config, op.table);
   if (op.field !== undefined) {
     // 从结构里去掉字段：记录里的旧值保留，恢复旧版本时会回来。
     table.fields.splice(getFieldIndex(table, op.field), 1);
     pruneRecordTools(config, { table: op.table, field: op.field }, notes);
+    pruneSteps(config, { table: op.table, field: op.field }, registry, notes);
     return;
   }
   // D-250：别的表还引用它时不能移除，先移除那些引用字段（避免引用字段指向不存在的表）。
@@ -519,6 +607,7 @@ function removeData(config: WorkspaceConfig, op: OpOf<'removeData'>, notes: Appl
   );
   if (count > 0) notes.push({ kind: 'removedDataComponents', table: op.table, count });
   pruneRecordTools(config, { table: op.table }, notes);
+  pruneSteps(config, { table: op.table }, registry, notes);
 }
 
 function moveData(config: WorkspaceConfig, op: OpOf<'moveData'>): void {
@@ -917,7 +1006,7 @@ function applyOne(config: WorkspaceConfig, op: Op, ctx: ApplyContext, notes: App
     case 'updateData':
       return updateData(config, op);
     case 'removeData':
-      return removeData(config, op, notes);
+      return removeData(config, op, ctx.registry, notes);
     case 'moveData':
       return moveData(config, op);
     case 'addContainer':
