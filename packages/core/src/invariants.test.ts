@@ -533,8 +533,16 @@ describe('底线 10：数据离开 App 只能由用户每次亲手点', () => {
   });
 });
 
-describe('底线 11：写数据的操作都能撤销；批量修改先问', () => {
-  // 一键记录的撤销和 setAll 先问：mobile 的 record-actions-test.tsx；没有撤销的写入：mobile 的 invariants-test.tsx。
+describe('底线 11：写数据的操作都能挽回；不容易改回去的显示撤销；批量修改一定先问', () => {
+  // 一键记录的撤销、setAll 先问、新建到另一张表的撤销：mobile 的 record-actions-test.tsx；打勾、表单添加、删除：
+  // mobile 的 invariants-test.tsx。
+  it('a bulk change has no setting that skips asking first', () => {
+    const base = { do: 'setAll', table: 't', field: 'a', value: true };
+    expect(RecordToolSchema.safeParse(base).success).toBe(true);
+    for (const skip of [{ confirm: false }, { ask: false }, { ask: 'none' }, { silent: true }])
+      expect(RecordToolSchema.safeParse({ ...base, ...skip }).success).toBe(false);
+  });
+
   it('setAll is capped at 200 entries', () => {
     const set = (n: number) =>
       RecordToolSchema.safeParse({ do: 'setAll', table: 't', field: 'a', value: true, max: n });

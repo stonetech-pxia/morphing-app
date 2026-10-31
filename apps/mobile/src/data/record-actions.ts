@@ -22,7 +22,7 @@ import { useCalendar, useWorkspace, useWorkspaceContext } from '../workspace/con
 import { useRecordActions } from './records';
 
 // 一键记录操作（D-300–D-304）：用户点了按钮或列表里的行按钮才执行，直接写数据库（和表单一样不经过 AI、
-// 不生成版本），每次都弹可以撤销的提示条。操作由 AI 配置，值在这里按当时的时间和记录算出来。
+// 不生成版本），每次都弹可以撤销的提示条（打开表单的，新建到另一张表时存好后弹，底线 11）。操作由 AI 配置，值在这里按当时的时间和记录算出来。
 
 // 一次只执行一个：连点几下 +1 时一个接一个算，不会两次都从同一个旧值加。桌面小组件的点按也排在这里（D-323）。
 let queue: Promise<unknown> = Promise.resolve();
@@ -41,10 +41,14 @@ export function useRecordActionRunner() {
   const cal = useCalendar();
   const router = useRouter();
 
-  const openNew = (collectionId: string, prefill?: Record<string, unknown>) =>
+  const openNew = (collectionId: string, prefill?: Record<string, unknown>, undo = false) =>
     router.push({
       pathname: '/record/[collectionId]',
-      params: { collectionId, ...(prefill ? { prefill: JSON.stringify(prefill) } : {}) },
+      params: {
+        collectionId,
+        ...(prefill ? { prefill: JSON.stringify(prefill) } : {}),
+        ...(undo ? { undo: '1' } : {}),
+      },
     });
   const openRecord = (collectionId: string, recordId: string) =>
     router.push({ pathname: '/record/[collectionId]', params: { collectionId, recordId } });
@@ -52,13 +56,16 @@ export function useRecordActionRunner() {
   async function create(
     tool: Extract<RecordTool, { do: 'create' }>,
     ctx: { rowId?: string | undefined; recordId?: string | undefined },
+    /** 点的那一行所在的表；块本身的按钮没有。 */
+    fromTable?: string,
   ) {
     const collection = config?.data.tables.find((c) => c.id === tool.table);
     if (!collection) return;
     const input = createInput(collection, tool.values, { now: new Date(), cal, ...ctx });
     // D-338：打开新记录的表单，预设的值先填好，用户补完再保存（表单自己保存，不弹提示条）。
     // Q6：按钮模式的「添加」（原 recordForm button）也预填预设值。
-    if (tool.ask !== undefined) return void openNew(collection.id, input);
+    // 底线 11：新建到另一张表（按钮、别的表的行上）不容易改回去，表单存好后显示撤销。
+    if (tool.ask !== undefined) return void openNew(collection.id, input, fromTable !== tool.table);
     const result = await actions.add(collection, input);
     if (result.ok) {
       showToast({
@@ -138,7 +145,7 @@ export function useRecordActionRunner() {
       return serial(async () => {
         if (isOpenUse(use)) return void openRow(router, use.opens, record.collectionId, record.id);
         const tool = recordToolOf(use);
-        if (tool.do === 'create') return create(tool, { rowId: record.id });
+        if (tool.do === 'create') return create(tool, { rowId: record.id }, record.collectionId);
         if (tool.do === 'setAll') return setAll(tool, use.label ?? '');
         const collection = config?.data.tables.find((c) => c.id === tool.table);
         if (!collection) return;

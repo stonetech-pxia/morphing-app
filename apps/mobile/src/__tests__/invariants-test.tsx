@@ -477,7 +477,9 @@ describe('底线 15 / 16：看永远不会改；每次写入都来自用户的�
   });
 });
 
-describe('底线 11：写数据的操作都能撤销', () => {
+describe('底线 11：写数据的操作都能挽回；不容易改回去的才显示撤销', () => {
+  // 创始人 2026-10-31（对话）放宽：用户能用同样简单的操作改回去的（取消勾选、再编辑、删掉）不弹撤销；删除、
+  // 批量修改（一定先问）、新建到另一张表显示撤销。后两种在 record-actions-test.tsx。
   afterEach(() => {
     jest.restoreAllMocks();
     useGuide.setState({ stage: null, repo: null });
@@ -500,24 +502,28 @@ describe('底线 11：写数据的操作都能撤销', () => {
     await waitFor(() => expect(store.getState().toast?.restoreRecordId).toBe('todos-1'));
   });
 
-  // 违反底线 11，待创始人决定：页面上的表单（inline / sheet）添加一条后没有撤销（records.ts add 不出提示条）；
-  // 记录编辑页保存修改也没有撤销。只能手动删掉或改回去。
-  it.failing('adding an entry with the form on the page can be undone', async () => {
+  it('adding an entry with the form on the page is taken back by deleting it, which shows undo', async () => {
     const { repo, store } = await todoPage();
     await fireEvent.changeText(await screen.findByTestId('form-add-title'), '买牛奶');
     await fireEvent.press(screen.getByTestId('form-add-submit'));
     await settle();
-    expect((await repo.listRecords('todos')).length).toBe(4);
-    expect(store.getState().toast?.undo).toBeDefined();
+    const added = (await repo.listRecords('todos')).find((r) => r.values.title === '买牛奶')!;
+    expect(added).toBeDefined();
+    // 新的一条就在这张表上，点开删掉（删除照常有撤销）。
+    await fireEvent.press(await screen.findByText('买牛奶'));
+    await fireEvent.press(await screen.findByTestId('editor-delete'));
+    await waitFor(() => expect(store.getState().toast?.restoreRecordId).toBe(added.id));
+    expect((await repo.listRecords('todos')).some((r) => r.id === added.id)).toBe(false);
   });
 
-  // 违反底线 11，待创始人决定：清单上打勾直接写记录（renderer/data.tsx 的 toggle 调 actions.update），不弹可以
-  // 撤销的提示条；再点一下能取消，但不是「撤销」。一键记录的其他工具（button、tap、drag）都有撤销。
-  it.failing('ticking a checklist entry can be undone', async () => {
-    const { repo, store } = await todoPage();
+  it('ticking a checklist entry is taken back by ticking it again', async () => {
+    const { repo } = await todoPage();
+    const before = (await repo.getRecord('todos-1'))!.values.done ?? false;
     await fireEvent.press(await screen.findByTestId('check-todos-1'));
     await settle();
-    expect((await repo.getRecord('todos-1'))!.values.done).toBe(true);
-    expect(store.getState().toast?.undo).toBeDefined();
+    expect((await repo.getRecord('todos-1'))!.values.done).toBe(!before);
+    await fireEvent.press(await screen.findByTestId('check-todos-1'));
+    await settle();
+    expect((await repo.getRecord('todos-1'))!.values.done ?? false).toBe(before);
   });
 });

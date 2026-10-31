@@ -336,4 +336,17 @@ describe('v34: tools on blocks', () => {
     });
     expect(await repo.listRecords('checkins')).toEqual([]);
   });
+
+  // 底线 11（创始人 2026-10-31）：新建到另一张表不容易改回去（用户看不到那张表），存好后显示撤销。
+  it('saving the add form a button opened into another table shows undo', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    const { router } = await renderToolsApp(repo, undefined, { seed: cardsSeed });
+    await fireEvent.press(await screen.findByText('添加跑步'));
+    await waitFor(() => expect(router.getPathname()).toBe('/record/checkins'));
+    await fireEvent.press(await screen.findByTestId('editor-save'));
+    await waitFor(async () => expect(await repo.listRecords('checkins')).toHaveLength(1));
+    expect(await screen.findByTestId('toast')).toHaveTextContent(/已在「打卡」添加一条/);
+    await fireEvent.press(screen.getByTestId('toast-undo'));
+    await waitFor(async () => expect(await repo.listRecords('checkins')).toEqual([]));
+  });
 });
