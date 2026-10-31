@@ -40,8 +40,8 @@ describe('remote AI provider', () => {
     expect(url).toBe('http://api.test/v1/complete');
     const body = bodyOf(fetchImpl);
     expect(Object.keys(body)).toEqual(['system', 'messages']);
-    // 提示词按需加载：换主题只发主题这一类的部分（route.ts）。
-    expect(body.system).toBe(systemPromptFor(registry, 'style'));
+    // 提示词按需加载默认关（创始人 2026-10-31）：发完整的提示词。
+    expect(body.system).toBe(systemPromptFor(registry, 'full'));
     expect(body.messages).toHaveLength(1);
     expect(body.messages[0]).toMatchObject({ role: 'user' });
     expect(String(body.messages[0]!.content)).toContain('主题换成绿色');
