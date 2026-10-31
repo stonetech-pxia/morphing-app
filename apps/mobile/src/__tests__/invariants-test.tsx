@@ -280,7 +280,7 @@ describe('底线 5：改 App 永远不删数据', () => {
   });
 });
 
-describe('底线 7：每次修改先进草稿，用户确认才生效', () => {
+describe('底线 7：外观修改先进草稿；功能修改直接生效，随时能在改动记录里撤销', () => {
   it('an AI change to the look goes into a draft; the app does not change until the user applies it', async () => {
     const { store } = await bootedStore(fixedPlanner(themePlan));
     const head = store.getState().head!.id;
@@ -295,30 +295,42 @@ describe('底线 7：每次修改先进草稿，用户确认才生效', () => {
     expect(store.getState().config!.theme.primaryColor).not.toBe('#336699');
   });
 
-  // 违反底线 7，待创始人决定：功能类修改（加表、加字段、加快捷操作、加工具包）按 D-191 不进草稿，直接存成
-  // 一个 AI 版本（顶部「已改好 · 撤销」，能撤销，但没有先确认）。底线写的是「每次修改先进草稿，用户确认才生效」。
-  it.failing(
-    'an AI change to function (a new table) also waits for the user to confirm',
-    async () => {
-      const plan: Plan = {
-        kind: 'ops',
-        ops: [
-          {
-            op: 'addData',
-            table: {
-              id: 'books',
-              name: '书',
-              fields: [{ id: 'title', name: '书名', type: 'text' }],
-            },
+  // 创始人 2026-10-31（对话）改了底线 7 的措辞：功能修改（D-191，建表、加快捷操作等）直接生效，但随时能在
+  // 改动记录里撤销。
+  it('an AI change to function (a new table) applies at once, is recorded in the history and can be undone', async () => {
+    const plan: Plan = {
+      kind: 'ops',
+      ops: [
+        {
+          op: 'addData',
+          table: {
+            id: 'books',
+            name: '书',
+            fields: [{ id: 'title', name: '书名', type: 'text' }],
           },
-        ],
-      };
-      const { store } = await bootedStore(fixedPlanner(plan));
-      const head = store.getState().head!.id;
-      await store.getState().change('加一张书的表', fixedPlanner(plan));
-      expect(store.getState().head!.id).toBe(head);
-    },
-  );
+        },
+      ],
+    };
+    const { repo, store } = await bootedStore(fixedPlanner(plan));
+    const head = store.getState().head!.id;
+    expect((await store.getState().change('加一张书的表', fixedPlanner(plan))).kind).toBe(
+      'applied',
+    );
+    const after = store.getState().head!;
+    expect(after.id).not.toBe(head);
+    expect(after.source).toBe('ai');
+    expect(store.getState().config!.data.tables.some((t) => t.id === 'books')).toBe(true);
+    // 改动记录里有这一版，前一版随时能回去。
+    expect((await repo.listRevisions(50)).map((r) => r.id)).toEqual(
+      expect.arrayContaining([head, after.id]),
+    );
+    await store.getState().markRendered(after.id);
+    await store.getState().undo();
+    expect(store.getState().config!.data.tables.some((t) => t.id === 'books')).toBe(false);
+    expect((await store.getState().proposeRestore(after.id)).kind).toBe('preview');
+    await store.getState().confirm();
+    expect(store.getState().config!.data.tables.some((t) => t.id === 'books')).toBe(true);
+  });
 });
 
 // ---- 渲染：看页面不写数据（底线 15、16），写数据能撤销（底线 11）----
