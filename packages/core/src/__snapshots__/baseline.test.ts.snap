@@ -3278,6 +3278,10 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .tools[]<oneOf 1>.when<anyOf 3> object
 .tools[]<oneOf 1>.when<anyOf 3>.each = .tools[]<oneOf 1>.when<anyOf 2>.before
 .tools[]<oneOf 1>.when<anyOf 3>.at string /^([01]\\d|2[0-3]):[0-5]\\d$/
+.tools[]<oneOf 1>.when<anyOf 4> object
+.tools[]<oneOf 1>.when<anyOf 4>.after object
+.tools[]<oneOf 1>.when<anyOf 4>.after.table string /^[a-z][a-z0-9-]{0,47}$/
+.tools[]<oneOf 1>.when<anyOf 4>.minutes integer 1..1440
 .tools[]<oneOf 1>.opens
 .tools[]<oneOf 1>.done?
 .tools[]<oneOf 1>.done<oneOf 0> object

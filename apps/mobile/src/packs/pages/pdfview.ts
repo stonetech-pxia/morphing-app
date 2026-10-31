@@ -1,11 +1,11 @@
-import { packPage, WITH_RESOLVERS_POLYFILL } from './common';
+import { packPage, PDFJS_POLYFILLS } from './common';
 
 // PDF 预览包页面：pdf.js（legacy ESM 版本）从 blob: 地址加载，worker 失败时 pdf.js 自己退回主线程。
 // cmap、字体和解码器通过 BinaryDataFactory 按需向 App 要（只送这个文件用到的）。
 // 只渲染和读文字：不加载 pdf.sandbox，不执行 PDF 里的脚本，不传 url（N3）。
 
 const SCRIPT = String.raw`
-const POLY = ${JSON.stringify(WITH_RESOLVERS_POLYFILL)} + '\n';
+const POLY = ${JSON.stringify(PDFJS_POLYFILLS)} + '\n';
 let pdfjs = null;
 async function lib() {
   if (pdfjs) return pdfjs;

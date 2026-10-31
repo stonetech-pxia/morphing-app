@@ -33,7 +33,7 @@ const CHUNK = 512 * 1024;
 const READY_TIMEOUT_MS = 30_000;
 const CALL_TIMEOUT_MS = 180_000;
 
-type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void };
+type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void; page?: PackPageId };
 
 export class PackBridge implements PackRuntime {
   private webviews = new Map<PackPageId, Poster>();
@@ -118,12 +118,27 @@ export class PackBridge implements PackRuntime {
         this.pending.set(id, {
           resolve: (v) => (clearTimeout(timer), resolve(v as T)),
           reject: (e) => (clearTimeout(timer), reject(e)),
+          page,
         });
         this.post(page, { t: 'call', id, method, args });
       });
     } finally {
       for (const name of Object.keys(files)) this.allowed.delete(name);
     }
+  }
+
+  /**
+   * 页面的网页进程被系统结束了（iOS 内存紧张时会这样）：正在等的调用马上失败，不再等到超时；
+   * 页面卸下，下次调用重新挂上。
+   */
+  processGone(page: PackPageId) {
+    this.readyPages.delete(page);
+    for (const [id, p] of this.pending) {
+      if (p.page !== page) continue;
+      this.pending.delete(id);
+      p.reject(new Error('page stopped'));
+    }
+    this.close(page);
   }
 
   /** 关掉页面释放内存（例如离开运行页面后）。 */

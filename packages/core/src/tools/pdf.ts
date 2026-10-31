@@ -688,9 +688,9 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
     id: 'pdf.extractText',
     label: { en: 'Get text from PDF', zh: '提取 PDF 文字', fr: 'Extraire le texte d’un PDF' },
     description: {
-      en: 'Read the text of a PDF that has a text layer. Scanned PDFs have no text — use text recognition instead. The text stays on this device.',
-      zh: '读出 PDF 里的文字（有文字层的 PDF）。扫描件没有文字，需要用文字识别。文字只留在本机。',
-      fr: 'Lit le texte d’un PDF qui contient une couche de texte. Les PDF numérisés n’ont pas de texte : utilisez plutôt la reconnaissance de texte. Le texte reste sur cet appareil.',
+      en: 'Reads the text of a PDF, scanned pages included (pages without a text layer are read with text recognition, which may get some characters wrong). The text stays on this device.',
+      zh: '读出 PDF 里的文字，扫描件也行（没有文字层的页在本机用文字识别读，可能有个别字认错）。文字只留在本机。',
+      fr: 'Lit le texte d’un PDF, pages numérisées comprises (les pages sans couche de texte sont lues par reconnaissance de texte, qui peut mal lire quelques caractères). Le texte reste sur cet appareil.',
     },
     input: ['pdf'],
     output: 'text',

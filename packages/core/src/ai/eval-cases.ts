@@ -5141,6 +5141,43 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
     },
   },
   {
+    // 创始人 2026-10-31 的原话（D-391）：选的是「每加一条，两分钟后提醒」。
+    id: 'RM5',
+    input: '给账单的记录增加两分钟的提醒功能',
+    locale: 'zh',
+    setup: 'oneTap',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        remindersOf(c).some(
+          (r) =>
+            'after' in r.when &&
+            r.when.after.table === 'bills' &&
+            r.when.minutes === 2 &&
+            r.enabled,
+        )
+          ? null
+          : `expected a reminder 2 minutes after each new bill, got ${JSON.stringify(remindersOf(c))}`,
+    },
+  },
+  {
+    id: 'RM6-en',
+    input: 'Remind me 10 minutes after I add a bill',
+    locale: 'en',
+    setup: 'oneTap',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        remindersOf(c).some(
+          (r) => 'after' in r.when && r.when.after.table === 'bills' && r.when.minutes === 10,
+        )
+          ? null
+          : `expected a reminder 10 minutes after each new bill, got ${JSON.stringify(remindersOf(c))}`,
+    },
+  },
+  {
     id: 'RM2',
     input: 'Remind me 3 days before each date in my budget table, at 8am',
     locale: 'en',
@@ -5166,7 +5203,10 @@ const MODULE_EVAL_CASES: readonly EvalCase[] = [
       check: (c) =>
         remindersOf(c).some(
           (r) =>
-            typeof r.opens === 'string' && r.opens.startsWith('tool:') && r.when.at === '08:00',
+            typeof r.opens === 'string' &&
+            r.opens.startsWith('tool:') &&
+            'at' in r.when &&
+            r.when.at === '08:00',
         )
           ? null
           : 'expected a reminder that opens the quick action at 08:00',
@@ -5593,6 +5633,7 @@ const recordReminder =
       (r) =>
         eachOf(r)?.table === collectionId &&
         eachOf(r)?.field === 'plan' &&
+        'at' in r.when &&
         r.when.at === time &&
         r.enabled,
     );

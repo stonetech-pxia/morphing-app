@@ -50,6 +50,9 @@ export function PackHostProvider({ value, children }: { value: Packs; children: 
                 r.url.startsWith('blob:')
               }
               onMessage={(e) => void value.bridge.onMessage(page, e.nativeEvent.data)}
+              // iOS 内存紧张时会结束网页进程，安卓是渲染进程：都当作页面停了，下次调用重新挂上。
+              onContentProcessDidTerminate={() => value.bridge.processGone(page)}
+              onRenderProcessGone={() => value.bridge.processGone(page)}
               onError={(e) => {
                 if (__DEV__) console.warn(`[pack:${page}] load error`, e.nativeEvent.description);
               }}

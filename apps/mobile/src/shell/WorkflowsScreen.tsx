@@ -24,6 +24,7 @@ import { useIncoming, releaseShare } from '../share/incoming';
 import type { SucceededRuns } from '../storage/types';
 import type { Palette } from '../renderer/theme';
 import { Button, Card, ListRow, PageTitle } from '../renderer/ui';
+import { runsHere } from '../runtime/device-support';
 import { packsNeeded } from '../runtime/runner';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { Banner } from './Banner';
@@ -96,7 +97,7 @@ export function WorkflowsScreen({
     ...builtIn,
     ...quickActionsOf(config).filter((w) => w.package),
   ]
-    .filter(inCategory)
+    .filter((w) => inCategory(w) && runsHere(w))
     .sort((a, b) => {
       const x = usage.get(a.id),
         y = usage.get(b.id);

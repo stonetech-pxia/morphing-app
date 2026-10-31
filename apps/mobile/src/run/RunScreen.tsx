@@ -594,6 +594,7 @@ export function RunScreen({
         <Modal
           visible
           animationType="slide"
+          presentationStyle="overFullScreen"
           onRequestClose={() => {
             local.resolve(null);
             setLocal(null);

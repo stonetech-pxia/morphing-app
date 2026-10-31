@@ -19,6 +19,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { t, type StringKey } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import type { Palette } from '../renderer/theme';
+import { runsHere, UNSUPPORTED_ACTIONS } from '../runtime/device-support';
 
 // 房间的工具栏（file-room DESIGN §4、§5，D-359）：一行横向滑动的图标加文字，按组排开。
 // 组和工具来自布局配置（没写时由注册表按文件种类生成，见 @morph/core 的 deskToolbar）。
@@ -60,7 +61,7 @@ export function toolEntries(
     entries: g.items.flatMap((item, i): ToolEntry[] => {
       if (typeof item === 'object') {
         const action = registry.actions.get(item.action);
-        if (!action) return [];
+        if (!action || UNSUPPORTED_ACTIONS.has(action.id)) return [];
         const preset = item.preset ? action.presets?.find((p) => p.id === item.preset) : undefined;
         return [
           {
@@ -79,7 +80,7 @@ export function toolEntries(
         ];
       }
       const workflow = findWorkflow(workflows, item, locale);
-      if (!workflow) return [];
+      if (!workflow || !runsHere(workflow)) return [];
       return [
         {
           key: `wf-${workflow.id}-${i}`,

@@ -475,6 +475,9 @@ export const zh: MessageTable = {
   translateDownloadAsk: '首次使用需下载约 {mb} MB',
   translateDownloadBody: '翻译语言：{langs}。之后不联网也能用，建议连接 Wi-Fi。',
   translateDownload: '下载',
+  translateSystemDownloadAsk: '第一次翻译要下载语言包',
+  translateSystemDownloadBody:
+    '要下载的语言：{langs}。接下来 iPhone 会弹窗确认，下载可能要几分钟，请留在 Morph 里。以后也可以先在 iPhone 的「设置 → App → 翻译」里下好。',
   translateDownloadFailed: '{langs}的翻译语言（请检查网络后再试）',
   translateLanguageTitle: '翻译语言：{name}',
   translateLanguageHint: '约 30 MB，用来在本机翻译（Google ML Kit）。',
@@ -734,6 +737,7 @@ export const zh: MessageTable = {
   describeRemovedQuickAction: '快捷操作「{name}」没有这张表就用不了，也会移除',
   reminderWhenDaily: '每天 {time}',
   reminderWhenWeekly: '每{days} {time}',
+  reminderWhenAfterAdd: '「{table}」每加一条，{n} 分钟后提醒',
   reminderWhenDate: '「{table}」的「{field}」前 {n} 天的 {time}',
   reminderWhenSchedule: '「{table}」每条记录按自己的「{field}」，在 {time}',
   reminderDoneButton: '完成',
@@ -747,6 +751,7 @@ export const zh: MessageTable = {
   weekday6: '周六',
   weekday7: '周日',
   reminderDueToday: '「{table}」里有一条记录今天到期',
+  reminderAddedAgo: '「{table}」里 {n} 分钟前加了一条记录',
   reminderDueIn: '「{table}」里有一条记录还有 {n} 天到期（{date}）',
   remindersTitle: '提醒',
   remindersHint:
@@ -1224,6 +1229,7 @@ export const zh: MessageTable = {
   scheduleLastDoneHint: '从「{field}」里的日期算起。',
   describeRemovedRecordActions: '同时移除 {n} 个用到它的一键按钮',
   entryFormAdd: '添加',
+  describeAddedPageEntry: '「{page}」这一页没有打开的地方，同时在首页最后加一个入口',
   describeAddedEntryForm: '「{table}」还没有添加的地方，同时在列表上方加一个「添加」按钮',
   recordActionAdded: '已在「{table}」添加一条',
   recordActionDone: '{label}：已记下',

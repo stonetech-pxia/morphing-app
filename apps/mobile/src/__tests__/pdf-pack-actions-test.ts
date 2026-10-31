@@ -13,7 +13,7 @@ import type { PackPageId, PackRuntime } from '../packs/bridge';
 import type { LocalKind, LocalUi } from '../runtime/local';
 import { startRun } from '../runtime/runner';
 import { MemoryWorkspaceRepo } from '../storage/memory';
-import { FakeFiles, TINY_JPEG, makePdf, makePng } from '../test-utils/fake-files';
+import { FakeFiles, FakeVision, TINY_JPEG, makePdf, makePng } from '../test-utils/fake-files';
 
 // 需要 PDF 预览包或本地界面的 PDF 动作：转图片、提取文字、签名、填表。
 // 扩展包页面（WebView + pdf.js）换成假的：渲染返回真实的小 JPEG，文字按页返回。
@@ -48,12 +48,9 @@ class FakePacks implements PackRuntime {
     this.calls.push({ page, method, args, files: Object.values(files) });
     if (method === 'render') {
       const data = btoa(String.fromCharCode(...TINY_JPEG));
-      return Array.from({ length: this.pageCount }, (_, index) => ({
-        index,
-        width: 60,
-        height: 40,
-        data,
-      })) as T;
+      const all = Array.from({ length: this.pageCount }, (_, index) => index);
+      const wanted = (args.pages as number[] | undefined) ?? all;
+      return wanted.map((index) => ({ index, width: 60, height: 40, data })) as T;
     }
     if (method === 'text') return { pages: this.text } as T;
     throw new Error(`unknown method ${method}`);
@@ -157,6 +154,7 @@ describe('PDF actions that need the preview pack or a local screen', () => {
       value: { type: 'text', text: 'Hello\n\nWorld', name: 'letter' },
     });
 
+    // 没有文字识别（Expo Go）时扫描件读不出文字。
     const scan = setup(toolWorkflow('pdf-text'));
     scan.packs.text = ['', ' '];
     scan.files.nextPick = [scan.files.offer('scan.pdf', await makePdf(2))];
@@ -164,6 +162,23 @@ describe('PDF actions that need the preview pack or a local screen', () => {
       status: 'failed',
       error: { code: 'notFound', detail: { name: 'scan.pdf' } },
     });
+  });
+
+  it('reads the pages that have no text layer (scans) with text recognition', async () => {
+    // 创始人 2026-10-31：图片版 PDF 提取文字时以为会用 OCR，结果没有。
+    const { files, packs, run } = setup(toolWorkflow('pdf-text'));
+    const vision = new FakeVision(files);
+    files.vision = vision;
+    vision.texts = ['Scanned one', 'Scanned two'];
+    packs.text = ['', 'Typed', ' '];
+    files.nextPick = [files.offer('mixed.pdf', await makePdf(3))];
+    expect(await run()).toMatchObject({
+      status: 'succeeded',
+      value: { type: 'text', text: 'Scanned one\n\nTyped\n\nScanned two', name: 'mixed' },
+    });
+    // 只画没有文字的那几页。
+    expect(packs.calls.find((c) => c.method === 'render')!.args).toMatchObject({ pages: [0, 2] });
+    expect(vision.calls.filter((c) => c.method === 'recognizeText')).toHaveLength(2);
   });
 
   it('signs: shows page previews, then stamps the PNG on the chosen page', async () => {

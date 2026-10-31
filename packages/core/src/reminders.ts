@@ -45,9 +45,15 @@ export const RECORD_OCCURRENCES = 7;
 /** 打开快捷操作的提醒目标 tool:<id> → id（只把它摆出来，不运行）；不是时为 null。 */
 export const reminderToolId = (target: ReminderTarget): string | null => toolTargetId(target);
 
-/** 到期提醒（when.before）、按记录的提醒（when.each）看的表和字段。 */
+/** 到期提醒（when.before）、按记录的提醒（when.each）、加完提醒（when.after，看创建时间）看的表和字段。 */
 export const reminderTable = (r: Reminder): { table: string; field: string } | undefined =>
-  'before' in r.when ? r.when.before : 'each' in r.when ? r.when.each : undefined;
+  'before' in r.when
+    ? r.when.before
+    : 'each' in r.when
+      ? r.when.each
+      : 'after' in r.when
+        ? { table: r.when.after.table, field: 'createdAt' }
+        : undefined;
 
 /** 提醒的设置有没有问题：要打开的地方、要看的表和日期字段都要在。 */
 export function reminderProblems(r: Reminder, config: WorkspaceConfig): string[] {
@@ -60,6 +66,8 @@ export function reminderProblems(r: Reminder, config: WorkspaceConfig): string[]
     else if (collection.fields.find((f) => f.id === when.before.field)?.type !== 'date')
       problems.push(`${where}: when.before.field must be a date field of ${collection.id}`);
   }
+  if ('after' in when && !config.data.tables.some((c) => c.id === when.after.table))
+    problems.push(`${where}: data table ${when.after.table} does not exist`);
   if ('each' in when) problems.push(...recordReminderProblems(r, when.each, config));
   else if (r.unless || r.done || r.snoozeMinutes !== undefined)
     problems.push(`${where}: unless, done and snoozeMinutes only work with when.each`);
@@ -185,8 +193,23 @@ export function planNotifications(
   for (const r of remindersOf(config)) {
     if (!r.enabled || reminderProblems(r, config).length > 0) continue;
     const when = r.when;
-    const { hour, minute } = hm(when.at);
     const base = { reminderId: r.id, title: r.title, opens: r.opens };
+    if ('after' in when) {
+      // 加完一条记录 minutes 分钟后提醒一次（D-391）；已经过了的不排。正文只写表名（P-043 ②）。
+      const collection = config.data.tables.find((c) => c.id === when.after.table)!;
+      for (const record of records.get(collection.id) ?? []) {
+        const at = record.createdAt + when.minutes * 60_000;
+        if (at <= now.getTime()) continue;
+        dated.push({
+          ...base,
+          id: `${r.id}-${record.id}`,
+          body: t(locale, 'reminderAddedAgo', { table: collection.name, n: when.minutes }),
+          trigger: { kind: 'date', at },
+        });
+      }
+      continue;
+    }
+    const { hour, minute } = hm(when.at);
     if ('each' in when) {
       perRecord.push(
         ...planRecordReminder(r, { ...when.each, at: when.at }, config, records, now, locale, cal),

@@ -530,6 +530,9 @@ export const fr: MessageTable = {
   translateDownloadBody:
     'Langues de traduction : {langs}. Ensuite, la traduction fonctionne hors connexion. Le Wi-Fi est conseillé.',
   translateDownload: 'Télécharger',
+  translateSystemDownloadAsk: 'La traduction doit d’abord télécharger des langues',
+  translateSystemDownloadBody:
+    'Langues à télécharger : {langs}. Votre iPhone va vous demander de confirmer, et le téléchargement peut prendre quelques minutes : restez dans Morph. La prochaine fois, vous pourrez les télécharger d’avance dans Réglages → Apps → Traduire sur l’iPhone.',
   translateDownloadFailed: 'les fichiers de langue {langs} (vérifiez la connexion, puis réessayez)',
   translateLanguageTitle: 'Langue de traduction : {name}',
   translateLanguageHint: 'Environ 30 Mo, pour traduire sur cet appareil (Google ML Kit).',
@@ -834,6 +837,7 @@ export const fr: MessageTable = {
     'L’action rapide « {name} » ne peut plus fonctionner sans ce tableau et est retirée aussi',
   reminderWhenDaily: 'tous les jours à {time}',
   reminderWhenWeekly: 'chaque {days} à {time}',
+  reminderWhenAfterAdd: '{n} minutes après chaque nouvelle entrée de « {table} »',
   reminderWhenDate: '{n} jours avant « {field} » dans « {table} », à {time}',
   reminderWhenSchedule: 'Chaque entrée de « {table} » selon son « {field} », à {time}',
   reminderDoneButton: 'Fait',
@@ -847,6 +851,7 @@ export const fr: MessageTable = {
   weekday6: 'samedi',
   weekday7: 'dimanche',
   reminderDueToday: 'Une entrée de « {table} » arrive à échéance aujourd’hui',
+  reminderAddedAgo: 'Une entrée a été ajoutée à « {table} » il y a {n} minutes',
   reminderDueIn: 'Une entrée de « {table} » arrive à échéance dans {n} jours ({date})',
   remindersTitle: 'Rappels',
   remindersHint:
@@ -1352,6 +1357,8 @@ export const fr: MessageTable = {
   scheduleLastDoneHint: 'Compté à partir de la date de « {field} ».',
   describeRemovedRecordActions: 'Supprime aussi {n} boutons en un geste qui l’utilisaient',
   entryFormAdd: 'Ajouter',
+  describeAddedPageEntry:
+    'Rien n’ouvre encore la page « {page} » : une entrée vers elle est aussi ajoutée à la fin de l’accueil',
   describeAddedEntryForm:
     '« {table} » n’avait aucun moyen d’ajouter des entrées : un bouton « Ajouter » est aussi placé au-dessus de la liste',
   recordActionAdded: 'Ajouté à « {table} »',
@@ -1520,7 +1527,9 @@ export const frSingular: SingularTable = {
   WorkflowsScreen_Needs_at_least_files_0ed9b: 'Au moins {v0} fichier requis',
   WorkflowsScreen_Takes_at_most_files_0fe59: 'Maximum {v0} fichier',
   runError_noneMatched: 'Le fichier ne remplit pas les conditions de « Filtrer les fichiers ».',
+  reminderWhenAfterAdd: '{n} minute après chaque nouvelle entrée de « {table} »',
   reminderWhenDate: '{n} jour avant « {field} » dans « {table} », à {time}',
+  reminderAddedAgo: 'Une entrée a été ajoutée à « {table} » il y a {n} minute',
   reminderDueIn: 'Une entrée de « {table} » arrive à échéance dans {n} jour ({date})',
   remindersRowHint: '{n} rappel',
   resultTablesMissing:
