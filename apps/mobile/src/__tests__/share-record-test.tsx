@@ -22,7 +22,7 @@ import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, TINY_JPEG } from '../test-utils/fake-files';
 import { renderToolsApp } from '../test-utils/render-app';
 
-// 收件页面「存成记录」（D-386）：选一张有附件字段的表或一个预设表，打开新记录表单，收到的文件已经在附件里。
+// 收件页面「存成记录」（D-392）：选一张有附件字段的表或一个预设表，打开新记录表单，收到的文件已经在附件里。
 // 三种状态：新用户（没有表）、有数据（已经有带附件的表和不带附件的表）、边界（两个文件、超过 20 个、没保存就返回）。
 
 afterEach(() => {

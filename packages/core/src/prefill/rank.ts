@@ -3,7 +3,7 @@ import { CONCEPTS, fieldTerms, type ConceptId, type ValueKind } from './concepts
 import { looksTyped, pageOccurrences, type Occurrence, type TextPage } from './rows';
 import { charSim, isExcludedLabel, labelScore, norm, ratio } from './similarity';
 
-// 新记录表单的候选值（D-388）：每个空字段最多给 3 个候选，用户点了才填，从不自动填
+// 新记录表单的候选值（D-394）：每个空字段最多给 3 个候选，用户点了才填，从不自动填
 // （创始人 2026-10-31：「宁可不填，不能乱填」，两次测量都找不到 0 错的门槛）。
 // 打分照搬测量的变体 A（side-session-notes/prefill-ranking/scripts/score.py）：
 //   3·标签 + 3·记忆 + 1·唯一 + 1·合理 + 1·位置，每项 0..1。

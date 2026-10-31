@@ -437,7 +437,7 @@ export const fr: MessageTable = {
     'Ce fichier n’est pas une mémoire de pré-remplissage exportée par Morph. Rien n’a été restauré.',
   prefillMemoryRestored: '{count} mises en page restaurées.',
   prefillMemoryPicks: '{count} suggestions choisies mémorisées',
-  // Formulaire de nouvelle entrée : valeurs proposées à partir des pièces jointes (D-388)
+  // Formulaire de nouvelle entrée : valeurs proposées à partir des pièces jointes (D-394)
   suggestionFill: 'Remplir « {field} » avec {value}',
   suggestionsWorking: 'Recherche de valeurs dans les pièces jointes…',
   suggestionsNeedDownload:
@@ -718,7 +718,7 @@ export const fr: MessageTable = {
   attachmentMoveUp: 'Monter',
   attachmentMoveDown: 'Descendre',
   attachmentsFull: '{n} fichiers au maximum',
-  // ---- 附件的「…」和放回记录（D-392）----
+  // ---- 附件的「…」和放回记录（D-395）----
   attachmentMore: 'Plus d’options pour « {name} »',
   deskBackTitle: 'Revenir à l’entrée',
   deskBackMessage: 'Comment ajouter le fichier du bureau à cette entrée ?',
@@ -1443,7 +1443,7 @@ export const fr: MessageTable = {
   deskStorageAbout:
     'Fichiers en cours de modification et leurs versions (les 20 dernières, 500 Mo au plus).',
   deskStale: 'Inutilisé depuis {n} jours, vous pouvez le vider',
-  // 收件页面「存成记录」（D-386）。
+  // 收件页面「存成记录」（D-392）。
   shareRecord: 'Enregistrer comme entrée',
   shareRecordAbout: 'Rangez les fichiers dans un tableau et remplissez le reste vous-même',
   shareRecordChoose: 'Choisir',

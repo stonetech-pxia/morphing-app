@@ -165,15 +165,15 @@ export function chooseAttachments(
 }
 
 /**
- * 记录页给表单里新建的用户文件（D-392：桌上改好交回来的）：没保存就离开时记录页删掉没用上的，
- * 和收件页面复制来的副本一样（D-386）。只有记录页提供；没有时不能把附件放到桌上。
+ * 记录页给表单里新建的用户文件（D-395：桌上改好交回来的）：没保存就离开时记录页删掉没用上的，
+ * 和收件页面复制来的副本一样（D-392）。只有记录页提供；没有时不能把附件放到桌上。
  */
 export const FormFilesContext = createContext<{ hold(ids: readonly string[]): void } | null>(null);
 
 /**
  * 附件字段的输入（D-263）：列出每个文件，可以添加（拍照、相册、「文件」）、调整顺序、去掉。
  * 点一个文件预览（照片、视频全屏翻看，别的用系统预览）。去掉只是不再放在这条记录里，文件本身还在「存储空间」里。
- * 「…」里分享，或放到桌上改（D-392）。
+ * 「…」里分享，或放到桌上改（D-395）。
  */
 export function AttachmentsInput({
   field,
@@ -249,7 +249,7 @@ export function AttachmentsInput({
     }
   }
 
-  // 「…」（D-392）：分享这个文件，或放到桌上改。
+  // 「…」（D-395）：分享这个文件，或放到桌上改。
   function more(asset: AssetRecord) {
     Alert.alert(asset.name, undefined, [
       { text: t(locale, 'resultShare'), onPress: () => void share(asset) },

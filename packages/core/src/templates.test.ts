@@ -45,7 +45,7 @@ describe.each(DATA_TEMPLATES)('template %s', (template) => {
   });
 });
 
-// 收件页面「存成记录」的预设表（D-386）：三种语言下都通过校验、都有附件字段、名字和 ID 已被占用时加 -2，
+// 收件页面「存成记录」的预设表（D-392）：三种语言下都通过校验、都有附件字段、名字和 ID 已被占用时加 -2，
 // 字段按创始人定的（2026-10-31）。
 describe.each(FILE_RECORD_PRESETS)('file record preset %s', (preset) => {
   it.each(['en', 'zh', 'fr'] as Locale[])(

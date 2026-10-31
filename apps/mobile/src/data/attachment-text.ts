@@ -4,7 +4,7 @@ import type { PackRuntime } from '../packs/bridge';
 import type { AssetRecord } from '../storage/types';
 import type { FilePlatform } from '../runtime/platform';
 
-// 新记录表单的候选值（D-388）：读附件里的文字（带位置），只在本机，只给候选值打分用，
+// 新记录表单的候选值（D-394）：读附件里的文字（带位置），只在本机，只给候选值打分用，
 // 不存、不进记录、不发给 AI（D-036）。照片用本机的文字识别（PP-OCRv6，D-269）；PDF 先读文字层，
 // 没有文字层（扫描件）时把前两页画成图再识别。只读前 3 个附件、每个前 2 页。
 // 中间文件放在一次临时运行的目录里（cache/runs/<runId>/），成功、失败、取消都删掉。

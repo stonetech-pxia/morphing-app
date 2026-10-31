@@ -112,7 +112,7 @@ handlers.text = async ({ file }) => {
     await doc.close();
   }
 };
-// 新记录表单的候选值（D-388）：前几页文字层的每一段和它的位置（点，左上角为原点），
+// 新记录表单的候选值（D-394）：前几页文字层的每一段和它的位置（点，左上角为原点），
 // App 按竖直重叠分排；扫描件没有文字层时 lines 是空的。
 handlers.lines = async ({ file, pages }) => {
   const doc = await open(file);

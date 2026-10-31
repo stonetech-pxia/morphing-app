@@ -20,7 +20,7 @@ import reimbursement from './templates/reimbursement.json';
 import todo from './templates/todo.json';
 
 // 内置的数据页面模版（D-040）：mock AI 用它们理解「新建一个记账页面」这类说法，
-// 评测集也用它们准备初始状态。模版只生成数据表结构和页面，不含任何记录；这四个还没有给用户直接选（D-255），收件页面的预设表见下面（D-386）。
+// 评测集也用它们准备初始状态。模版只生成数据表结构和页面，不含任何记录；这四个还没有给用户直接选（D-255），收件页面的预设表见下面（D-392）。
 //
 // 每个模版是 templates/<名字>.json（D-255，v34 写法）：
 // - ids：数据表和页面的基本 ID；配置里已经有同名的就加 -2、-3……
@@ -33,7 +33,7 @@ export const DATA_TEMPLATES = ['budget', 'todo', 'reading', 'notes'] as const;
 export type DataTemplate = (typeof DATA_TEMPLATES)[number];
 
 /**
- * 收件页面「存成记录」给用户选的预设表（D-386）：每个都有一个附件字段（attachments），字段之后都能改。
+ * 收件页面「存成记录」给用户选的预设表（D-392）：每个都有一个附件字段（attachments），字段之后都能改。
  * 和上面四个分开列：mock AI 和评测只认上面四个，这几个只给用户在收件页面选。blank 是「空白」：
  * 一个标题字段加附件字段，表名先用默认的名字，用户之后自己改。
  */

@@ -1,4 +1,4 @@
-// 新记录表单的候选值（D-388）：标签和关键词的字符相似度（测量里的变体 A，照搬
+// 新记录表单的候选值（D-394）：标签和关键词的字符相似度（测量里的变体 A，照搬
 // side-session-notes/prefill-ranking/scripts/score.py）。不分大小写、去掉重音和空格标点，
 // 所以 OCR 吞掉空格（`Amountpaid`）和小的错字（`Totel`）都还算得上；短的拉丁词（tel、no、to）
 // 必须是一个完整的词。

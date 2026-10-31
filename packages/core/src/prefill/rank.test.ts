@@ -16,7 +16,7 @@ import {
   serializePickStore,
 } from './store';
 
-// 新记录表单的候选值（D-388）：照测量的失败例写的几张单据（按排的识别结果），断言该排第一的排第一、
+// 新记录表单的候选值（D-394）：照测量的失败例写的几张单据（按排的识别结果），断言该排第一的排第一、
 // 不该出现的不出现。
 
 /** 一排一排的文字：每排可以有几段（[文字, x]），字高 20，排距 40，页宽 600。 */
@@ -281,7 +281,7 @@ describe('suggestValues: iOS simulator findings (2026-10-31)', () => {
   });
 });
 
-describe('conceptOf for the D-386 presets', () => {
+describe('conceptOf for the D-392 presets', () => {
   const expected: Record<string, Record<string, string | null>> = {
     purchase: { merchant: 'merchant', date: 'issueDate', amount: 'amount', note: null },
     bill: { issuer: 'company', due: 'dueDate', amount: 'amount' },

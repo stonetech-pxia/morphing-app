@@ -391,7 +391,7 @@ export const zh: MessageTable = {
   prefillMemoryRestoreInvalid: '这个文件不是 Morph 导出的预填记忆，没有恢复。',
   prefillMemoryRestored: '已恢复 {count} 种单据版式。',
   prefillMemoryPicks: '记住了 {count} 个字段点过的候选',
-  // 新记录表单：从附件里找的候选值（D-388）
+  // 新记录表单：从附件里找的候选值（D-394）
   suggestionFill: '把 {value} 填进「{field}」',
   suggestionsWorking: '正在从附件里找可以填的内容…',
   suggestionsNeedDownload: '要从附件里找出可以填的内容，需要先下载一次。',
@@ -636,7 +636,7 @@ export const zh: MessageTable = {
   attachmentMoveUp: '上移',
   attachmentMoveDown: '下移',
   attachmentsFull: '最多 {n} 个文件',
-  // ---- 附件的「…」和放回记录（D-392）----
+  // ---- 附件的「…」和放回记录（D-395）----
   attachmentMore: '「{name}」的更多操作',
   deskBackTitle: '放回记录',
   deskBackMessage: '桌上的文件要怎么放进这条记录？',
@@ -1307,7 +1307,7 @@ export const zh: MessageTable = {
   deskStorageTitle: '桌上的文件',
   deskStorageAbout: '房间里正在改的文件和它们的版本（最近 20 个，最多 500 MB）。',
   deskStale: '{n} 天没动了，可以清掉',
-  // 收件页面「存成记录」（D-386）。
+  // 收件页面「存成记录」（D-392）。
   shareRecord: '存成记录',
   shareRecordAbout: '放进一张表，其余的自己填',
   shareRecordChoose: '选择',

@@ -3,7 +3,7 @@ import { extractAll } from '../text-rules';
 import { ruleCandidates } from './candidates';
 import type { ValueKind } from './concepts';
 
-// 新记录表单的候选值（D-388）：识别出的文字行（带框）按竖直重叠分排，再切出「标签 → 值」。
+// 新记录表单的候选值（D-394）：识别出的文字行（带框）按竖直重叠分排，再切出「标签 → 值」。
 // 照搬测量用的 side-session-notes/prefill-ranking/scripts/emit.ts：按排的文字比 layoutOcrLines
 // 接成一段的准（prefill-real-ocr 第 8 节第 5 条）。文字只在本机，不发给 AI。
 // 不用后行断言（Hermes 的老版本不支持）：前面的边界用捕获组。

@@ -14,7 +14,7 @@ import { FakeFiles, FakeVision, TINY_JPEG } from '../test-utils/fake-files';
 import { MemoryPackFs, sha256 } from '../test-utils/memory-packs';
 import { renderToolsApp } from '../test-utils/render-app';
 
-// 新记录表单的候选值（D-388）：附件里的照片、PDF 在本机读出文字，每个空字段下面最多 3 个候选，
+// 新记录表单的候选值（D-394）：附件里的照片、PDF 在本机读出文字，每个空字段下面最多 3 个候选，
 // 点了才填，从不自动填。三种状态：新用户（没装文字识别 → 提示；装了 → 候选）、有数据（上次点的
 // 标签下次排第一）、边界（没有文字、照片和 PDF 混着、超过 3 个附件、编辑已有记录、没读完就离开）。
 

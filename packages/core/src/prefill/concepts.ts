@@ -1,7 +1,7 @@
 import type { Field } from '../schema';
 import { norm } from './similarity';
 
-// 新记录表单的候选值（D-388）：字段是「什么」的小词典。字段名（中英法任一种）对上一个概念时，
+// 新记录表单的候选值（D-394）：字段是「什么」的小词典。字段名（中英法任一种）对上一个概念时，
 // 用这个概念三种语言的关键词和排除词给单据上的标签打分（测量里三语同义词和同语言一样好，
 // side-session-notes/prefill-ranking）；对不上时关键词只有字段自己的名字。不用向量模型。
 
@@ -584,7 +584,7 @@ export const CONCEPTS: Record<ConceptId, Concept> = {
 };
 
 /**
- * 预设表（D-386，templates/ 里的 JSON）的字段 ID → 概念。字段名有歧义的靠它：账单的「From」是出具方，
+ * 预设表（D-392，templates/ 里的 JSON）的字段 ID → 概念。字段名有歧义的靠它：账单的「From」是出具方，
  * 不是出发地；合同的「到期日」和账单的一样是到期。合同的「名称」按名字认成标题。
  */
 const PRESET_FIELDS: Record<string, ConceptId> = {

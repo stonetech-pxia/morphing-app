@@ -54,7 +54,7 @@ export async function importUserFiles(
 }
 
 /**
- * 把几个文件逐个复制成用户文件，原件不动、也不删（收件那一批的副本由收件页面释放时删，D-386）。
+ * 把几个文件逐个复制成用户文件，原件不动、也不删（收件那一批的副本由收件页面释放时删，D-392）。
  * 存好的按顺序；中间出了问题就停在那里，problem 说明原因。
  */
 export async function copyUserFiles(

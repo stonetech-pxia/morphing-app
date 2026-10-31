@@ -402,7 +402,7 @@ function withTemplate(
 
 const VIEWED: [string, () => WorkspaceConfig, Locale][] = [
   ['default (fr)', () => createDefaultWorkspace('fr'), 'fr'],
-  // 收件页面「存成记录」的预设表（D-386）也一样只看不写。
+  // 收件页面「存成记录」的预设表（D-392）也一样只看不写。
   ...[...DATA_TEMPLATES, ...FILE_RECORD_PRESETS].map(
     (t): [string, () => WorkspaceConfig, Locale] => [`template ${t}`, () => withTemplate(t), 'zh'],
   ),

@@ -52,7 +52,7 @@ export default function DataRoute() {
   const [deleted, setDeleted] = useState<StoredRecord[]>([]);
   const [known, setKnown] = useState<Map<string, Collection>>(new Map());
   const [layouts, setLayouts] = useState(0);
-  // 新记录表单里点过的候选（D-388）：一个字段算一个。
+  // 新记录表单里点过的候选（D-394）：一个字段算一个。
   const [picks, setPicks] = useState(0);
 
   useEffect(() => {

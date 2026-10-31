@@ -16,7 +16,7 @@ import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, TINY_JPEG } from '../test-utils/fake-files';
 import { renderToolsApp } from '../test-utils/render-app';
 
-// 记录附件的「…」（D-392）：分享这个文件，或放到桌上改；桌上「完成」时每次都问「加成新附件」还是「替换原件」，
+// 记录附件的「…」（D-395）：分享这个文件，或放到桌上改；桌上「完成」时每次都问「加成新附件」还是「替换原件」，
 // 交回表单，点保存才写进记录。桌上用的是副本，记录里存的文件不动；没保存就离开时新建的文件删掉。
 // 三种状态：已有记录（一个、两个附件）、没保存的新记录表单（收件页面复制来的副本）、边界（附件满了）。
 

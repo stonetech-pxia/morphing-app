@@ -79,7 +79,7 @@ export function ShareScreen() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   // 正在复制到桌上（大视频要一会儿）。
   const [placing, setPlacing] = useState(false);
-  // 「存成记录」的表列表展开了（D-386）。
+  // 「存成记录」的表列表展开了（D-392）。
   const [choosing, setChoosing] = useState(false);
   useEffect(() => {
     let alive = true;
@@ -308,7 +308,7 @@ export function ShareScreen() {
   }
 
   /**
-   * 存成记录（D-386，创始人 2026-10-31 在对话里选定）：选一张有附件字段的表，或者一个预设表（建表、页面和入口，
+   * 存成记录（D-392，创始人 2026-10-31 在对话里选定）：选一张有附件字段的表，或者一个预设表（建表、页面和入口，
    * 和别的界面按钮一样是用户的一次修改，能撤销）；收到的文件复制成用户文件（收件这一批照旧，离开收件页面时释放），
    * 打开这张表的新记录表单，附件已经放好，用户自己填完保存。没保存就离开时，记录页删掉这些副本；建好的表留着。
    */
@@ -547,7 +547,7 @@ export function ShareScreen() {
                 onPress={() => void placeAndOpen()}
               />
             </View>
-            {/* 存成记录（D-386）：放在「放到桌上」下面、快捷操作推荐上面；点了才展开表的列表，不自动做什么。 */}
+            {/* 存成记录（D-392）：放在「放到桌上」下面、快捷操作推荐上面；点了才展开表的列表，不自动做什么。 */}
             <View
               testID="share-record"
               style={[

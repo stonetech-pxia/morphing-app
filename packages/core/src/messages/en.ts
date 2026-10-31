@@ -413,7 +413,7 @@ export const en = {
     'This file is not prefill memory exported from Morph. Nothing was restored.',
   prefillMemoryRestored: 'Restored {count} document layouts.',
   prefillMemoryPicks: 'Remembers {count} picked suggestions',
-  // New entry form: suggested values from attachments (D-388)
+  // New entry form: suggested values from attachments (D-394)
   suggestionFill: 'Fill “{field}” with {value}',
   suggestionsWorking: 'Looking for values in the attachments…',
   suggestionsNeedDownload: 'To suggest values from the attachments, a one-time download is needed.',
@@ -678,7 +678,7 @@ export const en = {
   attachmentMoveUp: 'Move up',
   attachmentMoveDown: 'Move down',
   attachmentsFull: 'At most {n} files',
-  // ---- 附件的「…」和放回记录（D-392）----
+  // ---- 附件的「…」和放回记录（D-395）----
   attachmentMore: 'More for “{name}”',
   deskBackTitle: 'Back to the entry',
   deskBackMessage: 'How should the file on the desk go into this entry?',
@@ -1385,7 +1385,7 @@ export const en = {
   deskStorageAbout:
     'Files you are editing in the room, with their versions (the last 20, at most 500 MB).',
   deskStale: 'Untouched for {n} days, you can clear it',
-  // 收件页面「存成记录」（D-386）。
+  // 收件页面「存成记录」（D-392）。
   shareRecord: 'Save as an entry',
   shareRecordAbout: 'Put the files in a table and fill in the rest yourself',
   shareRecordChoose: 'Choose',

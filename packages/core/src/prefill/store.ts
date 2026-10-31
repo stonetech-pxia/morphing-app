@@ -6,7 +6,7 @@ import type { FieldPick } from './rank';
 // 版式记忆的存储、导出和恢复（D-244）：每张表一组版式，存在本机 app_meta 的一个键里。
 // 「设置 → 数据」能一键清空、导出成文件（也是备份），再从这个文件恢复。
 // 文件里是标签文字、位置、写法和商家名，没有金额和日期的值；读文件时逐项校验，坏的丢掉。
-// 第 2 版起还有新记录表单里点过的候选（D-388，另一个键 prefill:picks）：每张表每个字段一个
+// 第 2 版起还有新记录表单里点过的候选（D-394，另一个键 prefill:picks）：每张表每个字段一个
 // 标签和位置，同样不记值。
 
 export const LAYOUT_STORE_KEY = 'prefill:layouts';
@@ -131,7 +131,7 @@ export function readLayoutStoreFile(text: string): LayoutStore | null {
   return file && cleanStore(file.tables);
 }
 
-// ---- 点过的候选（D-388） ----
+// ---- 点过的候选（D-394） ----
 
 export const PICK_STORE_KEY = 'prefill:picks';
 

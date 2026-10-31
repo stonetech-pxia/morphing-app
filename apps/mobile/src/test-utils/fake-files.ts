@@ -115,7 +115,7 @@ export class FakeDeskFs implements DeskFs {
   isRunFile = (uri: string) => uri.startsWith('runs/');
   pathOf = (uri: string) => (uri.startsWith('desk/') ? uri.slice('desk/'.length) : null);
   async copyIn(uri: string, path: string) {
-    // 用户文件的地址（fileUri）也能复制进来（记录的附件放到桌上，D-392）。
+    // 用户文件的地址（fileUri）也能复制进来（记录的附件放到桌上，D-395）。
     const bytes =
       this.files.disk.get(uri) ?? this.files.disk.get(uri.replace(/^file:\/\/\/fake\//, ''));
     if (!bytes) throw new Error(`missing ${uri}`);

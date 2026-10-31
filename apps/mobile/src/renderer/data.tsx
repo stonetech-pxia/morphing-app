@@ -670,7 +670,7 @@ function suggestionDate(iso: string, locale: RenderEnv['locale']): string {
 }
 
 /**
- * 字段下面的候选值（D-388）：安静的小按钮，显示整理过的值（金额带货币、日期写出月份），
+ * 字段下面的候选值（D-394）：安静的小按钮，显示整理过的值（金额带货币、日期写出月份），
  * 太长时截断；点了才填，从不自动填。点了以后候选留在原地（下面的字段不往上跳），和字段里的值
  * 一样的那个标成已选，点另一个就换成另一个。
  */
@@ -776,7 +776,7 @@ export function FieldsForm({
   onSubmit?: (() => void) | undefined;
   /** 第一个文字框直接弹出键盘（底部弹出的添加框）。 */
   autoFocus?: boolean | undefined;
-  /** 新记录表单的候选值（D-388）：字段 ID → 最多 3 个，只在字段空着时显示，点了才填。 */
+  /** 新记录表单的候选值（D-394）：字段 ID → 最多 3 个，只在字段空着时显示，点了才填。 */
   suggestions?: Readonly<Record<string, readonly ValueSuggestion[]>> | undefined;
   /** 用户点了一个候选（已经填进字段）。 */
   onSuggestion?: ((fieldId: string, suggestion: ValueSuggestion) => void) | undefined;

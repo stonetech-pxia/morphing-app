@@ -23,7 +23,7 @@ export default function RecordRoute() {
     recordId?: string;
     /** 一键操作打开的新记录表单（D-338）：预设的值，JSON。 */
     prefill?: string;
-    /** 收件页面「存成记录」（D-386）：为这张表单复制出来的用户文件的键（share/save-as-record.ts）。 */
+    /** 收件页面「存成记录」（D-392）：为这张表单复制出来的用户文件的键（share/save-as-record.ts）。 */
     copies?: string;
   }>();
   const { repo, files, locale } = useWorkspaceContext();
@@ -40,11 +40,11 @@ export default function RecordRoute() {
     !recordId && prefill && collection ? prefillFormValues(collection, prefill) : {},
   );
   const [issues, setIssues] = useState<FieldIssue[]>([]);
-  // 候选值（D-388）：只在新记录的表单里。点了或输入以后候选留在原地，下面的字段不往上跳
+  // 候选值（D-394）：只在新记录的表单里。点了或输入以后候选留在原地，下面的字段不往上跳
   // （iOS 模拟器 2026-10-31）；和字段的值一样的那个标成已选。
   const packs = usePacks();
   const suggest = useFieldSuggestions({ enabled: !recordId, collection, values, locale });
-  // 收件页面复制来的文件（D-386）和桌上改好交回来的附件（D-392）：离开这一页时，没存进这条记录的删掉
+  // 收件页面复制来的文件（D-392）和桌上改好交回来的附件（D-395）：离开这一页时，没存进这条记录的删掉
   // （没保存就离开时全部删掉）。它们是这张表单自己新建的，原件、收件那一批和记录里原来的文件不动。
   const [copied] = useState(() => (recordId ? [] : takeFormCopies(copies)));
   const owned = useRef<Set<string>>(new Set(copied));
