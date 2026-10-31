@@ -54,7 +54,7 @@ export interface PlannerOptions {
   maxRepairs?: number;
   onCompletion?: (completion: Completion) => void;
   /**
-   * 提示词按需加载（route.ts）：默认开。关掉时每次都发完整的提示词。
+   * 提示词按需加载（route.ts）：默认关（创始人 2026-10-31），每次都发完整的提示词；true 时按路由只发需要的部分。
    * onRoute 报告每次请求用的路由（评测统计用）。
    */
   route?: boolean;
@@ -114,7 +114,7 @@ export function createClaudePlanner(options: PlannerOptions): AIProvider {
         },
       ];
       let route: PromptRoute =
-        options.route === false
+        options.route !== true
           ? 'full'
           : routeRequest({
               input,

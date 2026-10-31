@@ -165,6 +165,7 @@ describe('planner with routes', () => {
       complete,
       registry,
       now: () => new Date(2026, 9, 22),
+      route: true,
       onRoute: (r) => routes.push(r),
     });
     const plan = await planner.plan('make it green', ctx);
@@ -181,12 +182,17 @@ describe('planner with routes', () => {
       systems.push(system!);
       return reply(JSON.stringify(answers.shift()));
     };
-    const planner = createClaudePlanner({ complete, registry, now: () => new Date(2026, 9, 22) });
+    const planner = createClaudePlanner({
+      complete,
+      registry,
+      now: () => new Date(2026, 9, 22),
+      route: true,
+    });
     expect(await planner.plan('make it green', ctx)).toEqual(green);
     expect(systems).toEqual([buildSystemPrompt(registry, 'style'), full]);
   });
 
-  it('route: false always sends the full prompt', async () => {
+  it('by default (route off, founder 2026-10-31) and with route: false the full prompt is sent', async () => {
     const systems: string[] = [];
     const complete: Complete = async (_messages, system) => {
       systems.push(system!);
@@ -199,7 +205,9 @@ describe('planner with routes', () => {
       route: false,
     });
     await planner.plan('make it green', ctx);
-    expect(systems).toEqual([full]);
+    const byDefault = createClaudePlanner({ complete, registry, now: () => new Date(2026, 9, 22) });
+    await byDefault.plan('make it green', ctx);
+    expect(systems).toEqual([full, full]);
   });
 });
 

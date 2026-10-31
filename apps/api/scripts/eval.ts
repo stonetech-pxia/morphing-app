@@ -22,7 +22,7 @@ import { createApp } from '../src/server';
 //   --batch：所有用例同时跑，请求攒成批走批处理 API。半价，但每一轮要等几分钟到几小时；
 //     修复请求是下一批。批处理 API 不接受 fallbacks，所以没有拒答回退。只能配 relay 传输。
 //   --verbose：失败时打印模型给出的计划。计划里的 notes（D-110）总是打印。
-//   --full：不按需加载，每次都发完整的提示词（默认和 App 一样走 route.ts 的路由）。
+//   --route：按需加载（route.ts 的路由）。默认和 App 一样关着，每次都发完整的提示词。
 //   --dump <文件>：把每个用例的计划（含通过的）和结果写成 JSON，给提示词路由的测试取「需要哪些部分」。
 
 const { values } = parseArgs({
@@ -34,7 +34,7 @@ const { values } = parseArgs({
     batch: { type: 'boolean' },
     verbose: { type: 'boolean' },
     dump: { type: 'string' },
-    full: { type: 'boolean' },
+    route: { type: 'boolean' },
   },
 });
 
@@ -102,7 +102,7 @@ async function runCase(c: (typeof cases)[number]): Promise<string> {
     complete,
     registry,
     now: () => new Date(),
-    route: !values.full,
+    route: values.route === true,
     onRoute: (route) => routes.push(route),
     onCompletion: (completion) => {
       calls++;
