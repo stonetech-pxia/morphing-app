@@ -423,7 +423,7 @@ export const fr: MessageTable = {
   exportAppConfig: 'Exporter la configuration de l’app',
   prefillMemoryTitle: 'Mémoire de pré-remplissage',
   prefillMemoryHint:
-    'Quand vous ajoutez une entrée, Morph retient la mise en page des documents enregistrés : après quelle étiquette se trouve une valeur, à peu près sur quelle ligne, et le nom du commerce. Les montants et les dates ne sont pas conservés. Stockée uniquement sur ce téléphone, jamais envoyée à l’IA. Le fichier exporté sert aussi de sauvegarde : « Restaurer depuis un fichier » la remet en place.',
+    'Quand vous ajoutez une entrée, Morph retient la mise en page des documents enregistrés : après quelle étiquette se trouve une valeur, à peu près sur quelle ligne, et le nom du commerce. Les montants et les dates ne sont pas conservés. Stockée uniquement sur ce téléphone, jamais envoyée à l’IA. Le fichier exporté sert aussi de sauvegarde : « Restaurer depuis un fichier » la remet en place. Dans le formulaire d’une nouvelle entrée, Morph retient aussi la suggestion choisie pour chaque champ : l’étiquette qui la précède et sa position approximative, pas la valeur.',
   prefillMemoryCount: '{count} mises en page de documents mémorisées',
   prefillMemoryNone: 'Aucune mise en page mémorisée pour l’instant',
   prefillMemoryExport: 'Exporter',
@@ -436,6 +436,13 @@ export const fr: MessageTable = {
   prefillMemoryRestoreInvalid:
     'Ce fichier n’est pas une mémoire de pré-remplissage exportée par Morph. Rien n’a été restauré.',
   prefillMemoryRestored: '{count} mises en page restaurées.',
+  prefillMemoryPicks: '{count} suggestions choisies mémorisées',
+  // Formulaire de nouvelle entrée : valeurs proposées à partir des pièces jointes (D-388)
+  suggestionFill: 'Remplir « {field} » avec {value}',
+  suggestionsWorking: 'Recherche de valeurs dans les pièces jointes…',
+  suggestionsNeedDownload:
+    'Pour proposer des valeurs tirées des pièces jointes, un téléchargement unique est nécessaire.',
+  suggestionsDownload: 'Proposer des valeurs',
   dataModelDownloadAsk: 'Télécharger la reconnaissance des dates et des montants ?',
   dataModelDownloadBody:
     'Google doit d’abord télécharger le modèle de reconnaissance pour cette langue. La reconnaissance se fait sur ce téléphone et le texte n’est pas envoyé ; après le téléchargement, elle fonctionne hors ligne. Sans ce modèle, Morph pré-remplit quand même avec ses propres règles.',
@@ -1487,6 +1494,7 @@ export const frSingular: SingularTable = {
   prefillMemoryRestoreConfirm:
     'Remplacer la mémoire de pré-remplissage actuelle par celle de ce fichier ({count} mise en page) ?',
   prefillMemoryRestored: '{count} mise en page restaurée.',
+  prefillMemoryPicks: '{count} suggestion choisie mémorisée',
   deleteForeverConfirm: 'Supprimer {count} entrée de « {name} » ? Cette action est irréversible.',
   editPageSummary: 'Modifier « {page} » ({count} modification)',
   deleteGroupMessage:

@@ -5,9 +5,14 @@ import {
   layoutCount,
   layoutStoreFile,
   parseLayoutStore,
+  parsePickStore,
+  PICK_STORE_KEY,
+  pickCount,
   readLayoutStoreFile,
+  readPickStoreFile,
   RECORD_LIMITS,
   serializeLayoutStore,
+  serializePickStore,
   formatRef,
   formatTimestamp,
   calendarOf,
@@ -47,6 +52,8 @@ export default function DataRoute() {
   const [deleted, setDeleted] = useState<StoredRecord[]>([]);
   const [known, setKnown] = useState<Map<string, Collection>>(new Map());
   const [layouts, setLayouts] = useState(0);
+  // 新记录表单里点过的候选（D-388）：一个字段算一个。
+  const [picks, setPicks] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -83,6 +90,7 @@ export default function DataRoute() {
       setDeleted(deletedRows.filter((r) => r.deletedAt! >= cutoff));
       setKnown(new Map([...found, ...config.data.tables.map((c) => [c.id, c] as const)]));
       setLayouts(layoutCount(parseLayoutStore(await repo.getMeta(LAYOUT_STORE_KEY))));
+      setPicks(pickCount(parsePickStore(await repo.getMeta(PICK_STORE_KEY))));
     })();
     return () => {
       alive = false;
@@ -125,9 +133,10 @@ export default function DataRoute() {
   async function exportMemory() {
     const now = new Date();
     const store = parseLayoutStore(await repo.getMeta(LAYOUT_STORE_KEY));
+    const tapped = parsePickStore(await repo.getMeta(PICK_STORE_KEY));
     await files.shareText(
       `morph-prefill-memory-${today(now)}.json`,
-      layoutStoreFile(store, now),
+      layoutStoreFile(store, now, tapped),
       'application/json',
     );
   }
@@ -137,8 +146,11 @@ export default function DataRoute() {
     const file = picked?.[0];
     if (!file) return;
     let store = null;
+    let fromFile = null;
     try {
-      store = readLayoutStoreFile(await files.readPickedText(file.uri));
+      const text = await files.readPickedText(file.uri);
+      store = readLayoutStoreFile(text);
+      fromFile = readPickStoreFile(text);
     } catch {
       store = null;
     }
@@ -155,10 +167,14 @@ export default function DataRoute() {
         {
           text: t(locale, 'prefillMemoryRestore'),
           onPress: () =>
-            void repo.setMeta(LAYOUT_STORE_KEY, serializeLayoutStore(store)).then(() => {
-              setLayouts(count);
-              Alert.alert(t(locale, 'prefillMemoryRestored', { count }));
-            }),
+            void repo
+              .setMeta(LAYOUT_STORE_KEY, serializeLayoutStore(store))
+              .then(() => repo.setMeta(PICK_STORE_KEY, serializePickStore(fromFile ?? {})))
+              .then(() => {
+                setLayouts(count);
+                setPicks(pickCount(fromFile ?? {}));
+                Alert.alert(t(locale, 'prefillMemoryRestored', { count }));
+              }),
         },
       ],
     );
@@ -171,7 +187,13 @@ export default function DataRoute() {
         text: t(locale, 'prefillMemoryClear'),
         style: 'destructive',
         onPress: () =>
-          void repo.setMeta(LAYOUT_STORE_KEY, serializeLayoutStore({})).then(() => setLayouts(0)),
+          void repo
+            .setMeta(LAYOUT_STORE_KEY, serializeLayoutStore({}))
+            .then(() => repo.setMeta(PICK_STORE_KEY, serializePickStore({})))
+            .then(() => {
+              setLayouts(0);
+              setPicks(0);
+            }),
       },
     ]);
   }
@@ -233,13 +255,17 @@ export default function DataRoute() {
       <SectionLabel palette={palette}>{t(locale, 'prefillMemoryTitle')}</SectionLabel>
       <Card palette={palette} testID="prefill-memory">
         <Text style={[palette.font('title', 15), { color: palette.text }]}>
-          {layouts > 0
-            ? t(locale, 'prefillMemoryCount', { count: layouts })
-            : t(locale, 'prefillMemoryNone')}
+          {layouts > 0 || picks === 0
+            ? layouts > 0
+              ? t(locale, 'prefillMemoryCount', { count: layouts })
+              : t(locale, 'prefillMemoryNone')
+            : null}
+          {layouts > 0 && picks > 0 ? '\n' : ''}
+          {picks > 0 ? t(locale, 'prefillMemoryPicks', { count: picks }) : null}
         </Text>
         <Text style={caption}>{t(locale, 'prefillMemoryHint')}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {layouts > 0 ? (
+          {layouts + picks > 0 ? (
             <Pill
               palette={palette}
               testID="export-prefill-memory"
@@ -253,7 +279,7 @@ export default function DataRoute() {
             label={t(locale, 'prefillMemoryRestore')}
             onPress={() => void restoreMemory()}
           />
-          {layouts > 0 ? (
+          {layouts + picks > 0 ? (
             <Pill
               palette={palette}
               danger

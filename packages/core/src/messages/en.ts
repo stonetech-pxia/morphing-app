@@ -399,7 +399,7 @@ export const en = {
   exportAppConfig: 'Export app design',
   prefillMemoryTitle: 'Prefill memory',
   prefillMemoryHint:
-    'When you log an entry, Morph remembers the layout of documents you saved: which label a value follows, roughly which line, and the shop name. It does not keep amounts or dates. Stored only on this phone, never sent to the AI. The exported file is also a backup: use “Restore from file” to bring it back.',
+    'When you log an entry, Morph remembers the layout of documents you saved: which label a value follows, roughly which line, and the shop name. It does not keep amounts or dates. Stored only on this phone, never sent to the AI. The exported file is also a backup: use “Restore from file” to bring it back. In a new entry form, Morph also remembers which suggestion you picked for each field: the label it followed and roughly where it was, not the value.',
   prefillMemoryCount: 'Remembers {count} document layouts',
   prefillMemoryNone: 'No document layouts remembered yet',
   prefillMemoryExport: 'Export',
@@ -412,6 +412,12 @@ export const en = {
   prefillMemoryRestoreInvalid:
     'This file is not prefill memory exported from Morph. Nothing was restored.',
   prefillMemoryRestored: 'Restored {count} document layouts.',
+  prefillMemoryPicks: 'Remembers {count} picked suggestions',
+  // New entry form: suggested values from attachments (D-388)
+  suggestionFill: 'Fill “{field}” with {value}',
+  suggestionsWorking: 'Looking for values in the attachments…',
+  suggestionsNeedDownload: 'To suggest values from the attachments, a one-time download is needed.',
+  suggestionsDownload: 'Suggest values',
   dataModelDownloadAsk: 'Download date and amount recognition?',
   dataModelDownloadBody:
     'Google needs to download the recognition model for this language first. Recognition runs on this phone and the text is not uploaded; after the download it works offline. Without it, Morph still prefills using its own rules.',
@@ -1435,6 +1441,7 @@ export const enSingular = {
   prefillMemoryRestoreConfirm:
     'Replace the current prefill memory with the one in this file ({count} layout)?',
   prefillMemoryRestored: 'Restored {count} document layout.',
+  prefillMemoryPicks: 'Remembers {count} picked suggestion',
   deleteForeverConfirm: 'Delete {count} entry of “{name}”? This can’t be undone.',
   editPageSummary: 'Edit “{page}” ({count} change)',
   deleteGroupMessage:

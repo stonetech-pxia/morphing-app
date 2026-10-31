@@ -452,7 +452,8 @@ export class FakeFiles implements FilePlatform {
     const size = this.imageSizes.get(uri);
     if (size) return size;
     // 动作直接写出的图片（例如无损去掉定位）：按真实的小 JPEG / PNG 处理。
-    const bytes = this.disk.get(uri);
+    // 用户文件的地址（fileUri）对应磁盘上的相对路径。
+    const bytes = this.disk.get(uri) ?? this.disk.get(uri.replace(/^file:\/\/\/fake\//, ''));
     if (bytes && ((bytes[0] === 0xff && bytes[1] === 0xd8) || bytes[0] === 0x89)) {
       return { width: 60, height: 40 };
     }

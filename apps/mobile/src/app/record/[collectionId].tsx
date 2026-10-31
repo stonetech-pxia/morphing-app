@@ -3,11 +3,14 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 
+import { useFieldSuggestions } from '@/data/field-suggestions';
 import { useComputedRecords, useRecordActions } from '@/data/records';
 import { t } from '@/i18n';
+import { PackGate } from '@/packs/PackGate';
+import { usePacks } from '@/packs/PackHost';
 import { FieldsForm, prefillFormValues, toFormValues } from '@/renderer/data';
 import { usePalette } from '@/renderer/theme';
-import { Button } from '@/renderer/ui';
+import { Button, Pill } from '@/renderer/ui';
 import { takeFormCopies } from '@/share/save-as-record';
 import { deleteUserFiles } from '@/storage/user-files';
 import { useCalendar, useWorkspace, useWorkspaceContext } from '@/workspace/context';
@@ -36,6 +39,18 @@ export default function RecordRoute() {
     !recordId && prefill && collection ? prefillFormValues(collection, prefill) : {},
   );
   const [issues, setIssues] = useState<FieldIssue[]>([]);
+  // 候选值（D-388）：只在新记录的表单里；用户动过的字段（输入或点了候选）不再显示候选。
+  const packs = usePacks();
+  const suggest = useFieldSuggestions({ enabled: !recordId, collection, values, locale });
+  const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
+  const change = (next: Record<string, unknown>) => {
+    const changed = Object.keys(next).filter((k) => next[k] !== values[k]);
+    if (changed.length > 0) setTouched((s) => new Set([...s, ...changed]));
+    setValues(next);
+  };
+  const suggestions = Object.fromEntries(
+    Object.entries(suggest.suggestions).filter(([id]) => !touched.has(id)),
+  );
   // 收件页面复制来的文件（D-386）：离开这一页时，没存进这条记录的删掉（没保存就离开时全部删掉）。
   // 它们是这张表单自己的副本，原件和收件那一批不动。
   const [copied] = useState(() => (recordId ? [] : takeFormCopies(copies)));
@@ -102,11 +117,33 @@ export default function RecordRoute() {
         <ScrollView
           contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 48 }}
           keyboardShouldPersistTaps="handled">
+          {!record && suggest.missing.length > 0 && packs ? (
+            <View testID="suggestions-notice" style={{ gap: 8, alignItems: 'flex-start' }}>
+              <Text style={[palette.font('body', 14), { color: palette.muted }]}>
+                {t(locale, 'suggestionsNeedDownload')}
+              </Text>
+              <Pill
+                palette={palette}
+                testID="suggestions-download"
+                label={t(locale, 'suggestionsDownload')}
+                onPress={suggest.ask}
+              />
+            </View>
+          ) : null}
+          {!record && suggest.working ? (
+            <Text
+              testID="suggestions-working"
+              style={[palette.font('body', 13), { color: palette.caption }]}>
+              {t(locale, 'suggestionsWorking')}
+            </Text>
+          ) : null}
           <FieldsForm
             collection={collection}
             fieldIds={collection.fields.map((f) => f.id)}
             values={values}
-            onChange={setValues}
+            onChange={change}
+            suggestions={record ? undefined : suggestions}
+            onSuggestion={suggest.remember}
             issues={issues}
             palette={palette}
             locale={locale}
@@ -136,6 +173,15 @@ export default function RecordRoute() {
           ) : null}
         </ScrollView>
       )}
+      {suggest.asking && packs ? (
+        <PackGate
+          needs={suggest.asking}
+          store={packs.store}
+          palette={palette}
+          locale={locale}
+          onDone={suggest.answered}
+        />
+      ) : null}
     </KeyboardAvoidingView>
   );
 }

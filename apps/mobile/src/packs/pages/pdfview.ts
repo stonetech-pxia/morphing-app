@@ -112,6 +112,34 @@ handlers.text = async ({ file }) => {
     await doc.close();
   }
 };
+// 新记录表单的候选值（D-388）：前几页文字层的每一段和它的位置（点，左上角为原点），
+// App 按竖直重叠分排；扫描件没有文字层时 lines 是空的。
+handlers.lines = async ({ file, pages }) => {
+  const doc = await open(file);
+  try {
+    const p = await lib();
+    const out = [];
+    const count = Math.min(doc.numPages, pages || 2);
+    for (let i = 1; i <= count; i++) {
+      const page = await doc.getPage(i);
+      const viewport = page.getViewport({ scale: 1 });
+      const content = await page.getTextContent();
+      const lines = [];
+      for (const item of content.items) {
+        const text = (item.str || '').trim();
+        if (!text) continue;
+        const tx = p.Util.transform(viewport.transform, item.transform);
+        const height = Math.hypot(tx[2], tx[3]) || item.height || 1;
+        lines.push({ text, x: tx[4], y: tx[5] - height, width: item.width || text.length * height * 0.5, height });
+      }
+      out.push({ width: viewport.width, height: viewport.height, lines });
+      page.cleanup();
+    }
+    return { count: doc.numPages, pages: out };
+  } finally {
+    await doc.close();
+  }
+};
 handlers.ping = async () => ({ ok: true });
 `;
 

@@ -380,7 +380,7 @@ export const zh: MessageTable = {
   exportAppConfig: '导出 App 配置',
   prefillMemoryTitle: '预填记忆',
   prefillMemoryHint:
-    '「记一笔」时，Morph 会记住你保存过的单据版式：值跟在哪个标签后面、大约在哪一行、商家名，不记金额和日期。只在这台手机上，不发给 AI。导出的文件也是备份，可以用「从文件恢复」放回来。',
+    '「记一笔」时，Morph 会记住你保存过的单据版式：值跟在哪个标签后面、大约在哪一行、商家名，不记金额和日期。只在这台手机上，不发给 AI。导出的文件也是备份，可以用「从文件恢复」放回来。新记录表单里点过的候选也会记住：每个字段跟在哪个标签后面、大约在哪个位置，不记值。',
   prefillMemoryCount: '记住了 {count} 种单据版式',
   prefillMemoryNone: '还没有记住单据版式',
   prefillMemoryExport: '导出',
@@ -390,6 +390,12 @@ export const zh: MessageTable = {
   prefillMemoryRestoreConfirm: '用这个文件里的预填记忆（{count} 种版式）替换现在的？',
   prefillMemoryRestoreInvalid: '这个文件不是 Morph 导出的预填记忆，没有恢复。',
   prefillMemoryRestored: '已恢复 {count} 种单据版式。',
+  prefillMemoryPicks: '记住了 {count} 个字段点过的候选',
+  // 新记录表单：从附件里找的候选值（D-388）
+  suggestionFill: '把 {value} 填进「{field}」',
+  suggestionsWorking: '正在从附件里找可以填的内容…',
+  suggestionsNeedDownload: '要从附件里找出可以填的内容，需要先下载一次。',
+  suggestionsDownload: '找可以填的内容',
   dataModelDownloadAsk: '下载日期和金额识别？',
   dataModelDownloadBody:
     'Google 需要先下载这种语言的识别模型。识别在这台手机上进行，文字不会上传；下载后没网也能用。不下载也能预填，只用 Morph 自带的规则。',

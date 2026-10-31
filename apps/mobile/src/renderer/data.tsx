@@ -49,6 +49,7 @@ import {
   isRecordToolUse,
   type ComponentStyle,
   type DataRecord,
+  type ValueSuggestion,
   type LinkedGroups,
   type Field,
   type FieldIssue,
@@ -653,6 +654,65 @@ function LinkInput({
 }
 
 /** 一组字段的输入，带名称和错误提示。记录编辑页和 inline 表单共用。 */
+const isEmptyValue = (v: unknown) => v === undefined || v === null || v === '';
+
+/**
+ * 一个空字段下面的候选值（D-388）：安静的小按钮，显示整理过的值（金额带货币、日期按语言），
+ * 太长时截断；点了才填，从不自动填。
+ */
+function SuggestionChips({
+  field,
+  list,
+  palette,
+  locale,
+  disabled,
+  testID,
+  onPick,
+}: {
+  field: Field;
+  list: readonly ValueSuggestion[];
+  palette: Palette;
+  locale: RenderEnv['locale'];
+  disabled?: boolean | undefined;
+  testID: string;
+  onPick: (s: ValueSuggestion) => void;
+}) {
+  const shown = (s: ValueSuggestion) =>
+    formatValue(
+      field,
+      field.type === 'money' || field.type === 'number' ? Number(s.value) : s.value,
+      locale,
+    ) || s.value;
+  return (
+    <View testID={testID} style={styles.suggestions}>
+      {list.map((s, i) => {
+        const value = shown(s);
+        return (
+          <Pressable
+            key={`${s.value}-${i}`}
+            testID={`${testID}-${i}`}
+            disabled={disabled}
+            onPress={() => onPick(s)}
+            accessibilityRole="button"
+            accessibilityLabel={t(locale, 'suggestionFill', { field: field.name, value })}
+            hitSlop={4}
+            style={[
+              styles.suggestion,
+              { borderColor: palette.border, borderRadius: palette.radius / 2 },
+            ]}>
+            <Text
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              style={[palette.font('body', 13), { color: palette.muted }]}>
+              {value}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 export function FieldsForm({
   collection,
   fieldIds,
@@ -667,6 +727,8 @@ export function FieldsForm({
   related,
   onSubmit,
   autoFocus,
+  suggestions,
+  onSuggestion,
 }: {
   collection: Collection;
   fieldIds: readonly string[];
@@ -687,6 +749,10 @@ export function FieldsForm({
   onSubmit?: (() => void) | undefined;
   /** 第一个文字框直接弹出键盘（底部弹出的添加框）。 */
   autoFocus?: boolean | undefined;
+  /** 新记录表单的候选值（D-388）：字段 ID → 最多 3 个，只在字段空着时显示，点了才填。 */
+  suggestions?: Readonly<Record<string, readonly ValueSuggestion[]>> | undefined;
+  /** 用户点了一个候选（已经填进字段）。 */
+  onSuggestion?: ((fieldId: string, suggestion: ValueSuggestion) => void) | undefined;
 }) {
   const cal = useCalendar();
   const firstText = fieldIds.find(
@@ -762,6 +828,20 @@ export function FieldsForm({
               onSubmit={onSubmit}
               autoFocus={autoFocus === true && id === firstText}
             />
+            {suggestions?.[id]?.length && isEmptyValue(values[id]) ? (
+              <SuggestionChips
+                field={field}
+                list={suggestions[id]!}
+                palette={palette}
+                locale={locale}
+                disabled={disabled}
+                testID={`${testPrefix}-${id}-suggestion`}
+                onPick={(s) => {
+                  onChange({ ...values, [id]: s.value });
+                  onSuggestion?.(id, s);
+                }}
+              />
+            ) : null}
             {issue ? (
               <Text style={[palette.font('bodyMedium', 13), { color: palette.danger }]}>
                 {issueText(locale, issue.code)}
@@ -1642,6 +1722,8 @@ const styles = StyleSheet.create({
   },
   smartDismiss: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  suggestion: { borderWidth: 1, paddingHorizontal: 10, paddingVertical: 5, maxWidth: '100%' },
   chip: {
     borderWidth: 1,
     borderRadius: 999,
