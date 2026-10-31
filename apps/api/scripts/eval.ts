@@ -22,6 +22,7 @@ import { createApp } from '../src/server';
 //   --batch：所有用例同时跑，请求攒成批走批处理 API。半价，但每一轮要等几分钟到几小时；
 //     修复请求是下一批。批处理 API 不接受 fallbacks，所以没有拒答回退。只能配 relay 传输。
 //   --verbose：失败时打印模型给出的计划。计划里的 notes（D-110）总是打印。
+//   --full：不按需加载，每次都发完整的提示词（默认和 App 一样走 route.ts 的路由）。
 //   --dump <文件>：把每个用例的计划（含通过的）和结果写成 JSON，给提示词路由的测试取「需要哪些部分」。
 
 const { values } = parseArgs({
@@ -33,6 +34,7 @@ const { values } = parseArgs({
     batch: { type: 'boolean' },
     verbose: { type: 'boolean' },
     dump: { type: 'string' },
+    full: { type: 'boolean' },
   },
 });
 
@@ -84,7 +86,9 @@ const cases = EVAL_CASES.filter((c) => !selected || selected.has(c.id));
 const now = new Date();
 let passed = 0;
 const failures: string[] = [];
-const dumped: Record<string, { pass: boolean; plans: unknown[] }> = {};
+const dumped: Record<string, { pass: boolean; plans: unknown[]; routes: string[] }> = {};
+// 每种路由的请求数和 token（输入含缓存写入，另记缓存读取）。
+const byRoute = new Map<string, { calls: number; input: number; cacheRead: number }>();
 
 console.log(
   `模型：${runtime.model}${env.MORPH_AI_EFFORT ? `（effort ${env.MORPH_AI_EFFORT}）` : ''}，传输：${transport}${batch ? '（批处理）' : ''}，用例数：${cases.length}\n`,
@@ -93,20 +97,29 @@ console.log(
 async function runCase(c: (typeof cases)[number]): Promise<string> {
   // 每个用例一个 planner，批处理时用例同时跑，请求次数也能分开数。
   let calls = 0;
+  const routes: string[] = [];
   const provider = createClaudePlanner({
     complete,
     registry,
     now: () => new Date(),
+    route: !values.full,
+    onRoute: (route) => routes.push(route),
     onCompletion: (completion) => {
       calls++;
       completions.push(completion);
+      const route = routes.at(-1) ?? 'full';
+      const r = byRoute.get(route) ?? { calls: 0, input: 0, cacheRead: 0 };
+      r.calls++;
+      r.input += completion.usage.inputTokens + completion.usage.cacheWriteTokens;
+      r.cacheRead += completion.usage.cacheReadTokens;
+      byRoute.set(route, r);
     },
   });
   const started = Date.now();
   let line: string;
   try {
     const { outcome, plans } = await runEvalCase(c, provider, registry, now);
-    dumped[c.id] = { pass: outcome.pass, plans };
+    dumped[c.id] = { pass: outcome.pass, plans, routes };
     const repairs = calls - plans.length;
     const repaired = repairs > 0 ? `，修复 ${repairs} 次` : '';
     if (outcome.pass) {
@@ -160,6 +173,11 @@ console.log(
 const served = new Set(completions.map((c) => c.model));
 if (served.size > 1 || (served.size === 1 && runtime.model && !served.has(runtime.model))) {
   console.log(`实际响应模型：${[...served].join(', ')}（可能触发了拒答回退）`);
+}
+for (const [route, r] of [...byRoute].sort()) {
+  console.log(
+    `路由 ${route}：请求 ${r.calls} 次，平均输入 ${Math.round(r.input / r.calls)} token + 缓存读取 ${Math.round(r.cacheRead / r.calls)}`,
+  );
 }
 if (values.dump) writeFileSync(values.dump, JSON.stringify(dumped, null, 1));
 if (failures.length > 0) console.log(`\n失败详情：\n${failures.map((f) => `- ${f}`).join('\n')}`);

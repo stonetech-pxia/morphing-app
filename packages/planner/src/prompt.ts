@@ -275,7 +275,61 @@ const GENERAL_RULES = `1. Change only what was asked, and do every part of it: a
 50. A time on a schedule ("每天晚上8点吃药", "the dentist on Friday at 3pm", "chaque lundi à 9h") is the user's own: rules take time? "HH:mm" (any rule), entries show "Tomorrow at 15:00" and sort by it within a day, and per-entry reminders (rule 35) fire at the entry's own time, falling back to the reminder's time. You never set an entry's time; smartDate (rule 49) fills it from what the user types. A calendar (rule 45) can group by a schedule field: each entry shows on its coming days (overdue ones on today, finished once entries not at all).
 51. suggest (optional, at most 2, each under 40 characters): with an ops plan that leaves nothing in next (when next is set, the plan for next gives them), one or two short requests in the interface language for what this kind of app usually gets next and does not have yet, shown to the user as tappable ideas (after building a to-do app: "加子任务", "做一个看板"; after a habit tracker: "到点提醒我"; after a budget: "Show spending by category"). Each must work on its own as a change to the app (function or look) — never something done for the user (writing text, reading or summing up their entries, D-113) — and must not repeat next or anything the app already has. Give it after every change that adds something (a table, field, page, list, board, chart or reminder), so the user always has a next idea; leave it out only for pure style tweaks (colors, fonts, a rename, moving or removing something) or when nothing obvious is missing.`;
 
-function rules(registry: Registry): string {
+/**
+ * 规则按用途分组，给按需加载（PromptRoute）用：core 每次都发（含办事拒绝 24、记录内容 17、
+ * 功能 / 外观分两轮 26 等底线相关的规则），其余按路由挑。新规则要在这里登记，测试会查。
+ */
+export const RULE_GROUPS = {
+  core: [1, 2, 3, 4, 5, 6, 16, 17, 23, 24, 25, 26, 27, 51],
+  style: [9, 10, 11],
+  look: [7, 8, 12, 13, 37],
+  records: [18, 19, 32, 33, 34, 35, 38, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50],
+  files: [14, 15, 20, 21, 22, 28, 29, 30, 31, 36, 39],
+} as const;
+export type RuleGroup = keyof typeof RULE_GROUPS;
+
+/** 省掉的规则在目录里的一句话名字。 */
+const RULE_TITLES: Record<number, string> = {
+  7: 'moving blocks',
+  8: 'renaming the home page',
+  9: 'named colors',
+  10: 'readable colors',
+  11: 'style words',
+  12: 'a new page needs a way in',
+  13: 'side by side and grids',
+  14: 'simplifying quick actions',
+  15: 'name templates',
+  18: 'data pages',
+  19: 'removing fields and tables',
+  20: 'building quick actions, presets, putting one on the home page',
+  21: 'reports from records, records from files',
+  22: 'goals instead of steps',
+  28: 'keeping only some files',
+  29: 'one result per group',
+  30: 'names from what is in the photo',
+  31: 'working on text in a quick action',
+  32: 'formula fields',
+  33: 'number and chart blocks',
+  34: 'link fields',
+  35: 'reminders',
+  36: 'ID photo backgrounds',
+  37: 'picture backgrounds',
+  38: 'photos and files on entries',
+  39: "the phone's home screen",
+  40: 'time, datetime and duration fields',
+  41: 'when a day or week starts',
+  42: 'lookup, rollup and previous fields',
+  43: 'schedule fields',
+  44: 'record tools on blocks',
+  45: 'calendars, boards, sections, Add here, sheet forms',
+  46: 'show.format',
+  47: 'to-dos',
+  48: 'a page for one entry',
+  49: 'typing a date in the same line',
+  50: 'a time on a schedule',
+};
+
+function rules(registry: Registry, keep: (n: number) => boolean = () => true): string {
   const all = GENERAL_RULES.split('\n').map((line) => ({ n: parseInt(line, 10), line }));
   for (const d of COMPONENTS) {
     const rule = (d.ai as ComponentAI).rule;
@@ -285,24 +339,105 @@ function rules(registry: Registry): string {
     for (const r of a.aiRules ?? []) all.push({ n: r.n, line: `${r.n}. ${r.text}` });
   }
   return all
+    .filter((r) => keep(r.n))
     .sort((a, b) => a.n - b.n)
     .map((r) => r.line)
     .join('\n');
 }
 
-const promptCache = new WeakMap<Registry, { revision: number; text: string }>();
+/**
+ * 按需加载：本机的路由（route.ts）按用户的话和上下文挑一种；拿不准就是 full。
+ * 每种路由发哪些部分（## 标题）和哪些规则组；省掉的部分在最后列一个目录，模型需要时回 needMore，
+ * 规划器换成完整的提示词再问一次。
+ */
+export type PromptRoute = 'full' | 'files' | 'records' | 'look' | 'style';
+export const PROMPT_ROUTES: readonly PromptRoute[] = ['full', 'files', 'records', 'look', 'style'];
 
-/** 系统提示词；注册表加入或替换了下载的工具（registryRevision 变了）时重新生成。 */
-export function systemPromptFor(registry: Registry): string {
+export type PromptSection =
+  'Data' | 'Containers' | 'Theme' | 'Quick-action presets' | 'Built-in tool catalog';
+
+const ALL_SECTIONS: readonly PromptSection[] = [
+  'Data',
+  'Containers',
+  'Theme',
+  'Quick-action presets',
+  'Built-in tool catalog',
+];
+
+export const ROUTE_PARTS: Record<
+  PromptRoute,
+  { sections: readonly PromptSection[]; rules: readonly RuleGroup[] }
+> = {
+  full: { sections: ALL_SECTIONS, rules: ['core', 'style', 'look', 'records', 'files'] },
+  files: { sections: ['Quick-action presets', 'Built-in tool catalog'], rules: ['core', 'files'] },
+  records: { sections: ['Data', 'Containers'], rules: ['core', 'look', 'records'] },
+  look: {
+    sections: ['Data', 'Containers', 'Theme'],
+    rules: ['core', 'style', 'look', 'records'],
+  },
+  style: { sections: ['Containers', 'Theme'], rules: ['core', 'style', 'look'] },
+};
+
+const SECTION_SUMMARY: Record<PromptSection, string> = {
+  Data: 'Data: tables, field types, $files, the calendar setting, filter / group / aggregate',
+  Containers:
+    'Containers: pages, blocks, every look and its show / source / tools, icons, rich text, nav, opens',
+  Theme: 'Theme: theme properties and the built-in style presets',
+  'Quick-action presets':
+    'Quick-action presets: the ready-made quick actions (addTool {tool: {preset}})',
+  'Built-in tool catalog':
+    'Built-in tool catalog: every quick-action step action with its parameters (photos, PDF, video, audio, scan, text recognition, translate, ZIP, QR, text, reports)',
+};
+
+/** 省掉的部分的目录：模型知道还有什么，需要时回 needMore。 */
+function omittedIndex(route: PromptRoute): string {
+  const parts = ROUTE_PARTS[route];
+  const sections = ALL_SECTIONS.filter((s) => !parts.sections.includes(s));
+  const kept = new Set<number>(parts.rules.flatMap((g) => RULE_GROUPS[g]));
+  const omitted = Object.values(RULE_GROUPS)
+    .flat()
+    .filter((n) => !kept.has(n))
+    .sort((a, b) => a - b);
+  return `Left out of these instructions
+To keep them short, these parts were left out because the request doesn't seem to need them:
+${sections.map((s) => `- ${SECTION_SUMMARY[s]}`).join('\n')}
+- Rules ${omitted.map((n) => `${n} (${RULE_TITLES[n]})`).join(', ')}
+If the request needs any of them, or you are not sure, reply with exactly {"kind": "needMore"} and nothing else: you will get the full instructions.`;
+}
+
+const promptCache = new WeakMap<Registry, { revision: number; texts: Map<PromptRoute, string> }>();
+
+/** 系统提示词；注册表加入或替换了下载的工具（registryRevision 变了）时重新生成。每种路由缓存一份。 */
+export function systemPromptFor(registry: Registry, route: PromptRoute = 'full'): string {
   const revision = registryRevision(registry);
-  const cached = promptCache.get(registry);
-  if (cached?.revision === revision) return cached.text;
-  const text = buildSystemPrompt(registry);
-  promptCache.set(registry, { revision, text });
+  let cached = promptCache.get(registry);
+  if (cached?.revision !== revision) {
+    cached = { revision, texts: new Map() };
+    promptCache.set(registry, cached);
+  }
+  let text = cached.texts.get(route);
+  if (text === undefined) {
+    text = buildSystemPrompt(registry, route);
+    cached.texts.set(route, text);
+  }
   return text;
 }
 
-export function buildSystemPrompt(registry: Registry): string {
+/** 一种路由的提示词：完整提示词按「## 」标题切开，留下这种路由要的部分，规则只留它的组，最后加目录。 */
+export function buildSystemPrompt(registry: Registry, route: PromptRoute = 'full'): string {
+  if (route === 'full') return buildFullPrompt(registry);
+  const parts = ROUTE_PARTS[route];
+  const kept = new Set<number>(parts.rules.flatMap((g) => RULE_GROUPS[g]));
+  const [head, ...sections] = buildFullPrompt(registry, (n) => kept.has(n)).split('\n\n## ');
+  const optional = new Set<string>(ALL_SECTIONS);
+  const chosen = sections.filter((s) => {
+    const title = s.slice(0, s.indexOf('\n'));
+    return !optional.has(title) || parts.sections.includes(title as PromptSection);
+  });
+  return [head, ...chosen, omittedIndex(route)].join('\n\n## ');
+}
+
+function buildFullPrompt(registry: Registry, keepRule?: (n: number) => boolean): string {
   const tools = [...registry.tools.values()]
     .map((tool) => {
       // 下载的数据工具没有自己的动作，只带几个组合已有动作的快捷操作（D-177）。
@@ -441,7 +576,7 @@ type Op =
   | { op: "setPackage"; package: string; do: "add" | "remove" | "update" };     // add: the tool's page and quick actions, plus an entry on home unless a packages block already shows it; update: an added tool older than the catalog gets its new quick actions and page entries
 
 ## Rules
-${rules(registry)}
+${rules(registry, keepRule)}
 
 ## Quick-action presets
 Add one with addTool {tool: {preset}} (rule 20). Each line: id “name”: its steps as stepId:action{parameters you may override in params; * = asked on every run}.

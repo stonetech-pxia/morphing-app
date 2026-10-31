@@ -111,7 +111,7 @@ interface MessageResponse {
 
 export function createHttpCompleter(options: HttpCompleterOptions): Complete {
   const fallback = supportsServerFallback(options.model);
-  return async (messages): Promise<Completion> => {
+  return async (messages, system): Promise<Completion> => {
     const body = {
       model: options.model,
       max_tokens: 16000,
@@ -119,7 +119,7 @@ export function createHttpCompleter(options: HttpCompleterOptions): Complete {
       system: [
         {
           type: 'text',
-          text: systemPromptFor(options.registry),
+          text: system ?? systemPromptFor(options.registry),
           cache_control: { type: 'ephemeral' },
         },
       ],

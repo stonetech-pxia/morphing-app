@@ -138,11 +138,11 @@ export interface OpenAICompletionOptions extends OpenAICompatibleOptions {
 }
 
 export function createOpenAICompleter(options: OpenAICompletionOptions): Complete {
-  return async (messages): Promise<Completion> => {
+  return async (messages, system): Promise<Completion> => {
     const body = {
       model: options.model,
       messages: [
-        { role: 'system', content: systemPromptFor(options.registry) },
+        { role: 'system', content: system ?? systemPromptFor(options.registry) },
         ...messages.map((m) => ({ role: m.role, content: toText(m.content) })),
       ],
     };
