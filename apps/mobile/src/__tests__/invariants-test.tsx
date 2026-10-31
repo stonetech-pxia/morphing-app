@@ -437,7 +437,7 @@ const settle = () =>
     await Promise.resolve();
   });
 
-describe('底线 15 / 16：看永远不会改；每次写入都来自用户的一次操作', () => {
+describe('底线 15 / 16：看永远不会改；每次写入都来自用户的一次操作（例外：启动时清空回收站里超过 30 天的）', () => {
   afterEach(() => {
     jest.restoreAllMocks();
     useGuide.setState({ stage: null, repo: null });
@@ -467,13 +467,36 @@ describe('底线 15 / 16：看永远不会改；每次写入都来自用户的�
     20_000,
   );
 
-  // 违反底线 16（可能），待创始人决定：启动时把放进「最近删除」超过保留期的记录永久删掉（D-037，revisions.ts
-  // bootHead）。记录是用户自己删的，但永久删除这一步没有用户操作。
-  it.failing('starting the app never changes entries, not even old deleted ones', async () => {
+  // 创始人 2026-10-31（对话）定的例外（D-037）：回收站里删掉超过 30 天的记录在启动时永久删除，起因是用户自己删的。
+  // 这是启动时唯一的写入。
+  it('starting the app writes nothing except emptying entries deleted more than 30 days ago', async () => {
     const repo = await repoWithPrivateData();
-    await repo.deleteRecord('r1', NOW.getTime() - 60 * 86_400_000);
+    await repo.insertRecord({
+      id: 'r2',
+      collectionId: 'notes',
+      values: { title: 'x' },
+      createdAt: NOW.getTime(),
+      updatedAt: NOW.getTime(),
+    });
+    await repo.insertRecord({
+      id: 'r3',
+      collectionId: 'notes',
+      values: { title: 'y' },
+      createdAt: NOW.getTime(),
+      updatedAt: NOW.getTime(),
+    });
+    // 第一次打开（存下种子版本），然后用户删了两条：一条 60 天前，一条 5 天前。
     await bootedStore(fixedPlanner(themePlan), repo);
-    expect((await repo.listDeletedRecords()).map((r) => r.id)).toEqual(['r1']);
+    await repo.deleteRecord('r2', NOW.getTime() - 60 * 86_400_000);
+    await repo.deleteRecord('r3', NOW.getTime() - 5 * 86_400_000);
+    const spies = spyWrites(repo);
+    await bootedStore(fixedPlanner(themePlan), repo);
+    expect(spies.filter(([, s]) => s.mock.calls.length > 0).map(([n]) => n)).toEqual([
+      'purgeDeletedRecords',
+    ]);
+    expect((await repo.listDeletedRecords()).map((r) => r.id)).toEqual(['r3']);
+    expect((await repo.getRecord('r1'))!.values.body).toContain(SENTINEL);
+    jest.restoreAllMocks();
   });
 });
 
