@@ -13,7 +13,6 @@ import { t } from '../i18n';
 import { newAssetId } from '../runtime/runner';
 import type { WorkspaceRepo } from '../storage/types';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
-import type { RecordUndo } from '../workspace/store/types';
 import { applyInMemory, planWidgetOp } from './ops';
 import { useWidgetPlacement } from './placed';
 import { buildWidgetSnapshot } from './snapshot';
@@ -22,7 +21,7 @@ import type { PlacedWidget, QueuedWidgetOp, WidgetPlatform } from './types';
 // 桌面小组件和 App（D-322、D-323）：
 // - 取走小组件上点了的操作：App 启动、回到前台、Android 上 App 开着时小组件点了（onQueue）。按点的时间顺序、
 //   以点的时间执行（「今天」是点的那天，记录的创建时间也是点的时间），和 App 里的一键操作排在同一个队列里，
-//   两边不会同时写。执行完弹一个提示条，可以一起撤销。页面改过、操作换了的不执行，提示条里说。
+//   两边不会同时写。执行完弹一个提示条说记下了几次（不带撤销，底线 11）。页面改过、操作换了的不执行，提示条里说。
 // - 画面：正式版本的配置、记录、放到桌面的组件、语言变了就重算（等半秒，连着改只算一次），App 开着跨天时也重算。
 
 type Repo = Pick<WorkspaceRepo, 'listRecords' | 'insertRecord' | 'updateRecord'>;
@@ -62,7 +61,6 @@ function parseQueued(raw: readonly string[]): QueuedWidgetOp[] {
 export interface DrainResult {
   done: number;
   skipped: number;
-  undo: Extract<RecordUndo, { kind: 'batch' }>;
 }
 
 /** 执行取走的点按。返回 null：队列是空的。 */
@@ -76,7 +74,6 @@ export async function runQueuedWidgetOps(
   if (raw.length === 0) return null;
   const cal = calendarOf(config);
   let records: Map<string, DataRecord[]> = await allRecords(repo, config);
-  const undo: DrainResult['undo'] = { kind: 'batch', discard: [], records: [] };
   let done = 0;
   for (const entry of queued) {
     // 时钟被往回调过、点的时间在未来：按现在算。
@@ -92,18 +89,14 @@ export async function runQueuedWidgetOps(
         createdAt: at.getTime(),
         updatedAt: at.getTime(),
       });
-      undo.discard.push(id);
       records = applyInMemory(records, write, at, id);
     } else {
       await repo.updateRecord(write.id, write.values, at.getTime());
-      // 撤销改回第一次点之前的值。
-      if (!undo.records.some((r) => r.id === write.id))
-        undo.records.push({ id: write.id, values: write.before });
       records = applyInMemory(records, write, at, write.id);
     }
     done++;
   }
-  return { done, skipped: raw.length - done, undo };
+  return { done, skipped: raw.length - done };
 }
 
 /** 提示条的文字：记下了几次；有没执行的，接着说。 */
@@ -157,10 +150,7 @@ export function WidgetBridge({ platform }: { platform: WidgetPlatform | null }) 
         const result = await runQueuedWidgetOps(raw, repo, current, new Date());
         if (!result) return;
         store.getState().bumpRecords();
-        store.getState().showToast({
-          message: drainMessage(result, locale),
-          ...(result.done > 0 ? { undo: result.undo } : {}),
-        });
+        store.getState().showToast({ message: drainMessage(result, locale) });
       }).catch(() => undefined);
     void drain();
     const sub = AppState.addEventListener('change', (s) => {

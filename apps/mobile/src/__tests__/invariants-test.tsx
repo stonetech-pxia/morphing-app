@@ -362,7 +362,6 @@ const WRITES = [
   'insertRecord',
   'updateRecord',
   'deleteRecord',
-  'discardRecord',
   'restoreRecord',
   'purgeDeletedRecords',
   'purgeCollection',
@@ -500,9 +499,10 @@ describe('底线 15 / 16：看永远不会改；每次写入都来自用户的�
   });
 });
 
-describe('底线 11：写数据的操作都能挽回；不容易改回去的才显示撤销', () => {
-  // 创始人 2026-10-31（对话）放宽：用户能用同样简单的操作改回去的（取消勾选、再编辑、删掉）不弹撤销；删除、
-  // 批量修改（一定先问）、新建到另一张表显示撤销。后两种在 record-actions-test.tsx。
+describe('底线 11：写数据的操作都能挽回；只有删除弹撤销提示', () => {
+  // 创始人 2026-10-31（对话）：「存储东西或者是经过用户确认的操作，就不要撤销了，除了删除操作」。存下的和用户确认过的
+  // （表单保存、打勾、一键新建、+1、拖看板、点圆块、批量修改、桌面小组件）不弹撤销，用户用同样简单的操作改回去；
+  // 批量修改一定先问（record-actions-test.tsx）。
   afterEach(() => {
     jest.restoreAllMocks();
     useGuide.setState({ stage: null, repo: null });
@@ -510,28 +510,31 @@ describe('底线 11：写数据的操作都能挽回；不容易改回去的才�
 
   // 每个测试重新渲染，但 expo-router 的全局 router 记得上一个测试停在哪：带一个不同的参数，保证推进的是新的一页。
   let visit = 0;
-  async function todoPage() {
-    const app = await renderSeeded(v34('todo'), 'zh');
+  async function openPage(config: WorkspaceConfig, pageId: string, repo?: MemoryWorkspaceRepo) {
+    const app = await renderSeeded(config, 'zh', repo);
     await act(() =>
-      router.push({ pathname: '/page/[pageId]', params: { pageId: 'todo', visit: ++visit } }),
+      router.push({ pathname: '/page/[pageId]', params: { pageId, visit: ++visit } }),
     );
     return app;
   }
+  const todoPage = () => openPage(v34('todo'), 'todo');
 
   it('deleting an entry shows undo', async () => {
     const { store } = await todoPage();
     await fireEvent.press(await screen.findByText('todos 1'));
     await fireEvent.press(await screen.findByTestId('editor-delete'));
     await waitFor(() => expect(store.getState().toast?.restoreRecordId).toBe('todos-1'));
+    expect(screen.getByTestId('toast-undo')).toBeTruthy();
   });
 
-  it('adding an entry with the form on the page is taken back by deleting it, which shows undo', async () => {
+  it('adding an entry with the form on the page shows no undo; deleting it does', async () => {
     const { repo, store } = await todoPage();
     await fireEvent.changeText(await screen.findByTestId('form-add-title'), '买牛奶');
     await fireEvent.press(screen.getByTestId('form-add-submit'));
     await settle();
     const added = (await repo.listRecords('todos')).find((r) => r.values.title === '买牛奶')!;
     expect(added).toBeDefined();
+    expect(screen.queryByTestId('toast-undo')).toBeNull();
     // 新的一条就在这张表上，点开删掉（删除照常有撤销）。
     await fireEvent.press(await screen.findByText('买牛奶'));
     await fireEvent.press(await screen.findByTestId('editor-delete'));
@@ -539,14 +542,32 @@ describe('底线 11：写数据的操作都能挽回；不容易改回去的才�
     expect((await repo.listRecords('todos')).some((r) => r.id === added.id)).toBe(false);
   });
 
-  it('ticking a checklist entry is taken back by ticking it again', async () => {
+  it('ticking a checklist entry shows no undo and is taken back by ticking it again', async () => {
     const { repo } = await todoPage();
     const before = (await repo.getRecord('todos-1'))!.values.done ?? false;
     await fireEvent.press(await screen.findByTestId('check-todos-1'));
     await settle();
     expect((await repo.getRecord('todos-1'))!.values.done).toBe(!before);
+    expect(screen.queryByTestId('toast-undo')).toBeNull();
     await fireEvent.press(await screen.findByTestId('check-todos-1'));
     await settle();
     expect((await repo.getRecord('todos-1'))!.values.done ?? false).toBe(before);
+  });
+
+  it('a one-tap check-in (tapping a habit tile) shows no undo', async () => {
+    const seededRepo = new MemoryWorkspaceRepo();
+    await seededRepo.insertRecord({
+      id: 'run',
+      collectionId: 'habits',
+      values: { name: '跑步', plan: { repeat: 'daily' } },
+      createdAt: NOW.getTime(),
+      updatedAt: NOW.getTime(),
+    });
+    const { repo } = await openPage(v34('habits'), 'habits', seededRepo);
+    const before = (await repo.listRecords('checkins')).length;
+    await fireEvent.press(await screen.findByTestId('tile-run'));
+    await waitFor(async () => expect(await repo.listRecords('checkins')).toHaveLength(before + 1));
+    await settle();
+    expect(screen.queryByTestId('toast-undo')).toBeNull();
   });
 });

@@ -11,7 +11,7 @@ const shape = {
     variant: z.enum(['filled', 'outline', 'text', 'icon']),
     icon: IconValueSchema.optional(),
   }),
-  /** 一个就地的一键记录工具（D-300，原 action）：和 opens 二选一，点了在本机改记录，可以撤销。 */
+  /** 一个就地的一键记录工具（D-300，原 action）：和 opens 二选一，点了在本机改记录（不弹撤销，D-385）。 */
   tools: z.array(ToolUseSchema).min(1).max(1).optional(),
   opens: openTargetSchema('opens must be a page, a system entry or tool:<id>', ['tool']).optional(),
 };

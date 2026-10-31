@@ -12,15 +12,12 @@ import { useCalendar, useWorkspace, useWorkspaceContext } from '@/workspace/cont
 
 /** 记录编辑页：由内核按数据表的字段自动生成，不可配置（docs/DATA_DESIGN.md §5）。 */
 export default function RecordRoute() {
-  const { collectionId, recordId, prefill, undo } = useLocalSearchParams<{
+  const { collectionId, recordId, prefill } = useLocalSearchParams<{
     collectionId: string;
     recordId?: string;
     /** 一键操作打开的新记录表单（D-338）：预设的值，JSON。 */
     prefill?: string;
-    /** 新建到另一张表（底线 11）：存好后显示撤销。 */
-    undo?: string;
   }>();
-  const showToast = useWorkspace((s) => s.showToast);
   const { repo, locale } = useWorkspaceContext();
   const router = useRouter();
   const config = useWorkspace((s) => s.config)!;
@@ -59,11 +56,6 @@ export default function RecordRoute() {
     const result = record
       ? await actions.update(collection, record, values)
       : await actions.add(collection, values);
-    if (result.ok && !record && undo === '1')
-      showToast({
-        message: t(locale, 'recordActionAdded', { table: collection.name }),
-        undo: { kind: 'discard', id: result.id },
-      });
     if (result.ok) router.back();
     else if ('issues' in result) setIssues(result.issues);
   }

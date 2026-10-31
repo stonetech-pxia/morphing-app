@@ -75,7 +75,6 @@ export type PlannedWrite =
       collection: Collection;
       id: string;
       values: Record<string, unknown>;
-      before: Record<string, unknown>;
     };
 
 /**
@@ -122,13 +121,7 @@ export function planWidgetOp(
   if (!input) return null;
   const prepared = prepareRecordValues(collection, input, stored.values, at, cal);
   return prepared.ok
-    ? {
-        kind: 'update',
-        collection,
-        id: stored.id,
-        values: prepared.values,
-        before: stored.values,
-      }
+    ? { kind: 'update', collection, id: stored.id, values: prepared.values }
     : null;
 }
 

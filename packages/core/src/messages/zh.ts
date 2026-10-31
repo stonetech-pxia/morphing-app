@@ -1214,7 +1214,7 @@ export const zh: MessageTable = {
   recordActionAdded: '已在「{table}」添加一条',
   recordActionDone: '{label}：已记下',
   recordActionChanged: '已修改 {n} 条记录',
-  recordActionConfirm: '将修改 {n} 条记录，之后可以撤销。',
+  recordActionConfirm: '将修改 {n} 条记录。',
   recordActionConfirmButton: '修改',
   recordActionNothing: '没有需要修改的记录',
   recordActionTooMany: '一次最多修改 {max} 条，这次会修改 {n} 条。',

@@ -89,7 +89,7 @@ it('a new user sees the empty text for tiles and empty columns on the board', as
   expect(screen.getAllByText('这一栏没有记录')).toHaveLength(4);
 });
 
-it('tapping a tile runs its row action, fills the circle at the goal, and undo puts it back', async () => {
+it('tapping a tile runs its row action and fills the circle at the goal, with no undo (invariant 11)', async () => {
   const repo = new MemoryWorkspaceRepo();
   await put(repo, 'run', 'habits', { name: '跑步', today: 1, goal: 2 });
   await renderToolsApp(repo, undefined, { seed });
@@ -98,9 +98,7 @@ it('tapping a tile runs its row action, fills the circle at the goal, and undo p
   expect(await screen.findByText('2 / 2')).toBeTruthy();
   expect((await repo.getRecord('run'))?.values.today).toBe(2);
   expect(await screen.findByTestId('toast')).toHaveTextContent(/打卡：已记下/);
-  await fireEvent.press(await screen.findByText('撤销'));
-  expect(await screen.findByText('1 / 2')).toBeTruthy();
-  expect((await repo.getRecord('run'))?.values.today).toBe(1);
+  expect(screen.queryByTestId('toast-undo')).toBeNull();
 });
 
 it('long-pressing a tile with a row action opens its entry instead of editing the page (D-311)', async () => {
@@ -131,7 +129,7 @@ it('shows at most 24 tiles (D-312)', async () => {
   expect(screen.queryAllByTestId(/^tile-h\d+$/)).toHaveLength(24);
 });
 
-it('moves a card with "Move to…" without dragging, and undo moves it back', async () => {
+it('moves a card with "Move to…" without dragging, with no undo; moving it back is another move', async () => {
   const repo = new MemoryWorkspaceRepo();
   await put(repo, 't1', 'tasks', { title: '写报告', status: 'todo' });
   await put(repo, 't2', 'tasks', { title: '没分的' });
@@ -143,8 +141,10 @@ it('moves a card with "Move to…" without dragging, and undo moves it back', as
   await fireEvent.press(screen.getByTestId('board-menu-to:doing'));
   expect(await screen.findByTestId('toast')).toHaveTextContent(/已移到「进行中」/);
   expect((await repo.getRecord('t1'))?.values).toEqual({ title: '写报告', status: 'doing' });
-  await fireEvent.press(await screen.findByText('撤销'));
-  await screen.findByTestId('board-card-t1');
+  expect(screen.queryByTestId('toast-undo')).toBeNull();
+  await fireEvent.press(screen.getByTestId('board-card-t1'));
+  await fireEvent.press(screen.getByTestId('board-menu-to:todo'));
+  await screen.findByText('已移到「待办」');
   expect((await repo.getRecord('t1'))?.values).toEqual({ title: '写报告', status: 'todo' });
   // 「未分」里的卡片移到一个选项。
   await fireEvent.press(screen.getByTestId('board-card-t2'));
@@ -163,7 +163,7 @@ it('a screen reader can move a card straight from its actions', async () => {
   expect((await repo.getRecord('t1'))?.values.status).toBe('done');
 });
 
-it('in French: "Non classé", the move menu and the undo toast', async () => {
+it('in French: "Non classé", the move menu and the toast', async () => {
   const repo = new MemoryWorkspaceRepo();
   await put(repo, 't1', 'tasks', { title: 'Rapport', status: 'todo' });
   await renderToolsApp(repo, undefined, { seed, locale: 'fr' });
@@ -174,5 +174,5 @@ it('in French: "Non classé", the move menu and the undo toast', async () => {
   expect(screen.getByTestId('board-menu-to:doing')).toHaveTextContent('Déplacer dans « 进行中 »');
   await fireEvent.press(screen.getByTestId('board-menu-to:doing'));
   expect(await screen.findByTestId('toast')).toHaveTextContent(/Déplacé dans « 进行中 »/);
-  expect(await screen.findByText('Annuler')).toBeTruthy();
+  expect(screen.queryByTestId('toast-undo')).toBeNull();
 });

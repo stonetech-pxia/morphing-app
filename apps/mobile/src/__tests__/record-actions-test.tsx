@@ -131,20 +131,18 @@ const at = Date.now();
 const put = (repo: MemoryWorkspaceRepo, id: string, collectionId: string, values: object) =>
   repo.insertRecord({ id, collectionId, values: { ...values }, createdAt: at, updatedAt: at });
 
-it('a new user: one tap logs a habit for today, and undo takes it away without a trace', async () => {
+// 底线 11（创始人 2026-10-31）：只有删除弹撤销；一键记下的、改过的，用户自己删掉或改回去。
+it('a new user: one tap logs a habit for today, with no undo', async () => {
   const repo = new MemoryWorkspaceRepo();
   await renderToolsApp(repo, undefined, { seed });
   await fireEvent.press(await screen.findByText('打卡跑步'));
   expect(await screen.findByTestId('toast')).toHaveTextContent(/已在「打卡」添加一条/);
+  expect(screen.queryByTestId('toast-undo')).toBeNull();
   const [record] = await repo.listRecords('checkins');
   expect(record?.values).toEqual({ habit: 'run', day: localDate(new Date()) });
-  await fireEvent.press(screen.getByTestId('toast-undo'));
-  expect(await repo.listRecords('checkins')).toEqual([]);
-  // 撤销刚建的不进「最近删除」。
-  expect(await repo.listDeletedRecords()).toEqual([]);
 });
 
-it('+1 on a row adds up quick taps one after another; undo goes back one tap', async () => {
+it('+1 on a row adds up quick taps one after another, with no undo', async () => {
   const repo = new MemoryWorkspaceRepo();
   await put(repo, 'w1aaaaaa', 'water', { day: '2026-10-29', glasses: 3 });
   await renderToolsApp(repo, undefined, { seed });
@@ -155,8 +153,7 @@ it('+1 on a row adds up quick taps one after another; undo goes back one tap', a
   });
   expect(await screen.findByTestId('toast')).toHaveTextContent(/\+1：已记下/);
   expect((await repo.getRecord('w1aaaaaa'))?.values.glasses).toBe(5);
-  await fireEvent.press(screen.getByTestId('toast-undo'));
-  expect((await repo.getRecord('w1aaaaaa'))?.values.glasses).toBe(4);
+  expect(screen.queryByTestId('toast-undo')).toBeNull();
 });
 
 it('clock in creates a shift; clock out shows only while the end is empty', async () => {
@@ -168,12 +165,10 @@ it('clock in creates a shift; clock out shows only while the end is empty', asyn
   await fireEvent.press(await screen.findByTestId(`row-action-${shift!.id}`));
   expect((await repo.getRecord(shift!.id))?.values.end).toMatch(/T\d\d:\d\d$/);
   expect(screen.queryByTestId(`row-action-${shift!.id}`)).toBeNull();
-  // 撤销：结束时间又空了，「下班」回来。
-  await fireEvent.press(screen.getByTestId('toast-undo'));
-  expect(await screen.findByTestId(`row-action-${shift!.id}`)).toBeTruthy();
+  expect(screen.queryByTestId('toast-undo')).toBeNull();
 });
 
-it('setAll asks first, changes only what differs, and undo puts every entry back', async () => {
+it('setAll asks first, changes only what differs, and shows no undo afterwards', async () => {
   const repo = new MemoryWorkspaceRepo();
   await put(repo, 'p1aaaaaa', 'packing', { item: '护照', packed: true });
   await put(repo, 'p2aaaaaa', 'packing', { item: '充电器', packed: true });
@@ -183,7 +178,7 @@ it('setAll asks first, changes only what differs, and undo puts every entry back
   await fireEvent.press(await screen.findByText('全部取消'));
   expect(alert).toHaveBeenCalledWith(
     '全部取消',
-    '将修改 2 条记录，之后可以撤销。',
+    '将修改 2 条记录。',
     expect.anything(),
     expect.anything(),
   );
@@ -193,12 +188,7 @@ it('setAll asks first, changes only what differs, and undo puts every entry back
     false,
     false,
   ]);
-  await fireEvent.press(screen.getByTestId('toast-undo'));
-  expect((await repo.listRecords('packing')).map((r) => r.values.packed)).toEqual([
-    true,
-    true,
-    false,
-  ]);
+  expect(screen.queryByTestId('toast-undo')).toBeNull();
 });
 
 it('setAll with nothing to change, or too many entries, changes nothing', async () => {
@@ -337,16 +327,15 @@ describe('v34: tools on blocks', () => {
     expect(await repo.listRecords('checkins')).toEqual([]);
   });
 
-  // 底线 11（创始人 2026-10-31）：新建到另一张表不容易改回去（用户看不到那张表），存好后显示撤销。
-  it('saving the add form a button opened into another table shows undo', async () => {
+  // 底线 11（创始人 2026-10-31）：用户在表单里确认过、存下的，不弹撤销（新建到另一张表也一样）。
+  it('saving the add form a button opened into another table shows no undo', async () => {
     const repo = new MemoryWorkspaceRepo();
     const { router } = await renderToolsApp(repo, undefined, { seed: cardsSeed });
     await fireEvent.press(await screen.findByText('添加跑步'));
     await waitFor(() => expect(router.getPathname()).toBe('/record/checkins'));
     await fireEvent.press(await screen.findByTestId('editor-save'));
     await waitFor(async () => expect(await repo.listRecords('checkins')).toHaveLength(1));
-    expect(await screen.findByTestId('toast')).toHaveTextContent(/已在「打卡」添加一条/);
-    await fireEvent.press(screen.getByTestId('toast-undo'));
-    await waitFor(async () => expect(await repo.listRecords('checkins')).toEqual([]));
+    await waitFor(() => expect(router.getPathname()).not.toBe('/record/checkins'));
+    expect(screen.queryByTestId('toast')).toBeNull();
   });
 });

@@ -6,7 +6,7 @@
 
 ## 底线（D-375，暂定）
 
-创始人 2026-10-31 在对话里定的 19 条（「规则暂定这样吧」；同一天改了 3、7、11、16，加了 19，见 D-377–D-381）。**只有创始人能改**，改了要记进 `docs/DECISIONS.md`（写明日期、在哪里说的）。**每份汇报都要写明这次改动碰没碰底线。** 守护测试：core 的 `packages/core/src/invariants.test.ts`（下面写「core」），mobile 的 `apps/mobile/src/__tests__/invariants-test.tsx`（「mobile」）和 `invariants-files-test.ts`（「files」），每条一个 `describe`。测出的违反不擅自修，用 `it.fails` / `it.failing` 标出、注释「违反底线 N，待创始人决定」（D-376）。
+创始人 2026-10-31 在对话里定的 19 条（「规则暂定这样吧」；同一天改了 3、7、11、16，加了 19，见 D-377–D-381；11 当天又改，见 D-385）。**只有创始人能改**，改了要记进 `docs/DECISIONS.md`（写明日期、在哪里说的）。**每份汇报都要写明这次改动碰没碰底线。** 守护测试：core 的 `packages/core/src/invariants.test.ts`（下面写「core」），mobile 的 `apps/mobile/src/__tests__/invariants-test.tsx`（「mobile」）和 `invariants-files-test.ts`（「files」），每条一个 `describe`。测出的违反不擅自修，用 `it.fails` / `it.failing` 标出、注释「违反底线 N，待创始人决定」（D-376）。
 
 数据和隐私
 
@@ -26,7 +26,7 @@ AI 的权限
 
 9. 工具不能触发工具；没有分支、循环。（core；`relation-rules.test.ts` 规则 13）
 10. 数据离开 App 只能由用户每次亲手点；定时或自动触发的永远不能导出、分享、联网发送。（core；`relation-rules.test.ts` 规则 14）
-11. 写数据的操作都能挽回：用户能用同样简单的操作改回去的（取消勾选、再编辑、删掉）不弹撤销提示；不容易改回去的（删除、批量修改、新建到另一张表）才显示撤销提示；批量修改一定先问，不能关（D-379）。（mobile；`record-actions-test.tsx`；core setAll 没有不问的设置）
+11. 写数据的操作都能挽回：存下的和用户确认过的操作不弹撤销提示，用户用同样简单的操作改回去（取消勾选、再编辑、删掉）；只有删除弹撤销提示；批量修改一定先问（D-385）。（mobile；`record-actions-test.tsx`、`tiles-board-test.tsx`；core setAll 没有不问的设置、先问的话不提撤销）
 
 兼容
 

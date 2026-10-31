@@ -132,7 +132,7 @@ it('without the native module (Expo Go, web) there is no Add to Home Screen', as
   expect(screen.queryByTestId('edit-widget')).toBeNull();
 });
 
-it('taps queued on the widget are recorded when Morph opens, and one undo takes them all back', async () => {
+it('taps queued on the widget are recorded when Morph opens, with no undo (invariant 11)', async () => {
   const repo = new MemoryWorkspaceRepo();
   const at = Date.now() - 60_000;
   const tap = JSON.stringify({
@@ -145,6 +145,5 @@ it('taps queued on the widget are recorded when Morph opens, and one undo takes 
   await renderToolsApp(repo, undefined, { seed, widgets });
   expect(await screen.findByTestId('toast')).toHaveTextContent(/记下了桌面小组件上的 2 次点按/);
   expect((await repo.listRecords('water')).map((r) => r.createdAt)).toEqual([at, at]);
-  await fireEvent.press(screen.getByTestId('toast-undo'));
-  await waitFor(async () => expect(await repo.listRecords('water')).toEqual([]));
+  expect(screen.queryByTestId('toast-undo')).toBeNull();
 });

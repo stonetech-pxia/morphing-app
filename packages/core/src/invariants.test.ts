@@ -8,6 +8,9 @@ import { createMockAIProvider } from './ai/mock';
 import { prepareOps, prepareSnapshot } from './change';
 import { createDefaultWorkspace } from './defaults';
 import { V4_CUSTOM_ASK, V4_DEFAULT_MERGE, V4_FIXED_NAME } from './fixtures/v4';
+import { en, enSingular } from './messages/en';
+import { fr, frSingular } from './messages/fr';
+import { zh } from './messages/zh';
 import { migrateWorkspace } from './migrate';
 import { applyOps, OpSchema, type Op } from './ops';
 import { MAX_SET_ALL, PICK_TOOLS, RecordToolSchema, ToolUseSchema } from './record-ops-schema';
@@ -541,9 +544,20 @@ describe('底线 10：数据离开 App 只能由用户每次亲手点', () => {
   });
 });
 
-describe('底线 11：写数据的操作都能挽回；不容易改回去的显示撤销；批量修改一定先问', () => {
-  // 一键记录的撤销、setAll 先问、新建到另一张表的撤销：mobile 的 record-actions-test.tsx；打勾、表单添加、删除：
-  // mobile 的 invariants-test.tsx。
+describe('底线 11：写数据的操作都能挽回；只有删除弹撤销提示；批量修改一定先问', () => {
+  // 删除弹撤销、其余写入（表单、打勾、一键新建、+1、点圆块）不弹：mobile 的 invariants-test.tsx；setAll 先问、
+  // 改完不弹撤销：mobile 的 record-actions-test.tsx；拖看板：tiles-board-test.tsx；桌面小组件：widgets-journeys-test.tsx。
+  it('asking before a bulk change does not promise an undo', () => {
+    for (const text of [
+      en.recordActionConfirm,
+      enSingular.recordActionConfirm,
+      zh.recordActionConfirm,
+      fr.recordActionConfirm,
+      frSingular.recordActionConfirm,
+    ])
+      expect(text).not.toMatch(/undo|撤销|annuler/i);
+  });
+
   it('a bulk change has no setting that skips asking first', () => {
     const base = { do: 'setAll', table: 't', field: 'a', value: true };
     expect(RecordToolSchema.safeParse(base).success).toBe(true);

@@ -218,7 +218,7 @@ describe('running the taps the widget queued', () => {
   const tap = (op: string, component: string, hash: string, at: number, record?: string) =>
     JSON.stringify({ op, component, hash, at, ...(record ? { record } : {}) });
 
-  it('creates entries at the time of the tap (yesterday’s tap counts for yesterday) and can undo them together', async () => {
+  it('creates entries at the time of the tap (yesterday’s tap counts for yesterday)', async () => {
     const config = seed();
     const repo = new MemoryWorkspaceRepo();
     const hash = actionHash(DRINK);
@@ -235,14 +235,13 @@ describe('running the taps the widget queued', () => {
       ['2026-10-29', yesterday],
       ['2026-10-30', NOW.getTime()],
     ]);
-    expect(result!.undo.discard).toHaveLength(2);
     expect(drainMessage(result!, 'zh')).toBe('记下了桌面小组件上的 2 次点按');
     expect(drainMessage({ ...result!, done: 1 }, 'en')).toBe(
       'Recorded 1 tap from the Home Screen widget',
     );
   });
 
-  it('increments one after another from the stored value; undo goes back to before the first tap', async () => {
+  it('increments one after another from the stored value', async () => {
     const config = seed();
     const repo = new MemoryWorkspaceRepo();
     await repo.insertRecord(rec('h1', 'habits', { name: '跑步', count: 1 }));
@@ -255,7 +254,6 @@ describe('running the taps the widget queued', () => {
     );
     expect(result).toMatchObject({ done: 3 });
     expect((await repo.getRecord('h1'))?.values.count).toBe(4);
-    expect(result!.undo.records).toEqual([{ id: 'h1', values: { name: '跑步', count: 1 } }]);
   });
 
   it('skips taps whose button changed or is gone, and broken lines, and says how many', async () => {

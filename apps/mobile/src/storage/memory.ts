@@ -249,10 +249,6 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
     if (r) this.writeRecord({ ...r, deletedAt: null });
   }
 
-  async discardRecord(id: string) {
-    this.records.delete(id);
-  }
-
   async listDeletedRecords() {
     return this.allRecords()
       .filter((r) => r.deletedAt !== null)
