@@ -7,13 +7,17 @@ import {
   type DataRecord,
 } from '@morph/core';
 import { Image } from 'expo-image';
-import { useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { placeAssetOnDesk } from '../desk/saved-source';
+import { placeOnDesk } from '../desk/store';
 import { runErrorText, t, type StringKey } from '../i18n';
 import { FileViewer, type ViewerItem } from '../share/FileViewer';
 import type { AssetRecord } from '../storage/types';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { applyDeskReturn, holdDeskReturn } from './attachment-desk';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
 import {
@@ -111,7 +115,7 @@ export function AttachmentThumb({
   );
 }
 
-const IMPORT_PROBLEMS: Record<ImportProblem, StringKey> = {
+export const IMPORT_PROBLEMS: Record<ImportProblem, StringKey> = {
   tooLarge: 'fileSlotTooLarge',
   noSpace: 'fileSlotNoSpace',
   copyFailed: 'fileSlotCopyFailed',
@@ -161,8 +165,15 @@ export function chooseAttachments(
 }
 
 /**
+ * 记录页给表单里新建的用户文件（D-395：桌上改好交回来的）：没保存就离开时记录页删掉没用上的，
+ * 和收件页面复制来的副本一样（D-392）。只有记录页提供；没有时不能把附件放到桌上。
+ */
+export const FormFilesContext = createContext<{ hold(ids: readonly string[]): void } | null>(null);
+
+/**
  * 附件字段的输入（D-263）：列出每个文件，可以添加（拍照、相册、「文件」）、调整顺序、去掉。
  * 点一个文件预览（照片、视频全屏翻看，别的用系统预览）。去掉只是不再放在这条记录里，文件本身还在「存储空间」里。
+ * 「…」里分享，或放到桌上改（D-395）。
  */
 export function AttachmentsInput({
   field,
@@ -187,6 +198,23 @@ export function AttachmentsInput({
   const assets = useAssets(ids);
   const room = MAX_ATTACHMENTS - ids.length;
   const [viewing, setViewing] = useState<{ items: ViewerItem[]; start: number } | null>(null);
+  const router = useRouter();
+  const formFiles = useContext(FormFilesContext);
+  // 桌上改完交回来时用最新的值和 onChange（表单在桌面下面，期间可能重新渲染过）。
+  const latest = useRef({ ids, onChange });
+  useEffect(() => {
+    latest.current = { ids, onChange };
+  });
+  const mounted = useRef(true);
+  const releases = useRef<(() => void)[]>([]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      for (const release of releases.current) release();
+      releases.current = [];
+    };
+  }, []);
 
   // 点一个文件：照片和视频全屏左右翻看这个字段里所有的照片和视频；别的文件用系统预览
   // （iOS QuickLook，Android 交给能打开的 App），和文件入口一样。
@@ -217,6 +245,67 @@ export function AttachmentsInput({
         e instanceof RunError
           ? runErrorText(locale, e.code, e.detail)
           : runErrorText(locale, 'previewFailed'),
+      );
+    }
+  }
+
+  // 「…」（D-395）：分享这个文件，或放到桌上改。
+  function more(asset: AssetRecord) {
+    Alert.alert(asset.name, undefined, [
+      { text: t(locale, 'resultShare'), onPress: () => void share(asset) },
+      ...(formFiles ? [{ text: t(locale, 'deskPlace'), onPress: () => void toDesk(asset) }] : []),
+      { text: t(locale, 'cancel'), style: 'cancel' as const },
+    ]);
+  }
+
+  // 分享存着的这个文件：用户文件存在 assets/<id>/<名字>，分享出去就是这个名字。
+  async function share(asset: AssetRecord) {
+    try {
+      await files.shareUris([{ uri: files.fileUri(asset.path), mimeType: asset.mimeType }]);
+    } catch (e) {
+      Alert.alert(
+        field.name,
+        e instanceof RunError ? runErrorText(locale, e.code, e.detail) : String(e),
+      );
+    }
+  }
+
+  // 放到桌上：复制一份进新桌面（记录里的文件不动；房间里存过的 xlsx / docx 带着中间格式，D-367），
+  // 在桌上点「完成」时问怎么放回来（DeskScreen），交回的文件进表单，还要点保存。
+  async function toDesk(asset: AssetRecord) {
+    try {
+      const now = Date.now();
+      const desk =
+        (/\.(xlsx|docx)$/i.test(asset.name) ? await placeAssetOnDesk(files, asset, now) : null) ??
+        (await placeOnDesk(
+          files,
+          [
+            {
+              uri: files.fileUri(asset.path),
+              name: asset.name,
+              mimeType: asset.mimeType,
+              size: asset.size,
+            },
+          ],
+          now,
+        ));
+      releases.current.push(
+        holdDeskReturn(desk.id, {
+          assetId: asset.id,
+          ids: () => (mounted.current ? latest.current.ids : null),
+          deliver: (mode, fresh) => {
+            if (!mounted.current) return false;
+            formFiles?.hold(fresh);
+            latest.current.onChange(applyDeskReturn(latest.current.ids, asset.id, mode, fresh));
+            return true;
+          },
+        }),
+      );
+      router.push({ pathname: '/desk/[deskId]', params: { deskId: desk.id } });
+    } catch (e) {
+      Alert.alert(
+        field.name,
+        e instanceof RunError ? runErrorText(locale, e.code, e.detail) : String(e),
       );
     }
   }
@@ -281,6 +370,17 @@ export function AttachmentsInput({
                 {asset ? asset.name : asset === null ? t(locale, 'attachmentMissing') : ''}
               </Text>
             </Pressable>
+            {asset ? (
+              <Pressable
+                testID={`${testID}-more-${i}`}
+                accessibilityRole="button"
+                accessibilityLabel={t(locale, 'attachmentMore', { name: asset.name })}
+                disabled={disabled}
+                hitSlop={8}
+                onPress={() => more(asset)}>
+                <Text style={[palette.font('bodyBold', 15), { color: palette.muted }]}>…</Text>
+              </Pressable>
+            ) : null}
             {action('attachmentMoveUp', `${testID}-up-${i}`, () => move(i, i - 1), i > 0)}
             {action(
               'attachmentMoveDown',

@@ -55,7 +55,7 @@ describe('layout store', () => {
   it('exports a backup file that restores to the same memory', () => {
     const store = putLayout({}, 'expenses', layout('a'));
     const file = layoutStoreFile(store, new Date('2026-10-28T10:00:00Z'));
-    expect(JSON.parse(file)).toMatchObject({ format: 'morph-prefill-memory', version: 1 });
+    expect(JSON.parse(file)).toMatchObject({ format: 'morph-prefill-memory', version: 2 });
     expect(readLayoutStoreFile(file)).toEqual(store);
   });
 

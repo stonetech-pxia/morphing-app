@@ -7,6 +7,7 @@ import {
   type Workflow,
 } from '@morph/core';
 
+import { runsHere } from '../runtime/device-support';
 import type { SucceededRuns } from '../storage/types';
 
 export function shareRecommendations(
@@ -19,6 +20,7 @@ export function shareRecommendations(
   // 内设的快捷操作（D-236）排在配置里的后面：没用过时先补自己的，再补内设的和工具带的。
   const builtIns = builtInWorkflows(workflows, locale);
   const existing = [...workflows, ...builtIns]
+    .filter(runsHere)
     .map((wf) => ({ wf, fit: shareFit(wf, infos) }))
     .filter(({ wf, fit }) => fit.ok || (fit.reason !== 'type' && usage.has(wf.id)));
   const fresh = existing.filter(({ wf }) => wf.id === newest);
@@ -37,12 +39,12 @@ export function shareRecommendations(
     const i = order.indexOf(wf.id);
     return i < 0 ? order.length : i;
   };
-  const own = unused.filter(({ wf }) => !wf.toolId && !builtIns.includes(wf));
+  const own = unused.filter(({ wf }) => !wf.package && !builtIns.includes(wf));
   const fillers = [
     ...own,
     ...[
       ...unused.filter(({ wf }) => builtIns.includes(wf)),
-      ...unused.filter(({ wf }) => wf.toolId),
+      ...unused.filter(({ wf }) => wf.package),
     ].sort((a, b) => rank(a.wf) - rank(b.wf)),
   ];
   // 只有能运行的才算「用过的够了」：先保证至少 3 个能运行的，再放用过但个数不对的（灰卡片，

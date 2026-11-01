@@ -115,7 +115,9 @@ export class FakeDeskFs implements DeskFs {
   isRunFile = (uri: string) => uri.startsWith('runs/');
   pathOf = (uri: string) => (uri.startsWith('desk/') ? uri.slice('desk/'.length) : null);
   async copyIn(uri: string, path: string) {
-    const bytes = this.files.disk.get(uri);
+    // 用户文件的地址（fileUri）也能复制进来（记录的附件放到桌上，D-395）。
+    const bytes =
+      this.files.disk.get(uri) ?? this.files.disk.get(uri.replace(/^file:\/\/\/fake\//, ''));
     if (!bytes) throw new Error(`missing ${uri}`);
     this.files.disk.set(this.uri(path), bytes);
     const size = this.files.imageSizes.get(uri);
@@ -452,7 +454,8 @@ export class FakeFiles implements FilePlatform {
     const size = this.imageSizes.get(uri);
     if (size) return size;
     // 动作直接写出的图片（例如无损去掉定位）：按真实的小 JPEG / PNG 处理。
-    const bytes = this.disk.get(uri);
+    // 用户文件的地址（fileUri）对应磁盘上的相对路径。
+    const bytes = this.disk.get(uri) ?? this.disk.get(uri.replace(/^file:\/\/\/fake\//, ''));
     if (bytes && ((bytes[0] === 0xff && bytes[1] === 0xd8) || bytes[0] === 0x89)) {
       return { width: 60, height: 40 };
     }
@@ -1364,6 +1367,17 @@ export class FakeTranslator implements TranslatePlatform {
   get downloadBytes() {
     return this.android ? 30 * 1024 * 1024 : undefined;
   }
+  /** iOS：系统弹窗下载一对语言（Android 用 download）。 */
+  prepare = async (from: string, to: string) => {
+    this.calls.push({ method: 'prepare', args: [from, to] });
+    if (this.failWith) {
+      const code = this.failWith;
+      this.failWith = null;
+      throw Object.assign(new Error(code), { code });
+    }
+    this.missing.delete(from);
+    this.missing.delete(to);
+  };
   /** 下载过的语言（「设置 → 已下载内容」列出）。 */
   downloaded = new Set<string>();
   download = async (language: string) => {

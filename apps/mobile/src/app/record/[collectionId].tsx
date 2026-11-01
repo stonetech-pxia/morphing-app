@@ -1,36 +1,61 @@
-import type { DataRecord, FieldIssue } from '@morph/core';
+import { attachmentIds, type DataRecord, type FieldIssue } from '@morph/core';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 
 import { useComputedRecords, useRecordActions } from '@/data/records';
 import { t } from '@/i18n';
-import { FieldsForm, prefillFormValues, toFormValues } from '@/renderer/data';
+import { FormFilesContext } from '@/renderer/Attachments';
+import { prefillFormValues, toFormValues } from '@/renderer/data';
+import { SuggestedFields } from '@/renderer/SuggestedFields';
 import { usePalette } from '@/renderer/theme';
 import { Button } from '@/renderer/ui';
+import { takeFormCopies } from '@/share/save-as-record';
+import { deleteUserFiles } from '@/storage/user-files';
 import { useCalendar, useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
 /** 记录编辑页：由内核按数据表的字段自动生成，不可配置（docs/DATA_DESIGN.md §5）。 */
 export default function RecordRoute() {
-  const { collectionId, recordId, prefill } = useLocalSearchParams<{
+  const { collectionId, recordId, prefill, copies } = useLocalSearchParams<{
     collectionId: string;
     recordId?: string;
     /** 一键操作打开的新记录表单（D-338）：预设的值，JSON。 */
     prefill?: string;
+    /** 收件页面「存成记录」（D-392）：为这张表单复制出来的用户文件的键（share/save-as-record.ts）。 */
+    copies?: string;
   }>();
-  const { repo, locale } = useWorkspaceContext();
+  const { repo, files, locale } = useWorkspaceContext();
+  const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const router = useRouter();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
   const actions = useRecordActions();
-  const collection = config.collections.find((c) => c.id === collectionId);
+  const collection = config.data.tables.find((c) => c.id === collectionId);
   // 查找、汇总、上一条（D-291）：显示这条记录存好以后算出来的值。
-  const computed = useComputedRecords(config.collections, collection, useCalendar());
+  const computed = useComputedRecords(config.data.tables, collection, useCalendar());
   const [record, setRecord] = useState<DataRecord | null | undefined>(recordId ? undefined : null);
   const [values, setValues] = useState<Record<string, unknown>>(() =>
     !recordId && prefill && collection ? prefillFormValues(collection, prefill) : {},
   );
   const [issues, setIssues] = useState<FieldIssue[]>([]);
+  // 收件页面复制来的文件（D-392）和桌上改好交回来的附件（D-395）：离开这一页时，没存进这条记录的删掉
+  // （没保存就离开时全部删掉）。它们是这张表单自己新建的，原件、收件那一批和记录里原来的文件不动。
+  const [copied] = useState(() => (recordId ? [] : takeFormCopies(copies)));
+  const owned = useRef<Set<string>>(new Set(copied));
+  const [formFiles] = useState(() => ({
+    hold: (ids: readonly string[]) => ids.forEach((id) => owned.current.add(id)),
+  }));
+  const kept = useRef<Set<string>>(new Set());
+  useEffect(
+    () => () => {
+      const unused = [...owned.current].filter((id) => !kept.current.has(id));
+      if (unused.length === 0) return;
+      void deleteUserFiles(unused, repo, files)
+        .then(bumpAssets)
+        .catch(() => undefined);
+    },
+    [repo, files, bumpAssets],
+  );
 
   useEffect(() => {
     if (!recordId || !collection) return;
@@ -56,8 +81,12 @@ export default function RecordRoute() {
     const result = record
       ? await actions.update(collection, record, values)
       : await actions.add(collection, values);
-    if (result.ok) router.back();
-    else if ('issues' in result) setIssues(result.issues);
+    if (result.ok) {
+      kept.current = new Set(
+        collection.fields.flatMap((f) => (f.type === 'file' ? attachmentIds(values[f.id]) : [])),
+      );
+      router.back();
+    } else if ('issues' in result) setIssues(result.issues);
   }
 
   async function remove() {
@@ -79,22 +108,24 @@ export default function RecordRoute() {
         <ScrollView
           contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 48 }}
           keyboardShouldPersistTaps="handled">
-          <FieldsForm
-            collection={collection}
-            fieldIds={collection.fields.map((f) => f.id)}
-            values={values}
-            onChange={setValues}
-            issues={issues}
-            palette={palette}
-            locale={locale}
-            testPrefix="editor"
-            related={
-              computed.view && {
-                view: computed.view,
-                record: computed.records?.find((r) => r.id === recordId) ?? null,
+          <FormFilesContext.Provider value={formFiles}>
+            <SuggestedFields
+              suggest={!recordId}
+              collection={collection}
+              values={values}
+              onChange={setValues}
+              issues={issues}
+              palette={palette}
+              locale={locale}
+              testPrefix="editor"
+              related={
+                computed.view && {
+                  view: computed.view,
+                  record: computed.records?.find((r) => r.id === recordId) ?? null,
+                }
               }
-            }
-          />
+            />
+          </FormFilesContext.Provider>
           <Button
             palette={palette}
             testID="editor-save"

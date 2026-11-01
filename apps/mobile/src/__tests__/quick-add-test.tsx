@@ -25,7 +25,7 @@ const tasks: Collection = {
   fields: [
     { id: 'title', name: '标题', type: 'text', required: true },
     { id: 'plan', name: '日程', type: 'schedule', default: { repeat: 'once' } },
-    { id: 'section', name: '版块', type: 'link', collectionId: 'sections' },
+    { id: 'section', name: '版块', type: 'link', table: 'sections' },
   ],
 };
 
@@ -33,12 +33,12 @@ const seed = (components: NewComponent[]) => (locale: Locale, registry: Registry
   const result = applyOps(
     createDefaultWorkspace(locale),
     [
-      { op: 'addCollection' as const, collection: sections },
-      { op: 'addCollection' as const, collection: tasks },
-      ...components.map((component) => ({
-        op: 'addComponent' as const,
-        pageId: 'home',
-        component,
+      { op: 'addData' as const, table: sections },
+      { op: 'addData' as const, table: tasks },
+      ...components.map((block) => ({
+        op: 'addContainer' as const,
+        page: 'home',
+        block,
       })),
     ],
     { registry, locale },
@@ -57,14 +57,18 @@ it('the floating add opens a sheet; the keyboard Done adds and the sheet stays f
     seed: seed([
       {
         id: 'quick',
-        type: 'recordForm',
-        props: {
-          collectionId: 'tasks',
-          fieldIds: ['title'],
-          submitLabel: '添加任务',
-          mode: 'sheet',
-          smartDate: { from: 'title', to: 'plan' },
-        },
+        look: 'form',
+        show: { mode: 'sheet' },
+        tools: [
+          {
+            as: 'submit',
+            label: '添加任务',
+            do: 'create',
+            table: 'tasks',
+            ask: ['title'],
+            smartDate: { from: 'title', to: 'plan' },
+          },
+        ],
       } as NewComponent,
     ]),
   });
@@ -93,15 +97,13 @@ it('a board by a linked table has a column per section, and adding in a column f
     seed: seed([
       {
         id: 'board',
-        type: 'recordList',
-        props: {
-          collectionId: 'tasks',
-          display: 'board',
-          titleField: 'title',
-          groupField: 'section',
-          addHere: true,
-          limit: 30,
-        },
+        look: 'board',
+        source: { table: 'tasks', group: { by: 'section' }, limit: 30 },
+        show: { title: 'title' },
+        tools: [
+          { as: 'drag', do: 'set', table: 'tasks', field: 'section', value: '$group' },
+          { as: 'addHere', do: 'create', table: 'tasks', ask: 'all', values: '$here' },
+        ],
       } as NewComponent,
     ]),
   });

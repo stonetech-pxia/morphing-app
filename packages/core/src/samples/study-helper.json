@@ -13,9 +13,9 @@
   "ids": {
     "$table.homework": "homework",
     "$page.main": "study",
-    "$workflow.photoLog": "homework-photo-log",
-    "$reminder.due": "homework-due",
-    "$reminder.review": "daily-review"
+    "$tool.photoLog": "homework-photo-log",
+    "$tool.due": "homework-due",
+    "$tool.review": "daily-review"
   },
   "tables": [
     {
@@ -118,9 +118,10 @@
       ]
     }
   ],
-  "workflows": [
+  "tools": [
     {
-      "id": "$workflow.photoLog",
+      "id": "$tool.photoLog",
+      "kind": "quickAction",
       "name": {
         "en": "Snap an assignment and add it",
         "zh": "拍下作业记一项",
@@ -147,24 +148,58 @@
       ]
     },
     {
-      "id": "$workflow.toText",
-      "presetId": "audio-to-text"
+      "id": "$tool.toText",
+      "preset": "audio-to-text"
     },
     {
-      "id": "$workflow.mergeAudio",
-      "presetId": "merge-recordings"
+      "id": "$tool.mergeAudio",
+      "preset": "merge-recordings"
     },
     {
-      "id": "$workflow.archiveAudio",
-      "presetId": "voice-memo-archive"
+      "id": "$tool.archiveAudio",
+      "preset": "voice-memo-archive"
     },
     {
-      "id": "$workflow.scan",
-      "presetId": "scan-document"
+      "id": "$tool.scan",
+      "preset": "scan-document"
     },
     {
-      "id": "$workflow.combine",
-      "presetId": "combine-documents"
+      "id": "$tool.combine",
+      "preset": "combine-documents"
+    },
+    {
+      "id": "$tool.due",
+      "kind": "reminder",
+      "title": {
+        "en": "Homework is due tomorrow",
+        "zh": "明天要交作业了",
+        "fr": "Un devoir est à rendre demain"
+      },
+      "enabled": true,
+      "when": {
+        "before": {
+          "table": "$table.homework",
+          "field": "due"
+        },
+        "days": 1,
+        "at": "18:00"
+      },
+      "opens": "page:$page.main"
+    },
+    {
+      "id": "$tool.review",
+      "kind": "reminder",
+      "title": {
+        "en": "Take ten minutes to review today’s lessons",
+        "zh": "花十分钟复习一下今天学的",
+        "fr": "Prenez dix minutes pour revoir les cours du jour"
+      },
+      "enabled": true,
+      "when": {
+        "every": "day",
+        "at": "21:00"
+      },
+      "opens": "page:$page.main"
     }
   ],
   "pages": [
@@ -176,11 +211,11 @@
         "fr": "Études"
       },
       "icon": "lightbulb",
-      "components": [
+      "blocks": [
         {
           "id": "title",
-          "type": "header",
-          "props": {
+          "look": "header",
+          "show": {
             "title": {
               "en": "Study helper",
               "zh": "学习助手",
@@ -195,22 +230,24 @@
         },
         {
           "id": "summary",
-          "type": "group",
-          "props": {
+          "look": "group",
+          "show": {
             "layout": "row"
           },
           "children": [
             {
               "id": "open",
-              "type": "stat",
-              "props": {
-                "collectionId": "$table.homework",
-                "aggregate": "count",
+              "look": "number",
+              "show": {
                 "label": {
                   "en": "To do",
                   "zh": "未完成",
                   "fr": "À faire"
-                },
+                }
+              },
+              "source": {
+                "table": "$table.homework",
+                "aggregate": "count",
                 "filter": [
                   {
                     "field": "done",
@@ -222,15 +259,17 @@
             },
             {
               "id": "done-week",
-              "type": "stat",
-              "props": {
-                "collectionId": "$table.homework",
-                "aggregate": "count",
+              "look": "number",
+              "show": {
                 "label": {
                   "en": "Done this week",
                   "zh": "本周完成",
                   "fr": "Faits cette semaine"
-                },
+                }
+              },
+              "source": {
+                "table": "$table.homework",
+                "aggregate": "count",
                 "filter": [
                   {
                     "field": "done",
@@ -249,27 +288,29 @@
         },
         {
           "id": "add",
-          "type": "recordForm",
-          "props": {
-            "collectionId": "$table.homework",
-            "fieldIds": ["title", "due"],
-            "submitLabel": {
-              "en": "Add",
-              "zh": "添加",
-              "fr": "Ajouter"
-            },
+          "look": "form",
+          "show": {
             "mode": "inline"
-          }
+          },
+          "tools": [
+            {
+              "as": "submit",
+              "label": {
+                "en": "Add",
+                "zh": "添加",
+                "fr": "Ajouter"
+              },
+              "do": "create",
+              "table": "$table.homework",
+              "ask": ["title", "due"]
+            }
+          ]
         },
         {
           "id": "todo",
-          "type": "recordList",
-          "props": {
-            "collectionId": "$table.homework",
-            "display": "checklist",
-            "checkField": "done",
-            "titleField": "title",
-            "subtitleFields": ["course", "due"],
+          "look": "checklist",
+          "source": {
+            "table": "$table.homework",
             "filter": [
               {
                 "field": "done",
@@ -281,18 +322,30 @@
               "field": "due",
               "direction": "asc"
             },
-            "limit": 50,
+            "limit": 50
+          },
+          "show": {
+            "title": "title",
+            "subtitles": ["course", "due"],
             "emptyText": {
               "en": "All done. Add the next assignment above.",
               "zh": "作业都做完了，有新作业就在上面添加。",
               "fr": "Tout est fait. Ajoutez le prochain devoir ci-dessus."
             }
-          }
+          },
+          "tools": [
+            {
+              "as": "check",
+              "do": "toggle",
+              "table": "$table.homework",
+              "field": "done"
+            }
+          ]
         },
         {
           "id": "actions",
-          "type": "group",
-          "props": {
+          "look": "group",
+          "show": {
             "title": {
               "en": "Recordings and handouts",
               "zh": "录音和讲义",
@@ -303,51 +356,75 @@
           "children": [
             {
               "id": "run-photo-log",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.photoLog",
-                "look": "row"
-              }
+              "look": "action",
+              "show": {
+                "shape": "row"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.photoLog"
+                }
+              ]
             },
             {
               "id": "run-to-text",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.toText",
-                "look": "row"
-              }
+              "look": "action",
+              "show": {
+                "shape": "row"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.toText"
+                }
+              ]
             },
             {
               "id": "run-merge-audio",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.mergeAudio",
-                "look": "row"
-              }
+              "look": "action",
+              "show": {
+                "shape": "row"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.mergeAudio"
+                }
+              ]
             },
             {
               "id": "run-archive-audio",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.archiveAudio",
-                "look": "row"
-              }
+              "look": "action",
+              "show": {
+                "shape": "row"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.archiveAudio"
+                }
+              ]
             },
             {
               "id": "run-scan",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.scan",
-                "look": "row"
-              }
+              "look": "action",
+              "show": {
+                "shape": "row"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.scan"
+                }
+              ]
             },
             {
               "id": "run-combine",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.combine",
-                "look": "row"
-              }
+              "look": "action",
+              "show": {
+                "shape": "row"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.combine"
+                }
+              ]
             }
           ]
         }
@@ -355,34 +432,5 @@
     }
   ],
   "main": "$page.main",
-  "entry": "nav",
-  "reminders": [
-    {
-      "id": "$reminder.due",
-      "title": {
-        "en": "Homework is due tomorrow",
-        "zh": "明天要交作业了",
-        "fr": "Un devoir est à rendre demain"
-      },
-      "enabled": true,
-      "schedule": "dateField",
-      "time": "18:00",
-      "collectionId": "$table.homework",
-      "fieldId": "due",
-      "daysBefore": 1,
-      "opens": "page:$page.main"
-    },
-    {
-      "id": "$reminder.review",
-      "title": {
-        "en": "Take ten minutes to review today’s lessons",
-        "zh": "花十分钟复习一下今天学的",
-        "fr": "Prenez dix minutes pour revoir les cours du jour"
-      },
-      "enabled": true,
-      "schedule": "daily",
-      "time": "21:00",
-      "opens": "page:$page.main"
-    }
-  ]
+  "entry": "nav"
 }

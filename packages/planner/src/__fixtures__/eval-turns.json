@@ -1,0 +1,4312 @@
+[
+  {
+    "id": "A1",
+    "input": "把首页改成文件工作台，把 PDF 放到最上面，导航栏只保留首页、工具、设置。",
+    "ops": [
+      { "op": "updateContainer" },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "moveContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "A2",
+    "input": "PDF 放第一个",
+    "ops": [{ "op": "moveContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "A3",
+    "input": "导航只要首页、工具和设置",
+    "ops": [{ "op": "updateContainer", "nav": ["bar"] }]
+  },
+  {
+    "id": "A4",
+    "input": "首页改成文件工作台",
+    "ops": [
+      { "op": "updateContainer" },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["picker"], "tools": true },
+      { "op": "addContainer", "looks": ["picker"], "tools": true }
+    ]
+  },
+  {
+    "id": "A4",
+    "input": "首页改成文件工作台",
+    "ops": [
+      { "op": "updateContainer" },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["picker"], "tools": true },
+      { "op": "addContainer", "looks": ["library"] }
+    ]
+  },
+  {
+    "id": "A4",
+    "input": "首页改成文件工作台",
+    "ops": [
+      { "op": "updateContainer" },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["picker"], "tools": true },
+      { "op": "addContainer", "looks": ["picker"], "tools": true },
+      { "op": "addContainer", "looks": ["library"] }
+    ]
+  },
+  {
+    "id": "A4",
+    "input": "首页改成文件工作台",
+    "ops": [
+      { "op": "updateContainer" },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["library"] }
+    ]
+  },
+  {
+    "id": "A4",
+    "input": "首页改成文件工作台",
+    "ops": [
+      { "op": "updateContainer" },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["picker"], "tools": true }
+    ]
+  },
+  {
+    "id": "A4",
+    "input": "首页改成文件工作台",
+    "ops": [{ "op": "updateContainer" }, { "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "A4",
+    "input": "首页改成文件工作台",
+    "ops": [
+      { "op": "updateContainer" },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["group", "picker"], "tools": true },
+      { "op": "addContainer", "looks": ["library"] }
+    ]
+  },
+  {
+    "id": "A4",
+    "input": "首页改成文件工作台",
+    "ops": [
+      { "op": "updateContainer" },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["library"] },
+      { "op": "addContainer", "looks": ["picker"], "tools": true }
+    ]
+  },
+  {
+    "id": "A4",
+    "input": "首页改成文件工作台",
+    "ops": [
+      { "op": "updateContainer" },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["group", "picker"], "tools": true }
+    ]
+  },
+  {
+    "id": "A5",
+    "input": "Put PDF at the top",
+    "ops": [{ "op": "moveContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "A6",
+    "input": "Only keep Home, Tools and Settings in the navigation",
+    "ops": [{ "op": "updateContainer", "nav": ["bar"] }]
+  },
+  {
+    "id": "AB1",
+    "input": "把这个的大小改成 200KB",
+    "ops": [{ "op": "updateTool", "kind": "quickAction", "step": true }]
+  },
+  {
+    "id": "AB2",
+    "input": "再小一点，150KB 以内",
+    "ops": [{ "op": "updateTool", "kind": "quickAction", "step": true }]
+  },
+  {
+    "id": "AB3-en",
+    "input": "Also take the location out of it",
+    "ops": [{ "op": "addTool", "kind": "quickAction", "step": true }]
+  },
+  {
+    "id": "ADN1",
+    "input": "添加录音人声降噪快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "ADN2",
+    "input": "Make an action to reduce background noise in spoken videos. Keep the video picture, do not transcribe it.",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  { "id": "AT1", "input": "给账目加照片", "ops": [{ "op": "addData" }] },
+  { "id": "AT1-en", "input": "Attach receipts to Expenses", "ops": [{ "op": "addData" }] },
+  { "id": "AT2", "input": "账目里存发票", "ops": [{ "op": "addData" }] },
+  {
+    "id": "AU1",
+    "input": "新建一个快捷操作：录音，转成文字，转成 PDF，分享",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "AU1",
+    "input": "新建一个快捷操作：录音，转成文字，转成 PDF，分享",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "AU1-en",
+    "input": "Create a quick action: choose recordings, transcribe, save as a text file",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "AU2",
+    "input": "新建一个快捷操作：选录音，压到 2MB，分享",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "AU2",
+    "input": "新建一个快捷操作：选录音，压到 2MB，分享",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "AU3",
+    "input": "新建一个快捷操作：选几段录音，排序，合成一段，分享",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "AU3",
+    "input": "新建一个快捷操作：选几段录音，排序，合成一段，分享",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "AU4",
+    "input": "新建一个快捷操作：选视频，提取声音，存到文件夹",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "AU4",
+    "input": "新建一个快捷操作：选视频，提取声音，存到文件夹",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "AU5",
+    "input": "新建一个快捷操作：选音频，剪一段，存到文件夹",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "AU5",
+    "input": "新建一个快捷操作：选音频，剪一段，存到文件夹",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "AU6",
+    "input": "添加录音转文字快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "AU7-en",
+    "input": "Add the recording too big to send quick action",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "AVL1",
+    "input": "添加把录音调到正常音量快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "AVL2",
+    "input": "Make an action to bring the sound in my quiet videos up to normal volume. Keep the picture.",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "AVL3",
+    "input": "Make a reusable action to make recordings 6 dB louder.",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "AVL3",
+    "input": "Make a reusable action to make recordings 6 dB louder.",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  { "id": "B1", "input": "主题换成绿色", "ops": [{ "op": "setTheme" }] },
+  { "id": "B12b", "input": "换成杂志风", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "B12c",
+    "input": "换成霓虹风格，主色改成粉色",
+    "ops": [{ "op": "setTheme" }, { "op": "setTheme" }]
+  },
+  { "id": "B12d", "input": "换成毛玻璃风格", "ops": [{ "op": "setTheme" }] },
+  { "id": "B13", "input": "把 AI 入口删掉", "ops": [{ "op": "updateContainer", "nav": ["bar"] }] },
+  { "id": "B2", "input": "切换到深色模式", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "B3",
+    "input": "隐藏欢迎卡片",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "B4",
+    "input": "把最近文件放到 PDF 前面",
+    "ops": [{ "op": "moveContainer", "looks": ["undefined"] }]
+  },
+  { "id": "B5", "input": "字体大一点", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "B5",
+    "input": "字体大一点",
+    "ops": [{ "op": "updateContainer", "nav": [] }, { "op": "setTheme" }]
+  },
+  { "id": "B7", "input": "卡片圆角小一点", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "B7",
+    "input": "卡片圆角小一点",
+    "ops": [{ "op": "updateContainer", "nav": [] }, { "op": "setTheme" }]
+  },
+  { "id": "B9", "input": "去掉阴影", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "B9",
+    "input": "去掉阴影",
+    "ops": [{ "op": "updateContainer", "nav": [] }, { "op": "setTheme" }]
+  },
+  { "id": "B9b", "input": "卡片改成新粗野风格", "ops": [{ "op": "setTheme" }] },
+  { "id": "B9c", "input": "深色模式下用纯黑背景，浅色模式不变", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "B9c",
+    "input": "深色模式下用纯黑背景，浅色模式不变",
+    "ops": [{ "op": "updateContainer", "nav": [] }, { "op": "setTheme" }]
+  },
+  {
+    "id": "B9c",
+    "input": "深色模式下用纯黑背景，浅色模式不变",
+    "ops": [{ "op": "setTheme" }, { "op": "setTheme" }]
+  },
+  {
+    "id": "B9d",
+    "input": "背景改成极光，卡片改成毛玻璃",
+    "ops": [{ "op": "setTheme" }, { "op": "setTheme" }]
+  },
+  { "id": "B9d", "input": "背景改成极光，卡片改成毛玻璃", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "BG1",
+    "input": "首页用一张照片做背景，遮罩深一点",
+    "ops": [{ "op": "updateContainer" }]
+  },
+  {
+    "id": "BG2",
+    "input": "Add a tip card at the top of home saying \"Drink water\" with a picture background",
+    "ops": [{ "op": "addContainer", "looks": ["notice"] }]
+  },
+  {
+    "id": "C1",
+    "input": "把 PDF 工具首页简化成上传和合并两个步骤，完成后自动按照‘合并-日期’命名",
+    "ops": [{ "op": "updateTool", "kind": "quickAction", "step": true }]
+  },
+  {
+    "id": "C2",
+    "input": "合并后的文件按日期命名",
+    "ops": [{ "op": "updateTool", "kind": "quickAction", "step": true }]
+  },
+  { "id": "CAL1", "input": "一天从凌晨 2 点开始算", "ops": [{ "op": "updateData" }] },
+  { "id": "CAL2-en", "input": "My weeks start on Sunday", "ops": [{ "op": "updateData" }] },
+  {
+    "id": "CH1",
+    "input": "记账页面加一个柱状图，显示最近 12 个月每月花了多少",
+    "ops": [{ "op": "addContainer", "looks": ["chart"] }]
+  },
+  {
+    "id": "CH2",
+    "input": "Add a pie chart of spending by category to the budget page",
+    "ops": [{ "op": "addContainer", "looks": ["chart"] }]
+  },
+  { "id": "D1", "input": "恢复上一次修改前的界面", "ops": [] },
+  { "id": "D2", "input": "撤销刚才的修改", "ops": [] },
+  { "id": "D3", "input": "Undo the last change", "ops": [] },
+  {
+    "id": "DOC1",
+    "input": "新建一个快捷操作：扫描文档，转 Word，分享",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "DOC1",
+    "input": "新建一个快捷操作：扫描文档，转 Word，分享",
+    "ops": [
+      { "op": "addTool", "kind": "preset" },
+      { "op": "addTool", "kind": "quickAction", "step": true }
+    ]
+  },
+  { "id": "DR1", "input": "再深一点", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "DR1",
+    "input": "再深一点",
+    "ops": [{ "op": "updateContainer", "nav": [] }, { "op": "setTheme" }]
+  },
+  { "id": "DR2", "input": "那就用渐变吧", "ops": [{ "op": "setTheme" }] },
+  { "id": "DR3-en", "input": "A bit more", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "DR4",
+    "input": "首页标题改成「工具箱」",
+    "ops": [{ "op": "updateContainer" }, { "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  { "id": "DR5", "input": "那先把主题换成绿色", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "E1",
+    "input": "新建一个叫「记账」的页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "E1",
+    "input": "新建一个叫「记账」的页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "E1",
+    "input": "新建一个叫「记账」的页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  { "id": "ER1", "input": "帮我写一封请假邮件", "ops": [] },
+  {
+    "id": "ER2",
+    "input": "把这份合同翻译成英文",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  { "id": "ER2", "input": "把这份合同翻译成英文", "ops": [{ "op": "addTool", "kind": "preset" }] },
+  { "id": "ER3", "input": "What does this contract say?", "ops": [] },
+  { "id": "ER4", "input": "现在帮我运行签证照片", "ops": [] },
+  {
+    "id": "ER5",
+    "input": "这几张照片太大了，帮我压到 200KB",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  { "id": "F1", "input": "新建一个记账页面", "ops": [{ "op": "addData" }] },
+  {
+    "id": "F1",
+    "input": "增加记账页面",
+    "ops": [
+      {
+        "op": "addContainer",
+        "looks": ["header", "group", "number", "form", "list"],
+        "tools": true
+      },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "F1",
+    "input": "增加记账页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "F1",
+    "input": "增加记账页面",
+    "ops": [
+      {
+        "op": "addContainer",
+        "looks": ["header", "group", "number", "form", "list"],
+        "tools": true
+      },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "F1",
+    "input": "增加记账页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "F1",
+    "input": "增加记账页面",
+    "ops": [
+      {
+        "op": "addContainer",
+        "looks": ["header", "group", "number", "form", "list"],
+        "tools": true
+      },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "F1",
+    "input": "增加记账页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "F1",
+    "input": "增加记账页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form", "list"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  { "id": "F2", "input": "给账目加一个「支付方式」字段", "ops": [{ "op": "addData" }] },
+  {
+    "id": "FE1",
+    "input": "首页加上打开相册",
+    "ops": [{ "op": "addContainer", "looks": ["picker"], "tools": true }]
+  },
+  {
+    "id": "FE2",
+    "input": "Add a file picker to home",
+    "ops": [{ "op": "addContainer", "looks": ["picker"], "tools": true }]
+  },
+  {
+    "id": "FG1",
+    "input": "新建一个快捷操作：选音频，转成 MP3，存到文件夹",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "FG2",
+    "input": "新建一个快捷操作：选视频，转成 MP3，分享",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "FG3",
+    "input": "新建一个快捷操作：选视频，剪一段，转成 GIF，分享",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "FG3-en",
+    "input": "Create a quick action: choose photos, make an animated GIF, share",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "FG4",
+    "input": "新建一个快捷操作：从文件选视频，转成 MP4，存到文件夹",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "FG5",
+    "input": "新建一个快捷操作：选 Word 文档，转成 PDF，分享",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "FG5-en",
+    "input": "Create a quick action: choose Word documents, make a PDF, save to a folder",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "FL1",
+    "input": "主题换成绿色，添加签证照片快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  { "id": "FL1", "input": "主题换成绿色", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "FL1-en",
+    "input": "Add the visa photo quick action. Change the theme color to green",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  { "id": "FL1-en", "input": "Change the theme color to green", "ops": [{ "op": "setTheme" }] },
+  { "id": "FL2", "input": "添加图片工具，放到底部导航的第一个", "ops": [{ "op": "setPackage" }] },
+  {
+    "id": "FL2",
+    "input": "把图片工具放到底部导航第一个",
+    "ops": [{ "op": "updateContainer", "nav": ["bar"] }]
+  },
+  {
+    "id": "FL2",
+    "input": "把图片工具放到底部导航的第一个",
+    "ops": [{ "op": "updateContainer", "nav": ["bar"] }]
+  },
+  {
+    "id": "FL2",
+    "input": "把图片工具放到底部导航第一个，底部导航满了就先移除「历史」",
+    "ops": [{ "op": "updateContainer", "nav": ["bar"] }]
+  },
+  {
+    "id": "FL3-en",
+    "input": "I want a to-do list I can tick off, and make the whole app dark",
+    "ops": [{ "op": "addData" }]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a to-do page I can tick off, and make the app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "updateContainer", "nav": ["floating"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a page for my to-dos with a tick-off list, and make the app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Make the whole app dark and add a to-do page where I can tick tasks off",
+    "ops": [
+      { "op": "setTheme" },
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a to-do page I can tick off, and make the whole app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] },
+      { "op": "updateContainer" },
+      { "op": "updateContainer", "nav": [] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a to-do page with tick-off checkboxes, and make the whole app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a to-do page with a tick-off list, and make the whole app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a to-do page with a tick-off list, and make the whole app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Show the to-do list on a page and make the whole app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a to-do page with a tick-off list, and switch the whole app to dark mode",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a to-do page where I can tick tasks off, and switch the whole app to dark mode",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a to-do page where I can tick tasks off, and make the whole app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Show the to-do list on home with a tick box for each task, and make the whole app dark",
+    "ops": [{ "op": "addContainer", "looks": ["checklist"], "tools": true }, { "op": "setTheme" }]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a page that shows my to-dos as a checklist, and make the app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "checklist"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a page with my to-do list I can tick off, and make the whole app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Show my to-do list on home with a tick box for each task and a form to add tasks, and make the app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["form"], "tools": true },
+      { "op": "addContainer", "looks": ["checklist"], "tools": true },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a page for the to-do list with tick boxes, and make the whole app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "checklist"], "tools": true },
+      { "op": "updateContainer", "nav": ["floating"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a page with my to-do list where I can tick tasks off, and switch the whole app to dark mode",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a to-do page with tick boxes and make the app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a to-do page with a checklist, and make the whole app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a to-do page with a form to add tasks and a list to tick them off, and make the whole app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a page that lists my tasks to tick off, and make the app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "checklist"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a to-do page where I can tick off tasks, and make the whole app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] },
+      { "op": "updateContainer", "nav": [] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FL3-en",
+    "input": "Add a to-do page with a tick-off checklist, and make the whole app dark",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FM1",
+    "input": "给记账表加一个「实付」公式字段：金额满 100 打九折，不满不打折",
+    "ops": [{ "op": "addData" }]
+  },
+  {
+    "id": "FM2",
+    "input": "Add a “Days left” formula to the budget table that counts the days from today until the date",
+    "ops": [{ "op": "addData" }]
+  },
+  {
+    "id": "FM3",
+    "input": "给记账表加一个公式字段，把金额四舍五入到整数",
+    "ops": [{ "op": "addData" }]
+  },
+  {
+    "id": "FR1",
+    "input": "Créez une action rapide pour choisir des photos, réduire chaque image à 500 Ko maximum, puis les partager.",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "FR1",
+    "input": "Créez une action rapide pour choisir des photos, réduire chaque image à 500 Ko maximum, puis les partager.",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  { "id": "FR2", "input": "Envoyez ces photos à ma mère par e-mail maintenant.", "ops": [] },
+  {
+    "id": "FR3",
+    "input": "Je voudrais créer un carnet de dépenses pour noter la date, le montant et la catégorie.",
+    "ops": [{ "op": "addData" }]
+  },
+  { "id": "FR4", "input": "Passer au style Néon", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "FR5",
+    "input": "Renommer la page d’accueil « Bureau des fichiers ». Changer la couleur du thème en vert",
+    "ops": [
+      { "op": "updateContainer" },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "setTheme" }
+    ]
+  },
+  {
+    "id": "FS1",
+    "input": "首页放一个租房合同的入口，点一下就能打开合同",
+    "ops": [{ "op": "addContainer", "looks": ["entry"] }]
+  },
+  {
+    "id": "FS2",
+    "input": "Add a spot on my home page for my boarding pass so I can open it quickly",
+    "ops": [{ "op": "addContainer", "looks": ["entry"] }]
+  },
+  {
+    "id": "FX1",
+    "input": "新建一个快捷操作：选照片，只要最近 7 天拍的，打包成 ZIP",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "FX2",
+    "input": "Make a quick action: choose files, skip anything over 10 MB, then share them",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "FX3",
+    "input": "Crée une action rapide : choisir des photos, garder seulement celles de ce mois-ci en paysage, puis les partager",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "G1",
+    "input": "在首页顶部加一张横幅",
+    "ops": [{ "op": "addContainer", "looks": ["image"] }]
+  },
+  { "id": "G2", "input": "把记账页面的图标换成💰", "ops": [{ "op": "updateContainer" }] },
+  {
+    "id": "GD1",
+    "input": "加入「打开相册」和「打开文件」按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["picker"], "tools": true },
+      { "op": "addContainer", "looks": ["picker"], "tools": true }
+    ]
+  },
+  {
+    "id": "GD1-fr",
+    "input": "Ajouter les boutons « Ouvrir les photos » et « Ouvrir les fichiers »",
+    "ops": [
+      { "op": "addContainer", "looks": ["picker"], "tools": true },
+      { "op": "addContainer", "looks": ["picker"], "tools": true }
+    ]
+  },
+  {
+    "id": "GR1",
+    "input": "新建一个快捷操作：选照片，按拍摄日期每天做成一个 PDF",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "GR2",
+    "input": "Make a quick action that zips my files, 10 per ZIP",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "GW1",
+    "input": "身份证正反面两张照片，学校要一个 PDF，不能超过 2MB",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "GW1",
+    "input": "身份证正反面两张照片，学校要一个 PDF，不能超过 2MB",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "GW10",
+    "input": "我有好几份 PDF 合同，想合成一份加上页码，发邮件给律师",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "GW10-en",
+    "input": "I have several PDF contracts to combine into one with page numbers and email to my lawyer",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "GW10-en",
+    "input": "I have several PDF contracts to combine into one with page numbers and email to my lawyer",
+    "ops": [
+      { "op": "addTool", "kind": "preset" },
+      { "op": "addTool", "kind": "quickAction", "step": true }
+    ]
+  },
+  {
+    "id": "GW2",
+    "input": "纸质合同要签字后发回",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "GW2",
+    "input": "纸质合同要签字后发回",
+    "ops": [
+      { "op": "addTool", "kind": "preset" },
+      { "op": "addTool", "kind": "quickAction", "step": true }
+    ]
+  },
+  {
+    "id": "GW3",
+    "input": "要申请美国签证，我有一张自拍",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "GW4",
+    "input": "每个月要把发票拍下来整理成一个 PDF 发给会计",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "GW4",
+    "input": "每个月要把发票拍下来整理成一个 PDF 发给会计",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "GW4",
+    "input": "每个月要把发票拍下来整理成一个 PDF 发给会计",
+    "ops": [
+      { "op": "addTool", "kind": "preset" },
+      { "op": "updateTool", "kind": "quickAction", "step": true }
+    ]
+  },
+  {
+    "id": "GW4-en",
+    "input": "Every month I photograph my invoices and send one PDF to my accountant",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "GW4-en",
+    "input": "Every month I photograph my invoices and send one PDF to my accountant",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "GW5",
+    "input": "几张照片要发邮件给朋友",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "GW6",
+    "input": "把购物小票拍下来存成 PDF",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "GW6",
+    "input": "把购物小票拍下来存成 PDF",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "GW7",
+    "input": "添加扫描文档工作流，但是不要放到首页",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "GW8",
+    "input": "我有一堆旅行照片，想发给朋友",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "GW8-en",
+    "input": "I have a bunch of trip photos to send to friends",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "GW9",
+    "input": "我拍了一段视频，太大了发不出去",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "GW9-en",
+    "input": "I shot a video and it’s too big to send",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "HS1",
+    "input": "把签证照片放到桌面",
+    "ops": [{ "op": "updateContainer", "nav": ["phoneHomeScreen"] }]
+  },
+  {
+    "id": "HS1-en",
+    "input": "Put the visa photo on the home screen",
+    "ops": [{ "op": "updateContainer", "nav": ["phoneHomeScreen"] }]
+  },
+  {
+    "id": "HS1-fr",
+    "input": "Mets la photo de visa sur l’écran d’accueil",
+    "ops": [{ "op": "updateContainer", "nav": ["phoneHomeScreen"] }]
+  },
+  {
+    "id": "HS2",
+    "input": "把签证照片放到首页",
+    "ops": [{ "op": "addContainer", "looks": ["action"], "tools": true }]
+  },
+  {
+    "id": "HS2-en",
+    "input": "Put the visa photo on the home page",
+    "ops": [{ "op": "addContainer", "looks": ["action"], "tools": true }]
+  },
+  {
+    "id": "HS2-fr",
+    "input": "Mets la photo de visa sur l’accueil",
+    "ops": [{ "op": "addContainer", "looks": ["action"], "tools": true }]
+  },
+  {
+    "id": "HS3",
+    "input": "把签证照片放到手机主屏幕",
+    "ops": [
+      { "op": "addTool", "kind": "preset" },
+      { "op": "updateContainer", "nav": ["phoneHomeScreen"] }
+    ]
+  },
+  {
+    "id": "HS4",
+    "input": "把签证照片从桌面拿掉",
+    "ops": [{ "op": "updateContainer", "nav": ["phoneHomeScreen"] }]
+  },
+  {
+    "id": "HS4-en",
+    "input": "Remove the visa photo from the home screen",
+    "ops": [{ "op": "updateContainer", "nav": ["phoneHomeScreen"] }]
+  },
+  {
+    "id": "IAD1",
+    "input": "添加把太暗的照片调亮快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "IAD2",
+    "input": "Make a reusable photo adjustment: brightness +20, contrast 110, saturation 90. Keep the pixel dimensions.",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "IAD2",
+    "input": "Make a reusable photo adjustment: brightness +20, contrast 110, saturation 90. Keep the pixel dimensions.",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "IAN1",
+    "input": "添加在图片上画箭头和文字快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "IAN2",
+    "input": "Make a reusable action where I choose photos and draw arrows, outline boxes, freehand strokes and type labels on them myself when I run it.",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "IAN2",
+    "input": "Make a reusable action where I choose photos and draw arrows, outline boxes, freehand strokes and type labels on them myself when I run it.",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "IBG1",
+    "input": "添加把照片背景去掉快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "IBG2",
+    "input": "Make a reusable action to cut out the subjects in photos and put them on a white background.",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "IBG2",
+    "input": "Make a reusable action to cut out the subjects in photos and put them on a white background.",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "IDP1",
+    "input": "新建一个快捷操作：选照片，做成一寸蓝底证件照，自动框脸",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "IDP1",
+    "input": "新建一个快捷操作：选照片，做成一寸蓝底证件照，自动框脸",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "IDP2",
+    "input": "Make a quick action for a US visa photo on a white background",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  { "id": "LK1", "input": "图标改成浅色底", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "LK1",
+    "input": "新建一张「客户」表（名字、电话），给记账表加一个字段，选这笔账是哪个客户的",
+    "ops": [{ "op": "setTheme" }]
+  },
+  { "id": "LK1", "input": "图标改成浅色底", "ops": [{ "op": "addData" }, { "op": "addData" }] },
+  {
+    "id": "LK1",
+    "input": "新建一张「客户」表（名字、电话），给记账表加一个字段，选这笔账是哪个客户的",
+    "ops": [{ "op": "addData" }, { "op": "addData" }]
+  },
+  { "id": "LK1-en", "input": "Use solid icon backgrounds", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "LK2",
+    "input": "首页入口改成列表",
+    "ops": [
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "LK2-en",
+    "input": "Make the entries on the home page list rows like in Settings, with an arrow on the right",
+    "ops": [
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "LK3",
+    "input": "把 PDF 页面上的快捷操作改成一行一行的列表，右边有播放按钮",
+    "ops": [
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "LK4",
+    "input": "工具箱页面上的「管理工具」按钮改成只显示一个图标",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "LK5",
+    "input": "首页加上照片快捷操作",
+    "ops": [{ "op": "addContainer", "looks": ["library"] }]
+  },
+  {
+    "id": "LK5-en",
+    "input": "Show my video quick actions right on the home page",
+    "ops": [{ "op": "addContainer", "looks": ["library"] }]
+  },
+  {
+    "id": "ON1",
+    "input": "新建一个快捷操作：拍收据，用收据上的日期和金额命名，存到文件",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "ON1",
+    "input": "新建一个快捷操作：拍收据，用收据上的日期和金额命名，存到文件",
+    "ops": [
+      { "op": "addTool", "kind": "preset" },
+      { "op": "updateTool", "kind": "quickAction", "step": true }
+    ]
+  },
+  {
+    "id": "ON2",
+    "input": "Make a quick action that names each invoice photo by its invoice number",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "P1",
+    "input": "能不能把合并 PDF 的入口挪到最前面？",
+    "ops": [{ "op": "moveContainer", "looks": ["undefined"] }]
+  },
+  { "id": "P10", "input": "我想要一个读书清单，可以勾选读完了没有", "ops": [{ "op": "addData" }] },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面，可以勾选已读完的书",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "checklist", "form"], "tools": true },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面，可以勾选读完的书",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面，可以勾选读完了的书",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面，每本书可以勾选读完了没有",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面，可以勾选已读完",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面，可以勾选读完了没有",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面，可以勾选读完了",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面，可以勾选已读",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "number", "checklist"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form", "checklist"], "tools": true },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P10",
+    "input": "增加读书清单页面，可以勾选读完的书",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "checklist"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P11",
+    "input": "账目里加一个支付方式，选项有微信、支付宝、现金",
+    "ops": [{ "op": "addData" }]
+  },
+  { "id": "P12", "input": "How much did I spend this month?", "ops": [] },
+  { "id": "P13", "input": "记账页面不要了", "ops": [{ "op": "removeContainer" }] },
+  {
+    "id": "P14",
+    "input": "首页标题下面加一段介绍：用粗体强调「全部在本机处理」，再用列表写三个要点",
+    "ops": [{ "op": "addContainer", "looks": ["text"] }]
+  },
+  {
+    "id": "P15",
+    "input": "Put a big photo at the top of the home page with the caption “Our family”",
+    "ops": [{ "op": "addContainer", "looks": ["image"] }]
+  },
+  {
+    "id": "P16",
+    "input": "在首页加一个链接到 https://example.com/help 的帮助说明",
+    "ops": [{ "op": "addContainer", "looks": ["notice"] }]
+  },
+  {
+    "id": "P16",
+    "input": "在首页加一个链接到 https://example.com/help 的帮助说明",
+    "ops": [{ "op": "addContainer", "looks": ["text"] }]
+  },
+  {
+    "id": "P17",
+    "input": "在首页顶部加一张横幅，标题下面加一段介绍：用粗体强调「全部在本机处理」，再用列表写三个要点，首页图标换成🏡",
+    "ops": [
+      { "op": "addContainer", "looks": ["image"] },
+      { "op": "addContainer", "looks": ["text"] },
+      { "op": "updateContainer" }
+    ]
+  },
+  {
+    "id": "P2",
+    "input": "底部只留三个：首页、工具、设置",
+    "ops": [{ "op": "updateContainer", "nav": ["bar"] }]
+  },
+  { "id": "P3", "input": "我想要一个绿色的界面", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "P4",
+    "input": "Make the PDF tool skip asking for a file name and just save it as merged-date",
+    "ops": [{ "op": "updateTool", "kind": "quickAction", "step": true }]
+  },
+  {
+    "id": "P5",
+    "input": "把首页的工具入口和添加工具排成两列的网格",
+    "ops": [
+      { "op": "addContainer", "looks": ["group"] },
+      { "op": "moveContainer", "looks": ["undefined"] },
+      { "op": "moveContainer", "looks": ["undefined"] }
+    ]
+  },
+  { "id": "P6", "input": "我想要深色背景、白色文字的界面", "ops": [{ "op": "setTheme" }] },
+  {
+    "id": "P7",
+    "input": "把 AI 修改和历史都从底部去掉，设置做成右下角的浮动按钮",
+    "ops": [{ "op": "updateContainer", "nav": ["bar", "floating"] }]
+  },
+  {
+    "id": "P8",
+    "input": "Add a Notes page with a short intro text, and a shortcut to it on the home page",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "text"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  { "id": "P9", "input": "做一个记账页面，能看到这个月一共花了多少", "ops": [{ "op": "addData" }] },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示本月一共花了多少",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示这个月一共花了多少",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示这个月一共花了多少",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示本月总花费",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示本月总支出",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示本月总支出",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示本月总花费",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number"] },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示本月总花费",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number"] },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，顶部显示本月总支出",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示本月总花费和记账列表",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "list"] },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，能记账并显示这个月一共花了多少",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示本月总支出和添加表单",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，能看到这个月一共花了多少",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示这个月一共花了多少",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number"] },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示本月一共花了多少",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number"] },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示本月一共花了多少",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示本月总支出",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number"] },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示本月总支出",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number"] },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示这个月一共花了多少",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number"] },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示本月花费合计",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "P9",
+    "input": "增加记账页面，显示本月总支出",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number"] },
+      { "op": "updateContainer", "nav": ["bar", "floating"] }
+    ]
+  },
+  { "id": "PAT1", "input": "记账的时候想顺便附上发票的照片", "ops": [{ "op": "addData" }] },
+  {
+    "id": "PAT2-en",
+    "input": "I want to keep a photo of the receipt with each expense",
+    "ops": [{ "op": "addData" }]
+  },
+  {
+    "id": "PAT3-fr",
+    "input": "Je veux pouvoir joindre des photos à mes dépenses",
+    "ops": [{ "op": "addData" }]
+  },
+  {
+    "id": "PAU1",
+    "input": "上课录的音想变成文字笔记，帮我做一个快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PAU1",
+    "input": "上课录的音想变成文字笔记，帮我做一个快捷操作",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PAU2-en",
+    "input": "My voice memo is too big to email, it has to be under 10 MB",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PAU3",
+    "input": "采访录了好几段，想拼成一个文件发给编辑",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PAU3",
+    "input": "采访录了好几段，想拼成一个文件发给编辑",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PAU4",
+    "input": "想把视频里的背景音乐单独存下来",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PAU4",
+    "input": "想把视频里的背景音乐单独存下来",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  { "id": "PAU5", "input": "帮我总结一下这段会议录音说了什么", "ops": [] },
+  {
+    "id": "PAU6-en",
+    "input": "I want to cut 30 seconds out of a song to use as my ringtone",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PAU6-en",
+    "input": "I want to cut 30 seconds out of a song to use as my ringtone",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PDOC1",
+    "input": "我想把纸质合同拍下来变成可以修改的 Word 文档",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PDOC2-fr",
+    "input": "Transformer des photos de pages d’un livre en document Word modifiable",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PDOC2-fr",
+    "input": "Transformer des photos de pages d’un livre en document Word modifiable",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PFA1",
+    "input": "出差时每拍一张收据，就接到上次那份报销单 PDF 后面，最后只交一份",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PFG1",
+    "input": "车里只能放 MP3，想把手机里的歌转一下",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PFG2-en",
+    "input": "I want to turn a short clip of my cat into a GIF for the group chat",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PFG3",
+    "input": "电脑上下载的 MKV 视频，手机上放不了，想转成能放的",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PFG4",
+    "input": "老师要交 PDF，我写的是 Word 作业",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PHS1",
+    "input": "签证照片那个快捷操作，我想在手机桌面上长按 Morph 就能直接用",
+    "ops": [{ "op": "updateContainer", "nav": ["phoneHomeScreen"] }]
+  },
+  {
+    "id": "PHS2-en",
+    "input": "Pin my visa photo shortcut to my phone’s home screen",
+    "ops": [{ "op": "updateContainer", "nav": ["phoneHomeScreen"] }]
+  },
+  {
+    "id": "PHS3-fr",
+    "input": "Crée une action rapide pour choisir des photos, les compresser à 500 Ko et les partager, et mets-la sur l’écran d’accueil du téléphone",
+    "ops": [
+      { "op": "addTool", "kind": "quickAction" },
+      { "op": "updateContainer", "nav": ["phoneHomeScreen"] }
+    ]
+  },
+  {
+    "id": "PPW1",
+    "input": "银行发的对账单 PDF 有密码，想去掉密码再和别的材料合成一份",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PPW2",
+    "input": "Before I send a contract I want to put a password on the PDF",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PRE1",
+    "input": "我想拍一下收据就能记一笔账，收据照片也留着",
+    "ops": [{ "op": "addData" }, { "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PRE1",
+    "input": "我想拍一下收据就能记一笔账，收据照片也留着",
+    "ops": [
+      { "op": "addData" },
+      { "op": "addTool", "kind": "quickAction" },
+      { "op": "addContainer", "looks": ["action"], "tools": true }
+    ]
+  },
+  {
+    "id": "PRE2-en",
+    "input": "Make a quick action to scan my receipts into the Expenses table",
+    "ops": [{ "op": "addData" }, { "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PRE3",
+    "input": "给账目加一个「含税」，等于金额乘以 1.06",
+    "ops": [{ "op": "addData" }]
+  },
+  { "id": "PRE4", "input": "记一笔午饭 35", "ops": [] },
+  {
+    "id": "PSP1",
+    "input": "Scan receipts into a PDF where I can search and copy the text later",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PSP1",
+    "input": "Scan receipts into a PDF where I can search and copy the text later",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PTTS1",
+    "input": "做一个把 PDF 变成音频的快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PTTS2-en",
+    "input": "I want to listen to the printed handouts from class on my commute instead of reading them",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PTTS3",
+    "input": "用日语慢一点读，做一个把日文 PDF 转成音频的快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  { "id": "PTTS4", "input": "把这句话读给我听：明天下午三点在三楼开会", "ops": [] },
+  { "id": "PTTS5", "input": "转成音频", "ops": [{ "op": "addTool", "kind": "preset" }] },
+  { "id": "PTTS5", "input": "转成音频", "ops": [{ "op": "addTool", "kind": "quickAction" }] },
+  {
+    "id": "PV1",
+    "input": "视频太大了微信发不出去，帮我做个能压到 25MB 再分享的",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PV2",
+    "input": "朋友说我发的 MOV 视频在电脑上打不开，做一个转换的快捷操作",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PV3-en",
+    "input": "The school portal only takes PDFs under 2 MB and my scanned transcript is 15 MB",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PV3-en",
+    "input": "The school portal only takes PDFs under 2 MB and my scanned transcript is 15 MB",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PV4-en",
+    "input": "I want to cut a short part out of a long video and send just that part",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  { "id": "PV5", "input": "把这个视频压到 20MB", "ops": [{ "op": "addTool", "kind": "preset" }] },
+  {
+    "id": "PV5",
+    "input": "把这个视频压到 20MB",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PW1",
+    "input": "帮我做个流程：拍收据，拉正，压缩到 300K，然后存起来",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PW2",
+    "input": "I want the visa photo workflow to also open the share sheet at the end",
+    "ops": [{ "op": "addTool", "kind": "quickAction", "step": true }]
+  },
+  {
+    "id": "PW3",
+    "input": "Make a monthly PDF of my expenses with the total at the bottom",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PW4",
+    "input": "我想把扫描文档这个预设加进来，再把它放在首页上",
+    "ops": [
+      { "op": "addTool", "kind": "preset" },
+      { "op": "addContainer", "looks": ["action"], "tools": true }
+    ]
+  },
+  {
+    "id": "PW5",
+    "input": "做一个流程：用文档相机扫描几页合同，合成 PDF，然后分享",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PW6",
+    "input": "做个流程：扫描合同，合成 PDF，直接存进我 Google Drive 里的一个文件夹",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PW7",
+    "input": "Make a workflow that shrinks my photos to 1 MB each and sends them all to WhatsApp in one go",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PW7",
+    "input": "Make a workflow that shrinks my photos to 1 MB each and sends them all to WhatsApp in one go",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PWF1",
+    "input": "想做一个二维码，让来家里的客人扫一下就能连上 Wi-Fi",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "PXLS1",
+    "input": "我想把纸质的银行流水拍下来变成 Excel 表格",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "PXLS2-en",
+    "input": "Turn screenshots of a price table into a spreadsheet I can edit",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  { "id": "QA1", "input": "添加签证照片快捷操作", "ops": [{ "op": "addTool", "kind": "preset" }] },
+  {
+    "id": "QA1-en",
+    "input": "Add the visa photo quick action",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "QA1-en",
+    "input": "Add the visa photo quick action",
+    "ops": [
+      { "op": "addTool", "kind": "preset" },
+      { "op": "addContainer", "looks": ["action"], "tools": true }
+    ]
+  },
+  {
+    "id": "QA2",
+    "input": "新建一个快捷操作：选照片，压到 500KB，分享",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "QA3",
+    "input": "把签证照片快捷操作放到首页",
+    "ops": [{ "op": "addContainer", "looks": ["action"], "tools": true }]
+  },
+  {
+    "id": "QA4",
+    "input": "把改动记录从导航栏去掉",
+    "ops": [{ "op": "updateContainer", "nav": ["bar"] }]
+  },
+  { "id": "QA5", "input": "添加图片工具", "ops": [{ "op": "setPackage" }] },
+  { "id": "QA6", "input": "Remove the PDF tool", "ops": [{ "op": "setPackage" }] },
+  {
+    "id": "QAC1",
+    "input": "首页加上Morph 可以做什么",
+    "ops": [{ "op": "addContainer", "looks": ["entry"] }]
+  },
+  {
+    "id": "QAC1",
+    "input": "首页加上Morph 可以做什么",
+    "ops": [{ "op": "addContainer", "looks": ["library"] }]
+  },
+  {
+    "id": "QAC2",
+    "input": "Add What Morph can do to home",
+    "ops": [{ "op": "addContainer", "looks": ["library"] }]
+  },
+  {
+    "id": "QAC2",
+    "input": "Add What Morph can do to home",
+    "ops": [{ "op": "addContainer", "looks": ["entry"] }]
+  },
+  {
+    "id": "RA1",
+    "input": "首页加一个喝水 +1 按钮",
+    "ops": [{ "op": "addContainer", "looks": ["button"], "tools": true }]
+  },
+  {
+    "id": "RA2",
+    "input": "工时列表每行加一个下班按钮，还没下班的才显示",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"], "tools": true }]
+  },
+  {
+    "id": "RA3",
+    "input": "旅行清单加一个一键清空的按钮，把勾都去掉",
+    "ops": [{ "op": "addContainer", "looks": ["button"], "tools": true }]
+  },
+  {
+    "id": "RA4-en",
+    "input": "Add a Clock in button to the home page that starts a new work log entry now",
+    "ops": [{ "op": "addContainer", "looks": ["button"], "tools": true }]
+  },
+  {
+    "id": "RA5-fr",
+    "input": "Ajoute un bouton « Payé » sur chaque facture de la liste",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"], "tools": true }]
+  },
+  {
+    "id": "RA6",
+    "input": "习惯列表每个习惯旁边加一个「完成」按钮，点一下就记一次今天的打卡",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"], "tools": true }]
+  },
+  {
+    "id": "RA7",
+    "input": "首页加一个按钮，点一下记一条账单，名称写「房租」",
+    "ops": [{ "op": "addContainer", "looks": ["button"], "tools": true }]
+  },
+  {
+    "id": "RE1",
+    "input": "新建一个快捷操作：拍照，记到账目",
+    "ops": [{ "op": "addData" }, { "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "RE1-en",
+    "input": "Create a quick action: take photos, add a record to Expenses",
+    "ops": [{ "op": "addData" }, { "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "RE2",
+    "input": "新建一个快捷操作：输入文字，记一笔",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  { "id": "RE3", "input": "新建一个快捷操作：拍照，记到不存在的表", "ops": [] },
+  { "id": "RL1", "input": "给每个习惯显示连续天数", "ops": [{ "op": "addData" }] },
+  {
+    "id": "RL1",
+    "input": "在习惯列表里显示连续天数",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL1",
+    "input": "习惯列表里显示连续天数",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL1",
+    "input": "在习惯列表里显示每个习惯的连续天数",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL1",
+    "input": "在习惯列表中显示每个习惯的连续天数",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL1",
+    "input": "在习惯列表右侧显示连续天数",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL1",
+    "input": "在习惯列表上显示连续天数",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL1",
+    "input": "在习惯列表显示连续天数",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL1",
+    "input": "习惯列表每行显示连续天数",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL2",
+    "input": "工时按工作的时薪算工资",
+    "ops": [{ "op": "addData" }, { "op": "addData" }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show each client's total order amount",
+    "ops": [{ "op": "addData" }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show total orders on each client in the list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show the order total on each client in the list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show the order total on each client in the Clients list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show the total amount on each client in the list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show the total on each client in the list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show the order total on each client in the clients list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show each client's total in the clients list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show each client's total orders in the clients list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show the total on the clients list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show the total amount on the clients list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show each client's total amount in the clients list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show the total amount in the clients list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show total amount on each client in the clients list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show the order total on the clients list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show total amount on the clients list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show the order total in the clients list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show the total amount on each client in the Clients list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show each client's total amount on the clients list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL3-en",
+    "input": "Show total orders on each client in the clients list",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "RL4-fr",
+    "input": "Affiche pour chaque client la date de sa dernière commande",
+    "ops": [{ "op": "addData" }]
+  },
+  {
+    "id": "RL5",
+    "input": "每次加油显示和上一次之间开了多少公里，两辆车分开算",
+    "ops": [{ "op": "addData" }, { "op": "addData" }]
+  },
+  {
+    "id": "RL6-en",
+    "input": "For each habit show how many times I did it this week",
+    "ops": [{ "op": "addData" }]
+  },
+  {
+    "id": "RM1",
+    "input": "每天晚上 9 点提醒我记账",
+    "ops": [{ "op": "addTool", "kind": "reminder" }]
+  },
+  {
+    "id": "RM2",
+    "input": "Remind me 3 days before each date in my budget table, at 8am",
+    "ops": [{ "op": "addTool", "kind": "reminder" }]
+  },
+  {
+    "id": "RM3",
+    "input": "每天早上 8 点自动运行签证照片快捷操作",
+    "ops": [{ "op": "addTool", "kind": "reminder" }]
+  },
+  {
+    "id": "RR1",
+    "input": "每盆植物到了该浇水的那天晚上 7 点提醒我，通知上加一个「浇好了」按钮",
+    "ops": [{ "op": "addTool", "kind": "reminder" }]
+  },
+  {
+    "id": "RR2-en",
+    "input": "Remind me of each habit at 8pm on its days, but not if I already checked in today",
+    "ops": [{ "op": "addTool", "kind": "reminder" }]
+  },
+  {
+    "id": "RR3-fr",
+    "input": "Rappelle-moi chaque habitude à 9 h selon son programme, avec un bouton pour me le rappeler plus tard",
+    "ops": [{ "op": "addTool", "kind": "reminder" }]
+  },
+  {
+    "id": "RR4",
+    "input": "每个习惯按自己的日程早上 8 点提醒，通知上点「完成」就记一次打卡",
+    "ops": [{ "op": "addTool", "kind": "reminder" }]
+  },
+  {
+    "id": "SC1",
+    "input": "做一个浇水的表：每盆植物每 7 天浇一次，首页列出今天该浇的",
+    "ops": [{ "op": "addData" }]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇水的植物，每株可一键记为已浇",
+    "ops": [{ "op": "addContainer", "looks": ["list"], "tools": true }]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇水的植物，点一下标记已浇水",
+    "ops": [{ "op": "addContainer", "looks": ["list"], "tools": true }]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇的植物，每条可以点一下记为已浇水",
+    "ops": [{ "op": "addContainer", "looks": ["list"], "tools": true }]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇的植物",
+    "ops": [{ "op": "addContainer", "looks": ["list"] }]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天要浇水的植物，每项可以点一下记为已浇",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true }
+    ]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇的植物，每个植物上有一个浇水按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true }
+    ]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇的植物，每项加一个「已浇水」按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true }
+    ]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇水的植物，点一下记为已浇水",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true }
+    ]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇水的植物",
+    "ops": [{ "op": "addContainer", "looks": ["list"] }]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天要浇的植物",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"] }
+    ]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇水的植物，每条可以点浇水",
+    "ops": [{ "op": "addContainer", "looks": ["list"], "tools": true }]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇水的植物，每条带一个浇水按钮",
+    "ops": [{ "op": "addContainer", "looks": ["list"], "tools": true }]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇的植物，每项加一个「浇水」按钮",
+    "ops": [{ "op": "addContainer", "looks": ["list"], "tools": true }]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇的植物，并加一个浇水按钮",
+    "ops": [{ "op": "addContainer", "looks": ["list"], "tools": true }]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇的植物，每盆一个「已浇水」按钮",
+    "ops": [{ "op": "addContainer", "looks": ["list"], "tools": true }]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天要浇水的植物",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"] }
+    ]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇的植物，每项可以一键标记已浇水",
+    "ops": [{ "op": "addContainer", "looks": ["list"], "tools": true }]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇的植物，每行加一个「浇了」按钮",
+    "ops": [{ "op": "addContainer", "looks": ["list"], "tools": true }]
+  },
+  {
+    "id": "SC1",
+    "input": "首页列出今天该浇的植物，每盆可以点一下浇水",
+    "ops": [{ "op": "addContainer", "looks": ["list"], "tools": true }]
+  },
+  {
+    "id": "SC2",
+    "input": "做一个订阅的表，订阅按月续费，列表按下次扣费日期排",
+    "ops": [{ "op": "addData" }]
+  },
+  {
+    "id": "SC2",
+    "input": "做一个订阅页面，按下次扣费日期排序",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "button", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "加一个订阅页面，按下次扣费日期排序",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "做一个订阅页面，按下次扣费日期排序",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "增加订阅页面，列表按下次扣费日期排",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "添加订阅页面，列表按下次扣费日期排",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "加一个订阅页面，列表按下次扣费日期排",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "增加订阅页面，列出每笔订阅，按下次扣费日期排序",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "增加订阅页面，列表按下次扣费日期排",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list", "form"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "增加订阅页面，列表按下次扣费日期排",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "增加订阅页面，按下次扣费日期排列",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "增加订阅页面，按下次扣费日期排序",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "增加订阅页面，列表按下次扣费日期排序",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "做一个订阅页面，列表按下次扣费日期排",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "增加订阅页面，列表按下次扣费日期排",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "增加订阅页面，按下次扣费日期排序",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list", "form"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "增加订阅页面，按下次扣费日期排序",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "button", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "做一个订阅页面，列表按下次扣费日期排序",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "添加订阅页面，按下次扣费日期排",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "增加订阅页面，按下次扣费日期排",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC2",
+    "input": "增加订阅页面，按下次扣费日期排序",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC3-en",
+    "input": "Make a chores table where each chore repeats on its own schedule, and show the overdue ones on the home page",
+    "ops": [{ "op": "addData" }]
+  },
+  {
+    "id": "SC3-en",
+    "input": "Show overdue chores on the home page",
+    "ops": [{ "op": "addContainer", "looks": ["list"] }]
+  },
+  {
+    "id": "SC3-en",
+    "input": "Show overdue chores on the home page",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"] }
+    ]
+  },
+  {
+    "id": "SC3-en",
+    "input": "Show overdue chores on the home page",
+    "ops": [{ "op": "addContainer", "looks": ["group", "list"] }]
+  },
+  {
+    "id": "SC3-en",
+    "input": "Show overdue chores on the home page, with a Done button on each",
+    "ops": [{ "op": "addContainer", "looks": ["list"], "tools": true }]
+  },
+  {
+    "id": "SC3-en",
+    "input": "Show overdue chores on the home page, each with a Done button",
+    "ops": [{ "op": "addContainer", "looks": ["list"], "tools": true }]
+  },
+  {
+    "id": "SC3-en",
+    "input": "Show overdue chores on the home page, with a Done button",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Crée un tableau de tâches ménagères à faire 3 fois par semaine, avec la liste de ce qui est à faire cette semaine",
+    "ops": [{ "op": "addData" }]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter une page avec la liste des tâches à faire cette semaine",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter la page des tâches ménagères de cette semaine, avec la liste de ce qui est à faire",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter la page des tâches de la semaine",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter une page « Cette semaine » avec la liste des tâches à faire",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajoute une page Tâches ménagères avec la liste de ce qui est à faire cette semaine",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajoute une page Ménage avec la liste de ce qui est à faire cette semaine et un bouton pour marquer une tâche faite",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajoute une page « Tâches de la semaine » avec la liste de ce qui reste à faire cette semaine",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter une page « Ménage de la semaine » avec les tâches à faire cette semaine et un bouton Fait",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter une page « Cette semaine » avec la liste des tâches à faire, et un bouton pour les marquer faites",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajoute une page pour les tâches ménagères de cette semaine",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajoute une page « Tâches ménagères » avec la liste de ce qui est à faire cette semaine et un bouton pour marquer une tâche faite",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter une page « Cette semaine » avec les tâches à faire cette semaine et un bouton Fait sur chaque tâche",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter une page avec les tâches à faire cette semaine",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter une page Tâches ménagères avec la liste de ce qui est à faire cette semaine",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter une page « Cette semaine » avec la liste des tâches à faire",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Afficher les tâches de cette semaine avec un bouton « Fait »",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajoute une page Ménage avec la liste des tâches à faire cette semaine",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter une page des tâches de cette semaine",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter une page des tâches ménagères avec la liste de cette semaine",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter une page avec la liste des tâches de cette semaine",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter une page « Tâches ménagères » avec la liste de ce qui est à faire cette semaine",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter une page avec les tâches de cette semaine",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter la page des tâches de cette semaine",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SC4-fr",
+    "input": "Ajouter une page pour les tâches ménagères avec la liste de cette semaine",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "SG1",
+    "input": "记账页面加一个统计：每个分类一共花了多少",
+    "ops": [{ "op": "addContainer", "looks": ["number"] }]
+  },
+  { "id": "SH1", "input": "做成一个 PDF", "ops": [{ "op": "addTool", "kind": "quickAction" }] },
+  {
+    "id": "SH2-en",
+    "input": "Combine them into one file",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "SH2-en",
+    "input": "Combine them into one file",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  { "id": "SH3", "input": "压小一点，好发微信", "ops": [{ "op": "addTool", "kind": "preset" }] },
+  { "id": "SH4", "input": "转成文字", "ops": [{ "op": "addTool", "kind": "preset" }] },
+  { "id": "SH4", "input": "转成文字", "ops": [{ "op": "addTool", "kind": "quickAction" }] },
+  {
+    "id": "ST1",
+    "input": "给每个习惯显示连续天数",
+    "ops": [{ "op": "addContainer", "looks": ["number"] }]
+  },
+  {
+    "id": "ST2-en",
+    "input": "Show my streak for each habit, where a week counts when I do it at least 3 times; weeks marked Skipped shouldn’t break it",
+    "ops": [{ "op": "addContainer", "looks": ["number"] }]
+  },
+  {
+    "id": "ST3-fr",
+    "input": "Affiche depuis combien de jours je n’ai pas fait chaque habitude",
+    "ops": [{ "op": "addContainer", "looks": ["number"] }]
+  },
+  {
+    "id": "ST4",
+    "input": "习惯页面加一个柱状图：最近 8 周每周打卡了几天",
+    "ops": [{ "op": "addContainer", "looks": ["chart"] }]
+  },
+  {
+    "id": "TB1",
+    "input": "习惯做成大圆块，点一下打卡",
+    "ops": [
+      { "op": "removeContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["tiles"], "tools": true }
+    ]
+  },
+  {
+    "id": "TB1",
+    "input": "把翻译移到照片那一组",
+    "ops": [
+      { "op": "removeContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["tiles"], "tools": true }
+    ]
+  },
+  {
+    "id": "TB1",
+    "input": "习惯做成大圆块，点一下打卡",
+    "ops": [
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TB1",
+    "input": "把翻译移到照片那一组",
+    "ops": [
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TB1",
+    "input": "习惯做成大圆块，点一下打卡",
+    "ops": [
+      { "op": "addContainer", "looks": ["tiles"], "tools": true },
+      { "op": "removeContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TB1",
+    "input": "把翻译移到照片那一组",
+    "ops": [
+      { "op": "addContainer", "looks": ["tiles"], "tools": true },
+      { "op": "removeContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TB2",
+    "input": "工具箱最上面加一组「常用」，放图片和 PDF",
+    "ops": [
+      { "op": "addContainer", "looks": ["packages"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TB2",
+    "input": "工具箱最上面加一组「常用」，放图片和 PDF",
+    "ops": [{ "op": "addContainer", "looks": ["packages"] }]
+  },
+  {
+    "id": "TB2",
+    "input": "工具箱最上面加一组「常用」，放图片和 PDF",
+    "ops": [
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["packages"] }
+    ]
+  },
+  {
+    "id": "TB2-en",
+    "input": "Show my habits as a grid of big circles",
+    "ops": [
+      { "op": "addContainer", "looks": ["tiles"] },
+      { "op": "removeContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TB2-en",
+    "input": "Show my habits as a grid of big circles",
+    "ops": [
+      { "op": "removeContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["tiles"], "tools": true }
+    ]
+  },
+  {
+    "id": "TB2-en",
+    "input": "Show my habits as a grid of big circles",
+    "ops": [
+      { "op": "removeContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["tiles"] }
+    ]
+  },
+  {
+    "id": "TB3",
+    "input": "任务看板按状态分栏",
+    "ops": [{ "op": "addContainer", "looks": ["board"], "tools": true }]
+  },
+  {
+    "id": "TB3",
+    "input": "Rename the toolbox to My tools",
+    "ops": [{ "op": "addContainer", "looks": ["board"], "tools": true }]
+  },
+  {
+    "id": "TB3",
+    "input": "任务看板按状态分栏",
+    "ops": [{ "op": "updateContainer" }, { "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TB3",
+    "input": "Rename the toolbox to My tools",
+    "ops": [{ "op": "updateContainer" }, { "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TB3-fr",
+    "input": "Affiche mes tâches en colonnes par statut, comme un kanban",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"], "tools": true },
+      { "op": "removeContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TB3-fr",
+    "input": "Affiche mes tâches en colonnes par statut, comme un kanban",
+    "ops": [
+      { "op": "removeContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["board"], "tools": true }
+    ]
+  },
+  {
+    "id": "TB3-fr",
+    "input": "Affiche mes tâches en colonnes par statut, comme un kanban",
+    "ops": [{ "op": "addContainer", "looks": ["board"], "tools": true }]
+  },
+  {
+    "id": "TB4",
+    "input": "把工具箱放到导航栏",
+    "ops": [{ "op": "updateContainer", "nav": ["bar"] }]
+  },
+  { "id": "TB5", "input": "添加压缩包工具", "ops": [{ "op": "setPackage" }] },
+  {
+    "id": "TD1",
+    "input": "做一个「今天」页面：今天要做的任务，每条旁边一个「完成」",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "TD1",
+    "input": "做一个「今天」页面：今天要做的任务，每条旁边一个「完成」",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "TD1",
+    "input": "做一个「今天」页面：今天要做的任务，每条旁边一个「完成」",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD10",
+    "input": "每个任务到了它自己设的时间就提醒我，通知上可以直接点完成",
+    "ops": [{ "op": "addTool", "kind": "reminder" }]
+  },
+  {
+    "id": "TD11",
+    "input": "每个项目有自己的版块，点开项目用看板按版块显示它的任务",
+    "ops": [{ "op": "addData" }, { "op": "addData" }]
+  },
+  {
+    "id": "TD11",
+    "input": "每个项目打开后，用看板按版块分列显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "点开项目时打开它自己的页面，用看板按版块显示它的任务，并能在版块下直接添加任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "每个项目页加一个任务看板，按版块分栏显示任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "项目页用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "点开项目用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "点开项目时，用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"] },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "点开项目时显示看板，按版块分栏显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "项目页面里加一个添加版块的按钮，并用看板按版块显示它的任务，点项目列表打开项目页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["button", "board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "点开项目时，用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "每个项目页用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "点开项目，用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "给每个项目加一个页面，用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"] },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "点开项目进入它的页面，页面上用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "给每个项目建一个页面，用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["button", "board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "点开项目，用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"] },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "给每个项目加一个页面，用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "点开项目后，用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "为每个项目做一个看板页，按版块分栏显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "每个项目打开后，用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["button", "board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "项目列表点开进入项目页，用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"] },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "点开项目，用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["button", "board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "点开项目页面，用看板按版块显示它的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD11",
+    "input": "点开项目显示它的任务看板，按版块分栏",
+    "ops": [
+      { "op": "addContainer", "looks": ["board"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD12-en",
+    "input": "Add a + button at the bottom right that opens a quick add sheet for tasks",
+    "ops": [{ "op": "addContainer", "looks": ["form"], "tools": true }]
+  },
+  {
+    "id": "TD13",
+    "input": "帮我记要做的事，有些事每周都要做一次，做完了就排到下一周",
+    "ops": [{ "op": "addData" }]
+  },
+  {
+    "id": "TD13",
+    "input": "添加待办页面：列出要做的事，每条可以一键完成，做完排到下一周",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "增加待办页面：列出还没做完的事，可以添加事项，每项旁边有「完成」按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "帮我记要做的事，有些事每周都要做一次，做完了就排到下一周",
+    "ops": [{ "op": "addData" }, { "op": "addData" }, { "op": "addData" }, { "op": "updateData" }]
+  },
+  {
+    "id": "TD13",
+    "input": "做一个待办页面，列出未完成的事项，每项有「完成」按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "加一个待办页面，列出还没做的事，每项有完成按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "做成待办页面，可以添加事项，每个事项都有完成按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "增加待办页面，能添加事项并标记完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "加一个待办页面：未完成的事按时间排序，每条可以点完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "做一个待办页面，列出事项，每项有「完成」按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "做一个待办页面，可以添加事项，并有完成按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "做一个待办页面：上面一个添加表单，下面列出没做完的事，每项有「完成」按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "加一个待办页面：列出所有待办，每项有「完成」按钮，完成后排到下一次",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "新建待办页面：列出未完成的事项，每项可以标记完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "帮我记要做的事，有些事每周都要做一次，做完了就排到下一周",
+    "ops": [
+      { "op": "addData" },
+      { "op": "addData" },
+      { "op": "addData" },
+      { "op": "addData" },
+      { "op": "addData" }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "添加待办页面，显示所有未完成的待办，每项可以点完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "增加待办页面，可以添加事项，点完成后排到下一次",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "做一个待办页面，可以添加任务、点一下完成，每周重复的任务完成后排到下一周",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "添加待办页面，每项旁边有完成按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "增加待办页面，可以添加事项并标记完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "增加待办页面",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "做一个待办页面：可以添加事项，未完成的按安排排列，每条可以点「完成」",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "做一个待办页面，显示没做完的事，每项可以点「完成」",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "增加待办页面，可以添加事项，并能点完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "增加待办页面，可以添加事项，每周的事项点完成后排到下一周",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "加一个待办页面，每条可以一键完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD13",
+    "input": "做一个待办页面，可以添加事项，每项有「完成」按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD14",
+    "input": "做一个看板",
+    "ops": [{ "op": "addContainer", "looks": ["board"], "tools": true }]
+  },
+  {
+    "id": "TD14",
+    "input": "做一个看板",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "board"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "TD14",
+    "input": "做一个看板",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "board"], "tools": true },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "TD14",
+    "input": "做一个看板",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "button", "board"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar", "floating"] }
+    ]
+  },
+  {
+    "id": "TD15",
+    "input": "加子任务",
+    "ops": [{ "op": "addData" }, { "op": "addData" }, { "op": "addData" }]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示顶层任务，并显示未完成子任务数",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示顶层任务，并显示子任务进度",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示顶层任务，并在每项下面显示子任务进度",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示顶层任务，并在每项下显示子任务数量",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示顶层任务，并显示子任务数量",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示顶层任务，副标题显示未完成子任务数",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD15",
+    "input": "列表只显示顶层任务，并显示子任务进度",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD15",
+    "input": "让任务列表只显示顶层任务，并显示子任务数量",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示顶层任务，并在每条任务下显示未完成子任务数，每条都能添加子任务",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"], "tools": true }]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示顶层任务，并在每个任务下显示未完成子任务数",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示未完成的顶层任务，并在每条下面显示未完成子任务数",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示顶层任务，副标题显示子任务进度",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示顶级任务，并显示子任务数量",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示顶层任务，并在每条副标题显示未完成子任务数",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示顶层任务，并在每项下显示子任务进度",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示顶层任务，每项显示子任务进度，并能在任务里添加子任务",
+    "ops": [
+      { "op": "updateContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true }
+    ]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示顶层任务，并在副标题显示子任务数量",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD15",
+    "input": "任务列表只显示顶层任务，并在任务下显示未完成子任务数",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  { "id": "TD16", "input": "到点提醒我", "ops": [{ "op": "addTool", "kind": "reminder" }] },
+  {
+    "id": "TD17",
+    "input": "我想要一个像 Todoist 那样的待办：分项目，打开就看到今天要做的，重复的事做完了自动排到下一次。",
+    "ops": [
+      { "op": "addData" },
+      { "op": "addData" },
+      { "op": "addData" },
+      { "op": "addData" },
+      { "op": "addData" }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "做一个「今天」页面：列出今天要做的待办，每条可以点完成，并能添加新待办",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list", "form"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "我想要一个像 Todoist 那样的待办：分项目，打开就看到今天要做的，重复的事做完了自动排到下一次。",
+    "ops": [{ "op": "addData" }, { "op": "addData" }]
+  },
+  {
+    "id": "TD17",
+    "input": "增加「今天」页面：按项目列出今天要做和逾期的待办，每条可以点完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "我想要一个像 Todoist 那样的待办：分项目，打开就看到今天要做的，重复的事做完了自动排到下一次。",
+    "ops": [
+      { "op": "addData" },
+      { "op": "addData" },
+      { "op": "addData" },
+      { "op": "addData" },
+      { "op": "updateData" }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "做一个「今天」页面：显示今天要做的待办，按项目分组，每条可以点一下完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "做一个待办页面：首页显示今天要做的，按项目分组，点一下完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "加一个「今天」页面：列出今天到期的任务，每条可以点「完成」，重复的任务完成后自动排到下一次",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "做一个首页：今天要做的待办，按项目分组",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "做一个待办页面：首页显示今天要做的任务，完成后重复的任务自动排到下一次",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "做一个待办页面：打开就看到今天要做的，按项目分组，每个任务有完成按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "做一个待办页面：首页显示今天要做的事，按项目分组，每项有完成按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] },
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "在首页做待办：打开就看到今天要做的，按项目分组，每项有完成按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "加一个「今天」页面：显示今天和过期的待办，按项目分组，每条可以点一下完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "做一个「今天」页面：显示今天到期的任务，按项目分组，每条可以点完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "做成待办页面：首页显示今天要做的待办，按项目分组，每项可以点完成",
+    "ops": [{ "op": "addContainer", "looks": ["list"], "tools": true }]
+  },
+  {
+    "id": "TD17",
+    "input": "首页显示今天要做的待办，按项目分组，每条待办可以点按钮完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "增加待办页面：今天要做的，按项目分，每条可以标记完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "做一个今天页面，列出今天要做的任务，按项目分组，每项可以点完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "做一个今天的待办页面，每条可以点完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "做一个待办页面：打开就看到今天要做的，按项目分组，点一下就能完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "增加待办页面，打开就显示今天要做的，可以按项目分组，每条后面有完成按钮",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "首页显示今天要做的待办，每条可以点完成，并能直接添加；每个项目有自己的页面，只看该项目的待办",
+    "ops": [
+      { "op": "addContainer", "looks": ["form", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true },
+      { "op": "addContainer", "looks": ["form"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "做一个「今天」页面：显示今天到期的待办，分项目排列，点一下完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "增加待办页面：按项目分组，显示今天要做的事，并能点一下完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "增加待办页面：首页显示今天要做的，按项目查看，完成后自动排到下一次",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] },
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "增加待办页面：首页显示今天要做的，按项目分组，每项可以点按完成，重复的事完成后自动排到下一次",
+    "ops": [
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true },
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17",
+    "input": "做一个待办页面：按项目分组，首页显示今天要做的，每条可以点完成",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] },
+      { "op": "addContainer", "looks": ["header"] },
+      { "op": "addContainer", "looks": ["list"], "tools": true }
+    ]
+  },
+  {
+    "id": "TD17-en",
+    "input": "I want a habit tracker",
+    "ops": [{ "op": "addData" }, { "op": "addData" }, { "op": "addData" }]
+  },
+  {
+    "id": "TD17-en",
+    "input": "Add a page for my habits with a Done button on each habit",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17-en",
+    "input": "I want a habit tracker",
+    "ops": [{ "op": "addData" }, { "op": "addData" }]
+  },
+  {
+    "id": "TD17-en",
+    "input": "Add a page to track my habits with a check-in button and streaks",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "number", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17-en",
+    "input": "Add a habit tracker page with a list of habits and a button to check in each one",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17-en",
+    "input": "Add a page to track my habits",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "tiles", "form"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  { "id": "TD17-en", "input": "I want a habit tracker", "ops": [{ "op": "addData" }] },
+  {
+    "id": "TD17-en",
+    "input": "Add a page for my habits with a form and a list",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17-en",
+    "input": "Add a page for my habits with a check-in button",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17-en",
+    "input": "Add a page for my habits where I tap to check in and see streaks",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "tiles"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17-en",
+    "input": "Add a page for my habits with a Done button for each one",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17-en",
+    "input": "Add a page for my habits",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "tiles"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17-en",
+    "input": "Add a habit tracker page with a form and a list of habits",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17-en",
+    "input": "Add a page for my habits with a form to add one and a list of them",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17-en",
+    "input": "Add a habit tracker page with a Done button for each habit",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17-en",
+    "input": "Add a page for my habits",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17-en",
+    "input": "Add a habit page with a check-in button and streaks",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list", "number"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17-en",
+    "input": "Add a habits page",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "tiles", "form"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD17-en",
+    "input": "Add a habit tracker page",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "form", "list"], "tools": true },
+      { "op": "updateContainer", "nav": ["bar"] }
+    ]
+  },
+  {
+    "id": "TD2-en",
+    "input": "Tapping a project should open a page with just that project’s tasks",
+    "ops": [
+      { "op": "addContainer", "looks": ["list"] },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD2-en",
+    "input": "Tapping a project should open a page with just that project’s tasks",
+    "ops": [
+      { "op": "addContainer", "looks": ["button", "list"], "tools": true },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD2-en",
+    "input": "Tapping a project should open a page with just that project’s tasks",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "updateContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD3-fr",
+    "input": "Je veux taper « appeler Paul demain 15h » et que la date soit reconnue toute seule",
+    "ops": [{ "op": "addContainer", "looks": ["form"], "tools": true }]
+  },
+  {
+    "id": "TD3-fr",
+    "input": "Je veux taper « appeler Paul demain 15h » et que la date soit reconnue toute seule",
+    "ops": [
+      { "op": "addContainer", "looks": ["form"], "tools": true },
+      { "op": "removeContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "TD3-fr",
+    "input": "Je veux taper « appeler Paul demain 15h » et que la date soit reconnue toute seule",
+    "ops": [
+      { "op": "removeContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["form"], "tools": true }
+    ]
+  },
+  {
+    "id": "TD4",
+    "input": "加一个收件箱：还没分项目、也还没做完的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "TD4",
+    "input": "加一个收件箱：还没分项目、也还没做完的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "list"] },
+      { "op": "updateContainer", "nav": ["floating"] }
+    ]
+  },
+  {
+    "id": "TD4",
+    "input": "加一个收件箱：还没分项目、也还没做完的任务",
+    "ops": [
+      { "op": "addContainer", "looks": ["header", "button", "list"], "tools": true },
+      { "op": "addContainer", "looks": ["entry"] }
+    ]
+  },
+  {
+    "id": "TD5",
+    "input": "每周的任务提前做了也要算这一周做过了，不要还挂在明天",
+    "ops": [{ "op": "updateData" }]
+  },
+  {
+    "id": "TD6",
+    "input": "任务列表按项目分开显示，每个项目一段",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD7-en",
+    "input": "Show my tasks grouped by day, overdue first",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "TD8-fr",
+    "input": "Je veux voir mes tâches dans un calendrier du mois",
+    "ops": [{ "op": "addContainer", "looks": ["calendar"] }]
+  },
+  {
+    "id": "TD9",
+    "input": "任务按项目分段，在每段下面能直接添加任务",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"], "tools": true }]
+  },
+  {
+    "id": "TM1",
+    "input": "做一个上下班打卡的表：记上班时间、下班时间和中间休息多久，自动算出每天工作几个小时",
+    "ops": [{ "op": "addData" }]
+  },
+  {
+    "id": "TM2",
+    "input": "Make a sleep log: when I went to bed, when I woke up, and how many hours I slept",
+    "ops": [{ "op": "addData" }]
+  },
+  { "id": "TR1", "input": "帮我翻译一下这句话：Thank you for your help", "ops": [] },
+  { "id": "TR2-en", "input": "Translate this sentence into Chinese: break a leg", "ops": [] },
+  {
+    "id": "TR3",
+    "input": "新建一个快捷操作：选截图，识别文字，翻译成中文，复制文字",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "TR3",
+    "input": "新建一个快捷操作：选截图，识别文字，翻译成中文，复制文字",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "TR4-en",
+    "input": "Translate this letter into Chinese",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "TR4-en",
+    "input": "Translate this letter into Chinese",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  { "id": "TR5", "input": "添加截图翻译快捷操作", "ops": [{ "op": "addTool", "kind": "preset" }] },
+  {
+    "id": "TR6",
+    "input": "收到的日文邮件截图老是看不懂，想以后能一键翻成中文",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "TR6",
+    "input": "收到的日文邮件截图老是看不懂，想以后能一键翻成中文",
+    "ops": [
+      { "op": "addTool", "kind": "preset" },
+      { "op": "addContainer", "looks": ["action"], "tools": true }
+    ]
+  },
+  {
+    "id": "TR6",
+    "input": "收到的日文邮件截图老是看不懂，想以后能一键翻成中文",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "TR6",
+    "input": "收到的日文邮件截图老是看不懂，想以后能一键翻成中文",
+    "ops": [
+      { "op": "addTool", "kind": "preset" },
+      { "op": "updateTool", "kind": "quickAction", "step": true },
+      { "op": "addContainer", "looks": ["action"], "tools": true }
+    ]
+  },
+  { "id": "TR7", "input": "翻译成中文", "ops": [{ "op": "addTool", "kind": "preset" }] },
+  { "id": "TR7", "input": "翻译成中文", "ops": [{ "op": "addTool", "kind": "quickAction" }] },
+  { "id": "TR8", "input": "这句英文是什么意思：It’s raining cats and dogs", "ops": [] },
+  {
+    "id": "TR9-en",
+    "input": "I keep getting PDFs in Spanish from my landlord. Make something to read them in English.",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "TR9-en",
+    "input": "I keep getting PDFs in Spanish from my landlord. Make something to read them in English.",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "TTS1",
+    "input": "新建一个快捷操作：选 PDF，提取文字，转成语音，分享",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "TTS1",
+    "input": "新建一个快捷操作：选 PDF，提取文字，转成语音，分享",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "TTS2-en",
+    "input": "Create a quick action: scan documents, recognize text, read it aloud, save to a folder",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "TTS3",
+    "input": "添加 PDF 转成音频快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "TTS4-en",
+    "input": "Add the read paper pages aloud quick action",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "TTS5",
+    "input": "新建一个快捷操作：输入文字，朗读，转成 MP3，分享",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "TX1",
+    "input": "新建一个快捷操作：拍名片，识别文字，取出所有手机号，复制",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "TX2",
+    "input": "Make a quick action: type text, replace \"ACME\" with \"Globex\", remove blank lines, save as a PDF",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "V1",
+    "input": "新建一个快捷操作：选视频，压到 20MB，分享",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "V1",
+    "input": "新建一个快捷操作：选视频，压到 20MB，分享",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "V1-en",
+    "input": "Create a quick action: choose videos, compress to 25 MB, then share",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "V2",
+    "input": "新建一个快捷操作：选视频，转成 MP4",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "V3",
+    "input": "新建一个快捷操作：选视频，剪一段，压缩视频，分享",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "V4",
+    "input": "新建一个快捷操作：选 PDF，压到 2MB，分享",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "V4-en",
+    "input": "Create a quick action: choose PDFs, compress to 1 MB",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "V4-en",
+    "input": "Create a quick action: choose PDFs, compress to 1 MB",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "V5",
+    "input": "添加视频太大发不出去快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "V6-en",
+    "input": "Add the PDF too big to upload quick action",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VC1",
+    "input": "添加裁成竖屏视频快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VC2",
+    "input": "Make an action to center-crop videos into 1:1 squares, keeping their sound.",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "VF1",
+    "input": "添加从视频里截一张照片快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VF2",
+    "input": "Make a quick action to choose a still frame from a video and save it to Photos.",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VM1",
+    "input": "添加把几段视频拼成一段快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VM2",
+    "input": "Make a quick action to join my holiday video clips into one video. Let me arrange their order first.",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "VM2",
+    "input": "Make a quick action to join my holiday video clips into one video. Let me arrange their order first.",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VMA1",
+    "input": "添加给视频换背景音乐快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VMA2",
+    "input": "Make an action to replace video sound with a music file I choose each time. Keep 20% of the original sound and repeat the music if it is shorter.",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "VMA2",
+    "input": "Make an action to replace video sound with a music file I choose each time. Keep 20% of the original sound and repeat the music if it is shorter.",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VMA2",
+    "input": "Make an action to replace video sound with a music file I choose each time. Keep 20% of the original sound and repeat the music if it is shorter.",
+    "ops": [
+      { "op": "addTool", "kind": "preset" },
+      { "op": "updateTool", "kind": "quickAction", "step": true }
+    ]
+  },
+  {
+    "id": "VMU1",
+    "input": "添加视频去掉声音快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VMU2",
+    "input": "Make a reusable action to remove all sound from my videos before I share them.",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VMU2",
+    "input": "Make a reusable action to remove all sound from my videos before I share them.",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "VR1",
+    "input": "添加把视频转正快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VR2",
+    "input": "Make an action to turn my upside-down videos 180 degrees, keeping the sound.",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VR2",
+    "input": "Make an action to turn my upside-down videos 180 degrees, keeping the sound.",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "VR2",
+    "input": "Make an action to turn my upside-down videos 180 degrees, keeping the sound.",
+    "ops": [
+      { "op": "addTool", "kind": "preset" },
+      { "op": "updateTool", "kind": "quickAction", "step": true }
+    ]
+  },
+  {
+    "id": "VS1",
+    "input": "添加视频加速或慢放快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VS2",
+    "input": "Make an action that plays videos at half speed (0.5x).",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "VS2",
+    "input": "Make an action that plays videos at half speed (0.5x).",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VST1",
+    "input": "添加导出视频 SRT 字幕快捷操作",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VST2",
+    "input": "Make an action to generate separate SRT subtitle files from my English-speaking videos. Recognize speech on this device; I will load the SRT in a video player.",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "VW1",
+    "input": "心情日记用月历显示，按心情给每天上色",
+    "ops": [
+      { "op": "removeContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["calendar"] }
+    ]
+  },
+  {
+    "id": "VW1",
+    "input": "心情日记用月历显示，按心情给每天上色",
+    "ops": [{ "op": "addContainer", "looks": ["calendar"] }]
+  },
+  {
+    "id": "VW1",
+    "input": "心情日记用月历显示，按心情给每天上色",
+    "ops": [
+      { "op": "addContainer", "looks": ["calendar"], "tools": true },
+      { "op": "removeContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "VW1",
+    "input": "心情日记用月历显示，按心情给每天上色",
+    "ops": [
+      { "op": "addContainer", "looks": ["calendar"] },
+      { "op": "removeContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "VW1-fr",
+    "input": "Affiche mon journal d’humeur sous forme de calendrier du mois",
+    "ops": [
+      { "op": "removeContainer", "looks": ["undefined"] },
+      { "op": "addContainer", "looks": ["calendar"] }
+    ]
+  },
+  {
+    "id": "VW1-fr",
+    "input": "Affiche mon journal d’humeur sous forme de calendrier du mois",
+    "ops": [
+      { "op": "addContainer", "looks": ["calendar"] },
+      { "op": "removeContainer", "looks": ["undefined"] }
+    ]
+  },
+  {
+    "id": "VW1-fr",
+    "input": "Affiche mon journal d’humeur sous forme de calendrier du mois",
+    "ops": [{ "op": "addContainer", "looks": ["calendar"] }]
+  },
+  {
+    "id": "VW2-en",
+    "input": "In the shifts list, show how long I have been working on a shift that is still open",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "VW3",
+    "input": "喝水页面显示今天的进度，目标 8 杯",
+    "ops": [{ "op": "addContainer", "looks": ["number"] }]
+  },
+  {
+    "id": "VW4",
+    "input": "记账页面加一个本月支出，和上月比",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"] }]
+  },
+  {
+    "id": "VW4",
+    "input": "记账页面加一个本月支出，和上月比",
+    "ops": [{ "op": "addContainer", "looks": ["number"] }]
+  },
+  { "id": "W1", "input": "添加签证照片工作流", "ops": [{ "op": "addTool", "kind": "preset" }] },
+  {
+    "id": "W10",
+    "input": "新建一个工作流：扫描文档，压到 300KB，存到文件",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "W10-en",
+    "input": "Create a workflow: scan documents, make a PDF, share",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "W11",
+    "input": "新建工作流：选照片，压到 500KB，存到 iCloud 的某个文件夹",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "W11-en",
+    "input": "Create a workflow: choose photos, compress to 500 KB, save to a folder",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "W2",
+    "input": "新建一个工作流：选照片，长边 1600，压到 500KB，分享",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "W2",
+    "input": "新建一个工作流：选照片，长边 1600，压到 500KB，分享",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  {
+    "id": "W2-en",
+    "input": "Create a workflow: choose photos, convert to JPG, remove location, zip, share",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "W3",
+    "input": "把签证照片改名为美签照片",
+    "ops": [{ "op": "updateTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "W4",
+    "input": "删除签证照片工作流",
+    "ops": [{ "op": "removeTool", "kind": "quickAction" }]
+  },
+  { "id": "W4-tool", "input": "删除合并 PDF 工作流", "ops": [] },
+  {
+    "id": "W5",
+    "input": "把签证照片放到首页",
+    "ops": [{ "op": "addContainer", "looks": ["action"], "tools": true }]
+  },
+  {
+    "id": "W6",
+    "input": "在签证照片里加一步去掉定位",
+    "ops": [{ "op": "addTool", "kind": "quickAction", "step": true }]
+  },
+  {
+    "id": "W7",
+    "input": "把签证照片的大小改成 200KB",
+    "ops": [{ "op": "updateTool", "kind": "quickAction", "step": true }]
+  },
+  {
+    "id": "W8",
+    "input": "把签证照片的命名这一步去掉",
+    "ops": [{ "op": "removeTool", "kind": "quickAction", "step": true }]
+  },
+  {
+    "id": "W9",
+    "input": "把本月的账目做成 PDF 报表",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  { "id": "X1", "input": "帮我订一张机票", "ops": [] },
+  { "id": "X2", "input": "把设置删掉", "ops": [] },
+  { "id": "X3", "input": "删除我所有的 PDF 文件", "ops": [] },
+  { "id": "X4", "input": "记一笔午饭 35", "ops": [] },
+  { "id": "X5", "input": "把上个月的账都删掉", "ops": [] },
+  {
+    "id": "XLS1",
+    "input": "新建一个快捷操作：扫描文档，转 Excel，分享",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "XLS2-en",
+    "input": "Add the scan a table to Excel quick action",
+    "ops": [{ "op": "addTool", "kind": "preset" }]
+  },
+  { "id": "XP1", "input": "我想逐字修改 PDF 里已经印好的文字，保留原来的排版。", "ops": [] },
+  {
+    "id": "XP2",
+    "input": "Build a multi-track video editing timeline with keyframes and transitions.",
+    "ops": []
+  },
+  {
+    "id": "XP3",
+    "input": "Je veux retoucher les visages avec un pinceau pour effacer les rides et modifier la forme du nez.",
+    "ops": []
+  },
+  {
+    "id": "XP4",
+    "input": "按这个顺序合成一个快捷操作，中间不用重新选择文件。",
+    "ops": [{ "op": "addTool", "kind": "quickAction" }]
+  },
+  {
+    "id": "ZB1",
+    "input": "加一个「待分配」，显示收入里还有多少钱没分到各个分类",
+    "ops": [{ "op": "addContainer", "looks": ["number"] }]
+  },
+  {
+    "id": "ZB2-en",
+    "input": "Put an \"Assign\" button on each category; I type the amount myself",
+    "ops": [{ "op": "updateContainer", "looks": ["undefined"], "tools": true }]
+  },
+  {
+    "id": "ZB3-fr",
+    "input": "Montre les dépenses de ce mois par catégorie, comparées au mois dernier",
+    "ops": [{ "op": "addContainer", "looks": ["number"] }]
+  },
+  {
+    "id": "ZB4",
+    "input": "画一个饼图，看每个分类花了多少",
+    "ops": [{ "op": "addContainer", "looks": ["chart"] }]
+  }
+]

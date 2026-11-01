@@ -204,8 +204,10 @@ describe('text to speech in quick actions', () => {
       'out.share',
     ]);
     expect(steps[2]!.params).toEqual({ lang: 'auto', rate: 1, format: 'm4a' });
-    expect(workflowProblems({ id: 'x', name: 'x', steps }, registry).map((p) => p.code)).toEqual(
-      [],
-    );
+    expect(
+      workflowProblems({ id: 'x', kind: 'quickAction', name: 'x', steps }, registry).map(
+        (p) => p.code,
+      ),
+    ).toEqual([]);
   });
 });

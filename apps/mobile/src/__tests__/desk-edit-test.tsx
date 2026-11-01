@@ -463,7 +463,7 @@ describe('存成用户文件以后还能放回桌上改（D-367）', () => {
     expect([...files.disk.keys()].filter((k) => k.startsWith(`assets/${asset!.id}/`))).toEqual([]);
   });
 
-  it('结果页的「保存」、快捷操作的保存步骤也带中间格式和原图（D-368）：存储空间能放回桌上改', async () => {
+  it('结果页的「保存」、快捷操作的保存步骤也带中间格式和原图（D-400）：存储空间能放回桌上改', async () => {
     const files = new FakeFiles();
     const repo = new MemoryWorkspaceRepo();
     // 转 Word 的结果：页面原图和剪下来的图片各一张。

@@ -14,12 +14,15 @@ import {
   type HabitRecord,
 } from './habits';
 import { homeEntryOps } from './home-entry';
+import { quickActionsOf } from './schema';
 import { createStarterWorkspace } from './starter';
 import { registry } from './test-helpers';
 
 const now = new Date(2026, 9, 23, 9, 0);
 const config = createStarterWorkspace('zh', registry);
-const compress = config.workflows.find((w) => w.steps.some((s) => s.action === 'image.compress'))!;
+const compress = quickActionsOf(config).find((w) =>
+  w.steps.some((s) => s.action === 'image.compress'),
+)!;
 const compressStep = compress.steps.find((s) => s.action === 'image.compress')!;
 
 describe('habits (D-127)', () => {
@@ -34,7 +37,7 @@ describe('habits (D-127)', () => {
     );
     expect(answers).toEqual([{ stepId: compressStep.id, values: { maxKB: 200, format: 'jpeg' } }]);
 
-    const stamp = config.workflows.find((w) => w.steps.some((s) => s.action === 'pdf.stamp'));
+    const stamp = quickActionsOf(config).find((w) => w.steps.some((s) => s.action === 'pdf.stamp'));
     if (stamp) {
       const step = stamp.steps.find((s) => s.action === 'pdf.stamp')!;
       expect(
@@ -87,16 +90,17 @@ describe('habits (D-127)', () => {
     const step = wf.steps.find((s) => s.id === compressStep.id)!;
     expect(step.params).toMatchObject({ maxKB: 300 });
     expect(step.ask ?? []).not.toContain('maxKB');
-    expect(wf).not.toHaveProperty('toolId');
+    expect(wf).toMatchObject({ kind: 'quickAction' });
+    expect(wf).not.toHaveProperty('package');
 
     const prepared = prepareOps(
       config,
-      [{ op: 'addWorkflow', workflow: wf }, ...homeEntryOps(config, [wf.id])],
+      [{ op: 'addTool', tool: wf }, ...homeEntryOps(config, [wf.id])],
       { registry, locale: 'zh', now },
     );
     expect(prepared.ok).toBe(true);
     if (!prepared.ok) return;
-    expect(hasSameWorkflow(prepared.after.workflows, wf)).toBe(true);
-    expect(hasSameWorkflow(config.workflows, wf)).toBe(false);
+    expect(hasSameWorkflow(quickActionsOf(prepared.after), wf)).toBe(true);
+    expect(hasSameWorkflow(quickActionsOf(config), wf)).toBe(false);
   });
 });

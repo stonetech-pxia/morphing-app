@@ -17,12 +17,12 @@ import { renderToolsApp } from '../test-utils/render-app';
 
 const seed = (target: OpenTarget) => (locale: Locale, registry: Registry) => {
   const components: NewComponent[] = [
-    { id: 'open', type: 'button', props: { label: 'Open it', target, variant: 'filled' } },
-    { id: 'go', type: 'shortcut', props: { title: 'Go there', icon: 'star', target } },
+    { id: 'open', look: 'button', show: { label: 'Open it', variant: 'filled' }, opens: target },
+    { id: 'go', look: 'entry', show: { title: 'Go there', icon: 'star' }, opens: target },
   ];
   const result = applyOps(
     createDefaultWorkspace(locale),
-    components.map((component) => ({ op: 'addComponent' as const, pageId: 'home', component })),
+    components.map((block) => ({ op: 'addContainer' as const, page: 'home', block })),
     { registry, locale },
   );
   if (!result.ok) throw new Error(result.error);
@@ -36,7 +36,7 @@ it.each([
   ['shortcut', 'Go there'],
 ])('a %s opens a built-in quick action without running it', async (_kind, label) => {
   const repo = new MemoryWorkspaceRepo();
-  await renderToolsApp(repo, undefined, { seed: seed('workflow:email-photos'), locale: 'en' });
+  await renderToolsApp(repo, undefined, { seed: seed('tool:email-photos'), locale: 'en' });
   await fireEvent.press(await screen.findByText(label));
   expect(await screen.findByTestId('reminder-screen')).toBeTruthy();
   expect(screen.getByText('Quick action')).toBeTruthy();
@@ -53,7 +53,7 @@ it('titles the quick action view in each language', async () => {
     ['fr', 'Action rapide'],
   ] as const) {
     await renderToolsApp(new MemoryWorkspaceRepo(), undefined, {
-      seed: seed('workflow:email-photos'),
+      seed: seed('tool:email-photos'),
       locale,
     });
     await fireEvent.press(await screen.findByText('Open it'));

@@ -1,4 +1,4 @@
-import { reminderWhen, type Reminder } from '@morph/core';
+import { reminderWhen, remindersOf, type Reminder } from '@morph/core';
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { t } from '@/i18n';
@@ -18,17 +18,17 @@ export default function RemindersRoute() {
   const palette = usePalette(config.theme);
   const permission = useNotificationState((s) => s.permission);
   const change = useWorkflowChange();
-  const reminders = config.reminders ?? [];
+  const reminders = remindersOf(config);
   const caption = [palette.font('body', 13), { color: palette.caption }];
 
   const toggle = (r: Reminder, enabled: boolean) =>
     change(
-      [{ op: 'updateReminder', reminderId: r.id, changes: { enabled } }],
+      [{ op: 'updateTool', tool: r.id, changes: { enabled } }],
       t(locale, 'describeUpdateReminder', { title: r.title }),
     );
   const remove = (r: Reminder) =>
     change(
-      [{ op: 'removeReminder', reminderId: r.id }],
+      [{ op: 'removeTool', tool: r.id }],
       t(locale, 'describeRemoveReminder', { title: r.title }),
     );
 

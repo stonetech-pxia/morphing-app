@@ -1,71 +1,74 @@
 import { fieldDefinition } from './fields';
 import { t } from './messages';
-import { allComponents, type Component, type Locale, type WorkspaceConfig } from './schema';
+import { isRecordToolUse, type ToolUse } from './record-ops-schema';
+import {
+  RECORD_LOOKS,
+  allComponents,
+  isKnownComponent,
+  parentOf,
+  quickActionsOf,
+  type Component,
+  type Locale,
+  type WorkspaceConfig,
+} from './schema';
 
-// 列表的添加入口（D-310）：AI 新加了一个列表，这张表在整个 App 里却没有任何添加的地方时，
-// 新用户只能看到「还没有记录」。这时在列表上方补一个「添加」按钮，打开完整的添加页。
-// 只看这次新加的列表：用户以后自己移除了这个按钮，别的修改不会再把它加回来。
+// 记录块的添加入口（D-310）：AI 新加了一个记录块（列表、卡片、清单、大圆块、看板、月历），这张表在整个 App 里
+// 却没有任何添加的地方时，新用户只能看到「还没有记录」。这时在它上方补一个「添加」按钮（就地的
+// {do: "create", table, ask: "all"}），打开完整的添加页。
+// 只看这次新加的记录块：用户以后自己移除了这个按钮，别的修改不会再把它加回来。
 
-/** 能给这张表添加记录的地方：添加表单、新建或打开添加页的按钮、列表每一行的新建、就地添加的列表、记一笔的快捷操作。 */
-function addsTo(config: WorkspaceConfig, collectionId: string): boolean {
-  const inComponent = (c: Component) =>
-    (c.type === 'recordForm' && c.props.collectionId === collectionId) ||
-    (c.type === 'button' &&
-      c.props.action !== undefined &&
-      c.props.action.do !== 'setAll' &&
-      c.props.action.collectionId === collectionId) ||
-    (c.type === 'recordList' &&
-      (c.props.rowActions ?? []).some(
-        (a) => a.do === 'create' && a.collectionId === collectionId,
-      )) ||
-    // 就地添加（D-349）的列表自己就能添加。
-    (c.type === 'recordList' && c.props.addHere === true && c.props.collectionId === collectionId);
+const isRecordLook = (c: Component): boolean =>
+  isKnownComponent(c) && (RECORD_LOOKS as readonly string[]).includes(c.look);
+
+/**
+ * 能给这张表添加记录的地方：块上任何一个新建这张表的就地工具（添加表单的提交、按钮、每一行的新建、
+ * 就地添加），或者记一笔的快捷操作。
+ */
+function addsTo(config: WorkspaceConfig, table: string): boolean {
+  const creates = (c: Component) =>
+    isKnownComponent(c) &&
+    ((c as { tools?: ToolUse[] }).tools ?? []).some(
+      (u) => isRecordToolUse(u) && u.do === 'create' && u.table === table,
+    );
   return (
-    config.pages.some((page) => allComponents(page).some(inComponent)) ||
-    config.workflows.some((wf) =>
-      wf.steps.some((s) => s.action === 'out.addRecord' && s.params.collectionId === collectionId),
+    config.containers.pages.some((page) => allComponents(page).some(creates)) ||
+    quickActionsOf(config).some((wf) =>
+      wf.steps.some((s) => s.action === 'out.addRecord' && s.params.collectionId === table),
     )
   );
 }
 
-/** 给 after 里新加的、没有添加入口的列表补「添加」按钮；返回补了按钮的表。 */
+/** 给 after 里新加的、没有添加入口的记录块补「添加」按钮；返回补了按钮的表。 */
 export function addMissingEntryForms(
   before: WorkspaceConfig,
   after: WorkspaceConfig,
   locale: Locale,
 ): string[] {
   const added: string[] = [];
-  for (const page of after.pages) {
-    const old = before.pages.find((p) => p.id === page.id);
+  for (const page of after.containers.pages) {
+    const old = before.containers.pages.find((p) => p.id === page.id);
     const existed = new Set(old ? allComponents(old).map((c) => c.id) : []);
     for (const c of allComponents(page)) {
-      if (c.type !== 'recordList' || existed.has(c.id)) continue;
-      const collection = after.collections.find((x) => x.id === c.props.collectionId);
-      if (!collection || addsTo(after, collection.id)) continue;
-      const fieldIds = collection.fields
-        .filter((f) => fieldDefinition(f.type).inForm !== false)
-        .slice(0, 10)
-        .map((f) => f.id);
-      if (fieldIds.length === 0) continue;
+      if (!isRecordLook(c) || existed.has(c.id)) continue;
+      const tableId = (c as { source: { table: string } }).source.table;
+      const table = after.data.tables.find((x) => x.id === tableId);
+      if (!table || addsTo(after, table.id)) continue;
+      // 没有能在表单里填的字段（全是算出来的）时不补。
+      if (!table.fields.some((f) => fieldDefinition(f.type).inForm !== false)) continue;
       const ids = new Set(allComponents(page).map((x) => x.id));
-      const stem = `add-${collection.id}`.slice(0, 44);
+      const stem = `add-${table.id}`.slice(0, 44);
       let id = stem;
       for (let n = 2; ids.has(id); n++) id = `${stem}-${n}`;
-      // 列表在分组里时放在分组上方（分组里只能放小组件）。
-      const index = page.components.findIndex(
-        (x) => x === c || (x.type === 'group' && x.children.includes(c)),
-      );
-      page.components.splice(index, 0, {
+      // 记录块在分组里时放在最外层那个分组的上方（按钮放在页面顶层，和 v33 一样）。
+      let top: Component = c;
+      for (let p = parentOf(page, top.id); p; p = parentOf(page, top.id)) top = p;
+      page.blocks.splice(page.blocks.indexOf(top), 0, {
         id,
-        type: 'recordForm',
-        props: {
-          collectionId: collection.id,
-          fieldIds,
-          submitLabel: t(locale, 'entryFormAdd'),
-          mode: 'button',
-        },
-      } as Component);
-      added.push(collection.id);
+        look: 'button',
+        show: { label: t(locale, 'entryFormAdd'), variant: 'filled' },
+        tools: [{ do: 'create', table: table.id, ask: 'all' }],
+      });
+      added.push(table.id);
     }
   }
   return added;

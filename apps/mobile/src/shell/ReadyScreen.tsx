@@ -1,4 +1,10 @@
-import { localize, HOME_PAGE_ID, allComponents, type Workflow } from '@morph/core';
+import {
+  allComponents,
+  HOME_PAGE_ID,
+  isKnownComponent,
+  localize,
+  type Workflow,
+} from '@morph/core';
 
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -23,11 +29,14 @@ export function ReadyScreen({ workflow, notes = [] }: { workflow: Workflow; note
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
   const router = useRouter();
-  const onHome = config.pages.some(
+  const onHome = config.containers.pages.some(
     (p) =>
       p.id === HOME_PAGE_ID &&
       allComponents(p).some(
-        (c) => c.type === 'workflowRunner' && c.props.workflowId === workflow.id,
+        (c) =>
+          isKnownComponent(c) &&
+          c.look === 'action' &&
+          c.tools.some((u) => 'tool' in u && u.tool === workflow.id),
       ),
   );
   const body = [palette.font('body', 15), { color: palette.text }];

@@ -2,6 +2,7 @@ import { t, pairText } from '../messages';
 import { z } from 'zod';
 
 import { GROUP_FIELDS, groupNeedsSize, groupParams } from '../grouping';
+import { FILES_TABLE } from '../files-table';
 import type { ToolDefinition } from '../registry';
 import type { Locale, Workflow } from '../schema';
 import type { ActionDefinition, ParamField } from '../workflow/contract';
@@ -687,9 +688,9 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
     id: 'pdf.extractText',
     label: { en: 'Get text from PDF', zh: '提取 PDF 文字', fr: 'Extraire le texte d’un PDF' },
     description: {
-      en: 'Read the text of a PDF that has a text layer. Scanned PDFs have no text — use text recognition instead. The text stays on this device.',
-      zh: '读出 PDF 里的文字（有文字层的 PDF）。扫描件没有文字，需要用文字识别。文字只留在本机。',
-      fr: 'Lit le texte d’un PDF qui contient une couche de texte. Les PDF numérisés n’ont pas de texte : utilisez plutôt la reconnaissance de texte. Le texte reste sur cet appareil.',
+      en: 'Reads the text of a PDF, scanned pages included (pages without a text layer are read with text recognition, which may get some characters wrong). The text stays on this device.',
+      zh: '读出 PDF 里的文字，扫描件也行（没有文字层的页在本机用文字识别读，可能有个别字认错）。文字只留在本机。',
+      fr: 'Lit le texte d’un PDF, pages numérisées comprises (les pages sans couche de texte sont lues par reconnaissance de texte, qui peut mal lire quelques caractères). Le texte reste sur cet appareil.',
     },
     input: ['pdf'],
     output: 'text',
@@ -830,7 +831,8 @@ const pickPdf = (min: number, max: number) => ({
 export function pdfWorkflows(locale: Locale): Workflow[] {
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
-    toolId: PDF_TOOL_ID,
+    kind: 'quickAction',
+    package: PDF_TOOL_ID,
     name: pairText(locale, name),
     steps,
   });
@@ -1028,32 +1030,33 @@ export const pdfTool: ToolDefinition = {
     id: PDF_PAGE_ID,
     title: 'PDF',
     icon: 'document',
-    toolId: PDF_TOOL_ID,
-    components: [
+    package: PDF_TOOL_ID,
+    blocks: [
       {
         id: 'pdf-header',
-        type: 'header',
-        props: { title: t(locale, 'pdf_PDF_tools_d81ee') },
+        look: 'header',
+        show: { title: t(locale, 'pdf_PDF_tools_d81ee') },
       },
       {
         id: 'pdf-intro',
-        type: 'text',
-        props: {
+        look: 'text',
+        show: {
           text: t(locale, 'pdf_Everything_runs_on_this_device_nothing_d4b96'),
         },
       },
       ...pdfWorkflows(locale).map((wf) => ({
         id: wf.id === PDF_MERGE_WORKFLOW_ID ? 'pdf-runner' : `${wf.id}-runner`,
-        type: 'workflowRunner' as const,
-        props: { workflowId: wf.id },
+        look: 'action' as const,
+        tools: [{ tool: wf.id }],
       })),
       {
         id: 'pdf-files',
-        type: 'fileList',
-        props: {
-          title: t(locale, 'pdf_PDF_files_2d348'),
+        look: 'files',
+        show: { title: t(locale, 'pdf_PDF_files_2d348') },
+        source: {
+          table: FILES_TABLE,
+          filter: [{ field: 'kind', op: 'is', value: 'pdf' }],
           limit: 10,
-          mimeType: 'application/pdf',
         },
       },
     ],

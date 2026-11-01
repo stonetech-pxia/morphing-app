@@ -1,48 +1,54 @@
 import { z } from 'zod';
 
+import { actionComponent } from './action';
 import { buttonComponent } from './button';
-import { catalogLinkComponent } from './catalogLink';
 import { chartComponent } from './chart';
 import { dividerComponent } from './divider';
-import { fileListComponent } from './fileList';
-import { filePickComponent } from './filePick';
-import { fileSlotComponent } from './fileSlot';
+import { entryComponent } from './entry';
+import { filesComponent } from './files';
+import { formComponent } from './form';
 import { headerComponent } from './header';
 import { imageComponent } from './image';
+import { libraryComponent } from './library';
 import { noticeComponent } from './notice';
-import { quickActionListComponent } from './quickActionList';
-import { recordFormComponent } from './recordForm';
-import { recordListComponent } from './recordList';
-import { shortcutComponent } from './shortcut';
+import { numberComponent } from './number';
+import { packagesComponent } from './packages';
+import { pickerComponent } from './picker';
+import {
+  boardComponent,
+  calendarComponent,
+  cardsComponent,
+  checklistComponent,
+  listComponent,
+  tilesComponent,
+} from './records';
 import { spacerComponent } from './spacer';
-import { statComponent } from './stat';
 import { textComponent } from './text';
-import { toolCardComponent } from './toolCard';
-import { toolGridComponent } from './toolGrid';
-import { workflowRunnerComponent } from './workflowRunner';
 
-/** 可以放进分组的组件。新组件加在最后（顺序就是配置 JSON Schema 里的顺序）。 */
+/** 可以放进分组的外观（22 种，加上 group 本身共 23 种）。新外观加在最后（顺序就是 JSON Schema 里的顺序）。 */
 export const LEAF_COMPONENTS = [
-  filePickComponent,
   headerComponent,
   textComponent,
-  toolCardComponent,
-  toolGridComponent,
-  catalogLinkComponent,
-  fileListComponent,
-  workflowRunnerComponent,
-  quickActionListComponent,
-  buttonComponent,
-  shortcutComponent,
   noticeComponent,
   imageComponent,
   dividerComponent,
   spacerComponent,
-  recordListComponent,
-  recordFormComponent,
-  statComponent,
+  buttonComponent,
+  entryComponent,
+  actionComponent,
+  pickerComponent,
+  listComponent,
+  cardsComponent,
+  checklistComponent,
+  tilesComponent,
+  boardComponent,
+  calendarComponent,
+  numberComponent,
   chartComponent,
-  fileSlotComponent,
+  formComponent,
+  filesComponent,
+  libraryComponent,
+  packagesComponent,
 ] as const;
 
 type Schemas<D extends readonly { schema: unknown }[]> = {
@@ -50,6 +56,6 @@ type Schemas<D extends readonly { schema: unknown }[]> = {
 };
 
 export const LeafComponentSchema = z.discriminatedUnion(
-  'type',
+  'look',
   LEAF_COMPONENTS.map((d) => d.schema) as Schemas<typeof LEAF_COMPONENTS>,
 );

@@ -25,11 +25,7 @@ export function conditionProblems(
     const where = `filter on ${cond.field}`;
     // D-342：给一条记录用的页面上，指向那张表的引用字段可以等于（不等于）这条记录。
     if (v === RECORD_REF) {
-      if (
-        f?.type === 'link' &&
-        f.collectionId === recordOf &&
-        (cond.op === 'is' || cond.op === 'isNot')
-      )
+      if (f?.type === 'link' && f.table === recordOf && (cond.op === 'is' || cond.op === 'isNot'))
         continue;
       problems.push(
         recordOf

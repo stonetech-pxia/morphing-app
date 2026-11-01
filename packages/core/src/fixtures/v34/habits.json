@@ -1,0 +1,512 @@
+{
+  "schemaVersion": 34,
+  "theme": {
+    "primaryColor": "#C8623A",
+    "mode": "light",
+    "colors": {},
+    "font": "clay",
+    "fontScale": 1,
+    "radius": 22,
+    "density": "comfortable",
+    "cardStyle": "shadow",
+    "navStyle": "iconLabel"
+  },
+  "nav": {
+    "bar": ["page:home", "tools", "ai", "history", "settings"],
+    "floating": []
+  },
+  "data": {
+    "tables": [
+      {
+        "id": "habits",
+        "name": "习惯",
+        "icon": "🔥",
+        "fields": [
+          {
+            "id": "name",
+            "name": "习惯",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "plan",
+            "name": "日子",
+            "type": "schedule",
+            "default": {
+              "repeat": "daily"
+            },
+            "lastDone": "last"
+          },
+          {
+            "id": "last",
+            "name": "上次打卡",
+            "type": "rollup",
+            "table": "checkins",
+            "via": "habit",
+            "aggregate": "latest",
+            "field": "date",
+            "filter": [
+              {
+                "field": "status",
+                "op": "is",
+                "value": "done"
+              }
+            ]
+          },
+          {
+            "id": "today",
+            "name": "今天",
+            "type": "rollup",
+            "table": "checkins",
+            "via": "habit",
+            "aggregate": "count",
+            "filter": [
+              {
+                "field": "status",
+                "op": "is",
+                "value": "done"
+              },
+              {
+                "field": "date",
+                "op": "inPeriod",
+                "value": "today"
+              }
+            ]
+          },
+          {
+            "id": "streak",
+            "name": "连续",
+            "type": "rollup",
+            "table": "checkins",
+            "via": "habit",
+            "aggregate": "streak",
+            "days": {
+              "date": "date",
+              "unit": "day",
+              "skip": {
+                "field": "status",
+                "option": "skip"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "checkins",
+        "name": "打卡",
+        "icon": "check",
+        "fields": [
+          {
+            "id": "habit",
+            "name": "习惯",
+            "type": "link",
+            "table": "habits",
+            "required": true
+          },
+          {
+            "id": "date",
+            "name": "日期",
+            "type": "date",
+            "default": "today"
+          },
+          {
+            "id": "status",
+            "name": "状态",
+            "type": "choice",
+            "default": "done",
+            "options": [
+              {
+                "id": "done",
+                "label": "完成"
+              },
+              {
+                "id": "skip",
+                "label": "跳过"
+              }
+            ]
+          },
+          {
+            "id": "note",
+            "name": "备注",
+            "type": "text"
+          },
+          {
+            "id": "photo",
+            "name": "照片",
+            "type": "file"
+          }
+        ]
+      }
+    ]
+  },
+  "containers": {
+    "pages": [
+      {
+        "id": "home",
+        "title": "首页",
+        "icon": "home",
+        "blocks": [
+          {
+            "id": "welcome",
+            "look": "header",
+            "show": {
+              "title": "我的工作台",
+              "subtitle": "点「AI 修改」，用一句话改造这个 App"
+            }
+          },
+          {
+            "id": "catalog",
+            "look": "entry",
+            "show": {
+              "title": "添加工具",
+              "icon": "plus",
+              "shape": "tile",
+              "accent": true
+            },
+            "opens": "tools"
+          },
+          {
+            "id": "recent-files",
+            "look": "files",
+            "show": {
+              "title": "最近文件"
+            },
+            "source": {
+              "table": "$files",
+              "filter": [
+                {
+                  "field": "kind",
+                  "op": "isNot",
+                  "value": "image"
+                }
+              ],
+              "limit": 5
+            }
+          }
+        ]
+      },
+      {
+        "id": "habits",
+        "title": "习惯",
+        "icon": "🔥",
+        "blocks": [
+          {
+            "id": "title",
+            "look": "header",
+            "show": {
+              "title": "习惯"
+            }
+          },
+          {
+            "id": "grid",
+            "look": "tiles",
+            "source": {
+              "table": "habits",
+              "filter": [
+                {
+                  "field": "plan",
+                  "op": "due",
+                  "value": "pending"
+                }
+              ],
+              "limit": 24
+            },
+            "show": {
+              "title": "name",
+              "trailing": "today",
+              "format": {
+                "kind": "progress",
+                "goal": 1,
+                "style": "ring"
+              }
+            },
+            "tools": [
+              {
+                "as": "tap",
+                "label": "打卡",
+                "do": "create",
+                "table": "checkins",
+                "values": {
+                  "habit": "$row"
+                }
+              }
+            ],
+            "opens": "habit"
+          },
+          {
+            "id": "today-row",
+            "look": "group",
+            "show": {
+              "layout": "row"
+            },
+            "children": [
+              {
+                "id": "done-today",
+                "look": "number",
+                "show": {
+                  "label": "今天打卡"
+                },
+                "source": {
+                  "table": "checkins",
+                  "aggregate": "count",
+                  "filter": [
+                    {
+                      "field": "status",
+                      "op": "is",
+                      "value": "done"
+                    },
+                    {
+                      "field": "date",
+                      "op": "inPeriod",
+                      "value": "today"
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "days-month",
+                "look": "number",
+                "show": {
+                  "label": "本月打卡天数"
+                },
+                "source": {
+                  "table": "checkins",
+                  "aggregate": "distinctDays",
+                  "filter": [
+                    {
+                      "field": "status",
+                      "op": "is",
+                      "value": "done"
+                    },
+                    {
+                      "field": "date",
+                      "op": "inPeriod",
+                      "value": "thisMonth"
+                    }
+                  ],
+                  "compare": "previous"
+                }
+              }
+            ]
+          },
+          {
+            "id": "streaks",
+            "look": "number",
+            "show": {
+              "label": "连续天数"
+            },
+            "source": {
+              "table": "checkins",
+              "aggregate": "streak",
+              "days": {
+                "date": "date",
+                "skip": {
+                  "field": "status",
+                  "option": "skip"
+                }
+              },
+              "group": {
+                "by": "habit"
+              }
+            }
+          },
+          {
+            "id": "month",
+            "look": "calendar",
+            "source": {
+              "table": "checkins",
+              "sort": {
+                "field": "createdAt",
+                "direction": "asc"
+              },
+              "limit": 50,
+              "group": {
+                "by": "date",
+                "unit": "day"
+              }
+            },
+            "show": {
+              "title": "habit",
+              "subtitles": ["note"],
+              "color": "status"
+            }
+          },
+          {
+            "id": "add-habit",
+            "look": "button",
+            "show": {
+              "label": "添加习惯",
+              "variant": "outline",
+              "icon": "plus"
+            },
+            "tools": [
+              {
+                "do": "create",
+                "table": "habits",
+                "ask": "all"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "habit",
+        "title": "习惯",
+        "of": "habits",
+        "blocks": [
+          {
+            "id": "nums",
+            "look": "group",
+            "show": {
+              "layout": "row"
+            },
+            "children": [
+              {
+                "id": "streak",
+                "look": "number",
+                "show": {
+                  "label": "连续"
+                },
+                "source": {
+                  "table": "checkins",
+                  "aggregate": "streak",
+                  "filter": [
+                    {
+                      "field": "habit",
+                      "op": "is",
+                      "value": "$record"
+                    }
+                  ],
+                  "days": {
+                    "date": "date",
+                    "skip": {
+                      "field": "status",
+                      "option": "skip"
+                    }
+                  }
+                }
+              },
+              {
+                "id": "since",
+                "look": "number",
+                "show": {
+                  "label": "距上次"
+                },
+                "source": {
+                  "table": "checkins",
+                  "aggregate": "daysSince",
+                  "filter": [
+                    {
+                      "field": "habit",
+                      "op": "is",
+                      "value": "$record"
+                    },
+                    {
+                      "field": "status",
+                      "op": "is",
+                      "value": "done"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "cal",
+            "look": "calendar",
+            "source": {
+              "table": "checkins",
+              "filter": [
+                {
+                  "field": "habit",
+                  "op": "is",
+                  "value": "$record"
+                }
+              ],
+              "limit": 10,
+              "group": {
+                "by": "date",
+                "unit": "day"
+              }
+            },
+            "show": {
+              "title": "status",
+              "subtitles": ["note"],
+              "color": "status"
+            },
+            "tools": [
+              {
+                "as": "addHere",
+                "do": "create",
+                "table": "checkins",
+                "ask": "all",
+                "values": "$here"
+              }
+            ]
+          },
+          {
+            "id": "log",
+            "look": "button",
+            "show": {
+              "label": "补一条",
+              "variant": "filled"
+            },
+            "tools": [
+              {
+                "do": "create",
+                "table": "checkins",
+                "ask": "all",
+                "values": {
+                  "habit": "$record"
+                }
+              }
+            ]
+          },
+          {
+            "id": "skip",
+            "look": "button",
+            "show": {
+              "label": "今天跳过",
+              "variant": "text"
+            },
+            "tools": [
+              {
+                "do": "create",
+                "table": "checkins",
+                "values": {
+                  "habit": "$record",
+                  "status": "skip"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "tools": [
+    {
+      "id": "habit-reminder",
+      "kind": "reminder",
+      "title": "该打卡了",
+      "enabled": true,
+      "when": {
+        "each": {
+          "table": "habits",
+          "field": "plan"
+        },
+        "at": "20:00"
+      },
+      "opens": "page:habits",
+      "done": {
+        "do": "create",
+        "table": "checkins",
+        "values": {
+          "habit": "$row"
+        }
+      },
+      "snoozeMinutes": 30
+    }
+  ],
+  "packages": []
+}

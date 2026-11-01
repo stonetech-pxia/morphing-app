@@ -1,13 +1,14 @@
 import {
-  BUILTIN_TOOLS,
-  WORKFLOW_PRESETS,
   applyOps,
+  type AskRequest,
+  BUILTIN_TOOLS,
   createDefaultWorkspace,
   createRegistry,
   initialParams,
   presetWorkflow,
-  type AskRequest,
+  quickActionsOf,
   type Workflow,
+  WORKFLOW_PRESETS,
 } from '@morph/core';
 import { act, fireEvent, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
@@ -161,6 +162,7 @@ describe('running a workflow on shared files', () => {
 
   it('the first step takes the shared files instead of opening a picker or asking', async () => {
     const wf: Workflow = {
+      kind: 'quickAction',
       id: 'w',
       name: 'w',
       steps: [
@@ -188,6 +190,7 @@ describe('running a workflow on shared files', () => {
 
   it('keeps picked media available after disposal for another run', async () => {
     const { files, run } = setup({
+      kind: 'quickAction',
       id: 'video',
       name: 'video',
       steps: [{ id: 'pick', action: 'in.videos', params: { source: 'library', min: 1, max: 10 } }],
@@ -204,6 +207,7 @@ describe('running a workflow on shared files', () => {
 
   it('a rename right after the inbox files copies them instead of moving them', async () => {
     const { files, run } = setup({
+      kind: 'quickAction',
       id: 'video',
       name: 'video',
       steps: [
@@ -221,12 +225,16 @@ describe('running a workflow on shared files', () => {
   });
 
   it('checks the type and count like a picker would', async () => {
-    const merge = applyOps(createDefaultWorkspace('zh'), [{ op: 'installTool', toolId: 'pdf' }], {
-      registry,
-      locale: 'zh',
-    });
+    const merge = applyOps(
+      createDefaultWorkspace('zh'),
+      [{ op: 'setPackage', package: 'pdf', do: 'add' }],
+      {
+        registry,
+        locale: 'zh',
+      },
+    );
     if (!merge.ok) throw new Error(merge.error);
-    const wf = merge.config.workflows.find((w) => w.steps[0]!.params.min === 2)!;
+    const wf = quickActionsOf(merge.config).find((w) => w.steps[0]!.params.min === 2)!;
     const { files, run } = setup(wf);
     const pdf = files.offerShared('a.pdf', await makePdf(1));
     const photo = files.offerShared('b.jpg', TINY_JPEG, 'image/jpeg');
@@ -262,9 +270,9 @@ describe('share journeys (UI)', () => {
     const store: WorkspaceStore = app.store;
     const result = await store.getState().proposeOps(
       [
-        { op: 'installTool', toolId: 'pdf' },
-        { op: 'addWorkflow', workflow: preset('visa-photo') },
-        { op: 'addWorkflow', workflow: preset('sign-return') },
+        { op: 'setPackage', package: 'pdf', do: 'add' },
+        { op: 'addTool', tool: preset('visa-photo') },
+        { op: 'addTool', tool: preset('sign-return') },
       ],
       '准备',
     );
@@ -276,7 +284,9 @@ describe('share journeys (UI)', () => {
       revisionId: 1,
     });
     await app.repo.finishToolRun(used, { status: 'succeeded' });
-    const merge = store.getState().config!.workflows.find((w) => w.steps[0]!.params.min === 2)!;
+    const merge = quickActionsOf(store.getState().config!).find(
+      (w) => w.steps[0]!.params.min === 2,
+    )!;
     return { ...app, merge };
   }
 

@@ -32,7 +32,7 @@ export class RelayError extends Error {
 
 export function createRelayCompleter(options: RelayCompleterOptions): Complete {
   const fetchImpl = options.fetchImpl ?? fetch;
-  return async (messages): Promise<Completion> => {
+  return async (messages, system): Promise<Completion> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 45_000);
     try {
@@ -46,7 +46,7 @@ export function createRelayCompleter(options: RelayCompleterOptions): Complete {
           ...(options.platform ? { 'x-morph-platform': options.platform } : {}),
           ...(options.appVersion ? { 'x-morph-version': options.appVersion } : {}),
         },
-        body: JSON.stringify({ system: systemPromptFor(options.registry), messages }),
+        body: JSON.stringify({ system: system ?? systemPromptFor(options.registry), messages }),
         signal: controller.signal,
       });
       const body = (await response.json().catch(() => null)) as

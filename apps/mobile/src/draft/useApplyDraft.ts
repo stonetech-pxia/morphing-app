@@ -23,12 +23,12 @@ export function useAfterApply(): (applied: Applied) => void {
     if (origin.sample) {
       const { id, pageId } = origin.sample;
       const config = store.getState().config;
-      if (!config?.pages.some((p) => p.id === pageId)) return;
+      if (!config?.containers.pages.some((p) => p.id === pageId)) return;
       useSampleHint.getState().show(id, pageId);
       const target = pageTarget(pageId);
       // 先回到外壳（草稿可能是在推入的页面上应用的），再打开主页面，不会叠两层同一页。
       if (router.canDismiss()) router.dismissAll();
-      if (config.shell.nav.includes(target)) selectTab(target);
+      if (config.nav.bar.includes(target)) selectTab(target);
       else router.push({ pathname: '/page/[pageId]', params: { pageId } });
       return;
     }

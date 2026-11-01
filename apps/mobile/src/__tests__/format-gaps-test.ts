@@ -1,9 +1,10 @@
 import {
-  BUILTIN_TOOLS,
   applyOps,
+  type AskRequest,
+  BUILTIN_TOOLS,
   createDefaultWorkspace,
   createRegistry,
-  type AskRequest,
+  quickActionsOf,
   type RunResult,
   type Workflow,
 } from '@morph/core';
@@ -20,12 +21,16 @@ const registry = createRegistry(BUILTIN_TOOLS);
 const MB = 1024 * 1024;
 
 function toolWorkflow(toolId: string, id: string): Workflow {
-  const result = applyOps(createDefaultWorkspace('zh'), [{ op: 'installTool', toolId }], {
-    registry,
-    locale: 'zh',
-  });
+  const result = applyOps(
+    createDefaultWorkspace('zh'),
+    [{ op: 'setPackage', package: toolId, do: 'add' }],
+    {
+      registry,
+      locale: 'zh',
+    },
+  );
   if (!result.ok) throw new Error(result.error);
-  return result.config.workflows.find((w) => w.id === id)!;
+  return quickActionsOf(result.config).find((w) => w.id === id)!;
 }
 
 let ids = 0;

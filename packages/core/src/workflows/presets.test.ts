@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { applyOps } from '../ops';
+import { quickActionsOf } from '../schema';
 import { registry, workspace } from '../test-helpers';
 import { validateWorkspace } from '../validate';
 import { typesAlong, workflowProblems } from '../workflow/check';
@@ -74,15 +75,19 @@ describe('workflow presets', () => {
     'all presets can be added without installing tools (%s)',
     (locale) => {
       const base = workspace(locale);
-      const ops = WORKFLOW_PRESETS.map((p) => ({
-        op: 'addWorkflow' as const,
-        workflow: presetWorkflow(p, locale, newWorkflowId(p.id, base.workflows)),
-      }));
+      const ops = WORKFLOW_PRESETS.map((p) => {
+        const { package: _none, ...tool } = presetWorkflow(
+          p,
+          locale,
+          newWorkflowId(p.id, base.tools),
+        );
+        return { op: 'addTool' as const, tool };
+      });
       const result = applyOps(base, ops, { registry, locale });
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(validateWorkspace(result.config, registry)).toMatchObject({ ok: true });
-      expect(result.config.workflows.map((w) => w.presetId)).toEqual(
+      expect(quickActionsOf(result.config).map((w) => w.preset)).toEqual(
         WORKFLOW_PRESETS.map((p) => p.id),
       );
     },
@@ -101,14 +106,15 @@ describe('workflow presets', () => {
   it('offers every preset as built in until the config has its own copy (D-236)', () => {
     expect(builtInWorkflows([], 'zh').map((w) => w.id)).toEqual(WORKFLOW_PRESETS.map((p) => p.id));
     const edited = presetWorkflow(presetById('visa-photo')!, 'zh', 'visa-photo-2');
-    const sameId = { id: 'email-photos', name: 'Mine', steps: [] };
+    const sameId = { id: 'email-photos', kind: 'quickAction' as const, name: 'Mine', steps: [] };
     const ids = builtInWorkflows([edited, sameId], 'zh').map((w) => w.id);
     expect(ids).not.toContain('visa-photo');
     expect(ids).not.toContain('email-photos');
     expect(findWorkflow([edited], 'visa-photo-2', 'zh')).toBe(edited);
     expect(findWorkflow([], 'visa-photo', 'zh')).toMatchObject({
       id: 'visa-photo',
-      presetId: 'visa-photo',
+      kind: 'quickAction',
+      preset: 'visa-photo',
     });
     expect(findWorkflow([edited], 'visa-photo', 'zh')).toBeUndefined();
   });

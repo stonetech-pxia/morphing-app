@@ -1,0 +1,94 @@
+{
+  "ids": {
+    "table": "file-entries",
+    "page": "file-entries"
+  },
+  "table": {
+    "id": "$table",
+    "name": {
+      "en": "My entries",
+      "zh": "我的记录",
+      "fr": "Mes entrées"
+    },
+    "icon": "folder",
+    "fields": [
+      {
+        "id": "title",
+        "name": {
+          "en": "Title",
+          "zh": "标题",
+          "fr": "Titre"
+        },
+        "type": "text"
+      },
+      {
+        "id": "attachments",
+        "name": {
+          "en": "Attachments",
+          "zh": "附件",
+          "fr": "Pièces jointes"
+        },
+        "type": "file"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "My entries",
+      "zh": "我的记录",
+      "fr": "Mes entrées"
+    },
+    "icon": "folder",
+    "blocks": [
+      {
+        "id": "title",
+        "look": "header",
+        "show": {
+          "title": {
+            "en": "My entries",
+            "zh": "我的记录",
+            "fr": "Mes entrées"
+          }
+        }
+      },
+      {
+        "id": "add",
+        "look": "button",
+        "show": {
+          "label": {
+            "en": "Add",
+            "zh": "添加",
+            "fr": "Ajouter"
+          },
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
+      },
+      {
+        "id": "entries",
+        "look": "list",
+        "source": {
+          "table": "$table",
+          "limit": 50
+        },
+        "show": {
+          "title": "title",
+          "subtitles": [],
+          "emptyText": {
+            "en": "Nothing yet",
+            "zh": "还没有记录",
+            "fr": "Rien pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

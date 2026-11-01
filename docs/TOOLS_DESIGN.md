@@ -294,7 +294,7 @@ T8 起有了开发版构建（D-084），下面这些可以用原生模块做，
 
 - 中文表单填写、「用 Morph 打开」（文件类型关联；「分享到 Morph」已经做了，见 §11）。证件照自动框脸和换底色已经做了（D-252）。
 - 桌面小组件、Android 相册清理；音频（语音转文字、压小 / 转格式、剪一段、录音、拼接，由音频工具做，D-150 起）。
-- 视频：iPhone 上后台继续处理（Android 已经可以，D-160；iOS 26 的后台任务等真机确认，D-163）、用 Morph 录像、HEVC 输出。
+- 视频：iPhone 上后台继续处理（Android 已经可以，D-160；iOS 26 起也可以，2026-10-31 真机确认，D-163）、用 Morph 录像、HEVC 输出。
 - Android 上给已有照片找边（ML Kit 没有这个接口，目前用扫描包；看过的替代办法都不行，见 D-253）。
 - PDF 加密解密（第二批）；压缩 PDF 时用原生渲染代替 PDF 预览下载内容。
 
@@ -424,7 +424,9 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
 
 **用识别出的文字命名**（D-244）：`{ocr:规则}` / `{qr:规则}`，规则是 `firstLine`、`invoiceNo`、`date`、`amount`、`phone`、`email`、`url`、`number`（`core/text-rules.ts`，不接受正则）。`file.rename` 看到这两种占位符时先在本机识别每张图片：文字用系统识别（界面语言 + 英文；没有时报 `needsRecognition`），二维码用 jsQR。文字只用来取名，不留下，不发给 AI。取不到时这一段不写；什么都不剩用原来的名字。
 
-**「记一笔」预填**（D-244 的扩展，2026-10-28 定，原型在 `core/prefill/`，还没接进「记一笔」）：日期、金额、税额、单号以 `text-rules` 的规则为主，系统识别（iOS DataDetection / NSDataDetector，Android ML Kit 实体识别，下载模型前先问用户）只做补充；版式记忆保存一次就学会，后来的文件有任何对不上或不合理的地方就空着、不退回规则；不用大模型预填。「设置 → 数据」能一键清空预填记忆、导出（也是备份）、从文件恢复，也能导出 App 配置（D-273）。评测见 `tests/local-model-eval/PREFILL_REPORT.md`。
+**「记一笔」预填**（D-244 的扩展，2026-10-28 定，原型在 `core/prefill/`；D-394、D-397 起「记一笔」和记录页的表单都接上了）：日期、金额、税额、单号以 `text-rules` 的规则为主，系统识别（iOS DataDetection / NSDataDetector，Android ML Kit 实体识别，下载模型前先问用户）只做补充；版式记忆保存一次就学会，后来的文件有任何对不上或不合理的地方就空着、不退回规则；不用大模型预填。「设置 → 数据」能一键清空预填记忆、导出（也是备份）、从文件恢复，也能导出 App 配置（D-273）。评测见 `tests/local-model-eval/PREFILL_REPORT.md`。
+
+**新记录表单的候选值**（D-394，`core/prefill/rank.ts`、`concepts.ts`、`rows.ts`）：附件里的照片（PP-OCRv6）和 PDF（文字层，扫描件画成图再认）在本机读出文字，按排切出「标签 → 值」，每个空字段最多 3 个候选，点了才填，从不自动填；点过的标签和位置记在 `prefill:picks`。文字识别模型没装时先问再下载。文字只在本机，不发给 AI。
 
 **文字加工**（D-245，`core/text-ops.ts`）：都是 text → text，文字只在本机处理。
 

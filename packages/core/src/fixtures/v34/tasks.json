@@ -1,0 +1,656 @@
+{
+  "schemaVersion": 34,
+  "theme": {
+    "primaryColor": "#C8623A",
+    "mode": "light",
+    "colors": {},
+    "font": "clay",
+    "fontScale": 1,
+    "radius": 22,
+    "density": "comfortable",
+    "cardStyle": "shadow",
+    "navStyle": "iconLabel"
+  },
+  "nav": {
+    "bar": ["page:today", "page:upcoming", "page:projects", "ai", "settings"],
+    "floating": []
+  },
+  "data": {
+    "tables": [
+      {
+        "id": "projects",
+        "name": "项目",
+        "icon": "folder",
+        "fields": [
+          {
+            "id": "name",
+            "name": "名称",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "open",
+            "name": "未完成",
+            "type": "rollup",
+            "table": "tasks",
+            "via": "project",
+            "aggregate": "count",
+            "filter": [
+              {
+                "field": "plan",
+                "op": "due",
+                "value": "pending"
+              },
+              {
+                "field": "parent",
+                "op": "isEmpty"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "tasks",
+        "name": "任务",
+        "icon": "check",
+        "fields": [
+          {
+            "id": "title",
+            "name": "标题",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "note",
+            "name": "描述",
+            "type": "note"
+          },
+          {
+            "id": "project",
+            "name": "项目",
+            "type": "link",
+            "table": "projects"
+          },
+          {
+            "id": "plan",
+            "name": "日程",
+            "type": "schedule",
+            "default": {
+              "repeat": "once"
+            },
+            "lastDone": "last",
+            "countEarly": true
+          },
+          {
+            "id": "last",
+            "name": "最后完成",
+            "type": "rollup",
+            "table": "completions",
+            "via": "task",
+            "aggregate": "latest",
+            "field": "date"
+          },
+          {
+            "id": "priority",
+            "name": "优先级",
+            "type": "choice",
+            "default": "p4",
+            "options": [
+              {
+                "id": "p1",
+                "label": "P1"
+              },
+              {
+                "id": "p2",
+                "label": "P2"
+              },
+              {
+                "id": "p3",
+                "label": "P3"
+              },
+              {
+                "id": "p4",
+                "label": "P4"
+              }
+            ]
+          },
+          {
+            "id": "parent",
+            "name": "父任务",
+            "type": "link",
+            "table": "tasks"
+          },
+          {
+            "id": "subs",
+            "name": "子任务",
+            "type": "rollup",
+            "table": "tasks",
+            "via": "parent",
+            "aggregate": "count"
+          },
+          {
+            "id": "subs-open",
+            "name": "未完成子任务",
+            "type": "rollup",
+            "table": "tasks",
+            "via": "parent",
+            "aggregate": "count",
+            "filter": [
+              {
+                "field": "plan",
+                "op": "due",
+                "value": "pending"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "completions",
+        "name": "完成记录",
+        "icon": "check",
+        "fields": [
+          {
+            "id": "task",
+            "name": "任务",
+            "type": "link",
+            "table": "tasks",
+            "required": true
+          },
+          {
+            "id": "date",
+            "name": "日期",
+            "type": "date",
+            "default": "today"
+          }
+        ]
+      }
+    ]
+  },
+  "containers": {
+    "pages": [
+      {
+        "id": "home",
+        "title": "首页",
+        "icon": "home",
+        "blocks": [
+          {
+            "id": "welcome",
+            "look": "header",
+            "show": {
+              "title": "我的工作台",
+              "subtitle": "点「AI 修改」，用一句话改造这个 App"
+            }
+          },
+          {
+            "id": "catalog",
+            "look": "entry",
+            "show": {
+              "title": "添加工具",
+              "icon": "plus",
+              "shape": "tile",
+              "accent": true
+            },
+            "opens": "tools"
+          },
+          {
+            "id": "recent-files",
+            "look": "files",
+            "show": {
+              "title": "最近文件"
+            },
+            "source": {
+              "table": "$files",
+              "filter": [
+                {
+                  "field": "kind",
+                  "op": "isNot",
+                  "value": "image"
+                }
+              ],
+              "limit": 5
+            }
+          }
+        ]
+      },
+      {
+        "id": "today",
+        "title": "今天",
+        "icon": "check",
+        "blocks": [
+          {
+            "id": "title",
+            "look": "header",
+            "show": {
+              "title": "今天"
+            }
+          },
+          {
+            "id": "done-today",
+            "look": "number",
+            "show": {
+              "label": "今天完成"
+            },
+            "source": {
+              "table": "completions",
+              "aggregate": "count",
+              "filter": [
+                {
+                  "field": "date",
+                  "op": "inPeriod",
+                  "value": "today"
+                }
+              ],
+              "goal": 5
+            }
+          },
+          {
+            "id": "list",
+            "look": "list",
+            "source": {
+              "table": "tasks",
+              "filter": [
+                {
+                  "field": "plan",
+                  "op": "due",
+                  "value": "today"
+                },
+                {
+                  "field": "parent",
+                  "op": "isEmpty"
+                }
+              ],
+              "sort": {
+                "field": "plan",
+                "direction": "asc"
+              },
+              "limit": 100
+            },
+            "show": {
+              "title": "title",
+              "subtitles": ["project", "plan"],
+              "trailing": "priority",
+              "emptyText": "今天没有要做的事"
+            },
+            "tools": [
+              {
+                "as": "button",
+                "label": "完成",
+                "do": "create",
+                "table": "completions",
+                "values": {
+                  "task": "$row"
+                }
+              }
+            ],
+            "opens": "task"
+          },
+          {
+            "id": "add",
+            "look": "form",
+            "show": {
+              "mode": "sheet"
+            },
+            "tools": [
+              {
+                "as": "submit",
+                "label": "添加",
+                "do": "create",
+                "table": "tasks",
+                "ask": ["title", "project", "priority"],
+                "smartDate": {
+                  "from": "title",
+                  "to": "plan"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "upcoming",
+        "title": "即将到来",
+        "icon": "calendar",
+        "blocks": [
+          {
+            "id": "title",
+            "look": "header",
+            "show": {
+              "title": "即将到来"
+            }
+          },
+          {
+            "id": "by-day",
+            "look": "list",
+            "source": {
+              "table": "tasks",
+              "filter": [
+                {
+                  "field": "plan",
+                  "op": "due",
+                  "value": "pending"
+                },
+                {
+                  "field": "parent",
+                  "op": "isEmpty"
+                }
+              ],
+              "sort": {
+                "field": "plan",
+                "direction": "asc"
+              },
+              "limit": 30,
+              "group": {
+                "by": "plan",
+                "unit": "day"
+              }
+            },
+            "show": {
+              "title": "title",
+              "subtitles": ["project"],
+              "trailing": "priority"
+            },
+            "tools": [
+              {
+                "as": "button",
+                "label": "完成",
+                "do": "create",
+                "table": "completions",
+                "values": {
+                  "task": "$row"
+                }
+              },
+              {
+                "as": "addHere",
+                "do": "create",
+                "table": "tasks",
+                "ask": "all",
+                "values": "$here"
+              }
+            ],
+            "opens": "task"
+          }
+        ]
+      },
+      {
+        "id": "projects",
+        "title": "项目",
+        "icon": "folder",
+        "blocks": [
+          {
+            "id": "title",
+            "look": "header",
+            "show": {
+              "title": "项目"
+            }
+          },
+          {
+            "id": "inbox",
+            "look": "list",
+            "source": {
+              "table": "tasks",
+              "filter": [
+                {
+                  "field": "project",
+                  "op": "isEmpty"
+                },
+                {
+                  "field": "plan",
+                  "op": "due",
+                  "value": "pending"
+                },
+                {
+                  "field": "parent",
+                  "op": "isEmpty"
+                }
+              ],
+              "limit": 30
+            },
+            "show": {
+              "title": "title",
+              "subtitles": ["plan"],
+              "emptyText": "收件箱是空的"
+            },
+            "tools": [
+              {
+                "as": "button",
+                "label": "完成",
+                "do": "create",
+                "table": "completions",
+                "values": {
+                  "task": "$row"
+                }
+              }
+            ],
+            "opens": "task"
+          },
+          {
+            "id": "list",
+            "look": "list",
+            "source": {
+              "table": "projects",
+              "sort": {
+                "field": "createdAt",
+                "direction": "asc"
+              },
+              "limit": 50
+            },
+            "show": {
+              "title": "name",
+              "trailing": "open",
+              "emptyText": "还没有项目"
+            },
+            "opens": "project"
+          },
+          {
+            "id": "add-project",
+            "look": "button",
+            "show": {
+              "label": "添加项目",
+              "variant": "outline",
+              "icon": "plus"
+            },
+            "tools": [
+              {
+                "do": "create",
+                "table": "projects",
+                "ask": "all"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "project",
+        "title": "项目",
+        "of": "projects",
+        "blocks": [
+          {
+            "id": "add",
+            "look": "form",
+            "show": {
+              "mode": "inline"
+            },
+            "tools": [
+              {
+                "as": "submit",
+                "label": "添加",
+                "do": "create",
+                "table": "tasks",
+                "ask": ["title"],
+                "values": {
+                  "project": "$record"
+                },
+                "smartDate": {
+                  "from": "title",
+                  "to": "plan"
+                }
+              }
+            ]
+          },
+          {
+            "id": "tasks",
+            "look": "list",
+            "source": {
+              "table": "tasks",
+              "filter": [
+                {
+                  "field": "project",
+                  "op": "is",
+                  "value": "$record"
+                },
+                {
+                  "field": "plan",
+                  "op": "due",
+                  "value": "pending"
+                },
+                {
+                  "field": "parent",
+                  "op": "isEmpty"
+                }
+              ],
+              "sort": {
+                "field": "plan",
+                "direction": "asc"
+              },
+              "limit": 50,
+              "group": {
+                "by": "plan",
+                "unit": "day"
+              }
+            },
+            "show": {
+              "title": "title",
+              "subtitles": ["plan"],
+              "trailing": "priority",
+              "emptyText": "这个项目没有要做的事"
+            },
+            "tools": [
+              {
+                "as": "button",
+                "label": "完成",
+                "do": "create",
+                "table": "completions",
+                "values": {
+                  "task": "$row"
+                }
+              }
+            ],
+            "opens": "task"
+          }
+        ]
+      },
+      {
+        "id": "task",
+        "title": "任务",
+        "of": "tasks",
+        "blocks": [
+          {
+            "id": "subtasks",
+            "look": "list",
+            "source": {
+              "table": "tasks",
+              "filter": [
+                {
+                  "field": "parent",
+                  "op": "is",
+                  "value": "$record"
+                },
+                {
+                  "field": "plan",
+                  "op": "due",
+                  "value": "pending"
+                }
+              ],
+              "limit": 30
+            },
+            "show": {
+              "title": "title",
+              "subtitles": ["plan"],
+              "emptyText": "没有子任务"
+            },
+            "tools": [
+              {
+                "as": "button",
+                "label": "完成",
+                "do": "create",
+                "table": "completions",
+                "values": {
+                  "task": "$row"
+                }
+              }
+            ],
+            "opens": "task"
+          },
+          {
+            "id": "add-sub",
+            "look": "button",
+            "show": {
+              "label": "加子任务",
+              "variant": "outline",
+              "icon": "plus"
+            },
+            "tools": [
+              {
+                "do": "create",
+                "table": "tasks",
+                "ask": "all",
+                "values": {
+                  "parent": "$record"
+                }
+              }
+            ]
+          },
+          {
+            "id": "history",
+            "look": "list",
+            "source": {
+              "table": "completions",
+              "filter": [
+                {
+                  "field": "task",
+                  "op": "is",
+                  "value": "$record"
+                }
+              ],
+              "sort": {
+                "field": "date",
+                "direction": "desc"
+              },
+              "limit": 20
+            },
+            "show": {
+              "title": "date",
+              "emptyText": "还没完成过"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "tools": [
+    {
+      "id": "task-reminder",
+      "kind": "reminder",
+      "title": "该做了",
+      "enabled": true,
+      "when": {
+        "each": {
+          "table": "tasks",
+          "field": "plan"
+        },
+        "at": "09:00"
+      },
+      "opens": "page:today",
+      "done": {
+        "do": "create",
+        "table": "completions",
+        "values": {
+          "task": "$row"
+        }
+      },
+      "snoozeMinutes": 30
+    }
+  ],
+  "packages": []
+}

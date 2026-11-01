@@ -1,60 +1,39 @@
 import { prepareOps, type ChangeContext } from '../change';
-import type { Op } from '../ops';
+import { isFunctionOp, type Op } from '../ops';
 import type { WorkspaceConfig } from '../schema';
 
-// 功能和外观分开改（D-191）。功能：快捷操作、工具、数据表结构，直接生效（可以撤销），做好后可以马上试用；
-// 外观：主题、导航栏、页面和页面上的组件（数据表的列表、表单、统计也算），先进草稿看效果（D-190）。
+// 功能和外观分开改（D-191）。功能：数据（表结构、日期设置）、独立工具（快捷操作、提醒）、工具包、手机桌面，
+// 直接生效（可以撤销），做好后可以马上试用；外观：主题、导航栏、页面和页面上的块（记录块、表单、数字也算，
+// 块上的就地一键记录工具也是），先进草稿看效果（D-190）。
 // 一句话两样都有时先做功能，剩下的外观变成一条「接着改」的预设。由 App 按操作判断，不靠模型自觉。
 
-const FUNCTION_OPS: ReadonlySet<Op['op']> = new Set<Op['op']>([
-  'addWorkflow',
-  'removeWorkflow',
-  'renameWorkflow',
-  'updateWorkflow',
-  'addWorkflowStep',
-  'removeWorkflowStep',
-  'moveWorkflowStep',
-  'setStepParams',
-  // 放到手机桌面是功能（D-271）：直接生效、可以撤销；桌面在 App 外面，草稿里看不到。
-  'setWorkflowHomeScreen',
-  'installTool',
-  'uninstallTool',
-  'updateTool',
-  'addCollection',
-  'updateCollection',
-  'addField',
-  'updateField',
-  'moveField',
-  'removeField',
-  'removeCollection',
-  // 提醒是功能（D-251）：直接生效、可以撤销。
-  'addReminder',
-  'updateReminder',
-  'removeReminder',
-  // 一天、一周从什么时候开始也是功能（D-286）：直接生效、可以撤销。
-  'setCalendar',
-]);
-
 /** 同一批操作里新建的快捷操作。 */
-function newWorkflowIds(ops: readonly Op[]): Set<string> {
-  return new Set(ops.flatMap((op) => (op.op === 'addWorkflow' ? [op.workflow.id] : [])));
+function newQuickActionIds(ops: readonly Op[]): Set<string> {
+  return new Set(
+    ops.flatMap((op) =>
+      op.op === 'addTool' && typeof op.tool !== 'string' && op.tool.kind === 'quickAction'
+        ? [op.tool.id]
+        : [],
+    ),
+  );
 }
 
-/** 是不是功能类操作。新快捷操作的入口卡片跟着它一起应用：不然做好了却找不到。 */
-function isFunctionOp(op: Op, added: ReadonlySet<string>): boolean {
-  if (FUNCTION_OPS.has(op.op)) return true;
-  return (
-    op.op === 'addComponent' &&
-    op.component.type === 'workflowRunner' &&
-    added.has(op.component.props.workflowId)
-  );
+/**
+ * 是不是功能类操作（ops-schema.ts 的 isFunctionOp：数据、独立工具、工具包、手机桌面）。
+ * 新快捷操作的运行块（look action）跟着它一起应用：不然做好了却找不到。
+ */
+function goesWithFunction(op: Op, added: ReadonlySet<string>): boolean {
+  if (isFunctionOp(op)) return true;
+  if (op.op !== 'addContainer' || op.block?.look !== 'action') return false;
+  const use = op.block.tools[0];
+  return use !== undefined && 'tool' in use && added.has(use.tool);
 }
 
 /** 把一批操作分成功能和外观两部分，各自保持原来的顺序。 */
 export function splitOps(ops: readonly Op[]): { function: Op[]; look: Op[] } {
-  const added = newWorkflowIds(ops);
+  const added = newQuickActionIds(ops);
   const result: { function: Op[]; look: Op[] } = { function: [], look: [] };
-  for (const op of ops) result[isFunctionOp(op, added) ? 'function' : 'look'].push(op);
+  for (const op of ops) result[goesWithFunction(op, added) ? 'function' : 'look'].push(op);
   return result;
 }
 

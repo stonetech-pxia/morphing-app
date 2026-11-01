@@ -63,10 +63,14 @@ describe('French behavior', () => {
 describe('French tool configuration', () => {
   it('installs each tool with valid French pages and workflow names', () => {
     for (const tool of registry.tools.values()) {
-      const result = applyOps(workspace('fr'), [{ op: 'installTool', toolId: tool.id }], {
-        registry,
-        locale: 'fr',
-      });
+      const result = applyOps(
+        workspace('fr'),
+        [{ op: 'setPackage', package: tool.id, do: 'add' }],
+        {
+          registry,
+          locale: 'fr',
+        },
+      );
       expect(result.ok, tool.id).toBe(true);
       if (result.ok)
         expect(validateWorkspace(result.config, registry), tool.id).toMatchObject({ ok: true });
@@ -86,7 +90,7 @@ it('uses EUR in the built-in French budget template', () => {
   expect(result.ok).toBe(true);
   if (result.ok)
     expect(
-      result.config.collections.some((c) =>
+      result.config.data.tables.some((c) =>
         c.fields.some((f) => f.type === 'money' && f.currency === 'EUR'),
       ),
     ).toBe(true);

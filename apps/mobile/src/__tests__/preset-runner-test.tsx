@@ -3,9 +3,10 @@ import {
   BUILTIN_TOOLS,
   createMockAIProvider,
   createRegistry,
+  type Op,
   presetById,
   presetWorkflow,
-  type Op,
+  quickActionsOf,
 } from '@morph/core';
 import { fireEvent } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
@@ -71,12 +72,13 @@ async function commit(store: WorkspaceStore, ops: Op[], summary: string) {
 }
 
 const RUNNER: Op = {
-  op: 'addComponent',
-  pageId: 'home',
-  component: {
+  op: 'addContainer',
+  page: 'home',
+  block: {
     id: 'visa-card',
-    type: 'workflowRunner',
-    props: { workflowId: 'visa-photo', look: 'row' },
+    look: 'action',
+    show: { shape: 'row' },
+    tools: [{ tool: 'visa-photo' }],
   },
 };
 
@@ -84,7 +86,9 @@ describe('a quick action card for a built-in quick action', () => {
   it('runs the built-in one without adding it, then the user’s copy once there is one', async () => {
     const { store, router } = await renderApp();
     await commit(store, [RUNNER], '加卡片');
-    expect(store.getState().config!.workflows.some((w) => w.presetId === 'visa-photo')).toBe(false);
+    expect(quickActionsOf(store.getState().config!).some((w) => w.preset === 'visa-photo')).toBe(
+      false,
+    );
     expect(await screen.findByText('签证 / 证件照')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('run-visa-photo'));
     expect(router.getPathname()).toBe('/run/visa-photo');
@@ -96,7 +100,7 @@ describe('a quick action card for a built-in quick action', () => {
       ...presetWorkflow(presetById('visa-photo')!, 'zh', 'kid-photo'),
       name: '孩子的证件照',
     };
-    await commit(store, [{ op: 'addWorkflow', workflow: copy }, RUNNER], '改过的');
+    await commit(store, [{ op: 'addTool', tool: copy }, RUNNER], '改过的');
     expect(await screen.findByText('孩子的证件照')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('run-kid-photo'));
     expect(router.getPathname()).toBe('/run/kid-photo');

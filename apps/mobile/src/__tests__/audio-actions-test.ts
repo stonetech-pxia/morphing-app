@@ -1,11 +1,12 @@
 import {
-  BUILTIN_TOOLS,
   applyOps,
+  type AskRequest,
+  BUILTIN_TOOLS,
   createDefaultWorkspace,
   createRegistry,
   presetById,
   presetWorkflow,
-  type AskRequest,
+  quickActionsOf,
   type RunResult,
   type Workflow,
 } from '@morph/core';
@@ -24,12 +25,16 @@ const MB = 1024 * 1024;
 const minutes = (n: number) => n * 60_000;
 
 function toolWorkflow(id: string): Workflow {
-  const result = applyOps(createDefaultWorkspace('zh'), [{ op: 'installTool', toolId: 'audio' }], {
-    registry,
-    locale: 'zh',
-  });
+  const result = applyOps(
+    createDefaultWorkspace('zh'),
+    [{ op: 'setPackage', package: 'audio', do: 'add' }],
+    {
+      registry,
+      locale: 'zh',
+    },
+  );
   if (!result.ok) throw new Error(result.error);
-  return result.config.workflows.find((w) => w.id === id)!;
+  return quickActionsOf(result.config).find((w) => w.id === id)!;
 }
 
 const preset = (id: string) => presetWorkflow(presetById(id)!, 'zh', id);
@@ -115,14 +120,14 @@ describe('audio tool', () => {
   it('installs seven quick actions and an audio file list', () => {
     const result = applyOps(
       createDefaultWorkspace('zh'),
-      [{ op: 'installTool', toolId: 'audio' }],
+      [{ op: 'setPackage', package: 'audio', do: 'add' }],
       {
         registry,
         locale: 'zh',
       },
     );
     if (!result.ok) throw new Error(result.error);
-    expect(result.config.workflows.map((w) => w.name)).toEqual([
+    expect(quickActionsOf(result.config).map((w) => w.name)).toEqual([
       '人声降噪',
       '调整音量',
       '语音转文字',
@@ -134,9 +139,9 @@ describe('audio tool', () => {
       '文字转语音',
       '提取视频里的声音',
     ]);
-    const page = result.config.pages.find((p) => p.id === 'tool-audio')!;
-    expect(page.components.find((c) => c.type === 'fileList')?.props).toMatchObject({
-      mimeType: 'audio/*',
+    const page = result.config.containers.pages.find((p) => p.id === 'tool-audio')!;
+    expect(page.blocks.find((c) => c.look === 'files')?.source).toMatchObject({
+      filter: [{ field: 'kind', op: 'is', value: 'audio' }],
     });
   });
 

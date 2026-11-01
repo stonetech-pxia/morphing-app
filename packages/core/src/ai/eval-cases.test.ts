@@ -1,9 +1,34 @@
 import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
-import { registry } from '../test-helpers';
-import { EVAL_CASES, buildSetup, runEvalCase } from './eval-cases';
+import { fromV33, registry, v33Fixture } from '../test-helpers';
+import { EVAL_CASES, buildSetup, runEvalCase, type EvalSetup } from './eval-cases';
 import { createMockAIProvider } from './mock';
+
+// 评测的 setup 用 v34 的操作重写过（v34 第三阶段）：和 v33 代码存下来的配置迁移后一模一样。
+describe('eval setups are the same as the v33 ones', () => {
+  const setups: EvalSetup[] = [
+    'default',
+    'starter',
+    'pdf',
+    'pdfBelowFiles',
+    'budget',
+    'visa',
+    'visaHomeScreen',
+    'habits',
+    'linked',
+    'oneTap',
+    'views',
+    'boards',
+    'scheduled',
+    'envelopes',
+    'todos',
+  ];
+  it.each(setups)('%s', (setup) => {
+    const name = setup === 'default' || setup === 'starter' ? `${setup}-zh` : `setup-${setup}-zh`;
+    expect(buildSetup(setup, 'zh', registry)).toStrictEqual(fromV33(v33Fixture(name)));
+  });
+});
 
 // mock AI 必须通过评测集中所有标记为 mock 的用例；改写用例（P*）留给真实模型。
 describe('eval cases on the mock AI', () => {
@@ -38,10 +63,11 @@ describe('W10 accepts both readings', () => {
     const config = buildSetup('default', 'zh', registry);
     const after = {
       ...config,
-      workflows: [
-        ...config.workflows,
+      tools: [
+        ...config.tools,
         {
           id: 'scan-300',
+          kind: 'quickAction' as const,
           name: 'Scan',
           steps: steps.map(([action, params], i) => ({ id: `s${i}`, action, params })),
         },

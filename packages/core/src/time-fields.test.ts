@@ -16,9 +16,8 @@ import {
 import { fieldDefinition } from './fields';
 import { evaluateFormula, parseFormula } from './formula';
 import { recordsToHtml } from './html';
-import { applyOps } from './ops';
 import type { Collection, Field, WorkspaceConfig } from './schema';
-import { registry, workspace } from './test-helpers';
+import { fromV33, registry, v33Fixture } from './test-helpers';
 import { validateWorkspace } from './validate';
 
 // 时间、日期时间、时长字段（D-279）和公式升级（D-280、D-281）。
@@ -172,7 +171,7 @@ describe('time fields (D-279)', () => {
         record({ in: '2026-10-28T09:00', break: 15 }),
       ],
       shifts,
-      { aggregate: 'sum', fieldId: 'break', group: 'day', periods: 3 },
+      { aggregate: 'sum', field: 'break', group: { unit: 'day', last: 3 } },
       NOW,
       '—',
     );
@@ -280,12 +279,9 @@ describe('time in formulas (D-280)', () => {
 
 describe('checking time formulas (D-280, D-281)', () => {
   const withTable = (collection: Collection): WorkspaceConfig => {
-    const result = applyOps(workspace(), [{ op: 'addCollection', collection }], {
-      registry,
-      locale: 'zh',
-    });
-    if (!result.ok) throw new Error(result.error);
-    return result.config;
+    const config = fromV33(v33Fixture('default-zh'));
+    config.data.tables.push(collection);
+    return config;
   };
   const problems = (...extra: Field[]) => {
     const r = validateWorkspace(
@@ -335,22 +331,14 @@ describe('checking time formulas (D-280, D-281)', () => {
 
   it('filters a time with HH:mm only', () => {
     const c = withTable(shifts);
-    const page = c.pages[0]!;
     const list = {
       id: 'list',
-      type: 'recordList',
-      props: {
-        collectionId: 'shifts',
-        display: 'list',
-        titleField: 'start',
-        limit: 5,
-        filter: [{ field: 'start', op: 'gt', value: '9:00' }],
-      },
+      look: 'list',
+      source: { table: 'shifts', limit: 5, filter: [{ field: 'start', op: 'gt', value: '9:00' }] },
+      show: { title: 'start' },
     };
-    const config = {
-      ...c,
-      pages: [{ ...page, components: [...page.components, list] }, ...c.pages.slice(1)],
-    } as WorkspaceConfig;
+    const config = structuredClone(c);
+    config.containers.pages[0]!.blocks.push(list as never);
     const r = validateWorkspace(config, registry);
     expect(r.ok ? [] : r.issues.map((i) => i.message)).toEqual([
       'list: filter on start: gt needs a number or date field and a matching value',

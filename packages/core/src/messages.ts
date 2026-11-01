@@ -49,6 +49,7 @@ const PLURAL_COUNT_VARIABLE: Partial<Record<StringKey, string>> = {
   runItemImage: 'total',
   runItemFile: 'total',
   prefillMemoryCount: 'count',
+  prefillMemoryPicks: 'count',
   prefillMemoryRestoreConfirm: 'count',
   prefillMemoryRestored: 'count',
 };

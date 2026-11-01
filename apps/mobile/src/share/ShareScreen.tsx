@@ -1,10 +1,16 @@
 import {
-  localize,
-  mediaKindOf,
-  sharedSizeProblem,
+  type Collection,
   type IconName,
+  localize,
+  MAX_ATTACHMENTS,
+  MEDIA_LIMITS,
   type MediaKind,
+  mediaKindOf,
+  quickActionsOf,
+  sharedSizeProblem,
   type ShareFit,
+  templateCollectionOp,
+  templatePageOps,
   type Workflow,
 } from '@morph/core';
 
@@ -21,19 +27,24 @@ import {
 } from 'react-native';
 
 import { runErrorText, t } from '../i18n';
+import { IMPORT_PROBLEMS } from '../renderer/Attachments';
 import { formatSize } from '../renderer/FileList';
 import { Icon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Button, Card, Pill, SectionLabel } from '../renderer/ui';
 import { placeOnDesk } from '../desk/store';
+import { copyUserFiles } from '../renderer/slot-file';
 import { mimeOf } from '../runtime/actions/helpers';
+import { recordTargets } from '../runtime/actions/records';
 import { formatTime } from '../run/local/TrimScreen';
 import { stepChain } from '../shell/WorkflowsScreen';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { FileViewer, InlineVideo } from './FileViewer';
 import { releaseShare, useIncoming } from './incoming';
 import { shareRecommendations } from './recommendations';
+import { holdFormCopies, recordChoices, type RecordChoice } from './save-as-record';
 import type { SucceededRuns } from '../storage/types';
+import { deleteUserFiles } from '../storage/user-files';
 
 /**
  * 收件页面（TOOLS_DESIGN §11，D-117）：「收到 N 个文件」，列出能接这些文件的工作流，点一个才运行
@@ -54,6 +65,9 @@ export function ShareScreen() {
   const palette = usePalette(config.theme);
   const share = useIncoming((s) => s.share);
   const router = useRouter();
+  const proposeOps = useWorkspace((s) => s.proposeOps);
+  const confirm = useWorkspace((s) => s.confirm);
+  const bumpAssets = useWorkspace((s) => s.bumpAssets);
 
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const expanded = expandedId === share?.id;
@@ -65,6 +79,8 @@ export function ShareScreen() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   // 正在复制到桌上（大视频要一会儿）。
   const [placing, setPlacing] = useState(false);
+  // 「存成记录」的表列表展开了（D-392）。
+  const [choosing, setChoosing] = useState(false);
   useEffect(() => {
     let alive = true;
     void repo
@@ -92,12 +108,18 @@ export function ShareScreen() {
   // AI 的修改在草稿里应用（D-190），应用后重新打开这个页面，带着新做的那个（made）。
   const { made } = useLocalSearchParams<{ made?: string }>();
   const [knownIds, setKnownIds] = useState<Set<string> | null>(() =>
-    made ? new Set(config.workflows.filter((w) => w.id !== made).map((w) => w.id)) : null,
+    made
+      ? new Set(
+          quickActionsOf(config)
+            .filter((w) => w.id !== made)
+            .map((w) => w.id),
+        )
+      : null,
   );
   const scroll = useRef<ScrollViewInstance>(null);
   // AI 做好回到这里时，新的排在最前：滚到顶上让用户看到（否则还停在「让 AI 搭一个」那里）。
   const newest = knownIds
-    ? config.workflows.find((w) => !w.toolId && !knownIds.has(w.id))?.id
+    ? quickActionsOf(config).find((w) => !w.package && !knownIds.has(w.id))?.id
     : undefined;
   useEffect(() => {
     if (newest) scroll.current?.scrollTo({ y: 0, animated: true });
@@ -193,7 +215,7 @@ export function ShareScreen() {
   }
   const counts = usage ?? new Map();
   const { all, recommended, anyUsed } = shareRecommendations(
-    config.workflows,
+    quickActionsOf(config),
     infos,
     counts,
     locale,
@@ -203,7 +225,7 @@ export function ShareScreen() {
   const candidates = usage === null ? [] : showAll ? all : recommended;
 
   function isNew(wf: Workflow) {
-    return knownIds !== null && !wf.toolId && !knownIds.has(wf.id);
+    return knownIds !== null && !wf.package && !knownIds.has(wf.id);
   }
 
   // 一个快捷操作一行（D-237）：名字（法语长名字可以折成两行）和一行说明，右边「运行」；
@@ -227,7 +249,7 @@ export function ShareScreen() {
           {fit.ok
             ? [
                 counts.has(wf.id) ? t(locale, 'shareUsed', { n: counts.get(wf.id)!.count }) : null,
-                wf.toolId ? localize(registry.tools.get(wf.toolId)?.name, locale) : null,
+                wf.package ? localize(registry.tools.get(wf.package)?.name, locale) : null,
                 stepChain(wf, registry, locale),
               ]
                 .filter(Boolean)
@@ -285,12 +307,123 @@ export function ShareScreen() {
     }
   }
 
+  /**
+   * 存成记录（D-392，创始人 2026-10-31 在对话里选定）：选一张有附件字段的表，或者一个预设表（建表、页面和入口，
+   * 和别的界面按钮一样是用户的一次修改，能撤销）；收到的文件复制成用户文件（收件这一批照旧，离开收件页面时释放），
+   * 打开这张表的新记录表单，附件已经放好，用户自己填完保存。没保存就离开时，记录页删掉这些副本；建好的表留着。
+   */
+  async function saveAsRecord(choice: RecordChoice) {
+    if (placing) return;
+    setPlacing(true);
+    setPreviewError(null);
+    let copied: string[] = [];
+    try {
+      const result = await copyUserFiles(share!.files.slice(0, MAX_ATTACHMENTS), files, repo);
+      copied = result.assetIds;
+      if (result.problem) {
+        setPreviewError(
+          t(locale, IMPORT_PROBLEMS[result.problem], {
+            gb: MEDIA_LIMITS.maxFileBytes / 1024 / 1024 / 1024,
+          }),
+        );
+        return;
+      }
+      let table: Collection | undefined;
+      if (choice.kind === 'table') table = config.data.tables.find((c) => c.id === choice.tableId);
+      else {
+        const add = templateCollectionOp(choice.preset, config, locale);
+        const ops = [add, ...templatePageOps(choice.preset, config, locale, add.table.id)];
+        const proposed = await proposeOps(
+          ops,
+          t(locale, 'shareRecordNewTable', { name: choice.name }),
+        );
+        if (proposed.kind !== 'preview') {
+          setPreviewError(
+            proposed.kind === 'rejected' ? proposed.message : proposed.issues.join('\n'),
+          );
+          return;
+        }
+        if (!(await confirm())) return;
+        table = add.table;
+      }
+      const field = table && recordTargets(table).fileField;
+      if (!table || !field) return;
+      const ids = copied;
+      copied = [];
+      bumpAssets();
+      setChoosing(false);
+      router.push({
+        pathname: '/record/[collectionId]',
+        params: {
+          collectionId: table.id,
+          prefill: JSON.stringify({ [field]: ids }),
+          copies: holdFormCopies(ids),
+        },
+      });
+    } catch (e) {
+      setPreviewError(String(e));
+    } finally {
+      // 没交给记录页的副本不留下。
+      if (copied.length > 0) await deleteUserFiles(copied, repo, files).catch(() => undefined);
+      setPlacing(false);
+    }
+  }
+
   /** 让 AI 搭一个：AI 只知道文件的类型和个数（D-124）。做好后回到这里，新的排在最前面。 */
   function askAI() {
-    setKnownIds(new Set(config.workflows.map((w) => w.id)));
+    setKnownIds(new Set(quickActionsOf(config).map((w) => w.id)));
     // AI 的修改先进草稿、这个页面会关掉（D-190）：分享的文件留着，应用后回到这里还能用。
     handed.current = true;
     router.push({ pathname: '/change', params: { shared: String(share!.id) } });
+  }
+
+  /** 存成记录的表列表：先是有附件字段的表，再是预设表，最后是「空白」。 */
+  function recordChooser() {
+    const choices = recordChoices(config, locale);
+    const tables = choices.filter((c) => c.kind === 'table');
+    const presets = choices.filter((c) => c.kind === 'preset');
+    const row = (choice: RecordChoice) => {
+      const id = choice.kind === 'table' ? `table-${choice.tableId}` : `preset-${choice.preset}`;
+      const blank = choice.kind === 'preset' && choice.preset === 'blank';
+      return (
+        <Pressable
+          key={id}
+          testID={`share-record-${id}`}
+          accessibilityRole="button"
+          disabled={placing}
+          onPress={() => void saveAsRecord(choice)}
+          style={({ pressed }) => [styles.choice, (pressed || placing) && { opacity: 0.6 }]}>
+          <View style={styles.flex}>
+            <Text
+              numberOfLines={1}
+              style={[palette.font('bodyMedium', 15), { color: palette.text }]}>
+              {blank ? t(locale, 'shareRecordBlank') : choice.name}
+            </Text>
+            {blank ? <Text style={caption}>{t(locale, 'shareRecordBlankAbout')}</Text> : null}
+          </View>
+          <Text style={[palette.font('title', 18), { color: palette.caption }]}>›</Text>
+        </Pressable>
+      );
+    };
+    return (
+      <View testID="share-record-list" style={styles.chooser}>
+        {share!.files.length > MAX_ATTACHMENTS ? (
+          <Text testID="share-record-too-many" style={caption}>
+            {t(locale, 'shareRecordTooMany', { n: MAX_ATTACHMENTS })}
+          </Text>
+        ) : null}
+        {tables.length > 0 ? (
+          <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
+            {t(locale, 'shareRecordTables')}
+          </Text>
+        ) : null}
+        {tables.map(row)}
+        <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
+          {t(locale, 'shareRecordPresets')}
+        </Text>
+        {presets.map(row)}
+      </View>
+    );
   }
 
   return (
@@ -414,6 +547,31 @@ export function ShareScreen() {
                 onPress={() => void placeAndOpen()}
               />
             </View>
+            {/* 存成记录（D-392）：放在「放到桌上」下面、快捷操作推荐上面；点了才展开表的列表，不自动做什么。 */}
+            <View
+              testID="share-record"
+              style={[
+                styles.row,
+                { borderTopWidth: StyleSheet.hairlineWidth, borderColor: palette.border },
+              ]}>
+              <View style={styles.flex}>
+                <Text
+                  numberOfLines={2}
+                  style={[palette.font('title', 15), { color: palette.text }]}>
+                  {t(locale, 'shareRecord')}
+                </Text>
+                <Text numberOfLines={2} style={caption}>
+                  {t(locale, 'shareRecordAbout')}
+                </Text>
+              </View>
+              <Pill
+                palette={palette}
+                testID="share-record-choose"
+                label={t(locale, choosing ? 'shareRecordHide' : 'shareRecordChoose')}
+                onPress={() => setChoosing(!choosing)}
+              />
+            </View>
+            {choosing ? recordChooser() : null}
           </Card>
           {candidates.length > 0 ? (
             <SectionLabel palette={palette}>
@@ -458,4 +616,6 @@ const styles = StyleSheet.create({
   preview: { height: PREVIEW_HEIGHT, width: '100%' },
   list: { paddingVertical: 2, gap: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 6 },
+  chooser: { gap: 4, paddingBottom: 8 },
+  choice: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingLeft: 8 },
 });

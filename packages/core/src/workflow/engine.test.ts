@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { registry, workspace } from '../test-helpers';
-import type { Workflow } from '../schema';
+import { quickActionsOf, type Workflow } from '../schema';
 import { RunCancelled, RunError, runWorkflow, type ActionImpl, type RunValue } from './engine';
 
 const now = () => new Date(2026, 9, 22, 9, 0);
-const merge = () => workspace('zh', { withPdf: true }).workflows[0]!;
+const merge = () => quickActionsOf(workspace('zh', { withPdf: true }))[0]!;
 
 const pdfItem = (name: string, size = 10) => ({
   uri: `tmp://${name}`,
@@ -184,6 +184,7 @@ describe('runWorkflow', () => {
   it('asks the parameters first, then ensures the pack they need (OCR language)', async () => {
     const wf: Workflow = {
       id: 'ocr',
+      kind: 'quickAction',
       name: 'OCR',
       steps: [
         { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
@@ -210,6 +211,7 @@ describe('runWorkflow', () => {
   it('does not ask for a pack when the platform runs the action natively (iOS Vision)', async () => {
     const wf: Workflow = {
       id: 'ocr',
+      kind: 'quickAction',
       name: 'OCR',
       steps: [
         { id: 'pick', action: 'in.photos', params: { source: 'scanner', min: 1, max: 5 } },
@@ -232,6 +234,7 @@ describe('runWorkflow', () => {
   it('asks for the pack this device needs instead of the action pack (D-269)', async () => {
     const wf: Workflow = {
       id: 'ocr',
+      kind: 'quickAction',
       name: 'OCR',
       steps: [
         { id: 'pick', action: 'in.photos', params: { source: 'scanner', min: 1, max: 5 } },
@@ -272,6 +275,7 @@ describe('runWorkflow', () => {
   it('asks for an extra optional pack besides the action pack and runs without it (D-274)', async () => {
     const wf: Workflow = {
       id: 'scan',
+      kind: 'quickAction',
       name: 'Scan',
       steps: [
         { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
@@ -318,6 +322,7 @@ describe('runWorkflow', () => {
   it('asks for every pack one step needs on this device: the required one and an extra optional one (D-328)', async () => {
     const wf: Workflow = {
       id: 'word',
+      kind: 'quickAction',
       name: 'Word',
       steps: [
         { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
@@ -356,6 +361,7 @@ describe('runWorkflow', () => {
     // 2026-10-29 真机：新用户「拍表格转 Excel」要连着确认三次（找边 → 展平 → 认字）。
     const wf: Workflow = {
       id: 'excel',
+      kind: 'quickAction',
       name: 'Excel',
       steps: [
         { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
@@ -427,6 +433,7 @@ describe('runWorkflow', () => {
   it('asks for an optional pack only once per run when two steps could use it', async () => {
     const wf: Workflow = {
       id: 'scan',
+      kind: 'quickAction',
       name: 'Scan',
       steps: [
         { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
@@ -450,6 +457,7 @@ describe('runWorkflow', () => {
   it('always asks for passwords and hands them only to that step, never into the params (D-194)', async () => {
     const wf: Workflow = {
       id: 'wifi',
+      kind: 'quickAction',
       name: 'Wi-Fi',
       steps: [
         {

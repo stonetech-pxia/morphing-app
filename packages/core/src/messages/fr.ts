@@ -423,7 +423,7 @@ export const fr: MessageTable = {
   exportAppConfig: 'Exporter la configuration de l’app',
   prefillMemoryTitle: 'Mémoire de pré-remplissage',
   prefillMemoryHint:
-    'Quand vous ajoutez une entrée, Morph retient la mise en page des documents enregistrés : après quelle étiquette se trouve une valeur, à peu près sur quelle ligne, et le nom du commerce. Les montants et les dates ne sont pas conservés. Stockée uniquement sur ce téléphone, jamais envoyée à l’IA. Le fichier exporté sert aussi de sauvegarde : « Restaurer depuis un fichier » la remet en place.',
+    'Quand vous ajoutez une entrée, Morph retient la mise en page des documents enregistrés : après quelle étiquette se trouve une valeur, à peu près sur quelle ligne, et le nom du commerce. Les montants et les dates ne sont pas conservés. Stockée uniquement sur ce téléphone, jamais envoyée à l’IA. Le fichier exporté sert aussi de sauvegarde : « Restaurer depuis un fichier » la remet en place. Dans le formulaire d’une nouvelle entrée, Morph retient aussi la suggestion choisie pour chaque champ : l’étiquette qui la précède et sa position approximative, pas la valeur.',
   prefillMemoryCount: '{count} mises en page de documents mémorisées',
   prefillMemoryNone: 'Aucune mise en page mémorisée pour l’instant',
   prefillMemoryExport: 'Exporter',
@@ -436,6 +436,13 @@ export const fr: MessageTable = {
   prefillMemoryRestoreInvalid:
     'Ce fichier n’est pas une mémoire de pré-remplissage exportée par Morph. Rien n’a été restauré.',
   prefillMemoryRestored: '{count} mises en page restaurées.',
+  prefillMemoryPicks: '{count} suggestions choisies mémorisées',
+  // Formulaire de nouvelle entrée : valeurs proposées à partir des pièces jointes (D-394)
+  suggestionFill: 'Remplir « {field} » avec {value}',
+  suggestionsWorking: 'Recherche de valeurs dans les pièces jointes…',
+  suggestionsNeedDownload:
+    'Pour proposer des valeurs tirées des pièces jointes, un téléchargement unique est nécessaire.',
+  suggestionsDownload: 'Proposer des valeurs',
   dataModelDownloadAsk: 'Télécharger la reconnaissance des dates et des montants ?',
   dataModelDownloadBody:
     'Google doit d’abord télécharger le modèle de reconnaissance pour cette langue. La reconnaissance se fait sur ce téléphone et le texte n’est pas envoyé ; après le téléchargement, elle fonctionne hors ligne. Sans ce modèle, Morph pré-remplit quand même avec ses propres règles.',
@@ -523,6 +530,9 @@ export const fr: MessageTable = {
   translateDownloadBody:
     'Langues de traduction : {langs}. Ensuite, la traduction fonctionne hors connexion. Le Wi-Fi est conseillé.',
   translateDownload: 'Télécharger',
+  translateSystemDownloadAsk: 'La traduction doit d’abord télécharger des langues',
+  translateSystemDownloadBody:
+    'Langues à télécharger : {langs}. Votre iPhone va vous demander de confirmer, et le téléchargement peut prendre quelques minutes : restez dans Morph. La prochaine fois, vous pourrez les télécharger d’avance dans Réglages → Apps → Traduire sur l’iPhone.',
   translateDownloadFailed: 'les fichiers de langue {langs} (vérifiez la connexion, puis réessayez)',
   translateLanguageTitle: 'Langue de traduction : {name}',
   translateLanguageHint: 'Environ 30 Mo, pour traduire sur cet appareil (Google ML Kit).',
@@ -711,6 +721,15 @@ export const fr: MessageTable = {
   attachmentMoveUp: 'Monter',
   attachmentMoveDown: 'Descendre',
   attachmentsFull: '{n} fichiers au maximum',
+  // ---- 附件的「…」和放回记录（D-395）----
+  attachmentMore: 'Plus d’options pour « {name} »',
+  deskBackTitle: 'Revenir à l’entrée',
+  deskBackMessage: 'Comment ajouter le fichier du bureau à cette entrée ?',
+  deskBackAdd: 'Ajouter comme nouvelle pièce jointe',
+  deskBackReplace: 'Remplacer l’original',
+  deskBackFull:
+    'Cette entrée ne peut plus recevoir de pièces jointes : vous pouvez seulement remplacer l’original.',
+  deskBackNoRoom: 'Il y a trop de fichiers sur le bureau pour cette entrée.',
   runError_documentUnsupported:
     '« {name} » est un fichier {format}. Sur ce téléphone, seuls les documents Word (.docx) peuvent être convertis en PDF.',
   runError_tooLong:
@@ -767,6 +786,13 @@ export const fr: MessageTable = {
   describeChart: 'graphique « {v0} »',
   // D-254：更新的 App 加的组件，这个版本不认识，原样保留。
   describeUnknownComponent: 'contenu d’une version plus récente de cette app',
+  // v34 修改说明（describe.ts）
+  v34descDeskAddAbove: 'Ajouter {v0} au-dessus de l’aperçu sur le bureau',
+  v34descDeskAddBelow: 'Ajouter {v0} sous l’aperçu sur le bureau',
+  v34descDeskRemove: 'Retirer {v0} du bureau',
+  v34descDeskLayout: 'Modifier la disposition du bureau',
+  v34descQuickActionIcon: 'Changer l’icône de l’action rapide « {name} »',
+  v34descToolsChanged: 'modifier les boutons en un geste',
   unknownComponent:
     'Une version plus récente de cette app est nécessaire pour afficher ce contenu.',
   chartOther: 'Autres',
@@ -804,8 +830,14 @@ export const fr: MessageTable = {
     'Le menu de l’écran d’accueil contient au plus 4 actions rapides. Retirez-en une d’abord.',
   homeScreenGone: 'Cette action rapide n’est plus sur l’écran d’accueil.',
   describeRemovedReminders: 'Retire aussi les rappels qui en dépendaient : {names}',
+  describeRemovedRecordPages: 'Retire aussi les pages d’une entrée de ce tableau : {names}',
+  describeRemovedStep: 'L’étape « {step} » de l’action rapide « {name} » est retirée aussi',
+  describeTrimmedStep: 'L’étape « {step} » de l’action rapide « {name} » ne liste plus ce champ',
+  describeRemovedQuickAction:
+    'L’action rapide « {name} » ne peut plus fonctionner sans ce tableau et est retirée aussi',
   reminderWhenDaily: 'tous les jours à {time}',
   reminderWhenWeekly: 'chaque {days} à {time}',
+  reminderWhenAfterAdd: '{n} minutes après chaque nouvelle entrée de « {table} »',
   reminderWhenDate: '{n} jours avant « {field} » dans « {table} », à {time}',
   reminderWhenSchedule: 'Chaque entrée de « {table} » selon son « {field} », à {time}',
   reminderDoneButton: 'Fait',
@@ -819,6 +851,7 @@ export const fr: MessageTable = {
   weekday6: 'samedi',
   weekday7: 'dimanche',
   reminderDueToday: 'Une entrée de « {table} » arrive à échéance aujourd’hui',
+  reminderAddedAgo: 'Une entrée a été ajoutée à « {table} » il y a {n} minutes',
   reminderDueIn: 'Une entrée de « {table} » arrive à échéance dans {n} jours ({date})',
   remindersTitle: 'Rappels',
   remindersHint:
@@ -1217,6 +1250,13 @@ export const fr: MessageTable = {
   seqAvgDays: '{n} jours en moyenne',
   // 一天、一周从什么时候开始（D-286）
   describeDayStart: 'Une journée commence à {hour} h',
+  describeReadAttachmentsOn:
+    '« {name} » : lire les pièces jointes et proposer des valeurs dans les nouvelles entrées',
+  describeReadAttachmentsOff:
+    '« {name} » : ne plus lire les pièces jointes dans les nouvelles entrées',
+  readAttachmentsLabel: 'Lire les pièces jointes automatiquement',
+  readAttachmentsHint:
+    'Les nouvelles entrées lisent les photos et les PDF sur cet appareil et proposent des valeurs. Rien n’est rempli sans que vous touchiez la proposition.',
   describeWeekStartMonday: 'La semaine commence le lundi',
   describeWeekStartSunday: 'La semaine commence le dimanche',
   describeTwoWeekStart: 'Les périodes de deux semaines partent du {date}',
@@ -1324,12 +1364,14 @@ export const fr: MessageTable = {
   scheduleLastDoneHint: 'Compté à partir de la date de « {field} ».',
   describeRemovedRecordActions: 'Supprime aussi {n} boutons en un geste qui l’utilisaient',
   entryFormAdd: 'Ajouter',
+  describeAddedPageEntry:
+    'Rien n’ouvre encore la page « {page} » : une entrée vers elle est aussi ajoutée à la fin de l’accueil',
   describeAddedEntryForm:
     '« {table} » n’avait aucun moyen d’ajouter des entrées : un bouton « Ajouter » est aussi placé au-dessus de la liste',
   recordActionAdded: 'Ajouté à « {table} »',
   recordActionDone: '{label} : fait',
   recordActionChanged: '{n} entrées modifiées',
-  recordActionConfirm: 'Cela modifie {n} entrées. Vous pourrez annuler ensuite.',
+  recordActionConfirm: 'Cela modifie {n} entrées.',
   recordActionConfirmButton: 'Modifier',
   recordActionNothing: 'Aucune entrée à modifier',
   recordActionTooMany: 'Au plus {max} entrées peuvent changer à la fois ; cela en modifierait {n}.',
@@ -1415,6 +1457,17 @@ export const fr: MessageTable = {
   deskStorageAbout:
     'Fichiers en cours de modification et leurs versions (les 20 dernières, 500 Mo au plus).',
   deskStale: 'Inutilisé depuis {n} jours, vous pouvez le vider',
+  // 收件页面「存成记录」（D-392）。
+  shareRecord: 'Enregistrer comme entrée',
+  shareRecordAbout: 'Rangez les fichiers dans un tableau et remplissez le reste vous-même',
+  shareRecordChoose: 'Choisir',
+  shareRecordHide: 'Masquer',
+  shareRecordTables: 'Vos tableaux',
+  shareRecordPresets: 'Nouveau tableau',
+  shareRecordBlank: 'Vide',
+  shareRecordBlankAbout: 'Un titre et les fichiers. Vous pourrez renommer le tableau plus tard.',
+  shareRecordTooMany: 'Une entrée contient au plus {n} fichiers : seuls les {n} premiers y vont.',
+  shareRecordNewTable: 'Ajouter le tableau « {name} »',
 };
 
 export const frSingular: SingularTable = {
@@ -1464,6 +1517,7 @@ export const frSingular: SingularTable = {
   prefillMemoryRestoreConfirm:
     'Remplacer la mémoire de pré-remplissage actuelle par celle de ce fichier ({count} mise en page) ?',
   prefillMemoryRestored: '{count} mise en page restaurée.',
+  prefillMemoryPicks: '{count} suggestion choisie mémorisée',
   deleteForeverConfirm: 'Supprimer {count} entrée de « {name} » ? Cette action est irréversible.',
   editPageSummary: 'Modifier « {page} » ({count} modification)',
   deleteGroupMessage:
@@ -1480,7 +1534,9 @@ export const frSingular: SingularTable = {
   WorkflowsScreen_Needs_at_least_files_0ed9b: 'Au moins {v0} fichier requis',
   WorkflowsScreen_Takes_at_most_files_0fe59: 'Maximum {v0} fichier',
   runError_noneMatched: 'Le fichier ne remplit pas les conditions de « Filtrer les fichiers ».',
+  reminderWhenAfterAdd: '{n} minute après chaque nouvelle entrée de « {table} »',
   reminderWhenDate: '{n} jour avant « {field} » dans « {table} », à {time}',
+  reminderAddedAgo: 'Une entrée a été ajoutée à « {table} » il y a {n} minute',
   reminderDueIn: 'Une entrée de « {table} » arrive à échéance dans {n} jour ({date})',
   remindersRowHint: '{n} rappel',
   resultTablesMissing:
@@ -1499,11 +1555,12 @@ export const frSingular: SingularTable = {
   scheduleOverdue: 'En retard de {n} jour',
   describeRemovedRecordActions: 'Supprime aussi {n} bouton en un geste qui l’utilisait',
   recordActionChanged: '{n} entrée modifiée',
-  recordActionConfirm: 'Cela modifie {n} entrée. Vous pourrez annuler ensuite.',
+  recordActionConfirm: 'Cela modifie {n} entrée.',
   recordActionTooMany: 'Au plus {max} entrées peuvent changer à la fois ; cela en modifierait {n}.',
   calendarDayLabel: '{date}, {n} entrée',
   widgetDone: '{n} appui du widget enregistré',
   widgetSkipped: '{n} appui sur le widget n’a pas été enregistré, car la page a changé',
   deskTargets: 'Les outils s’appliquent à {n} fichier',
   deskStale: 'Inutilisé depuis {n} jour, vous pouvez le vider',
+  shareRecordTooMany: 'Une entrée contient au plus {n} fichier : seul le premier y va.',
 };

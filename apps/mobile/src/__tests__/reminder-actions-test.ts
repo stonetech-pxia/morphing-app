@@ -1,12 +1,15 @@
 import {
-  BUILTIN_TOOLS,
   applyOps,
+  BUILTIN_TOOLS,
   createDefaultWorkspace,
   createRegistry,
-  snoozeId,
+  migrateReminderV33,
+  v33Tables,
   type DataRecord,
   type Op,
   type Reminder,
+  remindersOf,
+  snoozeId,
   type WorkspaceConfig,
 } from '@morph/core';
 
@@ -20,8 +23,8 @@ import { FakeNotifications } from '../test-utils/fake-notifications';
 
 const registry = createRegistry(BUILTIN_TOOLS);
 const habitsTable: Op = {
-  op: 'addCollection',
-  collection: {
+  op: 'addData',
+  table: {
     id: 'habits',
     name: '习惯',
     fields: [
@@ -33,24 +36,22 @@ const habitsTable: Op = {
   },
 };
 const checkinsTable: Op = {
-  op: 'addCollection',
-  collection: {
+  op: 'addData',
+  table: {
     id: 'checkins',
     name: '打卡',
     fields: [
-      { id: 'habit', name: '习惯', type: 'link', collectionId: 'habits' },
+      { id: 'habit', name: '习惯', type: 'link', table: 'habits' },
       { id: 'day', name: '日期', type: 'date', required: true },
     ],
   },
 };
 const base: Reminder = {
   id: 'habit',
+  kind: 'reminder',
   title: '该做了',
   enabled: true,
-  schedule: 'scheduleField',
-  time: '20:00',
-  collectionId: 'habits',
-  fieldId: 'plan',
+  when: { each: { table: 'habits', field: 'plan' }, at: '20:00' },
   opens: 'page:home',
   snoozeMinutes: 15,
 };
@@ -59,7 +60,7 @@ const now = new Date(2026, 9, 22, 20, 1);
 async function setup(reminder: Partial<Reminder>) {
   const r = applyOps(
     createDefaultWorkspace('zh'),
-    [habitsTable, checkinsTable, { op: 'addReminder', reminder: { ...base, ...reminder } }],
+    [habitsTable, checkinsTable, { op: 'addTool', tool: { ...base, ...reminder } }],
     { registry, locale: 'zh' },
   );
   if (!r.ok) throw new Error(r.error);
@@ -89,7 +90,7 @@ const press = (button: 'done' | 'snooze', key = 'n1:1:x'): ReminderAction => ({
 describe('the Done button (D-318)', () => {
   it('set writes this entry, then reminders are planned again from tomorrow', async () => {
     const { repo, platform, deps, config } = await setup({
-      done: { do: 'set', fieldId: 'last', value: 'today' },
+      done: { do: 'set', table: 'habits', field: 'last', value: 'today' },
     });
     await syncReminders(
       platform,
@@ -111,8 +112,33 @@ describe('the Done button (D-318)', () => {
     expect(platform.scheduled![0]!.id).toBe('habit-run-20749');
   });
 
+  it('a reminder saved by the v33 app (scheduleField, done set) marks the entry done after migration', async () => {
+    // v33 写法：schedule + collectionId + fieldId，done 没有 table（作用在提醒的那张表上）。
+    const v33 = {
+      id: 'habit',
+      title: '该做了',
+      enabled: true,
+      schedule: 'scheduleField',
+      collectionId: 'habits',
+      fieldId: 'plan',
+      time: '20:00',
+      opens: 'page:home',
+      done: { do: 'set', fieldId: 'last', value: 'today' },
+    };
+    const migrated = migrateReminderV33(v33, v33Tables([{ id: 'habits', fields: [] }]));
+    const { repo, deps } = await setup(migrated as Partial<Reminder>);
+    expect(await handleReminderAction(press('done'), deps)).toEqual({
+      kind: 'done',
+      title: '跑步',
+    });
+    // 写的是提醒那张表里的这一条（v34 的 done 带 table：habits）。
+    expect((await repo.getRecord('run'))!.values.last).toBe('2026-10-22');
+  });
+
   it('increment adds to this entry; the same tap arriving twice counts once', async () => {
-    const { repo, deps } = await setup({ done: { do: 'increment', fieldId: 'count', by: 1 } });
+    const { repo, deps } = await setup({
+      done: { do: 'increment', table: 'habits', field: 'count', by: 1 },
+    });
     await handleReminderAction(press('done'), deps);
     expect(await handleReminderAction(press('done'), deps)).toEqual({ kind: 'skipped' });
     expect((await repo.getRecord('run'))!.values.count).toBe(3);
@@ -123,7 +149,7 @@ describe('the Done button (D-318)', () => {
 
   it('create adds a check-in linked to this entry', async () => {
     const { repo, deps } = await setup({
-      done: { do: 'create', collectionId: 'checkins', values: { habit: 'row', day: 'today' } },
+      done: { do: 'create', table: 'checkins', values: { habit: '$row', day: 'today' } },
     });
     await handleReminderAction(press('done'), deps);
     const checkins = await repo.listRecords('checkins');
@@ -131,19 +157,23 @@ describe('the Done button (D-318)', () => {
   });
 
   it('writes nothing when the entry was deleted, or a required field would stay empty', async () => {
-    const gone = await setup({ done: { do: 'set', fieldId: 'last', value: 'today' } });
+    const gone = await setup({
+      done: { do: 'set', table: 'habits', field: 'last', value: 'today' },
+    });
     await gone.repo.deleteRecord('run', 1);
     expect(await handleReminderAction(press('done'), gone.deps)).toEqual({ kind: 'skipped' });
 
     const missing = await setup({
-      done: { do: 'create', collectionId: 'checkins', values: { habit: 'row' } },
+      done: { do: 'create', table: 'checkins', values: { habit: '$row' } },
     });
     expect(await handleReminderAction(press('done'), missing.deps)).toEqual({ kind: 'skipped' });
     expect(await missing.repo.listRecords('checkins')).toEqual([]);
   });
 
   it('never touches anything but entries: no quick action, no AI, no new version', async () => {
-    const { repo, deps } = await setup({ done: { do: 'set', fieldId: 'last', value: 'today' } });
+    const { repo, deps } = await setup({
+      done: { do: 'set', table: 'habits', field: 'last', value: 'today' },
+    });
     const before = await repo.listRevisions(10);
     await handleReminderAction(press('done'), deps);
     expect(await repo.listRevisions(10)).toEqual(before);
@@ -154,7 +184,7 @@ describe('the Done button (D-318)', () => {
 describe('Remind me later (D-318)', () => {
   it('plans one more notification after snoozeMinutes, kept apart and counted against the limit', async () => {
     const { repo, platform, deps, config } = await setup({
-      done: { do: 'set', fieldId: 'last', value: 'today' },
+      done: { do: 'set', table: 'habits', field: 'last', value: 'today' },
     });
     expect(await handleReminderAction(press('snooze'), deps)).toEqual({ kind: 'snoozed' });
     expect(platform.snoozes).toEqual([
@@ -174,6 +204,6 @@ describe('Remind me later (D-318)', () => {
     // 再点「完成」：稍后提醒取消。
     await handleReminderAction(press('done', 'n3:3:x'), deps);
     expect(platform.snoozes).toEqual([]);
-    expect(config.reminders).toHaveLength(1);
+    expect(remindersOf(config)).toHaveLength(1);
   });
 });

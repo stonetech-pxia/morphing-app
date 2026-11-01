@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 34,
+  "theme": {
+    "primaryColor": "#C8623A",
+    "mode": "light",
+    "colors": {},
+    "font": "clay",
+    "fontScale": 1,
+    "radius": 22,
+    "density": "comfortable",
+    "cardStyle": "shadow",
+    "navStyle": "iconLabel"
+  },
+  "nav": {
+    "bar": ["page:home", "tools", "ai", "history", "settings"],
+    "floating": []
+  },
+  "data": {
+    "tables": [
+      {
+        "id": "todos",
+        "name": "待办",
+        "icon": "check",
+        "fields": [
+          {
+            "id": "title",
+            "name": "事项",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "done",
+            "name": "完成",
+            "type": "checkbox"
+          },
+          {
+            "id": "due",
+            "name": "截止日期",
+            "type": "date"
+          }
+        ]
+      }
+    ]
+  },
+  "containers": {
+    "pages": [
+      {
+        "id": "home",
+        "title": "首页",
+        "icon": "home",
+        "blocks": [
+          {
+            "id": "welcome",
+            "look": "header",
+            "show": {
+              "title": "我的工作台",
+              "subtitle": "点「AI 修改」，用一句话改造这个 App"
+            }
+          },
+          {
+            "id": "catalog",
+            "look": "entry",
+            "show": {
+              "title": "添加工具",
+              "icon": "plus",
+              "shape": "tile",
+              "accent": true
+            },
+            "opens": "tools"
+          },
+          {
+            "id": "recent-files",
+            "look": "files",
+            "show": {
+              "title": "最近文件"
+            },
+            "source": {
+              "table": "$files",
+              "filter": [
+                {
+                  "field": "kind",
+                  "op": "isNot",
+                  "value": "image"
+                }
+              ],
+              "limit": 5
+            }
+          }
+        ]
+      },
+      {
+        "id": "todo",
+        "title": "待办",
+        "icon": "check",
+        "blocks": [
+          {
+            "id": "title",
+            "look": "header",
+            "show": {
+              "title": "待办"
+            }
+          },
+          {
+            "id": "open-count",
+            "look": "number",
+            "show": {
+              "label": "未完成"
+            },
+            "source": {
+              "table": "todos",
+              "aggregate": "count",
+              "filter": [
+                {
+                  "field": "done",
+                  "op": "is",
+                  "value": false
+                }
+              ]
+            }
+          },
+          {
+            "id": "add",
+            "look": "form",
+            "show": {
+              "mode": "inline"
+            },
+            "tools": [
+              {
+                "as": "submit",
+                "label": "添加",
+                "do": "create",
+                "table": "todos",
+                "ask": ["title"]
+              }
+            ]
+          },
+          {
+            "id": "tasks",
+            "look": "checklist",
+            "source": {
+              "table": "todos",
+              "sort": {
+                "field": "createdAt",
+                "direction": "desc"
+              },
+              "limit": 50
+            },
+            "show": {
+              "title": "title",
+              "subtitles": ["due"],
+              "emptyText": "没有待办事项"
+            },
+            "tools": [
+              {
+                "as": "check",
+                "do": "toggle",
+                "table": "todos",
+                "field": "done"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "tools": [],
+  "packages": []
+}

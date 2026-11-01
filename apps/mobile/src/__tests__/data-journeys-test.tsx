@@ -9,6 +9,7 @@ import {
   createRegistry,
   templateOps,
   type AIProvider,
+  type WorkspaceConfig,
 } from '@morph/core';
 import { createClaudePlanner, type PlannerMessage } from '@morph/planner';
 import { fireEvent } from '@testing-library/react-native';
@@ -188,7 +189,7 @@ describe('user data (UI)', () => {
     // 恢复到建表之前的版本：数据表离开界面，记录保留在「设置 → 数据」。
     expect((await store.getState().proposeRestore(1)).kind).toBe('preview');
     await store.getState().confirm();
-    expect(store.getState().config!.collections).toEqual([]);
+    expect(store.getState().config!.data.tables).toEqual([]);
     expect(await repo.listRecords('expenses')).toEqual(entries);
 
     // 记账页已不存在，回到外壳。
@@ -202,11 +203,11 @@ describe('user data (UI)', () => {
 
     // 再恢复到有这张表的版本：记录原样回来。
     const withTable = (await repo.listRevisions(20)).find(
-      (r) => (r.config as { collections?: unknown[] }).collections?.length,
+      (r) => (r.config as WorkspaceConfig).data.tables.length,
     )!;
     expect((await store.getState().proposeRestore(withTable.id)).kind).toBe('preview');
     await store.getState().confirm();
-    expect(store.getState().config!.collections.map((c) => c.id)).toEqual(['expenses']);
+    expect(store.getState().config!.data.tables.map((c) => c.id)).toEqual(['expenses']);
     expect(await repo.listRecords('expenses')).toEqual(entries);
   });
 
@@ -221,7 +222,7 @@ describe('user data (UI)', () => {
       createdAt: 1,
       updatedAt: 1,
     });
-    await store.getState().proposeOps([{ op: 'removeCollection', collectionId: 'notes' }], '移除');
+    await store.getState().proposeOps([{ op: 'removeData', table: 'notes' }], '移除');
     await store.getState().confirm();
 
     await fireEvent.press(await screen.findByTestId('nav-settings'));
@@ -281,7 +282,7 @@ describe('Settings → Data: app design and prefill memory', () => {
     expect(name).toMatch(/^morph-config-\d{4}-\d{2}-\d{2}\.json$/);
     const file = JSON.parse(text!);
     expect(file.format).toBe('morph-app-config');
-    expect(file.config.collections.map((c: { id: string }) => c.id)).toContain('notes');
+    expect(file.config.data.tables.map((c: { id: string }) => c.id)).toContain('notes');
     expect(text).not.toContain('秘密想法');
   });
 

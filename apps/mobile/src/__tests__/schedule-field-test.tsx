@@ -33,37 +33,38 @@ const seed = (locale: Locale, registry: Registry) => {
   const result = applyOps(
     createDefaultWorkspace(locale),
     [
-      { op: 'addCollection', collection: plants },
+      { op: 'addData', table: plants },
       {
-        op: 'addComponent',
-        pageId: 'home',
-        component: {
+        op: 'addContainer',
+        page: 'home',
+        block: {
           id: 'add',
-          type: 'recordForm',
-          props: {
-            collectionId: 'plants',
-            fieldIds: ['name', 'plan', 'watered'],
-            submitLabel: 'Add',
-            mode: 'inline',
-          },
+          look: 'form',
+          show: { mode: 'inline' },
+          tools: [
+            {
+              as: 'submit',
+              label: 'Add',
+              do: 'create',
+              table: 'plants',
+              ask: ['name', 'plan', 'watered'],
+            },
+          ],
         },
       },
       {
-        op: 'addComponent',
-        pageId: 'home',
-        component: {
+        op: 'addContainer',
+        page: 'home',
+        block: {
           id: 'due',
-          type: 'recordList',
-          props: {
-            collectionId: 'plants',
-            display: 'list',
-            titleField: 'name',
-            subtitleFields: ['plan'],
+          look: 'list',
+          source: {
+            table: 'plants',
             filter: [{ field: 'plan', op: 'due', value: 'today' }],
             sort: { field: 'plan', direction: 'asc' },
-            emptyText: 'Nothing to water',
             limit: 10,
           },
+          show: { title: 'name', subtitles: ['plan'], emptyText: 'Nothing to water' },
         },
       },
     ],

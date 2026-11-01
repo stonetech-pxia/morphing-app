@@ -123,6 +123,7 @@ describe('房间里的工具', () => {
 
   it('快捷操作按钮把整个快捷操作作用到桌上的文件（不再选文件），生成一个版本', async () => {
     const rotateTwice: Workflow = {
+      kind: 'quickAction',
       id: 'rotate-twice',
       name: '转两次',
       steps: [
@@ -133,7 +134,7 @@ describe('房间里的工具', () => {
     };
     const seed = (locale: Locale, registry: Registry) => {
       const base = createStarterWorkspace(locale, registry);
-      return { ...base, workflows: [...base.workflows, rotateTwice] };
+      return { ...base, tools: [...base.tools, rotateTwice] };
     };
     const { files } = await renderToolsApp(undefined, undefined, { seed });
     await openShare(files, ['IMG_1.jpg']);
@@ -338,18 +339,24 @@ describe('边界', () => {
 });
 
 describe('布局配置（D-358）', () => {
-  const seed = (locale: Locale, registry: Registry) => ({
-    ...createStarterWorkspace(locale, registry),
-    desk: {
-      toolbar: 'top' as const,
-      above: [{ id: 'tip', type: 'notice' as const, props: { text: '先旋转再转 PDF' } }],
-      tools: {
-        image: [
-          { title: '常用', items: [{ action: 'image.rotate' }, { action: 'pdf.fromImages' }] },
-        ],
+  const seed = (locale: Locale, registry: Registry) => {
+    const base = createStarterWorkspace(locale, registry);
+    return {
+      ...base,
+      containers: {
+        ...base.containers,
+        desk: {
+          toolbar: 'top' as const,
+          above: [{ id: 'tip', look: 'notice' as const, show: { text: '先旋转再转 PDF' } }],
+          tools: {
+            image: [
+              { title: '常用', items: [{ action: 'image.rotate' }, { action: 'pdf.fromImages' }] },
+            ],
+          },
+        },
       },
-    },
-  });
+    };
+  };
 
   it('配置里写的工具栏、位置和预览上方的说明都用上；没写的种类照旧用默认', async () => {
     const { files } = await renderToolsApp(undefined, undefined, { seed });

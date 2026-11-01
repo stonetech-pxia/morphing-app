@@ -45,22 +45,29 @@ const tasks: Collection = {
   ],
 };
 
-const list = (id: string, props: Record<string, unknown>): NewComponent =>
+const addHere = { as: 'addHere', do: 'create', table: 'tasks', ask: 'all', values: '$here' };
+
+const list = (
+  id: string,
+  block: { look?: string; source?: object; show?: object; tools?: object[] },
+): NewComponent =>
   ({
     id,
-    type: 'recordList',
-    props: { collectionId: 'tasks', titleField: 'title', limit: 30, ...props },
+    look: 'list',
+    ...block,
+    source: { table: 'tasks', limit: 30, ...block.source },
+    show: { title: 'title', ...block.show },
   }) as NewComponent;
 
 const seed = (components: NewComponent[]) => (locale: Locale, registry: Registry) => {
   const result = applyOps(
     createDefaultWorkspace(locale),
     [
-      { op: 'addCollection' as const, collection: tasks },
-      ...components.map((component) => ({
-        op: 'addComponent' as const,
-        pageId: 'home',
-        component,
+      { op: 'addData' as const, table: tasks },
+      ...components.map((block) => ({
+        op: 'addContainer' as const,
+        page: 'home',
+        block,
       })),
     ],
     { registry, locale },
@@ -95,11 +102,11 @@ it('sections show every section with its count, fold, and add into the section w
     locale: 'zh',
     seed: seed([
       list('inbox', {
-        display: 'list',
-        groupBy: 'section',
-        showEmpty: true,
-        addHere: true,
-        filter: [{ field: 'status', op: 'is', value: 'open' }],
+        source: {
+          group: { by: 'section', showEmpty: true },
+          filter: [{ field: 'status', op: 'is', value: 'open' }],
+        },
+        tools: [addHere],
       }),
     ]),
   });
@@ -136,8 +143,12 @@ it('a new user: sections by day show nothing to group; a calendar on the schedul
   const { router } = await renderToolsApp(repo, undefined, {
     locale: 'zh',
     seed: seed([
-      list('days', { display: 'list', groupBy: 'plan', emptyText: '没有任务' }),
-      list('cal', { display: 'calendar', dateField: 'plan', addHere: true }),
+      list('days', { source: { group: { by: 'plan' } }, show: { emptyText: '没有任务' } }),
+      list('cal', {
+        look: 'calendar',
+        source: { group: { by: 'plan', unit: 'day' } },
+        tools: [addHere],
+      }),
     ]),
   });
   expect(await screen.findByText('没有任务')).toBeTruthy();
@@ -154,8 +165,8 @@ it('a weekly task sits on its coming days in the calendar and in a section per d
   await renderToolsApp(repo, undefined, {
     locale: 'zh',
     seed: seed([
-      list('days', { display: 'list', groupBy: 'plan', subtitleFields: ['plan'] }),
-      list('cal', { display: 'calendar', dateField: 'plan' }),
+      list('days', { source: { group: { by: 'plan' } }, show: { subtitles: ['plan'] } }),
+      list('cal', { look: 'calendar', source: { group: { by: 'plan', unit: 'day' } } }),
     ]),
   });
   const today = todayNumber(new Date());

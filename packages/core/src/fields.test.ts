@@ -13,7 +13,7 @@ import {
   type WorkspaceConfig,
 } from './schema';
 import { expandCollection } from './related';
-import { registry, workspace } from './test-helpers';
+import { fromV33, registry, v33Fixture } from './test-helpers';
 import { validateWorkspace } from './validate';
 
 // 每种登记的字段都要满足的事（新增字段类型时这里自动检查它，见 docs/FIELDS.md）。
@@ -29,14 +29,12 @@ const table: Collection = {
 };
 
 function config(locale: Locale, components: Component[] = [], fields = table.fields) {
-  const base = workspace(locale);
+  const base = fromV33(v33Fixture(`default-${locale}`));
+  const [home, ...rest] = base.containers.pages;
   return {
     ...base,
-    collections: [{ ...table, fields }],
-    pages: [
-      { ...base.pages[0]!, components: [...base.pages[0]!.components, ...components] },
-      ...base.pages.slice(1),
-    ],
+    data: { tables: [{ ...table, fields }] },
+    containers: { pages: [{ ...home!, blocks: [...home!.blocks, ...components] }, ...rest] },
   } as WorkspaceConfig;
 }
 
@@ -45,11 +43,12 @@ const issues = (c: WorkspaceConfig) => {
   return result.ok ? [] : result.issues.map((i) => i.message);
 };
 
-const list = (extra: Record<string, unknown>): Component =>
+const list = (source: Record<string, unknown>): Component =>
   ({
     id: 'list',
-    type: 'recordList',
-    props: { collectionId: 'expenses', display: 'list', titleField: 'title', limit: 5, ...extra },
+    look: 'list',
+    source: { table: 'expenses', limit: 5, ...source },
+    show: { title: 'title' },
   }) as Component;
 
 it('every field type has a different example id', () => {
@@ -132,10 +131,11 @@ describe.each(FIELDS.map((d) => [d.type, d] as const))('field %s', (_type, def) 
   });
 
   it('is usable in forms, sorting, stats and formulas as its definition says', () => {
-    const form: Component = {
+    const form = {
       id: 'form',
-      type: 'recordForm',
-      props: { collectionId: 'expenses', fieldIds: [field.id], submitLabel: 'Add', mode: 'inline' },
+      look: 'form',
+      show: { mode: 'inline' },
+      tools: [{ as: 'submit', label: 'Add', do: 'create', table: 'expenses', ask: [field.id] }],
     } as Component;
     expect(issues(config('en', [form])).length === 0).toBe(def.inForm !== false);
     expect(
@@ -143,8 +143,9 @@ describe.each(FIELDS.map((d) => [d.type, d] as const))('field %s', (_type, def) 
     ).toBe(shown.sort !== false);
     const stat = {
       id: 'stat',
-      type: 'stat',
-      props: { collectionId: 'expenses', aggregate: 'sum', fieldId: field.id, label: 'Sum' },
+      look: 'number',
+      show: { label: 'Sum' },
+      source: { table: 'expenses', aggregate: 'sum', field: field.id },
     } as Component;
     expect(issues(config('en', [stat])).length === 0).toBe(shown.numeric === true);
     const formula: Field = {

@@ -24,6 +24,7 @@ const NONE = {
 };
 
 const wf = (first: WorkflowStep, filter: Record<string, unknown>): Workflow => ({
+  kind: 'quickAction',
   id: 'mine',
   name: '筛选',
   steps: [first, { id: 'keep', action: 'file.filter', params: { ...NONE, ...filter } }],

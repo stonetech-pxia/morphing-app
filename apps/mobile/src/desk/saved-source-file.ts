@@ -5,7 +5,7 @@ import { extOf } from '../runtime/actions/helpers';
 import type { FilePlatform } from '../runtime/platform';
 import { mapSourcePaths, sourcePaths, type DeskSourceDoc } from './store';
 
-// 用户文件旁边的中间格式（D-367、D-368）：assets/<id>/morph-source.json 和它用到的图片
+// 用户文件旁边的中间格式（D-367、D-400）：assets/<id>/morph-source.json 和它用到的图片
 // morph-source-<n>.<扩展名>（JSON 里写同一目录里的文件名）。房间里存的、结果页的「保存」、
 // 快捷操作的保存步骤都写这一份，从存储空间「放到桌上」时读它（saved-source.ts）。
 // 单独一个文件：保存步骤（runtime/actions/io.ts）也要用，saved-source.ts 又用着 io.ts 的 saveItems。
@@ -55,7 +55,7 @@ export async function writeSavedSource(
 }
 
 /**
- * 结果页的「保存」、快捷操作的保存步骤（D-368）：转 Excel、转 Word 的结果带着中间格式时，跟着存一份。
+ * 结果页的「保存」、快捷操作的保存步骤（D-400）：转 Excel、转 Word 的结果带着中间格式时，跟着存一份。
  * 中间格式不再对应这个文件（后面的步骤改过它）、读不出来时只存文件，和放到桌上一样。
  * 运行目录里的中间格式和图片只复制（运行页关掉时才删）。
  */

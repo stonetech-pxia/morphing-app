@@ -2,7 +2,7 @@ import {
   SYSTEM_TARGET_ICONS,
   navTargetLabel,
   pageIdOf,
-  workflowTargetId,
+  toolTargetId,
   type IconValue,
   type Locale,
   type NavTarget,
@@ -18,15 +18,15 @@ import { useWorkspace } from '../workspace/context';
  * - AI 修改是单独的页面；
  * - 导航栏里的页面和系统入口（工具、历史、设置）在外壳里切换显示；
  * - 不在导航栏里的页面推入一个带返回按钮的新页面；
- * - 快捷操作 workflow:<id> 只打开摆出来（D-256）。
+ * - 快捷操作 tool:<id> 只打开摆出来（D-256）。
  */
 export function useNavigate(): (target: OpenTarget) => void {
   const router = useRouter();
-  const nav = useWorkspace((s) => s.config!.shell.nav);
+  const nav = useWorkspace((s) => s.config!.nav.bar);
   const selectTab = useWorkspace((s) => s.selectTab);
   return (target) => {
     // 按钮、快捷入口打开的快捷操作（D-256）：只摆出来，用户点「开始」才运行（和提醒一样，P-043）。
-    const workflowId = workflowTargetId(target);
+    const workflowId = toolTargetId(target);
     if (workflowId !== null) {
       router.push({ pathname: '/reminder/[workflowId]', params: { workflowId, from: 'entry' } });
       return;
@@ -54,7 +54,7 @@ export function useNavigate(): (target: OpenTarget) => void {
 export function targetIcon(target: NavTarget, config: WorkspaceConfig): IconValue {
   const pageId = pageIdOf(target);
   if (pageId === null) return SYSTEM_TARGET_ICONS[target as keyof typeof SYSTEM_TARGET_ICONS];
-  return config.pages.find((p) => p.id === pageId)?.icon ?? 'bookmark';
+  return config.containers.pages.find((p) => p.id === pageId)?.icon ?? 'bookmark';
 }
 
 export function targetLabel(target: NavTarget, config: WorkspaceConfig, locale: Locale): string {

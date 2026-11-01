@@ -1,4 +1,8 @@
 // 仅供测试使用的辅助函数（不从 index.ts 导出）。
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { migrateWorkspace } from './migrate';
 import { applyOps, type Op } from './ops';
 import { createRegistry } from './registry';
 import { createDefaultWorkspace } from './defaults';
@@ -15,7 +19,26 @@ export function apply(config: WorkspaceConfig, ops: Op[], locale: Locale = 'zh')
 
 export function workspace(locale: Locale = 'zh', { withPdf = false } = {}): WorkspaceConfig {
   const config = createDefaultWorkspace(locale);
-  return withPdf ? apply(config, [{ op: 'installTool', toolId: 'pdf' }], locale) : config;
+  return withPdf
+    ? apply(config, [{ op: 'setPackage', package: 'pdf', do: 'add' }], locale)
+    : config;
+}
+
+/**
+ * 一份 v33 的配置（测试里照旧写的，或者 fixtures/v33/ 里存的）经过迁移链升到 v34。只迁移、不校验：
+ * 校验交给要测的那一步。
+ */
+export function fromV33(raw: unknown): WorkspaceConfig {
+  const result = migrateWorkspace({ schemaVersion: 33, ...(raw as object) });
+  if (!result.ok) throw new Error(result.error);
+  return result.config as WorkspaceConfig;
+}
+
+/** fixtures/v33/<name>.json：v34 迁移前用 v33 代码存下来的配置（默认、新用户、模版、样板、评测 setup）。 */
+export function v33Fixture(name: string): Record<string, unknown> {
+  return JSON.parse(
+    readFileSync(join(__dirname, 'fixtures', 'v33', `${name}.json`), 'utf8'),
+  ) as Record<string, unknown>;
 }
 
 /**

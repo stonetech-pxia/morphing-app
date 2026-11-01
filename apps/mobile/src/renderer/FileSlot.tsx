@@ -1,4 +1,4 @@
-import { MEDIA_LIMITS, RunError, type ComponentOf } from '@morph/core';
+import { MEDIA_LIMITS, RunError, isFileTarget, type BlockOf } from '@morph/core';
 import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 
@@ -62,30 +62,27 @@ export function useSlotAsset(assetId: string | null | undefined): AssetRecord | 
   return loaded?.id === assetId ? loaded.asset : undefined;
 }
 
-export function FileSlot({
-  component,
-  env,
-}: {
-  component: ComponentOf<'fileSlot'>;
-  env: RenderEnv;
-}) {
+export function FileSlot({ component, env }: { component: BlockOf<'entry'>; env: RenderEnv }) {
   const { locale } = env;
-  const { props } = component;
+  // 文件位是 opens 为 {file} 的入口（原 fileSlot）。
+  const show = component.show ?? {};
+  const title = show.title ?? '';
+  const assetId = isFileTarget(component.opens) ? component.opens.file : null;
   const { repo, files } = useWorkspaceContext();
   const proposeOps = useWorkspace((s) => s.proposeOps);
   const confirm = useWorkspace((s) => s.confirm);
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
-  const asset = useSlotAsset(props.assetId);
+  const asset = useSlotAsset(assetId);
 
   async function setFile(assetId: string) {
     if (!env.pageId) return;
     const result = await proposeOps(
       [
         {
-          op: 'setComponentProps',
-          pageId: env.pageId,
-          componentId: component.id,
-          props: { assetId },
+          op: 'updateContainer',
+          page: env.pageId,
+          block: component.id,
+          changes: { opens: { file: assetId } },
         },
       ],
       t(locale, 'setFileSummary'),
@@ -99,9 +96,7 @@ export function FileSlot({
   }
 
   async function choose() {
-    const id = await chooseSlotFile(locale, props.title, (source) =>
-      importSlotFile(source, files, repo),
-    );
+    const id = await chooseSlotFile(locale, title, (source) => importSlotFile(source, files, repo));
     if (!id) return;
     bumpAssets();
     await setFile(id);
@@ -112,7 +107,7 @@ export function FileSlot({
       await files.previewFile({ uri: files.fileUri(a.path), mimeType: a.mimeType, name: a.name });
     } catch (e) {
       Alert.alert(
-        props.title,
+        title,
         e instanceof RunError
           ? runErrorText(locale, e.code, e.detail)
           : runErrorText(locale, 'previewFailed'),
@@ -122,17 +117,17 @@ export function FileSlot({
 
   const subtitle = asset
     ? asset.name
-    : asset === null && props.assetId
+    : asset === null && assetId
       ? t(locale, 'fileSlotMissing')
       : asset === undefined
         ? undefined
-        : (props.hint ?? t(locale, 'fileSlotPlaceholder'));
+        : (show.hint ?? t(locale, 'fileSlotPlaceholder'));
   return (
     <Tile
       env={env}
       style={component.style}
-      icon={props.icon ?? 'document'}
-      title={props.title}
+      icon={show.icon ?? 'document'}
+      title={title}
       subtitle={subtitle}
       testID={`file-slot-${component.id}`}
       onPress={() => {
@@ -140,7 +135,7 @@ export function FileSlot({
         if (asset) void open(asset);
         else if (asset === null) void choose();
       }}
-      look={props.look ?? 'row'}
+      look={show.shape ?? 'row'}
     />
   );
 }

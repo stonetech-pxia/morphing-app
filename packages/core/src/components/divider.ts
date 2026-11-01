@@ -1,15 +1,18 @@
 import { z } from 'zod';
 
 import { t } from '../messages';
-import { type ComponentDefinitionOf, defineComponent } from './define';
+import { type LookDefinitionOf, defineLook } from './define';
 
-const props = z.strictObject({});
+const shape = { show: z.strictObject({}).optional() };
 
-export const dividerComponent: ComponentDefinitionOf<'divider', typeof props> = defineComponent({
-  type: 'divider',
-  props,
+export const dividerComponent: LookDefinitionOf<'divider', typeof shape> = defineLook({
+  look: 'divider',
+  shape,
+  kind: 'container',
+  reads: 'none',
+  writes: false,
   describe: (_c, _config, ctx) => t(ctx.locale, 'describe_divider_7fe10'),
   edit: { text: [], style: [] },
-  ai: { doc: '{}' },
-  example: { props: {} },
+  ai: { doc: 'no show' },
+  example: {},
 });

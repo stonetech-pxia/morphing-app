@@ -106,6 +106,7 @@ export function useRunHost(palette: Palette, locale: Locale): RunHost {
         <Modal
           visible
           animationType="slide"
+          presentationStyle="overFullScreen"
           onRequestClose={() => {
             local.resolve(null);
             setLocal(null);

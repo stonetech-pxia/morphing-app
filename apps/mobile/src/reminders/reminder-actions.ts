@@ -6,6 +6,8 @@ import {
   prepareRecordValues,
   reminderButtons,
   reminderDoneInput,
+  reminderTable,
+  remindersOf,
   snoozeId,
   type Locale,
   type WorkspaceConfig,
@@ -82,10 +84,11 @@ async function handle(
   await platform.dismiss(action.notificationId).catch(() => undefined);
 
   const config = await loadConfig(repo);
-  const r = config?.reminders?.find(
-    (x) => x.id === action.reminderId && x.schedule === 'scheduleField',
-  );
-  const collection = config?.collections.find((c) => c.id === r?.collectionId);
+  const r = config
+    ? remindersOf(config).find((x) => x.id === action.reminderId && 'each' in x.when)
+    : undefined;
+  const table = r && reminderTable(r)?.table;
+  const collection = config?.data.tables.find((c) => c.id === table);
   const record = await repo.getRecord(action.recordId);
   if (!config || !r || !collection || !record || record.deletedAt !== null)
     return { kind: 'skipped' };

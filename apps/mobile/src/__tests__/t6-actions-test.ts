@@ -1,10 +1,11 @@
 import {
-  BUILTIN_TOOLS,
-  ID_PHOTO_CHOICES,
   applyOps,
+  BUILTIN_TOOLS,
+  type Collection,
   createDefaultWorkspace,
   createRegistry,
-  type Collection,
+  ID_PHOTO_CHOICES,
+  quickActionsOf,
   type RunResult,
   type Workflow,
 } from '@morph/core';
@@ -23,15 +24,24 @@ import { FakeFiles, makePdf } from '../test-utils/fake-files';
 const registry = createRegistry(BUILTIN_TOOLS);
 
 function toolWorkflow(toolId: string, id: string): Workflow {
-  const result = applyOps(createDefaultWorkspace('zh'), [{ op: 'installTool', toolId }], {
-    registry,
-    locale: 'zh',
-  });
+  const result = applyOps(
+    createDefaultWorkspace('zh'),
+    [{ op: 'setPackage', package: toolId, do: 'add' }],
+    {
+      registry,
+      locale: 'zh',
+    },
+  );
   if (!result.ok) throw new Error(result.error);
-  return result.config.workflows.find((w) => w.id === id)!;
+  return quickActionsOf(result.config).find((w) => w.id === id)!;
 }
 
-const mine = (steps: Workflow['steps']): Workflow => ({ id: 'mine', name: '我的', steps });
+const mine = (steps: Workflow['steps']): Workflow => ({
+  kind: 'quickAction',
+  id: 'mine',
+  name: '我的',
+  steps,
+});
 
 const expenses: Collection = {
   id: 'expenses',
@@ -313,6 +323,7 @@ describe('QR codes and text', () => {
 
     const text = setup(
       {
+        kind: 'quickAction',
         id: 'w',
         name: 'w',
         steps: [

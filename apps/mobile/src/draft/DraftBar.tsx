@@ -1,4 +1,4 @@
-import { localize, type Workflow } from '@morph/core';
+import { localize, quickActionsOf, type Workflow } from '@morph/core';
 
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -143,10 +143,14 @@ export function DraftChatSheet() {
 function addedWorkflow(draft: Draft, index: number): Workflow | undefined {
   const step = draft.steps[index]!;
   const before = index > 0 ? draft.steps[index - 1]!.config : null;
-  const known = new Set(before?.workflows.map((w) => w.id));
-  const added = step.ops.flatMap((op) => (op.op === 'addWorkflow' ? [op.workflow.id] : []));
+  const known = new Set(before ? quickActionsOf(before).map((w) => w.id) : []);
+  const added = step.ops.flatMap((op) =>
+    op.op === 'addTool' && typeof op.tool === 'object' && op.tool.kind === 'quickAction'
+      ? [op.tool.id]
+      : [],
+  );
   const id = added.find((x) => !known.has(x));
-  return id ? step.config.workflows.find((w) => w.id === id) : undefined;
+  return id ? quickActionsOf(step.config).find((w) => w.id === id) : undefined;
 }
 
 /** 最新一步的回复：改了什么（新做的快捷操作列出步骤，一条一条长出来）和 AI 的说明。可以收起、再打开。 */

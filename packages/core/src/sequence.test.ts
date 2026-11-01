@@ -7,6 +7,7 @@ import { createDefaultWorkspace } from './defaults';
 import type { Collection, NewComponent } from './schema';
 import {
   avgInterval,
+  dateFieldOf,
   daysSince,
   distinctDays,
   sequenceValue,
@@ -112,7 +113,7 @@ describe('streakOf (D-284)', () => {
 
   it('a skipped day neither breaks nor adds', () => {
     const records = [on('2026-10-19'), on('2026-10-20', 'skip'), on('2026-10-21')];
-    const rule: StreakRule = { ...daily, skip: { fieldId: 'status', optionId: 'skip' } };
+    const rule: StreakRule = { ...daily, skip: { field: 'status', option: 'skip' } };
     expect(streakOf(records, log, rule, ctx(thursday))).toEqual({ current: 2, best: 2 });
     // 不设跳过时，「跳过」那条也算记了一笔。
     expect(streakOf(records, log, daily, ctx(thursday))).toEqual({ current: 3, best: 3 });
@@ -232,56 +233,59 @@ describe('daysSince, avgInterval, distinctDays (D-284)', () => {
   });
 });
 
-describe('stat and chart with these aggregates (D-284)', () => {
+describe('number and chart with these aggregates (D-284)', () => {
   const changeCtx = { registry, locale: 'en' as const, now: thursday };
-  const add = (component: NewComponent) =>
+  const add = (block: NewComponent) =>
     prepareOps(
       createDefaultWorkspace('en'),
       [
-        { op: 'addCollection', collection: log },
-        { op: 'addComponent', pageId: 'home', component },
+        { op: 'addData', table: log },
+        { op: 'addContainer', page: 'home', block },
       ],
       changeCtx,
     );
-  const stat = (props: Record<string, unknown>): NewComponent =>
+  const number = (source: Record<string, unknown>): NewComponent =>
     ({
       id: 's',
-      type: 'stat',
-      props: { collectionId: 'log', label: 'Streak', ...props },
+      look: 'number',
+      show: { label: 'Streak' },
+      source: { table: 'log', ...source },
     }) as NewComponent;
-  const problems = (component: NewComponent) => {
-    const result = add(component);
+  const problems = (block: NewComponent) => {
+    const result = add(block);
     return result.ok ? [] : result.issues;
   };
 
   it('a streak per habit, with a skip option', () => {
     expect(
       problems(
-        stat({
+        number({
           aggregate: 'streak',
-          unit: 'week',
-          perUnit: 3,
-          groupBy: 'habit',
-          skipField: 'status',
-          skipOption: 'skip',
+          days: { unit: 'week', perUnit: 3, skip: { field: 'status', option: 'skip' } },
+          group: { by: 'habit' },
         }),
       ),
     ).toEqual([]);
-    expect(problems(stat({ aggregate: 'daysSince', dateField: 'createdAt' }))).toEqual([]);
+    expect(problems(number({ aggregate: 'daysSince', days: { date: 'createdAt' } }))).toEqual([]);
   });
 
   it('explains what is wrong', () => {
-    expect(String(problems(stat({ aggregate: 'sum', unit: 'week' })))).toMatch(
+    expect(String(problems(number({ aggregate: 'sum', days: { unit: 'week' } })))).toMatch(
       /only apply to aggregate "streak"/,
     );
     expect(
-      String(problems(stat({ aggregate: 'streak', skipField: 'status', skipOption: 'nope' }))),
-    ).toMatch(/skipOption must be an option id of status/);
-    expect(String(problems(stat({ aggregate: 'streak', skipField: 'habit' })))).toMatch(
-      /skipField and skipOption go together/,
-    );
-    expect(String(problems(stat({ aggregate: 'avgInterval', dateField: 'habit' })))).toMatch(
-      /dateField/,
+      String(
+        problems(
+          number({ aggregate: 'streak', days: { skip: { field: 'status', option: 'nope' } } }),
+        ),
+      ),
+    ).toMatch(/days.skip.option must be an option id of status/);
+    // skip 的字段和选项一起写（结构上就是一个块）。
+    expect(
+      problems(number({ aggregate: 'streak', days: { skip: { field: 'habit' } } })),
+    ).not.toEqual([]);
+    expect(String(problems(number({ aggregate: 'avgInterval', days: { date: 'habit' } })))).toMatch(
+      /date/,
     );
   });
 
@@ -289,19 +293,33 @@ describe('stat and chart with these aggregates (D-284)', () => {
     const chart = (aggregate: string): NewComponent =>
       ({
         id: 'c',
-        type: 'chart',
-        props: { collectionId: 'log', kind: 'bar', aggregate, group: 'week', title: 'Days' },
+        look: 'chart',
+        show: { kind: 'bar', title: 'Days' },
+        source: { table: 'log', aggregate, group: { unit: 'week' } },
       }) as NewComponent;
     expect(problems(chart('distinctDays'))).toEqual([]);
-    expect(String(problems(chart('streak')))).toMatch(/use a stat/);
+    expect(problems(chart('streak'))).not.toEqual([]);
   });
 
-  it('stat values', () => {
+  it('number values', () => {
     const records = ['2026-10-20', '2026-10-21'].map((d) => on(d));
-    const spec = { aggregate: 'streak' as const, unit: 'day' as const };
-    expect(sequenceValue(records, log, spec, ctx(thursday))).toEqual({ value: 2, best: 2 });
-    expect(sequenceValue(records, log, { aggregate: 'daysSince' }, ctx(thursday))).toEqual({
+    expect(sequenceValue(records, log, 'streak', { unit: 'day' }, thursday)).toEqual({
+      value: 2,
+      best: 2,
+    });
+    expect(sequenceValue(records, log, 'daysSince', undefined, thursday)).toEqual({ value: 1 });
+  });
+
+  it('days.date picks the date; without it the first date field, then createdAt', () => {
+    expect(dateFieldOf(log, undefined)).toBe('date');
+    expect(dateFieldOf(log, 'createdAt')).toBe('createdAt');
+    expect(dateFieldOf({ ...log, fields: [] }, undefined)).toBe('createdAt');
+    const created = [at(new Date(2026, 9, 21, 12))];
+    expect(sequenceValue(created, log, 'daysSince', { date: 'createdAt' }, thursday)).toEqual({
       value: 1,
+    });
+    expect(sequenceValue(created, log, 'daysSince', undefined, thursday)).toEqual({
+      value: null,
     });
   });
 });

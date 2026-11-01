@@ -1,4 +1,4 @@
-import { localize, pageTarget, toolGridToolIds, type Component, type Page } from '@morph/core';
+import { localize, pageTarget, toolGridToolIds, type BlockOf, type Page } from '@morph/core';
 
 import { Alert, StyleSheet, Text, View } from 'react-native';
 
@@ -20,7 +20,7 @@ export function ToolGrid({
   page,
   env,
 }: {
-  grid: Extract<Component, { type: 'toolGrid' }>;
+  grid: BlockOf<'packages'>;
   page: Page | undefined;
   env: RenderEnv;
 }) {
@@ -30,19 +30,19 @@ export function ToolGrid({
   const catalog = [...registry.tools.keys()];
   const ids = page
     ? toolGridToolIds(grid, page, catalog)
-    : (grid.props.toolIds ?? catalog).filter((id) => registry.tools.has(id));
+    : (grid.source.ids ?? catalog).filter((id) => registry.tools.has(id));
   if (ids.length === 0) return null;
 
   async function open(toolId: string) {
-    const installed = config.tools.find((x) => x.toolId === toolId);
+    const installed = config.packages.find((x) => x.id === toolId);
     if (installed) {
-      env.navigate(pageTarget(installed.pageId));
+      env.navigate(pageTarget(installed.page));
       return;
     }
     const def = registry.tools.get(toolId)!;
     const name = localize(def.name, locale);
     const result = await proposeOps(
-      [{ op: 'installTool', toolId }],
+      [{ op: 'setPackage', package: toolId, do: 'add' }],
       t(locale, 'installSummary', { name }),
     );
     if (result.kind !== 'preview') {
@@ -62,24 +62,24 @@ export function ToolGrid({
 
   return (
     <View style={{ gap: 10 }}>
-      {grid.props.title ? (
+      {grid.show?.title ? (
         <Text
           style={[
             palette.font('bodyBold', 12),
             { color: palette.caption, letterSpacing: 0.5 },
             grid.style?.align === 'center' && styles.textCenter,
           ]}>
-          {grid.props.title.toUpperCase()}
+          {grid.show.title.toUpperCase()}
         </Text>
       ) : null}
       {rows.map((row, r) => (
         <View key={r} style={[styles.row, { gap }]}>
           {row.map((toolId) => {
             const def = registry.tools.get(toolId)!;
-            const installed = config.tools.find((x) => x.toolId === toolId);
+            const installed = config.packages.find((x) => x.id === toolId);
             // 工具页被改过名字时用页面的名字（和工具卡片一样）。
             const name =
-              (installed && config.pages.find((p) => p.id === installed.pageId)?.title) ??
+              (installed && config.containers.pages.find((p) => p.id === installed.page)?.title) ??
               localize(def.name, locale);
             return (
               <Card

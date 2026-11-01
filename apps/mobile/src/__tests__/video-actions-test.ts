@@ -1,11 +1,12 @@
 import {
-  BUILTIN_TOOLS,
   applyOps,
+  type AskRequest,
+  BUILTIN_TOOLS,
   createDefaultWorkspace,
   createRegistry,
-  presetWorkflow,
   presetById,
-  type AskRequest,
+  presetWorkflow,
+  quickActionsOf,
   type RunResult,
   type Workflow,
 } from '@morph/core';
@@ -22,12 +23,16 @@ const registry = createRegistry(BUILTIN_TOOLS);
 const MB = 1024 * 1024;
 
 function toolWorkflow(id: string): Workflow {
-  const result = applyOps(createDefaultWorkspace('zh'), [{ op: 'installTool', toolId: 'video' }], {
-    registry,
-    locale: 'zh',
-  });
+  const result = applyOps(
+    createDefaultWorkspace('zh'),
+    [{ op: 'setPackage', package: 'video', do: 'add' }],
+    {
+      registry,
+      locale: 'zh',
+    },
+  );
   if (!result.ok) throw new Error(result.error);
-  return result.config.workflows.find((w) => w.id === id)!;
+  return quickActionsOf(result.config).find((w) => w.id === id)!;
 }
 
 let ids = 0;
@@ -95,14 +100,14 @@ describe('video tool', () => {
   it('installs video quick actions and a video file list', () => {
     const result = applyOps(
       createDefaultWorkspace('zh'),
-      [{ op: 'installTool', toolId: 'video' }],
+      [{ op: 'setPackage', package: 'video', do: 'add' }],
       {
         registry,
         locale: 'zh',
       },
     );
     if (!result.ok) throw new Error(result.error);
-    expect(result.config.workflows.map((w) => w.name)).toEqual([
+    expect(quickActionsOf(result.config).map((w) => w.name)).toEqual([
       '导出 SRT 字幕',
       '视频加速或慢放',
       '视频裁成指定比例',
@@ -116,9 +121,9 @@ describe('video tool', () => {
       '剪一段',
       '视频转 GIF',
     ]);
-    const page = result.config.pages.find((p) => p.id === 'tool-video')!;
-    expect(page.components.find((c) => c.type === 'fileList')?.props).toMatchObject({
-      mimeType: 'video/*',
+    const page = result.config.containers.pages.find((p) => p.id === 'tool-video')!;
+    expect(page.blocks.find((c) => c.look === 'files')?.source).toMatchObject({
+      filter: [{ field: 'kind', op: 'is', value: 'video' }],
     });
   });
 
@@ -275,6 +280,7 @@ describe('video tool', () => {
 
   it('does not put big videos into a ZIP (it is built in memory)', async () => {
     const wf: Workflow = {
+      kind: 'quickAction',
       id: 'z',
       name: 'z',
       steps: [
@@ -289,6 +295,7 @@ describe('video tool', () => {
 
   it('renames videos by moving them, not copying', async () => {
     const wf: Workflow = {
+      kind: 'quickAction',
       id: 'r',
       name: 'r',
       steps: [

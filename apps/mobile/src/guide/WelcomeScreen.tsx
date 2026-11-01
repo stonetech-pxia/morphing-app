@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -42,6 +42,9 @@ export function WelcomeScreen() {
   const scroller = useRef<ScrollViewInstance>(null);
   const [index, setIndex] = useState(0);
   const last = index === PAGES.length - 1;
+
+  // 关掉（看完、跳过或系统返回）后，下次需要时外壳才再推出来。
+  useEffect(() => () => useGuide.setState({ introOpen: false }), []);
 
   function finish() {
     void setStage('look');

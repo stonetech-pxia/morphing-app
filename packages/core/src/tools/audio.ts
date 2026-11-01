@@ -2,6 +2,7 @@ import { t, pairText } from '../messages';
 import { z } from 'zod';
 
 import { AUDIO_FORMATS, AUDIO_QUALITIES } from '../audio';
+import { FILES_TABLE } from '../files-table';
 import type { ToolDefinition } from '../registry';
 import type { Locale, Workflow } from '../schema';
 import {
@@ -418,7 +419,8 @@ const pickAudio = (min: number, max: number) => ({
 export function audioWorkflows(locale: Locale): Workflow[] {
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
-    toolId: AUDIO_TOOL_ID,
+    kind: 'quickAction',
+    package: AUDIO_TOOL_ID,
     name: pairText(locale, name),
     steps,
   });
@@ -552,29 +554,34 @@ export const audioTool: ToolDefinition = {
     id: AUDIO_PAGE_ID,
     title: t(locale, 'audio_Audio_2bfdb'),
     icon: 'audio',
-    toolId: AUDIO_TOOL_ID,
-    components: [
+    package: AUDIO_TOOL_ID,
+    blocks: [
       {
         id: 'audio-header',
-        type: 'header',
-        props: { title: t(locale, 'audio_Audio_tools_ca3ac') },
+        look: 'header',
+        show: { title: t(locale, 'audio_Audio_tools_ca3ac') },
       },
       {
         id: 'audio-intro',
-        type: 'text',
-        props: {
+        look: 'text',
+        show: {
           text: t(locale, 'audio_Everything_runs_on_this_device_nothing_de468'),
         },
       },
       ...audioWorkflows(locale).map((wf) => ({
         id: `${wf.id}-runner`,
-        type: 'workflowRunner' as const,
-        props: { workflowId: wf.id },
+        look: 'action' as const,
+        tools: [{ tool: wf.id }],
       })),
       {
         id: 'audio-files',
-        type: 'fileList',
-        props: { title: t(locale, 'audio_Audio_files_185dc'), limit: 10, mimeType: 'audio/*' },
+        look: 'files',
+        show: { title: t(locale, 'audio_Audio_files_185dc') },
+        source: {
+          table: FILES_TABLE,
+          filter: [{ field: 'kind', op: 'is', value: 'audio' }],
+          limit: 10,
+        },
       },
     ],
   }),

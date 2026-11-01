@@ -56,7 +56,7 @@ export const durationField: FieldDefinitionOf<'duration', typeof schema> = defin
   numeric: true,
   filter: { is: isNumber, compare: 'number' },
   ai: {
-    doc: '{default? minutes} (a length of time in minutes, shown as h:mm; rule 42)',
+    doc: '{default? minutes} (a length of time in minutes, shown as h:mm; rule 40)',
   },
   example: { id: 'spent', name: 'Time spent', type: 'duration' },
   exampleValue: 90,

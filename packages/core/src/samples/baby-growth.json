@@ -13,8 +13,8 @@
   "ids": {
     "$table.growth": "growth",
     "$page.main": "baby",
-    "$workflow.photoLog": "growth-photo-log",
-    "$reminder.weekly": "weekly-measure"
+    "$tool.photoLog": "growth-photo-log",
+    "$tool.weekly": "weekly-measure"
   },
   "tables": [
     {
@@ -80,9 +80,10 @@
       ]
     }
   ],
-  "workflows": [
+  "tools": [
     {
-      "id": "$workflow.photoLog",
+      "id": "$tool.photoLog",
+      "kind": "quickAction",
       "name": {
         "en": "Add a photo to the growth log",
         "zh": "选一张照片记成长",
@@ -109,20 +110,36 @@
       ]
     },
     {
-      "id": "$workflow.send",
-      "presetId": "send-photos"
+      "id": "$tool.send",
+      "preset": "send-photos"
     },
     {
-      "id": "$workflow.oldPhotos",
-      "presetId": "old-photos"
+      "id": "$tool.oldPhotos",
+      "preset": "old-photos"
     },
     {
-      "id": "$workflow.videoSmaller",
-      "presetId": "video-too-big"
+      "id": "$tool.videoSmaller",
+      "preset": "video-too-big"
     },
     {
-      "id": "$workflow.joinVideos",
-      "presetId": "join-videos"
+      "id": "$tool.joinVideos",
+      "preset": "join-videos"
+    },
+    {
+      "id": "$tool.weekly",
+      "kind": "reminder",
+      "title": {
+        "en": "Time to measure your baby’s height and weight",
+        "zh": "该给宝宝量身高体重了",
+        "fr": "C’est le moment de mesurer la taille et le poids de bébé"
+      },
+      "enabled": true,
+      "when": {
+        "every": "week",
+        "days": [7],
+        "at": "10:00"
+      },
+      "opens": "page:$page.main"
     }
   ],
   "pages": [
@@ -137,11 +154,11 @@
       "backdrop": {
         "overlay": "medium"
       },
-      "components": [
+      "blocks": [
         {
           "id": "title",
-          "type": "header",
-          "props": {
+          "look": "header",
+          "show": {
             "title": {
               "en": "Baby’s growth",
               "zh": "宝宝成长",
@@ -156,76 +173,94 @@
         },
         {
           "id": "add",
-          "type": "recordForm",
-          "props": {
-            "collectionId": "$table.growth",
-            "fieldIds": ["date", "height", "weight", "note"],
-            "submitLabel": {
+          "look": "button",
+          "show": {
+            "label": {
               "en": "Log a measurement",
               "zh": "记一次",
               "fr": "Noter une mesure"
             },
-            "mode": "button"
-          }
+            "variant": "filled"
+          },
+          "tools": [
+            {
+              "do": "create",
+              "table": "$table.growth",
+              "ask": "all"
+            }
+          ]
         },
         {
           "id": "run-photo-log",
-          "type": "workflowRunner",
-          "props": {
-            "workflowId": "$workflow.photoLog",
-            "look": "row"
-          }
+          "look": "action",
+          "show": {
+            "shape": "row"
+          },
+          "tools": [
+            {
+              "tool": "$tool.photoLog"
+            }
+          ]
         },
         {
           "id": "weight-chart",
-          "type": "chart",
-          "props": {
-            "collectionId": "$table.growth",
+          "look": "chart",
+          "show": {
             "kind": "line",
-            "aggregate": "avg",
-            "fieldId": "weight",
-            "group": "month",
-            "dateField": "date",
-            "periods": 12,
             "title": {
               "en": "Weight (kg)",
               "zh": "体重（kg）",
               "fr": "Poids (kg)"
             }
+          },
+          "source": {
+            "table": "$table.growth",
+            "aggregate": "avg",
+            "field": "weight",
+            "group": {
+              "by": "date",
+              "unit": "month",
+              "last": 12
+            }
           }
         },
         {
           "id": "height-chart",
-          "type": "chart",
-          "props": {
-            "collectionId": "$table.growth",
+          "look": "chart",
+          "show": {
             "kind": "line",
-            "aggregate": "avg",
-            "fieldId": "height",
-            "group": "month",
-            "dateField": "date",
-            "periods": 12,
             "title": {
               "en": "Height (cm)",
               "zh": "身高（cm）",
               "fr": "Taille (cm)"
             }
+          },
+          "source": {
+            "table": "$table.growth",
+            "aggregate": "avg",
+            "field": "height",
+            "group": {
+              "by": "date",
+              "unit": "month",
+              "last": 12
+            }
           }
         },
         {
           "id": "log",
-          "type": "recordList",
-          "props": {
-            "collectionId": "$table.growth",
-            "display": "list",
-            "titleField": "date",
-            "subtitleFields": ["height", "weight"],
-            "trailingField": "note",
+          "look": "list",
+          "source": {
+            "table": "$table.growth",
             "sort": {
               "field": "date",
               "direction": "desc"
             },
-            "limit": 50,
+            "limit": 50
+          },
+          "show": {
+            "title": "date",
+            "subtitles": ["height", "weight"],
+            "trailing": "note",
             "emptyText": {
               "en": "Log the first measurement to start the charts.",
               "zh": "记下第一次身高体重，折线图就开始画了。",
@@ -235,8 +270,8 @@
         },
         {
           "id": "actions",
-          "type": "group",
-          "props": {
+          "look": "group",
+          "show": {
             "title": {
               "en": "Photos and videos",
               "zh": "照片和视频",
@@ -248,35 +283,51 @@
           "children": [
             {
               "id": "run-send",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.send",
-                "look": "tile"
-              }
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.send"
+                }
+              ]
             },
             {
               "id": "run-old-photos",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.oldPhotos",
-                "look": "tile"
-              }
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.oldPhotos"
+                }
+              ]
             },
             {
               "id": "run-video-smaller",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.videoSmaller",
-                "look": "tile"
-              }
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.videoSmaller"
+                }
+              ]
             },
             {
               "id": "run-join-videos",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.joinVideos",
-                "look": "tile"
-              }
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.joinVideos"
+                }
+              ]
             }
           ]
         }
@@ -284,20 +335,5 @@
     }
   ],
   "main": "$page.main",
-  "entry": "nav",
-  "reminders": [
-    {
-      "id": "$reminder.weekly",
-      "title": {
-        "en": "Time to measure your baby’s height and weight",
-        "zh": "该给宝宝量身高体重了",
-        "fr": "C’est le moment de mesurer la taille et le poids de bébé"
-      },
-      "enabled": true,
-      "schedule": "weekly",
-      "weekdays": [7],
-      "time": "10:00",
-      "opens": "page:$page.main"
-    }
-  ]
+  "entry": "nav"
 }

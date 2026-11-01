@@ -2,9 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import { describeChange } from './describe';
 import { applyOps } from './ops';
-import { allComponents, toolGridToolIds, type Component } from './schema';
+import {
+  allComponents,
+  isKnownComponent,
+  quickActionsOf,
+  toolGridToolIds,
+  type ComponentOf,
+} from './schema';
 import { STARTER_TOOL_IDS, createStarterWorkspace, homeFileEntryOps } from './starter';
-import { registry } from './test-helpers';
+import { fromV33, registry, v33Fixture } from './test-helpers';
 import { validateWorkspace } from './validate';
 
 const catalog = [...registry.tools.keys()];
@@ -15,14 +21,20 @@ describe('createStarterWorkspace', () => {
     (locale) => {
       const config = createStarterWorkspace(locale, registry);
       expect(validateWorkspace(config, registry).ok).toBe(true);
-      expect(config.tools.map((t) => t.toolId)).toEqual([...STARTER_TOOL_IDS]);
-      expect(config.shell.nav).toEqual(['page:home', 'ai', 'settings']);
-      const home = config.pages.find((p) => p.id === 'home')!;
+      expect(config.packages.map((t) => t.id)).toEqual([...STARTER_TOOL_IDS]);
+      expect(config.nav.bar).toEqual(['page:home', 'ai', 'settings']);
+      const home = config.containers.pages.find((p) => p.id === 'home')!;
       // 首页从空白开始，引导第 1 步加上文件入口（D-231）；不预装用户快捷操作。
-      expect(home.components).toEqual([]);
-      expect(config.workflows.filter((w) => !w.toolId)).toEqual([]);
+      expect(home.blocks).toEqual([]);
+      expect(quickActionsOf(config).filter((w) => !w.package)).toEqual([]);
     },
   );
+
+  it.each(['zh', 'en'] as const)('is the v33 starter, migrated (%s)', (locale) => {
+    expect(createStarterWorkspace(locale, registry)).toEqual(
+      fromV33(v33Fixture(`starter-${locale}`)),
+    );
+  });
 
   it('adds the two file entries side by side once (D-231)', () => {
     const config = createStarterWorkspace('zh', registry);
@@ -30,39 +42,41 @@ describe('createStarterWorkspace', () => {
     const result = applyOps(config, ops, { registry, locale: 'zh' });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const home = result.config.pages.find((p) => p.id === 'home')!;
-    expect((home.components[0] as Extract<Component, { type: 'group' }>).children).toMatchObject([
-      { type: 'filePick', props: { source: 'media' } },
-      { type: 'filePick', props: { source: 'files' } },
+    // 和 v33 的 filePick 迁移过来的一样（fixtures/v33/starter-files-zh.json）。
+    expect(result.config).toEqual(fromV33(v33Fixture('starter-files-zh')));
+    const home = result.config.containers.pages.find((p) => p.id === 'home')!;
+    expect((home.blocks[0] as ComponentOf<'group'>).children).toMatchObject([
+      { look: 'picker', tools: [{ tool: '$pick.media' }] },
+      { look: 'picker', tools: [{ tool: '$pick.files' }] },
     ]);
     expect(homeFileEntryOps(result.config)).toEqual([]);
   });
 
   it('the toolbox shows every tool in the catalog exactly once', () => {
     const config = createStarterWorkspace('zh', registry);
-    const toolbox = config.pages.find((p) => p.id === 'toolbox')!;
+    const toolbox = config.containers.pages.find((p) => p.id === 'toolbox')!;
     const shown = allComponents(toolbox).flatMap((c) =>
-      c.type === 'toolGrid' ? toolGridToolIds(c, toolbox, catalog) : [],
+      isKnownComponent(c) && c.look === 'packages' ? toolGridToolIds(c, toolbox, catalog) : [],
     );
     expect([...shown].sort()).toEqual([...catalog].sort());
   });
 
   it('adding a tool the toolbox already shows does not add a home card', () => {
     const config = createStarterWorkspace('zh', registry);
-    const result = applyOps(config, [{ op: 'installTool', toolId: 'zip' }], {
+    const result = applyOps(config, [{ op: 'setPackage', package: 'zip', do: 'add' }], {
       registry,
       locale: 'zh',
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const home = result.config.pages.find((p) => p.id === 'home')!;
-    expect(allComponents(home).some((c) => c.type === 'toolCard')).toBe(false);
-    expect(result.config.tools.some((t) => t.toolId === 'zip')).toBe(true);
+    const home = result.config.containers.pages.find((p) => p.id === 'home')!;
+    expect(allComponents(home).some((c) => isKnownComponent(c) && c.look === 'entry')).toBe(false);
+    expect(result.config.packages.some((t) => t.id === 'zip')).toBe(true);
   });
 
   it('describes adding a tool the toolbox shows without a home card', () => {
     const config = createStarterWorkspace('zh', registry);
-    const lines = describeChange([{ op: 'installTool', toolId: 'zip' }], config, [], {
+    const lines = describeChange([{ op: 'setPackage', package: 'zip', do: 'add' }], config, [], {
       registry,
       locale: 'zh',
       now: new Date(),
@@ -72,9 +86,11 @@ describe('createStarterWorkspace', () => {
 
   it('rejects tool grids with unknown or repeated tools', () => {
     const config = createStarterWorkspace('zh', registry);
-    const toolbox = config.pages.find((p) => p.id === 'toolbox')!;
-    const grid = toolbox.components.find((c) => c.type === 'toolGrid')!;
-    (grid.props as { toolIds: string[] }).toolIds = ['image', 'image', 'nope'];
+    const toolbox = config.containers.pages.find((p) => p.id === 'toolbox')!;
+    const grid = toolbox.blocks.find(
+      (c): c is ComponentOf<'packages'> => isKnownComponent(c) && c.look === 'packages',
+    )!;
+    grid.source.ids = ['image', 'image', 'nope'];
     const result = validateWorkspace(config, registry);
     expect(result.ok).toBe(false);
     if (!result.ok) {

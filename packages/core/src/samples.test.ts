@@ -2,10 +2,18 @@ import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from './change';
 import { createStarterWorkspace } from './starter';
-import type { Op } from './ops';
+import type { Op } from './ops-schema';
 import { SAMPLE_APPS, sampleInfo, sampleOps, type SampleApp } from './samples';
-import { HOME_PAGE_ID, allComponents, type Locale, type WorkspaceConfig } from './schema';
-import { apply, registry, workspace } from './test-helpers';
+import {
+  HOME_PAGE_ID,
+  allComponents,
+  isKnownComponent,
+  quickActionsOf,
+  remindersOf,
+  type Locale,
+  type WorkspaceConfig,
+} from './schema';
+import { apply, fromV33, registry, v33Fixture, workspace } from './test-helpers';
 import { validateWorkspace } from './validate';
 import { presetById, presetWorkflow } from './workflows/presets';
 
@@ -36,22 +44,22 @@ const navFull = (locale: Locale) => workspace(locale);
 function nearLimit(locale: Locale, room: { tables: number; pages: number }): WorkspaceConfig {
   let config = fresh(locale);
   const extra: Op[] = [];
-  for (let i = config.collections.length; i < 20 - room.tables; i++)
+  for (let i = config.data.tables.length; i < 20 - room.tables; i++)
     extra.push({
-      op: 'addCollection',
-      collection: {
+      op: 'addData',
+      table: {
         id: `t${i}`,
         name: `T${i}`,
         fields: [{ id: 'name', name: 'Name', type: 'text' }],
       },
     });
-  for (let i = config.pages.length; i < 20 - room.pages; i++)
+  for (let i = config.containers.pages.length; i < 20 - room.pages; i++)
     extra.push({
-      op: 'addPage',
+      op: 'addContainer',
       page: {
         id: `p${i}`,
         title: `P${i}`,
-        components: [{ id: 'h', type: 'header', props: { title: `P${i}` } }],
+        blocks: [{ id: 'h', look: 'header', show: { title: `P${i}` } }],
       },
     });
   config = apply(config, extra, locale);
@@ -60,22 +68,27 @@ function nearLimit(locale: Locale, room: { tables: number; pages: number }): Wor
 
 const added = (before: WorkspaceConfig, after: WorkspaceConfig) => ({
   tables: new Set(
-    after.collections
-      .filter((c) => !before.collections.some((x) => x.id === c.id))
+    after.data.tables
+      .filter((c) => !before.data.tables.some((x) => x.id === c.id))
       .map((c) => c.id),
   ),
   pages: new Set(
-    after.pages.filter((p) => !before.pages.some((x) => x.id === p.id)).map((p) => p.id),
+    after.containers.pages
+      .filter((p) => !before.containers.pages.some((x) => x.id === p.id))
+      .map((p) => p.id),
   ),
   workflows: new Set(
-    after.workflows.filter((w) => !before.workflows.some((x) => x.id === w.id)).map((w) => w.id),
+    quickActionsOf(after)
+      .filter((w) => !before.tools.some((x) => x.id === w.id))
+      .map((w) => w.id),
   ),
-  reminders: (after.reminders ?? []).filter(
-    (r) => !(before.reminders ?? []).some((x) => x.id === r.id),
-  ),
+  reminders: remindersOf(after).filter((r) => !before.tools.some((x) => x.id === r.id)),
 });
 
-/** 一段配置 JSON 里所有的引用：collectionId、workflowId、page:x、workflow:x。 */
+/**
+ * 一段配置 JSON 里所有的引用：表（table、when.before / each 里的 table、步骤参数的 collectionId）、
+ * 快捷操作（{tool: id}，$pick.* 除外）、page:x、tool:x。
+ */
 function refsIn(
   value: unknown,
   out = { tables: [] as string[], pages: [] as string[], workflows: [] as string[] },
@@ -83,10 +96,12 @@ function refsIn(
   if (Array.isArray(value)) value.forEach((v) => refsIn(v, out));
   else if (typeof value === 'object' && value !== null) {
     for (const [k, v] of Object.entries(value)) {
-      if (k === 'collectionId' && typeof v === 'string') out.tables.push(v);
-      else if (k === 'workflowId' && typeof v === 'string') out.workflows.push(v);
-      else if (typeof v === 'string' && v.startsWith('page:')) out.pages.push(v.slice(5));
-      else if (typeof v === 'string' && v.startsWith('workflow:')) out.workflows.push(v.slice(9));
+      if ((k === 'table' || k === 'collectionId') && typeof v === 'string') {
+        if (!v.startsWith('$')) out.tables.push(v);
+      } else if (k === 'tool' && typeof v === 'string') {
+        if (!v.startsWith('$')) out.workflows.push(v);
+      } else if (typeof v === 'string' && v.startsWith('page:')) out.pages.push(v.slice(5));
+      else if (typeof v === 'string' && v.startsWith('tool:')) out.workflows.push(v.slice(5));
       else refsIn(v, out);
     }
   }
@@ -118,8 +133,8 @@ describe.each(SAMPLE_APPS)('sample %s', (sample) => {
       const prepared = prepareOps(before, result.ops, { registry, locale, now: new Date() });
       expect(prepared.ok ? [] : prepared.issues).toEqual([]);
 
-      // 用户看到的文字都换成了这种语言，没有留下 { en, zh, fr } 或占位符。
-      expect(JSON.stringify(after)).not.toMatch(/"en":|"\$|:\$/);
+      // 用户看到的文字都换成了这种语言，没有留下 { en, zh, fr } 或占位符（$files、$row 这类是配置里的词，不是占位符）。
+      expect(JSON.stringify(after)).not.toMatch(/"en":|\$(table|page|tool)\./);
       // 不改风格主题（D-260）。
       expect(after.theme).toEqual(before.theme);
 
@@ -127,9 +142,9 @@ describe.each(SAMPLE_APPS)('sample %s', (sample) => {
       expect(fresh.pages.has(result.mainPageId)).toBe(true);
       // 新加的内容引用的表、页面、快捷操作，都是这次新加的（换过的 ID），不会指到原来同名的那个上。
       const content = [
-        ...after.collections.filter((c) => fresh.tables.has(c.id)),
-        ...after.pages.filter((p) => fresh.pages.has(p.id)),
-        ...after.workflows.filter((w) => fresh.workflows.has(w.id)),
+        ...after.data.tables.filter((c) => fresh.tables.has(c.id)),
+        ...after.containers.pages.filter((p) => fresh.pages.has(p.id)),
+        ...quickActionsOf(after).filter((w) => fresh.workflows.has(w.id)),
         ...fresh.reminders,
       ];
       const refs = refsIn(content);
@@ -143,22 +158,22 @@ describe.each(SAMPLE_APPS)('sample %s', (sample) => {
 
       // 主页面有入口：导航栏有空位就在导航栏，满了就在首页加一个快捷入口。
       const target = `page:${result.mainPageId}`;
-      const home = after.pages.find((p) => p.id === HOME_PAGE_ID)!;
+      const home = after.containers.pages.find((p) => p.id === HOME_PAGE_ID)!;
       const onHome = allComponents(home).some(
-        (c) => c.type === 'shortcut' && c.props.target === target,
+        (c) => isKnownComponent(c) && c.look === 'entry' && c.opens === target,
       );
-      if (before.shell.nav.length < 5) {
-        expect(after.shell.nav).toContain(target);
-        expect(after.shell.nav.at(-1)).toBe('settings');
+      if (before.nav.bar.length < 5) {
+        expect(after.nav.bar).toContain(target);
+        expect(after.nav.bar.at(-1)).toBe('settings');
       } else {
-        expect(after.shell.nav).toEqual(before.shell.nav);
+        expect(after.nav.bar).toEqual(before.nav.bar);
         expect(onHome).toBe(true);
       }
       // 首页的组件引用也都是新的。
       const homeRefs = refsIn(
         allComponents(home).filter(
           (c) =>
-            !allComponents(before.pages.find((p) => p.id === HOME_PAGE_ID)!).some(
+            !allComponents(before.containers.pages.find((p) => p.id === HOME_PAGE_ID)!).some(
               (x) => x.id === c.id,
             ),
         ),
@@ -171,9 +186,10 @@ describe.each(SAMPLE_APPS)('sample %s', (sample) => {
       for (const make of [() => fresh(locale), () => crowded(sample, locale)]) {
         const before = make();
         for (const op of ops(sample, before, locale)) {
-          if (op.op !== 'addWorkflow' || !op.workflow.presetId) continue;
-          const preset = presetById(op.workflow.presetId)!;
-          expect(op.workflow).toEqual(presetWorkflow(preset, locale, op.workflow.id));
+          if (op.op !== 'addTool' || typeof op.tool === 'string') continue;
+          if (op.tool.kind !== 'quickAction' || !op.tool.preset) continue;
+          const preset = presetById(op.tool.preset)!;
+          expect(op.tool).toEqual(presetWorkflow(preset, locale, op.tool.id));
         }
       }
     });
@@ -191,7 +207,7 @@ describe.each(SAMPLE_APPS)('sample %s', (sample) => {
       for (const id of second.tables) expect(first.tables.has(id)).toBe(false);
       for (const id of second.pages) expect(first.pages.has(id)).toBe(false);
       // 两次都放进了导航栏（新用户的导航栏有两个空位）。
-      expect(twice.shell.nav).toHaveLength(5);
+      expect(twice.nav.bar).toHaveLength(5);
     });
 
     it('refuses with a reason when the tables or pages do not fit', () => {
@@ -218,7 +234,11 @@ describe('sample files', () => {
       const shape = (locale: Locale) =>
         JSON.stringify(
           ops(sample, fresh(locale), locale).filter(
-            (op) => op.op !== 'addWorkflow' || !op.workflow.presetId,
+            (op) =>
+              op.op !== 'addTool' ||
+              typeof op.tool === 'string' ||
+              op.tool.kind !== 'quickAction' ||
+              !op.tool.preset,
           ),
           (_k, v: unknown) => (typeof v === 'string' && !/^[a-z0-9:-]+$/.test(v) ? 'TEXT' : v),
         );
@@ -239,19 +259,19 @@ describe('sample files', () => {
     expect(mains.size).toBe(5);
     expectValid(config);
     // 导航栏满了以后，后面的样板的主页面放在首页的快捷入口里。
-    expect(config.shell.nav).toHaveLength(5);
+    expect(config.nav.bar).toHaveLength(5);
   });
 
   it('refuses when the reminders or the home page are full', () => {
     let config = fresh('en');
     const reminders: Op[] = Array.from({ length: 20 }, (_, i) => ({
-      op: 'addReminder',
-      reminder: {
+      op: 'addTool',
+      tool: {
         id: `r${i}`,
+        kind: 'reminder',
         title: 'R',
         enabled: false,
-        schedule: 'daily',
-        time: '09:00',
+        when: { every: 'day', at: '09:00' },
         opens: 'page:home',
       },
     }));
@@ -263,14 +283,50 @@ describe('sample files', () => {
 
     let full = navFull('en');
     const fill: Op[] = [];
-    const home = full.pages.find((p) => p.id === HOME_PAGE_ID)!;
-    for (let i = home.components.length; i < 30; i++)
+    const home = full.containers.pages.find((p) => p.id === HOME_PAGE_ID)!;
+    for (let i = home.blocks.length; i < 30; i++)
       fill.push({
-        op: 'addComponent',
-        pageId: HOME_PAGE_ID,
-        component: { id: `d${i}`, type: 'divider', props: {} },
+        op: 'addContainer',
+        page: HOME_PAGE_ID,
+        block: { id: `d${i}`, look: 'divider' },
       });
     full = apply(full, fill, 'en');
     expect(sampleOps('baby-growth', full, 'en')).toMatchObject({ ok: false, problem: 'home' });
+  });
+});
+
+describe('samples equal the v33 samples, migrated', () => {
+  // fixtures/v33/sample-<id>-zh.json：v33 代码给新用户（starter）套用样板的结果。
+  it.each(SAMPLE_APPS)('%s in zh', (sample) => {
+    const before = fresh('zh');
+    expect(apply(before, ops(sample, before, 'zh'), 'zh')).toEqual(
+      fromV33(v33Fixture(`sample-${sample}-zh`)),
+    );
+  });
+
+  it('a reminder whose id a quick action already uses gets a new id (one id space, M1)', () => {
+    const base = fresh('zh');
+    const taken = apply(
+      base,
+      [
+        {
+          op: 'addTool',
+          tool: {
+            id: 'submit-expenses',
+            kind: 'quickAction',
+            name: 'X',
+            steps: [{ id: 'a', action: 'in.files', params: {} }],
+          },
+        },
+      ],
+      'zh',
+    );
+    const result = sampleOps('expense-helper', taken, 'zh');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const after = apply(taken, result.ops, 'zh');
+    const ids = after.tools.map((x) => x.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(remindersOf(after).map((r) => r.id)).toEqual(['submit-expenses-2']);
   });
 });

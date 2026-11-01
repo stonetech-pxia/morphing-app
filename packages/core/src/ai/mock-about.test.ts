@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
-import type { Locale, WorkspaceConfig } from '../schema';
+import {
+  isKnownComponent,
+  quickActionsOf,
+  type Component,
+  type Locale,
+  type WorkspaceConfig,
+} from '../schema';
 import { apply, registry, workspace } from '../test-helpers';
 import { WORKFLOW_PRESETS, presetWorkflow } from '../workflows/presets';
 import { createMockAIProvider } from './mock';
@@ -21,8 +27,11 @@ const plan = (
 
 const withVisa = () =>
   apply(workspace('zh', { withPdf: true }), [
-    { op: 'addWorkflow', workflow: presetWorkflow(WORKFLOW_PRESETS[0]!, 'zh', 'visa-photo') },
+    { op: 'addTool', tool: presetWorkflow(WORKFLOW_PRESETS[0]!, 'zh', 'visa-photo') },
   ]);
+/** 首页上运行这个快捷操作的块（look action）。 */
+const runs = (c: Component, id: string) =>
+  isKnownComponent(c) && c.look === 'action' && c.tools.some((u) => 'tool' in u && u.tool === id);
 const aboutVisa: PlanAbout = { kind: 'workflow', workflowId: 'visa-photo' };
 
 describe('mock AI — errands (D-113)', () => {
@@ -84,18 +93,14 @@ describe('mock AI — opened from a quick action (D-124)', () => {
 
   it('reads 这个 / 它 as that quick action', async () => {
     const size = await change('把这个的大小改成 200KB');
-    const photo = size.workflows.find((w) => w.id === 'visa-photo')!.steps[1]!;
+    const photo = quickActionsOf(size).find((w) => w.id === 'visa-photo')!.steps[1]!;
     expect(photo.params).toMatchObject({ maxKB: 200 });
 
     const named = await change('把它改名为美签照片');
-    expect(named.workflows.find((w) => w.id === 'visa-photo')!.name).toBe('美签照片');
+    expect(quickActionsOf(named).find((w) => w.id === 'visa-photo')!.name).toBe('美签照片');
 
     const home = await change('把这个放到首页');
-    expect(
-      home.pages[0]!.components.some(
-        (c) => c.type === 'workflowRunner' && c.props.workflowId === 'visa-photo',
-      ),
-    ).toBe(true);
+    expect(home.containers.pages[0]!.blocks.some((c) => runs(c, 'visa-photo'))).toBe(true);
   });
 
   it('needs the context to know what 这个 is', async () => {

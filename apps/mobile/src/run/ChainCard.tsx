@@ -1,6 +1,6 @@
-import { findWorkflow, type Workflow } from '@morph/core';
+import { findWorkflow, quickActionsOf, type Workflow } from '@morph/core';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { t } from '../i18n';
@@ -21,7 +21,8 @@ export function ChainCard({
   palette: Palette;
 }) {
   const { repo, locale } = useWorkspaceContext();
-  const workflows = useWorkspace((s) => s.config!.workflows);
+  const tools = useWorkspace((s) => s.config!.tools);
+  const workflows = useMemo(() => quickActionsOf({ tools }), [tools]);
   const first = findWorkflow(workflows, source.workflow.id, locale);
   const second = findWorkflow(workflows, workflow.id, locale);
   const valid =
@@ -65,7 +66,7 @@ export function ChainCard({
             if (
               builtIn.length > 0 &&
               !(await change(
-                builtIn.map((w) => ({ op: 'addWorkflow' as const, workflow: w })),
+                builtIn.map((w) => ({ op: 'addTool' as const, tool: w })),
                 t(locale, 'chainSaveBuiltIn', { first: first.name, second: second.name }),
               ))
             )

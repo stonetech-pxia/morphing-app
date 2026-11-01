@@ -10,6 +10,7 @@ import { FakeFiles, FakeVision } from '../test-utils/fake-files';
 
 const registry = createRegistry(BUILTIN_TOOLS);
 const workflow = (params: Record<string, unknown>): Workflow => ({
+  kind: 'quickAction',
   id: 'mine',
   name: '证件照',
   steps: [

@@ -1,10 +1,10 @@
 {
   "ids": {
-    "collection": "books",
+    "table": "books",
     "page": "reading"
   },
-  "collection": {
-    "id": "$collection",
+  "table": {
+    "id": "$table",
     "name": {
       "en": "Books",
       "zh": "书单",
@@ -95,11 +95,11 @@
       "fr": "Liste de lecture"
     },
     "icon": "bookmark",
-    "components": [
+    "blocks": [
       {
         "id": "title",
-        "type": "header",
-        "props": {
+        "look": "header",
+        "show": {
           "title": {
             "en": "Reading",
             "zh": "读书清单",
@@ -109,15 +109,17 @@
       },
       {
         "id": "finished",
-        "type": "stat",
-        "props": {
-          "collectionId": "$collection",
-          "aggregate": "count",
+        "look": "number",
+        "show": {
           "label": {
             "en": "Finished",
             "zh": "已读完",
             "fr": "Terminés"
-          },
+          }
+        },
+        "source": {
+          "table": "$table",
+          "aggregate": "count",
           "filter": [
             {
               "field": "status",
@@ -129,28 +131,34 @@
       },
       {
         "id": "add",
-        "type": "recordForm",
-        "props": {
-          "collectionId": "$collection",
-          "fieldIds": ["title", "author", "status"],
-          "submitLabel": {
+        "look": "button",
+        "show": {
+          "label": {
             "en": "Add a book",
             "zh": "添加一本书",
             "fr": "Ajouter un livre"
           },
-          "mode": "button"
-        }
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
       },
       {
         "id": "books",
-        "type": "recordList",
-        "props": {
-          "collectionId": "$collection",
-          "display": "cards",
-          "titleField": "title",
-          "subtitleFields": ["author", "status"],
-          "trailingField": "rating",
-          "limit": 50,
+        "look": "cards",
+        "source": {
+          "table": "$table",
+          "limit": 50
+        },
+        "show": {
+          "title": "title",
+          "subtitles": ["author", "status"],
+          "trailing": "rating",
           "emptyText": {
             "en": "No books yet",
             "zh": "还没有书",

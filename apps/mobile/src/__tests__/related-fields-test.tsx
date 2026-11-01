@@ -25,17 +25,17 @@ const jobs: Collection = {
       id: 'total',
       name: '总工时',
       type: 'rollup',
-      collectionId: 'shifts',
-      linkField: 'job',
+      table: 'shifts',
+      via: 'job',
       aggregate: 'sum',
-      fieldId: 'hours',
+      field: 'hours',
     },
     {
       id: 'streak',
       name: '连续',
       type: 'rollup',
-      collectionId: 'shifts',
-      linkField: 'job',
+      table: 'shifts',
+      via: 'job',
       aggregate: 'streak',
     },
   ],
@@ -44,28 +44,22 @@ const shifts: Collection = {
   id: 'shifts',
   name: '工时',
   fields: [
-    { id: 'job', name: '工作', type: 'link', collectionId: 'jobs' },
+    { id: 'job', name: '工作', type: 'link', table: 'jobs' },
     { id: 'date', name: '日期', type: 'date', default: 'today' },
     { id: 'hours', name: '小时', type: 'number', unit: 'h' },
-    { id: 'rate', name: '时薪', type: 'lookup', linkField: 'job', fieldId: 'rate' },
+    { id: 'rate', name: '时薪', type: 'lookup', via: 'job', field: 'rate' },
     { id: 'pay', name: '工资', type: 'formula', expression: '{hours} * {rate}', currency: 'CNY' },
   ],
 };
 
-const list = (id: string, collectionId: string, titleField: string, trailingField: string) => ({
-  op: 'addComponent' as const,
-  pageId: 'home',
-  component: {
+const list = (id: string, table: string, title: string, trailing: string) => ({
+  op: 'addContainer' as const,
+  page: 'home',
+  block: {
     id,
-    type: 'recordList' as const,
-    props: {
-      collectionId,
-      display: 'list' as const,
-      titleField,
-      subtitleFields: collectionId === 'jobs' ? ['streak'] : [],
-      trailingField,
-      limit: 10,
-    },
+    look: 'list' as const,
+    source: { table, limit: 10 },
+    show: { title, subtitles: table === 'jobs' ? ['streak'] : [], trailing },
   },
 });
 
@@ -73,22 +67,20 @@ const seed = (locale: Locale, registry: Registry) => {
   const result = applyOps(
     createDefaultWorkspace(locale),
     [
-      { op: 'addCollection', collection: { ...jobs, fields: jobs.fields.slice(0, 2) } },
-      { op: 'addCollection', collection: shifts },
-      { op: 'addField', collectionId: 'jobs', field: jobs.fields[2]! },
-      { op: 'addField', collectionId: 'jobs', field: jobs.fields[3]! },
+      { op: 'addData', table: { ...jobs, fields: jobs.fields.slice(0, 2) } },
+      { op: 'addData', table: shifts },
+      { op: 'addData', table: 'jobs', field: jobs.fields[2]! },
+      { op: 'addData', table: 'jobs', field: jobs.fields[3]! },
       {
-        op: 'addComponent',
-        pageId: 'home',
-        component: {
+        op: 'addContainer',
+        page: 'home',
+        block: {
           id: 'log',
-          type: 'recordForm',
-          props: {
-            collectionId: 'shifts',
-            fieldIds: ['job', 'hours'],
-            submitLabel: 'Log',
-            mode: 'inline',
-          },
+          look: 'form',
+          show: { mode: 'inline' },
+          tools: [
+            { as: 'submit', label: 'Log', do: 'create', table: 'shifts', ask: ['job', 'hours'] },
+          ],
         },
       },
       list('job-list', 'jobs', 'name', 'total'),

@@ -1072,13 +1072,14 @@ export const presetById = (id: string) => WORKFLOW_PRESETS.find((p) => p.id === 
 export const presetsIn = (scenario: PresetScenario) =>
   WORKFLOW_PRESETS.filter((p) => p.scenario === scenario);
 
-/** 从预设复制一个工作流（不属于任何工具，记住 presetId 以便恢复）。 */
+/** 从预设复制一个快捷操作（不属于任何工具包，记住 preset 以便恢复）。 */
 export function presetWorkflow(preset: WorkflowPreset, locale: Locale, id: string): Workflow {
   return {
     id,
+    kind: 'quickAction',
     name: localize(preset.name, locale),
     icon: preset.icon,
-    presetId: preset.id,
+    preset: preset.id,
     steps: preset.steps(locale),
   };
 }
@@ -1131,11 +1132,11 @@ export function sharePresetOrder(files: readonly SharedFileInfo[]): string[] {
  */
 export function builtInWorkflows(workflows: readonly Workflow[], locale: Locale): Workflow[] {
   return WORKFLOW_PRESETS.filter(
-    (p) => !workflows.some((w) => w.presetId === p.id || w.id === p.id),
+    (p) => !workflows.some((w) => w.preset === p.id || w.id === p.id),
   ).map((p) => presetWorkflow(p, locale, p.id));
 }
 
-/** 按 ID 找快捷操作：先找配置里的，再找内设的。 */
+/** 按 ID 找快捷操作：先找配置里的（quickActionsOf(config)），再找内设的。 */
 export function findWorkflow(
   workflows: readonly Workflow[],
   id: string,
@@ -1158,7 +1159,7 @@ export function findWorkflowTarget(
 ): Workflow | undefined {
   return (
     findWorkflow(workflows, id, locale) ??
-    (presetById(id) ? workflows.find((w) => w.presetId === id) : undefined)
+    (presetById(id) ? workflows.find((w) => w.preset === id) : undefined)
   );
 }
 

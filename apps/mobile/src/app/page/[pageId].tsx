@@ -8,7 +8,7 @@ import { EditablePage } from '@/editing/EditablePage';
 import { t } from '@/i18n';
 import { ErrorBoundary } from '@/renderer/ErrorBoundary';
 import { Icon, UiIcon } from '@/renderer/Icon';
-import { openEditor } from '@/renderer/data';
+import { openEditor } from '@/renderer/open-row';
 import type { RenderEnv } from '@/renderer/components';
 import { usePalette } from '@/renderer/theme';
 import { DraftBar } from '@/draft/DraftBar';
@@ -39,9 +39,9 @@ export default function PageRoute() {
   const startEditing = useWorkspace((s) => s.startEditing);
   const palette = usePalette(config.theme);
   const { navigate, locked, inDraft } = useShellEnv();
-  const page = config.pages.find((p) => p.id === pageId);
-  const recordOf = page?.recordOf;
-  const collection = recordOf ? config.collections.find((c) => c.id === recordOf) : undefined;
+  const page = config.containers.pages.find((p) => p.id === pageId);
+  const recordOf = page?.of;
+  const collection = recordOf ? config.data.tables.find((c) => c.id === recordOf) : undefined;
   // 这条记录：标题写在页面顶部；改了、删了以后重新读（undefined = 还在读）。
   const version = useWorkspace((s) => s.recordsVersion);
   const [record, setRecord] = useState<DataRecord | null | undefined>(undefined);

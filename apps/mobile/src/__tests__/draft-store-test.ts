@@ -1,10 +1,11 @@
 import {
-  BUILTIN_TOOLS,
+  type AIProvider,
   allComponents,
+  BUILTIN_TOOLS,
   createMockAIProvider,
   createRegistry,
-  type AIProvider,
   type PlanContext,
+  quickActionsOf,
 } from '@morph/core';
 
 import { MemoryWorkspaceRepo } from '../storage/memory';
@@ -60,7 +61,9 @@ describe('AI change drafts (D-190)', () => {
     await say(store, '首页改成文件工作台');
     await say(store, '主题换成绿色');
     expect(store.getState().draft!.steps).toHaveLength(2);
-    expect(draftConfig(store).pages.find((p) => p.id === 'home')!.title).toBe('文件工作台');
+    expect(draftConfig(store).containers.pages.find((p) => p.id === 'home')!.title).toBe(
+      '文件工作台',
+    );
     expect(draftConfig(store).theme.primaryColor).toBe('#2F9E44');
 
     await store.getState().stepBack();
@@ -141,8 +144,8 @@ describe('AI change drafts (D-190)', () => {
     // 新用户的首页没有工具卡片（D-182）：先添加图片和 PDF 工具，PDF 卡片排在第二。
     await store.getState().proposeOps(
       [
-        { op: 'installTool', toolId: 'image' },
-        { op: 'installTool', toolId: 'pdf' },
+        { op: 'setPackage', package: 'image', do: 'add' },
+        { op: 'setPackage', package: 'pdf', do: 'add' },
       ],
       '添加图片和 PDF',
     );
@@ -151,7 +154,9 @@ describe('AI change drafts (D-190)', () => {
     await say(store, '把 PDF 放到最上面');
     store.getState().closeDraft();
     // 离开草稿期间移除了 PDF 工具：第二步要挪的卡片没有了，第一步还在。
-    await store.getState().proposeOps([{ op: 'uninstallTool', toolId: 'pdf' }], '移除 PDF');
+    await store
+      .getState()
+      .proposeOps([{ op: 'setPackage', package: 'pdf', do: 'remove' }], '移除 PDF');
     await store.getState().confirm();
     store.getState().openDraft();
     expect(store.getState().draft!.steps.map((s) => s.input)).toEqual(['字体大一点']);
@@ -207,8 +212,9 @@ describe('function changes go straight in (D-191)', () => {
         kind: 'ops',
         ops: [
           {
-            op: 'addWorkflow',
-            workflow: {
+            op: 'addTool',
+            tool: {
+              kind: 'quickAction',
               id: 'trip-photos',
               name: '发旅行照片给朋友',
               steps: [
@@ -225,20 +231,22 @@ describe('function changes go straight in (D-191)', () => {
     expect(applied.addedWorkflowIds).toEqual(['trip-photos']);
     expect(applied.notes?.length).toBeGreaterThan(0);
     expect(store.getState().draft).toBeNull();
-    const home = store.getState().config!.pages.find((p) => p.id === 'home')!;
-    expect(allComponents(home).some((c) => c.type === 'workflowRunner')).toBe(true);
+    const home = store.getState().config!.containers.pages.find((p) => p.id === 'home')!;
+    expect(allComponents(home).some((c) => c.look === 'action')).toBe(true);
     const head = store.getState().head!;
     expect(head).toMatchObject({ parentId: baseId, source: 'ai' });
     await store.getState().markRendered(head.id);
     expect(store.getState().banner).toMatchObject({ kind: 'applied', undoTo: baseId });
     await store.getState().undo();
-    expect(store.getState().config!.workflows.some((w) => w.id === 'trip-photos')).toBe(false);
+    expect(quickActionsOf(store.getState().config!).some((w) => w.id === 'trip-photos')).toBe(
+      false,
+    );
   });
 
   it('a sentence with both does the function first and keeps the rest as the next request', async () => {
     const { store, repo } = await booted();
     await change(store, '主题换成绿色，添加签证照片快捷操作');
-    expect(store.getState().config!.workflows.some((w) => w.id === 'visa-photo')).toBe(true);
+    expect(quickActionsOf(store.getState().config!).some((w) => w.id === 'visa-photo')).toBe(true);
     expect(store.getState().config!.theme.primaryColor).not.toBe('#2F9E44');
     expect(store.getState().next).toBe('主题换成绿色');
     expect(await repo.getMeta('next')).toBe('主题换成绿色');
@@ -255,11 +263,11 @@ describe('function changes go straight in (D-191)', () => {
     const { store } = await booted();
     const applied = await change(store, '新建一个记账页面');
     expect(applied.addedCollectionIds).toEqual(['expenses']);
-    expect(store.getState().config!.pages.some((p) => p.id === 'budget')).toBe(false);
+    expect(store.getState().config!.containers.pages.some((p) => p.id === 'budget')).toBe(false);
     expect(store.getState().next).toBe('增加记账页面');
     const result = await store.getState().change('增加记账页面');
     expect(result).toMatchObject({ kind: 'drafted' });
-    expect(draftConfig(store).pages.some((p) => p.id === 'budget')).toBe(true);
+    expect(draftConfig(store).containers.pages.some((p) => p.id === 'budget')).toBe(true);
   });
 
   it('a new function change replaces the next request; undoing it clears it', async () => {
@@ -292,11 +300,11 @@ describe('function changes go straight in (D-191)', () => {
     await change(store, '添加签证照片快捷操作');
     const draft = store.getState().draft!;
     expect(draft.open).toBe(false);
-    expect(store.getState().config!.workflows.some((w) => w.id === 'visa-photo')).toBe(true);
+    expect(quickActionsOf(store.getState().config!).some((w) => w.id === 'visa-photo')).toBe(true);
     store.getState().openDraft();
     const shown = shownConfig(store.getState())!;
     expect(shown.theme.primaryColor).toBe('#2F9E44');
-    expect(shown.workflows.some((w) => w.id === 'visa-photo')).toBe(true);
+    expect(quickActionsOf(shown).some((w) => w.id === 'visa-photo')).toBe(true);
   });
 });
 

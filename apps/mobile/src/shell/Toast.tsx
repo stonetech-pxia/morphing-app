@@ -22,14 +22,13 @@ export function Toast({ palette, bottom }: { palette: Palette; bottom: number })
       <Text style={[styles.flex, palette.font('bodyMedium', 14), { color: palette.surface }]}>
         {toast.message}
       </Text>
-      {toast.restoreRecordId || toast.undo ? (
+      {toast.restoreRecordId ? (
         <Pressable
           testID="toast-undo"
           accessibilityRole="button"
           style={styles.action}
           onPress={() => {
-            if (toast.undo) void actions.undo(toast.undo);
-            else void actions.restore(toast.restoreRecordId!);
+            void actions.restore(toast.restoreRecordId!);
             dismiss();
           }}>
           <Text style={[palette.font('bodyBold', 14), { color: palette.surface }]}>

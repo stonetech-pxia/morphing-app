@@ -9,7 +9,7 @@ import { IdSchema, boundedText } from '../schema-primitives';
 // 改不了的（结构里根本没有）：预览本身（不能去掉）、桌上的文件（D-113：AI 不碰文件内容）、
 // 表格和文档的编辑工具（跟着选中的东西出现，§11.3）、替用户执行任何东西（工具栏上的按钮都要用户自己点）。
 
-/** 预览上下能放的组件：只放说明和入口，不放会改数据的（记录表单、文件格子）。 */
+/** 预览上下能放的块：只放说明和入口，不放会改数据的（记录表单、文件格子）。 */
 export const DESK_SLOT_TYPES = [
   'header',
   'text',
@@ -17,16 +17,19 @@ export const DESK_SLOT_TYPES = [
   'divider',
   'spacer',
   'button',
-  'shortcut',
+  'entry',
 ] as const;
 
 /** 和 ActionIdSchema（schema.ts）一样；schema.ts 引用这里，不能反过来引用它。 */
 const DeskActionIdSchema = z.string().regex(/^[a-z]+\.[a-zA-Z0-9]+$/, 'invalid action id');
 
-/** 工具栏上的一项：一个工具（可以带一个常用规格），或者一个快捷操作（点一下作用到桌上的文件）。 */
+/**
+ * 工具栏上的一项（v34 ToolRef）：目录里的单个动作（可以带一个常用规格），或者一个快捷操作的 ID
+ * （点一下作用到桌上的文件，原 {workflowId}）。
+ */
 export const DeskToolSchema = z.union([
   z.strictObject({ action: DeskActionIdSchema, preset: IdSchema.optional() }),
-  z.strictObject({ workflowId: IdSchema }),
+  IdSchema,
 ]);
 export type DeskTool = z.infer<typeof DeskToolSchema>;
 
@@ -42,13 +45,13 @@ const groups = z.array(DeskToolGroupSchema).min(1).max(6).optional();
 const slot = z
   .array(ComponentSchema)
   .max(2)
-  .refine((list) => list.every((c) => (DESK_SLOT_TYPES as readonly string[]).includes(c.type)), {
+  .refine((list) => list.every((c) => (DESK_SLOT_TYPES as readonly string[]).includes(c.look)), {
     message: `only ${DESK_SLOT_TYPES.join(', ')} can go above or below the preview`,
   })
   .optional();
 
 /**
- * 房间的布局（WorkspaceConfig.desk，schemaVersion 33）。每一项都可以不写，不写就是默认（DEFAULT_DESK_LAYOUT）。
+ * 房间的布局（containers.desk，schemaVersion 33 起；v34 搬进 containers，Q7）。每一项都可以不写，不写就是默认（DEFAULT_DESK_LAYOUT）。
  * tools 按文件种类分开写：没写的种类用注册表生成的默认工具栏（defaultDeskTools）。
  */
 export const DeskLayoutSchema = z.strictObject({

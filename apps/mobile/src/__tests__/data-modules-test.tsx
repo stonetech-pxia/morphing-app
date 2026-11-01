@@ -44,11 +44,11 @@ const seedWith =
     const result = applyOps(
       createDefaultWorkspace(locale),
       [
-        { op: 'addCollection', collection: expenses },
-        ...components.map((component) => ({
-          op: 'addComponent' as const,
-          pageId: 'home',
-          component,
+        { op: 'addData', table: expenses },
+        ...components.map((block) => ({
+          op: 'addContainer' as const,
+          page: 'home',
+          block,
         })),
       ],
       { registry, locale },
@@ -82,13 +82,13 @@ describe('stat grouped by a choice field', () => {
     await renderToolsApp(repo, undefined, {
       seed: seedWith({
         id: 'by-category',
-        type: 'stat',
-        props: {
-          collectionId: 'expenses',
+        look: 'number',
+        show: { label: '按分类' },
+        source: {
+          table: 'expenses',
           aggregate: 'sum',
-          fieldId: 'amount',
-          label: '按分类',
-          groupBy: 'category',
+          field: 'amount',
+          group: { by: 'category' },
         },
       }),
     });
@@ -104,8 +104,9 @@ describe('stat grouped by a choice field', () => {
     await renderToolsApp(new MemoryWorkspaceRepo(), undefined, {
       seed: seedWith({
         id: 'by-category',
-        type: 'stat',
-        props: { collectionId: 'expenses', aggregate: 'count', label: '笔数', groupBy: 'category' },
+        look: 'number',
+        show: { label: '笔数' },
+        source: { table: 'expenses', aggregate: 'count', group: { by: 'category' } },
       }),
     });
     expect((await screen.findByTestId('stat-group-expenses-food')).props.children).toBe('0');
@@ -131,14 +132,13 @@ describe('chart (D-249)', () => {
     await renderToolsApp(repo, undefined, {
       seed: seedWith({
         id: 'week',
-        type: 'chart',
-        props: {
-          collectionId: 'expenses',
-          kind: 'bar',
+        look: 'chart',
+        show: { kind: 'bar', title: '最近 7 天' },
+        source: {
+          table: 'expenses',
           aggregate: 'sum',
-          fieldId: 'amount',
-          group: 'day',
-          title: '最近 7 天',
+          field: 'amount',
+          group: { by: 'date', unit: 'day' },
         },
       }),
     });
@@ -157,15 +157,13 @@ describe('chart (D-249)', () => {
     await renderToolsApp(repo, undefined, {
       seed: seedWith({
         id: 'share',
-        type: 'chart',
-        props: {
-          collectionId: 'expenses',
-          kind: 'pie',
+        look: 'chart',
+        show: { kind: 'pie', title: '花在哪里' },
+        source: {
+          table: 'expenses',
           aggregate: 'sum',
-          fieldId: 'amount',
-          group: 'choice',
-          choiceField: 'category',
-          title: '花在哪里',
+          field: 'amount',
+          group: { by: 'category' },
         },
       }),
     });
@@ -179,13 +177,12 @@ describe('chart (D-249)', () => {
     await renderToolsApp(new MemoryWorkspaceRepo(), undefined, {
       seed: seedWith({
         id: 'trend',
-        type: 'chart',
-        props: {
-          collectionId: 'expenses',
-          kind: 'line',
+        look: 'chart',
+        show: { kind: 'line', title: '每月笔数' },
+        source: {
+          table: 'expenses',
           aggregate: 'count',
-          group: 'month',
-          title: '每月笔数',
+          group: { by: 'date', unit: 'month' },
         },
       }),
     });
@@ -205,42 +202,41 @@ describe('link to another table (D-250)', () => {
     name: '订单',
     fields: [
       { id: 'item', name: '商品', type: 'text' },
-      { id: 'client', name: '客户', type: 'link', collectionId: 'clients' },
+      { id: 'client', name: '客户', type: 'link', table: 'clients' },
     ],
   };
   const seed = (locale: Locale, registry: Registry) => {
     const result = applyOps(
       createDefaultWorkspace(locale),
       [
-        { op: 'addCollection', collection: clients },
-        { op: 'addCollection', collection: orders },
+        { op: 'addData', table: clients },
+        { op: 'addData', table: orders },
         {
-          op: 'addComponent',
-          pageId: 'home',
-          component: {
+          op: 'addContainer',
+          page: 'home',
+          block: {
             id: 'order-list',
-            type: 'recordList',
-            props: {
-              collectionId: 'orders',
-              display: 'list',
-              titleField: 'item',
-              subtitleFields: ['client'],
-              limit: 20,
-            },
+            look: 'list',
+            source: { table: 'orders', limit: 20 },
+            show: { title: 'item', subtitles: ['client'] },
           },
         },
         {
-          op: 'addComponent',
-          pageId: 'home',
-          component: {
+          op: 'addContainer',
+          page: 'home',
+          block: {
             id: 'add-order',
-            type: 'recordForm',
-            props: {
-              collectionId: 'orders',
-              fieldIds: ['item', 'client'],
-              submitLabel: '记下',
-              mode: 'inline',
-            },
+            look: 'form',
+            show: { mode: 'inline' },
+            tools: [
+              {
+                as: 'submit',
+                label: '记下',
+                do: 'create',
+                table: 'orders',
+                ask: ['item', 'client'],
+              },
+            ],
           },
         },
       ],

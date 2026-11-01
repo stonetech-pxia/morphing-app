@@ -10,6 +10,7 @@ import {
   type WorkspaceConfig,
 } from '@morph/core';
 import { Stack } from 'expo-router';
+import type { ReactNode } from 'react';
 import { renderRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -19,6 +20,7 @@ import { DraftChatSheet } from '../draft/DraftBar';
 import { useDraftUi } from '../draft/ui';
 import { createAISettingsStore, type SecretStore } from '../ai/settings';
 import ChangeRoute from '../app/change';
+import DataRoute from '../app/data';
 import DeskRoute from '../app/desk/[deskId]';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
@@ -34,6 +36,7 @@ import WorkflowsRoute from '../app/workflows';
 import QuickActionsRoute from '../app/quick-actions';
 import QuickActionCategoryRoute from '../app/quick-actions/[kind]';
 import { HomeScreenProvider } from '../home-screen/context';
+import { PackHostProvider, type Packs } from '../packs/PackHost';
 import type { HomeScreenPlatform } from '../home-screen/platform';
 import { HomeScreenBridge } from '../home-screen/useHomeScreen';
 import { useIncomingShare } from '../share/useIncomingShare';
@@ -91,6 +94,8 @@ export async function renderToolsApp(
     homeScreen?: HomeScreenPlatform;
     /** 桌面小组件（D-321）：假的平台；不传时和 Expo Go 一样没有。 */
     widgets?: WidgetPlatform;
+    /** 扩展包环境（D-064）：假的页面通道和内存里的 PackStore；不传时没有（usePacks 为 null）。 */
+    packs?: Packs;
   } = {},
 ) {
   const registry = options.registry ?? testRegistry;
@@ -108,6 +113,12 @@ export async function renderToolsApp(
     ...(options.seed ? { seed: options.seed } : {}),
   });
   await store.getState().boot();
+  const withPacks = (children: ReactNode) =>
+    options.packs ? (
+      <PackHostProvider value={options.packs}>{children}</PackHostProvider>
+    ) : (
+      children
+    );
   const router = await renderRouter({
     _layout: () => (
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -115,21 +126,23 @@ export async function renderToolsApp(
           <WorkspaceProvider value={{ store, repo, files, registry, locale }}>
             <ShareListener files={files} />
             <HomeScreenProvider value={options.homeScreen ?? null}>
-              <WidgetProvider value={options.widgets ?? null}>
-                {options.toolDownloads ? (
-                  <ToolDownloadsProvider value={options.toolDownloads}>
-                    <Stack />
-                    <DraftChatSheet />
-                  </ToolDownloadsProvider>
-                ) : (
-                  <>
-                    <Stack />
-                    <DraftChatSheet />
-                  </>
-                )}
-                <HomeScreenBridge platform={options.homeScreen ?? null} />
-                <WidgetBridge platform={options.widgets ?? null} />
-              </WidgetProvider>
+              {withPacks(
+                <WidgetProvider value={options.widgets ?? null}>
+                  {options.toolDownloads ? (
+                    <ToolDownloadsProvider value={options.toolDownloads}>
+                      <Stack />
+                      <DraftChatSheet />
+                    </ToolDownloadsProvider>
+                  ) : (
+                    <>
+                      <Stack />
+                      <DraftChatSheet />
+                    </>
+                  )}
+                  <HomeScreenBridge platform={options.homeScreen ?? null} />
+                  <WidgetBridge platform={options.widgets ?? null} />
+                </WidgetProvider>,
+              )}
             </HomeScreenProvider>
           </WorkspaceProvider>
         </AISettingsProvider>
@@ -148,6 +161,7 @@ export async function renderToolsApp(
     'desk/[deskId]': DeskRoute,
     storage: StorageRoute,
     'ready/[workflowId]': ReadyRoute,
+    data: DataRoute,
     'record/[collectionId]': RecordRoute,
     welcome: WelcomeRoute,
   });

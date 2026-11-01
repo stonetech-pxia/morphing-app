@@ -35,35 +35,33 @@ const seed = (locale: Locale, registry: Registry) => {
   const result = applyOps(
     createDefaultWorkspace(locale),
     [
-      { op: 'addCollection', collection: shifts },
+      { op: 'addData', table: shifts },
       {
-        op: 'addComponent',
-        pageId: 'home',
-        component: {
+        op: 'addContainer',
+        page: 'home',
+        block: {
           id: 'log',
-          type: 'recordForm',
-          props: {
-            collectionId: 'shifts',
-            fieldIds: ['start', 'end', 'in', 'break'],
-            submitLabel: 'Log',
-            mode: 'inline',
-          },
+          look: 'form',
+          show: { mode: 'inline' },
+          tools: [
+            {
+              as: 'submit',
+              label: 'Log',
+              do: 'create',
+              table: 'shifts',
+              ask: ['start', 'end', 'in', 'break'],
+            },
+          ],
         },
       },
       {
-        op: 'addComponent',
-        pageId: 'home',
-        component: {
+        op: 'addContainer',
+        page: 'home',
+        block: {
           id: 'list',
-          type: 'recordList',
-          props: {
-            collectionId: 'shifts',
-            display: 'list',
-            titleField: 'in',
-            subtitleFields: ['break'],
-            trailingField: 'worked',
-            limit: 10,
-          },
+          look: 'list',
+          source: { table: 'shifts', limit: 10 },
+          show: { title: 'in', subtitles: ['break'], trailing: 'worked' },
         },
       },
     ],

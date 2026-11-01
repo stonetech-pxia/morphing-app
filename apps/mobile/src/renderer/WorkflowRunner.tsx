@@ -1,4 +1,10 @@
-import { describeParams, findWorkflowTarget, localize, type Backdrop } from '@morph/core';
+import {
+  describeParams,
+  findWorkflowTarget,
+  localize,
+  quickActionsOf,
+  type Backdrop,
+} from '@morph/core';
 import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -30,7 +36,7 @@ export function WorkflowRunner({
   const { locale, registry } = env;
   const palette = onPicture(env.palette, backdrop);
   // 可以指向内设快捷操作的预设 ID；用户改过以后配置里的副本优先（D-259）。
-  const workflow = findWorkflowTarget(env.config.workflows, workflowId, locale);
+  const workflow = findWorkflowTarget(quickActionsOf(env.config), workflowId, locale);
   if (!workflow) return null;
   const label = (action: string) => localize(registry.actions.get(action)?.label, locale) ?? action;
   // 关键设置（例如「不超过 500 KB」）；每次运行时询问的参数不列出。
@@ -51,7 +57,7 @@ export function WorkflowRunner({
 
   const shown = look ?? (env.inCell ? 'tile' : 'card');
   const icon =
-    workflow.icon ?? (workflow.toolId && registry.tools.get(workflow.toolId)?.icon) ?? 'workflow';
+    workflow.icon ?? (workflow.package && registry.tools.get(workflow.package)?.icon) ?? 'workflow';
   // 多步的工作流（预设、自己搭的）列出步骤；单功能的名字已经说明了做什么，只列固定的设置。
   const detail =
     workflow.steps.length > 2

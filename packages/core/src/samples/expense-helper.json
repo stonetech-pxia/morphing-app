@@ -13,9 +13,9 @@
   "ids": {
     "$table.claims": "claims",
     "$page.main": "expenses",
-    "$workflow.scanLog": "scan-receipt-log",
-    "$workflow.print": "print-expenses",
-    "$reminder.friday": "submit-expenses"
+    "$tool.scanLog": "scan-receipt-log",
+    "$tool.print": "print-expenses",
+    "$tool.friday": "submit-expenses"
   },
   "tables": [
     {
@@ -153,9 +153,10 @@
       ]
     }
   ],
-  "workflows": [
+  "tools": [
     {
-      "id": "$workflow.scanLog",
+      "id": "$tool.scanLog",
+      "kind": "quickAction",
       "name": {
         "en": "Scan a receipt and log it",
         "zh": "扫描收据后记一笔",
@@ -187,7 +188,8 @@
       ]
     },
     {
-      "id": "$workflow.print",
+      "id": "$tool.print",
+      "kind": "quickAction",
       "name": {
         "en": "Print this month’s expenses",
         "zh": "打印本月报销单",
@@ -229,12 +231,28 @@
       ]
     },
     {
-      "id": "$workflow.archive",
-      "presetId": "receipt-archive"
+      "id": "$tool.archive",
+      "preset": "receipt-archive"
     },
     {
-      "id": "$workflow.report",
-      "presetId": "expense-report"
+      "id": "$tool.report",
+      "preset": "expense-report"
+    },
+    {
+      "id": "$tool.friday",
+      "kind": "reminder",
+      "title": {
+        "en": "Time to submit this week’s expenses",
+        "zh": "交报销：把这周的收据交上去",
+        "fr": "C’est le moment de soumettre les dépenses de la semaine"
+      },
+      "enabled": true,
+      "when": {
+        "every": "week",
+        "days": [5],
+        "at": "16:00"
+      },
+      "opens": "page:$page.main"
     }
   ],
   "pages": [
@@ -246,11 +264,11 @@
         "fr": "Dépenses"
       },
       "icon": "inbox",
-      "components": [
+      "blocks": [
         {
           "id": "title",
-          "type": "header",
-          "props": {
+          "look": "header",
+          "show": {
             "title": {
               "en": "Expense helper",
               "zh": "报销助手",
@@ -265,23 +283,25 @@
         },
         {
           "id": "summary",
-          "type": "group",
-          "props": {
+          "look": "group",
+          "show": {
             "layout": "row"
           },
           "children": [
             {
               "id": "pending-total",
-              "type": "stat",
-              "props": {
-                "collectionId": "$table.claims",
-                "aggregate": "sum",
-                "fieldId": "amount",
+              "look": "number",
+              "show": {
                 "label": {
                   "en": "To submit",
                   "zh": "待交合计",
                   "fr": "À soumettre"
-                },
+                }
+              },
+              "source": {
+                "table": "$table.claims",
+                "aggregate": "sum",
+                "field": "amount",
                 "filter": [
                   {
                     "field": "status",
@@ -293,15 +313,17 @@
             },
             {
               "id": "pending-count",
-              "type": "stat",
-              "props": {
-                "collectionId": "$table.claims",
-                "aggregate": "count",
+              "look": "number",
+              "show": {
                 "label": {
                   "en": "Receipts to submit",
                   "zh": "待交笔数",
                   "fr": "Reçus à soumettre"
-                },
+                }
+              },
+              "source": {
+                "table": "$table.claims",
+                "aggregate": "count",
                 "filter": [
                   {
                     "field": "status",
@@ -315,55 +337,67 @@
         },
         {
           "id": "actions",
-          "type": "group",
-          "props": {
+          "look": "group",
+          "show": {
             "layout": "grid",
             "columns": 2
           },
           "children": [
             {
               "id": "run-scan-log",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.scanLog",
-                "look": "tile"
-              }
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.scanLog"
+                }
+              ]
             },
             {
               "id": "run-print",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.print",
-                "look": "tile"
-              }
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.print"
+                }
+              ]
             },
             {
               "id": "run-archive",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.archive",
-                "look": "tile"
-              }
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.archive"
+                }
+              ]
             },
             {
               "id": "run-report",
-              "type": "workflowRunner",
-              "props": {
-                "workflowId": "$workflow.report",
-                "look": "tile"
-              }
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.report"
+                }
+              ]
             }
           ]
         },
         {
           "id": "pending",
-          "type": "recordList",
-          "props": {
-            "collectionId": "$table.claims",
-            "display": "list",
-            "titleField": "category",
-            "subtitleFields": ["note", "date"],
-            "trailingField": "amount",
+          "look": "list",
+          "source": {
+            "table": "$table.claims",
             "filter": [
               {
                 "field": "status",
@@ -375,7 +409,12 @@
               "field": "date",
               "direction": "desc"
             },
-            "limit": 50,
+            "limit": 50
+          },
+          "show": {
+            "title": "category",
+            "subtitles": ["note", "date"],
+            "trailing": "amount",
             "emptyText": {
               "en": "Nothing to submit. Scan a receipt to log one.",
               "zh": "没有待交的报销，扫一张收据记一笔吧。",
@@ -385,18 +424,21 @@
         },
         {
           "id": "by-category",
-          "type": "chart",
-          "props": {
-            "collectionId": "$table.claims",
+          "look": "chart",
+          "show": {
             "kind": "pie",
-            "aggregate": "sum",
-            "fieldId": "amount",
-            "group": "choice",
-            "choiceField": "category",
             "title": {
               "en": "Spending by category",
               "zh": "各类花费",
               "fr": "Dépenses par catégorie"
+            }
+          },
+          "source": {
+            "table": "$table.claims",
+            "aggregate": "sum",
+            "field": "amount",
+            "group": {
+              "by": "category"
             }
           }
         }
@@ -408,26 +450,15 @@
   "home": [
     {
       "id": "run-scan-receipt",
-      "type": "workflowRunner",
-      "props": {
-        "workflowId": "$workflow.scanLog",
-        "look": "row"
-      }
-    }
-  ],
-  "reminders": [
-    {
-      "id": "$reminder.friday",
-      "title": {
-        "en": "Time to submit this week’s expenses",
-        "zh": "交报销：把这周的收据交上去",
-        "fr": "C’est le moment de soumettre les dépenses de la semaine"
+      "look": "action",
+      "show": {
+        "shape": "row"
       },
-      "enabled": true,
-      "schedule": "weekly",
-      "weekdays": [5],
-      "time": "16:00",
-      "opens": "page:$page.main"
+      "tools": [
+        {
+          "tool": "$tool.scanLog"
+        }
+      ]
     }
   ]
 }

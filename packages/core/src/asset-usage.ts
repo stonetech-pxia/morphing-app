@@ -8,7 +8,7 @@ import { allComponents, type Collection, type WorkspaceConfig } from './schema';
 export type AssetUse =
   /** 一条记录的附件（D-263）。deleted：在「最近删除」里（30 天内还能恢复）。 */
   | { kind: 'record'; collectionId: string; recordId: string; deleted: boolean }
-  /** 一个组件：图片、文件入口、卡片的图片背景（D-045、D-257、D-258）。 */
+  /** 一个块：图片、文件位（entry 的 opens.file）、卡片的图片背景（D-045、D-257、D-258）。 */
   | { kind: 'component'; pageId: string; componentId: string }
   /** 一个页面的图片背景（D-258）。 */
   | { kind: 'page'; pageId: string };
@@ -19,28 +19,33 @@ export interface AssetUsage {
   inOldVersions: boolean;
 }
 
-/** 一段配置 JSON 里所有的 assetId（不管在哪一层）。 */
+/**
+ * 一段配置 JSON 里所有指向用户文件的 ID（不管在哪一层）。v34 只有四处（NEW_FORMAT §3.5）：图片块的
+ * show.asset、卡片的 style.backdrop.assetId、页面的 backdrop.assetId、文件位的 opens.file；
+ * 历史版本可能是 v33 的配置，那时都叫 assetId。
+ */
 function collectAssetIds(value: unknown, into: Set<string>): void {
   if (Array.isArray(value)) {
     for (const v of value) collectAssetIds(v, into);
   } else if (value && typeof value === 'object') {
     for (const [k, v] of Object.entries(value)) {
-      if (k === 'assetId' && typeof v === 'string') into.add(v);
+      if (ASSET_KEYS.has(k) && typeof v === 'string') into.add(v);
       else collectAssetIds(v, into);
     }
   }
 }
+const ASSET_KEYS = new Set(['assetId', 'asset', 'file']);
 
-/** 当前配置里用到文件的页面和组件。 */
+/** 当前配置里用到文件的页面和块。 */
 export function configAssetUses(config: WorkspaceConfig): Map<string, AssetUse[]> {
   const uses = new Map<string, AssetUse[]>();
   const add = (id: string, use: AssetUse) => uses.set(id, [...(uses.get(id) ?? []), use]);
-  for (const page of config.pages) {
+  for (const page of config.containers.pages) {
     if (page.backdrop?.assetId) add(page.backdrop.assetId, { kind: 'page', pageId: page.id });
     for (const c of allComponents(page)) {
       const ids = new Set<string>();
-      // 分组的子组件单独算，不算在分组上。
-      collectAssetIds(c.type === 'group' ? { ...c, children: [] } : c, ids);
+      // 分组的子块单独算，不算在分组上。
+      collectAssetIds({ ...c, children: [] }, ids);
       for (const id of ids) add(id, { kind: 'component', pageId: page.id, componentId: c.id });
     }
   }
@@ -69,7 +74,7 @@ export function assetUsage(input: {
   for (const [id, uses] of configAssetUses(config)) for (const use of uses) add(id, use);
 
   const fileFields = new Map<string, string[]>();
-  for (const c of [...config.collections, ...input.collections]) {
+  for (const c of [...config.data.tables, ...input.collections]) {
     if (fileFields.has(c.id)) continue;
     fileFields.set(
       c.id,

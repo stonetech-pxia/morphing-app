@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from './change';
 import { applyOps } from './ops';
-import type { Workflow } from './schema';
+import { quickActionsOf, type Workflow } from './schema';
 import { registry, workspace } from './test-helpers';
 import { WORKFLOW_PRESETS, presetWorkflow } from './workflows/presets';
 import { REDACTED_TEXT } from './workflow/redact';
 
-// 工作流的修改操作（T7，D-082）：新建、删除、改名、加步骤、移动步骤、整体更新。
+// 快捷操作的修改操作（T7，D-082）：新建、删除、改名、加步骤、移动步骤、整体更新（v34：addTool / updateTool / removeTool / moveTool）。
 
 const ctx = { registry, locale: 'zh' as const, now: new Date(2026, 9, 22) };
 const visa = () => presetWorkflow(WORKFLOW_PRESETS[0]!, 'zh', 'visa');
@@ -15,7 +15,7 @@ const visa = () => presetWorkflow(WORKFLOW_PRESETS[0]!, 'zh', 'visa');
 function withVisa() {
   const result = applyOps(
     workspace('zh', { withPdf: true }),
-    [{ op: 'addWorkflow', workflow: visa() }],
+    [{ op: 'addTool', tool: visa() }],
     ctx,
   );
   if (!result.ok) throw new Error(result.error);
@@ -24,10 +24,14 @@ function withVisa() {
 
 describe('workflow ops', () => {
   it('adds a workflow from a preset and describes it step by step', () => {
-    const result = prepareOps(workspace('zh'), [{ op: 'addWorkflow', workflow: visa() }], ctx);
+    const result = prepareOps(workspace('zh'), [{ op: 'addTool', tool: visa() }], ctx);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.after.workflows.at(-1)).toMatchObject({ id: 'visa', presetId: 'visa-photo' });
+    expect(quickActionsOf(result.after).at(-1)).toMatchObject({
+      id: 'visa',
+      kind: 'quickAction',
+      preset: 'visa-photo',
+    });
     expect(result.lines).toEqual([
       '新建快捷操作「签证 / 证件照」（现成的）：选照片 → 证件照 → 命名',
     ]);
@@ -36,52 +40,51 @@ describe('workflow ops', () => {
   it('refuses a workflow that does not fit together or reuses an id', () => {
     const broken: Workflow = {
       id: 'broken',
+      kind: 'quickAction',
       name: '坏的',
       steps: [
         { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 1 } },
         { id: 'photos', action: 'out.saveToPhotos', params: {} },
       ],
     };
-    expect(prepareOps(workspace(), [{ op: 'addWorkflow', workflow: broken }], ctx)).toMatchObject({
+    expect(prepareOps(workspace(), [{ op: 'addTool', tool: broken }], ctx)).toMatchObject({
       ok: false,
       stage: 'validate',
     });
-    expect(prepareOps(withVisa(), [{ op: 'addWorkflow', workflow: visa() }], ctx)).toMatchObject({
+    expect(prepareOps(withVisa(), [{ op: 'addTool', tool: visa() }], ctx)).toMatchObject({
       ok: false,
       stage: 'apply',
     });
-    // 不能借 addWorkflow 冒充工具的工作流。
+    // 不能借 addTool 冒充工具包的快捷操作。
     expect(
-      prepareOps(workspace(), [{ op: 'addWorkflow', workflow: { ...visa(), toolId: 'pdf' } }], ctx),
+      prepareOps(workspace(), [{ op: 'addTool', tool: { ...visa(), package: 'pdf' } }], ctx),
     ).toMatchObject({ ok: false, stage: 'parse' });
   });
 
-  it('removes the user’s own workflow with its runner cards, but never a tool’s', () => {
+  it('removes the user’s own quick action with its action blocks, but never a tool’s', () => {
     const config = withVisa();
     const placed = applyOps(
       config,
       [
         {
-          op: 'addComponent',
-          pageId: 'home',
-          component: { id: 'run-visa', type: 'workflowRunner', props: { workflowId: 'visa' } },
+          op: 'addContainer',
+          page: 'home',
+          block: { id: 'run-visa', look: 'action', tools: [{ tool: 'visa' }] },
         },
       ],
       ctx,
     );
     if (!placed.ok) throw new Error(placed.error);
-    const removed = prepareOps(placed.config, [{ op: 'removeWorkflow', workflowId: 'visa' }], ctx);
+    const removed = prepareOps(placed.config, [{ op: 'removeTool', tool: 'visa' }], ctx);
     expect(removed.ok).toBe(true);
     if (!removed.ok) return;
-    expect(removed.after.workflows.some((w) => w.id === 'visa')).toBe(false);
-    expect(JSON.stringify(removed.after.pages)).not.toContain('run-visa');
+    expect(removed.after.tools.some((w) => w.id === 'visa')).toBe(false);
+    expect(JSON.stringify(removed.after.containers)).not.toContain('run-visa');
     expect(removed.lines).toEqual([
       '删除快捷操作「签证 / 证件照」（文件不受影响）',
       '同时移除 1 个运行这个快捷操作的卡片',
     ]);
-    expect(
-      prepareOps(config, [{ op: 'removeWorkflow', workflowId: 'pdf-merge' }], ctx),
-    ).toMatchObject({
+    expect(prepareOps(config, [{ op: 'removeTool', tool: 'pdf-merge' }], ctx)).toMatchObject({
       ok: false,
       stage: 'apply',
     });
@@ -93,23 +96,25 @@ describe('workflow ops', () => {
     const placed = applyOps(
       workspace('zh'),
       [
-        { op: 'addWorkflow', workflow: copy },
+        { op: 'addTool', tool: copy },
         {
-          op: 'addComponent',
-          pageId: 'home',
-          component: { id: 'run-visa', type: 'workflowRunner', props: { workflowId: copy.id } },
+          op: 'addContainer',
+          page: 'home',
+          block: { id: 'run-visa', look: 'action', tools: [{ tool: copy.id }] },
         },
       ],
       ctx,
     );
     if (!placed.ok) throw new Error(placed.error);
-    const removed = prepareOps(placed.config, [{ op: 'removeWorkflow', workflowId: copy.id }], ctx);
+    const removed = prepareOps(placed.config, [{ op: 'removeTool', tool: copy.id }], ctx);
     expect(removed.ok).toBe(true);
     if (!removed.ok) return;
-    expect(removed.after.workflows.some((w) => w.id === copy.id)).toBe(false);
-    expect(removed.after.pages[0]!.components).toContainEqual(
-      expect.objectContaining({ id: 'run-visa', props: { workflowId: copy.id } }),
-    );
+    expect(removed.after.tools.some((w) => w.id === copy.id)).toBe(false);
+    expect(removed.after.containers.pages[0]!.blocks).toContainEqual({
+      id: 'run-visa',
+      look: 'action',
+      tools: [{ tool: copy.id }],
+    });
     expect(removed.lines).toEqual(['删除快捷操作「签证 / 证件照」（文件不受影响）']);
   });
 
@@ -117,19 +122,15 @@ describe('workflow ops', () => {
     const result = prepareOps(
       withVisa(),
       [
-        { op: 'renameWorkflow', workflowId: 'visa', name: '美签照片' },
-        {
-          op: 'addWorkflowStep',
-          workflowId: 'visa',
-          step: { id: 'share', action: 'out.share', params: {} },
-        },
-        { op: 'moveWorkflowStep', workflowId: 'visa', stepId: 'name', toIndex: 3 },
+        { op: 'updateTool', tool: 'visa', changes: { name: '美签照片' } },
+        { op: 'addTool', tool: 'visa', step: { id: 'share', action: 'out.share', params: {} } },
+        { op: 'moveTool', tool: 'visa', step: 'name', toIndex: 3 },
       ],
       ctx,
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const wf = result.after.workflows.find((w) => w.id === 'visa')!;
+    const wf = quickActionsOf(result.after).find((w) => w.id === 'visa')!;
     expect(wf.name).toBe('美签照片');
     expect(wf.steps.map((s) => s.id)).toEqual(['pick', 'photo', 'share', 'name']);
     expect(result.lines).toEqual([
@@ -139,22 +140,12 @@ describe('workflow ops', () => {
     ]);
     // 输入动作只能是第一步。
     expect(
-      prepareOps(
-        withVisa(),
-        [{ op: 'moveWorkflowStep', workflowId: 'visa', stepId: 'pick', toIndex: 2 }],
-        ctx,
-      ),
+      prepareOps(withVisa(), [{ op: 'moveTool', tool: 'visa', step: 'pick', toIndex: 2 }], ctx),
     ).toMatchObject({ ok: false, stage: 'validate' });
     expect(
       prepareOps(
         withVisa(),
-        [
-          {
-            op: 'addWorkflowStep',
-            workflowId: 'visa',
-            step: { id: 'name', action: 'out.share', params: {} },
-          },
-        ],
+        [{ op: 'addTool', tool: 'visa', step: { id: 'name', action: 'out.share', params: {} } }],
         ctx,
       ),
     ).toMatchObject({ ok: false, stage: 'apply' });
@@ -165,9 +156,10 @@ describe('workflow ops', () => {
       workspace('zh'),
       [
         {
-          op: 'addWorkflow',
-          workflow: {
+          op: 'addTool',
+          tool: {
             id: 'mark',
+            kind: 'quickAction',
             name: '加水印',
             steps: [
               { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
@@ -194,32 +186,34 @@ describe('workflow ops', () => {
       base.config,
       [
         {
-          op: 'updateWorkflow',
-          workflowId: 'mark',
-          name: '水印并分享',
-          steps: [
-            { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
-            {
-              id: 'wm',
-              action: 'image.watermark',
-              params: {
-                text: REDACTED_TEXT,
-                mode: 'corner',
-                corner: 'bottomRight',
-                sizePercent: 30,
-                opacity: 35,
-                color: '#868E96',
+          op: 'updateTool',
+          tool: 'mark',
+          changes: {
+            name: '水印并分享',
+            steps: [
+              { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+              {
+                id: 'wm',
+                action: 'image.watermark',
+                params: {
+                  text: REDACTED_TEXT,
+                  mode: 'corner',
+                  corner: 'bottomRight',
+                  sizePercent: 30,
+                  opacity: 35,
+                  color: '#868E96',
+                },
               },
-            },
-            { id: 'share', action: 'out.share', params: {} },
-          ],
+              { id: 'share', action: 'out.share', params: {} },
+            ],
+          },
         },
       ],
       ctx,
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const wf = result.after.workflows.find((w) => w.id === 'mark')!;
+    const wf = quickActionsOf(result.after).find((w) => w.id === 'mark')!;
     expect(wf.steps[1]!.params).toMatchObject({ text: '仅供王小明办签证', mode: 'corner' });
     expect(result.lines).toEqual([
       '快捷操作「加水印」改名为「水印并分享」',

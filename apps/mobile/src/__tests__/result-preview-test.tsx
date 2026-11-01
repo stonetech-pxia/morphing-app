@@ -9,6 +9,7 @@ import { renderToolsApp, testRegistry } from '../test-utils/render-app';
 // 结果页点缩略图打开全屏预览（D-277）：图片在 App 里全屏看、左右滑；PDF 等用系统预览。
 
 const photos: Workflow = {
+  kind: 'quickAction',
   id: 'resize',
   name: '缩小照片',
   steps: [
@@ -17,6 +18,7 @@ const photos: Workflow = {
   ],
 };
 const pdf: Workflow = {
+  kind: 'quickAction',
   id: 'pdf',
   name: '照片做成 PDF',
   steps: [
@@ -31,7 +33,7 @@ const pdf: Workflow = {
 
 async function run(wf: Workflow, files: FakeFiles) {
   await renderToolsApp(undefined, files, {
-    seed: (locale) => ({ ...createDefaultWorkspace(locale), workflows: [photos, pdf] }),
+    seed: (locale) => ({ ...createDefaultWorkspace(locale), tools: [photos, pdf] }),
   });
   files.nextPhotos = [1, 2].map((n) => files.offerImage(`scan-${n}.jpg`, 3000, 2000));
   await act(async () =>

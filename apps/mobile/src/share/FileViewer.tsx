@@ -64,7 +64,7 @@ export function FileViewer({
   // 放大看图时不翻页（单指拖动用来看局部）。
   const [zoomed, setZoomed] = useState(false);
   return (
-    <Modal animationType="fade" onRequestClose={onClose}>
+    <Modal animationType="fade" presentationStyle="overFullScreen" onRequestClose={onClose}>
       {/* Android 的 Modal 是另一个窗口，手势要自己的根视图。 */}
       <GestureHandlerRootView style={styles.flex}>
         <View

@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
 import { THEME_PRESETS, THEME_PRESET_IDS, presetRequest, type ThemePresetId } from '../presets';
-import { allComponents, type Locale, type WorkspaceConfig } from '../schema';
+import {
+  allComponents,
+  isKnownComponent,
+  quickActionsOf,
+  type Locale,
+  type WorkspaceConfig,
+} from '../schema';
 import { createStarterWorkspace } from '../starter';
 import { apply, registry, workspace } from '../test-helpers';
 import { createMockAIProvider } from './mock';
@@ -33,14 +39,15 @@ async function changeThenNext(input: string, config: WorkspaceConfig, locale: Lo
   return change(first.plan.next, first.after, locale);
 }
 
-const home = (c: WorkspaceConfig) => c.pages.find((p) => p.id === 'home')!;
-const homeIds = (c: WorkspaceConfig) => home(c).components.map((x) => x.id);
-const mergeSteps = (c: WorkspaceConfig) => c.workflows.find((w) => w.id === 'pdf-merge')!.steps;
+const home = (c: WorkspaceConfig) => c.containers.pages.find((p) => p.id === 'home')!;
+const homeIds = (c: WorkspaceConfig) => home(c).blocks.map((x) => x.id);
+const mergeSteps = (c: WorkspaceConfig) =>
+  quickActionsOf(c).find((w) => w.id === 'pdf-merge')!.steps;
 
 // PDF 不在最上面的首页，这样“放到最上面”是一次真实的修改。
 const pdfBelowFiles = () =>
   apply(workspace('zh', { withPdf: true }), [
-    { op: 'moveComponent', pageId: 'home', componentId: 'card-pdf', toIndex: 3 },
+    { op: 'moveContainer', page: 'home', block: 'card-pdf', toIndex: 3 },
   ]);
 
 describe('mock AI — journey A (home page)', () => {
@@ -50,13 +57,13 @@ describe('mock AI — journey A (home page)', () => {
       pdfBelowFiles(),
     );
     expect(home(after).title).toBe('文件工作台');
-    expect(home(after).components[0]).toMatchObject({
-      type: 'header',
-      props: { title: '文件工作台' },
+    expect(home(after).blocks[0]).toMatchObject({
+      look: 'header',
+      show: { title: '文件工作台' },
     });
     expect(homeIds(after)).toEqual(['welcome', 'card-pdf', 'catalog', 'recent-files']);
-    expect(after.shell.nav).toEqual(['page:home', 'tools', 'settings']);
-    expect(after.shell.floating).toEqual([]);
+    expect(after.nav.bar).toEqual(['page:home', 'tools', 'settings']);
+    expect(after.nav.floating).toEqual([]);
     expect(lines).toContain('修改标题「我的工作台」：标题改为「文件工作台」');
   });
 
@@ -66,7 +73,7 @@ describe('mock AI — journey A (home page)', () => {
 
   it('A3 “导航只要首页、工具和设置”', async () => {
     const { after } = await change('导航只要首页、工具和设置', workspace());
-    expect(after.shell.nav).toEqual(['page:home', 'tools', 'settings']);
+    expect(after.nav.bar).toEqual(['page:home', 'tools', 'settings']);
   });
 
   it('A4 “首页改成文件工作台”', async () => {
@@ -85,8 +92,8 @@ describe('mock AI — journey A (home page)', () => {
       workspace('en'),
       'en',
     );
-    expect(after.shell.nav).toEqual(['page:home', 'tools', 'settings']);
-    expect(after.shell.floating).toEqual([]);
+    expect(after.nav.bar).toEqual(['page:home', 'tools', 'settings']);
+    expect(after.nav.floating).toEqual([]);
   });
 
   it('PDF already on top is not a change', async () => {
@@ -116,10 +123,8 @@ describe('mock AI — single changes', () => {
 
   it('B3 hide and show the welcome card', async () => {
     const hidden = (await change('隐藏欢迎卡片', workspace())).after;
-    expect(home(hidden).components[0]!.hidden).toBe(true);
-    expect(
-      home((await change('显示欢迎卡片', hidden)).after).components[0]!.hidden,
-    ).toBeUndefined();
+    expect(home(hidden).blocks[0]!.hidden).toBe(true);
+    expect(home((await change('显示欢迎卡片', hidden)).after).blocks[0]!.hidden).toBeUndefined();
   });
 
   it('B4 “把最近文件放到 PDF 前面”', async () => {
@@ -195,7 +200,7 @@ describe('mock AI — style', () => {
     'B12c the style picker sentence for %s (%s) applies exactly that preset',
     async (id, locale) => {
       const p = await plan(presetRequest(id, locale), workspace(locale), locale);
-      expect(p).toEqual({ kind: 'ops', ops: [{ op: 'applyThemePreset', preset: id }] });
+      expect(p).toEqual({ kind: 'ops', ops: [{ op: 'setTheme', preset: id }] });
     },
   );
 
@@ -228,11 +233,11 @@ describe('mock AI — style', () => {
 describe('mock AI — navigation and pages', () => {
   it('B13 AI, History and Tools can be removed; Settings still has AI and History', async () => {
     const { after } = await change('把 AI 入口删掉', workspace());
-    expect(after.shell.nav).toEqual(['page:home', 'tools', 'history', 'settings']);
-    expect(after.shell.floating).toEqual([]);
+    expect(after.nav.bar).toEqual(['page:home', 'tools', 'history', 'settings']);
+    expect(after.nav.floating).toEqual([]);
     const noHistory = (await change('把历史从导航栏移除', after)).after;
-    expect(noHistory.shell.nav).toEqual(['page:home', 'tools', 'settings']);
-    expect((await change('remove tools', workspace('en'), 'en')).after.shell.nav).toEqual([
+    expect(noHistory.nav.bar).toEqual(['page:home', 'tools', 'settings']);
+    expect((await change('remove tools', workspace('en'), 'en')).after.nav.bar).toEqual([
       'page:home',
       'ai',
       'history',
@@ -242,30 +247,36 @@ describe('mock AI — navigation and pages', () => {
 
   it('B14 make an entry a floating button', async () => {
     const { after } = await change('把 AI 做成浮动按钮', workspace());
-    expect(after.shell.floating).toEqual(['ai']);
-    expect(after.shell.nav).not.toContain('ai');
+    expect(after.nav.floating).toEqual(['ai']);
+    expect(after.nav.bar).not.toContain('ai');
   });
 
   it('E1 adds a page with an entry in the nav bar, or on the home page when the bar is full', async () => {
-    const trimmed = apply(workspace(), [{ op: 'setNavItems', items: ['page:home', 'settings'] }]);
+    const trimmed = apply(workspace(), [
+      { op: 'updateContainer', nav: { bar: ['page:home', 'settings'] } },
+    ]);
     const { after } = await change('新建一个叫「记账」的页面', trimmed);
-    const page = after.pages.find((p) => p.title === '记账')!;
-    expect(page).toMatchObject({ id: 'page-1', components: [{ type: 'header' }] });
-    expect(after.shell.nav).toEqual(['page:home', 'page:page-1', 'settings']);
+    const page = after.containers.pages.find((p) => p.title === '记账')!;
+    expect(page).toMatchObject({ id: 'page-1', blocks: [{ look: 'header' }] });
+    expect(after.nav.bar).toEqual(['page:home', 'page:page-1', 'settings']);
 
     const full = (await change('Add a page called Budget', workspace('en'), 'en')).after;
-    expect(full.shell.nav).toHaveLength(5);
-    expect(home(full).components.at(-1)).toMatchObject({
-      type: 'shortcut',
-      props: { target: 'page:page-1' },
+    expect(full.nav.bar).toHaveLength(5);
+    expect(home(full).blocks.at(-1)).toMatchObject({
+      look: 'entry',
+      opens: 'page:page-1',
     });
   });
 
   it('E2 removes a page the user added', async () => {
     const added = (await change('新建一个叫「记账」的页面', workspace())).after;
     const { after } = await change('删除记账页面', added);
-    expect(after.pages.map((p) => p.id)).toEqual(['home']);
-    expect(home(after).components.some((c) => c.type === 'shortcut')).toBe(false);
+    expect(after.containers.pages.map((p) => p.id)).toEqual(['home']);
+    expect(
+      home(after).blocks.some(
+        (c) => isKnownComponent(c) && c.look === 'entry' && c.opens === 'page:page-1',
+      ),
+    ).toBe(false);
     expect(await plan('删除首页页面', workspace())).toMatchObject({ kind: 'reject' });
   });
 });
@@ -280,21 +291,21 @@ describe('mock AI — data pages (structure only)', () => {
   ] as const)('F1 “%s” builds the data table, then the page', async (input, locale, table) => {
     // 数据表是功能，直接做；页面是外观，留作「接着改」的下一句（D-191）。
     const first = await change(input, workspace(locale), locale);
-    expect(first.after.collections.map((c) => c.name)).toEqual([table]);
-    expect(first.after.pages).toHaveLength(1);
+    expect(first.after.data.tables.map((c) => c.name)).toEqual([table]);
+    expect(first.after.containers.pages).toHaveLength(1);
     expect(first.plan.next).toMatch(/^增加.+页面$|^Add a .+ page$/);
     const { after, plan: second } = await change(first.plan.next!, first.after, locale);
-    expect(after.collections.map((c) => c.name)).toEqual([table]);
-    expect(after.pages).toHaveLength(2);
+    expect(after.data.tables.map((c) => c.name)).toEqual([table]);
+    expect(after.containers.pages).toHaveLength(2);
     expect(second.next).toBeUndefined();
   });
 
   it('F1 a second budget page gets a table of its own', async () => {
     const budget = (await changeThenNext('新建一个记账页面', workspace())).after;
     const { after, plan: p } = await change('新建一个记账页面', budget);
-    expect(after.collections.map((c) => c.id)).toEqual(['expenses', 'expenses-2']);
+    expect(after.data.tables.map((c) => c.id)).toEqual(['expenses', 'expenses-2']);
     const { after: paged } = await change(p.next!, after);
-    expect(paged.pages.find((x) => x.id === 'budget-2')).toBeDefined();
+    expect(paged.containers.pages.find((x) => x.id === 'budget-2')).toBeDefined();
   });
 
   it('D-191 a sentence with a function and a look change does the function first', async () => {
@@ -302,7 +313,7 @@ describe('mock AI — data pages (structure only)', () => {
       '主题换成绿色，添加签证照片快捷操作，首页改成文件工作台',
       workspace(),
     );
-    expect(after.workflows.map((w) => w.id)).toContain('visa-photo');
+    expect(quickActionsOf(after).map((w) => w.id)).toContain('visa-photo');
     expect(after.theme.primaryColor).not.toBe('#2F9E44');
     expect(home(after).title).toBe('首页');
     expect(p.next).toBe('主题换成绿色，首页改成文件工作台');
@@ -323,7 +334,7 @@ describe('mock AI — data pages (structure only)', () => {
   it('F2 adds a field to a table', async () => {
     const budget = (await changeThenNext('新建一个记账页面', workspace())).after;
     const { after, lines } = await change('给账目加一个「支付方式」字段', budget);
-    expect(after.collections[0]!.fields.at(-1)).toEqual({
+    expect(after.data.tables[0]!.fields.at(-1)).toEqual({
       id: 'field-1',
       name: '支付方式',
       type: 'text',
@@ -362,9 +373,9 @@ describe('mock AI — attachments (D-263)', () => {
       )
     ).after;
     const { after, lines } = await change(input, budget, locale);
-    const fields = after.collections.find((c) => c.id === 'expenses')!.fields;
+    const fields = after.data.tables.find((c) => c.id === 'expenses')!.fields;
     expect(fields.filter((f) => f.type === 'file')).toHaveLength(1);
-    expect(after.workflows).toEqual(budget.workflows);
+    expect(after.tools).toEqual(budget.tools);
     expect(lines.join('\n')).toMatch(locale === 'zh' ? /附件/ : /Attachments/);
     // 已经有附件字段：不用改，说明在哪里放照片。
     expect(await plan(input, after, locale)).toMatchObject({ kind: 'reject', reason: 'noChange' });
@@ -374,23 +385,23 @@ describe('mock AI — attachments (D-263)', () => {
 describe('mock AI — images and icons', () => {
   it('G1 adds an empty image slot; the user picks the photo later', async () => {
     const { after, lines } = await change('在首页顶部加一张横幅', workspace());
-    expect(home(after).components[1]).toEqual({
+    expect(home(after).blocks[1]).toEqual({
       id: 'image-1',
-      type: 'image',
-      props: { aspect: 'wide', fit: 'cover', placeholder: '点按选择一张照片' },
+      look: 'image',
+      show: { aspect: 'wide', fit: 'cover', placeholder: '点按选择一张照片' },
     });
     expect(lines).toEqual(['在「首页」添加图片']);
     const en = await change('Add a photo to the home page', workspace('en'), 'en');
-    expect(home(en.after).components.at(-1)).toMatchObject({
-      type: 'image',
-      props: { aspect: 'landscape' },
+    expect(home(en.after).blocks.at(-1)).toMatchObject({
+      look: 'image',
+      show: { aspect: 'landscape' },
     });
   });
 
   it('G2 sets an emoji as a page icon', async () => {
     const budget = (await changeThenNext('新建一个记账页面', workspace())).after;
     const { after } = await change('把记账页面的图标换成💰', budget);
-    expect(after.pages.find((p) => p.title === '记账')!.icon).toBe('💰');
+    expect(after.containers.pages.find((p) => p.title === '记账')!.icon).toBe('💰');
     expect(await plan('把记账页面的图标换成钱', budget)).toMatchObject({ kind: 'reject' });
   });
 });
@@ -414,8 +425,8 @@ describe('mock AI — journey C (PDF tool)', () => {
       params: { template: '合并-{date:YYYY-MM-DD}' },
     });
     // 仍然是同一个工具实例。
-    expect(after.tools).toHaveLength(1);
-    expect(after.workflows.filter((w) => w.id === 'pdf-merge')).toHaveLength(1);
+    expect(after.packages).toHaveLength(1);
+    expect(quickActionsOf(after).filter((w) => w.id === 'pdf-merge')).toHaveLength(1);
     expect(lines.some((l) => l.includes('合并-2026-10-22'))).toBe(true);
   });
 
@@ -495,7 +506,9 @@ describe('mock AI — guide step 1 (D-231)', () => {
       ['Add the “Open photo library” and “Open files” buttons', 'en'],
     ] as const) {
       const { after } = await change(text, starter(locale), locale);
-      expect(homeOf(after).filter((c) => c.type === 'filePick')).toHaveLength(2);
+      expect(homeOf(after).filter((c) => isKnownComponent(c) && c.look === 'picker')).toHaveLength(
+        2,
+      );
     }
   });
 });
@@ -528,14 +541,16 @@ describe('mock AI — sentences removed in D-265', () => {
 describe('mock AI — record reports (W9)', () => {
   it('reads the period from the sentence, including the longer ones (D-285)', async () => {
     const budget = (await changeThenNext('新建一个记账页面', workspace())).after;
-    const name = budget.collections[0]!.name;
+    const name = budget.data.tables[0]!.name;
     for (const [words, period] of [
       ['本月', 'thisMonth'],
       ['最近 90 天', 'last90days'],
       ['最近一年', 'last365days'],
     ]) {
       const { after } = await change(`把${words}的${name}做成 PDF 报表`, budget);
-      const added = after.workflows.find((w) => !budget.workflows.some((x) => x.id === w.id))!;
+      const added = quickActionsOf(after).find(
+        (w) => !quickActionsOf(budget).some((x) => x.id === w.id),
+      )!;
       expect(added.steps[0]!.params).toMatchObject({ period });
     }
   });

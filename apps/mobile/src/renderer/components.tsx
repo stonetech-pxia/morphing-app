@@ -65,9 +65,8 @@ export function PageView({
   const palette = onPicture(env.palette, picture);
   const pageEnv = { ...env, palette, pageId: page.id };
   // D-352：底部弹出的添加框是右下角的浮动「+」，不跟着内容滚动。
-  const floats = (c: Component) =>
-    c.type === 'recordForm' && (c.props as { mode?: string }).mode === 'sheet';
-  const floating = page.components.filter((c) => !c.hidden && floats(c));
+  const floats = (c: Component) => c.look === 'form' && c.show.mode === 'sheet';
+  const floating = page.blocks.filter((c) => !c.hidden && floats(c));
   const content = (
     <ScrollView
       testID={env.focus ? 'editable-scroll' : undefined}
@@ -93,7 +92,7 @@ export function PageView({
           onPress={env.focus.onDone}
         />
       ) : null}
-      {runnerGrid(page.components.filter((c) => !c.hidden && !floats(c))).map((block) =>
+      {runnerGrid(page.blocks.filter((c) => !c.hidden && !floats(c))).map((block) =>
         Array.isArray(block) ? (
           <View
             key={block[0]!.id}
@@ -177,15 +176,14 @@ function runnerGrid(components: readonly Component[]): (Component | Component[])
   let run: Component[] = [];
   const flush = () => {
     const tiles =
-      run.length >= 2 || run.some((c) => c.type === 'workflowRunner' && c.props.look === 'tile');
+      run.length >= 2 || run.some((c) => c.look === 'action' && c.show?.shape === 'tile');
     if (tiles) for (let i = 0; i < run.length; i += 2) blocks.push(run.slice(i, i + 2));
     else blocks.push(...run);
     run = [];
   };
   for (const c of components) {
     // 指定了 row / card 的不进宫格；指定了 tile 的单独一个也放进宫格（D-230）。
-    if (c.type === 'workflowRunner' && c.props.look !== 'row' && c.props.look !== 'card')
-      run.push(c);
+    if (c.look === 'action' && c.show?.shape !== 'row' && c.show?.shape !== 'card') run.push(c);
     else {
       flush();
       blocks.push(c);

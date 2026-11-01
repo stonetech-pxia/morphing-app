@@ -1,10 +1,10 @@
 {
   "ids": {
-    "collection": "notes",
+    "table": "notes",
     "page": "notes"
   },
-  "collection": {
-    "id": "$collection",
+  "table": {
+    "id": "$table",
     "name": {
       "en": "Notes",
       "zh": "笔记",
@@ -41,11 +41,11 @@
       "fr": "Notes"
     },
     "icon": "document",
-    "components": [
+    "blocks": [
       {
         "id": "title",
-        "type": "header",
-        "props": {
+        "look": "header",
+        "show": {
           "title": {
             "en": "Notes",
             "zh": "笔记",
@@ -55,31 +55,37 @@
       },
       {
         "id": "add",
-        "type": "recordForm",
-        "props": {
-          "collectionId": "$collection",
-          "fieldIds": ["title", "body"],
-          "submitLabel": {
+        "look": "button",
+        "show": {
+          "label": {
             "en": "New note",
             "zh": "写笔记",
             "fr": "Nouvelle note"
           },
-          "mode": "button"
-        }
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
       },
       {
         "id": "notes",
-        "type": "recordList",
-        "props": {
-          "collectionId": "$collection",
-          "display": "cards",
-          "titleField": "title",
-          "subtitleFields": ["body"],
+        "look": "cards",
+        "source": {
+          "table": "$table",
           "sort": {
             "field": "updatedAt",
             "direction": "desc"
           },
-          "limit": 50,
+          "limit": 50
+        },
+        "show": {
+          "title": "title",
+          "subtitles": ["body"],
           "emptyText": {
             "en": "No notes yet",
             "zh": "还没有笔记",

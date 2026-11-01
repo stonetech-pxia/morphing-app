@@ -8,7 +8,7 @@ import {
   piePaths,
   pieSlices,
   type ChartPoint,
-  type Component,
+  type BlockOf,
   type ComponentStyle,
 } from '@morph/core';
 import { Canvas, Path } from '@shopify/react-native-skia';
@@ -27,68 +27,57 @@ import { Card } from './ui';
 // 单一序列用主色、不画图例（标题就是它的名字）；饼图每块用固定顺序的分类色，图例总是列出名字和数值，
 // 所以不只靠颜色区分。点一根柱子 / 一个点 / 一行图例，标题下面显示它的数值（代替悬停提示）。
 
-type ChartProps = Extract<Component, { type: 'chart' }>['props'];
-
 const PLOT_HEIGHT = 150;
 
 export function Chart({
-  props,
+  block,
   env,
   tone,
 }: {
-  props: ChartProps;
+  block: BlockOf<'chart'>;
   env: RenderEnv;
   tone?: ComponentStyle['tone'];
 }) {
   const { palette, locale } = env;
-  const table = env.config.collections.find((c) => c.id === props.collectionId);
+  const { source, show } = block;
+  const table = env.config.data.tables.find((c) => c.id === source.table);
   const cal = calendarOf(env.config);
   // 查找、汇总、上一条（D-291）按算好的值画。
-  const { view: collection, records } = useComputedRecords(env.config.collections, table, cal);
-  // 按引用字段分组（D-336）：被引用的表里每条记录一个点。
-  const linked = useLinkedGroups(
-    env,
-    collection,
-    props.group === 'choice' ? props.choiceField : undefined,
-  );
+  const { view: collection, records } = useComputedRecords(env.config.data.tables, table, cal);
+  // 按单选 / 引用字段分组（没有 unit）；引用字段（D-336）：被引用的表里每条记录一个点。
+  const byChoice = source.group.unit === undefined;
+  const linked = useLinkedGroups(env, collection, byChoice ? source.group.by : undefined);
   const [width, setWidth] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   if (!collection) return null;
   const now = new Date();
-  const field = props.fieldId ? collection.fields.find((f) => f.id === props.fieldId) : undefined;
-  // 连续天数这类只有一个值的聚合不能画图（D-284，校验已经挡住）。
-  const series =
-    props.aggregate === 'streak' ||
-    props.aggregate === 'daysSince' ||
-    props.aggregate === 'avgInterval'
-      ? []
-      : chartSeries(
-          filterRecords(records ?? [], collection, props.filter, now, cal),
-          collection,
-          { ...props, aggregate: props.aggregate },
-          now,
-          t(locale, 'statNoChoice'),
-          cal,
-          linked ?? undefined,
-        );
-  const points = props.kind === 'pie' ? pieSlices(series, t(locale, 'chartOther')) : series;
+  const field = source.field ? collection.fields.find((f) => f.id === source.field) : undefined;
+  const series = chartSeries(
+    filterRecords(records ?? [], collection, source.filter, now, cal),
+    collection,
+    source,
+    now,
+    t(locale, 'statNoChoice'),
+    cal,
+    linked ?? undefined,
+  );
+  const points = show.kind === 'pie' ? pieSlices(series, t(locale, 'chartOther')) : series;
   const valueText = (p: ChartPoint) =>
-    p.empty ? '—' : statText(p.value, props.aggregate, field, locale);
+    p.empty ? '—' : statText(p.value, source.aggregate, field, locale);
   const nothing = records !== null && linked !== null && points.every((p) => p.value === 0);
   // 默认显示最后一段（时间）或最大的一块（单选）。
-  const fallback =
-    props.group === 'choice'
-      ? points.reduce((best, p, i) => (p.value > (points[best]?.value ?? -Infinity) ? i : best), 0)
-      : points.length - 1;
+  const fallback = byChoice
+    ? points.reduce((best, p, i) => (p.value > (points[best]?.value ?? -Infinity) ? i : best), 0)
+    : points.length - 1;
   const selected = picked !== null && picked < points.length ? picked : fallback;
   const current = points[selected];
 
   const header = (
     <View style={styles.header}>
-      <Text style={[palette.font('title', 16), { color: palette.text }]}>{props.title}</Text>
-      {current && !nothing && props.kind !== 'pie' ? (
+      <Text style={[palette.font('title', 16), { color: palette.text }]}>{show.title}</Text>
+      {current && !nothing && show.kind !== 'pie' ? (
         <Text
-          testID={`chart-readout-${props.collectionId}`}
+          testID={`chart-readout-${source.table}`}
           style={[palette.font('body', 13), { color: palette.muted }]}>
           {t(locale, 'chartPoint', { label: current.label, value: valueText(current) })}
         </Text>
@@ -103,7 +92,7 @@ export function Chart({
         {records === null ? ' ' : t(locale, 'chartEmpty')}
       </Text>
     );
-  } else if (props.kind === 'bar') {
+  } else if (show.kind === 'bar') {
     const scale = lineScale(
       points.map((p) => p.value),
       1,
@@ -145,7 +134,7 @@ export function Chart({
         })}
       </View>
     );
-  } else if (props.kind === 'line') {
+  } else if (show.kind === 'line') {
     const values = points.map((p) => p.value);
     const scale = width > 0 ? lineScale(values, width, PLOT_HEIGHT) : null;
     plot = (
@@ -255,7 +244,7 @@ export function Chart({
     <Card palette={palette} background={tone ? cardColors(palette, tone).background : undefined}>
       {header}
       {plot}
-      {props.kind !== 'pie' && !nothing && points.length > 1 ? (
+      {show.kind !== 'pie' && !nothing && points.length > 1 ? (
         // 只标第一段和最后一段，中间的点一下才看。
         <View style={styles.axis}>
           <Text style={[palette.font('body', 12), { color: palette.caption }]}>

@@ -46,6 +46,7 @@ import {
   writeItem,
   type RunServices,
 } from './helpers';
+import { OCR_IMPLS } from './ocr';
 
 // PDF 动作的实现：字节处理全部在 packages/tool-pdf（pdf-lib），这里只负责读写临时文件。
 
@@ -581,8 +582,31 @@ export const PDF_IMPLS: Record<string, Impl> = {
     } catch (e) {
       throw new RunError('unreadable', { name: fileName(item), detail: String(e) });
     }
-    const text = fixCjkRadicals(result.pages.join('\n\n')).trim();
-    // 扫描件没有文字层。
+    const pages = result.pages.map((p) => fixCjkRadicals(p).trim());
+    // 扫描件（或扫描的那几页）没有文字层：把这几页画成图，用文字识别读（创始人 2026-10-31）。
+    const blank = pages.flatMap((p, i) => (p ? [] : [i]));
+    if (blank.length > 0) {
+      try {
+        const images = await renderPages(ctx, item, {
+          maxSide: 2500,
+          quality: 0.9,
+          pages: blank,
+        });
+        for (const [k, image] of images.entries()) {
+          ctx.throwIfCancelled();
+          const read = await OCR_IMPLS['ocr.recognize']!(
+            { type: 'images', items: [image] },
+            { lang: 'auto' },
+            ctx,
+          ).catch(() => null);
+          if (read?.type === 'text') pages[blank[k]!] = read.text;
+        }
+      } catch (e) {
+        if (e instanceof RunCancelled) throw e;
+        // 画不出来或认不了时照旧：只交出有文字层的页。
+      }
+    }
+    const text = pages.filter(Boolean).join('\n\n');
     if (!text) throw new RunError('notFound', { name: fileName(item) });
     // 文字只留在本机，绝不发给 AI（D-036）。
     return { type: 'text', text, name: item.name };

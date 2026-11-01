@@ -399,7 +399,7 @@ export const en = {
   exportAppConfig: 'Export app design',
   prefillMemoryTitle: 'Prefill memory',
   prefillMemoryHint:
-    'When you log an entry, Morph remembers the layout of documents you saved: which label a value follows, roughly which line, and the shop name. It does not keep amounts or dates. Stored only on this phone, never sent to the AI. The exported file is also a backup: use “Restore from file” to bring it back.',
+    'When you log an entry, Morph remembers the layout of documents you saved: which label a value follows, roughly which line, and the shop name. It does not keep amounts or dates. Stored only on this phone, never sent to the AI. The exported file is also a backup: use “Restore from file” to bring it back. In a new entry form, Morph also remembers which suggestion you picked for each field: the label it followed and roughly where it was, not the value.',
   prefillMemoryCount: 'Remembers {count} document layouts',
   prefillMemoryNone: 'No document layouts remembered yet',
   prefillMemoryExport: 'Export',
@@ -412,6 +412,12 @@ export const en = {
   prefillMemoryRestoreInvalid:
     'This file is not prefill memory exported from Morph. Nothing was restored.',
   prefillMemoryRestored: 'Restored {count} document layouts.',
+  prefillMemoryPicks: 'Remembers {count} picked suggestions',
+  // New entry form: suggested values from attachments (D-394)
+  suggestionFill: 'Fill “{field}” with {value}',
+  suggestionsWorking: 'Looking for values in the attachments…',
+  suggestionsNeedDownload: 'To suggest values from the attachments, a one-time download is needed.',
+  suggestionsDownload: 'Suggest values',
   dataModelDownloadAsk: 'Download date and amount recognition?',
   dataModelDownloadBody:
     'Google needs to download the recognition model for this language first. Recognition runs on this phone and the text is not uploaded; after the download it works offline. Without it, Morph still prefills using its own rules.',
@@ -494,6 +500,9 @@ export const en = {
   translateDownloadBody:
     'Translation languages: {langs}. After that it works offline. Wi-Fi is recommended.',
   translateDownload: 'Download',
+  translateSystemDownloadAsk: 'Translating needs language downloads first',
+  translateSystemDownloadBody:
+    'Languages to download: {langs}. Your iPhone will ask you to confirm next, and the download may take a few minutes, so stay in Morph. Next time you can download them first in the iPhone’s Settings → Apps → Translate.',
   translateDownloadFailed: 'the {langs} language files (check the connection and try again)',
   translateLanguageTitle: 'Translation: {name}',
   translateLanguageHint: 'About 30 MB, for translating on this device (Google ML Kit).',
@@ -672,6 +681,14 @@ export const en = {
   attachmentMoveUp: 'Move up',
   attachmentMoveDown: 'Move down',
   attachmentsFull: 'At most {n} files',
+  // ---- 附件的「…」和放回记录（D-395）----
+  attachmentMore: 'More for “{name}”',
+  deskBackTitle: 'Back to the entry',
+  deskBackMessage: 'How should the file on the desk go into this entry?',
+  deskBackAdd: 'Add as a new attachment',
+  deskBackReplace: 'Replace the original',
+  deskBackFull: 'This entry can’t hold more attachments, so you can only replace the original.',
+  deskBackNoRoom: 'There are too many files on the desk for this entry.',
   runError_documentUnsupported:
     '“{name}” is a {format} file. On this phone only Word documents (.docx) can be turned into PDFs.',
   runError_tooLong: '“{name}” is too long for a GIF (at most {seconds} seconds). Trim it first.',
@@ -724,6 +741,13 @@ export const en = {
   describeChart: 'chart “{v0}”',
   // D-254：更新的 App 加的组件，这个版本不认识，原样保留。
   describeUnknownComponent: 'content from a newer version of this app',
+  // v34 修改说明（describe.ts）
+  v34descDeskAddAbove: 'Add {v0} above the preview on the desk',
+  v34descDeskAddBelow: 'Add {v0} below the preview on the desk',
+  v34descDeskRemove: 'Remove {v0} from the desk',
+  v34descDeskLayout: 'Change the desk layout',
+  v34descQuickActionIcon: 'Change the icon of the quick action “{name}”',
+  v34descToolsChanged: 'change the one-tap buttons',
   unknownComponent: 'This needs a newer version of this app to show.',
   chartOther: 'Other',
   chartEmpty: 'No entries to show yet',
@@ -758,8 +782,14 @@ export const en = {
   homeScreenFull: 'The home screen menu holds 4 quick actions. Take one off first.',
   homeScreenGone: 'This quick action is no longer on the home screen.',
   describeRemovedReminders: 'Also removes the reminders that needed it: {names}',
+  describeRemovedRecordPages: 'Also removes the pages for one entry of it: {names}',
+  describeRemovedStep: 'The step “{step}” in the quick action “{name}” is removed too',
+  describeTrimmedStep: 'The step “{step}” in the quick action “{name}” no longer lists this field',
+  describeRemovedQuickAction:
+    'The quick action “{name}” can’t work without this table and is removed too',
   reminderWhenDaily: 'every day at {time}',
   reminderWhenWeekly: 'every {days} at {time}',
+  reminderWhenAfterAdd: '{n} minutes after each new entry in “{table}”',
   reminderWhenDate: '{n} days before “{field}” in “{table}”, at {time}',
   reminderWhenSchedule: 'Each entry in “{table}” on its own “{field}”, at {time}',
   reminderDoneButton: 'Done',
@@ -773,6 +803,7 @@ export const en = {
   weekday6: 'Saturday',
   weekday7: 'Sunday',
   reminderDueToday: 'An entry in “{table}” is due today',
+  reminderAddedAgo: 'An entry was added to “{table}” {n} minutes ago',
   reminderDueIn: 'An entry in “{table}” is due in {n} days ({date})',
   remindersTitle: 'Reminders',
   remindersHint:
@@ -1164,6 +1195,11 @@ export const en = {
   seqAvgDays: '{n} days on average',
   // 一天、一周从什么时候开始（D-286）
   describeDayStart: 'A day starts at {hour}:00',
+  describeReadAttachmentsOn: '“{name}”: read attachments and suggest values in new entries',
+  describeReadAttachmentsOff: '“{name}”: no longer read attachments in new entries',
+  readAttachmentsLabel: 'Read attachments automatically',
+  readAttachmentsHint:
+    'New entries read photos and PDFs on this device and suggest values. Nothing is filled in until you tap it.',
   describeWeekStartMonday: 'Weeks start on Monday',
   describeWeekStartSunday: 'Weeks start on Sunday',
   describeTwoWeekStart: 'Two-week periods count from {date}',
@@ -1271,12 +1307,14 @@ export const en = {
   scheduleLastDoneHint: 'Counts from the date in “{field}”.',
   describeRemovedRecordActions: 'Also removes {n} one-tap buttons that used it',
   entryFormAdd: 'Add',
+  describeAddedPageEntry:
+    'Nothing opens the “{page}” page yet, so an entry to it is also added at the end of the home page',
   describeAddedEntryForm:
     '“{table}” had no way to add entries, so this also adds an “Add” button above the list',
   recordActionAdded: 'Added to “{table}”',
   recordActionDone: '{label}: done',
   recordActionChanged: 'Changed {n} entries',
-  recordActionConfirm: 'This changes {n} entries. You can undo it afterwards.',
+  recordActionConfirm: 'This changes {n} entries.',
   recordActionConfirmButton: 'Change',
   recordActionNothing: 'Nothing to change',
   recordActionTooMany: 'At most {max} entries can change at once; this would change {n}.',
@@ -1359,6 +1397,17 @@ export const en = {
   deskStorageAbout:
     'Files you are editing in the room, with their versions (the last 20, at most 500 MB).',
   deskStale: 'Untouched for {n} days, you can clear it',
+  // 收件页面「存成记录」（D-392）。
+  shareRecord: 'Save as an entry',
+  shareRecordAbout: 'Put the files in a table and fill in the rest yourself',
+  shareRecordChoose: 'Choose',
+  shareRecordHide: 'Hide',
+  shareRecordTables: 'Your tables',
+  shareRecordPresets: 'New table',
+  shareRecordBlank: 'Blank',
+  shareRecordBlankAbout: 'A title and the files. You can rename the table later.',
+  shareRecordTooMany: 'An entry holds at most {n} files: only the first {n} go in.',
+  shareRecordNewTable: 'Add the table “{name}”',
 };
 
 export type StringKey = keyof typeof en;
@@ -1412,6 +1461,7 @@ export const enSingular = {
   prefillMemoryRestoreConfirm:
     'Replace the current prefill memory with the one in this file ({count} layout)?',
   prefillMemoryRestored: 'Restored {count} document layout.',
+  prefillMemoryPicks: 'Remembers {count} picked suggestion',
   deleteForeverConfirm: 'Delete {count} entry of “{name}”? This can’t be undone.',
   editPageSummary: 'Edit “{page}” ({count} change)',
   deleteGroupMessage:
@@ -1428,7 +1478,9 @@ export const enSingular = {
   WorkflowsScreen_Needs_at_least_files_0ed9b: 'Needs at least {v0} file',
   WorkflowsScreen_Takes_at_most_files_0fe59: 'Takes at most {v0} file',
   runError_noneMatched: 'The file doesn’t meet the conditions of “Keep only some files”.',
+  reminderWhenAfterAdd: '{n} minute after each new entry in “{table}”',
   reminderWhenDate: '{n} day before “{field}” in “{table}”, at {time}',
+  reminderAddedAgo: 'An entry was added to “{table}” {n} minute ago',
   reminderDueIn: 'An entry in “{table}” is due in {n} day ({date})',
   remindersRowHint: '{n} reminder',
   resultTablesMissing:
@@ -1447,13 +1499,14 @@ export const enSingular = {
   scheduleOverdue: '{n} day overdue',
   describeRemovedRecordActions: 'Also removes {n} one-tap button that used it',
   recordActionChanged: 'Changed {n} entry',
-  recordActionConfirm: 'This changes {n} entry. You can undo it afterwards.',
+  recordActionConfirm: 'This changes {n} entry.',
   recordActionTooMany: 'At most {max} entries can change at once; this would change {n}.',
   calendarDayLabel: '{date}, {n} entry',
   widgetDone: 'Recorded {n} tap from the Home Screen widget',
   widgetSkipped: '{n} tap on the widget wasn’t recorded because the page changed',
   deskTargets: 'Tools apply to {n} file',
   deskStale: 'Untouched for {n} day, you can clear it',
+  shareRecordTooMany: 'An entry holds at most {n} file: only the first one goes in.',
 } satisfies Partial<MessageTable>;
 
 /** 单数表：键必须和 enSingular 完全一致。 */

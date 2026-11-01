@@ -9,3 +9,6 @@ PRODUCT_HANDOFF_CLAUDE_CODE.md
 
 # Vendored RNNoise source and model must retain upstream formatting.
 apps/mobile/modules/morph-media/dsp/rnnoise
+
+# v33 的配置和派生数据（v34 迁移的等价测试用，生成的，不手改）。
+packages/core/src/fixtures/v33

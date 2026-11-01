@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
-import type { Locale, Workflow, WorkspaceConfig } from '../schema';
+import { quickActionsOf, type Locale, type Workflow, type WorkspaceConfig } from '../schema';
 import { registry, workspace } from '../test-helpers';
 import { createMockAIProvider } from './mock';
 
@@ -16,7 +16,9 @@ async function added(input: string, locale: Locale = 'zh', config?: WorkspaceCon
   if (p.kind !== 'ops') throw new Error(`expected ops for “${input}”, got ${JSON.stringify(p)}`);
   const prepared = prepareOps(base, p.ops, { registry, locale, now });
   if (!prepared.ok) throw new Error(prepared.issues.join('; '));
-  const wf = prepared.after.workflows.find((w) => !base.workflows.some((b) => b.id === w.id));
+  const wf = quickActionsOf(prepared.after).find(
+    (w) => !quickActionsOf(base).some((b) => b.id === w.id),
+  );
   return wf!;
 }
 

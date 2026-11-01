@@ -5,7 +5,13 @@ import { WorkspaceConfigSchema, type Workflow } from '../schema';
 import { BUILTIN_TOOLS } from '../tools';
 import { workspace } from '../test-helpers';
 import { deskToolIcon } from './icons';
-import { DEFAULT_DESK_LAYOUT, DeskLayoutSchema, resolveDeskLayout } from './layout';
+import {
+  DEFAULT_DESK_LAYOUT,
+  DeskLayoutSchema,
+  resolveDeskLayout,
+  type DeskTool,
+  type DeskToolsConfig,
+} from './layout';
 import type { DeskFile } from './model';
 import {
   defaultDeskTools,
@@ -33,8 +39,10 @@ const pdf = f('pdf', 'application/pdf');
 const xlsx = f('xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 const docx = f('docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 
+/** 工具栏一项里的动作（快捷操作的项是字符串 ID，没有动作）。 */
+const actionOf = (i: DeskTool) => (typeof i === 'object' ? [i.action] : []);
 const actionsIn = (groups: ReturnType<typeof defaultDeskTools>, id: string) =>
-  groups.find((g) => g.id === id)?.items.flatMap((i) => ('action' in i ? [i.action] : [])) ?? [];
+  groups.find((g) => g.id === id)?.items.flatMap(actionOf) ?? [];
 
 describe('默认工具栏：按文件种类从注册表生成', () => {
   it('图片：编辑里是要亲手操作的（裁剪、标注、打码），处理是类型不变的，转换是换了类型的', () => {
@@ -50,7 +58,7 @@ describe('默认工具栏：按文件种类从注册表生成', () => {
       expect.arrayContaining(['pdf.fromImages', 'ocr.toExcel', 'ocr.toWord', 'ocr.recognize']),
     );
     // 选文件、保存、分享、命名不是工具（房间的「完成」管它们）。
-    const all = groups.flatMap((g) => g.items.flatMap((i) => ('action' in i ? [i.action] : [])));
+    const all = groups.flatMap((g) => g.items.flatMap(actionOf));
     expect(all.filter((a) => /^(in|out|file)\./.test(a))).toEqual([]);
     // 图片没有 PDF、视频的工具。
     expect(all.filter((a) => /^(pdf\.(compress|sign)|video\.)/.test(a))).toEqual([]);
@@ -71,7 +79,7 @@ describe('默认工具栏：按文件种类从注册表生成', () => {
   it('Excel、Word：只有转 PDF（合并、打包这种收任何文件的不放）', () => {
     for (const kind of ['sheet', 'doc'] as const) {
       const groups = defaultDeskTools(kind, registry, [], 'zh');
-      const all = groups.flatMap((g) => g.items.flatMap((i) => ('action' in i ? [i.action] : [])));
+      const all = groups.flatMap((g) => g.items.flatMap(actionOf));
       expect(all).toEqual(['pdf.fromDocument']);
     }
   });
@@ -83,22 +91,24 @@ describe('默认工具栏：按文件种类从注册表生成', () => {
   it('快捷操作：接得上这种文件的，自己的在前；工具自带的单功能快捷操作不放（和工具重复）', () => {
     const own: Workflow = {
       id: 'mine',
+      kind: 'quickAction',
       name: '我的',
       steps: [
         { id: 's1', action: 'in.photos', params: { source: 'library', min: 1, max: 30 } },
         { id: 's2', action: 'image.compress', params: { maxKB: 500, format: 'jpeg' } },
       ],
     };
-    const tool: Workflow = { ...own, id: 'tool-one', toolId: 'image' };
+    const tool: Workflow = { ...own, id: 'tool-one', package: 'image' };
     const pdfOnly: Workflow = {
       id: 'pdf-only',
+      kind: 'quickAction',
       name: 'PDF',
       steps: [{ id: 's1', action: 'in.files', params: { accept: 'pdf', min: 1, max: 10 } }],
     };
     const quick = defaultDeskTools('image', registry, [tool, pdfOnly, own], 'zh').find(
       (g) => g.id === 'quick',
     )!;
-    const ids = quick.items.map((i) => ('workflowId' in i ? i.workflowId : ''));
+    const ids = quick.items.map((i) => (typeof i === 'string' ? i : ''));
     expect(ids[0]).toBe('mine');
     expect(ids).not.toContain('tool-one');
     expect(ids).not.toContain('pdf-only');
@@ -145,6 +155,7 @@ describe('用一个工具 = 输入 + 这个工具', () => {
   it('快捷操作能不能作用到桌上的文件：看第一步收不收', () => {
     const photos: Workflow = {
       id: 'p',
+      kind: 'quickAction',
       name: 'p',
       steps: [{ id: 's1', action: 'in.photos', params: { source: 'library', min: 1, max: 30 } }],
     };
@@ -178,7 +189,7 @@ describe('工具栏的图标（D-364）', () => {
   it('同一个工具的不同动作图标不一样（旋转、裁剪、压缩、标注、转 PDF……）', () => {
     for (const kind of ['image', 'pdf', 'video', 'audio'] as const) {
       const ids = defaultDeskTools(kind, registry, [], 'zh').flatMap((g) =>
-        g.items.flatMap((i) => ('action' in i ? [i.action] : [])),
+        g.items.flatMap(actionOf),
       );
       const icons = ids.map((id) => deskToolIcon(registry.actions.get(id)!, registry));
       // 大部分不一样：只有少数几个共用（例如两种「转成文字」）。
@@ -203,12 +214,12 @@ describe('布局配置（创始人 2026-10-30 确认：默认预览居中、工�
       toolbar: 'top',
       preview: 'medium',
       strip: false,
-      above: [{ id: 'tip', type: 'notice', props: { text: '先找边' } }],
-      tools: { pdf: [{ title: '常用', items: [{ action: 'pdf.sign' }, { workflowId: 'mine' }] }] },
+      above: [{ id: 'tip', look: 'notice', show: { text: '先找边' } }],
+      tools: { pdf: [{ title: '常用', items: [{ action: 'pdf.sign' }, 'mine'] }] },
     });
     const resolved = resolveDeskLayout(layout);
     expect(resolved).toMatchObject({ toolbar: 'top', preview: 'medium', strip: false });
-    expect(resolved.above.map((c) => c.type)).toEqual(['notice']);
+    expect(resolved.above.map((c) => c.look)).toEqual(['notice']);
     expect(resolved.tools.pdf).toHaveLength(1);
   });
 
@@ -218,8 +229,9 @@ describe('布局配置（创始人 2026-10-30 确认：默认预览居中、工�
     expect(DeskLayoutSchema.safeParse({ hidePreview: true }).success).toBe(false);
     const form = {
       id: 'f',
-      type: 'recordForm',
-      props: { collectionId: 'c' },
+      look: 'form',
+      show: { mode: 'inline' },
+      tools: [{ as: 'submit', do: 'create', table: 'c', ask: ['name'] }],
     };
     expect(DeskLayoutSchema.safeParse({ below: [form] }).success).toBe(false);
     // 编辑层的工具（插入行、删块）不是动作，写不进工具栏。
@@ -230,8 +242,8 @@ describe('布局配置（创始人 2026-10-30 确认：默认预览居中、工�
   });
 
   it('配置里写了的种类用配置的，指向已经没有的工具、快捷操作的项不显示；没写的种类用默认的', () => {
-    const configured = {
-      pdf: [{ title: '常用', items: [{ action: 'pdf.sign' }, { workflowId: 'gone' }] }],
+    const configured: DeskToolsConfig = {
+      pdf: [{ title: '常用', items: [{ action: 'pdf.sign' }, 'gone'] }],
     };
     expect(deskToolbar('pdf', configured, registry, [], 'zh')).toEqual([
       { title: '常用', items: [{ action: 'pdf.sign' }] },
@@ -241,13 +253,17 @@ describe('布局配置（创始人 2026-10-30 确认：默认预览居中、工�
     );
   });
 
-  it('工作空间配置里可以有 desk，也可以没有', () => {
+  it('工作空间配置里可以有 containers.desk，也可以没有', () => {
     const config = workspace('zh');
+    const withDesk = (desk: unknown) => ({
+      ...config,
+      containers: { ...config.containers, desk },
+    });
     expect(WorkspaceConfigSchema.safeParse(config).success).toBe(true);
+    expect(WorkspaceConfigSchema.safeParse(withDesk({ toolbar: 'top' })).success).toBe(true);
+    expect(WorkspaceConfigSchema.safeParse(withDesk({ toolbar: 'left' })).success).toBe(false);
+    // v33 的位置（顶层 desk）不再认。
     expect(WorkspaceConfigSchema.safeParse({ ...config, desk: { toolbar: 'top' } }).success).toBe(
-      true,
-    );
-    expect(WorkspaceConfigSchema.safeParse({ ...config, desk: { toolbar: 'left' } }).success).toBe(
       false,
     );
   });

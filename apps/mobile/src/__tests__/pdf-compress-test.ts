@@ -1,11 +1,12 @@
 import {
-  BUILTIN_TOOLS,
   applyOps,
+  type AskRequest,
+  BUILTIN_TOOLS,
   createDefaultWorkspace,
   createRegistry,
   presetById,
   presetWorkflow,
-  type AskRequest,
+  quickActionsOf,
   type RunResult,
   type Workflow,
 } from '@morph/core';
@@ -24,12 +25,16 @@ const registry = createRegistry(BUILTIN_TOOLS);
 const MB = 1024 * 1024;
 
 function toolWorkflow(id: string): Workflow {
-  const result = applyOps(createDefaultWorkspace('zh'), [{ op: 'installTool', toolId: 'pdf' }], {
-    registry,
-    locale: 'zh',
-  });
+  const result = applyOps(
+    createDefaultWorkspace('zh'),
+    [{ op: 'setPackage', package: 'pdf', do: 'add' }],
+    {
+      registry,
+      locale: 'zh',
+    },
+  );
   if (!result.ok) throw new Error(result.error);
-  return result.config.workflows.find((w) => w.id === id)!;
+  return quickActionsOf(result.config).find((w) => w.id === id)!;
 }
 
 /** TINY_JPEG 的头改成 width × height，后面补零到 bytes 字节：pdf-lib 只读头。 */

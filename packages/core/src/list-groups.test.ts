@@ -7,7 +7,7 @@ import { createDefaultWorkspace } from './defaults';
 import { dayNumber } from './formula';
 import { filterPresets, listGroups } from './list-groups';
 import { monthDays } from './month-view';
-import type { Collection } from './schema';
+import type { Collection, NewComponent } from './schema';
 import { registry } from './test-helpers';
 
 // 记录列表分段（D-347）、月历认日程（D-348）、就地添加带上的值（D-349）。2026-10-30 是周五。
@@ -53,13 +53,18 @@ describe('sections in a list', () => {
   ];
 
   it('one section per option in option order, empty ones only when asked, not set last', () => {
-    const groups = listGroups(list, tasks, 'section', { locale: 'en', now, cal });
+    const groups = listGroups(list, tasks, { by: 'section' }, { locale: 'en', now, cal });
     expect(groups.map((g) => [g.label, titles(g.records), g.preset])).toEqual([
       ['Section A', ['One', 'Three'], 'a'],
       ['Section B', ['Two'], 'b'],
       ['Not set', ['Loose'], undefined],
     ]);
-    const all = listGroups(list, tasks, 'section', { locale: 'en', now, cal, showEmpty: true });
+    const all = listGroups(
+      list,
+      tasks,
+      { by: 'section', showEmpty: true },
+      { locale: 'en', now, cal },
+    );
     expect(all.map((g) => g.label)).toEqual(['Section A', 'Section B', 'Section C', 'Not set']);
   });
 
@@ -72,7 +77,7 @@ describe('sections in a list', () => {
       task('Monday', { plan: { repeat: 'weekdays', days: [1] } }),
     ];
     const sorted = sortRecords(plans, tasks, { field: 'plan', direction: 'asc' }, now, cal);
-    const groups = listGroups(sorted, tasks, 'plan', { locale: 'zh', now, cal });
+    const groups = listGroups(sorted, tasks, { by: 'plan' }, { locale: 'zh', now, cal });
     expect(groups.map((g) => [g.label, titles(g.records)])).toEqual([
       ['已过期', ['Late']],
       ['今天 · 10月30日 周五', ['Today']],
@@ -92,24 +97,33 @@ describe('sections in a list', () => {
       task('B', { due: '2026-11-03' }),
       task('C', { due: '2026-11-20' }),
     ];
-    expect(listGroups(dated, tasks, 'due', { locale: 'en', now, cal }).map((g) => g.label)).toEqual(
-      ['Today · Fri, Oct 30', 'Tue, Nov 3', 'Fri, Nov 20'],
-    );
-    const weeks = listGroups(dated, tasks, 'due', { locale: 'fr', now, cal, unit: 'week' });
+    expect(
+      listGroups(dated, tasks, { by: 'due' }, { locale: 'en', now, cal }).map((g) => g.label),
+    ).toEqual(['Today · Fri, Oct 30', 'Tue, Nov 3', 'Fri, Nov 20']);
+    const weeks = listGroups(dated, tasks, { by: 'due', unit: 'week' }, { locale: 'fr', now, cal });
     expect(weeks.map((g) => g.label)).toEqual([
       'Semaine du 26 oct.',
       'Semaine du 2 nov.',
       'Semaine du 16 nov.',
     ]);
     expect(weeks[0]!.preset).toBeUndefined();
-    const months = listGroups(dated, tasks, 'due', { locale: 'zh', now, cal, unit: 'month' });
+    const months = listGroups(
+      dated,
+      tasks,
+      { by: 'due', unit: 'month' },
+      { locale: 'zh', now, cal },
+    );
     expect(months.map((g) => [g.label, g.records.length])).toEqual([
       ['2026年10月', 1],
       ['2026年11月', 2],
     ]);
-    expect(listGroups(dated, tasks, 'due', { locale: 'en', now, cal })[1]!.preset).toBe(
+    expect(listGroups(dated, tasks, { by: 'due' }, { locale: 'en', now, cal })[1]!.preset).toBe(
       '2026-11-03',
     );
+    // 不写 by 只写 unit：按第一个日期字段（due）。
+    expect(
+      listGroups(dated, tasks, { unit: 'month' }, { locale: 'zh', now, cal }).map((g) => g.label),
+    ).toEqual(['2026年10月', '2026年11月']);
   });
 });
 
@@ -134,40 +148,37 @@ describe('a calendar on a schedule field', () => {
       task('Late', { plan: { repeat: 'once', date: '2026-10-20' } }),
       task('Nov 5', { plan: { repeat: 'once', date: '2026-11-05' } }),
     ];
-    const october = monthDays(plans, tasks, { dateField: 'plan' }, '2026-10', now, cal).days;
+    const october = monthDays(plans, tasks, { date: 'plan' }, '2026-10', now, cal).days;
     expect([...october.keys()].map((d) => new Date(d * 86_400_000).getUTCDate())).toEqual([30]);
     expect(titles(october.get(dayNumber('2026-10-30')!)!.records)).toEqual(['Late']);
-    const november = monthDays(plans, tasks, { dateField: 'plan' }, '2026-11', now, cal).days;
+    const november = monthDays(plans, tasks, { date: 'plan' }, '2026-11', now, cal).days;
     const mondays = [2, 9, 16, 23, 30].map((d) =>
       dayNumber(`2026-11-${String(d).padStart(2, '0')}`)!,
     );
     for (const d of mondays) expect(titles(november.get(d)!.records)).toEqual(['Weekly']);
     expect(titles(november.get(dayNumber('2026-11-05')!)!.records)).toEqual(['Nov 5']);
     // 过去的月份：重复的没有记录可查，不显示。
-    expect(monthDays(plans, tasks, { dateField: 'plan' }, '2026-09', now, cal).days.size).toBe(0);
+    expect(monthDays(plans, tasks, { date: 'plan' }, '2026-09', now, cal).days.size).toBe(0);
   });
 });
 
 describe('checking sections and adding here', () => {
-  const problems = (props: Record<string, unknown>) => {
+  const addHere = { as: 'addHere', do: 'create', table: 'tasks', ask: 'all', values: '$here' };
+  const problems = (group?: Record<string, unknown>, look = 'list', tools?: unknown[]) => {
     const r = prepareOps(
       createDefaultWorkspace('en'),
       [
-        { op: 'addCollection', collection: tasks },
+        { op: 'addData', table: tasks },
         {
-          op: 'addComponent',
-          pageId: 'home',
-          component: {
+          op: 'addContainer',
+          page: 'home',
+          block: {
             id: 'l',
-            type: 'recordList',
-            props: {
-              collectionId: 'tasks',
-              display: 'list',
-              titleField: 'title',
-              limit: 30,
-              ...props,
-            },
-          },
+            look,
+            source: { table: 'tasks', limit: 30, ...(group ? { group } : {}) },
+            show: { title: 'title' },
+            ...(tools ? { tools } : {}),
+          } as NewComponent,
         },
       ],
       { registry, locale: 'en', now },
@@ -176,21 +187,26 @@ describe('checking sections and adding here', () => {
   };
 
   it('accepts sections by choice, date and schedule, and a calendar on a schedule', () => {
-    expect(problems({ groupBy: 'section', showEmpty: true, addHere: true })).toEqual([]);
-    expect(problems({ groupBy: 'due', groupUnit: 'week' })).toEqual([]);
-    expect(problems({ groupBy: 'plan' })).toEqual([]);
-    expect(problems({ display: 'calendar', dateField: 'plan', addHere: true })).toEqual([]);
+    expect(problems({ by: 'section', showEmpty: true }, 'list', [addHere])).toEqual([]);
+    expect(problems({ by: 'due', unit: 'week' })).toEqual([]);
+    expect(problems({ by: 'plan' })).toEqual([]);
+    expect(problems({ unit: 'day' })).toEqual([]);
+    expect(problems({ by: 'plan', unit: 'day' }, 'calendar', [addHere])).toEqual([]);
   });
 
   it('explains what does not fit', () => {
-    expect(problems({ groupBy: 'title' }).join()).toMatch(/groupBy title must be a choice, link/);
-    expect(problems({ groupBy: 'section', groupUnit: 'week' }).join()).toMatch(
-      /groupUnit only applies/,
+    expect(problems({ by: 'title' }).join()).toMatch(
+      /source.group.by title must be a choice, link/,
     );
-    expect(problems({ groupBy: 'due', showEmpty: true }).join()).toMatch(/showEmpty only applies/);
-    expect(
-      problems({ display: 'board', groupField: 'section', groupBy: 'section' }).join(),
-    ).toMatch(/groupBy only applies/);
-    expect(problems({ groupUnit: 'day' }).join()).toMatch(/need groupBy/);
+    expect(problems({ by: 'section', unit: 'week' }).join()).toMatch(
+      /source.group.unit only applies/,
+    );
+    expect(problems({ by: 'due', showEmpty: true }).join()).toMatch(
+      /source.group.showEmpty only applies/,
+    );
+    expect(problems({ by: 'section', unit: 'day' }, 'board').join()).toMatch(
+      /a board has one column per option: no unit or showEmpty/,
+    );
+    expect(problems({}).join()).toMatch(/source.group needs by \(a field\) or unit/);
   });
 });

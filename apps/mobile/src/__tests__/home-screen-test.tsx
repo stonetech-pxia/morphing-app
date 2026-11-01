@@ -1,10 +1,10 @@
 import {
-  WORKFLOW_PRESETS,
   createStarterWorkspace,
-  presetWorkflow,
   type Locale,
+  presetWorkflow,
   type Registry,
   type Workflow,
+  WORKFLOW_PRESETS,
 } from '@morph/core';
 import { act, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
@@ -66,7 +66,7 @@ async function askAi(text: string) {
 async function addVisa(store: WorkspaceStore) {
   const wf = presetWorkflow(WORKFLOW_PRESETS[0]!, 'zh', 'visa-photo');
   await act(async () => {
-    await store.getState().proposeOps([{ op: 'addWorkflow', workflow: wf }], 'add');
+    await store.getState().proposeOps([{ op: 'addTool', tool: wf }], 'add');
     await store.getState().confirm();
   });
 }
@@ -76,11 +76,14 @@ const withPresets =
   (on: number[], off: number[] = []) =>
   (locale: Locale, registry: Registry) => {
     const config = createStarterWorkspace(locale, registry);
-    const added: Workflow[] = [...on, ...off].map((i) => {
-      const wf = presetWorkflow(WORKFLOW_PRESETS[i]!, locale, WORKFLOW_PRESETS[i]!.id);
-      return on.includes(i) ? { ...wf, homeScreen: true as const } : wf;
-    });
-    return { ...config, workflows: [...config.workflows, ...added] };
+    const added: Workflow[] = [...on, ...off].map((i) =>
+      presetWorkflow(WORKFLOW_PRESETS[i]!, locale, WORKFLOW_PRESETS[i]!.id),
+    );
+    return {
+      ...config,
+      nav: { ...config.nav, phoneHomeScreen: on.map((i) => WORKFLOW_PRESETS[i]!.id) },
+      tools: [...config.tools, ...added],
+    };
   };
 
 describe('quick actions on the phone home screen (D-271)', () => {
@@ -111,8 +114,8 @@ describe('quick actions on the phone home screen (D-271)', () => {
       expect.objectContaining({ id: 'visa-photo', title: '签证 / 证件照' }),
     ]);
     // 首页没有因此多一个卡片（「放到桌面」不是「放到首页」，D-109）。
-    const page = store.getState().config!.pages.find((p) => p.id === 'home')!;
-    expect(page.components.some((c) => c.type === 'workflowRunner')).toBe(false);
+    const page = store.getState().config!.containers.pages.find((p) => p.id === 'home')!;
+    expect(page.blocks.some((c) => c.look === 'action')).toBe(false);
   });
 
   it('undo takes it off the menu again', async () => {
@@ -124,9 +127,7 @@ describe('quick actions on the phone home screen (D-271)', () => {
     const banner = await within(await screen.findByTestId('ready-screen')).findByTestId('banner');
     await fireEvent.press(within(banner).getByText('撤销'));
     await waitFor(() => expect(home.menu).toEqual([]));
-    expect(store.getState().config!.workflows.find((w) => w.id === 'visa-photo')!.homeScreen).toBe(
-      undefined,
-    );
+    expect(store.getState().config!.nav.phoneHomeScreen ?? []).not.toContain('visa-photo');
   });
 
   it('renaming and deleting the quick action update the menu', async () => {
@@ -136,10 +137,7 @@ describe('quick actions on the phone home screen (D-271)', () => {
     await act(async () => {
       await store
         .getState()
-        .proposeOps(
-          [{ op: 'setWorkflowHomeScreen', workflowId: 'visa-photo', homeScreen: true }],
-          'on',
-        );
+        .proposeOps([{ op: 'updateContainer', nav: { phoneHomeScreen: ['visa-photo'] } }], 'on');
       await store.getState().confirm();
     });
     await waitFor(() => expect(home.menu?.map((e) => e.title)).toEqual(['签证 / 证件照']));
@@ -147,14 +145,14 @@ describe('quick actions on the phone home screen (D-271)', () => {
       await store
         .getState()
         .proposeOps(
-          [{ op: 'renameWorkflow', workflowId: 'visa-photo', name: '美签照片' }],
+          [{ op: 'updateTool', tool: 'visa-photo', changes: { name: '美签照片' } }],
           'rename',
         );
       await store.getState().confirm();
     });
     await waitFor(() => expect(home.menu?.map((e) => e.title)).toEqual(['美签照片']));
     await act(async () => {
-      await store.getState().proposeOps([{ op: 'removeWorkflow', workflowId: 'visa-photo' }], 'rm');
+      await store.getState().proposeOps([{ op: 'removeTool', tool: 'visa-photo' }], 'rm');
       await store.getState().confirm();
     });
     // 菜单里没有了；Android 上固定在桌面上的图标由模块停用（不在菜单里的都停用）。
@@ -181,9 +179,9 @@ describe('quick actions on the phone home screen (D-271)', () => {
     // 首页是 App 里的外观，先进草稿（D-190）；草稿里首页多了运行卡片，手机桌面没有变化。
     const draft = await waitFor(() => store.getState().draft!.steps.at(-1)!.config);
     expect(
-      draft.pages.find((p) => p.id === 'home')!.components.some((c) => c.type === 'workflowRunner'),
+      draft.containers.pages.find((p) => p.id === 'home')!.blocks.some((c) => c.look === 'action'),
     ).toBe(true);
-    expect(draft.workflows.some((w) => w.homeScreen)).toBe(false);
+    expect(draft.nav.phoneHomeScreen ?? []).toEqual([]);
     expect(home.menu).toEqual([]);
     expect(screen.queryByTestId('home-screen-how')).toBeNull();
   });

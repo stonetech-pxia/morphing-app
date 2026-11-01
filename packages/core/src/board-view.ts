@@ -1,6 +1,7 @@
 import { linkTitle, type DataRecord, type LinkedGroups } from './data';
 import type { FieldOf } from './fields';
-import type { RowAction } from './record-ops-schema';
+import type { RecordToolUse, ToolUse } from './record-ops-schema';
+import { GROUP_REF } from './schema-primitives';
 import type { Collection } from './schema';
 
 // 记录列表的两种外观（D-311–D-314）：大圆块 tiles 和看板 board。
@@ -19,19 +20,16 @@ export interface BoardColumn {
 
 type BoardField = FieldOf<'choice'> | FieldOf<'link'>;
 
-/** 看板分栏用的单选或引用字段；没有或类型不对时为 undefined（check 会拒绝这种配置）。 */
-export function boardField(
-  collection: Collection,
-  groupField: string | undefined,
-): BoardField | undefined {
-  const field = collection.fields.find((f) => f.id === groupField);
+/** 看板分栏用的单选或引用字段（source.group.by）；没有或类型不对时为 undefined（check 会拒绝这种配置）。 */
+export function boardField(collection: Collection, by: string | undefined): BoardField | undefined {
+  const field = collection.fields.find((f) => f.id === by);
   return field?.type === 'choice' || field?.type === 'link' ? field : undefined;
 }
 
 /**
  * 分栏：按选项顺序每个选项一栏（引用字段：linked 里每条一栏，按创建时间从旧到新），最后是「未分」。
  * records 已经筛选、排好序；每栏最多 limit 条。「未分」在必填字段上没有记录时不显示（拖进去也存不了）；
- * 不是必填时总显示，可以拖回去清空。引用字段的栏只有 linked 里的（已经按 groupFilter 筛过），指向别的记录的
+ * 不是必填时总显示，可以拖回去清空。引用字段的栏只有 linked 里的（已经按 group.filter 筛过），指向别的记录的
  * 卡片放进「未分」。
  */
 export function boardColumns(
@@ -69,14 +67,20 @@ export function boardTargets(
   return columns.filter((c) => c.option !== from && (c.option !== null || !field.required));
 }
 
+/** 看板上的拖动工具（v34）：tools 里的 {as: "drag", do: "set"}；没有就是只能看的看板。 */
+export type BoardDragTool = Extract<RecordToolUse, { do: 'set' }>;
+
+export const boardDragTool = (tools: readonly ToolUse[] | undefined): BoardDragTool | undefined =>
+  tools?.find((u): u is BoardDragTool => u.as === 'drag' && 'do' in u && u.do === 'set');
+
 /**
- * 拖到另一栏（或在「移到…」里选了一栏）：等于一个改这一行的 set（D-314），执行和撤销都走一键操作（D-300）。
- * label 是那一栏的名字（提示条上显示）。
+ * 拖到另一栏（或在「移到…」里选了一栏）：块上的拖动工具，"$group" 换成那一栏的值（「未分」是 null，清空），
+ * 执行和撤销都走一键记录工具（D-300、D-314）。label 是那一栏的名字（提示条上显示）。
  */
 export function boardMoveAction(
-  field: BoardField,
+  drag: BoardDragTool,
   option: string | null,
   label: string,
-): Extract<RowAction, { do: 'set' }> {
-  return { do: 'set', fieldId: field.id, value: option, label };
+): BoardDragTool {
+  return { ...drag, value: drag.value === GROUP_REF ? option : drag.value, label };
 }

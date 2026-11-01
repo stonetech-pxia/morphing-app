@@ -16,7 +16,7 @@ async function run(files: FakeFiles, steps: Workflow['steps'], answers = {}) {
     open: async () => null as never,
   };
   const { result } = await startRun({
-    workflow: { id: 'mine', name: '文字', steps },
+    workflow: { kind: 'quickAction', id: 'mine', name: '文字', steps },
     revisionId: 1,
     repo: new MemoryWorkspaceRepo(),
     files,

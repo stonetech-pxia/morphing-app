@@ -28,8 +28,8 @@ const registry = createRegistry(BUILTIN_TOOLS);
 
 const calendar = {
   id: 'cal',
-  type: 'calendar',
-  props: { view: 'month' },
+  look: 'timeline',
+  show: { view: 'month' },
   style: { tone: 'primary' },
 };
 
@@ -48,7 +48,15 @@ async function renderWithNewerConfig(locale: Locale) {
   // 存下来的 JSON 来自更新的 App：组件类型这个版本不认识。
   const stored = {
     ...config,
-    pages: [{ ...config.pages[0]!, components: [...config.pages[0]!.components, calendar] }],
+    containers: {
+      ...config.containers,
+      pages: [
+        {
+          ...config.containers.pages[0]!,
+          blocks: [...config.containers.pages[0]!.blocks, calendar],
+        },
+      ],
+    },
   } as unknown as WorkspaceConfig;
   await repo.commitRevision({ baseId: null, config: stored, source: 'user', summary: 'seed' });
   const aiSettings = createAISettingsStore({ secrets: memorySecrets(), serverAvailable: false });
@@ -78,7 +86,7 @@ async function renderWithNewerConfig(locale: Locale) {
 
 const savedHead = async (repo: MemoryWorkspaceRepo) =>
   JSON.parse(JSON.stringify((await repo.getHead())!.config)) as {
-    pages: { components: { id: string }[] }[];
+    containers: { pages: { blocks: { id: string }[] }[] };
   };
 
 describe('a component from a newer version of the app', () => {
@@ -116,7 +124,7 @@ describe('a component from a newer version of the app', () => {
     expect(await screen.findByText(/^已改好：/)).toBeTruthy();
     expect(store.getState().head!.source).toBe('user');
     const saved = await savedHead(repo);
-    const components = saved.pages[0]!.components;
+    const components = saved.containers.pages[0]!.blocks;
     expect(components.at(-2)).toEqual(calendar);
   });
 
@@ -131,6 +139,6 @@ describe('a component from a newer version of the app', () => {
     await fireEvent.press(screen.getByTestId('arrange-done'));
     expect(await screen.findByText(/^已改好：/)).toBeTruthy();
     const saved = await savedHead(repo);
-    expect(saved.pages[0]!.components.map((c) => c.id)).not.toContain('cal');
+    expect(saved.containers.pages[0]!.blocks.map((c) => c.id)).not.toContain('cal');
   });
 });

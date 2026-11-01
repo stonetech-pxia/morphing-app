@@ -4,7 +4,7 @@ import { Alert, StyleSheet, Text } from 'react-native';
 import { t } from '../i18n';
 import type { Palette } from '../renderer/theme';
 import { Button, Card } from '../renderer/ui';
-import { useWorkspaceContext } from '../workspace/context';
+import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { useHomeScreenPlatform } from './context';
 import { iosSymbolName } from '../renderer/Icon';
 
@@ -15,7 +15,10 @@ import { iosSymbolName } from '../renderer/Icon';
 export function HomeScreenCard({ workflow, palette }: { workflow: Workflow; palette: Palette }) {
   const { locale } = useWorkspaceContext();
   const platform = useHomeScreenPlatform();
-  if (!workflow.homeScreen) return null;
+  const onHomeScreen = useWorkspace(
+    (s) => s.config?.nav.phoneHomeScreen?.includes(workflow.id) ?? false,
+  );
+  if (!onHomeScreen) return null;
   const canPin = platform?.canPin() ?? false;
 
   async function pin() {

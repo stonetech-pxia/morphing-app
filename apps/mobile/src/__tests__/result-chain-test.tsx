@@ -1,4 +1,4 @@
-import { createDefaultWorkspace, initialParams, type Workflow } from '@morph/core';
+import { createDefaultWorkspace, initialParams, quickActionsOf, type Workflow } from '@morph/core';
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
@@ -10,6 +10,7 @@ import { FakeFiles } from '../test-utils/fake-files';
 import { renderToolsApp, testRegistry } from '../test-utils/render-app';
 
 const first: Workflow = {
+  kind: 'quickAction',
   id: 'resize',
   name: '缩小照片',
   steps: [
@@ -18,6 +19,7 @@ const first: Workflow = {
   ],
 };
 const second: Workflow = {
+  kind: 'quickAction',
   id: 'pdf',
   name: '照片做成 PDF',
   steps: [
@@ -77,7 +79,7 @@ it('rolls back a partial result copy and preserves the source', async () => {
 
 it('continues without saving or picking again; two transfers offer AI with both definitions', async () => {
   const app = await renderToolsApp(undefined, undefined, {
-    seed: (locale) => ({ ...createDefaultWorkspace(locale), workflows: [first, second] }),
+    seed: (locale) => ({ ...createDefaultWorkspace(locale), tools: [first, second] }),
   });
   const picker = jest.spyOn(app.files, 'pickPhotos');
   async function transfer() {
@@ -122,7 +124,7 @@ it('continues without saving or picking again; two transfers offer AI with both 
 
 it('combining with a built-in quick action saves it first so AI can see both (D-236)', async () => {
   const app = await renderToolsApp(undefined, undefined, {
-    seed: (locale) => ({ ...createDefaultWorkspace(locale), workflows: [first] }),
+    seed: (locale) => ({ ...createDefaultWorkspace(locale), tools: [first] }),
   });
   async function transfer() {
     app.files.nextPhotos = [app.files.offerImage('private-id.jpg', 3000, 2000)];
@@ -142,12 +144,12 @@ it('combining with a built-in quick action saves it first so AI can see both (D-
   await transfer();
   await fireEvent.press(screen.getByTestId('run-done'));
   await transfer();
-  expect(app.store.getState().config!.workflows.map((w) => w.id)).toEqual(['resize']);
+  expect(quickActionsOf(app.store.getState().config!).map((w) => w.id)).toEqual(['resize']);
   await fireEvent.press(await screen.findByTestId('chain-make'));
   expect(await screen.findByTestId('change-about')).toHaveTextContent(
     '先「缩小照片」，再「照片发邮件 / 传网站」',
   );
-  expect(app.store.getState().config!.workflows.map((w) => w.id)).toEqual([
+  expect(quickActionsOf(app.store.getState().config!).map((w) => w.id)).toEqual([
     'resize',
     'email-photos',
   ]);
@@ -216,9 +218,10 @@ it('replacing the open result inbox cleans only the replaced batch', async () =>
 
 it('applies an AI combination through normal function changes and can undo it', async () => {
   const { store } = await renderToolsApp(undefined, undefined, {
-    seed: (locale) => ({ ...createDefaultWorkspace(locale), workflows: [first, second] }),
+    seed: (locale) => ({ ...createDefaultWorkspace(locale), tools: [first, second] }),
   });
   const combined: Workflow = {
+    kind: 'quickAction',
     id: 'combined',
     name: '缩小并做成 PDF',
     steps: [...first.steps, second.steps[1]!],
@@ -229,14 +232,14 @@ it('applies an AI combination through normal function changes and can undo it', 
       .getState()
       .change(
         '合成',
-        { plan: async () => ({ kind: 'ops', ops: [{ op: 'addWorkflow', workflow: combined }] }) },
+        { plan: async () => ({ kind: 'ops', ops: [{ op: 'addTool', tool: combined }] }) },
         { about: { kind: 'chain', first: first.id, second: second.id } },
       );
   });
   expect(result).toMatchObject({ kind: 'applied' });
-  expect(store.getState().config!.workflows).toEqual([first, second, combined]);
-  expect(JSON.stringify(store.getState().config!.pages)).not.toContain('combined');
+  expect(quickActionsOf(store.getState().config!)).toEqual([first, second, combined]);
+  expect(JSON.stringify(store.getState().config!.containers.pages)).not.toContain('combined');
   expect(store.getState().banner?.undoTo).toBeDefined();
   await act(async () => store.getState().undo());
-  expect(store.getState().config!.workflows).toEqual([first, second]);
+  expect(quickActionsOf(store.getState().config!)).toEqual([first, second]);
 });

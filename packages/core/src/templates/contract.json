@@ -1,0 +1,125 @@
+{
+  "ids": {
+    "table": "contracts",
+    "page": "contracts"
+  },
+  "table": {
+    "id": "$table",
+    "name": {
+      "en": "Contracts",
+      "zh": "合同",
+      "fr": "Contrats"
+    },
+    "icon": "signature",
+    "fields": [
+      {
+        "id": "name",
+        "name": {
+          "en": "Name",
+          "zh": "名称",
+          "fr": "Nom"
+        },
+        "type": "text"
+      },
+      {
+        "id": "party",
+        "name": {
+          "en": "Other party",
+          "zh": "对方",
+          "fr": "Autre partie"
+        },
+        "type": "text"
+      },
+      {
+        "id": "signed",
+        "name": {
+          "en": "Signed on",
+          "zh": "签订日期",
+          "fr": "Date de signature"
+        },
+        "type": "date"
+      },
+      {
+        "id": "ends",
+        "name": {
+          "en": "Ends on",
+          "zh": "到期日",
+          "fr": "Date de fin"
+        },
+        "type": "date"
+      },
+      {
+        "id": "attachments",
+        "name": {
+          "en": "Attachments",
+          "zh": "附件",
+          "fr": "Pièces jointes"
+        },
+        "type": "file"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Contracts",
+      "zh": "合同",
+      "fr": "Contrats"
+    },
+    "icon": "signature",
+    "blocks": [
+      {
+        "id": "title",
+        "look": "header",
+        "show": {
+          "title": {
+            "en": "Contracts",
+            "zh": "合同",
+            "fr": "Contrats"
+          }
+        }
+      },
+      {
+        "id": "add",
+        "look": "button",
+        "show": {
+          "label": {
+            "en": "Add",
+            "zh": "添加",
+            "fr": "Ajouter"
+          },
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
+      },
+      {
+        "id": "entries",
+        "look": "list",
+        "source": {
+          "table": "$table",
+          "sort": {
+            "field": "signed",
+            "direction": "desc"
+          },
+          "limit": 50
+        },
+        "show": {
+          "title": "name",
+          "subtitles": ["party", "ends"],
+          "emptyText": {
+            "en": "Nothing yet",
+            "zh": "还没有记录",
+            "fr": "Rien pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

@@ -67,8 +67,8 @@ describe('first-run guide', () => {
   });
 
   const filePicks = (store: Awaited<ReturnType<typeof startGuide>>['store']) =>
-    allComponents(store.getState().config!.pages.find((p) => p.id === 'home')!).filter(
-      (c) => c.type === 'filePick',
+    allComponents(store.getState().config!.containers.pages.find((p) => p.id === 'home')!).filter(
+      (c) => c.look === 'picker',
     );
 
   it('step 1: the sentence fills the box and waits; sending adds both buttons without a draft', async () => {

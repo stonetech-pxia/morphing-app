@@ -19,6 +19,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { t, type StringKey } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import type { Palette } from '../renderer/theme';
+import { runsHere, UNSUPPORTED_ACTIONS } from '../runtime/device-support';
 
 // 房间的工具栏（file-room DESIGN §4、§5，D-359）：一行横向滑动的图标加文字，按组排开。
 // 组和工具来自布局配置（没写时由注册表按文件种类生成，见 @morph/core 的 deskToolbar）。
@@ -58,9 +59,9 @@ export function toolEntries(
   return groups.map((g) => ({
     title: g.title ?? (g.id ? t(locale, GROUP_TITLE[g.id]) : ''),
     entries: g.items.flatMap((item, i): ToolEntry[] => {
-      if ('action' in item) {
+      if (typeof item === 'object') {
         const action = registry.actions.get(item.action);
-        if (!action) return [];
+        if (!action || UNSUPPORTED_ACTIONS.has(action.id)) return [];
         const preset = item.preset ? action.presets?.find((p) => p.id === item.preset) : undefined;
         return [
           {
@@ -78,8 +79,8 @@ export function toolEntries(
           },
         ];
       }
-      const workflow = findWorkflow(workflows, item.workflowId, locale);
-      if (!workflow) return [];
+      const workflow = findWorkflow(workflows, item, locale);
+      if (!workflow || !runsHere(workflow)) return [];
       return [
         {
           key: `wf-${workflow.id}-${i}`,
@@ -177,9 +178,9 @@ export function DeskToolbar({
 const toolTestId = (entry: ToolEntry) =>
   entry.room
     ? `room-${entry.room}`
-    : entry.item && 'action' in entry.item
+    : typeof entry.item === 'object'
       ? entry.item.action
-      : (entry.item?.workflowId ?? entry.key);
+      : (entry.item ?? entry.key);
 
 const styles = StyleSheet.create({
   row: { paddingHorizontal: 8, paddingVertical: 6, alignItems: 'flex-start' },

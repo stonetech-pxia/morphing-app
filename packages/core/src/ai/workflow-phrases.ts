@@ -1,5 +1,11 @@
 import { CORE_ACTIONS } from '../registry';
-import type { Locale, Workflow, WorkflowStep, WorkspaceConfig } from '../schema';
+import {
+  quickActionsOf,
+  type Locale,
+  type Workflow,
+  type WorkflowStep,
+  type WorkspaceConfig,
+} from '../schema';
 import { BUILTIN_TOOLS } from '../tools';
 import type { ActionDefinition } from '../workflow/contract';
 import { WORKFLOW_PRESETS, type WorkflowPreset } from '../workflows/presets';
@@ -242,7 +248,7 @@ export function findWorkflowByName(rawName: string, config: WorkspaceConfig): Wo
     .trim()
     .toLowerCase();
   if (!name) return undefined;
-  const all = config.workflows;
+  const all = quickActionsOf(config);
   return (
     all.find((w) => w.name.toLowerCase() === name) ??
     all.find((w) => w.name.toLowerCase().includes(name) || name.includes(w.name.toLowerCase()))

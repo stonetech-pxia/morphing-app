@@ -162,7 +162,7 @@ export const IMAGE_ACTIONS: readonly ActionDefinition[] = [
 
   {
     id: 'image.removeBackground',
-    ai: '"Remove a photo background / cut out / white background" → this; mention the iOS 17+ / Google Play services requirement and the first model download. For an ID photo, the background of image.idPhoto replaces this step (rule 38); the user must still check the official requirements.',
+    ai: '"Remove a photo background / cut out / white background" → this; mention the iOS 17+ / Google Play services requirement and the first model download. For an ID photo, the background of image.idPhoto replaces this step (rule 36); the user must still check the official requirements.',
     label: { en: 'Remove background', zh: '去背景', fr: 'Supprimer le fond' },
     description: {
       en: 'Keep the main subjects and remove the background locally, producing PNG with transparency or a solid color. Requires iOS 17+ or Android Google Play services (first use downloads a model). Fine hair, transparent objects and unclear subjects may need another editor. Does not guarantee an official ID photo.',
@@ -924,7 +924,7 @@ export const IMAGE_COMPOSE_ACTIONS: readonly ActionDefinition[] = [
     // 提示词里只关于这个动作的规则。
     aiRules: [
       {
-        n: 38,
+        n: 36,
         text: 'ID photos with a background color or framed for the user ("blue background ID photo", "证件照换成白底", "center my face automatically") → set background on image.idPhoto ("white", "blue", "red", "gray", or "custom" with color "#RRGGBB"; "keep" leaves it) and autoCenter: true. This replaces image.removeBackground before image.idPhoto for ID photos. autoCenter only places the crop frame around the face at the head size the spec asks for; the user still confirms it on the device. Mention in a note that the result must still be checked against the official rules, and that the background needs iOS 15+ or Google Play services on Android.',
       },
     ],
@@ -1059,7 +1059,8 @@ function single(
   const id = `image-${action.split('.')[1]!.toLowerCase()}`;
   return {
     id,
-    toolId: IMAGE_TOOL_ID,
+    kind: 'quickAction',
+    package: IMAGE_TOOL_ID,
     name: pairText(locale, name),
     steps: [
       { id: 'pick', action: 'in.photos', params: { source: 'library', ...pick } },
@@ -1098,7 +1099,8 @@ export function imageWorkflows(locale: Locale): Workflow[] {
     // D-184：iPhone 照片（HEIC）转 JPG。功能和「转格式」一样，单独一个名字好找；每次问从相册还是「文件」选。
     {
       id: 'image-heic',
-      toolId: IMAGE_TOOL_ID,
+      kind: 'quickAction',
+      package: IMAGE_TOOL_ID,
       name: t(locale, 'image_HEIC_to_JPG_64d8f'),
       steps: [
         {
@@ -1175,7 +1177,8 @@ export function imageWorkflows(locale: Locale): Workflow[] {
     ),
     {
       id: 'image-printsheet',
-      toolId: IMAGE_TOOL_ID,
+      kind: 'quickAction',
+      package: IMAGE_TOOL_ID,
       name: t(locale, 'image_ID_photos_to_print_5dd87'),
       steps: [
         { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 1 } },
@@ -1225,24 +1228,24 @@ export const imageTool: ToolDefinition = {
     id: IMAGE_PAGE_ID,
     title: t(locale, 'image_Images_edfbd'),
     icon: 'photo',
-    toolId: IMAGE_TOOL_ID,
-    components: [
+    package: IMAGE_TOOL_ID,
+    blocks: [
       {
         id: 'image-header',
-        type: 'header',
-        props: { title: t(locale, 'image_Image_tools_2d55f') },
+        look: 'header',
+        show: { title: t(locale, 'image_Image_tools_2d55f') },
       },
       {
         id: 'image-intro',
-        type: 'text',
-        props: {
+        look: 'text',
+        show: {
           text: t(locale, 'image_Everything_runs_on_this_device_Results_3f5b4'),
         },
       },
       ...imageWorkflows(locale).map((wf) => ({
         id: `${wf.id}-runner`,
-        type: 'workflowRunner' as const,
-        props: { workflowId: wf.id },
+        look: 'action' as const,
+        tools: [{ tool: wf.id }],
       })),
     ],
   }),

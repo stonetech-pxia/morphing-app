@@ -4,7 +4,14 @@ import { DEFAULT_CALENDAR } from './calendar';
 import { prepareOps } from './change';
 import { prepareRecordValues, type DataRecord } from './data';
 import { createDefaultWorkspace } from './defaults';
-import { boardColumns, boardField, boardMoveAction, boardTargets } from './board-view';
+import {
+  boardColumns,
+  boardDragTool,
+  boardField,
+  boardMoveAction,
+  boardTargets,
+  type BoardDragTool,
+} from './board-view';
 import { rowUpdateInput } from './record-ops';
 import type { Collection, NewComponent } from './schema';
 import { registry } from './test-helpers';
@@ -96,10 +103,31 @@ describe('moving a card (D-314)', () => {
   const field = boardField(tasks, 'status')!;
   const ctx = { now: new Date(2026, 9, 30, 9), cal: DEFAULT_CALENDAR };
 
-  it('is a set of the group field, written like any one-tap row action', () => {
+  const drag: BoardDragTool = {
+    as: 'drag',
+    do: 'set',
+    table: 'tasks',
+    field: field.id,
+    value: '$group',
+  };
+
+  it('is the drag tool of the block with "$group" set to the column, run like any one-tap tool', () => {
+    expect(boardDragTool([{ as: 'button', do: 'toggle', table: 'tasks', field: 'x' }, drag])).toBe(
+      drag,
+    );
+    expect(boardDragTool([{ as: 'button', do: 'toggle', table: 'tasks', field: 'x' }])).toBe(
+      undefined,
+    );
     const stored = { title: 'Write report', status: 'todo', note: 'n' };
-    const action = boardMoveAction(field, 'doing', 'Doing');
-    expect(action).toEqual({ do: 'set', fieldId: 'status', value: 'doing', label: 'Doing' });
+    const action = boardMoveAction(drag, 'doing', 'Doing');
+    expect(action).toEqual({
+      as: 'drag',
+      do: 'set',
+      table: 'tasks',
+      field: 'status',
+      value: 'doing',
+      label: 'Doing',
+    });
     const input = rowUpdateInput(action, tasks, stored, ctx);
     expect(input).toEqual({ status: 'doing' });
     const prepared = prepareRecordValues(tasks, input!, stored, ctx.now, ctx.cal);
@@ -109,7 +137,7 @@ describe('moving a card (D-314)', () => {
 
   it('moving to "not set" clears the field', () => {
     const stored = { title: 'x', status: 'done' };
-    const input = rowUpdateInput(boardMoveAction(field, null, 'Not set'), tasks, stored, ctx);
+    const input = rowUpdateInput(boardMoveAction(drag, null, 'Not set'), tasks, stored, ctx);
     // 清空和表单一样写成空值。
     expect(input).toEqual({ status: '' });
     const prepared = prepareRecordValues(tasks, input!, stored, ctx.now, ctx.cal);
@@ -118,55 +146,61 @@ describe('moving a card (D-314)', () => {
 });
 
 describe('tiles and board checks (D-311, D-313)', () => {
-  const add = (component: NewComponent) =>
+  const add = (block: NewComponent) =>
     prepareOps(
       createDefaultWorkspace('en'),
       [
-        { op: 'addCollection', collection: tasks },
-        { op: 'addComponent', pageId: 'home', component },
+        { op: 'addData', table: tasks },
+        { op: 'addContainer', page: 'home', block },
       ],
       { registry, locale: 'en', now: new Date(2026, 9, 30) },
     );
-  const problems = (component: NewComponent) => {
-    const result = add(component);
+  const problems = (block: NewComponent) => {
+    const result = add(block);
     return result.ok ? [] : result.issues;
   };
-  const list = (props: Record<string, unknown>): NewComponent =>
+  const block = (
+    look: string,
+    group?: Record<string, unknown>,
+    more: Record<string, unknown> = {},
+  ): NewComponent =>
     ({
       id: 'l',
-      type: 'recordList',
-      props: { collectionId: 'tasks', display: 'list', titleField: 'title', limit: 30, ...props },
+      look,
+      source: { table: 'tasks', limit: 30, ...(group ? { group } : {}) },
+      show: { title: 'title' },
+      ...more,
     }) as NewComponent;
 
   it('accepts a habit grid and a task board', () => {
     expect(
       problems(
-        list({
-          display: 'tiles',
-          limit: 24,
-          trailingField: 'count',
-          trailingFormat: { kind: 'progress', goal: 'goal' },
-          rowActions: [{ label: 'Done', do: 'increment', fieldId: 'count', by: 1 }],
+        block('tiles', undefined, {
+          source: { table: 'tasks', limit: 24 },
+          show: { title: 'title', trailing: 'count', format: { kind: 'progress', goal: 'goal' } },
+          tools: [
+            { as: 'tap', label: 'Done', do: 'increment', table: 'tasks', field: 'count', by: 1 },
+          ],
         }),
       ),
     ).toEqual([]);
-    expect(problems(list({ display: 'tiles' }))).toEqual([]);
+    expect(problems(block('tiles'))).toEqual([]);
     expect(
-      problems(list({ display: 'board', groupField: 'status', subtitleFields: ['note'] })),
+      problems(block('board', { by: 'status' }, { show: { title: 'title', subtitles: ['note'] } })),
     ).toEqual([]);
   });
 
   it('explains what is wrong', () => {
     const text = (c: NewComponent) => problems(c).join(' | ');
-    expect(text(list({ display: 'board' }))).toMatch(/a board needs groupField/);
-    expect(text(list({ display: 'board', groupField: 'note' }))).toMatch(
-      /groupField note must be a choice or link field/,
+    expect(text(block('board'))).toMatch(/a board needs source.group.by set to a choice or link/);
+    expect(text(block('board', { by: 'note' }))).toMatch(
+      /a board needs source.group.by set to a choice or link field/,
     );
-    expect(text(list({ display: 'board', groupField: 'nope' }))).toMatch(/nope/);
-    for (const display of ['list', 'cards', 'tiles', 'calendar'])
-      expect(text(list({ display, groupField: 'status' }))).toMatch(
-        /groupField only applies to display "board"/,
-      );
+    expect(text(block('board', { by: 'nope' }))).toMatch(/nope/);
+    expect(text(block('tiles', { by: 'status' }))).toMatch(/tiles are not grouped/);
+    expect(text(block('calendar', { by: 'status', unit: 'day' }))).toMatch(
+      /source.group.by status must be a date or datetime or schedule field/,
+    );
   });
 });
 
@@ -177,7 +211,7 @@ describe('a board by a link field', () => {
     name: 'Sections',
     fields: [
       { id: 'name', name: 'Name', type: 'text' },
-      { id: 'project', name: 'Project', type: 'link', collectionId: 'projects' },
+      { id: 'project', name: 'Project', type: 'link', table: 'projects' },
     ],
   };
   const projects: Collection = {
@@ -190,7 +224,7 @@ describe('a board by a link field', () => {
     name: 'Items',
     fields: [
       { id: 'title', name: 'Title', type: 'text' },
-      { id: 'section', name: 'Section', type: 'link', collectionId: 'sections' },
+      { id: 'section', name: 'Section', type: 'link', table: 'sections' },
     ],
   };
   const section = (id: string, name: string, createdAt: number): DataRecord => ({
@@ -227,71 +261,66 @@ describe('a board by a link field', () => {
       [null, null, ['c']],
     ]);
     // 拖到另一栏：引用字段设成那一栏的那条。
-    expect(boardMoveAction(field, 's2', 'Doing')).toEqual({
+    const drag: BoardDragTool = {
+      as: 'drag',
       do: 'set',
-      fieldId: 'section',
-      value: 's2',
-      label: 'Doing',
-    });
+      table: 'items',
+      field: field.id,
+      value: '$group',
+    };
+    expect(boardMoveAction(drag, 's2', 'Doing')).toMatchObject({ field: 'section', value: 's2' });
     expect(
-      rowUpdateInput(boardMoveAction(field, 's2', 'Doing'), items, {}, { now: new Date() }),
-    ).toEqual({
-      section: 's2',
-    });
+      rowUpdateInput(boardMoveAction(drag, 's2', 'Doing'), items, {}, { now: new Date() }),
+    ).toEqual({ section: 's2' });
   });
 
   it('accepts a link board with a column filter on a page for one project; a filter needs a link board', () => {
-    const run = (component: Record<string, unknown>, recordOf?: string) => {
+    const run = (block: Record<string, unknown>, of?: string) => {
       const r = prepareOps(
         createDefaultWorkspace('en'),
         [
-          { op: 'addCollection', collection: projects },
-          { op: 'addCollection', collection: sections },
-          { op: 'addCollection', collection: items },
+          { op: 'addData', table: projects },
+          { op: 'addData', table: sections },
+          { op: 'addData', table: items },
           {
-            op: 'addPage',
-            page: {
-              id: 'pg',
-              title: 'P',
-              ...(recordOf ? { recordOf } : {}),
-              components: [component],
-            },
+            op: 'addContainer',
+            page: { id: 'pg', title: 'P', ...(of ? { of } : {}), blocks: [block as NewComponent] },
           },
         ],
         { registry, locale: 'en', now: new Date(2026, 9, 30) },
       );
       return r.ok ? [] : r.issues.map(String);
     };
-    const board = (props: Record<string, unknown>) => ({
+    const board = (group: Record<string, unknown>, tools?: unknown[]) => ({
       id: 'b',
-      type: 'recordList',
-      props: { collectionId: 'items', display: 'board', titleField: 'title', limit: 30, ...props },
+      look: 'board',
+      source: { table: 'items', limit: 30, group },
+      show: { title: 'title' },
+      ...(tools ? { tools } : {}),
     });
     expect(
       run(
-        board({
-          groupField: 'section',
-          groupFilter: [{ field: 'project', op: 'is', value: '$record' }],
-          addHere: true,
-        }),
+        board({ by: 'section', filter: [{ field: 'project', op: 'is', value: '$record' }] }, [
+          { as: 'drag', do: 'set', table: 'items', field: 'section', value: '$group' },
+          { as: 'addHere', do: 'create', table: 'items', ask: 'all', values: '$here' },
+        ]),
         'projects',
       ),
     ).toEqual([]);
     expect(
-      run(board({ groupField: 'section', groupFilter: [{ field: 'nope', op: 'isEmpty' }] })).join(),
-    ).toMatch(/groupFilter: filter field nope is not a field of sections/);
+      run(board({ by: 'section', filter: [{ field: 'nope', op: 'isEmpty' }] })).join(),
+    ).toMatch(/nope is not a field of sections/);
     expect(
       run({
         id: 'l',
-        type: 'recordList',
-        props: {
-          collectionId: 'items',
-          display: 'list',
-          titleField: 'title',
+        look: 'list',
+        source: {
+          table: 'items',
           limit: 30,
-          groupFilter: [{ field: 'name', op: 'isEmpty' }],
+          group: { by: 'section', filter: [{ field: 'name', op: 'isEmpty' }] },
         },
+        show: { title: 'title' },
       }).join(),
-    ).toMatch(/groupFilter only applies to a board whose groupField is a link field/);
+    ).toMatch(/source.group.filter only applies to a board/);
   });
 });

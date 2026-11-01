@@ -37,47 +37,48 @@ const habits: Collection = {
   ],
 };
 
-const add = (component: object) => ({ op: 'addComponent', pageId: 'home', component });
+const add = (block: object) => ({ op: 'addContainer', page: 'home', block });
+
+// 按钮和图块上的工具：配置里的写法和小组件指纹（actionHash）用同一份。
+const DRINK = { do: 'create', table: 'water', values: { day: 'today' } } as const;
+const PLUS_ONE = {
+  as: 'tap',
+  label: '+1',
+  do: 'increment',
+  table: 'habits',
+  field: 'count',
+  by: 1,
+} as const;
 
 function seed(extra: object[] = []): WorkspaceConfig {
   const result = applyOps(
     createDefaultWorkspace('zh'),
     [
-      { op: 'addCollection', collection: water },
-      { op: 'addCollection', collection: habits },
+      { op: 'addData', table: water },
+      { op: 'addData', table: habits },
       add({
         id: 'water-today',
-        type: 'stat',
-        props: {
-          collectionId: 'water',
+        look: 'number',
+        show: { label: '今天喝水' },
+        source: {
+          table: 'water',
           aggregate: 'count',
-          label: '今天喝水',
           filter: [{ field: 'day', op: 'inPeriod', value: 'today' }],
           goal: 8,
         },
       }),
       add({
         id: 'drink',
-        type: 'button',
-        props: {
-          label: '+1 杯水',
-          variant: 'filled',
-          icon: 'plus',
-          action: { do: 'create', collectionId: 'water', values: { day: 'today' } },
-        },
+        look: 'button',
+        show: { label: '+1 杯水', variant: 'filled', icon: 'plus' },
+        tools: [DRINK],
       }),
       add({
         id: 'habit-tiles',
-        type: 'recordList',
-        props: {
-          collectionId: 'habits',
-          display: 'tiles',
-          titleField: 'name',
-          trailingField: 'count',
-          trailingFormat: { kind: 'progress', goal: 2 },
-          limit: 24,
-          rowActions: [{ label: '+1', do: 'increment', fieldId: 'count', by: 1 }],
-        },
+        look: 'tiles',
+        source: { table: 'habits', limit: 24 },
+        show: { title: 'name', trailing: 'count', format: { kind: 'progress', goal: 2 } },
+        tools: [PLUS_ONE],
       }),
       ...extra,
     ] as unknown as Op[],
@@ -171,11 +172,12 @@ it('tiles: each circle can be tapped; the ring fills as the entry reaches its go
 
 it('edge cases: an unsupported component, a removed one, and an empty list say so', async () => {
   const config = seed([
-    add({ id: 'note', type: 'text', props: { text: '你好' } }),
+    add({ id: 'note', look: 'text', show: { text: '你好' } }),
     add({
       id: 'plain-list',
-      type: 'recordList',
-      props: { collectionId: 'water', display: 'list', titleField: 'day', limit: 5 },
+      look: 'list',
+      source: { table: 'water', limit: 5 },
+      show: { title: 'day' },
     }),
   ]);
   const snap = await build(config, ['note', 'deleted-one', 'plain-list']);
@@ -216,10 +218,10 @@ describe('running the taps the widget queued', () => {
   const tap = (op: string, component: string, hash: string, at: number, record?: string) =>
     JSON.stringify({ op, component, hash, at, ...(record ? { record } : {}) });
 
-  it('creates entries at the time of the tap (yesterday’s tap counts for yesterday) and can undo them together', async () => {
+  it('creates entries at the time of the tap (yesterday’s tap counts for yesterday)', async () => {
     const config = seed();
     const repo = new MemoryWorkspaceRepo();
-    const hash = actionHash({ do: 'create', collectionId: 'water', values: { day: 'today' } });
+    const hash = actionHash(DRINK);
     const yesterday = new Date(2026, 9, 29, 23, 50).getTime();
     const result = await runQueuedWidgetOps(
       [tap('b:drink', 'drink', hash, NOW.getTime()), tap('b:drink', 'drink', hash, yesterday)],
@@ -233,18 +235,17 @@ describe('running the taps the widget queued', () => {
       ['2026-10-29', yesterday],
       ['2026-10-30', NOW.getTime()],
     ]);
-    expect(result!.undo.discard).toHaveLength(2);
     expect(drainMessage(result!, 'zh')).toBe('记下了桌面小组件上的 2 次点按');
     expect(drainMessage({ ...result!, done: 1 }, 'en')).toBe(
       'Recorded 1 tap from the Home Screen widget',
     );
   });
 
-  it('increments one after another from the stored value; undo goes back to before the first tap', async () => {
+  it('increments one after another from the stored value', async () => {
     const config = seed();
     const repo = new MemoryWorkspaceRepo();
     await repo.insertRecord(rec('h1', 'habits', { name: '跑步', count: 1 }));
-    const hash = actionHash({ label: '+1', do: 'increment', fieldId: 'count', by: 1 });
+    const hash = actionHash(PLUS_ONE);
     const result = await runQueuedWidgetOps(
       [1, 2, 3].map((k) => tap('r:habit-tiles:h1', 'habit-tiles', hash, NOW.getTime() + k, 'h1')),
       repo,
@@ -253,7 +254,6 @@ describe('running the taps the widget queued', () => {
     );
     expect(result).toMatchObject({ done: 3 });
     expect((await repo.getRecord('h1'))?.values.count).toBe(4);
-    expect(result!.undo.records).toEqual([{ id: 'h1', values: { name: '跑步', count: 1 } }]);
   });
 
   it('skips taps whose button changed or is gone, and broken lines, and says how many', async () => {

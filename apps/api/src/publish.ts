@@ -49,7 +49,7 @@ function compatibilityProblems(previous: ToolManifest, next: ToolManifest): stri
     registerTool(old, toolFromManifest(previous));
     const applied = applyOps(
       createDefaultWorkspace(locale),
-      [{ op: 'installTool', toolId: previous.id }],
+      [{ op: 'setPackage', package: previous.id, do: 'add' }],
       { registry: old, locale },
     );
     if (!applied.ok) continue;

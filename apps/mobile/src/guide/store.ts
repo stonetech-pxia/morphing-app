@@ -18,6 +18,8 @@ interface GuideState {
   /** null：还没读（测试里不读，引导就不出现）。 */
   stage: GuideStage | null;
   repo: Pick<WorkspaceRepo, 'getMeta' | 'setMeta'> | null;
+  /** 划屏介绍已经推出来、还没关（不存）：外壳按新版本重新挂载时不再推一次（D-392 真机发现）。 */
+  introOpen: boolean;
   load(repo: Pick<WorkspaceRepo, 'getMeta' | 'setMeta'>): Promise<void>;
   setStage(stage: GuideStage): Promise<void>;
 }
@@ -25,6 +27,7 @@ interface GuideState {
 export const useGuide = create<GuideState>()((set, get) => ({
   stage: null,
   repo: null,
+  introOpen: false,
   async load(repo) {
     const saved = await repo.getMeta(META_KEY);
     // 以前的「新手任务」小卡片（later）已经去掉（D-231）：当作看完了。

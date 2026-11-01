@@ -98,7 +98,7 @@ export function ToolCard({
   env: RenderEnv;
 }) {
   const def = env.registry.tools.get(toolId);
-  const installed = env.config.tools.find((x) => x.toolId === toolId);
+  const installed = env.config.packages.find((x) => x.id === toolId);
   if (!def || !installed) {
     return (
       <Card palette={env.palette}>
@@ -108,7 +108,7 @@ export function ToolCard({
       </Card>
     );
   }
-  const page = env.config.pages.find((p) => p.id === installed.pageId);
+  const page = env.config.containers.pages.find((p) => p.id === installed.page);
   return (
     <Tile
       env={env}
@@ -116,7 +116,7 @@ export function ToolCard({
       icon={def.icon}
       title={page?.title ?? localize(def.name, env.locale)}
       subtitle={localize(def.description, env.locale)}
-      onPress={() => env.navigate(pageTarget(installed.pageId))}
+      onPress={() => env.navigate(pageTarget(installed.page))}
       look={look ?? 'tile'}
     />
   );

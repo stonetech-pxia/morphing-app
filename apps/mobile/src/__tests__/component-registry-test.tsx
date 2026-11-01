@@ -21,13 +21,15 @@ type Definition = (typeof COMPONENTS)[number];
 
 const seed = (def: Definition) => (locale: Locale, registry: Registry) => {
   const config = createDefaultWorkspace(locale);
-  const component = { id: 'example', type: def.type, ...def.example } as NewComponent;
+  const block = { id: 'example', look: def.look, ...def.example } as NewComponent;
   const result = applyOps(
     config,
     [
-      { op: 'installTool', toolId: 'pdf' },
+      { op: 'setPackage', package: 'pdf', do: 'add' },
       templateOps('budget', config, locale)[0]!,
-      { op: 'addComponent', pageId: 'home', component },
+      // 清单的例子要一个勾选字段。
+      { op: 'addData', table: 'expenses', field: { id: 'paid', name: 'Paid', type: 'checkbox' } },
+      { op: 'addContainer', page: 'home', block },
     ],
     { registry, locale },
   );
@@ -59,10 +61,10 @@ async function withRecords(values: Record<string, unknown>[]) {
 const today = localDate(new Date());
 
 it('has a renderer for every registered component', () => {
-  expect(Object.keys(RENDERERS).sort()).toEqual(COMPONENTS.map((d) => d.type).sort());
+  expect(Object.keys(RENDERERS).sort()).toEqual(COMPONENTS.map((d) => d.look).sort());
 });
 
-describe.each(COMPONENTS.map((d) => [d.type, d] as const))('component %s', (_type, def) => {
+describe.each(COMPONENTS.map((d) => [d.look, d] as const))('component %s', (_type, def) => {
   it.each(['zh', 'en', 'fr'] as const)('renders its example in %s', async (locale) => {
     await renders(def, locale);
   });
@@ -70,10 +72,10 @@ describe.each(COMPONENTS.map((d) => [d.type, d] as const))('component %s', (_typ
 
 /** 引用数据表的组件：新用户没有记录、有记录、记录很多或不规整（缺值、值不对、超大）。 */
 const DATA = COMPONENTS.filter((d) =>
-  Object.values(d.refs ?? {}).some((ref) => ref?.to === 'collection'),
+  Object.values(d.refs ?? {}).some((ref) => ref?.to === 'table'),
 );
 
-describe.each(DATA.map((d) => [d.type, d] as const))('data component %s', (_type, def) => {
+describe.each(DATA.map((d) => [d.look, d] as const))('data component %s', (_type, def) => {
   it('renders for a new user with no entries', async () => {
     await renders(def, 'zh');
   });

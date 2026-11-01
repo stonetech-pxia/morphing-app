@@ -1,4 +1,10 @@
-import { CURRENT_SCHEMA_VERSION, HOME_PAGE_ID, calendarOf, pageTarget } from '@morph/core';
+import {
+  calendarOf,
+  CURRENT_SCHEMA_VERSION,
+  HOME_PAGE_ID,
+  pageTarget,
+  remindersOf,
+} from '@morph/core';
 import { MODELS } from '@morph/planner';
 import { useRouter } from 'expo-router';
 import { ScrollView, Text } from 'react-native';
@@ -83,7 +89,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         testID="settings-reminders"
         icon="calendar"
         label={t(locale, 'remindersTitle')}
-        value={t(locale, 'remindersRowHint', { n: env.config.reminders?.length ?? 0 })}
+        value={t(locale, 'remindersRowHint', { n: remindersOf(env.config).length })}
         onPress={env.locked ?? (() => router.push('/reminders'))}
       />
       <ListRow

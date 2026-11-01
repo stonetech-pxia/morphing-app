@@ -1,10 +1,12 @@
 import {
   allComponents,
   createMockAIProvider,
+  isKnownComponent,
   pageTarget,
+  type PlanAbout,
   presetOfTheme,
   presetRequest,
-  type PlanAbout,
+  quickActionsOf,
   type ThemePresetId,
 } from '@morph/core';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
@@ -102,25 +104,28 @@ export function ChangeScreen() {
     if (
       params.first &&
       params.second &&
-      [params.first, params.second].every((id) => config.workflows.some((w) => w.id === id))
+      [params.first, params.second].every((id) => quickActionsOf(config).some((w) => w.id === id))
     )
       return { kind: 'chain', first: params.first, second: params.second };
-    if (params.workflow && config.workflows.some((w) => w.id === params.workflow))
+    if (params.workflow && quickActionsOf(config).some((w) => w.id === params.workflow))
       return { kind: 'workflow', workflowId: params.workflow };
     if (params.shared && share && String(share.id) === params.shared) return sharedAbout(share);
     return undefined;
   });
   const aboutName =
     about?.kind === 'workflow'
-      ? config.workflows.find((w) => w.id === about.workflowId)?.name
+      ? quickActionsOf(config).find((w) => w.id === about.workflowId)?.name
       : undefined;
   const aboutOnHome =
     about?.kind === 'workflow' &&
-    config.pages.some(
+    config.containers.pages.some(
       (p) =>
         p.id === 'home' &&
         allComponents(p).some(
-          (c) => c.type === 'workflowRunner' && c.props.workflowId === about.workflowId,
+          (c) =>
+            isKnownComponent(c) &&
+            c.look === 'action' &&
+            c.tools.some((u) => 'tool' in u && u.tool === about.workflowId),
         ),
     );
   // 有上下文时输入框里提示的例子（D-124）；内置规则只留它真的认得的句子，所以先试一遍。
@@ -204,7 +209,7 @@ export function ChangeScreen() {
     if (result.kind === 'drafted' || result.kind === 'applied') {
       const target = pageTarget(result.focusPageId);
       const shown = result.kind === 'drafted' ? result.step.config : store.getState().config!;
-      if (shown.shell.nav.includes(target)) selectTab(target);
+      if (shown.nav.bar.includes(target)) selectTab(target);
     }
     leave();
     // 功能类直接应用了（D-191）：去「做好了」页面（或回到收件页面）试用。
@@ -270,8 +275,8 @@ export function ChangeScreen() {
             <Text style={[palette.font('title', 15), { color: palette.text }]}>
               {about.kind === 'chain'
                 ? t(locale, 'chainAbout', {
-                    first: config.workflows.find((w) => w.id === about.first)?.name ?? '',
-                    second: config.workflows.find((w) => w.id === about.second)?.name ?? '',
+                    first: quickActionsOf(config).find((w) => w.id === about.first)?.name ?? '',
+                    second: quickActionsOf(config).find((w) => w.id === about.second)?.name ?? '',
                   })
                 : about.kind === 'workflow'
                   ? t(locale, 'aboutWorkflow', { name: aboutName ?? '' })

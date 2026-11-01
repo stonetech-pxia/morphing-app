@@ -117,7 +117,11 @@ describe('if in a formula field', () => {
       ],
     };
     const ctx = { registry, locale: 'zh' as const, now: new Date(2026, 9, 22) };
-    const ok = prepareOps(createDefaultWorkspace('zh'), [{ op: 'addCollection', collection }], ctx);
+    const ok = prepareOps(
+      createDefaultWorkspace('zh'),
+      [{ op: 'addData', table: collection }],
+      ctx,
+    );
     expect(ok.ok).toBe(true);
     const record = {
       id: 'r',
@@ -135,11 +139,7 @@ describe('if in a formula field', () => {
         { ...collection.fields[1]!, expression: 'if({total} > 1, {missing}, 0)' },
       ],
     };
-    const rejected = prepareOps(
-      createDefaultWorkspace('zh'),
-      [{ op: 'addCollection', collection: bad }],
-      ctx,
-    );
+    const rejected = prepareOps(createDefaultWorkspace('zh'), [{ op: 'addData', table: bad }], ctx);
     expect(rejected.ok).toBe(false);
   });
 });
@@ -209,8 +209,8 @@ describe('dates in formulas (D-247)', () => {
         createDefaultWorkspace('zh'),
         [
           {
-            op: 'addCollection',
-            collection: {
+            op: 'addData',
+            table: {
               ...collection,
               fields: [
                 ...collection.fields.slice(0, 3),

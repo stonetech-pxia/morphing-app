@@ -17,8 +17,8 @@ export interface Calendar {
 export const DEFAULT_CALENDAR: Calendar = { dayStartHour: 0, weekStart: 'monday' };
 
 /** 配置里的设置，没写的用默认值。 */
-export function calendarOf(config: Pick<WorkspaceConfig, 'calendar'>): Calendar {
-  const c: CalendarSettings = config.calendar ?? {};
+export function calendarOf(config: Pick<WorkspaceConfig, 'data'>): Calendar {
+  const c: CalendarSettings = config.data.calendar ?? {};
   return {
     dayStartHour: c.dayStartHour ?? DEFAULT_CALENDAR.dayStartHour,
     weekStart: c.weekStart ?? DEFAULT_CALENDAR.weekStart,

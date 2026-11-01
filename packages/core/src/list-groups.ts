@@ -11,8 +11,8 @@ import { dayNumber } from './formula';
 import { localeTag } from './localization';
 import { t } from './messages';
 import { shortDate, weekdayName } from './schedule';
-import type { GroupUnit } from './list-groups-schema';
-import type { Collection, Locale } from './schema';
+import type { Collection, Grouping, Locale } from './schema';
+import { dateFieldOf } from './sequence';
 
 // 记录列表分段（D-347）：按单选、引用分（每个选项 / 被引用的每条一段，顺序同 D-336 的分组），或者按日子分
 // （日期、日期时间、系统字段按天 / 周 / 月；日程按下一次，过期的合成一段放最前，没有下一次的放最后）。
@@ -53,29 +53,28 @@ function monthLabel(day: number, locale: Locale): string {
 }
 
 /**
- * 已经筛选、排好序的记录按 groupBy 分段（每段里保持原来的顺序）。按日子分时段的先后跟着排序走：
- * 按日期从早到晚排就是今天、明天……；日程的「已过期」总在最前，「不定日期」总在最后。
+ * 已经筛选、排好序的记录按 group 分段（每段里保持原来的顺序）。group.by 不写时按第一个日期字段（dateFieldOf）。
+ * 按日子分时段的先后跟着排序走：按日期从早到晚排就是今天、明天……；日程的「已过期」总在最前，「不定日期」总在最后。
+ * group.showEmpty：单选、引用时没有记录的段也列出（版块）。
  */
 export function listGroups(
   records: readonly DataRecord[],
   collection: Collection,
-  groupBy: string,
+  group: Pick<Grouping, 'by' | 'unit' | 'showEmpty'>,
   options: {
     locale: Locale;
     now: Date;
     cal: Calendar;
-    unit?: GroupUnit | undefined;
     /** 引用字段：被引用的那张表和它的记录（D-336）。 */
     linked?: LinkedGroups | undefined;
-    /** 单选、引用：没有记录的段也列出（版块）。 */
-    showEmpty?: boolean | undefined;
   },
 ): ListGroup[] {
   const { locale, now, cal } = options;
+  const groupBy = dateFieldOf(collection, group.by);
   const field = fieldOf(collection, groupBy);
   if (field?.type === 'choice' || field?.type === 'link') {
     return groupRecords(records, collection, groupBy, t(locale, 'statNoChoice'), options.linked)
-      .filter((g) => options.showEmpty || g.records.length > 0)
+      .filter((g) => group.showEmpty || g.records.length > 0)
       .map((g) => ({
         key: g.optionId ?? 'none',
         label: g.label,
@@ -84,7 +83,7 @@ export function listGroups(
       }));
   }
   const today = todayNumber(now, cal);
-  const unit = options.unit ?? 'day';
+  const unit = group.unit ?? 'day';
   const schedule = field?.type === 'schedule';
   const groups = new Map<string, ListGroup>();
   let overdue: ListGroup | undefined;
@@ -118,8 +117,8 @@ export function listGroups(
           ? dayNumber(`${dateOfDayNumber(day).slice(0, 7)}-01`)!
           : day;
     const key = `${unit}-${start}`;
-    let group = groups.get(key);
-    if (!group) {
+    let section = groups.get(key);
+    if (!section) {
       const label =
         unit === 'week'
           ? t(locale, 'groupWeek', { date: shortDate(start, today, locale) })
@@ -136,10 +135,10 @@ export function listGroups(
             : field?.type === 'date'
               ? date
               : undefined;
-      group = { key, label, records: [], ...(preset === undefined ? {} : { preset }) };
-      groups.set(key, group);
+      section = { key, label, records: [], ...(preset === undefined ? {} : { preset }) };
+      groups.set(key, section);
     }
-    group.records.push(r);
+    section.records.push(r);
   }
   return [...(overdue ? [overdue] : []), ...groups.values(), ...(noDate ? [noDate] : [])];
 }

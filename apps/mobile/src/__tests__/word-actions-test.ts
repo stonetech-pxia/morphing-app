@@ -52,7 +52,7 @@ function setup(steps: Workflow['steps'], visionOn = true) {
   const files = new FakeFiles();
   const vision = new FakeVision(files);
   if (visionOn) files.vision = vision;
-  const workflow: Workflow = { id: 'word', name: 'word', steps };
+  const workflow: Workflow = { kind: 'quickAction', id: 'word', name: 'word', steps };
   const run = async (): Promise<RunResult> =>
     (
       await startRun({

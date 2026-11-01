@@ -6,7 +6,7 @@ import { RECORD_TEMPLATES } from '../html';
 import { LINE_SEPARATORS } from '../text-ops';
 import { EXTRACT_KINDS } from '../text-rules';
 import type { ToolDefinition } from '../registry';
-import type { IconName, Locale, Workflow } from '../schema';
+import type { IconName, Locale, QuickAction } from '../schema';
 import type { ActionDefinition } from '../workflow/contract';
 
 // T6 的小工具：压缩包（fflate）、二维码（lean-qr / jsQR）、文字转 PDF、用记录生成 PDF。
@@ -32,12 +32,12 @@ function simpleTool(spec: {
   icon: IconName;
   aliases: string[];
   actions: readonly ActionDefinition[];
-  workflows: (locale: Locale) => Workflow[];
+  workflows: (locale: Locale) => Omit<QuickAction, 'kind' | 'package'>[];
   permissions: ToolDefinition['permissions'];
 }): ToolDefinition {
   const pageId = `tool-${spec.id}`;
-  const createWorkflows = (locale: Locale) =>
-    spec.workflows(locale).map((wf) => ({ ...wf, toolId: spec.id }));
+  const createWorkflows = (locale: Locale): QuickAction[] =>
+    spec.workflows(locale).map((wf) => ({ ...wf, kind: 'quickAction', package: spec.id }));
   return {
     id: spec.id,
     version: spec.version,
@@ -55,14 +55,14 @@ function simpleTool(spec: {
       id: pageId,
       title: pairText(locale, spec.name),
       icon: spec.icon,
-      toolId: spec.id,
-      components: [
-        { id: `${spec.id}-header`, type: 'header', props: { title: pairText(locale, spec.name) } },
-        { id: `${spec.id}-intro`, type: 'text', props: { text: pairText(locale, spec.intro) } },
+      package: spec.id,
+      blocks: [
+        { id: `${spec.id}-header`, look: 'header', show: { title: pairText(locale, spec.name) } },
+        { id: `${spec.id}-intro`, look: 'text', show: { text: pairText(locale, spec.intro) } },
         ...createWorkflows(locale).map((wf) => ({
           id: `${wf.id}-runner`,
-          type: 'workflowRunner' as const,
-          props: { workflowId: wf.id },
+          look: 'action' as const,
+          tools: [{ tool: wf.id }],
         })),
       ],
     }),

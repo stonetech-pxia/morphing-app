@@ -457,18 +457,18 @@ describe('schedules on records', () => {
 
 describe('checking schedule fields and filters', () => {
   const problems = (ops: unknown[]) => {
-    const r = prepareOps(
-      createDefaultWorkspace('en'),
-      [{ op: 'addCollection', collection: plants }, ...ops],
-      { registry, locale: 'en', now },
-    );
+    const r = prepareOps(createDefaultWorkspace('en'), [{ op: 'addData', table: plants }, ...ops], {
+      registry,
+      locale: 'en',
+      now,
+    });
     return r.ok ? [] : r.issues.map(String);
   };
 
   it('last done must be a date, datetime or rollup field of the same table', () => {
     const field = (lastDone: string) => ({
-      op: 'addField',
-      collectionId: 'plants',
+      op: 'addData',
+      table: 'plants',
       field: { id: 'plan2', name: 'Plan 2', type: 'schedule', lastDone },
     });
     expect(problems([field('watered')])).toEqual([]);
@@ -482,8 +482,8 @@ describe('checking schedule fields and filters', () => {
     expect(
       problems([
         {
-          op: 'addField',
-          collectionId: 'plants',
+          op: 'addData',
+          table: 'plants',
           field: {
             id: 'p3',
             name: 'P3',
@@ -499,12 +499,11 @@ describe('checking schedule fields and filters', () => {
     const list = (filter: unknown): NewComponent =>
       ({
         id: 'l',
-        type: 'recordList',
-        props: { collectionId: 'plants', display: 'list', titleField: 'name', limit: 30, filter },
+        look: 'list',
+        source: { table: 'plants', limit: 30, filter },
+        show: { title: 'name' },
       }) as never;
-    const add = (filter: unknown) => [
-      { op: 'addComponent', pageId: 'home', component: list(filter) },
-    ];
+    const add = (filter: unknown) => [{ op: 'addContainer', page: 'home', block: list(filter) }];
     expect(problems(add([{ field: 'plan', op: 'due', value: 'today' }]))).toEqual([]);
     expect(problems(add([{ field: 'plan', op: 'due', value: 'soon' }])).join()).toMatch(
       /today, overdue, thisWeek, pending/,

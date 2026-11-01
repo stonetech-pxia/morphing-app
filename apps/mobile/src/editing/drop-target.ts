@@ -43,7 +43,7 @@ export function findDropTarget(
         ? { x: box.x + (after ? box.width : 0) - 1.5, y: box.y, width: 3, height: box.height }
         : { x: box.x, y: box.y + (after ? box.height : 0) - 1.5, width: box.width, height: 3 };
       consider(slot, line, box, parentId ? 1 : 0);
-      if (c.type === 'group') {
+      if (c.look === 'group') {
         if (!c.children.some((child) => !child.hidden)) {
           // 空分组内仍可放入；上下边缘保留移到分组前后的落点。
           const inset = Math.min(12, box.height / 4);
@@ -59,6 +59,6 @@ export function findDropTarget(
       }
     });
   };
-  visit(page.components);
+  visit(page.blocks);
   return (best as { target: DropTarget } | null)?.target ?? null;
 }

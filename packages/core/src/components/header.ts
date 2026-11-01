@@ -2,17 +2,22 @@ import { z } from 'zod';
 
 import { t } from '../messages';
 import { boundedText } from '../schema-base';
-import { ALL_STYLES, type ComponentDefinitionOf, defineComponent } from './define';
+import { ALL_STYLES, type LookDefinitionOf, defineLook } from './define';
 
-const props = z.strictObject({
-  title: boundedText(1, 60),
-  subtitle: boundedText(1, 120).optional(),
-});
+const shape = {
+  show: z.strictObject({
+    title: boundedText(1, 60),
+    subtitle: boundedText(1, 120).optional(),
+  }),
+};
 
-export const headerComponent: ComponentDefinitionOf<'header', typeof props> = defineComponent({
-  type: 'header',
-  props,
-  describe: (c, _config, ctx) => t(ctx.locale, 'describe_header_455aa', { v0: c.props.title }),
+export const headerComponent: LookDefinitionOf<'header', typeof shape> = defineLook({
+  look: 'header',
+  shape,
+  kind: 'container',
+  reads: 'none',
+  writes: false,
+  describe: (c, _config, ctx) => t(ctx.locale, 'describe_header_455aa', { v0: c.show.title }),
   edit: {
     text: [
       { prop: 'title', max: 60 },
@@ -20,6 +25,6 @@ export const headerComponent: ComponentDefinitionOf<'header', typeof props> = de
     ],
     style: ALL_STYLES,
   },
-  ai: { doc: '{title, subtitle?}' },
-  example: { props: { title: 'Budget', subtitle: 'This month' } },
+  ai: { doc: 'show {title, subtitle?}' },
+  example: { show: { title: 'Budget', subtitle: 'This month' } },
 });

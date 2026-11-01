@@ -80,29 +80,29 @@ describe('validation of rich content', () => {
     const base = workspace();
     const withText = apply(base, [
       {
-        op: 'addComponent',
-        pageId: 'home',
-        component: {
+        op: 'addContainer',
+        page: 'home',
+        block: {
           id: 'intro',
-          type: 'text',
-          props: { text: '**你好** [帮助](https://example.com)' },
+          look: 'text',
+          show: { text: '**你好** [帮助](https://example.com)' },
         },
       },
       {
-        op: 'addComponent',
-        pageId: 'home',
-        component: { id: 'pic', type: 'image', props: { aspect: 'wide', fit: 'cover' } },
+        op: 'addContainer',
+        page: 'home',
+        block: { id: 'pic', look: 'image', show: { aspect: 'wide', fit: 'cover' } },
       },
-      { op: 'setPageIcon', pageId: 'home', icon: '🏡' },
+      { op: 'updateContainer', page: 'home', changes: { icon: '🏡' } },
     ]);
     expect(issues(withText)).toEqual([]);
 
     const bad = JSON.parse(JSON.stringify(withText));
-    bad.pages[0].components.at(-2).props.text = '[点我](http://evil.example)';
-    bad.pages[0].icon = '房子';
+    bad.containers.pages[0].blocks.at(-2).show.text = '[点我](http://evil.example)';
+    bad.containers.pages[0].icon = '房子';
     expect(issues(bad)).toEqual([
-      'pages.0.icon: icon must be a listed icon name or a single emoji',
-      'pages.0.components.3.props.text: links must be https:// or mailto: addresses',
+      'containers.pages.0.icon: icon must be a listed icon name or a single emoji',
+      'containers.pages.0.blocks.3.show.text: links must be https:// or mailto: addresses',
     ]);
   });
 });

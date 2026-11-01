@@ -1,3 +1,4 @@
+import { quickActionsOf } from '@morph/core';
 import { fireEvent, waitFor } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
 
@@ -16,7 +17,7 @@ async function openWorkflows() {
 }
 
 const visa = (store: Awaited<ReturnType<typeof renderToolsApp>>['store']) =>
-  store.getState().config!.workflows.find((w) => w.presetId === 'visa-photo');
+  quickActionsOf(store.getState().config!).find((w) => w.preset === 'visa-photo');
 
 describe('workflow journeys (UI)', () => {
   afterEach(() => jest.restoreAllMocks());
@@ -27,7 +28,7 @@ describe('workflow journeys (UI)', () => {
     expect(screen.getByTestId('workflow-run-visa-photo')).toBeTruthy();
     expect(screen.queryByTestId('preset-add-visa-photo')).toBeNull();
     expect(screen.queryByTestId('workflows-empty')).toBeNull();
-    expect(store.getState().config!.workflows.some((w) => w.presetId)).toBe(false);
+    expect(quickActionsOf(store.getState().config!).some((w) => w.preset)).toBe(false);
   });
 
   it('runs a built-in quick action without changing the app, and remembers the use', async () => {
@@ -39,7 +40,9 @@ describe('workflow journeys (UI)', () => {
     expect(await screen.findByTestId('run-result', {}, { timeout: 3000 })).toBeTruthy();
     expect(files.shared).toHaveLength(1);
     expect(store.getState().head!.id).toBe(head);
-    expect(store.getState().config!.workflows.some((w) => w.id === 'email-photos')).toBe(false);
+    expect(quickActionsOf(store.getState().config!).some((w) => w.id === 'email-photos')).toBe(
+      false,
+    );
     expect((await repo.countSucceededRuns()).get('email-photos')?.count).toBe(1);
   });
 
@@ -100,11 +103,15 @@ describe('workflow journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('workflow-to-home'));
     // 首页的入口要指向配置里的快捷操作：一起存进去，一个版本。
     expect(store.getState().head!.id).toBe(before + 1);
-    expect(store.getState().config!.workflows.some((w) => w.id === 'email-photos')).toBe(true);
-    const home = store.getState().config!.pages.find((p) => p.id === 'home')!;
+    expect(quickActionsOf(store.getState().config!).some((w) => w.id === 'email-photos')).toBe(
+      true,
+    );
+    const home = store.getState().config!.containers.pages.find((p) => p.id === 'home')!;
     expect(
-      home.components.some(
-        (c) => c.type === 'workflowRunner' && c.props.workflowId === 'email-photos',
+      home.blocks.some(
+        (c) =>
+          c.look === 'action' &&
+          (c as { tools: { tool: string }[] }).tools[0]!.tool === 'email-photos',
       ),
     ).toBe(true);
   });
@@ -113,11 +120,11 @@ describe('workflow journeys (UI)', () => {
     const { store } = await openWorkflows();
     await fireEvent.press(screen.getByTestId('workflow-edit-email-photos'));
     await fireEvent.press(await screen.findByTestId('workflow-duplicate'));
-    const copy = store.getState().config!.workflows.find((w) => w.presetId === 'email-photos')!;
+    const copy = quickActionsOf(store.getState().config!).find((w) => w.preset === 'email-photos')!;
     expect(copy.id).not.toBe('email-photos');
     // 内设的那个还在。
     await fireEvent.press(await screen.findByText('撤销'));
-    expect(store.getState().config!.workflows).toHaveLength(0);
+    expect(quickActionsOf(store.getState().config!)).toHaveLength(0);
   });
 
   it('deleting an edited built-in returns to the original', async () => {
@@ -127,7 +134,9 @@ describe('workflow journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('workflow-save'));
     acceptNextAlert();
     await fireEvent.press(await screen.findByTestId('workflow-delete'));
-    expect(store.getState().config!.workflows.some((w) => w.id === 'email-photos')).toBe(false);
+    expect(quickActionsOf(store.getState().config!).some((w) => w.id === 'email-photos')).toBe(
+      false,
+    );
     expect(store.getState().head).toMatchObject({ summary: '删除了快捷操作「发邮件」' });
     expect(await screen.findByTestId('workflow-email-photos')).toBeTruthy();
   });

@@ -1,9 +1,10 @@
 import {
-  localize,
   BUILTIN_TOOLS,
   createMockAIProvider,
   createRegistry,
   createStarterWorkspace,
+  localize,
+  quickActionsOf,
   trustedToolKeys,
 } from '@morph/core';
 import { Karla_400Regular } from '@expo-google-fonts/karla/400Regular';
@@ -179,10 +180,11 @@ function ThemedStack() {
         <Stack.Screen name="record/[collectionId]" options={closable} />
         <Stack.Screen name="run/[workflowId]" options={closable} />
         <Stack.Screen name="share" options={closable} />
-        {/* 文件房间（D-360）：全屏，自己画顶栏。 */}
+        {/* 文件房间（D-360）：全屏，自己画顶栏。不用 fullScreenModal：iOS 会把底下的视图拿出窗口，
+            根视图上的扩展包页面（隐藏的 WebView）跟着被挂起，PDF 预览一直装载。 */}
         <Stack.Screen
           name="desk/[deskId]"
-          options={{ presentation: 'fullScreenModal', headerShown: false }}
+          options={{ presentation: 'transparentModal', headerShown: false }}
         />
         <Stack.Screen name="ready/[workflowId]" options={{ ...closable, title: '' }} />
         <Stack.Screen name="table-ready/[collectionId]" options={{ ...closable, title: '' }} />
@@ -192,7 +194,7 @@ function ThemedStack() {
         />
         <Stack.Screen
           name="welcome"
-          options={{ presentation: 'fullScreenModal', headerShown: false, gestureEnabled: false }}
+          options={{ presentation: 'transparentModal', headerShown: false, gestureEnabled: false }}
         />
       </Stack>
       {/* 草稿模式的聊天框只放一个（D-190）：外壳每改一步会重新挂载，推入的页面也要用它。 */}
@@ -242,7 +244,7 @@ export default function RootLayout() {
       await expoFilePlatform.removeStalePickerCopies().catch(() => undefined);
       // 已经删掉的快捷操作不再记着文件夹（D-196）。
       const booted = created.getState().config;
-      if (booted) expoFilePlatform.forgetFolders(booted.workflows.map((w) => w.id));
+      if (booted) expoFilePlatform.forgetFolders(quickActionsOf(booted).map((w) => w.id));
       setRuntime({ store: created, repo });
     })().catch((e) => setError(String(e)));
   }, []);

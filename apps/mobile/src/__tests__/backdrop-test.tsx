@@ -86,19 +86,19 @@ async function commit(store: WorkspaceStore, ops: Op[], summary: string) {
 }
 
 const NOTE: Op = {
-  op: 'addComponent',
-  pageId: 'home',
+  op: 'addContainer',
+  page: 'home',
   index: 0,
-  component: {
+  block: {
     id: 'tip',
-    type: 'notice',
-    props: { title: '喝水', text: '每天八杯' },
+    look: 'notice',
+    show: { title: '喝水', text: '每天八杯' },
     style: { backdrop: { overlay: 'medium' } },
   },
 };
-const home = (store: WorkspaceStore) => store.getState().config!.pages[0]!;
+const home = (store: WorkspaceStore) => store.getState().config!.containers.pages[0]!;
 const tipStyle = (store: WorkspaceStore) =>
-  (home(store).components.find((c) => c.id === 'tip') as { style?: Record<string, unknown> }).style;
+  (home(store).blocks.find((c) => c.id === 'tip') as { style?: Record<string, unknown> }).style;
 
 /** 长按 → 编辑：打开这个组件的操作面板。 */
 async function openSheet(id: string) {
@@ -170,12 +170,12 @@ describe('picture backgrounds', () => {
       store,
       [
         { op: 'setTheme', mode: 'dark' },
-        { op: 'setPageBackdrop', pageId: 'home', backdrop: { overlay: 'light' } },
+        { op: 'updateContainer', page: 'home', changes: { backdrop: { overlay: 'light' } } },
       ],
       '深色加背景',
     );
     expect(screen.queryByTestId('backdrop-picture')).toBeNull();
-    const first = home(store).components[0]!.id;
+    const first = home(store).blocks[0]!.id;
     await openSheet(first);
     files.nextImage = files.offer('wall.jpg', photo, 'image/jpeg');
     await fireEvent.press(screen.getByTestId('edit-page-backdrop-choose'));
@@ -193,14 +193,14 @@ describe('picture backgrounds', () => {
 
   it('components that are not cards cannot have one', async () => {
     const { store } = await renderApp();
-    const first = home(store).components.find((c) => c.type === 'header')!;
+    const first = home(store).blocks.find((c) => c.look === 'header')!;
     const result = await store.getState().proposeOps(
       [
         {
-          op: 'setComponentStyle',
-          pageId: 'home',
-          componentId: first.id,
-          style: { backdrop: { overlay: 'medium' } },
+          op: 'updateContainer',
+          page: 'home',
+          block: first.id,
+          changes: { style: { backdrop: { overlay: 'medium' } } },
         },
       ],
       '标题加背景',

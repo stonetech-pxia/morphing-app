@@ -15,7 +15,7 @@ describe('theme presets', () => {
   });
 
   it.each(THEME_PRESET_IDS)('%s applies as a whole and passes validation', (id) => {
-    const after = apply(workspace(), [{ op: 'applyThemePreset', preset: id }]);
+    const after = apply(workspace(), [{ op: 'setTheme', preset: id }]);
     expect(after.theme).toEqual(THEME_PRESETS[id].theme);
     expect(validateWorkspace(after, registry).ok).toBe(true);
   });
@@ -34,7 +34,7 @@ describe('theme presets', () => {
     const result = prepareOps(
       workspace(),
       [
-        { op: 'applyThemePreset', preset: 'neon' },
+        { op: 'setTheme', preset: 'neon' },
         { op: 'setTheme', primaryColor: '#F472B6' },
       ],
       { registry, locale: 'zh', now: new Date(2026, 9, 22) },
@@ -51,14 +51,12 @@ describe('theme presets', () => {
 
 describe('presetOfTheme', () => {
   it.each(THEME_PRESET_IDS)('recognises %s after it is applied', (id) => {
-    expect(presetOfTheme(apply(workspace(), [{ op: 'applyThemePreset', preset: id }]).theme)).toBe(
-      id,
-    );
+    expect(presetOfTheme(apply(workspace(), [{ op: 'setTheme', preset: id }]).theme)).toBe(id);
   });
 
   it('a tweaked preset or the default theme matches none', () => {
     const tweaked = apply(workspace(), [
-      { op: 'applyThemePreset', preset: 'neon' },
+      { op: 'setTheme', preset: 'neon' },
       { op: 'setTheme', radius: 4 },
     ]);
     expect(presetOfTheme(tweaked.theme)).toBeNull();

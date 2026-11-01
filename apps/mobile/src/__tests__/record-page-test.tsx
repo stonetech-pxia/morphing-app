@@ -30,67 +30,65 @@ const tables: Collection[] = [
     fields: [
       { id: 'title', name: '标题', type: 'text', required: true },
       { id: 'plan', name: '日程', type: 'schedule', default: { repeat: 'once' } },
-      { id: 'project', name: '项目', type: 'link', collectionId: 'projects' },
+      { id: 'project', name: '项目', type: 'link', table: 'projects' },
     ],
   },
 ];
 
-const quickAdd = (id: string, values?: Record<string, string>): NewComponent =>
-  ({
-    id,
-    type: 'recordForm',
-    props: {
-      collectionId: 'tasks',
-      fieldIds: ['title'],
-      submitLabel: '添加',
-      mode: 'inline',
+const quickAdd = (id: string, values?: Record<string, string>): NewComponent => ({
+  id,
+  look: 'form',
+  show: { mode: 'inline' },
+  tools: [
+    {
+      as: 'submit',
+      label: '添加',
+      do: 'create',
+      table: 'tasks',
+      ask: ['title'],
       smartDate: { from: 'title', to: 'plan' },
       ...(values ? { values } : {}),
     },
-  }) as NewComponent;
+  ],
+});
 
 const seed = (locale: Locale, registry: Registry) => {
   const result = applyOps(
     createDefaultWorkspace(locale),
     [
-      ...tables.map((collection) => ({ op: 'addCollection' as const, collection })),
+      ...tables.map((table) => ({ op: 'addData' as const, table })),
       {
-        op: 'addPage' as const,
+        op: 'addContainer' as const,
         page: {
           id: 'project',
           title: '项目',
-          recordOf: 'projects',
-          components: [
+          of: 'projects',
+          blocks: [
             quickAdd('add-here', { project: '$record' }),
             {
               id: 'its-tasks',
-              type: 'recordList',
-              props: {
-                collectionId: 'tasks',
-                display: 'list',
-                titleField: 'title',
-                limit: 30,
+              look: 'list',
+              source: {
+                table: 'tasks',
                 filter: [{ field: 'project', op: 'is', value: '$record' }],
+                limit: 30,
               },
+              show: { title: 'title' },
             },
           ],
-        } as never,
+        },
       },
-      { op: 'addComponent' as const, pageId: 'home', component: quickAdd('add') },
+      { op: 'addContainer' as const, page: 'home', block: quickAdd('add') },
       {
-        op: 'addComponent' as const,
-        pageId: 'home',
-        component: {
+        op: 'addContainer' as const,
+        page: 'home',
+        block: {
           id: 'projects',
-          type: 'recordList',
-          props: {
-            collectionId: 'projects',
-            display: 'list',
-            titleField: 'name',
-            limit: 30,
-            opens: 'project',
-          },
-        } as NewComponent,
+          look: 'list',
+          source: { table: 'projects', limit: 30 },
+          show: { title: 'name' },
+          opens: 'project',
+        },
       },
     ],
     { registry, locale },

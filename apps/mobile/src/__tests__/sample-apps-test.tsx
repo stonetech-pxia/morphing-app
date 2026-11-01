@@ -5,7 +5,9 @@ import {
   homeFileEntryOps,
   type Locale,
   type Op,
+  quickActionsOf,
   type Registry,
+  remindersOf,
   type WorkspaceConfig,
 } from '@morph/core';
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
@@ -138,8 +140,8 @@ describe('guide step 3: sample apps', () => {
     await fireEvent.press(screen.getByTestId('draft-apply'));
     await waitFor(() => expect(store.getState().draft).toBeNull());
     const after = store.getState().config!;
-    expect(after.collections.map((c) => c.id)).toContain('claims');
-    expect(after.workflows.map((w) => w.id)).toEqual(
+    expect(after.data.tables.map((c) => c.id)).toContain('claims');
+    expect(quickActionsOf(after).map((w) => w.id)).toEqual(
       expect.arrayContaining([
         'scan-receipt-log',
         'print-expenses',
@@ -147,8 +149,8 @@ describe('guide step 3: sample apps', () => {
         'expense-report',
       ]),
     );
-    expect(after.reminders?.map((r) => r.id)).toEqual(['submit-expenses']);
-    expect(after.shell.nav).toContain('page:expenses');
+    expect(remindersOf(after)?.map((r) => r.id)).toEqual(['submit-expenses']);
+    expect(after.nav.bar).toContain('page:expenses');
     expect(after.theme).toEqual(before.theme);
     expect((await store.getState().listRevisions(50)).length).toBe(revisions + 1);
     expect(await screen.findByTestId('banner')).toHaveTextContent(/撤销/);
@@ -171,7 +173,7 @@ describe('guide step 3: sample apps', () => {
     const before = store.getState().config!;
     await fireEvent.press(await screen.findByTestId('guide-sample-shop-orders'));
     await fireEvent.press(await screen.findByTestId('draft-apply'));
-    await waitFor(() => expect(store.getState().config!.collections).toHaveLength(2));
+    await waitFor(() => expect(store.getState().config!.data.tables).toHaveLength(2));
     await fireEvent.press(await screen.findByText('撤销'));
     await waitFor(() => expect(store.getState().config).toEqual(before));
   });
@@ -188,7 +190,7 @@ describe('guide step 3: sample apps', () => {
     expect(await screen.findByTestId('sample-hint')).toHaveTextContent(
       /« Visa et passeport » est prête/,
     );
-    expect(store.getState().config!.collections.map((c) => c.name)).toEqual(
+    expect(store.getState().config!.data.tables.map((c) => c.name)).toEqual(
       expect.arrayContaining(['Pièces à préparer', 'Mes papiers']),
     );
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -198,8 +200,8 @@ describe('guide step 3: sample apps', () => {
     const repo = new MemoryWorkspaceRepo();
     const seed = seedWith(() => [
       {
-        op: 'addCollection',
-        collection: {
+        op: 'addData',
+        table: {
           id: 'growth',
           name: '成长',
           fields: [{ id: 'name', name: '名字', type: 'text' }],
@@ -218,8 +220,8 @@ describe('guide step 3: sample apps', () => {
     await fireEvent.press(await screen.findByTestId('draft-apply'));
     await waitFor(() => expect(store.getState().draft).toBeNull());
     const after = store.getState().config!;
-    expect(after.collections.map((c) => c.id)).toEqual(['growth', 'growth-2']);
-    expect(after.reminders?.[0]).toMatchObject({ opens: 'page:baby' });
+    expect(after.data.tables.map((c) => c.id)).toEqual(['growth', 'growth-2']);
+    expect(remindersOf(after)?.[0]).toMatchObject({ opens: 'page:baby' });
     expect((await repo.listRecords('growth')).map((r) => r.id)).toEqual(['r1']);
     expect(await screen.findByTestId('sample-hint')).toBeTruthy();
   });
@@ -232,12 +234,12 @@ describe('guide step 3: sample apps', () => {
     await fireEvent.press(await screen.findByTestId('draft-apply'));
     await waitFor(() => expect(store.getState().draft).toBeNull());
     const after = store.getState().config!;
-    expect(after.shell.nav).toHaveLength(5);
-    expect(after.shell.nav).not.toContain('page:study');
+    expect(after.nav.bar).toHaveLength(5);
+    expect(after.nav.bar).not.toContain('page:study');
     expect(
-      after.pages
+      after.containers.pages
         .find((p) => p.id === 'home')!
-        .components.some((c) => c.type === 'shortcut' && c.props.target === 'page:study'),
+        .blocks.some((c) => c.look === 'entry' && c.opens === 'page:study'),
     ).toBe(true);
     // 不在导航栏里的主页面推入一个新页面，提示卡片在那一页上。
     expect(await screen.findByTestId('sample-hint')).toHaveTextContent(/「学习助手」装好了/);
@@ -246,9 +248,9 @@ describe('guide step 3: sample apps', () => {
   it('at the table limit it explains why and stays on step 3', async () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     const seed = seedWith((config) =>
-      Array.from({ length: 20 - config.collections.length }, (_, i) => ({
-        op: 'addCollection' as const,
-        collection: {
+      Array.from({ length: 20 - config.data.tables.length }, (_, i) => ({
+        op: 'addData' as const,
+        table: {
           id: `t${i}`,
           name: `表${i}`,
           fields: [{ id: 'n', name: 'N', type: 'text' as const }],

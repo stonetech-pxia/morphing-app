@@ -1,14 +1,18 @@
 import {
   appConfigFile,
   appConfigFileName,
-  CollectionSchema,
   LAYOUT_STORE_KEY,
   layoutCount,
   layoutStoreFile,
   parseLayoutStore,
+  parsePickStore,
+  PICK_STORE_KEY,
+  pickCount,
   readLayoutStoreFile,
+  readPickStoreFile,
   RECORD_LIMITS,
   serializeLayoutStore,
+  serializePickStore,
   formatRef,
   formatTimestamp,
   calendarOf,
@@ -19,19 +23,21 @@ import {
   type Collection,
 } from '@morph/core';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
+import { Alert, ScrollView, Switch, Text, View } from 'react-native';
 
 import { useRecordActions } from '@/data/records';
 import { t } from '@/i18n';
 import { Card, PageTitle, Pill, SectionLabel } from '@/renderer/ui';
 import { usePalette } from '@/renderer/theme';
+import { useWorkflowChange } from '@/run/workflow-change';
 import type { StoredRecord } from '@/storage/types';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
+import { revisionTables } from '@/workspace/revision-tables';
 
 /**
  * 「设置 → 数据」：用户记录的管理页，由内核提供，AI 不能修改。
  * 导出 CSV、查看已移出界面的数据表、恢复最近删除的记录（D-037、D-038、D-041）；
- * 导出 App 配置；预填记忆的导出（也是备份）、从文件恢复、一键清空（D-244）。
+ * 导出 App 配置；预填记忆的导出（也是备份）、从文件恢复、一键清空（D-244）；每张表的「自动读取附件」（D-397）。
  */
 export default function DataRoute() {
   const { repo, files, locale } = useWorkspaceContext();
@@ -40,6 +46,7 @@ export default function DataRoute() {
   const bump = useWorkspace((s) => s.bumpRecords);
   const palette = usePalette(config.theme);
   const actions = useRecordActions();
+  const change = useWorkflowChange();
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [orphans, setOrphans] = useState<
     { collection: Collection | null; id: string; count: number }[]
@@ -47,6 +54,8 @@ export default function DataRoute() {
   const [deleted, setDeleted] = useState<StoredRecord[]>([]);
   const [known, setKnown] = useState<Map<string, Collection>>(new Map());
   const [layouts, setLayouts] = useState(0);
+  // 新记录表单里点过的候选（D-394）：一个字段算一个。
+  const [picks, setPicks] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -56,18 +65,14 @@ export default function DataRoute() {
       // 已移出界面的数据表：从历史版本里找回它的结构（版本只追加、不删除）。
       const missing = new Set(
         [...rows.map((r) => r.collectionId), ...deletedRows.map((r) => r.collectionId)].filter(
-          (id) => !config.collections.some((c) => c.id === id),
+          (id) => !config.data.tables.some((c) => c.id === id),
         ),
       );
       const found = new Map<string, Collection>();
       if (missing.size > 0) {
         for (const rev of await repo.listRevisions(1000)) {
-          const list = (rev.config as { collections?: unknown[] } | null)?.collections ?? [];
-          for (const raw of list) {
-            const parsed = CollectionSchema.safeParse(raw);
-            if (parsed.success && missing.has(parsed.data.id) && !found.has(parsed.data.id)) {
-              found.set(parsed.data.id, parsed.data);
-            }
+          for (const table of revisionTables(rev.config)) {
+            if (missing.has(table.id) && !found.has(table.id)) found.set(table.id, table);
           }
         }
       }
@@ -85,8 +90,9 @@ export default function DataRoute() {
       // 超过保留期、但还没到下次启动清除的记录不再显示。
       const cutoff = Date.now() - RECORD_LIMITS.deletedRetentionDays * 24 * 60 * 60 * 1000;
       setDeleted(deletedRows.filter((r) => r.deletedAt! >= cutoff));
-      setKnown(new Map([...found, ...config.collections.map((c) => [c.id, c] as const)]));
+      setKnown(new Map([...found, ...config.data.tables.map((c) => [c.id, c] as const)]));
       setLayouts(layoutCount(parseLayoutStore(await repo.getMeta(LAYOUT_STORE_KEY))));
+      setPicks(pickCount(parsePickStore(await repo.getMeta(PICK_STORE_KEY))));
     })();
     return () => {
       alive = false;
@@ -97,7 +103,7 @@ export default function DataRoute() {
     // 查找、汇总、上一条导出算出来的值（D-291）。
     const { view, records } = await loadComputedRecords(
       (id) => repo.listRecords(id),
-      config.collections,
+      config.data.tables,
       collection,
       new Date(),
       calendarOf(config),
@@ -106,7 +112,7 @@ export default function DataRoute() {
     // 引用字段导出被引用记录的标题（D-250）。
     const links = await loadLinkResolver(
       (id) => repo.listRecords(id),
-      config.collections,
+      config.data.tables,
       linkedCollectionIds(view),
       locale,
     );
@@ -129,9 +135,10 @@ export default function DataRoute() {
   async function exportMemory() {
     const now = new Date();
     const store = parseLayoutStore(await repo.getMeta(LAYOUT_STORE_KEY));
+    const tapped = parsePickStore(await repo.getMeta(PICK_STORE_KEY));
     await files.shareText(
       `morph-prefill-memory-${today(now)}.json`,
-      layoutStoreFile(store, now),
+      layoutStoreFile(store, now, tapped),
       'application/json',
     );
   }
@@ -141,8 +148,11 @@ export default function DataRoute() {
     const file = picked?.[0];
     if (!file) return;
     let store = null;
+    let fromFile = null;
     try {
-      store = readLayoutStoreFile(await files.readPickedText(file.uri));
+      const text = await files.readPickedText(file.uri);
+      store = readLayoutStoreFile(text);
+      fromFile = readPickStoreFile(text);
     } catch {
       store = null;
     }
@@ -159,14 +169,25 @@ export default function DataRoute() {
         {
           text: t(locale, 'prefillMemoryRestore'),
           onPress: () =>
-            void repo.setMeta(LAYOUT_STORE_KEY, serializeLayoutStore(store)).then(() => {
-              setLayouts(count);
-              Alert.alert(t(locale, 'prefillMemoryRestored', { count }));
-            }),
+            void repo
+              .setMeta(LAYOUT_STORE_KEY, serializeLayoutStore(store))
+              .then(() => repo.setMeta(PICK_STORE_KEY, serializePickStore(fromFile ?? {})))
+              .then(() => {
+                setLayouts(count);
+                setPicks(pickCount(fromFile ?? {}));
+                Alert.alert(t(locale, 'prefillMemoryRestored', { count }));
+              }),
         },
       ],
     );
   }
+
+  /** 表上的「自动读取附件」（D-397）：默认打开，不写；关掉才写 false。能在改动记录里撤销。 */
+  const setReadAttachments = (c: Collection, on: boolean) =>
+    change(
+      [{ op: 'updateData', table: c.id, changes: { readAttachments: on ? null : false } }],
+      t(locale, on ? 'describeReadAttachmentsOn' : 'describeReadAttachmentsOff', { name: c.name }),
+    );
 
   function clearMemory() {
     Alert.alert(t(locale, 'prefillMemoryClear'), t(locale, 'prefillMemoryClearConfirm'), [
@@ -175,7 +196,13 @@ export default function DataRoute() {
         text: t(locale, 'prefillMemoryClear'),
         style: 'destructive',
         onPress: () =>
-          void repo.setMeta(LAYOUT_STORE_KEY, serializeLayoutStore({})).then(() => setLayouts(0)),
+          void repo
+            .setMeta(LAYOUT_STORE_KEY, serializeLayoutStore({}))
+            .then(() => repo.setMeta(PICK_STORE_KEY, serializePickStore({})))
+            .then(() => {
+              setLayouts(0);
+              setPicks(0);
+            }),
       },
     ]);
   }
@@ -206,7 +233,7 @@ export default function DataRoute() {
       </Card>
 
       <SectionLabel palette={palette}>{t(locale, 'dataTables')}</SectionLabel>
-      {config.collections.map((c) => (
+      {config.data.tables.map((c) => (
         <Card key={c.id} palette={palette} testID={`table-${c.id}`}>
           <Text style={[palette.font('title', 16), { color: palette.text }]}>{c.name}</Text>
           <Text style={caption}>{t(locale, 'recordCount', { count: counts.get(c.id) ?? 0 })}</Text>
@@ -218,6 +245,22 @@ export default function DataRoute() {
               onPress={() => void exportCsv(c)}
             />
           </View>
+          {c.fields.some((f) => f.type === 'file') ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={[palette.font('bodyMedium', 14), { color: palette.text }]}>
+                  {t(locale, 'readAttachmentsLabel')}
+                </Text>
+                <Text style={caption}>{t(locale, 'readAttachmentsHint')}</Text>
+              </View>
+              <Switch
+                testID={`read-attachments-${c.id}`}
+                value={c.readAttachments !== false}
+                onValueChange={(on) => void setReadAttachments(c, on)}
+                trackColor={{ true: palette.primary }}
+              />
+            </View>
+          ) : null}
         </Card>
       ))}
 
@@ -237,13 +280,17 @@ export default function DataRoute() {
       <SectionLabel palette={palette}>{t(locale, 'prefillMemoryTitle')}</SectionLabel>
       <Card palette={palette} testID="prefill-memory">
         <Text style={[palette.font('title', 15), { color: palette.text }]}>
-          {layouts > 0
-            ? t(locale, 'prefillMemoryCount', { count: layouts })
-            : t(locale, 'prefillMemoryNone')}
+          {layouts > 0 || picks === 0
+            ? layouts > 0
+              ? t(locale, 'prefillMemoryCount', { count: layouts })
+              : t(locale, 'prefillMemoryNone')
+            : null}
+          {layouts > 0 && picks > 0 ? '\n' : ''}
+          {picks > 0 ? t(locale, 'prefillMemoryPicks', { count: picks }) : null}
         </Text>
         <Text style={caption}>{t(locale, 'prefillMemoryHint')}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {layouts > 0 ? (
+          {layouts + picks > 0 ? (
             <Pill
               palette={palette}
               testID="export-prefill-memory"
@@ -257,7 +304,7 @@ export default function DataRoute() {
             label={t(locale, 'prefillMemoryRestore')}
             onPress={() => void restoreMemory()}
           />
-          {layouts > 0 ? (
+          {layouts + picks > 0 ? (
             <Pill
               palette={palette}
               danger

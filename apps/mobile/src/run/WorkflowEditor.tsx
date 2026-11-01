@@ -1,22 +1,25 @@
 import {
-  localize,
-  t,
-  HOME_PAGE_ID,
+  type ActionDefinition,
   allComponents,
+  HOME_PAGE_ID,
   homeScreenFull,
+  homeScreenOp,
   initialParams,
   insertableActions,
-  newWorkflowId,
-  presetById,
-  WORKFLOW_PRESETS,
-  stepIdFor,
-  topIndex,
-  workflowProblems,
-  type ActionDefinition,
+  isKnownComponent,
   type Locale,
+  localize,
+  newWorkflowId,
   type Op,
+  presetById,
+  quickActionsOf,
   type Registry,
+  stepIdFor,
+  t,
+  topIndex,
   type Workflow,
+  WORKFLOW_PRESETS,
+  workflowProblems,
   type WorkflowStep,
 } from '@morph/core';
 
@@ -85,14 +88,19 @@ export function WorkflowEditor({
   const nameOk = draft.name.trim().length > 0 && draft.name.trim().length <= 40;
   const canSave = dirty && problems.length === 0 && nameOk;
   const label = (a: ActionDefinition | undefined, id: string) => localize(a?.label, locale) ?? id;
-  const home = config.pages.find((p) => p.id === HOME_PAGE_ID)!;
+  const home = config.containers.pages.find((p) => p.id === HOME_PAGE_ID)!;
   const onHome = allComponents(home).some(
-    (c) => c.type === 'workflowRunner' && c.props.workflowId === workflow.id,
+    (c) =>
+      isKnownComponent(c) &&
+      c.look === 'action' &&
+      c.tools.some((u) => 'tool' in u && u.tool === workflow.id),
   );
-  const preset = workflow.presetId ? presetById(workflow.presetId) : undefined;
+  const preset = workflow.preset ? presetById(workflow.preset) : undefined;
+  // 手机桌面（D-271）：v34 记在 nav.phoneHomeScreen。
+  const onPhoneHome = (config.nav.phoneHomeScreen ?? []).includes(workflow.id);
   // 内设的快捷操作不在配置里（D-236）：保存、放到首页时才存进去，用预设 ID。
-  const stored = config.workflows.some((w) => w.id === workflow.id);
-  const addIfBuiltIn = (): Op[] => (stored ? [] : [{ op: 'addWorkflow', workflow }]);
+  const stored = quickActionsOf(config).some((w) => w.id === workflow.id);
+  const addIfBuiltIn = (): Op[] => (stored ? [] : [{ op: 'addTool', tool: workflow }]);
   const caption = [palette.font('body', 13), { color: palette.muted }];
 
   const setStep = (i: number, next: Partial<WorkflowStep>) =>
@@ -124,24 +132,24 @@ export function WorkflowEditor({
     const name = draft.name.trim();
     const ok = await change(
       stored
-        ? [{ op: 'updateWorkflow', workflowId: workflow.id, name, steps: draft.steps }]
-        : [{ op: 'addWorkflow', workflow: { ...workflow, name, steps: draft.steps } }],
+        ? [{ op: 'updateTool', tool: workflow.id, changes: { name, steps: draft.steps } }]
+        : [{ op: 'addTool', tool: { ...workflow, name, steps: draft.steps } }],
       t(locale, 'WorkflowEditor_Adjusted_the_quick_action_3c10b', { v0: name }),
     );
     if (ok) setDraft({ name, steps: draft.steps });
   }
 
   async function duplicate() {
-    const id = newWorkflowId(workflow.presetId ?? 'my-workflow', [
-      ...config.workflows,
+    const id = newWorkflowId(workflow.preset ?? 'my-workflow', [
+      ...quickActionsOf(config),
       ...WORKFLOW_PRESETS,
     ]);
     const name = `${workflow.name}${t(locale, 'WorkflowEditor_copy_04014')}`.slice(0, 40);
-    const copy: Workflow = { id, name, steps: workflow.steps };
+    const copy: Workflow = { id, kind: 'quickAction', name, steps: workflow.steps };
     if (workflow.icon) copy.icon = workflow.icon;
-    if (workflow.presetId) copy.presetId = workflow.presetId;
+    if (workflow.preset) copy.preset = workflow.preset;
     const ok = await change(
-      [{ op: 'addWorkflow', workflow: copy }],
+      [{ op: 'addTool', tool: copy }],
       t(locale, 'WorkflowEditor_Copied_the_quick_action_a4506', { v0: workflow.name }),
     );
     if (ok) router.replace({ pathname: '/workflow/[id]', params: { id } });
@@ -152,7 +160,7 @@ export function WorkflowEditor({
     for (let j = i - 1; j >= 0; j--) {
       const s = draft.steps[j]!;
       if (s.action === 'in.records') {
-        return config.collections.find((c) => c.id === s.params.collectionId);
+        return config.data.tables.find((c) => c.id === s.params.collectionId);
       }
     }
     return undefined;
@@ -196,10 +204,11 @@ export function WorkflowEditor({
             },
           ]}
         />
-        {workflow.toolId ? (
+        {workflow.package ? (
           <Text style={caption}>
             {t(locale, 'workflowFromTool', {
-              name: localize(registry.tools.get(workflow.toolId)?.name, locale) ?? workflow.toolId,
+              name:
+                localize(registry.tools.get(workflow.package)?.name, locale) ?? workflow.package,
             })}
           </Text>
         ) : null}
@@ -376,13 +385,13 @@ export function WorkflowEditor({
                   [
                     ...addIfBuiltIn(),
                     {
-                      op: 'addComponent',
-                      pageId: HOME_PAGE_ID,
+                      op: 'addContainer',
+                      page: HOME_PAGE_ID,
                       index: topIndex(home),
-                      component: {
+                      block: {
                         id: newWorkflowId(`run-${workflow.id}`.slice(0, 36), allComponents(home)),
-                        type: 'workflowRunner',
-                        props: { workflowId: workflow.id },
+                        look: 'action',
+                        tools: [{ tool: workflow.id }],
                       },
                     },
                   ],
@@ -395,22 +404,15 @@ export function WorkflowEditor({
           <Pill
             palette={palette}
             testID="workflow-home-screen"
-            label={t(locale, workflow.homeScreen ? 'homeScreenRemove' : 'homeScreenAdd')}
+            label={t(locale, onPhoneHome ? 'homeScreenRemove' : 'homeScreenAdd')}
             onPress={() => {
-              if (!workflow.homeScreen && homeScreenFull(config)) {
+              if (!onPhoneHome && homeScreenFull(config)) {
                 Alert.alert(t(locale, 'homeScreenFull'));
                 return;
               }
               void change(
-                [
-                  ...addIfBuiltIn(),
-                  {
-                    op: 'setWorkflowHomeScreen',
-                    workflowId: workflow.id,
-                    homeScreen: !workflow.homeScreen,
-                  },
-                ],
-                t(locale, workflow.homeScreen ? 'homeScreenRemoved' : 'homeScreenAdded', {
+                [...addIfBuiltIn(), homeScreenOp(config, workflow.id, !onPhoneHome)],
+                t(locale, onPhoneHome ? 'homeScreenRemoved' : 'homeScreenAdded', {
                   name: workflow.name,
                 }),
               );
@@ -425,9 +427,9 @@ export function WorkflowEditor({
                 void change(
                   [
                     {
-                      op: 'updateWorkflow',
-                      workflowId: workflow.id,
-                      steps: preset.steps(locale),
+                      op: 'updateTool',
+                      tool: workflow.id,
+                      changes: { steps: preset.steps(locale) },
                     },
                   ],
                   t(locale, 'WorkflowEditor_Reset_to_the_preset_567aa', { v0: workflow.name }),
@@ -435,7 +437,7 @@ export function WorkflowEditor({
               }
             />
           ) : null}
-          {workflow.toolId || !stored ? null : (
+          {workflow.package || !stored ? null : (
             <Pill
               palette={palette}
               danger
@@ -444,7 +446,7 @@ export function WorkflowEditor({
               onPress={() =>
                 confirmDelete(locale, workflow.name, () => {
                   void change(
-                    [{ op: 'removeWorkflow', workflowId: workflow.id }],
+                    [{ op: 'removeTool', tool: workflow.id }],
                     t(locale, 'WorkflowEditor_Deleted_the_quick_action_a2984', {
                       v0: workflow.name,
                     }),

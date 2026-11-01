@@ -1,7 +1,7 @@
 import {
   CHART_COLORS,
   calendarOf,
-  chartDateField,
+  dateFieldOf,
   contrast,
   currentMonth,
   dateOfDayNumber,
@@ -26,10 +26,11 @@ import { t } from '../i18n';
 import type { RenderEnv } from './components';
 import {
   AddHere,
+  addHereOf,
   openAddHere,
   useCollection,
   useRecordRows,
-  type RecordListProps,
+  type RecordBlock,
   type Tone,
 } from './data';
 import { UiIcon } from './Icon';
@@ -48,33 +49,33 @@ const readable = (fill: string) =>
   contrast(fill, '#FFFFFF') >= contrast(fill, '#111111') ? '#FFFFFF' : '#111111';
 
 export function MonthCalendar({
-  props,
+  block,
   env,
   tone,
   componentId,
 }: {
-  props: RecordListProps;
+  block: RecordBlock;
   env: RenderEnv;
   tone?: Tone;
   componentId: string;
 }) {
   const { palette, locale } = env;
-  const collection = useCollection(env, props.collectionId);
+  const collection = useCollection(env, block.source.table);
   const cal = calendarOf(env.config);
   const now = new Date();
   const thisMonth = currentMonth(now, cal);
   const today = todayNumber(now, cal);
   const [month, setMonth] = useState(thisMonth);
   const [picked, setPicked] = useState<number | null>(today);
-  const dateRef = collection ? chartDateField(collection, props) : 'createdAt';
+  const dateRef = collection ? dateFieldOf(collection, block.source.group?.by) : 'createdAt';
   const { view, records } = useMonthRecords(
-    env.config.collections,
+    env.config.data.tables,
     collection,
     dateRef,
     month,
     cal,
   );
-  const rows = useRecordRows(props, env, tone, collection, view);
+  const rows = useRecordRows(block, env, tone, collection, view);
   const router = useRouter();
   if (!collection || !view || !rows) return null;
   // 在选中的那天添加（D-349）：日期字段填这天，日程是「一次，这天」；日期时间、系统字段不预设。
@@ -86,16 +87,16 @@ export function MonthCalendar({
     return {};
   };
 
-  const matched = filterRecords(records ?? [], view, props.filter, now, cal);
+  const matched = filterRecords(records ?? [], view, block.source.filter, now, cal);
   const { days, max } = monthDays(
     matched,
     view,
-    { dateField: dateRef, colorField: props.colorField },
+    { date: dateRef, color: block.show.color },
     month,
     now,
     cal,
   );
-  const color = props.colorField ? view.fields.find((f) => f.id === props.colorField) : undefined;
+  const color = block.show.color ? view.fields.find((f) => f.id === block.show.color) : undefined;
   const options = color?.type === 'choice' ? color.options : [];
   const scheme = palette.dark ? CHART_COLORS.dark : CHART_COLORS.light;
   const other = palette.dark ? CHART_COLORS.other.dark : CHART_COLORS.other.light;
@@ -137,8 +138,8 @@ export function MonthCalendar({
   const usedNone = [...days.values()].some((d) => d.optionId === null);
   const dayRecords = selected === null ? [] : (days.get(selected)?.records ?? []);
   const shown = (
-    props.sort ? sortRecords(dayRecords, view, props.sort, now, cal) : dayRecords
-  ).slice(0, props.limit);
+    block.source.sort ? sortRecords(dayRecords, view, block.source.sort, now, cal) : dayRecords
+  ).slice(0, block.source.limit);
 
   return (
     <View style={{ gap: palette.gap - 4 }}>
@@ -256,11 +257,11 @@ export function MonthCalendar({
           ) : (
             <Card palette={palette} background={background}>
               <Text style={[palette.font('body', 14), { color: palette.caption }]}>
-                {props.emptyText ?? t(locale, 'calendarDayEmpty')}
+                {block.show.emptyText ?? t(locale, 'calendarDayEmpty')}
               </Text>
             </Card>
           )}
-          {props.addHere ? (
+          {addHereOf(block) ? (
             <AddHere
               testID="calendar-add-here"
               label={t(locale, 'groupAdd', { group: dayTitle(selected, locale) })}
@@ -268,7 +269,8 @@ export function MonthCalendar({
               onPress={
                 env.interactive
                   ? (env.locked ??
-                    (() => openAddHere(router, collection, view, props, dayPreset(selected))))
+                    (() =>
+                      openAddHere(router, collection, view, block.source, dayPreset(selected))))
                   : undefined
               }
             />

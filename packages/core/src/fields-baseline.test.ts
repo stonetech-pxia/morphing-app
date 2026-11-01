@@ -18,8 +18,10 @@ import { describeChange } from './describe';
 import { recordsToHtml } from './html';
 import { applyOps, type Op } from './ops';
 import type { Collection, Condition, Field, Locale, WorkspaceConfig } from './schema';
-import { registry, snapshotLines, workspace } from './test-helpers';
+import { fromV33, registry, snapshotLines, v33Fixture } from './test-helpers';
 import { validateWorkspace } from './validate';
+
+const workspace = (locale: Locale) => fromV33(v33Fixture(`default-${locale}`));
 
 // 字段类型登记表重构的基线（2026-10-27）：每种字段在读取、写入、显示、导出、打印、筛选、排序、统计、
 // 公式、类型转换、修改说明里的输出。重构只换写法，这些输出必须完全不变。
@@ -56,7 +58,7 @@ const FIELDS: Field[] = [
   },
   { id: 'r', name: 'Stars', type: 'rating', default: 4 },
   { id: 'f', name: 'Receipt', type: 'file' },
-  { id: 'l', name: 'Client', type: 'link', collectionId: 'clients' },
+  { id: 'l', name: 'Client', type: 'link', table: 'clients' },
   { id: 'fo', name: 'Double', type: 'formula', expression: '{num} * 2', decimals: 1, unit: 'kg' },
   { id: 'fo2', name: 'Plus', type: 'formula', expression: '{m} + 1', currency: 'USD' },
   { id: 'fo3', name: 'Left', type: 'formula', expression: 'days(today, {d})', decimals: 0 },
@@ -278,7 +280,13 @@ describe('field baseline', () => {
 
   it('validates filters, sorts, formulas and field references', () => {
     const base = workspace('en');
-    const config = { ...base, collections: [table, clients] } as WorkspaceConfig;
+    const config = { ...base, data: { tables: [table, clients] } } as WorkspaceConfig;
+    const page = base.containers.pages[0]!;
+    const withBlocks = (blocks: unknown[]): Partial<WorkspaceConfig> => ({
+      containers: {
+        pages: [{ ...page, blocks: blocks as never }, ...base.containers.pages.slice(1)],
+      },
+    });
     const issues = (extra: Partial<WorkspaceConfig>) => {
       const result = validateWorkspace({ ...config, ...extra }, registry);
       return result.ok ? [] : result.issues.map((i) => i.message);
@@ -305,88 +313,64 @@ describe('field baseline', () => {
           } as Condition);
     const filterIssues: string[] = [];
     for (let i = 0; i < conditions.length; i += 5) {
-      const page = base.pages[0]!;
       filterIssues.push(
-        ...issues({
-          pages: [
+        ...issues(
+          withBlocks([
             {
-              ...page,
-              components: [
-                {
-                  id: 'list',
-                  type: 'recordList',
-                  props: {
-                    collectionId: 'items',
-                    display: 'list',
-                    titleField: 't',
-                    limit: 5,
-                    filter: conditions.slice(i, i + 5),
-                  },
-                },
-              ],
+              id: 'list',
+              look: 'list',
+              source: { table: 'items', limit: 5, filter: conditions.slice(i, i + 5) },
+              show: { title: 't' },
             },
-            ...base.pages.slice(1),
-          ],
-        }),
+          ]),
+        ),
       );
     }
     const formulaIssues = FIELDS.map((f) =>
       issues({
-        collections: [
-          {
-            ...table,
-            fields: [
-              ...FIELDS,
-              { id: 'z', name: 'Z', type: 'formula', expression: `{${f.id}} + 1` },
-            ],
-          },
-          clients,
-        ],
+        data: {
+          tables: [
+            {
+              ...table,
+              fields: [
+                ...FIELDS,
+                { id: 'z', name: 'Z', type: 'formula', expression: `{${f.id}} + 1` },
+              ],
+            },
+            clients,
+          ],
+        },
       }),
     );
     const sortIssues = FIELDS.map((f) =>
-      issues({
-        pages: [
+      issues(
+        withBlocks([
           {
-            ...base.pages[0]!,
-            components: [
-              {
-                id: 'list',
-                type: 'recordList',
-                props: {
-                  collectionId: 'items',
-                  display: 'list',
-                  titleField: 't',
-                  limit: 5,
-                  sort: { field: f.id, direction: 'asc' },
-                },
-              },
-              {
-                id: 'stat',
-                type: 'stat',
-                props: { collectionId: 'items', aggregate: 'sum', fieldId: f.id, label: 'S' },
-              },
-              {
-                id: 'form',
-                type: 'recordForm',
-                props: {
-                  collectionId: 'items',
-                  fieldIds: [f.id],
-                  submitLabel: 'Add',
-                  mode: 'inline',
-                },
-              },
-            ],
+            id: 'list',
+            look: 'list',
+            source: { table: 'items', limit: 5, sort: { field: f.id, direction: 'asc' } },
+            show: { title: 't' },
           },
-          ...base.pages.slice(1),
-        ],
-      }),
+          {
+            id: 'stat',
+            look: 'number',
+            show: { label: 'S' },
+            source: { table: 'items', aggregate: 'sum', field: f.id },
+          },
+          {
+            id: 'form',
+            look: 'form',
+            show: { mode: 'inline' },
+            tools: [{ as: 'submit', label: 'Add', do: 'create', table: 'items', ask: [f.id] }],
+          },
+        ]),
+      ),
     );
     expect(snapshotLines({ filterIssues, formulaIssues, sortIssues })).toMatchSnapshot();
   });
 
   it('switches field types and describes field changes', () => {
-    const base = { ...workspace('en'), collections: [table, clients] } as WorkspaceConfig;
+    const base = { ...workspace('en'), data: { tables: [table, clients] } } as WorkspaceConfig;
     const types = [
       'text',
       'note',
@@ -407,7 +391,7 @@ describe('field baseline', () => {
         if (type === 'money') changes.currency = 'USD';
         const result = applyOps(
           base,
-          [{ op: 'updateField', collectionId: 'items', fieldId: f.id, changes } as Op],
+          [{ op: 'updateData', table: 'items', field: f.id, changes } as Op],
           {
             registry,
             locale: 'en',
@@ -421,13 +405,13 @@ describe('field baseline', () => {
       const ctx = { registry, locale, now: NOW };
       described[locale] = FIELDS.flatMap((f) => [
         ...describeChange(
-          [{ op: 'addField', collectionId: 'items', field: { ...f, id: `${f.id}x` } }],
+          [{ op: 'addData', table: 'items', field: { ...f, id: `${f.id}x` } }],
           base,
           [],
           ctx,
         ),
         ...describeChange(
-          [{ op: 'updateField', collectionId: 'items', fieldId: f.id, changes: { type: 'note' } }],
+          [{ op: 'updateData', table: 'items', field: f.id, changes: { type: 'note' } }],
           base,
           [],
           ctx,

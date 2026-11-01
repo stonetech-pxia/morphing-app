@@ -189,7 +189,8 @@ export function tidyOcrText(text: string): string {
 export function ocrWorkflows(locale: Locale): Workflow[] {
   const wf = (id: string, name: [string, string], steps: Workflow['steps']): Workflow => ({
     id,
-    toolId: OCR_TOOL_ID,
+    kind: 'quickAction',
+    package: OCR_TOOL_ID,
     name: pairText(locale, name),
     steps,
   });
@@ -231,24 +232,24 @@ export const ocrTool: ToolDefinition = {
     id: OCR_PAGE_ID,
     title: t(locale, 'ocr_Text_recognition_fe569'),
     icon: 'text',
-    toolId: OCR_TOOL_ID,
-    components: [
+    package: OCR_TOOL_ID,
+    blocks: [
       {
         id: 'ocr-header',
-        type: 'header',
-        props: { title: t(locale, 'ocr_Text_recognition_fe569') },
+        look: 'header',
+        show: { title: t(locale, 'ocr_Text_recognition_fe569') },
       },
       {
         id: 'ocr-intro',
-        type: 'text',
-        props: {
+        look: 'text',
+        show: {
           text: t(locale, 'ocr_Runs_on_this_device_the_text_is_never__38fca'),
         },
       },
       ...ocrWorkflows(locale).map((wf) => ({
         id: `${wf.id}-runner`,
-        type: 'workflowRunner' as const,
-        props: { workflowId: wf.id },
+        look: 'action' as const,
+        tools: [{ tool: wf.id }],
       })),
     ],
   }),
