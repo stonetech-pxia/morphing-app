@@ -348,6 +348,18 @@ describe('值记忆要有边界（第 9 条）', () => {
   });
 });
 
+describe('商品明细不是店名（模型的回答）', () => {
+  const rows = ['MUSHROOM CAFE', 'Latte 4.50', 'A4 CLR COPY 8 0.53 4.24 SR', 'BAKERY 24'];
+  it.each(['Latte 4.50', 'Latte', 'A4 CLR COPY 8 0.53 4.24 SR'])('%s 不是店名', (answer) => {
+    expect(checkAnswer(MERCHANT, answer, rows, 'en')).toBeNull();
+  });
+  it('真的店名还在，别的文字字段不受影响', () => {
+    expect(checkAnswer(MERCHANT, 'MUSHROOM CAFE', rows, 'en')).toBe('MUSHROOM CAFE');
+    expect(checkAnswer(MERCHANT, 'BAKERY 24', rows, 'en')).toBe('BAKERY 24');
+    expect(checkAnswer(text('Item'), 'Latte 4.50', rows, 'en')).toBe('Latte 4.50');
+  });
+});
+
 describe('去标签（第 10 条）', () => {
   it('12:30 不是「标签：值」', () => {
     expect(checkAnswer(NOTE_TIME, '12:30', ['Open 12:30'], 'en')).toBe('12:30');

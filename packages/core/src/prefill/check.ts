@@ -254,6 +254,12 @@ function checkText(
     ADDRESS.test(value)
   )
     return null;
+  // 带价格的一排是商品明细，不是店名。提前从文字里删掉反而变差（模型的回答会被打乱），所以在这里滤。
+  if (
+    (concept === 'merchant' || concept === 'company') &&
+    /\p{L}.*\d+[.,]\d{2}\s*[A-Za-z]{0,3}\s*$/u.test(value)
+  )
+    return null;
   return value;
 }
 
