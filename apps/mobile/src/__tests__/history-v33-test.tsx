@@ -1,4 +1,4 @@
-import { createDefaultWorkspace, type WorkspaceConfig } from '@morph/core';
+import { CURRENT_SCHEMA_VERSION, createDefaultWorkspace, type WorkspaceConfig } from '@morph/core';
 import { router } from 'expo-router';
 import { act } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
@@ -39,7 +39,7 @@ it('restoring a version saved by the v33 app brings its pages back, drawn from v
   expect(result.kind).toBe('preview');
   await act(() => store.getState().confirm());
   const config = store.getState().config!;
-  expect(config.schemaVersion).toBe(34);
+  expect(config.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
   expect(config.data.tables.map((t) => t.id)).toEqual(['water', 'worklog', 'packing', 'bills']);
   // v33 的 recordForm button 成了 button 块，列表成了 look list。
   const page = config.containers.pages.find((p) => p.id === 'page-water')!;

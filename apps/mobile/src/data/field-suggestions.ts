@@ -27,7 +27,7 @@ import {
   type AttachmentTextDeps,
 } from './attachment-text';
 
-// 新记录表单的候选值（D-394）：附件里有照片或 PDF 时，在后台读出文字，给每个空字段最多 3 个候选，
+// 新记录表单的候选值（D-394）：附件里有照片或 PDF 时（表没有关掉 readAttachments，D-397），在后台读出文字，给每个空字段最多 3 个候选，
 // 用户点了才填，从不自动填。文字识别模型装好了就自动读；没装时只显示一行提示，用户点了、
 // 在下载确认框里同意以后才下载（D-064）。离开表单就取消。
 // 点过的候选记在本机 app_meta 的 prefill:picks（这张表这个字段：标签和位置，不记值），
@@ -79,7 +79,7 @@ export function useFieldSuggestions({
   // 附件字段里的文件（按字段顺序），作为重新读的依据。
   const ids = useMemo(
     () =>
-      enabled && collection
+      enabled && collection && collection.readAttachments !== false
         ? collection.fields.flatMap((f) => (f.type === 'file' ? attachmentIds(values[f.id]) : []))
         : [],
     [enabled, collection, values],

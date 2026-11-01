@@ -56,7 +56,9 @@ const receiptWorkflow: Workflow = {
 
 type Entry = LocalSteps['recordEntry'];
 
-function setup(workflow: Workflow, answers: (Entry['out'] | null)[]) {
+type Answer = Entry['out'] | null | ((input: Entry['in']) => Entry['out'] | null);
+
+function setup(workflow: Workflow, answers: Answer[], collections = [expenses]) {
   const files = new FakeFiles();
   const repo = new MemoryWorkspaceRepo();
   const opened: Entry['in'][] = [];
@@ -66,7 +68,8 @@ function setup(workflow: Workflow, answers: (Entry['out'] | null)[]) {
     open: async (kind, input) => {
       if (kind !== 'recordEntry') return null;
       opened.push(input as Entry['in']);
-      return (answers.shift() ?? null) as never;
+      const answer = answers.shift() ?? null;
+      return (typeof answer === 'function' ? answer(input as Entry['in']) : answer) as never;
     },
   };
   let n = 0;
@@ -82,16 +85,54 @@ function setup(workflow: Workflow, answers: (Entry['out'] | null)[]) {
         now: () => new Date(2026, 9, 24, 12),
         newId: () => `id${++n}`,
         ui,
-        collections: [expenses],
+        collections,
         askParams: async (r) => r.params,
       })
     ).result;
   return { files, repo, opened, run };
 }
 
+/** 同一个快捷操作，每个文件记一条（D-397 的 each）。 */
+const eachWorkflow: Workflow = {
+  ...receiptWorkflow,
+  id: 'each',
+  steps: receiptWorkflow.steps.map((step) =>
+    step.action === 'out.addRecord'
+      ? { ...step, params: { collectionId: 'expenses', each: true } }
+      : step,
+  ),
+};
+
 describe('out.addRecord', () => {
-  it('saves each receipt photo and adds a record with what the user filled in', async () => {
+  it('puts all the files of the run into one record by default (D-397)', async () => {
     const { files, repo, opened, run } = setup(receiptWorkflow, [
+      { values: { amount: '35.5', date: '2026-10-24' } },
+    ]);
+    files.nextPhotos = [
+      files.offerImage('IMG_1.jpg', 3000, 4000),
+      files.offerImage('IMG_2.jpg', 3000, 4000),
+    ];
+    const result = await run();
+    expect(result.status).toBe('succeeded');
+    const assets = await repo.listAssets();
+    expect(assets.map((a) => a.name).sort()).toEqual(['IMG_1.jpg', 'IMG_2.jpg']);
+    const ids = assets.map((a) => a.id).sort();
+    // 只开一张表单，打开时文件已经是用户文件、已经在附件里（表单才能读它们，给候选）。
+    expect(opened).toHaveLength(1);
+    expect(opened[0]).toMatchObject({ index: 0, total: 1 });
+    expect([...(opened[0]!.prefill.receipt as string[])].sort()).toEqual(ids);
+    const records = await repo.listRecords('expenses');
+    expect(records).toHaveLength(1);
+    expect(records[0]!.values).toMatchObject({ amount: 35.5, date: '2026-10-24' });
+    expect([...(records[0]!.values.receipt as string[])].sort()).toEqual(ids);
+    expect(await repo.hasGrant('workflow:receipts', assets[0]!.id)).toBe(true);
+    if (result.status === 'succeeded') expect(result.saved).toHaveLength(2);
+    // 文件原样交给下一步。
+    expect(files.shared).toHaveLength(2);
+  });
+
+  it('adds a record per file when the step says each', async () => {
+    const { files, repo, opened, run } = setup(eachWorkflow, [
       { values: { amount: '35.5', date: '2026-10-24' } },
       { values: { amount: '12', note: '打车' } },
     ]);
@@ -101,10 +142,9 @@ describe('out.addRecord', () => {
     ];
     const result = await run();
     expect(result.status).toBe('succeeded');
-    // 表单里附件先是占位值，第几张、一共几张。
-    expect(opened.map((o) => [o.index, o.total, o.prefill])).toEqual([
-      [0, 2, { receipt: 'pending-file' }],
-      [1, 2, { receipt: 'pending-file' }],
+    expect(opened.map((o) => [o.index, o.total])).toEqual([
+      [0, 2],
+      [1, 2],
     ]);
     const records = await repo.listRecords('expenses');
     expect(records.map((r) => r.values)).toEqual(
@@ -113,49 +153,104 @@ describe('out.addRecord', () => {
         { amount: 12, date: '2026-10-24', note: '打车', receipt: [expect.any(String)] },
       ]),
     );
-    // 收据存成了 Morph 的文件，授权给这个快捷操作；结果里的文件就是存好的那两个。
     const assets = await repo.listAssets();
-    expect(assets.map((a) => a.name).sort()).toEqual(['IMG_1.jpg', 'IMG_2.jpg']);
-    // 附件字段是一组文件 ID（D-263），每条记录一个。
     expect(records.flatMap((r) => r.values.receipt as string[]).sort()).toEqual(
       assets.map((a) => a.id).sort(),
     );
-    expect(await repo.hasGrant('workflow:receipts', assets[0]!.id)).toBe(true);
     if (result.status === 'succeeded') expect(result.saved).toHaveLength(2);
-    // 结果交给下一步「分享」：两张收据一起分享出去。
     expect(files.shared).toHaveLength(2);
   });
 
-  it('keeps the photos the user added in the form after the step’s own file (D-263)', async () => {
+  it('keeps the order of the form, with the photos the user added (D-263)', async () => {
     const { files, repo, run } = setup(receiptWorkflow, [
-      { values: { amount: '20', receipt: ['pending-file', 'extra1', 'extra2'] } },
+      (input) => ({
+        values: { amount: '20', receipt: [...(input.prefill.receipt as string[]), 'extra1'] },
+      }),
     ]);
     files.nextPhotos = [files.offerImage('IMG_1.jpg', 100, 100)];
     expect((await run()).status).toBe('succeeded');
     const [saved] = (await repo.listAssets()).filter((a) => a.name === 'IMG_1.jpg');
-    expect((await repo.listRecords('expenses'))[0]!.values.receipt).toEqual([
-      saved!.id,
-      'extra1',
-      'extra2',
-    ]);
+    expect((await repo.listRecords('expenses'))[0]!.values.receipt).toEqual([saved!.id, 'extra1']);
   });
 
-  it('skipping one receipt adds no record and does not save that file', async () => {
+  it('deletes the copy of a file the user took out of the form; the run keeps its file', async () => {
     const { files, repo, run } = setup(receiptWorkflow, [
-      { skip: true },
-      { values: { amount: '8' } },
+      (input) => ({
+        values: { amount: '20', receipt: (input.prefill.receipt as string[]).slice(0, 1) },
+      }),
     ]);
+    files.nextPhotos = [files.offerImage('a.jpg', 100, 100), files.offerImage('b.jpg', 100, 100)];
+    const result = await run();
+    expect(result.status).toBe('succeeded');
+    expect((await repo.listAssets()).map((a) => a.name)).toEqual(['a.jpg']);
+    if (result.status === 'succeeded') expect(result.saved).toHaveLength(1);
+    expect(files.shared).toHaveLength(2);
+  });
+
+  it('skipping one file adds no record and leaves no copy of it', async () => {
+    const { files, repo, run } = setup(eachWorkflow, [{ skip: true }, { values: { amount: '8' } }]);
     files.nextPhotos = [files.offerImage('a.jpg', 100, 100), files.offerImage('b.jpg', 100, 100)];
     expect((await run()).status).toBe('succeeded');
     expect(await repo.listRecords('expenses')).toHaveLength(1);
     expect((await repo.listAssets()).map((a) => a.name)).toEqual(['b.jpg']);
   });
 
-  it('closing the form stops the quick action', async () => {
+  it('closing the form stops the quick action and leaves no copies', async () => {
     const { files, repo, run } = setup(receiptWorkflow, [null]);
     files.nextPhotos = [files.offerImage('a.jpg', 100, 100)];
     expect((await run()).status).toBe('cancelled');
     expect(await repo.listRecords('expenses')).toEqual([]);
+    expect(await repo.listAssets()).toEqual([]);
+  });
+
+  it('never deletes a file an earlier step saved, even when the form is closed', async () => {
+    const saving: Workflow = {
+      ...receiptWorkflow,
+      steps: [
+        receiptWorkflow.steps[0]!,
+        { id: 'save', action: 'file.save', params: {} },
+        receiptWorkflow.steps[1]!,
+      ],
+    };
+    const { files, repo, run } = setup(saving, [null]);
+    files.nextPhotos = [files.offerImage('a.jpg', 100, 100)];
+    expect((await run()).status).toBe('cancelled');
+    expect((await repo.listAssets()).map((a) => a.name)).toEqual(['a.jpg']);
+  });
+
+  it('an entry holds 20 files: the rest stay out and the form says so', async () => {
+    const many: Workflow = {
+      ...receiptWorkflow,
+      steps: receiptWorkflow.steps.map((step) =>
+        step.action === 'in.photos' ? { ...step, params: { ...step.params, max: 30 } } : step,
+      ),
+    };
+    const { files, repo, opened, run } = setup(many, [{ values: { amount: '8' } }]);
+    files.nextPhotos = Array.from({ length: 21 }, (_, i) =>
+      files.offerImage(`p${i}.jpg`, 100, 100),
+    );
+    expect((await run()).status).toBe('succeeded');
+    expect(opened[0]!.prefill.receipt).toHaveLength(20);
+    expect(opened[0]!.overflow).toBe(true);
+    expect(await repo.listAssets()).toHaveLength(20);
+    expect(files.shared).toHaveLength(21);
+  });
+
+  it('a table with no attachment field: one form per file, showing the file', async () => {
+    const plain: Collection = {
+      ...expenses,
+      fields: expenses.fields.filter((f) => f.type !== 'file'),
+    };
+    const { files, repo, opened, run } = setup(
+      receiptWorkflow,
+      [{ values: { amount: '1' } }, { values: { amount: '2' } }],
+      [plain],
+    );
+    files.nextPhotos = [files.offerImage('a.jpg', 100, 100), files.offerImage('b.jpg', 100, 100)];
+    expect((await run()).status).toBe('succeeded');
+    expect(opened.map((o) => o.file?.name)).toEqual(['a', 'b']);
+    expect(await repo.listRecords('expenses')).toHaveLength(2);
+    expect(await repo.listAssets()).toEqual([]);
   });
 
   it('puts text into the long-text field', async () => {
@@ -182,9 +277,12 @@ describe('out.addRecord', () => {
 });
 
 describe('the record form', () => {
-  async function open(input: Partial<Entry['in']> = {}, files = new FakeFiles()) {
+  async function open(
+    input: Partial<Entry['in']> = {},
+    files = new FakeFiles(),
+    repo = new MemoryWorkspaceRepo(),
+  ) {
     const onDone = jest.fn();
-    const repo = new MemoryWorkspaceRepo();
     const store = createWorkspaceStore({
       repo,
       provider: createMockAIProvider(),
@@ -213,12 +311,23 @@ describe('the record form', () => {
     return { onDone, repo, files };
   }
 
+  /** 这一步已经存好的文件（真实的用户文件，和 out.addRecord 打开表单时一样）。 */
+  async function withFile(repo: MemoryWorkspaceRepo, id: string, name: string) {
+    await repo.addAsset({
+      id,
+      name,
+      mimeType: 'image/jpeg',
+      size: 3,
+      path: `assets/${id}/${name}`,
+      source: 'generated',
+      createdAt: 0,
+    });
+  }
+
   it('starts with today, shows the formula, and needs the required amount', async () => {
-    const { onDone } = await open({ prefill: { receipt: 'pending-file' } });
+    const { onDone } = await open();
     expect(screen.getByTestId('entry-date').props.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    // 附件字段能另外添加照片和文件，这一步的文件不在列表里（D-263）。
     expect(screen.getByTestId('entry-receipt-add')).toBeTruthy();
-    expect(screen.queryByTestId('entry-receipt-file-0')).toBeNull();
     await fireEvent.press(screen.getByText('记下'));
     expect(onDone).not.toHaveBeenCalled();
     expect(screen.getByText(/必填|required/i)).toBeTruthy();
@@ -226,18 +335,28 @@ describe('the record form', () => {
     expect(screen.getByTestId('entry-withTax').props.children).toBe('¥106.00');
     await fireEvent.press(screen.getByText('记下'));
     expect(onDone).toHaveBeenCalledWith({
-      values: expect.objectContaining({ amount: '100', receipt: ['pending-file'] }),
+      values: expect.objectContaining({ amount: '100' }),
     });
   });
 
-  it('lets the user add more photos besides the step’s own file (D-263)', async () => {
+  it('shows the step’s files in the attachment field, like every other form', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    await withFile(repo, 'a1', 'scan-1.jpg');
+    await withFile(repo, 'a2', 'scan-2.jpg');
+    await open({ prefill: { receipt: ['a1', 'a2'], amount: '9' } }, new FakeFiles(), repo);
+    expect(await screen.findByTestId('entry-receipt-file-0')).toBeTruthy();
+    expect(await screen.findByTestId('entry-receipt-file-1')).toBeTruthy();
+    expect(screen.queryByTestId('entry-overflow')).toBeNull();
+  });
+
+  it('says when not every file fits', async () => {
+    await open({ overflow: true });
+    expect(screen.getByTestId('entry-overflow')).toBeTruthy();
+  });
+
+  it('keeps a photo added in the form when saved (D-263)', async () => {
     const files = new FakeFiles();
-    const { onDone, repo } = await open(
-      { prefill: { receipt: 'pending-file', amount: '9' } },
-      files,
-    );
-    // 这一步的文件不在列表里（上面单独显示），只能另外添加。
-    expect(screen.queryByTestId('entry-receipt-file-0')).toBeNull();
+    const { onDone, repo } = await open({ prefill: { amount: '9' } }, files);
     files.nextMedia = [files.offerImage('IMG_2.jpg', 100, 100)];
     jest.spyOn(Alert, 'alert').mockImplementationOnce((_t, _m, buttons) => {
       buttons?.find((b) => b.text === '从相册选')?.onPress?.();
@@ -247,7 +366,7 @@ describe('the record form', () => {
     await fireEvent.press(screen.getByText('记下'));
     const [asset] = await repo.listAssets();
     expect(onDone).toHaveBeenCalledWith({
-      values: expect.objectContaining({ receipt: ['pending-file', asset!.id] }),
+      values: expect.objectContaining({ receipt: [asset!.id] }),
     });
   });
 

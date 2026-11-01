@@ -458,7 +458,7 @@ function updateData(config: WorkspaceConfig, op: OpOf<'updateData'>): void {
   const table = getTable(config, op.table!);
   const changes = op.changes!;
   if (op.field === undefined) {
-    onlyKeys(changes, ['name', 'icon'], `table ${table.id}`);
+    onlyKeys(changes, ['name', 'icon', 'readAttachments'], `table ${table.id}`);
     if (changes.name === null) throw new OpError(`table ${table.id} needs a name`);
     merge(table as unknown as Record<string, unknown>, changes);
     return;

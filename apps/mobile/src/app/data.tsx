@@ -23,12 +23,13 @@ import {
   type Collection,
 } from '@morph/core';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
+import { Alert, ScrollView, Switch, Text, View } from 'react-native';
 
 import { useRecordActions } from '@/data/records';
 import { t } from '@/i18n';
 import { Card, PageTitle, Pill, SectionLabel } from '@/renderer/ui';
 import { usePalette } from '@/renderer/theme';
+import { useWorkflowChange } from '@/run/workflow-change';
 import type { StoredRecord } from '@/storage/types';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 import { revisionTables } from '@/workspace/revision-tables';
@@ -36,7 +37,7 @@ import { revisionTables } from '@/workspace/revision-tables';
 /**
  * 「设置 → 数据」：用户记录的管理页，由内核提供，AI 不能修改。
  * 导出 CSV、查看已移出界面的数据表、恢复最近删除的记录（D-037、D-038、D-041）；
- * 导出 App 配置；预填记忆的导出（也是备份）、从文件恢复、一键清空（D-244）。
+ * 导出 App 配置；预填记忆的导出（也是备份）、从文件恢复、一键清空（D-244）；每张表的「自动读取附件」（D-397）。
  */
 export default function DataRoute() {
   const { repo, files, locale } = useWorkspaceContext();
@@ -45,6 +46,7 @@ export default function DataRoute() {
   const bump = useWorkspace((s) => s.bumpRecords);
   const palette = usePalette(config.theme);
   const actions = useRecordActions();
+  const change = useWorkflowChange();
   const [counts, setCounts] = useState<Map<string, number>>(new Map());
   const [orphans, setOrphans] = useState<
     { collection: Collection | null; id: string; count: number }[]
@@ -180,6 +182,13 @@ export default function DataRoute() {
     );
   }
 
+  /** 表上的「自动读取附件」（D-397）：默认打开，不写；关掉才写 false。能在改动记录里撤销。 */
+  const setReadAttachments = (c: Collection, on: boolean) =>
+    change(
+      [{ op: 'updateData', table: c.id, changes: { readAttachments: on ? null : false } }],
+      t(locale, on ? 'describeReadAttachmentsOn' : 'describeReadAttachmentsOff', { name: c.name }),
+    );
+
   function clearMemory() {
     Alert.alert(t(locale, 'prefillMemoryClear'), t(locale, 'prefillMemoryClearConfirm'), [
       { text: t(locale, 'cancel'), style: 'cancel' },
@@ -236,6 +245,22 @@ export default function DataRoute() {
               onPress={() => void exportCsv(c)}
             />
           </View>
+          {c.fields.some((f) => f.type === 'file') ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={[palette.font('bodyMedium', 14), { color: palette.text }]}>
+                  {t(locale, 'readAttachmentsLabel')}
+                </Text>
+                <Text style={caption}>{t(locale, 'readAttachmentsHint')}</Text>
+              </View>
+              <Switch
+                testID={`read-attachments-${c.id}`}
+                value={c.readAttachments !== false}
+                onValueChange={(on) => void setReadAttachments(c, on)}
+                trackColor={{ true: palette.primary }}
+              />
+            </View>
+          ) : null}
         </Card>
       ))}
 

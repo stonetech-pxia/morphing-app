@@ -1250,6 +1250,13 @@ export const fr: MessageTable = {
   seqAvgDays: '{n} jours en moyenne',
   // 一天、一周从什么时候开始（D-286）
   describeDayStart: 'Une journée commence à {hour} h',
+  describeReadAttachmentsOn:
+    '« {name} » : lire les pièces jointes et proposer des valeurs dans les nouvelles entrées',
+  describeReadAttachmentsOff:
+    '« {name} » : ne plus lire les pièces jointes dans les nouvelles entrées',
+  readAttachmentsLabel: 'Lire les pièces jointes automatiquement',
+  readAttachmentsHint:
+    'Les nouvelles entrées lisent les photos et les PDF sur cet appareil et proposent des valeurs. Rien n’est rempli sans que vous touchiez la proposition.',
   describeWeekStartMonday: 'La semaine commence le lundi',
   describeWeekStartSunday: 'La semaine commence le dimanche',
   describeTwoWeekStart: 'Les périodes de deux semaines partent du {date}',

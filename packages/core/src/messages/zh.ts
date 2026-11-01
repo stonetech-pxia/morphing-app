@@ -1128,6 +1128,10 @@ export const zh: MessageTable = {
   seqAvgDays: '平均 {n} 天',
   // 一天、一周从什么时候开始（D-286）
   describeDayStart: '一天从 {hour} 点开始',
+  describeReadAttachmentsOn: '「{name}」：新记录自动读取附件，给出候选',
+  describeReadAttachmentsOff: '「{name}」：新记录不再自动读取附件',
+  readAttachmentsLabel: '自动读取附件',
+  readAttachmentsHint: '新记录会在本机读取照片和 PDF，给出候选；你点了才会填。',
   describeWeekStartMonday: '一周从周一开始',
   describeWeekStartSunday: '一周从周日开始',
   describeTwoWeekStart: '两周一段从 {date} 起算',

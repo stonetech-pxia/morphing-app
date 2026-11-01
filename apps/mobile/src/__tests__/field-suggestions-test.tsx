@@ -1,4 +1,14 @@
-import { packById, PICK_STORE_KEY, type TextPage } from '@morph/core';
+import {
+  createStarterWorkspace,
+  packById,
+  PICK_STORE_KEY,
+  type Collection,
+  type Locale,
+  type Registry,
+  type TextPage,
+  type Workflow,
+  type WorkspaceConfig,
+} from '@morph/core';
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
@@ -69,6 +79,7 @@ async function fakePacks(installed: string[]) {
     subscribe: () => () => undefined,
     activePages: () => none,
     call: pdf.call.bind(pdf),
+    close: () => undefined,
   } as unknown as PackBridge;
   return { packs: { store, bridge } as Packs, fs, pdf, install };
 }
@@ -76,6 +87,7 @@ async function fakePacks(installed: string[]) {
 async function render(
   installed: string[] = ['ppocr', 'pdfview'],
   locale: 'zh' | 'en' | 'fr' = 'zh',
+  seed?: (locale: Locale, registry: Registry) => WorkspaceConfig,
 ) {
   const repo = new MemoryWorkspaceRepo();
   await repo.setMeta('guide', 'done');
@@ -85,7 +97,11 @@ async function render(
   vision.ocrModel = { pack: 'ppocr', languages: ['zh', 'ja', 'en', 'fr', 'de', 'es', 'pt', 'it'] };
   files.vision = vision;
   const p = await fakePacks(installed);
-  const app = await renderToolsApp(repo, files, { packs: p.packs, locale });
+  const app = await renderToolsApp(repo, files, {
+    packs: p.packs,
+    locale,
+    ...(seed ? { seed } : {}),
+  });
   return { ...app, vision, ...p };
 }
 
@@ -300,5 +316,99 @@ describe('新记录表单的候选值', () => {
     await act(async () => release());
     await waitFor(() => expect(runsLeft(files)).toEqual([]));
     expect(screen.queryAllByTestId(/-suggestion-\d$/)).toHaveLength(0);
+  });
+});
+
+// 扫描按钮（D-397）：快捷操作把文件交给表单，读取是表单自己的事，步骤里没有识别。
+describe('快捷操作「记一笔」的表单（D-397）', () => {
+  const receipts = (extra: Partial<Collection> = {}): Collection => ({
+    id: 'receipts',
+    name: '小票',
+    fields: [
+      { id: 'amount', name: '金额', type: 'money', currency: 'CNY' },
+      { id: 'photo', name: '附件', type: 'file' },
+    ],
+    ...extra,
+  });
+  const scanButton: Workflow = {
+    kind: 'quickAction',
+    id: 'scan-receipt',
+    name: '扫小票',
+    steps: [
+      { id: 'pick', action: 'in.photos', params: { source: 'library', min: 1, max: 10 } },
+      { id: 'log', action: 'out.addRecord', params: { collectionId: 'receipts' } },
+    ],
+  };
+  const seed = (table: Collection) => (locale: Locale, registry: Registry) => {
+    const config = createStarterWorkspace(locale, registry);
+    config.data.tables.push(table);
+    config.tools.push(scanButton);
+    return config;
+  };
+  const entryChips = () => screen.queryAllByTestId(/^entry-amount-suggestion-\d$/);
+
+  it('文件进了表单就自动识别、给候选，点了才填', async () => {
+    const { files, vision } = await render(undefined, 'zh', seed(receipts()));
+    vision.layers.push(layer(RECEIPT));
+    files.nextPhotos = [files.offerImage('receipt.jpg', 600, 240)];
+    await act(() => router.push('/run/scan-receipt'));
+    expect(await screen.findByTestId('entry-photo-file-0')).toBeTruthy();
+    await waitFor(() => expect(entryChips().length).toBeGreaterThan(0));
+    expect(screen.getByTestId('entry-amount').props.value ?? '').toBe('');
+    await fireEvent.press(screen.getByTestId('entry-amount-suggestion-0'));
+    expect(screen.getByTestId('entry-amount').props.value).toBe('178.23');
+    expect(recognized(vision)).toHaveLength(1);
+  });
+
+  it('没装文字识别：和别的表单一样只显示一行提示，不下载', async () => {
+    const { files, vision } = await render([], 'zh', seed(receipts()));
+    files.nextPhotos = [files.offerImage('receipt.jpg', 600, 240)];
+    await act(() => router.push('/run/scan-receipt'));
+    expect(await screen.findByTestId('suggestions-notice')).toBeTruthy();
+    expect(recognized(vision)).toHaveLength(0);
+  });
+
+  it('表关掉了「自动读取附件」：不识别、没有候选，也没有下载提示', async () => {
+    const { files, vision } = await render(
+      undefined,
+      'zh',
+      seed(receipts({ readAttachments: false })),
+    );
+    vision.layers.push(layer(RECEIPT));
+    files.nextPhotos = [files.offerImage('receipt.jpg', 600, 240)];
+    await act(() => router.push('/run/scan-receipt'));
+    expect(await screen.findByTestId('entry-photo-file-0')).toBeTruthy();
+    await act(async () => undefined);
+    expect(recognized(vision)).toHaveLength(0);
+    expect(entryChips()).toHaveLength(0);
+    expect(screen.queryByTestId('suggestions-notice')).toBeNull();
+  });
+
+  it('设置 → 数据：有附件字段的表才有开关，默认打开，关了就不读', async () => {
+    const plain: Collection = {
+      id: 'plain',
+      name: '备忘',
+      fields: [{ id: 'note', name: '内容', type: 'note' }],
+    };
+    const both = (locale: Locale, registry: Registry) => {
+      const config = seed(receipts())(locale, registry);
+      config.data.tables.push(plain);
+      return config;
+    };
+    const { files, vision } = await render(undefined, 'zh', both);
+    await act(() => router.push('/data'));
+    const toggle = await screen.findByTestId('read-attachments-receipts');
+    expect(toggle.props.value).toBe(true);
+    expect(screen.queryByTestId('read-attachments-plain')).toBeNull();
+    await fireEvent(toggle, 'valueChange', false);
+    await waitFor(() =>
+      expect(screen.getByTestId('read-attachments-receipts').props.value).toBe(false),
+    );
+    vision.layers.push(layer(RECEIPT));
+    files.nextPhotos = [files.offerImage('receipt.jpg', 600, 240)];
+    await act(() => router.push('/run/scan-receipt'));
+    expect(await screen.findByTestId('entry-photo-file-0')).toBeTruthy();
+    await act(async () => undefined);
+    expect(recognized(vision)).toHaveLength(0);
   });
 });

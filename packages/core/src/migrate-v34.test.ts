@@ -4,7 +4,12 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { migrateWorkspace } from './migrate';
-import { allComponents, WorkspaceConfigSchema, type WorkspaceConfig } from './schema';
+import {
+  allComponents,
+  CURRENT_SCHEMA_VERSION,
+  WorkspaceConfigSchema,
+  type WorkspaceConfig,
+} from './schema';
 import { fromV33, registry, v33Fixture } from './test-helpers';
 import { validateWorkspace } from './validate';
 
@@ -85,7 +90,7 @@ describe('v33 fixtures migrate to valid v34 configs', () => {
     const result = migrateWorkspace(v33Fixture(name));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect((result.config as Json).schemaVersion).toBe(34);
+    expect((result.config as Json).schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expectValid(result.config);
   });
 
@@ -114,7 +119,10 @@ describe('v34 scope fixtures (templates-v34 without a v33 counterpart)', () => {
     const config = JSON.parse(
       readFileSync(join(__dirname, 'fixtures', 'v34', `${name}.json`), 'utf8'),
     ) as unknown;
-    expectValid(config);
+    // 存下来的是 v34；读的时候升到现在的版本。
+    const result = migrateWorkspace(config);
+    expect(result.ok).toBe(true);
+    if (result.ok) expectValid(result.config);
   });
 });
 

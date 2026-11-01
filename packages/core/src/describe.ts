@@ -399,6 +399,16 @@ export function describeChange(
             );
           if (changes.icon !== undefined)
             lines.push(t(ctx.locale, 'describe_Change_the_icon_of_9c456', { v0: collName(table) }));
+          if (changes.readAttachments !== undefined)
+            lines.push(
+              t(
+                ctx.locale,
+                changes.readAttachments === false
+                  ? 'describeReadAttachmentsOff'
+                  : 'describeReadAttachmentsOn',
+                { name: collName(table) },
+              ),
+            );
           break;
         }
         const name = fieldName(table, op.field);

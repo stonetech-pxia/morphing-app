@@ -20,6 +20,7 @@ import { DraftChatSheet } from '../draft/DraftBar';
 import { useDraftUi } from '../draft/ui';
 import { createAISettingsStore, type SecretStore } from '../ai/settings';
 import ChangeRoute from '../app/change';
+import DataRoute from '../app/data';
 import DeskRoute from '../app/desk/[deskId]';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
@@ -160,6 +161,7 @@ export async function renderToolsApp(
     'desk/[deskId]': DeskRoute,
     storage: StorageRoute,
     'ready/[workflowId]': ReadyRoute,
+    data: DataRoute,
     'record/[collectionId]': RecordRoute,
     welcome: WelcomeRoute,
   });

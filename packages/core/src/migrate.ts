@@ -294,6 +294,9 @@ export const migrateV32toV33: Migration = (config) => ({ ...config, schemaVersio
  */
 export const migrateV33toV34: Migration = (config) => migrateShapeV33toV34(config);
 
+/** v34 → v35：表上多了可选的 readAttachments（D-397）。是新的可选值，只提升版本号。 */
+export const migrateV34toV35: Migration = (config) => ({ ...config, schemaVersion: 35 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -329,6 +332,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   31: migrateV31toV32,
   32: migrateV32toV33,
   33: migrateV33toV34,
+  34: migrateV34toV35,
 };
 
 export type MigrateResult =

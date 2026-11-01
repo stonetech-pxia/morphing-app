@@ -168,6 +168,8 @@ export const CollectionSchema = z.strictObject({
   name: boundedText(1, 40),
   icon: IconValueSchema.optional(),
   fields: z.array(FieldSchema).min(1).max(30),
+  /** 新记录表单自动读附件、给候选（D-394、D-397）。不写就是打开；只读不写，不是工作流。 */
+  readAttachments: z.boolean().optional(),
 });
 export type Collection = z.infer<typeof CollectionSchema>;
 export const TableSchema = CollectionSchema;

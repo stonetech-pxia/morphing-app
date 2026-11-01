@@ -3628,7 +3628,62 @@ const attachesTo =
     return null;
   };
 
+/** D-397：扫描按钮只拿文件、交给表单；识别是表单自己的事，步骤里没有 ocr。 */
+const scansInto =
+  (each: boolean) =>
+  (c: WorkspaceConfig): string | null => {
+    const wf = userWorkflows(c).find((w) => w.steps.some((s) => s.action === 'out.addRecord'));
+    if (!wf) return 'expected a quick action with out.addRecord';
+    const first = wf.steps[0]!;
+    if (first.action !== 'in.photos' || first.params.source !== 'scanner')
+      return 'the first step should be in.photos with source "scanner"';
+    if (wf.steps.some((s) => s.action.startsWith('ocr.')))
+      return 'no ocr step: the form reads the attachments by itself';
+    const log = wf.steps.find((s) => s.action === 'out.addRecord')!;
+    if ((log.params.each === true) !== each)
+      return each ? 'expected each: true' : 'each is only for one record per file';
+    return null;
+  };
+
 const RECORD_EVAL_CASES: readonly EvalCase[] = [
+  {
+    id: 'SCANBTN1',
+    input: '做一个扫小票的按钮，扫完记到账目',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: scansInto(false) },
+  },
+  {
+    id: 'SCANBTN1-en',
+    input: 'Add a button that scans a contract into Expenses',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: scansInto(false) },
+  },
+  {
+    id: 'SCANBTN2',
+    input: '做一个扫小票的按钮记到账目，一次扫好几张，每张记一条',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: scansInto(true) },
+  },
+  {
+    id: 'READOFF1',
+    input: '账目这张表不要自动读取附件了',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.data.tables.find((t) => t.id === 'expenses')?.readAttachments === false
+          ? null
+          : 'expenses should have readAttachments: false',
+    },
+  },
   {
     id: 'RE1',
     input: '新建一个快捷操作：拍照，记到账目',

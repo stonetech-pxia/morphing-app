@@ -50,10 +50,14 @@ const V33_NAMES = readdirSync(join(__dirname, 'fixtures', 'v33'))
   .map((f) => f.slice(0, -'.json'.length));
 const V34_NAMES = ['habits', 'calendar', 'tasks', 'todo'];
 
-const v34Fixture = (name: string): WorkspaceConfig =>
-  JSON.parse(
-    readFileSync(join(__dirname, 'fixtures', 'v34', `${name}.json`), 'utf8'),
-  ) as WorkspaceConfig;
+/** 存下来的是 v34，和读配置时一样升到现在的版本。 */
+const v34Fixture = (name: string): WorkspaceConfig => {
+  const r = migrateWorkspace(
+    JSON.parse(readFileSync(join(__dirname, 'fixtures', 'v34', `${name}.json`), 'utf8')),
+  );
+  if (!r.ok) throw new Error(`fixture ${name}: ${r.error}`);
+  return r.config as WorkspaceConfig;
+};
 
 /** 测试用的全部配置：v33 代码存下来的（默认、新用户、模版、样板、评测 setup）迁移后的，加上 v34 的范围模版。 */
 const CONFIGS: [string, WorkspaceConfig][] = [
@@ -600,7 +604,7 @@ describe('底线 12：旧的永远能打开', () => {
       const r = migrateWorkspace(structuredClone(config));
       expect(r.ok && r.config).toEqual(config);
     }
-    expect(CURRENT_SCHEMA_VERSION).toBe(34);
+    expect(CURRENT_SCHEMA_VERSION).toBe(35);
   });
 });
 

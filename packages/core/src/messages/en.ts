@@ -1195,6 +1195,11 @@ export const en = {
   seqAvgDays: '{n} days on average',
   // 一天、一周从什么时候开始（D-286）
   describeDayStart: 'A day starts at {hour}:00',
+  describeReadAttachmentsOn: '“{name}”: read attachments and suggest values in new entries',
+  describeReadAttachmentsOff: '“{name}”: no longer read attachments in new entries',
+  readAttachmentsLabel: 'Read attachments automatically',
+  readAttachmentsHint:
+    'New entries read photos and PDFs on this device and suggest values. Nothing is filled in until you tap it.',
   describeWeekStartMonday: 'Weeks start on Monday',
   describeWeekStartSunday: 'Weeks start on Sunday',
   describeTwoWeekStart: 'Two-week periods count from {date}',

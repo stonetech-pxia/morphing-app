@@ -549,7 +549,7 @@ type Op =
   // data (function)
   | { op: "addData"; table: Table }                                              // a new table
   | { op: "addData"; table: string; field: object; index?: number }              // a new field
-  | { op: "updateData"; table: string; field?: string; changes: object }         // merged into the table ({name?, icon?}) or the field; null removes a property; a field's "type" may only switch text<->note or number<->money (money needs currency)
+  | { op: "updateData"; table: string; field?: string; changes: object }         // merged into the table ({name?, icon?, readAttachments?}; readAttachments: false only when the user asks not to read a table's attachments for suggestions, it is on by default) or the field; null removes a property; a field's "type" may only switch text<->note or number<->money (money needs currency)
   | { op: "updateData"; calendar: { dayStartHour?: number | null; weekStart?: "monday" | "sunday" | null; twoWeekStart?: string | null } }   // rule 41
   | { op: "removeData"; table: string; field?: string }                          // a field: hidden, values kept; a table: taken out of the app with the blocks that read it, entries kept
   | { op: "moveData"; table: string; field: string; toIndex: number }

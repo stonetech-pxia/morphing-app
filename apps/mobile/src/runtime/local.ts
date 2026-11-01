@@ -96,15 +96,18 @@ export interface LocalSteps {
    */
   record: { in: { name: string }; out: PickedFile };
   /**
-   * 记一笔（D-187）：按数据表的字段生成表单（公式不用填；附件里这一步的文件自动放进去，用户可以另外添加，D-263）。
-   * prefill 是预先填好的值（文字、日期），
-   * file 是这一笔对应的文件（照片显示出来，其他显示文件名）。返回表单的值，或跳过这一个。
+   * 记一笔（D-187、D-397）：和记录页同样的新记录表单（公式不用填）。文件已经存好，
+   * ID 在 prefill 的附件字段里，表单能读它们给候选；prefill 里还有预先填好的文字。
+   * 返回表单的值，或跳过（每个文件一条时）。
    */
   recordEntry: {
     in: {
       collection: Collection;
       prefill: Record<string, unknown>;
+      /** 表里没有附件字段时才有：只显示这一笔对应的文件，不存进记录。 */
       file?: RunItem;
+      /** 文件超过一条记录能放的个数，多的没放进来（D-397）。 */
+      overflow?: boolean;
       index: number;
       total: number;
     };

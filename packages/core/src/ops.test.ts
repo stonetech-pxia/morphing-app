@@ -233,7 +233,7 @@ describe('updateData', () => {
   it('a table changes only its name and icon; fields go through field ops', () => {
     expect(
       errorOf(tasksConfig(), [{ op: 'updateData', table: 'tasks', changes: { fields: [] } }]),
-    ).toBe('table tasks can change name, icon; not fields');
+    ).toBe('table tasks can change name, icon, readAttachments; not fields');
   });
 
   it('merges field changes, null removes a key, the id never changes', () => {
