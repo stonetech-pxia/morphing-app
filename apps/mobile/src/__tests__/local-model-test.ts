@@ -28,7 +28,13 @@ const context = {
   }),
 };
 const mockInit = jest.fn(async (_params: { model: string; n_ctx: number }) => context);
-jest.mock('llama.rn', () => ({ initLlama: (p: { model: string; n_ctx: number }) => mockInit(p) }));
+let mockNoNative = false;
+jest.mock('llama.rn', () => ({
+  get initLlama() {
+    if (mockNoNative) throw new Error('no native module');
+    return (p: { model: string; n_ctx: number }) => mockInit(p);
+  },
+}));
 
 const store = (installed: boolean) =>
   ({
@@ -259,6 +265,17 @@ describe('本机模型（D-396）', () => {
       mockInit.mockImplementationOnce(() => Promise.reject(new Error('no memory')));
       const open = openLocalModel(store(true));
       await expect(open(new AbortController().signal)).rejects.toThrow('no memory');
+      const next = open(new AbortController().signal);
+      await finishLoads(next);
+      expect(await next).not.toBeNull();
+      await (await next)?.release();
+    });
+
+    it('原生模块加载不了（Expo Go）也不挡下一个', async () => {
+      const open = openLocalModel(store(true));
+      mockNoNative = true;
+      await expect(open(new AbortController().signal)).rejects.toThrow('no native module');
+      mockNoNative = false;
       const next = open(new AbortController().signal);
       await finishLoads(next);
       expect(await next).not.toBeNull();

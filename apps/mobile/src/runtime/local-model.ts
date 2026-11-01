@@ -56,11 +56,11 @@ export function openLocalModel(store: PackStore): OpenModel {
       finish();
       return null;
     }
-    // 原生模块只在真的要用时才加载：Expo Go 里没有它，这里报错就退回规则。
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { initLlama } = require('llama.rn') as typeof import('llama.rn');
-    let context: Awaited<ReturnType<typeof initLlama>>;
+    let context: Awaited<ReturnType<typeof import('llama.rn').initLlama>>;
     try {
+      // 原生模块只在真的要用时才加载：Expo Go 里没有它，这里报错就退回规则。
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { initLlama } = require('llama.rn') as typeof import('llama.rn');
       context = await initLlama({
         model: expoPackFs.uri(store.path(PREFILL_MODEL_PACK, PREFILL_MODEL_FILE)),
         n_ctx: CONTEXT,
