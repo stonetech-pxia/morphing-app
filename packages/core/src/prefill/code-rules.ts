@@ -39,6 +39,12 @@ const EMPTY_IS_SURE: ReadonlySet<ConceptId> = new Set([
   'destination',
 ]);
 
+/**
+ * 自由填写的字段：单据上没有它的值，问模型只会得到地址、电话这类没用的候选
+ * （iOS 模拟器上 2026-11-01 看到的；D-394 也不给这种字段列候选）。
+ */
+const FREE_NOTE = /^(备注|附注|说明|notes?|remarks?|comments?|remarques?|commentaires?)$/i;
+
 export interface FieldPlan {
   field: Field;
   /** 代码给的候选（好的在前），还没算值记忆。 */
@@ -196,6 +202,7 @@ export function planDocument(input: SuggestInput): DocumentPlan {
       // 单选字段交给规则；不能填的字段（附件、勾选……）规则也不给候选。
       ask:
         code === undefined &&
+        !(concept === null && (field.type === 'note' || FREE_NOTE.test(field.name.trim()))) &&
         (field.type === 'money' ||
           field.type === 'number' ||
           field.type === 'date' ||

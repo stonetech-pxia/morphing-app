@@ -206,6 +206,21 @@ describe('本机模型引擎（D-396、D-398）', () => {
     expect(m.state.opened).toBe(0);
   });
 
+  it('备注这种自由填写的字段不问模型（D-394：不列地址、电话这类没用的候选）', async () => {
+    const m = fakeModel({});
+    await modelEngine(m.open)({
+      fields: [
+        { id: 'note', name: '备注', type: 'text' },
+        { id: 'memo', name: 'Notes', type: 'note' },
+        { id: 'who', name: 'Payer', type: 'text' },
+      ],
+      pages: [pageOf(rows)],
+      locale: 'en',
+      now,
+    });
+    expect(m.asked.map((r) => /Field "([^"]+)"/.exec(r.prompt)![1])).toEqual(['Payer']);
+  });
+
   it('有误导字样的排不进给模型的文字，合计排留着', async () => {
     const m = fakeModel({});
     await modelEngine(m.open)({

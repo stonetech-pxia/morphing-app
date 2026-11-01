@@ -28,6 +28,7 @@ const ALLOWED = new Set([
   '(BSD-2-Clause OR MIT OR Apache-2.0)',
   '(BSD-3-Clause OR GPL-2.0)', // node-forge：按 BSD-3-Clause 使用
   '(MIT OR GPL-3.0-or-later)', // jszip（mammoth 的依赖，D-186）：按 MIT 使用
+  'Public Domain', // jsonify（patch-package 的依赖，只在开发时用，D-399）：公有领域，不进 App
   'BSD', // duck（mammoth 的依赖，D-186）：package.json 只写了 BSD，LICENSE 文件是 BSD-2-Clause 原文
 ]);
 
