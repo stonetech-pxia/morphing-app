@@ -39,31 +39,48 @@ async function quietly(call: () => unknown): Promise<void> {
   }
 }
 
-// 同一时间只有一个模型在内存里：上一个释放完才加载下一个（用户换附件时会连着来）。它不会拒绝。
-let releasing: Promise<void> = Promise.resolve();
+// 任何时候最多一个模型在加载或在内存里（一个约 3.2 GB，两个会被系统杀进程）：一个一个排队，
+// 轮到下一个要等上一个释放完，包括还在加载、加载回来才知道被取消的那个（用户换附件、关开表单时会连着来）。
+let last: Promise<void> = Promise.resolve();
 
 export function openLocalModel(store: PackStore): OpenModel {
   return async (signal) => {
     if (!(await store.isInstalled(PREFILL_MODEL_PACK)) || !deviceFitsLocalModel()) return null;
-    await releasing;
-    if (signal.aborted) return null;
+    const previous = last;
+    let finish!: () => void;
+    last = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    await previous;
+    if (signal.aborted) {
+      finish();
+      return null;
+    }
     // 原生模块只在真的要用时才加载：Expo Go 里没有它，这里报错就退回规则。
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { initLlama } = require('llama.rn') as typeof import('llama.rn');
-    const context = await initLlama({
-      model: expoPackFs.uri(store.path(PREFILL_MODEL_PACK, PREFILL_MODEL_FILE)),
-      n_ctx: CONTEXT,
-      n_threads: threads(),
-      n_gpu_layers: 0,
-      devices: ['CPU'],
-      no_gpu_devices: true,
-      use_mlock: false,
-    });
+    let context: Awaited<ReturnType<typeof initLlama>>;
+    try {
+      context = await initLlama({
+        model: expoPackFs.uri(store.path(PREFILL_MODEL_PACK, PREFILL_MODEL_FILE)),
+        n_ctx: CONTEXT,
+        n_threads: threads(),
+        n_gpu_layers: 0,
+        devices: ['CPU'],
+        no_gpu_devices: true,
+        use_mlock: false,
+      });
+    } catch (e) {
+      finish();
+      throw e;
+    }
     if (signal.aborted) {
       await quietly(() => context.release());
+      finish();
       return null;
     }
     let running: Promise<unknown> = Promise.resolve();
+    let released: Promise<void> | null = null;
     const session: ModelSession = {
       async generate(request, stop) {
         const onAbort = () => void quietly(() => context.stopCompletion());
@@ -84,14 +101,14 @@ export function openLocalModel(store: PackStore): OpenModel {
         }
       },
       release() {
-        // 还在生成时先停、等它结束再释放，否则原生那边还在用这块内存。
-        const done = (async () => {
+        // 还在生成时先停、等它结束再释放，否则原生那边还在用这块内存。释放完才轮到下一个。
+        released ??= (async () => {
           await quietly(() => context.stopCompletion());
           await running;
           await quietly(() => context.release());
+          finish();
         })();
-        releasing = done;
-        return done;
+        return released;
       },
     };
     return session;

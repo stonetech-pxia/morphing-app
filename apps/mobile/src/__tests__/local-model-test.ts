@@ -1,4 +1,4 @@
-import { PREFILL_MODEL_PACK } from '@morph/core';
+import { modelEngine, PREFILL_MODEL_PACK } from '@morph/core';
 import * as Device from 'expo-device';
 
 import type { PackStore } from '../packs/store';
@@ -68,7 +68,8 @@ describe('本机模型（D-396）', () => {
   });
 
   it('加载扩展包里的文件，只用 CPU，上下文和 core 截断文字的长度一样', async () => {
-    await openLocalModel(store(true))(new AbortController().signal);
+    const session = await openLocalModel(store(true))(new AbortController().signal);
+    await session?.release();
     expect(mockInit.mock.calls[0]![0]).toMatchObject({
       model: `file:///${PREFILL_MODEL_PACK}/1.0.0/Qwen3.5-0.8B-Q4_K_M.gguf`,
       n_ctx: 4096,
@@ -82,7 +83,9 @@ describe('本机模型（D-396）', () => {
     const session = (await open(new AbortController().signal))!;
     await session.release();
     expect(context.release).toHaveBeenCalledTimes(1);
-    await expect(open(new AbortController().signal)).resolves.not.toBeNull();
+    const next = await open(new AbortController().signal);
+    expect(next).not.toBeNull();
+    await next?.release();
   });
 
   it('释放失败也不挡下一次加载', async () => {
@@ -90,7 +93,9 @@ describe('本机模型（D-396）', () => {
     const open = openLocalModel(store(true));
     const session = (await open(new AbortController().signal))!;
     await session.release();
-    await expect(open(new AbortController().signal)).resolves.not.toBeNull();
+    const next = await open(new AbortController().signal);
+    expect(next).not.toBeNull();
+    await next?.release();
   });
 
   it('加载期间取消了：加载完马上释放，给 null', async () => {
@@ -110,6 +115,7 @@ describe('本机模型（D-396）', () => {
     abort.abort();
     await expect(run).resolves.toBe('');
     expect(context.stopCompletion).toHaveBeenCalled();
+    await session.release();
   });
 
   it('释放：还在生成时先停再释放；下一次加载等释放完', async () => {
@@ -119,8 +125,153 @@ describe('本机模型（D-396）', () => {
     const released = session.release();
     const next = open(new AbortController().signal);
     await released;
-    await next;
+    const second = await next;
     expect(order).toEqual(['stop', 'release']);
     expect(mockInit).toHaveBeenCalledTimes(2);
+    await second?.release();
+  });
+
+  describe('任何时候最多一个模型在加载或在内存里', () => {
+    // 假的加载：要等测试放行；数着同时有几个（加载中 + 没释放的）。
+    let live = 0;
+    let peak = 0;
+    let loads: (() => void)[] = [];
+    const loadOne = async () => {
+      live++;
+      peak = Math.max(peak, live);
+      await new Promise<void>((resolve) => loads.push(resolve));
+      return {
+        ...context,
+        release: jest.fn(async () => {
+          await Promise.resolve();
+          live--;
+        }),
+      };
+    };
+    const settle = async () => {
+      for (let i = 0; i < 20; i++) await Promise.resolve();
+    };
+    /** 放行正在加载的，直到 done 结束。 */
+    const finishLoads = async (done: Promise<unknown>) => {
+      let over = false;
+      void done.finally(() => {
+        over = true;
+      });
+      for (let i = 0; i < 200 && !over; i++) {
+        loads.shift()?.();
+        await settle();
+      }
+      expect(over).toBe(true);
+    };
+
+    beforeEach(() => {
+      live = 0;
+      peak = 0;
+      loads = [];
+      mockInit.mockImplementation(loadOne as never);
+    });
+    afterEach(() => {
+      mockInit.mockImplementation(async () => context);
+    });
+
+    it('加载中取消再开：等上一个加载完、释放完才加载下一个', async () => {
+      const open = openLocalModel(store(true));
+      const a = new AbortController();
+      const first = open(a.signal);
+      await settle();
+      expect(mockInit).toHaveBeenCalledTimes(1);
+      a.abort();
+      const second = open(new AbortController().signal);
+      await settle();
+      expect(mockInit).toHaveBeenCalledTimes(1);
+      await finishLoads(Promise.all([first, second]));
+      await expect(first).resolves.toBeNull();
+      const session = await second;
+      expect(session).not.toBeNull();
+      expect(mockInit).toHaveBeenCalledTimes(2);
+      expect(peak).toBe(1);
+      await session?.release();
+      expect(live).toBe(0);
+    });
+
+    it('连续开关多次：中间取消的不加载，只留最后一个，同时只有一个', async () => {
+      const open = openLocalModel(store(true));
+      const runs: Promise<unknown>[] = [];
+      for (let i = 0; i < 5; i++) {
+        const stop = new AbortController();
+        runs.push(open(stop.signal));
+        await settle();
+        stop.abort();
+      }
+      const lastRun = open(new AbortController().signal);
+      await finishLoads(Promise.all([...runs, lastRun]));
+      const session = await lastRun;
+      expect(session).not.toBeNull();
+      expect(peak).toBe(1);
+      // 第一个已经在加载，取消的轮到时不再加载，最后一个加载。
+      expect(mockInit).toHaveBeenCalledTimes(2);
+      await session?.release();
+      expect(live).toBe(0);
+    });
+
+    it('关了表单马上开新的：上一个还在生成时也等它释放完', async () => {
+      const open = openLocalModel(store(true));
+      const opening = open(new AbortController().signal);
+      await finishLoads(opening);
+      const session = (await opening)!;
+      void session.generate(request, new AbortController().signal);
+      const released = session.release();
+      const next = open(new AbortController().signal);
+      await finishLoads(Promise.all([released, next]));
+      expect(peak).toBe(1);
+      await (await next)?.release();
+    });
+
+    it('通过引擎走：加载中取消马上给结果，新的一次等上一个释放，同时只有一个', async () => {
+      context.completion.mockImplementationOnce(async () => ({ text: 'null' }));
+      const engine = modelEngine(openLocalModel(store(true)));
+      const input = {
+        fields: [{ id: 'merchant', name: 'Merchant', type: 'text' as const }],
+        pages: [
+          {
+            width: 100,
+            height: 100,
+            lines: [{ text: 'Acme Coffee', x: 0, y: 0, width: 50, height: 10 }],
+          },
+        ],
+        locale: 'en' as const,
+      };
+      const a = new AbortController();
+      const first = engine(input, a.signal);
+      await settle();
+      a.abort();
+      await first; // 取消一定要让 Promise 结束，不等加载。
+      const second = engine(input, new AbortController().signal);
+      await settle();
+      expect(mockInit).toHaveBeenCalledTimes(1);
+      await finishLoads(second);
+      await settle();
+      expect(peak).toBe(1);
+      expect(live).toBe(0);
+    });
+
+    it('加载失败也不挡下一个', async () => {
+      mockInit.mockImplementationOnce(() => Promise.reject(new Error('no memory')));
+      const open = openLocalModel(store(true));
+      await expect(open(new AbortController().signal)).rejects.toThrow('no memory');
+      const next = open(new AbortController().signal);
+      await finishLoads(next);
+      expect(await next).not.toBeNull();
+      await (await next)?.release();
+    });
+
+    it('释放两次只释放一回，不把排队的人放进来', async () => {
+      const open = openLocalModel(store(true));
+      const opening = open(new AbortController().signal);
+      await finishLoads(opening);
+      const session = (await opening)!;
+      await Promise.all([session.release(), session.release()]);
+      expect(live).toBe(0);
+    });
   });
 });

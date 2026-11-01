@@ -107,9 +107,12 @@ function fitText(rows: readonly string[], limit: number): string[] {
   return [...head, ...tail];
 }
 
-/** 这张单据问每个字段时相同的那段（系统提示 + 文字）；模型加载一次，这段只读一遍。 */
-function documentPrefix(rows: readonly string[], limits: ModelLimits): string {
-  const kept = fitText(rows.filter(keepForModel), limits.textChars);
+/** 这张单据问每个字段时相同的那段（系统提示 + 文字；字段自己的排只有问它时才有）；模型加载一次，相同的前缀只读一遍。 */
+function documentPrefix(f: Field, rows: readonly string[], limits: ModelLimits): string {
+  const kept = fitText(
+    rows.filter((r) => keepForModel(r, f)),
+    limits.textChars,
+  );
   return (
     `<|im_start|>system\n${SYSTEM}<|im_end|>\n` +
     `<|im_start|>user\nDocument language: ${documentLanguage(rows)}.\nTEXT:\n${kept.join('\n')}\n\n`
@@ -124,7 +127,7 @@ export function modelRequest(
 ): ModelRequest {
   return {
     prompt:
-      `${documentPrefix(rows, limits)}${fieldQuestion(f)}<|im_end|>\n` +
+      `${documentPrefix(f, rows, limits)}${fieldQuestion(f)}<|im_end|>\n` +
       '<|im_start|>assistant\n<think>\n\n</think>\n\n',
     grammar: MODEL_GRAMMAR,
     temperature: 0,

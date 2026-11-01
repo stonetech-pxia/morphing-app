@@ -1,4 +1,4 @@
-import type { Field } from '../schema';
+import type { Field, Locale } from '../schema';
 import { ruleCandidates } from './candidates';
 import { amountChain, amountNear } from './amount-chain';
 import { hasNoDecimals, rowHasDate, squash } from './check';
@@ -10,8 +10,10 @@ import {
   DEPART_ROW,
   HOTEL_DOC,
   invoiceNoByKey,
+  mayHaveNumber,
   NOT_NO,
   stripNoPrefix,
+  TRAVEL_DOC,
   upperAmount,
 } from './zh-rules';
 
@@ -59,6 +61,8 @@ export interface DocumentPlan {
   /** 整份文字，一排一个（按页接起来）。 */
   rows: string[];
   fields: FieldPlan[];
+  /** 不是规则打分给的值（算术、值记忆、模型）在哪一排；找不到时没有，不记。 */
+  pickOf(value: string): ValueSuggestion['pick'];
 }
 
 /** 这张表哪些字段用值记忆：店名、公司（别的字段的值换一张单据就不同了）。 */
@@ -88,13 +92,59 @@ export function knownValues(
   return out;
 }
 
-/** 这次文字里原样出现的、最长的存过的值。 */
-function rememberedValue(known: readonly string[] | undefined, whole: string): string | null {
-  const hits = (known ?? []).filter((v) => {
-    const s = squash(v);
-    return s.length >= 2 && whole.includes(s);
-  });
+const HAS_CJK = /[㐀-鿿]/;
+const LOWER = (t: string) => t.normalize('NFKC').toLowerCase();
+const ESCAPE = /[.*+?^${}()|[\]\\]/g;
+
+/** 存过的值是不是原样出现在这一排：英文、数字要整个词（空格可以多可以少）；中文要整排，或者足够长（2、3 个字太容易是别的名字的开头）。 */
+function rowHasValue(value: string, row: string): boolean {
+  const sq = squash(value);
+  if (sq.length < 2) return false;
+  if (HAS_CJK.test(sq)) {
+    const whole = squash(row);
+    return whole === sq || (sq.length >= 4 && whole.includes(sq));
+  }
+  const body = [...sq].map((c) => c.replace(ESCAPE, '\\$&')).join('\\s*');
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${body}(?![\\p{L}\\p{N}])`, 'u').test(LOWER(row));
+}
+
+/** 这次文字里（在同一排上）原样出现的、最长的存过的值。 */
+function rememberedValue(
+  known: readonly string[] | undefined,
+  rows: readonly string[],
+): string | null {
+  const hits = (known ?? []).filter((v) => rows.some((r) => rowHasValue(v, r)));
   return [...hits].sort((a, b) => b.length - a.length)[0] ?? null;
+}
+
+const withPick = (value: string, pick: ValueSuggestion['pick']): ValueSuggestion => ({
+  value,
+  score: 0,
+  ...(pick ? { pick } : {}),
+});
+
+/**
+ * 酒店账单：全文最晚的日期（有效期那种排不算）。一段文字分不清日月时只按语言先给的那个读法算，
+ * 不在两种读法里取较晚的；最晚的恰好是这种日期时标出来。
+ */
+function latestDate(
+  rows: readonly string[],
+  locale: Locale,
+): { value: string; ambiguous: boolean } | null {
+  let best: { value: string; ambiguous: boolean } | null = null;
+  for (const row of rows) {
+    if (BAD_DATE_ROW.test(row)) continue;
+    const dates = ruleCandidates(row, locale).filter((c) => c.kind === 'date');
+    const seen = new Set<number>();
+    for (const c of dates) {
+      if (seen.has(c.start)) continue;
+      seen.add(c.start);
+      const ambiguous = dates.some((o) => o.start === c.start && o.value !== c.value);
+      if (!best || c.value > best.value || (c.value === best.value && !ambiguous))
+        best = { value: c.value, ambiguous };
+    }
+  }
+  return best;
 }
 
 /** 两个候选算不算同一个值。 */
@@ -107,11 +157,13 @@ export const sameValue = (f: Field, a: string, b: string) =>
 export function planDocument(input: SuggestInput): DocumentPlan {
   const pages = input.pages.map((p, i) => pageOccurrences(p, i, input.locale));
   const rows = pages.flatMap((p) => p.rows.map((r) => r.text));
-  const whole = squash(rows.join('\n'));
   const scored = suggestValues(input);
   const upper = upperAmount(rows);
   const keyedNo = invoiceNoByKey(rows);
-  const hotel = rows.some((r) => DEPART_ROW.test(r)) && rows.some((r) => HOTEL_DOC.test(r));
+  const hotel =
+    rows.some((r) => DEPART_ROW.test(r)) &&
+    rows.some((r) => HOTEL_DOC.test(r)) &&
+    !rows.some((r) => TRAVEL_DOC.test(r));
   const occurrences = pages.flatMap((p) => p.occ);
 
   // 不是规则打分给的值：记下它在哪一排（点了以后记忆用，D-394），标签用那一处的。
@@ -120,14 +172,19 @@ export function planDocument(input: SuggestInput): DocumentPlan {
     const hit =
       occurrences.find((o) => squash(o.value) === sq || squash(o.raw) === sq) ??
       occurrences.find((o) => Number(o.value) === Number(value) && value.trim() !== '');
-    if (hit) return { label: hit.label, relY: Math.round(hit.relY * 1000) / 1000 };
+    if (hit)
+      return {
+        label: hit.label,
+        relY: Math.round(hit.relY * 1000) / 1000,
+        ...(hit.dateOrder ? { order: hit.dateOrder } : {}),
+      };
     for (const p of pages) {
       const row = p.rows.find((r) => squash(r.text).includes(sq));
       if (row) return { label: '', relY: Math.round(row.relY * 1000) / 1000 };
     }
-    return { label: '', relY: 0 };
+    return undefined;
   };
-  const fromCode = (value: string): ValueSuggestion => ({ value, score: 0, pick: pickOf(value) });
+  const fromCode = (value: string): ValueSuggestion => withPick(value, pickOf(value));
 
   const fields = input.fields.map((field): FieldPlan => {
     const concept = conceptOf(field);
@@ -139,20 +196,15 @@ export function planDocument(input: SuggestInput): DocumentPlan {
       // 有效期、印制那排的日期不算。
       list = list.filter((s) => rows.some((r) => !BAD_DATE_ROW.test(r) && rowHasDate(r, s.value)));
       if (hotel) {
-        const latest = rows
-          .filter((r) => !BAD_DATE_ROW.test(r))
-          .flatMap((r) => ruleCandidates(r, input.locale))
-          .filter((c) => c.kind === 'date')
-          .map((c) => c.value)
-          .sort()
-          .at(-1);
-        if (latest) {
-          code = latest;
-          extras.push(latest);
+        const latest = latestDate(rows, input.locale);
+        // 最晚的那个分不清日月：不算有把握，候选的先后交给规则打分（按语言）。
+        if (latest && !latest.ambiguous) {
+          code = latest.value;
+          extras.push(latest.value);
         }
       }
     } else if (concept === 'number') {
-      // 流水号、社保号那排的不要；NO 前缀去掉。
+      // 流水号、社保号、公司号、地址那排的不要；NO 前缀去掉。
       list = list
         .filter((s) => !rows.some((r) => squash(r).includes(squash(s.value)) && NOT_NO.test(r)))
         .map((s) => ({ ...s, value: stripNoPrefix(s.value) }));
@@ -184,7 +236,10 @@ export function planDocument(input: SuggestInput): DocumentPlan {
         code = top.value;
       else if (concept === 'phone') code = top.value;
     }
-    if (code === undefined && !top && concept && EMPTY_IS_SURE.has(concept)) code = null;
+    if (code === undefined && !top && concept && EMPTY_IS_SURE.has(concept)) {
+      // 文字里有单号的键名、代码又取不到值时是没把握，不是没有：要问模型。
+      if (concept !== 'number' || !mayHaveNumber(rows)) code = null;
+    }
 
     const merged: ValueSuggestion[] = [];
     const add = (s: ValueSuggestion) => {
@@ -194,7 +249,7 @@ export function planDocument(input: SuggestInput): DocumentPlan {
     for (const v of extras) add(list.find((s) => sameValue(field, s.value, v)) ?? fromCode(v));
     for (const s of list) add(s);
 
-    const memory = usesValueMemory(field) ? rememberedValue(input.known?.[field.id], whole) : null;
+    const memory = usesValueMemory(field) ? rememberedValue(input.known?.[field.id], rows) : null;
     return {
       field,
       code: merged,
@@ -210,11 +265,15 @@ export function planDocument(input: SuggestInput): DocumentPlan {
           field.type === 'note'),
     };
   });
-  return { rows, fields };
+  return { rows, fields, pickOf };
 }
 
 /** 一个字段最后给的候选：值记忆 → 模型 → 代码，去重，最多 3 个。 */
-export function mergedSuggestions(plan: FieldPlan, model: readonly string[]): ValueSuggestion[] {
+export function mergedSuggestions(
+  plan: FieldPlan,
+  model: readonly string[],
+  pickOf: DocumentPlan['pickOf'],
+): ValueSuggestion[] {
   const out: ValueSuggestion[] = [];
   const known = plan.code;
   const add = (s: ValueSuggestion) => {
@@ -223,13 +282,7 @@ export function mergedSuggestions(plan: FieldPlan, model: readonly string[]): Va
   };
   if (plan.remembered) add(plan.remembered);
   for (const v of model)
-    add(
-      known.find((s) => sameValue(plan.field, s.value, v)) ?? {
-        value: v,
-        score: 0,
-        pick: { label: '', relY: 0 },
-      },
-    );
+    add(known.find((s) => sameValue(plan.field, s.value, v)) ?? withPick(v, pickOf(v)));
   for (const s of known) add(s);
   return out;
 }

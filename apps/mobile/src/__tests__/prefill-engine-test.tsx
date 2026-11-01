@@ -1,4 +1,12 @@
-import type { Collection, FieldSuggestions, PrefillEngine } from '@morph/core';
+import {
+  parsePickStore,
+  PICK_STORE_KEY,
+  putPick,
+  serializePickStore,
+  type Collection,
+  type FieldSuggestions,
+  type PrefillEngine,
+} from '@morph/core';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { useFieldSuggestions } from '../data/field-suggestions';
@@ -88,6 +96,21 @@ describe('预填引擎（D-398）', () => {
     };
     await act(async () => finish!(later));
     expect(result.current.suggestions).toEqual(later);
+  });
+
+  it('在文字里找不到位置的候选：点了也不记，字段原来的记忆还在', async () => {
+    const good = { label: 'Total', relY: 0.5 };
+    await mockContext.repo!.setMeta(
+      PICK_STORE_KEY,
+      serializePickStore(putPick(parsePickStore(null), 'c', 'total', good)),
+    );
+    const found: FieldSuggestions = { total: [{ value: '7', score: 0 }] };
+    const { result } = await open(async () => found);
+    await waitFor(() => expect(result.current.suggestions).toEqual(found));
+    await act(async () => result.current.remember('total', found.total![0]!));
+    await act(async () => undefined);
+    const stored = parsePickStore(await mockContext.repo!.getMeta(PICK_STORE_KEY));
+    expect(stored.c?.total).toEqual(good);
   });
 
   it('点过候选的字段（D-388）：后来的结果不再动它的候选，别的字段照常补', async () => {

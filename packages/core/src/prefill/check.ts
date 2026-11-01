@@ -1,6 +1,6 @@
 import type { Field, Locale } from '../schema';
 import { ruleCandidates } from './candidates';
-import { conceptOf, type ConceptId } from './concepts';
+import { conceptOf, fieldTerms, type ConceptId } from './concepts';
 import { BAD_DATE_ROW, NOT_NO, stripNoPrefix } from './zh-rules';
 
 // 模型的回答要过的核对（D-396）：值必须真的在识别出的文字里，而且不在明显不对的那一排。
@@ -64,8 +64,112 @@ const BARE_LABELS = new Set([
   'tax',
 ]);
 
-/** 这一排给不给模型看。 */
-export const keepForModel = (row: string) => TOTAL_WORD.test(row) || !MISLEAD.test(row);
+/**
+ * 这一排说的就是这个字段（字段名或它的概念的关键词在这一排上）：用户自建的「优惠金额」「现金」「地址」，
+ * 要的正是别的字段的误导排。中文对上名字里连续两个字（优惠金额 → 优惠），英文、法文按整个词。
+ */
+function isOwnRow(f: Pick<Field, 'id' | 'name'>, row: string): boolean {
+  const { concept, keywords } = fieldTerms(f);
+  const lower = row.normalize('NFKC').toLowerCase();
+  if (concept === 'email' && /\S+@\S+\.\w+/.test(row)) return true;
+  return keywords.some((k) => {
+    const term = k.normalize('NFKC').toLowerCase().trim();
+    for (let i = 0; i + 2 <= term.length; i++) {
+      const pair = term.slice(i, i + 2);
+      if (/^[㐀-鿿]{2}$/.test(pair) && lower.includes(pair)) return true;
+    }
+    return term
+      .split(/[^\p{L}\p{N}]+/u)
+      .some(
+        (w) =>
+          w.length >= 3 &&
+          !/[㐀-鿿]/.test(w) &&
+          new RegExp(`(^|[^\\p{L}\\p{N}])${w}(?![\\p{L}\\p{N}])`, 'u').test(lower),
+      );
+  });
+}
+
+/**
+ * 这一排给不给模型看。给 field 时按字段：这个字段自己的关键词所在的排不删。总额字段例外：
+ * 它的关键词（实收、paid）正好落在误导排上，提示词和测量时一样，不跟着放开。
+ */
+export const keepForModel = (row: string, field?: Pick<Field, 'id' | 'name'>) =>
+  TOTAL_WORD.test(row) ||
+  !MISLEAD.test(row) ||
+  (field !== undefined && conceptOf(field) !== 'amount' && isOwnRow(field, row));
+
+/** 日期、时间、电话这类连着的数字不是金额。 */
+const NOT_AMOUNT_DIGITS =
+  /\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|\d{1,2}:\d{2}(?::\d{2})?|\d+(?:[-/:]\d+)+/g;
+
+interface RowNumber {
+  value: number;
+  /** 写出了小数（100.00）。 */
+  cents: boolean;
+}
+
+/**
+ * 这段文字里的数，按整个数算。分隔符有两种读法时两种都算：32.000 是 32 或 32000，
+ * 「2 500.00」是 2500.00 或者两格 2 和 500.00。
+ */
+function numbersIn(text: string): RowNumber[] {
+  const t = text
+    .replace(NOT_AMOUNT_DIGITS, ' ')
+    // OCR 常在小数点两边多一个空格。
+    .replace(/(\d)\s*([.,])\s*(\d{2})(?!\d)/g, '$1$2$3');
+  const out: RowNumber[] = [];
+  for (const m of t.matchAll(/\d+(?:[ .,'’]\d+)*/g)) {
+    const raw = m[0];
+    const parts = raw.split(/[ .,'’]/);
+    const lastSep = /[ .,'’](?=\d+$)/.exec(raw)?.[0];
+    const tail = parts.at(-1)!;
+    if (parts.length === 1) {
+      out.push({ value: Number(raw), cents: false });
+      continue;
+    }
+    // 最后一段不是三位：它是小数（或者空格隔开的另一格）。
+    if ((lastSep === '.' || lastSep === ',') && tail.length <= 2) {
+      const whole = parts.slice(0, -1);
+      out.push({ value: Number(`${whole.join('')}.${tail}`), cents: true });
+      // 前面用空格隔开的是另一格（数量）。
+      const cells = raw.split(' ');
+      if (cells.length > 1) {
+        const lastCell = cells.at(-1)!;
+        out.push({
+          value: Number(lastCell.replace(/[.,'’](?=\d+$)/, '.').replace(/[,'’]/g, '')),
+          cents: true,
+        });
+      }
+      continue;
+    }
+    if (parts.slice(1).every((p) => p.length === 3))
+      out.push({ value: Number(parts.join('')), cents: false });
+    if ((lastSep === '.' || lastSep === ',') && parts.length === 2)
+      out.push({ value: Number(`${parts[0]}.${tail}`), cents: true });
+    if (lastSep === ' ') for (const p of parts) out.push({ value: Number(p), cents: false });
+  }
+  return out;
+}
+
+const isTotalRow = (r: string) => TOTAL_WORD.test(r) && !NOT_TOTAL.test(r);
+
+/**
+ * 这个数在不在这一排（按整个数比）。没写小数的回答（5）对上写了小数的数（5.00）只在合计排上算，否则一排明细也能对上。
+ * 合计排上 OCR 常把分隔符读坏（TOTAL 20 0 0 0、36-000、19-80）：一整段数字连起来等于回答也算。
+ */
+function rowHasAmount(row: string, n: number, answer: string, strict: boolean): boolean {
+  const wroteCents = /[.,]\d{1,2}\s*\D*$/.test(answer);
+  const near = (v: number) => Math.abs(v - n) < 0.005;
+  if (
+    numbersIn(row).some(
+      (x) => near(x.value) && (wroteCents || !x.cents || !strict || isTotalRow(row)),
+    )
+  )
+    return true;
+  if (!isTotalRow(row)) return false;
+  const digits = answer.replace(/\D/g, '');
+  return (row.match(/\d(?:[\s.,-]*\d)*/g) ?? []).some((b) => b.replace(/\D/g, '') === digits);
+}
 
 function checkAmount(
   f: Field,
@@ -82,18 +186,18 @@ function checkAmount(
     n = a ? Number(a.value) : null;
   }
   if (n === null || !Number.isFinite(n)) return null;
-  // 它在哪几排（去掉分隔符比数字）。
-  const digits = s.replace(/\D/g, '');
-  if (!digits) return null;
-  const inRows = rows.filter((r) => r.replace(/\D/g, '').includes(digits));
+  const noDecimals = hasNoDecimals(f);
+  // 它在哪几排（按整个数比）。
+  const inRows = rows.filter((r) => rowHasAmount(r, n, s, !noDecimals));
   if (inRows.length === 0) return null;
+  // 用户自建的字段（优惠金额、现金）要的就是这一排，下面这些「不是总额」的判断不算。
+  if (inRows.some((r) => concept !== 'amount' && isOwnRow(f, r))) return String(n);
   if (inRows.every((r) => PAY.test(r) && !/total|合计|总|montant/i.test(r))) return null;
   if (concept === 'tax' && !inRows.some((r) => TAX_WORD.test(r))) return null;
   if (concept !== 'tax') {
     if (n === 0) return null;
-    const isTotal = (r: string) => TOTAL_WORD.test(r) && !NOT_TOTAL.test(r);
     // 有合计排时，金额要在合计排。
-    if (rows.some((r) => isTotal(r) && /\d/.test(r)) && !inRows.some(isTotal)) return null;
+    if (rows.some((r) => isTotalRow(r) && /\d/.test(r)) && !inRows.some(isTotalRow)) return null;
   }
   return String(n);
 }
@@ -166,7 +270,14 @@ export function checkAnswer(
   if (concept === 'number') s = stripNoPrefix(s);
   // 去掉前面的「标签：」。
   const m = /^([^:：]{1,20})[:：]\s*(.+)$/.exec(s);
-  if (m && f.type !== 'date') s = m[2]!.trim();
+  // 12:30、https://… 里的冒号不是标签。
+  if (
+    m &&
+    f.type !== 'date' &&
+    !(/\d$/.test(m[1]!) && /^\d/.test(m[2]!)) &&
+    !m[2]!.startsWith('//')
+  )
+    s = m[2]!.trim();
   if (f.type === 'money' || f.type === 'number') return checkAmount(f, concept, s, rows, locale);
   if (f.type === 'date') return checkDate(concept, s, rows, locale);
   return checkText(f, concept, s, rows);

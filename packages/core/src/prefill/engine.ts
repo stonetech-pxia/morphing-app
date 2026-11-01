@@ -32,7 +32,7 @@ function suggestionsOf(
 ): FieldSuggestions {
   const out: FieldSuggestions = {};
   for (const f of plan.fields) {
-    const list = mergedSuggestions(f, model.get(f) ?? []);
+    const list = mergedSuggestions(f, model.get(f) ?? [], plan.pickOf);
     if (list.length > 0) out[f.field.id] = list;
   }
   return out;

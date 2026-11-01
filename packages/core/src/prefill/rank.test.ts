@@ -133,7 +133,7 @@ describe('suggestValues', () => {
     const before = suggestValues({ fields, pages: [doc], locale: 'en', now: NOW });
     // 用户点了排第二的那个。
     const second = before.date![1]!;
-    const picks: Record<string, FieldPick> = { date: second.pick };
+    const picks: Record<string, FieldPick> = { date: second.pick! };
     const next = page(['Order date 2026-10-01', 'Ship date 2026-10-06', 'Total 7.00']);
     const after = suggestValues({ fields, pages: [next], locale: 'en', now: NOW, picks });
     const without = suggestValues({ fields, pages: [next], locale: 'en', now: NOW });

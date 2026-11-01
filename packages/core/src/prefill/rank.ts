@@ -22,8 +22,8 @@ export interface ValueSuggestion {
   /** 表单里的写法：金额、数字是文字，日期 YYYY-MM-DD，单选是选项 ID。 */
   value: string;
   score: number;
-  /** 点了以后记下来的（FieldPick）。 */
-  pick: FieldPick;
+  /** 点了以后记下来的（FieldPick）。这个值在文字里找不到位置时没有，点了也不记。 */
+  pick?: FieldPick;
 }
 
 export interface SuggestInput {

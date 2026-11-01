@@ -169,7 +169,7 @@ describe('值记忆（底线 14：现查，不另存）', () => {
     ).toEqual({ merchant: ['Acme'], co: ['Beta Ltd'] });
   });
 
-  it('文字里没有的不给，跨排也算原样', () => {
+  it('文字里没有的不给，一排里的空格多少不算，跨排不算', () => {
     const page = {
       width: 100,
       height: 100,
@@ -178,8 +178,10 @@ describe('值记忆（底线 14：现查，不另存）', () => {
         { text: 'SDN BHD', x: 0, y: 20, width: 50, height: 10 },
       ],
     };
-    const known = { merchant: ['book ta k sdn bhd', 'other'] };
-    const plan = planDocument({ fields: [MERCHANT], pages: [page], locale: 'en', known });
-    expect(plan.fields[0]!.remembered?.value).toBe('book ta k sdn bhd');
+    const plan = (known: string[]) =>
+      planDocument({ fields: [MERCHANT], pages: [page], locale: 'en', known: { merchant: known } })
+        .fields[0]!.remembered?.value;
+    expect(plan(['book ta k sdn bhd', 'other'])).toBeUndefined();
+    expect(plan(['book tak', 'other'])).toBe('book tak');
   });
 });

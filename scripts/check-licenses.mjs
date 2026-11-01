@@ -28,8 +28,12 @@ const ALLOWED = new Set([
   '(BSD-2-Clause OR MIT OR Apache-2.0)',
   '(BSD-3-Clause OR GPL-2.0)', // node-forge：按 BSD-3-Clause 使用
   '(MIT OR GPL-3.0-or-later)', // jszip（mammoth 的依赖，D-186）：按 MIT 使用
-  'Public Domain', // jsonify（patch-package 的依赖，只在开发时用，D-399）：公有领域，不进 App
   'BSD', // duck（mammoth 的依赖，D-186）：package.json 只写了 BSD，LICENSE 文件是 BSD-2-Clause 原文
+]);
+
+// 只对这一个包放行的写法：Public Domain 不是一个明确的许可，不全局放行。
+const ALLOWED_FOR = new Map([
+  ['jsonify', 'Public Domain'], // patch-package 的依赖（D-399）：安装时打补丁用，不进 App
 ]);
 
 function licenseOf(pkg) {
@@ -56,7 +60,8 @@ function walk(dir) {
       const pkg = JSON.parse(fs.readFileSync(manifest, 'utf8'));
       const id = `${pkg.name}@${pkg.version}`;
       const license = licenseOf(pkg);
-      if (!seen.has(id) && !ALLOWED.has(license)) problems.push(`${id}: ${license}`);
+      if (!seen.has(id) && !ALLOWED.has(license) && ALLOWED_FOR.get(pkg.name) !== license)
+        problems.push(`${id}: ${license}`);
       seen.add(id);
     }
     walk(path.join(pkgDir, 'node_modules'));
