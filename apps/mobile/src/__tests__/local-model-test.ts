@@ -1,5 +1,7 @@
 import { modelEngine, PREFILL_MODEL_PACK } from '@morph/core';
 import * as Device from 'expo-device';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import type { PackStore } from '../packs/store';
 import { MODEL_MIN_MEMORY, deviceFitsLocalModel, openLocalModel } from '../runtime/local-model';
@@ -52,6 +54,19 @@ const request = {
 const setMemory = (bytes: number | null) => {
   (Device as { totalMemory: number | null }).totalMemory = bytes;
 };
+
+describe('识别出的文字不进系统日志（底线 1、2）', () => {
+  it('llama.rn 不打印提示词的 token；Android 从源码编译，补丁才生效', () => {
+    const root = join(__dirname, '../../../..');
+    const completion = readFileSync(
+      join(root, 'node_modules/llama.rn/cpp/rn-completion.cpp'),
+      'utf8',
+    );
+    expect(completion).not.toContain('": prompt_tokens = "');
+    const app = readFileSync(join(root, 'apps/mobile/app.json'), 'utf8');
+    expect(app).toContain('./plugins/with-llama-from-source');
+  });
+});
 
 describe('本机模型（D-396）', () => {
   beforeEach(() => {

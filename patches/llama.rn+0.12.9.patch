@@ -29,3 +29,22 @@ index 6039042..861b2be 100644
      if (!cxxBridge.runtime) {
          resolve(@false);
          return;
+diff --git a/node_modules/llama.rn/cpp/rn-completion.cpp b/node_modules/llama.rn/cpp/rn-completion.cpp
+index 030a522..9d7c4b0 100644
+--- a/node_modules/llama.rn/cpp/rn-completion.cpp
++++ b/node_modules/llama.rn/cpp/rn-completion.cpp
+@@ -392,14 +392,6 @@
+         // Text-only path - use modified tokenization for encoder-decoder models
+         text_tokens = ::common_tokenize(parent_ctx->ctx, parent_ctx->params.prompt, add_bos || is_enc_dec, true);
+         num_prompt_tokens = text_tokens.size();
+-
+-        // LOG tokens
+-        std::stringstream ss;
+-        ss << "\n" << __func__ << ": prompt_tokens = ";
+-        for (auto& token : text_tokens) {
+-            ss << token << " ";
+-        }
+-        LOG_INFO("%s\n", ss.str().c_str());
+ 
+         if (parent_ctx->params.n_keep < 0) {
+             parent_ctx->params.n_keep = (int)num_prompt_tokens;

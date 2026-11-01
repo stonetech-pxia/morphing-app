@@ -88,6 +88,7 @@
           "androidMultiIntentFilters": ["image/*", "video/*", "audio/*", "application/*"]
         }
       ],
+      "./plugins/with-llama-from-source",
       [
         "./plugins/with-share-extension",
         {
