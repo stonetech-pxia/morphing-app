@@ -3,12 +3,14 @@ import {
   parsePickStore,
   PICK_STORE_KEY,
   putPick,
+  ruleEngine,
   serializePickStore,
-  suggestValues,
   type Collection,
   type FieldPick,
+  type FieldSuggestions,
   type Locale,
   type PackNeed,
+  type PrefillEngine,
   type ValueSuggestion,
 } from '@morph/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -33,14 +35,12 @@ import {
 // 点过的候选记在本机 app_meta 的 prefill:picks（这张表这个字段：标签和位置，不记值），
 // 「设置 → 数据 → 预填记忆」能导出、恢复、清空。识别出的文字、文件名和记录都不发给 AI。
 
-export type Suggestions = Record<string, ValueSuggestion[]>;
-
 export interface FieldSuggestionsState {
   /** 正在读附件。 */
   working: boolean;
   /** 还缺要下载的东西（文字识别模型、PDF 预览）：表单上面显示一行提示和按钮。 */
   missing: PackNeed[];
-  suggestions: Suggestions;
+  suggestions: FieldSuggestions;
   /** 下载确认框要问的（点了提示里的按钮以后）。 */
   asking: PackNeed[] | null;
   ask(): void;
@@ -50,7 +50,7 @@ export interface FieldSuggestionsState {
   remember(fieldId: string, suggestion: ValueSuggestion): void;
 }
 
-const NONE: Suggestions = {};
+const NONE: FieldSuggestions = {};
 const NO_NEEDS: PackNeed[] = [];
 
 export function useFieldSuggestions({
@@ -58,19 +58,22 @@ export function useFieldSuggestions({
   collection,
   values,
   locale,
+  engine = ruleEngine,
 }: {
   /** 只在新记录的表单里（编辑已有的记录时不给候选）。 */
   enabled: boolean;
   collection: Collection | undefined;
   values: Record<string, unknown>;
   locale: Locale;
+  /** 候选从哪里来（D-398）。 */
+  engine?: PrefillEngine;
 }): FieldSuggestionsState {
   const { repo, files } = useWorkspaceContext();
   const packs = usePacks();
   // 每次读的结果都带着这次读的依据（附件和下载次数）；依据变了，旧的结果就不算了。
   const [workingFor, setWorkingFor] = useState<string | null>(null);
   const [needs, setNeeds] = useState<{ run: string; list: PackNeed[] } | null>(null);
-  const [found, setFound] = useState<{ run: string; suggestions: Suggestions } | null>(null);
+  const [found, setFound] = useState<{ run: string; suggestions: FieldSuggestions } | null>(null);
   const [asking, setAsking] = useState<PackNeed[] | null>(null);
   // 下载完以后加一，重新读一次。
   const [installs, setInstalls] = useState(0);
@@ -121,15 +124,12 @@ export function useFieldSuggestions({
       try {
         const pages = await readAttachmentPages(first, deps, abort.signal);
         if (abort.signal.aborted) return;
-        setFound({
-          run,
-          suggestions: suggestValues({
-            fields: collection.fields,
-            pages,
-            locale,
-            picks: picks.current,
-          }),
-        });
+        const suggestions = await engine(
+          { fields: collection.fields, pages, locale, picks: picks.current },
+          abort.signal,
+        );
+        if (abort.signal.aborted) return;
+        setFound({ run, suggestions });
       } catch (e) {
         // 读不出来就没有候选，不报错。
         if (!(e instanceof ReadCancelled) && !abort.signal.aborted)
@@ -139,7 +139,7 @@ export function useFieldSuggestions({
       }
     })();
     return () => abort.abort();
-  }, [collection, key, run, deps, repo, locale]);
+  }, [collection, key, run, deps, repo, locale, engine]);
 
   const working = workingFor === run && key !== '';
   const missing = key && needs?.run === run ? needs.list : NO_NEEDS;
