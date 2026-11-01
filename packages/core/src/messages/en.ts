@@ -397,6 +397,15 @@ export const en = {
   appConfigHint:
     'Pages, table structures, quick actions and reminders, saved as one file. Your entries and files are not included.',
   exportAppConfig: 'Export app design',
+  localModelTitle: 'On-device model',
+  localModelHint:
+    'After you download it, new records with an attachment also get values from a small model that runs on this phone. It helps most with names and amounts. Without it, suggestions still work with rules only. Nothing leaves this phone.',
+  localModelTooSmall: 'This phone has too little memory for the model. Suggestions use rules only.',
+  localModelReady: 'Downloaded ({size})',
+  localModelDownload: 'Download',
+  localModelRemove: 'Delete',
+  localModelRemoveConfirm:
+    'Delete the on-device model? Suggestions go back to rules only. Your records stay. You can download it again.',
   prefillMemoryTitle: 'Prefill memory',
   prefillMemoryHint:
     'When you log an entry, Morph remembers the layout of documents you saved: which label a value follows, roughly which line, and the shop name. It does not keep amounts or dates. Stored only on this phone, never sent to the AI. The exported file is also a backup: use “Restore from file” to bring it back. In a new entry form, Morph also remembers which suggestion you picked for each field: the label it followed and roughly where it was, not the value.',
