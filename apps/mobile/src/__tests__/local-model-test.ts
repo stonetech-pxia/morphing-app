@@ -129,6 +129,19 @@ describe('本机模型（D-396）', () => {
     });
   });
 
+  it.each([
+    ['内存大的手机：重排权重，快', 11 * 1024 * 1024 * 1024, false],
+    ['正好 10 GB：重排', 10 * 1024 * 1024 * 1024, false],
+    ['内存小的手机：不重排，省内存', 8 * 1024 * 1024 * 1024, true],
+    ['拿不到内存：按小的算', null, true],
+  ])('%s', async (_name, bytes, expected) => {
+    setMemory(bytes);
+    const session = await openLocalModel(store(true))(new AbortController().signal);
+    await session?.release();
+    expect(mockInit.mock.calls.at(-1)![0]).toMatchObject({ no_extra_bufts: expected });
+    setMemory(8 * 1024 * 1024 * 1024);
+  });
+
   it('没在生成时 stopCompletion 什么都不返回（真的 llama.rn 就这样）：照样释放，下一次还能加载', async () => {
     context.stopCompletion.mockImplementationOnce(() => undefined as unknown as Promise<void>);
     const open = openLocalModel(store(true));

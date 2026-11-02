@@ -22,6 +22,13 @@ import type { PackStore } from '../packs/store';
  */
 export const MODEL_MIN_MEMORY = 7 * 1024 * 1024 * 1024;
 
+/**
+ * 总内存到这么多才重排权重（D-402）。重排把权重复制进匿名内存：三星上模型快约一倍，进程峰值多约 1.2 GB。
+ * 不重排时权重留在系统能回收的文件映射里。拿不到总内存时按小的算。
+ */
+export const REPACK_MIN_MEMORY = 10 * 1024 * 1024 * 1024;
+const noRepack = () => Device.totalMemory === null || Device.totalMemory < REPACK_MIN_MEMORY;
+
 /** 上下文长度：和 2B、4B 真机测量一样；文字由 core 按这个长度截断。 */
 const CONTEXT = 4096;
 /** 三星上测过 6 线程。iPhone 大核少，没测过，先用 4。 */
@@ -71,8 +78,7 @@ export function openLocalModel(store: PackStore): OpenModel {
         n_gpu_layers: 0,
         devices: ['CPU'],
         no_gpu_devices: true,
-        // 权重不重排：不复制进匿名内存，留在系统能回收的文件映射里（Mac 上少约 1 GB，2800 格只变 3 格，D-402）。
-        no_extra_bufts: true,
+        no_extra_bufts: noRepack(),
         use_mlock: false,
       });
     } catch (e) {
