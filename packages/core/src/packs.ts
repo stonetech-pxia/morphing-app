@@ -44,7 +44,7 @@ const f = (path: string, url: string, size: number, sha256: string): PackFile =>
 
 /** 新记录表单的本机模型（D-396）。 */
 export const PREFILL_MODEL_PACK = 'prefill-model';
-export const PREFILL_MODEL_FILE = 'Qwen3.5-0.8B-Q4_K_M.gguf';
+export const PREFILL_MODEL_FILE = 'Qwen3.5-2B-Q4_K_M.gguf';
 
 export const PACKS: readonly PackManifest[] = [
   {
@@ -187,23 +187,23 @@ export const PACKS: readonly PackManifest[] = [
     ],
   },
   {
-    // 新记录表单的本机模型（D-396）：Qwen3.5-0.8B（Hugging Face unsloth/Qwen3.5-0.8B-GGUF 提交 6ab4614 的 Q4_K_M）。
+    // 新记录表单的本机模型（D-396、D-401）：Qwen3.5-2B（Hugging Face unsloth/Qwen3.5-2B-GGUF 提交 f6d5376 的 Q4_K_M）。
     // 放在我们自己的 R2（见 PACK_HOST）；还没上传，等创始人确认（LICENSE 在 side-session-notes/prefill-model/pack-upload）。
     id: PREFILL_MODEL_PACK,
     version: '1.0.0',
     name: { en: 'On-device model', zh: '本机模型', fr: 'Modèle sur l’appareil' },
     description: {
-      en: 'Suggests more values when a new record has an attachment. It runs on this device; nothing leaves it (Qwen3.5-0.8B).',
-      zh: '新记录带附件时多给一些候选。在这台手机上运行，内容不出手机（Qwen3.5-0.8B）。',
-      fr: 'Propose plus de valeurs quand une nouvelle entrée a une pièce jointe. Il tourne sur cet appareil, rien n’en sort (Qwen3.5-0.8B).',
+      en: 'Suggests more values when a new record has an attachment. It runs on this device; nothing leaves it (Qwen3.5-2B).',
+      zh: '新记录带附件时多给一些候选。在这台手机上运行，内容不出手机（Qwen3.5-2B）。',
+      fr: 'Propose plus de valeurs quand une nouvelle entrée a une pièce jointe. Il tourne sur cet appareil, rien n’en sort (Qwen3.5-2B).',
     },
-    license: 'Apache-2.0 (Qwen/Qwen3.5-0.8B; GGUF by unsloth)',
+    license: 'Apache-2.0 (Qwen/Qwen3.5-2B; GGUF by unsloth)',
     files: [
       f(
         PREFILL_MODEL_FILE,
         `${PACK_HOST}${PREFILL_MODEL_PACK}/1.0.0/${PREFILL_MODEL_FILE}`,
-        532517120,
-        'bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517',
+        1280835840,
+        'aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223',
       ),
       f(
         'LICENSE',

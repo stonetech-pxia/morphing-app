@@ -7,6 +7,7 @@ import {
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
+import MorphVision from '../../modules/morph-vision';
 import { expoPackFs } from '../packs/expo-pack-fs';
 import type { PackStore } from '../packs/store';
 
@@ -15,9 +16,9 @@ import type { PackStore } from '../packs/store';
 // 没装、内存不够、加载失败时给 null 或报错，引擎安静退回只有规则。
 
 /**
- * 设备总内存至少这么多才加载。手机上的进程峰值估计约 3.2 GB（0.8B 没量过，按 2B、4B 实测换算：
- * 2.84 GB + 文件大小的 0.75 倍）；11 GB 的三星跑 3.8 GB 时整机还剩 1.9 GB。6 GB 的手机剩不下多少，
- * iOS 单个 App 的上限也大约是总内存的一半；8 GB 的机器系统报出来常常不足 8，所以写 7。
+ * 设备总内存至少这么多才加载。2B 在 11 GB 的三星上进程峰值实测 3.2–4.5 GB（含文字识别留下的内存，
+ * 现在加载前先放掉）；更小的手机没测过。iOS 单个 App 的上限也大约是总内存的一半；
+ * 8 GB 的机器系统报出来常常不足 8，所以写 7（暂定，D-401）。
  */
 export const MODEL_MIN_MEMORY = 7 * 1024 * 1024 * 1024;
 
@@ -39,7 +40,7 @@ async function quietly(call: () => unknown): Promise<void> {
   }
 }
 
-// 任何时候最多一个模型在加载或在内存里（一个约 3.2 GB，两个会被系统杀进程）：一个一个排队，
+// 任何时候最多一个模型在加载或在内存里（2B 一个约 3 GB，两个会被系统杀进程）：一个一个排队，
 // 轮到下一个要等上一个释放完，包括还在加载、加载回来才知道被取消的那个（用户换附件、关开表单时会连着来）。
 let last: Promise<void> = Promise.resolve();
 
@@ -56,6 +57,8 @@ export function openLocalModel(store: PackStore): OpenModel {
       finish();
       return null;
     }
+    // 文字识别的模型和内存池刚用完还留在内存里（大图片要 1 GB 以上），先放掉；下次识别时再加载。
+    await quietly(() => MorphVision?.ocrUnload?.());
     let context: Awaited<ReturnType<typeof import('llama.rn').initLlama>>;
     try {
       // 原生模块只在真的要用时才加载：Expo Go 里没有它，这里报错就退回规则。

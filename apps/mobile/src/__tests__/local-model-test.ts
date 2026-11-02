@@ -31,6 +31,11 @@ const context = {
 };
 const mockInit = jest.fn(async (_params: { model: string; n_ctx: number }) => context);
 let mockNoNative = false;
+const mockOcrUnload = jest.fn(async () => undefined);
+jest.mock('../../modules/morph-vision', () => ({
+  __esModule: true,
+  default: { ocrUnload: () => mockOcrUnload() },
+}));
 jest.mock('llama.rn', () => ({
   get initLlama() {
     if (mockNoNative) throw new Error('no native module');
@@ -54,6 +59,31 @@ const request = {
 const setMemory = (bytes: number | null) => {
   (Device as { totalMemory: number | null }).totalMemory = bytes;
 };
+
+describe('加载模型前先放掉文字识别的内存', () => {
+  it('文字识别的模型先释放，再加载本机模型', async () => {
+    mockOcrUnload.mockClear();
+    mockInit.mockClear();
+    const session = await openLocalModel(store(true))(new AbortController().signal);
+    expect(mockOcrUnload.mock.invocationCallOrder[0]).toBeLessThan(
+      mockInit.mock.invocationCallOrder[0]!,
+    );
+    await session?.release();
+  });
+
+  it('释放失败也照样加载', async () => {
+    mockOcrUnload.mockImplementationOnce(() => Promise.reject(new Error('busy')));
+    const session = await openLocalModel(store(true))(new AbortController().signal);
+    expect(session).not.toBeNull();
+    await session?.release();
+  });
+
+  it('没装模型时不动文字识别', async () => {
+    mockOcrUnload.mockClear();
+    await openLocalModel(store(false))(new AbortController().signal);
+    expect(mockOcrUnload).not.toHaveBeenCalled();
+  });
+});
 
 describe('识别出的文字不进系统日志（底线 1、2）', () => {
   it('llama.rn 不打印提示词的 token；Android 从源码编译，补丁才生效', () => {
@@ -92,7 +122,7 @@ describe('本机模型（D-396）', () => {
     const session = await openLocalModel(store(true))(new AbortController().signal);
     await session?.release();
     expect(mockInit.mock.calls[0]![0]).toMatchObject({
-      model: `file:///${PREFILL_MODEL_PACK}/1.0.0/Qwen3.5-0.8B-Q4_K_M.gguf`,
+      model: `file:///${PREFILL_MODEL_PACK}/1.0.0/Qwen3.5-2B-Q4_K_M.gguf`,
       n_ctx: 4096,
       n_gpu_layers: 0,
     });

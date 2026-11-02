@@ -2,7 +2,7 @@ import type { Field } from '../schema';
 import { checkAnswer, keepForModel, squash } from './check';
 import { conceptOf, type ConceptId } from './concepts';
 
-// 本机模型给候选（D-396）：Qwen3.5-0.8B，只问代码拿不准的字段，一个字段问一次。文字生成由外面注入
+// 本机模型给候选（D-396、D-401）：Qwen3.5-2B，只问代码拿不准的字段，一个字段问一次。文字生成由外面注入
 // （App 里是 llama.rn，电脑上打分用 llama-server），这里只有提示词、语法和读回答。
 // 模型的回答要一个一个过核对（check.ts），编不出文字里没有的值；结果只进候选，用户点了才填（D-394）。
 // 提示词、语法、参数和测量时一样（side-session-notes/prefill-model/per-field/sibr/pf9.ts），改了要重新打分。
