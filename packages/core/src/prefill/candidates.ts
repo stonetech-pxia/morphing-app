@@ -1,5 +1,8 @@
 import type { Locale } from '../schema';
 import { normalizeNumber, validDate } from '../text-rules';
+import { ctx } from './doc-context';
+import { docAdds, orderPref } from './rules';
+import * as D from './rules-data';
 
 // 「记一笔」预填的候选（D-244 的扩展）：识别出的文字里哪一段像金额、哪一段像日期。规则为主，
 // 系统识别（iOS DataDetection / NSDataDetector，Android ML Kit 实体识别）只做辅助和补充：
@@ -108,7 +111,49 @@ const MONTH_D_Y = new RegExp(
   'gi',
 );
 
-const fullYear = (y: string) => (y.length === 2 ? 2000 + Number(y) : Number(y));
+const fullYear = (y: string) => {
+  if (y.length !== 2) return Number(y);
+  const v = 2000 + Number(y);
+  // 两位年的世纪按「现在」选：2000+yy 比明年还晚就当 19yy（99 → 1999，不是 2099）。
+  return ctx.nowYear > 0 && v > ctx.nowYear + 1 ? v - 100 : v;
+};
+
+// 时间和日期粘在一起（23:16:4615/08/2022、20/10/202119:29）。
+const G1 =
+  /(\d{1,2}:\d{2}(?::\d{2})?(?:\s?[AaPp][Mm])?)(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})(?!\d)/g;
+const G2 = /(^|[^\d])(\d{1,2})[/.-](\d{1,2})[/.-](20\d{2})(?=\d{1,2}[:.]\d{2})/g;
+// 月份名写法（词用 \p{L}，查表时去重音；不用后行断言）：28-Oct-2021、3 de enero de 2024、15. März 2024、Oct28'21。
+const W_D_MON_Y =
+  /(^|[^\p{L}\p{N}])(\d{1,2})(?:st|nd|rd|th|er)?\.?(?:\s+de)?[\s.\-/]*(\p{L}{3,9})\.?(?:\s+de)?\s*([,'’°\-.]?)\s*(\d{4}|\d{2})(?:(?!\d)|(?=\d{1,2}:\d{2}))(?![:.]\d)/giu;
+const W_MON_D_Y =
+  /(^|[^\p{L}\p{N}])(\p{L}{3,9})\.?\s*(\d{1,2})(?:st|nd|rd|th)?(?:\s*([,'’°.])\s*|(\s+))(\d{4}|\d{2})(?:(?!\d)|(?=\d{1,2}:\d{2}))(?![:.]\d)/giu;
+const W_CTIME =
+  /(^|[^\p{L}\p{N}])(\p{L}{3,9})\.?\s+(\d{1,2})\s+\d{1,2}:\d{2}(?::\d{2})?\s+(\d{4})(?!\d)/giu;
+/** 两位年只在年前有分隔符、年后跟着时间或在行尾时才认；00 不认（MAY 4.00）。 */
+function yearOk(line: string, end: number, sepChar: string, year: string): boolean {
+  if (year.length === 4) return true;
+  if (year === '00') return false;
+  return (
+    sepChar !== '' || /^\s*\d{1,2}[:.]\d{2}/.test(line.slice(end)) || line.slice(end).trim() === ''
+  );
+}
+// 两位年、- 或 . 分隔的假日期（日本地址编号、被字母数字夹住）。
+const TIME_AFTER = /^\s*,?\s*\d{1,2}[:.]\d{2}/;
+const DATE_WORD_LEFT = /date|tarih|fecha|日付|日/i;
+const ADDR_CJK = /[都道府県市区町村丁目]/;
+function fakeShortDate(line: string, at: number, raw: string): boolean {
+  const m = /^\d{1,2}([-.])\d{1,2}[-.]\d{2}$/.exec(raw);
+  if (!m) return false;
+  const before = line[at - 1] ?? '';
+  const after = line[at + raw.length] ?? '';
+  if (/[A-Za-z0-9-]/.test(before) || /[-A-Za-z0-9]/.test(after)) return true;
+  return (
+    m[1] === '-' &&
+    !TIME_AFTER.test(line.slice(at + raw.length)) &&
+    !DATE_WORD_LEFT.test(line.slice(0, at)) &&
+    ADDR_CJK.test(line)
+  );
+}
 
 /** 一行里的日期。年在后、日月分不清时保留两种解释；语言只决定展示顺序。 */
 function datesInLine(
@@ -137,16 +182,12 @@ function datesInLine(
     const raw = m[0].slice(m[1]!.length);
     add(m.index + m[1]!.length, raw, month ? validDate(Number(m[4]), month, Number(m[3])) : null);
   }
-  for (const m of line.matchAll(DMY)) {
-    const a = Number(m[2]);
-    const b = Number(m[3]);
-    const y = fullYear(m[4]!);
-    const raw = m[0].slice(m[1]!.length);
-    const at = m.index + m[1]!.length;
+  const addNumeric = (at: number, raw: string, a: number, b: number, y: number) => {
     const dmy = validDate(y, b, a);
     const mdy = validDate(y, a, b);
     if (dmy && mdy && dmy !== mdy) {
-      if (locale === 'en') {
+      const pref = orderPref(/\D/.exec(raw)?.[0] ?? '/', locale);
+      if (pref ? pref === 'MDY' : locale === 'en') {
         add(at, raw, mdy, 'MDY');
         add(at, raw, dmy, 'DMY');
       } else {
@@ -156,6 +197,55 @@ function datesInLine(
     } else {
       add(at, raw, dmy ?? mdy, dmy && !mdy ? 'DMY' : mdy && !dmy ? 'MDY' : undefined);
     }
+  };
+  for (const m of line.matchAll(DMY)) {
+    const raw = m[0].slice(m[1]!.length);
+    const at = m.index + m[1]!.length;
+    if (fakeShortDate(line, at, raw)) continue;
+    // 两位年的日期，两个分隔符要一样（2/1.00、12-05/09 不是日期）。
+    if (m[4]!.length === 2) {
+      const seps = /^\d{1,2}(\D)\d{1,2}(\D)/.exec(raw);
+      if (seps && seps[1] !== seps[2]) continue;
+    }
+    addNumeric(at, raw, Number(m[2]), Number(m[3]), fullYear(m[4]!));
+  }
+  for (const m of line.matchAll(G1)) {
+    const at = m.index + m[1]!.length;
+    addNumeric(at, m[0].slice(m[1]!.length), Number(m[2]), Number(m[3]), fullYear(m[4]!));
+  }
+  for (const m of line.matchAll(G2)) {
+    const at = m.index + m[1]!.length;
+    addNumeric(at, m[0].slice(m[1]!.length), Number(m[2]), Number(m[3]), Number(m[4]));
+  }
+  const monthOf = (w: string) =>
+    D.MONTHS_WEST[
+      w
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+    ];
+  // 28-Oct-2021、3 de enero de 2024、15. März 2024、10 JAN17、Dec02'16
+  for (const m of line.matchAll(W_D_MON_Y)) {
+    const month = monthOf(m[3]!);
+    const raw = m[0].slice(m[1]!.length);
+    if (!month || !yearOk(line, m.index + m[0].length, m[4]!, m[5]!)) continue;
+    add(m.index + m[1]!.length, raw, validDate(fullYear(m[5]!), month, Number(m[2])));
+  }
+  // Oct28'21、AUGUST 13,2017、May 21. 2019、WED MAY 17,2017
+  for (const m of line.matchAll(W_MON_D_Y)) {
+    const month = monthOf(m[2]!);
+    const raw = m[0].slice(m[1]!.length);
+    if (!month || !yearOk(line, m.index + m[0].length, m[4] ?? '', m[6]!)) continue;
+    // 月和日连写、日和年只隔空格（Oct2 2020）多半是月份年份加噪点，不认；Oct28'21 有撇号，认。
+    if (m[5] && /^\d/.test(raw.slice(m[2]!.length))) continue;
+    add(m.index + m[1]!.length, raw, validDate(fullYear(m[6]!), month, Number(m[3])));
+  }
+  // SUN JUN 24 20:49:53 2018（ctime 写法：月 日 时间 年）
+  for (const m of line.matchAll(W_CTIME)) {
+    const month = monthOf(m[2]!);
+    const raw = m[0].slice(m[1]!.length);
+    if (!month) continue;
+    add(m.index + m[1]!.length, raw, validDate(Number(m[4]), month, Number(m[3])));
   }
   return found.sort((x, y) => x.start - y.start);
 }
@@ -176,7 +266,23 @@ function amountsInLine(
   locale: Locale,
 ): { start: number; end: number; raw: string; value: string }[] {
   const out: { start: number; end: number; raw: string; value: string }[] = [];
+  // 空格当千位分隔的数（3 620,84）：前面或后面紧挨货币符号，或这一排有三个以上的金额，
+  // 或者它能由全文别的金额加减得到，才整体取（否则「2 x 3 12,50」里的数量会连进来）。
+  const spaced: { start: number; end: number; raw: string; value: string }[] = [];
+  const many = Math.max(ctx.rowMany, (line.match(/\d[.,]\d{2}(?!\d)/g) ?? []).length) >= 3;
+  for (const m of line.matchAll(/(^|[^\d.,])(\d{1,3}(?: \d{3})+[.,]\d{2})(?!\d)/g)) {
+    const start = m.index + m[1]!.length;
+    const end = start + m[2]!.length;
+    if (dates.some((d) => start < d.end && end > d.start)) continue;
+    const v = normalizeNumber(m[2]!.replace(/ /g, ''));
+    // 货币符号在后面（1 819,68 €；法语、德语票据用空格做千位分隔）。
+    const spacedHere = CURRENCY_AFTER.test(line.slice(end));
+    if (!(CURRENCY_BEFORE.test(line.slice(0, start)) || many || spacedHere || docAdds(Number(v))))
+      continue;
+    spaced.push({ start, end, raw: m[2]!, value: v });
+  }
   for (const m of line.matchAll(NUMBER)) {
+    if (spaced.some((s) => m.index < s.end && m.index + m[0].length > s.start)) continue;
     let raw = m[0];
     let start = m.index;
     // 千位分隔用空格时，正则可能把前面的数量也连进来（「2 120,00」）：只有前面紧挨货币符号或标签时才信。
@@ -204,6 +310,10 @@ function amountsInLine(
       if (!/[.,]\d{2}$/.test(raw)) continue;
     }
     out.push({ start, end, raw, value: normalizeNumber(raw) });
+  }
+  if (spaced.length) {
+    out.push(...spaced);
+    out.sort((x, y) => x.start - y.start);
   }
   return out;
 }

@@ -1,5 +1,6 @@
 import type { Locale } from '../schema';
 import { ruleCandidates } from './candidates';
+import { normalizeNumber } from '../text-rules';
 
 // 算术找总额（创始人 2026-11-01 的想法，测量见 per-field/REPORT.md 的考卷一节）：不看字段名，只看数。
 // 1. 付款 − 找零 = x，x 就是总额（这两排要有付款、找零字样）。
@@ -10,6 +11,16 @@ const NOT_MONEY =
   /\b(tel|fax|phone|gst\s*(reg|id|no)|reg\.?\s*no|invoice\s*no|bill\s*no|no\s*:|qty|date|time)\b|电话|编号|单号|日期|\d{1,2}[:/]\d{2}/i;
 const PAY_ROW = /cash|tender|paid|payment|visa|master|card|现金|实收|收款|esp[èe]ces|pay[ée]/i;
 const CHANGE_ROW = /change|找零|monnaie|rendu|kembali/i;
+// 西方语言的付款、找零、优惠、合计字样（整词，不用相似度）。
+const W_PAY_ROW =
+  /(^|[^\p{L}])(bar|barzahlung|ec[\s-]?karte|girocard|karte|kontaktlos|bezahlt|contanti|contante|bancomat|pagato|efectivo|tarjeta|pagado|contant|pin|dinheiro|cartão|cartao|cb|carte|carte bancaire|esp[eè]ces)([^\p{L}]|$)/iu;
+const W_CHANGE_ROW =
+  /(^|[^\p{L}])(r[uü]e?ckgeld|zur[uü]ck|resto|cambio|vuelto|troco|wisselgeld)([^\p{L}]|$)/iu;
+const W_DISCOUNT_ROW =
+  /(^|[^\p{L}])(rabatt|sconto|descuento|desconto|korting|remise)([^\p{L}]|$)/iu;
+const W_TOTAL_ROW =
+  /(^|[^\p{L}])(summe|gesamt|gesamtsumme|gesamtbetrag|totale|totaal|importe|importo|a pagar|zu zahlen)([^\p{L}]|$)/iu;
+const W_NOT_FINAL_ROW = /(^|[^\p{L}])(mwst|ust|iva|btw|netto|imponibile)([^\p{L}]|$)/iu;
 const DISCOUNT_ROW = /优惠|折扣|discount|remise|promo|voucher|less/i;
 /** 数太多（长发票、对账单）时不算：三重循环在手机上要几百毫秒，这种单据也不是这个算法针对的。 */
 const MAX_AMOUNTS = 120;
@@ -19,6 +30,11 @@ const TOTAL_ROW = /total|合计|总计|总额|montant|amount|应付|实付/i;
 const NOT_TOTAL_ROW = /sub[\s.-]*total|小计|sous-total/i;
 /** 写着 total 但不是合计的排（Total Qty、Total Tax）。 */
 const NOT_FINAL_ROW = /qty|quantity|\bitems?\b|\b(?:tax|gst|vat|tva)\b|税|数量/i;
+
+const isPay = (r: string) => PAY_ROW.test(r) || W_PAY_ROW.test(r);
+const isChange = (r: string) => CHANGE_ROW.test(r) || W_CHANGE_ROW.test(r);
+const isDiscount = (r: string) => DISCOUNT_ROW.test(r) || W_DISCOUNT_ROW.test(r);
+const isNotFinal = (r: string) => NOT_FINAL_ROW.test(r) || W_NOT_FINAL_ROW.test(r);
 
 interface Amount {
   v: number;
@@ -38,14 +54,23 @@ function amountsOf(rows: readonly string[], noDecimals: boolean, locale: Locale)
     } else {
       // 每排只取带两位小数的数（小票上的金额），避免数量、编号。
       for (const m of r.matchAll(/-?\d{1,3}(?:[ ,.]\d{3})*[.,]\d{2}(?!\d)/g)) {
+        // 空格做千位分隔的数（2 368,66）单独交给 ruleCandidates 会只读到后半（368,66）；后面紧跟 €/EUR 才合并。
+        if (
+          /^-?\d{1,3}(?: \d{3})+[.,]\d{2}$/.test(m[0]) &&
+          /^\s*(?:€|eur|euros?)/i.test(r.slice(m.index + m[0].length))
+        ) {
+          const x = Number(normalizeNumber(m[0].replace(/ /g, '')));
+          vs.push(isDiscount(r) ? Math.abs(x) : x);
+          continue;
+        }
         const c = ruleCandidates(m[0], locale).find((x) => x.kind === 'amount');
         // 优惠常写成负数：减的是它的绝对值。
-        if (c) vs.push(DISCOUNT_ROW.test(r) ? Math.abs(Number(c.value)) : Number(c.value));
+        if (c) vs.push(isDiscount(r) ? Math.abs(Number(c.value)) : Number(c.value));
       }
     }
     vs = vs.filter((v) => v > 0);
     vs.forEach((v, k) => out.push({ v, row, last: k === vs.length - 1 }));
-    if (!noDecimals && vs.length === 0 && PAY_ROW.test(r))
+    if (!noDecimals && vs.length === 0 && isPay(r))
       for (const m of r.matchAll(/(^|[^\d.,])(\d{1,6})(?![\d.,])/g))
         out.push({ v: Number(m[2]), row, last: false, payOnly: true });
   });
@@ -73,22 +98,23 @@ export function amountChain(
   );
   if (found.length > MAX_AMOUNTS) return null;
   const all = found.filter((a) => !a.payOnly);
-  const isTotal = (row: number) => TOTAL_ROW.test(rows[row]!) && !NOT_TOTAL_ROW.test(rows[row]!);
+  const isTotal = (row: number) =>
+    (TOTAL_ROW.test(rows[row]!) || W_TOTAL_ROW.test(rows[row]!)) && !NOT_TOTAL_ROW.test(rows[row]!);
   // 合计那排有数时，下面的付款排（Cash 20.00）就只是付出去的钱，不能当算出来的总额或小计。
   // 合计那排 OCR 没读出数（TOTAL 单独一排、28-90）时付款排的数才可能是总额（真实小票上常见）。
   const notPayRow = (a: Amount) =>
-    !PAY_ROW.test(rows[a.row]!) ||
+    !isPay(rows[a.row]!) ||
     isTotal(a.row) ||
-    !all.some((t) => t.row < a.row && isTotal(t.row) && !NOT_FINAL_ROW.test(rows[t.row]!));
+    !all.some((t) => t.row < a.row && isTotal(t.row) && !isNotFinal(rows[t.row]!));
   for (const x of all) {
     for (const pay of found) {
-      if (pay === x || pay.row <= x.row || !PAY_ROW.test(rows[pay.row]!)) continue;
+      if (pay === x || pay.row <= x.row || !isPay(rows[pay.row]!)) continue;
       for (const ch of all) {
         if (
           ch !== pay &&
           ch !== x &&
           ch.row > x.row &&
-          CHANGE_ROW.test(rows[ch.row]!) &&
+          isChange(rows[ch.row]!) &&
           near(pay.v - ch.v, x.v) &&
           // 找零比总额大（付整钞）时，要那排写着合计、差一分也不行，否则一排明细也会被算成总额。
           (ch.v < x.v || (isTotal(x.row) && Math.abs(pay.v - ch.v - x.v) < 0.005))
@@ -128,7 +154,7 @@ export function amountChain(
         if (near(sub.v + adj.v, x.v)) adjusted = x.v;
         // 小计 − 优惠 = 总额，和「含税总额 − 不含税 = 税额」算术一样：减的那排写着优惠才取小的，否则取大的。
         else if (near(sub.v - adj.v, x.v))
-          adjusted = DISCOUNT_ROW.test(rows[adj.row]!) ? x.v : Math.max(sub.v, x.v);
+          adjusted = isDiscount(rows[adj.row]!) ? x.v : Math.max(sub.v, x.v);
       }
     }
   }

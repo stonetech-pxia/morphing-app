@@ -1,6 +1,7 @@
 import type { Locale } from '../schema';
 import { extractAll } from '../text-rules';
 import { ruleCandidates } from './candidates';
+import { ctx } from './doc-context';
 import type { ValueKind } from './concepts';
 
 // 新记录表单的候选值（D-394）：识别出的文字行（带框）按竖直重叠分排，再切出「标签 → 值」。
@@ -151,7 +152,7 @@ export function pageOccurrences(
   page: TextPage,
   pageIndex: number,
   locale: Locale,
-): { rows: { text: string; relY: number }[]; occ: Occurrence[] } {
+): { rows: { text: string; relY: number; cells: string[] }[]; occ: Occurrence[] } {
   const rows = rowsOf(page.lines);
   const pageH = page.height || 1;
   const info = rows.map((r) => {
@@ -172,6 +173,8 @@ export function pageOccurrences(
   );
   const sureLabel = info.map((r, i) => labelOnly[i] && /[:：]\s*$/.test(r.text));
   info.forEach((r, ri) => {
+    // 告诉日期、金额规则这一排有几个金额（空格千位分隔的数要不要整体取）。
+    ctx.rowMany = (r.text.match(/\d[.,]\d{2}(?!\d)/g) ?? []).length;
     const above = ri > 0 && labelOnly[ri - 1] ? cleanLabel(info[ri - 1]!.text) : '';
     const aboveSure = ri > 0 && sureLabel[ri - 1];
     const base = { page: pageIndex, row: ri, relY: r.relY };
@@ -213,5 +216,6 @@ export function pageOccurrences(
       else if (hasColon) prevText = right.trim() ? '' : left;
     }
   });
-  return { rows: info.map((r) => ({ text: r.text, relY: r.relY })), occ };
+  ctx.rowMany = 0;
+  return { rows: info.map((r) => ({ text: r.text, relY: r.relY, cells: r.cells })), occ };
 }

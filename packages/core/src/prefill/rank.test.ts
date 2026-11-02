@@ -178,17 +178,21 @@ describe('suggestValues', () => {
     ).toEqual({});
   });
 
-  it('drops dates far from the other dates on the document (OCR read 2026 as 2020)', () => {
-    // 「合理」只占 1 分：2020 年那个带着标签还会排第一，但分数比没有 2026 年时低 1 分。
-    const withAnchor = page(['Paid 21 March 2026', 'Date 21/03/2020 09:13', 'Total 5.00']);
-    const score = (doc: TextPage, now: Date) =>
-      suggestValues({ fields: [date('date', 'Date')], pages: [doc], locale: 'en', now }).date!.find(
-        (s) => s.value === '2020-03-21',
-      )!.score;
-    // 没有别的日期可比时按现在判断：2020 年在十年之内，合理（唯一 1 + 合理 1）；
-    // 有 2026 年时不合理（唯一 0.5 + 合理 0）。
-    const lone = page(['Date 21/03/2020 09:13', 'Total 5.00']);
-    expect(score(lone, NOW) - score(withAnchor, NOW)).toBeCloseTo(1.5, 5);
+  it('drops dates far from the other dates on the document (OCR read 2026 as 2012)', () => {
+    // 现在的 10 年窗口（2016-10 到 2027-10）里的日期直接合理，不看单据上别的日期（D-403：真日期不被一个假日期挤出窗口）；
+    // 窗口外的才拿单据上别的日期比：2012 年离 2026 年太远，不合理，分数比窗口内的少 1 分（「合理」占 1 分）。
+    const withAnchor = (year: string) =>
+      page(['Paid 21 March 2026', `Date 21/03/${year} 09:13`, 'Total 5.00']);
+    const score = (doc: TextPage, value: string) =>
+      suggestValues({
+        fields: [date('date', 'Date')],
+        pages: [doc],
+        locale: 'en',
+        now: NOW,
+      }).date!.find((s) => s.value === value)!.score;
+    expect(
+      score(withAnchor('2020'), '2020-03-21') - score(withAnchor('2012'), '2012-03-21'),
+    ).toBeCloseTo(1, 5);
   });
 });
 
@@ -276,7 +280,8 @@ describe('suggestValues: iOS simulator findings (2026-10-31)', () => {
         now: NOW,
         ...(picks ? { picks } : {}),
       });
-      expect(values(r, 'merchant')).toEqual(['LIGHTROOM GALLERY SDN BHD']);
+      // D-403：地址行不再被直接排除（带地址词的行在真店名里也占 8.6%），但店名始终排第一。
+      expect(values(r, 'merchant')[0]).toBe('LIGHTROOM GALLERY SDN BHD');
     }
   });
 });

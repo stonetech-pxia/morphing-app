@@ -1,7 +1,30 @@
 import type { Field, Locale } from '../schema';
 import { CONCEPTS, fieldTerms, type ConceptId, type ValueKind } from './concepts';
 import { looksTyped, pageOccurrences, type Occurrence, type TextPage } from './rows';
-import { charSim, isExcludedLabel, labelScore, norm, ratio } from './similarity';
+import { ctx } from './doc-context';
+import {
+  adjustTerms,
+  amountSet,
+  extraSumRow,
+  extraWholeNumbers,
+  isExcludedX,
+  isInvoiceText,
+  labelScoreX,
+  reorderTiedAmounts,
+  sellerLabelScore,
+  taxAddCheck,
+  taxRateCheck,
+} from './rules';
+import * as D from './rules-data';
+import {
+  cleanMerchant,
+  companyRow,
+  isTitleRow,
+  POWERED,
+  sellerClientName,
+  weakStore,
+} from './rules-text';
+import { charSim, norm, ratio } from './similarity';
 
 // 新记录表单的候选值（D-394）：每个空字段最多给 3 个候选，用户点了才填，从不自动填
 // （创始人 2026-10-31：「宁可不填，不能乱填」，两次测量都找不到 0 错的门槛）。
@@ -46,6 +69,8 @@ export const MAX_SUGGESTIONS = 3;
  * 95 → 90、日期 131 → 126。门槛 1.5 时 SROIE 金额只剩 80，2.0 会丢掉单独一个没标签的日期，都不用。
  */
 export const SUGGESTION_FLOOR = 1.25;
+/** 税额候选的最低分：税额多半有「税」字标签，没有标签的数靠巧合，不如不填。 */
+const TAX_FLOOR = 2;
 
 const GENERIC = [
   'receipt',
@@ -92,19 +117,15 @@ const GENERIC = [
 ].map(norm);
 const isGeneric = (n: string) =>
   GENERIC.some((g) => n === g || (n.includes(g) && n.length <= g.length + 4));
-const ADDRESS =
-  /\b(street|st|road|rd|jalan|jln|lorong|taman|avenue|ave|rue|bd|boulevard|no|lot|blok|block)\b|[路街号巷弄区]/i;
-/** 没有门牌字样也认得出的地址行：带逗号又有邮编（4–6 位数字），或者写了国家、州名（真实小票上排在店名前面过）。 */
-const ADDRESS_ONLY =
-  /(,.*\b\d{4,6}\b|\b\d{4,6}\b.*,)|\b(malaysia|singapore|selangor|johor|kuala lumpur|china|france|usa|united states|canada|australia|cedex)\b|中国|[省市县]/i;
-
-/** 位置分要是 0 的字：通用的单据字样、太短太长、地址、数字多、网址邮箱、看起来是别的种类。 */
+/**
+ * 位置分要是 0 的字：通用的单据字样、单据名（「收据」）、「Powered by」、太短太长、数字多、网址邮箱、看起来是别的种类。
+ * 不再按门牌、国家、州名字样排除地址行：测量里带地址词的行在真店名行里占 8.6%、在它上面的行里占 7.2%，分不开，直接排除是在丢真店名。
+ */
 function positionZero(text: string, locale: Locale): boolean {
   const n = norm(text);
   if (isGeneric(n)) return true;
+  if (isTitleRow(text) || POWERED.test(text)) return true;
   if (n.length <= 2 || text.split(/\s+/).length > 8 || text.length > 45) return true;
-  if (/\d/.test(text) && ADDRESS.test(text)) return true;
-  if (ADDRESS_ONLY.test(text)) return true;
   if ([...n].filter((c) => /\d/.test(c)).length > 0.3 * n.length) return true;
   if (/@|www\.|https?:|\.com\b/i.test(text)) return true;
   return looksTyped(text, locale);
@@ -162,11 +183,41 @@ interface Candidate {
   /** 没有记忆时的分：够不够格当候选。 */
   base: number;
   first: number;
+  /** 日期落在合理窗口里。 */
+  plaus?: boolean;
+}
+
+const NO_DECIMAL_CCY = ['JPY', 'KRW', 'IDR', 'VND', 'CLP'];
+/** 整份文字里的金额都写两位小数时，合计候选里写成整数的（订单号、数量、年份）扣 1 分（分和门槛都扣）。 */
+function demoteWholeNumbers(cands: Candidate[]): void {
+  const live = cands.filter((c) => c.score > 0 && Number.isFinite(Number(c.value)));
+  const decimalsOf = (o: Occurrence) => o.raw.replace(/[^\d.,]/g, '');
+  const hasDec = live.some((c) => c.occ.some((o) => /[.,]\d{2}$/.test(decimalsOf(o))));
+  if (!hasDec || NO_DECIMAL_CCY.includes(ctx.currency)) return;
+  for (const c of live) {
+    if (c.occ.every((o) => !/[.,]\d{1,2}$/.test(decimalsOf(o)))) {
+      c.score -= 1;
+      c.base -= 1;
+    }
+  }
+}
+
+/** 解析日期、金额的规则要用的上下文：币种、整份文字、现在的年份、是不是发票。 */
+export function setDocContext(input: SuggestInput): void {
+  ctx.nowYear = (input.now ?? new Date()).getUTCFullYear();
+  ctx.text = input.pages.flatMap((p) => p.lines.map((l) => l.text)).join('\n');
+  ctx.invoice = isInvoiceText(ctx.text);
+  ctx.currency =
+    (
+      input.fields.find((f) => f.type === 'money' && (f as { currency?: string }).currency) as
+        { currency?: string } | undefined
+    )?.currency ?? '';
 }
 
 /** 全部字段的候选（字段 ID → 按分从高到低，最多 3 个）。只给可以填的字段；空着的字段由调用方挑。 */
 export function suggestValues(input: SuggestInput): Record<string, ValueSuggestion[]> {
   const now = input.now ?? new Date();
+  setDocContext(input);
   const pages = input.pages.map((p, i) => pageOccurrences(p, i, input.locale));
   const occ = pages.flatMap((p) => p.occ);
   const rowText = (o: Occurrence) => pages[o.page]!.rows[o.row]?.text ?? '';
@@ -187,22 +238,44 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
 
   const out: Record<string, ValueSuggestion[]> = {};
   for (const field of input.fields) {
-    const { concept, keywords, exclude } = fieldTerms(field);
+    const terms = fieldTerms(field);
+    const concept = terms.concept;
+    // 合计、税额、店名的词表按规则补充；「Printed」不再是开票日的排除词（打印日期另外排到最后）。
+    const adjusted = adjustTerms(concept, terms.keywords, terms.exclude);
+    const keywords = adjusted.kw;
+    const exclude =
+      concept === 'issueDate' ? adjusted.ex.filter((e) => e !== 'printed') : adjusted.ex;
+    const scoreLabel = (label: string) => labelScoreX(concept, label, keywords, exclude);
+    const isExcluded = (label: string) => isExcludedX(concept, label, exclude);
     const want = wantOf(field, concept);
     if (!want) continue;
+    // 合计、税额再多找两种候选：标签后面的整数，和一排「A + B = C」里的数。
+    let occF = occ;
+    if (want === 'money' && (concept === 'amount' || concept === 'tax')) {
+      const extra = [
+        ...extraWholeNumbers(pages, scoreLabel, isExcluded),
+        ...extraSumRow(concept, pages, scoreLabel, isExcluded),
+      ];
+      if (extra.length) occF = occ.concat(extra);
+    }
     const longAhead = concept === 'dueDate' || concept === 'signDate';
+    // 日期合不合理：落在「现在」前 10 年到后 1 年里；不在时看单据自己的其他日期（单据的日子）。
+    // 其他日期里有落在窗口里的，只拿它们当参照（避免一个打印日期、有效期把参照拉歪）。
     const plausibleDate = (v: string) => {
       const t = day(v);
-      const others = anchors.filter((a) => a !== v).map(day);
-      if (others.length > 0)
-        return t >= Math.min(...others) - YEAR && t <= Math.max(...others) + 10 * YEAR;
       const n = now.getTime();
-      return t >= n - 10 * YEAR && t <= n + (longAhead ? 10 : 1) * YEAR;
+      const inWindow = (u: number) => u >= n - 10 * YEAR && u <= n + (longAhead ? 10 : 1) * YEAR;
+      if (inWindow(t)) return true;
+      const pool = anchors.filter((a) => a !== v);
+      const fresh = pool.filter((a) => inWindow(day(a)));
+      const others = (fresh.length > 0 ? fresh : pool).map(day);
+      if (others.length === 0) return false;
+      return t >= Math.min(...others) - YEAR && t <= Math.max(...others) + 10 * YEAR;
     };
 
     // 同一个值合并（金额按两位小数，日期连同读法，文字按统一写法）。
     const byKey = new Map<string, Candidate>();
-    for (const o of occ) {
+    for (const o of occF) {
       let value: string;
       let key: string;
       if (want === 'choice') {
@@ -214,7 +287,12 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
       } else if (o.kind !== want) continue;
       else if (want === 'text') {
         if (o.other || !textOk(o.value)) continue;
+        if (concept === 'merchant' && POWERED.test(rowText(o))) continue;
         value = o.value.trim();
+        if (concept === 'merchant') {
+          value = cleanMerchant(value);
+          if (!textOk(value)) continue;
+        }
         key = norm(value);
       } else if (want === 'money') {
         const n = Number(o.value);
@@ -246,8 +324,15 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
     const position = concept !== null && CONCEPTS[concept].position === true;
     for (const c of cands) {
       // 每一处都在排除词后面（小计、优惠、找零）的值不给：它们明白地不是这个字段要的。
-      if (c.occ.every((o) => isExcludedLabel(o.label, exclude))) continue;
-      const L = Math.max(...c.occ.map((o) => labelScore(o.label, keywords, exclude)));
+      if (c.occ.every((o) => isExcluded(o.label))) continue;
+      let L = Math.max(
+        ...c.occ.map((o) => scoreLabel(o.label) * (position && weakStore(o.label) ? 0.25 : 1)),
+      );
+      // 店名这类靠位置的字段：标签分不到 0.6 就当没有标签。上一排被当成标签时，一句标语和 store、shop
+      // 共享几个字母对也能拿到零点几分，再乘 3 就盖过位置分，把标语排到店名前面。
+      if (position && L < 0.6) L = 0;
+      // 发票：开票方的标签（Remit to、Supplier、From…）按整词给分。
+      if (ctx.invoice && position) L = Math.max(L, ...c.occ.map((o) => sellerLabelScore(o.label)));
       const U = 1 / n;
       let P = 1;
       if (want === 'money') {
@@ -296,20 +381,67 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
       c.score = want === 'text' && L === 0 && M === 0 && X === 0 ? 0 : 3 * L + 3 * M + U + P + X;
       c.base = want === 'text' && L === 0 && X0 === 0 ? 0 : 3 * L + U + P + X0;
       c.first = Math.min(...c.occ.map((o) => o.page * 10000 + o.row));
+      if (want === 'date') c.plaus = P === 1;
+      // 整份文字里一个税字样都没有，没有标签分的税额候选多半是别的数：扣 1 分（分和门槛都扣）。
+      if (concept === 'tax' && L === 0 && !D.TAX_WORD.test(ctx.text)) {
+        c.score -= 1;
+        c.base -= 1;
+      }
     }
-    cands.sort((a, b) => b.score - a.score || a.first - b.first);
+    if (want === 'money' && concept === 'amount') demoteWholeNumbers(cands);
+    if (concept === 'tax') {
+      const amounts = amountSet(occF);
+      taxRateCheck(cands, rowText, amounts);
+      taxAddCheck(cands, amounts);
+      // 分差不到 0.05 算同分，同分的税额取小的（大的多半是含税合计）。
+      cands.sort((a, b) =>
+        Math.abs(b.score - a.score) >= 0.05
+          ? b.score - a.score
+          : Number(a.value) - Number(b.value) || a.first - b.first,
+      );
+    } else cands.sort((a, b) => b.score - a.score || a.first - b.first);
+    if (concept === 'amount') {
+      const reordered = reorderTiedAmounts(cands);
+      cands.length = 0;
+      cands.push(...reordered);
+    }
+    if (concept === 'issueDate') {
+      // 「Printed」打印日期排到最后。
+      const isPrint = (c: Candidate) =>
+        c.occ.every((o) => {
+          const row = rowText(o);
+          const at = row.indexOf(o.raw);
+          return (
+            D.PRINT_WORD.test(o.label) ||
+            (at > 0 && D.PRINT_WORD.test(row.slice(Math.max(0, at - 30), at)))
+          );
+        });
+      const keep = cands.filter((c) => !isPrint(c));
+      const back = cands.filter(isPrint);
+      cands.length = 0;
+      cands.push(...keep, ...back);
+    }
+    // 税额的门槛高一些（2 分）：没有标签、也对不上税率和加法的数不当税额。
+    const floor = concept === 'tax' ? Math.max(SUGGESTION_FLOOR, TAX_FLOOR) : SUGGESTION_FLOOR;
+    // 低于门槛、但落在页面最上面四分之一、又是单独一排或带月份名的合理日期，也给。
+    const lowOk = (c: Candidate) =>
+      want === 'date' &&
+      c.plaus === true &&
+      c.occ.some(
+        (o) =>
+          o.page === 0 &&
+          o.relY <= 0.25 &&
+          (rowText(o).trim().length <= o.raw.trim().length + 3 || /[A-Za-z]{3}/.test(o.raw)),
+      );
     const list: ValueSuggestion[] = [];
     for (const c of cands) {
       if (list.length >= MAX_SUGGESTIONS) break;
-      if (c.base < SUGGESTION_FLOOR) continue;
+      if (c.base < floor && !lowOk(c)) continue;
       // 同一个值（例如两种读法里有一种和别处的日期一样）只留分最高的。
       if (list.some((s) => s.value === c.value)) continue;
       // 记下来的那一处：标签分最高的，其次最靠上的。
       const best = [...c.occ].sort(
-        (a, b) =>
-          labelScore(b.label, keywords, exclude) - labelScore(a.label, keywords, exclude) ||
-          a.page - b.page ||
-          a.row - b.row,
+        (a, b) => scoreLabel(b.label) - scoreLabel(a.label) || a.page - b.page || a.row - b.row,
       )[0]!;
       list.push({
         value: c.value,
@@ -320,6 +452,29 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
           ...(c.order ? { order: c.order } : {}),
         },
       });
+    }
+    if (concept === 'merchant') {
+      // 候选不到 3 个时，文字里只有一排带公司后缀（LLC、GmbH、株式会社…）的，补上它当最后一个。
+      if (list.length < 3) {
+        const hits: { text: string; relY: number }[] = [];
+        for (const pg of pages) for (const r of pg.rows) if (companyRow(r.text)) hits.push(r);
+        const only = hits.length === 1 ? hits[0]! : null;
+        const text = only ? cleanMerchant(only.text.trim()) : '';
+        if (only && textOk(text) && !list.some((s) => norm(s.value) === norm(text)))
+          list.push({
+            value: text,
+            score: 0,
+            pick: { label: '', relY: Math.round(only.relY * 1000) / 1000 },
+          });
+      }
+      // 发票表头「Seller: Client:」下面一排的第一格是卖方：排第一。
+      const name = sellerClientName(pages);
+      if (name && textOk(name.text)) {
+        const rest = list.filter((s) => norm(s.value) !== norm(name.text));
+        list.length = 0;
+        list.push({ value: name.text, score: 99, pick: { label: '', relY: name.relY } }, ...rest);
+        list.length = Math.min(list.length, MAX_SUGGESTIONS);
+      }
     }
     if (list.length > 0) out[field.id] = list;
   }

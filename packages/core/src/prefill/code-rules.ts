@@ -3,8 +3,16 @@ import { ruleCandidates } from './candidates';
 import { amountChain, amountNear } from './amount-chain';
 import { hasNoDecimals, rowHasDate, squash } from './check';
 import { conceptOf, type ConceptId } from './concepts';
-import { MAX_SUGGESTIONS, suggestValues, type SuggestInput, type ValueSuggestion } from './rank';
+import { resetDocContext } from './doc-context';
+import {
+  MAX_SUGGESTIONS,
+  setDocContext,
+  suggestValues,
+  type SuggestInput,
+  type ValueSuggestion,
+} from './rank';
 import { pageOccurrences } from './rows';
+import { NOT_ISSUE_DATE_LEFT, PRINT_WORD_LEFT } from './rules-data';
 import {
   BAD_DATE_ROW,
   DEPART_ROW,
@@ -137,6 +145,8 @@ function latestDate(
     const dates = ruleCandidates(row, locale).filter((c) => c.kind === 'date');
     const seen = new Set<number>();
     for (const c of dates) {
+      // 「Time printed : 28-OCT-20」这类打印日期不进最晚日期。
+      if (PRINT_WORD_LEFT.test(row.slice(Math.max(0, c.start - 30), c.start))) continue;
       if (seen.has(c.start)) continue;
       seen.add(c.start);
       const ambiguous = dates.some((o) => o.start === c.start && o.value !== c.value);
@@ -153,8 +163,31 @@ export const sameValue = (f: Field, a: string, b: string) =>
     ? Math.abs(Number(a) - Number(b)) < 0.005
     : squash(a) === squash(b);
 
+/**
+ * 这个日期（YYYY-MM-DD）在这一排里是不是只有有效期、退货期限这类日期：它左边 30 个字符里有 BAD_DATE_ROW 或
+ * 「有效期、return by、refund」之类的词。排里认不出这个值时按整排判断。
+ */
+function badLeft(row: string, value: string, locale: Locale): boolean {
+  const hits = ruleCandidates(row, locale).filter((c) => c.kind === 'date' && c.value === value);
+  if (hits.length === 0) return BAD_DATE_ROW.test(row);
+  return hits.every((c) => {
+    const left = row.slice(Math.max(0, c.start - 30), c.start);
+    return BAD_DATE_ROW.test(left) || NOT_ISSUE_DATE_LEFT.test(left);
+  });
+}
+
 /** 这份单据的规则结果和计划。 */
 export function planDocument(input: SuggestInput): DocumentPlan {
+  // 解析日期、金额的规则要知道币种、整份文字和「现在」；算完把上下文清掉，别让下一份文档用到这一份的。
+  setDocContext(input);
+  try {
+    return planDocumentInner(input);
+  } finally {
+    resetDocContext();
+  }
+}
+
+function planDocumentInner(input: SuggestInput): DocumentPlan {
   const pages = input.pages.map((p, i) => pageOccurrences(p, i, input.locale));
   const rows = pages.flatMap((p) => p.rows.map((r) => r.text));
   const scored = suggestValues(input);
@@ -192,9 +225,13 @@ export function planDocument(input: SuggestInput): DocumentPlan {
     let code: string | null | undefined;
     const noDecimals = hasNoDecimals(field);
     const extras: string[] = [];
+    // 排在打分第一个后面的算术结果（见下）。
+    const second: string[] = [];
     if (concept === 'issueDate') {
-      // 有效期、印制那排的日期不算。
-      list = list.filter((s) => rows.some((r) => !BAD_DATE_ROW.test(r) && rowHasDate(r, s.value)));
+      // 有效期、退货期限、印制那排的日期不算。
+      list = list.filter((s) =>
+        rows.some((r) => rowHasDate(r, s.value) && !badLeft(r, s.value, input.locale)),
+      );
       if (hotel) {
         const latest = latestDate(rows, input.locale);
         // 最晚的那个分不清日月：不算有把握，候选的先后交给规则打分（按语言）。
@@ -219,7 +256,15 @@ export function planDocument(input: SuggestInput): DocumentPlan {
       }
       const chain = amountChain(rows, noDecimals, input.locale);
       if (chain) {
-        extras.push(String(chain.value));
+        // 算术只靠明细求和（不是付款减找零）得出、规则打分里又没有这个数，而打分第一个的标签分 ≥ 3
+        // （标签明明白白写着合计）时，算术结果排第二，不抢第一个：错位的排版里「找零 7.00」会被当成总额。
+        if (
+          chain.how !== 'payMinusChange' &&
+          (list[0]?.score ?? 0) >= 3 &&
+          !list.some((s) => Math.abs(Number(s.value) - chain.value) < 0.005)
+        )
+          second.push(String(chain.value));
+        else extras.push(String(chain.value));
         const top = list[0]?.value;
         if (
           code === undefined &&
@@ -247,7 +292,11 @@ export function planDocument(input: SuggestInput): DocumentPlan {
     };
     if (code) add(list.find((s) => sameValue(field, s.value, code!)) ?? fromCode(code));
     for (const v of extras) add(list.find((s) => sameValue(field, s.value, v)) ?? fromCode(v));
-    for (const s of list) add(s);
+    list.forEach((s, i) => {
+      add(s);
+      if (i === 0) for (const v of second) add(fromCode(v));
+    });
+    if (list.length === 0) for (const v of second) add(fromCode(v));
 
     const memory = usesValueMemory(field) ? rememberedValue(input.known?.[field.id], rows) : null;
     return {

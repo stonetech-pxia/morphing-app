@@ -158,8 +158,13 @@ describe('酒店取最晚日期的判断（第 3 条）', () => {
   });
 
   it('真的酒店账单还是取最晚的', async () => {
-    const rows = ['Guest folio', 'Date 2026-03-01', 'Departure', 'Printed 2026-03-04'];
+    const rows = ['Guest folio', 'Date 2026-03-01', 'Departure', 'Closed 2026-03-04'];
     expect(await first(DATE, rows)).toBe('2026-03-04');
+  });
+
+  it('打印日期不进最晚日期（D-403）', async () => {
+    const rows = ['Guest folio', 'Date 2026-03-01', 'Departure', 'Time printed 2026-03-04'];
+    expect(await first(DATE, rows)).toBe('2026-03-01');
   });
 });
 
