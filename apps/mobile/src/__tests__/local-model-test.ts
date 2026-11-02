@@ -123,6 +123,7 @@ describe('本机模型（D-396）', () => {
     await session?.release();
     expect(mockInit.mock.calls[0]![0]).toMatchObject({
       model: `file:///${PREFILL_MODEL_PACK}/1.0.0/Qwen3.5-2B-Q4_K_M.gguf`,
+      no_extra_bufts: true,
       n_ctx: 4096,
       n_gpu_layers: 0,
     });

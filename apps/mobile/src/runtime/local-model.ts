@@ -71,6 +71,8 @@ export function openLocalModel(store: PackStore): OpenModel {
         n_gpu_layers: 0,
         devices: ['CPU'],
         no_gpu_devices: true,
+        // 权重不重排：不复制进匿名内存，留在系统能回收的文件映射里（Mac 上少约 1 GB，2800 格只变 3 格，D-402）。
+        no_extra_bufts: true,
         use_mlock: false,
       });
     } catch (e) {
