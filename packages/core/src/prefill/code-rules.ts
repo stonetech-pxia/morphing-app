@@ -10,14 +10,13 @@ import {
   DEPART_ROW,
   HOTEL_DOC,
   invoiceNoByKey,
-  mayHaveNumber,
   NOT_NO,
   stripNoPrefix,
   TRAVEL_DOC,
   upperAmount,
 } from './zh-rules';
 
-// 不用模型时每个字段的候选（D-394 的规则打分 + 算术 + 中文规则 + 值记忆），以及哪些字段代码有把握、不用问模型。
+// 每个字段的候选（D-394 的规则打分 + 算术 + 中文规则 + 值记忆），代码有把握的排第一个（D-399）。
 
 /**
  * 代码有把握的门槛（第一个候选的分 ≥ top，且比第二个高 ≥ gap）。测量时两折交叉定的、取更严的
@@ -32,37 +31,18 @@ const SURE: Partial<Record<ConceptId, { top: number; gap: number }>> = {
   tax: { top: 2.5, gap: 0 },
   destination: { top: 0, gap: 0 },
 };
-/** 规则一个候选都没有时，这些字段多半就是没有（单据上不一定印），不问模型。 */
-const EMPTY_IS_SURE: ReadonlySet<ConceptId> = new Set([
-  'number',
-  'tax',
-  'email',
-  'origin',
-  'destination',
-]);
-
-/**
- * 自由填写的字段：单据上没有它的值，问模型只会得到地址、电话这类没用的候选
- * （iOS 模拟器上 2026-11-01 看到的；D-394 也不给这种字段列候选）。
- */
-const FREE_NOTE = /^(备注|附注|说明|notes?|remarks?|comments?|remarques?|commentaires?)$/i;
-
 export interface FieldPlan {
   field: Field;
   /** 代码给的候选（好的在前），还没算值记忆。 */
   code: ValueSuggestion[];
   /** 这张表存过、这次文字里也有的值。 */
   remembered: ValueSuggestion | null;
-  /** 代码拿不准，要问模型。 */
-  ask: boolean;
 }
 
 export interface DocumentPlan {
   /** 整份文字，一排一个（按页接起来）。 */
   rows: string[];
   fields: FieldPlan[];
-  /** 不是规则打分给的值（算术、值记忆、模型）在哪一排；找不到时没有，不记。 */
-  pickOf(value: string): ValueSuggestion['pick'];
 }
 
 /** 这张表哪些字段用值记忆：店名、公司（别的字段的值换一张单据就不同了）。 */
@@ -189,7 +169,7 @@ export function planDocument(input: SuggestInput): DocumentPlan {
   const fields = input.fields.map((field): FieldPlan => {
     const concept = conceptOf(field);
     let list = scored[field.id] ?? [];
-    let code: string | null | undefined;
+    let code: string | undefined;
     const noDecimals = hasNoDecimals(field);
     const extras: string[] = [];
     if (concept === 'issueDate') {
@@ -236,10 +216,6 @@ export function planDocument(input: SuggestInput): DocumentPlan {
         code = top.value;
       else if (concept === 'phone') code = top.value;
     }
-    if (code === undefined && !top && concept && EMPTY_IS_SURE.has(concept)) {
-      // 文字里有单号的键名、代码又取不到值时是没把握，不是没有：要问模型。
-      if (concept !== 'number' || !mayHaveNumber(rows)) code = null;
-    }
 
     const merged: ValueSuggestion[] = [];
     const add = (s: ValueSuggestion) => {
@@ -254,35 +230,19 @@ export function planDocument(input: SuggestInput): DocumentPlan {
       field,
       code: merged,
       remembered: memory ? fromCode(memory) : null,
-      // 单选字段交给规则；不能填的字段（附件、勾选……）规则也不给候选。
-      ask:
-        code === undefined &&
-        !(concept === null && (field.type === 'note' || FREE_NOTE.test(field.name.trim()))) &&
-        (field.type === 'money' ||
-          field.type === 'number' ||
-          field.type === 'date' ||
-          field.type === 'text' ||
-          field.type === 'note'),
     };
   });
-  return { rows, fields, pickOf };
+  return { rows, fields };
 }
 
-/** 一个字段最后给的候选：值记忆 → 模型 → 代码，去重，最多 3 个。 */
-export function mergedSuggestions(
-  plan: FieldPlan,
-  model: readonly string[],
-  pickOf: DocumentPlan['pickOf'],
-): ValueSuggestion[] {
+/** 一个字段最后给的候选：值记忆 → 代码，去重，最多 3 个。 */
+export function mergedSuggestions(plan: FieldPlan): ValueSuggestion[] {
   const out: ValueSuggestion[] = [];
-  const known = plan.code;
   const add = (s: ValueSuggestion) => {
     if (out.length < MAX_SUGGESTIONS && !out.some((m) => sameValue(plan.field, m.value, s.value)))
       out.push(s);
   };
   if (plan.remembered) add(plan.remembered);
-  for (const v of model)
-    add(known.find((s) => sameValue(plan.field, s.value, v)) ?? withPick(v, pickOf(v)));
-  for (const s of known) add(s);
+  for (const s of plan.code) add(s);
   return out;
 }

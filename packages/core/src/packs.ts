@@ -42,10 +42,6 @@ const f = (path: string, url: string, size: number, sha256: string): PackFile =>
   sha256,
 });
 
-/** 新记录表单的本机模型（D-396）。 */
-export const PREFILL_MODEL_PACK = 'prefill-model';
-export const PREFILL_MODEL_FILE = 'Qwen3.5-0.8B-Q4_K_M.gguf';
-
 export const PACKS: readonly PackManifest[] = [
   {
     id: 'scan',
@@ -183,33 +179,6 @@ export const PACKS: readonly PackManifest[] = [
         `${PACK_HOST}layout/1.0.0/LICENSE`,
         11828,
         'b09c3d6924fd208c5d4f93791a89abfe6cb0d81d58e10a3d257be733c9a1e813',
-      ),
-    ],
-  },
-  {
-    // 新记录表单的本机模型（D-396）：Qwen3.5-0.8B（Hugging Face unsloth/Qwen3.5-0.8B-GGUF 提交 6ab4614 的 Q4_K_M）。
-    // 放在我们自己的 R2（见 PACK_HOST）；还没上传，等创始人确认（LICENSE 在 side-session-notes/prefill-model/pack-upload）。
-    id: PREFILL_MODEL_PACK,
-    version: '1.0.0',
-    name: { en: 'On-device model', zh: '本机模型', fr: 'Modèle sur l’appareil' },
-    description: {
-      en: 'Suggests more values when a new record has an attachment. It runs on this device; nothing leaves it (Qwen3.5-0.8B).',
-      zh: '新记录带附件时多给一些候选。在这台手机上运行，内容不出手机（Qwen3.5-0.8B）。',
-      fr: 'Propose plus de valeurs quand une nouvelle entrée a une pièce jointe. Il tourne sur cet appareil, rien n’en sort (Qwen3.5-0.8B).',
-    },
-    license: 'Apache-2.0 (Qwen/Qwen3.5-0.8B; GGUF by unsloth)',
-    files: [
-      f(
-        PREFILL_MODEL_FILE,
-        `${PACK_HOST}${PREFILL_MODEL_PACK}/1.0.0/${PREFILL_MODEL_FILE}`,
-        532517120,
-        'bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517',
-      ),
-      f(
-        'LICENSE',
-        `${PACK_HOST}${PREFILL_MODEL_PACK}/1.0.0/LICENSE`,
-        11544,
-        'bbedc3fda3305820b977265f01b8619d87570a6739de3a5582c3464840f1e57a',
       ),
     ],
   },

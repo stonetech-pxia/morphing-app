@@ -378,14 +378,6 @@ export const zh: MessageTable = {
   appConfigTitle: 'App 配置',
   appConfigHint: '页面、数据表的结构、快捷操作和提醒，存成一个文件。不含你的记录和文件。',
   exportAppConfig: '导出 App 配置',
-  localModelTitle: '本机模型',
-  localModelHint:
-    '下载以后，新记录带附件时，也会问一个在这台手机上运行的小模型，人名和金额的候选更准一些。不下载也有候选，只用规则。内容不出手机。',
-  localModelTooSmall: '这台手机内存不够，用不了本机模型。候选只用规则。',
-  localModelReady: '已下载（{size}）',
-  localModelDownload: '下载',
-  localModelRemove: '删除',
-  localModelRemoveConfirm: '删除本机模型？候选回到只用规则，记录都还在，以后可以再下载。',
   prefillMemoryTitle: '预填记忆',
   prefillMemoryHint:
     '「记一笔」时，Morph 会记住你保存过的单据版式：值跟在哪个标签后面、大约在哪一行、商家名，不记金额和日期。只在这台手机上，不发给 AI。导出的文件也是备份，可以用「从文件恢复」放回来。新记录表单里点过的候选也会记住：每个字段跟在哪个标签后面、大约在哪个位置，不记值。',

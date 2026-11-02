@@ -41,7 +41,6 @@
     },
     "plugins": [
       "expo-router",
-      "llama.rn",
       [
         "expo-splash-screen",
         {
@@ -88,7 +87,6 @@
           "androidMultiIntentFilters": ["image/*", "video/*", "audio/*", "application/*"]
         }
       ],
-      "./plugins/with-llama-from-source",
       [
         "./plugins/with-share-extension",
         {

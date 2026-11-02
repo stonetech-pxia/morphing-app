@@ -2,96 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import type { Field } from '../schema';
 import { amountChain } from './amount-chain';
-import { checkAnswer, keepForModel } from './check';
 import { knownValues, planDocument } from './code-rules';
-import { modelAnswers } from './model';
 import { invoiceNoByKey, stripNoPrefix, upperAmount, upperToNumber } from './zh-rules';
 
 const AMOUNT: Field = { id: 'amount', name: 'Amount', type: 'money', currency: 'MYR' };
-const IDR: Field = { id: 'amount', name: 'Amount', type: 'money', currency: 'IDR' };
-const TAX: Field = { id: 'tax', name: 'Tax', type: 'money', currency: 'USD' };
-const DATE: Field = { id: 'date', name: 'Date', type: 'date' };
-const DUE: Field = { id: 'due', name: 'Due date', type: 'date' };
 const MERCHANT: Field = { id: 'merchant', name: 'Merchant', type: 'text' };
-const NUMBER: Field = { id: 'no', name: 'Number', type: 'text' };
-const EMAIL: Field = { id: 'mail', name: 'Email', type: 'text' };
-
-describe('核对模型的回答（D-396）', () => {
-  it('文字里没有的值丢掉', () => {
-    expect(checkAnswer(MERCHANT, 'Starbucks', ['Acme Coffee'], 'en')).toBeNull();
-    expect(checkAnswer(AMOUNT, '99.00', ['Total 12.50'], 'en')).toBeNull();
-    expect(checkAnswer(DATE, '2026-01-02', ['Total 12.50'], 'en')).toBeNull();
-  });
-
-  it('null、空回答丢掉', () => {
-    expect(checkAnswer(MERCHANT, 'null', ['null'], 'en')).toBeNull();
-    expect(checkAnswer(MERCHANT, '  ', ['x'], 'en')).toBeNull();
-  });
-
-  it('付款、找零那一排的数不是金额；有合计排时金额要在合计排；金额不能是 0', () => {
-    const rows = ['Total 12.50', 'Cash 20.00', 'Change 7.50'];
-    expect(checkAnswer(AMOUNT, '20.00', rows, 'en')).toBeNull();
-    expect(checkAnswer(AMOUNT, '12.50', rows, 'en')).toBe('12.5');
-    expect(checkAnswer(AMOUNT, '5.00', ['Coffee 5.00', 'Total 12.50'], 'en')).toBeNull();
-    expect(checkAnswer(AMOUNT, '0.00', ['Rounding 0.00'], 'en')).toBeNull();
-  });
-
-  it('税要在有税字样的那一排', () => {
-    expect(checkAnswer(TAX, '1.20', ['Coffee 1.20'], 'en')).toBeNull();
-    expect(checkAnswer(TAX, '1.20', ['GST 6% 1.20'], 'en')).toBe('1.2');
-  });
-
-  it('印尼盾的 .00 不是小数', () => {
-    expect(checkAnswer(IDR, '31.000,00', ['Total 31.000,00'], 'en')).toBe('31000');
-  });
-
-  it('有效期那排的日期不是单据日期，但可以是到期日', () => {
-    const rows = ['本票据使用至 2021-12-31'];
-    expect(checkAnswer(DATE, '2021-12-31', rows, 'zh')).toBeNull();
-    expect(checkAnswer(DUE, '2021-12-31', rows, 'zh')).toBe('2021-12-31');
-  });
-
-  it('日期按另一种日月读法也算读得出', () => {
-    expect(checkAnswer(DATE, '2026-03-04', ['Date 04/03/2026'], 'en')).toBe('2026-03-04');
-    expect(checkAnswer(DATE, '2026-04-03', ['Date 04/03/2026'], 'en')).toBe('2026-04-03');
-  });
-
-  it('单号：流水号那排不要，像金额或商品的不要，地址不要，NO 前缀去掉', () => {
-    expect(checkAnswer(NUMBER, '77001234', ['业务流水号 77001234'], 'zh')).toBeNull();
-    expect(checkAnswer(NUMBER, '1,234.50', ['No 1,234.50'], 'en')).toBeNull();
-    expect(checkAnswer(NUMBER, '12号', ['No 12号'], 'zh')).toBeNull();
-    expect(checkAnswer(NUMBER, 'NO8039067', ['票据号 NO8039067'], 'zh')).toBe('8039067');
-  });
-
-  it('半截店名补全成整排；别的标签那一排、地址、标签本身都不要', () => {
-    expect(checkAnswer(MERCHANT, 'Acme', ['Acme Coffee Bar'], 'en')).toBe('Acme Coffee Bar');
-    expect(checkAnswer(MERCHANT, 'Sam', ['Cashier: Sam'], 'en')).toBeNull();
-    expect(checkAnswer(MERCHANT, 'Jalan Besar', ['Jalan Besar'], 'en')).toBeNull();
-    expect(checkAnswer(MERCHANT, 'Merchant', ['Merchant'], 'en')).toBeNull();
-  });
-
-  it('邮箱要有 @', () => {
-    expect(checkAnswer(EMAIL, 'acme.com', ['acme.com'], 'en')).toBeNull();
-    expect(checkAnswer(EMAIL, 'a@acme.com', ['a@acme.com'], 'en')).toBe('a@acme.com');
-  });
-
-  it('一次回答里的几个候选分别核对，去重，最多 3 个', () => {
-    const rows = ['Acme', 'Beta', 'Gamma', 'Delta'];
-    expect(modelAnswers(MERCHANT, 'Acme | Fake | Acme | Beta', rows, 'en')).toEqual([
-      'Acme',
-      'Beta',
-    ]);
-    expect(modelAnswers(MERCHANT, 'Acme | Beta | Gamma | Delta', rows, 'en').length).toBe(3);
-  });
-
-  it('误导排不给模型看，有合计字样的排留着', () => {
-    expect(keepForModel('Tel: 012345')).toBe(false);
-    expect(keepForModel('Thank you')).toBe(false);
-    expect(keepForModel('现金 50.00')).toBe(false);
-    expect(keepForModel('Total Cash 50.00')).toBe(true);
-    expect(keepForModel('Acme Coffee')).toBe(true);
-  });
-});
 
 describe('算术找总额', () => {
   it('付款 − 找零', () => {

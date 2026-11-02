@@ -79,25 +79,6 @@ describe('预填引擎（D-398）', () => {
     expect(result.current.suggestions).toEqual({});
   });
 
-  it('引擎分两步（D-398）：先给的立刻显示、不再显示正在读，后来的补上', async () => {
-    let finish: ((s: FieldSuggestions) => void) | undefined;
-    const { result } = await open(
-      (_input, _signal, onPartial) =>
-        new Promise((resolve) => {
-          onPartial?.(FOUND);
-          finish = resolve;
-        }),
-    );
-    await waitFor(() => expect(result.current.suggestions).toEqual(FOUND));
-    // 引擎还没结束，但「正在读」那一行已经收起来：它晚收起来，下面的字段会在用户点了以后往上跳（D-388）。
-    expect(result.current.working).toBe(false);
-    const later: FieldSuggestions = {
-      total: [{ value: '7', score: 0, pick: { label: '', relY: 0 } }, ...FOUND.total!],
-    };
-    await act(async () => finish!(later));
-    expect(result.current.suggestions).toEqual(later);
-  });
-
   it('在文字里找不到位置的候选：点了也不记，字段原来的记忆还在', async () => {
     const good = { label: 'Total', relY: 0.5 };
     await mockContext.repo!.setMeta(
@@ -111,26 +92,6 @@ describe('预填引擎（D-398）', () => {
     await act(async () => undefined);
     const stored = parsePickStore(await mockContext.repo!.getMeta(PICK_STORE_KEY));
     expect(stored.c?.total).toEqual(good);
-  });
-
-  it('点过候选的字段（D-388）：后来的结果不再动它的候选，别的字段照常补', async () => {
-    const one = (id: string, value: string): FieldSuggestions[string] => [
-      { value, score: 1, pick: { label: id, relY: 0.5 } },
-    ];
-    let push: ((s: FieldSuggestions) => void) | undefined;
-    const first: FieldSuggestions = { total: one('t', '42') };
-    const { result } = await open(
-      (_input, _signal, onPartial) =>
-        new Promise(() => {
-          push = onPartial;
-          onPartial?.(first);
-        }),
-    );
-    await waitFor(() => expect(result.current.suggestions).toEqual(first));
-    await act(async () => result.current.remember('total', first.total![0]!));
-    const later: FieldSuggestions = { total: one('t', '99'), other: one('o', 'x') };
-    await act(async () => push!(later));
-    expect(result.current.suggestions).toEqual({ total: first.total, other: later.other });
   });
 
   it('引擎拿到这张表存过的店名（现查记录，只读）', async () => {
