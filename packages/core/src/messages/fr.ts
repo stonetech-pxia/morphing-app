@@ -421,6 +421,16 @@ export const fr: MessageTable = {
   appConfigHint:
     'Pages, structure des tableaux, actions rapides et rappels, dans un seul fichier. Vos entrées et vos fichiers n’y sont pas.',
   exportAppConfig: 'Exporter la configuration de l’app',
+  localModelTitle: 'Modèle sur l’appareil',
+  localModelHint:
+    'Une fois téléchargé, les nouvelles entrées avec une pièce jointe reçoivent aussi des valeurs d’un petit modèle qui tourne sur ce téléphone, surtout utile pour les noms et les montants. Sans lui, les suggestions fonctionnent avec les règles seules. Rien ne quitte ce téléphone.',
+  localModelTooSmall:
+    'Ce téléphone n’a pas assez de mémoire pour le modèle. Les suggestions utilisent les règles seules.',
+  localModelReady: 'Téléchargé ({size})',
+  localModelDownload: 'Télécharger',
+  localModelRemove: 'Supprimer',
+  localModelRemoveConfirm:
+    'Supprimer le modèle sur l’appareil ? Les suggestions reviennent aux règles seules. Vos entrées restent. Vous pourrez le télécharger de nouveau.',
   prefillMemoryTitle: 'Mémoire de pré-remplissage',
   prefillMemoryHint:
     'Quand vous ajoutez une entrée, Morph retient la mise en page des documents enregistrés : après quelle étiquette se trouve une valeur, à peu près sur quelle ligne, et le nom du commerce. Les montants et les dates ne sont pas conservés. Stockée uniquement sur ce téléphone, jamais envoyée à l’IA. Le fichier exporté sert aussi de sauvegarde : « Restaurer depuis un fichier » la remet en place. Dans le formulaire d’une nouvelle entrée, Morph retient aussi la suggestion choisie pour chaque champ : l’étiquette qui la précède et sa position approximative, pas la valeur.',

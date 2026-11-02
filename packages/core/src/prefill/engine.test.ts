@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Field } from '../schema';
-import { ruleEngine, type FieldSuggestions } from './engine';
+import { modelEngine, ruleEngine, type FieldSuggestions } from './engine';
+import { MODEL_LIMITS, type ModelRequest, type OpenModel } from './model';
 import { suggestValues } from './rank';
 
 const fields: Field[] = [
@@ -132,5 +133,217 @@ describe('规则引擎（D-398）', () => {
     const rows = ['Total 1.00', 'Total 2.00', 'Total 3.00', 'Total 4.00', 'Total 5.00'];
     const out = await ruleEngine({ fields: [AMOUNT], pages: [pageOf(rows)], locale: 'en', now });
     expect(out.total!.length).toBeLessThanOrEqual(3);
+  });
+});
+
+/** 假的模型：按字段名回答；记下问过哪些、有没有释放。 */
+function fakeModel(
+  answers: Record<string, string>,
+  extra: { failOpen?: boolean; hang?: boolean; hangOpen?: boolean } = {},
+) {
+  const asked: ModelRequest[] = [];
+  const state = { released: 0, opened: 0 };
+  const open: OpenModel = async () => {
+    state.opened++;
+    if (extra.failOpen) throw new Error('load failed');
+    if (extra.hangOpen) await new Promise(() => undefined);
+    return {
+      generate: async (req) => {
+        asked.push(req);
+        if (extra.hang) await new Promise(() => undefined);
+        const name = Object.keys(answers).find((n) => req.prompt.includes(`Field "${n}"`));
+        return name ? answers[name]! : 'null';
+      },
+      release: async () => {
+        state.released++;
+      },
+    };
+  };
+  return { open, asked, state };
+}
+
+describe('本机模型引擎（D-396、D-398）', () => {
+  const rows = ['Bought at', 'Acme Coffee', 'Cafe Royal', 'Total 12.50'];
+  const input = {
+    fields: [MERCHANT, AMOUNT],
+    pages: [pageOf(rows)],
+    locale: 'en' as const,
+    now,
+  };
+
+  it('先给规则的候选，模型的到了再补，模型的排在前面', async () => {
+    const m = fakeModel({ Merchant: 'Cafe Royal | Acme Coffee' });
+    const partial: FieldSuggestions[] = [];
+    const out = await modelEngine(m.open)(input, undefined, (s) => partial.push(s));
+    expect(partial.length).toBeGreaterThanOrEqual(1);
+    // 第一次：模型还没开始问
+    expect(partial[0]).toEqual(await ruleEngine(input));
+    expect(values(out, 'merchant').slice(0, 2)).toEqual(['Cafe Royal', 'Acme Coffee']);
+    expect(m.state.released).toBe(1);
+  });
+
+  it('模型编的值（文字里没有）丢掉', async () => {
+    const m = fakeModel({ Merchant: 'Starbucks | Cafe Royal' });
+    const out = await modelEngine(m.open)(input);
+    expect(values(out, 'merchant')).not.toContain('Starbucks');
+    expect(values(out, 'merchant')[0]).toBe('Cafe Royal');
+  });
+
+  it('代码有把握的字段不问模型，单选字段不问模型', async () => {
+    const m = fakeModel({});
+    const rowsSure = ['Coffee 12.00', 'Cake 8.00', 'Total 20.00', 'Cash 50.00', 'Change 30.00'];
+    await modelEngine(m.open)({
+      fields: [
+        AMOUNT,
+        { id: 'kind', name: 'Kind', type: 'choice', options: [{ id: 'a', label: 'Coffee' }] },
+      ],
+      pages: [pageOf(rowsSure)],
+      locale: 'en',
+      now,
+    });
+    expect(m.asked).toEqual([]);
+    // 什么都不用问就不加载模型
+    expect(m.state.opened).toBe(0);
+  });
+
+  it('备注这种自由填写的字段不问模型（D-394：不列地址、电话这类没用的候选）', async () => {
+    const m = fakeModel({});
+    await modelEngine(m.open)({
+      fields: [
+        { id: 'note', name: '备注', type: 'text' },
+        { id: 'memo', name: 'Notes', type: 'note' },
+        { id: 'who', name: 'Payer', type: 'text' },
+      ],
+      pages: [pageOf(rows)],
+      locale: 'en',
+      now,
+    });
+    expect(m.asked.map((r) => /Field "([^"]+)"/.exec(r.prompt)![1])).toEqual(['Payer']);
+  });
+
+  it('有误导字样的排不进给模型的文字，合计排留着', async () => {
+    const m = fakeModel({});
+    await modelEngine(m.open)({
+      fields: [MERCHANT],
+      pages: [pageOf(['Acme', 'Tel: 012345', 'Discount 1.00', 'Total 5.00', 'Thank you'])],
+      locale: 'en',
+      now,
+    });
+    const prompt = m.asked[0]!.prompt;
+    expect(prompt).toContain('Acme');
+    expect(prompt).toContain('Total 5.00');
+    expect(prompt).not.toContain('Tel:');
+    expect(prompt).not.toContain('Discount');
+    expect(prompt).not.toContain('Thank you');
+  });
+
+  it('请求是逐字段的：温度 0、seed 42、最多 120 个 token、限制形状的语法、同一个前缀', async () => {
+    const m = fakeModel({});
+    await modelEngine(m.open)({
+      fields: [MERCHANT, { id: 'who', name: 'Payer', type: 'text' }],
+      pages: [pageOf(rows)],
+      locale: 'en',
+      now,
+    });
+    expect(m.asked.length).toBe(2);
+    expect(m.asked[0]).toMatchObject({ temperature: 0, seed: 42, nPredict: 120 });
+    expect(m.asked[0]!.grammar).toContain('root ::= "null"');
+    const cut = m.asked[0]!.prompt.indexOf('Field "');
+    expect(m.asked[1]!.prompt.startsWith(m.asked[0]!.prompt.slice(0, cut))).toBe(true);
+    // 关掉 thinking
+    expect(m.asked[0]!.prompt.endsWith('<think>\n\n</think>\n\n')).toBe(true);
+  });
+
+  it('文字太长时截断，问题和前后两头都在', async () => {
+    const m = fakeModel({});
+    const long = Array.from({ length: 3000 }, (_, i) => `item number ${i}`);
+    await modelEngine(m.open)({
+      fields: [MERCHANT],
+      pages: [pageOf(['Head Shop', ...long, 'Tail Row'])],
+      locale: 'en',
+      now,
+    });
+    const prompt = m.asked[0]!.prompt;
+    expect(prompt.length).toBeLessThan(MODEL_LIMITS.textChars + 1500);
+    expect(prompt).toContain('Head Shop');
+    expect(prompt).toContain('Tail Row');
+    expect(prompt).toContain('Field "Merchant"');
+  });
+
+  it.each([
+    ['没装或内存不够（open 给 null）', async () => null],
+    [
+      '加载失败',
+      async () => {
+        throw new Error('no');
+      },
+    ],
+  ] as [string, OpenModel][])('%s：安静退回只有规则', async (_name, open) => {
+    await expect(modelEngine(open)(input)).resolves.toEqual(await ruleEngine(input));
+  });
+
+  it('生成失败：安静退回，已经有的留着，模型也释放', async () => {
+    let released = 0;
+    const open: OpenModel = async () => ({
+      generate: async () => {
+        throw new Error('boom');
+      },
+      release: async () => {
+        released++;
+      },
+    });
+    await expect(modelEngine(open)(input)).resolves.toEqual(await ruleEngine(input));
+    expect(released).toBe(1);
+  });
+
+  it('取消：生成卡住时 Promise 也结束，模型释放', async () => {
+    const m = fakeModel({}, { hang: true });
+    const abort = new AbortController();
+    const run = modelEngine(m.open)(input, abort.signal);
+    await new Promise((r) => setTimeout(r, 5));
+    expect(m.asked.length).toBe(1);
+    abort.abort();
+    await expect(run).resolves.toBeDefined();
+    expect(m.state.released).toBe(1);
+  });
+
+  it('取消：加载卡住时 Promise 也结束', async () => {
+    const m = fakeModel({}, { hangOpen: true });
+    const abort = new AbortController();
+    const run = modelEngine(m.open)(input, abort.signal);
+    await new Promise((r) => setTimeout(r, 5));
+    abort.abort();
+    await expect(run).resolves.toBeDefined();
+  });
+
+  it('加载比取消晚回来：回来以后也释放', async () => {
+    let finish: (() => void) | undefined;
+    let released = 0;
+    const open: OpenModel = () =>
+      new Promise((resolve) => {
+        finish = () =>
+          resolve({
+            generate: async () => 'null',
+            release: async () => {
+              released++;
+            },
+          });
+      });
+    const abort = new AbortController();
+    const run = modelEngine(open)(input, abort.signal);
+    await new Promise((r) => setTimeout(r, 5));
+    abort.abort();
+    await run;
+    finish!();
+    await new Promise((r) => setTimeout(r, 5));
+    expect(released).toBe(1);
+  });
+
+  it('超时：一个字段卡住，退回规则，不再问别的字段', async () => {
+    const m = fakeModel({}, { hang: true });
+    const out = await modelEngine(m.open, { ...MODEL_LIMITS, callMs: 10 })(input);
+    expect(out).toEqual(await ruleEngine(input));
+    expect(m.asked.length).toBe(1);
+    expect(m.state.released).toBe(1);
   });
 });

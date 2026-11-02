@@ -8,7 +8,7 @@ import { charSim, isExcludedLabel, labelScore, norm, ratio } from './similarity'
 // 打分照搬测量的变体 A（side-session-notes/prefill-ranking/scripts/score.py）：
 //   3·标签 + 3·记忆 + 1·唯一 + 1·合理 + 1·位置，每项 0..1。
 // 不用向量模型，全部在本机；识别出的文字、文件名和记录都不发给云端 AI。这里只有规则打分：
-// 算术、中文规则、值记忆在 code-rules.ts。
+// 算术、中文规则、值记忆在 code-rules.ts，本机模型（D-396）在 model.ts。
 
 /** 用户点过的候选：这张表这个字段上次点的是哪个标签后面、页面上多高的值（不记值）。 */
 export interface FieldPick {
@@ -159,6 +159,8 @@ interface Candidate {
   occ: Occurrence[];
   order?: 'DMY' | 'MDY';
   score: number;
+  /** 没有记忆时的分：够不够格当候选。 */
+  base: number;
   first: number;
 }
 
@@ -234,6 +236,7 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
           occ: [o],
           ...(o.dateOrder ? { order: o.dateOrder } : {}),
           score: 0,
+          base: 0,
           first: 0,
         });
     }
@@ -271,6 +274,8 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
         }
       }
       let X = 0;
+      // 没有记忆时的位置分：够不够格当候选只看这个，记忆只调整顺序（别的店点过的位置不能带来新候选）。
+      let X0 = 0;
       if (position) {
         for (const o of c.occ) {
           if (
@@ -279,6 +284,7 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
             positionZero(rowText(o), input.locale)
           )
             continue;
+          if (o.page === 0 && o.row < 3) X0 = Math.max(X0, (3 - o.row) / 3);
           if (pick) {
             // 记住的位置代替「最上面三排」。
             if (!pick.label) X = Math.max(X, Math.max(0, 1 - Math.abs(o.relY - pick.relY) / 0.1));
@@ -288,12 +294,14 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
       // 文字字段只靠「唯一」和「合理」不够：标签、记忆、位置一样都不沾边的排不给（「备注」「事由」
       // 下面列出店名、地址这类没用的候选，iOS 模拟器上 2026-10-31 发现）。
       c.score = want === 'text' && L === 0 && M === 0 && X === 0 ? 0 : 3 * L + 3 * M + U + P + X;
+      c.base = want === 'text' && L === 0 && X0 === 0 ? 0 : 3 * L + U + P + X0;
       c.first = Math.min(...c.occ.map((o) => o.page * 10000 + o.row));
     }
     cands.sort((a, b) => b.score - a.score || a.first - b.first);
     const list: ValueSuggestion[] = [];
     for (const c of cands) {
-      if (c.score < SUGGESTION_FLOOR || list.length >= MAX_SUGGESTIONS) break;
+      if (list.length >= MAX_SUGGESTIONS) break;
+      if (c.base < SUGGESTION_FLOOR) continue;
       // 同一个值（例如两种读法里有一种和别处的日期一样）只留分最高的。
       if (list.some((s) => s.value === c.value)) continue;
       // 记下来的那一处：标签分最高的，其次最靠上的。
