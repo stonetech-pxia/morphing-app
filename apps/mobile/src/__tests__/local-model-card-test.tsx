@@ -76,12 +76,20 @@ describe('本机模型的设置项（D-396）', () => {
     alert.mockRestore();
   });
 
-  it('内存不够：不给下载', async () => {
+  it('内存不够又没装：完全不提本机模型', async () => {
     fakeStore(false);
     mockFits = false;
     await show();
+    expect(screen.queryByTestId('local-model')).toBeNull();
     expect(screen.queryByTestId('local-model-download')).toBeNull();
-    expect(screen.getByTestId('local-model')).toBeTruthy();
+  });
+
+  it('内存不够但装过（例如恢复了备份）：只能删除', async () => {
+    fakeStore(true);
+    mockFits = false;
+    await show();
+    expect(screen.getByTestId('local-model-remove')).toBeTruthy();
+    expect(screen.queryByTestId('local-model-download')).toBeNull();
   });
 
   it('没配置下载地址又没装：不提示；装好的还能删', async () => {
