@@ -30,9 +30,10 @@ export function LocalModelCard({ palette, locale }: { palette: Palette; locale: 
     };
   }, [packs]);
 
-  if (!packs || (!ready && !process.env.EXPO_PUBLIC_MORPH_PACKS_URL)) return null;
-
   const fits = deviceFitsLocalModel();
+  // 内存明显不够的手机不推荐下载，也不提这件事（创始人 2026-11-02）；装过的还要能删。
+  if (!packs || (!ready && (!fits || !process.env.EXPO_PUBLIC_MORPH_PACKS_URL))) return null;
+
   const bytes = packById(PREFILL_MODEL_PACK)?.files.reduce((sum, f) => sum + f.size, 0) ?? 0;
   const remove = () =>
     Alert.alert(t(locale, 'localModelRemove'), t(locale, 'localModelRemoveConfirm'), [
@@ -65,14 +66,14 @@ export function LocalModelCard({ palette, locale }: { palette: Palette; locale: 
               label={t(locale, 'localModelRemove')}
               onPress={remove}
             />
-          ) : fits ? (
+          ) : (
             <Pill
               palette={palette}
               testID="local-model-download"
               label={t(locale, 'localModelDownload')}
               onPress={() => setAsking(true)}
             />
-          ) : null}
+          )}
         </View>
       </Card>
       {asking ? (
