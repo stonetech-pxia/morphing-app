@@ -371,3 +371,56 @@ describe('去标签（第 10 条）', () => {
     );
   });
 });
+
+describe('点选记忆只调整顺序，不放进新候选', () => {
+  // 手机上发现的真实小票（SROIE）：点过第一个候选以后，多出了地址和 0.00、4.00。
+  const page = {
+    width: 736,
+    height: 1248,
+    lines: (
+      [
+        ['TSH POWER HARDWÀRE', 125, 174, 493, 48],
+        ['TRADING', 274, 224, 195, 42],
+        ['002458685-T', 284, 271, 177, 31],
+        ['13-1, Jalan PJU 5/10,', 221, 307, 299, 42],
+        ['Dataran Sunway, Kota Damansara,', 131, 345, 481, 42],
+        ['47810, Petaling Jaya, Selangor', 157, 383, 428, 43],
+        ['Tel:012-373 2096', 245, 422, 254, 38],
+        ['TAX INVOICE', 266, 462, 210, 35],
+        ['Date', 41, 590, 72, 39],
+        ['10/10/2017 4:22:12 PM', 241, 593, 333, 37],
+        ['1 MAJESTA HSS', 54, 707, 210, 36],
+        ['4.00', 455, 707, 73, 38],
+        ['2', 380, 708, 29, 36],
+        ['8.00 SR+', 593, 707, 137, 38],
+        ['Sub Total:', 300, 833, 148, 39],
+        ['8.00', 594, 836, 70, 34],
+        ['Round Amt:', 277, 871, 172, 39],
+        ['0.00', 594, 874, 70, 34],
+        ['NET TOTAL :', 183, 912, 264, 45],
+        ['8.00', 578, 913, 104, 45],
+        ['Cash Received :', 206, 968, 218, 34],
+        ['8.00', 593, 967, 72, 37],
+      ] as [string, number, number, number, number][]
+    ).map(([text, x, y, width, height]) => ({ text, x, y, width, height })),
+  };
+  const fields = [MERCHANT, AMOUNT];
+  const input = { fields, pages: [page], locale: 'en' as const, now };
+  const values = (o: Awaited<ReturnType<typeof ruleEngine>>, id: string) =>
+    (o[id] ?? []).map((s) => s.value);
+
+  it('点过以后，候选还是没点过时那些', async () => {
+    const before = await ruleEngine(input);
+    const picks = { merchant: before.merchant![0]!.pick!, total: before.total![0]!.pick! };
+    const after = await ruleEngine({ ...input, picks });
+    expect(values(after, 'merchant').sort()).toEqual(values(before, 'merchant').sort());
+    expect(values(after, 'total').sort()).toEqual(values(before, 'total').sort());
+  });
+
+  it('记忆还能决定先后：点过第二个，下次它排第一', async () => {
+    const before = await ruleEngine(input);
+    const second = before.merchant![1]!;
+    const after = await ruleEngine({ ...input, picks: { merchant: second.pick! } });
+    expect(after.merchant![0]!.value).toBe(second.value);
+  });
+});
