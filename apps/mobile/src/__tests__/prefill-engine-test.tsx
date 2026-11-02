@@ -1,5 +1,13 @@
-import type { Collection, FieldSuggestions, PrefillEngine } from '@morph/core';
-import { renderHook, waitFor } from '@testing-library/react-native';
+import {
+  parsePickStore,
+  PICK_STORE_KEY,
+  putPick,
+  serializePickStore,
+  type Collection,
+  type FieldSuggestions,
+  type PrefillEngine,
+} from '@morph/core';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { useFieldSuggestions } from '../data/field-suggestions';
 import { MemoryWorkspaceRepo } from '../storage/memory';
@@ -69,6 +77,47 @@ describe('预填引擎（D-398）', () => {
     });
     await waitFor(() => expect(result.current.working).toBe(false));
     expect(result.current.suggestions).toEqual({});
+  });
+
+  it('在文字里找不到位置的候选：点了也不记，字段原来的记忆还在', async () => {
+    const good = { label: 'Total', relY: 0.5 };
+    await mockContext.repo!.setMeta(
+      PICK_STORE_KEY,
+      serializePickStore(putPick(parsePickStore(null), 'c', 'total', good)),
+    );
+    const found: FieldSuggestions = { total: [{ value: '7', score: 0 }] };
+    const { result } = await open(async () => found);
+    await waitFor(() => expect(result.current.suggestions).toEqual(found));
+    await act(async () => result.current.remember('total', found.total![0]!));
+    await act(async () => undefined);
+    const stored = parsePickStore(await mockContext.repo!.getMeta(PICK_STORE_KEY));
+    expect(stored.c?.total).toEqual(good);
+  });
+
+  it('引擎拿到这张表存过的店名（现查记录，只读）', async () => {
+    const merchant: Collection = {
+      id: 'c',
+      name: 'Receipts',
+      fields: [
+        { id: 'shop', name: 'Merchant', type: 'text' },
+        { id: 'files', name: 'Attachments', type: 'file' },
+      ],
+    };
+    await mockContext.repo!.insertRecord({
+      id: 'r1',
+      collectionId: 'c',
+      values: { shop: 'Acme Coffee' },
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    const before = JSON.stringify(await mockContext.repo!.listRecords('c'));
+    const engine = jest.fn<ReturnType<PrefillEngine>, Parameters<PrefillEngine>>(async () => ({}));
+    await renderHook(() =>
+      useFieldSuggestions({ enabled: true, collection: merchant, values, locale: 'en', engine }),
+    );
+    await waitFor(() => expect(engine).toHaveBeenCalled());
+    expect(engine.mock.calls[0]![0].known).toEqual({ shop: ['Acme Coffee'] });
+    expect(JSON.stringify(await mockContext.repo!.listRecords('c'))).toBe(before);
   });
 
   it('离开表单：通知引擎取消', async () => {

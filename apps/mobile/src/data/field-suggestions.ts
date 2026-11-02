@@ -1,10 +1,12 @@
 import {
   attachmentIds,
+  knownValues,
   parsePickStore,
   PICK_STORE_KEY,
   putPick,
   ruleEngine,
   serializePickStore,
+  usesValueMemory,
   type Collection,
   type FieldPick,
   type FieldSuggestions,
@@ -34,6 +36,7 @@ import {
 // 在下载确认框里同意以后才下载（D-064）。离开表单就取消。
 // 点过的候选记在本机 app_meta 的 prefill:picks（这张表这个字段：标签和位置，不记值），
 // 「设置 → 数据 → 预填记忆」能导出、恢复、清空。识别出的文字、文件名和记录都不发给 AI。
+// 这张表存过的店名、公司现查记录（底线 14：不另存值，只读）。
 
 export interface FieldSuggestionsState {
   /** 正在读附件。 */
@@ -124,8 +127,12 @@ export function useFieldSuggestions({
       try {
         const pages = await readAttachmentPages(first, deps, abort.signal);
         if (abort.signal.aborted) return;
+        const known = collection.fields.some(usesValueMemory)
+          ? knownValues(collection.fields, await repo.listRecords(collection.id))
+          : {};
+        if (abort.signal.aborted) return;
         const suggestions = await engine(
-          { fields: collection.fields, pages, locale, picks: picks.current },
+          { fields: collection.fields, pages, locale, picks: picks.current, known },
           abort.signal,
         );
         if (abort.signal.aborted) return;
@@ -153,15 +160,16 @@ export function useFieldSuggestions({
   const remember = useCallback(
     (fieldId: string, suggestion: ValueSuggestion) => {
       if (!collection) return;
-      picks.current = { ...picks.current, [fieldId]: suggestion.pick };
+      // 这个值在文字里找不到位置（没有 pick）：不记，字段原来的记忆留着。
+      const pick = suggestion.pick;
+      if (!pick) return;
+      picks.current = { ...picks.current, [fieldId]: pick };
       void repo
         .getMeta(PICK_STORE_KEY)
         .then((raw) =>
           repo.setMeta(
             PICK_STORE_KEY,
-            serializePickStore(
-              putPick(parsePickStore(raw), collection.id, fieldId, suggestion.pick),
-            ),
+            serializePickStore(putPick(parsePickStore(raw), collection.id, fieldId, pick)),
           ),
         )
         .catch(() => undefined);

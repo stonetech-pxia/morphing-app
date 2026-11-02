@@ -7,7 +7,8 @@ import { charSim, isExcludedLabel, labelScore, norm, ratio } from './similarity'
 // （创始人 2026-10-31：「宁可不填，不能乱填」，两次测量都找不到 0 错的门槛）。
 // 打分照搬测量的变体 A（side-session-notes/prefill-ranking/scripts/score.py）：
 //   3·标签 + 3·记忆 + 1·唯一 + 1·合理 + 1·位置，每项 0..1。
-// 不用大模型、不用向量模型，全部在本机；识别出的文字、文件名和记录都不发给 AI。
+// 不用向量模型，全部在本机；识别出的文字、文件名和记录都不发给云端 AI。这里只有规则打分：
+// 算术、中文规则、值记忆在 code-rules.ts。
 
 /** 用户点过的候选：这张表这个字段上次点的是哪个标签后面、页面上多高的值（不记值）。 */
 export interface FieldPick {
@@ -21,8 +22,8 @@ export interface ValueSuggestion {
   /** 表单里的写法：金额、数字是文字，日期 YYYY-MM-DD，单选是选项 ID。 */
   value: string;
   score: number;
-  /** 点了以后记下来的（FieldPick）。 */
-  pick: FieldPick;
+  /** 点了以后记下来的（FieldPick）。这个值在文字里找不到位置时没有，点了也不记。 */
+  pick?: FieldPick;
 }
 
 export interface SuggestInput {
@@ -32,6 +33,8 @@ export interface SuggestInput {
   locale: Locale;
   /** 这张表各字段上次点的（字段 ID → FieldPick）。 */
   picks?: Readonly<Record<string, FieldPick>>;
+  /** 这张表存过的店名、公司（字段 ID → 值，现查的，见 knownValues）；原样出现在文字里就当候选。 */
+  known?: Readonly<Record<string, readonly string[]>>;
   now?: Date;
 }
 

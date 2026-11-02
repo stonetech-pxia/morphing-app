@@ -6,7 +6,7 @@
 ## 0. 原则
 
 1. **全部在手机本地运行**。T7 之前要求能在 Expo Go 里用；从 T8 起 App 用开发版构建（D-084），可以写本地原生模块调用**系统框架**（iOS 的 Vision / VisionKit / Core Image / AVFoundation，没有第三方原生代码）。Android 用 Google ML Kit（D-087）和 Jetpack Media3（视频，D-141）。视频在 Expo Go 里不能处理（`needsFullApp`）。系统做不了的情况（Expo Go、Android 上给照片找边、ML Kit 不认的语言）仍要有退路（纯 JS 或 WebView 扩展包），工作流配置在各平台通用。还没做的见 §9。
-2. **AI 永远看不到用户的文件内容、文件名、OCR 出来的文字和记录内容**（D-036 / D-042 / D-046）。AI 只能看到动作目录、参数和工作流结构。用户说出的规格（「240 KB 以内」「600×600」）是规则，可以发给 AI。
+2. **AI 永远看不到用户的文件内容、文件名、OCR 出来的文字和记录内容**（D-036 / D-042 / D-046；指云端 AI，本机模型见 D-396）。AI 只能看到动作目录、参数和工作流结构。用户说出的规格（「240 KB 以内」「600×600」）是规则，可以发给 AI。
 3. **工作流是线性的、非图灵完备的**：一串步骤，每步一个登记过的动作，没有分支、循环和表达式（§7C）。
 4. **单独使用一个工具 = 只含这一个动作（加上输入步骤）的工作流**。工具页和工作流共用同一个执行器。
 5. **纯逻辑放在 `core` 和 `tool-*` 包里，用 Node 加真实文件测试**；平台能力（选照片、编码图片、WebView、打印、系统识别）由 App 注入，测试里换成假的。
@@ -424,7 +424,7 @@ Android（MorphSpeechModule.kt + cpp/morph_whisper.cpp）
 
 **用识别出的文字命名**（D-244）：`{ocr:规则}` / `{qr:规则}`，规则是 `firstLine`、`invoiceNo`、`date`、`amount`、`phone`、`email`、`url`、`number`（`core/text-rules.ts`，不接受正则）。`file.rename` 看到这两种占位符时先在本机识别每张图片：文字用系统识别（界面语言 + 英文；没有时报 `needsRecognition`），二维码用 jsQR。文字只用来取名，不留下，不发给 AI。取不到时这一段不写；什么都不剩用原来的名字。
 
-**「记一笔」预填**（D-244 的扩展，2026-10-28 定，原型在 `core/prefill/`；D-394、D-397 起「记一笔」和记录页的表单都接上了）：日期、金额、税额、单号以 `text-rules` 的规则为主，系统识别（iOS DataDetection / NSDataDetector，Android ML Kit 实体识别，下载模型前先问用户）只做补充；版式记忆保存一次就学会，后来的文件有任何对不上或不合理的地方就空着、不退回规则；不用大模型预填。「设置 → 数据」能一键清空预填记忆、导出（也是备份）、从文件恢复，也能导出 App 配置（D-273）。评测见 `tests/local-model-eval/PREFILL_REPORT.md`。
+**「记一笔」预填**（D-244 的扩展，2026-10-28 定，原型在 `core/prefill/`；D-394、D-397 起「记一笔」和记录页的表单都接上了）：日期、金额、税额、单号以 `text-rules` 的规则为主，系统识别（iOS DataDetection / NSDataDetector，Android ML Kit 实体识别，下载模型前先问用户）只做补充；版式记忆保存一次就学会，后来的文件有任何对不上或不合理的地方就空着、不退回规则；版式记忆这条路不用大模型（本机模型可以给新记录表单出候选，D-396，还没进 App，D-399）。「设置 → 数据」能一键清空预填记忆、导出（也是备份）、从文件恢复，也能导出 App 配置（D-273）。评测见 `tests/local-model-eval/PREFILL_REPORT.md`。
 
 **新记录表单的候选值**（D-394，`core/prefill/rank.ts`、`concepts.ts`、`rows.ts`）：附件里的照片（PP-OCRv6）和 PDF（文字层，扫描件画成图再认）在本机读出文字，按排切出「标签 → 值」，每个空字段最多 3 个候选，点了才填，从不自动填；点过的标签和位置记在 `prefill:picks`。文字识别模型没装时先问再下载。文字只在本机，不发给 AI。
 

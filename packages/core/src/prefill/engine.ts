@@ -1,4 +1,5 @@
-import { suggestValues, type SuggestInput, type ValueSuggestion } from './rank';
+import { mergedSuggestions, planDocument } from './code-rules';
+import type { SuggestInput, ValueSuggestion } from './rank';
 
 // 新记录表单的候选值从哪里来（D-398）：表单只认这个接口，规则和本机模型都写成这个形状，换引擎不动表单。
 // 输入是按页、带位置的文字和这张表的字段；输出是结构化的候选，只进表单，用户点了才填（D-394）。
@@ -13,5 +14,12 @@ export type PrefillEngine = (
   signal?: AbortSignal,
 ) => Promise<FieldSuggestions>;
 
-/** 现在用的引擎：规则打分（D-394）。 */
-export const ruleEngine: PrefillEngine = async (input) => suggestValues(input);
+/** 现在用的引擎：规则打分、算术、中文规则、值记忆（D-394、D-399）。 */
+export const ruleEngine: PrefillEngine = async (input) => {
+  const out: FieldSuggestions = {};
+  for (const f of planDocument(input).fields) {
+    const list = mergedSuggestions(f);
+    if (list.length > 0) out[f.field.id] = list;
+  }
+  return out;
+};

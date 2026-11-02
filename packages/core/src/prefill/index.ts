@@ -26,6 +26,7 @@ export {
   type PrefillValue,
 } from './prefill';
 export { ruleEngine, type FieldSuggestions, type PrefillEngine } from './engine';
+export { knownValues, usesValueMemory } from './code-rules';
 export { CONCEPTS, conceptOf, fieldTerms, type ConceptId, type ValueKind } from './concepts';
 export {
   MAX_SUGGESTIONS,
