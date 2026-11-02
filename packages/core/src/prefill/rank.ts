@@ -8,7 +8,7 @@ import { charSim, isExcludedLabel, labelScore, norm, ratio } from './similarity'
 // 打分照搬测量的变体 A（side-session-notes/prefill-ranking/scripts/score.py）：
 //   3·标签 + 3·记忆 + 1·唯一 + 1·合理 + 1·位置，每项 0..1。
 // 不用向量模型，全部在本机；识别出的文字、文件名和记录都不发给云端 AI。这里只有规则打分：
-// 算术、中文规则、值记忆在 code-rules.ts。
+// 算术、中文规则、值记忆在 code-rules.ts，本机模型（D-396）在 model.ts。
 
 /** 用户点过的候选：这张表这个字段上次点的是哪个标签后面、页面上多高的值（不记值）。 */
 export interface FieldPick {

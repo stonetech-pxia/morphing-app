@@ -2,17 +2,22 @@ import { describe, expect, it } from 'vitest';
 
 import type { Field } from '../schema';
 import { amountChain } from './amount-chain';
-import { planDocument } from './code-rules';
-import { ruleEngine } from './engine';
+import { checkAnswer, keepForModel } from './check';
+import { mergedSuggestions, planDocument } from './code-rules';
+import { modelEngine, ruleEngine } from './engine';
+import { modelRequest, type OpenModel } from './model';
 import { invoiceNoByKey, upperAmount, upperToNumber } from './zh-rules';
 
 // 审核 D-399 时发现的问题，每条都是「应该怎样」（每条在修之前的代码上都失败过）。
 
 const AMOUNT: Field = { id: 'total', name: 'Amount', type: 'money', currency: 'USD' };
+const IDR: Field = { id: 'total', name: 'Amount', type: 'money', currency: 'IDR' };
 const DATE: Field = { id: 'day', name: 'Date', type: 'date' };
 const NUMBER: Field = { id: 'no', name: 'Number', type: 'text' };
 const MERCHANT: Field = { id: 'merchant', name: 'Merchant', type: 'text' };
+const NOTE_TIME: Field = { id: 'time', name: 'Time', type: 'text' };
 const money = (name: string): Field => ({ id: 'x', name, type: 'money', currency: 'CNY' });
+const text = (name: string): Field => ({ id: 'x', name, type: 'text' });
 
 const pageOf = (rows: string[]) => ({
   width: 600,
@@ -64,6 +69,16 @@ describe('单号：通用的 No 不吃别的号码（第 1 条）', () => {
     );
     expect(invoiceNoByKey(['账单号 Folio No. 15646', 'Conf. No. 11849'])).toBe('15646');
     expect(invoiceNoByKey(['Beijing Invoice 24718066052020', 'No.25407626'])).toBe('25407626');
+  });
+
+  it('文字里有单号的键名但代码取不到值：没把握，要问模型；什么键名都没有才算没有', () => {
+    expect(planOf(NUMBER, ['Invoice No: ABC', 'Total 5.00']).ask).toBe(true);
+    expect(planOf(NUMBER, ['Thank you', 'Total 5.00']).ask).toBe(false);
+  });
+
+  it('模型的回答同样不能来自公司号、地址那一排', () => {
+    expect(checkAnswer(NUMBER, '123456-X', ['Co No: 123456-X'], 'en')).toBeNull();
+    expect(checkAnswer(NUMBER, '12A-3', ['No. 12A-3, Jalan Bukit'], 'en')).toBeNull();
   });
 });
 
@@ -198,6 +213,112 @@ describe('大写金额要看那一排（第 4 条）', () => {
   });
 });
 
+describe('金额核对按整个数（第 6 条，D-396「能核对到」）', () => {
+  it.each([
+    ['8.90', ['Total 28.90']],
+    ['1.25', ['Total 11.25']],
+    ['5', ['Date 2026-10-30', 'Coffee 5.00']],
+    ['30', ['Date 2026-10-30']],
+    ['12', ['Time 12:30']],
+    ['1234', ['Tel 012-1234']],
+  ])('%s 对 %j 核对不到', (answer, rows) => {
+    expect(checkAnswer(AMOUNT, answer, rows, 'en')).toBeNull();
+  });
+
+  it.each([
+    ['28.90', ['Total 28.90'], '28.9'],
+    ['RM 28.90', ['Total RM28.90'], '28.9'],
+    ['8.2', ['Total 8.20'], '8.2'],
+    ['100', ['Total 100.00'], '100'],
+    ['1234.50', ['Total 1,234.50'], '1234.5'],
+    ['1,234.50', ['Total 1234.50'], '1234.5'],
+    ['1.234,50', ['Total 1.234,50'], '1234.5'],
+    ['1234.50', ['Total 1 234,50'], '1234.5'],
+  ])('%s 对 %j 核对得到', (answer, rows, value) => {
+    expect(checkAnswer(AMOUNT, answer, rows, 'en')).toBe(value);
+  });
+
+  it('合计排上 OCR 读坏的分隔符（真实小票）；一段数字要整个对上', () => {
+    expect(checkAnswer(IDR, '20000', ['TOTAL 20 0 0 0'], 'en')).toBe('20000');
+    expect(checkAnswer(IDR, '36000', ['TOTAL 36-000'], 'en')).toBe('36000');
+    expect(checkAnswer(AMOUNT, '19.8', ['NET TOTAL: 19-80'], 'en')).toBeNull();
+    expect(checkAnswer(AMOUNT, '19.80', ['NET TOTAL: 19-80'], 'en')).toBe('19.8');
+    expect(checkAnswer(AMOUNT, '9.80', ['NET TOTAL: 19-80'], 'en')).toBeNull();
+  });
+
+  it('无小数币种：千分位', () => {
+    expect(checkAnswer(IDR, '32.000', ['Total 32.000'], 'en')).toBe('32000');
+    expect(checkAnswer(IDR, '32000', ['Total Rp 32.000'], 'en')).toBe('32000');
+    expect(checkAnswer(IDR, '32,000.00', ['Total 32,000.00'], 'en')).toBe('32000');
+    expect(checkAnswer(IDR, '2000', ['Total 32.000'], 'en')).toBeNull();
+  });
+});
+
+describe('模型候选的记忆（第 7 条）', () => {
+  it('只有模型给的候选带真实的标签和位置，不写死 relY 0', async () => {
+    const rows = ['Header line', 'Note x', 'Store: Cafe Royal', 'Total 5.00'];
+    const open: OpenModel = async () => ({
+      generate: async () => 'Cafe Royal',
+      release: async () => undefined,
+    });
+    const out = await modelEngine(open)({
+      fields: [MERCHANT],
+      pages: [pageOf(rows)],
+      locale: 'en',
+      now,
+    });
+    const hit = out.merchant?.find((s) => s.value === 'Cafe Royal');
+    expect(hit?.pick?.relY).toBeGreaterThan(0.3);
+  });
+
+  it('找不到位置就不记，不是记一个假的页面顶部', () => {
+    const plan = planDocument({
+      fields: [MERCHANT],
+      pages: [pageOf(['Acme Coffee'])],
+      locale: 'en',
+      now,
+    });
+    const [s] = mergedSuggestions(plan.fields[0]!, ['Not On Page'], plan.pickOf);
+    expect(s?.value).toBe('Not On Page');
+    expect(s?.pick).toBeUndefined();
+  });
+});
+
+describe('给模型的文字按字段（第 8 条）', () => {
+  const COUPON = money('优惠金额');
+  const CASH = money('现金');
+
+  it.each([
+    [COUPON, '优惠 -5.00'],
+    [CASH, '现金 100.00'],
+    [text('地址'), '地址: 北京路 1 号'],
+    [text('电话'), '电话 010-1234567'],
+    [text('Address'), 'Address: 1 Main St'],
+    [text('Phone'), 'Tel: 03-12345678'],
+    [text('Email'), 'hello@acme.com'],
+    [money('Discount'), 'Discount 5.00'],
+  ])('%j 问它自己的那一排：%s', (field, row) => {
+    expect(keepForModel(row, field)).toBe(true);
+    expect(modelRequest(field, [row, 'Total 9.00']).prompt).toContain(row);
+  });
+
+  it('别的字段还是不给看；总额字段和测量时一样', () => {
+    expect(keepForModel('优惠 -5.00', AMOUNT)).toBe(false);
+    expect(keepForModel('现金 100.00', money('金额'))).toBe(false);
+    expect(keepForModel('实收 100.00', money('金额'))).toBe(false);
+    expect(keepForModel('Cash 100.00', AMOUNT)).toBe(false);
+    expect(keepForModel('电话 010-1234567', COUPON)).toBe(false);
+  });
+
+  it('自建字段的答案在自己那一排也过得了核对', () => {
+    expect(checkAnswer(COUPON, '5.00', ['优惠 -5.00', '合计 95.00'], 'zh')).toBe('5');
+    expect(checkAnswer(CASH, '100.00', ['合计 95.00', '现金 100.00', '找零 5.00'], 'zh')).toBe(
+      '100',
+    );
+    expect(checkAnswer(AMOUNT, '100.00', ['Total 95.00', 'Cash 100.00'], 'en')).toBeNull();
+  });
+});
+
 describe('值记忆要有边界（第 9 条）', () => {
   const remembered = (known: string[], rows: string[]) =>
     planDocument({
@@ -224,5 +345,29 @@ describe('值记忆要有边界（第 9 条）', () => {
   it('不许跨排凑', () => {
     expect(remembered(['Apple Store'], ['Apple', 'Store'])).toBeUndefined();
     expect(remembered(['中国银行'], ['中国', '银行'])).toBeUndefined();
+  });
+});
+
+describe('商品明细不是店名（模型的回答）', () => {
+  const rows = ['MUSHROOM CAFE', 'Latte 4.50', 'A4 CLR COPY 8 0.53 4.24 SR', 'BAKERY 24'];
+  it.each(['Latte 4.50', 'Latte', 'A4 CLR COPY 8 0.53 4.24 SR'])('%s 不是店名', (answer) => {
+    expect(checkAnswer(MERCHANT, answer, rows, 'en')).toBeNull();
+  });
+  it('真的店名还在，别的文字字段不受影响', () => {
+    expect(checkAnswer(MERCHANT, 'MUSHROOM CAFE', rows, 'en')).toBe('MUSHROOM CAFE');
+    expect(checkAnswer(MERCHANT, 'BAKERY 24', rows, 'en')).toBe('BAKERY 24');
+    expect(checkAnswer(text('Item'), 'Latte 4.50', rows, 'en')).toBe('Latte 4.50');
+  });
+});
+
+describe('去标签（第 10 条）', () => {
+  it('12:30 不是「标签：值」', () => {
+    expect(checkAnswer(NOTE_TIME, '12:30', ['Open 12:30'], 'en')).toBe('12:30');
+  });
+
+  it('真的标签还是去掉', () => {
+    expect(checkAnswer(MERCHANT, 'Store: Cafe Royal', ['Store: Cafe Royal'], 'en')).toBe(
+      'Cafe Royal',
+    );
   });
 });

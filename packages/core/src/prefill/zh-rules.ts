@@ -146,6 +146,13 @@ const NO_KEYS: readonly RegExp[] = [
 export const NOT_NO =
   /流水号|社保|社会保障|病历|门诊号|住院号|卡号|医保|身份证|电话|\btel\b|\bfax\b|\bphone\b|房号|\broom\b|确认号|\bconfirmation\b|会员|\bloyalty\b|预订号|\b(?:co|comp|company|reg|regn|registration|gst|sst|roc|ssm|vat|tax\s*id|siret|siren|tva|account|acct|a\/c|table|tbl|member|customer|cust|client|cashier|terminal|pos|batch|mobile|hp|passport|ic)\b\.?\s*(?:no\b|number|num[ée]ro|n°|nº|№|#)|\b(?:jalan|jln|lorong|taman|street|road|rue|avenue|blvd)\b/i;
 const NO_ADDRESS = /\b(?:jalan|jln|lorong|taman|street|road|rue|avenue|blvd)\b/i;
+/** 文字里有这些字样就是可能有单号（代码取不到值时要问模型）。 */
+const NUMBER_KEY =
+  /\b(?:invoice|inv|receipt|rcpt|bill|ticket|order|ref|reference|facture|commande|no)\b|n°|nº|№|票据号|发票号|单号|订单号|编号|收据号/i;
+/** 这份文字里可能有单号（有键名，又不是别的号码那一排）。 */
+export const mayHaveNumber = (rows: readonly string[]) =>
+  rows.some((r) => NUMBER_KEY.test(r) && !NOT_NO.test(r));
+
 /** 「NO8039067169」「N4510498」→ 数字部分。 */
 export const stripNoPrefix = (s: string) => s.replace(/^(?:NO|No|no|N[oe0°º]?|№)[.:：]?(?=\d)/, '');
 
