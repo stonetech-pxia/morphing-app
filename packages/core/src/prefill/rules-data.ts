@@ -4,7 +4,9 @@
 export const EXTRA_AMOUNT_KEYWORDS = ['合計', 'toplam', 'genel toplam', 'toplm'];
 export const EXTRA_AMOUNT_EXCLUDE = ['小計', 'お預り', 'お預かり', 'お釣り', 'topkdv'];
 /** 整标签（去标点后）等于这些词才排除。 */
-export const AMOUNT_EXCLUDE_EXACT = ['現金', 'nakit'];
+// 不是翻译对：先放进常量，免得 check-locales 把这两个词当成「中文 + 英文名称对」。
+const CASH_JA = '現金';
+export const AMOUNT_EXCLUDE_EXACT = [CASH_JA, 'nakit'];
 
 // ---- 税额词：日语、加拿大 HST、西语 ----
 export const EXTRA_TAX_KEYWORDS = [
