@@ -4,6 +4,7 @@ import { amountChain, amountNear } from './amount-chain';
 import { hasNoDecimals, rowHasDate, squash } from './check';
 import { conceptOf, type ConceptId } from './concepts';
 import { resetDocContext } from './doc-context';
+import { documentLanguage } from './model';
 import {
   MAX_SUGGESTIONS,
   setDocContext,
@@ -29,10 +30,11 @@ import {
 
 /**
  * 代码有把握的门槛（第一个候选的分 ≥ top，且比第二个高 ≥ gap）。测量时两折交叉定的、取更严的
- * （per-field/hybrid/plan.json，真实小票上这些格子 96% 对）。没列的字段从不算有把握。
+ * （per-field/hybrid/plan.json，真实小票上这些格子 96% 对）；合计在 D-403 的规则上重新量过，放到
+ * 3.5（D-404）。没列的字段从不算有把握。
  */
 const SURE: Partial<Record<ConceptId, { top: number; gap: number }>> = {
-  amount: { top: 4.5, gap: 1 },
+  amount: { top: 3.5, gap: 1 },
   issueDate: { top: 0, gap: 0 },
   email: { top: 0, gap: 0 },
   category: { top: 0, gap: 0 },
@@ -63,6 +65,8 @@ export interface FieldPlan {
   remembered: ValueSuggestion | null;
   /** 代码拿不准，要问模型。 */
   ask: boolean;
+  /** 问了模型也让规则的候选排在前面（中文单据的合计，模型常挑小计，D-404）。 */
+  codeFirst: boolean;
 }
 
 export interface DocumentPlan {
@@ -307,11 +311,14 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
       ask:
         code === undefined &&
         !(concept === null && (field.type === 'note' || FREE_NOTE.test(field.name.trim()))) &&
+        // 店名的分数看不出对错，模型又换不对第一个，有候选就不为它加载模型（D-404）。
+        !(concept === 'merchant' && merged.length > 0) &&
         (field.type === 'money' ||
           field.type === 'number' ||
           field.type === 'date' ||
           field.type === 'text' ||
           field.type === 'note'),
+      codeFirst: concept === 'amount' && documentLanguage(rows) === 'zh',
     };
   });
   return { rows, fields, pickOf };
@@ -330,6 +337,7 @@ export function mergedSuggestions(
       out.push(s);
   };
   if (plan.remembered) add(plan.remembered);
+  if (plan.codeFirst) for (const s of known) add(s);
   for (const v of model)
     add(known.find((s) => sameValue(plan.field, s.value, v)) ?? withPick(v, pickOf(v)));
   for (const s of known) add(s);

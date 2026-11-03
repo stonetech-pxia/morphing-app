@@ -267,7 +267,8 @@ describe('模型候选的记忆（第 7 条）', () => {
       release: async () => undefined,
     });
     const out = await modelEngine(open)({
-      fields: [MERCHANT],
+      // 公司字段规则有候选也问模型（店名有候选就不问了，D-404）。
+      fields: [{ id: 'merchant', name: 'Company', type: 'text' }],
       pages: [pageOf(rows)],
       locale: 'en',
       now,

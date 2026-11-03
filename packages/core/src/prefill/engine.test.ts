@@ -30,6 +30,8 @@ const AMOUNT: Field = { id: 'total', name: 'Amount', type: 'money', currency: 'U
 const DATE: Field = { id: 'day', name: 'Date', type: 'date' };
 const NUMBER: Field = { id: 'no', name: 'Number', type: 'text' };
 const MERCHANT: Field = { id: 'merchant', name: 'Merchant', type: 'text' };
+// 公司字段规则有候选也会问模型（店名有候选就不问了，D-404），下面测模型流程都用它。
+const ASKED: Field = { id: 'merchant', name: 'Company', type: 'text' };
 const values = (out: FieldSuggestions, id: string) => (out[id] ?? []).map((s) => s.value);
 
 describe('规则引擎（D-398）', () => {
@@ -165,14 +167,14 @@ function fakeModel(
 describe('本机模型引擎（D-396、D-398）', () => {
   const rows = ['Bought at', 'Acme Coffee', 'Cafe Royal', 'Total 12.50'];
   const input = {
-    fields: [MERCHANT, AMOUNT],
+    fields: [ASKED, AMOUNT],
     pages: [pageOf(rows)],
     locale: 'en' as const,
     now,
   };
 
   it('先给规则的候选，模型的到了再补，模型的排在前面', async () => {
-    const m = fakeModel({ Merchant: 'Cafe Royal | Acme Coffee' });
+    const m = fakeModel({ Company: 'Cafe Royal | Acme Coffee' });
     const partial: FieldSuggestions[] = [];
     const out = await modelEngine(m.open)(input, undefined, (s) => partial.push(s));
     expect(partial.length).toBeGreaterThanOrEqual(1);
@@ -183,7 +185,7 @@ describe('本机模型引擎（D-396、D-398）', () => {
   });
 
   it('模型编的值（文字里没有）丢掉', async () => {
-    const m = fakeModel({ Merchant: 'Starbucks | Cafe Royal' });
+    const m = fakeModel({ Company: 'Starbucks | Cafe Royal' });
     const out = await modelEngine(m.open)(input);
     expect(values(out, 'merchant')).not.toContain('Starbucks');
     expect(values(out, 'merchant')[0]).toBe('Cafe Royal');
@@ -224,7 +226,7 @@ describe('本机模型引擎（D-396、D-398）', () => {
   it('有误导字样的排不进给模型的文字，合计排留着', async () => {
     const m = fakeModel({});
     await modelEngine(m.open)({
-      fields: [MERCHANT],
+      fields: [ASKED],
       pages: [pageOf(['Acme', 'Tel: 012345', 'Discount 1.00', 'Total 5.00', 'Thank you'])],
       locale: 'en',
       now,
@@ -240,7 +242,7 @@ describe('本机模型引擎（D-396、D-398）', () => {
   it('请求是逐字段的：温度 0、seed 42、最多 120 个 token、限制形状的语法、同一个前缀', async () => {
     const m = fakeModel({});
     await modelEngine(m.open)({
-      fields: [MERCHANT, { id: 'who', name: 'Payer', type: 'text' }],
+      fields: [ASKED, { id: 'who', name: 'Payer', type: 'text' }],
       pages: [pageOf(rows)],
       locale: 'en',
       now,
@@ -258,7 +260,7 @@ describe('本机模型引擎（D-396、D-398）', () => {
     const m = fakeModel({});
     const long = Array.from({ length: 3000 }, (_, i) => `item number ${i}`);
     await modelEngine(m.open)({
-      fields: [MERCHANT],
+      fields: [ASKED],
       pages: [pageOf(['Head Shop', ...long, 'Tail Row'])],
       locale: 'en',
       now,
@@ -267,7 +269,7 @@ describe('本机模型引擎（D-396、D-398）', () => {
     expect(prompt.length).toBeLessThan(MODEL_LIMITS.textChars + 1500);
     expect(prompt).toContain('Head Shop');
     expect(prompt).toContain('Tail Row');
-    expect(prompt).toContain('Field "Merchant"');
+    expect(prompt).toContain('Field "Company"');
   });
 
   it.each([
@@ -345,5 +347,73 @@ describe('本机模型引擎（D-396、D-398）', () => {
     expect(out).toEqual(await ruleEngine(input));
     expect(m.asked.length).toBe(1);
     expect(m.state.released).toBe(1);
+  });
+});
+
+describe('什么时候问模型（D-404）', () => {
+  const asked = (m: ReturnType<typeof fakeModel>) => m.asked.map((r) => r.prompt).join('\n');
+
+  it('店名规则有候选时不问模型，候选也不被模型换掉', async () => {
+    const m = fakeModel({ Merchant: 'Cafe Royal' });
+    const rows = ['Acme Coffee', 'Cafe Royal', 'Total 12.00'];
+    const out = await modelEngine(m.open)({
+      fields: [MERCHANT],
+      pages: [pageOf(rows)],
+      locale: 'en',
+      now,
+    });
+    expect(values(out, 'merchant')[0]).toBe('Acme Coffee');
+    expect(asked(m)).not.toContain('Field "Merchant"');
+  });
+
+  it('店名规则一个候选都没有时才问模型', async () => {
+    const m = fakeModel({ Merchant: 'Cafe Royal' });
+    const rows = ['12:49 PM', '0141', '***', 'Coffee 12.00', 'Cafe Royal', 'Total 12.00'];
+    const out = await modelEngine(m.open)({
+      fields: [MERCHANT],
+      pages: [pageOf(rows)],
+      locale: 'en',
+      now,
+    });
+    expect(asked(m)).toContain('Field "Merchant"');
+    expect(values(out, 'merchant')).toContain('Cafe Royal');
+  });
+
+  it('合计分数够高（≥3.5）且比第二名高 1 分时不问模型', async () => {
+    const m = fakeModel({ Amount: '9.00' });
+    const rows = ['Shop', 'Total: 12.00', 'Coffee 9.00'];
+    const input = { fields: [AMOUNT], pages: [pageOf(rows)], locale: 'en' as const, now };
+    const top = (await ruleEngine(input)).total ?? [];
+    expect(top[0]?.score).toBeGreaterThanOrEqual(3.5);
+    expect(top[0]!.score - (top[1]?.score ?? 0)).toBeGreaterThanOrEqual(1);
+    const out = await modelEngine(m.open)(input);
+    expect(asked(m)).not.toContain('Field "Amount"');
+    expect(values(out, 'total')[0]).toBe('12.00');
+  });
+
+  it('中文单据的合计：问了模型也让规则排在前面', async () => {
+    const m = fakeModel({ 金额: '10.00' });
+    const field: Field = { id: 'total', name: '金额', type: 'money', currency: 'CNY' };
+    const rows = ['上海小店', '咖啡 90.00', '蛋糕 10.00'];
+    const input = { fields: [field], pages: [pageOf(rows)], locale: 'zh' as const, now };
+    const ruleTop = (await ruleEngine(input)).total?.[0]?.value;
+    const out = await modelEngine(m.open)(input);
+    expect(asked(m)).toContain('Field "金额"');
+    expect(ruleTop).toBe('90.00');
+    expect(values(out, 'total')[0]).toBe(ruleTop);
+    expect(values(out, 'total')).toContain('10.00');
+  });
+
+  it('其他语言的合计：问了模型仍然模型排前面', async () => {
+    const m = fakeModel({ Amount: '9.00' });
+    const rows = ['Shop', 'Coffee 9.00', 'Cake 3.00'];
+    const out = await modelEngine(m.open)({
+      fields: [AMOUNT],
+      pages: [pageOf(rows)],
+      locale: 'en',
+      now,
+    });
+    expect(asked(m)).toContain('Field "Amount"');
+    expect(values(out, 'total')[0]).toBe('9.00');
   });
 });

@@ -296,7 +296,8 @@ describe('本机模型（D-396）', () => {
       context.completion.mockImplementationOnce(async () => ({ text: 'null' }));
       const engine = modelEngine(openLocalModel(store(true)));
       const input = {
-        fields: [{ id: 'merchant', name: 'Merchant', type: 'text' as const }],
+        // 公司字段规则有候选也问模型（店名有候选就不问了，D-404）。
+        fields: [{ id: 'merchant', name: 'Company', type: 'text' as const }],
         pages: [
           {
             width: 100,

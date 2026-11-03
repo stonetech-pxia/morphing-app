@@ -79,7 +79,7 @@ export const MODEL_GRAMMAR =
   'root ::= "null" | item (" | " item)? (" | " item)?\nitem ::= [^\\n<|]+';
 
 /** 单据是哪种语言（只看文字，界面语言和单据语言常常不一样）：有中文是 zh，有法语的字样是 fr，否则 en。 */
-function documentLanguage(rows: readonly string[]): 'zh' | 'fr' | 'en' {
+export function documentLanguage(rows: readonly string[]): 'zh' | 'fr' | 'en' {
   const text = rows.join('\n');
   if (/[㐀-鿿]/.test(text)) return 'zh';
   if (/[éèêàçùœ]|\b(tva|montant|facture|reçu|espèces|ttc)\b/i.test(text)) return 'fr';
