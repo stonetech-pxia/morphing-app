@@ -265,6 +265,39 @@ describe('一步一步做', () => {
   });
 });
 
+describe('一步的计划里功能和外观都有（D-419）', () => {
+  const opsOf = (plan: Plan) => (plan.kind === 'ops' ? plan.ops : []);
+  const both: Plan = { kind: 'ops', ops: [...opsOf(table('books')), ...opsOf(page('books'))] };
+
+  it('外观进草稿不打开，不多问模型，做完了「看看外观」', async () => {
+    const { store, calls } = await booted({ script: { 建书单表: both } });
+    await store.getState().change('搭建读书 App');
+    await store.getState().removeBuildStep('page');
+    await store.getState().removeBuildStep('remind');
+    await store.getState().removeBuildStep('theme');
+    await store.getState().startBuild();
+
+    expect(calls.map((c) => c.input)).toEqual(['搭建读书 App', '建书单表']);
+    expect(phase(store)).toBe('finished');
+    expect(statuses(store)).toEqual(['done']);
+    const { config, draft, banner } = store.getState();
+    expect(config!.data.tables.some((t) => t.id === 'books')).toBe(true);
+    expect(draft).toMatchObject({ open: false });
+    expect(draft!.steps).toHaveLength(1);
+    expect(banner).toBeNull();
+    // 结束时的整体检查看的是含草稿的样子：表有入口，这一步做好了。
+    expect(openItems(store.getState().session)).toEqual([]);
+    expect(store.getState().session.items.find((i) => i.id === 'b-data')!.status).toBe('done');
+
+    store.getState().openDraft();
+    expect(store.getState().draft!.open).toBe(true);
+    await store.getState().applyDraft();
+    expect(checkTools(store.getState().config!, registry).issues).not.toContainEqual(
+      expect.objectContaining({ severity: 'blocker', target: 'table:books' }),
+    );
+  });
+});
+
 describe('一步失败', () => {
   it('模型失败就停下，已做的留着；重试接着做', async () => {
     const { store } = await booted({ fails: ['放书单列表'] });

@@ -606,6 +606,7 @@ export const zh: MessageTable = {
   planCheckTools:
     '这里有些东西可能还用不了：可能打不开、加不了记录或看不到记录。告诉我缺什么，我接着加。',
   draftFunctionApplied: '这部分已经生效，能在改动记录里撤销；外观部分还在草稿里。',
+  deferredLookNotDone: '外观部分没做成，功能部分已经生效。可以点「接着改」再试一次。',
   functionNeedsDraft: '这一步要用到草稿里的页面。',
   draftApplyContinue: '应用草稿并继续',
   buildPlanTitle: '搭建计划',

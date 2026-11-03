@@ -10,6 +10,7 @@ import {
 } from './record-ops-schema';
 import { createRegistry, type Registry } from './registry';
 import { reminderTable } from './reminders';
+import { dateFieldOf } from './sequence';
 import {
   RECORD_LOOKS,
   TOOLBOX_PAGE_ID,
@@ -57,6 +58,7 @@ export const FIXED_BY_A_LATER_STEP: ReadonlySet<string> = new Set([
   'page-unreachable',
   'add-unreachable',
   'view-unreachable',
+  'stat-input-missing',
 ]);
 export type ToolIssueSeverity = 'blocker' | 'warning';
 
@@ -146,6 +148,21 @@ interface TableUse {
   editor: boolean;
   /** 有提醒看着这张表。 */
   watched: boolean;
+  /** 进得去的页面上读这张表的统计和图表，和它们依赖的字段。 */
+  stats: StatUse[];
+}
+
+/** 统计或图表依赖的一个字段。soft：没有值时只是少一块（分组全在「未设置」、减数是 0），不是空的。 */
+interface StatInput {
+  table: string;
+  field: string;
+  soft?: true;
+}
+
+interface StatUse {
+  via: string;
+  target: string;
+  inputs: StatInput[];
 }
 
 const newUse = (): TableUse => ({
@@ -158,6 +175,7 @@ const newUse = (): TableUse => ({
   written: new Set(),
   editor: false,
   watched: false,
+  stats: [],
 });
 
 /** 页面上真正显示的块（藏起来的和它的子块都不算）。 */
@@ -350,6 +368,12 @@ class Analysis {
         if (source.days?.date) use.read.add(source.days.date);
         const skip = (source.days as { skip?: { field: string } } | undefined)?.skip;
         if (skip) use.read.add(skip.field);
+        if (reachable)
+          use.stats.push({
+            via: where,
+            target: `block:${page.id}/${c.id}`,
+            inputs: this.statInputs(c),
+          });
       }
       const minus = c.look === 'number' ? c.source.minus : undefined;
       if (minus) {
@@ -382,6 +406,29 @@ class Analysis {
         herePresets: this.herePresets(c),
       });
     }
+  }
+
+  /** 统计或图表要算出东西，哪些字段要有值：算的值、按日子的日子、要有值才成立的筛选、分组。 */
+  private statInputs(c: Extract<KnownComponent, { look: 'number' | 'chart' }>): StatInput[] {
+    const { table: id, aggregate, field, filter, group, days } = c.source;
+    const table = this.table(id);
+    if (!table) return [];
+    const of = (fieldId: string, soft?: true): StatInput => ({
+      table: id,
+      field: fieldId,
+      ...(soft ? { soft } : {}),
+    });
+    const inputs: StatInput[] = [];
+    if (field && aggregate !== 'count' && aggregate !== 'distinctDays') inputs.push(of(field));
+    for (const x of filter ?? [])
+      if (x.op !== 'isEmpty' && x.op !== 'isNot') inputs.push(of(x.field));
+    if (group?.unit) inputs.push(of(dateFieldOf(table, group.by)));
+    else if (group?.by) inputs.push(of(group.by, true));
+    if (['streak', 'daysSince', 'avgInterval', 'distinctDays'].includes(aggregate))
+      inputs.push(of(dateFieldOf(table, days?.date)));
+    const minus = c.look === 'number' ? c.source.minus : undefined;
+    if (minus?.field) inputs.push({ table: minus.table, field: minus.field, soft: true });
+    return inputs;
   }
 
   /** 就地添加（"$here"）会带上的字段：这一段的值和列表筛选里的等于条件。 */
@@ -723,6 +770,51 @@ function checkFields(a: Analysis, table: Collection) {
       );
     }
   }
+  checkStatInputs(a, table);
+}
+
+/**
+ * 统计、图表依赖的字段有没有地方填（REPORT3「读书图表按完成日期统计，表单却不问完成日期」）。
+ * 哪里都填不到又没有默认值：统计永远是空的，blocker。只能打开一条的编辑页（或收件页面的表单）填：能填，
+ * 但用户记的时候不会填到，warning。只影响分组或减数的（soft）：不是空的，warning。
+ */
+function checkStatInputs(a: Analysis, table: Collection) {
+  const key = `table:${table.id}`;
+  for (const stat of a.use(table.id)!.stats)
+    for (const { table: tableId, field, soft } of stat.inputs) {
+      const input = statInputLevel(a, tableId, field);
+      if (input === 'entry') continue;
+      const name = `${tableId}.${field}`;
+      if (input === 'edit')
+        a.report(
+          key,
+          'warning',
+          'stat-input-only-in-editor',
+          stat.target,
+          `${stat.via} needs ${name}, which can only be filled by opening an entry later, so it stays empty until then; add ${field} to the form, preset it or give it a default`,
+        );
+      else
+        a.report(
+          key,
+          soft ? 'warning' : 'blocker',
+          soft ? 'stat-input-unfilled' : 'stat-input-missing',
+          stat.target,
+          soft
+            ? `${stat.via} uses ${name}, but nothing fills it in; add ${field} to the form or a button`
+            : `${stat.via} needs ${name}, but nothing fills it in and it has no default, so it always stays empty; add ${field} to the form, preset it in a button, or give it a default`,
+        );
+    }
+}
+
+/** entry = 记的时候就有值（默认值、表单、工具写的）；edit = 只能之后打开编辑；none = 哪里都填不到。 */
+function statInputLevel(a: Analysis, tableId: string, fieldId: string): 'entry' | 'edit' | 'none' {
+  const table = a.table(tableId);
+  const use = a.use(tableId);
+  if (!table || !use || isSystemField(fieldId)) return 'entry';
+  const f = table.fields.find((x) => x.id === fieldId);
+  if (!f || isComputed(f) || hasDefault(f)) return 'entry';
+  if (use.askedAll || use.asked.has(fieldId) || use.written.has(fieldId)) return 'entry';
+  return use.editor || table.fields.some((x) => x.type === 'file') ? 'edit' : 'none';
 }
 
 /** 算出来的字段依赖的、要有人填的字段。 */

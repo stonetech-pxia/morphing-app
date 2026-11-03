@@ -86,6 +86,7 @@ export * from './packs';
 export * from './tool-download';
 export * from './tool-keys';
 export * from './tool-check';
+export * from './acceptance';
 
 export * from './subtitles';
 

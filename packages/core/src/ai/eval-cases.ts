@@ -102,8 +102,9 @@ export interface EvalCase {
   /** 从哪里打开的 AI（D-124）：一个快捷操作，或分享进来的文件。 */
   about?: PlanAbout;
   /**
-   * 先做功能、再接着做外观（D-191）：第一句只能是功能，计划里要有 next；照着 next 再问一次，
-   * check 检查两步之后的样子（用户点了「接着改」）。
+   * 先做功能、再接着做外观（D-191）：第一句要有功能，计划里要有 next；照着 next 再问一次，
+   * check 检查两步之后的样子（用户点了「接着改」）。第一句就把外观也做了（混合计划，D-419）不用 next，
+   * check 检查功能和外观都应用之后的样子。
    */
   next?: boolean;
   /**
@@ -7203,8 +7204,9 @@ export const EVAL_CASES: readonly EvalCase[] = [
 export type EvalOutcome = { pass: true } | { pass: false; reason: string };
 
 /**
- * 按 App 的做法跑一个用例（D-191）：计划不能把功能和外观混在一起；要求接着改的用例照着 next 再问一次，
- * 在第一步的结果上套用第二个计划。mock 的测试和真实模型的评测脚本共用。
+ * 按 App 的做法跑一个用例（D-191）：计划把功能和外观混在一起时功能先应用，外观接着进草稿（D-419），
+ * check 看用户确认草稿后的样子；要求接着改的用例照着 next 再问一次，在第一步的结果上套用第二个计划。
+ * mock 的测试和真实模型的评测脚本共用。
  */
 export async function runEvalCase(
   c: EvalCase,
@@ -7238,13 +7240,16 @@ export async function runEvalCase(
   const plans = [plan];
   if (plan.kind !== 'ops') return { outcome: judgeEval(c, plan, null), plans };
   const first = functionFirst(config, plan.ops, ctx);
-  if (first.kind === 'function' && first.deferred.length > 0) {
-    return { outcome: fail('the plan mixes function and look ops (D-191)'), plans };
-  }
   // AI 的计划和 App 里一样检查（底线 3：不能多出指向用户文件的引用）。
   const aiCtx = { ...ctx, fromAI: true };
   let prepared: PreparedChange = prepareOps(config, plan.ops, aiCtx);
-  if (c.next && prepared.ok) {
+  const mixed = first.kind === 'function' && first.deferred.length > 0;
+  if (mixed && prepared.ok) {
+    const fn = prepareOps(config, first.ops, aiCtx);
+    prepared = fn.ok ? prepareOps(fn.after, first.deferred, aiCtx) : fn;
+  }
+  // 混合计划外观已经做了：只有模型还留了 next 才接着问。
+  if (c.next && prepared.ok && !(mixed && !plan.next)) {
     if (first.kind !== 'function')
       return { outcome: fail('the first turn should do the function part'), plans };
     if (!plan.next) return { outcome: fail('expected next with the look part'), plans };

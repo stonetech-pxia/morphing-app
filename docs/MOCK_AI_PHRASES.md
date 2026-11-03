@@ -27,6 +27,8 @@ D-265（2026-10-27）删掉了界面上没有入口、用户也不太会这么�
 | FL1    | 主题换成绿色，添加签证照片快捷操作                               | 只加签证照片快捷操作；`next` =「主题换成绿色」                   |
 | FL1-en | Add the visa photo quick action. Change the theme color to green | 只加签证照片快捷操作；`next` = “Change the theme color to green” |
 
+内置规则自己会拆开；要试模型把两样放在一个计划里的路径（D-419）用这句（MX1）：「做个月历（混合计划）」/ “Make a month calendar (mixed plan)”：建「月历」表（功能，直接生效），按钮和日历块进草稿，确认后都在。
+
 ## 旅程 A：改造首页
 
 | ID  | 句式                                                                  | 预期修改                                                                                               |

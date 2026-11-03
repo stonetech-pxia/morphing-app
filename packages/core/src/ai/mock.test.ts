@@ -12,6 +12,7 @@ import {
 import { createStarterWorkspace } from '../starter';
 import { apply, registry, workspace } from '../test-helpers';
 import { checkTools } from '../tool-check';
+import { functionFirst } from './kinds';
 import { createMockAIProvider } from './mock';
 import { fixRequest } from './session';
 import type { Plan } from './types';
@@ -611,5 +612,21 @@ describe('把这些补上（D-418）', () => {
       config = r.after;
     }
     expect(blockers(config).map((i) => i.code)).toEqual(['view-missing']);
+  });
+});
+
+describe('MX1：一个计划里功能和外观都有（D-419）', () => {
+  it('功能和外观分得开，两样都套得上', async () => {
+    const config = workspace();
+    const result = await plan('做个月历（混合计划）', config);
+    if (result.kind !== 'ops') throw new Error(result.kind);
+    const ctx = { registry, locale: 'zh' as const, now };
+    const first = functionFirst(config, result.ops, ctx);
+    if (first.kind !== 'function') throw new Error(first.kind);
+    expect(first.deferred).toHaveLength(2);
+    const fn = prepareOps(config, first.ops, ctx);
+    if (!fn.ok) throw new Error(fn.issues.join('; '));
+    const look = prepareOps(fn.after, first.deferred, ctx);
+    expect(look).toMatchObject({ ok: true });
   });
 });

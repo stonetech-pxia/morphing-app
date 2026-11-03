@@ -168,13 +168,23 @@ export type DraftResult =
   | { kind: 'invalid'; issues: string[] };
 
 /**
- * AI 修改页说的一句话（D-191）：功能类直接应用（applied），外观类进草稿。
+ * AI 修改页说的一句话（D-191）：功能类直接应用（applied），外观类进草稿；
+ * 一个计划两样都有时功能直接应用，结果是外观进草稿的 drafted（D-419）。
  * 在草稿的聊天框里说功能类的话也直接应用，草稿接着开着（D-411）。
  */
 export type ChangeResult =
   | DraftResult
-  /** focusPageId：改到的页面，回到 App 时显示它。lines：改了什么。 */
-  | { kind: 'applied'; applied: Applied; lines: string[]; focusPageId: string }
+  /**
+   * focusPageId：改到的页面，回到 App 时显示它。lines：改了什么。
+   * lookNotDone：这个计划里的外观套不上，没做（D-419）；做成了的话结果是 drafted。
+   */
+  | {
+      kind: 'applied';
+      applied: Applied;
+      lines: string[];
+      focusPageId: string;
+      lookNotDone?: boolean;
+    }
   /** 这一步要用到草稿里的东西（D-413）：什么都没改，等用户点「应用草稿并继续」。 */
   | { kind: 'needsDraft'; message: string; waiting: WaitingForDraft }
   /** 大工程（规则 53）：计划在 build 里，等用户看过点「开始」（D-415）。 */

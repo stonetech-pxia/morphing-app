@@ -5,20 +5,24 @@ import { parseArgs } from 'node:util';
 import {
   BUILTIN_TOOLS,
   EVAL_CASES,
+  SCENARIOS,
   applicableOps,
   applyOps,
   buildItemId,
+  deferredLookText,
   buildSetup,
   checkTools,
   createRegistry,
   emptySession,
   functionFirst,
   issueReason,
+  nextAsk,
   planSession,
   prepareOps,
   recheckItems,
   recordTurn,
   runEvalCase,
+  scoreScenario,
   setItemStatus,
   splitDraftOnlyOps,
   startBuildItems,
@@ -31,6 +35,8 @@ import {
   type Plan,
   type PlanAbout,
   type PlanEarlier,
+  type Scenario,
+  type ScenarioScore,
   type SessionTurn,
   type WorkSession,
   type WorkspaceConfig,
@@ -52,6 +58,8 @@ import { createApp } from '../src/server';
 // 提示词测试实验台（side-session-notes/agent-test-plan/PLAN.md）：比 eval.ts 多重复运行、并发、完整记录和通用检查。
 // 用法：npx tsx scripts/lab.ts --out runs/x.jsonl [--suite eval|<cases.json>] [--cases A1,C1] [--repeat 5]
 //        [--concurrency 16] [--model claude-haiku-5-5] [--effort low] [--drop-rule 17,44] [--rule-first 51] [--resume]
+// 个人记录能力验收：npx tsx scripts/lab.ts --out runs/accept.jsonl --acceptance [--acceptance-ids habit-simple,todo-board]
+// 走和 --app-flow 一样的流程，说开场白，再按没过的 core 项一句句说（最多 4 轮），最后点一次「把这些补上」；统计看 lab-accept-report.ts。
 // cases.json 是数组，每项 {id, input 或 turns, locale, setup, about?, earlier?, expect?, rubric?, tags?, configFile?}；
 // 没有 check，只记录，判定交给 lab-judge.ts。turns 是一段长对话，按 App 的做法一句接一句。
 
@@ -72,6 +80,10 @@ const { values } = parseArgs({
     route: { type: 'boolean' },
     // 和 App 一样的流程（runAppFlow）：外观进草稿，功能直接生效，每句带工具清单，大工程逐步做。
     'app-flow': { type: 'boolean' },
+    acceptance: { type: 'boolean' },
+    'acceptance-ids': { type: 'string' },
+    // 换开场白（场景 id → 一句模糊的话），要求和打分不变。
+    'acceptance-openings': { type: 'string' },
   },
 });
 
@@ -115,14 +127,14 @@ if (!LEDGER) throw new Error('需要 LAB_LEDGER');
 if ((env.MORPH_AI_MODEL ?? 'claude-haiku-5-5') !== 'claude-haiku-5-5')
   throw new Error('只能用 Haiku');
 const spent = () => (existsSync(LEDGER) ? Number(readFileSync(LEDGER, 'utf8')) : 0);
+const usdOf = (u: Completion['usage']) =>
+  (u.inputTokens * 0.1 +
+    u.cacheWriteTokens * 0.125 +
+    u.outputTokens * 0.5 +
+    u.cacheReadTokens * 0.01) /
+  1_000_000;
 function charge(u: Completion['usage']) {
-  const usd =
-    (u.inputTokens * 0.1 +
-      u.cacheWriteTokens * 0.125 +
-      u.outputTokens * 0.5 +
-      u.cacheReadTokens * 0.01) /
-    1_000_000;
-  writeFileSync(LEDGER!, String(spent() + usd));
+  writeFileSync(LEDGER!, String(spent() + usdOf(u)));
 }
 
 const runtime = createRelayRuntime(env);
@@ -372,7 +384,19 @@ async function runConversation(c: LabCase, calls: CallLog[]) {
  * App 现在的流程（ai-change.ts、draft.ts、build.ts）：每句都带工具清单（D-414）；大工程自动点「开始」，逐步执行，
  * 记录每步结果（D-415）；依赖草稿的功能修改，模拟用户点「应用草稿并继续」（D-413）。
  */
-async function runAppFlow(c: LabCase, calls: CallLog[]) {
+async function runAppFlow(
+  c: LabCase,
+  calls: CallLog[],
+  options: {
+    /** 开场之后、点「把这些补上」之前，接着说话（验收模拟用户）。 */
+    afterOpening?: (flow: {
+      config: () => WorkspaceConfig;
+      send: (input: string) => Promise<void>;
+    }) => Promise<void>;
+    /** 最多点几次「把这些补上」。 */
+    fixRounds?: number;
+  } = {},
+) {
   const provider = createClaudePlanner({
     complete: logged(calls),
     registry,
@@ -384,6 +408,8 @@ async function runAppFlow(c: LabCase, calls: CallLog[]) {
     inChat?: boolean;
     buildStep?: { index: number; total: number; id: string };
     appliedDraftFirst?: boolean;
+    /** 这个计划里的外观套不上（D-419），没进草稿。 */
+    lookNotDone?: string[];
   };
   type Draft = { config: WorkspaceConfig; steps: Step[] };
   let head = initialConfig(c);
@@ -539,35 +565,51 @@ async function runAppFlow(c: LabCase, calls: CallLog[]) {
         turns.push({ input, plan, ok: false, issues: fn.issues, ...log });
         return reply;
       }
+      parents.push(head);
+      const scope = scopeOf(head, fn.after);
+      head = fn.after;
+      rebase(cleanup);
+      // 外观进草稿（ai-change.ts 的 deferredIntoDraft，D-419）：不再问模型；套不上才变成「接着改」的那句话。
+      const look = first.deferred.length > 0 ? prepareOps(shown(), first.deferred, ctx) : null;
+      if (look?.ok)
+        box.draft = {
+          config: look.after,
+          steps: [
+            ...(box.draft?.steps ?? []),
+            { ops: first.deferred, input, reply: look.lines.join('; ') },
+          ],
+        };
+      const lookLines = look?.ok ? look.lines : [];
       turns.push({
         input,
         plan,
         ok: true,
-        lines: fn.lines,
-        scope: scopeOf(head, fn.after),
+        lines: [...fn.lines, ...lookLines],
+        scope,
         ...log,
         ...(appliedDraftFirst ? { appliedDraftFirst } : {}),
+        ...(look && !look.ok ? { lookNotDone: look.issues } : {}),
       });
-      parents.push(head);
-      head = fn.after;
-      rebase(cleanup);
+      const next =
+        plan.next ??
+        (look && !look.ok ? deferredLookText(fn.after, first.deferred, ctx, input) : null);
       const after = shown();
-      const verdict = toolVerdict(base, after, registry, { later: later || Boolean(plan.next) });
+      const verdict = toolVerdict(base, after, registry, { later: later || Boolean(next) });
       const issue = verdict.blockers[0];
       note(
         {
           input,
-          reply: fn.lines.join('; '),
+          reply: [...fn.lines, ...lookLines].join('; '),
           done: true,
           kind: workKindOfOps(plan.ops),
           verdict,
           ...(issue ? { reason: issueReason(issue, after, c.locale) } : {}),
-          ...(plan.next ? { next: plan.next } : {}),
+          ...(next ? { next } : {}),
           ...item,
         },
         after,
       );
-      box.next = plan.next ?? null;
+      box.next = next;
       return issue ? issue.message : null;
     }
     const reply = prepared.lines.join('; ');
@@ -601,20 +643,24 @@ async function runAppFlow(c: LabCase, calls: CallLog[]) {
     return issue ? issue.message : null;
   };
 
-  const queue = [...(c.turns ?? [c.input!])];
-  while (queue.length > 0 && turns.length < 40) {
-    await say(queue.shift()!);
-    // 用户点「接着改」（D-191）。
-    if (box.next) {
-      queue.unshift(box.next);
-      box.next = null;
+  const drain = async (inputs: readonly string[]) => {
+    const queue = [...inputs];
+    while (queue.length > 0 && turns.length < 40) {
+      await say(queue.shift()!);
+      // 用户点「接着改」（D-191）。
+      if (box.next) {
+        queue.unshift(box.next);
+        box.next = null;
+      }
     }
-  }
-  // 结束时还有用不了的，用户点一次「把这些补上」（最多两次）。
+  };
+  await drain(c.turns ?? [c.input!]);
+  await options.afterOpening?.({ config: shown, send: (input) => drain([input]) });
+  // 结束时还有用不了的，用户点一次「把这些补上」（默认最多两次）。
   const before = new Set(
     checkTools(initialConfig(c), registry).issues.map((i) => `${i.code}|${i.target}`),
   );
-  for (let round = 0; round < 2; round++) {
+  for (let round = 0; round < (options.fixRounds ?? 2); round++) {
     const left = checkTools(shown(), registry).issues.filter(
       (i) => i.severity === 'blocker' && !before.has(`${i.code}|${i.target}`),
     );
@@ -628,6 +674,72 @@ async function runAppFlow(c: LabCase, calls: CallLog[]) {
   }
   applyDraft();
   return { turns, finalConfig: head, session: box.session };
+}
+
+/** 验收最多替用户说几句（开场白之外）。 */
+const ACCEPTANCE_ROUNDS = 4;
+
+/**
+ * 个人记录能力验收（acceptance/）：走 runAppFlow，每轮打分；没过的 core 项按顺序模拟用户说一句，
+ * 最后点一次「把这些补上」。合格只看代码打分。
+ */
+async function runAcceptance(s: Scenario, calls: CallLog[]) {
+  const roundLog = (said: string, score: ScenarioScore) => ({
+    said,
+    passed: score.passed,
+    total: score.total,
+    corePassed: score.corePassed,
+    coreTotal: score.coreTotal,
+    qualified: score.qualified,
+    missingCore: score.missingCore,
+    calls: calls.length,
+  });
+  const rounds: ReturnType<typeof roundLog>[] = [];
+  const asked = new Set<string>();
+  const { turns, finalConfig } = await runAppFlow(
+    { id: s.id, input: openings[s.id] ?? s.opening, locale: s.locale, setup: s.setup },
+    calls,
+    {
+      fixRounds: 1,
+      afterOpening: async (flow) => {
+        let score = scoreScenario(s, flow.config(), registry);
+        rounds.push(roundLog(openings[s.id] ?? s.opening, score));
+        for (let round = 0; round < ACCEPTANCE_ROUNDS; round++) {
+          const ask = nextAsk(s, score, asked);
+          if (!ask) break;
+          asked.add(ask.id);
+          await flow.send(ask.text);
+          score = scoreScenario(s, flow.config(), registry);
+          rounds.push(roundLog(ask.text, score));
+        }
+      },
+    },
+  );
+  const final = scoreScenario(s, finalConfig, registry);
+  const beforeFix = rounds.at(-1)!;
+  // 点过「把这些补上」时单独算一轮。
+  if (calls.length > beforeFix.calls) rounds.push(roundLog('(fix these)', final));
+  const firstQualified = rounds.findIndex((r) => r.qualified);
+  return {
+    input: openings[s.id] ?? s.opening,
+    locale: s.locale,
+    setup: s.setup,
+    category: s.category,
+    rounds,
+    qualified: final.qualified,
+    /** 第几轮合格：0 = 开场白一句就合格。 */
+    qualifiedAtRound: final.qualified ? firstQualified : null,
+    missingCore: final.missingCore,
+    missing: final.requirements.filter((r) => !r.pass).map((r) => r.id),
+    requirements: final.requirements,
+    blockers: final.blockers,
+    callCount: calls.length,
+    usd: calls.reduce((sum, c) => sum + usdOf(c.usage), 0),
+    pass: final.qualified,
+    turns,
+    calls,
+    finalConfig,
+  };
 }
 
 async function runEval(c: EvalCase, calls: CallLog[]) {
@@ -661,8 +773,22 @@ async function runEval(c: EvalCase, calls: CallLog[]) {
 const suite = values.suite ?? 'eval';
 const selected = values.cases ? new Set(values.cases.split(',')) : null;
 const fromFile: LabCase[] =
-  suite === 'eval' ? [] : (JSON.parse(readFileSync(suite, 'utf8')) as LabCase[]);
-const evalCases = suite === 'eval' ? EVAL_CASES.filter((c) => !selected || selected.has(c.id)) : [];
+  values.acceptance || suite === 'eval'
+    ? []
+    : (JSON.parse(readFileSync(suite, 'utf8')) as LabCase[]);
+const evalCases =
+  !values.acceptance && suite === 'eval'
+    ? EVAL_CASES.filter((c) => !selected || selected.has(c.id))
+    : [];
+const acceptanceIds = values['acceptance-ids']?.split(',');
+const openings = values['acceptance-openings']
+  ? (JSON.parse(readFileSync(values['acceptance-openings'], 'utf8')) as Record<string, string>)
+  : {};
+for (const id of acceptanceIds ?? [])
+  if (!SCENARIOS.some((s) => s.id === id)) throw new Error(`没有场景 ${id}`);
+const scenarios = values.acceptance
+  ? SCENARIOS.filter((s) => !acceptanceIds || acceptanceIds.includes(s.id))
+  : [];
 const fileCases = fromFile.filter((c) => !selected || selected.has(c.id));
 const repeat = Number(values.repeat ?? 1);
 const concurrency = Number(values.concurrency ?? 16);
@@ -703,6 +829,26 @@ for (let rep = 0; rep < repeat; rep++) {
           calls,
           flags: last ? flagsOf(last, c.locale, calls) : [],
         };
+      },
+    });
+  }
+  for (const s of scenarios) {
+    jobs.push({
+      id: s.id,
+      rep,
+      run: async () => {
+        const calls: CallLog[] = [];
+        return runAcceptance(s, calls).catch((e: unknown) => {
+          totals.crashed++;
+          return {
+            input: openings[s.id] ?? s.opening,
+            locale: s.locale,
+            category: s.category,
+            crash: String(e),
+            qualified: false,
+            calls,
+          };
+        });
       },
     });
   }

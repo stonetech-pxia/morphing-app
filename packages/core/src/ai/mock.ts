@@ -1791,6 +1791,50 @@ const BUILD_GAP = /缺页面|no page/i;
 /** 带这个记号的请求不留 next：页面没人接着做。 */
 const NO_NEXT = ' #no-next';
 
+/** 模拟器上试一个计划里功能和外观都有的路径（D-419）：「做个月历（混合计划）」「Make a month calendar (mixed plan)」。 */
+const MIXED_PLAN = /混合计划|mixed plan/i;
+
+function mixedPlan(locale: Locale): Plan {
+  const name = say(locale, '月历', 'Moments');
+  return {
+    kind: 'ops',
+    ops: [
+      {
+        op: 'addData',
+        table: {
+          id: 'moments',
+          name,
+          fields: [
+            { id: 'title', name: say(locale, '标题', 'Title'), type: 'text' },
+            { id: 'date', name: say(locale, '日期', 'Date'), type: 'date', default: 'today' },
+          ],
+        },
+      },
+      {
+        op: 'addContainer',
+        page: HOME_PAGE_ID,
+        block: {
+          id: 'moments-add',
+          look: 'button',
+          show: { label: say(locale, '记一条', 'Add one'), variant: 'filled' },
+          tools: [{ do: 'create', table: 'moments', ask: 'all' }],
+        },
+      },
+      {
+        op: 'addContainer',
+        page: HOME_PAGE_ID,
+        block: {
+          id: 'moments-month',
+          look: 'calendar',
+          source: { table: 'moments', limit: 30, group: { unit: 'day', by: 'date' } },
+          show: { title: 'title' },
+        },
+      },
+    ],
+    notes: [say(locale, '日历在首页。', 'The calendar is on the home page.')],
+  };
+}
+
 function buildPlanFor(input: string, locale: Locale, uiLocale: Locale): BuildPlan {
   const request = (zh: string, en: string) => say(locale, zh, en);
   const gap = BUILD_GAP.test(input);
@@ -1914,6 +1958,7 @@ export function createMockAIProvider(): AIProvider {
       // 内置规则只识别中英文句式；法语界面使用英文示例和回复（P-037）。
       if (ctx.locale === 'fr') ctx = { ...ctx, locale: 'en' };
       if (input.startsWith(FIX_REQUEST_PREFIX)) return fixPlan(ctx);
+      if (MIXED_PLAN.test(input)) return mixedPlan(ctx.locale);
       if (BUILD_REQUEST.test(input.trim()) && !ctx.session?.step)
         return buildPlanFor(input, ctx.locale, uiLocale);
       const examples = EXAMPLES.map((e) => localize(e, ctx.locale));

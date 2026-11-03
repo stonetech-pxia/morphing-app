@@ -690,6 +690,8 @@ export const fr: MessageTable = {
     'Une partie n’est peut-être pas encore utilisable : impossible de l’ouvrir, d’y ajouter une entrée ou de voir ses entrées. Dites-moi ce qui manque et je l’ajouterai.',
   draftFunctionApplied:
     'Cette partie est déjà en place, et vous pouvez l’annuler dans Historique des modifications. Les changements d’apparence restent dans votre brouillon.',
+  deferredLookNotDone:
+    'La partie apparence n’a pas été faite. Le reste est déjà en place. Touchez « Continuer à modifier » pour réessayer.',
   functionNeedsDraft: 'Cette étape a besoin d’une page qui n’existe que dans votre brouillon.',
   draftApplyContinue: 'Appliquer le brouillon et continuer',
   buildPlanTitle: 'Plan de création',

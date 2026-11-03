@@ -651,6 +651,8 @@ export const en = {
     'Something here may not be usable yet: it may have no way to open it, add to it or see it. Tell me what’s missing and I’ll add it.',
   draftFunctionApplied:
     'This part is already live, and you can undo it in Change history. Look changes stay in your draft.',
+  deferredLookNotDone:
+    'The look part wasn’t done. The rest is already live. Tap “Keep going” to try it again.',
   functionNeedsDraft: 'This step needs a page that’s only in your draft.',
   draftApplyContinue: 'Apply draft and continue',
   buildPlanTitle: 'Build plan',

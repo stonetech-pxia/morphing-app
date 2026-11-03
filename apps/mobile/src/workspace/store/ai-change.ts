@@ -1,5 +1,6 @@
 import {
   PlanSchema,
+  deferredLookText,
   fixRequest,
   functionFirst,
   homeEntryOps,
@@ -21,7 +22,6 @@ import {
   type WorkspaceConfig,
 } from '@morph/core';
 
-import { t } from '../../i18n';
 import { RevisionConflictError } from '../../storage/types';
 import type { createDraft } from './draft';
 import { focusPage, type Kernel } from './kernel';
@@ -38,8 +38,8 @@ import type {
   WorkspaceState,
 } from './types';
 
-// AI 修改页和草稿聊天框说的一句话（D-191、D-411）：功能类直接保存成一个 AI 版本，外观类进草稿；
-// 每句都带上工具清单（D-414）；「接着改」的预设（next）；大工程先出计划（D-415，步骤的执行在 build.ts）。
+// AI 修改页和草稿聊天框说的一句话（D-191、D-411）：功能类直接保存成一个 AI 版本，外观类进草稿，
+// 一个计划两样都有时各走各的（D-419）；每句都带上工具清单（D-414）；「接着改」的预设（next）；大工程先出计划（D-415，步骤的执行在 build.ts）。
 
 export const NEXT_META_KEY = 'next';
 export const SUGGEST_META_KEY = 'suggest';
@@ -128,7 +128,7 @@ export function createAIChange(
           message: [
             ...result.lines,
             ...(result.applied.notes ?? []),
-            msg('draftFunctionApplied'),
+            ...(result.lookNotDone ? [] : [msg('draftFunctionApplied')]),
           ].join('\n'),
           examples: get().next ? [get().next!] : [],
         };
@@ -329,7 +329,8 @@ export function createAIChange(
     before: WorkspaceConfig;
     after: WorkspaceConfig;
     later: boolean;
-    refs: { cr: number } | { rev: number };
+    /** 一个计划两样都有（D-419）：功能的版本号和外观那一步都记下，撤销和退一步都找得到这一句。 */
+    refs: { cr: number } | { rev: number } | { cr: number; rev: number };
     next?: string | null;
     stepTurn: StepTurn | undefined;
   }) {
@@ -349,9 +350,59 @@ export function createAIChange(
   }
 
   /**
-   * 功能类修改直接保存成一个 AI 版本（D-191），顶部照常「已改好 · 撤销」。这句话里剩下的外观
-   * 变成「接着改」的预设：模型给的 next，没给就用那些外观操作的说明。草稿还在：从 AI 修改页说的，
-   * 草稿先离开，打开时重新套上；从草稿聊天框说的（stayInDraft），马上套上，草稿接着开着（D-411）。
+   * 外观进草稿（D-419）：先把已有的草稿套到刚生效的版本上，这批外观在上面合法就接成一步（不再问模型）；
+   * 不合法返回 null，什么都不加。搭建时草稿先不打开（D-415），做完了用户点「看看外观」再看。
+   */
+  async function deferredIntoDraft(
+    input: string,
+    deferred: Op[],
+    notes: string[],
+    cleanup: readonly Op[],
+    origin: DraftOrigin,
+    stayInDraft: boolean,
+    stepTurn: StepTurn | undefined,
+  ): Promise<DraftStep | null> {
+    const { draft, head, config } = get();
+    const current = draft && rebaseDraft(draft, cleanup);
+    const ctx = { registry, locale, now: deps.now(), fromAI: true };
+    const prepared = prepareOps(current?.steps.at(-1)?.config ?? config!, deferred, ctx);
+    if (!prepared.ok) {
+      await failedPlan(input, deferred, `${prepared.stage}: ${prepared.issues.join('; ')}`);
+      const kept = current && !stayInDraft && current.open ? { ...current, open: false } : current;
+      set({ draft: kept, ...(kept !== current ? { toast: null } : {}) });
+      await saveDraft(kept);
+      return null;
+    }
+    const changeRequestId = await repo.createChangeRequest({
+      input,
+      plan: deferred,
+      status: 'previewing',
+      baseRevisionId: head!.id,
+    });
+    const step: DraftStep = {
+      input,
+      ops: deferred,
+      lines: prepared.lines,
+      ...(notes.length ? { notes } : {}),
+      changeRequestId,
+      config: prepared.after,
+    };
+    const next: Draft = {
+      steps: [...(current?.steps ?? []), step],
+      replies: current?.replies ?? [],
+      origin: current?.origin ?? origin,
+      open: !stepTurn,
+    };
+    set({ draft: next, editing: null });
+    await saveDraft(next);
+    return step;
+  }
+
+  /**
+   * 功能类修改直接保存成一个 AI 版本（D-191），顶部照常「已改好 · 撤销」。这句话里剩下的外观直接进草稿
+   * （D-419，不再问模型）；套不上时才变成「接着改」的预设，并告诉用户这部分没做。模型给的 next 照旧。
+   * 草稿还在：从 AI 修改页说的，草稿先离开，打开时重新套上；从草稿聊天框说的（stayInDraft），马上套上，
+   * 草稿接着开着（D-411）。
    */
   async function applyFunction(
     input: string,
@@ -399,13 +450,7 @@ export function createAIChange(
       return { kind: 'invalid', issues: prepared.issues };
     }
     const { ops, prepared: after } = withHomeEntries(config!, wanted, prepared, plan, origin.about);
-    const deferred =
-      first.deferred.length > 0 ? prepareOps(after.after, first.deferred, ctx) : null;
-    const next =
-      plan.next ??
-      (deferred?.ok && deferred.lines.length > 0
-        ? deferred.lines.join(t(locale, 'separatorSemicolon')).slice(0, 200)
-        : null);
+    const hasDeferred = first.deferred.length > 0;
     const changeRequestId = await repo.createChangeRequest({
       input,
       plan: ops,
@@ -443,36 +488,62 @@ export function createAIChange(
       await reload();
       return { kind: 'rejected', message: msg('conflict'), examples: [] };
     }
-    set({
-      next,
-      ...(draft?.open && !stayInDraft ? { draft: { ...draft, open: false }, toast: null } : {}),
-    });
-    await repo.setMeta(NEXT_META_KEY, next ?? '');
+    if (draft?.open && !stayInDraft && !hasDeferred)
+      set({ draft: { ...draft, open: false }, toast: null });
     // 被移除的工具失去文件授权；文件本身保留（§7G）。
     const remaining = new Set(after.after.packages.map((t) => t.id));
     for (const tool of config!.packages) {
       if (!remaining.has(tool.id)) await repo.revokeToolGrants(tool.id);
     }
     await reload();
-    if (stayInDraft || cleanup.length > 0) await rebaseOpenDraft(cleanup);
+    // 用户在草稿这一步的回复里看到功能已经生效；AI 的说明也放这里（说的是整句话）。
+    const lookStep = hasDeferred
+      ? await deferredIntoDraft(
+          input,
+          first.deferred,
+          [...after.lines, msg('draftFunctionApplied'), ...(plan.notes ?? [])],
+          cleanup,
+          origin,
+          stayInDraft,
+          stepTurn,
+        )
+      : null;
+    if (!hasDeferred && (stayInDraft || cleanup.length > 0)) await rebaseOpenDraft(cleanup);
+    const lookNotDone = hasDeferred && !lookStep;
+    const next =
+      plan.next ?? (lookNotDone ? deferredLookText(after.after, first.deferred, ctx, input) : null);
+    set({ next });
+    await repo.setMeta(NEXT_META_KEY, next ?? '');
+    const notDoneNote = msg('deferredLookNotDone');
+    // 搭建时清单和下一句（next）会接着做，不用多一条提示；聊天框里回复就说了。
+    if (lookNotDone && !stepTurn && !stayInDraft) set({ draftNotice: notDoneNote });
     const shown = get().draft?.steps.at(-1)?.config ?? after.after;
     await recordDone({
       input,
-      lines: after.lines,
+      lines: [...after.lines, ...(lookStep?.lines ?? []), ...(lookNotDone ? [notDoneNote] : [])],
       kind: workKindOfOps(ops),
       before,
       after: shown,
       later: Boolean(next) || (stepTurn?.step.remaining ?? 0) > 0,
-      refs: { rev: revisionId },
+      refs: lookStep ? { rev: revisionId, cr: lookStep.changeRequestId } : { rev: revisionId },
       next,
       stepTurn,
     });
+    if (lookStep)
+      return {
+        kind: 'drafted',
+        step: lookStep,
+        focusPageId: focusPage(first.deferred, lookStep.config),
+      };
     const applied = addedBy(config!, after.after, origin);
+    // 没做成时 AI 的说明不能留：它可能说外观已经好了。
+    const notes = lookNotDone ? [notDoneNote] : plan.notes;
     return {
       kind: 'applied',
       lines: after.lines,
-      applied: plan.notes?.length ? { ...applied, notes: plan.notes } : applied,
+      applied: notes?.length ? { ...applied, notes } : applied,
       focusPageId: focusPage(ops, after.after),
+      ...(lookNotDone ? { lookNotDone: true } : {}),
     };
   }
 

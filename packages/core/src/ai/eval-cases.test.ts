@@ -224,3 +224,48 @@ describe('RE3：拍照记到不存在的表（点名的东西不存在且用途�
     expect(c.mock).toBe(false);
   });
 });
+
+describe('混合计划（D-419）：功能和外观都应用后再检查', () => {
+  const now = new Date(2026, 10, 3);
+  const c = EVAL_CASES.find((x) => x.id === 'FL1')!;
+  const judge = async (plan: Plan) =>
+    (await runEvalCase(c, { plan: async () => plan }, registry, now)).outcome;
+  const visaAction: Op = {
+    op: 'addTool',
+    tool: {
+      kind: 'quickAction',
+      id: 'visa',
+      name: '签证照片',
+      steps: [
+        { id: 'in', action: 'in.photos', params: { source: 'library', min: 1, max: 1 } },
+        { id: 'photo', action: 'image.idPhoto', params: { spec: 'cn-visa', maxKB: 500 } },
+      ],
+    },
+  };
+
+  it('混合计划不算失败：两样都做对了就通过（要求 next 的用例也不用 next）', async () => {
+    const green: Op = { op: 'setTheme', primaryColor: '#2F9E44' };
+    expect(await judge({ kind: 'ops', ops: [visaAction, green] })).toEqual({ pass: true });
+  });
+
+  it('混合计划外观做错了还是失败', async () => {
+    const red: Op = { op: 'setTheme', primaryColor: '#E03131' };
+    expect(await judge({ kind: 'ops', ops: [visaAction, red] })).toMatchObject({ pass: false });
+  });
+
+  it('只有功能、没有 next：外观没做，还是失败', async () => {
+    expect(await judge({ kind: 'ops', ops: [visaAction] })).toEqual({
+      pass: false,
+      reason: 'expected next with the look part',
+    });
+  });
+
+  it('外观单独套不上：失败（用户实际得不到）', async () => {
+    const clash: Op = {
+      op: 'addContainer',
+      page: 'nowhere',
+      block: { id: 'x', look: 'header', show: { title: 'x' } },
+    };
+    expect(await judge({ kind: 'ops', ops: [visaAction, clash] })).toMatchObject({ pass: false });
+  });
+});
