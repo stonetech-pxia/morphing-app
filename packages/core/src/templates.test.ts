@@ -89,7 +89,7 @@ describe('file record presets', () => {
       }),
     );
     expect(fields).toEqual({
-      purchase: '购物凭证 商家:text 日期:date 金额:money 备注:text 附件:file',
+      purchase: '购物凭证 商家:text 日期:date 金额:money 分类:choice 备注:text 附件:file',
       bill: '账单 出具方:text 到期日:date 金额:money 已付:checkbox 附件:file',
       contract: '合同 名称:text 对方:text 签订日期:date 到期日:date 附件:file',
       reimbursement: '报销 事由:text 日期:date 金额:money 状态:choice 附件:file',

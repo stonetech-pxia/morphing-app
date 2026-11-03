@@ -213,6 +213,36 @@ describe('新记录表单的候选值', () => {
     expect(JSON.stringify(picks)).not.toContain('178');
   });
 
+  it('收据模版的分类（D-405）：票面上看得出来就在分类下面给候选，没有自动选；点了才选中，看不出来就没有', async () => {
+    const { files, vision, repo } = await render();
+    vision.layers.push(layer(['大众药房', 'Date 2026-10-20', '感冒灵 12.00', 'Total 12.00']));
+    await shareInto(files, [{ name: 'receipt.jpg', mime: 'image/jpeg' }]);
+    await waitFor(() => expect(chipTexts('category')).toEqual(['把 药妆 填进「分类」']));
+    // 没有自动选：六个选项都没选中。
+    const optionOn = (id: string) =>
+      (screen.getByTestId(`editor-category-${id}`).props as { style?: unknown }).style;
+    const before = optionOn('pharmacy');
+    await fireEvent.press(screen.getByTestId('editor-category-suggestion-0'));
+    expect(optionOn('pharmacy')).not.toEqual(before);
+    expect(
+      screen.getByTestId('editor-category-suggestion-0').props.accessibilityState.selected,
+    ).toBe(true);
+    await save();
+    const [record] = await repo.listRecords('purchases');
+    expect(record!.values.category).toBe('pharmacy');
+    // 分类的候选不是文字里的某个位置：不记点选。
+    expect(await repo.getMeta(PICK_STORE_KEY)).toBeNull();
+  });
+
+  it('收据模版的分类：票面上看不出是哪一类就不给候选，不报错（没装本机模型）', async () => {
+    const { files, vision } = await render();
+    vision.layers.push(layer(RECEIPT));
+    await shareInto(files, [{ name: 'receipt.jpg', mime: 'image/jpeg' }]);
+    await waitFor(() => expect(chipTexts('amount').length).toBeGreaterThan(0));
+    expect(chipTexts('category')).toEqual([]);
+    expect(screen.getByTestId('editor-category-dining')).toBeTruthy();
+  });
+
   it('有数据：上次点的标签，下次同样的单据排第一', async () => {
     const { files, vision } = await render();
     const shipped = ['Order date 2026-09-03', 'Ship date 2026-09-08', 'Total 5.00'];

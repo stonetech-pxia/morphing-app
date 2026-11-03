@@ -288,7 +288,13 @@ describe('suggestValues: iOS simulator findings (2026-10-31)', () => {
 
 describe('conceptOf for the D-392 presets', () => {
   const expected: Record<string, Record<string, string | null>> = {
-    purchase: { merchant: 'merchant', date: 'issueDate', amount: 'amount', note: null },
+    purchase: {
+      merchant: 'merchant',
+      date: 'issueDate',
+      amount: 'amount',
+      category: 'category',
+      note: null,
+    },
     bill: { issuer: 'company', due: 'dueDate', amount: 'amount' },
     contract: { party: 'company', signed: 'signDate', ends: 'dueDate' },
     reimbursement: { reason: 'purpose', date: 'issueDate', amount: 'amount' },

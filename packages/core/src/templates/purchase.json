@@ -45,6 +45,65 @@
         }
       },
       {
+        "id": "category",
+        "name": {
+          "en": "Category",
+          "zh": "分类",
+          "fr": "Catégorie"
+        },
+        "type": "choice",
+        "options": [
+          {
+            "id": "dining",
+            "label": {
+              "en": "Dining",
+              "zh": "餐饮",
+              "fr": "Restauration"
+            }
+          },
+          {
+            "id": "grocery",
+            "label": {
+              "en": "Grocery & convenience",
+              "zh": "超市便利店",
+              "fr": "Supermarché et supérette"
+            }
+          },
+          {
+            "id": "pharmacy",
+            "label": {
+              "en": "Drugstore",
+              "zh": "药妆",
+              "fr": "Pharmacie et beauté"
+            }
+          },
+          {
+            "id": "other-shopping",
+            "label": {
+              "en": "Other shopping",
+              "zh": "其他购物",
+              "fr": "Autres achats"
+            }
+          },
+          {
+            "id": "transport",
+            "label": {
+              "en": "Transport",
+              "zh": "交通",
+              "fr": "Transport"
+            }
+          },
+          {
+            "id": "other",
+            "label": {
+              "en": "Other",
+              "zh": "其他",
+              "fr": "Autre"
+            }
+          }
+        ]
+      },
+      {
         "id": "note",
         "name": {
           "en": "Note",

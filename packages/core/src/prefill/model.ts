@@ -1,5 +1,6 @@
 import type { Field } from '../schema';
 import { checkAnswer, keepForModel, squash } from './check';
+import { categoryAnswers, categoryRequest } from './category';
 import { conceptOf, type ConceptId } from './concepts';
 
 // 本机模型给候选（D-396、D-401）：Qwen3.5-2B，只问代码拿不准的字段，一个字段问一次。文字生成由外面注入
@@ -125,6 +126,8 @@ export function modelRequest(
   rows: readonly string[],
   limits: ModelLimits = MODEL_LIMITS,
 ): ModelRequest {
+  // 分类字段（单选）问的是「选哪个选项」，不是抄文字里的值（D-405）。
+  if (f.type === 'choice') return categoryRequest(f, rows, limits.textChars);
   return {
     prompt:
       `${documentPrefix(f, rows, limits)}${fieldQuestion(f)}<|im_end|>\n` +
@@ -144,6 +147,7 @@ export function modelAnswers(
   rows: readonly string[],
   locale: Parameters<typeof checkAnswer>[3],
 ): string[] {
+  if (f.type === 'choice') return categoryAnswers(f, answer);
   const out: string[] = [];
   for (const part of answer.split('|')) {
     const value = checkAnswer(f, part, rows, locale);

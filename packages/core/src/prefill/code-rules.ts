@@ -1,6 +1,7 @@
 import type { Field, Locale } from '../schema';
 import { ruleCandidates } from './candidates';
 import { amountChain, amountNear } from './amount-chain';
+import { canAskCategory, categoryByCode } from './category';
 import { hasNoDecimals, rowHasDate, squash } from './check';
 import { conceptOf, type ConceptId } from './concepts';
 import { resetDocContext } from './doc-context';
@@ -221,10 +222,14 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
     }
     return undefined;
   };
-  const fromCode = (value: string): ValueSuggestion => withPick(value, pickOf(value));
+  const fromCode = (field: Field, value: string): ValueSuggestion =>
+    // 单选的值是选项 ID，不在文字里：没有位置可记（D-405）。
+    field.type === 'choice' ? { value, score: 0 } : withPick(value, pickOf(value));
 
   const fields = input.fields.map((field): FieldPlan => {
     const concept = conceptOf(field);
+    // 分类（单选）：票面写了选项名，或词表有把握，就不问模型（D-405）。
+    const category = field.type === 'choice' && concept === 'category';
     let list = scored[field.id] ?? [];
     let code: string | null | undefined;
     const noDecimals = hasNoDecimals(field);
@@ -285,6 +290,8 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
         code = top.value;
       else if (concept === 'phone') code = top.value;
     }
+    if (code === undefined && category && field.type === 'choice')
+      code = categoryByCode(field, rows) ?? undefined;
     if (code === undefined && !top && concept && EMPTY_IS_SURE.has(concept)) {
       // 文字里有单号的键名、代码又取不到值时是没把握，不是没有：要问模型。
       if (concept !== 'number' || !mayHaveNumber(rows)) code = null;
@@ -294,26 +301,28 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
     const add = (s: ValueSuggestion) => {
       if (!merged.some((m) => sameValue(field, m.value, s.value))) merged.push(s);
     };
-    if (code) add(list.find((s) => sameValue(field, s.value, code!)) ?? fromCode(code));
-    for (const v of extras) add(list.find((s) => sameValue(field, s.value, v)) ?? fromCode(v));
+    if (code) add(list.find((s) => sameValue(field, s.value, code!)) ?? fromCode(field, code));
+    for (const v of extras)
+      add(list.find((s) => sameValue(field, s.value, v)) ?? fromCode(field, v));
     list.forEach((s, i) => {
       add(s);
-      if (i === 0) for (const v of second) add(fromCode(v));
+      if (i === 0) for (const v of second) add(fromCode(field, v));
     });
-    if (list.length === 0) for (const v of second) add(fromCode(v));
+    if (list.length === 0) for (const v of second) add(fromCode(field, v));
 
     const memory = usesValueMemory(field) ? rememberedValue(input.known?.[field.id], rows) : null;
     return {
       field,
       code: merged,
-      remembered: memory ? fromCode(memory) : null,
-      // 单选字段交给规则；不能填的字段（附件、勾选……）规则也不给候选。
+      remembered: memory ? fromCode(field, memory) : null,
+      // 单选字段只有分类问模型（D-405），别的交给规则；不能填的字段（附件、勾选……）规则也不给候选。
       ask:
         code === undefined &&
         !(concept === null && (field.type === 'note' || FREE_NOTE.test(field.name.trim()))) &&
         // 店名的分数看不出对错，模型又换不对第一个，有候选就不为它加载模型（D-404）。
         !(concept === 'merchant' && merged.length > 0) &&
-        (field.type === 'money' ||
+        ((category && field.type === 'choice' && canAskCategory(field)) ||
+          field.type === 'money' ||
           field.type === 'number' ||
           field.type === 'date' ||
           field.type === 'text' ||
@@ -339,7 +348,10 @@ export function mergedSuggestions(
   if (plan.remembered) add(plan.remembered);
   if (plan.codeFirst) for (const s of known) add(s);
   for (const v of model)
-    add(known.find((s) => sameValue(plan.field, s.value, v)) ?? withPick(v, pickOf(v)));
+    add(
+      known.find((s) => sameValue(plan.field, s.value, v)) ??
+        (plan.field.type === 'choice' ? { value: v, score: 0 } : withPick(v, pickOf(v))),
+    );
   for (const s of known) add(s);
   return out;
 }
