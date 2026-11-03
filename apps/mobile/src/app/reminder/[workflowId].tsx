@@ -1,10 +1,11 @@
 import { findWorkflow, findWorkflowTarget, localize, quickActionsOf } from '@morph/core';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ScrollView, Text } from 'react-native';
 
 import { t } from '@/i18n';
 import { usePalette } from '@/renderer/theme';
 import { Button, Card } from '@/renderer/ui';
+import { workflowEntry } from '@/shell/ai-entry';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
 /**
@@ -29,6 +30,11 @@ export default function ReminderRoute() {
     <ScrollView
       testID="reminder-screen"
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 48 }}>
+      <Stack.Screen
+        options={{
+          headerRight: workflowEntry(config, workflow?.id ?? workflowId, palette),
+        }}
+      />
       <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
         {t(locale, entry ? 'openQuickActionTitle' : 'reminderOpenTitle')}
       </Text>

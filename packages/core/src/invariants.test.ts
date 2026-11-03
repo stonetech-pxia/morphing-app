@@ -150,6 +150,25 @@ describe('底线 2：AI 永远看不到数据内容', () => {
       ).toBe(false);
   });
 
+  it('the page a change was opened from is only an id or a kind of file: titles of records, names and contents do not fit (D-406)', () => {
+    const places = [
+      { kind: 'page', pageId: 'budget' },
+      { kind: 'table', tableId: 'expenses' },
+      { kind: 'screen', screen: 'tools' },
+      { kind: 'desk', fileKind: 'pdf' },
+    ];
+    for (const place of places) {
+      expect(PlanAboutSchema.safeParse(place).success).toBe(true);
+      for (const extra of [
+        { recordId: 'r1' },
+        { title: SENTINEL },
+        { name: 'a.pdf' },
+        { text: SENTINEL },
+      ])
+        expect(PlanAboutSchema.safeParse({ ...place, ...extra }).success).toBe(false);
+    }
+  });
+
   it('text the user typed into quick-action steps (watermark, stamp …) is replaced before the config goes to AI', () => {
     const base = createDefaultWorkspace('zh');
     let hidden = 0;

@@ -593,6 +593,14 @@ export interface RouteInput {
   earlier?: readonly PlanEarlier[] | undefined;
 }
 
+/** 从哪里打开的 AI 算哪一类：页面和文件桌面是 look，表是 records；工具页没有固定的一类，只看这句话。 */
+function aboutCategory(about: PlanAbout): RouteCategory | null {
+  if (about.kind === 'page' || about.kind === 'desk') return 'look';
+  if (about.kind === 'table') return 'records';
+  if (about.kind === 'screen' && about.screen === 'tools') return null;
+  return 'files';
+}
+
 /**
  * 挑提示词路由。从快捷操作或分享的文件打开 AI 时是 files（这句话又说到别的就 full）；
  * 草稿里的后续一句沿用第一句的路由：这句话自己拿不准（「再大一点」）就照第一句，
@@ -600,12 +608,13 @@ export interface RouteInput {
  */
 export function routeRequest({ input, config, about, earlier }: RouteInput): PromptRoute {
   const found = routeCategories(input, config);
-  if (about) found.add('files');
+  const opened = about ? aboutCategory(about) : null;
+  if (opened) found.add(opened);
   const own = routeOf(found);
   const first = earlier?.[0];
   if (!first) return own;
   const firstFound = routeCategories(first.input, config);
-  if (about) firstFound.add('files');
+  if (opened) firstFound.add(opened);
   const base = routeOf(firstFound);
   if (found.size === 0 || routeCovers(base, own)) return base;
   return 'full';

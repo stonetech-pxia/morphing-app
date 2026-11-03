@@ -219,7 +219,7 @@ export interface WorkspaceState {
    */
   change(input: string, planner?: AIProvider, origin?: DraftOrigin): Promise<ChangeResult>;
   /** 草稿聊天框的一句话：只改外观，功能类的请求不做。 */
-  draftChange(input: string): Promise<ChangeResult>;
+  draftChange(input: string, about?: PlanAbout): Promise<ChangeResult>;
   /**
    * 套用一个样板 App（D-260）：整套修改（表、快捷操作、页面、提醒）作为草稿的一步，不经过 AI、不发请求；
    * 用户点「应用」时合成一个版本，可以撤销。放不下时不进草稿，返回原因。

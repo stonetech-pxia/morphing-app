@@ -5,16 +5,20 @@ import {
   ICON_NAMES,
   OpSchema,
   PlanAboutSchema,
+  applyOps,
   createDefaultWorkspace,
   createRegistry,
   presetById,
   presetWorkflow,
+  templateOps,
+  type PlanAbout,
 } from '@morph/core';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AIHttpError, checkModelAccess, createHttpCompleter } from './http';
 import { createClaudePlanner, type Complete, type Completion } from './planner';
 import { buildSystemPrompt, buildUserMessage } from './prompt';
+import { routeRequest } from './route';
 
 const registry = createRegistry(BUILTIN_TOOLS);
 const config = createDefaultWorkspace('zh');
@@ -471,5 +475,50 @@ describe('HTTP transport', () => {
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://api.anthropic.com/v1/models/claude-haiku-5-5');
     expect(init.method).toBe('GET');
+  });
+});
+
+describe('opened from a page (D-406)', () => {
+  const config = applyOps(
+    createDefaultWorkspace('zh'),
+    templateOps('budget', createDefaultWorkspace('zh'), 'zh'),
+    { registry, locale: 'zh' },
+  );
+  if (!config.ok) throw new Error(config.error);
+  const message = (about: PlanAbout) =>
+    buildUserMessage(config.config, '这里改一下', 'zh', about, [], registry);
+
+  it('the page and the table are named by id and title', () => {
+    expect(message({ kind: 'page', pageId: 'budget' })).toContain(
+      '<context>page "budget" (“记账”)</context>',
+    );
+    expect(message({ kind: 'table', tableId: 'expenses' })).toContain(
+      '<context>table "expenses" (“账目”)</context>',
+    );
+    expect(message({ kind: 'screen', screen: 'tools' })).toContain(
+      '<context>built-in screen: tools</context>',
+    );
+  });
+
+  it('a page that is gone adds no context', () => {
+    expect(message({ kind: 'page', pageId: 'gone' })).not.toContain('<context>');
+  });
+
+  it('the file desk says the kind of file and its toolbar now, for that kind only', () => {
+    const text = message({ kind: 'desk', fileKind: 'pdf' });
+    expect(text).toContain('<context>file desk, showing: pdf.');
+    expect(text).toContain('pdf.rotate');
+    expect(text).not.toContain('image.compress"}');
+  });
+
+  it('the prompt routes follow where it was opened from', () => {
+    const route = (about: PlanAbout) =>
+      routeRequest({ input: '改一下', config: config.config, about });
+    expect(route({ kind: 'page', pageId: 'budget' })).toBe('look');
+    expect(route({ kind: 'desk', fileKind: 'pdf' })).toBe('look');
+    expect(route({ kind: 'table', tableId: 'expenses' })).toBe('records');
+    expect(route({ kind: 'screen', screen: 'quickActions' })).toBe('files');
+    expect(route({ kind: 'screen', screen: 'tools' })).toBe('full');
+    expect(route({ kind: 'workflow', workflowId: 'x' })).toBe('files');
   });
 });

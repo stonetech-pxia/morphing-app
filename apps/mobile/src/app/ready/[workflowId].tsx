@@ -1,10 +1,11 @@
 import { quickActionsOf } from '@morph/core';
-import { useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { Text, View } from 'react-native';
 
 import { readyNotes } from '@/draft/useApplyDraft';
 import { t } from '@/i18n';
 import { usePalette } from '@/renderer/theme';
+import { workflowEntry } from '@/shell/ai-entry';
 import { ReadyScreen } from '@/shell/ReadyScreen';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
@@ -24,5 +25,10 @@ export default function ReadyRoute() {
       </View>
     );
   }
-  return <ReadyScreen workflow={workflow} notes={readyNotes(notes)} />;
+  return (
+    <>
+      <Stack.Screen options={{ headerRight: workflowEntry(config, workflow.id, palette) }} />
+      <ReadyScreen workflow={workflow} notes={readyNotes(notes)} />
+    </>
+  );
 }

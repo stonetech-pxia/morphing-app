@@ -7,13 +7,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EditablePage } from '@/editing/EditablePage';
 import { t } from '@/i18n';
 import { ErrorBoundary } from '@/renderer/ErrorBoundary';
-import { Icon, UiIcon } from '@/renderer/Icon';
+import { UiIcon } from '@/renderer/Icon';
 import { openEditor } from '@/renderer/open-row';
 import type { RenderEnv } from '@/renderer/components';
 import { usePalette } from '@/renderer/theme';
 import { DraftBar } from '@/draft/DraftBar';
 import { SampleHint } from '@/guide/SampleHint';
 import { directEditEntry } from '@/editing/entry';
+import { AIEntry } from '@/shell/ai-entry';
 import { Banner, DraftNotice, useShellEnv } from '@/shell/Shell';
 import { Toast } from '@/shell/Toast';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
@@ -108,13 +109,7 @@ export default function PageRoute() {
                     </Text>
                   </Pressable>
                 ) : null}
-                <Pressable
-                  testID="page-ai"
-                  accessibilityLabel={t(locale, 'changeTitle')}
-                  onPress={() => (inDraft ? navigate('ai') : router.push('/change'))}
-                  hitSlop={10}>
-                  <Icon name="sparkles" size={22} color={palette.primaryText} />
-                </Pressable>
+                <AIEntry about={{ kind: 'page', pageId: page.id }} palette={palette} />
               </View>
             ),
         }}

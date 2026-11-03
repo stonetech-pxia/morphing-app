@@ -50,9 +50,14 @@ import { usePalette, type Palette } from '../renderer/theme';
 import { Button } from '../renderer/ui';
 import { AskPanel } from '../run/AskPanel';
 import { newAssetId, startRun } from '../runtime/runner';
+import { AIEntry } from '../shell/ai-entry';
+import { Banner } from '../shell/Banner';
 import { useShellEnv } from '../shell/Shell';
+import { Toast } from '../shell/Toast';
 import { deleteUserFiles } from '../storage/user-files';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { shownConfig } from '../workspace/store';
+import { DraftBar } from '../draft/DraftBar';
 import { DeskEditor } from './DeskEditor';
 import { DeskPreview } from './DeskPreview';
 import { DeskToolbar, roomEntries, toolEntries, type ToolEntry } from './DeskToolbar';
@@ -83,6 +88,9 @@ const nowMs = () => Date.now();
 /** 预览占屏幕高度的比例（布局 preview 不是 fill 时）。 */
 const PREVIEW_SHARE = { large: 0.62, medium: 0.45 } as const;
 
+/** 草稿的四个按钮占的高度（不算底部安全区）。 */
+const DRAFT_BAR_SPACE = 84;
+
 interface Busy {
   label: string;
   done?: number;
@@ -92,7 +100,8 @@ interface Busy {
 
 export function DeskScreen({ deskId }: { deskId: string }) {
   const { repo, files, registry, locale } = useWorkspaceContext();
-  const config = useWorkspace((s) => s.config!);
+  // 草稿模式里显示草稿（D-190）：AI 改的工具栏和布局在这里看（D-406）。
+  const config = useWorkspace(shownConfig)!;
   const revisionId = useWorkspace((s) => s.head!.id);
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const bumpRecords = useWorkspace((s) => s.bumpRecords);
@@ -101,7 +110,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   const insets = useSafeAreaInsets();
   const { height: screenHeight, width: screenWidth } = useWindowDimensions();
   const host = useRunHost(palette, locale);
-  const { navigate, locked } = useShellEnv();
+  const { navigate, locked, inDraft } = useShellEnv();
 
   const [desk, setDeskState] = useState<Desk | null | 'gone'>(null);
   const deskRef = useRef<Desk | null>(null);
@@ -297,6 +306,8 @@ export function DeskScreen({ deskId }: { deskId: string }) {
 
   async function press(entry: ToolEntry) {
     if (busy) return;
+    // 草稿模式里能看不能用（D-190）。
+    if (locked) return locked();
     // 用别的工具、保存、分享前先把编辑合成一个版本（§11.2）。
     const on = await sealedTargets();
     if (entry.room === 'share') return void act(() => files.shareUris(items()));
@@ -580,6 +591,9 @@ export function DeskScreen({ deskId }: { deskId: string }) {
           }
           disabled={busy !== null || !(editRedo || (!edit.dirty && canRedo(desk)))}
         />
+        {busy === null ? (
+          <AIEntry about={{ kind: 'desk', fileKind: kind }} palette={palette} />
+        ) : null}
         <HeaderButton
           id="desk-done"
           text={t(locale, 'done')}
@@ -595,6 +609,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
         />
       </View>
 
+      {inDraft ? null : <Banner palette={palette} />}
       {layout.toolbar === 'top' && showToolbar ? toolbar : null}
       {slot(layout.above, 'desk-above')}
       <View
@@ -665,6 +680,8 @@ export function DeskScreen({ deskId }: { deskId: string }) {
       {layout.preview === 'fill' ? null : <View style={styles.flex} />}
       {layout.toolbar === 'bottom' && showToolbar ? toolbar : null}
       {bottomInset > 0 ? <View testID="desk-bottom-inset" style={{ height: bottomInset }} /> : null}
+      {/* 草稿的四个按钮不盖住工具栏：工具栏就是要看的东西。 */}
+      {inDraft ? <View style={{ height: DRAFT_BAR_SPACE + insets.bottom }} /> : null}
 
       {panel ? (
         <AskPanel
@@ -807,6 +824,12 @@ export function DeskScreen({ deskId }: { deskId: string }) {
             </View>
           </View>
         </Modal>
+      ) : null}
+      {inDraft ? (
+        <>
+          <DraftBar palette={palette} bottom={insets.bottom + 12} />
+          <Toast palette={palette} bottom={insets.bottom + DRAFT_BAR_SPACE} />
+        </>
       ) : null}
     </KeyboardAvoidingView>
   );

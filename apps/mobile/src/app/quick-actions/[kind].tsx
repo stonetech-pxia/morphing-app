@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { Text, View } from 'react-native';
 import { usePalette } from '@/renderer/theme';
 import { releaseShare } from '@/share/incoming';
+import { quickActionsEntry } from '@/shell/ai-entry';
 import { WorkflowsScreen } from '@/shell/WorkflowsScreen';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
@@ -26,7 +27,12 @@ export default function QuickActionCategoryRoute() {
     );
   return (
     <>
-      <Stack.Screen options={{ title: localize(QUICK_ACTION_CATEGORIES[kind].name, locale) }} />
+      <Stack.Screen
+        options={{
+          title: localize(QUICK_ACTION_CATEGORIES[kind].name, locale),
+          headerRight: quickActionsEntry(palette),
+        }}
+      />
       <WorkflowsScreen
         palette={palette}
         locale={locale}

@@ -110,6 +110,7 @@ export function createClaudePlanner(options: PlannerOptions): AIProvider {
             ctx.locale,
             ctx.about,
             ctx.earlier,
+            ctx.registry,
           ),
         },
       ];

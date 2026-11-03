@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import type { DeskKind } from '../desk/model';
 import { OpListSchema, type Op } from '../ops';
 import type { Registry } from '../registry';
 import type { Locale, WorkspaceConfig } from '../schema';
@@ -85,6 +86,10 @@ export const PlanSchema: z.ZodType<Plan> = z.discriminatedUnion('kind', [
  * - workflow：从一个快捷操作打开（「让 AI 改这个」），「这个」「它」指的就是它。
  * - chain：从两次成功接续的结果打开，带有顺序的两个快捷操作 ID，没有文件信息。
  * - shared：从收件页面打开，带着分享进来的文件的类型和个数（没有文件名、大小和内容）。
+ * - page：从一个页面右上角的入口打开（D-406），只有页面 ID；「这个页面」「这里」指的就是它。
+ * - table：从一张表的记录表单或「做好了」页面打开（D-406），只有表 ID，没有记录。
+ * - screen：从 Morph 自带的工具页、快捷操作页打开（D-406）：页面本身改不了，能加工具、加快捷操作。
+ * - desk：从文件桌面打开（D-406），只有桌上文件的种类；能改工具栏和布局，碰不了文件（底线 3）。
  */
 export type PlanAbout =
   | { kind: 'workflow'; workflowId: string }
@@ -97,7 +102,11 @@ export type PlanAbout =
       /** 视频和音频（D-147）；旧版 App 不发，所以可选。 */
       videos?: number | undefined;
       audio?: number | undefined;
-    };
+    }
+  | { kind: 'page'; pageId: string }
+  | { kind: 'table'; tableId: string }
+  | { kind: 'screen'; screen: 'tools' | 'quickActions' }
+  | { kind: 'desk'; fileKind: DeskKind };
 
 export const PlanAboutSchema: z.ZodType<PlanAbout> = z.discriminatedUnion('kind', [
   z.strictObject({
@@ -113,6 +122,13 @@ export const PlanAboutSchema: z.ZodType<PlanAbout> = z.discriminatedUnion('kind'
     others: z.number().int().min(0).max(100),
     videos: z.number().int().min(0).max(100).optional(),
     audio: z.number().int().min(0).max(100).optional(),
+  }),
+  z.strictObject({ kind: z.literal('page'), pageId: z.string().min(1).max(64) }),
+  z.strictObject({ kind: z.literal('table'), tableId: z.string().min(1).max(64) }),
+  z.strictObject({ kind: z.literal('screen'), screen: z.enum(['tools', 'quickActions']) }),
+  z.strictObject({
+    kind: z.literal('desk'),
+    fileKind: z.enum(['image', 'pdf', 'sheet', 'doc', 'video', 'audio', 'other']),
   }),
 ]);
 

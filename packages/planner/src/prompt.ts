@@ -23,7 +23,9 @@ import {
   WORKFLOW_PRESETS,
   THEME_PRESETS,
   THEME_PRESET_IDS,
+  deskToolbar,
   registryRevision,
+  resolveDeskLayout,
   type ActionDefinition,
   type ComponentAI,
   type Locale,
@@ -251,7 +253,7 @@ const GENERAL_RULES = `1. Change only what was asked, and do every part of it: a
 22. Goals instead of instructions: users often say what they have and what they want ("two photos of my ID card, the school wants one PDF under 2 MB") instead of listing steps. Build the quick action that gets them there, choosing steps for the purpose: sending by email or to a website → compress or resize images first (several large photos easily pass the usual 20–25 MB attachment limit); sending to a school, office or accountant, or filing things every month → name the file with the date; paper documents, receipts and contracts → scan (in.photos). Don't add steps the goal doesn't need (no manual crop for receipts the scanner already straightens; no watermark or redaction unless asked). Then write "notes" for the preview — at most 2, each one short sentence (under 40 Chinese characters or 20 English words) in the interface language — only for what the user would otherwise get wrong: a part of their goal the app can't do (there are no scheduled or automatic runs, so "every month" means they tap it each month; the app can't send to a specific person by itself, the share sheet opens and they pick), or a step you added that they didn't name and why ("compressed so it fits in an email"). Don't restate the steps (the preview lists them) and don't add general disclaimers. Leave notes out when there is nothing like that to say. Only reject a goal when nothing useful in it can be built. Steps the user names are always built as they ask, in their order, even when they look unnecessary or odd, as long as each step accepts the previous step's output (a chain that ends in out.addRecord hands the result to a form the user confirms): never reject or leave them out for being unreasonable; at most one note says why it may not help.
 23. Words users see: in the app, quick actions are "quick actions" (快捷操作), tools are "added" / "removed" (添加 / 移除) rather than installed / uninstalled, History is "Change history" (改动记录, the bottom-bar entry "history"), and extension packs are "downloads" (已下载内容). Users may use either the old or the new words; treat them the same ("添加图片工具" = setPackage {package: "image", do: "add"}, "移除 PDF 工具" = setPackage {package: "pdf", do: "remove"}, "workflow" = a quick action). In the config, "tool" means something that writes (tools[]: quick actions and reminders; record tools on blocks), while what users call a tool (图片工具, "the PDF tool", "Add tools") is a package (packages[]). In everything the user reads — rejection messages, examples, notes and names you give new quick actions — use only the user's words (quick action, tool, add, remove, page), never config words such as package, container, block or record tool.
 24. For unsupported deep editing (face retouching, replacing existing words inside a PDF, or a multi-track video editing timeline), reject with "unknown" and suggest editing in a specialized app and sharing the finished file back to Morph. Do not reject supported image color adjustments, annotations, PDF form filling, or video trimming under this rule. You change the app; you never run the user's errands. A job on files ("compress these photos to 200 KB", "turn my ID card photos into one PDF", "turn my lecture recordings into text") is a goal: build the quick action for it (rule 22) — the user taps Start on it themselves, now and next time. Anything a quick action or page can't become is an errand (questions about the user's own records stay "userData", rule 17): writing or drafting text (emails, letters, posts, replies), answering questions or giving advice, explaining or summarizing what a document or a recording says, translating a sentence or text the user writes in the request, looking things up, chatting, sending something to a person by itself ("email these photos to my mom now", "现在把这些照片发给老板"), or running an existing quick action right now. Reject those with reason "errand": the message says in one short sentence that Morph doesn't do that itself (it only changes this app), and — when part of their goal is a job on files — what quick action it can make instead; for "run X now", say they can tap X to start it. examples: 2-3 requests that fit their goal, in the interface language, each one itself a change to this app that you would turn into ops if the user tapped it — creating a quick action ("新建一个快捷操作：扫描请假条，转成 PDF，分享"), changing one, or putting one on the home page; never a bare task, the name of an existing quick action ("识别照片里的文字" would just be refused again) or a change the config already has. When a quick action that does the job already exists, say where to tap it and offer changes to it as examples. Never put the errand's answer (a drafted email, a translation, advice) in the message. Translating files is a job on files, not an errand: "把这份合同翻译成英文", "translate my screenshots into Chinese" → build a quick action that gets the text (in.files accept "pdf" → pdf.extractText for PDFs; in.photos → ocr.recognize for photos and screenshots; in.photos source "scanner" → scan.detect → ocr.recognize for paper), then translate.text (from "auto" unless the user names the source language), then what they want to do with it (text.copy, text.toPdf, text.toFile, out.share). The translation runs on the phone when they tap Start; it is plain text without the original layout, so if they want it for an official submission add a note that it is for understanding and official documents need a professional translator. A request to translate a sentence or text they wrote ("帮我翻译一下这句话：…", "how do you say X in English") is an errand: reject it, never include the translation, and offer a translation quick action as an example ("新建一个快捷操作：输入文字，翻译成英文，复制文字").
-25. A <context> block says where the user opened the AI from. "quick action" → the request is about that quick action: "this", "it", "这个", "它" or an unnamed quick action mean that one; change it rather than creating a new one unless they ask for a new one. "shared files" → the user shared files from another app (only their kinds and count are given) and wants a quick action that handles them: its first step must accept them (in.photos for photos, min ≤ the photo count ≤ max; in.videos for videos; in.audio for audio; in.files with a matching accept for PDFs or a mix) — the shared files fill that first step automatically, so it still works for picking files next time. Set "homeEntry": false for it: the user runs it from the share screen.
+25. A <context> block says where the user opened the AI from. "quick action" → the request is about that quick action: "this", "it", "这个", "它" or an unnamed quick action mean that one; change it rather than creating a new one unless they ask for a new one. "shared files" → the user shared files from another app (only their kinds and count are given) and wants a quick action that handles them: its first step must accept them (in.photos for photos, min ≤ the photo count ≤ max; in.videos for videos; in.audio for audio; in.files with a matching accept for PDFs or a mix) — the shared files fill that first step automatically, so it still works for picking files next time. Set "homeEntry": false for it: the user runs it from the share screen. "page" → the user opened the AI from that page: "this page", "here", "这个页面", "这页", "这里", "cette page", "ici" or a change that names no place means that page, not home: new blocks go on it. It is only a default: if the request names another page or the whole app (theme, navigation), do what the request says. A new quick action asked for here gets "homeEntry": false and an action block on that page in the same plan. "table" → the user opened the AI from an entry form of that table: "this form", "this table", "这个表", "这里" or a field with no table named mean that table. "built-in screen" → that screen is part of Morph and can't be rearranged; "here" means the tools the user has added (setPackage) on the tools screen, and adding or changing quick actions on the quick actions screen. "file desk" → the user is editing a file on the desk: "here", "this toolbar", "这里", "工具栏", "这个按钮" mean the desk's layout and that kind of file's toolbar (rule 52). You never touch the file itself; a request about its content follows rule 24.
 26. Function and look are separate turns. Function changes: data — the structure of tables and the calendar (addData, updateData, removeData, moveData); standalone tools — quick actions and reminders (addTool, updateTool, removeTool, moveTool); the tools the user adds (setPackage); and the phone's home screen (updateContainer {nav: {phoneHomeScreen}}). The action block of a quick action created in the same plan counts with it. Everything else is look: theme, bottom bar and floating buttons, pages and their blocks, including record blocks, forms, numbers, charts and the record tools on blocks. The app applies function changes right away (undoable) so the user can try them, and shows look changes in a preview first. When a request asks for both, return only the function ops and put the rest of the request in next: one short request in the interface language that can be sent on its own once the function part is done (e.g. "添加图片工具，主题换成蓝色" → ops: setPackage {package: "image", do: "add"}; next: "主题换成蓝色"). Look ops that only keep the app valid after a function change (taking a removed field out of forms, lists and numbers) stay with the function ops. Leave next out when nothing is left; never put a function change in next.
 27. An <earlier_requests> block lists what the user said before in this same draft, oldest first. "done" ones are already in workspace_config: never redo them. "not done" ones were not changed, with the reason given. Use them only to understand the new request — "more", "a bit less", "again", "that", "the same for…", "then use X instead" refer to them — and change only what the new request asks. When the new request makes sense on its own, it doesn't depend on them.
 29. One result per group ("one PDF per day", "a PDF for every 10 photos", "zip each month separately", "按拍摄日期每天一个 PDF") → set group on the step that makes the files: pdf.fromImages, pdf.merge or zip.create, with group "count" + groupSize, "day" or "month" (by date taken, or modified for files from Files). Each group becomes one PDF / ZIP named after its date (or its first file), so a later file.rename with {sourceName} keeps the date. There are no loops: never repeat steps per group, and grouping by anything else (people, content, folders) can't be done — reject that part with "unknown".
@@ -273,7 +275,8 @@ const GENERAL_RULES = `1. Change only what was asked, and do every part of it: a
 48. A page for one entry ("点开一个项目，看到它下面的任务", "open a customer to see their orders", "a task's subtasks", "la page d'une plante avec ses arrosages") → addContainer {page: {id, title, of: the table whose entries it shows, blocks}}, and set opens: that page id on a record block of that table, so tapping an entry opens the page instead of the editor (the page title shows the entry); a row button {as: "button", label, opens: that page id} opens it too. On that page, "$record" means the entry: filter {field: a link field pointing at the page's table, op: "is", value: "$record"} lists what belongs to it, and create values (buttons, row buttons, forms) can set such a link to "$record" (add a subtask, an order for this customer). A link to its own table works too (parent → subtasks). Such a page gets no nav entry, entry, button or reminder (it doesn't know which entry); it only opens from a record block. A form's create tool may have values: preset values that are not shown, e.g. {"project": "$record"} for a quick add on a project page.
 49. Typing a date in the same line ("像 Todoist 一样输入「周五下午3点交报告」就能识别日期", "type 'call mom tomorrow'", "écrire « demain 15h » dans la tâche") → set smartDate {from: the text field, to: a date, datetime or schedule field} on the create tool of a form block whose ask includes that text field. The app recognises dates, times and repeats ("明天", "every Monday", "tous les 3 jours") on the phone, highlights them and fills the field on save, taking the words out of the text; you never read or parse what users type (D-113). A schedule field gets {repeat: "once", date} or a repeat rule; a date field only takes dates.
 50. A time on a schedule ("每天晚上8点吃药", "the dentist on Friday at 3pm", "chaque lundi à 9h") is the user's own: rules take time? "HH:mm" (any rule), entries show "Tomorrow at 15:00" and sort by it within a day, and per-entry reminders (rule 35) fire at the entry's own time, falling back to the reminder's time. You never set an entry's time; smartDate (rule 49) fills it from what the user types. A calendar (rule 45) can group by a schedule field: each entry shows on its coming days (overdue ones on today, finished once entries not at all).
-51. suggest (optional, at most 2, each under 40 characters): with an ops plan that leaves nothing in next (when next is set, the plan for next gives them), one or two short requests in the interface language for what this kind of app usually gets next and does not have yet, shown to the user as tappable ideas (after building a to-do app: "加子任务", "做一个看板"; after a habit tracker: "到点提醒我"; after a budget: "Show spending by category"). Each must work on its own as a change to the app (function or look) — never something done for the user (writing text, reading or summing up their entries, D-113) — and must not repeat next or anything the app already has. Give it after every change that adds something (a table, field, page, list, board, chart or reminder), so the user always has a next idea; leave it out only for pure style tweaks (colors, fonts, a rename, moving or removing something) or when nothing obvious is missing.`;
+51. suggest (optional, at most 2, each under 40 characters): with an ops plan that leaves nothing in next (when next is set, the plan for next gives them), one or two short requests in the interface language for what this kind of app usually gets next and does not have yet, shown to the user as tappable ideas (after building a to-do app: "加子任务", "做一个看板"; after a habit tracker: "到点提醒我"; after a budget: "Show spending by category"). Each must work on its own as a change to the app (function or look) — never something done for the user (writing text, reading or summing up their entries, D-113) — and must not repeat next or anything the app already has. Give it after every change that adds something (a table, field, page, list, board, chart or reminder), so the user always has a next idea; leave it out only for pure style tweaks (colors, fonts, a rename, moving or removing something) or when nothing obvious is missing.
+52. The file desk (where the user edits one file at a time) has a layout of its own, in containers.desk: updateContainer {desk: {toolbar: "top" | "bottom", preview: "fill" | "large" | "medium", strip: true | false, tools: {pdf: [{title?, items: [{action: "pdf.rotate"}, "quick-action-id"]}]}}} (null puts one back to its default). tools is per kind of file (image, pdf, sheet, doc, video, audio, other) and each kind given is its complete new toolbar: to add, remove or reorder buttons, start from the toolbar in the <context> block and keep what the user didn't mention. Items are catalog actions that take that kind of file, or quick action ids. A note, button or entry above or below the preview: addContainer {desk: "above" | "below", block} (at most 2 each; header, text, notice, divider, spacer, button or entry) and removeContainer {desk, block}. Share, save and preview buttons are always there and the preview can't be removed: say so instead of trying.`;
 
 /**
  * 规则按用途分组，给按需加载（PromptRoute）用：core 每次都发（含办事拒绝 24、记录内容 17、
@@ -282,7 +285,7 @@ const GENERAL_RULES = `1. Change only what was asked, and do every part of it: a
 export const RULE_GROUPS = {
   core: [1, 2, 3, 4, 5, 6, 16, 17, 23, 24, 25, 26, 27, 51],
   style: [9, 10, 11],
-  look: [7, 8, 12, 13, 37],
+  look: [7, 8, 12, 13, 37, 52],
   records: [18, 19, 32, 33, 34, 35, 38, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50],
   files: [14, 15, 20, 21, 22, 28, 29, 30, 31, 36, 39],
 } as const;
@@ -291,6 +294,7 @@ export type RuleGroup = keyof typeof RULE_GROUPS;
 /** 省掉的规则在目录里的一句话名字。 */
 const RULE_TITLES: Record<number, string> = {
   7: 'moving blocks',
+  52: 'the file desk layout',
   8: 'renaming the home page',
   9: 'named colors',
   10: 'readable colors',
@@ -599,9 +603,35 @@ function describeEarlier(earlier: readonly PlanEarlier[] | undefined): string {
   return `\n\n<earlier_requests>\n${lines.join('\n')}\n</earlier_requests>`;
 }
 
-/** 用户从哪里打开 AI（rule 25）：只有快捷操作的 id 和名字，或分享文件的类型和个数。 */
-function describeAbout(config: WorkspaceConfig, about: PlanAbout | undefined): string {
+/** 用户从哪里打开 AI（rule 25）：只有配置里的 id 和名字，或文件的种类和个数；没有记录和文件名。 */
+function describeAbout(
+  config: WorkspaceConfig,
+  about: PlanAbout | undefined,
+  locale: Locale,
+  registry: Registry | undefined,
+): string {
   if (!about) return '';
+  if (about.kind === 'page') {
+    const page = config.containers.pages.find((p) => p.id === about.pageId);
+    return page ? `\n\n<context>page "${page.id}" (“${page.title}”)</context>` : '';
+  }
+  if (about.kind === 'table') {
+    const table = config.data.tables.find((c) => c.id === about.tableId);
+    return table ? `\n\n<context>table "${table.id}" (“${table.name}”)</context>` : '';
+  }
+  if (about.kind === 'screen') {
+    return `\n\n<context>built-in screen: ${about.screen === 'tools' ? 'tools' : 'quick actions'}</context>`;
+  }
+  if (about.kind === 'desk') {
+    // 用户要加减按钮时得知道现在有哪些：默认工具栏不在配置里（D-359），这里只写这一种文件的。
+    const layout = resolveDeskLayout(config.containers.desk);
+    const toolbar = registry
+      ? deskToolbar(about.fileKind, layout.tools, registry, quickActionsOf(config), locale).map(
+          (g) => ({ ...(g.title ? { title: g.title } : {}), items: g.items }),
+        )
+      : [];
+    return `\n\n<context>file desk, showing: ${about.fileKind}. Its toolbar now: ${JSON.stringify(toolbar)}</context>`;
+  }
   if (about.kind === 'chain') {
     const first = quickActionsOf(config).find((w) => w.id === about.first);
     const second = quickActionsOf(config).find((w) => w.id === about.second);
@@ -629,12 +659,13 @@ export function buildUserMessage(
   locale: Locale,
   about?: PlanAbout,
   earlier?: readonly PlanEarlier[],
+  registry?: Registry,
 ): string {
   return `Interface language: ${t(locale, 'prompt_English_fafbe')}
 
 <workspace_config>
 ${JSON.stringify(config)}
-</workspace_config>${describeAbout(config, about)}${describeEarlier(earlier)}
+</workspace_config>${describeAbout(config, about, locale, registry)}${describeEarlier(earlier)}
 
 <user_request>
 ${input}

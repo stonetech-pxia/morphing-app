@@ -520,6 +520,20 @@ export const fr: MessageTable = {
   aboutWorkflow: 'Action rapide à modifier : « {name} »',
   aboutWorkflowHint: 'Dites comment la modifier, ou essayez l’un des exemples ci-dessous.',
   aboutPlaceholder: 'Par exemple : {example}',
+  aboutEntryLabel: 'Modifier cette page',
+  aboutPage: 'Page à modifier : « {name} »',
+  aboutPageHint: 'Dites « cette page » pour parler de celle-ci, ou nommez-en une autre.',
+  aboutTable: 'Tableau à modifier : « {name} »',
+  aboutTableHint: 'Dites ce que le formulaire doit demander, par exemple un nouveau champ.',
+  aboutToolsScreen: 'Page à modifier : Outils',
+  aboutToolsScreenHint:
+    'Cette page est fournie par Morph et sa disposition ne change pas, mais l’IA peut ajouter ou retirer des outils.',
+  aboutQuickActionsScreen: 'Page à modifier : Actions rapides',
+  aboutQuickActionsScreenHint:
+    'Cette page est fournie par Morph et sa disposition ne change pas, mais l’IA peut créer ou modifier des actions rapides.',
+  aboutDesk: 'À modifier : le bureau',
+  aboutDeskHint:
+    'L’IA peut changer ses boutons et sa disposition, jamais les fichiers qui s’y trouvent.',
   aboutShared: 'Fichiers partagés : {what}',
   sharedPhotos: '{n} photos',
   sharedPdfs: '{n} PDF',

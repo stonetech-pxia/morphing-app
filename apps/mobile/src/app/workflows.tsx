@@ -1,4 +1,7 @@
+import { Stack } from 'expo-router';
+
 import { usePalette } from '@/renderer/theme';
+import { quickActionsEntry } from '@/shell/ai-entry';
 import { WorkflowsScreen } from '@/shell/WorkflowsScreen';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
@@ -7,5 +10,10 @@ export default function WorkflowsRoute() {
   const { locale, registry } = useWorkspaceContext();
   const theme = useWorkspace((s) => s.config!.theme);
   const palette = usePalette(theme);
-  return <WorkflowsScreen palette={palette} locale={locale} registry={registry} />;
+  return (
+    <>
+      <Stack.Screen options={{ headerRight: quickActionsEntry(palette) }} />
+      <WorkflowsScreen palette={palette} locale={locale} registry={registry} />
+    </>
+  );
 }

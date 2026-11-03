@@ -6666,7 +6666,214 @@ const RECORD_ACTION_CASES: readonly EvalCase[] = [
   },
 ];
 
+/** 从页面右上角的入口打开 AI（D-406）：「这个页面」默认指这一页；说了别的页面就改别的。 */
+const blocksOn = (c: WorkspaceConfig, pageId: string) =>
+  allComponents(c.containers.pages.find((p) => p.id === pageId)!);
+const titleOf = (c: WorkspaceConfig, pageId: string) =>
+  c.containers.pages.find((p) => p.id === pageId)?.title;
+/** 新块加在 budget 页上，不在首页（这个 setup 的首页上没有这种块）。 */
+const addedToBudget =
+  (look: string) =>
+  (c: WorkspaceConfig): string | null => {
+    if (blocksOn(c, 'home').some((b) => b.look === look)) return `a ${look} was added to home`;
+    return blocksOn(c, 'budget').some((b) => b.look === look) ? null : `no ${look} on the page`;
+  };
+const deskToolsOf = (c: WorkspaceConfig, kind: 'pdf' | 'image') =>
+  (c.containers.desk?.tools?.[kind] ?? []).flatMap((g) => g.items);
+const hasDeskAction = (c: WorkspaceConfig, kind: 'pdf' | 'image', action: string) =>
+  deskToolsOf(c, kind).some((t) => typeof t === 'object' && t.action === action);
+const toolbarOnTop = (c: WorkspaceConfig) =>
+  c.containers.desk?.toolbar === 'top' ? null : 'the desk toolbar should be on top';
+const budgetPage: PlanAbout = { kind: 'page', pageId: 'budget' };
+const pdfDesk: PlanAbout = { kind: 'desk', fileKind: 'pdf' };
+
+const PAGE_ENTRY_CASES: EvalCase[] = [
+  {
+    id: 'PE1',
+    input: '在这里加一条分隔线',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    about: budgetPage,
+    expect: { kind: 'ops', check: addedToBudget('divider') },
+  },
+  {
+    id: 'PE2',
+    input: 'Add a divider here',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    about: budgetPage,
+    expect: { kind: 'ops', check: addedToBudget('divider') },
+  },
+  {
+    id: 'PE3',
+    input: 'Ajoute un séparateur sur cette page',
+    locale: 'fr',
+    setup: 'budget',
+    mock: false,
+    about: budgetPage,
+    expect: { kind: 'ops', check: addedToBudget('divider') },
+  },
+  {
+    id: 'PE4',
+    input: '这个页面改名叫「花销」',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    about: budgetPage,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        titleOf(c, 'budget') === '花销' && titleOf(c, 'home') !== '花销'
+          ? null
+          : `titles: ${titleOf(c, 'budget')}, ${titleOf(c, 'home')}`,
+    },
+  },
+  {
+    // 用户说了别的页面：按用户说的改（创始人 2026-11-03 在对话里选的）。
+    id: 'PE5',
+    input: '把首页改名叫「主页」',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    about: budgetPage,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        titleOf(c, 'home') === '主页' && titleOf(c, 'budget') === '记账'
+          ? null
+          : `titles: ${titleOf(c, 'home')}, ${titleOf(c, 'budget')}`,
+    },
+  },
+  {
+    id: 'PE6',
+    input: '做一个压缩照片的快捷操作，入口放在这个页面',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    about: budgetPage,
+    expect: { kind: 'ops', check: addedToBudget('action') },
+  },
+  {
+    id: 'PT1',
+    input: '加一个「备注」字段',
+    locale: 'zh',
+    setup: 'linked',
+    mock: false,
+    about: { kind: 'table', tableId: 'jobs' },
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const withNote = c.data.tables.filter((t) => t.fields.some((f) => f.name === '备注'));
+        return withNote.length === 1 && withNote[0]!.id === 'jobs'
+          ? null
+          : `field on: ${withNote.map((t) => t.id).join(', ')}`;
+      },
+    },
+  },
+  {
+    id: 'PT2',
+    input: 'Add a phone number field to this form',
+    locale: 'en',
+    setup: 'linked',
+    mock: false,
+    about: { kind: 'table', tableId: 'clients' },
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const grew = c.data.tables.filter((t) => t.fields.some((f) => /phone/i.test(f.name)));
+        return grew.length === 1 && grew[0]!.id === 'clients'
+          ? null
+          : `phone field on: ${grew.map((t) => t.id).join(', ')}`;
+      },
+    },
+  },
+  {
+    id: 'PS1',
+    input: '这里加上 PDF 工具',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    about: { kind: 'screen', screen: 'tools' },
+    expect: {
+      kind: 'ops',
+      check: (c) => (c.packages.some((p) => p.id === 'pdf') ? null : 'the PDF tool was not added'),
+    },
+  },
+  {
+    id: 'PS2',
+    input: 'Add one here that compresses photos to 200 KB',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    about: { kind: 'screen', screen: 'quickActions' },
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        quickActionsOf(c).some((w) => w.steps.some((s) => s.action === 'image.compress'))
+          ? null
+          : 'no quick action that compresses photos',
+    },
+  },
+  {
+    id: 'PD1',
+    input: '把工具栏放到上面',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    about: pdfDesk,
+    expect: { kind: 'ops', check: toolbarOnTop },
+  },
+  {
+    id: 'PD2',
+    input: '去掉旋转这个按钮',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    about: pdfDesk,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        hasDeskAction(c, 'pdf', 'pdf.rotate')
+          ? 'rotate is still on the toolbar'
+          : hasDeskAction(c, 'pdf', 'pdf.compress')
+            ? null
+            : 'the other buttons should stay',
+    },
+  },
+  {
+    id: 'PD3',
+    input: 'Mets la barre d’outils en haut',
+    locale: 'fr',
+    setup: 'default',
+    mock: false,
+    about: pdfDesk,
+    expect: { kind: 'ops', check: toolbarOnTop },
+  },
+  {
+    // 不是从桌面打开的也能改（D-358）。
+    id: 'PD4',
+    input: 'Put the toolbar on top when I edit a PDF on the file desk',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: toolbarOnTop },
+  },
+  {
+    // AI 永远不碰文件（底线 3）、不替用户办事（底线 6）。
+    id: 'PD5',
+    input: '总结一下这个文件',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    about: pdfDesk,
+    expect: { kind: 'reject', reason: 'errand' },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...PAGE_ENTRY_CASES,
   ...SEQUENCE_CASES,
   ...RECORD_ACTION_CASES,
   ...RELATED_CASES,

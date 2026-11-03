@@ -11,6 +11,7 @@ import { SuggestedFields } from '@/renderer/SuggestedFields';
 import { usePalette } from '@/renderer/theme';
 import { Button } from '@/renderer/ui';
 import { takeFormCopies } from '@/share/save-as-record';
+import { tableEntry } from '@/shell/ai-entry';
 import { deleteUserFiles } from '@/storage/user-files';
 import { useCalendar, useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
@@ -102,6 +103,7 @@ export default function RecordRoute() {
       <Stack.Screen
         options={{
           title: `${collection.name} · ${t(locale, record ? 'editRecord' : 'newRecord')}`,
+          headerRight: tableEntry(collection.id, palette),
         }}
       />
       {record === undefined ? null : (

@@ -302,8 +302,8 @@ export function createAIChange(
     change: (input, planner = deps.provider, origin = {}) =>
       aiChange(input, planner, origin, false),
 
-    async draftChange(input) {
-      const result = await aiChange(input, deps.provider, {}, true);
+    async draftChange(input, about) {
+      const result = await aiChange(input, deps.provider, about ? { about } : {}, true);
       const draft = get().draft;
       const reply = draft && replyFor(input, result);
       if (draft && reply) {

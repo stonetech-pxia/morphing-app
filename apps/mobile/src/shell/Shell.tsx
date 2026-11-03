@@ -19,6 +19,7 @@ import { Icon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { shownConfig } from '../workspace/store';
+import { AIEntry, shellAbout } from './ai-entry';
 import { Banner, DraftNotice } from './Banner';
 import { HistoryView } from './HistoryView';
 import { targetIcon, targetLabel, useNavigate } from './navigation';
@@ -113,6 +114,7 @@ export function Shell() {
 
   let content;
   const pageId = pageIdOf(active);
+  const entryAbout = shellAbout(active);
   if (pageId !== null) {
     const page = config.containers.pages.find((p) => p.id === pageId)!;
     content = <EditablePage page={page} env={env} bottomInset={barSpace + (editing ? 0 : 64)} />;
@@ -128,6 +130,12 @@ export function Shell() {
 
   return (
     <View style={[styles.root, palette.backdrop, { paddingTop: insets.top }]}>
+      {/* 右上角的 AI 入口（D-406）：这里没有导航栏，占一行，不盖住页面内容。设置和改动记录没有。 */}
+      {entryAbout && !editing ? (
+        <View style={styles.entryRow}>
+          <AIEntry about={entryAbout} palette={palette} />
+        </View>
+      ) : null}
       {inDraft ? null : <Banner palette={palette} />}
       <DraftNotice palette={palette} />
       {pageId === HOME_PAGE_ID && !editing && !inDraft ? <GuideCard palette={palette} /> : null}
@@ -241,6 +249,12 @@ export function Shell() {
 }
 
 const styles = StyleSheet.create({
+  entryRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
   root: { flex: 1 },
   content: { flex: 1 },
   floating: { position: 'absolute', right: 16, gap: 10, alignItems: 'flex-end' },

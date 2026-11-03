@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t } from '../i18n';
 import { UiIcon, type UiIconName } from '../renderer/Icon';
 import { usePalette, type Palette } from '../renderer/theme';
+import { aboutParams, aboutPlace } from '../shell/ai-entry';
 import { NeedButton } from '../shell/NeedButton';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { shownConfig, type Draft, type DraftChatReply, type DraftStep } from '../workspace/store';
@@ -296,13 +297,17 @@ function DraftChat({
   const [input, setInput] = useState('');
   const scroll = useRef<ScrollViewInstance>(null);
   const steps = draft?.steps ?? [];
+  const chatAbout = useDraftUi((s) => s.chatAbout);
+  const config = useWorkspace(shownConfig);
+  // 现在修改的是哪一页（D-406）：这次从入口打开的那一页，否则是开始这份草稿时的那一页。
+  const place = aboutPlace(chatAbout ?? draft?.origin.about, config, locale);
 
   async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
     setInput('');
     // 做不到、退一步这些回复由 store 记在草稿里（D-207）。
-    await draftChange(trimmed);
+    await draftChange(trimmed, chatAbout ?? undefined);
     setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
   }
 
@@ -343,6 +348,13 @@ function DraftChat({
               </Text>
             </Pressable>
           </View>
+          {place ? (
+            <Text
+              testID="draft-chat-about"
+              style={[palette.font('bodyMedium', 13), { color: palette.muted }]}>
+              {place.title}
+            </Text>
+          ) : null}
           <ScrollView
             ref={scroll}
             style={styles.flex}
@@ -376,7 +388,10 @@ function DraftChat({
                           onHandOff={(text) => {
                             onClose();
                             closeDraft();
-                            router.push({ pathname: '/change', params: { text } });
+                            router.push({
+                              pathname: '/change',
+                              params: { text, ...(chatAbout ? aboutParams(chatAbout) : {}) },
+                            });
                           }}
                         />
                       ))}

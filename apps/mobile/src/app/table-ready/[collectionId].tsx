@@ -1,8 +1,9 @@
-import { useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { Text, View } from 'react-native';
 
 import { t } from '@/i18n';
 import { usePalette } from '@/renderer/theme';
+import { tableEntry } from '@/shell/ai-entry';
 import { TableReadyScreen } from '@/shell/TableReadyScreen';
 import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 import { readyNotes } from '@/draft/useApplyDraft';
@@ -23,5 +24,10 @@ export default function TableReadyRoute() {
       </View>
     );
   }
-  return <TableReadyScreen collection={collection} notes={readyNotes(notes)} />;
+  return (
+    <>
+      <Stack.Screen options={{ headerRight: tableEntry(collection.id, palette) }} />
+      <TableReadyScreen collection={collection} notes={readyNotes(notes)} />
+    </>
+  );
 }

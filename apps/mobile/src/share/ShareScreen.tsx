@@ -26,6 +26,7 @@ import {
   type ScrollViewInstance,
 } from 'react-native';
 
+import { AIEntryButton } from '../shell/ai-entry';
 import { runErrorText, t } from '../i18n';
 import { IMPORT_PROBLEMS } from '../renderer/Attachments';
 import { formatSize } from '../renderer/FileList';
@@ -431,7 +432,12 @@ export function ShareScreen() {
       ref={scroll}
       testID="share-screen"
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap - 4, paddingBottom: 48 }}>
-      <Stack.Screen options={{ title }} />
+      <Stack.Screen
+        options={{
+          title,
+          headerRight: () => <AIEntryButton palette={palette} locale={locale} onPress={askAI} />,
+        }}
+      />
       <Card palette={palette}>
         {single?.kind === 'image' ? (
           <Pressable testID="share-preview-image" onPress={() => void open(0)}>

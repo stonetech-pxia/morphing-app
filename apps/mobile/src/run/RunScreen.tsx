@@ -10,7 +10,7 @@ import {
   type Workflow,
 } from '@morph/core';
 
-import { useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import {
   ActivityIndicator,
@@ -24,6 +24,7 @@ import {
   View,
 } from 'react-native';
 
+import { workflowEntry } from '../shell/ai-entry';
 import { runErrorText, t } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import { usePalette, type Palette } from '../renderer/theme';
@@ -81,7 +82,8 @@ export function RunScreen({
   incoming?: IncomingShare;
 }) {
   const { repo, files, registry, locale } = useWorkspaceContext();
-  const theme = useWorkspace((s) => s.config!.theme);
+  const config = useWorkspace((s) => s.config!);
+  const theme = config.theme;
   const collections = useWorkspace((s) => s.config!.data.tables);
   const calendarSettings = useWorkspace((s) => s.config!.data.calendar);
   const revisionId = useWorkspace((s) => s.head!.id);
@@ -330,6 +332,12 @@ export function RunScreen({
       // 问话面板（Modal）也在这棵树里：不加这个，键盘开着时点「确定」只会收起键盘。
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 80 }}>
+      {/* 运行结束才有 AI 入口（D-406）：运行中离开这一页会打断它。 */}
+      <Stack.Screen
+        options={{
+          headerRight: outcome ? workflowEntry(config, workflow.id, palette) : () => null,
+        }}
+      />
       <Card palette={palette}>
         {workflow.steps.map((s, i) => {
           const state =

@@ -37,6 +37,7 @@ import { sharedAbout } from '../share/about';
 import { useIncoming } from '../share/incoming';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { DraftResult } from '../workspace/store';
+import { aboutFromParams, aboutPlace } from './ai-entry';
 import { aboutCandidates } from './examples';
 import { closeButtonOption, stackScreenOptions } from './header';
 import { NeedButton } from './NeedButton';
@@ -83,6 +84,11 @@ export function ChangeScreen() {
     guide?: string;
     next?: string;
     text?: string;
+    /** 从页面右上角的入口打开（D-406，aboutParams）。 */
+    page?: string;
+    table?: string;
+    screen?: string;
+    desk?: string;
   }>();
   // 从新手引导第 1 步打开（D-149、D-231）：句子打进输入框后停下，用户自己点发送；
   // 发送后直接生效，不进草稿。
@@ -110,8 +116,9 @@ export function ChangeScreen() {
     if (params.workflow && quickActionsOf(config).some((w) => w.id === params.workflow))
       return { kind: 'workflow', workflowId: params.workflow };
     if (params.shared && share && String(share.id) === params.shared) return sharedAbout(share);
-    return undefined;
+    return aboutFromParams(params, config);
   });
+  const place = aboutPlace(about, config, locale);
   const aboutName =
     about?.kind === 'workflow'
       ? quickActionsOf(config).find((w) => w.id === about.workflowId)?.name
@@ -169,10 +176,15 @@ export function ChangeScreen() {
   /**
    * 关掉这个页面，回到草稿：从外壳或页面打开的回到原处（页面也显示草稿）；从运行页面、收件页面、
    * 「做好了」页面打开的（有上下文）一起关掉，因为草稿模式不在它们里面。
+   * 从页面右上角的入口打开的回到原处（D-406）；原处显示不了草稿的（记录表单、快捷操作列表）进了草稿才一起关掉。
    */
-  function leave() {
+  function leave(drafted = false) {
+    const backToPlace =
+      about?.kind === 'page' ||
+      about?.kind === 'desk' ||
+      ((about?.kind === 'table' || about?.kind === 'screen') && !drafted);
     if (!router.canGoBack()) router.replace('/');
-    else if (about && router.canDismiss()) router.dismissAll();
+    else if (about && !backToPlace && router.canDismiss()) router.dismissAll();
     else router.back();
   }
 
@@ -206,12 +218,13 @@ export function ChangeScreen() {
       return;
     }
     // 进入草稿或回到 App 时显示改到的那一页（在导航栏里时）。
-    if (result.kind === 'drafted' || result.kind === 'applied') {
+    // 从页面右上角的入口来的功能修改留在原处（D-406）：草稿才要跳到改到的那一页去看。
+    if (result.kind === 'drafted' || (result.kind === 'applied' && !place)) {
       const target = pageTarget(result.focusPageId);
       const shown = result.kind === 'drafted' ? result.step.config : store.getState().config!;
       if (shown.nav.bar.includes(target)) selectTab(target);
     }
-    leave();
+    leave(result.kind === 'drafted');
     // 功能类直接应用了（D-191）：去「做好了」页面（或回到收件页面）试用。
     if (result.kind === 'applied') afterApply(result.applied);
   }
@@ -270,7 +283,12 @@ export function ChangeScreen() {
       <ScrollView
         contentContainerStyle={[styles.page, { padding: palette.pad, gap: palette.gap - 2 }]}
         keyboardShouldPersistTaps="handled">
-        {about ? (
+        {place ? (
+          <Card palette={palette} background={palette.primaryTint} testID="change-about">
+            <Text style={[palette.font('title', 15), { color: palette.text }]}>{place.title}</Text>
+            <Text style={sub}>{place.hint}</Text>
+          </Card>
+        ) : about ? (
           <Card palette={palette} background={palette.primaryTint} testID="change-about">
             <Text style={[palette.font('title', 15), { color: palette.text }]}>
               {about.kind === 'chain'
@@ -288,7 +306,7 @@ export function ChangeScreen() {
                           ? 'sharePicked'
                           : 'aboutShared',
                       {
-                        what: sharedWhat(about, locale),
+                        what: about.kind === 'shared' ? sharedWhat(about, locale) : '',
                       },
                     )}
             </Text>
@@ -450,7 +468,7 @@ export function ChangeScreen() {
                 onPress={() => setInput(text)}
               />
             ))}
-            {about ? null : (
+            {about && !place ? null : (
               <Chip
                 testID="change-pick-style"
                 label={t(locale, 'pickStyleChip')}
