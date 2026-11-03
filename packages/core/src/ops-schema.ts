@@ -34,6 +34,7 @@ const ColorOverridesSchema = z.strictObject({
   background: resettable(HexColorSchema),
   surface: resettable(HexColorSchema),
   text: resettable(HexColorSchema),
+  surfaceText: resettable(HexColorSchema),
   secondary: resettable(HexColorSchema),
   tertiary: resettable(HexColorSchema),
 });
@@ -191,13 +192,17 @@ export const OpSchema = z.discriminatedUnion('op', [
 
   // ---- 工具（功能）：快捷操作、提醒 ----
   /**
-   * {tool: 一个新的快捷操作或提醒}（快捷操作不能属于工具包；放到手机桌面用 updateContainer {nav}），
+   * {tool: 一个新的快捷操作或提醒}（都不能属于工具包，提醒也不从预设来；放到手机桌面用 updateContainer {nav}），
    * 或 {tool: 快捷操作 ID, step, index?}（插在第几步之前；省略 = 最后）。
    */
   z
     .strictObject({
       op: z.literal('addTool'),
-      tool: z.union([IdSchema, QuickActionSchema.omit({ package: true }), ReminderSchema]),
+      tool: z.union([
+        IdSchema,
+        QuickActionSchema.omit({ package: true }),
+        ReminderSchema.omit({ package: true, preset: true }),
+      ]),
       step: WorkflowStepSchema.optional(),
       index: index.optional(),
     })

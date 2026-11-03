@@ -24,6 +24,7 @@ import DataRoute from '../app/data';
 import DeskRoute from '../app/desk/[deskId]';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
+import PresetsRoute from '../app/presets';
 import ReadyRoute from '../app/ready/[workflowId]';
 import RecordRoute from '../app/record/[collectionId]';
 import ReminderRoute from '../app/reminder/[workflowId]';
@@ -160,6 +161,7 @@ export async function renderToolsApp(
     share: ShareRoute,
     'desk/[deskId]': DeskRoute,
     storage: StorageRoute,
+    presets: PresetsRoute,
     'ready/[workflowId]': ReadyRoute,
     data: DataRoute,
     'record/[collectionId]': RecordRoute,

@@ -743,6 +743,24 @@ describe('updateContainer', () => {
     );
   });
 
+  it('the file room toolbars: each kind given replaces that kind, the others stay (rule 52)', () => {
+    const pdf = [{ items: [{ action: 'pdf.rotate' }] }];
+    const image = [{ title: 'Mine', items: [{ action: 'image.rotate' }] }];
+    const config = apply(workspace(), [
+      { op: 'updateContainer', desk: { strip: false, tools: { pdf, image } } },
+    ]);
+    const pdf2 = [{ items: [{ action: 'pdf.compress' }] }];
+    const merged = apply(config, [{ op: 'updateContainer', desk: { tools: { pdf: pdf2 } } }]);
+    expect(merged.containers.desk).toEqual({ strip: false, tools: { pdf: pdf2, image } });
+    // null 让一种文件回到默认工具栏；整个 tools 写 null 让每种都回到默认。
+    const one = apply(merged, [{ op: 'updateContainer', desk: { tools: { pdf: null } } }]);
+    expect(one.containers.desk).toEqual({ strip: false, tools: { image } });
+    const last = apply(one, [{ op: 'updateContainer', desk: { tools: { image: null } } }]);
+    expect(last.containers.desk).toEqual({ strip: false });
+    const all = apply(merged, [{ op: 'updateContainer', desk: { tools: null } }]);
+    expect(all.containers.desk).toEqual({ strip: false });
+  });
+
   it('a block this version does not know can only be moved or removed', () => {
     const config = structuredClone(workspace());
     page(config, 'home').blocks.push({ id: 'future', look: 'hologram' } as unknown as Component);
@@ -1154,6 +1172,33 @@ describe('moveTool', () => {
 // ---- 主题 ----
 
 describe('setTheme', () => {
+  it('writes surfaceText, clears it with null, and preset and reset both clear it (D-409)', () => {
+    const colors = {
+      background: '#0B3D2E',
+      surface: '#F5EFE0',
+      text: '#F5EFE0',
+      surfaceText: '#2A2420',
+    };
+    const styled = apply(workspace(), [
+      { op: 'setTheme', colors, darkColors: { surfaceText: '#101010' } },
+    ]);
+    expect(styled.theme.colors.surfaceText).toBe('#2A2420');
+    expect(styled.theme.darkColors?.surfaceText).toBe('#101010');
+    const cleared = apply(styled, [
+      {
+        op: 'setTheme',
+        colors: { surfaceText: null, surface: '#123D30' },
+        darkColors: { surfaceText: null },
+      },
+    ]);
+    expect(cleared.theme.colors).not.toHaveProperty('surfaceText');
+    expect(cleared.theme).not.toHaveProperty('darkColors');
+    const reset = apply(styled, [{ op: 'setTheme', reset: true }]);
+    expect(reset.theme.colors).not.toHaveProperty('surfaceText');
+    const preset = apply(styled, [{ op: 'setTheme', preset: 'neon' }]);
+    expect(preset.theme.colors).not.toHaveProperty('surfaceText');
+  });
+
   it('sets and resets theme tokens and color overrides', () => {
     const styled = apply(workspace(), [
       {

@@ -1,5 +1,5 @@
 import { prepareOps, type ChangeContext } from '../change';
-import { isFunctionOp, type Op } from '../ops';
+import { applyOps, isFunctionOp, type Op } from '../ops';
 import type { WorkspaceConfig } from '../schema';
 
 // 功能和外观分开改（D-191）。功能：数据（表结构、日期设置）、独立工具（快捷操作、提醒）、工具包、手机桌面，
@@ -59,4 +59,46 @@ export function functionFirst(
   if (prepareOps(before, split.function, ctx).ok || !prepareOps(before, ops, ctx).ok)
     return { kind: 'function', ops: split.function, deferred: split.look };
   return { kind: 'function', ops: [...ops], deferred: [] };
+}
+
+/**
+ * 在草稿的样子上说的功能修改，要应用到正式版本（D-413）：善后的外观操作针对的页面、块只在草稿里时，
+ * 正式版本上跳过，留给草稿套上时再做（rebaseDraft 的 cleanup）。功能操作和跟着新快捷操作的运行块不跳：
+ * 它们套不上就是真的要用到草稿里的东西（返回 null）。
+ */
+export function splitDraftOnlyOps(
+  head: WorkspaceConfig,
+  ops: readonly Op[],
+  ctx: ChangeContext,
+): { kept: Op[]; skipped: Op[] } | null {
+  const added = newQuickActionIds(ops);
+  const kept: Op[] = [];
+  const skipped: Op[] = [];
+  let config = head;
+  for (const op of ops) {
+    const applied = applyOps(config, [op], ctx);
+    if (applied.ok) {
+      config = applied.config;
+      kept.push(op);
+    } else if (goesWithFunction(op, added)) return null;
+    else skipped.push(op);
+  }
+  return skipped.length > 0 ? { kept, skipped } : null;
+}
+
+/** 这批善后操作里，在这份配置上套得上的部分（按顺序，一条套不上就跳过它）。 */
+export function applicableOps(
+  config: WorkspaceConfig,
+  ops: readonly Op[],
+  ctx: ChangeContext,
+): Op[] {
+  const kept: Op[] = [];
+  let current = config;
+  for (const op of ops) {
+    const applied = applyOps(current, [op], ctx);
+    if (!applied.ok) continue;
+    current = applied.config;
+    kept.push(op);
+  }
+  return kept;
 }

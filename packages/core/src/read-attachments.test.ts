@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import { describeChange } from './describe';
-import { CURRENT_SCHEMA_VERSION } from './schema';
 import { MIGRATIONS } from './migrate';
 import { applyOps } from './ops';
 import type { WorkspaceConfig } from './schema';
@@ -70,8 +69,7 @@ describe('readAttachments', () => {
     const config = withTable();
     const v34 = { ...JSON.parse(JSON.stringify(config)), schemaVersion: 34 };
     const migrated = MIGRATIONS[34]!(v34) as WorkspaceConfig;
-    expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
-    expect(CURRENT_SCHEMA_VERSION).toBe(35);
+    expect(migrated.schemaVersion).toBe(35);
     expect({ ...migrated, schemaVersion: 34 }).toEqual(v34);
   });
 });

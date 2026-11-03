@@ -2,18 +2,21 @@ import {
   allComponents,
   createMockAIProvider,
   isKnownComponent,
+  openItems,
   pageTarget,
   type PlanAbout,
   presetOfTheme,
   presetRequest,
   quickActionsOf,
+  sessionProblems,
   type ThemePresetId,
 } from '@morph/core';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -36,8 +39,9 @@ import { Button, Card } from '../renderer/ui';
 import { sharedAbout } from '../share/about';
 import { useIncoming } from '../share/incoming';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
-import type { DraftResult } from '../workspace/store';
+import type { ChangeResult, DraftResult } from '../workspace/store';
 import { aboutFromParams, aboutPlace } from './ai-entry';
+import { BuildPanel } from './BuildPanel';
 import { aboutCandidates } from './examples';
 import { closeButtonOption, stackScreenOptions } from './header';
 import { NeedButton } from './NeedButton';
@@ -69,6 +73,12 @@ export function ChangeScreen() {
   const change = useWorkspace((s) => s.change);
   const next = useWorkspace((s) => s.next);
   const suggest = useWorkspace((s) => s.suggest);
+  const session = useWorkspace((s) => s.session);
+  const clearSession = useWorkspace((s) => s.clearSession);
+  const build = useWorkspace((s) => s.build);
+  const endBuild = useWorkspace((s) => s.endBuild);
+  const continueWithDraft = useWorkspace((s) => s.continueWithDraft);
+  const fixProblems = useWorkspace((s) => s.fixProblems);
   const afterApply = useAfterApply();
   const openDraft = useWorkspace((s) => s.openDraft);
   const deleteDraft = useWorkspace((s) => s.deleteDraft);
@@ -158,17 +168,20 @@ export function ChangeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 草稿聊天框里说的功能类请求，带到这里来说（D-191）。
+  // 别处带来的一句话（样板、快捷操作的类别、合并卡片）先填进输入框。
   const [input, setInput] = useState(() => (auto ? '' : (params.text ?? '')));
+  // 计划关掉后输入框重新出现时，键盘不要自己弹出来挡住页面。
+  const [focusInput, setFocusInput] = useState(() => Boolean(params.text) && !auto);
   const [prefillSelection, setPrefillSelection] = useState(() =>
     !auto && params.text ? { start: params.text.length, end: params.text.length } : undefined,
   );
   /** 风格选择器最近填进去的句子；用户改过输入框后就不再相等，交给设置里的 AI。 */
   const [presetText, setPresetText] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<Extract<
-    DraftResult,
-    { kind: 'rejected' | 'invalid' }
-  > | null>(null);
+  const [feedback, setFeedback] = useState<
+    | Extract<DraftResult, { kind: 'rejected' | 'invalid' }>
+    | Extract<ChangeResult, { kind: 'needsDraft' }>
+    | null
+  >(null);
   const [stylesOpen, setStylesOpen] = useState(false);
   /** 被拒绝的那句话（需求回收，D-189）。 */
   const [asked, setAsked] = useState('');
@@ -212,9 +225,20 @@ export function ChangeScreen() {
     const result = await change(text.trim(), offline ? presetPlanner : undefined, {
       ...(about ? { about } : {}),
     });
-    if (result.kind === 'rejected' || result.kind === 'invalid') {
+    setAsked(text.trim());
+    afterResult(result);
+  }
+
+  /** 一句话的结果：说明留在这一页，计划留在这一页；生效了或进草稿才离开。 */
+  function afterResult(result: ChangeResult) {
+    if (result.kind === 'build') {
+      setInput('');
+      setFocusInput(false);
+      Keyboard.dismiss();
+      return;
+    }
+    if (result.kind === 'rejected' || result.kind === 'invalid' || result.kind === 'needsDraft') {
       setFeedback(result);
-      setAsked(text.trim());
       return;
     }
     // 进入草稿或回到 App 时显示改到的那一页（在导航栏里时）。
@@ -274,7 +298,57 @@ export function ChangeScreen() {
     );
   }
 
+  /** 用户点的（D-413）：先确认草稿，再做等着的那一步。 */
+  async function applyDraftAndContinue(
+    waiting: Extract<ChangeResult, { kind: 'needsDraft' }>['waiting'],
+  ) {
+    setFeedback(null);
+    navigation.setOptions({ ...stackScreenOptions(palette), ...closeButtonOption(palette) });
+    afterResult(await continueWithDraft(waiting));
+  }
+
+  function askClearSession() {
+    Alert.alert(t(locale, 'sessionClearTitle'), t(locale, 'sessionClearBody'), [
+      { text: t(locale, 'sessionKeep'), style: 'cancel' },
+      { text: t(locale, 'sessionClear'), onPress: () => void clearSession() },
+    ]);
+  }
+
+  /**
+   * 「把这些补上」（D-418）：和说一句话一样，结果走同样的路。搭建结果的面板上补好了就留在面板上，
+   * 看得到问题少了；外观在面板的「看看外观」里。
+   */
+  async function fix() {
+    setFeedback(null);
+    navigation.setOptions({ ...stackScreenOptions(palette), ...closeButtonOption(palette) });
+    const result = await fixProblems();
+    if (!result) return;
+    setAsked(t(locale, 'fixProblems'));
+    if (build && (result.kind === 'applied' || result.kind === 'drafted')) return;
+    afterResult(result);
+  }
+
+  /** 做完了，去看草稿（D-415）：外观走现有的草稿确认。 */
+  function seeBuiltLook() {
+    openDraft();
+    void endBuild();
+    leave(true);
+  }
+
   const sub = [palette.font('body', 15), { color: palette.muted }];
+  // 计划开着时这一页只有它；停下了可以接着说别的。
+  const planBusy = build !== null && build.phase !== 'paused';
+  // 还差什么（D-414）：计划里的步骤已经在计划上了，「接着改」已经是下面的第一个例子。
+  const stillOpen = openItems(session).filter(
+    (item) => item.text !== next && !(build && item.id.startsWith('b-')),
+  );
+  const doneCount = session.items.filter((item) => item.status === 'done').length;
+  // 这个会话新增、用户确认草稿后会看到的问题（D-418）。计划开着时在计划面板上算；「接着改」等着做页面时不算。
+  const shownConfig = draft?.steps.at(-1)?.config ?? config;
+  const problems = useMemo(
+    () => (build ? [] : sessionProblems(session, shownConfig, registry, { later: Boolean(next) })),
+    [build, session, shownConfig, registry, next],
+  );
 
   return (
     <KeyboardAvoidingView
@@ -283,7 +357,16 @@ export function ChangeScreen() {
       <ScrollView
         contentContainerStyle={[styles.page, { padding: palette.pad, gap: palette.gap - 2 }]}
         keyboardShouldPersistTaps="handled">
-        {place ? (
+        {build && !guide ? (
+          <BuildPanel
+            build={build}
+            palette={palette}
+            onSeeLook={seeBuiltLook}
+            onFix={() => void fix()}
+          />
+        ) : null}
+
+        {planBusy ? null : place ? (
           <Card palette={palette} background={palette.primaryTint} testID="change-about">
             <Text style={[palette.font('title', 15), { color: palette.text }]}>{place.title}</Text>
             <Text style={sub}>{place.hint}</Text>
@@ -316,7 +399,7 @@ export function ChangeScreen() {
           </Card>
         ) : null}
 
-        {draft && !guide ? (
+        {draft && !guide && !build ? (
           <Card palette={palette} background={palette.primaryTint} testID="change-draft">
             <Text style={[palette.font('title', 15), { color: palette.text }]}>
               {t(locale, 'draftCard', { n: draft.steps.length })}
@@ -346,55 +429,57 @@ export function ChangeScreen() {
         ) : null}
 
         {/* 输入框：左边一个闪光图标、柔和阴影，和划屏介绍最后一页的对话框一样。 */}
-        <View
-          style={[
-            styles.box,
-            {
-              backgroundColor: palette.surface,
-              borderColor: palette.border,
-              borderRadius: palette.controlRadius,
-              boxShadow: `0px 2px 6px ${palette.shadow}1F`,
-            },
-          ]}>
-          <View style={styles.inputRow}>
-            <Icon name="sparkles" size={18} color={palette.primary} />
-            <TextInput
-              testID="change-input"
-              autoFocus={Boolean(params.text) && !auto}
-              selection={prefillSelection}
-              onSelectionChange={() => setPrefillSelection(undefined)}
-              value={input}
-              onChangeText={setInput}
-              editable={!typing}
-              placeholder={
-                about?.kind === 'shared'
-                  ? t(locale, 'sharePlaceholder')
-                  : about && examples[0]
-                    ? t(locale, 'aboutPlaceholder', { example: examples[0] })
-                    : t(locale, 'changeAsk')
-              }
-              placeholderTextColor={palette.caption}
-              multiline
-              style={[styles.input, palette.font('body', 16), { color: palette.text }]}
-            />
+        {planBusy ? null : (
+          <View
+            style={[
+              styles.box,
+              {
+                backgroundColor: palette.surface,
+                borderColor: palette.border,
+                borderRadius: palette.controlRadius,
+                boxShadow: `0px 2px 6px ${palette.shadow}1F`,
+              },
+            ]}>
+            <View style={styles.inputRow}>
+              <Icon name="sparkles" size={18} color={palette.primary} />
+              <TextInput
+                testID="change-input"
+                autoFocus={focusInput}
+                selection={prefillSelection}
+                onSelectionChange={() => setPrefillSelection(undefined)}
+                value={input}
+                onChangeText={setInput}
+                editable={!typing}
+                placeholder={
+                  about?.kind === 'shared'
+                    ? t(locale, 'sharePlaceholder')
+                    : about && examples[0]
+                      ? t(locale, 'aboutPlaceholder', { example: examples[0] })
+                      : t(locale, 'changeAsk')
+                }
+                placeholderTextColor={palette.caption}
+                multiline
+                style={[styles.input, palette.font('body', 16), { color: palette.text }]}
+              />
+            </View>
+            <Pressable
+              testID="change-submit"
+              accessibilityRole="button"
+              accessibilityLabel={t(locale, 'send')}
+              disabled={busy || typing}
+              onPress={() => void submit(input)}
+              style={[styles.send, { backgroundColor: palette.primary }]}>
+              {busy || typing ? (
+                <ActivityIndicator color={palette.onPrimary} />
+              ) : (
+                <UiIcon name="send" size={20} color={palette.onPrimary} />
+              )}
+            </Pressable>
           </View>
-          <Pressable
-            testID="change-submit"
-            accessibilityRole="button"
-            accessibilityLabel={t(locale, 'send')}
-            disabled={busy || typing}
-            onPress={() => void submit(input)}
-            style={[styles.send, { backgroundColor: palette.primary }]}>
-            {busy || typing ? (
-              <ActivityIndicator color={palette.onPrimary} />
-            ) : (
-              <UiIcon name="send" size={20} color={palette.onPrimary} />
-            )}
-          </Pressable>
-        </View>
+        )}
 
         {/* 测试期服务器保存请求（D-240）：中英文新手引导用内置规则，不经过服务器；法语引导经过（D-228）。 */}
-        {aiMode === 'server' && (!guide || locale === 'fr') ? (
+        {!planBusy && aiMode === 'server' && (!guide || locale === 'fr') ? (
           <Text
             testID="change-server-stored"
             style={[palette.font('body', 13), { color: palette.caption }]}>
@@ -402,9 +487,22 @@ export function ChangeScreen() {
           </Text>
         ) : null}
 
-        {feedback ? (
+        {feedback && (!planBusy || build?.phase === 'finished') ? (
           <Card palette={palette} testID="change-feedback">
-            {feedback.kind === 'invalid' ? (
+            {feedback.kind === 'needsDraft' ? (
+              <>
+                <Text style={[palette.font('body', 15), { color: palette.text }]}>
+                  {feedback.message}
+                </Text>
+                <Button
+                  palette={palette}
+                  testID="change-apply-draft-continue"
+                  label={t(locale, 'draftApplyContinue')}
+                  disabled={busy}
+                  onPress={() => void applyDraftAndContinue(feedback.waiting)}
+                />
+              </>
+            ) : feedback.kind === 'invalid' ? (
               <>
                 <Text style={[palette.font('bodyBold', 15), { color: palette.danger }]}>
                   {t(locale, 'invalidPlan')}
@@ -447,7 +545,68 @@ export function ChangeScreen() {
           </Card>
         ) : null}
 
-        {guide ? null : (
+        {/* 工具清单（D-414）：还差什么，点一项填进输入框。做没做好由代码判定。 */}
+        {guide || planBusy || session.items.length === 0 ? null : (
+          <View style={styles.session} testID="change-session">
+            <View style={styles.sessionHead}>
+              <Text style={[palette.font('title', 15), styles.flex, { color: palette.text }]}>
+                {stillOpen.length > 0
+                  ? t(locale, 'sessionTitle')
+                  : t(locale, 'sessionDoneCount', { n: doneCount })}
+              </Text>
+              <Pressable
+                testID="change-session-clear"
+                accessibilityRole="button"
+                hitSlop={10}
+                onPress={askClearSession}>
+                <Text style={[palette.font('bodyMedium', 13), { color: palette.primaryText }]}>
+                  {t(locale, 'sessionClear')}
+                </Text>
+              </Pressable>
+            </View>
+            {problems.length > 0 ? (
+              <View style={styles.fix} testID="change-fix">
+                <Text style={[palette.font('body', 14), styles.fixText, { color: palette.text }]}>
+                  {t(locale, 'fixCount', { n: problems.length })}
+                </Text>
+                <Button
+                  palette={palette}
+                  testID="change-fix-button"
+                  label={t(locale, 'fixProblems')}
+                  loading={busy}
+                  disabled={busy}
+                  onPress={() => void fix()}
+                />
+              </View>
+            ) : null}
+            {stillOpen.map((item) => (
+              <Pressable
+                key={item.id}
+                testID={`change-session-item-${item.id}`}
+                accessibilityRole="button"
+                onPress={() => setInput(item.text)}
+                style={({ pressed }) => [
+                  styles.sessionItem,
+                  { backgroundColor: palette.primaryTint, opacity: pressed ? 0.6 : 1 },
+                ]}>
+                <Text
+                  numberOfLines={2}
+                  style={[palette.font('bodyMedium', 14), { color: palette.primaryText }]}>
+                  {item.text}
+                </Text>
+                {item.reason ? (
+                  <Text
+                    numberOfLines={2}
+                    style={[palette.font('body', 13), { color: palette.muted }]}>
+                    {item.reason}
+                  </Text>
+                ) : null}
+              </Pressable>
+            ))}
+          </View>
+        )}
+
+        {guide || planBusy ? null : (
           <View style={styles.chips} testID="change-examples">
             {/* 「接着改」是用户自己那句话剩下的部分（D-191），不是预设的句子。 */}
             {next && !auto ? (
@@ -571,6 +730,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  session: { gap: 8 },
+  sessionHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  // 窄屏或文案长（法语）时按钮换到下一行。
+  fix: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
+  fixText: { flex: 1, minWidth: 120 },
+  sessionItem: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, gap: 2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     flexDirection: 'row',

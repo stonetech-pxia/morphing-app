@@ -29,7 +29,14 @@ import { CLAY, contrast, isDark, resolveColors } from '../theme';
 import { presetById, presetWorkflow } from '../workflows/presets';
 import { prepareOps, type PreparedChange } from '../change';
 import { functionFirst, hasFunctionOps } from './kinds';
-import type { AIProvider, Plan, PlanAbout, PlanEarlier, RejectReason } from './types';
+import {
+  PlanSchema,
+  type AIProvider,
+  type Plan,
+  type PlanAbout,
+  type PlanEarlier,
+  type RejectReason,
+} from './types';
 
 /** 结构相同即可（校验后对象的键顺序可能变）。 */
 function sameValue(a: unknown, b: unknown): boolean {
@@ -104,6 +111,10 @@ export interface EvalCase {
    * 有 notDone 的是没做的一句和原因。
    */
   earlier?: EvalEarlier[];
+  /**
+   * 一句话多个工具（规则 53、D-415）：回搭建计划也算对。计划要合法（judgeBuild），ops 的断言不变。
+   */
+  allowBuild?: true;
 }
 
 export type EvalEarlier = { input: string; ops: Op[] } | { input: string; notDone: string };
@@ -1533,6 +1544,31 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
     setup: 'default',
     mock: true,
     expect: { kind: 'reject', reason: 'protected' },
+  },
+  // 保存的预设是系统层（D-410）：AI 不能替用户存、也不能替他换回来，告诉他到设置里。
+  {
+    id: 'PRESET1',
+    input: '把现在这个 App 存成预设',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'reject',
+      reason: 'unknown',
+      message: (m) => (m.includes('我的预设') ? null : 'should point to 设置 → 我的预设'),
+    },
+  },
+  {
+    id: 'PRESET2',
+    input: 'Go back to the preset I saved',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'reject',
+      reason: 'unknown',
+      message: (m) => (/my presets/i.test(m) ? null : 'should point to Settings → My presets'),
+    },
   },
   {
     id: 'X3',
@@ -3719,8 +3755,15 @@ const RECORD_EVAL_CASES: readonly EvalCase[] = [
     input: '新建一个快捷操作：拍照，记到不存在的表',
     locale: 'zh',
     setup: 'budget',
-    mock: true,
-    expect: { kind: 'reject' },
+    // 点名的表不存在、用途清楚就建（D-407，创始人 2026-11-03 定）。内置规则不猜，照旧拒绝，只有真实模型跑。
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.photos', 'out.addRecord'], (steps) => {
+        const into = steps.find((s) => s.action === 'out.addRecord')?.params.collectionId;
+        return into === 'expenses' ? 'should log to a new table, not to Expenses' : null;
+      }),
+    },
   },
   {
     id: 'PRE1',
@@ -6211,6 +6254,7 @@ const TODO_ACCEPT_CASES: readonly EvalCase[] = [
         p.suggest?.length ? null : 'expected suggest (after the look turn) for a to-do app',
     },
     next: true,
+    allowBuild: true,
   },
   {
     id: 'TD17-en',
@@ -6224,6 +6268,7 @@ const TODO_ACCEPT_CASES: readonly EvalCase[] = [
       plan: (p) => (p.suggest?.length ? null : 'expected suggest with a next step'),
     },
     next: true,
+    allowBuild: true,
   },
 ];
 
@@ -6872,7 +6917,238 @@ const PAGE_ENTRY_CASES: EvalCase[] = [
   },
 ];
 
+// 全面测试（2026-11-03）发现的提示词缺陷（D-407）：一处做不到不整单拒绝，模糊的外观要做，
+// 撤销只有一步，点名的东西不存在就建，固定值要写进参数，私人内容不进配置，不重复建表。页面上的文字可以写（D-408）。
+const quickActionSteps = (c: WorkspaceConfig) => quickActionsOf(c).flatMap((w) => w.steps);
+const saysWhatWasNotDone = (plan: OpsPlan) =>
+  plan.notes?.length ? null : 'should say in notes what was not done';
+const blue = (c: WorkspaceConfig) =>
+  c.theme.primaryColor.toUpperCase() === '#1C7ED6' ? null : `theme is ${c.theme.primaryColor}`;
+const anyLook: EvalExpectation = { kind: 'ops', check: () => null };
+const fixedSize = (c: WorkspaceConfig) => {
+  const step = quickActionsOf(c)
+    .find((w) => w.id === 'pdf-compress')
+    ?.steps.find((s) => s.action === 'pdf.compress');
+  if (step?.params.maxMB !== 2) return `maxMB is ${String(step?.params.maxMB)}`;
+  return step.ask?.length ? 'still asks' : null;
+};
+const madeTable = (c: WorkspaceConfig) => (c.data.tables.length > 0 ? null : 'no table made');
+
+const FIX_CASES: EvalCase[] = [
+  {
+    id: 'FX1',
+    input: '记一笔午饭 35，主题换成蓝色',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: blue, plan: saysWhatWasNotDone },
+  },
+  {
+    id: 'FX1-en',
+    input: 'Log lunch for 12 dollars and make the theme blue',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: blue, plan: saysWhatWasNotDone },
+  },
+  {
+    id: 'FX1-fr',
+    input: 'Note un déjeuner à 14 euros et mets le thème en bleu',
+    locale: 'fr',
+    setup: 'budget',
+    mock: false,
+    expect: { kind: 'ops', check: blue, plan: saysWhatWasNotDone },
+  },
+  {
+    id: 'FX2',
+    input: '新建一个快捷操作：把录音转成文字，再总结成要点',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        quickActionSteps(c).some((s) => s.action === 'audio.transcribe') ? null : 'no transcribe',
+      plan: saysWhatWasNotDone,
+    },
+  },
+  {
+    id: 'FX3',
+    input: '把预览去掉，把工具栏移到上面',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => (c.containers.desk?.toolbar === 'top' ? null : 'toolbar not on top'),
+      plan: saysWhatWasNotDone,
+    },
+  },
+  { id: 'FX4', input: '好看点', locale: 'zh', setup: 'default', mock: false, expect: anyLook },
+  { id: 'FX4b', input: '太乱了', locale: 'zh', setup: 'budget', mock: false, expect: anyLook },
+  {
+    id: 'FX4-en',
+    input: "it's boring",
+    locale: 'en',
+    setup: 'habits',
+    mock: false,
+    expect: anyLook,
+  },
+  {
+    id: 'FX4-fr',
+    input: "c'est moche",
+    locale: 'fr',
+    setup: 'budget',
+    mock: false,
+    expect: anyLook,
+  },
+  {
+    id: 'FX5',
+    input: '撤销刚才的两次改动',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'reject',
+      reason: 'unknown',
+      message: (m) => (m.includes('改动记录') ? null : 'should point to change history'),
+    },
+  },
+  {
+    id: 'FX5-en',
+    input: 'Undo my last two changes',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'reject',
+      reason: 'unknown',
+      message: (m) => (/history/i.test(m) ? null : 'should point to change history'),
+    },
+  },
+  {
+    id: 'FX6',
+    input: '加一个一键入库按钮',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: madeTable },
+    allowBuild: true,
+  },
+  {
+    id: 'FX6-en',
+    input: 'add hourly rate field',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: madeTable },
+  },
+  {
+    id: 'FX7',
+    input: '这个不要每次问大小，固定 2MB',
+    locale: 'zh',
+    setup: 'pdf',
+    about: { kind: 'workflow', workflowId: 'pdf-compress' },
+    mock: false,
+    expect: { kind: 'ops', check: fixedSize },
+  },
+  {
+    id: 'FX7-fr',
+    input: 'Pour celle-ci, ne demande plus la taille, toujours 2 Mo',
+    locale: 'fr',
+    setup: 'pdf',
+    about: { kind: 'workflow', workflowId: 'pdf-compress' },
+    mock: false,
+    expect: { kind: 'ops', check: fixedSize },
+  },
+  {
+    id: 'FX8',
+    input: '在首页写上我的护照号 E12345678',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'reject', reason: 'userData' },
+  },
+  {
+    id: 'FX8-en',
+    input: 'Put my passport number E12345678 on the home page',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'reject', reason: 'userData' },
+  },
+  {
+    id: 'FX9',
+    input: '在首页写一段鼓励我的话',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: () => null },
+  },
+  {
+    id: 'FX9-en',
+    input: 'Write a welcome message on my home page',
+    locale: 'en',
+    setup: 'default',
+    mock: false,
+    expect: { kind: 'ops', check: () => null },
+  },
+  {
+    id: 'FX9b',
+    input: '首页加一段文字：每天进步一点点',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        JSON.stringify(c.containers.pages).includes('每天进步一点点') ? null : 'words missing',
+    },
+  },
+  {
+    id: 'FX10',
+    input: '这张表要有日期、金额、分类和付款方式',
+    locale: 'zh',
+    setup: 'budget',
+    earlier: [
+      {
+        input: '我要记每天花了多少钱',
+        ops: [
+          {
+            op: 'addData',
+            table: {
+              id: 'spending',
+              name: '开销',
+              fields: [{ id: 'amount', name: '金额', type: 'money', currency: 'CNY' }],
+            },
+          },
+        ],
+      },
+    ],
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => (c.data.tables.length === 2 ? null : `${c.data.tables.length} tables`),
+    },
+  },
+  {
+    id: 'FX11',
+    input: '国外寄来的纸质信看不懂，用手机拍一下变成英文 PDF',
+    locale: 'zh',
+    setup: 'default',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        quickActionSteps(c).some((s) => s.action === 'translate.text' && s.params.to === 'en')
+          ? null
+          : 'not translated to English',
+    },
+  },
+];
+
 export const EVAL_CASES: readonly EvalCase[] = [
+  ...FIX_CASES,
   ...PAGE_ENTRY_CASES,
   ...SEQUENCE_CASES,
   ...RECORD_ACTION_CASES,
@@ -6986,6 +7262,21 @@ export async function runEvalCase(
   return { outcome: judgeEval(c, plans.at(-1)!, prepared), plans };
 }
 
+/**
+ * 搭建计划应该怎样（规则 53）：过 PlanSchema（2–8 步，步骤 ID 不重复，每步都有要做的话），
+ * 有做数据或工具的步骤，外观排在它们后面。allowBuild 的用例都是要新建东西的，只有外观的计划不算。
+ */
+function judgeBuild(plan: Extract<Plan, { kind: 'build' }>): string | null {
+  const parsed = PlanSchema.safeParse(plan);
+  if (!parsed.success) return `invalid build plan: ${parsed.error.issues[0]?.message}`;
+  const kinds = plan.steps.map((s) => s.kind);
+  const work = kinds.filter((k) => k !== 'look');
+  if (work.length === 0) return 'a build plan should make data or tools, not only the look';
+  if (kinds.slice(0, work.length).includes('look'))
+    return 'the look should come after data and tools';
+  return null;
+}
+
 /** 判定一个计划是否符合用例预期。afterOrIssues 来自 prepareOps。 */
 export function judgeEval(
   c: EvalCase,
@@ -7005,6 +7296,10 @@ export function judgeEval(
     }
     const messageProblem = c.expect.message?.(plan.message);
     return messageProblem ? fail(messageProblem) : { pass: true };
+  }
+  if (plan.kind === 'build' && c.allowBuild) {
+    const problem = judgeBuild(plan);
+    return problem ? fail(problem) : { pass: true };
   }
   if (plan.kind !== 'ops')
     return fail(

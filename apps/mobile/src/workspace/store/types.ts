@@ -1,17 +1,25 @@
 import type {
   AIProvider,
+  BuildStep,
   Locale,
   NavTarget,
   Op,
+  Plan,
   PlanAbout,
   RejectReason,
   Registry,
   SampleApp,
+  WorkSession,
   WorkspaceConfig,
 } from '@morph/core';
 import type { StoreApi } from 'zustand/vanilla';
 
-import type { RevisionRecord, RevisionSource, WorkspaceRepo } from '../../storage/types';
+import type {
+  RevisionRecord,
+  RevisionSource,
+  SavedPreset,
+  WorkspaceRepo,
+} from '../../storage/types';
 
 // workspace store 对外的类型：状态、动作和它们的结果。动作的实现分在同目录的几个文件里（见 ../store.ts）。
 
@@ -46,6 +54,8 @@ export interface Proposal {
   ops?: Op[];
   /** AI 写给用户的说明：做不到的部分、补上的步骤为什么要加（D-110）。 */
   notes?: string[];
+  /** 恢复的是哪个版本（撤销、恢复历史版本）；比它新的版本里做的，清单里不再算做了（D-414）。换预设没有这一项，全都不算。 */
+  restoredTo?: number;
 }
 
 export type ProposeResult =
@@ -105,15 +115,47 @@ export interface Draft {
   open: boolean;
 }
 
-/** 草稿聊天框里没变成一步的一句话（D-207）：做不到、不合格、功能类、退了一步。 */
+/** 草稿聊天框里没变成一步的一句话（D-207）：做不到、不合格、功能类已经直接生效（D-411）、退了一步。 */
 export interface DraftChatReply {
   /** 说的时候草稿有几步：聊天框把它排在这一步后面；退一步退过它时一起去掉。 */
   afterSteps: number;
   input: string;
-  kind: 'rejected' | 'invalid' | 'functionInDraft' | 'steppedBack';
+  kind: 'rejected' | 'invalid' | 'functionApplied' | 'steppedBack' | 'needsDraft';
   message: string;
   examples: string[];
   reason?: RejectReason;
+  /** needsDraft：用户点「应用草稿并继续」时接着做的这一步（D-413）。只有配置结构。 */
+  waiting?: WaitingForDraft;
+}
+
+/** 这一步要用到草稿里的东西（D-413）：等用户点「应用草稿并继续」。 */
+export interface WaitingForDraft {
+  input: string;
+  plan: Extract<Plan, { kind: 'ops' }>;
+  origin: DraftOrigin;
+}
+
+export type BuildStepStatus = 'todo' | 'running' | 'done' | 'skipped' | 'failed';
+
+export interface BuildRunStep extends BuildStep {
+  status: BuildStepStatus;
+  /** 卡住的原因。 */
+  reason?: string;
+  /** 卡住的原因是要用到草稿里的东西（D-413）：显示「应用草稿并继续」。 */
+  needsDraft?: boolean;
+  /** 这一步做完功能后接着做的那句（next）：重试时从这里接着。 */
+  current?: string;
+}
+
+/**
+ * 正在搭的大工程（D-415）。review：等用户看计划；running：在做；failed：一步失败，等用户选；
+ * paused：停下了（用户点的、App 进后台或重启），等用户点继续（底线 16）；finished：都做完了。存在本机，随 App 重启保留。
+ */
+export interface BuildRun {
+  summary: string;
+  steps: BuildRunStep[];
+  phase: 'review' | 'running' | 'failed' | 'paused' | 'finished';
+  origin: DraftOrigin;
 }
 
 export type DraftResult =
@@ -127,13 +169,16 @@ export type DraftResult =
 
 /**
  * AI 修改页说的一句话（D-191）：功能类直接应用（applied），外观类进草稿。
- * 在草稿的聊天框里说功能类的话会被拒绝（functionInDraft），说明要去「修改这个 App」说。
+ * 在草稿的聊天框里说功能类的话也直接应用，草稿接着开着（D-411）。
  */
 export type ChangeResult =
   | DraftResult
-  /** focusPageId：改到的页面，回到 App 时显示它。 */
-  | { kind: 'applied'; applied: Applied; focusPageId: string }
-  | { kind: 'functionInDraft'; message: string };
+  /** focusPageId：改到的页面，回到 App 时显示它。lines：改了什么。 */
+  | { kind: 'applied'; applied: Applied; lines: string[]; focusPageId: string }
+  /** 这一步要用到草稿里的东西（D-413）：什么都没改，等用户点「应用草稿并继续」。 */
+  | { kind: 'needsDraft'; message: string; waiting: WaitingForDraft }
+  /** 大工程（规则 53）：计划在 build 里，等用户看过点「开始」（D-415）。 */
+  | { kind: 'build' };
 
 /** 应用之后（草稿或直接应用的功能）带用户去哪里要用的信息。 */
 export interface Applied {
@@ -146,11 +191,20 @@ export interface Applied {
   notes?: string[];
 }
 
-/** 记录提示条。只有删除带撤销（restoreRecordId，底线 11，D-385）。 */
+/** 记录提示条。只有删除带撤销（restoreRecordId、restorePreset，底线 11，D-385）。 */
 export interface RecordToast {
   message: string;
   restoreRecordId?: string;
+  /** 删掉的预设（D-410）：预设是真删，撤销时把这份放回去。 */
+  restorePreset?: SavedPreset;
 }
+
+export type SavePresetResult =
+  | { kind: 'saved'; preset: SavedPreset }
+  /** 名字是空的。 */
+  | { kind: 'noName' }
+  /** 到上限了（MAX_SAVED_PRESETS）。 */
+  | { kind: 'full' };
 
 export interface WorkspaceState {
   status: 'loading' | 'ready' | 'error';
@@ -166,6 +220,8 @@ export interface WorkspaceState {
   tab: NavTarget | null;
   /** 记录的刷新信号：增删改记录后递增。 */
   recordsVersion: number;
+  /** 预设列表的刷新信号（D-410）。 */
+  presetsVersion: number;
   /** 记录操作后的提示（例如删除后可以撤销）。与版本提示条分开：记录不属于任何版本。 */
   toast: RecordToast | null;
   /** 编辑模式（直接编辑，D-052–D-054）；为 null 时不在编辑模式。 */
@@ -189,6 +245,16 @@ export interface WorkspaceState {
    */
   propose(input: string, planner?: AIProvider, about?: PlanAbout): Promise<ProposeResult>;
   proposeRestore(revisionId: number): Promise<ProposeResult>;
+  /** 换成一个保存的预设（D-410）：和恢复历史版本一样先预览，确认才生效，能撤销。 */
+  proposePreset(presetId: string): Promise<ProposeResult>;
+  /** 把当前的 App 存成预设（D-410）：不带记录和文件引用，不产生新版本。 */
+  savePreset(name: string): Promise<SavePresetResult>;
+  /** 名字是空的时不改，返回 false。 */
+  renamePreset(presetId: string, name: string): Promise<boolean>;
+  /** 真删；提示条能撤销（底线 11）。 */
+  deletePreset(preset: SavedPreset): Promise<void>;
+  /** 提示条的撤销：把删掉的预设放回去。 */
+  restorePreset(preset: SavedPreset): Promise<void>;
   /** 来自界面按钮（安装、卸载等）的修改，同样经过校验和版本记录。 */
   proposeOps(ops: Op[], summary: string): Promise<ProposeResult>;
   /** 预览里勾选 / 取消「在首页放一个入口」（D-109）。 */
@@ -218,7 +284,7 @@ export interface WorkspaceState {
    * planner 不传时用设置里选的 AI。
    */
   change(input: string, planner?: AIProvider, origin?: DraftOrigin): Promise<ChangeResult>;
-  /** 草稿聊天框的一句话：只改外观，功能类的请求不做。 */
+  /** 草稿聊天框的一句话：外观接着改草稿，功能类直接生效（D-411）。 */
   draftChange(input: string, about?: PlanAbout): Promise<ChangeResult>;
   /**
    * 套用一个样板 App（D-260）：整套修改（表、快捷操作、页面、提醒）作为草稿的一步，不经过 AI、不发请求；
@@ -227,6 +293,29 @@ export interface WorkspaceState {
   draftSample(sample: SampleApp): Promise<DraftResult>;
   clearNext(): Promise<void>;
   clearSuggest(): Promise<void>;
+  /** 工具清单（D-414）。 */
+  session: WorkSession;
+  /** 清空清单和记得的话；App 和记录不变。 */
+  clearSession(): Promise<void>;
+  /** 用户点「应用草稿并继续」（D-413）：先确认草稿，再做等着的那一步，不再问模型。 */
+  continueWithDraft(waiting: WaitingForDraft): Promise<ChangeResult>;
+  /** 「把这些补上」（D-418）：把这个会话新增的问题发给 AI 一次。没有问题时返回 null，什么都不发。 */
+  fixProblems(): Promise<ChangeResult | null>;
+  /** 大工程的计划和进度（D-415）。 */
+  build: BuildRun | null;
+  /** 从计划里删掉一步；删光了计划就没了。 */
+  removeBuildStep(stepId: string): Promise<void>;
+  /** 用户点「开始」：这一次点击连续做完（底线 16，D-416）。一步失败或停下时返回。 */
+  startBuild(): Promise<void>;
+  /** 做完手上这一步就停（用户点的，或 App 进后台）。 */
+  stopBuild(): Promise<void>;
+  /** 从没做完的步骤接着做。 */
+  resumeBuild(): Promise<void>;
+  skipBuildStep(): Promise<void>;
+  /** 卡在要用到草稿：先确认草稿，再重做这一步。 */
+  applyDraftForBuild(): Promise<void>;
+  /** 收起计划。做好的留着，没做的留在清单里。 */
+  endBuild(): Promise<void>;
   stepBack(): Promise<void>;
   openDraft(): void;
   closeDraft(): void;

@@ -89,7 +89,7 @@ import type { RenderEnv } from './components';
 import { Icon, UiIcon } from './Icon';
 import { ProgressBar, ProgressRing } from './Progress';
 import { useTicker } from './ticker';
-import { cardColors, type Palette } from './theme';
+import { cardColors, onPage, type Palette } from './theme';
 import { Button, Card } from './ui';
 
 // 数据组件（docs/DATA_DESIGN.md）：记录列表、快速添加表单、统计。
@@ -944,6 +944,8 @@ export function RecordList({
   tone?: Tone;
 }) {
   const { palette, locale } = env;
+  // 分段标题和列表下面的「添加」压在页面背景上，卡片里的行用 palette（D-409）。
+  const page = onPage(palette);
   const router = useRouter();
   const { collection, view, loaded, sorted } = useListRecords(block, env);
   const rows = useRecordRows(block, env, tone, collection, view);
@@ -992,14 +994,12 @@ export function RecordList({
                   <UiIcon
                     name={closed ? 'chevronRight' : 'chevronDown'}
                     size={14}
-                    color={palette.muted}
+                    color={page.muted}
                   />
-                  <Text
-                    style={[palette.font('bodyBold', 15), { color: palette.text }]}
-                    numberOfLines={1}>
+                  <Text style={[page.font('bodyBold', 15), { color: page.text }]} numberOfLines={1}>
                     {g.label}
                   </Text>
-                  <Text style={[palette.font('bodyMedium', 13), { color: palette.caption }]}>
+                  <Text style={[page.font('bodyMedium', 13), { color: page.caption }]}>
                     {g.records.length}
                   </Text>
                 </Pressable>
@@ -1011,7 +1011,7 @@ export function RecordList({
                     onPress={add(g.preset === undefined ? {} : { [groupBy]: g.preset })}
                     hitSlop={8}
                     style={styles.groupAdd}>
-                    <UiIcon name="add" size={18} color={palette.primaryText} />
+                    <UiIcon name="add" size={18} color={page.primaryText} />
                   </Pressable>
                 ) : null}
               </View>
@@ -1030,7 +1030,7 @@ export function RecordList({
   return addHere ? (
     <View style={{ gap: 6 }}>
       {rows.list(shown)}
-      <AddHere label={t(locale, 'entryFormAdd')} onPress={add()} palette={palette} />
+      <AddHere label={t(locale, 'entryFormAdd')} onPress={add()} palette={page} />
     </View>
   ) : (
     rows.list(shown)

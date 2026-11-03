@@ -238,4 +238,50 @@ describe('a new record block of a table that has no way to add entries (D-310)',
     ]);
     expect(config.containers.pages[0]!.blocks.some((c) => c.id === 'add-scores')).toBe(false);
   });
+
+  describe('a list on a page for one entry (page.of)', () => {
+    const recordPage = (filter?: unknown): Op[] => [
+      {
+        op: 'addContainer',
+        page: {
+          id: 'habit-page',
+          title: '习惯',
+          of: 'habits',
+          blocks: [
+            list('checkins', {
+              show: { title: 'day' },
+              source: { table: 'checkins', ...(filter ? { filter } : {}) },
+            }),
+          ],
+        },
+      },
+    ];
+    const addedTool = (ops: Op[]) => {
+      const r = prepareOps(base(), ops, ctx);
+      if (!r.ok) throw new Error(r.issues.join());
+      const page = r.after.containers.pages.find((p) => p.id === 'habit-page')!;
+      const button = allComponents(page).find((c) => c.id === 'add-checkins') as {
+        tools: unknown[];
+      };
+      return button.tools[0];
+    };
+
+    it('the added button links the new entry to this entry, so it shows up in the list', () => {
+      expect(addedTool(recordPage([{ field: 'habit', op: 'is', value: '$record' }]))).toEqual({
+        do: 'create',
+        table: 'checkins',
+        ask: 'all',
+        values: { habit: '$record' },
+      });
+    });
+
+    it('a list not filtered by this entry adds without a link', () => {
+      expect(addedTool(recordPage())).toEqual({ do: 'create', table: 'checkins', ask: 'all' });
+      expect(addedTool(recordPage([{ field: 'habit', op: 'isNot', value: '$record' }]))).toEqual({
+        do: 'create',
+        table: 'checkins',
+        ask: 'all',
+      });
+    });
+  });
 });

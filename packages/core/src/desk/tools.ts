@@ -4,7 +4,12 @@ import { shareFit, type SharedFileInfo } from '../share';
 import { MAX_PICK } from '../tools/io';
 import { MEDIA_LIMITS } from '../limits';
 import { initialParams, workflowProblems } from '../workflow/check';
-import { isSourceAction, outputTypeOf, type ActionDefinition } from '../workflow/contract';
+import {
+  actionAccepts,
+  isSourceAction,
+  outputTypeOf,
+  type ActionDefinition,
+} from '../workflow/contract';
 import type { FileValueType } from '../workflow/engine';
 import { builtInWorkflows, sharePresetOrder } from '../workflows/presets';
 import type { DeskTool, DeskToolsConfig } from './layout';
@@ -58,6 +63,14 @@ function fitsKind(action: ActionDefinition, kind: DeskKind): boolean {
     !!action.rejects?.includes('images') &&
     !!action.rejects.includes('pdf')
   );
+}
+
+/**
+ * 配置的工具栏上能不能放这个动作：点了能跑（比 fitsKind 宽：fitsKind 只决定默认工具栏列哪些，
+ * 用户要的「打包这份文档」类型接得上就能放，底线 19）。
+ */
+export function deskActionFits(action: ActionDefinition, kind: DeskKind): boolean {
+  return isDeskAction(action) && actionAccepts(action, VALUE_TYPE[kind]);
 }
 
 function groupOf(action: ActionDefinition, kind: DeskKind): DeskGroupId {

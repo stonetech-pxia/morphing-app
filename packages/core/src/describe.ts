@@ -1,3 +1,4 @@
+import { countFileRefs } from './file-refs';
 import { localize } from './localization';
 import { t, pairText, type StringKey } from './messages';
 import { SYSTEM_TARGET_LABELS } from './defaults';
@@ -231,6 +232,7 @@ export function describeChange(
     background: t(ctx.locale, 'describe_Background_639fc'),
     surface: t(ctx.locale, 'describe_Card_color_cb523'),
     text: t(ctx.locale, 'describe_Text_color_af4a8'),
+    surfaceText: t(ctx.locale, 'describe_Card_text_color'),
     secondary: t(ctx.locale, 'describe_Secondary_color_844c7'),
     tertiary: t(ctx.locale, 'describe_Tertiary_color_dec1a'),
   };
@@ -863,14 +865,41 @@ export function describeRestore(
   revision: { id: number; summary: string },
   ctx: Pick<DescribeContext, 'registry' | 'locale'>,
 ): string[] {
-  const toolName = (id: string) => localize(ctx.registry.tools.get(id)?.name, ctx.locale) ?? id;
-  const beforeTools = new Set(before.packages.map((t) => t.id));
-  const afterTools = new Set(after.packages.map((t) => t.id));
-  const lines = [
+  return [
     t(ctx.locale, 'describe_Go_back_to_when_happened_pages_navigat_cbdc3', {
       v0: revision.summary,
     }),
+    ...snapshotLines(before, after, ctx),
   ];
+}
+
+/** 换成一个保存的预设时的说明（D-410）：和恢复历史版本一样，多一句现在选好的文件不会跟过来。 */
+export function describePresetApply(
+  before: WorkspaceConfig,
+  after: WorkspaceConfig,
+  name: string,
+  ctx: Pick<DescribeContext, 'registry' | 'locale'>,
+): string[] {
+  const lines = snapshotLines(before, after, ctx);
+  const files = lines.pop()!;
+  return [
+    t(ctx.locale, 'presetApplyIntro', { name }),
+    ...lines,
+    ...(countFileRefs(before) > 0 ? [t(ctx.locale, 'presetApplyFiles')] : []),
+    files,
+  ];
+}
+
+/** 换成另一份配置时，工具和表的变化，最后一句说文件和记录不受影响。 */
+function snapshotLines(
+  before: WorkspaceConfig,
+  after: WorkspaceConfig,
+  ctx: Pick<DescribeContext, 'registry' | 'locale'>,
+): string[] {
+  const toolName = (id: string) => localize(ctx.registry.tools.get(id)?.name, ctx.locale) ?? id;
+  const beforeTools = new Set(before.packages.map((t) => t.id));
+  const afterTools = new Set(after.packages.map((t) => t.id));
+  const lines: string[] = [];
   for (const id of beforeTools) {
     if (!afterTools.has(id)) {
       lines.push(

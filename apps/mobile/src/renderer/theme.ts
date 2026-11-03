@@ -6,6 +6,7 @@ import {
   isDark,
   mix,
   resolveColors,
+  resolveSurfaceColors,
   type ComponentStyle,
   type ResolvedColors,
   type Theme,
@@ -67,7 +68,17 @@ export interface Palette extends ResolvedColors {
   backdrop: ViewStyle;
   /** 底部导航栏的底色（毛玻璃主题下半透明）。 */
   barBackground: string;
+  /** 主题设了 surfaceText（D-409）时才有：放在卡片上的内容用的配色。用 onSurface 取。 */
+  surfacePalette?: Palette;
+  /** 卡片配色上才有：回到页面背景上的配色。用 onPage 取。 */
+  pagePalette?: Palette;
 }
+
+/** 放在卡片上的内容用的配色（D-409）；没设 surfaceText 时就是它自己。 */
+export const onSurface = (palette: Palette): Palette => palette.surfacePalette ?? palette;
+
+/** 放在页面背景上的内容用的配色（D-409）；块画在卡片配色里，块里压在页面上的标题要换回来。 */
+export const onPage = (palette: Palette): Palette => palette.pagePalette ?? palette;
 
 const DENSITY = {
   compact: { pad: 14, gap: 8 },
@@ -96,9 +107,18 @@ function backdropImage(theme: Theme, c: ResolvedColors): string | undefined {
 }
 
 export function makePalette(theme: Theme, systemDark: boolean): Palette {
-  const colors = resolveColors(theme, isDark(theme, systemDark));
+  const dark = isDark(theme, systemDark);
+  const page = resolveColors(theme, dark);
+  const palette = buildPalette(theme, page, page);
+  const card = resolveSurfaceColors(theme, dark);
+  if (card) palette.surfacePalette = { ...buildPalette(theme, card, page), pagePalette: palette };
+  return palette;
+}
+
+/** colors 是这份配色的颜色；page 是页面背景那份，卡片压在页面上的硬阴影、新拟物高光和页面背景都看它。 */
+function buildPalette(theme: Theme, colors: ResolvedColors, page: ResolvedColors): Palette {
   const radius = theme.radius;
-  const image = backdropImage(theme, colors);
+  const image = backdropImage(theme, page);
   const family = (role: FontRole): TextStyle => {
     switch (theme.font) {
       case 'clay':
@@ -124,8 +144,8 @@ export function makePalette(theme: Theme, systemDark: boolean): Palette {
     barBackground:
       theme.cardStyle === 'glass' ? rgba(colors.surface, GLASS_OPACITY) : colors.surface,
     backdrop: image
-      ? { backgroundColor: colors.background, backgroundImage: image }
-      : { backgroundColor: colors.background },
+      ? { backgroundColor: page.background, backgroundImage: image }
+      : { backgroundColor: page.background },
     font: (role, size) => ({ ...family(role), fontSize: Math.round(size * theme.fontScale) }),
     cardStyle: (background = colors.surface) => {
       const base: ViewStyle = { backgroundColor: background, borderRadius: radius };
@@ -137,13 +157,13 @@ export function makePalette(theme: Theme, systemDark: boolean): Palette {
         return {
           ...base,
           borderWidth: 2,
-          borderColor: colors.text,
-          boxShadow: `4px 4px 0px ${colors.text}`,
+          borderColor: page.text,
+          boxShadow: `4px 4px 0px ${page.text}`,
         };
       }
       if (theme.cardStyle === 'soft') {
         // 新拟物：左上亮、右下暗，卡片和背景同色时最像。
-        const light = colors.dark ? rgba('#FFFFFF', 0.06) : mix(colors.background, '#FFFFFF', 0.8);
+        const light = colors.dark ? rgba('#FFFFFF', 0.06) : mix(page.background, '#FFFFFF', 0.8);
         const dark = rgba(colors.dark ? '#000000' : colors.shadow, colors.dark ? 0.6 : 0.16);
         return { ...base, boxShadow: `-5px -5px 12px ${light}, 6px 6px 14px ${dark}` };
       }

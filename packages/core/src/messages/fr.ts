@@ -366,6 +366,26 @@ export const fr: MessageTable = {
   dataTitle: 'Données',
   storageTitle: 'Stockage',
   storageRowHint: 'Photos et fichiers conservés par Morph, et où ils servent',
+  presetsTitle: 'Mes préréglages',
+  presetsRowHint: 'Gardez toute l’app et revenez-y quand vous voulez',
+  presetsHint:
+    'Un préréglage garde toute l’app : tableaux, pages, actions rapides et style. Il ne contient ni vos entrées ni vos fichiers, et les images et emplacements de fichier reviennent vides.',
+  presetsNone:
+    'Aucun préréglage pour l’instant. Gardez l’app telle qu’elle est : vous pourrez y revenir après l’avoir modifiée.',
+  presetsNew: 'Garder l’app actuelle comme préréglage',
+  presetsNamePlaceholder: 'Nom du préréglage',
+  presetsFull:
+    'Vous pouvez garder {max} préréglages au maximum. Supprimez-en un pour en ajouter un autre.',
+  presetApply: 'Appliquer',
+  presetRename: 'Renommer',
+  presetDeleted: 'Préréglage « {name} » supprimé',
+  presetGone: 'Ce préréglage n’existe plus.',
+  presetApplySummary: 'Passage au préréglage « {name} »',
+  presetApplyTitle: 'Passer au préréglage « {name} » ?',
+  presetApplyIntro:
+    'Les pages, la navigation, les tableaux, le thème et les actions rapides redeviennent ceux enregistrés dans « {name} »',
+  presetApplyFiles:
+    'Les images et emplacements de fichier choisis ne suivent pas : il faudra les choisir à nouveau',
   storageSummary: '{n} fichiers · {size}',
   storageEmpty:
     'Morph n’a encore aucun fichier enregistré. Les photos et fichiers ajoutés aux entrées, aux emplacements de fichier et aux images sont conservés ici.',
@@ -663,11 +683,65 @@ export const fr: MessageTable = {
   draftRenderFailed: 'La dernière modification n’a pas pu s’afficher, elle a donc été annulée.',
 
   // 功能和外观分开改（D-191）
-  draftNoFunction:
-    'Le brouillon ne modifie que l’apparence. Les actions rapides, les outils et les tableaux de données se modifient sur la page « Modifier cette App » : les changements prennent effet immédiatement et peuvent être annulés.',
-  draftNoFunctionGo: 'Passer par « Modifier cette App »',
-  functionNeedsDraft:
-    'Cette modification nécessite un élément de votre brouillon. Appliquez d’abord le brouillon, puis redites-le.',
+  // 工具检查补救后还有问题（AGENT_PLAN §3.6）：只提醒。
+  planCheckParams:
+    'Une valeur ou une langue demandée n’a peut-être pas été reprise dans l’action rapide. Vérifiez ses réglages avant de l’utiliser.',
+  planCheckTools:
+    'Une partie n’est peut-être pas encore utilisable : impossible de l’ouvrir, d’y ajouter une entrée ou de voir ses entrées. Dites-moi ce qui manque et je l’ajouterai.',
+  draftFunctionApplied:
+    'Cette partie est déjà en place, et vous pouvez l’annuler dans Historique des modifications. Les changements d’apparence restent dans votre brouillon.',
+  functionNeedsDraft: 'Cette étape a besoin d’une page qui n’existe que dans votre brouillon.',
+  draftApplyContinue: 'Appliquer le brouillon et continuer',
+  buildPlanTitle: 'Plan de création',
+  buildPlanHint:
+    'Je procède étape par étape. Les fonctions s’appliquent tout de suite et l’apparence attend dans un brouillon ; tout peut être annulé. Retirez d’abord les étapes que vous ne voulez pas.',
+  buildRemoveStep: 'Retirer cette étape',
+  buildStart: 'Commencer',
+  buildDiscard: 'Ne pas le faire',
+  buildStepOf: 'Étape {n} sur {total}',
+  buildStop: 'Arrêter',
+  buildRetry: 'Réessayer cette étape',
+  buildSkip: 'Passer',
+  buildResume: 'Continuer',
+  buildEnd: 'Terminer',
+  buildStuck: 'Bloqué à « {title} »',
+  buildStoppedHint: 'Arrêté. Ce qui est fait reste. Il reste {n} étapes.',
+  buildDoneTitle: 'Toutes les étapes sont terminées',
+  buildCheckOk: 'Vérifié : les outils de cette app sont utilisables.',
+  buildCheckProblems: 'Vérifié : {n} éléments ne sont pas encore utilisables.',
+  buildLookInDraft:
+    'Les changements d’apparence sont dans votre brouillon. Ils s’appliquent une fois que vous les avez vus et validés.',
+  buildSeeLook: 'Voir l’apparence',
+  buildUndoHint:
+    'Les fonctions sont déjà actives. Vous pouvez les annuler dans l’historique des modifications.',
+  buildPresetHint:
+    'Si cela vous plaît, enregistrez-le comme préréglage : Paramètres → Mes préréglages.',
+  buildFinish: 'Terminé',
+  buildFailedModel: 'L’IA n’a pas répondu pour cette étape. Vous pouvez réessayer.',
+  buildFailedInvalid:
+    'La modification proposée par l’IA pour cette étape n’était pas valide. Vous pouvez réessayer.',
+  sessionTitle: 'Reste à faire',
+  sessionDoneCount: '{n} éléments faits',
+  fixProblems: 'Compléter ce qui manque',
+  fixCount: '{n} éléments ne sont pas utilisables',
+  presetCheckTools: '{n} outils',
+  presetCheckOk: 'Vérifié : tout est utilisable.',
+  presetCheckProblems:
+    '{n} éléments ne sont pas encore utilisables. Vous pouvez quand même enregistrer.',
+  presetSaveAnyway: 'Enregistrer quand même',
+  sessionClear: 'Vider la liste',
+  sessionClearTitle: 'Vider cette liste ?',
+  sessionClearBody:
+    'Seuls la liste et ce dont l’IA se souvient sont effacés. Votre app et vos entrées ne changent pas.',
+  sessionClearAfterPreset: 'Préréglage enregistré. Vider la liste pour commencer autre chose ?',
+  sessionKeep: 'La garder',
+  sessionInvalid:
+    'La modification proposée par l’IA n’était pas valide. Vous pouvez la redemander.',
+  sessionWhyAdd: '« {name} » : rien ne permet encore d’y ajouter quelque chose.',
+  sessionWhyView: '« {name} » : rien ne permet encore de le voir.',
+  sessionWhyFile: '« {name} » : ses étapes ne s’enchaînent pas ou des réglages manquent.',
+  sessionWhyReminder: '« {name} » : ce rappel n’ouvre pas le bon endroit.',
+  sessionWhyOther: '« {name} » n’est pas encore utilisable.',
   nextTitle: 'Continuer à modifier',
   nextHint:
     'Le reste de votre demande modifie l’apparence : touchez pour voir le résultat d’abord dans un brouillon.',
@@ -942,6 +1016,7 @@ export const fr: MessageTable = {
   describe_Background_639fc: 'Arrière-plan',
   describe_Card_color_cb523: 'Couleur des cartes',
   describe_Text_color_af4a8: 'Couleur du texte',
+  describe_Card_text_color: 'Couleur du texte des cartes',
   describe_Secondary_color_844c7: 'Couleur secondaire',
   describe_Tertiary_color_dec1a: 'Couleur tertiaire',
   describe__441c2: '« {v0} »',
@@ -1495,6 +1570,13 @@ export const fr: MessageTable = {
 };
 
 export const frSingular: SingularTable = {
+  buildStoppedHint: 'Arrêté. Ce qui est fait reste. Il reste {n} étape.',
+  buildCheckProblems: 'Vérifié : {n} élément n’est pas encore utilisable.',
+  sessionDoneCount: '{n} élément fait',
+  fixCount: '{n} élément n’est pas utilisable',
+  presetCheckTools: '{n} outil',
+  presetCheckProblems:
+    '{n} élément n’est pas encore utilisable. Vous pouvez quand même enregistrer.',
   runItemImage: 'image {n} sur {total}',
   runItemFile: 'fichier {n} sur {total}',
   storageSummary: '{n} fichier · {size}',

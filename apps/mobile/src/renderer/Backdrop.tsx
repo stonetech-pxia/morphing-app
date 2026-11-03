@@ -17,7 +17,7 @@ export const BACKDROP_SIDE = { card: 1200, page: 2048 } as const;
 export function onPicture(palette: Palette, backdrop: Backdrop | undefined): Palette {
   if (!backdrop?.assetId) return palette;
   const { text } = palette;
-  return {
+  const shown: Palette = {
     ...palette,
     muted: text,
     subtext: text,
@@ -26,6 +26,11 @@ export function onPicture(palette: Palette, backdrop: Backdrop | undefined): Pal
     onSecondaryTint: text,
     onTertiaryTint: text,
   };
+  // 卡片有自己的文字色时（D-409），图片页面上的卡片也同样换。
+  if (palette.surfacePalette) {
+    shown.surfacePalette = { ...onPicture(palette.surfacePalette, backdrop), pagePalette: shown };
+  }
+  return shown;
 }
 
 /** 用户文件的显示地址。undefined：读取中或没有；null：文件不在这台设备上。 */

@@ -34,6 +34,7 @@ import {
   type Tone,
 } from './data';
 import { UiIcon } from './Icon';
+import { onPage } from './theme';
 import { Card } from './ui';
 
 // 记录列表的月历外观（D-305）：一个月的格子，每天按记录条数分深浅，或者按一个单选字段上色（这一天最后一条的
@@ -249,7 +250,7 @@ export function MonthCalendar({
       </Card>
       {selected !== null && records !== null ? (
         <>
-          <Text style={[palette.font('bodyBold', 14), { color: palette.muted }]}>
+          <Text style={[palette.font('bodyBold', 14), { color: onPage(palette).muted }]}>
             {dayTitle(selected, locale)}
           </Text>
           {shown.length > 0 ? (
@@ -265,7 +266,7 @@ export function MonthCalendar({
             <AddHere
               testID="calendar-add-here"
               label={t(locale, 'groupAdd', { group: dayTitle(selected, locale) })}
-              palette={palette}
+              palette={onPage(palette)}
               onPress={
                 env.interactive
                   ? (env.locked ??

@@ -51,6 +51,7 @@ import { createToolDownloads } from '@/tool-download/state';
 import { ToolDownloadStore } from '@/tool-download/store';
 import { openRepo } from '@/storage/open';
 import type { SQLiteWorkspaceRepo } from '@/storage/sqlite';
+import { useStopBuildInBackground } from '@/shell/BuildPanel';
 import { WorkspaceProvider, useWorkspace } from '@/workspace/context';
 import { createNeedSender, createRemoteAIProvider } from '@/workspace/remote-ai';
 import { createWorkspaceStore, type WorkspaceStore } from '@/workspace/store';
@@ -127,6 +128,7 @@ function RootStack() {
   const status = useWorkspace((s) => s.status);
   const error = useWorkspace((s) => s.error);
   const config = useWorkspace((s) => s.config);
+  useStopBuildInBackground();
   if (status === 'error' || !config) {
     return (
       <Centered>
@@ -167,6 +169,7 @@ function ThemedStack() {
         <Stack.Screen name="data" options={{ title: t(locale, 'dataTitle') }} />
         <Stack.Screen name="storage" options={{ title: t(locale, 'storageTitle') }} />
         <Stack.Screen name="packs" options={{ title: t(locale, 'packsTitle') }} />
+        <Stack.Screen name="presets" options={{ title: t(locale, 'presetsTitle') }} />
         <Stack.Screen name="reminders" options={{ title: t(locale, 'remindersTitle') }} />
         <Stack.Screen name="calendar" options={{ title: t(locale, 'calendarTitle') }} />
         <Stack.Screen name="reminder/[workflowId]" options={{ ...closable, title: '' }} />

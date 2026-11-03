@@ -49,6 +49,7 @@ import { contrastProblems } from './theme';
 import { presetById } from './workflows/presets';
 import { workflowProblems } from './workflow/check';
 import { stepRefProblems } from './workflow/refs';
+import { issueLines } from './zod-issues';
 
 // 变更校验（§7D）：结构 → 引用 → 受保护元素 → 可读性 → 工具与权限 → 快捷操作的数据流。
 // 任何配置在保存或渲染之前都必须通过这里。v34「数据 · 容器 · 工具」：块的引用按登记表里的路径查（refs），
@@ -81,10 +82,7 @@ export function validateWorkspace(
   if (!parsed.success) {
     return {
       ok: false,
-      issues: parsed.error.issues.map((i) => ({
-        code: 'schema',
-        message: `${i.path.join('.') || '(root)'}: ${i.message}`,
-      })),
+      issues: issueLines(parsed.error).map((message) => ({ code: 'schema', message })),
     };
   }
   const config = unknown.restore(parsed.data as WorkspaceConfig);

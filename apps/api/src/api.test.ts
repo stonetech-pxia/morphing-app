@@ -1,4 +1,5 @@
-import type { Completion } from '@morph/planner';
+import { BUILTIN_TOOLS, createDefaultWorkspace, createRegistry } from '@morph/core';
+import { createClaudePlanner, createRelayCompleter, type Completion } from '@morph/planner';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -63,6 +64,22 @@ describe('model relay (D-193)', () => {
   const a = { 'x-morph-device': 'device-aaaa' };
   const b = { 'x-morph-device': 'device-bbbb' };
 
+  it('takes a big config: a 128 000 character request in Chinese fits in the body limit (D7)', async () => {
+    // 中文每个字 3 个字节：提示词、第一条请求、修正消息都到上限，加上模型回复。
+    const { post, seen } = make();
+    const big = '配'.repeat(128_000);
+    const body = {
+      system: '提'.repeat(192_000),
+      messages: [
+        { role: 'user', content: big },
+        { role: 'assistant', content: [{ type: 'text', text: '回'.repeat(64_000) }] },
+        { role: 'user', content: big },
+      ],
+    };
+    expect((await post(body)).status).toBe(200);
+    expect(seen).toHaveLength(1);
+  });
+
   it('reports whether it can reach a model', async () => {
     expect(await (await make().app.request('/health')).json()).toEqual({
       ok: true,
@@ -104,6 +121,90 @@ describe('model relay (D-193)', () => {
     expect((await post(repair)).status).toBe(200);
   });
 
+  it('a planner repairing twice stays in the shape the relay accepts (AGENT_PLAN §3.6)', async () => {
+    // 不合 JSON → 合法但新增 blocker → 补好。真模型回复带思考块，Relay 原样给 App。
+    const tables = [
+      {
+        op: 'addData',
+        table: { id: 'projects', name: 'P', fields: [{ id: 'name', name: 'N', type: 'text' }] },
+      },
+      {
+        op: 'addData',
+        table: {
+          id: 'tasks',
+          name: 'T',
+          fields: [
+            { id: 'title', name: 'T', type: 'text' },
+            { id: 'project', name: 'P', type: 'link', table: 'projects' },
+          ],
+        },
+      },
+      {
+        op: 'addContainer',
+        page: 'home',
+        block: {
+          id: 'tasks-list',
+          look: 'list',
+          source: { table: 'tasks' },
+          show: { title: 'title' },
+        },
+      },
+    ];
+    const addProject = {
+      op: 'addContainer',
+      page: 'home',
+      block: {
+        id: 'project-add',
+        look: 'button',
+        show: { label: 'New', variant: 'filled' },
+        tools: [{ do: 'create', table: 'projects', ask: 'all' }],
+      },
+    };
+    const texts = [
+      'not json',
+      JSON.stringify({ kind: 'ops', ops: tables }),
+      JSON.stringify({ kind: 'ops', ops: [...tables, addProject] }),
+    ];
+    let call = 0;
+    const { app, seen } = make(async () => {
+      const text = texts[call++]!;
+      return reply(text, {
+        content: [
+          { type: 'thinking', thinking: 'hm', signature: 'sig' },
+          { type: 'redacted_thinking', data: 'xx' },
+          { type: 'text', text },
+        ],
+      });
+    });
+    const registry = createRegistry(BUILTIN_TOOLS);
+    const statuses: number[] = [];
+    const planner = createClaudePlanner({
+      registry,
+      now: () => new Date(2026, 10, 3),
+      complete: createRelayCompleter({
+        baseUrl: 'http://relay.test',
+        registry,
+        fetchImpl: async (url, init) => {
+          const response = await app.request(String(url).replace('http://relay.test', ''), init);
+          statuses.push(response.status);
+          return response;
+        },
+      }),
+    });
+    const plan = await planner.plan('tasks and projects', {
+      config: createDefaultWorkspace('en'),
+      registry,
+      locale: 'en',
+    });
+    expect(statuses).toEqual([200, 200, 200]);
+    expect(plan).toMatchObject({ kind: 'ops', ops: [...tables, addProject] });
+    expect(seen.map((r) => r.messages.length)).toEqual([1, 3, 3]);
+    expect(seen[2]!.messages[1]).toEqual({
+      role: 'assistant',
+      content: [{ type: 'text', text: texts[1] }],
+    });
+  });
+
   it('rejects anything that is not a planning request', async () => {
     const { post, seen } = make();
     const user = (content: unknown) => ({ system: 'x', messages: [{ role: 'user', content }] });
@@ -115,7 +216,7 @@ describe('model relay (D-193)', () => {
       { messages: first.messages },
       user([{ type: 'image', source: { type: 'url', url: 'https://x.test/a.png' } }]),
       user(''),
-      user('x'.repeat(64_001)),
+      user('x'.repeat(128_001)),
       {
         system: 'x',
         messages: [
@@ -137,7 +238,7 @@ describe('model relay (D-193)', () => {
     for (const body of rejected) expect((await post(body)).status).toBe(400);
     expect((await post(first, { 'x-morph-device': 'no spaces!' })).status).toBe(400);
     expect(seen).toEqual([]);
-    expect((await post({ system: 'x'.repeat(330 * 1024), messages: first.messages })).status).toBe(
+    expect((await post({ system: 'x'.repeat(2100 * 1024), messages: first.messages })).status).toBe(
       413,
     );
   });

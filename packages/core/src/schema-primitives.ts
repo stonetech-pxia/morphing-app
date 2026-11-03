@@ -20,7 +20,8 @@ export const ROW_REF = '$row';
 export const GROUP_REF = '$group';
 export const HERE_REF = '$here';
 
-export const IdSchema = z.string().regex(ID_PATTERN, 'id must be lowercase letters, digits or -');
+export const ID_MESSAGE = 'id must be lowercase letters, digits or -';
+export const IdSchema = z.string().regex(ID_PATTERN, ID_MESSAGE);
 
 /** 去掉首尾空白后长度在 min..max 之间的文字。 */
 export const boundedText = (min: number, max: number) => z.string().trim().min(min).max(max);

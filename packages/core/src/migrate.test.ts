@@ -124,6 +124,14 @@ describe('migrateWorkspace', () => {
     const kept = migrateWorkspace(custom, undefined, 20);
     expect(kept.ok && (kept.config as { workflows: unknown[] }).workflows).toEqual([picked]);
   });
+  it('v35 → v36 (surfaceText, D-409) only raises the version; old themes keep every color', () => {
+    const previous = { ...v33Default(), schemaVersion: 35 };
+    expect(migrateWorkspace(previous, undefined, 36)).toEqual({
+      ok: true,
+      config: { ...previous, schemaVersion: 36 },
+      fromVersion: 35,
+    });
+  });
   it('v32 → v33 (file room layout, D-358) only raises the version; the room uses its default layout', () => {
     const previous = { ...v33WithPdf(), schemaVersion: 32 };
     expect(migrateWorkspace(previous, undefined, 33)).toEqual({

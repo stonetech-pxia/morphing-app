@@ -282,18 +282,6 @@ describe('function changes go straight in (D-191)', () => {
     expect(store.getState().next).toBeNull();
   });
 
-  it('the draft chat refuses function changes and leaves the draft alone', async () => {
-    const { store } = await booted();
-    await say(store, '主题换成绿色');
-    const headId = store.getState().head!.id;
-    expect(await store.getState().draftChange('添加签证照片快捷操作')).toMatchObject({
-      kind: 'functionInDraft',
-      message: expect.stringMatching(/草稿里只改外观/),
-    });
-    expect(store.getState().draft!.steps).toHaveLength(1);
-    expect(store.getState().head!.id).toBe(headId);
-  });
-
   it('a function change with a draft around goes into the real app; the draft is kept on top', async () => {
     const { store } = await booted();
     await say(store, '主题换成绿色');
@@ -333,11 +321,11 @@ describe('the draft chat remembers what was said (D-207)', () => {
   it('earlier sentences of this draft go to the AI with what came of them', async () => {
     const { store, contexts } = await recorded();
     await say(store, '首页改成文件工作台');
-    expect(contexts[0]!.earlier).toBeUndefined();
+    expect(contexts[0]!.session).toBeUndefined();
     const lines = store.getState().draft!.steps[0]!.lines;
     const refused = await store.getState().draftChange('撤销刚才的修改');
     await say(store, '主题换成绿色');
-    expect(contexts[2]!.earlier).toEqual([
+    expect(contexts[2]!.session!.recent).toEqual([
       { input: '首页改成文件工作台', done: true, reply: lines.join('; ') },
       {
         input: '撤销刚才的修改',
@@ -359,7 +347,7 @@ describe('the draft chat remembers what was said (D-207)', () => {
       await say(store, input);
     await store.getState().draftChange('撤销');
     await say(store, '主题换成紫色');
-    expect(contexts.at(-1)!.earlier!.map((e) => e.input)).toEqual([
+    expect(contexts.at(-1)!.session!.recent.map((e) => e.input)).toEqual([
       '主题换成绿色',
       '主题换成蓝色',
       '主题换成红色',
@@ -367,7 +355,7 @@ describe('the draft chat remembers what was said (D-207)', () => {
     ]);
     await say(store, '主题换成橙色');
     await say(store, '主题换成粉色');
-    expect(contexts.at(-1)!.earlier!.map((e) => e.input)).toEqual([
+    expect(contexts.at(-1)!.session!.recent.map((e) => e.input)).toEqual([
       '主题换成蓝色',
       '主题换成红色',
       '字体大一点',
@@ -376,10 +364,12 @@ describe('the draft chat remembers what was said (D-207)', () => {
     ]);
   });
 
-  it('“Change this app” starts fresh even with a draft around', async () => {
+  it('“Change this app” carries what was said too (D-414)', async () => {
     const { store, contexts } = await recorded();
     await say(store, '主题换成绿色');
-    await store.getState().change('首页改成文件工作台');
+    store.getState().closeDraft();
+    await store.getState().change('字体大一点');
+    expect(contexts.at(-1)!.session!.recent.map((e) => e.input)).toEqual(['主题换成绿色']);
     expect(contexts.at(-1)!.earlier).toBeUndefined();
   });
 
@@ -392,7 +382,7 @@ describe('the draft chat remembers what was said (D-207)', () => {
     await store.getState().draftChange('添加签证照片快捷操作');
     expect(store.getState().draft!.replies).toMatchObject([
       { afterSteps: 1, input: '撤销刚才的修改', kind: 'rejected' },
-      { afterSteps: 2, input: '添加签证照片快捷操作', kind: 'functionInDraft' },
+      { afterSteps: 2, input: '添加签证照片快捷操作', kind: 'functionApplied' },
     ]);
 
     const { store: again } = await recorded(repo);
@@ -405,5 +395,192 @@ describe('the draft chat remembers what was said (D-207)', () => {
     await again.getState().applyDraft();
     await say(again, '字体大一点');
     expect(again.getState().draft!.replies).toEqual([]);
+  });
+});
+
+describe('function changes said in the draft chat take effect right away (D-411)', () => {
+  /** 建一张表，再（第二句）放一个读它的页面；第三句删掉这张表。别的话交给内置规则。 */
+  const scripted = (): AIProvider => ({
+    plan: async (input, ctx) => {
+      if (input === '建书单表')
+        return {
+          kind: 'ops',
+          ops: [
+            {
+              op: 'addData',
+              table: {
+                id: 'books',
+                name: '书单',
+                fields: [{ id: 'title', name: '书名', type: 'text' }],
+              },
+            },
+          ],
+        };
+      if (input === '放一个书单页')
+        return {
+          kind: 'ops',
+          ops: [
+            {
+              op: 'addContainer',
+              page: 'home',
+              block: {
+                id: 'books-list',
+                look: 'list',
+                source: { table: 'books', limit: 30 },
+                show: { title: 'title' },
+              },
+            },
+          ],
+        };
+      if (input === '删掉书单表')
+        return { kind: 'ops', ops: [{ op: 'removeData', table: 'books' }] };
+      return createMockAIProvider().plan(input, ctx);
+    },
+  });
+  const chatStore = async (repo = new MemoryWorkspaceRepo()) => {
+    const store = createWorkspaceStore({
+      repo,
+      provider: scripted(),
+      registry,
+      locale: 'zh',
+      now: () => new Date(2026, 9, 24, 9, 0),
+    });
+    await store.getState().boot();
+    return store;
+  };
+
+  it('the version moves on, the draft stays open and its steps sit on the new version', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    const { store } = await booted(repo);
+    await say(store, '主题换成绿色');
+    const headId = store.getState().head!.id;
+
+    expect(await store.getState().draftChange('添加签证照片快捷操作')).toMatchObject({
+      kind: 'applied',
+    });
+    const state = store.getState();
+    // 进了正式版本，是一个能撤销的 AI 版本（底线 7）。
+    expect(state.head).toMatchObject({ parentId: headId, source: 'ai' });
+    expect(quickActionsOf(state.config!).some((w) => w.id === 'visa-photo')).toBe(true);
+    expect(state.config!.theme.primaryColor).not.toBe('#2F9E44');
+    // 草稿还开着，一步都没多；草稿的样子里两样都有。
+    expect(state.draft).toMatchObject({ open: true });
+    expect(state.draft!.steps).toHaveLength(1);
+    expect(draftConfig(store).theme.primaryColor).toBe('#2F9E44');
+    expect(quickActionsOf(draftConfig(store)).some((w) => w.id === 'visa-photo')).toBe(true);
+    expect(shownConfig(state)).toBe(draftConfig(store));
+    // 聊天框说一句，三种语言的这句话都在 messages 里（这里是中文）。
+    expect(state.draft!.replies).toEqual([
+      expect.objectContaining({
+        afterSteps: 1,
+        input: '添加签证照片快捷操作',
+        kind: 'functionApplied',
+        message: expect.stringContaining(
+          '这部分已经生效，能在改动记录里撤销；外观部分还在草稿里。',
+        ),
+      }),
+    ]);
+
+    // 应用草稿不会盖掉刚才的功能。
+    await store.getState().applyDraft();
+    expect(store.getState().config!.theme.primaryColor).toBe('#2F9E44');
+    expect(quickActionsOf(store.getState().config!).some((w) => w.id === 'visa-photo')).toBe(true);
+  });
+
+  it('survives a restart with the function and the draft both there', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    const { store } = await booted(repo);
+    await say(store, '主题换成绿色');
+    await store.getState().draftChange('添加签证照片快捷操作');
+    const { store: again } = await booted(repo);
+    again.getState().openDraft();
+    expect(quickActionsOf(draftConfig(again)).some((w) => w.id === 'visa-photo')).toBe(true);
+    expect(draftConfig(again).theme.primaryColor).toBe('#2F9E44');
+    expect(again.getState().draft!.replies[0]!.kind).toBe('functionApplied');
+  });
+
+  it('undoing the function step goes back a version; the open draft follows', async () => {
+    const { store } = await booted();
+    await say(store, '主题换成绿色');
+    const baseId = store.getState().head!.id;
+    await store.getState().draftChange('添加签证照片快捷操作');
+    await store.getState().markRendered(store.getState().head!.id);
+    expect(store.getState().banner).toMatchObject({ kind: 'applied', undoTo: baseId });
+
+    await store.getState().undo();
+    expect(quickActionsOf(store.getState().config!).some((w) => w.id === 'visa-photo')).toBe(false);
+    expect(store.getState().draft).toMatchObject({ open: true });
+    expect(draftConfig(store).theme.primaryColor).toBe('#2F9E44');
+    expect(quickActionsOf(draftConfig(store)).some((w) => w.id === 'visa-photo')).toBe(false);
+    // 再应用草稿也回不来。
+    await store.getState().applyDraft();
+    expect(quickActionsOf(store.getState().config!).some((w) => w.id === 'visa-photo')).toBe(false);
+  });
+
+  it('a draft step that no longer fits is dropped with a notice; the others stay', async () => {
+    const store = await chatStore();
+    await store.getState().change('建书单表');
+    await store.getState().draftChange('主题换成绿色');
+    await store.getState().draftChange('放一个书单页');
+    expect(store.getState().draft!.steps).toHaveLength(2);
+
+    expect(await store.getState().draftChange('删掉书单表')).toMatchObject({ kind: 'applied' });
+    expect(store.getState().config!.data.tables.some((t) => t.id === 'books')).toBe(false);
+    expect(store.getState().draft!.steps.map((s) => s.input)).toEqual(['主题换成绿色']);
+    expect(store.getState().draft!.open).toBe(true);
+    expect(store.getState().draftNotice).toMatch(/1/);
+  });
+
+  it('when no step fits, the draft is gone and the function still stands', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    const store = await chatStore(repo);
+    await store.getState().change('建书单表');
+    await store.getState().draftChange('放一个书单页');
+    expect(await store.getState().draftChange('删掉书单表')).toMatchObject({ kind: 'applied' });
+    expect(store.getState().draft).toBeNull();
+    expect(store.getState().draftNotice).toMatch(/1/);
+    expect(store.getState().config!.data.tables.some((t) => t.id === 'books')).toBe(false);
+    expect(await repo.getMeta('draft')).toBe('');
+  });
+
+  it('a sentence with both does the function; the rest becomes next and a tappable example', async () => {
+    const { store } = await booted();
+    await say(store, '首页改成文件工作台');
+    await store.getState().draftChange('主题换成绿色，添加签证照片快捷操作');
+    expect(quickActionsOf(store.getState().config!).some((w) => w.id === 'visa-photo')).toBe(true);
+    expect(store.getState().next).toBe('主题换成绿色');
+    expect(store.getState().draft!.steps).toHaveLength(1);
+    expect(store.getState().draft!.replies[0]).toMatchObject({
+      kind: 'functionApplied',
+      examples: ['主题换成绿色'],
+    });
+    await say(store, '主题换成绿色');
+    expect(store.getState().next).toBeNull();
+    expect(store.getState().draft!.steps).toHaveLength(2);
+  });
+
+  it('the next sentence tells the AI the function part is done', async () => {
+    const contexts: PlanContext[] = [];
+    const mock = createMockAIProvider();
+    const store = createWorkspaceStore({
+      repo: new MemoryWorkspaceRepo(),
+      provider: {
+        plan: (input, ctx) => {
+          contexts.push(ctx);
+          return mock.plan(input, ctx);
+        },
+      },
+      registry,
+      locale: 'zh',
+      now: () => new Date(2026, 9, 24, 9, 0),
+    });
+    await store.getState().boot();
+    await say(store, '主题换成绿色');
+    await store.getState().draftChange('添加签证照片快捷操作');
+    await store.getState().draftChange('字体大一点');
+    expect(contexts.at(-1)!.session!.recent.at(-1)).toMatchObject({
+      input: '添加签证照片快捷操作',
+      done: true,
+    });
   });
 });

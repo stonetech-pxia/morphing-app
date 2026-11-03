@@ -1,5 +1,6 @@
 import {
   BUILTIN_TOOLS,
+  CURRENT_SCHEMA_VERSION,
   DATA_TEMPLATES,
   FILE_RECORD_PRESETS,
   REDACTED_FILE,
@@ -191,6 +192,29 @@ describe('底线 1 / 2：AI 的请求里没有数据内容（记录、文件名�
     expect(bodies[0]).toContain(REDACTED_FILE);
   });
 
+  it('saved presets stay out of what the AI sees: not in the config, not their names (D-410)', async () => {
+    const { bodies, fetchImpl } = capturingFetch(relayReply);
+    const provider = createRemoteAIProvider({
+      baseUrl: 'https://relay.test',
+      registry,
+      now: () => NOW,
+      fetchImpl,
+    });
+    const { repo, store } = await bootedStore(provider);
+    const saved = await store.getState().savePreset(`预设-${SENTINEL}`);
+    expect(saved.kind).toBe('saved');
+    if (saved.kind !== 'saved') return;
+    expect(store.getState().config).not.toHaveProperty('presets');
+    await repo.insertPreset({ ...saved.preset, id: 'otherpreset', name: `另一个-${SENTINEL}` });
+    // 应用过一个预设之后，版本说明里有它的名字，也不发给 AI。
+    expect((await store.getState().proposePreset(saved.preset.id)).kind).toBe('preview');
+    await store.getState().confirm();
+    await store.getState().markRendered(store.getState().head!.id);
+    await store.getState().change('换个颜色', provider);
+    expect(bodies.length).toBeGreaterThanOrEqual(1);
+    for (const body of bodies) expect(body).not.toContain(SENTINEL);
+  });
+
   it('bring-your-own-key mode sends no data either', async () => {
     const { bodies, fetchImpl } = capturingFetch(claudeReply);
     const provider = createClaudePlanner({
@@ -272,6 +296,26 @@ describe('底线 5：改 App 永远不删数据', () => {
     expect((await repo.listRecords('notes')).length).toBe(1);
   });
 
+  it('applying a saved preset keeps every entry, also of tables the preset does not have (D-410)', async () => {
+    const { repo, store } = await bootedStore(fixedPlanner(themePlan));
+    await repo.insertPreset({
+      id: 'emptypreset',
+      name: '空的',
+      createdAt: 1,
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      config: createDefaultWorkspace('zh'),
+    });
+    expect((await store.getState().proposePreset('emptypreset')).kind).toBe('preview');
+    await store.getState().confirm();
+    expect(store.getState().config!.data.tables.some((t) => t.id === 'notes')).toBe(false);
+    expect((await repo.getRecord('r1'))!.values.body).toContain(SENTINEL);
+    expect(await repo.listDeletedRecords()).toEqual([]);
+    await store.getState().markRendered(store.getState().head!.id);
+    await store.getState().undo();
+    expect(store.getState().config!.data.tables.some((t) => t.id === 'notes')).toBe(true);
+    expect((await repo.listRecords('notes')).length).toBe(1);
+  });
+
   it('an AI change can never reach the entries: the store only gets a configuration back', async () => {
     const plan: Plan = { kind: 'ops', ops: [{ op: 'removeData', table: 'notes' }] };
     const { repo, store } = await bootedStore(fixedPlanner(plan));
@@ -294,6 +338,33 @@ describe('底线 7：外观修改先进草稿；功能修改直接生效，随�
     await store.getState().markRendered(store.getState().head!.id);
     await store.getState().undo();
     expect(store.getState().config!.theme.primaryColor).not.toBe('#336699');
+  });
+
+  // D-411：草稿聊天框里说的功能修改也一样，草稿接着开着，外观还没生效。
+  it('a function change said in the draft chat is recorded and can be undone; the look stays a draft', async () => {
+    const table: Plan = {
+      kind: 'ops',
+      ops: [
+        {
+          op: 'addData',
+          table: { id: 'books', name: 'B', fields: [{ id: 'title', name: 'T', type: 'text' }] },
+        },
+      ],
+    };
+    const { repo, store } = await bootedStore({
+      plan: async (input) => (input === 'look' ? themePlan : table),
+    });
+    await store.getState().draftChange('look');
+    const before = store.getState().config!.theme.primaryColor;
+    const head = store.getState().head!.id;
+    await store.getState().draftChange('table');
+    expect(store.getState().config!.theme.primaryColor).toBe(before);
+    expect(store.getState().draft!.steps[0]!.config.theme.primaryColor).toBe('#336699');
+    expect(await repo.listRevisions(1)).toMatchObject([{ source: 'ai', parentId: head }]);
+    await store.getState().proposeRestore(head);
+    await store.getState().confirm();
+    expect(store.getState().config!.data.tables.some((t) => t.id === 'books')).toBe(false);
+    expect(store.getState().draft!.open).toBe(true);
   });
 
   // 创始人 2026-10-31（对话）改了底线 7 的措辞：功能修改（D-191，建表、加快捷操作等）直接生效，但随时能在
@@ -571,5 +642,102 @@ describe('底线 11：写数据的操作都能挽回；只有删除弹撤销提�
     await waitFor(async () => expect(await repo.listRecords('checkins')).toHaveLength(before + 1));
     await settle();
     expect(screen.queryByTestId('toast-undo')).toBeNull();
+  });
+});
+
+describe('工具清单和搭建计划不破坏底线（D-414、D-415、D-416）', () => {
+  const steps = [
+    { id: 'theme', kind: 'look', title: '颜色', request: '换颜色' },
+    { id: 'pkg', kind: 'file', title: '工具', request: '加图片工具' },
+  ] as const;
+  const scripted = (calls: string[]): AIProvider => ({
+    plan: async (input) => {
+      calls.push(input);
+      if (input === '搭一个') return { kind: 'build', summary: '一个 App', steps: [...steps] };
+      if (input === '换颜色')
+        return { kind: 'ops', ops: [{ op: 'setTheme', primaryColor: '#2F9E44' }] };
+      return { kind: 'ops', ops: [{ op: 'setPackage', package: 'image', do: 'add' }] };
+    },
+  });
+  const persisted = async (repo: MemoryWorkspaceRepo) =>
+    `${(await repo.getMeta('session')) ?? ''}${(await repo.getMeta('build')) ?? ''}`;
+
+  it('底线 1 / 2 / 14：清单和发给 AI 的 <session> 里没有记录内容', async () => {
+    const { bodies, fetchImpl } = capturingFetch(relayReply);
+    const provider = createRemoteAIProvider({
+      baseUrl: 'https://relay.test',
+      registry,
+      now: () => NOW,
+      fetchImpl,
+    });
+    const { repo, store } = await bootedStore(provider);
+    expect(JSON.stringify(await repo.listRecords('notes'))).toContain(SENTINEL);
+    await store.getState().change('换个颜色', provider);
+    await store.getState().change('再深一点', provider);
+    expect(bodies.at(-1)).toContain('<session>');
+    for (const body of bodies) expect(body).not.toContain(SENTINEL);
+    expect(await persisted(repo)).not.toContain(SENTINEL);
+    expect(await persisted(repo)).not.toContain(ASSET);
+    expect(JSON.stringify(store.getState().session)).toContain('换个颜色');
+  });
+
+  it('底线 7：外观步骤进草稿，功能步骤进正式版本，能在改动记录里撤销', async () => {
+    const calls: string[] = [];
+    const provider = scripted(calls);
+    const { store } = await bootedStore(provider);
+    const startId = store.getState().head!.id;
+    await store.getState().change('搭一个', provider);
+    await store.getState().startBuild();
+    const { config, draft, head } = store.getState();
+    expect(config!.theme.primaryColor).not.toBe('#2F9E44');
+    expect(draft!.steps.at(-1)!.config.theme.primaryColor).toBe('#2F9E44');
+    expect(config!.packages.map((p) => p.id)).toContain('image');
+    expect(head!.parentId).toBe(startId);
+    expect(head!.source).toBe('ai');
+  });
+
+  it('底线 8：清单和计划不在配置里，模型的回复写不到它们', async () => {
+    const provider: AIProvider = {
+      plan: async () =>
+        ({
+          kind: 'ops',
+          ops: [{ op: 'setTheme', primaryColor: '#2F9E44' }],
+          session: { items: [] },
+        }) as unknown as Plan,
+    };
+    const { repo, store } = await bootedStore(provider);
+    await store.getState().change('记一句', provider);
+    const session = await repo.getMeta('session');
+    expect(store.getState().config).not.toHaveProperty('session');
+    // 多带字段的回复过不了 PlanSchema，什么都没变，清单只记「没做」。
+    expect(session).toContain('记一句');
+    expect(store.getState().session.items).toEqual([]);
+    expect(store.getState().draft).toBeNull();
+  });
+
+  it('底线 16：计划不点「开始」不做；重启、停下都不自动继续；一次「开始」连续做完（D-416）', async () => {
+    const calls: string[] = [];
+    const provider = scripted(calls);
+    const repo = new MemoryWorkspaceRepo();
+    const make = () =>
+      createWorkspaceStore({ repo, provider, registry, locale: 'zh', now: () => NOW });
+    const store = make();
+    await store.getState().boot();
+    await store.getState().change('搭一个', provider);
+    const heads = store.getState().head!.id;
+    await settle();
+    expect(calls).toEqual(['搭一个']);
+    expect(store.getState().head!.id).toBe(heads);
+
+    // 重启：还是只有计划。
+    const again = make();
+    await again.getState().boot();
+    await settle();
+    expect(calls).toEqual(['搭一个']);
+    expect(again.getState().build!.phase).toBe('review');
+
+    await again.getState().startBuild();
+    expect(calls).toEqual(['搭一个', '换颜色', '加图片工具']);
+    expect(again.getState().build!.phase).toBe('finished');
   });
 });

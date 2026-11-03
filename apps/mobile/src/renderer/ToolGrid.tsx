@@ -6,7 +6,7 @@ import { t } from '../i18n';
 import { useWorkspace } from '../workspace/context';
 import type { RenderEnv } from './components';
 import { Icon } from './Icon';
-import { iconColors } from './theme';
+import { iconColors, onPage } from './theme';
 import { Card, IconTile } from './ui';
 
 const COLUMNS = 3;
@@ -66,7 +66,7 @@ export function ToolGrid({
         <Text
           style={[
             palette.font('bodyBold', 12),
-            { color: palette.caption, letterSpacing: 0.5 },
+            { color: onPage(palette).caption, letterSpacing: 0.5 },
             grid.style?.align === 'center' && styles.textCenter,
           ]}>
           {grid.show.title.toUpperCase()}

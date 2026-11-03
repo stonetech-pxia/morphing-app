@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from '../change';
+import type { Op } from '../ops';
 import { fromV33, registry, v33Fixture } from '../test-helpers';
 import { EVAL_CASES, buildSetup, runEvalCase, type EvalSetup } from './eval-cases';
 import { createMockAIProvider } from './mock';
+import type { AIProvider, Plan, WorkKind } from './types';
 
 // 评测的 setup 用 v34 的操作重写过（v34 第三阶段）：和 v33 代码存下来的配置迁移后一模一样。
 describe('eval setups are the same as the v33 ones', () => {
@@ -114,5 +116,111 @@ describe('W10 accepts both readings', () => {
         ['file.save', {}],
       ]),
     ).not.toBeNull();
+  });
+});
+
+// 新流程（D-415、D-407）跟上评测：一句话多个工具回搭建计划也算对，点名的东西不存在就建。
+describe('allowBuild', () => {
+  const now = new Date(2026, 10, 3);
+  const caseOf = (id: string) => EVAL_CASES.find((c) => c.id === id)!;
+  const replies = (plan: Plan): AIProvider => ({ plan: async () => plan });
+  const step = (id: string, kind: WorkKind) => ({ id, kind, title: id, request: `do ${id}` });
+  const build = (steps: ReturnType<typeof step>[]): Plan => ({
+    kind: 'build',
+    summary: 'an app',
+    steps,
+  });
+  const judge = async (id: string, plan: Plan) =>
+    (await runEvalCase(caseOf(id), replies(plan), registry, now)).outcome;
+
+  it.each(['TD17', 'TD17-en', 'FX6'])('%s：合法的搭建计划算通过', async (id) => {
+    const plan = build([step('data', 'record'), step('look', 'look')]);
+    expect(await judge(id, plan)).toEqual({ pass: true });
+  });
+
+  it('没标 allowBuild 的用例回 build 还是失败', async () => {
+    const plan = build([step('data', 'record'), step('look', 'look')]);
+    expect(await judge('RE1', plan)).toMatchObject({ pass: false });
+  });
+
+  it.each([
+    ['步数不够', build([step('data', 'record')])],
+    ['步骤 ID 重复', build([step('data', 'record'), step('data', 'look')])],
+    ['request 是空的', build([{ ...step('data', 'record'), request: '  ' }, step('look', 'look')])],
+    ['没有做数据的那一步', build([step('a', 'look'), step('b', 'look')])],
+    ['外观排在数据前面', build([step('look', 'look'), step('data', 'record')])],
+  ])('不合法的计划不算：%s', async (_why, plan) => {
+    expect(await judge('TD17', plan)).toMatchObject({ pass: false });
+  });
+
+  it('allowBuild 的用例回 ops 时断言照旧', async () => {
+    expect(await judge('FX6', { kind: 'ops', ops: [] })).toMatchObject({ pass: false });
+  });
+
+  it('拒绝还是失败', async () => {
+    const plan: Plan = { kind: 'reject', reason: 'unknown', message: 'no', examples: [] };
+    expect(await judge('FX6', plan)).toMatchObject({ pass: false });
+  });
+});
+
+describe('RE3：拍照记到不存在的表（点名的东西不存在且用途清楚就建，D-407）', () => {
+  const now = new Date(2026, 10, 3);
+  const c = EVAL_CASES.find((x) => x.id === 'RE3')!;
+  const judge = async (plan: Plan) =>
+    (await runEvalCase(c, { plan: async () => plan }, registry, now)).outcome;
+  const newTable: Op = {
+    op: 'addData',
+    table: {
+      id: 'photos',
+      name: '照片记录',
+      fields: [
+        { id: 'photo', name: '照片', type: 'file' },
+        { id: 'note', name: '备注', type: 'text' },
+      ],
+    },
+  } as Op;
+  const quickAction = (table: string): Op =>
+    ({
+      op: 'addTool',
+      tool: {
+        kind: 'quickAction',
+        id: 'snap',
+        name: '拍照记录',
+        icon: '📷',
+        steps: [
+          { id: 's1', action: 'in.photos', params: { source: 'camera', min: 1, max: 1 } },
+          { id: 's2', action: 'out.addRecord', params: { collectionId: table } },
+        ],
+      },
+    }) as Op;
+
+  it('建了新表和记到它的快捷操作：通过', async () => {
+    const outcome = await judge({ kind: 'ops', ops: [newTable, quickAction('photos')] });
+    expect(outcome).toEqual({ pass: true });
+  });
+
+  it('拒绝不再算对', async () => {
+    const plan: Plan = { kind: 'reject', reason: 'unknown', message: '没有', examples: [] };
+    expect(await judge(plan)).toMatchObject({ pass: false });
+  });
+
+  it('只建表、没有快捷操作：不算', async () => {
+    expect(await judge({ kind: 'ops', ops: [newTable] })).toMatchObject({ pass: false });
+  });
+
+  it('记到已有的账目：不算，用户说的是另一张表', async () => {
+    const outcome = await judge({ kind: 'ops', ops: [newTable, quickAction('expenses')] });
+    expect(outcome).toMatchObject({ pass: false });
+  });
+
+  it('内置规则不猜，照旧拒绝', async () => {
+    const config = buildSetup(c.setup, c.locale, registry);
+    const plan = await createMockAIProvider().plan(c.input, {
+      config,
+      registry,
+      locale: c.locale,
+    });
+    expect(plan.kind).toBe('reject');
+    expect(c.mock).toBe(false);
   });
 });

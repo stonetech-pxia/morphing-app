@@ -1,5 +1,5 @@
 import type { Theme } from './schema';
-import type { Backdrop } from './schema-base';
+import type { Backdrop, ThemeColors } from './schema-base';
 
 // 默认风格「Clay」（来自 Docudis 的设计 token：沙色背景、奶油卡片、陶土橙主色、鼠尾草绿次色），
 // 以及根据主题计算最终配色的纯函数。App 渲染和校验器（对比度检查）共用这里的结果。
@@ -111,13 +111,25 @@ export function isDark(theme: Theme, systemDark: boolean): boolean {
   return theme.mode === 'dark' || (theme.mode === 'system' && systemDark);
 }
 
-export function resolveColors(theme: Theme, dark: boolean): ResolvedColors {
+/** 按这一组底色和文字色算出全部颜色。readOn：主色当文字用时压在什么颜色上。 */
+function buildColors(
+  theme: Theme,
+  dark: boolean,
+  o: ThemeColors,
+  on: {
+    background: string;
+    surface: string;
+    text: string;
+    /** 灰字、说明、分隔线按 text 和 surface 算（否则用默认风格的）。 */
+    derive: boolean;
+    readOn: string;
+    shadowInk: string;
+    /** 卡片有自己的文字色时（D-409）：危险色压在这个底色上要清楚；默认风格的红只按浅底或深底配的。 */
+    dangerOn?: string;
+  },
+): ResolvedColors {
   const base = dark ? CLAY.dark : CLAY.light;
-  // 深色模式：darkColors 优先，没设置的颜色沿用 colors（旧主题只有 colors，行为不变）。
-  const o = dark ? { ...theme.colors, ...theme.darkColors } : theme.colors;
-  const background = o.background ?? base.background;
-  const surface = o.surface ?? base.surface;
-  const text = o.text ?? base.text;
+  const { background, surface, text, derive, readOn, shadowInk } = on;
   const secondary = o.secondary ?? base.secondary;
   const tertiary = o.tertiary ?? base.tertiary;
   const primary = theme.primaryColor;
@@ -128,12 +140,12 @@ export function resolveColors(theme: Theme, dark: boolean): ResolvedColors {
     background,
     surface,
     text,
-    muted: o.text || o.surface ? mix(text, surface, 0.3) : base.muted,
-    caption: o.text || o.surface ? mix(text, surface, 0.45) : base.caption,
-    border: o.text || o.surface ? mix(surface, text, 0.12) : base.border,
+    muted: derive ? mix(text, surface, 0.3) : base.muted,
+    caption: derive ? mix(text, surface, 0.45) : base.caption,
+    border: derive ? mix(surface, text, 0.12) : base.border,
     primary,
     onPrimary: contrast('#FFFFFF', primary) >= 3 ? '#FFFFFF' : '#1A1714',
-    primaryText: readable(primary, surface, text, 3),
+    primaryText: readable(primary, readOn, text, 3),
     primaryTint: mix(primary, surface, tintAmount),
     secondary,
     secondaryTint: mix(secondary, surface, tintAmount),
@@ -141,10 +153,76 @@ export function resolveColors(theme: Theme, dark: boolean): ResolvedColors {
     tertiary,
     tertiaryTint: mix(tertiary, surface, tintAmount),
     onTertiaryTint: readable(tertiary, mix(tertiary, surface, tintAmount), text, 4.5),
-    danger: base.danger,
+    danger: on.dangerOn ? readable(base.danger, on.dangerOn, text, 3) : base.danger,
     // 浅色模式下 Clay 的暖棕阴影只适合 Clay 配色；换了配色时阴影用正文色，色相跟着主题走。
-    shadow: custom && !dark ? text : base.shadow,
+    shadow: custom && !dark ? shadowInk : base.shadow,
   };
+}
+
+/** 这个模式下生效的颜色覆盖。深色模式：darkColors 优先，没设置的颜色沿用 colors（旧主题只有 colors，行为不变）。 */
+const overridesOf = (theme: Theme, dark: boolean): ThemeColors =>
+  dark ? { ...theme.colors, ...theme.darkColors } : theme.colors;
+
+/** 卡片有自己的文字色（D-409）时返回它；没写或和正文色一样时只有一种文字色。 */
+function cardInk(o: ThemeColors, text: string): string | undefined {
+  return o.surfaceText && o.surfaceText !== text ? o.surfaceText : undefined;
+}
+
+/** 阴影要压在页面上：两种文字色里取深的那个，深色页面配浅色卡片时不会变成一圈亮边。 */
+const shadowInkOf = (text: string, ink: string | undefined) =>
+  ink && luminance(ink) < luminance(text) ? ink : text;
+
+/**
+ * 放在页面背景上的颜色。设了 surfaceText 且正文色在卡片上看不清时（D-409），这里的 surface 是
+ * 由页面背景调出来的一层，给还用这份配色的导航栏、弹窗和系统页面的卡片用，正文色压在上面一定清楚；
+ * 真正的卡片色和卡片上的文字色见 resolveSurfaceColors。
+ */
+export function resolveColors(theme: Theme, dark: boolean): ResolvedColors {
+  const base = dark ? CLAY.dark : CLAY.light;
+  const o = overridesOf(theme, dark);
+  const background = o.background ?? base.background;
+  const surface = o.surface ?? base.surface;
+  const text = o.text ?? base.text;
+  const ink = cardInk(o, text);
+  const raised = mix(background, text, 0.1);
+  const pageSurface =
+    !ink || contrast(text, surface) >= MIN_TEXT_CONTRAST
+      ? surface
+      : contrast(text, raised) >= MIN_TEXT_CONTRAST
+        ? raised
+        : background;
+  return buildColors(theme, dark, o, {
+    background,
+    surface: pageSurface,
+    text,
+    derive: Boolean(o.text || o.surface),
+    readOn: ink ? background : surface,
+    shadowInk: shadowInkOf(text, ink),
+    ...(ink ? { dangerOn: pageSurface } : {}),
+  });
+}
+
+/**
+ * 放在卡片上的颜色（D-409）：文字、灰字、分隔线都从 surfaceText 和卡片色算。这里的 background
+ * 是卡片里凹下去的一层（tone muted 的卡片、输入框外的底），surfaceText 压在上面也清楚。
+ * 没设 surfaceText（或和正文色一样）时返回 undefined：卡片和页面只用 resolveColors 这一份，和以前一样。
+ */
+export function resolveSurfaceColors(theme: Theme, dark: boolean): ResolvedColors | undefined {
+  const base = dark ? CLAY.dark : CLAY.light;
+  const o = overridesOf(theme, dark);
+  const text = o.text ?? base.text;
+  const ink = cardInk(o, text);
+  if (!ink) return undefined;
+  const surface = o.surface ?? base.surface;
+  return buildColors(theme, dark, o, {
+    background: mix(surface, ink, 0.06),
+    surface,
+    text: ink,
+    derive: true,
+    readOn: surface,
+    shadowInk: shadowInkOf(text, ink),
+    dangerOn: surface,
+  });
 }
 
 /** 毛玻璃卡片里卡片色的比例，其余透出页面背景（对比度检查按这个比例估算卡片的实际颜色）。 */
@@ -186,34 +264,39 @@ export function chromeStops(base: string, dark: boolean): [string, string, strin
 
 export const MIN_TEXT_CONTRAST = 4.5;
 
-/** 正文可能直接压在上面的颜色：背景、卡片，以及渐变背景、毛玻璃和金属卡片实际呈现的颜色。 */
-function textSurfaces(theme: Theme, c: ResolvedColors): [string, string][] {
-  const surfaces: [string, string][] = [
-    ['background', c.background],
-    ['surface', c.surface],
+/** 正文可能直接压在上面的颜色和压在上面的那种文字：页面背景用 text，卡片（含毛玻璃和金属）用 surfaceText。 */
+function textSurfaces(theme: Theme, c: ResolvedColors, card: ResolvedColors | undefined) {
+  const surface = card?.surface ?? c.surface;
+  const onCard = card ? { name: 'surfaceText', color: card.text } : { name: 'text', color: c.text };
+  const onPage = { name: 'text', color: c.text };
+  const surfaces: [string, string, { name: string; color: string }][] = [
+    ['background', c.background, onPage],
+    ['surface', surface, onCard],
   ];
   const stops = backdropStops(theme, c);
   if (theme.backdrop && theme.backdrop !== 'plain') {
-    stops.forEach((color, i) => surfaces.push([`backdrop color ${i + 1}`, color]));
+    stops.forEach((color, i) => surfaces.push([`backdrop color ${i + 1}`, color, onPage]));
   }
   if (theme.cardStyle === 'glass') {
     stops.forEach((color, i) =>
       surfaces.push([
         `glass card over backdrop color ${i + 1}`,
-        mix(color, c.surface, GLASS_OPACITY),
+        mix(color, surface, GLASS_OPACITY),
+        onCard,
       ]),
     );
   }
   if (theme.cardStyle === 'chrome') {
-    chromeStops(c.surface, c.dark).forEach((color, i) =>
-      surfaces.push([`chrome card shade ${i + 1}`, color]),
+    chromeStops(surface, c.dark).forEach((color, i) =>
+      surfaces.push([`chrome card shade ${i + 1}`, color, onCard]),
     );
   }
   return surfaces;
 }
 
 /**
- * 可读性检查：正文在背景、卡片（含渐变背景、毛玻璃和金属卡片的实际颜色）上的对比度必须达到 WCAG AA。
+ * 可读性检查：页面上的文字在背景上、卡片上的文字在卡片（含渐变背景、毛玻璃和金属卡片的实际颜色）上的
+ * 对比度必须达到 WCAG AA。写了 surfaceText 时卡片看它，text 只看页面（D-409）。
  * 返回不满足的组合；主题可能显示为浅色或深色时两种都检查。
  */
 export function contrastProblems(theme: Theme): string[] {
@@ -221,11 +304,11 @@ export function contrastProblems(theme: Theme): string[] {
   const problems: string[] = [];
   for (const dark of modes) {
     const c = resolveColors(theme, dark);
-    for (const [name, bg] of textSurfaces(theme, c)) {
-      const ratio = contrast(c.text, bg);
+    for (const [name, bg, ink] of textSurfaces(theme, c, resolveSurfaceColors(theme, dark))) {
+      const ratio = contrast(ink.color, bg);
       if (ratio < MIN_TEXT_CONTRAST) {
         problems.push(
-          `text ${c.text} on ${name} ${bg} has contrast ${ratio.toFixed(1)} (needs ${MIN_TEXT_CONTRAST}) in ${dark ? 'dark' : 'light'} mode`,
+          `${ink.name} ${ink.color} on ${name} ${bg} has contrast ${ratio.toFixed(1)} (needs ${MIN_TEXT_CONTRAST}) in ${dark ? 'dark' : 'light'} mode`,
         );
       }
     }

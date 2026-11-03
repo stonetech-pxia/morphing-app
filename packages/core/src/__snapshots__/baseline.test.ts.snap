@@ -2978,7 +2978,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 35
+.schemaVersion 36
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"
@@ -2986,6 +2986,7 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .theme.colors.background? string /^#[0-9A-Fa-f]{6}$/
 .theme.colors.surface? string /^#[0-9A-Fa-f]{6}$/
 .theme.colors.text? string /^#[0-9A-Fa-f]{6}$/
+.theme.colors.surfaceText? string /^#[0-9A-Fa-f]{6}$/
 .theme.colors.secondary? string /^#[0-9A-Fa-f]{6}$/
 .theme.colors.tertiary? string /^#[0-9A-Fa-f]{6}$/
 .theme.darkColors? = .theme.colors

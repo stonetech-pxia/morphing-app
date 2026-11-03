@@ -203,7 +203,7 @@ describe('user journeys (UI)', () => {
     expect(store.getState().next).toBeNull();
   });
 
-  it('the draft chat refuses a quick action and can take it to Change this app (D-191)', async () => {
+  it('a quick action said in the draft chat takes effect; the draft stays open (D-411)', async () => {
     const { store } = await renderApp();
     await askAi('主题换成绿色');
     await fireEvent.press(await screen.findByTestId('draft-edit'));
@@ -213,15 +213,13 @@ describe('user journeys (UI)', () => {
     );
     await fireEvent.press(screen.getByTestId('draft-chat-send'));
     expect(await screen.findByTestId('draft-chat-rejected')).toHaveTextContent(
-      /添加签证照片快捷操作\s+草稿里只改外观/,
+      /添加签证照片快捷操作[\s\S]*这部分已经生效，能在改动记录里撤销；外观部分还在草稿里/,
     );
+    expect(quickActionsOf(store.getState().config!).some((w) => w.id === 'visa-photo')).toBe(true);
+    expect(store.getState().draft).toMatchObject({ open: true });
     expect(store.getState().draft!.steps).toHaveLength(1);
-    await fireEvent.press(screen.getByTestId('draft-chat-handoff'));
-    expect(await screen.findByTestId('change-input')).toHaveProp('value', '添加签证照片快捷操作');
-    await fireEvent.press(screen.getByTestId('change-submit'));
-    expect(await screen.findByTestId('ready-screen')).toBeTruthy();
-    // 草稿还在，回去时套在新版本上。
-    expect(store.getState().draft).toMatchObject({ open: false });
+    expect(screen.getByTestId('draft-chat')).toBeTruthy();
+    expect(screen.queryByTestId('ready-screen')).toBeNull();
   });
 
   it('in a draft the app can be browsed but not used (D-190)', async () => {

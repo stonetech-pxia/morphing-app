@@ -62,6 +62,14 @@ export function SettingsView({ env }: { env: RenderEnv }) {
       />
       <ListRow
         palette={palette}
+        testID="settings-presets"
+        icon="bookmark"
+        label={t(locale, 'presetsTitle')}
+        value={t(locale, 'presetsRowHint')}
+        onPress={env.locked ?? (() => router.push('/presets'))}
+      />
+      <ListRow
+        palette={palette}
         testID="settings-tools"
         icon="apps"
         label={t(locale, 'toolsTitle')}

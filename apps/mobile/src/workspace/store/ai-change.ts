@@ -1,15 +1,23 @@
 import {
   PlanSchema,
+  fixRequest,
   functionFirst,
   homeEntryOps,
+  planSession,
   prepareOps,
+  splitDraftOnlyOps,
+  sessionProblems,
+  toolVerdict,
+  workKindOfOps,
   workflowsWithoutEntry,
   type AIProvider,
   type FunctionFirst,
   type Op,
   type Plan,
   type PlanAbout,
+  type PlanSession,
   type PreparedChange,
+  type WorkKind,
   type WorkspaceConfig,
 } from '@morph/core';
 
@@ -18,20 +26,35 @@ import { RevisionConflictError } from '../../storage/types';
 import type { createDraft } from './draft';
 import { focusPage, type Kernel } from './kernel';
 import type { createRevisions } from './revisions';
+import type { SessionStore } from './session';
 import type {
+  BuildRun,
   ChangeResult,
   Draft,
   DraftChatReply,
   DraftOrigin,
   DraftStep,
+  WaitingForDraft,
   WorkspaceState,
 } from './types';
 
-// AI 修改页和草稿聊天框说的一句话（D-191）：功能类直接保存成一个 AI 版本，外观类进草稿；
-// 草稿聊天框带上之前说过的话（D-207）；「接着改」的预设（next）。
+// AI 修改页和草稿聊天框说的一句话（D-191、D-411）：功能类直接保存成一个 AI 版本，外观类进草稿；
+// 每句都带上工具清单（D-414）；「接着改」的预设（next）；大工程先出计划（D-415，步骤的执行在 build.ts）。
 
 export const NEXT_META_KEY = 'next';
 export const SUGGEST_META_KEY = 'suggest';
+
+/** 搭建计划的一步（D-415）。 */
+export interface StepTurn {
+  step: NonNullable<PlanSession['step']>;
+  /** 清单里对应的项；不给时按句子找。 */
+  itemId?: string;
+  /** 模型回来时用户已经点了停止：不应用，当作没发生。 */
+  stillWanted: () => boolean;
+}
+
+/** 模型回来时用户已经点了停止。 */
+export class StepStopped extends Error {}
 
 /** 存着的建议（JSON 数组）；坏了或没有就是空的。 */
 export function parseSuggest(stored: string | null): string[] {
@@ -48,10 +71,12 @@ export function createAIChange(
   {
     restoreProposal,
     rebaseDraft,
+    rebaseOpenDraft,
     saveDraft,
-    earlierOf,
   }: Pick<ReturnType<typeof createRevisions>, 'restoreProposal'> &
-    Pick<ReturnType<typeof createDraft>, 'rebaseDraft' | 'saveDraft' | 'earlierOf'>,
+    Pick<ReturnType<typeof createDraft>, 'rebaseDraft' | 'rebaseOpenDraft' | 'saveDraft'>,
+  session: SessionStore,
+  showBuild: (run: Pick<BuildRun, 'summary' | 'steps' | 'origin'>) => Promise<void>,
 ) {
   const { deps, repo, registry, locale, set, get, msg, reload, failedPlan, addedBy } = k;
 
@@ -95,10 +120,28 @@ export function createAIChange(
           message: `${msg('invalidPlan')} ${result.issues.join('；')}`,
           examples: [],
         };
-      case 'functionInDraft':
-        return { input, kind: 'functionInDraft', message: result.message, examples: [] };
+      case 'applied':
+        // 这句话已经生效（D-411）：说清做了什么，剩下的外观（next）可以点一下接着说。
+        return {
+          input,
+          kind: 'functionApplied',
+          message: [
+            ...result.lines,
+            ...(result.applied.notes ?? []),
+            msg('draftFunctionApplied'),
+          ].join('\n'),
+          examples: get().next ? [get().next!] : [],
+        };
       case 'steppedBack':
         return { input, kind: 'steppedBack', message: msg('draftSteppedBack'), examples: [] };
+      case 'needsDraft':
+        return {
+          input,
+          kind: 'needsDraft',
+          message: result.message,
+          examples: [],
+          waiting: result.waiting,
+        };
       default:
         return null;
     }
@@ -109,6 +152,9 @@ export function createAIChange(
     planner: AIProvider,
     origin: DraftOrigin,
     inChat: boolean,
+    stepTurn?: StepTurn,
+    /** 发给模型的句子和记下来的不一样时（「把这些补上」，D-418）。 */
+    forModel?: string,
   ): Promise<ChangeResult> {
     const { config, head } = get();
     if (!config || !head) throw new Error('workspace not loaded');
@@ -119,22 +165,56 @@ export function createAIChange(
       const base = current?.steps.at(-1)?.config ?? config;
       // 草稿里接着说的话沿用开始时的上下文：「这个」还是那个快捷操作（D-124）。
       const about = origin.about ?? current?.origin.about;
-      // 草稿聊天框里接着说：之前说过的话一起带上，用户不用每次都从头说（D-207）。
-      const earlier = inChat && current ? earlierOf(current) : [];
-      const raw = await planner.plan(input, {
+      await session.markStart(base);
+      // 工具清单一起带上（D-414）：目标、还差什么、最近说过的话，用户不用每次都从头说。
+      const planned = planSession(get().session, {
+        current: input,
+        ...(stepTurn ? { step: stepTurn.step } : {}),
+      });
+      const raw = await planner.plan(forModel ?? input, {
         config: base,
         registry,
         locale,
         ...(about ? { about } : {}),
-        ...(earlier.length ? { earlier } : {}),
+        ...(planned ? { session: planned } : {}),
       });
+      if (stepTurn && !stepTurn.stillWanted()) throw new StepStopped();
+      /** 这一句没做成：记进清单（上一轮的话模型下一句看得到，清单里的那一项标 failed）。 */
+      const notDone = (reply: string, reason: string) =>
+        session.record(
+          {
+            input,
+            reply,
+            done: false,
+            reason,
+            ...(stepTurn?.itemId ? { itemId: stepTurn.itemId } : {}),
+          },
+          base,
+        );
       const parsed = PlanSchema.safeParse(raw);
       if (!parsed.success) {
         await failedPlan(input, raw, 'plan did not match schema');
+        await notDone('the reply was not valid', msg('sessionInvalid'));
         return { kind: 'invalid', issues: parsed.error.issues.map((i) => i.message) };
       }
       const plan = parsed.data;
+      if (plan.kind === 'build') {
+        // 已经在做计划的一步了：不能再出一份（规划器已经发回去过一次，别的 AI 也可能这样）。
+        if (stepTurn) {
+          await failedPlan(input, plan, 'a plan inside a step');
+          await notDone('a plan inside a step', msg('sessionInvalid'));
+          return { kind: 'invalid', issues: [msg('buildFailedInvalid')] };
+        }
+        // 先给用户看，点「开始」才做（底线 16）。
+        await showBuild({
+          summary: plan.summary,
+          steps: plan.steps.map((step) => ({ ...step, status: 'todo' })),
+          origin: { ...origin, ...(about ? { about } : {}) },
+        });
+        return { kind: 'build' };
+      }
       if (plan.kind === 'reject') {
+        await notDone(plan.message, plan.message);
         await repo.createChangeRequest({
           input,
           plan,
@@ -150,14 +230,18 @@ export function createAIChange(
         };
       }
       if (plan.kind === 'restorePrevious') {
+        // 计划的一步不能是「撤销」：撤掉的是用户没说要撤的东西。
+        if (stepTurn) return { kind: 'invalid', issues: [msg('buildFailedInvalid')] };
         if (current && current.steps.length > 1) {
           set({ draft: current });
           await get().stepBack();
           return { kind: 'steppedBack' };
         }
-        if (current) return { kind: 'rejected', message: msg('draftFirstStep'), examples: [] };
-        if (head.parentId === null)
-          return { kind: 'rejected', message: msg('noPrevious'), examples: [] };
+        if (current || head.parentId === null) {
+          const message = msg(current ? 'draftFirstStep' : 'noPrevious');
+          await notDone(message, message);
+          return { kind: 'rejected', message, examples: [] };
+        }
         const result = await restoreProposal(head.parentId, input);
         if (result.kind !== 'preview') return result;
         await get().confirm();
@@ -167,27 +251,23 @@ export function createAIChange(
       const prepared = prepareOps(base, plan.ops, ctx);
       if (!prepared.ok) {
         await failedPlan(input, plan.ops, `${prepared.stage}: ${prepared.issues.join('; ')}`);
+        await notDone(prepared.issues.join('; '), msg('sessionInvalid'));
         return { kind: 'invalid', issues: prepared.issues };
       }
       // 建议的下一步（D-355）：给了新的就换掉；没给就只去掉刚说的这一句（点了的那条），其余留着。
       await saveSuggest(plan.suggest ?? get().suggest.filter((x) => x !== input));
       // 功能先做（D-191）：直接应用到正式的版本，不进草稿；草稿里只改外观。
+      // 草稿聊天框里说的也一样，做完草稿套到新版本上，接着开着（D-411）。
       const first = functionFirst(base, plan.ops, ctx);
       if (first.kind === 'function') {
-        if (inChat) {
-          await repo.createChangeRequest({
-            input,
-            plan: plan.ops,
-            status: 'rejected',
-            baseRevisionId: head.id,
-            error: 'function change in a draft',
-          });
-          return { kind: 'functionInDraft', message: msg('draftNoFunction') };
-        }
-        return await applyFunction(input, plan, first, {
-          ...origin,
-          ...(about ? { about } : {}),
-        });
+        return await applyFunction(
+          input,
+          plan,
+          first,
+          { ...origin, ...(about ? { about } : {}) },
+          inChat,
+          stepTurn,
+        );
       }
       // 外观：新建或接着改草稿（D-190）。
       const { ops, prepared: after } = withHomeEntries(base, plan.ops, prepared, plan, about);
@@ -209,44 +289,116 @@ export function createAIChange(
         steps: [...(current?.steps ?? []), step],
         replies: current?.replies ?? [],
         origin: current?.origin ?? origin,
-        open: true,
+        // 搭建时草稿先不打开（D-415）：做完了用户点「看看外观」再看，中间不要闪来闪去。
+        open: !stepTurn,
       };
       set({ draft, editing: null });
       await saveDraft(draft);
       if (input === get().next) await get().clearNext();
+      await recordDone({
+        input,
+        lines: after.lines,
+        kind: workKindOfOps(ops),
+        before: base,
+        after: after.after,
+        later: (stepTurn?.step.remaining ?? 0) > 0,
+        refs: { cr: changeRequestId },
+        stepTurn,
+      });
       return { kind: 'drafted', step, focusPageId: focusPage(ops, after.after) };
     } finally {
       set({ busy: false });
     }
   }
 
+  /** 这一句做成了：代码判断相关的工具能不能用（D-414），模型说了不算。 */
+  async function recordDone({
+    input,
+    lines,
+    kind,
+    before,
+    after,
+    later,
+    refs,
+    next,
+    stepTurn,
+  }: {
+    input: string;
+    lines: string[];
+    kind: WorkKind;
+    before: WorkspaceConfig;
+    after: WorkspaceConfig;
+    later: boolean;
+    refs: { cr: number } | { rev: number };
+    next?: string | null;
+    stepTurn: StepTurn | undefined;
+  }) {
+    await session.record(
+      {
+        input,
+        reply: lines.join('; '),
+        done: true,
+        kind,
+        verdict: toolVerdict(before, after, registry, { later }),
+        ...(next ? { next } : {}),
+        ...(stepTurn?.itemId ? { itemId: stepTurn.itemId } : {}),
+        ...refs,
+      },
+      after,
+    );
+  }
+
   /**
    * 功能类修改直接保存成一个 AI 版本（D-191），顶部照常「已改好 · 撤销」。这句话里剩下的外观
-   * 变成「接着改」的预设：模型给的 next，没给就用那些外观操作的说明。草稿还在，打开时重新套上。
+   * 变成「接着改」的预设：模型给的 next，没给就用那些外观操作的说明。草稿还在：从 AI 修改页说的，
+   * 草稿先离开，打开时重新套上；从草稿聊天框说的（stayInDraft），马上套上，草稿接着开着（D-411）。
    */
   async function applyFunction(
     input: string,
     plan: Extract<Plan, { kind: 'ops' }>,
     first: Extract<FunctionFirst, { kind: 'function' }>,
     origin: DraftOrigin,
+    stayInDraft: boolean,
+    stepTurn?: StepTurn,
   ): Promise<ChangeResult> {
     const { config, head, draft } = get();
     const ctx = { registry, locale, now: deps.now(), fromAI: true };
-    const prepared = prepareOps(config!, first.ops, ctx);
+    const before = draft?.steps.at(-1)?.config ?? config!;
+    let wanted = first.ops;
+    let cleanup: Op[] = [];
+    let prepared = prepareOps(config!, wanted, ctx);
+    // 善后的操作改的页面、块只在草稿里（D-413）：正式版本上跳过，草稿套上时再做。
+    if (!prepared.ok && draft) {
+      const split = splitDraftOnlyOps(config!, wanted, ctx);
+      const kept = split ? prepareOps(config!, split.kept, ctx) : null;
+      if (split && kept?.ok) {
+        wanted = split.kept;
+        cleanup = split.skipped;
+        prepared = kept;
+      }
+    }
     if (!prepared.ok) {
       await failedPlan(input, first.ops, `${prepared.stage}: ${prepared.issues.join('; ')}`);
-      // 在草稿的样子上说的：要用到草稿里的东西。
-      return draft
-        ? { kind: 'rejected', message: msg('functionNeedsDraft'), examples: [] }
-        : { kind: 'invalid', issues: prepared.issues };
+      // 在草稿的样子上说的：要用到草稿里的东西（D-413）。用户点了才应用草稿（底线 7、16）。
+      if (draft)
+        return {
+          kind: 'needsDraft',
+          message: msg('functionNeedsDraft'),
+          waiting: { input, plan, origin },
+        };
+      await session.record(
+        {
+          input,
+          reply: prepared.issues.join('; '),
+          done: false,
+          reason: msg('sessionInvalid'),
+          ...(stepTurn?.itemId ? { itemId: stepTurn.itemId } : {}),
+        },
+        config!,
+      );
+      return { kind: 'invalid', issues: prepared.issues };
     }
-    const { ops, prepared: after } = withHomeEntries(
-      config!,
-      first.ops,
-      prepared,
-      plan,
-      origin.about,
-    );
+    const { ops, prepared: after } = withHomeEntries(config!, wanted, prepared, plan, origin.about);
     const deferred =
       first.deferred.length > 0 ? prepareOps(after.after, first.deferred, ctx) : null;
     const next =
@@ -261,6 +413,7 @@ export function createAIChange(
       baseRevisionId: head!.id,
     });
     const summary = input.slice(0, 200);
+    let revisionId: number;
     try {
       const revision = await repo.commitRevision({
         baseId: head!.id,
@@ -268,14 +421,32 @@ export function createAIChange(
         source: 'ai',
         summary,
       });
-      k.render.pending = { changeRequestId, revisionId: revision.id, undoTo: head!.id, summary };
+      revisionId = revision.id;
+      // 上一个还没等到渲染确认就又来一个（搭建的一步接一步、应用草稿并继续）：上一个已经在历史里了，算保存好。
+      const waiting = k.render.pending;
+      if (waiting)
+        await repo.updateChangeRequest(waiting.changeRequestId, {
+          status: 'committed',
+          resultRevisionId: waiting.revisionId,
+        });
+      k.render.pending = {
+        changeRequestId,
+        revisionId: revision.id,
+        undoTo: head!.id,
+        summary,
+        // 搭建时不是每一步都弹「已改好 · 撤销」（D-415）：做完了在计划上说。
+        ...(stepTurn ? { quiet: true } : {}),
+      };
     } catch (e) {
       if (!(e instanceof RevisionConflictError)) throw e;
       await repo.updateChangeRequest(changeRequestId, { status: 'failed', error: e.message });
       await reload();
       return { kind: 'rejected', message: msg('conflict'), examples: [] };
     }
-    set({ next, ...(draft?.open ? { draft: { ...draft, open: false }, toast: null } : {}) });
+    set({
+      next,
+      ...(draft?.open && !stayInDraft ? { draft: { ...draft, open: false }, toast: null } : {}),
+    });
     await repo.setMeta(NEXT_META_KEY, next ?? '');
     // 被移除的工具失去文件授权；文件本身保留（§7G）。
     const remaining = new Set(after.after.packages.map((t) => t.id));
@@ -283,9 +454,23 @@ export function createAIChange(
       if (!remaining.has(tool.id)) await repo.revokeToolGrants(tool.id);
     }
     await reload();
+    if (stayInDraft || cleanup.length > 0) await rebaseOpenDraft(cleanup);
+    const shown = get().draft?.steps.at(-1)?.config ?? after.after;
+    await recordDone({
+      input,
+      lines: after.lines,
+      kind: workKindOfOps(ops),
+      before,
+      after: shown,
+      later: Boolean(next) || (stepTurn?.step.remaining ?? 0) > 0,
+      refs: { rev: revisionId },
+      next,
+      stepTurn,
+    });
     const applied = addedBy(config!, after.after, origin);
     return {
       kind: 'applied',
+      lines: after.lines,
       applied: plan.notes?.length ? { ...applied, notes: plan.notes } : applied,
       focusPageId: focusPage(ops, after.after),
     };
@@ -298,9 +483,22 @@ export function createAIChange(
     await repo.setMeta(SUGGEST_META_KEY, suggest.length ? JSON.stringify(suggest) : '');
   }
 
-  const actions: Pick<WorkspaceState, 'change' | 'draftChange' | 'clearNext' | 'clearSuggest'> = {
+  const actions: Pick<
+    WorkspaceState,
+    'change' | 'draftChange' | 'clearNext' | 'clearSuggest' | 'continueWithDraft' | 'fixProblems'
+  > = {
     change: (input, planner = deps.provider, origin = {}) =>
       aiChange(input, planner, origin, false),
+
+    // 用户点一次发一次（底线 16）；没问题或正在做时什么都不发，也不循环。
+    async fixProblems() {
+      const { session: s, draft, config, next, busy } = get();
+      const shown = draft?.steps.at(-1)?.config ?? config;
+      if (!shown || busy) return null;
+      const left = sessionProblems(s, shown, registry, { later: Boolean(next) });
+      if (left.length === 0) return null;
+      return aiChange(msg('fixProblems'), deps.provider, {}, false, undefined, fixRequest(left));
+    },
 
     async draftChange(input, about) {
       const result = await aiChange(input, deps.provider, about ? { about } : {}, true);
@@ -324,6 +522,21 @@ export function createAIChange(
     },
 
     clearSuggest: () => saveSuggest([]),
+
+    async continueWithDraft({ input, plan, origin }: WaitingForDraft) {
+      set({ busy: true });
+      try {
+        const applied = await get().applyDraft();
+        const { config } = get();
+        if (!applied || !config) return { kind: 'invalid', issues: [msg('invalidPlan')] };
+        const ctx = { registry, locale, now: deps.now(), fromAI: true };
+        const first = functionFirst(config, plan.ops, ctx);
+        if (first.kind !== 'function') return { kind: 'invalid', issues: [msg('invalidPlan')] };
+        return await applyFunction(input, plan, first, origin, false);
+      } finally {
+        set({ busy: false });
+      }
+    },
   };
-  return { actions };
+  return { actions, aiChange };
 }

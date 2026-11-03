@@ -1,10 +1,12 @@
 import {
   createDefaultWorkspace,
+  describePresetApply,
   describeRestore,
   homeEntryOps,
   migrateWorkspace,
   type Op,
   PlanSchema,
+  preparePreset,
   prepareOps,
   prepareSnapshot,
   RECORD_LIMITS,
@@ -18,13 +20,19 @@ import {
   type RevisionRecord,
   type RevisionSource,
 } from '../../storage/types';
+import type { createDraft } from './draft';
 import { focusPage, type Kernel } from './kernel';
+import type { SessionStore } from './session';
 import type { Proposal, ProposeResult, WorkspaceState } from './types';
 
 // 版本：预览 → 确认 → 原子保存 → 重新读取并渲染 → 渲染成功才算成功，失败自动回退（§4、§7D）；
 // 撤销、恢复历史版本、启动时沿历史找最后一个能用的版本。
 
-export function createRevisions(k: Kernel) {
+export function createRevisions(
+  k: Kernel,
+  { rebaseOpenDraft }: Pick<ReturnType<typeof createDraft>, 'rebaseOpenDraft'>,
+  session: SessionStore,
+) {
   const { deps, repo, registry, locale, set, get, msg, reload, commitFallback } = k;
 
   async function recordPreview(
@@ -118,21 +126,58 @@ export function createRevisions(k: Kernel) {
     });
   }
 
+  /**
+   * 这份配置用到了本机没有的下载工具（换了手机、删了下载的内容）：先下载才能恢复（D-177），返回提示。
+   * 旧版本（schemaVersion < 34）先升级，再看 packages。
+   */
+  function missingTools(raw: unknown): string | null {
+    const migrated = migrateWorkspace(raw);
+    const packages = migrated.ok
+      ? ((migrated.config as { packages?: { id: string }[] }).packages ?? [])
+      : [];
+    const missing = packages.map((p) => p.id).filter((id) => !registry.tools.has(id));
+    if (missing.length === 0) return null;
+    const names = missing.map((id) => deps.toolName?.(id) ?? id).join(msg('listSeparator'));
+    return msg('restoreNeedsTool', { names });
+  }
+
+  /** 换成一个保存的预设（D-410）：和恢复历史版本同一个流程，先预览，确认后生成新版本，能撤销。 */
+  async function presetProposal(presetId: string): Promise<ProposeResult> {
+    const { config, head } = get();
+    if (!config || !head) throw new Error('workspace not loaded');
+    const preset = await repo.getPreset(presetId);
+    if (!preset) return { kind: 'invalid', issues: [msg('presetGone')] };
+    const needsTool = missingTools(preset.config);
+    if (needsTool) return { kind: 'invalid', issues: [needsTool] };
+    const plan = { kind: 'preset', presetId };
+    const prepared = preparePreset(preset.config, registry);
+    if (!prepared.ok) {
+      await repo.createChangeRequest({
+        input: `preset ${presetId}`,
+        plan,
+        status: 'failed',
+        baseRevisionId: head.id,
+        error: prepared.issues.join('; '),
+      });
+      return { kind: 'invalid', issues: prepared.issues };
+    }
+    return recordPreview(`preset ${presetId}`, plan, head, {
+      kind: 'restore',
+      before: config,
+      after: prepared.after,
+      lines: describePresetApply(config, prepared.after, preset.name, { registry, locale }),
+      source: 'restore',
+      summary: msg('presetApplySummary', { name: preset.name }),
+      focusPageId: 'home',
+    });
+  }
+
   async function restoreProposal(revisionId: number, input: string): Promise<ProposeResult> {
     const { config, head } = get();
     if (!config || !head) throw new Error('workspace not loaded');
     const target = await repo.getRevision(revisionId);
-    // 这个版本用到了本机没有的下载工具（换了手机、删了下载的内容）：先下载才能恢复（D-177）。
-    // 旧版本（schemaVersion < 34）先升级，再看 packages。
-    const migrated = target ? migrateWorkspace(target.config) : null;
-    const packages = migrated?.ok
-      ? ((migrated.config as { packages?: { id: string }[] }).packages ?? [])
-      : [];
-    const missing = packages.map((p) => p.id).filter((id) => !registry.tools.has(id));
-    if (target && missing.length > 0) {
-      const names = missing.map((id) => deps.toolName?.(id) ?? id).join(msg('listSeparator'));
-      return { kind: 'invalid', issues: [msg('restoreNeedsTool', { names })] };
-    }
+    const needsTool = target ? missingTools(target.config) : null;
+    if (needsTool) return { kind: 'invalid', issues: [needsTool] };
     const prepared = target ? prepareSnapshot(target.config, registry) : null;
     if (!target || !prepared?.ok) {
       const issues =
@@ -152,6 +197,7 @@ export function createRevisions(k: Kernel) {
       after: prepared.after,
       lines: describeRestore(config, prepared.after, target, { registry, locale }),
       source: 'restore',
+      restoredTo: revisionId,
       summary: msg('restoreSummary', {
         when: formatWhen(locale, new Date(target.createdAt), deps.now()),
       }),
@@ -204,6 +250,7 @@ export function createRevisions(k: Kernel) {
     WorkspaceState,
     | 'propose'
     | 'proposeRestore'
+    | 'proposePreset'
     | 'proposeOps'
     | 'setHomeEntry'
     | 'confirm'
@@ -252,6 +299,8 @@ export function createRevisions(k: Kernel) {
             reason: plan.reason,
           };
         }
+        // 这里只有新手引导：句子都是一句话的小改，不走搭建计划（规则 53）。
+        if (plan.kind === 'build') return { kind: 'invalid', issues: [msg('buildFailedInvalid')] };
         if (plan.kind === 'restorePrevious') {
           if (head.parentId === null)
             return { kind: 'rejected', message: msg('noPrevious'), examples: [] };
@@ -269,6 +318,8 @@ export function createRevisions(k: Kernel) {
     },
 
     proposeRestore: (revisionId) => restoreProposal(revisionId, `restore #${revisionId}`),
+
+    proposePreset: presetProposal,
 
     proposeOps: (ops, summary) => opsProposal(summary, ops, 'user', summary),
 
@@ -315,6 +366,11 @@ export function createRevisions(k: Kernel) {
           if (!remaining.has(tool.id)) await repo.revokeToolGrants(tool.id);
         }
         await reload();
+        await rebaseOpenDraft();
+        if (proposal.kind === 'restore') {
+          const { restoredTo } = proposal;
+          await session.markUndone((rev) => restoredTo === undefined || rev > restoredTo);
+        }
         return true;
       } catch (e) {
         if (!(e instanceof RevisionConflictError)) throw e;

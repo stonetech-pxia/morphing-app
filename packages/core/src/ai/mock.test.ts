@@ -11,7 +11,9 @@ import {
 } from '../schema';
 import { createStarterWorkspace } from '../starter';
 import { apply, registry, workspace } from '../test-helpers';
+import { checkTools } from '../tool-check';
 import { createMockAIProvider } from './mock';
+import { fixRequest } from './session';
 import type { Plan } from './types';
 
 // 每个用例对应 docs/MOCK_AI_PHRASES.md 中的一个句式 ID。
@@ -553,5 +555,61 @@ describe('mock AI — record reports (W9)', () => {
       )!;
       expect(added.steps[0]!.params).toMatchObject({ period });
     }
+  });
+});
+
+describe('把这些补上（D-418）', () => {
+  async function step(config: WorkspaceConfig, input: string) {
+    const plan = await ai.plan(input, { config, registry, locale: 'zh' });
+    if (plan.kind !== 'ops') throw new Error(`${input}: ${plan.kind}`);
+    const r = prepareOps(config, plan.ops, { registry, locale: 'zh', now, fromAI: true });
+    if (!r.ok) throw new Error(r.issues.join('; '));
+    return r.after;
+  }
+  const blockers = (config: WorkspaceConfig) =>
+    checkTools(config, registry).issues.filter((i) => i.severity === 'blocker');
+
+  it('表没有地方看：在首页放上列表，问题消失', async () => {
+    let config = createStarterWorkspace('zh', registry);
+    config = await step(config, '新建一个记账页面');
+    config = await step(config, '新建一个快捷操作：拍照，记到账目');
+    expect(blockers(config).map((i) => i.code)).toEqual(['view-missing']);
+    const after = await step(config, fixRequest(blockers(config)));
+    expect(blockers(after)).toEqual([]);
+  });
+
+  it('补不了的不猜：拒绝', async () => {
+    const config = createStarterWorkspace('zh', registry);
+    const plan = await ai.plan(
+      fixRequest([{ severity: 'blocker', code: 'x', target: 'table:x', message: 'x' }]),
+      { config, registry, locale: 'zh' },
+    );
+    expect(plan.kind).toBe('reject');
+  });
+
+  it('「缺页面」的搭建计划：做完之后表没有地方看（模拟器上试按钮用）', async () => {
+    const start = createStarterWorkspace('zh', registry);
+    const plan = await ai.plan('搭建一个记账 App，缺页面', {
+      config: start,
+      registry,
+      locale: 'zh',
+    });
+    if (plan.kind !== 'build') throw new Error(plan.kind);
+    let config = start;
+    for (const s of plan.steps) {
+      const ctx = {
+        config,
+        registry,
+        locale: 'zh' as const,
+        session: { open: [], recent: [], step: { index: 1, total: 3, remaining: 2 } },
+      };
+      const p = await ai.plan(s.request, ctx);
+      if (p.kind !== 'ops') throw new Error(`${s.request}: ${p.kind}`);
+      expect(p.next ?? null).toBeNull();
+      const r = prepareOps(config, p.ops, { registry, locale: 'zh', now, fromAI: true });
+      if (!r.ok) throw new Error(r.issues.join('; '));
+      config = r.after;
+    }
+    expect(blockers(config).map((i) => i.code)).toEqual(['view-missing']);
   });
 });

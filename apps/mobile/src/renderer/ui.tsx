@@ -13,7 +13,7 @@ import {
 import { BackdropFill } from './Backdrop';
 import { GlassFill } from './GlassFill';
 import { Icon } from './Icon';
-import { iconColors, type Palette } from './theme';
+import { iconColors, onSurface, type Palette } from './theme';
 
 // Clay 风格的基础界面元素（对应 Docudis 的 clay_widgets）。配置渲染器和系统页面共用，
 // 所以主题里的颜色、字体、圆角和间距会作用到整个 App。
@@ -272,7 +272,7 @@ export function SectionLabel({ palette, children }: { palette: Palette; children
 
 /** 设置页等列表里的一行：图标块、标题、说明、右侧箭头。 */
 export function ListRow({
-  palette,
+  palette: pagePalette,
   icon,
   label,
   value,
@@ -286,6 +286,7 @@ export function ListRow({
   onPress?: () => void;
   testID?: string;
 }) {
+  const palette = onSurface(pagePalette);
   return (
     <Card palette={palette} onPress={onPress} testID={testID}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>

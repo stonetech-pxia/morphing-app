@@ -431,6 +431,29 @@ function pruneRecordTools(config: WorkspaceConfig, gone: Gone, notes: ApplyNote[
   if (count > 0) notes.push({ kind: 'removedRecordActions', count });
 }
 
+/** 这几种聚合读 source.field；别的（计数、按日子算）不读，校验器不要求它。 */
+const READS_FIELD = ['sum', 'avg', 'min', 'max'];
+
+/**
+ * 删字段后，数字块、图表、minus 上不读字段的聚合写着的 field 跟着去掉（底线 18）。
+ * 要读它的聚合（求和等）不动：校验器会指出来，和以前一样。
+ */
+function pruneAggregateFields(config: WorkspaceConfig, gone: Required<Gone>): void {
+  const prune = (source: { table: string; aggregate: string; field?: string | undefined }) => {
+    if (
+      source.table === gone.table &&
+      source.field === gone.field &&
+      !READS_FIELD.includes(source.aggregate)
+    )
+      delete source.field;
+  };
+  for (const c of everyBlock(config)) {
+    if (!isKnownComponent(c) || (c.look !== 'number' && c.look !== 'chart')) continue;
+    prune(c.source);
+    if (c.look === 'number' && c.source.minus) prune(c.source.minus);
+  }
+}
+
 // ---- 每个操作 ----
 
 function addData(config: WorkspaceConfig, op: OpOf<'addData'>): void {
@@ -576,6 +599,7 @@ function removeData(
     // 从结构里去掉字段：记录里的旧值保留，恢复旧版本时会回来。
     table.fields.splice(getFieldIndex(table, op.field), 1);
     pruneRecordTools(config, { table: op.table, field: op.field }, notes);
+    pruneAggregateFields(config, { table: op.table, field: op.field });
     pruneSteps(config, { table: op.table, field: op.field }, registry, notes);
     return;
   }
@@ -709,7 +733,15 @@ function updateContainer(
   if (op.desk !== undefined) {
     // 房间布局（D-358，Q7）：预览上下的块用 addContainer / removeContainer {desk}。
     onlyKeys(op.desk, DESK_CHANGES, 'the file room');
-    const next = merge({ ...config.containers.desk }, op.desk);
+    const { tools, ...layout } = op.desk;
+    const next = merge({ ...config.containers.desk }, layout);
+    // 工具栏按文件种类合并（规则 52）：给了的种类整个换，null 回到默认，没写的不动；写法不对的交给校验器。
+    if (tools === null) delete next.tools;
+    else if (typeof tools === 'object') {
+      const kinds = merge({ ...(next.tools as object) }, tools as Record<string, unknown>);
+      if (Object.keys(kinds).length > 0) next.tools = kinds as never;
+      else delete next.tools;
+    } else if (tools !== undefined) next.tools = tools as never;
     if (Object.keys(next).length > 0) config.containers.desk = next;
     else delete config.containers.desk;
     return;

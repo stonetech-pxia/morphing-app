@@ -107,6 +107,8 @@ export const ThemeColorsSchema = z.strictObject({
   background: HexColorSchema.optional(),
   surface: HexColorSchema.optional(),
   text: HexColorSchema.optional(),
+  /** 卡片上的文字颜色（D-409）；不写时等于 text。写了时 text 只管页面背景上的文字。 */
+  surfaceText: HexColorSchema.optional(),
   secondary: HexColorSchema.optional(),
   tertiary: HexColorSchema.optional(),
 });

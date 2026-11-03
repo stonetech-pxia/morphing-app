@@ -7,6 +7,7 @@ import {
   type ChangeRequestRecord,
   type CommitInput,
   type RevisionRecord,
+  type SavedPreset,
   type StoredRecord,
   type ToolRunRecord,
   type WorkspaceRepo,
@@ -81,6 +82,14 @@ const DB_MIGRATIONS: string[] = [
      key TEXT PRIMARY KEY,
      value TEXT NOT NULL
    );`,
+  // 保存的预设（D-410）：不在配置里，不随版本恢复，也不发给 AI。
+  `CREATE TABLE saved_presets (
+     id TEXT PRIMARY KEY,
+     name TEXT NOT NULL,
+     schema_version INTEGER NOT NULL,
+     config_json TEXT NOT NULL,
+     created_at INTEGER NOT NULL
+   );`,
 ];
 
 interface RecordRow {
@@ -148,6 +157,30 @@ function toRevision(row: RevisionRow): RevisionRecord {
     source: row.source,
     summary: row.summary,
     createdAt: row.created_at,
+  };
+}
+
+interface PresetRow {
+  id: string;
+  name: string;
+  schema_version: number;
+  config_json: string;
+  created_at: number;
+}
+
+function toPreset(row: PresetRow): SavedPreset {
+  let config: unknown;
+  try {
+    config = JSON.parse(row.config_json);
+  } catch {
+    config = null; // 损坏的预设交给 preparePreset 拒绝
+  }
+  return {
+    id: row.id,
+    name: row.name,
+    createdAt: row.created_at,
+    schemaVersion: row.schema_version,
+    config,
   };
 }
 
@@ -351,6 +384,40 @@ export class SQLiteWorkspaceRepo implements WorkspaceRepo {
       Date.now(),
       id,
     );
+  }
+
+  async listPresets() {
+    const rows = await this.db.getAllAsync<PresetRow>(
+      'SELECT * FROM saved_presets ORDER BY created_at DESC, id DESC',
+    );
+    return rows.map(toPreset);
+  }
+
+  async getPreset(id: string) {
+    const row = await this.db.getFirstAsync<PresetRow>(
+      'SELECT * FROM saved_presets WHERE id = ?',
+      id,
+    );
+    return row ? toPreset(row) : null;
+  }
+
+  async insertPreset(preset: SavedPreset) {
+    await this.db.runAsync(
+      'INSERT INTO saved_presets (id, name, schema_version, config_json, created_at) VALUES (?, ?, ?, ?, ?)',
+      preset.id,
+      preset.name,
+      preset.schemaVersion,
+      JSON.stringify(preset.config),
+      preset.createdAt,
+    );
+  }
+
+  async renamePreset(id: string, name: string) {
+    await this.db.runAsync('UPDATE saved_presets SET name = ? WHERE id = ?', name, id);
+  }
+
+  async deletePreset(id: string) {
+    await this.db.runAsync('DELETE FROM saved_presets WHERE id = ?', id);
   }
 
   async getMeta(key: string) {

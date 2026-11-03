@@ -6,10 +6,12 @@ export * from './ai/kinds';
 export * from './ai/mock';
 export * from './ai/preset-ops';
 export { stepIdFor } from './ai/workflow-phrases';
+export * from './ai/session';
 export * from './ai/types';
 export * from './arrange';
 export * from './calendar';
 export * from './change';
+export * from './zod-issues';
 export * from './chart';
 export * from './data';
 export * from './asset-usage';
@@ -69,6 +71,7 @@ export * from './text-ops';
 export * from './text-rules';
 export * from './prefill';
 export * from './config-file';
+export * from './saved-presets';
 export * from './theme';
 export * from './tools';
 export * from './tools/io';
@@ -82,6 +85,7 @@ export * from './workflows/presets';
 export * from './packs';
 export * from './tool-download';
 export * from './tool-keys';
+export * from './tool-check';
 
 export * from './subtitles';
 

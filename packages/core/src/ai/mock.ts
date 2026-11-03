@@ -53,8 +53,10 @@ import {
 } from '../templates';
 import { homeFileEntryOps } from '../starter';
 import { homeScreenFull } from '../home-screen';
+import { checkTools } from '../tool-check';
 import { splitOps } from './kinds';
-import type { AIProvider, Plan, PlanContext, RejectReason } from './types';
+import { FIX_REQUEST_PREFIX } from './session';
+import type { AIProvider, BuildPlan, Plan, PlanContext, RejectReason } from './types';
 
 // 基于规则的 mock AI（§7F）。不是语言模型：只认识 docs/MOCK_AI_PHRASES.md 中的句式。
 // v34（2026-10-30）：读 v34 配置、出 14 种新操作；句式没有改（第三阶段再按 MAPPING_V33.md C1 整理）。
@@ -1778,11 +1780,142 @@ function planClauses(clauses: string[], ctx: PlanContext): Plan {
   };
 }
 
-export function createMockAIProvider(): AIProvider {
+/** 内置规则认得的大工程说法（规则 53、D-415）：「搭建一个记账 App」「Build a budget app」。 */
+const BUILD_REQUEST = /^(?:从头)?搭建|^build (?:me )?(?:a |an )?.*\bapp\b/i;
+/** 模拟器上试失败的路径：「搭建一个记账 App，有一步会失败」「…with a failing step」。 */
+const BUILD_FAILING = /失败|fail/i;
+/** 带这个记号的请求第一次抛错，第二次（重试）照常做。 */
+const FAIL_ONCE = ' #fail-once';
+/** 模拟器上试「把这些补上」的路径：「搭建一个记账 App，缺页面」「…with no page」。 */
+const BUILD_GAP = /缺页面|no page/i;
+/** 带这个记号的请求不留 next：页面没人接着做。 */
+const NO_NEXT = ' #no-next';
+
+function buildPlanFor(input: string, locale: Locale, uiLocale: Locale): BuildPlan {
+  const request = (zh: string, en: string) => say(locale, zh, en);
+  const gap = BUILD_GAP.test(input);
   return {
+    kind: 'build',
+    summary: {
+      zh: '一个能用的记账 App',
+      en: 'A working budget app',
+      fr: 'Une app de budget prête à servir',
+    }[uiLocale],
+    steps: [
+      {
+        id: 'data',
+        kind: 'record',
+        title: {
+          zh: '记账表和页面',
+          en: 'Expense table and page',
+          fr: 'Tableau et page des dépenses',
+        }[uiLocale],
+        request: request('新建一个记账页面', 'Create an expense page') + (gap ? NO_NEXT : ''),
+      },
+      gap
+        ? {
+            id: 'scan',
+            kind: 'fileToRecord',
+            title: {
+              zh: '拍照记账快捷操作',
+              en: 'Photo expense quick action',
+              fr: 'Action rapide dépense en photo',
+            }[uiLocale],
+            request: request(
+              '新建一个快捷操作：拍照，记到账目',
+              'Create a quick action: take photos, add a record to Expenses',
+            ),
+          }
+        : {
+            id: 'scan',
+            kind: 'file',
+            title: {
+              zh: '证件照快捷操作',
+              en: 'ID photo quick action',
+              fr: 'Action rapide photo d’identité',
+            }[uiLocale],
+            request:
+              request('添加签证照片快捷操作', 'Add a visa photo quick action') +
+              (BUILD_FAILING.test(input) ? FAIL_ONCE : ''),
+          },
+      {
+        id: 'look',
+        kind: 'look',
+        title: { zh: '换成绿色主题', en: 'Green theme', fr: 'Thème vert' }[uiLocale],
+        request: request('主题换成绿色', 'Change the theme to green'),
+      },
+    ],
+  };
+}
+
+/**
+ * 「把这些补上」（D-418）：内置规则只会补一种，表没有地方看或没有地方添加，在首页放上列表和添加按钮。
+ * 别的不猜（§7F）。规则不靠读句子，直接看配置。
+ */
+function fixPlan(ctx: PlanContext): Plan {
+  const issues = checkTools(ctx.config, ctx.registry).issues.filter(
+    (i) => i.severity === 'blocker' && (i.code === 'view-missing' || i.code === 'add-missing'),
+  );
+  const ops: Op[] = [];
+  for (const issue of issues) {
+    const table = ctx.config.data.tables.find((x) => `table:${x.id}` === issue.target);
+    const title = table?.fields.find((f) => f.type === 'text')?.id;
+    if (!table) continue;
+    ops.push({
+      op: 'addContainer',
+      page: HOME_PAGE_ID,
+      block:
+        issue.code === 'view-missing'
+          ? {
+              id: `${table.id}-list`,
+              look: 'list',
+              source: { table: table.id, limit: 30 },
+              show: title ? { title } : {},
+            }
+          : {
+              id: `${table.id}-add`,
+              look: 'button',
+              show: { label: say(ctx.locale, '添加', 'Add'), variant: 'filled' },
+              tools: [{ do: 'create', table: table.id, ask: 'all' }],
+            },
+    } as Op);
+  }
+  if (ops.length > 0) return { kind: 'ops', ops };
+  return {
+    kind: 'reject',
+    reason: 'unknown',
+    message: say(
+      ctx.locale,
+      '内置规则补不了这些，可以在设置里换一个 AI。',
+      'The built-in rules can’t fix these. You can choose another AI in Settings.',
+    ),
+    examples: [],
+  };
+}
+
+export function createMockAIProvider(): AIProvider {
+  const failedOnce = new Set<string>();
+  const provider: AIProvider = {
     async plan(input, ctx) {
+      if (input.endsWith(NO_NEXT)) {
+        const plan = await provider.plan(input.slice(0, -NO_NEXT.length), ctx);
+        if (plan.kind !== 'ops') return plan;
+        const { next: _, ...rest } = plan;
+        return rest;
+      }
+      if (input.endsWith(FAIL_ONCE)) {
+        input = input.slice(0, -FAIL_ONCE.length);
+        if (!failedOnce.has(input)) {
+          failedOnce.add(input);
+          throw new Error('simulated failure');
+        }
+      }
+      const uiLocale = ctx.locale;
       // 内置规则只识别中英文句式；法语界面使用英文示例和回复（P-037）。
       if (ctx.locale === 'fr') ctx = { ...ctx, locale: 'en' };
+      if (input.startsWith(FIX_REQUEST_PREFIX)) return fixPlan(ctx);
+      if (BUILD_REQUEST.test(input.trim()) && !ctx.session?.step)
+        return buildPlanFor(input, ctx.locale, uiLocale);
       const examples = EXAMPLES.map((e) => localize(e, ctx.locale));
       const clauses = splitClauses(joinWorkflowSteps(input));
       if (clauses.length === 0) {
@@ -1857,4 +1990,5 @@ export function createMockAIProvider(): AIProvider {
       }
     },
   };
+  return provider;
 }

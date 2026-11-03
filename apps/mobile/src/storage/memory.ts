@@ -6,6 +6,7 @@ import {
   type ChangeRequestRecord,
   type CommitInput,
   type RevisionRecord,
+  type SavedPreset,
   type StoredRecord,
   type ToolRunRecord,
   type WorkspaceRepo,
@@ -24,6 +25,8 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
   private meta = new Map<string, string>();
   /** 记录以 JSON 保存，模拟数据库的写入与读取。 */
   private records = new Map<string, string>();
+  /** 预设也以 JSON 保存。 */
+  private presets = new Map<string, string>();
   private clock = 0;
 
   private now() {
@@ -192,6 +195,30 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
 
   async listToolRuns(limit: number) {
     return [...this.toolRuns].reverse().slice(0, limit);
+  }
+
+  async listPresets() {
+    return [...this.presets.values()]
+      .map((json) => JSON.parse(json) as SavedPreset)
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  async getPreset(id: string) {
+    const json = this.presets.get(id);
+    return json ? (JSON.parse(json) as SavedPreset) : null;
+  }
+
+  async insertPreset(preset: SavedPreset) {
+    this.presets.set(preset.id, JSON.stringify(preset));
+  }
+
+  async renamePreset(id: string, name: string) {
+    const preset = await this.getPreset(id);
+    if (preset) await this.insertPreset({ ...preset, name });
+  }
+
+  async deletePreset(id: string) {
+    this.presets.delete(id);
   }
 
   private readRecord(id: string): StoredRecord | null {

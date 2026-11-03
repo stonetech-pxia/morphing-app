@@ -3,11 +3,13 @@ import { t } from './messages';
 import { isRecordToolUse, type ToolUse } from './record-ops-schema';
 import {
   RECORD_LOOKS,
+  RECORD_REF,
   allComponents,
   isKnownComponent,
   parentOf,
   quickActionsOf,
   type Component,
+  type Condition,
   type Locale,
   type WorkspaceConfig,
 } from './schema';
@@ -38,6 +40,13 @@ function addsTo(config: WorkspaceConfig, table: string): boolean {
   );
 }
 
+/** 给一条记录用的页面上（D-342）：列表只显示连到这条记录的，新记录也要连上它，才会出现在这个列表里。 */
+function linkToRecord(filter: readonly Condition[] | undefined) {
+  const links = (filter ?? []).filter((x) => x.op === 'is' && x.value === RECORD_REF);
+  if (links.length === 0) return {};
+  return { values: Object.fromEntries(links.map((x) => [x.field, RECORD_REF])) };
+}
+
 /** 给 after 里新加的、没有添加入口的记录块补「添加」按钮；返回补了按钮的表。 */
 export function addMissingEntryForms(
   before: WorkspaceConfig,
@@ -50,7 +59,8 @@ export function addMissingEntryForms(
     const existed = new Set(old ? allComponents(old).map((c) => c.id) : []);
     for (const c of allComponents(page)) {
       if (!isRecordLook(c) || existed.has(c.id)) continue;
-      const tableId = (c as { source: { table: string } }).source.table;
+      const { table: tableId, filter } = (c as { source: { table: string; filter?: Condition[] } })
+        .source;
       const table = after.data.tables.find((x) => x.id === tableId);
       if (!table || addsTo(after, table.id)) continue;
       // 没有能在表单里填的字段（全是算出来的）时不补。
@@ -66,7 +76,7 @@ export function addMissingEntryForms(
         id,
         look: 'button',
         show: { label: t(locale, 'entryFormAdd'), variant: 'filled' },
-        tools: [{ do: 'create', table: table.id, ask: 'all' }],
+        tools: [{ do: 'create', table: table.id, ask: 'all', ...linkToRecord(filter) }],
       });
       added.push(table.id);
     }

@@ -7,6 +7,7 @@ import { PlanAboutSchema, PlanSchema } from './ai/types';
 import { createMockAIProvider } from './ai/mock';
 import { prepareOps, prepareSnapshot } from './change';
 import { createDefaultWorkspace } from './defaults';
+import { defaultDeskTools } from './desk/tools';
 import { V4_CUSTOM_ASK, V4_DEFAULT_MERGE, V4_FIXED_NAME } from './fixtures/v4';
 import { en, enSingular } from './messages/en';
 import { fr, frSingular } from './messages/fr';
@@ -190,6 +191,16 @@ describe('底线 2：AI 永远看不到数据内容', () => {
     const sent = JSON.stringify(redactForAI(config, registry));
     expect(sent).not.toContain(SENTINEL);
     expect(sent.split(REDACTED_TEXT).length - 1).toBe(hidden);
+  });
+});
+
+describe('底线 1 / 2 / 14：保存的预设不在配置里（D-410）', () => {
+  it('a config carrying saved presets is rejected, so they can never go to the AI with it', () => {
+    const config = createDefaultWorkspace('zh');
+    expect(
+      WorkspaceConfigSchema.safeParse({ ...config, presets: [{ id: 'p', name: SENTINEL }] })
+        .success,
+    ).toBe(false);
   });
 });
 
@@ -499,6 +510,9 @@ describe('底线 8：AI 改不了系统层', () => {
       { op: 'setSettings', ai: 'off' },
       { op: 'updateHistory', keep: 0 },
       { op: 'setPermission', camera: true },
+      { op: 'savePreset', name: 'x' },
+      { op: 'applyPreset', id: 'x' },
+      { op: 'deletePreset', id: 'x' },
     ]) {
       const r = prepareOps(createDefaultWorkspace('zh'), [op], ctx);
       expect({ op, ok: r.ok }).toEqual({ op, ok: false });
@@ -623,7 +637,7 @@ describe('底线 12：旧的永远能打开', () => {
       const r = migrateWorkspace(structuredClone(config));
       expect(r.ok && r.config).toEqual(config);
     }
-    expect(CURRENT_SCHEMA_VERSION).toBe(35);
+    expect(CURRENT_SCHEMA_VERSION).toBe(36);
   });
 });
 
@@ -743,6 +757,15 @@ function danglingRefs(config: WorkspaceConfig): string[] {
   walk(config.data, 'data');
   for (const id of config.nav.phoneHomeScreen ?? [])
     if (!tools.has(id)) out.push(`nav.phoneHomeScreen: ${id}`);
+  // 文件桌面的工具栏：快捷操作的 ID（提醒不算）、目录里的动作。
+  for (const [kind, groups] of Object.entries(config.containers.desk?.tools ?? {}))
+    for (const item of (groups ?? []).flatMap((g) => g.items)) {
+      if (typeof item === 'string') {
+        const reminder = config.tools.some((t) => t.id === item && t.kind === 'reminder');
+        if (reminder || !toolOk(item)) out.push(`containers.desk.tools.${kind}: ${item}`);
+      } else if (!registry.actions.has(item.action))
+        out.push(`containers.desk.tools.${kind}: ${item.action}`);
+    }
   // 快捷操作的步骤：参数里的表（collectionId），和记录生成 PDF 列出的字段（属于前面读取记录的那张表）。
   for (const wf of config.tools) {
     if (wf.kind !== 'quickAction') continue;
@@ -855,6 +878,223 @@ describe('底线 18：配置永远自洽', () => {
   it('starting points (new user, default) are self-consistent', () => {
     for (const config of [createStarterWorkspace('zh', registry), createDefaultWorkspace('en')])
       expect(danglingRefs(config)).toEqual([]);
+  });
+
+  // 下面这些引用校验器原来不查（审计 F3，创始人 2026-11-03 在对话里说先修复）。只在修改时拒绝：旧配置要还能打开（底线 12）。
+  describe('a change cannot add a reference to something that does not exist', () => {
+    const base = (): WorkspaceConfig => {
+      const r = applyOps(
+        createDefaultWorkspace('en'),
+        [
+          {
+            op: 'addData',
+            table: {
+              id: 'expenses',
+              name: 'Expenses',
+              fields: [
+                { id: 'amount', name: 'Amount', type: 'number' },
+                {
+                  id: 'category',
+                  name: 'Category',
+                  type: 'choice',
+                  options: [{ id: 'food', label: 'Food' }],
+                },
+              ],
+            },
+          },
+        ],
+        ctx,
+      );
+      if (!r.ok) throw new Error(r.error);
+      return r.config;
+    };
+    const number = (source: object) => ({
+      id: 'n',
+      look: 'number',
+      show: { label: 'N' },
+      source: { table: 'expenses', ...source },
+    });
+    const chart = (source: object) => ({
+      id: 'c',
+      look: 'chart',
+      show: { kind: 'bar', title: 'C' },
+      source: { table: 'expenses', group: { by: 'category' }, ...source },
+    });
+    const add = (block: object) => [{ op: 'addContainer', page: 'home', block }];
+    const desk = (kind: string, items: unknown[]) => [
+      { op: 'updateContainer', desk: { tools: { [kind]: [{ items }] } } },
+    ];
+    const reminder = (extra: object) => ({
+      op: 'addTool',
+      tool: {
+        id: 'r',
+        kind: 'reminder',
+        title: 'T',
+        enabled: true,
+        when: { every: 'day', at: '09:00' },
+        opens: 'page:home',
+        ...extra,
+      },
+    });
+    const quickAction = (extra: object) => ({
+      op: 'addTool',
+      tool: {
+        id: 'q',
+        kind: 'quickAction',
+        name: 'Q',
+        steps: [{ id: 's', action: 'in.photos', params: { source: 'files', min: 1, max: 5 } }],
+        ...extra,
+      },
+    });
+
+    it.each([
+      ['number count', number({ aggregate: 'count', field: 'nope' })],
+      ['number streak', number({ aggregate: 'streak', field: 'nope' })],
+      ['chart count', chart({ aggregate: 'count', field: 'nope' })],
+      ['chart distinctDays', chart({ aggregate: 'distinctDays', field: 'nope' })],
+      [
+        'minus count',
+        number({
+          aggregate: 'count',
+          minus: { table: 'expenses', aggregate: 'count', field: 'nope' },
+        }),
+      ],
+    ])('%s: field must exist even where the aggregate does not read it', (_name, block) => {
+      const r = prepareOps(base(), add(block), ctx);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.issues.join()).toContain('nope');
+    });
+
+    it('a count may leave field out, or name a real field (older configs do)', () => {
+      for (const block of [
+        number({ aggregate: 'count' }),
+        number({ aggregate: 'count', field: 'amount' }),
+        chart({ aggregate: 'count', field: 'amount' }),
+      ])
+        expect(prepareOps(base(), add(block), ctx).ok).toBe(true);
+    });
+
+    it('removing a field clears it from count blocks, charts and minus', () => {
+      const added = prepareOps(
+        base(),
+        [
+          ...add(number({ aggregate: 'count', field: 'amount' })),
+          ...add({ ...chart({ aggregate: 'count', field: 'amount' }) }),
+          ...add({
+            ...number({
+              aggregate: 'count',
+              minus: { table: 'expenses', aggregate: 'count', field: 'amount' },
+            }),
+            id: 'm',
+          }),
+        ],
+        ctx,
+      );
+      if (!added.ok) throw new Error(added.issues.join());
+      const r = prepareOps(
+        added.after,
+        [{ op: 'removeData', table: 'expenses', field: 'amount' }],
+        ctx,
+      );
+      if (!r.ok) throw new Error(r.issues.join());
+      expect(danglingRefs(r.after)).toEqual([]);
+      const blocks = allComponents(r.after.containers.pages.find((p) => p.id === 'home')!);
+      const source = (id: string) => (blocks.find((c) => c.id === id) as Json).source as Json;
+      expect(source('n').field).toBeUndefined();
+      expect(source('c').field).toBeUndefined();
+      expect((source('m').minus as Json).field).toBeUndefined();
+    });
+
+    it.each([
+      ['a quick action that does not exist', 'pdf', 'no-such-quick-action'],
+      ['an action that is not in the catalog', 'pdf', { action: 'foo.bar' }],
+      ['an action for another kind of file', 'pdf', { action: 'image.rotate' }],
+      ['a spec the action does not have', 'image', { action: 'image.compress', preset: 'nope' }],
+    ])('desk toolbar: %s is refused', (_name, kind, item) => {
+      expect(prepareOps(base(), desk(kind, [item]), ctx).ok).toBe(false);
+    });
+
+    it('desk toolbar: a reminder id is refused', () => {
+      const r = prepareOps(base(), [reminder({}), ...desk('pdf', ['r'])], ctx);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.issues.join()).toContain('reminder');
+    });
+
+    it('desk toolbar: actions that take this kind of file and quick actions are fine', () => {
+      for (const [kind, items] of [
+        ['pdf', [{ action: 'pdf.rotate' }, 'visa-photo']],
+        ['image', [{ action: 'image.rotate' }, { action: 'pdf.fromImages' }]],
+      ] as const)
+        expect(prepareOps(base(), desk(kind, [...items]), ctx).ok).toBe(true);
+      const own = prepareOps(base(), [quickAction({}), ...desk('image', ['q'])], ctx);
+      expect(own.ok).toBe(true);
+      // 默认工具栏上的动作都能写进配置。
+      for (const kind of ['image', 'pdf', 'sheet', 'doc', 'video', 'audio'] as const) {
+        const items = defaultDeskTools(kind, registry, [], 'en').flatMap((g) => g.items);
+        const r = prepareOps(base(), desk(kind, items.slice(0, 20)), ctx);
+        expect({ kind, issues: r.ok ? [] : r.issues }).toEqual({ kind, issues: [] });
+      }
+    });
+
+    it('a new reminder cannot name a tool or a preset, so removeTool can always remove it', () => {
+      expect(prepareOps(base(), [reminder({ package: 'nope' })], ctx).ok).toBe(false);
+      expect(prepareOps(base(), [reminder({ preset: 'nope' })], ctx).ok).toBe(false);
+      const ok = prepareOps(base(), [reminder({})], ctx);
+      if (!ok.ok) throw new Error(ok.issues.join());
+      expect(prepareOps(ok.after, [{ op: 'removeTool', tool: 'r' }], ctx).ok).toBe(true);
+    });
+
+    it('a new quick action can only name a preset that exists', () => {
+      const r = prepareOps(base(), [quickAction({ preset: 'nope' })], ctx);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.issues.join()).toContain('nope');
+      expect(prepareOps(base(), [quickAction({ preset: 'visa-photo' })], ctx).ok).toBe(true);
+    });
+
+    it('a config saved with such references still opens and can still be changed (底线 12)', () => {
+      const old = structuredClone(base());
+      const home = old.containers.pages.find((p) => p.id === 'home')!;
+      home.blocks.push(number({ aggregate: 'count', field: 'gone' }) as never);
+      old.containers.desk = { tools: { pdf: [{ items: ['gone', { action: 'image.rotate' }] }] } };
+      old.tools.push(
+        {
+          id: 'old-r',
+          kind: 'reminder',
+          package: 'gone',
+          title: 'T',
+          enabled: true,
+          when: { every: 'day', at: '09:00' },
+          opens: 'page:home',
+        } as never,
+        {
+          id: 'old-q',
+          kind: 'quickAction',
+          name: 'Q',
+          preset: 'gone',
+          steps: [{ id: 's', action: 'in.photos', params: { source: 'files', min: 1, max: 5 } }],
+        } as never,
+      );
+      expect(validateWorkspace(old, registry).ok).toBe(true);
+      expect(prepareSnapshot(old, registry).ok).toBe(true);
+      const edit = [{ op: 'updateContainer', page: 'home', changes: { title: 'Home 2' } }];
+      expect(prepareOps(old, edit, ctx).ok).toBe(true);
+      // 工具栏上旧的提醒 ID：提醒还能删。
+      const withReminder = structuredClone(old);
+      withReminder.containers.desk = { tools: { pdf: [{ items: ['old-r2'] }] } };
+      withReminder.tools.push({
+        id: 'old-r2',
+        kind: 'reminder',
+        title: 'T',
+        enabled: true,
+        when: { every: 'day', at: '09:00' },
+        opens: 'page:home',
+      });
+      expect(prepareOps(withReminder, [{ op: 'removeTool', tool: 'old-r2' }], ctx).ok).toBe(true);
+      // 新写的坏引用照样拒绝。
+      expect(
+        prepareOps(old, [...edit, ...add(number({ aggregate: 'count', field: 'no' }))], ctx).ok,
+      ).toBe(false);
+    });
   });
 });
 

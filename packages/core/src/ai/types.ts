@@ -60,17 +60,81 @@ export type Plan =
        */
       suggest?: string[];
     }
+  | BuildPlan
   | { kind: 'restorePrevious' }
   | { kind: 'reject'; reason: RejectReason; message: string; examples: string[] };
+
+/** 工具清单和搭建计划里一项的种类（AGENT_PLAN §1、§3.5）。 */
+export type WorkKind = 'file' | 'record' | 'fileToRecord' | 'look';
+export const WORK_KINDS = [
+  'file',
+  'record',
+  'fileToRecord',
+  'look',
+] as const satisfies readonly WorkKind[];
+
+/** 搭建计划的一步：request 是一句能单独发给 AI 的请求，没有操作（AGENT_PLAN §3.9）。 */
+export interface BuildStep {
+  id: string;
+  kind: WorkKind;
+  title: string;
+  request: string;
+}
+
+/**
+ * 大工程的搭建计划（规则 53）：不写操作，先给用户看，用户点「开始」才一步一步做（底线 16，D-415）。
+ * 步数和字段由 PlanSchema 复核；计划本身只是文字，不运行任何工具（底线 6）。
+ */
+export interface BuildPlan {
+  kind: 'build';
+  summary: string;
+  steps: BuildStep[];
+}
+
+/** 计划最多几步。 */
+export const BUILD_MIN_STEPS = 2;
+export const BUILD_MAX_STEPS = 8;
+
+/** 一条说明最长多少字符。太长时截断（D14）：只因为说明太长，不该让整份合法的修改作废。 */
+const NOTE_MAX = 200;
+/** 截断时不留下半个 emoji。 */
+const cutNote = (note: string) => note.slice(0, NOTE_MAX).replace(/[\uD800-\uDBFF]$/, '');
 
 export const PlanSchema: z.ZodType<Plan> = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('ops'),
     ops: OpListSchema,
     homeEntry: z.boolean().optional(),
-    notes: z.array(z.string().min(1).max(200)).max(4).optional(),
+    notes: z.array(z.string().min(1).transform(cutNote)).max(4).optional(),
     next: z.string().min(1).max(200).optional(),
     suggest: z.array(z.string().min(1).max(80)).max(2).optional(),
+  }),
+  z.strictObject({
+    kind: z.literal('build'),
+    summary: z
+      .string()
+      .trim()
+      .min(1)
+      .transform((x) => cutNote(x)),
+    steps: z
+      .array(
+        z.strictObject({
+          id: z.string().min(1).max(64),
+          kind: z.enum(WORK_KINDS),
+          title: z
+            .string()
+            .trim()
+            .min(1)
+            .transform((x) => x.slice(0, 80).replace(/[\uD800-\uDBFF]$/, '')),
+          // 不截断：截掉半句就是另一个请求，太长的发回去重写。
+          request: z.string().trim().min(1).max(500),
+        }),
+      )
+      .min(BUILD_MIN_STEPS)
+      .max(BUILD_MAX_STEPS)
+      .refine((steps) => new Set(steps.map((s) => s.id)).size === steps.length, {
+        message: 'step ids must be different',
+      }),
   }),
   z.strictObject({ kind: z.literal('restorePrevious') }),
   z.strictObject({
@@ -142,13 +206,35 @@ export interface PlanEarlier {
   reply: string;
 }
 
+/** 工具清单里还没做完的一项（AGENT_PLAN §3.5）。 */
+export interface PlanSessionItem {
+  kind: WorkKind;
+  text: string;
+  status: 'todo' | 'failed';
+  reason?: string;
+}
+
+/**
+ * 发给模型的 <session> 块（D-414）：目标、没做完的项、最近几句。只有用户说的话、计划里的一句话和
+ * 配置结构，没有记录内容（底线 1、2、14）。
+ * step：正在做搭建计划的第几步（从 1 数），这时只能回操作；remaining 是后面还有几步。
+ */
+export interface PlanSession {
+  goal?: string;
+  open: PlanSessionItem[];
+  recent: PlanEarlier[];
+  step?: { index: number; total: number; remaining: number };
+}
+
 export interface PlanContext {
   config: WorkspaceConfig;
   registry: Registry;
   /** 界面语言：拒绝说明和示例用这种语言。 */
   locale: Locale;
   about?: PlanAbout;
+  /** 只有评测和旧调用方还用；App 发 session（D-414）。 */
   earlier?: PlanEarlier[];
+  session?: PlanSession;
 }
 
 export interface AIProvider {

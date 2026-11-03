@@ -6,6 +6,8 @@ import type { Registry } from './registry';
 import type { Locale, WorkspaceConfig } from './schema';
 import { validateWorkspace } from './validate';
 import { addMissingPageEntries } from './page-entries';
+import { referenceProblems } from './reference-checks';
+import { issueLines } from './zod-issues';
 
 // ChangeRequest → Plan → Validate → Preview（§5.3）中与平台无关的部分。
 // 无论修改来自 mock AI、真实模型还是界面按钮，都走这里。
@@ -33,7 +35,7 @@ export function prepareOps(
 ): PreparedChange {
   const parsed = OpListSchema.safeParse(rawOps);
   if (!parsed.success) {
-    return { ok: false, stage: 'parse', issues: parsed.error.issues.map((i) => i.message) };
+    return { ok: false, stage: 'parse', issues: issueLines(parsed.error) };
   }
   const applied = applyOps(before, parsed.data, ctx);
   if (!applied.ok) return { ok: false, stage: 'apply', issues: [applied.error] };
@@ -63,6 +65,10 @@ export function prepareOps(
   const valid = validateWorkspace(config, ctx.registry, { unknownComponents: before });
   if (!valid.ok)
     return { ok: false, stage: 'validate', issues: valid.issues.map((i) => i.message) };
+  // 校验器不查的引用（底线 18）：修改不能多出新的；修改前就有的不拦（底线 12，旧配置照常能改）。
+  const old = new Set(referenceProblems(before, ctx.registry));
+  const added = referenceProblems(valid.config, ctx.registry).filter((p) => !old.has(p));
+  if (added.length > 0) return { ok: false, stage: 'validate', issues: added };
   return {
     ok: true,
     after: valid.config,

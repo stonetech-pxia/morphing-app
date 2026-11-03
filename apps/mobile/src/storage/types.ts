@@ -84,6 +84,19 @@ export interface StoredRecord extends DataRecord {
   deletedAt: number | null;
 }
 
+/**
+ * 用户保存的预设（D-410）：一份内核配置，不带记录和文件引用。只存在本机，不在配置里，
+ * 所以不会跟着配置发给云端 AI（底线 1、2）。
+ */
+export interface SavedPreset {
+  id: string;
+  name: string;
+  createdAt: number;
+  schemaVersion: number;
+  /** 原始 JSON：可能是旧版本，读取后必须经过 preparePreset（迁移 + 校验）才能使用。 */
+  config: unknown;
+}
+
 export type SucceededRuns = Map<string, { count: number; lastAt: number }>;
 
 export interface WorkspaceRepo {
@@ -134,6 +147,14 @@ export interface WorkspaceRepo {
   // ---- 设备上的小设置（不属于配置、不进版本，例如使用习惯的统计 D-127）----
   getMeta(key: string): Promise<string | null>;
   setMeta(key: string, value: string): Promise<void>;
+
+  // ---- 保存的预设（D-410）：只由用户在「设置 → 我的预设」里操作 ----
+  /** 最新的在前。 */
+  listPresets(): Promise<SavedPreset[]>;
+  getPreset(id: string): Promise<SavedPreset | null>;
+  insertPreset(preset: SavedPreset): Promise<void>;
+  renamePreset(id: string, name: string): Promise<void>;
+  deletePreset(id: string): Promise<void>;
 
   // ---- 用户记录：只由用户在页面上的操作读写，从不经过 AI ----
   /** 某张表未删除的记录（顺序不保证，由调用方排序）。 */

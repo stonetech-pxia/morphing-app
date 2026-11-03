@@ -42,7 +42,7 @@ import { QuickActionList } from './QuickActionList';
 import { ActionButton } from './RecordActions';
 import { RichText } from './RichText';
 import { SIZES, textColor } from './style';
-import { cardColors, iconColors } from './theme';
+import { cardColors, iconColors, onSurface } from './theme';
 import { Tile, ToolCard } from './Tile';
 import { ToolGrid } from './ToolGrid';
 import { Button, Card, IconTile } from './ui';
@@ -232,16 +232,38 @@ const pickToolOf = (c: ComponentOf<'picker'>) => {
   return use && isToolRefUse(use) ? use.tool : undefined;
 };
 
+/**
+ * 直接放在页面背景上的块（D-409）；其余的块内容都在卡片上，用卡片配色画。
+ * 块里还有压在页面上的标题的（列表分段、月历当天、工具格标题），自己用 onPage 换回来。
+ * library 是系统页面（WorkflowsScreen）的内容，和系统页面用同一份配色。
+ */
+const PAGE_LOOKS: ReadonlySet<ComponentType> = new Set<ComponentType>([
+  'header',
+  'text',
+  'group',
+  'divider',
+  'spacer',
+  'button',
+  'picker',
+  'image',
+  'library',
+]);
+
 export function ComponentView({ component, env }: { component: Component; env: RenderEnv }) {
   if (!isKnownComponent(component)) return <UnknownComponentView env={env} />;
-  return (RENDERERS[component.look] as Renderer<ComponentType>)(component, env);
+  const card = PAGE_LOOKS.has(component.look) ? env.palette : onSurface(env.palette);
+  return (RENDERERS[component.look] as Renderer<ComponentType>)(
+    component,
+    card === env.palette ? env : { ...env, palette: card },
+  );
 }
 
 /** 更新的 App 加的组件（D-254）：配置里原样保留，这里只说明要更新 App 才能显示。 */
 function UnknownComponentView({ env }: { env: RenderEnv }) {
+  const palette = onSurface(env.palette);
   return (
-    <Card palette={env.palette}>
-      <Text style={[env.palette.font('body', 15), { color: env.palette.muted }]}>
+    <Card palette={palette}>
+      <Text style={[palette.font('body', 15), { color: palette.muted }]}>
         {t(env.locale, 'unknownComponent')}
       </Text>
     </Card>

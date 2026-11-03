@@ -20,12 +20,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t } from '../i18n';
 import { UiIcon, type UiIconName } from '../renderer/Icon';
 import { usePalette, type Palette } from '../renderer/theme';
-import { aboutParams, aboutPlace } from '../shell/ai-entry';
+import { aboutPlace } from '../shell/ai-entry';
 import { NeedButton } from '../shell/NeedButton';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { shownConfig, type Draft, type DraftChatReply, type DraftStep } from '../workspace/store';
 import { useDraftUi } from './ui';
-import { useApplyDraft } from './useApplyDraft';
+import { useAfterApply, useApplyDraft } from './useApplyDraft';
 
 /**
  * 草稿模式（D-190）底部连在一起的四个按钮：修改（聊天框里接着说）、退一步、应用、离开（草稿保留）。
@@ -135,6 +135,10 @@ export function DraftChatSheet() {
   const palette = usePalette(useWorkspace(shownConfig)!.theme);
   const chatOpen = useDraftUi((s) => s.chatOpen);
   const setChatOpen = useDraftUi((s) => s.setChatOpen);
+  // 功能生效后草稿一步都套不上时草稿就没了（D-411）：聊天框一起收起，下一份草稿不要一打开就是它。
+  useEffect(() => {
+    if (!open) setChatOpen(false);
+  }, [open, setChatOpen]);
   return (
     <DraftChat visible={open && chatOpen} palette={palette} onClose={() => setChatOpen(false)} />
   );
@@ -275,8 +279,7 @@ function GrowingSteps({
 
 /**
  * 「修改」：从底部拉起的聊天框（D-190）。每说一句就在草稿上再改一步，上面的 App 跟着变；
- * 做不到时说明原因并给出可以点的例子。草稿里只改外观：功能类的请求说明原因，可以带去「修改这个 App」说
- * （D-191，那里直接生效）。
+ * 做不到时说明原因并给出可以点的例子。功能类的话直接生效（D-411），草稿接着开着，这里说一句。
  */
 function DraftChat({
   visible,
@@ -307,7 +310,14 @@ function DraftChat({
     if (!trimmed || busy) return;
     setInput('');
     // 做不到、退一步这些回复由 store 记在草稿里（D-207）。
-    await draftChange(trimmed, chatAbout ?? undefined);
+    const result = await draftChange(trimmed, chatAbout ?? undefined);
+    // 说的是大工程（D-415）：计划在 AI 修改页上看。草稿留着。
+    if (result.kind === 'build') {
+      onClose();
+      closeDraft();
+      router.push('/change');
+      return;
+    }
     setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 50);
   }
 
@@ -385,14 +395,6 @@ function DraftChat({
                           palette={palette}
                           style={bubble(false)}
                           onExample={setInput}
-                          onHandOff={(text) => {
-                            onClose();
-                            closeDraft();
-                            router.push({
-                              pathname: '/change',
-                              params: { text, ...(chatAbout ? aboutParams(chatAbout) : {}) },
-                            });
-                          }}
                         />
                       ))}
                   </View>
@@ -434,26 +436,21 @@ function ReplyBubble({
   palette,
   style,
   onExample,
-  onHandOff,
 }: {
   reply: DraftChatReply;
   palette: Palette;
   style: object[];
   onExample: (text: string) => void;
-  onHandOff: (text: string) => void;
 }) {
   const { locale } = useWorkspaceContext();
+  const busy = useWorkspace((s) => s.busy);
+  const continueWithDraft = useWorkspace((s) => s.continueWithDraft);
+  const afterApply = useAfterApply();
   const message = reply.kind === 'steppedBack' ? reply.message : `${reply.input}\n${reply.message}`;
+  const { waiting } = reply;
   return (
     <View style={style} testID="draft-chat-rejected">
       <Text style={[palette.font('body', 14), { color: palette.text }]}>{message}</Text>
-      {reply.kind === 'functionInDraft' ? (
-        <Pressable testID="draft-chat-handoff" onPress={() => onHandOff(reply.input)} hitSlop={4}>
-          <Text style={[palette.font('bodyBold', 13), { color: palette.primaryText }]}>
-            {t(locale, 'draftNoFunctionGo')}
-          </Text>
-        </Pressable>
-      ) : null}
       {reply.examples.map((example) => (
         <Pressable key={example} onPress={() => onExample(example)} hitSlop={4}>
           <Text style={[palette.font('bodyBold', 13), { color: palette.primaryText }]}>
@@ -461,6 +458,23 @@ function ReplyBubble({
           </Text>
         </Pressable>
       ))}
+      {/* 用户点了才应用草稿（D-413，底线 7、16）。 */}
+      {waiting ? (
+        <Pressable
+          testID="draft-chat-apply-continue"
+          accessibilityRole="button"
+          disabled={busy}
+          hitSlop={4}
+          onPress={() =>
+            void continueWithDraft(waiting).then((result) => {
+              if (result.kind === 'applied') afterApply(result.applied);
+            })
+          }>
+          <Text style={[palette.font('bodyBold', 13), { color: palette.primaryText }]}>
+            {t(locale, 'draftApplyContinue')}
+          </Text>
+        </Pressable>
+      ) : null}
       {reply.kind === 'rejected' ? (
         <NeedButton text={reply.input} reason={reply.reason} palette={palette} locale={locale} />
       ) : null}

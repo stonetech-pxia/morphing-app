@@ -10,6 +10,7 @@ export function Toast({ palette, bottom }: { palette: Palette; bottom: number })
   const { locale } = useWorkspaceContext();
   const toast = useWorkspace((s) => s.toast);
   const dismiss = useWorkspace((s) => s.dismissToast);
+  const restorePreset = useWorkspace((s) => s.restorePreset);
   const actions = useRecordActions();
   if (!toast) return null;
   return (
@@ -22,13 +23,14 @@ export function Toast({ palette, bottom }: { palette: Palette; bottom: number })
       <Text style={[styles.flex, palette.font('bodyMedium', 14), { color: palette.surface }]}>
         {toast.message}
       </Text>
-      {toast.restoreRecordId ? (
+      {toast.restoreRecordId || toast.restorePreset ? (
         <Pressable
           testID="toast-undo"
           accessibilityRole="button"
           style={styles.action}
           onPress={() => {
-            void actions.restore(toast.restoreRecordId!);
+            if (toast.restoreRecordId) void actions.restore(toast.restoreRecordId);
+            if (toast.restorePreset) void restorePreset(toast.restorePreset);
             dismiss();
           }}>
           <Text style={[palette.font('bodyBold', 14), { color: palette.surface }]}>

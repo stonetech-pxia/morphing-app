@@ -55,6 +55,22 @@ export function redactFileRefs(config: WorkspaceConfig): WorkspaceConfig {
   return copy;
 }
 
+/** 配置里指向用户文件的地方有几处。 */
+export const countFileRefs = (config: WorkspaceConfig): number => fileRefs(config).length;
+
+/**
+ * 去掉每一处文件引用（预设，D-410）：文件位和图片留着、变成空的，图片背景留着、没有图片。
+ * 换设备或文件被删了也不会指向不存在的文件（底线 18）。
+ */
+export function clearFileRefs(config: WorkspaceConfig): WorkspaceConfig {
+  const copy = JSON.parse(JSON.stringify(config)) as WorkspaceConfig;
+  for (const ref of fileRefs(copy)) {
+    if (ref.key === 'assetId') delete ref.holder[ref.key];
+    else ref.holder[ref.key] = null;
+  }
+  return copy;
+}
+
 /**
  * AI 把占位符原样写回来时（例如整块重写 opens），换回修改前同一处的文件 ID。同一处原来没有文件、
  * 或有不止一个，就留着占位符（后面的检查会拒绝）。

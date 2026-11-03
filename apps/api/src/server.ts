@@ -100,9 +100,11 @@ const NeedRequestSchema = z.strictObject({
 
 // 只收规划要用的形状：第一次请求，或「请求、模型回复、修正」三条。用户消息只能是文字（不收图片、文件），
 // 模型回复只能是它自己返回的文字和思考块。客户端不能指定模型、工具或任何其他参数。
+// 大配置（D7）：配置连同指令放在用户消息里。上限按字符算，下面的 bodyLimit 按字节算。
+const MAX_USER_MESSAGE = 128_000;
 const UserMessage = z.strictObject({
   role: z.literal('user'),
-  content: z.string().min(1).max(64_000),
+  content: z.string().min(1).max(MAX_USER_MESSAGE),
 });
 const AssistantMessage = z.strictObject({
   role: z.literal('assistant'),
@@ -226,7 +228,12 @@ export function createApp(options: ServerOptions) {
   app.post(
     '/v1/complete',
     requireClient,
-    bodyLimit({ maxSize: 320 * 1024, onError: (c) => c.json({ error: 'payload_too_large' }, 413) }),
+    // 全是中文时（UTF-8 每字 3 字节）：提示词 192k + 两条用户消息 128k + 模型回复 64k = 512k 字 ≈ 1.5 MiB，
+    // 再留些给 JSON 转义和思考块。
+    bodyLimit({
+      maxSize: 2 * 1024 * 1024,
+      onError: (c) => c.json({ error: 'payload_too_large' }, 413),
+    }),
     async (c) => {
       if (!options.relay) return c.json({ error: 'ai_unavailable' }, 503);
       const deviceHeader = c.req.header('x-morph-device');

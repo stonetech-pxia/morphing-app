@@ -5,6 +5,7 @@ import {
   ICON_NAMES,
   OpSchema,
   PlanAboutSchema,
+  PlanSchema,
   applyOps,
   createDefaultWorkspace,
   createRegistry,
@@ -12,6 +13,7 @@ import {
   presetWorkflow,
   templateOps,
   type PlanAbout,
+  type PlanContext,
 } from '@morph/core';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -192,6 +194,31 @@ describe('Claude planner', () => {
     expect(String(secondCall[2]!.content)).toContain('rejected by the app');
   });
 
+  it('the repair message points inside a new page instead of saying Invalid input', async () => {
+    const bad = {
+      kind: 'ops',
+      ops: [
+        {
+          op: 'addContainer',
+          page: {
+            id: 'p',
+            title: 'P',
+            blocks: [{ id: 'x', look: 'list', source: { table: 't' } }],
+          },
+        },
+      ],
+    };
+    const complete = vi
+      .fn<Complete>()
+      .mockResolvedValueOnce(json(bad))
+      .mockResolvedValue(json(green));
+    const planner = createClaudePlanner({ complete, registry, now });
+    await planner.plan('加一页', ctx);
+    const repair = String(complete.mock.calls[1]![0]![2]!.content);
+    expect(repair).toContain('ops.0.page.blocks.0.show');
+    expect(repair).not.toContain('ops.0.page: Invalid input');
+  });
+
   it('repairs a reply that is not JSON or not a plan', async () => {
     const complete = vi
       .fn<Complete>()
@@ -351,6 +378,224 @@ describe('Claude planner', () => {
   });
 });
 
+describe('checks the tool and repairs once more (AGENT_PLAN §3.6)', () => {
+  const scripted = (replies: Completion[]) => {
+    const fn = vi.fn<Complete>();
+    for (const r of replies) fn.mockResolvedValueOnce(r);
+    return fn;
+  };
+  const plan = (complete: Complete, input: string, c: PlanContext = ctx) =>
+    createClaudePlanner({ complete, registry, now }).plan(input, c);
+
+  // 任务引用项目。prepareOps 会给有列表的表补添加按钮，但补不到只被引用的「项目」表，所以它记不进去：
+  // 这次新增的 blocker（add-missing，S2-04 里真实发生过）。
+  const projects = {
+    op: 'addData',
+    table: { id: 'projects', name: '项目', fields: [{ id: 'name', name: '名字', type: 'text' }] },
+  };
+  const tasks = {
+    op: 'addData',
+    table: {
+      id: 'tasks',
+      name: '任务',
+      fields: [
+        { id: 'title', name: '标题', type: 'text' },
+        { id: 'project', name: '项目', type: 'link', table: 'projects' },
+      ],
+    },
+  };
+  const listBlock = {
+    op: 'addContainer',
+    page: 'home',
+    block: { id: 'tasks-list', look: 'list', source: { table: 'tasks' }, show: { title: 'title' } },
+  };
+  const addProject = {
+    op: 'addContainer',
+    page: 'home',
+    block: {
+      id: 'project-add',
+      look: 'button',
+      show: { label: '新项目', variant: 'filled' },
+      tools: [{ do: 'create', table: 'projects', ask: 'all' }],
+    },
+  };
+  const noAdd = { kind: 'ops', ops: [projects, tasks, listBlock] };
+  const usable = { kind: 'ops', ops: [projects, tasks, listBlock, addProject] };
+  const compress = (maxMB: number) => ({
+    op: 'addTool',
+    tool: {
+      kind: 'quickAction',
+      id: 'small-pdf',
+      name: '照片转 PDF',
+      steps: [
+        { id: 'in', action: 'in.photos', params: { source: 'library', min: 1, max: 5 } },
+        {
+          id: 'pdf',
+          action: 'pdf.fromImages',
+          params: { pageSize: 'a4', orientation: 'auto', marginMm: 10, fit: 'contain', maxMB },
+        },
+      ],
+    },
+  });
+
+  it('a new blocker sends the plan back once, with the problems and the same request', async () => {
+    const complete = scripted([json(noAdd), json(usable)]);
+    const result = await plan(complete, '我要一个书单');
+    expect(complete).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ kind: 'ops', ops: usable.ops });
+    expect((result as { notes?: string[] }).notes).toBeUndefined();
+    const sent = complete.mock.calls[1]![0];
+    expect(sent).toHaveLength(3);
+    expect(sent[0]).toEqual(complete.mock.calls[0]![0][0]);
+    expect(sent[2]!.content).toContain('valid');
+    expect(sent[2]!.content).toContain('nothing adds entries to projects');
+    expect(sent[2]!.content).toContain('complete plan');
+  });
+
+  it('a blocker that was there before does not trigger anything', async () => {
+    const broken = applyOps(config, noAdd.ops as never, { registry, locale: 'zh' });
+    if (!broken.ok) throw new Error('setup');
+    const complete = scripted([json(green)]);
+    const result = await plan(complete, '主题换成绿色', { ...ctx, config: broken.config });
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(green);
+  });
+
+  it('a size the user said that is not in the params triggers a repair', async () => {
+    const complete = scripted([
+      json({ kind: 'ops', ops: [compress(5)] }),
+      json({ kind: 'ops', ops: [compress(2)] }),
+    ]);
+    const result = await plan(complete, '做一个把 PDF 压到 2MB 的快捷操作');
+    expect(complete).toHaveBeenCalledTimes(2);
+    expect(complete.mock.calls[1]![0][2]!.content).toContain('2 MB');
+    expect(result).toMatchObject({ kind: 'ops', ops: [compress(2)] });
+  });
+
+  it('with next set, a table without its page yet is expected', async () => {
+    const complete = scripted([json({ ...noAdd, next: '增加书单页面' })]);
+    const result = await plan(complete, '我要一个书单');
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ next: '增加书单页面' });
+    expect((result as { notes?: string[] }).notes).toBeUndefined();
+  });
+
+  it('with next set, an existing table losing its way in still counts', async () => {
+    const hasTable = applyOps(config, usable.ops as never, { registry, locale: 'zh' });
+    if (!hasTable.ok) throw new Error('setup');
+    const noButton = { op: 'removeContainer', page: 'home', block: 'project-add' };
+    const complete = scripted([
+      json({ kind: 'ops', ops: [noButton], next: '主题换成蓝色' }),
+      json(green),
+    ]);
+    await plan(complete, '去掉添加按钮，主题换蓝色', { ...ctx, config: hasTable.config });
+    expect(complete).toHaveBeenCalledTimes(2);
+  });
+
+  it('with next set, other problems of the plan still count', async () => {
+    const complete = scripted([
+      json({ kind: 'ops', ops: [compress(5)], next: '主题换成蓝色' }),
+      json({ kind: 'ops', ops: [compress(2)], next: '主题换成蓝色' }),
+    ]);
+    await plan(complete, '做一个把 PDF 压到 2MB 的快捷操作');
+    expect(complete).toHaveBeenCalledTimes(2);
+  });
+
+  it('a repaired plan that is not valid falls back to the last valid one', async () => {
+    for (const bad of [
+      reply('not json'),
+      json({ kind: 'ops', ops: [{ op: 'removeData', table: 'missing' }] }),
+      json({ kind: 'reject', reason: 'unknown', message: 'no', examples: [] }),
+      reply('', 'refusal'),
+    ]) {
+      const first = noAdd;
+      const complete = scripted([json(first), bad]);
+      const result = await plan(complete, '我要一个书单');
+      expect(complete).toHaveBeenCalledTimes(2);
+      expect(result).toMatchObject(first);
+      expect((result as { notes: string[] }).notes).toEqual([expect.stringContaining('用不了')]);
+    }
+  });
+
+  it('a failed repair call does not lose the plan', async () => {
+    const complete = vi.fn<Complete>();
+    complete.mockResolvedValueOnce(json(noAdd));
+    complete.mockRejectedValueOnce(new Error('rate limited'));
+    expect(await plan(complete, '我要一个书单')).toMatchObject({ kind: 'ops', ops: noAdd.ops });
+  });
+
+  it('still broken after the repair: returned as it is, the user is told in their language', async () => {
+    const same = { kind: 'ops', ops: [compress(5)], notes: ['a', 'b', 'c', 'd'] };
+    const zh = scripted([json(same), json(same)]);
+    const result = (await plan(zh, '做一个把 PDF 压到 2MB 的快捷操作')) as { notes: string[] };
+    expect(zh).toHaveBeenCalledTimes(2);
+    // notes 最多 4 条，App 的 PlanSchema 不能因此拒绝。
+    expect(PlanSchema.safeParse(result).success).toBe(true);
+    expect(result.notes).toEqual(['a', 'b', 'c', expect.stringContaining('快捷操作')]);
+    const fr = scripted([json(same), json(same)]);
+    const french = (await plan(fr, 'une action rapide pour compresser un PDF sous 2 Mo', {
+      ...ctx,
+      locale: 'fr',
+    })) as { notes: string[] };
+    expect(french.notes.at(-1)).toContain('action rapide');
+  });
+
+  it('a repair that makes it worse keeps the better plan', async () => {
+    const better = { kind: 'ops', ops: [...noAdd.ops, compress(2)] };
+    const worse = { kind: 'ops', ops: [...noAdd.ops, compress(5)] };
+    const complete = scripted([json(better), json(worse)]);
+    const result = await plan(complete, '我要任务和项目，再加一个转 PDF 压到 2MB 的快捷操作');
+    expect(complete).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ ops: better.ops });
+  });
+
+  it('at most 3 model calls: first, format repair, tool repair', async () => {
+    const complete = vi.fn<Complete>(async () => json(noAdd));
+    complete.mockResolvedValueOnce(reply('not json'));
+    await plan(complete, '我要一个书单');
+    expect(complete).toHaveBeenCalledTimes(3);
+    const always = vi.fn<Complete>(async () => json(noAdd));
+    await plan(always, '我要一个书单');
+    expect(always).toHaveBeenCalledTimes(2);
+  });
+
+  it('every request has 1 or 3 messages, and the replayed reply has text blocks only', async () => {
+    const withThinking = (r: Completion): Completion => ({
+      ...r,
+      content: [
+        { type: 'thinking', thinking: 'hm', signature: 'sig' },
+        { type: 'redacted_thinking', data: 'xx' },
+        ...r.content,
+      ],
+    });
+    const complete = scripted([
+      withThinking(reply('not json')),
+      withThinking(json(noAdd)),
+      withThinking(json(usable)),
+    ]);
+    await plan(complete, '我要一个书单');
+    expect(complete).toHaveBeenCalledTimes(3);
+    const calls = complete.mock.calls.map((c) => c[0]);
+    expect(calls.map((m) => m.length)).toEqual([1, 3, 3]);
+    expect(calls[1]![1]!.content).toEqual([{ type: 'text', text: 'not json' }]);
+    expect(calls[2]![1]!.content).toEqual([{ type: 'text', text: JSON.stringify(noAdd) }]);
+    // 第 3 次是最新的回复和最新的修正，第一条还是原来的用户消息。
+    expect(calls[2]![0]).toEqual(calls[0]![0]);
+    expect(calls[2]![2]!.content).not.toEqual(calls[1]![2]!.content);
+  });
+
+  it('a reply with thinking only still replays something the server accepts', async () => {
+    const complete = scripted([
+      { ...reply(''), content: [{ type: 'thinking', thinking: 'hm', signature: 'sig' }] },
+      json(green),
+    ]);
+    await plan(complete, '主题换成绿色');
+    const replayed = complete.mock.calls[1]![0][1]!.content as { type: string; text: string }[];
+    expect(replayed).toHaveLength(1);
+    expect(replayed[0]).toMatchObject({ type: 'text', text: expect.stringMatching(/./) });
+  });
+});
+
 describe('HTTP transport', () => {
   const ok = (body: unknown) =>
     vi.fn(
@@ -405,6 +650,36 @@ describe('HTTP transport', () => {
     });
     expect(body.system[0].cache_control).toEqual({ type: 'ephemeral' });
     expect(String(init.body)).not.toContain('sk-ant-test');
+  });
+
+  it('a repair over HTTP resends the reply without its thinking blocks', async () => {
+    const thinkingThenText = (text: string) => ({
+      ...message,
+      content: [
+        { type: 'thinking', thinking: 'hm', signature: 'sig' },
+        { type: 'redacted_thinking', data: 'xx' },
+        { type: 'text', text },
+      ],
+    });
+    const fetchImpl = vi.fn(async (_url: string, _init: RequestInit) => {
+      const text = fetchImpl.mock.calls.length === 1 ? 'not json' : JSON.stringify(green);
+      return new Response(JSON.stringify(thinkingThenText(text)), { status: 200 });
+    });
+    const complete = createHttpCompleter({
+      apiKey: 'sk-test',
+      model: 'claude-opus-5-5',
+      registry,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(await createClaudePlanner({ complete, registry, now }).plan('绿色', ctx)).toEqual(green);
+    const body = JSON.parse(String(fetchImpl.mock.calls[1]![1].body)) as {
+      messages: { role: string; content: unknown }[];
+    };
+    expect(body.messages).toHaveLength(3);
+    expect(body.messages[1]).toEqual({
+      role: 'assistant',
+      content: [{ type: 'text', text: 'not json' }],
+    });
   });
 
   it('does not request a server-side fallback for Haiku', async () => {
@@ -520,5 +795,127 @@ describe('opened from a page (D-406)', () => {
     expect(route({ kind: 'screen', screen: 'quickActions' })).toBe('files');
     expect(route({ kind: 'screen', screen: 'tools' })).toBe('full');
     expect(route({ kind: 'workflow', workflowId: 'x' })).toBe('files');
+  });
+});
+
+describe('工具清单和搭建计划（D-414、D-415）', () => {
+  const plan2 = {
+    kind: 'build',
+    summary: '一个 App',
+    steps: [
+      { id: 'a', kind: 'record', title: '表', request: '建一张表' },
+      { id: 'b', kind: 'look', title: '颜色', request: '换颜色' },
+    ],
+  };
+  const stepCtx = {
+    ...ctx,
+    session: { open: [], recent: [], step: { index: 1, total: 2, remaining: 1 } },
+  };
+
+  it('每个请求都带 <session>：目标、没做完的项、最近的话；没有就不写', () => {
+    const msg = buildUserMessage(config, '换颜色', 'zh', undefined, undefined, registry, {
+      goal: '记账 App',
+      open: [
+        { kind: 'record', text: '建表', status: 'failed', reason: '「账」还没有地方能看到。' },
+      ],
+      recent: [{ input: '加分类', done: true, reply: '加了字段' }],
+    });
+    expect(msg).toContain('<session>');
+    expect(msg).toContain('记账 App');
+    expect(msg).toContain('failed: 「账」还没有地方能看到。');
+    expect(msg).toContain('"加分类" — done: 加了字段');
+    expect(buildUserMessage(config, '换颜色', 'zh')).not.toContain('<session>');
+  });
+
+  it('session 超长时丢最旧的，总长不超过上限', () => {
+    const recent = Array.from({ length: 5 }, (_, i) => ({
+      input: `旧句子${i}`,
+      done: true,
+      reply: '长'.repeat(500),
+    }));
+    const open = Array.from({ length: 12 }, (_, i) => ({
+      kind: 'look' as const,
+      text: `项${i}` + '字'.repeat(290),
+      status: 'todo' as const,
+    }));
+    const msg = buildUserMessage(config, 'x', 'zh', undefined, undefined, registry, {
+      goal: '目标',
+      open,
+      recent,
+    });
+    const block = msg.slice(msg.indexOf('<session>'), msg.indexOf('</session>'));
+    expect(block.length).toBeLessThanOrEqual(1500 + '<session>\n'.length);
+    expect(block).toContain('目标');
+    expect(block).not.toContain('旧句子0');
+    expect(block).toContain('项11');
+    expect(block).not.toContain('项0字');
+  });
+
+  it('规则 53 在提示词末尾，Output 里有 build', () => {
+    const prompt = buildSystemPrompt(registry);
+    expect(prompt).toContain('53. Big jobs start with a plan');
+    expect(prompt).toContain('{ kind: "build"; summary: string');
+    expect(prompt.indexOf('52. The file desk')).toBeLessThan(prompt.indexOf('53. Big jobs'));
+  });
+
+  it('合法的计划直接返回，不跑校验和工具检查，一次调用', async () => {
+    const complete = vi.fn<Complete>().mockResolvedValue(json(plan2));
+    const planner = createClaudePlanner({ complete, registry, now });
+    expect(await planner.plan('做一个 App', ctx)).toMatchObject({ kind: 'build' });
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('步数不对、种类不对、request 是空的：走格式修复', async () => {
+    const complete = vi
+      .fn<Complete>()
+      .mockResolvedValueOnce(json({ ...plan2, steps: plan2.steps.slice(0, 1) }))
+      .mockResolvedValueOnce(json(plan2));
+    const planner = createClaudePlanner({ complete, registry, now });
+    expect(await planner.plan('做一个 App', ctx)).toMatchObject({ kind: 'build' });
+    expect(complete).toHaveBeenCalledTimes(2);
+    expect(complete.mock.calls[1]![0]).toHaveLength(3);
+  });
+
+  it('做计划的一步时又回计划：发回去要操作', async () => {
+    const complete = vi
+      .fn<Complete>()
+      .mockResolvedValueOnce(json(plan2))
+      .mockResolvedValueOnce(json(green));
+    const planner = createClaudePlanner({ complete, registry, now });
+    expect(await planner.plan('换颜色', stepCtx)).toMatchObject({ kind: 'ops' });
+    expect(JSON.stringify(complete.mock.calls[1]![0][2])).toContain('not another build plan');
+  });
+
+  it('做计划的一步时只建了表和添加按钮（列表在后面的步骤）：不发回去补', async () => {
+    const ops = {
+      kind: 'ops',
+      ops: [
+        {
+          op: 'addData',
+          table: { id: 'books', name: '书单', fields: [{ id: 't', name: '书名', type: 'text' }] },
+        },
+        {
+          op: 'addContainer',
+          page: 'home',
+          block: {
+            id: 'f',
+            look: 'button',
+            show: { label: '添加', variant: 'filled' },
+            tools: [{ do: 'create', table: 'books', ask: 'all' }],
+          },
+        },
+      ],
+    };
+    const complete = vi.fn<Complete>().mockResolvedValue(json(ops));
+    const planner = createClaudePlanner({ complete, registry, now });
+    await planner.plan('建表', stepCtx);
+    expect(complete).toHaveBeenCalledTimes(1);
+    // 最后一步还缺就要补一次。
+    complete.mockClear();
+    await planner.plan('建表', {
+      ...ctx,
+      session: { open: [], recent: [], step: { index: 2, total: 2, remaining: 0 } },
+    });
+    expect(complete).toHaveBeenCalledTimes(2);
   });
 });
