@@ -22,6 +22,7 @@ import { newWorkflowId, presetById, presetWorkflow } from './workflows/presets';
 import babyGrowth from './samples/baby-growth.json';
 import businessCards from './samples/business-cards.json';
 import expenseHelper from './samples/expense-helper.json';
+import receipts from './samples/receipts.json';
 import shopOrders from './samples/shop-orders.json';
 import studyHelper from './samples/study-helper.json';
 import visaDocs from './samples/visa-docs.json';
@@ -47,6 +48,7 @@ export const SAMPLE_APPS = [
   'shop-orders',
   'baby-growth',
   'business-cards',
+  'receipts',
 ] as const;
 export type SampleApp = (typeof SAMPLE_APPS)[number];
 
@@ -80,6 +82,7 @@ const SAMPLES: Record<SampleApp, SampleJson> = {
   'shop-orders': shopOrders as SampleJson,
   'baby-growth': babyGrowth as SampleJson,
   'business-cards': businessCards as SampleJson,
+  receipts: receipts as SampleJson,
 };
 
 /** 配置的上限（schema.ts 的 WorkspaceConfigSchema；页面的块 PageSchema）。 */

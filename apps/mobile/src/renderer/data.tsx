@@ -2,8 +2,10 @@ import {
   fieldForRecord,
   hasRecordCurrency,
   perCurrencyText,
+  BROWSE_PERIODS,
   browseFilter,
   browseFilterRows,
+  browsePeriod,
   browseSort,
   cleanTags,
   recordSearchTexts,
@@ -65,6 +67,7 @@ import {
   type ComponentStyle,
   type DataRecord,
   type BrowseFilterRow,
+  type BrowsePeriod,
   type ValueSuggestion,
   type LinkedGroups,
   type Field,
@@ -1163,6 +1166,9 @@ export interface BrowseSelection {
   filterRows: BrowseFilterRow[];
   picked: { field: string; value: string } | null;
   setPicked: (picked: { field: string; value: string } | null) => void;
+  /** 选的时间段（D-437）：null = 全部。 */
+  period: BrowsePeriod | null;
+  setPeriod: (period: BrowsePeriod | null) => void;
 }
 
 export function useBrowseSelection(block: RecordBlock, env: RenderEnv): BrowseSelection {
@@ -1173,6 +1179,7 @@ export function useBrowseSelection(block: RecordBlock, env: RenderEnv): BrowseSe
   // undefined = 配置里的分组；null = 用户选了不分组。
   const [pickedGroup, setPickedGroup] = useState<string | null | undefined>(undefined);
   const [pickedValue, setPickedValue] = useState<{ field: string; value: string } | null>(null);
+  const [period, setPeriodState] = useState<BrowsePeriod | null>(null);
   // 换了搜索、筛选、排序时从第一页看起：记下那时页面滚到底过几次。
   const [from, setFrom] = useState(0);
   const pageEnd = env.pageEnd ?? 0;
@@ -1183,8 +1190,14 @@ export function useBrowseSelection(block: RecordBlock, env: RenderEnv): BrowseSe
   );
   const links = useLinkResolver(view);
   const cal = calendarOf(env.config);
+  const now = new Date();
+  // 先按时间段收窄：下面的筛选只列这段时间里有记录用的值。
+  const ranged =
+    period && view && browse?.period
+      ? browsePeriod(sorted, view, browse.period, period, now, cal)
+      : sorted;
   const filterRows =
-    view && browse?.filter ? browseFilterRows(sorted, view, browse.filter, locale) : [];
+    view && browse?.filter ? browseFilterRows(ranged, view, browse.filter, locale) : [];
   // 选的那个值已经没有记录用了（刚把它改掉）：回到全部。
   const picked =
     pickedValue &&
@@ -1195,9 +1208,8 @@ export function useBrowseSelection(block: RecordBlock, env: RenderEnv): BrowseSe
     )
       ? pickedValue
       : null;
-  const filtered = picked && view ? browseFilter(sorted, view, picked) : sorted;
+  const filtered = picked && view ? browseFilter(ranged, view, picked) : ranged;
   const searching = browse?.search === true && query.trim() !== '';
-  const now = new Date();
   const { show } = block;
   const shownRefs = [
     show.title,
@@ -1221,7 +1233,7 @@ export function useBrowseSelection(block: RecordBlock, env: RenderEnv): BrowseSe
     sorted,
     found,
     searching,
-    narrowed: searching || picked !== null,
+    narrowed: searching || picked !== null || period !== null,
     limit: block.source.limit * pages,
     group:
       pickedGroup === undefined
@@ -1247,6 +1259,11 @@ export function useBrowseSelection(block: RecordBlock, env: RenderEnv): BrowseSe
     picked,
     setPicked: (next) => {
       setPickedValue(next);
+      back();
+    },
+    period,
+    setPeriod: (next) => {
+      setPeriodState(next);
       back();
     },
   };
@@ -1439,6 +1456,12 @@ function BrowseMore({
 }
 
 /** 搜索框和可选的排序、分组、筛选（D-424）。只改这个列表画什么；一条记录都没有时不画。 */
+const PERIOD_LABELS = {
+  thisWeek: 'browsePeriodThisWeek',
+  thisMonth: 'browsePeriodThisMonth',
+  thisYear: 'browsePeriodThisYear',
+} as const;
+
 export function ListBrowseBar({ selection, env }: { selection: BrowseSelection; env: RenderEnv }) {
   const { locale, interactive } = env;
   const page = onPage(env.palette);
@@ -1504,6 +1527,18 @@ export function ListBrowseBar({ selection, env }: { selection: BrowseSelection; 
           ]}
         />
       ) : null}
+      {browse.period
+        ? row(t(locale, 'browsePeriod'), [
+            chip('period-all', t(locale, 'browseFilterAll'), selection.period === null, () =>
+              selection.setPeriod(null),
+            ),
+            ...BROWSE_PERIODS.map((p) =>
+              chip(`period-${p}`, t(locale, PERIOD_LABELS[p]), selection.period === p, () =>
+                selection.setPeriod(p),
+              ),
+            ),
+          ])
+        : null}
       {browse.sort
         ? row(
             t(locale, 'browseSort'),

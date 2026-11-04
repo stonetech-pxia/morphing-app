@@ -168,7 +168,7 @@ export function DialButton({ block, env }: { block: BlockOf<'dial'>; env: Render
   if (!main) return null;
   const color = palette.onPrimary;
   return (
-    <View style={[styles.split, { backgroundColor: palette.primary }]}>
+    <View testID="dial-split" style={[styles.split, { backgroundColor: palette.primary }]}>
       <Pressable
         testID="dial-main"
         accessibilityRole="button"
@@ -201,7 +201,53 @@ export function DialButton({ block, env }: { block: BlockOf<'dial'>; env: Render
   );
 }
 
+/**
+ * 下方固定区里的入口（例如「开销」）：和浮动按钮同高、同样是胶囊、同一个主色（D-437）。
+ * 以前入口是白底的一行、浮动按钮是红色的胶囊，并排时高矮和样子都对不上。
+ */
+export function BottomPill({
+  env,
+  icon,
+  title,
+  onPress,
+}: {
+  env: RenderEnv;
+  icon: IconValue;
+  title: string;
+  onPress: () => void;
+}) {
+  const { palette } = env;
+  return (
+    <Pressable
+      testID="bottom-pill"
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      disabled={!env.interactive}
+      onPress={env.locked ?? onPress}
+      onLongPress={env.onLongPress}
+      style={({ pressed }) => [
+        styles.pill,
+        { backgroundColor: palette.primary },
+        pressed && styles.pressed,
+      ]}>
+      <Icon name={icon} size={20} color={palette.onPrimary} />
+      <Text numberOfLines={1} style={[palette.font('bodyBold', 15), { color: palette.onPrimary }]}>
+        {title}
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    minHeight: 52,
+  },
   dim: { backgroundColor: 'rgba(0,0,0,0.45)', zIndex: 20 },
   items: { position: 'absolute', gap: 12, alignItems: 'flex-end' },
   item: { flexDirection: 'row', alignItems: 'center', gap: 10 },

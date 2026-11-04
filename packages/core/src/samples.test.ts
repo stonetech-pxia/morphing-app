@@ -312,20 +312,19 @@ describe('sample expense-helper', () => {
 
 describe('samples equal the v33 samples, migrated', () => {
   // fixtures/v33/sample-<id>-zh.json：v33 代码给新用户（starter）套用样板的结果。
-  // 名片样板（D-423）是 v34 以后加的，没有 v33 的样子。
+  // 名片样板（D-423）、收据样板（D-437）是 v34 以后加的，没有 v33 的样子。
   // 报销助手（D-425、D-427）多了打印带附件、导出 Excel，下面单独查。
-  it.each(SAMPLE_APPS.filter((s) => s !== 'business-cards' && s !== 'expense-helper'))(
-    '%s in zh',
-    (sample) => {
-      const before = fresh('zh');
-      expect(apply(before, ops(sample, before, 'zh'), 'zh')).toEqual(
-        // 旧样板的文案写的是旧名字 Morph（D-435）；只比结构和其余内容，固定样本不改。
-        JSON.parse(
-          JSON.stringify(fromV33(v33Fixture(`sample-${sample}-zh`))).replaceAll('Morph', 'Tinkrum'),
-        ),
-      );
-    },
-  );
+  it.each(
+    SAMPLE_APPS.filter((s) => s !== 'business-cards' && s !== 'expense-helper' && s !== 'receipts'),
+  )('%s in zh', (sample) => {
+    const before = fresh('zh');
+    expect(apply(before, ops(sample, before, 'zh'), 'zh')).toEqual(
+      // 旧样板的文案写的是旧名字 Morph（D-435）；只比结构和其余内容，固定样本不改。
+      JSON.parse(
+        JSON.stringify(fromV33(v33Fixture(`sample-${sample}-zh`))).replaceAll('Morph', 'Tinkrum'),
+      ),
+    );
+  });
 
   it('expense-helper in zh differs only by the receipt rules, the attachments switch and the Excel export', () => {
     const before = fresh('zh');

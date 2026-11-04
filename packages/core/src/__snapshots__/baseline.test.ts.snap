@@ -2798,6 +2798,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 10>.show.browse.group[] = <oneOf 6>.tools[]<anyOf 0>.when[].field
 <oneOf 10>.show.browse.filter? array items 1..3
 <oneOf 10>.show.browse.filter[] string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf 10>.show.browse.period? = <oneOf 6>.tools[]<anyOf 0>.when[].field
 <oneOf 10>.show.browse.pin? true
 <oneOf 10>.tools? array items 1..8
 <oneOf 10>.tools[] = <oneOf 6>.tools[]

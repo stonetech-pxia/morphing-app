@@ -88,7 +88,9 @@ describe('show.browse settings', () => {
     expect(issues(block({}, { browse: { group: ['nope'] } })).join()).toMatch(/nope/);
     expect(issues(block({}, { browse: { sort: ['other'] } })).join()).toMatch(/can't sort/);
     expect(issues(block({}, { browse: { group: ['age'] } })).join()).toMatch(/show.browse.group/);
-    expect(issues(block({}, { browse: {} })).join()).toMatch(/needs search, sort, group or filter/);
+    expect(issues(block({}, { browse: {} })).join()).toMatch(
+      /needs search, sort, group, filter or period/,
+    );
     expect(issues(block({ look: 'tiles' }, { browse: { search: true } })).join()).toMatch(
       /only applies/,
     );
@@ -109,6 +111,24 @@ describe('show.browse settings', () => {
     const r = prepareOps(config, [{ op: 'removeData', table: 'people', field: 'company' }], ctx);
     if (!r.ok) throw new Error(r.issues.join());
     expect(blockOf(r.after)!.show).toEqual({ title: 'name' });
+  });
+
+  it('period takes a date field or createdAt, nothing else (D-437)', () => {
+    expect(issues(block({}, { browse: { period: 'day' } }))).toEqual([]);
+    expect(issues(block({}, { browse: { period: 'createdAt' } }))).toEqual([]);
+    expect(issues(block({}, { browse: { period: 'age' } })).join()).toMatch(/age/);
+    expect(issues(block({}, { browse: { period: 'nope' } })).join()).toMatch(/nope/);
+  });
+
+  it('removing the period field takes period off; removing the last setting removes browse', () => {
+    const config = withBlocks(block({}, { browse: { sort: ['name'], period: 'day' } }));
+    const r = prepareOps(config, [{ op: 'removeData', table: 'people', field: 'day' }], ctx);
+    if (!r.ok) throw new Error(r.issues.join());
+    expect(blockOf(r.after)!.show).toEqual({ title: 'name', browse: { sort: ['name'] } });
+    const only = withBlocks(block({}, { browse: { period: 'day' } }));
+    const r2 = prepareOps(only, [{ op: 'removeData', table: 'people', field: 'day' }], ctx);
+    if (!r2.ok) throw new Error(r2.issues.join());
+    expect(blockOf(r2.after)!.show).toEqual({ title: 'name' });
   });
 
   it('removing the table removes the list with its settings', () => {

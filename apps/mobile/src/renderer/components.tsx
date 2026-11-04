@@ -45,6 +45,8 @@ export interface RenderEnv {
   navigate: (target: OpenTarget) => void;
   /** 在横排或网格的格子里：卡片改为图标在上、文字在下。 */
   inCell?: boolean;
+  /** 画在页面下方固定区：入口画成和浮动按钮同一个样子的按钮（D-437）。 */
+  inBottomZone?: boolean;
   /** 正在渲染的页面（图片组件更换照片时要用）。 */
   pageId?: string;
   /** 可以直接编辑的页面：长按组件时打开它的操作面板（D-052）。预览和系统页面没有。 */
@@ -293,7 +295,7 @@ function PageBody({ page, env, bottomInset = 0, zoneInset, scroll }: PageViewPro
           ]}>
           <View style={[styles.cell, { gap: palette.gap - 4 }]}>
             {others.map((c) => (
-              <Item key={c.id} component={c} env={pageEnv} />
+              <Item key={c.id} component={c} env={{ ...pageEnv, inBottomZone: true }} />
             ))}
           </View>
           {dial && bottomBlocks.includes(dial) ? (

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { browseFilter, browseFilterRows, recordSearchTexts, tagsInRecords } from './browse-filter';
+import {
+  browseFilter,
+  browseFilterRows,
+  browsePeriod,
+  recordSearchTexts,
+  tagsInRecords,
+} from './browse-filter';
 import { fieldDefinition } from './fields';
 import { searchRecords } from './list-groups';
 import { recordsToSheet } from './records-sheet';
@@ -157,5 +163,63 @@ describe('search reads every field as displayed', () => {
     const found = searchRecords(odd, '555999', (r) => recordSearchTexts(r, table, [], 'en'));
     expect(found.map((r) => r.id)).toEqual(['r999']);
     expect(searchRecords(odd, '555998', (r) => recordSearchTexts(r, table, [], 'en'))).toEqual([]);
+  });
+});
+
+describe('browsePeriod (D-437)', () => {
+  const receipts: Collection = {
+    id: 'r',
+    name: 'Receipts',
+    fields: [{ id: 'date', name: 'Date', type: 'date' }],
+  } as Collection;
+  const r = (id: string, date?: string, createdAt = 1): DataRecord =>
+    ({
+      id,
+      collectionId: 'r',
+      values: date ? { date } : {},
+      createdAt,
+      updatedAt: createdAt,
+    }) as DataRecord;
+  // 2026-10-28 是周三；周一开始的一周是 10-26 到 11-01。
+  const now = new Date(2026, 9, 28, 12);
+  const all = [
+    r('today', '2026-10-28'),
+    r('monday', '2026-10-26'),
+    r('lastWeek', '2026-10-25'),
+    r('early', '2026-10-01'),
+    r('september', '2026-09-30'),
+    r('january', '2026-01-01'),
+    r('lastYear', '2025-12-31'),
+    r('none'),
+  ];
+  const ids = (p: 'thisWeek' | 'thisMonth' | 'thisYear') =>
+    browsePeriod(all, receipts, 'date', p, now).map((x) => x.id);
+
+  it('keeps only the entries inside the current week, month or year', () => {
+    expect(ids('thisWeek')).toEqual(['today', 'monday']);
+    expect(ids('thisMonth')).toEqual(['today', 'monday', 'lastWeek', 'early']);
+    expect(ids('thisYear')).toEqual([
+      'today',
+      'monday',
+      'lastWeek',
+      'early',
+      'september',
+      'january',
+    ]);
+  });
+
+  it('entries without a date are in no period; an empty list stays empty', () => {
+    expect(ids('thisYear')).not.toContain('none');
+    expect(browsePeriod([], receipts, 'date', 'thisWeek', now)).toEqual([]);
+  });
+
+  it('can use the time the entry was added', () => {
+    const added = [
+      r('new', undefined, now.getTime()),
+      r('old', undefined, new Date(2020, 0, 1).getTime()),
+    ];
+    expect(browsePeriod(added, receipts, 'createdAt', 'thisYear', now).map((x) => x.id)).toEqual([
+      'new',
+    ]);
   });
 });

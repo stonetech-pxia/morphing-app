@@ -5920,7 +5920,126 @@ const ENVELOPE_CASES: readonly EvalCase[] = [
           : 'expected a pie chart of ledger grouped by the category link',
     },
   },
+  ...chartEditCases(),
 ];
+
+/**
+ * 改已有的图表（创始人 2026-11-05 要的：Tink 按用户的话灵活改图表）。先有一张每月柱状图（earlier），
+ * 再说要怎么改：种类、最近几个、按周、只看一类、只看今年、笔数、标题、再加一张。Tink 看不到记录内容（底线 2），
+ * 所以这里没有「按数据里最大的那一类」这类要读值的说法。
+ */
+function chartEditCases(): EvalCase[] {
+  const first: EvalEarlier = {
+    input: '记账页面加一个柱状图，显示每月花了多少',
+    ops: [
+      {
+        op: 'addContainer',
+        page: 'budget',
+        block: {
+          id: 'by-month',
+          look: 'chart',
+          show: { kind: 'bar', title: 'Spending by month' },
+          source: {
+            table: 'expenses',
+            aggregate: 'sum',
+            field: 'amount',
+            group: { unit: 'month', by: 'date', last: 12 },
+          },
+        },
+      } as Op,
+    ],
+  };
+  const only = (c: WorkspaceConfig) => chartsOf(c, 'expenses');
+  const one =
+    (what: string, ok: (x: ComponentOf<'chart'>) => boolean) =>
+    (c: WorkspaceConfig): string | null => {
+      const charts = only(c);
+      if (charts.length !== 1)
+        return `expected the one chart to be changed, found ${charts.length}`;
+      return ok(charts[0]!) ? null : `expected ${what}`;
+    };
+  const edit = (
+    id: string,
+    input: string,
+    locale: Locale,
+    what: string,
+    ok: (x: ComponentOf<'chart'>) => boolean,
+  ): EvalCase => ({
+    id,
+    input,
+    locale,
+    setup: 'budget',
+    mock: false,
+    earlier: [first],
+    expect: { kind: 'ops', check: one(what, ok) },
+  });
+  return [
+    edit(
+      'CH3',
+      '把这个柱状图改成折线图',
+      'zh',
+      'the chart to become a line chart',
+      (x) => x.show.kind === 'line',
+    ),
+    edit(
+      'CH4',
+      '图表只看最近 6 个月',
+      'zh',
+      'the last 6 months',
+      (x) => x.source.group.last === 6 && x.source.group.unit === 'month',
+    ),
+    edit(
+      'CH5',
+      'Show the chart by week instead of by month',
+      'en',
+      'weekly grouping',
+      (x) => x.source.group.unit === 'week',
+    ),
+    edit('CH6', '图表只统计餐饮', 'zh', 'a filter on the food category', (x) =>
+      (x.source.filter ?? []).some(
+        (f) => f.field === 'category' && f.op === 'is' && f.value === 'food',
+      ),
+    ),
+    edit('CH7', 'Only chart this year', 'en', 'an inPeriod thisYear filter on the date', (x) =>
+      (x.source.filter ?? []).some(
+        (f) => f.field === 'date' && f.op === 'inPeriod' && f.value === 'thisYear',
+      ),
+    ),
+    edit(
+      'CH8',
+      '图表改成数每个月有几笔，不要金额',
+      'zh',
+      'aggregate count',
+      (x) => x.source.aggregate === 'count',
+    ),
+    edit(
+      'CH9',
+      'Rename the chart to "Monthly spend"',
+      'en',
+      'the title Monthly spend',
+      (x) => x.show.title === 'Monthly spend',
+    ),
+    {
+      id: 'CH10',
+      input: '保留原来的柱状图，再加一个按分类的饼图',
+      locale: 'zh',
+      setup: 'budget',
+      mock: false,
+      earlier: [first],
+      expect: {
+        kind: 'ops',
+        check: (c) => {
+          const charts = only(c);
+          if (charts.length !== 2) return `expected two charts, found ${charts.length}`;
+          return charts.some((x) => x.show.kind === 'bar' && x.source.group.unit === 'month') &&
+            charts.some((x) => x.show.kind === 'pie' && x.source.group.by === 'category')
+            ? null
+            : 'expected the monthly bar chart kept and a pie chart by category added';
+        },
+      },
+    },
+  ];
+}
 
 /** 待办（D-340–D-344）：今天、收件箱、给一条记录用的页面、本机认日期、提前完成。 */
 const TODO_CASES: readonly EvalCase[] = [

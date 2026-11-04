@@ -516,7 +516,13 @@ function pruneBrowseFields(
     const show = (
       c as {
         show?: {
-          browse?: { search?: true; sort?: string[]; group?: string[]; filter?: string[] };
+          browse?: {
+            search?: true;
+            sort?: string[];
+            group?: string[];
+            filter?: string[];
+            period?: string;
+          };
         };
       }
     ).show;
@@ -530,7 +536,12 @@ function pruneBrowseFields(
       if (left.length > 0) browse[key] = left;
       else delete browse[key];
     }
-    if (!browse.search && !browse.sort && !browse.group && !browse.filter) delete show.browse;
+    if (browse.period === gone.field) {
+      count++;
+      delete browse.period;
+    }
+    if (!browse.search && !browse.sort && !browse.group && !browse.filter && !browse.period)
+      delete show.browse;
   }
   count += removeEverywhere(
     config,

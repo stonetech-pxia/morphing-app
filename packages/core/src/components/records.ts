@@ -70,6 +70,8 @@ const SlotsSchema = z.strictObject({
       sort: z.array(FieldRefSchema).min(1).max(6).optional(),
       group: z.array(FieldRefSchema).min(1).max(6).optional(),
       filter: z.array(IdSchema).min(1).max(3).optional(),
+      /** 一排「全部 / 本周 / 本月 / 本年」，按这个日期字段（或 createdAt、updatedAt）切换（D-437）。 */
+      period: FieldRefSchema.optional(),
       pin: z.literal(true).optional(),
     })
     .optional(),
@@ -101,6 +103,7 @@ const refs = {
   'show.color': { to: 'field', role: 'colorField', types: ['choice'] },
   'show.browse.sort': { to: 'field', role: 'show.browse.sort' },
   'show.browse.group': { to: 'field', role: 'show.browse.group' },
+  'show.browse.period': { to: 'field', role: 'show.browse.period', types: ['date', 'datetime'] },
   'show.browse.filter': { to: 'field', role: 'show.browse.filter', types: ['tags', 'choice'] },
   'source.filter': { to: 'filter' },
 } as const;
@@ -127,8 +130,14 @@ function recordProblems(c: RecordBlock, ctx: CheckContext): CheckProblem[] {
   if (browse) {
     if (c.look !== 'list' && c.look !== 'cards' && c.look !== 'checklist')
       problems.push('show.browse only applies to looks "list", "cards" and "checklist"');
-    if (browse.search === undefined && !browse.sort && !browse.group && !browse.filter)
-      problems.push('show.browse needs search, sort, group or filter');
+    if (
+      browse.search === undefined &&
+      !browse.sort &&
+      !browse.group &&
+      !browse.filter &&
+      !browse.period
+    )
+      problems.push('show.browse needs search, sort, group, filter or period');
     if (browse.pin) {
       if (ctx.parent)
         problems.push('show.browse.pin only works on a top-level list, not inside a group');
@@ -229,7 +238,7 @@ function recordProblems(c: RecordBlock, ctx: CheckContext): CheckProblem[] {
  * limit 是每段 / 每栏 / 每天最多几条。
  */
 export const RECORD_LOOK_DOC =
-  'source {table, filter?, sort? {field, direction: "asc"|"desc"}, limit? (1-100, default 30; per section, column or day when grouped), group?}, show {title, subtitles? (≤2), trailing? (shown on the right, e.g. an amount), format? (rule 46), color? (calendar only), emptyText?, browse? {search?: true, sort?: [fields], group?: [fields], filter?: [tags or choice fields], pin?: true} (list, cards and checklist only: a search box over every field, the fields the user can switch to, and a row of values to tap for filter; all temporary, nothing is written; pin keeps them fixed above the scrolling list; with browse, limit is how many to show at a time and scrolling to the bottom shows more; set it when the user asks to search, sort, group or filter a list themselves)}, tools?, opens? (a page for one entry, rule 48)';
+  'source {table, filter?, sort? {field, direction: "asc"|"desc"}, limit? (1-100, default 30; per section, column or day when grouped), group?}, show {title, subtitles? (≤2), trailing? (shown on the right, e.g. an amount), format? (rule 46), color? (calendar only), emptyText?, browse? {search?: true, sort?: [fields], group?: [fields], filter?: [tags or choice fields], period?: a date field or createdAt / updatedAt, pin?: true} (list, cards and checklist only: a search box over every field, the fields the user can switch to, a row of values to tap for filter, and a row All / This week / This month / This year over that date field (period); all temporary, nothing is written; pin keeps them fixed above the scrolling list; with browse, limit is how many to show at a time and scrolling to the bottom shows more; set it when the user asks to search, sort, group or filter a list themselves)}, tools?, opens? (a page for one entry, rule 48)';
 
 const DOCS: Record<RecordLook, string> = {
   list: 'rows; tapping a row opens the built-in editor (or the page in opens)',

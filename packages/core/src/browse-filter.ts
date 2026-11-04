@@ -1,8 +1,15 @@
 import type { Calendar } from './calendar';
-import { formatRef, recordValue, type DataRecord, type LinkResolver } from './data';
+import {
+  formatRef,
+  localDate,
+  periodRange,
+  recordValue,
+  type DataRecord,
+  type LinkResolver,
+} from './data';
 import { cleanTags, tagKey } from './fields';
 import { localeTag } from './localization';
-import type { Collection, Field, Locale } from './schema';
+import type { Collection, Field, Locale, Period } from './schema';
 
 // 列表上的筛选和搜索读什么（创始人 2026-11-04 定）。都是现算：配置里没有标签名（底线 14），什么都不写（底线 15）。
 
@@ -69,6 +76,32 @@ export function browseFilter(
     return Array.isArray(v)
       ? (v as readonly string[]).some((tag) => tagKey(tag) === tagKey(picked.value))
       : v === picked.value;
+  });
+}
+
+/** 列表上能切换的时间段（D-437）：本周、本月、本年；再加「全部」（不选）。 */
+export const BROWSE_PERIODS = [
+  'thisWeek',
+  'thisMonth',
+  'thisYear',
+] as const satisfies readonly Period[];
+export type BrowsePeriod = (typeof BROWSE_PERIODS)[number];
+
+/** 只留下这个日期字段（或创建、修改时间）落在当前这个时间段里的记录；现算，什么都不写。没有日期的不在任何时间段里。 */
+export function browsePeriod(
+  records: readonly DataRecord[],
+  view: Collection,
+  fieldId: string,
+  period: BrowsePeriod,
+  now: Date,
+  cal?: Calendar,
+): DataRecord[] {
+  const [start, end] = periodRange(period, now, cal);
+  return records.filter((r) => {
+    const v = recordValue(r, view, fieldId);
+    const day =
+      typeof v === 'number' ? localDate(new Date(v)) : typeof v === 'string' ? v.slice(0, 10) : '';
+    return day !== '' && day >= start && day <= end;
   });
 }
 

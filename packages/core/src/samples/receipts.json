@@ -1,0 +1,436 @@
+{
+  "icon": "inbox",
+  "name": {
+    "en": "Receipts",
+    "zh": "收据",
+    "fr": "Reçus"
+  },
+  "summary": {
+    "en": "Scan receipts into a list you can search, sort and filter by week, month or year, with charts of where the money goes.",
+    "zh": "扫收据存成列表，能搜索、排序、按类别筛选，按本周、本月、本年看，还有开销图表。",
+    "fr": "Numérisez vos reçus dans une liste à rechercher, trier et filtrer par semaine, mois ou année, avec des graphiques de vos dépenses."
+  },
+  "ids": {
+    "$table.receipts": "receipts",
+    "$page.main": "receipts",
+    "$page.spending": "spending",
+    "$tool.scan": "scan-receipt",
+    "$tool.excel": "export-receipts-excel"
+  },
+  "tables": [
+    {
+      "id": "$table.receipts",
+      "prefillRules": "receipt",
+      "name": {
+        "en": "Receipts",
+        "zh": "收据",
+        "fr": "Reçus"
+      },
+      "icon": "inbox",
+      "fields": [
+        {
+          "id": "merchant",
+          "name": {
+            "en": "Store",
+            "zh": "商家",
+            "fr": "Commerçant"
+          },
+          "type": "text"
+        },
+        {
+          "id": "date",
+          "name": {
+            "en": "Date",
+            "zh": "日期",
+            "fr": "Date"
+          },
+          "type": "date",
+          "default": "today"
+        },
+        {
+          "id": "amount",
+          "name": {
+            "en": "Amount",
+            "zh": "金额",
+            "fr": "Montant"
+          },
+          "type": "money",
+          "currency": {
+            "en": "USD",
+            "zh": "CNY",
+            "fr": "EUR"
+          }
+        },
+        {
+          "id": "category",
+          "name": {
+            "en": "Category",
+            "zh": "类别",
+            "fr": "Catégorie"
+          },
+          "type": "choice",
+          "options": [
+            {
+              "id": "dining",
+              "label": {
+                "en": "Dining",
+                "zh": "餐饮",
+                "fr": "Restauration"
+              }
+            },
+            {
+              "id": "grocery",
+              "label": {
+                "en": "Grocery & convenience",
+                "zh": "超市便利店",
+                "fr": "Supermarché et supérette"
+              }
+            },
+            {
+              "id": "pharmacy",
+              "label": {
+                "en": "Drugstore",
+                "zh": "药妆",
+                "fr": "Pharmacie et beauté"
+              }
+            },
+            {
+              "id": "other-shopping",
+              "label": {
+                "en": "Other shopping",
+                "zh": "其他购物",
+                "fr": "Autres achats"
+              }
+            },
+            {
+              "id": "transport",
+              "label": {
+                "en": "Transport",
+                "zh": "交通",
+                "fr": "Transport"
+              }
+            },
+            {
+              "id": "other",
+              "label": {
+                "en": "Other",
+                "zh": "其他",
+                "fr": "Autre"
+              }
+            }
+          ]
+        },
+        {
+          "id": "note",
+          "name": {
+            "en": "Note",
+            "zh": "备注",
+            "fr": "Remarque"
+          },
+          "type": "text"
+        },
+        {
+          "id": "attachments",
+          "name": {
+            "en": "Attachments",
+            "zh": "附件",
+            "fr": "Pièces jointes"
+          },
+          "type": "file"
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "id": "$tool.scan",
+      "kind": "quickAction",
+      "name": {
+        "en": "Scan a receipt",
+        "zh": "扫收据",
+        "fr": "Numériser un reçu"
+      },
+      "icon": "scan",
+      "steps": [
+        {
+          "id": "scan",
+          "action": "in.photos",
+          "params": {
+            "source": "scanner",
+            "min": 1,
+            "max": 10
+          }
+        },
+        {
+          "id": "edges",
+          "action": "scan.detect",
+          "params": {}
+        },
+        {
+          "id": "log",
+          "action": "out.addRecord",
+          "params": {
+            "collectionId": "$table.receipts"
+          }
+        }
+      ]
+    },
+    {
+      "id": "$tool.excel",
+      "kind": "quickAction",
+      "name": {
+        "en": "Export receipts to Excel",
+        "zh": "导出收据到 Excel",
+        "fr": "Exporter les reçus vers Excel"
+      },
+      "icon": "document",
+      "steps": [
+        {
+          "id": "excel",
+          "action": "records.toExcel",
+          "params": {}
+        },
+        {
+          "id": "share",
+          "action": "out.share",
+          "params": {}
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "id": "$page.main",
+      "title": {
+        "en": "Receipts",
+        "zh": "收据",
+        "fr": "Reçus"
+      },
+      "icon": "inbox",
+      "blocks": [
+        {
+          "id": "receipts",
+          "look": "list",
+          "source": {
+            "table": "$table.receipts",
+            "sort": {
+              "field": "date",
+              "direction": "desc"
+            },
+            "limit": 30
+          },
+          "show": {
+            "title": "merchant",
+            "subtitles": ["category", "date"],
+            "trailing": "amount",
+            "emptyText": {
+              "en": "No receipts yet. Scan one to add it.",
+              "zh": "还没有收据。扫一张就有了。",
+              "fr": "Aucun reçu pour l’instant. Numérisez-en un pour l’ajouter."
+            },
+            "browse": {
+              "search": true,
+              "sort": ["date", "amount", "merchant"],
+              "filter": ["category"],
+              "period": "date",
+              "pin": true
+            }
+          }
+        },
+        {
+          "id": "spending",
+          "look": "entry",
+          "pin": "bottom",
+          "show": {
+            "title": {
+              "en": "Spending",
+              "zh": "开销",
+              "fr": "Dépenses"
+            },
+            "icon": "chart",
+            "shape": "row"
+          },
+          "opens": "page:$page.spending"
+        },
+        {
+          "id": "actions",
+          "look": "dial",
+          "pin": "bottom",
+          "tools": [
+            {
+              "tool": "$tool.scan",
+              "label": {
+                "en": "Scan",
+                "zh": "扫描",
+                "fr": "Scanner"
+              }
+            },
+            {
+              "do": "create",
+              "table": "$table.receipts",
+              "ask": "all",
+              "label": {
+                "en": "Add by hand",
+                "zh": "手动添加",
+                "fr": "Ajouter à la main"
+              }
+            },
+            {
+              "as": "list",
+              "tool": "$tool.excel",
+              "label": {
+                "en": "Export receipts",
+                "zh": "导出收据",
+                "fr": "Exporter"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "$page.spending",
+      "title": {
+        "en": "Spending",
+        "zh": "开销",
+        "fr": "Dépenses"
+      },
+      "icon": "chart",
+      "blocks": [
+        {
+          "id": "title",
+          "look": "header",
+          "show": {
+            "title": {
+              "en": "Spending",
+              "zh": "开销",
+              "fr": "Dépenses"
+            }
+          }
+        },
+        {
+          "id": "totals",
+          "look": "group",
+          "show": {
+            "layout": "row"
+          },
+          "children": [
+            {
+              "id": "month-total",
+              "look": "number",
+              "show": {
+                "label": {
+                  "en": "This month",
+                  "zh": "本月",
+                  "fr": "Ce mois-ci"
+                }
+              },
+              "source": {
+                "table": "$table.receipts",
+                "aggregate": "sum",
+                "field": "amount",
+                "filter": [
+                  {
+                    "field": "date",
+                    "op": "inPeriod",
+                    "value": "thisMonth"
+                  }
+                ],
+                "compare": "previous"
+              }
+            },
+            {
+              "id": "year-total",
+              "look": "number",
+              "show": {
+                "label": {
+                  "en": "This year",
+                  "zh": "本年",
+                  "fr": "Cette année"
+                }
+              },
+              "source": {
+                "table": "$table.receipts",
+                "aggregate": "sum",
+                "field": "amount",
+                "filter": [
+                  {
+                    "field": "date",
+                    "op": "inPeriod",
+                    "value": "thisYear"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "by-month",
+          "look": "chart",
+          "show": {
+            "kind": "bar",
+            "title": {
+              "en": "Spending by month",
+              "zh": "每月开销",
+              "fr": "Dépenses par mois"
+            }
+          },
+          "source": {
+            "table": "$table.receipts",
+            "aggregate": "sum",
+            "field": "amount",
+            "group": {
+              "by": "date",
+              "unit": "month",
+              "last": 6
+            }
+          }
+        },
+        {
+          "id": "by-week",
+          "look": "chart",
+          "show": {
+            "kind": "bar",
+            "title": {
+              "en": "Spending by week",
+              "zh": "每周开销",
+              "fr": "Dépenses par semaine"
+            }
+          },
+          "source": {
+            "table": "$table.receipts",
+            "aggregate": "sum",
+            "field": "amount",
+            "group": {
+              "by": "date",
+              "unit": "week",
+              "last": 8
+            }
+          }
+        },
+        {
+          "id": "by-category",
+          "look": "chart",
+          "show": {
+            "kind": "pie",
+            "title": {
+              "en": "By category",
+              "zh": "按类别",
+              "fr": "Par catégorie"
+            }
+          },
+          "source": {
+            "table": "$table.receipts",
+            "aggregate": "sum",
+            "field": "amount",
+            "group": {
+              "by": "category"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "main": "$page.main",
+  "entry": "nav"
+}

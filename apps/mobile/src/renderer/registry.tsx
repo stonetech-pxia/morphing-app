@@ -35,7 +35,7 @@ import { FocusItem } from '../editing/FocusItem';
 import { Chart } from './Chart';
 import type { RenderEnv } from './components';
 import { RecordForm, RecordList, Stat, type RecordBlock } from './data';
-import { DialButton } from './Dial';
+import { BottomPill, DialButton } from './Dial';
 import { ListTools } from './ListTools';
 import { MonthCalendar } from './MonthCalendar';
 import { Board } from './Board';
@@ -111,6 +111,15 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
     if (packageId !== null)
       return <ToolCard toolId={packageId} look={c.show?.shape} style={c.style} env={env} />;
     const show = c.show ?? {};
+    if (env.inBottomZone)
+      return (
+        <BottomPill
+          env={env}
+          icon={show.icon ?? 'apps'}
+          title={show.title ?? ''}
+          onPress={() => open(env, c.opens)}
+        />
+      );
     return (
       <Tile
         env={env}
