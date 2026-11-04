@@ -71,6 +71,30 @@ describe('搭建计划', () => {
     expect(store.getState().build!.phase).toBe('finished');
   });
 
+  it.each([
+    ['zh', '前面已经做好了'],
+    ['en', 'Already done in an earlier step'],
+    ['fr', 'Déjà fait à une étape précédente'],
+  ] as const)('前面已做好的一步有自己的说明（%s），别的步骤没有', async (locale, text) => {
+    const { store } = await openChange(locale);
+    await act(async () =>
+      store.setState({
+        build: {
+          summary: 'x',
+          origin: { kind: 'chat' } as never,
+          phase: 'finished',
+          steps: [
+            { id: 'a', kind: 'record', title: 'A', request: 'a', status: 'done' },
+            { id: 'b', kind: 'look', title: 'B', request: 'b', status: 'done', already: true },
+          ],
+        },
+      }),
+    );
+    expect(await screen.findByTestId('build-step-already-b')).toHaveTextContent(text);
+    expect(screen.queryByTestId('build-step-already-a')).toBeNull();
+    expect(screen.getByTestId('build-check')).toBeTruthy();
+  });
+
   it('小改（改颜色）不出现计划', async () => {
     const { store } = await openChange();
     await say('主题换成绿色');

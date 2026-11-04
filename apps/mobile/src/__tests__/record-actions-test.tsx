@@ -336,6 +336,6 @@ describe('v34: tools on blocks', () => {
     await fireEvent.press(await screen.findByTestId('editor-save'));
     await waitFor(async () => expect(await repo.listRecords('checkins')).toHaveLength(1));
     await waitFor(() => expect(router.getPathname()).not.toBe('/record/checkins'));
-    expect(screen.queryByTestId('toast')).toBeNull();
+    expect(screen.queryByTestId('toast-undo')).toBeNull();
   });
 });

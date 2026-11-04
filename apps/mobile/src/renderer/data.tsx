@@ -75,6 +75,7 @@ import {
   type StyleProp,
   type TextStyle,
   type ViewStyle,
+  Keyboard,
 } from 'react-native';
 
 import { useComputedRecords, useLinkResolver, useRecordActions, useRecords } from '../data/records';
@@ -1408,6 +1409,28 @@ export function RecordForm({
     }
   }
 
+  /**
+   * 键盘上的对勾：写好了就保存（键盘留着接着写，D-352）。必填还空着、或者什么都没写时，
+   * 用户只是想收键盘：不报错，点「保存」按钮才校验。
+   */
+  function keyboardDone() {
+    if (!collection) return;
+    const preset = createInput(collection, submitTool?.values, { now: new Date(), cal });
+    const checked = prepareRecordValues(
+      collection,
+      { ...preset, ...values },
+      null,
+      new Date(),
+      cal,
+    );
+    const nothing = fieldIds.every((id) => values[id] === undefined || values[id] === '');
+    if (nothing || (!checked.ok && checked.issues.some((i) => i.code === 'required'))) {
+      Keyboard.dismiss();
+      return;
+    }
+    void submit();
+  }
+
   const sheet = block.show.mode === 'sheet';
   const body = (
     <>
@@ -1422,7 +1445,7 @@ export function RecordForm({
         disabled={!env.interactive}
         testPrefix={`form-${componentId}`}
         showLabels={false}
-        onSubmit={() => void submit()}
+        onSubmit={keyboardDone}
         autoFocus={sheet}
       />
       {found ? (

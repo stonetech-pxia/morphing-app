@@ -1073,6 +1073,16 @@ function checkQuickAction(
   };
 }
 
+/** 用户在 App 里看得到这张表的记录吗：有块在读，而且那一页到得了。 */
+export function tableIsShown(
+  config: WorkspaceConfig,
+  tableId: string,
+  registry: Registry,
+): boolean {
+  const a = new Analysis(config, registry);
+  return a.use(tableId)?.readers.some((r) => r.reachable) ?? false;
+}
+
 /**
  * 工具检查：列出配置里的工具（快捷操作、含 out.addRecord 的快捷操作、每张表）和它们的问题。
  * 配置应该已经通过 validateWorkspace；这里不重复校验，只判断能不能用。

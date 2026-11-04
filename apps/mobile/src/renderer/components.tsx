@@ -1,6 +1,13 @@
 import type { Locale, OpenTarget, Page, Registry, WorkspaceConfig, Component } from '@morph/core';
 
-import { Pressable, ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
+import {
+  Keyboard,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  type ScrollViewProps,
+} from 'react-native';
 
 import { GestureDetector, type PanGesture } from 'react-native-gesture-handler';
 
@@ -76,6 +83,8 @@ export function PageView({
       style={palette.hasBackdrop || picture ? undefined : { backgroundColor: palette.background }}
       // 数据表单：键盘弹出时可以直接点选项和按钮，并自动把输入框滚到键盘上方。
       keyboardShouldPersistTaps="handled"
+      // 拖动页面收键盘；点空白收键盘（下面的 page-blank）。
+      keyboardDismissMode="on-drag"
       automaticallyAdjustKeyboardInsets
       contentContainerStyle={{
         flexGrow: 1,
@@ -91,7 +100,14 @@ export function PageView({
           style={StyleSheet.absoluteFill}
           onPress={env.focus.onDone}
         />
-      ) : null}
+      ) : (
+        <Pressable
+          testID="page-blank"
+          accessible={false}
+          style={StyleSheet.absoluteFill}
+          onPress={() => Keyboard.dismiss()}
+        />
+      )}
       {runnerGrid(page.blocks.filter((c) => !c.hidden && !floats(c))).map((block) =>
         Array.isArray(block) ? (
           <View

@@ -6,7 +6,7 @@ import { createDefaultWorkspace } from './defaults';
 import { prepareOps } from './change';
 import { SAMPLE_APPS, sampleOps } from './samples';
 import { createStarterWorkspace } from './starter';
-import { checkRequestParams, checkTools, type ToolCheckResult } from './tool-check';
+import { checkRequestParams, checkTools, tableIsShown, type ToolCheckResult } from './tool-check';
 import type { Collection, Component, QuickAction, Reminder, WorkspaceConfig } from './schema';
 import { registry } from './test-helpers';
 import { WORKFLOW_PRESETS, presetWorkflow } from './workflows/presets';
@@ -103,6 +103,28 @@ const codes = (r: ToolCheckResult, severity?: 'blocker' | 'warning') =>
 const tool = (r: ToolCheckResult, id: string) => r.tools.find((t) => t.id === id)!;
 /** 一张能用的表：首页上有添加按钮和列表。 */
 const usable = (id: string) => [addButton(`add-${id}`, id), list(`list-${id}`, id)];
+
+describe('tableIsShown', () => {
+  const tables = [table('t', [text('title')])];
+
+  it('没有块读：看不到', () => {
+    expect(tableIsShown(workspace({ tables, pages: [] }), 't', registry)).toBe(false);
+  });
+
+  it('到得了的页面上有块读：看得到', () => {
+    const config = workspace({ tables, pages: [{ id: 'ledger', blocks: usable('t') }] });
+    const shown = {
+      ...config,
+      nav: { ...config.nav, bar: [...config.nav.bar, 'page:ledger' as const] },
+    };
+    expect(tableIsShown(shown, 't', registry)).toBe(true);
+  });
+
+  it('块在打不开的页面上：还是看不到', () => {
+    const config = workspace({ tables, pages: [{ id: 'ledger', blocks: usable('t') }] });
+    expect(tableIsShown(config, 't', registry)).toBe(false);
+  });
+});
 
 describe('文件工具', () => {
   const chain = quick('send', [

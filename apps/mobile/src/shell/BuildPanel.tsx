@@ -105,15 +105,23 @@ function StepRow({
           <View style={[styles.dot, { borderColor: skipped ? palette.border : palette.caption }]} />
         )}
       </View>
-      <Text
-        style={[
-          palette.font('body', 15),
-          styles.flex,
-          { color: skipped ? palette.caption : palette.text },
-          skipped && styles.struck,
-        ]}>
-        {step.title}
-      </Text>
+      <View style={styles.flex}>
+        <Text
+          style={[
+            palette.font('body', 15),
+            { color: skipped ? palette.caption : palette.text },
+            skipped && styles.struck,
+          ]}>
+          {step.title}
+        </Text>
+        {step.already ? (
+          <Text
+            testID={`build-step-already-${step.id}`}
+            style={[palette.font('body', 13), { color: palette.caption }]}>
+            {t(locale, 'buildStepAlready')}
+          </Text>
+        ) : null}
+      </View>
       {removable ? (
         <Pressable
           testID={`build-step-remove-${step.id}`}

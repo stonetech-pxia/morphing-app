@@ -68,6 +68,8 @@ export interface Banner {
   message: string;
   /** 撤销时恢复到的版本。 */
   undoTo?: number;
+  /** 手指正按在「撤销」上：这时不到时间消失，否则这一下会落空。 */
+  held?: boolean;
 }
 
 /** 编辑模式的草稿（D-054）：操作先累积在这里，点「完成」时作为一个版本提交。 */
@@ -139,6 +141,8 @@ export type BuildStepStatus = 'todo' | 'running' | 'done' | 'skipped' | 'failed'
 
 export interface BuildRunStep extends BuildStep {
   status: BuildStepStatus;
+  /** 前一步已经把这一步做了（模型回 noChange）：打勾，但说明不同。不算失败。 */
+  already?: boolean;
   /** 卡住的原因。 */
   reason?: string;
   /** 卡住的原因是要用到草稿里的东西（D-413）：显示「应用草稿并继续」。 */
@@ -207,6 +211,10 @@ export interface RecordToast {
   restoreRecordId?: string;
   /** 删掉的预设（D-410）：预设是真删，撤销时把这份放回去。 */
   restorePreset?: SavedPreset;
+  /** 这张表还没有页面读：提示上有「接着改」，打开 AI 页改这张表。 */
+  continueTable?: string;
+  /** 手指正按在提示的按钮上：这时不到时间消失。 */
+  held?: boolean;
 }
 
 export type SavePresetResult =
@@ -287,6 +295,8 @@ export interface WorkspaceState {
   bumpRecords(): void;
   showToast(toast: RecordToast): void;
   dismissToast(): void;
+  holdBanner(held: boolean): void;
+  holdToast(held: boolean): void;
   listRevisions(limit?: number): Promise<RevisionRecord[]>;
   bumpAssets(): void;
   /**

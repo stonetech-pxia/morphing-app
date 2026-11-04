@@ -59,7 +59,7 @@ export function createBuild(k: Kernel, session: SessionStore) {
   }
 
   type StepOutcome =
-    | { kind: 'done' }
+    | { kind: 'done'; already?: boolean }
     | { kind: 'stopped' }
     | { kind: 'failed'; reason: string; needsDraft?: boolean };
 
@@ -90,7 +90,8 @@ export function createBuild(k: Kernel, session: SessionStore) {
         // 配置已经是这样了：这一步不用做。
         if (result.reason === 'noChange') {
           if (itemId) await session.update((s) => setItemStatus(s, itemId, 'done'));
-          return { kind: 'done' };
+          // 这一步自己的那句没改到任何东西：前面已经做了。接着做剩下的外观时不算。
+          return { kind: 'done', ...(isNext ? {} : { already: true }) };
         }
         return { kind: 'failed', reason: result.message };
       }
@@ -163,7 +164,7 @@ export function createBuild(k: Kernel, session: SessionStore) {
           );
           return;
         }
-        await patchStep(step.id, { status: 'done' });
+        await patchStep(step.id, { status: 'done', ...(outcome.already ? { already: true } : {}) });
       }
     } finally {
       looping = false;

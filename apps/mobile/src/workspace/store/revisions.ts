@@ -396,15 +396,19 @@ export function createRevisions(
     async undo() {
       const undoTo = get().banner?.undoTo;
       if (undoTo === undefined) return;
-      const result = await restoreProposal(undoTo, msg('undoSummary'));
+      // 先收起提示条：连点两下不会撤销两次（第二次会撞上版本冲突）。
       set({ banner: null });
+      const result = await restoreProposal(undoTo, msg('undoSummary'));
+      // 没撤销成（例如要用的工具不在了）：要说，不能悄悄消失。改动记录里还能回去。
+      if (result.kind !== 'preview') {
+        set({ banner: { kind: 'conflict', message: msg('undoFailed') } });
+        return;
+      }
       // 撤销了那次功能修改，剩下的那句也就接不上了。
       await get().clearNext();
       await get().clearSuggest();
-      if (result.kind === 'preview') {
-        set({ proposal: { ...result.proposal, summary: msg('undoSummary') } });
-        await get().confirm();
-      }
+      set({ proposal: { ...result.proposal, summary: msg('undoSummary') } });
+      await get().confirm();
     },
 
     async markRendered(revisionId) {
@@ -423,7 +427,10 @@ export function createRevisions(
         set({
           banner: {
             kind: 'applied',
-            message: msg('applied', { summary: done.summary }),
+            message:
+              done.summary === msg('undoSummary')
+                ? msg('undoneBanner')
+                : msg('applied', { summary: done.summary }),
             undoTo: done.undoTo,
           },
         });

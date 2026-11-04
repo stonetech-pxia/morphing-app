@@ -1,6 +1,13 @@
 import { allComponents, childrenOf, type Component, type Page } from '@morph/core';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  Keyboard,
+  Pressable,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -95,7 +102,8 @@ export function FocusItem({
             accessible={selected}
             onLongPress={open}
             delayLongPress={LONG_PRESS_MS}
-            onPress={active ? () => undefined : undefined}
+            // 这层只为长按；点卡片的空白处相当于点页面空白，收键盘（卡片里的按钮自己先响应）。
+            onPress={active ? () => undefined : () => Keyboard.dismiss()}
             accessibilityActions={[{ name: 'activate', label: t(env.locale, 'edit') }]}
             onAccessibilityAction={() => {
               open();

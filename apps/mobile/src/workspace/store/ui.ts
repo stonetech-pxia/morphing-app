@@ -8,7 +8,14 @@ export function createUI({
   get,
 }: Kernel): Pick<
   WorkspaceState,
-  'dismissBanner' | 'selectTab' | 'bumpRecords' | 'showToast' | 'dismissToast' | 'bumpAssets'
+  | 'dismissBanner'
+  | 'selectTab'
+  | 'bumpRecords'
+  | 'showToast'
+  | 'dismissToast'
+  | 'holdBanner'
+  | 'holdToast'
+  | 'bumpAssets'
 > {
   return {
     dismissBanner: () => set({ banner: null }),
@@ -20,6 +27,17 @@ export function createUI({
     showToast: (toast) => set({ toast }),
 
     dismissToast: () => set({ toast: null }),
+
+    // 按住 / 松开时换一个新对象，提示条的定时器跟着停和重新开始。
+    holdBanner(held) {
+      const banner = get().banner;
+      if (banner && !!banner.held !== held) set({ banner: { ...banner, held } });
+    },
+
+    holdToast(held) {
+      const toast = get().toast;
+      if (toast && !!toast.held !== held) set({ toast: { ...toast, held } });
+    },
 
     bumpAssets: () => set({ assetsVersion: get().assetsVersion + 1 }),
   };

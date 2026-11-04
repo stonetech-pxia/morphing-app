@@ -51,7 +51,7 @@ import { Button } from '../renderer/ui';
 import { AskPanel } from '../run/AskPanel';
 import { newAssetId, startRun } from '../runtime/runner';
 import { AIEntry } from '../shell/ai-entry';
-import { Banner } from '../shell/Banner';
+import { BannerAnchor } from '../shell/Banner';
 import { useShellEnv } from '../shell/Shell';
 import { Toast } from '../shell/Toast';
 import { deleteUserFiles } from '../storage/user-files';
@@ -609,7 +609,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
         />
       </View>
 
-      {inDraft ? null : <Banner palette={palette} />}
+      {inDraft ? null : <BannerAnchor palette={palette} />}
       {layout.toolbar === 'top' && showToolbar ? toolbar : null}
       {slot(layout.above, 'desk-above')}
       <View

@@ -15,6 +15,7 @@ import {
 
 import type { ReactNode } from 'react';
 import {
+  Keyboard,
   Pressable,
   StyleSheet,
   Text,
@@ -369,6 +370,8 @@ export function Item({
       style={style}
       accessible={false}
       onLongPress={open}
+      // 这层只为长按；点卡片的空白处相当于点页面空白，收键盘（卡片里的按钮自己先响应）。
+      onPress={() => Keyboard.dismiss()}
       delayLongPress={LONG_PRESS_MS}>
       <ComponentView component={shown} env={{ ...env, onLongPress: open }} />
     </Pressable>

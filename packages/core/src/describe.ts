@@ -7,10 +7,12 @@ import { shownInToolGrid, type ApplyNote } from './ops';
 import type { BlockChanges, Op } from './ops-schema';
 import { THEME_PRESETS } from './presets';
 import { QUICK_ACTION_CATEGORIES } from './quick-actions';
+import type { ToolUse } from './record-ops-schema';
 import type { Registry } from './registry';
 import { describeParams } from './workflow/format';
 import {
   FIELDS,
+  RECORD_LOOKS,
   allComponents,
   componentDefinition,
   isFileTarget,
@@ -291,10 +293,203 @@ export function describeChange(
     }
   };
 
+  /** 字段的名字（记录块和工具里的字段 ID 都换成它）；系统字段也有名字。 */
+  const fieldLabel = (tableId: string | undefined, id: string) =>
+    id === 'createdAt'
+      ? t(ctx.locale, 'describeFieldCreatedAt')
+      : id === 'updatedAt'
+        ? t(ctx.locale, 'describeFieldUpdatedAt')
+        : tableId
+          ? fieldName(tableId, id)
+          : id;
+
+  /** 记录块每一条的显示（show 的键大多是字段 ID）。不是这几个键时返回 null。 */
+  const recordShowChange = (k: string, v: unknown, table: string | undefined): string | null => {
+    const field = (id: unknown) => fieldLabel(table, String(id));
+    switch (k) {
+      case 'title':
+        return t(ctx.locale, 'describeRecordTitle', { field: field(v) });
+      case 'subtitles':
+        return v === null || (v as unknown[]).length === 0
+          ? t(ctx.locale, 'describeRecordSubtitlesOff')
+          : t(ctx.locale, 'describeRecordSubtitles', { fields: list((v as string[]).map(field)) });
+      case 'trailing':
+        return v === null
+          ? t(ctx.locale, 'describeRecordTrailingOff')
+          : t(ctx.locale, 'describeRecordTrailing', { field: field(v) });
+      case 'format':
+        if (v === null) return t(ctx.locale, 'describeRecordFormatOff');
+        return t(
+          ctx.locale,
+          (v as { kind: string }).kind === 'elapsed'
+            ? 'describeRecordElapsed'
+            : 'describeRecordProgress',
+        );
+      case 'color':
+        return v === null
+          ? t(ctx.locale, 'describeRecordColorOff')
+          : t(ctx.locale, 'describeRecordColor', { field: field(v) });
+      case 'emptyText':
+        return v === null
+          ? t(ctx.locale, 'describeRecordEmptyOff')
+          : t(ctx.locale, 'describeRecordEmpty', { text: String(v) });
+      default:
+        return null;
+    }
+  };
+
+  /** 块读什么（source）的一个键。 */
+  const sourceChange = (k: string, v: unknown, table: string | undefined): string => {
+    const off = v === null;
+    switch (k) {
+      case 'table':
+        return t(ctx.locale, 'describeSourceTable', { table: collName(String(v)) });
+      case 'filter':
+        return t(ctx.locale, off ? 'describeSourceFilterOff' : 'describeSourceFilter');
+      case 'sort': {
+        if (off) return t(ctx.locale, 'describeSourceSortOff');
+        const sort = v as { field: string; direction: 'asc' | 'desc' };
+        return t(
+          ctx.locale,
+          sort.direction === 'asc' ? 'describeSourceSortAsc' : 'describeSourceSortDesc',
+          { field: fieldLabel(table, sort.field) },
+        );
+      }
+      case 'limit':
+        return t(ctx.locale, 'describeSourceLimit', { n: Number(v) });
+      case 'group': {
+        if (off) return t(ctx.locale, 'describeSourceGroupOff');
+        const by = (v as { by?: string }).by;
+        return by
+          ? t(ctx.locale, 'describeSourceGroupBy', { field: fieldLabel(table, by) })
+          : t(ctx.locale, 'describeSourceGroup');
+      }
+      case 'aggregate':
+        return t(ctx.locale, 'describeSourceAggregate');
+      case 'field':
+        return off
+          ? t(ctx.locale, 'describeSourceAggregate')
+          : t(ctx.locale, 'describeSourceField', { field: fieldLabel(table, String(v)) });
+      case 'days':
+        return t(ctx.locale, 'describeSourceDays');
+      case 'goal':
+        return off
+          ? t(ctx.locale, 'describeSourceGoalOff')
+          : t(ctx.locale, 'describeSourceGoal', { n: Number(v) });
+      case 'compare':
+        return t(ctx.locale, off ? 'describeSourceCompareOff' : 'describeSourceCompare');
+      case 'minus':
+        return t(ctx.locale, off ? 'describeSourceMinusOff' : 'describeSourceMinus');
+      case 'kind':
+        return propChange(k, v);
+      case 'catalog':
+      case 'ids':
+        return t(ctx.locale, 'describeSourceItems');
+      default:
+        return t(ctx.locale, 'describeSettingsChanged');
+    }
+  };
+
+  /** 一个工具用法的称呼，改动说明里用。 */
+  const useName = (u: ToolUse): string => {
+    if (u.label) return t(ctx.locale, 'describeUseButton', { label: u.label });
+    if ('opens' in u) return t(ctx.locale, 'describeUseOpen');
+    if ('tool' in u) {
+      if (u.tool === '$pick.media') return t(ctx.locale, 'describeUsePickMedia');
+      if (u.tool === '$pick.files') return t(ctx.locale, 'describeUsePickFiles');
+      return t(ctx.locale, 'describeUseRun', { name: wf(u.tool)?.name ?? toolName(u.tool) });
+    }
+    switch (u.as) {
+      case 'check':
+        return t(ctx.locale, 'describeUseCheck');
+      case 'tap':
+        return t(ctx.locale, 'describeUseTap');
+      case 'drag':
+        return t(ctx.locale, 'describeUseDrag');
+      case 'addHere':
+        return t(ctx.locale, 'describeUseAddHere');
+      default:
+        return t(ctx.locale, 'describeUseAction');
+    }
+  };
+
+  /** 表单改了什么：问哪几个字段、按钮的字、认日期、自动填入。 */
+  const formToolChange = (before: ToolUse | undefined, after: ToolUse): string[] => {
+    const was = (before && 'do' in before && before.do === 'create' ? before : {}) as Partial<
+      Extract<ToolUse, { do: 'create' }>
+    >;
+    const now = after as Extract<ToolUse, { do: 'create' }>;
+    const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+    const parts: string[] = [];
+    if (!same(was.ask, now.ask) && now.ask !== undefined)
+      parts.push(
+        now.ask === 'all'
+          ? t(ctx.locale, 'describeFormAsksAll')
+          : t(ctx.locale, 'describeFormAsks', {
+              fields: list(now.ask.map((id) => fieldLabel(now.table, id))),
+            }),
+      );
+    if (now.label !== undefined && was.label !== now.label)
+      parts.push(t(ctx.locale, 'describeFormLabel', { label: now.label }));
+    if (!same(was.smartDate, now.smartDate))
+      parts.push(
+        now.smartDate
+          ? t(ctx.locale, 'describeFormSmartDate', {
+              field: fieldLabel(now.table, now.smartDate.from),
+            })
+          : t(ctx.locale, 'describeFormSmartDateOff'),
+      );
+    if (!same(was.values, now.values)) parts.push(t(ctx.locale, 'describeFormValues'));
+    return parts;
+  };
+
+  /** 块上的工具改了什么：表单说问什么，其他说加了、去掉了哪个。 */
+  const toolsChange = (current: Component | undefined, after: readonly ToolUse[]): string[] => {
+    const known = current && isKnownComponent(current) ? current : undefined;
+    const before = ((known as { tools?: ToolUse[] } | undefined)?.tools ?? []) as ToolUse[];
+    const first = after[0];
+    if (known?.look === 'form' && first && 'do' in first && first.do === 'create')
+      return formToolChange(before[0], first);
+    const same = (a: ToolUse, b: ToolUse) => JSON.stringify(a) === JSON.stringify(b);
+    const named = before.map(useName);
+    const nowNamed = after.map(useName);
+    const parts: string[] = [];
+    after.forEach((use, i) => {
+      const old = named.indexOf(nowNamed[i]!);
+      if (old < 0) parts.push(t(ctx.locale, 'describeUseAdded', { use: nowNamed[i]! }));
+      else if (!same(before[old]!, use))
+        parts.push(t(ctx.locale, 'describeUseChanged', { use: nowNamed[i]! }));
+    });
+    named.forEach((name) => {
+      if (!nowNamed.includes(name)) parts.push(t(ctx.locale, 'describeUseRemoved', { use: name }));
+    });
+    return parts;
+  };
+
+  /** 打开的目标用名字称呼（页面标题、快捷操作的名字），不露 ID。 */
+  const opensLabel = (target: string): string => {
+    if (target.startsWith('tool:')) {
+      const id = target.slice('tool:'.length);
+      return wf(id)?.name ?? toolName(id);
+    }
+    if (target.startsWith('package:')) return toolName(target.slice('package:'.length));
+    if (page(target)) return pageName(target);
+    return navTargetLabel(target as NavTarget, known, ctx.locale);
+  };
+
   /** 块的 show / source / tools / opens 的修改（原 setComponentProps：一个属性一段）。 */
   const blockChanges = (pageId: string, blockId: string, changes: BlockChanges): string[] => {
     const current = findComp(pageId, blockId);
     const parts: string[] = [];
+    const currentSource =
+      current && isKnownComponent(current)
+        ? (current as { source?: { table?: string } }).source
+        : undefined;
+    const table = (changes.source as { table?: string } | undefined)?.table ?? currentSource?.table;
+    const isRecords =
+      current && isKnownComponent(current)
+        ? (RECORD_LOOKS as readonly string[]).includes(current.look)
+        : false;
     for (const [k, v] of Object.entries(changes.show ?? {})) {
       if (k === 'asset') {
         parts.push(
@@ -304,16 +499,19 @@ export function describeChange(
         );
         continue;
       }
-      parts.push(propChange(k, v));
+      parts.push((isRecords ? recordShowChange(k, v, table) : null) ?? propChange(k, v));
     }
-    for (const [k, v] of Object.entries(changes.source ?? {})) parts.push(propChange(k, v));
+    for (const [k, v] of Object.entries(changes.source ?? {}))
+      parts.push(sourceChange(k, v, table));
     if (changes.tools !== undefined)
       parts.push(
-        changes.tools === null
-          ? t(ctx.locale, 'describe_removed_d5c25', {
-              v0: localize(PROP_NAMES.tools!, ctx.locale),
-            })
-          : t(ctx.locale, 'v34descToolsChanged'),
+        ...(changes.tools === null
+          ? [
+              t(ctx.locale, 'describe_removed_d5c25', {
+                v0: localize(PROP_NAMES.tools!, ctx.locale),
+              }),
+            ]
+          : toolsChange(current, changes.tools as ToolUse[])),
       );
     if (changes.opens !== undefined) {
       const opens = changes.opens as OpenTarget | null;
@@ -330,22 +528,30 @@ export function describeChange(
               : 'describeFileRemoved',
           ),
         );
-      else parts.push(propChange('opens', opens));
+      else if (opens === null) parts.push(propChange('opens', opens));
+      else parts.push(t(ctx.locale, 'describeOpensChanged', { target: opensLabel(String(opens)) }));
     }
     return parts;
   };
   /** 一个属性改成什么（名字、取值都写成人话，D-230；富文本显示成纯文字，太长时截断）。 */
   const propChange = (k: string, v: unknown) => {
-    const name = localize(PROP_NAMES[k], ctx.locale) ?? k;
+    const name = localize(PROP_NAMES[k], ctx.locale);
+    if (k === 'mode')
+      return t(ctx.locale, v === 'sheet' ? 'describeFormSheet' : 'describeFormInline');
+    if (k === 'accent') return t(ctx.locale, v ? 'describeAccentOn' : 'describeAccentOff');
+    if (k === 'icon' && v !== null) return t(ctx.locale, 'describeIconChanged');
+    // 不认识的键也不露键名。
+    if (!name) return t(ctx.locale, 'describeSettingsChanged');
     if (v === null) return t(ctx.locale, 'describe_removed_d5c25', { v0: name });
     const named = typeof v === 'string' ? localize(PROP_VALUES[k]?.[v], ctx.locale) : null;
     if (named) return t(ctx.locale, 'describe__41054', { v0: name, v1: named });
     const shown = typeof v === 'string' && k === 'text' ? truncate(plainText(v)) : v;
-    const value =
-      typeof shown === 'string'
-        ? t(ctx.locale, 'describe__441c2', { v0: shown })
-        : JSON.stringify(shown);
-    return t(ctx.locale, 'describe__41054', { v0: name, v1: value });
+    if (typeof shown === 'number') return t(ctx.locale, 'describe__41054', { v0: name, v1: shown });
+    if (typeof shown !== 'string') return t(ctx.locale, 'describeSettingsChanged');
+    return t(ctx.locale, 'describe__41054', {
+      v0: name,
+      v1: t(ctx.locale, 'describe__441c2', { v0: shown }),
+    });
   };
 
   const lines: string[] = [];
@@ -954,7 +1160,7 @@ const PROP_NAMES: Record<string, Localized> = {
   hint: { zh: '提示', en: 'hint', fr: 'indication' },
   shape: { zh: '样子', en: 'look', fr: 'apparence' },
   kind: { zh: '类别', en: 'category', fr: 'catégorie' },
-  tools: { zh: '一键按钮', en: 'one-tap buttons', fr: 'boutons en un geste' },
+  tools: { zh: '按钮和操作', en: 'buttons and actions', fr: 'boutons et actions' },
 };
 
 /** 取值也写成人话（D-230）。 */
@@ -975,6 +1181,21 @@ const PROP_VALUES: Record<string, Record<string, Localized>> = {
     icon: { zh: '只显示图标', en: 'icon only', fr: 'icône seule' },
   },
   kind: Object.fromEntries(Object.entries(QUICK_ACTION_CATEGORIES).map(([k, v]) => [k, v.name])),
+  layout: {
+    stack: { zh: '上下排列', en: 'stacked', fr: 'empilé' },
+    row: { zh: '左右排列', en: 'side by side', fr: 'côte à côte' },
+    grid: { zh: '宫格', en: 'a grid', fr: 'une grille' },
+  },
+  aspect: {
+    wide: { zh: '宽屏', en: 'wide', fr: 'large' },
+    landscape: { zh: '横向', en: 'landscape', fr: 'paysage' },
+    square: { zh: '正方形', en: 'square', fr: 'carré' },
+    portrait: { zh: '竖向', en: 'portrait', fr: 'portrait' },
+  },
+  fit: {
+    cover: { zh: '铺满', en: 'fill', fr: 'remplir' },
+    contain: { zh: '完整显示', en: 'show whole picture', fr: 'image entière' },
+  },
 };
 
 /** 块的样式修改（对齐、颜色、大小、图片背景）怎么说。 */

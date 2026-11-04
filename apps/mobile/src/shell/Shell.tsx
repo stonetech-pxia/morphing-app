@@ -20,7 +20,7 @@ import { usePalette } from '../renderer/theme';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { shownConfig } from '../workspace/store';
 import { AIEntry, shellAbout } from './ai-entry';
-import { Banner, DraftNotice } from './Banner';
+import { BannerAnchor, DraftNotice } from './Banner';
 import { HistoryView } from './HistoryView';
 import { targetIcon, targetLabel, useNavigate } from './navigation';
 import { SettingsView } from './SettingsView';
@@ -136,7 +136,7 @@ export function Shell() {
           <AIEntry about={entryAbout} palette={palette} />
         </View>
       ) : null}
-      {inDraft ? null : <Banner palette={palette} />}
+      {inDraft ? null : <BannerAnchor palette={palette} />}
       <DraftNotice palette={palette} />
       {pageId === HOME_PAGE_ID && !editing && !inDraft ? <GuideCard palette={palette} /> : null}
       {pageId === HOME_PAGE_ID && !editing && !inDraft ? <DeskResume palette={palette} /> : null}

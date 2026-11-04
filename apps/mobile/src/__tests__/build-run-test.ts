@@ -134,6 +134,26 @@ const planned = (store: WorkspaceStore) =>
   store.getState().draft?.steps.at(-1)?.config ?? store.getState().config!;
 
 describe('大工程先出计划', () => {
+  it('前一步把后一步也做了：这一步打勾但记下「前面已经做好了」，不算失败，全程结果照常', async () => {
+    const { store } = await booted({
+      script: {
+        放书单列表: {
+          kind: 'reject',
+          reason: 'noChange',
+          message: '已经有了',
+          examples: [],
+        } as Plan,
+      },
+    });
+    await store.getState().change('搭建读书 App');
+    await store.getState().startBuild();
+    expect(phase(store)).toBe('finished');
+    expect(statuses(store)).toEqual(['done', 'done', 'done', 'done']);
+    const steps = store.getState().build!.steps;
+    expect(steps.find((s) => s.id === 'page')!.already).toBe(true);
+    expect(steps.filter((s) => s.already)).toHaveLength(1);
+  });
+
   it('新用户说大工程：看到计划，什么都没改，点「开始」才调模型（底线 16）', async () => {
     const { store, calls } = await booted();
     const headId = store.getState().head!.id;

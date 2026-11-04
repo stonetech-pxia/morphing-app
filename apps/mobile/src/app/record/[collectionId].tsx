@@ -1,4 +1,4 @@
-import { attachmentIds, type DataRecord, type FieldIssue } from '@morph/core';
+import { attachmentIds, tableIsShown, type DataRecord, type FieldIssue } from '@morph/core';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
@@ -25,8 +25,9 @@ export default function RecordRoute() {
     /** 收件页面「存成记录」（D-392）：为这张表单复制出来的用户文件的键（share/save-as-record.ts）。 */
     copies?: string;
   }>();
-  const { repo, files, locale } = useWorkspaceContext();
+  const { repo, files, locale, registry } = useWorkspaceContext();
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
+  const showToast = useWorkspace((s) => s.showToast);
   const router = useRouter();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
@@ -87,6 +88,12 @@ export default function RecordRoute() {
         collection.fields.flatMap((f) => (f.type === 'file' ? attachmentIds(values[f.id]) : [])),
       );
       router.back();
+      // 新记录回去看不到（这张表还没有页面读）：说一句，能接着改。
+      if (!record && !tableIsShown(config, collection.id, registry))
+        showToast({
+          message: t(locale, 'recordSavedNoPage'),
+          continueTable: collection.id,
+        });
     } else if ('issues' in result) setIssues(result.issues);
   }
 
