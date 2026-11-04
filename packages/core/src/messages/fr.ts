@@ -4,7 +4,7 @@ import type { MessageTable, SingularTable } from './en';
 
 export const fr: MessageTable = {
   trustNote:
-    'Sans publicité. Aucun compte requis pour traiter vos fichiers. Le traitement reste sur votre appareil. L’IA reçoit votre demande et la configuration de l’application, jamais le contenu des fichiers ou des entrées.',
+    'Sans publicité. Aucun compte requis pour traiter vos fichiers. Le traitement reste sur votre appareil. Tink est l’IA de cette application, fournie par défaut par Claude d’Anthropic ; vous pouvez choisir un autre service dans Paramètres. Tink reçoit votre demande et la configuration de l’application, jamais le contenu des fichiers ou des entrées.',
   resultContinue: 'Continuer le traitement',
   resultIncoming: 'Pour ces résultats : {what}',
   chainMake: 'Combiner en une action rapide',
@@ -58,9 +58,9 @@ export const fr: MessageTable = {
     'La dernière modification était endommagée. L’application est revenue à la dernière version qui fonctionnait.',
   noPrevious: 'Il n’y a plus de modification antérieure à annuler.',
   aiUnavailable:
-    'Impossible de joindre le service IA. Aucune modification n’a été apportée ; veuillez réessayer plus tard.',
+    'Impossible de joindre Tink. Aucune modification n’a été apportée ; veuillez réessayer plus tard.',
   aiRateLimited: 'Trop de requêtes en peu de temps. Veuillez patienter une minute, puis réessayer.',
-  aiDailyLimit: 'La limite de requêtes IA d’aujourd’hui a été atteinte. Réessayez demain.',
+  aiDailyLimit: 'La limite de requêtes Tink d’aujourd’hui a été atteinte. Réessayez demain.',
   undoSummary: 'Annuler',
   undoneBanner: 'Retour à l’état d’avant',
 
@@ -70,7 +70,7 @@ export const fr: MessageTable = {
   restoreThis: 'Revenir à ce moment',
   restoreSummary: 'Retour à {when}',
   source_seed: 'Début',
-  source_ai: 'Par l’IA',
+  source_ai: 'Par Tink',
   source_user: 'Par vous',
   source_restore: 'Retour en arrière',
   source_rollback: 'Annulé automatiquement',
@@ -121,28 +121,28 @@ export const fr: MessageTable = {
   openHistory: 'Historique des modifications',
   language: 'Langue',
   languageValue: 'Français (suit le système)',
-  aiEngine: 'IA',
+  aiEngine: 'Tink',
   aiEngineRemote: 'Claude via le serveur Tinkrum',
   aiEngineMock: 'Règles intégrées (simulation hors ligne)',
   aiEngineByok: 'Ma propre clé API ({model})',
 
   // AI 设置
-  aiSettingsTitle: 'AI',
-  aiModeQuestion: 'Quelle IA modifie cette app',
+  aiSettingsTitle: 'Tink',
+  aiModeQuestion: 'Ce que Tink utilise pour modifier cette app',
   aiModeMock: 'Règles intégrées',
   aiModeMockNote: 'Hors ligne et gratuit. Ne comprend qu’un nombre fixe de formulations.',
   aiModeServer: 'Serveur Tinkrum',
   aiModeServerNote: 'Claude via {url}.',
   // 测试期服务器保存请求（D-240）：只在用 Tinkrum 服务器时显示。
   aiServerStoredNote:
-    'Pendant la bêta, ce que vous dites à l’IA et la configuration de l’application sont enregistrés pour améliorer Tinkrum. Les fichiers et les entrées ne sont jamais envoyés.',
+    'Pendant la bêta, ce que vous dites à Tink et la configuration de l’application sont enregistrés pour améliorer Tinkrum. Les fichiers et les entrées ne sont jamais envoyés.',
   aiModeByok: 'Ma propre clé API',
   aiModeByokNote:
     'Appelle directement depuis ce téléphone le fournisseur de votre choix : Claude, ou toute API compatible OpenAI. L’usage est facturé sur votre compte chez ce fournisseur.',
   // 自带 key 的两种 provider（D-241）
   byokProviderLabel: 'Fournisseur',
   byokProviderAnthropic: 'Anthropic (Claude)',
-  byokProviderAnthropicNote: 'Testé. Les instructions de Tinkrum à l’IA sont réglées pour Claude.',
+  byokProviderAnthropicNote: 'Testé. Les instructions de Tinkrum à Tink sont réglées pour Claude.',
   byokProviderOpenAI: 'API compatible OpenAI',
   byokProviderOpenAINote:
     'OpenAI, OpenRouter, DeepSeek, Gemini, Groq, Ollama, LM Studio et d’autres. Non testé.',
@@ -178,28 +178,28 @@ export const fr: MessageTable = {
   keyPrivacyNote:
     'La clé n’est enregistrée que dans le stockage sécurisé de ce téléphone (non synchronisée ni sauvegardée sur d’autres appareils) et n’est envoyée qu’à api.anthropic.com. Définissez un plafond de dépenses dans la Claude Console.',
 
-  byokNoKey: 'Ajoutez d’abord votre clé API Claude dans « Paramètres → IA ».',
+  byokNoKey: 'Ajoutez d’abord votre clé API Claude dans « Paramètres → Tink ».',
   byokInvalidKey:
-    'La clé API est invalide ou a été supprimée. Vérifiez-la dans « Paramètres → IA ».',
+    'La clé API est invalide ou a été supprimée. Vérifiez-la dans « Paramètres → Tink ».',
   byokPermission: 'Cette clé API n’est pas autorisée à utiliser le modèle sélectionné.',
   byokSpendLimit:
     'Votre plafond de dépenses dans la Claude Console est atteint. Aucune modification n’a été effectuée.',
   byokBusy:
     'Claude est occupé pour le moment. Aucune modification n’a été effectuée ; réessayez dans un instant.',
   byokModelNotFound:
-    'Le modèle sélectionné est introuvable. Choisissez un autre modèle dans « Paramètres → IA ».',
+    'Le modèle sélectionné est introuvable. Choisissez un autre modèle dans « Paramètres → Tink ».',
   byokUnavailable:
     'Impossible de joindre l’API Claude. Aucune modification n’a été effectuée ; vérifiez la connexion et réessayez.',
   byokNoEndpoint:
-    'Saisissez d’abord l’adresse du fournisseur et le nom du modèle dans « Paramètres → IA ».',
+    'Saisissez d’abord l’adresse du fournisseur et le nom du modèle dans « Paramètres → Tink ».',
   byokOtherSpendLimit:
     'Votre compte chez ce fournisseur n’a plus de crédit ou a atteint son plafond de dépenses. Aucune modification n’a été effectuée.',
   byokOtherBusy:
-    'Le fournisseur d’IA est occupé ou a rencontré une erreur. Aucune modification n’a été effectuée ; réessayez dans un instant.',
+    'Le fournisseur du modèle est occupé ou a rencontré une erreur. Aucune modification n’a été effectuée ; réessayez dans un instant.',
   byokOtherUnavailable:
-    'Impossible de joindre le fournisseur d’IA, ou il n’a pas accepté la requête. Aucune modification n’a été effectuée ; vérifiez l’adresse, le nom du modèle et la connexion.',
+    'Impossible de joindre le fournisseur du modèle, ou il n’a pas accepté la requête. Aucune modification n’a été effectuée ; vérifiez l’adresse, le nom du modèle et la connexion.',
   aiBadOutput:
-    'La réponse de l’IA n’a pas pu être utilisée. Aucune modification n’a été effectuée ; reformulez votre demande.',
+    'La réponse de Tink n’a pas pu être utilisée. Aucune modification n’a été effectuée ; reformulez votre demande.',
   about: 'À propos',
   aboutValue: 'Prototype Tinkrum · AGPL-3.0 · schéma v{schema} · version #{revision}',
 
@@ -452,7 +452,7 @@ export const fr: MessageTable = {
   dataRowHint:
     'Vos données : exporter, supprimées récemment, configuration de l’app, mémoire de pré-remplissage',
   dataPrivacy:
-    'Les entrées sont stockées uniquement sur ce téléphone. L’IA ne voit que la structure de vos tableaux (noms et champs), jamais ce que vous saisissez.',
+    'Les entrées sont stockées uniquement sur ce téléphone. Tink ne voit que la structure de vos tableaux (noms et champs), jamais ce que vous saisissez.',
   dataTables: 'Tableaux de données',
   unusedTables: 'Données hors de l’application',
   unusedTablesHint:
@@ -488,7 +488,7 @@ export const fr: MessageTable = {
     'Supprimer le modèle sur l’appareil ? Les suggestions reviennent aux règles seules. Vos entrées restent. Vous pourrez le télécharger de nouveau.',
   prefillMemoryTitle: 'Mémoire de pré-remplissage',
   prefillMemoryHint:
-    'Quand vous ajoutez une entrée, Tinkrum retient la mise en page des documents enregistrés : après quelle étiquette se trouve une valeur, à peu près sur quelle ligne, et le nom du commerce. Les montants et les dates ne sont pas conservés. Stockée uniquement sur ce téléphone, jamais envoyée à l’IA. Le fichier exporté sert aussi de sauvegarde : « Restaurer depuis un fichier » la remet en place. Dans le formulaire d’une nouvelle entrée, Tinkrum retient aussi la suggestion choisie pour chaque champ : l’étiquette qui la précède et sa position approximative, pas la valeur.',
+    'Quand vous ajoutez une entrée, Tinkrum retient la mise en page des documents enregistrés : après quelle étiquette se trouve une valeur, à peu près sur quelle ligne, et le nom du commerce. Les montants et les dates ne sont pas conservés. Stockée uniquement sur ce téléphone, jamais envoyée à Tink. Le fichier exporté sert aussi de sauvegarde : « Restaurer depuis un fichier » la remet en place. Dans le formulaire d’une nouvelle entrée, Tinkrum retient aussi la suggestion choisie pour chaque champ : l’étiquette qui la précède et sa position approximative, pas la valeur.',
   prefillMemoryCount: '{count} mises en page de documents mémorisées',
   prefillMemoryNone: 'Aucune mise en page mémorisée pour l’instant',
   prefillMemoryExport: 'Exporter',
@@ -570,8 +570,8 @@ export const fr: MessageTable = {
   readyRunNow: 'L’utiliser maintenant',
   readyLater: 'Pas maintenant',
   readyHome: 'Un raccourci est aussi disponible sur l’accueil : appuyez dessus la prochaine fois.',
-  askAIChange: 'Demander à l’IA de la modifier',
-  readyFix: 'Pas tout à fait ? Demander à l’IA de la modifier',
+  askAIChange: 'Demander à Tink de la modifier',
+  readyFix: 'Pas tout à fait ? Demander à Tink de la modifier',
   aboutWorkflow: 'Action rapide à modifier : « {name} »',
   aboutWorkflowHint: 'Dites comment la modifier, ou essayez l’un des exemples ci-dessous.',
   aboutPlaceholder: 'Par exemple : {example}',
@@ -582,13 +582,13 @@ export const fr: MessageTable = {
   aboutTableHint: 'Dites ce que le formulaire doit demander, par exemple un nouveau champ.',
   aboutToolsScreen: 'Page à modifier : Outils',
   aboutToolsScreenHint:
-    'Cette page est fournie par Tinkrum et sa disposition ne change pas, mais l’IA peut ajouter ou retirer des outils.',
+    'Cette page est fournie par Tinkrum et sa disposition ne change pas, mais Tink peut ajouter ou retirer des outils.',
   aboutQuickActionsScreen: 'Page à modifier : Actions rapides',
   aboutQuickActionsScreenHint:
-    'Cette page est fournie par Tinkrum et sa disposition ne change pas, mais l’IA peut créer ou modifier des actions rapides.',
+    'Cette page est fournie par Tinkrum et sa disposition ne change pas, mais Tink peut créer ou modifier des actions rapides.',
   aboutDesk: 'À modifier : le bureau',
   aboutDeskHint:
-    'L’IA peut changer ses boutons et sa disposition, jamais les fichiers qui s’y trouvent.',
+    'Tink peut changer ses boutons et sa disposition, jamais les fichiers qui s’y trouvent.',
   aboutShared: 'Fichiers partagés : {what}',
   sharedPhotos: '{n} photos',
   sharedPdfs: '{n} PDF',
@@ -759,9 +759,9 @@ export const fr: MessageTable = {
   buildPresetHint:
     'Si cela vous plaît, enregistrez-le comme préréglage : Paramètres → Mes préréglages.',
   buildFinish: 'Terminé',
-  buildFailedModel: 'L’IA n’a pas répondu pour cette étape. Vous pouvez réessayer.',
+  buildFailedModel: 'Tink n’a pas répondu pour cette étape. Vous pouvez réessayer.',
   buildFailedInvalid:
-    'La modification proposée par l’IA pour cette étape n’était pas valide. Vous pouvez réessayer.',
+    'La modification proposée par Tink pour cette étape n’était pas valide. Vous pouvez réessayer.',
   sessionTitle: 'Reste à faire',
   sessionDoneCount: '{n} éléments faits',
   fixProblems: 'Compléter ce qui manque',
@@ -774,11 +774,11 @@ export const fr: MessageTable = {
   sessionClear: 'Vider la liste',
   sessionClearTitle: 'Vider cette liste ?',
   sessionClearBody:
-    'Seuls la liste et ce dont l’IA se souvient sont effacés. Votre app et vos entrées ne changent pas.',
+    'Seuls la liste et ce dont Tink se souvient sont effacés. Votre app et vos entrées ne changent pas.',
   sessionClearAfterPreset: 'Préréglage enregistré. Vider la liste pour commencer autre chose ?',
   sessionKeep: 'La garder',
   sessionInvalid:
-    'La modification proposée par l’IA n’était pas valide. Vous pouvez la redemander.',
+    'La modification proposée par Tink n’était pas valide. Vous pouvez la redemander.',
   sessionWhyAdd: '« {name} » : rien ne permet encore d’y ajouter quelque chose.',
   sessionWhyView: '« {name} » : rien ne permet encore de le voir.',
   sessionWhyFile: '« {name} » : ses étapes ne s’enchaînent pas ou des réglages manquent.',
@@ -829,8 +829,8 @@ export const fr: MessageTable = {
     'Vous pouvez aussi faire de Tinkrum votre propre app. Choisissez-en une pour essayer.',
   sampleDraftInput: 'Utiliser l’app modèle « {name} »',
   sampleReadyTitle: '« {name} » est prête',
-  sampleReadyBody: 'Pour l’adapter à vos besoins, demandez à l’IA de continuer à la modifier.',
-  sampleReadyChange: 'Modifier avec l’IA',
+  sampleReadyBody: 'Pour l’adapter à vos besoins, demandez à Tink de continuer à la modifier.',
+  sampleReadyChange: 'Modifier avec Tink',
   sampleReadyDismiss: 'Compris',
   sampleFailed: 'Impossible d’ajouter cette app modèle. Essayez-en une autre.',
   sampleContinuePrompt: 'En partant de « {name} », modifier ceci : ',
@@ -849,7 +849,7 @@ export const fr: MessageTable = {
   needSent:
     'Merci, c’est noté. Les nouveaux outils arriveront avec les mises à jour et les téléchargements.',
   needPrivacy: 'Seule cette phrase est envoyée à Tinkrum — ni fichiers, ni entrées, ni réglages.',
-  needsSettingTitle: 'Proposer d’envoyer les demandes que l’IA ne sait pas traiter',
+  needsSettingTitle: 'Proposer d’envoyer les demandes que Tink ne sait pas traiter',
   needsSettingNote:
     'Affiche un bouton sous la réponse. Rien n’est envoyé sans que vous appuyiez dessus.',
   // ---- 记一笔、附件和公式字段（D-187、D-188）----
@@ -994,7 +994,7 @@ export const fr: MessageTable = {
   reminderDueIn: 'Une entrée de « {table} » arrive à échéance dans {n} jours ({date})',
   remindersTitle: 'Rappels',
   remindersHint:
-    'Les rappels sont des notifications sur cet appareil. En toucher un ouvre seulement la page ou l’action rapide ; rien ne s’exécute tout seul. Pour ajouter ou modifier un rappel, demandez à l’IA (par exemple « rappelle-moi tous les jours à 9 h de noter mes dépenses »).',
+    'Les rappels sont des notifications sur cet appareil. En toucher un ouvre seulement la page ou l’action rapide ; rien ne s’exécute tout seul. Pour ajouter ou modifier un rappel, demandez à Tink (par exemple « rappelle-moi tous les jours à 9 h de noter mes dépenses »).',
   remindersNone: 'Aucun rappel pour l’instant',
   remindersOff:
     'Les notifications de Tinkrum sont désactivées. Activez-les dans les Réglages du système pour recevoir les rappels.',
@@ -1188,7 +1188,7 @@ export const fr: MessageTable = {
   describe_Steps_of_591ff: 'Étapes de « {v0} » : {v1}',
   describe_Remove_step_from_8750c: 'Dans « {v1} », retirer l’étape « {v0} »',
   describe_can_t_be_removed_it_holds_the_AI_and_C_e58da:
-    '« {v0} » ne peut pas être retiré (il contient les entrées IA et Historique des modifications), il devient donc un bouton flottant',
+    '« {v0} » ne peut pas être retiré (il contient les entrées Tink et Historique des modifications), il devient donc un bouton flottant',
   describe_Update_the_tool_to_the_latest_version__b20b4:
     'Mettre à jour l’outil « {v0} » vers la dernière version ; vos modifications sont conservées',
   describe_Also_removes_card_s_that_ran_this_quic_5d29f:
@@ -1216,7 +1216,7 @@ export const fr: MessageTable = {
   defaults_Home_ec133: 'Accueil',
   defaults_My_workspace_df4a5: 'Mon espace de travail',
   defaults_Tap_AI_and_describe_how_this_app_shoul_7d958:
-    'Touchez « IA » et décrivez en une phrase comment cette app doit changer.',
+    'Touchez « Tink » et décrivez en une phrase comment cette app doit changer.',
   defaults_Add_tools_9c8e1: 'Ajouter des outils',
   defaults_Recent_files_2d602: 'Fichiers récents',
   presets_ID_photo_20f6d: 'Photo d’identité {date}',
@@ -1305,7 +1305,7 @@ export const fr: MessageTable = {
   ShareScreen_Needs_at_least_files_0ed9b: 'Au moins {v0} fichiers requis',
   ShareScreen_Takes_at_most_files_0fe59: 'Maximum {v0} fichiers',
   ShareScreen_Files_are_handled_on_this_device_only__c8099:
-    'Les fichiers sont traités uniquement sur cet appareil ; l’IA ne voit jamais leurs noms ni leur contenu.',
+    'Les fichiers sont traités uniquement sur cet appareil ; Tink ne voit jamais leurs noms ni leur contenu.',
   workflow_change_Delete_e4208: 'Supprimer « {v0} » ?',
   workflow_change_Your_files_are_kept_You_can_undo_this_e9492:
     'Vos fichiers sont conservés. Vous pouvez annuler cette action.',
@@ -1499,9 +1499,9 @@ export const fr: MessageTable = {
   calendarMonday: 'Lundi',
   calendarSunday: 'Dimanche',
   calendarTwoWeeks:
-    'Les périodes de deux semaines (par exemple de paie) partent du {date}. Pour changer cette date, demandez à l’IA.',
+    'Les périodes de deux semaines (par exemple de paie) partent du {date}. Pour changer cette date, demandez à Tink.',
   calendarTwoWeeksDefault:
-    'Les périodes de deux semaines (par exemple de paie) commencent en début de semaine. Pour choisir leur premier jour, demandez à l’IA.',
+    'Les périodes de deux semaines (par exemple de paie) commencent en début de semaine. Pour choisir leur premier jour, demandez à Tink.',
   separatorSemicolon: ' ; ',
 
   // 扫描件转 Excel（D-272）

@@ -225,7 +225,7 @@ function findNavItem(rawName: string, state: State): NavTarget | null {
   if (/^(工具|工具目录|tools?)$/.test(name)) return 'tools';
   if (/^(设置|settings?)$/.test(name)) return 'settings';
   if (/^(改动记录|历史|历史记录|历史版本|change history|history)$/.test(name)) return 'history';
-  if (/^(ai|ai\s*修改)$/.test(name)) return 'ai';
+  if (/^(tink|ai|ai\s*修改)$/.test(name)) return 'ai';
   const p = state.config.containers.pages.find((x) => x.title.toLowerCase() === name);
   if (p) return pageTarget(p.id);
   return null;
@@ -237,7 +237,7 @@ function resolveNavItem(rawName: string, state: State): NavTarget {
   if (/^(工具|工具目录|tools?)$/.test(name)) return 'tools';
   if (/^(设置|settings?)$/.test(name)) return 'settings';
   if (/^(改动记录|历史|历史记录|change history|history)$/.test(name)) return 'history';
-  if (/^(ai|ai\s*修改)$/.test(name)) return 'ai';
+  if (/^(tink|ai|ai\s*修改)$/.test(name)) return 'ai';
   const p = state.config.containers.pages.find((x) => x.title.toLowerCase() === name);
   if (p) return pageTarget(p.id);
   const tool = findTool(name, state.ctx);
@@ -438,8 +438,8 @@ const resetStyleRule: Rule = (clause) =>
 const PROTECTED_MESSAGE = (locale: Locale) =>
   say(
     locale,
-    '「设置」不能移除：「AI 修改」和「改动记录」入口都在设置里，去掉它就无法继续修改或撤销了。可以把它改为浮动按钮。',
-    'Settings can’t be removed: it holds the AI and Change history entries, so without it you couldn’t change or undo anything. You can make it a floating button instead.',
+    '「设置」不能移除：「Tink」和「改动记录」入口都在设置里，去掉它就无法继续修改或撤销了。可以把它改为浮动按钮。',
+    'Settings can’t be removed: it holds Tink and Change history entries, so without it you couldn’t change or undo anything. You can make it a floating button instead.',
   );
 
 /** 从导航栏和浮动按钮里去掉一个入口（AI 修改、历史和工具都可以去掉，设置页里仍有入口）。 */
@@ -1705,8 +1705,8 @@ function runClauses(clauses: string[], ctx: PlanContext): ClauseResult[] {
         'userData',
         say(
           ctx.locale,
-          'AI 只修改界面，不会读取或改动你记录的数据。请直接在页面上添加、修改或删除。',
-          'The AI only changes the app’s interface; it never reads or changes the data you record. Add, edit or delete entries on the page itself.',
+          'Tink 只修改界面，不会读取或改动你记录的数据。请直接在页面上添加、修改或删除。',
+          'Tink only changes the app’s interface; it never reads or changes the data you record. Add, edit or delete entries on the page itself.',
         ),
       );
     }
@@ -1930,8 +1930,8 @@ function fixPlan(ctx: PlanContext): Plan {
     reason: 'unknown',
     message: say(
       ctx.locale,
-      '内置规则补不了这些，可以在设置里换一个 AI。',
-      'The built-in rules can’t fix these. You can choose another AI in Settings.',
+      '内置规则补不了这些，可以在设置里换 Tink 用的模型。',
+      'The built-in rules can’t fix these. You can change what powers Tink in Settings.',
     ),
     examples: [],
   };
@@ -1978,8 +1978,8 @@ export function createMockAIProvider(): AIProvider {
           reason: 'errand',
           message: say(
             ctx.locale,
-            'AI 不会替你运行快捷操作。点一下这个快捷操作就能开始。',
-            'The AI doesn’t run quick actions for you. Tap the quick action to start it.',
+            'Tink 不会替你运行快捷操作。点一下这个快捷操作就能开始。',
+            'Tink doesn’t run quick actions for you. Tap the quick action to start it.',
           ),
           examples: [],
         };

@@ -92,7 +92,7 @@ describe('remote AI provider', () => {
       await make({ fetchImpl: respond(429, { error: 'daily_limit' }) }).plan('x', ctx),
     ).toMatchObject({
       kind: 'reject',
-      message: '今天的 AI 请求次数已用完，请明天再试。',
+      message: '今天的 Tink 请求次数已用完，请明天再试。',
     });
   });
 
@@ -106,7 +106,7 @@ describe('remote AI provider', () => {
       await make({ fetchImpl: respond(502, { error: 'ai_unavailable' }) }).plan('x', ctx),
     ).toMatchObject({
       kind: 'reject',
-      message: '暂时连不上 AI 服务，没有做任何修改，请稍后再试。',
+      message: '暂时连不上 Tink，没有做任何修改，请稍后再试。',
     });
     expect(
       await make({ fetchImpl: respond(403, { error: 'blocked' }) }).plan('x', ctx),

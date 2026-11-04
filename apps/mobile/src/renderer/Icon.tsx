@@ -1,6 +1,6 @@
 import type { IconName, IconValue, ToolIconName } from '@morph/core';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { Text } from 'react-native';
+import { Image, Text } from 'react-native';
 
 // 图标白名单（core 的 ICON_NAMES）→ 系统图标：iOS 用 SF Symbols，Android 用 Material Symbols。
 
@@ -97,10 +97,20 @@ export function Icon({
   size = 22,
   color,
 }: {
-  name: IconValue | ToolIconName;
+  name: IconValue | ToolIconName | 'tink';
   size?: number;
   color: string;
 }) {
+  // Tink 的小锤子（D-436）：系统图标库里没有，用单色 PNG 按主题染色。
+  if (name === 'tink') {
+    return (
+      <Image
+        testID="tink-hammer"
+        source={require('../../assets/images/tink-hammer.png')}
+        style={{ width: size, height: size, tintColor: color }}
+      />
+    );
+  }
   const symbol =
     name in SYMBOLS
       ? SYMBOLS[name as IconName]

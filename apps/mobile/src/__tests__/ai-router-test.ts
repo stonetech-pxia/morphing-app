@@ -135,7 +135,7 @@ describe('AI router', () => {
     await settings.getState().setMode('byok');
     expect(await router.plan('主题换成绿色', ctx)).toMatchObject({
       kind: 'reject',
-      message: '请先在「设置 → AI」里填写你的 Claude API key。',
+      message: '请先在「设置 → Tink」里填写你的 Claude API key。',
     });
   });
 
@@ -153,7 +153,7 @@ describe('AI router', () => {
   });
 
   it.each([
-    [401, 'authentication_error', 'API key 无效或已被删除，请在「设置 → AI」里检查。'],
+    [401, 'authentication_error', 'API key 无效或已被删除，请在「设置 → Tink」里检查。'],
     [529, 'overloaded_error', 'Claude 服务暂时繁忙，没有做任何修改，请稍后再试。'],
   ])('turns HTTP %i into a clear “nothing changed” message', async (status, type, message) => {
     const { settings, router } = await setup({ fetchImpl: claudeError(status, type) });
@@ -268,7 +268,7 @@ describe('OpenAI-compatible provider', () => {
     const { router, settings } = await openai();
     expect(await router.plan('主题换成绿色', ctx)).toMatchObject({
       kind: 'reject',
-      message: '请先在「设置 → AI」里填写 provider 的地址和模型名。',
+      message: '请先在「设置 → Tink」里填写 provider 的地址和模型名。',
     });
     expect(await settings.getState().testConnection()).toEqual({ ok: false, kind: 'no_endpoint' });
   });
@@ -311,7 +311,7 @@ describe('OpenAI-compatible provider', () => {
       const plan = await router.plan('我想要绿色', ctx);
       expect(plan).toMatchObject({
         kind: 'reject',
-        message: 'AI provider 暂时繁忙或出错，没有做任何修改，请稍后再试。',
+        message: '模型 provider 暂时繁忙或出错，没有做任何修改，请稍后再试。',
       });
       expect(JSON.stringify(plan)).not.toContain(OTHER_KEY);
       expect(await settings.getState().testConnection()).toEqual({ ok: false, kind: 'overloaded' });

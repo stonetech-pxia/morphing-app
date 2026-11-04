@@ -3,7 +3,7 @@
 
 export const en = {
   trustNote:
-    'No ads. No account needed to work with your files. Files are processed on this device. When you ask AI to change the app, it gets your request and the app’s settings — never your files or entries.',
+    'No ads. No account needed to work with your files. Files are processed on this device. Tink is this app’s AI, provided by Anthropic’s Claude by default; you can choose another service in Settings. It gets your request and the app’s settings — never your files or entries.',
   resultContinue: 'Continue processing',
   resultIncoming: 'For these results: {what}',
   chainMake: 'Combine into one quick action',
@@ -52,10 +52,9 @@ export const en = {
   rolledBack: 'The change could not be displayed, so the app went back to how it was.',
   recovered: 'The latest change was damaged, so the app went back to the last time it worked.',
   noPrevious: 'There is no earlier change to undo.',
-  aiUnavailable:
-    'The AI service could not be reached. Nothing was changed; please try again later.',
+  aiUnavailable: 'Tink could not be reached. Nothing was changed; please try again later.',
   aiRateLimited: 'Too many requests in a short time. Please wait a minute and try again.',
-  aiDailyLimit: 'Today’s AI request limit has been reached. Try again tomorrow.',
+  aiDailyLimit: 'Today’s Tink request limit has been reached. Try again tomorrow.',
   undoSummary: 'Undo',
   undoneBanner: 'Back to how it was',
 
@@ -65,7 +64,7 @@ export const en = {
   restoreThis: 'Restore this version',
   restoreSummary: 'Back to {when}',
   source_seed: 'Start',
-  source_ai: 'By AI',
+  source_ai: 'By Tink',
   source_user: 'By you',
   source_restore: 'Restored',
   source_rollback: 'Undone automatically',
@@ -114,28 +113,28 @@ export const en = {
   openHistory: 'Change history',
   language: 'Language',
   languageValue: 'English (follows system)',
-  aiEngine: 'AI',
+  aiEngine: 'Tink',
   aiEngineRemote: 'Claude via the Tinkrum server',
   aiEngineMock: 'Built-in rules (offline mock)',
   aiEngineByok: 'My own API key ({model})',
 
   // AI 设置
-  aiSettingsTitle: 'AI',
-  aiModeQuestion: 'Which AI changes this app',
+  aiSettingsTitle: 'Tink',
+  aiModeQuestion: 'What powers Tink',
   aiModeMock: 'Built-in rules',
   aiModeMockNote: 'Offline and free. Understands a fixed set of phrases.',
   aiModeServer: 'Tinkrum server',
   aiModeServerNote: 'Claude through {url}.',
   // 测试期服务器保存请求（D-240）：只在用 Tinkrum 服务器时显示。
   aiServerStoredNote:
-    'During the beta, what you say to the AI and the app’s settings are saved to improve Tinkrum. Files and entries are never sent.',
+    'During the beta, what you say to Tink and the app’s settings are saved to improve Tinkrum. Files and entries are never sent.',
   aiModeByok: 'My own API key',
   aiModeByokNote:
     'Calls the provider you choose directly from this phone: Claude, or any OpenAI-compatible API. Usage is billed to your account with that provider.',
   // 自带 key 的两种 provider（D-241）
   byokProviderLabel: 'Provider',
   byokProviderAnthropic: 'Anthropic (Claude)',
-  byokProviderAnthropicNote: 'Tested. Tinkrum’s instructions to the AI are tuned for Claude.',
+  byokProviderAnthropicNote: 'Tested. Tinkrum’s instructions to Tink are tuned for Claude.',
   byokProviderOpenAI: 'OpenAI-compatible API',
   byokProviderOpenAINote:
     'OpenAI, OpenRouter, DeepSeek, Gemini, Groq, Ollama, LM Studio and others. Not tested.',
@@ -170,22 +169,22 @@ export const en = {
   keyPrivacyNote:
     'The key is stored only in this phone’s secure storage (not synced or backed up to other devices) and is sent only to api.anthropic.com. Set a spend limit in the Claude Console.',
 
-  byokNoKey: 'Add your Claude API key in Settings → AI first.',
-  byokInvalidKey: 'The API key is invalid or was deleted. Check it in Settings → AI.',
+  byokNoKey: 'Add your Claude API key in Settings → Tink first.',
+  byokInvalidKey: 'The API key is invalid or was deleted. Check it in Settings → Tink.',
   byokPermission: 'This API key isn’t allowed to use the selected model.',
   byokSpendLimit: 'Your Claude Console spend limit has been reached. Nothing was changed.',
   byokBusy: 'Claude is busy right now. Nothing was changed; please try again shortly.',
-  byokModelNotFound: 'The selected model wasn’t found. Choose another model in Settings → AI.',
+  byokModelNotFound: 'The selected model wasn’t found. Choose another model in Settings → Tink.',
   byokUnavailable:
     'Couldn’t reach the Claude API. Nothing was changed; check the network and try again.',
-  byokNoEndpoint: 'Enter the provider’s address and model name in Settings → AI first.',
+  byokNoEndpoint: 'Enter the provider’s address and model name in Settings → Tink first.',
   byokOtherSpendLimit:
     'Your account with this provider is out of credit or has reached its spend limit. Nothing was changed.',
   byokOtherBusy:
-    'The AI provider is busy or had an error. Nothing was changed; please try again shortly.',
+    'The model provider is busy or had an error. Nothing was changed; please try again shortly.',
   byokOtherUnavailable:
-    'Couldn’t reach the AI provider, or it didn’t accept the request. Nothing was changed; check the address, the model name and the network.',
-  aiBadOutput: 'The AI’s answer couldn’t be used. Nothing was changed; try saying it another way.',
+    'Couldn’t reach the model provider, or it didn’t accept the request. Nothing was changed; check the address, the model name and the network.',
+  aiBadOutput: 'Tink’s answer couldn’t be used. Nothing was changed; try saying it another way.',
   about: 'About',
   aboutValue: 'Tinkrum prototype · AGPL-3.0 · schema v{schema} · version #{revision}',
 
@@ -426,7 +425,7 @@ export const en = {
   storageDeleteUnused: 'Restoring an older version will not bring it back. This can’t be undone.',
   dataRowHint: 'Your entries: export, recently deleted, app design, prefill memory',
   dataPrivacy:
-    'Entries are stored only on this phone. The AI only sees the structure of your tables (names and fields), never what you enter.',
+    'Entries are stored only on this phone. Tink only sees the structure of your tables (names and fields), never what you enter.',
   dataTables: 'Data tables',
   unusedTables: 'Not in the app',
   unusedTablesHint:
@@ -459,7 +458,7 @@ export const en = {
     'Delete the on-device model? Suggestions go back to rules only. Your entries stay. You can download it again.',
   prefillMemoryTitle: 'Prefill memory',
   prefillMemoryHint:
-    'When you log an entry, Tinkrum remembers the layout of documents you saved: which label a value follows, roughly which line, and the shop name. It does not keep amounts or dates. Stored only on this phone, never sent to the AI. The exported file is also a backup: use “Restore from file” to bring it back. In a new entry form, Tinkrum also remembers which suggestion you picked for each field: the label it followed and roughly where it was, not the value.',
+    'When you log an entry, Tinkrum remembers the layout of documents you saved: which label a value follows, roughly which line, and the shop name. It does not keep amounts or dates. Stored only on this phone, never sent to Tink. The exported file is also a backup: use “Restore from file” to bring it back. In a new entry form, Tinkrum also remembers which suggestion you picked for each field: the label it followed and roughly where it was, not the value.',
   prefillMemoryCount: 'Remembers {count} document layouts',
   prefillMemoryNone: 'No document layouts remembered yet',
   prefillMemoryExport: 'Export',
@@ -536,8 +535,8 @@ export const en = {
   readyRunNow: 'Use it now',
   readyLater: 'Not now',
   readyHome: 'It’s also on the home page — tap it next time.',
-  askAIChange: 'Ask AI to change it',
-  readyFix: 'Not quite right? Ask AI to change it',
+  askAIChange: 'Ask Tink to change it',
+  readyFix: 'Not quite right? Ask Tink to change it',
   aboutWorkflow: 'Changing “{name}”',
   aboutWorkflowHint: 'Say how it should change, or try one of the examples below.',
   aboutPlaceholder: 'For example: {example}',
@@ -548,12 +547,12 @@ export const en = {
   aboutTableHint: 'Say what its form should ask, for example a new field.',
   aboutToolsScreen: 'Changing the Tools page',
   aboutToolsScreenHint:
-    'This page comes with Tinkrum and can’t be rearranged, but AI can add or remove tools.',
+    'This page comes with Tinkrum and can’t be rearranged, but Tink can add or remove tools.',
   aboutQuickActionsScreen: 'Changing the Quick actions page',
   aboutQuickActionsScreenHint:
-    'This page comes with Tinkrum and can’t be rearranged, but AI can make or change quick actions.',
+    'This page comes with Tinkrum and can’t be rearranged, but Tink can make or change quick actions.',
   aboutDesk: 'Changing the file desk',
-  aboutDeskHint: 'AI can change its buttons and layout. It never touches the files on it.',
+  aboutDeskHint: 'Tink can change its buttons and layout. It never touches the files on it.',
   aboutShared: 'For the {what} you shared',
   sharedPhotos: '{n} photos',
   sharedPdfs: '{n} PDFs',
@@ -716,8 +715,8 @@ export const en = {
   buildUndoHint: 'Functions are already live. You can undo them in Change history.',
   buildPresetHint: 'If you like it, save it as a preset: Settings → My presets.',
   buildFinish: 'Done',
-  buildFailedModel: 'The AI didn’t answer this step. You can try it again.',
-  buildFailedInvalid: 'The AI’s change for this step wasn’t valid. You can try it again.',
+  buildFailedModel: 'Tink didn’t answer this step. You can try it again.',
+  buildFailedInvalid: 'Tink’s change for this step wasn’t valid. You can try it again.',
   sessionTitle: 'Still to do',
   sessionDoneCount: '{n} items done',
   fixProblems: 'Fill in what’s missing',
@@ -729,10 +728,10 @@ export const en = {
   sessionClear: 'Clear list',
   sessionClearTitle: 'Clear this list?',
   sessionClearBody:
-    'This only clears the list and what the AI remembers you said. Your app and entries stay as they are.',
+    'This only clears the list and what Tink remembers you said. Your app and entries stay as they are.',
   sessionClearAfterPreset: 'Preset saved. Clear the to-do list and start on something new?',
   sessionKeep: 'Keep it',
-  sessionInvalid: 'The AI’s change wasn’t valid. You can say it again.',
+  sessionInvalid: 'Tink’s change wasn’t valid. You can say it again.',
   sessionWhyAdd: '“{name}”: there’s no way to add to it yet.',
   sessionWhyView: '“{name}”: there’s no way to see it yet.',
   sessionWhyFile: '“{name}”: its steps don’t connect or are missing settings.',
@@ -779,8 +778,8 @@ export const en = {
   guideSamplesBody: 'You can also turn Tinkrum into an app of your own. Pick one to try.',
   sampleDraftInput: 'Use the “{name}” sample app',
   sampleReadyTitle: '“{name}” is ready',
-  sampleReadyBody: 'To make it your own, ask AI to keep changing it.',
-  sampleReadyChange: 'Change it with AI',
+  sampleReadyBody: 'To make it your own, ask Tink to keep changing it.',
+  sampleReadyChange: 'Change it with Tink',
   sampleReadyDismiss: 'Got it',
   sampleFailed: 'This sample app could not be added. Please try another one.',
   sampleContinuePrompt: 'Starting from {name}, change this: ',
@@ -798,7 +797,7 @@ export const en = {
   needRetry: 'Not sent. Try again',
   needSent: 'Thanks, we got it. New tools come through updates and downloads.',
   needPrivacy: 'Only this sentence is sent to Tinkrum — no files, entries or settings.',
-  needsSettingTitle: 'Offer to send requests AI can’t do',
+  needsSettingTitle: 'Offer to send requests Tink can’t do',
   needsSettingNote: 'Shows a button under the answer. Nothing is sent unless you tap it.',
   // ---- 记一笔、附件和公式字段（D-187、D-188）----
   noAttachment: 'No attachment',
@@ -934,7 +933,7 @@ export const en = {
   reminderDueIn: 'An entry in “{table}” is due in {n} days ({date})',
   remindersTitle: 'Reminders',
   remindersHint:
-    'Reminders are notifications on this device. Tapping one only opens the page or quick action; nothing runs by itself. To add or change a reminder, ask AI (for example “remind me every day at 9 to log expenses”).',
+    'Reminders are notifications on this device. Tapping one only opens the page or quick action; nothing runs by itself. To add or change a reminder, ask Tink (for example “remind me every day at 9 to log expenses”).',
   remindersNone: 'No reminders yet',
   remindersOff:
     'Notifications are off for Tinkrum. Turn them on in the system Settings to get reminders.',
@@ -1126,7 +1125,7 @@ export const en = {
   describe_Steps_of_591ff: 'Steps of “{v0}”: {v1}',
   describe_Remove_step_from_8750c: 'Remove step “{v0}” from “{v1}”',
   describe_can_t_be_removed_it_holds_the_AI_and_C_e58da:
-    '“{v0}” can’t be removed (it holds the AI and Change history entries), so it becomes a floating button',
+    '“{v0}” can’t be removed (it holds Tink and Change history entries), so it becomes a floating button',
   describe_Update_the_tool_to_the_latest_version__b20b4:
     'Update the {v0} tool to the latest version; your changes are kept',
   describe_Also_removes_card_s_that_ran_this_quic_5d29f:
@@ -1153,7 +1152,7 @@ export const en = {
   defaults_Home_ec133: 'Home',
   defaults_My_workspace_df4a5: 'My workspace',
   defaults_Tap_AI_and_describe_how_this_app_shoul_7d958:
-    'Tap AI and describe how this app should change',
+    'Tap Tink and describe how this app should change',
   defaults_Add_tools_9c8e1: 'Add tools',
   defaults_Recent_files_2d602: 'Recent files',
   presets_ID_photo_20f6d: 'ID photo {date}',
@@ -1242,7 +1241,7 @@ export const en = {
   ShareScreen_Needs_at_least_files_0ed9b: 'Needs at least {v0} files',
   ShareScreen_Takes_at_most_files_0fe59: 'Takes at most {v0} files',
   ShareScreen_Files_are_handled_on_this_device_only__c8099:
-    'Files are handled on this device only; AI never sees their names or contents.',
+    'Files are handled on this device only; Tink never sees their names or contents.',
   workflow_change_Delete_e4208: 'Delete “{v0}”?',
   workflow_change_Your_files_are_kept_You_can_undo_this_e9492:
     'Your files are kept. You can undo this.',
@@ -1430,9 +1429,9 @@ export const en = {
   calendarMonday: 'Monday',
   calendarSunday: 'Sunday',
   calendarTwoWeeks:
-    'Two-week periods (for example pay periods) count from {date}. To change it, ask the AI.',
+    'Two-week periods (for example pay periods) count from {date}. To change it, ask Tink.',
   calendarTwoWeeksDefault:
-    'Two-week periods (for example pay periods) start on a week start. To set the first day of one, ask the AI.',
+    'Two-week periods (for example pay periods) start on a week start. To set the first day of one, ask Tink.',
   separatorSemicolon: '; ',
 
   // 扫描件转 Excel（D-272）

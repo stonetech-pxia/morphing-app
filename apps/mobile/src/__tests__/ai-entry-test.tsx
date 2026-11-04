@@ -65,6 +65,19 @@ async function aboutSent(
 }
 
 describe('the AI entry at the top right of a page (D-406)', () => {
+  it('the entry shows the Tink hammer, not the sparkles', async () => {
+    await render();
+    const entry = await screen.findByTestId('page-ai');
+    expect(within(entry).getByTestId('tink-hammer')).toBeTruthy();
+  });
+
+  it('the Tink entry in the bottom bar shows the hammer too', async () => {
+    await render();
+    await screen.findByTestId('page-ai');
+    const bar = screen.getByTestId('nav-ai');
+    expect(within(bar).getByTestId('tink-hammer')).toBeTruthy();
+  });
+
   it('a page in the bar: the AI page says which page, and AI gets only its id', async () => {
     const { store } = await render();
     const about = await aboutSent(store);

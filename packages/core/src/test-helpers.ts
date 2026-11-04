@@ -36,9 +36,12 @@ export function fromV33(raw: unknown): WorkspaceConfig {
 
 /** fixtures/v33/<name>.json：v34 迁移前用 v33 代码存下来的配置（默认、新用户、模版、样板、评测 setup）。 */
 export function v33Fixture(name: string): Record<string, unknown> {
-  return JSON.parse(
-    readFileSync(join(__dirname, 'fixtures', 'v33', `${name}.json`), 'utf8'),
-  ) as Record<string, unknown>;
+  // 欢迎语是存下来时的默认文案；D-436 把 AI 改名 Tink 后，新配置的默认文案不同，老配置的不动。
+  const raw = readFileSync(join(__dirname, 'fixtures', 'v33', `${name}.json`), 'utf8')
+    .replaceAll('点「AI 修改」', '点「Tink」')
+    .replaceAll('Tap AI and describe', 'Tap Tink and describe')
+    .replaceAll('Touchez « IA »', 'Touchez « Tink »');
+  return JSON.parse(raw) as Record<string, unknown>;
 }
 
 /**

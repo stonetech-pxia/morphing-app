@@ -35,7 +35,7 @@ export function WelcomeArt({
     case 'app':
       return (
         <View style={[styles.badge, { backgroundColor: palette.primaryTint }]}>
-          <Icon name="sparkles" size={56} color={palette.primaryText} />
+          <Icon name="tink" size={56} color={palette.primaryText} />
         </View>
       );
     case 'style':
@@ -186,7 +186,7 @@ function TryArt({ palette, locale }: { palette: Palette; locale: Locale }) {
             boxShadow: `0px 2px 6px ${palette.shadow}1F`,
           },
         ]}>
-        <Icon name="sparkles" size={18} color={palette.primary} />
+        <Icon name="tink" size={18} color={palette.primary} />
         <Text style={[palette.font('body', 14), { color: palette.caption }]}>
           {t(locale, 'guideIntroAsk')}
         </Text>

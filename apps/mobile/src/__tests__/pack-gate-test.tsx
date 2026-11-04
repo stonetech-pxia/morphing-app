@@ -1,5 +1,5 @@
 import { createDefaultWorkspace, formatFileSize, packById, type PackNeed } from '@morph/core';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 
 import { PackGate } from '../packs/PackGate';
 import { PackStore } from '../packs/store';
@@ -35,6 +35,7 @@ const size = (...ids: string[]) =>
   );
 
 describe('first-use download prompt', () => {
+  // 取消键下载时也在，等它等不到下载结束；要等 onDone。
   it('says how much to download and that it works offline afterwards', async () => {
     await setup([{ pack: 'pdfview', optional: false }]);
     expect(await screen.findByText(/^首次使用需下载 \d+(\.\d)? (KB|MB)$/)).toBeTruthy();
@@ -82,8 +83,7 @@ describe('first-use download prompt', () => {
       { pack: 'ocr-eng', optional: true },
     ]);
     await fireEvent.press(await screen.findByTestId('pack-download'));
-    await screen.findByTestId('pack-cancel');
-    expect(all.done).toEqual([[]]);
+    await waitFor(() => expect(all.done).toEqual([[]]));
     expect(await all.store.isInstalled('ocr')).toBe(true);
     expect(await all.store.isInstalled('ocr-eng')).toBe(true);
     all.view.unmount();
@@ -94,8 +94,7 @@ describe('first-use download prompt', () => {
     ]);
     await fireEvent.press(await screen.findByTestId('pack-include-ocr-eng'));
     await fireEvent.press(screen.getByTestId('pack-download'));
-    await screen.findByTestId('pack-cancel');
-    expect(some.done).toEqual([['ocr-eng']]);
+    await waitFor(() => expect(some.done).toEqual([['ocr-eng']]));
     expect(await some.store.isInstalled('ocr')).toBe(true);
     expect(await some.store.isInstalled('ocr-eng')).toBe(false);
   });
@@ -105,8 +104,7 @@ describe('first-use download prompt', () => {
     // 要重新显示下载键（手机上卡在满格进度条、只能选「不下载，继续」）。
     const { done, view, gate } = await setup([{ pack: 'ocr', optional: true }]);
     await fireEvent.press(await screen.findByTestId('pack-download'));
-    await screen.findByTestId('pack-cancel');
-    expect(done).toEqual([[]]);
+    await waitFor(() => expect(done).toEqual([[]]));
     await view.rerender(gate([{ pack: 'ocr-eng', optional: true }]));
     expect(await screen.findByTestId('pack-download')).toBeTruthy();
   });

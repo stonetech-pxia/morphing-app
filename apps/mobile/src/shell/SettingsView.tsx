@@ -47,7 +47,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
       <ListRow
         palette={palette}
         testID="settings-ai"
-        icon="sparkles"
+        icon="tink"
         label={t(locale, 'changeTitle')}
         value={t(locale, 'changeRowHint')}
         onPress={env.locked ?? (() => router.push('/change'))}

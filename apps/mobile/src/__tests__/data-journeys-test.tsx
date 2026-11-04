@@ -239,7 +239,7 @@ describe('user data (UI)', () => {
     await fireEvent.press(screen.getByTestId('nav-ai'));
     await fireEvent.changeText(await screen.findByTestId('change-input'), '记一笔午饭 35');
     await fireEvent.press(screen.getByTestId('change-submit'));
-    expect(await screen.findByText(/AI 只修改界面，不会读取或改动你记录的数据/)).toBeTruthy();
+    expect(await screen.findByText(/Tink 只修改界面，不会读取或改动你记录的数据/)).toBeTruthy();
     expect(screen.queryByTestId('draft-bar')).toBeNull();
   });
 });

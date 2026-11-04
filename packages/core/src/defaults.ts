@@ -19,15 +19,16 @@ export const SYSTEM_TARGET_LABELS: Record<SystemTarget, Localized> = {
     fr: 'Ce que Tinkrum peut faire',
   },
   tools: { en: 'Tools', zh: '工具', fr: 'Outils' },
-  ai: { en: 'AI', zh: 'AI 修改', fr: 'IA' },
+  ai: { en: 'Tink', zh: 'Tink', fr: 'Tink' },
   history: { en: 'Changes', zh: '改动记录', fr: 'Modifications' },
   settings: { en: 'Settings', zh: '设置', fr: 'Paramètres' },
 };
 
-export const SYSTEM_TARGET_ICONS: Record<SystemTarget, IconName> = {
+/** `tink` 是 Tink 的小锤子（D-436），只有这个入口用，不在配置能写的图标白名单里。 */
+export const SYSTEM_TARGET_ICONS: Record<SystemTarget, IconName | 'tink'> = {
   quickActions: 'workflow',
   tools: 'apps',
-  ai: 'sparkles',
+  ai: 'tink',
   history: 'history',
   settings: 'settings',
 };

@@ -404,9 +404,9 @@ export const TEXT_ACTIONS: readonly ActionDefinition[] = [
     id: 'text.replace',
     label: { en: 'Replace words', zh: '替换文字', fr: 'Remplacer des mots' },
     description: {
-      en: 'Replace every occurrence of a word or phrase with another, exactly as typed (not a pattern). Both are the user’s own words: shown to AI only as "<user text>".',
-      zh: '把一个词（或一句话）全部换成另一个，按字面替换（不是规则或通配符）。两个词都是用户自己写的，AI 只看到「<user text>」。',
-      fr: 'Remplace chaque occurrence d’un mot ou d’une expression par une autre, telle que saisie (pas un motif). Les deux sont vos propres mots : l’IA ne voit que « <user text> ».',
+      en: 'Replace every occurrence of a word or phrase with another, exactly as typed (not a pattern). Both are the user’s own words: shown to Tink only as "<user text>".',
+      zh: '把一个词（或一句话）全部换成另一个，按字面替换（不是规则或通配符）。两个词都是用户自己写的，Tink 只看到「<user text>」。',
+      fr: 'Remplace chaque occurrence d’un mot ou d’une expression par une autre, telle que saisie (pas un motif). Les deux sont vos propres mots : Tink ne voit que « <user text> ».',
     },
     input: ['text'],
     output: 'same',
@@ -618,8 +618,8 @@ export const printTool = simpleTool({
     '把数据表里的记录做成 PDF（报表、清单、收据），可以分享或打印。',
   ],
   intro: [
-    'Your records are filled in on this device and never uploaded. To make a report, ask AI (for example \u201cMake a PDF of this month\u2019s expenses\u201d) or add a quick action on the Quick actions page.',
-    '记录在本机填进模板，不会上传。要做报表，可以对 AI 说「把本月的报销记录做成 PDF」，或者在「快捷操作」页新建。',
+    'Your records are filled in on this device and never uploaded. To make a report, ask Tink (for example \u201cMake a PDF of this month\u2019s expenses\u201d) or add a quick action on the Quick actions page.',
+    '记录在本机填进模板，不会上传。要做报表，可以对 Tink 说「把本月的报销记录做成 PDF」，或者在「快捷操作」页新建。',
   ],
   icon: 'printer',
   aliases: ['print', 'report', 'records to pdf', '打印', '报表', '记录生成pdf'],

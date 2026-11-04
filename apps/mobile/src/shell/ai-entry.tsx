@@ -139,7 +139,7 @@ export function AIEntryButton({
       accessibilityLabel={t(locale, 'aboutEntryLabel')}
       hitSlop={10}
       onPress={onPress}>
-      <Icon name="sparkles" size={22} color={palette.primaryText} />
+      <Icon name="tink" size={24} color={palette.primaryText} />
     </Pressable>
   );
 }

@@ -80,7 +80,8 @@ jest.mock('../packs/store', () => ({
   },
 }));
 jest.mock('../runtime/skia', () => ({
-  ocrPixels: async () => ({ width: 64, height: 32, data: new Uint8Array(64 * 32 * 4) }),
+  // 正好是模型要的大小，不用缩放：逐像素放大要 4 秒，全量跑时会超过 5 秒上限。
+  ocrPixels: async () => ({ width: 736, height: 736, data: new Uint8Array(736 * 736 * 4) }),
 }));
 
 beforeEach(() => {

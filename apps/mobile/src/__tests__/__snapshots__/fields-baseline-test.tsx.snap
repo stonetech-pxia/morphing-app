@@ -2,7 +2,7 @@
 
 exports[`field inputs and list display in en 1`] = `
 "
-welcome component-welcome <View>: My workspace | Tap AI and describe how this app should change
+welcome component-welcome <View>: My workspace | Tap Tink and describe how this app should change
 catalog component-catalog <View>: Add tools
 recent-files component-recent-files <View>: Recent files | No files yet
 form form-form-t <TextInput>: [Title]
@@ -48,7 +48,7 @@ list-fo record-r1 <View>: Items · Oct 21
 
 exports[`field inputs and list display in fr 1`] = `
 "
-welcome component-welcome <View>: Mon espace de travail | Touchez « IA » et décrivez en une phrase comment cette app doit changer.
+welcome component-welcome <View>: Mon espace de travail | Touchez « Tink » et décrivez en une phrase comment cette app doit changer.
 catalog component-catalog <View>: Ajouter des outils
 recent-files component-recent-files <View>: Fichiers récents | Aucun fichier pour l’instant
 form form-form-t <TextInput>: [Title]
@@ -94,7 +94,7 @@ list-fo record-r1 <View>: Items · 21 oct.
 
 exports[`field inputs and list display in zh 1`] = `
 "
-welcome component-welcome <View>: 我的工作台 | 点「AI 修改」，用一句话改造这个 App
+welcome component-welcome <View>: 我的工作台 | 点「Tink」，用一句话改造这个 App
 catalog component-catalog <View>: 添加工具
 recent-files component-recent-files <View>: 最近文件 | 还没有文件
 form form-form-t <TextInput>: [Title]

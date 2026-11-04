@@ -109,8 +109,8 @@ export const FRENCH_PAIRS: Readonly<Record<string, string>> = {
   Reports: 'Rapports',
   'Turn the records in your data tables into a PDF report, list or receipt to share or print.':
     'Transformez les enregistrements de vos tables de données en rapport PDF, liste ou reçu, à partager ou à imprimer.',
-  'Your records are filled in on this device and never uploaded. To make a report, ask AI (for example “Make a PDF of this month’s expenses”) or add a quick action on the Quick actions page.':
-    'Vos enregistrements sont remplis dans le modèle sur cet appareil et ne sont jamais envoyés. Pour créer un rapport, demandez à l’IA (par exemple « Faites un PDF des dépenses de ce mois ») ou ajoutez une action rapide sur la page « Actions rapides ».',
+  'Your records are filled in on this device and never uploaded. To make a report, ask Tink (for example “Make a PDF of this month’s expenses”) or add a quick action on the Quick actions page.':
+    'Vos enregistrements sont remplis dans le modèle sur cet appareil et ne sont jamais envoyés. Pour créer un rapport, demandez à Tink (par exemple « Faites un PDF des dépenses de ce mois ») ou ajoutez une action rapide sur la page « Actions rapides ».',
   'Scan to PDF': 'Numériser en PDF',
   'Scan photos to PDF': 'Numériser des photos en PDF',
   'Straighten photos of paper': 'Redresser des photos de papier',

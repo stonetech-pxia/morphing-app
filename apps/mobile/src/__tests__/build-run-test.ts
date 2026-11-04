@@ -325,7 +325,7 @@ describe('一步失败', () => {
     await store.getState().startBuild();
     expect(phase(store)).toBe('failed');
     expect(statuses(store)).toEqual(['done', 'failed', 'todo', 'todo']);
-    expect(store.getState().build!.steps[1]!.reason).toBe('AI 这一步没有回答，可以重试。');
+    expect(store.getState().build!.steps[1]!.reason).toBe('Tink 这一步没有回答，可以重试。');
     expect(store.getState().config!.data.tables.some((t) => t.id === 'books')).toBe(true);
     expect(store.getState().session.items.find((i) => i.text === '放书单列表')!.status).toBe(
       'failed',

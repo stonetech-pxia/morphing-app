@@ -55,7 +55,7 @@ export function useNavigate(): (target: OpenTarget) => void {
   };
 }
 
-export function targetIcon(target: NavTarget, config: WorkspaceConfig): IconValue {
+export function targetIcon(target: NavTarget, config: WorkspaceConfig): IconValue | 'tink' {
   const pageId = pageIdOf(target);
   if (pageId === null) return SYSTEM_TARGET_ICONS[target as keyof typeof SYSTEM_TARGET_ICONS];
   return config.containers.pages.find((p) => p.id === pageId)?.icon ?? 'bookmark';

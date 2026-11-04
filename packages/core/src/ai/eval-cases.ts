@@ -1400,6 +1400,20 @@ const BASE_EVAL_CASES: readonly EvalCase[] = [
   },
   // 导航与页面
   {
+    id: 'B13-tink',
+    input: '把 Tink 入口删掉',
+    locale: 'zh',
+    setup: 'default',
+    mock: true,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        !c.nav.bar.includes('ai') && !c.nav.floating.includes('ai')
+          ? null
+          : `Tink should be gone from nav and floating, got ${c.nav.bar.join(',')} / ${c.nav.floating.join(',')}`,
+    },
+  },
+  {
     id: 'B13',
     input: '把 AI 入口删掉',
     locale: 'zh',

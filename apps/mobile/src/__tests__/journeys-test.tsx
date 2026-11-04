@@ -428,7 +428,7 @@ describe('user journeys (UI)', () => {
     expect(router.getPathname()).toBe('/history');
     // 改动记录（D-112）：没有编号和秒数，说明是谁改的。
     const entry = await screen.findByTestId('revision-2');
-    expect(entry).toHaveTextContent(/AI 改的/);
+    expect(entry).toHaveTextContent(/Tink 改的/);
     expect(entry).not.toHaveTextContent(/#\d|:\d\d:\d\d/);
     expect(screen.getByTestId('restore-1')).toHaveTextContent('回到这时候的样子');
     // 先问一句（说明文件不受影响），确认后立即生效（D-190）。

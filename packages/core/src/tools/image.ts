@@ -77,9 +77,9 @@ export const IMAGE_ACTIONS: readonly ActionDefinition[] = [
     ai: '"Draw arrows / outline boxes / write labels / mark up a photo" → this, a local editor when running; the user places marks and types labels on the device, without sending them to AI.',
     label: { en: 'Mark up photo', zh: '标注图片', fr: 'Annoter la photo' },
     description: {
-      en: 'A local editor lets the user place text, arrows, outline boxes and freehand strokes on each photo, choose colors and undo. The user types text while running; annotation content never goes to AI. Saves flattened PNG copies; very large images may be reduced to fit the drawing limit. Original photos are kept.',
-      zh: '运行时逐张在本机添加文字、箭头、方框和自由画笔，可选颜色、撤销。文字由用户运行时填写，标注内容不发给 AI。生成合成后的 PNG 副本；超大图片可能缩小以适应绘图上限。保留原图。',
-      fr: 'Un éditeur en local permet d’ajouter du texte, des flèches, des cadres et des tracés libres sur chaque photo, de choisir les couleurs et d’annuler. Le texte est saisi par l’utilisateur pendant l’utilisation ; le contenu des annotations n’est jamais envoyé à l’IA. Enregistre des copies PNG aplaties ; les images très grandes peuvent être réduites pour respecter la limite de dessin. Les photos originales sont conservées.',
+      en: 'A local editor lets the user place text, arrows, outline boxes and freehand strokes on each photo, choose colors and undo. The user types text while running; annotation content never goes to Tink. Saves flattened PNG copies; very large images may be reduced to fit the drawing limit. Original photos are kept.',
+      zh: '运行时逐张在本机添加文字、箭头、方框和自由画笔，可选颜色、撤销。文字由用户运行时填写，标注内容不发给 Tink。生成合成后的 PNG 副本；超大图片可能缩小以适应绘图上限。保留原图。',
+      fr: 'Un éditeur en local permet d’ajouter du texte, des flèches, des cadres et des tracés libres sur chaque photo, de choisir les couleurs et d’annuler. Le texte est saisi par l’utilisateur pendant l’utilisation ; le contenu des annotations n’est jamais envoyé à Tink. Enregistre des copies PNG aplaties ; les images très grandes peuvent être réduites pour respecter la limite de dessin. Les photos originales sont conservées.',
     },
     input: ['images'],
     output: 'images',

@@ -130,7 +130,7 @@ export function validateWorkspace(
     if (!entries.includes(target)) {
       issue(
         'protected',
-        `${target} must stay in the nav bar or a floating button (it holds the AI and History entries)`,
+        `${target} must stay in the nav bar or a floating button (it holds the Tink and History entries)`,
       );
     }
   }

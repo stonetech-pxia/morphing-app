@@ -441,7 +441,7 @@ export function ChangeScreen() {
               },
             ]}>
             <View style={styles.inputRow}>
-              <Icon name="sparkles" size={18} color={palette.primary} />
+              <Icon name="tink" size={18} color={palette.primary} />
               <TextInput
                 testID="change-input"
                 autoFocus={focusInput}
