@@ -19,6 +19,7 @@ import {
   topIndex,
   type Workflow,
   WORKFLOW_PRESETS,
+  handedInput,
   workflowProblems,
   type WorkflowStep,
 } from '@morph/core';
@@ -96,6 +97,7 @@ export function WorkflowEditor({
       c.tools.some((u) => 'tool' in u && u.tool === workflow.id),
   );
   const preset = workflow.preset ? presetById(workflow.preset) : undefined;
+  const needsContainer = handedInput(saved.steps, registry) !== null;
   // 手机桌面（D-271）：v34 记在 nav.phoneHomeScreen。
   const onPhoneHome = (config.nav.phoneHomeScreen ?? []).includes(workflow.id);
   // 内设的快捷操作不在配置里（D-236）：保存、放到首页时才存进去，用预设 ID。
@@ -375,7 +377,7 @@ export function WorkflowEditor({
             label={t(locale, 'WorkflowEditor_Duplicate_6da85')}
             onPress={() => void duplicate()}
           />
-          {onHome ? null : (
+          {onHome || needsContainer ? null : (
             <Pill
               palette={palette}
               testID="workflow-to-home"
@@ -400,24 +402,26 @@ export function WorkflowEditor({
               }
             />
           )}
-          {/* 手机桌面（D-271）：长按 Morph 图标的菜单最多 4 个，满了先拿掉一个。 */}
-          <Pill
-            palette={palette}
-            testID="workflow-home-screen"
-            label={t(locale, onPhoneHome ? 'homeScreenRemove' : 'homeScreenAdd')}
-            onPress={() => {
-              if (!onPhoneHome && homeScreenFull(config)) {
-                Alert.alert(t(locale, 'homeScreenFull'));
-                return;
-              }
-              void change(
-                [...addIfBuiltIn(), homeScreenOp(config, workflow.id, !onPhoneHome)],
-                t(locale, onPhoneHome ? 'homeScreenRemoved' : 'homeScreenAdded', {
-                  name: workflow.name,
-                }),
-              );
-            }}
-          />
+          {/* 手机桌面（D-271）：长按 Morph 图标的菜单最多 4 个，满了先拿掉一个。要容器交值的不能放（D-428）。 */}
+          {needsContainer ? null : (
+            <Pill
+              palette={palette}
+              testID="workflow-home-screen"
+              label={t(locale, onPhoneHome ? 'homeScreenRemove' : 'homeScreenAdd')}
+              onPress={() => {
+                if (!onPhoneHome && homeScreenFull(config)) {
+                  Alert.alert(t(locale, 'homeScreenFull'));
+                  return;
+                }
+                void change(
+                  [...addIfBuiltIn(), homeScreenOp(config, workflow.id, !onPhoneHome)],
+                  t(locale, onPhoneHome ? 'homeScreenRemoved' : 'homeScreenAdded', {
+                    name: workflow.name,
+                  }),
+                );
+              }}
+            />
+          )}
           {preset && stored ? (
             <Pill
               palette={palette}

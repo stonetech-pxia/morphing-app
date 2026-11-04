@@ -215,7 +215,11 @@ function everything() {
     {
       op: 'updateData',
       table: 'items',
-      changes: { readAttachments: true, prefillRules: 'receipt' },
+      changes: {
+        readAttachments: true,
+        prefillRules: 'receipt',
+        recordRow: [{ tool: 'record-vcard' }],
+      },
     },
     addField('items', { id: 'contact', name: 'contact', type: 'text', format: 'phone' }),
     addField('groups', {
@@ -232,6 +236,34 @@ function everything() {
         ['in.records', { collectionId: 'items', period: 'all' }],
         ['records.toVCard', {}],
         ['out.share', {}],
+      ]),
+    ),
+    addTool(
+      quickAction('export-shown-items', [
+        ['records.toVCard', {}],
+        ['out.share', {}],
+      ]),
+    ),
+    addTool(
+      quickAction('excel-items', [
+        ['in.records', { collectionId: 'items', period: 'all' }],
+        ['records.toExcel', {}],
+        ['out.share', {}],
+      ]),
+    ),
+    addTool(
+      quickAction('print-items-attached', [
+        ['in.records', { collectionId: 'items', period: 'all' }],
+        [
+          'print.records',
+          {
+            template: 'table',
+            title: 'Items',
+            fields: ['title'],
+            pageSize: 'a4',
+            attachments: true,
+          },
+        ],
       ]),
     ),
     addTool(
@@ -289,6 +321,7 @@ function everything() {
         source: { table: 'items' },
         show: { fields: ['title'], qr: true },
         showIf: { table: 'items', has: 'some' },
+        tools: [{ tool: 'record-qr' }],
       },
       {
         id: 'none-yet',
@@ -297,6 +330,7 @@ function everything() {
       },
       records('list', 'browsed', 'items', 'title', {
         show: { browse: { search: true, sort: ['title', 'createdAt'], group: ['status'] } },
+        tools: [{ as: 'list', tool: 'export-shown-items' }],
       }),
       records('list', 'by-group-list', 'groups', 'name', {
         opens: 'item',

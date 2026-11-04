@@ -234,6 +234,10 @@ export const fr: MessageTable = {
   askPasswordMismatch: 'Les deux mots de passe ne correspondent pas.',
   askPasswordAgain: 'Confirmer le mot de passe',
   runError_textTooLong: 'Le texte est trop long (maximum {max} caractères).',
+  runError_needsRecord:
+    'Cette action rapide a besoin d’une entrée ou d’une valeur. Touchez-la sur la page de l’entrée ou la liste où elle se trouve.',
+  runError_badLink:
+    'Ce n’est ni un numéro, ni une adresse e-mail, ni une adresse web que l’on peut ouvrir.',
   runError_noRecords: 'Aucune entrée dans « {name} » pour cette période.',
   runError_doesNotFit:
     '« {name} » ne rentre pas sur ce papier. Utilisez d’abord l’étape « Photo d’identité » pour le recadrer au format.',
@@ -360,11 +364,8 @@ export const fr: MessageTable = {
   browseShowing: 'Affichage : {shown} sur {total}. La recherche trouve les autres.',
   browseShowingMatches: 'Affichage : {shown} sur {total} résultats. Précisez votre recherche.',
   singleTooMuch: 'Trop d’informations pour tenir dans un code QR.',
-  recordCall: 'Appeler',
-  recordMessage: 'Message',
-  recordEmail: 'E-mail',
-  recordWebsite: 'Site web',
-  recordShareCard: 'Partager la vCard',
+  listToolAll: 'Les {n} entrées de cette liste',
+  listToolFound: 'Seulement les {n} entrées recherchées',
 
   // 用户数据
   noRecords: 'Aucune entrée pour l’instant',
@@ -1257,6 +1258,18 @@ export const fr: MessageTable = {
   html_Created_1626a: 'Création',
   html_Updated_74f0c: 'Modifié',
   html_records_3f794: '{v0} entrées',
+  reportAttachmentOf: 'pièce jointe {index} sur {total}',
+  reportAttachmentPdfFollows: 'Pièce jointe PDF : les {n} pages suivantes.',
+  reportAttachmentSeparator: ', ',
+  reportAttachmentsOverLimit:
+    '{n} pièces jointes laissées de côté : le rapport serait trop lourd (au plus {max} pièces jointes, {mb} Mo). Entrées : {titles}.',
+  reportAttachmentsUnreadable:
+    '{n} pièces jointes illisibles laissées de côté. Entrées : {titles}.',
+  similarRecordTitle: 'Déjà enregistrée ?',
+  similarRecordOne: 'Cette entrée ressemble à « {title} », déjà dans {table}.',
+  similarRecordMany: 'Cette entrée ressemble à « {title} » et à {n} autres, déjà dans {table}.',
+  similarRecordBack: 'Retour au formulaire',
+  similarRecordSave: 'Enregistrer quand même',
   html_Total_08322: 'Total',
   pdf_merged_19094: '{sourceName}-fusionné',
   pdf_COPY_3fef3: 'COPIE',
@@ -1442,6 +1455,7 @@ export const fr: MessageTable = {
   seqAvgDays: '{n} jours en moyenne',
   // 一天、一周从什么时候开始（D-286）
   describeDayStart: 'Une journée commence à {hour} h',
+  describeRecordRow: '« {name} » : modifier les boutons en haut de la page de l’entrée',
   describeReadAttachmentsOn:
     '« {name} » : lire les pièces jointes et proposer des valeurs dans les nouvelles entrées',
   describeReadAttachmentsOff:
@@ -1764,6 +1778,8 @@ export const frSingular: SingularTable = {
   schedulePerDay: '{rule}, une fois par jour',
   scheduleOverdue: 'En retard de {n} jour',
   describeRemovedRecordActions: 'Supprime aussi {n} bouton en un geste qui l’utilisait',
+  listToolAll: 'La seule entrée de cette liste',
+  listToolFound: 'Seulement l’entrée recherchée',
   recordActionChanged: '{n} entrée modifiée',
   recordActionConfirm: 'Cela modifie {n} entrée.',
   recordActionTooMany: 'Au plus {max} entrées peuvent changer à la fois ; cela en modifierait {n}.',
@@ -1772,5 +1788,10 @@ export const frSingular: SingularTable = {
   widgetSkipped: '{n} appui sur le widget n’a pas été enregistré, car la page a changé',
   deskTargets: 'Les outils s’appliquent à {n} fichier',
   deskStale: 'Inutilisé depuis {n} jour, vous pouvez le vider',
+  reportAttachmentPdfFollows: 'Pièce jointe PDF : la page suivante.',
+  reportAttachmentsOverLimit:
+    '{n} pièce jointe laissée de côté : le rapport serait trop lourd (au plus {max} pièces jointes, {mb} Mo). Entrées : {titles}.',
+  reportAttachmentsUnreadable: '{n} pièce jointe illisible laissée de côté. Entrées : {titles}.',
+  similarRecordMany: 'Cette entrée ressemble à « {title} » et à {n} autre, déjà dans {table}.',
   shareRecordTooMany: 'Une entrée contient au plus {n} fichier : seul le premier y va.',
 };

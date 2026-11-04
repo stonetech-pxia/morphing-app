@@ -41,6 +41,11 @@ const SYMBOLS: Record<IconName, SymbolName> = {
   audio: { ios: 'waveform', android: 'graphic_eq' },
   translate: { ios: 'translate', android: 'translate' },
   note: { ios: 'note.text', android: 'notes' },
+  phone: { ios: 'phone.fill', android: 'call' },
+  message: { ios: 'message.fill', android: 'sms' },
+  mail: { ios: 'envelope.fill', android: 'mail' },
+  globe: { ios: 'globe', android: 'language' },
+  share: { ios: 'square.and.arrow.up', android: 'share' },
 };
 
 /** 房间工具栏的动作图标（core 的 TOOL_ICON_NAMES，D-364）：不在白名单里，配置和 AI 用不到。 */

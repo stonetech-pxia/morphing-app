@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { t } from '../messages';
+import { hasRecordCurrency } from '../money-currency';
 import { boundedText, DaysSchema, filterSchema, GroupingSchema, IdSchema } from '../schema-base';
 import { type LookDefinitionOf, defineLook, isSystemField, NUMERIC_FIELD_TYPES } from './define';
 
@@ -44,6 +45,11 @@ export const chartComponent: LookDefinitionOf<'chart', typeof shape> = defineLoo
       const f = c.source.field ? field(c.source.field) : undefined;
       if (!f || !NUMERIC_FIELD_TYPES.includes(f.type))
         problems.push(`${aggregate} needs field set to a number, money, rating or formula field`);
+      // D-429：一张图只有一条数轴，不同货币不能画在一起。用数字块（分货币显示）或数笔数。
+      if (hasRecordCurrency(f))
+        problems.push(
+          `${aggregate} can't chart ${f!.id}: each entry has its own currency, and amounts in different currencies can't be added up; use a number block or aggregate "count"`,
+        );
     }
     if (group.showEmpty || group.filter)
       problems.push('a chart groups by time (unit) or by a choice or link field (by)');

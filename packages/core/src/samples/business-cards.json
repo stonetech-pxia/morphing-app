@@ -24,6 +24,27 @@
     {
       "id": "$table.contacts",
       "prefillRules": "card",
+      "recordRow": [
+        {
+          "tool": "record-call",
+          "field": "phone"
+        },
+        {
+          "tool": "record-message",
+          "field": "phone"
+        },
+        {
+          "tool": "record-email",
+          "field": "email"
+        },
+        {
+          "tool": "record-website",
+          "field": "website"
+        },
+        {
+          "tool": "record-vcard"
+        }
+      ],
       "name": {
         "en": "Contacts",
         "zh": "联系人",
@@ -163,6 +184,27 @@
     {
       "id": "$table.mine",
       "prefillRules": "card",
+      "recordRow": [
+        {
+          "tool": "record-call",
+          "field": "phone"
+        },
+        {
+          "tool": "record-message",
+          "field": "phone"
+        },
+        {
+          "tool": "record-email",
+          "field": "email"
+        },
+        {
+          "tool": "record-website",
+          "field": "website"
+        },
+        {
+          "tool": "record-vcard"
+        }
+      ],
       "name": {
         "en": "My card",
         "zh": "我的名片",
@@ -328,20 +370,12 @@
       "id": "$tool.export",
       "kind": "quickAction",
       "name": {
-        "en": "Export all contacts",
-        "zh": "导出全部联系人",
-        "fr": "Exporter tous les contacts"
+        "en": "Export contacts",
+        "zh": "导出联系人",
+        "fr": "Exporter les contacts"
       },
       "icon": "document",
       "steps": [
-        {
-          "id": "read",
-          "action": "in.records",
-          "params": {
-            "collectionId": "$table.contacts",
-            "period": "all"
-          }
-        },
         {
           "id": "vcard",
           "action": "records.toVCard",
@@ -451,7 +485,12 @@
           "show": {
             "fields": ["name", "title", "company", "phone", "email", "website", "address"],
             "qr": true
-          }
+          },
+          "tools": [
+            {
+              "tool": "record-qr"
+            }
+          ]
         },
         {
           "id": "none",
@@ -568,23 +607,15 @@
           },
           "tools": [
             {
+              "as": "list",
+              "tool": "$tool.export"
+            },
+            {
               "as": "addHere",
               "do": "create",
               "table": "$table.contacts",
               "ask": "all",
               "values": "$here"
-            }
-          ]
-        },
-        {
-          "id": "export",
-          "look": "action",
-          "show": {
-            "shape": "row"
-          },
-          "tools": [
-            {
-              "tool": "$tool.export"
             }
           ]
         }

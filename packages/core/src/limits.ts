@@ -12,3 +12,16 @@ export const MEDIA_LIMITS = {
   maxFileBytes: 4 * 1024 * 1024 * 1024,
   maxCount: 10,
 } as const;
+
+/**
+ * 报表带附件（D-425）：照片缩到长边 maxSide 再放进 PDF；最多放 maxCount 个附件、合计 maxBytes，多的不放并印在报表上。
+ * 每 batchImages 张（或 batchBytes）排一次版，系统排版的那份 HTML 不会太大；pdf-lib 合并时整份在内存里，所以有合计上限。
+ */
+export const REPORT_ATTACHMENT_LIMITS = {
+  maxCount: 60,
+  maxBytes: 40 * 1024 * 1024,
+  maxSide: 1400,
+  quality: 0.75,
+  batchImages: 8,
+  batchBytes: 4 * 1024 * 1024,
+} as const;

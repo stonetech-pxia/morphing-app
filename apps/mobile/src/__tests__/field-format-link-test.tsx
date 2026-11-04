@@ -26,6 +26,14 @@ const contacts: Collection = {
     { id: 'mail', name: '邮箱', type: 'text', format: 'email' },
     { id: 'site', name: '网站', type: 'text', format: 'url' },
   ],
+  // D-428：有哪些按钮由配置决定。
+  recordRow: [
+    { tool: 'record-call', field: 'tel' },
+    { tool: 'record-message', field: 'tel' },
+    { tool: 'record-email', field: 'mail' },
+    { tool: 'record-website', field: 'site' },
+    { tool: 'record-vcard' },
+  ],
 };
 
 const seed = (locale: Locale, registry: Registry) => {
@@ -136,6 +144,14 @@ describe('no data yet', () => {
   });
 });
 
+const ALL_BUTTONS = [
+  'record-call-tel',
+  'record-message-tel',
+  'record-email-mail',
+  'record-website-site',
+  'record-vcard',
+];
+
 const actionIds = () =>
   screen.queryAllByTestId(/^record-action-/).map((b) => String(b.props.testID).slice(14));
 
@@ -152,7 +168,7 @@ describe('with data', () => {
 
   it('shows the row at the top of the page, above the first field', async () => {
     await openRecord(FULL);
-    expect(actionIds()).toEqual(['call', 'message', 'email', 'website', 'share']);
+    expect(actionIds()).toEqual(ALL_BUTTONS);
     const ids: string[] = [];
     const walk = (node: unknown) => {
       if (Array.isArray(node)) node.forEach(walk);
@@ -172,31 +188,32 @@ describe('with data', () => {
   it('call opens directly with the digits only', async () => {
     const { spy } = alerts();
     await openRecord(FULL);
-    await fireEvent.press(screen.getByTestId('record-action-call'));
-    expect(open).toHaveBeenCalledWith('tel:+33612345678');
+    await fireEvent.press(screen.getByTestId('record-action-record-call-tel'));
+    await waitFor(() => expect(open).toHaveBeenCalledWith('tel:+33612345678'));
     expect(spy).not.toHaveBeenCalled();
   });
 
   it('message opens directly', async () => {
     const { spy } = alerts();
     await openRecord(FULL);
-    await fireEvent.press(screen.getByTestId('record-action-message'));
-    expect(open).toHaveBeenCalledWith('sms:+33612345678');
+    await fireEvent.press(screen.getByTestId('record-action-record-message-tel'));
+    await waitFor(() => expect(open).toHaveBeenCalledWith('sms:+33612345678'));
     expect(spy).not.toHaveBeenCalled();
   });
 
   it('email opens directly', async () => {
     const { spy } = alerts();
     await openRecord(FULL);
-    await fireEvent.press(screen.getByTestId('record-action-email'));
-    expect(open).toHaveBeenCalledWith('mailto:maria@example.com');
+    await fireEvent.press(screen.getByTestId('record-action-record-email-mail'));
+    await waitFor(() => expect(open).toHaveBeenCalledWith('mailto:maria@example.com'));
     expect(spy).not.toHaveBeenCalled();
   });
 
   it('the website asks first and names the host; cancel opens nothing', async () => {
     const { spy, press } = alerts();
     await openRecord(FULL);
-    await fireEvent.press(screen.getByTestId('record-action-website'));
+    await fireEvent.press(screen.getByTestId('record-action-record-website-site'));
+    await waitFor(() => expect(spy).toHaveBeenCalled());
     expect(open).not.toHaveBeenCalled();
     expect(spy.mock.lastCall?.[0]).toBe('打开链接？');
     expect(spy.mock.lastCall?.[1]).toContain('www.example.com');
@@ -207,7 +224,8 @@ describe('with data', () => {
   it('the website opens after the user agrees', async () => {
     const { press } = alerts();
     await openRecord(FULL);
-    await fireEvent.press(screen.getByTestId('record-action-website'));
+    await fireEvent.press(screen.getByTestId('record-action-record-website-site'));
+    await waitFor(() => expect(Alert.alert).toHaveBeenCalled());
     press('打开');
     expect(open).toHaveBeenCalledWith('https://www.example.com');
   });
@@ -216,23 +234,24 @@ describe('with data', () => {
     const { spy } = alerts();
     open.mockRejectedValue(new Error('no handler'));
     await openRecord(FULL);
-    await fireEvent.press(screen.getByTestId('record-action-call'));
+    await fireEvent.press(screen.getByTestId('record-action-record-call-tel'));
     await waitFor(() => expect(spy).toHaveBeenCalledWith('这台设备打不开。'));
   });
 
   it('the row follows the boxes: editing to something that does not fit hides those buttons', async () => {
     await openRecord(FULL);
     await fireEvent.changeText(screen.getByTestId('editor-tel'), '分机');
-    expect(actionIds()).toEqual(['email', 'website', 'share']);
+    expect(actionIds()).toEqual(ALL_BUTTONS.slice(2));
     await fireEvent.changeText(screen.getByTestId('editor-tel'), '555 0100');
-    expect(actionIds()).toEqual(['call', 'message', 'email', 'website', 'share']);
+    expect(actionIds()).toEqual(ALL_BUTTONS);
   });
 
   it('share vCard builds the card only when tapped and hands it to the system', async () => {
     const { files } = await openRecord(FULL);
-    expect(files.sharedTexts.size).toBe(0);
-    await fireEvent.press(screen.getByTestId('record-action-share'));
-    const text = files.sharedTexts.get('contact.vcf')!;
+    expect(files.shared).toEqual([]);
+    await fireEvent.press(screen.getByTestId('record-action-record-vcard'));
+    await waitFor(() => expect(files.shared).toHaveLength(1));
+    const text = new TextDecoder().decode(files.disk.get(files.shared[0]!)!);
     expect(text).toContain('BEGIN:VCARD');
     expect(text).toContain('FN:Maria');
     expect(text).toContain('TEL:+33 6 12 34 56 78');
@@ -253,10 +272,10 @@ describe('edge cases', () => {
 
   it('a record with only a name can still be shared, because the table has a phone field', async () => {
     await openRecord({ name: 'Maria' });
-    expect(actionIds()).toEqual(['share']);
+    expect(actionIds()).toEqual(['record-vcard']);
   });
 
-  it('a table with no format fields has no row', async () => {
+  it('a table with no recordRow has no row', async () => {
     const repo = new MemoryWorkspaceRepo();
     await repo.setMeta('guide', 'done');
     await act(() => useGuide.getState().load(repo));

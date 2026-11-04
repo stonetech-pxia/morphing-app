@@ -16,7 +16,7 @@ export function confirmOpenLink(locale: Locale, url: string, open: () => void): 
 }
 
 /**
- * 记录页上点电话、邮箱、网址（D-422）。电话、邮箱交给系统的拨号和写信页面，什么都没发出去，直接打开；
+ * 打电话、发短信、发邮件、打开网站的步骤（D-428，原来是记录页上写死的按钮，D-422）。电话、邮箱交给系统的拨号和写信页面，什么都没发出去，直接打开；
  * 网址先问。不写数据。不用 canOpenURL（要声明白名单）：打不开时说一句（没有电话或邮件 App 的设备）。
  */
 export function openFieldLink(link: FieldLink, locale: Locale): void {

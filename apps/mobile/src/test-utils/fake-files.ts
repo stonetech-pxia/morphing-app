@@ -347,7 +347,8 @@ export class FakeFiles implements FilePlatform {
     if (uri.startsWith('runs/')) this.disk.delete(uri);
   }
   async readUri(uri: string) {
-    const bytes = this.disk.get(uri);
+    // 用户文件的地址（fileUri）对应磁盘上的相对路径。
+    const bytes = this.disk.get(uri) ?? this.disk.get(uri.replace(/^file:\/\/\/fake\//, ''));
     if (!bytes) throw new Error('missing');
     return bytes;
   }
@@ -496,6 +497,20 @@ export class FakeFiles implements FilePlatform {
     this.encodes.push({ ops, format: save.format, quality: save.quality, width, height });
     this.encodedFrom.push(uri);
     return { uri: dest, width, height, size: bytes.length };
+  }
+  /** reducedJpeg 的每次调用：用的长边和源图（解码时就缩小，不经过 imageSize）。 */
+  reduced: { uri: string; maxSide: number }[] = [];
+  async reducedJpeg(uri: string, maxSide: number, quality: number, runId: string, relPath: string) {
+    this.reduced.push({ uri, maxSide });
+    const size = await this.imageSize(uri);
+    const k = Math.min(1, maxSide / Math.max(size.width, size.height));
+    return this.transformImage(
+      uri,
+      { resize: { width: size.width * k, height: size.height * k } },
+      { format: 'jpeg', quality },
+      runId,
+      relPath,
+    );
   }
   /** 放一张“用户可选择的”假照片。 */
   offerImage(

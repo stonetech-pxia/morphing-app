@@ -7,6 +7,7 @@ import {
   type AskRequest,
   type PackNeed,
   type RunResult,
+  type RunValue,
   type Workflow,
 } from '@morph/core';
 
@@ -73,6 +74,7 @@ export function RunScreen({
   onEdit,
   onAskAI,
   incoming,
+  handed,
 }: {
   workflow: Workflow;
   onEdit?: () => void;
@@ -80,6 +82,8 @@ export function RunScreen({
   onAskAI?: () => void;
   /** 分享进来的文件（D-115）：第一步用它们，不打开选择器。关闭运行页面时删掉。 */
   incoming?: IncomingShare;
+  /** 容器交的值（D-428）：记录页的这一条、这个字段的值、列表选出的记录。 */
+  handed?: RunValue;
 }) {
   const { repo, files, registry, locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config!);
@@ -213,6 +217,7 @@ export function RunScreen({
       },
       signal: signal.current,
       incoming: incoming?.files ?? null,
+      handed: handed ?? null,
       askParams: async (request) => {
         const answer = await new Promise<Record<string, unknown> | null>((resolve) =>
           setAsk({ ...request, resolve }),
@@ -516,7 +521,7 @@ export function RunScreen({
         />
       ) : null}
 
-      {outcome?.status === 'succeeded' ? (
+      {outcome?.status === 'succeeded' && !handed ? (
         <HabitCard key={runCount} workflow={workflow} answers={answers.current} palette={palette} />
       ) : null}
 

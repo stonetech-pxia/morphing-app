@@ -46,8 +46,9 @@ import {
   type WorkspaceConfig,
 } from './schema';
 import { contrastProblems } from './theme';
-import { presetById } from './workflows/presets';
-import { workflowProblems } from './workflow/check';
+import { findWorkflowTarget, presetById } from './workflows/presets';
+import { handedInput, workflowProblems } from './workflow/check';
+import type { HandedType } from './workflow/contract';
 import { stepRefProblems } from './workflow/refs';
 import { issueLines } from './zod-issues';
 
@@ -113,6 +114,9 @@ export function validateWorkspace(
     if (pageId !== null && !pageIds.has(pageId)) issue('unknown-page', `nav entry ${target}`);
     const problem = recordPageTargetProblem(config, target);
     if (problem) issue('record-page', `nav entry ${problem}`);
+    const tool = toolTargetId(target);
+    if (tool !== null && handedBy(config, tool, registry))
+      issue('needs-container', needsContainer(tool, `nav entry ${target}`));
   }
   // ---- 给一条记录用的页面（D-342，page.of）----
   for (const page of pages) {
@@ -186,6 +190,7 @@ export function validateWorkspace(
       for (const problem of relatedProblems(field, { config, collection, view }))
         issue(problem.code, problem.message);
     }
+    for (const message of recordRowProblems(collection, config, registry)) issue('data', message);
   }
 
   // ---- 手机桌面（D-271）：长按 Morph 图标的菜单最多放 MAX_HOME_SCREEN 个快捷操作 ----
@@ -206,10 +211,16 @@ export function validateWorkspace(
         'homeScreen',
         `nav.phoneHomeScreen: ${id} is not a quick action in tools (only quick actions can be on the phone home screen)`,
       );
+    else if (handedBy(config, id, registry))
+      issue('needs-container', needsContainer(id, 'nav.phoneHomeScreen'));
 
   // ---- 提醒（D-251）----
   for (const r of remindersOf(config)) {
     for (const problem of reminderProblems(r, config)) issue('reminder', problem);
+    // 提醒只打开、不运行（关系规则 14）；要容器交值的快捷操作打开了也跑不了。
+    const opened = toolTargetId(r.opens);
+    if (opened !== null && handedBy(config, opened, registry))
+      issue('needs-container', needsContainer(opened, `reminder ${r.id}`));
   }
 
   // ---- 快捷操作：动作登记、参数、权限、相邻两步的类型（§7B、§7C、D-060）----
@@ -276,7 +287,9 @@ function blockProblems(c: KnownComponent, ctx: CheckContext): CheckProblem[] {
     const value = valueAt(c, path);
     if (!ref || value === undefined) continue;
     if (ref.to === 'target')
-      problems.push(...targetProblems(config, value as OpenTarget, `component ${c.id}`, page.id));
+      problems.push(
+        ...targetProblems(config, ctx.registry, value as OpenTarget, `component ${c.id}`, page.id),
+      );
     else if (ref.to === 'package') {
       for (const id of [value].flat() as string[]) {
         if (ref.in === 'installed' && !config.packages.some((p) => p.id === id)) {
@@ -367,6 +380,7 @@ function filesProblems(c: Extract<KnownComponent, { look: 'files' }>): string[] 
  */
 function targetProblems(
   config: WorkspaceConfig,
+  registry: Registry,
   target: OpenTarget,
   who: string,
   pageId: string,
@@ -383,6 +397,8 @@ function targetProblems(
   if (tool !== null) {
     const problem = quickActionRefProblem(config, tool);
     if (problem) problems.push({ code: 'unknown-workflow', message: `${where} opens ${problem}` });
+    else if (handedBy(config, tool, registry))
+      problems.push({ code: 'needs-container', message: needsContainer(tool, where) });
   }
   const pkg = packageTargetId(target);
   if (pkg !== null && !config.packages.some((p) => p.id === pkg)) {
@@ -398,12 +414,57 @@ function targetProblems(
  * 块引用的快捷操作（opens tool:<id>、{tool: <id>}）：tools[] 里的快捷操作，或者内设快捷操作的预设 ID
  * （D-236、D-256、D-259，不用添加）。提醒不是能从块上打开、运行的工具（关系规则 13）。没问题时为 null。
  */
+function handedBy(config: WorkspaceConfig, id: string, registry: Registry): HandedType | null {
+  const wf = findWorkflowTarget(quickActionsOf(config), id, 'en');
+  return wf ? handedInput(wf.steps, registry) : null;
+}
+
+/** 这个快捷操作要容器交值（D-428）：只能放在记录页和记录块上，别的地方点了没有值可交。 */
+const needsContainer = (id: string, where: string) =>
+  `${where}: ${id} takes a record or a value from where it sits, so it can't run from here; put it in a table's recordRow or on a records block`;
+
 function quickActionRefProblem(config: WorkspaceConfig, id: string): string | null {
   const tool = config.tools.find((t) => t.id === id);
   if (tool?.kind === 'quickAction' || (!tool && presetById(id))) return null;
   return tool?.kind === 'reminder'
     ? `${id}, which is a reminder; only a quick action can be opened or run from a block (a reminder only fires at its time)`
     : `missing quick action ${id}`;
+}
+
+/** 记录页顶部的按钮（D-428，底线 18）：快捷操作在、第一步收值或记录；收值的要写一个字段，收记录的不写。 */
+function recordRowProblems(
+  table: Collection,
+  config: WorkspaceConfig,
+  registry: Registry,
+): string[] {
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  for (const item of table.recordRow ?? []) {
+    const where = `table ${table.id} recordRow ${item.tool}`;
+    const key = `${item.tool}/${item.field ?? ''}`;
+    if (seen.has(key)) problems.push(`${where}: listed twice`);
+    seen.add(key);
+    const problem = quickActionRefProblem(config, item.tool);
+    if (problem) {
+      problems.push(`${where}: ${problem}`);
+      continue;
+    }
+    const takes = handedBy(config, item.tool, registry);
+    if (takes === null)
+      problems.push(
+        `${where}: this quick action chooses its own input; a button on the entry page must start with a step that takes text or records (e.g. out.call, records.toVCard)`,
+      );
+    else if (takes === 'text') {
+      const field = table.fields.find((f) => f.id === item.field);
+      if (item.field === undefined)
+        problems.push(`${where}: its first step takes text: name a field`);
+      else if (!field) problems.push(`${where}: ${item.field} is not a field of ${table.id}`);
+      else if (field.type !== 'text' && field.type !== 'note')
+        problems.push(`${where}: ${item.field} is a ${field.type} field; name a text field`);
+    } else if (item.field !== undefined)
+      problems.push(`${where}: its first step takes the whole entry: leave field out`);
+  }
+  return problems;
 }
 
 const AS_NAME = (as: ToolUse['as']) => (as === undefined ? 'without as' : `as "${as}"`);
@@ -415,7 +476,7 @@ const AS_NAME = (as: ToolUse['as']) => (as === undefined ? 'without as' : `as "$
  */
 function toolUseProblems(
   c: KnownComponent,
-  { config, page }: CheckContext,
+  { config, page, registry }: CheckContext,
   rowOf: Collection | undefined,
 ): CheckProblem[] {
   const meta = componentDefinition(c.look).tools;
@@ -430,7 +491,7 @@ function toolUseProblems(
   const counts = new Map<string, number>();
   for (const u of uses) counts.set(u.as ?? 'self', (counts.get(u.as ?? 'self') ?? 0) + 1);
   for (const [as, n] of counts) {
-    const max = as === 'button' || as === 'tap' ? 3 : 1;
+    const max = as === 'button' || as === 'tap' || as === 'list' ? 3 : 1;
     if (n > max)
       problems.push(
         `a ${c.look} block has at most ${max} tool${max === 1 ? '' : 's'} ${as === 'self' ? 'without as' : `as "${as}"`} (now ${n})`,
@@ -452,7 +513,9 @@ function toolUseProblems(
     }
     if (isToolRefUse(u)) {
       const pick = (PICK_TOOLS as readonly string[]).includes(u.tool);
-      if (!meta.ref?.includes(pick ? 'pick' : 'quickAction')) {
+      // 记录块上只有列表上方的按钮运行快捷操作（D-428）；每一条上的按钮只做一键记录。
+      const blockRuns = !meta.as.includes('list') || u.as === 'list';
+      if (!meta.ref?.includes(pick ? 'pick' : 'quickAction') || !blockRuns) {
         problems.push(
           `${label}: a ${c.look} block can't ${pick ? `use ${u.tool}` : 'run a quick action'}`,
         );
@@ -465,6 +528,17 @@ function toolUseProblems(
             code: 'unknown-workflow',
             message: `component ${c.id} runs ${problem}`,
           });
+        else {
+          // 列表交它选出的记录，单条记录块交这一条（D-428）；别的块没有值可交。
+          const hands = u.as === 'list' || c.look === 'single';
+          const takes = handedBy(config, u.tool, registry);
+          if (hands && takes !== 'records')
+            problems.push(
+              `${label}: ${u.tool} can't sit here: this block hands over its records, so the quick action must start with a step that takes records, with no input step (e.g. records.toVCard)`,
+            );
+          else if (!hands && takes !== null)
+            problems.push({ code: 'needs-container', message: needsContainer(u.tool, label) });
+        }
       }
       if (u.label !== undefined || u.when !== undefined)
         problems.push(`${label}: label and when only apply to tools on each entry`);
@@ -498,6 +572,10 @@ function toolUseProblems(
       return;
     }
     if (!isRecordToolUse(u)) return;
+    if (u.as === 'list') {
+      problems.push(`${label}: as "list" only runs a quick action: {as: "list", tool: <id>}`);
+      return;
+    }
     if (!meta.do?.includes(u.do)) {
       problems.push(
         `${label}: a ${c.look} block can't have a ${u.do} tool${meta.do ? ` (allowed: ${meta.do.join(', ')})` : ''}`,

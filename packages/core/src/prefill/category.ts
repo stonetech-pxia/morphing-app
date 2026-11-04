@@ -202,3 +202,41 @@ export function categoryAnswers(field: ChoiceField, answer: string): string[] {
   const hit = categoryChoices(field).find((c) => c.name === name);
   return hit ? [hit.id] : [];
 }
+
+// 票面写了什么货币（D-429）。¥ 既可能是人民币也可能是日元：看字段的选项里有哪个。
+const CURRENCY_MARKS: readonly (readonly [RegExp, readonly string[]])[] = [
+  [/(?:C|CA)\$/g, ['cad']],
+  [/(?:A|AU)\$/g, ['aud']],
+  [/HK\$/g, ['hkd']],
+  [/S\$/g, ['sgd']],
+  [/\$/g, ['usd']],
+  [/€/g, ['eur']],
+  [/£/g, ['gbp']],
+  [/₩/g, ['krw']],
+  [/₹/g, ['inr']],
+  [/円/g, ['jpy']],
+  [/元|人民币|\bRMB\b/gi, ['cny']],
+  [/[¥￥]/g, ['cny', 'jpy']],
+];
+
+/** 文字里出现最多的货币（必须是这个单选字段的选项）；没有时 null。 */
+export function currencyInText(field: ChoiceField, rows: readonly string[]): string | null {
+  const ids = new Set(field.options.map((o) => o.id));
+  const counts = new Map<string, number>();
+  const add = (id: string, n: number) => counts.set(id, (counts.get(id) ?? 0) + n);
+  let text = rows.join('\n');
+  for (const id of ids) {
+    const hits = text.match(new RegExp(`\\b${id}\\b`, 'gi'))?.length ?? 0;
+    if (hits > 0) add(id, hits);
+  }
+  for (const [mark, options] of CURRENCY_MARKS) {
+    const hits = text.match(mark)?.length ?? 0;
+    const id = options.find((o) => ids.has(o));
+    if (hits > 0 && id) add(id, hits);
+    // 「CA$」算过了，后面的「$」不再算一次。
+    text = text.replace(mark, ' ');
+  }
+  let best: string | null = null;
+  for (const [id, n] of counts) if (best === null || n > counts.get(best)!) best = id;
+  return best;
+}

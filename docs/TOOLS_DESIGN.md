@@ -11,6 +11,8 @@
 4. **单独使用一个工具 = 只含这一个动作（加上输入步骤）的工作流**。工具页和工作流共用同一个执行器。
 5. **纯逻辑放在 `core` 和 `tool-*` 包里，用 Node 加真实文件测试**；平台能力（选照片、编码图片、WebView、打印、系统识别）由 App 注入，测试里换成假的。
 
+6. **容器把数据交给工具**（D-428）：进入容器什么都不跑。用户点容器上的按钮时，第一步要什么就交什么：值（一个字段，`text`）、这一条（`records`，一条）、列表选出的（`records`，筛选和搜索之后的全部，不截到 `limit`）。这种快捷操作没有输入步骤（`workflow/check.ts` 的 `handedInput`），放在表的 `recordRow`、记录块的 `{as: "list"}`、单条记录块上；放不到提醒、手机桌面、普通按钮上，从快捷操作列表点只说明要从记录页或列表上点，不运行。
+
 ## 1. 类型化的值（替代 D-014 的 4 个固定数据槽）
 
 步骤之间传递**一个值**，值有类型：
@@ -24,7 +26,7 @@
 | `video`   | 视频文件数组（MOV / MP4 等）             | 每项带时长、宽高；原生模块边读边写（D-140、D-142）    |
 | `audio`   | 音频文件数组（m4a / wav / mp3 等）       | 这一批只有类型和输入，动作由音频工具提供（D-140）     |
 | `text`    | 一段文字（OCR、二维码识别、PDF 抽文字）  | **只留在本机**：复制、存成文件、生成 PDF，绝不发给 AI |
-| `records` | 记录（以后接数据表时再用）               | 第一批只登记类型，没有动作产出它                      |
+| `records` | 记录（一条或几条）                       | `in.records` 读一张表，或者容器交来（D-428）          |
 
 类型兼容：动作声明接受 `files` 时，`images` / `pdf` / `zip` / `video` / `audio` 都能接上；反过来不行。动作可以用 `rejects` 排除处理不了的子类型（`pdf.merge` 不收视频和音频，D-140）。
 
@@ -166,8 +168,10 @@ interface StepContext {
 - **文字**（工具 `text`）：`text.copy`、`text.toFile`（.txt）、`text.toPdf`（expo-print，系统字体，中日韩都能显示）；文字加工 `text.tidy`、`text.replace`、`text.extract`、`text.lines`（§14，D-245）。
 - **打包**（工具 `zip`）：`zip.create`、`zip.extract`。（`packages/tool-archive`：fflate，只用同步接口）
 - **二维码**（工具 `qr`）：`qr.generate`（文字 → PNG，tool-qr 自带的 PNG 编码器）、`qr.read`（图片 → 文字，Skia 读像素后用 jsQR）。（`packages/tool-qr`：lean-qr、jsQR）
-- **报表**（工具 `print`）：`print.records`（`records` → PDF；模板：表格 / 卡片 / 带合计的清单；记录值先转义再在本地填进去，AI 只选模板、标题和字段 ID，D-042、D-080）。模板在 `core/src/html.ts`。
-- **vCard**（内核动作，不属于工具）：`records.toVCard`（`records` → 一个 `.vcf`，没有参数，D-423）。纯函数在 `core/src/vcard.ts`。
+- **报表**（工具 `print`）：`print.records`（`records` → PDF；模板：表格 / 卡片 / 带合计的清单；记录值先转义再在本地填进去，AI 只选模板、标题和字段 ID，D-042、D-080）。模板在 `core/src/html.ts`。可选参数 `attachments`：每条记录的照片和 PDF 按记录顺序接在后面，写明是哪条记录的；读不了、超过上限的印在报表上（D-425，上限 `REPORT_ATTACHMENT_LIMITS`）。
+- **vCard**（内核动作，不属于工具）：`records.toVCard`（`records` → 一个 `.vcf`，没有参数，D-423），`records.toVCardText`（同样的内容，`records` → `text`，用来接 `qr.generate`，D-428）。纯函数在 `core/src/vcard.ts`。
+- **打开值**（内核动作，D-428）：`out.call`、`out.message`、`out.email`、`out.website`（`text` → `text`，没有参数）。链接只由 `core/field-link.ts` 造（`tel:`、`sms:`、`mailto:`、`http(s)://`），网站先问，什么都不会自己发出去。和 `out.share` 一样只能是快捷操作的一步。
+- **Excel**（内核动作，不属于工具）：`records.toExcel`（`records` → 一个 `.xlsx`，用表名命名，没有参数，D-427）。列和 CSV 一样；数字、金额、日期是真的数字和日期，文字永远是文字，文件里没有公式。格子在 `core/src/records-sheet.ts`，写文件是 `tool-office` 的 `writeRowsXlsx`。
 
 文件名由用户选文件时决定，AI 只能给命名**模板**：`{date}`（= `{date:YYYY-MM-DD}`）、`{date:FORMAT}`、`{index}`、`{seq}`（两位序号 01、02…）、`{sourceName}`、`{taken}` / `{taken:FORMAT}`（照片拍摄日期，读不到时用当天）、`{ocr:规则}` / `{qr:规则}`（这张照片在本机识别出的文字 / 二维码内容里按固定规则取的一段，§14）。
 

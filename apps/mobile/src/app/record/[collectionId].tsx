@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 
 import { useComputedRecords, useRecordActions } from '@/data/records';
+import { useSimilarCheck } from '@/data/similar-records';
 import { t } from '@/i18n';
 import { FormFilesContext } from '@/renderer/Attachments';
 import { prefillFormValues, toFormValues } from '@/renderer/data';
@@ -33,6 +34,7 @@ export default function RecordRoute() {
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
   const actions = useRecordActions();
+  const mayProceed = useSimilarCheck();
   const collection = config.data.tables.find((c) => c.id === collectionId);
   // 查找、汇总、上一条（D-291）：显示这条记录存好以后算出来的值。
   const computed = useComputedRecords(config.data.tables, collection, useCalendar());
@@ -81,6 +83,8 @@ export default function RecordRoute() {
 
   async function save() {
     if (!collection) return;
+    // D-426：只有新记录问一句，用户总能选「仍然保存」。
+    if (!record && !(await mayProceed(collection, values))) return;
     const result = record
       ? await actions.update(collection, record, values)
       : await actions.add(collection, values);
@@ -119,7 +123,12 @@ export default function RecordRoute() {
           contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 48 }}
           keyboardShouldPersistTaps="handled">
           {record ? (
-            <RecordActionRow collection={collection} values={values} palette={palette} />
+            <RecordActionRow
+              collection={collection}
+              record={computed.records?.find((r) => r.id === record.id) ?? record}
+              values={values}
+              palette={palette}
+            />
           ) : null}
           <FormFilesContext.Provider value={formFiles}>
             <SuggestedFields

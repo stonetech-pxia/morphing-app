@@ -50,6 +50,11 @@ export const ICON_NAMES = [
   'audio',
   'translate',
   'note',
+  'phone',
+  'message',
+  'mail',
+  'globe',
+  'share',
 ] as const;
 export const IconSchema = z.enum(ICON_NAMES);
 export type IconName = z.infer<typeof IconSchema>;
@@ -164,6 +169,15 @@ export {
   type FieldType,
 } from './fields';
 
+/**
+ * 记录页顶部的一个按钮（D-428）：一个快捷操作（第一步收文字或记录）；第一步收文字时 field 说交哪个字段的值。
+ * 配置里只有 ID，没有值（底线 14）。
+ */
+export const RecordRowItemSchema = z.strictObject({ tool: IdSchema, field: IdSchema.optional() });
+export type RecordRowItem = z.infer<typeof RecordRowItemSchema>;
+/** 记录页顶部最多几个按钮。 */
+export const MAX_RECORD_ROW = 10;
+
 /** 数据表（v34 data.tables，原 collections）。 */
 export const CollectionSchema = z.strictObject({
   id: IdSchema,
@@ -174,6 +188,11 @@ export const CollectionSchema = z.strictObject({
   readAttachments: z.boolean().optional(),
   /** 读附件给候选时，通用规则之外再用哪组规则（D-421）。不写就只有通用规则。 */
   prefillRules: z.enum(['receipt', 'card']).optional(),
+  /**
+   * 已有记录的记录页顶部的一排按钮（D-428）。记录页是系统层、一张表一页，所以放在表上（和 readAttachments 一样）。
+   * 不写就没有这一排。
+   */
+  recordRow: z.array(RecordRowItemSchema).max(MAX_RECORD_ROW).optional(),
 });
 export type Collection = z.infer<typeof CollectionSchema>;
 export const TableSchema = CollectionSchema;

@@ -2579,7 +2579,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 2>.show.title? string len 1..60
 <oneOf 2>.show.text string len 1..600
 <oneOf 2>.show.icon?
-<oneOf 2>.show.icon<anyOf 0> "home"|"apps"|"sparkles"|"history"|"settings"|"document"|"folder"|"star"|"heart"|"bolt"|"calendar"|"bookmark"|"inbox"|"chart"|"check"|"info"|"lightbulb"|"merge"|"link"|"person"|"plus"|"search"|"photo"|"scan"|"text"|"qrcode"|"archive"|"printer"|"signature"|"workflow"|"video"|"audio"|"translate"|"note"
+<oneOf 2>.show.icon<anyOf 0> "home"|"apps"|"sparkles"|"history"|"settings"|"document"|"folder"|"star"|"heart"|"bolt"|"calendar"|"bookmark"|"inbox"|"chart"|"check"|"info"|"lightbulb"|"merge"|"link"|"person"|"plus"|"search"|"photo"|"scan"|"text"|"qrcode"|"archive"|"printer"|"signature"|"workflow"|"video"|"audio"|"translate"|"note"|"phone"|"message"|"mail"|"globe"|"share"
 <oneOf 2>.show.icon<anyOf 1> string
 <oneOf 3> object
 <oneOf 3>.id string /^[a-z][a-z0-9-]{0,47}$/
@@ -2623,7 +2623,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 6>.tools? array items 1..1
 <oneOf 6>.tools[]
 <oneOf 6>.tools[]<anyOf 0> object
-<oneOf 6>.tools[]<anyOf 0>.as? "submit"|"button"|"check"|"tap"|"drag"|"addHere"
+<oneOf 6>.tools[]<anyOf 0>.as? "submit"|"button"|"check"|"tap"|"drag"|"addHere"|"list"
 <oneOf 6>.tools[]<anyOf 0>.label? string len 1..30
 <oneOf 6>.tools[]<anyOf 0>.when? array items ..3
 <oneOf 6>.tools[]<anyOf 0>.when[] object
@@ -2639,7 +2639,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 6>.tools[]<anyOf 0>.tool<anyOf 0> string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 6>.tools[]<anyOf 0>.tool<anyOf 1> "$pick.media"|"$pick.files"
 <oneOf 6>.tools[]<anyOf 1> object
-<oneOf 6>.tools[]<anyOf 1>.as? "submit"|"button"|"check"|"tap"|"drag"|"addHere"
+<oneOf 6>.tools[]<anyOf 1>.as? "submit"|"button"|"check"|"tap"|"drag"|"addHere"|"list"
 <oneOf 6>.tools[]<anyOf 1>.label? string len 1..30
 <oneOf 6>.tools[]<anyOf 1>.when? array items ..3
 <oneOf 6>.tools[]<anyOf 1>.when[] = <oneOf 6>.tools[]<anyOf 0>.when[]
@@ -2664,7 +2664,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 6>.tools[]<anyOf 1>.smartDate.from string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 6>.tools[]<anyOf 1>.smartDate.to string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 6>.tools[]<anyOf 2> object
-<oneOf 6>.tools[]<anyOf 2>.as? "submit"|"button"|"check"|"tap"|"drag"|"addHere"
+<oneOf 6>.tools[]<anyOf 2>.as? "submit"|"button"|"check"|"tap"|"drag"|"addHere"|"list"
 <oneOf 6>.tools[]<anyOf 2>.label? string len 1..30
 <oneOf 6>.tools[]<anyOf 2>.when? array items ..3
 <oneOf 6>.tools[]<anyOf 2>.when[] = <oneOf 6>.tools[]<anyOf 0>.when[]
@@ -2673,7 +2673,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 6>.tools[]<anyOf 2>.field string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 6>.tools[]<anyOf 2>.value = <oneOf 6>.tools[]<anyOf 1>.values<anyOf 0>{}
 <oneOf 6>.tools[]<anyOf 3> object
-<oneOf 6>.tools[]<anyOf 3>.as? "submit"|"button"|"check"|"tap"|"drag"|"addHere"
+<oneOf 6>.tools[]<anyOf 3>.as? "submit"|"button"|"check"|"tap"|"drag"|"addHere"|"list"
 <oneOf 6>.tools[]<anyOf 3>.label? string len 1..30
 <oneOf 6>.tools[]<anyOf 3>.when? array items ..3
 <oneOf 6>.tools[]<anyOf 3>.when[] = <oneOf 6>.tools[]<anyOf 0>.when[]
@@ -2681,7 +2681,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 6>.tools[]<anyOf 3>.table string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 6>.tools[]<anyOf 3>.field string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 6>.tools[]<anyOf 4> object
-<oneOf 6>.tools[]<anyOf 4>.as? "submit"|"button"|"check"|"tap"|"drag"|"addHere"
+<oneOf 6>.tools[]<anyOf 4>.as? "submit"|"button"|"check"|"tap"|"drag"|"addHere"|"list"
 <oneOf 6>.tools[]<anyOf 4>.label? string len 1..30
 <oneOf 6>.tools[]<anyOf 4>.when? array items ..3
 <oneOf 6>.tools[]<anyOf 4>.when[] = <oneOf 6>.tools[]<anyOf 0>.when[]
@@ -2690,7 +2690,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 6>.tools[]<anyOf 4>.field string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 6>.tools[]<anyOf 4>.by number
 <oneOf 6>.tools[]<anyOf 5> object
-<oneOf 6>.tools[]<anyOf 5>.as? "submit"|"button"|"check"|"tap"|"drag"|"addHere"
+<oneOf 6>.tools[]<anyOf 5>.as? "submit"|"button"|"check"|"tap"|"drag"|"addHere"|"list"
 <oneOf 6>.tools[]<anyOf 5>.label? string len 1..30
 <oneOf 6>.tools[]<anyOf 5>.when? array items ..3
 <oneOf 6>.tools[]<anyOf 5>.when[] = <oneOf 6>.tools[]<anyOf 0>.when[]
@@ -2701,7 +2701,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 6>.tools[]<anyOf 5>.field string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 6>.tools[]<anyOf 5>.value = <oneOf 6>.tools[]<anyOf 1>.values<anyOf 0>{}
 <oneOf 6>.tools[]<anyOf 6> object
-<oneOf 6>.tools[]<anyOf 6>.as? "submit"|"button"|"check"|"tap"|"drag"|"addHere"
+<oneOf 6>.tools[]<anyOf 6>.as? "submit"|"button"|"check"|"tap"|"drag"|"addHere"|"list"
 <oneOf 6>.tools[]<anyOf 6>.label? string len 1..30
 <oneOf 6>.tools[]<anyOf 6>.when? array items ..3
 <oneOf 6>.tools[]<anyOf 6>.when[] = <oneOf 6>.tools[]<anyOf 0>.when[]
@@ -2949,6 +2949,8 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 22>.show.fields array items 1..8
 <oneOf 22>.show.fields[] = <oneOf 6>.tools[]<anyOf 0>.when[].field
 <oneOf 22>.show.qr? true
+<oneOf 22>.tools? array items 1..1
+<oneOf 22>.tools[] = <oneOf 6>.tools[]
 <oneOf 23> object
 <oneOf 23>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 23>.hidden? boolean
@@ -3057,7 +3059,7 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .data.tables[].id string /^[a-z][a-z0-9-]{0,47}$/
 .data.tables[].name string len 1..40
 .data.tables[].icon?
-.data.tables[].icon<anyOf 0> "home"|"apps"|"sparkles"|"history"|"settings"|"document"|"folder"|"star"|"heart"|"bolt"|"calendar"|"bookmark"|"inbox"|"chart"|"check"|"info"|"lightbulb"|"merge"|"link"|"person"|"plus"|"search"|"photo"|"scan"|"text"|"qrcode"|"archive"|"printer"|"signature"|"workflow"|"video"|"audio"|"translate"|"note"
+.data.tables[].icon<anyOf 0> "home"|"apps"|"sparkles"|"history"|"settings"|"document"|"folder"|"star"|"heart"|"bolt"|"calendar"|"bookmark"|"inbox"|"chart"|"check"|"info"|"lightbulb"|"merge"|"link"|"person"|"plus"|"search"|"photo"|"scan"|"text"|"qrcode"|"archive"|"printer"|"signature"|"workflow"|"video"|"audio"|"translate"|"note"|"phone"|"message"|"mail"|"globe"|"share"
 .data.tables[].icon<anyOf 1> string
 .data.tables[].fields array items 1..30
 .data.tables[].fields[]
@@ -3087,6 +3089,7 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .data.tables[].fields[]<oneOf money>.required? boolean
 .data.tables[].fields[]<oneOf money>.type "money"
 .data.tables[].fields[]<oneOf money>.currency string /^[A-Z]{3}$/
+.data.tables[].fields[]<oneOf money>.currencyField? string /^[a-z][a-z0-9-]{0,47}$/
 .data.tables[].fields[]<oneOf money>.default? number
 .data.tables[].fields[]<oneOf checkbox> object
 .data.tables[].fields[]<oneOf checkbox>.id string /^[a-z][a-z0-9-]{0,47}$/
@@ -3239,6 +3242,10 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .data.tables[].fields[]<oneOf schedule>.countEarly? true
 .data.tables[].readAttachments? boolean
 .data.tables[].prefillRules? "receipt"|"card"
+.data.tables[].recordRow? array items ..10
+.data.tables[].recordRow[] object
+.data.tables[].recordRow[].tool string /^[a-z][a-z0-9-]{0,47}$/
+.data.tables[].recordRow[].field? string /^[a-z][a-z0-9-]{0,47}$/
 .data.calendar? object
 .data.calendar.dayStartHour? integer 0..6
 .data.calendar.weekStart? "monday"|"sunday"

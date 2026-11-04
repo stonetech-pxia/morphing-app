@@ -5,6 +5,7 @@ import {
   recordProgress,
   untitledRecordTitle,
   type DataRecord,
+  fieldForRecord,
 } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -69,7 +70,8 @@ export function Tiles({ block, env, tone }: { block: RecordBlock; env: RenderEnv
       format?.kind === 'progress'
         ? recordProgress(r, view, show.trailing!, format.goal, now, cal)
         : undefined;
-    const field = view.fields.find((f) => f.id === show.trailing);
+    const found = view.fields.find((f) => f.id === show.trailing);
+    const field = found && fieldForRecord(found, r.values, view);
     const full = progress !== undefined && progress.ratio >= 1;
     const inside = progress
       ? t(locale, 'progressOfGoal', {

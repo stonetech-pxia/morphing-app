@@ -3,6 +3,7 @@ import { NUMERIC_FIELD_TYPES } from './components/define';
 import { conditionProblems } from './conditions';
 import { aggregateRecords, filterRecords, type DataRecord } from './data';
 import { round } from './field-values';
+import { hasRecordCurrency } from './money-currency';
 import { expandCollection } from './related';
 import type { Collection, ComponentOf, WorkspaceConfig } from './schema';
 
@@ -41,6 +42,8 @@ export function statMinusProblems(
         `minus: sum needs field set to a number, money, rating, duration or formula field of ${other.id}`,
       );
     } else {
+      if (hasRecordCurrency(f))
+        problems.push(`minus: ${other.id}.${f.id} has its own currency on each entry`);
       const own = field ? collection.fields.find((x) => x.id === field) : undefined;
       if (own?.type === 'money' && f.type === 'money' && own.currency !== f.currency)
         problems.push(

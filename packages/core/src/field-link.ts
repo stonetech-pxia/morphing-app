@@ -1,7 +1,7 @@
 import type { TextFormat } from './fields/text';
 import type { Field } from './schema';
 
-// 文字字段的 format（电话、邮箱、网址，D-422）：记录页上哪个值能点、点了打开什么。纯函数，只可能出
+// 文字字段的 format（电话、邮箱、网址，D-422）：哪个值能打开、打开什么（记录页的按钮和那四个步骤都按这里，D-428）。纯函数，只可能出
 // tel:、sms:、mailto:、http(s):// 四种。值对不上时是 null：值照样存、照样显示，只是不能点（保存不查格式）。
 
 export interface FieldLink {
@@ -59,6 +59,17 @@ export function formatLink(format: TextFormat, value: string): FieldLink | null 
   return format === 'email' ? emailLink(v) : urlLink(v);
 }
 
+export type LinkKind = FieldLink['kind'];
+
+const asMessage = (link: FieldLink | null): FieldLink | null =>
+  link?.kind === 'phone' ? { kind: 'message', url: `sms:${link.url.slice(4)}` } : null;
+
+/** 打电话、发短信、发邮件、打开网站的步骤（D-428）：这段文字能不能当这种链接打开。 */
+export function actionLink(kind: LinkKind, value: string): FieldLink | null {
+  if (kind === 'message') return asMessage(formatLink('phone', value));
+  return formatLink(kind, value);
+}
+
 /**
  * 这个字段的这个值能打开什么；没有 format 或值对不上时 null。
  * message：电话字段发短信（D-423，和打电话同样的规则）；别的字段没有。
@@ -67,5 +78,5 @@ export function fieldLink(field: Field, value: unknown, as?: 'message'): FieldLi
   if (field.type !== 'text' || !field.format || typeof value !== 'string') return null;
   const link = formatLink(field.format, value);
   if (as !== 'message') return link;
-  return link?.kind === 'phone' ? { kind: 'message', url: `sms:${link.url.slice(4)}` } : null;
+  return asMessage(link);
 }

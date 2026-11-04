@@ -6,9 +6,11 @@ import {
   isToolRefUse,
   packageTargetId,
   toolTargetId,
+  type Collection,
   type Component,
   type ComponentOf,
   type ComponentType,
+  type DataRecord,
   type KnownComponent,
   type OpenTarget,
   type ShowIf,
@@ -32,7 +34,8 @@ import { t } from '../i18n';
 import { FocusItem } from '../editing/FocusItem';
 import { Chart } from './Chart';
 import type { RenderEnv } from './components';
-import { RecordForm, RecordList, Stat } from './data';
+import { RecordForm, RecordList, Stat, type RecordBlock } from './data';
+import { ListTools } from './ListTools';
 import { MonthCalendar } from './MonthCalendar';
 import { Board } from './Board';
 import { Tiles } from './Tiles';
@@ -202,9 +205,9 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
   spacer: (c) => <View style={{ height: { small: 4, medium: 16, large: 32 }[c.show.size] }} />,
   group: (c, env) => <Group component={c} env={env} />,
   // 月历（D-305）只读一个月的记录，大圆块（D-311）和看板（D-313）画法不同，都是单独的组件。
-  list: (c, env) => <RecordList block={c} env={env} tone={c.style?.tone} />,
-  cards: (c, env) => <RecordList block={c} env={env} tone={c.style?.tone} />,
-  checklist: (c, env) => <RecordList block={c} env={env} tone={c.style?.tone} />,
+  list: (c, env) => <ToolList block={c} env={env} />,
+  cards: (c, env) => <ToolList block={c} env={env} />,
+  checklist: (c, env) => <ToolList block={c} env={env} />,
   calendar: (c, env) => (
     <MonthCalendar block={c} env={env} tone={c.style?.tone} componentId={c.id} />
   ),
@@ -253,6 +256,31 @@ const PAGE_LOOKS: ReadonlySet<ComponentType> = new Set<ComponentType>([
   'image',
   'library',
 ]);
+
+/** 列表、卡片、清单：列表上方的工具（D-428）在 ListTools 里，这样 data.tsx 不依赖运行（记录表单也用 data.tsx）。 */
+function ToolList({ block, env }: { block: RecordBlock; env: RenderEnv }) {
+  const tools = block.tools?.filter((u) => u.as === 'list') ?? [];
+  return (
+    <RecordList
+      block={block}
+      env={env}
+      tone={block.style?.tone}
+      {...(tools.length > 0
+        ? {
+            tools: (collection: Collection, records: readonly DataRecord[], searching: boolean) => (
+              <ListTools
+                tools={tools}
+                collection={collection}
+                records={records}
+                searching={searching}
+                env={env}
+              />
+            ),
+          }
+        : {})}
+    />
+  );
+}
 
 export function ComponentView({ component, env }: { component: Component; env: RenderEnv }) {
   if (!isKnownComponent(component)) return <UnknownComponentView env={env} />;

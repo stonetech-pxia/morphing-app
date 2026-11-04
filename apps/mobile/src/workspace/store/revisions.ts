@@ -108,7 +108,7 @@ export function createRevisions(
     }
     const parsed = ops as Op[];
     // AI 新建的工作流不在任何页面上时，由用户决定要不要放到首页（D-109）。
-    const homeless = source === 'ai' ? workflowsWithoutEntry(parsed, prepared.after) : [];
+    const homeless = source === 'ai' ? workflowsWithoutEntry(parsed, prepared.after, registry) : [];
     return recordPreview(input, ops, head, {
       kind: 'ops',
       before: config,

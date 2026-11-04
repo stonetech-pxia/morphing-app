@@ -123,41 +123,6 @@ export function recordsToVCard(
   return records.flatMap((r) => recordToVCard(fields, r.values) ?? []).join('');
 }
 
-// ---- 记录页顶部的按钮 ----
-
-export interface ContactActions {
-  call: string | null;
-  message: string | null;
-  email: string | null;
-  website: string | null;
-  /** 这张表有电话或邮箱字段，这条也有名片内容。 */
-  shareCard: boolean;
-}
-
-/** 记录页顶部哪些按钮有效（D-423）：只看 format，第一个值对得上的字段。 */
-export function contactActions(
-  fields: readonly Field[],
-  values: Readonly<Record<string, unknown>>,
-): ContactActions {
-  const first = (format: TextFormat, as?: 'message') => {
-    for (const f of fields) {
-      if (f.type !== 'text' || f.format !== format) continue;
-      const link = fieldLink(f, values[f.id], as);
-      if (link) return link.url;
-    }
-    return null;
-  };
-  return {
-    call: first('phone'),
-    message: first('phone', 'message'),
-    email: first('email'),
-    website: first('url'),
-    shareCard:
-      fields.some((f) => f.type === 'text' && (f.format === 'phone' || f.format === 'email')) &&
-      recordToVCard(fields, values) !== null,
-  };
-}
-
 // ---- 扫到的文字 → 字段的候选 ----
 
 export interface ContactCode {

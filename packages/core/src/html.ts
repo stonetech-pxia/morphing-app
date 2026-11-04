@@ -1,5 +1,16 @@
+import { REPORT_ATTACHMENT_LIMITS } from './limits';
 import { t } from './messages';
-import { aggregateRecords, fieldOf, formatRef, type DataRecord, type LinkResolver } from './data';
+import {
+  aggregateRecords,
+  fieldOf,
+  formatRef,
+  recordTitle,
+  type DataRecord,
+  type LinkResolver,
+  perCurrencyText,
+} from './data';
+import { attachmentIds } from './field-values';
+import { DEFAULT_CALENDAR, type Calendar } from './calendar';
 import { fieldDefinition, type Collection, type Field, type Locale } from './schema';
 
 // 文字转 PDF、用记录生成 PDF 的固定 HTML 模板（expo-print 渲染，系统字体，中日韩都能显示）。
@@ -69,6 +80,8 @@ export interface RecordsHtmlOptions {
   now: Date;
   /** 引用字段显示被引用记录的标题（D-250）。 */
   links?: LinkResolver;
+  /** 印在标题下面的说明（D-425：哪些附件没放进来）。用户看的文字，先转义再填。 */
+  notes?: readonly string[];
 }
 
 /** 记录 → HTML。receipt 在表格下面合计第一个金额（没有就数字）字段。 */
@@ -96,7 +109,7 @@ export function recordsToHtml(
     escapeHtml(formatRef(r, collection, ref, locale, opts.links));
   const date = `${opts.now.getFullYear()}-${String(opts.now.getMonth() + 1).padStart(2, '0')}-${String(opts.now.getDate()).padStart(2, '0')}`;
   const header = `<header><h1>${escapeHtml(opts.title || collection.name)}</h1>
-<div class="meta">${escapeHtml(collection.name)} · ${t(locale, 'html_records_3f794', { v0: records.length })} · ${date}</div></header>`;
+<div class="meta">${escapeHtml(collection.name)} · ${t(locale, 'html_records_3f794', { v0: records.length })} · ${date}</div>${(opts.notes ?? []).map((n) => `<p class="note">${escapeHtml(n)}</p>`).join('')}</header>`;
 
   let body: string;
   if (opts.template === 'cards') {
@@ -132,7 +145,9 @@ export function recordsToHtml(
       const field = candidates.find((f) => rank(f) === best);
       if (field) {
         const sum = aggregateRecords(records, collection, 'sum', field.id) ?? 0;
-        const shown = fieldDefinition(field.type).print!.total!.format(field, sum, locale);
+        const shown =
+          perCurrencyText(records, collection, 'sum', field.id, locale) ??
+          fieldDefinition(field.type).print!.total!.format(field, sum, locale);
         // 冒号按语言：中文全角，法语前面带窄不换行空格，英文半角。
         const colon = locale === 'zh' ? '：' : locale === 'fr' ? '\u202f: ' : ': ';
         total = `<div class="total">${t(locale, 'html_Total_08322')} · ${escapeHtml(field.name)}${colon}<strong>${escapeHtml(shown)}</strong></div>`;
@@ -142,7 +157,7 @@ export function recordsToHtml(
   }
   return page(
     `${header}${body}`,
-    `header { margin-bottom: 16pt; }
+    `${opts.notes?.length ? '.note { font-size: 10pt; margin: 6pt 0 0; overflow-wrap: anywhere; }\n' : ''}header { margin-bottom: 16pt; }
 h1 { font-size: 20pt; margin: 0 0 4pt; }
 .meta { font-size: 9pt; color: #666; }
 table { width: 100%; border-collapse: collapse; font-size: 10pt; }
@@ -157,4 +172,131 @@ tr { page-break-inside: avoid; }
 .v { flex: 1; overflow-wrap: anywhere; }`,
     opts.pageSize,
   );
+}
+
+// ---- 报表带附件（D-425）----
+
+/** 报表要放的一个附件：属于哪条记录，图注写什么。 */
+export interface ReportAttachment {
+  /** 用户文件的 ID：只在本机用，不进 HTML、不发给 AI。 */
+  assetId: string;
+  title: string;
+  /** 这条记录在报表里印出来的值，读的人对得上是哪一行。 */
+  detail: string;
+  /** 这条记录的第几个（从 1 起）、一共几个。 */
+  index: number;
+  total: number;
+}
+
+const CAPTION_CHARS = 120;
+
+/** 记录顺序、每条记录内按字段和附件的顺序，列出文件字段里的附件。 */
+export function reportAttachments(
+  collection: Collection,
+  records: readonly DataRecord[],
+  opts: {
+    fields: readonly string[];
+    locale: Locale;
+    now: Date;
+    cal?: Calendar;
+    links?: LinkResolver;
+  },
+): ReportAttachment[] {
+  const { locale, now, cal = DEFAULT_CALENDAR } = opts;
+  const refs = (opts.fields.length > 0 ? opts.fields : collection.fields.map((f) => f.id)).filter(
+    (ref) =>
+      ref === 'createdAt' ||
+      ref === 'updatedAt' ||
+      (fieldOf(collection, ref) && fieldOf(collection, ref)!.type !== 'file'),
+  );
+  const fileFields = collection.fields.filter((f) => f.type === 'file');
+  return records.flatMap((record) => {
+    const ids = fileFields.flatMap((f) => attachmentIds(record.values[f.id]));
+    if (ids.length === 0) return [];
+    const title = recordTitle(record, collection, locale, now, cal);
+    const detail = refs
+      .map((ref) => formatRef(record, collection, ref, locale, opts.links, now, cal))
+      .filter((text) => text !== '' && text !== title)
+      .join(' · ');
+    return ids.map((assetId, i) => ({
+      assetId,
+      title,
+      detail,
+      index: i + 1,
+      total: ids.length,
+    }));
+  });
+}
+
+/** 一页附件：图注 + 照片（JPEG 的 base64）。没有照片时是后面接 PDF 页面的那一页图注。 */
+export interface ReportAttachmentPage {
+  attachment: ReportAttachment;
+  jpegBase64?: string;
+  /** 后面接的 PDF 有几页。 */
+  pdfPages?: number;
+}
+
+/** 附件页的 HTML：每张照片一页，图注在上面。 */
+export function reportAttachmentsToHtml(
+  pages: readonly ReportAttachmentPage[],
+  opts: { pageSize: PageSize; locale: Locale },
+): string {
+  const { height } = PAGE_POINTS[opts.pageSize];
+  const cut = (s: string) => Array.from(s).slice(0, CAPTION_CHARS).join('');
+  const body = pages
+    .map(({ attachment: a, jpegBase64, pdfPages }) => {
+      const count =
+        a.total > 1 ? t(opts.locale, 'reportAttachmentOf', { index: a.index, total: a.total }) : '';
+      const meta = [cut(a.detail), count].filter(Boolean).join(' · ');
+      const pdf =
+        pdfPages !== undefined
+          ? `<p class="pdf">${escapeHtml(t(opts.locale, 'reportAttachmentPdfFollows', { n: pdfPages }))}</p>`
+          : '';
+      const image = jpegBase64
+        ? `<img alt="" src="data:image/jpeg;base64,${escapeHtml(jpegBase64)}">`
+        : '';
+      return `<section class="att"><h2>${escapeHtml(cut(a.title))}</h2><div class="meta">${escapeHtml(meta)}</div>${pdf}${image}</section>`;
+    })
+    .join('\n');
+  // 上下边距 40pt，图注最多占大约 90pt：照片不会被挤到下一页。
+  return page(
+    body,
+    `.att { page-break-after: always; break-after: page; }
+.att:last-child { page-break-after: auto; break-after: auto; }
+h2 { font-size: 14pt; margin: 0 0 3pt; overflow-wrap: anywhere; }
+.meta { font-size: 9pt; color: #666; margin-bottom: 8pt; overflow-wrap: anywhere; }
+.pdf { font-size: 10pt; }
+img { display: block; margin: 0 auto; max-width: 100%; max-height: ${height - 80 - 90}pt; }`,
+    opts.pageSize,
+  );
+}
+
+/** 没放进来的附件 → 印在报表上的话。多于 8 条记录时只列前 8 条。 */
+export function reportAttachmentNotes(
+  left: { overLimit: readonly string[]; unreadable: readonly string[] },
+  locale: Locale,
+): string[] {
+  const titles = (list: readonly string[]) => {
+    const unique = [...new Set(list)];
+    const shown = unique.slice(0, 8).join(t(locale, 'reportAttachmentSeparator'));
+    return unique.length > 8 ? `${shown}…` : shown;
+  };
+  const notes: string[] = [];
+  if (left.overLimit.length > 0)
+    notes.push(
+      t(locale, 'reportAttachmentsOverLimit', {
+        n: left.overLimit.length,
+        max: REPORT_ATTACHMENT_LIMITS.maxCount,
+        mb: REPORT_ATTACHMENT_LIMITS.maxBytes / (1024 * 1024),
+        titles: titles(left.overLimit),
+      }),
+    );
+  if (left.unreadable.length > 0)
+    notes.push(
+      t(locale, 'reportAttachmentsUnreadable', {
+        n: left.unreadable.length,
+        titles: titles(left.unreadable),
+      }),
+    );
+  return notes;
 }

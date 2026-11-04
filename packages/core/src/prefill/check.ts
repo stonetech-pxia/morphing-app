@@ -11,7 +11,10 @@ export const squash = (s: string) => s.normalize('NFKC').replace(/\s+/g, '').toL
 const NO_DECIMALS = new Set(['IDR', 'JPY', 'KRW', 'VND']);
 /** 这种币种没有小数（字段的货币）。 */
 export const hasNoDecimals = (f: Field) =>
-  f.type === 'money' && f.currency !== undefined && NO_DECIMALS.has(f.currency);
+  f.type === 'money' &&
+  f.currency !== undefined &&
+  f.currencyField === undefined &&
+  NO_DECIMALS.has(f.currency);
 
 const LOCALES: readonly Locale[] = ['en', 'fr', 'zh'];
 /** 这一排能读出的日期（三种语言的写法都试，日月分不清时两种都算）。 */

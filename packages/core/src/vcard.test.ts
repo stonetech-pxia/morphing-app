@@ -2,13 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { fieldLink } from './field-link';
 import type { Field } from './schema';
-import {
-  contactActions,
-  contactCodeValues,
-  parseContactCode,
-  recordsToVCard,
-  recordToVCard,
-} from './vcard';
+import { contactCodeValues, parseContactCode, recordsToVCard, recordToVCard } from './vcard';
 
 // 名片的两种文字（D-423）：导出的 vCard 别的 App 读得懂，转义、折行都对；值里的换行造不出新的属性；
 // 扫到的文字只出字段的值，乱的文字什么都不出。
@@ -150,40 +144,6 @@ describe('record to vCard', () => {
 });
 
 describe('the buttons of an entry', () => {
-  it('takes the first field whose value fits', () => {
-    const fields: Field[] = [
-      { id: 't1', name: '手机', type: 'text', format: 'phone' },
-      { id: 't2', name: '座机', type: 'text', format: 'phone' },
-      { id: 'm', name: '邮箱', type: 'text', format: 'email' },
-    ];
-    expect(contactActions(fields, { t1: '分机', t2: '010 1234', m: 'a@b.com' })).toEqual({
-      call: 'tel:0101234',
-      message: 'sms:0101234',
-      email: 'mailto:a@b.com',
-      website: null,
-      shareCard: true,
-    });
-  });
-
-  it('a table without phone or email has no share button, whatever else it holds', () => {
-    const fields: Field[] = [
-      { id: 'n', name: '姓名', type: 'text' },
-      { id: 's', name: '网站', type: 'text', format: 'url' },
-    ];
-    const a = contactActions(fields, { n: 'A', s: 'example.com' });
-    expect(a).toMatchObject({ website: 'https://example.com', shareCard: false });
-  });
-
-  it('nothing is valid: nothing to show', () => {
-    expect(contactActions(FIELDS, {})).toEqual({
-      call: null,
-      message: null,
-      email: null,
-      website: null,
-      shareCard: false,
-    });
-  });
-
   it('sms follows the same rules as a phone call, only for phone fields', () => {
     const phone: Field = { id: 't', name: 'T', type: 'text', format: 'phone' };
     const mail: Field = { id: 'm', name: 'M', type: 'text', format: 'email' };

@@ -573,7 +573,14 @@ const fieldCap = (type: Field['type']) => cap(`field.${type}`, 'field', (v) => f
 const doCap = (kind: RecordTool['do']) =>
   cap(`write.do.${kind}`, 'write', (v) => v.writes.some((w) => w.tool.do === kind));
 const asCap = (as: ToolUseAs) =>
-  cap(`write.as.${as}`, 'write', (v) => v.writes.some((w) => w.as === as));
+  // as: "list" 不写记录，运行快捷操作（D-428）。
+  cap(`write.as.${as}`, 'write', (v) =>
+    as === 'list'
+      ? v.blocks.some((x) =>
+          ((x.block as { tools?: ToolUse[] }).tools ?? []).some((u) => u.as === 'list'),
+        )
+      : v.writes.some((w) => w.as === as),
+  );
 const browseOf = (v: AppView) =>
   v.blocks.flatMap((x) => {
     const browse = (x.block as { show?: { browse?: BlockOf<'list'>['show']['browse'] } }).show
@@ -653,6 +660,7 @@ export const CAPABILITIES: readonly Capability[] = [
   asCap('tap'),
   asCap('drag'),
   asCap('addHere'),
+  asCap('list'),
   cap('write.look.form', 'write', (v) => v.blocks.some((x) => x.block.look === 'form')),
   cap('write.look.button', 'write', (v) => v.writes.some((w) => w.as === 'self')),
   cap('write.form.inline', 'write', (v) =>
@@ -704,6 +712,21 @@ export const CAPABILITIES: readonly Capability[] = [
   cap('read.showIf.none', 'read', (v) => v.blocks.some((x) => x.block.showIf?.has === 'none')),
   cap('connect.recordsToVCard', 'connect', (v) =>
     quickActionsOf(v.config).some((q) => q.steps.some((s) => s.action === 'records.toVCard')),
+  ),
+  // D-428：容器把值交给工具。
+  cap('connect.recordRow', 'connect', (v) =>
+    v.config.data.tables.some((table) => (table.recordRow?.length ?? 0) > 0),
+  ),
+  cap('connect.singleTool', 'connect', (v) =>
+    v.blocks.some((x) => x.block.look === 'single' && x.block.tools !== undefined),
+  ),
+  cap('connect.recordsToExcel', 'connect', (v) =>
+    quickActionsOf(v.config).some((q) => q.steps.some((s) => s.action === 'records.toExcel')),
+  ),
+  cap('connect.printAttachments', 'connect', (v) =>
+    quickActionsOf(v.config).some((q) =>
+      q.steps.some((s) => s.action === 'print.records' && s.params.attachments === true),
+    ),
   ),
   chartCap('bar'),
   chartCap('line'),

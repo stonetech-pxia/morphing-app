@@ -63,6 +63,22 @@ jest.mock('expo-file-system', () => {
   };
 });
 jest.mock('../packs/store', () => ({ PackStore: class {} }));
+jest.mock('expo-image-manipulator', () => {
+  const rendered = {
+    width: 100,
+    height: 80,
+    saveAsync: async () => ({
+      uri: 'file:///cache/ImageManipulator/out.jpg',
+      width: 100,
+      height: 80,
+    }),
+  };
+  return {
+    ImageManipulator: { manipulate: () => ({ renderAsync: async () => rendered }) },
+    SaveFormat: { JPEG: 'jpeg' },
+    FlipType: {},
+  };
+});
 
 /** 用户的原件：相册、「文件」、Android 的 content://、App 自己存的用户文件。 */
 const ORIGINALS = [
@@ -101,6 +117,16 @@ describe('底线 4：原件永远不移动、不删除', () => {
       { op: 'move', uri: 'file:///cache/ImagePicker/x.jpg' },
     ]);
     expect(mockTouched.every((t) => t.uri.startsWith('file:///cache/'))).toBe(true);
+  });
+
+  // D-425：报表带附件时把原件缩成 JPEG：动的只是缩出来的那份（在缓存里），原件不动。
+  it('reducing a photo for a report never touches the original', async () => {
+    for (const uri of ORIGINALS) {
+      const out = await expoFilePlatform.reducedJpeg(uri, 1400, 0.75, 'run1', 'a/x.jpg');
+      expect(out.uri).not.toBe(uri);
+    }
+    expect(mockTouched.some((t) => t.op === 'move')).toBe(true);
+    expect(mockTouched.filter((t) => ORIGINALS.includes(t.uri))).toEqual([]);
   });
 
   it('removing a saved file only deletes inside the app’s own assets folder', async () => {

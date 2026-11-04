@@ -4,7 +4,8 @@ import type { DeskKind } from './desk/model';
 import type { DeskTool } from './desk/layout';
 import type { Registry } from './registry';
 import { allComponents, isKnownComponent, quickActionsOf, type WorkspaceConfig } from './schema';
-import { presetById } from './workflows/presets';
+import { handedInput } from './workflow/check';
+import { findWorkflowTarget, presetById } from './workflows/presets';
 
 // 底线 18 的一部分引用（审计 F3）：这些写错了不影响运行（不读的字段、显示时过滤掉的工具栏项），已经存下来的配置里
 // 可能有，所以不进 validateWorkspace（底线 12：旧配置要还能打开）。只在修改时查（change.ts）：修改不能多出新的。
@@ -38,7 +39,12 @@ function deskItemProblem(
   registry: Registry,
 ): string | null {
   if (typeof item === 'string') {
-    if (quickActionsOf(config).some((w) => w.id === item) || presetById(item)) return null;
+    if (quickActionsOf(config).some((w) => w.id === item) || presetById(item)) {
+      const wf = findWorkflowTarget(quickActionsOf(config), item, 'en');
+      return wf && handedInput(wf.steps, registry)
+        ? `${item} takes a record or a value, not files; it can't go on a toolbar`
+        : null;
+    }
     // 文字不分提醒和不存在：旧配置里的项，提醒删掉后不能变成「新」问题，挡住那次删除。
     return `${item} is not a quick action (reminders can't go on a toolbar); use the id of a quick action or a built-in one`;
   }

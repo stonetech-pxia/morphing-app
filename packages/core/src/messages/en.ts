@@ -219,6 +219,9 @@ export const en = {
   askPasswordMismatch: 'The two passwords are different.',
   askPasswordAgain: 'Password again',
   runError_textTooLong: 'The text is too long (at most {max} characters).',
+  runError_needsRecord:
+    'This quick action works on an entry or a value. Tap it on the entry page or the list it sits on.',
+  runError_badLink: 'This isn’t a phone number, email address or web address that can be opened.',
   runError_noRecords: 'There are no entries in “{name}” for this period.',
   runError_doesNotFit: '“{name}” does not fit on this paper. Cut it to an ID photo size first.',
   runError_notFound: 'Nothing was found in “{name}”.',
@@ -342,11 +345,8 @@ export const en = {
   browseShowing: 'Showing {shown} of {total}. Search finds the others.',
   browseShowingMatches: 'Showing {shown} of {total} matches. Type more to narrow it down.',
   singleTooMuch: 'Too much here to fit in a QR code.',
-  recordCall: 'Call',
-  recordMessage: 'Message',
-  recordEmail: 'Email',
-  recordWebsite: 'Website',
-  recordShareCard: 'Share vCard',
+  listToolAll: 'All {n} entries in this list',
+  listToolFound: 'Only the {n} entries you searched for',
 
   // 用户数据
   noRecords: 'Nothing here yet',
@@ -1195,6 +1195,18 @@ export const en = {
   html_Created_1626a: 'Created',
   html_Updated_74f0c: 'Updated',
   html_records_3f794: '{v0} entries',
+  reportAttachmentOf: 'attachment {index} of {total}',
+  reportAttachmentPdfFollows: 'PDF attachment: the next {n} pages.',
+  reportAttachmentSeparator: ', ',
+  reportAttachmentsOverLimit:
+    '{n} attachments left out: the report would be too big (at most {max} attachments, {mb} MB). From: {titles}.',
+  reportAttachmentsUnreadable:
+    '{n} attachments could not be read and are left out. From: {titles}.',
+  similarRecordTitle: 'Already saved?',
+  similarRecordOne: 'This looks like “{title}”, already in {table}.',
+  similarRecordMany: 'This looks like “{title}” and {n} more, already in {table}.',
+  similarRecordBack: 'Back to the form',
+  similarRecordSave: 'Save anyway',
   html_Total_08322: 'Total',
   pdf_merged_19094: '{sourceName}-merged',
   pdf_COPY_3fef3: 'COPY',
@@ -1377,6 +1389,7 @@ export const en = {
   // 一天、一周从什么时候开始（D-286）
   describeDayStart: 'A day starts at {hour}:00',
   describeReadAttachmentsOn: '“{name}”: read attachments and suggest values in new entries',
+  describeRecordRow: '“{name}”: change the buttons at the top of the entry page',
   describeReadAttachmentsOff: '“{name}”: no longer read attachments in new entries',
   describePrefillRulesReceipt: '“{name}”: read attachments as receipts',
   describePrefillRulesCard: '“{name}”: read attachments as business cards',
@@ -1696,6 +1709,8 @@ export const enSingular = {
   schedulePerDay: '{rule}, once a day',
   scheduleOverdue: '{n} day overdue',
   describeRemovedRecordActions: 'Also removes {n} one-tap button that used it',
+  listToolAll: 'The one entry in this list',
+  listToolFound: 'Only the one entry you searched for',
   recordActionChanged: 'Changed {n} entry',
   recordActionConfirm: 'This changes {n} entry.',
   recordActionTooMany: 'At most {max} entries can change at once; this would change {n}.',
@@ -1704,6 +1719,11 @@ export const enSingular = {
   widgetSkipped: '{n} tap on the widget wasn’t recorded because the page changed',
   deskTargets: 'Tools apply to {n} file',
   deskStale: 'Untouched for {n} day, you can clear it',
+  reportAttachmentPdfFollows: 'PDF attachment: the next page.',
+  reportAttachmentsOverLimit:
+    '{n} attachment left out: the report would be too big (at most {max} attachments, {mb} MB). From: {titles}.',
+  reportAttachmentsUnreadable: '{n} attachment could not be read and is left out. From: {titles}.',
+  similarRecordMany: 'This looks like “{title}” and {n} more, already in {table}.',
   shareRecordTooMany: 'An entry holds at most {n} file: only the first one goes in.',
 } satisfies Partial<MessageTable>;
 

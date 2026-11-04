@@ -595,7 +595,7 @@ describe('底线 15 / 16：看永远不会改；每次写入都来自用户的�
     20_000,
   );
 
-  // D-422、D-423：记录页顶部的按钮只是打开系统的页面。
+  // D-422、D-423、D-428：记录页顶部的按钮只是打开系统的页面。
   it('tapping call, message, email, website or share on an entry writes nothing', async () => {
     const opened = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined as never);
     const asked = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
@@ -612,6 +612,13 @@ describe('底线 15 / 16：看永远不会改；每次写入都来自用户的�
               { id: 'tel', name: '电话', type: 'text', format: 'phone' },
               { id: 'mail', name: '邮箱', type: 'text', format: 'email' },
               { id: 'site', name: '网站', type: 'text', format: 'url' },
+            ],
+            recordRow: [
+              { tool: 'record-call', field: 'tel' },
+              { tool: 'record-message', field: 'tel' },
+              { tool: 'record-email', field: 'mail' },
+              { tool: 'record-vcard' },
+              { tool: 'record-website', field: 'site' },
             ],
           },
         },
@@ -636,13 +643,18 @@ describe('底线 15 / 16：看永远不会改；每次写入都来自用户的�
       }),
     );
     await settle();
-    await screen.findByTestId('record-action-call');
+    await screen.findByTestId('record-action-record-call-tel');
     const spies = spyWrites(repo);
-    await fireEvent.press(screen.getByTestId('record-action-call'));
-    await fireEvent.press(screen.getByTestId('record-action-message'));
-    await fireEvent.press(screen.getByTestId('record-action-email'));
-    await fireEvent.press(screen.getByTestId('record-action-share'));
-    await fireEvent.press(screen.getByTestId('record-action-website'));
+    await fireEvent.press(screen.getByTestId('record-action-record-call-tel'));
+    await settle();
+    await fireEvent.press(screen.getByTestId('record-action-record-message-tel'));
+    await settle();
+    await fireEvent.press(screen.getByTestId('record-action-record-email-mail'));
+    await settle();
+    await fireEvent.press(screen.getByTestId('record-action-record-vcard'));
+    await settle();
+    await fireEvent.press(screen.getByTestId('record-action-record-website-site'));
+    await settle();
     const open = (asked.mock.lastCall?.[2] ?? []).find((b) => b.text === '打开');
     await act(async () => open?.onPress?.());
     await settle();
@@ -912,5 +924,175 @@ describe('工具清单和搭建计划不破坏底线（D-414、D-415、D-416）'
     await again.getState().startBuild();
     expect(calls).toEqual(['搭一个', '换颜色', '加图片工具']);
     expect(again.getState().build!.phase).toBe('finished');
+  });
+});
+
+describe('底线 5 / 15 / 19：保存前问一句有没有一样的（D-426）', () => {
+  const receipts: Collection = {
+    id: 'claims',
+    name: '报销',
+    prefillRules: 'receipt',
+    fields: [
+      { id: 'amount', name: '金额', type: 'money', currency: 'CNY' },
+      { id: 'date', name: '日期', type: 'date' },
+    ],
+  };
+  const config = () => {
+    const r = applyOps(createDefaultWorkspace('zh'), [{ op: 'addData', table: receipts }], {
+      registry,
+      locale: 'zh',
+    });
+    if (!r.ok) throw new Error(r.error);
+    return r.config;
+  };
+  const existing = { amount: 30, date: '2026-11-03' };
+  const flush = () =>
+    act(async () => {
+      jest.runOnlyPendingTimers();
+    });
+
+  async function openForm() {
+    const repo = new MemoryWorkspaceRepo();
+    await repo.setMeta('guide', 'done');
+    await act(() => useGuide.getState().load(repo));
+    await repo.insertRecord({
+      id: 'r1',
+      collectionId: 'claims',
+      values: existing,
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await renderToolsApp(repo, new FakeFiles(), { seed: config });
+    const spies = spyWrites(repo);
+    await act(() =>
+      router.push({ pathname: '/record/[collectionId]', params: { collectionId: 'claims' } }),
+    );
+    await screen.findByTestId('editor-amount', {}, { timeout: 4000 });
+    return { repo, spies };
+  }
+
+  afterEach(async () => {
+    jest.restoreAllMocks();
+    useGuide.setState({ stage: null, repo: null });
+    await flush();
+    await flush();
+    // 路由卸载以后的收尾（renderRouter 下次会再换成假的计时器）。
+    jest.useRealTimers();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+
+  it('底线 15：opening the form writes nothing', async () => {
+    const { spies } = await openForm();
+    await settle();
+    expect(spies.filter(([, s]) => s.mock.calls.length > 0).map(([n]) => n)).toEqual([]);
+  });
+
+  it('底线 19 and 5: the prompt can always be passed, every time, and removes nothing', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const { repo, spies } = await openForm();
+    await fireEvent.changeText(screen.getByTestId('editor-amount'), '30');
+    await fireEvent.changeText(screen.getByTestId('editor-date'), '2026-11-03');
+    await fireEvent.press(screen.getByTestId('editor-save'));
+    await waitFor(() => expect(alert).toHaveBeenCalledTimes(1));
+    // 回到表单什么都不写。
+    const buttons = () => alert.mock.calls.at(-1)![2]!;
+    await act(async () => buttons()[0]!.onPress!());
+    expect(spies.filter(([, s]) => s.mock.calls.length > 0).map(([n]) => n)).toEqual([]);
+    // 再点一次还是能选「仍然保存」，只多一条，原来的还在。
+    await fireEvent.press(screen.getByTestId('editor-save'));
+    await waitFor(() => expect(alert).toHaveBeenCalledTimes(2));
+    expect(buttons().map((b) => b.text)).toEqual(['回到表单', '仍然保存']);
+    await act(async () => buttons()[1]!.onPress!());
+    await waitFor(async () => expect(await repo.listRecords('claims')).toHaveLength(2));
+    await waitFor(() => expect(screen.queryByTestId('editor-save')).toBeNull());
+    expect((await repo.getRecord('r1'))!.values).toEqual(existing);
+    expect(spies.filter(([, s]) => s.mock.calls.length > 0).map(([n]) => n)).toEqual([
+      'insertRecord',
+    ]);
+  });
+
+  it('底线 19: when the records cannot be read, the save still goes through', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const { repo } = await openForm();
+    jest.spyOn(repo, 'listRecords').mockRejectedValueOnce(new Error('disk'));
+    await fireEvent.changeText(screen.getByTestId('editor-amount'), '30');
+    await fireEvent.changeText(screen.getByTestId('editor-date'), '2026-11-03');
+    await fireEvent.press(screen.getByTestId('editor-save'));
+    await waitFor(() => expect(screen.queryByTestId('editor-save')).toBeNull());
+    expect(alert).not.toHaveBeenCalled();
+    expect(await repo.listRecords('claims')).toHaveLength(2);
+  });
+});
+
+// 容器把数据交给工具（D-428，创始人 2026-11-04 在对话里定：进入页面什么都不跑，点了才交）。
+describe('底线 10 / 15 / 16：进入页面、记录页、列表什么都不跑、什么都不写（D-428）', () => {
+  async function viewed() {
+    const repo = new MemoryWorkspaceRepo();
+    const files = new FakeFiles();
+    const opened = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined as never);
+    const asked = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    opened.mockClear();
+    asked.mockClear();
+    await repo.setMeta('guide', 'done');
+    await act(() => useGuide.getState().load(repo));
+    await repo.insertRecord({
+      id: 'c1',
+      collectionId: 'contacts',
+      values: { name: 'A', phone: '123456', email: 'a@example.com', website: 'example.com' },
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await repo.insertRecord({
+      id: 'm1',
+      collectionId: 'my-card',
+      values: { name: 'Me', phone: '123456' },
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    const config = businessCards();
+    await renderToolsApp(repo, files, { seed: () => config, locale: 'zh' });
+    await settle();
+    const spies = spyWrites(repo);
+    return { repo, files, opened, asked, spies };
+  }
+
+  it('walking through every page and the entry page does nothing until a tap', async () => {
+    const { files, opened, asked, spies, repo } = await viewed();
+    const run = jest.spyOn(repo, 'startToolRun');
+    for (const path of [
+      { pathname: '/page/[pageId]', params: { pageId: 'cards' } },
+      { pathname: '/page/[pageId]', params: { pageId: 'my-card' } },
+      { pathname: '/page/[pageId]', params: { pageId: 'contacts' } },
+      { pathname: '/record/[collectionId]', params: { collectionId: 'contacts', recordId: 'c1' } },
+      { pathname: '/record/[collectionId]', params: { collectionId: 'my-card', recordId: 'm1' } },
+    ] as const) {
+      await act(() => router.push(path));
+      await settle();
+      await settle();
+    }
+    expect(run).not.toHaveBeenCalled();
+    expect(opened).not.toHaveBeenCalled();
+    expect(asked).not.toHaveBeenCalled();
+    expect(files.shared).toEqual([]);
+    expect(files.clipboard).toBeFalsy();
+    expect(spies.filter(([, s]) => s.mock.calls.length > 0).map(([n]) => n)).toEqual([]);
+    jest.restoreAllMocks();
+  });
+
+  it('a tap runs exactly one tool, and it writes no record', async () => {
+    const { opened, spies, repo } = await viewed();
+    await act(() =>
+      router.push({
+        pathname: '/record/[collectionId]',
+        params: { collectionId: 'contacts', recordId: 'c1' },
+      }),
+    );
+    await settle();
+    await fireEvent.press(await screen.findByTestId('record-action-record-call-phone'));
+    await settle();
+    expect(opened.mock.calls.map(([url]) => url)).toEqual(['tel:123456']);
+    expect(spies.filter(([, s]) => s.mock.calls.length > 0).map(([n]) => n)).toEqual([]);
+    expect((await repo.getRecord('c1'))!.updatedAt).toBe(1);
+    jest.restoreAllMocks();
   });
 });

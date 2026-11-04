@@ -1066,7 +1066,105 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
   },
 ];
 
-export const presetById = (id: string) => WORKFLOW_PRESETS.find((p) => p.id === id);
+/**
+ * 容器用的内设快捷操作（D-428）：第一步收容器交的值，所以不进预设库、不进快捷操作列表（它们自己跑不了），
+ * 只能放在记录页、记录块、单条记录块上。不用添加，用 ID 引用；表、块上写的就是这些 ID。
+ */
+export const CONTAINER_PRESETS: readonly WorkflowPreset[] = [
+  {
+    id: 'record-call',
+    scenario: 'paperwork',
+    name: { en: 'Call', zh: '打电话', fr: 'Appeler' },
+    description: {
+      en: 'Call the number in this field.',
+      zh: '拨打这个字段里的号码。',
+      fr: 'Appeler le numéro de ce champ.',
+    },
+    icon: 'phone',
+    steps: () => [{ id: 'open', action: 'out.call', params: {} }],
+  },
+  {
+    id: 'record-message',
+    scenario: 'paperwork',
+    name: { en: 'Message', zh: '发短信', fr: 'SMS' },
+    description: {
+      en: 'Write a message to the number in this field.',
+      zh: '给这个字段里的号码发短信。',
+      fr: 'Écrire un SMS au numéro de ce champ.',
+    },
+    icon: 'message',
+    steps: () => [{ id: 'open', action: 'out.message', params: {} }],
+  },
+  {
+    id: 'record-email',
+    scenario: 'paperwork',
+    name: { en: 'Email', zh: '发邮件', fr: 'E-mail' },
+    description: {
+      en: 'Write an email to the address in this field.',
+      zh: '给这个字段里的地址发邮件。',
+      fr: 'Écrire un e-mail à l’adresse de ce champ.',
+    },
+    icon: 'mail',
+    steps: () => [{ id: 'open', action: 'out.email', params: {} }],
+  },
+  {
+    id: 'record-website',
+    scenario: 'paperwork',
+    name: { en: 'Website', zh: '打开网站', fr: 'Site web' },
+    description: {
+      en: 'Open the web address in this field.',
+      zh: '打开这个字段里的网址。',
+      fr: 'Ouvrir l’adresse web de ce champ.',
+    },
+    icon: 'globe',
+    steps: () => [{ id: 'open', action: 'out.website', params: {} }],
+  },
+  {
+    id: 'record-copy',
+    scenario: 'paperwork',
+    name: { en: 'Copy', zh: '复制', fr: 'Copier' },
+    description: {
+      en: 'Copy the text of this field.',
+      zh: '复制这个字段的文字。',
+      fr: 'Copier le texte de ce champ.',
+    },
+    icon: 'text',
+    steps: () => [{ id: 'copy', action: 'text.copy', params: {} }],
+  },
+  {
+    id: 'record-vcard',
+    scenario: 'paperwork',
+    name: { en: 'Share vCard', zh: '分享 vCard', fr: 'Partager la vCard' },
+    description: {
+      en: 'Share the record, or the records of a list, as one contact file.',
+      zh: '把这条记录（或列表选出的记录）做成一个联系人文件分享。',
+      fr: 'Partager l’entrée, ou les entrées d’une liste, dans un fichier de contacts.',
+    },
+    icon: 'share',
+    steps: () => [
+      { id: 'vcard', action: 'records.toVCard', params: {} },
+      { id: 'share', action: 'out.share', params: {} },
+    ],
+  },
+  {
+    id: 'record-qr',
+    scenario: 'paperwork',
+    name: { en: 'QR code', zh: '二维码', fr: 'Code QR' },
+    description: {
+      en: 'Make a QR code of this record’s contact card, to save or share.',
+      zh: '把这条记录的联系人信息做成二维码图片，可以保存或分享。',
+      fr: 'Créer un code QR de la carte de contact de cette entrée, à enregistrer ou partager.',
+    },
+    icon: 'qrcode',
+    steps: () => [
+      { id: 'vcard', action: 'records.toVCardText', params: {} },
+      { id: 'qr', action: 'qr.generate', params: { sizePx: 1200, ecc: 'M' } },
+    ],
+  },
+];
+
+export const presetById = (id: string) =>
+  WORKFLOW_PRESETS.find((p) => p.id === id) ?? CONTAINER_PRESETS.find((p) => p.id === id);
 
 /** 一个场景里的预设，按 WORKFLOW_PRESETS 的顺序。 */
 export const presetsIn = (scenario: PresetScenario) =>
@@ -1136,6 +1234,11 @@ export function builtInWorkflows(workflows: readonly Workflow[], locale: Locale)
   ).map((p) => presetWorkflow(p, locale, p.id));
 }
 
+function containerPreset(id: string, locale: Locale): Workflow | undefined {
+  const preset = CONTAINER_PRESETS.find((p) => p.id === id);
+  return preset && presetWorkflow(preset, locale, id);
+}
+
 /** 按 ID 找快捷操作：先找配置里的（quickActionsOf(config)），再找内设的。 */
 export function findWorkflow(
   workflows: readonly Workflow[],
@@ -1144,7 +1247,8 @@ export function findWorkflow(
 ): Workflow | undefined {
   return (
     workflows.find((w) => w.id === id) ??
-    builtInWorkflows(workflows, locale).find((w) => w.id === id)
+    builtInWorkflows(workflows, locale).find((w) => w.id === id) ??
+    containerPreset(id, locale)
   );
 }
 

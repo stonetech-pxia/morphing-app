@@ -43,6 +43,11 @@ export interface TableCell {
   align?: CellAlign;
   /** 原图里这一格的位置（截图核对用）；编辑页插入的行列没有。 */
   box?: Box;
+  /**
+   * 这一格写成什么（记录导出，D-427）：text 永远是文字，number 是真的数字或日期（format 是 Excel 的数字格式）。
+   * 没有时（扫描件）按文字猜：纯数字写成数字。
+   */
+  write?: { kind: 'text' } | { kind: 'number'; value: number; format: string };
 }
 
 export interface TableBlock {

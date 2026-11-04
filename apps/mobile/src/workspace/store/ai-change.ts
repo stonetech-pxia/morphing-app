@@ -92,7 +92,7 @@ export function createAIChange(
       (about?.kind === 'shared' || about?.kind === 'chain'
         ? (plan.homeEntry ?? false)
         : plan.homeEntry) !== false;
-    const homeless = wantHome ? workflowsWithoutEntry(ops, prepared.after) : [];
+    const homeless = wantHome ? workflowsWithoutEntry(ops, prepared.after, registry) : [];
     if (homeless.length === 0) return { ops, prepared };
     const withEntry = [...ops, ...homeEntryOps(prepared.after, homeless)];
     const full = prepareOps(before, withEntry, { registry, locale, now: deps.now(), fromAI: true });

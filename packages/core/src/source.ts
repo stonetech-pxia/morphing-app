@@ -15,6 +15,7 @@ import {
   type Aggregate as ValueAggregate,
   type DataRecord,
   type LinkedGroups,
+  perCurrencyText,
 } from './data';
 import { FILES_COLLECTION, FILES_TABLE, fileKindOf } from './files-table';
 import { filterPresets, listGroups } from './list-groups';
@@ -250,6 +251,8 @@ export interface NumberGroup {
   label: string;
   count: number;
   value: number | null;
+  /** 每笔自己选货币时（D-429）按货币分开写好的文字。 */
+  text?: string;
   best?: number;
   /** compare：这一组上一段同期的值。 */
   previous?: number | null;
@@ -259,6 +262,8 @@ export interface NumberRead {
   view: Collection;
   /** 减过 minus 的值；没有可算的为 null。 */
   value: number | null;
+  /** 每笔自己选货币时（D-429）按货币分开写好的文字；有它就显示它。 */
+  text?: string;
   /** streak 的最佳连续。 */
   best?: number;
   /** compare：上一段同期（筛选里唯一的 inPeriod 换成上一段）的值。 */
@@ -286,6 +291,8 @@ export function readNumber(source: NumberSource, ctx: SourceContext): NumberRead
   const matched = filterRecords(records, view, filter, now, cal);
   const own = valueOf(matched);
   const out: NumberRead = { view, value: own.value };
+  const split = perCurrencyText(matched, view, source.aggregate, source.field, ctx.locale);
+  if (split !== null) out.text = split;
   if (own.best !== undefined) out.best = own.best;
   const minus = source.minus;
   const other = minus && readTable(ctx, minus.table);
@@ -316,11 +323,13 @@ export function readNumber(source: NumberSource, ctx: SourceContext): NumberRead
       );
     out.groups = groupRecords(matched, view, by, noChoice, linked).map((g) => {
       const v = valueOf(g.records);
+      const text = perCurrencyText(g.records, view, source.aggregate, source.field, ctx.locale);
       return {
         optionId: g.optionId,
         label: g.label,
         count: g.count,
         value: v.value,
+        ...(text === null ? {} : { text }),
         ...(v.best === undefined ? {} : { best: v.best }),
         ...(earlier ? { previous: earlier.get(g.optionId) ?? null } : {}),
       };

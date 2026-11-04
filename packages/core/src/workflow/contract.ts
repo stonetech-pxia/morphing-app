@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 
-import type { Locale, Localized } from '../schema';
+import type { Field, Locale, Localized } from '../schema';
 
 // 动作契约（docs/TOOLS_DESIGN.md §2）：每个动作声明「输入类型 → 输出类型」、参数结构和参数的界面元数据。
 // 只有登记过的动作才能出现在工作流里；实现由 tool-* 包和 App 运行时提供，这里只描述契约。
@@ -32,6 +32,17 @@ export function acceptsType(accepted: readonly ValueType[], actual: ValueType): 
 /** 动作能不能接上类型为 actual 的值：接受的类型里有它，而且不在 rejects 里。 */
 export const actionAccepts = (action: ActionDefinition, actual: ValueType): boolean =>
   acceptsType(action.input, actual) && !action.rejects?.includes(actual);
+
+/**
+ * 容器能交给工具的值（创始人 2026-11-04 在对话里定）：记录页、单条记录块交这一条（records），字段交它的值（text），
+ * 列表交它现在选出的记录（records）。第一步要这两种的快捷操作不用输入步骤；文件只由桌面、收件页面交（D-115）。
+ */
+export const HANDED_TYPES = ['text', 'records'] as const satisfies readonly ValueType[];
+export type HandedType = (typeof HANDED_TYPES)[number];
+
+/** 这个动作当第一步时要容器交什么；输入动作、只收文件的动作不算。 */
+export const handedTypeOf = (action: ActionDefinition): HandedType | null =>
+  HANDED_TYPES.find((type) => actionAccepts(action, type)) ?? null;
 
 /** 需要用户在本地亲手操作的步骤（TOOLS_DESIGN §4）。AI 只决定它出现在哪里，看不到操作内容。 */
 export const LOCAL_STEP_KINDS = [
@@ -132,6 +143,13 @@ export interface ActionDefinition {
   presets?: readonly ParamPreset[];
   /** 需要用户本地操作的步骤。 */
   local?: LocalStepKind;
+  /**
+   * 把这段文字当成这种链接打开（打电话、发短信、发邮件、打开网站）：只由 core 的 fieldLink 规则造链接。
+   * 记录页上这个字段的值对不上时按钮不显示（D-428）。
+   */
+  opensLink?: 'phone' | 'message' | 'email' | 'url';
+  /** 只收一条记录时：这一条能不能用这个动作（名片内容为空时做不出 vCard）。不写就是能用。 */
+  recordFits?: (fields: readonly Field[], values: Readonly<Record<string, unknown>>) => boolean;
   /** 需要的扩展包（D-064）。 */
   pack?: string;
   /** 扩展包取决于参数时（文字识别的语言包）：返回本次要确保安装的扩展包，它会连同依赖一起下载。 */

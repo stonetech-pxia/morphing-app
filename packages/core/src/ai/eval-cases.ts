@@ -7193,6 +7193,106 @@ const FIX_CASES: EvalCase[] = [
       check: hasWorkflow(['in.records', 'records.toVCard', 'out.share']),
     },
   },
+  {
+    id: 'EXPORT1',
+    input: 'add a quick action that exports all my expenses to an Excel file and shares it',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.records', 'records.toExcel', 'out.share']),
+    },
+  },
+  {
+    id: 'EXPORT2',
+    input: '加一个快捷操作：把本月的账目做成 PDF，后面附上每条的收据照片',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.records', 'print.records'], (steps) =>
+        param('print.records', 'attachments', true)(steps),
+      ),
+    },
+  },
+  // D-428：容器把值交给工具（规则 54）：记录页的按钮、列表上方的按钮。
+  {
+    id: 'CURRENCY1',
+    input: 'let me pick the currency for each expense',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.data.tables.some((t) =>
+          t.fields.some((f) => f.type === 'money' && f.currencyField !== undefined),
+        )
+          ? null
+          : 'no money field has currencyField',
+    },
+  },
+  {
+    id: 'HAND1',
+    input: 'add a button at the top of each expense entry to share it as a vCard',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.data.tables.some((t) =>
+          t.recordRow?.some((i) => {
+            const steps = quickActionsOf(c).find((w) => w.id === i.tool)?.steps;
+            return i.tool === 'record-vcard' || steps?.[0]?.action === 'records.toVCard';
+          }),
+        )
+          ? null
+          : 'no recordRow item shares a vCard',
+    },
+  },
+  {
+    id: 'HAND2',
+    input: '给记账表加一个电话字段，记录页上能一点就打这个电话',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        for (const t of c.data.tables)
+          for (const i of t.recordRow ?? []) {
+            const field = t.fields.find((f) => f.id === i.field);
+            if (i.tool === 'record-call' && field?.type === 'text' && field.format === 'phone')
+              return null;
+          }
+        return 'no recordRow item calls a text field with format phone';
+      },
+    },
+  },
+  {
+    id: 'HAND3',
+    input: '在记账列表上面加一个导出 Excel 的按钮，搜索的时候只导出搜到的',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const tools = c.containers.pages
+          .flatMap((p) => allComponents(p))
+          .flatMap((x) => (isKnownComponent(x) && x.look === 'list' ? (x.tools ?? []) : []));
+        const use = tools.find((u) => u.as === 'list');
+        const id = use && 'tool' in use ? use.tool : null;
+        const first = quickActionsOf(c).find((w) => w.id === id)?.steps[0]?.action;
+        return first === 'records.toExcel'
+          ? null
+          : `the list has no {as: "list"} tool starting with records.toExcel, got ${String(first)}`;
+      },
+    },
+  },
 ];
 
 export const EVAL_CASES: readonly EvalCase[] = [

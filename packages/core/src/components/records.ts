@@ -73,7 +73,7 @@ const SlotsSchema = z.strictObject({
 const shape = {
   source: RecordSourceSchema,
   show: SlotsSchema,
-  /** 每一条上的工具（≤3 个按钮 + 勾 / 点一下 / 拖动 / 就地添加），检查在 record-ops.ts。 */
+  /** 每一条上的工具（≤3 个按钮 + 勾 / 点一下 / 拖动 / 就地添加）和列表上方的按钮（≤3，D-428），检查在 record-ops.ts。 */
   tools: z.array(ToolUseSchema).min(1).max(8).optional(),
   /** 点一条打开这个页面（D-342，page.of 是这张表），不写是编辑页。 */
   opens: IdSchema.optional(),
@@ -223,22 +223,25 @@ const DOCS: Record<RecordLook, string> = {
 
 const META: Record<RecordLook, NonNullable<LookMeta['tools']>> = {
   list: {
-    as: ['button', 'addHere'],
+    as: ['button', 'addHere', 'list'],
     do: ['create', 'set', 'toggle', 'increment'],
+    ref: ['quickAction'],
     open: true,
-    max: 4,
+    max: 7,
   },
   cards: {
-    as: ['button', 'addHere'],
+    as: ['button', 'addHere', 'list'],
     do: ['create', 'set', 'toggle', 'increment'],
+    ref: ['quickAction'],
     open: true,
-    max: 4,
+    max: 7,
   },
   checklist: {
-    as: ['check', 'button', 'addHere'],
+    as: ['check', 'button', 'addHere', 'list'],
     do: ['create', 'set', 'toggle', 'increment'],
+    ref: ['quickAction'],
     open: true,
-    max: 5,
+    max: 8,
   },
   tiles: { as: ['tap'], do: ['create', 'set', 'toggle', 'increment'], open: true, max: 3 },
   board: {

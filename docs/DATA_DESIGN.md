@@ -118,7 +118,7 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 
 可用的条件：`is` / `isNot` / `contains` / `gt` / `lt` / `isEmpty` / `isNotEmpty` / `inPeriod`，日程字段还有 `due`（`today` / `overdue` / `thisWeek`，D-294）。`inPeriod` 的取值有 `today`、`thisWeek`、`thisMonth`、`thisYear`、`last7days`、`last30days`，D-285 加了 `last14days`、`last90days`、`last365days`、`thisTwoWeeks`（两周一段）、`thisHalfMonth`（1–15 号或 16 号到月底）。「今天」和一周的第一天按「设置 → 日期」（D-286）。
 
-**记录编辑页**由内核按字段定义自动生成，不可配置：点列表里的一条，或 `recordForm` 的 `button` 模式都会打开它，删除也在这里。已有记录的页面顶部有打电话、发短信、发邮件、打开网站、分享 vCard 的按钮，只看字段的 `format`（D-423）。
+**记录编辑页**由内核按字段定义自动生成，不可配置：点列表里的一条，或 `recordForm` 的 `button` 模式都会打开它，删除也在这里。已有记录的页面顶部的一排按钮由表上的 `recordRow` 配置（D-428，取代 D-423 写死的那排）：每个按钮是一个快捷操作，点了把这个字段的值或这一条记录交给它；没有配置就没有这一排。
 
 这三个组件和其他组件一样，可以放进分组里，例如两个 `stat` 横排、列表放在网格下面。
 

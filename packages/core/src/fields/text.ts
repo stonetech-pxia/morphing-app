@@ -7,7 +7,7 @@ const schema = z.strictObject({
   ...fieldBase,
   type: z.literal('text'),
   default: boundedText(1, 200).optional(),
-  /** 电话、邮箱、网址（D-422）：仍然是文字，只多了输入键盘和记录页上能点；保存不查格式。 */
+  /** 电话、邮箱、网址（D-422）：仍然是文字，只多了输入键盘，记录页的按钮能打开它（D-428）；保存不查格式。 */
   format: z.enum(['phone', 'email', 'url']).optional(),
 });
 
@@ -29,7 +29,7 @@ export const textField: FieldDefinitionOf<'text', typeof schema> = defineField({
   titleRank: 1,
   convertGroup: 'text',
   ai: {
-    doc: '{default?, format?: "phone"|"email"|"url"} (≤200 chars; format only adds the matching keyboard and lets the user tap the value on the entry page to call, email or open it)',
+    doc: '{default?, format?: "phone"|"email"|"url"} (≤200 chars; format adds the matching keyboard and lets the buttons of the recordRow of the table open the value (rule 54))',
   },
   example: { id: 'title', name: 'Title', type: 'text', required: true },
   exampleValue: 'Lunch',

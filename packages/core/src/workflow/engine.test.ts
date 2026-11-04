@@ -495,3 +495,86 @@ describe('runWorkflow', () => {
     ).toBe(false);
   });
 });
+
+describe('a value handed over by a container (D-428)', () => {
+  const copy: Workflow = {
+    id: 'copy',
+    kind: 'quickAction',
+    name: 'Copy',
+    steps: [{ id: 'c', action: 'text.copy', params: {} }],
+  };
+  const vcard: Workflow = {
+    id: 'vcard',
+    kind: 'quickAction',
+    name: 'vCard',
+    steps: [{ id: 'v', action: 'records.toVCard', params: {} }],
+  };
+  const start = (workflow: Workflow, handed?: RunValue | null) => {
+    const seen: (RunValue | null)[] = [];
+    const impl: ActionImpl<unknown> = async (input) => {
+      seen.push(input);
+      return input!;
+    };
+    const result = runWorkflow({
+      workflow,
+      registry,
+      impls: { 'text.copy': impl, 'records.toVCard': impl },
+      services: {},
+      locale: 'en',
+      now,
+      newId: () => 'x',
+      ...(handed !== undefined ? { handed } : {}),
+    });
+    return { result, seen };
+  };
+  const text: RunValue = { type: 'text', text: '123', name: 'Phone' };
+  const records: RunValue = { type: 'records', collectionId: 't', records: [], name: 'T' };
+
+  it('the first step gets it', async () => {
+    const { result, seen } = start(copy, text);
+    expect((await result).status).toBe('succeeded');
+    expect(seen).toEqual([text]);
+  });
+
+  it.each([
+    ['nothing handed', undefined],
+    ['null', null],
+    ['the wrong type', records],
+  ])('%s: no step runs, and it says it needs a record', async (_name, handed) => {
+    const { result, seen } = start(copy, handed as RunValue | null | undefined);
+    const done = await result;
+    expect(done).toMatchObject({ status: 'failed', stepIndex: null });
+    expect(done.status === 'failed' && done.error.code).toBe('needsRecord');
+    expect(seen).toEqual([]);
+  });
+
+  it('never runs with empty data', async () => {
+    const empty = start(copy, { type: 'text', text: '  ', name: 'P' });
+    const none = start(vcard, records);
+    const a = await empty.result;
+    const b = await none.result;
+    expect(a.status === 'failed' && a.error.code).toBe('emptyText');
+    expect(b.status === 'failed' && b.error.code).toBe('noRecords');
+    expect([...empty.seen, ...none.seen]).toEqual([]);
+  });
+
+  it('a quick action with its own input ignores it', async () => {
+    const log: string[] = [];
+    const wf = merge();
+    const done = await runWorkflow({
+      workflow: wf,
+      registry,
+      impls: {
+        ...fakeImpls(log),
+        'out.share': async (input) => input!,
+      },
+      services: {},
+      locale: 'zh',
+      now,
+      newId: () => 'x',
+      handed: text,
+    });
+    expect(log[0]).toMatch(/^pick/);
+    expect(done.status).not.toBe('cancelled');
+  });
+});

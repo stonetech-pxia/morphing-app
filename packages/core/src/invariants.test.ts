@@ -9,6 +9,7 @@ import { prepareOps, prepareSnapshot } from './change';
 import { createDefaultWorkspace } from './defaults';
 import { defaultDeskTools } from './desk/tools';
 import { V4_CUSTOM_ASK, V4_DEFAULT_MERGE, V4_FIXED_NAME } from './fixtures/v4';
+import { perCurrencyText } from './data';
 import { fieldLink } from './field-link';
 import { fieldDefinition } from './fields';
 import { en, enSingular } from './messages/en';
@@ -35,6 +36,7 @@ import { validateWorkspace } from './validate';
 import { defaultParams, initialParams, typesAlong, workflowProblems } from './workflow/check';
 import {
   actionAccepts,
+  handedTypeOf,
   isSourceAction,
   outputTypeOf,
   type ActionDefinition,
@@ -469,6 +471,33 @@ describe('底线 3：新设置里没有文件引用（D-424）', () => {
   });
 });
 
+describe('底线 2 / 3：报表带附件，AI 只能开关这个参数（D-425）', () => {
+  const steps = (attachments: unknown) => [
+    { id: 'a', action: 'in.records', params: { collectionId: 'notes', period: 'all' } },
+    {
+      id: 'b',
+      action: 'print.records',
+      params: { template: 'table', title: '', fields: [], pageSize: 'a4', attachments },
+    },
+  ];
+  const params = () => registry.actions.get('print.records')!.params;
+
+  it('the parameter is a yes or no: a file id, a path or a list cannot be written there', () => {
+    expect(params().safeParse(steps(true)[1]!.params).success).toBe(true);
+    for (const bad of ['asset01', 'file:///x.jpg', ['asset01'], { file: 'asset01' }, 1])
+      expect(params().safeParse(steps(bad)[1]!.params).success).toBe(false);
+  });
+
+  it('what AI sees of the step is the switch, never a file', () => {
+    const base = createDefaultWorkspace('en');
+    const tool = { id: 'q', kind: 'quickAction', name: 'Q', steps: steps(true) };
+    const config = { ...base, tools: [...base.tools, tool] } as WorkspaceConfig;
+    const shown = JSON.stringify(redactForAI(config, registry).tools.find((x) => x.id === 'q'));
+    expect(shown).toContain('"attachments":true');
+    expect(shown).not.toMatch(/asset|file:/);
+  });
+});
+
 describe('底线 4：原件永远不移动、不删除', () => {
   // 文件平台（expo-platform.ts）的删除和移动只碰运行目录、选择器副本：mobile 的 invariants-files-test.ts。
   it('the configuration can only point at a file by an opaque id; it has no place for a path or a content:// uri', () => {
@@ -654,16 +683,31 @@ describe('底线 9：工具不能触发工具；没有分支、循环', () => {
 });
 
 describe('底线 10：数据离开 App 只能由用户每次亲手点', () => {
-  // D-422：电话、邮箱、网址只在记录页上用户亲手点才打开，不是快捷操作的步骤，工具也做不到。
-  it('no action or tool can open a phone, email or web link', () => {
+  // D-428（取代 D-422 的「不是步骤」，创始人 2026-11-04 在对话里定）：打电话、发短信、发邮件、打开网站是四个步骤，
+  // 只收容器交的文字；块上的工具、提醒都运行不了它们，配置里也写不了地址。
+  it('only the four value steps open a link, and no block tool or reminder can run them', () => {
+    const opening = [...registry.actions.values()].filter((a) => a.opensLink);
+    expect(opening.map((a) => [a.id, a.opensLink, a.input, a.fields])).toEqual([
+      ['out.call', 'phone', ['text'], []],
+      ['out.message', 'message', ['text'], []],
+      ['out.email', 'email', ['text'], []],
+      ['out.website', 'url', ['text'], []],
+    ]);
     const ids = [...registry.actions.keys()];
-    expect(ids.length).toBeGreaterThan(0);
-    expect(ids.filter((id) => /tel|mailto|dial|openurl|openlink|\.call|\.email/i.test(id))).toEqual(
-      [],
-    );
-    for (const action of ['out.openLink', 'out.dial', 'out.call', 'out.email', 'out.openUrl']) {
-      expect(registry.actions.has(action)).toBe(false);
+    expect(ids.filter((id) => /tel|mailto|dial|openurl|openlink/i.test(id))).toEqual([]);
+    for (const { id: action } of opening) {
       expect(ToolUseSchema.safeParse({ as: 'button', label: 'x', action }).success).toBe(false);
+      expect(
+        ReminderSchema.safeParse({
+          id: 'r',
+          kind: 'reminder',
+          title: 'x',
+          enabled: true,
+          when: { every: 'day', at: '09:00' },
+          opens: 'page:home',
+          steps: [{ id: 's', action, params: {} }],
+        }).success,
+      ).toBe(false);
     }
     // 动作的参数里也没有要打开的地址（有也打不开：下一个测试说明只有两个地方能调系统打开）。
     const params = [...registry.actions.values()].flatMap((a) =>
@@ -720,15 +764,142 @@ describe('底线 10：数据离开 App 只能由用户每次亲手点', () => {
     expect(typesAlong(wf.steps, registry)).toEqual(['records', 'files', 'files']);
   });
 
-  // 记录页的「分享 vCard」是直接调系统分享的第三个地方，只在按钮的 onPress 里（mobile 的 record-actions 测试点了才调）。
-  it('sharing a vCard from the entry page happens only in the tap handler', () => {
+  // D-427：导出成 Excel 和 vCard 一样只是一步，要离开 App 还要接 out.share。
+  it('records.toExcel is only a step: no block tool or reminder can run it', () => {
+    const action = registry.actions.get('records.toExcel')!;
+    expect(action.input).toEqual(['records']);
+    expect(action.output).toBe('files');
+    expect(ToolUseSchema.safeParse({ as: 'button', label: 'x', action: action.id }).success).toBe(
+      false,
+    );
+    expect(
+      ReminderSchema.safeParse({
+        id: 'r',
+        kind: 'reminder',
+        title: 'x',
+        enabled: true,
+        when: { every: 'day', at: '09:00' },
+        opens: 'page:home',
+        steps: [{ id: 's', action: action.id, params: {} }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('in.records → records.toExcel → out.share is a straight chain the catalog accepts', () => {
+    const wf: Workflow = {
+      id: 'q',
+      kind: 'quickAction',
+      name: 'Q',
+      steps: [
+        { id: 'a', action: 'in.records', params: { collectionId: 't', period: 'all' } },
+        { id: 'b', action: 'records.toExcel', params: {} },
+        { id: 'c', action: 'out.share', params: {} },
+      ],
+    };
+    expect(workflowProblems(wf, registry)).toEqual([]);
+    expect(typesAlong(wf.steps, registry)).toEqual(['records', 'files', 'files']);
+  });
+
+  // D-428：记录页的按钮只在 onPress 里运行，「分享 vCard」也走快捷操作，没有另一条路（mobile 测试点了才跑）。
+  it('the entry page runs its tools only in the tap handler, with no way around the steps', () => {
     const text = readFileSync(
       join(REPO, 'apps', 'mobile', 'src', 'renderer', 'RecordActionRow.tsx'),
       'utf8',
     );
-    expect(text.match(/shareText/g)).toHaveLength(2); // 类型一处、调用一处
-    expect(text).toMatch(/add\('share'[^;]*shareCard\(/);
-    expect(text).not.toMatch(/useEffect/);
+    expect(text).not.toMatch(/shareText|shareUris|Linking|useEffect/);
+    expect(text.match(/\brun\(/g)).toHaveLength(1);
+    expect(text).toMatch(/onPress=\{\(\) => void run\(/);
+  });
+
+  // 容器上的工具不能从别的地方运行：提醒、手机桌面、普通按钮都没有值可交（D-428）。
+  describe('a quick action taking a handed value cannot be reached from a schedule or a shortcut', () => {
+    const base = () => {
+      const r = prepareOps(
+        createDefaultWorkspace('en'),
+        [
+          {
+            op: 'addData',
+            table: { id: 'people', name: 'People', fields: [{ id: 'n', name: 'N', type: 'text' }] },
+          },
+          {
+            op: 'addTool',
+            tool: {
+              id: 'send',
+              kind: 'quickAction',
+              name: 'Send',
+              steps: [
+                { id: 'a', action: 'records.toVCard', params: {} },
+                { id: 'b', action: 'out.share', params: {} },
+              ],
+            },
+          },
+        ] as Op[],
+        ctx,
+      );
+      if (!r.ok) throw new Error(r.issues.join());
+      return r.after;
+    };
+    const refused = (ops: unknown[]) => prepareOps(base(), ops as Op[], ctx).ok;
+
+    it('a reminder cannot open it', () => {
+      expect(
+        refused([
+          {
+            op: 'addTool',
+            tool: {
+              id: 'r',
+              kind: 'reminder',
+              title: 'x',
+              enabled: true,
+              when: { every: 'day', at: '09:00' },
+              opens: 'tool:send',
+            },
+          },
+        ]),
+      ).toBe(false);
+    });
+
+    it('nor can a built-in one that dials', () => {
+      expect(
+        refused([
+          {
+            op: 'addTool',
+            tool: {
+              id: 'r',
+              kind: 'reminder',
+              title: 'x',
+              enabled: true,
+              when: { every: 'day', at: '09:00' },
+              opens: 'tool:record-call',
+            },
+          },
+        ]),
+      ).toBe(false);
+    });
+
+    it('the phone home screen, an action block and a button cannot run it', () => {
+      expect(refused([{ op: 'updateContainer', nav: { phoneHomeScreen: ['send'] } }])).toBe(false);
+      expect(
+        refused([
+          {
+            op: 'addContainer',
+            page: 'home',
+            index: 0,
+            block: { id: 'x', look: 'action', tools: [{ tool: 'send' }] },
+          },
+        ]),
+      ).toBe(false);
+      expect(
+        refused([
+          {
+            op: 'addContainer',
+            page: 'home',
+            index: 0,
+            block: { id: 'x', look: 'button', show: { label: 'Go' }, opens: 'tool:send' },
+          },
+        ]),
+      ).toBe(false);
+    });
   });
 
   // relation-rules.test.ts「rule 14」：时间触发的工具只打开、不运行；分享、导出只能是快捷操作的步骤。
@@ -787,6 +958,16 @@ describe('底线 11：写数据的操作都能挽回；只有删除弹撤销提�
 // ---------------------------------------------------------------------------------------------
 
 describe('底线 12：旧的永远能打开', () => {
+  it('a print.records step saved before D-425 is still valid, with no attachments', () => {
+    const params = { template: 'table', title: 'T', fields: [], pageSize: 'a4' };
+    expect(registry.actions.get('print.records')!.params.safeParse(params).success).toBe(true);
+    const old = v33Fixture('sample-expense-helper-zh') as never;
+    const r = prepareSnapshot(old, registry);
+    expect(r.ok ? [] : r.issues).toEqual([]);
+    const opened = fromV33(old);
+    expect(JSON.stringify(opened.tools)).not.toContain('"attachments"');
+  });
+
   // 迁移不丢东西：migrate-v34.test.ts（每份冻结配置的 ID 都在、M1–M8）、v34-equivalence.test.ts（迁移前后算出的
   // 数据一样）、migrate.test.ts（每一步）。这里把每一份冻结的旧配置从头升到现在。
   it.each(V33_NAMES)('frozen v33 config %s opens as a valid current config', (name) => {
@@ -1000,6 +1181,13 @@ function danglingRefs(config: WorkspaceConfig): string[] {
           !/^(createdAt|updatedAt|name|size)$/.test(o[key])
         )
           out.push(`${at}.${key}: ${o.table}.${o[key]}`);
+    }
+    // 表上的 recordRow（D-428）：字段是这张表的。
+    if (Array.isArray(o.recordRow) && Array.isArray(o.fields)) {
+      const own = new Set((o.fields as Json[]).map((f) => f.id));
+      for (const item of o.recordRow as Json[])
+        if (item.field !== undefined && !own.has(item.field))
+          out.push(`${at}.recordRow: ${String(item.field)}`);
     }
     if (typeof o.of === 'string' && !tables.has(o.of)) out.push(`${at}.of: ${o.of}`);
     // 块上引用一个快捷操作：{tool: "<id>"}（不是 kind 为 reminder 的那种定义）。
@@ -1469,5 +1657,373 @@ describe('底线 19：用户要的事都能做到', () => {
     }
     expect(problems).toEqual([]);
     expect(pairs).toBeGreaterThan(1000);
+  });
+});
+
+// ---- 容器把数据交给工具（D-428，创始人 2026-11-04 在对话里定）----
+
+/** 样板「名片」：两张表都有记录页的按钮，列表、单条记录块上都有工具。 */
+const cardsSample = () => {
+  const base = createStarterWorkspace('en', registry);
+  const result = sampleOps('business-cards', base, 'en');
+  if (!result.ok) throw new Error(result.message);
+  const r = prepareOps(base, result.ops, ctx);
+  if (!r.ok) throw new Error(r.issues.join());
+  return r.after;
+};
+const handedSteps = (id: string, ...actions: string[]): Workflow => ({
+  id,
+  kind: 'quickAction',
+  name: id,
+  steps: actions.map((action, i) => ({
+    id: `s${i}`,
+    action,
+    params: initialParams(registry.actions.get(action)!),
+  })),
+});
+
+describe('底线 2 / 6：AI 能配置容器上的工具，运行不了，也看不到值（D-428）', () => {
+  it('recordRow is only structure, and the ops take it', () => {
+    const r = prepareOps(
+      cardsSample(),
+      [
+        {
+          op: 'updateData',
+          table: 'contacts',
+          changes: {
+            recordRow: [{ tool: 'record-vcard' }, { tool: 'record-call', field: 'phone' }],
+          },
+        },
+      ],
+      ctx,
+    );
+    expect(r.ok ? [] : r.issues).toEqual([]);
+    if (r.ok)
+      expect(r.after.data.tables.find((t) => t.id === 'contacts')!.recordRow).toEqual([
+        { tool: 'record-vcard' },
+        { tool: 'record-call', field: 'phone' },
+      ]);
+  });
+
+  it('no op runs a tool or carries the handed value', () => {
+    expect(OP_NAMES.filter((n) => /run|exec|call|send|open/i.test(n))).toEqual([]);
+    for (const action of ['out.call', 'out.message', 'out.email', 'out.website'])
+      expect(registry.actions.get(action)!.params.safeParse({ text: '1', to: '1' }).success).toBe(
+        false,
+      );
+  });
+
+  it('what the AI sees of these tables has no handed values', () => {
+    const shown = JSON.stringify(redactForAI(cardsSample(), registry));
+    expect(shown).toContain('recordRow');
+    expect(shown).not.toMatch(/tel:|mailto:|sms:/);
+  });
+});
+
+describe('底线 9：容器上的工具也是直链，不能触发别的工具（D-428）', () => {
+  it('an item in the row names one tool and nothing else', () => {
+    const table = { id: 't', name: 'T', fields: [{ id: 'f', name: 'F', type: 'text' }] };
+    for (const extra of [{ then: 'other' }, { steps: [] }, { when: [] }, { run: true }])
+      expect(
+        CollectionSchema.safeParse({ ...table, recordRow: [{ tool: 'a', ...extra }] }).success,
+      ).toBe(false);
+  });
+
+  it('an input step cannot come after a handed step', () => {
+    const wf = handedSteps('w', 'records.toVCardText', 'in.text');
+    expect(workflowProblems(wf, registry).map((p) => p.code)).toContain('source');
+  });
+
+  it('no step takes a tool as a parameter', () => {
+    for (const action of registry.actions.values())
+      expect(action.fields.filter((f) => /^(tool|workflow|quickAction)$/.test(f.key))).toEqual([]);
+  });
+});
+
+describe('底线 12：旧配置不变（D-428）', () => {
+  it('stays on the same version: every addition is optional', () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(37);
+  });
+
+  it.each(CONFIGS)('%s loads with no row and no list tool made up', (_name, config) => {
+    expect(validateWorkspace(config, registry).ok).toBe(true);
+    expect(config.data.tables.some((t) => t.recordRow !== undefined)).toBe(false);
+    expect(JSON.stringify(config.containers)).not.toContain('"as":"list"');
+  });
+
+  it('quick actions with an input step keep their input step', () => {
+    for (const [, config] of CONFIGS)
+      for (const wf of config.tools)
+        if (wf.kind === 'quickAction')
+          expect(isSourceAction(registry.actions.get(wf.steps[0]!.action)!)).toBe(true);
+  });
+});
+
+describe('底线 14：配置里只有 ID，没有值（D-428）', () => {
+  it('an item has no place for a value, and neither does a list tool', () => {
+    const table = { id: 't', name: 'T', fields: [{ id: 'f', name: 'F', type: 'text' }] };
+    for (const value of [{ value: '13800000000' }, { text: 'x' }, { url: 'tel:1' }])
+      expect(
+        CollectionSchema.safeParse({ ...table, recordRow: [{ tool: 'a', field: 'f', ...value }] })
+          .success,
+      ).toBe(false);
+    expect(ToolUseSchema.safeParse({ as: 'list', tool: 'a', records: [] }).success).toBe(false);
+  });
+});
+
+describe('底线 17：列表交的就是它选出的（D-428）', () => {
+  it('a tool on a list must take records, and a tool on each entry cannot be a quick action', () => {
+    const list = (use: object) => ({
+      op: 'addContainer',
+      page: 'home',
+      index: 0,
+      block: {
+        id: 'x',
+        look: 'list',
+        source: { table: 'contacts' },
+        show: { title: 'name' },
+        tools: [use],
+      },
+    });
+    const ok = (use: object) => prepareOps(cardsSample(), [list(use)] as Op[], ctx).ok;
+    expect(ok({ as: 'list', tool: 'record-vcard' })).toBe(true);
+    // 自己选输入的快捷操作不看列表选了什么，放在列表上会让人以为只作用到看到的这些。
+    expect(ok({ as: 'list', tool: 'scan-card' })).toBe(false);
+    expect(ok({ as: 'list', tool: 'record-call' })).toBe(false);
+    expect(ok({ as: 'button', label: 'x', tool: 'record-vcard' })).toBe(false);
+    expect(ok({ as: 'list', do: 'toggle', table: 'contacts', field: 'name' })).toBe(false);
+  });
+});
+
+describe('底线 18：容器上的工具的引用（D-428）', () => {
+  const tableOf = (config: WorkspaceConfig, id: string) =>
+    config.data.tables.find((t) => t.id === id)!;
+
+  it('the sample starts clean', () => {
+    expect(danglingRefs(cardsSample())).toEqual([]);
+  });
+
+  it('removing a field takes its buttons with it and says so', () => {
+    const r = prepareOps(
+      cardsSample(),
+      [{ op: 'removeData', table: 'my-card', field: 'email' }],
+      ctx,
+    );
+    expect(r.ok ? [] : r.issues).toEqual([]);
+    if (!r.ok) return;
+    expect(tableOf(r.after, 'my-card').recordRow!.map((i) => i.tool)).toEqual([
+      'record-call',
+      'record-message',
+      'record-website',
+      'record-vcard',
+    ]);
+    expect(danglingRefs(r.after)).toEqual([]);
+  });
+
+  it('removing the last field the row used removes the row', () => {
+    const base = applyOps(
+      createDefaultWorkspace('en'),
+      [
+        {
+          op: 'addData',
+          table: {
+            id: 't',
+            name: 'T',
+            fields: [
+              { id: 'n', name: 'N', type: 'text' },
+              { id: 'p', name: 'P', type: 'text', format: 'phone' },
+            ],
+            recordRow: [{ tool: 'record-call', field: 'p' }],
+          },
+        },
+      ],
+      ctx,
+    );
+    if (!base.ok) throw new Error(base.error);
+    const r = applyOps(base.config, [{ op: 'removeData', table: 't', field: 'p' }], ctx);
+    if (!r.ok) throw new Error(r.error);
+    expect(tableOf(r.config, 't').recordRow).toBeUndefined();
+    expect(r.notes.map((n) => n.kind)).toContain('removedRecordActions');
+  });
+
+  it('removing a quick action cleans the row, the list and the single block; the blocks stay', () => {
+    const base = cardsSample();
+    const withOwn = prepareOps(
+      base,
+      [
+        { op: 'addTool', tool: handedSteps('qr-own', 'records.toVCardText', 'qr.generate') },
+        { op: 'updateData', table: 'my-card', changes: { recordRow: [{ tool: 'qr-own' }] } },
+      ] as Op[],
+      ctx,
+    );
+    if (!withOwn.ok) throw new Error(withOwn.issues.join());
+    const r = prepareOps(withOwn.after, [{ op: 'removeTool', tool: 'qr-own' }], ctx);
+    expect(r.ok ? [] : r.issues).toEqual([]);
+    if (r.ok) expect(tableOf(r.after, 'my-card').recordRow).toBeUndefined();
+
+    const gone = prepareOps(base, [{ op: 'removeTool', tool: 'export-contacts' }], ctx);
+    expect(gone.ok ? [] : gone.issues).toEqual([]);
+    if (!gone.ok) return;
+    expect(danglingRefs(gone.after)).toEqual([]);
+    const page = gone.after.containers.pages.find((p) => p.id === 'contacts')!;
+    const list = allComponents(page).find((c) => c.id === 'contacts') as {
+      tools: { as?: string }[];
+    };
+    expect(list.tools.map((u) => u.as)).toEqual(['addHere']);
+  });
+
+  it('a reference that does not exist, or a field that does not fit, is refused', () => {
+    const row = (recordRow: unknown) =>
+      prepareOps(
+        cardsSample(),
+        [{ op: 'updateData', table: 'contacts', changes: { recordRow } }] as Op[],
+        ctx,
+      ).ok;
+    expect(row([{ tool: 'record-call', field: 'phone' }])).toBe(true);
+    expect(row([{ tool: 'nope' }])).toBe(false);
+    expect(row([{ tool: 'record-call', field: 'nope' }])).toBe(false);
+    expect(row([{ tool: 'record-call' }])).toBe(false);
+    expect(row([{ tool: 'record-vcard', field: 'phone' }])).toBe(false);
+    expect(row([{ tool: 'scan-card' }])).toBe(false);
+    expect(row([{ tool: 'record-call', field: 'attachments' }])).toBe(false);
+    expect(
+      row([
+        { tool: 'record-call', field: 'phone' },
+        { tool: 'record-call', field: 'phone' },
+      ]),
+    ).toBe(false);
+  });
+
+  it('records handed by a container cannot name fields: the table is not known there', () => {
+    const wf = handedSteps('w', 'print.records');
+    wf.steps[0]!.params = {
+      template: 'table',
+      title: 'x',
+      fields: ['name'],
+      pageSize: 'a4',
+    };
+    const r = prepareOps(cardsSample(), [{ op: 'addTool', tool: wf }] as Op[], ctx);
+    expect(r.ok).toBe(false);
+    wf.steps[0]!.params = { ...wf.steps[0]!.params, fields: [] };
+    expect(prepareOps(cardsSample(), [{ op: 'addTool', tool: wf }] as Op[], ctx).ok).toBe(true);
+  });
+
+  it('removing the input step of a quick action on a removed table removes it, it does not turn into a handed one', () => {
+    const r = prepareOps(
+      createDefaultWorkspace('en'),
+      [
+        {
+          op: 'addData',
+          table: { id: 'x', name: 'X', fields: [{ id: 'n', name: 'N', type: 'text' }] },
+        },
+        {
+          op: 'addTool',
+          tool: {
+            id: 'exp',
+            kind: 'quickAction',
+            name: 'Exp',
+            steps: [
+              { id: 'a', action: 'in.records', params: { collectionId: 'x', period: 'all' } },
+              { id: 'b', action: 'records.toVCard', params: {} },
+              { id: 'c', action: 'out.share', params: {} },
+            ],
+          },
+        },
+        { op: 'removeData', table: 'x' },
+      ] as Op[],
+      ctx,
+    );
+    expect(r.ok ? [] : r.issues).toEqual([]);
+    if (r.ok) expect(r.after.tools.some((t) => t.id === 'exp')).toBe(false);
+  });
+});
+
+describe('底线 19：容器上的工具类型对得上就能串（D-428）', () => {
+  it('every action taking text or records can start a chain, and what fits can follow', () => {
+    for (const action of registry.actions.values()) {
+      if (isSourceAction(action) || !handedTypeOf(action)) continue;
+      const wf = handedSteps('w', action.id);
+      expect(
+        workflowProblems(wf, registry).filter((p) => p.code === 'source' || p.code === 'binding'),
+      ).toEqual([]);
+    }
+    for (const chain of [
+      ['records.toVCard', 'out.share'],
+      ['records.toVCardText', 'qr.generate', 'out.share'],
+      ['records.toExcel', 'out.share'],
+      ['text.copy', 'qr.generate'],
+      ['text.tidy', 'out.call'],
+    ]) {
+      const wf = handedSteps('w', ...chain);
+      expect(
+        workflowProblems(wf, registry).filter((p) => p.code === 'source' || p.code === 'binding'),
+      ).toEqual([]);
+    }
+  });
+
+  it('a value tool still chains from an input step', () => {
+    const wf = handedSteps('w', 'in.text', 'out.call');
+    expect(typesAlong(wf.steps, registry)).toEqual(['text', 'text']);
+  });
+});
+
+// D-429：每一笔单独选货币。货币是记录里一个单选字段的值，配置里只有字段 ID。
+describe('each entry picks its own currency (D-429)', () => {
+  const ctx = { registry, locale: 'en' as const };
+  const table = () => ({
+    id: 'claims',
+    name: 'Claims',
+    fields: [
+      { id: 'amount', name: 'Amount', type: 'money', currency: 'USD', currencyField: 'cur' },
+      { id: 'cur', name: 'Currency', type: 'choice', options: [{ id: 'usd', label: 'USD' }] },
+    ] as Record<string, unknown>[],
+  });
+  const withTable = (t: ReturnType<typeof table>) => {
+    const c = structuredClone(createDefaultWorkspace('en'));
+    c.data.tables = [t as never];
+    return c;
+  };
+  const problems = (t: ReturnType<typeof table>) => {
+    const r = validateWorkspace(withTable(t), registry);
+    return r.ok ? '' : JSON.stringify(r);
+  };
+
+  it('rule 12: a money field saved before D-429 is still valid', () => {
+    const t = table();
+    delete t.fields[0]!.currencyField;
+    expect(problems(t)).toBe('');
+  });
+
+  it('rule 18: currencyField must be a choice field of this table holding currency codes', () => {
+    expect(problems(table())).toBe('');
+    const missing = table();
+    missing.fields = [missing.fields[0]!];
+    expect(problems(missing)).toContain('currencyField');
+    const bad = table();
+    bad.fields[1]!.options = [{ id: 'other', label: 'Other' }];
+    expect(problems(bad)).toContain('other');
+  });
+
+  it('rule 18: removing the currency field is refused until the money field lets go', () => {
+    const c = withTable(table());
+    const remove = { op: 'removeData', table: 'claims', field: 'cur' } as const;
+    expect(JSON.stringify(applyOps(c, [remove], ctx))).toContain('currencyField');
+    const freed = applyOps(
+      c,
+      [
+        { op: 'updateData', table: 'claims', field: 'amount', changes: { currencyField: null } },
+        remove,
+      ],
+      ctx,
+    );
+    expect(freed.ok).toBe(true);
+  });
+
+  it('rule 14: the config holds a field id only; the code comes from the record', () => {
+    expect(JSON.stringify(table().fields[0])).not.toContain('eur');
+    const record = { id: 'a', createdAt: 1, updatedAt: 1, values: { amount: 2, cur: 'usd' } };
+    expect(perCurrencyText([record as never], table() as never, 'sum', 'amount', 'en')).toContain(
+      '2.00',
+    );
   });
 });

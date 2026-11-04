@@ -1,10 +1,11 @@
-import { findWorkflow, localize, quickActionsOf } from '@morph/core';
+import { findWorkflow, handedInput, localize, quickActionsOf } from '@morph/core';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { t } from '@/i18n';
 import { usePalette } from '@/renderer/theme';
+import { dropHanded, readHanded } from '@/run/handed';
 import { RunScreen } from '@/run/RunScreen';
 import { useIncoming } from '@/share/incoming';
 import { useToolDownloads } from '@/tool-download/context';
@@ -13,7 +14,14 @@ import { useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
 /** 运行一个工作流（工具页的单功能工作流、内设的预设或用户自己的工作流）。 */
 export default function RunRoute() {
-  const { workflowId, shared } = useLocalSearchParams<{ workflowId: string; shared?: string }>();
+  const {
+    workflowId,
+    shared,
+    handed: handedKey,
+  } = useLocalSearchParams<{ workflowId: string; shared?: string; handed?: string }>();
+  // 从记录页、列表来的（D-428）：它们交的值。键只在这次打开时有效，值不进路由参数。
+  const [handed] = useState(() => readHanded(handedKey));
+  useEffect(() => () => dropHanded(handedKey), [handedKey]);
   // 从收件页面来的（D-115）：用分享进来的那一批文件做第一步的输入。
   const [incoming] = useState(() => {
     const share = useIncoming.getState().share;
@@ -41,6 +49,19 @@ export default function RunRoute() {
       </View>
     );
   }
+  // 要容器交值的快捷操作（D-428）：从快捷操作列表、桌面、提醒走到这里时没有值，说明一句，不运行。
+  if (workflow && !handed && handedInput(workflow.steps, registry)) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <Stack.Screen options={{ title: workflow.name }} />
+        <Text
+          testID="run-needs-record"
+          style={[palette.font('body', 15), { color: palette.muted, textAlign: 'center' }]}>
+          {t(locale, 'runError_needsRecord')}
+        </Text>
+      </View>
+    );
+  }
   if (!workflow || (shared && !incoming)) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -56,6 +77,7 @@ export default function RunRoute() {
       <RunScreen
         workflow={workflow}
         {...(incoming ? { incoming } : {})}
+        {...(handed ? { handed } : {})}
         onEdit={() => router.push({ pathname: '/workflow/[id]', params: { id: workflow.id } })}
         // AI 只看得到配置里的快捷操作；内设的先在编辑页改一次（D-236）。
         {...(quickActionsOf(config).some((w) => w.id === workflow.id)

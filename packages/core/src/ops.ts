@@ -44,7 +44,7 @@ import {
   type WorkspaceConfig,
 } from './schema';
 import { DEFAULT_THEME } from './theme';
-import { workflowProblems } from './workflow/check';
+import { handedInput, workflowProblems } from './workflow/check';
 import { REDACTED_TEXT } from './workflow/redact';
 import { missingPlace, stepRefs } from './workflow/refs';
 import { presetById } from './workflows/presets';
@@ -317,6 +317,29 @@ function removeQuickActionUses(
   else delete config.nav.phoneHomeScreen;
   const gone = ids.filter((id) => !presetById(id));
   if (gone.length === 0) return counts;
+  // 记录页顶部的按钮（D-428，底线 18）。
+  for (const table of config.data.tables) {
+    const row = table.recordRow?.filter((item) => {
+      if (!gone.includes(item.tool)) return true;
+      counts.get(item.tool)!.runners++;
+      return false;
+    });
+    if (row && row.length > 0) table.recordRow = row;
+    else delete table.recordRow;
+  }
+  // 列表上方、单条记录块上的按钮（D-428）：块留着，按钮去掉。
+  for (const c of everyBlock(config)) {
+    if (!isKnownComponent(c) || c.look === 'action') continue;
+    const block = c as { tools?: ToolUse[] };
+    if (!block.tools?.some((u) => isToolRefUse(u) && gone.includes(u.tool))) continue;
+    const kept = block.tools.filter((u) => {
+      if (!isToolRefUse(u) || !gone.includes(u.tool)) return true;
+      counts.get(u.tool)!.runners++;
+      return false;
+    });
+    if (kept.length > 0) block.tools = kept;
+    else delete block.tools;
+  }
   const runs = (c: Component) => {
     if (!isKnownComponent(c) || c.look !== 'action') return undefined;
     const use = c.tools[0];
@@ -433,6 +456,15 @@ function pruneRecordTools(config: WorkspaceConfig, gone: Gone, notes: ApplyNote[
   if (count > 0) notes.push({ kind: 'removedRecordActions', count });
 }
 
+/** 删字段后，记录页顶部交这个字段的按钮跟着去掉（底线 18，D-428）。 */
+function pruneRecordRow(table: Collection, field: string, notes: ApplyNote[]): void {
+  const row = table.recordRow?.filter((item) => item.field !== field);
+  if (!table.recordRow || !row || row.length === table.recordRow.length) return;
+  notes.push({ kind: 'removedRecordActions', count: table.recordRow.length - row.length });
+  if (row.length > 0) table.recordRow = row;
+  else delete table.recordRow;
+}
+
 /**
  * 删字段后，列表能换的字段、单条记录显示的字段跟着去掉（底线 18，D-424）。单条记录一个字段都不剩时块也移除。
  */
@@ -538,7 +570,11 @@ function updateData(config: WorkspaceConfig, op: OpOf<'updateData'>): void {
   const table = getTable(config, op.table!);
   const changes = op.changes!;
   if (op.field === undefined) {
-    onlyKeys(changes, ['name', 'icon', 'readAttachments', 'prefillRules'], `table ${table.id}`);
+    onlyKeys(
+      changes,
+      ['name', 'icon', 'readAttachments', 'prefillRules', 'recordRow'],
+      `table ${table.id}`,
+    );
     if (changes.name === null) throw new OpError(`table ${table.id} needs a name`);
     merge(table as unknown as Record<string, unknown>, changes);
     return;
@@ -619,8 +655,11 @@ function pruneSteps(
       return { ...step, params };
     });
     const left = steps.filter((_, i) => !dropped.has(i));
+    // 去掉输入步骤后不能变成要容器交值的快捷操作（D-428）：它原来自己选输入，没有地方放。
     const works =
-      left.length > 0 && workflowProblems({ ...wf, steps: left }, registry).length === 0;
+      left.length > 0 &&
+      workflowProblems({ ...wf, steps: left }, registry).length === 0 &&
+      handedInput(left, registry) === handedInput(wf.steps, registry);
     const ids = (set: Set<number>) => [...set].map((i) => wf.steps[i]!.action);
     if (!works && wf.package !== undefined) {
       const what =
@@ -653,9 +692,16 @@ function removeData(
 ): void {
   const table = getTable(config, op.table);
   if (op.field !== undefined) {
+    // D-429：货币字段没了，每一笔都会显示成金额字段的默认货币，那是错的数，所以拒绝（底线 18）。
+    const usedBy = table.fields.find((f) => f.type === 'money' && f.currencyField === op.field);
+    if (usedBy)
+      throw new OpError(
+        `field ${op.field} holds the currency of ${usedBy.id}; set currencyField of ${usedBy.id} to null first`,
+      );
     // 从结构里去掉字段：记录里的旧值保留，恢复旧版本时会回来。
     table.fields.splice(getFieldIndex(table, op.field), 1);
     pruneRecordTools(config, { table: op.table, field: op.field }, notes);
+    pruneRecordRow(table, op.field, notes);
     pruneAggregateFields(config, { table: op.table, field: op.field });
     pruneBrowseFields(config, { table: op.table, field: op.field }, notes);
     pruneSteps(config, { table: op.table, field: op.field }, registry, notes);

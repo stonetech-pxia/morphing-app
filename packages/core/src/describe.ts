@@ -617,6 +617,8 @@ export function describeChange(
                 { name: collName(table) },
               ),
             );
+          if (changes.recordRow !== undefined)
+            lines.push(t(ctx.locale, 'describeRecordRow', { name: collName(table) }));
           if (changes.prefillRules !== undefined)
             lines.push(
               t(

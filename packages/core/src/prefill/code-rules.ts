@@ -1,7 +1,7 @@
 import type { Field, Locale } from '../schema';
 import { ruleCandidates } from './candidates';
 import { amountChain, amountNear } from './amount-chain';
-import { canAskCategory, categoryByCode } from './category';
+import { canAskCategory, categoryByCode, currencyInText } from './category';
 import { hasNoDecimals, rowHasDate, squash } from './check';
 import { conceptOf, type ConceptId } from './concepts';
 import { cardRules, ctx, receiptRules, resetDocContext, type DocumentKind } from './doc-context';
@@ -337,6 +337,13 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
     }
     if (code === undefined && category && field.type === 'choice')
       code = categoryByCode(field, rows) ?? undefined;
+    // 这是金额的货币（D-429）：票面写了什么货币。只进候选，用户点了才填。
+    if (
+      code === undefined &&
+      field.type === 'choice' &&
+      input.fields.some((f) => f.type === 'money' && f.currencyField === field.id)
+    )
+      code = currencyInText(field, rows) ?? undefined;
     if (code === undefined && !top && concept && EMPTY_IS_SURE.has(concept)) {
       // 文字里有单号的键名、代码又取不到值时是没把握，不是没有：要问模型。
       if (concept !== 'number' || !mayHaveNumber(rows)) code = null;

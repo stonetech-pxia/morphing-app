@@ -1,3 +1,4 @@
+import { hasRecordCurrency } from '../money-currency';
 import type { Field, Locale } from '../schema';
 import { CONCEPTS, fieldTerms, type ConceptId, type ValueKind } from './concepts';
 import { looksTyped, pageOccurrences, type Occurrence, type TextPage } from './rows';
@@ -222,11 +223,13 @@ export function setDocContext(input: SuggestInput): void {
   ctx.nowYear = (input.now ?? new Date()).getUTCFullYear();
   ctx.text = input.pages.flatMap((p) => p.lines.map((l) => l.text)).join('\n');
   ctx.invoice = receiptRules() && isInvoiceText(ctx.text);
-  ctx.currency =
-    (
-      input.fields.find((f) => f.type === 'money' && (f as { currency?: string }).currency) as
-        { currency?: string } | undefined
-    )?.currency ?? '';
+  // 每笔自己选货币时（D-429），字段上的货币不说明这张票是哪国的。
+  ctx.currency = input.fields.some(hasRecordCurrency)
+    ? ''
+    : ((
+        input.fields.find((f) => f.type === 'money' && (f as { currency?: string }).currency) as
+          { currency?: string } | undefined
+      )?.currency ?? '');
 }
 
 /** 全部字段的候选（字段 ID → 按分从高到低，最多 3 个）。只给可以填的字段；空着的字段由调用方挑。 */

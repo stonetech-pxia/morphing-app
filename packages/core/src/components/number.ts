@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { t } from '../messages';
+import { hasRecordCurrency } from '../money-currency';
 import {
   AGGREGATES,
   boundedText,
@@ -68,6 +69,14 @@ export const numberComponent: LookDefinitionOf<'number', typeof shape> = defineL
     const { aggregate, field, days, group } = c.source;
     const problems: string[] = [];
     if (aggregate === 'latest') problems.push('latest only applies to a rollup field');
+    // D-429：每笔货币不同的金额分开显示，不能拿一个数去比或相减。
+    if (
+      hasRecordCurrency(collection!.fields.find((f) => f.id === c.source.field)) &&
+      (c.source.goal !== undefined || c.source.compare !== undefined || c.source.minus)
+    )
+      problems.push(
+        `goal, compare and minus can't be used with ${c.source.field}: each entry has its own currency, and amounts in different currencies can't be added up`,
+      );
     if (c.source.goal !== undefined && (aggregate === 'daysSince' || aggregate === 'avgInterval'))
       problems.push(`goal can't be used with ${aggregate}: it is a number of days, not an amount`);
     if (c.source.compare !== undefined) {

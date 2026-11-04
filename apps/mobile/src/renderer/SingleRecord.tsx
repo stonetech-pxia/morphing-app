@@ -1,6 +1,10 @@
 import {
   calendarOf,
+  findWorkflowTarget,
   formatRef,
+  isToolRefUse,
+  quickActionsOf,
+  recordsValue,
   recordToVCard,
   type BlockOf,
   type ComponentStyle,
@@ -12,6 +16,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { useComputedRecords, useLinkResolver } from '../data/records';
 import { t } from '../i18n';
+import { useHandedRun } from '../run/useHandedRun';
 import type { RenderEnv } from './components';
 import { useCollection } from './data';
 import { openEditor } from './open-row';
@@ -60,6 +65,13 @@ export function SingleRecord({
   const vcard =
     block.show.qr && collection && record ? recordToVCard(collection.fields, record.values) : null;
   const qr = useMemo(() => (vcard ? qrImage(vcard) : null), [vcard]);
+  // 块上的工具（D-428）：点了才把这一条交给它。
+  const { run, elements } = useHandedRun(palette);
+  const use = block.tools?.[0];
+  const tool =
+    use && isToolRefUse(use)
+      ? findWorkflowTarget(quickActionsOf(env.config), use.tool, locale)
+      : undefined;
   if (!collection || !view || records === null) return null;
   const background = cardColors(palette, tone).background;
   if (!record)
@@ -119,6 +131,22 @@ export function SingleRecord({
           }
           onLongPress={env.onLongPress}
         />
+        {tool ? (
+          <Button
+            palette={palette}
+            testID={`single-tool-${tool.id}`}
+            variant="outline"
+            label={tool.name}
+            {...(tool.icon ? { icon: tool.icon } : {})}
+            onPress={
+              env.interactive
+                ? (env.locked ?? (() => void run(tool, recordsValue(collection, [record]))))
+                : undefined
+            }
+            onLongPress={env.onLongPress}
+          />
+        ) : null}
+        {elements}
       </View>
     </Card>
   );

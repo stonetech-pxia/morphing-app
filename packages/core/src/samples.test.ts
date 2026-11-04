@@ -16,7 +16,7 @@ import {
 import { apply, fromV33, registry, v33Fixture, workspace } from './test-helpers';
 import { recordToVCard } from './vcard';
 import { validateWorkspace } from './validate';
-import { presetById, presetWorkflow } from './workflows/presets';
+import { CONTAINER_PRESETS, presetById, presetWorkflow } from './workflows/presets';
 
 // 样板 App（samples/*.json，D-260）：每个样板在三种语言下，对新用户、已有同名表和页面、导航栏已满、
 // 接近上限的配置套用，结果都要通过校验；引用都指向换过的 ID；预设展开后和用户自己添加时一样。
@@ -100,7 +100,8 @@ function refsIn(
       if ((k === 'table' || k === 'collectionId') && typeof v === 'string') {
         if (!v.startsWith('$')) out.tables.push(v);
       } else if (k === 'tool' && typeof v === 'string') {
-        if (!v.startsWith('$')) out.workflows.push(v);
+        // 容器用的内设快捷操作（D-428）不用添加，直接引用。
+        if (!v.startsWith('$') && !CONTAINER_PRESETS.some((p) => p.id === v)) out.workflows.push(v);
       } else if (typeof v === 'string' && v.startsWith('page:')) out.pages.push(v.slice(5));
       else if (typeof v === 'string' && v.startsWith('tool:')) out.workflows.push(v.slice(5));
       else refsIn(v, out);
@@ -241,7 +242,9 @@ describe('sample files', () => {
               op.tool.kind !== 'quickAction' ||
               !op.tool.preset,
           ),
-          (_k, v: unknown) => (typeof v === 'string' && !/^[a-z0-9:-]+$/.test(v) ? 'TEXT' : v),
+          // 默认货币随语言（D-429），算文字。
+          (k, v: unknown) =>
+            typeof v === 'string' && (k === 'default' || !/^[a-z0-9:-]+$/.test(v)) ? 'TEXT' : v,
         );
       // 英文用 Letter 纸，中文和法语用 A4。
       expect(shape('fr')).toBe(shape('zh'));
@@ -296,14 +299,66 @@ describe('sample files', () => {
   });
 });
 
+describe('sample expense-helper', () => {
+  // 扫收据的样板：不带参数就只有通用规则，也不会问有没有记过（D-421、D-426）。
+  it('its table reads attachments as receipts', () => {
+    const base = fresh('en');
+    const config = apply(base, ops('expense-helper', base, 'en'), 'en');
+    const table = config.data.tables.find((t) => t.fields.some((f) => f.id === 'receipt'));
+    expect(table?.prefillRules).toBe('receipt');
+  });
+});
+
 describe('samples equal the v33 samples, migrated', () => {
   // fixtures/v33/sample-<id>-zh.json：v33 代码给新用户（starter）套用样板的结果。
   // 名片样板（D-423）是 v34 以后加的，没有 v33 的样子。
-  it.each(SAMPLE_APPS.filter((s) => s !== 'business-cards'))('%s in zh', (sample) => {
+  // 报销助手（D-425、D-427）多了打印带附件、导出 Excel，下面单独查。
+  it.each(SAMPLE_APPS.filter((s) => s !== 'business-cards' && s !== 'expense-helper'))(
+    '%s in zh',
+    (sample) => {
+      const before = fresh('zh');
+      expect(apply(before, ops(sample, before, 'zh'), 'zh')).toEqual(
+        fromV33(v33Fixture(`sample-${sample}-zh`)),
+      );
+    },
+  );
+
+  it('expense-helper in zh differs only by the receipt rules, the attachments switch and the Excel export', () => {
     const before = fresh('zh');
-    expect(apply(before, ops(sample, before, 'zh'), 'zh')).toEqual(
-      fromV33(v33Fixture(`sample-${sample}-zh`)),
-    );
+    const config = structuredClone(apply(before, ops('expense-helper', before, 'zh'), 'zh'));
+    const claims = config.data.tables.find((t) => t.prefillRules === 'receipt')!;
+    delete claims.prefillRules;
+    // D-429：每笔单独选货币，所以多一个货币字段，饼图改成数笔数（不同货币不能加在一起）。
+    claims.fields = claims.fields.filter((f) => f.id !== 'currency');
+    const amount = claims.fields.find((f) => f.id === 'amount')!;
+    expect(amount).toMatchObject({ type: 'money', currency: 'CNY', currencyField: 'currency' });
+    delete (amount as { currencyField?: string }).currencyField;
+    const print = quickActionsOf(config).find((q) => q.id === 'print-expenses')!;
+    const step = print.steps.find((s) => s.action === 'print.records')!;
+    expect(step.params.attachments).toBe(true);
+    delete step.params.attachments;
+    const excel = quickActionsOf(config).find((q) => q.id === 'export-expenses-excel')!;
+    expect(excel.steps.map((s) => s.action)).toEqual([
+      'in.records',
+      'records.toExcel',
+      'out.share',
+    ]);
+    config.tools = config.tools.filter((x) => x.id !== excel.id);
+    const without = JSON.stringify(config, (_key, value: unknown) => {
+      if (Array.isArray(value)) return value.filter((v: { id?: string }) => v?.id !== 'run-excel');
+      const block = value as { id?: string; show?: { title?: string }; source?: object };
+      if (block?.id === 'by-category') {
+        expect(block.show?.title).toBe('各类笔数');
+        expect(block.source).toMatchObject({ aggregate: 'count' });
+        return {
+          ...block,
+          show: { ...block.show, title: '各类花费' },
+          source: { ...block.source, aggregate: 'sum', field: 'amount' },
+        };
+      }
+      return value;
+    });
+    expect(JSON.parse(without)).toEqual(fromV33(v33Fixture('sample-expense-helper-zh')));
   });
 
   it('a reminder whose id a quick action already uses gets a new id (one id space, M1)', () => {
@@ -376,7 +431,7 @@ describe('the business card sample (D-423)', () => {
     },
   );
 
-  it('scanning ends in the right table, and export goes through records.toVCard', () => {
+  it('scanning ends in the right table, and export starts from the records the list hands over', () => {
     const config = applied('en');
     const steps = (id: string) =>
       quickActionsOf(config)
@@ -389,8 +444,8 @@ describe('the business card sample (D-423)', () => {
     ];
     expect(steps('scan-card')).toEqual(scan('contacts'));
     expect(steps('scan-my-card')).toEqual(scan('my-card'));
+    // 导出从联系人列表上点，列表把现在选出的记录交给第一步（D-428）。
     expect(steps('export-contacts')).toEqual([
-      ['in.records', 'contacts'],
       ['records.toVCard', undefined],
       ['out.share', undefined],
     ]);

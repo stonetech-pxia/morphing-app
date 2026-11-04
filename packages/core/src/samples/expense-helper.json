@@ -15,11 +15,13 @@
     "$page.main": "expenses",
     "$tool.scanLog": "scan-receipt-log",
     "$tool.print": "print-expenses",
+    "$tool.excel": "export-expenses-excel",
     "$tool.friday": "submit-expenses"
   },
   "tables": [
     {
       "id": "$table.claims",
+      "prefillRules": "receipt",
       "name": {
         "en": "Expense claims",
         "zh": "报销",
@@ -40,7 +42,33 @@
             "zh": "CNY",
             "fr": "EUR"
           },
+          "currencyField": "currency",
           "required": true
+        },
+        {
+          "id": "currency",
+          "name": {
+            "en": "Currency",
+            "zh": "货币",
+            "fr": "Devise"
+          },
+          "type": "choice",
+          "options": [
+            { "id": "usd", "label": "USD" },
+            { "id": "eur", "label": "EUR" },
+            { "id": "cny", "label": "CNY" },
+            { "id": "gbp", "label": "GBP" },
+            { "id": "jpy", "label": "JPY" },
+            { "id": "cad", "label": "CAD" },
+            { "id": "aud", "label": "AUD" },
+            { "id": "chf", "label": "CHF" },
+            { "id": "hkd", "label": "HKD" }
+          ],
+          "default": {
+            "en": "usd",
+            "zh": "cny",
+            "fr": "eur"
+          }
         },
         {
           "id": "date",
@@ -220,7 +248,8 @@
               "en": "letter",
               "zh": "a4",
               "fr": "a4"
-            }
+            },
+            "attachments": true
           }
         },
         {
@@ -237,6 +266,36 @@
     {
       "id": "$tool.report",
       "preset": "expense-report"
+    },
+    {
+      "id": "$tool.excel",
+      "kind": "quickAction",
+      "name": {
+        "en": "Export expenses to Excel",
+        "zh": "导出报销到 Excel",
+        "fr": "Exporter les dépenses vers Excel"
+      },
+      "icon": "document",
+      "steps": [
+        {
+          "id": "read",
+          "action": "in.records",
+          "params": {
+            "collectionId": "$table.claims",
+            "period": "all"
+          }
+        },
+        {
+          "id": "excel",
+          "action": "records.toExcel",
+          "params": {}
+        },
+        {
+          "id": "share",
+          "action": "out.share",
+          "params": {}
+        }
+      ]
     },
     {
       "id": "$tool.friday",
@@ -390,6 +449,18 @@
                   "tool": "$tool.report"
                 }
               ]
+            },
+            {
+              "id": "run-excel",
+              "look": "action",
+              "show": {
+                "shape": "tile"
+              },
+              "tools": [
+                {
+                  "tool": "$tool.excel"
+                }
+              ]
             }
           ]
         },
@@ -428,15 +499,14 @@
           "show": {
             "kind": "pie",
             "title": {
-              "en": "Spending by category",
-              "zh": "各类花费",
-              "fr": "Dépenses par catégorie"
+              "en": "Receipts by category",
+              "zh": "各类笔数",
+              "fr": "Reçus par catégorie"
             }
           },
           "source": {
             "table": "$table.claims",
-            "aggregate": "sum",
-            "field": "amount",
+            "aggregate": "count",
             "group": {
               "by": "category"
             }

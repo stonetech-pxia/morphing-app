@@ -6,6 +6,27 @@
   "table": {
     "id": "$table",
     "prefillRules": "card",
+    "recordRow": [
+      {
+        "tool": "record-call",
+        "field": "phone"
+      },
+      {
+        "tool": "record-message",
+        "field": "phone"
+      },
+      {
+        "tool": "record-email",
+        "field": "email"
+      },
+      {
+        "tool": "record-website",
+        "field": "website"
+      },
+      {
+        "tool": "record-vcard"
+      }
+    ],
     "name": {
       "en": "Contacts",
       "zh": "联系人",

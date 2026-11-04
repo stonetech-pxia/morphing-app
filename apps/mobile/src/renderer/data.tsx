@@ -1,4 +1,7 @@
 import {
+  fieldForRecord,
+  hasRecordCurrency,
+  perCurrencyText,
   browseSort,
   searchRecords,
   suggestionForField,
@@ -82,6 +85,7 @@ import {
 } from 'react-native';
 
 import { useComputedRecords, useLinkResolver, useRecordActions, useRecords } from '../data/records';
+import { useSimilarCheck } from '../data/similar-records';
 import { useCalendar, useWorkspace } from '../workspace/context';
 import { t } from '../i18n';
 import { AttachmentThumb, AttachmentsInput, firstImage, useAssetIndex } from './Attachments';
@@ -271,7 +275,11 @@ function textBox<F extends Field>({
             submitBehavior: 'submit' as const,
           }
         : {})}
-      placeholder={field.type === 'money' ? `${field.name} (${field.currency})` : field.name}
+      placeholder={
+        field.type === 'money' && !field.currencyField
+          ? `${field.name} (${field.currency})`
+          : field.name
+      }
       placeholderTextColor={palette.caption}
       multiline={field.type === 'note'}
       keyboardType={field.type === 'number' || field.type === 'money' ? 'decimal-pad' : 'default'}
@@ -719,7 +727,9 @@ function SuggestionChips({
   const shown = (s: ValueSuggestion) =>
     field.type === 'date'
       ? suggestionDate(s.value, locale)
-      : formatValue(field, numeric ? Number(s.value) : s.value, locale) || s.value;
+      : hasRecordCurrency(field)
+        ? formatNumber(Number(s.value), undefined, locale) // D-429：货币还要用户选，先不写。
+        : formatValue(field, numeric ? Number(s.value) : s.value, locale) || s.value;
   const isCurrent = (s: ValueSuggestion) =>
     !isEmptyValue(current) &&
     (numeric ? Number(current) === Number(s.value) : String(current) === s.value);
@@ -959,10 +969,13 @@ export function RecordList({
   block,
   env,
   tone,
+  tools,
 }: {
   block: RecordBlock;
   env: RenderEnv;
   tone?: Tone;
+  /** 列表上方的按钮（D-428，ListTools）：拿到这个列表现在选出的全部记录（没有截到 limit）。 */
+  tools?: (collection: Collection, records: readonly DataRecord[], searching: boolean) => ReactNode;
 }) {
   const { palette, locale } = env;
   // 分段标题和列表下面的「添加」压在页面背景上，卡片里的行用 palette（D-409）。
@@ -992,6 +1005,7 @@ export function RecordList({
   if (!collection || !view || !rows) return null;
   const searching = browse?.search === true && query.trim() !== '';
   const found = searching ? searchRecords(sorted, query, rows.textsOf) : sorted;
+  const above = tools?.(collection, found, searching);
   const bar = browse && sorted.length > 0 && (
     <ListBrowseBar
       browse={browse}
@@ -1041,6 +1055,7 @@ export function RecordList({
     return (
       <View style={{ gap: palette.gap - 4 }}>
         {bar}
+        {above}
         {groups.map((g) => {
           const closed = collapsed.has(g.key);
           const toggle = () =>
@@ -1108,11 +1123,14 @@ export function RecordList({
   ) : (
     rows.list(shown)
   );
-  return browse ? (
+  return browse || above ? (
     <View style={{ gap: palette.gap - 4 }}>
       {bar}
+      {above}
       {list}
-      <BrowseMore shown={shown.length} total={found.length} searching={searching} env={env} />
+      {browse ? (
+        <BrowseMore shown={shown.length} total={found.length} searching={searching} env={env} />
+      ) : null}
     </View>
   ) : (
     list
@@ -1524,7 +1542,8 @@ export function Trailing({
     const cal = calendarOf(env.config);
     const progress = recordProgress(record, view, show.trailing!, format.goal, now, cal);
     if (progress) {
-      const field = view.fields.find((f) => f.id === show.trailing);
+      const found = view.fields.find((f) => f.id === show.trailing);
+      const field = found && fieldForRecord(found, record.values, view);
       const label = t(locale, 'progressOfGoal', {
         value: amountText(progress.value, field, locale),
         goal: amountText(progress.goal, field, locale),
@@ -1576,6 +1595,7 @@ export function RecordForm({
   const submitLabel = submitTool?.label ?? t(locale, 'entryFormAdd');
   const collection = useCollection(env, submitTool?.table ?? '');
   const actions = useRecordActions();
+  const mayProceed = useSimilarCheck();
   const [values, setValues] = useState<FormValues>({});
   const [issues, setIssues] = useState<FieldIssue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -1606,7 +1626,9 @@ export function RecordForm({
             [smart.to]: found.input,
           }
         : {};
-    const result = await actions.add(collection, { ...preset, ...values, ...recognised });
+    const input = { ...preset, ...values, ...recognised };
+    if (!(await mayProceed(collection, input))) return;
+    const result = await actions.add(collection, input);
     if (result.ok) {
       setValues({});
       setIssues([]);
@@ -1809,6 +1831,9 @@ export function Stat({
       : value;
   const text = (v: { value: number | null }) =>
     statText(v.value, aggregate, field, env.locale, src.days?.unit);
+  // 每笔自己选货币（D-429）：按货币分开显示，不把不同货币加在一起。
+  const listText = (list: DataRecord[]) =>
+    perCurrencyText(list, collection, aggregate, src.field, env.locale);
   const bestText = (v: { best?: number }) =>
     v.best === undefined
       ? null
@@ -1889,7 +1914,7 @@ export function Stat({
                 <Text
                   testID={`stat-group-${src.table}-${g.optionId ?? 'none'}`}
                   style={[palette.font('title', 16), { color: palette.text }]}>
-                  {goalProgress(v)?.label ?? text(v)}
+                  {goalProgress(v)?.label ?? listText(g.records) ?? text(v)}
                 </Text>
                 {best ? (
                   <Text style={[palette.font('body', 12), { color: palette.muted }]}>{best}</Text>
@@ -1926,7 +1951,7 @@ export function Stat({
         <Text
           testID={`stat-value-${src.table}-${label}`}
           style={[styles.flex, palette.font('display', 26), { color: palette.text }]}>
-          {progress ? progress.label : text(v)}
+          {progress ? progress.label : (listText(matched) ?? text(v))}
         </Text>
         {progress ? (
           <View style={styles.statRing}>

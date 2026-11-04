@@ -110,9 +110,9 @@ describe('with data', () => {
     expect(screen.queryByTestId('record-r0')).toBeNull();
     await fireEvent.press(screen.getByTestId('record-r1'));
     await screen.findByTestId('record-actions');
-    expect(screen.queryByTestId('record-action-call')).toBeNull();
-    await fireEvent.press(screen.getByTestId('record-action-email'));
-    expect(spy).toHaveBeenCalledWith('mailto:m@acme.example');
+    expect(screen.queryByTestId('record-action-record-call-phone')).toBeNull();
+    await fireEvent.press(screen.getByTestId('record-action-record-email-email'));
+    await waitFor(() => expect(spy).toHaveBeenCalledWith('mailto:m@acme.example'));
   });
 
   it('my card shows the first entry with its code and an edit control', async () => {

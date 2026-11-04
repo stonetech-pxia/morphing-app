@@ -570,7 +570,9 @@ export const PRINT_ACTIONS: readonly ActionDefinition[] = [
       title: z.string().trim().max(60),
       fields: z.array(z.string().max(40)).max(12),
       pageSize: z.enum(['a4', 'letter']),
+      attachments: z.boolean().optional(),
     }),
+    ai: 'Set attachments: true when the user wants the receipts, photos or files of the records in the report ("附上收据", "with the receipts attached"). That is the only thing you choose: the files themselves are read on the device and you never see them.',
     fields: [
       {
         key: 'template',
@@ -593,6 +595,15 @@ export const PRINT_ACTIONS: readonly ActionDefinition[] = [
         kind: 'fields',
       },
       pageSizeField,
+      {
+        key: 'attachments',
+        label: {
+          en: 'Attach each entry’s photos and PDFs',
+          zh: '附上每条记录的照片和 PDF',
+          fr: 'Joindre les photos et PDF de chaque entrée',
+        },
+        kind: 'toggle',
+      },
     ],
     requires: [],
   },

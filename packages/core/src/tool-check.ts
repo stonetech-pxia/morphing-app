@@ -34,7 +34,7 @@ import {
   type WorkspaceConfig,
 } from './schema';
 import { BUILTIN_TOOLS } from './tools';
-import { workflowProblems } from './workflow/check';
+import { handedInput, workflowProblems } from './workflow/check';
 import { missingPlace, stepRefs } from './workflow/refs';
 
 // 工具检查（AGENT_PLAN §3.1–§3.4、§3.8）：用代码判断 App 里的工具能不能用。校验（validate.ts）只管配置合法，
@@ -294,6 +294,9 @@ class Analysis {
     const { nav, containers } = this.config;
     if ([...nav.bar, ...nav.floating].includes('quickActions')) this.libraries.push(null);
     for (const id of nav.phoneHomeScreen ?? []) this.place(id, 'phone home screen');
+    // 记录页顶部的按钮（D-428）。
+    for (const table of this.config.data.tables)
+      for (const item of table.recordRow ?? []) this.place(item.tool, `entry page of ${table.id}`);
     for (const r of remindersOf(this.config)) {
       const id = toolTargetId(r.opens);
       if (id !== null) this.place(id, `reminder ${r.id}`);
@@ -1065,7 +1068,9 @@ function checkQuickAction(
       key,
       page
         ? `quick action ${wf.id} is only on page ${page}, which can't be opened; it is left in Settings > Quick actions`
-        : `quick action ${wf.id} is only in Settings > Quick actions; add a button or an action block on a page`,
+        : handedInput(wf.steps, a.registry)
+          ? `quick action ${wf.id} takes a record or a value but sits nowhere that hands one over, so it can't run; put it in a table's recordRow or on a records block (rule 54)`
+          : `quick action ${wf.id} is only in Settings > Quick actions; add a button or an action block on a page`,
     );
   }
   const base = { firstStepIsInput, chain, params, entry, entryVia: via } as const;
