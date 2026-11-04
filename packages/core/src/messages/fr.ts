@@ -1,5 +1,5 @@
 // 法语文案。键和 en.ts 完全一致（MessageTable）；单数写法（0 和 1 都用单数）在 frSingular，键和 enSingular 一致。
-// 术语：记录 = entrée，数据表 = tableau，Morph 的设置页 = Paramètres，录音 = enregistrement。
+// 术语：记录 = entrée，数据表 = tableau，Tinkrum 的设置页 = Paramètres，录音 = enregistrement。
 import type { MessageTable, SingularTable } from './en';
 
 export const fr: MessageTable = {
@@ -22,7 +22,7 @@ export const fr: MessageTable = {
   shareDescribe: 'Décrire ce dont j’ai besoin',
   shareSeeAll: 'Tout voir ({n})',
   sharePicked: 'Fichiers sélectionnés : {what}',
-  sharePlaceholder: 'Dites ce que vous voulez, Morph fera de son mieux pour y arriver',
+  sharePlaceholder: 'Dites ce que vous voulez, Tinkrum fera de son mieux pour y arriver',
   shareExpand: 'Voir les fichiers',
   shareCollapse: 'Masquer les fichiers',
   sharePreview: 'Aperçu',
@@ -106,7 +106,7 @@ export const fr: MessageTable = {
   restoreNeedsTool:
     'Cette version utilise {names}, qui n’est pas sur ce téléphone. Ajoutez d’abord dans « Outils », puis restaurez.',
   listSeparator: ', ',
-  toolDownloadedHint: 'Outil téléchargé depuis le catalogue Morph.',
+  toolDownloadedHint: 'Outil téléchargé depuis le catalogue Tinkrum.',
   toolDeleteMessage: 'Vous pourrez le retélécharger plus tard depuis « Outils ».',
   toolDeleteAdded:
     'Cet outil est encore ajouté. Retirez-le d’abord dans « Outils », puis supprimez-le ici.',
@@ -122,7 +122,7 @@ export const fr: MessageTable = {
   language: 'Langue',
   languageValue: 'Français (suit le système)',
   aiEngine: 'IA',
-  aiEngineRemote: 'Claude via le serveur Morph',
+  aiEngineRemote: 'Claude via le serveur Tinkrum',
   aiEngineMock: 'Règles intégrées (simulation hors ligne)',
   aiEngineByok: 'Ma propre clé API ({model})',
 
@@ -131,23 +131,23 @@ export const fr: MessageTable = {
   aiModeQuestion: 'Quelle IA modifie cette app',
   aiModeMock: 'Règles intégrées',
   aiModeMockNote: 'Hors ligne et gratuit. Ne comprend qu’un nombre fixe de formulations.',
-  aiModeServer: 'Serveur Morph',
+  aiModeServer: 'Serveur Tinkrum',
   aiModeServerNote: 'Claude via {url}.',
-  // 测试期服务器保存请求（D-240）：只在用 Morph 服务器时显示。
+  // 测试期服务器保存请求（D-240）：只在用 Tinkrum 服务器时显示。
   aiServerStoredNote:
-    'Pendant la bêta, ce que vous dites à l’IA et la configuration de l’application sont enregistrés pour améliorer Morph. Les fichiers et les entrées ne sont jamais envoyés.',
+    'Pendant la bêta, ce que vous dites à l’IA et la configuration de l’application sont enregistrés pour améliorer Tinkrum. Les fichiers et les entrées ne sont jamais envoyés.',
   aiModeByok: 'Ma propre clé API',
   aiModeByokNote:
     'Appelle directement depuis ce téléphone le fournisseur de votre choix : Claude, ou toute API compatible OpenAI. L’usage est facturé sur votre compte chez ce fournisseur.',
   // 自带 key 的两种 provider（D-241）
   byokProviderLabel: 'Fournisseur',
   byokProviderAnthropic: 'Anthropic (Claude)',
-  byokProviderAnthropicNote: 'Testé. Les instructions de Morph à l’IA sont réglées pour Claude.',
+  byokProviderAnthropicNote: 'Testé. Les instructions de Tinkrum à l’IA sont réglées pour Claude.',
   byokProviderOpenAI: 'API compatible OpenAI',
   byokProviderOpenAINote:
     'OpenAI, OpenRouter, DeepSeek, Gemini, Groq, Ollama, LM Studio et d’autres. Non testé.',
   byokOtherWarning:
-    'Morph est testé avec Claude. D’autres modèles peuvent plus souvent mal comprendre une demande ou la refuser. Chaque modification est toujours vérifiée avant d’être appliquée, et vous pouvez l’annuler.',
+    'Tinkrum est testé avec Claude. D’autres modèles peuvent plus souvent mal comprendre une demande ou la refuser. Chaque modification est toujours vérifiée avant d’être appliquée, et vous pouvez l’annuler.',
   byokSentNote:
     'Quand vous demandez une modification, ce que vous dites et la configuration de l’application sont envoyés à {host}. Vos fichiers et entrées ne sont jamais envoyés.',
   baseUrlLabel: 'URL de base',
@@ -201,7 +201,7 @@ export const fr: MessageTable = {
   aiBadOutput:
     'La réponse de l’IA n’a pas pu être utilisée. Aucune modification n’a été effectuée ; reformulez votre demande.',
   about: 'À propos',
-  aboutValue: 'Prototype Morph · AGPL-3.0 · schéma v{schema} · version #{revision}',
+  aboutValue: 'Prototype Tinkrum · AGPL-3.0 · schéma v{schema} · version #{revision}',
 
   // 页面组件
   noFiles: 'Aucun fichier pour l’instant',
@@ -221,7 +221,7 @@ export const fr: MessageTable = {
     'Cette action rapide contient une étape incompatible. Ajustez ses réglages et réessayez.',
   runError_cameraUnavailable: 'L’appareil photo n’est pas disponible sur cet appareil.',
   runError_permissionDenied:
-    'Morph a besoin de l’autorisation pour cette action ({what}). Vous pouvez l’accorder dans les Réglages du système.',
+    'Tinkrum a besoin de l’autorisation pour cette action ({what}). Vous pouvez l’accorder dans les Réglages du système.',
   runError_packFailed: 'Le téléchargement n’a pas abouti : {detail}',
   runError_targetNotMet:
     'Impossible de compresser « {name} » sous {target} (le minimum atteint est {got}).',
@@ -244,7 +244,7 @@ export const fr: MessageTable = {
   runError_encrypted:
     '« {name} » est protégé par un mot de passe. Ajoutez d’abord l’étape « Supprimer le mot de passe PDF ».',
   runError_pdfRestricted:
-    '« {name} » s’ouvre sans mot de passe, mais son auteur a restreint les modifications. Morph ne lève pas ces restrictions.',
+    '« {name} » s’ouvre sans mot de passe, mais son auteur a restreint les modifications. Tinkrum ne lève pas ces restrictions.',
   runError_pdfPasswordUnsupported:
     'Ce téléphone ne peut pas encore supprimer ni ajouter de mot de passe PDF (iPhone uniquement pour l’instant).',
   runError_accessDenied:
@@ -339,7 +339,7 @@ export const fr: MessageTable = {
   removeFileSummary: 'Retirer un fichier',
   fileSlotTooLarge: 'Ce fichier dépasse {gb} Go.',
   fileSlotNoSpace: 'Pas assez d’espace libre sur ce téléphone pour garder une copie de ce fichier.',
-  fileSlotCopyFailed: 'Impossible de copier ce fichier dans Morph.',
+  fileSlotCopyFailed: 'Impossible de copier ce fichier dans Tinkrum.',
   openLinkTitle: 'Ouvrir le lien ?',
   openLinkMessage: 'Cela ouvrira {target} en dehors de l’application.',
   openLink: 'Ouvrir',
@@ -366,7 +366,7 @@ export const fr: MessageTable = {
     'Ce tableau de données ne fait plus partie de l’application. Ses entrées sont conservées dans Paramètres → Données.',
   dataTitle: 'Données',
   storageTitle: 'Stockage',
-  storageRowHint: 'Photos et fichiers conservés par Morph, et où ils servent',
+  storageRowHint: 'Photos et fichiers conservés par Tinkrum, et où ils servent',
   presetsTitle: 'Mes préréglages',
   presetsRowHint: 'Gardez toute l’app et revenez-y quand vous voulez',
   presetsHint:
@@ -389,9 +389,9 @@ export const fr: MessageTable = {
     'Les images et emplacements de fichier choisis ne suivent pas : il faudra les choisir à nouveau',
   storageSummary: '{n} fichiers · {size}',
   storageEmpty:
-    'Morph n’a encore aucun fichier enregistré. Les photos et fichiers ajoutés aux entrées, aux emplacements de fichier et aux images sont conservés ici.',
+    'Tinkrum n’a encore aucun fichier enregistré. Les photos et fichiers ajoutés aux entrées, aux emplacements de fichier et aux images sont conservés ici.',
   storageIntro:
-    'Les fichiers que Morph garde sur ce téléphone et où ils sont utilisés. Vous seul voyez cette page.',
+    'Les fichiers que Tinkrum garde sur ce téléphone et où ils sont utilisés. Vous seul voyez cette page.',
   storageCleanup: 'Nettoyer {n} fichiers inutilisés ({size})',
   storageCleanupTitle: 'Supprimer {n} fichiers inutilisés ?',
   storageCleanupMessage:
@@ -454,18 +454,18 @@ export const fr: MessageTable = {
     'Supprimer le modèle sur l’appareil ? Les suggestions reviennent aux règles seules. Vos entrées restent. Vous pourrez le télécharger de nouveau.',
   prefillMemoryTitle: 'Mémoire de pré-remplissage',
   prefillMemoryHint:
-    'Quand vous ajoutez une entrée, Morph retient la mise en page des documents enregistrés : après quelle étiquette se trouve une valeur, à peu près sur quelle ligne, et le nom du commerce. Les montants et les dates ne sont pas conservés. Stockée uniquement sur ce téléphone, jamais envoyée à l’IA. Le fichier exporté sert aussi de sauvegarde : « Restaurer depuis un fichier » la remet en place. Dans le formulaire d’une nouvelle entrée, Morph retient aussi la suggestion choisie pour chaque champ : l’étiquette qui la précède et sa position approximative, pas la valeur.',
+    'Quand vous ajoutez une entrée, Tinkrum retient la mise en page des documents enregistrés : après quelle étiquette se trouve une valeur, à peu près sur quelle ligne, et le nom du commerce. Les montants et les dates ne sont pas conservés. Stockée uniquement sur ce téléphone, jamais envoyée à l’IA. Le fichier exporté sert aussi de sauvegarde : « Restaurer depuis un fichier » la remet en place. Dans le formulaire d’une nouvelle entrée, Tinkrum retient aussi la suggestion choisie pour chaque champ : l’étiquette qui la précède et sa position approximative, pas la valeur.',
   prefillMemoryCount: '{count} mises en page de documents mémorisées',
   prefillMemoryNone: 'Aucune mise en page mémorisée pour l’instant',
   prefillMemoryExport: 'Exporter',
   prefillMemoryRestore: 'Restaurer depuis un fichier',
   prefillMemoryClear: 'Effacer',
   prefillMemoryClearConfirm:
-    'Effacer toute la mémoire de pré-remplissage ? Morph devra tout réapprendre. Cette action est irréversible.',
+    'Effacer toute la mémoire de pré-remplissage ? Tinkrum devra tout réapprendre. Cette action est irréversible.',
   prefillMemoryRestoreConfirm:
     'Remplacer la mémoire de pré-remplissage actuelle par celle de ce fichier ({count} mises en page) ?',
   prefillMemoryRestoreInvalid:
-    'Ce fichier n’est pas une mémoire de pré-remplissage exportée par Morph. Rien n’a été restauré.',
+    'Ce fichier n’est pas une mémoire de pré-remplissage exportée par Tinkrum. Rien n’a été restauré.',
   prefillMemoryRestored: '{count} mises en page restaurées.',
   prefillMemoryPicks: '{count} suggestions choisies mémorisées',
   // Formulaire de nouvelle entrée : valeurs proposées à partir des pièces jointes (D-394)
@@ -476,7 +476,7 @@ export const fr: MessageTable = {
   suggestionsDownload: 'Proposer des valeurs',
   dataModelDownloadAsk: 'Télécharger la reconnaissance des dates et des montants ?',
   dataModelDownloadBody:
-    'Google doit d’abord télécharger le modèle de reconnaissance pour cette langue. La reconnaissance se fait sur ce téléphone et le texte n’est pas envoyé ; après le téléchargement, elle fonctionne hors ligne. Sans ce modèle, Morph pré-remplit quand même avec ses propres règles.',
+    'Google doit d’abord télécharger le modèle de reconnaissance pour cette langue. La reconnaissance se fait sur ce téléphone et le texte n’est pas envoyé ; après le téléchargement, elle fonctionne hors ligne. Sans ce modèle, Tinkrum pré-remplit quand même avec ses propres règles.',
   dataModelDownload: 'Télécharger',
 
   // 直接编辑（长按一块、调整顺序）
@@ -548,10 +548,10 @@ export const fr: MessageTable = {
   aboutTableHint: 'Dites ce que le formulaire doit demander, par exemple un nouveau champ.',
   aboutToolsScreen: 'Page à modifier : Outils',
   aboutToolsScreenHint:
-    'Cette page est fournie par Morph et sa disposition ne change pas, mais l’IA peut ajouter ou retirer des outils.',
+    'Cette page est fournie par Tinkrum et sa disposition ne change pas, mais l’IA peut ajouter ou retirer des outils.',
   aboutQuickActionsScreen: 'Page à modifier : Actions rapides',
   aboutQuickActionsScreenHint:
-    'Cette page est fournie par Morph et sa disposition ne change pas, mais l’IA peut créer ou modifier des actions rapides.',
+    'Cette page est fournie par Tinkrum et sa disposition ne change pas, mais l’IA peut créer ou modifier des actions rapides.',
   aboutDesk: 'À modifier : le bureau',
   aboutDeskHint:
     'L’IA peut changer ses boutons et sa disposition, jamais les fichiers qui s’y trouvent.',
@@ -568,7 +568,7 @@ export const fr: MessageTable = {
 
   // ---- 翻译（D-170–D-176）：错误说明拼进「不支持这个步骤：…」/「需要的内容没有下载好：…」 ----
   translateNeedsFullApp:
-    'Traduire (disponible dans la version complète de Morph, pas dans cet aperçu)',
+    'Traduire (disponible dans la version complète de Tinkrum, pas dans cet aperçu)',
   translateOsTooOld: 'Traduire (nécessite iOS 18 ou une version ultérieure)',
   translatePairUnsupported: 'Traduction de {from} vers {to} impossible sur ce téléphone',
   translateDownloadAsk: 'Le premier usage nécessite le téléchargement d’environ {mb} Mo',
@@ -577,7 +577,7 @@ export const fr: MessageTable = {
   translateDownload: 'Télécharger',
   translateSystemDownloadAsk: 'La traduction doit d’abord télécharger des langues',
   translateSystemDownloadBody:
-    'Langues à télécharger : {langs}. Votre iPhone va vous demander de confirmer, et le téléchargement peut prendre quelques minutes : restez dans Morph. La prochaine fois, vous pourrez les télécharger d’avance dans Réglages → Apps → Traduire sur l’iPhone.',
+    'Langues à télécharger : {langs}. Votre iPhone va vous demander de confirmer, et le téléchargement peut prendre quelques minutes : restez dans Tinkrum. La prochaine fois, vous pourrez les télécharger d’avance dans Réglages → Apps → Traduire sur l’iPhone.',
   translateDownloadFailed: 'les fichiers de langue {langs} (vérifiez la connexion, puis réessayez)',
   translateLanguageTitle: 'Langue de traduction : {name}',
   translateLanguageHint: 'Environ 30 Mo, pour traduire sur cet appareil (Google ML Kit).',
@@ -588,9 +588,9 @@ export const fr: MessageTable = {
   // ---- 视频、音频和压缩 PDF（D-140–D-148）。音频工具的文字请另起一块，方便合并。----
   runPercent: '{done}%',
   runError_needsFullApp:
-    'Les vidéos et les fichiers audio ne peuvent être traités que dans la version complète de Morph, pas dans cet aperçu.',
+    'Les vidéos et les fichiers audio ne peuvent être traités que dans la version complète de Tinkrum, pas dans cet aperçu.',
   subtitlesNeedApp:
-    'L’export des sous-titres avec horodatage nécessite une version à jour de l’application Morph.',
+    'L’export des sous-titres avec horodatage nécessite une version à jour de l’application Tinkrum.',
   subtitlesNote:
     'Ce sont des fichiers SRT séparés. Ouvrez-les avec la vidéo d’origine dans un lecteur ou un éditeur compatible. Vérifiez le texte et la synchronisation ; les sous-titres ne sont pas intégrés à l’image.',
   annotateTitle: 'Annoter la photo',
@@ -606,7 +606,7 @@ export const fr: MessageTable = {
   annotateCount: '{n}/100 marques',
   annotateUndo: 'Annuler une',
   imageAdjustmentNeedsApp:
-    'La retouche de photo nécessite une version à jour de l’application Morph.',
+    'La retouche de photo nécessite une version à jour de l’application Tinkrum.',
   backgroundNeedsSystem:
     'Supprimer l’arrière-plan nécessite iOS 17 ou une version ultérieure, ou Android avec les services Google Play.',
   backgroundDownload: 'Télécharger',
@@ -625,11 +625,11 @@ export const fr: MessageTable = {
   runError_targetTooSmall:
     'À {target}, « {name} » serait trop flou pour être regardé. Il faut au moins {mb} Mo, ou le couper plus court d’abord.',
   runError_interrupted:
-    'Morph est passé en arrière-plan, le traitement n’a donc pas abouti. Restez dans Morph et appuyez sur « Relancer ».',
+    'Tinkrum est passé en arrière-plan, le traitement n’a donc pas abouti. Restez dans Tinkrum et appuyez sur « Relancer ».',
   // 长任务切到后台也继续（D-160–D-162）：运行页的提示，Android 通知栏的进度和完成通知。
   runCanLeave:
-    'Vous pouvez passer à une autre application ; Morph continue de travailler en arrière-plan.',
-  runStayInMorph: 'Restez dans Morph pendant le traitement.',
+    'Vous pouvez passer à une autre application ; Tinkrum continue de travailler en arrière-plan.',
+  runStayInMorph: 'Restez dans Tinkrum pendant le traitement.',
   bgPreparing: 'Préparation…',
   bgStep: 'Étape {n} sur {total} : {step}',
   bgDoneTitle: '« {name} » est terminé',
@@ -792,7 +792,7 @@ export const fr: MessageTable = {
   // 引导第 3 步：样板 App（D-260）。
   guideSamplesTitle: 'Étape 3',
   guideSamplesBody:
-    'Vous pouvez aussi faire de Morph votre propre app. Choisissez-en une pour essayer.',
+    'Vous pouvez aussi faire de Tinkrum votre propre app. Choisissez-en une pour essayer.',
   sampleDraftInput: 'Utiliser l’app modèle « {name} »',
   sampleReadyTitle: '« {name} » est prête',
   sampleReadyBody: 'Pour l’adapter à vos besoins, demandez à l’IA de continuer à la modifier.',
@@ -814,7 +814,7 @@ export const fr: MessageTable = {
   needRetry: 'Non envoyé. Réessayez',
   needSent:
     'Merci, c’est noté. Les nouveaux outils arriveront avec les mises à jour et les téléchargements.',
-  needPrivacy: 'Seule cette phrase est envoyée à Morph — ni fichiers, ni entrées, ni réglages.',
+  needPrivacy: 'Seule cette phrase est envoyée à Tinkrum — ni fichiers, ni entrées, ni réglages.',
   needsSettingTitle: 'Proposer d’envoyer les demandes que l’IA ne sait pas traiter',
   needsSettingNote:
     'Affiche un bouton sous la réponse. Rien n’est envoyé sans que vous appuyiez dessus.',
@@ -885,7 +885,7 @@ export const fr: MessageTable = {
 
   // 命名用识别出的文字（D-244）
   runError_needsRecognition:
-    'Ce nom de fichier utilise du texte reconnu dans le fichier, et cet appareil ne peut pas reconnaître le texte lui-même. Utilisez l’app Morph complète, ou retirez cette partie du nom.',
+    'Ce nom de fichier utilise du texte reconnu dans le fichier, et cet appareil ne peut pas reconnaître le texte lui-même. Utilisez l’app Tinkrum complète, ou retirez cette partie du nom.',
   // 统计按选项分组（D-248）
   statNoChoice: 'Non renseigné',
   // 图表（D-249）
@@ -917,16 +917,16 @@ export const fr: MessageTable = {
   describeRemoveReminder: 'Retirer le rappel « {title} »',
   // 手机桌面（D-271）
   describeHomeScreenOn:
-    'Mettre « {name} » sur l’écran d’accueil du téléphone : appuyez longuement sur l’icône Morph pour la voir',
+    'Mettre « {name} » sur l’écran d’accueil du téléphone : appuyez longuement sur l’icône Tinkrum pour la voir',
   describeHomeScreenOff: 'Retirer « {name} » de l’écran d’accueil du téléphone',
   homeScreenTitle: 'Sur l’écran d’accueil du téléphone',
   homeScreenIos:
-    'Appuyez longuement sur l’icône Morph sur l’écran d’accueil pour voir « {name} ». Touchez-la pour la lancer tout de suite.',
+    'Appuyez longuement sur l’icône Tinkrum sur l’écran d’accueil pour voir « {name} ». Touchez-la pour la lancer tout de suite.',
   homeScreenAndroid:
-    'Appuyez longuement sur l’icône Morph pour voir « {name} », ou donnez-lui sa propre icône sur l’écran d’accueil.',
+    'Appuyez longuement sur l’icône Tinkrum pour voir « {name} », ou donnez-lui sa propre icône sur l’écran d’accueil.',
   homeScreenPin: 'Ajouter à l’écran d’accueil',
   homeScreenPinFailed:
-    'Cet écran d’accueil ne peut pas ajouter l’icône. Appuyez longuement sur l’icône Morph à la place.',
+    'Cet écran d’accueil ne peut pas ajouter l’icône. Appuyez longuement sur l’icône Tinkrum à la place.',
   homeScreenAdd: 'Mettre sur l’écran d’accueil',
   homeScreenRemove: 'Retirer de l’écran d’accueil',
   homeScreenAdded: '« {name} » ajoutée à l’écran d’accueil',
@@ -963,7 +963,7 @@ export const fr: MessageTable = {
     'Les rappels sont des notifications sur cet appareil. En toucher un ouvre seulement la page ou l’action rapide ; rien ne s’exécute tout seul. Pour ajouter ou modifier un rappel, demandez à l’IA (par exemple « rappelle-moi tous les jours à 9 h de noter mes dépenses »).',
   remindersNone: 'Aucun rappel pour l’instant',
   remindersOff:
-    'Les notifications de Morph sont désactivées. Activez-les dans les Réglages du système pour recevoir les rappels.',
+    'Les notifications de Tinkrum sont désactivées. Activez-les dans les Réglages du système pour recevoir les rappels.',
   reminderRemove: 'Retirer',
   reminderOpenTitle: 'Depuis votre rappel',
   reminderOpenRun: 'Démarrer',
@@ -1246,9 +1246,9 @@ export const fr: MessageTable = {
   format_report_25207: 'rapport',
   format_e_g_248d5: ' (par ex. {v0})',
   format_your_text_6c667: '(votre texte)',
-  ShareScreen_Shared_with_Morph_bb8fe: 'Partagé avec Morph',
+  ShareScreen_Shared_with_Morph_bb8fe: 'Partagé avec Tinkrum',
   ShareScreen_Morph_only_takes_files_photos_PDFs_and_91f45:
-    'Morph n’accepte que les fichiers (photos, PDF, etc.), pas le texte ni les liens.',
+    'Tinkrum n’accepte que les fichiers (photos, PDF, etc.), pas le texte ni les liens.',
   ShareScreen_Close_59a26: 'Fermer',
   ShareScreen_just_made_ed6c1: ' · à l’instant',
   ShareScreen_Run_5cab2: 'Exécuter',
@@ -1304,7 +1304,7 @@ export const fr: MessageTable = {
   CropScreen_Reset_efa10: 'Réinitialiser',
   PasswordScreen_Open_c5147: 'Ouvrir',
   PasswordScreen_This_PDF_needs_a_password_to_open_Morp_31218:
-    'Ce PDF nécessite un mot de passe pour s’ouvrir. Morph enregistre une copie sans mot de passe ; l’original reste inchangé.',
+    'Ce PDF nécessite un mot de passe pour s’ouvrir. Tinkrum enregistre une copie sans mot de passe ; l’original reste inchangé.',
   PasswordScreen_That_password_is_wrong_Try_again_74476: 'Mot de passe incorrect. Réessayez.',
   PasswordScreen_The_password_is_not_saved_9f226: 'Le mot de passe n’est pas enregistré.',
   PasswordScreen_Skip_this_one_71a32: 'Ignorer celui-ci',
@@ -1364,10 +1364,10 @@ export const fr: MessageTable = {
   WorkflowsScreen_Edit_ef7c8: 'Modifier',
   WorkflowsScreen_The_first_run_downloads_what_it_needs__3a8fa:
     'La première utilisation télécharge les éléments nécessaires ; ensuite, vous pouvez l’utiliser hors connexion.',
-  WorkflowsScreen_What_Morph_can_do_8f4f4: 'Ce que Morph peut faire',
+  WorkflowsScreen_What_Morph_can_do_8f4f4: 'Ce que Tinkrum peut faire',
   WorkflowsScreen_Make_your_own_quick_action_8bc98: 'Créer votre propre action rapide',
   ChangeScreen_and_d40e9: ' et ',
-  _layout_What_Morph_can_do_8f4f4: 'Ce que Morph peut faire',
+  _layout_What_Morph_can_do_8f4f4: 'Ce que Tinkrum peut faire',
   _kind__Category_not_found_5faf2: 'Catégorie introuvable',
   _id__This_quick_action_no_longer_exists_35f5a: 'Cette action rapide n’existe plus.',
 
@@ -1578,15 +1578,15 @@ export const fr: MessageTable = {
     'Cette page s’ouvre pour une entrée précise : un widget ne saurait pas laquelle afficher. Placez le même composant sur une page ordinaire et ajoutez celui-là.',
   widgetUnsupportedHelp:
     'Les widgets peuvent afficher une statistique, un bouton ou une liste d’entrées (aspect liste, cartes, liste à cocher ou tuiles).',
-  widgetUnsupported: 'Un widget ne peut pas afficher ce composant. Touchez pour ouvrir Morph.',
-  widgetGone: 'Ce composant a été retiré de Morph.',
+  widgetUnsupported: 'Un widget ne peut pas afficher ce composant. Touchez pour ouvrir Tinkrum.',
+  widgetGone: 'Ce composant a été retiré de Tinkrum.',
   widgetAdded: 'Enregistré',
-  widgetStale: 'Ouvrez Morph pour mettre à jour',
+  widgetStale: 'Ouvrez Tinkrum pour mettre à jour',
   widgetIosTitle: 'Ajouté à la liste des widgets',
   widgetIosHow:
-    'Sur l’écran d’accueil, maintenez le doigt sur un espace vide, touchez le bouton en haut à gauche, choisissez Ajouter un widget, puis Morph. Si vous avez ajouté plusieurs composants, maintenez le doigt sur le widget, choisissez Modifier le widget et sélectionnez « {name} ».',
+    'Sur l’écran d’accueil, maintenez le doigt sur un espace vide, touchez le bouton en haut à gauche, choisissez Ajouter un widget, puis Tinkrum. Si vous avez ajouté plusieurs composants, maintenez le doigt sur le widget, choisissez Modifier le widget et sélectionnez « {name} ».',
   widgetPinFailed:
-    'Cet écran d’accueil ne permet pas d’ajouter un widget depuis Morph. Maintenez le doigt sur l’écran d’accueil, choisissez Widgets et ajoutez Morph.',
+    'Cet écran d’accueil ne permet pas d’ajouter un widget depuis Tinkrum. Maintenez le doigt sur l’écran d’accueil, choisissez Widgets et ajoutez Tinkrum.',
   widgetDone: '{n} appuis du widget enregistrés',
   widgetSkipped: '{n} appuis sur le widget n’ont pas été enregistrés, car la page a changé',
   // 文件房间（D-357–D-360）。

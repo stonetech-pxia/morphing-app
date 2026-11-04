@@ -93,9 +93,11 @@ describe('video journeys (UI)', () => {
     const { files } = await openVideoTool();
     files.nextVideos = [files.offerVideo('trip.mov', { size: 60 * MB })];
     await fireEvent.press(screen.getByTestId('run-video-trim'));
-    // 没有后台模块（像 iOS 现在）：请留在 Morph 里。
+    // 没有后台模块（像 iOS 现在）：请留在 Tinkrum 里。
     await screen.findByTestId('trim-start', {}, { timeout: 3000 });
-    expect(screen.getByTestId('run-background-hint')).toHaveTextContent('处理时请留在 Morph 里。');
+    expect(screen.getByTestId('run-background-hint')).toHaveTextContent(
+      '处理时请留在 Tinkrum 里。',
+    );
     await fireEvent.press(screen.getByTestId('local-done'));
     await screen.findByText(/^1:00 · /);
     expect(screen.queryByTestId('run-background-hint')).toBeNull();
@@ -106,7 +108,7 @@ describe('video journeys (UI)', () => {
     await fireEvent.press(screen.getByTestId('run-again'));
     await screen.findByTestId('trim-start', {}, { timeout: 3000 });
     expect(screen.getByTestId('run-background-hint')).toHaveTextContent(
-      '可以切到别的 App，Morph 会在后台接着处理。',
+      '可以切到别的 App，Tinkrum 会在后台接着处理。',
     );
   });
 
@@ -116,7 +118,7 @@ describe('video journeys (UI)', () => {
     files.nextVideos = [files.offerVideo('a.mov', { size: 100 * MB })];
     await fireEvent.press(screen.getByTestId('run-video-trim'));
     expect(
-      await screen.findByText('视频和音频要在正式版 Morph 里处理，这个预览版里不行。'),
+      await screen.findByText('视频和音频要在正式版 Tinkrum 里处理，这个预览版里不行。'),
     ).toBeTruthy();
   });
 });

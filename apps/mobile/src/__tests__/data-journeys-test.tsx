@@ -279,7 +279,7 @@ describe('Settings → Data: app design and prefill memory', () => {
     await openData();
     await fireEvent.press(await screen.findByTestId('export-app-config'));
     const [[name, text]] = [...files.sharedTexts];
-    expect(name).toMatch(/^morph-config-\d{4}-\d{2}-\d{2}\.json$/);
+    expect(name).toMatch(/^tinkrum-config-\d{4}-\d{2}-\d{2}\.json$/);
     const file = JSON.parse(text!);
     expect(file.format).toBe('morph-app-config');
     expect(file.config.data.tables.map((c: { id: string }) => c.id)).toContain('notes');
@@ -322,7 +322,7 @@ describe('Settings → Data: app design and prefill memory', () => {
     expect(await screen.findByText('记住了 1 种单据版式')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('export-prefill-memory'));
     const [[name, text]] = [...files.sharedTexts];
-    expect(name).toMatch(/^morph-prefill-memory-.*\.json$/);
+    expect(name).toMatch(/^tinkrum-prefill-memory-.*\.json$/);
     expect(JSON.parse(text!).tables.expenses[0].id).toBe('a');
 
     // 取消：什么都不变。
@@ -356,7 +356,7 @@ describe('Settings → Data: app design and prefill memory', () => {
     await fireEvent.press(await screen.findByTestId('restore-prefill-memory'));
     expect(alert).toHaveBeenCalledWith(
       '从文件恢复',
-      '这个文件不是 Morph 导出的预填记忆，没有恢复。',
+      '这个文件不是 Tinkrum 导出的预填记忆，没有恢复。',
     );
     expect(parseLayoutStore(await repo.getMeta(LAYOUT_STORE_KEY)).expenses).toHaveLength(1);
   });

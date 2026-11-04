@@ -4472,7 +4472,7 @@ const VIDEO_SUBTITLE_CASES: EvalCase[] = [
 const QUICK_ACTION_ENTRY_CASES: EvalCase[] = [
   {
     id: 'QAC1',
-    input: '首页加上Morph 可以做什么',
+    input: '首页加上Tinkrum 可以做什么',
     locale: 'zh',
     setup: 'default',
     mock: false,
@@ -4495,7 +4495,7 @@ const QUICK_ACTION_ENTRY_CASES: EvalCase[] = [
   },
   {
     id: 'QAC2',
-    input: 'Add What Morph can do to home',
+    input: 'Add What Tinkrum can do to home',
     locale: 'en',
     setup: 'default',
     mock: false,
@@ -4759,9 +4759,9 @@ const EXPERIENCE_CASES: readonly EvalCase[] = [
       kind: 'reject',
       reason: 'unknown',
       message: (m) =>
-        /分享/.test(m) && /Morph/i.test(m)
+        /分享/.test(m) && /Tinkrum/i.test(m)
           ? null
-          : 'must suggest specialized editing and sharing back to Morph',
+          : 'must suggest specialized editing and sharing back to Tinkrum',
     },
   },
   {
@@ -4774,9 +4774,9 @@ const EXPERIENCE_CASES: readonly EvalCase[] = [
       kind: 'reject',
       reason: 'unknown',
       message: (m) =>
-        /shar/i.test(m) && /Morph/.test(m)
+        /shar/i.test(m) && /Tinkrum/.test(m)
           ? null
-          : 'must suggest sharing the edited file back to Morph',
+          : 'must suggest sharing the edited file back to Tinkrum',
     },
   },
   {
@@ -4790,9 +4790,9 @@ const EXPERIENCE_CASES: readonly EvalCase[] = [
       kind: 'reject',
       reason: 'unknown',
       message: (m) =>
-        /partag/i.test(m) && /Morph/.test(m)
+        /partag/i.test(m) && /Tinkrum/.test(m)
           ? null
-          : 'must suggest sharing the edited file back to Morph',
+          : 'must suggest sharing the edited file back to Tinkrum',
     },
   },
   {
@@ -6362,7 +6362,7 @@ const HOME_SCREEN_CASES: readonly EvalCase[] = [
   },
   {
     id: 'PHS1',
-    input: '签证照片那个快捷操作，我想在手机桌面上长按 Morph 就能直接用',
+    input: '签证照片那个快捷操作，我想在手机桌面上长按 Tinkrum 就能直接用',
     locale: 'zh',
     setup: 'visa',
     mock: false,

@@ -532,9 +532,9 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     id: 'out.addRecord',
     label: { en: 'Add a record', zh: '记一笔', fr: 'Ajouter un enregistrement' },
     description: {
-      en: "Hand the files (or the text) to a new record in a data table: the files are saved in Morph and go into the table's first attachment field (up to 20), text goes into its first long-text or text field, and the user checks the form and fills in the other fields (amount, category…) while the quick action runs; date fields start as today. The form reads the attachments on this device and suggests values by itself, so add no text-recognition step for that. The records stay on this device. The files are passed on unchanged.",
-      zh: '把文件（或这段文字）交给数据表的一条新记录：文件存进 Morph，放进表里第一个附件字段（最多 20 个）；文字放进第一个长文本或文字字段；用户在运行时的表单里核对并填其他字段（金额、分类等），日期默认今天。表单会在本机读附件、自己给出候选，不用为此加识别文字的步骤。记录只留在本机。文件原样交给下一步。',
-      fr: 'Transmettez les fichiers (ou le texte) à une nouvelle entrée d’un tableau de données : les fichiers sont enregistrés dans Morph et placés dans le premier champ pièce jointe du tableau (20 au maximum) ; le texte va dans le premier champ texte long ou texte ; vous vérifiez le formulaire et remplissez les autres champs (montant, catégorie…) pendant l’exécution de l’action rapide ; les champs de date commencent à aujourd’hui. Le formulaire lit les pièces jointes sur cet appareil et propose lui-même des valeurs : aucune étape de reconnaissance de texte n’est nécessaire pour cela. Les enregistrements restent sur cet appareil. Les fichiers sont transmis sans modification.',
+      en: "Hand the files (or the text) to a new record in a data table: the files are saved in Tinkrum and go into the table's first attachment field (up to 20), text goes into its first long-text or text field, and the user checks the form and fills in the other fields (amount, category…) while the quick action runs; date fields start as today. The form reads the attachments on this device and suggests values by itself, so add no text-recognition step for that. The records stay on this device. The files are passed on unchanged.",
+      zh: '把文件（或这段文字）交给数据表的一条新记录：文件存进 Tinkrum，放进表里第一个附件字段（最多 20 个）；文字放进第一个长文本或文字字段；用户在运行时的表单里核对并填其他字段（金额、分类等），日期默认今天。表单会在本机读附件、自己给出候选，不用为此加识别文字的步骤。记录只留在本机。文件原样交给下一步。',
+      fr: 'Transmettez les fichiers (ou le texte) à une nouvelle entrée d’un tableau de données : les fichiers sont enregistrés dans Tinkrum et placés dans le premier champ pièce jointe du tableau (20 au maximum) ; le texte va dans le premier champ texte long ou texte ; vous vérifiez le formulaire et remplissez les autres champs (montant, catégorie…) pendant l’exécution de l’action rapide ; les champs de date commencent à aujourd’hui. Le formulaire lit les pièces jointes sur cet appareil et propose lui-même des valeurs : aucune étape de reconnaissance de texte n’est nécessaire pour cela. Les enregistrements restent sur cet appareil. Les fichiers sont transmis sans modification.',
     },
     ai: 'A button that scans into a table ("扫小票", "scan receipts into my expenses") → in.photos source "scanner", scan.detect, out.addRecord. The form reads the attachments on the device and suggests values by itself, so add no ocr step for that. All the files go into one record; each: true only when the user wants one record per file ("每张一条", "one entry per receipt").',
     input: ['files', 'text'],
@@ -874,9 +874,9 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'file.save',
     label: {
-      en: 'Save to Morph files',
+      en: 'Save to Tinkrum files',
       zh: '存到文件',
-      fr: 'Enregistrer dans les fichiers de Morph',
+      fr: 'Enregistrer dans les fichiers de Tinkrum',
     },
     description: {
       en: 'Save the result to the files in this app.',
@@ -893,7 +893,7 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
   },
   {
     id: 'out.share',
-    ai: '"Send to X" (WeChat, WhatsApp, Mail…) → this: it opens the share sheet once with all the files and the user picks. Morph never uploads files or sends them to a contact by itself.',
+    ai: '"Send to X" (WeChat, WhatsApp, Mail…) → this: it opens the share sheet once with all the files and the user picks. Tinkrum never uploads files or sends them to a contact by itself.',
     label: { en: 'Share', zh: '分享', fr: 'Partager' },
     description: {
       en: 'Open the share sheet once with all the files (WeChat, WhatsApp, Mail, Messages, AirDrop, Files…).',
@@ -919,9 +919,9 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     ai: '"Put them in my cloud drive / a folder" → this: the user picks a folder in Files, which is also how files reach iCloud Drive, Google Drive or Dropbox.',
     label: { en: 'Save to a folder', zh: '存到文件夹', fr: 'Enregistrer dans un dossier' },
     description: {
-      en: 'Copy the files into a folder in Files (on this device, iCloud Drive, Google Drive, Dropbox…). The user picks the folder the first time; after that the same folder is used (it can be changed on the result page). Morph does not upload anything; the cloud app syncs the folder.',
-      zh: '把文件复制进「文件」里的一个文件夹（本机、iCloud 云盘、Google Drive、Dropbox…）。第一次由用户选，之后存到同一个文件夹（可以在结果页换）。Morph 不上传，网盘由它自己的 App 同步。',
-      fr: 'Copie les fichiers dans un dossier de l’app Fichiers (sur cet appareil, iCloud Drive, Google Drive, Dropbox…). Au premier usage, vous choisissez le dossier ; ensuite, le même dossier est utilisé (modifiable sur la page du résultat). Morph ne téléverse rien : c’est l’app du service de stockage qui synchronise le dossier.',
+      en: 'Copy the files into a folder in Files (on this device, iCloud Drive, Google Drive, Dropbox…). The user picks the folder the first time; after that the same folder is used (it can be changed on the result page). Tinkrum does not upload anything; the cloud app syncs the folder.',
+      zh: '把文件复制进「文件」里的一个文件夹（本机、iCloud 云盘、Google Drive、Dropbox…）。第一次由用户选，之后存到同一个文件夹（可以在结果页换）。Tinkrum 不上传，网盘由它自己的 App 同步。',
+      fr: 'Copie les fichiers dans un dossier de l’app Fichiers (sur cet appareil, iCloud Drive, Google Drive, Dropbox…). Au premier usage, vous choisissez le dossier ; ensuite, le même dossier est utilisé (modifiable sur la page du résultat). Tinkrum ne téléverse rien : c’est l’app du service de stockage qui synchronise le dossier.',
     },
     input: ['files'],
     output: 'same',

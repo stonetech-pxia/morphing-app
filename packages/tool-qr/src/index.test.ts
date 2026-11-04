@@ -13,7 +13,7 @@ import {
 } from './index';
 
 const SAMPLES = [
-  'Hello, Morph! 123',
+  'Hello, Tinkrum! 123',
   '你好，世界！这是一个二维码测试。',
   'https://example.com/path/页面?q=测试&id=42#top',
 ];

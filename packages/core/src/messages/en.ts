@@ -18,10 +18,10 @@ export const en = {
   shareRecent: 'Used before',
   shareSuggested: 'Try one of these',
   shareUsed: 'Used {n} times',
-  shareDescribe: 'Tell Morph what I need',
+  shareDescribe: 'Tell Tinkrum what I need',
   shareSeeAll: 'See all {n}',
   sharePicked: 'For the {what} you picked',
-  sharePlaceholder: 'Say what you want, and Morph will do its best',
+  sharePlaceholder: 'Say what you want, and Tinkrum will do its best',
   shareExpand: 'Show files',
   shareCollapse: 'Hide files',
   sharePreview: 'Preview',
@@ -100,7 +100,7 @@ export const en = {
   restoreNeedsTool:
     'This version uses {names}, which is not on this phone. Add it in Tools first, then restore.',
   listSeparator: ', ',
-  toolDownloadedHint: 'A tool downloaded from the Morph catalog.',
+  toolDownloadedHint: 'A tool downloaded from the Tinkrum catalog.',
   toolDeleteMessage: 'You can download it again from Tools later.',
   toolDeleteAdded: 'This tool is still added. Remove it in Tools first, then delete it here.',
 
@@ -115,7 +115,7 @@ export const en = {
   language: 'Language',
   languageValue: 'English (follows system)',
   aiEngine: 'AI',
-  aiEngineRemote: 'Claude via the Morph server',
+  aiEngineRemote: 'Claude via the Tinkrum server',
   aiEngineMock: 'Built-in rules (offline mock)',
   aiEngineByok: 'My own API key ({model})',
 
@@ -124,23 +124,23 @@ export const en = {
   aiModeQuestion: 'Which AI changes this app',
   aiModeMock: 'Built-in rules',
   aiModeMockNote: 'Offline and free. Understands a fixed set of phrases.',
-  aiModeServer: 'Morph server',
+  aiModeServer: 'Tinkrum server',
   aiModeServerNote: 'Claude through {url}.',
-  // 测试期服务器保存请求（D-240）：只在用 Morph 服务器时显示。
+  // 测试期服务器保存请求（D-240）：只在用 Tinkrum 服务器时显示。
   aiServerStoredNote:
-    'During the beta, what you say to the AI and the app’s settings are saved to improve Morph. Files and entries are never sent.',
+    'During the beta, what you say to the AI and the app’s settings are saved to improve Tinkrum. Files and entries are never sent.',
   aiModeByok: 'My own API key',
   aiModeByokNote:
     'Calls the provider you choose directly from this phone: Claude, or any OpenAI-compatible API. Usage is billed to your account with that provider.',
   // 自带 key 的两种 provider（D-241）
   byokProviderLabel: 'Provider',
   byokProviderAnthropic: 'Anthropic (Claude)',
-  byokProviderAnthropicNote: 'Tested. Morph’s instructions to the AI are tuned for Claude.',
+  byokProviderAnthropicNote: 'Tested. Tinkrum’s instructions to the AI are tuned for Claude.',
   byokProviderOpenAI: 'OpenAI-compatible API',
   byokProviderOpenAINote:
     'OpenAI, OpenRouter, DeepSeek, Gemini, Groq, Ollama, LM Studio and others. Not tested.',
   byokOtherWarning:
-    'Morph is tested with Claude. Other models may misunderstand requests or refuse them more often. Every change is still checked before it is applied, and you can undo it.',
+    'Tinkrum is tested with Claude. Other models may misunderstand requests or refuse them more often. Every change is still checked before it is applied, and you can undo it.',
   byokSentNote:
     'When you ask for a change, what you say and the app’s settings are sent to {host}. Your files and entries are never sent.',
   baseUrlLabel: 'Base URL',
@@ -187,7 +187,7 @@ export const en = {
     'Couldn’t reach the AI provider, or it didn’t accept the request. Nothing was changed; check the address, the model name and the network.',
   aiBadOutput: 'The AI’s answer couldn’t be used. Nothing was changed; try saying it another way.',
   about: 'About',
-  aboutValue: 'Morph prototype · AGPL-3.0 · schema v{schema} · version #{revision}',
+  aboutValue: 'Tinkrum prototype · AGPL-3.0 · schema v{schema} · version #{revision}',
 
   // 页面组件
   noFiles: 'No files yet',
@@ -207,7 +207,7 @@ export const en = {
     'This quick action has a step that doesn’t fit. Adjust its settings and try again.',
   runError_cameraUnavailable: 'The camera is not available on this device.',
   runError_permissionDenied:
-    'Morph needs permission for this ({what}). You can allow it in the system Settings.',
+    'Tinkrum needs permission for this ({what}). You can allow it in the system Settings.',
   runError_packFailed: 'The download didn’t finish: {detail}',
   runError_targetNotMet: 'Couldn’t get “{name}” under {target} (the smallest was {got}).',
   runError_unsupportedText: 'This text can’t be written into the PDF yet: {name}',
@@ -228,7 +228,7 @@ export const en = {
   runError_encrypted:
     '“{name}” has a password. Add the step “Remove PDF password” before this one.',
   runError_pdfRestricted:
-    '“{name}” opens without a password, but its author limited changes to it. Morph doesn’t remove such limits.',
+    '“{name}” opens without a password, but its author limited changes to it. Tinkrum doesn’t remove such limits.',
   runError_pdfPasswordUnsupported:
     'This phone can’t remove or add PDF passwords yet (iPhone only for now).',
   runError_accessDenied: '“{name}” could not be accessed. Check permissions and try again.',
@@ -321,7 +321,7 @@ export const en = {
   removeFileSummary: 'Remove a file',
   fileSlotTooLarge: 'This file is larger than {gb} GB.',
   fileSlotNoSpace: 'Not enough free space on this phone to keep a copy of this file.',
-  fileSlotCopyFailed: 'This file could not be copied into Morph.',
+  fileSlotCopyFailed: 'This file could not be copied into Tinkrum.',
   openLinkTitle: 'Open link?',
   openLinkMessage: 'This opens {target} outside the app.',
   openLink: 'Open',
@@ -347,7 +347,7 @@ export const en = {
     'This data table is no longer part of the app. Its entries are kept in Settings → Data.',
   dataTitle: 'Data',
   storageTitle: 'Storage',
-  storageRowHint: 'Photos and files Morph keeps, and where they are used',
+  storageRowHint: 'Photos and files Tinkrum keeps, and where they are used',
   presetsTitle: 'My presets',
   presetsRowHint: 'Save this whole app and switch back to it anytime',
   presetsHint:
@@ -367,8 +367,9 @@ export const en = {
   presetApplyFiles: 'Images and file slots you picked won’t carry over; you pick them again after',
   storageSummary: '{n} files · {size}',
   storageEmpty:
-    'Morph has no saved files yet. Photos and files you add to entries, file slots and pictures are kept here.',
-  storageIntro: 'Files Morph keeps on this phone and where they are used. Only you see this page.',
+    'Tinkrum has no saved files yet. Photos and files you add to entries, file slots and pictures are kept here.',
+  storageIntro:
+    'Files Tinkrum keeps on this phone and where they are used. Only you see this page.',
   storageCleanup: 'Clean up {n} unused files ({size})',
   storageCleanupTitle: 'Delete {n} unused files?',
   storageCleanupMessage:
@@ -426,18 +427,18 @@ export const en = {
     'Delete the on-device model? Suggestions go back to rules only. Your entries stay. You can download it again.',
   prefillMemoryTitle: 'Prefill memory',
   prefillMemoryHint:
-    'When you log an entry, Morph remembers the layout of documents you saved: which label a value follows, roughly which line, and the shop name. It does not keep amounts or dates. Stored only on this phone, never sent to the AI. The exported file is also a backup: use “Restore from file” to bring it back. In a new entry form, Morph also remembers which suggestion you picked for each field: the label it followed and roughly where it was, not the value.',
+    'When you log an entry, Tinkrum remembers the layout of documents you saved: which label a value follows, roughly which line, and the shop name. It does not keep amounts or dates. Stored only on this phone, never sent to the AI. The exported file is also a backup: use “Restore from file” to bring it back. In a new entry form, Tinkrum also remembers which suggestion you picked for each field: the label it followed and roughly where it was, not the value.',
   prefillMemoryCount: 'Remembers {count} document layouts',
   prefillMemoryNone: 'No document layouts remembered yet',
   prefillMemoryExport: 'Export',
   prefillMemoryRestore: 'Restore from file',
   prefillMemoryClear: 'Clear',
   prefillMemoryClearConfirm:
-    'Clear all prefill memory? Morph will have to learn again. This can’t be undone.',
+    'Clear all prefill memory? Tinkrum will have to learn again. This can’t be undone.',
   prefillMemoryRestoreConfirm:
     'Replace the current prefill memory with the one in this file ({count} layouts)?',
   prefillMemoryRestoreInvalid:
-    'This file is not prefill memory exported from Morph. Nothing was restored.',
+    'This file is not prefill memory exported from Tinkrum. Nothing was restored.',
   prefillMemoryRestored: 'Restored {count} document layouts.',
   prefillMemoryPicks: 'Remembers {count} picked suggestions',
   // New entry form: suggested values from attachments (D-394)
@@ -447,7 +448,7 @@ export const en = {
   suggestionsDownload: 'Suggest values',
   dataModelDownloadAsk: 'Download date and amount recognition?',
   dataModelDownloadBody:
-    'Google needs to download the recognition model for this language first. Recognition runs on this phone and the text is not uploaded; after the download it works offline. Without it, Morph still prefills using its own rules.',
+    'Google needs to download the recognition model for this language first. Recognition runs on this phone and the text is not uploaded; after the download it works offline. Without it, Tinkrum still prefills using its own rules.',
   dataModelDownload: 'Download',
 
   // 直接编辑（长按一块、调整顺序）
@@ -515,10 +516,10 @@ export const en = {
   aboutTableHint: 'Say what its form should ask, for example a new field.',
   aboutToolsScreen: 'Changing the Tools page',
   aboutToolsScreenHint:
-    'This page comes with Morph and can’t be rearranged, but AI can add or remove tools.',
+    'This page comes with Tinkrum and can’t be rearranged, but AI can add or remove tools.',
   aboutQuickActionsScreen: 'Changing the Quick actions page',
   aboutQuickActionsScreenHint:
-    'This page comes with Morph and can’t be rearranged, but AI can make or change quick actions.',
+    'This page comes with Tinkrum and can’t be rearranged, but AI can make or change quick actions.',
   aboutDesk: 'Changing the file desk',
   aboutDeskHint: 'AI can change its buttons and layout. It never touches the files on it.',
   aboutShared: 'For the {what} you shared',
@@ -533,7 +534,7 @@ export const en = {
   habitMade: 'Added “{name}” to the home page',
 
   // ---- 翻译（D-170–D-176）：错误说明拼进「不支持这个步骤：…」/「需要的内容没有下载好：…」 ----
-  translateNeedsFullApp: 'Translate (it works in the full Morph app, not in this preview)',
+  translateNeedsFullApp: 'Translate (it works in the full Tinkrum app, not in this preview)',
   translateOsTooOld: 'Translate (needs iOS 18 or later)',
   translatePairUnsupported: 'translating {from} into {to} (this phone can’t do it)',
   translateDownloadAsk: 'First use needs a download of about {mb} MB',
@@ -542,7 +543,7 @@ export const en = {
   translateDownload: 'Download',
   translateSystemDownloadAsk: 'Translating needs language downloads first',
   translateSystemDownloadBody:
-    'Languages to download: {langs}. Your iPhone will ask you to confirm next, and the download may take a few minutes, so stay in Morph. Next time you can download them first in the iPhone’s Settings → Apps → Translate.',
+    'Languages to download: {langs}. Your iPhone will ask you to confirm next, and the download may take a few minutes, so stay in Tinkrum. Next time you can download them first in the iPhone’s Settings → Apps → Translate.',
   translateDownloadFailed: 'the {langs} language files (check the connection and try again)',
   translateLanguageTitle: 'Translation: {name}',
   translateLanguageHint: 'About 30 MB, for translating on this device (Google ML Kit).',
@@ -553,8 +554,8 @@ export const en = {
   // ---- 视频、音频和压缩 PDF（D-140–D-148）。音频工具的文字请另起一块，方便合并。----
   runPercent: '{done}%',
   runError_needsFullApp:
-    'Videos and audio can only be processed in the full Morph app, not in this preview.',
-  subtitlesNeedApp: 'Exporting timed captions needs an updated Morph app.',
+    'Videos and audio can only be processed in the full Tinkrum app, not in this preview.',
+  subtitlesNeedApp: 'Exporting timed captions needs an updated Tinkrum app.',
   subtitlesNote:
     'These are separate SRT files. Open them with the original video in a compatible player or editor. Review the words and timing; captions have not been burned into the picture.',
   annotateTitle: 'Mark up photo',
@@ -568,7 +569,7 @@ export const en = {
   annotateDrag: 'Drag on the photo to draw. Undo to replace a mark.',
   annotateCount: '{n}/100 marks',
   annotateUndo: 'Undo',
-  imageAdjustmentNeedsApp: 'Photo adjustment needs an updated Morph app.',
+  imageAdjustmentNeedsApp: 'Photo adjustment needs an updated Tinkrum app.',
   backgroundNeedsSystem:
     'Background removal needs iOS 17 or later, or Android with Google Play services.',
   backgroundDownload: 'Download',
@@ -587,10 +588,10 @@ export const en = {
   runError_targetTooSmall:
     'At {target}, “{name}” would be too blurry to watch. It needs at least {mb} MB, or trim it shorter first.',
   runError_interrupted:
-    'Morph went to the background, so this didn’t finish. Stay in Morph and tap “Run again”.',
+    'Tinkrum went to the background, so this didn’t finish. Stay in Tinkrum and tap “Run again”.',
   // 长任务切到后台也继续（D-160–D-162）：运行页的提示，Android 通知栏的进度和完成通知。
-  runCanLeave: 'You can switch to another app; Morph keeps working in the background.',
-  runStayInMorph: 'Stay in Morph while this is being processed.',
+  runCanLeave: 'You can switch to another app; Tinkrum keeps working in the background.',
+  runStayInMorph: 'Stay in Tinkrum while this is being processed.',
   bgPreparing: 'Getting ready…',
   bgStep: 'Step {n} of {total}: {step}',
   bgDoneTitle: '“{name}” is done',
@@ -743,7 +744,7 @@ export const en = {
   guideSkipAll: 'Skip the guide',
   // 引导第 3 步：样板 App（D-260）。
   guideSamplesTitle: 'Step 3',
-  guideSamplesBody: 'You can also turn Morph into an app of your own. Pick one to try.',
+  guideSamplesBody: 'You can also turn Tinkrum into an app of your own. Pick one to try.',
   sampleDraftInput: 'Use the “{name}” sample app',
   sampleReadyTitle: '“{name}” is ready',
   sampleReadyBody: 'To make it your own, ask AI to keep changing it.',
@@ -764,7 +765,7 @@ export const en = {
   needSend: 'Tell us you need this',
   needRetry: 'Not sent. Try again',
   needSent: 'Thanks, we got it. New tools come through updates and downloads.',
-  needPrivacy: 'Only this sentence is sent to Morph — no files, entries or settings.',
+  needPrivacy: 'Only this sentence is sent to Tinkrum — no files, entries or settings.',
   needsSettingTitle: 'Offer to send requests AI can’t do',
   needsSettingNote: 'Shows a button under the answer. Nothing is sent unless you tap it.',
   // ---- 记一笔、附件和公式字段（D-187、D-188）----
@@ -829,7 +830,7 @@ export const en = {
 
   // 命名用识别出的文字（D-244）
   runError_needsRecognition:
-    'This file name uses text recognized in the file, and this device can’t recognize text on its own. Use the full Morph app, or remove that part of the name.',
+    'This file name uses text recognized in the file, and this device can’t recognize text on its own. Use the full Tinkrum app, or remove that part of the name.',
   // 统计按选项分组（D-248）
   statNoChoice: 'Not set',
   // 图表（D-249）
@@ -860,15 +861,15 @@ export const en = {
   describeRemoveReminder: 'Remove reminder “{title}”',
   // 手机桌面（D-271）
   describeHomeScreenOn:
-    'Put “{name}” on the phone’s home screen: long-press the Morph icon to see it',
+    'Put “{name}” on the phone’s home screen: long-press the Tinkrum icon to see it',
   describeHomeScreenOff: 'Take “{name}” off the phone’s home screen',
   homeScreenTitle: 'On your phone’s home screen',
   homeScreenIos:
-    'Long-press the Morph icon on your home screen to see “{name}”. Tap it there to start right away.',
+    'Long-press the Tinkrum icon on your home screen to see “{name}”. Tap it there to start right away.',
   homeScreenAndroid:
-    'Long-press the Morph icon to see “{name}”, or give it its own icon on your home screen.',
+    'Long-press the Tinkrum icon to see “{name}”, or give it its own icon on your home screen.',
   homeScreenPin: 'Add to home screen',
-  homeScreenPinFailed: 'This home screen can’t add the icon. Long-press the Morph icon instead.',
+  homeScreenPinFailed: 'This home screen can’t add the icon. Long-press the Tinkrum icon instead.',
   homeScreenAdd: 'Put on home screen',
   homeScreenRemove: 'Take off home screen',
   homeScreenAdded: 'Put “{name}” on the home screen',
@@ -904,7 +905,7 @@ export const en = {
     'Reminders are notifications on this device. Tapping one only opens the page or quick action; nothing runs by itself. To add or change a reminder, ask AI (for example “remind me every day at 9 to log expenses”).',
   remindersNone: 'No reminders yet',
   remindersOff:
-    'Notifications are off for Morph. Turn them on in the system Settings to get reminders.',
+    'Notifications are off for Tinkrum. Turn them on in the system Settings to get reminders.',
   reminderRemove: 'Remove',
   reminderOpenTitle: 'From your reminder',
   reminderOpenRun: 'Start',
@@ -1184,9 +1185,9 @@ export const en = {
   format_report_25207: 'report',
   format_e_g_248d5: ' (e.g. {v0})',
   format_your_text_6c667: '(your text)',
-  ShareScreen_Shared_with_Morph_bb8fe: 'Shared with Morph',
+  ShareScreen_Shared_with_Morph_bb8fe: 'Shared with Tinkrum',
   ShareScreen_Morph_only_takes_files_photos_PDFs_and_91f45:
-    'Morph only takes files (photos, PDFs and so on), not text or links.',
+    'Tinkrum only takes files (photos, PDFs and so on), not text or links.',
   ShareScreen_Close_59a26: 'Close',
   ShareScreen_just_made_ed6c1: ' · just made',
   ShareScreen_Run_5cab2: 'Run',
@@ -1242,7 +1243,7 @@ export const en = {
   CropScreen_Reset_efa10: 'Reset',
   PasswordScreen_Open_c5147: 'Open',
   PasswordScreen_This_PDF_needs_a_password_to_open_Morp_31218:
-    'This PDF needs a password to open. Morph saves a copy without the password; the original stays as it is.',
+    'This PDF needs a password to open. Tinkrum saves a copy without the password; the original stays as it is.',
   PasswordScreen_That_password_is_wrong_Try_again_74476: 'That password is wrong. Try again.',
   PasswordScreen_The_password_is_not_saved_9f226: 'The password is not saved.',
   PasswordScreen_Skip_this_one_71a32: 'Skip this one',
@@ -1300,10 +1301,10 @@ export const en = {
   WorkflowsScreen_Edit_ef7c8: 'Edit',
   WorkflowsScreen_The_first_run_downloads_what_it_needs__3a8fa:
     'The first run downloads what it needs; it works offline afterwards.',
-  WorkflowsScreen_What_Morph_can_do_8f4f4: 'What Morph can do',
+  WorkflowsScreen_What_Morph_can_do_8f4f4: 'What Tinkrum can do',
   WorkflowsScreen_Make_your_own_quick_action_8bc98: 'Make your own quick action',
   ChangeScreen_and_d40e9: ' and ',
-  _layout_What_Morph_can_do_8f4f4: 'What Morph can do',
+  _layout_What_Morph_can_do_8f4f4: 'What Tinkrum can do',
   _kind__Category_not_found_5faf2: 'Category not found',
   _id__This_quick_action_no_longer_exists_35f5a: 'This quick action no longer exists.',
 
@@ -1509,15 +1510,15 @@ export const en = {
     'This page opens for one entry, so a widget wouldn’t know which entry to show. Put the same component on a regular page and add that one.',
   widgetUnsupportedHelp:
     'Home Screen widgets can show a stat, a button or a list of entries (list, cards, checklist or tiles look).',
-  widgetUnsupported: 'A widget can’t show this component. Tap to open Morph.',
-  widgetGone: 'This component was removed from Morph.',
+  widgetUnsupported: 'A widget can’t show this component. Tap to open Tinkrum.',
+  widgetGone: 'This component was removed from Tinkrum.',
   widgetAdded: 'Recorded',
-  widgetStale: 'Open Morph to update',
+  widgetStale: 'Open Tinkrum to update',
   widgetIosTitle: 'Added to the widget list',
   widgetIosHow:
-    'On the Home Screen, touch and hold an empty spot, tap the button at the top left, choose Add Widget, then Morph. If you added several components, touch and hold the widget, choose Edit Widget and pick “{name}”.',
+    'On the Home Screen, touch and hold an empty spot, tap the button at the top left, choose Add Widget, then Tinkrum. If you added several components, touch and hold the widget, choose Edit Widget and pick “{name}”.',
   widgetPinFailed:
-    'This home screen can’t add a widget from Morph. Touch and hold the home screen, choose Widgets and add Morph.',
+    'This home screen can’t add a widget from Tinkrum. Touch and hold the home screen, choose Widgets and add Tinkrum.',
   widgetDone: 'Recorded {n} taps from the Home Screen widget',
   widgetSkipped: '{n} taps on the widget weren’t recorded because the page changed',
   // 文件房间（D-357–D-360）。

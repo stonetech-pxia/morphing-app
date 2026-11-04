@@ -38,7 +38,7 @@ import v34Habits from '../../../../packages/core/src/fixtures/v34/habits.json';
 import v34Tasks from '../../../../packages/core/src/fixtures/v34/tasks.json';
 import v34Todo from '../../../../packages/core/src/fixtures/v34/todo.json';
 
-// Morph 的 19 条底线（AGENTS.md「底线」，创始人 2026-10-31 暂定，同一天改了 3、7、11、16，加了 19）在 App 这一层的守护测试：发给 AI 的请求、
+// Tinkrum 的 19 条底线（AGENTS.md「底线」，创始人 2026-10-31 暂定，同一天改了 3、7、11、16，加了 19）在 App 这一层的守护测试：发给 AI 的请求、
 // 记录在改 App 前后是否还在、看页面会不会写数据、写数据能不能撤销。core 那一层在
 // packages/core/src/invariants.test.ts，文件平台在 invariants-files-test.ts。
 // 测出真的违反时不改代码：标 it.failing，注释写「违反底线 N，待创始人决定：…」。
@@ -161,7 +161,7 @@ describe('底线 1 / 2：AI 的请求里没有数据内容（记录、文件名�
     ],
   };
 
-  it('Morph server mode: the AI page, the inbox and the draft chat send no data', async () => {
+  it('Tinkrum server mode: the AI page, the inbox and the draft chat send no data', async () => {
     const { bodies, fetchImpl } = capturingFetch(relayReply);
     const provider = createRemoteAIProvider({
       baseUrl: 'https://relay.test',

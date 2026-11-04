@@ -31,7 +31,7 @@ final class MediaCancelledException: Exception, @unchecked Sendable {
 
 final class MediaInterruptedException: Exception, @unchecked Sendable {
   override var code: String { "ERR_MEDIA_INTERRUPTED" }
-  override var reason: String { "Morph went to the background while processing" }
+  override var reason: String { "Tinkrum went to the background while processing" }
 }
 
 final class NotImplementedException: GenericException<String>, @unchecked Sendable {

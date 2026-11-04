@@ -142,7 +142,7 @@ describe('replacing the planned reminders (D-319)', () => {
     expect(mockPending.size).toBe(1);
   });
 
-  it('snoozes stay; Morph’s old notifications that are no longer planned go', async () => {
+  it('snoozes stay; Tinkrum’s old notifications that are no longer planned go', async () => {
     const platform = expoReminders('提醒');
     await platform.replaceAll([n('run', 0)]);
     await platform.snooze({ ...n('run', 0), id: 'snooze-habit-run' });

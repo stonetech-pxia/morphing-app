@@ -15,7 +15,7 @@ import type { AssetRecord } from '../storage/types';
 import { FakeFiles } from '../test-utils/fake-files';
 import { renderToolsApp } from '../test-utils/render-app';
 
-// 「设置 → 存储空间」（D-264）：列出 Morph 保存的全部文件、用在哪里，能删单个文件、一键清理没在用的。
+// 「设置 → 存储空间」（D-264）：列出 Tinkrum 保存的全部文件、用在哪里，能删单个文件、一键清理没在用的。
 
 const receipts: Collection = {
   id: 'expenses',

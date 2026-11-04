@@ -158,7 +158,7 @@ describe('translate.text', () => {
     ok.translator.missing = new Set(['ja']);
     expect((await ok.run()).status).toBe('succeeded');
     expect(ok.confirms).toEqual([
-      '第一次翻译要下载语言包｜要下载的语言：英文、日文。接下来 iPhone 会弹窗确认，下载可能要几分钟，请留在 Morph 里。以后也可以先在 iPhone 的「设置 → App → 翻译」里下好。',
+      '第一次翻译要下载语言包｜要下载的语言：英文、日文。接下来 iPhone 会弹窗确认，下载可能要几分钟，请留在 Tinkrum 里。以后也可以先在 iPhone 的「设置 → App → 翻译」里下好。',
     ]);
     const order = ok.translator.calls
       .filter((c) => c.method === 'prepare' || c.method === 'translate')

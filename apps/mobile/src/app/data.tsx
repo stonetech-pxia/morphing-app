@@ -139,7 +139,7 @@ export default function DataRoute() {
     const store = parseLayoutStore(await repo.getMeta(LAYOUT_STORE_KEY));
     const tapped = parsePickStore(await repo.getMeta(PICK_STORE_KEY));
     await files.shareText(
-      `morph-prefill-memory-${today(now)}.json`,
+      `tinkrum-prefill-memory-${today(now)}.json`,
       layoutStoreFile(store, now, tapped),
       'application/json',
     );

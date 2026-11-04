@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 桌面小组件（D-321）：标题；统计的值和进度环；按钮；列表的几行或几个圆；说明；「打开 Morph 后更新」。 -->
+<!-- 桌面小组件（D-321）：标题；统计的值和进度环；按钮；列表的几行或几个圆；说明；「打开 Tinkrum 后更新」。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:id="@+id/widget_root"
   android:layout_width="match_parent"

@@ -52,8 +52,8 @@ struct MorphWidgetView: View {
   var body: some View {
     if entry.empty || entry.view == nil {
       VStack(alignment: .leading, spacing: 6) {
-        Text("Morph").font(.headline)
-        Text("In Morph, long-press a stat, button or list and choose Add to Home Screen.")
+        Text("Tinkrum").font(.headline)
+        Text("In Tinkrum, long-press a stat, button or list and choose Add to Home Screen.")
           .font(.caption).foregroundStyle(.secondary)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

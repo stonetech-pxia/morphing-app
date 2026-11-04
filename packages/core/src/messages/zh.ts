@@ -20,7 +20,7 @@ export const zh: MessageTable = {
   shareDescribe: '我要自己说',
   shareSeeAll: '查看全部 {n} 个',
   sharePicked: '给你选的 {what}',
-  sharePlaceholder: '说出你想要的，Morph 会努力完成你的需求',
+  sharePlaceholder: '说出你想要的，Tinkrum 会努力完成你的需求',
   shareExpand: '查看文件',
   shareCollapse: '收起文件',
   sharePreview: '预览',
@@ -96,7 +96,7 @@ export const zh: MessageTable = {
   toolDownloadRejected: '下载的内容没有通过安全检查，什么都没有改。',
   restoreNeedsTool: '这个版本用到了「{names}」，这台手机上还没有。先到「工具」里添加，再恢复。',
   listSeparator: '、',
-  toolDownloadedHint: '从 Morph 工具目录下载的工具。',
+  toolDownloadedHint: '从 Tinkrum 工具目录下载的工具。',
   toolDeleteMessage: '以后可以在「工具」里再下载。',
   toolDeleteAdded: '这个工具还在用。先到「工具」里移除它，再回来删除。',
 
@@ -111,7 +111,7 @@ export const zh: MessageTable = {
   language: '语言',
   languageValue: '简体中文（跟随系统）',
   aiEngine: 'AI',
-  aiEngineRemote: 'Claude（通过 Morph 服务器）',
+  aiEngineRemote: 'Claude（通过 Tinkrum 服务器）',
   aiEngineMock: '内置规则（离线 mock）',
   aiEngineByok: '我自己的 API key（{model}）',
 
@@ -120,23 +120,23 @@ export const zh: MessageTable = {
   aiModeQuestion: '用哪种 AI 修改这个 App',
   aiModeMock: '内置规则',
   aiModeMockNote: '离线、免费，只认识固定的几种说法。',
-  aiModeServer: 'Morph 服务器',
+  aiModeServer: 'Tinkrum 服务器',
   aiModeServerNote: '通过 {url} 调用 Claude。',
-  // 测试期服务器保存请求（D-240）：只在用 Morph 服务器时显示。
+  // 测试期服务器保存请求（D-240）：只在用 Tinkrum 服务器时显示。
   aiServerStoredNote:
-    '测试期间，你对 AI 说的话和界面配置会被保存，用来改进 Morph；文件和记录不会发送。',
+    '测试期间，你对 AI 说的话和界面配置会被保存，用来改进 Tinkrum；文件和记录不会发送。',
   aiModeByok: '我自己的 API key',
   aiModeByokNote:
     '从这台手机直接调用你选的 provider：Claude，或任意 OpenAI 兼容接口。费用由你在那家的账号支付。',
   // 自带 key 的两种 provider（D-241）
   byokProviderLabel: 'Provider',
   byokProviderAnthropic: 'Anthropic（Claude）',
-  byokProviderAnthropicNote: '测试过。Morph 给 AI 的说明是按 Claude 调的。',
+  byokProviderAnthropicNote: '测试过。Tinkrum 给 AI 的说明是按 Claude 调的。',
   byokProviderOpenAI: 'OpenAI 兼容接口',
   byokProviderOpenAINote:
     'OpenAI、OpenRouter、DeepSeek、Gemini、Groq、Ollama、LM Studio 等。没有测试过。',
   byokOtherWarning:
-    'Morph 是用 Claude 测试的。其他模型可能更容易理解错或拒绝。每次修改应用前照样会检查，应用后也能撤销。',
+    'Tinkrum 是用 Claude 测试的。其他模型可能更容易理解错或拒绝。每次修改应用前照样会检查，应用后也能撤销。',
   byokSentNote: '请 AI 修改时，你说的话和界面配置会发送到 {host}；文件和记录不会发送。',
   baseUrlLabel: 'Base URL',
   baseUrlPresets: '填入常见 provider 的地址',
@@ -179,7 +179,7 @@ export const zh: MessageTable = {
     '连不上 AI provider，或它不接受这个请求，没有做任何修改。请检查地址、模型名和网络。',
   aiBadOutput: 'AI 返回的内容无法使用，没有做任何修改，请换个说法再试。',
   about: '关于',
-  aboutValue: 'Morph 原型 · AGPL-3.0 · schema v{schema} · 版本 #{revision}',
+  aboutValue: 'Tinkrum 原型 · AGPL-3.0 · schema v{schema} · 版本 #{revision}',
 
   // 页面组件
   noFiles: '还没有文件',
@@ -216,7 +216,7 @@ export const zh: MessageTable = {
   runError_tooLargeTotal: '所选文件合计超过 {mb} MB。',
   runError_unreadable: '无法读取「{name}」，文件可能已损坏。',
   runError_encrypted: '「{name}」有密码。可以在前面加一步「去掉 PDF 密码」。',
-  runError_pdfRestricted: '「{name}」不用密码就能打开，但作者限制了修改。Morph 不解除这种限制。',
+  runError_pdfRestricted: '「{name}」不用密码就能打开，但作者限制了修改。Tinkrum 不解除这种限制。',
   runError_pdfPasswordUnsupported: '这台手机暂时不能去掉或加上 PDF 密码（目前只有 iPhone 能用）。',
   runError_accessDenied: '无法访问「{name}」，请检查权限后重试。',
   runError_saveFailed: '保存失败：{detail}',
@@ -305,7 +305,7 @@ export const zh: MessageTable = {
   removeFileSummary: '移除文件',
   fileSlotTooLarge: '这个文件超过 {gb} GB。',
   fileSlotNoSpace: '手机剩余空间不够，存不下这个文件的副本。',
-  fileSlotCopyFailed: '这个文件没能复制进 Morph。',
+  fileSlotCopyFailed: '这个文件没能复制进 Tinkrum。',
   openLinkTitle: '打开链接？',
   openLinkMessage: '将在 App 外打开 {target}。',
   openLink: '打开',
@@ -330,7 +330,7 @@ export const zh: MessageTable = {
   tableMissing: '这张数据表已不在界面里，记录保存在「设置 → 数据」。',
   dataTitle: '数据',
   storageTitle: '存储空间',
-  storageRowHint: 'Morph 保存的照片和文件，用在哪里',
+  storageRowHint: 'Tinkrum 保存的照片和文件，用在哪里',
   presetsTitle: '我的预设',
   presetsRowHint: '把整个 App 存起来，随时换回来',
   presetsHint:
@@ -349,8 +349,8 @@ export const zh: MessageTable = {
   presetApplyFiles: '现在选好的图片和文件位不会跟过来，换完要重新选',
   storageSummary: '{n} 个文件 · {size}',
   storageEmpty:
-    'Morph 里还没有保存的文件。记录里的照片和文件、文件入口和图片用到的文件都存在这里。',
-  storageIntro: 'Morph 存在这台手机上的文件，以及它们用在哪里。这一页只有你能看到。',
+    'Tinkrum 里还没有保存的文件。记录里的照片和文件、文件入口和图片用到的文件都存在这里。',
+  storageIntro: 'Tinkrum 存在这台手机上的文件，以及它们用在哪里。这一页只有你能看到。',
   storageCleanup: '清理 {n} 个没有在用的文件（{size}）',
   storageCleanupTitle: '删除 {n} 个没有在用的文件？',
   storageCleanupMessage:
@@ -405,7 +405,7 @@ export const zh: MessageTable = {
   localModelRemoveConfirm: '删除本机模型？候选回到只用规则，记录都还在，以后可以再下载。',
   prefillMemoryTitle: '预填记忆',
   prefillMemoryHint:
-    '「记一笔」时，Morph 会记住你保存过的单据版式：值跟在哪个标签后面、大约在哪一行、商家名，不记金额和日期。只在这台手机上，不发给 AI。导出的文件也是备份，可以用「从文件恢复」放回来。新记录表单里点过的候选也会记住：每个字段跟在哪个标签后面、大约在哪个位置，不记值。',
+    '「记一笔」时，Tinkrum 会记住你保存过的单据版式：值跟在哪个标签后面、大约在哪一行、商家名，不记金额和日期。只在这台手机上，不发给 AI。导出的文件也是备份，可以用「从文件恢复」放回来。新记录表单里点过的候选也会记住：每个字段跟在哪个标签后面、大约在哪个位置，不记值。',
   prefillMemoryCount: '记住了 {count} 种单据版式',
   prefillMemoryNone: '还没有记住单据版式',
   prefillMemoryExport: '导出',
@@ -413,7 +413,7 @@ export const zh: MessageTable = {
   prefillMemoryClear: '清空',
   prefillMemoryClearConfirm: '清空全部预填记忆？以后要重新学。此操作无法撤销。',
   prefillMemoryRestoreConfirm: '用这个文件里的预填记忆（{count} 种版式）替换现在的？',
-  prefillMemoryRestoreInvalid: '这个文件不是 Morph 导出的预填记忆，没有恢复。',
+  prefillMemoryRestoreInvalid: '这个文件不是 Tinkrum 导出的预填记忆，没有恢复。',
   prefillMemoryRestored: '已恢复 {count} 种单据版式。',
   prefillMemoryPicks: '记住了 {count} 个字段点过的候选',
   // 新记录表单：从附件里找的候选值（D-394）
@@ -423,7 +423,7 @@ export const zh: MessageTable = {
   suggestionsDownload: '找可以填的内容',
   dataModelDownloadAsk: '下载日期和金额识别？',
   dataModelDownloadBody:
-    'Google 需要先下载这种语言的识别模型。识别在这台手机上进行，文字不会上传；下载后没网也能用。不下载也能预填，只用 Morph 自带的规则。',
+    'Google 需要先下载这种语言的识别模型。识别在这台手机上进行，文字不会上传；下载后没网也能用。不下载也能预填，只用 Tinkrum 自带的规则。',
   dataModelDownload: '下载',
 
   // 直接编辑（长按一块、调整顺序）
@@ -489,9 +489,10 @@ export const zh: MessageTable = {
   aboutTable: '现在修改：「{name}」表',
   aboutTableHint: '说说表单要填什么，比如加一个字段。',
   aboutToolsScreen: '现在修改：工具页面',
-  aboutToolsScreenHint: '这一页是 Morph 自带的，排列改不了；可以让 AI 添加或移除工具。',
+  aboutToolsScreenHint: '这一页是 Tinkrum 自带的，排列改不了；可以让 AI 添加或移除工具。',
   aboutQuickActionsScreen: '现在修改：快捷操作页面',
-  aboutQuickActionsScreenHint: '这一页是 Morph 自带的，排列改不了；可以让 AI 新建或修改快捷操作。',
+  aboutQuickActionsScreenHint:
+    '这一页是 Tinkrum 自带的，排列改不了；可以让 AI 新建或修改快捷操作。',
   aboutDesk: '现在修改：文件桌面',
   aboutDeskHint: 'AI 可以改这里的按钮和布局，不会碰桌上的文件。',
   aboutShared: '给分享进来的 {what}',
@@ -505,7 +506,7 @@ export const zh: MessageTable = {
   habitMade: '已把「{name}」放到首页',
 
   // ---- 翻译（D-170–D-176）：错误说明拼进「不支持这个步骤：…」/「需要的内容没有下载好：…」 ----
-  translateNeedsFullApp: '翻译（要在正式版 Morph 里用，这个预览版里没有本机翻译）',
+  translateNeedsFullApp: '翻译（要在正式版 Tinkrum 里用，这个预览版里没有本机翻译）',
   translateOsTooOld: '翻译（需要 iOS 18 或更新的系统）',
   translatePairUnsupported: '把{from}翻成{to}（这台手机不支持）',
   translateDownloadAsk: '首次使用需下载约 {mb} MB',
@@ -513,7 +514,7 @@ export const zh: MessageTable = {
   translateDownload: '下载',
   translateSystemDownloadAsk: '第一次翻译要下载语言包',
   translateSystemDownloadBody:
-    '要下载的语言：{langs}。接下来 iPhone 会弹窗确认，下载可能要几分钟，请留在 Morph 里。以后也可以先在 iPhone 的「设置 → App → 翻译」里下好。',
+    '要下载的语言：{langs}。接下来 iPhone 会弹窗确认，下载可能要几分钟，请留在 Tinkrum 里。以后也可以先在 iPhone 的「设置 → App → 翻译」里下好。',
   translateDownloadFailed: '{langs}的翻译语言（请检查网络后再试）',
   translateLanguageTitle: '翻译语言：{name}',
   translateLanguageHint: '约 30 MB，用来在本机翻译（Google ML Kit）。',
@@ -521,8 +522,8 @@ export const zh: MessageTable = {
   translateNote: '本机翻译，适合看懂意思；正式文件请找专业翻译。',
   // ---- 视频、音频和压缩 PDF（D-140–D-148）。音频工具的文字请另起一块，方便合并。----
   runPercent: '{done}%',
-  runError_needsFullApp: '视频和音频要在正式版 Morph 里处理，这个预览版里不行。',
-  subtitlesNeedApp: '导出带时间的字幕需要更新后的 Morph App。',
+  runError_needsFullApp: '视频和音频要在正式版 Tinkrum 里处理，这个预览版里不行。',
+  subtitlesNeedApp: '导出带时间的字幕需要更新后的 Tinkrum App。',
   subtitlesNote:
     '这是单独的 SRT 文件，需要在支持的播放器或编辑器中与原视频一起打开。请核对文字和时间；字幕没有烧录进画面。',
   annotateTitle: '标注图片',
@@ -536,7 +537,7 @@ export const zh: MessageTable = {
   annotateDrag: '在图片上拖动画。画错可撤销后重画。',
   annotateCount: '{n}/100 处',
   annotateUndo: '撤销一个',
-  imageAdjustmentNeedsApp: '图片调整需要更新后的 Morph App。',
+  imageAdjustmentNeedsApp: '图片调整需要更新后的 Tinkrum App。',
   backgroundNeedsSystem: '去背景需要 iOS 17 或更新版本，或带 Google Play 服务的 Android。',
   backgroundDownload: '下载',
   backgroundDownloadAsk: '下载去背景功能？',
@@ -547,10 +548,10 @@ export const zh: MessageTable = {
   runError_mergeUnsupported: '这几段视频没能拼在一起。可以先把每一段转成 MP4 再试。',
   runError_notEnoughSpace: '手机空间不够，还需要大约 {gb} GB。',
   runError_targetTooSmall: '「{name}」压到 {target} 画面会看不清。至少要 {mb} MB，或者先剪短一点。',
-  runError_interrupted: '处理时切到了别的 App，没有完成。请留在 Morph 里，再点「再来一次」。',
+  runError_interrupted: '处理时切到了别的 App，没有完成。请留在 Tinkrum 里，再点「再来一次」。',
   // 长任务切到后台也继续（D-160–D-162）：运行页的提示，Android 通知栏的进度和完成通知。
-  runCanLeave: '可以切到别的 App，Morph 会在后台接着处理。',
-  runStayInMorph: '处理时请留在 Morph 里。',
+  runCanLeave: '可以切到别的 App，Tinkrum 会在后台接着处理。',
+  runStayInMorph: '处理时请留在 Tinkrum 里。',
   bgPreparing: '准备中…',
   bgStep: '第 {n}/{total} 步：{step}',
   bgDoneTitle: '「{name}」处理完了',
@@ -693,7 +694,7 @@ export const zh: MessageTable = {
   guideSkipAll: '跳过引导',
   // 引导第 3 步：样板 App（D-260）。
   guideSamplesTitle: '第 3 步',
-  guideSamplesBody: '还能把 Morph 变成你自己的 App，选一个试试。',
+  guideSamplesBody: '还能把 Tinkrum 变成你自己的 App，选一个试试。',
   sampleDraftInput: '套用样板「{name}」',
   sampleReadyTitle: '「{name}」装好了',
   sampleReadyBody: '想改成你自己的样子，可以让 AI 接着改。',
@@ -713,7 +714,7 @@ export const zh: MessageTable = {
   needSend: '把这个需求告诉我们',
   needRetry: '没发出去，再试一次',
   needSent: '收到了，谢谢。新功能会通过更新和下载内容加进来。',
-  needPrivacy: '只发送这一句话给 Morph，不含文件、记录和设置。',
+  needPrivacy: '只发送这一句话给 Tinkrum，不含文件、记录和设置。',
   needsSettingTitle: 'AI 做不到时，可以把需求告诉我们',
   needsSettingNote: '在回答下面显示一个按钮，你点了才会发送那一句话。',
   // ---- 记一笔、附件和公式字段（D-187、D-188）----
@@ -772,7 +773,7 @@ export const zh: MessageTable = {
 
   // 命名用识别出的文字（D-244）
   runError_needsRecognition:
-    '这个文件名要用文件里识别出的文字，这台设备不能在本机识别文字。请用完整版 Morph，或者去掉文件名里的这一部分。',
+    '这个文件名要用文件里识别出的文字，这台设备不能在本机识别文字。请用完整版 Tinkrum，或者去掉文件名里的这一部分。',
   // 统计按选项分组（D-248）
   statNoChoice: '未选',
   // 图表（D-249）
@@ -802,13 +803,13 @@ export const zh: MessageTable = {
   describeUpdateReminder: '修改提醒「{title}」',
   describeRemoveReminder: '移除提醒「{title}」',
   // 手机桌面（D-271）
-  describeHomeScreenOn: '把「{name}」放到手机桌面：长按 Morph 图标就能看到',
+  describeHomeScreenOn: '把「{name}」放到手机桌面：长按 Tinkrum 图标就能看到',
   describeHomeScreenOff: '把「{name}」从手机桌面拿掉',
   homeScreenTitle: '在手机桌面上',
-  homeScreenIos: '在手机桌面上长按 Morph 图标就能看到「{name}」，在那里点一下直接开始。',
-  homeScreenAndroid: '长按 Morph 图标就能看到「{name}」，也可以给它在桌面上单独放一个图标。',
+  homeScreenIos: '在手机桌面上长按 Tinkrum 图标就能看到「{name}」，在那里点一下直接开始。',
+  homeScreenAndroid: '长按 Tinkrum 图标就能看到「{name}」，也可以给它在桌面上单独放一个图标。',
   homeScreenPin: '添加到桌面',
-  homeScreenPinFailed: '这个桌面不能添加图标，请长按 Morph 图标使用。',
+  homeScreenPinFailed: '这个桌面不能添加图标，请长按 Tinkrum 图标使用。',
   homeScreenAdd: '放到桌面',
   homeScreenRemove: '从桌面拿掉',
   homeScreenAdded: '把「{name}」放到了桌面',
@@ -842,7 +843,7 @@ export const zh: MessageTable = {
   remindersHint:
     '提醒是本机的通知。点提醒只打开对应的页面或快捷操作，不会自己运行任何东西。要新建或修改提醒，可以对 AI 说（例如「每天 9 点提醒我记账」）。',
   remindersNone: '还没有提醒',
-  remindersOff: 'Morph 的通知已关闭。要收到提醒，请在系统「设置」里打开。',
+  remindersOff: 'Tinkrum 的通知已关闭。要收到提醒，请在系统「设置」里打开。',
   reminderRemove: '移除',
   reminderOpenTitle: '来自你的提醒',
   reminderOpenRun: '开始',
@@ -1115,9 +1116,9 @@ export const zh: MessageTable = {
   format_report_25207: '报告',
   format_e_g_248d5: '（例如 {v0}）',
   format_your_text_6c667: '（你写的文字）',
-  ShareScreen_Shared_with_Morph_bb8fe: '分享到 Morph',
+  ShareScreen_Shared_with_Morph_bb8fe: '分享到 Tinkrum',
   ShareScreen_Morph_only_takes_files_photos_PDFs_and_91f45:
-    'Morph 只接收文件（照片、PDF 等），文字和网址不行。',
+    'Tinkrum 只接收文件（照片、PDF 等），文字和网址不行。',
   ShareScreen_Close_59a26: '关闭',
   ShareScreen_just_made_ed6c1: ' · 刚做好',
   ShareScreen_Run_5cab2: '运行',
@@ -1225,10 +1226,10 @@ export const zh: MessageTable = {
   WorkflowsScreen_Edit_ef7c8: '编辑',
   WorkflowsScreen_The_first_run_downloads_what_it_needs__3a8fa:
     '首次使用需要下载一些内容，之后不联网也能用。',
-  WorkflowsScreen_What_Morph_can_do_8f4f4: 'Morph 可以做什么',
+  WorkflowsScreen_What_Morph_can_do_8f4f4: 'Tinkrum 可以做什么',
   WorkflowsScreen_Make_your_own_quick_action_8bc98: '做一个自己的快捷操作',
   ChangeScreen_and_d40e9: '和',
-  _layout_What_Morph_can_do_8f4f4: 'Morph 可以做什么',
+  _layout_What_Morph_can_do_8f4f4: 'Tinkrum 可以做什么',
   _kind__Category_not_found_5faf2: '找不到这个分类',
   _id__This_quick_action_no_longer_exists_35f5a: '这个快捷操作已经不在了。',
 
@@ -1424,14 +1425,15 @@ export const zh: MessageTable = {
     '这一页跟着某一条记录打开，放到桌面上不知道该显示哪一条。可以把同样的组件放在普通页面上再放到桌面。',
   widgetUnsupportedHelp:
     '桌面小组件目前可以显示统计、按钮和记录列表（列表、卡片、清单、大圆块外观）。',
-  widgetUnsupported: '小组件显示不了这个组件，点一下打开 Morph。',
-  widgetGone: '这个组件已经从 Morph 里移除了。',
+  widgetUnsupported: '小组件显示不了这个组件，点一下打开 Tinkrum。',
+  widgetGone: '这个组件已经从 Tinkrum 里移除了。',
   widgetAdded: '已记下',
-  widgetStale: '打开 Morph 后更新',
+  widgetStale: '打开 Tinkrum 后更新',
   widgetIosTitle: '已加进小组件列表',
   widgetIosHow:
-    '在手机桌面上长按空白处，点左上角的按钮，选「添加小组件」，再选 Morph。放了几个组件时，长按小组件选「编辑小组件」，再选「{name}」。',
-  widgetPinFailed: '这个桌面不能从 Morph 直接添加小组件。请长按桌面，选「小组件」，添加 Morph。',
+    '在手机桌面上长按空白处，点左上角的按钮，选「添加小组件」，再选 Tinkrum。放了几个组件时，长按小组件选「编辑小组件」，再选「{name}」。',
+  widgetPinFailed:
+    '这个桌面不能从 Tinkrum 直接添加小组件。请长按桌面，选「小组件」，添加 Tinkrum。',
   widgetDone: '记下了桌面小组件上的 {n} 次点按',
   widgetSkipped: '页面改过了，小组件上的 {n} 次点按没有记下',
   // 文件房间（D-357–D-360）。

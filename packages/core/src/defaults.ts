@@ -13,7 +13,11 @@ import { FILES_TABLE } from './files-table';
 import { DEFAULT_THEME } from './theme';
 
 export const SYSTEM_TARGET_LABELS: Record<SystemTarget, Localized> = {
-  quickActions: { en: 'What Morph can do', zh: 'Morph 可以做什么', fr: 'Ce que Morph peut faire' },
+  quickActions: {
+    en: 'What Tinkrum can do',
+    zh: 'Tinkrum 可以做什么',
+    fr: 'Ce que Tinkrum peut faire',
+  },
   tools: { en: 'Tools', zh: '工具', fr: 'Outils' },
   ai: { en: 'AI', zh: 'AI 修改', fr: 'IA' },
   history: { en: 'Changes', zh: '改动记录', fr: 'Modifications' },

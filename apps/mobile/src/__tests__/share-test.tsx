@@ -23,7 +23,7 @@ import { FakeFiles, TINY_JPEG, makePdf } from '../test-utils/fake-files';
 import { renderToolsApp } from '../test-utils/render-app';
 import type { WorkspaceStore } from '../workspace/store';
 
-// 分享到 Morph（TOOLS_DESIGN §11）：原生部分（expo-share-intent）换成假的，只测 JS 侧的收件、选工作流、
+// 分享到 Tinkrum（TOOLS_DESIGN §11）：原生部分（expo-share-intent）换成假的，只测 JS 侧的收件、选工作流、
 // 类型匹配和大小上限。
 
 type MockListener = (e: { value: unknown }) => void;

@@ -526,7 +526,7 @@ describe('mock AI — sentences removed in D-265', () => {
     ['按钮只显示图标', 'zh'],
     ['首页加上照片快捷操作', 'zh'],
     ['Show all quick action categories on home', 'en'],
-    ['首页加上Morph 可以做什么', 'zh'],
+    ['首页加上Tinkrum 可以做什么', 'zh'],
     ['我有一堆旅行照片，想发给朋友', 'zh'],
     ['I shot a video and it’s too big to send', 'en'],
     ['我有好几份 PDF 合同，想合成一份加上页码，发邮件给律师', 'zh'],

@@ -132,7 +132,7 @@ it('without the native module (Expo Go, web) there is no Add to Home Screen', as
   expect(screen.queryByTestId('edit-widget')).toBeNull();
 });
 
-it('taps queued on the widget are recorded when Morph opens, with no undo (invariant 11)', async () => {
+it('taps queued on the widget are recorded when Tinkrum opens, with no undo (invariant 11)', async () => {
   const repo = new MemoryWorkspaceRepo();
   const at = Date.now() - 60_000;
   const tap = JSON.stringify({

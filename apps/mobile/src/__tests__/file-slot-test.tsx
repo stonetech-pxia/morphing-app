@@ -116,7 +116,7 @@ async function slotShows(text: string) {
 const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 1, 2, 3]);
 
 describe('file slot', () => {
-  it('empty slot: the user picks a file from Files, Morph keeps a copy and opens it', async () => {
+  it('empty slot: the user picks a file from Files, Tinkrum keeps a copy and opens it', async () => {
     const { repo, store, files } = await renderApp();
     await commit(store, [SLOT], '加文件入口');
     // 新用户：空位显示提示。

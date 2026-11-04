@@ -94,7 +94,7 @@ describe('background runs', () => {
     expect(background.calls.at(-1)).toEqual({ kind: 'end', done: null });
   });
 
-  it('sends a finished notice only when Morph is in the background', async () => {
+  it('sends a finished notice only when Tinkrum is in the background', async () => {
     const workflow = videoWorkflow('video-compress');
     const done = setup(workflow);
     done.background.foreground = false;

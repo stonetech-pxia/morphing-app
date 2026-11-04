@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Morph",
+    "name": "Tinkrum",
     "slug": "morph",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,12 +11,12 @@
       "bundleIdentifier": "app.morph.mobile",
       "icon": "./assets/expo.icon",
       "infoPlist": {
-        "NSSpeechRecognitionUsageDescription": "Morph transcribes recordings on this device when you run speech to text. Recordings stay on this device.",
+        "NSSpeechRecognitionUsageDescription": "Tinkrum transcribes recordings on this device when you run speech to text. Recordings stay on this device.",
         "BGTaskSchedulerPermittedIdentifiers": ["app.morph.mobile.work.*"],
-        "NSPhotoLibraryUsageDescription": "Morph accesses your photo library when you choose photos or videos to process. Your files stay on this device.",
-        "NSPhotoLibraryAddUsageDescription": "Morph saves photos and videos to your library only when you ask it to.",
-        "NSCameraUsageDescription": "Morph uses the camera when you take a photo or scan a document. Photos stay on this device.",
-        "NSMicrophoneUsageDescription": "Morph uses the microphone when you record audio. Recordings stay on this device."
+        "NSPhotoLibraryUsageDescription": "Tinkrum accesses your photo library when you choose photos or videos to process. Your files stay on this device.",
+        "NSPhotoLibraryAddUsageDescription": "Tinkrum saves photos and videos to your library only when you ask it to.",
+        "NSCameraUsageDescription": "Tinkrum uses the camera when you take a photo or scan a document. Photos stay on this device.",
+        "NSMicrophoneUsageDescription": "Tinkrum uses the microphone when you record audio. Recordings stay on this device."
       }
     },
     "android": {
@@ -62,16 +62,16 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Morph accesses your photo library when you choose photos or videos to process. Your files stay on this device.",
-          "cameraPermission": "Morph uses the camera when you take a photo or scan a document. Photos stay on this device.",
-          "microphonePermission": "Morph uses the microphone when you record audio. Recordings stay on this device."
+          "photosPermission": "Tinkrum accesses your photo library when you choose photos or videos to process. Your files stay on this device.",
+          "cameraPermission": "Tinkrum uses the camera when you take a photo or scan a document. Photos stay on this device.",
+          "microphonePermission": "Tinkrum uses the microphone when you record audio. Recordings stay on this device."
         }
       ],
       [
         "expo-media-library",
         {
-          "photosPermission": "Morph accesses your photo library when you choose photos or videos to process. Your files stay on this device.",
-          "savePhotosPermission": "Morph saves photos and videos to your library only when you ask it to.",
+          "photosPermission": "Tinkrum accesses your photo library when you choose photos or videos to process. Your files stay on this device.",
+          "savePhotosPermission": "Tinkrum saves photos and videos to your library only when you ask it to.",
           "isAccessMediaLocationEnabled": false
         }
       ],
@@ -93,7 +93,7 @@
         "./plugins/with-share-extension",
         {
           "target": "MorphShare",
-          "displayName": "Morph"
+          "displayName": "Tinkrum"
         }
       ],
       [
@@ -112,7 +112,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Morph uses the microphone when you record audio. Recordings stay on this device.",
+          "microphonePermission": "Tinkrum uses the microphone when you record audio. Recordings stay on this device.",
           "enableBackgroundRecording": true,
           "enableBackgroundPlayback": false
         }

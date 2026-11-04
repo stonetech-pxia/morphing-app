@@ -1,4 +1,4 @@
-# Morph (working name)
+# Tinkrum
 
 A phone app you install once and then keep changing by describing what you want: its pages, its layout, its buttons and its shortcuts. It ships with file tools (PDF, images, video, audio, scanning, text recognition, QR codes, translation) that run on the device.
 
@@ -16,7 +16,7 @@ A phone app you install once and then keep changing by describing what you want:
   - **Video**: compress to a target size ("too big to send"), trim, join, grab a frame, remove sound, replace music, rotate, crop to a ratio, speed up or slow down, export SRT subtitles, convert to GIF.
   - **Audio**: record, speech to text, text to speech (system voices, saved as a file), compress, convert formats (MP3 included), trim, join, extract audio from video, reduce background noise, adjust volume.
   - **Scanning, text recognition (OCR), QR codes, translation, ZIP, text and reports.**
-- **Share sheet and inbox.** Share photos, videos or PDFs to Morph (or open them from the home screen buttons). The inbox shows the files and suggests up to five quick actions that fit them, for example "Combine documents" for several PDFs or "Video too big to send" for one video. One tap runs it. Results can be shared, saved to a folder, processed further, or combined into a new quick action.
+- **Share sheet and inbox.** Share photos, videos or PDFs to Tinkrum (or open them from the home screen buttons). The inbox shows the files and suggests up to five quick actions that fit them, for example "Combine documents" for several PDFs or "Video too big to send" for one video. One tap runs it. Results can be shared, saved to a folder, processed further, or combined into a new quick action.
 - **Change the app by describing it.** "Add Open photo library and Open files buttons", "make the font bigger and remove shadows", "add a page for tracking expenses", "remove the AI entry". Look changes go into a draft first; you can keep refining, step back, apply or leave. Changes to features (quick actions, tools, data tables) are saved right away with an undo bar. Every version is in the change history.
 - **Long-press to edit.** Long-press a component on a page to select it, drag to reorder, or open its edit panel.
 - **Your own data stays out of the AI.** Pages can record things (expenses, logs) in local data tables. The AI changes the layout but never sees what you record.
@@ -39,16 +39,16 @@ A phone app you install once and then keep changing by describing what you want:
 UI labels below are the English ones; the app follows your system language. The example sentences work with a real AI model; with the offline built-in rules, use the phrasings in [docs/MOCK_AI_PHRASES.md](docs/MOCK_AI_PHRASES.md) (the built-in rules are a parser, not a language model).
 
 1. **First launch.** After the intro pages the home screen is empty on purpose, with a bottom bar of **Home · AI · Settings**. The guide's first step offers one sentence, "add Open photo library and Open files buttons"; send it and the two buttons appear on the home screen ("Skip the guide" adds them too). Step 2 asks you to open a file. You can replay the guide from Settings.
-2. **Process a file.** Tap **Open files** and pick a few PDFs → the inbox suggests "Combine documents" and other quick actions → tap **Run**. Or share files to Morph from Photos or Files. The result page offers Share, Save to a folder, Continue processing and Run again.
+2. **Process a file.** Tap **Open files** and pick a few PDFs → the inbox suggests "Combine documents" and other quick actions → tap **Run**. Or share files to Tinkrum from Photos or Files. The result page offers Share, Save to a folder, Continue processing and Run again.
 3. **Open a tool.** Settings → **Tools** lists the installed tools (PDF, Images, Video, Scanner, Text recognition and QR code come installed; tap **Add** for Audio, Translate, ZIP, Text and Reports). PDF → **Open** → tap the **Merge PDFs** tile → pick 2–20 PDFs → confirm the file name.
 4. **Change the look.** Tap **AI** ("Change this app") and type `make the font bigger and remove shadows`. The change goes into a draft: the bottom bar has **Change / Step back / Apply / Leave**. Tap Apply to keep it.
-5. **Build a feature.** Type `add a page for tracking expenses`. Morph creates a data table and offers "Add an entry now"; the page itself follows as the next step. Records are under Settings → Data, and the AI never sees them.
+5. **Build a feature.** Type `add a page for tracking expenses`. Tinkrum creates a data table and offers "Add an entry now"; the page itself follows as the next step. Records are under Settings → Data, and the AI never sees them.
 6. **Make a shortcut.** On a tool page, tap ✨ at the top right and type `merge PDFs and name the result "Merged-date"`. Feature changes are saved right away with an undo bar and a "done" page.
 7. **More layout changes.** `add a banner image at the top of the home page` (then tap the image slot to pick a photo; the AI never sees it), `change the home icon to 🏡`, `add a page called Budget`, `remove the AI entry` (afterwards, get back in through Settings → Change this app).
 8. **Undo anything.** Settings → **Change history** → restore any earlier version (it asks first), or tap **Undo** on the bar after a change.
-9. **Video too big to send.** Video → **Make videos smaller** → pick a video → choose a size (20 MB by default) and quality → an MP4 you can play, share or save to Photos. **Trim a video** has start and end handles. On iOS, stay in Morph while a video is processing; on Android it keeps going in the background with a notification.
+9. **Video too big to send.** Video → **Make videos smaller** → pick a video → choose a size (20 MB by default) and quality → an MP4 you can play, share or save to Photos. **Trim a video** has start and end handles. On iOS, stay in Tinkrum while a video is processing; on Android it keeps going in the background with a notification.
 10. **PDF too big to upload.** PDF → **Make PDF smaller**. Text stays selectable; if it can't get small enough, it asks before turning pages into images.
-11. **Translate.** Add **Translate** in Settings → Tools, then use "Translate text in photos". Settings → **Quick actions** ("What Morph can do") also has "Translate screenshots" and "Translate a foreign PDF". Translation runs on the device (iOS 18 system translation; Google ML Kit on Android, about 30 MB per language on first use) and produces plain text for understanding, not certified translations. Asking the AI to "translate this contract into English" builds a translate shortcut; the AI itself never translates your file.
+11. **Translate.** Add **Translate** in Settings → Tools, then use "Translate text in photos". Settings → **Quick actions** ("What Tinkrum can do") also has "Translate screenshots" and "Translate a foreign PDF". Translation runs on the device (iOS 18 system translation; Google ML Kit on Android, about 30 MB per language on first use) and produces plain text for understanding, not certified translations. Asking the AI to "translate this contract into English" builds a translate shortcut; the AI itself never translates your file.
 12. **When the AI can't do something**, it says so and offers "Tell us you need this", which sends only that one sentence.
 
 What the AI may change is described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#2-固定内核与可变层5).
@@ -99,7 +99,7 @@ If the development app is already installed and you only need the dev server:
 npm start
 ```
 
-Then open Morph in the simulator. If the simulator can't reach your LAN IP ("The request timed out"), use localhost:
+Then open Tinkrum in the simulator. If the simulator can't reach your LAN IP ("The request timed out"), use localhost:
 
 ```bash
 npm start -- --localhost
@@ -197,7 +197,7 @@ Useful docs: [ARCHITECTURE](docs/ARCHITECTURE.md), [DECISIONS](docs/DECISIONS.md
 ## FAQ
 
 **ChatGPT and Claude can already handle files. Why this?**
-They are better at understanding content (summarizing a contract, pulling a table out of a PDF), and Morph doesn't try to do that. Morph is for handling files: merging, compressing, scanning and converting with fixed tools on the phone, without uploading, with the same result every time. Things you do often become a shortcut you run from the share sheet in one tap, instead of uploading and explaining again. The AI is used once to build the shortcut; running it doesn't call the AI.
+They are better at understanding content (summarizing a contract, pulling a table out of a PDF), and Tinkrum doesn't try to do that. Tinkrum is for handling files: merging, compressing, scanning and converting with fixed tools on the phone, without uploading, with the same result every time. Things you do often become a shortcut you run from the share sheet in one tap, instead of uploading and explaining again. The AI is used once to build the shortcut; running it doesn't call the AI.
 
 **Can the AI see my files?**
 No. The model receives the app layout and your sentence; file contents, file names and recorded data are not part of it (see [docs/SECURITY_NOTES.md](docs/SECURITY_NOTES.md)). With our relay, requests pass through our server and are stored during the beta. With your own key, the app talks directly to the provider you chose, and Settings → AI shows which address that is.
@@ -218,8 +218,8 @@ The code is AGPL-3.0 and what is published stays published. The on-device file t
 **Why are pull requests not accepted?**
 The official app is distributed through app stores, so a Contributor License Agreement has to be settled before outside code can be merged ([CONTRIBUTING.md](CONTRIBUTING.md)). Issues are welcome.
 
-**Why "Morph"?**
-It's a working name. Other projects use it; the final name isn't decided.
+**Why "Tinkrum"?**
+Tinker + room: a private workshop for your files and records. Trademark checks aren't finished, so the name may still change.
 
 ## License
 

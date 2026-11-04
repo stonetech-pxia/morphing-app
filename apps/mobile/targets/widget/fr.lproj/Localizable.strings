@@ -1,8 +1,8 @@
-/* Widget Morph (D-321). Les clés sont le texte anglais. */
+/* Widget Tinkrum (D-321). Les clés sont le texte anglais. */
 "Choose a component" = "Choisir un composant";
-"Components you added to the Home Screen in Morph." = "Les composants ajoutés à l’écran d’accueil dans Morph.";
+"Components you added to the Home Screen in Tinkrum." = "Les composants ajoutés à l’écran d’accueil dans Tinkrum.";
 "Component" = "Composant";
-"Record in Morph" = "Enregistrer dans Morph";
+"Record in Tinkrum" = "Enregistrer dans Tinkrum";
 "Action" = "Action";
-"A stat, button or list from your Morph pages." = "Une statistique, un bouton ou une liste de vos pages Morph.";
-"In Morph, long-press a stat, button or list and choose Add to Home Screen." = "Dans Morph, appuyez longuement sur une statistique, un bouton ou une liste et choisissez Ajouter à l’écran d’accueil.";
+"A stat, button or list from your Tinkrum pages." = "Une statistique, un bouton ou une liste de vos pages Tinkrum.";
+"In Tinkrum, long-press a stat, button or list and choose Add to Home Screen." = "Dans Tinkrum, appuyez longuement sur une statistique, un bouton ou une liste et choisissez Ajouter à l’écran d’accueil.";

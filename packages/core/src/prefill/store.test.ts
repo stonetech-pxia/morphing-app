@@ -67,7 +67,7 @@ describe('layout store', () => {
         JSON.stringify({ format: 'morph-prefill-memory', version: 99, tables: {} }),
       ),
     ).toBeNull();
-    // 别的 Morph 文件（App 配置）也不当成预填记忆。
+    // 别的 Tinkrum 文件（App 配置）也不当成预填记忆。
     expect(readLayoutStoreFile(appConfigFile(createDefaultWorkspace('en'), new Date()))).toBeNull();
   });
 });
@@ -79,6 +79,6 @@ describe('app config file', () => {
     );
     expect(file).toMatchObject({ format: 'morph-app-config', version: 1 });
     expect(file.config).toEqual(JSON.parse(JSON.stringify(createDefaultWorkspace('en'))));
-    expect(appConfigFileName(new Date(2026, 9, 28, 9))).toBe('morph-config-2026-10-28.json');
+    expect(appConfigFileName(new Date(2026, 9, 28, 9))).toBe('tinkrum-config-2026-10-28.json');
   });
 });

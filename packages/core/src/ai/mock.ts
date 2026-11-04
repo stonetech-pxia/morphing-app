@@ -1632,7 +1632,7 @@ const RUN_NOW =
   /^(?:现在|马上|立刻)?(?:帮我)?(?:运行|执行|跑一下|跑一遍|开始)|^(?:please )?(?:run|start)\b/i;
 
 /** 办事类请求的拒绝例子：都是内置规则认得的句子。 */
-/** 直接要译文（「帮我翻译一下这句话：…」）：Morph 不给译文，可以做一个翻译快捷操作（D-171）。 */
+/** 直接要译文（「帮我翻译一下这句话：…」）：Tinkrum 不给译文，可以做一个翻译快捷操作（D-171）。 */
 const TRANSLATE_ERRAND = /翻译|翻成|译成|怎么说|\btranslat/i;
 const TRANSLATE_EXAMPLES: Localized[] = [
   {
@@ -1992,8 +1992,8 @@ export function createMockAIProvider(): AIProvider {
             reason: 'errand',
             message: say(
               ctx.locale,
-              'Morph 不会直接给出译文，它只会修改这个 App。可以做一个翻译快捷操作，以后在本机翻译文字、截图或 PDF。',
-              'Morph doesn’t hand you a translation; it only changes this app. It can make a translation quick action that translates text, screenshots or PDFs on this device.',
+              'Tinkrum 不会直接给出译文，它只会修改这个 App。可以做一个翻译快捷操作，以后在本机翻译文字、截图或 PDF。',
+              'Tinkrum doesn’t hand you a translation; it only changes this app. It can make a translation quick action that translates text, screenshots or PDFs on this device.',
             ),
             examples: TRANSLATE_EXAMPLES.map((e) => localize(e, ctx.locale)),
           };
@@ -2003,8 +2003,8 @@ export function createMockAIProvider(): AIProvider {
           reason: 'errand',
           message: say(
             ctx.locale,
-            'Morph 不替你写东西、回答问题或总结文件内容，它只会修改这个 App。常做的事可以做成快捷操作，以后点一下就能用。',
-            'Morph doesn’t write, answer questions or summarize files for you; it only changes this app. Things you do often can become quick actions you start with one tap.',
+            'Tinkrum 不替你写东西、回答问题或总结文件内容，它只会修改这个 App。常做的事可以做成快捷操作，以后点一下就能用。',
+            'Tinkrum doesn’t write, answer questions or summarize files for you; it only changes this app. Things you do often can become quick actions you start with one tap.',
           ),
           examples: ERRAND_EXAMPLES.map((e) => localize(e, ctx.locale)),
         };

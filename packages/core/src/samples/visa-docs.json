@@ -212,9 +212,9 @@
               "fr": "Visa et passeport"
             },
             "subtitle": {
-              "en": "Tick off each paper as it is ready. Morph reminds you before deadlines.",
-              "zh": "材料一项项备好打勾，截止日期前 Morph 会提醒你。",
-              "fr": "Cochez chaque pièce dès qu’elle est prête. Morph vous prévient avant les dates limites."
+              "en": "Tick off each paper as it is ready. Tinkrum reminds you before deadlines.",
+              "zh": "材料一项项备好打勾，截止日期前 Tinkrum 会提醒你。",
+              "fr": "Cochez chaque pièce dès qu’elle est prête. Tinkrum vous prévient avant les dates limites."
             }
           }
         },
@@ -414,9 +414,9 @@
               "fr": "Mes papiers"
             },
             "subtitle": {
-              "en": "Morph reminds you 30 days before a document expires.",
-              "zh": "证件到期前 30 天，Morph 会提醒你。",
-              "fr": "Morph vous prévient 30 jours avant l’expiration d’un document."
+              "en": "Tinkrum reminds you 30 days before a document expires.",
+              "zh": "证件到期前 30 天，Tinkrum 会提醒你。",
+              "fr": "Tinkrum vous prévient 30 jours avant l’expiration d’un document."
             }
           }
         },

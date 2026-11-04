@@ -30,7 +30,7 @@ struct WidgetItemQuery: EntityQuery {
 
 struct PickWidgetItem: WidgetConfigurationIntent {
   static var title: LocalizedStringResource = "Choose a component"
-  static var description = IntentDescription("Components you added to the Home Screen in Morph.")
+  static var description = IntentDescription("Components you added to the Home Screen in Tinkrum.")
 
   @Parameter(title: "Component")
   var item: WidgetItemEntity?
@@ -39,7 +39,7 @@ struct PickWidgetItem: WidgetConfigurationIntent {
 // MARK: - 点一下
 
 struct RunWidgetOp: AppIntent {
-  static var title: LocalizedStringResource = "Record in Morph"
+  static var title: LocalizedStringResource = "Record in Tinkrum"
   static var isDiscoverable = false
 
   @Parameter(title: "Action")
@@ -114,8 +114,8 @@ struct MorphWidget: Widget {
       MorphWidgetView(entry: entry)
         .containerBackground(.fill.tertiary, for: .widget)
     }
-    .configurationDisplayName("Morph")
-    .description("A stat, button or list from your Morph pages.")
+    .configurationDisplayName("Tinkrum")
+    .description("A stat, button or list from your Tinkrum pages.")
     .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
   }
 }

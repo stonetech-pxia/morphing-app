@@ -70,7 +70,7 @@ describe('guide step 3: sample apps', () => {
     await fireEvent.press(await screen.findByTestId('guide-later'));
     const card = await screen.findByTestId('guide-samples');
     expect(card).toHaveTextContent(/第 3 步/);
-    expect(card).toHaveTextContent(/还能把 Morph 变成你自己的 App/);
+    expect(card).toHaveTextContent(/还能把 Tinkrum 变成你自己的 App/);
     for (const name of ['报销助手', '出国办证', '学习助手', '小店接单', '宝宝成长'])
       expect(card).toHaveTextContent(new RegExp(name));
     expect(screen.getByTestId('guide-samples-later')).toBeTruthy();

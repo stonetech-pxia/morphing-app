@@ -15,6 +15,6 @@ describe('tidyOcrText', () => {
       'Dear Tenant,\n\nYour lease ends on April 15, 2026.',
     );
     expect(tidyOcrText('안녕하세요 반갑습니다')).toBe('안녕하세요 반갑습니다');
-    expect(tidyOcrText('Morph 工具 PDF')).toBe('Morph 工具 PDF');
+    expect(tidyOcrText('Tinkrum 工具 PDF')).toBe('Tinkrum 工具 PDF');
   });
 });

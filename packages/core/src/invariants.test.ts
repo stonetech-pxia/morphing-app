@@ -38,7 +38,7 @@ import {
 import { REDACTED_FILE, REDACTED_TEXT, redactForAI } from './workflow/redact';
 import { presetById } from './workflows/presets';
 
-// Morph 的 19 条底线（AGENTS.md「底线」，创始人 2026-10-31 在对话里暂定，同一天改了 3、7、11、16，加了 19）。每条一个 describe，测行为，
+// Tinkrum 的 19 条底线（AGENTS.md「底线」，创始人 2026-10-31 在对话里暂定，同一天改了 3、7、11、16，加了 19）。每条一个 describe，测行为，
 // 不测实现细节。要在 App 里才测得到的（发给 AI 的请求、记录、文件、渲染）在
 // apps/mobile/src/__tests__/invariants-test.tsx 和 invariants-files-test.ts；已经有专门测试的，这里写明在哪里。
 // 测出真的违反时不改代码：用 it.fails 标出来，注释写「违反底线 N，待创始人决定：…」。
@@ -91,7 +91,7 @@ function sourceFiles(dir: string, exts = ['.ts', '.tsx']): string[] {
 // ---------------------------------------------------------------------------------------------
 
 describe('底线 1：用户的数据永远不离开手机', () => {
-  // 真正的请求（自带 key、Morph 服务器、收件页面）在 mobile 的 invariants-test.tsx 里用哨兵字符串测。
+  // 真正的请求（自带 key、Tinkrum 服务器、收件页面）在 mobile 的 invariants-test.tsx 里用哨兵字符串测。
 
   it('the app has no telemetry, crash-report or analytics library', () => {
     const pkg = JSON.parse(readFileSync(join(REPO, 'apps', 'mobile', 'package.json'), 'utf8')) as {
@@ -108,7 +108,7 @@ describe('底线 1：用户的数据永远不离开手机', () => {
     const ALLOWED: Record<string, string> = {
       'packages/planner/src/http.ts': 'AI 修改：自带 key 调 Claude',
       'packages/planner/src/openai.ts': 'AI 修改：自带 key 调 OpenAI 兼容接口',
-      'packages/planner/src/relay.ts': 'AI 修改：经 Morph 服务器转发（D-193）',
+      'packages/planner/src/relay.ts': 'AI 修改：经 Tinkrum 服务器转发（D-193）',
       'apps/mobile/src/workspace/remote-ai.ts': '「把这个需求告诉我们」（D-189）：只发用户那句话',
       'apps/mobile/src/tool-download/expo-tool-fs.ts': '下载工具（D-177）：目录和工具文件',
       'apps/mobile/src/tool-download/store.ts':

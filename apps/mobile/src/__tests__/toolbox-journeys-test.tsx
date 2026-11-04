@@ -22,7 +22,7 @@ describe('starter home and toolbox (UI)', () => {
       [],
     );
     expect(screen.queryByTestId('file-pick-media')).toBeNull();
-    expect(screen.queryByText('Morph 可以做什么')).toBeNull();
+    expect(screen.queryByText('Tinkrum 可以做什么')).toBeNull();
     expect(screen.queryByTestId('nav-tools')).toBeNull();
   });
 
@@ -68,7 +68,7 @@ describe('home file pickers', () => {
     expect(await screen.findByTestId('change-about')).toHaveTextContent(/给你选的/);
     expect(screen.getByTestId('change-about')).not.toHaveTextContent(/private/);
     expect(screen.getByTestId('change-input').props.placeholder).toBe(
-      '说出你想要的，Morph 会努力完成你的需求',
+      '说出你想要的，Tinkrum 会努力完成你的需求',
     );
   });
   it('opens any documents in the same inbox and removes the picker copy on dismissal', async () => {

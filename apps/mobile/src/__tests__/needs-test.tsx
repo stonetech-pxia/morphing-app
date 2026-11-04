@@ -7,7 +7,7 @@ import { makePalette } from '../renderer/theme';
 import { NeedButton } from '../shell/NeedButton';
 import { createNeedSender } from '../workspace/remote-ai';
 
-// 需求回收（D-189）：AI 做不到时，用户点了才把那一句话发给 Morph；发的内容只有这句话和几项元数据。
+// 需求回收（D-189）：AI 做不到时，用户点了才把那一句话发给 Tinkrum；发的内容只有这句话和几项元数据。
 
 const secrets = (): SecretStore => {
   const data = new Map<string, string>();
@@ -45,7 +45,7 @@ describe('NeedButton', () => {
   it('sends the sentence only when the user taps it', async () => {
     const { sent } = await setup('unknown');
     expect(sent).toEqual([]);
-    expect(screen.getByText('只发送这一句话给 Morph，不含文件、记录和设置。')).toBeTruthy();
+    expect(screen.getByText('只发送这一句话给 Tinkrum，不含文件、记录和设置。')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('need-send'));
     expect(sent).toEqual([
       { text: '每天早上提醒我吃药', locale: 'zh', reason: 'unknown', ai: 'server' },
@@ -60,7 +60,7 @@ describe('NeedButton', () => {
   });
 
   it.each(['userData', 'protected', 'deleteFiles', 'noChange', 'unavailable', undefined] as const)(
-    'is not shown for %s (things Morph refuses on purpose, or an outage)',
+    'is not shown for %s (things Tinkrum refuses on purpose, or an outage)',
     async (reason) => {
       await setup(reason);
       expect(screen.queryByTestId('need-send')).toBeNull();

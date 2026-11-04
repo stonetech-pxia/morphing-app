@@ -20,7 +20,7 @@ import { FakeFiles } from '../test-utils/fake-files';
 import { WorkspaceProvider } from '../workspace/context';
 import { createWorkspaceStore } from '../workspace/store';
 
-// 记一笔（D-187）：快捷操作运行时按数据表填一条记录，文件存成 Morph 的文件放进附件字段，
+// 记一笔（D-187）：快捷操作运行时按数据表填一条记录，文件存成 Tinkrum 的文件放进附件字段，
 // 文字放进长文本字段；记录直接写进本机的数据表。
 
 const registry = createRegistry(BUILTIN_TOOLS);

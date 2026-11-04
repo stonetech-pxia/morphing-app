@@ -1629,7 +1629,7 @@
   },
   {
     "id": "PHS1",
-    "input": "签证照片那个快捷操作，我想在手机桌面上长按 Morph 就能直接用",
+    "input": "签证照片那个快捷操作，我想在手机桌面上长按 Tinkrum 就能直接用",
     "ops": [{ "op": "updateContainer", "nav": ["phoneHomeScreen"] }]
   },
   {
@@ -1830,22 +1830,22 @@
   { "id": "QA6", "input": "Remove the PDF tool", "ops": [{ "op": "setPackage" }] },
   {
     "id": "QAC1",
-    "input": "首页加上Morph 可以做什么",
+    "input": "首页加上Tinkrum 可以做什么",
     "ops": [{ "op": "addContainer", "looks": ["entry"] }]
   },
   {
     "id": "QAC1",
-    "input": "首页加上Morph 可以做什么",
+    "input": "首页加上Tinkrum 可以做什么",
     "ops": [{ "op": "addContainer", "looks": ["library"] }]
   },
   {
     "id": "QAC2",
-    "input": "Add What Morph can do to home",
+    "input": "Add What Tinkrum can do to home",
     "ops": [{ "op": "addContainer", "looks": ["library"] }]
   },
   {
     "id": "QAC2",
-    "input": "Add What Morph can do to home",
+    "input": "Add What Tinkrum can do to home",
     "ops": [{ "op": "addContainer", "looks": ["entry"] }]
   },
   {

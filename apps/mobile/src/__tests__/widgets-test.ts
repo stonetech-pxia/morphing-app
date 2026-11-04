@@ -210,7 +210,7 @@ it('across midnight: tomorrow’s view is ready in advance, and today’s count 
 
 it('French: the widget text follows the app language', async () => {
   const snap = await build(seed(), ['water-today', 'drink'], byTable(), 'fr');
-  expect(snap.strings.stale).toBe('Ouvrez Morph pour mettre à jour');
+  expect(snap.strings.stale).toBe('Ouvrez Tinkrum pour mettre à jour');
   expect((snap.states[0]!.after['b:drink']![0]!['drink'] as Of<'button'>).note).toBe('Enregistré');
 });
 

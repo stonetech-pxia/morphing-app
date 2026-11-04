@@ -300,7 +300,10 @@ describe('samples equal the v33 samples, migrated', () => {
   it.each(SAMPLE_APPS)('%s in zh', (sample) => {
     const before = fresh('zh');
     expect(apply(before, ops(sample, before, 'zh'), 'zh')).toEqual(
-      fromV33(v33Fixture(`sample-${sample}-zh`)),
+      // 旧样板的文案写的是旧名字 Morph（D-421）；只比结构和其余内容，固定样本不改。
+      JSON.parse(
+        JSON.stringify(fromV33(v33Fixture(`sample-${sample}-zh`))).replaceAll('Morph', 'Tinkrum'),
+      ),
     );
   });
 

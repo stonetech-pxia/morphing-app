@@ -5,7 +5,7 @@
 module.exports = {
   type: 'widget',
   name: 'MorphWidget',
-  displayName: 'Morph',
+  displayName: 'Tinkrum',
   bundleIdentifier: '.widget',
   deploymentTarget: '17.0',
   frameworks: ['SwiftUI', 'WidgetKit', 'AppIntents'],
