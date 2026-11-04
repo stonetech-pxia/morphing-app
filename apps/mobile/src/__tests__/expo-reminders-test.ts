@@ -38,6 +38,8 @@ jest.mock('expo-notifications', () => ({
 }));
 
 // eslint-disable-next-line import/first
+import { getPermissionsAsync, requestPermissionsAsync } from 'expo-notifications';
+// eslint-disable-next-line import/first
 import { expoReminders } from '../reminders/expo-reminders';
 
 const at = (day: number) => new Date(2026, 9, 22 + day, 20).getTime();
@@ -57,6 +59,52 @@ beforeEach(() => {
   mockPending.clear();
   mockCalls.length = 0;
   mockBudget = Infinity;
+});
+
+describe('notification permission', () => {
+  const answers = (status: string, canAskAgain: boolean, granted = status === 'granted') => ({
+    status,
+    canAskAgain,
+    granted,
+  });
+  const get = getPermissionsAsync as jest.Mock;
+  const request = requestPermissionsAsync as jest.Mock;
+
+  it('Android 13+ says denied before the first ask: that still counts as not asked', async () => {
+    get.mockResolvedValue(answers('denied', true));
+    expect(await expoReminders('提醒').permission()).toBe('undetermined');
+  });
+
+  it('refused once: no second dialog while the app stays open', async () => {
+    const platform = expoReminders('提醒');
+    get.mockResolvedValue(answers('denied', true));
+    request.mockResolvedValue(answers('denied', true));
+    expect(await platform.request()).toBe(false);
+    expect(await platform.permission()).toBe('denied');
+  });
+
+  it('refused for good: stays denied, the settings page explains', async () => {
+    get.mockResolvedValue(answers('denied', false));
+    expect(await expoReminders('提醒').permission()).toBe('denied');
+  });
+
+  it('allowed, then turned off in the system settings: denied, and asking does not count', async () => {
+    const platform = expoReminders('提醒');
+    get.mockResolvedValue(answers('denied', true, true));
+    expect(await platform.permission()).toBe('denied');
+    request.mockResolvedValue(answers('denied', true, true));
+    expect(await platform.request()).toBe(false);
+  });
+
+  it('iOS: not asked and allowed read as they are', async () => {
+    const platform = expoReminders('提醒');
+    get.mockResolvedValue(answers('undetermined', true));
+    expect(await platform.permission()).toBe('undetermined');
+    request.mockResolvedValue(answers('granted', true));
+    expect(await platform.request()).toBe(true);
+    get.mockResolvedValue(answers('granted', true));
+    expect(await platform.permission()).toBe('granted');
+  });
 });
 
 describe('replacing the planned reminders (D-319)', () => {

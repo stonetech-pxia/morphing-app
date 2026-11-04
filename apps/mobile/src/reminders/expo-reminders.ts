@@ -173,16 +173,23 @@ function schedule(n: PlannedNotification) {
 }
 
 export function expoReminders(channelName: string): NotificationPlatform {
+  /** 这次打开 App 问过了：拒绝过一次的，不再每次重排都弹。 */
+  let asked = false;
   return {
     async permission() {
-      const { status } = await getPermissionsAsync();
-      return status === 'granted' ? 'granted' : status === 'denied' ? 'denied' : 'undetermined';
+      const { status, canAskAgain, granted } = await getPermissionsAsync();
+      if (status === 'granted') return 'granted';
+      if (status !== 'denied') return 'undetermined';
+      // Android 13+ 从没问过时也报 denied，只有 canAskAgain 看得出还能问。
+      // granted 为真是用户在系统设置里关了通知，弹窗也不会出现。
+      return canAskAgain && !granted && !asked ? 'undetermined' : 'denied';
     },
     async request() {
-      const { granted } = await requestPermissionsAsync({
+      asked = true;
+      const { status } = await requestPermissionsAsync({
         ios: { allowAlert: true, allowSound: true, allowBadge: false },
       });
-      return granted;
+      return status === 'granted';
     },
     async replaceAll(planned) {
       await ensureChannel(channelName);

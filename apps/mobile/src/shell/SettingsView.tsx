@@ -58,7 +58,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         icon="history"
         label={t(locale, 'openHistory')}
         value={t(locale, 'historyRowHint')}
-        onPress={() => selectTab('history')}
+        onPress={() => router.push('/history')}
       />
       <ListRow
         palette={palette}
@@ -74,7 +74,7 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         icon="apps"
         label={t(locale, 'toolsTitle')}
         value={t(locale, 'toolsRowHint')}
-        onPress={() => selectTab('tools')}
+        onPress={() => router.push('/tools')}
       />
       <ListRow
         palette={palette}

@@ -17,7 +17,7 @@ import { useWorkspace } from '../workspace/context';
  * 打开一个导航目标：
  * - AI 修改是单独的页面；
  * - 导航栏里的页面和系统入口（工具、历史、设置）在外壳里切换显示；
- * - 不在导航栏里的页面推入一个带返回按钮的新页面；
+ * - 不在导航栏里的页面、工具和改动记录推入一个带返回按钮的新页面；
  * - 快捷操作 tool:<id> 只打开摆出来（D-256）。
  */
 export function useNavigate(): (target: OpenTarget) => void {
@@ -34,6 +34,10 @@ export function useNavigate(): (target: OpenTarget) => void {
     const navTarget = target as NavTarget;
     if (navTarget === 'quickActions' && !nav.includes(navTarget)) {
       router.push('/quick-actions');
+      return;
+    }
+    if ((navTarget === 'history' || navTarget === 'tools') && !nav.includes(navTarget)) {
+      router.push(`/${navTarget}`);
       return;
     }
     if (navTarget === 'ai') {

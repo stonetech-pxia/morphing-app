@@ -8,7 +8,7 @@ import type { RevisionRecord } from '../storage/types';
 import { useWorkspace } from '../workspace/context';
 
 /** 改动记录（§3 旅程 D，D-112）：每次修改都是一个不可变版本；回到之前会生成新版本。 */
-export function HistoryView({ env }: { env: RenderEnv }) {
+export function HistoryView({ env, onRestored }: { env: RenderEnv; onRestored?: () => void }) {
   const { palette, locale } = env;
   const headId = useWorkspace((s) => s.head!.id);
   const listRevisions = useWorkspace((s) => s.listRevisions);
@@ -38,7 +38,10 @@ export function HistoryView({ env }: { env: RenderEnv }) {
     }
     Alert.alert(result.proposal.summary, result.proposal.lines.join('\n'), [
       { text: t(locale, 'cancel'), style: 'cancel', onPress: () => void cancel() },
-      { text: t(locale, 'restoreThis'), onPress: () => void confirm() },
+      {
+        text: t(locale, 'restoreThis'),
+        onPress: () => void confirm().then((ok) => ok && onRestored?.()),
+      },
     ]);
   }
 

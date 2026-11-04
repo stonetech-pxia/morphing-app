@@ -170,6 +170,9 @@ function ThemedStack() {
         <Stack.Screen name="storage" options={{ title: t(locale, 'storageTitle') }} />
         <Stack.Screen name="packs" options={{ title: t(locale, 'packsTitle') }} />
         <Stack.Screen name="presets" options={{ title: t(locale, 'presetsTitle') }} />
+        {/* 标题在页面里（放在导航栏时也要），这里不再写一遍。 */}
+        <Stack.Screen name="history" options={{ title: '' }} />
+        <Stack.Screen name="tools" options={{ title: '' }} />
         <Stack.Screen name="reminders" options={{ title: t(locale, 'remindersTitle') }} />
         <Stack.Screen name="calendar" options={{ title: t(locale, 'calendarTitle') }} />
         <Stack.Screen name="reminder/[workflowId]" options={{ ...closable, title: '' }} />

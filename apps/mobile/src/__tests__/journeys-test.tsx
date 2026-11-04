@@ -17,11 +17,13 @@ import { DraftChatSheet } from '../draft/DraftBar';
 import { useDraftUi } from '../draft/ui';
 import { createAISettingsStore, type SecretStore } from '../ai/settings';
 import AISettingsRoute from '../app/ai-settings';
+import HistoryRoute from '../app/history';
 import ChangeRoute from '../app/change';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
 import ReadyRoute from '../app/ready/[workflowId]';
 import RunRoute from '../app/run/[workflowId]';
+import ToolsRoute from '../app/tools';
 import WorkflowsRoute from '../app/workflows';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, makePdf } from '../test-utils/fake-files';
@@ -57,7 +59,7 @@ async function renderApp(
     now: () => new Date(2026, 9, 22, 9, 0),
   });
   await store.getState().boot();
-  await renderRouter({
+  const router = await renderRouter({
     _layout: () => (
       <AISettingsProvider store={aiSettings}>
         <WorkspaceProvider value={{ store, repo, files, registry, locale: 'zh' }}>
@@ -72,11 +74,13 @@ async function renderApp(
     change: ChangeRoute,
     'page/[pageId]': PageRoute,
     'ai-settings': AISettingsRoute,
+    history: HistoryRoute,
+    tools: ToolsRoute,
     'run/[workflowId]': RunRoute,
     workflows: WorkflowsRoute,
     'ready/[workflowId]': ReadyRoute,
   });
-  return { repo, store, files, aiSettings };
+  return { repo, store, files, aiSettings, router };
 }
 
 /** 卸载工具要在系统确认框里确认；测试中直接点“应用更改”。其他工具操作直接应用。 */
@@ -414,12 +418,14 @@ describe('user journeys (UI)', () => {
   });
 
   it('D: restore an earlier version from History (reachable from Settings)', async () => {
-    const { store } = await renderApp();
+    const { store, router } = await renderApp();
     await askAi('导航栏只保留首页、工具、设置');
     await applyDraft();
 
     await fireEvent.press(await screen.findByTestId('nav-settings'));
     await fireEvent.press(await screen.findByTestId('settings-history'));
+    // 单独的页面：Android 的返回键和左上角的返回都回到设置，不会退出 App。
+    expect(router.getPathname()).toBe('/history');
     // 改动记录（D-112）：没有编号和秒数，说明是谁改的。
     const entry = await screen.findByTestId('revision-2');
     expect(entry).toHaveTextContent(/AI 改的/);
@@ -437,6 +443,34 @@ describe('user journeys (UI)', () => {
     expect(await screen.findByTestId('nav-ai')).toBeTruthy();
     expect(store.getState().head).toMatchObject({ id: 3, source: 'restore' });
     expect(store.getState().head!.summary).toMatch(/^回到 .+ 的样子$/);
+    // 回到设置：撤销的提示条在外壳上，留在改动记录页就看不到了。
+    expect(router.getPathname()).toBe('/');
+    expect(await screen.findByTestId('banner')).toBeTruthy();
+    expect(screen.getByTestId('settings-history')).toBeTruthy();
+  });
+
+  it('going back from tools opened in settings lands on settings', async () => {
+    const { router } = await renderApp();
+    await fireEvent.press(await screen.findByTestId('nav-settings'));
+    await fireEvent.press(await screen.findByTestId('settings-tools'));
+    expect(router.getPathname()).toBe('/tools');
+    expect(await screen.findByTestId('page-ai')).toBeTruthy();
+    // 在这里加工具：撤销的提示条也要看得到。
+    await fireEvent.press(await screen.findByTestId('install-pdf'));
+    expect(await screen.findByTestId('banner')).toBeTruthy();
+    await testRouter.back();
+    expect(router.getPathname()).toBe('/');
+    expect(await screen.findByTestId('settings-tools')).toBeTruthy();
+  });
+
+  it('going back from the change history lands on settings', async () => {
+    const { router } = await renderApp();
+    await fireEvent.press(await screen.findByTestId('nav-settings'));
+    await fireEvent.press(await screen.findByTestId('settings-history'));
+    expect(router.getPathname()).toBe('/history');
+    await testRouter.back();
+    expect(router.getPathname()).toBe('/');
+    expect(await screen.findByTestId('settings-history')).toBeTruthy();
   });
 
   it('B: install PDF, merge two real PDFs, uninstall — the files stay', async () => {
