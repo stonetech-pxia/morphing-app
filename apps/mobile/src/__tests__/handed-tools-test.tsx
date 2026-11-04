@@ -29,7 +29,14 @@ const sample = (registry: Registry, extra: Op[] = []): WorkspaceConfig => {
   const base = createStarterWorkspace('en', registry);
   const ops = sampleOps('business-cards', base, 'en');
   if (!ops.ok) throw new Error(ops.message);
-  const r = applyOps(base, [...ops.ops, ...extra], { registry, locale: 'en' });
+  // 样板的导出在下面的浮动按钮上（创始人 2026-11-04 定）；这里测列表上方的按钮（as: "list"，D-428），能力还在。
+  const onList: Op = {
+    op: 'updateContainer',
+    page: 'contacts',
+    block: 'contacts',
+    changes: { tools: [{ as: 'list', tool: 'export-contacts' }] },
+  };
+  const r = applyOps(base, [...ops.ops, onList, ...extra], { registry, locale: 'en' });
   if (!r.ok) throw new Error(r.error);
   return r.config;
 };
@@ -232,9 +239,7 @@ describe('with data: the list', () => {
   it('a search narrows what is handed over and says so', async () => {
     const { files } = await start(people, [], contactsPage);
     await fireEvent.changeText(screen.getByTestId('browse-search'), 'ann');
-    expect(screen.getByTestId('list-tool-count')).toHaveTextContent(
-      'Only the 2 entries you searched for',
-    );
+    expect(screen.getByTestId('list-tool-count')).toHaveTextContent('Only the 2 entries found');
     await press();
     await waitFor(() => expect(files.shared).toHaveLength(1));
     const text = sharedText(files);
@@ -246,9 +251,7 @@ describe('with data: the list', () => {
   it('one match: singular text, and it goes straight to the share sheet', async () => {
     const { files } = await start(people, [], contactsPage);
     await fireEvent.changeText(screen.getByTestId('browse-search'), 'bob');
-    expect(screen.getByTestId('list-tool-count')).toHaveTextContent(
-      'Only the one entry you searched for',
-    );
+    expect(screen.getByTestId('list-tool-count')).toHaveTextContent('Only the one entry found');
     await fireEvent.press(screen.getByTestId('list-tool-export-contacts'));
     await waitFor(() => expect(files.shared).toHaveLength(1));
     expect(screen.queryByTestId('run-screen')).toBeNull();

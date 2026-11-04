@@ -20,6 +20,7 @@ import { previousField } from './previous';
 import { ratingField } from './rating';
 import { rollupField } from './rollup';
 import { scheduleField } from './schedule';
+import { tagsField } from './tags';
 import { textField } from './text';
 import { timeField } from './time';
 
@@ -27,6 +28,7 @@ export * from './define';
 export { ChoiceOptionSchema } from './choice';
 export { ROLLUP_AGGREGATES } from './rollup';
 export { SCHEDULE_LAST_DONE_TYPES } from './schedule';
+export { cleanTags, MAX_RECORD_TAGS, MAX_TAG_LENGTH, tagKey } from './tags';
 
 /** 全部字段类型。新类型加在最后（顺序就是配置 JSON Schema 里的顺序）。 */
 export const FIELDS = [
@@ -48,6 +50,7 @@ export const FIELDS = [
   rollupField,
   previousField,
   scheduleField,
+  tagsField,
 ] as const;
 
 type Schemas<D extends readonly { schema: unknown }[]> = {

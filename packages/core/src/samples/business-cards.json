@@ -6,16 +6,15 @@
     "fr": "Cartes de visite"
   },
   "summary": {
-    "en": "Scan cards and QR codes into contacts, show your own card as a QR code, and share contacts as vCards.",
-    "zh": "扫名片和二维码存成联系人，用二维码出示自己的名片，用 vCard 分享联系人。",
-    "fr": "Scannez cartes et codes QR dans vos contacts, présentez votre carte en code QR et partagez les contacts en vCard."
+    "en": "Your contacts, scanned from cards and QR codes: search everything, tag them, share them as vCards, and show your own card as a QR code.",
+    "zh": "扫名片和二维码存成联系人：什么都能搜，加标签，用 vCard 分享，还能用二维码出示自己的名片。",
+    "fr": "Vos contacts, scannés depuis des cartes et des codes QR : tout rechercher, ajouter des étiquettes, partager en vCard et présenter votre carte en code QR."
   },
   "ids": {
     "$table.contacts": "contacts",
     "$table.mine": "my-card",
-    "$page.main": "cards",
+    "$page.main": "contacts",
     "$page.mine": "my-card",
-    "$page.contacts": "contacts",
     "$tool.scan": "scan-card",
     "$tool.scanMine": "scan-my-card",
     "$tool.export": "export-contacts"
@@ -119,47 +118,13 @@
           "type": "text"
         },
         {
-          "id": "group",
+          "id": "tags",
           "name": {
-            "en": "Group",
-            "zh": "分组",
-            "fr": "Groupe"
+            "en": "Tags",
+            "zh": "标签",
+            "fr": "Étiquettes"
           },
-          "type": "choice",
-          "options": [
-            {
-              "id": "client",
-              "label": {
-                "en": "Client",
-                "zh": "客户",
-                "fr": "Client"
-              }
-            },
-            {
-              "id": "colleague",
-              "label": {
-                "en": "Colleague",
-                "zh": "同事",
-                "fr": "Collègue"
-              }
-            },
-            {
-              "id": "friend",
-              "label": {
-                "en": "Friend",
-                "zh": "朋友",
-                "fr": "Ami"
-              }
-            },
-            {
-              "id": "other",
-              "label": {
-                "en": "Other",
-                "zh": "其他",
-                "fr": "Autre"
-              }
-            }
-          ]
+          "type": "tags"
         },
         {
           "id": "note",
@@ -393,38 +358,44 @@
     {
       "id": "$page.main",
       "title": {
-        "en": "Business cards",
-        "zh": "名片",
-        "fr": "Cartes de visite"
+        "en": "Contacts",
+        "zh": "联系人",
+        "fr": "Contacts"
       },
       "icon": "person",
       "blocks": [
         {
-          "id": "title",
-          "look": "header",
+          "id": "contacts",
+          "look": "list",
+          "source": {
+            "table": "$table.contacts",
+            "sort": {
+              "field": "name",
+              "direction": "asc"
+            },
+            "limit": 30
+          },
           "show": {
-            "title": {
-              "en": "Business cards",
-              "zh": "名片",
-              "fr": "Cartes de visite"
+            "title": "name",
+            "subtitles": ["company", "title"],
+            "trailing": "tags",
+            "emptyText": {
+              "en": "No contacts yet. Scan a card to add one.",
+              "zh": "还没有联系人。扫一张名片就有了。",
+              "fr": "Aucun contact pour l’instant. Scannez une carte pour en ajouter un."
+            },
+            "browse": {
+              "search": true,
+              "sort": ["name", "company", "createdAt"],
+              "filter": ["tags"],
+              "pin": true
             }
           }
         },
         {
-          "id": "scan",
-          "look": "action",
-          "show": {
-            "shape": "row"
-          },
-          "tools": [
-            {
-              "tool": "$tool.scan"
-            }
-          ]
-        },
-        {
           "id": "mine",
           "look": "entry",
+          "pin": "bottom",
           "show": {
             "title": {
               "en": "My card",
@@ -437,18 +408,38 @@
           "opens": "page:$page.mine"
         },
         {
-          "id": "contacts",
-          "look": "entry",
-          "show": {
-            "title": {
-              "en": "Contacts",
-              "zh": "联系人",
-              "fr": "Contacts"
+          "id": "actions",
+          "look": "dial",
+          "pin": "bottom",
+          "tools": [
+            {
+              "tool": "$tool.scan",
+              "label": {
+                "en": "Scan",
+                "zh": "扫描",
+                "fr": "Scanner"
+              }
             },
-            "icon": "person",
-            "shape": "row"
-          },
-          "opens": "page:$page.contacts"
+            {
+              "do": "create",
+              "table": "$table.contacts",
+              "ask": "all",
+              "label": {
+                "en": "Add by hand",
+                "zh": "手动添加",
+                "fr": "Ajouter à la main"
+              }
+            },
+            {
+              "as": "list",
+              "tool": "$tool.export",
+              "label": {
+                "en": "Export contacts",
+                "zh": "导出联系人",
+                "fr": "Exporter"
+              }
+            }
+          ]
         }
       ]
     },
@@ -543,79 +534,6 @@
           "tools": [
             {
               "tool": "$tool.scanMine"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "$page.contacts",
-      "title": {
-        "en": "Contacts",
-        "zh": "联系人",
-        "fr": "Contacts"
-      },
-      "icon": "person",
-      "blocks": [
-        {
-          "id": "title",
-          "look": "header",
-          "show": {
-            "title": {
-              "en": "Contacts",
-              "zh": "联系人",
-              "fr": "Contacts"
-            }
-          }
-        },
-        {
-          "id": "scan",
-          "look": "action",
-          "show": {
-            "shape": "row"
-          },
-          "tools": [
-            {
-              "tool": "$tool.scan"
-            }
-          ]
-        },
-        {
-          "id": "contacts",
-          "look": "list",
-          "source": {
-            "table": "$table.contacts",
-            "sort": {
-              "field": "name",
-              "direction": "asc"
-            },
-            "limit": 100
-          },
-          "show": {
-            "title": "name",
-            "subtitles": ["company", "title"],
-            "emptyText": {
-              "en": "No contacts yet. Scan a card to add one.",
-              "zh": "还没有联系人。扫一张名片就有了。",
-              "fr": "Aucun contact pour l’instant. Scannez une carte pour en ajouter un."
-            },
-            "browse": {
-              "search": true,
-              "sort": ["name", "company", "createdAt"],
-              "group": ["company", "group"]
-            }
-          },
-          "tools": [
-            {
-              "as": "list",
-              "tool": "$tool.export"
-            },
-            {
-              "as": "addHere",
-              "do": "create",
-              "table": "$table.contacts",
-              "ask": "all",
-              "values": "$here"
             }
           ]
         }

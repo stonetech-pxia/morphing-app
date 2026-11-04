@@ -4,6 +4,7 @@ import type { BlockChanges, Op, OpOf } from './ops-schema';
 import { THEME_PRESETS } from './presets';
 import {
   isRecordToolUse,
+  isOpenUse,
   isToolRefUse,
   type RecordToolUse,
   type ToolUse,
@@ -44,6 +45,7 @@ import {
   type WorkspaceConfig,
 } from './schema';
 import { DEFAULT_THEME } from './theme';
+import { pageBrowseLists } from './page-zones';
 import { handedInput, workflowProblems } from './workflow/check';
 import { REDACTED_TEXT } from './workflow/redact';
 import { missingPlace, stepRefs } from './workflow/refs';
@@ -354,7 +356,9 @@ function removeQuickActionUses(
     if (ran) counts.get(ran)!.runners++;
     const opened = ran ? undefined : opens(c);
     if (opened) counts.get(opened)!.links++;
-    return ran !== undefined || opened !== undefined;
+    // 分开的浮动按钮一项都不剩时块也移除（底线 18）。
+    const emptyDial = isKnownComponent(c) && c.look === 'dial' && !c.tools?.length;
+    return ran !== undefined || opened !== undefined || emptyDial;
   });
   const tools = config.containers.desk?.tools;
   if (tools) {
@@ -456,6 +460,32 @@ function pruneRecordTools(config: WorkspaceConfig, gone: Gone, notes: ApplyNote[
   if (count > 0) notes.push({ kind: 'removedRecordActions', count });
 }
 
+/**
+ * 分开的浮动按钮跟着清理（底线 18）：页面上不再有能选的列表时，交列表记录的那一项去掉；打开的页面没了那一项也去掉；
+ * 一项都不剩时块也移除。其余的项留着。
+ */
+function pruneDials(config: WorkspaceConfig, notes: ApplyNote[]): void {
+  let count = 0;
+  for (const page of config.containers.pages) {
+    for (const c of page.blocks) {
+      if (!isKnownComponent(c) || c.look !== 'dial' || !Array.isArray(c.tools)) continue;
+      const lists = pageBrowseLists(page).length === 1;
+      const kept = c.tools.filter(
+        (u) =>
+          !(u.as === 'list' && !lists) &&
+          !(isOpenUse(u) && !config.containers.pages.some((p) => p.id === u.opens)),
+      );
+      count += c.tools.length - kept.length;
+      c.tools = kept;
+    }
+  }
+  count += removeEverywhere(
+    config,
+    (c) => isKnownComponent(c) && c.look === 'dial' && !c.tools?.length,
+  );
+  if (count > 0) notes.push({ kind: 'clearedBlockRefs', count });
+}
+
 /** 删字段后，记录页顶部交这个字段的按钮跟着去掉（底线 18，D-428）。 */
 function pruneRecordRow(table: Collection, field: string, notes: ApplyNote[]): void {
   const row = table.recordRow?.filter((item) => item.field !== field);
@@ -483,11 +513,16 @@ function pruneBrowseFields(
       count++;
       continue;
     }
-    const show = (c as { show?: { browse?: { search?: true; sort?: string[]; group?: string[] } } })
-      .show;
+    const show = (
+      c as {
+        show?: {
+          browse?: { search?: true; sort?: string[]; group?: string[]; filter?: string[] };
+        };
+      }
+    ).show;
     const browse = show?.browse;
     if (!show || !browse) continue;
-    for (const key of ['sort', 'group'] as const) {
+    for (const key of ['sort', 'group', 'filter'] as const) {
       const list = browse[key];
       if (!list?.includes(gone.field)) continue;
       count++;
@@ -495,7 +530,7 @@ function pruneBrowseFields(
       if (left.length > 0) browse[key] = left;
       else delete browse[key];
     }
-    if (!browse.search && !browse.sort && !browse.group) delete show.browse;
+    if (!browse.search && !browse.sort && !browse.group && !browse.filter) delete show.browse;
   }
   count += removeEverywhere(
     config,
@@ -705,6 +740,7 @@ function removeData(
     pruneAggregateFields(config, { table: op.table, field: op.field });
     pruneBrowseFields(config, { table: op.table, field: op.field }, notes);
     pruneSteps(config, { table: op.table, field: op.field }, registry, notes);
+    pruneDials(config, notes);
     return;
   }
   // D-250：别的表还引用它时不能移除，先移除那些引用字段（避免引用字段指向不存在的表）。
@@ -738,6 +774,7 @@ function removeData(
   pruneRecordTools(config, { table: op.table }, notes);
   pruneSteps(config, { table: op.table }, registry, notes);
   pruneShowIf(config, op.table, notes);
+  pruneDials(config, notes);
 }
 
 function moveData(config: WorkspaceConfig, op: OpOf<'moveData'>): void {
@@ -775,7 +812,16 @@ function addContainer(config: WorkspaceConfig, op: OpOf<'addContainer'>): void {
 }
 
 const PAGE_CHANGES = ['title', 'icon', 'backdrop'] as const;
-const BLOCK_CHANGES = ['style', 'hidden', 'showIf', 'show', 'source', 'tools', 'opens'] as const;
+const BLOCK_CHANGES = [
+  'style',
+  'hidden',
+  'showIf',
+  'pin',
+  'show',
+  'source',
+  'tools',
+  'opens',
+] as const;
 const DESK_CHANGES = ['toolbar', 'preview', 'strip', 'tools'] as const;
 
 function updateBlock(block: KnownComponent, changes: BlockChanges): void {
@@ -795,6 +841,8 @@ function updateBlock(block: KnownComponent, changes: BlockChanges): void {
   else if (changes.hidden === false) delete block.hidden;
   if (changes.showIf === null) delete block.showIf;
   else if (changes.showIf !== undefined) block.showIf = changes.showIf;
+  if (changes.pin === null) delete block.pin;
+  else if (changes.pin !== undefined) block.pin = changes.pin;
   // show、source 只合并（null 去掉一项），外观不能通过这个操作改变；合法性由 validateWorkspace 检查。
   for (const key of ['show', 'source'] as const) {
     const patch = changes[key];
@@ -884,10 +932,12 @@ function removePage(config: WorkspaceConfig, pageId: string, notes: ApplyNote[])
     if (!isKnownComponent(c)) continue;
     const block = c as { opens?: unknown; tools?: ToolUse[] };
     if (componentCollection(c) !== null && block.opens === pageId) delete block.opens;
+    if (c.look === 'dial') continue;
     block.tools?.forEach((u) => {
       if ('opens' in u && u.opens === pageId) u.opens = 'record';
     });
   }
+  pruneDials(config, notes);
 }
 
 function removeContainer(
@@ -909,6 +959,7 @@ function removeContainer(
   if (op.block === undefined) return removePage(config, op.page!, notes);
   const { list, index } = getBlock(getPage(config, op.page!), op.block);
   list.splice(index, 1);
+  pruneDials(config, notes);
 }
 
 function moveContainer(config: WorkspaceConfig, op: OpOf<'moveContainer'>): void {

@@ -35,6 +35,7 @@ import { FocusItem } from '../editing/FocusItem';
 import { Chart } from './Chart';
 import type { RenderEnv } from './components';
 import { RecordForm, RecordList, Stat, type RecordBlock } from './data';
+import { DialButton } from './Dial';
 import { ListTools } from './ListTools';
 import { MonthCalendar } from './MonthCalendar';
 import { Board } from './Board';
@@ -232,6 +233,7 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
   },
   library: (c, env) => <QuickActionList block={c} env={env} />,
   single: (c, env) => <SingleRecord block={c} env={env} tone={c.style?.tone} />,
+  dial: (c, env) => <DialButton block={c} env={env} />,
 };
 
 /** 打开相册还是打开文件（picker 的 tools[0]）。 */
@@ -255,6 +257,7 @@ const PAGE_LOOKS: ReadonlySet<ComponentType> = new Set<ComponentType>([
   'picker',
   'image',
   'library',
+  'dial',
 ]);
 
 /** 列表、卡片、清单：列表上方的工具（D-428）在 ListTools 里，这样 data.tsx 不依赖运行（记录表单也用 data.tsx）。 */
@@ -384,7 +387,7 @@ export function Item({
 }
 
 /** 按一张表有没有记录决定画不画（D-424）。只读；还没读完时不画，不会闪一下。 */
-function WhenRecords({ showIf, children }: { showIf: ShowIf; children: ReactNode }) {
+export function WhenRecords({ showIf, children }: { showIf: ShowIf; children: ReactNode }) {
   const records = useRecords(showIf.table);
   if (records === null) return null;
   return (showIf.has === 'some') === records.length > 0 ? children : null;

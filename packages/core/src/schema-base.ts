@@ -167,6 +167,10 @@ export {
   type FieldDefinition,
   type FieldOf,
   type FieldType,
+  cleanTags,
+  MAX_RECORD_TAGS,
+  MAX_TAG_LENGTH,
+  tagKey,
 } from './fields';
 
 /**

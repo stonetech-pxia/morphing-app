@@ -18,6 +18,7 @@ import {
   type CheckProblem,
   type LookDefinitionOf,
   type LookMeta,
+  type Pin,
   defineLook,
   isSystemField,
   NUMERIC_FIELD_TYPES,
@@ -60,12 +61,16 @@ const SlotsSchema = z.strictObject({
   /**
    * 用户在列表上临时找、换着看（D-424，只有 list、cards、checklist）：search 有搜索框，sort、group 是能换的字段。
    * 换了只在这个块画着的时候有效，离开就回到 source 的排序和分组，什么都不写（底线 15）。
+   * filter：单选、标签字段，一排可点的值，一次选一个（创始人 2026-11-04 定）。pin：搜索框和这几排固定在页面上方。
+   * 有 browse 时 source.limit 是每次显示几条，滚到底再显示下一批（没有 browse 的 limit 是硬上限）。
    */
   browse: z
     .strictObject({
       search: z.literal(true).optional(),
       sort: z.array(FieldRefSchema).min(1).max(6).optional(),
       group: z.array(FieldRefSchema).min(1).max(6).optional(),
+      filter: z.array(IdSchema).min(1).max(3).optional(),
+      pin: z.literal(true).optional(),
     })
     .optional(),
 });
@@ -82,7 +87,11 @@ const shape = {
 export const RECORD_LOOKS = ['list', 'cards', 'checklist', 'tiles', 'board', 'calendar'] as const;
 export type RecordLook = (typeof RECORD_LOOKS)[number];
 
-type RecordBlock = z.infer<z.ZodObject<typeof shape>> & { id: string; look: RecordLook };
+type RecordBlock = z.infer<z.ZodObject<typeof shape>> & {
+  id: string;
+  look: RecordLook;
+  pin?: Pin | undefined;
+};
 
 const refs = {
   'source.table': { to: 'table' },
@@ -92,6 +101,7 @@ const refs = {
   'show.color': { to: 'field', role: 'colorField', types: ['choice'] },
   'show.browse.sort': { to: 'field', role: 'show.browse.sort' },
   'show.browse.group': { to: 'field', role: 'show.browse.group' },
+  'show.browse.filter': { to: 'field', role: 'show.browse.filter', types: ['tags', 'choice'] },
   'source.filter': { to: 'filter' },
 } as const;
 
@@ -99,7 +109,8 @@ const refs = {
 const BROWSE_GROUP_TYPES: readonly string[] = [...GROUP_BY_TYPES, 'text'];
 
 /** 每种记录外观自己的要求（v33 靠 check 拦的，v34 写进各自的 look 里，规则 E6）。 */
-function recordProblems(c: RecordBlock, { collection, config }: CheckContext): CheckProblem[] {
+function recordProblems(c: RecordBlock, ctx: CheckContext): CheckProblem[] {
+  const { collection, config } = ctx;
   const problems: string[] = [];
   const table = c.source.table;
   if (c.opens !== undefined) {
@@ -116,8 +127,20 @@ function recordProblems(c: RecordBlock, { collection, config }: CheckContext): C
   if (browse) {
     if (c.look !== 'list' && c.look !== 'cards' && c.look !== 'checklist')
       problems.push('show.browse only applies to looks "list", "cards" and "checklist"');
-    if (browse.search === undefined && !browse.sort && !browse.group)
-      problems.push('show.browse needs search, sort or group');
+    if (browse.search === undefined && !browse.sort && !browse.group && !browse.filter)
+      problems.push('show.browse needs search, sort, group or filter');
+    if (browse.pin) {
+      if (ctx.parent)
+        problems.push('show.browse.pin only works on a top-level list, not inside a group');
+      const pinned = ctx.page.blocks.filter(
+        (b) => (b as { show?: { browse?: { pin?: true } } }).show?.browse?.pin === true,
+      );
+      if (pinned.length > 1)
+        problems.push(`page ${ctx.page.id} can pin the search of only one list`);
+    }
+    // 能一直往下加载的列表要在滚动的中间，固定不住。
+    if (c.pin !== undefined)
+      problems.push('a list with show.browse scrolls in the middle of the page: no pin');
     for (const id of browse.sort ?? []) {
       const f = field(id);
       if (f && fieldDefinition(f.type).sort === false)
@@ -206,7 +229,7 @@ function recordProblems(c: RecordBlock, { collection, config }: CheckContext): C
  * limit 是每段 / 每栏 / 每天最多几条。
  */
 export const RECORD_LOOK_DOC =
-  'source {table, filter?, sort? {field, direction: "asc"|"desc"}, limit? (1-100, default 30; per section, column or day when grouped), group?}, show {title, subtitles? (≤2), trailing? (shown on the right, e.g. an amount), format? (rule 46), color? (calendar only), emptyText?, browse? {search?: true, sort?: [fields], group?: [fields]} (list, cards and checklist only: a search box and the fields the user can switch to; switching is temporary and writes nothing; set it when the user asks to search, sort or group a list themselves)}, tools?, opens? (a page for one entry, rule 48)';
+  'source {table, filter?, sort? {field, direction: "asc"|"desc"}, limit? (1-100, default 30; per section, column or day when grouped), group?}, show {title, subtitles? (≤2), trailing? (shown on the right, e.g. an amount), format? (rule 46), color? (calendar only), emptyText?, browse? {search?: true, sort?: [fields], group?: [fields], filter?: [tags or choice fields], pin?: true} (list, cards and checklist only: a search box over every field, the fields the user can switch to, and a row of values to tap for filter; all temporary, nothing is written; pin keeps them fixed above the scrolling list; with browse, limit is how many to show at a time and scrolling to the bottom shows more; set it when the user asks to search, sort, group or filter a list themselves)}, tools?, opens? (a page for one entry, rule 48)';
 
 const DOCS: Record<RecordLook, string> = {
   list: 'rows; tapping a row opens the built-in editor (or the page in opens)',

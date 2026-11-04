@@ -793,6 +793,18 @@ export function describeChange(
                   { component: label, table: collName(changes.showIf.table) },
                 ),
           );
+        if (changes.pin !== undefined)
+          lines.push(
+            t(
+              ctx.locale,
+              changes.pin === null
+                ? 'describePinOff'
+                : changes.pin === 'top'
+                  ? 'describePinTop'
+                  : 'describePinBottom',
+              { component: label },
+            ),
+          );
         if (changes.style) {
           const current = findComp(pageId, op.block);
           lines.push(

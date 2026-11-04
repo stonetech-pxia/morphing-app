@@ -351,6 +351,7 @@ class Analysis {
           show.color,
           ...(show.browse?.sort ?? []),
           ...(show.browse?.group ?? []),
+          ...(show.browse?.filter ?? []),
         ])
           if (id !== undefined) use.read.add(id);
         const format = show.format;

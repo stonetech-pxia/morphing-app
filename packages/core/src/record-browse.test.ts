@@ -88,7 +88,7 @@ describe('show.browse settings', () => {
     expect(issues(block({}, { browse: { group: ['nope'] } })).join()).toMatch(/nope/);
     expect(issues(block({}, { browse: { sort: ['other'] } })).join()).toMatch(/can't sort/);
     expect(issues(block({}, { browse: { group: ['age'] } })).join()).toMatch(/show.browse.group/);
-    expect(issues(block({}, { browse: {} })).join()).toMatch(/needs search, sort or group/);
+    expect(issues(block({}, { browse: {} })).join()).toMatch(/needs search, sort, group or filter/);
     expect(issues(block({ look: 'tiles' }, { browse: { search: true } })).join()).toMatch(
       /only applies/,
     );

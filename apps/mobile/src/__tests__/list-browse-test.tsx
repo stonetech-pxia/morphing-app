@@ -189,16 +189,14 @@ describe('edge cases', () => {
     const many = Array.from({ length: 8 }, (_, i) => ({ name: `Person ${i}`, co: 'Same' }));
     await open(many);
     await waitFor(() => expect(rows()).toHaveLength(LIMIT));
-    expect(screen.getByTestId('browse-more')).toHaveTextContent(
-      '显示 3 / 8 条，搜索能找到其他的。',
-    );
+    expect(screen.getByTestId('browse-more')).toHaveTextContent('显示 3 / 8 条，往下滚动看更多。');
     expect(rows()).not.toContain('p7');
     await fireEvent.changeText(screen.getByTestId('browse-search'), 'person 7');
     expect(rows()).toEqual(['p7']);
     expect(screen.queryByTestId('browse-more')).toBeNull();
     await fireEvent.changeText(screen.getByTestId('browse-search'), 'person');
     expect(screen.getByTestId('browse-more')).toHaveTextContent(
-      '找到 8 条，显示 3 条，再多写几个字。',
+      '找到 8 条，显示 3 条，往下滚动看更多。',
     );
   });
 

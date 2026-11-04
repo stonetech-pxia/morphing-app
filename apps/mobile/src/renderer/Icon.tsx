@@ -147,6 +147,7 @@ const UI_SYMBOLS = {
   arrowDown: { ios: 'arrow.down', android: 'arrow_downward' },
   chevronRight: { ios: 'chevron.right', android: 'chevron_right' },
   chevronDown: { ios: 'chevron.down', android: 'expand_more' },
+  chevronUp: { ios: 'chevron.up', android: 'expand_less' },
   chevronLeft: { ios: 'chevron.left', android: 'chevron_left' },
   play: { ios: 'play.fill', android: 'play_arrow' },
   edit: { ios: 'pencil', android: 'edit' },

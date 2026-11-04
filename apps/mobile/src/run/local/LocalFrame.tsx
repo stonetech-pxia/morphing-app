@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Palette } from '../../renderer/theme';
@@ -31,7 +31,8 @@ export function LocalFrame({
   const insets = useSafeAreaInsets();
   return (
     <KeyboardAvoidingView
-      enabled={avoidKeyboard === true && Platform.OS === 'ios'}
+      // Android 是 edge-to-edge，窗口不会因为键盘变小：两边都留出键盘的高度。
+      enabled={avoidKeyboard === true}
       behavior="padding"
       style={[styles.root, { backgroundColor: palette.background, paddingTop: insets.top }]}>
       <View style={styles.header}>

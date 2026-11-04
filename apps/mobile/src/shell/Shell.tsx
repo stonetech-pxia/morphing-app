@@ -117,7 +117,16 @@ export function Shell() {
   const entryAbout = shellAbout(active);
   if (pageId !== null) {
     const page = config.containers.pages.find((p) => p.id === pageId)!;
-    content = <EditablePage page={page} env={env} bottomInset={barSpace + (editing ? 0 : 64)} />;
+    // 页面下方的固定区让开导航栏，有浮动按钮时也让开浮动按钮（bottomInset 里那 64 是给滚动内容留的）。
+    const floatingShown = config.nav.floating.length > 0 && !editing && !inDraft;
+    content = (
+      <EditablePage
+        page={page}
+        env={env}
+        bottomInset={barSpace + (editing ? 0 : 64)}
+        zoneInset={barSpace + (floatingShown ? 64 : 0)}
+      />
+    );
   } else if (active === 'tools') {
     content = <ToolsView env={env} />;
   } else if (active === 'quickActions') {

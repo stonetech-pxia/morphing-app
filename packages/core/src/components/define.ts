@@ -28,11 +28,19 @@ export const ShowIfSchema = z.strictObject({
 });
 export type ShowIf = z.infer<typeof ShowIfSchema>;
 
+/**
+ * 块固定在页面的上方或下方，不跟着中间滚动（创始人 2026-11-04 定）。只是页面顶层一个块的属性：每种遍历（删除、引用、
+ * 说明、AI 的修改）都照常走 page.blocks；分组里的块不能有（validate.ts）。
+ */
+export const PinSchema = z.enum(['top', 'bottom']);
+export type Pin = z.infer<typeof PinSchema>;
+
 export const blockBase = {
   id: IdSchema,
   hidden: z.boolean().optional(),
   style: ComponentStyleSchema.optional(),
   showIf: ShowIfSchema.optional(),
+  pin: PinSchema.optional(),
 };
 
 /** 入口类卡片的样子（D-230）：row = 设置页那种一行、右边有箭头；tile = 大图标块。 */

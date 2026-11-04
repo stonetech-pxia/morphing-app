@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { actionComponent } from './action';
 import { buttonComponent } from './button';
 import { chartComponent } from './chart';
+import { dialComponent } from './dial';
 import { dividerComponent } from './divider';
 import { entryComponent } from './entry';
 import { filesComponent } from './files';
@@ -26,7 +27,7 @@ import { singleComponent } from './single';
 import { spacerComponent } from './spacer';
 import { textComponent } from './text';
 
-/** 可以放进分组的外观（23 种，加上 group 本身共 24 种）。新外观加在最后（顺序就是 JSON Schema 里的顺序）。 */
+/** 可以放进分组的外观（24 种，加上 group 本身共 25 种；dial 要固定在页面下方，进不了分组，校验拦）。新外观加在最后（顺序就是 JSON Schema 里的顺序）。 */
 export const LEAF_COMPONENTS = [
   headerComponent,
   textComponent,
@@ -51,6 +52,7 @@ export const LEAF_COMPONENTS = [
   libraryComponent,
   packagesComponent,
   singleComponent,
+  dialComponent,
 ] as const;
 
 type Schemas<D extends readonly { schema: unknown }[]> = {

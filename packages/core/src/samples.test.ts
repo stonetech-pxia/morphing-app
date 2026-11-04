@@ -12,6 +12,7 @@ import {
   remindersOf,
   type Locale,
   type WorkspaceConfig,
+  type BlockOf,
 } from './schema';
 import { apply, fromV33, registry, v33Fixture, workspace } from './test-helpers';
 import { recordToVCard } from './vcard';
@@ -410,6 +411,7 @@ describe('the business card sample (D-423)', () => {
           website: 'example.com',
           address: 'Main St',
           note: 'private',
+          tags: ['private-tag'],
         })!;
         expect(text.split('\r\n')).toEqual(
           expect.arrayContaining([
@@ -424,12 +426,37 @@ describe('the business card sample (D-423)', () => {
         );
         expect(text).not.toContain('private');
       }
-      // 联系人多一个分组，别的一样。
-      expect(tables[0]!.fields.map((f) => f.id).filter((id) => id !== 'group')).toEqual(
+      // 联系人多一个标签，别的一样。
+      expect(tables[0]!.fields.map((f) => f.id).filter((id) => id !== 'tags')).toEqual(
         tables[1]!.fields.map((f) => f.id),
       );
     },
   );
+
+  it('entering it is the contacts list: no header, search fixed on top, My card and the dial fixed below', () => {
+    const config = applied('en');
+    const page = config.containers.pages.find((p) => p.id === 'contacts')!;
+    expect(page.blocks.map((b) => [b.look, 'pin' in b ? b.pin : undefined])).toEqual([
+      ['list', undefined],
+      ['entry', 'bottom'],
+      ['dial', 'bottom'],
+    ]);
+    const list = page.blocks[0] as BlockOf<'list'>;
+    expect(list.show.browse).toEqual({
+      search: true,
+      sort: ['name', 'company', 'createdAt'],
+      filter: ['tags'],
+      pin: true,
+    });
+    expect(list.tools).toBeUndefined();
+    const dial = page.blocks[2] as BlockOf<'dial'>;
+    expect(dial.tools.map((u) => u.as ?? ('do' in u ? u.do : 'run'))).toEqual([
+      'run',
+      'create',
+      'list',
+    ]);
+    expect(config.data.tables[0]!.fields.some((f) => f.id === 'group')).toBe(false);
+  });
 
   it('scanning ends in the right table, and export starts from the records the list hands over', () => {
     const config = applied('en');

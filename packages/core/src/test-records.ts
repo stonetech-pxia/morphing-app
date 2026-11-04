@@ -51,6 +51,9 @@ export function sampleRecords(collections: readonly Collection[]): Map<string, D
           case 'rating':
             values[f.id] = 1 + Math.floor(r() * 5);
             break;
+          case 'tags':
+            values[f.id] = [pick(WORDS)];
+            break;
           case 'duration':
             values[f.id] = Math.floor(r() * 300);
             break;

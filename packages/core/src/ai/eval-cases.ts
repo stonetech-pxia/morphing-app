@@ -7235,6 +7235,40 @@ const FIX_CASES: EvalCase[] = [
     },
   },
   {
+    id: 'ZONE1',
+    input:
+      'keep the search box fixed at the top of my expenses list, let me filter by tag, and add a tags field',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const tagged = c.data.tables.some((t) => t.fields.some((f) => f.type === 'tags'));
+        if (!tagged) return 'no tags field';
+        // 标签名不能进配置（底线 14）：筛选只能在 browse.filter 上。
+        return JSON.stringify(c.containers).includes('"filter":["') ? null : 'no browse.filter';
+      },
+    },
+  },
+  {
+    id: 'ZONE2',
+    input:
+      'put a floating button at the bottom right of the expenses page: add an expense, with export behind an arrow',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.containers.pages.some((p) =>
+          p.blocks.some((b) => b.look === 'dial' && b.pin === 'bottom'),
+        )
+          ? null
+          : 'no dial pinned at the bottom',
+    },
+  },
+  {
     id: 'HAND1',
     input: 'add a button at the top of each expense entry to share it as a vCard',
     locale: 'en',

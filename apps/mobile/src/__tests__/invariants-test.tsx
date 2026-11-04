@@ -464,6 +464,7 @@ async function fillRecords(repo: MemoryWorkspaceRepo, tables: readonly Collectio
         else if (f.type === 'date') values[f.id] = `2026-10-${20 + i}`;
         else if (f.type === 'checkbox') values[f.id] = i === 0;
         else if (f.type === 'choice') values[f.id] = f.options[i % f.options.length]!.id;
+        else if (f.type === 'tags') values[f.id] = [`tag ${i}`];
       }
       await repo.insertRecord({
         id: `${t.id}-${i}`,
@@ -1060,7 +1061,6 @@ describe('底线 10 / 15 / 16：进入页面、记录页、列表什么都不跑
     const { files, opened, asked, spies, repo } = await viewed();
     const run = jest.spyOn(repo, 'startToolRun');
     for (const path of [
-      { pathname: '/page/[pageId]', params: { pageId: 'cards' } },
       { pathname: '/page/[pageId]', params: { pageId: 'my-card' } },
       { pathname: '/page/[pageId]', params: { pageId: 'contacts' } },
       { pathname: '/record/[collectionId]', params: { collectionId: 'contacts', recordId: 'c1' } },
@@ -1094,5 +1094,75 @@ describe('底线 10 / 15 / 16：进入页面、记录页、列表什么都不跑
     expect(spies.filter(([, s]) => s.mock.calls.length > 0).map(([n]) => n)).toEqual([]);
     expect((await repo.getRecord('c1'))!.updatedAt).toBe(1);
     jest.restoreAllMocks();
+  });
+});
+
+describe('底线 15：搜索、排序、筛选、展开浮动按钮什么都不写（创始人 2026-11-04 定）', () => {
+  it('typing in the search, picking a sort or a tag, loading more and opening the dial write nothing', async () => {
+    const repo = new MemoryWorkspaceRepo();
+    await repo.setMeta('guide', 'done');
+    await act(() => useGuide.getState().load(repo));
+    for (let i = 0; i < 40; i++)
+      await repo.insertRecord({
+        id: `c${i}`,
+        collectionId: 'contacts',
+        values: { name: `P${i}`, company: 'Acme', tags: [i % 2 ? 'odd' : 'even'] },
+        createdAt: i + 1,
+        updatedAt: i + 1,
+      });
+    const config = businessCards();
+    await renderToolsApp(repo, new FakeFiles(), { seed: () => config, locale: 'en' });
+    await settle();
+    await act(() => router.push({ pathname: '/page/[pageId]', params: { pageId: 'contacts' } }));
+    await settle();
+    const spies = spyWrites(repo);
+    const run = jest.spyOn(repo, 'startToolRun');
+    await fireEvent.changeText(await screen.findByTestId('browse-search'), 'p1');
+    await fireEvent.changeText(screen.getByTestId('browse-search'), '');
+    await fireEvent.press(screen.getByTestId('browse-sort-company'));
+    await fireEvent.press(screen.getByTestId('browse-filter-tags-odd'));
+    await fireEvent.press(screen.getByTestId('browse-filter-tags-all'));
+    await fireEvent.scroll(screen.getByTestId('editable-scroll'), {
+      nativeEvent: {
+        contentOffset: { x: 0, y: 1000 },
+        contentSize: { width: 100, height: 1200 },
+        layoutMeasurement: { width: 100, height: 400 },
+      },
+    });
+    await settle();
+    await fireEvent.press(screen.getByTestId('dial-toggle'));
+    expect(screen.getByTestId('dial-backdrop')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('dial-backdrop'));
+    expect(screen.queryByTestId('dial-backdrop')).toBeNull();
+    await settle();
+    expect(run).not.toHaveBeenCalled();
+    expect(spies.filter(([, s]) => s.mock.calls.length > 0).map(([n]) => n)).toEqual([]);
+    jest.restoreAllMocks();
+  });
+});
+
+describe('底线 2：标签的值不发给 AI（创始人 2026-11-04 定）', () => {
+  it('the request has the tags field, not the values', async () => {
+    const { bodies, fetchImpl } = capturingFetch(relayReply);
+    const provider = createRemoteAIProvider({
+      baseUrl: 'https://relay.test',
+      registry,
+      now: () => NOW,
+      fetchImpl,
+    });
+    const { store, repo } = await bootedStore(provider);
+    const added = await store.getState().change('换个颜色', provider);
+    expect(added.kind).toBe('drafted');
+    await store.getState().deleteDraft();
+    const collection = store.getState().config!.data.tables[0]!.id;
+    await repo.insertRecord({
+      id: 'tagged',
+      collectionId: collection,
+      values: { tags: [SENTINEL], labels: [SENTINEL] },
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await store.getState().change('再换个颜色', provider);
+    for (const body of bodies) expect(body).not.toContain(SENTINEL);
   });
 });

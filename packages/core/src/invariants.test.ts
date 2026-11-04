@@ -1288,7 +1288,7 @@ describe('底线 18：删掉新设置引用的表和字段（D-424）', () => {
   });
 
   it.each([
-    ['contacts', 'group'],
+    ['contacts', 'note'],
     ['my-card', 'phone'],
   ])('removing field %s.%s leaves nothing dangling', (table, field) => {
     const r = prepareOps(sample(), [{ op: 'removeData', table, field }], ctx);
@@ -1866,10 +1866,11 @@ describe('底线 18：容器上的工具的引用（D-428）', () => {
     if (!gone.ok) return;
     expect(danglingRefs(gone.after)).toEqual([]);
     const page = gone.after.containers.pages.find((p) => p.id === 'contacts')!;
-    const list = allComponents(page).find((c) => c.id === 'contacts') as {
-      tools: { as?: string }[];
+    // 导出在样板里是分开的浮动按钮的一项：这一项去掉，别的留着（创始人 2026-11-04 定）。
+    const dial = allComponents(page).find((c) => c.look === 'dial') as {
+      tools: { tool?: string; do?: string }[];
     };
-    expect(list.tools.map((u) => u.as)).toEqual(['addHere']);
+    expect(dial.tools.map((u) => u.tool ?? u.do)).toEqual(['scan-card', 'create']);
   });
 
   it('a reference that does not exist, or a field that does not fit, is refused', () => {
@@ -2025,5 +2026,280 @@ describe('each entry picks its own currency (D-429)', () => {
     expect(perCurrencyText([record as never], table() as never, 'sum', 'amount', 'en')).toContain(
       '2.00',
     );
+  });
+});
+
+describe('底线 2 / 14：标签只在记录里，配置和发给 AI 的都没有标签名（创始人 2026-11-04 定）', () => {
+  const list = (browse: object) => ({
+    id: 'x',
+    look: 'list',
+    source: { table: 'contacts' },
+    show: { title: 'name', browse },
+  });
+  const addTo = (block: object) =>
+    prepareOps(cardsSample(), [{ op: 'addContainer', page: 'my-card', block } as Op], ctx);
+
+  it('a tags field has no options, default or list of values: tag names do not fit in the config', () => {
+    const table = cardsSample().data.tables.find((t) => t.id === 'contacts')!;
+    expect(table.fields.find((f) => f.type === 'tags')).toEqual({
+      id: 'tags',
+      name: 'Tags',
+      type: 'tags',
+    });
+    for (const extra of [{ options: [SENTINEL] }, { default: [SENTINEL] }, { values: [SENTINEL] }])
+      expect(
+        CollectionSchema.safeParse({
+          id: 't',
+          name: 'T',
+          fields: [{ id: 'g', name: 'G', type: 'tags', ...extra }],
+        }).success,
+      ).toBe(false);
+  });
+
+  it('a saved filter can only ask whether there are tags: is / isNot would store a tag name', () => {
+    const filter = (op: string, value?: string) =>
+      addTo({
+        ...list({ search: true }),
+        source: { table: 'contacts', filter: [{ field: 'tags', op, value }] },
+      });
+    for (const op of ['is', 'isNot', 'contains']) {
+      const r = filter(op, SENTINEL);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.issues.join()).toMatch(/isEmpty or isNotEmpty/);
+    }
+    expect(filter('isNotEmpty').ok).toBe(true);
+  });
+
+  it('a record tool can not preset a tag either', () => {
+    const r = addTo({
+      id: 'x',
+      look: 'button',
+      show: { label: 'A', variant: 'filled' },
+      tools: [{ do: 'create', table: 'contacts', values: { tags: [SENTINEL] } }],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it('the picked filter value, the search text and the sort have no place in browse', () => {
+    for (const extra of [{ picked: SENTINEL }, { value: SENTINEL }, { query: SENTINEL }])
+      expect(
+        OpSchema.safeParse({
+          op: 'addContainer',
+          page: 'home',
+          block: list({ filter: ['tags'], ...extra }),
+        }).success,
+      ).toBe(false);
+    expect(
+      OpSchema.safeParse({
+        op: 'addContainer',
+        page: 'home',
+        block: list({ filter: [SENTINEL + ' a tag'] }),
+      }).success,
+    ).toBe(false);
+  });
+
+  it('the sample and the contacts preset hold no tag name', () => {
+    const text = JSON.stringify(cardsSample());
+    for (const old of ['"client"', '"colleague"', '"friend"']) expect(text).not.toContain(old);
+  });
+});
+
+describe('底线 12：旧的配置不用固定区、标签和浮动按钮照样打开（创始人 2026-11-04 定）', () => {
+  it('schemaVersion stays 37 and a config without the new keys is valid and unchanged', () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(37);
+    const old = fromV33(v33Fixture('sample-expense-helper-zh') as never);
+    const text = JSON.stringify(old);
+    for (const key of ['"pin"', '"dial"', '"tags"']) expect(text).not.toContain(key);
+    expect(validateWorkspace(old, registry).ok).toBe(true);
+  });
+});
+
+describe('底线 18：固定区、标签筛选、浮动按钮的引用（创始人 2026-11-04 定）', () => {
+  const dialOf = (config: WorkspaceConfig) =>
+    allComponents(config.containers.pages.find((p) => p.id === 'contacts')!).find(
+      (c) => c.look === 'dial',
+    ) as { tools: { as?: string; tool?: string; do?: string }[] } | undefined;
+
+  it('removing the list takes the item that hands its records off the dial; the others stay', () => {
+    const r = prepareOps(
+      cardsSample(),
+      [{ op: 'removeContainer', page: 'contacts', block: 'contacts' }],
+      ctx,
+    );
+    expect(r.ok ? [] : r.issues).toEqual([]);
+    if (!r.ok) return;
+    expect(danglingRefs(r.after)).toEqual([]);
+    expect(dialOf(r.after)!.tools.map((u) => u.tool ?? u.do)).toEqual(['scan-card', 'create']);
+  });
+
+  it('removing the table takes the dial items that used it; the scan stays while it can', () => {
+    const r = prepareOps(cardsSample(), [{ op: 'removeData', table: 'contacts' }], ctx);
+    expect(r.ok ? [] : r.issues).toEqual([]);
+    if (!r.ok) return;
+    expect(danglingRefs(r.after)).toEqual([]);
+    expect(JSON.stringify(dialOf(r.after) ?? {})).not.toContain('"contacts"');
+    expect(dialOf(r.after)?.tools.some((u) => u.as === 'list') ?? false).toBe(false);
+  });
+
+  it('a dial with nothing left is removed', () => {
+    const base = cardsSample();
+    const r = prepareOps(
+      base,
+      [
+        { op: 'removeTool', tool: 'scan-card' },
+        { op: 'removeTool', tool: 'export-contacts' },
+        { op: 'removeData', table: 'contacts' },
+      ],
+      ctx,
+    );
+    expect(r.ok ? [] : r.issues).toEqual([]);
+    if (r.ok) expect(dialOf(r.after)).toBeUndefined();
+  });
+
+  it('removing a page a dial opens takes that item off', () => {
+    const base = cardsSample();
+    const added = prepareOps(
+      base,
+      [
+        {
+          op: 'updateContainer',
+          page: 'contacts',
+          block: 'actions',
+          changes: {
+            tools: [
+              { tool: 'scan-card', label: 'Scan' },
+              { opens: 'my-card', label: 'Mine' },
+            ],
+          },
+        },
+      ] as Op[],
+      ctx,
+    );
+    expect(added.ok ? [] : added.issues).toEqual([]);
+    if (!added.ok) return;
+    const r = prepareOps(added.after, [{ op: 'removeContainer', page: 'my-card' }], ctx);
+    expect(r.ok ? [] : r.issues).toEqual([]);
+    if (r.ok) expect(dialOf(r.after)!.tools.map((u) => u.tool)).toEqual(['scan-card']);
+  });
+
+  it('removing a filter field takes it out of browse; browse goes when nothing is left', () => {
+    const base = cardsSample();
+    const prepared = prepareOps(
+      base,
+      [
+        {
+          op: 'addData',
+          table: {
+            id: 'kinds',
+            name: 'Kinds',
+            fields: [
+              { id: 'name', name: 'Name', type: 'text' },
+              { id: 'labels', name: 'Labels', type: 'tags' },
+            ],
+          },
+        },
+        {
+          op: 'addContainer',
+          page: 'my-card',
+          block: {
+            id: 'k',
+            look: 'list',
+            source: { table: 'kinds' },
+            show: { title: 'name', browse: { filter: ['labels'] } },
+          },
+        },
+      ] as Op[],
+      ctx,
+    );
+    expect(prepared.ok ? [] : prepared.issues).toEqual([]);
+    if (!prepared.ok) return;
+    const r = prepareOps(
+      prepared.after,
+      [{ op: 'removeData', table: 'kinds', field: 'labels' }],
+      ctx,
+    );
+    expect(r.ok ? [] : r.issues).toEqual([]);
+    if (!r.ok) return;
+    const block = allComponents(r.after.containers.pages.find((p) => p.id === 'my-card')!).find(
+      (c) => c.id === 'k',
+    ) as { show: { browse?: unknown } };
+    expect(block.show.browse).toBeUndefined();
+  });
+
+  it('a block in a group can not be pinned, and moving a pinned block into a group is refused', () => {
+    const r = prepareOps(
+      cardsSample(),
+      [
+        {
+          op: 'addContainer',
+          page: 'my-card',
+          block: {
+            id: 'g',
+            look: 'group',
+            show: { layout: 'stack' },
+            children: [{ id: 'h', look: 'divider', pin: 'top' }],
+          },
+        },
+      ] as Op[],
+      ctx,
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.issues.join()).toMatch(/can't have pin/);
+  });
+
+  it('every dial item is checked: a handed quick action, a list that is not there, a record page', () => {
+    const dial = (tools: object[]) => ({ id: 'd', look: 'dial', pin: 'bottom', tools });
+    const add = (block: object, page = 'my-card') =>
+      prepareOps(cardsSample(), [{ op: 'addContainer', page, block } as Op], ctx);
+    const refused = (block: object, pattern: RegExp) => {
+      const r = add(block);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.issues.join()).toMatch(pattern);
+    };
+    // 交记录的工具不能当普通项（没有值可交），也不能在没有列表的页面上。
+    refused(dial([{ tool: 'export-contacts' }]), /takes a record or a value/);
+    refused(dial([{ as: 'list', tool: 'export-contacts' }]), /exactly one top-level list/);
+    // 要容器交记录的才能放 as: "list"；自己选文件的不行。
+    refused(dial([{ as: 'list', tool: 'scan-card' }]), /must start with a step that takes records/);
+    refused(dial([{ tool: 'no-such' }]), /missing quick action/);
+    refused(dial([{ opens: 'no-such', label: 'x' }]), /is not a page/);
+    refused(dial([{ do: 'create', table: 'contacts', ask: 'all' }]), /needs a label/);
+    refused({ id: 'd', look: 'dial', tools: [{ tool: 'scan-card' }] }, /set pin "bottom"/);
+    expect(add(dial([{ tool: 'scan-card' }])).ok).toBe(true);
+    // 一个页面一个。
+    const two = prepareOps(
+      cardsSample(),
+      [
+        {
+          op: 'addContainer',
+          page: 'contacts',
+          block: dial([{ tool: 'scan-card' }]),
+        },
+      ] as Op[],
+      ctx,
+    );
+    expect(two.ok).toBe(false);
+  });
+
+  it('a list with show.browse can not be pinned, and only one list on a page pins its search', () => {
+    const list = (id: string, extra: object) => ({
+      id,
+      look: 'list',
+      source: { table: 'contacts' },
+      show: { title: 'name', browse: { search: true, ...extra } },
+    });
+    const add = (block: object) =>
+      prepareOps(cardsSample(), [{ op: 'addContainer', page: 'contacts', block } as Op], ctx);
+    const second = add(list('b', { pin: true }));
+    expect(second.ok).toBe(false);
+    if (!second.ok) expect(second.issues.join()).toMatch(/only one list/);
+    const pinned = add({ ...list('c', {}), pin: 'top' });
+    expect(pinned.ok).toBe(false);
+    if (!pinned.ok) expect(pinned.issues.join()).toMatch(/scrolls in the middle/);
+    const wrongType = add({
+      ...list('d', {}),
+      show: { title: 'name', browse: { filter: ['name'] } },
+    });
+    expect(wrongType.ok).toBe(false);
   });
 });

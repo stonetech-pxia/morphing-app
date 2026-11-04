@@ -43,6 +43,7 @@ export {
   RECORD_LOOKS,
   RECORD_LOOK_DOC,
   ShowIfSchema,
+  PinSchema,
   UNKNOWN_LOOK,
   componentDefinition,
   componentRefs,

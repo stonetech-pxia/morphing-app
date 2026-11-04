@@ -632,6 +632,7 @@ export const CAPABILITIES: readonly Capability[] = [
   fieldCap('rollup'),
   fieldCap('previous'),
   fieldCap('schedule'),
+  fieldCap('tags'),
   cap('field.schedule.lastDone', 'field', (v) =>
     allFields(v).some((x) => x.field.type === 'schedule' && x.field.lastDone !== undefined),
   ),
@@ -693,6 +694,7 @@ export const CAPABILITIES: readonly Capability[] = [
   ),
 
   // 读
+  lookCap('dial'),
   lookCap('list'),
   lookCap('cards'),
   lookCap('checklist'),

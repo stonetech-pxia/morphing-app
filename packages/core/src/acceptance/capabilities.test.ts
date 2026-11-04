@@ -211,6 +211,7 @@ function everything() {
         lastDone: 'date',
         countEarly: true,
       },
+      { id: 'labels', name: 'labels', type: 'tags' },
     ]),
     {
       op: 'updateData',
@@ -322,6 +323,12 @@ function everything() {
         show: { fields: ['title'], qr: true },
         showIf: { table: 'items', has: 'some' },
         tools: [{ tool: 'record-qr' }],
+      },
+      {
+        id: 'dial',
+        look: 'dial',
+        pin: 'bottom',
+        tools: [{ do: 'create', table: 'items', ask: 'all', label: 'Add' }],
       },
       {
         id: 'none-yet',

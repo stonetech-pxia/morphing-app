@@ -8,6 +8,7 @@ import {
 } from './components/define';
 import { conditionProblems } from './conditions';
 import { FILES_COLLECTION, FILES_TABLE } from './files-table';
+import { pageBrowseLists } from './page-zones';
 import { recordToolUseProblems, toolLabelMax, type ToolWhere } from './record-ops';
 import {
   PICK_TOOLS,
@@ -283,6 +284,13 @@ function blockProblems(c: KnownComponent, ctx: CheckContext): CheckProblem[] {
   }
   if (c.showIf && !config.data.tables.some((x) => x.id === c.showIf!.table))
     problems.push(`showIf: data table ${c.showIf.table} does not exist`);
+  // 固定区属于页面（创始人 2026-11-04 定）：分组里的块不能固定。
+  if (c.pin !== undefined && ctx.parent)
+    problems.push(
+      `a block inside group ${ctx.parent.id} can't have pin; pin only top-level blocks`,
+    );
+  if (c.pin !== undefined && page.id === '$desk')
+    problems.push("a block on the file desk can't have pin; pin only blocks on a page");
   for (const [path, ref] of Object.entries(def.refs ?? {})) {
     const value = valueAt(c, path);
     if (!ref || value === undefined) continue;
@@ -491,7 +499,8 @@ function toolUseProblems(
   const counts = new Map<string, number>();
   for (const u of uses) counts.set(u.as ?? 'self', (counts.get(u.as ?? 'self') ?? 0) + 1);
   for (const [as, n] of counts) {
-    const max = as === 'button' || as === 'tap' || as === 'list' ? 3 : 1;
+    const max =
+      c.look === 'dial' ? meta.max : as === 'button' || as === 'tap' || as === 'list' ? 3 : 1;
     if (n > max)
       problems.push(
         `a ${c.look} block has at most ${max} tool${max === 1 ? '' : 's'} ${as === 'self' ? 'without as' : `as "${as}"`} (now ${n})`,
@@ -514,7 +523,7 @@ function toolUseProblems(
     if (isToolRefUse(u)) {
       const pick = (PICK_TOOLS as readonly string[]).includes(u.tool);
       // 记录块上只有列表上方的按钮运行快捷操作（D-428）；每一条上的按钮只做一键记录。
-      const blockRuns = !meta.as.includes('list') || u.as === 'list';
+      const blockRuns = c.look === 'dial' || !meta.as.includes('list') || u.as === 'list';
       if (!meta.ref?.includes(pick ? 'pick' : 'quickAction') || !blockRuns) {
         problems.push(
           `${label}: a ${c.look} block can't ${pick ? `use ${u.tool}` : 'run a quick action'}`,
@@ -538,15 +547,36 @@ function toolUseProblems(
             );
           else if (!hands && takes !== null)
             problems.push({ code: 'needs-container', message: needsContainer(u.tool, label) });
+          // 分开的浮动按钮交的是页面上列表现在选出的记录：页面上要正好有一个能选的列表。
+          if (c.look === 'dial' && u.as === 'list' && pageBrowseLists(page).length !== 1)
+            problems.push(
+              `${label}: as "list" hands over what a list on this page selects: page ${page.id} needs exactly one top-level list with show.browse`,
+            );
         }
       }
-      if (u.label !== undefined || u.when !== undefined)
+      if (c.look === 'dial') {
+        if (u.when !== undefined) problems.push(`${label}: a dial has no when`);
+        if (u.label !== undefined && u.label.length > toolLabelMax(u.as))
+          problems.push(`${label}: label can be at most ${toolLabelMax(u.as)} characters`);
+      } else if (u.label !== undefined || u.when !== undefined)
         problems.push(`${label}: label and when only apply to tools on each entry`);
       return;
     }
     if (isOpenUse(u)) {
       if (!meta.open) {
         problems.push(`${label}: a ${c.look} block can't open an entry`);
+        return;
+      }
+      if (c.look === 'dial') {
+        // 分开的浮动按钮上打开一个普通页面（不是给一条记录用的）。
+        const target = config.containers.pages.find((p) => p.id === u.opens);
+        if (!target) problems.push(`${label}: opens ${u.opens} is not a page`);
+        else if (target.of !== undefined)
+          problems.push(`${label}: opens ${u.opens} is a page for one entry; a dial has no entry`);
+        if (u.when !== undefined) problems.push(`${label}: a dial has no when`);
+        if (u.label === undefined) problems.push(`${label}: needs a label`);
+        else if (u.label.length > toolLabelMax(u.as))
+          problems.push(`${label}: label can be at most ${toolLabelMax(u.as)} characters`);
         return;
       }
       if (u.as !== 'button' && u.as !== 'tap')
@@ -582,6 +612,8 @@ function toolUseProblems(
       );
       return;
     }
+    if (c.look === 'dial' && u.label === undefined)
+      problems.push(`${label}: needs a label (shown next to the button)`);
     if (u.as === 'check' && u.do !== 'toggle') {
       problems.push(
         `${label}: the check of a checklist is {do: "toggle", field: <a checkbox field>}`,
