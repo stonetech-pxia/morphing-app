@@ -42,6 +42,7 @@ export {
   GROUP_MAX_CHILDREN,
   RECORD_LOOKS,
   RECORD_LOOK_DOC,
+  ShowIfSchema,
   UNKNOWN_LOOK,
   componentDefinition,
   componentRefs,
@@ -66,6 +67,7 @@ export {
   type Look,
   type NewComponent,
   type RecordLook,
+  type ShowIf,
   type StyleKey,
   type UnknownComponent,
 } from './components';

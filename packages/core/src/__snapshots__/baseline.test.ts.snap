@@ -2554,6 +2554,9 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 0>.style.backdrop? object
 <oneOf 0>.style.backdrop.overlay "light"|"medium"|"strong"
 <oneOf 0>.style.backdrop.assetId? string /^[a-z0-9]{6,40}$/
+<oneOf 0>.showIf? object
+<oneOf 0>.showIf.table string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf 0>.showIf.has "some"|"none"
 <oneOf 0>.look "header"
 <oneOf 0>.show object
 <oneOf 0>.show.title string len 1..60
@@ -2562,6 +2565,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 1>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 1>.hidden? boolean
 <oneOf 1>.style? = <oneOf 0>.style
+<oneOf 1>.showIf? = <oneOf 0>.showIf
 <oneOf 1>.look "text"
 <oneOf 1>.show object
 <oneOf 1>.show.text string len 1..1500
@@ -2569,6 +2573,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 2>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 2>.hidden? boolean
 <oneOf 2>.style? = <oneOf 0>.style
+<oneOf 2>.showIf? = <oneOf 0>.showIf
 <oneOf 2>.look "notice"
 <oneOf 2>.show object
 <oneOf 2>.show.title? string len 1..60
@@ -2580,6 +2585,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 3>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 3>.hidden? boolean
 <oneOf 3>.style? = <oneOf 0>.style
+<oneOf 3>.showIf? = <oneOf 0>.showIf
 <oneOf 3>.look "image"
 <oneOf 3>.show object
 <oneOf 3>.show.asset?
@@ -2593,12 +2599,14 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 4>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 4>.hidden? boolean
 <oneOf 4>.style? = <oneOf 0>.style
+<oneOf 4>.showIf? = <oneOf 0>.showIf
 <oneOf 4>.look "divider"
 <oneOf 4>.show? object
 <oneOf 5> object
 <oneOf 5>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 5>.hidden? boolean
 <oneOf 5>.style? = <oneOf 0>.style
+<oneOf 5>.showIf? = <oneOf 0>.showIf
 <oneOf 5>.look "spacer"
 <oneOf 5>.show object
 <oneOf 5>.show.size "small"|"medium"|"large"
@@ -2606,6 +2614,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 6>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 6>.hidden? boolean
 <oneOf 6>.style? = <oneOf 0>.style
+<oneOf 6>.showIf? = <oneOf 0>.showIf
 <oneOf 6>.look "button"
 <oneOf 6>.show object
 <oneOf 6>.show.label string len 1..40
@@ -2704,6 +2713,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 7>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 7>.hidden? boolean
 <oneOf 7>.style? = <oneOf 0>.style
+<oneOf 7>.showIf? = <oneOf 0>.showIf
 <oneOf 7>.look "entry"
 <oneOf 7>.show? object
 <oneOf 7>.show.title? string len 1..60
@@ -2717,6 +2727,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 8>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 8>.hidden? boolean
 <oneOf 8>.style? = <oneOf 0>.style
+<oneOf 8>.showIf? = <oneOf 0>.showIf
 <oneOf 8>.look "action"
 <oneOf 8>.show? object
 <oneOf 8>.show.shape? "card"|"row"|"tile"
@@ -2726,6 +2737,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 9>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 9>.hidden? boolean
 <oneOf 9>.style? = <oneOf 0>.style
+<oneOf 9>.showIf? = <oneOf 0>.showIf
 <oneOf 9>.look "picker"
 <oneOf 9>.tools array items 1..1
 <oneOf 9>.tools[] = <oneOf 6>.tools[]
@@ -2733,6 +2745,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 10>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 10>.hidden? boolean
 <oneOf 10>.style? = <oneOf 0>.style
+<oneOf 10>.showIf? = <oneOf 0>.showIf
 <oneOf 10>.look "list"
 <oneOf 10>.source object
 <oneOf 10>.source.table string /^[a-z][a-z0-9-]{0,47}$/
@@ -2766,6 +2779,12 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 10>.show.format<oneOf 1>.style? "ring"|"bar"
 <oneOf 10>.show.color? string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 10>.show.emptyText? string len 1..80
+<oneOf 10>.show.browse? object
+<oneOf 10>.show.browse.search? true
+<oneOf 10>.show.browse.sort? array items 1..6
+<oneOf 10>.show.browse.sort[] = <oneOf 6>.tools[]<anyOf 0>.when[].field
+<oneOf 10>.show.browse.group? array items 1..6
+<oneOf 10>.show.browse.group[] = <oneOf 6>.tools[]<anyOf 0>.when[].field
 <oneOf 10>.tools? array items 1..8
 <oneOf 10>.tools[] = <oneOf 6>.tools[]
 <oneOf 10>.opens? string /^[a-z][a-z0-9-]{0,47}$/
@@ -2773,6 +2792,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 11>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 11>.hidden? boolean
 <oneOf 11>.style? = <oneOf 0>.style
+<oneOf 11>.showIf? = <oneOf 0>.showIf
 <oneOf 11>.look "cards"
 <oneOf 11>.source = <oneOf 10>.source
 <oneOf 11>.show = <oneOf 10>.show
@@ -2783,6 +2803,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 12>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 12>.hidden? boolean
 <oneOf 12>.style? = <oneOf 0>.style
+<oneOf 12>.showIf? = <oneOf 0>.showIf
 <oneOf 12>.look "checklist"
 <oneOf 12>.source = <oneOf 10>.source
 <oneOf 12>.show = <oneOf 10>.show
@@ -2793,6 +2814,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 13>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 13>.hidden? boolean
 <oneOf 13>.style? = <oneOf 0>.style
+<oneOf 13>.showIf? = <oneOf 0>.showIf
 <oneOf 13>.look "tiles"
 <oneOf 13>.source = <oneOf 10>.source
 <oneOf 13>.show = <oneOf 10>.show
@@ -2803,6 +2825,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 14>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 14>.hidden? boolean
 <oneOf 14>.style? = <oneOf 0>.style
+<oneOf 14>.showIf? = <oneOf 0>.showIf
 <oneOf 14>.look "board"
 <oneOf 14>.source = <oneOf 10>.source
 <oneOf 14>.show = <oneOf 10>.show
@@ -2813,6 +2836,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 15>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 15>.hidden? boolean
 <oneOf 15>.style? = <oneOf 0>.style
+<oneOf 15>.showIf? = <oneOf 0>.showIf
 <oneOf 15>.look "calendar"
 <oneOf 15>.source = <oneOf 10>.source
 <oneOf 15>.show = <oneOf 10>.show
@@ -2823,6 +2847,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 16>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 16>.hidden? boolean
 <oneOf 16>.style? = <oneOf 0>.style
+<oneOf 16>.showIf? = <oneOf 0>.showIf
 <oneOf 16>.look "number"
 <oneOf 16>.show object
 <oneOf 16>.show.label string len 1..40
@@ -2852,6 +2877,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 17>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 17>.hidden? boolean
 <oneOf 17>.style? = <oneOf 0>.style
+<oneOf 17>.showIf? = <oneOf 0>.showIf
 <oneOf 17>.look "chart"
 <oneOf 17>.show object
 <oneOf 17>.show.kind "bar"|"line"|"pie"
@@ -2869,6 +2895,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 18>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 18>.hidden? boolean
 <oneOf 18>.style? = <oneOf 0>.style
+<oneOf 18>.showIf? = <oneOf 0>.showIf
 <oneOf 18>.look "form"
 <oneOf 18>.show object
 <oneOf 18>.show.mode "inline"|"sheet"
@@ -2878,6 +2905,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 19>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 19>.hidden? boolean
 <oneOf 19>.style? = <oneOf 0>.style
+<oneOf 19>.showIf? = <oneOf 0>.showIf
 <oneOf 19>.look "files"
 <oneOf 19>.show object
 <oneOf 19>.show.title string len 1..60
@@ -2891,6 +2919,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 20>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 20>.hidden? boolean
 <oneOf 20>.style? = <oneOf 0>.style
+<oneOf 20>.showIf? = <oneOf 0>.showIf
 <oneOf 20>.look "library"
 <oneOf 20>.show? object
 <oneOf 20>.show.title? string len 1..60
@@ -2901,6 +2930,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 21>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 21>.hidden? boolean
 <oneOf 21>.style? = <oneOf 0>.style
+<oneOf 21>.showIf? = <oneOf 0>.showIf
 <oneOf 21>.look "packages"
 <oneOf 21>.show? = <oneOf 20>.show
 <oneOf 21>.source object
@@ -2911,67 +2941,83 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 22>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 22>.hidden? boolean
 <oneOf 22>.style? = <oneOf 0>.style
-<oneOf 22>.look "group"
+<oneOf 22>.showIf? = <oneOf 0>.showIf
+<oneOf 22>.look "single"
+<oneOf 22>.source object
+<oneOf 22>.source.table string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 22>.show object
-<oneOf 22>.show.title? string len 1..60
-<oneOf 22>.show.layout "stack"|"row"|"grid"
-<oneOf 22>.show.columns?
-<oneOf 22>.show.columns<anyOf 0> 2
-<oneOf 22>.show.columns<anyOf 1> 3
-<oneOf 22>.children array items ..12
-<oneOf 22>.children[]
-<oneOf 22>.children[]<oneOf 0> = <oneOf 0>
-<oneOf 22>.children[]<oneOf 1> = <oneOf 1>
-<oneOf 22>.children[]<oneOf 2> = <oneOf 2>
-<oneOf 22>.children[]<oneOf 3> = <oneOf 3>
-<oneOf 22>.children[]<oneOf 4> = <oneOf 4>
-<oneOf 22>.children[]<oneOf 5> = <oneOf 5>
-<oneOf 22>.children[]<oneOf 6> = <oneOf 6>
-<oneOf 22>.children[]<oneOf 7> = <oneOf 7>
-<oneOf 22>.children[]<oneOf 8> = <oneOf 8>
-<oneOf 22>.children[]<oneOf 9> = <oneOf 9>
-<oneOf 22>.children[]<oneOf 10> = <oneOf 10>
-<oneOf 22>.children[]<oneOf 11> = <oneOf 11>
-<oneOf 22>.children[]<oneOf 12> = <oneOf 12>
-<oneOf 22>.children[]<oneOf 13> = <oneOf 13>
-<oneOf 22>.children[]<oneOf 14> = <oneOf 14>
-<oneOf 22>.children[]<oneOf 15> = <oneOf 15>
-<oneOf 22>.children[]<oneOf 16> = <oneOf 16>
-<oneOf 22>.children[]<oneOf 17> = <oneOf 17>
-<oneOf 22>.children[]<oneOf 18> = <oneOf 18>
-<oneOf 22>.children[]<oneOf 19> = <oneOf 19>
-<oneOf 22>.children[]<oneOf 20> = <oneOf 20>
-<oneOf 22>.children[]<oneOf 21> = <oneOf 21>
-<oneOf 22>.children[]<oneOf 22> object
-<oneOf 22>.children[]<oneOf 22>.id string /^[a-z][a-z0-9-]{0,47}$/
-<oneOf 22>.children[]<oneOf 22>.hidden? boolean
-<oneOf 22>.children[]<oneOf 22>.style? = <oneOf 0>.style
-<oneOf 22>.children[]<oneOf 22>.look "group"
-<oneOf 22>.children[]<oneOf 22>.show = <oneOf 22>.show
-<oneOf 22>.children[]<oneOf 22>.children array items ..12
-<oneOf 22>.children[]<oneOf 22>.children[]
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 0> = <oneOf 0>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 1> = <oneOf 1>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 2> = <oneOf 2>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 3> = <oneOf 3>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 4> = <oneOf 4>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 5> = <oneOf 5>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 6> = <oneOf 6>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 7> = <oneOf 7>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 8> = <oneOf 8>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 9> = <oneOf 9>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 10> = <oneOf 10>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 11> = <oneOf 11>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 12> = <oneOf 12>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 13> = <oneOf 13>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 14> = <oneOf 14>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 15> = <oneOf 15>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 16> = <oneOf 16>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 17> = <oneOf 17>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 18> = <oneOf 18>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 19> = <oneOf 19>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 20> = <oneOf 20>
-<oneOf 22>.children[]<oneOf 22>.children[]<oneOf 21> = <oneOf 21>
+<oneOf 22>.show.fields array items 1..8
+<oneOf 22>.show.fields[] = <oneOf 6>.tools[]<anyOf 0>.when[].field
+<oneOf 22>.show.qr? true
+<oneOf 23> object
+<oneOf 23>.id string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf 23>.hidden? boolean
+<oneOf 23>.style? = <oneOf 0>.style
+<oneOf 23>.showIf? = <oneOf 0>.showIf
+<oneOf 23>.look "group"
+<oneOf 23>.show object
+<oneOf 23>.show.title? string len 1..60
+<oneOf 23>.show.layout "stack"|"row"|"grid"
+<oneOf 23>.show.columns?
+<oneOf 23>.show.columns<anyOf 0> 2
+<oneOf 23>.show.columns<anyOf 1> 3
+<oneOf 23>.children array items ..12
+<oneOf 23>.children[]
+<oneOf 23>.children[]<oneOf 0> = <oneOf 0>
+<oneOf 23>.children[]<oneOf 1> = <oneOf 1>
+<oneOf 23>.children[]<oneOf 2> = <oneOf 2>
+<oneOf 23>.children[]<oneOf 3> = <oneOf 3>
+<oneOf 23>.children[]<oneOf 4> = <oneOf 4>
+<oneOf 23>.children[]<oneOf 5> = <oneOf 5>
+<oneOf 23>.children[]<oneOf 6> = <oneOf 6>
+<oneOf 23>.children[]<oneOf 7> = <oneOf 7>
+<oneOf 23>.children[]<oneOf 8> = <oneOf 8>
+<oneOf 23>.children[]<oneOf 9> = <oneOf 9>
+<oneOf 23>.children[]<oneOf 10> = <oneOf 10>
+<oneOf 23>.children[]<oneOf 11> = <oneOf 11>
+<oneOf 23>.children[]<oneOf 12> = <oneOf 12>
+<oneOf 23>.children[]<oneOf 13> = <oneOf 13>
+<oneOf 23>.children[]<oneOf 14> = <oneOf 14>
+<oneOf 23>.children[]<oneOf 15> = <oneOf 15>
+<oneOf 23>.children[]<oneOf 16> = <oneOf 16>
+<oneOf 23>.children[]<oneOf 17> = <oneOf 17>
+<oneOf 23>.children[]<oneOf 18> = <oneOf 18>
+<oneOf 23>.children[]<oneOf 19> = <oneOf 19>
+<oneOf 23>.children[]<oneOf 20> = <oneOf 20>
+<oneOf 23>.children[]<oneOf 21> = <oneOf 21>
+<oneOf 23>.children[]<oneOf 22> = <oneOf 22>
+<oneOf 23>.children[]<oneOf 23> object
+<oneOf 23>.children[]<oneOf 23>.id string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf 23>.children[]<oneOf 23>.hidden? boolean
+<oneOf 23>.children[]<oneOf 23>.style? = <oneOf 0>.style
+<oneOf 23>.children[]<oneOf 23>.showIf? = <oneOf 0>.showIf
+<oneOf 23>.children[]<oneOf 23>.look "group"
+<oneOf 23>.children[]<oneOf 23>.show = <oneOf 23>.show
+<oneOf 23>.children[]<oneOf 23>.children array items ..12
+<oneOf 23>.children[]<oneOf 23>.children[]
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 0> = <oneOf 0>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 1> = <oneOf 1>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 2> = <oneOf 2>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 3> = <oneOf 3>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 4> = <oneOf 4>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 5> = <oneOf 5>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 6> = <oneOf 6>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 7> = <oneOf 7>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 8> = <oneOf 8>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 9> = <oneOf 9>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 10> = <oneOf 10>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 11> = <oneOf 11>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 12> = <oneOf 12>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 13> = <oneOf 13>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 14> = <oneOf 14>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 15> = <oneOf 15>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 16> = <oneOf 16>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 17> = <oneOf 17>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 18> = <oneOf 18>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 19> = <oneOf 19>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 20> = <oneOf 20>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 21> = <oneOf 21>
+<oneOf 23>.children[]<oneOf 23>.children[]<oneOf 22> = <oneOf 22>
 "
 `;
 
@@ -3021,6 +3067,7 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .data.tables[].fields[]<oneOf text>.required? boolean
 .data.tables[].fields[]<oneOf text>.type "text"
 .data.tables[].fields[]<oneOf text>.default? string len 1..200
+.data.tables[].fields[]<oneOf text>.format? "phone"|"email"|"url"
 .data.tables[].fields[]<oneOf note> object
 .data.tables[].fields[]<oneOf note>.id string /^[a-z][a-z0-9-]{0,47}$/
 .data.tables[].fields[]<oneOf note>.name string len 1..40

@@ -92,7 +92,8 @@ export function modelEngine(open: OpenModel, limits: ModelLimits = MODEL_LIMITS)
     let current = suggestionsOf(plan, answers);
     onPartial?.(current);
     const asks = plan.fields.filter((f) => f.ask);
-    if (asks.length === 0 || signal?.aborted) return current;
+    // 没有文字（只有二维码的图、文字识别没装）：模型没东西可读，不加载。
+    if (asks.length === 0 || plan.rows.length === 0 || signal?.aborted) return current;
 
     // 调用方取消和总时间都走这一个信号，生成也跟着停。
     const stop = new AbortController();

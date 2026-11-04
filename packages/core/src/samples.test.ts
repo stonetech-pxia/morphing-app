@@ -14,6 +14,7 @@ import {
   type WorkspaceConfig,
 } from './schema';
 import { apply, fromV33, registry, v33Fixture, workspace } from './test-helpers';
+import { recordToVCard } from './vcard';
 import { validateWorkspace } from './validate';
 import { presetById, presetWorkflow } from './workflows/presets';
 
@@ -247,7 +248,7 @@ describe('sample files', () => {
     }
   });
 
-  it('the five samples use different main page ids', () => {
+  it('the samples use different main page ids', () => {
     let config = fresh('zh');
     const mains = new Set<string>();
     for (const sample of SAMPLE_APPS) {
@@ -256,7 +257,7 @@ describe('sample files', () => {
       mains.add(result.mainPageId);
       config = apply(config, result.ops, 'zh');
     }
-    expect(mains.size).toBe(5);
+    expect(mains.size).toBe(SAMPLE_APPS.length);
     expectValid(config);
     // 导航栏满了以后，后面的样板的主页面放在首页的快捷入口里。
     expect(config.nav.bar).toHaveLength(5);
@@ -297,7 +298,8 @@ describe('sample files', () => {
 
 describe('samples equal the v33 samples, migrated', () => {
   // fixtures/v33/sample-<id>-zh.json：v33 代码给新用户（starter）套用样板的结果。
-  it.each(SAMPLE_APPS)('%s in zh', (sample) => {
+  // 名片样板（D-423）是 v34 以后加的，没有 v33 的样子。
+  it.each(SAMPLE_APPS.filter((s) => s !== 'business-cards'))('%s in zh', (sample) => {
     const before = fresh('zh');
     expect(apply(before, ops(sample, before, 'zh'), 'zh')).toEqual(
       fromV33(v33Fixture(`sample-${sample}-zh`)),
@@ -328,5 +330,81 @@ describe('samples equal the v33 samples, migrated', () => {
     const ids = after.tools.map((x) => x.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(remindersOf(after).map((r) => r.id)).toEqual(['submit-expenses-2']);
+  });
+});
+
+describe('the business card sample (D-423)', () => {
+  const applied = (locale: Locale) => {
+    const base = fresh(locale);
+    return apply(base, ops('business-cards', base, locale), locale);
+  };
+
+  it.each(LOCALES)(
+    'both tables use the card rules and their fields read as a card in %s',
+    (locale) => {
+      const config = applied(locale);
+      const tables = config.data.tables.filter((t) => t.id === 'contacts' || t.id === 'my-card');
+      expect(tables.map((t) => t.prefillRules)).toEqual(['card', 'card']);
+      for (const table of tables) {
+        const text = recordToVCard(table.fields, {
+          name: 'A B',
+          title: 'CTO',
+          company: 'Acme',
+          phone: '555 0100',
+          email: 'a@example.com',
+          website: 'example.com',
+          address: 'Main St',
+          note: 'private',
+        })!;
+        expect(text.split('\r\n')).toEqual(
+          expect.arrayContaining([
+            'FN:A B',
+            'TITLE:CTO',
+            'ORG:Acme',
+            'TEL:555 0100',
+            'EMAIL:a@example.com',
+            'URL:https://example.com',
+            'ADR:;;Main St;;;;',
+          ]),
+        );
+        expect(text).not.toContain('private');
+      }
+      // 联系人多一个分组，别的一样。
+      expect(tables[0]!.fields.map((f) => f.id).filter((id) => id !== 'group')).toEqual(
+        tables[1]!.fields.map((f) => f.id),
+      );
+    },
+  );
+
+  it('scanning ends in the right table, and export goes through records.toVCard', () => {
+    const config = applied('en');
+    const steps = (id: string) =>
+      quickActionsOf(config)
+        .find((q) => q.id === id)!
+        .steps.map((s) => [s.action, s.params.collectionId]);
+    const scan = (table: string) => [
+      ['in.photos', undefined],
+      ['scan.detect', undefined],
+      ['out.addRecord', table],
+    ];
+    expect(steps('scan-card')).toEqual(scan('contacts'));
+    expect(steps('scan-my-card')).toEqual(scan('my-card'));
+    expect(steps('export-contacts')).toEqual([
+      ['in.records', 'contacts'],
+      ['records.toVCard', undefined],
+      ['out.share', undefined],
+    ]);
+  });
+
+  it('my card page shows the card or the two ways to make one, never both', () => {
+    const page = applied('en').containers.pages.find((p) => p.id === 'my-card')!;
+    const when = page.blocks.map((b) => [b.id, isKnownComponent(b) ? b.showIf?.has : undefined]);
+    expect(when).toEqual([
+      ['title', undefined],
+      ['card', 'some'],
+      ['none', 'none'],
+      ['by-hand', 'none'],
+      ['scan', 'none'],
+    ]);
   });
 });

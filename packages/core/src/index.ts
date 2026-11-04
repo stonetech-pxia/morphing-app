@@ -48,6 +48,8 @@ export * from './record-pages';
 export * from './registry';
 export * from './related';
 export * from './reminders';
+export * from './field-link';
+export * from './vcard';
 export * from './richtext';
 export * from './schema';
 export * from './starter';

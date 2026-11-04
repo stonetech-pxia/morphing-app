@@ -217,6 +217,7 @@ function everything() {
       table: 'items',
       changes: { readAttachments: true, prefillRules: 'receipt' },
     },
+    addField('items', { id: 'contact', name: 'contact', type: 'text', format: 'phone' }),
     addField('groups', {
       id: 'all',
       name: 'all',
@@ -226,6 +227,13 @@ function everything() {
       aggregate: 'latest',
     }),
     addTool(scanInto('scan-item', 'items')),
+    addTool(
+      quickAction('vcard-items', [
+        ['in.records', { collectionId: 'items', period: 'all' }],
+        ['records.toVCard', {}],
+        ['out.share', {}],
+      ]),
+    ),
     addTool(
       quickAction('print-items', [
         ['in.records', { collectionId: 'items', period: 'thisMonth' }],
@@ -274,6 +282,21 @@ function everything() {
           { as: 'addHere', do: 'create', table: 'items', ask: 'all', values: '$here' },
           { as: 'button', label: 'Open', opens: 'record' },
         ],
+      }),
+      {
+        id: 'one',
+        look: 'single',
+        source: { table: 'items' },
+        show: { fields: ['title'], qr: true },
+        showIf: { table: 'items', has: 'some' },
+      },
+      {
+        id: 'none-yet',
+        look: 'divider',
+        showIf: { table: 'items', has: 'none' },
+      },
+      records('list', 'browsed', 'items', 'title', {
+        show: { browse: { search: true, sort: ['title', 'createdAt'], group: ['status'] } },
       }),
       records('list', 'by-group-list', 'groups', 'name', {
         opens: 'item',

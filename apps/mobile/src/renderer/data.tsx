@@ -1,4 +1,6 @@
 import {
+  browseSort,
+  searchRecords,
   suggestionForField,
   filterPresets,
   listGroups,
@@ -231,6 +233,13 @@ interface FieldEditor<F extends Field = Field> {
   computed?: true;
 }
 
+/** 电话、邮箱、网址（D-422）的键盘。只是键盘：保存不查格式，什么都能写。 */
+const FORMAT_KEYBOARD = {
+  phone: 'phone-pad',
+  email: 'email-address',
+  url: 'url',
+} as const;
+
 /** 文字、长文本、数字、金额：一个输入框。 */
 function textBox<F extends Field>({
   field,
@@ -252,6 +261,9 @@ function textBox<F extends Field>({
       value={typeof value === 'string' ? value : ''}
       onChangeText={onChange}
       autoFocus={autoFocus === true && field.type === 'text'}
+      // 记录的字段不是登录信息：三星保存表单时会问要不要存进密码管家。
+      autoComplete="off"
+      importantForAutofill="no"
       {...(submits
         ? {
             returnKeyType: 'done' as const,
@@ -263,6 +275,13 @@ function textBox<F extends Field>({
       placeholderTextColor={palette.caption}
       multiline={field.type === 'note'}
       keyboardType={field.type === 'number' || field.type === 'money' ? 'decimal-pad' : 'default'}
+      {...(field.type === 'text' && field.format
+        ? {
+            keyboardType: FORMAT_KEYBOARD[field.format],
+            autoCapitalize: 'none' as const,
+            autoCorrect: false,
+          }
+        : {})}
       style={[input, field.type === 'note' && styles.note]}
     />
   );
@@ -949,21 +968,65 @@ export function RecordList({
   // 分段标题和列表下面的「添加」压在页面背景上，卡片里的行用 palette（D-409）。
   const page = onPage(palette);
   const router = useRouter();
-  const { collection, view, loaded, sorted } = useListRecords(block, env);
+  // 用户在列表上临时换的（D-424）：只在这个块画着的时候有，什么都不写（底线 15）。
+  const browse = block.show.browse;
+  const [query, setQuery] = useState('');
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  // undefined = 配置里的分组；null = 用户选了不分组。
+  const [pickedGroup, setPickedGroup] = useState<string | null | undefined>(undefined);
+  const { collection, view, loaded, sorted } = useListRecords(
+    block,
+    env,
+    sortBy === null ? undefined : browseSort(sortBy, env.config.data.tables, block.source.table),
+  );
   const rows = useRecordRows(block, env, tone, collection, view);
-  const group = block.source.group;
+  const group =
+    pickedGroup === undefined
+      ? block.source.group
+      : pickedGroup === null
+        ? undefined
+        : { by: pickedGroup };
   const linked = useLinkedGroups(env, view, group?.by);
   const addHere = addHereOf(block) !== undefined;
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   if (!collection || !view || !rows) return null;
+  const searching = browse?.search === true && query.trim() !== '';
+  const found = searching ? searchRecords(sorted, query, rows.textsOf) : sorted;
+  const bar = browse && sorted.length > 0 && (
+    <ListBrowseBar
+      browse={browse}
+      view={view}
+      source={block.source}
+      query={query}
+      onQuery={setQuery}
+      sortBy={sortBy}
+      onSort={setSortBy}
+      groupBy={group?.by ?? null}
+      onGroup={setPickedGroup}
+      env={env}
+    />
+  );
   const add = (preset?: Record<string, unknown>) =>
     env.interactive
       ? (env.locked ?? (() => openAddHere(router, collection, view, block.source, preset)))
       : undefined;
+  if (searching && found.length === 0)
+    return (
+      <View style={{ gap: palette.gap - 4 }}>
+        {bar}
+        <Card palette={palette} background={rows.background}>
+          <Text
+            testID="browse-no-match"
+            style={[palette.font('body', 14), { color: palette.caption }]}>
+            {t(locale, 'browseNoMatch')}
+          </Text>
+        </Card>
+      </View>
+    );
   // D-347：分段。引用字段要等被引用的表读出来（linked 是 null 时还在读）。
   const groupBy = group?.by;
   if (group && groupBy && linked !== null) {
-    const groups = listGroups(sorted, view, group, {
+    const groups = listGroups(found, view, group, {
       locale,
       now: new Date(),
       cal: calendarOf(env.config),
@@ -971,8 +1034,13 @@ export function RecordList({
     });
     if (loaded && groups.length === 0)
       return <Empty block={block} env={env} rows={rows} addHere={addHere} />;
+    const shownCount = groups.reduce(
+      (n, g) => n + Math.min(g.records.length, block.source.limit),
+      0,
+    );
     return (
       <View style={{ gap: palette.gap - 4 }}>
+        {bar}
         {groups.map((g) => {
           const closed = collapsed.has(g.key);
           const toggle = () =>
@@ -1023,19 +1091,154 @@ export function RecordList({
             </View>
           );
         })}
+        {browse ? (
+          <BrowseMore shown={shownCount} total={found.length} searching={searching} env={env} />
+        ) : null}
       </View>
     );
   }
-  const shown = sorted.slice(0, block.source.limit);
+  const shown = found.slice(0, block.source.limit);
   if (loaded && shown.length === 0)
     return <Empty block={block} env={env} rows={rows} addHere={addHere} add={add()} />;
-  return addHere ? (
+  const list = addHere ? (
     <View style={{ gap: 6 }}>
       {rows.list(shown)}
       <AddHere label={t(locale, 'entryFormAdd')} onPress={add()} palette={page} />
     </View>
   ) : (
     rows.list(shown)
+  );
+  return browse ? (
+    <View style={{ gap: palette.gap - 4 }}>
+      {bar}
+      {list}
+      <BrowseMore shown={shown.length} total={found.length} searching={searching} env={env} />
+    </View>
+  ) : (
+    list
+  );
+}
+
+/** 列表显示不下全部时说一句（搜索读的是整张表，不受 limit 限制）。 */
+function BrowseMore({
+  shown,
+  total,
+  searching,
+  env,
+}: {
+  shown: number;
+  total: number;
+  searching: boolean;
+  env: RenderEnv;
+}) {
+  if (shown >= total) return null;
+  const page = onPage(env.palette);
+  return (
+    <Text testID="browse-more" style={[page.font('body', 13), { color: page.caption }]}>
+      {t(env.locale, searching ? 'browseShowingMatches' : 'browseShowing', { shown, total })}
+    </Text>
+  );
+}
+
+/** 列表上面的搜索框和两排可选的排序、分组（D-424）。只改这个块画什么。 */
+function ListBrowseBar({
+  browse,
+  view,
+  source,
+  query,
+  onQuery,
+  sortBy,
+  onSort,
+  groupBy,
+  onGroup,
+  env,
+}: {
+  browse: NonNullable<RecordBlock['show']['browse']>;
+  view: Collection;
+  source: RecordBlock['source'];
+  query: string;
+  onQuery: (text: string) => void;
+  sortBy: string | null;
+  onSort: (field: string) => void;
+  groupBy: string | null;
+  onGroup: (field: string | null) => void;
+  env: RenderEnv;
+}) {
+  const { locale, interactive } = env;
+  const page = onPage(env.palette);
+  const name = (id: string) =>
+    id === 'createdAt'
+      ? t(locale, 'browseCreatedAt')
+      : id === 'updatedAt'
+        ? t(locale, 'browseUpdatedAt')
+        : (view.fields.find((f) => f.id === id)?.name ?? id);
+  const chip = (id: string, label: string, on: boolean, press: () => void) => (
+    <Pressable
+      key={id}
+      testID={`browse-${id}`}
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      disabled={!interactive}
+      onPress={press}
+      onLongPress={env.onLongPress}
+      style={[
+        styles.browseChip,
+        {
+          borderColor: on ? page.primary : page.border,
+          backgroundColor: on ? page.primaryTint : 'transparent',
+        },
+      ]}>
+      <Text style={[page.font('bodyMedium', 13), { color: on ? page.primaryText : page.muted }]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+  const row = (title: string, chips: ReactNode) => (
+    <View style={styles.browseRow}>
+      <Text style={[page.font('bodyMedium', 13), { color: page.caption }]}>{title}</Text>
+      {chips}
+    </View>
+  );
+  const sorted = sortBy ?? source.sort?.field ?? null;
+  return (
+    <View style={{ gap: 8 }}>
+      {browse.search ? (
+        <TextInput
+          testID="browse-search"
+          editable={interactive}
+          value={query}
+          onChangeText={onQuery}
+          placeholder={t(locale, 'browseSearch')}
+          placeholderTextColor={page.caption}
+          autoCorrect={false}
+          returnKeyType="search"
+          style={[
+            styles.input,
+            page.font('body', 15),
+            {
+              color: page.text,
+              borderColor: page.border,
+              backgroundColor: page.surface,
+              borderRadius: page.controlRadius,
+            },
+          ]}
+        />
+      ) : null}
+      {browse.sort
+        ? row(
+            t(locale, 'browseSort'),
+            browse.sort.map((id) => chip(`sort-${id}`, name(id), sorted === id, () => onSort(id))),
+          )
+        : null}
+      {browse.group
+        ? row(t(locale, 'browseGroup'), [
+            chip('group-none', t(locale, 'browseGroupNone'), groupBy === null, () => onGroup(null)),
+            ...browse.group.map((id) =>
+              chip(`group-${id}`, name(id), groupBy === id, () => onGroup(id)),
+            ),
+          ])
+        : null}
+    </View>
   );
 }
 
@@ -1104,7 +1307,12 @@ export function openAddHere(
 }
 
 /** 记录列表要显示的记录：筛选、排好序，还没截到 limit 条（看板按栏截，D-313）。 */
-export function useListRecords(block: RecordBlock, env: RenderEnv) {
+export function useListRecords(
+  block: RecordBlock,
+  env: RenderEnv,
+  /** 用户临时换的排序（D-424）；不写用配置里的。 */
+  sort?: RecordBlock['source']['sort'],
+) {
   const collection = useCollection(env, block.source.table);
   const cal = calendarOf(env.config);
   // 查找、汇总、上一条（D-291）：显示、筛选、排序用算好的记录和 view；改记录用原来的表。
@@ -1114,7 +1322,7 @@ export function useListRecords(block: RecordBlock, env: RenderEnv) {
     ? sortRecords(
         filterRecords(records ?? [], view, block.source.filter, now, cal),
         view,
-        block.source.sort,
+        sort ?? block.source.sort,
         now,
         cal,
       )
@@ -1266,7 +1474,12 @@ export function useRecordRows(
         {shown.map(row)}
       </Card>
     );
-  return { row, list, background };
+  /** 这一条显示出来的文字（搜索只找这些，D-424）。 */
+  const textsOf = (r: DataRecord) =>
+    [show.title, ...(show.subtitles ?? []), ...(show.trailing ? [show.trailing] : [])].map((f) =>
+      formatRef(r, view, f, locale, links, now, cal),
+    );
+  return { row, list, background, textsOf };
 }
 
 /**
@@ -1748,6 +1961,14 @@ const styles = StyleSheet.create({
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   smartDate: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
   groupHeader: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
+  browseRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  browseChip: {
+    minHeight: 32,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
   fab: {
     width: 60,
     height: 60,

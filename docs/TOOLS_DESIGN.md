@@ -167,6 +167,7 @@ interface StepContext {
 - **打包**（工具 `zip`）：`zip.create`、`zip.extract`。（`packages/tool-archive`：fflate，只用同步接口）
 - **二维码**（工具 `qr`）：`qr.generate`（文字 → PNG，tool-qr 自带的 PNG 编码器）、`qr.read`（图片 → 文字，Skia 读像素后用 jsQR）。（`packages/tool-qr`：lean-qr、jsQR）
 - **报表**（工具 `print`）：`print.records`（`records` → PDF；模板：表格 / 卡片 / 带合计的清单；记录值先转义再在本地填进去，AI 只选模板、标题和字段 ID，D-042、D-080）。模板在 `core/src/html.ts`。
+- **vCard**（内核动作，不属于工具）：`records.toVCard`（`records` → 一个 `.vcf`，没有参数，D-423）。纯函数在 `core/src/vcard.ts`。
 
 文件名由用户选文件时决定，AI 只能给命名**模板**：`{date}`（= `{date:YYYY-MM-DD}`）、`{date:FORMAT}`、`{index}`、`{seq}`（两位序号 01、02…）、`{sourceName}`、`{taken}` / `{taken:FORMAT}`（照片拍摄日期，读不到时用当天）、`{ocr:规则}` / `{qr:规则}`（这张照片在本机识别出的文字 / 二维码内容里按固定规则取的一段，§14）。
 

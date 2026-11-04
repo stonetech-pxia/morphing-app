@@ -91,6 +91,7 @@ describe('recordChoices', () => {
       '账单',
       '合同',
       '报销',
+      '联系人',
       '我的记录',
     ]);
     const config = seeded('fr', createRegistry(BUILTIN_TOOLS));
@@ -100,6 +101,7 @@ describe('recordChoices', () => {
       { kind: 'preset', preset: 'bill', name: 'Factures' },
       { kind: 'preset', preset: 'contract', name: 'Contrats' },
       { kind: 'preset', preset: 'reimbursement', name: 'Remboursements' },
+      { kind: 'preset', preset: 'contacts', name: 'Contacts' },
       { kind: 'preset', preset: 'blank', name: 'Mes entrées' },
     ]);
   });
@@ -121,6 +123,7 @@ describe('收件页面 → 存成记录', () => {
       'share-record-preset-bill',
       'share-record-preset-contract',
       'share-record-preset-reimbursement',
+      'share-record-preset-contacts',
       'share-record-preset-blank',
     ]);
     expect(screen.queryByText('你的表')).toBeNull();
@@ -166,6 +169,7 @@ describe('收件页面 → 存成记录', () => {
       'share-record-preset-bill',
       'share-record-preset-contract',
       'share-record-preset-reimbursement',
+      'share-record-preset-contacts',
       'share-record-preset-blank',
     ]);
     await act(() => router.push('/page/purchases'));
@@ -183,6 +187,7 @@ describe('收件页面 → 存成记录', () => {
       'share-record-preset-bill',
       'share-record-preset-contract',
       'share-record-preset-reimbursement',
+      'share-record-preset-contacts',
       'share-record-preset-blank',
     ]);
     expect(screen.getByText('你的表')).toBeTruthy();

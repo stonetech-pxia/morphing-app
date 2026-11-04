@@ -1,0 +1,596 @@
+{
+  "icon": "person",
+  "name": {
+    "en": "Business cards",
+    "zh": "名片",
+    "fr": "Cartes de visite"
+  },
+  "summary": {
+    "en": "Scan cards and QR codes into contacts, show your own card as a QR code, and share contacts as vCards.",
+    "zh": "扫名片和二维码存成联系人，用二维码出示自己的名片，用 vCard 分享联系人。",
+    "fr": "Scannez cartes et codes QR dans vos contacts, présentez votre carte en code QR et partagez les contacts en vCard."
+  },
+  "ids": {
+    "$table.contacts": "contacts",
+    "$table.mine": "my-card",
+    "$page.main": "cards",
+    "$page.mine": "my-card",
+    "$page.contacts": "contacts",
+    "$tool.scan": "scan-card",
+    "$tool.scanMine": "scan-my-card",
+    "$tool.export": "export-contacts"
+  },
+  "tables": [
+    {
+      "id": "$table.contacts",
+      "prefillRules": "card",
+      "name": {
+        "en": "Contacts",
+        "zh": "联系人",
+        "fr": "Contacts"
+      },
+      "icon": "person",
+      "fields": [
+        {
+          "id": "name",
+          "name": {
+            "en": "Name",
+            "zh": "姓名",
+            "fr": "Nom"
+          },
+          "type": "text"
+        },
+        {
+          "id": "title",
+          "name": {
+            "en": "Job title",
+            "zh": "职位",
+            "fr": "Poste"
+          },
+          "type": "text"
+        },
+        {
+          "id": "company",
+          "name": {
+            "en": "Company",
+            "zh": "公司",
+            "fr": "Société"
+          },
+          "type": "text"
+        },
+        {
+          "id": "phone",
+          "name": {
+            "en": "Phone",
+            "zh": "电话",
+            "fr": "Téléphone"
+          },
+          "type": "text",
+          "format": "phone"
+        },
+        {
+          "id": "email",
+          "name": {
+            "en": "Email",
+            "zh": "邮箱",
+            "fr": "E-mail"
+          },
+          "type": "text",
+          "format": "email"
+        },
+        {
+          "id": "website",
+          "name": {
+            "en": "Website",
+            "zh": "网站",
+            "fr": "Site web"
+          },
+          "type": "text",
+          "format": "url"
+        },
+        {
+          "id": "address",
+          "name": {
+            "en": "Address",
+            "zh": "地址",
+            "fr": "Adresse"
+          },
+          "type": "text"
+        },
+        {
+          "id": "group",
+          "name": {
+            "en": "Group",
+            "zh": "分组",
+            "fr": "Groupe"
+          },
+          "type": "choice",
+          "options": [
+            {
+              "id": "client",
+              "label": {
+                "en": "Client",
+                "zh": "客户",
+                "fr": "Client"
+              }
+            },
+            {
+              "id": "colleague",
+              "label": {
+                "en": "Colleague",
+                "zh": "同事",
+                "fr": "Collègue"
+              }
+            },
+            {
+              "id": "friend",
+              "label": {
+                "en": "Friend",
+                "zh": "朋友",
+                "fr": "Ami"
+              }
+            },
+            {
+              "id": "other",
+              "label": {
+                "en": "Other",
+                "zh": "其他",
+                "fr": "Autre"
+              }
+            }
+          ]
+        },
+        {
+          "id": "note",
+          "name": {
+            "en": "Note",
+            "zh": "备注",
+            "fr": "Remarque"
+          },
+          "type": "note"
+        },
+        {
+          "id": "attachments",
+          "name": {
+            "en": "Attachments",
+            "zh": "附件",
+            "fr": "Pièces jointes"
+          },
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "id": "$table.mine",
+      "prefillRules": "card",
+      "name": {
+        "en": "My card",
+        "zh": "我的名片",
+        "fr": "Ma carte"
+      },
+      "icon": "person",
+      "fields": [
+        {
+          "id": "name",
+          "name": {
+            "en": "Name",
+            "zh": "姓名",
+            "fr": "Nom"
+          },
+          "type": "text"
+        },
+        {
+          "id": "title",
+          "name": {
+            "en": "Job title",
+            "zh": "职位",
+            "fr": "Poste"
+          },
+          "type": "text"
+        },
+        {
+          "id": "company",
+          "name": {
+            "en": "Company",
+            "zh": "公司",
+            "fr": "Société"
+          },
+          "type": "text"
+        },
+        {
+          "id": "phone",
+          "name": {
+            "en": "Phone",
+            "zh": "电话",
+            "fr": "Téléphone"
+          },
+          "type": "text",
+          "format": "phone"
+        },
+        {
+          "id": "email",
+          "name": {
+            "en": "Email",
+            "zh": "邮箱",
+            "fr": "E-mail"
+          },
+          "type": "text",
+          "format": "email"
+        },
+        {
+          "id": "website",
+          "name": {
+            "en": "Website",
+            "zh": "网站",
+            "fr": "Site web"
+          },
+          "type": "text",
+          "format": "url"
+        },
+        {
+          "id": "address",
+          "name": {
+            "en": "Address",
+            "zh": "地址",
+            "fr": "Adresse"
+          },
+          "type": "text"
+        },
+        {
+          "id": "note",
+          "name": {
+            "en": "Note",
+            "zh": "备注",
+            "fr": "Remarque"
+          },
+          "type": "note"
+        },
+        {
+          "id": "attachments",
+          "name": {
+            "en": "Attachments",
+            "zh": "附件",
+            "fr": "Pièces jointes"
+          },
+          "type": "file"
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "id": "$tool.scan",
+      "kind": "quickAction",
+      "name": {
+        "en": "Scan a card",
+        "zh": "扫名片",
+        "fr": "Scanner une carte"
+      },
+      "icon": "scan",
+      "steps": [
+        {
+          "id": "scan",
+          "action": "in.photos",
+          "params": {
+            "source": "scanner",
+            "min": 1,
+            "max": 10
+          }
+        },
+        {
+          "id": "edges",
+          "action": "scan.detect",
+          "params": {}
+        },
+        {
+          "id": "log",
+          "action": "out.addRecord",
+          "params": {
+            "collectionId": "$table.contacts"
+          }
+        }
+      ]
+    },
+    {
+      "id": "$tool.scanMine",
+      "kind": "quickAction",
+      "name": {
+        "en": "Scan my card",
+        "zh": "扫我的名片",
+        "fr": "Scanner ma carte"
+      },
+      "icon": "scan",
+      "steps": [
+        {
+          "id": "scan",
+          "action": "in.photos",
+          "params": {
+            "source": "scanner",
+            "min": 1,
+            "max": 10
+          }
+        },
+        {
+          "id": "edges",
+          "action": "scan.detect",
+          "params": {}
+        },
+        {
+          "id": "log",
+          "action": "out.addRecord",
+          "params": {
+            "collectionId": "$table.mine"
+          }
+        }
+      ]
+    },
+    {
+      "id": "$tool.export",
+      "kind": "quickAction",
+      "name": {
+        "en": "Export all contacts",
+        "zh": "导出全部联系人",
+        "fr": "Exporter tous les contacts"
+      },
+      "icon": "document",
+      "steps": [
+        {
+          "id": "read",
+          "action": "in.records",
+          "params": {
+            "collectionId": "$table.contacts",
+            "period": "all"
+          }
+        },
+        {
+          "id": "vcard",
+          "action": "records.toVCard",
+          "params": {}
+        },
+        {
+          "id": "share",
+          "action": "out.share",
+          "params": {}
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "id": "$page.main",
+      "title": {
+        "en": "Business cards",
+        "zh": "名片",
+        "fr": "Cartes de visite"
+      },
+      "icon": "person",
+      "blocks": [
+        {
+          "id": "title",
+          "look": "header",
+          "show": {
+            "title": {
+              "en": "Business cards",
+              "zh": "名片",
+              "fr": "Cartes de visite"
+            }
+          }
+        },
+        {
+          "id": "scan",
+          "look": "action",
+          "show": {
+            "shape": "row"
+          },
+          "tools": [
+            {
+              "tool": "$tool.scan"
+            }
+          ]
+        },
+        {
+          "id": "mine",
+          "look": "entry",
+          "show": {
+            "title": {
+              "en": "My card",
+              "zh": "我的名片",
+              "fr": "Ma carte"
+            },
+            "icon": "qrcode",
+            "shape": "row"
+          },
+          "opens": "page:$page.mine"
+        },
+        {
+          "id": "contacts",
+          "look": "entry",
+          "show": {
+            "title": {
+              "en": "Contacts",
+              "zh": "联系人",
+              "fr": "Contacts"
+            },
+            "icon": "person",
+            "shape": "row"
+          },
+          "opens": "page:$page.contacts"
+        }
+      ]
+    },
+    {
+      "id": "$page.mine",
+      "title": {
+        "en": "My card",
+        "zh": "我的名片",
+        "fr": "Ma carte"
+      },
+      "icon": "qrcode",
+      "blocks": [
+        {
+          "id": "title",
+          "look": "header",
+          "show": {
+            "title": {
+              "en": "My card",
+              "zh": "我的名片",
+              "fr": "Ma carte"
+            }
+          }
+        },
+        {
+          "id": "card",
+          "look": "single",
+          "showIf": {
+            "table": "$table.mine",
+            "has": "some"
+          },
+          "source": {
+            "table": "$table.mine"
+          },
+          "show": {
+            "fields": ["name", "title", "company", "phone", "email", "website", "address"],
+            "qr": true
+          }
+        },
+        {
+          "id": "none",
+          "look": "text",
+          "showIf": {
+            "table": "$table.mine",
+            "has": "none"
+          },
+          "show": {
+            "text": {
+              "en": "You have no card yet. Fill it in by hand, or scan one.",
+              "zh": "还没有名片。可以手动填，也可以扫一张。",
+              "fr": "Vous n’avez pas encore de carte. Remplissez-la à la main ou scannez-en une."
+            }
+          }
+        },
+        {
+          "id": "by-hand",
+          "look": "button",
+          "showIf": {
+            "table": "$table.mine",
+            "has": "none"
+          },
+          "show": {
+            "label": {
+              "en": "Fill in by hand",
+              "zh": "手动填写",
+              "fr": "Remplir à la main"
+            },
+            "variant": "filled"
+          },
+          "tools": [
+            {
+              "do": "create",
+              "table": "$table.mine",
+              "ask": "all"
+            }
+          ]
+        },
+        {
+          "id": "scan",
+          "look": "action",
+          "showIf": {
+            "table": "$table.mine",
+            "has": "none"
+          },
+          "show": {
+            "shape": "row"
+          },
+          "tools": [
+            {
+              "tool": "$tool.scanMine"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "$page.contacts",
+      "title": {
+        "en": "Contacts",
+        "zh": "联系人",
+        "fr": "Contacts"
+      },
+      "icon": "person",
+      "blocks": [
+        {
+          "id": "title",
+          "look": "header",
+          "show": {
+            "title": {
+              "en": "Contacts",
+              "zh": "联系人",
+              "fr": "Contacts"
+            }
+          }
+        },
+        {
+          "id": "scan",
+          "look": "action",
+          "show": {
+            "shape": "row"
+          },
+          "tools": [
+            {
+              "tool": "$tool.scan"
+            }
+          ]
+        },
+        {
+          "id": "contacts",
+          "look": "list",
+          "source": {
+            "table": "$table.contacts",
+            "sort": {
+              "field": "name",
+              "direction": "asc"
+            },
+            "limit": 100
+          },
+          "show": {
+            "title": "name",
+            "subtitles": ["company", "title"],
+            "emptyText": {
+              "en": "No contacts yet. Scan a card to add one.",
+              "zh": "还没有联系人。扫一张名片就有了。",
+              "fr": "Aucun contact pour l’instant. Scannez une carte pour en ajouter un."
+            },
+            "browse": {
+              "search": true,
+              "sort": ["name", "company", "createdAt"],
+              "group": ["company", "group"]
+            }
+          },
+          "tools": [
+            {
+              "as": "addHere",
+              "do": "create",
+              "table": "$table.contacts",
+              "ask": "all",
+              "values": "$here"
+            }
+          ]
+        },
+        {
+          "id": "export",
+          "look": "action",
+          "show": {
+            "shape": "row"
+          },
+          "tools": [
+            {
+              "tool": "$tool.export"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "main": "$page.main",
+  "entry": "nav"
+}

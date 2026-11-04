@@ -688,7 +688,7 @@ describe('updateContainer', () => {
       errorOf(workspace(), [
         { op: 'updateContainer', page: 'home', block: 'welcome', changes: { title: 'x' } },
       ]),
-    ).toBe('block welcome can change style, hidden, show, source, tools, opens; not title');
+    ).toBe('block welcome can change style, hidden, showIf, show, source, tools, opens; not title');
     expect(
       errorOf(workspace(), [
         { op: 'updateContainer', page: 'home', block: 'nope', changes: { hidden: true } },

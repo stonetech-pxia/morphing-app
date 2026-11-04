@@ -60,6 +60,8 @@ export interface SuggestInput {
   picks?: Readonly<Record<string, FieldPick>>;
   /** 这张表存过的店名、公司（字段 ID → 值，现查的，见 knownValues）；原样出现在文字里就当候选。 */
   known?: Readonly<Record<string, readonly string[]>>;
+  /** 名片表（rules: card）：附件里的二维码读出来的文字（D-423）。vCard、MeCard 的值和网址排在每个字段候选的最前面。 */
+  codes?: readonly string[];
   now?: Date;
 }
 

@@ -502,7 +502,7 @@ ${relation}
 
 ## Containers
 - containers.pages[]: {id, title, icon?, backdrop?, package?, of?, blocks: Block[]}. The home page has id "home" and can't be removed. A tool's page has package set; it goes away only when the tool is removed. A page with of is a page for one entry of that table (rule 48). Other pages are the user's own: you may add and remove them (max 20 pages, ${MAX_PAGE_BLOCKS} top-level blocks each). Many users have a "toolbox" page (id "toolbox", opened from a home entry) made of packages blocks grouped by topic; it is the user's own page like any other: rename, regroup, reorder or extend it as asked. "tools" (the full tool list with add / remove buttons) always stays reachable from Settings.
-- Block = {id, look, show?, source?, tools?, opens?, children? (group only), hidden?: true, style?}: id is stable and unique within its page, including inside groups; look is what kind of block it is; show is its look's own options; source is what it reads (R2); tools are the tools it shows (R4); opens is where a tap goes (R6). style = {align?: "start"|"center", tone?: "default"|"primary"|"secondary"|"tertiary"|"muted", size?: "small"|"medium"|"large", backdrop?: {overlay: "light"|"medium"|"strong"}}. For text-like blocks tone is the text color; for cards it is a tinted background. backdrop (only on ${BACKDROP_TYPES.join(', ')}) and a page's backdrop: a picture background — rule 37.
+- Block = {id, look, show?, source?, tools?, opens?, children? (group only), hidden?: true, showIf?: {table, has: "some"|"none"}, style?}: id is stable and unique within its page, including inside groups; look is what kind of block it is; show is its look's own options; source is what it reads (R2); tools are the tools it shows (R4); opens is where a tap goes (R6); showIf draws the block only when that table has some or no entries (it never writes). style = {align?: "start"|"center", tone?: "default"|"primary"|"secondary"|"tertiary"|"muted", size?: "small"|"medium"|"large", backdrop?: {overlay: "light"|"medium"|"strong"}}. For text-like blocks tone is the text color; for cards it is a tinted background. backdrop (only on ${BACKDROP_TYPES.join(', ')}) and a page's backdrop: a picture background — rule 37.
   Looks, with what each one shows and [the tools it can hold]:
 ${lookDocs()}
 - Icons: one of these names: ${ICON_NAMES.join(', ')} — or a single emoji (e.g. "💰", "📚"). Use an emoji when no name fits.
@@ -542,7 +542,7 @@ type ToolUse =
   | RecordTool & { as?: ${TOOL_USE_AS.map((a) => `"${a}"`).join(' | ')}; label?: string; when?: Condition[] }   // rules 44, 45
   | { tool: string }                                                       // a quick action id or preset id (action block), or ${PICK_TOOLS.map((p) => `"${p}"`).join(' / ')} (picker block)
   | { as: "button"; label: string; when?: Condition[]; opens: "record" | string };   // opens this entry's editor or a page for one entry
-type Block = { id: string; look: string; show?: object; source?: object; tools?: ToolUse[]; opens?: Opens | string; children?: Block[]; hidden?: boolean; style?: Style };
+type Block = { id: string; look: string; show?: object; source?: object; tools?: ToolUse[]; opens?: Opens | string; children?: Block[]; hidden?: boolean; showIf?: { table: string; has: "some" | "none" }; style?: Style };
 type Page = { id: string; title: string; icon?: string; backdrop?: Backdrop; of?: string; blocks: Block[] };
 type Table = { id: string; name: string; icon?: string; fields: object[] };
 type Step = { id: string; action: string; params: object; ask?: string[] };   // params must match the action's parameters exactly
@@ -565,7 +565,7 @@ type Op =
   | { op: "addContainer"; page: Page }                                           // a new page
   | { op: "addContainer"; page: string; block: Block; parent?: string; index?: number }   // parent = a group to add into; omit for the page's top level
   | { op: "updateContainer"; page: string; changes: { title?: string; icon?: string | null; backdrop?: Backdrop | null } }
-  | { op: "updateContainer"; page: string; block: string; changes: { show?: object; source?: object; style?: Style; hidden?: boolean; tools?: ToolUse[] | null; opens?: Opens | string | null } }   // show, source and style merge (null removes a key); tools and opens are replaced whole
+  | { op: "updateContainer"; page: string; block: string; changes: { show?: object; source?: object; style?: Style; hidden?: boolean; showIf?: { table: string; has: "some" | "none" } | null; tools?: ToolUse[] | null; opens?: Opens | string | null } }   // show, source and style merge (null removes a key); tools and opens are replaced whole
   | { op: "updateContainer"; nav: { bar?: Target[]; floating?: Target[]; phoneHomeScreen?: string[] } }   // each list given is the complete new list; entries put in floating leave the bar; phoneHomeScreen is a function change (rule 39)
   | { op: "removeContainer"; page: string; block?: string }                     // a page also loses its nav entries and the entries and buttons that opened it
   | { op: "moveContainer"; page: string; block: string; toIndex: number; parent?: string }   // parent = a group to move into; omit for the page's top level

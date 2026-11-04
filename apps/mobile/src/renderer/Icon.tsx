@@ -146,6 +146,11 @@ const UI_SYMBOLS = {
   play: { ios: 'play.fill', android: 'play_arrow' },
   edit: { ios: 'pencil', android: 'edit' },
   add: { ios: 'plus', android: 'add' },
+  phone: { ios: 'phone.fill', android: 'call' },
+  message: { ios: 'message.fill', android: 'sms' },
+  mail: { ios: 'envelope.fill', android: 'mail' },
+  globe: { ios: 'globe', android: 'language' },
+  share: { ios: 'square.and.arrow.up', android: 'share' },
 } satisfies Record<string, SymbolName>;
 
 export type UiIconName = keyof typeof UI_SYMBOLS;

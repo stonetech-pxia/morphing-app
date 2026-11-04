@@ -7,6 +7,8 @@ import {
   applyOps,
   createDefaultWorkspace,
   createRegistry,
+  createStarterWorkspace,
+  sampleOps,
   templateOps,
   type AIProvider,
   type Collection,
@@ -16,10 +18,13 @@ import {
   type WorkspaceConfig,
 } from '@morph/core';
 import { createClaudePlanner, createHttpCompleter } from '@morph/planner';
+import { qrMatrix, qrToRgba } from '@morph/tool-qr';
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
+import { Alert, Linking } from 'react-native';
 
+import { readAttachmentCodes } from '../data/attachment-text';
 import { useGuide } from '../guide/store';
 import { sharedAbout } from '../share/about';
 import { MemoryWorkspaceRepo } from '../storage/memory';
@@ -190,6 +195,46 @@ describe('底线 1 / 2：AI 的请求里没有数据内容（记录、文件名�
       expect(body).not.toContain(OTHER_ASSET);
     }
     expect(bodies[0]).toContain(REDACTED_FILE);
+  });
+
+  // D-423：表单读到的二维码只进候选，不存，AI 的请求里没有。这里走真的计划请求，配置里也查不到。
+  it('a QR code read in the form never reaches the AI request', async () => {
+    const { bodies, fetchImpl } = capturingFetch(relayReply);
+    const provider = createRemoteAIProvider({
+      baseUrl: 'https://relay.test',
+      registry,
+      now: () => NOW,
+      fetchImpl,
+    });
+    const { store, repo } = await bootedStore(provider);
+    const code = 'QRCODE-私密-91ab';
+    const files = new FakeFiles();
+    const path = 'assets/a/card.jpg';
+    const uri = files.fileUri(path);
+    files.disk.set(uri, new Uint8Array([1, 2, 3]));
+    files.pixels.set(uri, qrToRgba(qrMatrix(`BEGIN:VCARD\nFN:${code}\nEND:VCARD`), { scale: 4 }));
+    const codes = await readAttachmentCodes(
+      [
+        {
+          id: 'a',
+          name: 'card.jpg',
+          mimeType: 'image/jpeg',
+          size: 3,
+          path,
+          source: 'picked',
+          createdAt: 1,
+        },
+      ],
+      { files },
+      new AbortController().signal,
+    );
+    // 真的读到了（不是没读到所以没发）。
+    expect(codes.join()).toContain(code);
+    expect(JSON.stringify(store.getState().config)).not.toContain(code);
+    expect((await store.getState().change('换个颜色', provider)).kind).toBe('drafted');
+    expect(bodies.length).toBeGreaterThan(0);
+    for (const body of bodies) expect(body).not.toContain(code);
+    expect(await repo.getMeta('prefill:picks')).toBeNull();
   });
 
   it('saved presets stay out of what the AI sees: not in the config, not their names (D-410)', async () => {
@@ -489,7 +534,18 @@ const VIEWED: [string, () => WorkspaceConfig, Locale][] = [
       'zh',
     ],
   ),
+  // 名片样板（D-423）：有二维码的页面、按表显示的块、能搜索的列表，看的时候也不写。
+  ['sample business-cards', businessCards, 'zh'],
 ];
+
+function businessCards(): WorkspaceConfig {
+  const base = createStarterWorkspace('zh', registry);
+  const sample = sampleOps('business-cards', base, 'zh');
+  if (!sample.ok) throw new Error(sample.message);
+  const r = applyOps(base, sample.ops, { registry, locale: 'zh' });
+  if (!r.ok) throw new Error(r.error);
+  return r.config;
+}
 
 async function renderSeeded(
   config: WorkspaceConfig,
@@ -538,6 +594,123 @@ describe('底线 15 / 16：看永远不会改；每次写入都来自用户的�
     },
     20_000,
   );
+
+  // D-422、D-423：记录页顶部的按钮只是打开系统的页面。
+  it('tapping call, message, email, website or share on an entry writes nothing', async () => {
+    const opened = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined as never);
+    const asked = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const base = createDefaultWorkspace('zh');
+    const added = applyOps(
+      base,
+      [
+        {
+          op: 'addData',
+          table: {
+            id: 'contacts',
+            name: '联系人',
+            fields: [
+              { id: 'tel', name: '电话', type: 'text', format: 'phone' },
+              { id: 'mail', name: '邮箱', type: 'text', format: 'email' },
+              { id: 'site', name: '网站', type: 'text', format: 'url' },
+            ],
+          },
+        },
+      ],
+      { registry, locale: 'zh' },
+    );
+    if (!added.ok) throw new Error(added.error);
+    const repo = new MemoryWorkspaceRepo();
+    await repo.insertRecord({
+      id: 'c1',
+      collectionId: 'contacts',
+      values: { tel: '+33 6 12', mail: 'a@example.com', site: 'example.com' },
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await renderSeeded(added.config, 'zh', repo);
+    await settle();
+    await act(() =>
+      router.push({
+        pathname: '/record/[collectionId]',
+        params: { collectionId: 'contacts', recordId: 'c1' },
+      }),
+    );
+    await settle();
+    await screen.findByTestId('record-action-call');
+    const spies = spyWrites(repo);
+    await fireEvent.press(screen.getByTestId('record-action-call'));
+    await fireEvent.press(screen.getByTestId('record-action-message'));
+    await fireEvent.press(screen.getByTestId('record-action-email'));
+    await fireEvent.press(screen.getByTestId('record-action-share'));
+    await fireEvent.press(screen.getByTestId('record-action-website'));
+    const open = (asked.mock.lastCall?.[2] ?? []).find((b) => b.text === '打开');
+    await act(async () => open?.onPress?.());
+    await settle();
+    expect(opened.mock.calls.map(([url]) => url)).toEqual([
+      'tel:+33612',
+      'sms:+33612',
+      'mailto:a@example.com',
+      'https://example.com',
+    ]);
+    expect(spies.filter(([, s]) => s.mock.calls.length > 0).map(([n]) => n)).toEqual([]);
+    expect((await repo.getRecord('c1'))!.updatedAt).toBe(1);
+  });
+
+  // D-424：搜索、换排序、换分组只在块里，不写记录，也不写配置（版本不变）。
+  it('searching, switching sort and group on a list writes nothing', async () => {
+    const base = createDefaultWorkspace('zh');
+    const added = applyOps(
+      base,
+      [
+        {
+          op: 'addData',
+          table: {
+            id: 'people',
+            name: '人',
+            fields: [
+              { id: 'name', name: '姓名', type: 'text' },
+              { id: 'co', name: '公司', type: 'text' },
+            ],
+          },
+        },
+        {
+          op: 'addContainer',
+          page: {
+            id: 'people-page',
+            title: '人',
+            blocks: [
+              {
+                id: 'list',
+                look: 'list',
+                source: { table: 'people', limit: 30 },
+                show: {
+                  title: 'name',
+                  browse: { search: true, sort: ['name', 'createdAt'], group: ['co'] },
+                },
+              },
+            ],
+          },
+        },
+      ],
+      { registry, locale: 'zh' },
+    );
+    if (!added.ok) throw new Error(added.error);
+    const repo = new MemoryWorkspaceRepo();
+    const { store } = await renderSeeded(added.config, 'zh', repo);
+    await settle();
+    await act(() => router.push({ pathname: '/page/[pageId]', params: { pageId: 'people-page' } }));
+    await settle();
+    const head = store.getState().head!.id;
+    const spies = spyWrites(repo);
+    await fireEvent.changeText(await screen.findByTestId('browse-search'), 'x');
+    await fireEvent.changeText(screen.getByTestId('browse-search'), '');
+    await fireEvent.press(screen.getByTestId('browse-sort-createdAt'));
+    await fireEvent.press(screen.getByTestId('browse-group-co'));
+    await fireEvent.press(screen.getByTestId('browse-group-none'));
+    await settle();
+    expect(spies.filter(([, s]) => s.mock.calls.length > 0).map(([n]) => n)).toEqual([]);
+    expect(store.getState().head!.id).toBe(head);
+  });
 
   // 创始人 2026-10-31（对话）定的例外（D-037）：回收站里删掉超过 30 天的记录在启动时永久删除，起因是用户自己删的。
   // 这是启动时唯一的写入。

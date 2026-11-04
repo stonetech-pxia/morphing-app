@@ -969,4 +969,18 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     // 内置规则认的步骤说法（D-265）。
     phrases: [{ match: /^打印$|^print(?: it)?$/i }],
   },
+  {
+    id: 'records.toVCard',
+    label: { en: 'Records to vCard', zh: '记录生成 vCard', fr: 'Entrées en vCard' },
+    description: {
+      en: 'Make one contact file (.vcf) from the records. Name, job title, company and address come from fields with those names; phone, email and website from fields with that format. The values are filled in on the device; there are no settings.',
+      zh: '把记录做成一个联系人文件（.vcf）。姓名、职位、公司、地址取这些名字的字段，电话、邮箱、网址取写了 format 的字段。记录内容在本机填进去，没有设置。',
+      fr: 'Créez un fichier de contacts (.vcf) à partir des entrées. Le nom, le poste, la société et l’adresse viennent des champs qui portent ces noms ; le téléphone, l’e-mail et le site web des champs ayant ce format. Les valeurs sont remplies sur l’appareil ; il n’y a aucun réglage.',
+    },
+    input: ['records'],
+    output: 'files',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
+  },
 ];

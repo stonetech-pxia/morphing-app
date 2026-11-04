@@ -22,10 +22,11 @@ import {
   listComponent,
   tilesComponent,
 } from './records';
+import { singleComponent } from './single';
 import { spacerComponent } from './spacer';
 import { textComponent } from './text';
 
-/** 可以放进分组的外观（22 种，加上 group 本身共 23 种）。新外观加在最后（顺序就是 JSON Schema 里的顺序）。 */
+/** 可以放进分组的外观（23 种，加上 group 本身共 24 种）。新外观加在最后（顺序就是 JSON Schema 里的顺序）。 */
 export const LEAF_COMPONENTS = [
   headerComponent,
   textComponent,
@@ -49,6 +50,7 @@ export const LEAF_COMPONENTS = [
   filesComponent,
   libraryComponent,
   packagesComponent,
+  singleComponent,
 ] as const;
 
 type Schemas<D extends readonly { schema: unknown }[]> = {

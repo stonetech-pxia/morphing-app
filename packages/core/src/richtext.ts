@@ -26,7 +26,7 @@ export function isSafeLink(url: string): boolean {
 /** 链接显示给用户确认时用的目标（域名或邮件地址）。 */
 export function linkTarget(url: string): string {
   if (/^mailto:/i.test(url)) return url.slice('mailto:'.length);
-  const host = url.replace(/^https:\/\//i, '').split(/[/?#]/)[0]!;
+  const host = url.replace(/^https?:\/\//i, '').split(/[/?#]/)[0]!;
   return host;
 }
 

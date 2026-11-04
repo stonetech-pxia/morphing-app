@@ -1,0 +1,203 @@
+{
+  "ids": {
+    "table": "contacts",
+    "page": "contacts"
+  },
+  "table": {
+    "id": "$table",
+    "prefillRules": "card",
+    "name": {
+      "en": "Contacts",
+      "zh": "联系人",
+      "fr": "Contacts"
+    },
+    "icon": "person",
+    "fields": [
+      {
+        "id": "name",
+        "name": {
+          "en": "Name",
+          "zh": "姓名",
+          "fr": "Nom"
+        },
+        "type": "text"
+      },
+      {
+        "id": "title",
+        "name": {
+          "en": "Job title",
+          "zh": "职位",
+          "fr": "Poste"
+        },
+        "type": "text"
+      },
+      {
+        "id": "company",
+        "name": {
+          "en": "Company",
+          "zh": "公司",
+          "fr": "Société"
+        },
+        "type": "text"
+      },
+      {
+        "id": "phone",
+        "name": {
+          "en": "Phone",
+          "zh": "电话",
+          "fr": "Téléphone"
+        },
+        "type": "text",
+        "format": "phone"
+      },
+      {
+        "id": "email",
+        "name": {
+          "en": "Email",
+          "zh": "邮箱",
+          "fr": "E-mail"
+        },
+        "type": "text",
+        "format": "email"
+      },
+      {
+        "id": "website",
+        "name": {
+          "en": "Website",
+          "zh": "网站",
+          "fr": "Site web"
+        },
+        "type": "text",
+        "format": "url"
+      },
+      {
+        "id": "address",
+        "name": {
+          "en": "Address",
+          "zh": "地址",
+          "fr": "Adresse"
+        },
+        "type": "text"
+      },
+      {
+        "id": "group",
+        "name": {
+          "en": "Group",
+          "zh": "分组",
+          "fr": "Groupe"
+        },
+        "type": "choice",
+        "options": [
+          {
+            "id": "client",
+            "label": {
+              "en": "Client",
+              "zh": "客户",
+              "fr": "Client"
+            }
+          },
+          {
+            "id": "colleague",
+            "label": {
+              "en": "Colleague",
+              "zh": "同事",
+              "fr": "Collègue"
+            }
+          },
+          {
+            "id": "friend",
+            "label": {
+              "en": "Friend",
+              "zh": "朋友",
+              "fr": "Ami"
+            }
+          },
+          {
+            "id": "other",
+            "label": {
+              "en": "Other",
+              "zh": "其他",
+              "fr": "Autre"
+            }
+          }
+        ]
+      },
+      {
+        "id": "note",
+        "name": {
+          "en": "Note",
+          "zh": "备注",
+          "fr": "Remarque"
+        },
+        "type": "note"
+      },
+      {
+        "id": "attachments",
+        "name": {
+          "en": "Attachments",
+          "zh": "附件",
+          "fr": "Pièces jointes"
+        },
+        "type": "file"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Contacts",
+      "zh": "联系人",
+      "fr": "Contacts"
+    },
+    "icon": "person",
+    "blocks": [
+      {
+        "id": "title",
+        "look": "header",
+        "show": {
+          "title": {
+            "en": "Contacts",
+            "zh": "联系人",
+            "fr": "Contacts"
+          }
+        }
+      },
+      {
+        "id": "contacts",
+        "look": "list",
+        "source": {
+          "table": "$table",
+          "sort": {
+            "field": "name",
+            "direction": "asc"
+          },
+          "limit": 100
+        },
+        "show": {
+          "title": "name",
+          "subtitles": ["company", "title"],
+          "emptyText": {
+            "en": "No contacts yet. Scan a card to add one.",
+            "zh": "还没有联系人。扫一张名片就有了。",
+            "fr": "Aucun contact pour l’instant. Scannez une carte pour en ajouter un."
+          },
+          "browse": {
+            "search": true,
+            "sort": ["name", "company", "createdAt"],
+            "group": ["company", "group"]
+          }
+        },
+        "tools": [
+          {
+            "as": "addHere",
+            "do": "create",
+            "table": "$table",
+            "ask": "all",
+            "values": "$here"
+          }
+        ]
+      }
+    ]
+  },
+  "entry": "nav"
+}

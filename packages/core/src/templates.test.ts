@@ -93,6 +93,8 @@ describe('file record presets', () => {
       bill: '账单 出具方:text 到期日:date 金额:money 已付:checkbox 附件:file',
       contract: '合同 名称:text 对方:text 签订日期:date 到期日:date 附件:file',
       reimbursement: '报销 事由:text 日期:date 金额:money 状态:choice 附件:file',
+      contacts:
+        '联系人 姓名:text 职位:text 公司:text 电话:text 邮箱:text 网站:text 地址:text 分组:choice 备注:note 附件:file',
       blank: '我的记录 标题:text 附件:file',
     });
     const status = templateCollectionOp('reimbursement', config, 'zh').table.fields.find(

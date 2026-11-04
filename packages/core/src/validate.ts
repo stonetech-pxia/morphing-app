@@ -270,6 +270,8 @@ function blockProblems(c: KnownComponent, ctx: CheckContext): CheckProblem[] {
       message: `component ${c.id} (${c.look}) can't have a picture background: style.backdrop is only for ${BACKDROP_TYPES.join(', ')}`,
     });
   }
+  if (c.showIf && !config.data.tables.some((x) => x.id === c.showIf!.table))
+    problems.push(`showIf: data table ${c.showIf.table} does not exist`);
   for (const [path, ref] of Object.entries(def.refs ?? {})) {
     const value = valueAt(c, path);
     if (!ref || value === undefined) continue;

@@ -1,8 +1,8 @@
-import { linkTarget, parseRichText, type Span } from '@morph/core';
-import { Alert, Linking, StyleSheet, Text, View, type TextStyle } from 'react-native';
+import { parseRichText, type Span } from '@morph/core';
+import { Linking, StyleSheet, Text, View, type TextStyle } from 'react-native';
 
-import { t } from '../i18n';
 import type { RenderEnv } from './components';
+import { confirmOpenLink } from './open-link';
 
 // 富文本渲染（D-044）：粗体、斜体、链接、列表。只有数据，没有可执行内容。
 // 链接只可能是 https / mailto（schema 已校验），打开前还要用户确认目标地址。
@@ -27,14 +27,7 @@ export function RichText({
   function open(url: string) {
     if (!env.interactive) return;
     if (env.locked) return env.locked();
-    Alert.alert(
-      t(locale, 'openLinkTitle'),
-      t(locale, 'openLinkMessage', { target: linkTarget(url) }),
-      [
-        { text: t(locale, 'cancel'), style: 'cancel' },
-        { text: t(locale, 'openLink'), onPress: () => void Linking.openURL(url) },
-      ],
-    );
+    confirmOpenLink(locale, url, () => void Linking.openURL(url));
   }
 
   const span = (s: Span, i: number) => {

@@ -17,6 +17,7 @@ import { pageOccurrences } from './rows';
 import { analyzeCard, cardCandidates, cardLike, looseEmails } from './card-rules';
 import { addressCandidates } from './address-rules';
 import { NOT_ISSUE_DATE_LEFT, PRINT_WORD_LEFT } from './rules-data';
+import { contactCodeValues, parseContactCode } from '../vcard';
 import {
   BAD_DATE_ROW,
   DEPART_ROW,
@@ -66,6 +67,8 @@ export interface FieldPlan {
   code: ValueSuggestion[];
   /** 这张表存过、这次文字里也有的值。 */
   remembered: ValueSuggestion | null;
+  /** 二维码里写明的值（D-423）：排在最前面，也不用问模型。 */
+  fromCode: ValueSuggestion[];
   /** 代码拿不准，要问模型。 */
   ask: boolean;
   /** 问了模型也让规则的候选排在前面（中文单据的合计，模型常挑小计，D-404）。 */
@@ -188,6 +191,18 @@ function badLeft(row: string, value: string, locale: Locale): boolean {
   });
 }
 
+/** 附件里的二维码读出来的值（字段 ID → 值）：先读到的码在前，别的文字不算（D-423）。 */
+function codeValues(input: SuggestInput): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const text of input.codes ?? []) {
+    const code = parseContactCode(text);
+    if (!code) continue;
+    for (const [id, values] of Object.entries(contactCodeValues(input.fields, code)))
+      out[id] = [...(out[id] ?? []), ...values];
+  }
+  return out;
+}
+
 /** 这份单据的规则结果和计划。 */
 export function planDocument(input: SuggestInput): DocumentPlan {
   // 解析日期、金额的规则要知道币种、整份文字和「现在」；算完把上下文清掉，别让下一份文档用到这一份的。
@@ -210,6 +225,7 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
     rows.some((r) => HOTEL_DOC.test(r)) &&
     !rows.some((r) => TRAVEL_DOC.test(r));
   const occurrences = pages.flatMap((p) => p.occ);
+  const coded = cardRules() ? codeValues(input) : {};
 
   // 不是规则打分给的值：记下它在哪一排（点了以后记忆用，D-394），标签用那一处的。
   const pickOf = (value: string): ValueSuggestion['pick'] => {
@@ -344,8 +360,11 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
       field,
       code: merged,
       remembered: memory ? fromCode(field, memory) : null,
+      // 不带 pick：二维码的值不在文字的版面里，点了也不记位置。
+      fromCode: (coded[field.id] ?? []).map((value) => ({ value, score: 0 })),
       // 单选字段只有分类问模型（D-405），别的交给规则；不能填的字段（附件、勾选……）规则也不给候选。
       ask:
+        !coded[field.id]?.length &&
         code === undefined &&
         !(concept === null && (field.type === 'note' || FREE_NOTE.test(field.name.trim()))) &&
         // 店名的分数看不出对错，模型又换不对第一个，有候选就不为它加载模型（D-404）。
@@ -376,6 +395,7 @@ export function mergedSuggestions(
     if (out.length < MAX_SUGGESTIONS && !out.some((m) => sameValue(plan.field, m.value, s.value)))
       out.push(s);
   };
+  for (const s of plan.fromCode) add(s);
   if (plan.remembered) add(plan.remembered);
   if (plan.codeFirst) for (const s of known) add(s);
   for (const v of model)

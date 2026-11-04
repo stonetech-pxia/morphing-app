@@ -27,6 +27,7 @@ import {
   type RecordTemplate,
   type RunItem,
   type RunValue,
+  recordsToVCard,
 } from '@morph/core';
 
 import { ArchiveError, createZip, extractZip, mimeTypeOfName } from '@morph/tool-archive';
@@ -155,6 +156,23 @@ export const MORE_IMPLS: Record<string, Impl> = {
     });
     const name = String(params.title || '').trim() || collection.name;
     return { type: 'pdf', items: [await printHtml(ctx.services, html, pageSize, name)] };
+  },
+
+  // D-423：只有用户运行这个快捷操作时才做文件；要离开 App 还要接 out.share，也是用户点的（底线 10）。
+  async 'records.toVCard'(input, _params, ctx) {
+    if (!input || input.type !== 'records') {
+      throw new RunError('unexpected', { detail: 'no records' });
+    }
+    const table = ctx.services.collections.find((c) => c.id === input.collectionId);
+    if (!table) throw new RunError('notFound', { name: input.name });
+    const text = recordsToVCard(table.fields, input.records);
+    if (!text) throw new RunError('noRecords', { name: input.name });
+    const item = await writeItem(ctx.services, new TextEncoder().encode(text), {
+      name: input.name,
+      ext: 'vcf',
+      mimeType: 'text/vcard',
+    });
+    return { type: 'files', items: [item] };
   },
 
   async 'text.toPdf'(input, params, ctx) {

@@ -75,6 +75,8 @@ export type ApplyNote =
   | { kind: 'removedRecordActions'; count: number }
   /** 移出表时，给它的一条记录用的页面（page.of，D-342）跟着移除。 */
   | { kind: 'removedRecordPages'; titles: string[] }
+  /** 块上的设置（列表能换的字段、单条记录显示的字段、按表显示的条件）指向删掉的东西，跟着去掉（D-424）。 */
+  | { kind: 'clearedBlockRefs'; count: number }
   /**
    * 删表、删字段时快捷操作里用到它的步骤（CHAIN_AUDIT A3）：steps 是去掉的步骤、trimmed 是只拿掉了这个字段的
    * 步骤（动作 ID）；removed：剩下的步骤用不了，整个快捷操作跟着移除。
@@ -431,6 +433,61 @@ function pruneRecordTools(config: WorkspaceConfig, gone: Gone, notes: ApplyNote[
   if (count > 0) notes.push({ kind: 'removedRecordActions', count });
 }
 
+/**
+ * 删字段后，列表能换的字段、单条记录显示的字段跟着去掉（底线 18，D-424）。单条记录一个字段都不剩时块也移除。
+ */
+function pruneBrowseFields(
+  config: WorkspaceConfig,
+  gone: Required<Gone>,
+  notes: ApplyNote[],
+): void {
+  let count = 0;
+  const without = (list: readonly string[]) => list.filter((id) => id !== gone.field);
+  for (const c of everyBlock(config)) {
+    if (!isKnownComponent(c) || componentCollection(c) !== gone.table) continue;
+    if (c.look === 'single') {
+      if (!c.show.fields.includes(gone.field) || c.show.fields.length === 1) continue;
+      c.show.fields = without(c.show.fields);
+      count++;
+      continue;
+    }
+    const show = (c as { show?: { browse?: { search?: true; sort?: string[]; group?: string[] } } })
+      .show;
+    const browse = show?.browse;
+    if (!show || !browse) continue;
+    for (const key of ['sort', 'group'] as const) {
+      const list = browse[key];
+      if (!list?.includes(gone.field)) continue;
+      count++;
+      const left = without(list);
+      if (left.length > 0) browse[key] = left;
+      else delete browse[key];
+    }
+    if (!browse.search && !browse.sort && !browse.group) delete show.browse;
+  }
+  count += removeEverywhere(
+    config,
+    (c) =>
+      isKnownComponent(c) &&
+      c.look === 'single' &&
+      c.source.table === gone.table &&
+      c.show.fields.length === 1 &&
+      c.show.fields[0] === gone.field,
+  );
+  if (count > 0) notes.push({ kind: 'clearedBlockRefs', count });
+}
+
+/** 删表后，别的块上「按这张表显示」的条件去掉（底线 18，D-424）：块留着，一直显示。 */
+function pruneShowIf(config: WorkspaceConfig, table: string, notes: ApplyNote[]): void {
+  let count = 0;
+  for (const c of everyBlock(config)) {
+    if (!isKnownComponent(c) || c.showIf?.table !== table) continue;
+    delete c.showIf;
+    count++;
+  }
+  if (count > 0) notes.push({ kind: 'clearedBlockRefs', count });
+}
+
 /** 这几种聚合读 source.field；别的（计数、按日子算）不读，校验器不要求它。 */
 const READS_FIELD = ['sum', 'avg', 'min', 'max'];
 
@@ -600,6 +657,7 @@ function removeData(
     table.fields.splice(getFieldIndex(table, op.field), 1);
     pruneRecordTools(config, { table: op.table, field: op.field }, notes);
     pruneAggregateFields(config, { table: op.table, field: op.field });
+    pruneBrowseFields(config, { table: op.table, field: op.field }, notes);
     pruneSteps(config, { table: op.table, field: op.field }, registry, notes);
     return;
   }
@@ -633,6 +691,7 @@ function removeData(
   if (count > 0) notes.push({ kind: 'removedDataComponents', table: op.table, count });
   pruneRecordTools(config, { table: op.table }, notes);
   pruneSteps(config, { table: op.table }, registry, notes);
+  pruneShowIf(config, op.table, notes);
 }
 
 function moveData(config: WorkspaceConfig, op: OpOf<'moveData'>): void {
@@ -670,7 +729,7 @@ function addContainer(config: WorkspaceConfig, op: OpOf<'addContainer'>): void {
 }
 
 const PAGE_CHANGES = ['title', 'icon', 'backdrop'] as const;
-const BLOCK_CHANGES = ['style', 'hidden', 'show', 'source', 'tools', 'opens'] as const;
+const BLOCK_CHANGES = ['style', 'hidden', 'showIf', 'show', 'source', 'tools', 'opens'] as const;
 const DESK_CHANGES = ['toolbar', 'preview', 'strip', 'tools'] as const;
 
 function updateBlock(block: KnownComponent, changes: BlockChanges): void {
@@ -688,6 +747,8 @@ function updateBlock(block: KnownComponent, changes: BlockChanges): void {
   }
   if (changes.hidden === true) block.hidden = true;
   else if (changes.hidden === false) delete block.hidden;
+  if (changes.showIf === null) delete block.showIf;
+  else if (changes.showIf !== undefined) block.showIf = changes.showIf;
   // show、source 只合并（null 去掉一项），外观不能通过这个操作改变；合法性由 validateWorkspace 检查。
   for (const key of ['show', 'source'] as const) {
     const patch = changes[key];

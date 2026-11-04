@@ -7,6 +7,7 @@ import { useComputedRecords, useRecordActions } from '@/data/records';
 import { t } from '@/i18n';
 import { FormFilesContext } from '@/renderer/Attachments';
 import { prefillFormValues, toFormValues } from '@/renderer/data';
+import { RecordActionRow } from '@/renderer/RecordActionRow';
 import { SuggestedFields } from '@/renderer/SuggestedFields';
 import { usePalette } from '@/renderer/theme';
 import { Button } from '@/renderer/ui';
@@ -117,6 +118,9 @@ export default function RecordRoute() {
         <ScrollView
           contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 48 }}
           keyboardShouldPersistTaps="handled">
+          {record ? (
+            <RecordActionRow collection={collection} values={values} palette={palette} />
+          ) : null}
           <FormFilesContext.Provider value={formFiles}>
             <SuggestedFields
               suggest={!recordId}

@@ -39,10 +39,11 @@ export const cardRules = (): boolean => ctx.kind === 'card';
 
 /** planDocument 之后的同步调用（问模型、核对模型的答案）也按这张表的规则走。 */
 export function withDocKind<T>(kind: DocumentKind, work: () => T): T {
+  const before = ctx.kind;
   ctx.kind = kind;
   try {
     return work();
   } finally {
-    ctx.kind = '';
+    ctx.kind = before;
   }
 }

@@ -28,6 +28,7 @@ import {
   MAX_READ_FILES,
   missingPacks,
   readableKind,
+  readAttachmentCodes,
   readAttachmentPages,
   ReadCancelled,
   type AttachmentTextDeps,
@@ -135,6 +136,10 @@ export function useFieldSuggestions({
       setNeeds({ run, list });
       setWorkingFor(run);
       try {
+        const codes =
+          collection.prefillRules === 'card'
+            ? await readAttachmentCodes(first, deps, abort.signal)
+            : [];
         const pages = await readAttachmentPages(first, deps, abort.signal);
         if (abort.signal.aborted) return;
         const known = collection.fields.some(usesValueMemory)
@@ -146,6 +151,7 @@ export function useFieldSuggestions({
             fields: collection.fields,
             ...(collection.prefillRules ? { rules: collection.prefillRules } : {}),
             pages,
+            ...(codes.length > 0 ? { codes } : {}),
             locale,
             picks: picks.current,
             known,

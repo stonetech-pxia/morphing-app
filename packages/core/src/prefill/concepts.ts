@@ -1,3 +1,4 @@
+import type { TextFormat } from '../fields/text';
 import type { Field } from '../schema';
 import { norm } from './similarity';
 import { cardRules } from './doc-context';
@@ -673,8 +674,14 @@ for (const [id, c] of Object.entries(CONCEPTS) as [ConceptId, Concept][]) {
   for (const n of c.names) if (!BY_NAME.has(norm(n))) BY_NAME.set(norm(n), id);
 }
 
+/** 认概念要看的字段属性：id、名字，文字字段还有 format（D-422）。 */
+type ConceptField = Pick<Field, 'id' | 'name'> & { format?: TextFormat | undefined };
+
 /** 字段对上的概念；对不上时 null。 */
-export function conceptOf(field: Pick<Field, 'id' | 'name'>): ConceptId | null {
+export function conceptOf(field: ConceptField): ConceptId | null {
+  // 写了 format 就按 format，字段名不算（D-422）；网址只在名片上有规则，别处当普通文字。
+  if (field.format === 'phone' || field.format === 'email') return field.format;
+  if (field.format === 'url') return cardRules() ? 'website' : null;
   const name = norm(field.name);
   const preset = PRESET_NAMES[field.id];
   if (preset?.some((n) => norm(n) === name)) return PRESET_FIELDS[field.id]!;
@@ -691,7 +698,7 @@ export interface FieldTerms {
 }
 
 /** 给标签打分用的词：字段名 + 概念的三语关键词；排除词同样三语。 */
-export function fieldTerms(field: Pick<Field, 'id' | 'name'>): FieldTerms {
+export function fieldTerms(field: ConceptField): FieldTerms {
   const concept = conceptOf(field);
   const c = concept ? CONCEPTS[concept] : null;
   return {

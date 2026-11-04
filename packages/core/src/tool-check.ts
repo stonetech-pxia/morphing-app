@@ -341,7 +341,14 @@ class Analysis {
       tables.add(source.table);
       if (use) {
         use.readers.push({ via: where, reachable });
-        for (const id of [show.title, ...(show.subtitles ?? []), show.trailing, show.color])
+        for (const id of [
+          show.title,
+          ...(show.subtitles ?? []),
+          show.trailing,
+          show.color,
+          ...(show.browse?.sort ?? []),
+          ...(show.browse?.group ?? []),
+        ])
           if (id !== undefined) use.read.add(id);
         const format = show.format;
         if (format?.kind === 'elapsed' && format.until) use.read.add(format.until);
@@ -355,6 +362,15 @@ class Analysis {
           use.editor = true;
         if (reachable && block.tools?.some((u) => isOpenUse(u) && u.opens === 'record'))
           use.editor = true;
+      }
+    } else if (c.look === 'single') {
+      const use = this.uses.get(c.source.table);
+      tables.add(c.source.table);
+      if (use) {
+        use.readers.push({ via: where, reachable });
+        for (const id of c.show.fields) use.read.add(id);
+        // 块上有「编辑」。
+        if (reachable) use.editor = true;
       }
     } else if (c.look === 'number' || c.look === 'chart') {
       const { source } = c;

@@ -9,6 +9,8 @@ import { prepareOps, prepareSnapshot } from './change';
 import { createDefaultWorkspace } from './defaults';
 import { defaultDeskTools } from './desk/tools';
 import { V4_CUSTOM_ASK, V4_DEFAULT_MERGE, V4_FIXED_NAME } from './fixtures/v4';
+import { fieldLink } from './field-link';
+import { fieldDefinition } from './fields';
 import { en, enSingular } from './messages/en';
 import { fr, frSingular } from './messages/fr';
 import { zh } from './messages/zh';
@@ -25,6 +27,8 @@ import {
   type Workflow,
   type WorkspaceConfig,
 } from './schema';
+import { planDocument } from './prefill/code-rules';
+import { sampleOps } from './samples';
 import { createStarterWorkspace } from './starter';
 import { fromV33, registry, v33Fixture } from './test-helpers';
 import { validateWorkspace } from './validate';
@@ -200,6 +204,26 @@ describe('底线 1 / 2 / 14：保存的预设不在配置里（D-410）', () => 
     expect(
       WorkspaceConfigSchema.safeParse({ ...config, presets: [{ id: 'p', name: SENTINEL }] })
         .success,
+    ).toBe(false);
+  });
+});
+
+describe('底线 2：扫到的二维码不发给 AI（D-423）', () => {
+  it('the code is only for the candidates: not in the document text, and never in config', () => {
+    const fields = [{ id: 'name', name: 'Name', type: 'text' as const }];
+    const plan = planDocument({
+      fields,
+      rules: 'card',
+      pages: [],
+      locale: 'en',
+      codes: [`BEGIN:VCARD\nFN:${SENTINEL}\nEND:VCARD`],
+    });
+    // 要问模型时给的是 rows；AI 的计划里只有配置（配置里放不下候选）。
+    expect(plan.rows).toEqual([]);
+    expect(plan.fields[0]!.fromCode.map((s) => s.value)).toEqual([SENTINEL]);
+    expect(plan.fields[0]!.ask).toBe(false);
+    expect(
+      CollectionSchema.safeParse({ id: 't', name: 'T', fields, codes: [SENTINEL] }).success,
     ).toBe(false);
   });
 });
@@ -399,6 +423,52 @@ describe('底线 3：AI 永远不碰文件', () => {
   });
 });
 
+describe('底线 3：新设置里没有文件引用（D-424）', () => {
+  const page = (block: object) => ({
+    op: 'addContainer' as const,
+    page: { id: 'p', title: 'P', blocks: [block] },
+  });
+  const table = {
+    op: 'addData' as const,
+    table: { id: 't', name: 'T', fields: [{ id: 'a', name: 'A', type: 'text' as const }] },
+  };
+
+  it.each([
+    [
+      'single with a file',
+      { id: 'x', look: 'single', source: { table: 't' }, show: { fields: ['a'], asset: 'f' } },
+    ],
+    [
+      'single with opens',
+      {
+        id: 'x',
+        look: 'single',
+        source: { table: 't' },
+        show: { fields: ['a'] },
+        opens: { file: 'f' },
+      },
+    ],
+    [
+      'list browse with a file',
+      {
+        id: 'x',
+        look: 'list',
+        source: { table: 't' },
+        show: { title: 'a', browse: { search: true, asset: 'f' } },
+      },
+    ],
+    [
+      'showIf with a file',
+      { id: 'x', look: 'divider', showIf: { table: 't', has: 'some', asset: 'f' } },
+    ],
+  ])('%s is refused', (_name, block) => {
+    expect(OpSchema.safeParse(page(block)).success).toBe(false);
+    expect(prepareOps(createDefaultWorkspace('en'), [table, page(block) as never], ctx).ok).toBe(
+      false,
+    );
+  });
+});
+
 describe('底线 4：原件永远不移动、不删除', () => {
   // 文件平台（expo-platform.ts）的删除和移动只碰运行目录、选择器副本：mobile 的 invariants-files-test.ts。
   it('the configuration can only point at a file by an opaque id; it has no place for a path or a content:// uri', () => {
@@ -473,6 +543,30 @@ describe('底线 6：AI 只改 App，不替用户办事（D-113）', () => {
       });
       expect(plan.kind).toBe('reject');
     }
+  });
+
+  // D-422：AI 能写字段的 format（配置），没有打电话、写信、开网页的操作；点是用户在记录页上点的。
+  it("AI can set a text field's format, and no op dials, emails or opens a link", () => {
+    const base = applyOps(
+      createDefaultWorkspace('zh'),
+      [
+        {
+          op: 'addData',
+          table: { id: 'c', name: 'c', fields: [{ id: 'p', name: 'p', type: 'text' }] },
+        },
+      ],
+      ctx,
+    );
+    if (!base.ok) throw new Error(base.error);
+    const set: Op = { op: 'updateData', table: 'c', field: 'p', changes: { format: 'phone' } };
+    expect(PlanSchema.safeParse({ kind: 'ops', ops: [set] }).success).toBe(true);
+    expect(prepareOps(base.config, [set], { ...ctx, fromAI: true }).ok).toBe(true);
+    for (const op of ['dial', 'call', 'openLink', 'openUrl', 'sendEmail', 'runTool'])
+      expect(OpSchema.safeParse({ op, url: 'tel:123', field: 'p', table: 'c' }).success).toBe(
+        false,
+      );
+    const ops = OpSchema.options.map((o) => o.shape.op.value as string);
+    expect(ops.filter((o) => /dial|call|mail|link|url|open/i.test(o))).toEqual([]);
   });
 });
 
@@ -560,6 +654,83 @@ describe('底线 9：工具不能触发工具；没有分支、循环', () => {
 });
 
 describe('底线 10：数据离开 App 只能由用户每次亲手点', () => {
+  // D-422：电话、邮箱、网址只在记录页上用户亲手点才打开，不是快捷操作的步骤，工具也做不到。
+  it('no action or tool can open a phone, email or web link', () => {
+    const ids = [...registry.actions.keys()];
+    expect(ids.length).toBeGreaterThan(0);
+    expect(ids.filter((id) => /tel|mailto|dial|openurl|openlink|\.call|\.email/i.test(id))).toEqual(
+      [],
+    );
+    for (const action of ['out.openLink', 'out.dial', 'out.call', 'out.email', 'out.openUrl']) {
+      expect(registry.actions.has(action)).toBe(false);
+      expect(ToolUseSchema.safeParse({ as: 'button', label: 'x', action }).success).toBe(false);
+    }
+    // 动作的参数里也没有要打开的地址（有也打不开：下一个测试说明只有两个地方能调系统打开）。
+    const params = [...registry.actions.values()].flatMap((a) =>
+      a.fields
+        .filter((f) => /^(tel|mailto|phone|email|url)$/i.test(f.key))
+        .map((f) => `${a.id}.${f.key}`),
+    );
+    expect(params).toEqual([]);
+  });
+
+  it('only the record page and rich text can open something outside the app', () => {
+    const openers = sourceFiles(join(REPO, 'apps', 'mobile', 'src'))
+      .filter((path) => /\bLinking\.openURL\b/.test(readFileSync(path, 'utf8')))
+      .map((path) => relative(REPO, path));
+    expect(openers.sort()).toEqual([
+      join('apps', 'mobile', 'src', 'renderer', 'RichText.tsx'),
+      join('apps', 'mobile', 'src', 'renderer', 'open-link.ts'),
+    ]);
+  });
+
+  // D-423：导出成 vCard 只是快捷操作的一步，只做一个文件；要离开 App 还要接 out.share（快捷操作是用户点了才运行）。
+  it('records.toVCard is only a step: no block tool or reminder can run it', () => {
+    const action = registry.actions.get('records.toVCard')!;
+    expect(action.input).toEqual(['records']);
+    expect(action.output).toBe('files');
+    expect(ToolUseSchema.safeParse({ as: 'button', label: 'x', action: action.id }).success).toBe(
+      false,
+    );
+    expect(
+      ReminderSchema.safeParse({
+        id: 'r',
+        kind: 'reminder',
+        title: 'x',
+        enabled: true,
+        when: { every: 'day', at: '09:00' },
+        opens: 'page:home',
+        steps: [{ id: 's', action: action.id, params: {} }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('in.records → records.toVCard → out.share is a straight chain the catalog accepts', () => {
+    const wf: Workflow = {
+      id: 'q',
+      kind: 'quickAction',
+      name: 'Q',
+      steps: [
+        { id: 'a', action: 'in.records', params: { collectionId: 't', period: 'all' } },
+        { id: 'b', action: 'records.toVCard', params: {} },
+        { id: 'c', action: 'out.share', params: {} },
+      ],
+    };
+    expect(workflowProblems(wf, registry)).toEqual([]);
+    expect(typesAlong(wf.steps, registry)).toEqual(['records', 'files', 'files']);
+  });
+
+  // 记录页的「分享 vCard」是直接调系统分享的第三个地方，只在按钮的 onPress 里（mobile 的 record-actions 测试点了才调）。
+  it('sharing a vCard from the entry page happens only in the tap handler', () => {
+    const text = readFileSync(
+      join(REPO, 'apps', 'mobile', 'src', 'renderer', 'RecordActionRow.tsx'),
+      'utf8',
+    );
+    expect(text.match(/shareText/g)).toHaveLength(2); // 类型一处、调用一处
+    expect(text).toMatch(/add\('share'[^;]*shareCard\(/);
+    expect(text).not.toMatch(/useEffect/);
+  });
+
   // relation-rules.test.ts「rule 14」：时间触发的工具只打开、不运行；分享、导出只能是快捷操作的步骤。
   it('a tool on a block cannot share, export or save to Files', () => {
     for (const action of ['out.share', 'out.saveToFolder', 'out.saveToPhotos', 'out.print'])
@@ -639,6 +810,40 @@ describe('底线 12：旧的永远能打开', () => {
     }
     expect(CURRENT_SCHEMA_VERSION).toBe(37);
   });
+
+  // D-424：showIf、browse、single 都是新的可选值，没有它们的旧配置一个字不变；schemaVersion 不变。
+  it('old configs have no showIf or browse and load exactly as they were', () => {
+    for (const [, config] of CONFIGS) {
+      const text = JSON.stringify(config);
+      expect(text).not.toMatch(/"showIf"|"browse"|"look":"single"/);
+      const r = prepareSnapshot(structuredClone(config), registry);
+      expect(r.ok && r.after).toEqual(config);
+    }
+  });
+
+  // D-422：format 是可选的，旧配置没有它，读出来一个字不变，文字的值也一样读。
+  it('an old config with no format loads unchanged and its text values read the same', () => {
+    const table = {
+      id: 'c',
+      name: 'c',
+      fields: [{ id: 'p', name: '电话', type: 'text', required: true }],
+    };
+    const base = createDefaultWorkspace('zh');
+    const old = {
+      ...structuredClone(base),
+      schemaVersion: 36,
+      data: { ...base.data, tables: [table] },
+    };
+    const r = prepareSnapshot(old, registry);
+    expect(r.ok ? [] : r.issues).toEqual([]);
+    if (!r.ok) return;
+    const loaded = r.after.data.tables[0]!;
+    expect(loaded).toEqual(table);
+    const f = loaded.fields[0]!;
+    expect(fieldLink(f, '+33 6 12 34 56 78')).toBeNull();
+    expect(fieldDefinition(f.type).read(f as never, '+33 6 12')).toBe('+33 6 12');
+    expect(fieldDefinition(f.type).format(f as never, '+33 6 12', 'zh')).toBe('+33 6 12');
+  });
 });
 
 describe('底线 13：不联网也能用', () => {
@@ -672,6 +877,57 @@ describe('底线 14：数据只有一份，只在数据里', () => {
     expect(CollectionSchema.safeParse(table(formula)).success).toBe(true);
     expect(CollectionSchema.safeParse(table({ ...formula, value: 4 })).success).toBe(false);
     expect(CollectionSchema.safeParse(table({ ...formula, values: [4] })).success).toBe(false);
+  });
+});
+
+describe('底线 14：配置里没有名片内容（D-423）', () => {
+  const single = (show: object) => ({ id: 'x', look: 'single', source: { table: 't' }, show });
+
+  it('a single block holds only a table and field ids; a QR code or values do not fit', () => {
+    for (const extra of [
+      { vcard: 'BEGIN:VCARD' },
+      { qrImage: 'data:' },
+      { values: { a: SENTINEL } },
+    ])
+      expect(
+        OpSchema.safeParse({
+          op: 'addContainer',
+          page: 'home',
+          block: single({ fields: ['a'], ...extra }),
+        }).success,
+      ).toBe(false);
+    expect(
+      OpSchema.safeParse({
+        op: 'addContainer',
+        page: 'home',
+        block: { ...single({ fields: ['a'] }), record: 'r1' },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('search text and the chosen sort or group have no place in browse', () => {
+    for (const extra of [{ query: 'x' }, { current: 'name' }, { selected: 'name' }])
+      expect(
+        OpSchema.safeParse({
+          op: 'addContainer',
+          page: 'home',
+          block: {
+            id: 'x',
+            look: 'list',
+            source: { table: 't' },
+            show: { title: 'a', browse: { search: true, ...extra } },
+          },
+        }).success,
+      ).toBe(false);
+  });
+
+  it('the business card sample carries no entries or card text in its config', () => {
+    const base = createStarterWorkspace('en', registry);
+    const result = sampleOps('business-cards', base, 'en');
+    if (!result.ok) throw new Error(result.message);
+    const r = prepareOps(base, result.ops, ctx);
+    if (!r.ok) throw new Error(r.issues.join());
+    expect(JSON.stringify(r.after)).not.toMatch(/BEGIN:VCARD|data:image|"values":\{/);
   });
 });
 
@@ -814,6 +1070,56 @@ function rng(seed: number) {
     return (h >>> 0) / 4294967296;
   };
 }
+
+describe('底线 18：删掉新设置引用的表和字段（D-424）', () => {
+  const sample = () => {
+    const base = createStarterWorkspace('en', registry);
+    const result = sampleOps('business-cards', base, 'en');
+    if (!result.ok) throw new Error(result.message);
+    const r = prepareOps(base, result.ops, ctx);
+    if (!r.ok) throw new Error(r.issues.join());
+    return r.after;
+  };
+
+  it('a field the list also shows as a subtitle is refused as before; the app says which', () => {
+    const r = prepareOps(
+      sample(),
+      [{ op: 'removeData', table: 'contacts', field: 'company' }],
+      ctx,
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.issues.join()).toMatch(/subtitleField company/);
+  });
+
+  it.each(['contacts', 'my-card'])('removing table %s leaves nothing dangling', (table) => {
+    const r = prepareOps(sample(), [{ op: 'removeData', table }], ctx);
+    expect(r.ok ? [] : r.issues).toEqual([]);
+    if (!r.ok) return;
+    expect(danglingRefs(r.after)).toEqual([]);
+    expect(JSON.stringify(r.after.containers)).not.toContain(`"table":"${table}"`);
+  });
+
+  it.each([
+    ['contacts', 'group'],
+    ['my-card', 'phone'],
+  ])('removing field %s.%s leaves nothing dangling', (table, field) => {
+    const r = prepareOps(sample(), [{ op: 'removeData', table, field }], ctx);
+    expect(r.ok ? [] : r.issues).toEqual([]);
+    if (!r.ok) return;
+    expect(danglingRefs(r.after)).toEqual([]);
+    const blocks = r.after.containers.pages.flatMap(allComponents);
+    for (const b of blocks) {
+      const show = (
+        b as { show?: { fields?: string[]; browse?: { sort?: string[]; group?: string[] } } }
+      ).show;
+      expect([
+        ...(show?.fields ?? []),
+        ...(show?.browse?.sort ?? []),
+        ...(show?.browse?.group ?? []),
+      ]).not.toContain(field);
+    }
+  });
+});
 
 describe('底线 18：配置永远自洽', () => {
   it('every frozen config starts without a dangling reference (the checker itself)', () => {

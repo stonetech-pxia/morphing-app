@@ -417,3 +417,94 @@ describe('什么时候问模型（D-404）', () => {
     expect(values(out, 'total')[0]).toBe('9.00');
   });
 });
+
+describe('二维码的值（D-423）', () => {
+  const CARD_FIELDS: Field[] = [
+    { id: 'name', name: 'Name', type: 'text' },
+    { id: 'job', name: 'Job title', type: 'text' },
+    { id: 'company', name: 'Company', type: 'text' },
+    { id: 'tel', name: 'Phone', type: 'text', format: 'phone' },
+    { id: 'mail', name: 'Email', type: 'text', format: 'email' },
+    { id: 'site', name: 'Website', type: 'text', format: 'url' },
+  ];
+  const VCARD =
+    'BEGIN:VCARD\nFN:Maria Garcia\nTITLE:CTO\nORG:Acme\nTEL:+33 6 12 34 56 78\nEMAIL:m@acme.example\nURL:https://acme.example\nEND:VCARD';
+  const input = (codes: string[], rows: string[] = []) => ({
+    fields: CARD_FIELDS,
+    rules: 'card' as const,
+    pages: rows.length > 0 ? [pageOf(rows)] : [],
+    locale: 'en' as const,
+    now,
+    codes,
+  });
+  const values = (s: FieldSuggestions) =>
+    Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v.map((x) => x.value)]));
+
+  it('a picture with only a QR code still gives candidates', async () => {
+    expect(values(await ruleEngine(input([VCARD])))).toEqual({
+      name: ['Maria Garcia'],
+      job: ['CTO'],
+      company: ['Acme'],
+      tel: ['+33 6 12 34 56 78'],
+      mail: ['m@acme.example'],
+      site: ['https://acme.example'],
+    });
+  });
+
+  it('come before what the text gives, without a position to remember', async () => {
+    const s = await ruleEngine(
+      input([VCARD], ['Jean Dupont', 'Tel +33 1 11 11 11 11', 'other@acme.example']),
+    );
+    expect(s.tel![0]!.value).toBe('+33 6 12 34 56 78');
+    expect(s.tel!.map((x) => x.value)).toContain('+33 1 11 11 11 11');
+    expect(s.mail![0]!.value).toBe('m@acme.example');
+    expect(s.mail!.map((x) => x.value)).toContain('other@acme.example');
+    expect(s.name![0]!.value).toBe('Maria Garcia');
+    expect(s.name![0]!.pick).toBeUndefined();
+  });
+
+  it('a web address only suggests the website', async () => {
+    expect(values(await ruleEngine(input(['https://acme.example/me'])))).toEqual({
+      site: ['https://acme.example/me'],
+    });
+  });
+
+  it('anything else is ignored and the text is read as usual', async () => {
+    const plain = await ruleEngine(input([], ['Tel +33 1 11 11 11 11']));
+    const coded = await ruleEngine(input(['WIFI:T:WPA;S:x;;', 'hello'], ['Tel +33 1 11 11 11 11']));
+    expect(coded).toEqual(plain);
+    expect(await ruleEngine(input(['hello']))).toEqual({});
+  });
+
+  it('only on a card table', async () => {
+    const s = await ruleEngine({ ...input([VCARD]), rules: 'receipt' });
+    expect(s).toEqual({});
+    const { rules: _unused, ...plain } = input([VCARD]);
+    expect(await ruleEngine(plain)).toEqual({});
+  });
+
+  it('the model does not load for a picture with no text', async () => {
+    let opened = 0;
+    const open: OpenModel = async () => {
+      opened++;
+      return null;
+    };
+    const s = await modelEngine(open)(input(['https://acme.example']));
+    expect(opened).toBe(0);
+    expect(values(s)).toEqual({ site: ['https://acme.example'] });
+  });
+
+  it('a field with a code value is not asked of the model; other fields are, without the code', async () => {
+    const asked: ModelRequest[] = [];
+    const open: OpenModel = async () => ({
+      generate: async (r) => {
+        asked.push(r);
+        return '';
+      },
+      release: async () => undefined,
+    });
+    await modelEngine(open)(input(['https://acme.example/SECRET'], ['Some text on the card']));
+    expect(asked.length).toBeGreaterThan(0);
+    expect(JSON.stringify(asked)).not.toContain('SECRET');
+  });
+});

@@ -83,6 +83,43 @@ describe('card rules', () => {
   });
 });
 
+describe('a text field with format (D-422)', () => {
+  const PHONE = page(['Northwind Trading', 'Tel: +44 20 7946 0958', 'Thanks for your visit']);
+  const FIELDS = [f('v', '头衔', 'text', { format: 'phone' })];
+
+  it('gets a phone candidate although its name means nothing', async () => {
+    expect((await values(ruleEngine, FIELDS, [PHONE])).v).toContain('+44 20 7946 0958');
+  });
+
+  it('gets an email candidate although its name means nothing', async () => {
+    const r = await values(ruleEngine, [f('v', '头衔', 'text', { format: 'email' })], [CARD]);
+    expect(r.v).toContain('maria.garcia@northwind.example.com');
+  });
+
+  it('the same field without format is only text: no phone candidate', async () => {
+    const r = await values(ruleEngine, [f('v', '头衔')], [PHONE]);
+    expect(r.v ?? []).not.toContain('+44 20 7946 0958');
+  });
+
+  it('format wins over the field name', async () => {
+    const r = await values(ruleEngine, [f('v', 'Email', 'text', { format: 'phone' })], [CARD]);
+    expect(r.v).toContain('+44 20 7946 0958');
+    expect(r.v).not.toContain('maria.garcia@northwind.example.com');
+  });
+
+  it('a url field reads the website on a card table', async () => {
+    const r = await values(ruleEngine, [f('v', '头衔', 'text', { format: 'url' })], [CARD], 'card');
+    expect(r.v?.[0]).toBe('www.northwind.com');
+  });
+
+  it('a url field is plain text elsewhere: same as the field without format', async () => {
+    for (const rules of [undefined, 'receipt'] as const)
+      expect(
+        await values(ruleEngine, [f('v', '头衔', 'text', { format: 'url' })], [CARD], rules),
+      ).toEqual(await values(ruleEngine, [f('v', '头衔')], [CARD], rules));
+  });
+});
+
 describe('a multi-line address', () => {
   const s = { value: '15 Rose Lane\nLondon SW1A 1AA', score: 3 };
 
@@ -147,6 +184,20 @@ describe('the on-device model on a card', () => {
       return Promise.resolve(answer);
     },
     release: () => Promise.resolve(),
+  });
+
+  // 对照：同名的普通文字字段是问的，所以「没问」不是因为模型没打开（D-422）。
+  it('is not asked for fields with format, whatever their name; a plain field of that name is asked', async () => {
+    const empty = page(['Nothing to read here']);
+    const asked: string[] = [];
+    const engine = modelEngine(() => Promise.resolve(session(asked, 'null')));
+    const fields = (['phone', 'email', 'url'] as const).map((format) =>
+      f(format, '头衔', 'text', { format }),
+    );
+    await values(engine, fields, [CARD, empty], 'card');
+    expect(asked).toEqual([]);
+    await values(engine, [f('v', '头衔')], [CARD, empty], 'card');
+    expect(asked).toHaveLength(1);
   });
 
   it('is not asked for phone, email, website or address', async () => {

@@ -7160,6 +7160,39 @@ const FIX_CASES: EvalCase[] = [
           : 'not translated to English',
     },
   },
+  // D-423：列表上的搜索和能换的排序、分组；导出成 vCard；只显示一条记录的块。
+  {
+    id: 'CARD1',
+    input: '给记账列表加一个搜索框，还能按分类分组',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const list = c.containers.pages
+          .flatMap((p) => allComponents(p))
+          .find(
+            (x): x is Extract<typeof x, { look: 'list' }> =>
+              isKnownComponent(x) && x.look === 'list' && x.show.browse !== undefined,
+          );
+        if (!list) return 'no list with show.browse';
+        if (!list.show.browse?.search) return 'no search box';
+        return list.show.browse.group?.includes('category') ? null : 'cannot group by category';
+      },
+    },
+  },
+  {
+    id: 'CARD2',
+    input: 'add a quick action that exports all my expenses as a vCard file and shares it',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.records', 'records.toVCard', 'out.share']),
+    },
+  },
 ];
 
 export const EVAL_CASES: readonly EvalCase[] = [

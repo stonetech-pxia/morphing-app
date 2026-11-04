@@ -44,6 +44,31 @@ function dayLabel(day: number, today: number, locale: Locale): string {
   return relative ? t(locale, 'groupDayRelative', { relative, day: date }) : date;
 }
 
+function textGroups(records: readonly DataRecord[], by: string, locale: Locale): ListGroup[] {
+  const groups = new Map<string, DataRecord[]>();
+  const blank: DataRecord[] = [];
+  for (const r of records) {
+    const raw = r.values[by];
+    const value = typeof raw === 'string' ? raw.trim() : '';
+    if (!value) blank.push(r);
+    else groups.set(value, [...(groups.get(value) ?? []), r]);
+  }
+  const order = new Intl.Collator(localeTag(locale));
+  return [
+    ...[...groups.entries()]
+      .sort(([a], [b]) => order.compare(a, b))
+      .map(([value, list]): ListGroup => ({
+        key: `text-${value}`,
+        label: value,
+        records: list,
+        preset: value,
+      })),
+    ...(blank.length > 0
+      ? [{ key: 'none', label: t(locale, 'groupNoText'), records: blank } satisfies ListGroup]
+      : []),
+  ];
+}
+
 function monthLabel(day: number, locale: Locale): string {
   return new Intl.DateTimeFormat(localeTag(locale), {
     year: 'numeric',
@@ -82,6 +107,8 @@ export function listGroups(
         ...(g.optionId === null ? {} : { preset: g.optionId }),
       }));
   }
+  // 文字（D-424，列表上临时按公司分）：每个不同的值一段，按字母排，没填的放最后。
+  if (field?.type === 'text') return textGroups(records, groupBy, locale);
   const today = todayNumber(now, cal);
   const unit = group.unit ?? 'day';
   const schedule = field?.type === 'schedule';
@@ -162,4 +189,39 @@ export function filterPresets(
     else if (f.type === 'checkbox' && typeof c.value === 'boolean') presets[f.id] = c.value;
   }
   return presets;
+}
+
+const searchForm = (text: string) => text.normalize('NFKC').toLowerCase();
+
+/**
+ * 列表上的搜索（D-424）：每个词都要出现在这一条显示的文字里（不分大小写，全角半角一样，中文按字匹配）。
+ * 传进来的是还没截到 limit 的记录，所以 limit 之外的也找得到。
+ */
+export function searchRecords<R>(
+  records: readonly R[],
+  query: string,
+  textsOf: (record: R) => readonly string[],
+): R[] {
+  const words = searchForm(query).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [...records];
+  return records.filter((r) => {
+    const text = searchForm(textsOf(r).join('\n'));
+    return words.every((w) => text.includes(w));
+  });
+}
+
+/** 用户点了「按这个字段排」（D-424）：日期、数字新的大的在前，别的从 A 到 Z。 */
+export function browseSort(
+  field: string,
+  tables: readonly Collection[],
+  tableId: string,
+): { field: string; direction: 'asc' | 'desc' } {
+  const type =
+    field === 'createdAt' || field === 'updatedAt'
+      ? 'datetime'
+      : tables.find((c) => c.id === tableId)?.fields.find((f) => f.id === field)?.type;
+  const newestFirst = ['date', 'datetime', 'number', 'money', 'rating', 'duration'].includes(
+    type ?? '',
+  );
+  return { field, direction: newestFirst ? 'desc' : 'asc' };
 }

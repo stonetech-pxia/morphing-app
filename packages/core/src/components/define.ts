@@ -21,10 +21,18 @@ export const ComponentStyleSchema = z.strictObject({
 });
 export type ComponentStyle = z.infer<typeof ComponentStyleSchema>;
 
+/** 块只在一张表有（some）或没有（none）记录时显示（D-424）。只影响画不画，不写东西。 */
+export const ShowIfSchema = z.strictObject({
+  table: IdSchema,
+  has: z.enum(['some', 'none']),
+});
+export type ShowIf = z.infer<typeof ShowIfSchema>;
+
 export const blockBase = {
   id: IdSchema,
   hidden: z.boolean().optional(),
   style: ComponentStyleSchema.optional(),
+  showIf: ShowIfSchema.optional(),
 };
 
 /** 入口类卡片的样子（D-230）：row = 设置页那种一行、右边有箭头；tile = 大图标块。 */
