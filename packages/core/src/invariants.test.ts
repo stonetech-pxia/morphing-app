@@ -637,7 +637,7 @@ describe('底线 12：旧的永远能打开', () => {
       const r = migrateWorkspace(structuredClone(config));
       expect(r.ok && r.config).toEqual(config);
     }
-    expect(CURRENT_SCHEMA_VERSION).toBe(36);
+    expect(CURRENT_SCHEMA_VERSION).toBe(37);
   });
 });
 

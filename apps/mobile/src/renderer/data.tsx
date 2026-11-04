@@ -1,4 +1,5 @@
 import {
+  suggestionForField,
   filterPresets,
   listGroups,
   findDatePhrase,
@@ -859,7 +860,7 @@ export function FieldsForm({
             {suggestions?.[id]?.length ? (
               <SuggestionChips
                 field={field}
-                list={suggestions[id]!}
+                list={suggestions[id]!.map((s) => suggestionForField(field, s))}
                 current={values[id]}
                 palette={palette}
                 locale={locale}

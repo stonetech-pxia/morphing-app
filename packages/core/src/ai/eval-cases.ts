@@ -3722,6 +3722,20 @@ const RECORD_EVAL_CASES: readonly EvalCase[] = [
     },
   },
   {
+    id: 'PREFILLRULES1',
+    input: '账目这张表的附件都是收据，按收据来读',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.data.tables.find((t) => t.id === 'expenses')?.prefillRules === 'receipt'
+          ? null
+          : 'expenses should have prefillRules: receipt',
+    },
+  },
+  {
     id: 'RE1',
     input: '新建一个快捷操作：拍照，记到账目',
     locale: 'zh',

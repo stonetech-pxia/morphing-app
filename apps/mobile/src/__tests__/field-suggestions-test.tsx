@@ -441,4 +441,28 @@ describe('快捷操作「记一笔」的表单（D-397）', () => {
     await act(async () => undefined);
     expect(recognized(vision)).toHaveLength(0);
   });
+
+  it('设置 → 数据：选「附件是」写到表上（D-421），有附件字段的表才有，默认是其他', async () => {
+    const plain: Collection = {
+      id: 'plain',
+      name: '备忘',
+      fields: [{ id: 'note', name: '内容', type: 'note' }],
+    };
+    const both = (locale: Locale, registry: Registry) => {
+      const config = seed(receipts())(locale, registry);
+      config.data.tables.push(plain);
+      return config;
+    };
+    await render(undefined, 'zh', both);
+    await act(() => router.push('/data'));
+    const selected = (id: string) => screen.getByTestId(id).props.accessibilityState.selected;
+    await screen.findByTestId('prefill-rules-receipts-general');
+    expect(selected('prefill-rules-receipts-general')).toBe(true);
+    expect(screen.queryByTestId('prefill-rules-plain-general')).toBeNull();
+    await fireEvent.press(screen.getByTestId('prefill-rules-receipts-card'));
+    await waitFor(() => expect(selected('prefill-rules-receipts-card')).toBe(true));
+    expect(selected('prefill-rules-receipts-general')).toBe(false);
+    await fireEvent.press(screen.getByTestId('prefill-rules-receipts-general'));
+    await waitFor(() => expect(selected('prefill-rules-receipts-general')).toBe(true));
+  });
 });

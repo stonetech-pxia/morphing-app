@@ -1,7 +1,7 @@
 import type { Field, Locale } from '../schema';
 import { CONCEPTS, fieldTerms, type ConceptId, type ValueKind } from './concepts';
 import { looksTyped, pageOccurrences, type Occurrence, type TextPage } from './rows';
-import { ctx } from './doc-context';
+import { ctx, receiptRules } from './doc-context';
 import {
   adjustTerms,
   amountSet,
@@ -51,6 +51,8 @@ export interface ValueSuggestion {
 
 export interface SuggestInput {
   fields: readonly Field[];
+  /** 这张表的 prefillRules：通用规则之外再用哪组规则（D-421）。 */
+  rules?: 'receipt' | 'card';
   pages: readonly TextPage[];
   /** 识别用的语言（日月分不清时只影响先后，两种都给）。 */
   locale: Locale;
@@ -121,11 +123,20 @@ const isGeneric = (n: string) =>
  * 位置分要是 0 的字：通用的单据字样、单据名（「收据」）、「Powered by」、太短太长、数字多、网址邮箱、看起来是别的种类。
  * 不再按门牌、国家、州名字样排除地址行：测量里带地址词的行在真店名行里占 8.6%、在它上面的行里占 7.2%，分不开，直接排除是在丢真店名。
  */
+// 旧的写法（D-403 之前）：不是收据的文档（名片、其他）还用它。
+const ADDRESS_OLD =
+  /\b(street|st|road|rd|jalan|jln|lorong|taman|avenue|ave|rue|bd|boulevard|no|lot|blok|block)\b|[路街号巷弄区]/i;
+const ADDRESS_ONLY_OLD =
+  /(,.*\b\d{4,6}\b|\b\d{4,6}\b.*,)|\b(malaysia|singapore|selangor|johor|kuala lumpur|china|france|usa|united states|canada|australia|cedex)\b|中国|[省市县]/i;
 function positionZero(text: string, locale: Locale): boolean {
   const n = norm(text);
   if (isGeneric(n)) return true;
-  if (isTitleRow(text) || POWERED.test(text)) return true;
+  if (receiptRules() && (isTitleRow(text) || POWERED.test(text))) return true;
   if (n.length <= 2 || text.split(/\s+/).length > 8 || text.length > 45) return true;
+  if (!receiptRules()) {
+    if (/\d/.test(text) && ADDRESS_OLD.test(text)) return true;
+    if (ADDRESS_ONLY_OLD.test(text)) return true;
+  }
   if ([...n].filter((c) => /\d/.test(c)).length > 0.3 * n.length) return true;
   if (/@|www\.|https?:|\.com\b/i.test(text)) return true;
   return looksTyped(text, locale);
@@ -204,9 +215,11 @@ function demoteWholeNumbers(cands: Candidate[]): void {
 
 /** 解析日期、金额的规则要用的上下文：币种、整份文字、现在的年份、是不是发票。 */
 export function setDocContext(input: SuggestInput): void {
+  // 表上写了用哪组规则（D-421）：后面每条规则查 ctx.kind；没写就只有通用规则。
+  ctx.kind = input.rules ?? 'other';
   ctx.nowYear = (input.now ?? new Date()).getUTCFullYear();
   ctx.text = input.pages.flatMap((p) => p.lines.map((l) => l.text)).join('\n');
-  ctx.invoice = isInvoiceText(ctx.text);
+  ctx.invoice = receiptRules() && isInvoiceText(ctx.text);
   ctx.currency =
     (
       input.fields.find((f) => f.type === 'money' && (f as { currency?: string }).currency) as
@@ -244,14 +257,16 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
     const adjusted = adjustTerms(concept, terms.keywords, terms.exclude);
     const keywords = adjusted.kw;
     const exclude =
-      concept === 'issueDate' ? adjusted.ex.filter((e) => e !== 'printed') : adjusted.ex;
+      concept === 'issueDate' && receiptRules()
+        ? adjusted.ex.filter((e) => e !== 'printed')
+        : adjusted.ex;
     const scoreLabel = (label: string) => labelScoreX(concept, label, keywords, exclude);
     const isExcluded = (label: string) => isExcludedX(concept, label, exclude);
     const want = wantOf(field, concept);
     if (!want) continue;
     // 合计、税额再多找两种候选：标签后面的整数，和一排「A + B = C」里的数。
     let occF = occ;
-    if (want === 'money' && (concept === 'amount' || concept === 'tax')) {
+    if (receiptRules() && want === 'money' && (concept === 'amount' || concept === 'tax')) {
       const extra = [
         ...extraWholeNumbers(pages, scoreLabel, isExcluded),
         ...extraSumRow(concept, pages, scoreLabel, isExcluded),
@@ -263,6 +278,12 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
     // 其他日期里有落在窗口里的，只拿它们当参照（避免一个打印日期、有效期把参照拉歪）。
     const plausibleDate = (v: string) => {
       const t = day(v);
+      if (!receiptRules()) {
+        const old = anchors.filter((a) => a !== v).map(day);
+        if (old.length > 0)
+          return t >= Math.min(...old) - YEAR && t <= Math.max(...old) + 10 * YEAR;
+        return t >= now.getTime() - 10 * YEAR && t <= now.getTime() + (longAhead ? 10 : 1) * YEAR;
+      }
       const n = now.getTime();
       const inWindow = (u: number) => u >= n - 10 * YEAR && u <= n + (longAhead ? 10 : 1) * YEAR;
       if (inWindow(t)) return true;
@@ -287,9 +308,9 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
       } else if (o.kind !== want) continue;
       else if (want === 'text') {
         if (o.other || !textOk(o.value)) continue;
-        if (concept === 'merchant' && POWERED.test(rowText(o))) continue;
+        if (receiptRules() && concept === 'merchant' && POWERED.test(rowText(o))) continue;
         value = o.value.trim();
-        if (concept === 'merchant') {
+        if (receiptRules() && concept === 'merchant') {
           value = cleanMerchant(value);
           if (!textOk(value)) continue;
         }
@@ -326,11 +347,14 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
       // 每一处都在排除词后面（小计、优惠、找零）的值不给：它们明白地不是这个字段要的。
       if (c.occ.every((o) => isExcluded(o.label))) continue;
       let L = Math.max(
-        ...c.occ.map((o) => scoreLabel(o.label) * (position && weakStore(o.label) ? 0.25 : 1)),
+        ...c.occ.map(
+          (o) =>
+            scoreLabel(o.label) * (receiptRules() && position && weakStore(o.label) ? 0.25 : 1),
+        ),
       );
       // 店名这类靠位置的字段：标签分不到 0.6 就当没有标签。上一排被当成标签时，一句标语和 store、shop
       // 共享几个字母对也能拿到零点几分，再乘 3 就盖过位置分，把标语排到店名前面。
-      if (position && L < 0.6) L = 0;
+      if (receiptRules() && position && L < 0.6) L = 0;
       // 发票：开票方的标签（Remit to、Supplier、From…）按整词给分。
       if (ctx.invoice && position) L = Math.max(L, ...c.occ.map((o) => sellerLabelScore(o.label)));
       const U = 1 / n;
@@ -383,13 +407,13 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
       c.first = Math.min(...c.occ.map((o) => o.page * 10000 + o.row));
       if (want === 'date') c.plaus = P === 1;
       // 整份文字里一个税字样都没有，没有标签分的税额候选多半是别的数：扣 1 分（分和门槛都扣）。
-      if (concept === 'tax' && L === 0 && !D.TAX_WORD.test(ctx.text)) {
+      if (receiptRules() && concept === 'tax' && L === 0 && !D.TAX_WORD.test(ctx.text)) {
         c.score -= 1;
         c.base -= 1;
       }
     }
-    if (want === 'money' && concept === 'amount') demoteWholeNumbers(cands);
-    if (concept === 'tax') {
+    if (receiptRules() && want === 'money' && concept === 'amount') demoteWholeNumbers(cands);
+    if (receiptRules() && concept === 'tax') {
       const amounts = amountSet(occF);
       taxRateCheck(cands, rowText, amounts);
       taxAddCheck(cands, amounts);
@@ -400,12 +424,12 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
           : Number(a.value) - Number(b.value) || a.first - b.first,
       );
     } else cands.sort((a, b) => b.score - a.score || a.first - b.first);
-    if (concept === 'amount') {
+    if (receiptRules() && concept === 'amount') {
       const reordered = reorderTiedAmounts(cands);
       cands.length = 0;
       cands.push(...reordered);
     }
-    if (concept === 'issueDate') {
+    if (receiptRules() && concept === 'issueDate') {
       // 「Printed」打印日期排到最后。
       const isPrint = (c: Candidate) =>
         c.occ.every((o) => {
@@ -422,9 +446,13 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
       cands.push(...keep, ...back);
     }
     // 税额的门槛高一些（2 分）：没有标签、也对不上税率和加法的数不当税额。
-    const floor = concept === 'tax' ? Math.max(SUGGESTION_FLOOR, TAX_FLOOR) : SUGGESTION_FLOOR;
+    const floor =
+      receiptRules() && concept === 'tax'
+        ? Math.max(SUGGESTION_FLOOR, TAX_FLOOR)
+        : SUGGESTION_FLOOR;
     // 低于门槛、但落在页面最上面四分之一、又是单独一排或带月份名的合理日期，也给。
     const lowOk = (c: Candidate) =>
+      receiptRules() &&
       want === 'date' &&
       c.plaus === true &&
       c.occ.some(
@@ -453,7 +481,7 @@ export function suggestValues(input: SuggestInput): Record<string, ValueSuggesti
         },
       });
     }
-    if (concept === 'merchant') {
+    if (receiptRules() && concept === 'merchant') {
       // 候选不到 3 个时，文字里只有一排带公司后缀（LLC、GmbH、株式会社…）的，补上它当最后一个。
       if (list.length < 3) {
         const hits: { text: string; relY: number }[] = [];

@@ -67,6 +67,7 @@ describe('suggestValues', () => {
     ]);
     for (const name of ['Amount', '金额', 'Montant']) {
       const r = suggestValues({
+        rules: 'receipt',
         fields: [money('amount', name)],
         pages: [doc],
         locale: 'en',
@@ -75,6 +76,7 @@ describe('suggestValues', () => {
       expect(values(r, 'amount')[0]).toBe('178.23');
     }
     const r = suggestValues({
+      rules: 'receipt',
       fields: [money('tax', 'Tax')],
       pages: [doc],
       locale: 'en',
@@ -91,7 +93,7 @@ describe('suggestValues', () => {
       'Amount due: $256.00',
     ]);
     const fields = [date('due', 'Due date'), date('date', 'Date')];
-    const r = suggestValues({ fields, pages: [doc], locale: 'en', now: NOW });
+    const r = suggestValues({ rules: 'receipt', fields, pages: [doc], locale: 'en', now: NOW });
     expect(values(r, 'due')[0]).toBe('2026-10-01');
     expect(values(r, 'date')[0]).toBe('2026-09-01');
   });
@@ -99,7 +101,7 @@ describe('suggestValues', () => {
   it('bill 到期日 picks 到期日, not 开票日期 (Chinese bill)', () => {
     const doc = page(['开票日期：2026年9月1日', '到期日：2026年10月15日', '应付金额：¥256.00']);
     const fields = [date('due', '到期日'), money('amount', '金额')];
-    const r = suggestValues({ fields, pages: [doc], locale: 'zh', now: NOW });
+    const r = suggestValues({ rules: 'receipt', fields, pages: [doc], locale: 'zh', now: NOW });
     expect(values(r, 'due')[0]).toBe('2026-10-15');
     expect(values(r, 'amount')).toEqual(['256.00']);
   });
@@ -107,6 +109,7 @@ describe('suggestValues', () => {
   it('suggests the shop name at the top for a merchant field, never the generic "Tax invoice" line', () => {
     const doc = page(['Maple Corner Store', 'TAX INVOICE', '12 Sample Street', 'Total 9.50']);
     const r = suggestValues({
+      rules: 'receipt',
       fields: [text('merchant', 'Store')],
       pages: [doc],
       locale: 'en',
@@ -119,6 +122,7 @@ describe('suggestValues', () => {
   it('gives both readings of an ambiguous day/month date as separate suggestions', () => {
     const doc = page(['Date 05/03/2026', 'Total 12.00']);
     const r = suggestValues({
+      rules: 'receipt',
       fields: [date('date', 'Date')],
       pages: [doc],
       locale: 'en',
@@ -130,13 +134,32 @@ describe('suggestValues', () => {
   it('a remembered pick ranks the same label first next time', () => {
     const doc = page(['Order date 2026-09-03', 'Ship date 2026-09-08', 'Total 5.00']);
     const fields = [date('date', 'Date')];
-    const before = suggestValues({ fields, pages: [doc], locale: 'en', now: NOW });
+    const before = suggestValues({
+      rules: 'receipt',
+      fields,
+      pages: [doc],
+      locale: 'en',
+      now: NOW,
+    });
     // 用户点了排第二的那个。
     const second = before.date![1]!;
     const picks: Record<string, FieldPick> = { date: second.pick! };
     const next = page(['Order date 2026-10-01', 'Ship date 2026-10-06', 'Total 7.00']);
-    const after = suggestValues({ fields, pages: [next], locale: 'en', now: NOW, picks });
-    const without = suggestValues({ fields, pages: [next], locale: 'en', now: NOW });
+    const after = suggestValues({
+      rules: 'receipt',
+      fields,
+      pages: [next],
+      locale: 'en',
+      now: NOW,
+      picks,
+    });
+    const without = suggestValues({
+      rules: 'receipt',
+      fields,
+      pages: [next],
+      locale: 'en',
+      now: NOW,
+    });
     const same = second.value === '2026-09-03' ? '2026-10-01' : '2026-10-06';
     expect(values(without, 'date')[0]).not.toBe(same);
     expect(values(after, 'date')[0]).toBe(same);
@@ -159,6 +182,7 @@ describe('suggestValues', () => {
       ],
     ]);
     const r = suggestValues({
+      rules: 'receipt',
       fields: [status, field({ id: 'paid', name: 'Paid', type: 'checkbox' })],
       pages: [doc],
       locale: 'en',
@@ -171,6 +195,7 @@ describe('suggestValues', () => {
   it('finds nothing in an empty page and never throws', () => {
     expect(
       suggestValues({
+        rules: 'receipt',
         fields: [money('a', 'Amount')],
         pages: [{ width: 0, height: 0, lines: [] }],
         locale: 'fr',
@@ -185,6 +210,7 @@ describe('suggestValues', () => {
       page(['Paid 21 March 2026', `Date 21/03/${year} 09:13`, 'Total 5.00']);
     const score = (doc: TextPage, value: string) =>
       suggestValues({
+        rules: 'receipt',
         fields: [date('date', 'Date')],
         pages: [doc],
         locale: 'en',
@@ -213,6 +239,7 @@ describe('suggestValues: iOS simulator findings (2026-10-31)', () => {
       '感谢惠顾',
     ]);
     const r = suggestValues({
+      rules: 'receipt',
       fields: [text('note', '备注'), text('purpose', '事由')],
       pages: [doc],
       locale: 'zh',
@@ -244,6 +271,7 @@ describe('suggestValues: iOS simulator findings (2026-10-31)', () => {
       '感谢惠顾',
     ]);
     const r = suggestValues({
+      rules: 'receipt',
       fields: [money('amount', '金额'), text('merchant', '商家')],
       pages: [doc],
       locale: 'zh',
@@ -274,6 +302,7 @@ describe('suggestValues: iOS simulator findings (2026-10-31)', () => {
     const merchant = text('merchant', '商家');
     for (const picks of [undefined, { merchant: { label: '', relY: 0.03 } }]) {
       const r = suggestValues({
+        rules: 'receipt',
         fields: [merchant],
         pages: [doc],
         locale: 'en',

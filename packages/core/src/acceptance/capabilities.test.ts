@@ -215,7 +215,7 @@ function everything() {
     {
       op: 'updateData',
       table: 'items',
-      changes: { readAttachments: true },
+      changes: { readAttachments: true, prefillRules: 'receipt' },
     },
     addField('groups', {
       id: 'all',

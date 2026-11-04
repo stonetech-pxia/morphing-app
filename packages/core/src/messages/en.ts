@@ -1352,6 +1352,15 @@ export const en = {
   describeDayStart: 'A day starts at {hour}:00',
   describeReadAttachmentsOn: '“{name}”: read attachments and suggest values in new entries',
   describeReadAttachmentsOff: '“{name}”: no longer read attachments in new entries',
+  describePrefillRulesReceipt: '“{name}”: read attachments as receipts',
+  describePrefillRulesCard: '“{name}”: read attachments as business cards',
+  describePrefillRulesGeneral: '“{name}”: read attachments with the general rules',
+  prefillRulesLabel: 'Attachments are',
+  prefillRulesHint:
+    'Suggestions use rules made for this kind of document, on top of the general ones.',
+  prefillRulesGeneral: 'Other',
+  prefillRulesReceipt: 'Receipts',
+  prefillRulesCard: 'Business cards',
   readAttachmentsLabel: 'Read attachments automatically',
   readAttachmentsHint:
     'New entries read photos and PDFs on this device and suggest values. Nothing is filled in until you tap it.',

@@ -627,6 +627,9 @@ export const CAPABILITIES: readonly Capability[] = [
   cap('field.table.readAttachments', 'field', (v) =>
     tablesOf(v.config).some((t) => t.readAttachments === true),
   ),
+  cap('field.table.prefillRules', 'field', (v) =>
+    tablesOf(v.config).some((t) => t.prefillRules !== undefined),
+  ),
 
   // 写
   doCap('create'),

@@ -4,7 +4,7 @@ import { amountChain, amountNear } from './amount-chain';
 import { canAskCategory, categoryByCode } from './category';
 import { hasNoDecimals, rowHasDate, squash } from './check';
 import { conceptOf, type ConceptId } from './concepts';
-import { resetDocContext } from './doc-context';
+import { cardRules, ctx, receiptRules, resetDocContext, type DocumentKind } from './doc-context';
 import { documentLanguage } from './model';
 import {
   MAX_SUGGESTIONS,
@@ -14,6 +14,8 @@ import {
   type ValueSuggestion,
 } from './rank';
 import { pageOccurrences } from './rows';
+import { analyzeCard, cardCandidates, cardLike, looseEmails } from './card-rules';
+import { addressCandidates } from './address-rules';
 import { NOT_ISSUE_DATE_LEFT, PRINT_WORD_LEFT } from './rules-data';
 import {
   BAD_DATE_ROW,
@@ -70,7 +72,11 @@ export interface FieldPlan {
   codeFirst: boolean;
 }
 
+const CARD_NO_ASK = new Set<ConceptId>(['phone', 'email', 'website', 'address']);
+
 export interface DocumentPlan {
+  /** 用哪组规则：问模型和核对模型的答案时要一样。 */
+  kind: DocumentKind;
   /** 整份文字，一排一个（按页接起来）。 */
   rows: string[];
   fields: FieldPlan[];
@@ -151,7 +157,8 @@ function latestDate(
     const seen = new Set<number>();
     for (const c of dates) {
       // 「Time printed : 28-OCT-20」这类打印日期不进最晚日期。
-      if (PRINT_WORD_LEFT.test(row.slice(Math.max(0, c.start - 30), c.start))) continue;
+      if (receiptRules() && PRINT_WORD_LEFT.test(row.slice(Math.max(0, c.start - 30), c.start)))
+        continue;
       if (seen.has(c.start)) continue;
       seen.add(c.start);
       const ambiguous = dates.some((o) => o.start === c.start && o.value !== c.value);
@@ -231,6 +238,15 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
     // 分类（单选）：票面写了选项名，或词表有把握，就不问模型（D-405）。
     const category = field.type === 'choice' && concept === 'category';
     let list = scored[field.id] ?? [];
+    if (
+      cardRules() &&
+      (concept === 'website' ||
+        concept === 'jobTitle' ||
+        concept === 'name' ||
+        // 公司栏更严一点：还要有电话、邮箱或网站，行也不能多。
+        (concept === 'company' && cardLike(analyzeCard(input.pages), true)))
+    )
+      list = cardCandidates(concept, input.pages);
     let code: string | null | undefined;
     const noDecimals = hasNoDecimals(field);
     const extras: string[] = [];
@@ -239,7 +255,11 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
     if (concept === 'issueDate') {
       // 有效期、退货期限、印制那排的日期不算。
       list = list.filter((s) =>
-        rows.some((r) => rowHasDate(r, s.value) && !badLeft(r, s.value, input.locale)),
+        rows.some((r) =>
+          receiptRules()
+            ? rowHasDate(r, s.value) && !badLeft(r, s.value, input.locale)
+            : !BAD_DATE_ROW.test(r) && rowHasDate(r, s.value),
+        ),
       );
       if (hotel) {
         const latest = latestDate(rows, input.locale);
@@ -268,6 +288,7 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
         // 算术只靠明细求和（不是付款减找零）得出、规则打分里又没有这个数，而打分第一个的标签分 ≥ 3
         // （标签明明白白写着合计）时，算术结果排第二，不抢第一个：错位的排版里「找零 7.00」会被当成总额。
         if (
+          receiptRules() &&
           chain.how !== 'payMinusChange' &&
           (list[0]?.score ?? 0) >= 3 &&
           !list.some((s) => Math.abs(Number(s.value) - chain.value) < 0.005)
@@ -282,6 +303,14 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
         )
           code = String(chain.value);
       }
+    }
+    if (concept === 'address' && cardRules())
+      list = addressCandidates(analyzeCard(input.pages)).slice(0, 3);
+    if (concept === 'email' && cardRules()) {
+      const extra = looseEmails(analyzeCard(input.pages)).filter(
+        (e) => !list.some((s) => s.value.toLowerCase() === e.value),
+      );
+      list = [...list, ...extra].slice(0, 3);
     }
     const top = list[0];
     if (code === undefined && top && concept) {
@@ -321,16 +350,18 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
         !(concept === null && (field.type === 'note' || FREE_NOTE.test(field.name.trim()))) &&
         // 店名的分数看不出对错，模型又换不对第一个，有候选就不为它加载模型（D-404）。
         !(concept === 'merchant' && merged.length > 0) &&
+        // 名片上电话、邮箱、网址、地址问模型只会多出错的候选，不问。
+        !(cardRules() && concept !== null && CARD_NO_ASK.has(concept)) &&
         ((category && field.type === 'choice' && canAskCategory(field)) ||
           field.type === 'money' ||
           field.type === 'number' ||
           field.type === 'date' ||
           field.type === 'text' ||
           field.type === 'note'),
-      codeFirst: concept === 'amount' && documentLanguage(rows) === 'zh',
+      codeFirst: cardRules() || (concept === 'amount' && documentLanguage(rows) === 'zh'),
     };
   });
-  return { rows, fields, pickOf };
+  return { rows, fields, pickOf, kind: ctx.kind };
 }
 
 /** 一个字段最后给的候选：值记忆 → 模型 → 代码，去重，最多 3 个。 */

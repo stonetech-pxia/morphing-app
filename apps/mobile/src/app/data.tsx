@@ -23,7 +23,7 @@ import {
   type Collection,
 } from '@morph/core';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, Switch, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Switch, Text, View } from 'react-native';
 
 import { useRecordActions } from '@/data/records';
 import { t } from '@/i18n';
@@ -41,6 +41,13 @@ import { revisionTables } from '@/workspace/revision-tables';
  * 导出 App 配置；预填记忆的导出（也是备份）、从文件恢复、一键清空（D-244）；每张表的「自动读取附件」（D-397）；
  * 本机模型的下载和删除（D-396）。
  */
+/** 表上的「附件是」的选项（D-421）。 */
+const PREFILL_RULES = [
+  { rules: undefined, label: 'prefillRulesGeneral' },
+  { rules: 'receipt', label: 'prefillRulesReceipt' },
+  { rules: 'card', label: 'prefillRulesCard' },
+] as const;
+
 export default function DataRoute() {
   const { repo, files, locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
@@ -191,6 +198,21 @@ export default function DataRoute() {
       t(locale, on ? 'describeReadAttachmentsOn' : 'describeReadAttachmentsOff', { name: c.name }),
     );
 
+  /** 表上的「附件是」（D-421）：其他不写，只有通用规则。 */
+  const setPrefillRules = (c: Collection, rules: Collection['prefillRules']) =>
+    change(
+      [{ op: 'updateData', table: c.id, changes: { prefillRules: rules ?? null } }],
+      t(
+        locale,
+        rules === 'receipt'
+          ? 'describePrefillRulesReceipt'
+          : rules === 'card'
+            ? 'describePrefillRulesCard'
+            : 'describePrefillRulesGeneral',
+        { name: c.name },
+      ),
+    );
+
   function clearMemory() {
     Alert.alert(t(locale, 'prefillMemoryClear'), t(locale, 'prefillMemoryClearConfirm'), [
       { text: t(locale, 'cancel'), style: 'cancel' },
@@ -261,6 +283,42 @@ export default function DataRoute() {
                 onValueChange={(on) => void setReadAttachments(c, on)}
                 trackColor={{ true: palette.primary }}
               />
+            </View>
+          ) : null}
+          {c.fields.some((f) => f.type === 'file') && c.readAttachments !== false ? (
+            <View style={{ gap: 6 }}>
+              <Text style={[palette.font('bodyMedium', 14), { color: palette.text }]}>
+                {t(locale, 'prefillRulesLabel')}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                {PREFILL_RULES.map(({ rules, label }) => {
+                  const selected = c.prefillRules === rules;
+                  return (
+                    <Pressable
+                      key={label}
+                      testID={`prefill-rules-${c.id}-${rules ?? 'general'}`}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
+                      onPress={() => void setPrefillRules(c, rules)}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        borderRadius: 16,
+                        borderWidth: 1,
+                        borderColor: selected ? palette.primary : palette.border,
+                      }}>
+                      <Text
+                        style={[
+                          palette.font('bodyMedium', 14),
+                          { color: selected ? palette.primary : palette.text },
+                        ]}>
+                        {t(locale, label)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={caption}>{t(locale, 'prefillRulesHint')}</Text>
             </View>
           ) : null}
         </Card>

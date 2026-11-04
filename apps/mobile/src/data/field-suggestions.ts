@@ -142,7 +142,14 @@ export function useFieldSuggestions({
           : {};
         if (abort.signal.aborted) return;
         const suggestions = await engine(
-          { fields: collection.fields, pages, locale, picks: picks.current, known },
+          {
+            fields: collection.fields,
+            ...(collection.prefillRules ? { rules: collection.prefillRules } : {}),
+            pages,
+            locale,
+            picks: picks.current,
+            known,
+          },
           abort.signal,
           (partial) => {
             if (abort.signal.aborted) return;

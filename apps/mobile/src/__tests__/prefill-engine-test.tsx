@@ -71,6 +71,16 @@ describe('预填引擎（D-398）', () => {
     expect(input.pages).toEqual([{ width: 600, height: 400, lines: [LINE] }]);
   });
 
+  it('引擎拿到表上的 prefillRules（D-421）', async () => {
+    const cards: Collection = { ...collection, prefillRules: 'card' };
+    const engine = jest.fn<ReturnType<PrefillEngine>, Parameters<PrefillEngine>>(async () => ({}));
+    await renderHook(() =>
+      useFieldSuggestions({ enabled: true, collection: cards, values, locale: 'en', engine }),
+    );
+    await waitFor(() => expect(engine).toHaveBeenCalled());
+    expect(engine.mock.calls[0]![0].rules).toBe('card');
+  });
+
   it('引擎报错：没有候选，不再显示正在读', async () => {
     const { result } = await open(async () => {
       throw new Error('model failed');

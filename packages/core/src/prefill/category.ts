@@ -1,4 +1,5 @@
 import type { Field } from '../schema';
+import { receiptRules } from './doc-context';
 import type { ModelRequest } from './model';
 
 // 分类字段（单选，概念 category）的候选（D-405）：先用代码里的词表（店名区和票面上印的词），拿不准再问本机模型。
@@ -126,6 +127,8 @@ export function categoryByLexicon(rows: readonly string[]): CategoryId | null {
 
 /** 代码认出的分类，换成这个字段里对应的选项 ID（选项被删了就是 null）。 */
 export function categoryByCode(field: ChoiceField, rows: readonly string[]): string | null {
+  // 词表来自收据（D-405），只对收据生效。
+  if (!receiptRules()) return null;
   const id = categoryByLexicon(rows);
   return id !== null && field.options.some((o) => o.id === id) ? id : null;
 }

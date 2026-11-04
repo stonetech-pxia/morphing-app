@@ -617,6 +617,18 @@ export function describeChange(
                 { name: collName(table) },
               ),
             );
+          if (changes.prefillRules !== undefined)
+            lines.push(
+              t(
+                ctx.locale,
+                changes.prefillRules === 'receipt'
+                  ? 'describePrefillRulesReceipt'
+                  : changes.prefillRules === 'card'
+                    ? 'describePrefillRulesCard'
+                    : 'describePrefillRulesGeneral',
+                { name: collName(table) },
+              ),
+            );
           break;
         }
         const name = fieldName(table, op.field);

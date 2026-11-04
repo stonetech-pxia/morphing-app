@@ -2978,7 +2978,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 exports[`baseline > workspace config JSON Schema 2`] = `
 "
 . object
-.schemaVersion 36
+.schemaVersion 37
 .theme object
 .theme.primaryColor string /^#[0-9A-Fa-f]{6}$/
 .theme.mode "light"|"dark"|"system"
@@ -3191,6 +3191,7 @@ exports[`baseline > workspace config JSON Schema 2`] = `
 .data.tables[].fields[]<oneOf schedule>.lastDone? string /^[a-z][a-z0-9-]{0,47}$/
 .data.tables[].fields[]<oneOf schedule>.countEarly? true
 .data.tables[].readAttachments? boolean
+.data.tables[].prefillRules? "receipt"|"card"
 .data.calendar? object
 .data.calendar.dayStartHour? integer 0..6
 .data.calendar.weekStart? "monday"|"sunday"

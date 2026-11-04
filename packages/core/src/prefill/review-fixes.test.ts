@@ -26,9 +26,12 @@ const pageOf = (rows: string[]) => ({
 });
 const now = new Date('2026-11-01T00:00:00Z');
 const first = async (field: Field, rows: string[], locale: 'en' | 'fr' | 'zh' = 'en') =>
-  (await ruleEngine({ fields: [field], pages: [pageOf(rows)], locale, now }))[field.id]?.[0]?.value;
+  (await ruleEngine({ rules: 'receipt', fields: [field], pages: [pageOf(rows)], locale, now }))[
+    field.id
+  ]?.[0]?.value;
 const planOf = (field: Field, rows: string[], locale: 'en' | 'fr' | 'zh' = 'en') =>
-  planDocument({ fields: [field], pages: [pageOf(rows)], locale, now }).fields[0]!;
+  planDocument({ rules: 'receipt', fields: [field], pages: [pageOf(rows)], locale, now })
+    .fields[0]!;
 
 describe('单号：通用的 No 不吃别的号码（第 1 条）', () => {
   it.each([
@@ -146,7 +149,13 @@ describe('酒店取最晚日期的判断（第 3 条）', () => {
       'Departure 2026-03-02',
       'Card exp 2030-01-31',
     ];
-    const out = await ruleEngine({ fields: [DATE], pages: [pageOf(rows)], locale: 'en', now });
+    const out = await ruleEngine({
+      rules: 'receipt',
+      fields: [DATE],
+      pages: [pageOf(rows)],
+      locale: 'en',
+      now,
+    });
     expect(out.day?.[0]?.value).toBe('2026-03-02');
     expect(out.day?.map((s) => s.value)).not.toContain('2030-01-31');
   });
@@ -279,6 +288,7 @@ describe('模型候选的记忆（第 7 条）', () => {
 
   it('找不到位置就不记，不是记一个假的页面顶部', () => {
     const plan = planDocument({
+      rules: 'receipt',
       fields: [MERCHANT],
       pages: [pageOf(['Acme Coffee'])],
       locale: 'en',
@@ -328,6 +338,7 @@ describe('给模型的文字按字段（第 8 条）', () => {
 describe('值记忆要有边界（第 9 条）', () => {
   const remembered = (known: string[], rows: string[]) =>
     planDocument({
+      rules: 'receipt',
       fields: [MERCHANT],
       pages: [pageOf(rows)],
       locale: 'zh',
@@ -411,7 +422,7 @@ describe('点选记忆只调整顺序，不放进新候选', () => {
     ).map(([text, x, y, width, height]) => ({ text, x, y, width, height })),
   };
   const fields = [MERCHANT, AMOUNT];
-  const input = { fields, pages: [page], locale: 'en' as const, now };
+  const input = { rules: 'receipt' as const, fields, pages: [page], locale: 'en' as const, now };
   const values = (o: Awaited<ReturnType<typeof ruleEngine>>, id: string) =>
     (o[id] ?? []).map((s) => s.value);
 

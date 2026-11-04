@@ -51,6 +51,7 @@ function fakeModel(answer: string | ((req: ModelRequest) => string)) {
 }
 
 const run = (rows: string[], fields: Field[] = [CATEGORY]) => ({
+  rules: 'receipt' as const,
   fields,
   pages: [pageOf(rows)],
   locale: 'en' as const,

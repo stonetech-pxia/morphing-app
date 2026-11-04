@@ -172,6 +172,8 @@ export const CollectionSchema = z.strictObject({
   fields: z.array(FieldSchema).min(1).max(30),
   /** 新记录表单自动读附件、给候选（D-394、D-397）。不写就是打开；只读不写，不是工作流。 */
   readAttachments: z.boolean().optional(),
+  /** 读附件给候选时，通用规则之外再用哪组规则（D-421）。不写就只有通用规则。 */
+  prefillRules: z.enum(['receipt', 'card']).optional(),
 });
 export type Collection = z.infer<typeof CollectionSchema>;
 export const TableSchema = CollectionSchema;

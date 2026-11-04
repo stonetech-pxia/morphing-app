@@ -1,5 +1,5 @@
 import { normalizeNumber } from '../text-rules';
-import { ctx } from './doc-context';
+import { ctx, receiptRules } from './doc-context';
 import type { ConceptId } from './concepts';
 import type { Occurrence } from './rows';
 import * as D from './rules-data';
@@ -40,6 +40,7 @@ function docEvidence() {
  * 先看这份文字自己的证据（别处有「25/12/2024」就知道日在前），再看币种、货币符号、增值税字样这些线索。
  */
 export function orderPref(sep: string, _locale: string): 'DMY' | 'MDY' | null {
+  if (!receiptRules()) return null;
   const ev = docEvidence();
   const d = ev.DMY.has(sep);
   const m = ev.MDY.has(sep);
@@ -62,6 +63,7 @@ export function adjustTerms(
   keywords: readonly string[],
   exclude: readonly string[],
 ): { kw: readonly string[]; ex: readonly string[] } {
+  if (!receiptRules()) return { kw: keywords, ex: exclude };
   // 发票上收票方（bill to、client…）不是店名。
   if (concept === 'merchant' && ctx.invoice)
     return {
@@ -116,6 +118,7 @@ export function labelScoreX(
   kw: readonly string[],
   ex: readonly string[],
 ): number {
+  if (!receiptRules()) return labelScore(label, kw, ex);
   if (!label) return 0;
   // 开始、结束、期间、送达这类日期的标签不当开票日的标签（整词，标签分归零，值还在候选里）。
   if (concept === 'issueDate' && wHit(label, X03)) return 0;
@@ -144,6 +147,7 @@ export function isExcludedX(
   label: string,
   ex: readonly string[],
 ): boolean {
+  if (!receiptRules()) return isExcludedLabel(label, ex);
   if (!label) return false;
   if (concept === 'amount' && wHit(label, W_AMT_EX)) return true;
   if (concept === 'tax' && wHit(label, W_TAX_EX)) return true;

@@ -47,6 +47,7 @@ const SYSTEM =
 
 // 认得出的字段加一句提示；用户自建的字段只靠字段名。
 const HINTS: Partial<Record<ConceptId, string>> = {
+  jobTitle: 'the job title of the person on the card; not the company',
   amount:
     'the final amount paid (after rounding and discounts); not subtotal, tax, change, cash tendered or item prices',
   tax: 'a separate tax amount; not a tax rate and not a total that includes tax',

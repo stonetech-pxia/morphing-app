@@ -30,6 +30,7 @@ async function run(rows: Row[], opts: { currency?: string; locale?: Locale; now?
   );
   const page = { width: 600, height: 40 + rows.length * 30, lines };
   const out = await ruleEngine({
+    rules: 'receipt',
     fields,
     pages: [page],
     locale: opts.locale ?? 'en',

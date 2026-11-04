@@ -1,5 +1,6 @@
 import type { Field } from '../schema';
 import { norm } from './similarity';
+import { cardRules } from './doc-context';
 
 // 新记录表单的候选值（D-394）：字段是「什么」的小词典。字段名（中英法任一种）对上一个概念时，
 // 用这个概念三种语言的关键词和排除词给单据上的标签打分（测量里三语同义词和同语言一样好，
@@ -21,6 +22,8 @@ export type ConceptId =
   | 'origin'
   | 'destination'
   | 'title'
+  | 'jobTitle'
+  | 'website'
   | 'purpose'
   | 'category';
 
@@ -549,6 +552,64 @@ export const CONCEPTS: Record<ConceptId, Concept> = {
     exclude: [],
     position: true,
   },
+  jobTitle: {
+    names: [
+      'job title',
+      'position',
+      'role',
+      'job',
+      'occupation',
+      '职位',
+      '职务',
+      '岗位',
+      '职称',
+      '頭銜',
+      '職位',
+      'poste',
+      'fonction',
+      'titre du poste',
+      'cargo',
+      'puesto',
+      'stelle',
+      'posizione',
+    ],
+    keywords: [
+      'job title',
+      'position',
+      'role',
+      '职位',
+      '职务',
+      'poste',
+      'fonction',
+      'cargo',
+      'puesto',
+    ],
+    exclude: [],
+  },
+  website: {
+    names: [
+      'website',
+      'web site',
+      'web',
+      'url',
+      'site',
+      'homepage',
+      'site web',
+      'site internet',
+      '网站',
+      '网址',
+      '網站',
+      '網址',
+      '官网',
+      'sitio web',
+      'pagina web',
+      'página web',
+      'webseite',
+      'sito web',
+    ],
+    keywords: ['website', 'web', 'url', 'site', 'www', '网站', '网址', 'site web', 'sitio web'],
+    exclude: [],
+  },
   purpose: {
     names: ['purpose', 'reason', 'description', '事由', '用途', '摘要', 'motif', 'raison'],
     keywords: [
@@ -617,7 +678,10 @@ export function conceptOf(field: Pick<Field, 'id' | 'name'>): ConceptId | null {
   const name = norm(field.name);
   const preset = PRESET_NAMES[field.id];
   if (preset?.some((n) => norm(n) === name)) return PRESET_FIELDS[field.id]!;
-  return BY_NAME.get(name) ?? null;
+  const c = BY_NAME.get(name) ?? null;
+  // 职位、网址只在名片上认；别的文档里这些字段名对不上概念。
+  if ((c === 'website' || c === 'jobTitle') && !cardRules()) return null;
+  return c;
 }
 
 export interface FieldTerms {

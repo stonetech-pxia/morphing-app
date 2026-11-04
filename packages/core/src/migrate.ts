@@ -300,6 +300,9 @@ export const migrateV34toV35: Migration = (config) => ({ ...config, schemaVersio
 /** v35 → v36：主题颜色多了可选的 surfaceText（D-409）。是新的可选值，只提升版本号。 */
 export const migrateV35toV36: Migration = (config) => ({ ...config, schemaVersion: 36 });
 
+/** v36 → v37：表上多了可选的 prefillRules（D-421）。是新的可选值，只提升版本号。 */
+export const migrateV36toV37: Migration = (config) => ({ ...config, schemaVersion: 37 });
+
 /** MIGRATIONS[n] 把 schemaVersion n 升级到 n + 1。 */
 export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   1: migrateV1toV2,
@@ -337,6 +340,7 @@ export const MIGRATIONS: Readonly<Record<number, Migration>> = {
   33: migrateV33toV34,
   34: migrateV34toV35,
   35: migrateV35toV36,
+  36: migrateV36toV37,
 };
 
 export type MigrateResult =

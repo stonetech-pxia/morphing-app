@@ -1,3 +1,4 @@
+import { withDocKind } from './doc-context';
 import { mergedSuggestions, planDocument, type DocumentPlan, type FieldPlan } from './code-rules';
 import {
   MODEL_LIMITS,
@@ -7,11 +8,18 @@ import {
   type ModelSession,
   type OpenModel,
 } from './model';
+import type { Field } from '../schema';
 import type { SuggestInput, ValueSuggestion } from './rank';
 
 // 新记录表单的候选值从哪里来（D-398）：表单只认这个接口，规则和本机模型都写成这个形状，换引擎不动表单。
 // 输入是按页、带位置的文字和这张表的字段；输出是结构化的候选，只进表单，用户点了才填（D-394）。
 // 这不是快捷操作的一步：步骤之间只传一个值，走到这里文件就没了，输出也会流到分享、存文件这些步骤（D-396）。
+
+/** 单行文字字段放不下换行（多行地址）：表单上显示和填进去的都用逗号隔开。 */
+export const suggestionForField = (field: Pick<Field, 'type'>, s: ValueSuggestion) =>
+  field.type === 'text' && s.value.includes('\n')
+    ? { ...s, value: s.value.replace(/\n+/g, ', ') }
+    : s;
 
 /** 字段 ID → 候选（好的在前，最多 MAX_SUGGESTIONS 个）。 */
 export type FieldSuggestions = Record<string, ValueSuggestion[]>;
@@ -104,7 +112,10 @@ export function modelEngine(open: OpenModel, limits: ModelLimits = MODEL_LIMITS)
       if (session === null) return current;
       for (const f of asks) {
         const answer = await bounded(
-          session.generate(modelRequest(f.field, plan.rows, limits), stop.signal),
+          session.generate(
+            withDocKind(plan.kind, () => modelRequest(f.field, plan.rows, limits)),
+            stop.signal,
+          ),
           stop.signal,
           limits.callMs,
         );
@@ -113,7 +124,9 @@ export function modelEngine(open: OpenModel, limits: ModelLimits = MODEL_LIMITS)
           stop.abort();
           break;
         }
-        const found = modelAnswers(f.field, answer, plan.rows, input.locale);
+        const found = withDocKind(plan.kind, () =>
+          modelAnswers(f.field, answer, plan.rows, input.locale),
+        );
         if (found.length === 0) continue;
         answers.set(f, found);
         current = suggestionsOf(plan, answers);

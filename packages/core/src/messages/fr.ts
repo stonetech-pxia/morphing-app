@@ -1420,6 +1420,15 @@ export const fr: MessageTable = {
     '« {name} » : lire les pièces jointes et proposer des valeurs dans les nouvelles entrées',
   describeReadAttachmentsOff:
     '« {name} » : ne plus lire les pièces jointes dans les nouvelles entrées',
+  describePrefillRulesReceipt: '« {name} » : lire les pièces jointes comme des reçus',
+  describePrefillRulesCard: '« {name} » : lire les pièces jointes comme des cartes de visite',
+  describePrefillRulesGeneral: '« {name} » : lire les pièces jointes avec les règles générales',
+  prefillRulesLabel: 'Les pièces jointes sont',
+  prefillRulesHint:
+    'Les suggestions utilisent des règles faites pour ce type de document, en plus des règles générales.',
+  prefillRulesGeneral: 'Autre',
+  prefillRulesReceipt: 'Reçus',
+  prefillRulesCard: 'Cartes de visite',
   readAttachmentsLabel: 'Lire les pièces jointes automatiquement',
   readAttachmentsHint:
     'Les nouvelles entrées lisent les photos et les PDF sur cet appareil et proposent des valeurs. Rien n’est rempli sans que vous touchiez la proposition.',
