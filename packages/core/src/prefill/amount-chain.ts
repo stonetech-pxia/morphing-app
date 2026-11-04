@@ -1,5 +1,6 @@
 import type { Locale } from '../schema';
 import { ruleCandidates } from './candidates';
+import { receiptRules } from './doc-context';
 import { normalizeNumber } from '../text-rules';
 
 // 算术找总额（创始人 2026-11-01 的想法，测量见 per-field/REPORT.md 的考卷一节）：不看字段名，只看数。
@@ -31,10 +32,12 @@ const NOT_TOTAL_ROW = /sub[\s.-]*total|小计|sous-total/i;
 /** 写着 total 但不是合计的排（Total Qty、Total Tax）。 */
 const NOT_FINAL_ROW = /qty|quantity|\bitems?\b|\b(?:tax|gst|vat|tva)\b|税|数量/i;
 
-const isPay = (r: string) => PAY_ROW.test(r) || W_PAY_ROW.test(r);
-const isChange = (r: string) => CHANGE_ROW.test(r) || W_CHANGE_ROW.test(r);
-const isDiscount = (r: string) => DISCOUNT_ROW.test(r) || W_DISCOUNT_ROW.test(r);
-const isNotFinal = (r: string) => NOT_FINAL_ROW.test(r) || W_NOT_FINAL_ROW.test(r);
+const isPay = (r: string) => PAY_ROW.test(r) || (receiptRules() && W_PAY_ROW.test(r));
+const isChange = (r: string) => CHANGE_ROW.test(r) || (receiptRules() && W_CHANGE_ROW.test(r));
+const isDiscount = (r: string) =>
+  DISCOUNT_ROW.test(r) || (receiptRules() && W_DISCOUNT_ROW.test(r));
+const isNotFinal = (r: string) =>
+  NOT_FINAL_ROW.test(r) || (receiptRules() && W_NOT_FINAL_ROW.test(r));
 
 interface Amount {
   v: number;
@@ -56,6 +59,7 @@ function amountsOf(rows: readonly string[], noDecimals: boolean, locale: Locale)
       for (const m of r.matchAll(/-?\d{1,3}(?:[ ,.]\d{3})*[.,]\d{2}(?!\d)/g)) {
         // 空格做千位分隔的数（2 368,66）单独交给 ruleCandidates 会只读到后半（368,66）；后面紧跟 €/EUR 才合并。
         if (
+          receiptRules() &&
           /^-?\d{1,3}(?: \d{3})+[.,]\d{2}$/.test(m[0]) &&
           /^\s*(?:€|eur|euros?)/i.test(r.slice(m.index + m[0].length))
         ) {
@@ -99,7 +103,8 @@ export function amountChain(
   if (found.length > MAX_AMOUNTS) return null;
   const all = found.filter((a) => !a.payOnly);
   const isTotal = (row: number) =>
-    (TOTAL_ROW.test(rows[row]!) || W_TOTAL_ROW.test(rows[row]!)) && !NOT_TOTAL_ROW.test(rows[row]!);
+    (TOTAL_ROW.test(rows[row]!) || (receiptRules() && W_TOTAL_ROW.test(rows[row]!))) &&
+    !NOT_TOTAL_ROW.test(rows[row]!);
   // 合计那排有数时，下面的付款排（Cash 20.00）就只是付出去的钱，不能当算出来的总额或小计。
   // 合计那排 OCR 没读出数（TOTAL 单独一排、28-90）时付款排的数才可能是总额（真实小票上常见）。
   const notPayRow = (a: Amount) =>

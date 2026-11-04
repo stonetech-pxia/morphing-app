@@ -3,6 +3,8 @@ import {
   FILE_LIMITS,
   PAGE_POINTS,
   RunError,
+  actionLink,
+  type LinkKind,
   extractText,
   groupItems,
   expandCollection,
@@ -27,6 +29,9 @@ import {
   type RecordTemplate,
   type RunItem,
   type RunValue,
+  recordsToVCard,
+  recordsToSheet,
+  OFFICE_MIME_BY_EXT,
 } from '@morph/core';
 
 import { ArchiveError, createZip, extractZip, mimeTypeOfName } from '@morph/tool-archive';
@@ -41,7 +46,10 @@ import {
   wifiText,
   MAX_TEXT_LENGTH,
 } from '@morph/tool-qr';
+import { writeRowsXlsx } from '@morph/tool-office';
 
+import { openFieldLink } from '../../renderer/open-link';
+import { collectAttachments, mergeReport, type CollectedAttachments } from './report-attachments';
 import {
   MB,
   baseName,
@@ -58,6 +66,16 @@ import {
 // 文字和记录只在本机处理（D-036、D-042）。
 
 type Impl = ActionImpl<RunServices>;
+
+const openLinkAction =
+  (opens: LinkKind): Impl =>
+  async (input, _params, ctx) => {
+    const value = textOf(input);
+    const link = actionLink(opens, value.text);
+    if (!link) throw new RunError('badLink');
+    openFieldLink(link, ctx.locale);
+    return value;
+  };
 
 const textOf = (input: RunValue | null) => {
   if (!input || input.type !== 'text') throw new RunError('unexpected', { detail: 'no text' });
@@ -144,17 +162,99 @@ export const MORE_IMPLS: Record<string, Impl> = {
       linkedCollectionIds(collection),
       ctx.locale,
     );
-    const html = recordsToHtml(collection, input.records, {
-      links,
-      template: params.template as RecordTemplate,
-      title: String(params.title ?? ''),
-      fields: (params.fields as string[] | undefined) ?? [],
-      pageSize,
-      locale: ctx.locale,
-      now: ctx.now(),
-    });
+    const fields = (params.fields as string[] | undefined) ?? [];
     const name = String(params.title || '').trim() || collection.name;
-    return { type: 'pdf', items: [await printHtml(ctx.services, html, pageSize, name)] };
+    const report = (notes: readonly string[]) =>
+      printHtml(
+        ctx.services,
+        recordsToHtml(collection, input.records, {
+          links,
+          template: params.template as RecordTemplate,
+          title: String(params.title ?? ''),
+          fields,
+          pageSize,
+          locale: ctx.locale,
+          now: ctx.now(),
+          notes,
+        }),
+        pageSize,
+        name,
+      );
+    if (params.attachments !== true) return { type: 'pdf', items: [await report([])] };
+    // D-425：先处理附件，报表上才写得出哪些没放进来。原件只读；中间文件属于这次运行，用完就删。
+    let collected: CollectedAttachments | undefined;
+    try {
+      collected = await collectAttachments(
+        ctx,
+        collection,
+        input.records,
+        { fields, pageSize, links },
+        (html, relName) => printHtml(ctx.services, html, pageSize, relName),
+      );
+      const item = await mergeReport(ctx, collected, report, name);
+      return { type: 'pdf', items: [item] };
+    } finally {
+      await collected?.cleanup();
+    }
+  },
+
+  // D-423：只有用户运行这个快捷操作时才做文件；要离开 App 还要接 out.share，也是用户点的（底线 10）。
+  async 'records.toVCard'(input, _params, ctx) {
+    if (!input || input.type !== 'records') {
+      throw new RunError('unexpected', { detail: 'no records' });
+    }
+    const table = ctx.services.collections.find((c) => c.id === input.collectionId);
+    if (!table) throw new RunError('notFound', { name: input.name });
+    const text = recordsToVCard(table.fields, input.records);
+    if (!text) throw new RunError('noRecords', { name: input.name });
+    const item = await writeItem(ctx.services, new TextEncoder().encode(text), {
+      name: input.name,
+      ext: 'vcf',
+      mimeType: 'text/vcard',
+    });
+    return { type: 'files', items: [item] };
+  },
+
+  // D-428：和 records.toVCard 同样的内容，但是文字：能接生成二维码。
+  async 'records.toVCardText'(input, _params, ctx) {
+    if (!input || input.type !== 'records') {
+      throw new RunError('unexpected', { detail: 'no records' });
+    }
+    const table = ctx.services.collections.find((c) => c.id === input.collectionId);
+    if (!table) throw new RunError('notFound', { name: input.name });
+    const text = recordsToVCard(table.fields, input.records);
+    if (!text) throw new RunError('noRecords', { name: input.name });
+    return { type: 'text', text, name: input.name };
+  },
+
+  // D-428：把交来的文字打开：系统的拨号、短信、写信、浏览器页面，什么都没有发出去。规则只有 core 的 actionLink。
+  'out.call': openLinkAction('phone'),
+  'out.message': openLinkAction('message'),
+  'out.email': openLinkAction('email'),
+  'out.website': openLinkAction('url'),
+
+  // D-427：和 vCard 一样只做一个文件，要离开 App 还要接 out.share（底线 10）。列和 CSV 一样。
+  async 'records.toExcel'(input, _params, ctx) {
+    if (!input || input.type !== 'records') {
+      throw new RunError('unexpected', { detail: 'no records' });
+    }
+    const table = ctx.services.collections.find((c) => c.id === input.collectionId);
+    if (!table) throw new RunError('notFound', { name: input.name });
+    if (input.records.length === 0) throw new RunError('noRecords', { name: input.name });
+    const collection = expandCollection(ctx.services.collections, table);
+    const links = await loadLinkResolver(
+      (id) => ctx.services.repo.listRecords(id),
+      ctx.services.collections,
+      linkedCollectionIds(collection),
+      ctx.locale,
+    );
+    const rows = recordsToSheet(collection, input.records, ctx.locale, links);
+    const item = await writeItem(ctx.services, writeRowsXlsx(table.name, rows), {
+      name: table.name,
+      ext: 'xlsx',
+      mimeType: OFFICE_MIME_BY_EXT.xlsx!,
+    });
+    return { type: 'files', items: [item] };
   },
 
   async 'text.toPdf'(input, params, ctx) {

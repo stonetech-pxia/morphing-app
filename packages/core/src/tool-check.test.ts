@@ -835,7 +835,7 @@ describe('字段', () => {
 });
 
 describe('真实内容上没有误报（目标：样板和预设 blocker 为 0）', () => {
-  it.each(['en', 'zh', 'fr'] as const)('5 个样板（%s）', (locale) => {
+  it.each(['en', 'zh', 'fr'] as const)('全部样板（%s）', (locale) => {
     for (const sample of SAMPLE_APPS) {
       const base = createStarterWorkspace(locale, registry);
       const ops = sampleOps(sample, base, locale);

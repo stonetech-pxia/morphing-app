@@ -1,6 +1,6 @@
 import type { Locale } from '../schema';
 import { normalizeNumber, validDate } from '../text-rules';
-import { ctx } from './doc-context';
+import { ctx, receiptRules } from './doc-context';
 import { docAdds, orderPref } from './rules';
 import * as D from './rules-data';
 
@@ -115,7 +115,7 @@ const fullYear = (y: string) => {
   if (y.length !== 2) return Number(y);
   const v = 2000 + Number(y);
   // 两位年的世纪按「现在」选：2000+yy 比明年还晚就当 19yy（99 → 1999，不是 2099）。
-  return ctx.nowYear > 0 && v > ctx.nowYear + 1 ? v - 100 : v;
+  return receiptRules() && ctx.nowYear > 0 && v > ctx.nowYear + 1 ? v - 100 : v;
 };
 
 // 时间和日期粘在一起（23:16:4615/08/2022、20/10/202119:29）。
@@ -201,19 +201,19 @@ function datesInLine(
   for (const m of line.matchAll(DMY)) {
     const raw = m[0].slice(m[1]!.length);
     const at = m.index + m[1]!.length;
-    if (fakeShortDate(line, at, raw)) continue;
+    if (receiptRules() && fakeShortDate(line, at, raw)) continue;
     // 两位年的日期，两个分隔符要一样（2/1.00、12-05/09 不是日期）。
-    if (m[4]!.length === 2) {
+    if (receiptRules() && m[4]!.length === 2) {
       const seps = /^\d{1,2}(\D)\d{1,2}(\D)/.exec(raw);
       if (seps && seps[1] !== seps[2]) continue;
     }
     addNumeric(at, raw, Number(m[2]), Number(m[3]), fullYear(m[4]!));
   }
-  for (const m of line.matchAll(G1)) {
+  for (const m of receiptRules() ? line.matchAll(G1) : []) {
     const at = m.index + m[1]!.length;
     addNumeric(at, m[0].slice(m[1]!.length), Number(m[2]), Number(m[3]), fullYear(m[4]!));
   }
-  for (const m of line.matchAll(G2)) {
+  for (const m of receiptRules() ? line.matchAll(G2) : []) {
     const at = m.index + m[1]!.length;
     addNumeric(at, m[0].slice(m[1]!.length), Number(m[2]), Number(m[3]), Number(m[4]));
   }
@@ -225,14 +225,14 @@ function datesInLine(
         .replace(/[\u0300-\u036f]/g, '')
     ];
   // 28-Oct-2021、3 de enero de 2024、15. März 2024、10 JAN17、Dec02'16
-  for (const m of line.matchAll(W_D_MON_Y)) {
+  for (const m of receiptRules() ? line.matchAll(W_D_MON_Y) : []) {
     const month = monthOf(m[3]!);
     const raw = m[0].slice(m[1]!.length);
     if (!month || !yearOk(line, m.index + m[0].length, m[4]!, m[5]!)) continue;
     add(m.index + m[1]!.length, raw, validDate(fullYear(m[5]!), month, Number(m[2])));
   }
   // Oct28'21、AUGUST 13,2017、May 21. 2019、WED MAY 17,2017
-  for (const m of line.matchAll(W_MON_D_Y)) {
+  for (const m of receiptRules() ? line.matchAll(W_MON_D_Y) : []) {
     const month = monthOf(m[2]!);
     const raw = m[0].slice(m[1]!.length);
     if (!month || !yearOk(line, m.index + m[0].length, m[4] ?? '', m[6]!)) continue;
@@ -241,7 +241,7 @@ function datesInLine(
     add(m.index + m[1]!.length, raw, validDate(fullYear(m[6]!), month, Number(m[3])));
   }
   // SUN JUN 24 20:49:53 2018（ctime 写法：月 日 时间 年）
-  for (const m of line.matchAll(W_CTIME)) {
+  for (const m of receiptRules() ? line.matchAll(W_CTIME) : []) {
     const month = monthOf(m[2]!);
     const raw = m[0].slice(m[1]!.length);
     if (!month) continue;
@@ -270,7 +270,9 @@ function amountsInLine(
   // 或者它能由全文别的金额加减得到，才整体取（否则「2 x 3 12,50」里的数量会连进来）。
   const spaced: { start: number; end: number; raw: string; value: string }[] = [];
   const many = Math.max(ctx.rowMany, (line.match(/\d[.,]\d{2}(?!\d)/g) ?? []).length) >= 3;
-  for (const m of line.matchAll(/(^|[^\d.,])(\d{1,3}(?: \d{3})+[.,]\d{2})(?!\d)/g)) {
+  for (const m of receiptRules()
+    ? line.matchAll(/(^|[^\d.,])(\d{1,3}(?: \d{3})+[.,]\d{2})(?!\d)/g)
+    : []) {
     const start = m.index + m[1]!.length;
     const end = start + m[2]!.length;
     if (dates.some((d) => start < d.end && end > d.start)) continue;

@@ -1,4 +1,5 @@
 import type { PackNeed, TextPage } from '@morph/core';
+import { decodeQr, downscaleRgba } from '@morph/tool-qr';
 
 import type { PackRuntime } from '../packs/bridge';
 import type { AssetRecord } from '../storage/types';
@@ -15,6 +16,8 @@ export const MAX_READ_FILES = 3;
 export const MAX_READ_PAGES = 2;
 /** 送进识别的图片长边（和 PP-OCRv6 的输入一样大，D-269）。 */
 const OCR_SIDE = 2000;
+/** 解二维码前缩到的长边（和「识别二维码」一样）。 */
+const QR_SIDE = 1600;
 
 export type ReadableKind = 'image' | 'pdf';
 
@@ -61,6 +64,31 @@ async function canRecognize(deps: AttachmentTextDeps): Promise<boolean> {
   const pack = ocrPack(deps);
   if (pack) return (await deps.packs?.isInstalled(pack)) === true;
   return vision.supportsLanguage(deps.languages[0] ?? 'en');
+}
+
+/**
+ * 读出前几张照片里的二维码（D-423，只有名片表的表单调）：和「识别二维码」一样先缩小再解，纯 JS，不用下载。
+ * 读不了、没有码都是安静地没有，文字识别照常。内容只给候选用，不存、不发给 AI。
+ */
+export async function readAttachmentCodes(
+  assets: readonly AssetRecord[],
+  deps: Pick<AttachmentTextDeps, 'files'>,
+  signal: AbortSignal,
+): Promise<string[]> {
+  const found: string[] = [];
+  const images = assets.filter((a) => readableKind(a) === 'image').slice(0, MAX_READ_FILES);
+  for (const asset of images) {
+    if (signal.aborted) throw new ReadCancelled();
+    try {
+      const pixels = await deps.files.imagePixels(deps.files.fileUri(asset.path), QR_SIDE);
+      const text = decodeQr(downscaleRgba(pixels, QR_SIDE));
+      if (text) found.push(text);
+    } catch {
+      // 这张读不了：跳过。
+    }
+  }
+  if (signal.aborted) throw new ReadCancelled();
+  return found;
 }
 
 export class ReadCancelled extends Error {

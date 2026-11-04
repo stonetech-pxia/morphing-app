@@ -18,7 +18,17 @@ const reminder = {
 } as const;
 
 /** 数据离开 App 的动作（导出、分享、存到「文件」、存到相册、打印）。 */
-const LEAVES_APP = ['out.share', 'out.saveToFolder', 'out.saveToPhotos', 'out.print'];
+const LEAVES_APP = [
+  'out.share',
+  'out.saveToFolder',
+  'out.saveToPhotos',
+  'out.print',
+  // 打电话、发短信、发邮件、打开网站（D-428）。
+  'out.call',
+  'out.message',
+  'out.email',
+  'out.website',
+];
 
 describe('rule 13: a tool never triggers another tool', () => {
   it('a reminder has no steps and its done is a record tool, never a reference to a tool', () => {

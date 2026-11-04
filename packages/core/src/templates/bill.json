@@ -5,6 +5,7 @@
   },
   "table": {
     "id": "$table",
+    "prefillRules": "receipt",
     "name": {
       "en": "Bills",
       "zh": "账单",

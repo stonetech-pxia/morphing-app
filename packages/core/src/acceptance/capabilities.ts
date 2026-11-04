@@ -18,6 +18,7 @@ import {
   remindersOf,
   tablesOf,
   toolTargetId,
+  type BlockOf,
   type Collection,
   type Component,
   type Condition,
@@ -572,7 +573,20 @@ const fieldCap = (type: Field['type']) => cap(`field.${type}`, 'field', (v) => f
 const doCap = (kind: RecordTool['do']) =>
   cap(`write.do.${kind}`, 'write', (v) => v.writes.some((w) => w.tool.do === kind));
 const asCap = (as: ToolUseAs) =>
-  cap(`write.as.${as}`, 'write', (v) => v.writes.some((w) => w.as === as));
+  // as: "list" 不写记录，运行快捷操作（D-428）。
+  cap(`write.as.${as}`, 'write', (v) =>
+    as === 'list'
+      ? v.blocks.some((x) =>
+          ((x.block as { tools?: ToolUse[] }).tools ?? []).some((u) => u.as === 'list'),
+        )
+      : v.writes.some((w) => w.as === as),
+  );
+const browseOf = (v: AppView) =>
+  v.blocks.flatMap((x) => {
+    const browse = (x.block as { show?: { browse?: BlockOf<'list'>['show']['browse'] } }).show
+      ?.browse;
+    return browse ? [browse] : [];
+  });
 const lookCap = (look: string) =>
   cap(`read.look.${look}`, 'read', (v) => v.blocks.some((x) => x.block.look === look));
 const aggregateCap = (kind: string) =>
@@ -618,14 +632,21 @@ export const CAPABILITIES: readonly Capability[] = [
   fieldCap('rollup'),
   fieldCap('previous'),
   fieldCap('schedule'),
+  fieldCap('tags'),
   cap('field.schedule.lastDone', 'field', (v) =>
     allFields(v).some((x) => x.field.type === 'schedule' && x.field.lastDone !== undefined),
   ),
   cap('field.schedule.countEarly', 'field', (v) =>
     allFields(v).some((x) => x.field.type === 'schedule' && x.field.countEarly === true),
   ),
+  cap('field.text.format', 'field', (v) =>
+    allFields(v).some((x) => x.field.type === 'text' && x.field.format !== undefined),
+  ),
   cap('field.table.readAttachments', 'field', (v) =>
     tablesOf(v.config).some((t) => t.readAttachments === true),
+  ),
+  cap('field.table.prefillRules', 'field', (v) =>
+    tablesOf(v.config).some((t) => t.prefillRules !== undefined),
   ),
 
   // 写
@@ -640,6 +661,7 @@ export const CAPABILITIES: readonly Capability[] = [
   asCap('tap'),
   asCap('drag'),
   asCap('addHere'),
+  asCap('list'),
   cap('write.look.form', 'write', (v) => v.blocks.some((x) => x.block.look === 'form')),
   cap('write.look.button', 'write', (v) => v.writes.some((w) => w.as === 'self')),
   cap('write.form.inline', 'write', (v) =>
@@ -672,6 +694,7 @@ export const CAPABILITIES: readonly Capability[] = [
   ),
 
   // 读
+  lookCap('dial'),
   lookCap('list'),
   lookCap('cards'),
   lookCap('checklist'),
@@ -680,6 +703,33 @@ export const CAPABILITIES: readonly Capability[] = [
   lookCap('calendar'),
   lookCap('number'),
   lookCap('chart'),
+  lookCap('single'),
+  cap('read.single.qr', 'read', (v) =>
+    v.blocks.some((x) => x.block.look === 'single' && x.block.show.qr === true),
+  ),
+  cap('read.browse.search', 'read', (v) => browseOf(v).some((b) => b.search === true)),
+  cap('read.browse.sort', 'read', (v) => browseOf(v).some((b) => b.sort !== undefined)),
+  cap('read.browse.group', 'read', (v) => browseOf(v).some((b) => b.group !== undefined)),
+  cap('read.showIf.some', 'read', (v) => v.blocks.some((x) => x.block.showIf?.has === 'some')),
+  cap('read.showIf.none', 'read', (v) => v.blocks.some((x) => x.block.showIf?.has === 'none')),
+  cap('connect.recordsToVCard', 'connect', (v) =>
+    quickActionsOf(v.config).some((q) => q.steps.some((s) => s.action === 'records.toVCard')),
+  ),
+  // D-428：容器把值交给工具。
+  cap('connect.recordRow', 'connect', (v) =>
+    v.config.data.tables.some((table) => (table.recordRow?.length ?? 0) > 0),
+  ),
+  cap('connect.singleTool', 'connect', (v) =>
+    v.blocks.some((x) => x.block.look === 'single' && x.block.tools !== undefined),
+  ),
+  cap('connect.recordsToExcel', 'connect', (v) =>
+    quickActionsOf(v.config).some((q) => q.steps.some((s) => s.action === 'records.toExcel')),
+  ),
+  cap('connect.printAttachments', 'connect', (v) =>
+    quickActionsOf(v.config).some((q) =>
+      q.steps.some((s) => s.action === 'print.records' && s.params.attachments === true),
+    ),
+  ),
   chartCap('bar'),
   chartCap('line'),
   chartCap('pie'),

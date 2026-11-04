@@ -54,6 +54,7 @@
 | `date`     | `YYYY-MM-DD`，设备本地日期                       | 日期、截止日 |
 | `choice`   | 选项 ID（单选）                                  | 分类、状态   |
 | `rating`   | 1–5 的整数                                       | 评分         |
+| `tags`     | 一组文字（存在记录里，配置里没有标签名，D-432）  | 标签         |
 | `file`     | 一组 Morph 文件的 ID，最多 20 个（D-187、D-263） | 收据、照片   |
 | `formula`  | 不存值，按 `expression` 现算（D-188、D-246）     | 小计、含税   |
 | `link`     | 另一张表里一条记录的 ID（D-250）                 | 订单的客户   |
@@ -118,7 +119,7 @@ CREATE INDEX records_by_collection ON records (collection_id, deleted_at, create
 
 可用的条件：`is` / `isNot` / `contains` / `gt` / `lt` / `isEmpty` / `isNotEmpty` / `inPeriod`，日程字段还有 `due`（`today` / `overdue` / `thisWeek`，D-294）。`inPeriod` 的取值有 `today`、`thisWeek`、`thisMonth`、`thisYear`、`last7days`、`last30days`，D-285 加了 `last14days`、`last90days`、`last365days`、`thisTwoWeeks`（两周一段）、`thisHalfMonth`（1–15 号或 16 号到月底）。「今天」和一周的第一天按「设置 → 日期」（D-286）。
 
-**记录编辑页**由内核按字段定义自动生成，不可配置：点列表里的一条，或 `recordForm` 的 `button` 模式都会打开它，删除也在这里。
+**记录编辑页**由内核按字段定义自动生成，不可配置：点列表里的一条，或 `recordForm` 的 `button` 模式都会打开它，删除也在这里。已有记录的页面顶部的一排按钮由表上的 `recordRow` 配置（D-428，取代 D-423 写死的那排）：每个按钮是一个快捷操作，点了把这个字段的值或这一条记录交给它；没有配置就没有这一排。
 
 这三个组件和其他组件一样，可以放进分组里，例如两个 `stat` 横排、列表放在网格下面。
 

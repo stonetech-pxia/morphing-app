@@ -9,6 +9,7 @@ import {
   type Workflow,
   type WorkspaceConfig,
 } from '@morph/core';
+import { qrMatrix, qrToRgba } from '@morph/tool-qr';
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
@@ -440,5 +441,145 @@ describe('快捷操作「记一笔」的表单（D-397）', () => {
     expect(await screen.findByTestId('entry-photo-file-0')).toBeTruthy();
     await act(async () => undefined);
     expect(recognized(vision)).toHaveLength(0);
+  });
+
+  it('设置 → 数据：选「附件是」写到表上（D-421），有附件字段的表才有，默认是其他', async () => {
+    const plain: Collection = {
+      id: 'plain',
+      name: '备忘',
+      fields: [{ id: 'note', name: '内容', type: 'note' }],
+    };
+    const both = (locale: Locale, registry: Registry) => {
+      const config = seed(receipts())(locale, registry);
+      config.data.tables.push(plain);
+      return config;
+    };
+    await render(undefined, 'zh', both);
+    await act(() => router.push('/data'));
+    const selected = (id: string) => screen.getByTestId(id).props.accessibilityState.selected;
+    await screen.findByTestId('prefill-rules-receipts-general');
+    expect(selected('prefill-rules-receipts-general')).toBe(true);
+    expect(screen.queryByTestId('prefill-rules-plain-general')).toBeNull();
+    await fireEvent.press(screen.getByTestId('prefill-rules-receipts-card'));
+    await waitFor(() => expect(selected('prefill-rules-receipts-card')).toBe(true));
+    expect(selected('prefill-rules-receipts-general')).toBe(false);
+    await fireEvent.press(screen.getByTestId('prefill-rules-receipts-general'));
+    await waitFor(() => expect(selected('prefill-rules-receipts-general')).toBe(true));
+  });
+});
+
+// 名片表的表单还找二维码（D-423）：vCard、MeCard 的值排第一，网址只给网站；别的不管，文字照常读；点了才填。
+describe('名片表的二维码', () => {
+  const cards: Collection = {
+    id: 'people',
+    name: '联系人',
+    prefillRules: 'card',
+    fields: [
+      { id: 'name', name: '姓名', type: 'text' },
+      { id: 'tel', name: '电话', type: 'text', format: 'phone' },
+      { id: 'site', name: '网站', type: 'text', format: 'url' },
+      { id: 'attachments', name: '附件', type: 'file' },
+    ],
+  };
+  const seed = (table: Collection) => (locale: Locale, registry: Registry) => {
+    const config = createStarterWorkspace(locale, registry);
+    config.data.tables.push(table);
+    return config;
+  };
+  const qr = (text: string) => qrToRgba(qrMatrix(text), { scale: 4 });
+  const VCARD = 'BEGIN:VCARD\nFN:Maria Garcia\nTEL:+33 6 12 34 56 78\nEND:VCARD';
+
+  /** 表单收到一张照片，照片的像素是 pixels（不给时是白图）。 */
+  async function scan(
+    pixels: ReturnType<typeof qr> | null,
+    rows: string[] = [],
+    table: Collection = cards,
+    installed: string[] = ['ppocr', 'pdfview'],
+  ) {
+    const app = await render(installed, 'zh', seed(table));
+    app.vision.layers.push(layer(rows));
+    const read = jest.spyOn(app.files, 'imagePixels');
+    if (pixels) read.mockResolvedValue(pixels);
+    await shareInto(app.files, [{ name: 'card.jpg', mime: 'image/jpeg' }], `table-${table.id}`);
+    return { ...app, read };
+  }
+
+  it('只有二维码、文字一个都没读出来：也有候选，没有自动填；点了才填', async () => {
+    const { repo } = await scan(qr(VCARD));
+    await waitFor(() => expect(chipTexts('name').length).toBeGreaterThan(0));
+    expect(chipTexts('name')[0]).toContain('Maria Garcia');
+    expect(chipTexts('tel')[0]).toContain('+33 6 12 34 56 78');
+    expect(screen.getByTestId('editor-name').props.value ?? '').toBe('');
+    await fireEvent.press(screen.getByTestId('editor-name-suggestion-0'));
+    expect(screen.getByTestId('editor-name').props.value).toBe('Maria Garcia');
+    await save();
+    const [record] = await repo.listRecords('people');
+    expect(record!.values.name).toBe('Maria Garcia');
+    expect(record!.values.tel).toBeUndefined();
+    // 二维码的值不记位置（没有版面可记）。
+    expect(await repo.getMeta(PICK_STORE_KEY)).toBeNull();
+  });
+
+  it('二维码的值排在文字读出的值前面', async () => {
+    await scan(qr(VCARD), ['Tel +33 1 11 11 11 11']);
+    await waitFor(() => expect(chipTexts('tel').length).toBeGreaterThan(1));
+    expect(chipTexts('tel')[0]).toContain('+33 6 12 34 56 78');
+    expect(chipTexts('tel')[1]).toContain('+33 1 11 11 11 11');
+  });
+
+  it('网址只给网站', async () => {
+    await scan(qr('https://example.com/me'));
+    await waitFor(() => expect(chipTexts('site').length).toBeGreaterThan(0));
+    expect(chipTexts('site')[0]).toContain('https://example.com/me');
+    expect(chipTexts('name')).toEqual([]);
+    expect(chipTexts('tel')).toEqual([]);
+  });
+
+  it('别的二维码不管，名片照常按文字读', async () => {
+    await scan(qr('WIFI:T:WPA;S:cafe;P:12345678;;'), ['Tel +33 1 11 11 11 11']);
+    await waitFor(() => expect(chipTexts('tel').length).toBeGreaterThan(0));
+    expect(chipTexts('tel')[0]).toContain('+33 1 11 11 11 11');
+    expect(chipTexts('name').join()).not.toContain('cafe');
+  });
+
+  it('解不出来（读像素失败、没有码）都不说话，文字照常', async () => {
+    const app = await render(['ppocr', 'pdfview'], 'zh', seed(cards));
+    app.vision.layers.push(layer(['Tel +33 1 11 11 11 11']));
+    jest.spyOn(app.files, 'imagePixels').mockRejectedValue(new Error('broken'));
+    await shareInto(app.files, [{ name: 'card.jpg', mime: 'image/jpeg' }], 'table-people');
+    await waitFor(() => expect(chipTexts('tel').length).toBeGreaterThan(0));
+    expect(chipTexts('tel')[0]).toContain('+33 1 11 11 11 11');
+  });
+
+  it('文字识别没装时二维码也能用，不下载', async () => {
+    const { fs } = await scan(qr(VCARD), [], cards, []);
+    await waitFor(() => expect(chipTexts('name').length).toBeGreaterThan(0));
+    expect(chipTexts('name')[0]).toContain('Maria Garcia');
+    expect(fs.downloads).toEqual([]);
+  });
+
+  it('照片和 PDF 混着：只读照片的二维码', async () => {
+    const app = await render(['ppocr', 'pdfview'], 'zh', seed(cards));
+    app.vision.layers.push(layer([]));
+    const read = jest.spyOn(app.files, 'imagePixels').mockResolvedValue(qr(VCARD));
+    await shareInto(
+      app.files,
+      [
+        { name: 'a.pdf', mime: 'application/pdf' },
+        { name: 'card.jpg', mime: 'image/jpeg' },
+      ],
+      'table-people',
+    );
+    await waitFor(() => expect(chipTexts('name').length).toBeGreaterThan(0));
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it('不是名片表：不找二维码', async () => {
+    const { prefillRules: _unused, ...plain } = cards;
+    const { read, vision } = await scan(qr(VCARD), ['Tel +33 1 11 11 11 11'], plain as Collection);
+    await waitFor(() => expect(recognized(vision).length).toBeGreaterThan(0));
+    await act(async () => {});
+    expect(read).not.toHaveBeenCalled();
+    expect(chipTexts('name').join()).not.toContain('Maria');
   });
 });

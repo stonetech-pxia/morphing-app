@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { formatMoney } from '../field-values';
+import { hasRecordCurrency } from '../money-currency';
 import { MAX_FORMULA_LENGTH, formulaType, parseFormula } from '../formula';
 import type { Collection } from '../schema';
 import { IdSchema, boundedText, type Locale } from '../schema-primitives';
@@ -44,7 +45,15 @@ export const formulaField: FieldDefinitionOf<'formula', typeof schema> = defineF
   filter: { is: isNumber, compare: 'number' },
   // 查找、汇总、上一条（D-287–D-289）按它们显示的那种字段算。
   check: (f, { collection, view }) =>
-    formulaProblems(f.id, f.expression, view).map((problem) => ({
+    [
+      ...formulaProblems(f.id, f.expression, view),
+      // D-429：结果标着一种货币，读的金额却每条不一样。
+      ...(f.currency === undefined
+        ? []
+        : [...f.expression.matchAll(/\{([^}]+)\}/g)]
+            .filter((m) => hasRecordCurrency(view.fields.find((x) => x.id === m[1])))
+            .map((m) => `currency can't be set: ${m[1]} has its own currency on each entry`)),
+    ].map((problem) => ({
       code: 'data',
       message: `${collection.id}.${f.id}: ${problem}`,
     })),

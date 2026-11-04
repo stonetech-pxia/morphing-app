@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 import { createDefaultWorkspace } from '../defaults';
-import { quickActionsOf } from '../schema';
+import { quickActionsOf, type Workflow } from '../schema';
 import { apply, registry, workspace } from '../test-helpers';
 import {
   defaultParams,
+  handedInput,
   initialParams,
   insertableActions,
   typesAlong,
@@ -142,5 +143,50 @@ describe('types', () => {
     }
     // 读取记录要先选一张表：初始值让编辑页提示用户选。
     expect(initialParams(registry.actions.get('in.records')!)).toMatchObject({ period: 'all' });
+  });
+});
+
+describe('a first step that takes what a container hands over (D-428)', () => {
+  const steps = (...actions: string[]) =>
+    actions.map((action, i) => ({
+      id: `s${i}`,
+      action,
+      params: registry.actions.get(action)!.params.safeParse({}).success
+        ? {}
+        : initialParams(registry.actions.get(action)!),
+    }));
+  const wf = (...actions: string[]): Workflow => ({
+    id: 'w',
+    kind: 'quickAction',
+    name: 'W',
+    steps: steps(...actions),
+  });
+
+  it('text and records can start a chain, and the chain is typed from there', () => {
+    expect(workflowProblems(wf('out.call'), registry)).toEqual([]);
+    expect(typesAlong(wf('records.toVCardText', 'qr.generate').steps, registry)).toEqual([
+      'text',
+      'images',
+    ]);
+    expect(handedInput(wf('records.toVCard').steps, registry)).toBe('records');
+    expect(handedInput(wf('text.copy').steps, registry)).toBe('text');
+  });
+
+  it('a step that only takes files still needs an input step', () => {
+    for (const action of ['image.compress', 'pdf.merge', 'out.share', 'file.save'])
+      expect(workflowProblems(wf(action), registry).map((p) => p.code)).toContain('source');
+  });
+
+  it('an input step stays first, and an input step is not handed anything', () => {
+    expect(workflowProblems(wf('text.copy', 'in.text'), registry).map((p) => p.code)).toContain(
+      'source',
+    );
+    expect(handedInput(wf('in.text', 'text.copy').steps, registry)).toBeNull();
+  });
+
+  it('the editor still only offers input actions as the first step', () => {
+    const first = insertableActions([], 0, registry);
+    expect(first.length).toBeGreaterThan(0);
+    expect(first.every((a) => a.input.length === 0)).toBe(true);
   });
 });

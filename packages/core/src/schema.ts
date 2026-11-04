@@ -30,7 +30,7 @@ import { ConditionSchema, FieldRefSchema } from './schema-primitives';
 // 修改已有结构（包括给已有外观加键）时，必须提升 CURRENT_SCHEMA_VERSION 并在 migrate.ts 中添加迁移；
 // 只新增一种外观不提升（D-254：老配置照样能读，旧 App 读到新外观时原样保留）。
 
-export const CURRENT_SCHEMA_VERSION = 36;
+export const CURRENT_SCHEMA_VERSION = 37;
 
 export * from './schema-base';
 export {
@@ -42,6 +42,8 @@ export {
   GROUP_MAX_CHILDREN,
   RECORD_LOOKS,
   RECORD_LOOK_DOC,
+  ShowIfSchema,
+  PinSchema,
   UNKNOWN_LOOK,
   componentDefinition,
   componentRefs,
@@ -66,6 +68,7 @@ export {
   type Look,
   type NewComponent,
   type RecordLook,
+  type ShowIf,
   type StyleKey,
   type UnknownComponent,
 } from './components';

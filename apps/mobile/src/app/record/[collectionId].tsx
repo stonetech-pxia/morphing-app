@@ -1,12 +1,15 @@
 import { attachmentIds, tableIsShown, type DataRecord, type FieldIssue } from '@morph/core';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, Text, View } from 'react-native';
 
 import { useComputedRecords, useRecordActions } from '@/data/records';
+import { useSimilarCheck } from '@/data/similar-records';
 import { t } from '@/i18n';
 import { FormFilesContext } from '@/renderer/Attachments';
 import { prefillFormValues, toFormValues } from '@/renderer/data';
+import { RecordActionRow } from '@/renderer/RecordActionRow';
 import { SuggestedFields } from '@/renderer/SuggestedFields';
 import { usePalette } from '@/renderer/theme';
 import { Button } from '@/renderer/ui';
@@ -32,6 +35,8 @@ export default function RecordRoute() {
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
   const actions = useRecordActions();
+  const mayProceed = useSimilarCheck();
+  const headerHeight = useHeaderHeight();
   const collection = config.data.tables.find((c) => c.id === collectionId);
   // 查找、汇总、上一条（D-291）：显示这条记录存好以后算出来的值。
   const computed = useComputedRecords(config.data.tables, collection, useCalendar());
@@ -80,6 +85,8 @@ export default function RecordRoute() {
 
   async function save() {
     if (!collection) return;
+    // D-426：只有新记录问一句，用户总能选「仍然保存」。
+    if (!record && !(await mayProceed(collection, values))) return;
     const result = record
       ? await actions.update(collection, record, values)
       : await actions.add(collection, values);
@@ -106,7 +113,10 @@ export default function RecordRoute() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: palette.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      // Android 是 edge-to-edge，窗口不会因为键盘变小（真机上键盘盖住下面的字段）：两边都留出键盘的高度。
+      behavior="padding"
+      // 这个页面在标题栏下面：键盘的位置按整个屏幕算，少了这段高度，下面的字段还是露不出来。
+      keyboardVerticalOffset={headerHeight}>
       <Stack.Screen
         options={{
           title: `${collection.name} · ${t(locale, record ? 'editRecord' : 'newRecord')}`,
@@ -117,6 +127,14 @@ export default function RecordRoute() {
         <ScrollView
           contentContainerStyle={{ padding: palette.pad, gap: palette.gap, paddingBottom: 48 }}
           keyboardShouldPersistTaps="handled">
+          {record ? (
+            <RecordActionRow
+              collection={collection}
+              record={computed.records?.find((r) => r.id === record.id) ?? record}
+              values={values}
+              palette={palette}
+            />
+          ) : null}
           <FormFilesContext.Provider value={formFiles}>
             <SuggestedFields
               suggest={!recordId}

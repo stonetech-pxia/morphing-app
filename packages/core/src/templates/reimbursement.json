@@ -5,6 +5,7 @@
   },
   "table": {
     "id": "$table",
+    "prefillRules": "receipt",
     "name": {
       "en": "Reimbursements",
       "zh": "报销",

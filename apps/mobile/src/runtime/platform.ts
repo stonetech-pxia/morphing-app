@@ -747,6 +747,17 @@ export interface FilePlatform {
     uri: string,
     maxSide: number,
   ): Promise<{ width: number; height: number; data: Uint8Array }>;
+  /**
+   * 把一张图变成长边不超过 maxSide 的 JPEG，存成本次运行的临时文件（D-425）。解码时就缩小，
+   * 几千万像素的照片也不会整张进内存（AGENTS.md 的 Android 规则）；重新编码也去掉位置等元数据（D-047）。
+   */
+  reducedJpeg(
+    uri: string,
+    maxSide: number,
+    quality: number,
+    runId: string,
+    relPath: string,
+  ): Promise<EncodedImage>;
   /** 用系统的打印排版把 HTML 变成 PDF（expo-print），存成本次运行的临时文件。 */
   htmlToPdf(
     html: string,

@@ -1,6 +1,6 @@
 import { strToU8, zipSync, type Zippable } from 'fflate';
 
-import type { CellAlign, TableDoc, TablePage } from './types';
+import type { CellAlign, TableCell, TableDoc, TablePage } from './types';
 
 // 写 xlsx（D-272）：自己写 XML，用 fflate 的同步 API 打包（Hermes 没有 Worker，也没有 Node 的 stream）。
 // 每页一张工作表；字符串放 sharedStrings（Numbers 和 WPS 对它的支持比 inlineStr 稳）；
@@ -18,6 +18,8 @@ const MAX_CELL_CHARS = 32767;
 const PAGE_CHARS = 110;
 /** 一行字的高度（磅，11 号字）。 */
 const LINE_POINTS = 15;
+/** Excel 的行高上限（磅）；超过时它会说文件坏了。 */
+const MAX_ROW_POINTS = 409;
 
 /** XML 里不允许的字符（控制字符、FFFE / FFFF、落单的代理项）去掉，换行统一成 \n。 */
 export function cleanXmlText(text: string): string {
@@ -104,6 +106,7 @@ export function cellNumber(text: string): { value: number; format: string } | nu
 
 /** Excel 自带的数字格式编号；别的自己定义（164 起）。 */
 const BUILT_IN_FORMATS: Record<string, number> = {
+  General: 0,
   '0': 1,
   '0.00': 2,
   '#,##0': 3,
@@ -255,6 +258,7 @@ export interface SheetCell {
   block: number;
   /** 表格格子在 table.cells 里的下标；表外的文字没有。 */
   cell?: number;
+  write?: TableCell['write'];
 }
 
 /** 一页排到工作表上的样子：编辑页照着它画，写 xlsx 也照着它写，两边一样。 */
@@ -327,7 +331,12 @@ function sheetXml(
   for (const cell of layout.cells) {
     const table = cell.cell !== undefined;
     const at = ref(cell.row, cell.col);
-    const number = table && cell.text ? cellNumber(cell.text) : null;
+    const number =
+      cell.write?.kind === 'number'
+        ? cell.write
+        : table && cell.text && !cell.write
+          ? cellNumber(cell.text)
+          : null;
     const align = cell.align ? { align: cell.align } : {};
     const empty = styles.style({ border: true });
     let xml: string;
@@ -361,7 +370,7 @@ function sheetXml(
     .map((row, r) => {
       const cells = [...rowCells[r]!].sort((a, b) => a[0] - b[0]).map(([, xml]) => xml);
       return cells.length || row.lines > 1
-        ? `<row r="${r + 1}" ht="${row.lines * LINE_POINTS}" customHeight="1">${cells.join('')}</row>`
+        ? `<row r="${r + 1}" ht="${Math.min(MAX_ROW_POINTS, row.lines * LINE_POINTS)}" customHeight="1">${cells.join('')}</row>`
         : '';
     })
     .join('');
@@ -460,4 +469,72 @@ export function writeXlsx(doc: TableDoc): Uint8Array {
     'xl/sharedStrings.xml': strToU8(strings.xml()),
   };
   return zipSync(files, { level: 6 });
+}
+
+/** 记录导出的一格（core 的 recordsToSheet 给的，D-427）。 */
+export type RowValue =
+  { kind: 'text'; text: string } | { kind: 'number'; value: number; format: string; text: string };
+
+/** 列宽（字符）：够最长的内容，不窄于 8、不宽于 40。 */
+function rowColumns(rows: readonly (readonly RowValue[])[]): number[] {
+  const cols = Math.max(1, ...rows.map((r) => r.length));
+  return Array.from({ length: cols }, (_, c) => {
+    let width = 8;
+    for (const row of rows) {
+      const text = row[c]?.text;
+      if (!text) continue;
+      for (const line of text.split('\n')) {
+        // lineCount 在宽 2 的格子里每个单位一行：等于这段文字的字符宽。
+        width = Math.max(width, lineCount(line, 2) + 2);
+        if (width >= 40) return 40;
+      }
+    }
+    return width;
+  });
+}
+
+/**
+ * 一张工作表的 xlsx（记录导出，D-427）：每一格写成什么由调用方定，不猜。
+ * 文字一律是共享字符串（t="s"），文件里没有公式：OCR 出来的「=SUM(A1)」「+33 1…」打开还是文字。
+ */
+export function writeRowsXlsx(name: string, rows: readonly (readonly RowValue[])[]): Uint8Array {
+  const widths = rowColumns(rows);
+  const cells: TableCell[] = rows.flatMap((row, r) =>
+    row.map((value, c) => ({
+      row: r,
+      col: c,
+      rowSpan: 1,
+      colSpan: 1,
+      text: value.text,
+      write:
+        value.kind === 'number'
+          ? { kind: 'number' as const, value: value.value, format: value.format }
+          : { kind: 'text' as const },
+    })),
+  );
+  return writeXlsx({
+    version: 2,
+    scope: 'tables',
+    pages: [
+      {
+        name,
+        source: '',
+        // 宽度 = 字符数：sheetColumns 按 宽 / 页宽 × 110 换算。
+        width: PAGE_CHARS,
+        height: rows.length,
+        lineHeight: 1,
+        colWidths: widths,
+        blocks: [
+          {
+            kind: 'table',
+            rows: rows.length,
+            col: 0,
+            cols: widths.length,
+            cells,
+            box: { x: 0, y: 0, width: PAGE_CHARS, height: rows.length },
+          },
+        ],
+      },
+    ],
+  });
 }

@@ -96,10 +96,11 @@ export const MAX_SET_ALL = 200;
 
 /**
  * 块上的工具出现在哪（关系规则 4）：submit 表单的提交、button 每一条右边的按钮（≤3，显示第一个 when 满足的）、
- * check 清单的勾、tap 点一下（大圆块）、drag 拖到另一栏、addHere 每段 / 选中那天 / 每栏下面的「添加」。
+ * check 清单的勾、tap 点一下（大圆块）、drag 拖到另一栏、addHere 每段 / 选中那天 / 每栏下面的「添加」、
+ * list 列表上方的按钮（≤3，运行快捷操作，把列表现在选出的记录交给它，D-428）。
  * 不写 as：块本身被点时做（button、action、picker）。
  */
-export const TOOL_USE_AS = ['submit', 'button', 'check', 'tap', 'drag', 'addHere'] as const;
+export const TOOL_USE_AS = ['submit', 'button', 'check', 'tap', 'drag', 'addHere', 'list'] as const;
 export type ToolUseAs = (typeof TOOL_USE_AS)[number];
 
 /** 内核的「打开相册 / 打开文件」（原 filePick），选完进收件页面，绝不自动运行。 */

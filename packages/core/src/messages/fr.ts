@@ -234,6 +234,10 @@ export const fr: MessageTable = {
   askPasswordMismatch: 'Les deux mots de passe ne correspondent pas.',
   askPasswordAgain: 'Confirmer le mot de passe',
   runError_textTooLong: 'Le texte est trop long (maximum {max} caractères).',
+  runError_needsRecord:
+    'Cette action rapide a besoin d’une entrée ou d’une valeur. Touchez-la sur la page de l’entrée ou la liste où elle se trouve.',
+  runError_badLink:
+    'Ce n’est ni un numéro, ni une adresse e-mail, ni une adresse web que l’on peut ouvrir.',
   runError_noRecords: 'Aucune entrée dans « {name} » pour cette période.',
   runError_doesNotFit:
     '« {name} » ne rentre pas sur ce papier. Utilisez d’abord l’étape « Photo d’identité » pour le recadrer au format.',
@@ -343,6 +347,36 @@ export const fr: MessageTable = {
   openLinkTitle: 'Ouvrir le lien ?',
   openLinkMessage: 'Cela ouvrira {target} en dehors de l’application.',
   openLink: 'Ouvrir',
+  openLinkFailed: 'Cet appareil ne peut pas l’ouvrir.',
+  describeClearedBlockRefs: 'Met aussi à jour {n} blocs qui y faisaient référence',
+  describeShowIfOff: 'Toujours afficher {component}',
+  describeShowIfSome: 'Afficher {component} seulement quand « {table} » a des entrées',
+  describeShowIfNone: 'Afficher {component} seulement quand « {table} » n’a aucune entrée',
+  describeSingle: 'une entrée de « {table} »',
+  groupNoText: 'Non renseigné',
+  describe_dial: 'Un bouton flottant avec {n} actions',
+  describePinOff: '{component} défile à nouveau avec la page',
+  describePinTop: '{component} reste fixé en haut de la page',
+  describePinBottom: '{component} reste fixé en bas de la page',
+  browseFilterAll: 'Tout',
+  tagsAdd: 'Ajouter une étiquette',
+  tagsAddButton: 'Ajouter',
+  tagRemove: 'Retirer {tag}',
+  dialMore: 'Autres actions',
+  dialClose: 'Fermer',
+  browseSearch: 'Rechercher',
+  browseNoMatch: 'Aucun résultat',
+  browseSort: 'Trier',
+  browseGroup: 'Grouper',
+  browseGroupNone: 'Aucun',
+  browseCreatedAt: 'Ajouts récents',
+  browseUpdatedAt: 'Modifications récentes',
+  browseShowing: 'Affichage : {shown} sur {total}. Faites défiler pour voir la suite.',
+  browseShowingMatches:
+    'Affichage : {shown} sur {total} résultats. Faites défiler pour voir la suite.',
+  singleTooMuch: 'Trop d’informations pour tenir dans un code QR.',
+  listToolAll: 'Les {n} entrées de cette liste',
+  listToolFound: 'Seulement les {n} entrées trouvées',
 
   // 用户数据
   noRecords: 'Aucune entrée pour l’instant',
@@ -1034,6 +1068,10 @@ export const fr: MessageTable = {
   describe_Add_field_to_b8810: 'Ajouter le champ « {v0} » ({v1}) à « {v2} »',
   describe_rename_to_08deb: 'renommer en « {v0} »',
   describe_type_7382b: 'type → {v0}',
+  describeFieldFormatPhone: 'format → téléphone',
+  describeFieldFormatEmail: 'format → e-mail',
+  describeFieldFormatUrl: 'format → site web',
+  describeFieldFormatNone: 'format retiré',
   describe_options_64e79: 'options → {v0}',
   describe_update_settings_2aaf6: 'Modifier les réglages',
   describe_Move_field_of_to_position_aa798:
@@ -1231,6 +1269,18 @@ export const fr: MessageTable = {
   html_Created_1626a: 'Création',
   html_Updated_74f0c: 'Modifié',
   html_records_3f794: '{v0} entrées',
+  reportAttachmentOf: 'pièce jointe {index} sur {total}',
+  reportAttachmentPdfFollows: 'Pièce jointe PDF : les {n} pages suivantes.',
+  reportAttachmentSeparator: ', ',
+  reportAttachmentsOverLimit:
+    '{n} pièces jointes laissées de côté : le rapport serait trop lourd (au plus {max} pièces jointes, {mb} Mo). Entrées : {titles}.',
+  reportAttachmentsUnreadable:
+    '{n} pièces jointes illisibles laissées de côté. Entrées : {titles}.',
+  similarRecordTitle: 'Déjà enregistrée ?',
+  similarRecordOne: 'Cette entrée ressemble à « {title} », déjà dans {table}.',
+  similarRecordMany: 'Cette entrée ressemble à « {title} » et à {n} autres, déjà dans {table}.',
+  similarRecordBack: 'Retour au formulaire',
+  similarRecordSave: 'Enregistrer quand même',
   html_Total_08322: 'Total',
   pdf_merged_19094: '{sourceName}-fusionné',
   pdf_COPY_3fef3: 'COPIE',
@@ -1416,10 +1466,20 @@ export const fr: MessageTable = {
   seqAvgDays: '{n} jours en moyenne',
   // 一天、一周从什么时候开始（D-286）
   describeDayStart: 'Une journée commence à {hour} h',
+  describeRecordRow: '« {name} » : modifier les boutons en haut de la page de l’entrée',
   describeReadAttachmentsOn:
     '« {name} » : lire les pièces jointes et proposer des valeurs dans les nouvelles entrées',
   describeReadAttachmentsOff:
     '« {name} » : ne plus lire les pièces jointes dans les nouvelles entrées',
+  describePrefillRulesReceipt: '« {name} » : lire les pièces jointes comme des reçus',
+  describePrefillRulesCard: '« {name} » : lire les pièces jointes comme des cartes de visite',
+  describePrefillRulesGeneral: '« {name} » : lire les pièces jointes avec les règles générales',
+  prefillRulesLabel: 'Les pièces jointes sont',
+  prefillRulesHint:
+    'Les suggestions utilisent des règles faites pour ce type de document, en plus des règles générales.',
+  prefillRulesGeneral: 'Autre',
+  prefillRulesReceipt: 'Reçus',
+  prefillRulesCard: 'Cartes de visite',
   readAttachmentsLabel: 'Lire les pièces jointes automatiquement',
   readAttachmentsHint:
     'Les nouvelles entrées lisent les photos et les PDF sur cet appareil et proposent des valeurs. Rien n’est rempli sans que vous touchiez la proposition.',
@@ -1675,6 +1735,7 @@ export const frSingular: SingularTable = {
   draftDeleteBody: 'Le brouillon ({n} étape) sera supprimé. L’app ne change pas.',
   describe_Also_removes_card_s_that_ran_this_quic_5d29f:
     'Supprime aussi {v0} carte ayant exécuté cette action rapide',
+  describeClearedBlockRefs: 'Met aussi à jour {n} bloc qui y faisait référence',
   describe_Also_removes_block_s_that_showed_a7a30: 'Supprime aussi {v0} bloc affichant « {v1} »',
   describe_Also_removes_button_s_or_shortcut_s_th_d4dc1:
     'Supprime aussi {v0} bouton ou raccourci ouvrant « {v1} »',
@@ -1728,6 +1789,9 @@ export const frSingular: SingularTable = {
   schedulePerDay: '{rule}, une fois par jour',
   scheduleOverdue: 'En retard de {n} jour',
   describeRemovedRecordActions: 'Supprime aussi {n} bouton en un geste qui l’utilisait',
+  listToolAll: 'La seule entrée de cette liste',
+  describe_dial: 'Un bouton flottant avec une action',
+  listToolFound: 'Seulement l’entrée trouvée',
   recordActionChanged: '{n} entrée modifiée',
   recordActionConfirm: 'Cela modifie {n} entrée.',
   recordActionTooMany: 'Au plus {max} entrées peuvent changer à la fois ; cela en modifierait {n}.',
@@ -1736,5 +1800,10 @@ export const frSingular: SingularTable = {
   widgetSkipped: '{n} appui sur le widget n’a pas été enregistré, car la page a changé',
   deskTargets: 'Les outils s’appliquent à {n} fichier',
   deskStale: 'Inutilisé depuis {n} jour, vous pouvez le vider',
+  reportAttachmentPdfFollows: 'Pièce jointe PDF : la page suivante.',
+  reportAttachmentsOverLimit:
+    '{n} pièce jointe laissée de côté : le rapport serait trop lourd (au plus {max} pièces jointes, {mb} Mo). Entrées : {titles}.',
+  reportAttachmentsUnreadable: '{n} pièce jointe illisible laissée de côté. Entrées : {titles}.',
+  similarRecordMany: 'Cette entrée ressemble à « {title} » et à {n} autre, déjà dans {table}.',
   shareRecordTooMany: 'Une entrée contient au plus {n} fichier : seul le premier y va.',
 };

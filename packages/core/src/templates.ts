@@ -12,6 +12,7 @@ import {
 import bill from './templates/bill.json';
 import blank from './templates/blank.json';
 import budget from './templates/budget.json';
+import contacts from './templates/contacts.json';
 import contract from './templates/contract.json';
 import notes from './templates/notes.json';
 import purchase from './templates/purchase.json';
@@ -42,6 +43,7 @@ export const FILE_RECORD_PRESETS = [
   'bill',
   'contract',
   'reimbursement',
+  'contacts',
   'blank',
 ] as const;
 export type FileRecordPreset = (typeof FILE_RECORD_PRESETS)[number];
@@ -63,6 +65,7 @@ const TEMPLATES: Record<Template, TemplateJson> = {
   bill: bill as TemplateJson,
   contract: contract as TemplateJson,
   reimbursement: reimbursement as TemplateJson,
+  contacts: contacts as TemplateJson,
   blank: blank as TemplateJson,
 };
 

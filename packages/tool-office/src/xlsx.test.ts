@@ -9,6 +9,7 @@ import {
   layoutSheet,
   pagesWithoutTables,
   sheetName,
+  writeRowsXlsx,
   writeXlsx,
 } from './xlsx';
 
@@ -311,5 +312,65 @@ describe('xlsx writer (D-272)', () => {
       'AAA',
     ]);
     expect(sheetName('  ', 0, new Set())).toBe('Sheet1');
+  });
+});
+
+describe('writeRowsXlsx (D-427)', () => {
+  const read = (rows: Parameters<typeof writeRowsXlsx>[1]) => {
+    const files = unzipSync(writeRowsXlsx('Mes dépenses / 2026', rows));
+    const sheet = strFromU8(files['xl/worksheets/sheet1.xml']!);
+    const strings = [
+      ...strFromU8(files['xl/sharedStrings.xml']!).matchAll(/<si><t[^>]*>(.*?)<\/t>/gs),
+    ].map((m) => m[1]!);
+    /** 读回一格：字符串的内容或数字。 */
+    const cell = (at: string) => {
+      const m = new RegExp(`<c r="${at}"[^>]*?(t="s")?[^>]*?(?:/>|><v>(.*?)</v>)`).exec(sheet);
+      if (!m) return undefined;
+      const xml = m[0];
+      return xml.includes('t="s"') ? strings[Number(m[2])] : m[2] === undefined ? '' : Number(m[2]);
+    };
+    return { files, sheet, strings, cell };
+  };
+
+  it('text stays text: nothing that looks like a formula or number becomes one', () => {
+    const dangerous = ['=SUM(A1:A9)', '+33 1 23', '-5', '@cmd', '12345', '0123', '1,234.56', '50%'];
+    const { sheet, cell } = read([dangerous.map((text) => ({ kind: 'text', text }))]);
+    expect(sheet).not.toContain('<f>');
+    expect(sheet).not.toContain('<f ');
+    for (const [c, text] of dangerous.entries()) expect(cell(`${columnName(c)}1`)).toBe(text);
+  });
+
+  it('numbers and dates are real numeric cells with their format', () => {
+    const { files, sheet, cell } = read([
+      [
+        { kind: 'number', value: 12.5, format: '#,##0.00', text: '12.50' },
+        { kind: 'number', value: 46329, format: 'yyyy-mm-dd', text: '2026-11-03' },
+        { kind: 'number', value: 7, format: 'General', text: '7' },
+      ],
+    ]);
+    expect(cell('A1')).toBe(12.5);
+    expect(cell('B1')).toBe(46329);
+    expect(cell('C1')).toBe(7);
+    expect(sheet).not.toContain('t="s"');
+    const styles = strFromU8(files['xl/styles.xml']!);
+    expect(styles).toContain('formatCode="yyyy-mm-dd"');
+    expect(styles).toContain('numFmtId="4"');
+  });
+
+  it('cleans the sheet name, empty cells stay empty, very long text keeps the row height legal', () => {
+    const { files, sheet, cell } = read([
+      [
+        { kind: 'text', text: '' },
+        { kind: 'text', text: 'x\n'.repeat(500) },
+      ],
+    ]);
+    expect(strFromU8(files['xl/workbook.xml']!)).toContain('name="Mes dépenses  2026"');
+    expect(cell('A1')).toBe('');
+    const heights = [...sheet.matchAll(/ ht="(\d+)"/g)].map((m) => Number(m[1]));
+    expect(Math.max(...heights)).toBeLessThanOrEqual(409);
+  });
+
+  it('a table with no rows still makes a valid file', () => {
+    expect(read([]).files['xl/workbook.xml']).toBeDefined();
   });
 });

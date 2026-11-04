@@ -2,7 +2,7 @@ import type { DataRecord } from '../data';
 import type { Registry } from '../registry';
 import type { Locale, Workflow, WorkflowStep } from '../schema';
 import type { ActionDefinition, ValueType } from './contract';
-import { workflowProblems } from './check';
+import { handedInput, workflowProblems } from './check';
 
 // 工作流执行器（TOOLS_DESIGN §3）：唯一按顺序执行动作的地方。配置里只有动作 ID 和参数，没有任何代码。
 // 动作的实现（ActionImpl）和平台能力（services）由 App 注入，因此这里可以在 Node 中测试。
@@ -89,6 +89,10 @@ export type RunErrorCode =
   | 'textTooLong'
   | 'doesNotFit'
   | 'noRecords'
+  /** 这个快捷操作要记录页或列表交给它的值，这次运行没有（D-428）。 */
+  | 'needsRecord'
+  /** 这段文字不是能打开的电话、邮箱或网址（D-428）。 */
+  | 'badLink'
   /** 命名要在本机识别文字，这台设备没有系统自带的文字识别（Expo Go，D-244）。 */
   | 'needsRecognition'
   /** 按条件筛选之后一个文件都不剩（detail.count：原来几个，D-242）。 */
@@ -238,6 +242,11 @@ export interface RunOptions<S> {
     params: Record<string, unknown>,
     input: RunValue | null,
   ) => DevicePack | readonly DevicePack[] | undefined;
+  /**
+   * 容器交给第一步的值（D-428）：记录页的这一条、这个字段的值、列表选出的记录。第一步是输入动作时不用。
+   * 第一步要它、却没有（从快捷操作列表、桌面、提醒走到这里）时不运行任何一步。
+   */
+  handed?: RunValue | null;
   /** 界面把 cancelled 设为 true 即可取消。 */
   signal?: { cancelled: boolean };
   onEvent?: (event: RunEvent) => void;
@@ -310,8 +319,19 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
     return finish({ status: 'failed', error: new RunError('invalidWorkflow'), stepIndex: null });
   }
 
+  // 容器交的值：类型对不上、没有、是空的都不开始（D-428）。
+  const wanted = handedInput(workflow.steps, registry);
+  const given = wanted !== null ? (opts.handed ?? null) : null;
+  if (wanted !== null) {
+    const fail = (error: RunError) => finish({ status: 'failed', error, stepIndex: null });
+    if (given === null || given.type !== wanted) return fail(new RunError('needsRecord'));
+    if (given.type === 'text' && given.text.trim() === '') return fail(new RunError('emptyText'));
+    if (given.type === 'records' && given.records.length === 0)
+      return fail(new RunError('noRecords', { name: given.name }));
+  }
+
   const saved: string[] = [];
-  let value: RunValue | null = null;
+  let value: RunValue | null = given;
   let index = 0;
   let inputSize = 0;
   const throwIfCancelled = () => {

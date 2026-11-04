@@ -1,4 +1,18 @@
 import {
+  fieldForRecord,
+  hasRecordCurrency,
+  perCurrencyText,
+  browseFilter,
+  browseFilterRows,
+  browseSort,
+  cleanTags,
+  recordSearchTexts,
+  searchRecords,
+  tagKey,
+  tagsInRecords,
+  MAX_RECORD_TAGS,
+  MAX_TAG_LENGTH,
+  suggestionForField,
   filterPresets,
   listGroups,
   findDatePhrase,
@@ -50,6 +64,7 @@ import {
   localeTag,
   type ComponentStyle,
   type DataRecord,
+  type BrowseFilterRow,
   type ValueSuggestion,
   type LinkedGroups,
   type Field,
@@ -65,7 +80,7 @@ import { useState, type ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
-  Platform,
+  ScrollView,
   Pressable,
   StyleSheet,
   Switch,
@@ -79,6 +94,7 @@ import {
 } from 'react-native';
 
 import { useComputedRecords, useLinkResolver, useRecordActions, useRecords } from '../data/records';
+import { useSimilarCheck } from '../data/similar-records';
 import { useCalendar, useWorkspace } from '../workspace/context';
 import { t } from '../i18n';
 import { AttachmentThumb, AttachmentsInput, firstImage, useAssetIndex } from './Attachments';
@@ -151,6 +167,7 @@ export function FieldInput({
   labeled = false,
   onSubmit,
   autoFocus,
+  tableId,
 }: {
   field: Field;
   value: unknown;
@@ -165,6 +182,8 @@ export function FieldInput({
   onSubmit?: (() => void) | undefined;
   /** 底部弹出的添加框打开时，第一个文字框直接弹出键盘（D-352）。 */
   autoFocus?: boolean | undefined;
+  /** 这个字段所在的表（标签要从这张表的记录里算出已有的标签）。 */
+  tableId?: string | undefined;
 }) {
   const input = [
     styles.input,
@@ -197,6 +216,7 @@ export function FieldInput({
     chip,
     onSubmit,
     autoFocus,
+    tableId,
   });
 }
 
@@ -216,6 +236,7 @@ interface FieldInputContext<F extends Field> {
   chip: (selected: boolean) => StyleProp<ViewStyle>;
   onSubmit?: (() => void) | undefined;
   autoFocus?: boolean | undefined;
+  tableId?: string | undefined;
 }
 
 /** 一种字段在记录表单里怎么填（字段的结构、读写和显示在 core 的 fields/<type>.ts）。 */
@@ -229,6 +250,13 @@ interface FieldEditor<F extends Field = Field> {
   /** 不能填，显示算出来的值（公式，D-188）。 */
   computed?: true;
 }
+
+/** 电话、邮箱、网址（D-422）的键盘。只是键盘：保存不查格式，什么都能写。 */
+const FORMAT_KEYBOARD = {
+  phone: 'phone-pad',
+  email: 'email-address',
+  url: 'url',
+} as const;
 
 /** 文字、长文本、数字、金额：一个输入框。 */
 function textBox<F extends Field>({
@@ -251,6 +279,9 @@ function textBox<F extends Field>({
       value={typeof value === 'string' ? value : ''}
       onChangeText={onChange}
       autoFocus={autoFocus === true && field.type === 'text'}
+      // 记录的字段不是登录信息：三星保存表单时会问要不要存进密码管家。
+      autoComplete="off"
+      importantForAutofill="no"
       {...(submits
         ? {
             returnKeyType: 'done' as const,
@@ -258,10 +289,21 @@ function textBox<F extends Field>({
             submitBehavior: 'submit' as const,
           }
         : {})}
-      placeholder={field.type === 'money' ? `${field.name} (${field.currency})` : field.name}
+      placeholder={
+        field.type === 'money' && !field.currencyField
+          ? `${field.name} (${field.currency})`
+          : field.name
+      }
       placeholderTextColor={palette.caption}
       multiline={field.type === 'note'}
       keyboardType={field.type === 'number' || field.type === 'money' ? 'decimal-pad' : 'default'}
+      {...(field.type === 'text' && field.format
+        ? {
+            keyboardType: FORMAT_KEYBOARD[field.format],
+            autoCapitalize: 'none' as const,
+            autoCorrect: false,
+          }
+        : {})}
       style={[input, field.type === 'note' && styles.note]}
     />
   );
@@ -413,6 +455,33 @@ export const FIELD_EDITORS: { [T in FieldType]: FieldEditor<FieldOf<T>> } = {
       />
     ),
   },
+  tags: {
+    input: ({
+      field,
+      value,
+      onChange,
+      palette,
+      locale,
+      disabled,
+      testID,
+      chip,
+      input,
+      tableId,
+    }) => (
+      <TagsInput
+        field={field}
+        value={value}
+        onChange={onChange}
+        palette={palette}
+        locale={locale}
+        disabled={disabled}
+        testID={testID}
+        chip={chip}
+        input={input}
+        tableId={tableId}
+      />
+    ),
+  },
   rating: {
     input: ({ value, onChange, palette, disabled, testID }) => (
       <View style={styles.chips}>
@@ -436,6 +505,125 @@ export const FIELD_EDITORS: { [T in FieldType]: FieldEditor<FieldOf<T>> } = {
     ),
   },
 };
+
+/** 打字时这些字符把前面的字变成一个标签。 */
+const TAG_BREAK = /[,，、;；\n]/;
+/** 表单里最多列几个已有的标签（打字时按打的字筛）。 */
+const MAX_TAG_CHOICES = 24;
+
+/**
+ * 标签（创始人 2026-11-04 定）：这条记录的标签（点了移除）、一个输入框（逗号或键盘上的「完成」变成一个标签）、
+ * 这张表已有的标签（点了加上，从记录现算）。正在打的字也算在表单的值里（最后一个）：没按「完成」直接保存也不丢。
+ */
+function TagsInput({
+  field,
+  value,
+  onChange,
+  palette,
+  locale,
+  disabled,
+  testID,
+  chip,
+  input,
+  tableId,
+}: {
+  field: FieldOf<'tags'>;
+  value: unknown;
+  onChange: (value: unknown) => void;
+  palette: Palette;
+  locale: RenderEnv['locale'];
+  disabled: boolean | undefined;
+  testID: string;
+  chip: (selected: boolean) => StyleProp<ViewStyle>;
+  input: StyleProp<TextStyle>;
+  tableId: string | undefined;
+}) {
+  const view = useWorkspace((s) => s.config?.data.tables.find((c) => c.id === tableId));
+  const records = useRecords(tableId ?? '');
+  const [draft, setDraft] = useState('');
+  const tags = Array.isArray(value) ? value.filter((x): x is string => typeof x === 'string') : [];
+  const chosen = draft !== '' && tags[tags.length - 1] === draft ? tags.slice(0, -1) : tags;
+  const chosenKeys = new Set(chosen.map(tagKey));
+  const type = (text: string) => {
+    const parts = text.split(TAG_BREAK);
+    const typing = parts.pop()!.trimStart();
+    const done = cleanTags([...chosen, ...parts]);
+    setDraft(typing);
+    onChange(typing ? [...done, typing] : done);
+  };
+  const commit = () => {
+    setDraft('');
+    onChange(cleanTags(tags));
+  };
+  const add = (tag: string) => {
+    setDraft('');
+    onChange(cleanTags([...chosen, tag]));
+  };
+  const typedKey = tagKey(draft.trim());
+  const choices =
+    view && records
+      ? tagsInRecords(records, view, field.id, locale)
+          .filter((tag) => !chosenKeys.has(tagKey(tag)) && tagKey(tag).includes(typedKey))
+          .slice(0, MAX_TAG_CHOICES)
+      : [];
+  const label = [palette.font('bodyBold', 13), { color: palette.text }];
+  return (
+    <View style={styles.fields}>
+      {chosen.length > 0 ? (
+        <View style={styles.chips}>
+          {chosen.map((tag) => (
+            <Pressable
+              key={tag}
+              testID={`${testID}-tag-${tag}`}
+              accessibilityRole="button"
+              accessibilityLabel={t(locale, 'tagRemove', { tag })}
+              disabled={disabled}
+              onPress={() => onChange(chosen.filter((x) => x !== tag))}
+              style={chip(true)}>
+              <Text style={label}>{`${tag} ×`}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      {chosen.length < MAX_RECORD_TAGS ? (
+        <View style={styles.dateRow}>
+          <TextInput
+            testID={testID}
+            editable={!disabled}
+            value={draft}
+            onChangeText={type}
+            onSubmitEditing={commit}
+            submitBehavior="submit"
+            maxLength={MAX_TAG_LENGTH}
+            placeholder={t(locale, 'tagsAdd')}
+            placeholderTextColor={palette.caption}
+            returnKeyType="done"
+            style={[input, styles.flex]}
+          />
+          {draft.trim() ? (
+            <Pressable testID={`${testID}-add`} onPress={commit} style={chip(false)}>
+              <Text style={label}>{t(locale, 'tagsAddButton')}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      {choices.length > 0 ? (
+        <View style={styles.chips}>
+          {choices.map((tag) => (
+            <Pressable
+              key={tag}
+              testID={`${testID}-choice-${tag}`}
+              disabled={disabled}
+              onPress={() => add(tag)}
+              style={chip(false)}>
+              <Text style={label}>{tag}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 /** 时间、日期时间：一个输入框，旁边的「现在」填上当前时间（D-279）。 */
 function withNowChip<F extends Field>(
@@ -540,8 +728,13 @@ function LinkInput({
   disabled?: boolean | undefined;
   testID: string;
 }) {
-  const target = useWorkspace((s) => s.config?.data.tables.find((c) => c.id === field.table));
-  const records = useRecords(field.table);
+  const tables = useWorkspace((s) => s.config?.data.tables);
+  const target = tables?.find((c) => c.id === field.table);
+  const cal = useCalendar();
+  const now = new Date();
+  // 显示和搜索用算好的（查找、汇总）；选的还是原来的记录 ID。
+  const { view, records } = useComputedRecords(tables ?? [], target, cal);
+  const links = useLinkResolver(view);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   if (!target) return null;
@@ -554,9 +747,14 @@ function LinkInput({
         ? ''
         : t(locale, 'linkDeleted')
     : t(locale, 'linkNone');
-  const matches = (records ?? [])
+  // 和列表的搜索同一条规则：这张表的每个字段（创始人 2026-11-04 定）。
+  const found = view
+    ? searchRecords(records ?? [], query, (r) =>
+        recordSearchTexts(r, view, [], locale, links, now, cal),
+      )
+    : [];
+  const matches = found
     .map((r) => ({ r, title: linkTitle(r, target, locale) }))
-    .filter(({ title }) => title.toLowerCase().includes(query.trim().toLowerCase()))
     .sort((a, b) => b.r.updatedAt - a.r.updatedAt)
     .slice(0, LINK_LIST_LIMIT);
   const row = [styles.dateRow, styles.attachment];
@@ -699,7 +897,9 @@ function SuggestionChips({
   const shown = (s: ValueSuggestion) =>
     field.type === 'date'
       ? suggestionDate(s.value, locale)
-      : formatValue(field, numeric ? Number(s.value) : s.value, locale) || s.value;
+      : hasRecordCurrency(field)
+        ? formatNumber(Number(s.value), undefined, locale) // D-429：货币还要用户选，先不写。
+        : formatValue(field, numeric ? Number(s.value) : s.value, locale) || s.value;
   const isCurrent = (s: ValueSuggestion) =>
     !isEmptyValue(current) &&
     (numeric ? Number(current) === Number(s.value) : String(current) === s.value);
@@ -855,11 +1055,12 @@ export function FieldsForm({
               labeled={showLabels || inline}
               onSubmit={onSubmit}
               autoFocus={autoFocus === true && id === firstText}
+              tableId={collection.id}
             />
             {suggestions?.[id]?.length ? (
               <SuggestionChips
                 field={field}
-                list={suggestions[id]!}
+                list={suggestions[id]!.map((s) => suggestionForField(field, s))}
                 current={values[id]}
                 palette={palette}
                 locale={locale}
@@ -934,35 +1135,185 @@ export function rowToolOf(
 
 export type Tone = ComponentStyle['tone'];
 
+/**
+ * 列表现在选出什么（创始人 2026-11-04 定）：用户临时的搜索、排序、分组、筛选都在这里，只在页面画着的时候有，
+ * 什么都不写（底线 15）。状态放在块自己（RecordList），或者页面要把它们画在固定区、把记录交给浮动按钮时放在页面（PageView）。
+ */
+export interface BrowseSelection {
+  block: RecordBlock;
+  /** 搜索框和这几排画在页面的固定区，列表自己不画。 */
+  pinned: boolean;
+  collection: Collection | undefined;
+  view: Collection | undefined;
+  loaded: boolean;
+  /** 筛选、排好序，还没有用户的搜索和筛选。 */
+  sorted: DataRecord[];
+  /** 用户的搜索和筛选之后的全部，没有截到一页。 */
+  found: DataRecord[];
+  searching: boolean;
+  narrowed: boolean;
+  /** 显示几条：有 browse 时每滚到底多一页，换了搜索、筛选、排序回到第一页；没有 browse 时是 limit。 */
+  limit: number;
+  group: RecordBlock['source']['group'];
+  query: string;
+  setQuery: (text: string) => void;
+  sortBy: string | null;
+  setSortBy: (field: string) => void;
+  setGroup: (field: string | null) => void;
+  filterRows: BrowseFilterRow[];
+  picked: { field: string; value: string } | null;
+  setPicked: (picked: { field: string; value: string } | null) => void;
+}
+
+export function useBrowseSelection(block: RecordBlock, env: RenderEnv): BrowseSelection {
+  const { locale } = env;
+  const browse = block.show.browse;
+  const [query, setQueryState] = useState('');
+  const [sortBy, setSortByState] = useState<string | null>(null);
+  // undefined = 配置里的分组；null = 用户选了不分组。
+  const [pickedGroup, setPickedGroup] = useState<string | null | undefined>(undefined);
+  const [pickedValue, setPickedValue] = useState<{ field: string; value: string } | null>(null);
+  // 换了搜索、筛选、排序时从第一页看起：记下那时页面滚到底过几次。
+  const [from, setFrom] = useState(0);
+  const pageEnd = env.pageEnd ?? 0;
+  const { collection, view, loaded, sorted } = useListRecords(
+    block,
+    env,
+    sortBy === null ? undefined : browseSort(sortBy, env.config.data.tables, block.source.table),
+  );
+  const links = useLinkResolver(view);
+  const cal = calendarOf(env.config);
+  const filterRows =
+    view && browse?.filter ? browseFilterRows(sorted, view, browse.filter, locale) : [];
+  // 选的那个值已经没有记录用了（刚把它改掉）：回到全部。
+  const picked =
+    pickedValue &&
+    filterRows.some(
+      (row) =>
+        row.field === pickedValue.field &&
+        row.values.some((v) => tagKey(v.value) === tagKey(pickedValue.value)),
+    )
+      ? pickedValue
+      : null;
+  const filtered = picked && view ? browseFilter(sorted, view, picked) : sorted;
+  const searching = browse?.search === true && query.trim() !== '';
+  const now = new Date();
+  const { show } = block;
+  const shownRefs = [
+    show.title,
+    ...(show.subtitles ?? []),
+    ...(show.trailing ? [show.trailing] : []),
+  ];
+  const found =
+    searching && view
+      ? searchRecords(filtered, query, (r) =>
+          recordSearchTexts(r, view, shownRefs, locale, links, now, cal),
+        )
+      : filtered;
+  const pages = browse ? 1 + Math.max(0, pageEnd - from) : 1;
+  const back = () => setFrom(pageEnd);
+  return {
+    block,
+    pinned: false,
+    collection,
+    view,
+    loaded,
+    sorted,
+    found,
+    searching,
+    narrowed: searching || picked !== null,
+    limit: block.source.limit * pages,
+    group:
+      pickedGroup === undefined
+        ? block.source.group
+        : pickedGroup === null
+          ? undefined
+          : { by: pickedGroup },
+    query,
+    setQuery: (text) => {
+      setQueryState(text);
+      back();
+    },
+    sortBy,
+    setSortBy: (field) => {
+      setSortByState(field);
+      back();
+    },
+    setGroup: (field) => {
+      setPickedGroup(field);
+      back();
+    },
+    filterRows,
+    picked,
+    setPicked: (next) => {
+      setPickedValue(next);
+      back();
+    },
+  };
+}
+
 /** 记录列表的 list / cards / checklist；月历（D-305）读法不同，是 MonthCalendar（registry 按 display 选）。 */
-export function RecordList({
-  block,
-  env,
-  tone,
-}: {
+export function RecordList(props: {
   block: RecordBlock;
   env: RenderEnv;
   tone?: Tone;
+  /** 列表上方的按钮（D-428，ListTools）：拿到这个列表现在选出的全部记录（没有截到 limit）。 */
+  tools?: (collection: Collection, records: readonly DataRecord[], searching: boolean) => ReactNode;
 }) {
+  const hosted = props.env.pageBrowse;
+  return hosted?.block.id === props.block.id ? (
+    <RecordListBody {...props} selection={hosted} />
+  ) : (
+    <OwnRecordList {...props} />
+  );
+}
+
+function OwnRecordList(props: Parameters<typeof RecordList>[0]) {
+  const selection = useBrowseSelection(props.block, props.env);
+  return <RecordListBody {...props} selection={selection} />;
+}
+
+function RecordListBody({
+  block,
+  env,
+  tone,
+  tools,
+  selection,
+}: Parameters<typeof RecordList>[0] & { selection: BrowseSelection }) {
   const { palette, locale } = env;
   // 分段标题和列表下面的「添加」压在页面背景上，卡片里的行用 palette（D-409）。
   const page = onPage(palette);
   const router = useRouter();
-  const { collection, view, loaded, sorted } = useListRecords(block, env);
+  const browse = block.show.browse;
+  const { collection, view, loaded, found, narrowed, limit, group } = selection;
   const rows = useRecordRows(block, env, tone, collection, view);
-  const group = block.source.group;
   const linked = useLinkedGroups(env, view, group?.by);
   const addHere = addHereOf(block) !== undefined;
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   if (!collection || !view || !rows) return null;
+  const above = tools?.(collection, found, narrowed);
+  const bar = browse && !selection.pinned && <ListBrowseBar selection={selection} env={env} />;
   const add = (preset?: Record<string, unknown>) =>
     env.interactive
       ? (env.locked ?? (() => openAddHere(router, collection, view, block.source, preset)))
       : undefined;
+  if (narrowed && found.length === 0)
+    return (
+      <View style={{ gap: palette.gap - 4 }}>
+        {bar}
+        <Card palette={palette} background={rows.background}>
+          <Text
+            testID="browse-no-match"
+            style={[palette.font('body', 14), { color: palette.caption }]}>
+            {t(locale, 'browseNoMatch')}
+          </Text>
+        </Card>
+      </View>
+    );
   // D-347：分段。引用字段要等被引用的表读出来（linked 是 null 时还在读）。
   const groupBy = group?.by;
   if (group && groupBy && linked !== null) {
-    const groups = listGroups(sorted, view, group, {
+    const groups = listGroups(found, view, group, {
       locale,
       now: new Date(),
       cal: calendarOf(env.config),
@@ -970,10 +1321,25 @@ export function RecordList({
     });
     if (loaded && groups.length === 0)
       return <Empty block={block} env={env} rows={rows} addHere={addHere} />;
+    // 能往下加载的列表：一页是整个列表的条数，从第一段往下数，滚到底再接着往下（段里不会跳）。
+    // 没有 browse 的：limit 是每段最多几条。收起的段不占条数。
+    const sections: { g: (typeof groups)[number]; closed: boolean; shown: DataRecord[] }[] = [];
+    for (const g of groups) {
+      const closed = collapsed.has(g.key);
+      const used = sections.reduce((n, x) => n + x.shown.length, 0);
+      if (browse && used >= limit) break;
+      const take = browse ? limit - used : limit;
+      sections.push({ g, closed, shown: closed ? [] : g.records.slice(0, take) });
+    }
+    const shownCount = sections.reduce(
+      (n, { g, closed, shown }) => n + (closed ? g.records.length : shown.length),
+      0,
+    );
     return (
       <View style={{ gap: palette.gap - 4 }}>
-        {groups.map((g) => {
-          const closed = collapsed.has(g.key);
+        {bar}
+        {above}
+        {sections.map(({ g, closed, shown }) => {
           const toggle = () =>
             setCollapsed((s) => {
               const next = new Set(s);
@@ -1016,25 +1382,171 @@ export function RecordList({
                   </Pressable>
                 ) : null}
               </View>
-              {closed || g.records.length === 0
-                ? null
-                : rows.list(g.records.slice(0, block.source.limit))}
+              {shown.length === 0 ? null : rows.list(shown)}
             </View>
           );
         })}
+        {browse ? (
+          <BrowseMore shown={shownCount} total={found.length} searching={narrowed} env={env} />
+        ) : null}
       </View>
     );
   }
-  const shown = sorted.slice(0, block.source.limit);
+  const shown = found.slice(0, limit);
   if (loaded && shown.length === 0)
     return <Empty block={block} env={env} rows={rows} addHere={addHere} add={add()} />;
-  return addHere ? (
+  const list = addHere ? (
     <View style={{ gap: 6 }}>
       {rows.list(shown)}
       <AddHere label={t(locale, 'entryFormAdd')} onPress={add()} palette={page} />
     </View>
   ) : (
     rows.list(shown)
+  );
+  return bar || browse || above ? (
+    <View style={{ gap: palette.gap - 4 }}>
+      {bar}
+      {above}
+      {list}
+      {browse ? (
+        <BrowseMore shown={shown.length} total={found.length} searching={narrowed} env={env} />
+      ) : null}
+    </View>
+  ) : (
+    list
+  );
+}
+
+/** 列表显示不下全部时说一句：往下滚动还有（有 browse 时 limit 是一页）。 */
+function BrowseMore({
+  shown,
+  total,
+  searching,
+  env,
+}: {
+  shown: number;
+  total: number;
+  searching: boolean;
+  env: RenderEnv;
+}) {
+  if (shown >= total) return null;
+  const page = onPage(env.palette);
+  return (
+    <Text testID="browse-more" style={[page.font('body', 13), { color: page.caption }]}>
+      {t(env.locale, searching ? 'browseShowingMatches' : 'browseShowing', { shown, total })}
+    </Text>
+  );
+}
+
+/** 搜索框和可选的排序、分组、筛选（D-424）。只改这个列表画什么；一条记录都没有时不画。 */
+export function ListBrowseBar({ selection, env }: { selection: BrowseSelection; env: RenderEnv }) {
+  const { locale, interactive } = env;
+  const page = onPage(env.palette);
+  const { block, view, query, sortBy, group, filterRows, picked } = selection;
+  const browse = block.show.browse;
+  if (!browse || !view || selection.sorted.length === 0) return null;
+  const name = (id: string) =>
+    id === 'createdAt'
+      ? t(locale, 'browseCreatedAt')
+      : id === 'updatedAt'
+        ? t(locale, 'browseUpdatedAt')
+        : (view.fields.find((f) => f.id === id)?.name ?? id);
+  const chip = (id: string, label: string, on: boolean, press: () => void) => (
+    <Pressable
+      key={id}
+      testID={`browse-${id}`}
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      disabled={!interactive}
+      onPress={press}
+      onLongPress={env.onLongPress}
+      style={[
+        styles.browseChip,
+        {
+          borderColor: on ? page.primary : page.border,
+          backgroundColor: on ? page.primaryTint : 'transparent',
+        },
+      ]}>
+      <Text style={[page.font('bodyMedium', 13), { color: on ? page.primaryText : page.muted }]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+  const row = (title: string, chips: ReactNode) => (
+    <View style={styles.browseRow}>
+      <Text style={[page.font('bodyMedium', 13), { color: page.caption }]}>{title}</Text>
+      {chips}
+    </View>
+  );
+  const sorted = sortBy ?? block.source.sort?.field ?? null;
+  const groupBy = group?.by ?? null;
+  return (
+    <View style={{ gap: 8 }}>
+      {browse.search ? (
+        <TextInput
+          testID="browse-search"
+          editable={interactive}
+          value={query}
+          onChangeText={selection.setQuery}
+          placeholder={t(locale, 'browseSearch')}
+          placeholderTextColor={page.caption}
+          autoCorrect={false}
+          returnKeyType="search"
+          style={[
+            styles.input,
+            page.font('body', 15),
+            {
+              color: page.text,
+              borderColor: page.border,
+              backgroundColor: page.surface,
+              borderRadius: page.controlRadius,
+            },
+          ]}
+        />
+      ) : null}
+      {browse.sort
+        ? row(
+            t(locale, 'browseSort'),
+            browse.sort.map((id) =>
+              chip(`sort-${id}`, name(id), sorted === id, () => selection.setSortBy(id)),
+            ),
+          )
+        : null}
+      {browse.group
+        ? row(t(locale, 'browseGroup'), [
+            chip('group-none', t(locale, 'browseGroupNone'), groupBy === null, () =>
+              selection.setGroup(null),
+            ),
+            ...browse.group.map((id) =>
+              chip(`group-${id}`, name(id), groupBy === id, () => selection.setGroup(id)),
+            ),
+          ])
+        : null}
+      {filterRows.map((r) => (
+        // 值可能很多：横着滑，不占页面的高度。
+        <ScrollView
+          key={r.field}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.browseFilter}>
+          {chip(
+            `filter-${r.field}-all`,
+            t(locale, 'browseFilterAll'),
+            picked?.field !== r.field,
+            () => selection.setPicked(null),
+          )}
+          {r.values.map((v) =>
+            chip(
+              `filter-${r.field}-${v.value}`,
+              v.label,
+              picked?.field === r.field && tagKey(picked.value) === tagKey(v.value),
+              () => selection.setPicked({ field: r.field, value: v.value }),
+            ),
+          )}
+        </ScrollView>
+      ))}
+    </View>
   );
 }
 
@@ -1103,7 +1615,12 @@ export function openAddHere(
 }
 
 /** 记录列表要显示的记录：筛选、排好序，还没截到 limit 条（看板按栏截，D-313）。 */
-export function useListRecords(block: RecordBlock, env: RenderEnv) {
+export function useListRecords(
+  block: RecordBlock,
+  env: RenderEnv,
+  /** 用户临时换的排序（D-424）；不写用配置里的。 */
+  sort?: RecordBlock['source']['sort'],
+) {
   const collection = useCollection(env, block.source.table);
   const cal = calendarOf(env.config);
   // 查找、汇总、上一条（D-291）：显示、筛选、排序用算好的记录和 view；改记录用原来的表。
@@ -1113,7 +1630,7 @@ export function useListRecords(block: RecordBlock, env: RenderEnv) {
     ? sortRecords(
         filterRecords(records ?? [], view, block.source.filter, now, cal),
         view,
-        block.source.sort,
+        sort ?? block.source.sort,
         now,
         cal,
       )
@@ -1310,7 +1827,8 @@ export function Trailing({
     const cal = calendarOf(env.config);
     const progress = recordProgress(record, view, show.trailing!, format.goal, now, cal);
     if (progress) {
-      const field = view.fields.find((f) => f.id === show.trailing);
+      const found = view.fields.find((f) => f.id === show.trailing);
+      const field = found && fieldForRecord(found, record.values, view);
       const label = t(locale, 'progressOfGoal', {
         value: amountText(progress.value, field, locale),
         goal: amountText(progress.goal, field, locale),
@@ -1335,7 +1853,17 @@ export function Trailing({
       );
     }
   }
-  return text ? <Text style={style}>{text}</Text> : null;
+  // 标签可能很长：一行，不挤标题。
+  const tagged = view.fields.some((f) => f.id === show.trailing && f.type === 'tags');
+  return text ? (
+    <Text
+      numberOfLines={tagged ? 1 : undefined}
+      style={
+        tagged ? [palette.font('body', 13), styles.trailingTags, { color: palette.muted }] : style
+      }>
+      {text}
+    </Text>
+  ) : null;
 }
 
 /** 表单的提交工具：{as: "submit", do: "create", table, ask: [字段], values?, smartDate?}。 */
@@ -1362,6 +1890,7 @@ export function RecordForm({
   const submitLabel = submitTool?.label ?? t(locale, 'entryFormAdd');
   const collection = useCollection(env, submitTool?.table ?? '');
   const actions = useRecordActions();
+  const mayProceed = useSimilarCheck();
   const [values, setValues] = useState<FormValues>({});
   const [issues, setIssues] = useState<FieldIssue[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -1392,7 +1921,9 @@ export function RecordForm({
             [smart.to]: found.input,
           }
         : {};
-    const result = await actions.add(collection, { ...preset, ...values, ...recognised });
+    const input = { ...preset, ...values, ...recognised };
+    if (!(await mayProceed(collection, input))) return;
+    const result = await actions.add(collection, input);
     if (result.ok) {
       setValues({});
       setIssues([]);
@@ -1502,9 +2033,7 @@ export function RecordForm({
         <UiIcon name="add" size={28} color={palette.onPrimary} />
       </Pressable>
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
-        <KeyboardAvoidingView
-          style={styles.sheetRoot}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={styles.sheetRoot} behavior="padding">
           <Pressable
             testID={`form-${componentId}-backdrop`}
             accessibilityRole="button"
@@ -1595,6 +2124,9 @@ export function Stat({
       : value;
   const text = (v: { value: number | null }) =>
     statText(v.value, aggregate, field, env.locale, src.days?.unit);
+  // 每笔自己选货币（D-429）：按货币分开显示，不把不同货币加在一起。
+  const listText = (list: DataRecord[]) =>
+    perCurrencyText(list, collection, aggregate, src.field, env.locale);
   const bestText = (v: { best?: number }) =>
     v.best === undefined
       ? null
@@ -1675,7 +2207,7 @@ export function Stat({
                 <Text
                   testID={`stat-group-${src.table}-${g.optionId ?? 'none'}`}
                   style={[palette.font('title', 16), { color: palette.text }]}>
-                  {goalProgress(v)?.label ?? text(v)}
+                  {goalProgress(v)?.label ?? listText(g.records) ?? text(v)}
                 </Text>
                 {best ? (
                   <Text style={[palette.font('body', 12), { color: palette.muted }]}>{best}</Text>
@@ -1712,7 +2244,7 @@ export function Stat({
         <Text
           testID={`stat-value-${src.table}-${label}`}
           style={[styles.flex, palette.font('display', 26), { color: palette.text }]}>
-          {progress ? progress.label : text(v)}
+          {progress ? progress.label : (listText(matched) ?? text(v))}
         </Text>
         {progress ? (
           <View style={styles.statRing}>
@@ -1747,6 +2279,16 @@ const styles = StyleSheet.create({
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   smartDate: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
   groupHeader: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
+  browseRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  browseFilter: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  trailingTags: { maxWidth: '40%' },
+  browseChip: {
+    minHeight: 32,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
   fab: {
     width: 60,
     height: 60,

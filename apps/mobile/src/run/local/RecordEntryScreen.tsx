@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useSimilarCheck } from '../../data/similar-records';
 import { t } from '../../i18n';
 import { toFormValues } from '../../renderer/data';
 import { SuggestedFields } from '../../renderer/SuggestedFields';
@@ -39,13 +40,15 @@ export function RecordEntryScreen({
     return { ...base, ...prefill };
   });
   const [issues, setIssues] = useState<FieldIssue[]>([]);
-  function done() {
+  const mayProceed = useSimilarCheck();
+  async function done() {
     const prepared = prepareRecordValues(collection, values, null, new Date(), cal);
     if (!prepared.ok) {
       setIssues(prepared.issues);
       return;
     }
-    onDone({ values });
+    // D-426：这张表里有看起来一样的记录时问一句；同一次运行刚存的也算（out.addRecord 存完才开下一张表单）。
+    if (await mayProceed(collection, values)) onDone({ values });
   }
 
   const isImage = file?.mimeType.startsWith('image/') && file.ext !== 'heic';
@@ -56,7 +59,7 @@ export function RecordEntryScreen({
       cancelLabel={t(locale, 'cancel')}
       doneLabel={t(locale, 'RecordEntryScreen_Save_0e67b')}
       onCancel={onCancel}
-      onDone={done}
+      onDone={() => void done()}
       avoidKeyboard>
       <ScrollView
         contentContainerStyle={styles.list}

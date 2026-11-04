@@ -560,6 +560,27 @@ export const expoFilePlatform: FilePlatform = {
     return pixelsOf(await new File(uri).bytes(), maxSide);
   },
 
+  async reducedJpeg(uri, maxSide, quality, runId, relPath) {
+    let image = await ImageManipulator.manipulate(uri, {
+      maxWidth: maxSide,
+      maxHeight: maxSide,
+    }).renderAsync();
+    if (Math.max(image.width, image.height) > maxSide) {
+      image = await ImageManipulator.manipulate(image)
+        .resize(image.width >= image.height ? { width: maxSide } : { height: maxSide })
+        .renderAsync();
+    }
+    const saved = await image.saveAsync({ compress: quality, format: SaveFormat.JPEG });
+    const dest = runFile(runId, relPath);
+    await new File(saved.uri).move(dest);
+    return {
+      uri: dest.uri,
+      width: saved.width,
+      height: saved.height,
+      size: new File(dest.uri).size,
+    };
+  },
+
   async htmlToPdf(html, page, runId, relPath) {
     // iOS 的打印排版不认 CSS 的 @page 边距，要在这里给（单位是点）。
     const printed = await printToFileAsync({

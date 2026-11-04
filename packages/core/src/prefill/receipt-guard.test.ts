@@ -22,7 +22,13 @@ async function run(rows: string[], opts: { currency?: string; locale?: Locale } 
     height: 40 + rows.length * 30,
     lines: rows.map((text, i) => ({ text, x: 20, y: 20 + i * 30, width: 500, height: 24 })),
   };
-  const out = await ruleEngine({ fields, pages: [page], locale: opts.locale ?? 'en', now: NOW });
+  const out = await ruleEngine({
+    rules: 'receipt',
+    fields,
+    pages: [page],
+    locale: opts.locale ?? 'en',
+    now: NOW,
+  });
   const values = (id: string) => (out[id] ?? []).map((s) => s.value);
   return {
     total: values('total'),

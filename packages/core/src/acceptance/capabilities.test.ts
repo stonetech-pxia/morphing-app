@@ -211,12 +211,18 @@ function everything() {
         lastDone: 'date',
         countEarly: true,
       },
+      { id: 'labels', name: 'labels', type: 'tags' },
     ]),
     {
       op: 'updateData',
       table: 'items',
-      changes: { readAttachments: true },
+      changes: {
+        readAttachments: true,
+        prefillRules: 'receipt',
+        recordRow: [{ tool: 'record-vcard' }],
+      },
     },
+    addField('items', { id: 'contact', name: 'contact', type: 'text', format: 'phone' }),
     addField('groups', {
       id: 'all',
       name: 'all',
@@ -226,6 +232,41 @@ function everything() {
       aggregate: 'latest',
     }),
     addTool(scanInto('scan-item', 'items')),
+    addTool(
+      quickAction('vcard-items', [
+        ['in.records', { collectionId: 'items', period: 'all' }],
+        ['records.toVCard', {}],
+        ['out.share', {}],
+      ]),
+    ),
+    addTool(
+      quickAction('export-shown-items', [
+        ['records.toVCard', {}],
+        ['out.share', {}],
+      ]),
+    ),
+    addTool(
+      quickAction('excel-items', [
+        ['in.records', { collectionId: 'items', period: 'all' }],
+        ['records.toExcel', {}],
+        ['out.share', {}],
+      ]),
+    ),
+    addTool(
+      quickAction('print-items-attached', [
+        ['in.records', { collectionId: 'items', period: 'all' }],
+        [
+          'print.records',
+          {
+            template: 'table',
+            title: 'Items',
+            fields: ['title'],
+            pageSize: 'a4',
+            attachments: true,
+          },
+        ],
+      ]),
+    ),
     addTool(
       quickAction('print-items', [
         ['in.records', { collectionId: 'items', period: 'thisMonth' }],
@@ -274,6 +315,29 @@ function everything() {
           { as: 'addHere', do: 'create', table: 'items', ask: 'all', values: '$here' },
           { as: 'button', label: 'Open', opens: 'record' },
         ],
+      }),
+      {
+        id: 'one',
+        look: 'single',
+        source: { table: 'items' },
+        show: { fields: ['title'], qr: true },
+        showIf: { table: 'items', has: 'some' },
+        tools: [{ tool: 'record-qr' }],
+      },
+      {
+        id: 'dial',
+        look: 'dial',
+        pin: 'bottom',
+        tools: [{ do: 'create', table: 'items', ask: 'all', label: 'Add' }],
+      },
+      {
+        id: 'none-yet',
+        look: 'divider',
+        showIf: { table: 'items', has: 'none' },
+      },
+      records('list', 'browsed', 'items', 'title', {
+        show: { browse: { search: true, sort: ['title', 'createdAt'], group: ['status'] } },
+        tools: [{ as: 'list', tool: 'export-shown-items' }],
       }),
       records('list', 'by-group-list', 'groups', 'name', {
         opens: 'item',

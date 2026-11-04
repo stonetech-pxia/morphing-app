@@ -53,6 +53,15 @@ const expenses: Collection = {
   ],
 };
 
+const contacts: Collection = {
+  id: 'contacts',
+  name: '联系人',
+  fields: [
+    { id: 'name', name: '姓名', type: 'text' },
+    { id: 'tel', name: '电话', type: 'text', format: 'phone' },
+  ],
+};
+
 let ids = 0;
 function setup(
   workflow: Workflow,
@@ -82,7 +91,7 @@ function setup(
         now: () => new Date(2026, 9, 22),
         newId: () => `id${++ids}`,
         ui,
-        collections: [expenses],
+        collections: [expenses, contacts],
         askParams: async (request) => ({ ...request.params, ...answers }),
       })
     ).result;
@@ -376,6 +385,42 @@ describe('QR codes and text', () => {
     );
     const [file] = items(await txt.run());
     expect(new TextDecoder().decode(txt.files.disk.get(file!.uri))).toBe('hello 你好');
+  });
+});
+
+describe('records to vCard', () => {
+  const chain = () =>
+    mine([
+      { id: 'read', action: 'in.records', params: { collectionId: 'contacts', period: 'all' } },
+      { id: 'vcard', action: 'records.toVCard', params: {} },
+    ]);
+
+  it('makes one .vcf with every record, in UTF-8', async () => {
+    const { files, repo, run } = setup(chain());
+    const add = (id: string, values: Record<string, unknown>) =>
+      repo.insertRecord({ id, collectionId: 'contacts', values, createdAt: 1, updatedAt: 1 });
+    await add('a', { name: '张三', tel: '138 0000 0000' });
+    await add('b', { name: 'Doe, John' });
+    await add('c', {});
+    const [file] = items(await run());
+    expect(file).toMatchObject({ name: '联系人', ext: 'vcf', mimeType: 'text/vcard' });
+    const text = new TextDecoder().decode(files.disk.get(file!.uri));
+    expect(text.match(/BEGIN:VCARD/g)).toHaveLength(2);
+    expect(text).toContain('FN:张三');
+    expect(text).toContain('TEL:138 0000 0000');
+    expect(text).toContain('FN:Doe\\, John');
+  });
+
+  it('says so when no record has anything for a card', async () => {
+    const { repo, run } = setup(chain());
+    await repo.insertRecord({
+      id: 'a',
+      collectionId: 'contacts',
+      values: {},
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    expect(await run()).toMatchObject({ status: 'failed', error: { code: 'noRecords' } });
   });
 });
 

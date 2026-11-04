@@ -1,6 +1,7 @@
 import {
   allComponents,
   HOME_PAGE_ID,
+  handedInput,
   isKnownComponent,
   localize,
   type Workflow,
@@ -39,6 +40,7 @@ export function ReadyScreen({ workflow, notes = [] }: { workflow: Workflow; note
           c.tools.some((u) => 'tool' in u && u.tool === workflow.id),
       ),
   );
+  const needsContainer = handedInput(workflow.steps, registry) !== null;
   const body = [palette.font('body', 15), { color: palette.text }];
 
   return (
@@ -79,14 +81,17 @@ export function ReadyScreen({ workflow, notes = [] }: { workflow: Workflow; note
         </Text>
       </Card>
       <HomeScreenCard workflow={workflow} palette={palette} />
-      <Button
-        palette={palette}
-        testID="ready-run"
-        label={t(locale, 'readyRunNow')}
-        onPress={() =>
-          router.replace({ pathname: '/run/[workflowId]', params: { workflowId: workflow.id } })
-        }
-      />
+      {/* 要容器交值的（D-428）从这里跑不了：它们在记录页和列表上点。 */}
+      {needsContainer ? null : (
+        <Button
+          palette={palette}
+          testID="ready-run"
+          label={t(locale, 'readyRunNow')}
+          onPress={() =>
+            router.replace({ pathname: '/run/[workflowId]', params: { workflowId: workflow.id } })
+          }
+        />
+      )}
       <NextCard palette={palette} />
       <Button
         palette={palette}

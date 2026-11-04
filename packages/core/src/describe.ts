@@ -617,6 +617,20 @@ export function describeChange(
                 { name: collName(table) },
               ),
             );
+          if (changes.recordRow !== undefined)
+            lines.push(t(ctx.locale, 'describeRecordRow', { name: collName(table) }));
+          if (changes.prefillRules !== undefined)
+            lines.push(
+              t(
+                ctx.locale,
+                changes.prefillRules === 'receipt'
+                  ? 'describePrefillRulesReceipt'
+                  : changes.prefillRules === 'card'
+                    ? 'describePrefillRulesCard'
+                    : 'describePrefillRulesGeneral',
+                { name: collName(table) },
+              ),
+            );
           break;
         }
         const name = fieldName(table, op.field);
@@ -629,6 +643,19 @@ export function describeChange(
           const labels = (changes.options as { label?: unknown }[]).map((o) => String(o.label));
           parts.push(t(ctx.locale, 'describe_options_64e79', { v0: list(labels) }));
         }
+        if (changes.format !== undefined)
+          parts.push(
+            t(
+              ctx.locale,
+              changes.format === 'phone'
+                ? 'describeFieldFormatPhone'
+                : changes.format === 'email'
+                  ? 'describeFieldFormatEmail'
+                  : changes.format === 'url'
+                    ? 'describeFieldFormatUrl'
+                    : 'describeFieldFormatNone',
+            ),
+          );
         if (parts.length === 0) parts.push(t(ctx.locale, 'describe_update_settings_2aaf6'));
         lines.push(
           t(ctx.locale, 'describeFieldChange', {
@@ -755,6 +782,28 @@ export function describeChange(
             t(ctx.locale, changes.hidden ? 'describeHideComponent' : 'describeShowComponent', {
               component: label,
             }),
+          );
+        if (changes.showIf !== undefined)
+          lines.push(
+            changes.showIf === null
+              ? t(ctx.locale, 'describeShowIfOff', { component: label })
+              : t(
+                  ctx.locale,
+                  changes.showIf.has === 'some' ? 'describeShowIfSome' : 'describeShowIfNone',
+                  { component: label, table: collName(changes.showIf.table) },
+                ),
+          );
+        if (changes.pin !== undefined)
+          lines.push(
+            t(
+              ctx.locale,
+              changes.pin === null
+                ? 'describePinOff'
+                : changes.pin === 'top'
+                  ? 'describePinTop'
+                  : 'describePinBottom',
+              { component: label },
+            ),
           );
         if (changes.style) {
           const current = findComp(pageId, op.block);
@@ -1022,6 +1071,8 @@ export function describeChange(
           v1: collName(note.table),
         }),
       );
+    } else if (note.kind === 'clearedBlockRefs') {
+      lines.push(t(ctx.locale, 'describeClearedBlockRefs', { n: note.count }));
     } else if (note.kind === 'removedRecordPages') {
       lines.push(
         t(ctx.locale, 'describeRemovedRecordPages', {

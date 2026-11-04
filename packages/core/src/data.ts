@@ -4,6 +4,7 @@ import {
   round,
   type FieldValue,
   type LinkResolver,
+  formatMoney,
 } from './field-values';
 import {
   DEFAULT_CALENDAR,
@@ -15,6 +16,7 @@ import {
   type Calendar,
 } from './calendar';
 import { t } from './messages';
+import { fieldForRecord, recordCurrency } from './money-currency';
 import {
   scheduleDue,
   scheduleStatus,
@@ -492,6 +494,40 @@ export function aggregateRecords(
   }
 }
 
+/**
+ * 每一笔单独选货币的金额（D-429）：合计、平均这些按货币分开算，写成「$100.00 · €50.00」，不换算。
+ * 别的字段、别的聚合、一笔金额都没有时 null（照常显示）。
+ */
+export function perCurrencyText(
+  records: readonly DataRecord[],
+  collection: Collection,
+  aggregate: string,
+  fieldId: string | undefined,
+  locale: Locale,
+): string | null {
+  const field = fieldId === undefined ? undefined : collection.fields.find((f) => f.id === fieldId);
+  if (field?.type !== 'money' || field.currencyField === undefined) return null;
+  if (aggregate !== 'sum' && aggregate !== 'avg' && aggregate !== 'min' && aggregate !== 'max')
+    return null;
+  const byCode = new Map<string, DataRecord[]>();
+  for (const r of records) {
+    if (typeof recordValue(r, collection, field.id) !== 'number') continue;
+    const code = recordCurrency(field, r.values, collection);
+    byCode.set(code, [...(byCode.get(code) ?? []), r]);
+  }
+  if (byCode.size === 0) return null;
+  return [...byCode.keys()]
+    .sort()
+    .map((code) =>
+      formatMoney(
+        aggregateRecords(byCode.get(code)!, collection, aggregate, field.id) ?? 0,
+        code,
+        locale,
+      ),
+    )
+    .join(' · ');
+}
+
 export interface StatGroup {
   /** 选项 ID；null 是没选的记录。 */
   optionId: string | null;
@@ -588,7 +624,9 @@ export function linkTitleField(collection: Collection): Field | undefined {
 /** 一条记录作为被引用的一方时显示的标题（没有可显示的字段时用创建时间）。 */
 export function linkTitle(record: DataRecord, collection: Collection, locale: Locale): string {
   const field = linkTitleField(collection);
-  const title = field ? formatValue(field, record.values[field.id], locale) : '';
+  const title = field
+    ? formatValue(fieldForRecord(field, record.values, collection), record.values[field.id], locale)
+    : '';
   return title || formatTimestamp(record.createdAt, locale);
 }
 
@@ -605,6 +643,25 @@ export function untitledRecordTitle(
 ): string {
   const day = dayNumber(dayOf(new Date(record.createdAt), cal))!;
   return `${collection.name} · ${shortDate(day, todayNumber(now, cal), locale)}`;
+}
+
+/** 一条记录给人看的标题（报表的图注、保存前的提示，D-425、D-426）：填了标题字段就是它，没填时同列表上的写法。 */
+export function recordTitle(
+  record: DataRecord,
+  collection: Collection,
+  locale: Locale,
+  now: Date,
+  cal: Calendar = DEFAULT_CALENDAR,
+): string {
+  const field = linkTitleField(collection);
+  const title = field
+    ? formatValue(
+        fieldForRecord(field, record.values, collection),
+        record.values[field.id],
+        locale,
+      ).trim()
+    : '';
+  return title || untitledRecordTitle(record, collection, locale, now, cal);
 }
 
 /** 按读到的记录（表 ID → 没删的记录）查引用的标题。 */
@@ -681,7 +738,14 @@ export function formatRef(
       ? t(locale, 'scheduleAtTime', { rule: text, time: read.time })
       : text;
   }
-  return field ? formatValue(field, record.values[ref], locale, links) : '';
+  return field
+    ? formatValue(
+        fieldForRecord(field, record.values, collection),
+        record.values[ref],
+        locale,
+        links,
+      )
+    : '';
 }
 
 const csvCell = (s: string) => (/[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);

@@ -2,9 +2,11 @@ import type { Registry } from '../registry';
 import type { Workflow, WorkflowStep } from '../schema';
 import {
   actionAccepts,
+  handedTypeOf,
   isSourceAction,
   outputTypeOf,
   type ActionDefinition,
+  type HandedType,
   type ValueType,
 } from './contract';
 
@@ -15,6 +17,15 @@ export interface StepProblem {
   stepId: string;
   code: 'unknown-action' | 'params' | 'ask' | 'binding' | 'source';
   message: string;
+}
+
+/**
+ * 这个快捷操作要容器交什么（D-428）：第一步不是输入动作、而且收文字或记录时，是那种值；否则 null（自己选输入）。
+ * 这种快捷操作只能从交得出这种值的容器上运行：记录页的按钮、记录块、单条记录块。
+ */
+export function handedInput(steps: readonly WorkflowStep[], registry: Registry): HandedType | null {
+  const first = steps[0] && registry.actions.get(steps[0].action);
+  return first && !isSourceAction(first) ? handedTypeOf(first) : null;
 }
 
 /** 解析参数；失败时返回 null。 */
@@ -34,7 +45,7 @@ export function typesAlong(
   registry: Registry,
 ): (ValueType | null)[] {
   const out: (ValueType | null)[] = [];
-  let current: ValueType | null = null;
+  let current: ValueType | null = handedInput(steps, registry);
   let broken = false;
   for (const [i, step] of steps.entries()) {
     const action = registry.actions.get(step.action);
@@ -105,7 +116,7 @@ export function defaultParams(action: ActionDefinition): Record<string, unknown>
 
 export function workflowProblems(wf: Workflow, registry: Registry): StepProblem[] {
   const problems: StepProblem[] = [];
-  let current: ValueType | null = null;
+  let current: ValueType | null = handedInput(wf.steps, registry);
   let broken = false;
   for (const [i, step] of wf.steps.entries()) {
     const problem = (code: StepProblem['code'], message: string) =>
@@ -133,8 +144,14 @@ export function workflowProblems(wf: Workflow, registry: Registry): StepProblem[
         broken = true;
       }
     } else if (i === 0) {
-      problem('source', `the first step must choose the input (photos or files), not ${action.id}`);
-      broken = true;
+      // 收文字、记录的动作可以不要输入步骤（D-428）：容器点了才交给它。
+      if (current === null) {
+        problem(
+          'source',
+          `the first step must choose the input (photos or files), not ${action.id}`,
+        );
+        broken = true;
+      }
     } else if (!broken && current !== null && !actionAccepts(action, current)) {
       problem(
         'binding',

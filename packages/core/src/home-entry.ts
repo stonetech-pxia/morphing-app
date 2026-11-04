@@ -1,5 +1,6 @@
 import { topIndex, type Op } from './ops';
 import { isToolRefUse } from './record-ops-schema';
+import type { Registry } from './registry';
 import {
   HOME_PAGE_ID,
   allComponents,
@@ -7,6 +8,7 @@ import {
   quickActionsOf,
   type WorkspaceConfig,
 } from './schema';
+import { handedInput } from './workflow/check';
 
 // 首页入口（D-109，易用性排名的方案甲）：AI 新建的快捷操作不再由 AI 顺手放到首页，
 // 而是在预览里单列一项「在首页放一个入口」，用户自己勾选。
@@ -21,13 +23,21 @@ const hasRunner = (config: WorkspaceConfig, id: string) =>
     ),
   );
 
-/** 这次修改新建、但哪个页面上都没有运行它的块（look action）的快捷操作。 */
-export function workflowsWithoutEntry(ops: readonly Op[], after: WorkspaceConfig): string[] {
+/**
+ * 这次修改新建、但哪个页面上都没有运行它的块（look action）的快捷操作。
+ * 要容器交值的（D-428）不算：它们放在记录页和记录块上，首页的块没有值可交。
+ */
+export function workflowsWithoutEntry(
+  ops: readonly Op[],
+  after: WorkspaceConfig,
+  registry: Registry,
+): string[] {
   return ops.flatMap((op) => {
     if (op.op !== 'addTool' || typeof op.tool === 'string' || op.tool.kind !== 'quickAction')
       return [];
     const id = op.tool.id;
-    return quickActionsOf(after).some((w) => w.id === id) && !hasRunner(after, id) ? [id] : [];
+    const wf = quickActionsOf(after).find((w) => w.id === id);
+    return wf && !hasRunner(after, id) && !handedInput(wf.steps, registry) ? [id] : [];
   });
 }
 

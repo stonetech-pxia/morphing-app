@@ -3722,6 +3722,20 @@ const RECORD_EVAL_CASES: readonly EvalCase[] = [
     },
   },
   {
+    id: 'PREFILLRULES1',
+    input: '账目这张表的附件都是收据，按收据来读',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.data.tables.find((t) => t.id === 'expenses')?.prefillRules === 'receipt'
+          ? null
+          : 'expenses should have prefillRules: receipt',
+    },
+  },
+  {
     id: 'RE1',
     input: '新建一个快捷操作：拍照，记到账目',
     locale: 'zh',
@@ -7144,6 +7158,173 @@ const FIX_CASES: EvalCase[] = [
         quickActionSteps(c).some((s) => s.action === 'translate.text' && s.params.to === 'en')
           ? null
           : 'not translated to English',
+    },
+  },
+  // D-423：列表上的搜索和能换的排序、分组；导出成 vCard；只显示一条记录的块。
+  {
+    id: 'CARD1',
+    input: '给记账列表加一个搜索框，还能按分类分组',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const list = c.containers.pages
+          .flatMap((p) => allComponents(p))
+          .find(
+            (x): x is Extract<typeof x, { look: 'list' }> =>
+              isKnownComponent(x) && x.look === 'list' && x.show.browse !== undefined,
+          );
+        if (!list) return 'no list with show.browse';
+        if (!list.show.browse?.search) return 'no search box';
+        return list.show.browse.group?.includes('category') ? null : 'cannot group by category';
+      },
+    },
+  },
+  {
+    id: 'CARD2',
+    input: 'add a quick action that exports all my expenses as a vCard file and shares it',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.records', 'records.toVCard', 'out.share']),
+    },
+  },
+  {
+    id: 'EXPORT1',
+    input: 'add a quick action that exports all my expenses to an Excel file and shares it',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.records', 'records.toExcel', 'out.share']),
+    },
+  },
+  {
+    id: 'EXPORT2',
+    input: '加一个快捷操作：把本月的账目做成 PDF，后面附上每条的收据照片',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: hasWorkflow(['in.records', 'print.records'], (steps) =>
+        param('print.records', 'attachments', true)(steps),
+      ),
+    },
+  },
+  // D-428：容器把值交给工具（规则 54）：记录页的按钮、列表上方的按钮。
+  {
+    id: 'CURRENCY1',
+    input: 'let me pick the currency for each expense',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.data.tables.some((t) =>
+          t.fields.some((f) => f.type === 'money' && f.currencyField !== undefined),
+        )
+          ? null
+          : 'no money field has currencyField',
+    },
+  },
+  {
+    id: 'ZONE1',
+    input:
+      'keep the search box fixed at the top of my expenses list, let me filter by tag, and add a tags field',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const tagged = c.data.tables.some((t) => t.fields.some((f) => f.type === 'tags'));
+        if (!tagged) return 'no tags field';
+        // 标签名不能进配置（底线 14）：筛选只能在 browse.filter 上。
+        return JSON.stringify(c.containers).includes('"filter":["') ? null : 'no browse.filter';
+      },
+    },
+  },
+  {
+    id: 'ZONE2',
+    input:
+      'put a floating button at the bottom right of the expenses page: add an expense, with export behind an arrow',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.containers.pages.some((p) =>
+          p.blocks.some((b) => b.look === 'dial' && b.pin === 'bottom'),
+        )
+          ? null
+          : 'no dial pinned at the bottom',
+    },
+  },
+  {
+    id: 'HAND1',
+    input: 'add a button at the top of each expense entry to share it as a vCard',
+    locale: 'en',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) =>
+        c.data.tables.some((t) =>
+          t.recordRow?.some((i) => {
+            const steps = quickActionsOf(c).find((w) => w.id === i.tool)?.steps;
+            return i.tool === 'record-vcard' || steps?.[0]?.action === 'records.toVCard';
+          }),
+        )
+          ? null
+          : 'no recordRow item shares a vCard',
+    },
+  },
+  {
+    id: 'HAND2',
+    input: '给记账表加一个电话字段，记录页上能一点就打这个电话',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        for (const t of c.data.tables)
+          for (const i of t.recordRow ?? []) {
+            const field = t.fields.find((f) => f.id === i.field);
+            if (i.tool === 'record-call' && field?.type === 'text' && field.format === 'phone')
+              return null;
+          }
+        return 'no recordRow item calls a text field with format phone';
+      },
+    },
+  },
+  {
+    id: 'HAND3',
+    input: '在记账列表上面加一个导出 Excel 的按钮，搜索的时候只导出搜到的',
+    locale: 'zh',
+    setup: 'budget',
+    mock: false,
+    expect: {
+      kind: 'ops',
+      check: (c) => {
+        const tools = c.containers.pages
+          .flatMap((p) => allComponents(p))
+          .flatMap((x) => (isKnownComponent(x) && x.look === 'list' ? (x.tools ?? []) : []));
+        const use = tools.find((u) => u.as === 'list');
+        const id = use && 'tool' in use ? use.tool : null;
+        const first = quickActionsOf(c).find((w) => w.id === id)?.steps[0]?.action;
+        return first === 'records.toExcel'
+          ? null
+          : `the list has no {as: "list"} tool starting with records.toExcel, got ${String(first)}`;
+      },
     },
   },
 ];

@@ -1,5 +1,7 @@
+import type { TextFormat } from '../fields/text';
 import type { Field } from '../schema';
 import { norm } from './similarity';
+import { cardRules } from './doc-context';
 
 // 新记录表单的候选值（D-394）：字段是「什么」的小词典。字段名（中英法任一种）对上一个概念时，
 // 用这个概念三种语言的关键词和排除词给单据上的标签打分（测量里三语同义词和同语言一样好，
@@ -21,6 +23,8 @@ export type ConceptId =
   | 'origin'
   | 'destination'
   | 'title'
+  | 'jobTitle'
+  | 'website'
   | 'purpose'
   | 'category';
 
@@ -549,6 +553,64 @@ export const CONCEPTS: Record<ConceptId, Concept> = {
     exclude: [],
     position: true,
   },
+  jobTitle: {
+    names: [
+      'job title',
+      'position',
+      'role',
+      'job',
+      'occupation',
+      '职位',
+      '职务',
+      '岗位',
+      '职称',
+      '頭銜',
+      '職位',
+      'poste',
+      'fonction',
+      'titre du poste',
+      'cargo',
+      'puesto',
+      'stelle',
+      'posizione',
+    ],
+    keywords: [
+      'job title',
+      'position',
+      'role',
+      '职位',
+      '职务',
+      'poste',
+      'fonction',
+      'cargo',
+      'puesto',
+    ],
+    exclude: [],
+  },
+  website: {
+    names: [
+      'website',
+      'web site',
+      'web',
+      'url',
+      'site',
+      'homepage',
+      'site web',
+      'site internet',
+      '网站',
+      '网址',
+      '網站',
+      '網址',
+      '官网',
+      'sitio web',
+      'pagina web',
+      'página web',
+      'webseite',
+      'sito web',
+    ],
+    keywords: ['website', 'web', 'url', 'site', 'www', '网站', '网址', 'site web', 'sitio web'],
+    exclude: [],
+  },
   purpose: {
     names: ['purpose', 'reason', 'description', '事由', '用途', '摘要', 'motif', 'raison'],
     keywords: [
@@ -612,12 +674,21 @@ for (const [id, c] of Object.entries(CONCEPTS) as [ConceptId, Concept][]) {
   for (const n of c.names) if (!BY_NAME.has(norm(n))) BY_NAME.set(norm(n), id);
 }
 
+/** 认概念要看的字段属性：id、名字，文字字段还有 format（D-422）。 */
+type ConceptField = Pick<Field, 'id' | 'name'> & { format?: TextFormat | undefined };
+
 /** 字段对上的概念；对不上时 null。 */
-export function conceptOf(field: Pick<Field, 'id' | 'name'>): ConceptId | null {
+export function conceptOf(field: ConceptField): ConceptId | null {
+  // 写了 format 就按 format，字段名不算（D-422）；网址只在名片上有规则，别处当普通文字。
+  if (field.format === 'phone' || field.format === 'email') return field.format;
+  if (field.format === 'url') return cardRules() ? 'website' : null;
   const name = norm(field.name);
   const preset = PRESET_NAMES[field.id];
   if (preset?.some((n) => norm(n) === name)) return PRESET_FIELDS[field.id]!;
-  return BY_NAME.get(name) ?? null;
+  const c = BY_NAME.get(name) ?? null;
+  // 职位、网址只在名片上认；别的文档里这些字段名对不上概念。
+  if ((c === 'website' || c === 'jobTitle') && !cardRules()) return null;
+  return c;
 }
 
 export interface FieldTerms {
@@ -627,7 +698,7 @@ export interface FieldTerms {
 }
 
 /** 给标签打分用的词：字段名 + 概念的三语关键词；排除词同样三语。 */
-export function fieldTerms(field: Pick<Field, 'id' | 'name'>): FieldTerms {
+export function fieldTerms(field: ConceptField): FieldTerms {
   const concept = conceptOf(field);
   const c = concept ? CONCEPTS[concept] : null;
   return {

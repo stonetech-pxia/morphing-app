@@ -12,6 +12,7 @@ import {
   type FieldValue,
 } from './data';
 import type { FieldCheckContext } from './fields/define';
+import { hasRecordCurrency } from './money-currency';
 import { dayNumber, parseFormula } from './formula';
 import {
   NUMERIC_FIELD_TYPES,
@@ -460,6 +461,16 @@ export function relatedProblems(
   if (!isComputed(field)) return [];
   const collections = config.data.tables;
   const problems = shapeProblems(collections, collection, field);
+  // D-429：货币跟着每条记录走，算出来的字段带不过来。
+  if (
+    problems.length === 0 &&
+    hasRecordCurrency(
+      expandCollection(collections, collection).fields.find((f) => f.id === field.id),
+    )
+  )
+    problems.push(
+      'the money field it reads has its own currency on each entry, so a lookup, rollup or previous field cannot show it',
+    );
   if (problems.length === 0) {
     const start = { collectionId: collection.id, fieldId: field.id };
     const loop = loopOf(collections, start);

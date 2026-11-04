@@ -6,11 +6,14 @@ import {
   isToolRefUse,
   packageTargetId,
   toolTargetId,
+  type Collection,
   type Component,
   type ComponentOf,
   type ComponentType,
+  type DataRecord,
   type KnownComponent,
   type OpenTarget,
+  type ShowIf,
 } from '@morph/core';
 
 import type { ReactNode } from 'react';
@@ -25,12 +28,15 @@ import {
   type ViewStyle,
 } from 'react-native';
 
+import { useRecords } from '../data/records';
 import { LONG_PRESS_MS } from '../editing/entry';
 import { t } from '../i18n';
 import { FocusItem } from '../editing/FocusItem';
 import { Chart } from './Chart';
 import type { RenderEnv } from './components';
-import { RecordForm, RecordList, Stat } from './data';
+import { RecordForm, RecordList, Stat, type RecordBlock } from './data';
+import { DialButton } from './Dial';
+import { ListTools } from './ListTools';
 import { MonthCalendar } from './MonthCalendar';
 import { Board } from './Board';
 import { Tiles } from './Tiles';
@@ -42,6 +48,7 @@ import { onPicture } from './Backdrop';
 import { QuickActionList } from './QuickActionList';
 import { ActionButton } from './RecordActions';
 import { RichText } from './RichText';
+import { SingleRecord } from './SingleRecord';
 import { SIZES, textColor } from './style';
 import { cardColors, iconColors, onSurface } from './theme';
 import { Tile, ToolCard } from './Tile';
@@ -199,9 +206,9 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
   spacer: (c) => <View style={{ height: { small: 4, medium: 16, large: 32 }[c.show.size] }} />,
   group: (c, env) => <Group component={c} env={env} />,
   // 月历（D-305）只读一个月的记录，大圆块（D-311）和看板（D-313）画法不同，都是单独的组件。
-  list: (c, env) => <RecordList block={c} env={env} tone={c.style?.tone} />,
-  cards: (c, env) => <RecordList block={c} env={env} tone={c.style?.tone} />,
-  checklist: (c, env) => <RecordList block={c} env={env} tone={c.style?.tone} />,
+  list: (c, env) => <ToolList block={c} env={env} />,
+  cards: (c, env) => <ToolList block={c} env={env} />,
+  checklist: (c, env) => <ToolList block={c} env={env} />,
   calendar: (c, env) => (
     <MonthCalendar block={c} env={env} tone={c.style?.tone} componentId={c.id} />
   ),
@@ -225,6 +232,8 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
     ) : null;
   },
   library: (c, env) => <QuickActionList block={c} env={env} />,
+  single: (c, env) => <SingleRecord block={c} env={env} tone={c.style?.tone} />,
+  dial: (c, env) => <DialButton block={c} env={env} />,
 };
 
 /** 打开相册还是打开文件（picker 的 tools[0]）。 */
@@ -248,7 +257,33 @@ const PAGE_LOOKS: ReadonlySet<ComponentType> = new Set<ComponentType>([
   'picker',
   'image',
   'library',
+  'dial',
 ]);
+
+/** 列表、卡片、清单：列表上方的工具（D-428）在 ListTools 里，这样 data.tsx 不依赖运行（记录表单也用 data.tsx）。 */
+function ToolList({ block, env }: { block: RecordBlock; env: RenderEnv }) {
+  const tools = block.tools?.filter((u) => u.as === 'list') ?? [];
+  return (
+    <RecordList
+      block={block}
+      env={env}
+      tone={block.style?.tone}
+      {...(tools.length > 0
+        ? {
+            tools: (collection: Collection, records: readonly DataRecord[], searching: boolean) => (
+              <ListTools
+                tools={tools}
+                collection={collection}
+                records={records}
+                searching={searching}
+                env={env}
+              />
+            ),
+          }
+        : {})}
+    />
+  );
+}
 
 export function ComponentView({ component, env }: { component: Component; env: RenderEnv }) {
   if (!isKnownComponent(component)) return <UnknownComponentView env={env} />;
@@ -345,6 +380,27 @@ export function Item({
   component: Component;
   env: RenderEnv;
   style?: StyleProp<ViewStyle>;
+}) {
+  const showIf = isKnownComponent(component) ? component.showIf : undefined;
+  const item = <ShownItem component={component} env={env} style={style} />;
+  return showIf ? <WhenRecords showIf={showIf}>{item}</WhenRecords> : item;
+}
+
+/** 按一张表有没有记录决定画不画（D-424）。只读；还没读完时不画，不会闪一下。 */
+export function WhenRecords({ showIf, children }: { showIf: ShowIf; children: ReactNode }) {
+  const records = useRecords(showIf.table);
+  if (records === null) return null;
+  return (showIf.has === 'some') === records.length > 0 ? children : null;
+}
+
+function ShownItem({
+  component,
+  env,
+  style,
+}: {
+  component: Component;
+  env: RenderEnv;
+  style?: StyleProp<ViewStyle> | undefined;
 }) {
   // D-342：只在画的时候换 "$record"，编辑和长按面板仍用配置里原来的组件。
   const shown = env.recordId ? bindRecord(component, env.recordId) : component;

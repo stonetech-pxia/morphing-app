@@ -54,6 +54,8 @@ export interface RunContext {
   onEvent?: (event: RunEvent) => void;
   /** 分享进来的文件（D-115）：交给第一步，第一步不再打开选择器，也不问参数。 */
   incoming?: readonly PickedFile[] | null;
+  /** 容器交的值（D-428）：记录页的这一条、这个字段的值、列表选出的记录。点了按钮才有。 */
+  handed?: RunValue | null;
 }
 
 export interface Run {
@@ -310,6 +312,7 @@ export async function startRun(ctx: RunContext): Promise<Run> {
     locale: ctx.locale,
     now: ctx.now,
     newId: ctx.newId,
+    handed: ctx.handed ?? null,
     ...(ctx.askParams ? { askParams: askUnlessShared(ctx, ctx.askParams) } : {}),
     ...(ctx.ensurePack ? { ensurePack: ctx.ensurePack } : {}),
     ...(ctx.ensurePacks ? { ensurePacks: ctx.ensurePacks } : {}),

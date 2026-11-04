@@ -7,7 +7,7 @@ import {
   type RunResult,
   type Workflow,
 } from '@morph/core';
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -375,5 +375,104 @@ describe('the record form', () => {
     expect(screen.getByText('账目 · 2/3')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('entry-skip'));
     expect(onDone).toHaveBeenCalledWith({ skip: true });
+  });
+});
+
+describe('the prompt before saving a similar record (D-426)', () => {
+  const claims: Collection = { ...expenses, prefillRules: 'receipt' };
+  const same = { amount: '35.5', date: '2026-10-24' };
+
+  async function renderForm(repo: MemoryWorkspaceRepo, collection = claims) {
+    const onDone = jest.fn();
+    const store = createWorkspaceStore({
+      repo,
+      provider: createMockAIProvider(),
+      registry,
+      locale: 'zh',
+      now: () => new Date(),
+    });
+    await store.getState().boot();
+    await render(
+      <WorkspaceProvider value={{ store, repo, files: new FakeFiles(), registry, locale: 'zh' }}>
+        <SafeAreaProvider
+          initialMetrics={{
+            frame: { x: 0, y: 0, width: 400, height: 800 },
+            insets: { top: 0, left: 0, right: 0, bottom: 0 },
+          }}>
+          <RecordEntryScreen
+            input={{ collection, prefill: same, index: 0, total: 1 }}
+            palette={makePalette(createDefaultWorkspace('zh').theme, false)}
+            locale="zh"
+            onDone={onDone}
+            onCancel={jest.fn()}
+          />
+        </SafeAreaProvider>
+      </WorkspaceProvider>,
+    );
+    return onDone;
+  }
+
+  const spyAlert = () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    alert.mockClear();
+    return alert;
+  };
+
+  const seedRecord = (repo: MemoryWorkspaceRepo) =>
+    repo.insertRecord({
+      id: 'r1',
+      collectionId: 'expenses',
+      values: { amount: 35.5, date: '2026-10-24', note: '午饭' },
+      createdAt: 1,
+      updatedAt: 1,
+    });
+
+  const press = async () => {
+    await fireEvent.press(screen.getByTestId('local-done'));
+    await act(async () => undefined);
+  };
+
+  it('asks; back to the form does not finish, save anyway does', async () => {
+    const alert = spyAlert();
+    const repo = new MemoryWorkspaceRepo();
+    await seedRecord(repo);
+    const onDone = await renderForm(repo);
+    await press();
+    expect(alert).toHaveBeenCalledTimes(1);
+    const buttons = () => alert.mock.calls.at(-1)![2]!;
+    await act(async () => buttons()[0]!.onPress!());
+    expect(onDone).not.toHaveBeenCalled();
+    await press();
+    await act(async () => buttons()[1]!.onPress!());
+    expect(onDone).toHaveBeenCalledTimes(1);
+    alert.mockRestore();
+  });
+
+  it('does not ask for a table without the parameter', async () => {
+    const alert = spyAlert();
+    const repo = new MemoryWorkspaceRepo();
+    await seedRecord(repo);
+    const onDone = await renderForm(repo, expenses);
+    await press();
+    expect(alert).not.toHaveBeenCalled();
+    expect(onDone).toHaveBeenCalledTimes(1);
+    alert.mockRestore();
+  });
+
+  it('each: true, one form per file: the second form sees what the first just saved', async () => {
+    const alert = spyAlert();
+    const repo = new MemoryWorkspaceRepo();
+    // 第一张表单存好（out.addRecord 存完才开下一张）：表里已经有这一条。
+    const first = await renderForm(repo);
+    await press();
+    expect(alert).not.toHaveBeenCalled();
+    expect(first).toHaveBeenCalledTimes(1);
+    await seedRecord(repo);
+    await cleanup();
+    const second = await renderForm(repo);
+    await press();
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(second).not.toHaveBeenCalled();
+    alert.mockRestore();
   });
 });

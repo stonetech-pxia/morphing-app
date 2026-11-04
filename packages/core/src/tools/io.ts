@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { FILTER_KINDS, FILTER_ORIENTATIONS, hasFileCondition } from '../file-filter';
 import { checkNameTemplate } from '../naming';
+import { recordToVCard } from '../vcard';
 import { MEDIA_LIMITS } from '../limits';
 import { IdSchema, PERIODS } from '../schema';
 import type { ActionDefinition, ValueType } from '../workflow/contract';
@@ -968,5 +969,120 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     requires: [],
     // 内置规则认的步骤说法（D-265）。
     phrases: [{ match: /^打印$|^print(?: it)?$/i }],
+  },
+  // ---- 把容器交来的值打开（D-428）：系统的拨号、短信、写信、浏览器页面，什么都没有发出去 ----
+  // 和 out.share 一样只能是快捷操作的一步（底线 10）：提醒、定时没有步骤；只有用户点了才运行。
+  {
+    id: 'out.call',
+    // 提示词里只关于「容器把值交给工具」的规则（D-428）：放在第一个这样的动作上。
+    aiRules: [
+      {
+        n: 54,
+        text: 'A container hands its data to its tools when the user taps (nothing runs on opening a page; you never run them and never see the values). Such a quick action has no input step: it starts with a step that takes text or records, and it only works where that is handed over. Three layers. A value (one field): an item {tool, field} in a table\'s recordRow, the row of buttons at the top of its entry page; built-in tools with no addTool needed are record-call, record-message, record-email, record-website (they show only when the field has the matching format and a valid value, so set format on the field) and record-copy, or your own quick action starting with a step that takes text (text.copy, qr.generate). This entry: an item {tool} with no field in recordRow (built-in record-vcard, record-qr, or your own starting with records.toVCard, records.toExcel, print.records with empty fields), or {tool} on a single block. The records of a list: {as: "list", tool} (up to 3) on a list, cards or checklist block, which hands over everything the list currently selects, its filter and search, not cut to limit. "能打电话", "add a call button to contacts" → updateData {table, changes: {recordRow: [{tool: "record-call", field: "phone"}]}} (order = button order; a table without recordRow has no row; repeat a tool for a second phone field). "导出搜索到的", an export button on a list → as "list". A tool that should work from anywhere ("export all my contacts" on the home page) keeps in.records as its first step instead. These quick actions cannot sit on an action or button block, in a reminder, on the phone home screen or on the file desk.',
+      },
+    ],
+    label: { en: 'Call', zh: '打电话', fr: 'Appeler' },
+    description: {
+      en: 'Open the phone app with this number. It does not call by itself.',
+      zh: '用这个号码打开系统的拨号页面，不会自己打出去。',
+      fr: 'Ouvre l’app Téléphone avec ce numéro. Rien n’est appelé automatiquement.',
+    },
+    input: ['text'],
+    output: 'same',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
+    opensLink: 'phone',
+  },
+  {
+    id: 'out.message',
+    label: { en: 'Message', zh: '发短信', fr: 'Envoyer un SMS' },
+    description: {
+      en: 'Open the messages app with this number. Nothing is sent by itself.',
+      zh: '用这个号码打开系统的短信页面，不会自己发出去。',
+      fr: 'Ouvre l’app Messages avec ce numéro. Rien n’est envoyé automatiquement.',
+    },
+    input: ['text'],
+    output: 'same',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
+    opensLink: 'message',
+  },
+  {
+    id: 'out.email',
+    label: { en: 'Email', zh: '发邮件', fr: 'Envoyer un e-mail' },
+    description: {
+      en: 'Open a new email to this address. Nothing is sent by itself.',
+      zh: '打开写给这个地址的新邮件，不会自己发出去。',
+      fr: 'Ouvre un nouvel e-mail à cette adresse. Rien n’est envoyé automatiquement.',
+    },
+    input: ['text'],
+    output: 'same',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
+    opensLink: 'email',
+  },
+  {
+    id: 'out.website',
+    label: { en: 'Open website', zh: '打开网站', fr: 'Ouvrir le site' },
+    description: {
+      en: 'Open this web address in the browser, after asking first.',
+      zh: '先问一句，再用浏览器打开这个网址。',
+      fr: 'Ouvre cette adresse web dans le navigateur, après confirmation.',
+    },
+    input: ['text'],
+    output: 'same',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
+    opensLink: 'url',
+  },
+  {
+    id: 'records.toVCard',
+    recordFits: (fields, values) => recordToVCard(fields, values) !== null,
+    label: { en: 'Records to vCard', zh: '记录生成 vCard', fr: 'Entrées en vCard' },
+    description: {
+      en: 'Make one contact file (.vcf) from the records. Name, job title, company and address come from fields with those names; phone, email and website from fields with that format. The values are filled in on the device; there are no settings.',
+      zh: '把记录做成一个联系人文件（.vcf）。姓名、职位、公司、地址取这些名字的字段，电话、邮箱、网址取写了 format 的字段。记录内容在本机填进去，没有设置。',
+      fr: 'Créez un fichier de contacts (.vcf) à partir des entrées. Le nom, le poste, la société et l’adresse viennent des champs qui portent ces noms ; le téléphone, l’e-mail et le site web des champs ayant ce format. Les valeurs sont remplies sur l’appareil ; il n’y a aucun réglage.',
+    },
+    input: ['records'],
+    output: 'files',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
+  },
+  {
+    // D-428：和 records.toVCard 一样的内容，但是文字，所以能接 qr.generate。
+    id: 'records.toVCardText',
+    recordFits: (fields, values) => recordToVCard(fields, values) !== null,
+    label: { en: 'Records to vCard text', zh: '记录生成 vCard 文字', fr: 'Entrées en texte vCard' },
+    description: {
+      en: 'Make the text of a contact card (vCard) from the records, to chain into a QR code. Same fields as records.toVCard; there are no settings.',
+      zh: '把记录做成联系人（vCard）的文字，用来接生成二维码。字段和 records.toVCard 一样，没有设置。',
+      fr: 'Créez le texte d’une carte de contact (vCard) à partir des entrées, pour l’enchaîner avec un code QR. Mêmes champs que records.toVCard ; il n’y a aucun réglage.',
+    },
+    input: ['records'],
+    output: 'text',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
+  },
+  {
+    id: 'records.toExcel',
+    label: { en: 'Records to Excel', zh: '记录生成 Excel', fr: 'Entrées en Excel' },
+    description: {
+      en: 'Make one Excel file (.xlsx) from the records, named after the table: one column per field, with the field names on the first row. Numbers, money and dates are real numbers and dates; everything else is text. The values are filled in on the device; there are no settings.',
+      zh: '把记录做成一个 Excel 文件（.xlsx），用表名命名：每个字段一列，第一行是字段名。数字、金额、日期是真的数字和日期，别的都是文字。记录内容在本机填进去，没有设置。',
+      fr: 'Créez un fichier Excel (.xlsx) à partir des entrées, au nom du tableau : une colonne par champ, avec les noms des champs sur la première ligne. Les nombres, montants et dates sont de vrais nombres et dates ; le reste est du texte. Les valeurs sont remplies sur l’appareil ; il n’y a aucun réglage.',
+    },
+    ai: '"Export to Excel", "导出成表格" → in.records, this, out.share (the user taps to send it).',
+    input: ['records'],
+    output: 'files',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
   },
 ];

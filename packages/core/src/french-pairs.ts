@@ -8,6 +8,7 @@ export const FRENCH_PAIRS: Readonly<Record<string, string>> = {
   date: 'date',
   choice: 'choix unique',
   rating: 'note',
+  tags: 'étiquettes',
   attachment: 'pièce jointe',
   'link to another table': 'lien vers un autre tableau',
   formula: 'formule',

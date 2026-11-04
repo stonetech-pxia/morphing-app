@@ -1,10 +1,10 @@
 import type { Field, Locale } from '../schema';
 import { ruleCandidates } from './candidates';
 import { amountChain, amountNear } from './amount-chain';
-import { canAskCategory, categoryByCode } from './category';
+import { canAskCategory, categoryByCode, currencyInText } from './category';
 import { hasNoDecimals, rowHasDate, squash } from './check';
 import { conceptOf, type ConceptId } from './concepts';
-import { resetDocContext } from './doc-context';
+import { cardRules, ctx, receiptRules, resetDocContext, type DocumentKind } from './doc-context';
 import { documentLanguage } from './model';
 import {
   MAX_SUGGESTIONS,
@@ -14,7 +14,10 @@ import {
   type ValueSuggestion,
 } from './rank';
 import { pageOccurrences } from './rows';
+import { analyzeCard, cardCandidates, cardLike, looseEmails } from './card-rules';
+import { addressCandidates } from './address-rules';
 import { NOT_ISSUE_DATE_LEFT, PRINT_WORD_LEFT } from './rules-data';
+import { contactCodeValues, parseContactCode } from '../vcard';
 import {
   BAD_DATE_ROW,
   DEPART_ROW,
@@ -64,13 +67,19 @@ export interface FieldPlan {
   code: ValueSuggestion[];
   /** 这张表存过、这次文字里也有的值。 */
   remembered: ValueSuggestion | null;
+  /** 二维码里写明的值（D-423）：排在最前面，也不用问模型。 */
+  fromCode: ValueSuggestion[];
   /** 代码拿不准，要问模型。 */
   ask: boolean;
   /** 问了模型也让规则的候选排在前面（中文单据的合计，模型常挑小计，D-404）。 */
   codeFirst: boolean;
 }
 
+const CARD_NO_ASK = new Set<ConceptId>(['phone', 'email', 'website', 'address']);
+
 export interface DocumentPlan {
+  /** 用哪组规则：问模型和核对模型的答案时要一样。 */
+  kind: DocumentKind;
   /** 整份文字，一排一个（按页接起来）。 */
   rows: string[];
   fields: FieldPlan[];
@@ -151,7 +160,8 @@ function latestDate(
     const seen = new Set<number>();
     for (const c of dates) {
       // 「Time printed : 28-OCT-20」这类打印日期不进最晚日期。
-      if (PRINT_WORD_LEFT.test(row.slice(Math.max(0, c.start - 30), c.start))) continue;
+      if (receiptRules() && PRINT_WORD_LEFT.test(row.slice(Math.max(0, c.start - 30), c.start)))
+        continue;
       if (seen.has(c.start)) continue;
       seen.add(c.start);
       const ambiguous = dates.some((o) => o.start === c.start && o.value !== c.value);
@@ -181,6 +191,18 @@ function badLeft(row: string, value: string, locale: Locale): boolean {
   });
 }
 
+/** 附件里的二维码读出来的值（字段 ID → 值）：先读到的码在前，别的文字不算（D-423）。 */
+function codeValues(input: SuggestInput): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const text of input.codes ?? []) {
+    const code = parseContactCode(text);
+    if (!code) continue;
+    for (const [id, values] of Object.entries(contactCodeValues(input.fields, code)))
+      out[id] = [...(out[id] ?? []), ...values];
+  }
+  return out;
+}
+
 /** 这份单据的规则结果和计划。 */
 export function planDocument(input: SuggestInput): DocumentPlan {
   // 解析日期、金额的规则要知道币种、整份文字和「现在」；算完把上下文清掉，别让下一份文档用到这一份的。
@@ -203,6 +225,7 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
     rows.some((r) => HOTEL_DOC.test(r)) &&
     !rows.some((r) => TRAVEL_DOC.test(r));
   const occurrences = pages.flatMap((p) => p.occ);
+  const coded = cardRules() ? codeValues(input) : {};
 
   // 不是规则打分给的值：记下它在哪一排（点了以后记忆用，D-394），标签用那一处的。
   const pickOf = (value: string): ValueSuggestion['pick'] => {
@@ -231,6 +254,15 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
     // 分类（单选）：票面写了选项名，或词表有把握，就不问模型（D-405）。
     const category = field.type === 'choice' && concept === 'category';
     let list = scored[field.id] ?? [];
+    if (
+      cardRules() &&
+      (concept === 'website' ||
+        concept === 'jobTitle' ||
+        concept === 'name' ||
+        // 公司栏更严一点：还要有电话、邮箱或网站，行也不能多。
+        (concept === 'company' && cardLike(analyzeCard(input.pages), true)))
+    )
+      list = cardCandidates(concept, input.pages);
     let code: string | null | undefined;
     const noDecimals = hasNoDecimals(field);
     const extras: string[] = [];
@@ -239,7 +271,11 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
     if (concept === 'issueDate') {
       // 有效期、退货期限、印制那排的日期不算。
       list = list.filter((s) =>
-        rows.some((r) => rowHasDate(r, s.value) && !badLeft(r, s.value, input.locale)),
+        rows.some((r) =>
+          receiptRules()
+            ? rowHasDate(r, s.value) && !badLeft(r, s.value, input.locale)
+            : !BAD_DATE_ROW.test(r) && rowHasDate(r, s.value),
+        ),
       );
       if (hotel) {
         const latest = latestDate(rows, input.locale);
@@ -268,6 +304,7 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
         // 算术只靠明细求和（不是付款减找零）得出、规则打分里又没有这个数，而打分第一个的标签分 ≥ 3
         // （标签明明白白写着合计）时，算术结果排第二，不抢第一个：错位的排版里「找零 7.00」会被当成总额。
         if (
+          receiptRules() &&
           chain.how !== 'payMinusChange' &&
           (list[0]?.score ?? 0) >= 3 &&
           !list.some((s) => Math.abs(Number(s.value) - chain.value) < 0.005)
@@ -283,6 +320,14 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
           code = String(chain.value);
       }
     }
+    if (concept === 'address' && cardRules())
+      list = addressCandidates(analyzeCard(input.pages)).slice(0, 3);
+    if (concept === 'email' && cardRules()) {
+      const extra = looseEmails(analyzeCard(input.pages)).filter(
+        (e) => !list.some((s) => s.value.toLowerCase() === e.value),
+      );
+      list = [...list, ...extra].slice(0, 3);
+    }
     const top = list[0];
     if (code === undefined && top && concept) {
       const sure = SURE[concept];
@@ -292,6 +337,13 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
     }
     if (code === undefined && category && field.type === 'choice')
       code = categoryByCode(field, rows) ?? undefined;
+    // 这是金额的货币（D-429）：票面写了什么货币。只进候选，用户点了才填。
+    if (
+      code === undefined &&
+      field.type === 'choice' &&
+      input.fields.some((f) => f.type === 'money' && f.currencyField === field.id)
+    )
+      code = currencyInText(field, rows) ?? undefined;
     if (code === undefined && !top && concept && EMPTY_IS_SURE.has(concept)) {
       // 文字里有单号的键名、代码又取不到值时是没把握，不是没有：要问模型。
       if (concept !== 'number' || !mayHaveNumber(rows)) code = null;
@@ -315,22 +367,27 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
       field,
       code: merged,
       remembered: memory ? fromCode(field, memory) : null,
+      // 不带 pick：二维码的值不在文字的版面里，点了也不记位置。
+      fromCode: (coded[field.id] ?? []).map((value) => ({ value, score: 0 })),
       // 单选字段只有分类问模型（D-405），别的交给规则；不能填的字段（附件、勾选……）规则也不给候选。
       ask:
+        !coded[field.id]?.length &&
         code === undefined &&
         !(concept === null && (field.type === 'note' || FREE_NOTE.test(field.name.trim()))) &&
         // 店名的分数看不出对错，模型又换不对第一个，有候选就不为它加载模型（D-404）。
         !(concept === 'merchant' && merged.length > 0) &&
+        // 名片上电话、邮箱、网址、地址问模型只会多出错的候选，不问。
+        !(cardRules() && concept !== null && CARD_NO_ASK.has(concept)) &&
         ((category && field.type === 'choice' && canAskCategory(field)) ||
           field.type === 'money' ||
           field.type === 'number' ||
           field.type === 'date' ||
           field.type === 'text' ||
           field.type === 'note'),
-      codeFirst: concept === 'amount' && documentLanguage(rows) === 'zh',
+      codeFirst: cardRules() || (concept === 'amount' && documentLanguage(rows) === 'zh'),
     };
   });
-  return { rows, fields, pickOf };
+  return { rows, fields, pickOf, kind: ctx.kind };
 }
 
 /** 一个字段最后给的候选：值记忆 → 模型 → 代码，去重，最多 3 个。 */
@@ -345,6 +402,7 @@ export function mergedSuggestions(
     if (out.length < MAX_SUGGESTIONS && !out.some((m) => sameValue(plan.field, m.value, s.value)))
       out.push(s);
   };
+  for (const s of plan.fromCode) add(s);
   if (plan.remembered) add(plan.remembered);
   if (plan.codeFirst) for (const s of known) add(s);
   for (const v of model)

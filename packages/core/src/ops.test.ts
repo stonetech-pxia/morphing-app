@@ -233,7 +233,9 @@ describe('updateData', () => {
   it('a table changes only its name and icon; fields go through field ops', () => {
     expect(
       errorOf(tasksConfig(), [{ op: 'updateData', table: 'tasks', changes: { fields: [] } }]),
-    ).toBe('table tasks can change name, icon, readAttachments; not fields');
+    ).toBe(
+      'table tasks can change name, icon, readAttachments, prefillRules, recordRow; not fields',
+    );
   });
 
   it('merges field changes, null removes a key, the id never changes', () => {
@@ -688,7 +690,9 @@ describe('updateContainer', () => {
       errorOf(workspace(), [
         { op: 'updateContainer', page: 'home', block: 'welcome', changes: { title: 'x' } },
       ]),
-    ).toBe('block welcome can change style, hidden, show, source, tools, opens; not title');
+    ).toBe(
+      'block welcome can change style, hidden, showIf, pin, show, source, tools, opens; not title',
+    );
     expect(
       errorOf(workspace(), [
         { op: 'updateContainer', page: 'home', block: 'nope', changes: { hidden: true } },

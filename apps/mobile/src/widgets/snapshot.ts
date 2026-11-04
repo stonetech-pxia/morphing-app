@@ -25,6 +25,7 @@ import {
   type Registry,
   type Theme,
   type WorkspaceConfig,
+  fieldForRecord,
 } from '@morph/core';
 
 import { t } from '../i18n';
@@ -144,7 +145,7 @@ async function statView(c: BlockOf<'number'>, ctx: Ctx): Promise<WidgetView | nu
         return {
           id: g.optionId ?? '-',
           title: g.label,
-          trailing: p?.label ?? text(g.value),
+          trailing: p?.label ?? g.text ?? text(g.value),
           ...(p ? { ratio: p.ratio } : {}),
         };
       }),
@@ -161,7 +162,7 @@ async function statView(c: BlockOf<'number'>, ctx: Ctx): Promise<WidgetView | nu
   }
   return {
     ...base,
-    value: p ? p.label : text(read.value),
+    value: p ? p.label : (read.text ?? text(read.value)),
     ...(p
       ? { ratio: p.ratio, percent: t(locale, 'progressPercent', { n: Math.round(p.ratio * 100) }) }
       : {}),
@@ -215,10 +216,11 @@ async function listView(c: RecordBlock, ctx: Ctx): Promise<WidgetView | null> {
       format?.kind === 'progress' && show.trailing
         ? recordProgress(r, view, show.trailing, format.goal, now, cal)
         : undefined;
+    const amountField = trailingField && fieldForRecord(trailingField, r.values, view);
     const trailing = progress
       ? t(locale, 'progressOfGoal', {
-          value: amountText(progress.value, trailingField, locale),
-          goal: amountText(progress.goal, trailingField, locale),
+          value: amountText(progress.value, amountField, locale),
+          goal: amountText(progress.goal, amountField, locale),
         })
       : show.trailing
         ? formatRef(r, view, show.trailing, locale, links, now, cal)

@@ -30,10 +30,13 @@ export function EditablePage({
   page,
   env,
   bottomInset,
+  zoneInset,
 }: {
   page: Page;
   env: RenderEnv;
   bottomInset?: number;
+  /** 页面下方的固定区要让开多高（PageView）。 */
+  zoneInset?: number;
 }) {
   const editing = useWorkspace((s) => (s.editing?.pageId === page.id ? s.editing : null));
   const draft = editing?.config;
@@ -101,6 +104,7 @@ export function EditablePage({
             : env
         }
         bottomInset={bottomInset}
+        zoneInset={zoneInset}
         scroll={{
           ...savedScroll,
           ...drag.scroll,

@@ -10,9 +10,11 @@ import {
   FONT_CHOICES,
   HexColorSchema,
   IconValueSchema,
+  ShowIfSchema,
   IdSchema,
   NavTargetSchema,
   PageSchema,
+  PinSchema,
   QuickActionSchema,
   ReminderSchema,
   ThemeSchema,
@@ -51,6 +53,10 @@ export const BlockChangesSchema = z.strictObject({
     })
     .optional(),
   hidden: z.boolean().optional(),
+  /** 整个换；null 去掉（D-424）。 */
+  showIf: ShowIfSchema.nullable().optional(),
+  /** null 不再固定，回到中间。 */
+  pin: PinSchema.nullable().optional(),
   show: patch.optional(),
   source: patch.optional(),
   /** 整个换；null 去掉块上的全部工具。 */

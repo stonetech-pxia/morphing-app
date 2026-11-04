@@ -182,7 +182,7 @@ exports[`component issues > lists every reference problem in a stable order and 
   },
   {
     "code": "data",
-    "message": "l2: list l2 check: as "check" doesn't fit a list block (allowed: button, addHere)",
+    "message": "l2: list l2 check: as "check" doesn't fit a list block (allowed: button, addHere, list)",
   },
   {
     "code": "data",

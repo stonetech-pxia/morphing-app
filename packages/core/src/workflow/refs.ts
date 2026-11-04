@@ -1,5 +1,6 @@
 import type { Registry } from '../registry';
 import type { Collection, QuickAction, WorkspaceConfig } from '../schema';
+import { handedInput } from './check';
 import { outputTypeOf, type ValueType } from './contract';
 
 // 步骤参数里引用配置的地方（CHAIN_AUDIT A3，创始人 2026-10-31）。动作目录的 ParamField.kind 就是声明：
@@ -25,7 +26,7 @@ export interface StepRef {
 /** 一个快捷操作的步骤参数引用的表和字段。 */
 export function stepRefs(wf: QuickAction, registry: Registry): StepRef[] {
   const refs: StepRef[] = [];
-  let value: ValueType | null = null;
+  let value: ValueType | null = handedInput(wf.steps, registry);
   // 传进来的记录所在的表（读取记录那一步定下，原样往下传的步骤保持）。
   let recordsTable: string | null = null;
   for (const [index, step] of wf.steps.entries()) {
@@ -68,6 +69,17 @@ export function stepRefProblems(
   registry: Registry,
 ): string[] {
   const problems: string[] = [];
+  // 容器交来的记录（D-428）是哪张表要到运行时才知道，所以不能写字段：不写就是全部字段。
+  if (handedInput(wf.steps, registry) !== null)
+    for (const step of wf.steps) {
+      for (const f of registry.actions.get(step.action)?.fields ?? []) {
+        const named = step.params[f.key];
+        if (f.kind === 'fields' && Array.isArray(named) && named.length > 0)
+          problems.push(
+            `${wf.id}/${step.id}: ${f.key} must be empty: the records are handed over by the container, so the table is not known here (empty = all fields)`,
+          );
+      }
+    }
   for (const ref of stepRefs(wf, registry)) {
     const at = `${wf.id}/${wf.steps[ref.index]!.id}`;
     const table = config.data.tables.find((c) => c.id === ref.table);
