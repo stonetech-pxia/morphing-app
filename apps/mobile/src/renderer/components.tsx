@@ -2,12 +2,14 @@ import {
   bindRecord,
   pageBrowseHost,
   pageDial,
+  pagePeriod,
   pageZones,
   type BlockOf,
   type Component,
   type Locale,
   type OpenTarget,
   type Page,
+  type PageChoice,
   type Registry,
   type WorkspaceConfig,
 } from '@morph/core';
@@ -27,6 +29,7 @@ import { GestureDetector, type PanGesture } from 'react-native-gesture-handler';
 import { FocusToolbar } from '../editing/FocusItem';
 import type { SingleDrag } from '../editing/useSingleDrag';
 import { BackdropFill, onPicture } from './Backdrop';
+import { resolveChoice } from './PeriodBar';
 import { ListBrowseBar, useBrowseSelection, type BrowseSelection, type RecordBlock } from './data';
 import { DialHost, type DialSlots } from './Dial';
 import { Item, WhenRecords } from './registry';
@@ -47,6 +50,8 @@ export interface RenderEnv {
   inCell?: boolean;
   /** 画在页面下方固定区：入口画成和浮动按钮同一个样子的按钮（D-437）。 */
   inBottomZone?: boolean;
+  /** 页面上选的时间范围（D-440）：页面有 period 块时才有；图表和数字卡的 source.period 是 "page" 时按它画。状态只在页面上，什么都不写。 */
+  pageRange?: { choice: PageChoice; set: (choice: PageChoice) => void };
   /** 正在渲染的页面（图片组件更换照片时要用）。 */
   pageId?: string;
   /** 可以直接编辑的页面：长按组件时打开它的操作面板（D-052）。预览和系统页面没有。 */
@@ -116,7 +121,19 @@ function PageBody({ page, env, bottomInset = 0, zoneInset, scroll }: PageViewPro
   const palette = onPicture(env.palette, picture);
   const [pageEnd, setPageEnd] = useState(0);
   const [bottomHeight, setBottomHeight] = useState(0);
-  const pageEnv: RenderEnv = { ...env, palette, pageId: page.id, pageEnd };
+  // 页面上选的时间范围（D-440）：有 period 块时，用户点的在这里；块的选项被改掉了就回到默认的。
+  const periodBlock = pagePeriod(page);
+  const [pickedRange, setPickedRange] = useState<PageChoice | null>(null);
+  const pageRange = periodBlock
+    ? { choice: resolveChoice(periodBlock, pickedRange), set: setPickedRange }
+    : undefined;
+  const pageEnv: RenderEnv = {
+    ...env,
+    palette,
+    pageId: page.id,
+    pageEnd,
+    ...(pageRange ? { pageRange } : {}),
+  };
   // 单组件编辑时固定区照常排在内容里（拖动、工具栏都在滚动的内容上），位置和配置里的顺序一样。
   const editing = !!env.focus?.selectedId;
   const zones = pageZones(page);

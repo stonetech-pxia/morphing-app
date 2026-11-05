@@ -483,7 +483,26 @@ function pruneDials(config: WorkspaceConfig, notes: ApplyNote[]): void {
     config,
     (c) => isKnownComponent(c) && c.look === 'dial' && !c.tools?.length,
   );
+  count += prunePagePeriod(config);
   if (count > 0) notes.push({ kind: 'clearedBlockRefs', count });
+}
+
+/**
+ * 页面上没有时间范围块了（删了、或者页面本来就没有），跟着它的图表和数字卡的 source.period 去掉，
+ * 回到自己配置里的范围（底线 18，D-440）。隐藏的时间范围块还算有（校验也这么看）。
+ */
+function prunePagePeriod(config: WorkspaceConfig): number {
+  let count = 0;
+  for (const page of config.containers.pages) {
+    if (page.blocks.some((b) => b.look === 'period')) continue;
+    for (const c of allComponents(page)) {
+      if (!isKnownComponent(c) || (c.look !== 'chart' && c.look !== 'number')) continue;
+      if (c.source.period === undefined) continue;
+      delete c.source.period;
+      count++;
+    }
+  }
+  return count;
 }
 
 /** 删字段后，记录页顶部交这个字段的按钮跟着去掉（底线 18，D-428）。 */

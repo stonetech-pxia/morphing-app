@@ -308,3 +308,51 @@ describe('chart axis (D-438)', () => {
     expect(axisTickText(-1500)).toBe('-1.5k');
   });
 });
+
+describe('chartSeries over a page range (D-440)', () => {
+  const spec = { aggregate: 'sum', field: 'amount', group: { unit: 'month', last: 3 } } as const;
+
+  it('one point per day for a week, future days at 0, records outside left out', () => {
+    // now 是 2026-10-22（周四）；本周是 10-19 到 10-25。
+    const points = chartSeries(records, expenses, spec, now, '-', undefined, undefined, false, {
+      start: '2026-10-19',
+      end: '2026-10-25',
+    });
+    expect(values(points)).toEqual([
+      ['10-19', 5],
+      ['10-20', 0],
+      ['10-21', 0],
+      ['10-22', 10],
+      ['10-23', 1],
+      ['10-24', 0],
+      ['10-25', 0],
+    ]);
+  });
+
+  it('a whole year is split by month; group.unit and last are ignored', () => {
+    const points = chartSeries(records, expenses, spec, now, '-', undefined, undefined, false, {
+      start: '2026-01-01',
+      end: '2026-12-31',
+    });
+    expect(points).toHaveLength(12);
+    expect(values(points)[7]).toEqual(['2026-08', 100]);
+    expect(values(points)[9]).toEqual(['2026-10', 23]);
+  });
+
+  it('the first week of a month range can start before the range, without counting what is before it', () => {
+    const points = chartSeries(
+      [rec('x', { amount: 4, date: '2026-10-31' }), rec('y', { amount: 6, date: '2026-11-02' })],
+      expenses,
+      { aggregate: 'sum', field: 'amount', group: { unit: 'week' } },
+      new Date(2026, 10, 4),
+      '-',
+      undefined,
+      undefined,
+      false,
+      { start: '2026-11-01', end: '2026-12-31' },
+    );
+    // 范围超过一个月、不到半年：按周；第一周从 10-26 起，但 10-31 在范围外不算。
+    expect(points[0]).toMatchObject({ key: '2026-10-26', value: 0 });
+    expect(points[1]).toMatchObject({ key: '2026-11-02', value: 6 });
+  });
+});

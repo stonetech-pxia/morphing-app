@@ -14,6 +14,7 @@ import {
   type LinkedGroups,
 } from './data';
 import type { ChartSource } from './components/chart';
+import { rangeStarts, rangeUnit, type DayRange } from './page-period';
 import type { Collection, GroupUnit } from './schema';
 import { dateFieldOf, distinctDays } from './sequence';
 
@@ -92,6 +93,8 @@ const periodLabel = (group: GroupUnit, d: Date) =>
  * 单选分组：每个选项一个点（按选项顺序），没选的记录有的话另算一个点（label 用 noChoice）。
  * 引用字段也走这里（D-336）：被引用的表里每条记录一个点，要 linked。
  * previous（D-439，只有时间分组）：不是最近 n 段，而是它前面紧挨着的 n 段，第 i 个点和最近 n 段的第 i 个点对着比。
+ * range（D-440，页面上选的时间范围）：不看 group.unit 和 last，按范围的长短自己选按天、周、月（rangeUnit），
+ * 每段一个点，范围外的记录不算。
  */
 export function chartSeries(
   records: readonly DataRecord[],
@@ -102,6 +105,7 @@ export function chartSeries(
   cal: Calendar = DEFAULT_CALENDAR,
   linked?: LinkedGroups,
   previous = false,
+  range?: DayRange,
 ): ChartPoint[] {
   const { group } = spec;
   const unit = group.unit;
@@ -119,6 +123,7 @@ export function chartSeries(
       point(g.optionId, g.label, g.records),
     );
   }
+  if (range) return rangeSeries(records, collection, range, point, dateRef, now, cal);
   const n = Math.min(MAX_PERIODS, group.last ?? DEFAULT_PERIODS[unit]);
   const shift = previous ? n : 0;
   const starts = periodStarts(unit, n, now, cal, shift).map(localDate);
@@ -136,6 +141,32 @@ export function chartSeries(
     const v = recordDay(r, collection, dateRef, now, cal);
     if (v === undefined || v < starts[0]! || v > end) continue;
     // 落在最后一个开始日期不晚于它的那一段。
+    let i = starts.length - 1;
+    while (i > 0 && starts[i]! > v) i--;
+    buckets[i]!.push(r);
+  }
+  return starts.map((start, i) => {
+    const [y, m, d] = start.split('-').map(Number) as [number, number, number];
+    return point(start, periodLabel(unit, new Date(y, m - 1, d)), buckets[i]!);
+  });
+}
+
+/** 页面上选了时间范围（D-440）：范围里每一段（天 / 周 / 月，按范围长短）一个点；范围外的记录不算，第一段和最后一段可能只有一部分。 */
+function rangeSeries(
+  records: readonly DataRecord[],
+  collection: Collection,
+  range: DayRange,
+  point: (key: string | null, label: string, list: DataRecord[]) => ChartPoint,
+  dateRef: string,
+  now: Date,
+  cal: Calendar,
+): ChartPoint[] {
+  const unit = rangeUnit(range);
+  const starts = rangeStarts(range, unit, cal);
+  const buckets = starts.map(() => [] as DataRecord[]);
+  for (const r of records) {
+    const v = recordDay(r, collection, dateRef, now, cal);
+    if (v === undefined || v < range.start || v > range.end) continue;
     let i = starts.length - 1;
     while (i > 0 && starts[i]! > v) i--;
     buckets[i]!.push(r);

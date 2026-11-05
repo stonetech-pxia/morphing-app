@@ -309,6 +309,16 @@
           }
         },
         {
+          "id": "range",
+          "look": "period",
+          "pin": "top",
+          "show": {
+            "options": ["thisWeek", "thisMonth", "thisYear"],
+            "default": "thisMonth",
+            "custom": true
+          }
+        },
+        {
           "id": "totals",
           "look": "group",
           "show": {
@@ -316,63 +326,50 @@
           },
           "children": [
             {
-              "id": "month-total",
+              "id": "spent",
               "look": "number",
               "show": {
                 "label": {
-                  "en": "This month",
-                  "zh": "本月",
-                  "fr": "Ce mois-ci"
+                  "en": "Spent",
+                  "zh": "已花",
+                  "fr": "Dépensé"
                 }
               },
               "source": {
                 "table": "$table.receipts",
                 "aggregate": "sum",
                 "field": "amount",
-                "filter": [
-                  {
-                    "field": "date",
-                    "op": "inPeriod",
-                    "value": "thisMonth"
-                  }
-                ],
+                "period": "page",
                 "compare": "previous"
               }
             },
             {
-              "id": "year-total",
+              "id": "count",
               "look": "number",
               "show": {
                 "label": {
-                  "en": "This year",
-                  "zh": "本年",
-                  "fr": "Cette année"
+                  "en": "Receipts",
+                  "zh": "笔数",
+                  "fr": "Reçus"
                 }
               },
               "source": {
                 "table": "$table.receipts",
-                "aggregate": "sum",
-                "field": "amount",
-                "filter": [
-                  {
-                    "field": "date",
-                    "op": "inPeriod",
-                    "value": "thisYear"
-                  }
-                ]
+                "aggregate": "count",
+                "period": "page"
               }
             }
           ]
         },
         {
-          "id": "by-month",
+          "id": "trend",
           "look": "chart",
           "show": {
             "kind": "bar",
             "title": {
-              "en": "Spending by month",
-              "zh": "每月开销",
-              "fr": "Dépenses par mois"
+              "en": "Spending over time",
+              "zh": "开销变化",
+              "fr": "Dépenses dans le temps"
             }
           },
           "source": {
@@ -381,32 +378,9 @@
             "field": "amount",
             "group": {
               "by": "date",
-              "unit": "month",
-              "last": 6
+              "unit": "month"
             },
-            "compare": "previous"
-          }
-        },
-        {
-          "id": "by-week",
-          "look": "chart",
-          "show": {
-            "kind": "bar",
-            "title": {
-              "en": "Spending by week",
-              "zh": "每周开销",
-              "fr": "Dépenses par semaine"
-            }
-          },
-          "source": {
-            "table": "$table.receipts",
-            "aggregate": "sum",
-            "field": "amount",
-            "group": {
-              "by": "date",
-              "unit": "week",
-              "last": 8
-            },
+            "period": "page",
             "compare": "previous"
           }
         },
@@ -427,7 +401,8 @@
             "field": "amount",
             "group": {
               "by": "category"
-            }
+            },
+            "period": "page"
           }
         }
       ]

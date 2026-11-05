@@ -5921,6 +5921,7 @@ const ENVELOPE_CASES: readonly EvalCase[] = [
     },
   },
   ...chartEditCases(),
+  ...periodCases(),
 ];
 
 /**
@@ -7642,4 +7643,157 @@ export function judgeEval(
   if (!prepared.ok) return fail(`invalid ops: ${prepared.issues.join('; ')}`);
   const problem = c.expect.check(prepared.after) ?? c.expect.plan?.(plan) ?? null;
   return problem ? fail(problem) : { pass: true };
+}
+
+/**
+ * 页面上的时间范围（创始人 2026-11-05 要的）：Tink 加一个时间范围块、改它的选项、加自定义、让图表跟着它、删掉。
+ * 选项越少越好：用户说「本月和本星期」就只有这两个。
+ */
+function periodCases(): EvalCase[] {
+  const chartBlock = {
+    id: 'by-month',
+    look: 'chart',
+    show: { kind: 'bar', title: 'Spending by month' },
+    source: {
+      table: 'expenses',
+      aggregate: 'sum',
+      field: 'amount',
+      group: { unit: 'month', by: 'date', last: 6 },
+    },
+  };
+  const withChart: EvalEarlier = {
+    input: '记账页面加一个柱状图，显示每月花了多少',
+    ops: [{ op: 'addContainer', page: 'budget', block: chartBlock } as Op],
+  };
+  const withPeriod: EvalEarlier = {
+    input: '加一个时间范围，可以选本月和本星期',
+    ops: [
+      {
+        op: 'addContainer',
+        page: 'budget',
+        block: { id: 'range', look: 'period', show: { options: ['thisMonth', 'thisWeek'] } },
+      } as Op,
+    ],
+  };
+  const periods = (c: WorkspaceConfig) =>
+    c.containers.pages.flatMap((p) => allComponents(p)).filter((x) => x.look === 'period');
+  const periodOf = (c: WorkspaceConfig) => {
+    const found = periods(c);
+    return found.length === 1 ? (found[0] as ComponentOf<'period'>) : undefined;
+  };
+  const same = (a: readonly string[], b: readonly string[]) =>
+    a.length === b.length && [...a].sort().join() === [...b].sort().join();
+  return [
+    {
+      id: 'PR1',
+      input: '记账页面加一个时间范围，让我选本月或者本星期',
+      locale: 'zh',
+      setup: 'budget',
+      mock: false,
+      earlier: [withChart],
+      expect: {
+        kind: 'ops',
+        check: (c) => {
+          const p = periodOf(c);
+          if (!p) return 'expected exactly one period block';
+          if (!same(p.show.options, ['thisMonth', 'thisWeek']))
+            return `expected only this month and this week, got ${p.show.options.join()}`;
+          if (p.show.custom) return 'custom was not asked for';
+          return chartsOf(c, 'expenses').every((x) => x.source.period === 'page')
+            ? null
+            : 'the chart on the page should follow the range';
+        },
+      },
+    },
+    {
+      id: 'PR2',
+      input: '时间范围再加一个自定义，我想自己选起止日期',
+      locale: 'zh',
+      setup: 'budget',
+      mock: false,
+      earlier: [withChart, withPeriod],
+      expect: {
+        kind: 'ops',
+        check: (c) => {
+          const p = periodOf(c);
+          if (!p) return 'expected one period block';
+          if (!p.show.custom) return 'expected custom: true';
+          return same(p.show.options, ['thisMonth', 'thisWeek'])
+            ? null
+            : 'the other choices should stay';
+        },
+      },
+    },
+    {
+      id: 'PR3',
+      input: 'Make the chart follow the time range',
+      locale: 'en',
+      setup: 'budget',
+      mock: false,
+      earlier: [withChart, withPeriod],
+      expect: {
+        kind: 'ops',
+        check: (c) =>
+          chartsOf(c, 'expenses').length === 1 &&
+          chartsOf(c, 'expenses')[0]!.source.period === 'page' &&
+          periodOf(c) !== undefined
+            ? null
+            : 'expected the chart to have source.period "page" and the period block kept',
+      },
+    },
+    {
+      id: 'PR4',
+      input: '时间范围改成只要本月和本年',
+      locale: 'zh',
+      setup: 'budget',
+      mock: false,
+      earlier: [withChart, withPeriod],
+      expect: {
+        kind: 'ops',
+        check: (c) => {
+          const p = periodOf(c);
+          if (!p) return 'expected one period block';
+          return same(p.show.options, ['thisMonth', 'thisYear'])
+            ? null
+            : `expected this month and this year, got ${p.show.options.join()}`;
+        },
+      },
+    },
+    {
+      id: 'PR5',
+      input: 'Remove the time range from the page',
+      locale: 'en',
+      setup: 'budget',
+      mock: false,
+      earlier: [withChart, withPeriod],
+      expect: {
+        kind: 'ops',
+        check: (c) =>
+          periods(c).length === 0 && chartsOf(c, 'expenses').length === 1
+            ? null
+            : 'expected no period block and the chart kept',
+      },
+    },
+    {
+      id: 'PR6',
+      input: 'Add a spending chart and let me switch between this week and this month',
+      locale: 'en',
+      setup: 'budget',
+      mock: false,
+      allowBuild: true,
+      expect: {
+        kind: 'ops',
+        check: (c) => {
+          const p = periodOf(c);
+          if (!p) return 'expected one period block';
+          if (!same(p.show.options, ['thisMonth', 'thisWeek']))
+            return `expected only this week and this month, got ${p.show.options.join()}`;
+          const charts = chartsOf(c, 'expenses');
+          return charts.length > 0 && charts.every((x) => x.source.period === 'page')
+            ? null
+            : 'expected a chart that follows the range';
+        },
+      },
+    },
+  ];
 }

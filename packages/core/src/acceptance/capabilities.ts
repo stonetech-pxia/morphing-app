@@ -695,6 +695,7 @@ export const CAPABILITIES: readonly Capability[] = [
 
   // 读
   lookCap('dial'),
+  lookCap('period'),
   lookCap('list'),
   lookCap('cards'),
   lookCap('checklist'),
@@ -770,6 +771,15 @@ export const CAPABILITIES: readonly Capability[] = [
   cap('read.number.goal', 'read', (v) => numberBlocks(v).some((b) => b.source.goal !== undefined)),
   cap('read.number.compare', 'read', (v) =>
     numberBlocks(v).some((b) => b.source.compare !== undefined),
+  ),
+  cap('read.number.period', 'read', (v) =>
+    numberBlocks(v).some((b) => b.source.period !== undefined),
+  ),
+  cap('read.chart.compare', 'read', (v) =>
+    chartBlocks(v).some((b) => b.source.compare !== undefined),
+  ),
+  cap('read.chart.period', 'read', (v) =>
+    chartBlocks(v).some((b) => b.source.period !== undefined),
   ),
   cap('read.number.minus', 'read', (v) =>
     numberBlocks(v).some((b) => b.source.minus !== undefined),

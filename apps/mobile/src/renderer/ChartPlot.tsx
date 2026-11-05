@@ -72,7 +72,7 @@ export function ChartPlot({
                       chartBounds={chartBounds}
                       color={mutedColor}
                       opacity={0.35}
-                      barWidth={(width / n) * 0.8}
+                      barWidth={(width / n) * 0.9}
                       roundedCorners={{ topLeft: 4, topRight: 4 }}
                     />
                   ) : null}
@@ -81,14 +81,14 @@ export function ChartPlot({
                     chartBounds={chartBounds}
                     color={color}
                     opacity={0.55}
-                    barWidth={(width / n) * (previous ? 0.5 : 0.8)}
+                    barWidth={(width / n) * (previous ? 0.62 : 0.8)}
                     roundedCorners={{ topLeft: 4, topRight: 4 }}
                   />
                   <Bar
                     points={points.v.filter((_, i) => i === selected)}
                     chartBounds={chartBounds}
                     color={color}
-                    barWidth={(width / n) * (previous ? 0.5 : 0.8)}
+                    barWidth={(width / n) * (previous ? 0.62 : 0.8)}
                     roundedCorners={{ topLeft: 4, topRight: 4 }}
                   />
                 </>

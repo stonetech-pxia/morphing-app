@@ -6,6 +6,8 @@ import {
   browseFilter,
   browseFilterRows,
   browsePeriod,
+  choiceRange,
+  dateFieldOf,
   browseSort,
   cleanTags,
   recordSearchTexts,
@@ -38,6 +40,8 @@ import {
   groupRecords,
   previousFilter,
   previousLabel,
+  previousToDateRange,
+  recordsInRange,
   progressOf,
   recordProgress,
   isSequenceAggregate,
@@ -2144,7 +2148,22 @@ export function Stat({
   );
   if (!collection) return null;
   const now = new Date();
-  const matched = filterRecords(records ?? [], collection, src.filter, now, cal);
+  // 页面上选的时间范围（D-440）：source.period 是 "page" 且页面有 period 块时，筛选里的 inPeriod 不再用，按选的范围算；
+  // 用哪个日期：原来 inPeriod 用的那个字段，没有就用表里第一个日期字段（和图表一样）。
+  const follow = src.period === 'page' ? env.pageRange?.choice : undefined;
+  const based = filterRecords(
+    records ?? [],
+    collection,
+    follow ? (src.filter ?? []).filter((c) => c.op !== 'inPeriod') : src.filter,
+    now,
+    cal,
+  );
+  const dateRef =
+    (src.filter ?? []).find((c) => c.op === 'inPeriod')?.field ??
+    dateFieldOf(collection, src.days?.date);
+  const matched = follow
+    ? recordsInRange(based, collection, dateRef, choiceRange(follow, now, cal), now, cal)
+    : based;
   // 按顺序的聚合（D-284）：日期默认用表里第一个日期字段，没有就用创建时间（和图表一样）。
   const aggregate = src.aggregate;
   const valueOf = (list: DataRecord[]) =>
@@ -2180,11 +2199,35 @@ export function Stat({
     );
   };
   // 和上一段同期比（D-308）：把筛选里的时间段换成上一段，再算一次；颜色不分好坏（多花钱和多运动方向相反）。
-  const previous = src.compare ? previousFilter(src.filter, now, cal) : null;
+  const previous = !src.compare
+    ? null
+    : follow
+      ? {
+          records: recordsInRange(
+            based,
+            collection,
+            dateRef,
+            previousToDateRange(follow, now, cal),
+            now,
+            cal,
+          ),
+          period: null,
+        }
+      : (() => {
+          const before = previousFilter(src.filter, now, cal);
+          return (
+            before && {
+              records: filterRecords(records ?? [], collection, before.filter, now, cal),
+              period: before.period,
+            }
+          );
+        })();
   const compareText = (current: number | null) => {
     if (!previous) return null;
-    const before = valueOf(filterRecords(records ?? [], collection, previous.filter, now, cal));
-    const label = previousLabel(previous.period, text(before), env.locale);
+    const before = valueOf(previous.records);
+    const label = previous.period
+      ? previousLabel(previous.period, text(before), env.locale)
+      : t(env.locale, 'compare_page', { value: text(before) });
     const changeText = changeLabel(compareChange(current, before.value), env.locale);
     return (
       <View style={styles.compareRow} testID={`stat-compare-${src.table}-${label}`}>
@@ -2216,13 +2259,9 @@ export function Stat({
     const before =
       previous && records !== null
         ? new Map(
-            groupRecords(
-              filterRecords(records, collection, previous.filter, now, cal),
-              collection,
-              groupBy,
-              noChoice,
-              linked ?? undefined,
-            ).map((g) => [g.optionId, valueOf(g.records).value]),
+            groupRecords(previous.records, collection, groupBy, noChoice, linked ?? undefined).map(
+              (g) => [g.optionId, valueOf(g.records).value],
+            ),
           )
         : null;
     return (

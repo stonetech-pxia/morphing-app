@@ -38,6 +38,7 @@ import { RecordForm, RecordList, Stat, type RecordBlock } from './data';
 import { BottomPill, DialButton } from './Dial';
 import { ListTools } from './ListTools';
 import { MonthCalendar } from './MonthCalendar';
+import { PeriodBar } from './PeriodBar';
 import { Board } from './Board';
 import { Tiles } from './Tiles';
 import { FileList } from './FileList';
@@ -243,6 +244,7 @@ export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
   library: (c, env) => <QuickActionList block={c} env={env} />,
   single: (c, env) => <SingleRecord block={c} env={env} tone={c.style?.tone} />,
   dial: (c, env) => <DialButton block={c} env={env} />,
+  period: (c, env) => <PeriodBar block={c} env={env} />,
 };
 
 /** 打开相册还是打开文件（picker 的 tools[0]）。 */

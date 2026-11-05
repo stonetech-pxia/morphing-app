@@ -106,14 +106,14 @@ describe('new user', () => {
 
   it('the spending page shows empty totals and charts without failing', async () => {
     await open('spending');
-    expect(await screen.findByText('每月开销')).toBeTruthy();
+    expect(await screen.findByText('开销变化')).toBeTruthy();
     expect(screen.getByText('按类别')).toBeTruthy();
   });
 
   it('the Spending button opens the spending page', async () => {
     await open('receipts');
     await fireEvent.press(await screen.findByTestId('bottom-pill'));
-    expect(await screen.findByText('每周开销')).toBeTruthy();
+    expect(await screen.findByText('开销变化')).toBeTruthy();
   });
 });
 
@@ -170,41 +170,97 @@ describe('with data', () => {
   });
 });
 
-describe('spending compared with the previous period (D-439)', () => {
-  it('the monthly chart reads out the latest month with the same month six months earlier', async () => {
-    const earlier = new Date();
-    earlier.setDate(15);
-    earlier.setMonth(earlier.getMonth() - 6);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const before = `${earlier.getFullYear()}-${pad(earlier.getMonth() + 1)}-15`;
-    await open('spending', [
-      {
-        table: 'receipts',
-        values: { merchant: 'Café', date: day(0), amount: 12.5, category: 'dining' },
-      },
-      {
-        table: 'receipts',
-        values: { merchant: 'Metro', date: before, amount: 20, category: 'transport' },
-      },
-    ]);
-    // 开销页有三张图，每张图的读数 testID 相同：第一张是每月。
-    const [readout] = await screen.findAllByTestId('chart-readout-receipts');
-    expect(readout).toHaveTextContent(/¥12\.50（上一期：¥20\.00）/);
-    // 读屏标签也带上一期。
-    expect(screen.getAllByTestId('chart-bar-5')[0]).toHaveProp(
-      'accessibilityLabel',
-      expect.stringContaining('上一期：¥20.00'),
-    );
+describe('the spending page follows the time range (D-439, D-440)', () => {
+  // 固定一个「今天」：2026-11-18（周三）。本周 11-16 到 11-22，本月 11 月，本年 2026。
+  const records = [
+    {
+      table: 'receipts',
+      values: { merchant: 'A', date: '2026-11-18', amount: 10, category: 'dining' },
+    },
+    {
+      table: 'receipts',
+      values: { merchant: 'B', date: '2026-11-02', amount: 20, category: 'transport' },
+    },
+    {
+      table: 'receipts',
+      values: { merchant: 'C', date: '2026-03-10', amount: 30, category: 'dining' },
+    },
+    {
+      table: 'receipts',
+      values: { merchant: 'D', date: '2025-12-01', amount: 40, category: 'other' },
+    },
+    {
+      table: 'receipts',
+      values: { merchant: 'E', date: '2026-10-10', amount: 5, category: 'dining' },
+    },
+  ];
+  const spent = () => screen.getByTestId('stat-value-receipts-已花');
+  const count = () => screen.getByTestId('stat-value-receipts-笔数');
+
+  beforeEach(() => {
+    jest.setSystemTime(new Date(2026, 10, 18, 12));
   });
 
-  it('with no earlier receipts the previous period reads 0, and nothing fails without any receipt', async () => {
-    await open('spending', [
-      {
-        table: 'receipts',
-        values: { merchant: 'Café', date: day(0), amount: 12.5, category: 'dining' },
-      },
-    ]);
-    const [readout] = await screen.findAllByTestId('chart-readout-receipts');
-    expect(readout).toHaveTextContent(/上一期：¥0\.00/);
+  it('starts on this month, and the choices change the totals: week, month, year', async () => {
+    await open('spending', records);
+    await screen.findByTestId('period-thisMonth');
+    expect(screen.getByTestId('period-thisMonth')).toHaveProp(
+      'accessibilityState',
+      expect.objectContaining({ selected: true }),
+    );
+    expect(spent()).toHaveTextContent('¥30.00');
+    expect(count()).toHaveTextContent('2');
+    await fireEvent.press(screen.getByTestId('period-thisWeek'));
+    expect(spent()).toHaveTextContent('¥10.00');
+    await fireEvent.press(screen.getByTestId('period-thisYear'));
+    expect(spent()).toHaveTextContent('¥65.00');
+    expect(count()).toHaveTextContent('4');
+  });
+
+  it('the total is compared with the previous period, month to date', async () => {
+    await open('spending', records);
+    // 本月到 18 号：¥30；上个月 1–18 号：¥5。
+    await screen.findByTestId('period-thisMonth');
+    expect(screen.getByTestId('stat-compare-receipts-上一期：¥5.00')).toBeTruthy();
+  });
+
+  it('the chart reads out today with the previous period, and the pie follows the range', async () => {
+    await open('spending', records);
+    const [trend] = await screen.findAllByTestId('chart-readout-receipts');
+    // 11-18 当天 ¥10；上个月同一格（10-18）没有。
+    expect(trend).toHaveTextContent(/11-18：¥10\.00（上一期：¥0\.00）/);
+    // 本月的饼图只有餐饮和交通。
+    expect(screen.getByTestId('chart-slice-dining')).toHaveTextContent(/¥10\.00/);
+    expect(screen.getByTestId('chart-slice-transport')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('period-thisYear'));
+    // 本年：餐饮 10 + 30 + 5。
+    expect(screen.getByTestId('chart-slice-dining')).toHaveTextContent(/¥45\.00/);
+  });
+
+  it('a custom range: two dates, applied only when they are valid', async () => {
+    await open('spending', records);
+    await fireEvent.press(await screen.findByTestId('period-custom'));
+    await fireEvent.changeText(screen.getByTestId('period-start'), '2026-03-01');
+    await fireEvent.changeText(screen.getByTestId('period-end'), '2026-02-01');
+    expect(screen.getByTestId('period-invalid')).toBeTruthy();
+    await fireEvent.press(screen.getByTestId('period-apply'));
+    // 没有应用：还是本月。
+    expect(spent()).toHaveTextContent('¥30.00');
+    await fireEvent.changeText(screen.getByTestId('period-end'), '2026-03-31');
+    expect(screen.queryByTestId('period-invalid')).toBeNull();
+    await fireEvent.press(screen.getByTestId('period-apply'));
+    expect(spent()).toHaveTextContent('¥30.00');
+    expect(count()).toHaveTextContent('1');
+    expect(screen.getByTestId('period-range')).toHaveTextContent('2026-03-01 到 2026-03-31');
+  });
+
+  it('nothing in the range: totals read 0 and the page does not fail; choosing writes nothing', async () => {
+    const { repo } = await open('spending', [records[3]!]);
+    await screen.findByTestId('period-thisMonth');
+    const before = JSON.stringify(await repo.listRecords('receipts'));
+    expect(spent()).toHaveTextContent('¥0.00');
+    await fireEvent.press(screen.getByTestId('period-thisWeek'));
+    await fireEvent.press(screen.getByTestId('period-thisYear'));
+    expect(JSON.stringify(await repo.listRecords('receipts'))).toBe(before);
   });
 });

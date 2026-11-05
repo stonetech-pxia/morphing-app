@@ -2888,6 +2888,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 16>.source.group? = <oneOf 10>.source.group
 <oneOf 16>.source.goal? number ..1000000000 >0
 <oneOf 16>.source.compare? "previous"
+<oneOf 16>.source.period? "page"
 <oneOf 16>.source.minus? object
 <oneOf 16>.source.minus.table string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 16>.source.minus.aggregate "count"|"sum"
@@ -2914,6 +2915,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 17>.source.days.date? = <oneOf 6>.tools[]<anyOf 0>.when[].field
 <oneOf 17>.source.group = <oneOf 10>.source.group
 <oneOf 17>.source.compare? "previous"
+<oneOf 17>.source.period? "page"
 <oneOf 18> object
 <oneOf 18>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 18>.hidden? boolean
@@ -2994,73 +2996,87 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 24>.style? = <oneOf 0>.style
 <oneOf 24>.showIf? = <oneOf 0>.showIf
 <oneOf 24>.pin? "top"|"bottom"
-<oneOf 24>.look "group"
+<oneOf 24>.look "period"
 <oneOf 24>.show object
-<oneOf 24>.show.title? string len 1..60
-<oneOf 24>.show.layout "stack"|"row"|"grid"
-<oneOf 24>.show.columns?
-<oneOf 24>.show.columns<anyOf 0> 2
-<oneOf 24>.show.columns<anyOf 1> 3
-<oneOf 24>.children array items ..12
-<oneOf 24>.children[]
-<oneOf 24>.children[]<oneOf 0> = <oneOf 0>
-<oneOf 24>.children[]<oneOf 1> = <oneOf 1>
-<oneOf 24>.children[]<oneOf 2> = <oneOf 2>
-<oneOf 24>.children[]<oneOf 3> = <oneOf 3>
-<oneOf 24>.children[]<oneOf 4> = <oneOf 4>
-<oneOf 24>.children[]<oneOf 5> = <oneOf 5>
-<oneOf 24>.children[]<oneOf 6> = <oneOf 6>
-<oneOf 24>.children[]<oneOf 7> = <oneOf 7>
-<oneOf 24>.children[]<oneOf 8> = <oneOf 8>
-<oneOf 24>.children[]<oneOf 9> = <oneOf 9>
-<oneOf 24>.children[]<oneOf 10> = <oneOf 10>
-<oneOf 24>.children[]<oneOf 11> = <oneOf 11>
-<oneOf 24>.children[]<oneOf 12> = <oneOf 12>
-<oneOf 24>.children[]<oneOf 13> = <oneOf 13>
-<oneOf 24>.children[]<oneOf 14> = <oneOf 14>
-<oneOf 24>.children[]<oneOf 15> = <oneOf 15>
-<oneOf 24>.children[]<oneOf 16> = <oneOf 16>
-<oneOf 24>.children[]<oneOf 17> = <oneOf 17>
-<oneOf 24>.children[]<oneOf 18> = <oneOf 18>
-<oneOf 24>.children[]<oneOf 19> = <oneOf 19>
-<oneOf 24>.children[]<oneOf 20> = <oneOf 20>
-<oneOf 24>.children[]<oneOf 21> = <oneOf 21>
-<oneOf 24>.children[]<oneOf 22> = <oneOf 22>
-<oneOf 24>.children[]<oneOf 23> = <oneOf 23>
-<oneOf 24>.children[]<oneOf 24> object
-<oneOf 24>.children[]<oneOf 24>.id string /^[a-z][a-z0-9-]{0,47}$/
-<oneOf 24>.children[]<oneOf 24>.hidden? boolean
-<oneOf 24>.children[]<oneOf 24>.style? = <oneOf 0>.style
-<oneOf 24>.children[]<oneOf 24>.showIf? = <oneOf 0>.showIf
-<oneOf 24>.children[]<oneOf 24>.pin? "top"|"bottom"
-<oneOf 24>.children[]<oneOf 24>.look "group"
-<oneOf 24>.children[]<oneOf 24>.show = <oneOf 24>.show
-<oneOf 24>.children[]<oneOf 24>.children array items ..12
-<oneOf 24>.children[]<oneOf 24>.children[]
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 0> = <oneOf 0>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 1> = <oneOf 1>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 2> = <oneOf 2>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 3> = <oneOf 3>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 4> = <oneOf 4>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 5> = <oneOf 5>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 6> = <oneOf 6>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 7> = <oneOf 7>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 8> = <oneOf 8>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 9> = <oneOf 9>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 10> = <oneOf 10>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 11> = <oneOf 11>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 12> = <oneOf 12>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 13> = <oneOf 13>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 14> = <oneOf 14>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 15> = <oneOf 15>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 16> = <oneOf 16>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 17> = <oneOf 17>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 18> = <oneOf 18>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 19> = <oneOf 19>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 20> = <oneOf 20>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 21> = <oneOf 21>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 22> = <oneOf 22>
-<oneOf 24>.children[]<oneOf 24>.children[]<oneOf 23> = <oneOf 23>
+<oneOf 24>.show.options array items 1..8
+<oneOf 24>.show.options[] "today"|"thisWeek"|"thisMonth"|"thisYear"|"last7days"|"last30days"|"last90days"|"last365days"
+<oneOf 24>.show.default? "today"|"thisWeek"|"thisMonth"|"thisYear"|"last7days"|"last30days"|"last90days"|"last365days"
+<oneOf 24>.show.custom? true
+<oneOf 25> object
+<oneOf 25>.id string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf 25>.hidden? boolean
+<oneOf 25>.style? = <oneOf 0>.style
+<oneOf 25>.showIf? = <oneOf 0>.showIf
+<oneOf 25>.pin? "top"|"bottom"
+<oneOf 25>.look "group"
+<oneOf 25>.show object
+<oneOf 25>.show.title? string len 1..60
+<oneOf 25>.show.layout "stack"|"row"|"grid"
+<oneOf 25>.show.columns?
+<oneOf 25>.show.columns<anyOf 0> 2
+<oneOf 25>.show.columns<anyOf 1> 3
+<oneOf 25>.children array items ..12
+<oneOf 25>.children[]
+<oneOf 25>.children[]<oneOf 0> = <oneOf 0>
+<oneOf 25>.children[]<oneOf 1> = <oneOf 1>
+<oneOf 25>.children[]<oneOf 2> = <oneOf 2>
+<oneOf 25>.children[]<oneOf 3> = <oneOf 3>
+<oneOf 25>.children[]<oneOf 4> = <oneOf 4>
+<oneOf 25>.children[]<oneOf 5> = <oneOf 5>
+<oneOf 25>.children[]<oneOf 6> = <oneOf 6>
+<oneOf 25>.children[]<oneOf 7> = <oneOf 7>
+<oneOf 25>.children[]<oneOf 8> = <oneOf 8>
+<oneOf 25>.children[]<oneOf 9> = <oneOf 9>
+<oneOf 25>.children[]<oneOf 10> = <oneOf 10>
+<oneOf 25>.children[]<oneOf 11> = <oneOf 11>
+<oneOf 25>.children[]<oneOf 12> = <oneOf 12>
+<oneOf 25>.children[]<oneOf 13> = <oneOf 13>
+<oneOf 25>.children[]<oneOf 14> = <oneOf 14>
+<oneOf 25>.children[]<oneOf 15> = <oneOf 15>
+<oneOf 25>.children[]<oneOf 16> = <oneOf 16>
+<oneOf 25>.children[]<oneOf 17> = <oneOf 17>
+<oneOf 25>.children[]<oneOf 18> = <oneOf 18>
+<oneOf 25>.children[]<oneOf 19> = <oneOf 19>
+<oneOf 25>.children[]<oneOf 20> = <oneOf 20>
+<oneOf 25>.children[]<oneOf 21> = <oneOf 21>
+<oneOf 25>.children[]<oneOf 22> = <oneOf 22>
+<oneOf 25>.children[]<oneOf 23> = <oneOf 23>
+<oneOf 25>.children[]<oneOf 24> = <oneOf 24>
+<oneOf 25>.children[]<oneOf 25> object
+<oneOf 25>.children[]<oneOf 25>.id string /^[a-z][a-z0-9-]{0,47}$/
+<oneOf 25>.children[]<oneOf 25>.hidden? boolean
+<oneOf 25>.children[]<oneOf 25>.style? = <oneOf 0>.style
+<oneOf 25>.children[]<oneOf 25>.showIf? = <oneOf 0>.showIf
+<oneOf 25>.children[]<oneOf 25>.pin? "top"|"bottom"
+<oneOf 25>.children[]<oneOf 25>.look "group"
+<oneOf 25>.children[]<oneOf 25>.show = <oneOf 25>.show
+<oneOf 25>.children[]<oneOf 25>.children array items ..12
+<oneOf 25>.children[]<oneOf 25>.children[]
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 0> = <oneOf 0>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 1> = <oneOf 1>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 2> = <oneOf 2>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 3> = <oneOf 3>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 4> = <oneOf 4>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 5> = <oneOf 5>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 6> = <oneOf 6>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 7> = <oneOf 7>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 8> = <oneOf 8>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 9> = <oneOf 9>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 10> = <oneOf 10>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 11> = <oneOf 11>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 12> = <oneOf 12>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 13> = <oneOf 13>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 14> = <oneOf 14>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 15> = <oneOf 15>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 16> = <oneOf 16>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 17> = <oneOf 17>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 18> = <oneOf 18>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 19> = <oneOf 19>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 20> = <oneOf 20>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 21> = <oneOf 21>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 22> = <oneOf 22>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 23> = <oneOf 23>
+<oneOf 25>.children[]<oneOf 25>.children[]<oneOf 24> = <oneOf 24>
 "
 `;
 

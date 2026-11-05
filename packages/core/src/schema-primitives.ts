@@ -52,6 +52,19 @@ export const PERIODS = [
 ] as const;
 export type Period = (typeof PERIODS)[number];
 
+/** 能放进 period 块的选项（都是固定的日历时间段，按「今天」算）。 */
+export const PAGE_PERIODS = [
+  'today',
+  'thisWeek',
+  'thisMonth',
+  'thisYear',
+  'last7days',
+  'last30days',
+  'last90days',
+  'last365days',
+] as const;
+export type PagePeriod = (typeof PAGE_PERIODS)[number];
+
 /** 按顺序的聚合（D-284，算法在 sequence.ts）：数字块都能用，图表只能用 distinctDays。 */
 export const SEQUENCE_AGGREGATES = ['streak', 'daysSince', 'avgInterval', 'distinctDays'] as const;
 export type SequenceAggregate = (typeof SEQUENCE_AGGREGATES)[number];

@@ -417,6 +417,14 @@ function everything() {
       }),
       chart('c-line', 'items', 'line', { aggregate: 'count', group: { unit: 'day' } }),
       chart('c-pie', 'items', 'pie', { aggregate: 'count', group: { by: 'status' } }),
+      { id: 'range', look: 'period', show: { options: ['thisWeek', 'thisMonth'], custom: true } },
+      number('n-period', 'items', { aggregate: 'count', period: 'page' }),
+      chart('c-compare', 'items', 'bar', {
+        aggregate: 'count',
+        group: { unit: 'month' },
+        compare: 'previous',
+        period: 'page',
+      }),
     ]),
     addPage(
       'periods',

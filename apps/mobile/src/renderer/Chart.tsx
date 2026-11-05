@@ -2,10 +2,15 @@ import {
   CHART_COLORS,
   calendarOf,
   chartSeries,
+  choiceRange,
+  dateFieldOf,
   filterRecords,
   lineScale,
   piePaths,
   pieSlices,
+  previousFullRange,
+  recordsInRange,
+  todayText,
   type ChartPoint,
   type BlockOf,
   type ComponentStyle,
@@ -49,29 +54,54 @@ export function Chart({
   if (!collection) return null;
   const now = new Date();
   const field = source.field ? collection.fields.find((f) => f.id === source.field) : undefined;
+  // 页面上选的时间范围（D-440）：source.period 是 "page" 且页面有 period 块时，按选的范围画；
+  // 筛选里的 inPeriod 不再用，时间分组的 group.unit 和 last 也不再用（按范围长短自己选）。
+  const choice = source.period === 'page' ? env.pageRange?.choice : undefined;
+  const matched = filterRecords(
+    records ?? [],
+    collection,
+    choice ? (source.filter ?? []).filter((c) => c.op !== 'inPeriod') : source.filter,
+    now,
+    cal,
+  );
+  const timed = source.group.unit !== undefined;
+  const range = choice ? choiceRange(choice, now, cal) : undefined;
+  // 饼图（按单选分组）没有时间段，只留下范围里的记录；用哪个日期和数日子的统计一样。
+  const dateRef = dateFieldOf(collection, timed ? source.group.by : source.days?.date);
+  const inRange =
+    range && !timed ? recordsInRange(matched, collection, dateRef, range, now, cal) : matched;
   const series = chartSeries(
-    filterRecords(records ?? [], collection, source.filter, now, cal),
+    inRange,
     collection,
     source,
     now,
     t(locale, 'statNoChoice'),
     cal,
     linked ?? undefined,
+    false,
+    timed ? range : undefined,
   );
   const points = show.kind === 'pie' ? pieSlices(series, t(locale, 'chartOther')) : series;
   // 上一期（D-439）：只有时间分组、柱状图和折线图（配置检查保证），和最近几段一一对应。
+  // 选了页面范围时（D-440）是紧挨在前面的一整段，段数不一样时（上个月比这个月短）按位置对齐、多的去掉、少的补 0。
   const previous =
-    source.compare === 'previous' && source.group.unit && show.kind !== 'pie'
-      ? chartSeries(
-          filterRecords(records ?? [], collection, source.filter, now, cal),
-          collection,
-          source,
-          now,
-          t(locale, 'statNoChoice'),
-          cal,
-          undefined,
-          true,
-        )
+    source.compare === 'previous' && timed && show.kind !== 'pie'
+      ? (() => {
+          const before = chartSeries(
+            matched,
+            collection,
+            source,
+            now,
+            t(locale, 'statNoChoice'),
+            cal,
+            undefined,
+            true,
+            choice ? previousFullRange(choice, now, cal) : undefined,
+          );
+          return choice
+            ? series.map((_, i) => before[i] ?? { key: null, label: '', value: 0, empty: false })
+            : before;
+        })()
       : null;
   const pointText = (p: ChartPoint, i: number) => {
     const before = previous?.[i];
@@ -87,9 +117,15 @@ export function Chart({
     p.empty ? '—' : statText(p.value, source.aggregate, field, locale);
   const nothing = records !== null && linked !== null && points.every((p) => p.value === 0);
   // 默认显示最后一段（时间）或最大的一块（单选）。
+  // 时间分组：今天所在的那一段（选了页面范围时，范围里还没到的日子在后面，不默认显示它们）。
+  const today = todayText(now, cal);
+  const nowIndex = points.reduce(
+    (found, p, i) => (p.key !== null && p.key <= today ? i : found),
+    points.length - 1,
+  );
   const fallback = byChoice
     ? points.reduce((best, p, i) => (p.value > (points[best]?.value ?? -Infinity) ? i : best), 0)
-    : points.length - 1;
+    : nowIndex;
   const selected = picked !== null && picked < points.length ? picked : fallback;
   const current = points[selected];
 
