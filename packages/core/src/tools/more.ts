@@ -334,6 +334,20 @@ export const TEXT_ACTIONS: readonly ActionDefinition[] = [
     ],
   },
   {
+    id: 'text.toDocx',
+    label: { en: 'Text to Word', zh: '文字转 Word', fr: 'Texte en Word' },
+    description: {
+      en: 'Save the text as a Word file (.docx): a blank line starts a new paragraph.',
+      zh: '把文字存成 Word 文件（.docx），空行分段。',
+      fr: 'Enregistrez le texte dans un fichier Word (.docx) : une ligne vide commence un nouveau paragraphe.',
+    },
+    input: ['text'],
+    output: 'files',
+    params: z.strictObject({}),
+    fields: [],
+    requires: [],
+  },
+  {
     id: 'text.copy',
     label: { en: 'Copy text', zh: '复制文字', fr: 'Copier le texte' },
     description: {

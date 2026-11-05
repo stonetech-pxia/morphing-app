@@ -342,6 +342,7 @@ Each action: id (input → output; start = an input action, same = the type it g
 - text (“Text”): Turn typed or pasted text into a PDF or a text file, on this device.
   - text.toPdf (text → pdf) {pageSize: "a4"|"letter", fontSize: number 8..24}: Lay the text out on pages as a PDF (system fonts, so Chinese and Japanese work).
   - text.toFile (text → files) {}: Save the text as a .txt file (UTF-8).
+  - text.toDocx (text → files) {}: Save the text as a Word file (.docx): a blank line starts a new paragraph.
   - text.copy (text → same) {}: Copy the text to the clipboard.
   - text.tidy (text → same) {blankLines: "keep"|"single"|"remove", spaces: boolean}: Remove extra spaces (at line ends, repeated spaces and tabs) and blank lines: blankLines "remove" drops them all, "single" keeps one between paragraphs, "keep" leaves them.
   - text.replace (text → same) {find: string, replaceWith: string, ignoreCase: boolean}: Replace every occurrence of a word or phrase with another, exactly as typed (not a pattern).

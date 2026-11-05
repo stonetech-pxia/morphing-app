@@ -172,6 +172,24 @@ describe('a first step that takes what a container hands over (D-428)', () => {
     expect(handedInput(wf('text.copy').steps, registry)).toBe('text');
   });
 
+  it('text.toDocx is a text tool that turns handed text into files, in the same place as text.toPdf', () => {
+    const toDocx = registry.actions.get('text.toDocx');
+    expect(toDocx).toBeDefined();
+    expect(registry.actionOwner.get('text.toDocx')).toBe('text');
+    expect(toDocx!.input).toEqual(['text']);
+    expect(toDocx!.output).toBe('files');
+    // 容器交一段文字，一步就出 Word；后面能接分享和存文件。
+    expect(workflowProblems(wf('text.toDocx'), registry)).toEqual([]);
+    expect(handedInput(wf('text.toDocx').steps, registry)).toBe('text');
+    expect(typesAlong(wf('text.toDocx', 'out.share').steps, registry)).toEqual(['files', 'files']);
+    // 自己输入文字也行。
+    expect(workflowProblems(wf('in.text', 'text.toDocx', 'file.save'), registry)).toEqual([]);
+    // 和 text.toPdf 一样只收文字，不收图片。
+    expect(workflowProblems(wf('in.photos', 'text.toDocx'), registry).map((p) => p.code)).toContain(
+      'binding',
+    );
+  });
+
   it('a step that only takes files still needs an input step', () => {
     for (const action of ['image.compress', 'pdf.merge', 'out.share', 'file.save'])
       expect(workflowProblems(wf(action), registry).map((p) => p.code)).toContain('source');

@@ -7,10 +7,12 @@ import {
   ID_PHOTO_CHOICES,
   quickActionsOf,
   type RunResult,
+  type RunValue,
   type Workflow,
 } from '@morph/core';
 import { ID_PHOTO_SPECS } from '@morph/tool-image';
 import { qrMatrix, qrToRgba } from '@morph/tool-qr';
+import { strFromU8, unzipSync } from 'fflate';
 
 import type { DrawOp } from '../runtime/platform';
 import type { LocalKind, LocalUi } from '../runtime/local';
@@ -67,6 +69,7 @@ function setup(
   workflow: Workflow,
   answers: Record<string, unknown> = {},
   local: Partial<Record<LocalKind, unknown>> = {},
+  handed: RunValue | null = null,
 ) {
   const files = new FakeFiles();
   const repo = new MemoryWorkspaceRepo();
@@ -93,6 +96,7 @@ function setup(
         ui,
         collections: [expenses, contacts],
         askParams: async (request) => ({ ...request.params, ...answers }),
+        handed,
       })
     ).result;
   return { files, repo, run, opened };
@@ -385,6 +389,42 @@ describe('QR codes and text', () => {
     );
     const [file] = items(await txt.run());
     expect(new TextDecoder().decode(txt.files.disk.get(file!.uri))).toBe('hello 你好');
+  });
+});
+
+describe('text to Word', () => {
+  const toWord = () => mine([{ id: 'word', action: 'text.toDocx', params: {} }]);
+  // 和容器交的一样：文字加上字段名（record-row.ts）。
+  const handed = (text: string): RunValue => ({ type: 'text', text, name: '备注' });
+
+  it('turns the text a record hands over into a .docx that holds the original text, paragraph by paragraph', async () => {
+    const run = setup(toWord(), {}, {}, handed('签证材料 <清单>\n第二行\n\n第二段'));
+    const [file] = items(await run.run());
+    expect(file).toMatchObject({
+      name: '备注',
+      ext: 'docx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    const xml = strFromU8(unzipSync(run.files.disk.get(file!.uri)!)['word/document.xml']!);
+    expect(xml).toContain('签证材料 &lt;清单&gt;');
+    expect(xml).toContain('<w:br/><w:t xml:space="preserve">第二行</w:t>');
+    expect(xml).toContain('第二段');
+  });
+
+  it('works after an input step too', async () => {
+    const run = setup(
+      mine([
+        { id: 'type', action: 'in.text', params: { text: 'hello 你好' } },
+        { id: 'word', action: 'text.toDocx', params: {} },
+      ]),
+    );
+    const [file] = items(await run.run());
+    expect(file).toMatchObject({ ext: 'docx' });
+  });
+
+  it('refuses text with nothing in it instead of writing an empty Word file', async () => {
+    const run = setup(toWord(), {}, {}, handed(' \n  \n'));
+    expect(await run.run()).toMatchObject({ status: 'failed', error: { code: 'emptyText' } });
   });
 });
 

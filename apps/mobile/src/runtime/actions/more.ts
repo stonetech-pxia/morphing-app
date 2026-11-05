@@ -46,7 +46,7 @@ import {
   wifiText,
   MAX_TEXT_LENGTH,
 } from '@morph/tool-qr';
-import { writeRowsXlsx } from '@morph/tool-office';
+import { textToDocDoc, writeDocx, writeRowsXlsx } from '@morph/tool-office';
 
 import { openFieldLink } from '../../renderer/open-link';
 import { collectAttachments, mergeReport, type CollectedAttachments } from './report-attachments';
@@ -271,6 +271,18 @@ export const MORE_IMPLS: Record<string, Impl> = {
       name: value.name,
       ext: 'txt',
       mimeType: 'text/plain',
+    });
+    return { type: 'files', items: [item] };
+  },
+
+  async 'text.toDocx'(input, _params, ctx) {
+    const value = textOf(input);
+    const doc = textToDocDoc(value.text);
+    if (doc.pages[0]!.blocks.length === 0) throw new RunError('emptyText');
+    const item = await writeItem(ctx.services, writeDocx(doc), {
+      name: value.name,
+      ext: 'docx',
+      mimeType: OFFICE_MIME_BY_EXT.docx!,
     });
     return { type: 'files', items: [item] };
   },

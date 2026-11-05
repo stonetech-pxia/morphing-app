@@ -8,5 +8,6 @@ export * from './docx';
 export * from './edit';
 export * from './layout';
 export * from './lines';
+export * from './text-doc';
 export * from './types';
 export * from './xlsx';
