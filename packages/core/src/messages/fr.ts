@@ -941,6 +941,7 @@ export const fr: MessageTable = {
   chartOther: 'Autres',
   chartEmpty: 'Aucune entrée à afficher pour l’instant',
   chartPoint: '{label} : {value}',
+  chartPointCompare: '{label} : {value} (période précédente : {previous})',
   chartShare: '{value} ({percent})',
   // 表和表之间引用（D-250）
   linkDeleted: 'Entrée supprimée',

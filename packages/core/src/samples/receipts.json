@@ -383,7 +383,8 @@
               "by": "date",
               "unit": "month",
               "last": 6
-            }
+            },
+            "compare": "previous"
           }
         },
         {
@@ -405,7 +406,8 @@
               "by": "date",
               "unit": "week",
               "last": 8
-            }
+            },
+            "compare": "previous"
           }
         },
         {

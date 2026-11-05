@@ -2913,6 +2913,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 17>.source.days? object
 <oneOf 17>.source.days.date? = <oneOf 6>.tools[]<anyOf 0>.when[].field
 <oneOf 17>.source.group = <oneOf 10>.source.group
+<oneOf 17>.source.compare? "previous"
 <oneOf 18> object
 <oneOf 18>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 18>.hidden? boolean

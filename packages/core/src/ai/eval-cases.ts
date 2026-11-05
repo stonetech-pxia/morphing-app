@@ -6019,6 +6019,20 @@ function chartEditCases(): EvalCase[] {
       'the title Monthly spend',
       (x) => x.show.title === 'Monthly spend',
     ),
+    edit(
+      'CH11',
+      '图表加上和上一期的对比',
+      'zh',
+      'compare previous',
+      (x) => x.source.compare === 'previous',
+    ),
+    edit(
+      'CH12',
+      'Compare this chart with the previous months',
+      'en',
+      'compare previous',
+      (x) => x.source.compare === 'previous',
+    ),
     {
       id: 'CH10',
       input: '保留原来的柱状图，再加一个按分类的饼图',

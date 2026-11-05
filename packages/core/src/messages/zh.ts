@@ -825,6 +825,7 @@ export const zh: MessageTable = {
   chartOther: '其他',
   chartEmpty: '还没有可以显示的记录',
   chartPoint: '{label}：{value}',
+  chartPointCompare: '{label}：{value}（上一期：{previous}）',
   chartShare: '{value}（{percent}）',
   // 表和表之间引用（D-250）
   linkDeleted: '已删除的记录',

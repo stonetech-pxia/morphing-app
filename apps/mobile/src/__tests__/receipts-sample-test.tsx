@@ -169,3 +169,42 @@ describe('with data', () => {
     expect(screen.queryByTestId('record-r0')).toBeNull();
   });
 });
+
+describe('spending compared with the previous period (D-439)', () => {
+  it('the monthly chart reads out the latest month with the same month six months earlier', async () => {
+    const earlier = new Date();
+    earlier.setDate(15);
+    earlier.setMonth(earlier.getMonth() - 6);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const before = `${earlier.getFullYear()}-${pad(earlier.getMonth() + 1)}-15`;
+    await open('spending', [
+      {
+        table: 'receipts',
+        values: { merchant: 'Café', date: day(0), amount: 12.5, category: 'dining' },
+      },
+      {
+        table: 'receipts',
+        values: { merchant: 'Metro', date: before, amount: 20, category: 'transport' },
+      },
+    ]);
+    // 开销页有三张图，每张图的读数 testID 相同：第一张是每月。
+    const [readout] = await screen.findAllByTestId('chart-readout-receipts');
+    expect(readout).toHaveTextContent(/¥12\.50（上一期：¥20\.00）/);
+    // 读屏标签也带上一期。
+    expect(screen.getAllByTestId('chart-bar-5')[0]).toHaveProp(
+      'accessibilityLabel',
+      expect.stringContaining('上一期：¥20.00'),
+    );
+  });
+
+  it('with no earlier receipts the previous period reads 0, and nothing fails without any receipt', async () => {
+    await open('spending', [
+      {
+        table: 'receipts',
+        values: { merchant: 'Café', date: day(0), amount: 12.5, category: 'dining' },
+      },
+    ]);
+    const [readout] = await screen.findAllByTestId('chart-readout-receipts');
+    expect(readout).toHaveTextContent(/上一期：¥0\.00/);
+  });
+});

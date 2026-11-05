@@ -15,6 +15,8 @@ export const ChartSourceSchema = z.strictObject({
   /** distinctDays 按哪个日期算（按单选分组时）；按时间分组时就是 group.by。 */
   days: z.strictObject({ date: DaysSchema.shape.date }).optional(),
   group: GroupingSchema,
+  /** 和上一期比（D-439）：画上一个同样长的时间段，只有时间分组的柱状图和折线图。 */
+  compare: z.literal('previous').optional(),
 });
 export type ChartSource = z.infer<typeof ChartSourceSchema>;
 
@@ -69,6 +71,17 @@ export const chartComponent: LookDefinitionOf<'chart', typeof shape> = defineLoo
         problems.push(`source.group.by ${d} must be a date field of ${collection!.id}`);
       if (c.source.days) problems.push('days.date only applies when grouping by a choice field');
     }
+    if (c.source.compare !== undefined) {
+      if (group.unit === undefined)
+        problems.push(
+          'compare needs a time group (source.group {unit}): it draws the period before',
+        );
+      if (c.show.kind === 'pie') problems.push('a pie chart has no previous period: no compare');
+      if ((c.source.filter ?? []).some((x) => x.op === 'inPeriod'))
+        problems.push(
+          "compare can't be used with an inPeriod filter: the filter would cut off the previous period",
+        );
+    }
     const date = c.source.days?.date;
     const dateType = date === undefined ? undefined : field(date)?.type;
     if (
@@ -83,7 +96,7 @@ export const chartComponent: LookDefinitionOf<'chart', typeof shape> = defineLoo
   describe: (c, _config, ctx) => t(ctx.locale, 'describeChart', { v0: c.show.title }),
   edit: { text: [{ prop: 'title', max: 60 }], style: ['tone'] },
   ai: {
-    doc: 'show {kind: "bar"|"line"|"pie", title}, source {table, aggregate: "count"|"sum"|"avg"|"distinctDays" (days with at least one entry), field? (number, money, rating, duration or formula; only for sum and avg), filter?, group: {unit: "day"|"week"|"month", by? (a date or datetime field or "createdAt"; default: the first date field), last? (2-31; default 7 days, 8 weeks, 6 months)} or {by: a choice field, or a link field for one point per entry of the linked table}}: a pie chart needs group {by: a choice or link field} (rule 33)',
+    doc: 'show {kind: "bar"|"line"|"pie", title}, source {table, aggregate: "count"|"sum"|"avg"|"distinctDays" (days with at least one entry), field? (number, money, rating, duration or formula; only for sum and avg), filter?, group: {unit: "day"|"week"|"month", by? (a date or datetime field or "createdAt"; default: the first date field), last? (2-31; default 7 days, 8 weeks, 6 months)} or {by: a choice field, or a link field for one point per entry of the linked table}}: a pie chart needs group {by: a choice or link field} (rule 33); compare?: "previous" (only with a time group, bar or line, and no inPeriod filter) also draws the period before, shifted onto the same positions: a dashed line, or pale bars behind ("compared with last month", "和上个月比")',
   },
   example: {
     show: { kind: 'bar', title: 'Spending by month' },

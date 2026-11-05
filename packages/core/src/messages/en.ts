@@ -882,6 +882,7 @@ export const en = {
   chartOther: 'Other',
   chartEmpty: 'No entries to show yet',
   chartPoint: '{label}: {value}',
+  chartPointCompare: '{label}: {value} (previous period: {previous})',
   chartShare: '{value} ({percent})',
   // 表和表之间引用（D-250）
   linkDeleted: 'Deleted entry',

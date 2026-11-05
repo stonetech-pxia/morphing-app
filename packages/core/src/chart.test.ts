@@ -211,6 +211,74 @@ describe('chart validation', () => {
     expect(check({ group: { unit: 'month', by: 'amount' } })).toBe(false);
     expect(check({ table: 'missing' })).toBe(false);
   });
+
+  it('compare (D-439): a time group, bar or line, and no inPeriod filter', () => {
+    expect(check({ compare: 'previous' })).toBe(true);
+    expect(check({ compare: 'previous' }, { kind: 'line' })).toBe(true);
+    expect(check({ compare: 'previous', group: { by: 'category' } })).toBe(false);
+    expect(check({ compare: 'previous', group: { by: 'category' } }, { kind: 'pie' })).toBe(false);
+    expect(
+      check({
+        compare: 'previous',
+        filter: [{ field: 'date', op: 'inPeriod', value: 'thisYear' }],
+      }),
+    ).toBe(false);
+    // 别的筛选可以。
+    expect(
+      check({ compare: 'previous', filter: [{ field: 'category', op: 'is', value: 'food' }] }),
+    ).toBe(true);
+  });
+});
+
+describe('chartSeries with the previous period (D-439)', () => {
+  const spec = {
+    aggregate: 'sum',
+    field: 'amount',
+    group: { unit: 'month', last: 3 },
+  } as const;
+  const more = [
+    ...records,
+    rec('p1', { amount: 1000, date: '2026-05-31' }), // 上上期，哪一期都不算
+    rec('p2', { amount: 40, date: '2026-06-01' }), // 上一期第一天
+    rec('p3', { amount: 3, date: '2026-07-15' }),
+    rec('p4', { amount: 8, date: '2026-07-31' }),
+  ];
+
+  it('is the n periods right before the latest n, point for point', () => {
+    const current = chartSeries(more, expenses, spec, now, '-');
+    const previous = chartSeries(more, expenses, spec, now, '-', undefined, undefined, true);
+    expect(values(current)).toEqual([
+      ['2026-08', 100],
+      ['2026-09', 0],
+      ['2026-10', 22],
+    ]);
+    expect(values(previous)).toEqual([
+      ['2026-05', 1000],
+      ['2026-06', 40],
+      ['2026-07', 11],
+    ]);
+  });
+
+  it('the day before the latest periods belongs to the previous ones, the first day to the latest', () => {
+    const edge = [
+      rec('x', { amount: 5, date: '2026-07-31' }),
+      rec('y', { amount: 6, date: '2026-08-01' }),
+    ];
+    expect(values(chartSeries(edge, expenses, spec, now, '-'))[0]).toEqual(['2026-08', 6]);
+    expect(
+      values(chartSeries(edge, expenses, spec, now, '-', undefined, undefined, true))[2],
+    ).toEqual(['2026-07', 5]);
+  });
+
+  it('works by week and by day, and has the same length as the latest', () => {
+    for (const unit of ['day', 'week'] as const) {
+      const s = { aggregate: 'count', group: { unit, last: 4 } } as const;
+      const a = chartSeries(records, expenses, s, now, '-');
+      const b = chartSeries(records, expenses, s, now, '-', undefined, undefined, true);
+      expect(b).toHaveLength(a.length);
+      expect(b[b.length - 1]!.key! < a[0]!.key!).toBe(true);
+    }
+  });
 });
 
 describe('chart axis (D-438)', () => {

@@ -1,5 +1,5 @@
 import { axisTickText, chartYDomain } from '@morph/core';
-import { Circle, useFont } from '@shopify/react-native-skia';
+import { Circle, DashPathEffect, useFont } from '@shopify/react-native-skia';
 import { useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Bar, CartesianChart, Line } from 'victory-native';
@@ -16,16 +16,21 @@ export const PLOT_HEIGHT = 150;
 export function ChartPlot({
   kind,
   values,
+  previous,
   selected,
   color,
+  mutedColor,
   gridColor,
   labelColor,
   children,
 }: {
   kind: 'bar' | 'line';
   values: readonly number[];
+  /** 上一期（D-439）：和 values 一一对应；折线画成虚线，柱状图画成淡色的宽柱子垫在后面。 */
+  previous?: readonly number[] | undefined;
   selected: number;
   color: string;
+  mutedColor: string;
   gridColor: string;
   labelColor: string;
   /** 盖在图上的一排可点区域（每个点一格）。 */
@@ -34,7 +39,7 @@ export function ChartPlot({
   const font = useFont(KARLA, 11);
   const [width, setWidth] = useState(0);
   const n = values.length;
-  const data = values.map((v, i) => ({ i, v }));
+  const data = values.map((v, i) => ({ i, v, p: previous?.[i] ?? 0 }));
   return (
     <View style={{ height: PLOT_HEIGHT }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       {width > 0 && n > 0 ? (
@@ -42,9 +47,12 @@ export function ChartPlot({
           <CartesianChart
             data={data}
             xKey="i"
-            yKeys={['v']}
+            yKeys={previous ? ['v', 'p'] : ['v']}
             padding={{ top: 8, bottom: 0, left: 0, right: 0 }}
-            domain={{ x: [-0.5, n - 0.5], y: chartYDomain(values) }}
+            domain={{
+              x: [-0.5, n - 0.5],
+              y: chartYDomain(previous ? [...values, ...previous] : values),
+            }}
             axisOptions={{
               font,
               tickCount: { x: 0, y: 4 },
@@ -58,24 +66,45 @@ export function ChartPlot({
             {({ points, chartBounds }) =>
               kind === 'bar' ? (
                 <>
+                  {previous ? (
+                    <Bar
+                      points={points.p}
+                      chartBounds={chartBounds}
+                      color={mutedColor}
+                      opacity={0.35}
+                      barWidth={(width / n) * 0.8}
+                      roundedCorners={{ topLeft: 4, topRight: 4 }}
+                    />
+                  ) : null}
                   <Bar
                     points={points.v.filter((_, i) => i !== selected)}
                     chartBounds={chartBounds}
                     color={color}
                     opacity={0.55}
-                    barWidth={(width / n) * 0.8}
+                    barWidth={(width / n) * (previous ? 0.5 : 0.8)}
                     roundedCorners={{ topLeft: 4, topRight: 4 }}
                   />
                   <Bar
                     points={points.v.filter((_, i) => i === selected)}
                     chartBounds={chartBounds}
                     color={color}
-                    barWidth={(width / n) * 0.8}
+                    barWidth={(width / n) * (previous ? 0.5 : 0.8)}
                     roundedCorners={{ topLeft: 4, topRight: 4 }}
                   />
                 </>
               ) : (
                 <>
+                  {previous ? (
+                    <Line
+                      points={points.p}
+                      color={mutedColor}
+                      strokeWidth={2}
+                      strokeJoin="round"
+                      strokeCap="round"
+                      curveType="linear">
+                      <DashPathEffect intervals={[6, 6]} />
+                    </Line>
+                  ) : null}
                   <Line
                     points={points.v}
                     color={color}

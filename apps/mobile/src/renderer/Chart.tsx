@@ -59,6 +59,30 @@ export function Chart({
     linked ?? undefined,
   );
   const points = show.kind === 'pie' ? pieSlices(series, t(locale, 'chartOther')) : series;
+  // 上一期（D-439）：只有时间分组、柱状图和折线图（配置检查保证），和最近几段一一对应。
+  const previous =
+    source.compare === 'previous' && source.group.unit && show.kind !== 'pie'
+      ? chartSeries(
+          filterRecords(records ?? [], collection, source.filter, now, cal),
+          collection,
+          source,
+          now,
+          t(locale, 'statNoChoice'),
+          cal,
+          undefined,
+          true,
+        )
+      : null;
+  const pointText = (p: ChartPoint, i: number) => {
+    const before = previous?.[i];
+    return before
+      ? t(locale, 'chartPointCompare', {
+          label: p.label,
+          value: valueText(p),
+          previous: valueText(before),
+        })
+      : t(locale, 'chartPoint', { label: p.label, value: valueText(p) });
+  };
   const valueText = (p: ChartPoint) =>
     p.empty ? '—' : statText(p.value, source.aggregate, field, locale);
   const nothing = records !== null && linked !== null && points.every((p) => p.value === 0);
@@ -76,7 +100,7 @@ export function Chart({
         <Text
           testID={`chart-readout-${source.table}`}
           style={[palette.font('body', 13), { color: palette.muted }]}>
-          {t(locale, 'chartPoint', { label: current.label, value: valueText(current) })}
+          {pointText(current, selected)}
         </Text>
       ) : null}
     </View>
@@ -90,7 +114,7 @@ export function Chart({
           key={p.key ?? `none-${i}`}
           testID={`chart-${prefix}-${i}`}
           accessibilityRole="button"
-          accessibilityLabel={t(locale, 'chartPoint', { label: p.label, value: valueText(p) })}
+          accessibilityLabel={pointText(p, i)}
           disabled={!env.interactive}
           onPress={() => setPicked(i)}
           onLongPress={env.onLongPress}
@@ -113,8 +137,10 @@ export function Chart({
       <ChartPlot
         kind="bar"
         values={points.map((p) => p.value)}
+        previous={previous?.map((p) => p.value)}
         selected={selected}
         color={palette.primary}
+        mutedColor={palette.caption}
         gridColor={palette.border}
         labelColor={palette.caption}>
         {slots('bar')}
@@ -167,8 +193,10 @@ export function Chart({
       <ChartPlot
         kind="line"
         values={points.map((p) => p.value)}
+        previous={previous?.map((p) => p.value)}
         selected={selected}
         color={palette.primary}
+        mutedColor={palette.caption}
         gridColor={palette.border}
         labelColor={palette.caption}>
         {slots('point')}

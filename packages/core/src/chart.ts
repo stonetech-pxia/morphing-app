@@ -61,12 +61,20 @@ const pad = (n: number) => String(n).padStart(2, '0');
 /**
  * 最近 n 段的开始日期（从早到晚，最后一段包含今天）。今天和一周的第一天按 cal（D-286），和数据筛选一样。
  */
-function periodStarts(group: GroupUnit, n: number, now: Date, cal: Calendar): Date[] {
+function periodStarts(
+  group: GroupUnit,
+  n: number,
+  now: Date,
+  cal: Calendar,
+  /** 再往前几段（上一期对比用，D-439）：0 是最近 n 段。 */
+  shift = 0,
+): Date[] {
   const todayNum = todayNumber(now, cal);
   const [y, m, d] = dateOfDayNumber(todayNum).split('-').map(Number) as [number, number, number];
   const weekStart = d - (todayNum - weekStartOf(todayNum, cal));
   const starts: Date[] = [];
-  for (let i = n - 1; i >= 0; i--) {
+  for (let k = n - 1; k >= 0; k--) {
+    const i = k + shift;
     if (group === 'day') starts.push(new Date(y, m - 1, d - i));
     else if (group === 'week') starts.push(new Date(y, m - 1, weekStart - 7 * i));
     else starts.push(new Date(y, m - 1 - i, 1));
@@ -83,6 +91,7 @@ const periodLabel = (group: GroupUnit, d: Date) =>
  * 图表的数据。时间分组：最近 group.last 段，每段一个点（没有记录的段是 0）。
  * 单选分组：每个选项一个点（按选项顺序），没选的记录有的话另算一个点（label 用 noChoice）。
  * 引用字段也走这里（D-336）：被引用的表里每条记录一个点，要 linked。
+ * previous（D-439，只有时间分组）：不是最近 n 段，而是它前面紧挨着的 n 段，第 i 个点和最近 n 段的第 i 个点对着比。
  */
 export function chartSeries(
   records: readonly DataRecord[],
@@ -92,6 +101,7 @@ export function chartSeries(
   noChoice: string,
   cal: Calendar = DEFAULT_CALENDAR,
   linked?: LinkedGroups,
+  previous = false,
 ): ChartPoint[] {
   const { group } = spec;
   const unit = group.unit;
@@ -110,8 +120,17 @@ export function chartSeries(
     );
   }
   const n = Math.min(MAX_PERIODS, group.last ?? DEFAULT_PERIODS[unit]);
-  const starts = periodStarts(unit, n, now, cal).map(localDate);
-  const end = dateOfDayNumber(todayNumber(now, cal));
+  const shift = previous ? n : 0;
+  const starts = periodStarts(unit, n, now, cal, shift).map(localDate);
+  // 上一期结束在最近 n 段开始的前一天。
+  const end = previous
+    ? (() => {
+        const [y, m, d] = localDate(periodStarts(unit, n, now, cal)[0]!)
+          .split('-')
+          .map(Number) as [number, number, number];
+        return localDate(new Date(y, m - 1, d - 1));
+      })()
+    : dateOfDayNumber(todayNumber(now, cal));
   const buckets = starts.map(() => [] as DataRecord[]);
   for (const r of records) {
     const v = recordDay(r, collection, dateRef, now, cal);

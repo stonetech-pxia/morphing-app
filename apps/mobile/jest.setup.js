@@ -21,6 +21,7 @@ jest.mock('@shopify/react-native-skia', () => {
     Image: () => null,
     Rect: () => null,
     Circle: () => null,
+    DashPathEffect: () => null,
     useFont: () => null,
     ImageFormat: { JPEG: 3, PNG: 4, WEBP: 6 },
     Skia: new Proxy({}, { get: () => unavailable }),
