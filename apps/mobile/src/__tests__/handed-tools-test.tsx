@@ -321,7 +321,7 @@ describe('running it from somewhere that hands nothing over', () => {
     await fireEvent.press(await screen.findByTestId('workflow-run-export-contacts'));
     await settle();
     expect(await screen.findByTestId('run-needs-record')).toHaveTextContent(
-      /works on an entry or a value/,
+      /works on an entry, a value or an entry’s attachments/,
     );
     expect(screen.queryByTestId('run-screen')).toBeNull();
     expect(files.shared).toEqual([]);

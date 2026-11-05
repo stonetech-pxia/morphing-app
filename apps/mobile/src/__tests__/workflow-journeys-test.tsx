@@ -92,12 +92,12 @@ describe('workflow journeys (UI)', () => {
   it('keeps steps that do not fit from being saved, and can put a built-in on Home', async () => {
     const { store } = await openWorkflows();
     await fireEvent.press(screen.getByTestId('workflow-edit-email-photos'));
-    // 把「选照片」移到第二步：第一步不再是输入，不能保存。
+    // 把「选照片」移到第二步：输入只能是第一步（第一步收文件的由记录的附件字段交，D-442），不能保存。
     await fireEvent.press(await screen.findByTestId('step-down-0'));
-    expect(screen.getByTestId('step-problem-0')).toBeTruthy();
+    expect(screen.getByTestId('step-problem-1')).toBeTruthy();
     expect(screen.getByTestId('workflow-save').props.accessibilityState?.disabled).toBe(true);
     await fireEvent.press(screen.getByTestId('workflow-discard'));
-    expect(screen.queryByTestId('step-problem-0')).toBeNull();
+    expect(screen.queryByTestId('step-problem-1')).toBeNull();
 
     const before = store.getState().head!.id;
     await fireEvent.press(screen.getByTestId('workflow-to-home'));

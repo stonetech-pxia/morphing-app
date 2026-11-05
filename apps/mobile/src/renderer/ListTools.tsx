@@ -1,15 +1,23 @@
 import {
+  attachmentIdsOfRecords,
   findWorkflowTarget,
+  handedFilesFor,
+  handedInput,
   isToolRefUse,
   quickActionsOf,
   recordsValue,
+  type AttachmentInfo,
   type Collection,
   type DataRecord,
+  type HandedFiles,
+  type RunValue,
   type ToolUse,
 } from '@morph/core';
 import { Text, View } from 'react-native';
 
 import { useHandedRun } from '../run/useHandedRun';
+import { useWorkspaceContext } from '../workspace/context';
+import { useAssets } from './Attachments';
 import { t } from '../i18n';
 import type { RenderEnv } from './components';
 import { onPage } from './theme';
@@ -40,10 +48,34 @@ export function ListTools({
     const workflow = findWorkflowTarget(quickActions, u.tool, locale);
     return workflow ? [workflow] : [];
   });
+  // 第一步收文件的快捷操作（D-442）：交列表现在选出的这些记录第一个附件字段里它收的文件。
+  const { registry } = useWorkspaceContext();
+  const takesFiles = (wf: (typeof shown)[number]) => handedInput(wf.steps, registry) === 'files';
+  const fileIds = shown.some(takesFiles) ? attachmentIdsOfRecords(collection, records) : [];
+  const loaded = useAssets(fileIds);
   if (shown.length === 0 || records.length === 0) return null;
+  const infos = new Map<string, AttachmentInfo>(
+    [...loaded].flatMap(([id, asset]) =>
+      asset ? [[id, { id, name: asset.name, mimeType: asset.mimeType, size: asset.size }]] : [],
+    ),
+  );
+  const buttons = shown.flatMap(
+    (workflow): { workflow: typeof workflow; value: RunValue | HandedFiles }[] => {
+      if (!takesFiles(workflow))
+        return [{ workflow, value: recordsValue(collection, [...records]) }];
+      const files = handedFilesFor(
+        registry.actions.get(workflow.steps[0]!.action)!,
+        collection,
+        records,
+        infos,
+      );
+      return files ? [{ workflow, value: files }] : [];
+    },
+  );
+  if (buttons.length === 0) return null;
   return (
     <View style={{ gap: 6 }}>
-      {shown.map((workflow) => (
+      {buttons.map(({ workflow, value }) => (
         <Button
           key={workflow.id}
           palette={palette}
@@ -51,11 +83,7 @@ export function ListTools({
           variant="outline"
           label={workflow.name}
           {...(workflow.icon ? { icon: workflow.icon } : {})}
-          onPress={
-            env.interactive
-              ? (env.locked ?? (() => void run(workflow, recordsValue(collection, [...records]))))
-              : undefined
-          }
+          onPress={env.interactive ? (env.locked ?? (() => void run(workflow, value))) : undefined}
           onLongPress={env.onLongPress}
         />
       ))}

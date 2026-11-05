@@ -8,6 +8,7 @@ import {
 } from './components/define';
 import { conditionProblems } from './conditions';
 import { FILES_COLLECTION, FILES_TABLE } from './files-table';
+import { attachmentField, fieldHandsTo } from './handed';
 import { pageBrowseLists } from './page-zones';
 import { recordToolUseProblems, toolLabelMax, type ToolWhere } from './record-ops';
 import {
@@ -429,7 +430,7 @@ function handedBy(config: WorkspaceConfig, id: string, registry: Registry): Hand
 
 /** 这个快捷操作要容器交值（D-428）：只能放在记录页和记录块上，别的地方点了没有值可交。 */
 const needsContainer = (id: string, where: string) =>
-  `${where}: ${id} takes a record or a value from where it sits, so it can't run from here; put it in a table's recordRow or on a records block`;
+  `${where}: ${id} takes a record, a value or attachments from where it sits, so it can't run from here; put it in a table's recordRow or on a records block`;
 
 function quickActionRefProblem(config: WorkspaceConfig, id: string): string | null {
   const tool = config.tools.find((t) => t.id === id);
@@ -439,7 +440,7 @@ function quickActionRefProblem(config: WorkspaceConfig, id: string): string | nu
     : `missing quick action ${id}`;
 }
 
-/** 记录页顶部的按钮（D-428，底线 18）：快捷操作在、第一步收值或记录；收值的要写一个字段，收记录的不写。 */
+/** 记录页顶部的按钮（D-428，底线 18）：快捷操作在、第一步收值、记录或文件；收值和文件的要写一个字段（文件的要是附件字段），收记录的不写。 */
 function recordRowProblems(
   table: Collection,
   config: WorkspaceConfig,
@@ -460,17 +461,24 @@ function recordRowProblems(
     const takes = handedBy(config, item.tool, registry);
     if (takes === null)
       problems.push(
-        `${where}: this quick action chooses its own input; a button on the entry page must start with a step that takes text or records (e.g. out.call, records.toVCard)`,
+        `${where}: this quick action chooses its own input; a button on the entry page must start with a step that takes text, records or files (e.g. out.call, records.toVCard, pdf.compress)`,
       );
-    else if (takes === 'text') {
+    else if (takes === 'records') {
+      if (item.field !== undefined)
+        problems.push(`${where}: its first step takes the whole entry: leave field out`);
+    } else {
+      // 文字、文件：交一个字段的值，要写字段（D-442：字段交什么看字段的类型）。
       const field = table.fields.find((f) => f.id === item.field);
       if (item.field === undefined)
-        problems.push(`${where}: its first step takes text: name a field`);
+        problems.push(`${where}: its first step takes ${takes}: name a field`);
       else if (!field) problems.push(`${where}: ${item.field} is not a field of ${table.id}`);
-      else if (field.type !== 'text' && field.type !== 'note')
-        problems.push(`${where}: ${item.field} is a ${field.type} field; name a text field`);
-    } else if (item.field !== undefined)
-      problems.push(`${where}: its first step takes the whole entry: leave field out`);
+      else if (fieldHandsTo(field) !== takes)
+        problems.push(
+          takes === 'text'
+            ? `${where}: ${item.field} is a ${field.type} field that doesn't hand over text; name a text, note, number, money, date, time, duration, rating, choice or tags field`
+            : `${where}: ${item.field} is a ${field.type} field; its first step takes files: name an attachment field`,
+        );
+    }
   }
   return problems;
 }
@@ -541,9 +549,15 @@ function toolUseProblems(
           // 列表交它选出的记录，单条记录块交这一条（D-428）；别的块没有值可交。
           const hands = u.as === 'list' || c.look === 'single';
           const takes = handedBy(config, u.tool, registry);
-          if (hands && takes !== 'records')
+          if (hands && takes === 'files') {
+            // 这张表第一个附件字段里的文件（D-442）；分开的浮动按钮没有自己的表，不交文件。
+            if (c.look === 'dial' || !rowOf || !attachmentField(rowOf))
+              problems.push(
+                `${label}: ${u.tool} starts with a step that takes files, so the block must read a table with an attachment field${c.look === 'dial' ? ' (a dial has no table of its own)' : ''}`,
+              );
+          } else if (hands && takes !== 'records')
             problems.push(
-              `${label}: ${u.tool} can't sit here: this block hands over its records, so the quick action must start with a step that takes records, with no input step (e.g. records.toVCard)`,
+              `${label}: ${u.tool} can't sit here: this block hands over its records (or the attachments of its table), so the quick action must start with a step that takes records or files, with no input step (e.g. records.toVCard, pdf.compress)`,
             );
           else if (!hands && takes !== null)
             problems.push({ code: 'needs-container', message: needsContainer(u.tool, label) });

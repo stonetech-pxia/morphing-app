@@ -4,6 +4,8 @@
 // 只能在手机上验证，见 INVARIANTS_AUDIT.md。
 
 import { expoFilePlatform } from '../runtime/expo-platform';
+import { copyHandedFiles } from '../runtime/runner';
+import type { WorkspaceRepo } from '../storage/types';
 
 const mockTouched: { op: 'delete' | 'move'; uri: string }[] = [];
 
@@ -127,6 +129,42 @@ describe('底线 4：原件永远不移动、不删除', () => {
     }
     expect(mockTouched.some((t) => t.op === 'move')).toBe(true);
     expect(mockTouched.filter((t) => ORIGINALS.includes(t.uri))).toEqual([]);
+  });
+
+  // D-442：记录的附件交给工具时，处理的是副本；用户文件（assets/）原样不动，视频原地用、不移走。
+  it('handing attachments to a run copies them and never moves or deletes the user files', async () => {
+    const assets = new Map(
+      [
+        ['a1', 'contract.pdf', 'application/pdf'],
+        ['a2', 'clip.mp4', 'video/mp4'],
+      ].map(([id, name, mimeType]) => [
+        id,
+        {
+          id,
+          name,
+          mimeType,
+          size: 10,
+          path: `assets/${id}/${name}`,
+          source: 'picked',
+          createdAt: 1,
+        },
+      ]),
+    );
+    const repo = {
+      getAsset: async (id: string) => assets.get(id!) ?? null,
+    } as unknown as WorkspaceRepo;
+    const value = await copyHandedFiles({ repo, files: expoFilePlatform }, 'run1', {
+      type: 'attachments',
+      fileType: 'files',
+      assetIds: ['a1', 'a2'],
+      name: 'Scan',
+    });
+    expect(value.type).toBe('files');
+    // 文档类的复制进运行目录，视频原地用。
+    const uris = (value as { items: { uri: string }[] }).items.map((i) => i.uri);
+    expect(uris[0]).toContain('/runs/run1/');
+    expect(uris[1]).toContain('/assets/a2/clip.mp4');
+    expect(mockTouched.filter((t) => t.uri.includes('/assets/'))).toEqual([]);
   });
 
   it('removing a saved file only deletes inside the app’s own assets folder', async () => {

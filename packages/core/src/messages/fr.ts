@@ -235,9 +235,10 @@ export const fr: MessageTable = {
   askPasswordAgain: 'Confirmer le mot de passe',
   runError_textTooLong: 'Le texte est trop long (maximum {max} caractères).',
   runError_needsRecord:
-    'Cette action rapide a besoin d’une entrée ou d’une valeur. Touchez-la sur la page de l’entrée ou la liste où elle se trouve.',
+    'Cette action rapide a besoin d’une entrée, d’une valeur ou des pièces jointes d’une entrée. Touchez-la sur la page de l’entrée ou la liste où elle se trouve.',
   runError_badLink:
     'Ce n’est ni un numéro, ni une adresse e-mail, ni une adresse web que l’on peut ouvrir.',
+  runError_noFiles: 'Aucun fichier utilisable ici.',
   runError_noRecords: 'Aucune entrée dans « {name} » pour cette période.',
   runError_doesNotFit:
     '« {name} » ne rentre pas sur ce papier. Utilisez d’abord l’étape « Photo d’identité » pour le recadrer au format.',

@@ -53,6 +53,7 @@ export * from './related';
 export * from './reminders';
 export * from './field-link';
 export * from './vcard';
+export * from './handed';
 export * from './record-row';
 export * from './money-currency';
 export * from './records-sheet';

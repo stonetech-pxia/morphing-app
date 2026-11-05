@@ -1,12 +1,16 @@
 import {
+  attachmentIdsOfRecords,
   calendarOf,
   findWorkflowTarget,
   formatRef,
+  handedFilesFor,
+  handedInput,
   isToolRefUse,
   quickActionsOf,
   recordsValue,
   recordToVCard,
   type BlockOf,
+  type AttachmentInfo,
   type ComponentStyle,
 } from '@morph/core';
 import { encodePng, qrMatrix, qrToRgba } from '@morph/tool-qr';
@@ -17,6 +21,8 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { useComputedRecords, useLinkResolver } from '../data/records';
 import { t } from '../i18n';
 import { useHandedRun } from '../run/useHandedRun';
+import { useWorkspaceContext } from '../workspace/context';
+import { useAssets } from './Attachments';
 import type { RenderEnv } from './components';
 import { useCollection } from './data';
 import { openEditor } from './open-row';
@@ -72,7 +78,22 @@ export function SingleRecord({
     use && isToolRefUse(use)
       ? findWorkflowTarget(quickActionsOf(env.config), use.tool, locale)
       : undefined;
+  // 第一步收文件的快捷操作（D-442）：交这一条记录第一个附件字段里它收的那些文件，读到了才有按钮。
+  const { registry } = useWorkspaceContext();
+  const takesFiles = tool !== undefined && handedInput(tool.steps, registry) === 'files';
+  const fileIds =
+    takesFiles && collection && record ? attachmentIdsOfRecords(collection, [record]) : [];
+  const loaded = useAssets(fileIds);
   if (!collection || !view || records === null) return null;
+  const infos = new Map<string, AttachmentInfo>(
+    [...loaded].flatMap(([id, asset]) =>
+      asset ? [[id, { id, name: asset.name, mimeType: asset.mimeType, size: asset.size }]] : [],
+    ),
+  );
+  const files =
+    takesFiles && record
+      ? handedFilesFor(registry.actions.get(tool.steps[0]!.action)!, collection, [record], infos)
+      : null;
   const background = cardColors(palette, tone).background;
   if (!record)
     return (
@@ -131,7 +152,7 @@ export function SingleRecord({
           }
           onLongPress={env.onLongPress}
         />
-        {tool ? (
+        {tool && (!takesFiles || files) ? (
           <Button
             palette={palette}
             testID={`single-tool-${tool.id}`}
@@ -140,7 +161,8 @@ export function SingleRecord({
             {...(tool.icon ? { icon: tool.icon } : {})}
             onPress={
               env.interactive
-                ? (env.locked ?? (() => void run(tool, recordsValue(collection, [record]))))
+                ? (env.locked ??
+                  (() => void run(tool, files ?? recordsValue(collection, [record]))))
                 : undefined
             }
             onLongPress={env.onLongPress}

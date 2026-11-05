@@ -390,8 +390,17 @@ describe('validateWorkspace', () => {
   });
 
   it('rejects broken data flow between steps', () => {
-    // 去掉「选择文件」后，第一步不再是输入动作。
-    expect(issuesOf(mutate((c) => merge(c).steps.splice(0, 1)))).toContain('source');
+    // 去掉「选择文件」后，第一步收文件，要由记录的附件字段交（D-442）：放在按钮上交不出。
+    expect(issuesOf(mutate((c) => merge(c).steps.splice(0, 1)))).toContain('needs-container');
+    // 输入动作只能是第一步。
+    expect(
+      issuesOf(
+        mutate((c) => {
+          const steps = merge(c).steps;
+          steps.push(steps.shift()!);
+        }),
+      ),
+    ).toContain('source');
     // 合并得到 PDF，「存到相册」只接受图片。
     expect(
       issuesOf(

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import type { AttachmentInfo } from './handed';
 import { recordRowButtons, recordRowValue, recordsValue, runsInline } from './record-row';
-import { quickActionsOf, type Collection, type Workflow } from './schema';
+import { quickActionsOf, type Collection, type QuickAction, type Workflow } from './schema';
+import { initialParams } from './workflow/check';
 import { registry, workspace } from './test-helpers';
 import { findWorkflow } from './workflows/presets';
 
@@ -134,5 +136,117 @@ describe('where it runs', () => {
     expect(runsInline(preset('record-vcard'), many)).toBe(false);
     expect(runsInline(preset('record-qr'), one)).toBe(false);
     expect(runsInline(preset('record-copy'), text)).toBe(false);
+  });
+});
+
+describe('any field can be handed to a step that takes its kind (D-442)', () => {
+  const step = (action: string) => ({
+    id: 's0',
+    action,
+    params: initialParams(registry.actions.get(action)!),
+  });
+  const own = (id: string, action: string): QuickAction => ({
+    id,
+    kind: 'quickAction',
+    name: id,
+    steps: [step(action)],
+  });
+  const quick = [own('shrink', 'pdf.compress'), own('resize', 'image.resize')];
+  const docs: Collection = {
+    id: 'docs',
+    name: 'Docs',
+    fields: [
+      { id: 'title', name: 'Title', type: 'text' },
+      { id: 'total', name: 'Total', type: 'number' },
+      { id: 'done', name: 'Done', type: 'checkbox' },
+      { id: 'scan', name: 'Scan', type: 'file' },
+    ],
+    recordRow: [
+      { tool: 'shrink', field: 'scan' },
+      { tool: 'resize', field: 'scan' },
+      { tool: 'record-copy', field: 'total' },
+    ],
+  };
+  const info = (id: string, name: string, mimeType: string): AttachmentInfo => ({
+    id,
+    name,
+    mimeType,
+    size: 5,
+  });
+  const known = new Map([
+    ['p1', info('p1', 'a.pdf', 'application/pdf')],
+    ['i1', info('i1', 'a.jpg', 'image/jpeg')],
+    ['p2', info('p2', 'b.pdf', 'application/pdf')],
+  ]);
+  const show = (t: Collection, values: Record<string, unknown>, assets = known) =>
+    recordRowButtons(t, [...quickActions(), ...quick], registry, 'en', values, assets);
+
+  it('shows a button per tool when the field has attachments the tool takes', () => {
+    expect(show(docs, { scan: ['p1', 'i1', 'p2'] }).map((b) => b.key)).toEqual([
+      'shrink-scan',
+      'resize-scan',
+    ]);
+  });
+
+  it('hands over only the attachments that tool takes, in order, as ids (copies are made at run time)', () => {
+    const [shrink, resize] = show(docs, { scan: ['p1', 'i1', 'p2'] });
+    expect(shrink!.files).toEqual({ fileType: 'pdf', assetIds: ['p1', 'p2'] });
+    expect(resize!.files).toEqual({ fileType: 'images', assetIds: ['i1'] });
+    const record = { id: 'r', collectionId: 'docs', values: {}, createdAt: 1, updatedAt: 1 };
+    expect(recordRowValue(shrink!, docs, record as never)).toEqual({
+      type: 'attachments',
+      fileType: 'pdf',
+      assetIds: ['p1', 'p2'],
+      name: 'Scan',
+    });
+  });
+
+  it('a tool whose kind is not among the attachments has no button', () => {
+    expect(show(docs, { scan: ['p1', 'p2'] }).map((b) => b.key)).toEqual(['shrink-scan']);
+  });
+
+  it('no attachments, or attachments not found on this device, mean no button', () => {
+    expect(show(docs, {})).toEqual([]);
+    expect(show(docs, { scan: [] })).toEqual([]);
+    expect(show(docs, { scan: ['gone'] })).toEqual([]);
+    // 文件信息还没读到：先不显示，读到了再出现。
+    expect(show(docs, { scan: ['p1'] }, new Map())).toEqual([]);
+  });
+
+  it('a number field hands over the text it shows', () => {
+    const [button] = show(docs, { total: 12.5 }).filter((b) => b.key === 'record-copy-total');
+    expect(button).toMatchObject({ text: '12.5' });
+    expect(show(docs, {}).map((b) => b.key)).toEqual([]);
+  });
+
+  it('a checkbox field hands over nothing, so a text tool on it stays hidden', () => {
+    const t = { ...docs, recordRow: [{ tool: 'record-copy', field: 'done' }] };
+    expect(show(t, { done: true })).toEqual([]);
+  });
+
+  it('a files tool on a text field, or a text tool on an attachment field, stays hidden', () => {
+    const t = {
+      ...docs,
+      recordRow: [
+        { tool: 'shrink', field: 'title' },
+        { tool: 'record-copy', field: 'scan' },
+      ],
+    };
+    expect(show(t, { title: 'x', scan: ['p1'] })).toEqual([]);
+  });
+
+  it('files always get the run page: copying them first can take a while', () => {
+    const wf = quick[0]!;
+    const out = {
+      type: 'attachments' as const,
+      fileType: 'pdf' as const,
+      assetIds: ['p1'],
+      name: 'S',
+    };
+    expect(runsInline(wf as Workflow, out)).toBe(false);
+    // 最后一步交给 App 外面也一样。
+    expect(
+      runsInline({ ...wf, steps: [step('pdf.compress'), step('out.share')] } as Workflow, out),
+    ).toBe(false);
   });
 });

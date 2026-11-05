@@ -1,13 +1,18 @@
 import {
+  HANDED_FILES_MAX,
+  RunCancelled,
   RunError,
   localize,
   isFileValue,
+  sanitizeFileName,
   ocrPackId,
   runWorkflow,
   templateReads,
   type AskRequest,
   type Calendar,
   type DevicePack,
+  type HandedFiles,
+  type RunItem,
   type Locale,
   type OcrLanguage,
   type PackNeed,
@@ -20,7 +25,15 @@ import {
 
 import { t } from '../i18n';
 import type { WorkspaceRepo } from '../storage/types';
-import type { RunServices } from './actions/helpers';
+import {
+  baseName,
+  checkSizes,
+  extOf,
+  freshName,
+  isMediaFile,
+  mimeOf,
+  type RunServices,
+} from './actions/helpers';
 import { ACTION_IMPLS } from './actions';
 import { VISION_LANGUAGES } from './actions/ocr';
 import { resolveOcrLanguage } from './ocr-language';
@@ -54,8 +67,11 @@ export interface RunContext {
   onEvent?: (event: RunEvent) => void;
   /** 分享进来的文件（D-115）：交给第一步，第一步不再打开选择器，也不问参数。 */
   incoming?: readonly PickedFile[] | null;
-  /** 容器交的值（D-428）：记录页的这一条、这个字段的值、列表选出的记录。点了按钮才有。 */
-  handed?: RunValue | null;
+  /**
+   * 容器交的值（D-428）：记录页的这一条、这个字段的值、列表选出的记录。点了按钮才有。
+   * 附件（D-442）交过来的只有文件 ID，副本在这里（startRun）复制进这次运行的临时目录。
+   */
+  handed?: RunValue | HandedFiles | null;
 }
 
 export interface Run {
@@ -282,10 +298,65 @@ function unsupportedStep(ctx: RunContext): RunResult | null {
   };
 }
 
+/**
+ * 把容器交来的附件（用户文件）复制进这次运行的临时目录（D-442）：处理的是副本，用户文件原样不动（底线 4）。
+ * 视频和音频可能有几个 GB，不复制（D-142）：用户文件不在缓存目录里，adoptIntoRun 原地使用、不会移走。
+ * 已经不在这台设备上的文件跳过；复制到一半出错或取消，由调用的人删掉整个运行目录。
+ */
+export async function copyHandedFiles(
+  ctx: Pick<RunContext, 'repo' | 'files' | 'signal'>,
+  runId: string,
+  handed: HandedFiles,
+): Promise<RunValue> {
+  if (handed.assetIds.length > HANDED_FILES_MAX)
+    throw new RunError('tooMany', { max: HANDED_FILES_MAX });
+  const assets = [];
+  for (const id of handed.assetIds) {
+    const asset = await ctx.repo.getAsset(id);
+    if (asset) assets.push(asset);
+  }
+  // 复制之前就查大小，太大的不白复制。
+  checkSizes(assets.map((a) => ({ name: a.name, size: a.size, mimeType: a.mimeType })));
+  const items: RunItem[] = [];
+  for (const asset of assets) {
+    if (ctx.signal?.cancelled) throw new RunCancelled();
+    const clean = sanitizeFileName(asset.name);
+    const mimeType = mimeOf(clean, asset.mimeType);
+    const ext = extOf(clean) || (mimeType === 'application/pdf' ? 'pdf' : 'jpg');
+    const name = baseName(clean);
+    const uri = ctx.files.fileUri(asset.path);
+    const media = isMediaFile({ name: clean, mimeType });
+    let stored;
+    try {
+      stored = media
+        ? await ctx.files.adoptIntoRun(uri, runId, freshName(name, ext), true)
+        : await ctx.files.copyToRun(uri, runId, freshName(name, ext));
+    } catch {
+      throw new RunError('accessDenied', { name: asset.name });
+    }
+    items.push({ uri: stored.uri, name, ext, mimeType, size: stored.size || asset.size });
+  }
+  return { type: handed.fileType, items };
+}
+
 export async function startRun(ctx: RunContext): Promise<Run> {
   const runId = ctx.newId();
   const blocked = unsupportedStep(ctx);
   if (blocked) return { result: blocked, runId, dispose: async () => undefined };
+  let handed: RunValue | null;
+  if (ctx.handed?.type === 'attachments') {
+    try {
+      handed = await copyHandedFiles(ctx, runId, ctx.handed);
+    } catch (e) {
+      // 复制到一半出错或取消：运行目录里已经复制的副本一起删（成功和失败都要删）。
+      await ctx.files.removeRun(runId);
+      const dispose = async () => undefined;
+      if (e instanceof RunCancelled) return { result: { status: 'cancelled' }, runId, dispose };
+      if (e instanceof RunError)
+        return { result: { status: 'failed', stepIndex: null, error: e }, runId, dispose };
+      throw e;
+    }
+  } else handed = ctx.handed ?? null;
   const alive = await keepAlive(ctx);
   const onEvent = alive
     ? (e: RunEvent) => {
@@ -312,7 +383,7 @@ export async function startRun(ctx: RunContext): Promise<Run> {
     locale: ctx.locale,
     now: ctx.now,
     newId: ctx.newId,
-    handed: ctx.handed ?? null,
+    handed,
     ...(ctx.askParams ? { askParams: askUnlessShared(ctx, ctx.askParams) } : {}),
     ...(ctx.ensurePack ? { ensurePack: ctx.ensurePack } : {}),
     ...(ctx.ensurePacks ? { ensurePacks: ctx.ensurePacks } : {}),

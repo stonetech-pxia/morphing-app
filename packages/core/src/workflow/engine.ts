@@ -1,7 +1,7 @@
 import type { DataRecord } from '../data';
 import type { Registry } from '../registry';
 import type { Locale, Workflow, WorkflowStep } from '../schema';
-import type { ActionDefinition, ValueType } from './contract';
+import { actionAccepts, type ActionDefinition, type ValueType } from './contract';
 import { handedInput, workflowProblems } from './check';
 
 // 工作流执行器（TOOLS_DESIGN §3）：唯一按顺序执行动作的地方。配置里只有动作 ID 和参数，没有任何代码。
@@ -89,6 +89,8 @@ export type RunErrorCode =
   | 'textTooLong'
   | 'doesNotFit'
   | 'noRecords'
+  /** 容器交来的附件一个都用不了（文件已经不在了，或第一步不收这种文件，D-442）。 */
+  | 'noFiles'
   /** 这个快捷操作要记录页或列表交给它的值，这次运行没有（D-428）。 */
   | 'needsRecord'
   /** 这段文字不是能打开的电话、邮箱或网址（D-428）。 */
@@ -319,15 +321,23 @@ export async function runWorkflow<S>(opts: RunOptions<S>): Promise<RunResult> {
     return finish({ status: 'failed', error: new RunError('invalidWorkflow'), stepIndex: null });
   }
 
-  // 容器交的值：类型对不上、没有、是空的都不开始（D-428）。
+  // 容器交的值：类型对不上、没有、是空的都不开始（D-428）。文件（D-442）是第一步收的那种文件。
   const wanted = handedInput(workflow.steps, registry);
   const given = wanted !== null ? (opts.handed ?? null) : null;
   if (wanted !== null) {
     const fail = (error: RunError) => finish({ status: 'failed', error, stepIndex: null });
-    if (given === null || given.type !== wanted) return fail(new RunError('needsRecord'));
-    if (given.type === 'text' && given.text.trim() === '') return fail(new RunError('emptyText'));
-    if (given.type === 'records' && given.records.length === 0)
-      return fail(new RunError('noRecords', { name: given.name }));
+    if (given === null) return fail(new RunError('needsRecord'));
+    if (wanted === 'files') {
+      const first = registry.actions.get(workflow.steps[0]!.action)!;
+      if (!isFileValue(given) || !actionAccepts(first, given.type))
+        return fail(new RunError('needsRecord'));
+      if (given.items.length === 0) return fail(new RunError('noFiles'));
+    } else {
+      if (given.type !== wanted) return fail(new RunError('needsRecord'));
+      if (given.type === 'text' && given.text.trim() === '') return fail(new RunError('emptyText'));
+      if (given.type === 'records' && given.records.length === 0)
+        return fail(new RunError('noRecords', { name: given.name }));
+    }
   }
 
   const saved: string[] = [];

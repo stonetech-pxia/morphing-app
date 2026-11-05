@@ -7,6 +7,7 @@ import { apply, registry, workspace } from '../test-helpers';
 import {
   defaultParams,
   handedInput,
+  handedValueType,
   initialParams,
   insertableActions,
   typesAlong,
@@ -190,9 +191,29 @@ describe('a first step that takes what a container hands over (D-428)', () => {
     );
   });
 
-  it('a step that only takes files still needs an input step', () => {
-    for (const action of ['image.compress', 'pdf.merge', 'out.share', 'file.save'])
-      expect(workflowProblems(wf(action), registry).map((p) => p.code)).toContain('source');
+  it('a step that takes files can start a chain: the container hands over the attachments (D-442)', () => {
+    expect(handedInput(wf('pdf.compress').steps, registry)).toBe('files');
+    expect(handedInput(wf('image.resize').steps, registry)).toBe('files');
+    expect(handedInput(wf('file.save').steps, registry)).toBe('files');
+    // 后面各步按第一步收的那种文件接：pdf 压缩完还是 pdf，能接分享。
+    expect(handedValueType(wf('pdf.compress').steps, registry)).toBe('pdf');
+    expect(handedValueType(wf('image.resize').steps, registry)).toBe('images');
+    expect(handedValueType(wf('file.save').steps, registry)).toBe('files');
+    expect(workflowProblems(wf('pdf.compress', 'out.share'), registry)).toEqual([]);
+    expect(typesAlong(wf('pdf.compress', 'out.share').steps, registry)).toEqual(['pdf', 'pdf']);
+    // 类型接不上还是接不上：图片动作后面不能接只收 pdf 的。
+    expect(
+      workflowProblems(wf('image.resize', 'pdf.compress'), registry).map((p) => p.code),
+    ).toContain('binding');
+  });
+
+  it('text and records win when a step takes them as well as files', () => {
+    expect(handedInput(wf('out.addRecord').steps, registry)).toBe('text');
+  });
+
+  it('a step that takes files can still not follow an input step the wrong way round', () => {
+    expect(handedInput(wf('in.files', 'pdf.compress').steps, registry)).toBeNull();
+    expect(handedValueType(wf('in.files', 'pdf.compress').steps, registry)).toBeNull();
   });
 
   it('an input step stays first, and an input step is not handed anything', () => {

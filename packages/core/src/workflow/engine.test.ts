@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { registry, workspace } from '../test-helpers';
 import { quickActionsOf, type Workflow } from '../schema';
+import { initialParams } from './check';
 import { RunCancelled, RunError, runWorkflow, type ActionImpl, type RunValue } from './engine';
 
 const now = () => new Date(2026, 9, 22, 9, 0);
@@ -153,7 +154,8 @@ describe('runWorkflow', () => {
   });
 
   it('re-checks the workflow before running anything', async () => {
-    const broken = { ...merge(), steps: merge().steps.slice(1) };
+    // 输入步骤放到后面：输入只能是第一步。
+    const broken = { ...merge(), steps: [...merge().steps.slice(1), merge().steps[0]!] };
     const { promise, log } = run(broken);
     expect(await promise).toMatchObject({ status: 'failed', error: { code: 'invalidWorkflow' } });
     expect(log).toEqual([]);
@@ -556,6 +558,77 @@ describe('a value handed over by a container (D-428)', () => {
     expect(a.status === 'failed' && a.error.code).toBe('emptyText');
     expect(b.status === 'failed' && b.error.code).toBe('noRecords');
     expect([...empty.seen, ...none.seen]).toEqual([]);
+  });
+
+  describe('attachments handed over (D-442)', () => {
+    const compress: Workflow = {
+      id: 'compress',
+      kind: 'quickAction',
+      name: 'Compress',
+      steps: [
+        {
+          id: 'c',
+          action: 'pdf.compress',
+          params: initialParams(registry.actions.get('pdf.compress')!),
+        },
+      ],
+    };
+    const file = (name: string, mimeType: string) => ({
+      uri: `file:///cache/runs/x/${name}`,
+      name,
+      ext: name.split('.').pop()!,
+      mimeType,
+      size: 3,
+    });
+    const run = (handed?: RunValue | null) => {
+      const seen: (RunValue | null)[] = [];
+      const result = runWorkflow({
+        workflow: compress,
+        registry,
+        impls: {
+          'pdf.compress': async (input) => {
+            seen.push(input);
+            return input!;
+          },
+        },
+        services: {},
+        locale: 'en',
+        now,
+        newId: () => 'x',
+        ...(handed !== undefined ? { handed } : {}),
+      });
+      return { result, seen };
+    };
+
+    it('the first step gets the files, typed as the kind it takes', async () => {
+      const pdfs: RunValue = { type: 'pdf', items: [file('a.pdf', 'application/pdf')] };
+      const { result, seen } = run(pdfs);
+      expect((await result).status).toBe('succeeded');
+      expect(seen).toEqual([pdfs]);
+    });
+
+    it.each([
+      ['nothing handed', undefined],
+      ['null', null],
+      ['text', { type: 'text', text: 'x', name: 'n' } as RunValue],
+      [
+        'the wrong kind of file',
+        { type: 'images', items: [file('a.jpg', 'image/jpeg')] } as RunValue,
+      ],
+    ])('%s: no step runs, and it says it needs a record', async (_name, handed) => {
+      const { result, seen } = run(handed as RunValue | null | undefined);
+      const done = await result;
+      expect(done).toMatchObject({ status: 'failed', stepIndex: null });
+      expect(done.status === 'failed' && done.error.code).toBe('needsRecord');
+      expect(seen).toEqual([]);
+    });
+
+    it('never runs with no files', async () => {
+      const { result, seen } = run({ type: 'pdf', items: [] });
+      const done = await result;
+      expect(done.status === 'failed' && done.error.code).toBe('noFiles');
+      expect(seen).toEqual([]);
+    });
   });
 
   it('a quick action with its own input ignores it', async () => {

@@ -140,8 +140,12 @@ describe('文件工具', () => {
     expect(tool(r, 'send').checks).toMatchObject({ chain: true, params: true, entry: 'placed' });
   });
 
-  it('第一步不是输入动作：用不了', () => {
-    const wf = quick('bad', [['image.compress', { maxKB: 500, format: 'jpeg' }]]);
+  it('输入动作不在第一步：用不了', () => {
+    // 第一步收文件的快捷操作由记录的附件字段交文件（D-442）；输入动作只能放在第一步。
+    const wf = quick('bad', [
+      ['image.compress', { maxKB: 500, format: 'jpeg' }],
+      ['in.photos', { source: 'library', min: 1, max: 5 }],
+    ]);
     const r = check(workspace({ tools: [wf], home: [action('run', 'bad')] }));
     expect(codes(r, 'blocker')).toContain('step-source');
     expect(tool(r, 'bad').ok).toBe(false);

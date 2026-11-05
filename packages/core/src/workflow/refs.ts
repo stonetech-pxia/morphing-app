@@ -1,6 +1,6 @@
 import type { Registry } from '../registry';
 import type { Collection, QuickAction, WorkspaceConfig } from '../schema';
-import { handedInput } from './check';
+import { handedInput, handedValueType } from './check';
 import { outputTypeOf, type ValueType } from './contract';
 
 // 步骤参数里引用配置的地方（CHAIN_AUDIT A3，创始人 2026-10-31）。动作目录的 ParamField.kind 就是声明：
@@ -26,7 +26,7 @@ export interface StepRef {
 /** 一个快捷操作的步骤参数引用的表和字段。 */
 export function stepRefs(wf: QuickAction, registry: Registry): StepRef[] {
   const refs: StepRef[] = [];
-  let value: ValueType | null = handedInput(wf.steps, registry);
+  let value: ValueType | null = handedValueType(wf.steps, registry);
   // 传进来的记录所在的表（读取记录那一步定下，原样往下传的步骤保持）。
   let recordsTable: string | null = null;
   for (const [index, step] of wf.steps.entries()) {

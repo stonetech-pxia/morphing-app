@@ -219,8 +219,9 @@ export const en = {
   askPasswordAgain: 'Password again',
   runError_textTooLong: 'The text is too long (at most {max} characters).',
   runError_needsRecord:
-    'This quick action works on an entry or a value. Tap it on the entry page or the list it sits on.',
+    'This quick action works on an entry, a value or an entry’s attachments. Tap it on the entry page or the list it sits on.',
   runError_badLink: 'This isn’t a phone number, email address or web address that can be opened.',
+  runError_noFiles: 'There are no files to use here.',
   runError_noRecords: 'There are no entries in “{name}” for this period.',
   runError_doesNotFit: '“{name}” does not fit on this paper. Cut it to an ID photo size first.',
   runError_notFound: 'Nothing was found in “{name}”.',

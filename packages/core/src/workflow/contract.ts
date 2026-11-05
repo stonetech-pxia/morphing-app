@@ -33,16 +33,33 @@ export function acceptsType(accepted: readonly ValueType[], actual: ValueType): 
 export const actionAccepts = (action: ActionDefinition, actual: ValueType): boolean =>
   acceptsType(action.input, actual) && !action.rejects?.includes(actual);
 
+/** 文件的值类型：files 是其余几种的父类型（排第一，下面按这个顺序找第一步要的）。 */
+export const FILE_VALUE_TYPES = [
+  'files',
+  'images',
+  'pdf',
+  'video',
+  'audio',
+  'zip',
+] as const satisfies readonly ValueType[];
+export type HandedFileType = (typeof FILE_VALUE_TYPES)[number];
+
 /**
- * 容器能交给工具的值（创始人 2026-11-04 在对话里定）：记录页、单条记录块交这一条（records），字段交它的值（text），
- * 列表交它现在选出的记录（records）。第一步要这两种的快捷操作不用输入步骤；文件只由桌面、收件页面交（D-115）。
+ * 容器能交给工具的值（创始人 2026-11-04 在对话里定，2026-11-05 加了文件）：记录页、单条记录块交这一条（records），
+ * 字段交它的值（text），列表交它现在选出的记录（records）；附件字段交里面的文件（files，副本，D-442）。
+ * 第一步要这几种的快捷操作不用输入步骤；收件页面、桌面交的文件不是这样交的（D-115）。
  */
-export const HANDED_TYPES = ['text', 'records'] as const satisfies readonly ValueType[];
+export const HANDED_TYPES = ['text', 'records', 'files'] as const satisfies readonly ValueType[];
 export type HandedType = (typeof HANDED_TYPES)[number];
 
-/** 这个动作当第一步时要容器交什么；输入动作、只收文件的动作不算。 */
+/** 第一步收文件时，容器该交哪一种文件：收任何文件的是 files，否则是它收的第一种。 */
+export const handedFileTypeOf = (action: ActionDefinition): HandedFileType | null =>
+  FILE_VALUE_TYPES.find((type) => actionAccepts(action, type)) ?? null;
+
+/** 这个动作当第一步时要容器交什么；输入动作不算。 */
 export const handedTypeOf = (action: ActionDefinition): HandedType | null =>
-  HANDED_TYPES.find((type) => actionAccepts(action, type)) ?? null;
+  (['text', 'records'] as const).find((type) => actionAccepts(action, type)) ??
+  (handedFileTypeOf(action) !== null ? 'files' : null);
 
 /** 需要用户在本地亲手操作的步骤（TOOLS_DESIGN §4）。AI 只决定它出现在哪里，看不到操作内容。 */
 export const LOCAL_STEP_KINDS = [

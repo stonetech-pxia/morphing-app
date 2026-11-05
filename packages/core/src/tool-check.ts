@@ -1070,7 +1070,7 @@ function checkQuickAction(
       page
         ? `quick action ${wf.id} is only on page ${page}, which can't be opened; it is left in Settings > Quick actions`
         : handedInput(wf.steps, a.registry)
-          ? `quick action ${wf.id} takes a record or a value but sits nowhere that hands one over, so it can't run; put it in a table's recordRow or on a records block (rule 54)`
+          ? `quick action ${wf.id} takes a record, a value or attachments but sits nowhere that hands them over, so it can't run; put it in a table's recordRow or on a records block (rule 54)`
           : `quick action ${wf.id} is only in Settings > Quick actions; add a button or an action block on a page`,
     );
   }

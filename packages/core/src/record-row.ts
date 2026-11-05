@@ -1,4 +1,12 @@
 import { fieldLink } from './field-link';
+import {
+  fieldHandedText,
+  fieldHandsTo,
+  pickHandedFiles,
+  type AttachmentInfo,
+  type HandedFiles,
+} from './handed';
+import { attachmentIds } from './field-values';
 import type { Registry } from './registry';
 import { findWorkflowTarget } from './workflows/presets';
 import type { Collection, Field, Locale, QuickAction, Workflow } from './schema';
@@ -16,17 +24,24 @@ export interface RecordRowButton {
   field?: Field;
   /** 字段的值（收文字的快捷操作）。 */
   text?: string;
+  /** 附件字段里第一步收的文件（收文件的快捷操作，D-442）：只有文件 ID，复制在运行时。 */
+  files?: { fileType: HandedFiles['fileType']; assetIds: string[] };
   /** 同一个快捷操作出现了不止一次（两个电话字段）：按钮上要写字段名才分得清。 */
   showField: boolean;
 }
 
-/** 值是空的、对不上（fieldLink）、记录用不了这个动作（做不出 vCard）的按钮不出现。 */
+/**
+ * 值是空的、对不上（fieldLink）、记录用不了这个动作（做不出 vCard）的按钮不出现。
+ * assets：这条记录附件的文件元数据（App 按文件 ID 读来）；收文件的按钮要靠它认出哪些附件第一步收，
+ * 没读到（还在读、文件已经没了）的不交，也就没有按钮。
+ */
 export function recordRowButtons(
   table: Collection,
   quickActions: readonly QuickAction[],
   registry: Registry,
   locale: Locale,
   values: Readonly<Record<string, unknown>>,
+  assets: ReadonlyMap<string, AttachmentInfo> = new Map(),
 ): RecordRowButton[] {
   const row = table.recordRow ?? [];
   const buttons: RecordRowButton[] = [];
@@ -42,15 +57,32 @@ export function recordRowButtons(
       buttons.push({ key, workflow, showField: false });
     } else if (takes === 'text') {
       const field = table.fields.find((f) => f.id === item.field);
-      const raw = field && values[field.id];
-      if (!field || typeof raw !== 'string' || raw.trim() === '') continue;
+      if (!field || fieldHandsTo(field) !== 'text') continue;
+      const text = fieldHandedText(field, values[field.id], locale);
+      if (text === '') continue;
       const opens = actions.find((a) => a?.opensLink)?.opensLink;
-      if (opens && !linkFits(field, raw, opens)) continue;
+      if (opens && !linkFits(field, text, opens)) continue;
       buttons.push({
         key,
         workflow,
         field,
-        text: raw,
+        text,
+        showField: row.filter((other) => other.tool === item.tool).length > 1,
+      });
+    } else if (takes === 'files') {
+      const field = table.fields.find((f) => f.id === item.field);
+      if (!field || fieldHandsTo(field) !== 'files') continue;
+      const infos = attachmentIds(values[field.id]).flatMap((id) => {
+        const info = assets.get(id);
+        return info ? [info] : [];
+      });
+      const files = pickHandedFiles(actions[0]!, infos);
+      if (!files) continue;
+      buttons.push({
+        key,
+        workflow,
+        field,
+        files,
         showField: row.filter((other) => other.tool === item.tool).length > 1,
       });
     }
@@ -73,7 +105,9 @@ export function recordRowValue(
   button: RecordRowButton,
   table: Collection,
   record: DataRecord,
-): RunValue {
+): RunValue | HandedFiles {
+  if (button.files)
+    return { type: 'attachments', ...button.files, name: button.field?.name ?? table.name };
   if (button.text !== undefined) {
     return { type: 'text', text: button.text.trim(), name: button.field?.name ?? table.name };
   }
@@ -93,7 +127,9 @@ export const recordsValue = (table: Collection, records: DataRecord[]): RunValue
  * 这时没有结果可看。别的（很多条、结果留在 App 里）打开运行页面，能看进度和结果。
  * 这和「结果写回来源」无关：Tinkrum 没有把结果写回来源字段的运行方式，两种都是外部运行（结果离开、不回到来源）。
  */
-export function runsInline(workflow: Workflow, value: RunValue): boolean {
+export function runsInline(workflow: Workflow, value: RunValue | HandedFiles): boolean {
+  // 文件要先复制进这次运行的临时目录，可能很大：一律打开运行页面，能看进度和结果。
+  if (value.type === 'attachments') return false;
   const small = value.type === 'text' || (value.type === 'records' && value.records.length === 1);
   return small && /^out\./.test(workflow.steps[workflow.steps.length - 1]?.action ?? '');
 }

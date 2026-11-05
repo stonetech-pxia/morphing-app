@@ -213,7 +213,8 @@ export class FakeFiles implements FilePlatform {
     return this.nextVideos ? this.nextVideos.slice(0, max) : null;
   }
   async adoptIntoRun(uri: string, runId: string, fileName: string, keepSource = false) {
-    const bytes = this.disk.get(uri);
+    // 用户文件的地址（fileUri）也行：原地使用，不移动（D-442）。
+    const bytes = this.disk.get(uri) ?? this.disk.get(uri.replace('file:///fake/', ''));
     if (!bytes) throw new Error('permission denied');
     this.adopted.push(uri);
     // 选择器的副本（picker://）和运行中的临时文件移进来；分享进来的原地使用。

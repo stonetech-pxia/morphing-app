@@ -209,8 +209,10 @@ export const zh: MessageTable = {
   askPasswordMismatch: '两次输入的密码不一样。',
   askPasswordAgain: '再输一次',
   runError_textTooLong: '文字太长了（最多 {max} 个字）。',
-  runError_needsRecord: '这个快捷操作要用一条记录或一个值，请到它所在的记录页或列表上点。',
+  runError_needsRecord:
+    '这个快捷操作要用一条记录、一个值或记录里的附件，请到它所在的记录页或列表上点。',
   runError_badLink: '这不是能打开的电话、邮箱或网址。',
+  runError_noFiles: '这里没有能用的文件。',
   runError_noRecords: '「{name}」里这段时间没有记录。',
   runError_doesNotFit: '「{name}」放不进这张相纸。请先用「证件照」步骤裁成规格尺寸。',
   runError_notFound: '在「{name}」里没有找到内容。',

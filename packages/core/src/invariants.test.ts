@@ -1795,6 +1795,139 @@ describe('底线 17：列表交的就是它选出的（D-428）', () => {
   });
 });
 
+describe('底线 4 / 17 / 18：容器把附件交给工具（D-442）', () => {
+  const shrink = () => handedSteps('shrink', 'pdf.compress');
+  const tableOf = (config: WorkspaceConfig, id: string) =>
+    config.data.tables.find((t) => t.id === id)!;
+  const withShrink = (ops: unknown[]) =>
+    prepareOps(cardsSample(), [{ op: 'addTool', tool: shrink() }, ...ops] as Op[], ctx);
+  const list = (use: object, table = 'contacts', title = 'name') => ({
+    op: 'addContainer',
+    page: 'home',
+    index: 0,
+    block: {
+      id: 'x',
+      look: 'list',
+      source: { table },
+      show: { title },
+      tools: [use],
+    },
+  });
+
+  it('the row hands an attachment field to a tool that takes files, and nothing else', () => {
+    const row = (recordRow: unknown) =>
+      withShrink([{ op: 'updateData', table: 'contacts', changes: { recordRow } }]).ok;
+    expect(row([{ tool: 'shrink', field: 'attachments' }])).toBe(true);
+    // 没写字段、写的不是附件字段、字段不存在：交不出文件。
+    expect(row([{ tool: 'shrink' }])).toBe(false);
+    expect(row([{ tool: 'shrink', field: 'name' }])).toBe(false);
+    expect(row([{ tool: 'shrink', field: 'nope' }])).toBe(false);
+    // 反过来：收文字的工具不能接附件字段。
+    expect(row([{ tool: 'record-copy', field: 'attachments' }])).toBe(false);
+  });
+
+  it('a number or a date can be handed over as text; a checkbox cannot', () => {
+    const base = prepareOps(
+      cardsSample(),
+      [
+        {
+          op: 'addData',
+          table: {
+            id: 'bills',
+            name: 'Bills',
+            fields: [
+              { id: 'title', name: 'Title', type: 'text' },
+              { id: 'total', name: 'Total', type: 'number' },
+              { id: 'due', name: 'Due', type: 'date' },
+              { id: 'paid', name: 'Paid', type: 'checkbox' },
+            ],
+          },
+        },
+      ] as Op[],
+      ctx,
+    );
+    if (!base.ok) throw new Error(base.issues.join());
+    const row = (field: string) =>
+      prepareOps(
+        base.after,
+        [
+          {
+            op: 'updateData',
+            table: 'bills',
+            changes: { recordRow: [{ tool: 'record-copy', field }] },
+          },
+        ] as Op[],
+        ctx,
+      ).ok;
+    expect(row('total')).toBe(true);
+    expect(row('due')).toBe(true);
+    expect(row('paid')).toBe(false);
+  });
+
+  it('a list or a single block hands over the attachments of its own table, so the table needs an attachment field', () => {
+    expect(withShrink([list({ as: 'list', tool: 'shrink' })]).ok).toBe(true);
+    const plain = {
+      op: 'addData',
+      table: { id: 'plain', name: 'Plain', fields: [{ id: 'n', name: 'N', type: 'text' }] },
+    };
+    expect(withShrink([plain, list({ as: 'list', tool: 'shrink' }, 'plain', 'n')]).ok).toBe(false);
+    // 同样的列表读有附件字段的表：可以（说明上面是因为没有附件字段才不行）。
+    expect(withShrink([list({ as: 'list', tool: 'shrink' }, 'contacts', 'name')]).ok).toBe(true);
+    const single = (table: string, field = 'name') => ({
+      op: 'addContainer',
+      page: 'home',
+      index: 0,
+      block: {
+        id: 'one',
+        look: 'single',
+        source: { table },
+        show: { fields: [field] },
+        tools: [{ tool: 'shrink' }],
+      },
+    });
+    expect(withShrink([single('contacts')]).ok).toBe(true);
+    expect(withShrink([plain, single('plain', 'n')]).ok).toBe(false);
+  });
+
+  it('it cannot sit where nothing hands over attachments: a button, an action block, a reminder', () => {
+    const at = (block: object) =>
+      withShrink([{ op: 'addContainer', page: 'home', index: 0, block }]).ok;
+    expect(at({ id: 'b', look: 'button', label: 'Go', opens: 'tool:shrink' })).toBe(false);
+    expect(at({ id: 'a', look: 'action', tool: 'shrink' })).toBe(false);
+  });
+
+  it('removing the attachment field takes its button with it; removing the tool cleans the row', () => {
+    const placed = withShrink([
+      {
+        op: 'updateData',
+        table: 'contacts',
+        changes: { recordRow: [{ tool: 'shrink', field: 'attachments' }] },
+      },
+    ]);
+    if (!placed.ok) throw new Error(placed.issues.join());
+    expect(danglingRefs(placed.after)).toEqual([]);
+    const field = prepareOps(
+      placed.after,
+      [{ op: 'removeData', table: 'contacts', field: 'attachments' }],
+      ctx,
+    );
+    expect(field.ok ? [] : field.issues).toEqual([]);
+    if (field.ok) expect(tableOf(field.after, 'contacts').recordRow).toBeUndefined();
+    const tool = prepareOps(placed.after, [{ op: 'removeTool', tool: 'shrink' }], ctx);
+    expect(tool.ok ? [] : tool.issues).toEqual([]);
+    if (tool.ok) {
+      expect(tableOf(tool.after, 'contacts').recordRow).toBeUndefined();
+      expect(danglingRefs(tool.after)).toEqual([]);
+    }
+  });
+
+  it('the AI is told it can hand attachments, and that it never sees them (底线 2、3)', () => {
+    const rule = registry.actions.get('out.call')!.aiRules!.find((r) => r.n === 54)!.text;
+    expect(rule).toMatch(/attachment/i);
+    expect(rule).toMatch(/never see/i);
+  });
+});
+
 describe('底线 18：容器上的工具的引用（D-428）', () => {
   const tableOf = (config: WorkspaceConfig, id: string) =>
     config.data.tables.find((t) => t.id === id)!;
@@ -2257,7 +2390,7 @@ describe('底线 18：固定区、标签筛选、浮动按钮的引用（创始�
       if (!r.ok) expect(r.issues.join()).toMatch(pattern);
     };
     // 交记录的工具不能当普通项（没有值可交），也不能在没有列表的页面上。
-    refused(dial([{ tool: 'export-contacts' }]), /takes a record or a value/);
+    refused(dial([{ tool: 'export-contacts' }]), /takes a record, a value or attachments/);
     refused(dial([{ as: 'list', tool: 'export-contacts' }]), /exactly one top-level list/);
     // 要容器交记录的才能放 as: "list"；自己选文件的不行。
     refused(dial([{ as: 'list', tool: 'scan-card' }]), /must start with a step that takes records/);

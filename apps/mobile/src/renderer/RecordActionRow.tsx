@@ -1,8 +1,10 @@
 import {
+  attachmentIds,
   prepareRecordValues,
   quickActionsOf,
   recordRowButtons,
   recordRowValue,
+  type AttachmentInfo,
   type Collection,
   type DataRecord,
 } from '@morph/core';
@@ -10,6 +12,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useHandedRun } from '../run/useHandedRun';
 import { useCalendar, useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { useAssets } from './Attachments';
 import { Icon } from './Icon';
 import type { Palette } from './theme';
 
@@ -32,8 +35,6 @@ export function RecordActionRow({
   const config = useWorkspace((s) => s.config!);
   const cal = useCalendar();
   const { run, elements } = useHandedRun(palette);
-  const buttons = recordRowButtons(collection, quickActionsOf(config), registry, locale, values);
-  if (buttons.length === 0) return null;
   /** 框里现在的值：还没保存的修改也算。框里写得不对（金额写了字）时那个字段按框里的原样交。 */
   const current = (): DataRecord => {
     const prepared = prepareRecordValues(collection, values, record.values, new Date(), cal);
@@ -42,6 +43,33 @@ export function RecordActionRow({
       values: { ...record.values, ...(prepared.ok ? prepared.values : values) },
     };
   };
+  // 按钮看的值：框里现在的（规范成存的样子，数字是数字；清空了的字段没有值）。
+  const prepared = prepareRecordValues(collection, values, record.values, new Date(), cal);
+  const shown = prepared.ok ? prepared.values : values;
+  // 收文件的按钮要知道附件是什么文件（图片、PDF……），读到了才出现（D-442）。
+  const fileIds = [
+    ...new Set(
+      (collection.recordRow ?? []).flatMap((item) => {
+        const field = collection.fields.find((f) => f.id === item.field);
+        return field?.type === 'file' ? attachmentIds(shown[field.id]) : [];
+      }),
+    ),
+  ];
+  const loaded = useAssets(fileIds);
+  const infos = new Map<string, AttachmentInfo>(
+    [...loaded].flatMap(([id, asset]) =>
+      asset ? [[id, { id, name: asset.name, mimeType: asset.mimeType, size: asset.size }]] : [],
+    ),
+  );
+  const buttons = recordRowButtons(
+    collection,
+    quickActionsOf(config),
+    registry,
+    locale,
+    shown,
+    infos,
+  );
+  if (buttons.length === 0) return null;
   return (
     <View testID="record-actions" style={styles.row}>
       {buttons.map((button) => (

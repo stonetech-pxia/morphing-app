@@ -42,7 +42,7 @@ function deskItemProblem(
     if (quickActionsOf(config).some((w) => w.id === item) || presetById(item)) {
       const wf = findWorkflowTarget(quickActionsOf(config), item, 'en');
       return wf && handedInput(wf.steps, registry)
-        ? `${item} takes a record or a value, not files; it can't go on a toolbar`
+        ? `${item} takes what a container hands over (a record, a value or attachments); it can't go on a toolbar`
         : null;
     }
     // 文字不分提醒和不存在：旧配置里的项，提醒删掉后不能变成「新」问题，挡住那次删除。

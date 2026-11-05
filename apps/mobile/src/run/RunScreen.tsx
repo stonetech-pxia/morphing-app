@@ -5,6 +5,7 @@ import {
   isFileValue,
   type AskedAnswer,
   type AskRequest,
+  type HandedFiles,
   type PackNeed,
   type RunResult,
   type RunValue,
@@ -83,7 +84,7 @@ export function RunScreen({
   /** 分享进来的文件（D-115）：第一步用它们，不打开选择器。关闭运行页面时删掉。 */
   incoming?: IncomingShare;
   /** 容器交的值（D-428）：记录页的这一条、这个字段的值、列表选出的记录。 */
-  handed?: RunValue;
+  handed?: RunValue | HandedFiles;
 }) {
   const { repo, files, registry, locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config!);

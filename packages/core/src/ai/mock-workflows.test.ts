@@ -94,7 +94,8 @@ describe('mock AI — workflows', () => {
       kind: 'reject',
       message: '「存到相册」接不上前一步（类型不对或参数不完整）。',
     });
-    expect(await plan('新建工作流：分享', workspace('zh'))).toMatchObject({ kind: 'reject' });
+    // 只有「分享」：第一步收文件，由记录的附件字段交（D-442），不再因为没有输入步骤被拒绝。
+    expect(await plan('新建工作流：分享', workspace('zh'))).toMatchObject({ kind: 'ops' });
   });
 
   it('W3–W5 renames, deletes and puts a workflow on the home page', async () => {
