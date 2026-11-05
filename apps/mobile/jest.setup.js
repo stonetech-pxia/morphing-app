@@ -20,11 +20,20 @@ jest.mock('@shopify/react-native-skia', () => {
     Text: () => null,
     Image: () => null,
     Rect: () => null,
+    Circle: () => null,
+    useFont: () => null,
     ImageFormat: { JPEG: 3, PNG: 4, WEBP: 6 },
     Skia: new Proxy({}, { get: () => unavailable }),
     matchFont: unavailable,
   };
 });
+
+// 图表（Victory Native XL，D-438）用 Skia 画，Jest 里没有：画图的部分用空组件，点按层是普通 React Native 组件，照常测。
+jest.mock('victory-native', () => ({
+  CartesianChart: () => null,
+  Bar: () => null,
+  Line: () => null,
+}));
 
 // 视频播放（expo-video）也是原生模块：画面用空组件代替，播放器只记录状态（剪一段、结果页播放）。
 jest.mock('expo-video', () => {

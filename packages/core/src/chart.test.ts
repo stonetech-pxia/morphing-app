@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import { prepareOps } from './change';
-import { chartSeries, linePath, piePaths, pieSlices, type ChartPoint } from './chart';
+import {
+  axisTickText,
+  chartSeries,
+  chartYDomain,
+  linePath,
+  piePaths,
+  pieSlices,
+  type ChartPoint,
+} from './chart';
 import type { DataRecord } from './data';
 import { createDefaultWorkspace } from './defaults';
 import type { Collection, NewComponent } from './schema';
@@ -202,5 +210,33 @@ describe('chart validation', () => {
     expect(check({ aggregate: 'sum' })).toBe(false);
     expect(check({ group: { unit: 'month', by: 'amount' } })).toBe(false);
     expect(check({ table: 'missing' })).toBe(false);
+  });
+});
+
+describe('chart axis (D-438)', () => {
+  it('the y range always includes 0 so bars are never cut off, with some room above the top', () => {
+    const [lo, hi] = chartYDomain([40, 85, 27]);
+    expect(lo).toBe(0);
+    expect(hi).toBeGreaterThan(85);
+    expect(hi).toBeLessThan(100);
+  });
+
+  it('negative values extend the range downwards; no data is 0 to 1', () => {
+    const [lo, hi] = chartYDomain([-20, 50]);
+    expect(lo).toBe(-20);
+    expect(hi).toBeGreaterThan(50);
+    expect(chartYDomain([])).toEqual([0, 1]);
+    expect(chartYDomain([0, 0])).toEqual([0, 1]);
+  });
+
+  it('tick text is short: no currency, k and M, at most one decimal', () => {
+    expect(axisTickText(0)).toBe('0');
+    expect(axisTickText(2.5)).toBe('2.5');
+    expect(axisTickText(40)).toBe('40');
+    expect(axisTickText(999)).toBe('999');
+    expect(axisTickText(1200)).toBe('1.2k');
+    expect(axisTickText(15000)).toBe('15k');
+    expect(axisTickText(2_500_000)).toBe('2.5M');
+    expect(axisTickText(-1500)).toBe('-1.5k');
   });
 });

@@ -4,7 +4,6 @@ import {
   chartSeries,
   filterRecords,
   lineScale,
-  linePath,
   piePaths,
   pieSlices,
   type ChartPoint,
@@ -18,16 +17,15 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useComputedRecords } from '../data/records';
 import { t } from '../i18n';
 import type { RenderEnv } from './components';
+import { ChartPlot, PLOT_HEIGHT } from './ChartPlot';
 import { statText, useLinkedGroups } from './data';
 import { cardColors } from './theme';
 import { Card } from './ui';
 
-// 图表组件（D-249）：分组和数值都在 core/chart.ts 算好，这里只画。柱状图用普通 View（读屏能逐根读），
-// 折线和饼图用 Skia 的 Path（SVG 路径字符串，Hermes 上能跑，不需要新依赖）。
+// 图表组件（D-249）：分组和数值都在 core/chart.ts 算好，这里只画。点按和读屏靠一排透明的可点区域（每根柱子、每个点一格）。
+// 柱状图（没有负数时）和折线用 Victory Native XL 画（ChartPlot.tsx，D-438），有负数的柱状图和饼图用 Skia 的 Path。
 // 单一序列用主色、不画图例（标题就是它的名字）；饼图每块用固定顺序的分类色，图例总是列出名字和数值，
 // 所以不只靠颜色区分。点一根柱子 / 一个点 / 一行图例，标题下面显示它的数值（代替悬停提示）。
-
-const PLOT_HEIGHT = 150;
 
 export function Chart({
   block,
@@ -47,7 +45,6 @@ export function Chart({
   // 按单选 / 引用字段分组（没有 unit）；引用字段（D-336）：被引用的表里每条记录一个点。
   const byChoice = source.group.unit === undefined;
   const linked = useLinkedGroups(env, collection, byChoice ? source.group.by : undefined);
-  const [width, setWidth] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   if (!collection) return null;
   const now = new Date();
@@ -85,12 +82,43 @@ export function Chart({
     </View>
   );
 
+  // 每个点一格可以点的区域（盖在图上，比柱子和点本身大）：读屏、点一下看数值都靠它。
+  const slots = (prefix: 'bar' | 'point') => (
+    <View style={[StyleSheet.absoluteFill, styles.bars]}>
+      {points.map((p, i) => (
+        <Pressable
+          key={p.key ?? `none-${i}`}
+          testID={`chart-${prefix}-${i}`}
+          accessibilityRole="button"
+          accessibilityLabel={t(locale, 'chartPoint', { label: p.label, value: valueText(p) })}
+          disabled={!env.interactive}
+          onPress={() => setPicked(i)}
+          onLongPress={env.onLongPress}
+          style={styles.barSlot}
+        />
+      ))}
+    </View>
+  );
+
   let plot: ReactNode = null;
   if (nothing || records === null) {
     plot = (
       <Text style={[palette.font('body', 14), { color: palette.caption }]}>
         {records === null ? ' ' : t(locale, 'chartEmpty')}
       </Text>
+    );
+  } else if (show.kind === 'bar' && points.every((p) => p.value >= 0)) {
+    // 没有负数：Victory 画（柱子从 0 画起）；有负数的用下面原来的画法，Victory 的柱子只会画到图的底边。
+    plot = (
+      <ChartPlot
+        kind="bar"
+        values={points.map((p) => p.value)}
+        selected={selected}
+        color={palette.primary}
+        gridColor={palette.border}
+        labelColor={palette.caption}>
+        {slots('bar')}
+      </ChartPlot>
     );
   } else if (show.kind === 'bar') {
     const scale = lineScale(
@@ -135,44 +163,16 @@ export function Chart({
       </View>
     );
   } else if (show.kind === 'line') {
-    const values = points.map((p) => p.value);
-    const scale = width > 0 ? lineScale(values, width, PLOT_HEIGHT) : null;
     plot = (
-      <View style={{ height: PLOT_HEIGHT }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
-        {scale ? (
-          <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
-            <Path
-              path={linePath(values, width, PLOT_HEIGHT)}
-              style="stroke"
-              strokeWidth={2}
-              strokeJoin="round"
-              strokeCap="round"
-              color={palette.primary}
-            />
-            {current ? (
-              <Path
-                path={dot(scale.x(selected), scale.y(current.value), 5)}
-                color={palette.primary}
-              />
-            ) : null}
-          </Canvas>
-        ) : null}
-        {/* 每个点一列可以点的区域，比点本身大。 */}
-        <View style={[StyleSheet.absoluteFill, styles.bars]}>
-          {points.map((p, i) => (
-            <Pressable
-              key={p.key ?? `none-${i}`}
-              testID={`chart-point-${i}`}
-              accessibilityRole="button"
-              accessibilityLabel={t(locale, 'chartPoint', { label: p.label, value: valueText(p) })}
-              disabled={!env.interactive}
-              onPress={() => setPicked(i)}
-              onLongPress={env.onLongPress}
-              style={styles.barSlot}
-            />
-          ))}
-        </View>
-      </View>
+      <ChartPlot
+        kind="line"
+        values={points.map((p) => p.value)}
+        selected={selected}
+        color={palette.primary}
+        gridColor={palette.border}
+        labelColor={palette.caption}>
+        {slots('point')}
+      </ChartPlot>
     );
   } else {
     const total = points.reduce((s, p) => s + p.value, 0);
@@ -258,10 +258,6 @@ export function Chart({
     </Card>
   );
 }
-
-/** 一个实心圆点（SVG 路径）。 */
-const dot = (x: number, y: number, r: number) =>
-  `M${x - r} ${y} A${r} ${r} 0 1 0 ${x + r} ${y} A${r} ${r} 0 1 0 ${x - r} ${y} Z`;
 
 const styles = StyleSheet.create({
   header: { gap: 2 },

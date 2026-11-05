@@ -185,3 +185,20 @@ export function piePaths(values: readonly number[], cx: number, cy: number, r: n
     return `M${num(cx)} ${num(cy)} L${num(x1)} ${num(y1)} A${num(r)} ${num(r)} 0 ${large} 1 ${num(x2)} ${num(y2)} Z`;
   });
 }
+
+/** 柱状图和折线图的 Y 轴范围（D-438）：总是包含 0（柱子从 0 画起，不截断），最大值上留一点空白。没有数据时 0 到 1。 */
+export function chartYDomain(values: readonly number[]): [number, number] {
+  const lo = Math.min(0, ...values);
+  const hi = Math.max(0, ...values);
+  if (hi === lo) return [lo, lo + 1];
+  return [lo, hi + (hi - lo) * 0.08];
+}
+
+/** Y 轴刻度上的数字：1200 → 1.2k，2500000 → 2.5M，小数最多一位。只有数字，没有货币符号。 */
+export function axisTickText(value: number): string {
+  const a = Math.abs(value);
+  const r = (n: number, digits: number) => String(Number(n.toFixed(digits)));
+  if (a >= 1_000_000) return `${r(value / 1_000_000, 1)}M`;
+  if (a >= 1_000) return `${r(value / 1_000, 1)}k`;
+  return r(value, a < 10 ? 1 : 0);
+}
