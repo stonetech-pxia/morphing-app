@@ -1,0 +1,168 @@
+import type { ConceptId } from './concepts';
+
+// 隐藏预设的字段（D-444）在文件上常见的写法：字段名是界面语言，文件可能是别的语言（法语保单配中文的「保险公司」）。
+// 字段名对上任何一个写法，就把整组当关键词；concept 决定要哪种值（编号、日期、公司、姓名）。先做英法西中。
+export interface PresetTermGroup {
+  concept?: ConceptId;
+  names: readonly string[];
+}
+
+export const PRESET_TERM_GROUPS: readonly PresetTermGroup[] = [
+  {
+    concept: 'company',
+    names: [
+      'insurer',
+      'insurance company',
+      'assureur',
+      'compagnie d’assurance',
+      'aseguradora',
+      '保险公司',
+    ],
+  },
+  {
+    concept: 'number',
+    names: [
+      'policy number',
+      'policy no',
+      'contract number',
+      'numéro de police',
+      'numéro de contrat',
+      'número de póliza',
+      '保单号',
+      '保单号码',
+    ],
+  },
+  {
+    concept: 'dueDate',
+    names: [
+      'expires',
+      'expiry',
+      'expiration date',
+      'date d’échéance',
+      'date d’expiration',
+      'échéance',
+      'expire le',
+      'fecha de vencimiento',
+      'vencimiento',
+      'caducidad',
+      '到期日',
+      '有效期至',
+    ],
+  },
+  {
+    concept: 'name',
+    names: [
+      'holder',
+      'titulaire',
+      'titular',
+      '持有人',
+      'owner',
+      'propriétaire',
+      'propietario',
+      '所有人',
+      'traveler',
+      'traveller',
+      'passenger',
+      'voyageur',
+      'passager',
+      'viajero',
+      'pasajero',
+      '旅客',
+      'patient',
+      'patiente',
+      'paciente',
+      '患者',
+      'person',
+      'personne',
+      'persona',
+      '接种人',
+      'insured',
+      'assuré',
+    ],
+  },
+  {
+    concept: 'number',
+    names: ['document number', 'numéro de document', 'número de documento', '证件号', '证件号码'],
+  },
+  {
+    concept: 'number',
+    names: [
+      'registration number',
+      'registration',
+      'numéro d’immatriculation',
+      'immatriculation',
+      'matrícula',
+      '车牌号',
+      '登记号',
+    ],
+  },
+  { concept: 'number', names: ['loan number', 'numéro de prêt', 'número de préstamo', '贷款编号'] },
+  {
+    concept: 'number',
+    names: [
+      'booking reference',
+      'référence de réservation',
+      'référence',
+      'localizador',
+      'referencia',
+      '预订号',
+    ],
+  },
+  { concept: 'company', names: ['lender', 'prêteur', 'prestamista', '贷款方'] },
+  { concept: 'company', names: ['employer', 'employeur', 'empresa', '雇主', '公司'] },
+  { concept: 'company', names: ['bank', 'banque', 'banco', '银行'] },
+  {
+    concept: 'company',
+    names: ['institution', 'établissement', 'institución', 'centro', '机构', '学校'],
+  },
+  {
+    concept: 'company',
+    names: ['tax authority', 'administration fiscale', 'agencia tributaria', '税务机关'],
+  },
+  { concept: 'company', names: ['provider', 'fournisseur', 'proveedor', '服务商'] },
+  { concept: 'company', names: ['veterinarian', 'vétérinaire', 'veterinario', '兽医'] },
+  { concept: 'name', names: ['landlord', 'bailleur', 'propietario', 'arrendador', '房东'] },
+  {
+    concept: 'issueDate',
+    names: [
+      'date administered',
+      'administered',
+      'date d’administration',
+      'date de vaccination',
+      'fecha de administración',
+      '接种日期',
+    ],
+  },
+  {
+    concept: 'issueDate',
+    names: ['awarded on', 'date de délivrance', 'fecha de expedición', '颁发日期'],
+  },
+  {
+    concept: 'issueDate',
+    names: ['date issued', 'date d’émission', 'fecha de emisión', '开具日期'],
+  },
+  { concept: 'issueDate', names: ['departure', 'départ', 'salida', '出发'] },
+  { names: ['vaccine', 'vaccin', 'vacuna', '疫苗'] },
+  { names: ['medicine', 'medication', 'médicament', 'medicamento', '药品'] },
+  { names: ['test', 'analyse', 'prueba', '检查项目'] },
+  { names: ['property', 'bien', 'logement', 'inmueble', 'vivienda', '房产', '房屋'] },
+  { names: ['pet', 'animal', 'mascota', '宠物'] },
+  { names: ['product', 'produit', 'producto', '产品'] },
+  { names: ['vehicle', 'véhicule', 'vehículo', '车辆'] },
+  { names: ['qualification', 'diplôme', 'título', '学历', '证书'] },
+  {
+    names: [
+      'period',
+      'pay period',
+      'période',
+      'période de paie',
+      'periodo',
+      'periodo de pago',
+      '期间',
+      '工资期间',
+    ],
+  },
+  { names: ['tax year', 'année d’imposition', 'année', 'ejercicio', '纳税年度'] },
+  { names: ['balance', 'closing balance', 'solde', 'saldo', '余额'] },
+  { names: ['net pay', 'net à payer', 'salaire net', 'líquido a percibir', '实发工资', '实发'] },
+];

@@ -1,6 +1,6 @@
 import type { WorkspaceConfig } from '@morph/core';
 
-// 收件页面「存成记录」（D-392、D-444）：先列出有附件字段的表（全部，不推荐），再是「新建表单」。
+// 收件页面「存成记录」（D-392、D-444）：列出有附件字段的表（全部，不推荐）和「新建表单」。
 // 不用 AI、不识别文字、不预填别的值；收到的文件复制成用户文件放进附件字段，用户自己填完保存。
 
 export type RecordChoice = { kind: 'table'; tableId: string; name: string };

@@ -364,7 +364,7 @@ export function ShareScreen() {
     router.push({ pathname: '/change', params: { shared: String(share!.id) } });
   }
 
-  /** 存成记录的列表：先是有附件字段的表，再是「新建表单」。 */
+  /** 存成记录的列表：「新建表单」在最前（表多了不用滚动），再是有附件字段的表。 */
   function recordChooser() {
     const tables = recordChoices(config);
     const row = (id: string, name: string, about: string | null, choice: RecordChoice | null) => (
@@ -391,18 +391,18 @@ export function ShareScreen() {
             {t(locale, 'shareRecordTooMany', { n: MAX_ATTACHMENTS })}
           </Text>
         ) : null}
-        {tables.length > 0 ? (
-          <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
-            {t(locale, 'shareRecordTables')}
-          </Text>
-        ) : null}
-        {tables.map((c) => row(`share-record-table-${c.tableId}`, c.name, null, c))}
         {row(
           'share-record-new',
           t(locale, 'shareRecordNew'),
           t(locale, 'shareRecordNewAbout'),
           null,
         )}
+        {tables.length > 0 ? (
+          <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
+            {t(locale, 'shareRecordTables')}
+          </Text>
+        ) : null}
+        {tables.map((c) => row(`share-record-table-${c.tableId}`, c.name, null, c))}
       </View>
     );
   }

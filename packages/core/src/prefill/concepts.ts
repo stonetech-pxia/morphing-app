@@ -1,5 +1,6 @@
 import type { TextFormat } from '../fields/text';
 import type { Field } from '../schema';
+import { PRESET_TERM_GROUPS } from './preset-terms';
 import { norm } from './similarity';
 import { cardRules } from './doc-context';
 
@@ -649,6 +650,11 @@ export const CONCEPTS: Record<ConceptId, Concept> = {
  * 预设表（D-392，templates/ 里的 JSON）的字段 ID → 概念。字段名有歧义的靠它：账单的「From」是出具方，
  * 不是出发地；合同的「到期日」和账单的一样是到期。合同的「名称」按名字认成标题。
  */
+// 隐藏预设的字段（D-444）：名字对上一组写法就用这组当关键词。
+const TERM_GROUPS = new Map(
+  PRESET_TERM_GROUPS.flatMap((g) => g.names.map((n) => [norm(n), g] as const)),
+);
+
 const PRESET_FIELDS: Record<string, ConceptId> = {
   merchant: 'merchant',
   issuer: 'company',
@@ -685,7 +691,7 @@ export function conceptOf(field: ConceptField): ConceptId | null {
   const name = norm(field.name);
   const preset = PRESET_NAMES[field.id];
   if (preset?.some((n) => norm(n) === name)) return PRESET_FIELDS[field.id]!;
-  const c = BY_NAME.get(name) ?? null;
+  const c = BY_NAME.get(name) ?? TERM_GROUPS.get(name)?.concept ?? null;
   // 职位、网址只在名片上认；别的文档里这些字段名对不上概念。
   if ((c === 'website' || c === 'jobTitle') && !cardRules()) return null;
   return c;
@@ -703,7 +709,11 @@ export function fieldTerms(field: ConceptField): FieldTerms {
   const c = concept ? CONCEPTS[concept] : null;
   return {
     concept,
-    keywords: [field.name, ...(c?.keywords ?? [])],
+    keywords: [
+      field.name,
+      ...(TERM_GROUPS.get(norm(field.name))?.names ?? []),
+      ...(c?.keywords ?? []),
+    ],
     exclude: [...(c?.exclude ?? [])],
   };
 }

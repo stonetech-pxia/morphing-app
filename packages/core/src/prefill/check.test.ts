@@ -23,6 +23,13 @@ describe('核对模型的回答（D-396）', () => {
     expect(checkAnswer(DATE, '2026-01-02', ['Total 12.50'], 'en')).toBeNull();
   });
 
+  it('半个词不算（手机上模型给 Noor Haddad 的接种人答了 No）', () => {
+    const person: Field = { id: 'person', name: '接种人', type: 'text' };
+    expect(checkAnswer(person, 'No', ['Patient: Noor Haddad'], 'en')).toBeNull();
+    expect(checkAnswer(person, 'Noor Haddad', ['Patient: Noor Haddad'], 'en')).toBe('Noor Haddad');
+    expect(checkAnswer(person, '周明', ['投保人：周明远'], 'zh')).toBe('周明');
+  });
+
   it('null、空回答丢掉', () => {
     expect(checkAnswer(MERCHANT, 'null', ['null'], 'en')).toBeNull();
     expect(checkAnswer(MERCHANT, '  ', ['x'], 'en')).toBeNull();

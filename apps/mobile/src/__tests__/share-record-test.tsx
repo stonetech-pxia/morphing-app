@@ -174,7 +174,7 @@ describe('收件页面 → 存成记录', () => {
     const { files, repo, store } = await render(seeded);
     await openShare(files, ['IMG_1.jpg']);
     await fireEvent.press(await screen.findByTestId('share-record-choose'));
-    expect(listIds()).toEqual(['share-record-table-receipts', 'share-record-new']);
+    expect(listIds()).toEqual(['share-record-new', 'share-record-table-receipts']);
     expect(screen.getByText('你的表')).toBeTruthy();
     const head = store.getState().head!.id;
     await fireEvent.press(screen.getByTestId('share-record-table-receipts'));

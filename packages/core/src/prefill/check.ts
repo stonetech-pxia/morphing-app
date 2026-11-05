@@ -222,6 +222,19 @@ function checkDate(
   return v;
 }
 
+/**
+ * 值在这一排上是完整的词：「No」不算在「Noor」里出现过（模型答了半个名字）。只看字母的边界：中文没有词界，
+ * 编号的前缀去掉以后（NO8039067 → 8039067）开头是数字，也不算切开。
+ */
+function wholeWords(row: string, value: string): boolean {
+  const v = value.normalize('NFKC').replace(/\s+/g, '').toLowerCase();
+  const r = row.normalize('NFKC').toLowerCase();
+  const pattern = [...v].map((c) => c.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')).join('\\s*');
+  const start = /^[\p{L}]/u.test(v) && !/^[㐀-鿿]/.test(v) ? '(^|[^\\p{L}])' : '()';
+  const end = /[\p{L}]$/u.test(v) && !/[㐀-鿿]$/.test(v) ? '(?!\\p{L})' : '';
+  return new RegExp(`${start}${pattern}${end}`, 'u').test(r);
+}
+
 function checkText(
   f: Field,
   concept: ConceptId | null,
@@ -230,7 +243,7 @@ function checkText(
 ): string | null {
   const sq = squash(s);
   if (!sq) return null;
-  const row = rows.find((r) => squash(r).includes(sq))?.trim();
+  const row = rows.find((r) => squash(r).includes(sq) && wholeWords(r, s))?.trim();
   if (row === undefined) return null;
   if (concept && OTHER_LABEL[concept]?.test(row)) return null;
   if (concept === 'email' && !s.includes('@')) return null;

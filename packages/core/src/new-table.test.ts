@@ -68,6 +68,67 @@ describe('draftEngine（手机上发现的问题）', () => {
   });
 });
 
+describe('隐藏预设的字段认得出别的语言的标签（手机上法语保单配中文字段没有候选）', () => {
+  const page = (...rows: string[]): TextPage[] => [
+    {
+      width: 900,
+      height: 900,
+      lines: rows.map((text, i) => ({
+        text,
+        x: 40,
+        y: 40 + i * 50,
+        width: text.length * 14,
+        height: 24,
+      })),
+    },
+  ];
+  const values = async (
+    preset: Parameters<typeof draftTable>[0],
+    pages: TextPage[],
+    locale: 'zh' | 'en' | 'fr',
+  ) => {
+    const t = draftTable(preset, createDefaultWorkspace(locale), locale);
+    const got = await draftEngine({ fields: t.fields, pages, locale });
+    return Object.fromEntries(t.fields.map((f) => [f.id, got[f.id]?.[0]?.value]));
+  };
+  it('法语保单 → 中文字段', async () => {
+    const got = await values(
+      'insurance',
+      page(
+        'Assureur : Mutuelle Azur',
+        'Numéro de contrat : CT-77120',
+        'Date d’échéance : 31/12/2025',
+      ),
+      'zh',
+    );
+    expect(got).toMatchObject({ provider: 'Mutuelle Azur', number: 'CT-77120', end: '2025-12-31' });
+  });
+  it('西语保单 → 英语字段', async () => {
+    const got = await values(
+      'insurance',
+      page(
+        'Aseguradora: Mutua Levante',
+        'Número de póliza: PZ-33091',
+        'Fecha de vencimiento: 28/02/2026',
+      ),
+      'en',
+    );
+    expect(got).toMatchObject({ provider: 'Mutua Levante', number: 'PZ-33091', end: '2026-02-28' });
+  });
+  it('英语疫苗记录 → 中文字段', async () => {
+    const got = await values(
+      'vaccination',
+      page('Patient: Noor Haddad', 'Vaccine: tetanus booster', 'Administered: 3 March 2025'),
+      'zh',
+    );
+    expect(got).toMatchObject({
+      person: 'Noor Haddad',
+      vaccine: 'tetanus booster',
+      date: '2025-03-03',
+    });
+  });
+});
+
 describe('draft fields', () => {
   it('类型从旁边的值判断，看不出来是文字', () => {
     expect(fieldTypeFor('Annual premium', pages, 'en').type).toBe('money');
