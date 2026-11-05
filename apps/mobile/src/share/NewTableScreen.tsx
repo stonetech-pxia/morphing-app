@@ -1,6 +1,7 @@
 import {
   addDraftField,
   attachmentIds,
+  draftEngine,
   draftHasField,
   draftTable,
   draftTableOps,
@@ -13,7 +14,6 @@ import {
   recommendPreset,
   removeDraftField,
   renameDraftField,
-  ruleEngine,
   templateTableName,
   templateTableOf,
   type Collection,
@@ -369,7 +369,7 @@ export function NewTableScreen() {
           <FormFilesContext.Provider value={formFiles}>
             <SuggestedFields
               suggest
-              engine={ruleEngine}
+              engine={draftEngine}
               onPages={setPages}
               collection={draft}
               values={values}

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { addDraftField, fieldTypeFor, removeDraftField, renameDraftField } from './new-table';
+import {
+  addDraftField,
+  draftEngine,
+  fieldTypeFor,
+  removeDraftField,
+  renameDraftField,
+} from './new-table';
 import { applyOps } from './ops';
 import { createDefaultWorkspace } from './defaults';
 import type { TextPage } from './prefill/rows';
@@ -20,6 +26,47 @@ const pages: TextPage[] = [
   },
 ];
 const blank = (): Collection => draftTable('blank', createDefaultWorkspace('en'), 'en');
+
+describe('draftEngine（手机上发现的问题）', () => {
+  const doc: TextPage[] = [
+    {
+      width: 800,
+      height: 1100,
+      lines: [
+        { text: 'Numéro de contrat : CT-77120', x: 40, y: 100, width: 300, height: 16 },
+        { text: 'Prime annuelle : 214,00 €', x: 40, y: 150, width: 300, height: 16 },
+      ],
+    },
+  ];
+  it('字段名和文件上的标签一样时，它旁边的值是第一个候选，编号也算', async () => {
+    const t = addDraftField(
+      addDraftField(blank(), 'Numéro de contrat', doc, 'fr'),
+      'Prime annuelle',
+      doc,
+      'fr',
+    );
+    const got = await draftEngine({ fields: t.fields, pages: doc, locale: 'fr' });
+    const number = t.fields.find((f) => f.name === 'Numéro de contrat')!;
+    const premium = t.fields.find((f) => f.name === 'Prime annuelle')!;
+    expect(got[number.id]![0]!.value).toBe('CT-77120');
+    expect(got[premium.id]![0]!.value).toBe('214.00');
+  });
+  it('金额字段一定有货币：看文件上的符号，没有就按界面语言', () => {
+    const t = addDraftField(blank(), 'Prime annuelle', doc, 'en');
+    expect(t.fields.find((f) => f.name === 'Prime annuelle')).toMatchObject({
+      type: 'money',
+      currency: 'EUR',
+    });
+    const plain: TextPage[] = [
+      {
+        width: 800,
+        height: 100,
+        lines: [{ text: 'Total: 214.00', x: 0, y: 0, width: 200, height: 16 }],
+      },
+    ];
+    expect(fieldTypeFor('Total', plain, 'zh')).toMatchObject({ type: 'money', currency: 'CNY' });
+  });
+});
 
 describe('draft fields', () => {
   it('类型从旁边的值判断，看不出来是文字', () => {
