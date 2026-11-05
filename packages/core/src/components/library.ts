@@ -12,6 +12,8 @@ const shape = {
   source: z.strictObject({
     catalog: z.literal('quickActions'),
     kind: z.enum(QUICK_ACTION_KINDS).optional(),
+    /** 最近用过的快捷操作（D-452）：读运行记录，一行小胶囊；有 recent 时不看 kind。 */
+    recent: z.literal(true).optional(),
   }),
 };
 
@@ -24,11 +26,13 @@ export const libraryComponent: LookDefinitionOf<'library', typeof shape> = defin
   reads: 'catalog',
   writes: false,
   describe: (c, _config, ctx) =>
-    c.source.kind
-      ? t(ctx.locale, 'describe_quick_action_list_kind', {
-          v0: localize(QUICK_ACTION_CATEGORIES[c.source.kind].name, ctx.locale) ?? c.source.kind,
-        })
-      : t(ctx.locale, 'describe_quick_action_list'),
+    c.source.recent
+      ? t(ctx.locale, 'describe_recent_quick_actions')
+      : c.source.kind
+        ? t(ctx.locale, 'describe_quick_action_list_kind', {
+            v0: localize(QUICK_ACTION_CATEGORIES[c.source.kind].name, ctx.locale) ?? c.source.kind,
+          })
+        : t(ctx.locale, 'describe_quick_action_list'),
   edit: { text: [{ prop: 'title', max: 60, optional: true }], style: [] },
   ai: {
     doc: 'show? {title?}, source {catalog: "quickActions", kind?: "image"|"video"|"audio"|"document"|"other"}: the kernel\'s quick-action library placed on a page. Without kind: the category entries (Photos, Videos, Audio, Documents, Other); with kind: that category\'s own quick actions (run, edit), the ready-made ones (add) and those from tools. You choose where it goes and its title, not its content. For "put the photo quick actions on home" add a library block with kind "image"; for "show what Tinkrum can do on the home page" add it without kind.',

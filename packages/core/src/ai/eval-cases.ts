@@ -4675,15 +4675,21 @@ const LOOK_CASES: EvalCase[] = [
   },
 ];
 // 新手引导第 1 步（D-231）：空白首页上加两个文件入口。中英文走内置规则，法语交给模型。
+/** 引导第 1 步（D-449）：首页加上「扫描」（运行内设的扫描成 PDF）和「打开文件」（先问相册还是文件）。 */
 const twoFilePicks = (c: WorkspaceConfig) => {
-  const picks = allComponents(home(c)).filter((x) => x.look === 'picker');
-  const sources = picks.map((x) => pickSource(x) ?? '').sort();
-  return sources.join(',') === 'files,media' ? null : `file pickers on home: ${sources.join(',')}`;
+  const blocks = allComponents(home(c)).filter(isKnownComponent);
+  const open = blocks.some(
+    (x) => x.look === 'picker' && x.tools.some((u) => 'tool' in u && u.tool === '$pick.open'),
+  );
+  const scan = blocks.some(
+    (x) => x.look === 'action' && x.tools.some((u) => 'tool' in u && u.tool === 'scan-camera'),
+  );
+  return open && scan ? null : `home entries: scan ${scan}, open ${open}`;
 };
 const GUIDE_STEP_CASES: EvalCase[] = [
   {
     id: 'GD1',
-    input: '加入「打开相册」和「打开文件」按钮',
+    input: '加入「扫描」和「打开文件」按钮',
     locale: 'zh',
     setup: 'starter',
     mock: true,
@@ -4691,10 +4697,10 @@ const GUIDE_STEP_CASES: EvalCase[] = [
   },
   {
     id: 'GD1-fr',
-    input: 'Ajouter les boutons « Ouvrir les photos » et « Ouvrir les fichiers »',
+    input: 'Ajouter les boutons « Numériser » et « Ouvrir les fichiers »',
     locale: 'fr',
     setup: 'starter',
-    mock: false,
+    mock: true,
     expect: { kind: 'ops', check: twoFilePicks },
   },
 ];

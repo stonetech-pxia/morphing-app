@@ -269,6 +269,7 @@ export function createRevisions(
           config,
           registry,
           locale,
+          onProgress: (step) => set({ planProgress: step }),
           ...(about ? { about } : {}),
         });
         // 模型输出一律视为不可信数据（§8）。
@@ -313,7 +314,7 @@ export function createRevisions(
             : plan;
         return await opsProposal(input, plan.ops, 'ai', input, shaped);
       } finally {
-        set({ busy: false });
+        set({ busy: false, planProgress: null });
       }
     },
 
@@ -382,7 +383,7 @@ export function createRevisions(
         await reload();
         return false;
       } finally {
-        set({ busy: false });
+        set({ busy: false, planProgress: null });
       }
     },
 

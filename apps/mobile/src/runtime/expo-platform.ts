@@ -60,6 +60,19 @@ function assetDir(assetId: string): Directory {
 
 const fileAt = (path: string) => new File(Paths.document, ...path.split('/'));
 
+/** PDF 第一页的缩略图（D-451）：和文件放在同一个 assets/<id>/ 里，删文件时一起删。 */
+const THUMB = '.thumb.jpg';
+
+/** 存进用户文件时（用户的一次操作）给 PDF 画第一页；打不开（损坏、要密码）就没有缩略图，显示图标。 */
+async function makePdfThumbnail(file: File, dir: Directory): Promise<void> {
+  if (!/\.pdf$/i.test(file.name) || !MorphVision) return;
+  try {
+    await MorphVision.pdfThumbnail(file.uri, new File(dir, THUMB).uri, 360);
+  } catch {
+    // 没有缩略图，列表显示 PDF 图标。
+  }
+}
+
 /** 本次运行里的一个临时文件（D-063）。relPath 形如 `3/报告.pdf`，目录按需创建。 */
 function runFile(runId: string, relPath: string): File {
   const parts = relPath.split('/');
@@ -226,6 +239,13 @@ export const expoFilePlatform: FilePlatform = {
 
   fileUri: (path) => fileAt(path).uri,
 
+  thumbnailUri(path) {
+    const parts = path.split('/');
+    parts[parts.length - 1] = THUMB;
+    const thumb = new File(Paths.document, ...parts);
+    return thumb.exists ? thumb.uri : null;
+  },
+
   async importFile(file, assetId, name) {
     const dir = assetDir(assetId);
     const dest = new File(dir, name);
@@ -237,6 +257,7 @@ export const expoFilePlatform: FilePlatform = {
       if (dir.exists) dir.delete();
       throw e;
     }
+    await makePdfThumbnail(dest, dir);
     return { path: `${ROOT}/${assetId}/${name}`, size: dest.size };
   },
 
@@ -463,8 +484,10 @@ export const expoFilePlatform: FilePlatform = {
   },
 
   async saveRunFile(uri, assetId, name) {
-    const dest = new File(assetDir(assetId), name);
+    const dir = assetDir(assetId);
+    const dest = new File(dir, name);
     await new File(uri).copy(dest);
+    await makePdfThumbnail(dest, dir);
     return { path: `${ROOT}/${assetId}/${name}`, size: dest.size };
   },
 

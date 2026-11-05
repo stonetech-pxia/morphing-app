@@ -1,6 +1,7 @@
 import { HOME_PAGE_ID, pageIdOf, type NavTarget, type WorkspaceConfig } from '@morph/core';
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { BlurTargetView } from 'expo-blur';
+import { useEffect, useRef, type ComponentRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,9 +9,10 @@ import { DraftBar } from '../draft/DraftBar';
 import { useDraftUi } from '../draft/ui';
 import { directEditEntry } from '../editing/entry';
 import { DeskResume } from '../desk/DeskResume';
+import { GuideBubble } from '../guide/GuideBubble';
 import { GuideCard } from '../guide/GuideCard';
 import { SampleHint } from '../guide/SampleHint';
-import { useGuide } from '../guide/store';
+import { openLookGuide, useGuide } from '../guide/store';
 import { t } from '../i18n';
 import { EditablePage } from '../editing/EditablePage';
 import type { RenderEnv } from '../renderer/components';
@@ -91,6 +93,7 @@ export function Shell() {
   // 第一次打开（或在设置里选了重新看）：先看划屏介绍（D-149）。
   const guideStage = useGuide((s) => s.stage);
   const router = useRouter();
+  const blurTarget = useRef<ComponentRef<typeof View>>(null);
   useEffect(() => {
     // 外壳随版本重新挂载（例如收件页面建了一张表）时，介绍可能已经开着，不再推一次。
     if (guideStage !== 'intro' || useGuide.getState().introOpen) return;
@@ -115,6 +118,13 @@ export function Shell() {
   let content;
   const pageId = pageIdOf(active);
   const entryAbout = shellAbout(active);
+  // 引导第 1、2 步（D-447）：Tink 的气泡浮在首页上，Tink 会动、带光圈。
+  const bubbleGuide =
+    pageId === HOME_PAGE_ID &&
+    (guideStage === 'look' || guideStage === 'goal') &&
+    !editing &&
+    !inDraft;
+  const lookGuide = bubbleGuide && guideStage === 'look';
   if (pageId !== null) {
     const page = config.containers.pages.find((p) => p.id === pageId)!;
     // 页面下方的固定区让开导航栏，有浮动按钮时也让开浮动按钮（bottomInset 里那 64 是给滚动内容留的）。
@@ -141,123 +151,144 @@ export function Shell() {
     <View style={[styles.root, palette.backdrop, { paddingTop: insets.top }]}>
       {/* 右上角的 AI 入口（D-406）：这里没有导航栏，占一行，不盖住页面内容。设置和改动记录没有。 */}
       {entryAbout && !editing ? (
-        <View style={styles.entryRow}>
-          <AIEntry about={entryAbout} palette={palette} />
+        <View style={[styles.entryRow, bubbleGuide && styles.entryOnTop]}>
+          {/* 引导第一步（D-447）：首页上的 Tink 会动，点它和点气泡一样，打开那句话。 */}
+          {bubbleGuide ? (
+            <AIEntry
+              about={entryAbout}
+              palette={palette}
+              lively
+              {...(lookGuide ? { onPress: () => openLookGuide(router) } : {})}
+            />
+          ) : (
+            <AIEntry about={entryAbout} palette={palette} />
+          )}
         </View>
       ) : null}
-      {inDraft ? null : <BannerAnchor palette={palette} />}
-      <DraftNotice palette={palette} />
-      {pageId === HOME_PAGE_ID && !editing && !inDraft ? <GuideCard palette={palette} /> : null}
-      {pageId === HOME_PAGE_ID && !editing && !inDraft ? <DeskResume palette={palette} /> : null}
-      {pageId !== null && !editing && !inDraft ? (
-        <SampleHint pageId={pageId} palette={palette} />
-      ) : null}
-      <View style={styles.content}>{content}</View>
+      {/* Tink 那一行以下的内容包进 BlurTargetView：引导气泡出现时整片轻微虚化（Android 需要它才真模糊）。 */}
+      <BlurTargetView ref={blurTarget} style={styles.content}>
+        {inDraft ? null : <BannerAnchor palette={palette} />}
+        <DraftNotice palette={palette} />
+        {pageId === HOME_PAGE_ID && !editing && !inDraft ? <GuideCard palette={palette} /> : null}
+        {pageId === HOME_PAGE_ID && !editing && !inDraft ? <DeskResume palette={palette} /> : null}
+        {pageId !== null && !editing && !inDraft ? (
+          <SampleHint pageId={pageId} palette={palette} />
+        ) : null}
+        <View style={styles.content}>{content}</View>
 
-      {/* 编辑模式的开关（D-053）：导航栏里的页面没有标题栏，放在左下角；编辑模式下隐藏。
+        {/* 编辑模式的开关（D-053）：导航栏里的页面没有标题栏，放在左下角；编辑模式下隐藏。
           整页入口继续关闭，长按入口单独开放（D-235，editing/entry.ts）。 */}
-      {pageId !== null && directEditEntry.pageButton && !inDraft ? (
-        <Pressable
-          testID={editing ? undefined : 'page-edit'}
-          accessibilityRole="button"
-          accessibilityElementsHidden={editing}
-          pointerEvents={editing ? 'none' : 'auto'}
-          onPress={() => startEditing(pageId)}
-          style={({ pressed }) => [
-            styles.fab,
-            styles.editButton,
-            palette.cardStyle(palette.surface),
-            { bottom: barSpace + 16, borderRadius: 999 },
-            pressed && { transform: [{ scale: 0.96 }] },
-            editing && styles.invisible,
-          ]}>
-          <GlassFill palette={palette} radius={999} />
-          <Text style={[palette.font('title', 14), { color: palette.primaryText }]}>
-            {t(locale, 'edit')}
-          </Text>
-        </Pressable>
-      ) : null}
+        {pageId !== null && directEditEntry.pageButton && !inDraft ? (
+          <Pressable
+            testID={editing ? undefined : 'page-edit'}
+            accessibilityRole="button"
+            accessibilityElementsHidden={editing}
+            pointerEvents={editing ? 'none' : 'auto'}
+            onPress={() => startEditing(pageId)}
+            style={({ pressed }) => [
+              styles.fab,
+              styles.editButton,
+              palette.cardStyle(palette.surface),
+              { bottom: barSpace + 16, borderRadius: 999 },
+              pressed && { transform: [{ scale: 0.96 }] },
+              editing && styles.invisible,
+            ]}>
+            <GlassFill palette={palette} radius={999} />
+            <Text style={[palette.font('title', 14), { color: palette.primaryText }]}>
+              {t(locale, 'edit')}
+            </Text>
+          </Pressable>
+        ) : null}
 
-      {config.nav.floating.length > 0 && !editing && !inDraft ? (
-        <View style={[styles.floating, { bottom: barSpace + 16 }]}>
-          {config.nav.floating.map((target) => {
-            const accent = target === 'ai';
-            const fg = accent ? palette.onPrimary : palette.text;
+        {config.nav.floating.length > 0 && !editing && !inDraft ? (
+          <View style={[styles.floating, { bottom: barSpace + 16 }]}>
+            {config.nav.floating.map((target) => {
+              const accent = target === 'ai';
+              const fg = accent ? palette.onPrimary : palette.text;
+              return (
+                <Pressable
+                  key={target}
+                  testID={`floating-${target}`}
+                  onPress={() => navigate(target)}
+                  style={({ pressed }) => [
+                    styles.fab,
+                    palette.cardStyle(accent ? palette.primary : palette.surface),
+                    { borderRadius: 999 },
+                    pressed && { transform: [{ scale: 0.96 }] },
+                  ]}>
+                  <GlassFill palette={palette} radius={999} />
+                  <Icon name={targetIcon(target, config)} size={18} color={fg} />
+                  <Text style={[palette.font('title', 14), { color: fg }]}>
+                    {targetLabel(target, config, locale)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
+        <DraftBar palette={palette} bottom={barSpace + 12} />
+        <Toast palette={palette} bottom={barSpace + (inDraft ? 84 : 12)} />
+
+        <View
+          style={[
+            styles.bar,
+            editing && styles.hidden,
+            {
+              height: barSpace,
+              paddingBottom: insets.bottom,
+              backgroundColor: palette.barBackground,
+              borderColor: palette.border,
+            },
+          ]}>
+          <GlassFill palette={palette} radius={0} />
+          {config.nav.bar.map((target) => {
+            const isActive = target === active;
+            const color = isActive || target === 'ai' ? palette.primaryText : palette.caption;
+            const label = targetLabel(target, config, locale);
             return (
               <Pressable
                 key={target}
-                testID={`floating-${target}`}
-                onPress={() => navigate(target)}
-                style={({ pressed }) => [
-                  styles.fab,
-                  palette.cardStyle(accent ? palette.primary : palette.surface),
-                  { borderRadius: 999 },
-                  pressed && { transform: [{ scale: 0.96 }] },
-                ]}>
-                <GlassFill palette={palette} radius={999} />
-                <Icon name={targetIcon(target, config)} size={18} color={fg} />
-                <Text style={[palette.font('title', 14), { color: fg }]}>
-                  {targetLabel(target, config, locale)}
-                </Text>
+                testID={`nav-${target}`}
+                accessibilityRole="tab"
+                accessibilityLabel={label}
+                accessibilityState={{ selected: isActive }}
+                style={styles.tab}
+                onPress={() => navigate(target)}>
+                {navStyle !== 'label' ? (
+                  <View
+                    style={[
+                      styles.tabIcon,
+                      { backgroundColor: isActive ? palette.primaryTint : 'transparent' },
+                    ]}>
+                    <Icon name={targetIcon(target, config)} size={22} color={color} />
+                  </View>
+                ) : null}
+                {navStyle !== 'icon' ? (
+                  <Text
+                    numberOfLines={1}
+                    style={[palette.font(isActive ? 'bodyBold' : 'bodyMedium', 12), { color }]}>
+                    {label}
+                  </Text>
+                ) : null}
               </Pressable>
             );
           })}
         </View>
+      </BlurTargetView>
+      {bubbleGuide ? (
+        <GuideBubble palette={palette} top={insets.top + ENTRY_ROW} blurTarget={blurTarget} />
       ) : null}
-
-      <DraftBar palette={palette} bottom={barSpace + 12} />
-      <Toast palette={palette} bottom={barSpace + (inDraft ? 84 : 12)} />
-
-      <View
-        style={[
-          styles.bar,
-          editing && styles.hidden,
-          {
-            height: barSpace,
-            paddingBottom: insets.bottom,
-            backgroundColor: palette.barBackground,
-            borderColor: palette.border,
-          },
-        ]}>
-        <GlassFill palette={palette} radius={0} />
-        {config.nav.bar.map((target) => {
-          const isActive = target === active;
-          const color = isActive || target === 'ai' ? palette.primaryText : palette.caption;
-          const label = targetLabel(target, config, locale);
-          return (
-            <Pressable
-              key={target}
-              testID={`nav-${target}`}
-              accessibilityRole="tab"
-              accessibilityLabel={label}
-              accessibilityState={{ selected: isActive }}
-              style={styles.tab}
-              onPress={() => navigate(target)}>
-              {navStyle !== 'label' ? (
-                <View
-                  style={[
-                    styles.tabIcon,
-                    { backgroundColor: isActive ? palette.primaryTint : 'transparent' },
-                  ]}>
-                  <Icon name={targetIcon(target, config)} size={22} color={color} />
-                </View>
-              ) : null}
-              {navStyle !== 'icon' ? (
-                <Text
-                  numberOfLines={1}
-                  style={[palette.font(isActive ? 'bodyBold' : 'bodyMedium', 12), { color }]}>
-                  {label}
-                </Text>
-              ) : null}
-            </Pressable>
-          );
-        })}
-      </View>
     </View>
   );
 }
 
+/** 右上角 Tink 那一行的高度（上下各 8 + 图标 24）：引导气泡从这里往下浮。 */
+const ENTRY_ROW = 40;
+
 const styles = StyleSheet.create({
+  // 引导气泡出现时 Tink 那一行浮在虚化层上面，光圈不被挡住。
+  entryOnTop: { zIndex: 2, elevation: 2 },
   entryRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

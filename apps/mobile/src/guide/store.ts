@@ -41,17 +41,24 @@ export const useGuide = create<GuideState>()((set, get) => ({
 }));
 
 /**
- * 第 1 步的句子（D-231）：首页是空的，先加上「打开相册」「打开文件」。中英文都是内置规则认得的（测试逐句检查）。
- * 中英文引导固定用内置规则，不调用设置里的 AI：结果稳定、马上出来，也不需要 key。
- * 内置规则不认法语（P-037）：法语界面发法语原句给设置里的 AI。
+ * 第 1 步的句子（D-231、D-449）：首页是空的，先加上「扫描」「打开文件」两个图标按钮。
+ * 三种语言都是内置规则认得的（测试逐句检查），引导固定用内置规则，不调用设置里的 AI：
+ * 结果稳定、马上出来，也不需要 key（改 D-228：以前法语交给设置里的 AI）。
  */
 export const LOOK_PROMPTS: readonly Localized[] = [
   {
-    zh: '加入「打开相册」和「打开文件」按钮',
-    en: 'Add the “Open photo library” and “Open files” buttons',
-    fr: 'Ajouter les boutons « Ouvrir les photos » et « Ouvrir les fichiers »',
+    zh: '加入「扫描」和「打开文件」按钮',
+    en: 'Add the “Scan” and “Open files” buttons',
+    fr: 'Ajouter les boutons « Numériser » et « Ouvrir les fichiers »',
   },
 ];
+
+/** 打开引导第一步的那句话（D-447：点气泡或右上角的 Tink 都走这里）。 */
+export function openLookGuide(router: {
+  push(href: { pathname: '/change'; params: { guide: string } }): void;
+}) {
+  router.push({ pathname: '/change', params: { guide: 'look-0' } });
+}
 
 /** 从引导打开 AI 修改时带的参数（`look-0` 这样的第 1 步句子）对应的句子。 */
 export function guideText(param: string | undefined, locale: Locale): string | null {

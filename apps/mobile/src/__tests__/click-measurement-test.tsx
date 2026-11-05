@@ -1,16 +1,18 @@
 import { fireEvent } from '@testing-library/react-native';
 import { screen } from 'expo-router/testing-library';
+import { Alert } from 'react-native';
 
 import { useIncoming } from '../share/incoming';
 import { makePdf } from '../test-utils/fake-files';
 import { renderToolsApp, starterAfterGuide } from '../test-utils/render-app';
 
 // D-200：真实路由的 App 内点击计数；假选择器 / 媒体平台，不冒充模拟器、系统分享或耗时测量。
+// D-449：首页只有一个「打开文件」，先选相册还是文件，比以前多一下。
 afterEach(() => useIncoming.getState().clear());
 it.each([
-  ['video-too-big', 'media', 3],
-  ['pdf-too-big', 'files', 3],
-  ['document-packet', 'media', 6],
+  ['video-too-big', 'media', 4],
+  ['pdf-too-big', 'files', 4],
+  ['document-packet', 'media', 7],
 ] as const)(
   '%s (%s): first and second use finish with %i App taps',
   async (preset, source, expected) => {
@@ -31,7 +33,11 @@ it.each([
           files.offerImage('id-front.jpg', 1000, 630),
           files.offerImage('id-back.jpg', 1000, 630),
         ];
-      await press(`file-pick-${source}`);
+      jest.spyOn(Alert, 'alert').mockImplementationOnce((_title, _message, buttons) => {
+        buttons?.[source === 'media' ? 0 : 1]?.onPress?.();
+      });
+      await press('file-pick-open');
+      trace.push(`choose-${source}`);
       await press(`share-run-${preset}`);
       if (preset === 'document-packet') {
         await screen.findByText('裁剪 1/2', {}, { timeout: 3000 });

@@ -130,6 +130,11 @@ class MorphVisionModule : Module() {
 
     Function("canFindPaper") { false }
 
+    // PDF 第一页的缩略图（D-451）。
+    AsyncFunction("pdfThumbnail") { uri: String, output: String, maxSide: Int ->
+      PdfThumbnail.render(File(Uri.parse(uri).path!!), File(Uri.parse(output).path!!), maxSide)
+    }
+
     // 文档扫描在 Google Play 服务里，没有 Google Play 服务的手机用不了。
     Function("isDocumentCameraSupported") {
       GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) ==

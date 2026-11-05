@@ -503,14 +503,18 @@ describe('mock AI — guide step 1 (D-231)', () => {
   const starter = (locale: Locale = 'zh') => createStarterWorkspace(locale, registry);
   const homeOf = (c: WorkspaceConfig) => allComponents(home(c));
 
-  it('GD1 guide step 1 adds both file entries (D-231)', async () => {
+  it('GD1 guide step 1 adds the scan and open-file buttons in all three languages (D-449)', async () => {
     for (const [text, locale] of [
-      ['加入「打开相册」和「打开文件」按钮', 'zh'],
-      ['Add the “Open photo library” and “Open files” buttons', 'en'],
+      ['加入「扫描」和「打开文件」按钮', 'zh'],
+      ['Add the “Scan” and “Open files” buttons', 'en'],
+      ['Ajouter les boutons « Numériser » et « Ouvrir les fichiers »', 'fr'],
     ] as const) {
       const { after } = await change(text, starter(locale), locale);
-      expect(homeOf(after).filter((c) => isKnownComponent(c) && c.look === 'picker')).toHaveLength(
-        2,
+      expect(homeOf(after)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ look: 'action', tools: [{ tool: 'scan-camera' }] }),
+          expect.objectContaining({ look: 'picker', tools: [{ tool: '$pick.open' }] }),
+        ]),
       );
     }
   });

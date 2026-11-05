@@ -8,8 +8,11 @@ import { findWorkflowTarget } from '../workflows/presets';
 import { type LookDefinitionOf, defineLook } from './define';
 
 const shape = {
-  /** card = 卡片加「运行」按钮，row = 一行、右边 ▶，tile = 宫格小块；不写时按位置自动选（D-230）。 */
-  show: z.strictObject({ shape: z.enum(['card', 'row', 'tile']).optional() }).optional(),
+  /**
+   * card = 卡片加「运行」按钮，row = 一行、右边 ▶，tile = 宫格小块；不写时按位置自动选（D-230）。
+   * icon = 只有图标的白底按钮，点了直接开始（D-449，新用户首页的「扫描」）。
+   */
+  show: z.strictObject({ shape: z.enum(['card', 'row', 'tile', 'icon']).optional() }).optional(),
   /** 一个快捷操作：tools[] 里的，或者内设快捷操作的预设 ID（D-236、D-259，不用添加）。 */
   tools: z.array(ToolUseSchema).min(1).max(1),
 };

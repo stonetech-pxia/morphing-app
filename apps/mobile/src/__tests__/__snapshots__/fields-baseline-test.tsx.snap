@@ -4,7 +4,7 @@ exports[`field inputs and list display in en 1`] = `
 "
 welcome component-welcome <View>: My workspace | Tap Tink and describe how this app should change
 catalog component-catalog <View>: Add tools
-recent-files component-recent-files <View>: Recent files | No files yet
+recent-files component-recent-files <View>: Recent files | Files you scan or save will show up here
 form form-form-t <TextInput>: [Title]
 form form-form-n <TextInput>: [Note]
 form form-form-num <TextInput>: [Weight]
@@ -50,7 +50,7 @@ exports[`field inputs and list display in fr 1`] = `
 "
 welcome component-welcome <View>: Mon espace de travail | Touchez « Tink » et décrivez en une phrase comment cette app doit changer.
 catalog component-catalog <View>: Ajouter des outils
-recent-files component-recent-files <View>: Fichiers récents | Aucun fichier pour l’instant
+recent-files component-recent-files <View>: Fichiers récents | Les fichiers numérisés ou enregistrés apparaîtront ici
 form form-form-t <TextInput>: [Title]
 form form-form-n <TextInput>: [Note]
 form form-form-num <TextInput>: [Weight]
@@ -96,7 +96,7 @@ exports[`field inputs and list display in zh 1`] = `
 "
 welcome component-welcome <View>: 我的工作台 | 点「Tink」，用一句话改造这个 App
 catalog component-catalog <View>: 添加工具
-recent-files component-recent-files <View>: 最近文件 | 还没有文件
+recent-files component-recent-files <View>: 最近文件 | 扫描或保存的文件会出现在这里
 form form-form-t <TextInput>: [Title]
 form form-form-n <TextInput>: [Note]
 form form-form-num <TextInput>: [Weight]

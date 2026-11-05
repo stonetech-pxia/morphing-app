@@ -12,13 +12,15 @@ import { t } from '../i18n';
 import { onPicture } from './Backdrop';
 import type { RenderEnv } from './components';
 import { UiIcon } from './Icon';
+import { IconButton } from './IconButton';
 import { iconColors } from './theme';
 import { Button, Card, IconTile } from './ui';
 
 /**
  * workflowRunner 组件：显示工作流的步骤，点「开始」打开运行页面。
  * 在宫格里（相邻的多个运行卡片，或用户自己的 grid / row 分组）显示成小方块，整块可点（D-108）。
- * look 指定了样子时不看位置：card = 卡片加「运行」按钮，row = 一行、右边 ▶，tile = 小方块（D-230）。
+ * look 指定了样子时不看位置：card = 卡片加「运行」按钮，row = 一行、右边 ▶，tile = 小方块（D-230），
+ * icon = 只有图标的白底按钮（D-449）。
  */
 export function WorkflowRunner({
   workflowId,
@@ -27,7 +29,7 @@ export function WorkflowRunner({
   env,
 }: {
   workflowId: string;
-  look?: 'card' | 'row' | 'tile';
+  look?: 'card' | 'row' | 'tile' | 'icon';
   /** 图片背景（D-258）。 */
   backdrop?: Backdrop | undefined;
   env: RenderEnv;
@@ -66,6 +68,19 @@ export function WorkflowRunner({
           .map((s) => label(s.action))
           .join(' → ')
       : settings;
+
+  if (shown === 'icon') {
+    return (
+      <IconButton
+        palette={palette}
+        icon={icon}
+        label={workflow.name}
+        testID={`run-${workflow.id}`}
+        onPress={start}
+        onLongPress={env.onLongPress}
+      />
+    );
+  }
 
   if (shown === 'row') {
     const play = iconColors(palette, 'tint');

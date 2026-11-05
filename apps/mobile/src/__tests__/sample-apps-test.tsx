@@ -19,7 +19,7 @@ import { useSampleHint } from '../guide/SampleHint';
 import { useGuide } from '../guide/store';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
-import { renderToolsApp, starterAfterGuide } from '../test-utils/render-app';
+import { renderToolsApp, starterAfterGuide, openPick } from '../test-utils/render-app';
 
 // 新手引导第 3 步：样板 App（D-260）。第 2 步结束后首页列出五个样板；点一个整套进草稿（D-190），
 // 「应用」后合成一个版本（顶部「已改好 · 撤销」），回到样板的主页面，提示可以用 AI 接着改。不经过 AI。
@@ -58,7 +58,8 @@ describe('guide step 3: sample apps', () => {
     useSampleHint.setState({ hint: null });
   });
 
-  it('a new user who finishes steps 1 and 2 sees step 3 with the five samples', async () => {
+  // D-447：第 3 步取消了。新用户走完第 1、2 步（或第 2 步时打开了文件）引导就结束，不再列出样板。
+  it('a new user who finishes steps 1 and 2 does not get step 3', async () => {
     const { repo } = await start(undefined, { seed: createStarterWorkspace });
     await fireEvent.press(await screen.findByTestId('welcome-skip'));
     await fireEvent.press(await screen.findByTestId('guide-look-0'));
@@ -68,27 +69,24 @@ describe('guide step 3: sample apps', () => {
     );
     await fireEvent.press(screen.getByTestId('change-submit'));
     await fireEvent.press(await screen.findByTestId('guide-later'));
-    const card = await screen.findByTestId('guide-samples');
-    expect(card).toHaveTextContent(/第 3 步/);
-    expect(card).toHaveTextContent(/还能把 Tinkrum 变成你自己的 App/);
-    for (const name of ['报销助手', '出国办证', '学习助手', '小店接单', '宝宝成长'])
-      expect(card).toHaveTextContent(new RegExp(name));
-    expect(screen.getByTestId('guide-samples-later')).toBeTruthy();
-    expect(await repo.getMeta('guide')).toBe('samples');
+    await waitFor(() => expect(useGuide.getState().stage).toBe('done'));
+    expect(await repo.getMeta('guide')).toBe('done');
+    expect(screen.queryByTestId('guide-samples')).toBeNull();
   });
 
-  it('opening a picture in step 2 leads to step 3 back on the home page', async () => {
+  it('opening a picture in step 2 ends the guide', async () => {
     const files = new FakeFiles();
     const repo = new MemoryWorkspaceRepo();
     await repo.setMeta('guide', 'goal');
     await act(() => useGuide.getState().load(repo));
     await renderToolsApp(repo, files, { seed: starterAfterGuide });
     files.nextMedia = [files.offerImage('a.jpg', 400, 300)];
-    await fireEvent.press(await screen.findByTestId('file-pick-media'));
+    await openPick('media');
     expect(await screen.findByTestId('share-screen')).toBeTruthy();
-    expect(await repo.getMeta('guide')).toBe('samples');
+    expect(await repo.getMeta('guide')).toBe('done');
     await act(() => router.back());
-    expect(await screen.findByTestId('guide-samples')).toBeTruthy();
+    await screen.findByTestId('nav-settings');
+    expect(screen.queryByTestId('guide-samples')).toBeNull();
   });
 
   it('skipping the guide skips step 3 too', async () => {
@@ -228,7 +226,10 @@ describe('guide step 3: sample apps', () => {
 
   it('a full navigation bar puts the sample on the home page and opens its page after applying', async () => {
     // 默认工作空间的导航栏是满的：首页、工具、AI、历史、设置。
-    const seed = seedWith(homeFileEntryOps, (locale) => createDefaultWorkspace(locale));
+    const seed = seedWith(
+      (config) => homeFileEntryOps(config, 'zh'),
+      (locale) => createDefaultWorkspace(locale),
+    );
     const { store } = await start('samples', { seed });
     await fireEvent.press(await screen.findByTestId('guide-sample-study-helper'));
     await fireEvent.press(await screen.findByTestId('draft-apply'));

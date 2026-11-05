@@ -11,6 +11,7 @@ import type {
   SampleApp,
   WorkSession,
   WorkspaceConfig,
+  PlanProgress,
 } from '@morph/core';
 import type { StoreApi } from 'zustand/vanilla';
 
@@ -232,6 +233,8 @@ export interface WorkspaceState {
   proposal: Proposal | null;
   banner: Banner | null;
   busy: boolean;
+  /** AI 规划走到哪一步（D-448），AI 页在 Tink 旁边显示；不忙时是 null。 */
+  planProgress: PlanProgress | null;
   /** 文件列表的刷新信号：工作流保存文件后递增。 */
   assetsVersion: number;
   /** 外壳当前显示的导航项；版本变化时外壳会重新挂载，所以保存在这里。 */

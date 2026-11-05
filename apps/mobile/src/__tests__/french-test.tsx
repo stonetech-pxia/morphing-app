@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
-import { renderToolsApp, starterAfterGuide } from '../test-utils/render-app';
+import { renderToolsApp, starterAfterGuide, openPick } from '../test-utils/render-app';
 import { formatTime } from '../run/local/TrimScreen';
 
 const start = () =>
@@ -16,8 +16,9 @@ const start = () =>
 describe('French journeys', () => {
   it('opens the category library and prefills a French request from the starter home', async () => {
     await start();
-    expect(await screen.findByText('Ouvrir les photos')).toBeTruthy();
-    expect(screen.getByText('Ouvrir les fichiers')).toBeTruthy();
+    // D-449：首页的两个入口只有图标，读屏标签是法语。
+    expect(await screen.findByLabelText('Ouvrir les fichiers')).toBeTruthy();
+    expect(screen.getByTestId('run-scan-camera')).toBeTruthy();
     await act(() => router.push('/quick-actions'));
     await fireEvent.press(await screen.findByTestId('category-audio'));
     await fireEvent.press(await screen.findByTestId('quick-actions-create'));
@@ -30,7 +31,7 @@ describe('French journeys', () => {
   it('picks a photo, runs a built-in action, and shows a French result', async () => {
     const { files, store } = await start();
     files.nextMedia = [files.offerImage('private-photo.jpg', 2400, 1600)];
-    await fireEvent.press(await screen.findByTestId('file-pick-media'));
+    await openPick('media');
     expect(await screen.findByTestId('share-screen')).toHaveTextContent(/1\s*photo/);
     expect(await screen.findByTestId('share-workflow-email-photos')).toHaveTextContent(
       /Photos pour l’e-mail/,

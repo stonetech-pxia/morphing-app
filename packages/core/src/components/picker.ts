@@ -4,9 +4,16 @@ import { z } from 'zod';
 import { ToolUseSchema } from '../record-ops-schema';
 import { type LookDefinitionOf, defineLook } from './define';
 
-const shape = { tools: z.array(ToolUseSchema).min(1).max(1) };
+const shape = {
+  /** icon = 只有图标的白底按钮（D-449）；不写是带文字的按钮。 */
+  show: z.strictObject({ shape: z.enum(['icon']).optional() }).optional(),
+  tools: z.array(ToolUseSchema).min(1).max(1),
+};
 
-/** 打开相册 / 打开文件（原 filePick）：内核固定行为，选完进收件页面，绝不自动运行（AI 不提供可执行内容）。 */
+/**
+ * 打开相册 / 打开文件（原 filePick）：内核固定行为，选完进收件页面，绝不自动运行（AI 不提供可执行内容）。
+ * $pick.open（D-449）：点了先问从相册还是从「文件」选。
+ */
 export const pickerComponent: LookDefinitionOf<'picker', typeof shape> = defineLook({
   look: 'picker',
   shape,
@@ -16,7 +23,7 @@ export const pickerComponent: LookDefinitionOf<'picker', typeof shape> = defineL
   writes: false,
   tools: { as: ['self'], ref: ['pick'], max: 1 },
   describe: (c, _config, ctx) =>
-    'tool' in c.tools[0]! && c.tools[0].tool === '$pick.files'
+    'tool' in c.tools[0]! && (c.tools[0].tool === '$pick.files' || c.tools[0].tool === '$pick.open')
       ? t(ctx.locale, 'describe_Open_files_3477c')
       : t(ctx.locale, 'describe_Open_photo_library_47a7e'),
   edit: { text: [], style: [] },

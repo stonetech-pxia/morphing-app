@@ -11,7 +11,8 @@ import {
 } from '@morph/core';
 import { Stack } from 'expo-router';
 import type { ReactNode } from 'react';
-import { renderRouter } from 'expo-router/testing-library';
+import { fireEvent } from '@testing-library/react-native';
+import { renderRouter, screen } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -77,7 +78,7 @@ function ShareListener({ files }: { files: FakeFiles }) {
 /** 新用户做完引导第 1 步的样子（D-231）：空白首页加上「打开相册」「打开文件」。 */
 export function starterAfterGuide(locale: Locale, registry: Registry): WorkspaceConfig {
   const config = createStarterWorkspace(locale, registry);
-  const result = applyOps(config, homeFileEntryOps(config), { registry, locale });
+  const result = applyOps(config, homeFileEntryOps(config, locale), { registry, locale });
   if (!result.ok) throw new Error(result.error);
   return result.config;
 }
@@ -177,4 +178,12 @@ export function acceptNextAlert() {
   jest.spyOn(Alert, 'alert').mockImplementationOnce((_title, _message, buttons) => {
     buttons?.find((b) => b.style !== 'cancel')?.onPress?.();
   });
+}
+
+/** 首页的「打开文件」图标按钮（D-449）：先问从相册还是从「文件」选，这里替用户点一个。 */
+export async function openPick(from: 'media' | 'files') {
+  jest.spyOn(Alert, 'alert').mockImplementationOnce((_title, _message, buttons) => {
+    buttons?.[from === 'media' ? 0 : 1]?.onPress?.();
+  });
+  await fireEvent.press(await screen.findByTestId('file-pick-open'));
 }

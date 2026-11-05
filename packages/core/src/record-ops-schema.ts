@@ -104,7 +104,7 @@ export const TOOL_USE_AS = ['submit', 'button', 'check', 'tap', 'drag', 'addHere
 export type ToolUseAs = (typeof TOOL_USE_AS)[number];
 
 /** 内核的「打开相册 / 打开文件」（原 filePick），选完进收件页面，绝不自动运行。 */
-export const PICK_TOOLS = ['$pick.media', '$pick.files'] as const;
+export const PICK_TOOLS = ['$pick.media', '$pick.files', '$pick.open'] as const;
 export type PickTool = (typeof PICK_TOOLS)[number];
 
 const useBase = {

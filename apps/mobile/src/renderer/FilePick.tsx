@@ -9,21 +9,42 @@ import { releaseShare, useIncoming } from '../share/incoming';
 import { useGuide } from '../guide/store';
 import { useWorkspaceContext } from '../workspace/context';
 import type { RenderEnv } from './components';
+import { IconButton } from './IconButton';
 import { Button } from './ui';
 
-/** 只由内核选择文件；草稿、预览和取消不会产生一次收件。 */
-export function FilePick({ source, env }: { source: 'media' | 'files'; env: RenderEnv }) {
+/**
+ * 只由内核选择文件；草稿、预览和取消不会产生一次收件。
+ * open（D-449）：先问从相册还是从「文件」选；iconOnly：只有图标的白底按钮。
+ */
+export function FilePick({
+  source,
+  iconOnly,
+  env,
+}: {
+  source: 'media' | 'files' | 'open';
+  iconOnly?: boolean;
+  env: RenderEnv;
+}) {
   const { files } = useWorkspaceContext();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const label = t(env.locale, source === 'media' ? 'openMedia' : 'openFiles');
-  async function pick() {
+  function choose() {
+    if (env.locked) return env.locked();
+    if (!env.interactive || busy) return;
+    Alert.alert(label, undefined, [
+      { text: t(env.locale, 'pickFromPhotos'), onPress: () => void pick('media') },
+      { text: t(env.locale, 'pickFromFiles'), onPress: () => void pick('files') },
+      { text: t(env.locale, 'cancel'), style: 'cancel' },
+    ]);
+  }
+  async function pick(from: 'media' | 'files') {
     if (env.locked) return env.locked();
     if (!env.interactive || busy) return;
     setBusy(true);
     try {
       const selected =
-        source === 'media'
+        from === 'media'
           ? await files.pickMedia(MAX_PICK)
           : await files.pickDocuments(['*/*'], true);
       if (!selected?.length) return;
@@ -44,14 +65,31 @@ export function FilePick({ source, env }: { source: 'media' | 'files'; env: Rend
       const previous = useIncoming.getState().share;
       if (previous) await releaseShare(files, previous.id);
       useIncoming.getState().receive(selected, [], 'picker');
-      // 新手引导第 2 步就是打开图片或文件（D-231）：打开了，回到首页时显示第 3 步（D-260）。
-      if (useGuide.getState().stage === 'goal') void useGuide.getState().setStage('samples');
+      // 新手引导第 2 步时打开了图片或文件：引导结束（第 3 步样板 App 取消了，D-447）。
+      if (useGuide.getState().stage === 'goal') void useGuide.getState().setStage('done');
       router.push('/share');
     } catch {
       Alert.alert(label, t(env.locale, 'filePickFailed'));
     } finally {
       setBusy(false);
     }
+  }
+  const onPress = env.interactive
+    ? () => (source === 'open' ? choose() : void pick(source))
+    : undefined;
+  if (iconOnly) {
+    return (
+      <IconButton
+        palette={env.palette}
+        icon={source === 'media' ? 'photo' : 'folder'}
+        {...(source === 'media' ? {} : { glyph: 'folderOpen' as const })}
+        label={label}
+        testID={`file-pick-${source}`}
+        disabled={busy}
+        onPress={onPress}
+        onLongPress={env.onLongPress}
+      />
+    );
   }
   return (
     <Button
@@ -60,7 +98,7 @@ export function FilePick({ source, env }: { source: 'media' | 'files'; env: Rend
       testID={`file-pick-${source}`}
       disabled={busy}
       loading={busy}
-      onPress={env.interactive ? () => void pick() : undefined}
+      onPress={onPress}
       onLongPress={env.onLongPress}
       style={{ minHeight: 76 }}
     />

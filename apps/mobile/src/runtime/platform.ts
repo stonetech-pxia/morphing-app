@@ -606,6 +606,11 @@ export interface FilePlatform {
   pickImage(maxSide?: number): Promise<PickedFile | null>;
   /** 某个用户文件可以直接显示的地址（图片组件用）。 */
   fileUri(path: string): string;
+  /**
+   * PDF 第一页的缩略图（D-451）：PDF 存进用户文件时在本机生成，放在同一个目录里；
+   * 没有（不是 PDF、打不开、以前存的）时是 null。只读，不生成。
+   */
+  thumbnailUri?(path: string): string | null;
   importFile(
     file: PickedFile,
     assetId: string,

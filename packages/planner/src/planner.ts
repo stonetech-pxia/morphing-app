@@ -215,6 +215,7 @@ export function createClaudePlanner(options: PlannerOptions): AIProvider {
       const settle = (b: NonNullable<typeof best>) => withToolNotes(b.plan, b.issues, ctx.locale);
       for (;;) {
         options.onRoute?.(route);
+        ctx.onProgress?.(repairs + toolRepairs > 0 ? 'fixing' : route);
         let completion: Completion;
         try {
           completion = await options.complete(messages, systemPromptFor(options.registry, route));
@@ -223,6 +224,7 @@ export function createClaudePlanner(options: PlannerOptions): AIProvider {
           throw e;
         }
         options.onCompletion?.(completion);
+        ctx.onProgress?.('checking');
         if (completion.stopReason === 'refusal') {
           if (best) return settle(best);
           return {

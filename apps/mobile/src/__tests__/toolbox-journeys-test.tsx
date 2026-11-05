@@ -7,7 +7,7 @@ import { screen } from 'expo-router/testing-library';
 
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
-import { renderToolsApp, starterAfterGuide } from '../test-utils/render-app';
+import { renderToolsApp, starterAfterGuide, openPick } from '../test-utils/render-app';
 
 // 新用户的空白首页（D-231）、工具箱（D-181、D-182）和首页文件入口。
 
@@ -21,7 +21,7 @@ describe('starter home and toolbox (UI)', () => {
     expect(store.getState().config!.containers.pages.find((p) => p.id === 'home')!.blocks).toEqual(
       [],
     );
-    expect(screen.queryByTestId('file-pick-media')).toBeNull();
+    expect(screen.queryByTestId('file-pick-open')).toBeNull();
     expect(screen.queryByText('Tinkrum 可以做什么')).toBeNull();
     expect(screen.queryByTestId('nav-tools')).toBeNull();
   });
@@ -51,7 +51,7 @@ describe('home file pickers', () => {
   it('cancelling leaves the home and incoming batch unchanged', async () => {
     const { files } = await start();
     const pick = jest.spyOn(files, 'pickMedia');
-    await fireEvent.press(await screen.findByTestId('file-pick-media'));
+    await openPick('media');
     expect(pick).toHaveBeenCalledWith(50);
     expect(screen.queryByTestId('share-screen')).toBeNull();
   });
@@ -60,7 +60,7 @@ describe('home file pickers', () => {
     const photo = files.offerImage('private-name.jpg', 400, 300);
     const video = files.offerVideo('private-movie.mp4', { size: 1000, durationMs: 1000 });
     files.nextMedia = [photo, video];
-    await fireEvent.press(await screen.findByTestId('file-pick-media'));
+    await openPick('media');
     expect(await screen.findByTestId('share-screen')).toBeTruthy();
     expect(useIncoming.getState().share).toMatchObject({ source: 'picker', files: [photo, video] });
     expect(screen.queryByTestId('run-screen')).toBeNull();
@@ -75,7 +75,7 @@ describe('home file pickers', () => {
     const { files } = await start();
     const pdf = files.offer('picked.pdf', new Uint8Array([1, 2, 3]));
     files.nextPick = [pdf];
-    await fireEvent.press(await screen.findByTestId('file-pick-files'));
+    await openPick('files');
     expect(await screen.findByTestId('share-screen')).toBeTruthy();
     expect(files.lastPickTypes).toEqual(['*/*']);
     await act(() => router.back());
@@ -89,7 +89,7 @@ describe('home file pickers', () => {
     files.nextMedia = Array.from({ length: 11 }, (_, i) =>
       files.offerVideo(`${i}.mp4`, { size: 1000, durationMs: 1000 }),
     );
-    await fireEvent.press(await screen.findByTestId('file-pick-media'));
+    await openPick('media');
     expect(alert).toHaveBeenCalled();
     expect(screen.queryByTestId('share-screen')).toBeNull();
     // 不收的那一批，选择器的副本也删掉。

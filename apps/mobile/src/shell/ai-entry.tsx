@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { Pressable } from 'react-native';
 
 import { useDraftUi } from '../draft/ui';
+import { LivelyTink } from '../guide/LivelyTink';
 import { t } from '../i18n';
 import { Icon } from '../renderer/Icon';
 import type { Palette } from '../renderer/theme';
@@ -103,8 +104,21 @@ export function workflowAbout(config: WorkspaceConfig, workflowId: string): Plan
     : { kind: 'screen', screen: 'quickActions' };
 }
 
-/** 右上角的入口：草稿模式里打开聊天框（和 D-190 一样），否则打开 AI 页。 */
-export function AIEntry({ about, palette }: { about: PlanAbout; palette: Palette }) {
+/**
+ * 右上角的入口：草稿模式里打开聊天框（和 D-190 一样），否则打开 AI 页。
+ * 引导时（D-447）外壳传 `onPress` 和 `lively`：Tink 会动，点了打开引导的那句话。
+ */
+export function AIEntry({
+  about,
+  palette,
+  lively,
+  onPress,
+}: {
+  about: PlanAbout;
+  palette: Palette;
+  lively?: boolean;
+  onPress?: () => void;
+}) {
   const { locale } = useWorkspaceContext();
   const router = useRouter();
   const inDraft = useWorkspace((s) => !!s.draft?.open);
@@ -113,10 +127,13 @@ export function AIEntry({ about, palette }: { about: PlanAbout; palette: Palette
     <AIEntryButton
       palette={palette}
       locale={locale}
+      lively={lively}
       onPress={() =>
-        inDraft
-          ? setChatOpen(true, about)
-          : router.push({ pathname: '/change', params: aboutParams(about) })
+        onPress
+          ? onPress()
+          : inDraft
+            ? setChatOpen(true, about)
+            : router.push({ pathname: '/change', params: aboutParams(about) })
       }
     />
   );
@@ -127,10 +144,12 @@ export function AIEntryButton({
   palette,
   locale,
   onPress,
+  lively,
 }: {
   palette: Palette;
   locale: Locale;
   onPress: () => void;
+  lively?: boolean;
 }) {
   return (
     <Pressable
@@ -139,7 +158,11 @@ export function AIEntryButton({
       accessibilityLabel={t(locale, 'aboutEntryLabel')}
       hitSlop={10}
       onPress={onPress}>
-      <Icon name="tink" size={24} color={palette.primaryText} />
+      {lively ? (
+        <LivelyTink size={24} color={palette.primaryText} halo={palette.primary} />
+      ) : (
+        <Icon name="tink" size={24} color={palette.primaryText} />
+      )}
     </Pressable>
   );
 }

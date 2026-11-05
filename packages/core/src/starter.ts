@@ -1,5 +1,6 @@
 import { t, pairText } from './messages';
 import { createDefaultWorkspace } from './defaults';
+import { FILES_TABLE } from './files-table';
 import { applyOps } from './ops';
 import type { Op } from './ops-schema';
 import type { Registry } from './registry';
@@ -38,7 +39,7 @@ const TOOLBOX_GROUPS: { id: string; title: [string, string]; toolIds?: string[] 
  * 「打开相册」「打开文件」两个入口并排放在首页（新手引导第 1 步和「跳过引导」用，D-231）；
  * 首页已经有文件入口时不再加。
  */
-export function homeFileEntryOps(config: WorkspaceConfig): Op[] {
+export function homeFileEntryOps(config: WorkspaceConfig, locale: Locale): Op[] {
   const home = config.containers.pages.find((p) => p.id === HOME_PAGE_ID);
   if (!home || allComponents(home).some((c) => isKnownComponent(c) && c.look === 'picker'))
     return [];
@@ -52,10 +53,47 @@ export function homeFileEntryOps(config: WorkspaceConfig): Op[] {
         id: free('file-entries'),
         look: 'group',
         show: { layout: 'grid', columns: 2 },
+        // D-449：只有图标的白底按钮。扫描直接运行内设的「扫描成 PDF」（没装扫描工具时不放）；
+        // 打开文件先问相册还是文件。
         children: [
-          { id: free('open-media'), look: 'picker', tools: [{ tool: '$pick.media' }] },
-          { id: free('open-files'), look: 'picker', tools: [{ tool: '$pick.files' }] },
+          ...(config.packages.some((p) => p.id === 'scan')
+            ? [
+                {
+                  id: free('scan'),
+                  look: 'action' as const,
+                  show: { shape: 'icon' as const },
+                  tools: [{ tool: 'scan-camera' }],
+                },
+              ]
+            : []),
+          {
+            id: free('open-files'),
+            look: 'picker',
+            show: { shape: 'icon' },
+            tools: [{ tool: '$pick.open' }],
+          },
         ],
+      },
+    },
+    // D-452：最近用过的快捷操作（读运行记录，没有时不显示）和最近的文件（扫描的都在这里，D-450）。
+    {
+      op: 'addContainer',
+      page: HOME_PAGE_ID,
+      block: {
+        id: free('recent-actions'),
+        look: 'library',
+        show: { title: t(locale, 'homeRecentActions') },
+        source: { catalog: 'quickActions', recent: true },
+      },
+    },
+    {
+      op: 'addContainer',
+      page: HOME_PAGE_ID,
+      block: {
+        id: free('recent-files'),
+        look: 'files',
+        show: { title: t(locale, 'homeRecentFiles') },
+        source: { table: FILES_TABLE, limit: 3 },
       },
     },
   ];

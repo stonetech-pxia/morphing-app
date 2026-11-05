@@ -1502,15 +1502,15 @@ const translateDocRule: Rule = (clause, state) => {
   return [{ op: 'addTool', tool: wf }];
 };
 
-/** 新手引导第 1 步的句子（D-231）：两个文件入口一起加，并排放。 */
+/** 新手引导第 1 步的句子（D-231、D-449）：扫描和打开文件两个入口一起加，并排放；三种语言都认。 */
 const bothFilePicksRule: Rule = (clause, state) => {
   if (
-    !/^(?:首页)?(?:加入|加上|添加)[「“"]打开(?:相册|图片)[」”"]和[「“"]打开文件[」”"](?:两个)?按钮$|^add the [“"]open photo library[”"] and [“"]open files[”"] buttons$/i.test(
+    !/^(?:首页)?(?:加入|加上|添加)[「“"](?:打开(?:相册|图片)|扫描)[」”"]和[「“"]打开文件[」”"](?:两个)?按钮$|^add the [“"](?:open photo library|scan)[”"] and [“"]open files[”"] buttons$|^ajouter les boutons « numériser » et « ouvrir les fichiers »$/i.test(
       clause,
     )
   )
     return null;
-  return homeFileEntryOps(state.config);
+  return homeFileEntryOps(state.config, state.ctx.locale);
 };
 
 const filePickRule: Rule = (clause, state) => {

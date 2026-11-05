@@ -104,6 +104,15 @@ export interface MorphVisionModule {
   isCameraAvailable(): boolean;
   /** 能不能给一张照片找纸张的四个角（iOS 能，Android 的 ML Kit 不能：detectDocument / straighten 不存在）。 */
   canFindPaper(): boolean;
+  /**
+   * PDF 第一页的缩略图（D-451）：白底 JPEG 写到 output，长边不超过 maxSide。
+   * 打不开（损坏、要密码）时抛出。iOS 用 PDFKit，Android 用 PdfRenderer。
+   */
+  pdfThumbnail(
+    uri: string,
+    output: string,
+    maxSide: number,
+  ): Promise<{ width: number; height: number; pageCount: number }>;
   /** 这种语言（BCP 47）系统能不能识别（Android 上只剩韩文用 ML Kit，D-269）。 */
   supportsLanguage(code: string): boolean;
 

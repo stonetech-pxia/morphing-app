@@ -396,7 +396,8 @@ export function describeChange(
     if ('opens' in u) return t(ctx.locale, 'describeUseOpen');
     if ('tool' in u) {
       if (u.tool === '$pick.media') return t(ctx.locale, 'describeUsePickMedia');
-      if (u.tool === '$pick.files') return t(ctx.locale, 'describeUsePickFiles');
+      if (u.tool === '$pick.files' || u.tool === '$pick.open')
+        return t(ctx.locale, 'describeUsePickFiles');
       return t(ctx.locale, 'describeUseRun', { name: wf(u.tool)?.name ?? toolName(u.tool) });
     }
     switch (u.as) {

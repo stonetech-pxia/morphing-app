@@ -34,6 +34,21 @@ export function fromV33(raw: unknown): WorkspaceConfig {
   return result.config as WorkspaceConfig;
 }
 
+/**
+ * D-450：扫描工具的「扫描成 PDF」「照片扫描成 PDF」最后多了一步存到文件（扫描的文件都留在文档库）。
+ * v33 存下来的固定样本里还没有这一步：和现在的新配置比时补上，其余照旧逐字比。
+ */
+export function withScanKeep(config: WorkspaceConfig): WorkspaceConfig {
+  const next = structuredClone(config);
+  for (const tool of next.tools) {
+    if (tool.kind !== 'quickAction' || tool.package !== 'scan') continue;
+    if (tool.id !== 'scan-camera' && tool.id !== 'scan-library') continue;
+    if (tool.steps.at(-1)?.action !== 'file.save')
+      tool.steps.push({ id: 'keep', action: 'file.save', params: {} });
+  }
+  return next;
+}
+
 /** fixtures/v33/<name>.json：v34 迁移前用 v33 代码存下来的配置（默认、新用户、模版、样板、评测 setup）。 */
 export function v33Fixture(name: string): Record<string, unknown> {
   // 欢迎语是存下来时的默认文案；D-436 把 AI 改名 Tink 后，新配置的默认文案不同，老配置的不动。

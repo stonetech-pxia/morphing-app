@@ -235,7 +235,15 @@ export interface PlanContext {
   /** 只有评测和旧调用方还用；App 发 session（D-414）。 */
   earlier?: PlanEarlier[];
   session?: PlanSession;
+  /** 规划走到哪一步（D-448）：AI 页在 Tink 旁边显示一句短话。只报阶段，不带句子或配置。 */
+  onProgress?: (step: PlanProgress) => void;
 }
+
+/**
+ * 规划的阶段（D-448）：前五个是这次给模型看的那部分提示词（全部 / 文件 / 记录 / 页面 / 风格），
+ * checking 是在检查模型给的修改，fixing 是把问题告诉模型再问一次。
+ */
+export type PlanProgress = 'full' | 'files' | 'records' | 'look' | 'style' | 'checking' | 'fixing';
 
 export interface AIProvider {
   plan(input: string, ctx: PlanContext): Promise<Plan>;

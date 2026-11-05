@@ -10,7 +10,7 @@ import {
   type ComponentOf,
 } from './schema';
 import { STARTER_TOOL_IDS, createStarterWorkspace, homeFileEntryOps } from './starter';
-import { fromV33, registry, v33Fixture } from './test-helpers';
+import { fromV33, registry, v33Fixture, withScanKeep } from './test-helpers';
 import { validateWorkspace } from './validate';
 
 const catalog = [...registry.tools.keys()];
@@ -32,24 +32,36 @@ describe('createStarterWorkspace', () => {
 
   it.each(['zh', 'en'] as const)('is the v33 starter, migrated (%s)', (locale) => {
     expect(createStarterWorkspace(locale, registry)).toEqual(
-      fromV33(v33Fixture(`starter-${locale}`)),
+      withScanKeep(fromV33(v33Fixture(`starter-${locale}`))),
     );
   });
 
-  it('adds the two file entries side by side once (D-231)', () => {
+  // D-449：首页的两个入口是只有图标的白底按钮：扫描（直接运行内设的「扫描成 PDF」）和打开文件（选相册或文件）。
+  it('adds the scan and open-file icon buttons side by side once', () => {
     const config = createStarterWorkspace('zh', registry);
-    const ops = homeFileEntryOps(config);
+    const ops = homeFileEntryOps(config, 'zh');
     const result = applyOps(config, ops, { registry, locale: 'zh' });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    // 和 v33 的 filePick 迁移过来的一样（fixtures/v33/starter-files-zh.json）。
-    expect(result.config).toEqual(fromV33(v33Fixture('starter-files-zh')));
+    expect(validateWorkspace(result.config, registry).ok).toBe(true);
     const home = result.config.containers.pages.find((p) => p.id === 'home')!;
+    expect(home.blocks[0]).toMatchObject({ look: 'group', show: { layout: 'grid', columns: 2 } });
     expect((home.blocks[0] as ComponentOf<'group'>).children).toMatchObject([
-      { look: 'picker', tools: [{ tool: '$pick.media' }] },
-      { look: 'picker', tools: [{ tool: '$pick.files' }] },
+      { look: 'action', show: { shape: 'icon' }, tools: [{ tool: 'scan-camera' }] },
+      { look: 'picker', show: { shape: 'icon' }, tools: [{ tool: '$pick.open' }] },
     ]);
-    expect(homeFileEntryOps(result.config)).toEqual([]);
+    // D-452：下面是最近操作（读运行记录）和最近的 3 个文件。
+    expect(home.blocks.slice(1)).toMatchObject([
+      { look: 'library', show: { title: '最近操作' }, source: { recent: true } },
+      { look: 'files', show: { title: '最近文件' }, source: { table: '$files', limit: 3 } },
+    ]);
+    expect(homeFileEntryOps(result.config, 'zh')).toEqual([]);
+  });
+
+  it('the old two pickers from v33 still load (photo library and files)', () => {
+    const old = fromV33(v33Fixture('starter-files-zh'));
+    expect(validateWorkspace(old, registry).ok).toBe(true);
+    expect(homeFileEntryOps(old, 'zh')).toEqual([]);
   });
 
   it('the toolbox shows every tool in the catalog exactly once', () => {

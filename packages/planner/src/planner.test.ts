@@ -919,3 +919,27 @@ describe('工具清单和搭建计划（D-414、D-415）', () => {
     expect(complete).toHaveBeenCalledTimes(2);
   });
 });
+
+// D-448：AI 页发送后 Tink 旁边的短文字跟着规划走到哪一步；只报阶段，不带句子和配置内容。
+describe('plan progress', () => {
+  it('reports the prompt route, then checking', async () => {
+    const steps: string[] = [];
+    const complete = vi.fn(async () => json(green));
+    const planner = createClaudePlanner({ complete, registry, now, route: true });
+    await planner.plan('把主题换成绿色', { ...ctx, onProgress: (p) => steps.push(p) });
+    expect(steps[0]).not.toBe('checking');
+    expect(steps.at(-1)).toBe('checking');
+    expect(steps.every((s) => typeof s === 'string' && s.length < 12)).toBe(true);
+  });
+
+  it('reports fixing when the first reply has to be repaired', async () => {
+    const steps: string[] = [];
+    const complete = vi
+      .fn<Complete>()
+      .mockResolvedValueOnce(reply('not json'))
+      .mockResolvedValueOnce(json(green));
+    const planner = createClaudePlanner({ complete, registry, now });
+    await planner.plan('换成绿色', { ...ctx, onProgress: (p) => steps.push(p) });
+    expect(steps).toEqual(['full', 'checking', 'fixing', 'checking']);
+  });
+});

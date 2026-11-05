@@ -4,6 +4,7 @@ import DataDetection
 #endif
 import ExpoModulesCore
 import ImageIO
+import PDFKit
 import UIKit
 import Vision
 import VisionKit
@@ -125,6 +126,36 @@ public class MorphVisionModule: Module {
     // iOS 能找纸张的四个角（Android 的 ML Kit 不能）。
     Function("canFindPaper") { () -> Bool in
       true
+    }
+
+    // PDF 第一页的缩略图（D-451）：PDFKit 在本机画，白底，长边不超过 maxSide，存成 JPEG。
+    // 打不开（损坏、要密码）时抛出，App 显示 PDF 图标。
+    AsyncFunction("pdfThumbnail") { (uri: URL, output: URL, maxSide: Double) -> [String: Any] in
+      guard let doc = PDFDocument(url: uri), !doc.isLocked, let page = doc.page(at: 0) else {
+        throw VisionFailedException("PDF can't be opened")
+      }
+      let box = page.bounds(for: .mediaBox)
+      let rotated = page.rotation % 180 != 0
+      let w = rotated ? box.height : box.width
+      let h = rotated ? box.width : box.height
+      guard w > 0, h > 0 else { throw VisionFailedException("PDF page is empty") }
+      let scale = maxSide / max(w, h)
+      let size = CGSize(width: max(1, (w * scale).rounded()), height: max(1, (h * scale).rounded()))
+      let format = UIGraphicsImageRendererFormat()
+      format.scale = 1
+      format.opaque = true
+      let image = UIGraphicsImageRenderer(size: size, format: format).image { ctx in
+        UIColor.white.setFill()
+        ctx.fill(CGRect(origin: .zero, size: size))
+        page.thumbnail(of: size, for: .mediaBox).draw(in: CGRect(origin: .zero, size: size))
+      }
+      guard let data = image.jpegData(compressionQuality: 0.8) else {
+        throw VisionFailedException("JPEG encoding failed")
+      }
+      try FileManager.default.createDirectory(
+        at: output.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try data.write(to: output)
+      return ["width": Int(size.width), "height": Int(size.height), "pageCount": doc.pageCount]
     }
 
     // 某种语言（BCP 47）系统能不能识别；不能的话 App 退回文字识别包。

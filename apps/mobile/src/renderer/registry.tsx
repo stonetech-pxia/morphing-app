@@ -76,7 +76,17 @@ const alignOf = (c: KnownComponent): TextStyle | undefined =>
 
 export const RENDERERS: { [T in ComponentType]: Renderer<T> } = {
   picker: (c, env) => (
-    <FilePick source={pickToolOf(c) === '$pick.files' ? 'files' : 'media'} env={env} />
+    <FilePick
+      source={
+        pickToolOf(c) === '$pick.files'
+          ? 'files'
+          : pickToolOf(c) === '$pick.open'
+            ? 'open'
+            : 'media'
+      }
+      iconOnly={c.show?.shape === 'icon'}
+      env={env}
+    />
   ),
   header: (c, { palette }) => (
     <View style={styles.header}>

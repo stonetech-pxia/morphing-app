@@ -2644,7 +2644,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 6>.tools[]<anyOf 0>.when[].value<anyOf 2> boolean
 <oneOf 6>.tools[]<anyOf 0>.tool
 <oneOf 6>.tools[]<anyOf 0>.tool<anyOf 0> string /^[a-z][a-z0-9-]{0,47}$/
-<oneOf 6>.tools[]<anyOf 0>.tool<anyOf 1> "$pick.media"|"$pick.files"
+<oneOf 6>.tools[]<anyOf 0>.tool<anyOf 1> "$pick.media"|"$pick.files"|"$pick.open"
 <oneOf 6>.tools[]<anyOf 1> object
 <oneOf 6>.tools[]<anyOf 1>.as? "submit"|"button"|"check"|"tap"|"drag"|"addHere"|"list"
 <oneOf 6>.tools[]<anyOf 1>.label? string len 1..30
@@ -2739,7 +2739,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 8>.pin? "top"|"bottom"
 <oneOf 8>.look "action"
 <oneOf 8>.show? object
-<oneOf 8>.show.shape? "card"|"row"|"tile"
+<oneOf 8>.show.shape? "card"|"row"|"tile"|"icon"
 <oneOf 8>.tools array items 1..1
 <oneOf 8>.tools[] = <oneOf 6>.tools[]
 <oneOf 9> object
@@ -2749,6 +2749,8 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 9>.showIf? = <oneOf 0>.showIf
 <oneOf 9>.pin? "top"|"bottom"
 <oneOf 9>.look "picker"
+<oneOf 9>.show? object
+<oneOf 9>.show.shape? "icon"
 <oneOf 9>.tools array items 1..1
 <oneOf 9>.tools[] = <oneOf 6>.tools[]
 <oneOf 10> object
@@ -2954,6 +2956,7 @@ exports[`baseline > workspace config JSON Schema 1`] = `
 <oneOf 20>.source object
 <oneOf 20>.source.catalog "quickActions"
 <oneOf 20>.source.kind? "image"|"video"|"audio"|"document"|"other"
+<oneOf 20>.source.recent? true
 <oneOf 21> object
 <oneOf 21>.id string /^[a-z][a-z0-9-]{0,47}$/
 <oneOf 21>.hidden? boolean

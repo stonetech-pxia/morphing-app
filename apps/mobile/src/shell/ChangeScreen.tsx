@@ -5,6 +5,7 @@ import {
   openItems,
   pageTarget,
   type PlanAbout,
+  type PlanProgress,
   presetOfTheme,
   presetRequest,
   quickActionsOf,
@@ -14,7 +15,6 @@ import {
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Keyboard,
   KeyboardAvoidingView,
@@ -31,8 +31,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAISettings } from '../ai/context';
 import { useAfterApply } from '../draft/useApplyDraft';
+import { LivelyTink } from '../guide/LivelyTink';
 import { guideText, useGuide } from '../guide/store';
-import { t } from '../i18n';
+import { t, type StringKey } from '../i18n';
 import { Icon, UiIcon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Button, Card } from '../renderer/ui';
@@ -53,6 +54,18 @@ const presetPlanner = createMockAIProvider();
 /** 引导的句子打进输入框的速度：每个字的间隔，整句最多约 1.4 秒。 */
 const typeDelay = (length: number) => Math.min(45, 1400 / Math.max(length, 1));
 
+/** 规划的每个阶段在 Tink 旁边说的话（D-448）：每个阶段两句，打开 AI 页时随机选一组；还没报阶段时是 start。 */
+const PROGRESS_TEXT: Record<PlanProgress | 'start', readonly [StringKey, StringKey]> = {
+  start: ['tinkThinking', 'tinkThinking2'],
+  full: ['tinkProgressFull', 'tinkProgressFull2'],
+  files: ['tinkProgressFiles', 'tinkProgressFiles2'],
+  records: ['tinkProgressRecords', 'tinkProgressRecords2'],
+  look: ['tinkProgressLook', 'tinkProgressLook2'],
+  style: ['tinkProgressStyle', 'tinkProgressStyle2'],
+  checking: ['tinkProgressChecking', 'tinkProgressChecking2'],
+  fixing: ['tinkProgressFixing', 'tinkProgressFixing2'],
+};
+
 /** 输入框下面最多几个例子（不算「换个风格」）。 */
 
 /**
@@ -62,6 +75,7 @@ const typeDelay = (length: number) => Math.min(45, 1400 / Math.max(length, 1));
  * 改功能（快捷操作、工具、数据表）：直接应用（可以撤销），打开「做好了」页面马上试用；
  * 这句话里剩下的外观变成一条「接着改」，在「做好了」页面上，也是这里的第一个例子。
  */
+
 export function ChangeScreen() {
   const { locale, registry, store } = useWorkspaceContext();
   const router = useRouter();
@@ -70,6 +84,8 @@ export function ChangeScreen() {
   const config = useWorkspace((s) => s.config)!;
   const draft = useWorkspace((s) => s.draft);
   const busy = useWorkspace((s) => s.busy);
+  const planProgress = useWorkspace((s) => s.planProgress);
+  const [progressVariant] = useState(() => (Math.random() < 0.5 ? 0 : 1));
   const change = useWorkspace((s) => s.change);
   const next = useWorkspace((s) => s.next);
   const suggest = useWorkspace((s) => s.suggest);
@@ -106,9 +122,8 @@ export function ChangeScreen() {
     guideText(params.guide, locale) !== null ? params.guide : undefined,
   );
   // 点了「接着改」（D-191）：那句话自动打进输入框，用设置里的 AI 处理。
-  // 法语引导的句子交给设置里的 AI；设置里选的是内置规则（不认法语）时，照旧发英文句子（D-228）。
-  const guideLocale = locale === 'fr' && aiMode === 'mock' ? 'en' : locale;
-  const [auto] = useState(() => guideText(guide, guideLocale) ?? (params.next ? next : null));
+  // 引导的句子三种语言都用内置规则（D-449，改 D-228）。
+  const [auto] = useState(() => guideText(guide, locale) ?? (params.next ? next : null));
   const propose = useWorkspace((s) => s.propose);
   const confirm = useWorkspace((s) => s.confirm);
   const setGuideStage = useGuide((s) => s.setStage);
@@ -265,9 +280,9 @@ export function ChangeScreen() {
       if (shown < text.length) return;
       clearInterval(timer);
       setTyping(false);
-      // 引导的句子中英文用内置规则；法语内置规则不认，交给设置里的 AI（见 guide/store.ts）。
+      // 引导的句子用内置规则（见 guide/store.ts）。
       if (guide) {
-        if (guideLocale !== 'fr') setPresetText(text);
+        setPresetText(text);
         return;
       }
       void submit(text, false);
@@ -441,7 +456,6 @@ export function ChangeScreen() {
               },
             ]}>
             <View style={styles.inputRow}>
-              <Icon name="tink" size={18} color={palette.primary} />
               <TextInput
                 testID="change-input"
                 autoFocus={focusInput}
@@ -462,24 +476,39 @@ export function ChangeScreen() {
                 style={[styles.input, palette.font('body', 16), { color: palette.text }]}
               />
             </View>
-            <Pressable
-              testID="change-submit"
-              accessibilityRole="button"
-              accessibilityLabel={t(locale, 'send')}
-              disabled={busy || typing}
-              onPress={() => void submit(input)}
-              style={[styles.send, { backgroundColor: palette.primary }]}>
-              {busy || typing ? (
-                <ActivityIndicator color={palette.onPrimary} />
-              ) : (
-                <UiIcon name="send" size={20} color={palette.onPrimary} />
-              )}
-            </Pressable>
+            {/* 发送按钮就是 Tink（D-448）：发出去以后它动起来，旁边一句短话说规划走到哪一步。 */}
+            <View style={styles.sendRow}>
+              {busy ? (
+                <Text
+                  testID="change-progress"
+                  numberOfLines={1}
+                  style={[
+                    palette.font('bodyMedium', 14),
+                    styles.progress,
+                    { color: palette.muted },
+                  ]}>
+                  {t(locale, PROGRESS_TEXT[planProgress ?? 'start'][progressVariant])}
+                </Text>
+              ) : null}
+              <Pressable
+                testID="change-submit"
+                accessibilityRole="button"
+                accessibilityLabel={t(locale, 'send')}
+                disabled={busy || typing}
+                onPress={() => void submit(input)}
+                style={[styles.send, { backgroundColor: palette.primary }]}>
+                {busy || typing ? (
+                  <LivelyTink size={24} color={palette.onPrimary} />
+                ) : (
+                  <Icon name="tink" size={24} color={palette.onPrimary} />
+                )}
+              </Pressable>
+            </View>
           </View>
         )}
 
         {/* 测试期服务器保存请求（D-240）：中英文新手引导用内置规则，不经过服务器；法语引导经过（D-228）。 */}
-        {!planBusy && aiMode === 'server' && (!guide || locale === 'fr') ? (
+        {!planBusy && aiMode === 'server' && !guide ? (
           <Text
             testID="change-server-stored"
             style={[palette.font('body', 13), { color: palette.caption }]}>
@@ -722,11 +751,12 @@ const styles = StyleSheet.create({
   box: { borderWidth: 1, padding: 12, gap: 8 },
   inputRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   input: { flex: 1, minHeight: 84, textAlignVertical: 'top', padding: 2 },
+  sendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10 },
+  progress: { flexShrink: 1, textAlign: 'right' },
   send: {
-    alignSelf: 'flex-end',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },

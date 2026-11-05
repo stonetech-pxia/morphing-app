@@ -14,7 +14,7 @@ import {
   type WorkspaceConfig,
   type BlockOf,
 } from './schema';
-import { apply, fromV33, registry, v33Fixture, workspace } from './test-helpers';
+import { apply, fromV33, registry, v33Fixture, withScanKeep, workspace } from './test-helpers';
 import { recordToVCard } from './vcard';
 import { validateWorkspace } from './validate';
 import { CONTAINER_PRESETS, presetById, presetWorkflow } from './workflows/presets';
@@ -321,7 +321,10 @@ describe('samples equal the v33 samples, migrated', () => {
     expect(apply(before, ops(sample, before, 'zh'), 'zh')).toEqual(
       // 旧样板的文案写的是旧名字 Morph（D-435）；只比结构和其余内容，固定样本不改。
       JSON.parse(
-        JSON.stringify(fromV33(v33Fixture(`sample-${sample}-zh`))).replaceAll('Morph', 'Tinkrum'),
+        JSON.stringify(withScanKeep(fromV33(v33Fixture(`sample-${sample}-zh`)))).replaceAll(
+          'Morph',
+          'Tinkrum',
+        ),
       ),
     );
   });
@@ -361,7 +364,9 @@ describe('samples equal the v33 samples, migrated', () => {
       }
       return value;
     });
-    expect(JSON.parse(without)).toEqual(fromV33(v33Fixture('sample-expense-helper-zh')));
+    expect(JSON.parse(without)).toEqual(
+      withScanKeep(fromV33(v33Fixture('sample-expense-helper-zh'))),
+    );
   });
 
   it('a reminder whose id a quick action already uses gets a new id (one id space, M1)', () => {

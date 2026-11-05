@@ -286,6 +286,11 @@ export class FakeFiles implements FilePlatform {
   fileUri(path: string) {
     return `file:///fake/${path}`;
   }
+  /** PDF 第一页缩略图（D-451）：测试里按路径放进来；真实平台在存进用户文件时生成。 */
+  thumbnails_: Map<string, string> = new Map();
+  thumbnailUri(path: string) {
+    return this.thumbnails_.get(path) ?? null;
+  }
   async importFile(file: PickedFile, assetId: string, name: string) {
     const bytes = this.disk.get(file.uri);
     if (!bytes) throw new Error('permission denied');

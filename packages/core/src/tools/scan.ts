@@ -98,6 +98,8 @@ export function scanWorkflows(locale: Locale): Workflow[] {
     action: 'file.rename',
     params: { template: t(locale, 'scan_Scan_5b295') },
   };
+  // 扫描的文件都留在 App 的文档库（D-450）：最后存到 Tinkrum 的文件里，首页「最近文件」能看到。
+  const keep = { id: 'keep', action: 'file.save', params: {} };
   return [
     wf(
       'scan-camera',
@@ -108,6 +110,7 @@ export function scanWorkflows(locale: Locale): Workflow[] {
         { id: 'look', action: 'scan.enhance', params: { mode: 'auto' }, ask: ['mode'] },
         toPdf,
         name,
+        keep,
       ],
     ),
     wf(
@@ -119,6 +122,7 @@ export function scanWorkflows(locale: Locale): Workflow[] {
         { id: 'look', action: 'scan.enhance', params: { mode: 'auto' }, ask: ['mode'] },
         toPdf,
         name,
+        keep,
       ],
     ),
     wf(

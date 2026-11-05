@@ -175,6 +175,7 @@ export function createAIChange(
         config: base,
         registry,
         locale,
+        onProgress: (step) => set({ planProgress: step }),
         ...(about ? { about } : {}),
         ...(planned ? { session: planned } : {}),
       });
@@ -307,7 +308,7 @@ export function createAIChange(
       });
       return { kind: 'drafted', step, focusPageId: focusPage(ops, after.after) };
     } finally {
-      set({ busy: false });
+      set({ busy: false, planProgress: null });
     }
   }
 
@@ -605,7 +606,7 @@ export function createAIChange(
         if (first.kind !== 'function') return { kind: 'invalid', issues: [msg('invalidPlan')] };
         return await applyFunction(input, plan, first, origin, false);
       } finally {
-        set({ busy: false });
+        set({ busy: false, planProgress: null });
       }
     },
   };
