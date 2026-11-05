@@ -898,7 +898,7 @@ export const en = {
   periodCustomApply: 'Apply',
   periodCustomInvalid: 'Use dates like 2026-11-30, the start not after the end.',
   periodRangeText: '{start} to {end}',
-  compare_page: 'Previous period: {value}',
+  compare_page: 'Previous: {value}',
   chartShare: '{value} ({percent})',
   // 表和表之间引用（D-250）
   linkDeleted: 'Deleted entry',

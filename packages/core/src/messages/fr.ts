@@ -957,7 +957,7 @@ export const fr: MessageTable = {
   periodCustomApply: 'Appliquer',
   periodCustomInvalid: 'Saisissez des dates comme 2026-11-30, le début pas après la fin.',
   periodRangeText: 'du {start} au {end}',
-  compare_page: 'Période précédente : {value}',
+  compare_page: 'Précédent : {value}',
   chartShare: '{value} ({percent})',
   // 表和表之间引用（D-250）
   linkDeleted: 'Entrée supprimée',
