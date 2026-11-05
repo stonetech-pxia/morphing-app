@@ -89,7 +89,7 @@ export function documentLanguage(rows: readonly string[]): 'zh' | 'fr' | 'en' {
 }
 
 /** 文字太长时去掉中间的排：店名在开头，合计在结尾。 */
-function fitText(rows: readonly string[], limit: number): string[] {
+export function fitText(rows: readonly string[], limit: number): string[] {
   const size = (list: readonly string[]) => list.reduce((n, r) => n + r.length + 1, 0);
   if (size(rows) <= limit) return [...rows];
   const take = (list: readonly string[], budget: number) => {

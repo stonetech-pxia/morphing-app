@@ -1,0 +1,125 @@
+{
+  "ids": {
+    "table": "warranty",
+    "page": "warranty"
+  },
+  "table": {
+    "id": "$table",
+    "name": {
+      "en": "Warranties",
+      "zh": "保修",
+      "fr": "Garanties"
+    },
+    "icon": "signature",
+    "fields": [
+      {
+        "id": "name",
+        "name": {
+          "en": "Name",
+          "zh": "名称",
+          "fr": "Nom"
+        },
+        "type": "text"
+      },
+      {
+        "id": "product",
+        "name": {
+          "en": "Product",
+          "zh": "产品",
+          "fr": "Produit"
+        },
+        "type": "text"
+      },
+      {
+        "id": "provider",
+        "name": {
+          "en": "Provider",
+          "zh": "服务商",
+          "fr": "Prestataire"
+        },
+        "type": "text"
+      },
+      {
+        "id": "expires",
+        "name": {
+          "en": "Expires",
+          "zh": "保修到期日",
+          "fr": "Fin de garantie"
+        },
+        "type": "date"
+      },
+      {
+        "id": "attachments",
+        "name": {
+          "en": "Attachments",
+          "zh": "附件",
+          "fr": "Pièces jointes"
+        },
+        "type": "file"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Warranties",
+      "zh": "保修",
+      "fr": "Garanties"
+    },
+    "icon": "signature",
+    "blocks": [
+      {
+        "id": "title",
+        "look": "header",
+        "show": {
+          "title": {
+            "en": "Warranties",
+            "zh": "保修",
+            "fr": "Garanties"
+          }
+        }
+      },
+      {
+        "id": "add",
+        "look": "button",
+        "show": {
+          "label": {
+            "en": "Add",
+            "zh": "添加",
+            "fr": "Ajouter"
+          },
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
+      },
+      {
+        "id": "entries",
+        "look": "list",
+        "source": {
+          "table": "$table",
+          "sort": {
+            "field": "name",
+            "direction": "desc"
+          },
+          "limit": 50
+        },
+        "show": {
+          "title": "name",
+          "subtitles": ["product"],
+          "emptyText": {
+            "en": "Nothing yet",
+            "zh": "还没有记录",
+            "fr": "Rien pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

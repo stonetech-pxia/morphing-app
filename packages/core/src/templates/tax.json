@@ -1,0 +1,130 @@
+{
+  "ids": {
+    "table": "tax",
+    "page": "tax"
+  },
+  "table": {
+    "id": "$table",
+    "name": {
+      "en": "Tax records",
+      "zh": "税务记录",
+      "fr": "Documents fiscaux"
+    },
+    "icon": "signature",
+    "fields": [
+      {
+        "id": "name",
+        "name": {
+          "en": "Name",
+          "zh": "名称",
+          "fr": "Nom"
+        },
+        "type": "text"
+      },
+      {
+        "id": "authority",
+        "name": {
+          "en": "Tax authority",
+          "zh": "税务机关",
+          "fr": "Administration fiscale"
+        },
+        "type": "text"
+      },
+      {
+        "id": "year",
+        "name": {
+          "en": "Tax year",
+          "zh": "税务年度",
+          "fr": "Année fiscale"
+        },
+        "type": "text"
+      },
+      {
+        "id": "amount",
+        "name": {
+          "en": "Amount",
+          "zh": "金额",
+          "fr": "Montant"
+        },
+        "type": "money",
+        "currency": {
+          "en": "USD",
+          "zh": "CNY",
+          "fr": "EUR"
+        }
+      },
+      {
+        "id": "attachments",
+        "name": {
+          "en": "Attachments",
+          "zh": "附件",
+          "fr": "Pièces jointes"
+        },
+        "type": "file"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Tax records",
+      "zh": "税务记录",
+      "fr": "Documents fiscaux"
+    },
+    "icon": "signature",
+    "blocks": [
+      {
+        "id": "title",
+        "look": "header",
+        "show": {
+          "title": {
+            "en": "Tax records",
+            "zh": "税务记录",
+            "fr": "Documents fiscaux"
+          }
+        }
+      },
+      {
+        "id": "add",
+        "look": "button",
+        "show": {
+          "label": {
+            "en": "Add",
+            "zh": "添加",
+            "fr": "Ajouter"
+          },
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
+      },
+      {
+        "id": "entries",
+        "look": "list",
+        "source": {
+          "table": "$table",
+          "sort": {
+            "field": "name",
+            "direction": "desc"
+          },
+          "limit": 50
+        },
+        "show": {
+          "title": "name",
+          "subtitles": ["authority"],
+          "emptyText": {
+            "en": "Nothing yet",
+            "zh": "还没有记录",
+            "fr": "Rien pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

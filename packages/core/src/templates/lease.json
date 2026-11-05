@@ -1,0 +1,134 @@
+{
+  "ids": {
+    "table": "lease",
+    "page": "lease"
+  },
+  "table": {
+    "id": "$table",
+    "name": {
+      "en": "Leases",
+      "zh": "租约",
+      "fr": "Baux"
+    },
+    "icon": "signature",
+    "fields": [
+      {
+        "id": "name",
+        "name": {
+          "en": "Name",
+          "zh": "名称",
+          "fr": "Nom"
+        },
+        "type": "text"
+      },
+      {
+        "id": "property",
+        "name": {
+          "en": "Property",
+          "zh": "房屋",
+          "fr": "Logement"
+        },
+        "type": "text"
+      },
+      {
+        "id": "landlord",
+        "name": {
+          "en": "Landlord",
+          "zh": "房东",
+          "fr": "Bailleur"
+        },
+        "type": "text"
+      },
+      {
+        "id": "start",
+        "name": {
+          "en": "Starts",
+          "zh": "起租日",
+          "fr": "Début du bail"
+        },
+        "type": "date"
+      },
+      {
+        "id": "end",
+        "name": {
+          "en": "Ends",
+          "zh": "到期日",
+          "fr": "Fin du bail"
+        },
+        "type": "date"
+      },
+      {
+        "id": "attachments",
+        "name": {
+          "en": "Attachments",
+          "zh": "附件",
+          "fr": "Pièces jointes"
+        },
+        "type": "file"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Leases",
+      "zh": "租约",
+      "fr": "Baux"
+    },
+    "icon": "signature",
+    "blocks": [
+      {
+        "id": "title",
+        "look": "header",
+        "show": {
+          "title": {
+            "en": "Leases",
+            "zh": "租约",
+            "fr": "Baux"
+          }
+        }
+      },
+      {
+        "id": "add",
+        "look": "button",
+        "show": {
+          "label": {
+            "en": "Add",
+            "zh": "添加",
+            "fr": "Ajouter"
+          },
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
+      },
+      {
+        "id": "entries",
+        "look": "list",
+        "source": {
+          "table": "$table",
+          "sort": {
+            "field": "name",
+            "direction": "desc"
+          },
+          "limit": 50
+        },
+        "show": {
+          "title": "name",
+          "subtitles": ["property"],
+          "emptyText": {
+            "en": "Nothing yet",
+            "zh": "还没有记录",
+            "fr": "Rien pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

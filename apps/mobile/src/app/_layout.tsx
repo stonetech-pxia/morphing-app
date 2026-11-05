@@ -184,6 +184,7 @@ function ThemedStack() {
         <Stack.Screen name="workflows" options={{ title: t(locale, 'workflowsTitle') }} />
         <Stack.Screen name="workflow/[id]" />
         <Stack.Screen name="record/[collectionId]" options={closable} />
+        <Stack.Screen name="new-table" options={closable} />
         <Stack.Screen name="run/[workflowId]" options={closable} />
         <Stack.Screen name="share" options={closable} />
         {/* 文件房间（D-360）：全屏，自己画顶栏。不用 fullScreenModal：iOS 会把底下的视图拿出窗口，

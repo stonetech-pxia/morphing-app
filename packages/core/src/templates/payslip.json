@@ -1,0 +1,130 @@
+{
+  "ids": {
+    "table": "payslip",
+    "page": "payslip"
+  },
+  "table": {
+    "id": "$table",
+    "name": {
+      "en": "Payslips",
+      "zh": "工资单",
+      "fr": "Bulletins de paie"
+    },
+    "icon": "signature",
+    "fields": [
+      {
+        "id": "name",
+        "name": {
+          "en": "Name",
+          "zh": "名称",
+          "fr": "Nom"
+        },
+        "type": "text"
+      },
+      {
+        "id": "employer",
+        "name": {
+          "en": "Employer",
+          "zh": "雇主",
+          "fr": "Employeur"
+        },
+        "type": "text"
+      },
+      {
+        "id": "period",
+        "name": {
+          "en": "Pay period",
+          "zh": "工资期间",
+          "fr": "Période de paie"
+        },
+        "type": "text"
+      },
+      {
+        "id": "net",
+        "name": {
+          "en": "Net pay",
+          "zh": "实发工资",
+          "fr": "Net à payer"
+        },
+        "type": "money",
+        "currency": {
+          "en": "USD",
+          "zh": "CNY",
+          "fr": "EUR"
+        }
+      },
+      {
+        "id": "attachments",
+        "name": {
+          "en": "Attachments",
+          "zh": "附件",
+          "fr": "Pièces jointes"
+        },
+        "type": "file"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Payslips",
+      "zh": "工资单",
+      "fr": "Bulletins de paie"
+    },
+    "icon": "signature",
+    "blocks": [
+      {
+        "id": "title",
+        "look": "header",
+        "show": {
+          "title": {
+            "en": "Payslips",
+            "zh": "工资单",
+            "fr": "Bulletins de paie"
+          }
+        }
+      },
+      {
+        "id": "add",
+        "look": "button",
+        "show": {
+          "label": {
+            "en": "Add",
+            "zh": "添加",
+            "fr": "Ajouter"
+          },
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
+      },
+      {
+        "id": "entries",
+        "look": "list",
+        "source": {
+          "table": "$table",
+          "sort": {
+            "field": "name",
+            "direction": "desc"
+          },
+          "limit": 50
+        },
+        "show": {
+          "title": "name",
+          "subtitles": ["employer"],
+          "emptyText": {
+            "en": "Nothing yet",
+            "zh": "还没有记录",
+            "fr": "Rien pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

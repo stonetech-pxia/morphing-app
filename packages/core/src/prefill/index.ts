@@ -61,3 +61,18 @@ export {
   type LayoutStore,
   type PickStore,
 } from './store';
+export {
+  extractFieldNames,
+  fieldNameFromText,
+  fieldNameKey,
+  looksLikeValue,
+  originalRows,
+} from './field-names';
+export {
+  NEW_TABLE_PRESETS,
+  presetAnswer,
+  presetMatchRequest,
+  rankPresets,
+  recommendPreset,
+  type PresetRanking,
+} from './preset-match';

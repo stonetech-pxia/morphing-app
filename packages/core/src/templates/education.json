@@ -1,0 +1,125 @@
+{
+  "ids": {
+    "table": "education",
+    "page": "education"
+  },
+  "table": {
+    "id": "$table",
+    "name": {
+      "en": "Qualifications",
+      "zh": "学历证书",
+      "fr": "Diplômes"
+    },
+    "icon": "signature",
+    "fields": [
+      {
+        "id": "name",
+        "name": {
+          "en": "Name",
+          "zh": "名称",
+          "fr": "Nom"
+        },
+        "type": "text"
+      },
+      {
+        "id": "qualification",
+        "name": {
+          "en": "Qualification",
+          "zh": "学历",
+          "fr": "Diplôme"
+        },
+        "type": "text"
+      },
+      {
+        "id": "institution",
+        "name": {
+          "en": "Institution",
+          "zh": "学校",
+          "fr": "Établissement"
+        },
+        "type": "text"
+      },
+      {
+        "id": "awarded",
+        "name": {
+          "en": "Awarded on",
+          "zh": "颁发日期",
+          "fr": "Date d’obtention"
+        },
+        "type": "date"
+      },
+      {
+        "id": "attachments",
+        "name": {
+          "en": "Attachments",
+          "zh": "附件",
+          "fr": "Pièces jointes"
+        },
+        "type": "file"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Qualifications",
+      "zh": "学历证书",
+      "fr": "Diplômes"
+    },
+    "icon": "signature",
+    "blocks": [
+      {
+        "id": "title",
+        "look": "header",
+        "show": {
+          "title": {
+            "en": "Qualifications",
+            "zh": "学历证书",
+            "fr": "Diplômes"
+          }
+        }
+      },
+      {
+        "id": "add",
+        "look": "button",
+        "show": {
+          "label": {
+            "en": "Add",
+            "zh": "添加",
+            "fr": "Ajouter"
+          },
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
+      },
+      {
+        "id": "entries",
+        "look": "list",
+        "source": {
+          "table": "$table",
+          "sort": {
+            "field": "name",
+            "direction": "desc"
+          },
+          "limit": 50
+        },
+        "show": {
+          "title": "name",
+          "subtitles": ["qualification"],
+          "emptyText": {
+            "en": "Nothing yet",
+            "zh": "还没有记录",
+            "fr": "Rien pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

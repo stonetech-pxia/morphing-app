@@ -54,7 +54,11 @@ export const ruleEngine: PrefillEngine = async (input) =>
  * 等 work，但 stop 取消或到时间就不等了（给 undefined）。work 自己可能永远不回来（原生卡住），
  * 表单不能跟着等（取消一定要让 Promise 结束）。
  */
-function bounded<T>(work: Promise<T>, stop: AbortSignal, ms: number): Promise<T | undefined> {
+export function bounded<T>(
+  work: Promise<T>,
+  stop: AbortSignal,
+  ms: number,
+): Promise<T | undefined> {
   return new Promise<T | undefined>((resolve, reject) => {
     const finish = () => {
       clearTimeout(timer);
@@ -79,7 +83,7 @@ function bounded<T>(work: Promise<T>, stop: AbortSignal, ms: number): Promise<T 
   });
 }
 
-const free = (session: ModelSession) => void session.release().catch(() => undefined);
+export const free = (session: ModelSession) => void session.release().catch(() => undefined);
 
 /**
  * 代码 + 本机模型（D-396）：先给代码的候选，再一个字段一个字段地问代码拿不准的，答完一个补一个。

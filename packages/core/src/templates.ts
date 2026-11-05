@@ -5,10 +5,27 @@ import {
   allComponents,
   componentCollection,
   pageTarget,
+  type Collection,
   type Locale,
   type Page,
   type WorkspaceConfig,
 } from './schema';
+import bank from './templates/bank.json';
+import education from './templates/education.json';
+import identity from './templates/identity.json';
+import insurance from './templates/insurance.json';
+import lab from './templates/lab.json';
+import lease from './templates/lease.json';
+import loan from './templates/loan.json';
+import payslip from './templates/payslip.json';
+import pet from './templates/pet.json';
+import prescription from './templates/prescription.json';
+import property from './templates/property.json';
+import tax from './templates/tax.json';
+import travel from './templates/travel.json';
+import vaccination from './templates/vaccination.json';
+import vehicle from './templates/vehicle.json';
+import warranty from './templates/warranty.json';
 import bill from './templates/bill.json';
 import blank from './templates/blank.json';
 import budget from './templates/budget.json';
@@ -47,7 +64,32 @@ export const FILE_RECORD_PRESETS = [
   'blank',
 ] as const;
 export type FileRecordPreset = (typeof FILE_RECORD_PRESETS)[number];
-type Template = DataTemplate | FileRecordPreset;
+/**
+ * 用户平时看不到的预设（D-444）：只在导入文件、决定新建表单时参与排序和推荐；mock AI 和评测不认。
+ * 字段是原型，名字还没有人审过。
+ */
+export const HIDDEN_RECORD_PRESETS = [
+  'bank',
+  'education',
+  'identity',
+  'insurance',
+  'lab',
+  'lease',
+  'loan',
+  'payslip',
+  'pet',
+  'prescription',
+  'property',
+  'tax',
+  'travel',
+  'vaccination',
+  'vehicle',
+  'warranty',
+] as const;
+export type HiddenRecordPreset = (typeof HIDDEN_RECORD_PRESETS)[number];
+/** 新建表单时能选的全部预设（不含空白）。 */
+export type NewTablePreset = Exclude<FileRecordPreset, 'blank'> | HiddenRecordPreset;
+type Template = DataTemplate | FileRecordPreset | HiddenRecordPreset;
 
 interface TemplateJson {
   ids: { table: string; page: string };
@@ -67,6 +109,22 @@ const TEMPLATES: Record<Template, TemplateJson> = {
   reimbursement: reimbursement as TemplateJson,
   contacts: contacts as TemplateJson,
   blank: blank as TemplateJson,
+  bank: bank as TemplateJson,
+  education: education as TemplateJson,
+  identity: identity as TemplateJson,
+  insurance: insurance as TemplateJson,
+  lab: lab as TemplateJson,
+  lease: lease as TemplateJson,
+  loan: loan as TemplateJson,
+  payslip: payslip as TemplateJson,
+  pet: pet as TemplateJson,
+  prescription: prescription as TemplateJson,
+  property: property as TemplateJson,
+  tax: tax as TemplateJson,
+  travel: travel as TemplateJson,
+  vaccination: vaccination as TemplateJson,
+  vehicle: vehicle as TemplateJson,
+  warranty: warranty as TemplateJson,
 };
 
 type AddTable = OpOf<'addData'> & { table: Exclude<OpOf<'addData'>['table'], string> };
@@ -190,4 +248,54 @@ export function templateCollectionWithoutPage(
   return config.data.tables.find(
     (c) => (c.id === base || c.id.startsWith(`${base}-`)) && !shown.has(c.id),
   )?.id;
+}
+
+export type NewPreset = NewTablePreset | 'blank';
+
+/** 新建表单页上正在改的表（D-444）：还没有写进配置，点「记下」才建。 */
+export function draftTable(preset: NewPreset, config: WorkspaceConfig, locale: Locale): Collection {
+  return templateCollectionOp(preset, config, locale).table as unknown as Collection;
+}
+
+/**
+ * 点「记下」时建表的修改：数据表、页面和入口。字段都还在就用预设自己的页面；用户去掉了字段（预设的页面
+ * 可能引用它）或者是自己搭的表：用「空白」的页面，列表显示前两个文字字段。
+ */
+export function draftTableOps(
+  table: Collection,
+  preset: NewPreset,
+  config: WorkspaceConfig,
+  locale: Locale,
+): Op[] {
+  const json = TEMPLATES[preset];
+  const original = (json.table as { fields: { id: string }[] }).fields;
+  const intact =
+    preset !== 'blank' && original.every((f) => table.fields.some((d) => d.id === f.id));
+  const pageId = uniqueId(json.ids.page, (id) => config.containers.pages.some((p) => p.id === id));
+  const page = fill((intact ? json : TEMPLATES.blank).page, locale, {
+    $table: table.id,
+    $page: pageId,
+  }) as Record<string, unknown> & {
+    title: string;
+    icon?: Page['icon'];
+    blocks: { id: string; show?: Record<string, unknown> }[];
+  };
+  page.title = table.name;
+  const header = page.blocks.find((b) => b.id === 'title');
+  if (header?.show) header.show.title = table.name;
+  if (!intact) {
+    const texts = table.fields.filter((f) => f.type === 'text').map((f) => f.id);
+    const list = page.blocks.find((b) => b.id === 'entries');
+    if (list?.show) {
+      if (texts[0]) list.show.title = texts[0];
+      else delete list.show.title;
+      list.show.subtitles = texts.slice(1, 2);
+    }
+    if (table.icon) page.icon = table.icon as Page['icon'];
+  }
+  return [
+    { op: 'addData', table: table as unknown as AddTable['table'] },
+    { op: 'addContainer', page: page as unknown as AddPage['page'] },
+    ...entryOps(config, pageId, page.title, page.icon),
+  ];
 }

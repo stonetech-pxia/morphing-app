@@ -66,6 +66,7 @@ export * from './share';
 export * from './speech';
 export * from './speak';
 export * from './templates';
+export * from './new-table';
 export * from './samples';
 export * from './schedule';
 export * from './date-phrases';

@@ -1,5 +1,4 @@
 import {
-  type Collection,
   type IconName,
   localize,
   MAX_ATTACHMENTS,
@@ -9,8 +8,6 @@ import {
   quickActionsOf,
   sharedSizeProblem,
   type ShareFit,
-  templateCollectionOp,
-  templatePageOps,
   type Workflow,
 } from '@morph/core';
 
@@ -66,8 +63,6 @@ export function ShareScreen() {
   const palette = usePalette(config.theme);
   const share = useIncoming((s) => s.share);
   const router = useRouter();
-  const proposeOps = useWorkspace((s) => s.proposeOps);
-  const confirm = useWorkspace((s) => s.confirm);
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
 
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -309,11 +304,11 @@ export function ShareScreen() {
   }
 
   /**
-   * 存成记录（D-392，创始人 2026-10-31 在对话里选定）：选一张有附件字段的表，或者一个预设表（建表、页面和入口，
-   * 和别的界面按钮一样是用户的一次修改，能撤销）；收到的文件复制成用户文件（收件这一批照旧，离开收件页面时释放），
-   * 打开这张表的新记录表单，附件已经放好，用户自己填完保存。没保存就离开时，记录页删掉这些副本；建好的表留着。
+   * 存成记录（D-392，创始人 2026-10-31 在对话里选定）：收到的文件复制成用户文件（收件这一批照旧，离开收件页面
+   * 时释放）。放进已有的表：打开新记录表单，附件已经放好。新建：打开新建表单页，点「记下」才建表（D-444）。
+   * 没保存就离开时，下一页删掉这些副本。
    */
-  async function saveAsRecord(choice: RecordChoice) {
+  async function saveAsRecord(choice: RecordChoice | null) {
     if (placing) return;
     setPlacing(true);
     setPreviewError(null);
@@ -329,24 +324,15 @@ export function ShareScreen() {
         );
         return;
       }
-      let table: Collection | undefined;
-      if (choice.kind === 'table') table = config.data.tables.find((c) => c.id === choice.tableId);
-      else {
-        const add = templateCollectionOp(choice.preset, config, locale);
-        const ops = [add, ...templatePageOps(choice.preset, config, locale, add.table.id)];
-        const proposed = await proposeOps(
-          ops,
-          t(locale, 'shareRecordNewTable', { name: choice.name }),
-        );
-        if (proposed.kind !== 'preview') {
-          setPreviewError(
-            proposed.kind === 'rejected' ? proposed.message : proposed.issues.join('\n'),
-          );
-          return;
-        }
-        if (!(await confirm())) return;
-        table = add.table;
+      if (!choice) {
+        const ids = copied;
+        copied = [];
+        bumpAssets();
+        setChoosing(false);
+        router.push({ pathname: '/new-table', params: { copies: holdFormCopies(ids) } });
+        return;
       }
+      const table = config.data.tables.find((c) => c.id === choice.tableId);
       const field = table && recordTargets(table).fileField;
       if (!table || !field) return;
       const ids = copied;
@@ -364,7 +350,7 @@ export function ShareScreen() {
     } catch (e) {
       setPreviewError(String(e));
     } finally {
-      // 没交给记录页的副本不留下。
+      // 没交给下一页的副本不留下。
       if (copied.length > 0) await deleteUserFiles(copied, repo, files).catch(() => undefined);
       setPlacing(false);
     }
@@ -378,34 +364,26 @@ export function ShareScreen() {
     router.push({ pathname: '/change', params: { shared: String(share!.id) } });
   }
 
-  /** 存成记录的表列表：先是有附件字段的表，再是预设表，最后是「空白」。 */
+  /** 存成记录的列表：先是有附件字段的表，再是「新建表单」。 */
   function recordChooser() {
-    const choices = recordChoices(config, locale);
-    const tables = choices.filter((c) => c.kind === 'table');
-    const presets = choices.filter((c) => c.kind === 'preset');
-    const row = (choice: RecordChoice) => {
-      const id = choice.kind === 'table' ? `table-${choice.tableId}` : `preset-${choice.preset}`;
-      const blank = choice.kind === 'preset' && choice.preset === 'blank';
-      return (
-        <Pressable
-          key={id}
-          testID={`share-record-${id}`}
-          accessibilityRole="button"
-          disabled={placing}
-          onPress={() => void saveAsRecord(choice)}
-          style={({ pressed }) => [styles.choice, (pressed || placing) && { opacity: 0.6 }]}>
-          <View style={styles.flex}>
-            <Text
-              numberOfLines={1}
-              style={[palette.font('bodyMedium', 15), { color: palette.text }]}>
-              {blank ? t(locale, 'shareRecordBlank') : choice.name}
-            </Text>
-            {blank ? <Text style={caption}>{t(locale, 'shareRecordBlankAbout')}</Text> : null}
-          </View>
-          <Text style={[palette.font('title', 18), { color: palette.caption }]}>›</Text>
-        </Pressable>
-      );
-    };
+    const tables = recordChoices(config);
+    const row = (id: string, name: string, about: string | null, choice: RecordChoice | null) => (
+      <Pressable
+        key={id}
+        testID={id}
+        accessibilityRole="button"
+        disabled={placing}
+        onPress={() => void saveAsRecord(choice)}
+        style={({ pressed }) => [styles.choice, (pressed || placing) && { opacity: 0.6 }]}>
+        <View style={styles.flex}>
+          <Text numberOfLines={1} style={[palette.font('bodyMedium', 15), { color: palette.text }]}>
+            {name}
+          </Text>
+          {about ? <Text style={caption}>{about}</Text> : null}
+        </View>
+        <Text style={[palette.font('title', 18), { color: palette.caption }]}>›</Text>
+      </Pressable>
+    );
     return (
       <View testID="share-record-list" style={styles.chooser}>
         {share!.files.length > MAX_ATTACHMENTS ? (
@@ -418,11 +396,13 @@ export function ShareScreen() {
             {t(locale, 'shareRecordTables')}
           </Text>
         ) : null}
-        {tables.map(row)}
-        <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
-          {t(locale, 'shareRecordPresets')}
-        </Text>
-        {presets.map(row)}
+        {tables.map((c) => row(`share-record-table-${c.tableId}`, c.name, null, c))}
+        {row(
+          'share-record-new',
+          t(locale, 'shareRecordNew'),
+          t(locale, 'shareRecordNewAbout'),
+          null,
+        )}
       </View>
     );
   }

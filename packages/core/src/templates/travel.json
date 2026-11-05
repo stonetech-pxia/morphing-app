@@ -1,0 +1,125 @@
+{
+  "ids": {
+    "table": "travel",
+    "page": "travel"
+  },
+  "table": {
+    "id": "$table",
+    "name": {
+      "en": "Travel bookings",
+      "zh": "旅行预订",
+      "fr": "Réservations de voyage"
+    },
+    "icon": "signature",
+    "fields": [
+      {
+        "id": "name",
+        "name": {
+          "en": "Name",
+          "zh": "名称",
+          "fr": "Nom"
+        },
+        "type": "text"
+      },
+      {
+        "id": "traveler",
+        "name": {
+          "en": "Traveler",
+          "zh": "旅客",
+          "fr": "Voyageur"
+        },
+        "type": "text"
+      },
+      {
+        "id": "reference",
+        "name": {
+          "en": "Booking reference",
+          "zh": "预订编号",
+          "fr": "Référence de réservation"
+        },
+        "type": "text"
+      },
+      {
+        "id": "departure",
+        "name": {
+          "en": "Departure",
+          "zh": "出发日期",
+          "fr": "Date de départ"
+        },
+        "type": "date"
+      },
+      {
+        "id": "attachments",
+        "name": {
+          "en": "Attachments",
+          "zh": "附件",
+          "fr": "Pièces jointes"
+        },
+        "type": "file"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Travel bookings",
+      "zh": "旅行预订",
+      "fr": "Réservations de voyage"
+    },
+    "icon": "signature",
+    "blocks": [
+      {
+        "id": "title",
+        "look": "header",
+        "show": {
+          "title": {
+            "en": "Travel bookings",
+            "zh": "旅行预订",
+            "fr": "Réservations de voyage"
+          }
+        }
+      },
+      {
+        "id": "add",
+        "look": "button",
+        "show": {
+          "label": {
+            "en": "Add",
+            "zh": "添加",
+            "fr": "Ajouter"
+          },
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
+      },
+      {
+        "id": "entries",
+        "look": "list",
+        "source": {
+          "table": "$table",
+          "sort": {
+            "field": "name",
+            "direction": "desc"
+          },
+          "limit": 50
+        },
+        "show": {
+          "title": "name",
+          "subtitles": ["traveler"],
+          "emptyText": {
+            "en": "Nothing yet",
+            "zh": "还没有记录",
+            "fr": "Rien pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

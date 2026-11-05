@@ -1,0 +1,125 @@
+{
+  "ids": {
+    "table": "identity",
+    "page": "identity"
+  },
+  "table": {
+    "id": "$table",
+    "name": {
+      "en": "Identity documents",
+      "zh": "身份证件",
+      "fr": "Pièces d’identité"
+    },
+    "icon": "signature",
+    "fields": [
+      {
+        "id": "name",
+        "name": {
+          "en": "Name",
+          "zh": "名称",
+          "fr": "Nom"
+        },
+        "type": "text"
+      },
+      {
+        "id": "holder",
+        "name": {
+          "en": "Holder",
+          "zh": "持有人",
+          "fr": "Titulaire"
+        },
+        "type": "text"
+      },
+      {
+        "id": "number",
+        "name": {
+          "en": "Document number",
+          "zh": "证件号码",
+          "fr": "Numéro du document"
+        },
+        "type": "text"
+      },
+      {
+        "id": "expiry",
+        "name": {
+          "en": "Expires",
+          "zh": "有效期至",
+          "fr": "Date d’expiration"
+        },
+        "type": "date"
+      },
+      {
+        "id": "attachments",
+        "name": {
+          "en": "Attachments",
+          "zh": "附件",
+          "fr": "Pièces jointes"
+        },
+        "type": "file"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Identity documents",
+      "zh": "身份证件",
+      "fr": "Pièces d’identité"
+    },
+    "icon": "signature",
+    "blocks": [
+      {
+        "id": "title",
+        "look": "header",
+        "show": {
+          "title": {
+            "en": "Identity documents",
+            "zh": "身份证件",
+            "fr": "Pièces d’identité"
+          }
+        }
+      },
+      {
+        "id": "add",
+        "look": "button",
+        "show": {
+          "label": {
+            "en": "Add",
+            "zh": "添加",
+            "fr": "Ajouter"
+          },
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
+      },
+      {
+        "id": "entries",
+        "look": "list",
+        "source": {
+          "table": "$table",
+          "sort": {
+            "field": "name",
+            "direction": "desc"
+          },
+          "limit": 50
+        },
+        "show": {
+          "title": "name",
+          "subtitles": ["holder"],
+          "emptyText": {
+            "en": "Nothing yet",
+            "zh": "还没有记录",
+            "fr": "Rien pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

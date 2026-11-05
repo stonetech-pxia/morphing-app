@@ -1,7 +1,9 @@
 import {
+  applyOps,
   createStarterWorkspace,
   packById,
   PICK_STORE_KEY,
+  templateOps,
   type Collection,
   type Locale,
   type Registry,
@@ -85,6 +87,14 @@ async function fakePacks(installed: string[]) {
   return { packs: { store, bridge } as Packs, fs, pdf, install };
 }
 
+/** 新建表单页的候选另有测试（new-table-test）；这里用已经建好的购物凭证表。 */
+function withPurchases(locale: Locale, registry: Registry): WorkspaceConfig {
+  const blank = createStarterWorkspace(locale, registry);
+  const r = applyOps(blank, templateOps('purchase', blank, locale), { registry, locale });
+  if (!r.ok) throw new Error(r.error);
+  return r.config;
+}
+
 async function render(
   installed: string[] = ['ppocr', 'pdfview'],
   locale: 'zh' | 'en' | 'fr' = 'zh',
@@ -101,7 +111,7 @@ async function render(
   const app = await renderToolsApp(repo, files, {
     packs: p.packs,
     locale,
-    ...(seed ? { seed } : {}),
+    seed: seed ?? withPurchases,
   });
   return { ...app, vision, ...p };
 }
@@ -110,7 +120,7 @@ async function render(
 async function shareInto(
   files: FakeFiles,
   items: { name: string; mime: string }[],
-  choice = 'preset-purchase',
+  choice = 'table-purchases',
 ) {
   const picked = items.map((i) =>
     files.offer(

@@ -1,0 +1,125 @@
+{
+  "ids": {
+    "table": "loan",
+    "page": "loan"
+  },
+  "table": {
+    "id": "$table",
+    "name": {
+      "en": "Loans",
+      "zh": "贷款",
+      "fr": "Prêts"
+    },
+    "icon": "signature",
+    "fields": [
+      {
+        "id": "name",
+        "name": {
+          "en": "Name",
+          "zh": "名称",
+          "fr": "Nom"
+        },
+        "type": "text"
+      },
+      {
+        "id": "lender",
+        "name": {
+          "en": "Lender",
+          "zh": "贷款方",
+          "fr": "Prêteur"
+        },
+        "type": "text"
+      },
+      {
+        "id": "reference",
+        "name": {
+          "en": "Loan number",
+          "zh": "贷款编号",
+          "fr": "Numéro de prêt"
+        },
+        "type": "text"
+      },
+      {
+        "id": "end",
+        "name": {
+          "en": "Ends",
+          "zh": "结束日期",
+          "fr": "Date de fin"
+        },
+        "type": "date"
+      },
+      {
+        "id": "attachments",
+        "name": {
+          "en": "Attachments",
+          "zh": "附件",
+          "fr": "Pièces jointes"
+        },
+        "type": "file"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Loans",
+      "zh": "贷款",
+      "fr": "Prêts"
+    },
+    "icon": "signature",
+    "blocks": [
+      {
+        "id": "title",
+        "look": "header",
+        "show": {
+          "title": {
+            "en": "Loans",
+            "zh": "贷款",
+            "fr": "Prêts"
+          }
+        }
+      },
+      {
+        "id": "add",
+        "look": "button",
+        "show": {
+          "label": {
+            "en": "Add",
+            "zh": "添加",
+            "fr": "Ajouter"
+          },
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
+      },
+      {
+        "id": "entries",
+        "look": "list",
+        "source": {
+          "table": "$table",
+          "sort": {
+            "field": "name",
+            "direction": "desc"
+          },
+          "limit": 50
+        },
+        "show": {
+          "title": "name",
+          "subtitles": ["lender"],
+          "emptyText": {
+            "en": "Nothing yet",
+            "zh": "还没有记录",
+            "fr": "Rien pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

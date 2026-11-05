@@ -1,4 +1,4 @@
-import type { Collection, FieldIssue, Locale } from '@morph/core';
+import type { Collection, FieldIssue, Locale, PrefillEngine, TextPage } from '@morph/core';
 import type { ComponentProps } from 'react';
 import { Text, View } from 'react-native';
 
@@ -23,6 +23,8 @@ export function SuggestedFields({
   locale,
   testPrefix,
   related,
+  engine,
+  onPages,
 }: {
   /** 只有新记录的表单给候选（编辑已有的记录不给）。 */
   suggest: boolean;
@@ -34,9 +36,19 @@ export function SuggestedFields({
   locale: Locale;
   testPrefix: string;
   related?: ComponentProps<typeof FieldsForm>['related'];
+  /** 新建表单页（D-444）：候选只用规则，字段一改就重新算，不能每次加载模型。 */
+  engine?: PrefillEngine;
+  onPages?: (pages: TextPage[]) => void;
 }) {
   const packs = usePacks();
-  const suggest = useFieldSuggestions({ enabled, collection, values, locale });
+  const suggest = useFieldSuggestions({
+    enabled,
+    collection,
+    values,
+    locale,
+    ...(engine ? { engine } : {}),
+    ...(onPages ? { onPages } : {}),
+  });
   return (
     <>
       {suggest.missing.length > 0 && packs ? (

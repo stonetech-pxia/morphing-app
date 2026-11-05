@@ -1,0 +1,125 @@
+{
+  "ids": {
+    "table": "insurance",
+    "page": "insurance"
+  },
+  "table": {
+    "id": "$table",
+    "name": {
+      "en": "Insurance policies",
+      "zh": "保险",
+      "fr": "Assurances"
+    },
+    "icon": "signature",
+    "fields": [
+      {
+        "id": "name",
+        "name": {
+          "en": "Name",
+          "zh": "名称",
+          "fr": "Nom"
+        },
+        "type": "text"
+      },
+      {
+        "id": "provider",
+        "name": {
+          "en": "Insurer",
+          "zh": "保险公司",
+          "fr": "Assureur"
+        },
+        "type": "text"
+      },
+      {
+        "id": "number",
+        "name": {
+          "en": "Policy number",
+          "zh": "保单号",
+          "fr": "Numéro de police"
+        },
+        "type": "text"
+      },
+      {
+        "id": "end",
+        "name": {
+          "en": "Expires",
+          "zh": "到期日",
+          "fr": "Échéance"
+        },
+        "type": "date"
+      },
+      {
+        "id": "attachments",
+        "name": {
+          "en": "Attachments",
+          "zh": "附件",
+          "fr": "Pièces jointes"
+        },
+        "type": "file"
+      }
+    ]
+  },
+  "page": {
+    "id": "$page",
+    "title": {
+      "en": "Insurance policies",
+      "zh": "保险",
+      "fr": "Assurances"
+    },
+    "icon": "signature",
+    "blocks": [
+      {
+        "id": "title",
+        "look": "header",
+        "show": {
+          "title": {
+            "en": "Insurance policies",
+            "zh": "保险",
+            "fr": "Assurances"
+          }
+        }
+      },
+      {
+        "id": "add",
+        "look": "button",
+        "show": {
+          "label": {
+            "en": "Add",
+            "zh": "添加",
+            "fr": "Ajouter"
+          },
+          "variant": "filled"
+        },
+        "tools": [
+          {
+            "do": "create",
+            "table": "$table",
+            "ask": "all"
+          }
+        ]
+      },
+      {
+        "id": "entries",
+        "look": "list",
+        "source": {
+          "table": "$table",
+          "sort": {
+            "field": "name",
+            "direction": "desc"
+          },
+          "limit": 50
+        },
+        "show": {
+          "title": "name",
+          "subtitles": ["provider"],
+          "emptyText": {
+            "en": "Nothing yet",
+            "zh": "还没有记录",
+            "fr": "Rien pour l’instant"
+          }
+        }
+      }
+    ]
+  },
+  "entry": "nav"
+}

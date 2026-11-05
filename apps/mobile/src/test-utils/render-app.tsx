@@ -26,6 +26,7 @@ import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
 import PresetsRoute from '../app/presets';
 import ReadyRoute from '../app/ready/[workflowId]';
+import NewTableRoute from '../app/new-table';
 import RecordRoute from '../app/record/[collectionId]';
 import ReminderRoute from '../app/reminder/[workflowId]';
 import RunRoute from '../app/run/[workflowId]';
@@ -165,6 +166,7 @@ export async function renderToolsApp(
     'ready/[workflowId]': ReadyRoute,
     data: DataRoute,
     'record/[collectionId]': RecordRoute,
+    'new-table': NewTableRoute,
     welcome: WelcomeRoute,
   });
   return { repo, store, files, router };

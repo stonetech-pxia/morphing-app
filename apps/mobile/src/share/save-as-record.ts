@@ -1,33 +1,15 @@
-import {
-  FILE_RECORD_PRESETS,
-  templateTableOf,
-  templateTableName,
-  type FileRecordPreset,
-  type Locale,
-  type WorkspaceConfig,
-} from '@morph/core';
+import type { WorkspaceConfig } from '@morph/core';
 
-// 收件页面「存成记录」（D-392）：先列出有附件字段的表（全部，不推荐），再列预设表，最后是「空白」。
+// 收件页面「存成记录」（D-392、D-444）：先列出有附件字段的表（全部，不推荐），再是「新建表单」。
 // 不用 AI、不识别文字、不预填别的值；收到的文件复制成用户文件放进附件字段，用户自己填完保存。
 
-export type RecordChoice =
-  | { kind: 'table'; tableId: string; name: string }
-  | { kind: 'preset'; preset: FileRecordPreset; name: string };
+export type RecordChoice = { kind: 'table'; tableId: string; name: string };
 
-export function recordChoices(config: WorkspaceConfig, locale: Locale): RecordChoice[] {
-  const tables = config.data.tables
+/** 已有的、能放文件的表。新建一张表走新建表单页（D-444）。 */
+export function recordChoices(config: WorkspaceConfig): RecordChoice[] {
+  return config.data.tables
     .filter((c) => c.fields.some((f) => f.type === 'file'))
-    .map((c): RecordChoice => ({ kind: 'table', tableId: c.id, name: c.name }));
-  // 「空白」排在最后（FILE_RECORD_PRESETS 里它就在最后）；名字由界面写成「空白」。
-  // 已经建过、表还在的预设不再列（它在上面的表里）；「空白」一直在，想要第二张同类的表用它。
-  const presets = FILE_RECORD_PRESETS.filter(
-    (preset) => preset === 'blank' || templateTableOf(preset, config) === undefined,
-  ).map((preset): RecordChoice => ({
-    kind: 'preset',
-    preset,
-    name: templateTableName(preset, locale),
-  }));
-  return [...tables, ...presets];
+    .map((c) => ({ kind: 'table', tableId: c.id, name: c.name }));
 }
 
 /**

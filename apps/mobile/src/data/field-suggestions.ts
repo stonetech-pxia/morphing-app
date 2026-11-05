@@ -14,6 +14,7 @@ import {
   type Locale,
   type PackNeed,
   type PrefillEngine,
+  type TextPage,
   type ValueSuggestion,
 } from '@morph/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -66,6 +67,7 @@ export function useFieldSuggestions({
   values,
   locale,
   engine: given,
+  onPages,
 }: {
   /** 只在新记录的表单里（编辑已有的记录时不给候选）。 */
   enabled: boolean;
@@ -74,6 +76,8 @@ export function useFieldSuggestions({
   locale: Locale;
   /** 候选从哪里来（D-398）；不给时：有扩展包环境就是代码 + 本机模型（没下载时等于只有代码）。 */
   engine?: PrefillEngine;
+  /** 读出文字时告诉调用方（新建表单页要用它找字段名和推荐预设，D-444），不用再读一遍。 */
+  onPages?: (pages: TextPage[]) => void;
 }): FieldSuggestionsState {
   const { repo, files } = useWorkspaceContext();
   const packs = usePacks();
@@ -92,6 +96,12 @@ export function useFieldSuggestions({
   // 下载完以后加一，重新读一次。
   const [installs, setInstalls] = useState(0);
   const picks = useRef<Record<string, FieldPick>>({});
+  // 同一批附件读过就不再读：新建表单页每改一次字段，这里都会重新算候选（D-444）。
+  const read = useRef<{ run: string; pages: TextPage[]; codes: string[] } | null>(null);
+  const tellPages = useRef(onPages);
+  useEffect(() => {
+    tellPages.current = onPages;
+  });
 
   // 附件字段里的文件（按字段顺序），作为重新读的依据。
   const ids = useMemo(
@@ -136,12 +146,16 @@ export function useFieldSuggestions({
       setNeeds({ run, list });
       setWorkingFor(run);
       try {
+        const card = collection.prefillRules === 'card';
+        const cached = read.current?.run === run ? read.current : null;
         const codes =
-          collection.prefillRules === 'card'
-            ? await readAttachmentCodes(first, deps, abort.signal)
-            : [];
-        const pages = await readAttachmentPages(first, deps, abort.signal);
+          cached?.codes ?? (card ? await readAttachmentCodes(first, deps, abort.signal) : []);
+        const pages = cached?.pages ?? (await readAttachmentPages(first, deps, abort.signal));
         if (abort.signal.aborted) return;
+        if (!cached || (card && cached.codes.length === 0)) {
+          read.current = { run, pages, codes };
+          if (!cached) tellPages.current?.(pages);
+        }
         const known = collection.fields.some(usesValueMemory)
           ? knownValues(collection.fields, await repo.listRecords(collection.id))
           : {};

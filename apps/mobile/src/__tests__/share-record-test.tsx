@@ -81,115 +81,100 @@ async function choose(id: string) {
 
 const listIds = () =>
   within(screen.getByTestId('share-record-list'))
-    .queryAllByTestId(/^share-record-(table|preset)-/)
+    .queryAllByTestId(/^share-record-(table-.+|new)$/)
     .map((e) => e.props.testID as string);
 
+/** 新建表单页选一种预设。 */
+async function pickType(preset: string) {
+  await fireEvent.press(await screen.findByTestId('new-table-change-type'));
+  await fireEvent.press(await screen.findByTestId(`new-table-type-${preset}`));
+}
+
+async function saveNew() {
+  await fireEvent.press(screen.getByTestId('new-table-save'));
+  await waitFor(() => expect(screen.queryByTestId('new-table-save')).toBeNull());
+  expect(await screen.findByTestId('share-screen')).toBeTruthy();
+}
+
 describe('recordChoices', () => {
-  it('lists every table with an attachment field, then the presets, blank last', () => {
-    expect(recordChoices(createDefaultWorkspace('zh'), 'zh').map((c) => c.name)).toEqual([
-      '购物凭证',
-      '账单',
-      '合同',
-      '报销',
-      '联系人',
-      '我的记录',
-    ]);
-    const config = seeded('fr', createRegistry(BUILTIN_TOOLS));
-    expect(recordChoices(config, 'fr')).toEqual([
+  it('只列有附件字段的表', () => {
+    expect(recordChoices(createDefaultWorkspace('zh'))).toEqual([]);
+    expect(recordChoices(seeded('fr', createRegistry(BUILTIN_TOOLS)))).toEqual([
       { kind: 'table', tableId: 'receipts', name: '收据' },
-      { kind: 'preset', preset: 'purchase', name: 'Justificatifs d’achat' },
-      { kind: 'preset', preset: 'bill', name: 'Factures' },
-      { kind: 'preset', preset: 'contract', name: 'Contrats' },
-      { kind: 'preset', preset: 'reimbursement', name: 'Remboursements' },
-      { kind: 'preset', preset: 'contacts', name: 'Contacts' },
-      { kind: 'preset', preset: 'blank', name: 'Mes entrées' },
     ]);
   });
 });
 
 describe('收件页面 → 存成记录', () => {
-  it('新用户：列表里只有预设表；选「购物凭证」建表、页面和入口，表单里已经放好这张照片，保存后存成一条记录', async () => {
+  it('新用户：选「新建表单」，选预设，点「记下」才建表，只存一条记录', async () => {
     const { files, repo, store } = await render();
     const [photo] = await openShare(files, ['IMG_1.jpg']);
-    // 放在「放到桌上」下面、快捷操作推荐上面；点之前不展开，也不做任何修改。
     const rows = screen.queryAllByTestId(/^(share-desk|share-record|share-workflow-.+)$/);
     expect(rows.slice(0, 2).map((r) => r.props.testID)).toEqual(['share-desk', 'share-record']);
     expect(screen.queryByTestId('share-record-list')).toBeNull();
     const before = store.getState().head!.id;
 
     await fireEvent.press(screen.getByTestId('share-record-choose'));
-    expect(listIds()).toEqual([
-      'share-record-preset-purchase',
-      'share-record-preset-bill',
-      'share-record-preset-contract',
-      'share-record-preset-reimbursement',
-      'share-record-preset-contacts',
-      'share-record-preset-blank',
-    ]);
+    expect(listIds()).toEqual(['share-record-new']);
     expect(screen.queryByText('你的表')).toBeNull();
+    await fireEvent.press(screen.getByTestId('share-record-new'));
+    expect(await screen.findByTestId('draft-attachments-file-0')).toBeTruthy();
+    await pickType('purchase');
+    // 还什么都没建。
+    expect(store.getState().config!.data.tables).toEqual([]);
     expect(store.getState().head!.id).toBe(before);
 
-    await fireEvent.press(screen.getByTestId('share-record-preset-purchase'));
-    expect(await screen.findByTestId('editor-attachments-file-0')).toBeTruthy();
+    await fireEvent.changeText(screen.getByTestId('draft-merchant'), '超市');
+    await saveNew();
     const config = store.getState().config!;
     expect(config.data.tables.map((c) => c.id)).toEqual(['purchases']);
     expect(config.containers.pages.some((p) => p.id === 'purchases')).toBe(true);
-    // 用户的一次修改，能撤销（和别的界面按钮一样）。
     expect(store.getState().head!.source).toBe('user');
-    // 原件（选择器的副本）没有被移动，复制了一份成用户文件。
     const [asset] = await repo.listAssets();
     expect(files.disk.get(asset!.path)).toEqual(TINY_JPEG);
-
-    await fireEvent.changeText(screen.getByTestId('editor-merchant'), '超市');
-    await save();
-    expect(await repo.listRecords('purchases')).toHaveLength(1);
     const [record] = await repo.listRecords('purchases');
     expect(record!.values.merchant).toBe('超市');
     expect(attachmentIds(record!.values.attachments)).toEqual([asset!.id]);
-    // 回到收件页面，收件的文件还在；刚建的表以后列在「你的表」最前面，再选它不再新建、也不再问入口。
-    expect(await screen.findByTestId('share-screen')).toBeTruthy();
     expect(files.disk.has(photo!.uri)).toBe(true);
-    expect(recordChoices(store.getState().config!, 'zh')[0]).toEqual({
+    expect(recordChoices(store.getState().config!)[0]).toEqual({
       kind: 'table',
       tableId: 'purchases',
       name: '购物凭证',
     });
   });
 
-  it('建过的预设不再列在「新建一张表」里（只在「你的表」里），「空白」一直在；没填标题的记录显示表名和日子', async () => {
-    const { files } = await render();
+  it('不选预设也能建：加字段、改名、去掉字段，表名自己写', async () => {
+    const { files, repo, store } = await render();
     await openShare(files, ['IMG_1.jpg']);
-    await choose('preset-purchase');
-    expect(await screen.findByTestId('editor-attachments-file-0')).toBeTruthy();
-    // 商家（标题）不填就保存。
-    await save();
-    await fireEvent.press(screen.getByTestId('share-record-choose'));
-    expect(listIds()).toEqual([
-      'share-record-table-purchases',
-      'share-record-preset-bill',
-      'share-record-preset-contract',
-      'share-record-preset-reimbursement',
-      'share-record-preset-contacts',
-      'share-record-preset-blank',
-    ]);
-    await act(() => router.push('/page/purchases'));
-    expect(await screen.findByText(/^购物凭证 · \d{1,2}月\d{1,2}日$/)).toBeTruthy();
-    expect(screen.queryByText('—')).toBeNull();
+    await choose('new');
+    expect(await screen.findByTestId('draft-attachments-file-0')).toBeTruthy();
+    await fireEvent.changeText(screen.getByTestId('new-table-name'), '车险');
+    await fireEvent.press(screen.getByTestId('new-table-add'));
+    await fireEvent.changeText(screen.getByTestId('new-table-add-name'), '保险公司');
+    await fireEvent.press(screen.getByTestId('new-table-add-save'));
+    const company = await screen.findByTestId('draft-field-3');
+    await fireEvent.changeText(company, '平安');
+    await fireEvent.press(screen.getByTestId('new-table-edit'));
+    await fireEvent(screen.getByTestId('new-table-field-name-field-3'), 'endEditing', {
+      nativeEvent: { text: '承保公司' },
+    });
+    await fireEvent.press(screen.getByTestId('new-table-field-remove-title'));
+    await fireEvent.press(screen.getByTestId('new-table-edit'));
+    await saveNew();
+    const table = store.getState().config!.data.tables[0]!;
+    expect(table.name).toBe('车险');
+    expect(table.fields.map((f) => f.name)).toEqual(['承保公司', '附件']);
+    const [record] = await repo.listRecords(table.id);
+    expect(record!.values['field-3']).toBe('平安');
+    // 列表显示留下来的文字字段（去掉的字段没有被页面引用，底线 18）。
+    expect(store.getState().config!.containers.pages.some((p) => p.title === '车险')).toBe(true);
   });
 
-  it('有数据：只列出有附件字段的表，在预设表前面；选它不改配置，文件放进它的附件字段', async () => {
+  it('有数据：只列有附件字段的表和「新建表单」；选表不改配置，文件放进它的附件字段', async () => {
     const { files, repo, store } = await render(seeded);
     await openShare(files, ['IMG_1.jpg']);
     await fireEvent.press(await screen.findByTestId('share-record-choose'));
-    expect(listIds()).toEqual([
-      'share-record-table-receipts',
-      'share-record-preset-purchase',
-      'share-record-preset-bill',
-      'share-record-preset-contract',
-      'share-record-preset-reimbursement',
-      'share-record-preset-contacts',
-      'share-record-preset-blank',
-    ]);
+    expect(listIds()).toEqual(['share-record-table-receipts', 'share-record-new']);
     expect(screen.getByText('你的表')).toBeTruthy();
     const head = store.getState().head!.id;
     await fireEvent.press(screen.getByTestId('share-record-table-receipts'));
@@ -204,9 +189,9 @@ describe('收件页面 → 存成记录', () => {
   it('两个文件存成一条记录，两个附件按顺序', async () => {
     const { files, repo } = await render();
     await openShare(files, ['A.jpg', 'B.jpg']);
-    await choose('preset-blank');
-    expect(await screen.findByTestId('editor-attachments-file-1')).toBeTruthy();
-    await save();
+    await choose('new');
+    expect(await screen.findByTestId('draft-attachments-file-1')).toBeTruthy();
+    await saveNew();
     expect(await repo.listRecords('file-entries')).toHaveLength(1);
     const assets = await repo.listAssets();
     const byName = Object.fromEntries(assets.map((a) => [a.name, a.id]));
@@ -225,49 +210,60 @@ describe('收件页面 → 存成记录', () => {
     expect(screen.getByTestId('share-record-too-many').props.children).toBe(
       '一条记录最多放 20 个文件，只放前 20 个。',
     );
-    await fireEvent.press(screen.getByTestId('share-record-preset-blank'));
-    expect(
-      await screen.findByTestId(`editor-attachments-file-${MAX_ATTACHMENTS - 1}`),
-    ).toBeTruthy();
-    expect(screen.queryByTestId(`editor-attachments-file-${MAX_ATTACHMENTS}`)).toBeNull();
+    await fireEvent.press(screen.getByTestId('share-record-new'));
+    expect(await screen.findByTestId(`draft-attachments-file-${MAX_ATTACHMENTS - 1}`)).toBeTruthy();
+    expect(screen.queryByTestId(`draft-attachments-file-${MAX_ATTACHMENTS}`)).toBeNull();
     expect(await repo.listAssets()).toHaveLength(MAX_ATTACHMENTS);
   });
 
-  it('没保存就返回：不存记录，复制的文件删掉，建好的表和页面留着，收件的文件还在', async () => {
+  it('没保存就返回：不建表，不存记录，复制的文件删掉，收件的文件还在', async () => {
     const { files, repo, store } = await render();
     const [photo] = await openShare(files, ['IMG_1.jpg']);
-    await choose('preset-bill');
-    expect(await screen.findByTestId('editor-attachments-file-0')).toBeTruthy();
+    await choose('new');
+    expect(await screen.findByTestId('draft-attachments-file-0')).toBeTruthy();
+    await pickType('bill');
     expect(await repo.listAssets()).toHaveLength(1);
     await act(() => router.back());
     expect(await screen.findByTestId('share-screen')).toBeTruthy();
-    // 记录页关掉时删副本（异步）：等它做完再读，不在 waitFor 里读（会和别的 act 重叠）。
     await act(async () => {
       for (let i = 0; i < 20; i++) await Promise.resolve();
     });
     expect(await repo.listAssets()).toEqual([]);
     expect([...files.disk.keys()].filter((k) => k.startsWith('assets/'))).toEqual([]);
-    expect(await repo.listRecords('bills')).toEqual([]);
-    expect(store.getState().config!.data.tables.map((c) => c.id)).toEqual(['bills']);
+    expect(store.getState().config!.data.tables).toEqual([]);
     expect(files.disk.has(photo!.uri)).toBe(true);
   });
 
-  it('新用户还没看完介绍：建表让外壳重新挂载，也不再推一次欢迎页；关掉表单回到收件页面', async () => {
-    // 真机上（2026-10-31）：首页推了欢迎页，收件页面盖在上面；建表后外壳按新版本重新挂载又推了一次，
-    // 关掉表单落到第二个欢迎页上。
+  it('新用户还没看完介绍：记下让外壳重新挂载，文件还在，也不再推一次欢迎页', async () => {
+    // 真机上（2026-10-31）：首页推了欢迎页，收件页面盖在上面；建表后外壳按新版本重新挂载又推了一次。
     const repo = new MemoryWorkspaceRepo();
     await act(() => useGuide.getState().load(repo));
     expect(useGuide.getState().stage).toBe('intro');
     const { files } = await renderToolsApp(repo, new FakeFiles());
     expect(await screen.findByTestId('welcome')).toBeTruthy();
     await openShare(files, ['IMG_1.jpg']);
-    await choose('preset-purchase');
-    expect(await screen.findByTestId('editor-attachments-file-0')).toBeTruthy();
-    await act(() => router.back());
-    expect(await screen.findByTestId('share-screen')).toBeTruthy();
+    await choose('new');
+    await pickType('purchase');
+    await saveNew();
     expect(screen.queryByTestId('welcome')).toBeNull();
-    // 再关掉收件页面，才是原来那个欢迎页。
+    const [record] = await repo.listRecords('purchases');
+    expect(attachmentIds(record!.values.attachments)).toHaveLength(1);
+    expect(await repo.listAssets()).toHaveLength(1);
     await act(() => router.back());
     expect(await screen.findByTestId('welcome')).toBeTruthy();
+  });
+
+  it('让 Tink 改：先建表，换成记录页，AI 页只知道这张表，请求里没有文件内容', async () => {
+    const { files, store } = await render();
+    await openShare(files, ['IMG_1.jpg']);
+    await choose('new');
+    await pickType('insurance');
+    await fireEvent.press(screen.getByTestId('new-table-tink'));
+    await waitFor(() =>
+      expect(store.getState().config!.data.tables.map((c) => c.id)).toEqual(['insurance']),
+    );
+    expect(await screen.findByTestId('change-about')).toBeTruthy();
+    await act(() => router.back());
+    expect(await screen.findByTestId('editor-attachments-file-0')).toBeTruthy();
   });
 });

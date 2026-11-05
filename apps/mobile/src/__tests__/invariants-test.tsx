@@ -3,6 +3,7 @@ import {
   CURRENT_SCHEMA_VERSION,
   DATA_TEMPLATES,
   FILE_RECORD_PRESETS,
+  HIDDEN_RECORD_PRESETS,
   REDACTED_FILE,
   applyOps,
   createDefaultWorkspace,
@@ -509,7 +510,10 @@ const SAMPLES: Record<string, unknown> = {
 const v34 = (name: string) => structuredClone(V34[name]) as WorkspaceConfig;
 
 function withTemplate(
-  template: (typeof DATA_TEMPLATES)[number] | (typeof FILE_RECORD_PRESETS)[number],
+  template:
+    | (typeof DATA_TEMPLATES)[number]
+    | (typeof FILE_RECORD_PRESETS)[number]
+    | (typeof HIDDEN_RECORD_PRESETS)[number],
 ): WorkspaceConfig {
   const config = createDefaultWorkspace('zh');
   const r = applyOps(config, templateOps(template, config, 'zh'), { registry, locale: 'zh' });
@@ -519,8 +523,8 @@ function withTemplate(
 
 const VIEWED: [string, () => WorkspaceConfig, Locale][] = [
   ['default (fr)', () => createDefaultWorkspace('fr'), 'fr'],
-  // 收件页面「存成记录」的预设表（D-392）也一样只看不写。
-  ...[...DATA_TEMPLATES, ...FILE_RECORD_PRESETS].map(
+  // 收件页面「存成记录」的预设表（D-392）和隐藏的预设（D-444）也一样只看不写。
+  ...[...DATA_TEMPLATES, ...FILE_RECORD_PRESETS, ...HIDDEN_RECORD_PRESETS].map(
     (t): [string, () => WorkspaceConfig, Locale] => [`template ${t}`, () => withTemplate(t), 'zh'],
   ),
   ...['habits', 'calendar', 'tasks', 'todo'].map((n): [string, () => WorkspaceConfig, Locale] => [
