@@ -1523,6 +1523,8 @@ export function ListBrowseBar({ selection, env }: { selection: BrowseSelection; 
             styles.input,
             page.font('body', 15),
             {
+              // 搜索框是方块：边贴着页面边距，里面的字缩进 inset（D-454）。
+              paddingHorizontal: page.inset,
               color: page.text,
               borderColor: page.border,
               backgroundColor: page.surface,

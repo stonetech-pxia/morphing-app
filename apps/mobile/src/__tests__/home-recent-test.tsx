@@ -1,4 +1,4 @@
-import { act, fireEvent } from '@testing-library/react-native';
+import { act, fireEvent, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
 
@@ -34,7 +34,7 @@ describe('home: recent actions and recent files', () => {
     expect(screen.queryByTestId('files-all')).toBeNull();
   });
 
-  it('lists the newest files with thumbnails; tapping one previews it, “All” opens storage', async () => {
+  it('lists the newest files with thumbnails; tapping one previews it, “All” opens the all-files page', async () => {
     const { files } = await start(async (repo, f) => {
       for (const [id, name, mimeType, at] of [
         ['a1', '收据.jpg', 'image/jpeg', 1],
@@ -70,8 +70,31 @@ describe('home: recent actions and recent files', () => {
     expect(files.previewed).toEqual([
       { uri: 'file:///fake/assets/a2/扫描 11月5日.pdf', mimeType: 'application/pdf' },
     ]);
+    // D-453：「全部」打开全部文件页面（不是存储空间）：搜索、排序、类型筛选，没有固定按钮。
     await fireEvent.press(screen.getByTestId('files-all'));
-    expect(await screen.findByTestId('storage-file-a1')).toBeTruthy();
+    const page = await screen.findByTestId('files-screen');
+    const order = () =>
+      within(page)
+        .getAllByTestId(/^file-/)
+        .map((n) => String(n.props.testID).replace('file-', ''))
+        .filter((id) => !id.startsWith('thumb-'));
+    expect(order()).toEqual(['合同.docx', '扫描 11月5日.pdf', '收据.jpg', '旧的.pdf']);
+    await fireEvent.press(within(page).getByTestId('files-sort-name'));
+    // 按名称：中文按拼音（合 he、旧 jiu、扫 sao、收 shou）。
+    expect(order()).toEqual(['合同.docx', '旧的.pdf', '扫描 11月5日.pdf', '收据.jpg']);
+    await fireEvent.press(within(page).getByTestId('files-kind-pdf'));
+    expect(order()).toEqual(['旧的.pdf', '扫描 11月5日.pdf']);
+    await fireEvent.changeText(within(page).getByTestId('files-search'), '旧');
+    expect(order()).toEqual(['旧的.pdf']);
+    await fireEvent.changeText(within(page).getByTestId('files-search'), '没有这个');
+    expect(within(page).getByTestId('files-none')).toHaveTextContent('没有找到相符的文件');
+    await fireEvent.changeText(within(page).getByTestId('files-search'), '');
+    await fireEvent.press(within(page).getByTestId('files-kind-all'));
+    await fireEvent.press(within(page).getByTestId('file-收据.jpg'));
+    expect(files.previewed.at(-1)).toEqual({
+      uri: 'file:///fake/assets/a1/收据.jpg',
+      mimeType: 'image/jpeg',
+    });
   });
 
   it('shows quick actions that ran successfully, newest first; tapping one opens its run page', async () => {

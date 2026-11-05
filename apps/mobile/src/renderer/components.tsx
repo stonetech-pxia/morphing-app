@@ -48,6 +48,8 @@ export interface RenderEnv {
   navigate: (target: OpenTarget) => void;
   /** 在横排或网格的格子里：卡片改为图标在上、文字在下。 */
   inCell?: boolean;
+  /** 在网格的第几列（从 0 开始）、一共几列：靠边的块贴着页面边距（D-454）。 */
+  cellColumn?: { index: number; of: number };
   /** 画在页面下方固定区：入口画成和浮动按钮同一个样子的按钮（D-437）。 */
   inBottomZone?: boolean;
   /** 页面上选的时间范围（D-440）：页面有 period 块时才有；图表和数字卡的 source.period 是 "page" 时按它画。状态只在页面上，什么都不写。 */
@@ -272,7 +274,10 @@ function PageBody({ page, env, bottomInset = 0, zoneInset, scroll }: PageViewPro
           pointerEvents="box-none"
           style={[
             styles.fab,
-            { bottom: 20 + (hasZones && zones.bottom.length > 0 ? bottomHeight : bottomInset) },
+            {
+              right: palette.pad,
+              bottom: 20 + (hasZones && zones.bottom.length > 0 ? bottomHeight : bottomInset),
+            },
           ]}>
           {floating.map((c) => (
             <Item key={c.id} component={c} env={pageEnv} />
@@ -410,7 +415,7 @@ function runnerGrid(components: readonly Component[]): (Component | Component[])
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'stretch' },
   cell: { flex: 1 },
-  fab: { position: 'absolute', right: 20, alignItems: 'flex-end' },
+  fab: { position: 'absolute', alignItems: 'flex-end' },
   topZone: { paddingBottom: 8 },
   bottomZone: { flexDirection: 'row', alignItems: 'center', paddingTop: 10 },
 });

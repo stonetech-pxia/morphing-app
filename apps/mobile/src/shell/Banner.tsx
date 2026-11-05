@@ -33,6 +33,7 @@ export function Banner({ palette }: { palette: Palette }) {
       testID="banner"
       style={[
         styles.floating,
+        { left: palette.pad, right: palette.pad, paddingLeft: palette.inset },
         {
           backgroundColor: warn ? palette.danger : palette.primary,
           borderRadius: palette.controlRadius,
@@ -76,6 +77,7 @@ export function DraftNotice({ palette }: { palette: Palette }) {
       testID="draft-notice"
       style={[
         styles.banner,
+        { marginHorizontal: palette.pad, paddingHorizontal: palette.inset },
         { backgroundColor: palette.danger, borderRadius: palette.controlRadius },
       ]}>
       <Text style={[styles.bannerText, palette.font('bodyMedium', 14), { color: '#FFFFFF' }]}>
@@ -102,13 +104,10 @@ const styles = StyleSheet.create({
   floating: {
     position: 'absolute',
     top: 8,
-    left: 16,
-    right: 16,
     zIndex: 50,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingLeft: 16,
     paddingRight: 4,
     paddingVertical: 2,
     elevation: 6,
@@ -123,9 +122,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginHorizontal: 16,
     marginTop: 8,
-    paddingHorizontal: 16,
     paddingVertical: 12,
   },
   bannerText: { flex: 1 },

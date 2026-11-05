@@ -331,19 +331,25 @@ function Group({ component, env }: { component: ComponentOf<'group'>; env: Rende
   const { palette } = env;
   const children = component.children.filter((c) => !c.hidden);
   const { layout, title } = component.show;
-  const item = (c: Component) => (
+  const item = (c: Component, column?: { index: number; of: number }) => (
     <Item
       key={c.id}
       component={c}
-      env={layout === 'stack' ? env : { ...env, inCell: true }}
+      env={
+        layout === 'stack'
+          ? env
+          : { ...env, inCell: true, ...(column ? { cellColumn: column } : {}) }
+      }
       style={layout === 'stack' ? undefined : styles.cell}
     />
   );
   let body: ReactNode;
   if (layout === 'stack') {
-    body = <View style={{ gap: palette.gap }}>{children.map(item)}</View>;
+    body = <View style={{ gap: palette.gap }}>{children.map((c) => item(c))}</View>;
   } else if (layout === 'row') {
-    body = <View style={[styles.row, { gap: palette.gap - 4 }]}>{children.map(item)}</View>;
+    body = (
+      <View style={[styles.row, { gap: palette.gap - 4 }]}>{children.map((c) => item(c))}</View>
+    );
   } else {
     const columns = component.show.columns ?? 2;
     const rows: Component[][] = [];
@@ -360,7 +366,7 @@ function Group({ component, env }: { component: ComponentOf<'group'>; env: Rende
                 zIndex: row.some((c) => c.id === env.focus?.selectedId) ? 10 : 0,
               },
             ]}>
-            {row.map(item)}
+            {row.map((c, i) => item(c, { index: i, of: columns }))}
             {Array.from({ length: columns - row.length }, (_, i) => (
               <View key={`empty-${i}`} style={styles.cell} />
             ))}

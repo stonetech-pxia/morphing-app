@@ -88,6 +88,7 @@ export function FilePick({
         disabled={busy}
         onPress={onPress}
         onLongPress={env.onLongPress}
+        column={env.cellColumn}
       />
     );
   }

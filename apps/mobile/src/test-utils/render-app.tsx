@@ -32,6 +32,7 @@ import RecordRoute from '../app/record/[collectionId]';
 import ReminderRoute from '../app/reminder/[workflowId]';
 import RunRoute from '../app/run/[workflowId]';
 import ShareRoute from '../app/share';
+import FilesRoute from '../app/files';
 import StorageRoute from '../app/storage';
 import WelcomeRoute from '../app/welcome';
 import WorkflowRoute from '../app/workflow/[id]';
@@ -163,6 +164,7 @@ export async function renderToolsApp(
     share: ShareRoute,
     'desk/[deskId]': DeskRoute,
     storage: StorageRoute,
+    files: FilesRoute,
     presets: PresetsRoute,
     'ready/[workflowId]': ReadyRoute,
     data: DataRoute,

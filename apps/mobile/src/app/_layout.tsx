@@ -168,6 +168,7 @@ function ThemedStack() {
         <Stack.Screen name="ai-settings" options={{ title: t(locale, 'aiSettingsTitle') }} />
         <Stack.Screen name="data" options={{ title: t(locale, 'dataTitle') }} />
         <Stack.Screen name="storage" options={{ title: t(locale, 'storageTitle') }} />
+        <Stack.Screen name="files" options={{ title: t(locale, 'filesAllTitle') }} />
         <Stack.Screen name="packs" options={{ title: t(locale, 'packsTitle') }} />
         <Stack.Screen name="presets" options={{ title: t(locale, 'presetsTitle') }} />
         {/* 标题在页面里（放在导航栏时也要），这里不再写一遍。 */}

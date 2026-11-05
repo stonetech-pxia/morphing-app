@@ -449,6 +449,7 @@ export function ChangeScreen() {
             style={[
               styles.box,
               {
+                padding: palette.inset,
                 backgroundColor: palette.surface,
                 borderColor: palette.border,
                 borderRadius: palette.controlRadius,
@@ -616,7 +617,11 @@ export function ChangeScreen() {
                 onPress={() => setInput(item.text)}
                 style={({ pressed }) => [
                   styles.sessionItem,
-                  { backgroundColor: palette.primaryTint, opacity: pressed ? 0.6 : 1 },
+                  {
+                    paddingHorizontal: palette.inset,
+                    backgroundColor: palette.primaryTint,
+                    opacity: pressed ? 0.6 : 1,
+                  },
                 ]}>
                 <Text
                   numberOfLines={2}
@@ -684,7 +689,11 @@ export function ChangeScreen() {
           testID="change-styles"
           style={[
             styles.sheet,
-            { backgroundColor: palette.surface, paddingBottom: insets.bottom + 16 },
+            {
+              paddingHorizontal: palette.pad,
+              backgroundColor: palette.surface,
+              paddingBottom: insets.bottom + 16,
+            },
           ]}>
           <Text style={[palette.font('title', 16), { color: palette.text }]}>
             {t(locale, 'pickStyle')}
@@ -748,7 +757,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   page: { paddingBottom: 48 },
   row: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  box: { borderWidth: 1, padding: 12, gap: 8 },
+  box: { borderWidth: 1, gap: 8 },
   inputRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   input: { flex: 1, minHeight: 84, textAlignVertical: 'top', padding: 2 },
   sendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10 },
@@ -765,7 +774,7 @@ const styles = StyleSheet.create({
   // 窄屏或文案长（法语）时按钮换到下一行。
   fix: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
   fixText: { flex: 1, minWidth: 120 },
-  sessionItem: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, gap: 2 },
+  sessionItem: { borderRadius: 12, paddingVertical: 8, gap: 2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     flexDirection: 'row',
@@ -779,7 +788,6 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
-    paddingHorizontal: 16,
     paddingTop: 18,
     gap: 14,
   },

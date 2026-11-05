@@ -41,7 +41,7 @@ export function SampleHint({ pageId, palette }: { pageId: string; palette: Palet
   }
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { paddingHorizontal: palette.pad }]}>
       <Card palette={palette} background={palette.surface} testID="sample-hint">
         <Text style={[palette.font('title', 16), { color: palette.text }]}>
           {t(locale, 'sampleReadyTitle', { name })}
@@ -72,6 +72,7 @@ export function SampleHint({ pageId, palette }: { pageId: string; palette: Palet
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: 16, paddingTop: 8 },
+  // 左右贴着页面边距（D-454），在用的地方写。
+  wrap: { paddingTop: 8 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 16, flexWrap: 'wrap' },
 });

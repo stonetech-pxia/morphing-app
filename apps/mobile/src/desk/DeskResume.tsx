@@ -46,7 +46,7 @@ export function DeskResume({ palette }: { palette: Palette }) {
   );
   if (!latest) return null;
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { paddingHorizontal: palette.pad }]}>
       <Card
         palette={palette}
         background={palette.surface}
@@ -71,7 +71,8 @@ export function DeskResume({ palette }: { palette: Palette }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: 16, paddingTop: 8 },
+  // 左右贴着页面边距（D-454），在用的地方写。
+  wrap: { paddingTop: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   flex: { flex: 1, gap: 2 },
 });

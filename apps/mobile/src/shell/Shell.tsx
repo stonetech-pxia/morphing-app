@@ -151,7 +151,12 @@ export function Shell() {
     <View style={[styles.root, palette.backdrop, { paddingTop: insets.top }]}>
       {/* 右上角的 AI 入口（D-406）：这里没有导航栏，占一行，不盖住页面内容。设置和改动记录没有。 */}
       {entryAbout && !editing ? (
-        <View style={[styles.entryRow, bubbleGuide && styles.entryOnTop]}>
+        <View
+          style={[
+            styles.entryRow,
+            { paddingHorizontal: palette.pad },
+            bubbleGuide && styles.entryOnTop,
+          ]}>
           {/* 引导第一步（D-447）：首页上的 Tink 会动，点它和点气泡一样，打开那句话。 */}
           {bubbleGuide ? (
             <AIEntry
@@ -188,6 +193,7 @@ export function Shell() {
             style={({ pressed }) => [
               styles.fab,
               styles.editButton,
+              { left: palette.pad },
               palette.cardStyle(palette.surface),
               { bottom: barSpace + 16, borderRadius: 999 },
               pressed && { transform: [{ scale: 0.96 }] },
@@ -201,7 +207,7 @@ export function Shell() {
         ) : null}
 
         {config.nav.floating.length > 0 && !editing && !inDraft ? (
-          <View style={[styles.floating, { bottom: barSpace + 16 }]}>
+          <View style={[styles.floating, { right: palette.pad, bottom: barSpace + 16 }]}>
             {config.nav.floating.map((target) => {
               const accent = target === 'ai';
               const fg = accent ? palette.onPrimary : palette.text;
@@ -292,12 +298,12 @@ const styles = StyleSheet.create({
   entryRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    paddingHorizontal: 16,
     paddingVertical: 8,
   },
   root: { flex: 1 },
   content: { flex: 1 },
-  floating: { position: 'absolute', right: 16, gap: 10, alignItems: 'flex-end' },
+  // 浮在页面上的东西（右上角 Tink、编辑、浮动按钮）左右贴着页面边距 palette.pad（D-454），在用的地方写。
+  floating: { position: 'absolute', gap: 10, alignItems: 'flex-end' },
   fab: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -306,7 +312,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   invisible: { opacity: 0 },
-  editButton: { position: 'absolute', left: 16, minHeight: 40, paddingHorizontal: 16 },
+  editButton: { position: 'absolute', minHeight: 40, paddingHorizontal: 16 },
   bar: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 6 },
   hidden: { display: 'none' },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3 },

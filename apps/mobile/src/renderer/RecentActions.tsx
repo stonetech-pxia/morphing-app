@@ -45,9 +45,7 @@ export function RecentActions({ title, env }: { title: string | undefined; env: 
   return (
     <View style={styles.block} testID="recent-actions">
       {title ? (
-        <Text style={[palette.font('bodyMedium', 14), styles.title, { color: palette.caption }]}>
-          {title}
-        </Text>
+        <Text style={[palette.font('bodyMedium', 14), { color: palette.caption }]}>{title}</Text>
       ) : null}
       <ScrollView
         horizontal
@@ -86,8 +84,8 @@ export function RecentActions({ title, env }: { title: string | undefined; env: 
 
 const styles = StyleSheet.create({
   block: { gap: 8 },
-  title: { paddingHorizontal: 4 },
-  row: { gap: 8, paddingRight: 8 },
+  // 标题和小胶囊在方块外面：贴着页面边距（D-454）。
+  row: { gap: 8 },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',

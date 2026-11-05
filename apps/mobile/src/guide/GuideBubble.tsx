@@ -57,7 +57,9 @@ export function GuideBubble({
         blurMethod="dimezisBlurViewSdk31Plus"
         style={StyleSheet.absoluteFill}
       />
-      <View style={styles.wrap} testID={look ? 'guide-look' : 'guide-goal'}>
+      <View
+        style={[styles.wrap, { paddingLeft: palette.pad, paddingRight: palette.pad - 3 }]}
+        testID={look ? 'guide-look' : 'guide-goal'}>
         <Pressable
           testID={look ? 'guide-look-0' : undefined}
           accessibilityRole={look ? 'button' : undefined}
@@ -66,6 +68,7 @@ export function GuideBubble({
           style={({ pressed }) => [
             styles.bubble,
             {
+              paddingHorizontal: palette.inset,
               backgroundColor: palette.primary,
               opacity: pressed ? 0.85 : 1,
               // 高光：主色的光晕，和右上角 Tink 的光圈一起把人的目光带过去。
@@ -93,9 +96,9 @@ export function GuideBubble({
 }
 
 const styles = StyleSheet.create({
-  // 气泡贴在右上角 Tink 下面，三角尖角对着 Tink：Tink 的中心离屏幕右边 28，
-  // 气泡右边离屏幕 13，尖角中心离气泡右边 15；靠 Tink 的那个角收小，尖角落在直边上。
-  wrap: { alignItems: 'flex-end', paddingLeft: 16, paddingRight: 13, paddingTop: 12 },
+  // 气泡贴在右上角 Tink 下面，三角尖角对着 Tink：Tink 的中心离屏幕右边 pad + 12（入口那一行贴着页面边距），
+  // 气泡右边离屏幕 pad - 3，尖角中心离气泡右边 15；靠 Tink 的那个角收小，尖角落在直边上。
+  wrap: { alignItems: 'flex-end', paddingTop: 12 },
   tail: {
     position: 'absolute',
     top: -10,
@@ -112,7 +115,6 @@ const styles = StyleSheet.create({
     maxWidth: 300,
     borderRadius: 18,
     borderTopRightRadius: 6,
-    paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 10,
     gap: 6,

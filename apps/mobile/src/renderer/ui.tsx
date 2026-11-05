@@ -44,7 +44,7 @@ export function Card({
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }) {
-  const base = [palette.cardStyle(background), { padding: palette.pad - 2, gap: 8 }, style];
+  const base = [palette.cardStyle(background), { padding: palette.inset, gap: 8 }, style];
   const fill = backdrop?.assetId ? (
     <BackdropFill
       backdrop={backdrop}

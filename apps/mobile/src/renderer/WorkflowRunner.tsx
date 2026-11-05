@@ -78,6 +78,7 @@ export function WorkflowRunner({
         testID={`run-${workflow.id}`}
         onPress={start}
         onLongPress={env.onLongPress}
+        column={env.cellColumn}
       />
     );
   }

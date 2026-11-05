@@ -69,6 +69,7 @@ function Option({
       onPress={onPress}
       style={[
         styles.option,
+        { padding: palette.inset },
         palette.cardStyle(selected ? palette.primaryTint : palette.surface),
         { borderColor: selected ? palette.primary : 'transparent' },
       ]}>
@@ -262,6 +263,7 @@ export function AISettingsScreen() {
                   keyboardType="url"
                   style={[
                     styles.input,
+                    { paddingHorizontal: palette.inset },
                     text,
                     { borderColor: palette.border, borderRadius: palette.controlRadius },
                   ]}
@@ -277,6 +279,7 @@ export function AISettingsScreen() {
                   autoCorrect={false}
                   style={[
                     styles.input,
+                    { paddingHorizontal: palette.inset },
                     text,
                     { borderColor: palette.border, borderRadius: palette.controlRadius },
                   ]}
@@ -330,6 +333,8 @@ export function AISettingsScreen() {
                     textContentType="password"
                     style={[
                       styles.input,
+                      { paddingHorizontal: palette.inset },
+                      { paddingHorizontal: palette.inset },
                       text,
                       { borderColor: palette.border, borderRadius: palette.controlRadius },
                     ]}
@@ -432,7 +437,6 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: 'center',
     borderWidth: 1.5,
-    padding: 16,
   },
   radio: {
     width: 20,
@@ -445,7 +449,7 @@ const styles = StyleSheet.create({
   radioDot: { width: 10, height: 10, borderRadius: 5 },
   flex: { flex: 1, gap: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  input: { borderWidth: 1, padding: 14 },
+  input: { borderWidth: 1, paddingVertical: 14 },
   secondary: { marginTop: 4 },
   note: { lineHeight: 18 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

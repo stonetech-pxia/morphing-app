@@ -17,7 +17,7 @@ const GLYPH_OF: Partial<Record<string, IconButtonGlyph>> = { scan: 'scan' };
 /**
  * 只有图标的方形按钮（D-449）：新用户首页的「扫描」「打开文件」。和设置页的图标底同一个形状
  * （三个大圆角、左下角小圆角，跟着主题的圆角缩放），白底、主色线条图标；
- * 比格子小一圈、居中，两个按钮之间留出空。字不显示，但读屏会读出 label。
+ * 比格子小一圈：靠边那一列贴着页面边距（和下面的卡片、标题对齐，D-454），两个按钮之间留出空。字不显示，但读屏会读出 label。
  */
 export function IconButton({
   palette,
@@ -28,6 +28,7 @@ export function IconButton({
   onLongPress,
   disabled,
   testID,
+  column,
 }: {
   palette: Palette;
   /** 配置里的图标名；glyph 给了就用线条图。 */
@@ -38,6 +39,8 @@ export function IconButton({
   onLongPress?: (() => void) | undefined;
   disabled?: boolean;
   testID: string;
+  /** 在网格的第几列：第一列靠左、最后一列靠右、中间居中。 */
+  column?: { index: number; of: number } | undefined;
 }) {
   const shown = glyph ?? (typeof icon === 'string' ? GLYPH_OF[icon] : undefined);
   const scale = palette.radius / 22;
@@ -53,6 +56,13 @@ export function IconButton({
       style={({ pressed }) => [
         styles.button,
         {
+          alignSelf: !column
+            ? 'center'
+            : column.index === 0
+              ? 'flex-start'
+              : column.index === column.of - 1
+                ? 'flex-end'
+                : 'center',
           backgroundColor: palette.surface,
           boxShadow: `0px 2px 10px ${palette.shadow}1F`,
           borderTopLeftRadius: round,
@@ -77,8 +87,7 @@ export function IconButton({
 
 const styles = StyleSheet.create({
   button: {
-    width: '82%',
-    alignSelf: 'center',
+    width: '86%',
     aspectRatio: 1,
     alignItems: 'center',
     justifyContent: 'center',

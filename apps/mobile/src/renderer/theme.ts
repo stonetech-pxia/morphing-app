@@ -53,8 +53,12 @@ export interface Palette extends ResolvedColors {
   radius: number;
   /** 按钮、输入框等控件的圆角。 */
   controlRadius: number;
-  /** 页面边距和组件间距。 */
+  /**
+   * 页面边距和组件间距。页面上只有两条竖线（D-454）：方块（卡片、按钮、输入框、列表）的边和方块外面的字
+   * 贴着 pad；方块里面的内容缩进 inset（卡片的内边距）。
+   */
   pad: number;
+  inset: number;
   gap: number;
   /** 某个角色的字体，size 会乘以主题的字号比例。 */
   font(role: FontRole, size: number): TextStyle;
@@ -139,6 +143,7 @@ function buildPalette(theme: Theme, colors: ResolvedColors, page: ResolvedColors
     radius,
     controlRadius: Math.round(Math.min(radius, 16) * 0.9 + (radius > 0 ? 2 : 0)),
     ...DENSITY[theme.density],
+    inset: DENSITY[theme.density].pad - 2,
     glass: theme.cardStyle === 'glass',
     hasBackdrop: image !== undefined,
     barBackground:
