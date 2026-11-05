@@ -89,10 +89,11 @@ export const recordsValue = (table: Collection, records: DataRecord[]): RunValue
 });
 
 /**
- * 在原地跑、不打开运行页面的情况（D-428）：一个值或一条记录、最后一步把它交给 App 外面（拨号、分享面板）。
+ * 留在记录页上跑、不打开运行页面的情况（D-428）：一个值或一条记录、最后一步把它交给 App 外面（拨号、分享面板）。
  * 这时没有结果可看。别的（很多条、结果留在 App 里）打开运行页面，能看进度和结果。
+ * 这和「结果写回来源」无关：Tinkrum 没有把结果写回来源字段的运行方式，两种都是外部运行（结果离开、不回到来源）。
  */
-export function runsInPlace(workflow: Workflow, value: RunValue): boolean {
+export function runsInline(workflow: Workflow, value: RunValue): boolean {
   const small = value.type === 'text' || (value.type === 'records' && value.records.length === 1);
   return small && /^out\./.test(workflow.steps[workflow.steps.length - 1]?.action ?? '');
 }

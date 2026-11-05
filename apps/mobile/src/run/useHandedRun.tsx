@@ -1,4 +1,4 @@
-import { calendarOf, runsInPlace, type RunValue, type Workflow } from '@morph/core';
+import { calendarOf, runsInline, type RunValue, type Workflow } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Alert } from 'react-native';
@@ -32,7 +32,7 @@ export function useHandedRun(palette: Palette) {
   );
 
   async function run(workflow: Workflow, value: RunValue) {
-    if (!runsInPlace(workflow, value)) {
+    if (!runsInline(workflow, value)) {
       router.push({
         pathname: '/run/[workflowId]',
         params: { workflowId: workflow.id, handed: handOver(value) },

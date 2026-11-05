@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { recordRowButtons, recordRowValue, recordsValue, runsInPlace } from './record-row';
+import { recordRowButtons, recordRowValue, recordsValue, runsInline } from './record-row';
 import { quickActionsOf, type Collection, type Workflow } from './schema';
 import { registry, workspace } from './test-helpers';
 import { findWorkflow } from './workflows/presets';
@@ -126,13 +126,13 @@ describe('where it runs', () => {
   const many = recordsValue(table(undefined), [{ id: 'r' } as never, { id: 's' } as never]);
 
   it('one value or entry going out of the app runs in place: nothing to look at after', () => {
-    expect(runsInPlace(preset('record-call'), text)).toBe(true);
-    expect(runsInPlace(preset('record-vcard'), one)).toBe(true);
+    expect(runsInline(preset('record-call'), text)).toBe(true);
+    expect(runsInline(preset('record-vcard'), one)).toBe(true);
   });
 
   it('many entries, or a result that stays in the app, get the run page', () => {
-    expect(runsInPlace(preset('record-vcard'), many)).toBe(false);
-    expect(runsInPlace(preset('record-qr'), one)).toBe(false);
-    expect(runsInPlace(preset('record-copy'), text)).toBe(false);
+    expect(runsInline(preset('record-vcard'), many)).toBe(false);
+    expect(runsInline(preset('record-qr'), one)).toBe(false);
+    expect(runsInline(preset('record-copy'), text)).toBe(false);
   });
 });
