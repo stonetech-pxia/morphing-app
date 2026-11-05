@@ -5,6 +5,7 @@ import {
   parsePickStore,
   PICK_STORE_KEY,
   putPick,
+  rememberPick,
   ruleEngine,
   serializePickStore,
   usesValueMemory,
@@ -212,8 +213,8 @@ export function useFieldSuggestions({
           [fieldId]: suggestions[fieldId] ?? [suggestion],
         },
       }));
-      // 这个值在文字里找不到位置（没有 pick）：不记，字段原来的记忆留着。
-      const pick = suggestion.pick;
+      // 这个值在文字里找不到位置（没有 pick）：不学新标签，字段原来的记忆留着。
+      const pick = rememberPick(picks.current[fieldId], suggestion, suggestions[fieldId] ?? []);
       if (!pick) return;
       picks.current = { ...picks.current, [fieldId]: pick };
       void repo

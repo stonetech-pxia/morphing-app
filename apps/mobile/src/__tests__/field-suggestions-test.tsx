@@ -222,6 +222,8 @@ describe('新记录表单的候选值', () => {
     const picks = JSON.parse((await repo.getMeta(PICK_STORE_KEY))!);
     expect(Object.keys(picks.purchases)).toEqual(['amount']);
     expect(JSON.stringify(picks)).not.toContain('178');
+    // 点过的标签学到这个字段下面（D-445）。
+    expect(picks.purchases.amount.labels[0].label).toBe('total');
   });
 
   it('收据模版的分类（D-405）：票面上看得出来就在分类下面给候选，没有自动选；点了才选中，看不出来就没有', async () => {

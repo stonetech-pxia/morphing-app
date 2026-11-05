@@ -4,13 +4,18 @@ import { appConfigFile, appConfigFileName } from '../config-file';
 import { createDefaultWorkspace } from '../defaults';
 import type { LayoutMemory } from './memory';
 import {
+  LAYOUT_FILE_FORMAT,
   layoutCount,
   layoutStoreFile,
   MAX_LAYOUTS_PER_TABLE,
   parseLayoutStore,
+  parsePickStore,
   putLayout,
+  putPick,
   readLayoutStoreFile,
+  readPickStoreFile,
   serializeLayoutStore,
+  serializePickStore,
 } from './store';
 
 const layout = (id: string): LayoutMemory => ({
@@ -55,7 +60,7 @@ describe('layout store', () => {
   it('exports a backup file that restores to the same memory', () => {
     const store = putLayout({}, 'expenses', layout('a'));
     const file = layoutStoreFile(store, new Date('2026-10-28T10:00:00Z'));
-    expect(JSON.parse(file)).toMatchObject({ format: 'morph-prefill-memory', version: 2 });
+    expect(JSON.parse(file)).toMatchObject({ format: 'morph-prefill-memory', version: 3 });
     expect(readLayoutStoreFile(file)).toEqual(store);
   });
 
@@ -80,5 +85,37 @@ describe('app config file', () => {
     expect(file).toMatchObject({ format: 'morph-app-config', version: 1 });
     expect(file.config).toEqual(JSON.parse(JSON.stringify(createDefaultWorkspace('en'))));
     expect(appConfigFileName(new Date(2026, 9, 28, 9))).toBe('tinkrum-config-2026-10-28.json');
+  });
+});
+
+describe('点过的候选：学过的标签', () => {
+  const pick = {
+    label: 'startAt',
+    relY: 0.2,
+    labels: [
+      { label: 'startat', order: 'DMY' as const },
+      { label: 'date', rejected: true as const },
+    ],
+  };
+
+  it('存进去、读出来一样；导出的文件能恢复', () => {
+    const store = putPick({}, 't', 'f', pick);
+    expect(parsePickStore(serializePickStore(store))).toEqual(store);
+    expect(readPickStoreFile(layoutStoreFile({}, new Date(0), store))).toEqual(store);
+  });
+
+  it('第 2 版的文件（一个字段只有一个标签）还能读', () => {
+    const old = JSON.stringify({
+      format: LAYOUT_FILE_FORMAT,
+      version: 2,
+      tables: {},
+      picks: { t: { f: { label: 'Date', relY: 0.1 } } },
+    });
+    expect(readPickStoreFile(old)).toEqual({ t: { f: { label: 'Date', relY: 0.1 } } });
+  });
+
+  it('坏的记忆丢掉', () => {
+    const raw = JSON.stringify({ t: { f: { label: 'x', relY: 0.1, labels: [{ label: 1 }] } } });
+    expect(parsePickStore(raw)).toEqual({});
   });
 });

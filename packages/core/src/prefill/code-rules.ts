@@ -5,15 +5,17 @@ import { canAskCategory, categoryByCode, currencyInText } from './category';
 import { hasNoDecimals, rowHasDate, squash } from './check';
 import { conceptOf, type ConceptId } from './concepts';
 import { cardRules, ctx, receiptRules, resetDocContext, type DocumentKind } from './doc-context';
+import { fieldNameKey } from './field-names';
 import { documentLanguage } from './model';
 import {
+  learnedLabels,
   MAX_SUGGESTIONS,
   setDocContext,
   suggestValues,
   type SuggestInput,
   type ValueSuggestion,
 } from './rank';
-import { pageOccurrences } from './rows';
+import { pageOccurrences, type Occurrence } from './rows';
 import { analyzeCard, cardCandidates, cardLike, looseEmails } from './card-rules';
 import { addressCandidates } from './address-rules';
 import { NOT_ISSUE_DATE_LEFT, PRINT_WORD_LEFT } from './rules-data';
@@ -203,6 +205,24 @@ function codeValues(input: SuggestInput): Record<string, string[]> {
   return out;
 }
 
+/** 标签后面只有一处原文的值（同一处的几种读法算一处）；有不同的值时分不清，不算。 */
+function valuesAfterLabel(
+  field: Field,
+  key: string,
+  occurrences: readonly Occurrence[],
+): Occurrence[] {
+  const money = field.type === 'money' || field.type === 'number';
+  const text = field.type === 'text' || field.type === 'note';
+  if (!key || (!money && !text && field.type !== 'date')) return [];
+  const hits = occurrences.filter(
+    (o) =>
+      o.label &&
+      fieldNameKey(o.label) === key &&
+      (text ? !o.other : o.kind === (money ? 'money' : 'date')),
+  );
+  return new Set(hits.map((o) => o.raw.trim())).size === 1 ? hits : [];
+}
+
 /** 这份单据的规则结果和计划。 */
 export function planDocument(input: SuggestInput): DocumentPlan {
   // 解析日期、金额的规则要知道币种、整份文字和「现在」；算完把上下文清掉，别让下一份文档用到这一份的。
@@ -353,6 +373,47 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
     const add = (s: ValueSuggestion) => {
       if (!merged.some((m) => sameValue(field, m.value, s.value))) merged.push(s);
     };
+    // 学过的标签（最近点的在前）和字段名本身：文件上一字不差时旁边的值排第一。用户否定过的不算；
+    // 收据、名片表用测量过的专门规则，不走这里。
+    const pickNow = input.picks?.[field.id];
+    const learned = input.rules ? [] : learnedLabels(pickNow);
+    const trusted = input.rules
+      ? []
+      : [
+          ...learned,
+          ...(learned.some((l) => l.label === fieldNameKey(field.name))
+            ? []
+            : [{ label: fieldNameKey(field.name) }]),
+        ].filter((l) => !('rejected' in l && l.rejected));
+    const exact: ValueSuggestion[] = [];
+    for (const l of trusted) {
+      const hits = valuesAfterLabel(field, l.label, occurrences);
+      const order = 'order' in l ? l.order : undefined;
+      const sorted = [...hits].sort(
+        (a, b) => Number(b.dateOrder === order) - Number(a.dateOrder === order),
+      );
+      const isLearned = learned.some((x) => x.label === l.label);
+      for (const o of sorted) {
+        const text = field.type === 'text' || field.type === 'note';
+        const value = text ? o.raw.trim() : o.value;
+        const same = exact.find((s) => sameValue(field, s.value, value));
+        const tag = isLearned ? [l.label] : [];
+        if (same) {
+          same.learned = [...(same.learned ?? []), ...tag];
+          continue;
+        }
+        exact.push({
+          ...(list.find((s) => sameValue(field, s.value, value)) ?? { value, score: 0 }),
+          pick: {
+            label: o.label,
+            relY: Math.round(o.relY * 1000) / 1000,
+            ...(o.dateOrder ? { order: o.dateOrder } : {}),
+          },
+          ...(tag.length > 0 ? { learned: tag } : {}),
+        });
+      }
+    }
+    for (const s of exact) add(s);
     if (code) add(list.find((s) => sameValue(field, s.value, code!)) ?? fromCode(field, code));
     for (const v of extras)
       add(list.find((s) => sameValue(field, s.value, v)) ?? fromCode(field, v));
@@ -363,14 +424,19 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
     if (list.length === 0) for (const v of second) add(fromCode(field, v));
 
     const memory = usesValueMemory(field) ? rememberedValue(input.known?.[field.id], rows) : null;
+    const remembered = memory ? fromCode(field, memory) : null;
+    // 文件上写明了这个标签：排在存过的值前面。
+    if (exact.length > 0 && remembered) merged.splice(exact.length, 0, remembered);
     return {
       field,
       code: merged,
-      remembered: memory ? fromCode(field, memory) : null,
+      remembered: exact.length > 0 ? null : remembered,
       // 不带 pick：二维码的值不在文字的版面里，点了也不记位置。
       fromCode: (coded[field.id] ?? []).map((value) => ({ value, score: 0 })),
       // 单选字段只有分类问模型（D-405），别的交给规则；不能填的字段（附件、勾选……）规则也不给候选。
+      // 标签旁边的值排第一就不用问模型；只有这一个候选时还问：标签学错了，正确的值才不会点不到。
       ask:
+        (exact.length === 0 || merged.length < 2) &&
         !coded[field.id]?.length &&
         code === undefined &&
         !(concept === null && (field.type === 'note' || FREE_NOTE.test(field.name.trim()))) &&
@@ -384,7 +450,10 @@ function planDocumentInner(input: SuggestInput): DocumentPlan {
           field.type === 'date' ||
           field.type === 'text' ||
           field.type === 'note'),
-      codeFirst: cardRules() || (concept === 'amount' && documentLanguage(rows) === 'zh'),
+      codeFirst:
+        exact.length > 0 ||
+        cardRules() ||
+        (concept === 'amount' && documentLanguage(rows) === 'zh'),
     };
   });
   return { rows, fields, pickOf, kind: ctx.kind };

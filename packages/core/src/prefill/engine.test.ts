@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { Field } from '../schema';
 import { modelEngine, ruleEngine, type FieldSuggestions } from './engine';
 import { MODEL_LIMITS, type ModelRequest, type OpenModel } from './model';
-import { suggestValues } from './rank';
+import { rememberPick, suggestValues, type FieldPick } from './rank';
 
 const fields: Field[] = [
   { id: 'total', name: 'Amount', type: 'money', currency: 'USD' },
@@ -506,5 +506,233 @@ describe('二维码的值（D-423）', () => {
     await modelEngine(open)(input(['https://acme.example/SECRET'], ['Some text on the card']));
     expect(asked.length).toBeGreaterThan(0);
     expect(JSON.stringify(asked)).not.toContain('SECRET');
+  });
+});
+
+describe('字段名和文件标签完全一样', () => {
+  const openAnswering = (answer: string) => {
+    const generate = vi.fn(async () => answer);
+    const open: OpenModel = async () => ({ generate, release: async () => undefined });
+    return { open, generate };
+  };
+  const dates = pageOf(['Start of cover: 01/01/2027', 'Valid until: 31/12/2027']);
+
+  it('标签旁边的值排第一，模型答别的也不抢，也不用问模型', async () => {
+    const { open, generate } = openAnswering('2027-01-01');
+    const out = await modelEngine(open)({
+      fields: [{ id: 'end', name: 'Valid until', type: 'date' }],
+      pages: [dates],
+      locale: 'en',
+      now: new Date('2026-11-05T00:00:00Z'),
+    });
+    expect(out.end?.[0]?.value).toBe('2027-12-31');
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it('标签不一样时还是模型的答案排第一', async () => {
+    const { open } = openAnswering('1900.00');
+    const out = await modelEngine(open)({
+      fields: [{ id: 'deposit', name: 'Deposit', type: 'money', currency: 'GBP' }],
+      pages: [pageOf(['Rent per month: £950.00', 'Bond: £1,900.00'])],
+      locale: 'en',
+    });
+    expect(Number(out.deposit?.[0]?.value)).toBe(1900);
+  });
+
+  it('同一个标签后面有两个不同的值：分不清，还是问模型', async () => {
+    const { open, generate } = openAnswering('110.00');
+    const out = await modelEngine(open)({
+      fields: [{ id: 'total', name: 'Total', type: 'money', currency: 'EUR' }],
+      pages: [pageOf(['Total: 100.00 €', 'Tax: 10.00 €', 'Total: 110.00 €'])],
+      locale: 'en',
+    });
+    expect(generate).toHaveBeenCalled();
+    expect(Number(out.total?.[0]?.value)).toBe(110);
+  });
+});
+
+describe('按表学标签', () => {
+  const START: Field = { id: 'start', name: '起始日期', type: 'date' };
+  const noModel: OpenModel = async () => {
+    throw new Error('不该问模型');
+  };
+  /** 把一个文件读一遍，点值是 value 的候选，返回新的记忆。 */
+  const tap = async (
+    rows: string[],
+    value: string,
+    prev?: FieldPick,
+    field: Field = START,
+  ): Promise<FieldPick> => {
+    const out = await ruleEngine({
+      fields: [field],
+      pages: [pageOf(rows)],
+      locale: 'en',
+      now,
+      ...(prev ? { picks: { [field.id]: prev } } : {}),
+    });
+    const shown = out[field.id] ?? [];
+    const hit = shown.find((s) => s.value === value);
+    if (!hit) throw new Error(`候选里没有 ${value}: ${JSON.stringify(shown)}`);
+    return rememberPick(prev, hit, shown)!;
+  };
+  const noise = 'Printed on: 15/03/2027';
+
+  it('两个文件的标签都记得：第一个文件的格式再出现时还认得，也不问模型', async () => {
+    let pick = await tap(['start date: 20/02/2027', noise], '2027-02-20');
+    pick = await tap(['startAt: 21/02/2027', noise], '2027-02-21', pick);
+    const generate = vi.fn(async () => '2027-03-15');
+    for (const [label, want] of [
+      ['start date', '2027-04-22'],
+      ['startAt', '2027-04-23'],
+    ] as const) {
+      const out = await modelEngine(async () => ({ generate, release: async () => undefined }))({
+        fields: [START],
+        pages: [pageOf([noise, `${label}: ${want.slice(8)}/04/2027`])],
+        locale: 'en',
+        now,
+        picks: { start: pick },
+      });
+      expect(out.start?.[0]?.value).toBe(want);
+    }
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it('不看位置：学过的标签换到页面别的高度也排第一', async () => {
+    const pick = await tap(['start date: 20/02/2027', noise], '2027-02-20');
+    const out = await modelEngine(noModel)({
+      fields: [START],
+      pages: [pageOf([noise, 'a', 'b', 'c', 'd', 'e', 'f', 'start date: 22/04/2027'])],
+      locale: 'en',
+      now,
+      picks: { start: pick },
+    });
+    expect(out.start?.[0]?.value).toBe('2027-04-22');
+  });
+
+  it('用户在标签命中时点了别的值：这个标签不再排第一', async () => {
+    let pick = await tap(['Date: 20/02/2027', noise], '2027-02-20');
+    pick = await tap(['Date: 22/04/2027', 'period from: 23/04/2027'], '2027-04-23', pick);
+    const { generate, out } = await (async () => {
+      const generate = vi.fn(async () => '2027-06-25');
+      const out = await modelEngine(async () => ({ generate, release: async () => undefined }))({
+        fields: [START],
+        pages: [pageOf(['Date: 24/05/2027', 'other: 25/06/2027'])],
+        locale: 'en',
+        now,
+        picks: { start: pick },
+      });
+      return { generate, out };
+    })();
+    expect(generate).toHaveBeenCalled();
+    expect(out.start?.[0]?.value).toBe('2027-06-25');
+    expect(pick.labels?.find((l) => l.label === 'date')?.rejected).toBe(true);
+  });
+
+  it('同一个标签可以属于两个字段', async () => {
+    const rent: Field = { id: 'rent', name: '月租', type: 'money', currency: 'EUR' };
+    const deposit: Field = { id: 'deposit', name: '押金', type: 'money', currency: 'EUR' };
+    const rows = ['loyer mensuel: 950.00 €'];
+    const a = await tap(rows, '950.00', undefined, rent);
+    const b = await tap(rows, '950.00', undefined, deposit);
+    const out = await modelEngine(noModel)({
+      fields: [rent, deposit],
+      pages: [pageOf(['loyer mensuel: 800.00 €', 'Printed: 12.00 €'])],
+      locale: 'fr',
+      picks: { rent: a, deposit: b },
+    });
+    expect(Number(out.rent?.[0]?.value)).toBe(800);
+    expect(Number(out.deposit?.[0]?.value)).toBe(800);
+  });
+
+  it('同一个标签后面有不同的值：不直接认', async () => {
+    const pick = await tap(['Total: 100.00 €'], '100.00', undefined, {
+      id: 'x',
+      name: '金额',
+      type: 'money',
+      currency: 'EUR',
+    });
+    const generate = vi.fn(async () => '110.00');
+    const out = await modelEngine(async () => ({ generate, release: async () => undefined }))({
+      fields: [{ id: 'x', name: '金额', type: 'money', currency: 'EUR' }],
+      pages: [pageOf(['Total: 100.00 €', 'Total: 110.00 €'])],
+      locale: 'en',
+      picks: { x: pick },
+    });
+    expect(generate).toHaveBeenCalled();
+    expect(Number(out.x?.[0]?.value)).toBe(110);
+  });
+
+  it('日月分不清的日期：先给这个标签上次点的读法', async () => {
+    const pick = await tap(['start date: 20/02/2027', noise], '2027-02-20');
+    const out = await modelEngine(noModel)({
+      fields: [START],
+      pages: [pageOf(['start date: 03/04/2027', noise])],
+      locale: 'en',
+      now,
+      picks: { start: pick },
+    });
+    expect(out.start?.[0]?.value).toBe('2027-04-03');
+    const us = await tap(['start date: 02/20/2027', noise], '2027-02-20');
+    const mdy = await modelEngine(noModel)({
+      fields: [START],
+      pages: [pageOf(['start date: 03/04/2027', noise])],
+      locale: 'en',
+      now,
+      picks: { start: us },
+    });
+    expect(mdy.start?.[0]?.value).toBe('2027-03-04');
+  });
+
+  it('学过的标签旁边是唯一的候选时还问模型：标签学错了，正确的值也点得到', async () => {
+    const generate = vi.fn(async () => '2027-03-10');
+    const out = await modelEngine(async () => ({ generate, release: async () => undefined }))({
+      fields: [START],
+      pages: [pageOf(['Kestrel Life: 25/02/2027', 'Effective 10/03/2027'])],
+      locale: 'en',
+      now,
+      picks: { start: { label: 'Kestrel Life', relY: 0.1 } },
+    });
+    expect(out.start?.map((s) => s.value)).toEqual(
+      expect.arrayContaining(['2027-02-25', '2027-03-10']),
+    );
+    expect(out.start?.[0]?.value).toBe('2027-02-25');
+  });
+
+  it('旧版只记一个标签的记忆也算学过', async () => {
+    const out = await modelEngine(noModel)({
+      fields: [START],
+      pages: [pageOf([noise, 'startAt: 22/04/2027'])],
+      locale: 'en',
+      now,
+      picks: { start: { label: 'startAt', relY: 0.9 } },
+    });
+    expect(out.start?.[0]?.value).toBe('2027-04-22');
+  });
+
+  it('收据和名片表还用测量过的规则，不按学过的标签排第一', async () => {
+    const generate = vi.fn(async () => 'null');
+    await modelEngine(async () => ({ generate, release: async () => undefined }))({
+      fields: [ASKED],
+      rules: 'receipt',
+      pages: [pageOf(['Vendor: ACME Trading'])],
+      locale: 'en',
+      picks: { merchant: { label: 'Vendor', relY: 0.1 } },
+    });
+    expect(generate).toHaveBeenCalled();
+  });
+
+  it('不存值：记忆里只有标签和位置', async () => {
+    const pick = await tap(['start date: 20/02/2027', noise], '2027-02-20');
+    expect(JSON.stringify(pick)).not.toContain('2027');
+  });
+
+  it('记忆最多留 20 个标签，新的留下', () => {
+    let pick: FieldPick | undefined;
+    for (let i = 0; i < 25; i++) {
+      const s = { value: 'v', score: 1, pick: { label: `label ${i}x`, relY: 0.5 } };
+      pick = rememberPick(pick, s, [s]);
+    }
+    expect(pick?.labels).toHaveLength(20);
+    expect(pick?.labels?.[0]?.label).toBe('label 24x');
   });
 });

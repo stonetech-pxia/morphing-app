@@ -36,10 +36,14 @@ export { knownValues, usesValueMemory } from './code-rules';
 export { MODEL_LIMITS, type ModelRequest, type ModelSession, type OpenModel } from './model';
 export { CONCEPTS, conceptOf, fieldTerms, type ConceptId, type ValueKind } from './concepts';
 export {
+  learnedLabels,
+  MAX_LEARNED_LABELS,
   MAX_SUGGESTIONS,
+  rememberPick,
   SUGGESTION_FLOOR,
   suggestValues,
   type FieldPick,
+  type LearnedLabel,
   type SuggestInput,
   type ValueSuggestion,
 } from './rank';

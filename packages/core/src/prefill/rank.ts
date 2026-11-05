@@ -1,6 +1,7 @@
 import { hasRecordCurrency } from '../money-currency';
 import type { Field, Locale } from '../schema';
 import { CONCEPTS, fieldTerms, type ConceptId, type ValueKind } from './concepts';
+import { fieldNameKey } from './field-names';
 import { looksTyped, pageOccurrences, type Occurrence, type TextPage } from './rows';
 import { ctx, receiptRules } from './doc-context';
 import {
@@ -34,12 +35,65 @@ import { charSim, norm, ratio } from './similarity';
 // 不用向量模型，全部在本机；识别出的文字、文件名和记录都不发给云端 AI。这里只有规则打分：
 // 算术、中文规则、值记忆在 code-rules.ts，本机模型（D-396）在 model.ts。
 
+/** 这个字段学过的一个标签（统一写法，见 fieldNameKey）。 */
+export interface LearnedLabel {
+  label: string;
+  /** 这个标签后面日月分不清的日期，用户点的是哪种读法。 */
+  order?: 'DMY' | 'MDY';
+  /** 这个标签出现时用户点了别的值：还留着，但不再排第一。 */
+  rejected?: true;
+}
+
 /** 用户点过的候选：这张表这个字段上次点的是哪个标签后面、页面上多高的值（不记值）。 */
 export interface FieldPick {
   label: string;
   relY: number;
   /** 日月分不清的日期，用户点的是哪种读法。 */
   order?: 'DMY' | 'MDY';
+  /** 这个字段学过的标签，最近点的在前。旧的记忆没有，那时算学过 label 一个。 */
+  labels?: readonly LearnedLabel[];
+}
+
+/** 每个字段最多记几个学过的标签：超出时丢掉最久没点的。 */
+export const MAX_LEARNED_LABELS = 20;
+
+/** 这个字段学过的标签，最近点的在前。 */
+export function learnedLabels(pick: FieldPick | undefined): readonly LearnedLabel[] {
+  if (!pick) return [];
+  if (pick.labels) return pick.labels;
+  const label = fieldNameKey(pick.label);
+  return label ? [{ label, ...(pick.order ? { order: pick.order } : {}) }] : [];
+}
+
+/**
+ * 用户点了一个候选以后的记忆：这一处的标签记到字段下面；当时排在前面、用户没点的学过的标签不再排第一。
+ * 这个值在文字里找不到位置（没有 pick）时不学新标签。什么都没变时给 undefined。
+ */
+export function rememberPick(
+  previous: FieldPick | undefined,
+  tapped: ValueSuggestion,
+  shown: readonly ValueSuggestion[],
+): FieldPick | undefined {
+  const keep = new Set(tapped.learned ?? []);
+  const passed = new Set(shown.flatMap((s) => s.learned ?? []).filter((l) => !keep.has(l)));
+  let labels = learnedLabels(previous).map((l) =>
+    passed.has(l.label) ? { ...l, rejected: true as const } : l,
+  );
+  const pick = tapped.pick;
+  if (!pick) return previous && passed.size > 0 ? { ...previous, labels } : undefined;
+  const label = fieldNameKey(pick.label);
+  if (label) {
+    const old = labels.find((l) => l.label === label);
+    labels = [
+      {
+        label,
+        ...(pick.order ? { order: pick.order } : {}),
+        ...(old?.rejected ? { rejected: true as const } : {}),
+      },
+      ...labels.filter((l) => l !== old),
+    ].slice(0, MAX_LEARNED_LABELS);
+  }
+  return { ...pick, labels };
 }
 
 export interface ValueSuggestion {
@@ -48,6 +102,8 @@ export interface ValueSuggestion {
   score: number;
   /** 点了以后记下来的（FieldPick）。这个值在文字里找不到位置时没有，点了也不记。 */
   pick?: FieldPick;
+  /** 这个值是靠哪些学过的标签排到前面的。 */
+  learned?: readonly string[];
 }
 
 export interface SuggestInput {

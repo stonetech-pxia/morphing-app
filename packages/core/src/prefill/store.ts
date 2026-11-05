@@ -1,17 +1,17 @@
 import { z } from 'zod';
 
 import type { LayoutMemory } from './memory';
-import type { FieldPick } from './rank';
+import { MAX_LEARNED_LABELS, type FieldPick } from './rank';
 
 // 版式记忆的存储、导出和恢复（D-244）：每张表一组版式，存在本机 app_meta 的一个键里。
 // 「设置 → 数据」能一键清空、导出成文件（也是备份），再从这个文件恢复。
 // 文件里是标签文字、位置、写法和商家名，没有金额和日期的值；读文件时逐项校验，坏的丢掉。
 // 第 2 版起还有新记录表单里点过的候选（D-394，另一个键 prefill:picks）：每张表每个字段一个
-// 标签和位置，同样不记值。
+// 标签和位置，同样不记值。第 3 版起每个字段还有学过的标签（只有标签文字），旧文件照常读。
 
 export const LAYOUT_STORE_KEY = 'prefill:layouts';
 export const LAYOUT_FILE_FORMAT = 'morph-prefill-memory';
-const FILE_VERSION = 2;
+const FILE_VERSION = 3;
 /** 每张表最多记几个版式：超出时丢掉最早学的。 */
 export const MAX_LAYOUTS_PER_TABLE = 50;
 
@@ -139,6 +139,16 @@ const PickSchema = z.strictObject({
   label: z.string().max(200),
   relY: z.number().min(0).max(1),
   order: z.enum(['DMY', 'MDY']).optional(),
+  labels: z
+    .array(
+      z.strictObject({
+        label: z.string().min(1).max(200),
+        order: z.enum(['DMY', 'MDY']).optional(),
+        rejected: z.literal(true).optional(),
+      }),
+    )
+    .max(MAX_LEARNED_LABELS)
+    .optional(),
 });
 
 /** 表 ID → 字段 ID → 上次点的候选在哪里。 */
