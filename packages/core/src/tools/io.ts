@@ -533,14 +533,23 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
     id: 'out.addRecord',
     label: { en: 'Add a record', zh: '记一笔', fr: 'Ajouter un enregistrement' },
     description: {
-      en: "Hand the files (or the text) to a new record in a data table: the files are saved in Tinkrum and go into the table's first attachment field (up to 20), text goes into its first long-text or text field, and the user checks the form and fills in the other fields (amount, category…) while the quick action runs; date fields start as today. The form reads the attachments on this device and suggests values by itself, so add no text-recognition step for that. The records stay on this device. The files are passed on unchanged.",
-      zh: '把文件（或这段文字）交给数据表的一条新记录：文件存进 Tinkrum，放进表里第一个附件字段（最多 20 个）；文字放进第一个长文本或文字字段；用户在运行时的表单里核对并填其他字段（金额、分类等），日期默认今天。表单会在本机读附件、自己给出候选，不用为此加识别文字的步骤。记录只留在本机。文件原样交给下一步。',
-      fr: 'Transmettez les fichiers (ou le texte) à une nouvelle entrée d’un tableau de données : les fichiers sont enregistrés dans Tinkrum et placés dans le premier champ pièce jointe du tableau (20 au maximum) ; le texte va dans le premier champ texte long ou texte ; vous vérifiez le formulaire et remplissez les autres champs (montant, catégorie…) pendant l’exécution de l’action rapide ; les champs de date commencent à aujourd’hui. Le formulaire lit les pièces jointes sur cet appareil et propose lui-même des valeurs : aucune étape de reconnaissance de texte n’est nécessaire pour cela. Les enregistrements restent sur cet appareil. Les fichiers sont transmis sans modification.',
+      en: "Hand the files (or the text) to a new record in a data table: the files are saved in Tinkrum and go into the table's first attachment field (up to 20), text goes into its first long-text or text field, and the user checks the form and fills in the other fields (amount, category…) while the quick action runs; date fields start as today. The form reads the attachments on this device and suggests values by itself, so add no text-recognition step for that. The records stay on this device. The files are passed on unchanged. With into “existing” it makes no new entry: when it runs the user picks an existing entry of the table, the files go after the files already in it (an entry holds at most 20), the text goes into the field when it is empty or on a new line after what is there, and the user checks the entry’s form and saves. Nothing already there is replaced or deleted.",
+      zh: '把文件（或这段文字）交给数据表的一条新记录：文件存进 Tinkrum，放进表里第一个附件字段（最多 20 个）；文字放进第一个长文本或文字字段；用户在运行时的表单里核对并填其他字段（金额、分类等），日期默认今天。表单会在本机读附件、自己给出候选，不用为此加识别文字的步骤。记录只留在本机。文件原样交给下一步。选 into 为 existing 时不新建：运行时由用户选这张表里已有的一条记录，文件接在它原来的附件后面（一条最多 20 个），文字在字段是空的时写进去、否则另起一行接在后面，用户在这条记录的表单里核对后保存；原来有的不替换、不删除。',
+      fr: 'Transmettez les fichiers (ou le texte) à une nouvelle entrée d’un tableau de données : les fichiers sont enregistrés dans Tinkrum et placés dans le premier champ pièce jointe du tableau (20 au maximum) ; le texte va dans le premier champ texte long ou texte ; vous vérifiez le formulaire et remplissez les autres champs (montant, catégorie…) pendant l’exécution de l’action rapide ; les champs de date commencent à aujourd’hui. Le formulaire lit les pièces jointes sur cet appareil et propose lui-même des valeurs : aucune étape de reconnaissance de texte n’est nécessaire pour cela. Les enregistrements restent sur cet appareil. Les fichiers sont transmis sans modification. Avec into « existing », aucune nouvelle entrée n’est créée : à l’exécution, l’utilisateur choisit une entrée existante du tableau, les fichiers s’ajoutent après ceux qu’elle contient déjà (20 au maximum), le texte va dans le champ s’il est vide ou sur une nouvelle ligne après le texte existant, et l’utilisateur vérifie le formulaire de l’entrée puis enregistre. Rien de ce qui s’y trouve déjà n’est remplacé ni supprimé.',
     },
-    ai: 'A button that scans into a table ("扫小票", "scan receipts into my expenses") → in.photos source "scanner", scan.detect, out.addRecord. The form reads the attachments on the device and suggests values by itself, so add no ocr step for that. All the files go into one record; each: true only when the user wants one record per file ("每张一条", "one entry per receipt").',
+    ai: 'A button that scans into a table ("扫小票", "scan receipts into my expenses") → in.photos source "scanner", scan.detect, out.addRecord. The form reads the attachments on the device and suggests values by itself, so add no ocr step for that. All the files go into one record; each: true only when the user wants one record per file ("每张一条", "one entry per receipt"). To put the result into an entry that is already there ("放进某条已有记录", "add it to an existing entry", "append to a record") set into: "existing": the user picks the entry when it runs; leave each out.',
     input: ['files', 'text'],
     output: 'same',
-    params: z.strictObject({ collectionId: IdSchema, each: z.boolean().optional() }),
+    params: z
+      .strictObject({
+        collectionId: IdSchema,
+        each: z.boolean().optional(),
+        /** 新建一条（不写就是这个），或放进运行时用户选的一条已有记录（D-443）。 */
+        into: z.enum(['new', 'existing']).optional(),
+      })
+      .refine((p) => !(p.into === 'existing' && p.each === true), {
+        message: 'each does not go with into "existing": all the files go into the one entry',
+      }),
     fields: [
       {
         key: 'collectionId',
@@ -556,6 +565,26 @@ export const IO_ACTIONS: readonly ActionDefinition[] = [
           fr: 'Une entrée par fichier',
         },
         kind: 'toggle',
+        ask: false,
+      },
+      {
+        key: 'into',
+        label: { en: 'Add to', zh: '放进', fr: 'Ajouter à' },
+        kind: 'choice',
+        options: [
+          {
+            value: 'new',
+            label: { en: 'A new entry', zh: '一条新记录', fr: 'Une nouvelle entrée' },
+          },
+          {
+            value: 'existing',
+            label: {
+              en: 'An existing entry (chosen when it runs)',
+              zh: '一条已有的记录（运行时选）',
+              fr: 'Une entrée existante (choisie à l’exécution)',
+            },
+          },
+        ],
         ask: false,
       },
     ],

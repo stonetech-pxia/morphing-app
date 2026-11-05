@@ -1,4 +1,4 @@
-import type { Collection, RunItem } from '@morph/core';
+import type { Collection, DataRecord, RunItem } from '@morph/core';
 import type { Quad } from '@morph/tool-image';
 
 import type { ImageAnnotation } from './annotations';
@@ -108,10 +108,20 @@ export interface LocalSteps {
       file?: RunItem;
       /** 文件超过一条记录能放的个数，多的没放进来（D-397）。 */
       overflow?: boolean;
+      /**
+       * 放进已有的记录（D-443）：表单是这条记录的，先是它现在的值，再套上 prefill（接在后面的文件和文字）；
+       * 存的时候改这一条，不新建。
+       */
+      existing?: DataRecord;
       index: number;
       total: number;
     };
     out: { values: Record<string, unknown> } | { skip: true };
+  };
+  /** 放进已有的记录（D-443）：从这张表现有的记录里选一条（只显示每条的标题）。取消返回 null。 */
+  recordPick: {
+    in: { collection: Collection; records: DataRecord[] };
+    out: { recordId: string };
   };
   /**
    * 去掉 PDF 密码（D-194）：输这个 PDF 的打开密码。wrong：上一次输的不对。返回密码，或跳过这一个。

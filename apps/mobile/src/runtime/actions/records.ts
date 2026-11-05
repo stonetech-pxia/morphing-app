@@ -3,9 +3,12 @@ import {
   RECORD_LIMITS,
   RunCancelled,
   RunError,
+  appendPrefill,
+  attachRoom,
   attachmentIds,
   isFileValue,
   prepareRecordValues,
+  recordTargets,
   type ActionImpl,
   type Collection,
   type RunItem,
@@ -21,23 +24,20 @@ import type { RunServices } from './helpers';
 
 type Impl = ActionImpl<RunServices>;
 
-/** 文件放进哪个字段、文字放进哪个字段：第一个附件字段；第一个长文本，没有就第一个文字字段。 */
-export function recordTargets(collection: Collection) {
-  return {
-    fileField: collection.fields.find((f) => f.type === 'file')?.id,
-    textField: (
-      collection.fields.find((f) => f.type === 'note') ??
-      collection.fields.find((f) => f.type === 'text')
-    )?.id,
-  };
-}
+// 文件放进哪个字段、文字放进哪个字段：core 的 recordTargets（放进已有记录时用同一份规则）。
+export { recordTargets };
 
 export const RECORD_IMPLS: Record<string, Impl> = {
   async 'out.addRecord'(input, params, ctx) {
-    const { collectionId, each } = params as { collectionId: string; each?: boolean };
+    const { collectionId, each, into } = params as {
+      collectionId: string;
+      each?: boolean;
+      into?: 'new' | 'existing';
+    };
     const { repo, ui, files, collections } = ctx.services;
     const collection = collections.find((c) => c.id === collectionId);
     if (!collection) throw new RunError('unexpected', { detail: `no data table ${collectionId}` });
+    if (into === 'existing') return addToExisting(input, collection, ctx);
     const { fileField, textField } = recordTargets(collection);
     const items = isFileValue(input) ? input.items : null;
     // 默认这次的文件都进同一条记录（一份两页的合同是一条，D-397）；每个文件一条要写 each。
@@ -108,3 +108,82 @@ export const RECORD_IMPLS: Record<string, Impl> = {
       : input!;
   },
 };
+
+/**
+ * 放进已有的记录（D-443）：用户在运行时选这张表里的一条记录，文件接在它的附件后面、文字接在它的文字后面，
+ * 表单里核对并保存才写进去。只追加：原来的文件和文字一个都不替换、不删除（用户自己在表单里改是用户的事）。
+ * 这一步新存的文件是这张表单的副本：没写进记录的（取消、记录已经没了、写入失败）都删掉，之前步骤存好的不归它。
+ */
+async function addToExisting(
+  input: Parameters<Impl>[0],
+  collection: Collection,
+  ctx: Parameters<Impl>[2],
+) {
+  const { repo, ui, files, calendar } = ctx.services;
+  const { fileField, textField } = recordTargets(collection);
+  const items = isFileValue(input) ? input.items : null;
+  const text = input?.type === 'text' ? input.text : null;
+  // 放不进去的（表里没有对应的字段）配置检查就不让存；这里是表在运行中变了。
+  if ((items !== null && fileField === undefined) || (text !== null && textField === undefined))
+    throw new RunError('unexpected', { detail: `no place in ${collection.id}` });
+  ctx.throwIfCancelled();
+  const all = await repo.listRecords(collection.id);
+  if (all.length === 0) throw new RunError('notFound', { name: collection.name });
+  const picked = await ui.open('recordPick', { collection, records: all });
+  if (!picked) throw new RunCancelled();
+  ctx.throwIfCancelled();
+  const record = await repo.getRecord(picked.recordId);
+  if (!record || record.deletedAt !== null)
+    throw new RunError('notFound', { name: collection.name });
+
+  // 附件放得下几个：满了就不运行，不要先把文件存下来又删掉。
+  let toAdd: RunItem[] = [];
+  if (items !== null) {
+    const room = attachRoom(collection, record.values);
+    if (room === 0) throw new RunError('recordFull', { max: MAX_ATTACHMENTS });
+    toAdd = items.slice(0, room);
+  }
+  const saved = items !== null ? await saveItems(ctx.services, toAdd, ctx) : [];
+  const unused = new Set(saved.filter((_, n) => !toAdd[n]!.assetId).map((file) => file.assetId!));
+  try {
+    const prefill = appendPrefill(collection, record.values, {
+      ...(items !== null ? { fileIds: saved.map((f) => f.assetId!) } : {}),
+      ...(text !== null ? { text } : {}),
+    });
+    const answer = await ui.open('recordEntry', {
+      collection,
+      prefill,
+      existing: record,
+      ...(items !== null && items.length > toAdd.length ? { overflow: true } : {}),
+      index: 0,
+      total: 1,
+    });
+    if (!answer || 'skip' in answer) throw new RunCancelled();
+    // 表单开着的时候这条记录可能被删了：什么都不写。
+    const fresh = await repo.getRecord(record.id);
+    if (!fresh || fresh.deletedAt !== null)
+      throw new RunError('notFound', { name: collection.name });
+    const now = ctx.now();
+    const prepared = prepareRecordValues(
+      collection,
+      { ...answer.values },
+      fresh.values,
+      now,
+      calendar,
+    );
+    if (!prepared.ok) throw new RunError('badField', { name: prepared.issues[0]!.fieldId });
+    await repo.updateRecord(record.id, prepared.values, now.getTime());
+    const used = fileField ? attachmentIds(prepared.values[fileField]) : [];
+    for (const file of saved) {
+      if (!file.assetId || !used.includes(file.assetId)) continue;
+      unused.delete(file.assetId);
+      ctx.saved.push(file.assetId);
+    }
+  } finally {
+    await deleteUserFiles([...unused], repo, files);
+  }
+  // 文件原样交给下一步（用保存好的那一份，和新建一样）。
+  if (items === null) return input!;
+  const stored = new Map(toAdd.map((item, n) => [item, saved[n]!] as const));
+  return { ...(input as object), items: items.map((item) => stored.get(item) ?? item) } as never;
+}

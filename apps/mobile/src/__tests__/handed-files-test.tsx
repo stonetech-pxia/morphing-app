@@ -110,6 +110,10 @@ async function start(
   return { repo, files };
 }
 
+/** 往首页最前面放一个块（测试里的块不走类型检查，配置检查会查）。 */
+const addBlock = (block: object): Op =>
+  ({ op: 'addContainer', page: 'home', index: 0, block }) as unknown as Op;
+
 const entry = (recordId: string) =>
   ({ pathname: '/record/[collectionId]', params: { collectionId: 'docs', recordId } }) as const;
 const page = (pageId: string) => ({ pathname: '/page/[pageId]', params: { pageId } }) as const;
@@ -140,18 +144,13 @@ describe('new user, no data', () => {
       [],
       [],
       [
-        {
-          op: 'addContainer',
-          page: 'home',
-          index: 0,
-          block: {
-            id: 'docs-list',
-            look: 'list',
-            source: { table: 'docs' },
-            show: { title: 'title' },
-            tools: [{ as: 'list', tool: 'share-all' }],
-          },
-        },
+        addBlock({
+          id: 'docs-list',
+          look: 'list',
+          source: { table: 'docs' },
+          show: { title: 'title' },
+          tools: [{ as: 'list', tool: 'share-all' }],
+        }),
       ],
       page('home'),
     );
@@ -291,18 +290,14 @@ describe('edge cases', () => {
 });
 
 describe('lists and single blocks', () => {
-  const listBlock = (tool: object, id = 'docs-list') => ({
-    op: 'addContainer' as const,
-    page: 'home',
-    index: 0,
-    block: {
+  const listBlock = (tool: object, id = 'docs-list') =>
+    addBlock({
       id,
       look: 'list',
       source: { table: 'docs' },
       show: { title: 'title' },
       tools: [tool],
-    },
-  });
+    });
 
   it('the list hands over the attachments of everything it shows', async () => {
     const { files } = await start(
@@ -344,18 +339,13 @@ describe('lists and single blocks', () => {
       [{ id: 'r1', values: { title: 'A', scan: ['a1', 'a2'] } }],
       [jpg, pdf],
       [
-        {
-          op: 'addContainer',
-          page: 'home',
-          index: 0,
-          block: {
-            id: 'one',
-            look: 'single',
-            source: { table: 'docs' },
-            show: { fields: ['title'] },
-            tools: [{ tool: 'share-all' }],
-          },
-        },
+        addBlock({
+          id: 'one',
+          look: 'single',
+          source: { table: 'docs' },
+          show: { fields: ['title'] },
+          tools: [{ tool: 'share-all' }],
+        }),
       ],
       page('home'),
     );

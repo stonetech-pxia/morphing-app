@@ -1928,6 +1928,61 @@ describe('底线 4 / 17 / 18：容器把附件交给工具（D-442）', () => {
   });
 });
 
+describe('底线 3 / 5 / 14 / 18：记一笔放进已有记录（D-443）', () => {
+  const addRecord = registry.actions.get('out.addRecord')!;
+  const own = (params: Record<string, unknown>): Workflow => ({
+    id: 'to-existing',
+    kind: 'quickAction',
+    name: 'To existing',
+    steps: [
+      { id: 'a', action: 'in.photos', params: initialParams(registry.actions.get('in.photos')!) },
+      { id: 'b', action: 'out.addRecord', params },
+    ],
+  });
+
+  it('the AI only says which table and that it is an existing entry: the entry and the files are chosen by the user when it runs', () => {
+    // 能写的只有表、每个文件一条、into；写不了哪一条记录、哪个文件（也看不到）。
+    for (const extra of [{ recordId: 'r1' }, { assetId: 'a1' }, { fileId: 'a1' }, { values: {} }])
+      expect(
+        addRecord.params.safeParse({ collectionId: 'contacts', into: 'existing', ...extra })
+          .success,
+      ).toBe(false);
+    expect(addRecord.params.safeParse({ collectionId: 'contacts', into: 'existing' }).success).toBe(
+      true,
+    );
+    expect(addRecord.params.safeParse({ collectionId: 'contacts', into: 'a1' }).success).toBe(
+      false,
+    );
+  });
+
+  it('a quick action that adds to an existing entry is accepted, and it is removed with its table like the others', () => {
+    const wf = own({ collectionId: 'contacts', into: 'existing' });
+    const added = prepareOps(cardsSample(), [{ op: 'addTool', tool: wf }] as Op[], ctx);
+    expect(added.ok ? [] : added.issues).toEqual([]);
+    if (!added.ok) return;
+    expect(danglingRefs(added.after)).toEqual([]);
+    // 删掉它写的表：这一步（所以整个快捷操作）一起清理，不留指向不存在的表的引用。
+    const gone = prepareOps(added.after, [{ op: 'removeData', table: 'contacts' }], ctx);
+    expect(gone.ok ? [] : gone.issues).toEqual([]);
+    if (gone.ok) expect(danglingRefs(gone.after)).toEqual([]);
+  });
+
+  it('the table needs a place for what is added, the same as for a new entry', () => {
+    const noFileField = prepareOps(
+      cardsSample(),
+      [
+        {
+          op: 'addData',
+          table: { id: 'plain', name: 'Plain', fields: [{ id: 'n', name: 'N', type: 'text' }] },
+        },
+        { op: 'addTool', tool: own({ collectionId: 'plain', into: 'existing' }) },
+      ] as Op[],
+      ctx,
+    );
+    expect(noFileField.ok).toBe(false);
+  });
+});
+
 describe('底线 18：容器上的工具的引用（D-428）', () => {
   const tableOf = (config: WorkspaceConfig, id: string) =>
     config.data.tables.find((t) => t.id === id)!;

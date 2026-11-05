@@ -9,6 +9,7 @@ import { FillFormScreen } from './FillFormScreen';
 import { PagesScreen } from './PagesScreen';
 import { PasswordScreen } from './PasswordScreen';
 import { RecordEntryScreen } from './RecordEntryScreen';
+import { RecordPickScreen } from './RecordPickScreen';
 import { RecordScreen } from './RecordScreen';
 import { RedactScreen } from './RedactScreen';
 import { ReorderScreen } from './ReorderScreen';
@@ -30,5 +31,6 @@ export const LOCAL_SCREENS: { [K in LocalKind]?: ComponentType<LocalScreenProps<
   frameMedia: FrameScreen,
   record: RecordScreen,
   recordEntry: RecordEntryScreen,
+  recordPick: RecordPickScreen,
   password: PasswordScreen,
 };

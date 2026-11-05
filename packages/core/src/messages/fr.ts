@@ -239,6 +239,7 @@ export const fr: MessageTable = {
   runError_badLink:
     'Ce n’est ni un numéro, ni une adresse e-mail, ni une adresse web que l’on peut ouvrir.',
   runError_noFiles: 'Aucun fichier utilisable ici.',
+  runError_recordFull: 'Cette entrée contient déjà le maximum de fichiers ({max}).',
   runError_noRecords: 'Aucune entrée dans « {name} » pour cette période.',
   runError_doesNotFit:
     '« {name} » ne rentre pas sur ce papier. Utilisez d’abord l’étape « Photo d’identité » pour le recadrer au format.',
@@ -1303,6 +1304,9 @@ export const fr: MessageTable = {
   similarRecordMany: 'Cette entrée ressemble à « {title} » et à {n} autres, déjà dans {table}.',
   similarRecordBack: 'Retour au formulaire',
   similarRecordSave: 'Enregistrer quand même',
+  recordPickChoose: 'Ajouter à cette entrée',
+  recordPickSearch: 'Rechercher une entrée',
+  recordPickNone: 'Aucune entrée ne correspond.',
   html_Total_08322: 'Total',
   pdf_merged_19094: '{sourceName}-fusionné',
   pdf_COPY_3fef3: 'COPIE',
