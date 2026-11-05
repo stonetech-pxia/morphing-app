@@ -20,16 +20,15 @@ import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { useGuide } from './store';
 import { WelcomeArt, type WelcomeArtKind } from './WelcomeArt';
 
-const PAGES: { art: WelcomeArtKind; text: StringKey }[] = [
-  { art: 'app', text: 'guideIntro1' },
-  { art: 'style', text: 'guideIntro2' },
-  { art: 'quick', text: 'guideIntro3' },
-  { art: 'try', text: 'guideIntro4' },
+const PAGES: { art: WelcomeArtKind; text: StringKey; sub?: StringKey }[] = [
+  { art: 'scan', text: 'guideIntro1', sub: 'guideIntro1Sub' },
+  { art: 'records', text: 'guideIntro2' },
+  { art: 'style', text: 'guideIntro3' },
 ];
 
 /**
- * 划屏介绍（D-149）：四页，每页一张图配一句话（属于你的 App、改风格前后、快捷操作把几步变一步、
- * 邀请动手）；可以跳过。看完或跳过都进入首页的第 1 步，惊喜留给用户自己动手。
+ * 划屏介绍（D-149）：三页，每页一张图配一句话（扫描纸质文件变成 PDF、Word、Excel，免费、只在本机处理；文件存进各自的记录、
+ * 一句话让 Tink 改风格和界面）；可以跳过。看完或跳过都进入首页的第 1 步，惊喜留给用户自己动手。
  */
 export function WelcomeScreen() {
   const { locale } = useWorkspaceContext();
@@ -91,18 +90,19 @@ export function WelcomeScreen() {
               ]}>
               {t(locale, page.text)}
             </Text>
+            {page.sub ? (
+              <Text
+                style={[
+                  palette.font('body', 15),
+                  styles.center,
+                  { color: palette.muted, marginTop: -20, lineHeight: 22 },
+                ]}>
+                {t(locale, page.sub)}
+              </Text>
+            ) : null}
           </View>
         ))}
       </ScrollView>
-      <Text
-        testID="welcome-trust"
-        style={[
-          palette.font('body', 12),
-          styles.center,
-          { color: palette.muted, marginHorizontal: 24, marginBottom: 16 },
-        ]}>
-        {t(locale, 'trustNote')}
-      </Text>
       <View style={styles.dots}>
         {PAGES.map((page, i) => (
           <View
