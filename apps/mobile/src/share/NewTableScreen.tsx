@@ -157,7 +157,14 @@ export function NewTableScreen() {
   const names = useMemo(() => extractFieldNames(pages), [pages]);
   const rows = useMemo(() => originalRows(pages), [pages]);
   const offered = names.filter((n) => !draftHasField(draft, n));
-  const existing = recommended ? templateTableOf(recommended, config) : undefined;
+  // 推荐购物凭证时，已经有带收据规则的表（例如样板「收据」，D-421）就放进那张，不再建第二张（D-476）。
+  const receiptTable = config.data.tables.find(
+    (c) => c.prefillRules === 'receipt' && c.fields.some((f) => f.type === 'file'),
+  )?.id;
+  const existing = recommended
+    ? (templateTableOf(recommended, config) ??
+      (recommended === 'purchase' ? receiptTable : undefined))
+    : undefined;
   const open = (p: NewTablePreset) => templateTableOf(p, config) === undefined;
 
   const text = [palette.font('body', 14), { color: palette.text }];

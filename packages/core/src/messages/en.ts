@@ -1696,6 +1696,7 @@ export const en = {
   shareRecordAbout: 'Put the files in a table and fill in the rest yourself',
   shareRecordChoose: 'Choose',
   shareRecordHide: 'Hide',
+  shareRecordLooksLikeReceipt: 'Looks like a receipt, suggested',
   shareRecordTables: 'Your tables',
   shareRecordNew: 'New form',
   shareRecordNewAbout: 'Build a table from this file. It is created when you save.',

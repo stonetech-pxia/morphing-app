@@ -1768,6 +1768,7 @@ export const fr: MessageTable = {
   shareRecordAbout: 'Rangez les fichiers dans un tableau et remplissez le reste vous-même',
   shareRecordChoose: 'Choisir',
   shareRecordHide: 'Masquer',
+  shareRecordLooksLikeReceipt: 'On dirait un reçu, conseillé',
   shareRecordTables: 'Vos tableaux',
   shareRecordNew: 'Nouveau formulaire',
   shareRecordNewAbout: 'Crée un tableau à partir de ce fichier, à l’enregistrement.',

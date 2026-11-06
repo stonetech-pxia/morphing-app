@@ -419,6 +419,7 @@ export function FilePreviewScreen({ index }: { index?: number }) {
                 <Card palette={palette}>
                   <RecordChooser
                     count={share.files.length}
+                    files={share.files}
                     placing={record.placing}
                     palette={palette}
                     locale={locale}

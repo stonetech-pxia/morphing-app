@@ -1609,6 +1609,7 @@ export const zh: MessageTable = {
   shareRecordChoose: '选择',
   shareRecordHide: '收起',
   shareRecordTables: '你的表',
+  shareRecordLooksLikeReceipt: '看起来是收据，推荐放这里',
   shareRecordNew: '新建表单',
   shareRecordNewAbout: '按这个文件搭一张表，保存时才建好。',
   newTableTitle: '新建表单',

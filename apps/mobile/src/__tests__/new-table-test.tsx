@@ -1,4 +1,13 @@
-import { packById } from '@morph/core';
+import {
+  applyOps,
+  BUILTIN_TOOLS,
+  createDefaultWorkspace,
+  createRegistry,
+  packById,
+  type Locale,
+  type Registry,
+  type WorkspaceConfig,
+} from '@morph/core';
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
@@ -49,14 +58,18 @@ const POLICY: RecognizedLayer = {
 
 const NO_PAGES: string[] = [];
 
-async function setup(installed: string[]) {
+async function setup(
+  installed: string[],
+  seed?: (locale: Locale, registry: Registry) => WorkspaceConfig,
+  layers: RecognizedLayer[] = [POLICY],
+) {
   const repo = new MemoryWorkspaceRepo();
   await repo.setMeta('guide', 'done');
   await act(() => useGuide.getState().load(repo));
   const files = new FakeFiles();
   const vision = new FakeVision(files);
   vision.ocrModel = { pack: 'ppocr', languages: ['zh', 'ja', 'en', 'fr', 'de', 'es', 'pt', 'it'] };
-  vision.layers = [POLICY];
+  vision.layers = layers;
   files.vision = vision;
   const fs = new MemoryPackFs();
   const store = new PackStore(fs, sha256);
@@ -70,6 +83,7 @@ async function setup(installed: string[]) {
   const app = await renderToolsApp(repo, files, {
     packs: { store, bridge } as Packs,
     locale: 'en',
+    ...(seed ? { seed } : {}),
   });
   const picked = files.offer('policy.jpg', TINY_JPEG, 'image/jpeg');
   await act(async () => useIncoming.getState().receive([picked], [], 'picker'));
@@ -111,6 +125,45 @@ describe('新建表单页', () => {
     expect(store.getState().config!.data.tables).toEqual([]);
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+
+  it('已经有带收据规则的表（样板「收据」）：有合计金额的文件推荐放进去，不建第二张（D-476）', async () => {
+    const withReceipts = (locale: Locale, registry: Registry) => {
+      const r = applyOps(
+        createDefaultWorkspace(locale),
+        [
+          {
+            op: 'addData',
+            table: {
+              id: 'receipts',
+              name: 'Receipts sample',
+              prefillRules: 'receipt',
+              fields: [
+                { id: 'merchant', name: 'Merchant', type: 'text' },
+                { id: 'photo', name: 'Photo', type: 'file' },
+              ],
+            },
+          },
+        ],
+        { registry, locale },
+      );
+      if (!r.ok) throw new Error(r.error);
+      return r.config;
+    };
+    const lines = ['Maple Corner', 'Subtotal 165.03', 'Tax 13.20', 'Total 178.23'].map(
+      (text, i) => ({
+        text,
+        x: 20,
+        y: 20 + i * 40,
+        width: 200,
+        height: 20,
+      }),
+    );
+    // 没有本机模型：规则认出是收据。
+    await setup(['ppocr'], withReceipts, [{ width: 600, height: 300, lines }]);
+    expect(await screen.findByTestId('new-table-use-existing')).toBeTruthy();
+    expect(screen.getByText('You already have “Receipts sample”. Put it there')).toBeTruthy();
+    expect(screen.queryByTestId('new-table-recommend')).toBeNull();
   });
 
   it('模型说都不是：没有推荐，字段名照样能点', async () => {

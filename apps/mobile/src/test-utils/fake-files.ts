@@ -1313,7 +1313,14 @@ export class FakeVision implements VisionPlatform {
   async recognizeLines(uri: string, languages: readonly string[], pixels?: Pixels) {
     this.calls.push({ method: 'recognizeLines', uri, args: languages });
     this.linePixels.push(pixels);
-    const next = this.layers.shift() ?? { width: 100, height: 100, lines: [] };
+    // 存记录面板里「像不像收据」的读取（D-476）读的是同一张图，真实的识别可以重复：只看队头，不取走，
+    // 留给后面表单里的那一次读。
+    const hint = /\/receipt-like-/.test(uri);
+    const next = (hint ? this.layers[0] : this.layers.shift()) ?? {
+      width: 100,
+      height: 100,
+      lines: [],
+    };
     if (next instanceof Error) throw next;
     return next;
   }

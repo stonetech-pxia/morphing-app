@@ -110,6 +110,44 @@ describe('recordChoices', () => {
   });
 });
 
+describe('recordChoices：像收据的文件，推荐带收据规则的表', () => {
+  const config = () => {
+    const base = seeded('zh', createRegistry(BUILTIN_TOOLS));
+    const next = applyOps(
+      base,
+      [
+        {
+          op: 'addData',
+          table: {
+            id: 'bills',
+            name: '收据（样板）',
+            prefillRules: 'receipt',
+            fields: [
+              { id: 'merchant', name: '商家', type: 'text' },
+              { id: 'photo', name: '照片', type: 'file' },
+            ],
+          },
+        },
+      ],
+      { registry: createRegistry(BUILTIN_TOOLS), locale: 'zh' },
+    );
+    if (!next.ok) throw new Error(next.error);
+    return next.config;
+  };
+  it('像收据：带收据规则的表排第一并标推荐，别的表照旧在后面', () => {
+    expect(recordChoices(config(), true)).toEqual([
+      { kind: 'table', tableId: 'bills', name: '收据（样板）', recommended: true },
+      { kind: 'table', tableId: 'receipts', name: '收据' },
+    ]);
+  });
+  it('不像收据，或者没有带收据规则的表：不推荐、顺序不变', () => {
+    expect(recordChoices(config()).map((c) => c.tableId)).toEqual(['receipts', 'bills']);
+    expect(recordChoices(seeded('zh', createRegistry(BUILTIN_TOOLS)), true)).toEqual([
+      { kind: 'table', tableId: 'receipts', name: '收据' },
+    ]);
+  });
+});
+
 describe('预览页和收件页面 → 存成记录', () => {
   it('新用户：选「新建表单」，选预设，点「记下」才建表，只存一条记录', async () => {
     const { files, repo, store } = await render();

@@ -9,6 +9,7 @@ import type { Palette } from '../renderer/theme';
 import { copyUserFiles } from '../renderer/slot-file';
 import { recordTargets } from '../runtime/actions/records';
 import type { PickedFile } from '../runtime/platform';
+import { useReceiptLike } from './receipt-like';
 import { deleteUserFiles } from '../storage/user-files';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { holdFormCopies, recordChoices, type RecordChoice } from './save-as-record';
@@ -85,12 +86,15 @@ export function useSaveAsRecord(picked: readonly PickedFile[], onDone: () => voi
 /** 存成记录的列表：「新建表单」在最前（表多了不用滚动），再是有附件字段的表。 */
 export function RecordChooser({
   count,
+  files,
   placing,
   palette,
   locale,
   onChoose,
 }: {
   count: number;
+  /** 收到的文件：在本机读文字，像收据时推荐带收据规则的表（D-476）。 */
+  files: readonly PickedFile[];
   placing: boolean;
   palette: Palette;
   locale: Locale;
@@ -98,7 +102,10 @@ export function RecordChooser({
 }) {
   const config = useWorkspace((s) => s.config)!;
   const caption = [palette.font('body', 13), { color: palette.muted }];
-  const tables = recordChoices(config);
+  const hasReceiptTable = recordChoices(config).some(
+    (c) => config.data.tables.find((x) => x.id === c.tableId)?.prefillRules === 'receipt',
+  );
+  const tables = recordChoices(config, useReceiptLike(files, hasReceiptTable));
   const row = (id: string, name: string, about: string | null, choice: RecordChoice | null) => (
     <Pressable
       key={id}
@@ -129,7 +136,14 @@ export function RecordChooser({
           {t(locale, 'shareRecordTables')}
         </Text>
       ) : null}
-      {tables.map((c) => row(`share-record-table-${c.tableId}`, c.name, null, c))}
+      {tables.map((c) =>
+        row(
+          `share-record-table-${c.tableId}`,
+          c.name,
+          c.recommended ? t(locale, 'shareRecordLooksLikeReceipt') : null,
+          c,
+        ),
+      )}
     </View>
   );
 }
