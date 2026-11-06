@@ -131,6 +131,11 @@ export class MemoryWorkspaceRepo implements WorkspaceRepo {
     return [...this.assets].reverse();
   }
 
+  async renameAsset(id: string, name: string) {
+    const asset = this.assets.find((a) => a.id === id);
+    if (asset) asset.name = name;
+  }
+
   async deleteAsset(id: string) {
     this.assets = this.assets.filter((a) => a.id !== id);
     for (const key of [...this.grants]) if (key.endsWith(`/${id}`)) this.grants.delete(key);

@@ -175,6 +175,7 @@ const UI_SYMBOLS = {
   mail: { ios: 'envelope.fill', android: 'mail' },
   globe: { ios: 'globe', android: 'language' },
   share: { ios: 'square.and.arrow.up', android: 'share' },
+  trash: { ios: 'trash', android: 'delete' },
 } satisfies Record<string, SymbolName>;
 
 export type UiIconName = keyof typeof UI_SYMBOLS;

@@ -129,6 +129,8 @@ export interface WorkspaceRepo {
    * 磁盘上的文件由 FilePlatform.removeAssetFile 删（storage/user-files.ts 的 deleteUserFiles 两步一起做）。
    */
   deleteAsset(id: string): Promise<void>;
+  /** 改用户看到的文件名（全部文件页面的「重命名」）：磁盘上的文件和旁边的缩略图、中间格式不动。 */
+  renameAsset(id: string, name: string): Promise<void>;
 
   /** AssetGrant（§7G）：工具只能读取授权给它的文件。 */
   grantAsset(toolId: string, assetId: string): Promise<void>;

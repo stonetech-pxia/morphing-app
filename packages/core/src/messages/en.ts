@@ -206,6 +206,19 @@ export const en = {
   filesKindAudio: 'Audio',
   filesKindOther: 'Other',
   filesNoMatch: 'No matching files',
+  filesSelect: 'Select “{name}”',
+  filesSelected: '{n} selected',
+  filesClearSelection: 'Clear selection',
+  filesRename: 'Rename',
+  filesRenamePlaceholder: 'File name',
+  filesMerge: 'Merge',
+  filesShare: 'Share',
+  filesDelete: 'Delete',
+  filesMergedName: '{name} (merged)',
+  filesDeleteTitle: 'Delete {n} files?',
+  filesDeleteMessage: 'This can’t be undone.',
+  filesDeleteUsed:
+    '{n} of them are used in entries or pages and will no longer show there. This can’t be undone.',
   run: 'Start',
   runAgain: 'Run again',
   running: 'Step {n}: {step}',
@@ -1852,6 +1865,10 @@ export const enSingular = {
   reportAttachmentsUnreadable: '{n} attachment could not be read and is left out. From: {titles}.',
   similarRecordMany: 'This looks like “{title}” and {n} more, already in {table}.',
   shareRecordTooMany: 'An entry holds at most {n} file: only the first one goes in.',
+  filesSelected: '{n} selected',
+  filesDeleteTitle: 'Delete this file?',
+  filesDeleteUsed:
+    '{n} of them is used in an entry or a page and will no longer show there. This can’t be undone.',
 } satisfies Partial<MessageTable>;
 
 /** 单数表：键必须和 enSingular 完全一致。 */

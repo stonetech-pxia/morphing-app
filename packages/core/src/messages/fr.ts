@@ -221,6 +221,19 @@ export const fr: MessageTable = {
   filesKindAudio: 'Audio',
   filesKindOther: 'Autres',
   filesNoMatch: 'Aucun fichier correspondant',
+  filesSelect: 'Sélectionner « {name} »',
+  filesSelected: '{n} sélectionnés',
+  filesClearSelection: 'Tout désélectionner',
+  filesRename: 'Renommer',
+  filesRenamePlaceholder: 'Nom du fichier',
+  filesMerge: 'Fusionner',
+  filesShare: 'Partager',
+  filesDelete: 'Supprimer',
+  filesMergedName: '{name} (fusionné)',
+  filesDeleteTitle: 'Supprimer {n} fichiers ?',
+  filesDeleteMessage: 'Cette action est irréversible.',
+  filesDeleteUsed:
+    '{n} d’entre eux sont utilisés dans des entrées ou des pages et n’y apparaîtront plus. Cette action est irréversible.',
   run: 'Démarrer',
   runAgain: 'Relancer',
   running: 'Étape {n} : {step}',
@@ -1923,4 +1936,8 @@ export const frSingular: SingularTable = {
   reportAttachmentsUnreadable: '{n} pièce jointe illisible laissée de côté. Entrées : {titles}.',
   similarRecordMany: 'Cette entrée ressemble à « {title} » et à {n} autre, déjà dans {table}.',
   shareRecordTooMany: 'Une entrée contient au plus {n} fichier : seul le premier y va.',
+  filesSelected: '{n} sélectionné',
+  filesDeleteTitle: 'Supprimer ce fichier ?',
+  filesDeleteUsed:
+    '{n} d’entre eux est utilisé dans une entrée ou une page et n’y apparaîtra plus. Cette action est irréversible.',
 };
