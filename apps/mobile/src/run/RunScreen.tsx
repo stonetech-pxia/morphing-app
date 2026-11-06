@@ -45,6 +45,7 @@ import { AskPanel } from './AskPanel';
 import { ChainCard } from './ChainCard';
 import { HabitCard } from './HabitCard';
 import { LOCAL_SCREENS } from './local';
+import { canEditTable, canEditWord } from './office-items';
 import { ResultView } from './ResultView';
 
 /** 问话框淡出要多久（毫秒）。 */
@@ -332,6 +333,9 @@ export function RunScreen({
     !handed &&
     isFileValue(value) &&
     value.items.length === 1 &&
+    // 能在桌上改的 Excel、Word（带识别出的表格、文档）照旧停在结果页：预览页的「编辑」只复制文件，改不了。
+    !canEditTable(value.items[0]!) &&
+    !canEditWord(value.items[0]!) &&
     !workflow.steps.some((st) => st.action.startsWith('out.'));
 
   // 转 Word 进桌面、扫描、在收到的文件上运行的：运行时不摆出「快捷操作」的步骤列表，只说一句在做什么，做完

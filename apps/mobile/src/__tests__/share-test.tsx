@@ -20,7 +20,7 @@ import type { PickedFile } from '../runtime/platform';
 import { startRun } from '../runtime/runner';
 import { nativeCopies, normalizeShare, useIncoming } from '../share/incoming';
 import { MemoryWorkspaceRepo } from '../storage/memory';
-import { FakeFiles, TINY_JPEG, makePdf } from '../test-utils/fake-files';
+import { FakeFiles, FakeVision, TINY_JPEG, makePdf } from '../test-utils/fake-files';
 import { renderToolsApp } from '../test-utils/render-app';
 import type { WorkspaceStore } from '../workspace/store';
 
@@ -580,6 +580,25 @@ describe('share journeys (UI)', () => {
     );
     expect(await screen.findByTestId('run-result', {}, { timeout: 5000 })).toBeTruthy();
     expect(screen.queryByTestId('preview-bar')).toBeNull();
+  });
+
+  // 模拟器上发现（2026-11-06）：预览页的「编辑」只复制 xlsx，不带识别出的表格，桌上改不了。
+  it('an Excel result made from a shared photo stays on its result page, where it goes on the desk editable (D-457)', async () => {
+    const files = new FakeFiles();
+    const vision = new FakeVision(files);
+    // 识别出一行字：没有画线的表格也做成一张表（全部内容）。
+    vision.layers = [
+      { width: 100, height: 100, lines: [{ text: '品名', x: 10, y: 10, width: 40, height: 12 }] },
+    ];
+    files.vision = vision;
+    await renderToolsApp(undefined, files);
+    await share([files.offerShared('表格.jpg', TINY_JPEG, 'image/jpeg')]);
+    await fireEvent.press(await screen.findByTestId('preview-more'));
+    await fireEvent.press(await screen.findByTestId('share-run-image-table-excel'));
+    expect(await screen.findByTestId('result-desk', {}, { timeout: 5000 })).toBeTruthy();
+    expect(screen.queryByTestId('preview-bar')).toBeNull();
+    await fireEvent.press(screen.getByTestId('result-desk'));
+    expect(await screen.findByTestId('table-sheet', {}, { timeout: 5000 })).toBeTruthy();
   });
 
   it('the share panel shares, saves to a folder and prints; photos also save to the album (D-457)', async () => {

@@ -158,9 +158,14 @@ function PdfPages({
   useEffect(() => {
     if (!packs) return;
     let alive = true;
-    void packs.store.isInstalled('pdfview').then((ok) => alive && setInstalled(ok));
+    const check = () =>
+      void packs.store.isInstalled('pdfview').then((ok) => alive && setInstalled(ok));
+    check();
+    // 别处（例如文件处理包的框，D-456）装好了也要跟着变。
+    const stop = packs.store.subscribe(check);
     return () => {
       alive = false;
+      stop();
     };
   }, [packs]);
 

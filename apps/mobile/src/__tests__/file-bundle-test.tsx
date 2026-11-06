@@ -1,4 +1,4 @@
-import { packById, type PackNeed } from '@morph/core';
+import { packById, type PackManifest, type PackNeed } from '@morph/core';
 import { act, fireEvent, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
@@ -9,8 +9,8 @@ import type { Packs } from '../packs/PackHost';
 import { PackStore } from '../packs/store';
 import { useIncoming } from '../share/incoming';
 import { MemoryWorkspaceRepo } from '../storage/memory';
-import { FakeFiles, FakeVision, TINY_JPEG } from '../test-utils/fake-files';
-import { MemoryPackFs, sha256 } from '../test-utils/memory-packs';
+import { FakeFiles, FakeVision, TINY_JPEG, makePdf } from '../test-utils/fake-files';
+import { MemoryPackFs, sha256, text } from '../test-utils/memory-packs';
 import { renderToolsApp } from '../test-utils/render-app';
 
 // 文件处理包一次问完（D-456）：扫描完、分享或打开文件后问一次，一起下载；运行时不再为可选的弹框。
@@ -124,5 +124,41 @@ describe('the one-time prompt after opening a file (D-456)', () => {
     await act(() => router.push('/share'));
     expect(await screen.findByTestId('share-screen')).toBeTruthy();
     expect(screen.queryByTestId('pack-gate')).toBeNull();
+  });
+
+  // 模拟器上发现（2026-11-06）：在这个框里下载好「PDF 预览」后，预览页还说要下载，再点又问一次。
+  it('the PDF preview behind it starts showing pages once the bundle is downloaded', async () => {
+    const fs = new MemoryPackFs();
+    const lookup = new Map<string, PackManifest>();
+    for (const id of ['ppocr', 'pdfview']) {
+      const body = `${id} body`;
+      const url = `https://cdn/${id}.js`;
+      fs.net.set(url, text(body));
+      lookup.set(id, {
+        ...packById(id)!,
+        requires: [],
+        files: [{ path: `${id}.js`, url, size: body.length, sha256: await sha256(text(body)) }],
+      });
+    }
+    const store = new PackStore(fs, sha256, (id) => lookup.get(id));
+    const files = new FakeFiles();
+    const vision = new FakeVision(files);
+    vision.ocrModel = { pack: 'ppocr', languages: ['zh', 'en'] };
+    files.vision = vision;
+    const bridge = {
+      subscribe: () => () => undefined,
+      activePages: () => NO_PAGES,
+      close: () => undefined,
+      call: async () => ({ count: 1, pages: [{ index: 0, data: 'AAAA' }] }),
+    } as unknown as PackBridge;
+    await renderToolsApp(new MemoryWorkspaceRepo(), files, { packs: { store, bridge } as Packs });
+    const picked = files.offer('合同.pdf', await makePdf(1), 'application/pdf');
+    await act(async () => useIncoming.getState().receive([picked], [], 'picker'));
+    await act(() => router.push('/share'));
+    expect(await screen.findByTestId('desk-pdf-pack')).toBeTruthy();
+    await fireEvent.press(await screen.findByTestId('pack-download'));
+    await waitFor(() => expect(screen.queryByTestId('pack-gate')).toBeNull());
+    expect(await screen.findByTestId('desk-pdf-pages')).toBeTruthy();
+    expect(screen.queryByTestId('desk-pdf-pack')).toBeNull();
   });
 });

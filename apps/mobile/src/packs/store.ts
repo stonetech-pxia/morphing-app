@@ -71,6 +71,18 @@ export class PackStore {
     private readonly packsUrl?: string,
   ) {}
 
+  private readonly listeners = new Set<() => void>();
+
+  /** 装好或删掉一个扩展包时通知（页面上「要先下载」的提示跟着变，D-456）。返回取消订阅。 */
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => void this.listeners.delete(listener);
+  }
+
+  private changed() {
+    for (const listener of [...this.listeners]) listener();
+  }
+
   async isInstalled(id: string): Promise<boolean> {
     const pack = this.lookup(id);
     return pack ? this.fs.exists(`${dirOf(pack)}/ready.json`) : false;
@@ -149,6 +161,7 @@ export class PackStore {
       `${dir}/ready.json`,
       JSON.stringify({ id, version: pack.version, bytes: total, installedAt: this.now() }),
     );
+    this.changed();
   }
 
   /** 删除扩展包；删除文字识别包时一起删除各语言包（它们离开识别包用不了）。 */
@@ -158,6 +171,7 @@ export class PackStore {
       (this.lookup(d)?.requires ?? []).includes(id),
     );
     for (const d of dependents) await this.fs.remove(d);
+    this.changed();
   }
 
   /** 已安装扩展包里的一个文件。 */
