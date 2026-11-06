@@ -7,7 +7,12 @@ import { screen } from 'expo-router/testing-library';
 
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
-import { renderToolsApp, starterAfterGuide, openPick } from '../test-utils/render-app';
+import {
+  openPick,
+  renderToolsApp,
+  starterAfterGuide,
+  testRegistry,
+} from '../test-utils/render-app';
 
 // 新用户的空白首页（D-231）、工具箱（D-181、D-182）和首页文件入口。
 
@@ -95,5 +100,32 @@ describe('home file pickers', () => {
     // 不收的那一批，选择器的副本也删掉。
     expect([...files.disk.keys()].some((k) => k.startsWith('picker://'))).toBe(false);
     alert.mockRestore();
+  });
+});
+
+// 用户报告（2026-11-06 模拟器）：中文建的工作空间在设置里切到法文后，底栏、首页和工具箱还是中文。
+describe('starter texts follow the interface language', () => {
+  it('shows a Chinese starter workspace in French without writing the config', async () => {
+    const { store } = await renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), {
+      locale: 'fr',
+      seed: (_locale, registry) => starterAfterGuide('zh', registry),
+    });
+    await screen.findByTestId('nav-settings');
+    const before = JSON.stringify(store.getState().config);
+    const fr = starterAfterGuide('fr', testRegistry);
+    const frHome = fr.containers.pages.find((p) => p.id === 'home')!;
+    expect(screen.getByTestId('nav-page:home').props.accessibilityLabel).toBe(frHome.title);
+    expect(screen.queryByText('最近操作')).toBeNull();
+
+    await act(() => router.push('/page/toolbox'));
+    const frGroup = fr.containers.pages
+      .find((p) => p.id === 'toolbox')!
+      .blocks.find((b) => b.id === 'tools-media') as { show: { title: string } };
+    expect(await screen.findByText(frGroup.show.title.toUpperCase())).toBeTruthy();
+    expect(screen.queryByText('照片、视频和声音'.toUpperCase())).toBeNull();
+    const frImage = fr.containers.pages.find((p) => p.package === 'image')!.title;
+    expect(screen.getByTestId('toolgrid-image').props.accessibilityLabel).toBe(frImage);
+    // 只在显示时换：配置里还是建立时的中文。
+    expect(JSON.stringify(store.getState().config)).toBe(before);
   });
 });

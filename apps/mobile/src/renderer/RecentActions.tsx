@@ -1,4 +1,4 @@
-import { findWorkflowTarget, quickActionsOf, type Workflow } from '@morph/core';
+import { builtinText, findWorkflowTarget, quickActionsOf, type Workflow } from '@morph/core';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -37,7 +37,8 @@ export function RecentActions({ title, env }: { title: string | undefined; env: 
   const flows: Workflow[] = [];
   for (const id of ids) {
     const flow = findWorkflowTarget(quickActionsOf(env.config), id, locale);
-    if (flow && !flows.some((f) => f.id === flow.id)) flows.push(flow);
+    if (flow && !flows.some((f) => f.id === flow.id))
+      flows.push({ ...flow, name: builtinText(flow.name, locale, registry) });
     if (flows.length === MAX) break;
   }
   if (flows.length === 0) return null;

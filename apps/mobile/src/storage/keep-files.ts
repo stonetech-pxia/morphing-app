@@ -14,11 +14,18 @@ export async function keepIncomingFiles(
   picked: readonly PickedFile[],
   files: FilePlatform,
   repo: WorkspaceRepo,
+  /** 存好了几个（一次打开很多张照片时显示进度）。 */
+  onProgress?: (done: number, total: number) => void,
 ): Promise<PickedFile[]> {
   const kept: PickedFile[] = [];
+  const total = picked.length;
+  const push = (file: PickedFile) => {
+    kept.push(file);
+    onProgress?.(kept.length, total);
+  };
   for (const file of picked) {
     if (file.assetId) {
-      kept.push(file);
+      push(file);
       continue;
     }
     const name = sanitizeFileName(file.name);
@@ -26,16 +33,16 @@ export async function keepIncomingFiles(
       (a) => a.source === 'picked' && a.name === name && file.size !== null && a.size === file.size,
     );
     if (same) {
-      kept.push({ ...file, assetId: same.id });
+      push({ ...file, assetId: same.id });
       continue;
     }
     const { assetIds } = await copyUserFiles([file], files, repo);
     const id = assetIds[0];
     if (!id) {
-      kept.push(file);
+      push(file);
       continue;
     }
-    kept.push({ ...file, assetId: id });
+    push({ ...file, assetId: id });
   }
   return kept;
 }

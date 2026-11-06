@@ -20,6 +20,13 @@ export interface PickedFolder {
 
 export interface ShareDeps {
   native: MorphShareModule | null;
+  /**
+   * 能直接交给原生分享的文件（D-466）：Android 的 FileProvider 只开放了缓存里的 runs/、preview/、share/，
+   * 桌上和文档库里的文件不在里面（三星真机上分享桌上的文件报 ERR_UNEXPECTED）。iOS 都能直接交。
+   */
+  shareable(uri: string): boolean;
+  /** 把要分享的文件复制成 name（放进 share/，每次分享前清掉上一次的），返回副本的地址。 */
+  stageCopy(uri: string, name: string, first: boolean): Promise<string>;
   /** 打开一次分享面板，只带一个文件（expo-sharing）。 */
   shareOne(item: { uri: string; mimeType: string }): Promise<void>;
   /** 让用户选一个文件夹；取消时返回 null。 */
@@ -49,15 +56,50 @@ export function forgetFolders(deps: ShareDeps, keep: readonly string[]): void {
 
 export const FOLDER_NOT_WRITABLE = 'ERR_FOLDER_NOT_WRITABLE';
 
+/** 分享出去时文件叫什么：有名字和扩展名时用它们（桌上的文件存成 v2-0.docx 这样的名字，D-466）。 */
+function sharedName(item: { uri: string; name?: string; ext?: string }): string {
+  const own = decodeURIComponent(item.uri.replace(/^.*\//, ''));
+  if (!item.name) return own;
+  return sanitizeFileName(item.ext ? `${item.name}.${item.ext}` : item.name);
+}
+
+/**
+ * 原生分享前先把文件放到能交出去的地方、用对的名字（D-466）：不能直接交的、或者文件名不是用户看到的名字的，
+ * 复制一份（同名的加 -2）。别的原样交出去（大视频不复制）。
+ */
+export async function stageForShare(
+  deps: ShareDeps,
+  items: readonly { uri: string; mimeType: string; name?: string; ext?: string }[],
+): Promise<{ uri: string; mimeType: string }[]> {
+  const taken: string[] = [];
+  let first = true;
+  const out: { uri: string; mimeType: string }[] = [];
+  for (const item of items) {
+    const name = sharedName(item);
+    const own = decodeURIComponent(item.uri.replace(/^.*\//, ''));
+    if (deps.shareable(item.uri) && sanitizeFileName(own) === name) {
+      out.push({ uri: item.uri, mimeType: item.mimeType });
+      continue;
+    }
+    const dot = name.lastIndexOf('.');
+    const unique = dot > 0 ? uniqueFileName(name.slice(0, dot), name.slice(dot + 1), taken) : name;
+    taken.push(unique);
+    out.push({ uri: await deps.stageCopy(item.uri, unique, first), mimeType: item.mimeType });
+    first = false;
+  }
+  return out;
+}
+
 export async function shareAll(
   deps: ShareDeps,
-  items: readonly { uri: string; mimeType: string }[],
+  items: readonly { uri: string; mimeType: string; name?: string; ext?: string }[],
 ): Promise<void> {
   if (items.length === 0) return;
   if (deps.native) {
+    const ready = await stageForShare(deps, items);
     await deps.native.shareFiles(
-      items.map((i) => i.uri),
-      items.map((i) => i.mimeType),
+      ready.map((i) => i.uri),
+      ready.map((i) => i.mimeType),
     );
     return;
   }

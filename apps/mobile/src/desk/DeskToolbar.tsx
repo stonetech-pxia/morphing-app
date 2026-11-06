@@ -145,21 +145,12 @@ export function DeskToolbar({
   onPress: (entry: ToolEntry) => void;
 }) {
   const scroll = useRef<ScrollViewInstance>(null);
-  // 每组在滑动内容里的左边位置；点上面的小标签就滑到那一组，滑动时标签跟着亮。
-  const lefts = useRef<number[]>([]);
+  // 有几组时上面是页签，下面只排当前这一组（2026-11-06：所有组排成一长条时，后面几组短、滑不到最左边，
+  // 「处理」「转换」「文件」看起来是同一排，点回「标注」也不跟着跳）。
   const [active, setActive] = useState(0);
-  // 点标签后：后面的几组滑不到最左边（内容不够长），滑动事件算出的组会把标签弹回前面。
-  // 点过之后以点的为准，手指再拖一下才又跟着滑动走。
-  const picked = useRef(false);
   const tabs = groups.length > 1;
-  const onScroll = (x: number) => {
-    if (picked.current) return;
-    let at = 0;
-    lefts.current.forEach((left, i) => {
-      if (left <= x + 40) at = i;
-    });
-    setActive((now) => (now === at ? now : at));
-  };
+  const at = Math.min(active, groups.length - 1);
+  const shown = tabs ? [groups[at]!] : groups;
   return (
     <View>
       {tabs ? (
@@ -173,27 +164,23 @@ export function DeskToolbar({
               key={`${gi}-${g.title}`}
               testID={`desk-tab-${gi}`}
               accessibilityRole="tab"
-              accessibilityState={{ selected: gi === active }}
+              accessibilityState={{ selected: gi === at }}
               onPress={() => {
-                picked.current = true;
                 setActive(gi);
-                scroll.current?.scrollTo({
-                  x: Math.max(0, (lefts.current[gi] ?? 0) - 8),
-                  animated: true,
-                });
+                scroll.current?.scrollTo({ x: 0, animated: false });
               }}
               style={styles.tab}>
               <Text
                 style={[
-                  palette.font(gi === active ? 'bodyBold' : 'body', 14),
-                  { color: gi === active ? palette.primaryText : palette.caption },
+                  palette.font(gi === at ? 'bodyBold' : 'body', 14),
+                  { color: gi === at ? palette.primaryText : palette.caption },
                 ]}>
                 {g.title}
               </Text>
               <View
                 style={[
                   styles.tabBar,
-                  { backgroundColor: gi === active ? palette.primaryText : 'transparent' },
+                  { backgroundColor: gi === at ? palette.primaryText : 'transparent' },
                 ]}
               />
             </Pressable>
@@ -205,18 +192,10 @@ export function DeskToolbar({
         horizontal
         showsHorizontalScrollIndicator={false}
         testID="desk-toolbar"
-        scrollEventThrottle={32}
-        onScrollBeginDrag={() => {
-          picked.current = false;
-        }}
-        onScroll={(e) => onScroll(e.nativeEvent.contentOffset.x)}
         contentContainerStyle={styles.row}>
-        {groups.map((g, gi) => (
+        {shown.map((g, gi) => (
           <View
             key={`${gi}-${g.title}`}
-            onLayout={(e) => {
-              lefts.current[gi] = e.nativeEvent.layout.x;
-            }}
             style={[
               styles.group,
               gi > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderColor: palette.border },

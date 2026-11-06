@@ -127,6 +127,21 @@ describe('cleanRegions', () => {
     expect(kept).toEqual([logo]);
   });
 
+  it('keeps a stamp as a picture although its ring of text reads as several lines (D-463)', () => {
+    // 处方右下角的印章：一圈机构名、地址认成 4 行乱字，应该原样剪成图片，不写成乱字。
+    const lines = [
+      line('Centre médical & dentaire', 820, 1200, 250, 40),
+      line('WPANTIMN', 840, 1250, 200, 40),
+      line('Centre de santé', 860, 1290, 160, 40),
+      line('93500', 900, 1330, 70, 30),
+    ];
+    const seal = { ...region('image', 800, 1180, 300, 200), label: 'seal' };
+    const logo = region('image', 800, 1180, 300, 200);
+    expect(cleanRegions([seal], lines, size)).toEqual([seal]);
+    // 同样多的字在普通的图片区域里：是认错了的正文。
+    expect(cleanRegions([logo], lines, size)).toEqual([]);
+  });
+
   it('drops table regions (tables come from ruled lines) and duplicate image regions', () => {
     const a = region('image', 50, 50, 150, 100, 0.8);
     const b = region('image', 55, 52, 150, 100, 0.7);

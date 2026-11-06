@@ -1,4 +1,4 @@
-import { linkTitle, type DataRecord } from '@morph/core';
+import { builtinText, linkTitle, type DataRecord } from '@morph/core';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -34,6 +34,7 @@ export default function PageRoute() {
   const config = useWorkspace(shownConfig)!;
   const headId = useWorkspace((s) => s.head!.id);
   const reportRenderError = useWorkspace((s) => s.reportRenderError);
+  const attempt = useWorkspace((s) => s.renderAttempt);
   const draftFailed = useWorkspace((s) => s.draftRenderFailed);
   const editing = useWorkspace((s) => s.editing?.pageId === pageId);
   const cancelEditing = useWorkspace((s) => s.cancelEditing);
@@ -83,7 +84,10 @@ export default function PageRoute() {
       <Stack.Screen
         options={{
           // 给一条记录用的页面以这条记录为标题（在本机拼，AI 看不到）。
-          title: opened && collection ? linkTitle(opened, collection, locale) : page.title,
+          title:
+            opened && collection
+              ? linkTitle(opened, collection, locale)
+              : builtinText(page.title, locale, registry),
           // 在当前页面直接发起修改，预览会聚焦这一页。
           // 编辑模式下不能返回：先在页面顶部点「完成」或「取消」，草稿不会丢失（D-054）。
           headerBackVisible: !editing,
@@ -120,7 +124,7 @@ export default function PageRoute() {
         <DraftNotice palette={palette} />
         {inDraft || editing ? null : <SampleHint pageId={page.id} palette={palette} />}
         <ErrorBoundary
-          key={inDraft ? `${headId}-draft` : headId}
+          key={inDraft ? `${headId}-draft` : `${headId}-${attempt}`}
           onError={inDraft ? draftFailed : reportRenderError}
           fallback={<View />}>
           <EditablePage page={page} env={env} bottomInset={insets.bottom + (inDraft ? 90 : 0)} />

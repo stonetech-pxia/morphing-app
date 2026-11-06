@@ -88,6 +88,10 @@ export type Permission = (typeof PERMISSIONS)[number];
 
 export type ParamUnit = 'px' | 'KB' | 'MB' | '%' | '°' | 'mm' | 'pt' | 'in';
 
+/** 单位按语言写：法语的 KB、MB 是 Ko、Mo。 */
+export const paramUnitLabel = (unit: ParamUnit, locale: Locale): string =>
+  locale === 'fr' && unit === 'KB' ? 'Ko' : locale === 'fr' && unit === 'MB' ? 'Mo' : unit;
+
 /** 一个参数的界面元数据：编辑器据此生成表单，运行时询问也用它。 */
 export interface ParamField {
   key: string;
@@ -120,6 +124,10 @@ export interface ParamField {
   min?: number;
   max?: number;
   step?: number;
+  /** 数字参数第一次放上来时的值（没有时用 min）：例如页码从 1 开始、字号 10。 */
+  initial?: number;
+  /** 数字参数是 0 时的意思（例如「大小不限」）：说明里只写这一句，表单上写「0 = 不限」。 */
+  zeroMeans?: Localized;
   options?: readonly { value: string | number; label: Localized }[];
   /** 只在某些参数取某个值时才显示，例如「按长边」时才显示长边像素。 */
   showIf?: { key: string; equals: readonly (string | number | boolean)[] };

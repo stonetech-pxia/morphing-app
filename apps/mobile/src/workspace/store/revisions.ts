@@ -446,18 +446,20 @@ export function createRevisions(
         set({ status: 'error', error: String(error) });
         return;
       }
-      // 回退目标：最后一次成功渲染的配置；若它本身就是出错的配置，则退回默认工作空间。
+      // 回退目标：最后一次成功渲染的配置。现在的配置已经正常显示过时，出错的不是它（例如代码出错）：
+      // 不回退、不换成默认工作空间（2026-11-06 模拟器上一次这样的错误把用户的 App 清空了）；连续出错超过两次照旧停在出错页。
       const sameAsFailed =
         k.render.lastRendered && JSON.stringify(k.render.lastRendered) === JSON.stringify(config);
+      if (sameAsFailed) {
+        set((s) => ({ renderAttempt: s.renderAttempt + 1 }));
+        return;
+      }
       const fallback =
         k.render.lastRendered && !sameAsFailed
           ? k.render.lastRendered
           : createDefaultWorkspace(locale);
-      await commitFallback(
-        fallback,
-        'rollback',
-        `${msg('rolledBack')} (${String(error)})`.slice(0, 300),
-      );
+      // 给用户看的说明不带报错原文；原文记在修改请求的 error 里。
+      await commitFallback(fallback, 'rollback', msg('rolledBack'));
       if (failed) {
         await repo.updateChangeRequest(failed.changeRequestId, {
           status: 'rolled_back',

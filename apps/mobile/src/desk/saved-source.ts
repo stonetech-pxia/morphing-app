@@ -1,5 +1,5 @@
 import { decodeUtf8, newDesk, type Desk, type DeskBlob, type DeskFile } from '@morph/core';
-import { parseDocDoc, parseTableDoc } from '@morph/tool-office';
+import { parseDocDoc, parseTableDoc, type DocDoc } from '@morph/tool-office';
 
 import { saveItems } from '../runtime/actions/io';
 import { baseName, extOf } from '../runtime/actions/helpers';
@@ -84,6 +84,23 @@ export async function savedSourceBytes(
 ): Promise<number | null> {
   if (!/\.(xlsx|docx)$/i.test(asset.name)) return null;
   return (await readSaved(files, asset))?.body.bytes ?? null;
+}
+
+/**
+ * 存过的 Word 的中间格式（图片换成能读的地址），预览页按编辑页的版面显示它（D-470）；没有、读不出来时 null。
+ */
+export async function savedWordDoc(
+  files: Pick<FilePlatform, 'readBytes' | 'fileUri'>,
+  asset: AssetRecord,
+): Promise<DocDoc | null> {
+  if (!/\.docx$/i.test(asset.name)) return null;
+  const saved = await readSaved(files, asset);
+  if (!saved || saved.body.kind !== 'doc') return null;
+  const doc = parseDocDoc(JSON.stringify(saved.body.doc));
+  if (!doc) return null;
+  return mapSourcePaths({ kind: 'doc', doc }, (name) =>
+    name ? files.fileUri(`assets/${saved.id}/${name}`) : name,
+  ).doc as DocDoc;
 }
 
 /** 从存储空间放回桌上：复制这个文件、中间格式和图片进一个新桌面（用户文件不动）。不能改时返回 null。 */

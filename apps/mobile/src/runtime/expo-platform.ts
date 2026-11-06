@@ -24,6 +24,8 @@ import {
   shareAll,
   type ShareDeps,
 } from './expo-share';
+import { Platform } from 'react-native';
+
 import { expoDeskFs } from '../desk/expo-desk-fs';
 import { expoDocuments } from './expo-documents';
 import { expoTranslate } from './expo-translate';
@@ -154,9 +156,26 @@ const shareOne = (item: { uri: string; mimeType: string }) =>
   });
 
 /** 分享和存到文件夹（D-119、D-120）：有 MorphShare 用它，Expo Go 里退回 expo-sharing / expo-file-system。 */
+/** Android 的 FileProvider 开放的缓存目录（modules/morph-share/android/src/main/res/xml/morph_share_paths.xml）。 */
+const SHAREABLE_DIRS = ['runs/', 'preview/', 'share/'];
+
 const SHARE: ShareDeps = {
   native: MorphShare,
   shareOne,
+  shareable(uri) {
+    if (Platform.OS !== 'android') return true;
+    const cache = Paths.cache.uri.replace(/\/?$/, '/');
+    return SHAREABLE_DIRS.some((dir) => uri.startsWith(cache + dir));
+  },
+  async stageCopy(uri, name, first) {
+    const dir = new Directory(Paths.cache, 'share');
+    // 每次分享只留这一次的副本。
+    if (first && dir.exists) dir.delete();
+    if (!dir.exists) dir.create({ intermediates: true });
+    const target = new File(dir, name);
+    new File(uri).copy(target);
+    return target.uri;
+  },
   remembered: null,
   rememberedBy: new Map(),
   async pickFolder() {
@@ -621,13 +640,13 @@ export const expoFilePlatform: FilePlatform = {
     };
   },
 
-  async htmlToPdf(html, page, runId, relPath) {
+  async htmlToPdf(html, page, runId, relPath, margins) {
     // iOS 的打印排版不认 CSS 的 @page 边距，要在这里给（单位是点）。
     const printed = await printToFileAsync({
       html,
       width: page.width,
       height: page.height,
-      margins: { left: 44, right: 44, top: 40, bottom: 40 },
+      margins: margins ?? { left: 44, right: 44, top: 40, bottom: 40 },
     });
     const dest = runFile(runId, relPath);
     await new File(printed.uri).move(dest);

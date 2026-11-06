@@ -1,5 +1,5 @@
 import { attachmentIds, tableIsShown, type DataRecord, type FieldIssue } from '@morph/core';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, ScrollView, Text, View } from 'react-native';
@@ -15,6 +15,7 @@ import { usePalette } from '@/renderer/theme';
 import { Button } from '@/renderer/ui';
 import { takeFormCopies } from '@/share/save-as-record';
 import { tableEntry } from '@/shell/ai-entry';
+import { useConfirmLeave } from '@/shell/useConfirmLeave';
 import { deleteUserFiles } from '@/storage/user-files';
 import { useCalendar, useWorkspace, useWorkspaceContext } from '@/workspace/context';
 
@@ -31,7 +32,6 @@ export default function RecordRoute() {
   const { repo, files, locale, registry } = useWorkspaceContext();
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const showToast = useWorkspace((s) => s.showToast);
-  const router = useRouter();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
   const actions = useRecordActions();
@@ -44,6 +44,9 @@ export default function RecordRoute() {
   const [values, setValues] = useState<Record<string, unknown>>(() =>
     !recordId && prefill && collection ? prefillFormValues(collection, prefill) : {},
   );
+  // 打开时的值：填了、改了没保存就离开时先问「放弃修改？」（2026-11-06 测试：输入的字直接丢了）。
+  const [initial, setInitial] = useState(() => JSON.stringify(values));
+  const leave = useConfirmLeave(JSON.stringify(values) !== initial, 'formDiscardMessage', locale);
   const [issues, setIssues] = useState<FieldIssue[]>([]);
   // 收件页面复制来的文件（D-392）和桌上改好交回来的附件（D-395）：离开这一页时，没存进这条记录的删掉
   // （没保存就离开时全部删掉）。它们是这张表单自己新建的，原件、收件那一批和记录里原来的文件不动。
@@ -69,7 +72,9 @@ export default function RecordRoute() {
     void repo.getRecord(recordId).then((r) => {
       const active = r && r.deletedAt === null ? r : null;
       setRecord(active);
-      setValues(toFormValues(collection, active));
+      const loaded = toFormValues(collection, active);
+      setValues(loaded);
+      setInitial(JSON.stringify(loaded));
     });
   }, [repo, recordId, collection]);
 
@@ -94,7 +99,7 @@ export default function RecordRoute() {
       kept.current = new Set(
         collection.fields.flatMap((f) => (f.type === 'file' ? attachmentIds(values[f.id]) : [])),
       );
-      router.back();
+      leave();
       // 新记录回去看不到（这张表还没有页面读）：说一句，能接着改。
       if (!record && !tableIsShown(config, collection.id, registry))
         showToast({
@@ -107,7 +112,7 @@ export default function RecordRoute() {
   async function remove() {
     if (!record) return;
     await actions.remove(record);
-    router.back();
+    leave();
   }
 
   return (

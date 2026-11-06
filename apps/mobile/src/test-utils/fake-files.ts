@@ -391,8 +391,11 @@ export class FakeFiles implements FilePlatform {
   }
   /** 每次打开分享面板带了哪些文件。 */
   shareSheets: string[][] = [];
-  async shareUris(items: readonly { uri: string }[]) {
+  /** 每次分享时用户看到的文件名（D-466）。 */
+  shareNames: (string | undefined)[][] = [];
+  async shareUris(items: readonly { uri: string; name?: string }[]) {
     this.shareSheets.push(items.map((i) => i.uri));
+    this.shareNames.push(items.map((i) => i.name));
     this.shared.push(...items.map((i) => i.uri));
   }
   /** 下一次选文件夹时用户怎么做：选好、取消、选了写不进去的文件夹（写不进去对记住的文件夹也生效）。 */
@@ -569,6 +572,7 @@ export class FakeFiles implements FilePlatform {
     page: { width: number; height: number },
     runId: string,
     relPath: string,
+    _margins?: { left: number; right: number; top: number; bottom: number },
   ) {
     this.printedHtml.push(html);
     const doc = await PDFDocument.create();

@@ -206,6 +206,19 @@ export const en = {
   filesKindAudio: 'Audio',
   filesKindOther: 'Other',
   filesNoMatch: 'No matching files',
+  filesSelect: 'Select “{name}”',
+  filesSelected: '{n} selected',
+  filesClearSelection: 'Clear selection',
+  filesRename: 'Rename',
+  filesRenamePlaceholder: 'File name',
+  filesMerge: 'Merge',
+  filesShare: 'Share',
+  filesDelete: 'Delete',
+  filesMergedName: '{name} (merged)',
+  filesDeleteTitle: 'Delete {n} files?',
+  filesDeleteMessage: 'This can’t be undone.',
+  filesDeleteUsed:
+    '{n} of them are used in entries or pages and will no longer show there. This can’t be undone.',
   run: 'Start',
   runAgain: 'Run again',
   running: 'Step {n}: {step}',
@@ -1542,8 +1555,17 @@ export const en = {
   runError_wordUnsupported:
     'This device can’t read documents in this language yet. Choose another language for “Convert to Word”.',
   wordFileName: 'Document {date}',
-  wordEditText: 'Edit text',
-  wordDeleteBlock: 'Delete',
+  wordBigger: 'Bigger text',
+  wordSmaller: 'Smaller text',
+  wordBold: 'Bold',
+  wordItalic: 'Italic',
+  wordUnderline: 'Underline',
+  wordAlign: 'Alignment',
+  wordSwapOriginal: 'Use original',
+  wordSwapOriginalLines: 'Use original ({n} lines)',
+  wordOriginalFailed: 'Couldn’t cut this part out of the original image.',
+  wordHideKeyboard: 'Hide keyboard',
+  wordDeleteTable: 'Delete table',
   wordEmpty: 'Nothing was recognized.',
   // 日程（D-292–D-296）
   scheduleDaily: 'Every day',
@@ -1680,7 +1702,10 @@ export const en = {
   deskDownload: 'Download',
   deskPageFailed: 'This page can’t be shown here.',
   deskNoPreview: 'This file can’t be shown here. You can open it in the system preview.',
-  deskLeave: 'Leave it on the desk',
+  discardTitle: 'Discard changes?',
+  deskDiscardMessage: 'Your changes on the desk are not saved yet. They will be lost if you leave.',
+  formDiscardMessage: 'What you entered is not saved yet. It will be lost if you leave.',
+  importSaving: 'Saving to your files {done} / {total}',
   deskClear: 'Clear the desk',
   deskClearTitle: 'Clear the desk?',
   deskClearMessage:
@@ -1740,6 +1765,7 @@ export type MessageTable = Record<StringKey, string>;
 
 /** 单数写法（isSingular 为真时用），只放带数量的文案；哪个参数决定单复数见 messages.ts 的 PLURAL_COUNT_VARIABLE。 */
 export const enSingular = {
+  wordSwapOriginalLines: 'Use original ({n} line)',
   describeSourceLimit: 'shows up to {n} entry',
   buildStoppedHint: 'Stopped. What’s done stays. {n} step left.',
   buildCheckProblems: 'Checked: {n} thing can’t be used yet.',
@@ -1847,6 +1873,10 @@ export const enSingular = {
   reportAttachmentsUnreadable: '{n} attachment could not be read and is left out. From: {titles}.',
   similarRecordMany: 'This looks like “{title}” and {n} more, already in {table}.',
   shareRecordTooMany: 'An entry holds at most {n} file: only the first one goes in.',
+  filesSelected: '{n} selected',
+  filesDeleteTitle: 'Delete this file?',
+  filesDeleteUsed:
+    '{n} of them is used in an entry or a page and will no longer show there. This can’t be undone.',
 } satisfies Partial<MessageTable>;
 
 /** 单数表：键必须和 enSingular 完全一致。 */
