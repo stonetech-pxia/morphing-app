@@ -7,9 +7,11 @@ import {
   type DocLeaf,
   type DocList,
   type DocPage,
+  type DocRun,
   type DocStyle,
   type DocTable,
 } from './doc';
+import { splitRuns } from './doc-runs';
 import { cleanXmlText } from './xlsx';
 
 // 写 docx（D-328）：自己写最少的 OOXML，用 fflate 的同步 API 打包（和写 xlsx 一样，D-272）。
@@ -98,6 +100,7 @@ function runXml(text: string, style: DocStyle, bodySize: number, styleId?: strin
   const props =
     RUN_FONTS +
     (style.bold ? '<w:b/><w:bCs/>' : '') +
+    (style.italic ? '<w:i/><w:iCs/>' : '') +
     (style.underline ? '<w:u w:val="single"/>' : '') +
     (style.color ? `<w:color w:val="${style.color}"/>` : '') +
     sizeXml(style, bodySize, styleId);
@@ -116,8 +119,21 @@ function runXml(text: string, style: DocStyle, bodySize: number, styleId?: strin
     .join('');
 }
 
+/** 一段的字：样式不同的几截（D-465）各自写成 run，没写的跟着整段。 */
+function runsXml(
+  text: string | readonly DocRun[] | undefined,
+  style: DocStyle,
+  bodySize: number,
+  styleId?: string,
+): string {
+  if (typeof text === 'string' || !text) return runXml(text ?? '', style, bodySize, styleId);
+  return text
+    .map(({ text: part, ...own }) => runXml(part, { ...style, ...own }, bodySize, styleId))
+    .join('');
+}
+
 function paragraphXml(
-  text: string,
+  text: string | readonly DocRun[] | undefined,
   style: DocStyle,
   bodySize: number,
   extra: {
@@ -158,7 +174,7 @@ function paragraphXml(
       : '') +
     // 段落标记的字号（D-335）：空段落、空格子的高度按它算。
     `<w:rPr>${sizeXml(style, bodySize, extra.styleId)}</w:rPr>`;
-  return `<w:p><w:pPr>${pPr}</w:pPr>${runXml(text, style, bodySize, extra.styleId)}</w:p>`;
+  return `<w:p><w:pPr>${pPr}</w:pPr>${runsXml(text, style, bodySize, extra.styleId)}</w:p>`;
 }
 
 /** 空段落（表格后面的分隔、空格子）：段落标记也写字号（D-335），不然按默认样式（苹果的预览按 12 磅）撑高。 */
@@ -463,9 +479,10 @@ export function writeDocx(
             // 标签一列按原图里值的位置（最多六成），值一列占到能放的右边。
             const label = Math.round(Math.min(twip(block.tab), 0.6 * maxWidth));
             const widths = [label, Math.max(200, maxWidth - label)];
-            const rows = block.text.split('\n').map((line) => {
-              const [label = '', ...rest] = line.split('\t');
-              return [label, rest.join(' ')].map((t) => paragraphXml(t, block, bodySize));
+            const rows = splitRuns(block.runs ?? [{ text: block.text }], '\n').map((line) => {
+              const [label = [], ...rest] = splitRuns(line, '\t');
+              const value = rest.flatMap((part, i) => (i ? [{ text: ' ' }, ...part] : part));
+              return [label, value].map((t) => paragraphXml(t, block, bodySize));
             });
             return [
               ...(pageBreak() ? [paragraphXml('', {}, bodySize, { pageBreak: true })] : []),
@@ -475,7 +492,7 @@ export function writeDocx(
             ];
           }
           return [
-            paragraphXml(block.text, block, bodySize, {
+            paragraphXml(block.runs ?? block.text, block, bodySize, {
               ...(block.heading ? { styleId: `Heading${block.heading}` } : {}),
               ...(block.indent ? { indent: twip(block.indent) } : {}),
               ...(before !== undefined ? { before } : block.spaced ? { spaced: true } : {}),
@@ -487,7 +504,7 @@ export function writeDocx(
           lists.push(block);
           const numId = lists.length;
           return block.items.map((item, i) =>
-            paragraphXml(item, block, bodySize, {
+            paragraphXml(block.itemRuns?.[i] ?? item, block, bodySize, {
               styleId: 'ListParagraph',
               numId,
               ...(i === 0 && before !== undefined

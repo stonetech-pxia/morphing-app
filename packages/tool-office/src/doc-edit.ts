@@ -68,14 +68,17 @@ export function setBlockText(doc: DocDoc, at: DocRef, text: string): DocDoc {
   const block = blockAt(doc, at);
   if (!block || blockText(block) === text) return doc;
   if (block.kind === 'paragraph') {
-    return replaceBlock(doc, at, text.trim() ? { ...block, text } : null);
+    // 整段换了字：原来按字分的样式（D-465）对不上了，不要。
+    const { runs: _runs, ...rest } = block;
+    return replaceBlock(doc, at, text.trim() ? { ...rest, text } : null);
   }
   if (block.kind === 'list') {
     const items = text
       .split('\n')
       .map((s) => s.trim())
       .filter(Boolean);
-    return replaceBlock(doc, at, items.length ? { ...block, items } : null);
+    const { itemRuns: _runs, ...rest } = block;
+    return replaceBlock(doc, at, items.length ? { ...rest, items } : null);
   }
   return doc;
 }

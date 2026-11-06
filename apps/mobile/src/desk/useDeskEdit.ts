@@ -42,7 +42,7 @@ export interface DeskEdit {
   /** 改过、还没合上（页面上正在改的字也算）。 */
   dirty: boolean;
   /**
-   * 页面上正在改字（D-464）：flush 把改的字放进去。合上前先调它（点「完成」、离开时输入框不一定先失去焦点）；
+   * 页面上正在改字（D-464；Word 整页直接改见 D-465）：flush 把改的字放进去。合上前先调它（点「完成」、离开时输入框不一定先失去焦点）；
    * 不改了传 null。
    */
   typing(flush: (() => void) | null): void;
@@ -153,6 +153,12 @@ export function useDeskEdit({
     return done.desk;
   }
 
+  function flushTyping() {
+    const pending = flush.current;
+    flush.current = null;
+    pending?.();
+  }
+
   return {
     session,
     dirty: typing || (!!session && session.history.present !== session.base),
@@ -161,13 +167,18 @@ export function useDeskEdit({
       setTyping(next !== null);
     },
     apply: (next) => ref.current && update(pushHistory(ref.current.history, next)),
-    undo: () => ref.current && update(undoHistory(ref.current.history)),
-    redo: () => ref.current && update(redoHistory(ref.current.history)),
+    // 页面上改了还没放进去的字先放进去（D-465）：撤销退的就是刚改的这一段。
+    undo: () => {
+      flushTyping();
+      if (ref.current) update(undoHistory(ref.current.history));
+    },
+    redo: () => {
+      flushTyping();
+      if (ref.current) update(redoHistory(ref.current.history));
+    },
     seal() {
       // 页面上正在改的字先放进去（apply 同步改 ref，下面读得到）。
-      const pending = flush.current;
-      flush.current = null;
-      pending?.();
+      flushTyping();
       // 几个地方同时要合上（例如点了工具又离开）：只合一次。
       sealing.current ??= sealNow().finally(() => {
         sealing.current = null;

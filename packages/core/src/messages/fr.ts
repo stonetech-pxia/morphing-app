@@ -1608,7 +1608,14 @@ export const fr: MessageTable = {
   runError_wordUnsupported:
     'Cet appareil ne sait pas encore lire les documents dans cette langue. Choisissez une autre langue pour « Convertir en document Word ».',
   wordFileName: 'Document {date}',
-  wordDeleteBlock: 'Supprimer',
+  wordBigger: 'Texte plus grand',
+  wordSmaller: 'Texte plus petit',
+  wordBold: 'Gras',
+  wordItalic: 'Italique',
+  wordUnderline: 'Souligné',
+  wordAlign: 'Alignement',
+  wordHideKeyboard: 'Masquer le clavier',
+  wordDeleteTable: 'Supprimer le tableau',
   wordEmpty: 'Rien n’a été reconnu.',
   // 日程（D-292–D-296）
   scheduleDaily: 'Tous les jours',

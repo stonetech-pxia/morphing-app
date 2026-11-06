@@ -1,5 +1,5 @@
 import { attachmentIds, tableIsShown, type DataRecord, type FieldIssue } from '@morph/core';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, ScrollView, Text, View } from 'react-native';
@@ -32,7 +32,6 @@ export default function RecordRoute() {
   const { repo, files, locale, registry } = useWorkspaceContext();
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const showToast = useWorkspace((s) => s.showToast);
-  const router = useRouter();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
   const actions = useRecordActions();

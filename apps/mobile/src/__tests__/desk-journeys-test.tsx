@@ -9,7 +9,6 @@ import type { TableDoc } from '@morph/tool-office';
 import { act, fireEvent, waitFor, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
-import { Alert } from 'react-native';
 
 import { commitRun, listDesks, loadDesk, placeOnDesk } from '../desk/store';
 import { useIncoming } from '../share/incoming';
@@ -262,7 +261,7 @@ describe('有数据：转 Excel 的结果在桌上', () => {
     expect(screen.getByText('品名')).toBeTruthy();
     expect(screen.getByTestId('desk-editor')).toBeTruthy();
     // 工具栏：转 PDF，加上文件这一组（分享、保存、系统预览），不是空的。
-    const toolbar = screen.getByTestId('desk-toolbar');
+    screen.getByTestId('desk-toolbar');
     expect(await allDeskTools()).toEqual([
       'desk-tool-pdf.fromDocument',
       'desk-tool-room-share',
@@ -355,7 +354,7 @@ describe('布局配置（D-358）', () => {
     const { files } = await renderToolsApp(undefined, undefined, { seed });
     await openShare(files, ['IMG_1.jpg']);
     await fireEvent.press(await screen.findByTestId('preview-edit'));
-    const toolbar = await screen.findByTestId('desk-toolbar');
+    await screen.findByTestId('desk-toolbar');
     expect(within(screen.getByTestId('desk-tabs')).getByText('常用')).toBeTruthy();
     expect(await allDeskTools()).toEqual([
       'desk-tool-image.rotate',

@@ -1539,7 +1539,14 @@ export const en = {
   runError_wordUnsupported:
     'This device can’t read documents in this language yet. Choose another language for “Convert to Word”.',
   wordFileName: 'Document {date}',
-  wordDeleteBlock: 'Delete',
+  wordBigger: 'Bigger text',
+  wordSmaller: 'Smaller text',
+  wordBold: 'Bold',
+  wordItalic: 'Italic',
+  wordUnderline: 'Underline',
+  wordAlign: 'Alignment',
+  wordHideKeyboard: 'Hide keyboard',
+  wordDeleteTable: 'Delete table',
   wordEmpty: 'Nothing was recognized.',
   // 日程（D-292–D-296）
   scheduleDaily: 'Every day',

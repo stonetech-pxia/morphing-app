@@ -1456,7 +1456,14 @@ export const zh: MessageTable = {
   // 扫描件转 Word（D-328）
   runError_wordUnsupported: '这台设备还不能识别这种语言的文档。请给「转 Word」换一种语言。',
   wordFileName: '文档-{date}',
-  wordDeleteBlock: '删除',
+  wordBigger: '字变大',
+  wordSmaller: '字变小',
+  wordBold: '加粗',
+  wordItalic: '斜体',
+  wordUnderline: '下划线',
+  wordAlign: '对齐',
+  wordHideKeyboard: '收起键盘',
+  wordDeleteTable: '删除表格',
   wordEmpty: '没有识别出内容。',
   // 日程（D-292–D-296）
   scheduleDaily: '每天',

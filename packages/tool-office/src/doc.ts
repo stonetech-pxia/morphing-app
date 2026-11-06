@@ -7,14 +7,28 @@ import type { Box, OcrBox, RgbaImage, TableBlock, TableCell } from './types';
 // 段落按 D-268 的规则接行；字号看行高（字写得够长、整页字体一致时看字宽，D-463），粗体看笔画粗细，颜色看文字像素。
 // 上下重叠、左右分开的块放进并排行（D-331）。文字下面的下划线写成下划线（D-463）；删除线不画（只取字）。
 
-/** 段落的样式：字号（磅）、粗体、下划线、颜色（RRGGBB）、对齐；没有的用文档默认的。 */
+/** 段落的样式：字号（磅）、粗体、斜体、下划线、颜色（RRGGBB）、对齐；没有的用文档默认的。 */
 export interface DocStyle {
   size?: number;
   bold?: boolean;
+  /** 编辑页里加的（D-465）；识别不出斜体。 */
+  italic?: boolean;
   /** 原图里字下面有一条和字一样长的线（D-463）。 */
   underline?: boolean;
   color?: string;
   align?: 'left' | 'center' | 'right';
+}
+
+/**
+ * 一段字里样式不同的一截（D-465，编辑页里选中几个字加粗、改字号）：写了的就是这一截的样子
+ * （bold: false 是这一截不加粗，哪怕整段是粗体），没写的跟着整段。
+ */
+export interface DocRun {
+  text: string;
+  size?: number;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
 }
 
 export interface DocParagraph extends DocStyle {
@@ -31,6 +45,8 @@ export interface DocParagraph extends DocStyle {
    * docx 里写成一个制表位。
    */
   tab?: number;
+  /** 样式不同的几截（D-465）：有时连起来就是 text。 */
+  runs?: DocRun[];
   box: Box;
 }
 
@@ -44,6 +60,8 @@ export interface DocList extends DocStyle {
   start?: number;
   /** 每一项的文字（不含原来的编号和符号）。 */
   items: string[];
+  /** 每一项样式不同的几截（D-465），和 items 一一对应；没有的项整项跟着列表的样式。 */
+  itemRuns?: (DocRun[] | null)[];
   spaced?: boolean;
   box: Box;
 }

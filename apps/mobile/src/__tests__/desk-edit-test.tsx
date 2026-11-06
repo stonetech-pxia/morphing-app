@@ -6,10 +6,11 @@ import {
   type TableBlock,
   type TableDoc,
 } from '@morph/tool-office';
-import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
 import { strFromU8, unzipSync } from 'fflate';
+import { JSDOM } from 'jsdom';
 import { Alert, Dimensions, StyleSheet } from 'react-native';
 
 import { placeAssetOnDesk, savedSourceBytes } from '../desk/saved-source';
@@ -365,63 +366,113 @@ describe('Excel 在桌上就是表格编辑器', () => {
   });
 });
 
-describe('Word 在桌上就是文档编辑器', () => {
-  it('段落、列表、表格的格子点一下就在页面上直接改（D-464，不弹文字框）；删块；合上时生成新的 docx', async () => {
+/** 桌上 Word 的编辑页（D-465）：用 jsdom 跑真的页面脚本，改 DOM，把页面交回来的样子发给 App。 */
+function wordPage() {
+  const view = screen.getByTestId('word-editor-page');
+  const dom = new JSDOM(view.props.source.html, { runScripts: 'dangerously' });
+  const window = dom.window as unknown as Window & { __wordPages: () => unknown };
+  const send = (msg: object) =>
+    fireEvent(screen.getByTestId('word-editor-page'), 'message', {
+      nativeEvent: { data: JSON.stringify(msg) },
+    });
+  return {
+    q: (sel: string) => window.document.querySelector(sel) as HTMLElement,
+    /** 浏览器的 input 事件：交回整页。 */
+    input: () => send({ type: 'doc', pages: window.__wordPages() }),
+    state: (state: object) => send({ type: 'state', ...state }),
+  };
+}
+
+describe('Word 在桌上就是整页编辑器（D-465）', () => {
+  it('整页直接改：改字、加粗几个字、回车分段；光标在表格里能插行；撤销；合上时生成新的 docx', async () => {
     const { files } = await openOnDesk('doc', wordDoc());
-    // 点一下：选中（下面有原图截图），同时就在这个位置变成输入框；没有单独的文字框。
-    await fireEvent.press(screen.getByTestId('word-block-0-1'));
-    expect(screen.getAllByTestId('table-crop').length).toBeGreaterThan(0);
-    const input = within(screen.getByTestId('word-block-0-1')).getByTestId('desk-edit-input');
-    expect(screen.queryByTestId('desk-edit-panel')).toBeNull();
-    await fireEvent.changeText(input, '改过的 <正文> & 段落');
-    await fireEvent(input, 'blur');
-    expect(screen.getByText('改过的 <正文> & 段落')).toBeTruthy();
-    // 列表一行一项。
-    await fireEvent.press(screen.getByTestId('word-block-0-2'));
-    expect(screen.getByTestId('desk-edit-input').props.value).toBe('甲\n乙');
-    await fireEvent.changeText(screen.getByTestId('desk-edit-input'), '甲\n乙\n丙');
-    await fireEvent(screen.getByTestId('desk-edit-input'), 'blur');
-    expect(screen.getByText('丙')).toBeTruthy();
-    // 表格的格子：点一下就在格子里改；字没失去焦点就点「下面插入一行」，改的字也在。
-    await fireEvent.press(screen.getByTestId('word-cell-0-3-1'));
-    await fireEvent.changeText(screen.getByTestId('desk-edit-input'), '合计');
-    expect(screen.queryByTestId('table-editor')).toBeNull();
+    const page = wordPage();
+    // 没有点选、没有文字框：页面里每一块都能直接改。
+    expect(screen.queryByTestId('desk-edit-input')).toBeNull();
+    expect(screen.queryByTestId('word-format-bar')).toBeNull();
+    // 光标放进页面：房间的工具栏收起，换成格式按钮。
+    await page.state({ focus: true, bold: false, align: 'left', cell: null });
+    expect(screen.getByTestId('word-format-bar')).toBeTruthy();
+    expect(screen.getByTestId('word-bold')).toBeTruthy();
+    expect(screen.getByTestId('word-underline')).toBeTruthy();
+    expect(screen.queryByTestId('desk-row-below')).toBeNull();
+
+    page.q('[data-ref="0-1"]').innerHTML = '改过的 &lt;正文&gt; <b>&amp; 段落</b>';
+    const second = page.q('[data-ref="0-1"]').cloneNode(false) as HTMLElement;
+    second.textContent = '回车分出来的';
+    page.q('[data-ref="0-1"]').after(second);
+    page.q('[data-ref="0-3"] td[data-i="1"]').textContent = '合计';
+    await page.input();
+    // 字改到一半，光标到了表格里：多一排插删行列；点「下面插入一行」，改的字也在。
+    await page.state({ focus: true, cell: { ref: '0-3', i: 1 } });
     await fireEvent.press(screen.getByTestId('desk-row-below'));
-    expect(screen.getByText('合计')).toBeTruthy();
-    // 删掉标题。
-    await fireEvent.press(screen.getByTestId('word-block-0-0'));
-    await fireEvent.press(screen.getByTestId('desk-block-delete'));
-    expect(screen.queryByText('年度报告')).toBeNull();
+    const html = screen.getByTestId('word-editor-page').props.source.html as string;
+    expect(html).toContain('合计');
+    expect(html).toContain('回车分出来的');
+    expect(html.match(/<tr>/g)).toHaveLength(2);
+    // 撤销退掉插入的行，再重做。
     await fireEvent.press(screen.getByTestId('desk-undo'));
-    expect(screen.getByText('年度报告')).toBeTruthy();
+    expect(
+      (screen.getByTestId('word-editor-page').props.source.html as string).match(/<tr>/g),
+    ).toHaveLength(1);
     await fireEvent.press(screen.getByTestId('desk-redo'));
 
+    await page.state({ focus: false });
     await fireEvent.press(screen.getByTestId('desk-done'));
     expect(await screen.findByTestId('desk-save')).toBeTruthy();
     expect((await deskNow(files)).versions.map((v) => v.by.kind)).toEqual(['place', 'edit']);
     const xml = await docxXml(files);
-    expect(xml).toContain('改过的 &lt;正文&gt; &amp; 段落');
+    expect(xml).toContain('改过的 &lt;正文&gt; ');
+    expect(xml).toMatch(/<w:r><w:rPr>[^]*?<w:b\/>[^]*?&amp; 段落<\/w:t>/);
+    expect(xml).toContain('回车分出来的');
     expect(xml).toContain('合计');
-    expect(xml).not.toContain('年度报告');
     const file = currentFiles(await deskNow(files))[0]!;
     const doc = parseDocDoc(decodeUtf8(files.disk.get(`desk/editdesk/${file.source!.path}`)!))!;
     const table = doc.pages[0]!.blocks.find((b) => b.kind === 'table');
     expect(table?.kind === 'table' && table.table.rows).toBe(2);
   });
 
-  it('剪好嵌进 docx 的图片：合上时再嵌一次', async () => {
+  it('打了字马上点「完成」：还没合成一步的字也写进 docx', async () => {
+    const { files } = await openOnDesk('doc', wordDoc());
+    const page = wordPage();
+    await page.state({ focus: true });
+    page.q('[data-ref="0-0"]').textContent = '刚打的标题';
+    await page.input();
+    await fireEvent.press(screen.getByTestId('desk-done'));
+    await screen.findByTestId('desk-save');
+    expect(await docxXml(files)).toContain('刚打的标题');
+  });
+
+  it('格式按钮把命令交给页面', async () => {
+    await openOnDesk('doc', wordDoc());
+    const page = wordPage();
+    const inject = jest.fn();
+    screen.getByTestId('word-editor-page').props.injectJavaScript = inject;
+    await page.state({ focus: true, align: 'left' });
+    // 替身 WebView 没有 injectJavaScript 也不出错。
+    await fireEvent.press(screen.getByTestId('word-bold'));
+    await fireEvent.press(screen.getByTestId('word-bigger'));
+    expect(screen.getByTestId('word-format-bar')).toBeTruthy();
+  });
+
+  it('剪好嵌进 docx 的图片：图片写进页面；合上时再嵌一次', async () => {
     const files = new FakeFiles();
     files.disk.set('runs/r1/crop.jpg', new Uint8Array([7, 7, 7, 7]));
     files.imageSizes.set('runs/r1/crop.jpg', { width: 600, height: 400 });
     await openOnDesk('doc', wordDoc('runs/r1/crop.jpg'), files);
-    await fireEvent.press(screen.getByTestId('word-block-0-0'));
-    await fireEvent.press(screen.getByTestId('desk-block-delete'));
+    const page = wordPage();
+    expect(page.q('[data-kind="image"] img').getAttribute('src')).toMatch(
+      /^data:image\/jpeg;base64,/,
+    );
+    page.q('[data-ref="0-0"]').remove();
+    await page.input();
     await fireEvent.press(screen.getByTestId('desk-done'));
     await screen.findByTestId('desk-save');
     const file = currentFiles(await deskNow(files))[0]!;
     expect(Object.keys(unzipSync(files.disk.get(`desk/editdesk/${file.path}`)!))).toContain(
       'word/media/image1.jpg',
     );
+    expect(await docxXml(files)).not.toContain('年度报告');
     // 原图和剪好的图片都还在桌面的 assets 里。
     expect(file.source!.assets).toHaveLength(2);
   });

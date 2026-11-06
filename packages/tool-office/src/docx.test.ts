@@ -421,3 +421,67 @@ describe('writeDocx', () => {
     expect(rows[1]).toMatch(/>BB<\/w:t>.*<\/w:tc><w:tc>.*>2<\/w:t>/);
   });
 });
+
+describe('writeDocx runs (D-465)', () => {
+  it('writes each run with its own bold, italic, underline and size over the paragraph style', () => {
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        page([
+          {
+            kind: 'paragraph',
+            text: 'Hello big world',
+            bold: true,
+            runs: [
+              { text: 'Hello ' },
+              { text: 'big', size: 16, italic: true, underline: true },
+              { text: ' world', bold: false },
+            ],
+            box,
+          },
+        ]),
+      ],
+    };
+    const xml = unzip(writeDocx(doc)).text('word/document.xml');
+    const runs = [...xml.matchAll(/<w:r>(.*?)<\/w:r>/g)].map((m) => m[1]!);
+    const of = (text: string) => runs.find((r) => r.includes(`>${text}</w:t>`))!;
+    expect(of('Hello ')).toContain('<w:b/>');
+    expect(of('Hello ')).not.toContain('<w:i/>');
+    expect(of('big')).toContain('<w:b/>');
+    expect(of('big')).toContain('<w:i/>');
+    expect(of('big')).toContain('<w:u w:val="single"/>');
+    expect(of('big')).toContain('<w:sz w:val="32"/>');
+    expect(of(' world')).not.toContain('<w:b/>');
+  });
+
+  it('writes list item runs and keeps form label runs', () => {
+    const doc: DocDoc = {
+      version: 1,
+      pages: [
+        page([
+          {
+            kind: 'list',
+            ordered: false,
+            items: ['one', 'two'],
+            itemRuns: [null, [{ text: 'two', italic: true }]],
+            box,
+          },
+          {
+            kind: 'paragraph',
+            text: 'Nom\tDupont',
+            tab: 200,
+            runs: [{ text: 'Nom', bold: true }, { text: '\tDupont' }],
+            box: { ...box, y: 300 },
+          },
+        ]),
+      ],
+    };
+    const xml = unzip(writeDocx(doc)).text('word/document.xml');
+    const runs = [...xml.matchAll(/<w:r>(.*?)<\/w:r>/g)].map((m) => m[1]!);
+    const of = (text: string) => runs.find((r) => r.includes(`>${text}</w:t>`))!;
+    expect(of('one')).not.toContain('<w:i/>');
+    expect(of('two')).toContain('<w:i/>');
+    expect(of('Nom')).toContain('<w:b/>');
+    expect(of('Dupont')).not.toContain('<w:b/>');
+  });
+});

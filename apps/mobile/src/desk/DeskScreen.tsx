@@ -60,6 +60,8 @@ import { deleteUserFiles } from '../storage/user-files';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { shownConfig } from '../workspace/store';
 import { DraftBar } from '../draft/DraftBar';
+import type { DocDoc, TableDoc } from '@morph/tool-office';
+
 import { DeskEditor } from './DeskEditor';
 import { DeskPreview } from './DeskPreview';
 import { DeskToolbar, roomEntries, toolEntries, type ToolEntry } from './DeskToolbar';
@@ -75,6 +77,7 @@ import {
   undo,
 } from './store';
 import { useDeskEdit } from './useDeskEdit';
+import { WordEditor } from './WordEditor';
 import { useRunHost } from './useRunHost';
 
 // 文件房间（file-room DESIGN §4，D-360）：中间是桌上文件的大预览，底部（或顶部）一排工具。
@@ -518,7 +521,8 @@ export function DeskScreen({ deskId }: { deskId: string }) {
 
   // 顶部只有一组撤销（§10 第 4 题）：编辑没合上时一步步退编辑，否则退整个版本。
   const editHistory = edit.session?.history;
-  const editUndo = (editHistory?.past.length ?? 0) > 0;
+  // 页面上刚改的字还没合成一步时（D-465）也能撤销。
+  const editUndo = (editHistory?.past.length ?? 0) > 0 || edit.dirty;
   const editRedo = (editHistory?.future.length ?? 0) > 0;
   const showToolbar = !selecting;
   // 底部工具栏不在时（选中了东西换成编辑层、工具栏在顶部），房间最下面让出系统导航栏（三星真机，2026-10-30）。
@@ -527,17 +531,27 @@ export function DeskScreen({ deskId }: { deskId: string }) {
   const preview = !shown ? null : shown.source && edit.session !== null ? (
     edit.session === undefined ? (
       <ActivityIndicator style={styles.flex} color={palette.primary} />
+    ) : edit.session.kind === 'doc' ? (
+      <WordEditor
+        key={edit.session.fileId}
+        doc={edit.session.history.present as DocDoc}
+        palette={palette}
+        locale={locale}
+        width={screenWidth}
+        readImage={(uri) => files.readUri(uri)}
+        onApply={edit.apply}
+        onSelecting={onSelecting}
+        onTyping={edit.typing}
+      />
     ) : (
       <DeskEditor
         key={edit.session.fileId}
-        kind={edit.session.kind}
-        doc={edit.session.history.present}
+        doc={edit.session.history.present as TableDoc}
         palette={palette}
         locale={locale}
         width={screenWidth}
         onApply={edit.apply}
         onSelecting={onSelecting}
-        onTyping={edit.typing}
       />
     )
   ) : (
