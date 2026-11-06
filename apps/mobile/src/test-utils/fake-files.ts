@@ -569,6 +569,7 @@ export class FakeFiles implements FilePlatform {
     page: { width: number; height: number },
     runId: string,
     relPath: string,
+    _margins?: { left: number; right: number; top: number; bottom: number },
   ) {
     this.printedHtml.push(html);
     const doc = await PDFDocument.create();

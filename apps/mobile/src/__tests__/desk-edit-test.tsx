@@ -455,6 +455,25 @@ describe('Word 在桌上就是整页编辑器（D-465）', () => {
     expect(screen.getByTestId('word-format-bar')).toBeTruthy();
   });
 
+  it('桌上的 Word 转 PDF 按编辑页的版面打印，改过的字和样式都在（2026-11-06 三星真机：转出来的 PDF 全部靠左、字号全丢，D-466）', async () => {
+    const { files } = await openOnDesk('doc', wordDoc());
+    const page = wordPage();
+    page.q('[data-ref="0-1"]').innerHTML = '改过的 <b>正文</b>';
+    await page.input();
+    await fireEvent.press(await deskTool('desk-tool-pdf.fromDocument'));
+    await waitFor(() => expect(screen.getByTestId('desk-preview-pdf')).toBeTruthy());
+    // 没交给通用的 Word 排版（Android 的 mammoth）。
+    expect(files.documents.converted).toHaveLength(0);
+    const html = files.printedHtml.at(-1)!;
+    expect(html).toContain('class="paper"');
+    expect(html).not.toContain('contenteditable');
+    expect(html).not.toContain('<script');
+    expect(html).toContain('改过的 <b>正文</b>');
+    // 字号按磅（A4 宽 595 磅），标题居中的位置照原图。
+    expect(html).toMatch(/font-size:\d+(\.\d+)?pt/);
+    expect(html).not.toMatch(/font-size:\d+(\.\d+)?px/);
+  });
+
   it('剪好嵌进 docx 的图片：图片写进页面；合上时再嵌一次', async () => {
     const files = new FakeFiles();
     files.disk.set('runs/r1/crop.jpg', new Uint8Array([7, 7, 7, 7]));

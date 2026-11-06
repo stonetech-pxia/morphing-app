@@ -58,6 +58,8 @@ export const paperWidth = (width: number) => width - 20;
 /** 1 磅在宽 pageWidth 点的一页上是多少点（按 A4 的宽换算）。 */
 const ptPx = (pageWidth: number) => pageWidth / A4_WIDTH_PT;
 
+type Unit = 'px' | 'pt';
+
 const escape = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -69,6 +71,7 @@ function runsHtml(
   base: { bold: boolean; italic: boolean; underline: boolean; docSize: number },
   px: number,
   pageWidth: number,
+  u: Unit,
 ): string {
   return runs
     .map((run) => {
@@ -79,7 +82,7 @@ function runsHtml(
       if (run.size !== undefined) {
         // 比整段大几磅就画大几磅（整段按整点画，和文档里的字号差一点，读回来时按差多少算，见 mergeEdited）。
         const own = Math.round((px + (run.size - base.docSize) * ptPx(pageWidth)) * 10) / 10;
-        if (own !== px) html = `<span style="font-size:${own}px">${html}</span>`;
+        if (own !== px) html = `<span style="font-size:${own}${u}">${html}</span>`;
       }
       return html;
     })
@@ -98,21 +101,22 @@ function leafHtml(
   place: { top: number; left: number },
   images: Readonly<Record<string, string>>,
   listClass: (block: DocList) => string,
+  u: Unit,
 ): string {
-  const margin = `margin-top:${place.top}px;margin-left:${place.left}px`;
+  const margin = `margin-top:${place.top}${u};margin-left:${place.left}${u}`;
   switch (block.kind) {
     case 'paragraph': {
       const px = blockFontPx(block, page, pageWidth);
       const base = blockBase(block, page, pageWidth);
       const style = [
         margin,
-        `font-size:${px}px`,
+        `font-size:${px}${u}`,
         ...(block.color ? [`color:#${block.color}`] : []),
         ...(block.align && block.align !== 'left' ? [`text-align:${block.align}`] : []),
         // 表单的标签和值（D-332）：值从原图里的位置开始。
-        ...(block.tab ? [`tab-size:${Math.round(block.tab * k)}px`] : []),
+        ...(block.tab ? [`tab-size:${Math.round(block.tab * k)}${u}`] : []),
       ].join(';');
-      const html = runsHtml(block.runs ?? [{ text: block.text }], base, px, pageWidth);
+      const html = runsHtml(block.runs ?? [{ text: block.text }], base, px, pageWidth, u);
       return `<p data-ref="${ref}" style="${style}">${orBreak(html)}</p>`;
     }
     case 'list': {
@@ -122,12 +126,12 @@ function leafHtml(
       const items = block.items
         .map(
           (item, i) =>
-            `<li>${orBreak(runsHtml(block.itemRuns?.[i] ?? [{ text: item }], base, px, pageWidth))}</li>`,
+            `<li>${orBreak(runsHtml(block.itemRuns?.[i] ?? [{ text: item }], base, px, pageWidth, u))}</li>`,
         )
         .join('');
       const color = block.color ? `;color:#${block.color}` : '';
       const start = block.ordered ? `;counter-reset:n ${(block.start ?? 1) - 1}` : '';
-      return `<${tag} data-ref="${ref}" class="${listClass(block)}" style="${margin};font-size:${px}px${color}${start}">${items}</${tag}>`;
+      return `<${tag} data-ref="${ref}" class="${listClass(block)}" style="${margin};font-size:${px}${u}${color}${start}">${items}</${tag}>`;
     }
     case 'table': {
       const { table, colWidths } = block;
@@ -149,16 +153,16 @@ function leafHtml(
           .join('');
         return `<tr>${cells}</tr>`;
       }).join('');
-      return `<table data-ref="${ref}" style="margin-top:${place.top}px;font-size:${px}px"><tbody>${rows}</tbody></table>`;
+      return `<table data-ref="${ref}" style="margin-top:${place.top}${u};font-size:${px}${u}"><tbody>${rows}</tbody></table>`;
     }
     case 'image': {
-      // 按原来占页宽的比例。图片不能在页面上改，只能连同它所在的地方一起删掉。
+      // 按原来占页宽的比例。图片不能在页面上改，只能连同它所在的地方一起删掉（打印的版面用 pt，不用标）。
       const width = Math.min(100, (block.box.width / page.width) * 100);
       const src = block.src ? images[block.src] : undefined;
       const inner = src
         ? `<img src="${src}" style="width:100%">`
         : `<div class="noimg" style="aspect-ratio:${block.box.width}/${Math.max(1, block.box.height)}"></div>`;
-      return `<div data-ref="${ref}" data-kind="image" contenteditable="false" style="${margin};width:${width.toFixed(2)}%">${inner}</div>`;
+      return `<div data-ref="${ref}" data-kind="image"${u === 'px' ? ' contenteditable="false"' : ''} style="${margin};width:${width.toFixed(2)}%">${inner}</div>`;
     }
   }
 }
@@ -175,12 +179,18 @@ const leftAligned = (block: DocLeaf) =>
   block.kind === 'list' ||
   (block.kind === 'paragraph' && !block.tab && (!block.align || block.align === 'left'));
 
-/** 整份文档的编辑页（一个完整的 HTML）：width 是网页的宽（点），images 是图片块的 src → data: 地址。 */
+/**
+ * 整份文档的编辑页（一个完整的 HTML）：width 是网页的宽（点），images 是图片块的 src → data: 地址。
+ * print：打印成 PDF 用的同一个版面（文档转 PDF，D-466）：一页 A4 宽（width 磅，单位用 pt，打印时 iOS 和
+ * Android 都按磅排），不能改、没有脚本，每页另起一页纸。
+ */
 export function wordPageHtml(
   doc: DocDoc,
   width: number,
   images: Readonly<Record<string, string>> = {},
+  print = false,
 ): string {
+  const u: Unit = print ? 'pt' : 'px';
   const lists: string[] = [];
   const listClass = (block: DocList) => {
     if (!block.ordered) return '';
@@ -196,7 +206,7 @@ export function wordPageHtml(
     return name;
   };
   // 纸的宽；纸里两边留出原件的空白（不小于 SIDE_MIN）。
-  const pageWidth = paperWidth(width);
+  const pageWidth = print ? width : paperWidth(width);
   const pages = doc.pages
     .map((page, p) => {
       const k = pageWidth / Math.max(1, page.width);
@@ -226,6 +236,7 @@ export function wordPageHtml(
               place(block, gap),
               images,
               listClass,
+              u,
             );
           }
           const total = block.cells.reduce((a, c) => a + c.width, 0) || 1;
@@ -242,36 +253,50 @@ export function wordPageHtml(
                     { top: 0, left: 0 },
                     images,
                     listClass,
+                    u,
                   ),
                 )
                 .join('');
               return `<div class="cell" style="width:${((cell.width / total) * 100).toFixed(2)}%">${items || '<p><br></p>'}</div>`;
             })
             .join('');
-          return `<div data-ref="${p}-${b}" data-kind="row" style="margin-top:${gap}px">${cells}</div>`;
+          return `<div data-ref="${p}-${b}" data-kind="row" style="margin-top:${gap}${u}">${cells}</div>`;
         })
         .join('');
-      return `<div class="paper" contenteditable="true" data-page="${p}" style="padding:16px ${side}px 24px">${blocks || '<p><br></p>'}</div>`;
+      const editable = print ? '' : ' contenteditable="true"';
+      return `<div class="paper"${editable} data-page="${p}" style="padding:16${u} ${side}${u} 24${u}">${blocks || '<p><br></p>'}</div>`;
     })
     .join('');
   const config = JSON.stringify({ ptPx: ptPx(pageWidth) });
+  const common = `.paper p{margin:0;white-space:pre-wrap;min-height:1em}
+.paper ol,.paper ul{margin:0;padding-left:1.8em}
+.paper ol{list-style:none}
+.paper ol>li{counter-increment:n;position:relative}
+.paper ol>li::before{position:absolute;right:100%;margin-right:.35em;white-space:nowrap}
+.paper table{border-collapse:collapse;width:100%;table-layout:fixed}
+.paper td{border:1${u} solid #9A9A9A;padding:3${u};vertical-align:top;white-space:pre-wrap;word-break:break-word}
+[data-kind=row]{display:flex;align-items:flex-start}
+.cell{padding-right:6${u};box-sizing:border-box}
+.noimg{width:100%;background:#EEE}
+${lists.join('\n')}`;
+  if (print) {
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+@page{margin:0}
+html,body{margin:0;background:#fff}
+body{font-family:-apple-system,"Helvetica Neue",Roboto,sans-serif;-webkit-print-color-adjust:exact}
+.paper{width:${width}pt;box-sizing:border-box;color:${INK};line-height:1.3;word-wrap:break-word;break-after:page;page-break-after:always}
+.paper:last-child{break-after:auto;page-break-after:auto}
+${common}
+</style></head><body>${pages}</body></html>`;
+  }
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <style>
 html,body{margin:0;background:transparent;-webkit-text-size-adjust:100%}
 body{padding:10px;font-family:-apple-system,"Helvetica Neue",Roboto,sans-serif;-webkit-user-select:text;user-select:text}
 .paper{background:#fff;color:${INK};border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.12);margin-bottom:24px;outline:none;line-height:1.3;word-wrap:break-word;caret-color:#0B8F7A}
-.paper p{margin:0;white-space:pre-wrap;min-height:1em}
-.paper ol,.paper ul{margin:0;padding-left:1.8em}
-.paper ol{list-style:none}
-.paper ol>li{counter-increment:n;position:relative}
-.paper ol>li::before{position:absolute;right:100%;margin-right:.35em;white-space:nowrap}
-.paper table{border-collapse:collapse;width:100%;table-layout:fixed}
-.paper td{border:1px solid #9A9A9A;padding:3px;vertical-align:top;white-space:pre-wrap;word-break:break-word}
-[data-kind=row]{display:flex;align-items:flex-start}
-.cell{padding-right:6px;box-sizing:border-box}
-.noimg{width:100%;background:#EEE}
-${lists.join('\n')}
+${common}
 </style></head><body>${pages}
 <script>window.WORD=${config};${WORD_PAGE_SCRIPT}</script></body></html>`;
 }

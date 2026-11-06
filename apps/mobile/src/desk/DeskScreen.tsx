@@ -70,7 +70,7 @@ import {
   clearDesk,
   commitRun,
   deskFileUri,
-  deskPicked,
+  deskPickedWithSources,
   loadDesk,
   recoverEditDraft,
   redo,
@@ -286,7 +286,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
       ...(host.ensurePacks ? { ensurePacks: host.ensurePacks } : {}),
       signal: signal.current,
       onEvent,
-      incoming: deskPicked(files, current, on),
+      incoming: await deskPickedWithSources(files, current, on),
     });
     try {
       const result = started.result;

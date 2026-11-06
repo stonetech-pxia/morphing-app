@@ -320,6 +320,26 @@ export async function loadDeskSource(
   return { kind: 'doc', doc };
 }
 
+/**
+ * 交给工具时，桌上的 Word 带着它的中间格式（D-466，图片换成能读的地址）：文档转 PDF 按编辑页的版面排。
+ * 读不出来的照常只交文件。
+ */
+export async function deskPickedWithSources(
+  files: Files,
+  desk: Desk,
+  list: readonly DeskFile[],
+): Promise<PickedFile[]> {
+  const picked = deskPicked(files, desk, list);
+  return Promise.all(
+    picked.map(async (p, i) => {
+      const file = list[i]!;
+      if (file.source?.kind !== 'doc') return p;
+      const source = await loadDeskSource(files, desk, file).catch(() => null);
+      return source?.kind === 'doc' ? { ...p, docDoc: source.doc } : p;
+    }),
+  );
+}
+
 /** 桌上的文件交给运行时的样子（和分享进来的文件一样，D-115）。 */
 export function deskPicked(files: Files, desk: Desk, list: readonly DeskFile[]): PickedFile[] {
   return list.map((f) => ({
