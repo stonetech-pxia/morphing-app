@@ -253,6 +253,7 @@ Add one with addTool {tool: {preset}} (rule 20). Each line: id “name”: its s
 - voice-memo-archive “Voice memos by date”: pick:in.audio{source,min,max} → name:file.rename{template} → save:out.saveToFolder
 - pdf-to-audio “PDF to audio”: pick:in.files{accept,min,max} → extract:pdf.extractText → speak:audio.fromText{lang,rate,format} → share:out.share
 - pdf-doc-word “PDF to Word”: pick:in.files{accept,min,max} → pages:pdf.toImages{maxSide} → word:ocr.toWord{lang}
+- pdf-doc-excel “PDF to Excel”: pick:in.files{accept,min,max} → pages:pdf.toImages{maxSide} → excel:ocr.toExcel{lang,scope}
 - paper-to-audio “Read paper pages aloud”: pick:in.photos{source,min,max} → edges:scan.detect → read:ocr.recognize{lang} → speak:audio.fromText{lang,rate,format} → share:out.share
 - video-srt-captions “Export video captions as SRT”: pick:in.videos{min,max} → captions:video.subtitles{lang*,model}
 - mark-up-photos “Add arrows and notes to photos”: pick:in.photos{source,min,max} → mark:image.annotate
@@ -277,7 +278,7 @@ Each action: id (input → output; start = an input action, same = the type it g
   - pdf.rotate (pdf → pdf) {angle: 90|180|270, rule: "all"|"odd"|"even"|"first"|"last"|"range", range?: string}: Rotate some or all pages clockwise.
   - pdf.split (pdf → pdf) {mode: "every"|"ranges", n?: integer 1..500, ranges?: string}: Split into several PDFs: every N pages, or by page ranges separated by ; (e.g. 1-3; 4-6).
   - pdf.pageNumbers (pdf → pdf) {position: "bottomCenter"|"bottomRight"|"bottomLeft"|"topCenter"|"topRight"|"topLeft", format: "n"|"nOfTotal"|"pageNOfTotal", startAt: integer 0..100000, fontSize: number 6..48, skipFirst: boolean}: Add page numbers to every page.
-  - pdf.stamp (pdf → pdf) {text: string, position: "bottomCenter"|"bottomRight"|"bottomLeft"|"topCenter"|"topRight"|"topLeft"|"center", fontSize: number 6..120, color: "#000000"|"#C92A2A"|"#1864AB"|"#868E96", opacity: integer 10..100, angle: 0|45, rule: "all"|"odd"|"even"|"first"|"last"|"range", range?: string}: Stamp a line of text (e.g. COPY, Confidential, or the date with {date}) on pages.
+  - pdf.stamp (pdf → pdf) {text: string, position: "bottomCenter"|"bottomRight"|"bottomLeft"|"topCenter"|"topRight"|"topLeft"|"center", fontSize: number 6..120, color: "#000000"|"#C92A2A"|"#1864AB"|"#868E96", opacity: integer 10..100, angle: 0|45|-45, rule: "all"|"odd"|"even"|"first"|"last"|"range", range?: string}: Stamp a line of text (e.g. COPY, Confidential, or the date with {date}) on pages.
   - pdf.toImages (pdf → images) {maxSide: integer 400..4000}: Turn every page into a JPG image (long side in pixels). [pack: pdfview]
   - pdf.fromDocument (files → pdf) {pageSize: "a4"|"letter"}: Turn Word, Excel and PowerPoint files (also RTF) into PDFs on this device. Use: Word, Excel or PowerPoint to PDF → in.files with accept "documents" then this (on Android only Word works; say so in a note when they mention Excel or PowerPoint).
   - pdf.extractText (pdf → text) {}: Reads the text of a PDF, scanned pages included (pages without a text layer are read with text recognition, which may get some characters wrong). [pack: pdfview]
