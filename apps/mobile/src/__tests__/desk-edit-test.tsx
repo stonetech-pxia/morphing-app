@@ -6,7 +6,7 @@ import {
   type TableBlock,
   type TableDoc,
 } from '@morph/tool-office';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { screen } from 'expo-router/testing-library';
 import { strFromU8, unzipSync } from 'fflate';
@@ -366,26 +366,28 @@ describe('Excel 在桌上就是表格编辑器', () => {
 });
 
 describe('Word 在桌上就是文档编辑器', () => {
-  it('段落、列表改文字，删块；表格在文档里直接改（不弹出编辑页）；合上时生成新的 docx', async () => {
+  it('段落、列表、表格的格子点一下就在页面上直接改（D-464，不弹文字框）；删块；合上时生成新的 docx', async () => {
     const { files } = await openOnDesk('doc', wordDoc());
+    // 点一下：选中（下面有原图截图），同时就在这个位置变成输入框；没有单独的文字框。
     await fireEvent.press(screen.getByTestId('word-block-0-1'));
     expect(screen.getAllByTestId('table-crop').length).toBeGreaterThan(0);
-    await fireEvent.press(screen.getByTestId('word-block-0-1'));
-    await fireEvent.changeText(screen.getByTestId('desk-edit-input'), '改过的 <正文> & 段落');
-    await fireEvent.press(screen.getByTestId('desk-edit-ok'));
+    const input = within(screen.getByTestId('word-block-0-1')).getByTestId('desk-edit-input');
+    expect(screen.queryByTestId('desk-edit-panel')).toBeNull();
+    await fireEvent.changeText(input, '改过的 <正文> & 段落');
+    await fireEvent(input, 'blur');
     expect(screen.getByText('改过的 <正文> & 段落')).toBeTruthy();
     // 列表一行一项。
     await fireEvent.press(screen.getByTestId('word-block-0-2'));
-    await fireEvent.press(screen.getByTestId('desk-edit-text'));
     expect(screen.getByTestId('desk-edit-input').props.value).toBe('甲\n乙');
     await fireEvent.changeText(screen.getByTestId('desk-edit-input'), '甲\n乙\n丙');
-    await fireEvent.press(screen.getByTestId('desk-edit-ok'));
+    await fireEvent(screen.getByTestId('desk-edit-input'), 'blur');
     expect(screen.getByText('丙')).toBeTruthy();
-    // 表格的格子：选中、再点编辑，就在文档里改；再在下面插入一行。
-    await editTo('word-cell-0-3-1', '合计');
+    // 表格的格子：点一下就在格子里改；字没失去焦点就点「下面插入一行」，改的字也在。
+    await fireEvent.press(screen.getByTestId('word-cell-0-3-1'));
+    await fireEvent.changeText(screen.getByTestId('desk-edit-input'), '合计');
     expect(screen.queryByTestId('table-editor')).toBeNull();
-    expect(screen.getByText('合计')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('desk-row-below'));
+    expect(screen.getByText('合计')).toBeTruthy();
     // 删掉标题。
     await fireEvent.press(screen.getByTestId('word-block-0-0'));
     await fireEvent.press(screen.getByTestId('desk-block-delete'));

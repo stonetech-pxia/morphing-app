@@ -537,6 +537,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
         width={screenWidth}
         onApply={edit.apply}
         onSelecting={onSelecting}
+        onTyping={edit.typing}
       />
     )
   ) : (

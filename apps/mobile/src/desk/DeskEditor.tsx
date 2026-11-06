@@ -24,7 +24,7 @@ import {
   type SheetCell,
   type TableDoc,
 } from '@morph/tool-office';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { t, type StringKey } from '../i18n';
@@ -56,6 +56,7 @@ export function DeskEditor({
   width,
   onApply,
   onSelecting,
+  onTyping,
 }: {
   kind: 'table' | 'doc';
   doc: TableDoc | DocDoc;
@@ -64,6 +65,8 @@ export function DeskEditor({
   /** 编辑器的宽（点）。 */
   width: number;
   onApply: (next: TableDoc | DocDoc) => void;
+  /** 页面上正在改字（D-464）：交出把字放进去的函数；不改了是 null。 */
+  onTyping?: (flush: (() => void) | null) => void;
   /** 选中了东西（房间收起工具栏，换成编辑层）。 */
   onSelecting: (on: boolean) => void;
 }) {
@@ -188,41 +191,51 @@ export function DeskEditor({
   // ---- 文档（转 Word） ----
   const docBlock = selected?.kind === 'doc' && word ? blockAt(word, selected.at) : null;
 
+  // 点一下就在页面上直接改（D-464，创始人 2026-11-06：「直接页面里面直接编辑，而不是通过文字框编辑」）；
+  // 下面的编辑层照旧放删除、插入行列这些操作。图片只能选中。
   function pressBlock(at: DocRef) {
     if (selected?.kind === 'doc' && selected.cell === undefined && same(selected.at, at)) {
-      if (docBlock && blockText(docBlock) !== null) startEdit();
+      if (!editing) startEdit();
       return;
     }
-    setEditing(null);
+    const block = word ? blockAt(word, at) : null;
+    const text = block ? blockText(block) : null;
     setSelected({ kind: 'doc', at });
+    setEditing(text !== null ? { text } : null);
   }
 
   function pressDocCell(at: DocRef, cell: number) {
     if (selected?.kind === 'doc' && selected.cell === cell && same(selected.at, at)) {
-      startEdit();
+      if (!editing) startEdit();
       return;
     }
-    setEditing(null);
+    const block = word ? blockAt(word, at) : null;
     setSelected({ kind: 'doc', at, cell });
+    setEditing(block?.kind === 'table' ? { text: block.table.cells[cell]?.text ?? '' } : null);
   }
 
   function docActions(): EditLayerAction[] {
     if (!word || selected?.kind !== 'doc' || !docBlock) return [];
     const at = selected.at;
+    // 字改到一半点这些操作：在放进刚改的字的文档上做，合成一步（输入框不一定先失去焦点）。
+    const doc = () => {
+      const next = docWithEdit();
+      setEditing(null);
+      return next;
+    };
     const remove = {
       id: 'desk-block-delete',
       label: 'wordDeleteBlock' as const,
       danger: true,
-      run: () => apply(deleteBlock(word, at)),
+      run: () => apply(deleteBlock(doc(), at)),
     };
     if (docBlock.kind === 'table' && selected.cell !== undefined) {
       const cell = docBlock.table.cells[selected.cell];
       if (!cell) return [remove];
       const one = { page: 0, block: 0 };
-      const op = (fn: (t: TableDoc) => TableDoc) => apply(editDocTable(word, at, fn));
+      const op = (fn: (t: TableDoc) => TableDoc) => apply(editDocTable(doc(), at, fn));
       const tablePage = tableDocOf(word, at, '')!.pages[0]!;
       return [
-        { id: 'desk-edit-text', label: 'tableEditCell', run: startEdit },
         {
           id: 'desk-row-above',
           label: 'tableInsertRowAbove',
@@ -266,9 +279,8 @@ export function DeskEditor({
         remove,
       ];
     }
-    return blockText(docBlock) !== null
-      ? [{ id: 'desk-edit-text', label: 'wordEditText', run: startEdit }, remove]
-      : [remove];
+    // 改文字就在页面上点（D-464），这里只放删除。
+    return [remove];
   }
 
   // ---- 共用 ----
@@ -282,6 +294,24 @@ export function DeskEditor({
         if (text !== null) setEditing({ text });
       }
     }
+  }
+
+  /** 正在页面上改的字放进文档以后的样子（D-464）；没改字时就是原来的文档。 */
+  function docWithEdit(): DocDoc {
+    if (!word || !editing || selected?.kind !== 'doc') return word!;
+    const block = blockAt(word, selected.at);
+    const before =
+      block?.kind === 'table' && selected.cell !== undefined
+        ? (block.table.cells[selected.cell]?.text ?? '')
+        : block
+          ? blockText(block)
+          : null;
+    if (before === editing.text) return word;
+    return selected.cell !== undefined
+      ? (editDocTable(word, selected.at, (t) =>
+          setCellText(t, { page: 0, block: 0 }, selected.cell!, editing.text),
+        ) as DocDoc)
+      : (setBlockText(word, selected.at, editing.text) as DocDoc);
   }
 
   function commitText() {
@@ -298,17 +328,21 @@ export function DeskEditor({
           : setTextBlock(table, pageIndex, selected.block, editing.text);
       apply(next, true);
     } else if (selected.kind === 'doc' && word) {
-      const next =
-        selected.cell !== undefined
-          ? editDocTable(word, selected.at, (t) =>
-              setCellText(t, { page: 0, block: 0 }, selected.cell!, editing.text),
-            )
-          : setBlockText(word, selected.at, editing.text);
+      const next = docWithEdit();
       // 段落改成空的会被删掉：那就不再选中它。
-      apply(next, selected.cell !== undefined || !!blockAt(next as DocDoc, selected.at));
+      if (next !== word) apply(next, selected.cell !== undefined || !!blockAt(next, selected.at));
     }
     setEditing(null);
   }
+  // 正在页面上改字时把「放进去」交给房间：点「完成」、离开时先放进去（D-464）。
+  const commitRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    commitRef.current = () => commitText();
+  });
+  const typing = editing !== null && word !== null;
+  useEffect(() => {
+    onTyping?.(typing ? () => commitRef.current() : null);
+  }, [typing, onTyping]);
 
   /** 选中的这一块在原图里的位置和那一页（截图用）。 */
   function sourceOf(): {
@@ -386,10 +420,21 @@ export function DeskEditor({
           selectedCell={selected?.kind === 'doc' ? (selected.cell ?? null) : null}
           onPress={pressBlock}
           onPressCell={pressDocCell}
+          edit={
+            editing && selected?.kind === 'doc'
+              ? {
+                  at: selected.at,
+                  ...(selected.cell !== undefined ? { cell: selected.cell } : {}),
+                  text: editing.text,
+                  onChange: (text) => setEditing({ text }),
+                  onEnd: commitText,
+                }
+              : null
+          }
         />
       ) : null}
 
-      {editing ? (
+      {editing && !word ? (
         <View
           testID="desk-edit-panel"
           style={[styles.layer, { borderColor: palette.border, backgroundColor: palette.surface }]}>

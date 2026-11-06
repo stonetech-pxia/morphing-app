@@ -1539,7 +1539,6 @@ export const en = {
   runError_wordUnsupported:
     'This device can’t read documents in this language yet. Choose another language for “Convert to Word”.',
   wordFileName: 'Document {date}',
-  wordEditText: 'Edit text',
   wordDeleteBlock: 'Delete',
   wordEmpty: 'Nothing was recognized.',
   // 日程（D-292–D-296）

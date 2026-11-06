@@ -39,8 +39,13 @@ export interface DeskEdit {
   apply(next: TableDoc | DocDoc): void;
   undo(): void;
   redo(): void;
-  /** 改过、还没合上。 */
+  /** 改过、还没合上（页面上正在改的字也算）。 */
   dirty: boolean;
+  /**
+   * 页面上正在改字（D-464）：flush 把改的字放进去。合上前先调它（点「完成」、离开时输入框不一定先失去焦点）；
+   * 不改了传 null。
+   */
+  typing(flush: (() => void) | null): void;
   /** 合上（没改过时什么都不做），返回现在的桌面。 */
   seal(): Promise<Desk | null>;
 }
@@ -71,6 +76,8 @@ export function useDeskEdit({
   // 写「编辑中」文件排队写（后一次覆盖前一次）；合上前先等它写完。
   const writing = useRef<Promise<unknown>>(Promise.resolve());
   const sealing = useRef<Promise<Desk | null> | null>(null);
+  const flush = useRef<(() => void) | null>(null);
+  const [typing, setTyping] = useState(false);
 
   const fileId = file?.id ?? null;
   const editable = !!file?.source;
@@ -148,11 +155,19 @@ export function useDeskEdit({
 
   return {
     session,
-    dirty: !!session && session.history.present !== session.base,
+    dirty: typing || (!!session && session.history.present !== session.base),
+    typing(next) {
+      flush.current = next;
+      setTyping(next !== null);
+    },
     apply: (next) => ref.current && update(pushHistory(ref.current.history, next)),
     undo: () => ref.current && update(undoHistory(ref.current.history)),
     redo: () => ref.current && update(redoHistory(ref.current.history)),
     seal() {
+      // 页面上正在改的字先放进去（apply 同步改 ref，下面读得到）。
+      const pending = flush.current;
+      flush.current = null;
+      pending?.();
       // 几个地方同时要合上（例如点了工具又离开）：只合一次。
       sealing.current ??= sealNow().finally(() => {
         sealing.current = null;
