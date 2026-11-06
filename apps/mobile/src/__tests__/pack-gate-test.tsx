@@ -108,4 +108,41 @@ describe('first-use download prompt', () => {
     await view.rerender(gate([{ pack: 'ocr-eng', optional: true }]));
     expect(await screen.findByTestId('pack-download')).toBeTruthy();
   });
+
+  it('lets a running download go on in the background and tells when it is done', async () => {
+    // 下载很慢：用户点「后台下载」，提示框关掉、这次运行取消，下载继续；下完通知一次，不再调 onDone。
+    const fs = new MemoryPackFs();
+    const lookup = await manifests(fs);
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => (release = resolve));
+    const slow = fs.download.bind(fs);
+    fs.download = async (url, path) => {
+      await hold;
+      return slow(url, path);
+    };
+    const store = new PackStore(fs, sha256, (id) => lookup.get(id));
+    const palette = makePalette(createDefaultWorkspace('zh').theme, false);
+    const done: (string[] | null)[] = [];
+    const ended: { ids: string[]; ok: boolean }[] = [];
+    store.onBackgroundEnd((e) => ended.push(e));
+    await render(
+      <PackGate
+        needs={[{ pack: 'ocr', optional: false }]}
+        store={store}
+        palette={palette}
+        locale="zh"
+        onDone={(left) => done.push(left)}
+      />,
+    );
+    expect(screen.queryByTestId('pack-background')).toBeNull();
+    await fireEvent.press(await screen.findByTestId('pack-download'));
+    const later = await screen.findByTestId('pack-background');
+    expect(later).toHaveTextContent('后台下载');
+    await fireEvent.press(later);
+    expect(done).toEqual([null]);
+    release();
+    await waitFor(() => expect(ended).toEqual([{ ids: ['ocr'], ok: true }]));
+    expect(await store.isInstalled('ocr')).toBe(true);
+    expect(done).toEqual([null]);
+  });
 });

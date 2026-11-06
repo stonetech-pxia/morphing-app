@@ -13,6 +13,7 @@ import { GuideCard } from '../guide/GuideCard';
 import { SampleHint } from '../guide/SampleHint';
 import { openLookGuide, useGuide } from '../guide/store';
 import { t } from '../i18n';
+import { usePacks } from '../packs/PackHost';
 import { EditablePage } from '../editing/EditablePage';
 import type { RenderEnv } from '../renderer/components';
 import { GlassFill } from '../renderer/GlassFill';
@@ -78,6 +79,16 @@ export function Shell() {
   const headId = useWorkspace((s) => s.head!.id);
   const tab = useWorkspace((s) => s.tab);
   const markRendered = useWorkspace((s) => s.markRendered);
+  // 点了「后台下载」的下载结束时提示一次（用户已经去做别的事了）。
+  const packs = usePacks();
+  const showToast = useWorkspace((s) => s.showToast);
+  useEffect(
+    () =>
+      packs?.store.onBackgroundEnd(({ ok }) =>
+        showToast({ message: t(locale, ok ? 'packBackgroundDone' : 'packBackgroundFailed') }),
+      ),
+    [packs, showToast, locale],
+  );
   const editing = useWorkspace((s) => s.editing !== null);
   const startEditing = useWorkspace((s) => s.startEditing);
   const palette = usePalette(config.theme);

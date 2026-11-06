@@ -107,7 +107,41 @@ export class PackStore {
    * 下载并校验一个扩展包（连同它依赖的扩展包）。只能由用户在界面上确认后调用（D-064）。
    * 任何一个文件的大小或 SHA-256 不对，就删除这个版本目录并报错。
    */
-  async install(id: string, onProgress?: (p: PackProgress) => void): Promise<void> {
+  install(id: string, onProgress?: (p: PackProgress) => void): Promise<void> {
+    // 同一个包正在下载时（点了「后台下载」又在别处要同一个包）不再开始第二次：第二次会把第一次
+    // 下到一半的目录删掉。后来的调用接着看进度，等同一次下载结束。
+    const running = this.installing.get(id);
+    if (running) {
+      if (onProgress) running.watchers.add(onProgress);
+      return running.done;
+    }
+    const watchers = new Set<(p: PackProgress) => void>();
+    if (onProgress) watchers.add(onProgress);
+    const done = this.installNow(id, (p) => watchers.forEach((w) => w(p))).finally(() =>
+      this.installing.delete(id),
+    );
+    this.installing.set(id, { done, watchers });
+    return done;
+  }
+
+  private readonly installing = new Map<
+    string,
+    { done: Promise<void>; watchers: Set<(p: PackProgress) => void> }
+  >();
+
+  private readonly backgroundListeners = new Set<(e: { ids: string[]; ok: boolean }) => void>();
+
+  /** 点了「后台下载」的下载结束时通知（成功或失败）。返回取消订阅。 */
+  onBackgroundEnd(listener: (e: { ids: string[]; ok: boolean }) => void): () => void {
+    this.backgroundListeners.add(listener);
+    return () => void this.backgroundListeners.delete(listener);
+  }
+
+  finishedInBackground(ids: string[], ok: boolean) {
+    for (const listener of [...this.backgroundListeners]) listener({ ids, ok });
+  }
+
+  private async installNow(id: string, onProgress?: (p: PackProgress) => void): Promise<void> {
     const pack = this.lookup(id);
     if (!pack) throw new PackError('unknown', id);
     for (const dep of pack.requires ?? []) {
