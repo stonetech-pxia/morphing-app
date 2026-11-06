@@ -1,6 +1,6 @@
 import { createDefaultWorkspace } from '@morph/core';
 import { fireEvent, render } from '@testing-library/react-native';
-import { screen } from 'expo-router/testing-library';
+import { screen, testRouter } from 'expo-router/testing-library';
 import { Alert } from 'react-native';
 
 import { PackStore } from '../packs/store';
@@ -56,8 +56,7 @@ describe('translation journeys (UI)', () => {
   it('lists the translation presets by input type and runs screenshot translation', async () => {
     const { files } = filesWithTranslator();
     await renderToolsApp(new MemoryWorkspaceRepo(), files);
-    await fireEvent.press(screen.getByTestId('nav-settings'));
-    await fireEvent.press(await screen.findByTestId('settings-workflows'));
+    await testRouter.push('/workflows');
     expect(await screen.findByTestId('workflows-screen')).toBeTruthy();
 
     await fireEvent.press(screen.getByTestId('category-image'));

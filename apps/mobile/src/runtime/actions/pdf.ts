@@ -707,7 +707,7 @@ export const PDF_IMPLS: Record<string, Impl> = {
       fontSize: number;
       color: string;
       opacity: number;
-      angle: 0 | 45;
+      angle: 0 | 45 | -45;
     };
     const text = String(params.text).replace(/\{date\}/g, today(ctx.now()));
     return eachPdf(input, ctx, async (bytes) => {
@@ -742,6 +742,7 @@ export const PDF_IMPLS: Record<string, Impl> = {
           image: { bytes: image.bytes, kind: 'png' },
           pageIndex: index,
           ...box,
+          ...(angle ? { rotateDeg: angle } : {}),
         });
       }
       return out;

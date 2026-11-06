@@ -168,6 +168,8 @@ export interface StampImageOptions {
   y: number;
   /** 图片宽度占页宽的比例；高度按图片比例计算。 */
   width: number;
+  /** 绕图片中心逆时针旋转（用户所见方向），如 45 做斜向水印。 */
+  rotateDeg?: number;
 }
 
 /** 把图片（签名、Skia 渲染的中文印章）放到某一页上；旋转过的页面按用户所见方向放置。 */
@@ -175,6 +177,7 @@ export async function stampImage(bytes: Uint8Array, opts: StampImageOptions): Pr
   assertNumber(opts.x, 0, 1);
   assertNumber(opts.y, 0, 1);
   assertNumber(opts.width, 0.001, 1);
+  assertNumber(opts.rotateDeg ?? 0, -360, 360);
   const doc = await loadPdf(bytes);
   assertPageIndices([opts.pageIndex], doc.getPageCount());
   const page = doc.getPage(opts.pageIndex);
@@ -183,7 +186,7 @@ export async function stampImage(bytes: Uint8Array, opts: StampImageOptions): Pr
   const w = opts.width * view.width;
   const h = (w * image.height) / image.width;
   const rect = { p: opts.x * view.width, q: view.height * (1 - opts.y) - h, w, h };
-  page.drawImage(image, { ...placeBox(view, rect), width: w, height: h });
+  page.drawImage(image, { ...placeBox(view, rect, opts.rotateDeg ?? 0), width: w, height: h });
   return doc.save();
 }
 

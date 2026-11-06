@@ -294,6 +294,7 @@ describe('user journeys (UI)', () => {
     await askAi('主题换成绿色');
     // 草稿里点会真的做事的东西只提示；离开时提示一起收掉。
     await fireEvent.press(await screen.findByTestId('nav-settings'));
+    await fireEvent.press(await screen.findByTestId('settings-more'));
     await fireEvent.press(await screen.findByTestId('settings-data'));
     expect(await screen.findByTestId('toast')).toHaveTextContent(/应用之后才能用/);
     await fireEvent.press(screen.getByTestId('draft-leave'));
@@ -452,7 +453,8 @@ describe('user journeys (UI)', () => {
   it('going back from tools opened in settings lands on settings', async () => {
     const { router } = await renderApp();
     await fireEvent.press(await screen.findByTestId('nav-settings'));
-    await fireEvent.press(await screen.findByTestId('settings-tools'));
+    // 设置页不再列「工具」（隐藏了入口），页面本身还在：直接打开。
+    await testRouter.push('/tools');
     expect(router.getPathname()).toBe('/tools');
     expect(await screen.findByTestId('page-ai')).toBeTruthy();
     // 在这里加工具：撤销的提示条也要看得到。
@@ -460,7 +462,7 @@ describe('user journeys (UI)', () => {
     expect(await screen.findByTestId('banner')).toBeTruthy();
     await testRouter.back();
     expect(router.getPathname()).toBe('/');
-    expect(await screen.findByTestId('settings-tools')).toBeTruthy();
+    expect(await screen.findByTestId('settings-ai')).toBeTruthy();
   });
 
   it('going back from the change history lands on settings', async () => {
@@ -673,10 +675,9 @@ describe('user journeys (UI)', () => {
     // Anthropic 时：发到 api.anthropic.com。
     expect(await screen.findByText(/会发送到 api.anthropic.com/)).toBeTruthy();
 
-    await fireEvent.press(screen.getByTestId('byok-provider-openai'));
-    expect(await screen.findByTestId('byok-other-warning')).toBeTruthy();
-    // 地址没存之前不让填 key，也不显示 Claude 模型。
-    expect(screen.queryByTestId('api-key-input')).toBeNull();
+    await fireEvent.press(screen.getByTestId('byok-preset-custom'));
+    // 没有 Claude 专属的警告；地址没存之前 key 框在，但存不了（先存地址）；也不显示 Claude 模型。
+    expect(await screen.findByTestId('api-key-input')).toBeTruthy();
     expect(screen.queryByTestId('model-claude-haiku-5-5')).toBeNull();
 
     await fireEvent.changeText(screen.getByTestId('byok-base-url'), 'http://192.168.1.5:11434/v1');

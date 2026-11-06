@@ -1,17 +1,12 @@
-import {
-  calendarOf,
-  CURRENT_SCHEMA_VERSION,
-  HOME_PAGE_ID,
-  pageTarget,
-  remindersOf,
-} from '@morph/core';
+import { CURRENT_SCHEMA_VERSION, remindersOf } from '@morph/core';
 import { MODELS } from '@morph/planner';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { ScrollView, Text } from 'react-native';
 
 import { useAISettings } from '../ai/context';
-import { useGuide } from '../guide/store';
-import { t } from '../i18n';
+import { useLanguage } from '../language';
+import { t, type StringKey } from '../i18n';
 import type { RenderEnv } from '../renderer/components';
 import { ListRow, PageTitle, SectionLabel } from '../renderer/ui';
 import { useWorkspace } from '../workspace/context';
@@ -23,9 +18,9 @@ import { useWorkspace } from '../workspace/context';
 export function SettingsView({ env }: { env: RenderEnv }) {
   const { palette, locale } = env;
   const headId = useWorkspace((s) => s.head!.id);
-  const selectTab = useWorkspace((s) => s.selectTab);
   const router = useRouter();
-  const setGuideStage = useGuide((s) => s.setStage);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const preference = useLanguage((s) => s.preference);
   const aiMode = useAISettings((s) => s.mode);
   const aiModel = useAISettings((s) => s.model);
   const aiProvider = useAISettings((s) => s.provider);
@@ -60,89 +55,69 @@ export function SettingsView({ env }: { env: RenderEnv }) {
         value={t(locale, 'historyRowHint')}
         onPress={() => router.push('/history')}
       />
+      {remindersOf(env.config).length > 0 ? (
+        <ListRow
+          palette={palette}
+          testID="settings-reminders"
+          icon="calendar"
+          label={t(locale, 'remindersTitle')}
+          value={t(locale, 'remindersRowHint', { n: remindersOf(env.config).length })}
+          onPress={env.locked ?? (() => router.push('/reminders'))}
+        />
+      ) : null}
       <ListRow
         palette={palette}
-        testID="settings-presets"
-        icon="bookmark"
-        label={t(locale, 'presetsTitle')}
-        value={t(locale, 'presetsRowHint')}
-        onPress={env.locked ?? (() => router.push('/presets'))}
-      />
-      <ListRow
-        palette={palette}
-        testID="settings-tools"
-        icon="apps"
-        label={t(locale, 'toolsTitle')}
-        value={t(locale, 'toolsRowHint')}
-        onPress={() => router.push('/tools')}
-      />
-      <ListRow
-        palette={palette}
-        testID="settings-workflows"
-        icon="workflow"
-        label={t(locale, 'workflowsTitle')}
-        value={t(locale, 'workflowsRowHint')}
-        onPress={env.locked ?? (() => router.push('/quick-actions'))}
-      />
-      <ListRow
-        palette={palette}
-        testID="settings-packs"
-        icon="archive"
-        label={t(locale, 'packsTitle')}
-        value={t(locale, 'packsRowHint')}
-        onPress={env.locked ?? (() => router.push('/packs'))}
-      />
-      <ListRow
-        palette={palette}
-        testID="settings-reminders"
-        icon="calendar"
-        label={t(locale, 'remindersTitle')}
-        value={t(locale, 'remindersRowHint', { n: remindersOf(env.config).length })}
-        onPress={env.locked ?? (() => router.push('/reminders'))}
-      />
-      <ListRow
-        palette={palette}
-        testID="settings-calendar"
-        icon="calendar"
-        label={t(locale, 'calendarTitle')}
-        value={t(
-          locale,
-          calendarOf(env.config).weekStart === 'sunday' ? 'calendarRowSunday' : 'calendarRowMonday',
-          { hour: calendarOf(env.config).dayStartHour },
-        )}
-        onPress={env.locked ?? (() => router.push('/calendar'))}
-      />
-      <ListRow
-        palette={palette}
-        testID="settings-data"
-        icon="inbox"
-        label={t(locale, 'dataTitle')}
-        value={t(locale, 'dataRowHint')}
-        onPress={env.locked ?? (() => router.push('/data'))}
-      />
-      <ListRow
-        palette={palette}
-        testID="settings-storage"
+        testID="settings-more"
         icon="folder"
-        label={t(locale, 'storageTitle')}
-        value={t(locale, 'storageRowHint')}
-        onPress={env.locked ?? (() => router.push('/storage'))}
+        label={t(locale, 'settingsMoreTitle')}
+        value={t(locale, 'settingsMoreHint')}
+        onPress={() => setMoreOpen((open) => !open)}
       />
+      {/* 点开才看到：我的预设、数据、存储空间、已下载内容。 */}
+      {moreOpen ? (
+        <>
+          <ListRow
+            palette={palette}
+            testID="settings-presets"
+            icon="bookmark"
+            label={t(locale, 'presetsTitle')}
+            value={t(locale, 'presetsRowHint')}
+            onPress={env.locked ?? (() => router.push('/presets'))}
+          />
+          <ListRow
+            palette={palette}
+            testID="settings-data"
+            icon="inbox"
+            label={t(locale, 'dataTitle')}
+            value={t(locale, 'dataRowHint')}
+            onPress={env.locked ?? (() => router.push('/data'))}
+          />
+          <ListRow
+            palette={palette}
+            testID="settings-storage"
+            icon="folder"
+            label={t(locale, 'storageTitle')}
+            value={t(locale, 'storageRowHint')}
+            onPress={env.locked ?? (() => router.push('/storage'))}
+          />
+          <ListRow
+            palette={palette}
+            testID="settings-packs"
+            icon="archive"
+            label={t(locale, 'packsTitle')}
+            value={t(locale, 'packsRowHint')}
+            onPress={env.locked ?? (() => router.push('/packs'))}
+          />
+        </>
+      ) : null}
+      <SectionLabel palette={palette}>{t(locale, 'general')}</SectionLabel>
       <ListRow
         palette={palette}
-        testID="settings-guide"
-        icon="lightbulb"
-        label={t(locale, 'settingsGuide')}
-        value={t(locale, 'settingsGuideHint')}
-        onPress={() => {
-          if (env.locked) return env.locked();
-          // 回到首页从头再来（D-149）：外壳看到 intro 会先打开划屏介绍。
-          selectTab(pageTarget(HOME_PAGE_ID));
-          void setGuideStage('intro');
-        }}
+        testID="settings-language"
+        label={t(locale, 'language')}
+        value={t(locale, `languageValue_${preference}` as StringKey)}
+        onPress={() => router.push('/language')}
       />
-      <SectionLabel palette={palette}>{t(locale, 'general')}</SectionLabel>
-      <ListRow palette={palette} label={t(locale, 'language')} value={t(locale, 'languageValue')} />
       <ListRow
         palette={palette}
         label={t(locale, 'aiEngine')}

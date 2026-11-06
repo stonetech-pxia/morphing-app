@@ -51,11 +51,26 @@ describe('createStarterWorkspace', () => {
       { look: 'picker', show: { shape: 'icon' }, tools: [{ tool: '$pick.open' }] },
     ]);
     // D-452：下面是最近操作（读运行记录）和最近的 3 个文件。
-    expect(home.blocks.slice(1)).toMatchObject([
+    expect(home.blocks.slice(2)).toMatchObject([
       { look: 'library', show: { title: '最近操作' }, source: { recent: true } },
       { look: 'files', show: { title: '最近文件' }, source: { table: '$files', limit: 3 } },
     ]);
     expect(homeFileEntryOps(result.config, 'zh')).toEqual([]);
+  });
+
+  it('puts a Toolbox button right under the two buttons; it opens the toolbox page (icons grouped by category)', () => {
+    const config = createStarterWorkspace('zh', registry);
+    const result = applyOps(config, homeFileEntryOps(config, 'zh'), { registry, locale: 'zh' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(validateWorkspace(result.config, registry).ok).toBe(true);
+    const home = result.config.containers.pages.find((p) => p.id === 'home')!;
+    expect(home.blocks[1]).toMatchObject({
+      look: 'button',
+      show: { label: '工具箱', icon: 'apps' },
+      opens: 'page:toolbox',
+    });
+    expect(home.blocks[2]).toMatchObject({ look: 'library' });
   });
 
   it('the old two pickers from v33 still load (photo library and files)', () => {

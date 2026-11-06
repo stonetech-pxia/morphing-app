@@ -155,6 +155,17 @@ describe('stampText', () => {
 describe('stampImage', () => {
   const image = { bytes: readJpeg(), kind: 'jpeg' as const };
 
+  it('rotates the image about its centre (diagonal Chinese watermark) and rejects absurd angles', async () => {
+    const bytes = await makePdf([600]);
+    const base = { image, pageIndex: 0, x: 0.3, y: 0.4, width: 0.4 };
+    const plain = await stampImage(bytes, base);
+    const turned = await stampImage(bytes, { ...base, rotateDeg: 45 });
+    expect(await pageContent(turned, 0)).not.toEqual(await pageContent(plain, 0));
+    await expect(stampImage(bytes, { ...base, rotateDeg: 500 })).rejects.toMatchObject({
+      code: 'badOption',
+    });
+  });
+
   it('places the image by page fractions from the top-left', async () => {
     const out = await stampImage(await makePdf([600]), {
       image,

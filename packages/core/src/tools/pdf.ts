@@ -538,7 +538,7 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
         fontSize: z.number().min(6).max(120),
         color: z.enum(STAMP_COLORS),
         opacity: z.number().int().min(10).max(100),
-        angle: z.union([z.literal(0), z.literal(45)]),
+        angle: z.union([z.literal(0), z.literal(45), z.literal(-45)]),
         ...ruleSchema,
       })
       .refine(needsRange, { message: 'page numbers are missing' }),
@@ -553,7 +553,8 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
         kind: 'text',
         private: true,
       },
-      positionField([...positions, 'center']),
+      // 水印只问文字、颜色、方向（创始人 2026-11-06）：位置、字号、不透明度、页码范围用预设里的，AI 仍能改。
+      { ...positionField([...positions, 'center']), ask: false },
       {
         key: 'fontSize',
         label: { en: 'Size', zh: '字号', fr: 'Taille' },
@@ -561,6 +562,7 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
         unit: 'pt',
         min: 6,
         max: 120,
+        ask: false,
       },
       {
         key: 'color',
@@ -580,6 +582,7 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
         unit: '%',
         min: 10,
         max: 100,
+        ask: false,
       },
       {
         key: 'angle',
@@ -587,12 +590,26 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
         kind: 'choice',
         options: [
           { value: 0, label: { en: 'Straight', zh: '水平', fr: 'Horizontal' } },
-          { value: 45, label: { en: 'Diagonal', zh: '斜 45°', fr: 'Diagonale (45°)' } },
+          { value: 45, label: { en: 'Diagonal up', zh: '斜向上', fr: 'Diagonale montante' } },
+          { value: -45, label: { en: 'Diagonal down', zh: '斜向下', fr: 'Diagonale descendante' } },
         ],
       },
-      ...ruleFields,
+      ...ruleFields.map((f) => ({ ...f, ask: false })),
     ],
     presets: [
+      {
+        id: 'watermark',
+        label: { en: 'Watermark', zh: '水印', fr: 'Filigrane' },
+        values: {
+          text: 'COPY',
+          position: 'center',
+          fontSize: 48,
+          color: '#868E96',
+          opacity: 40,
+          angle: 45,
+          rule: 'all',
+        },
+      },
       {
         id: 'copy',
         label: { en: 'COPY', zh: 'COPY', fr: 'COPY' },

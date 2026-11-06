@@ -224,14 +224,4 @@ describe('first-run guide', () => {
     await fireEvent.press(screen.getByTestId('guide-later'));
     expect(screen.queryByTestId('guide-overlay')).toBeNull();
   });
-
-  it('settings can show the guide again', async () => {
-    await startGuide();
-    await fireEvent.press(await screen.findByTestId('welcome-skip'));
-    await fireEvent.press(await screen.findByTestId('guide-skip'));
-    expect(screen.queryByTestId('guide-look')).toBeNull();
-    await fireEvent.press(screen.getByTestId('nav-settings'));
-    await fireEvent.press(await screen.findByTestId('settings-guide'));
-    expect(await screen.findByTestId('welcome')).toBeTruthy();
-  });
 });

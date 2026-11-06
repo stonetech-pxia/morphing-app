@@ -833,6 +833,24 @@ export const WORKFLOW_PRESETS: readonly WorkflowPreset[] = [
     ],
   },
   {
+    // 预览页「更多」里的转 Excel：和 pdf-doc-word 一样，扫描件 PDF 先变成图片再识别表格。
+    id: 'pdf-doc-excel',
+    scenario: 'paperwork',
+    name: { en: 'PDF to Excel', zh: 'PDF 转 Excel', fr: 'PDF en Excel' },
+    description: {
+      en: 'Choose a PDF with tables → read its pages → one Excel workbook, a sheet per page → check and edit it on the result page. Tables with ruled lines work best.',
+      zh: '选一个带表格的 PDF → 识别每一页 → 转成一个 Excel 文件，每页一张工作表 → 在结果页核对和修改。带线的表格效果最好。',
+      fr: 'Choisissez un PDF contenant des grilles → lisez ses pages → un classeur Excel, une feuille par page → vérifiez-le et modifiez-le sur la page de résultat. Les grilles à lignes donnent les meilleurs résultats.',
+    },
+    icon: 'document',
+    packs: ['pdfview'],
+    steps: () => [
+      { id: 'pick', action: 'in.files', params: { accept: 'pdf', min: 1, max: 1 } },
+      { id: 'pages', action: 'pdf.toImages', params: { maxSide: 2000 } },
+      toExcel,
+    ],
+  },
+  {
     id: 'paper-to-audio',
     scenario: 'study',
     name: { en: 'Read paper pages aloud', zh: '拍纸张读成音频', fr: 'Lire des pages papier' },

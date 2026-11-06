@@ -37,7 +37,8 @@ const TOOLBOX_GROUPS: { id: string; title: [string, string]; toolIds?: string[] 
 
 /**
  * 「打开相册」「打开文件」两个入口并排放在首页（新手引导第 1 步和「跳过引导」用，D-231）；
- * 首页已经有文件入口时不再加。
+ * 首页已经有文件入口时不再加。两个按钮下面再放一个「工具」按钮，点进工具箱页面（图标 + 分类的工具，D-181）；
+ * 配置里没有工具箱页面时不放。
  */
 export function homeFileEntryOps(config: WorkspaceConfig, locale: Locale): Op[] {
   const home = config.containers.pages.find((p) => p.id === HOME_PAGE_ID);
@@ -75,6 +76,24 @@ export function homeFileEntryOps(config: WorkspaceConfig, locale: Locale): Op[] 
         ],
       },
     },
+    ...(config.containers.pages.some((p) => p.id === TOOLBOX_PAGE_ID)
+      ? [
+          {
+            op: 'addContainer' as const,
+            page: HOME_PAGE_ID,
+            block: {
+              id: free('toolbox-entry'),
+              look: 'button' as const,
+              show: {
+                label: t(locale, 'starter_Toolbox_802f3'),
+                variant: 'outline' as const,
+                icon: 'apps' as const,
+              },
+              opens: pageTarget(TOOLBOX_PAGE_ID),
+            },
+          },
+        ]
+      : []),
     // D-452：最近用过的快捷操作（读运行记录，没有时不显示）和最近的文件（扫描的都在这里，D-450）。
     {
       op: 'addContainer',

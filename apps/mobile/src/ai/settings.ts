@@ -4,6 +4,7 @@ import {
   checkBaseUrl,
   checkModelAccess,
   checkOpenAICompatible,
+  listOpenAICompatibleModels,
   AIHttpError,
   type AIErrorKind,
 } from '@morph/planner';
@@ -51,6 +52,9 @@ export type NeedSender = (need: Need) => Promise<boolean>;
 export type ConnectionResult =
   { ok: true } | { ok: false; kind: AIErrorKind | 'no_key' | 'no_endpoint' | 'network' };
 
+export type ModelListResult =
+  { ok: true; models: string[] } | { ok: false; kind: AIErrorKind | 'no_endpoint' | 'network' };
+
 export type EndpointResult =
   { ok: true } | { ok: false; issue: 'invalid' | 'insecure' | 'no_model' };
 
@@ -85,6 +89,8 @@ export interface AISettingsState {
   clearKey(): Promise<void>;
   /** 当前 provider 的 key。 */
   getKey(): Promise<string | null>;
+  /** 向已保存的地址要模型列表（只发 key，不带任何数据）；只有 OpenAI 兼容接口。 */
+  listModels(): Promise<ModelListResult>;
   testConnection(): Promise<ConnectionResult>;
 }
 
@@ -210,6 +216,22 @@ export function createAISettingsStore(deps: {
     },
 
     getKey: () => secrets.get(keySlot(get().provider).key),
+
+    async listModels() {
+      const { provider, baseUrl } = get();
+      if (provider !== 'openai' || !baseUrl) return { ok: false, kind: 'no_endpoint' };
+      try {
+        const models = await listOpenAICompatibleModels({
+          baseUrl,
+          apiKey: await get().getKey(),
+          timeoutMs: 15_000,
+          ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+        });
+        return { ok: true, models };
+      } catch (e) {
+        return { ok: false, kind: e instanceof AIHttpError ? e.kind : 'network' };
+      }
+    },
 
     async testConnection() {
       const { provider, baseUrl, customModel } = get();

@@ -349,6 +349,14 @@ export function RunScreen({
     couldForward &&
     (outcome === null || (outcome.status === 'succeeded' && (thenDesk || forwarding)));
 
+  // 扫描器里点了取消：直接回到来的地方，不留一个「已取消」的运行页面。
+  const scanCancelled = outcome?.status === 'cancelled' && scans && incoming === undefined;
+  useEffect(() => {
+    if (scanCancelled) router.back();
+    // router 每次渲染不变，只在变成「扫描取消了」时做一次。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanCancelled]);
+
   async function saveResult() {
     if (!isFileValue(value) || !run.current) return;
     const items = await saveItems({ files, repo, grantee: granteeOf(workflow) }, value.items, {
@@ -407,6 +415,8 @@ export function RunScreen({
     ? (LOCAL_SCREENS[local.kind] as ComponentType<LocalScreenProps<LocalKind>> | undefined)
     : undefined;
 
+  if (scanCancelled) return <View testID="run-screen" />;
+
   return (
     <ScrollView
       testID="run-screen"
@@ -422,7 +432,10 @@ export function RunScreen({
         }}
       />
       {compact ? (
-        <View testID="run-compact" style={styles.compact}>
+        <View
+          testID="run-compact"
+          // 扫描器在前面的那一步（选照片）这一页不露出来：用户只关心扫描器，不想先看到一个转圈的页面。
+          style={[styles.compact, scans && !incoming && current?.index === 0 && { opacity: 0 }]}>
           <ActivityIndicator size="large" color={palette.primary} />
           <Text
             testID="run-compact-name"

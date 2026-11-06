@@ -181,6 +181,19 @@ export function createOpenAICompleter(options: OpenAICompletionOptions): Complet
   };
 }
 
+/** 供应商提供的模型 id 列表：GET {baseUrl}/models；没有列表接口时返回空数组。 */
+export async function listOpenAICompatibleModels(
+  options: OpenAICompatibleOptions,
+): Promise<string[]> {
+  const data = (await request('/models', { method: 'GET' }, options)) as {
+    data?: { id?: unknown }[];
+  } | null;
+  const ids = Array.isArray(data?.data)
+    ? data.data.flatMap((m) => (typeof m.id === 'string' && m.id ? [m.id] : []))
+    : [];
+  return [...new Set(ids)].sort((a, b) => a.localeCompare(b));
+}
+
 /**
  * 检查地址和 key 是否可用：GET {baseUrl}/models，不消耗 token。
  * 列表里找不到所填的模型时报 not_found；各家模型 id 写法不同（Gemini 带 models/，Ollama 带 :latest），宽松比较。

@@ -8,7 +8,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DraftBar } from '../draft/DraftBar';
 import { useDraftUi } from '../draft/ui';
 import { directEditEntry } from '../editing/entry';
-import { DeskResume } from '../desk/DeskResume';
 import { GuideBubble } from '../guide/GuideBubble';
 import { GuideCard } from '../guide/GuideCard';
 import { SampleHint } from '../guide/SampleHint';
@@ -175,7 +174,6 @@ export function Shell() {
         {inDraft ? null : <BannerAnchor palette={palette} />}
         <DraftNotice palette={palette} />
         {pageId === HOME_PAGE_ID && !editing && !inDraft ? <GuideCard palette={palette} /> : null}
-        {pageId === HOME_PAGE_ID && !editing && !inDraft ? <DeskResume palette={palette} /> : null}
         {pageId !== null && !editing && !inDraft ? (
           <SampleHint pageId={pageId} palette={palette} />
         ) : null}

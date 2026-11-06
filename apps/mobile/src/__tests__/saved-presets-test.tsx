@@ -60,6 +60,7 @@ async function app(repo = new MemoryWorkspaceRepo()) {
 
 async function openPresets() {
   await fireEvent.press(await screen.findByTestId('nav-settings'));
+  await fireEvent.press(await screen.findByTestId('settings-more'));
   await fireEvent.press(await screen.findByTestId('settings-presets'));
   return screen.findByTestId('presets-screen');
 }
@@ -247,6 +248,7 @@ it('a table the preset does not have: its entries stay and show under Settings �
   expect(store.getState().config!.data.tables).toEqual([]);
   expect(await repo.listRecords('notes')).toHaveLength(1);
   await fireEvent.press(await screen.findByTestId('nav-settings'));
+  await fireEvent.press(await screen.findByTestId('settings-more'));
   await fireEvent.press(await screen.findByTestId('settings-data'));
   expect(await screen.findByTestId('orphan-notes')).toBeTruthy();
 });
@@ -297,6 +299,7 @@ it('while a draft is open the row asks to finish the draft first (env.locked), l
   );
   expect(store.getState().draft?.open).toBe(true);
   await fireEvent.press(await screen.findByTestId('nav-settings'));
+  await fireEvent.press(await screen.findByTestId('settings-more'));
   await fireEvent.press(await screen.findByTestId('settings-presets'));
   expect(screen.queryByTestId('presets-screen')).toBeNull();
 });
@@ -305,6 +308,7 @@ it('French: the settings row and the screen use the French words', async () => {
   const repo = new MemoryWorkspaceRepo();
   await renderToolsApp(repo, undefined, { locale: 'fr' });
   await fireEvent.press(await screen.findByTestId('nav-settings'));
+  await fireEvent.press(await screen.findByTestId('settings-more'));
   expect(await screen.findByText('Mes préréglages')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('settings-presets'));
   expect(await screen.findByTestId('presets-none')).toBeTruthy();

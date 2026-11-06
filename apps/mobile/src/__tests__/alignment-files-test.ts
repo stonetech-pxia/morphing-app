@@ -13,7 +13,6 @@ const FILES = [
   'guide/GuideBubble.tsx',
   'guide/GuideCard.tsx',
   'guide/SampleHint.tsx',
-  'desk/DeskResume.tsx',
   'renderer/IconButton.tsx',
   'renderer/FileList.tsx',
   'renderer/RecentActions.tsx',

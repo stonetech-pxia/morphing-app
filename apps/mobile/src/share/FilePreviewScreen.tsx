@@ -1,6 +1,5 @@
 import {
   deskKindOf,
-  localize,
   quickActionsOf,
   sharedSizeProblem,
   type DeskFile,
@@ -13,14 +12,13 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DeskPreview } from '../desk/DeskPreview';
-import { placeOnDesk } from '../desk/store';
-import { runErrorText, t } from '../i18n';
+import { loadDesk, placeOnDesk } from '../desk/store';
+import { runErrorText, t, type StringKey } from '../i18n';
 import { useFileBundleOffer } from '../packs/FileBundleOffer';
 import { Icon } from '../renderer/Icon';
 import { usePalette } from '../renderer/theme';
 import { Card, SectionLabel } from '../renderer/ui';
 import { baseName, extOf, mimeOf } from '../runtime/actions/helpers';
-import { stepChain } from '../shell/WorkflowsScreen';
 import { AIEntryButton } from '../shell/ai-entry';
 import type { SucceededRuns } from '../storage/types';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
@@ -29,6 +27,24 @@ import { RecordChooser, useSaveAsRecord } from './RecordChooser';
 import { shareRecommendations } from './recommendations';
 
 const now = () => Date.now();
+
+/** 一个快捷操作在「更多」里归哪一类：先看有没有转格式，再看整理页面，再看识别、压缩这类处理。 */
+function previewCategory(wf: Workflow): 'convert' | 'process' | 'manage' | 'quick' {
+  const actions = wf.steps.map((st) => st.action).filter((id) => !/^(in|out)\./.test(id));
+  const any = (re: RegExp) => actions.some((id) => re.test(id));
+  if (any(/\.(to[A-Z]\w*|from[A-Z]\w*|convert)$/)) return 'convert';
+  if (
+    any(/\.(merge|split|pages|selectPages|rotate|protect|unlock|sign|fillForm|pageNumbers|stamp)$/)
+  )
+    return 'manage';
+  if (
+    any(
+      /^(ocr|translate|scan)\.|\.(compress|resize|adjust|redact|removeBackground|extractText|enhance)$/,
+    )
+  )
+    return 'process';
+  return 'quick';
+}
 
 type Panel = 'share' | 'record' | 'more';
 
@@ -42,7 +58,7 @@ type Panel = 'share' | 'record' | 'more';
  * `index` 有值时是从多个文件的收件页面点进来看其中一个：只看，不放工具，也不管这一批的释放。
  */
 export function FilePreviewScreen({ index }: { index?: number }) {
-  const { repo, files, registry, locale } = useWorkspaceContext();
+  const { repo, files, locale } = useWorkspaceContext();
   const config = useWorkspace((s) => s.config)!;
   const palette = usePalette(config.theme);
   const share = useIncoming((s) => s.share);
@@ -63,6 +79,8 @@ export function FilePreviewScreen({ index }: { index?: number }) {
   const { made } = useLocalSearchParams<{ made?: string }>();
   const [panel, setPanel] = useState<Panel | null>(made && !member ? 'more' : null);
   const [busy, setBusy] = useState(false);
+  // 这一页放上桌的那个桌面：返回再点「编辑」继续同一个，不再每次复制一份。
+  const [deskId, setDeskId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const record = useSaveAsRecord(share?.files ?? [], () => setPanel(null));
   // 读到使用次数之前不排推荐，同收件页面。
@@ -140,13 +158,15 @@ export function FilePreviewScreen({ index }: { index?: number }) {
     }
   };
 
-  /** 放到桌上改：复制一份工作副本，原件和收到的这一批不动。返回回到这一页。 */
+  /** 放到桌上改：第一次复制一份工作副本，原件和收到的这一批不动。返回回到这一页。 */
   async function edit() {
     if (busy) return;
     setBusy(true);
     setError(null);
     try {
-      const desk = await placeOnDesk(files, [file!], now());
+      const existing = deskId ? await loadDesk(files, deskId) : null;
+      const desk = existing ?? (await placeOnDesk(files, [file!], now()));
+      setDeskId(desk.id);
       router.push({ pathname: '/desk/[deskId]', params: { deskId: desk.id } });
     } catch (e) {
       const code = (e as { code?: string }).code;
@@ -176,10 +196,6 @@ export function FilePreviewScreen({ index }: { index?: number }) {
 
   const { all } = shareRecommendations(quickActionsOf(config), [info], usage ?? new Map(), locale);
   const fitting = usage === null ? [] : all.filter(({ fit }) => fit.ok);
-  const listFor = (p: 'quick' | 'tools') =>
-    fitting.filter(({ wf }) =>
-      p === 'tools' ? wf.package !== undefined : wf.package === undefined,
-    );
 
   const button = (
     id: string,
@@ -261,35 +277,50 @@ export function FilePreviewScreen({ index }: { index?: number }) {
     </>
   );
 
-  const rows = (p: 'quick' | 'tools') => {
-    const list = listFor(p);
-    if (list.length === 0) {
+  /** 「更多」里的快捷操作和工具，按做的事分成几类，一行四个（和别的文档 App 的「更多」一样）。 */
+  const moreSections = () => {
+    const sections: { id: string; title: StringKey; list: Workflow[] }[] = [
+      { id: 'convert', title: 'previewCatConvert', list: [] },
+      { id: 'process', title: 'previewCatProcess', list: [] },
+      { id: 'manage', title: 'previewCatManage', list: [] },
+      { id: 'quick', title: 'previewQuick', list: [] },
+    ];
+    for (const { wf } of fitting) sections.find((x) => x.id === previewCategory(wf))!.list.push(wf);
+    const shown = sections.filter((x) => x.list.length > 0);
+    if (shown.length === 0) {
       return (
         <Text style={[palette.font('body', 14), { color: palette.muted }]}>
           {t(locale, 'previewNothing')}
         </Text>
       );
     }
-    return list.map(({ wf }: { wf: Workflow }) => (
-      <View key={wf.id} testID={`share-workflow-${wf.id}`}>
-        <Pressable
-          testID={`share-run-${wf.id}`}
-          accessibilityRole="button"
-          onPress={() => run(wf.id)}
-          style={({ pressed }) => [styles.sheetRow, pressed && { opacity: 0.6 }]}>
-          <Text numberOfLines={2} style={[palette.font('title', 15), { color: palette.text }]}>
-            {wf.name}
-            {made && wf.id === made && !wf.package ? t(locale, 'ShareScreen_just_made_ed6c1') : ''}
-          </Text>
-          <Text numberOfLines={1} style={[palette.font('body', 13), { color: palette.muted }]}>
-            {[
-              wf.package ? localize(registry.tools.get(wf.package)?.name, locale) : null,
-              stepChain(wf, registry, locale),
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </Text>
-        </Pressable>
+    return shown.map((x) => (
+      <View key={x.id} testID={`preview-more-${x.id}`}>
+        <SectionLabel palette={palette}>{t(locale, x.title)}</SectionLabel>
+        <View style={styles.grid}>
+          {x.list.map((wf) => (
+            <View key={wf.id} style={styles.cell} testID={`share-workflow-${wf.id}`}>
+              <Pressable
+                testID={`share-run-${wf.id}`}
+                accessibilityRole="button"
+                accessibilityLabel={wf.name}
+                onPress={() => run(wf.id)}
+                style={({ pressed }) => [styles.cellPress, pressed && { opacity: 0.6 }]}>
+                <View style={[styles.cellIcon, { backgroundColor: palette.primaryTint }]}>
+                  <Icon name={wf.icon ?? 'workflow'} size={24} color={palette.primaryText} />
+                </View>
+                <Text
+                  numberOfLines={2}
+                  style={[palette.font('body', 12), styles.toolLabel, { color: palette.text }]}>
+                  {wf.name}
+                  {made && wf.id === made && !wf.package
+                    ? t(locale, 'ShareScreen_just_made_ed6c1')
+                    : ''}
+                </Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
       </View>
     ));
   };
@@ -361,7 +392,7 @@ export function FilePreviewScreen({ index }: { index?: number }) {
         </View>
       )}
       {panel ? (
-        <Modal visible transparent animationType="slide" onRequestClose={() => setPanel(null)}>
+        <Modal visible transparent animationType="none" onRequestClose={() => setPanel(null)}>
           <Pressable
             style={styles.backdrop}
             testID="preview-panel-backdrop"
@@ -397,12 +428,7 @@ export function FilePreviewScreen({ index }: { index?: number }) {
               ) : panel === 'share' ? (
                 shareRows()
               ) : (
-                <>
-                  <SectionLabel palette={palette}>{t(locale, 'previewQuick')}</SectionLabel>
-                  {rows('quick')}
-                  <SectionLabel palette={palette}>{t(locale, 'previewTools')}</SectionLabel>
-                  {rows('tools')}
-                </>
+                moreSections()
               )}
             </ScrollView>
           </View>
@@ -434,5 +460,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   panelBody: { flexGrow: 0 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
+  cell: { width: '25%', paddingVertical: 6 },
+  cellPress: { alignItems: 'center', gap: 6, paddingHorizontal: 2 },
+  cellIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   sheetRow: { gap: 2, minHeight: 56, justifyContent: 'center', paddingVertical: 6 },
 });

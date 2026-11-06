@@ -113,8 +113,16 @@ export const en = {
   historyRowHint: 'Undo a change or go back to how the app was before',
   toolsRowHint: 'Add, open or remove tools',
   openHistory: 'Change history',
+  modelListFetch: 'Get model list',
+  modelListEmpty: 'This provider did not return a model list. Type the model name yourself.',
+  byokProviderCustom: 'Custom',
+  settingsMoreTitle: 'Data & storage',
+  settingsMoreHint: 'My presets, data, storage, downloads',
+  languageValue_system: 'Follow system',
+  languageValue_zh: '简体中文',
+  languageValue_en: 'English',
+  languageValue_fr: 'Français',
   language: 'Language',
-  languageValue: 'English (follows system)',
   aiEngine: 'Tink',
   aiEngineRemote: 'Claude via the Tinkrum server',
   aiEngineMock: 'Built-in rules (offline mock)',
@@ -126,22 +134,15 @@ export const en = {
   aiModeMock: 'Built-in rules',
   aiModeMockNote: 'Offline and free. Understands a fixed set of phrases.',
   aiModeServer: 'Tinkrum server',
-  aiModeServerNote: 'Claude through {url}.',
+  aiModeServerNote: 'The model is called through a server.',
   // 测试期服务器保存请求（D-240）：只在用 Tinkrum 服务器时显示。
   aiServerStoredNote:
     'During the beta, what you say to Tink and the app’s settings are saved to improve Tinkrum. Files and entries are never sent.',
-  aiModeByok: 'My own API key',
+  aiModeByok: 'API key',
   aiModeByokNote:
     'Calls the provider you choose directly from this phone: Claude, or any OpenAI-compatible API. Usage is billed to your account with that provider.',
   // 自带 key 的两种 provider（D-241）
   byokProviderLabel: 'Provider',
-  byokProviderAnthropic: 'Anthropic (Claude)',
-  byokProviderAnthropicNote: 'Tested. Tinkrum’s instructions to Tink are tuned for Claude.',
-  byokProviderOpenAI: 'OpenAI-compatible API',
-  byokProviderOpenAINote:
-    'OpenAI, OpenRouter, DeepSeek, Gemini, Groq, Ollama, LM Studio and others. Not tested.',
-  byokOtherWarning:
-    'Tinkrum is tested with Claude. Other models may misunderstand requests or refuse them more often. Every change is still checked before it is applied, and you can undo it.',
   byokSentNote:
     'When you ask for a change, what you say and the app’s settings are sent to {host}. Your files and entries are never sent.',
   baseUrlLabel: 'Base URL',
@@ -222,7 +223,9 @@ export const en = {
   previewMore: 'More',
   previewRecord: 'Save entry',
   previewQuick: 'Quick actions',
-  previewTools: 'Tools',
+  previewCatConvert: 'Convert',
+  previewCatProcess: 'Smart tools',
+  previewCatManage: 'Manage',
   previewNothing: 'Nothing here fits this file yet.',
   runError_tooFew: 'Choose at least {min} files.',
   runError_tooMany: 'Choose at most {max} files.',
@@ -833,8 +836,6 @@ export const en = {
   sampleReadyDismiss: 'Got it',
   sampleFailed: 'This sample app could not be added. Please try another one.',
   sampleContinuePrompt: 'Starting from {name}, change this: ',
-  settingsGuide: 'Show the guide again',
-  settingsGuideHint: 'The intro and two short exercises',
   // ---- 音频工具（D-150–D-156，音频会话）----
   runError_audioTooSmall:
     'At {target}, “{name}” would be too hard to understand. It needs at least {mb} MB, or trim it shorter first.',
@@ -1669,7 +1670,6 @@ export const en = {
   deskNoTools: 'There are no tools for this kind of file yet. You can still share or save it.',
   deskGroupFile: 'File',
   deskToolPreview: 'Preview',
-  deskResume: 'Back to your desk',
   deskDeselect: 'Deselect',
   deskSystemPreview: 'Open in system preview',
   deskPdfNeedsPack:

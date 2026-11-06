@@ -207,6 +207,10 @@ describe('单工具：哪些要先弹参数面板（D-363）', () => {
     expect(asks('image.compress').length).toBeGreaterThan(0);
   });
 
+  it('水印只问文字、颜色、方向（创始人 2026-11-06）', () => {
+    expect(asks('pdf.stamp')).toEqual(['text', 'color', 'angle']);
+  });
+
   it('密码不在面板里（执行器跑的时候问）', () => {
     expect(asks('pdf.protect')).not.toContain('password');
   });

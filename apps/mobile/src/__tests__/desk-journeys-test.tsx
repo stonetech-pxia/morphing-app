@@ -296,31 +296,6 @@ describe('Word 文档在桌上', () => {
   });
 });
 
-describe('首页「继续上次的桌面」（创始人 2026-10-30 同意）', () => {
-  it('有桌面时首页有入口，点一下回到最近动过的那个桌面', async () => {
-    const files = new FakeFiles();
-    files.disk.set('picker://a.jpg', TINY_JPEG);
-    files.disk.set('picker://b.pdf', TINY_JPEG);
-    const jpg = { uri: 'picker://a.jpg', name: 'a.jpg', size: 4, mimeType: 'image/jpeg' };
-    const pdf = { uri: 'picker://b.pdf', name: 'b.pdf', size: 4, mimeType: 'application/pdf' };
-    await placeOnDesk(files, [jpg], Date.now() - 60_000, 'olderdesk');
-    await placeOnDesk(files, [pdf], Date.now(), 'newerdesk');
-    await renderToolsApp(new MemoryWorkspaceRepo(), files);
-    const resume = await screen.findByTestId('desk-resume');
-    expect(resume).toHaveTextContent(/继续上次的桌面/);
-    expect(resume).toHaveTextContent(/b\.pdf/);
-    await fireEvent.press(resume);
-    expect(await screen.findByTestId('desk-preview-pdf')).toBeTruthy();
-  });
-
-  it('新用户（没有桌面）：首页没有这个入口', async () => {
-    await renderToolsApp();
-    await waitFor(() => expect(screen.queryAllByTestId(/^nav-/).length).toBeGreaterThan(0));
-    await act(async () => undefined);
-    expect(screen.queryByTestId('desk-resume')).toBeNull();
-  });
-});
-
 describe('边界', () => {
   it('桌面已经清空：说明一句，能关掉', async () => {
     await renderToolsApp();

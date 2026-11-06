@@ -121,8 +121,16 @@ export const fr: MessageTable = {
   historyRowHint: 'Annuler une modification ou revenir à un état antérieur de l’app',
   toolsRowHint: 'Ajouter, ouvrir ou retirer des outils',
   openHistory: 'Historique des modifications',
+  modelListFetch: 'Obtenir la liste des modèles',
+  modelListEmpty: 'Ce fournisseur n’a pas renvoyé de liste de modèles. Saisissez le nom du modèle.',
+  byokProviderCustom: 'Personnalisé',
+  settingsMoreTitle: 'Données et stockage',
+  settingsMoreHint: 'Mes préréglages, données, stockage, téléchargements',
+  languageValue_system: 'Suivre le système',
+  languageValue_zh: '简体中文',
+  languageValue_en: 'English',
+  languageValue_fr: 'Français',
   language: 'Langue',
-  languageValue: 'Français (suit le système)',
   aiEngine: 'Tink',
   aiEngineRemote: 'Claude via le serveur Tinkrum',
   aiEngineMock: 'Règles intégrées (simulation hors ligne)',
@@ -134,22 +142,15 @@ export const fr: MessageTable = {
   aiModeMock: 'Règles intégrées',
   aiModeMockNote: 'Hors ligne et gratuit. Ne comprend qu’un nombre fixe de formulations.',
   aiModeServer: 'Serveur Tinkrum',
-  aiModeServerNote: 'Claude via {url}.',
+  aiModeServerNote: 'Le modèle est appelé via un serveur.',
   // 测试期服务器保存请求（D-240）：只在用 Tinkrum 服务器时显示。
   aiServerStoredNote:
     'Pendant la bêta, ce que vous dites à Tink et la configuration de l’application sont enregistrés pour améliorer Tinkrum. Les fichiers et les entrées ne sont jamais envoyés.',
-  aiModeByok: 'Ma propre clé API',
+  aiModeByok: 'Clé API',
   aiModeByokNote:
     'Appelle directement depuis ce téléphone le fournisseur de votre choix : Claude, ou toute API compatible OpenAI. L’usage est facturé sur votre compte chez ce fournisseur.',
   // 自带 key 的两种 provider（D-241）
   byokProviderLabel: 'Fournisseur',
-  byokProviderAnthropic: 'Anthropic (Claude)',
-  byokProviderAnthropicNote: 'Testé. Les instructions de Tinkrum à Tink sont réglées pour Claude.',
-  byokProviderOpenAI: 'API compatible OpenAI',
-  byokProviderOpenAINote:
-    'OpenAI, OpenRouter, DeepSeek, Gemini, Groq, Ollama, LM Studio et d’autres. Non testé.',
-  byokOtherWarning:
-    'Tinkrum est testé avec Claude. D’autres modèles peuvent plus souvent mal comprendre une demande ou la refuser. Chaque modification est toujours vérifiée avant d’être appliquée, et vous pouvez l’annuler.',
   byokSentNote:
     'Quand vous demandez une modification, ce que vous dites et la configuration de l’application sont envoyés à {host}. Vos fichiers et entrées ne sont jamais envoyés.',
   baseUrlLabel: 'URL de base',
@@ -237,7 +238,9 @@ export const fr: MessageTable = {
   previewMore: 'Plus',
   previewRecord: 'Entrée',
   previewQuick: 'Actions rapides',
-  previewTools: 'Outils',
+  previewCatConvert: 'Convertir',
+  previewCatProcess: 'Outils intelligents',
+  previewCatManage: 'Gérer',
   previewNothing: 'Rien ne convient encore à ce fichier.',
   runError_tooFew: 'Choisissez au moins {min} fichiers.',
   runError_tooMany: 'Choisissez au maximum {max} fichiers.',
@@ -883,8 +886,6 @@ export const fr: MessageTable = {
   sampleReadyDismiss: 'Compris',
   sampleFailed: 'Impossible d’ajouter cette app modèle. Essayez-en une autre.',
   sampleContinuePrompt: 'En partant de « {name} », modifier ceci : ',
-  settingsGuide: 'Revoir le guide',
-  settingsGuideHint: 'Présentation et deux petits exercices',
   // ---- 音频工具（D-150–D-156，音频会话）----
   runError_audioTooSmall:
     'À {target}, la voix de « {name} » serait trop difficile à entendre. Il faut au moins {mb} Mo, ou la couper plus court d’abord.',
@@ -1740,7 +1741,6 @@ export const fr: MessageTable = {
     'Aucun outil pour ce type de fichier pour l’instant. Vous pouvez quand même le partager ou l’enregistrer.',
   deskGroupFile: 'Fichier',
   deskToolPreview: 'Aperçu',
-  deskResume: 'Reprendre le bureau',
   deskDeselect: 'Désélectionner',
   deskSystemPreview: 'Ouvrir dans l’aperçu du système',
   deskPdfNeedsPack:

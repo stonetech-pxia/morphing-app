@@ -5,6 +5,7 @@ import {
   createStarterWorkspace,
   localize,
   quickActionsOf,
+  type Locale,
   trustedToolKeys,
 } from '@morph/core';
 import { Karla_400Regular } from '@expo-google-fonts/karla/400Regular';
@@ -30,7 +31,8 @@ import { useGuide } from '@/guide/store';
 import { HomeScreenProvider } from '@/home-screen/context';
 import { nativeHomeScreen } from '@/home-screen/native';
 import { HomeScreenBridge } from '@/home-screen/useHomeScreen';
-import { getDeviceLocale, t } from '@/i18n';
+import { t } from '@/i18n';
+import { LANGUAGE_META_KEY, parseLanguage, resolveLocale, useLanguage } from '@/language';
 import { PackBridge } from '@/packs/bridge';
 import { expoBridgeFiles, expoPackFs, expoSha256 } from '@/packs/expo-pack-fs';
 import { PackHostProvider } from '@/packs/PackHost';
@@ -52,14 +54,13 @@ import { ToolDownloadStore } from '@/tool-download/store';
 import { openRepo } from '@/storage/open';
 import type { SQLiteWorkspaceRepo } from '@/storage/sqlite';
 import { useStopBuildInBackground } from '@/shell/BuildPanel';
-import { WorkspaceProvider, useWorkspace } from '@/workspace/context';
+import { WorkspaceProvider, useWorkspace, useWorkspaceContext } from '@/workspace/context';
 import { createNeedSender, createRemoteAIProvider } from '@/workspace/remote-ai';
 import { createWorkspaceStore, type WorkspaceStore } from '@/workspace/store';
 import { WidgetProvider } from '@/widgets/context';
 import { nativeWidgets } from '@/widgets/native';
 import { WidgetBridge } from '@/widgets/useWidgets';
 
-const locale = getDeviceLocale();
 // 扩展包：只在用户确认后下载，存在 documentDirectory/packs（D-064）。还没定托管地址的扩展包（展平模型，D-274）
 // 从 EXPO_PUBLIC_MORPH_PACKS_URL 下载，没配置时不提示下载。
 const packStore = new PackStore(
@@ -125,6 +126,7 @@ function Centered({ children }: { children: ReactNode }) {
 }
 
 function RootStack() {
+  const { locale } = useWorkspaceContext();
   const status = useWorkspace((s) => s.status);
   const error = useWorkspace((s) => s.error);
   const config = useWorkspace((s) => s.config);
@@ -144,6 +146,7 @@ function RootStack() {
 }
 
 function ThemedStack() {
+  const { locale } = useWorkspaceContext();
   const theme = useWorkspace((s) => s.config!.theme);
   // 别的 App 分享进来的文件 → 收件页面（D-114）。
   useIncomingShare(expoFilePlatform);
@@ -176,6 +179,7 @@ function ThemedStack() {
         <Stack.Screen name="tools" options={{ title: '' }} />
         <Stack.Screen name="reminders" options={{ title: t(locale, 'remindersTitle') }} />
         <Stack.Screen name="calendar" options={{ title: t(locale, 'calendarTitle') }} />
+        <Stack.Screen name="language" options={{ title: t(locale, 'language') }} />
         <Stack.Screen name="reminder/[workflowId]" options={{ ...closable, title: '' }} />
         <Stack.Screen
           name="quick-actions/index"
@@ -218,7 +222,10 @@ export default function RootLayout() {
   const [runtime, setRuntime] = useState<{
     store: WorkspaceStore;
     repo: SQLiteWorkspaceRepo;
+    /** 这个工作空间是按哪种语言建的；设置里改了语言就按新的重建。 */
+    locale: Locale;
   } | null>(null);
+  const locale = resolveLocale(useLanguage((s) => s.preference));
   const [error, setError] = useState<string | null>(null);
   // 默认风格 Clay 的字体（Sora 标题、Karla 正文）。加载失败时退回系统字体，不阻塞启动。
   const [fontsLoaded, fontError] = useFonts({
@@ -234,17 +241,24 @@ export default function RootLayout() {
     (async () => {
       await aiSettings.getState().load();
       const repo = await openRepo();
+      // 设置里选的语言（没选就跟随系统）：先读出来，工作空间按它建。
+      const saved = parseLanguage(await repo.getMeta(LANGUAGE_META_KEY).catch(() => null));
+      useLanguage.getState().set(saved);
+      const bootLocale = resolveLocale(saved);
       // 先把本机下载过的工具注册进来，用到它们的配置才校验得过。
       await toolDownloads.getState().load();
       const created = createWorkspaceStore({
         repo,
         provider,
         registry,
-        locale,
+        locale: bootLocale,
         now: () => new Date(),
         seed: createStarterWorkspace,
         toolName: (id) =>
-          localize(toolDownloads.getState().catalog?.tools.find((e) => e.id === id)?.name, locale),
+          localize(
+            toolDownloads.getState().catalog?.tools.find((e) => e.id === id)?.name,
+            bootLocale,
+          ),
       });
       await created.getState().boot();
       await useGuide.getState().load(repo);
@@ -256,9 +270,33 @@ export default function RootLayout() {
       // 已经删掉的快捷操作不再记着文件夹（D-196）。
       const booted = created.getState().config;
       if (booted) expoFilePlatform.forgetFolders(quickActionsOf(booted).map((w) => w.id));
-      setRuntime({ store: created, repo });
+      setRuntime({ store: created, repo, locale: bootLocale });
     })().catch((e) => setError(String(e)));
   }, []);
+
+  // 设置里改了语言：同一个数据库，按新语言重建工作空间（store 里的文案、校验提示都带着语言）。
+  const builtLocale = runtime?.locale;
+  useEffect(() => {
+    if (!runtime || builtLocale === locale) return;
+    let alive = true;
+    void (async () => {
+      const created = createWorkspaceStore({
+        repo: runtime.repo,
+        provider,
+        registry,
+        locale,
+        now: () => new Date(),
+        seed: createStarterWorkspace,
+        toolName: (id) =>
+          localize(toolDownloads.getState().catalog?.tools.find((e) => e.id === id)?.name, locale),
+      });
+      await created.getState().boot();
+      if (alive) setRuntime({ store: created, repo: runtime.repo, locale });
+    })().catch((e) => setError(String(e)));
+    return () => {
+      alive = false;
+    };
+  }, [runtime, builtLocale, locale]);
 
   if (!runtime || (!fontsLoaded && !fontError)) {
     return (
@@ -276,7 +314,7 @@ export default function RootLayout() {
             repo: runtime.repo,
             files: expoFilePlatform,
             registry,
-            locale,
+            locale: runtime.locale,
           }}>
           <PackHostProvider value={packs}>
             <ToolDownloadsProvider value={toolDownloads}>

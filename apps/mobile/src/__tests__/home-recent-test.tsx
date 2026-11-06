@@ -66,10 +66,11 @@ describe('home: recent actions and recent files', () => {
     expect(screen.getByTestId('file-thumb-a1')).toBeTruthy();
     expect(screen.getByTestId('file-thumb-a2')).toBeTruthy();
     expect(screen.queryByTestId('file-thumb-a3')).toBeNull();
+    // 点一行进文件预览页（D-457），不是系统预览；返回回到首页。
     await fireEvent.press(screen.getByTestId('file-扫描 11月5日.pdf'));
-    expect(files.previewed).toEqual([
-      { uri: 'file:///fake/assets/a2/扫描 11月5日.pdf', mimeType: 'application/pdf' },
-    ]);
+    expect(await screen.findByTestId('preview-bar')).toBeTruthy();
+    expect(files.previewed).toEqual([]);
+    await act(() => router.back());
     // D-453：「全部」打开全部文件页面（不是存储空间）：搜索、排序、类型筛选，没有固定按钮。
     await fireEvent.press(screen.getByTestId('files-all'));
     const page = await screen.findByTestId('files-screen');
@@ -91,10 +92,8 @@ describe('home: recent actions and recent files', () => {
     await fireEvent.changeText(within(page).getByTestId('files-search'), '');
     await fireEvent.press(within(page).getByTestId('files-kind-all'));
     await fireEvent.press(within(page).getByTestId('file-收据.jpg'));
-    expect(files.previewed.at(-1)).toEqual({
-      uri: 'file:///fake/assets/a1/收据.jpg',
-      mimeType: 'image/jpeg',
-    });
+    expect(await screen.findByTestId('preview-bar')).toBeTruthy();
+    expect(files.previewed).toEqual([]);
   });
 
   it('shows quick actions that ran successfully, newest first; tapping one opens its run page', async () => {

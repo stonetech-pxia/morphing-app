@@ -195,6 +195,7 @@ describe('user data (UI)', () => {
     // 记账页已不存在，回到外壳。
     await testRouter.back();
     await fireEvent.press(await screen.findByTestId('nav-settings'));
+    await fireEvent.press(await screen.findByTestId('settings-more'));
     await fireEvent.press(await screen.findByTestId('settings-data'));
     expect(await screen.findByTestId('orphan-expenses')).toBeTruthy();
     expect(screen.getByText('1 条记录')).toBeTruthy();
@@ -226,6 +227,7 @@ describe('user data (UI)', () => {
     await store.getState().confirm();
 
     await fireEvent.press(await screen.findByTestId('nav-settings'));
+    await fireEvent.press(await screen.findByTestId('settings-more'));
     await fireEvent.press(await screen.findByTestId('settings-data'));
     jest.spyOn(Alert, 'alert').mockImplementationOnce((_title, _message, buttons) => {
       buttons?.find((b) => b.style === 'destructive')?.onPress?.();
@@ -255,6 +257,7 @@ describe('Settings → Data: app design and prefill memory', () => {
   });
   const openData = async () => {
     await fireEvent.press(await screen.findByTestId('nav-settings'));
+    await fireEvent.press(await screen.findByTestId('settings-more'));
     await fireEvent.press(await screen.findByTestId('settings-data'));
   };
   const answer = (pick: (buttons: AlertButton[]) => AlertButton | undefined) =>

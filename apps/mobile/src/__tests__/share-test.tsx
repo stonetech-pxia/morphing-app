@@ -434,17 +434,19 @@ describe('share journeys (UI)', () => {
     expect(screen.queryByTestId('run-screen')).toBeNull();
     await fireEvent.press(screen.getByTestId('preview-more'));
     await screen.findByTestId('preview-panel-more');
-    const ids = screen
-      .getAllByTestId(/^share-workflow-/)
-      .map((n) => n.props.testID as string)
-      .slice(0, 5);
-    expect(ids).toEqual([
-      'share-workflow-email-photos',
-      'share-workflow-scan-document',
-      'share-workflow-scan-table-excel',
-      'share-workflow-document-packet',
-      'share-workflow-visa-photo',
-    ]);
+    // 「更多」按做的事分类（格式转换、智能处理、管理、快捷操作），最常用的几个都在里面。
+    const ids = screen.getAllByTestId(/^share-workflow-/).map((n) => n.props.testID as string);
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        'share-workflow-email-photos',
+        'share-workflow-scan-document',
+        'share-workflow-scan-table-excel',
+        'share-workflow-document-packet',
+        'share-workflow-visa-photo',
+      ]),
+    );
+    expect(screen.getByTestId('preview-more-convert')).toBeTruthy();
+    expect(screen.getByTestId('preview-more-quick')).toBeTruthy();
   });
 
   it('a photo has edit and to-Word buttons; a video only edit; both are plain buttons that run nothing on open (D-457)', async () => {

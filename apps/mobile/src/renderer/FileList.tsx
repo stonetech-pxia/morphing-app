@@ -1,10 +1,11 @@
-import { RunError, formatFileSize, readFiles, type BlockOf, type Locale } from '@morph/core';
+import { formatFileSize, readFiles, type BlockOf, type Locale } from '@morph/core';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { runErrorText, t } from '../i18n';
+import { t } from '../i18n';
+import { useIncoming } from '../share/incoming';
 import type { AssetRecord } from '../storage/types';
 import { useCalendar, useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { RenderEnv } from './components';
@@ -77,7 +78,7 @@ export function FileList({ block, env }: { block: BlockOf<'files'>; env: RenderE
               palette={palette}
               locale={locale}
               disabled={!env.interactive}
-              onPress={env.locked ?? (() => void previewAsset(files, a, locale))}
+              onPress={env.locked ?? (() => openAsset(files, router, a))}
               onLongPress={env.onLongPress}
             />
           ))}
@@ -87,17 +88,23 @@ export function FileList({ block, env }: { block: BlockOf<'files'>; env: RenderE
   );
 }
 
-/** 用系统预览打开一个用户文件；打不开时说明原因。 */
-export async function previewAsset(
+/**
+ * 打开一个用户文件：进文件预览页（D-457），和收到文件一样。文件在 App 的文档目录里，不在选择器的缓存目录，
+ * 离开预览页时释放这一批不会动它（removePickedCopies 只删缓存里的）。
+ */
+export function openAsset(
   files: ReturnType<typeof useWorkspaceContext>['files'],
+  router: ReturnType<typeof useRouter>,
   a: AssetRecord,
-  locale: Locale,
 ) {
-  try {
-    await files.previewFile({ uri: files.fileUri(a.path), mimeType: a.mimeType, name: a.name });
-  } catch (e) {
-    Alert.alert(a.name, runErrorText(locale, e instanceof RunError ? e.code : 'previewFailed', {}));
-  }
+  useIncoming
+    .getState()
+    .receive(
+      [{ uri: files.fileUri(a.path), name: a.name, size: a.size, mimeType: a.mimeType }],
+      [],
+      'picker',
+    );
+  router.push('/share');
 }
 
 /** 一行文件：缩略图、文件名、「类型 · 日期」（首页的最近文件和全部文件页面共用）。 */

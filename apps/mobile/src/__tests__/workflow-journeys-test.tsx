@@ -1,6 +1,6 @@
 import { quickActionsOf } from '@morph/core';
 import { fireEvent, waitFor } from '@testing-library/react-native';
-import { screen } from 'expo-router/testing-library';
+import { screen, testRouter } from 'expo-router/testing-library';
 
 import { acceptNextAlert, renderToolsApp } from '../test-utils/render-app';
 
@@ -8,8 +8,7 @@ import { acceptNextAlert, renderToolsApp } from '../test-utils/render-app';
 
 async function openWorkflows() {
   const app = await renderToolsApp();
-  await fireEvent.press(screen.getByTestId('nav-settings'));
-  await fireEvent.press(await screen.findByTestId('settings-workflows'));
+  await testRouter.push('/workflows');
   expect(await screen.findByTestId('workflows-screen')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('category-image'));
   expect(await screen.findByTestId('quick-actions-image')).toBeTruthy();

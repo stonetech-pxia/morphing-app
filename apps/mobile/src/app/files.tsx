@@ -1,9 +1,10 @@
 import { fileKindOf, type FileKind } from '@morph/core';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { t, type StringKey } from '@/i18n';
-import { FileRow, previewAsset } from '@/renderer/FileList';
+import { FileRow, openAsset } from '@/renderer/FileList';
 import { Icon } from '@/renderer/Icon';
 import { usePalette } from '@/renderer/theme';
 import type { AssetRecord } from '@/storage/types';
@@ -46,6 +47,7 @@ const KIND_ORDER: FileKind[] = ['pdf', 'image', 'doc', 'sheet', 'video', 'audio'
  */
 export default function FilesScreen() {
   const { repo, files, locale } = useWorkspaceContext();
+  const router = useRouter();
   const theme = useWorkspace((s) => s.config!.theme);
   const version = useWorkspace((s) => s.assetsVersion);
   const palette = usePalette(theme);
@@ -208,7 +210,7 @@ export default function FilesScreen() {
               palette={palette}
               locale={locale}
               snippet={snippetOf(texts[item.id], item.name, query, locale)}
-              onPress={() => void previewAsset(files, item, locale)}
+              onPress={() => openAsset(files, router, item)}
             />
           </View>
         )}

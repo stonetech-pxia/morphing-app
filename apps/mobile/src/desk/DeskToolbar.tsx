@@ -148,8 +148,12 @@ export function DeskToolbar({
   // 每组在滑动内容里的左边位置；点上面的小标签就滑到那一组，滑动时标签跟着亮。
   const lefts = useRef<number[]>([]);
   const [active, setActive] = useState(0);
+  // 点标签后：后面的几组滑不到最左边（内容不够长），滑动事件算出的组会把标签弹回前面。
+  // 点过之后以点的为准，手指再拖一下才又跟着滑动走。
+  const picked = useRef(false);
   const tabs = groups.length > 1;
   const onScroll = (x: number) => {
+    if (picked.current) return;
     let at = 0;
     lefts.current.forEach((left, i) => {
       if (left <= x + 40) at = i;
@@ -171,6 +175,7 @@ export function DeskToolbar({
               accessibilityRole="tab"
               accessibilityState={{ selected: gi === active }}
               onPress={() => {
+                picked.current = true;
                 setActive(gi);
                 scroll.current?.scrollTo({
                   x: Math.max(0, (lefts.current[gi] ?? 0) - 8),
@@ -201,6 +206,9 @@ export function DeskToolbar({
         showsHorizontalScrollIndicator={false}
         testID="desk-toolbar"
         scrollEventThrottle={32}
+        onScrollBeginDrag={() => {
+          picked.current = false;
+        }}
         onScroll={(e) => onScroll(e.nativeEvent.contentOffset.x)}
         contentContainerStyle={styles.row}>
         {groups.map((g, gi) => (

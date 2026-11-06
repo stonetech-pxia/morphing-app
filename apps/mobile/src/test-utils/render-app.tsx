@@ -26,6 +26,7 @@ import DeskRoute from '../app/desk/[deskId]';
 import FilePreviewRoute from '../app/file-preview';
 import HomeRoute from '../app/index';
 import PageRoute from '../app/page/[pageId]';
+import LanguageRoute from '../app/language';
 import PresetsRoute from '../app/presets';
 import ReadyRoute from '../app/ready/[workflowId]';
 import NewTableRoute from '../app/new-table';
@@ -168,6 +169,7 @@ export async function renderToolsApp(
     storage: StorageRoute,
     files: FilesRoute,
     presets: PresetsRoute,
+    language: LanguageRoute,
     'ready/[workflowId]': ReadyRoute,
     data: DataRoute,
     'record/[collectionId]': RecordRoute,

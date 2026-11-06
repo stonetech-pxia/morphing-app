@@ -123,6 +123,7 @@ describe('storage page (D-264)', () => {
   it('opens from Settings', async () => {
     await renderToolsApp(new MemoryWorkspaceRepo(), new FakeFiles(), { seed });
     await fireEvent.press(await screen.findByTestId('nav-settings'));
+    await fireEvent.press(await screen.findByTestId('settings-more'));
     await fireEvent.press(await screen.findByTestId('settings-storage'));
     expect(await screen.findByTestId('storage-screen', {}, { timeout: 4000 })).toBeTruthy();
   });

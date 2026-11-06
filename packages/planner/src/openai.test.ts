@@ -5,6 +5,7 @@ import { AIHttpError } from './http';
 import {
   checkBaseUrl,
   checkOpenAICompatible,
+  listOpenAICompatibleModels,
   createOpenAICompleter,
   hostOf,
   OPENAI_COMPATIBLE_PRESETS,
@@ -283,5 +284,31 @@ describe('connection check', () => {
     await expect(
       checkOpenAICompatible('typo-model', { baseUrl: BASE, fetchImpl: models('a', 'b') }),
     ).rejects.toMatchObject({ kind: 'not_found' });
+  });
+});
+
+describe('listOpenAICompatibleModels', () => {
+  it('GETs {baseUrl}/models with only the key, and returns the sorted unique ids', async () => {
+    const fetchImpl = ok({ data: [{ id: 'b-model' }, { id: 'a-model' }, { id: 'b-model' }, {}] });
+    const ids = await listOpenAICompatibleModels({
+      baseUrl: BASE,
+      apiKey: KEY,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    expect(ids).toEqual(['a-model', 'b-model']);
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe(`${BASE}/models`);
+    expect((init as RequestInit).method).toBe('GET');
+    expect((init as RequestInit).body).toBeUndefined();
+  });
+
+  it('returns an empty list when the provider has no list endpoint body', async () => {
+    const fetchImpl = ok({});
+    expect(
+      await listOpenAICompatibleModels({
+        baseUrl: BASE,
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      }),
+    ).toEqual([]);
   });
 });
