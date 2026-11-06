@@ -460,7 +460,7 @@ export async function commitEdit(
   fileId: string,
   edited: DeskSourceDoc,
   now: number,
-): Promise<{ desk: Desk; fileId: string }> {
+): Promise<{ desk: Desk; fileId: string; doc?: TableDoc | DocDoc }> {
   const list = currentFiles(desk);
   const file = list.find((f) => f.id === fileId);
   if (!file?.source) return { desk, fileId };
@@ -516,7 +516,13 @@ export async function commitEdit(
   const sealed = sealEdit(change.desk);
   await saveDesk(files, sealed);
   await files.desk.remove([...change.drop, DRAFT_NAME].map((p) => inDesk(desk, p)));
-  return { desk: sealed, fileId: next.id };
+  // 新剪的图搬走了（D-467）：编辑页接着用的文档换成桌面里的地址（2026-11-06：「完成」以后刚换的图变成灰块，
+  // 之后再改、再存都指向已经不在的临时文件）。
+  const doc = moved.size
+    ? mapSourcePaths(source, (p) => (/^(file:|content:)/.test(p) ? p : deskFileUri(files, desk, p)))
+        .doc
+    : undefined;
+  return { desk: sealed, fileId: next.id, ...(doc ? { doc } : {}) };
 }
 
 /** 还没合上的编辑写进桌面（防丢）：App 被关掉时，下次打开房间先把它合成一个版本。 */

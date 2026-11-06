@@ -14,6 +14,7 @@ import { JSDOM } from 'jsdom';
 import { Alert, Dimensions, StyleSheet } from 'react-native';
 
 import { placeAssetOnDesk, savedSourceBytes } from '../desk/saved-source';
+import { openAsset } from '../renderer/FileList';
 import { loadDesk, placeResultsOnDesk, writeEditDraft } from '../desk/store';
 import { makePalette } from '../renderer/theme';
 import { ResultView } from '../run/ResultView';
@@ -522,6 +523,55 @@ describe('Word 在桌上就是整页编辑器（D-465）', () => {
     // 剪的是原图里这一段的位置（按原图的大小换算，四周多留一点）。
     expect(image.box.x).toBeLessThan(100);
     expect(image.box.width).toBeGreaterThan(800);
+  });
+
+  it('换成原件以后点「完成」、接着改、再存：图还在页面上，存的文件放回桌上还能改（2026-11-06 三星：存了再打开就显示不了）', async () => {
+    const files = new FakeFiles();
+    files.imageSizes.set('runs/r1/page.jpg', { width: 1000, height: 1400 });
+    const { repo } = await openOnDesk('doc', wordDoc(), files);
+    let page = wordPage();
+    await page.state({ focus: true, cell: null, ref: '0-1', refs: ['0-1'] });
+    await page.swap();
+    await waitFor(() =>
+      expect(screen.getByTestId('word-editor-page').props.source.html as string).toMatch(
+        /data-ref="0-1" data-kind="image"[^>]*><img src="data:image/,
+      ),
+    );
+    await page.state({ focus: false });
+    await fireEvent.press(screen.getByTestId('desk-done'));
+    await screen.findByTestId('desk-save');
+    await fireEvent.press(screen.getByTestId('desk-sheet-cancel'));
+    // 合上以后剪的图搬进了桌面：页面上还是这张图，不是灰块。
+    await waitFor(() =>
+      expect(screen.getByTestId('word-editor-page').props.source.html as string).toMatch(
+        /data-ref="0-1" data-kind="image"[^>]*><img src="data:image/,
+      ),
+    );
+    // 接着改字，再存成用户文件。
+    page = wordPage();
+    page.q('[data-ref="0-0"]').textContent = '第二次改的标题';
+    await page.input();
+    await fireEvent.press(await deskTool('desk-tool-room-save'));
+    expect(await screen.findByTestId('desk-saved')).toBeTruthy();
+    const [asset] = await repo.listAssets();
+    // 存的 docx 里有两张图（换的这张、原来剪好的那张）；放回桌上还带着中间格式，能改。
+    const desk = await placeAssetOnDesk(files, asset!, 3, 'again');
+    expect(desk).not.toBeNull();
+    const file = currentFiles(desk!)[0]!;
+    expect(file.source?.kind).toBe('doc');
+    const doc = parseDocDoc(decodeUtf8(files.disk.get(`desk/again/${file.source!.path}`)!))!;
+    expect(doc.pages[0]!.blocks.filter((b) => b.kind === 'image')).toHaveLength(2);
+    expect(JSON.stringify(doc)).toContain('第二次改的标题');
+
+    // 从最近文件打开（文件预览页）：按编辑页的版面显示；点「编辑」放上桌，还是 Word 编辑器（D-470）。
+    await act(() => router.dismissAll());
+    await act(() => openAsset(files, router, asset!));
+    const preview = await screen.findByTestId('word-preview-page');
+    expect(preview.props.source.html).toContain('第二次改的标题');
+    expect(preview.props.source.html).not.toContain('contenteditable="true"');
+    await fireEvent.press(screen.getByTestId('preview-edit'));
+    const editor = await screen.findByTestId('word-editor-page');
+    expect(editor.props.source.html).toContain('第二次改的标题');
   });
 
   it('选中几行再点「用原图」：一起换成一张图（2026-11-06 三星真机：一个签名被切成了好几份，D-468）', async () => {

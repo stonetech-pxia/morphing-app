@@ -97,13 +97,20 @@ export function openAsset(
   router: ReturnType<typeof useRouter>,
   a: AssetRecord,
 ) {
-  useIncoming
-    .getState()
-    .receive(
-      [{ uri: files.fileUri(a.path), name: a.name, size: a.size, mimeType: a.mimeType }],
-      [],
-      'picker',
-    );
+  useIncoming.getState().receive(
+    // 带着文件 ID（D-455）：预览页「编辑」时把存在旁边的中间格式一起放上桌（D-470）。
+    [
+      {
+        uri: files.fileUri(a.path),
+        name: a.name,
+        size: a.size,
+        mimeType: a.mimeType,
+        assetId: a.id,
+      },
+    ],
+    [],
+    'picker',
+  );
   router.push('/share');
 }
 

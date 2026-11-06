@@ -143,11 +143,12 @@ export function useDeskEdit({
       { kind: s.kind, doc } as DeskSourceDoc,
       Date.now(),
     );
+    const sealed = done.doc ?? doc;
     setSession(done.fileId, {
       fileId: done.fileId,
       kind: s.kind,
-      base: doc,
-      history: startHistory(doc),
+      base: sealed,
+      history: startHistory(sealed),
     });
     onSealed(done.desk, done.fileId);
     return done.desk;

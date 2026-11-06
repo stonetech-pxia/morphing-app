@@ -219,6 +219,8 @@ export function wordPageHtml(
   print = false,
   /** 原图小窗上的「换成原件」按钮的字（D-469）；没有时不显示按钮。lines 里的 {n} 换成行数。 */
   swap: { one: string; lines: string } | null = null,
+  /** 只能看（预览页，D-470）：同一个版面，不能改、没有脚本。 */
+  readOnly = false,
 ): string {
   const u: Unit = print ? 'pt' : 'px';
   const lists: string[] = [];
@@ -293,7 +295,7 @@ export function wordPageHtml(
           return `<div data-ref="${p}-${b}" data-kind="row" style="margin-top:${gap}${u}">${cells}</div>`;
         })
         .join('');
-      const editable = print ? '' : ' contenteditable="true"';
+      const editable = print || readOnly ? '' : ' contenteditable="true"';
       return `<div class="paper"${editable} data-page="${p}" style="padding:16${u} ${side}${u} 24${u}">${blocks || '<p><br></p>'}</div>`;
     })
     .join('');
@@ -337,7 +339,7 @@ body{padding:10px;font-family:-apple-system,"Helvetica Neue",Roboto,sans-serif;-
 .paper{background:#fff;color:${INK};border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.12);margin-bottom:24px;outline:none;line-height:1.3;word-wrap:break-word;caret-color:#0B8F7A}
 ${common}
 </style></head><body>${pages}
-<script>window.WORD=${config};${WORD_PAGE_SCRIPT}</script></body></html>`;
+${readOnly ? '' : `<script>window.WORD=${config};${WORD_PAGE_SCRIPT}</script>`}</body></html>`;
 }
 
 /**

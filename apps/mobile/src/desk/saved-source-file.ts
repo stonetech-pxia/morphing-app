@@ -37,7 +37,14 @@ export async function writeSavedSource(
   for (const [k, path] of [...sourcePaths(source)].entries()) {
     const ext = extOf(path.split('?')[0]!) || 'jpg';
     const name = `morph-source-${k}.${ext}`;
-    const written = await files.writeBytes(assetId, name, await files.readUri(path));
+    let data: Uint8Array;
+    try {
+      data = await files.readUri(path);
+    } catch {
+      // 读不到的图片不存（这张图空着），中间格式照样存：不然整份文件放回桌上就不能改了（D-470）。
+      continue;
+    }
+    const written = await files.writeBytes(assetId, name, data);
     bytes += written.size;
     names.set(path, name);
   }
