@@ -4,12 +4,15 @@ import type { Box, OcrBox, RgbaImage, TableBlock, TableCell } from './types';
 
 // 扫描件转 Word（D-328）：一页的识别结果 + 版面分析的区域 → DocDoc（编辑页改它，docx 每次从它重新生成）。
 // 带线的表格和转 Excel 用同一套找线、组表（D-272）；其余的字按区域（没有区域的按位置聚成块）分段，
-// 段落按 D-268 的规则接行；字号看行高，粗体看笔画粗细，颜色看文字像素。上下重叠、左右分开的块放进并排行（D-331）。删除线、文字下面的划线不画（只取字）。
+// 段落按 D-268 的规则接行；字号看行高（字写得够长、整页字体一致时看字宽，D-463），粗体看笔画粗细，颜色看文字像素。
+// 上下重叠、左右分开的块放进并排行（D-331）。文字下面的下划线写成下划线（D-463）；删除线不画（只取字）。
 
-/** 段落的样式：字号（磅）、粗体、颜色（RRGGBB）、对齐；没有的用文档默认的。 */
+/** 段落的样式：字号（磅）、粗体、下划线、颜色（RRGGBB）、对齐；没有的用文档默认的。 */
 export interface DocStyle {
   size?: number;
   bold?: boolean;
+  /** 原图里字下面有一条和字一样长的线（D-463）。 */
+  underline?: boolean;
   color?: string;
   align?: 'left' | 'center' | 'right';
 }
@@ -160,6 +163,21 @@ const BOLD_RATIO = 1.35;
 const COLOR_CHROMA = 60;
 /** 段落：上下间距不超过 1.2 倍行高的算同一段（和 D-268 一样）。 */
 const PARAGRAPH_GAP = 1.2;
+/** 一行字的中线离整页中线不到页宽的这么多、左右都至少空着页宽的 15%（D-463）算居中。 */
+const PAGE_CENTER = 0.06;
+const PAGE_CENTER_MARGIN = 0.15;
+/** 两行的中线相差不到这么多个行高（左边又不齐）算居中排的两行（D-463）。 */
+const CENTER_PAIR = 0.2;
+/**
+ * 按字宽估字号（D-463）：PP-OCR、Vision 的框高随字母的上下伸出部分变（「Docteur」和「Ophtalmologiste」一样大，框高差 30%），
+ * 字宽稳得多。一行的字宽（像素）÷ 这行字在 Arial 里有多少个字号宽 ≈ 字号（像素）。只看至少 8 个字母数字的行；
+ * 整页正文行的估计要一致（四分位差不超过中位数的 15%，同一种字体）才用，和行高估的差不超过 1/3（别的字体、认错的字），
+ * 否则还是看行高。用字宽估的段落和正文差 8% 以上就单独写字号。
+ */
+const WIDTH_MIN_CHARS = 8;
+const WIDTH_SPREAD = 0.15;
+const WIDTH_CLAMP = 4 / 3;
+const WIDTH_SNAP = 0.08;
 /** 列表项的开头（和 D-268 的 layoutOcrLines 一样）。 */
 const LIST_ITEM = /^\s*(?:[•·\-–—*▪●○◦■□]|\d{1,3}[.、)）]|[(（]\d{1,3}[)）]|[①-⑳])/;
 const ORDERED = /^\s*(?:(\d{1,3})([.、)）])|[(（](\d{1,3})[)）]|([①-⑳]))\s*/;
@@ -262,8 +280,15 @@ export function paragraphsOf(
     const gap = prev ? row.box.y - (prev.box.y + prev.box.height) : 0;
     const h = median(row.lines.map((l) => l.height));
     const prevH = prev ? median(prev.lines.map((l) => l.height)) : h;
+    // 居中排的几行（信头、处方的页眉，D-463）：中线对齐、左边不齐，是一行一行的，不是折行。
+    const centeredPair =
+      prev !== undefined &&
+      Math.abs(prev.box.x + prev.box.width / 2 - (row.box.x + row.box.width / 2)) <=
+        CENTER_PAIR * typical &&
+      Math.abs(prev.box.x - row.box.x) > 0.5 * typical;
     const wrapped =
       prev !== undefined &&
+      !centeredPair &&
       gap <= PARAGRAPH_GAP * typical &&
       prev.box.x + prev.box.width >= right - 1.2 * typical &&
       prev.box.width >= 0.6 * (right - left) &&
@@ -402,6 +427,74 @@ function isStray(
     const dy = Math.max(0, Math.max(o.y, line.y) - Math.min(o.y + o.height, line.y + line.height));
     return Math.max(dx, dy) > STRAY_GAP * lineHeight;
   });
+}
+
+/** Arial 里 ASCII 字符的宽（千分之一字号，32–126）。 */
+const ARIAL_WIDTHS = [
+  278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556,
+  556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667,
+  611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667,
+  667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500,
+  222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584,
+];
+
+/**
+ * 一行字在 Arial 里有多少个字号宽（D-463）：带重音的字母按不带的算，中日韩的字和全角符号算 1，其他文字（西里尔、希腊）算 0.556。
+ */
+export function textEm(text: string): number {
+  let em = 0;
+  for (const ch of text.trim().normalize('NFD')) {
+    const code = ch.codePointAt(0)!;
+    if (code >= 0x300 && code < 0x370) continue;
+    if (code >= 32 && code <= 126) em += ARIAL_WIDTHS[code - 32]! / 1000;
+    else if (code >= 0x2e80) em += 1;
+    else em += 0.556;
+  }
+  return em;
+}
+
+/** 按字宽估的字号（像素）；字太少时是 0。 */
+function widthSizeOf(line: OcrBox): number {
+  const n = line.text.match(/[\p{L}\p{N}]/gu)?.length ?? 0;
+  const em = textEm(line.text);
+  return n >= WIDTH_MIN_CHARS && em > 0 ? line.width / em : 0;
+}
+
+/**
+ * 字下面有没有下划线（D-463）：框的下部到框下面 0.3 个行高之间，有一排像素九成以上是深色的，
+ * 而且这条线在字的左右两边（各出去 0.6 个行高）就没有了（更长的是分隔线、表格线，不是这行字的下划线）。
+ */
+export function hasUnderline(image: RgbaImage, box: Box): boolean {
+  const { data, width, height } = image;
+  const x0 = Math.max(0, Math.floor(box.x + box.width * 0.03));
+  const x1 = Math.min(width, Math.ceil(box.x + box.width * 0.97));
+  const y0 = Math.max(0, Math.floor(box.y + box.height * 0.7));
+  const y1 = Math.min(height, Math.ceil(box.y + box.height * 1.3));
+  if (x1 - x0 < 4 || y1 <= y0) return false;
+  const lum = (x: number, y: number) => {
+    const o = (y * width + x) * 4;
+    return (data[o]! * 299 + data[o + 1]! * 587 + data[o + 2]! * 114) / 1000;
+  };
+  let lo = 255;
+  let hi = 0;
+  for (let y = Math.max(0, Math.floor(box.y)); y < y1; y += 2)
+    for (let x = x0; x < x1; x += 2) {
+      const v = lum(x, y);
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+  if (hi - lo < 40) return false;
+  const cut = (lo + hi) / 2;
+  const outL = Math.round(box.x - 0.6 * box.height);
+  const outR = Math.round(box.x + box.width + 0.6 * box.height);
+  for (let y = y0; y < y1; y++) {
+    let dark = 0;
+    for (let x = x0; x < x1; x++) if (lum(x, y) < cut) dark++;
+    if (dark < 0.9 * (x1 - x0)) continue;
+    const beyond = [outL, outR].some((x) => x >= 0 && x < width && lum(x, y) < cut);
+    if (!beyond) return true;
+  }
+  return false;
 }
 
 /** 按行高估字号（磅，取到半磅）。 */
@@ -567,15 +660,24 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     BODY_MAX,
     Math.max(prose ? BODY_MIN : FORM_MIN, fontSizeOf(bodyH, image.width)),
   );
+  // 按字宽估字号（D-463）：正文行的估计够一致时才用。
+  const bodyWidths = groups
+    .filter((g) => !g.title)
+    .flatMap((g) => g.lines.map(widthSizeOf))
+    .filter((v) => v > 0)
+    .sort((a, b) => a - b);
+  const bodyW = median(bodyWidths);
+  const widthTrusted =
+    bodyWidths.length >= 3 &&
+    bodyWidths[Math.floor(bodyWidths.length * 0.75)]! -
+      bodyWidths[Math.floor(bodyWidths.length * 0.25)]! <=
+      WIDTH_SPREAD * bodyW;
   // 整页文字的左右边（判断居中）。
   const textLeft = Math.min(...free.map((l) => l.x), ...tables.map((t) => t.box.x));
   const textRight = Math.max(
     ...free.map((l) => l.x + l.width),
     ...tables.map((t) => t.box.x + t.box.width),
   );
-  // 整页的左边距：四分之一的行从这里或更左开始（页边上零星的字、页码不算，D-330）。
-  const pageLeft =
-    [...free.map((l) => l.x)].sort((a, b) => a - b)[Math.floor(free.length / 4)] ?? 0;
   // 先排好块（区域、表格、图片）的阅读顺序，块里的段落保持从上到下。
   const units: Unit[] = [
     ...tables.map((t) => ({ box: t.box, blocks: [t] as DocLeaf[] })),
@@ -584,14 +686,24 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   const styleOf = (paraLines: readonly OcrBox[], text: string, title: number) => {
     const h = median(paraLines.map((l) => l.height));
     const short = (text.match(/[\p{L}\p{N}]/gu)?.length ?? 0) < SHORT_TEXT && !title;
-    let size = Math.min(48, Math.max(6, Math.round(((bodySize * h) / bodyH) * 2) / 2));
-    if (short || Math.abs(size - bodySize) <= BODY_SNAP * bodySize) size = bodySize;
+    const byHeight = h / bodyH;
+    const w = widthTrusted ? median(paraLines.map(widthSizeOf).filter((v) => v > 0)) : 0;
+    const byWidth =
+      w > 0 && w / bodyW <= byHeight * WIDTH_CLAMP && w / bodyW >= byHeight / WIDTH_CLAMP
+        ? w / bodyW
+        : 0;
+    let size = Math.min(48, Math.max(6, Math.round(bodySize * (byWidth || byHeight) * 2) / 2));
+    const snap = byWidth ? WIDTH_SNAP : BODY_SNAP;
+    if (short || Math.abs(size - bodySize) <= snap * bodySize) size = bodySize;
     const bold =
       pageStroke > 0 && median(paraLines.map((l) => strokes.get(l) ?? 0)) > BOLD_RATIO * pageStroke;
     const color = textColor(image, paraLines[0]!);
+    // 下划线：每一行下面都有（D-463）。
+    const underline = paraLines.every((l) => hasUnderline(image, l));
     const style: DocStyle = {
       ...(size !== bodySize ? { size } : {}),
       ...(bold ? { bold: true } : {}),
+      ...(underline ? { underline: true } : {}),
       ...(color ? { color } : {}),
     };
     return { h, short, size, style };
@@ -658,7 +770,8 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
       list = null;
       // 标题：模型说是标题（字不比正文小），或者字明显比正文大、不超过两行；对话和整句不算（D-330）。
       const big = !short && size >= HEADING_RATIO * bodySize && para.rows.length <= 2;
-      const titled = group.title > 0 && size >= bodySize;
+      // 模型说是标题的区域里和正文一样大、不加粗的行（信头的地址、电话）是正文（D-463）。
+      const titled = group.title > 0 && (size > bodySize || style.bold === true);
       const headingLike = (titled || big) && !notHeading(text);
       const heading: 0 | 1 | 2 = headingLike
         ? (titled && group.title === 1) || size >= HEADING1_RATIO * bodySize
@@ -667,22 +780,24 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
         : 0;
       const leftGap = box.x - textLeft;
       const rightGap = textRight - (box.x + box.width);
+      // 居中：在整页文字的左右边之间居中，或者在整页里居中（D-463：处方的页眉，左右的块不对称）。
+      const pageLeftGap = box.x;
+      const pageRightGap = image.width - (box.x + box.width);
       const centered =
-        leftGap > 2 * h &&
-        rightGap > 2 * h &&
-        Math.abs(leftGap - rightGap) < 0.2 * (leftGap + rightGap);
+        (leftGap > 2 * h &&
+          rightGap > 2 * h &&
+          Math.abs(leftGap - rightGap) < 0.2 * (leftGap + rightGap)) ||
+        (para.rows.length === 1 &&
+          Math.min(pageLeftGap, pageRightGap) > PAGE_CENTER_MARGIN * image.width &&
+          Math.abs(pageLeftGap - pageRightGap) < PAGE_CENTER * image.width);
       const right = !centered && leftGap > 6 * h && rightGap < 1.5 * h && para.rows.length <= 2;
-      // 首行缩进：第一行的左边和其他行比；只有一行时和这一块里最靠左的行比，这一块只有这一行时和整页的左边距比
-      // （书页里一句对话常常单独是一个区域）。最多 4 个行高（D-330）。
+      // 首行缩进：第一行的左边和其他行比，最多 4 个行高（D-330）。只有一行的段落不写首行缩进（D-463）：
+      // docx 里每段的左缩进按它在原图里的左边写（书页里单独一行的对话也一样缩进），再加首行缩进就缩了两遍。
       const first = para.rows[0]!.box.x;
-      const base =
-        para.rows.length > 1
-          ? Math.min(...para.rows.slice(1).map((r) => r.box.x))
-          : groupLeft < first
-            ? groupLeft
-            : pageLeft;
+      const base = Math.min(...para.rows.slice(1).map((r) => r.box.x));
       const indent = Math.round(first - base);
       const indented =
+        para.rows.length > 1 &&
         !heading &&
         !centered &&
         !right &&
@@ -693,6 +808,8 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
         text,
         ...(heading ? { heading } : {}),
         ...style,
+        // 标题写明自己的字号（D-463）：不然按标题样式放大 1.3、1.6 倍，比原件大。
+        ...(heading ? { size } : {}),
         ...(centered ? { align: 'center' as const } : right ? { align: 'right' as const } : {}),
         ...(para.spaced ? { spaced: true } : {}),
         ...(indented ? { indent } : {}),

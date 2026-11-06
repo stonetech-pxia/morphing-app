@@ -390,6 +390,9 @@ function piecesOf(line: OcrBox, grid: Grid): { cell: number; piece: OcrBox }[] {
 /**
  * 去掉落在文字行里面的「横线」：粗体、压扁的字一排连起来，按行扫描时像一条粗线（工资单的项目名称）。
  * 真的线在字的上下，不会在一行字的中间。
+ * 竖线也一样（D-463）：加了下划线的粗体标题，字的竖笔画连着下划线，按列扫描时像一排短竖线，
+ * 和字顶的横笔画、下划线交成一张「表」（每格一两个字母）。整条在一行字的框里（上下最多出框 20% 行高）的竖线是字的笔画；
+ * 真的竖线是格子的边，比格子里的字高。
  */
 function dropTextStrokes(page: PageLines, lines: readonly OcrBox[]): PageLines {
   const inText = (h: RuleLine) =>
@@ -399,7 +402,18 @@ function dropTextStrokes(page: PageLines, lines: readonly OcrBox[]): PageLines {
       const overlap = Math.min(h.to, l.x + l.width) - Math.max(h.from, l.x);
       return overlap >= STROKE_SHARE * (h.to - h.from);
     });
-  return { ...page, horizontal: page.horizontal.filter((h) => !inText(h)) };
+  const inTextV = (v: RuleLine) =>
+    lines.some((l) => {
+      const out = l.height * STROKE_INSIDE;
+      return (
+        v.pos > l.x && v.pos < l.x + l.width && v.from >= l.y - out && v.to <= l.y + l.height + out
+      );
+    });
+  return {
+    ...page,
+    horizontal: page.horizontal.filter((h) => !inText(h)),
+    vertical: page.vertical.filter((v) => !inTextV(v)),
+  };
 }
 
 /** 金额一类的纯数字（可以带正负号、货币符号、千分位的空格或逗号、百分号）：判断不出对齐时靠右。 */

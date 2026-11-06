@@ -133,11 +133,17 @@ export const lineShareIn = (line: Box, region: Box) => overlap(line, region) / (
 const IMAGE_MAX_LINES = 3;
 /** 图片里的字加起来最多这么多个。 */
 const IMAGE_MAX_CHARS = 30;
+/**
+ * 印章（模型的 seal，D-463）里本来就都是字（一圈机构名、地址），认出来是乱的（「WPANTIMN」），
+ * 当图片剪下来放进文件（和原件一样）；不超过这么多行、这么多个字，更多的是认错了的正文。
+ */
+const SEAL_MAX_LINES = 6;
+const SEAL_MAX_CHARS = 100;
 /** 图片最多占整页的这么多：整页都是「图片」是密集的表单、正文认错了（实验里 19 页有 5 页这样）。 */
 const IMAGE_MAX_PAGE_SHARE = 0.5;
 
 /**
- * 整理模型给的区域（D-328）：图片里字太多、或者大得占了半页的不当图片（那些字按正文排）；
+ * 整理模型给的区域（D-328）：图片里字太多、或者大得占了半页的不当图片（那些字按正文排；印章里的字多一些也还是图片，D-463）；
  * 模型的表格不用（表格只认带线的，和转 Excel 一样，D-272；无线表留给第三期），里面的字按正文排；
  * 一行字只能属于一个区域。
  */
@@ -163,6 +169,7 @@ export function cleanRegions(
     if (area(r.box) > IMAGE_MAX_PAGE_SHARE * pageArea) return false;
     const inside = lines.filter((l) => lineShareIn(l, r.box) >= 0.5);
     const chars = inside.reduce((n, l) => n + [...l.text.trim()].length, 0);
+    if (r.label === 'seal') return inside.length <= SEAL_MAX_LINES && chars <= SEAL_MAX_CHARS;
     return inside.length <= IMAGE_MAX_LINES && chars <= IMAGE_MAX_CHARS;
   });
 }
