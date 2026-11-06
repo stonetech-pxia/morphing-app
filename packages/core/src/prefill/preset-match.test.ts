@@ -37,6 +37,17 @@ describe('rankPresets', () => {
   });
 });
 
+describe('rankPresets 的 folded（有金额时账单、贷款、报销、税务并进购物凭证，D-475）', () => {
+  it('有金额：这四种不给模型选，列表里还在', () => {
+    const r = rankPresets(doc('Total 48.60 €'));
+    expect(r.folded).toEqual(['bill', 'loan', 'reimbursement', 'tax']);
+    expect(r.likely).toEqual(expect.arrayContaining(['bill', 'purchase', 'bank', 'payslip']));
+  });
+  it('没有金额时没有 folded', () => {
+    expect(rankPresets(doc('Dose 1: 3 March 2025')).folded).toEqual([]);
+  });
+});
+
 describe('presetMatchRequest / presetAnswer', () => {
   it('目录只有给的预设，语法只能答它们或 none', () => {
     const q = presetMatchRequest(doc('Hello'), ['bill', 'tax']);
@@ -48,6 +59,26 @@ describe('presetMatchRequest / presetAnswer', () => {
     expect(presetAnswer('bill', ['bill'])).toBe('bill');
     expect(presetAnswer('none', ['bill'])).toBeNull();
     expect(presetAnswer('tax', ['bill'])).toBeNull();
+  });
+});
+
+describe('recommendPreset 的目录', () => {
+  it('有金额：目录里没有账单、贷款、报销、税务，购物凭证的说明包括它们', async () => {
+    const prompts: string[] = [];
+    const open = async () => ({
+      generate: async (r: { prompt: string }) => {
+        prompts.push(r.prompt);
+        return 'purchase';
+      },
+      release: async () => undefined,
+    });
+    const got = await recommendPreset(open, doc('Invoice 7', 'Total 48.60 €'));
+    expect(got).toBe('purchase');
+    expect(prompts[0]).toContain('purchase: ');
+    for (const id of ['bill', 'loan', 'reimbursement', 'tax']) {
+      expect(prompts[0]).not.toContain(`\n${id}: `);
+    }
+    expect(prompts[0]).toMatch(/purchase: [^\n]*invoice/);
   });
 });
 
@@ -139,7 +170,24 @@ describe('rulePreset（没有本机模型时，很明显的小票也要推荐购
       rulePreset(doc('永辉超市小票', '牛奶 12.50', '面包 8.00', '合计 20.50', '微信支付 20.50')),
     ).toBe('purchase');
   });
-  it('账单、没有金额、没有文字都不推荐', () => {
+  it('有合计金额的账单、贷款、税务、报销也用购物凭证（D-475）', () => {
+    expect(
+      rulePreset(doc('Invoice 2025-03', 'Due date 1 April', 'Amount due 120.00 €', 'VAT 20.00')),
+    ).toBe('purchase');
+    expect(rulePreset(doc('Avis d’impôt', 'Montant à payer 1 240,00 €'))).toBe('purchase');
+    expect(rulePreset(doc('Expense claim', 'Taxi 18.50', 'Hotel 120.00', 'Total 138.50'))).toBe(
+      'purchase',
+    );
+  });
+  it('银行（IBAN）和工资单不归购物凭证', () => {
+    expect(
+      rulePreset(doc('Invoice 2025-03', 'Amount due 120.00 €', 'IBAN FR7612345678901234567890123')),
+    ).toBeNull();
+    expect(
+      rulePreset(doc('Payslip March', 'Gross 3000.00', 'Net pay 2300.00', 'Total 2300.00')),
+    ).toBeNull();
+  });
+  it('没有金额、没有文字、合同都不推荐', () => {
     expect(
       rulePreset(
         doc(
