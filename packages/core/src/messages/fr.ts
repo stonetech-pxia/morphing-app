@@ -1446,6 +1446,9 @@ export const fr: MessageTable = {
   PackGate_Cancel_bd576: 'Annuler',
   packOptionalHint: 'Vous pouvez aussi continuer sans ; cette étape s’en passe simplement.',
   packSkip: 'Continuer sans',
+  packBundleTitle: 'Télécharger les outils de fichiers ({v0})',
+  packBundleBody: 'Un seul téléchargement, utilisable hors ligne. Wi-Fi conseillé.',
+  packBundleLater: 'Plus tard',
   io_Add_which_existing_file_a4bbf: 'Ajouter quel fichier existant ?',
   io_It_goes_together_with_this_run_s_files_03244:
     'Il sera regroupé avec les fichiers de ce traitement.',

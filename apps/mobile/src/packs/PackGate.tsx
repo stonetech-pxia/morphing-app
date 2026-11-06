@@ -16,6 +16,7 @@ const ownSize = (id: string) => packById(id)?.files.reduce((sum, f) => sum + f.s
 
 export function PackGate({
   needs,
+  bundle,
   store,
   palette,
   locale,
@@ -23,6 +24,8 @@ export function PackGate({
 }: {
   /** 要下载的扩展包（调用方已去掉装好的）；optional：不下载这一步也照样做。 */
   needs: readonly PackNeed[];
+  /** 文件处理包一次问完（D-456）：换标题和说明，按钮是「以后再说」，每一项不写「不下载也能继续」。 */
+  bundle?: boolean;
   store: PackStore;
   palette: Palette;
   locale: Locale;
@@ -107,11 +110,17 @@ export function PackGate({
           {/* 第一次用到时的提示（D-112）：不出现「扩展包」这个词，只说要下载多少、之后能离线用。 */}
           {text(
             'title',
-            t(locale, 'PackGate_First_use_needs_a_download_3c1d7', {
+            t(locale, bundle ? 'packBundleTitle' : 'PackGate_First_use_needs_a_download_3c1d7', {
               v0: total === null ? '…' : formatBytes(total, locale),
             }),
           )}
-          {text('body', t(locale, 'PackGate_After_that_it_works_offline_Wi_Fi_is_r_77ca7'))}
+          {text(
+            'body',
+            t(
+              locale,
+              bundle ? 'packBundleBody' : 'PackGate_After_that_it_works_offline_Wi_Fi_is_r_77ca7',
+            ),
+          )}
           {needs.map(({ pack: id, optional }) => {
             const pack = packById(id);
             if (!pack) return null;
@@ -126,8 +135,11 @@ export function PackGate({
                   {localize(pack.name, locale)}
                   {have === null ? '' : ` · ${formatBytes(size, locale)}`}
                 </Text>
-                {text('body', about, { fontSize: 13 })}
-                {optional ? text('body', t(locale, 'packOptionalHint'), { fontSize: 13 }) : null}
+                {/* 一次问完时只列名字和大小（D-456）。 */}
+                {bundle ? null : text('body', about, { fontSize: 13 })}
+                {optional && !bundle
+                  ? text('body', t(locale, 'packOptionalHint'), { fontSize: 13 })
+                  : null}
               </View>
             );
             return optional ? (
@@ -159,9 +171,12 @@ export function PackGate({
               </View>
             );
           })}
-          {text('body', t(locale, 'PackGate_License_ff05c', { v0: licenses.join('; ') }), {
-            fontSize: 12,
-          })}
+          {/* 一次问完时不列许可证，装好后在「设置 → 已下载内容」里看（D-456）。 */}
+          {bundle
+            ? null
+            : text('body', t(locale, 'PackGate_License_ff05c', { v0: licenses.join('; ') }), {
+                fontSize: 12,
+              })}
           {progress !== null ? (
             <View style={styles.progressRow}>
               <ActivityIndicator />
@@ -184,7 +199,10 @@ export function PackGate({
               onPress={() => onDone(anyRequired ? null : needs.map((n) => n.pack))}
               hitSlop={8}>
               <Text style={[palette.font('bodyBold', 16), { color: palette.muted }]}>
-                {t(locale, anyRequired ? 'PackGate_Cancel_bd576' : 'packSkip')}
+                {t(
+                  locale,
+                  anyRequired ? 'PackGate_Cancel_bd576' : bundle ? 'packBundleLater' : 'packSkip',
+                )}
               </Text>
             </Pressable>
             {progress === null && chosen.length > 0 ? (

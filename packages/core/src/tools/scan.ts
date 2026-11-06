@@ -81,7 +81,15 @@ export const SCAN_ACTIONS: readonly ActionDefinition[] = [
 const toPdf = {
   id: 'pdf',
   action: 'pdf.fromImages',
-  params: { pageSize: 'a4', orientation: 'auto', marginMm: 0, fit: 'contain', maxMB: 0 },
+  // 文字层（D-195）：扫描的 PDF 能搜索、能复制文字，文档库也能按里面的字搜（D-455）。
+  params: {
+    pageSize: 'a4',
+    orientation: 'auto',
+    marginMm: 0,
+    fit: 'contain',
+    maxMB: 0,
+    textLayer: true,
+  },
 };
 
 /** 单功能工作流（D-061）。 */

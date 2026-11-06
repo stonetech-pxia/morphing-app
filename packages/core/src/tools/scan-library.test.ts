@@ -11,7 +11,10 @@ describe('scan presets keep the result in the app', () => {
       for (const id of ['scan-camera', 'scan-library']) {
         const steps = flows.find((w) => w.id === id)!.steps;
         expect(steps.at(-1)!.action).toBe('file.save');
-        expect(steps.map((s) => s.action)).toContain('pdf.fromImages');
+        // D-455：带文字层，文档库能按 PDF 里的字搜。
+        expect(steps.find((s) => s.action === 'pdf.fromImages')!.params).toMatchObject({
+          textLayer: true,
+        });
       }
     },
   );

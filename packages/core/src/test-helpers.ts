@@ -35,7 +35,8 @@ export function fromV33(raw: unknown): WorkspaceConfig {
 }
 
 /**
- * D-450：扫描工具的「扫描成 PDF」「照片扫描成 PDF」最后多了一步存到文件（扫描的文件都留在文档库）。
+ * D-450：扫描工具的「扫描成 PDF」「照片扫描成 PDF」最后多了一步存到文件（扫描的文件都留在文档库）；
+ * D-455：转 PDF 那一步带文字层。
  * v33 存下来的固定样本里还没有这一步：和现在的新配置比时补上，其余照旧逐字比。
  */
 export function withScanKeep(config: WorkspaceConfig): WorkspaceConfig {
@@ -45,6 +46,9 @@ export function withScanKeep(config: WorkspaceConfig): WorkspaceConfig {
     if (tool.id !== 'scan-camera' && tool.id !== 'scan-library') continue;
     if (tool.steps.at(-1)?.action !== 'file.save')
       tool.steps.push({ id: 'keep', action: 'file.save', params: {} });
+    // D-455：扫描成 PDF 带文字层。
+    const pdf = tool.steps.find((s) => s.action === 'pdf.fromImages');
+    if (pdf) pdf.params = { ...pdf.params, textLayer: true };
   }
   return next;
 }

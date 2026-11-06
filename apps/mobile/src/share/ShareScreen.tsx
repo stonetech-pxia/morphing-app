@@ -23,6 +23,7 @@ import {
   type ScrollViewInstance,
 } from 'react-native';
 
+import { useFileBundleOffer } from '../packs/FileBundleOffer';
 import { AIEntryButton } from '../shell/ai-entry';
 import { runErrorText, t } from '../i18n';
 import { IMPORT_PROBLEMS } from '../renderer/Attachments';
@@ -64,6 +65,14 @@ export function ShareScreen() {
   const share = useIncoming((s) => s.share);
   const router = useRouter();
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
+  // 分享或打开文件后，一次问完文件处理包（D-456）；问过就不再问。
+  const bundle = useFileBundleOffer(palette, locale);
+  const fromOutside = !!share && share.files.length > 0 && share.source !== 'result';
+  useEffect(() => {
+    if (fromOutside) bundle.offer();
+    // 每批文件只看一次。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [share?.id]);
 
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const expanded = expandedId === share?.id;
@@ -315,7 +324,9 @@ export function ShareScreen() {
     let copied: string[] = [];
     try {
       const result = await copyUserFiles(share!.files.slice(0, MAX_ATTACHMENTS), files, repo);
-      copied = result.assetIds;
+      // 打开、分享时已经存进文档库的不算副本（D-455）：放弃时只删这一次新复制的。
+      copied = result.created;
+      const attached = result.assetIds;
       if (result.problem) {
         setPreviewError(
           t(locale, IMPORT_PROBLEMS[result.problem], {
@@ -329,7 +340,10 @@ export function ShareScreen() {
         copied = [];
         bumpAssets();
         setChoosing(false);
-        router.push({ pathname: '/new-table', params: { copies: holdFormCopies(ids) } });
+        router.push({
+          pathname: '/new-table',
+          params: { copies: holdFormCopies(ids), attached: JSON.stringify(attached) },
+        });
         return;
       }
       const table = config.data.tables.find((c) => c.id === choice.tableId);
@@ -343,7 +357,7 @@ export function ShareScreen() {
         pathname: '/record/[collectionId]',
         params: {
           collectionId: table.id,
-          prefill: JSON.stringify({ [field]: ids }),
+          prefill: JSON.stringify({ [field]: attached }),
           copies: holdFormCopies(ids),
         },
       });
@@ -591,6 +605,7 @@ export function ShareScreen() {
       <Text style={caption}>
         {t(locale, 'ShareScreen_Files_are_handled_on_this_device_only__c8099')}
       </Text>
+      {bundle.element}
     </ScrollView>
   );
 }

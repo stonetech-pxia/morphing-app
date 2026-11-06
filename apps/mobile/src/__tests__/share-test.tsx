@@ -331,13 +331,17 @@ describe('share journeys (UI)', () => {
     expect(useIncoming.getState().share).toBeNull();
   });
 
-  it('has no save button and clears the shared copies when dismissed', async () => {
+  // D-455：分享进来的文件留一份在文档库；收件的临时副本关掉时照样删掉。
+  it('has no save button, keeps the file in the library and clears the shared copies when dismissed', async () => {
     const { files, repo } = await setupApp();
     await share([files.offerShared('IMG_1.jpg', TINY_JPEG, 'image/jpeg')]);
     expect(await screen.findByTestId('share-screen')).toBeTruthy();
     expect(screen.queryByTestId('share-save')).toBeNull();
+    expect((await repo.listAssets()).map((a) => [a.name, a.source])).toEqual([
+      ['IMG_1.jpg', 'picked'],
+    ]);
     await act(() => router.back());
-    expect(await repo.listAssets()).toEqual([]);
+    expect(await repo.listAssets()).toHaveLength(1);
     expect(files.sharedFiles()).toEqual([]);
   });
 

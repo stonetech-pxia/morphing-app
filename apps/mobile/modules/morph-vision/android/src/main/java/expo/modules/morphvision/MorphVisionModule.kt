@@ -130,6 +130,9 @@ class MorphVisionModule : Module() {
 
     Function("canFindPaper") { false }
 
+    // PDF 的文字层（D-455）：Android 15 起系统能读，更早的系统返回 null。
+    AsyncFunction("pdfText") { uri: String -> PdfThumbnail.text(File(Uri.parse(uri).path!!)) }
+
     // PDF 第一页的缩略图（D-451）。
     AsyncFunction("pdfThumbnail") { uri: String, output: String, maxSide: Int ->
       PdfThumbnail.render(File(Uri.parse(uri).path!!), File(Uri.parse(output).path!!), maxSide)

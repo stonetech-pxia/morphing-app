@@ -128,6 +128,14 @@ public class MorphVisionModule: Module {
       true
     }
 
+    // PDF 的文字层（D-455）：PDFKit 读出整份文字，没有文字层或要密码时是 nil。文字只返回给 App，不写日志。
+    AsyncFunction("pdfText") { (uri: URL) -> String? in
+      guard let doc = PDFDocument(url: uri), !doc.isLocked else { return nil }
+      guard let text = doc.string?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty
+      else { return nil }
+      return text
+    }
+
     // PDF 第一页的缩略图（D-451）：PDFKit 在本机画，白底，长边不超过 maxSide，存成 JPEG。
     // 打不开（损坏、要密码）时抛出，App 显示 PDF 图标。
     AsyncFunction("pdfThumbnail") { (uri: URL, output: URL, maxSide: Double) -> [String: Any] in

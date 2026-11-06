@@ -401,7 +401,10 @@ describe('scanner and text recognition with the system Vision (iOS)', () => {
       straightened: true,
     }));
     const result = await run();
-    expect(vision.calls.map((c) => c.method)).toEqual(['scanDocuments']);
+    // 扫描成 PDF 带文字层（D-455）：拉正、增强后每页识别一次文字。
+    expect(vision.calls.map((c) => c.method).filter((m) => m !== 'recognizeLines')).toEqual([
+      'scanDocuments',
+    ]);
     expect(vision.calls[0]!.args).toEqual({ maxSide: 2400 });
     expect(opened).toEqual([]);
     expect(asked).toEqual([]);

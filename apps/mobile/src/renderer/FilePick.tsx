@@ -7,7 +7,8 @@ import { runErrorText, t } from '../i18n';
 import { mimeOf } from '../runtime/actions/helpers';
 import { releaseShare, useIncoming } from '../share/incoming';
 import { useGuide } from '../guide/store';
-import { useWorkspaceContext } from '../workspace/context';
+import { keepIncomingFiles } from '../storage/keep-files';
+import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import type { RenderEnv } from './components';
 import { IconButton } from './IconButton';
 import { Button } from './ui';
@@ -25,7 +26,8 @@ export function FilePick({
   iconOnly?: boolean;
   env: RenderEnv;
 }) {
-  const { files } = useWorkspaceContext();
+  const { files, repo } = useWorkspaceContext();
+  const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const label = t(env.locale, source === 'media' ? 'openMedia' : 'openFiles');
@@ -64,7 +66,10 @@ export function FilePick({
       }
       const previous = useIncoming.getState().share;
       if (previous) await releaseShare(files, previous.id);
-      useIncoming.getState().receive(selected, [], 'picker');
+      // 打开的文件存进文档库（D-455），再进收件页面。
+      const kept = await keepIncomingFiles(selected, files, repo);
+      bumpAssets();
+      useIncoming.getState().receive(kept, [], 'picker');
       // 新手引导第 2 步时打开了图片或文件：引导结束（第 3 步样板 App 取消了，D-447）。
       if (useGuide.getState().stage === 'goal') void useGuide.getState().setStage('done');
       router.push('/share');

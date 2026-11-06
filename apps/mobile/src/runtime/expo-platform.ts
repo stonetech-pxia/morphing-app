@@ -62,6 +62,13 @@ const fileAt = (path: string) => new File(Paths.document, ...path.split('/'));
 
 /** PDF 第一页的缩略图（D-451）：和文件放在同一个 assets/<id>/ 里，删文件时一起删。 */
 const THUMB = '.thumb.jpg';
+/** 文件里的文字（D-455）：同一个目录，删文件时一起删。 */
+const TEXT = '.text.txt';
+const besideAsset = (path: string, name: string) => {
+  const parts = path.split('/');
+  parts[parts.length - 1] = name;
+  return new File(Paths.document, ...parts);
+};
 
 /** 存进用户文件时（用户的一次操作）给 PDF 画第一页；打不开（损坏、要密码）就没有缩略图，显示图标。 */
 async function makePdfThumbnail(file: File, dir: Directory): Promise<void> {
@@ -240,10 +247,20 @@ export const expoFilePlatform: FilePlatform = {
   fileUri: (path) => fileAt(path).uri,
 
   thumbnailUri(path) {
-    const parts = path.split('/');
-    parts[parts.length - 1] = THUMB;
-    const thumb = new File(Paths.document, ...parts);
+    const thumb = besideAsset(path, THUMB);
     return thumb.exists ? thumb.uri : null;
+  },
+
+  async saveAssetText(path, text) {
+    const file = besideAsset(path, TEXT);
+    // 文件已经被删了（目录不在）就不写。
+    if (!file.parentDirectory.exists) return;
+    file.write(text);
+  },
+
+  async assetText(path) {
+    const file = besideAsset(path, TEXT);
+    return file.exists ? await file.text() : null;
   },
 
   async importFile(file, assetId, name) {

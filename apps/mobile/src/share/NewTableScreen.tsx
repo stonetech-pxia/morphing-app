@@ -61,7 +61,7 @@ function keepFor(next: Collection, prev: Collection): Collection {
 }
 
 export function NewTableScreen() {
-  const { copies } = useLocalSearchParams<{ copies?: string }>();
+  const { copies, attached } = useLocalSearchParams<{ copies?: string; attached?: string }>();
   const { repo, files, locale } = useWorkspaceContext();
   const router = useRouter();
   const config = useWorkspace((s) => s.config)!;
@@ -74,11 +74,20 @@ export function NewTableScreen() {
   const packs = usePacks();
 
   const [copied] = useState(() => takeFormCopies(copies));
+  // 要附上的文件：这一次新复制的，加上打开时已经存进文档库的（D-455，那些不是这一页的副本，放弃时不删）。
+  const [attachedIds] = useState(() => {
+    try {
+      const ids: unknown = attached ? JSON.parse(attached) : null;
+      return Array.isArray(ids) && ids.every((id) => typeof id === 'string') ? ids : copied;
+    } catch {
+      return copied;
+    }
+  });
   const [preset, setPreset] = useState<NewPreset>('blank');
   const [draft, setDraft] = useState<Collection>(() => draftTable('blank', config, locale));
   const fileField = (table: Collection) => table.fields.find((f) => f.type === 'file')?.id ?? '';
   const [values, setValues] = useState<Record<string, unknown>>(() => ({
-    [fileField(draftTable('blank', config, locale))]: copied,
+    [fileField(draftTable('blank', config, locale))]: attachedIds,
   }));
   const [pages, setPages] = useState<TextPage[]>([]);
   const [recommended, setRecommended] = useState<NewTablePreset | null>(null);
@@ -220,13 +229,15 @@ export function NewTableScreen() {
   /** 把文件交给记录页（下一页负责没保存时删掉）。 */
   function handOff(table: Collection, field: string, extra: Record<string, unknown>) {
     const ids = attachmentIds(values[fileField(draft)]);
+    // 只把这一页的副本交给记录页（打开时已经在文档库的不算，D-455）。
+    const mine = ids.filter((id) => owned.current.has(id));
     owned.current = new Set();
     router.replace({
       pathname: '/record/[collectionId]',
       params: {
         collectionId: table.id,
         prefill: JSON.stringify({ ...extra, [field]: ids }),
-        copies: holdFormCopies(ids),
+        copies: holdFormCopies(mine),
       },
     });
   }

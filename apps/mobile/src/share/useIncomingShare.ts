@@ -5,6 +5,8 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
 import type { FilePlatform } from '../runtime/platform';
+import { keepIncomingFiles } from '../storage/keep-files';
+import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { nativeCopies, normalizeShare, useIncoming } from './incoming';
 
 // 接收别的 App 分享进来的文件（D-114）：iOS 是分享扩展 + App Group + 深链，Android 是 ACTION_SEND /
@@ -20,6 +22,8 @@ export function useIncomingShare(files: Pick<FilePlatform, 'removeShared'>) {
   const url = useLinkingURL();
   const router = useRouter();
   const receive = useIncoming((s) => s.receive);
+  const workspace = useWorkspaceContext();
+  const bumpAssets = useWorkspace((s) => s.bumpAssets);
 
   useEffect(() => {
     const native = ShareIntentModule;
@@ -38,11 +42,15 @@ export function useIncomingShare(files: Pick<FilePlatform, 'removeShared'>) {
           previous,
         )
         .catch(() => undefined);
-      receive(shared, copies);
-      router.navigate('/share');
+      // 分享进来的文件存进文档库（D-455），再进收件页面。
+      void keepIncomingFiles(shared, workspace.files, workspace.repo).then((kept) => {
+        bumpAssets();
+        receive(kept, copies);
+        router.navigate('/share');
+      });
     });
     return () => subscription.remove();
-  }, [files, receive, router]);
+  }, [files, receive, router, workspace, bumpAssets]);
 
   useEffect(() => {
     const native = ShareIntentModule;

@@ -24,6 +24,20 @@ const KIND_LABELS: Record<FileKind, StringKey> = {
   audio: 'filesKindAudio',
   other: 'filesKindOther',
 };
+/** 文件名里没有、文字里有搜索词时，显示文字里那一段（前后各留一点）。 */
+function snippetOf(text: string | undefined, name: string, query: string, locale: string) {
+  const word = query.trim().split(/\s+/)[0]?.toLocaleLowerCase(locale);
+  if (!text || !word || name.toLocaleLowerCase(locale).includes(word)) return undefined;
+  const at = text.toLocaleLowerCase(locale).indexOf(word);
+  if (at < 0) return undefined;
+  const start = Math.max(0, at - 16);
+  const piece = text
+    .slice(start, at + word.length + 40)
+    .replace(/\s+/g, ' ')
+    .trim();
+  return `${start > 0 ? '…' : ''}${piece}…`;
+}
+
 const KIND_ORDER: FileKind[] = ['pdf', 'image', 'doc', 'sheet', 'video', 'audio', 'other'];
 
 /**
@@ -41,6 +55,26 @@ export default function FilesScreen() {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<Sort>('newest');
   const [kind, setKind] = useState<FileKind | null>(null);
+  // 文件里的文字（D-455）：有搜索词时才读，只在这一页的内存里。
+  const [texts, setTexts] = useState<Record<string, string>>({});
+  const searching = query.trim().length > 0;
+
+  useEffect(() => {
+    if (!searching || !files.assetText) return;
+    const missing = assets.filter((a) => !(a.id in texts));
+    if (missing.length === 0) return;
+    let alive = true;
+    void Promise.all(
+      missing.map(
+        async (a) => [a.id, (await files.assetText!(a.path).catch(() => null)) ?? ''] as const,
+      ),
+    ).then((read) => {
+      if (alive) setTexts((now) => ({ ...now, ...Object.fromEntries(read) }));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [searching, assets, texts, files]);
 
   useEffect(() => {
     let alive = true;
@@ -59,11 +93,13 @@ export default function FilesScreen() {
 
   const shown = useMemo(() => {
     const words = query.trim().toLocaleLowerCase(locale).split(/\s+/).filter(Boolean);
-    const list = assets.filter(
-      (a) =>
-        (kind === null || fileKindOf(a.mimeType) === kind) &&
-        words.every((w) => a.name.toLocaleLowerCase(locale).includes(w)),
-    );
+    // 文件名或文件里的文字（D-455）都算。
+    const list = assets.filter((a) => {
+      if (kind !== null && fileKindOf(a.mimeType) !== kind) return false;
+      const name = a.name.toLocaleLowerCase(locale);
+      const text = (texts[a.id] ?? '').toLocaleLowerCase(locale);
+      return words.every((w) => name.includes(w) || text.includes(w));
+    });
     const collator = new Intl.Collator(locale, { numeric: true, sensitivity: 'base' });
     return list.sort((a, b) =>
       sort === 'name'
@@ -72,7 +108,7 @@ export default function FilesScreen() {
           ? b.size - a.size
           : b.createdAt - a.createdAt,
     );
-  }, [assets, query, kind, sort, locale]);
+  }, [assets, query, kind, sort, locale, texts]);
 
   const chip = (id: string, label: string, on: boolean, onPress: () => void) => (
     <Pressable
@@ -171,6 +207,7 @@ export default function FilesScreen() {
               first={index === 0}
               palette={palette}
               locale={locale}
+              snippet={snippetOf(texts[item.id], item.name, query, locale)}
               onPress={() => void previewAsset(files, item, locale)}
             />
           </View>

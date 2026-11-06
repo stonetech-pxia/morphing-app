@@ -3,6 +3,7 @@ package expo.modules.morphvision
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import java.io.File
 import java.io.FileOutputStream
@@ -39,6 +40,26 @@ object PdfThumbnail {
       throw VisionFailedException(e.message)
     } finally {
       fd.close()
+    }
+  }
+
+  /** PDF 的文字层（D-455）：Android 15（API 35）起 PdfRenderer 能读页面文字；更早的系统、打不开时返回 null。 */
+  fun text(input: File): String? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) return null
+    return try {
+      ParcelFileDescriptor.open(input, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
+        PdfRenderer(fd).use { renderer ->
+          val out = StringBuilder()
+          for (i in 0 until renderer.pageCount) {
+            renderer.openPage(i).use { page ->
+              for (content in page.textContents) out.append(content.text).append('\n')
+            }
+          }
+          out.toString().trim().ifEmpty { null }
+        }
+      }
+    } catch (e: Exception) {
+      null
     }
   }
 }

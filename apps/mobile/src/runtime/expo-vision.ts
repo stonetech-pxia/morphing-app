@@ -194,6 +194,11 @@ export function expoVision(
       (ppocr !== null && coversLanguage(code)) || native.supportsLanguage(code),
     ...(ppocr ? { ocrModel: { pack: PPOCR_PACK, languages: PPOCR_LANGUAGES } } : {}),
 
+    async pdfText(uri) {
+      if (!native.pdfText) return null;
+      return await native.pdfText(uri);
+    },
+
     async recognizeText(uri, languages) {
       // 按每行的位置排版，同一段里折行的行接回去（D-268）；没有位置时用原生排好的文字。
       if (viaPpocr(languages)) return layoutOcrLines((await ppocr!.recognize(uri)).lines);

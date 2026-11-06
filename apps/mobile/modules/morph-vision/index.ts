@@ -113,6 +113,11 @@ export interface MorphVisionModule {
     output: string,
     maxSide: number,
   ): Promise<{ width: number; height: number; pageCount: number }>;
+  /**
+   * PDF 的文字层（D-455）：iOS PDFKit，Android 15 起 PdfRenderer 的页面文字；没有文字层、要密码、
+   * 系统太旧时是 null。旧版 App 没有这个函数。
+   */
+  pdfText?(uri: string): Promise<string | null>;
   /** 这种语言（BCP 47）系统能不能识别（Android 上只剩韩文用 ML Kit，D-269）。 */
   supportsLanguage(code: string): boolean;
 

@@ -34,6 +34,8 @@ import { Button, Card } from '../renderer/ui';
 import { saveItems } from '../runtime/actions/io';
 import type { LocalKind, LocalSteps, LocalUi } from '../runtime/local';
 import { granteeOf, isBackgroundAction, newAssetId, startRun, type Run } from '../runtime/runner';
+import { ensureRunPacks } from '../packs/file-bundle';
+import { useFileBundleOffer } from '../packs/FileBundleOffer';
 import { PackGate } from '../packs/PackGate';
 import { copyResults, releaseShare, useIncoming, type IncomingShare } from '../share/incoming';
 import { usePacks } from '../packs/PackHost';
@@ -113,6 +115,7 @@ export function RunScreen({
   );
   const [local, setLocal] = useState<LocalPending | null>(null);
   const packs = usePacks();
+  const bundle = useFileBundleOffer(palette, locale);
   const [packAsk, setPackAsk] = useState<
     ({ needs: readonly PackNeed[] } & Pending<string[] | null>) | null
   >(null);
@@ -203,14 +206,18 @@ export function RunScreen({
       // 需要扩展包时先问用户（D-064）；已安装就直接继续。第一次要时一次问完这次运行要的（D-299）。
       ensurePacks: async (needs) => {
         if (!packs) throw new RunError('packFailed', { detail: needs[0]?.pack });
-        const have = new Set((await packs.store.installed()).map((p) => p.id));
-        const missing = needs.filter((n) => !have.has(n.pack));
-        if (missing.length === 0) return [];
-        return new Promise((resolve) => setPackAsk({ needs: missing, resolve }));
+        // 可选的没装就跳过，只为必需的弹框（D-456）。
+        return ensureRunPacks(
+          packs.store,
+          needs,
+          (ask) => new Promise((resolve) => setPackAsk({ needs: ask, resolve })),
+        );
       },
       ensurePack: async (packId, options) => {
         if (!packs) throw new RunError('packFailed', { detail: packId });
         if (await packs.store.isInstalled(packId)) return true;
+        // 可选的没装就不用它，不在运行时问（D-456）。
+        if (options?.optional === true) return false;
         const left = await new Promise<string[] | null>((resolve) =>
           setPackAsk({ needs: [{ pack: packId, optional: options?.optional === true }], resolve }),
         );
@@ -262,6 +269,12 @@ export function RunScreen({
     setOutcome(started.result);
     setRunCount((n) => n + 1);
     if (started.result.status === 'succeeded' && started.result.saved.length > 0) bumpAssets();
+    // 第一次扫描完、或处理完分享进来的文件：一次问完文件处理包（D-456）。
+    if (
+      started.result.status === 'succeeded' &&
+      (incoming || workflow.steps.some((s) => s.action.startsWith('scan.')))
+    )
+      bundle.offer();
     // 记一笔（D-187）直接写数据库：页面上的列表和统计要重新读（停在中途也可能已经记了几笔）。
     if (workflow.steps.some((s) => s.action === 'out.addRecord')) bumpRecords();
   }
@@ -592,6 +605,7 @@ export function RunScreen({
           }}
         />
       ) : null}
+      {bundle.element}
       {packAsk && packs ? (
         <PackGate
           needs={packAsk.needs}

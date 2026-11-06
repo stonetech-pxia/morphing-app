@@ -3,6 +3,7 @@ import { useState, type ComponentType, type ReactNode } from 'react';
 import { Alert, Modal, Platform } from 'react-native';
 
 import { t } from '../i18n';
+import { ensureRunPacks } from '../packs/file-bundle';
 import { PackGate } from '../packs/PackGate';
 import { usePacks } from '../packs/PackHost';
 import type { Palette } from '../renderer/theme';
@@ -138,14 +139,18 @@ export function useRunHost(palette: Palette, locale: Locale): RunHost {
     askParams: (request) => new Promise((resolve) => setAsk({ ...request, resolve })),
     ensurePacks: async (needs) => {
       if (!packs) throw new RunError('packFailed', { detail: needs[0]?.pack });
-      const have = new Set((await packs.store.installed()).map((p) => p.id));
-      const missing = needs.filter((n) => !have.has(n.pack));
-      if (missing.length === 0) return [];
-      return new Promise((resolve) => setPackAsk({ needs: missing, resolve }));
+      // 可选的没装就跳过，只为必需的弹框（D-456）。
+      return ensureRunPacks(
+        packs.store,
+        needs,
+        (ask) => new Promise((resolve) => setPackAsk({ needs: ask, resolve })),
+      );
     },
     ensurePack: async (packId, options) => {
       if (!packs) throw new RunError('packFailed', { detail: packId });
       if (await packs.store.isInstalled(packId)) return true;
+      // 可选的没装就不用它，不在运行时问（D-456）。
+      if (options?.optional === true) return false;
       const left = await new Promise<string[] | null>((resolve) =>
         setPackAsk({ needs: [{ pack: packId, optional: options?.optional === true }], resolve }),
       );

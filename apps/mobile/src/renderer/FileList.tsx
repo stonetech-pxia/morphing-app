@@ -109,11 +109,14 @@ export function FileRow({
   disabled,
   onPress,
   onLongPress,
+  snippet,
 }: {
   asset: AssetRecord;
   first: boolean;
   palette: Palette;
   locale: Locale;
+  /** 搜索时文件里匹配的那一段文字（D-455）。 */
+  snippet?: string | undefined;
   disabled?: boolean;
   onPress?: (() => void) | undefined;
   onLongPress?: (() => void) | undefined;
@@ -139,6 +142,14 @@ export function FileRow({
         <Text style={[palette.font('body', 12), { color: palette.caption }]}>
           {[extOf(asset.name), date].filter(Boolean).join(' · ')}
         </Text>
+        {snippet ? (
+          <Text
+            testID={`file-snippet-${asset.id}`}
+            numberOfLines={2}
+            style={[palette.font('body', 13), { color: palette.muted }]}>
+            {snippet}
+          </Text>
+        ) : null}
       </View>
     </Pressable>
   );

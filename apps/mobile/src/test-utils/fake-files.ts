@@ -291,6 +291,14 @@ export class FakeFiles implements FilePlatform {
   thumbnailUri(path: string) {
     return this.thumbnails_.get(path) ?? null;
   }
+  /** 文件里的文字（D-455）：按路径存在内存里。 */
+  texts: Map<string, string> = new Map();
+  async saveAssetText(path: string, text: string) {
+    this.texts.set(path, text);
+  }
+  async assetText(path: string) {
+    return this.texts.get(path) ?? null;
+  }
   async importFile(file: PickedFile, assetId: string, name: string) {
     const bytes = this.disk.get(file.uri);
     if (!bytes) throw new Error('permission denied');

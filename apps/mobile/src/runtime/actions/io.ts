@@ -25,6 +25,7 @@ import {
 import { decodeQr, downscaleRgba } from '@morph/tool-qr';
 
 import { saveRunItemSource } from '../../desk/saved-source-file';
+import { indexAssetText } from '../../storage/asset-text';
 import type { PickedFile } from '../platform';
 import {
   baseName,
@@ -199,6 +200,7 @@ export async function saveItems(
   const { files, repo, grantee } = services;
   const existing = (await repo.listAssets()).map((a) => a.name);
   const saved: RunItem[] = [];
+  const toIndex: { path: string; mimeType: string }[] = [];
   for (const [i, item] of items.entries()) {
     if (item.assetId) {
       saved.push(item);
@@ -227,8 +229,13 @@ export async function saveItems(
     // 转 Excel、转 Word 的结果：中间格式和原图跟着存，以后还能从存储空间放到桌上改（D-400）。
     await saveRunItemSource(files, item, id);
     saved.push({ ...item, assetId: id, name: baseName(name) });
+    toIndex.push({ path: stored.path, mimeType: item.mimeType });
     ctx.progress?.(i + 1, items.length);
   }
+  // 文件里的文字在后面读，不让运行等（D-455）。
+  void (async () => {
+    for (const asset of toIndex) await indexAssetText(files, asset);
+  })();
   return saved;
 }
 

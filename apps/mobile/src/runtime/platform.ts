@@ -40,6 +40,8 @@ export interface PickedFile {
   straightened?: boolean;
   /** 视频、音频的时长（毫秒），选择器给得出时。 */
   durationMs?: number;
+  /** 打开、分享时已经存进文档库的那一份（D-455）：存成记录等直接用它，不再复制。 */
+  assetId?: string;
 }
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp';
@@ -200,6 +202,11 @@ export interface VisionPlatform {
   readonly ocrModel?: { pack: string; languages: readonly string[] };
   /** 识别文字；languages 是 BCP 47，第一种是用户选的语言。文字只返回给 App。 */
   recognizeText(uri: string, languages: readonly string[]): Promise<string>;
+  /**
+   * PDF 的文字层（D-455）：iOS PDFKit，Android 15 起的 PdfRenderer；没有文字层或系统不支持时是 null。
+   * 文字只返回给 App。
+   */
+  pdfText?(uri: string): Promise<string | null>;
   /**
    * 识别文字，给出每行的位置（可搜索 PDF 的文字层，D-195）。pixels 是同一张图已经解码好的像素
    * （tablePixels 给的），PP-OCRv6 直接用它，不再解码一次（转 Excel，D-272）。
@@ -611,6 +618,12 @@ export interface FilePlatform {
    * 没有（不是 PDF、打不开、以前存的）时是 null。只读，不生成。
    */
   thumbnailUri?(path: string): string | null;
+  /**
+   * 文件里的文字（D-455，底线 14 的例外）：图片识别出的、PDF 文字层的，存在这个文件旁边，跟着文件一起删。
+   * 只在本机，不进配置、不发给 AI。
+   */
+  saveAssetText?(path: string, text: string): Promise<void>;
+  assetText?(path: string): Promise<string | null>;
   importFile(
     file: PickedFile,
     assetId: string,

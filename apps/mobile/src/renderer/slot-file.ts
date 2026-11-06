@@ -3,6 +3,7 @@ import { MEDIA_LIMITS, sanitizeFileName, uniqueFileName } from '@morph/core';
 import { mimeOf } from '../runtime/actions/helpers';
 import type { FilePlatform, PickedFile } from '../runtime/platform';
 import { newAssetId } from '../runtime/runner';
+import { indexAssetText } from '../storage/asset-text';
 import type { WorkspaceRepo } from '../storage/types';
 
 // 文件入口（D-257）和附件字段（D-263）：用户选的文件复制一份存成用户文件（assets/<id>/<文件名>），原件不动
@@ -61,14 +62,28 @@ export async function copyUserFiles(
   picked: readonly PickedFile[],
   files: FilePlatform,
   repo: WorkspaceRepo,
-): Promise<{ assetIds: string[]; problem?: ImportProblem }> {
+): Promise<{ assetIds: string[]; created: string[]; problem?: ImportProblem }> {
   const assetIds: string[] = [];
+  // 这一次新复制的（不算打开时已经存进文档库、直接拿来用的，D-455）：调用方放弃时只删这些。
+  const created: string[] = [];
+  const toIndex: { path: string; mimeType: string }[] = [];
+  const done = (problem?: ImportProblem) => {
+    // 文件里的文字在后面慢慢读，不让用户等（D-455）。
+    void (async () => {
+      for (const asset of toIndex) await indexAssetText(files, asset);
+    })();
+    return problem ? { assetIds, created, problem } : { assetIds, created };
+  };
   for (const file of picked) {
+    if (file.assetId) {
+      assetIds.push(file.assetId);
+      continue;
+    }
     const size = file.size ?? 0;
-    if (size > MEDIA_LIMITS.maxFileBytes) return { assetIds, problem: 'tooLarge' };
+    if (size > MEDIA_LIMITS.maxFileBytes) return done('tooLarge');
     // 每复制一个都重新查一次剩余空间（前面的已经占了地方）。
     const free = files.freeDiskBytes();
-    if (free !== null && size + SPACE_MARGIN > free) return { assetIds, problem: 'noSpace' };
+    if (free !== null && size + SPACE_MARGIN > free) return done('noSpace');
     const clean = sanitizeFileName(file.name);
     // 扩展名照原样保留（大小写也不改）。
     const ext = /\.([^./]+)$/.exec(clean)?.[1] ?? 'bin';
@@ -80,7 +95,7 @@ export async function copyUserFiles(
       // 原生复制失败时自己删掉半个文件（expo-platform 的 importFile）。
       stored = await files.importFile(file, id, name);
     } catch {
-      return { assetIds, problem: 'copyFailed' };
+      return done('copyFailed');
     }
     await repo.addAsset({
       id,
@@ -92,8 +107,10 @@ export async function copyUserFiles(
       createdAt: Date.now(),
     });
     assetIds.push(id);
+    created.push(id);
+    toIndex.push({ path: stored.path, mimeType: mimeOf(name, file.mimeType) });
   }
-  return { assetIds };
+  return done();
 }
 
 /** 文件入口：选一个文件复制进 App。 */
