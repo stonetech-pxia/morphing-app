@@ -62,6 +62,7 @@ export * from './similar-records';
 export * from './richtext';
 export * from './schema';
 export * from './starter';
+export * from './builtin-text';
 export * from './share';
 export * from './speech';
 export * from './speak';

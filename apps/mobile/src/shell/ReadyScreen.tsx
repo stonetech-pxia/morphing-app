@@ -16,6 +16,7 @@ import { usePalette } from '../renderer/theme';
 import { Button, Card } from '../renderer/ui';
 import { HomeScreenCard } from '../home-screen/HomeScreenCard';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
+import { openRunAfterClosing } from './navigation';
 import { NextCard } from './NextCard';
 import { Banner } from './Shell';
 
@@ -87,9 +88,7 @@ export function ReadyScreen({ workflow, notes = [] }: { workflow: Workflow; note
           palette={palette}
           testID="ready-run"
           label={t(locale, 'readyRunNow')}
-          onPress={() =>
-            router.replace({ pathname: '/run/[workflowId]', params: { workflowId: workflow.id } })
-          }
+          onPress={() => openRunAfterClosing(router, workflow.id)}
         />
       )}
       <NextCard palette={palette} />

@@ -1,4 +1,5 @@
 import {
+  builtinText,
   describeParams,
   findWorkflowTarget,
   localize,
@@ -38,8 +39,10 @@ export function WorkflowRunner({
   const { locale, registry } = env;
   const palette = onPicture(env.palette, backdrop);
   // 可以指向内设快捷操作的预设 ID；用户改过以后配置里的副本优先（D-259）。
-  const workflow = findWorkflowTarget(quickActionsOf(env.config), workflowId, locale);
-  if (!workflow) return null;
+  const found = findWorkflowTarget(quickActionsOf(env.config), workflowId, locale);
+  if (!found) return null;
+  // 内设快捷操作的名字跟着界面语言显示（用户改过的不换）。
+  const workflow = { ...found, name: builtinText(found.name, locale, registry) };
   const label = (action: string) => localize(registry.actions.get(action)?.label, locale) ?? action;
   // 关键设置（例如「不超过 500 KB」）；每次运行时询问的参数不列出。
   const settings = workflow.steps

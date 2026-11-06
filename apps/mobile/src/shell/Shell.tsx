@@ -223,7 +223,7 @@ export function Shell() {
                   <GlassFill palette={palette} radius={999} />
                   <Icon name={targetIcon(target, config)} size={18} color={fg} />
                   <Text style={[palette.font('title', 14), { color: fg }]}>
-                    {targetLabel(target, config, locale)}
+                    {targetLabel(target, config, locale, registry)}
                   </Text>
                 </Pressable>
               );
@@ -249,7 +249,7 @@ export function Shell() {
           {config.nav.bar.map((target) => {
             const isActive = target === active;
             const color = isActive || target === 'ai' ? palette.primaryText : palette.caption;
-            const label = targetLabel(target, config, locale);
+            const label = targetLabel(target, config, locale, registry);
             return (
               <Pressable
                 key={target}

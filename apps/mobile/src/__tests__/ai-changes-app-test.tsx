@@ -46,6 +46,10 @@ describe('AI changes the app, the user runs it (UI)', () => {
 
     files.nextPhotos = [files.offerImage('me.jpg', 1200, 1600)];
     await fireEvent.press(screen.getByTestId('ready-run'));
+    // 先关掉「做好了」，关完才打开运行页：两个模态同时动画时 iOS 不弹照片选择器，运行停在第 1 步
+    // （2026-11-06 模拟器上「现在就用一次」卡在「选照片」）。
+    expect(screen.queryByTestId('ready-screen')).toBeNull();
+    expect(screen.queryByTestId('run-screen')).toBeNull();
     expect(await screen.findByTestId('run-screen')).toBeTruthy();
     expect(quickActionsOf(store.getState().config!).map((w) => w.id)).toContain('visa-photo');
   });

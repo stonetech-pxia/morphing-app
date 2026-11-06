@@ -1,4 +1,11 @@
-import { localize, pageTarget, toolGridToolIds, type BlockOf, type Page } from '@morph/core';
+import {
+  builtinText,
+  localize,
+  pageTarget,
+  toolGridToolIds,
+  type BlockOf,
+  type Page,
+} from '@morph/core';
 
 import { Alert, StyleSheet, Text, View } from 'react-native';
 
@@ -78,9 +85,11 @@ export function ToolGrid({
             const def = registry.tools.get(toolId)!;
             const installed = config.packages.find((x) => x.id === toolId);
             // 工具页被改过名字时用页面的名字（和工具卡片一样）。
-            const name =
-              (installed && config.containers.pages.find((p) => p.id === installed.page)?.title) ??
-              localize(def.name, locale);
+            const pageTitle =
+              installed && config.containers.pages.find((p) => p.id === installed.page)?.title;
+            const name = pageTitle
+              ? builtinText(pageTitle, locale, registry)
+              : localize(def.name, locale);
             return (
               <Card
                 key={toolId}

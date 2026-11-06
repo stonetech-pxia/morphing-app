@@ -1,4 +1,4 @@
-import { linkTitle, type DataRecord } from '@morph/core';
+import { builtinText, linkTitle, type DataRecord } from '@morph/core';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -83,7 +83,10 @@ export default function PageRoute() {
       <Stack.Screen
         options={{
           // 给一条记录用的页面以这条记录为标题（在本机拼，AI 看不到）。
-          title: opened && collection ? linkTitle(opened, collection, locale) : page.title,
+          title:
+            opened && collection
+              ? linkTitle(opened, collection, locale)
+              : builtinText(page.title, locale, registry),
           // 在当前页面直接发起修改，预览会聚焦这一页。
           // 编辑模式下不能返回：先在页面顶部点「完成」或「取消」，草稿不会丢失（D-054）。
           headerBackVisible: !editing,
