@@ -165,7 +165,9 @@ function leafHtml(
           .join('');
         return `<tr>${cells}</tr>`;
       }).join('');
-      return `<table data-ref="${ref}" style="margin-top:${place.top}${u};font-size:${px}${u}"><tbody>${rows}</tbody></table>`;
+      // 原图里没有线的表（D-471）不画边框。
+      const cls = block.borderless ? ' class="nolines"' : '';
+      return `<table data-ref="${ref}"${cls} style="margin-top:${place.top}${u};font-size:${px}${u}"><tbody>${rows}</tbody></table>`;
     }
     case 'image': {
       // 按原来占页宽的比例。图片不能在页面上改，只能连同它所在的地方一起删掉（打印的版面用 pt，不用标）。
@@ -331,6 +333,7 @@ export function wordPageHtml(
 .paper ol>li::before{position:absolute;right:100%;margin-right:.35em;white-space:nowrap}
 .paper table{border-collapse:collapse;width:100%;table-layout:fixed}
 .paper td{border:1${u} solid #9A9A9A;padding:3${u};vertical-align:top;white-space:pre-wrap;word-break:break-word}
+.paper table.nolines td{border:none}
 [data-kind=row]{display:flex;align-items:flex-start}
 .cell{padding-right:6${u};box-sizing:border-box}
 .noimg{width:100%;background:#EEE}

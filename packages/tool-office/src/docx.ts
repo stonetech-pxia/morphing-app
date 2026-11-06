@@ -278,8 +278,11 @@ function tableXml(block: DocTable, page: DocPage, bodySize: number, maxWidth = C
     }
     rows.push(`<w:tr>${cells.join('')}</w:tr>`);
   }
+  // 原图里没有线、按列对齐认出来的表（D-471）不画边框。
   const border = (side: string) =>
-    `<w:${side} w:val="single" w:sz="4" w:space="0" w:color="000000"/>`;
+    block.borderless
+      ? `<w:${side} w:val="nil"/>`
+      : `<w:${side} w:val="single" w:sz="4" w:space="0" w:color="000000"/>`;
   return (
     '<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblLayout w:type="fixed"/><w:tblBorders>' +
     ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(border).join('') +

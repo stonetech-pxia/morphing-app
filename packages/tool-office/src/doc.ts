@@ -1,5 +1,6 @@
 import { buildTablePage, type BuildOptions } from './build';
 import { assignLines, cleanRegions, readingOrder, type LayoutRegion } from './layout';
+import { findBarcodes, findTextTables, levelLines } from './text-table';
 import type { Box, OcrBox, RgbaImage, TableBlock, TableCell } from './types';
 
 // 扫描件转 Word（D-328）：一页的识别结果 + 版面分析的区域 → DocDoc（编辑页改它，docx 每次从它重新生成）。
@@ -69,6 +70,8 @@ export interface DocList extends DocStyle {
 /** 带线的表格：和转 Excel 的 TableBlock 一样（col 从 0 起），colWidths 是这张表每列的宽（原图像素）。 */
 export interface DocTable {
   kind: 'table';
+  /** 原图里没有线、按列对齐认出来的表（D-471）：画的时候不画边框。 */
+  borderless?: boolean;
   table: TableBlock;
   colWidths: number[];
   /** 表里字的字号（磅，按表里文字的行高，D-335）；没有时用正文字号。写 docx 时随表的缩小一起缩小。 */
@@ -197,9 +200,10 @@ const WIDTH_SPREAD = 0.15;
 const WIDTH_CLAMP = 4 / 3;
 const WIDTH_SNAP = 0.08;
 /** 列表项的开头（和 D-268 的 layoutOcrLines 一样）。 */
-const LIST_ITEM = /^\s*(?:[•·\-–—*▪●○◦■□]|\d{1,3}[.、)）]|[(（]\d{1,3}[)）]|[①-⑳])/;
-const ORDERED = /^\s*(?:(\d{1,3})([.、)）])|[(（](\d{1,3})[)）]|([①-⑳]))\s*/;
-const BULLET = /^\s*[•·\-–—*▪●○◦■□]\s*/;
+// 「7.29」「3)5」「-7.29」这样后面紧跟数字的是数（金额、条形码下面的号码），不是编号、不是项目符号（D-471）。
+const LIST_ITEM = /^\s*(?:[•·*▪●○◦■□]|[-–—](?!\d)|\d{1,3}[.、)）](?!\d)|[(（]\d{1,3}[)）]|[①-⑳])/;
+const ORDERED = /^\s*(?:(\d{1,3})([.、)）])(?!\d)|[(（](\d{1,3})[)）]|([①-⑳]))\s*/;
+const BULLET = /^\s*(?:[•·*▪●○◦■□]|[-–—](?!\d))\s*/;
 
 const median = (values: readonly number[]) => {
   const sorted = [...values].sort((a, b) => a - b);
@@ -625,7 +629,37 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
       };
     });
   const inTable = (l: Box) => tables.some(({ box }) => inBox(l, box));
-  const free = lines.filter((l) => !inTable(l) && !isStray(l, lines, lineHeight, image));
+  // 整页的倾斜（D-471）：照片拍歪、纸弯了时按斜线分行；拉平以后的行只用来分行、分段、排位置，
+  // 量笔画、颜色、下划线还是看原图里原来的位置。
+  const kept = lines.filter((l) => !inTable(l) && !isStray(l, lines, lineHeight, image));
+  const originalOf = new Map<OcrBox, OcrBox>();
+  const leveled = levelLines(kept, lineHeight, image.width / 2);
+  leveled.forEach((flat, k) => originalOf.set(flat, kept[k]!));
+  const orig = (l: OcrBox) => originalOf.get(l) ?? l;
+  // 没有线的表（D-471）：几排按三列以上对齐的，排成没有边框的表，不接成一句话。
+  const textTables = findTextTables(leveled, lineHeight, orig);
+  const inTextTable = new Set(textTables.flatMap((t) => t.lines));
+  for (const t of textTables) {
+    const h = median(t.lines.map((l) => l.height));
+    tables.push({
+      kind: 'table',
+      table: t.table,
+      colWidths: t.colWidths,
+      borderless: true,
+      ...(h ? { size: Math.min(BODY_MAX, Math.max(FORM_MIN, fontSizeOf(h, image.width))) } : {}),
+      box: t.box,
+    });
+  }
+  // 条形码（D-471）：剪成图片，里面认出来的零星的字不要。
+  const barcodes = findBarcodes(image, kept, lineHeight);
+  const inBarcode = (l: OcrBox) => {
+    const cx = l.x + l.width / 2;
+    const cy = l.y + l.height / 2;
+    return barcodes.some(
+      (b) => cx >= b.x && cx <= b.x + b.width && cy >= b.y && cy <= b.y + b.height,
+    );
+  };
+  const free = leveled.filter((l) => !inTextTable.has(l) && !inBarcode(orig(l)));
   const size = { width: image.width, height: image.height };
   const regions = cleanRegions(input.regions ?? [], free, size).filter(
     // 和表格重叠一大半的区域（表格的标题行、表格里认成正文的）不要。
@@ -639,7 +673,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   const owner = assignLines(free, regions);
   // 区域里的行；页码区域的字不要；图片区域里的少量字（标志、照片里的字）也不要。
   let groups: Group[] = [];
-  const images: DocImage[] = [];
+  const images: DocImage[] = barcodes.map((box) => ({ kind: 'image', box }));
   for (const [i, region] of regions.entries()) {
     const members = free.filter((_, k) => owner[k] === i);
     if (region.kind === 'image') {
@@ -647,11 +681,12 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
       continue;
     }
     if (region.kind === 'pageNumber' || !members.length) continue;
-    groups.push({
-      lines: members,
-      title: region.kind === 'title' ? (region.label === 'doc_title' ? 1 : 2) : 0,
-      box: unionBox(members),
-    });
+    const title = region.kind === 'title' ? (region.label === 'doc_title' ? 1 : 2) : 0;
+    // 一个很大的正文区域（整张小票被认成一块，D-471）里隔得远的几块照样分开：表格的行拿走以后，
+    // 上面的店名和下面的号码不再连成一块、把整页的顺序打乱。
+    for (const part of title ? [members] : clusterLines(members, lineHeight)) {
+      groups.push({ lines: part, title, box: unionBox(part) });
+    }
   }
   for (const cluster of clusterLines(
     free.filter((_, k) => owner[k] === -1),
@@ -663,7 +698,7 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
   groups = pairForms(groups, lineHeight);
   // 字号和笔画：先量出整页的正文字号和笔画粗细，再和它比。
   const strokes = new Map<OcrBox, number>();
-  for (const l of free) strokes.set(l, strokeRatio(image, l));
+  for (const l of free) strokes.set(l, strokeRatio(image, orig(l)));
   const pageStroke = median([...strokes.values()].filter((v) => v > 0));
   const bodyHeight = median(
     groups.filter((g) => !g.title).flatMap((g) => g.lines.map((l) => l.height)),
@@ -715,9 +750,9 @@ export function buildDocPage(input: DocPageInput, options: BuildOptions = {}): D
     if (short || Math.abs(size - bodySize) <= snap * bodySize) size = bodySize;
     const bold =
       pageStroke > 0 && median(paraLines.map((l) => strokes.get(l) ?? 0)) > BOLD_RATIO * pageStroke;
-    const color = textColor(image, paraLines[0]!);
+    const color = textColor(image, orig(paraLines[0]!));
     // 下划线：每一行下面都有（D-463）。
-    const underline = paraLines.every((l) => hasUnderline(image, l));
+    const underline = paraLines.every((l) => hasUnderline(image, orig(l)));
     const style: DocStyle = {
       ...(size !== bodySize ? { size } : {}),
       ...(bold ? { bold: true } : {}),
