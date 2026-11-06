@@ -1462,6 +1462,8 @@ export const zh: MessageTable = {
   wordItalic: '斜体',
   wordUnderline: '下划线',
   wordAlign: '对齐',
+  wordUseOriginal: '这里用原图',
+  wordOriginalFailed: '没能从原图上剪下这一块。',
   wordHideKeyboard: '收起键盘',
   wordDeleteTable: '删除表格',
   wordEmpty: '没有识别出内容。',

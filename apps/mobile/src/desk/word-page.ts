@@ -527,6 +527,11 @@ export const WORD_PAGE_SCRIPT = String.raw`
     state();
   };
 
+  function refOfCaret(el) {
+    if (!el || el.closest('td')) return null;
+    var block = el.closest('p[data-ref], ol[data-ref], ul[data-ref]');
+    return block ? block.getAttribute('data-ref') : null;
+  }
   function state() {
     var sel = window.getSelection();
     var node = sel && sel.rangeCount ? sel.getRangeAt(0).startContainer : null;
@@ -544,6 +549,8 @@ export const WORD_PAGE_SCRIPT = String.raw`
       underline: document.queryCommandState('underline'),
       align: b ? alignOf(b.tagName === 'LI' ? b.parentElement : b) : 'left',
       cell: table ? { ref: table.getAttribute('data-ref'), i: Number(td.getAttribute('data-i')) } : null,
+      // 光标所在的段落、列表（「用原图」换的是它，D-467）；表格里、新打的段落没有。
+      ref: refOfCaret(el),
     });
   }
   document.addEventListener('input', post);

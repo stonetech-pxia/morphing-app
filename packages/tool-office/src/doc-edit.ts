@@ -1,5 +1,5 @@
 import type { DocBlock, DocDoc, DocLeaf, DocTable } from './doc';
-import type { TableBlock, TableDoc } from './types';
+import type { Box, TableBlock, TableDoc } from './types';
 
 // 转 Word 的编辑（D-328）：DocDoc 不可变地改，每次返回新的（撤销、重做用 edit.ts 的 History）。
 // 段落改文字；列表一行一项；表格交给转 Excel 的编辑页（换成只有这一张表的 TableDoc，改完换回来）；
@@ -81,6 +81,29 @@ export function setBlockText(doc: DocDoc, at: DocRef, text: string): DocDoc {
     return replaceBlock(doc, at, items.length ? { ...rest, items } : null);
   }
   return doc;
+}
+
+/**
+ * 一段字换成原图里同一个地方剪下来的图（D-467，创始人 2026-11-06：签名、印章被认成了字，要「保留原来内容」）：
+ * box 是剪的范围（原图像素，比字的框大一点，笔画常常伸出去），src 是剪好的图。只换段落和列表。
+ */
+export function blockToImage(doc: DocDoc, at: DocRef, image: { src: string; box: Box }): DocDoc {
+  const block = blockAt(doc, at);
+  if (block?.kind !== 'paragraph' && block?.kind !== 'list') return doc;
+  return replaceBlock(doc, at, { kind: 'image', box: image.box, src: image.src });
+}
+
+/** 剪原图时在字的框外面多留的边（原图像素）：签名、印章的笔画常常比认出来的字的框大。 */
+export function originalBox(box: Box, page: { width: number; height: number }): Box {
+  const pad = Math.max(8, Math.round(box.height * 0.25));
+  const x = Math.max(0, box.x - pad);
+  const y = Math.max(0, box.y - pad);
+  return {
+    x,
+    y,
+    width: Math.min(page.width - x, box.width + 2 * pad),
+    height: Math.min(page.height - y, box.height + 2 * pad),
+  };
 }
 
 export function deleteBlock(doc: DocDoc, at: DocRef): DocDoc {

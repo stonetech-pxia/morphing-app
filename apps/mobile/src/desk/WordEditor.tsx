@@ -1,5 +1,6 @@
 import type { Locale } from '@morph/core';
 import {
+  blockToImage,
   canDeleteColumn,
   deleteBlock,
   deleteColumn,
@@ -9,9 +10,12 @@ import {
   insertRow,
   leafBlocks,
   mergeEdited,
+  originalBox,
   sameValue,
   tableDocOf,
+  type Box,
   type DocDoc,
+  type DocPage,
   type DocRef,
   type DocTable,
   type EditedPage,
@@ -44,6 +48,8 @@ interface PageState {
   underline?: boolean;
   align?: Align;
   cell?: { ref: string; i: number } | null;
+  /** 光标所在的段落、列表（D-467）。 */
+  ref?: string | null;
 }
 
 const NEXT_ALIGN: Record<Align, Align> = { left: 'center', center: 'right', right: 'left' };
@@ -65,6 +71,7 @@ export function WordEditor({
   locale,
   width,
   readImage,
+  cropOriginal,
   onApply,
   onSelecting,
   onTyping,
@@ -76,6 +83,11 @@ export function WordEditor({
   width: number;
   /** 读图片块的文件（写进页面）。 */
   readImage: (uri: string) => Promise<Uint8Array>;
+  /**
+   * 从这一页的原图上剪下 box（原图像素）那一块，返回剪好的图（D-467，「用原图」）；剪不出来时 null。
+   * 没有时不显示「用原图」。
+   */
+  cropOriginal?: (page: DocPage, box: Box) => Promise<string | null>;
   onApply: (next: DocDoc) => void;
   /** 光标在页面上（房间收起工具栏，换成这一排格式按钮）。 */
   onSelecting: (on: boolean) => void;
@@ -102,38 +114,42 @@ export function WordEditor({
   const web = useRef<{ injectJavaScript?: (js: string) => void } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 图片块的字节读好再生成页面（只在打开时读一次）。
-  const [images, setImages] = useState<Record<string, string> | null>(null);
+  // 图片块的字节读好再生成页面。每次重新生成都看一遍：「用原图」（D-467）会多出新剪的图。
+  // 读不到的记成 null（画成灰块），不再读。
+  const [images, setImages] = useState<Record<string, string | null>>({});
+  const srcs = useMemo(() => imageSrcs(shown), [shown]);
+  // 读文件的函数每次渲染都是新的：用最新的那个，不因为它重新读。
+  const read = useRef(readImage);
   useEffect(() => {
+    read.current = readImage;
+  });
+  useEffect(() => {
+    const missing = srcs.filter((src) => !(src in images));
+    if (!missing.length) return;
     let alive = true;
-    const srcs = [
-      ...new Set(
-        doc.pages.flatMap((p) =>
-          leafBlocks(p).flatMap((b) => (b.kind === 'image' && b.src ? [b.src] : [])),
-        ),
-      ),
-    ];
     Promise.all(
-      srcs.map((src) =>
-        readImage(src).then(
+      missing.map((src) =>
+        read.current(src).then(
           (bytes) => [src, jpegDataUrl(bytes)] as const,
-          () => null,
+          () => [src, null] as const,
         ),
       ),
     ).then((pairs) => {
-      if (alive) setImages(Object.fromEntries(pairs.filter((p) => p !== null)));
+      if (alive) setImages((had) => ({ ...had, ...Object.fromEntries(pairs) }));
     });
     return () => {
       alive = false;
     };
-    // 只在打开时读：撤销、重做不会多出新的图片。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [srcs, images]);
+  const ready = srcs.every((src) => src in images);
 
-  const html = useMemo(
-    () => (images ? wordPageHtml(shown, width, images) : null),
-    [shown, width, images],
-  );
+  const html = useMemo(() => {
+    if (!ready) return null;
+    const loaded = Object.fromEntries(
+      Object.entries(images).filter((e): e is [string, string] => e[1] !== null),
+    );
+    return wordPageHtml(shown, width, loaded);
+  }, [ready, shown, width, images]);
 
   // 最新的文档和回调（合回去时用；页面的消息、计时器拿到的是旧的闭包）。
   const latest = useRef({ doc, shown, onApply });
@@ -216,6 +232,26 @@ export function WordEditor({
         ? deleteBlock(merged, at)
         : editDocTable(merged, at, (t) => tableEdit(id, table.cell, t));
     if (next !== merged) latest.current.onApply(next);
+  }
+
+  // ---- 「用原图」（D-467）：签名、印章被认成了字，换回原图里剪下来的那一块 ----
+  const original = cropOriginal && state.ref ? refOf(state.ref) : null;
+  const originalBlock = original ? leafAt(shown, original) : undefined;
+  const canUseOriginal =
+    !!originalBlock && (originalBlock.kind === 'paragraph' || originalBlock.kind === 'list');
+
+  async function swapInOriginal() {
+    if (!cropOriginal || !original || !originalBlock || !canUseOriginal) return;
+    command('blur');
+    // 先把改的字合回去，再按这一块原来的位置在合好的文档里找到它（前面分段、删段会改下标）。
+    // 剪图要等一会儿：在合好的这一份上换（latest 这时不一定已经更新）。
+    const current = commit();
+    const page = shown.pages[original.page]!;
+    const area = originalBox(originalBlock.box, page);
+    const src = await cropOriginal(page, area);
+    if (!src) return;
+    const at = findLeaf(current, originalBlock.box);
+    if (at) latest.current.onApply(blockToImage(current, at, { src, box: area }));
   }
 
   const align = state.align ?? 'left';
@@ -327,6 +363,21 @@ export function WordEditor({
               <SymbolView name={ALIGN_ICON[align]} size={22} tintColor={palette.text} />,
               NEXT_ALIGN[align],
             )}
+            {canUseOriginal ? (
+              <FormatButton
+                key="word-use-original"
+                id="word-use-original"
+                label={t(locale, 'wordUseOriginal')}
+                on={false}
+                palette={palette}
+                onPress={() => void swapInOriginal()}>
+                <SymbolView
+                  name={{ ios: 'photo', android: 'image' }}
+                  size={22}
+                  tintColor={palette.text}
+                />
+              </FormatButton>
+            ) : null}
             {button(
               'word-hide-keyboard',
               'wordHideKeyboard',
@@ -448,6 +499,17 @@ function tableEdit(id: TableActionId, cell: TableCell, t: TableDoc): TableDoc {
   }
 }
 
+/** 文档里所有图片块的 src（去重）。 */
+function imageSrcs(doc: DocDoc): string[] {
+  return [
+    ...new Set(
+      doc.pages.flatMap((p) =>
+        leafBlocks(p).flatMap((b) => (b.kind === 'image' && b.src ? [b.src] : [])),
+      ),
+    ),
+  ];
+}
+
 function leafAt(doc: DocDoc, at: DocRef) {
   const block = doc.pages[at.page]?.blocks[at.block];
   if (at.cell === undefined) return block?.kind === 'row' ? undefined : block;
@@ -466,6 +528,26 @@ function findTable(doc: DocDoc, table: object): DocRef | null {
             return { page: p, block: b, cell: c, item: i };
           }
         }
+      }
+    }
+  }
+  return null;
+}
+
+/** 位置是 box 的段落、列表（合回去以后它在哪里）。 */
+function findLeaf(doc: DocDoc, box: Box): DocRef | null {
+  for (const [p, page] of doc.pages.entries()) {
+    for (const [b, block] of page.blocks.entries()) {
+      if (block.kind === 'row') {
+        for (const [c, cell] of block.cells.entries()) {
+          for (const [i, leaf] of cell.blocks.entries()) {
+            if (leaf.kind !== 'image' && leaf.kind !== 'table' && sameValue(leaf.box, box)) {
+              return { page: p, block: b, cell: c, item: i };
+            }
+          }
+        }
+      } else if (block.kind !== 'image' && block.kind !== 'table' && sameValue(block.box, box)) {
+        return { page: p, block: b };
       }
     }
   }

@@ -1545,6 +1545,8 @@ export const en = {
   wordItalic: 'Italic',
   wordUnderline: 'Underline',
   wordAlign: 'Alignment',
+  wordUseOriginal: 'Use the original image here',
+  wordOriginalFailed: 'Couldn’t cut this part out of the original image.',
   wordHideKeyboard: 'Hide keyboard',
   wordDeleteTable: 'Delete table',
   wordEmpty: 'Nothing was recognized.',

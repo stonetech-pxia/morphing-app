@@ -1614,6 +1614,8 @@ export const fr: MessageTable = {
   wordItalic: 'Italique',
   wordUnderline: 'Souligné',
   wordAlign: 'Alignement',
+  wordUseOriginal: 'Utiliser l’image d’origine ici',
+  wordOriginalFailed: 'Impossible de découper cette partie de l’image d’origine.',
   wordHideKeyboard: 'Masquer le clavier',
   wordDeleteTable: 'Supprimer le tableau',
   wordEmpty: 'Rien n’a été reconnu.',

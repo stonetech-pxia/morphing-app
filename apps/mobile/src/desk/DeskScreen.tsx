@@ -60,7 +60,7 @@ import { deleteUserFiles } from '../storage/user-files';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
 import { shownConfig } from '../workspace/store';
 import { DraftBar } from '../draft/DraftBar';
-import type { DocDoc, TableDoc } from '@morph/tool-office';
+import type { Box, DocDoc, DocPage, TableDoc } from '@morph/tool-office';
 
 import { DeskEditor } from './DeskEditor';
 import { DeskPreview } from './DeskPreview';
@@ -406,6 +406,39 @@ export function DeskScreen({ deskId }: { deskId: string }) {
     }
   }
 
+  /**
+   * 「用原图」（D-467）：从这一页的原图上剪下 box（原图像素）那一块，存成临时文件；合上编辑时搬进桌面。
+   * 认字那张图和原图大小不一定一样，按比例换算。
+   */
+  async function cropOriginal(page: DocPage, box: Box): Promise<string | null> {
+    const current = deskRef.current;
+    if (!current || !page.source) return null;
+    try {
+      const size = await files.imageSize(page.source);
+      const kx = size.width / page.width;
+      const ky = size.height / page.height;
+      const x = Math.max(0, Math.round(box.x * kx));
+      const y = Math.max(0, Math.round(box.y * ky));
+      const crop = {
+        x,
+        y,
+        width: Math.max(1, Math.min(size.width - x, Math.round(box.width * kx))),
+        height: Math.max(1, Math.min(size.height - y, Math.round(box.height * ky))),
+      };
+      const out = await files.transformImage(
+        page.source,
+        { crop },
+        { format: 'jpeg', quality: 0.9 },
+        `desk-${current.id}`,
+        `original-${Date.now()}.jpg`,
+      );
+      return out.uri;
+    } catch {
+      setError(t(locale, 'wordOriginalFailed'));
+      return null;
+    }
+  }
+
   const systemPreview = () =>
     shown &&
     void act(() =>
@@ -539,6 +572,7 @@ export function DeskScreen({ deskId }: { deskId: string }) {
         locale={locale}
         width={screenWidth}
         readImage={(uri) => files.readUri(uri)}
+        cropOriginal={cropOriginal}
         onApply={edit.apply}
         onSelecting={onSelecting}
         onTyping={edit.typing}

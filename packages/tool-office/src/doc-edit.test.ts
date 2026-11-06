@@ -4,8 +4,10 @@ import type { DocDoc } from './doc';
 import {
   blockAt,
   blockText,
+  blockToImage,
   deleteBlock,
   editDocTable,
+  originalBox,
   parseDocDoc,
   setBlockText,
   setTableFrom,
@@ -174,5 +176,52 @@ describe('文档里的表格就地改（file-room R2，D-366）', () => {
     expect(
       editDocTable(doc, { page: 0, block: 0 }, (t) => insertRow(t, { page: 0, block: 0 }, 0)),
     ).toBe(doc);
+  });
+});
+
+describe('blockToImage (D-467)', () => {
+  const box = { x: 600, y: 1200, width: 200, height: 40 };
+  const doc: DocDoc = {
+    version: 1,
+    pages: [
+      {
+        source: 'p.jpg',
+        width: 1000,
+        height: 1400,
+        bodySize: 11,
+        blocks: [
+          { kind: 'paragraph', text: 'mod cal & dentaira', size: 16, box },
+          { kind: 'image', box, src: 'a.jpg' },
+        ],
+      },
+    ],
+  };
+
+  it('replaces a paragraph with the cropped original, keeping its place', () => {
+    const area = originalBox(box, doc.pages[0]!);
+    const next = blockToImage(doc, { page: 0, block: 0 }, { src: 'crop.jpg', box: area });
+    expect(next.pages[0]!.blocks[0]).toEqual({ kind: 'image', box: area, src: 'crop.jpg' });
+    expect(next.pages[0]!.blocks).toHaveLength(2);
+  });
+
+  it('leaves images and tables alone', () => {
+    expect(blockToImage(doc, { page: 0, block: 1 }, { src: 'x.jpg', box })).toBe(doc);
+  });
+
+  it('the crop is a little bigger than the text box but stays on the page', () => {
+    expect(originalBox(box, { width: 1000, height: 1400 })).toEqual({
+      x: 590,
+      y: 1190,
+      width: 220,
+      height: 60,
+    });
+    expect(
+      originalBox({ x: 2, y: 1380, width: 990, height: 20 }, { width: 1000, height: 1400 }),
+    ).toEqual({
+      x: 0,
+      y: 1372,
+      width: 1000,
+      height: 28,
+    });
   });
 });

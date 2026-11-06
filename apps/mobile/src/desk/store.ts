@@ -464,8 +464,26 @@ export async function commitEdit(
   const list = currentFiles(desk);
   const file = list.find((f) => f.id === fileId);
   if (!file?.source) return { desk, fileId };
-  const source = relativeSource(files, desk, edited);
   const n = desk.nextN;
+  // 编辑时新剪的图（「用原图」，D-467）还不在桌面里：搬进 assets/，记进这份文件。
+  const known = new Set(file.source.assets.map((a) => a.path));
+  const added: DeskBlob[] = [];
+  const relative = relativeSource(files, desk, edited);
+  const outside = [...sourcePaths(relative)].filter(
+    (p) => !known.has(p) && files.desk.pathOf(p) === null && /^(file:|content:|runs\/)/.test(p),
+  );
+  const moved = new Map<string, string>();
+  for (const [k, uri] of outside.entries()) {
+    const blob = await adopt(
+      files,
+      desk,
+      uri,
+      `assets/e${n}-${k}.${cleanExt(extOf(uri)) || 'jpg'}`,
+    );
+    moved.set(uri, blob.path);
+    added.push(blob);
+  }
+  const source = moved.size ? mapSourcePaths(relative, (p) => moved.get(p) ?? p) : relative;
   const path = `v${n}-0.${file.ext}`;
   const json = `v${n}-0.json`;
   const bytes =
@@ -485,7 +503,7 @@ export async function commitEdit(
       kind: source.kind,
       path: json,
       size: jsonSize,
-      assets: file.source.assets.filter((a) => used.has(a.path)),
+      assets: [...file.source.assets, ...added].filter((a) => used.has(a.path)),
       ...(missing.length ? { pagesWithoutTables: missing } : {}),
     },
   };

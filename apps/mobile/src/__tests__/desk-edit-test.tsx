@@ -474,6 +474,51 @@ describe('Word 在桌上就是整页编辑器（D-465）', () => {
     expect(html).not.toMatch(/font-size:\d+(\.\d+)?px/);
   });
 
+  it('「这里用原图」：被认成字的签名、印章换成原图里剪下来的那一块，合上时搬进桌面、嵌进 docx（D-467）', async () => {
+    const files = new FakeFiles();
+    files.imageSizes.set('runs/r1/page.jpg', { width: 2000, height: 2800 });
+    await openOnDesk('doc', wordDoc(), files);
+    const page = wordPage();
+    // 光标在表格里、没有落在段落上时没有这个按钮。
+    await page.state({ focus: true, cell: { ref: '0-3', i: 0 }, ref: null });
+    expect(screen.queryByTestId('word-use-original')).toBeNull();
+    await page.state({ focus: true, cell: null, ref: '0-1' });
+    await fireEvent.press(screen.getByTestId('word-use-original'));
+    await waitFor(() =>
+      expect(
+        (screen.getByTestId('word-editor-page').props.source.html as string).includes(
+          'data-ref="0-1" data-kind="image"',
+        ),
+      ).toBe(true),
+    );
+    // 新剪的图也读进页面（模拟器上第一次只画了灰块）。
+    await waitFor(() =>
+      expect(screen.getByTestId('word-editor-page').props.source.html as string).toMatch(
+        /data-ref="0-1" data-kind="image"[^>]*><img src="data:image\/jpeg;base64,/,
+      ),
+    );
+    const html = screen.getByTestId('word-editor-page').props.source.html as string;
+    expect(html).not.toContain('正文第一段。');
+    await page.state({ focus: false });
+    await fireEvent.press(screen.getByTestId('desk-done'));
+    await screen.findByTestId('desk-save');
+    const file = currentFiles(await deskNow(files))[0]!;
+    // 剪下来的图搬进了桌面，嵌进了 docx。
+    const doc = parseDocDoc(decodeUtf8(files.disk.get(`desk/editdesk/${file.source!.path}`)!))!;
+    const image = doc.pages[0]!.blocks[1]!;
+    expect(image.kind).toBe('image');
+    const src = image.kind === 'image' ? image.src! : '';
+    expect(src).toMatch(/^assets\//);
+    expect(file.source!.assets.map((a) => a.path)).toContain(src);
+    expect(files.disk.has(`desk/editdesk/${src}`)).toBe(true);
+    expect(Object.keys(unzipSync(files.disk.get(`desk/editdesk/${file.path}`)!))).toContain(
+      'word/media/image1.jpg',
+    );
+    // 剪的是原图里这一段的位置（按原图的大小换算，四周多留一点）。
+    expect(image.box.x).toBeLessThan(100);
+    expect(image.box.width).toBeGreaterThan(800);
+  });
+
   it('剪好嵌进 docx 的图片：图片写进页面；合上时再嵌一次', async () => {
     const files = new FakeFiles();
     files.disk.set('runs/r1/crop.jpg', new Uint8Array([7, 7, 7, 7]));
