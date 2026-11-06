@@ -172,6 +172,10 @@ describe('the original above the cursor (D-468)', () => {
     expect(document.getElementById('word-original')!.style.display).toBe('block');
     expect(pill().style.display).toBe('block');
     expect(pill().textContent).toBe('换成原件');
+    // 按钮在截图正下方、不压住截图（2026-11-06 三星：压在右下角挡住了原图的字）。
+    const shot = document.getElementById('word-original')!.firstElementChild as HTMLElement;
+    expect(parseFloat(pill().style.top)).toBeGreaterThan(parseFloat(shot.style.height));
+    expect(pill().style.right).toBe('');
     // 选中两行。
     select(
       document.querySelector('[data-ref="0-1"]')!.firstChild!,

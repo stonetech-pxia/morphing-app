@@ -587,6 +587,7 @@ export const WORD_PAGE_SCRIPT = String.raw`
   var preview = null, shot = null, pill = null;
   var PREVIEW_MAX_H = 140;
   var PILL_H = 28;
+  var PILL_GAP = 6;
   function hidePreview() {
     if (preview) preview.style.display = 'none';
   }
@@ -610,12 +611,12 @@ export const WORD_PAGE_SCRIPT = String.raw`
       'background-color:#fff;background-repeat:no-repeat;border:1.5px solid #0B8F7A;border-radius:6px;' +
       'box-shadow:0 2px 8px rgba(0,0,0,.25);box-sizing:border-box';
     preview.appendChild(shot);
-    // 「换成原件」挂在小窗右下角、压住边框（D-469），只有字那么宽。
+    // 「换成原件」在截图正下方、左右居中，不盖住截图（D-469；2026-11-06 三星：压在右下角挡住了原图的字），只有字那么宽。
     pill = document.createElement('div');
     pill.id = 'word-original-swap';
     pill.setAttribute('role', 'button');
     pill.style.cssText =
-      'position:absolute;bottom:' + -PILL_H / 2 + 'px;height:' + PILL_H + 'px;line-height:' + PILL_H + 'px;' +
+      'position:absolute;height:' + PILL_H + 'px;line-height:' + PILL_H + 'px;' +
       'padding:0 12px;border-radius:999px;background:#0B8F7A;color:#fff;font:600 13px -apple-system,Roboto,sans-serif;' +
       'white-space:nowrap;pointer-events:auto;box-shadow:0 1px 4px rgba(0,0,0,.25)';
     pill.addEventListener('touchstart', keep);
@@ -672,13 +673,11 @@ export const WORD_PAGE_SCRIPT = String.raw`
     pill.style.display = canSwap ? 'block' : 'none';
     if (canSwap) {
       pill.textContent = target.lines > 1 ? W.swap.lines.replace('{n}', String(target.lines)) : W.swap.one;
-      // 截图比按钮窄时按钮居中挂在底边，不然挂在右下角。
-      var narrow = pill.offsetWidth + 16 > sw;
-      pill.style.right = narrow ? 'auto' : '8px';
-      pill.style.left = narrow ? Math.round((sw - pill.offsetWidth) / 2) + 'px' : 'auto';
+      pill.style.top = sh + PILL_GAP + 'px';
+      pill.style.left = Math.round((sw - pill.offsetWidth) / 2) + 'px';
     }
-    // 小窗连同挂出去的半个按钮都不盖住这一块（光标在里面）：上面放不下就放到下面。
-    var below = canSwap ? PILL_H / 2 : 0;
+    // 小窗连同下面的按钮都不盖住这一块（光标在里面）：上面放不下就放到下面。
+    var below = canSwap ? PILL_GAP + PILL_H : 0;
     var rect = target.anchor.getBoundingClientRect();
     var left = Math.max(12, Math.min(rect.left, window.innerWidth - 12 - sw));
     var top = rect.top + window.scrollY - sh - below - 8;
