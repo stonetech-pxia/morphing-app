@@ -358,10 +358,8 @@ describe('the record form', () => {
     const files = new FakeFiles();
     const { onDone, repo } = await open({ prefill: { amount: '9' } }, files);
     files.nextMedia = [files.offerImage('IMG_2.jpg', 100, 100)];
-    jest.spyOn(Alert, 'alert').mockImplementationOnce((_t, _m, buttons) => {
-      buttons?.find((b) => b.text === '从相册选')?.onPress?.();
-    });
     await fireEvent.press(screen.getByTestId('entry-receipt-add'));
+    await fireEvent.press(await screen.findByTestId('attachment-source-photos'));
     expect(await screen.findByText('IMG_2.jpg')).toBeTruthy();
     await fireEvent.press(screen.getByText('记下'));
     const [asset] = await repo.listAssets();

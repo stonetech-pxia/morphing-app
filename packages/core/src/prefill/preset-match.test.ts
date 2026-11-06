@@ -37,7 +37,7 @@ describe('rankPresets', () => {
   });
 });
 
-describe('rankPresets 的 folded（有金额时账单、贷款、报销、税务并进购物凭证，D-475）', () => {
+describe('rankPresets 的 folded（有金额时账单、贷款、报销、税务并进购物凭证，D-476）', () => {
   it('有金额：这四种不给模型选，列表里还在', () => {
     const r = rankPresets(doc('Total 48.60 €'));
     expect(r.folded).toEqual(['bill', 'loan', 'reimbursement', 'tax']);
@@ -170,7 +170,7 @@ describe('rulePreset（没有本机模型时，很明显的小票也要推荐购
       rulePreset(doc('永辉超市小票', '牛奶 12.50', '面包 8.00', '合计 20.50', '微信支付 20.50')),
     ).toBe('purchase');
   });
-  it('有合计金额的账单、贷款、税务、报销也用购物凭证（D-475）', () => {
+  it('有合计金额的账单、贷款、税务、报销也用购物凭证（D-476）', () => {
     expect(
       rulePreset(doc('Invoice 2025-03', 'Due date 1 April', 'Amount due 120.00 €', 'VAT 20.00')),
     ).toBe('purchase');

@@ -7,7 +7,7 @@ export type RecordChoice = {
   kind: 'table';
   tableId: string;
   name: string;
-  /** 文件像收据，这张表带收据规则（D-421）：排第一并标推荐（D-476）。 */
+  /** 文件像收据，这张表带收据规则（D-421）：排第一并标推荐（D-477）。 */
   recommended?: true;
 };
 

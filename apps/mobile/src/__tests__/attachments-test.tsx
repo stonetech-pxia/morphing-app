@@ -64,16 +64,6 @@ async function openEditor(repo: MemoryWorkspaceRepo, files = new FakeFiles()) {
   return app;
 }
 
-/** 系统弹窗：依次点名字为 labels 的按钮（每个弹窗一个），返回 spy 看弹了什么。 */
-function pressInAlerts(...labels: string[]) {
-  const spy = jest.spyOn(Alert, 'alert');
-  for (const label of labels)
-    spy.mockImplementationOnce((_title, _message, buttons) => {
-      buttons?.find((b) => b.text === label)?.onPress?.();
-    });
-  return spy;
-}
-
 afterEach(() => jest.restoreAllMocks());
 
 /** 这次新复制进来的文件名（withRecord 先放了 a1、a2）。 */
@@ -127,21 +117,21 @@ describe('adding attachments (D-263)', () => {
     await screen.findByTestId('editor-receipt-add');
 
     files.camera = [files.offerImage('IMG_CAM.jpg', 3000, 4000)];
-    pressInAlerts('拍照');
     await fireEvent.press(screen.getByTestId('editor-receipt-add'));
+    await fireEvent.press(await screen.findByTestId('attachment-source-camera'));
     expect(await screen.findByText('IMG_CAM.jpg')).toBeTruthy();
 
     files.nextMedia = [files.offerImage('IMG_1.HEIC', 3000, 4000, 'image/heic')];
-    pressInAlerts('从相册选');
     await fireEvent.press(screen.getByTestId('editor-receipt-add'));
+    await fireEvent.press(await screen.findByTestId('attachment-source-photos'));
     expect(await screen.findByText('IMG_1.HEIC')).toBeTruthy();
 
     files.nextPick = [
       files.offer('合同.pdf', pdf),
       files.offer('报价.docx', pdf, 'application/octet-stream'),
     ];
-    pressInAlerts('从「文件」选');
     await fireEvent.press(screen.getByTestId('editor-receipt-add'));
+    await fireEvent.press(await screen.findByTestId('attachment-source-files'));
     expect(await screen.findByText('报价.docx')).toBeTruthy();
 
     // 最后一个挪到最前面。
@@ -176,8 +166,8 @@ describe('adding attachments (D-263)', () => {
     files.nextMedia = [
       { uri: original, name: 'IMG_42.jpg', size: pdf.length, mimeType: 'image/jpeg' },
     ];
-    pressInAlerts('从相册选');
     await fireEvent.press(await screen.findByTestId('editor-receipt-add'));
+    await fireEvent.press(await screen.findByTestId('attachment-source-photos'));
     expect(await screen.findByText('IMG_42.jpg')).toBeTruthy();
     expect(files.disk.get(original)).toEqual(pdf);
   });
@@ -188,8 +178,9 @@ describe('adding attachments (D-263)', () => {
     await openEditor(repo, files);
     const huge = files.offer('big.mov', pdf, 'video/quicktime');
     files.nextPick = [files.offer('ok.pdf', pdf), { ...huge, size: 5 * 1024 ** 3 }];
-    const alerts = pressInAlerts('从「文件」选');
+    const alerts = jest.spyOn(Alert, 'alert');
     await fireEvent.press(await screen.findByTestId('editor-receipt-add'));
+    await fireEvent.press(await screen.findByTestId('attachment-source-files'));
     expect(await screen.findByText('ok.pdf')).toBeTruthy();
     expect(alerts).toHaveBeenLastCalledWith('收据', '这个文件超过 4 GB。');
     expect(await added(repo)).toEqual(['ok.pdf']);
@@ -197,12 +188,32 @@ describe('adding attachments (D-263)', () => {
 
     files.freeBytes = 1024;
     files.nextPick = [files.offer('more.pdf', pdf)];
-    const full = pressInAlerts('从「文件」选');
+    const full = jest.spyOn(Alert, 'alert');
     await fireEvent.press(screen.getByTestId('editor-receipt-add'));
+    await fireEvent.press(await screen.findByTestId('attachment-source-files'));
     await waitFor(() =>
       expect(full).toHaveBeenLastCalledWith('收据', '手机剩余空间不够，存不下这个文件的副本。'),
     );
     expect(await added(repo)).toEqual(['ok.pdf']);
+  });
+
+  it('the source choice always has a cancel (Android system alerts drop a 4th button)', async () => {
+    const repo = await withRecord([]);
+    const files = new FakeFiles();
+    await openEditor(repo, files);
+    const alerts = jest.spyOn(Alert, 'alert');
+    await fireEvent.press(await screen.findByTestId('editor-receipt-add'));
+    for (const id of ['camera', 'photos', 'files', 'cancel'])
+      expect(screen.getByTestId(`attachment-source-${id}`)).toBeTruthy();
+    // 取消：关掉、什么也没加、没弹别的。
+    await fireEvent.press(screen.getByTestId('attachment-source-cancel'));
+    expect(screen.queryByTestId('attachment-source')).toBeNull();
+    // 点空白处也一样。
+    await fireEvent.press(screen.getByTestId('editor-receipt-add'));
+    await fireEvent.press(screen.getByTestId('attachment-source-backdrop'));
+    expect(screen.queryByTestId('attachment-source')).toBeNull();
+    expect(alerts).not.toHaveBeenCalled();
+    expect(await added(repo)).toEqual([]);
   });
 
   it('says when there is no camera', async () => {
@@ -210,10 +221,11 @@ describe('adding attachments (D-263)', () => {
     const files = new FakeFiles();
     files.cameraAvailable = false;
     await openEditor(repo, files);
-    const alerts = pressInAlerts('拍照');
+    const alerts = jest.spyOn(Alert, 'alert');
     await fireEvent.press(await screen.findByTestId('editor-receipt-add'));
-    await waitFor(() => expect(alerts).toHaveBeenCalledTimes(2));
-    expect(alerts.mock.calls[1]![1]).toMatch(/相机/);
+    await fireEvent.press(await screen.findByTestId('attachment-source-camera'));
+    await waitFor(() => expect(alerts).toHaveBeenCalledTimes(1));
+    expect(alerts.mock.calls[0]![1]).toMatch(/相机/);
     expect(await added(repo)).toEqual([]);
   });
 
@@ -222,8 +234,8 @@ describe('adding attachments (D-263)', () => {
     const files = new FakeFiles();
     await openEditor(repo, files);
     files.nextPick = [files.offer('a.pdf', pdf), files.offer('b.pdf', pdf)];
-    pressInAlerts('从「文件」选');
     await fireEvent.press(await screen.findByTestId('editor-receipt-add'));
+    await fireEvent.press(await screen.findByTestId('attachment-source-files'));
     expect(await screen.findByText('最多 20 个文件')).toBeTruthy();
     expect(screen.queryByTestId('editor-receipt-add')).toBeNull();
     // 只复制了还放得下的那一个。
@@ -267,8 +279,8 @@ describe('the quick-add form on a page takes attachments (D-263)', () => {
     await renderToolsApp(repo, files, { seed: withForm });
     await fireEvent.changeText(await screen.findByTestId('form-add-item'), '咖啡');
     files.nextMedia = [files.offerImage('IMG_9.jpg', 100, 100)];
-    pressInAlerts('从相册选');
     await fireEvent.press(screen.getByTestId('form-add-receipt-add'));
+    await fireEvent.press(await screen.findByTestId('attachment-source-photos'));
     expect(await screen.findByText('IMG_9.jpg')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('form-add-submit'));
     // 记下以后表单清空。

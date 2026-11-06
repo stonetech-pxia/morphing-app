@@ -1715,6 +1715,8 @@ export const en = {
   newTableEditFields: 'Edit fields',
   newTableEditDone: 'Done',
   newTableRemoveField: 'Remove “{name}”',
+  newTableNamesMore: 'Show all',
+  newTableNamesLess: 'Show fewer',
   newTableInFile: 'Also in this file',
   newTableAddField: 'Add your own field',
   newTableAddFieldHint: 'Field name',

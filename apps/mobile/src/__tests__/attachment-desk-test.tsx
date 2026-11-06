@@ -169,7 +169,7 @@ describe('附件的「…」', () => {
     files.nextPick = [files.offer('合同.pdf', PDF)];
     const alerts = captureAlerts();
     await fireEvent.press(await screen.findByTestId('form-add-receipt-add'));
-    await alerts.press('从「文件」选');
+    await fireEvent.press(await screen.findByTestId('attachment-source-files'));
     await fireEvent.press(await screen.findByTestId('form-add-receipt-more-0'));
     expect(alerts.buttons()).toEqual(['分享', '取消']);
   });

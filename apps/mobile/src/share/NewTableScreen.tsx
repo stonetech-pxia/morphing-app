@@ -157,7 +157,10 @@ export function NewTableScreen() {
   const names = useMemo(() => extractFieldNames(pages), [pages]);
   const rows = useMemo(() => originalRows(pages), [pages]);
   const offered = names.filter((n) => !draftHasField(draft, n));
-  // 推荐购物凭证时，已经有带收据规则的表（例如样板「收据」，D-421）就放进那张，不再建第二张（D-476）。
+  // 文件里认出的字段名多时先显示前几个，其余点「展开」看。
+  const [allNames, setAllNames] = useState(false);
+  const shownNames = allNames ? offered : offered.slice(0, FIRST_NAMES);
+  // 推荐购物凭证时，已经有带收据规则的表（例如样板「收据」，D-421）就放进那张，不再建第二张（D-477）。
   const receiptTable = config.data.tables.find(
     (c) => c.prefillRules === 'receipt' && c.fields.some((f) => f.type === 'file'),
   )?.id;
@@ -442,7 +445,7 @@ export function NewTableScreen() {
           <View testID="new-table-in-file" style={{ gap: 8 }}>
             <Text style={label}>{t(locale, 'newTableInFile')}</Text>
             <View style={styles.wrap}>
-              {offered.map((name, i) => (
+              {shownNames.map((name, i) => (
                 <Pill
                   key={name}
                   palette={palette}
@@ -452,6 +455,17 @@ export function NewTableScreen() {
                 />
               ))}
             </View>
+            {offered.length > FIRST_NAMES ? (
+              <Pressable
+                testID="new-table-in-file-toggle"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={() => setAllNames((v) => !v)}>
+                <Text style={[palette.font('bodyBold', 13), { color: palette.primaryText }]}>
+                  {t(locale, allNames ? 'newTableNamesLess' : 'newTableNamesMore')}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
 
@@ -573,6 +587,9 @@ export function NewTableScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+/** 「文件里还有」先显示几个字段名。 */
+const FIRST_NAMES = 4;
 
 const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 140 },

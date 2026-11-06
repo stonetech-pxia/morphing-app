@@ -127,7 +127,33 @@ describe('新建表单页', () => {
     fetchSpy.mockRestore();
   });
 
-  it('已经有带收据规则的表（样板「收据」）：有合计金额的文件推荐放进去，不建第二张（D-476）', async () => {
+  it('文件里的字段名多：先显示前四个，「展开」看全部，「收起」回去', async () => {
+    const labels = ['Insurer', 'Policy number', 'Holder', 'Premium', 'Agent', 'Broker'];
+    const lines = labels.map((name, i) => ({
+      text: `${name}: value ${i}`,
+      x: 20,
+      y: 20 + i * 50,
+      width: 250,
+      height: 20,
+    }));
+    await setup(['ppocr'], undefined, [{ width: 600, height: 400, lines }]);
+    expect(await screen.findByTestId('new-table-in-file')).toBeTruthy();
+    expect(screen.queryAllByTestId(/^new-table-chip-\d+$/)).toHaveLength(4);
+    expect(screen.getByTestId('new-table-in-file-toggle')).toHaveTextContent('Show all');
+    await fireEvent.press(screen.getByTestId('new-table-in-file-toggle'));
+    expect(screen.queryAllByTestId(/^new-table-chip-\d+$/)).toHaveLength(6);
+    expect(screen.getByTestId('new-table-in-file-toggle')).toHaveTextContent('Show fewer');
+    await fireEvent.press(screen.getByTestId('new-table-in-file-toggle'));
+    expect(screen.queryAllByTestId(/^new-table-chip-\d+$/)).toHaveLength(4);
+  });
+
+  it('文件里的字段名不超过四个：没有展开链接', async () => {
+    await setup(['ppocr']);
+    expect(await screen.findByTestId('new-table-in-file')).toBeTruthy();
+    expect(screen.queryByTestId('new-table-in-file-toggle')).toBeNull();
+  });
+
+  it('已经有带收据规则的表（样板「收据」）：有合计金额的文件推荐放进去，不建第二张（D-477）', async () => {
     const withReceipts = (locale: Locale, registry: Registry) => {
       const r = applyOps(
         createDefaultWorkspace(locale),

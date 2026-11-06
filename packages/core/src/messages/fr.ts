@@ -1787,6 +1787,8 @@ export const fr: MessageTable = {
   newTableEditFields: 'Modifier les champs',
   newTableEditDone: 'Terminé',
   newTableRemoveField: 'Retirer « {name} »',
+  newTableNamesMore: 'Tout afficher',
+  newTableNamesLess: 'Afficher moins',
   newTableInFile: 'Aussi dans ce fichier',
   newTableAddField: 'Ajouter votre champ',
   newTableAddFieldHint: 'Nom du champ',

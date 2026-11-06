@@ -9,7 +9,7 @@ import type { PickedFile } from '../runtime/platform';
 import { useWorkspaceContext } from '../workspace/context';
 
 /**
- * 收到的文件像不像收据（有合计金额的小票、账单、发票，D-475、D-476）：在本机读前 3 个文件里的文字，
+ * 收到的文件像不像收据（有合计金额的小票、账单、发票，D-476、D-477）：在本机读前 3 个文件里的文字，
  * 用规则看（`rulePreset`），读完就丢，不存、不发给 AI。文字识别用不了、读不出来、不像：都是 false，
  * 面板照旧，不报错。没有带收据规则的表时不读（没有可推荐的）。只读不改，原件不动（底线 4）。
  */

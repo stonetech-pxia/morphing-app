@@ -609,7 +609,7 @@ async function openChooserFor(files: FakeFiles) {
   return screen.findByTestId('share-record-table-purchases');
 }
 
-describe('存记录面板：像收据的照片，推荐带收据规则的表（D-476）', () => {
+describe('存记录面板：像收据的照片，推荐带收据规则的表（D-477）', () => {
   const TAG = '看起来是收据，推荐放这里';
 
   it('收据照片：「购物凭证」表上写推荐', async () => {

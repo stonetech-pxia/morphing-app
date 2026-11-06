@@ -93,7 +93,7 @@ export function RecordChooser({
   onChoose,
 }: {
   count: number;
-  /** 收到的文件：在本机读文字，像收据时推荐带收据规则的表（D-476）。 */
+  /** 收到的文件：在本机读文字，像收据时推荐带收据规则的表（D-477）。 */
   files: readonly PickedFile[];
   placing: boolean;
   palette: Palette;

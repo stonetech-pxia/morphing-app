@@ -45,7 +45,7 @@ const NEEDS_MONEY: readonly NewTablePreset[] = [
   'tax',
 ];
 
-/** 有合计金额时并进「购物凭证」的类型（D-475）：不给模型选，列表里照旧能选。银行、工资单仍是自己的。 */
+/** 有合计金额时并进「购物凭证」的类型（D-476）：不给模型选，列表里照旧能选。银行、工资单仍是自己的。 */
 const FOLDED: readonly NewTablePreset[] = ['bill', 'loan', 'reimbursement', 'tax'];
 
 export interface PresetRanking {
@@ -102,7 +102,7 @@ const TOTAL_WORDS =
   /\b(?:sub-?total|total|montant|importe|totale?)\b|amount due|[àa] payer|合计|合計|总计|總計|小計|小计|应付|實付|实付|税込/i;
 const PAY_WORDS =
   /\b(?:invoice|facture|bill|loan|imp[oô]ts?|taxe|impuestos?|mortgage|expense|due date|cash|change|visa|mastercard|card|debit|credit|tax|vat|tva|iva|carte|esp[eè]ces|monnaie|efectivo|cambio|tarjeta|receipt|ticket|re[cç]u)\b|找零|找钱|现金|現金|微信|支付宝|支付寶|刷卡|税|稅|小票|小票|收据|收據|账单|賬單|发票|發票|贷款|报销|請求書|レシート|領収|お釣り|クレジット/i;
-/** 银行（IBAN）、工资单、保单、合同有自己的模板：看到就不用规则推荐（D-475）。 */
+/** 银行（IBAN）、工资单、保单、合同有自己的模板：看到就不用规则推荐（D-476）。 */
 const NOT_RECEIPT = /\b(?:iban|bic|payslip|salary|policy|agreement|contract)\b|工资|合同/i;
 
 /**

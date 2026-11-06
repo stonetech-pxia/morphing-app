@@ -1626,6 +1626,8 @@ export const zh: MessageTable = {
   newTableEditFields: '改字段',
   newTableEditDone: '改好了',
   newTableRemoveField: '去掉「{name}」',
+  newTableNamesMore: '展开',
+  newTableNamesLess: '收起',
   newTableInFile: '文件里还有',
   newTableAddField: '自己加字段',
   newTableAddFieldHint: '字段名',
