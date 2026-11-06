@@ -485,3 +485,25 @@ describe('writeDocx runs (D-465)', () => {
     expect(of('Dupont')).not.toContain('<w:b/>');
   });
 });
+
+describe('left alignment snap (D-473)', () => {
+  it('writes the same left indent for paragraphs whose left edges differ by a few pixels', () => {
+    const para = (text: string, x: number, y: number) => ({
+      kind: 'paragraph' as const,
+      text,
+      box: { x, y, width: 400, height: 20 },
+    });
+    const page: DocPage = {
+      source: 's',
+      width: 1000,
+      height: 1400,
+      bodySize: 11,
+      blocks: [para('a', 187, 100), para('b', 195, 140), para('c', 184, 180)],
+    };
+    const xml = strFromU8(
+      unzipSync(writeDocx({ version: 1, pages: [page] }))['word/document.xml']!,
+    );
+    const lefts = [...xml.matchAll(/<w:ind w:left="(\d+)"/g)].map((m) => m[1]);
+    expect(new Set(lefts).size).toBeLessThanOrEqual(1);
+  });
+});

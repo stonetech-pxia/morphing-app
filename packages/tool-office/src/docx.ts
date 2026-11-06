@@ -42,6 +42,8 @@ const LINE_HEIGHT = 1.28;
 const MIN_INDENT = 120;
 const MIN_BEFORE = 60;
 /** 一行的段落在 Word 里可能比原图宽一点（字体不同）：缩进留出这么多余量，不让它折到下一行。 */
+/** 左边差不到这么多个字宽的块对齐到同一个位置。 */
+const SNAP_EM = 0.7;
 const WIDTH_SLACK = 1.1;
 
 /**
@@ -416,6 +418,15 @@ export function writeDocx(
     const marginPx = (MARGIN / PAGE_W) * page.width;
     const leaves = leafBlocks(page);
     const base = Math.min(marginPx, ...leaves.map((b) => b.box.x));
+    // 左边对齐的块左边只差一点（认字框的左边总有几个像素的抖动）时对齐到同一个位置：
+    // 不然每段的缩进都差几磅，Word 里左边是锯齿。差不到 0.7 个字宽的归为一组，取这一组最左的。
+    const emPx = (bodySize / 595) * page.width;
+    const snap = new Map<number, number>();
+    let anchor = -Infinity;
+    for (const x of [...new Set(leaves.map((b) => b.box.x))].sort((a, b) => a - b)) {
+      if (x - anchor > SNAP_EM * emPx) anchor = x;
+      snap.set(x, anchor);
+    }
     let fit = 1;
     const blankHeight = Math.round(LINE_HEIGHT * bodySize * 20);
     /**
@@ -459,7 +470,7 @@ export function writeDocx(
       if (block.kind === 'table' || (block.kind === 'paragraph' && block.tab)) return 0;
       if (block.kind !== 'image' && block.align && block.align !== 'left') return 0;
       const room = maxWidth - twip(block.box.width) * WIDTH_SLACK;
-      const v = Math.min(twip(block.box.x - from), Math.max(0, room));
+      const v = Math.min(twip((snap.get(block.box.x) ?? block.box.x) - from), Math.max(0, room));
       return v >= MIN_INDENT ? Math.round(v / 10) * 10 : 0;
     };
     // 表格前面的空白：一个 1 磅的空段落带着段前距。

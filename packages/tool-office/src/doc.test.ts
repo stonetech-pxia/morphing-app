@@ -5,16 +5,24 @@ import {
   clusterLines,
   foldEmptyColumns,
   hasUnderline,
+  isRuleGrid,
+  isVertical,
   leafBlocks,
+  looksLikeHeading,
+  mergeColumnRows,
+  mergeTextRegions,
   paragraphsOf,
+  splitLabelColumn,
   strokeRatio,
   textColor,
   textEm,
   type DocList,
   type DocParagraph,
+  type DocBlock,
   type DocRow,
+  verticalBoxes,
 } from './doc';
-import type { LayoutRegion } from './layout';
+import { isDiagram, type LayoutRegion } from './layout';
 import { fakeLine, glyphs, gridRects, renderPage, type Rect } from './test-helpers';
 import type { OcrBox, RgbaImage, TableBlock } from './types';
 
@@ -639,5 +647,233 @@ describe('buildDocPage', () => {
     // 值的位置：相对标签左边的距离（原图像素）。
     expect(form.tab).toBe(270);
     expect(doc.blocks[2]).toMatchObject({ text: 'Date :\t12 mars 2019', tab: 400 });
+  });
+});
+
+describe('ragged-right wrapping (D-473)', () => {
+  it('joins a line that stopped short because the next word would not fit', () => {
+    // 左对齐的正文右边参差不齐：第二行没写到头（离右边 30），因为下一行的第一个词放不下。
+    const lines = [
+      line(
+        'Whereas recognition of the inherent dignity and of the equal rights of all',
+        100,
+        100,
+        800,
+      ),
+      line('the human family is the foundation of freedom, justice', 100, 125, 770),
+      line('and peace in the world,', 100, 150, 280),
+      // 上一行离右边很远、下一个词放得下：段落到这里结束。
+      line('Whereas disregard and contempt', 100, 175, 300),
+    ];
+    const paras = paragraphsOf(lines);
+    expect(paras.map((p) => p.rows.length)).toEqual([3, 1]);
+  });
+
+  it('keeps short label rows of uneven length as separate paragraphs', () => {
+    const lines = [
+      line('START OF PERIOD', 100, 100, 160),
+      line('END OF PERIOD', 100, 125, 140),
+      line('HIRED ON', 100, 150, 100),
+      line('SOCIAL SECURITY NO', 100, 175, 190),
+    ];
+    expect(paragraphsOf(lines)).toHaveLength(4);
+  });
+});
+
+describe('rotated text (D-473)', () => {
+  it('treats tall narrow multi-character boxes as vertical text', () => {
+    expect(isVertical(line('Sprouts', 1163, 1154, 60, 206))).toBe(true);
+    expect(isVertical(line('W-9', 109, 67, 95, 49))).toBe(false);
+    expect(isVertical(line('A', 10, 10, 20, 60))).toBe(false);
+  });
+
+  it('merges nearby vertical lines into one padded box', () => {
+    const boxes = verticalBoxes(
+      [
+        line('Print or type.', 71, 411, 24, 108),
+        line('See Specific Instructions', 92, 322, 23, 288),
+      ],
+      20,
+      page,
+    );
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]!.x).toBeLessThanOrEqual(71);
+    expect(boxes[0]!.y).toBeLessThanOrEqual(322);
+  });
+
+  it('cuts vertical text out as an image instead of writing it as a huge heading', () => {
+    const { image, lines } = textPage([
+      { text: 'Body text line one of the page', x: 100, y: 100, width: 500 },
+      { text: 'Body text line two of the page', x: 100, y: 130, width: 500 },
+      { text: 'Side logo', x: 900, y: 500, width: 30, h: 180 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const leaves = leafBlocks(doc);
+    expect(leaves.filter((b) => b.kind === 'image')).toHaveLength(1);
+    expect(JSON.stringify(doc)).not.toContain('Side logo');
+  });
+});
+
+describe('mergeTextRegions (D-473)', () => {
+  const r = (kind: string, x: number, y: number, width: number, height: number) => ({
+    kind,
+    box: { x, y, width, height },
+  });
+  it('joins stacked text regions with the same left edge, not columns or titles', () => {
+    const out = mergeTextRegions(
+      [r('text', 100, 100, 800, 50), r('text', 100, 160, 800, 25), r('title', 100, 200, 400, 30)],
+      24,
+    );
+    expect(out.map((x) => x.kind)).toEqual(['text', 'title']);
+    expect(out[0]!.box).toEqual({ x: 100, y: 100, width: 800, height: 85 });
+    const cols = mergeTextRegions(
+      [r('text', 100, 100, 400, 200), r('text', 520, 100, 400, 200)],
+      24,
+    );
+    expect(cols).toHaveLength(2);
+  });
+});
+
+describe('rule grids and diagrams (D-473)', () => {
+  const cell = (i: number, text: string) => ({
+    row: Math.floor(i / 6),
+    col: i % 6,
+    rowSpan: 1,
+    colSpan: 1,
+    text,
+  });
+  const grid = (filled: number, total: number): TableBlock => ({
+    kind: 'table',
+    rows: total / 6,
+    col: 0,
+    cols: 6,
+    cells: Array.from({ length: total }, (_, i) => cell(i, i < filled ? 'x' : '')),
+    box: { x: 0, y: 0, width: 100, height: 100 },
+  });
+
+  it('rejects a big grid that is mostly empty cells (form underlines), keeps real tables', () => {
+    expect(isRuleGrid(grid(10, 60))).toBe(true);
+    expect(isRuleGrid(grid(40, 60))).toBe(false);
+    // 小的稀疏表（签字栏）不判。
+    expect(isRuleGrid(grid(2, 12))).toBe(false);
+  });
+
+  it('rejects a layout grid: many positions but few (heavily merged) cells', () => {
+    // 17 行 × 14 列只有 20 个格子：表单的版面，不是数据表（W-9 的上半页）。
+    const layout = { ...grid(20, 20), rows: 17, cols: 14 };
+    expect(isRuleGrid(layout)).toBe(true);
+    // 8 × 6 每个位置都有格子：数据表。
+    expect(isRuleGrid({ ...grid(48, 48), rows: 8, cols: 6 })).toBe(false);
+  });
+
+  it('keeps a well-structured merged form table (order form) but rejects paragraph-in-cell grids', () => {
+    // 订货单：441 个位置、175 个格子（0.40），每格不到一行字：真表格，保留。
+    const order = { ...grid(175, 175), rows: 21, cols: 21 };
+    expect(isRuleGrid(order, 127)).toBe(false);
+    // W-4：120 个位置、42 个格子（0.35），每格 1.8 行字：格子里是整段话，不当表格。
+    const w4 = { ...grid(42, 42), rows: 15, cols: 8 };
+    expect(isRuleGrid(w4, 74)).toBe(true);
+    expect(isRuleGrid(w4, 30)).toBe(false);
+  });
+
+  it('keeps a labelled diagram as an image but not a block of prose lines', () => {
+    const rects: Rect[] = [
+      // 色块和线：字以外的图形。
+      { x: 110, y: 110, width: 80, height: 80 },
+      { x: 210, y: 110, width: 80, height: 80 },
+      { x: 110, y: 210, width: 180, height: 60 },
+    ];
+    const box = { x: 100, y: 100, width: 200, height: 180 };
+    const image = renderPage(W, H, rects);
+    const labels = [line('Softmax', 120, 130, 60, 14), line('Linear', 220, 130, 60, 14)];
+    expect(isDiagram(image, box, labels)).toBe(true);
+    const prose = [line('This is a long sentence of ordinary prose text here', 100, 130, 190, 14)];
+    expect(isDiagram(image, box, prose)).toBe(false);
+    // 没有图形、只有标签（表单里认错的图片）不当示意图。
+    expect(isDiagram(renderPage(W, H, []), box, labels)).toBe(false);
+  });
+});
+
+describe('label column (D-473)', () => {
+  it('splits a narrow label column from the content column, with full-width lines apart', () => {
+    const labels = [0, 1, 2, 3, 4].map((i) => line(`Step ${i}`, 50, 200 + i * 40, 80));
+    const contents = [0, 1, 2, 3, 4].map((i) =>
+      line(`Content of step ${i}`, 250, 200 + i * 40, 600),
+    );
+    const across = line(
+      'Complete steps 2 to 4 only if they apply to you, otherwise skip',
+      50,
+      100,
+      800,
+    );
+    const split = splitLabelColumn([across, ...labels, ...contents], 20);
+    expect(split).not.toBeNull();
+    expect(split!.labels).toEqual(labels);
+    expect(split!.contents).toEqual(contents);
+    expect(split!.across).toEqual([across]);
+  });
+
+  it('leaves ordinary prose and two-column pages alone', () => {
+    const prose = [0, 1, 2, 3, 4, 5, 6, 7].map((i) =>
+      line(`Prose line ${i}`, 100, 100 + i * 25, 800),
+    );
+    expect(splitLabelColumn(prose, 20)).toBeNull();
+    const columns = [0, 1, 2, 3, 4].flatMap((i) => [
+      line(`left ${i}`, 100, 100 + i * 25, 380),
+      line(`right ${i}`, 520, 100 + i * 25, 380),
+    ]);
+    expect(splitLabelColumn(columns, 20)).toBeNull();
+  });
+});
+
+describe('small layout fixes (D-473)', () => {
+  it('does not pair rows of very different height (logo and big title next to small print)', () => {
+    // W-9 页眉的真实位置（缩到 1000 宽）：左边「Form」「W-9」大标志、小字，右边三行小字。
+    const k = 0.8;
+    const rows = [
+      { text: 'Form', x: 71, y: 94, width: 42, h: 22 },
+      { text: 'W-9', x: 109, y: 67, width: 95, h: 49 },
+      { text: '(Rev. March 2024)', x: 73, y: 117, width: 122, h: 17 },
+      { text: 'Department of the Treasury', x: 73, y: 138, width: 177, h: 18 },
+      { text: 'Give form to the', x: 1039, y: 93, width: 145, h: 17 },
+      { text: 'requester. Do not', x: 1037, y: 117, width: 161, h: 17 },
+      { text: 'send to the IRS.', x: 1037, y: 139, width: 144, h: 17 },
+    ].map((r) => ({ ...r, x: r.x * k, width: r.width * k }));
+    const { image, lines } = textPage(rows);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const texts = leafBlocks(doc).flatMap((b) => (b.kind === 'paragraph' ? [b.text] : []));
+    // 大标志不被配成「标签\t值」按小字的中位行高写。
+    expect(texts.some((t) => t.includes('W-9') && t.includes('\t'))).toBe(false);
+  });
+
+  it('only calls letter-led, mostly-letter text a size-based heading', () => {
+    expect(looksLikeHeading('Request for Taxpayer')).toBe(true);
+    expect(looksLikeHeading('Displays (8) 40 Floor (40)')).toBe(false);
+    expect(looksLikeHeading('# Customers Attended 35')).toBe(false);
+    expect(looksLikeHeading('(if approved)')).toBe(false);
+  });
+
+  it('merges stacked two-column rows with the same columns into one row', () => {
+    const para = (text: string, x: number, y: number): DocBlock => ({
+      kind: 'paragraph',
+      text,
+      box: { x, y, width: 300, height: 20 },
+    });
+    const row = (y: number, a: string, b: string): DocRow => ({
+      kind: 'row',
+      cells: [
+        { width: 400, blocks: [para(a, 100, y) as never] },
+        { width: 400, blocks: [para(b, 520, y) as never] },
+      ],
+      box: { x: 100, y, width: 720, height: 20 },
+    });
+    const out = mergeColumnRows([row(100, 'L1', 'R1'), row(300, 'L2', 'R2')], 20);
+    expect(out).toHaveLength(1);
+    const merged = out[0] as DocRow;
+    expect(merged.cells.map((c) => c.blocks.length)).toEqual([2, 2]);
+    // 列位置不一样的两行不合并。
+    const other = row(300, 'L2', 'R2');
+    other.cells[1]!.blocks = [para('R2', 700, 300) as never];
+    expect(mergeColumnRows([row(100, 'L1', 'R1'), other], 20)).toHaveLength(2);
   });
 });

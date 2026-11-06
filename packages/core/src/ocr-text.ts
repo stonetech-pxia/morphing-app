@@ -47,6 +47,25 @@ function joiner(prev: string, next: string): { prev: string; sep: string } {
  * 上下间距超过一行半的地方空一行（分段）。同一段里，写到右边、下一行又没有缩进也不是列表项的，
  * 是排版折行，接成一行。
  */
+/**
+ * 下一行的第一个词接在上一行后面放不放得下：左对齐的正文右边参差不齐，上一行没写到头是因为下一个词放不下。
+ * 很短的行（标签一列）长短不一是常事，不用这个判断；中日文第一个字就能折行。
+ */
+function wordFits(
+  prev: { left: number; right: number; text: string },
+  row: { left: number; right: number; text: string },
+  right: number,
+  typical: number,
+): boolean {
+  if ([...prev.text].length <= 30) return true;
+  const text = row.text.trim();
+  const first = /^[\u2e80-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/.test(text)
+    ? text.slice(0, 1)
+    : (text.split(/\s+/)[0] ?? '');
+  const char = (row.right - row.left) / Math.max(1, text.length);
+  return prev.right + (first.length + 1) * char <= right + 0.3 * typical;
+}
+
 export function layoutOcrLines(lines: readonly OcrLine[]): string {
   const items = lines.filter((l) => l.text.trim());
   if (items.length === 0) return '';
@@ -92,7 +111,7 @@ export function layoutOcrLines(lines: readonly OcrLine[]): string {
         const prev = block[i - 1];
         const wrapped =
           prev !== undefined &&
-          prev.right >= right - 1.2 * typical &&
+          (prev.right >= right - 1.2 * typical || !wordFits(prev, row, right, typical)) &&
           prev.right - prev.left >= 0.6 * (right - left) &&
           row.left <= left + typical &&
           !LIST_ITEM.test(row.text);
