@@ -519,6 +519,34 @@ describe('Word 在桌上就是整页编辑器（D-465）', () => {
     expect(image.box.width).toBeGreaterThan(800);
   });
 
+  it('选中几行再点「用原图」：一起换成一张图（2026-11-06 三星真机：一个签名被切成了好几份，D-468）', async () => {
+    const files = new FakeFiles();
+    files.imageSizes.set('runs/r1/page.jpg', { width: 1000, height: 1400 });
+    await openOnDesk('doc', wordDoc(), files);
+    const page = wordPage();
+    await page.state({ focus: true, cell: null, ref: '0-1', refs: ['0-1', '0-2'] });
+    await fireEvent.press(screen.getByTestId('word-use-original'));
+    await waitFor(() =>
+      expect(screen.getByTestId('word-editor-page').props.source.html as string).toContain(
+        'data-ref="0-1" data-kind="image"',
+      ),
+    );
+    const html = screen.getByTestId('word-editor-page').props.source.html as string;
+    expect(html).not.toContain('正文第一段。');
+    expect(html).not.toContain('甲');
+    // 一张图包住两块（段落 y 120–180、列表 y 200–220，四周多留一点）。
+    await page.state({ focus: false });
+    await fireEvent.press(screen.getByTestId('desk-done'));
+    await screen.findByTestId('desk-save');
+    const file = currentFiles(await deskNow(files))[0]!;
+    const doc = parseDocDoc(decodeUtf8(files.disk.get(`desk/editdesk/${file.source!.path}`)!))!;
+    const images = doc.pages[0]!.blocks.filter((b) => b.kind === 'image');
+    expect(images).toHaveLength(2);
+    const swapped = images.find((b) => b.box.y < 200)!;
+    expect(swapped.box.y).toBeLessThan(120);
+    expect(swapped.box.y + swapped.box.height).toBeGreaterThan(220);
+  });
+
   it('剪好嵌进 docx 的图片：图片写进页面；合上时再嵌一次', async () => {
     const files = new FakeFiles();
     files.disk.set('runs/r1/crop.jpg', new Uint8Array([7, 7, 7, 7]));

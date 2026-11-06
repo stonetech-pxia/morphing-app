@@ -167,6 +167,34 @@ function leafHtml(
   }
 }
 
+/** 每一块（ref，和页面上的 data-ref 一样）在原图里的位置；表格的格子是「ref#格子」。 */
+function previewBoxes(doc: DocDoc): Record<string, [number, number, number, number, number]> {
+  const out: Record<string, [number, number, number, number, number]> = {};
+  const add = (
+    key: string,
+    p: number,
+    b: { x: number; y: number; width: number; height: number },
+  ) => {
+    out[key] = [p, b.x, b.y, b.width, b.height];
+  };
+  const leaf = (block: DocLeaf, ref: string, p: number) => {
+    if (block.kind === 'image') return;
+    add(ref, p, block.box);
+    if (block.kind === 'table') {
+      block.table.cells.forEach((c, i) => c.box && add(`${ref}#${i}`, p, c.box));
+    }
+  };
+  doc.pages.forEach((page, p) =>
+    page.blocks.forEach((block, b) => {
+      if (block.kind !== 'row') return leaf(block, `${p}-${b}`, p);
+      block.cells.forEach((cell, c) =>
+        cell.blocks.forEach((inner, i) => leaf(inner, `${p}-${b}-${c}-${i}`, p)),
+      );
+    }),
+  );
+  return out;
+}
+
 /** 一块离上一块多远（点）：按原图里空着的高度；重叠时空一点。 */
 function gapOf(block: DocBlock, previous: DocBlock | undefined, k: number, top: number): number {
   if (!previous) return Math.min(TOP_MAX, Math.max(0, (block.box.y - top) * k));
@@ -267,7 +295,15 @@ export function wordPageHtml(
       return `<div class="paper"${editable} data-page="${p}" style="padding:16${u} ${side}${u} 24${u}">${blocks || '<p><br></p>'}</div>`;
     })
     .join('');
-  const config = JSON.stringify({ ptPx: ptPx(pageWidth) });
+  // 光标上方的原图小窗（D-468）：每一块（表格是每一格）在原图里的位置，和每页的原图。
+  const config = JSON.stringify({
+    ptPx: ptPx(pageWidth),
+    previews: previewBoxes(doc),
+    pages: doc.pages.map((page) => ({
+      w: page.width,
+      img: page.source ? (images[page.source] ?? null) : null,
+    })),
+  });
   const common = `.paper p{margin:0;white-space:pre-wrap;min-height:1em}
 .paper ol,.paper ul{margin:0;padding-left:1.8em}
 .paper ol{list-style:none}
@@ -527,6 +563,71 @@ export const WORD_PAGE_SCRIPT = String.raw`
     state();
   };
 
+  // 选中了几行时，选区碰到的段落、列表都算（「用原图」一次换掉，D-468）。
+  function refsOfSelection(range, el) {
+    if (range.collapsed) {
+      var one = refOfCaret(el);
+      return one ? [one] : [];
+    }
+    var out = [];
+    var all = document.querySelectorAll('.paper p[data-ref], .paper ol[data-ref], .paper ul[data-ref]');
+    for (var i = 0; i < all.length; i++) {
+      var r = all[i].getAttribute('data-ref');
+      if (!all[i].closest('td') && range.intersectsNode(all[i]) && out.indexOf(r) < 0) out.push(r);
+    }
+    return out;
+  }
+
+  // 光标上方的小窗：显示原图里这一块（表格里是这一格）原来的样子（D-468）。直接用整页原图当背景，按位置截一块。
+  var preview = null;
+  var PREVIEW_MAX_H = 140;
+  function hidePreview() {
+    if (preview) preview.style.display = 'none';
+  }
+  function showPreview(el) {
+    var W = window.WORD || {};
+    var key = null, anchor = null;
+    var td = el && el.closest('td[data-i]');
+    var table = td && td.closest('table[data-ref]');
+    if (table) {
+      key = table.getAttribute('data-ref') + '#' + td.getAttribute('data-i');
+      anchor = td;
+    } else {
+      anchor = el && el.closest('p[data-ref], ol[data-ref], ul[data-ref]');
+      key = anchor && anchor.getAttribute('data-ref');
+    }
+    var at = key && W.previews && W.previews[key];
+    var page = at && W.pages && W.pages[at[0]];
+    if (!at || !page || !page.img) return hidePreview();
+    var pad = Math.max(8, at[4] * 0.25);
+    var x = Math.max(0, at[1] - pad), y = Math.max(0, at[2] - pad);
+    var w = at[3] + 2 * pad, h = at[4] + 2 * pad;
+    var maxW = window.innerWidth - 24;
+    var s = Math.min(maxW / w, PREVIEW_MAX_H / h, 2.5 * (maxW / page.w));
+    if (!preview) {
+      preview = document.createElement('div');
+      preview.id = 'word-original';
+      preview.setAttribute('contenteditable', 'false');
+      preview.style.cssText =
+        'position:absolute;z-index:10;pointer-events:none;background-color:#fff;background-repeat:no-repeat;' +
+        'border:1.5px solid #0B8F7A;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.25)';
+      document.body.appendChild(preview);
+    }
+    preview.style.backgroundImage = 'url(' + page.img + ')';
+    preview.style.width = Math.round(w * s) + 'px';
+    preview.style.height = Math.round(h * s) + 'px';
+    preview.style.backgroundSize = Math.round(page.w * s) + 'px auto';
+    preview.style.backgroundPosition = -Math.round(x * s) + 'px ' + -Math.round(y * s) + 'px';
+    var rect = anchor.getBoundingClientRect();
+    var left = Math.max(12, Math.min(rect.left, window.innerWidth - 12 - w * s));
+    var top = rect.top + window.scrollY - h * s - 8;
+    // 上面放不下（页面最上面）就放到这一块下面。
+    if (rect.top - h * s - 8 < 4) top = rect.bottom + window.scrollY + 8;
+    preview.style.left = Math.round(left) + 'px';
+    preview.style.top = Math.round(top) + 'px';
+    preview.style.display = 'block';
+  }
+
   function refOfCaret(el) {
     if (!el || el.closest('td')) return null;
     var block = el.closest('p[data-ref], ol[data-ref], ul[data-ref]');
@@ -537,7 +638,12 @@ export const WORD_PAGE_SCRIPT = String.raw`
     var node = sel && sel.rangeCount ? sel.getRangeAt(0).startContainer : null;
     var el = node && (node.nodeType === 1 ? node : node.parentElement);
     var paper = el && el.closest ? el.closest('.paper') : null;
-    if (!paper || document.activeElement !== paper) { send({ type: 'state', focus: false }); return; }
+    if (!paper || document.activeElement !== paper) {
+      hidePreview();
+      send({ type: 'state', focus: false });
+      return;
+    }
+    showPreview(el);
     var td = el.closest('td[data-i]');
     var table = td && td.closest('table[data-ref]');
     var b = blockOf(node);
@@ -551,6 +657,7 @@ export const WORD_PAGE_SCRIPT = String.raw`
       cell: table ? { ref: table.getAttribute('data-ref'), i: Number(td.getAttribute('data-i')) } : null,
       // 光标所在的段落、列表（「用原图」换的是它，D-467）；表格里、新打的段落没有。
       ref: refOfCaret(el),
+      refs: refsOfSelection(sel.getRangeAt(0), el),
     });
   }
   document.addEventListener('input', post);

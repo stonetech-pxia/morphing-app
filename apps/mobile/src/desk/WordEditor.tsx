@@ -1,6 +1,5 @@
 import type { Locale } from '@morph/core';
 import {
-  blockToImage,
   canDeleteColumn,
   deleteBlock,
   deleteColumn,
@@ -10,8 +9,9 @@ import {
   insertRow,
   leafBlocks,
   mergeEdited,
-  originalBox,
+  originalArea,
   sameValue,
+  swapToOriginal,
   tableDocOf,
   type Box,
   type DocDoc,
@@ -50,6 +50,8 @@ interface PageState {
   cell?: { ref: string; i: number } | null;
   /** 光标所在的段落、列表（D-467）。 */
   ref?: string | null;
+  /** 选区碰到的段落、列表（D-468）。 */
+  refs?: string[];
 }
 
 const NEXT_ALIGN: Record<Align, Align> = { left: 'center', center: 'right', right: 'left' };
@@ -235,23 +237,24 @@ export function WordEditor({
   }
 
   // ---- 「用原图」（D-467）：签名、印章被认成了字，换回原图里剪下来的那一块 ----
-  const original = cropOriginal && state.ref ? refOf(state.ref) : null;
-  const originalBlock = original ? leafAt(shown, original) : undefined;
-  const canUseOriginal =
-    !!originalBlock && (originalBlock.kind === 'paragraph' || originalBlock.kind === 'list');
+  // 选中了几行时一起换（D-468）；都要在同一页上。
+  const targets = cropOriginal
+    ? swapTargets(shown, state.refs ?? (state.ref ? [state.ref] : []))
+    : null;
 
   async function swapInOriginal() {
-    if (!cropOriginal || !original || !originalBlock || !canUseOriginal) return;
+    if (!cropOriginal || !targets) return;
     command('blur');
-    // 先把改的字合回去，再按这一块原来的位置在合好的文档里找到它（前面分段、删段会改下标）。
-    // 剪图要等一会儿：在合好的这一份上换（latest 这时不一定已经更新）。
+    // 先把改的字合回去（剪图要等一会儿：在合好的这一份上换，latest 这时不一定已经更新）。
+    // 合回去以后块的下标可能变了，按原来的框找；碰到的图片（之前换的、剪好的印章）一起换成一张。
     const current = commit();
-    const page = shown.pages[original.page]!;
-    const area = originalBox(originalBlock.box, page);
-    const src = await cropOriginal(page, area);
+    const area = originalArea(current, targets.page, targets.boxes);
+    if (!area) return;
+    const src = await cropOriginal(current.pages[targets.page]!, area);
     if (!src) return;
-    const at = findLeaf(current, originalBlock.box);
-    if (at) latest.current.onApply(blockToImage(current, at, { src, box: area }));
+    latest.current.onApply(
+      swapToOriginal(current, targets.page, targets.boxes, { src, box: area }),
+    );
   }
 
   const align = state.align ?? 'left';
@@ -363,7 +366,7 @@ export function WordEditor({
               <SymbolView name={ALIGN_ICON[align]} size={22} tintColor={palette.text} />,
               NEXT_ALIGN[align],
             )}
-            {canUseOriginal ? (
+            {targets ? (
               <FormatButton
                 key="word-use-original"
                 id="word-use-original"
@@ -503,9 +506,11 @@ function tableEdit(id: TableActionId, cell: TableCell, t: TableDoc): TableDoc {
 function imageSrcs(doc: DocDoc): string[] {
   return [
     ...new Set(
-      doc.pages.flatMap((p) =>
-        leafBlocks(p).flatMap((b) => (b.kind === 'image' && b.src ? [b.src] : [])),
-      ),
+      doc.pages.flatMap((p) => [
+        ...leafBlocks(p).flatMap((b) => (b.kind === 'image' && b.src ? [b.src] : [])),
+        // 每页的原图：光标上方的小窗用（D-468）。
+        ...(p.source ? [p.source] : []),
+      ]),
     ),
   ];
 }
@@ -534,24 +539,19 @@ function findTable(doc: DocDoc, table: object): DocRef | null {
   return null;
 }
 
-/** 位置是 box 的段落、列表（合回去以后它在哪里）。 */
-function findLeaf(doc: DocDoc, box: Box): DocRef | null {
-  for (const [p, page] of doc.pages.entries()) {
-    for (const [b, block] of page.blocks.entries()) {
-      if (block.kind === 'row') {
-        for (const [c, cell] of block.cells.entries()) {
-          for (const [i, leaf] of cell.blocks.entries()) {
-            if (leaf.kind !== 'image' && leaf.kind !== 'table' && sameValue(leaf.box, box)) {
-              return { page: p, block: b, cell: c, item: i };
-            }
-          }
-        }
-      } else if (block.kind !== 'image' && block.kind !== 'table' && sameValue(block.box, box)) {
-        return { page: p, block: b };
-      }
-    }
-  }
-  return null;
+/** 「用原图」要换的块：这些 ref 里的段落、列表（只算和第一块同一页的）；一块都没有时 null。 */
+function swapTargets(doc: DocDoc, refs: readonly string[]): { page: number; boxes: Box[] } | null {
+  const leaves = refs
+    .map((r) => refOf(r))
+    .filter((at): at is DocRef => at !== null)
+    .map((at) => ({ at, leaf: leafAt(doc, at) }))
+    .filter(({ leaf }) => leaf?.kind === 'paragraph' || leaf?.kind === 'list');
+  const page = leaves[0]?.at.page;
+  if (page === undefined) return null;
+  return {
+    page,
+    boxes: leaves.filter(({ at }) => at.page === page).map(({ leaf }) => leaf!.box),
+  };
 }
 
 /** 同一张表：格子的字可能改过（合回去时换成了新对象），按位置和大小认。 */

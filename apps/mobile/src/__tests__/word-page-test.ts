@@ -126,6 +126,32 @@ describe('Word page layout like the original (D-464, D-465)', () => {
   });
 });
 
+describe('the original above the cursor (D-468)', () => {
+  it('the page knows where every block and table cell was in the original, and has the page image', () => {
+    const html = wordPageHtml(doc, WIDTH, { 'runs/r1/page.jpg': 'data:image/jpeg;base64,AAAA' });
+    const dom = new JSDOM(html, { runScripts: 'dangerously' });
+    const word = (
+      dom.window as unknown as {
+        WORD: { previews: Record<string, number[]>; pages: { img: string | null }[] };
+      }
+    ).WORD;
+    expect(word.previews['0-1']).toEqual([0, 150, 300, 300, 20]);
+    expect(word.previews['0-4']).toEqual([0, 150, 800, 300, 40]);
+    expect(word.pages[0]!.img).toBe('data:image/jpeg;base64,AAAA');
+  });
+
+  it('the print version has no preview data or script', () => {
+    const html = wordPageHtml(
+      doc,
+      595,
+      { 'runs/r1/page.jpg': 'data:image/jpeg;base64,AAAA' },
+      true,
+    );
+    expect(html).not.toContain('previews');
+    expect(html).not.toContain('base64,AAAA');
+  });
+});
+
 describe('reading the page back (D-465)', () => {
   it('an untouched page gives back the same document', () => {
     expect(open().merge()).toBe(doc);

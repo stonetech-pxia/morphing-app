@@ -1,4 +1,11 @@
-import type { DocBlock, DocDoc, DocLeaf, DocTable } from './doc';
+import {
+  leafBlocks,
+  type DocBlock,
+  type DocDoc,
+  type DocImage,
+  type DocLeaf,
+  type DocTable,
+} from './doc';
 import type { Box, TableBlock, TableDoc } from './types';
 
 // 转 Word 的编辑（D-328）：DocDoc 不可变地改，每次返回新的（撤销、重做用 edit.ts 的 History）。
@@ -83,16 +90,6 @@ export function setBlockText(doc: DocDoc, at: DocRef, text: string): DocDoc {
   return doc;
 }
 
-/**
- * 一段字换成原图里同一个地方剪下来的图（D-467，创始人 2026-11-06：签名、印章被认成了字，要「保留原来内容」）：
- * box 是剪的范围（原图像素，比字的框大一点，笔画常常伸出去），src 是剪好的图。只换段落和列表。
- */
-export function blockToImage(doc: DocDoc, at: DocRef, image: { src: string; box: Box }): DocDoc {
-  const block = blockAt(doc, at);
-  if (block?.kind !== 'paragraph' && block?.kind !== 'list') return doc;
-  return replaceBlock(doc, at, { kind: 'image', box: image.box, src: image.src });
-}
-
 /** 剪原图时在字的框外面多留的边（原图像素）：签名、印章的笔画常常比认出来的字的框大。 */
 export function originalBox(box: Box, page: { width: number; height: number }): Box {
   const pad = Math.max(8, Math.round(box.height * 0.25));
@@ -104,6 +101,80 @@ export function originalBox(box: Box, page: { width: number; height: number }): 
     width: Math.min(page.width - x, box.width + 2 * pad),
     height: Math.min(page.height - y, box.height + 2 * pad),
   };
+}
+
+const overlaps = (a: Box, b: Box) =>
+  a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+const union = (a: Box, b: Box): Box => {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return {
+    x,
+    y,
+    width: Math.max(a.x + a.width, b.x + b.width) - x,
+    height: Math.max(a.y + a.height, b.y + b.height) - y,
+  };
+};
+
+const sameBox = (a: Box, b: Box) =>
+  a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+
+/**
+ * 「用原图」（D-467、D-468）要剪的范围：这几块字的框合起来，四周多留一点；碰到这一页已经是图片的块
+ * （之前换成原图的、剪好的印章）就把它也包进来，剪成一张：一个签名被认成几行字时，分几次换也只得到一张图
+ * （2026-11-06 三星真机：签名被切成了好几份）。
+ */
+export function originalArea(doc: DocDoc, page: number, boxes: readonly Box[]): Box | null {
+  const pg = doc.pages[page];
+  if (!pg || !boxes.length) return null;
+  let area = boxes.map((b) => originalBox(b, pg)).reduce(union);
+  const images = leafBlocks(pg).filter((b) => b.kind === 'image');
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const image of images) {
+      const next = overlaps(image.box, area) ? union(area, image.box) : area;
+      if (!sameBox(next, area)) {
+        area = next;
+        grew = true;
+      }
+    }
+  }
+  return area;
+}
+
+/**
+ * 把这一页里框是 boxes 的段落、列表，和碰到 image.box 的图片块，换成一张剪好的原图（放在它们里面第一块的位置）。
+ * 一块都没找到时返回原来的 doc。
+ */
+export function swapToOriginal(
+  doc: DocDoc,
+  page: number,
+  boxes: readonly Box[],
+  image: { src: string; box: Box },
+): DocDoc {
+  const pg = doc.pages[page];
+  if (!pg) return doc;
+  const picture: DocImage = { kind: 'image', box: image.box, src: image.src };
+  let placed = false;
+  const goes = (leaf: DocLeaf) =>
+    ((leaf.kind === 'paragraph' || leaf.kind === 'list') &&
+      boxes.some((b) => sameBox(b, leaf.box))) ||
+    (leaf.kind === 'image' && overlaps(leaf.box, image.box));
+  const keep = (leaves: readonly DocLeaf[]): DocLeaf[] =>
+    leaves.flatMap((leaf) => {
+      if (!goes(leaf)) return [leaf];
+      if (placed) return [];
+      placed = true;
+      return [picture];
+    });
+  const blocks: DocBlock[] = pg.blocks.flatMap((block): DocBlock[] => {
+    if (block.kind !== 'row') return keep([block]);
+    const cells = block.cells.map((cell) => ({ ...cell, blocks: keep(cell.blocks) }));
+    return cells.some((c) => c.blocks.length) ? [{ ...block, cells }] : [];
+  });
+  if (!placed) return doc;
+  return { ...doc, pages: doc.pages.map((p, i) => (i === page ? { ...p, blocks } : p)) };
 }
 
 export function deleteBlock(doc: DocDoc, at: DocRef): DocDoc {
