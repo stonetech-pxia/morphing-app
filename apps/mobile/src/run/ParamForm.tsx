@@ -1,5 +1,6 @@
 import {
   localize,
+  paramUnitLabel,
   type ActionDefinition,
   type Collection,
   type Locale,
@@ -208,11 +209,15 @@ function FieldInput({
             }}
           />
           {field.unit ? (
-            <Text style={[palette.font('body', 15), { color: palette.muted }]}>{field.unit}</Text>
+            <Text style={[palette.font('body', 15), { color: palette.muted }]}>
+              {paramUnitLabel(field.unit, locale)}
+            </Text>
           ) : null}
           {field.min !== undefined && field.max !== undefined ? (
             <Text style={[palette.font('body', 13), { color: palette.caption }]}>
-              {`${field.min}–${field.max}`}
+              {field.zeroMeans
+                ? `0 = ${localize(field.zeroMeans, locale)}`
+                : `${field.min}–${field.max}`}
             </Text>
           ) : null}
         </View>

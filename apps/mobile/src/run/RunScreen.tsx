@@ -289,7 +289,7 @@ export function RunScreen({
       void placeResultsOnDesk(files, [made.items[0]], Date.now()).then(
         (desk) => {
           if (!alive.current) return void clearDesk(files, desk.id);
-          router.replace({ pathname: '/desk/[deskId]', params: { deskId: desk.id, discard: '1' } });
+          router.replace({ pathname: '/desk/[deskId]', params: { deskId: desk.id } });
         },
         () => undefined,
       );

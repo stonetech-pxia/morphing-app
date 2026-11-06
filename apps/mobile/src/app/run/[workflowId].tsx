@@ -1,4 +1,4 @@
-import { findWorkflow, handedInput, localize, quickActionsOf } from '@morph/core';
+import { builtinText, findWorkflow, handedInput, localize, quickActionsOf } from '@morph/core';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
@@ -48,7 +48,7 @@ export default function RunRoute() {
     const name = localize(registry.tools.get(workflow.package!)?.name, locale) ?? workflow.package!;
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <Stack.Screen options={{ title: workflow.name }} />
+        <Stack.Screen options={{ title: builtinText(workflow.name, locale, registry) }} />
         <Text
           testID="run-revoked"
           style={[palette.font('body', 15), { color: palette.muted, textAlign: 'center' }]}>
@@ -61,7 +61,7 @@ export default function RunRoute() {
   if (workflow && !handed && handedInput(workflow.steps, registry)) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <Stack.Screen options={{ title: workflow.name }} />
+        <Stack.Screen options={{ title: builtinText(workflow.name, locale, registry) }} />
         <Text
           testID="run-needs-record"
           style={[palette.font('body', 15), { color: palette.muted, textAlign: 'center' }]}>
@@ -81,7 +81,7 @@ export default function RunRoute() {
   }
   return (
     <>
-      <Stack.Screen options={{ title: workflow.name }} />
+      <Stack.Screen options={{ title: builtinText(workflow.name, locale, registry) }} />
       <RunScreen
         workflow={workflow}
         {...(incoming ? { incoming } : {})}

@@ -14,6 +14,7 @@ import {
   workflowProblems,
 } from './check';
 import { acceptsType } from './contract';
+import { describeParams } from './format';
 
 const merge = () => quickActionsOf(workspace('zh', { withPdf: true }))[0]!;
 
@@ -227,5 +228,29 @@ describe('a first step that takes what a container hands over (D-428)', () => {
     const first = insertableActions([], 0, registry);
     expect(first.length).toBeGreaterThan(0);
     expect(first.every((a) => a.input.length === 0)).toBe(true);
+  });
+});
+
+// 2026-11-06 模拟器测试：桌上点「加页码」，起始页码默认 0、字号 6pt，第 2 页显示成「1 / 2」。
+describe('initialParams for page numbers', () => {
+  it('starts at page 1 with a readable size', () => {
+    const params = initialParams(registry.actions.get('pdf.pageNumbers')!);
+    expect(params.startAt).toBe(1);
+    expect(params.fontSize).toBeGreaterThanOrEqual(9);
+  });
+});
+
+// 2026-11-06 模拟器测试：首页卡片写「不超过 0 MB」，其实 0 是不限大小；法语写「MB」，应该是 Mo。
+describe('describeParams for sizes', () => {
+  const action = registry.actions.get('pdf.fromImages')!;
+  it('says no size limit for 0', () => {
+    const text = describeParams(action, { maxMB: 0 }, 'zh', new Date(), ['maxMB']);
+    expect(text).toBe('大小不限');
+    expect(describeParams(action, { maxMB: 0 }, 'fr', new Date(), ['maxMB'])).toBe(
+      'Taille illimitée',
+    );
+  });
+  it('writes Mo in French', () => {
+    expect(describeParams(action, { maxMB: 4 }, 'fr', new Date(), ['maxMB'])).toBe('Au plus 4 Mo');
   });
 });

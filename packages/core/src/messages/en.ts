@@ -1677,7 +1677,10 @@ export const en = {
   deskDownload: 'Download',
   deskPageFailed: 'This page can’t be shown here.',
   deskNoPreview: 'This file can’t be shown here. You can open it in the system preview.',
-  deskLeave: 'Leave it on the desk',
+  discardTitle: 'Discard changes?',
+  deskDiscardMessage: 'Your changes on the desk are not saved yet. They will be lost if you leave.',
+  formDiscardMessage: 'What you entered is not saved yet. It will be lost if you leave.',
+  importSaving: 'Saving to your files {done} / {total}',
   deskClear: 'Clear the desk',
   deskClearTitle: 'Clear the desk?',
   deskClearMessage:

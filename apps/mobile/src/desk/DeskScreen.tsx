@@ -54,6 +54,7 @@ import { newAssetId, startRun } from '../runtime/runner';
 import { AIEntry } from '../shell/ai-entry';
 import { BannerAnchor } from '../shell/Banner';
 import { useShellEnv } from '../shell/Shell';
+import { useConfirmLeave } from '../shell/useConfirmLeave';
 import { Toast } from '../shell/Toast';
 import { deleteUserFiles } from '../storage/user-files';
 import { useWorkspace, useWorkspaceContext } from '../workspace/context';
@@ -99,7 +100,7 @@ interface Busy {
   unit?: 'percent';
 }
 
-export function DeskScreen({ deskId, discard }: { deskId: string; discard?: boolean }) {
+export function DeskScreen({ deskId }: { deskId: string }) {
   const { repo, files, registry, locale } = useWorkspaceContext();
   // 草稿模式里显示草稿（D-190）：AI 改的工具栏和布局在这里看（D-406）。
   const config = useWorkspace(shownConfig)!;
@@ -131,15 +132,18 @@ export function DeskScreen({ deskId, discard }: { deskId: string; discard?: bool
   const alive = useRef(true);
   /** 清空了桌面：离开时不再合上编辑。 */
   const cleared = useRef(false);
-  // 预览页「转 Word」做出来的桌面（D-457）：返回就舍弃，要留下的话在「完成」里保存或分享。
+  // 桌面不留着（D-462，取代「先留在桌上」）：离开就清掉；要留下的在「完成」里保存或分享。
+  // 有没保存的改动时，离开前先问「放弃修改？」（见下面的 beforeRemove）。
   useEffect(
     () => () => {
-      if (!discard) return;
+      if (cleared.current) return;
       cleared.current = true;
       void clearDesk(files, deskId);
     },
-    [discard, files, deskId],
+    [files, deskId],
   );
+  /** 保存时桌上是第几个版本：之后没再改过就不用问「放弃修改？」。 */
+  const [savedAt, setSavedAt] = useState(0);
 
   useEffect(() => {
     alive.current = true;
@@ -204,6 +208,12 @@ export function DeskScreen({ deskId, discard }: { deskId: string; discard?: bool
       if (!cleared.current) void editRef.current.seal();
     };
   }, []);
+  // 返回（按钮、手势）时有没保存的改动：先问「放弃修改？」（2026-11-06 测试：加了水印、改了格子，返回就悄悄没了）。
+  const leave = useConfirmLeave(
+    desk !== null && desk !== 'gone' && (edit.dirty || desk.current !== savedAt),
+    'deskDiscardMessage',
+    locale,
+  );
   const onSelecting = useCallback((on: boolean) => setSelecting(on), []);
   // 键盘开着时导航栏在键盘下面，底部不用再让出它的高度。
   const [keyboard, setKeyboard] = useState(false);
@@ -375,13 +385,8 @@ export function DeskScreen({ deskId, discard }: { deskId: string; discard?: bool
       newId: newAssetId,
     });
     bumpAssets();
+    setSavedAt(d.current);
     setSaved(true);
-  }
-
-  /** 合上编辑再离开。 */
-  async function leave() {
-    await edit.seal();
-    router.back();
   }
 
   async function act(fn: () => Promise<void>) {
@@ -460,24 +465,7 @@ export function DeskScreen({ deskId, discard }: { deskId: string; discard?: bool
     endDeskReturn(deskId);
     cleared.current = true;
     await clearDesk(files, deskId);
-    router.back();
-  }
-
-  function confirmClear() {
-    Alert.alert(t(locale, 'deskClearTitle'), t(locale, 'deskClearMessage'), [
-      { text: t(locale, 'cancel'), style: 'cancel' },
-      {
-        text: t(locale, 'deskClear'),
-        style: 'destructive',
-        onPress: () =>
-          void act(async () => {
-            cleared.current = true;
-            await clearDesk(files, deskId);
-            setSheet(false);
-            router.back();
-          }),
-      },
-    ]);
+    leave();
   }
 
   const allImages = list.every((f) => deskKindOf(f) === 'image');
@@ -574,7 +562,7 @@ export function DeskScreen({ deskId, discard }: { deskId: string; discard?: bool
           id="desk-close"
           text="‹"
           palette={palette}
-          onPress={() => void leave()}
+          onPress={() => router.back()}
           disabled={busy !== null}
           bold
         />
@@ -815,23 +803,11 @@ export function DeskScreen({ deskId, discard }: { deskId: string; discard?: bool
                   systemPreview();
                 }}
               />
-              {discard ? null : (
-                <SheetRow
-                  id="desk-leave"
-                  label={t(locale, 'deskLeave')}
-                  palette={palette}
-                  onPress={() => {
-                    setSheet(false);
-                    void leave();
-                  }}
-                />
-              )}
               <SheetRow
-                id="desk-clear"
-                label={t(locale, 'deskClear')}
+                id="desk-sheet-cancel"
+                label={t(locale, 'cancel')}
                 palette={palette}
-                danger
-                onPress={confirmClear}
+                onPress={() => setSheet(false)}
               />
             </View>
           </View>

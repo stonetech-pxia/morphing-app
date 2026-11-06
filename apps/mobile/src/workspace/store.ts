@@ -77,6 +77,7 @@ export function createWorkspaceStore(deps: WorkspaceDeps): WorkspaceStore {
       busy: false,
       planProgress: null,
       assetsVersion: 0,
+      renderAttempt: 0,
       tab: null,
       recordsVersion: 0,
       presetsVersion: 0,

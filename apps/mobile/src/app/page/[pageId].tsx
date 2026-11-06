@@ -34,6 +34,7 @@ export default function PageRoute() {
   const config = useWorkspace(shownConfig)!;
   const headId = useWorkspace((s) => s.head!.id);
   const reportRenderError = useWorkspace((s) => s.reportRenderError);
+  const attempt = useWorkspace((s) => s.renderAttempt);
   const draftFailed = useWorkspace((s) => s.draftRenderFailed);
   const editing = useWorkspace((s) => s.editing?.pageId === pageId);
   const cancelEditing = useWorkspace((s) => s.cancelEditing);
@@ -123,7 +124,7 @@ export default function PageRoute() {
         <DraftNotice palette={palette} />
         {inDraft || editing ? null : <SampleHint pageId={page.id} palette={palette} />}
         <ErrorBoundary
-          key={inDraft ? `${headId}-draft` : headId}
+          key={inDraft ? `${headId}-draft` : `${headId}-${attempt}`}
           onError={inDraft ? draftFailed : reportRenderError}
           fallback={<View />}>
           <EditablePage page={page} env={env} bottomInset={insets.bottom + (inDraft ? 90 : 0)} />

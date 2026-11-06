@@ -236,7 +236,7 @@ export const fr: MessageTable = {
   previewShareSend: 'Envoyer vers une autre app',
   previewShare: 'Partager',
   previewMore: 'Plus',
-  previewRecord: 'Entrée',
+  previewRecord: 'Classer',
   previewQuick: 'Actions rapides',
   previewCatConvert: 'Convertir',
   previewCatProcess: 'Outils intelligents',
@@ -425,7 +425,7 @@ export const fr: MessageTable = {
   tableFull: 'Ce tableau est plein (10 000 entrées).',
   useFullForm:
     'Certains champs obligatoires ne figurent pas dans ce formulaire. Ouvrez le formulaire complet pour les ajouter.',
-  recordDeleted: 'Enregistrement supprimé',
+  recordDeleted: 'Entrée supprimée',
   newRecord: 'Nouvelle entrée',
   editRecord: 'Modifier l’entrée',
   save: 'Enregistrer',
@@ -1749,7 +1749,12 @@ export const fr: MessageTable = {
   deskPageFailed: 'Impossible d’afficher cette page ici.',
   deskNoPreview:
     'Impossible d’afficher ce fichier ici. Vous pouvez l’ouvrir dans l’aperçu du système.',
-  deskLeave: 'Laisser sur le bureau',
+  discardTitle: 'Abandonner les modifications ?',
+  deskDiscardMessage:
+    'Vos modifications ne sont pas encore enregistrées. Elles seront perdues si vous quittez.',
+  formDiscardMessage:
+    'Ce que vous avez saisi n’est pas encore enregistré. Ce sera perdu si vous quittez.',
+  importSaving: 'Ajout à vos fichiers {done} / {total}',
   deskClear: 'Vider le bureau',
   deskClearTitle: 'Vider le bureau ?',
   deskClearMessage:
@@ -1767,7 +1772,7 @@ export const fr: MessageTable = {
   shareRecordHide: 'Masquer',
   shareRecordTables: 'Vos tableaux',
   shareRecordNew: 'Nouveau formulaire',
-  shareRecordNewAbout: 'Crée un tableau à partir de ce fichier, à l’enregistrement.',
+  shareRecordNewAbout: 'Un tableau est créé d’après ce fichier quand vous enregistrez.',
   newTableTitle: 'Nouveau formulaire',
   newTableName: 'Nom du tableau',
   newTableWorking: 'Recherche du type de fichier…',

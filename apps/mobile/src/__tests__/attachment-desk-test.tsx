@@ -14,6 +14,7 @@ import { listDesks } from '../desk/store';
 import { holdFormCopies } from '../share/save-as-record';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, TINY_JPEG } from '../test-utils/fake-files';
+import { deskTool } from '../test-utils/desk-toolbar';
 import { renderToolsApp } from '../test-utils/render-app';
 
 // 记录附件的「…」（D-395）：分享这个文件，或放到桌上改；桌上「完成」时每次都问「加成新附件」还是「替换原件」，
@@ -100,7 +101,7 @@ function captureAlerts() {
 async function editOnDesk(alerts: ReturnType<typeof captureAlerts>, index = 0) {
   await fireEvent.press(screen.getByTestId(`editor-receipt-more-${index}`));
   await alerts.press('放到桌上');
-  await fireEvent.press(await screen.findByTestId('desk-tool-image.rotate'));
+  await fireEvent.press(await deskTool('desk-tool-image.rotate'));
   await fireEvent.press(await screen.findByTestId('prompt-ok'));
   await waitFor(() => expect(screen.getByTestId('desk-undo')).not.toBeDisabled());
   const before = alerts.spy.mock.calls.length;
@@ -257,18 +258,28 @@ describe('放到桌上改，再放回记录', () => {
     expect(files.disk.get('assets/a1/IMG_0001.jpg')).toEqual(TINY_JPEG);
   });
 
-  it('取消：记录不变，照常打开「完成」，桌面留着', async () => {
+  it('取消：记录不变，照常打开「完成」；不保存就离开先问「放弃修改？」，放弃后桌面清掉（D-462）', async () => {
     const { repo, files } = await setup(['a1']);
     await openRecord();
     const alerts = captureAlerts();
     await editOnDesk(alerts);
     await alerts.press('取消');
-    expect(await screen.findByTestId('desk-leave')).toBeTruthy();
-    await fireEvent.press(screen.getByTestId('desk-leave'));
+    expect(await screen.findByTestId('desk-sheet-cancel')).toBeTruthy();
+    expect(screen.queryByTestId('desk-leave')).toBeNull();
+    await fireEvent.press(screen.getByTestId('desk-sheet-cancel'));
+    await fireEvent.press(screen.getByTestId('desk-close'));
+    expect(alerts.last()[0]).toBe('放弃修改？');
+    await alerts.press('放弃');
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+    });
     expect(await screen.findByTestId('editor-receipt-file-0')).toBeTruthy();
     expect(screen.queryByTestId('editor-receipt-file-1')).toBeNull();
     expect(await assetIds(repo)).toEqual(['a1', 'a2']);
-    expect(await listDesks(files)).toHaveLength(1);
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+    });
+    expect(await listDesks(files)).toEqual([]);
   });
 
   it('没点完成就离开桌面：表单和记录都不变', async () => {
@@ -294,6 +305,12 @@ describe('放到桌上改，再放回记录', () => {
     expect(await screen.findByTestId('editor-receipt-file-1')).toBeTruthy();
     expect(await assetIds(repo)).toHaveLength(3);
     await act(() => router.back());
+    // 填过、改过没保存：先问「放弃修改？」。
+    expect(alerts.last()[0]).toBe('放弃修改？');
+    await alerts.press('放弃');
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+    });
     await waitFor(() => expect(screen.queryByTestId('editor-save')).toBeNull());
     await settle();
     expect(await assetIds(repo)).toEqual(['a1', 'a2']);
@@ -328,6 +345,12 @@ describe('放到桌上改，再放回记录', () => {
     );
     expect(await assetIds(repo)).toHaveLength(2);
     await act(() => router.back());
+    // 填过、改过没保存：先问「放弃修改？」。
+    expect(alerts.last()[0]).toBe('放弃修改？');
+    await alerts.press('放弃');
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+    });
     await waitFor(() => expect(screen.queryByTestId('editor-save')).toBeNull());
     await settle();
     expect(await repo.listAssets()).toEqual([]);

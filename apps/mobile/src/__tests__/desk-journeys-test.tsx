@@ -15,6 +15,7 @@ import { commitRun, listDesks, loadDesk, placeOnDesk } from '../desk/store';
 import { useIncoming } from '../share/incoming';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles, TINY_JPEG } from '../test-utils/fake-files';
+import { allDeskTools, deskTool } from '../test-utils/desk-toolbar';
 import { renderToolsApp } from '../test-utils/render-app';
 
 // 文件房间 R1（file-room DESIGN §9，D-357–D-361）：收件页面「放到桌上」做第一项；房间里预览、工具栏、
@@ -66,7 +67,11 @@ describe('预览页 → 编辑（放到桌上）', () => {
     await act(() => router.back());
     expect(await screen.findByTestId('preview-bar')).toBeTruthy();
     expect(files.disk.has(photo!.uri)).toBe(true);
-    expect(files.disk.has(`desk/${placed.id}/v1-0.jpg`)).toBe(true);
+    // 桌面不留着（D-462）：没改过，离开就清掉。
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+    });
+    expect(await listDesks(files)).toEqual([]);
   });
 });
 
@@ -81,14 +86,24 @@ describe('房间里的工具', () => {
     for (const name of ['编辑', '处理', '转换', '快捷操作'])
       expect(tabs.getByText(name)).toBeTruthy();
     expect(screen.getByTestId('desk-tab-0')).toBeSelected();
+    // 下面只排选中的那一组（2026-11-06：排成一长条时后面几组看起来是同一排，点回第一组也不跳）。
+    const firstOf = () =>
+      String(
+        within(screen.getByTestId('desk-toolbar')).getAllByTestId(/^desk-tool-/)[0]!.props.testID,
+      );
+    const editFirst = firstOf();
     await fireEvent.press(screen.getByTestId('desk-tab-2'));
     expect(screen.getByTestId('desk-tab-2')).toBeSelected();
     expect(screen.getByTestId('desk-tab-0')).not.toBeSelected();
+    expect(screen.queryByTestId(editFirst)).toBeNull();
+    await fireEvent.press(screen.getByTestId('desk-tab-0'));
+    expect(screen.getByTestId('desk-tab-0')).toBeSelected();
+    expect(firstOf()).toBe(editFirst);
     // 图片没有 PDF 的工具。
     expect(screen.queryByTestId('desk-tool-pdf.compress')).toBeNull();
     expect(screen.getByTestId('desk-undo')).toBeDisabled();
 
-    await fireEvent.press(screen.getByTestId('desk-tool-image.rotate'));
+    await fireEvent.press(await deskTool('desk-tool-image.rotate'));
     expect(await screen.findByText('应用')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('prompt-ok'));
     await waitFor(() => expect(screen.getByTestId('desk-undo')).not.toBeDisabled());
@@ -115,7 +130,7 @@ describe('房间里的工具', () => {
     await openDeskFor(files, ['a.jpg', 'b.jpg', 'c.jpg']);
     expect(await screen.findByTestId('desk-targets')).toHaveTextContent('工具作用到这 3 份文件');
     expect(screen.getByTestId('desk-strip')).toBeTruthy();
-    await fireEvent.press(screen.getByTestId('desk-tool-pdf.fromImages'));
+    await fireEvent.press(await deskTool('desk-tool-pdf.fromImages'));
     await fireEvent.press(await screen.findByTestId('prompt-ok'));
     await waitFor(() => expect(screen.getByTestId('desk-preview-pdf')).toBeTruthy());
     const desk = await onlyDesk(files);
@@ -147,12 +162,10 @@ describe('房间里的工具', () => {
     await openShare(files, ['IMG_1.jpg']);
     await fireEvent.press(await screen.findByTestId('preview-edit'));
     // 自己的快捷操作排在「快捷操作」组的第一个。
-    const toolbar = await screen.findByTestId('desk-toolbar');
-    const quick = within(toolbar)
-      .queryAllByTestId(/^desk-tool-/)
-      .filter((n) => !String(n.props.testID).includes('.'));
-    expect(quick[0]!.props.testID).toBe('desk-tool-rotate-twice');
-    await fireEvent.press(quick[0]!);
+    await screen.findByTestId('desk-toolbar');
+    const quick = (await allDeskTools()).filter((id) => !id.includes('.'));
+    expect(quick[0]).toBe('desk-tool-rotate-twice');
+    await fireEvent.press(await deskTool(quick[0]!));
     await waitFor(() => expect(screen.getByTestId('desk-undo')).not.toBeDisabled());
     const desk = await onlyDesk(files);
     // 两步合成一个版本，撤销整串一起撤。
@@ -167,7 +180,7 @@ describe('房间里的工具', () => {
     await openShare(files, ['IMG_1.jpg']);
     await fireEvent.press(await screen.findByTestId('preview-edit'));
     // 测试里没有系统文字识别：转 Excel 报「这台手机不能本机识别」。
-    await fireEvent.press(await screen.findByTestId('desk-tool-ocr.toExcel'));
+    await fireEvent.press(await deskTool('desk-tool-ocr.toExcel'));
     expect(await screen.findByTestId('desk-error')).toBeTruthy();
     expect(screen.queryByTestId('prompt-ok')).toBeNull();
     const desk = await onlyDesk(files);
@@ -250,11 +263,7 @@ describe('有数据：转 Excel 的结果在桌上', () => {
     expect(screen.getByTestId('desk-editor')).toBeTruthy();
     // 工具栏：转 PDF，加上文件这一组（分享、保存、系统预览），不是空的。
     const toolbar = screen.getByTestId('desk-toolbar');
-    expect(
-      within(toolbar)
-        .queryAllByTestId(/^desk-tool-/)
-        .map((n) => n.props.testID),
-    ).toEqual([
+    expect(await allDeskTools()).toEqual([
       'desk-tool-pdf.fromDocument',
       'desk-tool-room-share',
       'desk-tool-room-save',
@@ -278,11 +287,11 @@ describe('Word 文档在桌上', () => {
     const toolbar = await screen.findByTestId('desk-toolbar');
     expect(screen.queryByTestId('desk-no-tools')).toBeNull();
     expect(within(toolbar).getByTestId('desk-tool-pdf.fromDocument')).not.toBeDisabled();
-    expect(within(toolbar).getByTestId('desk-tool-room-share')).toBeTruthy();
+    expect(await deskTool('desk-tool-room-share')).toBeTruthy();
     const placed = await onlyDesk(files);
     expect(currentFiles(placed)[0]!.ext).toBe('docx');
     // 转 PDF 不问纸张，直接跑。
-    await fireEvent.press(within(toolbar).getByTestId('desk-tool-pdf.fromDocument'));
+    await fireEvent.press(await deskTool('desk-tool-pdf.fromDocument'));
     await waitFor(() => expect(screen.getByTestId('desk-preview-pdf')).toBeTruthy());
     expect(files.documents.converted.map((c) => c.ext)).toEqual(['docx']);
   });
@@ -291,7 +300,7 @@ describe('Word 文档在桌上', () => {
     const { files } = await renderToolsApp();
     await openShare(files, ['IMG_1.jpg']);
     await fireEvent.press(await screen.findByTestId('preview-edit'));
-    await fireEvent.press(await screen.findByTestId('desk-tool-room-share'));
+    await fireEvent.press(await deskTool('desk-tool-room-share'));
     await waitFor(() => expect(files.shared).toHaveLength(1));
   });
 });
@@ -303,18 +312,20 @@ describe('边界', () => {
     expect(await screen.findByTestId('desk-gone')).toHaveTextContent(/已经清空/);
   });
 
-  it('认不出的文件：没有工具，能用系统预览看；「完成」里清空桌面要确认，原件不动', async () => {
+  it('认不出的文件：没有工具，能用系统预览看；「完成」里没有清空桌面，离开就清掉，原件不动（D-462）', async () => {
     const { files } = await renderToolsApp();
     const [zip] = await openShare(files, ['notes.zip'], 'application/zip');
     await fireEvent.press(await screen.findByTestId('preview-edit'));
     expect(await screen.findByTestId('desk-no-tools')).toBeTruthy();
     expect(screen.getByTestId('desk-preview-generic')).toBeTruthy();
     await fireEvent.press(screen.getByTestId('desk-done'));
-    jest.spyOn(Alert, 'alert').mockImplementationOnce((_t, _m, buttons) => {
-      buttons?.find((b) => b.style === 'destructive')?.onPress?.();
-    });
-    await fireEvent.press(await screen.findByTestId('desk-clear'));
+    expect(screen.queryByTestId('desk-clear')).toBeNull();
+    await fireEvent.press(await screen.findByTestId('desk-sheet-cancel'));
+    await fireEvent.press(screen.getByTestId('desk-close'));
     await waitFor(() => expect(screen.queryByTestId('desk-screen')).toBeNull());
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+    });
     expect(await listDesks(files)).toEqual([]);
     expect(zip).toBeTruthy();
   });
@@ -346,11 +357,7 @@ describe('布局配置（D-358）', () => {
     await fireEvent.press(await screen.findByTestId('preview-edit'));
     const toolbar = await screen.findByTestId('desk-toolbar');
     expect(within(screen.getByTestId('desk-tabs')).getByText('常用')).toBeTruthy();
-    expect(
-      within(toolbar)
-        .queryAllByTestId(/^desk-tool-/)
-        .map((n) => n.props.testID),
-    ).toEqual([
+    expect(await allDeskTools()).toEqual([
       'desk-tool-image.rotate',
       'desk-tool-pdf.fromImages',
       // 「文件」这一组是房间自己的，不在配置里，总在最后。

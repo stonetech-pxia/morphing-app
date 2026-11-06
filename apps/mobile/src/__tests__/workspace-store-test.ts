@@ -225,7 +225,28 @@ describe('workspace store', () => {
     expect(store.getState().config!.theme.primaryColor).toBe('#C8623A');
     expect(store.getState().banner).toMatchObject({ kind: 'rolledBack' });
     expect(store.getState().head).toMatchObject({ source: 'rollback' });
+    // 改动记录里给用户看的说明不带报错原文（2026-11-06 测试：英文 ReferenceError 直接显示给用户）。
+    expect(store.getState().head!.summary).not.toMatch(/Error|boom/);
     expect(await repo.getChangeRequest(1)).toMatchObject({ status: 'rolled_back' });
+  });
+
+  // 2026-11-06 模拟器：一个和配置无关的渲染错误（代码热更新时少了一个函数）把用户的 App 换成了默认空白工作空间。
+  it('keeps a version that already rendered when a later render fails', async () => {
+    const { store } = await booted();
+    await store.getState().propose('主题换成绿色');
+    await store.getState().confirm();
+    await store.getState().markRendered(store.getState().head!.id);
+    const before = store.getState().config;
+    const head = store.getState().head!.id;
+    await store.getState().reportRenderError(new Error('ReferenceError: x is not defined'));
+    expect(store.getState().config).toEqual(before);
+    expect(store.getState().head!.id).toBe(head);
+    // 再画一次；还是出错的话，连续第三次停在出错页。
+    expect(store.getState().renderAttempt).toBe(1);
+    await store.getState().reportRenderError(new Error('again'));
+    await store.getState().reportRenderError(new Error('again'));
+    expect(store.getState().status).toBe('error');
+    expect(store.getState().config).toEqual(before);
   });
 
   it('recovers the last valid version when the latest snapshot is corrupted', async () => {

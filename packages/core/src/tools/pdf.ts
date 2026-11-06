@@ -216,6 +216,7 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
         min: 0,
         max: 100,
         step: 0.5,
+        zeroMeans: { en: 'No size limit', zh: '大小不限', fr: 'Taille illimitée' },
       },
       {
         key: 'textLayer',
@@ -500,6 +501,7 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
         kind: 'number',
         min: 0,
         max: 100000,
+        initial: 1,
       },
       {
         key: 'fontSize',
@@ -508,6 +510,7 @@ export const PDF_ACTIONS: readonly ActionDefinition[] = [
         unit: 'pt',
         min: 6,
         max: 48,
+        initial: 10,
       },
       {
         key: 'skipFirst',

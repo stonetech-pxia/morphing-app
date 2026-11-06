@@ -1,7 +1,7 @@
 import { MAX_PICK, sharedSizeProblem } from '@morph/core';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert } from 'react-native';
+import { ActivityIndicator, Alert, Modal, StyleSheet, Text, View } from 'react-native';
 
 import { runErrorText, t } from '../i18n';
 import { mimeOf } from '../runtime/actions/helpers';
@@ -30,6 +30,8 @@ export function FilePick({
   const bumpAssets = useWorkspace((s) => s.bumpAssets);
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  // 存进文档库的进度（一次打开很多张照片要好几秒，2026-11-06 测试：屏幕灰着没有提示）。
+  const [saving, setSaving] = useState<{ done: number; total: number } | null>(null);
   const label = t(env.locale, source === 'media' ? 'openMedia' : 'openFiles');
   function choose() {
     if (env.locked) return env.locked();
@@ -67,7 +69,11 @@ export function FilePick({
       const previous = useIncoming.getState().share;
       if (previous) await releaseShare(files, previous.id);
       // 打开的文件存进文档库（D-455），再进收件页面。
-      const kept = await keepIncomingFiles(selected, files, repo);
+      if (selected.length > 1) setSaving({ done: 0, total: selected.length });
+      const kept = await keepIncomingFiles(selected, files, repo, (done, total) =>
+        setSaving(total > 1 ? { done, total } : null),
+      );
+      setSaving(null);
       bumpAssets();
       useIncoming.getState().receive(kept, [], 'picker');
       // 新手引导第 2 步时打开了图片或文件：引导结束（第 3 步样板 App 取消了，D-447）。
@@ -76,37 +82,75 @@ export function FilePick({
     } catch {
       Alert.alert(label, t(env.locale, 'filePickFailed'));
     } finally {
+      setSaving(null);
       setBusy(false);
     }
   }
+  const progress = saving ? (
+    <Modal visible transparent animationType="fade">
+      <View style={styles.dim}>
+        <View
+          testID="file-pick-progress"
+          style={[styles.card, { backgroundColor: env.palette.surface }]}>
+          <ActivityIndicator color={env.palette.primary} />
+          <Text style={[env.palette.font('body', 15), { color: env.palette.text }]}>
+            {t(env.locale, 'importSaving', { done: saving.done, total: saving.total })}
+          </Text>
+        </View>
+      </View>
+    </Modal>
+  ) : null;
   const onPress = env.interactive
     ? () => (source === 'open' ? choose() : void pick(source))
     : undefined;
   if (iconOnly) {
     return (
-      <IconButton
-        palette={env.palette}
-        icon={source === 'media' ? 'photo' : 'folder'}
-        {...(source === 'media' ? {} : { glyph: 'folderOpen' as const })}
-        label={label}
-        testID={`file-pick-${source}`}
-        disabled={busy}
-        onPress={onPress}
-        onLongPress={env.onLongPress}
-        column={env.cellColumn}
-      />
+      <>
+        {progress}
+        <IconButton
+          palette={env.palette}
+          icon={source === 'media' ? 'photo' : 'folder'}
+          {...(source === 'media' ? {} : { glyph: 'folderOpen' as const })}
+          label={label}
+          testID={`file-pick-${source}`}
+          disabled={busy}
+          onPress={onPress}
+          onLongPress={env.onLongPress}
+          column={env.cellColumn}
+        />
+      </>
     );
   }
   return (
-    <Button
-      palette={env.palette}
-      label={label}
-      testID={`file-pick-${source}`}
-      disabled={busy}
-      loading={busy}
-      onPress={onPress}
-      onLongPress={env.onLongPress}
-      style={{ minHeight: 76 }}
-    />
+    <>
+      {progress}
+      <Button
+        palette={env.palette}
+        label={label}
+        testID={`file-pick-${source}`}
+        disabled={busy}
+        loading={busy}
+        onPress={onPress}
+        onLongPress={env.onLongPress}
+        style={{ minHeight: 76 }}
+      />
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  dim: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.25)',
+  },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 16,
+  },
+});

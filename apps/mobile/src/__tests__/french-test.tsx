@@ -34,7 +34,7 @@ describe('French journeys', () => {
     await openPick('media');
     expect(await screen.findByTestId('preview-edit')).toHaveTextContent('Modifier');
     expect(screen.getByTestId('preview-word')).toHaveTextContent('En Word');
-    expect(screen.getByTestId('preview-record')).toHaveTextContent('Entrée');
+    expect(screen.getByTestId('preview-record')).toHaveTextContent('Classer');
     expect(screen.getByTestId('preview-share')).toHaveTextContent('Partager');
     expect(screen.getByTestId('preview-more')).toHaveTextContent('Plus');
     await fireEvent.press(screen.getByTestId('preview-more'));

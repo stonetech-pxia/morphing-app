@@ -114,7 +114,7 @@ export function initialParams(action: ActionDefinition): Record<string, unknown>
   for (const f of action.fields) {
     if (f.showIf || f.kind === 'secret') continue;
     if (f.kind === 'choice') params[f.key] = f.options?.[0]?.value;
-    else if (f.kind === 'number') params[f.key] = f.min ?? 0;
+    else if (f.kind === 'number') params[f.key] = f.initial ?? f.min ?? 0;
     else if (f.kind === 'toggle') params[f.key] = false;
     else if (f.kind === 'fields') params[f.key] = [];
     else params[f.key] = '';

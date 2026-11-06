@@ -19,6 +19,7 @@ import { ResultView } from '../run/ResultView';
 import { saveItems } from '../runtime/actions/io';
 import { MemoryWorkspaceRepo } from '../storage/memory';
 import { FakeFiles } from '../test-utils/fake-files';
+import { deskTool } from '../test-utils/desk-toolbar';
 import { renderToolsApp } from '../test-utils/render-app';
 
 // 文件房间 R2（file-room DESIGN §9、§11，D-366、D-367）：桌上的 Excel、Word 就是编辑器（点一下选中、
@@ -275,7 +276,7 @@ describe('Excel 在桌上就是表格编辑器', () => {
     await editTo('table-cell-1-1', '改过');
     await fireEvent.press(screen.getByTestId('desk-deselect'));
     // 用别的工具前先合上编辑；文档转 PDF 不问纸张，直接跑（D-363）。
-    await fireEvent.press(screen.getByTestId('desk-tool-pdf.fromDocument'));
+    await fireEvent.press(await deskTool('desk-tool-pdf.fromDocument'));
     await waitFor(() => expect(screen.getByTestId('desk-preview-pdf')).toBeTruthy());
     expect((await deskNow(files)).versions.map((v) => v.by.kind)).toEqual([
       'place',
@@ -291,7 +292,7 @@ describe('Excel 在桌上就是表格编辑器', () => {
     expect(await screen.findByText('改过')).toBeTruthy();
   });
 
-  it('插删列、删表外的文字；离开房间时合上', async () => {
+  it('插删列、删表外的文字；点「完成」合上；没保存就离开先问「放弃修改？」', async () => {
     const { files } = await openOnDesk('table', tableDoc());
     await fireEvent.press(screen.getByTestId('table-cell-1-0'));
     await fireEvent.press(screen.getByTestId('desk-col-delete'));
@@ -299,8 +300,13 @@ describe('Excel 在桌上就是表格编辑器', () => {
     // 表外的文字：没有插删行列，只有编辑和删除。
     expect(screen.queryByTestId('desk-row-below')).toBeNull();
     await fireEvent.press(screen.getByTestId('desk-block-delete'));
+    const ask = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     await fireEvent.press(screen.getByTestId('desk-close'));
-    await waitFor(() => expect(screen.queryByTestId('desk-screen')).toBeNull());
+    expect(ask.mock.lastCall?.[0]).toBe('放弃修改？');
+    expect(screen.getByTestId('desk-screen')).toBeTruthy();
+    ask.mockRestore();
+    await fireEvent.press(screen.getByTestId('desk-done'));
+    await screen.findByTestId('desk-sheet-cancel');
     const desk = await deskNow(files);
     expect(desk.versions.map((v) => v.by.kind)).toEqual(['place', 'edit']);
     const file = currentFiles(desk)[0]!;
@@ -424,7 +430,7 @@ describe('存成用户文件以后还能放回桌上改（D-367）', () => {
     const { files, repo } = await openOnDesk('table', tableDoc());
     await editTo('table-cell-1-0', '存之前改的');
     await fireEvent.press(screen.getByTestId('desk-deselect'));
-    await fireEvent.press(screen.getByTestId('desk-tool-room-save'));
+    await fireEvent.press(await deskTool('desk-tool-room-save'));
     expect(await screen.findByTestId('desk-saved')).toBeTruthy();
     const [asset] = await repo.listAssets();
     expect(asset!.name).toBe('明细.xlsx');
@@ -455,7 +461,13 @@ describe('存成用户文件以后还能放回桌上改（D-367）', () => {
     expect(files.disk.has(asset!.path)).toBe(true);
 
     await editTo('table-cell-1-1', '放回来再改');
+    jest.spyOn(Alert, 'alert').mockImplementationOnce((_t, _m, buttons) => {
+      buttons?.find((b) => b.style === 'destructive')?.onPress?.();
+    });
     await fireEvent.press(screen.getByTestId('desk-close'));
+    await act(async () => {
+      jest.advanceTimersByTime(100);
+    });
     await waitFor(() => expect(screen.queryByTestId('desk-screen')).toBeNull());
     expect(files.disk.has(asset!.path)).toBe(true);
 

@@ -125,7 +125,7 @@ export function RecordChooser({
       ) : null}
       {row('share-record-new', t(locale, 'shareRecordNew'), t(locale, 'shareRecordNewAbout'), null)}
       {tables.length > 0 ? (
-        <Text style={[palette.font('bodyBold', 13), { color: palette.muted }]}>
+        <Text style={[palette.font('bodyBold', 13), styles.heading, { color: palette.muted }]}>
           {t(locale, 'shareRecordTables')}
         </Text>
       ) : null}
@@ -136,6 +136,15 @@ export function RecordChooser({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  // 「你的表」和上面「新建表单」的说明隔开（2026-11-06 测试：挤在一起）。
+  heading: { marginTop: 12 },
   chooser: { gap: 4, paddingBottom: 8 },
-  choice: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingLeft: 8 },
+  choice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 44,
+    paddingLeft: 8,
+    paddingVertical: 6,
+  },
 });
