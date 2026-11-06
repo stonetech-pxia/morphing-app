@@ -4,10 +4,12 @@ import {
   buildDocPage,
   clusterLines,
   foldEmptyColumns,
+  hasUnderline,
   leafBlocks,
   paragraphsOf,
   strokeRatio,
   textColor,
+  textEm,
   type DocList,
   type DocParagraph,
   type DocRow,
@@ -81,6 +83,29 @@ describe('paragraphsOf', () => {
   });
 });
 
+describe('paragraphsOf: centered lines (D-463)', () => {
+  it('keeps centered letter-head lines one per paragraph, but still joins wrapped prose', () => {
+    // 处方的页眉：每行居中、宽度差不多，最宽的一行定了右边；以前「CDS 20 PANTIN」和下一行的地址被当成折行接在一起。
+    const head = [
+      line('CENTRE DE SANTE', 473, 124, 304, 31),
+      line('CDS 20 PANTIN', 502, 175, 243, 32),
+      line('20 rue du pré saint Gervais', 478, 229, 292, 30),
+      line('93500 Pantin', 552, 269, 144, 27),
+      line('Tél: 01 48 46 66 66', 519, 309, 211, 27),
+      line('NoFINESS :93 002 730 5', 487, 348, 275, 29),
+    ];
+    expect(paragraphsOf(head).map((p) => p.rows.map((r) => r.text))).toEqual(
+      head.map((l) => [l.text]),
+    );
+    // 左边对齐、写到右边的正文照样接成一段。
+    const prose = [
+      line('A long line of body text that runs to the right', 100, 100, 800),
+      line('edge and wraps here.', 100, 125, 300),
+    ];
+    expect(paragraphsOf(prose)).toHaveLength(1);
+  });
+});
+
 describe('clusterLines', () => {
   it('keeps a letter head’s address (left) and date (right) apart, and splits at big gaps', () => {
     const lines = [
@@ -134,6 +159,21 @@ describe('strokeRatio and textColor', () => {
       if (blue.data[i]! < 128) blue.data.set([23, 32, 148], i);
     }
     expect(textColor(blue, box)).toBe('172094');
+  });
+});
+
+describe('hasUnderline (D-463)', () => {
+  it('sees a line under the text as long as the text, not a longer rule or a strike-through', () => {
+    const box = { x: 100, y: 100, width: 400, height: 20 };
+    const text = glyphs(100, 104, 400, 12);
+    const page = (extra: Rect[]) => renderPage(W, 300, [...text, ...extra]);
+    expect(hasUnderline(page([]), box)).toBe(false);
+    // 下划线：在字的下面，和字一样长。
+    expect(hasUnderline(page([{ x: 100, y: 118, width: 400, height: 2 }]), box)).toBe(true);
+    // 分隔线、表格线：比字长出去很多。
+    expect(hasUnderline(page([{ x: 20, y: 118, width: 900, height: 2 }]), box)).toBe(false);
+    // 删除线：在字的中间。
+    expect(hasUnderline(page([{ x: 100, y: 109, width: 400, height: 2 }]), box)).toBe(false);
   });
 });
 
@@ -341,13 +381,14 @@ describe('buildDocPage', () => {
     ]);
     const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
     const paras = doc.blocks as DocParagraph[];
-    expect(paras.map((p) => [p.text.slice(0, 10), p.indent])).toEqual([
-      ['Indented f', 60],
-      ['A short in', 60],
-      ['Next parag', undefined],
-      ['“A line of', 60],
-      ['A line on ', undefined],
-      ['00', undefined],
+    // 只有一行的段落不写首行缩进（D-463）：docx 按它的左边写左缩进，见 docx.test 的「places each paragraph」。
+    expect(paras.map((p) => [p.text.slice(0, 10), p.indent, Math.round(p.box.x)])).toEqual([
+      ['Indented f', 60, 100],
+      ['A short in', undefined, 160],
+      ['Next parag', undefined, 100],
+      ['“A line of', undefined, 160],
+      ['A line on ', undefined, 100],
+      ['00', undefined, 20],
     ]);
   });
 
@@ -486,6 +527,79 @@ describe('buildDocPage', () => {
     expect(table?.kind === 'table' && table.table.cells[0]!.text).toBe(
       'Logement F44\nValable 2030\nType Habitation',
     );
+  });
+
+  it('sizes lines by the width of their letters when the page is set in one font (D-463)', () => {
+    // 识别框一样高（p、g 往下伸的字母让小字的框也一样高），字宽看得出大小：正文 17 像素，小字 13，大字 22。
+    const px = (text: string, size: number) => Math.round(textEm(text) * size);
+    const body = [
+      'Docteur Martin LEROY',
+      'Ophtalmologiste diplômé',
+      'Ancien Assistant à la fondation',
+      'MALADIES ET CHIRURGIE DES YEUX',
+      'Pantin le 11/05/2026',
+    ];
+    const rows = body.map((text, i) => ({ text, x: 100, y: 100 + i * 60, width: px(text, 17) }));
+    const small = 'Une paire de lunettes avec monture';
+    const big = 'Simple foyer';
+    rows.push(
+      { text: small, x: 300, y: 600, width: px(small, 13) },
+      { text: big, x: 300, y: 660, width: px(big, 22) },
+    );
+    const { image, lines } = textPage(rows);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const paras = doc.blocks as DocParagraph[];
+    const sizeOf = (text: string) => paras.find((p) => p.text === text)!.size ?? doc.bodySize;
+    for (const text of body) expect(sizeOf(text)).toBe(doc.bodySize);
+    expect(sizeOf(small)).toBeCloseTo((doc.bodySize * 13) / 17, 0);
+    expect(sizeOf(big)).toBeCloseTo((doc.bodySize * 22) / 17, 0);
+  });
+
+  it('does not make same-size, regular lines in a title region headings; headings keep their size (D-463)', () => {
+    // 版面模型把整个页眉（机构名 + 地址、电话）框成一个标题区域。
+    const { image, lines } = textPage([
+      { text: 'CENTRE DE SANTE', x: 380, y: 60, width: 240, h: 26, stroke: 5 },
+      { text: '20 rue du pré saint Gervais', x: 400, y: 100, width: 200 },
+      { text: 'Tél: 01 48 46 66 66', x: 420, y: 130, width: 160 },
+      { text: 'Body text of the page that is long enough to count', x: 100, y: 300, width: 800 },
+      { text: 'as prose and sets the size of the body text.', x: 100, y: 325, width: 700 },
+    ]);
+    const doc = buildDocPage({
+      image,
+      lines,
+      source: 's',
+      skew: 0,
+      regions: [
+        {
+          kind: 'title',
+          label: 'doc_title',
+          score: 0.9,
+          box: { x: 370, y: 50, width: 260, height: 110 },
+        },
+      ],
+    });
+    const [title, street, phone] = doc.blocks as DocParagraph[];
+    expect(title).toMatchObject({ text: 'CENTRE DE SANTE', heading: 1, bold: true });
+    // 标题写明自己的字号，不按标题样式放大。
+    expect(title!.size).toBeDefined();
+    expect(street).toMatchObject({ text: '20 rue du pré saint Gervais', align: 'center' });
+    expect(street!.heading).toBeUndefined();
+    expect(phone!.heading).toBeUndefined();
+  });
+
+  it('centres a single line centred on the page although the text around it is lopsided (D-463)', () => {
+    // 左边一大块医生信息、右边的字很短：整页文字的左右边不对称，按它们判断居中会漏掉页眉。
+    const { image, lines } = textPage([
+      { text: 'ORDONNANCE DE LUNETTES', x: 300, y: 100, width: 400 },
+      { text: 'Ancien Assistant à la fondation Ophtalmologique', x: 40, y: 200, width: 500 },
+      { text: 'Docteur Martin LEROY', x: 150, y: 240, width: 250 },
+    ]);
+    const doc = buildDocPage({ image, lines, source: 's', skew: 0 });
+    const [title, wide, doctor] = doc.blocks as DocParagraph[];
+    expect(title!.align).toBe('center');
+    // 左边那块里居中的行不当整页居中：位置留给 docx 的左缩进。
+    expect(wide!.align).toBeUndefined();
+    expect(doctor!.align).toBeUndefined();
   });
 
   it('pairs form labels with their values row by row (D-332)', () => {

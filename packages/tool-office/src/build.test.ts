@@ -412,6 +412,24 @@ describe('cases from real scans (D-272)', () => {
     }
   });
 
+  it('does not take an underlined bold title for a table (D-463)', () => {
+    // 处方的标题「ORDONNANCE DE LUNETTES」：粗体字的竖笔画连着下划线，字顶的横笔画连成一条，
+    // 扫描时像一排短竖线夹在两条横线中间。应该是一段字，不是一张每格一两个字母的表。
+    const rects: Rect[] = [
+      { x: 300, y: 205, width: 400, height: 4 },
+      { x: 300, y: 229, width: 400, height: 3 },
+    ];
+    for (let x = 302; x < 700; x += 20) rects.push({ x, y: 205, width: 4, height: 24 });
+    const title = fakeLine(
+      'ORDONNANCE DE LUNETTES',
+      { x: 300, y: 200, width: 400, height: 33 },
+      { width: W, height: H },
+    );
+    const page = build(rects, [title]);
+    expect(tablesOf(page)).toHaveLength(0);
+    expect(page.blocks).toMatchObject([{ kind: 'text', text: 'ORDONNANCE DE LUNETTES' }]);
+  });
+
   it('keeps text that wraps inside one cell together', () => {
     const words = [
       word('long name', 120, 110, 200),
