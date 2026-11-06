@@ -217,6 +217,8 @@ export function wordPageHtml(
   width: number,
   images: Readonly<Record<string, string>> = {},
   print = false,
+  /** 原图小窗上的「换成原件」按钮的字（D-469）；没有时不显示按钮。lines 里的 {n} 换成行数。 */
+  swap: { one: string; lines: string } | null = null,
 ): string {
   const u: Unit = print ? 'pt' : 'px';
   const lists: string[] = [];
@@ -299,6 +301,7 @@ export function wordPageHtml(
   const config = JSON.stringify({
     ptPx: ptPx(pageWidth),
     previews: previewBoxes(doc),
+    swap,
     pages: doc.pages.map((page) => ({
       w: page.width,
       img: page.source ? (images[page.source] ?? null) : null,
@@ -579,24 +582,76 @@ export const WORD_PAGE_SCRIPT = String.raw`
   }
 
   // 光标上方的小窗：显示原图里这一块（表格里是这一格）原来的样子（D-468）。直接用整页原图当背景，按位置截一块。
-  var preview = null;
+  var preview = null, shot = null, pill = null;
   var PREVIEW_MAX_H = 140;
+  var PILL_H = 28;
   function hidePreview() {
     if (preview) preview.style.display = 'none';
   }
-  function showPreview(el) {
+  function swapNow(e) {
+    // 不让按钮抢走焦点、改掉选区：换的是光标所在（选中）的那几块。
+    e.preventDefault();
+    e.stopPropagation();
+    send({ type: 'swap' });
+  }
+  function keep(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  function makePreview() {
+    preview = document.createElement('div');
+    preview.id = 'word-original';
+    preview.setAttribute('contenteditable', 'false');
+    preview.style.cssText = 'position:absolute;z-index:10;pointer-events:none;-webkit-user-select:none;user-select:none';
+    shot = document.createElement('div');
+    shot.style.cssText =
+      'background-color:#fff;background-repeat:no-repeat;border:1.5px solid #0B8F7A;border-radius:6px;' +
+      'box-shadow:0 2px 8px rgba(0,0,0,.25);box-sizing:border-box';
+    preview.appendChild(shot);
+    // 「换成原件」挂在小窗右下角、压住边框（D-469），只有字那么宽。
+    pill = document.createElement('div');
+    pill.id = 'word-original-swap';
+    pill.setAttribute('role', 'button');
+    pill.style.cssText =
+      'position:absolute;bottom:' + -PILL_H / 2 + 'px;height:' + PILL_H + 'px;line-height:' + PILL_H + 'px;' +
+      'padding:0 12px;border-radius:999px;background:#0B8F7A;color:#fff;font:600 13px -apple-system,Roboto,sans-serif;' +
+      'white-space:nowrap;pointer-events:auto;box-shadow:0 1px 4px rgba(0,0,0,.25)';
+    pill.addEventListener('touchstart', keep);
+    pill.addEventListener('mousedown', keep);
+    pill.addEventListener('touchend', swapNow);
+    pill.addEventListener('click', swapNow);
+    preview.appendChild(pill);
+    document.body.appendChild(preview);
+  }
+  /** 小窗显示的位置：选中的几块合起来（同一页），表格里是这一格。 */
+  function previewTarget(el, refs) {
     var W = window.WORD || {};
-    var key = null, anchor = null;
     var td = el && el.closest('td[data-i]');
     var table = td && td.closest('table[data-ref]');
     if (table) {
-      key = table.getAttribute('data-ref') + '#' + td.getAttribute('data-i');
-      anchor = td;
-    } else {
-      anchor = el && el.closest('p[data-ref], ol[data-ref], ul[data-ref]');
-      key = anchor && anchor.getAttribute('data-ref');
+      var key = table.getAttribute('data-ref') + '#' + td.getAttribute('data-i');
+      return W.previews && W.previews[key] ? { box: W.previews[key], anchor: td, lines: 0 } : null;
     }
-    var at = key && W.previews && W.previews[key];
+    var boxes = [];
+    for (var i = 0; i < refs.length; i++) {
+      var b = W.previews && W.previews[refs[i]];
+      if (b && (!boxes.length || b[0] === boxes[0][0])) boxes.push(b);
+    }
+    if (!boxes.length) return null;
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (var k = 0; k < boxes.length; k++) {
+      x0 = Math.min(x0, boxes[k][1]);
+      y0 = Math.min(y0, boxes[k][2]);
+      x1 = Math.max(x1, boxes[k][1] + boxes[k][3]);
+      y1 = Math.max(y1, boxes[k][2] + boxes[k][4]);
+    }
+    var anchor = document.querySelector('.paper [data-ref="' + refs[0] + '"]');
+    return anchor ? { box: [boxes[0][0], x0, y0, x1 - x0, y1 - y0], anchor: anchor, lines: boxes.length } : null;
+  }
+  function showPreview(el, refs) {
+    var W = window.WORD || {};
+    var target = previewTarget(el, refs);
+    var at = target && target.box;
     var page = at && W.pages && W.pages[at[0]];
     if (!at || !page || !page.img) return hidePreview();
     var pad = Math.max(8, at[4] * 0.25);
@@ -604,25 +659,28 @@ export const WORD_PAGE_SCRIPT = String.raw`
     var w = at[3] + 2 * pad, h = at[4] + 2 * pad;
     var maxW = window.innerWidth - 24;
     var s = Math.min(maxW / w, PREVIEW_MAX_H / h, 2.5 * (maxW / page.w));
-    if (!preview) {
-      preview = document.createElement('div');
-      preview.id = 'word-original';
-      preview.setAttribute('contenteditable', 'false');
-      preview.style.cssText =
-        'position:absolute;z-index:10;pointer-events:none;background-color:#fff;background-repeat:no-repeat;' +
-        'border:1.5px solid #0B8F7A;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.25)';
-      document.body.appendChild(preview);
+    if (!preview) makePreview();
+    var sw = Math.round(w * s), sh = Math.round(h * s);
+    shot.style.backgroundImage = 'url(' + page.img + ')';
+    shot.style.width = sw + 'px';
+    shot.style.height = sh + 'px';
+    shot.style.backgroundSize = Math.round(page.w * s) + 'px auto';
+    shot.style.backgroundPosition = -Math.round(x * s) + 'px ' + -Math.round(y * s) + 'px';
+    var canSwap = !!W.swap && target.lines > 0;
+    pill.style.display = canSwap ? 'block' : 'none';
+    if (canSwap) {
+      pill.textContent = target.lines > 1 ? W.swap.lines.replace('{n}', String(target.lines)) : W.swap.one;
+      // 截图比按钮窄时按钮居中挂在底边，不然挂在右下角。
+      var narrow = pill.offsetWidth + 16 > sw;
+      pill.style.right = narrow ? 'auto' : '8px';
+      pill.style.left = narrow ? Math.round((sw - pill.offsetWidth) / 2) + 'px' : 'auto';
     }
-    preview.style.backgroundImage = 'url(' + page.img + ')';
-    preview.style.width = Math.round(w * s) + 'px';
-    preview.style.height = Math.round(h * s) + 'px';
-    preview.style.backgroundSize = Math.round(page.w * s) + 'px auto';
-    preview.style.backgroundPosition = -Math.round(x * s) + 'px ' + -Math.round(y * s) + 'px';
-    var rect = anchor.getBoundingClientRect();
-    var left = Math.max(12, Math.min(rect.left, window.innerWidth - 12 - w * s));
-    var top = rect.top + window.scrollY - h * s - 8;
-    // 上面放不下（页面最上面）就放到这一块下面。
-    if (rect.top - h * s - 8 < 4) top = rect.bottom + window.scrollY + 8;
+    // 小窗连同挂出去的半个按钮都不盖住这一块（光标在里面）：上面放不下就放到下面。
+    var below = canSwap ? PILL_H / 2 : 0;
+    var rect = target.anchor.getBoundingClientRect();
+    var left = Math.max(12, Math.min(rect.left, window.innerWidth - 12 - sw));
+    var top = rect.top + window.scrollY - sh - below - 8;
+    if (rect.top - sh - below - 8 < 4) top = rect.bottom + window.scrollY + 8;
     preview.style.left = Math.round(left) + 'px';
     preview.style.top = Math.round(top) + 'px';
     preview.style.display = 'block';
@@ -643,7 +701,8 @@ export const WORD_PAGE_SCRIPT = String.raw`
       send({ type: 'state', focus: false });
       return;
     }
-    showPreview(el);
+    var refs = refsOfSelection(sel.getRangeAt(0), el);
+    showPreview(el, refs);
     var td = el.closest('td[data-i]');
     var table = td && td.closest('table[data-ref]');
     var b = blockOf(node);
@@ -657,7 +716,7 @@ export const WORD_PAGE_SCRIPT = String.raw`
       cell: table ? { ref: table.getAttribute('data-ref'), i: Number(td.getAttribute('data-i')) } : null,
       // 光标所在的段落、列表（「用原图」换的是它，D-467）；表格里、新打的段落没有。
       ref: refOfCaret(el),
-      refs: refsOfSelection(sel.getRangeAt(0), el),
+      refs: refs,
     });
   }
   document.addEventListener('input', post);

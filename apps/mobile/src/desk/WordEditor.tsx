@@ -144,14 +144,26 @@ export function WordEditor({
     };
   }, [srcs, images]);
   const ready = srcs.every((src) => src in images);
+  const hasCrop = !!cropOriginal;
 
   const html = useMemo(() => {
     if (!ready) return null;
     const loaded = Object.fromEntries(
       Object.entries(images).filter((e): e is [string, string] => e[1] !== null),
     );
-    return wordPageHtml(shown, width, loaded);
-  }, [ready, shown, width, images]);
+    return wordPageHtml(
+      shown,
+      width,
+      loaded,
+      false,
+      hasCrop
+        ? {
+            one: t(locale, 'wordSwapOriginal'),
+            lines: t(locale, 'wordSwapOriginalLines', { n: '{n}' }),
+          }
+        : null,
+    );
+  }, [ready, shown, width, images, hasCrop, locale]);
 
   // 最新的文档和回调（合回去时用；页面的消息、计时器拿到的是旧的闭包）。
   const latest = useRef({ doc, shown, onApply });
@@ -208,6 +220,9 @@ export function WordEditor({
       setHasPending(true);
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => commitRef.current(), IDLE_MS);
+    } else if (msg.type === 'swap') {
+      // 原图小窗上的「换成原件」（D-469）。
+      void swapInOriginal();
     } else if (msg.type === 'state') {
       setState(msg as unknown as PageState);
       // 离开页面（收起键盘）：改的字马上合回去。
@@ -366,21 +381,6 @@ export function WordEditor({
               <SymbolView name={ALIGN_ICON[align]} size={22} tintColor={palette.text} />,
               NEXT_ALIGN[align],
             )}
-            {targets ? (
-              <FormatButton
-                key="word-use-original"
-                id="word-use-original"
-                label={t(locale, 'wordUseOriginal')}
-                on={false}
-                palette={palette}
-                onPress={() => void swapInOriginal()}>
-                <SymbolView
-                  name={{ ios: 'photo', android: 'image' }}
-                  size={22}
-                  tintColor={palette.text}
-                />
-              </FormatButton>
-            ) : null}
             {button(
               'word-hide-keyboard',
               'wordHideKeyboard',

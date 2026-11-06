@@ -140,6 +140,55 @@ describe('the original above the cursor (D-468)', () => {
     expect(word.pages[0]!.img).toBe('data:image/jpeg;base64,AAAA');
   });
 
+  it('the 「换成原件」 button sits on the preview, counts selected lines, and is not shown in a table cell (D-469)', () => {
+    const html = wordPageHtml(
+      doc,
+      WIDTH,
+      { 'runs/r1/page.jpg': 'data:image/jpeg;base64,AAAA' },
+      false,
+      { one: '换成原件', lines: '换成原件（{n} 行）' },
+    );
+    const dom = new JSDOM(html, { runScripts: 'dangerously' });
+    const { document } = dom.window;
+    const sent: { type: string }[] = [];
+    (dom.window as unknown as { ReactNativeWebView: unknown }).ReactNativeWebView = {
+      postMessage: (m: string) => sent.push(JSON.parse(m)),
+    };
+    // jsdom 没有 queryCommandState（浏览器里有）。
+    (document as unknown as { queryCommandState: () => boolean }).queryCommandState = () => false;
+    const paper = document.querySelector('.paper') as HTMLElement;
+    paper.tabIndex = 0;
+    paper.focus();
+    const select = (from: Node, to: Node = from) => {
+      const range = document.createRange();
+      range.setStart(from, 0);
+      range.setEnd(to, to === from ? 0 : (to.textContent ?? '').length);
+      dom.window.getSelection()!.removeAllRanges();
+      dom.window.getSelection()!.addRange(range);
+      document.dispatchEvent(new dom.window.Event('selectionchange'));
+    };
+    const pill = () => document.getElementById('word-original-swap') as HTMLElement;
+    select(document.querySelector('[data-ref="0-1"]')!.firstChild!);
+    expect(document.getElementById('word-original')!.style.display).toBe('block');
+    expect(pill().style.display).toBe('block');
+    expect(pill().textContent).toBe('换成原件');
+    // 选中两行。
+    select(
+      document.querySelector('[data-ref="0-1"]')!.firstChild!,
+      document.querySelector('[data-ref="0-2"]')!.firstChild!,
+    );
+    expect(pill().textContent).toBe('换成原件（2 行）');
+    // 点按钮交给 App 去换。
+    pill().dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true }));
+    expect(sent.some((m) => m.type === 'swap')).toBe(true);
+    // 表格里：小窗不显示（表格格子没有原图位置时）或者不显示按钮。
+    select(document.querySelector('[data-ref="0-5"] td')!.firstChild!);
+    expect(
+      pill().style.display === 'none' ||
+        document.getElementById('word-original')!.style.display === 'none',
+    ).toBe(true);
+  });
+
   it('the print version has no preview data or script', () => {
     const html = wordPageHtml(
       doc,

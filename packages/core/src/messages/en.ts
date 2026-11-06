@@ -1545,7 +1545,8 @@ export const en = {
   wordItalic: 'Italic',
   wordUnderline: 'Underline',
   wordAlign: 'Alignment',
-  wordUseOriginal: 'Use the original image here',
+  wordSwapOriginal: 'Use original',
+  wordSwapOriginalLines: 'Use original ({n} lines)',
   wordOriginalFailed: 'Couldn’t cut this part out of the original image.',
   wordHideKeyboard: 'Hide keyboard',
   wordDeleteTable: 'Delete table',
@@ -1743,6 +1744,7 @@ export type MessageTable = Record<StringKey, string>;
 
 /** 单数写法（isSingular 为真时用），只放带数量的文案；哪个参数决定单复数见 messages.ts 的 PLURAL_COUNT_VARIABLE。 */
 export const enSingular = {
+  wordSwapOriginalLines: 'Use original ({n} line)',
   describeSourceLimit: 'shows up to {n} entry',
   buildStoppedHint: 'Stopped. What’s done stays. {n} step left.',
   buildCheckProblems: 'Checked: {n} thing can’t be used yet.',

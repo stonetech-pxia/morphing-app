@@ -1614,7 +1614,8 @@ export const fr: MessageTable = {
   wordItalic: 'Italique',
   wordUnderline: 'Souligné',
   wordAlign: 'Alignement',
-  wordUseOriginal: 'Utiliser l’image d’origine ici',
+  wordSwapOriginal: 'Remettre l’original',
+  wordSwapOriginalLines: 'Remettre l’original ({n} lignes)',
   wordOriginalFailed: 'Impossible de découper cette partie de l’image d’origine.',
   wordHideKeyboard: 'Masquer le clavier',
   wordDeleteTable: 'Supprimer le tableau',
@@ -1812,6 +1813,7 @@ export const fr: MessageTable = {
 };
 
 export const frSingular: SingularTable = {
+  wordSwapOriginalLines: 'Remettre l’original ({n} ligne)',
   describeSourceLimit: 'affiche jusqu’à {n} entrée',
   buildStoppedHint: 'Arrêté. Ce qui est fait reste. Il reste {n} étape.',
   buildCheckProblems: 'Vérifié : {n} élément n’est pas encore utilisable.',

@@ -380,6 +380,9 @@ function wordPage() {
     /** 浏览器的 input 事件：交回整页。 */
     input: () => send({ type: 'doc', pages: window.__wordPages() }),
     state: (state: object) => send({ type: 'state', ...state }),
+    /** 原图小窗上的「换成原件」（D-469）。 */
+    swap: () => send({ type: 'swap' }),
+    window,
   };
 }
 
@@ -479,11 +482,13 @@ describe('Word 在桌上就是整页编辑器（D-465）', () => {
     files.imageSizes.set('runs/r1/page.jpg', { width: 2000, height: 2800 });
     await openOnDesk('doc', wordDoc(), files);
     const page = wordPage();
-    // 光标在表格里、没有落在段落上时没有这个按钮。
-    await page.state({ focus: true, cell: { ref: '0-3', i: 0 }, ref: null });
+    // 按钮在页面里的原图小窗上（D-469），不在格式栏里。
+    expect(screen.getByTestId('word-editor-page').props.source.html).toContain(
+      '"swap":{"one":"换成原件","lines":"换成原件（{n} 行）"}',
+    );
+    await page.state({ focus: true, cell: null, ref: '0-1', refs: ['0-1'] });
     expect(screen.queryByTestId('word-use-original')).toBeNull();
-    await page.state({ focus: true, cell: null, ref: '0-1' });
-    await fireEvent.press(screen.getByTestId('word-use-original'));
+    await page.swap();
     await waitFor(() =>
       expect(
         (screen.getByTestId('word-editor-page').props.source.html as string).includes(
@@ -525,7 +530,7 @@ describe('Word 在桌上就是整页编辑器（D-465）', () => {
     await openOnDesk('doc', wordDoc(), files);
     const page = wordPage();
     await page.state({ focus: true, cell: null, ref: '0-1', refs: ['0-1', '0-2'] });
-    await fireEvent.press(screen.getByTestId('word-use-original'));
+    await page.swap();
     await waitFor(() =>
       expect(screen.getByTestId('word-editor-page').props.source.html as string).toContain(
         'data-ref="0-1" data-kind="image"',
