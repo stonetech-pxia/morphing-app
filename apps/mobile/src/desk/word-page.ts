@@ -60,6 +60,18 @@ const ptPx = (pageWidth: number) => pageWidth / A4_WIDTH_PT;
 
 type Unit = 'px' | 'pt';
 
+/** 「换成原件」按钮的字和主题颜色（D-469）。 */
+export interface SwapButton {
+  one: string;
+  lines: string;
+  /** 主题色：小窗的边框、光标。 */
+  primary: string;
+  /** 按钮：浅色底、字、边框（同 renderer/ui 的 Pill）。 */
+  tint: string;
+  text: string;
+  border: string;
+}
+
 const escape = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -217,8 +229,11 @@ export function wordPageHtml(
   width: number,
   images: Readonly<Record<string, string>> = {},
   print = false,
-  /** 原图小窗上的「换成原件」按钮的字（D-469）；没有时不显示按钮。lines 里的 {n} 换成行数。 */
-  swap: { one: string; lines: string } | null = null,
+  /**
+   * 原图小窗上的「换成原件」按钮（D-469）：字（lines 里的 {n} 换成行数）和主题的颜色（和 App 里的 Pill 按钮一样，
+   * 小窗的边框、光标也用主题色）；没有时不显示按钮。
+   */
+  swap: SwapButton | null = null,
   /** 只能看（预览页，D-470）：同一个版面，不能改、没有脚本。 */
   readOnly = false,
 ): string {
@@ -336,7 +351,7 @@ ${common}
 <style>
 html,body{margin:0;background:transparent;-webkit-text-size-adjust:100%}
 body{padding:10px;font-family:-apple-system,"Helvetica Neue",Roboto,sans-serif;-webkit-user-select:text;user-select:text}
-.paper{background:#fff;color:${INK};border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.12);margin-bottom:24px;outline:none;line-height:1.3;word-wrap:break-word;caret-color:#0B8F7A}
+.paper{background:#fff;color:${INK};border-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,.12);margin-bottom:24px;outline:none;line-height:1.3;word-wrap:break-word;caret-color:${swap?.primary ?? '#0B8F7A'}}
 ${common}
 </style></head><body>${pages}
 ${readOnly ? '' : `<script>window.WORD=${config};${WORD_PAGE_SCRIPT}</script>`}</body></html>`;
@@ -586,7 +601,7 @@ export const WORD_PAGE_SCRIPT = String.raw`
   // 光标上方的小窗：显示原图里这一块（表格里是这一格）原来的样子（D-468）。直接用整页原图当背景，按位置截一块。
   var preview = null, shot = null, pill = null;
   var PREVIEW_MAX_H = 140;
-  var PILL_H = 28;
+  var PILL_H = 36;
   var PILL_GAP = 6;
   function hidePreview() {
     if (preview) preview.style.display = 'none';
@@ -602,13 +617,15 @@ export const WORD_PAGE_SCRIPT = String.raw`
     e.stopPropagation();
   }
   function makePreview() {
+    var W0 = window.WORD || {};
+    var S = W0.swap || { border: '#D9D9D9', tint: '#E6F4F1', text: '#0B6B5C' };
     preview = document.createElement('div');
     preview.id = 'word-original';
     preview.setAttribute('contenteditable', 'false');
     preview.style.cssText = 'position:absolute;z-index:10;pointer-events:none;-webkit-user-select:none;user-select:none';
     shot = document.createElement('div');
     shot.style.cssText =
-      'background-color:#fff;background-repeat:no-repeat;border:1.5px solid #0B8F7A;border-radius:6px;' +
+      'background-color:#fff;background-repeat:no-repeat;border:1.5px solid ' + ((W0.swap && W0.swap.primary) || '#0B8F7A') + ';border-radius:6px;' +
       'box-shadow:0 2px 8px rgba(0,0,0,.25);box-sizing:border-box';
     preview.appendChild(shot);
     // 「换成原件」在截图正下方、左右居中，不盖住截图（D-469；2026-11-06 三星：压在右下角挡住了原图的字），只有字那么宽。
@@ -616,9 +633,13 @@ export const WORD_PAGE_SCRIPT = String.raw`
     pill.id = 'word-original-swap';
     pill.setAttribute('role', 'button');
     pill.style.cssText =
-      'position:absolute;height:' + PILL_H + 'px;line-height:' + PILL_H + 'px;' +
-      'padding:0 12px;border-radius:999px;background:#0B8F7A;color:#fff;font:600 13px -apple-system,Roboto,sans-serif;' +
-      'white-space:nowrap;pointer-events:auto;box-shadow:0 1px 4px rgba(0,0,0,.25)';
+      // 和 App 里的 Pill 按钮一样（36 点高、两头圆、1 点边框、主题的浅色底和字色、粗体 13 号）；字用 flex 上下左右居中
+      // （2026-11-06 三星：按行高对齐时字偏上）。
+      'position:absolute;box-sizing:border-box;height:' + PILL_H + 'px;padding:0 14px;' +
+      'display:flex;align-items:center;justify-content:center;' +
+      'border-radius:999px;border:1px solid ' + S.border + ';background:' + S.tint + ';color:' + S.text + ';' +
+      'font:700 13px -apple-system,Roboto,sans-serif;line-height:1;' +
+      'white-space:nowrap;pointer-events:auto;box-shadow:0 1px 3px rgba(0,0,0,.15)';
     pill.addEventListener('touchstart', keep);
     pill.addEventListener('mousedown', keep);
     pill.addEventListener('touchend', swapNow);
@@ -670,7 +691,7 @@ export const WORD_PAGE_SCRIPT = String.raw`
     shot.style.backgroundSize = Math.round(page.w * s) + 'px auto';
     shot.style.backgroundPosition = -Math.round(x * s) + 'px ' + -Math.round(y * s) + 'px';
     var canSwap = !!W.swap && target.lines > 0;
-    pill.style.display = canSwap ? 'block' : 'none';
+    pill.style.display = canSwap ? 'flex' : 'none';
     if (canSwap) {
       pill.textContent = target.lines > 1 ? W.swap.lines.replace('{n}', String(target.lines)) : W.swap.one;
       pill.style.top = sh + PILL_GAP + 'px';

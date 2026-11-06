@@ -160,10 +160,14 @@ export function WordEditor({
         ? {
             one: t(locale, 'wordSwapOriginal'),
             lines: t(locale, 'wordSwapOriginalLines', { n: '{n}' }),
+            primary: palette.primary,
+            tint: palette.primaryTint,
+            text: palette.primaryText,
+            border: palette.border,
           }
         : null,
     );
-  }, [ready, shown, width, images, hasCrop, locale]);
+  }, [ready, shown, width, images, hasCrop, locale, palette]);
 
   // 最新的文档和回调（合回去时用；页面的消息、计时器拿到的是旧的闭包）。
   const latest = useRef({ doc, shown, onApply });

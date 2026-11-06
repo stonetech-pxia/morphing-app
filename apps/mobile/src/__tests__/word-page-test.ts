@@ -146,7 +146,14 @@ describe('the original above the cursor (D-468)', () => {
       WIDTH,
       { 'runs/r1/page.jpg': 'data:image/jpeg;base64,AAAA' },
       false,
-      { one: '换成原件', lines: '换成原件（{n} 行）' },
+      {
+        one: '换成原件',
+        lines: '换成原件（{n} 行）',
+        primary: '#C8582C',
+        tint: '#FBE9E1',
+        text: '#9A3F1B',
+        border: '#E6D9CF',
+      },
     );
     const dom = new JSDOM(html, { runScripts: 'dangerously' });
     const { document } = dom.window;
@@ -170,12 +177,17 @@ describe('the original above the cursor (D-468)', () => {
     const pill = () => document.getElementById('word-original-swap') as HTMLElement;
     select(document.querySelector('[data-ref="0-1"]')!.firstChild!);
     expect(document.getElementById('word-original')!.style.display).toBe('block');
-    expect(pill().style.display).toBe('block');
+    expect(pill().style.display).toBe('flex');
     expect(pill().textContent).toBe('换成原件');
     // 按钮在截图正下方、不压住截图（2026-11-06 三星：压在右下角挡住了原图的字）。
     const shot = document.getElementById('word-original')!.firstElementChild as HTMLElement;
     expect(parseFloat(pill().style.top)).toBeGreaterThan(parseFloat(shot.style.height));
     expect(pill().style.right).toBe('');
+    // 和 App 里的按钮一样用主题的颜色（2026-11-06 三星：主题是橙色，按钮却是写死的绿色），字上下左右居中。
+    expect(pill().style.background).toContain('rgb(251, 233, 225)');
+    expect(pill().style.color).toBe('rgb(154, 63, 27)');
+    expect(pill().style.alignItems).toBe('center');
+    expect(pill().style.justifyContent).toBe('center');
     // 选中两行。
     select(
       document.querySelector('[data-ref="0-1"]')!.firstChild!,

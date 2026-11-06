@@ -485,7 +485,7 @@ describe('Word 在桌上就是整页编辑器（D-465）', () => {
     const page = wordPage();
     // 按钮在页面里的原图小窗上（D-469），不在格式栏里。
     expect(screen.getByTestId('word-editor-page').props.source.html).toContain(
-      '"swap":{"one":"换成原件","lines":"换成原件（{n} 行）"}',
+      '"swap":{"one":"换成原件","lines":"换成原件（{n} 行）","primary":',
     );
     await page.state({ focus: true, cell: null, ref: '0-1', refs: ['0-1'] });
     expect(screen.queryByTestId('word-use-original')).toBeNull();
